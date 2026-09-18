@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -129,7 +130,7 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
                     .map(
                       (bookId) => AppMenuEntry(
                         value: bookId,
-                        label: bookId,
+                        label: parsePersonalNotesBookKey(bookId).title,
                       ),
                     )
                     .toList(),

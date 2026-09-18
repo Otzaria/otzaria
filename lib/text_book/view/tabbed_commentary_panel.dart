@@ -10,6 +10,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/utils/reader_build_policy.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -270,7 +271,9 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                   ),
                   // כרטיסיית ההערות האישיות
                   PersonalNotesSidebar(
-                    bookId: widget.notesBookIdOverride ?? state.book.title,
+                    bookId:
+                        widget.notesBookIdOverride ??
+                        personalNotesBookKey(state.book),
                     categoryId: widget.notesBookIdOverride == null
                         ? state.book.categoryId
                         : widget.notesCategoryIdOverride,

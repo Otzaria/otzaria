@@ -3633,7 +3633,7 @@ Future<void> _addNoteFromKeyboard(
   // טען טיוטה אם קיימת
   final draftService = PersonalNoteDraftService();
   final draft = await draftService.loadDraft(
-    bookId: state.book.title,
+    bookId: personalNotesBookKey(state.book),
     lineNumber: currentIndex + 1,
   );
 
@@ -3642,7 +3642,7 @@ Future<void> _addNoteFromKeyboard(
   // שלח event לפתיחת מצב יצירה בסיידבר
   context.read<PersonalNotesBloc>().add(
     StartCreatingPersonalNote(
-      bookId: state.book.title,
+      bookId: personalNotesBookKey(state.book),
       lineNumber: currentIndex + 1,
       referenceText: referenceText,
       selectedText: hasSelection ? trimmedSelection : null,

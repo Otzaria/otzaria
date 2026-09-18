@@ -2,11 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:otzaria/data/book_locator.dart';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/utils/file/document_converter.dart';
 
 typedef PersonalNotesLoader =
@@ -117,6 +121,10 @@ class PersonalNotesRepository {
   }
 
   Future<String> _loadBookContent(String bookId, {int? categoryId}) async {
+    final attached = parsePersonalNotesBookKey(bookId);
+    if (attached.source case final source?) {
+      return _loadAttachedBookContent(attached.title, source, categoryId);
+    }
     try {
       final location = await BookLocator.locateBook(
         bookId,
@@ -164,6 +172,45 @@ class PersonalNotesRepository {
       // לעיגון-לפי-עמוד ב-_reconcileLocation, ולכן אין rethrow. הלוג מבחין
       // כשל קריאה אמיתי ממצב ה-PDF הלגיטימי.
       debugPrint('[PersonalNotes] book content load failed for "$bookId": $e');
+      return '';
+    }
+  }
+
+  /// תוכן ספר ממסד מצורף — רק מאותו מסד, לעולם לא ספר רשמי באותה כותרת.
+  Future<String> _loadAttachedBookContent(
+    String title,
+    BookSource source,
+    int? categoryId,
+  ) async {
+    try {
+      final record = await BookDatabaseResolver.resolveBook(
+        title: title,
+        categoryId: categoryId,
+        preferSource: source,
+      );
+      if (record == null || record.source != source) return '';
+      final dbBook = record.book;
+      if (dbBook.isFileBacked) {
+        final path = dbBook.filePath;
+        if (path == null || !await File(path).exists()) return '';
+        return await readFileBackedBookText(
+              File(path),
+              dbBook.fileType,
+              title,
+            ) ??
+            '';
+      }
+      return await DatabaseLibraryProvider.instance.getBookText(
+            title,
+            dbBook.categoryId,
+            dbBook.fileType ?? 'txt',
+            preferSource: source,
+          ) ??
+          '';
+    } catch (e) {
+      debugPrint(
+        '[PersonalNotes] attached content load failed for "$title": $e',
+      );
       return '';
     }
   }

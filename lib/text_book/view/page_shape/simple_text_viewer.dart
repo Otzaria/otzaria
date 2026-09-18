@@ -1027,7 +1027,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         final state = context.read<TextBookBloc>().state;
         if (state is TextBookLoaded) {
           context.read<PersonalNotesBloc>().add(
-            LoadPersonalNotes(state.book.title),
+            LoadPersonalNotes(personalNotesBookKey(state.book)),
           );
         }
       });
@@ -1212,7 +1212,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final bookTitle = widget.bookTitle;
     if (widget.isMainText || bookTitle == null || bookTitle.isEmpty) return;
     final notes = await (widget.notesRepository ?? PersonalNotesRepository())
-        .loadNotes(bookTitle, categoryId: widget.reportBook?.categoryId);
+        .loadNotes(
+          _commentaryNotesKey(bookTitle),
+          categoryId: widget.reportBook?.categoryId,
+        );
     if (!mounted || widget.bookTitle != bookTitle) return;
     setState(() => _commentaryNotes = notes);
   }
@@ -2383,7 +2386,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     // טען טיוטה אם קיימת
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: state.book.title,
+      bookId: personalNotesBookKey(state.book),
       lineNumber: index + 1,
     );
 
@@ -2392,7 +2395,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     // שלח event לפתיחת מצב יצירה בסיידבר
     context.read<PersonalNotesBloc>().add(
       StartCreatingPersonalNote(
-        bookId: state.book.title,
+        bookId: personalNotesBookKey(state.book),
         lineNumber: index + 1,
         referenceText: referenceText,
         selectedText: selectedText?.trim(),
@@ -2418,6 +2421,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
   }
 
+  /// מפתח ההערות של ספר המפרש — לפי מקורו כשהספר המלא ידוע.
+  String _commentaryNotesKey(String bookTitle) {
+    final book = widget.reportBook;
+    return book != null && book.title == bookTitle
+        ? personalNotesBookKey(book)
+        : bookTitle;
+  }
+
   /// יצירת הערה על מפרש (בצורת הדף) — נשמרת תחת ספר המפרש עצמו.
   ///
   /// [bookTitle] - שם ספר המפרש (למשל "רש"י")
@@ -2431,12 +2442,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     String? selectedText,
     int? selectionColumn,
   }) async {
+    final notesKey = _commentaryNotesKey(bookTitle);
     final categoryId = widget.reportBook?.categoryId;
 
     // טען טיוטה קיימת (אם יש) כדי לתמוך בשחזור טקסט לא שמור — כמו במסלול הרגיל.
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: bookTitle,
+      bookId: notesKey,
       categoryId: categoryId,
       lineNumber: lineNumber,
     );
@@ -2449,7 +2461,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         title: 'הערה חדשה - $bookTitle',
         referenceText: referenceText,
         icon: FluentIcons.note_add_24_regular,
-        bookId: bookTitle,
+        bookId: notesKey,
         categoryId: categoryId,
         // draftLineNumber מאפשר לדיאלוג לשמור/לנקות טיוטה בעת סגירה.
         draftLineNumber: lineNumber,
@@ -2464,7 +2476,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     try {
       await saveCommentaryNoteToRepository(
         repository: widget.notesRepository ?? PersonalNotesRepository(),
-        bookId: bookTitle,
+        bookId: notesKey,
         lineNumber: lineNumber,
         result: result,
         selectedText: selectedText,
@@ -2714,7 +2726,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 builder: (context, notesState) {
                   final noteMap = <int, List<PersonalNote>>{};
                   final visibleNotes = widget.isMainText
-                      ? (notesState.bookId == state.book.title
+                      ? (notesState.bookId == personalNotesBookKey(state.book)
                             ? notesState.locatedNotes
                             : const <PersonalNote>[])
                       : _commentaryNotes;
@@ -3257,7 +3269,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                           if (openInSidebar != null &&
                               widget.bookTitle != null) {
                             openInSidebar(
-                              widget.bookTitle!,
+                              _commentaryNotesKey(widget.bookTitle!),
                               widget.reportBook?.categoryId,
                               primaryLineIndex + 1,
                             );

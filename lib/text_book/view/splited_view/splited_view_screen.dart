@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:multi_split_view/multi_split_view.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -349,7 +350,10 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
 
   void _openCommentaryPersonalNote(Link link, int lineNumber) {
     setState(() {
-      _notesBookIdOverride = utils.getTitleFromPath(link.path2);
+      _notesBookIdOverride = personalNotesBookKeyFor(
+        utils.getTitleFromPath(link.path2),
+        link.targetSource,
+      );
       _notesCategoryIdOverride = link.targetCategoryId;
       _notesFocusLineNumber = lineNumber;
       _paneOpen = true;

@@ -30,6 +30,7 @@ import 'package:otzaria/migration/models/alt_toc_structure.dart';
 import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -3208,11 +3209,23 @@ class PluginBridgeAdapter {
   // ----------------------------------------------------------------
   // notes.*
   // ----------------------------------------------------------------
+  /// מפתח ההערות מה-wire: `bookUid` נפתר לספר ולמפתח לפי מקורו (ספר ממסד
+  /// מצורף); אחרת `bookId` כמות שהוא, כמו מפתח שהוחזר מ-getBookNotesSummary.
+  Future<String?> _notesBookKey(Map<String, dynamic> args) async {
+    final bookUid = (args['bookUid'] as String?)?.trim();
+    if (bookUid != null && bookUid.isNotEmpty) {
+      _ensureBookIndex(await DataRepository.instance.library);
+      final book = _booksByUid[bookUid];
+      if (book != null) return personalNotesBookKey(book);
+    }
+    return args['bookId'] as String?;
+  }
+
   Future<dynamic> _handleNotes(String action, Map<String, dynamic> args) async {
     final repo = _dependencies.personalNotesRepository;
     switch (action) {
       case 'list':
-        final bookId = args['bookId'] as String?;
+        final bookId = await _notesBookKey(args);
         if (bookId == null) {
           throw Exception("error.invalid_params: bookId required");
         }
@@ -3239,7 +3252,7 @@ class PluginBridgeAdapter {
             )
             .toList();
       case 'add':
-        final bookId = args['bookId'] as String?;
+        final bookId = await _notesBookKey(args);
         final lineNumber = args['lineNumber'] as int?;
         final content = args['content'] as String?;
         if (bookId == null || lineNumber == null || content == null) {
@@ -3254,7 +3267,7 @@ class PluginBridgeAdapter {
         );
         return true;
       case 'update':
-        final bookId = args['bookId'] as String?;
+        final bookId = await _notesBookKey(args);
         final noteId = args['noteId'] as String?;
         final content = args['content'] as String?;
         if (bookId == null || noteId == null || content == null) {
@@ -3269,7 +3282,7 @@ class PluginBridgeAdapter {
         );
         return true;
       case 'delete':
-        final bookId = args['bookId'] as String?;
+        final bookId = await _notesBookKey(args);
         final noteId = args['noteId'] as String?;
         if (bookId == null || noteId == null) {
           throw Exception("error.invalid_params: Missing arguments");

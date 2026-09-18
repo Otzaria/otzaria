@@ -53,6 +53,7 @@ import 'package:otzaria/pdf_book/view/pdf_external_matches_bar.dart';
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -5631,7 +5632,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: widget.tab.book.title,
+      bookId: personalNotesBookKey(widget.tab.book),
       lineNumber: anchorLine,
     );
 
@@ -5639,7 +5640,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     notesBloc.add(
       StartCreatingPersonalNote(
-        bookId: widget.tab.book.title,
+        bookId: personalNotesBookKey(widget.tab.book),
         lineNumber: anchorLine,
         referenceText: 'עמוד $currentPage',
         initialContent: draft?.content ?? '',

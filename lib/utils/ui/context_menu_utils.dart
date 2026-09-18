@@ -268,9 +268,10 @@ class ContextMenuUtils {
     final referenceText = selectedText?.isNotEmpty == true
         ? utils.removeVolwels(selectedText!)
         : utils.stripHtmlIfNeeded(rawContent);
+    final notesKey = personalNotesBookKeyFor(bookTitle, link.targetSource);
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: bookTitle,
+      bookId: notesKey,
       categoryId: link.targetCategoryId,
       lineNumber: link.index2,
     );
@@ -282,7 +283,7 @@ class ContextMenuUtils {
         title: 'הערה חדשה - $bookTitle',
         referenceText: referenceText,
         icon: FluentIcons.note_add_24_regular,
-        bookId: bookTitle,
+        bookId: notesKey,
         categoryId: link.targetCategoryId,
         draftLineNumber: link.index2,
         initialContent: draft?.content ?? '',
@@ -294,7 +295,7 @@ class ContextMenuUtils {
 
     try {
       await PersonalNotesRepository().addNote(
-        bookId: bookTitle,
+        bookId: notesKey,
         lineNumber: link.index2,
         content: result.content,
         contentPlain: result.contentPlain,

@@ -33,6 +33,7 @@ import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
@@ -1740,7 +1741,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   Widget _buildNotesView() {
-    final bookId = widget.tab.book.title;
+    final bookId = personalNotesBookKey(widget.tab.book);
 
     return PersonalNotesSidebar(
       key: ValueKey(bookId),

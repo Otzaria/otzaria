@@ -16,6 +16,7 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
+import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -418,6 +419,28 @@ void main() {
     final path = fullAttached('כתיבה');
     final error = await _tryWriteInIsolate(path);
     expect(error, contains('readonly'));
+  });
+
+  test('personal notes of an attached book anchor to its own text', () async {
+    addTearDown(PersonalNotesDatabase.instance.close);
+    final library = await attach(fullAttached('notes'));
+    final book = await attachedBook(library, SeforimFixtureIds.bereshitTitle);
+    final key = personalNotesBookKey(book);
+    expect(key, '${book.title}|db:${library.slug}');
+
+    final repository = PersonalNotesRepository();
+    Future<PersonalNote> add(String bookId) async => (await repository.addNote(
+      bookId: bookId,
+      lineNumber: 2,
+      content: 'x',
+      contentPlain: 'x',
+      contentFormat: PersonalNoteContentFormat.plain,
+      categoryId: book.categoryId,
+    )).single;
+
+    expect((await add(key)).displayTitle, contains('notes'));
+    expect((await add(book.title)).displayTitle, isNot(contains('notes')));
+    expect(await repository.loadNotes(key), hasLength(1));
   });
 
   test('plugin ref resolver reads line_ref from the attached DB', () async {

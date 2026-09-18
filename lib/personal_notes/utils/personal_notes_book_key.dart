@@ -1,3 +1,4 @@
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
@@ -28,3 +29,29 @@ String personalNotesBookKeyFor(String title, BookSource source) =>
   }
   return (title: key, source: null);
 }
+
+/// הספר בקטלוג שאליו שייך מפתח ההערות [key]. מפתח בלי סיומת מצורף אינו
+/// נפתר לעולם לספר ממסד מצורף בכותרת זהה.
+Book? findBookForPersonalNotesKey(Library library, String key) {
+  final text = findTextBookForPersonalNotesKey(library, key);
+  if (text != null) return text;
+  final parsed = parsePersonalNotesBookKey(key);
+  return _candidates(library, parsed.title, parsed.source).firstOrNull;
+}
+
+/// כמו [findBookForPersonalNotesKey], רק ספר שנפתח בקורא הטקסט.
+TextBook? findTextBookForPersonalNotesKey(Library library, String key) {
+  final parsed = parsePersonalNotesBookKey(key);
+  final candidates = _candidates(library, parsed.title, parsed.source);
+  final direct = candidates.where((b) => b.runtimeType == TextBook).firstOrNull;
+  if (direct is TextBook) return direct;
+  final document = candidates.whereType<ConvertibleDocumentBook>().firstOrNull;
+  return document?.toTextBook();
+}
+
+Iterable<Book> _candidates(Library library, String title, BookSource? source) =>
+    library.getAllBooks().where(
+      (b) =>
+          b.title == title &&
+          (source == null ? !b.source.isAttached : b.source == source),
+    );

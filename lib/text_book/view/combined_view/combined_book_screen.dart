@@ -805,7 +805,7 @@ class _CombinedViewState extends State<CombinedView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<PersonalNotesBloc>().add(
-        LoadPersonalNotes(widget.tab.book.title),
+        LoadPersonalNotes(personalNotesBookKey(widget.tab.book)),
       );
     });
 
@@ -903,9 +903,10 @@ class _CombinedViewState extends State<CombinedView> {
         _handleExternalSelectionChange,
       );
     }
-    if (oldWidget.tab.book.title != widget.tab.book.title) {
+    if (personalNotesBookKey(oldWidget.tab.book) !=
+        personalNotesBookKey(widget.tab.book)) {
       context.read<PersonalNotesBloc>().add(
-        LoadPersonalNotes(widget.tab.book.title),
+        LoadPersonalNotes(personalNotesBookKey(widget.tab.book)),
       );
     }
     if (!sameSourceIdentity(oldWidget.tab.book, widget.tab.book)) {
@@ -1869,7 +1870,7 @@ class _CombinedViewState extends State<CombinedView> {
     // טען טיוטה אם קיימת
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: widget.tab.book.title,
+      bookId: personalNotesBookKey(widget.tab.book),
       lineNumber: currentIndex + 1,
     );
 
@@ -1878,7 +1879,7 @@ class _CombinedViewState extends State<CombinedView> {
     // שלח event לפתיחת מצב יצירה בסיידבר
     context.read<PersonalNotesBloc>().add(
       StartCreatingPersonalNote(
-        bookId: widget.tab.book.title,
+        bookId: personalNotesBookKey(widget.tab.book),
         lineNumber: currentIndex + 1,
         referenceText: referenceText,
         selectedText: selectedText?.trim(),
@@ -1898,7 +1899,7 @@ class _CombinedViewState extends State<CombinedView> {
     _addTextBookEventIfOpen(HighlightLine(lineIndex));
     openPersonalNotesTarget(
       context.read<PersonalNotesBloc>(),
-      bookId: widget.tab.book.title,
+      bookId: personalNotesBookKey(widget.tab.book),
       categoryId: widget.tab.book.categoryId,
       lineNumber: lineIndex + 1,
     );
@@ -2197,7 +2198,9 @@ class _CombinedViewState extends State<CombinedView> {
                                             final noteMap =
                                                 <int, List<PersonalNote>>{};
                                             if (notesState.bookId ==
-                                                state.book.title) {
+                                                personalNotesBookKey(
+                                                  state.book,
+                                                )) {
                                               for (final note
                                                   in notesState.locatedNotes) {
                                                 final line = note.lineNumber;

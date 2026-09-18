@@ -26,11 +26,11 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor_dialog.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_export_dialog.dart';
 import 'package:otzaria/personal_notes/utils/note_location_ref.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
@@ -497,7 +497,7 @@ class _PersonalNotesManagerScreenState
       final library = context.read<LibraryBloc>().state.library;
       final book = library == null
           ? null
-          : HtmlLinkHandler.resolveBookLinkTarget(library, bookId);
+          : findTextBookForPersonalNotesKey(library, bookId);
       if (book is! TextBook) return Future.value(null);
       return book.tableOfContents;
     });
@@ -614,7 +614,7 @@ class _PersonalNotesManagerScreenState
         refByNoteId[note.id] = personalNoteLocationRef(
           note,
           isPdf: false,
-          bookTitle: entry.key,
+          bookTitle: parsePersonalNotesBookKey(entry.key).title,
           tableOfContents: toc,
           includeBookTitle: false,
         );
@@ -775,10 +775,11 @@ class _PersonalNotesManagerScreenState
     // איחוד ספרים כפולים לפי כותרת (טקסט + PDF של אותו ספר).
     final seenTitles = <String>{};
     for (final book in category.books) {
-      if (seenTitles.contains(book.title)) continue;
-      final count = _getNotesCountForBook(book.title);
+      final key = personalNotesBookKey(book);
+      if (seenTitles.contains(key)) continue;
+      final count = _getNotesCountForBook(key);
       if (count <= 0) continue;
-      seenTitles.add(book.title);
+      seenTitles.add(key);
       rows.add(_NotesNavRow.book(book, level + 1, count));
     }
   }
@@ -863,9 +864,10 @@ class _PersonalNotesManagerScreenState
     // when the same book exists in both PDF and text formats
     final seenTitles = <String>{};
     for (final book in category.books) {
-      if (!seenTitles.contains(book.title)) {
-        count += _getNotesCountForBook(book.title);
-        seenTitles.add(book.title);
+      final key = personalNotesBookKey(book);
+      if (!seenTitles.contains(key)) {
+        count += _getNotesCountForBook(key);
+        seenTitles.add(key);
       }
     }
 
@@ -940,14 +942,15 @@ class _PersonalNotesManagerScreenState
       return const SizedBox.shrink();
     }
 
-    final isSelected = _selectedFilter == book.title;
+    final key = personalNotesBookKey(book);
+    final isSelected = _selectedFilter == key;
 
     return NavTreeTile.book(
       title: book.title,
       level: level,
       isSelected: isSelected,
       count: count > 0 ? count : null,
-      onTap: () => _onFilterChanged(book.title),
+      onTap: () => _onFilterChanged(key),
     );
   }
 
@@ -956,7 +959,7 @@ class _PersonalNotesManagerScreenState
 
     void collectBooks(Category cat) {
       for (final book in cat.books) {
-        bookTitles.add(book.title);
+        bookTitles.add(personalNotesBookKey(book));
       }
       for (final subCat in cat.subCategories) {
         collectBooks(subCat);
@@ -1111,7 +1114,7 @@ class _PersonalNotesManagerScreenState
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        group.bookId,
+                        parsePersonalNotesBookKey(group.bookId).title,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).colorScheme.primary,
@@ -1217,7 +1220,7 @@ class _PersonalNotesManagerScreenState
         : personalNoteLocationRef(
             note,
             isPdf: false,
-            bookTitle: note.bookId,
+            bookTitle: parsePersonalNotesBookKey(note.bookId).title,
             tableOfContents: tableOfContents,
             includeBookTitle: false,
           );
@@ -1443,11 +1446,13 @@ class _PersonalNotesManagerScreenState
       return;
     }
 
-    final book =
-        HtmlLinkHandler.resolveBookLinkTarget(library, note.bookId) ??
-        library.findBookByTitle(note.bookId, null);
+    final book = findBookForPersonalNotesKey(library, note.bookId);
     if (book == null) {
-      UiSnack.show(NotesMessages.bookNotFound(note.bookId));
+      UiSnack.show(
+        NotesMessages.bookNotFound(
+          parsePersonalNotesBookKey(note.bookId).title,
+        ),
+      );
       return;
     }
 

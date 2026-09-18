@@ -16,6 +16,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/serial_latest_runner.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
@@ -1596,8 +1597,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
     try {
       final repo = PersonalNotesRepository();
+      final book = widget.book;
       final all = await repo.loadNotes(
-        bookId,
+        book != null ? personalNotesBookKey(book) : bookId,
         categoryId: widget.book?.categoryId,
       );
       final located = all.where((n) => n.hasLocation).toList();
