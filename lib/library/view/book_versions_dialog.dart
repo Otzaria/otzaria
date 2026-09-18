@@ -19,11 +19,15 @@ Future<List<BookVersionInfo>> loadBookVersions(Book book) async {
     return DatabaseLibraryProvider.instance.getUserBookVersions(book);
   }
   if (!book.isOfficialLibraryBook && !book.source.isAttached) return const [];
-  return DatabaseLibraryProvider.instance.getBookVersions(
-    book.title,
-    book.categoryId ?? -1,
-    source: book.source,
-  );
+  final provider = DatabaseLibraryProvider.instance;
+  return [
+    ...await provider.getBookVersions(
+      book.title,
+      book.categoryId ?? -1,
+      source: book.source,
+    ),
+    ...provider.getPersonalVersionsOf(book),
+  ];
 }
 
 /// מחליף את שאילתת המהדורות בבדיקות widget שאין להן seforim.db.
@@ -39,7 +43,11 @@ List<BookVersionInfo> selectableVersionsFor(
 ) {
   if (currentVersionTitle == null) return versions;
   return versions
-      .where((version) => version.versionTitle != currentVersionTitle)
+      .where(
+        (version) =>
+            version.separateBook != null ||
+            version.versionTitle != currentVersionTitle,
+      )
       .toList();
 }
 
@@ -134,7 +142,11 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
                 final book = widget.book;
                 final selectable = book.isUserBook
                     ? versions
-                          .where((v) => v.separateBook?.id != book.id)
+                          .where(
+                            (v) =>
+                                v.separateBook?.source != book.source ||
+                                v.separateBook?.id != book.id,
+                          )
                           .toList()
                     : selectableVersionsFor(
                         versions,
@@ -151,7 +163,9 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
                   itemBuilder: (context, index) => BookVersionTile(
                     book: widget.book,
                     version: selectable[index],
-                    isOnlyVersion: versions.length == 1,
+                    isOnlyVersion:
+                        versions.where((v) => v.separateBook == null).length ==
+                        1,
                     onSelected: widget.onVersionSelected,
                   ),
                 );

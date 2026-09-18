@@ -2747,7 +2747,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   /// פותח את רשימת הנוסחאות של הספר; הנוסח שייבחר נפתח בכרטיסייה חדשה סמוכה,
   /// בשורה שמוצגת כרגע.
   void _showBookVersions(BuildContext context, TextBookLoaded state) {
-    // גרסת ספר אישי היא קובץ אחר, שמספור השורות בו אינו תואם.
+    // גרסה אישית היא קובץ אחר, שמספור השורות בו אינו תואם.
     if (state.book.isUserBook) {
       showBookVersionsDialog(
         context,
@@ -2765,17 +2765,19 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       state.book,
       title: 'נוסחאות נוספות — ${state.book.title}',
       hint: 'הנוסח שייבחר ייפתח בכרטיסייה חדשה, באותו מיקום.',
-      onVersionSelected: (target) => openBook(
-        context,
-        target,
-        lineIndex,
-        '',
-        // המיקום נלקח מהשורה הנראית ולא מהיסטוריית הקריאה של אותו נוסח, וכרטיסייה
-        // פתוחה שלו נגללת אליו במקום רק לקבל מיקוד.
-        ignoreHistory: true,
-        insertAdjacent: true,
-        navigateToPositionIfReused: true,
-      ),
+      onVersionSelected: (target) => target.source != state.book.source
+          ? openBook(context, target, 0, '', insertAdjacent: true)
+          : openBook(
+              context,
+              target,
+              lineIndex,
+              '',
+              // המיקום נלקח מהשורה הנראית ולא מהיסטוריית הקריאה של אותו נוסח, וכרטיסייה
+              // פתוחה שלו נגללת אליו במקום רק לקבל מיקוד.
+              ignoreHistory: true,
+              insertAdjacent: true,
+              navigateToPositionIfReused: true,
+            ),
     );
   }
 
