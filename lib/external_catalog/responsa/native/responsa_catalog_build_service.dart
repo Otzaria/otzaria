@@ -139,21 +139,44 @@ class ResponsaCatalogBuildService {
     bool cancelled() => flag.value != 0;
 
     try {
-      final live = ResponsaWin32.topWindowsByClass('ResponsaProject');
-      if (live.isEmpty) {
+      // ההתקנה נבחרת **לפני** המופע, והמופע נבחר כדי להתאים לה.
+      // יכולים לרוץ כמה מופעים, ולכל אחד יכול להיות אתר נתונים אחר:
+      // בנייה ממופע אחד שתויגה בטביעת אצבע של התקנה אחרת מתארת מאגר
+      // שאינו קיים. זה קרה בפועל — קטלוג בן 2,179 ספרים במקום 8,523.
+      final installations = ResponsaInstallationDiscovery.discover()
+          .where((i) => i.exists)
+          .toList();
+      if (installations.isEmpty) {
         send.send(
           const ResponsaBuildProgress(
             stage: ResponsaBuildStage.failed,
-            error: 'פרויקט השו"ת אינו פעיל. יש לפתוח אותו ולנסות שוב.',
+            error: 'לא נמצאה התקנה של פרויקט השו"ת.',
           ),
         );
         return;
       }
+      final installation = installations.first;
 
-      final instance = live.first;
-      final version = ResponsaInstallationDiscovery.versionFromWindowTitle(
-        ResponsaWin32.windowText(instance.hwnd),
+      final matching = ResponsaInstallationDiscovery.instancesOf(
+        installation.installPath,
       );
+      if (matching.isEmpty) {
+        send.send(
+          ResponsaBuildProgress(
+            stage: ResponsaBuildStage.failed,
+            error:
+                'פרויקט השו"ת (${installation.displayName}) אינו פעיל. '
+                'יש לפתוח אותו ולנסות שוב.',
+          ),
+        );
+        return;
+      }
+      final instance = matching.first;
+      final version =
+          ResponsaInstallationDiscovery.versionFromWindowTitle(
+            ResponsaWin32.windowText(instance.hwnd),
+          ) ??
+          installation.version;
       final automation = ResponsaAutomation(
         pid: instance.pid,
         profile: ResponsaVersionProfile.forVersion(version),
@@ -209,16 +232,9 @@ class ResponsaCatalogBuildService {
         ),
       );
 
-      final installations = ResponsaInstallationDiscovery.discover()
-          .where((i) => i.exists)
-          .toList();
-      final fingerprint = installations.isEmpty
-          ? ResponsaFingerprint(version: version, installPath: '')
-          : ResponsaInstallationDiscovery.fingerprint(installations.first);
-
       final result = ResponsaCatalogBuilder.build(
         nodes: nodes,
-        fingerprint: fingerprint,
+        fingerprint: ResponsaInstallationDiscovery.fingerprint(installation),
         targetPath: request.targetPath,
       );
       send.send(

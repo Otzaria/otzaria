@@ -274,6 +274,36 @@ class ResponsaWin32 {
 
   // -------------------------------------------------------------- MDI
 
+  /// נתיב קובץ ההרצה של תהליך.
+  ///
+  /// `QueryFullProcessImageName` ולא הרצת `powershell`: זו קריאה אחת
+  /// במקום יצירת תהליך, והיא נקראת פעם אחת לכל מופע בכל פתיחת ספר.
+  /// יצירת תהליך בלולאה היא בדיוק מה שהופך פעולה של שנייה לפעולה של
+  /// שבע במכונה עמוסה.
+  static String? processImagePath(int pid) {
+    final handle = OpenProcess(
+      const PROCESS_ACCESS_RIGHTS(0x1000), // PROCESS_QUERY_LIMITED_INFORMATION
+      false,
+      pid,
+    ).value;
+    if (handle.address == 0) return null;
+    final size = calloc<Uint32>()..value = 1024;
+    final buffer = wsalloc(1024);
+    try {
+      final ok = QueryFullProcessImageName(
+        handle,
+        const PROCESS_NAME_FORMAT(0),
+        buffer,
+        size,
+      );
+      return ok.value ? buffer.toDartString() : null;
+    } finally {
+      calloc.free(size);
+      free(buffer);
+      CloseHandle(handle);
+    }
+  }
+
   static int? mdiClient(int mainWindow) {
     for (final child in children(mainWindow)) {
       if (className(child) == 'MDIClient') return child;

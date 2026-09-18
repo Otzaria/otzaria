@@ -236,6 +236,24 @@ class ResponsaInstallationDiscovery {
     return found;
   }
 
+  /// המופעים הרצים ששייכים להתקנה נתונה, כזוגות `(hwnd, pid)`.
+  ///
+  /// ההשוואה היא לפי נתיב קובץ ההרצה. מופע ששייך להתקנה אחרת עלול
+  /// להציג קטלוג אחר לגמרי.
+  static List<({int hwnd, int pid})> instancesOf(String installPath) {
+    final wanted = installPath.toLowerCase().replaceAll(RegExp(r'[\\/]+$'), '');
+    return [
+      for (final instance in ResponsaWin32.topWindowsByClass('ResponsaProject'))
+        if (executableOf(instance.pid) case final executable?)
+          if (path
+                  .dirname(executable)
+                  .toLowerCase()
+                  .replaceAll(RegExp(r'[\\/]+$'), '') ==
+              wanted)
+            instance,
+    ];
+  }
+
   /// מופע שכבר רץ. מגלה גם התקנה שאינה רשומה ואינה תחת `Program Files`,
   /// ומוסר את הגרסה מכותרת החלון של התוכנה עצמה.
   static List<ResponsaInstallation> _fromRunningProcesses() {
@@ -256,20 +274,14 @@ class ResponsaInstallationDiscovery {
     return found;
   }
 
-  static String? _executableOf(int pid) {
-    try {
-      final result = Process.runSync('powershell', [
-        '-NoProfile',
-        '-Command',
-        '(Get-Process -Id $pid -ErrorAction SilentlyContinue).Path',
-      ], stdoutEncoding: systemEncoding);
-      final value = (result.stdout as String).trim();
-      return value.isEmpty ? null : value;
-    } catch (e) {
-      debugPrint('ResponsaInstallationDiscovery: cannot resolve exe: $e');
-      return null;
-    }
-  }
+  /// נתיב קובץ ההרצה של מופע רץ.
+  ///
+  /// נדרש כדי לקשור מופע להתקנה: יכולים לרוץ כמה מופעים, ולכל אחד יכול
+  /// להיות אתר נתונים אחר. קטלוג שנבנה ממופע אחד ותויג בטביעת אצבע של
+  /// התקנה אחרת מתאר מאגר שאינו קיים.
+  static String? executableOf(int pid) => _executableOf(pid);
+
+  static String? _executableOf(int pid) => ResponsaWin32.processImagePath(pid);
 
   // ------------------------------------------------------- טביעת אצבע
 

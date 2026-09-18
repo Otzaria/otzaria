@@ -234,7 +234,16 @@ class ResponsaController {
   static Future<ResponsaOpenReport> _openBookInIsolate(
     _OpenRequest request,
   ) async {
-    final live = ResponsaWin32.topWindowsByClass('ResponsaProject');
+    // המופעים של **ההתקנה שממנה נבנה הקטלוג** בלבד. מופע של התקנה אחרת
+    // יכול להציג מאגר אחר, ולפתוח ספר שאינו זה שהמשתמש ביקש.
+    final installations = ResponsaInstallationDiscovery.discover()
+        .where((i) => i.exists)
+        .toList();
+    final live = installations.isEmpty
+        ? ResponsaWin32.topWindowsByClass('ResponsaProject')
+        : ResponsaInstallationDiscovery.instancesOf(
+            installations.first.installPath,
+          );
     if (live.isEmpty) {
       return const ResponsaOpenReport(
         ok: false,
@@ -243,8 +252,8 @@ class ResponsaController {
       );
     }
 
-    // המופע הפנוי ביותר: אין single-instance, ומופע שצבר חלונות רבים
-    // מפסיק לפתוח חדשים.
+    // מבין אלה — הפנוי ביותר: אין single-instance, ומופע שצבר חלונות
+    // רבים מפסיק לפתוח חדשים.
     live.sort(
       (a, b) => ResponsaWin32.mdiTitles(a.hwnd).length.compareTo(
         ResponsaWin32.mdiTitles(b.hwnd).length,
