@@ -7,6 +7,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
+import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/migration/models/toc_entry.dart';
 import 'package:otzaria/utils/file/text_encoding.dart';
 import 'package:otzaria/utils/file/document_format.dart';
@@ -14,10 +15,10 @@ import 'package:otzaria/utils/file/document_format.dart';
 /// יעד סריקה יחיד עבור ה-isolate: נתיב DB ומזהי הספרים שבתוכו.
 /// מכיל ערכים ניתנים-להעברה בלבד, כדי שיוכל לחצות את גבול ה-isolate.
 class _ScanTarget {
-  final String dbPath;
+  final ReadOnlyDbTarget db;
   final List<int> bookIds;
 
-  const _ScanTarget(this.dbPath, this.bookIds);
+  const _ScanTarget(this.db, this.bookIds);
 }
 
 class SearchResult {
@@ -253,7 +254,7 @@ class GimatriaSearch {
 
     // פתרון הספרים נשען על ה-singletons של הספרייה ולכן חייב לרוץ כאן;
     // ל-isolate מועברים רק נתיבי DB ומזהי ספרים.
-    final bookIdsByDbPath = <String, List<int>>{};
+    final bookIdsByDbPath = <ReadOnlyDbTarget, List<int>>{};
     if (bookTitles != null && bookTitles.isNotEmpty) {
       for (final title in bookTitles) {
         final resolvedBook = await BookDatabaseResolver.resolveBook(
@@ -262,7 +263,7 @@ class GimatriaSearch {
         if (resolvedBook != null) {
           bookIdsByDbPath
               .putIfAbsent(
-                resolvedBook.repository.database.path,
+                resolvedBook.repository.database.readOnlyTarget,
                 () => <int>[],
               )
               .add(resolvedBook.book.id);
@@ -272,7 +273,7 @@ class GimatriaSearch {
       // ⚠️ ללא bookTitles - סריקת כל הספרים בספרייה (כבד מאוד!).
       // המסך אמור תמיד להעביר bookTitles כדי לתחום לתנ"ך.
       final allBooks = await repository.getAllBooks();
-      bookIdsByDbPath[repository.database.path] = allBooks
+      bookIdsByDbPath[repository.database.readOnlyTarget] = allBooks
           .map((b) => b.id)
           .toList();
     }
@@ -346,7 +347,9 @@ class GimatriaSearch {
     final List<SearchResult> found = [];
 
     for (final target in targets) {
-      final database = MyDatabase.withPath(target.dbPath, readOnly: true);
+      final database = target.db.untrusted
+          ? MyDatabase.untrusted(target.db.path, immutable: target.db.immutable)
+          : MyDatabase.withPath(target.db.path, readOnly: true);
       final searchRepository = SeforimRepository(database);
 
       try {

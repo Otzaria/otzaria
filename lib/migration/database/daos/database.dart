@@ -43,6 +43,10 @@ class MyDatabase {
   /// האם החיבור נפתח במצב read-only.
   bool get isReadOnly => _readOnly;
 
+  /// היעד לפתיחת אותו קובץ ב-isolate אחר, באותה רמת הקשחה.
+  ReadOnlyDbTarget get readOnlyTarget =>
+      (path: _path, untrusted: _untrusted, immutable: _immutable);
+
   /// האם המסד אינו בשליטת התוכנה (מסד ספרים מצורף).
   bool get isUntrusted => _untrusted;
 
@@ -198,6 +202,7 @@ class MyDatabase {
 
   Future<sqlite3.Database> get database async {
     if (_database != null) return _database!;
+    if (_retired) throw StateError('Database $_path was released');
     // Initialize QueryLoader before creating DAOs
     await QueryLoader.initialize();
     _database = _initDatabase();
@@ -308,6 +313,15 @@ class MyDatabase {
     ''');
     db.execute('DROP TABLE user_link');
     db.execute('ALTER TABLE user_link_new RENAME TO user_link');
+  }
+
+  bool _retired = false;
+
+  /// סוגר לצמיתות: גישה נוספת זורקת במקום לפתוח את הקובץ מחדש — מאגר
+  /// שמוחזק אחרי "שחרר קובץ" לא ינעל אותו שוב מאחורי גב ה-registry.
+  void retire() {
+    close();
+    _retired = true;
   }
 
   void close() {

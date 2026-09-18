@@ -120,7 +120,9 @@ class AttachedLibrariesRepository {
       await Directory(tempDirectory).create(recursive: true);
       await _copyWithSideFiles(sourcePath, temp);
       // העותק שלנו: מותר להחיל עליו יומן תלוי ולהעבירו ל-DELETE.
-      await Isolate.run(() => normalizeJournalModeForReadOnly(temp));
+      await Isolate.run(
+        () => normalizeJournalModeForReadOnly(temp, untrusted: true),
+      );
     } catch (e) {
       debugPrint('[AttachedLibraries] copy of $sourcePath failed: $e');
       await _deleteDirectory(tempDirectory);

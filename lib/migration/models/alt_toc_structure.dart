@@ -22,13 +22,17 @@ class AltTocStructure extends Equatable {
     this.source = BookSource.official,
   });
 
-  factory AltTocStructure.fromJson(Map<String, dynamic> json) {
+  factory AltTocStructure.fromJson(
+    Map<String, dynamic> json, {
+    BookSource source = BookSource.official,
+  }) {
     return AltTocStructure(
       id: json['id'] as int,
       bookId: json['bookId'] as int,
       key: json['key'] as String,
       title: json['title'] as String?,
       heTitle: json['heTitle'] as String?,
+      source: source,
     );
   }
 

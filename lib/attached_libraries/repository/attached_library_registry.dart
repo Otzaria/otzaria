@@ -103,7 +103,7 @@ class AttachedLibraryRegistry {
       await database.capabilities;
     } catch (e) {
       debugPrint('[AttachedLibraryRegistry] open ${library.slug} failed: $e');
-      database.close();
+      database.retire();
       return null;
     }
     _closeEntry(library.slug);
@@ -159,7 +159,7 @@ class AttachedLibraryRegistry {
 
   void _closeEntry(String slug) {
     final entry = _open.remove(slug);
-    entry?.repository.database.close();
+    entry?.repository.database.retire();
   }
 
   static List<AttachedLibrary> _sorted(List<AttachedLibrary> libraries) =>

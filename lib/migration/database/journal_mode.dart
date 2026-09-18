@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show sqlite3;
+import 'package:otzaria/migration/database/untrusted_database.dart';
 
 const List<int> _sqliteMagic = [
   0x53, 0x51, 0x4C, 0x69, 0x74, 0x65, 0x20, 0x66, // "SQLite f"
@@ -40,7 +41,13 @@ bool hasPendingJournalSync(String dbPath) {
 
 /// מעביר את [dbPath] ליומן DELETE ומחיל יומן חם, כדי שייפתח read-only בלי
 /// קובצי-צד. פותח חיבור כתיבה — רק לקובץ שבבעלות התוכנה. נכשל בשקט.
-Future<void> normalizeJournalModeForReadOnly(String dbPath) async {
+///
+/// [untrusted] — קובץ שמקורו מחוץ לתוכנה (עותק של מסד מצורף): החיבור מוקשח
+/// לפני הגישה הראשונה, שמריצה את ה-rollback.
+Future<void> normalizeJournalModeForReadOnly(
+  String dbPath, {
+  bool untrusted = false,
+}) async {
   try {
     final file = File(dbPath);
     if (!await file.exists()) return;
@@ -63,6 +70,7 @@ Future<void> normalizeJournalModeForReadOnly(String dbPath) async {
     // הגישה הראשונה בחיבור כתיבה מריצה את ה-rollback של יומן חם.
     final db = sqlite3.open(dbPath);
     try {
+      if (untrusted) hardenUntrustedConnection(db);
       try {
         db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
       } catch (_) {}

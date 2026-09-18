@@ -88,7 +88,12 @@ class SeforimRepository {
     // cache_size שלילי = קילובייטים (חיובי = עמודים!). חיבור הקריאה נשאר פתוח
     // לכל אורך הריצה, ולכן מטמון ה-heap שלו תורם ישירות לצריכת ה-RAM במצב סרק.
     // 50MB מספיק; ה-OS file cache וה-mmap מכסים את רוב הקריאות ממילא.
-    await _executeRawQuery('PRAGMA cache_size=-50000'); // 50MB
+    // מסד מצורף: כמה כאלה פתוחים במקביל, ומטמון גדול לכל אחד מצטבר ל-RAM.
+    await _executeRawQuery(
+      _database.isUntrusted
+          ? 'PRAGMA cache_size=-8000' // 8MB
+          : 'PRAGMA cache_size=-50000', // 50MB
+    );
     await _executeRawQuery('PRAGMA temp_store=MEMORY');
     // מסד מצורף: mmap כבוי בכוונה — ראה openUntrustedReadOnlyDatabase.
     if (!_database.isUntrusted) {
@@ -246,11 +251,17 @@ class SeforimRepository {
   /// [restoreReadCacheDefaults] בסיום כדי לחזור לפרופיל הסרק החסכוני.
   Future<void> setReadBoostMode() async {
     await _executeRawQuery('PRAGMA cache_size=-200000'); // 200MB (שלילי=ק"ב)
-    await _executeRawQuery('PRAGMA mmap_size=536870912'); // 512MB
+    if (!_database.isUntrusted) {
+      await _executeRawQuery('PRAGMA mmap_size=536870912'); // 512MB
+    }
   }
 
   /// מחזיר את חיבור הקריאה לפרופיל הסרק החסכוני (תואם ל-[_initialize]).
   Future<void> restoreReadCacheDefaults() async {
+    if (_database.isUntrusted) {
+      await _executeRawQuery('PRAGMA cache_size=-8000'); // 8MB
+      return;
+    }
     await _executeRawQuery('PRAGMA cache_size=-50000'); // 50MB (שלילי=ק"ב)
     await _executeRawQuery('PRAGMA mmap_size=67108864'); // 64MB
   }
