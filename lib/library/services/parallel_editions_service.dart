@@ -180,7 +180,8 @@ class ParallelEditionsService {
       externalIds = [...await externalIdsFor(otzariaIds.toSet().toList())];
       externalIds.removeWhere((id) => id == currentExternalId);
     } else {
-      final otzariaId = current.id;
+      // המיפוי ממופתח במזהי seforim.db; מזהה של מסד אחר חופף להם ואינו אותו ספר.
+      final otzariaId = current.source.isOfficial ? current.id : null;
       if (otzariaId == null) return const [];
       externalIds = await externalIdsFor([otzariaId]);
     }
