@@ -56,6 +56,10 @@ const _kPersonalRootTitle = 'ספרים אישיים';
 /// מסדים מצורפים ממוינים תחת "ספרים אישיים" אחרי תיקיות הספרים האישיים.
 const _kAttachedRootOrder = 1000;
 
+/// במיזוג, ספרי מסד מצורף וקטגוריותיו אחרי הרשמיים והאישיים, לפי עדיפות המסד.
+const _kAttachedMergedOrderBase = 1000000;
+const _kAttachedMergedOrderStride = 100000;
+
 /// הנתונים של מסד מצורף אחד בזמן בניית העץ.
 class _AttachedCatalogBuild {
   _AttachedCatalogBuild({
@@ -75,6 +79,17 @@ class _AttachedCatalogBuild {
   final Map<String, Map<String, dynamic>> metadata;
   final Map<int, List<Map<String, dynamic>>> booksByCategory = {};
   final Map<int?, List<db_models.Category>> categoriesByParent = {};
+
+  /// הסדר בעץ של [orderIndex] מהמסד: במיזוג — אחרי כל התוכן הקיים.
+  int order(num? orderIndex) {
+    final own = orderIndex?.toInt() ?? 999;
+    if (library.placement != AttachedLibraryPlacement.mergeIntoLibrary) {
+      return own;
+    }
+    return _kAttachedMergedOrderBase +
+        library.priority * _kAttachedMergedOrderStride +
+        own.clamp(0, _kAttachedMergedOrderStride - 1);
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -3436,7 +3451,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       title: dbCategory.title,
       description: dbCategory.heDesc ?? '',
       shortDescription: dbCategory.heShortDesc ?? '',
-      order: dbCategory.orderIndex,
+      order: build.order(dbCategory.orderIndex),
       subCategories: [],
       books: [],
       parent: parent,
@@ -3481,7 +3496,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       final id = row['id'] as int? ?? 0;
       final book = _convertMinimalBookMapToBook(
         // נתיב קובץ שבמסד מצורף אינו נפתח — הספר נקרא משורות ה-DB שלו.
-        {...row, 'filePath': null},
+        {...row, 'filePath': null, 'orderIndex': build.order(_orderOf(row))},
         category,
         build.metadata,
         authorFromDatabase: build.authors[id],
@@ -3512,6 +3527,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
     final fileType = (row['fileType'] as String?)?.trim().toLowerCase() ?? '';
     return fileType.isEmpty || fileType == 'txt';
   }
+
+  static num? _orderOf(Map<String, dynamic> row) =>
+      row['orderIndex'] is num ? row['orderIndex'] as num : null;
 
   static List<Map<String, dynamic>> _sortedByOrder(
     List<Map<String, dynamic>> rows,
