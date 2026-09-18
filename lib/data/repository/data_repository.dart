@@ -27,6 +27,10 @@ class DataRepository {
   /// Provides access to the singleton instance
   static DataRepository get instance => _singleton;
 
+  /// כמה חיפוש בספרייה ממתין לכינויי המסדים המצורפים לפני שהוא ממשיך בלעדיהם.
+  @visibleForTesting
+  static Duration attachedAcronymsWait = const Duration(milliseconds: 300);
+
   Future<Library>? _libraryFuture;
   Future<Library> get library => _libraryFuture ??= _getLibrary();
   set library(Future<Library> value) => _libraryFuture = value;
@@ -214,7 +218,11 @@ class DataRepository {
 
     // no-op אם הקאשים כבר חוממו בעליית האפליקציה
     await AcronymsCache.instance.warmUp();
-    await AcronymsCache.instance.warmUpAttached();
+    // מסד מצורף איטי (כונן רשת) אינו מעכב את החיפוש — הקריאה נמשכת ב-isolate.
+    await AcronymsCache.instance.warmUpAttached().timeout(
+      attachedAcronymsWait,
+      onTimeout: () {},
+    );
     await GenerationCache.instance.warmUp();
 
     final searchEntries = <BookSearchEntry>[

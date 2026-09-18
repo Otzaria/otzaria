@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -99,5 +100,74 @@ void main() {
 
     AcronymsCache.instance.clearAttached();
     expect(AcronymsCache.instance.acronymsFor(source, bookId), isNull);
+  });
+
+  test('דורות המסד המצורף נקראים ב-isolate לפי נתיב', () {
+    final path = createDb(
+      (db) => db.execute('UPDATE generation SET name = ?', [
+        CommentaryEra.rishonim.hebrewName,
+      ]),
+    );
+    expect(GenerationCache.readAttachedGenerations(path), {
+      bookId: CommentaryEra.rishonim.order,
+    });
+  });
+
+  test('warmUp ממתין לטעינה מחדש של דורות המסדים שבדרך', () async {
+    createDb(
+      (db) => db.execute('UPDATE generation SET name = ?', [
+        CommentaryEra.rishonim.hebrewName,
+      ]),
+    );
+    unawaited(GenerationCache.instance.reloadAttached());
+    await GenerationCache.instance.warmUp();
+    expect(
+      GenerationCache.instance.getOrderForBook(bookId, source),
+      CommentaryEra.rishonim.order,
+    );
+  });
+
+  test('כשל קריאת כינויים אינו נשמר כ"אין כינויים" — ניסיון חוזר', () async {
+    final previousDelay = AcronymsCache.attachedRetryDelay;
+    addTearDown(() => AcronymsCache.attachedRetryDelay = previousDelay);
+    AcronymsCache.attachedRetryDelay = Duration.zero;
+
+    final path = createDb(
+      (db) => db.execute('INSERT INTO book_acronym VALUES (?, ?)', [
+        bookId,
+        'abc',
+      ]),
+    );
+    final bytes = File(path).readAsBytesSync();
+    File(path).writeAsStringSync('not a database');
+    await AcronymsCache.instance.warmUpAttached();
+    expect(AcronymsCache.instance.acronymsFor(source, bookId), isNull);
+
+    File(path).writeAsBytesSync(bytes);
+    await AcronymsCache.instance.warmUpAttached();
+    expect(AcronymsCache.instance.acronymsFor(source, bookId), isNotEmpty);
+  });
+
+  test('clearAttached באמצע טעינה אינו מוחק את הטעינה החדשה', () async {
+    createDb(
+      (db) => db.execute('INSERT INTO book_acronym VALUES (?, ?)', [
+        bookId,
+        'abc',
+      ]),
+    );
+    final first = AcronymsCache.instance.warmUpAttached();
+    AcronymsCache.instance.clearAttached();
+    final second = AcronymsCache.instance.warmUpAttached();
+    var secondDone = false;
+    unawaited(second.whenComplete(() => secondDone = true));
+    await first;
+    if (!secondDone) {
+      expect(
+        identical(AcronymsCache.instance.warmUpAttached(), second),
+        isTrue,
+      );
+    }
+    await second;
+    expect(AcronymsCache.instance.acronymsFor(source, bookId), isNotEmpty);
   });
 }

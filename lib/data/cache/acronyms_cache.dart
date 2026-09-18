@@ -85,36 +85,60 @@ class AcronymsCache {
 
   /// טוען את טבלת `book_acronym` של כל מסד מצורף גלוי שעוד לא נטען, ב-isolate
   /// ובפתיחה מוקשחת. מסד בלי הטבלה או שקריאתו נכשלה נשאר בלי כינויים.
-  Future<void> warmUpAttached() =>
-      _attachedLoading ??= _loadAttached().whenComplete(() {
-        _attachedLoading = null;
-      });
+  Future<void> warmUpAttached() {
+    final existing = _attachedLoading;
+    if (existing != null) return existing;
+    late final Future<void> loading;
+    loading = _loadAttached().whenComplete(() {
+      // clearAttached באמצע הטעינה כבר החליף אותה — לא מוחקים את הטעינה החדשה.
+      if (identical(_attachedLoading, loading)) _attachedLoading = null;
+    });
+    return _attachedLoading = loading;
+  }
+
+  /// מסד שקריאתו נכשלה — מתי מותר לנסות שוב (כשל זמני אינו נשמר כ"אין כינויים").
+  final Map<String, DateTime> _attachedRetryAfter = {};
+
+  @visibleForTesting
+  static Duration attachedRetryDelay = const Duration(minutes: 1);
 
   Future<void> _loadAttached() async {
     final myGen = _attachedGeneration;
-    final registry = AttachedLibraryRegistry.instance;
-    for (final library in registry.visibleLibraries) {
-      if (_attachedAcronyms.containsKey(library.slug)) continue;
-      final path = library.path;
-      final immutable = library.immutable;
-      Map<int, List<String>> terms;
-      try {
-        terms = await Isolate.run(
-          () => readAttachedAcronyms(path, immutable: immutable),
-        ).timeout(AttachedLibraryRegistry.openTimeout);
-      } catch (e) {
-        debugPrint('[AcronymsCache] ${library.slug} acronyms skipped: $e');
-        terms = const {};
-      }
-      if (myGen != _attachedGeneration) return;
-      _attachedAcronyms[library.slug] = terms;
-    }
+    final now = DateTime.now();
+    final pending = [
+      for (final library in AttachedLibraryRegistry.instance.visibleLibraries)
+        if (!_attachedAcronyms.containsKey(library.slug) &&
+            !(_attachedRetryAfter[library.slug]?.isAfter(now) ?? false))
+          library,
+    ];
+    await Future.wait([
+      for (final library in pending)
+        () async {
+          final path = library.path;
+          final immutable = library.immutable;
+          try {
+            final terms = await Isolate.run(
+              () => readAttachedAcronyms(path, immutable: immutable),
+            ).timeout(AttachedLibraryRegistry.openTimeout);
+            if (myGen != _attachedGeneration) return;
+            _attachedAcronyms[library.slug] = terms;
+            _attachedRetryAfter.remove(library.slug);
+          } catch (e) {
+            debugPrint('[AcronymsCache] ${library.slug} acronyms skipped: $e');
+            if (myGen != _attachedGeneration) return;
+            _attachedRetryAfter[library.slug] = DateTime.now().add(
+              attachedRetryDelay,
+            );
+          }
+        }(),
+    ]);
   }
 
   /// שוכח את כינויי המסדים המצורפים; הם נטענים שוב בגישה הבאה.
   void clearAttached() {
     _attachedGeneration++;
     _attachedAcronyms.clear();
+    _attachedRetryAfter.clear();
     _attachedLoading = null;
   }
 
@@ -226,6 +250,7 @@ class AcronymsCache {
     _generation++;
     _attachedGeneration++;
     _attachedAcronyms.clear();
+    _attachedRetryAfter.clear();
     _attachedLoading = null;
     _acronymsByBookId.clear();
     _bookIdsByBigram.clear();

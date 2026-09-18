@@ -62,13 +62,13 @@ class AttachedLibrariesBloc
     Emitter<AttachedLibrariesState> emit,
   ) async {
     emit(_loaded(state));
-    // לפני הרענון: האינדוקס שאחריו מדרג את ספרי המסד לפי הדורות שלו.
     AcronymsCache.instance.clearAttached();
-    try {
-      await GenerationCache.instance.reloadAttached();
-    } catch (e) {
-      debugPrint('[AttachedLibrariesBloc] generations reload failed: $e');
-    }
+    // האינדוקס שאחרי הרענון ממתין לה דרך GenerationCache.warmUp.
+    unawaited(
+      GenerationCache.instance.reloadAttached().catchError((Object e) {
+        debugPrint('[AttachedLibrariesBloc] generations reload failed: $e');
+      }),
+    );
     _addLibraryEvent(
       RefreshLibrary(
         source: RefreshSource.attachedLibraries,
