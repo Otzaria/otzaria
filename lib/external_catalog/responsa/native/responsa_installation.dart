@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
 import 'package:path/path.dart' as path;
+import 'package:win32/win32.dart' show GetLogicalDrives;
 import 'package:win32_registry/win32_registry.dart';
 
 /// התקנה אחת של פרויקט השו"ת.
@@ -22,9 +23,45 @@ class ResponsaInstallation {
     required this.source,
   });
 
-  String get executable => path.join(installPath, 'RESPONSA.exe');
+  String get executable =>
+      path.join(installPath, ResponsaInstallationDiscovery.executableName);
 
   bool get exists => File(executable).existsSync();
+
+  /// תיקיית נתוני המשתמש, כפי שהיא רשומה ב-`Responsa.env`.
+  ///
+  /// בהתקנה מלאה היא יושבת ליד ההתקנה; בהתקנה חלקית היא יכולה לשבת
+  /// בכונן אחר לגמרי. `null` כשהקובץ חסר או אינו קריא — זה מצב חוקי
+  /// ואינו מונע שימוש בהתקנה.
+  /// נתיב ארכיון הספרים (`DB/FILE00`), אם הוא נמצא. בהתקנה חלקית הוא
+  /// יושב באתר הנתונים ולא ליד קובץ ההרצה.
+  String? get archivePath {
+    for (final candidate in [
+      path.join(installPath, 'DB', 'FILE00'),
+      if (dataLocation case final data?) path.join(data, 'DB', 'FILE00'),
+    ]) {
+      if (File(candidate).existsSync()) return candidate;
+    }
+    return null;
+  }
+
+  String? get dataLocation {
+    final file = File(path.join(installPath, 'Responsa.env'));
+    if (!file.existsSync()) return null;
+    try {
+      for (final line in file.readAsLinesSync()) {
+        final trimmed = line.trim();
+        if (!trimmed.toLowerCase().startsWith('datalocation')) continue;
+        final separator = trimmed.indexOf('=');
+        if (separator < 0) continue;
+        final value = trimmed.substring(separator + 1).trim();
+        if (value.isNotEmpty) return value;
+      }
+    } catch (e) {
+      debugPrint('ResponsaInstallation: cannot read Responsa.env: $e');
+    }
+    return null;
+  }
 
   Map<String, Object?> toJson() => {
     'version': version,
@@ -152,11 +189,20 @@ class ResponsaInstallationDiscovery {
       byPath.putIfAbsent(found.installPath.toLowerCase(), () => found);
     }
     final result = byPath.values.toList();
-    // קודם כאלה שיש בהן קובץ הרצה, ואז לפי גרסה יורדת — המהדורה
-    // החדשה ביותר היא ברירת מחדל סבירה כשיש כמה.
+    // סדר העדיפות, מהחזק לחלש: קובץ הרצה קיים, ארכיון ספרים קיים,
+    // מהדורה חדשה יותר.
+    //
+    // הארכיון אינו קישוט בסדר הזה: על המחשב הזה יושבת לצד ההתקנה גם
+    // `ResponsaCD25H` — אתר נתונים משני של מופע מוסתר. בלי המבחן הזה
+    // בחירה שרירותית בין השתיים תבנה קטלוג ממאגר אחד ותתייג אותו
+    // בטביעת אצבע של אחר.
     result.sort((a, b) {
       final byExists = (a.exists ? 0 : 1).compareTo(b.exists ? 0 : 1);
       if (byExists != 0) return byExists;
+      final byArchive = (a.archivePath == null ? 1 : 0).compareTo(
+        b.archivePath == null ? 1 : 0,
+      );
+      if (byArchive != 0) return byArchive;
       return (b.version ?? 0).compareTo(a.version ?? 0);
     });
     return result;
@@ -203,23 +249,64 @@ class ResponsaInstallationDiscovery {
     return found;
   }
 
-  /// גיבוי ל-Registry: סריקת `ResponsaCD*` תחת תיקיות התוכניות. התקנה
-  /// שהועתקה ממחשב אחר אינה תמיד רשומה.
+  /// שם קובץ ההרצה. תיקייה שמכילה אותו היא התקנה, איך שלא תיקרא.
+  static const String executableName = 'RESPONSA.exe';
+
+  /// תיקיות שמחפשים בהן בתוך כל כונן, מעבר לשורש עצמו.
+  static const List<String> _searchSubdirectories = [
+    'Program Files (x86)',
+    'Program Files',
+    'Bar-Ilan',
+    'BarIlan',
+  ];
+
+  /// כמה רשומות לסרוק בתיקייה אחת. שורש כונן מכיל עשרות פריטים; התקרה
+  /// מגינה מפני תיקייה חריגה שתעכב את הגילוי.
+  static const int _maxEntriesPerDirectory = 400;
+
+  /// גיבוי ל-Registry: סריקת **כל הכוננים** — קבועים, נשלפים ותקליטורים.
+  ///
+  /// שני מצבים שה-Registry אינו מכסה, ושניהם נפוצים:
+  ///
+  /// * התקנה שהועתקה ממחשב אחר ואינה רשומה.
+  /// * **התקנה חלקית שרצה מהתקן נשלף** — קובץ ההרצה יושב על הכונן
+  ///   הנשלף עצמו, מחוץ ל-`Program Files`, ואות הכונן משתנה ממחשב
+  ///   למחשב. זיהוי לפי נתיב קבוע לא היה מוצא אותה כלל.
+  ///
+  /// הזיהוי אינו תלוי בשם התיקייה: תיקייה שיש בה [executableName] היא
+  /// התקנה, גם אם שמה `שות בר אילן` וגם אם המהדורה עתידית.
   static List<ResponsaInstallation> _fromFileSystem() {
-    final roots = [
-      Platform.environment['ProgramFiles(x86)'],
-      Platform.environment['ProgramFiles'],
-      Platform.environment['ProgramW6432'],
-    ].whereType<String>();
+    final roots = <String>{
+      for (final variable in const [
+        'ProgramFiles(x86)',
+        'ProgramFiles',
+        'ProgramW6432',
+      ])
+        if (Platform.environment[variable] case final value?)
+          if (value.isNotEmpty) value,
+    };
+    for (final drive in _drives()) {
+      roots.add(drive);
+      for (final sub in _searchSubdirectories) {
+        roots.add(path.join(drive, sub));
+      }
+    }
 
     final found = <ResponsaInstallation>[];
     for (final root in roots) {
       final directory = Directory(root);
       if (!directory.existsSync()) continue;
       try {
-        for (final entry in directory.listSync().whereType<Directory>()) {
+        var seen = 0;
+        for (final entry in directory.listSync(followLinks: false)) {
+          if (++seen > _maxEntriesPerDirectory) break;
+          if (entry is! Directory) continue;
           final name = path.basename(entry.path);
-          if (!name.toLowerCase().startsWith('responsacd')) continue;
+          final looksRight = name.toLowerCase().startsWith('responsacd');
+          if (!looksRight &&
+              !File(path.join(entry.path, executableName)).existsSync()) {
+            continue;
+          }
           found.add(
             ResponsaInstallation(
               version: versionFromText(name),
@@ -230,10 +317,25 @@ class ResponsaInstallationDiscovery {
           );
         }
       } catch (_) {
+        // כונן שאינו זמין, תיקייה ללא הרשאה — לא סיבה להפסיק את הסריקה.
         continue;
       }
     }
     return found;
+  }
+
+  /// אותיות הכוננים הקיימות במחשב, כנתיבי שורש (`E:\`).
+  ///
+  /// `GetLogicalDrives` הוא מפת ביטים בקריאה אחת, ולכן זול בהרבה
+  /// מבדיקת 26 תיקיות — שכל אחת מהן על כונן מנותק עולה בהמתנה.
+  static List<String> _drives() {
+    final mask = GetLogicalDrives().value;
+    if (mask == 0) return const [];
+    return [
+      for (var index = 0; index < 26; index++)
+        if ((mask & (1 << index)) != 0)
+          '${String.fromCharCode(65 + index)}:${path.separator}',
+    ];
   }
 
   /// המופעים הרצים ששייכים להתקנה נתונה, כזוגות `(hwnd, pid)`.
@@ -293,11 +395,13 @@ class ResponsaInstallationDiscovery {
     ResponsaInstallation installation, {
     bool withHash = true,
   }) {
-    final archive = File(path.join(installation.installPath, 'DB', 'FILE00'));
+    // בהתקנה חלקית הארכיון אינו יושב ליד קובץ ההרצה אלא באתר הנתונים
+    // (או על ההתקן הנשלף). היעדרו אינו כשל — טביעת האצבע נשארת תקפה גם
+    // בלעדיו, והיא מסתמכת אז על הנתיב, הגרסה ו-hash של קובץ ההרצה.
     int? size;
     int? mtime;
-    if (archive.existsSync()) {
-      final stat = archive.statSync();
+    if (installation.archivePath case final archive?) {
+      final stat = File(archive).statSync();
       size = stat.size;
       mtime = stat.modified.millisecondsSinceEpoch ~/ 1000;
     }
