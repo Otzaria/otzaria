@@ -40,8 +40,14 @@ class CategoryDao {
   /// Gets all category rows, optionally within an ongoing transaction.
   /// Used by [DatabaseLibraryProvider] to load books and categories atomically.
   /// Must be called synchronously inside a [withTransaction] block.
-  List<Map<String, dynamic>> getAllCategoryRows(sqlite3.Database db) {
-    final capabilities = DbCapabilities.forDatabase(_db.path, db);
+  List<Map<String, dynamic>> getAllCategoryRows(sqlite3.Database db) =>
+      selectCategoryRows(db, DbCapabilities.forDatabase(_db.path, db));
+
+  /// גוף [getAllCategoryRows] בלי תלות במופע — לקריאה ב-isolate.
+  static List<Map<String, dynamic>> selectCategoryRows(
+    sqlite3.Database db,
+    DbCapabilities capabilities,
+  ) {
     // בלי book.categoryId הספרים אינם משויכים לאף קטגוריה, והעץ נבנה משורש יחיד.
     if (!capabilities.hasBookCategories) return const [];
     final order = capabilities.hasColumn('category', 'orderIndex')

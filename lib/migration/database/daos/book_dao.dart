@@ -52,8 +52,18 @@ class BookDao {
   List<Map<String, dynamic>> getAllBooksMinimal(
     sqlite3.Database db, {
     bool withFileColumns = false,
+  }) => selectBooksMinimal(
+    db,
+    DbCapabilities.forDatabase(_db.path, db),
+    withFileColumns: withFileColumns,
+  );
+
+  /// גוף [getAllBooksMinimal] בלי תלות במופע — לקריאה ב-isolate על חיבור משלו.
+  static List<Map<String, dynamic>> selectBooksMinimal(
+    sqlite3.Database db,
+    DbCapabilities capabilities, {
+    bool withFileColumns = false,
   }) {
-    final capabilities = DbCapabilities.forDatabase(_db.path, db);
     if (!capabilities.hasBooks) return const [];
     String col(String name, {String fallback = 'NULL'}) =>
         capabilities.column('book', name, fallback: fallback);
@@ -83,8 +93,15 @@ class BookDao {
   }
 
   /// Loads authors for all local books in one query to keep catalog build fast.
-  Map<int, String> getBookAuthorsMap(sqlite3.Database db) {
-    if (!DbCapabilities.forDatabase(_db.path, db).hasAuthors) return {};
+  Map<int, String> getBookAuthorsMap(sqlite3.Database db) =>
+      selectBookAuthorsMap(db, DbCapabilities.forDatabase(_db.path, db));
+
+  /// גוף [getBookAuthorsMap] בלי תלות במופע — לקריאה ב-isolate.
+  static Map<int, String> selectBookAuthorsMap(
+    sqlite3.Database db,
+    DbCapabilities capabilities,
+  ) {
+    if (!capabilities.hasAuthors) return {};
     final rows = db.select('''
       SELECT author_rows.bookId,
              GROUP_CONCAT(author_rows.name, ', ') AS author

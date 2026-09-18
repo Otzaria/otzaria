@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -137,6 +138,51 @@ void main() {
       // ללא נעילה — מחיקה מצליחה גם ב-Windows.
       File(pathA).deleteSync();
       expect(await registry.repositoryFor('a'), isNull);
+    });
+
+    test('מאגר שהוחזק אחרי שחרור אינו פותח את הקובץ מחדש', () async {
+      final registry = AttachedLibraryRegistry(idleTimeout: null)
+        ..update([_library('a', pathA)]);
+      final stale = (await registry.repositoryFor('a'))!;
+      await registry.close('a');
+
+      await expectLater(stale.database.database, throwsStateError);
+      expect(stale.database.isOpen, isFalse);
+      // דרך ה-registry נפתח חיבור חדש.
+      final fresh = await registry.repositoryFor('a');
+      expect(fresh, isNot(same(stale)));
+      expect(await fresh!.getBook(SeforimFixtureIds.bereshitId), isNotNull);
+      await registry.closeAll();
+    });
+
+    test('הפתיחה הראשונה ממתינה לשער העלייה', () async {
+      final gate = Completer<void>();
+      final previous = AttachedLibraryRegistry.startupGate;
+      AttachedLibraryRegistry.startupGate = () => gate.future;
+      addTearDown(() => AttachedLibraryRegistry.startupGate = previous);
+      final registry = AttachedLibraryRegistry(idleTimeout: null)
+        ..update([_library('a', pathA)]);
+
+      var opened = false;
+      final pending = registry.repositoryFor('a').then((r) => opened = true);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(opened, isFalse);
+      expect(registry.isOpen('a'), isFalse);
+
+      gate.complete();
+      await pending;
+      expect(registry.isOpen('a'), isTrue);
+      await registry.closeAll();
+    });
+
+    test('בדיקת פתיחה שלא הסתיימה בזמן — אין מאגר', () async {
+      final previous = AttachedLibraryRegistry.openTimeout;
+      AttachedLibraryRegistry.openTimeout = Duration.zero;
+      addTearDown(() => AttachedLibraryRegistry.openTimeout = previous);
+      final registry = AttachedLibraryRegistry(idleTimeout: null)
+        ..update([_library('a', pathA)]);
+      expect(await registry.repositoryFor('a'), isNull);
+      expect(registry.isOpen('a'), isFalse);
     });
 
     test('מסד לא תקין, לא נגיש או לא רשום — אין מאגר', () async {

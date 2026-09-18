@@ -37,8 +37,9 @@ class AttachedLibrariesRepository {
     AttachedLibraryProbeFn? probe,
     Future<String> Function()? copyDirectory,
     bool? copyByDefault,
+    this.probeTimeout = const Duration(seconds: 15),
   }) : _registryOverride = registry,
-       _probe = probe ?? AttachedLibraryProbe.probe,
+       _probeFn = probe ?? AttachedLibraryProbe.probe,
        _copyDirectory = copyDirectory ?? AppPaths.getAttachedLibrariesCopyPath,
        copyByDefault = copyByDefault ?? (Platform.isAndroid || Platform.isIOS);
 
@@ -47,7 +48,19 @@ class AttachedLibrariesRepository {
 
   final AttachedLibraryStore _store;
   final AttachedLibraryRegistry? _registryOverride;
-  final AttachedLibraryProbeFn _probe;
+  final AttachedLibraryProbeFn _probeFn;
+
+  /// מסד שבדיקתו לא הסתיימה בזמן (כונן רשת מת) נחשב לא-זמין, כדי שהתור
+  /// הסריאלי לא ייתקע מאחוריו.
+  final Duration probeTimeout;
+
+  Future<AttachedLibraryProbeResult> _probe(String path) =>
+      _probeFn(path).timeout(
+        probeTimeout,
+        onTimeout: () => const AttachedLibraryProbeResult.failure(
+          AttachedLibraryProblem.notFound,
+        ),
+      );
   final Future<String> Function() _copyDirectory;
 
   /// במובייל SQLite אינו פותח קבצים מחוץ לאחסון האפליקציה, ולכן מעתיקים.
@@ -229,6 +242,24 @@ class AttachedLibrariesRepository {
     ]);
   });
 
+  /// מסמן את המסד שב-[path] לא-זמין (קריאתו נכשלה או לא הסתיימה), או זמין
+  /// שוב. מסד במצב אחר (פגום, כפול) אינו משתנה.
+  Future<void> setReachable(String path, {required bool reachable}) =>
+      _serial(() async {
+        final from = reachable
+            ? AttachedLibraryStatus.unreachable
+            : AttachedLibraryStatus.ok;
+        final to = reachable
+            ? AttachedLibraryStatus.ok
+            : AttachedLibraryStatus.unreachable;
+        await _commit([
+          for (final library in _registry.libraries)
+            p.equals(library.path, path) && library.status == from
+                ? library.copyWith(status: to)
+                : library,
+        ]);
+      });
+
   /// משחרר את נעילת הקובץ. הוא ייפתח שוב בגישה הבאה לספר ממנו.
   Future<void> release(AttachedLibrary library) =>
       _registry.close(library.slug);
@@ -269,7 +300,11 @@ class AttachedLibrariesRepository {
     for (var i = 0; i < libraries.length; i++) {
       final library = libraries[i];
       if (probed.contains(library.path)) continue;
-      final refreshed = await _refresh(library);
+      final refreshed = await _refresh(library).timeout(
+        probeTimeout,
+        onTimeout: () =>
+            library.copyWith(status: AttachedLibraryStatus.unreachable),
+      );
       if (refreshed != library) {
         await _registry.close(library.slug);
         libraries[i] = refreshed;

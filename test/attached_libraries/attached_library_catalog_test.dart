@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,6 +47,9 @@ void main() {
   final provider = DatabaseLibraryProvider.instance;
   final previousRegistry = AttachedLibraryRegistry.instance;
   final previousDataRoot = AppPaths.cachedDataRootPath;
+  final previousRepository = AttachedLibrariesRepository.instance;
+  final previousReader = DatabaseLibraryProvider.attachedCatalogReader;
+  final previousTimeout = DatabaseLibraryProvider.attachedCatalogTimeout;
 
   /// מסד מצורף מסוג [variant] בשם [name]; שורות הספרים מסומנות בקידומת
   /// [name] כדי שקריאה מהמסד הלא-נכון תיכשל.
@@ -106,9 +111,13 @@ void main() {
       probe: (path) async => AttachedLibraryProbe.probeSync(path),
       copyByDefault: false,
     );
+    AttachedLibrariesRepository.instance = attached;
   });
 
   tearDown(() async {
+    AttachedLibrariesRepository.instance = previousRepository;
+    DatabaseLibraryProvider.attachedCatalogReader = previousReader;
+    DatabaseLibraryProvider.attachedCatalogTimeout = previousTimeout;
     LibraryProviderManager.instance.resetForTesting();
     FileSystemLibraryProvider.instance.resetForTesting();
     provider.clearCache();
@@ -296,4 +305,117 @@ void main() {
     );
     expect(text, isNull);
   });
+
+  group('בידוד מסד איטי או מת בבניית העץ', () {
+    Future<AttachedLibraryStatus> statusSettled(
+      AttachedLibrary library,
+      AttachedLibraryStatus expected,
+    ) async {
+      for (var i = 0; i < 100; i++) {
+        final current = registry.libraries
+            .firstWhere((l) => l.path == library.path)
+            .status;
+        if (current == expected) return current;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      return registry.libraries
+          .firstWhere((l) => l.path == library.path)
+          .status;
+    }
+
+    test('מסד שנתקע: העץ נבנה בלעדיו, והוא מצטרף כשהקריאה מסתיימת', () async {
+      final fast = await attach(
+        attachedFixture('מהיר', SeforimFixtureVariant.full),
+      );
+      final slow = await attach(
+        attachedFixture('איטי', SeforimFixtureVariant.full),
+      );
+      final release = Completer<void>();
+      DatabaseLibraryProvider.attachedCatalogTimeout = const Duration(
+        milliseconds: 100,
+      );
+      DatabaseLibraryProvider.attachedCatalogReader = (target) async {
+        if (target.path == slow.path) await release.future;
+        expect(target.untrusted, isTrue);
+        return readAttachedCatalogSync(target);
+      };
+
+      final stopwatch = Stopwatch()..start();
+      final catalog = await buildCatalog();
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
+      final personal = _child(catalog, _personalRoot)!;
+      expect(_child(personal, fast.displayName), isNotNull);
+      expect(_child(personal, slow.displayName), isNull);
+      expect(
+        await statusSettled(slow, AttachedLibraryStatus.unreachable),
+        AttachedLibraryStatus.unreachable,
+      );
+
+      release.complete();
+      expect(
+        await statusSettled(slow, AttachedLibraryStatus.ok),
+        AttachedLibraryStatus.ok,
+      );
+      final rebuilt = await buildCatalog();
+      expect(
+        _child(_child(rebuilt, _personalRoot)!, slow.displayName),
+        isNotNull,
+      );
+    });
+
+    test('קובץ שנעלם: מסומן לא-זמין, ושאר המסדים נטענים', () async {
+      final kept = await attach(
+        attachedFixture('נשאר', SeforimFixtureVariant.full),
+      );
+      final gone = await attach(
+        attachedFixture('נעלם', SeforimFixtureVariant.full),
+      );
+      await registry.closeAll();
+      File(gone.path).deleteSync();
+
+      final catalog = await buildCatalog();
+      final personal = _child(catalog, _personalRoot)!;
+      expect(_child(personal, kept.displayName), isNotNull);
+      expect(_child(personal, gone.displayName), isNull);
+      expect(
+        await statusSettled(gone, AttachedLibraryStatus.unreachable),
+        AttachedLibraryStatus.unreachable,
+      );
+    });
+
+    test('קריאה שנכשלה: המסד מדולג בלי להפיל את העץ', () async {
+      final ok = await attach(
+        attachedFixture('תקין', SeforimFixtureVariant.full),
+      );
+      final broken = await attach(
+        attachedFixture('שבור', SeforimFixtureVariant.full),
+      );
+      DatabaseLibraryProvider.attachedCatalogReader = (target) async {
+        if (target.path == broken.path) throw StateError('corrupt');
+        return readAttachedCatalogSync(target);
+      };
+
+      final catalog = await buildCatalog();
+      final personal = _child(catalog, _personalRoot)!;
+      expect(_child(personal, ok.displayName), isNotNull);
+      expect(_child(personal, broken.displayName), isNull);
+    });
+
+    test('הקריאה במסלול האמיתי רצה ב-isolate על חיבור מוקשח', () async {
+      final library = await attach(
+        attachedFixture('מבודד', SeforimFixtureVariant.full),
+      );
+      final path = library.path;
+      final rows = await _readInIsolate(path);
+      expect(rows.missing, isFalse);
+      expect(rows.books, hasLength(2));
+      expect(rows.authors, isNotEmpty);
+    });
+  });
 }
+
+/// top-level: closure בתוך הבדיקה היה לוכד את כל ה-scope (Future לא-שליח).
+Future<AttachedCatalogRows> _readInIsolate(String path) => Isolate.run(
+  () =>
+      readAttachedCatalogSync((path: path, untrusted: true, immutable: false)),
+);

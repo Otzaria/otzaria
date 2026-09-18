@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -13,6 +14,8 @@ import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/migration/database/daos/book_dao.dart';
+import 'package:otzaria/migration/database/daos/category_dao.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -91,6 +94,61 @@ class _AttachedCatalogBuild {
         library.priority * _kAttachedMergedOrderStride +
         own.clamp(0, _kAttachedMergedOrderStride - 1);
   }
+}
+
+/// קטלוג מסד מצורף כפי שנקרא ב-isolate. [missing] — הקובץ אינו קיים.
+typedef AttachedCatalogRows = ({
+  bool missing,
+  List<Map<String, dynamic>> books,
+  List<Map<String, dynamic>> categories,
+  Map<int, String> authors,
+});
+
+/// קורא את הקטלוג של מסד מצורף על חיבור מוקשח משלו — רץ ב-isolate, כך
+/// שקובץ איטי או כונן רשת מת אינם חוסמים את בניית העץ.
+AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
+  if (!File(target.path).existsSync()) {
+    return (missing: true, books: const [], categories: const [], authors: {});
+  }
+  final db = openReadOnlyTarget(target);
+  try {
+    final capabilities = DbCapabilities.probe(db);
+    late final List<Map<String, dynamic>> books;
+    late final List<Map<String, dynamic>> categories;
+    late final Map<int, String> authors;
+    withTransaction(db, () {
+      books = BookDao.selectBooksMinimal(
+        db,
+        capabilities,
+        withFileColumns: true,
+      );
+      categories = CategoryDao.selectCategoryRows(db, capabilities);
+      authors = BookDao.selectBookAuthorsMap(db, capabilities);
+    });
+    return (
+      missing: false,
+      books: books,
+      categories: categories,
+      authors: authors,
+    );
+  } finally {
+    db.close();
+  }
+}
+
+Future<AttachedCatalogRows> _readAttachedCatalogInIsolate(
+  ReadOnlyDbTarget target,
+) => Isolate.run(() => readAttachedCatalogSync(target));
+
+/// קריאת קטלוג של מסד מצורף שעדיין רצה, כולל אחרי שבניית העץ ויתרה עליה.
+class _PendingAttachedCatalog {
+  _PendingAttachedCatalog(this.future) {
+    future.then((_) => done = true, onError: (_) => done = true);
+  }
+
+  final Future<AttachedCatalogRows> future;
+  bool done = false;
+  bool timedOut = false;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1508,6 +1566,16 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
   final Set<BookCompositeKey> _attachedCachedKeys = {};
   final Map<String, Map<int, String>> _attachedCategoryPaths = {};
+  final Map<String, _PendingAttachedCatalog> _pendingAttachedCatalogs = {};
+
+  /// זמן ההמתנה לקטלוג של מסד מצורף אחד. מסד שלא ענה בזמן מסומן לא-זמין,
+  /// והעץ נבנה בלעדיו; כשהקריאה מסתיימת המסד חוזר והעץ מתרענן.
+  @visibleForTesting
+  static Duration attachedCatalogTimeout = const Duration(seconds: 5);
+
+  @visibleForTesting
+  static Future<AttachedCatalogRows> Function(ReadOnlyDbTarget target)
+  attachedCatalogReader = _readAttachedCatalogInIsolate;
 
   BookCompositeKey? _attachedKeyFor(
     String title,
@@ -3366,33 +3434,27 @@ class DatabaseLibraryProvider implements LibraryProvider {
   ) async {
     _attachedCachedKeys.clear();
     _attachedCategoryPaths.clear();
-    final registry = AttachedLibraryRegistry.instance;
-    for (final attached in registry.visibleLibraries) {
-      final source = attached.source;
-      if (source == null) continue;
+    final attachedLibraries = [
+      for (final attached in AttachedLibraryRegistry.instance.visibleLibraries)
+        if (attached.source != null) attached,
+    ];
+    // כל המסדים נקראים במקביל, וכל אחד מוגבל בזמן בנפרד.
+    final catalogs = await Future.wait(
+      attachedLibraries.map(_readAttachedCatalog),
+    );
+    for (var i = 0; i < attachedLibraries.length; i++) {
+      final attached = attachedLibraries[i];
+      final rows = catalogs[i];
+      if (rows == null) continue;
       try {
-        final repo = await registry.repositoryFor(attached.slug);
-        if (repo == null) continue;
-        late final List<Map<String, dynamic>> books;
-        late final List<Map<String, dynamic>> categories;
-        late final Map<int, String> authors;
-        final db = await repo.database.database;
-        withTransaction(db, () {
-          books = repo.database.bookDao.getAllBooksMinimal(
-            db,
-            withFileColumns: true,
-          );
-          categories = repo.database.categoryDao.getAllCategoryRows(db);
-          authors = repo.database.bookDao.getBookAuthorsMap(db);
-        });
         _addAttachedLibraryToCatalog(
           library,
           _AttachedCatalogBuild(
             library: attached,
-            source: source,
-            rows: books,
-            categoryRows: categories,
-            authors: authors,
+            source: attached.source!,
+            rows: rows.books,
+            categoryRows: rows.categories,
+            authors: rows.authors,
             metadata: metadata,
           ),
         );
@@ -3401,6 +3463,68 @@ class DatabaseLibraryProvider implements LibraryProvider {
         unawaited(Sentry.captureException(e, stackTrace: stackTrace));
       }
     }
+  }
+
+  /// הקטלוג של [attached], או null כשאינו זמין כרגע. קובץ שנעלם, וקריאה
+  /// שלא הסתיימה ב-[attachedCatalogTimeout], מסמנים את המסד לא-זמין.
+  Future<AttachedCatalogRows?> _readAttachedCatalog(
+    AttachedLibrary attached,
+  ) async {
+    final path = attached.path;
+    final pending = _pendingAttachedCatalogs.putIfAbsent(
+      path,
+      () => _PendingAttachedCatalog(
+        attachedCatalogReader((
+          path: path,
+          untrusted: true,
+          immutable: attached.immutable,
+        )),
+      ),
+    );
+    try {
+      final rows = pending.done
+          ? await pending.future
+          : await pending.future.timeout(
+              pending.timedOut ? Duration.zero : attachedCatalogTimeout,
+            );
+      _pendingAttachedCatalogs.remove(path);
+      if (rows.missing) {
+        _reportAttachedReachability(path, reachable: false);
+        return null;
+      }
+      return rows;
+    } on TimeoutException {
+      if (!pending.timedOut) {
+        pending.timedOut = true;
+        _reportAttachedReachability(path, reachable: false);
+        unawaited(
+          pending.future.then(
+            (rows) {
+              if (!rows.missing) {
+                _reportAttachedReachability(path, reachable: true);
+              }
+            },
+            onError: (Object _) {},
+          ),
+        );
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _pendingAttachedCatalogs.remove(path);
+      debugPrint('⚠️ Error reading attached library ${attached.slug}: $e');
+      unawaited(Sentry.captureException(e, stackTrace: stackTrace));
+      return null;
+    }
+  }
+
+  void _reportAttachedReachability(String path, {required bool reachable}) {
+    unawaited(
+      AttachedLibrariesRepository.instance
+          .setReachable(path, reachable: reachable)
+          .catchError((Object e) {
+            debugPrint('⚠️ Could not update attached library $path: $e');
+          }),
+    );
   }
 
   void _addAttachedLibraryToCatalog(

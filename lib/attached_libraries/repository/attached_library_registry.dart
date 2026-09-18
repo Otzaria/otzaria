@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_store.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
 
 class _OpenLibrary {
@@ -28,6 +30,15 @@ class AttachedLibraryRegistry {
 
   /// ניתן להחלפה בבדיקות.
   static AttachedLibraryRegistry instance = AttachedLibraryRegistry();
+
+  /// הפתיחה הראשונה ממתינה לו — main.dart מציב כאן את הצגת החלון, כך שכרטיסיה
+  /// משוחזרת של ספר מצורף אינה פותחת קובץ (אולי בכונן רשת) לפני ההצגה.
+  static Future<void> Function() startupGate = _noGate;
+  static Future<void> _noGate() async {}
+
+  /// בדיקת פתיחה ב-isolate לפני החיבור ב-main isolate: פתיחה של קובץ מת
+  /// חוסמת את ה-thread, ו-timeout של Dart אינו עוזר שם.
+  static Duration openTimeout = const Duration(seconds: 5);
 
   final AttachedLibraryStore _store;
 
@@ -91,7 +102,8 @@ class AttachedLibraryRegistry {
       : Future.value();
 
   Future<SeforimRepository?> _openLibrary(AttachedLibrary library) async {
-    if (!await File(library.path).exists()) return null;
+    await startupGate();
+    if (!await _preflight(library)) return null;
     final database = MyDatabase.untrusted(
       library.path,
       immutable: library.immutable,
@@ -110,6 +122,26 @@ class AttachedLibraryRegistry {
     _open[library.slug] = _OpenLibrary(library.path, repository);
     _scheduleIdleCheck();
     return repository;
+  }
+
+  static Future<bool> _preflight(AttachedLibrary library) async {
+    final path = library.path;
+    final immutable = library.immutable;
+    try {
+      return await Isolate.run(() {
+        if (!File(path).existsSync()) return false;
+        final db = openUntrustedReadOnlyDatabase(path, immutable: immutable);
+        try {
+          db.select('PRAGMA schema_version');
+          return true;
+        } finally {
+          db.close();
+        }
+      }).timeout(openTimeout, onTimeout: () => false);
+    } catch (e) {
+      debugPrint('[AttachedLibraryRegistry] preflight $path failed: $e');
+      return false;
+    }
   }
 
   void _scheduleIdleCheck() {
