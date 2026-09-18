@@ -1064,8 +1064,8 @@ class PluginBridgeAdapter {
           final hits = await resolve(ref);
           final books = library.getAllBooks();
           return hits.take(limit).map((h) {
-            // ה-id המספרי חד-משמעי רק בספרי הספרייה: שאר המסדים מקצים
-            // מזהים באותו טווח, ולכן id שלהם אינו מזהה ספר יחיד. מוחזר null כדי שצרכן לא יבנה עליו קישור עומק.
+            // id מספרי חד-משמעי רק בספרייה הרשמית (שאר המסדים חופפים בטווח),
+            // ולכן מוחזר null כדי שצרכן לא יבנה עליו קישור עומק.
             final identity = (!h.source.isOfficial || h.bookId < 0)
                 ? null
                 : books.firstWhereOrNull(

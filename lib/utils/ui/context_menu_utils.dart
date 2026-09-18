@@ -131,7 +131,7 @@ class ContextMenuUtils {
           onNoteSaved: onNoteSaved,
         ),
       ),
-      if (!link.targetIsUserBook)
+      if (link.targetSource.isOfficial)
         AppContextMenuEntry(
           label: 'דווח על טעות בספר',
           icon: FluentIcons.error_circle_24_regular,
