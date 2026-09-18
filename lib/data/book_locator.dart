@@ -26,6 +26,7 @@ class BookLocator {
     Category? category,
     int? categoryId,
     String? fileType,
+    BookSource source = BookSource.official,
   }) async {
     try {
       // קודם ננסה למצוא ב-DB
@@ -34,6 +35,7 @@ class BookLocator {
         category,
         categoryId: categoryId,
         fileType: fileType,
+        source: source,
       );
       if (dbLocation != null) {
         return dbLocation;
@@ -58,6 +60,7 @@ class BookLocator {
     Category? category, {
     int? categoryId,
     String? fileType,
+    BookSource source = BookSource.official,
   }) async {
     try {
       if (categoryId != null) {
@@ -68,6 +71,7 @@ class BookLocator {
           categoryId: categoryId,
           fileType: fileType,
           preferSource: BookDatabaseResolver.likelySource(
+            source: source,
             categoryPath: category?.path,
           ),
         );
@@ -378,12 +382,14 @@ class BookLocator {
     Category? category,
     int? categoryId,
     String? fileType,
+    BookSource source = BookSource.official,
   }) async {
     final location = await locateBook(
       bookTitle,
       category: category,
       categoryId: categoryId,
       fileType: fileType,
+      source: source,
     );
     if (location == null || location.storage != BookStorageKind.database) {
       return null;

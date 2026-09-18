@@ -12,6 +12,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/data/repository/book_toc_loader.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -265,6 +266,12 @@ void main() {
     expect([for (final e in toc!) e.text], ['פרק א']);
     expect(bareText!.split('\n').first, startsWith('מינימלי: '));
     expect(bareToc ?? const [], isEmpty);
+    // בלי תוכן עניינים במסד, ה-fallback אינו לוקח את זה של הספר הרשמי.
+    expect(await loadBookToc(bare as TextBook), isEmpty);
+    expect(
+      [for (final e in await loadBookToc(book as TextBook)) e.text],
+      ['פרק א'],
+    );
   });
 
   test('מסד שהוסר מהרשימה — הספר אינו נפתח ואינו נופל לספר הרשמי', () async {

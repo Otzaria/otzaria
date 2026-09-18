@@ -42,6 +42,7 @@ Future<List<TocEntry>> loadBookTocFallback(
     category: book.category,
     categoryId: book.categoryId,
     fileType: book.fileType,
+    source: book.source,
   );
   if (dbBook == null) {
     return [];
