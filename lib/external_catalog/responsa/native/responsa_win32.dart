@@ -335,4 +335,29 @@ class ResponsaWin32 {
     send(client, wmMdiDestroy, wParam: child, timeoutMs: 8000);
     return true;
   }
+
+  // -------------------------------------------------------- הבאה לחזית
+
+  static const int _swRestore = 9;
+  static const int _swShow = 5;
+
+  /// מביא חלון לחזית, ומשחזר אותו אם הוא ממוזער.
+  ///
+  /// שלושת הצעדים נחוצים ואינם חופפים: חלון ממוזער לא ייראה גם אם יעבור
+  /// לחזית, `SetForegroundWindow` הוא זה שמעביר את הפוקוס בין תהליכים,
+  /// ו-`BringWindowToTop` מסדר את ה-Z-order כשהפוקוס כבר שם.
+  ///
+  /// Windows מתיר החלפת חזית רק לתהליך שהוא עצמו בחזית. מכאן שהקריאה
+  /// חייבת לצאת בזמן שאוצריא פעילה — כלומר מיד בתום הפתיחה, ולא מאוחר
+  /// יותר. כשלון אינו משמעותי: הספר נפתח, רק החלון לא קפץ.
+  static void bringToFront(int hwnd) {
+    final handle = HWND(Pointer.fromAddress(hwnd));
+    if (IsIconic(handle)) {
+      ShowWindow(handle, SHOW_WINDOW_CMD(_swRestore));
+    } else {
+      ShowWindow(handle, SHOW_WINDOW_CMD(_swShow));
+    }
+    SetForegroundWindow(handle);
+    BringWindowToTop(handle);
+  }
 }

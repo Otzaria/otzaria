@@ -80,23 +80,29 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
       );
     }
 
-    final openRef = await catalog.openRefFor(key);
-    if (openRef == null) {
-      return const ExternalOpenResult.failure(
+    final references = await catalog.openRefsFor(key);
+    if (references.isEmpty) {
+      return ExternalOpenResult.failure(
         'notInCatalog',
-        'הספר אינו נמצא בקטלוג פרויקט השו"ת. ייתכן שיש לבנות את הקטלוג מחדש.',
+        'הספר "${book.title}" אינו נמצא בקטלוג בר אילן שבמחשב. '
+            'ייתכן שהקטלוג נבנה ממהדורה אחרת — יש לרענן אותו בהגדרות.',
       );
     }
 
     final report = await controller.openBook(
-      openRef,
+      references,
       expectedTitle: book.title,
       siman: siman,
     );
     if (report.ok) return const ExternalOpenResult.success();
     return ExternalOpenResult.failure(
       report.failure?.name ?? 'openFailed',
-      report.message ?? messageFor(report.failure),
+      messageFor(
+        report.failure,
+        title: book.title,
+        tried: report.triedRefs,
+        detail: report.message,
+      ),
     );
   }
 
@@ -109,20 +115,50 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
     return parsed!.value;
   }
 
-  static String messageFor(ResponsaFailure? failure) => switch (failure) {
-    ResponsaFailure.responsaNotRunning => 'פרויקט השו"ת אינו פעיל.',
-    ResponsaFailure.citationDialogNotFound =>
-      'לא ניתן לפתוח את חלון המקורות בפרויקט השו"ת.',
-    ResponsaFailure.referenceNotParsed =>
-      'פרויקט השו"ת לא זיהה את ההפניה לספר הזה.',
-    ResponsaFailure.openedWrongBook =>
-      'פרויקט השו"ת פתח ספר אחר — הפתיחה בוטלה.',
-    ResponsaFailure.mdiWindowLimitReached =>
-      'פרויקט השו"ת אינו פותח חלונות נוספים. יש לסגור בו כמה חלונות.',
-    ResponsaFailure.resultsNotCleared =>
-      'פרויקט השו"ת אינו מגיב כצפוי. נסה שוב.',
-    ResponsaFailure.timeout => 'פרויקט השו"ת לא הגיב בזמן.',
-    ResponsaFailure.cancelled => 'הפתיחה בוטלה.',
-    null => 'פתיחת הספר בפרויקט השו"ת נכשלה.',
-  };
+  /// הודעת הכשל שהמשתמש רואה.
+  ///
+  /// שלושת המרכיבים — מה נכשל, על איזה ספר, ומה אפשר לעשות — נמסרים
+  /// תמיד. "פתיחת הספר נכשלה" אינו מאפשר למשתמש שום צעד הבא, ובפרויקט
+  /// השו"ת יש לו כמה צעדים אמיתיים: לסגור חלונות, לרענן קטלוג, או לדעת
+  /// שהספר פשוט אינו במהדורה שברשותו.
+  static String messageFor(
+    ResponsaFailure? failure, {
+    String? title,
+    List<String> tried = const [],
+    String? detail,
+  }) {
+    final book = (title == null || title.isEmpty) ? 'הספר' : '"$title"';
+    final attempts = tried.isEmpty
+        ? ''
+        : ' ההפניות שנוסו: ${tried.take(4).join(' · ')}.';
+    return switch (failure) {
+      // כאן הבקר יודע יותר מהספק: הוא מבחין בין "אינו מותקן", "ההפעלה
+      // כבויה בהגדרות" ו"לא עלה בזמן", והמשתמש צריך את ההבחנה הזו.
+      ResponsaFailure.responsaNotRunning =>
+        detail ??
+            'בר אילן אינו פעיל ולא ניתן היה להפעיל אותו. '
+                'יש לפתוח את פרויקט השו"ת ולנסות שוב.',
+      ResponsaFailure.citationDialogNotFound =>
+        'בר אילן לא פתח את חלון "עיון". ייתכן שדיאלוג אחר פתוח בתוכנה '
+            'וממתין לתשובה — יש לסגור אותו ולנסות שוב.',
+      ResponsaFailure.referenceNotParsed =>
+        'בר אילן לא זיהה את $book.$attempts '
+            'ייתכן שהספר אינו קיים במהדורה המותקנת, או שיש לרענן את '
+            'הקטלוג בהגדרות.',
+      ResponsaFailure.openedWrongBook =>
+        'בר אילן פתח ספר אחר במקום $book, והפתיחה בוטלה כדי שלא ייפתח '
+            'ספר שגוי.${detail == null ? '' : ' ($detail)'}',
+      ResponsaFailure.mdiWindowLimitReached =>
+        'בבר אילן פתוחים כבר חלונות רבים והוא מפסיק לפתוח חדשים. '
+            'יש לסגור בו כמה חלונות ולנסות שוב.',
+      ResponsaFailure.resultsNotCleared =>
+        'רשימת התוצאות בבר אילן לא התנקתה, ולכן לא ניתן לדעת אם התוצאה '
+            'שייכת ל$book. הפתיחה בוטלה; נסה שוב.',
+      ResponsaFailure.timeout =>
+        'בר אילן לא הגיב בזמן בעת פתיחת $book. ייתכן שהוא עסוק או ממתין '
+            'לתשובה בחלון אחר.',
+      ResponsaFailure.cancelled => 'הפתיחה בוטלה.',
+      null => 'פתיחת $book בבר אילן נכשלה.${detail == null ? '' : ' $detail'}',
+    };
+  }
 }

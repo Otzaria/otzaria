@@ -54,7 +54,8 @@ class _FakeController implements ResponsaController {
   _FakeController(this._report);
 
   final ResponsaOpenReport _report;
-  final List<({String openRef, String? expectedTitle, int? siman})> calls = [];
+  final List<({List<String> references, String? expectedTitle, int? siman})>
+  calls = [];
   bool cancelled = false;
 
   @override
@@ -75,11 +76,15 @@ class _FakeController implements ResponsaController {
 
   @override
   Future<ResponsaOpenReport> openBook(
-    String openRef, {
+    List<String> references, {
     String? expectedTitle,
     int? siman,
   }) async {
-    calls.add((openRef: openRef, expectedTitle: expectedTitle, siman: siman));
+    calls.add((
+      references: references,
+      expectedTitle: expectedTitle,
+      siman: siman,
+    ));
     return _report;
   }
 }
@@ -155,7 +160,7 @@ void main() {
       final result = await built.provider.openBook(_responsaBook());
 
       expect(result.ok, isTrue);
-      expect(built.controller.calls.single.openRef, 'רא"ש יבמות');
+      expect(built.controller.calls.single.references.first, 'רא"ש יבמות');
       expect(built.controller.calls.single.expectedTitle, 'יבמות');
     });
 
@@ -232,6 +237,32 @@ void main() {
       ).provider.openBook(_responsaBook());
 
       expect(result.errorCode, 'cancelled');
+    });
+
+    test('קטלוג בסכמה 1 עדיין מספק הפניה', () async {
+      // ה-DB שנבנה כאן הוא סכמה 1 — בלי `alt_refs`. שאילתה ששמה את
+      // העמודה במפורש הייתה נכשלת ומשאירה את הספר בלי הפניה כלל, כלומר
+      // שדרוג של אוצריא היה שובר את הפתיחה עד לרענון הקטלוג.
+      final built = build(success);
+
+      await built.provider.openBook(_responsaBook());
+
+      expect(built.controller.calls.single.references, ['רא"ש יבמות']);
+    });
+
+    test('הודעת כשל מזכירה את הספר ואת ההפניות שנוסו', () async {
+      final result = await build(
+        const ResponsaOpenReport(
+          ok: false,
+          failure: ResponsaFailure.referenceNotParsed,
+          triedRefs: ['רא"ש יבמות', 'יבמות'],
+        ),
+      ).provider.openBook(_responsaBook());
+
+      expect(result.message, contains('יבמות'));
+      expect(result.message, contains('רא"ש יבמות'));
+      // מה אפשר לעשות עכשיו — בלי זה ההודעה אינה שימושית.
+      expect(result.message, contains('לרענן'));
     });
 
     test('פתיחה עם סימן מעבירה אותו הלאה', () async {

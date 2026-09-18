@@ -45,6 +45,10 @@ class ResponsaOpenOutcome {
   final bool isNew;
   final int releasedWindows;
 
+  /// כל ההפניות שנוסו עד להצלחה, לפי הסדר. נדרש לאבחון: הפניה שנפתחת
+  /// רק בחוליה השלישית מעידה על כשל בבניית הקטלוג, לא על תקלה בתוכנה.
+  final List<String> triedRefs;
+
   const ResponsaOpenOutcome({
     required this.window,
     required this.usedRef,
@@ -52,6 +56,7 @@ class ResponsaOpenOutcome {
     required this.resultCount,
     required this.isNew,
     required this.releasedWindows,
+    this.triedRefs = const [],
   });
 }
 
@@ -338,42 +343,63 @@ class ResponsaAutomation {
 
   // -------------------------------------------------------- פתיחת ספר
 
-  /// פותח ספר לפי הפניה, ומאמת שהחלון שנפתח הוא הספר הנכון.
+  /// פותח ספר לפי סולם הפניות, ומאמת שהחלון שנפתח הוא הספר הנכון.
+  ///
+  /// [references] מגיע מהקטלוג לפי סדר יורד של סיכוי. הראשונה שהמנתח
+  /// מזהה היא זו שנפתחת; אחרי שהסולם מוצה מנסים גם השמטת מילים
+  /// מההתחלה, שהיא ניחוש ולכן אחרונה.
   ResponsaOpenOutcome openBook(
-    String openRef,
+    List<String> references,
     ResponsaDeadline deadline, {
     String? expectedTitle,
     int? resultIndex,
   }) {
+    final ladder = [
+      for (final reference in references)
+        if (reference.trim().isNotEmpty) reference.trim(),
+    ];
+    if (ladder.isEmpty) {
+      throw const ResponsaAutomationException(
+        ResponsaFailure.referenceNotParsed,
+        'לא נמסרה הפניה לפתיחה',
+      );
+    }
+    final openRef = ladder.first;
+
     final main = mainWindow;
     final released = releaseMdiWindows(main);
     final before = ResponsaWin32.mdiTitles(main).toSet();
     final atLimit = before.length >= profile.mdiSoftLimit;
 
+    final tried = <String>[];
     var usedRef = openRef;
-    var parsed = parseReference(openRef, deadline);
-    // נסיגה: ההקשר ב-`open_ref` נבנה מאבות הנתיב, והם לא תמיד חלק מהשם
-    // שהמנתח מכיר — `תנ"ך שמואל א` נדחה בעוד `שמואל א` מתקבל.
-    if (parsed.results.isEmpty) {
-      for (final shorter in shorterReferences(openRef)) {
-        // ניסיון אחד לכל חוליה: הניסיונות החוזרים קיימים בשביל טעינה
-        // קרה, והדיאלוג כבר חם.
-        parsed = parseReference(shorter, deadline, attempts: 1);
-        if (parsed.results.isNotEmpty) {
-          usedRef = shorter;
-          break;
-        }
+    DiscoveredDialog? dialog;
+    var results = const <String>[];
+    for (final candidate in [...ladder, ...shorterReferences(ladder.last)]) {
+      if (tried.contains(candidate)) continue;
+      tried.add(candidate);
+      // ניסיון חוזר רק לחוליה הראשונה: הניסיונות החוזרים קיימים בשביל
+      // טעינה קרה, ואחריה הדיאלוג כבר חם.
+      final attempt = parseReference(
+        candidate,
+        deadline,
+        attempts: tried.length == 1 ? 3 : 1,
+      );
+      if (attempt.results.isNotEmpty) {
+        usedRef = candidate;
+        dialog = attempt.dialog;
+        results = attempt.results;
+        break;
       }
     }
-    if (parsed.results.isEmpty) {
+    if (dialog == null || results.isEmpty) {
       throw ResponsaAutomationException(
         ResponsaFailure.referenceNotParsed,
-        'ההפניה "$openRef" לא נותחה',
-        {'ref': openRef},
+        'פרויקט השו"ת לא זיהה אף אחת מההפניות לספר',
+        {'ref': openRef, 'tried': tried},
       );
     }
 
-    final results = parsed.results;
     final index = resultIndex ?? bestResult(results, usedRef, expectedTitle);
     if (index >= results.length) {
       throw ResponsaAutomationException(
@@ -384,8 +410,8 @@ class ResponsaAutomation {
     }
 
     final chosen = results[index];
-    final listBox = parsed.dialog.handle('results_list');
-    final showButton = parsed.dialog.handle('show_text_button');
+    final listBox = dialog.handle('results_list');
+    final showButton = dialog.handle('show_text_button');
     if (listBox == null || showButton == null) {
       throw const ResponsaAutomationException(
         ResponsaFailure.citationDialogNotFound,
@@ -393,7 +419,7 @@ class ResponsaAutomation {
       );
     }
 
-    ResponsaWin32.listBoxSelect(parsed.dialog.container, listBox, index);
+    ResponsaWin32.listBoxSelect(dialog.container, listBox, index);
     _wait(const Duration(milliseconds: 400), deadline);
     ResponsaWin32.click(showButton);
 
@@ -436,6 +462,10 @@ class ResponsaAutomation {
       );
     }
 
+    // הספר נפתח — עכשיו שיהיה גם גלוי. מופע ממוזער או מוסתר מאחורי
+    // אוצריא נראה למשתמש בדיוק כמו פתיחה שנכשלה.
+    ResponsaWin32.bringToFront(main);
+
     final isNew = !before.contains(title);
     if (isNew) _openedWindows.add(title);
     return ResponsaOpenOutcome(
@@ -445,6 +475,7 @@ class ResponsaAutomation {
       resultCount: results.length,
       isNew: isNew,
       releasedWindows: released,
+      triedRefs: tried,
     );
   }
 

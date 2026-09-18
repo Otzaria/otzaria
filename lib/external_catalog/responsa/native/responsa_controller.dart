@@ -49,12 +49,16 @@ class ResponsaOpenReport {
   final String? window;
   final String? usedRef;
 
+  /// ההפניות שנוסו. בכשל זה מה שהופך "לא נמצא" להודעה שאפשר לפעול לפיה.
+  final List<String> triedRefs;
+
   const ResponsaOpenReport({
     required this.ok,
     this.failure,
     this.message,
     this.window,
     this.usedRef,
+    this.triedRefs = const [],
   });
 }
 
@@ -115,9 +119,9 @@ class ResponsaController {
     );
   }
 
-  /// פותח ספר. [openRef] היא ההפניה מהקטלוג, לא הכותרת.
+  /// פותח ספר. [references] הוא סולם ההפניות מהקטלוג, לא הכותרת.
   Future<ResponsaOpenReport> openBook(
-    String openRef, {
+    List<String> references, {
     String? expectedTitle,
     int? siman,
   }) async {
@@ -125,7 +129,7 @@ class ResponsaController {
       return const ResponsaOpenReport(
         ok: false,
         failure: ResponsaFailure.responsaNotRunning,
-        message: 'פרויקט השו"ת נתמך ב-Windows בלבד.',
+        message: 'פתיחת ספרים בבר אילן נתמכת ב-Windows בלבד.',
       );
     }
 
@@ -134,7 +138,7 @@ class ResponsaController {
 
     return _runCancellable(
       (flagAddress) => _OpenRequest(
-        openRef: openRef,
+        references: references,
         expectedTitle: expectedTitle,
         siman: siman,
         cancelFlagAddress: flagAddress,
@@ -166,7 +170,7 @@ class ResponsaController {
       return ResponsaOpenReport(
         ok: false,
         failure: ResponsaFailure.timeout,
-        message: 'פתיחת הספר נכשלה: $error',
+        message: 'פתיחת הספר בבר אילן נכשלה באופן בלתי צפוי: $error',
       );
     } finally {
       _cancelFlag = null;
@@ -186,14 +190,14 @@ class ResponsaController {
       return const ResponsaOpenReport(
         ok: false,
         failure: ResponsaFailure.responsaNotRunning,
-        message: 'פרויקט השו"ת אינו מותקן במחשב.',
+        message: 'בר אילן (פרויקט השו"ת) אינו מותקן במחשב הזה.',
       );
     }
     if (!autoStart) {
       return const ResponsaOpenReport(
         ok: false,
         failure: ResponsaFailure.responsaNotRunning,
-        message: 'הפעלת פרויקט השו"ת מתוך אוצריא כבויה בהגדרות.',
+        message: 'הפעלת בר אילן מתוך אוצריא כבויה בהגדרות.',
       );
     }
 
@@ -213,7 +217,7 @@ class ResponsaController {
       return const ResponsaOpenReport(
         ok: false,
         failure: ResponsaFailure.responsaNotRunning,
-        message: 'לא ניתן להפעיל את פרויקט השו"ת.',
+        message: 'לא ניתן להפעיל את בר אילן. יש לפתוח אותו ידנית ולנסות שוב.',
       );
     }
 
@@ -222,10 +226,13 @@ class ResponsaController {
       await Future<void>.delayed(const Duration(milliseconds: 600));
       if ((await status()).running) return null;
     }
+    // `responsaNotRunning` ולא `timeout`: התוכנה אינה רצה, וזה מה
+    // שהמשתמש צריך לדעת. `timeout` היה מוביל להודעה על תוכנה שאינה
+    // מגיבה, שהיא תיאור שגוי של המצב.
     return const ResponsaOpenReport(
       ok: false,
-      failure: ResponsaFailure.timeout,
-      message: 'פרויקט השו"ת לא עלה בזמן שהוקצב.',
+      failure: ResponsaFailure.responsaNotRunning,
+      message: 'בר אילן לא עלה בזמן שהוקצב. יש לפתוח אותו ולנסות שוב.',
     );
   }
 
@@ -248,7 +255,7 @@ class ResponsaController {
       return const ResponsaOpenReport(
         ok: false,
         failure: ResponsaFailure.responsaNotRunning,
-        message: 'פרויקט השו"ת אינו פעיל.',
+        message: 'בר אילן אינו פעיל.',
       );
     }
 
@@ -272,7 +279,7 @@ class ResponsaController {
 
     try {
       final outcome = automation.openBook(
-        request.openRef,
+        request.references,
         ResponsaDeadline(openBudget),
         expectedTitle: request.expectedTitle,
       );
@@ -292,12 +299,17 @@ class ResponsaController {
         ok: true,
         window: outcome.window,
         usedRef: outcome.usedRef,
+        triedRefs: outcome.triedRefs,
       );
     } on ResponsaAutomationException catch (error) {
       return ResponsaOpenReport(
         ok: false,
         failure: error.failure,
         message: error.message,
+        triedRefs: switch (error.details['tried']) {
+          final List<String> tried => tried,
+          _ => request.references,
+        },
       );
     }
   }
@@ -312,13 +324,13 @@ class ResponsaController {
 }
 
 class _OpenRequest {
-  final String openRef;
+  final List<String> references;
   final String? expectedTitle;
   final int? siman;
   final int cancelFlagAddress;
 
   const _OpenRequest({
-    required this.openRef,
+    required this.references,
     required this.cancelFlagAddress,
     this.expectedTitle,
     this.siman,
