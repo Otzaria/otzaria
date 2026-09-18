@@ -7,6 +7,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/utils/attached_file_path.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
@@ -117,11 +118,14 @@ AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
     late final List<Map<String, dynamic>> categories;
     late final Map<int, String> authors;
     withTransaction(db, () {
-      books = BookDao.selectBooksMinimal(
-        db,
-        capabilities,
-        withFileColumns: true,
-      );
+      books = [
+        for (final row in BookDao.selectBooksMinimal(
+          db,
+          capabilities,
+          withFileColumns: true,
+        ))
+          {...row, 'resolvedFilePath': _existingAttachedFile(target, row)},
+      ];
       categories = CategoryDao.selectCategoryRows(db, capabilities);
       authors = BookDao.selectBookAuthorsMap(db, capabilities);
     });
@@ -134,6 +138,18 @@ AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
   } finally {
     db.close();
   }
+}
+
+/// הקובץ של ספר מבוסס-קובץ במסד מצורף, כשהנתיב מותר והקובץ קיים.
+String? _existingAttachedFile(
+  ReadOnlyDbTarget target,
+  Map<String, dynamic> row,
+) {
+  final resolved = resolveAttachedBookFilePath(
+    target.path,
+    row['filePath'] as String?,
+  );
+  return resolved != null && File(resolved).existsSync() ? resolved : null;
 }
 
 Future<AttachedCatalogRows> _readAttachedCatalogInIsolate(
@@ -2482,7 +2498,18 @@ class DatabaseLibraryProvider implements LibraryProvider {
       );
       if (record == null || record.source != source) return null;
       final lines = await record.repository.getLineContents(record.book.id);
-      return lines.isEmpty ? null : lines.join('\n');
+      if (lines.isNotEmpty) return lines.join('\n');
+      // ספר מבוסס-קובץ: הקובץ בתיקיית המסד בלבד.
+      final libraryPath = AttachedLibraryRegistry.instance.pathFor(source);
+      final file = libraryPath == null
+          ? null
+          : resolveAttachedBookFilePath(libraryPath, record.book.filePath);
+      if (file == null || !await File(file).exists()) return null;
+      return await readFileBackedBookText(
+        File(file),
+        record.book.fileType,
+        title,
+      );
     } catch (e) {
       debugPrint('⚠️ Error reading attached book text: $e');
       return null;
@@ -3544,7 +3571,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     }
     final looseBooks = <Map<String, dynamic>>[];
     for (final row in build.rows) {
-      if (!_isAttachedTextRow(row)) continue;
+      if (!_isAttachedDisplayableRow(row)) continue;
       final categoryId = row['categoryId'] as int? ?? 0;
       if (knownIds.contains(categoryId)) {
         build.booksByCategory.putIfAbsent(categoryId, () => []).add(row);
@@ -3653,14 +3680,19 @@ class DatabaseLibraryProvider implements LibraryProvider {
     for (final row in rows) {
       final id = row['id'] as int? ?? 0;
       final book = _convertMinimalBookMapToBook(
-        // נתיב קובץ שבמסד מצורף אינו נפתח — הספר נקרא משורות ה-DB שלו.
-        {...row, 'filePath': null, 'orderIndex': build.order(_orderOf(row))},
+        // נתיב הקובץ נפתר מראש יחסית לתיקיית המסד; נתיב אחר אינו נפתח.
+        {
+          ...row,
+          'filePath': row['resolvedFilePath'],
+          'orderIndex': build.order(_orderOf(row)),
+        },
         category,
         build.metadata,
         authorFromDatabase: build.authors[id],
         source: build.source,
         idOverride: id,
         categoryIdOverride: categoryId,
+        remapMovedPath: false,
       );
       if (book == null) continue;
       category.books.add(book);
@@ -3679,11 +3711,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
     }
   }
 
-  /// ספר שתוכנו בשורות ה-DB. ספר מבוסס-קובץ (PDF, Word…) ממסד מצורף אינו
-  /// מוצג: נתיבי הקבצים שבמסד טרם נתמכים.
-  static bool _isAttachedTextRow(Map<String, dynamic> row) {
+  /// ספר שתוכנו בשורות ה-DB, או ספר מבוסס-קובץ (PDF, Word…) שהקובץ שלו נמצא
+  /// בתיקיית המסד. קובץ שנתיבו אסור או חסר — הספר אינו מוצג.
+  static bool _isAttachedDisplayableRow(Map<String, dynamic> row) {
     final fileType = (row['fileType'] as String?)?.trim().toLowerCase() ?? '';
-    return fileType.isEmpty || fileType == 'txt';
+    if (fileType.isEmpty || fileType == 'txt') return true;
+    return row['resolvedFilePath'] != null &&
+        documentFormatOf(fileType: fileType) != null;
   }
 
   static num? _orderOf(Map<String, dynamic> row) =>
@@ -3890,6 +3924,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     BookSource source = BookSource.official,
     int? idOverride,
     int? categoryIdOverride,
+    bool remapMovedPath = true,
   }) {
     final title = bookMap['title'] as String;
     final id = idOverride ?? (bookMap['id'] as int? ?? 0);
@@ -3943,8 +3978,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       return null;
     }
 
-    final resolvedFilePath = filePath == null
-        ? null
+    final resolvedFilePath = filePath == null || !remapMovedPath
+        ? filePath
         : resolveMovedFileBookPath(filePath);
 
     return buildBookForFileType(
