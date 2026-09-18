@@ -77,7 +77,7 @@ class ExternalLinkRepository {
       String? version;
       if (target != null) {
         try {
-          version = await Isolate.run(() => _readOfficialVersion(target));
+          version = await _inIsolate(_readOfficialVersion, target);
         } catch (e) {
           debugPrint('[ExternalLinks] official version: $e');
         }
@@ -185,14 +185,9 @@ class ExternalLinkRepository {
       immutable: library.immutable,
     );
     final sourceWireKey = source.wireKey;
-    final rows = await Isolate.run(
-      () => readResolvedExternalLinks(
-        source: sourceTarget,
-        sourceWireKey: sourceWireKey,
-        targets: targets,
-        book: (title: title, categoryId: categoryId),
-        lineRange: (start, end),
-      ),
+    final rows = await _inIsolate(
+      _forwardRows,
+      (sourceTarget, sourceWireKey, targets, title, categoryId, (start, end)),
     );
     return [
       for (final row in rows)
@@ -223,17 +218,16 @@ class ExternalLinkRepository {
     if (served.isEmpty || version == null) return const [];
     final path = await _cacheDbPath();
     final targetWireKey = source.wireKey;
-    final rows = await Isolate.run(
-      () => _queryReverseRows(
-        path,
-        served: served,
-        targetWireKey: targetWireKey,
-        targetVersion: version,
-        targetTitle: title,
-        targetCategoryId: categoryId,
-        lineRange: (start, end),
-      ),
-    );
+    final rows = await _inIsolate(_queryReverseRows, (
+      path: path,
+      served: served,
+      targetWireKey: targetWireKey,
+      targetVersion: version,
+      targetTitle: title,
+      targetCategoryId: categoryId,
+      lineRange: (start, end),
+      connectionType: null,
+    ));
     return [
       for (final row in rows)
         Link(
@@ -281,14 +275,9 @@ class ExternalLinkRepository {
           immutable: library.immutable,
         );
         final sourceWireKey = source.wireKey;
-        final rows = await Isolate.run(
-          () => readExternalLinkTargets(
-            source: sourceTarget,
-            sourceWireKey: sourceWireKey,
-            targets: targets,
-            title: title,
-            categoryId: categoryId,
-          ),
+        final rows = await _inIsolate(
+          _forwardTargets,
+          (sourceTarget, sourceWireKey, targets, title, categoryId),
         );
         for (final row in rows) {
           if (!LinkTypes.isDependentTextLink(row.connectionType)) continue;
@@ -302,17 +291,16 @@ class ExternalLinkRepository {
       if (served.isNotEmpty && version != null) {
         final path = await _cacheDbPath();
         final targetWireKey = source.wireKey;
-        final rows = await Isolate.run(
-          () => _queryReverseRows(
-            path,
-            served: served,
-            targetWireKey: targetWireKey,
-            targetVersion: version,
-            targetTitle: title,
-            targetCategoryId: categoryId,
-            connectionType: LinkTypes.source,
-          ),
-        );
+        final rows = await _inIsolate(_queryReverseRows, (
+          path: path,
+          served: served,
+          targetWireKey: targetWireKey,
+          targetVersion: version,
+          targetTitle: title,
+          targetCategoryId: categoryId,
+          lineRange: null,
+          connectionType: LinkTypes.source,
+        ));
         for (final row in rows) {
           result.putIfAbsent(
             row.sourceTitle,
@@ -372,9 +360,51 @@ class ExternalLinkRepository {
           ),
         ),
     ];
-    return Isolate.run(() => _syncIndex(path, jobs, targets));
+    return _inIsolate(_syncIndexEntry, (
+      path,
+      jobs,
+      targets,
+    ));
   }
 }
+
+/// מריץ את [computation] ב-isolate. הסגור נבנה כאן, מחוץ למתודת מופע, כדי
+/// שלא ילכוד את ההקשר שלה (Future וכד') שאינו עובר את גבול ה-isolate.
+Future<R> _inIsolate<A, R>(R Function(A) computation, A argument) =>
+    Isolate.run(() => computation(argument));
+
+List<ResolvedExternalLink> _forwardRows(
+  (
+    ReadOnlyDbTarget,
+    String,
+    List<ExternalTargetDb>,
+    String,
+    int?,
+    (int, int),
+  )
+  args,
+) => readResolvedExternalLinks(
+  source: args.$1,
+  sourceWireKey: args.$2,
+  targets: args.$3,
+  book: (title: args.$4, categoryId: args.$5),
+  lineRange: args.$6,
+);
+
+List<({String targetTitle, String targetWireKey, String connectionType})>
+_forwardTargets(
+  (ReadOnlyDbTarget, String, List<ExternalTargetDb>, String, int?) args,
+) => readExternalLinkTargets(
+  source: args.$1,
+  sourceWireKey: args.$2,
+  targets: args.$3,
+  title: args.$4,
+  categoryId: args.$5,
+);
+
+Set<String> _syncIndexEntry(
+  (String, List<_SyncJob>, List<ExternalTargetDb>) args,
+) => _syncIndex(args.$1, args.$2, args.$3);
 
 enum _SyncStatus { build, clear, keep }
 
@@ -475,16 +505,28 @@ String? _readOfficialVersion(ReadOnlyDbTarget target) {
   }
 }
 
-List<_ReverseRow> _queryReverseRows(
-  String path, {
-  required Map<String, String> served,
-  required String targetWireKey,
-  required String targetVersion,
-  required String targetTitle,
-  required int? targetCategoryId,
+typedef _ReverseQuery = ({
+  String path,
+  Map<String, String> served,
+  String targetWireKey,
+  String targetVersion,
+  String targetTitle,
+  int? targetCategoryId,
   (int, int)? lineRange,
   String? connectionType,
-}) {
+});
+
+List<_ReverseRow> _queryReverseRows(_ReverseQuery query) {
+  final (
+    :path,
+    :served,
+    :targetWireKey,
+    :targetVersion,
+    :targetTitle,
+    :targetCategoryId,
+    :lineRange,
+    :connectionType,
+  ) = query;
   if (!File(path).existsSync()) return const [];
   final db = _openCacheDb(path);
   try {

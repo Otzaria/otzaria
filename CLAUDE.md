@@ -868,6 +868,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | צירוף, העתקה, הסרה, תיקיות מסדים, slug כפול, לא זמין, טביעת אצבע | `test/attached_libraries/attached_libraries_repository_test.dart` |
 | עץ הספרייה (שורש נפרד, מיזוג, מוסתר/לא זמין, בלי קטגוריות) + טקסט ותוכן עניינים מקצה לקצה; קטלוג ב-isolate — מסד איטי/מת/שבור מבודד ומסומן לא-זמין | `test/attached_libraries/attached_library_catalog_test.dart` |
 | תוכן עשיר בספר מצורף: קישורים ותוכן מפרש, מפרשים, דורות מהמסד שלו, מפרשי ברירת מחדל, 'כותרות', דיבורי-המתחיל, מהדורות, PDF בנתיב יחסי; מסד מינימלי ריק בלי חריגה | `test/attached_libraries/attached_library_rich_content_test.dart` |
+| קישורים חוצי-מסדים (`external_link`): יעד לפי heRef ואחרת מספר שורה, יעד שלא נפתר נשמט, מפרש מצורף על ספר רשמי (אינדקס-צד ב-cache.db), בנייה מחדש בשינוי קובץ/גרסה רשמית, הסרה, מסד לא נגיש | `test/attached_libraries/attached_external_links_test.dart` |
 | נתיב קובץ ספר במסד מצורף (יחסי בלבד, בלי `..`/מוחלט/UNC) + החלת יומן מוקשחת על עותק | `test/attached_libraries/attached_file_path_test.dart` |
 | כרטיס "מסדי ספרים אישיים" בהגדרות | `test/attached_libraries/attached_libraries_panel_test.dart` |
 | מסד עוין (VIEW/טריגר/ATTACH, ZIP, library_id עם `../`, נתיבי קובץ בורחים, סכמה זבל), חיבור מוקשח (בלי mmap), שחרור נעילה, לא-זמין וחזרה, סדר במיזוג | `test/attached_libraries/attached_library_security_test.dart` |
