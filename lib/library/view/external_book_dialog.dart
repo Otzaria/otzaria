@@ -8,21 +8,40 @@ import '../../utils/navigation/otzar_utils.dart';
 import '../../core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
+import 'package:otzaria/external_catalog/providers/external_provider_capabilities.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/library/services/hebrew_books_download_service.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
-class OtzarBookDialog extends StatelessWidget {
+/// דיאלוג פרטי ספר של ספרייה חיצונית.
+///
+/// הפעולות נקבעות לפי **יכולות הספק**, לא לפי שם המחלקה של הספר ולא
+/// לפי ניחוש מתוך הקישור. ספק בלי `webOpen` פשוט אינו מקבל "פתח באתר",
+/// וספק חדש אינו דורש ענף נוסף כאן.
+class ExternalBookDialog extends StatelessWidget {
   final ExternalLibraryBook book;
 
-  const OtzarBookDialog({super.key, required this.book});
+  /// נקרא כשהמשתמש בוחר "פתח בתוכנה" אצל ספק עם `localOpen` שאינו אוצר
+  /// החכמה. מוזרק כדי שהדיאלוג לא יכיר את שכבת הגשר.
+  final Future<String?> Function(ExternalLibraryBook book)? onOpenLocally;
+
+  const ExternalBookDialog({
+    super.key,
+    required this.book,
+    this.onOpenLocally,
+  });
 
   ExternalProviderDescriptor? get _provider => ExternalCatalogMapper.providerOf(
     link: book.link,
     externalLibraryId: book.externalLibraryId,
   );
+
+  ExternalProviderCapabilities get _capabilities =>
+      _provider?.capabilities ?? const ExternalProviderCapabilities();
+
+  bool get _isOtzar => _provider?.kind == ExternalProviderKind.otzar;
 
   bool get _isHebrewBook => _provider?.kind == ExternalProviderKind.hebrewBooks;
 
@@ -34,12 +53,14 @@ class OtzarBookDialog extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: FutureBuilder<(bool, bool)>(
-          future: _isHebrewBook
-              ? Future.value((false, false))
-              : Future.wait([
+          // בדיקת הזמינות המקומית שייכת לאוצר החכמה בלבד — היא בודקת
+          // קובץ ספר, ולספקים אחרים אין מודל כזה.
+          future: _isOtzar && book.id != null
+              ? Future.wait([
                   OtzarUtils.canLaunchLocally(),
                   OtzarUtils.checkBookExistence(book.id!),
-                ]).then((results) => (results[0], results[1])),
+                ]).then((results) => (results[0], results[1]))
+              : Future.value((false, false)),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -78,36 +99,57 @@ class OtzarBookDialog extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
-                    _buildInfoRow(
-                      context,
-                      FluentIcons.document_text_24_regular,
-                      'תיאור',
-                      book.heShortDesc ?? 'לא קיים',
-                    ),
-                    _buildInfoRow(
-                      context,
-                      OtzariaIcons.person_24_regular,
-                      'מחבר',
-                      book.author ?? 'לא ידוע',
-                    ),
-                    _buildInfoRow(
-                      context,
-                      FluentIcons.location_24_regular,
-                      'מקום הדפסה',
-                      book.pubPlace ?? 'לא ידוע',
-                    ),
-                    _buildInfoRow(
-                      context,
-                      OtzariaIcons.calendar_24_regular,
-                      'שנת הדפסה',
-                      book.pubDate ?? 'לא ידוע',
-                    ),
-                    _buildInfoRow(
-                      context,
-                      FluentIcons.apps_24_regular,
-                      'נושאים',
-                      book.topics,
-                    ),
+                    if (_provider case final provider?)
+                      _buildInfoRow(
+                        context,
+                        FluentIcons.library_24_regular,
+                        'מקור',
+                        provider.displayName,
+                      ),
+                    if (book.categoryPath?.isNotEmpty ?? false)
+                      _buildInfoRow(
+                        context,
+                        FluentIcons.folder_24_regular,
+                        'הקשר',
+                        book.categoryPath!.replaceAll('/', ' › '),
+                      ),
+                    // שדה שאין לו מקור אצל הספק אינו מוצג כ"לא ידוע" —
+                    // זו אמירה שגויה על הספר ולא על המידע שברשותנו.
+                    if (book.heShortDesc != null)
+                      _buildInfoRow(
+                        context,
+                        FluentIcons.document_text_24_regular,
+                        'תיאור',
+                        book.heShortDesc!,
+                      ),
+                    if (book.author != null)
+                      _buildInfoRow(
+                        context,
+                        OtzariaIcons.person_24_regular,
+                        'מחבר',
+                        book.author!,
+                      ),
+                    if (book.pubPlace != null)
+                      _buildInfoRow(
+                        context,
+                        FluentIcons.location_24_regular,
+                        'מקום הדפסה',
+                        book.pubPlace!,
+                      ),
+                    if (book.pubDate != null)
+                      _buildInfoRow(
+                        context,
+                        OtzariaIcons.calendar_24_regular,
+                        'שנת הדפסה',
+                        book.pubDate!,
+                      ),
+                    if (book.topics.isNotEmpty)
+                      _buildInfoRow(
+                        context,
+                        FluentIcons.apps_24_regular,
+                        'נושאים',
+                        book.topics,
+                      ),
                     const SizedBox(height: 24),
                     _buildButtons(context, canLaunchLocally, bookExists),
                   ],
@@ -161,12 +203,13 @@ class OtzarBookDialog extends StatelessWidget {
     bool canLaunchLocally,
     bool bookExists,
   ) {
+    final capabilities = _capabilities;
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 8,
       runSpacing: 8,
       children: <Widget>[
-        if (canLaunchLocally && bookExists)
+        if (_isOtzar && canLaunchLocally && bookExists)
           ElevatedButton.icon(
             icon: const Icon(FluentIcons.desktop_24_regular),
             label: const Text('פתח מקומית'),
@@ -179,24 +222,27 @@ class OtzarBookDialog extends StatelessWidget {
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
-        if (book.link case final url?)
-          ElevatedButton.icon(
-            icon: const Icon(FluentIcons.open_24_regular),
-            label: const Text('פתח באתר'),
-            onPressed: () async {
-              Navigator.of(context).pop();
-              if (await OtzarUtils.launchOtzarWeb(url)) {
-                // Success
-              } else {
-                UiSnack.showError(LibraryMessages.cannotOpenLinkInBrowser);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              foregroundColor: Theme.of(context).colorScheme.onSecondary,
+        if (!_isOtzar && capabilities.localOpen && onOpenLocally != null)
+          _OpenInSoftwareButton(book: book, onOpen: onOpenLocally!),
+        if (capabilities.webOpen)
+          if (book.link case final url?)
+            ElevatedButton.icon(
+              icon: const Icon(FluentIcons.open_24_regular),
+              label: const Text('פתח באתר'),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                if (await OtzarUtils.launchOtzarWeb(url)) {
+                  // Success
+                } else {
+                  UiSnack.showError(LibraryMessages.cannotOpenLinkInBrowser);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                foregroundColor: Theme.of(context).colorScheme.onSecondary,
+              ),
             ),
-          ),
-        if (_isHebrewBook && book.id != null)
+        if (capabilities.pdfDownload && _isHebrewBook && book.id != null)
           _HebrewBookDownloadButton(bookId: book.id!),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -207,6 +253,50 @@ class OtzarBookDialog extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// "פתח בתוכנה" לספק שפתיחתו מקומית ואיטית (פרויקט השו"ת: 3–25 שניות).
+///
+/// הכפתור ננעל בזמן הפתיחה ומציג מצב טעינה. אין כאן "ביטול": הוא ייווסף
+/// רק כשהוא באמת יעצור את הפעולה, ולא כדי להסתיר את מחוון הטעינה.
+class _OpenInSoftwareButton extends StatefulWidget {
+  final ExternalLibraryBook book;
+  final Future<String?> Function(ExternalLibraryBook book) onOpen;
+
+  const _OpenInSoftwareButton({required this.book, required this.onOpen});
+
+  @override
+  State<_OpenInSoftwareButton> createState() => _OpenInSoftwareButtonState();
+}
+
+class _OpenInSoftwareButtonState extends State<_OpenInSoftwareButton> {
+  bool _isOpening = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionButton.recommended(
+      text: _isOpening ? 'פותח...' : 'פתח בתוכנה',
+      icon: FluentIcons.desktop_24_regular,
+      isLoading: _isOpening,
+      onPressed: _isOpening ? null : _open,
+    );
+  }
+
+  Future<void> _open() async {
+    setState(() => _isOpening = true);
+    String? error;
+    try {
+      error = await widget.onOpen(widget.book);
+    } finally {
+      if (mounted) setState(() => _isOpening = false);
+    }
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop();
+    } else {
+      UiSnack.showError(error);
+    }
   }
 }
 

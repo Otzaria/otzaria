@@ -28,7 +28,8 @@ import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/library/view/grid_items.dart';
-import 'package:otzaria/library/view/otzar_book_dialog.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_service.dart';
+import 'package:otzaria/library/view/external_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/library/view/category_preview_panel.dart';
 import 'package:otzaria/library/view/library_empty_state_widget.dart';
@@ -498,6 +499,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           listenWhen: (p, c) =>
               p.showExternalBooks != c.showExternalBooks ||
               p.showHebrewBooks != c.showHebrewBooks ||
+              p.showResponsaInLibrary != c.showResponsaInLibrary ||
               p.showLocalHebrewBooks != c.showLocalHebrewBooks ||
               p.showOtzarHachochma != c.showOtzarHachochma,
           listener: (ctx, s) {
@@ -2618,7 +2620,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   void _openOtzarBook(ExternalLibraryBook book) {
     showDialog(
       context: context,
-      builder: (ctx) => OtzarBookDialog(book: book),
+      builder: (ctx) => ExternalBookDialog(
+        book: book,
+        onOpenLocally: ResponsaService.instance.openBook,
+      ),
     );
     _refocusSearchBar();
   }
@@ -2715,9 +2720,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _searchDebounce = null;
     context.read<LibraryBloc>().add(
       SearchBooks(
-        showHebrewBooks: s.showExternalBooks && s.showHebrewBooks,
-        showOtzarHachochma: s.showExternalBooks && s.showOtzarHachochma,
+        showHebrewBooks: s.showHebrewBooks,
+        showOtzarHachochma: s.showOtzarHachochma,
         showLocalHebrewBooks: s.showLocalHebrewBooks,
+        showResponsa: s.showResponsaInLibrary,
       ),
     );
   }

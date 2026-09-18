@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/services/hebrew_books_download_service.dart';
-import 'package:otzaria/library/view/otzar_book_dialog.dart';
+import 'package:otzaria/library/view/external_book_dialog.dart';
 import 'package:otzaria/models/books.dart';
 
 Widget _wrap(Widget child) => MaterialApp(
@@ -46,7 +46,7 @@ void main() {
 
   group('כפתור ההורדה בדיאלוג הספר', () {
     testWidgets('מוצג לספר היברובוקס לצד "פתח באתר"', (tester) async {
-      await tester.pumpWidget(_wrap(OtzarBookDialog(book: _hebrewBook())));
+      await tester.pumpWidget(_wrap(ExternalBookDialog(book: _hebrewBook())));
       await tester.pumpAndSettle();
 
       expect(find.text('פתח באתר'), findsOneWidget);
@@ -56,7 +56,7 @@ void main() {
     testWidgets('אינו מוצג לספר אוצר החכמה', (tester) async {
       // בדיקת הקיום המקומי של אוצר החכמה ניגשת לדיסק — חייב runAsync.
       await tester.runAsync(() async {
-        await tester.pumpWidget(_wrap(OtzarBookDialog(book: _otzarBook())));
+        await tester.pumpWidget(_wrap(ExternalBookDialog(book: _otzarBook())));
         await Future<void>.delayed(const Duration(milliseconds: 300));
       });
       await tester.pump();
