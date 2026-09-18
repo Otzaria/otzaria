@@ -1,3 +1,4 @@
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut.dart';
 import 'package:otzaria/text_display/view/copy_as_menu.dart';
 import 'dart:async';
@@ -155,7 +156,7 @@ CommentaryKeyAction resolveCommentaryKeyAction({
   required bool hasSelectedIndex,
   required String addNoteShortcut,
   String reportErrorShortcut = '',
-  bool isReportBookUserBook = false,
+  bool isReportUnavailable = false,
   bool? isControlPressed,
   bool? isShiftPressed,
   bool? isAltPressed,
@@ -184,7 +185,7 @@ CommentaryKeyAction resolveCommentaryKeyAction({
     return CommentaryKeyAction.addNote;
   }
 
-  if (!isReportBookUserBook &&
+  if (!isReportUnavailable &&
       reportErrorShortcut.isNotEmpty &&
       ShortcutHelper.matchesShortcut(
         event,
@@ -993,11 +994,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           return bloc.repository.getSiblingCommentaries(
             sourceBookTitle: utils.getTitleFromPath(sourceLink.path2),
             sourceCategoryId: sourceLink.targetCategoryId,
-            sourceIsUserBook: sourceLink.targetIsUserBook,
+            sourceBookSource: sourceLink.targetSource,
             sourceLineIndex: sourceLink.index2 - 1,
             currentBookTitle: state.book.title,
             currentCategoryId: state.book.categoryId,
-            currentIsUserBook: state.book.isUserBook,
+            currentBookSource: state.book.source,
           );
         },
       );
@@ -1070,9 +1071,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ShortcutValidator.getShortcutValue(ShortcutValidator.reportErrorKey) ??
         '';
     final state = context.read<TextBookBloc>().state;
-    final isReportBookUserBook =
-        widget.reportBook?.isUserBook ??
-        (state is TextBookLoaded && state.book.isUserBook);
+    final reportBook =
+        widget.reportBook ?? (state is TextBookLoaded ? state.book : null);
+    final isReportUnavailable =
+        reportBook != null && !reportBook.isOfficialLibraryBook;
     final action = resolveCommentaryKeyAction(
       event: event,
       isActiveCommentary: _lastActiveCommentary == this,
@@ -1081,10 +1083,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       hasSelectedIndex: _savedSelectedIndex != null,
       addNoteShortcut: addNoteShortcut,
       reportErrorShortcut: reportErrorShortcut,
-      isReportBookUserBook: isReportBookUserBook,
+      isReportUnavailable: isReportUnavailable,
     );
 
-    if (isReportBookUserBook &&
+    if (isReportUnavailable &&
         reportErrorShortcut.isNotEmpty &&
         ShortcutHelper.matchesShortcut(event, reportErrorShortcut)) {
       return true;
@@ -1900,7 +1902,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               icon: FluentIcons.link_24_regular,
               submenuBuilder: () => buildDirectLinkSubmenuActions(
                 bookId: state.book.id!,
-                isUserBook: state.book.isUserBook,
+                source: state.book.source,
                 index: index,
                 selectedText: capturedText,
               ),
@@ -2006,7 +2008,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           icon: FluentIcons.note_add_24_regular,
           onTap: () => _createNoteForCurrentLine(index, capturedText),
         ),
-      if (!reportTargetBook.isUserBook)
+      if (reportTargetBook.isOfficialLibraryBook)
         AppContextMenuEntry(
           label: 'דווח על טעות בספר',
           icon: FluentIcons.error_circle_24_regular,
@@ -2150,7 +2152,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             icon: FluentIcons.link_24_regular,
             childrenBuilder: () => buildDirectLinkContextMenuEntries(
               bookId: commentaryBookId,
-              isUserBook: widget.reportBook?.isUserBook ?? false,
+              source: widget.reportBook?.source ?? BookSource.official,
               index: index,
               selectedText: capturedText,
             ),
@@ -2225,7 +2227,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       connectionType: 'commentary',
       targetCategoryId: book.categoryId,
       targetFileType: book.fileType,
-      targetIsUserBook: book.isUserBook,
+      targetSource: book.source,
     );
 
     Future<void> navigate(Link link) async {

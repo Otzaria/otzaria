@@ -4,6 +4,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -145,7 +146,7 @@ void main() {
     });
 
     test('ספר אישי אינו נשמר פר-ספר', () async {
-      final userBook = TextBook(title: 'ספר אישי', isUserBook: true);
+      final userBook = TextBook(title: 'ספר אישי', source: BookSource.user);
       await select(const ['רש"י'], forBook: userBook);
 
       expect(await TextBookPerBookSettings.load(userBook), isNull);

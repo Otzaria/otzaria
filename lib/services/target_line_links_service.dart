@@ -111,7 +111,7 @@ class TargetLineLinksService {
     title: utils.getTitleFromPath(link.path2),
     categoryId: link.targetCategoryId,
     fileType: link.targetFileType,
-    isUserBook: link.targetIsUserBook,
+    source: link.targetSource,
   );
 
   /// זהות היעד כוללת אישי/רשמי וסוג קובץ: מזהי הקטגוריה של user_books.db הם

@@ -4,6 +4,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 class BookFacet {
@@ -33,7 +34,7 @@ class BookFacet {
     required String topics,
     String? externalLibraryId,
     int? bookId,
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
     String? categoryPath,
     String? fileType,
     String? filePath,
@@ -47,7 +48,7 @@ class BookFacet {
       title: title,
       externalLibraryId: externalLibraryId,
       bookId: bookId,
-      isUserBook: isUserBook,
+      source: source,
       categoryKey: categoryPath,
       fileTypeKey: fileType,
       pathKey: filePath,
@@ -105,7 +106,7 @@ class BookFacet {
         final resolvedBook = bookId != null
             ? await BookDatabaseResolver.resolveBookById(
                 bookId,
-                preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+                source: BookDatabaseResolver.likelySource(
                   categoryPath: categoryPath,
                 ),
               )
@@ -113,7 +114,7 @@ class BookFacet {
                 title: title,
                 fileType: fileType,
                 filePath: filePath,
-                preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+                preferSource: BookDatabaseResolver.likelySource(
                   categoryPath: categoryPath,
                 ),
               );

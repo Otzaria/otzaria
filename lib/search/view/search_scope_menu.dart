@@ -12,6 +12,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
@@ -231,9 +232,11 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     }
     final id = book.id;
     if (id == null) return false;
-    return book.isUserBook
-        ? _baseUserBookIds.contains(id)
-        : _baseBookIds.contains(id);
+    return switch (book.source) {
+      OfficialBookSource() => _baseBookIds.contains(id),
+      UserBookSource() => _baseUserBookIds.contains(id),
+      AttachedBookSource() => false,
+    };
   }
 
   KeyEventResult _handleFieldKey(FocusNode node, KeyEvent event) {

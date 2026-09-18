@@ -41,6 +41,7 @@ import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -345,12 +346,14 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   List<TocEntry>? _cachedToc;
 
   /// Check if book is already being tracked in Shamor Zachor
-  /// שמור וזכור נשען על מזהי seforim.db בלבד; ספר אישי/חיצוני מחזיק מזהה
+  /// שמור וזכור נשען על מזהי seforim.db בלבד; ספר ממקור אחר מחזיק מזהה
   /// ממרחב אחר שעלול להתנגש עם ספר רשמי אקראי, ולכן אינו נתמך.
   bool _isOfficialSeforimBook(Book book) =>
       book.id != null &&
-      !book.isUserBook &&
-      (book.externalLibraryId == null || book.externalLibraryId!.isEmpty);
+      book.isOfficialLibraryBook &&
+      !DatabaseConstants.isTalmudBavliPdfExternalLibraryId(
+        book.externalLibraryId,
+      );
 
   bool _isBookTrackedInShamorZachor(Book book) {
     if (!_isOfficialSeforimBook(book)) return false;
@@ -384,8 +387,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           categoryId: state.book.categoryId,
           fileType: state.book.fileType,
           filePath: state.book.filePath,
-          preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-            isUserBook: state.book.isUserBook,
+          preferSource: BookDatabaseResolver.likelySource(
+            source: state.book.source,
             categoryPath: state.book.categoryPath,
           ),
         );
@@ -1997,7 +2000,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
               ? () => copyLinkToClipboard(
                   buildBookLink(
                     state.book.id!,
-                    isUserBook: state.book.isUserBook,
+                    source: state.book.source,
                   ),
                 )
               : null,
@@ -2579,8 +2582,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 categoryId: book.categoryId,
                 fileType: book.fileType,
                 filePath: book.filePath,
-                preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-                  isUserBook: book.isUserBook,
+                preferSource: BookDatabaseResolver.likelySource(
+                  source: book.source,
                   categoryPath: book.categoryPath,
                 ),
               );
@@ -3220,7 +3223,7 @@ bool _handleGlobalKeyEvent(
   // דיווח על טעות בספר — רק כשיש טקסט מסומן או קטע נבחר, בדיוק כמו הפריט
   // בתפריט ההקשר (שאינו מוצג בספרי המשתמש).
   if (reportErrorShortcut.isNotEmpty &&
-      !state.book.isUserBook &&
+      state.book.isOfficialLibraryBook &&
       ShortcutHelper.matchesShortcut(event, reportErrorShortcut)) {
     // בצורת הדף, כשהבחירה במפרש, חלונית המפרש כבר פתחה דיווח על ספר המפרש.
     if (SimpleTextViewer.commentaryReportHandledRecently) {
@@ -3263,7 +3266,7 @@ bool _handleGlobalKeyEvent(
         UiSnack.showError(TextBookMessages.directLinkUnavailable);
       } else {
         copyLinkToClipboard(
-          buildBookLink(bookId, isUserBook: state.book.isUserBook),
+          buildBookLink(bookId, source: state.book.source),
         );
       }
       return true;
@@ -3276,7 +3279,7 @@ bool _handleGlobalKeyEvent(
           buildSectionLink(
             bookId,
             index,
-            isUserBook: state.book.isUserBook,
+            source: state.book.source,
           ),
         );
       }
@@ -3290,7 +3293,7 @@ bool _handleGlobalKeyEvent(
           buildSectionMarkLink(
             bookId,
             index,
-            isUserBook: state.book.isUserBook,
+            source: state.book.source,
           ),
         );
       }
@@ -3303,7 +3306,7 @@ bool _handleGlobalKeyEvent(
               bookId,
               index,
               selectedTextForNote ?? '',
-              isUserBook: state.book.isUserBook,
+              source: state.book.source,
             );
       if (bookId == null) {
         UiSnack.showError(TextBookMessages.directLinkUnavailable);

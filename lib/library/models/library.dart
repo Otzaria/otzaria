@@ -231,7 +231,7 @@ class Library extends Category {
   /// האם [candidate] בא מאותו מקור ספרים כמו [book] — ספריית אוצריא, הספרים
   /// האישיים, או אותו קטלוג חיצוני. שם זהה ממקור אחר אינו אותו ספר.
   bool _isSameBookSource(Book book, Book candidate) =>
-      candidate.isUserBook == book.isUserBook &&
+      candidate.source == book.source &&
       _bookSourceKey(candidate) == _bookSourceKey(book);
 
   /// מסכת PDF מצורפת נושאת מזהה חיצוני אך מגיעה מספריית אוצריא עצמה.

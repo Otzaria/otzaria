@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/commentary_service.dart';
 
@@ -122,9 +123,7 @@ class BookFacetMetadataCache {
   List<String> extraFacetsForBook(Book book, {required bool isFoundational}) {
     final facets = <String>[];
     final id = book.id;
-    final authors = id == null
-        ? null
-        : _authorsFor(id, isUserBook: book.isUserBook);
+    final authors = id == null ? null : _authorsFor(id, source: book.source);
     if (authors != null) {
       for (final author in authors) {
         facets.add('/author/${_sanitizeSegment(author)}');
@@ -137,24 +136,30 @@ class BookFacetMetadataCache {
     final isBase =
         isFoundational ||
         (id != null &&
-            (book.isUserBook
-                ? _baseUserBookIds.contains(id)
-                : _baseBookIds.contains(id)));
+            switch (book.source) {
+              OfficialBookSource() => _baseBookIds.contains(id),
+              UserBookSource() => _baseUserBookIds.contains(id),
+              AttachedBookSource() => false,
+            });
     if (isBase) {
       facets.add('/base');
     }
     return facets;
   }
 
-  List<String>? _authorsFor(int bookId, {required bool isUserBook}) =>
-      isUserBook ? _authorsByUserBookId[bookId] : _authorsByBookId[bookId];
+  List<String>? _authorsFor(int bookId, {required BookSource source}) =>
+      switch (source) {
+        OfficialBookSource() => _authorsByBookId[bookId],
+        UserBookSource() => _authorsByUserBookId[bookId],
+        AttachedBookSource() => null,
+      };
 
   /// שם התקופה לפי דלי [CommentaryEra] של הספר; null לדלי "שאר מפרשים"
   /// (ספר בלי דור ידוע) — עדיף שלא ישא facet מאשר שישא תקופה שגויה.
   static String? _eraNameFor(Book book) {
     final order = GenerationCache.instance.getOrderForBook(
       book.id,
-      book.isUserBook,
+      book.source,
     );
     if (order == CommentaryEra.other.order) return null;
     for (final era in CommentaryEra.values) {

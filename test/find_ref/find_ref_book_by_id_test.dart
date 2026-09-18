@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/find_ref/view/find_ref_dialog.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 Category _category(String title, {Category? parent}) {
@@ -24,7 +25,11 @@ void main() {
     test('מדלג על ספר אישי בעל אותו id ומחזיר את הרשמי', () {
       final root = _category('תלמוד בבלי');
       final personal = _category('ספרים אישיים');
-      final userBook = TextBook(id: 7, title: 'ברכות שלי', isUserBook: true);
+      final userBook = TextBook(
+        id: 7,
+        title: 'ברכות שלי',
+        source: BookSource.user,
+      );
       final official = TextBook(id: 7, title: 'ברכות');
       personal.books.add(userBook);
       root.books.add(official);
@@ -48,7 +53,9 @@ void main() {
 
     test('אין ספר רשמי מתאים — מחזיר null גם כשיש התנגשות id', () {
       final personal = _category('ספרים אישיים');
-      personal.books.add(TextBook(id: 7, title: 'ברכות שלי', isUserBook: true));
+      personal.books.add(
+        TextBook(id: 7, title: 'ברכות שלי', source: BookSource.user),
+      );
 
       final library = Library(categories: [personal]);
 
@@ -62,7 +69,11 @@ void main() {
     test('מדלג על ספר אישי בעל אותו id ומחזיר את הרשמי', () {
       final personal = _category('ספרים אישיים');
       final root = _category('תלמוד בבלי');
-      final userBook = TextBook(id: 7, title: 'ברכות שלי', isUserBook: true);
+      final userBook = TextBook(
+        id: 7,
+        title: 'ברכות שלי',
+        source: BookSource.user,
+      );
       final official = TextBook(id: 7, title: 'ברכות');
       personal.books.add(userBook);
       root.books.add(official);
@@ -168,7 +179,7 @@ void main() {
       final root = _category('תלמוד בבלי');
       root.books.add(TextBook(id: 1, title: 'ברכות'));
       final library = Library(categories: [root]);
-      final personal = TextBook(id: 9, title: 'ברכות', isUserBook: true);
+      final personal = TextBook(id: 9, title: 'ברכות', source: BookSource.user);
       library.books.add(personal);
 
       expect(
@@ -189,7 +200,9 @@ void main() {
         TextBook(id: 3, title: 'רש"י'),
         TextBook(id: 2, title: 'תוספות'),
       ]);
-      personal.books.add(TextBook(id: 3, title: 'שלי', isUserBook: true));
+      personal.books.add(
+        TextBook(id: 3, title: 'שלי', source: BookSource.user),
+      );
 
       final library = Library(categories: [personal, root]);
       final index = LibraryBookIndex(library);

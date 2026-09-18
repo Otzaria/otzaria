@@ -778,11 +778,11 @@ class _CombinedViewState extends State<CombinedView> {
         return _textBookBloc.repository.getSiblingCommentaries(
           sourceBookTitle: utils.getTitleFromPath(sourceLink.path2),
           sourceCategoryId: sourceLink.targetCategoryId,
-          sourceIsUserBook: sourceLink.targetIsUserBook,
+          sourceBookSource: sourceLink.targetSource,
           sourceLineIndex: sourceLink.index2 - 1,
           currentBookTitle: state.book.title,
           currentCategoryId: state.book.categoryId,
-          currentIsUserBook: state.book.isUserBook,
+          currentBookSource: state.book.source,
         );
       },
     );
@@ -943,6 +943,7 @@ class _CombinedViewState extends State<CombinedView> {
     // הסימנים ממופים ל-lineIndex של הטקסט הממוזג במסד — מהדורה חלופית
     // (version_line) או ספר שתוכנו מוגש מקבצים ממוספרים אחרת.
     if (book.versionTitle != null) return;
+    if (book.source.isAttached) return;
     final InlineSectionMarks marks;
     if (book.isUserBook) {
       marks = await DatabaseLibraryProvider.instance.getUserInlineSectionMarks(
@@ -1376,7 +1377,7 @@ class _CombinedViewState extends State<CombinedView> {
             icon: FluentIcons.link_24_regular,
             submenuBuilder: () => buildDirectLinkSubmenuActions(
               bookId: state.book.id!,
-              isUserBook: state.book.isUserBook,
+              source: state.book.source,
               index: paragraphIndex,
               selectedText: selectedText,
             ),
@@ -1448,7 +1449,7 @@ class _CombinedViewState extends State<CombinedView> {
         icon: FluentIcons.bookmark_add_24_regular,
         onTap: () => addTextSectionBookmark(context, state, paragraphIndex),
       ),
-      if (!state.book.isUserBook)
+      if (state.book.isOfficialLibraryBook)
         AppContextMenuEntry(
           label: 'דווח על טעות בספר',
           icon: FluentIcons.error_circle_24_regular,

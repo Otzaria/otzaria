@@ -41,6 +41,7 @@ class PluginBookIdentity {
   static String sourceOf(Book book) => switch (book) {
     ExternalLibraryBook() => 'external',
     _ when book.isUserBook => 'user',
+    _ when book.source.isAttached => 'attached',
     _ => 'library',
   };
 

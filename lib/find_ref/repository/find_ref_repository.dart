@@ -13,6 +13,7 @@ import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/ref_key.dart';
@@ -552,15 +553,15 @@ class FindRefRepository {
   /// הכותרת הבאה, או כל הספר כשאין כותרות פנימיות) מתבצע ב-[fetchCommentatorRows]
   /// (בייצור: [SeforimRepository.getCommentatorsForReference]).
   ///
-  /// PDFs / ספרים מחוץ ל-DB (bookId <= 0) / ספרים אישיים — מחזיר ריק מיידית.
-  /// ספרים אישיים: ה-bookId/sourceLineId שלהם שייכים ל-user_books.db ולא
-  /// מתאימים ל-link table של ה-DB הראשי — שאילתה תחזיר מפרשים שגויים.
+  /// PDFs / ספרים מחוץ ל-DB (bookId <= 0) / ספרים שאינם רשמיים — ריק מיידית:
+  /// ה-bookId/sourceLineId שלהם שייכים למסד אחר ולא מתאימים ל-link table של
+  /// ה-DB הראשי — שאילתה תחזיר מפרשים שגויים.
   ///
   /// תוצאות נשמרות בקאש בזיכרון לאורך חיי ה-repository.
   Future<List<DbCommentatorEntry>> getCommentatorsForResult(
     DbReferenceResult ref,
   ) async {
-    if (ref.isPdf || ref.bookId <= 0 || ref.isUserBook) return const [];
+    if (ref.isPdf || ref.bookId <= 0 || !ref.source.isOfficial) return const [];
 
     final cacheKey = _cacheKeyFor(ref);
     final cached = _commentatorsCache[cacheKey];
@@ -1323,7 +1324,7 @@ class FindRefRepository {
   /// (הטוקן האחרון חייב להופיע ב-ownTokens), ה-flat cache הגלובלי בודק רק
   /// אם כל הטוקנים מופיעים בנתיב המלא — וכך צאצאי entry שתואם משתחלים גם הם.
   ///
-  /// ההשוואה היא לפי `(bookId, isUserBook, isAltToc, isPdf)`: TOC ו-AltToc
+  /// ההשוואה היא לפי `(bookId, source, isAltToc, isPdf)`: TOC ו-AltToc
   /// הם מבנים חלופיים — אחד לא מסתיר את השני. ספרים שונים בכלל אינם
   /// משפיעים אחד על השני. רמת ה-TOC המוחלטת לא רלוונטית כי מבני AltToc
   /// מתחילים ב-DB מ-level 0 בעוד TOC רגיל מ-1 — מה שחשוב הוא היחס prefix
@@ -1337,7 +1338,7 @@ class FindRefRepository {
       for (final other in entries) {
         if (identical(other, entry)) continue;
         if (other.bookId != entry.bookId) continue;
-        if (other.isUserBook != entry.isUserBook) continue;
+        if (other.source != entry.source) continue;
         if (other.isAltToc != entry.isAltToc) continue;
         if (other.isPdf != entry.isPdf) continue;
         // משווים אורך reference ולא tocLevel — TOC ו-AltToc מתחילים ברמות
@@ -1458,7 +1459,7 @@ class FindRefRepository {
               bookPath: book.folderTitles.isEmpty
                   ? personalBookPath
                   : book.folderTitles.join(', '),
-              isUserBook: true,
+              source: BookSource.user,
             ),
           );
         } else if (remainingTokens.isEmpty) {
@@ -1476,7 +1477,7 @@ class FindRefRepository {
               bookPath: book.folderTitles.isEmpty
                   ? personalBookPath
                   : book.folderTitles.join(', '),
-              isUserBook: true,
+              source: BookSource.user,
             ),
           );
         } else {
@@ -1503,7 +1504,7 @@ class FindRefRepository {
                     ? personalBookPath
                     : book.folderTitles.join(', '),
                 sourceLineId: entry['dbLineId'] as int? ?? 0,
-                isUserBook: true,
+                source: BookSource.user,
               ),
             );
           }
@@ -1556,7 +1557,7 @@ class FindRefRepository {
         bookId: r.bookId,
         bookPath: path,
         sourceLineId: r.sourceLineId,
-        isUserBook: r.isUserBook,
+        source: r.source,
       );
     }).toList();
     return _dropTalmudBavliPdfRefs(enriched);
@@ -1803,15 +1804,14 @@ class FindRefRepository {
     final out = <DbReferenceResult>[];
 
     for (final r in results) {
-      // Deduplicate by (bookId, isUserBook, title, isPdf [, filePath]) +
+      // Deduplicate by (bookId, source, title, isPdf [, filePath]) +
       // segment, וגם + reference:
       //   - title|segment|isPdf — שני TOC/AltToc שמובילים לאותה שורה באותו ספר
       //     הם כפילות, ללא תלות בפורמט ה-reference
       //     ("בראשית תולדות עליה ב" מול "תולדות עליה ב").
-      //   - bookId + isUserBook — שני ספרים *שונים* (למשל ספר רשמי וספר אישי,
-      //     או שני רשמיים) בעלי אותה כותרת *אינם* כפילות; ה-namespace של
-      //     user_books.db נפרד מזה של seforim.db ובלעדיהם מפתח אחיד היה
-      //     מוחק את אחד מהם משרירותיות.
+      //   - bookId + source — שני ספרים *שונים* (למשל ספר רשמי וספר אישי,
+      //     או שני רשמיים) בעלי אותה כותרת *אינם* כפילות; מרחבי ה-id של
+      //     המסדים נפרדים, ובלעדיהם מפתח אחיד היה מוחק את אחד מהם משרירותיות.
       //   - filePath נוסף **רק** עבור FS PDFs (`bookId == -1`): לכולם אותו
       //     bookId שלילי, וההבדלה היחידה ביניהם היא הקובץ עצמו. שני קבצי PDF
       //     שונים מהדיסק עם אותה כותרת חייבים לשרוד את ה-dedupe. עבור
@@ -1820,7 +1820,7 @@ class FindRefRepository {
       //     להתמזג עם תוצאת ה-per-book של אותו bookId שיש לה filePath ידוע.
       final filePathKey = r.bookId == -1 ? r.filePath : '';
       final bookKey =
-          '${r.bookId}|${r.isUserBook}|${r.title}|${r.isPdf}|$filePathKey';
+          '${r.bookId}|${r.source.wireKey}|${r.title}|${r.isPdf}|$filePathKey';
       // אותה כתובת מלאה באותו ספר — גם כשה-segment שונה (כותרת "סעיף ג" ב-TOC
       // מול עלה "סעיף ג" במבנה הסעיפים המסונתז שמצביע לשורת התוכן, issue #1249).
       // למשתמש שתי השורות זהות; הראשונה (TOC) נשמרת.
@@ -1849,11 +1849,11 @@ class FindRefRepository {
     // גם במקרה הזה התוצאה ששרדה מייצגת התאמה ישירה, ולא שם ספר מקורב בלבד.
     final directSegments = {
       for (final r in directMatches)
-        (r.bookId, r.isUserBook, r.title, r.isPdf, r.segment),
+        (r.bookId, r.source, r.title, r.isPdf, r.segment),
     };
     final directReferences = {
       for (final r in directMatches)
-        (r.bookId, r.isUserBook, r.title, r.isPdf, r.reference),
+        (r.bookId, r.source, r.title, r.isPdf, r.reference),
     };
 
     // זיהוי סגנון ציון גמרא: הטוקן האחרון הוא "א" או "ב" + לפחות עוד טוקן.
@@ -1875,9 +1875,9 @@ class FindRefRepository {
       // citationMatch=false → אינו מתאים (ירד מתחת לספרים שמתאימים)
       final citationMatch = !isDafCitation || r.reference.contains('דף');
       // tier יסוד: 1=מקרא ... 10=שו"ע, null=מפרש/ספרות עזר.
-      // ספרים אישיים: ה-bookId שלהם ב-namespace של user_books.db ועלול להתנגש
-      // במזהה רשמי — שליפת נתיב לפיו הייתה מסווגת אותם לפי ספר זר.
-      final categoryPath = (r.bookId > 0 && !r.isUserBook)
+      // ספר שאינו רשמי: ה-bookId שלו במרחב של מסד אחר ועלול להתנגש במזהה
+      // רשמי — שליפת נתיב לפיו הייתה מסווגת אותו לפי ספר זר.
+      final categoryPath = (r.bookId > 0 && r.source.isOfficial)
           ? pathResolver(r.bookId)
           : null;
       final foundationalTier = FoundationalBookClassifier.classify(
@@ -1891,19 +1891,19 @@ class FindRefRepository {
         result: r,
         normTitle: normTitle,
         fuzzyBookMatch:
-            !r.isUserBook &&
+            r.source.isOfficial &&
             !r.isSourceLine &&
             !directMatches.contains(r) &&
             !directSegments.contains((
               r.bookId,
-              r.isUserBook,
+              r.source,
               r.title,
               r.isPdf,
               r.segment,
             )) &&
             !directReferences.contains((
               r.bookId,
-              r.isUserBook,
+              r.source,
               r.title,
               r.isPdf,
               r.reference,

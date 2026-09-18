@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 
@@ -170,7 +171,7 @@ void main() {
           PdfBook(
             title: 'ברכות',
             path: r'C:\books\תלמוד בבלי\ברכות.pdf',
-            isUserBook: true,
+            source: BookSource.user,
           ),
           textTitles,
         ),
@@ -217,7 +218,7 @@ void main() {
           PdfBook(
             title: 'ברכות',
             path: r'C:\אישיים\ברכות.pdf',
-            isUserBook: true,
+            source: BookSource.user,
             externalLibraryId:
                 DatabaseConstants.talmudBavliPdfExternalLibraryId(
                   'ברכות',
@@ -235,7 +236,7 @@ void main() {
       seder.books.add(TextBook(title: 'ברכות', category: seder));
       // טקסט אישי לא מייצג את ה-PDF המובנה — אסור שיגרום להסתרתו.
       seder.books.add(
-        TextBook(title: 'עירובין', category: seder, isUserBook: true),
+        TextBook(title: 'עירובין', category: seder, source: BookSource.user),
       );
       bavliRoot.books.add(
         PdfBook(

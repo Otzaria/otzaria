@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -45,7 +46,7 @@ Future<void> main() async {
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
     ValueNotifier<ReadingTabSearchState?>? incomingSearchConfiguration,
     int? bookId,
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
     String? externalLibraryId,
   }) async {
     final settingsBloc = _MockSettingsBloc();
@@ -87,7 +88,7 @@ Future<void> main() async {
               bookTitle: 'ספר בדיקה',
               bookTopics: 'תנך',
               bookId: bookId,
-              isUserBook: isUserBook,
+              source: source,
               externalLibraryId: externalLibraryId,
               pdfFilePath: '/nonexistent/test.pdf',
               initialSearchMode: searchMode,
@@ -149,7 +150,7 @@ Future<void> main() async {
       searchMode: SearchMode.exact,
       searchDistance: 3,
       bookId: 7,
-      isUserBook: true,
+      source: BookSource.user,
     );
 
     expect(repository.requests, isNotEmpty);

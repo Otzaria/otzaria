@@ -4,6 +4,7 @@ import 'package:mockito/mockito.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
@@ -535,7 +536,7 @@ void main() {
           // שדות שקיימים רק במסד — אינם חלק מהפורמט.
           targetCategoryId: 42,
           targetFileType: 'txt',
-          targetIsUserBook: true,
+          targetSource: BookSource.user,
           index2End: 13,
           anchorStart: 4,
         ),

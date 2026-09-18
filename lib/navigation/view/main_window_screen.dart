@@ -1534,7 +1534,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final book = resolveExternalBookLink(
       library.getAllBooks(),
       action.bookId,
-      isUserBook: action.isUserBook,
+      source: action.source,
       isPdf: false,
     );
     if (book == null) {
@@ -1559,7 +1559,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final book = resolveExternalBookLink(
       library.getAllBooks(),
       action.bookId,
-      isUserBook: action.isUserBook,
+      source: action.source,
       isPdf: true,
     );
     if (book == null) {

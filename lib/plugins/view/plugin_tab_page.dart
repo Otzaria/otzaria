@@ -361,7 +361,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
                 reference: r.reference,
                 bookPath: r.bookPath,
                 isSourceLine: r.isSourceLine,
-                isUserBook: r.isUserBook,
+                source: r.source,
               ),
             )
             .toList();

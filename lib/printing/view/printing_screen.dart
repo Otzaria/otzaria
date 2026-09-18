@@ -384,7 +384,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       // שימוש ב-structure הראשון בלבד - ריבוי structures מערבב ערכים
       final rows = await DatabaseLibraryProvider.instance.getAltTocLineIndices(
         structures.first.id,
-        isUserBook: structures.first.isUserBook,
+        source: structures.first.source,
       );
       if (!mounted || rows.isEmpty) return;
 

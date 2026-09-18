@@ -8,6 +8,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/dialogs/change_location_dialog.dart';
 import 'package:path/path.dart' as p;
@@ -347,7 +348,7 @@ void main() {
             id: bookId,
             title: 'ספר',
             path: oldPath,
-            isUserBook: true,
+            source: BookSource.user,
           ),
         ],
         from,

@@ -83,8 +83,10 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
   /// ממרחב אחר שעלול להתנגש עם ספר רשמי אקראי, ולכן אינו נתמך.
   bool _isOfficialSeforimBook(Book book) =>
       book.id != null &&
-      !book.isUserBook &&
-      (book.externalLibraryId == null || book.externalLibraryId!.isEmpty);
+      book.isOfficialLibraryBook &&
+      !DatabaseConstants.isTalmudBavliPdfExternalLibraryId(
+        book.externalLibraryId,
+      );
 
   void _toggleBook(Book book, bool selected) {
     if (!_isOfficialSeforimBook(book)) return;

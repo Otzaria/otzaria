@@ -260,7 +260,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
       // מסכת בבלי כשהגדרת הפורמט היא PDF — התצוגה המקדימה מציגה את
       // מהדורת ה-PDF הנלווית, בהתאם לאופן שבו הספר ייפתח בעיון.
       if (widget.initialTextIndex == null &&
-          !textBook.isUserBook &&
+          textBook.source.isOfficial &&
           (_formatOverride ?? talmudBavliOpensInPdf()) &&
           isTalmudBavliBook(textBook)) {
         setState(() => _isPdfViewerReady = false);
@@ -326,7 +326,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     final book = widget.book;
     return widget.initialTextIndex == null &&
         book is TextBook &&
-        !book.isUserBook &&
+        book.source.isOfficial &&
         isTalmudBavliBook(book);
   }
 

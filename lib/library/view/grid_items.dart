@@ -926,7 +926,7 @@ Future<bool> _canDeleteBookFromLibrary(Book book) {
     title: book.title,
     categoryId: book.categoryId,
     fileType: book.fileType ?? 'txt',
-    isUserBook: book.isUserBook,
+    source: book.source,
   );
 }
 

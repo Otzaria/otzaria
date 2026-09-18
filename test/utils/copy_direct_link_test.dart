@@ -2,6 +2,7 @@
 // Feature: copy-direct-link, Property 1: book link format
 // Feature: copy-direct-link, Property 2: section link format
 
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/book_link_builder.dart';
 import 'package:test/test.dart';
 
@@ -9,21 +10,52 @@ void main() {
   group('copy-direct-link — מקור הספר', () {
     test('ספר משתמש מקבל source=user בכל סוגי הקישורים', () {
       expect(
-        buildBookLink(7, isUserBook: true),
+        buildBookLink(7, source: BookSource.user),
         equals('otzaria://open/book/7?source=user'),
       );
       expect(
-        buildSectionLink(7, 3, isUserBook: true),
+        buildSectionLink(7, 3, source: BookSource.user),
         equals('otzaria://open/book/7?source=user&index=3'),
       );
       expect(
-        buildPdfPageLink(7, 2, isUserBook: true),
+        buildPdfPageLink(7, 2, source: BookSource.user),
         equals('otzaria://open/pdf/7?source=user&index=2'),
       );
     });
 
     test('ברירת המחדל משמרת קישור רשמי ישן', () {
       expect(buildBookLink(7), equals('otzaria://open/book/7'));
+    });
+
+    test('מסד מצורף מקבל source=db:<slug> מקודד', () {
+      final source = BookSource.attached('my-lib');
+      expect(
+        buildBookLink(7, source: source),
+        equals('otzaria://open/book/7?source=db%3Amy-lib'),
+      );
+      expect(
+        buildSectionLink(7, 3, source: source),
+        equals('otzaria://open/book/7?source=db%3Amy-lib&index=3'),
+      );
+      final parsed = Uri.parse(buildBookLink(7, source: source));
+      expect(
+        parseBookLinkSourceParam(parsed.queryParameters['source']),
+        source,
+      );
+    });
+
+    test('parseBookLinkSourceParam: ערכים מוכרים, ריק ולא מוכר', () {
+      expect(parseBookLinkSourceParam(null), BookSource.official);
+      expect(parseBookLinkSourceParam('official'), BookSource.official);
+      expect(parseBookLinkSourceParam('USER'), BookSource.user);
+      expect(
+        parseBookLinkSourceParam('db:ספרייה'),
+        BookSource.attached('ספרייה'),
+      );
+      expect(parseBookLinkSourceParam(''), isNull);
+      expect(parseBookLinkSourceParam('db:'), isNull);
+      expect(parseBookLinkSourceParam('db:a|b'), isNull);
+      expect(parseBookLinkSourceParam('other'), isNull);
     });
   });
 

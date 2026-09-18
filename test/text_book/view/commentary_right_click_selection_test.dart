@@ -8,6 +8,7 @@ import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -359,7 +360,7 @@ void main() {
                   index2: 1,
                   connectionType: 'commentary',
                   targetCategoryId: 42,
-                  targetIsUserBook: true,
+                  targetSource: BookSource.user,
                 ),
                 openBookCallback: (_) {},
                 fontSize: 18,
@@ -395,7 +396,7 @@ void main() {
       path2: 'ספר אישי.txt',
       index2: 1,
       connectionType: 'commentary',
-      targetIsUserBook: true,
+      targetSource: BookSource.user,
     );
 
     Future<List<AppContextMenuEntry>> pumpMenu(
@@ -704,7 +705,7 @@ class _FakeLibraryProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return null;
   }
@@ -714,7 +715,7 @@ class _FakeLibraryProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return const [];
   }

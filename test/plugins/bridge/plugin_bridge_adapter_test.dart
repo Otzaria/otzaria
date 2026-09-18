@@ -21,6 +21,7 @@ import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -408,7 +409,7 @@ typedef _RefHit = ({
   String reference,
   String bookPath,
   bool isSourceLine,
-  bool isUserBook,
+  BookSource source,
 });
 
 /// ברירות מחדל שפויות, כדי שטסט יציין רק את השדה שהוא בודק.
@@ -420,7 +421,7 @@ _RefHit _refHit({
   String reference = '',
   String bookPath = '',
   bool isSourceLine = false,
-  bool isUserBook = false,
+  BookSource source = BookSource.official,
 }) => (
   title: title,
   index: index,
@@ -429,7 +430,7 @@ _RefHit _refHit({
   reference: reference,
   bookPath: bookPath,
   isSourceLine: isSourceLine,
-  isUserBook: isUserBook,
+  source: source,
 );
 
 Future<void> main() async {
@@ -1441,7 +1442,7 @@ Future<void> main() async {
             title: 'הערות אישיות',
             index: 7,
             bookId: 42,
-            isUserBook: true,
+            source: BookSource.user,
           ),
         ],
       );
@@ -1465,7 +1466,7 @@ Future<void> main() async {
           id: 42,
           title: 'ספר אישי',
           path: '/tmp/personal.pdf',
-          isUserBook: true,
+          source: BookSource.user,
         ),
       );
       final adapter = buildAdapter(
@@ -5376,7 +5377,7 @@ class _FakeBookProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     final key = BookCompositeKey.create(
       title: title,
@@ -5391,7 +5392,7 @@ class _FakeBookProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return null;
   }

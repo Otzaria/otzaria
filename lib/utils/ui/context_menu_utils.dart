@@ -64,7 +64,7 @@ class ContextMenuUtils {
       title: utils.getTitleFromPath(link.path2),
       categoryId: link.targetCategoryId,
       fileType: link.targetFileType,
-      isUserBook: link.targetIsUserBook,
+      source: link.targetSource,
     );
   }
 
@@ -211,7 +211,7 @@ class ContextMenuUtils {
           icon: FluentIcons.link_24_regular,
           childrenBuilder: () => buildDirectLinkContextMenuEntries(
             bookId: targetBookId,
-            isUserBook: link.targetIsUserBook,
+            source: link.targetSource,
             index: link.index2 - 1,
             selectedText: savedSelectedText,
           ),

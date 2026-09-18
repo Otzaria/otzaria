@@ -138,7 +138,7 @@ class _CommentaryContentState extends State<CommentaryContent> {
           TextBookTab(
             book: TextBook(
               title: utils.getTitleFromPath(widget.link.path2),
-              isUserBook: widget.link.targetIsUserBook,
+              source: widget.link.targetSource,
               categoryId: widget.link.targetCategoryId,
               fileType: widget.link.targetFileType,
             ),

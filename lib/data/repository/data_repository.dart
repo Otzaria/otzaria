@@ -7,6 +7,7 @@ import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 
@@ -272,13 +273,13 @@ class DataRepository {
 
 /// בונה [BookSearchEntry] לספר בודד. ה-lookups מוזרקים כדי לאפשר בדיקה
 /// בלי DB. עבור ספר אישי מדלגים על כינויים (אין כינויי-משתמש) — ל-id שלו אין
-/// משמעות במאגר הרשמי. הדור נלקח לפי [book.isUserBook] מהמפה הנכונה.
+/// משמעות במאגר הרשמי. הדור נלקח לפי [Book.source] מהמפה הנכונה.
 @visibleForTesting
 BookSearchEntry buildBookSearchEntry(
   int index,
   Book book, {
   required List<String>? Function(int bookId) acronymsForId,
-  required int Function(int? bookId, bool isUserBook) eraOrderForId,
+  required int Function(int? bookId, BookSource source) eraOrderForId,
 }) {
   final id = book.id;
   return BookSearchEntry(
@@ -286,11 +287,11 @@ BookSearchEntry buildBookSearchEntry(
     title: book.title,
     author: book.author ?? '',
     topics: book.topics,
-    acronyms: id == null || book.isUserBook
+    acronyms: id == null || !book.source.isOfficial
         ? const []
         : acronymsForId(id) ?? const [],
-    eraOrder: eraOrderForId(id, book.isUserBook),
-    isUserBook: book.isUserBook,
+    eraOrder: eraOrderForId(id, book.source),
+    source: book.source,
     categoryPath: book.categoryPath ?? '',
   );
 }
@@ -308,8 +309,8 @@ class BookSearchEntry {
   /// סדר הדור של הספר (נמוך = מוקדם). ראה [GenerationCache]; ברירת מחדל = סוף.
   final int eraOrder;
 
-  /// ספר אישי של המשתמש — תמיד אחרון בתוך תת-המיון של הדורות.
-  final bool isUserBook;
+  /// מקור הספר — בתוך תת-המיון של הדורות, רשמי לפני אישי לפני מצורף.
+  final BookSource source;
 
   /// נתיב הקטגוריות של הספר. בספרים אישיים שם הספר מופיע לעיתים רק על
   /// התיקייה ('חלק א' בתוך תיקייה בשם הספר), ולכן הוא חלק ממרחב החיפוש.
@@ -322,7 +323,7 @@ class BookSearchEntry {
     required this.topics,
     this.acronyms = const [],
     this.eraOrder = 5,
-    this.isUserBook = false,
+    this.source = BookSource.official,
     this.categoryPath = '',
   });
 }
@@ -377,7 +378,7 @@ List<int> filterBookSearchEntries({
       topics: entryTopics,
       acronyms: entry.acronyms,
       eraOrder: entry.eraOrder,
-      isUserBook: entry.isUserBook,
+      source: entry.source,
     );
   });
 
@@ -451,14 +452,16 @@ List<int> filterBookSearchEntries({
                   ? 1
                   : 0,
               eraOrder: entry.eraOrder,
-              isUserBook: entry.isUserBook,
+              source: entry.source,
               ratio: ratio(normalizedQuery, entry.normalizedTitle),
             ),
         ]..sort((a, b) {
           if (a.tier != b.tier) return b.tier.compareTo(a.tier);
           if (a.eraOrder != b.eraOrder) return a.eraOrder.compareTo(b.eraOrder);
-          // בתוך אותו דור — ספרים אישיים תמיד אחרונים.
-          if (a.isUserBook != b.isUserBook) return a.isUserBook ? 1 : -1;
+          // בתוך אותו דור — רשמי, אחריו אישי, ואחריו מסד מצורף.
+          if (a.source.rank != b.source.rank) {
+            return a.source.rank.compareTo(b.source.rank);
+          }
           if (a.ratio != b.ratio) return b.ratio.compareTo(a.ratio);
           return a.index.compareTo(b.index);
         });
@@ -499,7 +502,7 @@ class _PreparedBookSearchEntry {
   final Set<String> topics;
   final List<String> acronyms;
   final int eraOrder;
-  final bool isUserBook;
+  final BookSource source;
 
   const _PreparedBookSearchEntry({
     required this.index,
@@ -509,7 +512,7 @@ class _PreparedBookSearchEntry {
     required this.topics,
     required this.acronyms,
     required this.eraOrder,
-    required this.isUserBook,
+    required this.source,
   });
 }
 
@@ -517,14 +520,14 @@ class _ScoredBookSearchEntry {
   final int index;
   final int tier;
   final int eraOrder;
-  final bool isUserBook;
+  final BookSource source;
   final int ratio;
 
   const _ScoredBookSearchEntry({
     required this.index,
     required this.tier,
     required this.eraOrder,
-    required this.isUserBook,
+    required this.source,
     required this.ratio,
   });
 }

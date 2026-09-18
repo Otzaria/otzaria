@@ -5,6 +5,7 @@ import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 
@@ -61,19 +62,19 @@ class _FakeProvider implements LibraryProvider {
   }
 
   /// מדמה את ההתנהגות של DatabaseLibraryProvider: קודם מנסה את הוריאנט
-  /// המועדף (לפי `preferUserBooks`), ואז fallback לוריאנט השני.
+  /// המועדף (לפי `preferSource`), ואז fallback לוריאנט השני.
   T? _lookupPreferred<T>(
     Map<BookCompositeKey, T> map,
     String title,
     int categoryId,
     String fileType,
-    bool preferUserBooks,
+    BookSource preferSource,
   ) {
     final preferred = BookCompositeKey.create(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      isUserBook: preferUserBooks,
+      source: preferSource,
     );
     if (map.containsKey(preferred)) return map[preferred];
 
@@ -81,7 +82,7 @@ class _FakeProvider implements LibraryProvider {
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      isUserBook: !preferUserBooks,
+      source: preferSource.isUser ? BookSource.official : BookSource.user,
     );
     return map[fallback];
   }
@@ -91,14 +92,14 @@ class _FakeProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return _lookupPreferred(
       _bookTextByKey,
       title,
       categoryId,
       fileType,
-      preferUserBooks,
+      preferSource,
     );
   }
 
@@ -107,14 +108,14 @@ class _FakeProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return _lookupPreferred(
       _bookTocByKey,
       title,
       categoryId,
       fileType,
-      preferUserBooks,
+      preferSource,
     );
   }
 
@@ -155,7 +156,57 @@ void main() {
     FileSystemLibraryProvider.instance.resetForTesting();
   });
 
-  group('LibraryProviderManager — preferUserBooks routing', () {
+  group('LibraryProviderManager — preferSource routing', () {
+    test(
+      'getBookText: מקור מצורף מועדף מחזיר את הוריאנט שלו, ואינו נופל לרשמי',
+      () async {
+        final attached = BookSource.attached('lib');
+        final officialKey = BookCompositeKey.create(
+          title: 'משותף',
+          categoryId: 7,
+          fileType: 'txt',
+        );
+        final attachedKey = BookCompositeKey.create(
+          title: 'משותף',
+          categoryId: 7,
+          fileType: 'txt',
+          source: attached,
+        );
+        final provider = _FakeProvider(
+          providerId: 'db',
+          displayName: 'DB',
+          sourceIndicator: 'DB',
+          bookTextByKey: {officialKey: 'תוכן רשמי', attachedKey: 'תוכן מצורף'},
+        );
+        manager.seedMappingsForTesting(
+          mapping: {officialKey: provider, attachedKey: provider},
+          providers: [provider],
+        );
+
+        expect(
+          await manager.getBookText(
+            'משותף',
+            categoryId: 7,
+            fileType: 'txt',
+            preferSource: attached,
+          ),
+          'תוכן מצורף',
+        );
+        expect(
+          await manager.getBookText('משותף', categoryId: 7, fileType: 'txt'),
+          'תוכן רשמי',
+        );
+        expect(
+          await manager.getBookText(
+            'משותף',
+            fileType: 'txt',
+            preferSource: BookSource.attached('other'),
+          ),
+          isNull,
+        );
+      },
+    );
+
     test(
       'getBookText: אותם title+categoryId+fileType בשני וריאנטים → '
       'preferUserBooks=true מחזיר את ה-user_books, false את ה-seforim',
@@ -167,13 +218,13 @@ void main() {
           title: 'משותף',
           categoryId: 7,
           fileType: 'txt',
-          isUserBook: false,
+          source: BookSource.official,
         );
         final userBookKey = BookCompositeKey.create(
           title: 'משותף',
           categoryId: 7,
           fileType: 'txt',
-          isUserBook: true,
+          source: BookSource.user,
         );
         final provider = _FakeProvider(
           providerId: 'db',
@@ -202,7 +253,7 @@ void main() {
           'משותף',
           categoryId: 7,
           fileType: 'txt',
-          preferUserBooks: true,
+          preferSource: BookSource.user,
         );
 
         expect(official, 'תוכן רשמי');
@@ -219,7 +270,7 @@ void main() {
           title: 'רק-משתמש',
           categoryId: 9,
           fileType: 'txt',
-          isUserBook: true,
+          source: BookSource.user,
         );
         final provider = _FakeProvider(
           providerId: 'db',
@@ -255,7 +306,7 @@ void main() {
           title: 'רק-רשמי',
           categoryId: 9,
           fileType: 'txt',
-          isUserBook: false,
+          source: BookSource.official,
         );
         final provider = _FakeProvider(
           providerId: 'db',
@@ -273,7 +324,7 @@ void main() {
           'רק-רשמי',
           categoryId: 9,
           fileType: 'txt',
-          preferUserBooks: true,
+          preferSource: BookSource.user,
         );
 
         expect(
@@ -293,13 +344,13 @@ void main() {
           title: 'כותרת בלבד',
           categoryId: 100,
           fileType: 'txt',
-          isUserBook: false,
+          source: BookSource.official,
         );
         final userBookKey = BookCompositeKey.create(
           title: 'כותרת בלבד',
           categoryId: 200,
           fileType: 'txt',
-          isUserBook: true,
+          source: BookSource.user,
         );
         final provider = _FakeProvider(
           providerId: 'db',
@@ -326,7 +377,7 @@ void main() {
         final userBook = await manager.getBookText(
           'כותרת בלבד',
           fileType: 'txt',
-          preferUserBooks: true,
+          preferSource: BookSource.user,
         );
 
         // בלי categoryId, ה-resolver עובר ב-findIn לפי הסדר — וכש-preferUserBooks
@@ -353,13 +404,13 @@ void main() {
         title: 'משותף',
         categoryId: 5,
         fileType: 'txt',
-        isUserBook: false,
+        source: BookSource.official,
       );
       final userBookKey = BookCompositeKey.create(
         title: 'משותף',
         categoryId: 5,
         fileType: 'txt',
-        isUserBook: true,
+        source: BookSource.user,
       );
       final officialToc = <TocEntry>[TocEntry(text: 'רשמי', index: 0)];
       final userToc = <TocEntry>[TocEntry(text: 'משתמש', index: 0)];
@@ -390,7 +441,7 @@ void main() {
         'משותף',
         categoryId: 5,
         fileType: 'txt',
-        preferUserBooks: true,
+        preferSource: BookSource.user,
       );
 
       expect(official?.first.text, 'רשמי');
@@ -407,7 +458,7 @@ void main() {
           path: r'C:\books\a.epub',
           filePath: r'C:\books\a.epub',
           categoryId: 7,
-          isUserBook: true,
+          source: BookSource.user,
         );
         final officialPdf = PdfBook(
           title: 'ספר רשמי',

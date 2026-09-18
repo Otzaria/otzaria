@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -289,7 +290,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     if (!_isInitialized) await initialize();
 
@@ -308,7 +309,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     // PDF בונה תוכן עניינים מה-outline שלו במסלול נפרד ואין ממנו טקסט.
     if (!(documentFormatFromFileType(fileType)?.isTextual ?? true)) return null;
@@ -316,7 +317,7 @@ class FileSystemLibraryProvider implements LibraryProvider {
       title,
       categoryId,
       fileType,
-      preferUserBooks: preferUserBooks,
+      preferSource: preferSource,
     );
     if (text == null) return null;
     return Isolate.run(() => TocParser.parseEntriesFromContent(text));

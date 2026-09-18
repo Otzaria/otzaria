@@ -1,5 +1,6 @@
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/ref_key.dart';
 
@@ -31,9 +32,11 @@ class PluginRefLineResolver {
     final id = book.id;
     if (id == null) return null;
     try {
-      final repo = book.isUserBook
-          ? await UserBooksDatabaseHolder.instance.repository
-          : SqliteDataProvider.instance.repository;
+      final repo = switch (book.source) {
+        OfficialBookSource() => SqliteDataProvider.instance.repository,
+        UserBookSource() => await UserBooksDatabaseHolder.instance.repository,
+        AttachedBookSource() => null,
+      };
       if (repo == null) return null;
       return (await repo.resolveRefKeyInBook(id, refKey))?.lineIndex;
     } catch (_) {

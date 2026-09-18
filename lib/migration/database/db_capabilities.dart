@@ -44,10 +44,8 @@ const Set<String> kKnownSeforimTables = {
   'db_meta',
 };
 
-/// מפת היכולות של מסד בפורמט seforim.db: אילו מהטבלאות המוכרות קיימות,
-/// ובאילו עמודות. אף טבלה אינה חובה — תכונה שטבלתה חסרה מחזירה ריק.
-///
-/// ערכים פשוטים בלבד, כך שניתן להעביר את המופע ל-isolate.
+/// אילו מהטבלאות המוכרות קיימות במסד בפורמט seforim.db, ובאילו עמודות.
+/// אף טבלה אינה חובה; ערכים פשוטים בלבד, כך שהמופע עובר ל-isolate.
 class DbCapabilities {
   const DbCapabilities._(this._tables, this._columns, this._indexes);
 

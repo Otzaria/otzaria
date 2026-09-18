@@ -4,6 +4,7 @@ import 'package:otzaria/bookmarks/bloc/bookmark_state.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 // ─── Fake repository ─────────────────────────────────────────────────────────
@@ -594,7 +595,7 @@ void main() {
         id: 7,
         title: 'טור',
         categoryId: 3,
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       expect(bookIdentity(official), 'id:7');
@@ -610,7 +611,7 @@ void main() {
     });
 
     test('זהות ספר אישי נשמרת אחרי סיבוב JSON', () {
-      final user = TextBook(id: 7, title: 'טור', isUserBook: true);
+      final user = TextBook(id: 7, title: 'טור', source: BookSource.user);
       final entry = Bookmark(ref: 'טור א', book: user, index: 1);
       final restored = Bookmark.fromJson(entry.toJson());
 

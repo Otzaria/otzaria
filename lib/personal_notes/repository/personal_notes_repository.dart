@@ -123,7 +123,8 @@ class PersonalNotesRepository {
         categoryId: categoryId,
       );
       if (location != null) {
-        if (location.source == BookSource.database && location.book != null) {
+        if (location.storage == BookStorageKind.database &&
+            location.book != null) {
           final dbBook = location.book!;
           if (dbBook.isFileBacked && dbBook.filePath != null) {
             final file = File(dbBook.filePath!);
@@ -148,7 +149,7 @@ class PersonalNotesRepository {
           if (dbText != null) {
             return dbText;
           }
-        } else if (location.source == BookSource.fileSystem &&
+        } else if (location.storage == BookStorageKind.fileSystem &&
             location.filePath != null) {
           final file = File(location.filePath!);
           if (await file.exists()) {

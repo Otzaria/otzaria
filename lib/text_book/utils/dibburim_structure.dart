@@ -30,7 +30,7 @@ String truncateDibbur(String text, {int maxWords = kDibburMaxWords}) {
 Future<Map<int, String>> loadDibburimForBook(TextBook book) async {
   // הדיבורים ממופים ל-lineIndex של הטקסט במסד. ספר אישי בשם זהה, מהדורה
   // חלופית או ספר שתוכנו מוגש מקבצים — ממוספרים אחרת.
-  if (book.isUserBook || book.versionTitle != null) return const {};
+  if (!book.source.isOfficial || book.versionTitle != null) return const {};
   final provider = LibraryProviderManager.instance.getProviderForBook(
     book.title,
     categoryId: book.categoryId,

@@ -132,7 +132,7 @@ List<String> _facetsForName(String name, Library? library) {
   }
   for (final book in library.getAllBooks()) {
     final id = book.id;
-    final acronyms = id == null || book.isUserBook
+    final acronyms = id == null || !book.source.isOfficial
         ? const <String>[]
         : AcronymsCache.instance.getAcronymsForBook(id) ?? const <String>[];
     final tier = tierOf(normalizeFindText(book.title), acronyms);

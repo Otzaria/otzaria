@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:path/path.dart' as p;
@@ -172,7 +173,11 @@ void main() {
   group('PerBookSettings.bookKey — מפתח ייחודי לספר', () {
     test('ספר אישי וספר רשמי באותו שם מקבלים מפתחות נפרדים', () {
       final official = TextBook(title: 'ספר', categoryId: 1);
-      final user = TextBook(title: 'ספר', categoryId: 1, isUserBook: true);
+      final user = TextBook(
+        title: 'ספר',
+        categoryId: 1,
+        source: BookSource.user,
+      );
 
       expect(
         PerBookSettings.bookKey(official),

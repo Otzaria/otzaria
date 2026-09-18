@@ -217,7 +217,7 @@ class BackupMerge {
     if (book is! Map) return '';
     final id = book['id'];
     final title = book['title'] ?? '';
-    final source = book['isUserBook'] == true ? kUserBookIdentitySuffix : '';
+    final source = BookSource.fromJson(book).identitySuffix;
     return id != null ? 'id:$id$source' : 'title:$title$source';
   }
 

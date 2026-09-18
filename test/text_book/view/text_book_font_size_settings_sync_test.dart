@@ -11,6 +11,7 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
@@ -144,7 +145,7 @@ void main() {
             int currentLine, {
             int? categoryId,
             String? fileType,
-            bool preferUserBooks = false,
+            BookSource preferSource = BookSource.official,
           }) async => null,
       initialState: TextBookInitial.named(
         book,

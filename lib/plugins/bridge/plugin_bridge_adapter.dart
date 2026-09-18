@@ -6,6 +6,7 @@ import 'dart:io' hide Link;
 import 'dart:math' as math;
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:otzaria/widgets/dialogs/input_dialog.dart';
 import 'package:flutter/material.dart';
@@ -432,9 +433,8 @@ class PluginBridgeDependencies {
   /// למיקום, דרך מנוע `find_ref` המודע-להקשר. מחזיר התאמות עם מיקום ה-index.
   /// אופציונלי — אם לא סופק, `openBookAtRef` נופל להתאמת TOC מקומית בלבד.
   ///
-  /// `bookId` הוא ה-id המספרי ב-DB (‎-1 ל-PDF ממערכת הקבצים), ותקף רק כאשר
-  /// `isUserBook` כבוי: `user_books.db` מקצה מזהים באותו טווח כמו `seforim.db`,
-  /// ולכן id של ספר אישי אינו חד-משמעי מחוץ להקשרו.
+  /// `bookId` הוא ה-id המספרי ב-DB (‎-1 ל-PDF ממערכת הקבצים), ותקף רק במקור
+  /// רשמי: שאר המסדים מקצים מזהים באותו טווח, ולכן id שלהם אינו חד-משמעי.
   final Future<
     List<
       ({
@@ -445,7 +445,7 @@ class PluginBridgeDependencies {
         String reference,
         String bookPath,
         bool isSourceLine,
-        bool isUserBook,
+        BookSource source,
       })
     >
   >
@@ -1064,13 +1064,15 @@ class PluginBridgeAdapter {
           final hits = await resolve(ref);
           final books = library.getAllBooks();
           return hits.take(limit).map((h) {
-            // ה-id המספרי חד-משמעי רק בספרי הספרייה: `user_books.db`
-            // מקצה מזהים באותו טווח, ולכן id של ספר אישי אינו מזהה
-            // ספר יחיד. מוחזר null כדי שצרכן לא יבנה עליו קישור עומק.
-            final identity = (h.isUserBook || h.bookId < 0)
+            // ה-id המספרי חד-משמעי רק בספרי הספרייה: שאר המסדים מקצים
+            // מזהים באותו טווח, ולכן id שלהם אינו מזהה ספר יחיד. מוחזר null כדי שצרכן לא יבנה עליו קישור עומק.
+            final identity = (!h.source.isOfficial || h.bookId < 0)
                 ? null
                 : books.firstWhereOrNull(
-                    (b) => b is TextBook && !b.isUserBook && b.id == h.bookId,
+                    (b) =>
+                        b is TextBook &&
+                        b.source.isOfficial &&
+                        b.id == h.bookId,
                   );
             return {
               'id': identity?.id,
@@ -1083,7 +1085,7 @@ class PluginBridgeAdapter {
               'index': h.index,
               'isPdf': h.isPdf,
               'isSourceLine': h.isSourceLine,
-              'isUserBook': h.isUserBook,
+              'isUserBook': h.source.isUser,
               'bookPath': h.bookPath,
             };
           }).toList();
@@ -1494,6 +1496,7 @@ class PluginBridgeAdapter {
         'connectionType': link.connectionType,
         'isCommentary': LinkTypes.isDependentTextLink(link.connectionType),
         'targetIsUserBook': link.targetIsUserBook,
+        'targetSource': link.targetSource.wireKey,
         'targetCategoryId': link.targetCategoryId,
         if (includeAnchors) ...?_linkAnchorJson(link),
       },
@@ -1697,7 +1700,11 @@ class PluginBridgeAdapter {
         index2End: targetLineEnd is int ? targetLineEnd + 1 : null,
         connectionType: LinkTypes.commentary,
         targetCategoryId: raw['targetCategoryId'] as int?,
-        targetIsUserBook: raw['targetIsUserBook'] as bool? ?? false,
+        targetSource: BookSource.fromJson(
+          raw,
+          key: 'targetSource',
+          legacyUserFlagKey: 'targetIsUserBook',
+        ),
       );
       try {
         items.add({'content': await (loader?.call(link) ?? link.content)});
@@ -1722,7 +1729,7 @@ class PluginBridgeAdapter {
     if (provider != null) return provider(structure.id);
     return DatabaseLibraryProvider.instance.getAltTocEntriesWithLineIndex(
       structure.id,
-      isUserBook: structure.isUserBook,
+      source: structure.source,
     );
   }
 

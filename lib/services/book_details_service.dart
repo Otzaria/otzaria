@@ -179,8 +179,8 @@ class BookDetailsService {
         categoryId: book.categoryId,
         fileType: book.fileType,
         filePath: book.filePath,
-        preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-          isUserBook: book.isUserBook,
+        preferSource: BookDatabaseResolver.likelySource(
+          source: book.source,
           categoryPath: book.categoryPath,
         ),
       );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/view/book_versions_dialog.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/book_version.dart';
 import 'package:otzaria/models/books.dart';
 
@@ -105,13 +106,13 @@ void main() {
         id: 1,
         title: 'רשבא',
         path: '/b/רשבא.pdf',
-        isUserBook: true,
+        source: BookSource.user,
       );
       final kook = PdfBook(
         id: 2,
         title: 'רשבא קוק',
         path: '/b/רשבא קוק.pdf',
-        isUserBook: true,
+        source: BookSource.user,
       );
       bookVersionsListProbeForTesting = (_) async => [
         BookVersionInfo(

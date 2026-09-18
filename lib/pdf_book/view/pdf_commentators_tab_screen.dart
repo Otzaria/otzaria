@@ -390,7 +390,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         tab.book.title,
         categoryId: tab.book.categoryId,
         filePath: tab.book.filePath,
-        preferUserBooks: tab.book.isUserBook,
+        preferSource: tab.book.source,
       );
       if (!mounted) return;
       if (headings != null) {

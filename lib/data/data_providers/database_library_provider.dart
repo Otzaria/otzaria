@@ -14,6 +14,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/user_content_import/repository/user_alt_toc_repository.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_book_versions.dart';
@@ -1437,18 +1438,18 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   /// IDs **טבעיים** (native AUTOINCREMENT) של קטגוריות ב-`user_books.db`
   /// שצורפו ל-Library. שימושי כדי לדעת לאיזה DB לפנות בקריאות
-  /// `getBookText`/`getBookToc`/`hasBook` כשרק `categoryId` ידוע (בלי דגל
-  /// `preferUserBooks`).
+  /// `getBookText`/`getBookToc`/`hasBook` כשרק `categoryId` ידוע (בלי
+  /// `preferSource`).
   ///
   /// שים לב: יכולה להיות חפיפה עם IDs של seforim — אם שני ה-DBs קצו 1,2,3…
   /// אז 5 יכול להיות בשניהם. לכן הסט הזה רק *רומז* על user_books, וההכרעה
   /// הסופית נופלת על ה-cache (`_userBooksCachedKeys`) שמשתמש במפתח עם
-  /// `isUserBook: true`.
+  /// `source: BookSource.user`.
   final Set<int> _userBooksCategoryIds = {};
 
   /// מיפוי `(title, categoryId, fileType) → BookCompositeKey` עבור ספרים
   /// שמקורם ב-`user_books.db`. נפרד מ-`_cachedKeys` כדי שהמטמון של seforim
-  /// לא ייפגע. כל המפתחות כאן עם `isUserBook: true`.
+  /// לא ייפגע. כל המפתחות כאן עם `source: BookSource.user`.
   final Set<BookCompositeKey> _userBooksCachedKeys = {};
 
   /// ספרים אישיים לפי מזהה ב-user_books.db — כולל גרסאות שאינן בעץ.
@@ -1497,22 +1498,22 @@ class DatabaseLibraryProvider implements LibraryProvider {
   bool _isUserBooksCategoryId(int categoryId) =>
       _userBooksCategoryIds.contains(categoryId);
 
-  bool _shouldUseUserBooks({
+  /// המסד שממנו לקרוא ספר שידוע רק לפי כותרת+קטגוריה+סוג: [preferSource]
+  /// כשאינו רשמי, אחרת אישי רק כשהמטמון או הקטגוריה מעידים על כך.
+  BookSource _resolveSource({
     required String title,
     required int categoryId,
     required String fileType,
-    required bool preferUserBooks,
+    required BookSource preferSource,
   }) {
-    if (preferUserBooks) return true;
-    // המפתח של user_books תמיד עם `isUserBook: true` — לכן יש להרכיב
-    // מפתח-בדיקה תואם.
+    if (!preferSource.isOfficial) return preferSource;
     final key = BookCompositeKey.create(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      isUserBook: true,
+      source: BookSource.user,
     );
-    if (_userBooksCachedKeys.contains(key)) return true;
+    if (_userBooksCachedKeys.contains(key)) return BookSource.user;
     // שני המסדים מונים קטגוריות מ-1, ולכן מזהה קטגוריה לבדו אינו מכריע:
     // ספר שמוכר ל-seforim באותה קטגוריה נשאר רשמי.
     final seforimKey = BookCompositeKey.create(
@@ -1520,8 +1521,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
       categoryId: categoryId,
       fileType: fileType,
     );
-    if (_cachedKeys.contains(seforimKey)) return false;
-    return _isUserBooksCategoryId(categoryId);
+    if (_cachedKeys.contains(seforimKey)) return BookSource.official;
+    return _isUserBooksCategoryId(categoryId)
+        ? BookSource.user
+        : BookSource.official;
   }
 
   /// תור פעולות יחיד לכל כתיבות ה-DB של ספרים אישיים.
@@ -1988,7 +1991,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      isUserBook: true,
+      source: BookSource.user,
     );
     if (_userBooksCachedKeys.contains(userBookKey)) {
       return true;
@@ -2028,14 +2031,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
     int categoryId,
     String fileType,
   ) async {
-    if (!_shouldUseUserBooks(
+    final source = _resolveSource(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: false,
-    )) {
-      return false;
-    }
+      preferSource: BookSource.official,
+    );
+    if (!source.isUser) return false;
     try {
       final repo = await UserBooksDatabaseHolder.instance.repository;
       final book = await repo.getBookByTitleCategoryAndFileType(
@@ -2082,14 +2084,15 @@ class DatabaseLibraryProvider implements LibraryProvider {
         title: title,
         categoryId: categoryId,
         fileType: normalizedFileType,
-        preferUserBooks:
-            categoryId != null && _isUserBooksCategoryId(categoryId),
+        preferSource: categoryId != null && _isUserBooksCategoryId(categoryId)
+            ? BookSource.user
+            : BookSource.official,
       );
       if (resolvedBook == null) return null;
-      // categoryId טבעי לשני הסוגים, ההבחנה נעשית דרך `isUserBooks`.
+      // categoryId טבעי לשני הסוגים, ההבחנה נעשית דרך המקור.
       final path = await _getPathForCategoryId(
         resolvedBook.book.categoryId,
-        fromUserBooks: resolvedBook.isUserBooks,
+        fromUserBooks: resolvedBook.source.isUser,
       );
       return path.isEmpty ? null : path;
     } catch (_) {
@@ -2193,7 +2196,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
           title: title,
           categoryId: categoryId,
           fileType: normalizedFileType,
-          isUserBook: true,
+          source: BookSource.user,
         );
         if (_userBooksCachedKeys.contains(userBookKey)) {
           return userBookKey;
@@ -2224,16 +2227,18 @@ class DatabaseLibraryProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
-    // ספרים מתיקיות מותאמות אישית: לקרוא מ-user_books.db (תוכן מהקובץ
-    // עצמו אם isFileBacked, אחרת משורות ה-line).
-    if (_shouldUseUserBooks(
+    final source = _resolveSource(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
-    )) {
+      preferSource: preferSource,
+    );
+    if (source.isAttached) return null;
+    // ספרים מתיקיות מותאמות אישית: לקרוא מ-user_books.db (תוכן מהקובץ
+    // עצמו אם isFileBacked, אחרת משורות ה-line).
+    if (source.isUser) {
       try {
         final repo = await UserBooksDatabaseHolder.instance.repository;
         final book = await repo.getBookByTitleCategoryAndFileType(
@@ -2279,7 +2284,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
             title,
             categoryId,
             fileType,
-            preferUserBooks,
+            preferSource,
           );
         }
       } catch (e) {
@@ -2311,14 +2316,16 @@ class DatabaseLibraryProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
-    if (_shouldUseUserBooks(
+    final source = _resolveSource(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
-    )) {
+      preferSource: preferSource,
+    );
+    if (source.isAttached) return null;
+    if (source.isUser) {
       try {
         final repo = await UserBooksDatabaseHolder.instance.repository;
         final book = await repo.getBookByTitleCategoryAndFileType(
@@ -2358,7 +2365,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       title,
       categoryId,
       fileType,
-      preferUserBooks,
+      preferSource,
     );
   }
 
@@ -2678,7 +2685,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     if (categoryPath.isEmpty) {
       // Return default category
       final defaultCategory = await repository.getCategoryByTitle(
-        'ללא קטגוריה',
+        kUncategorizedCategoryTitle,
       );
       if (defaultCategory != null) {
         return defaultCategory.id;
@@ -2687,7 +2694,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       return await repository.insertCategory(
         db_models.Category(
           id: 0,
-          title: 'ללא קטגוריה',
+          title: kUncategorizedCategoryTitle,
           parentId: null,
           level: 0,
         ),
@@ -3060,7 +3067,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
           directBooksParent,
           metadata,
           authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
-          isUserBook: true,
+          source: BookSource.user,
           idOverride: dbBook['id'] as int? ?? 0,
           categoryIdOverride: personalRootId,
         );
@@ -3071,7 +3078,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
             title: book.title,
             categoryId: personalRootId,
             fileType: book.fileType,
-            isUserBook: true,
+            source: BookSource.user,
           ),
         );
       }
@@ -3134,7 +3141,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
             looseBooksParent,
             metadata,
             authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
-            isUserBook: true,
+            source: BookSource.user,
             idOverride: dbBook['id'] as int? ?? 0,
             categoryIdOverride: pickedFolder.id,
           );
@@ -3145,7 +3152,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
               title: book.title,
               categoryId: pickedFolder.id,
               fileType: book.fileType,
-              isUserBook: true,
+              source: BookSource.user,
             ),
           );
         }
@@ -3283,7 +3290,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     Map<String, Map<String, dynamic>> metadata,
   ) {
     // categoryId טבעי מ-user_books.db (בלי offset). הבידול נעשה דרך
-    // `_userBooksCategoryIds` ו-`isUserBook: true` במפתח.
+    // `_userBooksCategoryIds` ו-`source: BookSource.user` במפתח.
     final nativeCategoryId = dbCategory.id;
     _userBooksCategoryIds.add(nativeCategoryId);
 
@@ -3301,7 +3308,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         category,
         metadata,
         authorFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
-        isUserBook: true,
+        source: BookSource.user,
         idOverride: dbBook['id'] as int? ?? 0,
         categoryIdOverride: nativeCategoryId,
       );
@@ -3312,7 +3319,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
           title: book.title,
           categoryId: nativeCategoryId,
           fileType: book.fileType,
-          isUserBook: true,
+          source: BookSource.user,
         ),
       );
     }
@@ -3358,7 +3365,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     Category category,
     Map<String, Map<String, dynamic>> metadata, {
     String? authorFromDatabase,
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
     int? idOverride,
     int? categoryIdOverride,
   }) {
@@ -3434,7 +3441,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       topics: topics,
       categoryPath: categoryPath,
       categoryId: categoryId,
-      isUserBook: isUserBook,
+      source: source,
     );
   }
 
@@ -3722,7 +3729,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         title: targetTitle,
         categoryId: link.targetCategoryId,
         fileType: link.targetFileType,
-        preferUserBooks: link.targetIsUserBook,
+        preferSource: link.targetSource,
       );
       if (resolvedBook == null) return 'שגיאה: הספר לא נמצא במסד הנתונים';
 
@@ -3795,6 +3802,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
   Future<List<AltTocStructure>> getAlternativeStructuresForBook(
     TextBook book,
   ) async {
+    if (book.source.isAttached) return const [];
     if (book.isUserBook) {
       return _userAltTocOperation(
         (repo) async {
@@ -3947,9 +3955,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// Get all alternative TOC entries for a specific structure
   Future<List<AltTocEntry>> getAllAlternativeEntries(
     int structureId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isAttached) return const [];
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.entries(structureId),
         const [],
@@ -3984,9 +3993,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// מחזיר רשימת (lineIndex, text) לכל ערכי כותרות משנה בעלי שורה מוגדרת
   Future<List<({int lineIndex, String text})>> getAltTocLineIndices(
     int structureId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isAttached) return const [];
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.lineIndices(structureId),
         const [],
@@ -4033,9 +4043,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
   >
   getAltTocEntriesWithLineIndex(
     int structureId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isAttached) return const [];
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.entriesWithLineIndex(structureId),
         const [],
@@ -4082,9 +4093,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
   Future<List<Link>> getLinksForAltTocEntry(
     int structureId,
     int altTocEntryId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isAttached) return const [];
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.linksForEntry(structureId, altTocEntryId),
         const [],
@@ -4135,9 +4147,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
     String bookTitle,
     int lineIndex,
     int structureId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isAttached) return null;
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.entryForLine(structureId, lineIndex),
         null,

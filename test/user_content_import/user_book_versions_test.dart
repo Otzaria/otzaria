@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_book_versions.dart';
@@ -11,7 +12,12 @@ void main() {
       (3, 'ישן'),
       (4, 'בודד'),
     ])
-      id: PdfBook(id: id, title: title, path: '/$title.pdf', isUserBook: true),
+      id: PdfBook(
+        id: id,
+        title: title,
+        path: '/$title.pdf',
+        source: BookSource.user,
+      ),
   };
   const records = [
     UserBookVersionRecord(

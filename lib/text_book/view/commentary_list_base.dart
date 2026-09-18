@@ -2987,7 +2987,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                         removeNikud: true,
                       ),
                     ),
-                  if (!widget.state.book.isUserBook) ...[
+                  if (widget.state.book.isOfficialLibraryBook) ...[
                     const AppContextMenuEntry.divider(),
                     AppContextMenuEntry(
                       label: 'דווח על טעות בספר',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -22,13 +23,13 @@ TextBook _bookWith({
   required String title,
   int categoryId = 1,
   String fileType = 'txt',
-  bool isUserBook = false,
+  BookSource source = BookSource.official,
 }) {
   return TextBook(
     title: title,
     category: null,
     order: 1,
-    isUserBook: isUserBook,
+    source: source,
     categoryId: categoryId,
     fileType: fileType,
     filePath: '',
@@ -55,7 +56,7 @@ void main() {
   });
 
   group('sameSourceIdentity', () {
-    test('true when title/categoryId/fileType/isUserBook all match', () {
+    test('true when title/categoryId/fileType/source all match', () {
       final a = _bookWith(title: 'א', categoryId: 1, fileType: 'txt');
       final b = _bookWith(title: 'א', categoryId: 1, fileType: 'txt');
       expect(sameSourceIdentity(a, b), isTrue);
@@ -67,9 +68,9 @@ void main() {
       expect(sameSourceIdentity(a, b), isFalse);
     });
 
-    test('false when isUserBook differs', () {
-      final a = _bookWith(title: 'א', isUserBook: false);
-      final b = _bookWith(title: 'א', isUserBook: true);
+    test('false when source differs', () {
+      final a = _bookWith(title: 'א', source: BookSource.official);
+      final b = _bookWith(title: 'א', source: BookSource.user);
       expect(sameSourceIdentity(a, b), isFalse);
     });
   });

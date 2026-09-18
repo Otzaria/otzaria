@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 Category _category(String title, {Category? parent}) {
@@ -127,7 +128,7 @@ void main() {
         title: 'ברכות',
         path: r'C:\אישיים\תלמוד בבלי\ברכות.pdf',
         category: userBavli,
-        isUserBook: true,
+        source: BookSource.user,
       );
       seder.books.add(sourceText);
       bavli.books.add(builtInPdf);
@@ -149,7 +150,7 @@ void main() {
         title: 'ברכות',
         path: r'C:\אישיים\ברכות.pdf',
         category: userRoot,
-        isUserBook: true,
+        source: BookSource.user,
       );
       seder.books.add(sourceText);
       userRoot.books.add(userPdf);
@@ -167,7 +168,7 @@ void main() {
       final sourceText = TextBook(
         title: 'ברכות',
         category: userRoot,
-        isUserBook: true,
+        source: BookSource.user,
       );
       final builtInPdf = PdfBook(
         title: 'ברכות',
@@ -178,7 +179,7 @@ void main() {
         title: 'ברכות',
         path: r'C:\אישיים\תלמוד בבלי\ברכות.pdf',
         category: userBavli,
-        isUserBook: true,
+        source: BookSource.user,
       );
       userRoot.books.add(sourceText);
       bavli.books.add(builtInPdf);
@@ -200,7 +201,7 @@ void main() {
         title: 'ברכות',
         path: r'C:\אישיים\ברכות.pdf',
         category: seder,
-        isUserBook: true,
+        source: BookSource.user,
       );
       final builtInPdfElsewhere = PdfBook(
         title: 'ברכות',
@@ -227,13 +228,13 @@ void main() {
         title: 'ברכות',
         path: r'C:\אישיים\א\ברכות.pdf',
         category: seder,
-        isUserBook: true,
+        source: BookSource.user,
       );
       final userPdfB = PdfBook(
         title: 'ברכות',
         path: r'C:\אישיים\ב\ברכות.pdf',
         category: seder,
-        isUserBook: true,
+        source: BookSource.user,
       );
       seder.books.addAll([sourceText, userPdfA, userPdfB]);
 
@@ -251,7 +252,7 @@ void main() {
         title: 'ברכות',
         path: r'C:\אישיים\ברכות.pdf',
         category: seder,
-        isUserBook: true,
+        source: BookSource.user,
       );
       final builtInPdf = PdfBook(
         title: 'ברכות',
@@ -282,7 +283,7 @@ void main() {
         title: 'ברכות',
         path: r'C:\אישיים\ברכות.pdf',
         category: userRoot,
-        isUserBook: true,
+        source: BookSource.user,
       );
       seder.books.add(sourceText);
       bavli.books.add(builtInPdf);
@@ -347,7 +348,7 @@ void main() {
         title: 'ברכות',
         path: r'C:\אישיים\ברכות.pdf',
         category: userRoot,
-        isUserBook: true,
+        source: BookSource.user,
       );
       seder.books.add(sourceText);
       bavli.books.add(bundledPdf);
@@ -375,7 +376,7 @@ void main() {
       final userText = TextBook(
         title: 'ברכות',
         category: userRoot,
-        isUserBook: true,
+        source: BookSource.user,
       );
       final libraryText = TextBook(title: 'ברכות', category: seder);
       bavli.books.add(bundledPdf);

@@ -36,7 +36,7 @@ Future<EnrichedBookData> enrichHeCategories(TextBook book) async {
 
 Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
   final sqliteProvider = SqliteDataProvider.instance;
-  if (!await sqliteProvider.databaseExists() && !book.isUserBook) {
+  if (book.source.isOfficial && !await sqliteProvider.databaseExists()) {
     return null;
   }
 
@@ -45,8 +45,8 @@ Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
     categoryId: book.categoryId,
     fileType: book.fileType,
     filePath: book.filePath,
-    preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-      isUserBook: book.isUserBook,
+    preferSource: BookDatabaseResolver.likelySource(
+      source: book.source,
       categoryPath: book.categoryPath,
     ),
   );
@@ -77,7 +77,7 @@ Future<EnrichedBookData> _tryGetIdAndAuthorFromDatabase(TextBook book) async {
   );
   if (book.id != null && book.author != null) return empty;
   final sqliteProvider = SqliteDataProvider.instance;
-  if (!await sqliteProvider.databaseExists() && !book.isUserBook) {
+  if (book.source.isOfficial && !await sqliteProvider.databaseExists()) {
     return empty;
   }
   try {
@@ -86,8 +86,8 @@ Future<EnrichedBookData> _tryGetIdAndAuthorFromDatabase(TextBook book) async {
       categoryId: book.categoryId,
       fileType: book.fileType,
       filePath: book.filePath,
-      preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-        isUserBook: book.isUserBook,
+      preferSource: BookDatabaseResolver.likelySource(
+        source: book.source,
         categoryPath: book.categoryPath,
       ),
     );

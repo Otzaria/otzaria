@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -32,14 +33,14 @@ class _StubTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 /// וחלונית ה-PDF (אין). הטסטים כאן נועלים את שני המסלולים — הרגרסיה שהם
 /// מונעים היא `read<TextBookBloc>()` שזרק בחלונית ה-PDF וסגר את התפריט בשקט,
 /// כך ש"דווח על טעות בספר" ו"העתק את כל הפסקה" לא עשו דבר.
-Link _link({bool targetIsUserBook = false}) {
+Link _link({BookSource targetSource = BookSource.official}) {
   return Link(
     heRef: 'רש"י פסוק א',
     index1: 12,
     path2: 'רש"י על שבת',
     index2: 5,
     connectionType: 'COMMENTARY',
-    targetIsUserBook: targetIsUserBook,
+    targetSource: targetSource,
   );
 }
 
@@ -74,11 +75,11 @@ void main() {
   Future<List<AppContextMenuEntry>> buildMenu(
     WidgetTester tester, {
     required bool withTextBookBloc,
-    bool targetIsUserBook = false,
+    BookSource targetSource = BookSource.official,
   }) async {
     List<AppContextMenuEntry>? captured;
     final probe = _MenuProbe(
-      link: _link(targetIsUserBook: targetIsUserBook),
+      link: _link(targetSource: targetSource),
       onEntries: (entries) => captured = entries,
     );
 
@@ -126,7 +127,7 @@ void main() {
       final entries = await buildMenu(
         tester,
         withTextBookBloc: false,
-        targetIsUserBook: true,
+        targetSource: BookSource.user,
       );
       expect(
         entries.map((e) => e.label),
@@ -239,7 +240,7 @@ void main() {
 
     test('זהות ספר היעד נשמרת (ספר אישי)', () {
       final args = ContextMenuUtils.commentaryReportArgs(
-        link: _link(targetIsUserBook: true),
+        link: _link(targetSource: BookSource.user),
         rawContent: 'תוכן',
       );
       expect(args.book, isA<TextBook>());

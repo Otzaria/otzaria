@@ -523,7 +523,7 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
                 reference: r.reference,
                 bookPath: r.bookPath,
                 isSourceLine: r.isSourceLine,
-                isUserBook: r.isUserBook,
+                source: r.source,
               ),
             )
             .toList();

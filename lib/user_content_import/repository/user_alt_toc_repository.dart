@@ -1,6 +1,7 @@
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/models/alt_toc_entry.dart';
 import 'package:otzaria/migration/models/alt_toc_structure.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
 
 /// קריאת הכותרות החלופיות ('כותרות') של ספרים אישיים מ-user_books.db,
@@ -46,7 +47,7 @@ class UserAltTocRepository {
           key: row['key'] as String,
           title: row['heTitle'] as String,
           heTitle: row['heTitle'] as String,
-          isUserBook: true,
+          source: BookSource.user,
         ),
     ];
   }
@@ -142,7 +143,7 @@ class UserAltTocRepository {
         index2: lineIndex + 1,
         connectionType: 'alt_toc',
         targetCategoryId: rows.first['categoryId'] as int?,
-        targetIsUserBook: true,
+        targetSource: BookSource.user,
       ),
     ];
   }

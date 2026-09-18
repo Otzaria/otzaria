@@ -2453,7 +2453,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   /// האם ל-[book] רלוונטית בחירת פורמט פתיחה — מסכת בבלי רשמית, שקיימת לה
   /// גם מהדורת טקסט וגם מהדורת PDF שמוזגו לרשומה אחת בספרייה.
   bool _offersTalmudFormatChoice(Book book) =>
-      book is TextBook && !book.isUserBook && isTalmudBavliBook(book);
+      book is TextBook && book.source.isOfficial && isTalmudBavliBook(book);
 
   /// עוטף פריט ספר בתפריט הקשר לבחירת פורמט הפתיחה של מסכת בבלי.
   Widget _withTalmudFormatMenu(Book book, int index, Widget child) {

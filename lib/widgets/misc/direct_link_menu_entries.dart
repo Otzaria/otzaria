@@ -1,4 +1,5 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 
@@ -9,13 +10,13 @@ import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 /// [AppContextMenuSubAction] עם אייקון אחיד וקריאה ל-[copyLinkToClipboard].
 List<AppContextMenuSubAction> buildDirectLinkSubmenuActions({
   required int bookId,
-  bool isUserBook = false,
+  BookSource source = BookSource.official,
   required int index,
   required String? selectedText,
 }) {
   final entries = buildDirectLinkSubmenuEntries(
     bookId: bookId,
-    isUserBook: isUserBook,
+    source: source,
     index: index,
     selectedText: selectedText,
   );
@@ -35,13 +36,13 @@ List<AppContextMenuSubAction> buildDirectLinkSubmenuActions({
 /// ב-childrenBuilder של תפריט הקשר מלא.
 List<AppContextMenuEntry> buildDirectLinkContextMenuEntries({
   required int bookId,
-  bool isUserBook = false,
+  BookSource source = BookSource.official,
   required int index,
   required String? selectedText,
 }) =>
     buildDirectLinkSubmenuActions(
           bookId: bookId,
-          isUserBook: isUserBook,
+          source: source,
           index: index,
           selectedText: selectedText,
         )

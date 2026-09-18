@@ -211,7 +211,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       categoryId: book.categoryId,
       fileType: book.fileType,
       order: book.order,
-      isUserBook: book.isUserBook,
+      source: book.source,
       externalLibraryId: book.externalLibraryId,
     );
   }
@@ -227,7 +227,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         book.title,
         categoryId: book.categoryId,
         filePath: book.filePath,
-        preferUserBooks: book.isUserBook,
+        preferSource: book.source,
       );
       if (headings != null) {
         debugPrint('✅ Loaded ${headings.headingsMap.length} headings');

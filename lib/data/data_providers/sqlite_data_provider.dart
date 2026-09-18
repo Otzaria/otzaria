@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
@@ -344,7 +345,7 @@ class SqliteDataProvider {
     int currentLine, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     if (!_isInitialized) {
       await initialize();
@@ -356,7 +357,7 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null || resolvedBook.book.totalLines <= 0) {
         return null;
@@ -389,7 +390,7 @@ class SqliteDataProvider {
     required int endLine,
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     if (!_isInitialized) {
       await initialize();
@@ -401,7 +402,7 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null || resolvedBook.book.totalLines <= 0) {
         return null;
@@ -436,7 +437,7 @@ class SqliteDataProvider {
     String title, [
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   ]) async {
     if (!_isInitialized) {
       await initialize();
@@ -448,7 +449,7 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null) return null;
       final book = resolvedBook.book;
@@ -474,7 +475,7 @@ class SqliteDataProvider {
     String title, [
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   ]) async {
     if (!_isInitialized) {
       await initialize();
@@ -486,7 +487,7 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null) return null;
 
@@ -509,7 +510,7 @@ class SqliteDataProvider {
     String title, [
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   ]) async {
     if (!_isInitialized) {
       await initialize();
@@ -521,15 +522,15 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null) return null;
       final book = resolvedBook.book;
 
       // ‏TOC של seforim.db יכול למנות אלפי שורות ולחסום את פתיחת הספר, ולכן
-      // נקרא ב-isolate. ספרי המשתמש נשארים על החיבור המקומי (DB קטן).
+      // נקרא ב-isolate, שמכיר רק אותו. שאר המסדים נקראים בחיבור המקומי.
       final List<db_models.TocEntry> migrationTocEntries;
-      if (resolvedBook.isUserBooks) {
+      if (!resolvedBook.source.isOfficial) {
         migrationTocEntries = await resolvedBook.repository.getBookTocs(
           book.id,
         );
@@ -714,13 +715,13 @@ class SqliteDataProvider {
     String title, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return await BookDatabaseResolver.resolveBook(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
+      preferSource: preferSource,
     );
   }
 }

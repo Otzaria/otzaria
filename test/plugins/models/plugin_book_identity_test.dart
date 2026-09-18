@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 
@@ -12,16 +13,27 @@ void main() {
 
   test('source מבדיל בין IDs חופפים של ספרייה וספרי משתמש', () {
     final libraryBook = TextBook(id: 1, title: 'ספר');
-    final userBook = TextBook(id: 1, title: 'ספר', isUserBook: true);
+    final userBook = TextBook(id: 1, title: 'ספר', source: BookSource.user);
 
     expect(PluginBookIdentity.sourceOf(libraryBook), 'library');
     expect(PluginBookIdentity.sourceOf(userBook), 'user');
     expect(PluginBookIdentity.keyOf(libraryBook), isNot(userBook));
   });
 
+  test('ספר ממסד מצורף: source "attached" ו-bookUid db:<slug>:<id>', () {
+    final attached = TextBook(
+      id: 5,
+      title: 'גיטין',
+      source: BookSource.attached('lib'),
+    );
+
+    expect(PluginBookIdentity.sourceOf(attached), 'attached');
+    expect(PluginBookIdentity.uidOf(attached), 'db:lib:5');
+  });
+
   test('uidOf מבדיל בין ספרייה, משתמש וחיצוני עם id חופף', () {
     final libraryBook = TextBook(id: 5, title: 'גיטין');
-    final userBook = TextBook(id: 5, title: 'גיטין', isUserBook: true);
+    final userBook = TextBook(id: 5, title: 'גיטין', source: BookSource.user);
 
     expect(PluginBookIdentity.uidOf(libraryBook), 'id:5');
     expect(PluginBookIdentity.uidOf(userBook), 'uid:5');
@@ -32,7 +44,7 @@ void main() {
   });
 
   test('toJson נשאר רזה (בלי bookUid) לתאימות round-trip דקלרטיבי', () {
-    final book = TextBook(id: 5, title: 'גיטין', isUserBook: true);
+    final book = TextBook(id: 5, title: 'גיטין', source: BookSource.user);
     final json = PluginBookIdentity.toJson(book);
 
     expect(json.containsKey('bookUid'), isFalse);
@@ -42,7 +54,7 @@ void main() {
   });
 
   test('toJsonWithUid מוסיף bookUid מעל שדות toJson', () {
-    final book = TextBook(id: 5, title: 'גיטין', isUserBook: true);
+    final book = TextBook(id: 5, title: 'גיטין', source: BookSource.user);
     final json = PluginBookIdentity.toJsonWithUid(book);
 
     expect(json['bookUid'], 'uid:5');
@@ -52,7 +64,7 @@ void main() {
   });
 
   test('matches לפי bookUid חד-משמעי — מתעלם מ-id/כותרת סותרים', () {
-    final userBook = TextBook(id: 5, title: 'גיטין', isUserBook: true);
+    final userBook = TextBook(id: 5, title: 'גיטין', source: BookSource.user);
 
     // bookUid נכון מכריע גם כשה-id/כותרת שנשלחו לצדו שגויים.
     expect(

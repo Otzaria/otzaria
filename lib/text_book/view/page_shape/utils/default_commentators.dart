@@ -28,7 +28,7 @@ class DefaultCommentators {
       targums: <String>[],
     );
 
-    if (book.isUserBook) return empty;
+    if (!book.source.isOfficial) return empty;
 
     final repository = SqliteDataProvider.instance.repository;
     if (repository == null) return empty;

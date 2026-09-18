@@ -4,6 +4,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:path/path.dart' as p;
@@ -152,20 +153,19 @@ class LibraryProviderManager {
     String title, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) {
     final normalizedFileType = BookCompositeKey.normalizeFileType(fileType);
 
     if (categoryId != null) {
-      // categoryId לבדו אינו חד-משמעי — `5` יכול להיות גם בseforim וגם
-      // ב-user_books. ננסה את שני הוריאנטים בסדר המתאים להעדפת המשתמש.
-      final order = preferUserBooks ? const [true, false] : const [false, true];
-      for (final isUser in order) {
+      // categoryId לבדו אינו חד-משמעי — אותו מספר יכול להופיע בכמה מסדים.
+      // המקור המועדף נבדק ראשון, ואחריו שאר המקורות.
+      for (final source in _sourceOrder(preferSource)) {
         final exactKey = BookCompositeKey.create(
           title: title,
           categoryId: categoryId,
           fileType: normalizedFileType,
-          isUserBook: isUser,
+          source: source,
         );
         if (_bookToProvider.containsKey(exactKey)) {
           return exactKey;
@@ -173,10 +173,8 @@ class LibraryProviderManager {
       }
     }
 
-    // עיברה על המפתחות בשני מעברים: קודם התאמה מלאה (כולל fileType),
-    // ואז התאמה לפי כותרת בלבד. ה-`accept` מסנן את אוסף המפתחות
-    // המועמדים — שימושי כדי לחפש קודם רק ב-user_books, ואז רק
-    // בכל השאר, בלי לסרוק את user_books פעמיים.
+    // שני מעברים: התאמה מלאה (כולל fileType), ואז לפי כותרת בלבד.
+    // `accept` מאפשר לחפש קודם רק במקור המועדף, ואז בכל השאר.
     BookCompositeKey? findIn(bool Function(BookCompositeKey) accept) {
       for (final key in _bookToProvider.keys) {
         if (!accept(key)) continue;
@@ -189,34 +187,44 @@ class LibraryProviderManager {
       return null;
     }
 
-    if (preferUserBooks) {
-      final fromUserBooks = findIn((k) => k.isUserBook);
-      if (fromUserBooks != null) return fromUserBooks;
-      return findIn((k) => !k.isUserBook);
+    if (!preferSource.isOfficial) {
+      final fromPreferred = findIn((k) => k.source == preferSource);
+      if (fromPreferred != null || preferSource.isAttached) {
+        return fromPreferred;
+      }
+      return findIn((k) => k.source != preferSource);
     }
 
     return findIn((_) => true);
   }
 
+  /// [preferred] ואחריו רשמי ואישי. מסד מצורף אינו נופל לשאר המקורות —
+  /// ספר בשם זהה שם הוא ספר אחר.
+  static Iterable<BookSource> _sourceOrder(BookSource preferred) =>
+      preferred.isAttached
+      ? [preferred]
+      : {preferred, BookSource.official, BookSource.user};
+
   Future<BookCompositeKey?> _findKeyInProvider(
     LibraryProvider provider,
     String title, {
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     final normalizedFileType = BookCompositeKey.normalizeFileType(fileType);
     final rawKeys = await provider.getAvailableBookTitles();
 
-    if (preferUserBooks) {
+    if (!preferSource.isOfficial) {
       for (final rawKey in rawKeys) {
         final parsed = BookCompositeKey.tryParse(rawKey);
-        if (parsed == null || !parsed.isUserBook) {
+        if (parsed == null || parsed.source != preferSource) {
           continue;
         }
         if (parsed.matches(title, otherFileType: normalizedFileType)) {
           return parsed;
         }
       }
+      if (preferSource.isAttached) return null;
     }
 
     for (final rawKey in rawKeys) {
@@ -243,7 +251,7 @@ class LibraryProviderManager {
     String title, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     final normalizedFileType = BookCompositeKey.normalizeFileType(fileType);
 
@@ -262,9 +270,9 @@ class LibraryProviderManager {
               title: title,
               categoryId: categoryId,
               fileType: normalizedFileType,
-              // הינט בלבד — ה-provider לא מחזיר אם זה user_books, ואנחנו
+              // הינט בלבד — ה-provider לא מחזיר את המקור, ואנחנו
               // משתמשים בהעדפת הקורא להתאים את המפתח למה שב-cache.
-              isUserBook: preferUserBooks,
+              source: preferSource,
             ),
             provider: provider,
           );
@@ -276,7 +284,7 @@ class LibraryProviderManager {
         provider,
         title,
         fileType: normalizedFileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (providerKey != null) {
         return (key: providerKey, provider: provider);
@@ -345,7 +353,7 @@ class LibraryProviderManager {
     String title, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     if (!_isInitialized) await initialize();
 
@@ -353,7 +361,7 @@ class LibraryProviderManager {
       title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
+      preferSource: preferSource,
     );
     if (mappedKey != null) {
       final provider = _bookToProvider[mappedKey];
@@ -362,7 +370,7 @@ class LibraryProviderManager {
           title,
           mappedKey.categoryId,
           mappedKey.fileType,
-          preferUserBooks: preferUserBooks,
+          preferSource: preferSource,
         );
       }
     }
@@ -372,7 +380,7 @@ class LibraryProviderManager {
       title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
+      preferSource: preferSource,
     );
     if (located == null) {
       debugPrint('❌ Book "$title" not found in any provider');
@@ -383,7 +391,7 @@ class LibraryProviderManager {
       title,
       located.key.categoryId,
       located.key.fileType,
-      preferUserBooks: preferUserBooks,
+      preferSource: preferSource,
     );
     if (text != null) {
       _bookToProvider[located.key] = located.provider;
@@ -396,14 +404,14 @@ class LibraryProviderManager {
     String title, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     if (!_isInitialized) await initialize();
     final mappedKey = _resolveBookKey(
       title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
+      preferSource: preferSource,
     );
     if (mappedKey != null) {
       final provider = _bookToProvider[mappedKey];
@@ -412,7 +420,7 @@ class LibraryProviderManager {
           title,
           mappedKey.categoryId,
           mappedKey.fileType,
-          preferUserBooks: preferUserBooks,
+          preferSource: preferSource,
         );
       }
     }
@@ -421,7 +429,7 @@ class LibraryProviderManager {
       title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
+      preferSource: preferSource,
     );
     if (located == null) return null;
 
@@ -429,7 +437,7 @@ class LibraryProviderManager {
       title,
       located.key.categoryId,
       located.key.fileType,
-      preferUserBooks: preferUserBooks,
+      preferSource: preferSource,
     );
     if (toc != null) {
       _bookToProvider[located.key] = located.provider;
@@ -521,8 +529,8 @@ class LibraryProviderManager {
     final targetExtension = p.extension(targetName).toLowerCase();
     final targetTitle =
         (targetExtension == '.txt' || targetExtension == '.text')
-            ? targetName.substring(0, targetName.length - targetExtension.length)
-            : targetName;
+        ? targetName.substring(0, targetName.length - targetExtension.length)
+        : targetName;
 
     BookCompositeKey? targetKey;
     for (final key in _bookToProvider.keys) {
@@ -653,9 +661,9 @@ class LibraryProviderManager {
       final key = BookCompositeKey.fromBook(book);
       if (key == null) continue;
 
-      // ספרי משתמש (user_books.db) חייבים את ה-DB provider גם כשהם קבצים
-      // (docx/epub) — ה-FS provider מכיר רק את הספרייה הראשית ומחזיר null.
-      if (book is FileBook && !book.isUserBook) {
+      // ספר שאינו רשמי חייב את ה-DB provider גם כשהוא קובץ (docx/epub) —
+      // ה-FS provider מכיר רק את הספרייה הראשית ומחזיר null.
+      if (book is FileBook && book.source.isOfficial) {
         _bookToProvider[key] = fileSystemProvider;
       } else {
         if (dbKeys.contains(key)) {

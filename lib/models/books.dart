@@ -1,3 +1,4 @@
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/book_toc_loader.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -71,8 +72,17 @@ abstract class Book {
   /// The database category ID (if available)
   final int? categoryId;
 
-  /// Whether this book was added by the user (true) or is part of the library (false).
-  final bool isUserBook;
+  /// המקור של הספר: הספרייה הרשמית, ספר אישי או מסד מצורף.
+  final BookSource source;
+
+  /// ספר אישי (user_books.db).
+  bool get isUserBook => source.isUser;
+
+  /// ספר מספריית אוצריא עצמה: מקור רשמי, ולא ספר של קטלוג חיצוני.
+  bool get isOfficialLibraryBook =>
+      source.isOfficial &&
+      ((externalLibraryId ?? '').isEmpty ||
+          DatabaseConstants.isBundledLibrarySource(externalLibraryId));
 
   /// External library ID (e.g., Sefaria ref) for books from external sources
   final String? externalLibraryId;
@@ -123,12 +133,12 @@ abstract class Book {
     this.categoryPath,
     this.categoryId,
     this.extraTitles,
-    this.isUserBook = false,
+    this.source = BookSource.official,
     this.externalLibraryId,
   });
 
   /// סיומת המקור במפתחות זהות: ספר רשמי וספר אישי עם אותו id אינם אותו ספר.
-  String get sourceIdentitySuffix => isUserBook ? kUserBookIdentitySuffix : '';
+  String get sourceIdentitySuffix => source.identitySuffix;
 }
 
 ///a representation of a text book (opposite PDF book).
@@ -165,7 +175,7 @@ class TextBook extends Book {
     super.categoryPath,
     super.categoryId,
     super.extraTitles,
-    super.isUserBook,
+    super.source,
     super.externalLibraryId,
     this.versionTitle,
     this.heVersionTitle,
@@ -205,7 +215,7 @@ class TextBook extends Book {
       title,
       categoryId: categoryId,
       fileType: fileType ?? 'txt',
-      preferUserBooks: isUserBook,
+      preferSource: source,
     );
     return bookText ?? '';
   }
@@ -241,7 +251,7 @@ class TextBook extends Book {
       categoryPath: categoryPath,
       categoryId: categoryId,
       extraTitles: extraTitles,
-      isUserBook: isUserBook,
+      source: source,
       externalLibraryId: externalLibraryId,
       versionTitle: versionTitle ?? this.versionTitle,
       heVersionTitle: heVersionTitle ?? this.heVersionTitle,
@@ -262,7 +272,7 @@ class TextBook extends Book {
       fileType: json['fileType'],
       heCategories: json['heCategories'],
       heEra: json['heEra'],
-      isUserBook: json['isUserBook'] ?? false,
+      source: BookSource.fromJson(json),
       externalLibraryId: json['externalLibraryId'],
       versionTitle: json['versionTitle'],
       heVersionTitle: json['heVersionTitle'],
@@ -285,6 +295,7 @@ class TextBook extends Book {
       'categoryId': categoryId,
       'heCategories': heCategories,
       'heEra': heEra,
+      'source': source.wireKey,
       'isUserBook': isUserBook,
       'externalLibraryId': externalLibraryId,
       'versionTitle': versionTitle,
@@ -324,7 +335,7 @@ class ExternalLibraryBook extends Book {
     super.categoryPath,
     super.categoryId,
     super.fileType = 'link',
-    super.isUserBook,
+    super.source,
     super.externalLibraryId,
   }) : super(id: id);
 
@@ -345,7 +356,7 @@ class ExternalLibraryBook extends Book {
       categoryPath: json['categoryPath'],
       link: json['link'],
       heCategories: json['heCategories'],
-      isUserBook: json['isUserBook'] ?? false,
+      source: BookSource.fromJson(json),
       externalLibraryId: json['externalLibraryId'],
     );
   }
@@ -368,6 +379,7 @@ class ExternalLibraryBook extends Book {
       'categoryPath': categoryPath,
       'fileType': fileType,
       'heCategories': heCategories,
+      'source': source.wireKey,
       'isUserBook': isUserBook,
       'externalLibraryId': externalLibraryId,
     };
@@ -400,7 +412,7 @@ abstract class FileBook extends Book {
     super.filePath,
     super.fileType,
     super.order = 999,
-    super.isUserBook,
+    super.source,
     super.externalLibraryId,
   });
 }
@@ -430,7 +442,7 @@ class PdfBook extends FileBook {
     super.categoryId,
     super.fileType = 'pdf',
     super.order = 999,
-    super.isUserBook,
+    super.source,
     super.externalLibraryId,
   });
 
@@ -444,7 +456,7 @@ class PdfBook extends FileBook {
       filePath: json['filePath'],
       heCategories: json['heCategories'],
       heEra: json['heEra'],
-      isUserBook: json['isUserBook'] ?? false,
+      source: BookSource.fromJson(json),
       externalLibraryId: json['externalLibraryId'],
     );
   }
@@ -462,6 +474,7 @@ class PdfBook extends FileBook {
       'fileType': fileType,
       'heCategories': heCategories,
       'heEra': heEra,
+      'source': source.wireKey,
       'isUserBook': isUserBook,
       'externalLibraryId': externalLibraryId,
     };
@@ -499,7 +512,7 @@ abstract class ConvertibleDocumentBook extends FileBook {
     super.categoryId,
     super.fileType,
     super.order,
-    super.isUserBook,
+    super.source,
     super.externalLibraryId,
   });
 
@@ -536,7 +549,7 @@ abstract class ConvertibleDocumentBook extends FileBook {
       categoryPath: categoryPath,
       categoryId: categoryId,
       extraTitles: extraTitles,
-      isUserBook: isUserBook,
+      source: source,
       externalLibraryId: externalLibraryId,
     );
   }
@@ -566,7 +579,7 @@ class DocxBook extends ConvertibleDocumentBook {
     super.categoryId,
     super.fileType = 'docx',
     super.order = 999,
-    super.isUserBook,
+    super.source,
     super.externalLibraryId,
   });
 
@@ -579,7 +592,7 @@ class DocxBook extends ConvertibleDocumentBook {
       categoryPath: json['categoryPath'],
       heCategories: json['heCategories'],
       heEra: json['heEra'],
-      isUserBook: json['isUserBook'] ?? false,
+      source: BookSource.fromJson(json),
       externalLibraryId: json['externalLibraryId'],
     );
   }
@@ -596,6 +609,7 @@ class DocxBook extends ConvertibleDocumentBook {
       'categoryPath': categoryPath,
       'heCategories': heCategories,
       'heEra': heEra,
+      'source': source.wireKey,
       'isUserBook': isUserBook,
       'externalLibraryId': externalLibraryId,
     };
@@ -632,7 +646,7 @@ class EpubBook extends ConvertibleDocumentBook {
     super.categoryId,
     super.fileType = 'epub',
     super.order = 999,
-    super.isUserBook,
+    super.source,
     super.externalLibraryId,
   });
 
@@ -647,7 +661,7 @@ class EpubBook extends ConvertibleDocumentBook {
       categoryId: json['categoryId'] as int?,
       heCategories: json['heCategories'] as String?,
       heEra: json['heEra'] as String?,
-      isUserBook: json['isUserBook'] as bool? ?? false,
+      source: BookSource.fromJson(json),
       externalLibraryId: json['externalLibraryId'] as String?,
     );
   }
@@ -666,6 +680,7 @@ class EpubBook extends ConvertibleDocumentBook {
       'categoryId': categoryId,
       'heCategories': heCategories,
       'heEra': heEra,
+      'source': source.wireKey,
       'isUserBook': isUserBook,
       'externalLibraryId': externalLibraryId,
     };
@@ -706,7 +721,7 @@ class DocumentBook extends ConvertibleDocumentBook {
     super.categoryId,
     required String super.fileType,
     super.order = 999,
-    super.isUserBook,
+    super.source,
     super.externalLibraryId,
   });
 
@@ -722,7 +737,7 @@ class DocumentBook extends ConvertibleDocumentBook {
       heCategories: json['heCategories'] as String?,
       heEra: json['heEra'] as String?,
       fileType: json['fileType'] as String,
-      isUserBook: json['isUserBook'] as bool? ?? false,
+      source: BookSource.fromJson(json),
       externalLibraryId: json['externalLibraryId'] as String?,
     );
   }
@@ -741,6 +756,7 @@ class DocumentBook extends ConvertibleDocumentBook {
       'categoryId': categoryId,
       'heCategories': heCategories,
       'heEra': heEra,
+      'source': source.wireKey,
       'isUserBook': isUserBook,
       'externalLibraryId': externalLibraryId,
     };
@@ -823,7 +839,7 @@ Book buildBookForFileType({
   String? categoryPath,
   int? categoryId,
   List<String>? extraTitles,
-  bool isUserBook = false,
+  BookSource source = BookSource.official,
   String? externalLibraryId,
 }) {
   // הסיומת נלקחת מנתיב **הקובץ** בלבד: בספר שאין לו קובץ, `path` הוא כותרת
@@ -851,7 +867,7 @@ Book buildBookForFileType({
       categoryPath: categoryPath,
       categoryId: categoryId,
       extraTitles: extraTitles,
-      isUserBook: isUserBook,
+      source: source,
       externalLibraryId: externalLibraryId,
     );
   }
@@ -874,7 +890,7 @@ Book buildBookForFileType({
       topics: topics,
       categoryPath: categoryPath,
       categoryId: categoryId,
-      isUserBook: isUserBook,
+      source: source,
       externalLibraryId: externalLibraryId,
     );
   }
@@ -897,7 +913,7 @@ Book buildBookForFileType({
       topics: topics,
       categoryPath: categoryPath,
       categoryId: categoryId,
-      isUserBook: isUserBook,
+      source: source,
       externalLibraryId: externalLibraryId,
     );
   }
@@ -920,7 +936,7 @@ Book buildBookForFileType({
       topics: topics,
       categoryPath: categoryPath,
       categoryId: categoryId,
-      isUserBook: isUserBook,
+      source: source,
       externalLibraryId: externalLibraryId,
     );
   }
@@ -944,7 +960,7 @@ Book buildBookForFileType({
       categoryPath: categoryPath,
       categoryId: categoryId,
       extraTitles: extraTitles,
-      isUserBook: isUserBook,
+      source: source,
       externalLibraryId: externalLibraryId,
     );
   }
@@ -967,7 +983,7 @@ Book buildBookForFileType({
     fileType: resolvedType,
     categoryPath: categoryPath,
     categoryId: categoryId,
-    isUserBook: isUserBook,
+    source: source,
     externalLibraryId: externalLibraryId,
   );
 }

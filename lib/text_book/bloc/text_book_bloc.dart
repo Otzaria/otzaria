@@ -3,6 +3,7 @@ import 'package:otzaria/core/error_log_file.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
@@ -86,7 +87,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     int currentLine, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks,
+    BookSource preferSource,
   })
   _quickPreviewLoader;
   final ItemScrollController scrollController;
@@ -167,7 +168,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       int currentLine, {
       int? categoryId,
       String? fileType,
-      bool preferUserBooks,
+      BookSource preferSource,
     })?
     quickPreviewLoader,
     required TextBookInitial initialState,
@@ -778,7 +779,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             visibleIndices.first,
             categoryId: book.categoryId,
             fileType: book.fileType,
-            preferUserBooks: book.isUserBook,
+            preferSource: book.source,
           );
 
           if (preview != null && preview.isNotEmpty) {
@@ -1285,8 +1286,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       } else {
         _userTouchedCommentators = true;
         // שמירה פר-ספר של בחירת המשתמש (כולל בחירה ריקה) — תמיד, כדי שתיטען
-        // בכל פתיחה. ספרים אישיים אינם נשמרים פר-ספר.
-        if (!currentState.book.isUserBook) {
+        // בכל פתיחה. רק ספרים רשמיים נשמרים פר-ספר.
+        if (currentState.book.source.isOfficial) {
           unawaited(
             _saveActiveCommentatorsPerBook(
               currentState.book,
@@ -3050,7 +3051,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       // בחירה שמורה פר-ספר גוברת על ברירת המחדל: אם המשתמש בחר בעבר (כולל
       // בחירה ריקה) — משחזרים אותה; אחרת בוחרים את מפרשי ברירת המחדל.
-      final saved = book.isUserBook
+      final saved = !book.source.isOfficial
           ? null
           : await TextBookPerBookSettings.load(book);
       if (isClosed) return;

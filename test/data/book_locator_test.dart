@@ -93,7 +93,7 @@ void main() {
       );
 
       expect(location, isNotNull);
-      expect(location!.source, BookSource.database);
+      expect(location!.storage, BookStorageKind.database);
       expect(location.book?.title, 'בראשית');
       expect(location.repository, isNotNull);
     });
@@ -170,7 +170,7 @@ void main() {
       final location = await BookLocator.locateBook('רק כותרת');
 
       expect(location, isNotNull);
-      expect(location!.source, BookSource.database);
+      expect(location!.storage, BookStorageKind.database);
       expect(location.book?.title, 'רק כותרת');
     });
 

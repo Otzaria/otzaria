@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 /// בדיקות להתאמה הסלחנית של חיפוש ספרים בספרייה.
@@ -94,7 +95,7 @@ void main() {
         author: '',
         topics: '',
         categoryPath: 'ספרים אישיים, שות פלוני',
-        isUserBook: true,
+        source: BookSource.user,
       ),
       BookSearchEntry(
         index: 1,
@@ -259,7 +260,7 @@ void main() {
           author: '',
           topics: '',
           eraOrder: 5,
-          isUserBook: true,
+          source: BookSource.user,
         ),
         BookSearchEntry(
           index: 1,
@@ -562,11 +563,15 @@ void main() {
   group('buildBookSearchEntry - בידוד מרחבי id של ספר אישי', () {
     // ה-lookups מדמים מאגר רשמי שבו id=7 שייך לספר רשמי זר עם כינוי ודור מוקדם.
     List<String>? acronymsForId(int id) => id == 7 ? const ['רמבם'] : null;
-    int eraOrderForId(int? id, bool isUserBook) =>
-        (!isUserBook && id == 7) ? 2 : 5;
+    int eraOrderForId(int? id, BookSource source) =>
+        (source.isOfficial && id == 7) ? 2 : 5;
 
     test('ספר אישי עם id מתנגש מקבל כינויים ריקים ודור ברירת מחדל', () {
-      final userBook = TextBook(id: 7, title: 'הספר שלי', isUserBook: true);
+      final userBook = TextBook(
+        id: 7,
+        title: 'הספר שלי',
+        source: BookSource.user,
+      );
       final entry = buildBookSearchEntry(
         0,
         userBook,
@@ -583,7 +588,7 @@ void main() {
         5,
         reason: 'ספר אישי לא יורש דור מוקדם של ספר רשמי בעל אותו id',
       );
-      expect(entry.isUserBook, isTrue);
+      expect(entry.source, BookSource.user);
     });
 
     test('ספר רשמי עם אותו id כן מקבל את הכינוי והדור מהמאגר', () {
@@ -596,7 +601,7 @@ void main() {
       );
       expect(entry.acronyms, equals(['רמבם']));
       expect(entry.eraOrder, 2);
-      expect(entry.isUserBook, isFalse);
+      expect(entry.source, BookSource.official);
     });
   });
 }

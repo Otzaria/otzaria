@@ -13,6 +13,7 @@ import 'package:otzaria/indexing/models/indexing_run_result.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/indexing/utils/pdf_extraction_prefetcher.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
@@ -543,7 +544,7 @@ void main() {
       final engine = _RecordingSearchEngine();
       final provider = _RecordingTantivyDataProvider(engine);
       final official = TextBook(id: 5, title: 'שבת');
-      final personal = TextBook(id: 5, title: 'שבת', isUserBook: true);
+      final personal = TextBook(id: 5, title: 'שבת', source: BookSource.user);
       provider.indexedFilePaths.addAll([
         IndexingRepository.buildIndexedBookFilePath(official),
         IndexingRepository.buildIndexedBookFilePath(personal),
@@ -561,7 +562,7 @@ void main() {
     test('מסיר מפתחות uid: של ספרים שאינם עוד בספרייה', () async {
       final engine = _RecordingSearchEngine();
       final provider = _RecordingTantivyDataProvider(engine);
-      final existing = TextBook(id: 1, title: 'שבת', isUserBook: true);
+      final existing = TextBook(id: 1, title: 'שבת', source: BookSource.user);
       final library = _buildLibrary(bavliBooks: const []);
       library.books.add(existing);
 
@@ -707,7 +708,7 @@ void main() {
         // לספרייה היה מדולג כ"מאונדקס".
         final engine = _RecordingSearchEngine()..failCommit = true;
         final provider = _RecordingTantivyDataProvider(engine);
-        final existing = TextBook(id: 1, title: 'שבת', isUserBook: true);
+        final existing = TextBook(id: 1, title: 'שבת', source: BookSource.user);
         final library = _buildLibrary(bavliBooks: const []);
         library.books.add(existing);
         final existingKey = IndexingRepository.buildIndexedBookFilePath(
@@ -737,7 +738,7 @@ void main() {
         final engine = _RecordingSearchEngine();
         final provider = _RecordingTantivyDataProvider(engine);
         final official = TextBook(id: 5, title: 'שבת');
-        final personal = TextBook(id: 9, title: 'שבת', isUserBook: true);
+        final personal = TextBook(id: 9, title: 'שבת', source: BookSource.user);
         final other = TextBook(id: 6, title: 'עירובין');
         final library = _buildLibrary(bavliBooks: const []);
         library.books.addAll([official, personal, other]);
@@ -1503,7 +1504,11 @@ void main() {
       () async {
         final engine = _RecordingSearchEngine();
         final provider = _RecordingTantivyDataProvider(engine);
-        final book = TextBook(id: 1009, title: 'הרב פינקוס', isUserBook: true);
+        final book = TextBook(
+          id: 1009,
+          title: 'הרב פינקוס',
+          source: BookSource.user,
+        );
         final library = Library(categories: [])..books.add(book);
         final repository = _FakeExtractionRepository(provider)
           ..textFailureByTitle[book.title] = const EncryptedDocumentException(
@@ -1543,7 +1548,7 @@ void main() {
     test('docx פגום (מעל מגבלת ה-ZIP) מסומן ככשל קבוע', () async {
       final engine = _RecordingSearchEngine();
       final provider = _RecordingTantivyDataProvider(engine);
-      final book = TextBook(id: 536, title: 'שבת', isUserBook: true);
+      final book = TextBook(id: 536, title: 'שבת', source: BookSource.user);
       final library = Library(categories: [])..books.add(book);
       final repository = _FakeExtractionRepository(provider)
         ..textFailureByTitle[book.title] = const CorruptedDocumentException(
@@ -1571,7 +1576,7 @@ void main() {
     test('כשל טעינה לא מזוהה בספר טקסט נשאר לניסיון חוזר', () async {
       final engine = _RecordingSearchEngine();
       final provider = _RecordingTantivyDataProvider(engine);
-      final book = TextBook(id: 7, title: 'ברכות', isUserBook: true);
+      final book = TextBook(id: 7, title: 'ברכות', source: BookSource.user);
       final library = Library(categories: [])..books.add(book);
       final repository = _FakeExtractionRepository(provider)
         ..textFailureByTitle[book.title] = StateError('קריאה נכשלה');
@@ -2316,10 +2321,35 @@ void main() {
     test('מבדיל בין ספר רשמי לספר אישי עם אותו id (חפיפת AUTOINCREMENT)', () {
       // id טבעי זהה בשני ה-DB — בלי תיוג המקור הספר האישי מדולג באינדוקס.
       final official = TextBook(id: 5, title: 'שבת');
-      final userBook = TextBook(id: 5, title: 'הערות אישיות', isUserBook: true);
+      final userBook = TextBook(
+        id: 5,
+        title: 'הערות אישיות',
+        source: BookSource.user,
+      );
 
       expect(IndexingRepository.catalogueOrderKey(official), 'id:5');
       expect(IndexingRepository.catalogueOrderKey(userBook), 'uid:5');
+    });
+
+    test('ספר ממסד מצורף ממופתח db:<slug>:<id>, בלי לשנות את השאר', () {
+      final attached = TextBook(
+        id: 5,
+        title: 'שבת',
+        source: BookSource.attached('lib'),
+      );
+      final external = TextBook(
+        id: 5,
+        title: 'שבת',
+        source: BookSource.attached('lib'),
+        externalLibraryId: 'oh:9',
+      );
+
+      expect(IndexingRepository.catalogueOrderKey(attached), 'db:lib:5');
+      expect(IndexingRepository.catalogueOrderKey(external), 'ext:oh:9');
+      expect(
+        IndexingRepository.catalogueOrderKeyFromParts(title: 'שבת', bookId: 5),
+        'id:5',
+      );
     });
   });
 
@@ -2394,7 +2424,7 @@ void main() {
       final personal = PdfBook(
         title: 'ברכות',
         path: r'C:\personal\תלמוד בבלי\ברכות.pdf',
-        isUserBook: true,
+        source: BookSource.user,
       );
       expect(IndexingRepository.isIndexableBook(personal), isTrue);
 

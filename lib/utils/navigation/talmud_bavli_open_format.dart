@@ -85,7 +85,7 @@ Future<({TextBook textBook, PdfBook pdfBook})?> resolveTalmudBavliPdfBook(
   TextBook textBook, {
   bool? forcePdf,
 }) async {
-  if (textBook.isUserBook) return null;
+  if (!textBook.source.isOfficial) return null;
   if (!(forcePdf ?? talmudBavliOpensInPdf())) return null;
   try {
     final library = await DataRepository.instance.library;
@@ -165,7 +165,7 @@ ResolvingTab buildTalmudBavliResolvingTab({
 Future<OpenedTab> buildLinkTargetTab(Link link) async {
   final textBook = TextBook(
     title: utils.getTitleFromPath(link.path2),
-    isUserBook: link.targetIsUserBook,
+    source: link.targetSource,
     categoryId: link.targetCategoryId,
     fileType: link.targetFileType,
   );
@@ -197,7 +197,7 @@ Future<OpenedTab> buildLinkTargetTab(Link link) async {
 /// [isTalmudBavliPdfLibraryDuplicate]; ספר אישי אינו מייצג את ה-PDF המובנה.
 Set<String> talmudBavliTextTitles(Category library) => {
   for (final book in library.getAllBooks())
-    if (book is TextBook && !book.isUserBook && isTalmudBavliBook(book))
+    if (book is TextBook && book.source.isOfficial && isTalmudBavliBook(book))
       normalizeBookTitle(book.title),
 };
 
@@ -205,7 +205,7 @@ Set<String> talmudBavliTextTitles(Category library) => {
 /// מהדורת טקסט ב-[textTitles] — המסכת מוצגת פעם אחת, והפתיחה לפי ההגדרה.
 bool isTalmudBavliPdfLibraryDuplicate(Book book, Set<String> textTitles) =>
     book is PdfBook &&
-    !book.isUserBook &&
+    book.source.isOfficial &&
     DatabaseConstants.isBundledLibrarySource(book.externalLibraryId) &&
     textTitles.contains(normalizeBookTitle(book.title)) &&
     isTalmudBavliBook(book);

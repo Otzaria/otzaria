@@ -309,7 +309,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
           ? buildDibburimEntries(widget.tableOfContents, widget.dibburim)
           : await DatabaseLibraryProvider.instance.getAllAlternativeEntries(
               structureId,
-              isUserBook: widget.book.isUserBook,
+              source: widget.book.source,
             );
 
       if (mounted) {
@@ -394,7 +394,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
         widget.book.title,
         lineIndex,
         structureId,
-        isUserBook: widget.book.isUserBook,
+        source: widget.book.source,
       );
     }
     if (_structureExpanded[structureId] != true) return null;
@@ -612,7 +612,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       var links = await DatabaseLibraryProvider.instance.getLinksForAltTocEntry(
         structureId,
         entry.id,
-        isUserBook: widget.book.isUserBook,
+        source: widget.book.source,
       );
 
       // 2. If no links, but has children, try to get link from first child (recursively)
@@ -626,7 +626,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
                 .getLinksForAltTocEntry(
                   structureId,
                   current.id,
-                  isUserBook: widget.book.isUserBook,
+                  source: widget.book.source,
                 );
           } else {
             current = null;

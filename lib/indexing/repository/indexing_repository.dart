@@ -20,6 +20,7 @@ import 'package:otzaria/indexing/utils/pdf_extraction_prefetcher.dart';
 import 'package:otzaria/indexing/models/catalogue_order_resolver.dart';
 import 'package:otzaria/indexing/models/indexing_run_result.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -201,9 +202,10 @@ class IndexingRepository {
 
     final eraOrder = GenerationCache.instance.getOrderForBook(
       book.id,
-      book.isUserBook,
+      book.source,
     );
-    final base = book.isUserBook ? 96 : 64;
+    // כל מקור בטווח משלו: רשמי, אחריו אישי, ואחריו מסד מצורף.
+    final base = 64 + 32 * book.source.rank;
     return base + eraOrder.clamp(0, 31);
   }
 
@@ -216,7 +218,7 @@ class IndexingRepository {
   }
 
   static String? _categoryPathForBook(Book book) {
-    if (!book.isUserBook && book.id != null) {
+    if (book.source.isOfficial && book.id != null) {
       final cached = ReferenceBooksCache.instance.getCategoryPathForBookSync(
         book.id!,
       );
@@ -1293,7 +1295,7 @@ class IndexingRepository {
         book.title,
         book.categoryId,
         book.fileType ?? 'txt',
-        book.isUserBook,
+        book.source,
       );
       // ניקוי תמונות מוטמעות חייב לרוץ בשני הצדדים — אחרת חתימת האינדוקס
       // לעולם לא תתאים לאימות ו-reconcile יאנדקס את הספר מחדש בכל ריצה.
@@ -1321,7 +1323,7 @@ class IndexingRepository {
         book.title,
         book.categoryId,
         book.fileType ?? 'txt',
-        book.isUserBook,
+        book.source,
       );
     }
 
@@ -1377,7 +1379,7 @@ class IndexingRepository {
     topics: book.topics,
     externalLibraryId: book.externalLibraryId,
     bookId: book.id,
-    isUserBook: book.isUserBook,
+    source: book.source,
     categoryPath: book.category?.path ?? book.categoryPath,
     fileType: book.fileType,
     filePath: book is FileBook ? book.path : book.filePath,
@@ -1440,7 +1442,7 @@ class IndexingRepository {
     title: book.title,
     externalLibraryId: book.externalLibraryId,
     bookId: book.id,
-    isUserBook: book.isUserBook,
+    source: book.source,
     categoryKey: book.category?.path ?? book.categoryPath,
     fileTypeKey: book.fileType ?? book.runtimeType.toString(),
     pathKey: book is FileBook ? book.path : book.filePath,
@@ -1452,7 +1454,7 @@ class IndexingRepository {
     required String title,
     String? externalLibraryId,
     int? bookId,
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
     String? categoryKey,
     String? fileTypeKey,
     String? pathKey,
@@ -1462,9 +1464,13 @@ class IndexingRepository {
     }
 
     if (bookId != null) {
-      // id טבעי חופף בין seforim.db ל-user_books.db — בלי תיוג המקור
-      // ספר אישי 'id:5' מתנגש בספר רשמי 'id:5' ומדולג באינדוקס.
-      return isUserBook ? userBookKey(bookId) : officialBookKey(bookId);
+      // id טבעי חופף בין המסדים — בלי תיוג המקור ספר אישי 'id:5' מתנגש
+      // בספר רשמי 'id:5' ומדולג באינדוקס.
+      return switch (source) {
+        OfficialBookSource() => officialBookKey(bookId),
+        UserBookSource() => userBookKey(bookId),
+        AttachedBookSource(:final slug) => attachedBookKey(slug, bookId),
+      };
     }
 
     return '$title|${categoryKey ?? ''}|${fileTypeKey ?? ''}|${pathKey ?? ''}';
@@ -1475,6 +1481,9 @@ class IndexingRepository {
 
   /// מפתח catalogueOrderKey לספר רשמי (seforim.db) לפי id גולמי.
   static String officialBookKey(int id) => 'id:$id';
+
+  /// מפתח catalogueOrderKey לספר ממסד מצורף [slug] לפי id גולמי.
+  static String attachedBookKey(String slug, int id) => 'db:$slug:$id';
 
   /// מפתח catalogueOrderKey לספר בעל מזהה חיצוני יציב.
   static String externalIdentityKey(String externalLibraryId) =>
@@ -2185,7 +2194,7 @@ class IndexingRepository {
   /// מסכת PDF מצורפת אינה מאונדקסת: הטקסט המלא שלה כבר באינדקס, ותוצאת
   /// טקסט נפתחת ב-PDF לפי הגדרת פורמט הפתיחה — האינדוקס רק הכפיל תוצאות.
   static bool isBundledTalmudBavliPdf(PdfBook book) =>
-      !book.isUserBook &&
+      book.source.isOfficial &&
       DatabaseConstants.isTalmudBavliPdfExternalLibraryId(
         book.externalLibraryId,
       );

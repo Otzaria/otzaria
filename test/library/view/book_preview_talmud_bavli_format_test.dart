@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -125,7 +126,7 @@ void main() {
         title: 'ברכות',
         category: built.text.category,
         categoryId: 10,
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       await pumpPanel(tester, userBook);

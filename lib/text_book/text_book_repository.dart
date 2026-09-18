@@ -3,6 +3,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/user_content_import/services/user_links_loader.dart';
@@ -74,7 +75,7 @@ class TextBookRepository {
       title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: book.isUserBook,
+      preferSource: book.source,
     );
     if (providerText != null && providerText.isNotEmpty) {
       return providerText;
@@ -105,7 +106,7 @@ class TextBookRepository {
         title,
         dbBook.categoryId,
         dbBook.fileType,
-        book.isUserBook,
+        book.source,
       );
       if (dbText != null && dbText.isNotEmpty) {
         return dbText;
@@ -133,7 +134,7 @@ class TextBookRepository {
     // ספרי seforim.db בלבד: השאילתה וה-split רצים ב-isolate (כמו הקישורים),
     // כדי שלא יחסמו את ה-UI thread בזמן גלילה. ה-isolate פותח רק את seforim.db,
     // לכן ספרי משתמש נשארים במסלול ה-drift, וכישלון נופל אליו (file-backed וכו').
-    if (categoryId != null && !book.isUserBook) {
+    if (categoryId != null && book.source.isOfficial) {
       // getProviderForBook מסתכל רק ב-_bookToProvider שמתמלא אחרי buildLibraryCatalog.
       // בסטרטאפ (לפני buildLibraryCatalog) הוא מחזיר null — ולכן פונים ישירות
       // ל-DatabaseLibraryProvider שיכול לפתוח seforim.db ב-isolate גם בלי catalog.
@@ -179,7 +180,7 @@ class TextBookRepository {
       endLine: endLine,
       categoryId: book.categoryId,
       fileType: book.fileType ?? 'txt',
-      preferUserBooks: book.isUserBook,
+      preferSource: book.source,
     );
     if (range == null || range.text.isEmpty) {
       return null;
@@ -223,7 +224,7 @@ class TextBookRepository {
     final userLinks = await loadUserLinksForBook(
       bookTitle: book.title,
       bookCategoryId: book.categoryId,
-      isUserBook: book.isUserBook,
+      source: book.source,
       startLineIndex: normalizedStart,
       endLineIndex: normalizedEnd,
       targetBookTitles: normalizedTargetBookTitles,
@@ -333,7 +334,7 @@ class TextBookRepository {
     final userCommentators = (await loadUserCommentatorTitles(
       bookTitle: book.title,
       bookCategoryId: book.categoryId,
-      isUserBook: book.isUserBook,
+      source: book.source,
     )).toSet();
     userOnly() => (
       commentators: [
@@ -343,9 +344,9 @@ class TextBookRepository {
       rare: const <String>{},
     );
 
-    // ספרים אישיים אינם כוללים קישורי מפרשים במסד הנתונים הרשמי.
-    // חיפוש לפי book.id ב-seforim.db יחזיר מפרשים של ספר רשמי עם אותו ID.
-    if (book.isUserBook) return userOnly();
+    // ספר שאינו רשמי אינו כלול בקישורי המפרשים של המסד הרשמי; חיפוש לפי
+    // book.id ב-seforim.db יחזיר מפרשים של ספר רשמי עם אותו ID.
+    if (!book.source.isOfficial) return userOnly();
 
     final repository = _sqliteProvider.repository;
     if (repository == null) return userOnly();
@@ -406,7 +407,7 @@ class TextBookRepository {
     required int endLine,
   }) async {
     final repository = _sqliteProvider.repository;
-    if (repository == null || book.isUserBook) return const [];
+    if (repository == null || !book.source.isOfficial) return const [];
 
     final dbBook = book.categoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -453,12 +454,12 @@ class TextBookRepository {
     required int sourceLineIndex,
     required String currentBookTitle,
     required int? currentCategoryId,
-    bool sourceIsUserBook = false,
-    bool currentIsUserBook = false,
+    BookSource sourceBookSource = BookSource.official,
+    BookSource currentBookSource = BookSource.official,
   }) async {
     final repository = _sqliteProvider.repository;
-    // קישורי המפרשים קיימים רק במסד הרשמי; ספר אישי בשם זהה אינו אותו ספר.
-    if (repository == null || sourceIsUserBook) return [];
+    // קישורי המפרשים קיימים רק במסד הרשמי; ספר ממקור אחר בשם זהה אינו אותו ספר.
+    if (repository == null || !sourceBookSource.isOfficial) return [];
 
     final sourceBook = sourceCategoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -468,7 +469,7 @@ class TextBookRepository {
         : await repository.getBookByTitle(sourceBookTitle);
     if (sourceBook == null) return [];
 
-    final currentBook = currentIsUserBook
+    final currentBook = !currentBookSource.isOfficial
         ? null
         : currentCategoryId != null
         ? await repository.getBookByTitleAndCategory(

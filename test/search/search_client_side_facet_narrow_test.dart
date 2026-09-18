@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
@@ -61,7 +62,7 @@ Future<void> main() async {
       id: 5,
       title: 'שבת',
       categoryPath: 'הלכה',
-      isUserBook: true,
+      source: BookSource.user,
     );
 
     library = Library(categories: const []);

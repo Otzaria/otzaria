@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/services/commentary_service.dart';
 
 /// מטמון בזיכרון של דור הספר לכל ספר (bookId), מתוך טבלת book_generation →
@@ -33,10 +34,14 @@ class GenerationCache {
       ''';
 
   /// מחזיר את סדר הדור של הספר (נמוך = מוקדם). ספר לא ידוע → סוף הרשימה.
-  /// [isUserBook] מנתב למפת ה-id של user_books.db (מרחב id נפרד).
-  int getOrderForBook(int? bookId, bool isUserBook) {
+  /// [source] בוחר את מפת ה-id של המסד (מרחבי id נפרדים); מסד מצורף — סוף.
+  int getOrderForBook(int? bookId, BookSource source) {
     if (bookId == null) return CommentaryEra.other.order;
-    final map = isUserBook ? _orderByUserBookId : _orderByBookId;
+    final map = switch (source) {
+      OfficialBookSource() => _orderByBookId,
+      UserBookSource() => _orderByUserBookId,
+      AttachedBookSource() => const <int, int>{},
+    };
     return map[bookId] ?? CommentaryEra.other.order;
   }
 

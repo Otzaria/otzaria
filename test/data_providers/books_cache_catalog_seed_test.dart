@@ -13,6 +13,7 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 
@@ -208,7 +209,7 @@ void main() {
           'ספר אישי',
           null,
           'txt',
-          true,
+          BookSource.user,
         ))?.single.text,
         'פרק א',
       );

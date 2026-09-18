@@ -1,5 +1,6 @@
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/book_version.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -16,7 +17,11 @@ void main() {
 
   group('hasBookVersionsToOpen — מי זכאי לנוסחאות', () {
     test('ספר משתמש נדחה בלי לגשת למאגר', () async {
-      final book = TextBook(title: 'ספר אישי', categoryId: 3, isUserBook: true);
+      final book = TextBook(
+        title: 'ספר אישי',
+        categoryId: 3,
+        source: BookSource.user,
+      );
 
       expect(await hasBookVersionsToOpen(book), isFalse);
     });

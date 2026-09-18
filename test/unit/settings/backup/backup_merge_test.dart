@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/settings/services/backup/backup_merge.dart';
 
 void main() {
@@ -101,6 +102,31 @@ void main() {
 
       expect(merged['bookmarks'] as List, hasLength(2));
       expect(merged['history'] as List, hasLength(2));
+    });
+
+    test('ספר ממסד מצורף אינו מתמזג עם רשמי או אישי בעל אותו id', () {
+      Map<String, dynamic> entry(BookSource source) => {
+        ...bookmark('דף ב'),
+        'book': {
+          'id': 7,
+          'title': 'ספר',
+          'source': source.wireKey,
+          'isUserBook': source.isUser,
+        },
+      };
+      final merged = merge(
+        {
+          'bookmarks': [entry(BookSource.official), entry(BookSource.user)],
+        },
+        {
+          'bookmarks': [
+            entry(BookSource.attached('a')),
+            entry(BookSource.official),
+          ],
+        },
+      );
+
+      expect(merged['bookmarks'] as List, hasLength(3));
     });
   });
 

@@ -96,7 +96,7 @@ class LibraryBookIndex {
     for (final book in category.books) {
       final id = book.id;
       if (book is TextBook) {
-        if (!book.isUserBook && id != null) {
+        if (book.source.isOfficial && id != null) {
           _officialTextBookById.putIfAbsent(id, () => book);
         }
         _textBookByTitle.putIfAbsent(book.title, () => book);
@@ -128,7 +128,7 @@ class LibraryBookIndex {
 @visibleForTesting
 TextBook? findOfficialTextBookById(Category category, int bookId) {
   for (final b in category.books) {
-    if (b is TextBook && !b.isUserBook && b.id == bookId) return b;
+    if (b is TextBook && b.source.isOfficial && b.id == bookId) return b;
   }
   for (final subCat in category.subCategories) {
     final found = findOfficialTextBookById(subCat, bookId);
@@ -455,7 +455,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       // bookId (זהות יציבה); בלי זיהוי ודאי לא ממירים ל-PDF, אחרת בחירה
       // לפי כותרת בלבד עלולה לפתוח ספר אחר בעל שם זהה.
       if (!needsTextBook &&
-          !ref.isUserBook &&
+          ref.source.isOfficial &&
           library != null &&
           ref.bookId > 0) {
         final sourceBook = findOfficialTextBookById(library, ref.bookId);
@@ -511,7 +511,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
         // ספרים אישיים: ה-`bookId` שלהם שייך ל-user_books.db ואין לו תאומים
         // ב-library object, לכן ניפול ל-title; ספר רשמי עם `bookId > 0`
         // נפתח דרך ה-id כדי שלא יחליף שני ספרים בעלי אותה כותרת.
-        final officialBookId = (ref.bookId > 0 && !ref.isUserBook)
+        final officialBookId = (ref.bookId > 0 && ref.source.isOfficial)
             ? ref.bookId
             : null;
         book = _findBookInLibraryByIdThenTitle(
@@ -1118,7 +1118,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final isSelected = index == _selectedIndex;
-    final eligible = !ref.isPdf && ref.bookId > 0 && !ref.isUserBook;
+    final eligible = !ref.isPdf && ref.bookId > 0 && ref.source.isOfficial;
     // טעינה lazy בעת רינדור — ListView.builder יפעיל את ה-itemBuilder רק
     // עבור שורות נראות. ה-cache ב-repository ימנע קריאות חוזרות.
     if (eligible) _ensureCommentatorsLoaded(ref);

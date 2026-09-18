@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 void main() {
@@ -19,7 +20,7 @@ void main() {
         title: 'ספר המשתמש',
         categoryId: 7,
         fileType: 'txt',
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       expect(key.toStorageKey(), 'ספר המשתמש|7|txt|u');
@@ -99,7 +100,7 @@ void main() {
         title: 'ספר מבחן',
         categoryId: 42,
         fileType: 'PDF',
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       final parsed = BookCompositeKey.tryParse(original.toStorageKey());
@@ -114,13 +115,13 @@ void main() {
         title: 'ספר',
         categoryId: 5,
         fileType: 'txt',
-        isUserBook: true,
+        source: BookSource.user,
       );
       final b = BookCompositeKey.create(
         title: 'ספר',
         categoryId: 5,
         fileType: 'txt',
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       expect(a, equals(b));
@@ -137,7 +138,7 @@ void main() {
         title: 'ספר',
         categoryId: 5,
         fileType: 'txt',
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       expect(
@@ -176,7 +177,7 @@ void main() {
         title: 'אישי',
         categoryId: 3,
         fileType: 'txt',
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       final key = BookCompositeKey.fromBook(userBook);

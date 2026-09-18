@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 
@@ -13,7 +14,7 @@ void main() {
 
     setUp(() {
       official = TextBook(id: 5, title: 'שבת');
-      personal = TextBook(id: 5, title: 'שבת', isUserBook: true);
+      personal = TextBook(id: 5, title: 'שבת', source: BookSource.user);
       pdf = PdfBook(title: 'שבת', path: r'C:\books\shabbat.pdf');
       library = Library(categories: []);
       library.books.addAll([official, personal, pdf]);
@@ -142,7 +143,7 @@ void main() {
     test('השער אינו פוגע בהבחנה בין ספר אישי לרשמי בעלי כותרת זהה', () {
       // הכותרות זהות ולכן השער עובר, וזהות הספר האישי נשמרת.
       final official = TextBook(id: 5, title: 'שבת');
-      final personal = TextBook(id: 5, title: 'שבת', isUserBook: true);
+      final personal = TextBook(id: 5, title: 'שבת', source: BookSource.user);
       final mixed = Library(categories: []);
       mixed.books.addAll([official, personal]);
       final byPath = SearchBloc.bookForIndexedFilePathMap(mixed);

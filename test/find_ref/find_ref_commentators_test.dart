@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/find_ref/repository/db_commentator_entry.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/services/commentary_service.dart';
 
 // המבחנים בודקים את ההתנהגות האמיתית של
@@ -26,7 +27,7 @@ DbReferenceResult _ref({
   int tocLevel = 1,
   bool isAltToc = false,
   bool isPdf = false,
-  bool isUserBook = false,
+  BookSource source = BookSource.official,
 }) => DbReferenceResult(
   title: 'בראשית',
   reference: 'בראשית פרק א',
@@ -36,7 +37,7 @@ DbReferenceResult _ref({
   tocLevel: tocLevel,
   isAltToc: isAltToc,
   isPdf: isPdf,
-  isUserBook: isUserBook,
+  source: source,
 );
 
 FindRefRepository _repoWith({
@@ -97,7 +98,7 @@ void main() {
       );
 
       final result = await repo.getCommentatorsForResult(
-        _ref(isUserBook: true, bookId: 5, sourceLineId: 42),
+        _ref(source: BookSource.user, bookId: 5, sourceLineId: 42),
       );
 
       expect(result, isEmpty);

@@ -244,7 +244,7 @@ class ErrorReportHelper {
     required List<String> content,
     String? reportLine,
   }) async {
-    if (book.isUserBook || book.versionTitle != null) return null;
+    if (!book.isOfficialLibraryBook || book.versionTitle != null) return null;
     try {
       final resolved = await BookDatabaseResolver.resolveBook(
         title: book.title,
@@ -254,7 +254,7 @@ class ErrorReportHelper {
         officialOnly: true,
       );
       if (resolved == null ||
-          resolved.isUserBooks ||
+          !resolved.source.isOfficial ||
           resolved.book.isFileBacked) {
         return null;
       }

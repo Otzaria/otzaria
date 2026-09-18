@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
@@ -550,7 +551,7 @@ void main() {
           id: 101,
           title: 'משנה ברכות',
           categoryId: 7,
-          isUserBook: true,
+          source: BookSource.user,
         ),
         index: 0,
       );
@@ -565,7 +566,7 @@ void main() {
     test('ספר אישי שכבר פתוח ממוקד ולא נפתח שוב', () async {
       final bloc = TabsBloc(repository: _FakeTabsRepository());
       TextBookTab userTab() => TextBookTab(
-        book: TextBook(id: 101, title: 'משנה ברכות', isUserBook: true),
+        book: TextBook(id: 101, title: 'משנה ברכות', source: BookSource.user),
         index: 0,
       );
 
