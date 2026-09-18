@@ -378,6 +378,12 @@ void main() {
         [id, title, filePath],
       );
     }
+    Directory(p.join(dir.path, 'txt')).createSync();
+    File(p.join(dir.path, 'txt', 'a.txt')).writeAsStringSync('תוכן מהקובץ');
+    db.execute(
+      'INSERT INTO book (id, categoryId, sourceId, title, fileType, filePath) '
+      "VALUES (14, 2, 1, 'קובץ טקסט', 'txt', 'txt/a.txt')",
+    );
     db.close();
     final library = await attach(path);
 
@@ -387,6 +393,24 @@ void main() {
     expect(pdfs.map((b) => b.title), ['ספר קובץ']);
     expect(pdfs.single.path, p.join(dir.path, 'pdf', 'ספר.pdf'));
     expect(pdfs.single.source, library.source);
+
+    // המאגר של המסד מחזיר נתיב מוחלט בתוך התיקייה, ונתיב אסור כ-null.
+    final repo = (await registry.repositoryFor(library.slug))!;
+    expect(
+      (await repo.getBookByTitle('ספר קובץ'))!.filePath,
+      p.join(dir.path, 'pdf', 'ספר.pdf'),
+    );
+    expect((await repo.getBookByTitle('בורח'))!.filePath, isNull);
+    expect((await repo.getBookByTitle('מוחלט'))!.filePath, isNull);
+
+    // ספר טקסט מבוסס-קובץ בלי שורות במסד נקרא מהקובץ שבתיקייה.
+    final text = await provider.getBookText(
+      'קובץ טקסט',
+      2,
+      'txt',
+      preferSource: library.source!,
+    );
+    expect(text, contains('תוכן מהקובץ'));
   });
 
   test('בידוד: חיבור מוקשח ב-isolate דוחה כתיבה', () async {

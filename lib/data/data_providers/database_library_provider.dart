@@ -2499,11 +2499,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       if (record == null || record.source != source) return null;
       final lines = await record.repository.getLineContents(record.book.id);
       if (lines.isNotEmpty) return lines.join('\n');
-      // ספר מבוסס-קובץ: הקובץ בתיקיית המסד בלבד.
-      final libraryPath = AttachedLibraryRegistry.instance.pathFor(source);
-      final file = libraryPath == null
-          ? null
-          : resolveAttachedBookFilePath(libraryPath, record.book.filePath);
+      // ספר מבוסס-קובץ: filePath כבר נפתר בתוך תיקיית המסד (או null).
+      final file = record.book.filePath;
       if (file == null || !await File(file).exists()) return null;
       return await readFileBackedBookText(
         File(file),

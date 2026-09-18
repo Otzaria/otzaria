@@ -3,6 +3,7 @@ import '../../models/book.dart';
 import '../db_capabilities.dart';
 import '../sqlite3_utils.dart';
 import '../query_loader.dart';
+import 'package:otzaria/attached_libraries/utils/attached_file_path.dart';
 import 'database.dart';
 
 class BookDao {
@@ -17,6 +18,19 @@ class BookDao {
 
   Future<DbCapabilities> get _capabilities => _db.capabilities;
 
+  /// ספר משורת `book`. במסד מצורף `filePath` נפתר יחסית לתיקיית המסד, ונתיב
+  /// אסור הופך ל-null — כך אף צרכן אינו פותח קובץ מחוץ לתיקייה.
+  Book bookFromRow(Map<String, dynamic> row) {
+    if (!_db.isUntrusted || row['filePath'] == null) return Book.fromJson(row);
+    return Book.fromJson({
+      ...row,
+      'filePath': resolveAttachedBookFilePath(
+        _db.path,
+        row['filePath'] as String?,
+      ),
+    });
+  }
+
   /// שורה ראשונה של [query], או null כשאין במסד טבלת ספרים.
   Future<Book?> _selectOne(String query, List<Object?> args) async {
     final capabilities = await _capabilities;
@@ -26,7 +40,7 @@ class BookDao {
         .select(capabilities.adaptBookQuery(query), args)
         .toMapList();
     if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
+    return bookFromRow(result.first);
   }
 
   Future<List<Book>> _selectMany(String query, List<Object?> args) async {
@@ -36,7 +50,7 @@ class BookDao {
     return db
         .select(capabilities.adaptBookQuery(query), args)
         .toMapList()
-        .map((row) => Book.fromJson(row))
+        .map((row) => bookFromRow(row))
         .toList();
   }
 
@@ -477,7 +491,7 @@ class BookDao {
     return db
         .select(_queries['selectExternalContent']!)
         .toMapList()
-        .map((row) => Book.fromJson(row))
+        .map((row) => bookFromRow(row))
         .toList();
   }
 
@@ -487,7 +501,7 @@ class BookDao {
     return db
         .select(_queries['selectPersonal']!)
         .toMapList()
-        .map((row) => Book.fromJson(row))
+        .map((row) => bookFromRow(row))
         .toList();
   }
 
@@ -498,7 +512,7 @@ class BookDao {
       filePath,
     ]).toMapList();
     if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
+    return bookFromRow(result.first);
   }
 
   /// Gets an external book by its file path and file type.
@@ -512,7 +526,7 @@ class BookDao {
       fileType,
     ]).toMapList();
     if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
+    return bookFromRow(result.first);
   }
 
   Future<int> updateBookConnectionFlags(
@@ -594,7 +608,7 @@ class BookDao {
           ['%$query%', '%$query%'],
         )
         .toMapList()
-        .map((row) => Book.fromJson(row))
+        .map((row) => bookFromRow(row))
         .toList();
   }
 }
