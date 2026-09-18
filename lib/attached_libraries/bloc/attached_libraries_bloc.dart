@@ -31,7 +31,7 @@ class AttachedLibrariesBloc
     on<RescanAttachedLibraries>(_onRescan);
     on<ReleaseAttachedLibrary>(_onRelease);
     _subscription = _repository.changes.listen(
-      (_) => add(const _AttachedLibrariesChanged()),
+      (slugs) => add(_AttachedLibrariesChanged(slugs)),
     );
   }
 
@@ -60,7 +60,10 @@ class AttachedLibrariesBloc
   ) {
     emit(_loaded(state));
     _addLibraryEvent(
-      const RefreshLibrary(source: RefreshSource.attachedLibraries),
+      RefreshLibrary(
+        source: RefreshSource.attachedLibraries,
+        changedAttachedSlugs: event.contentChangedSlugs,
+      ),
     );
   }
 

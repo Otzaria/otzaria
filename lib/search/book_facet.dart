@@ -66,6 +66,7 @@ class BookFacet {
     String? categoryPath,
     String? externalLibraryId,
     int? bookId,
+    BookSource? source,
     String? fileType,
     String? filePath,
   }) async {
@@ -82,6 +83,7 @@ class BookFacet {
         categoryPath: categoryPath,
         externalLibraryId: externalLibraryId,
         bookId: bookId,
+        source: source,
         fileType: fileType,
         filePath: filePath,
       );
@@ -103,20 +105,20 @@ class BookFacet {
       // Fallback: try to get from database directly
       final sqliteProvider = SqliteDataProvider.instance;
       if (sqliteProvider.isInitialized) {
+        // ל-id של ספר ממסד מצורף אין משמעות מחוץ למסד שלו.
+        final likelySource = source is AttachedBookSource
+            ? source
+            : BookDatabaseResolver.likelySource(categoryPath: categoryPath);
         final resolvedBook = bookId != null
             ? await BookDatabaseResolver.resolveBookById(
                 bookId,
-                source: BookDatabaseResolver.likelySource(
-                  categoryPath: categoryPath,
-                ),
+                source: likelySource,
               )
             : await BookDatabaseResolver.resolveBook(
                 title: title,
                 fileType: fileType,
                 filePath: filePath,
-                preferSource: BookDatabaseResolver.likelySource(
-                  categoryPath: categoryPath,
-                ),
+                preferSource: likelySource,
               );
         if (resolvedBook != null) {
           debugPrint('📚 BookFacet: Searching in DB for title: $title');
@@ -162,11 +164,13 @@ class BookFacet {
     String? categoryPath,
     String? externalLibraryId,
     int? bookId,
+    BookSource? source,
     String? fileType,
     String? filePath,
   }) {
     final candidates = books.where((book) {
       if (type != null && book.runtimeType != type) return false;
+      if (source != null && book.source != source) return false;
       return book.title == title;
     }).toList();
 

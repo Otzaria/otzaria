@@ -19,7 +19,7 @@ class _FakeRepository extends AttachedLibrariesRepository {
 
   List<AttachedLibrary> items;
   final removed = <AttachedLibrary>[];
-  final _controller = StreamController<void>.broadcast();
+  final _controller = StreamController<Set<String>>.broadcast();
 
   @override
   List<AttachedLibrary> get libraries => items;
@@ -28,7 +28,7 @@ class _FakeRepository extends AttachedLibrariesRepository {
   List<String> get folders => const [r'D:\מסדים'];
 
   @override
-  Stream<void> get changes => _controller.stream;
+  Stream<Set<String>> get changes => _controller.stream;
 
   @override
   Future<void> remove(AttachedLibrary library, {bool deleteCopy = true}) async {
@@ -37,7 +37,7 @@ class _FakeRepository extends AttachedLibrariesRepository {
       for (final other in items)
         if (other.path != library.path) other,
     ];
-    _controller.add(null);
+    _controller.add(const {});
   }
 }
 

@@ -20,6 +20,8 @@ import 'package:otzaria/indexing/utils/pdf_extraction_prefetcher.dart';
 import 'package:otzaria/indexing/models/catalogue_order_resolver.dart';
 import 'package:otzaria/indexing/models/indexing_run_result.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
@@ -1459,6 +1461,11 @@ class IndexingRepository {
     String? fileTypeKey,
     String? pathKey,
   }) {
+    // מסד מצורף קובע את externalLibraryId בעצמו — מפתח ext: היה מתנגש בספר רשמי.
+    if (source is AttachedBookSource && bookId != null) {
+      return attachedBookKey(source.slug, bookId);
+    }
+
     if (externalLibraryId != null && externalLibraryId.isNotEmpty) {
       return externalIdentityKey(externalLibraryId);
     }
@@ -1495,15 +1502,25 @@ class IndexingRepository {
   static String indexedPdfFilePath({
     required String? externalLibraryId,
     required String? filePath,
-  }) => externalLibraryId != null && externalLibraryId.isNotEmpty
-      ? externalIdentityKey(externalLibraryId)
-      : (filePath ?? '');
+    BookSource source = BookSource.official,
+    int? bookId,
+  }) {
+    if (source is AttachedBookSource && bookId != null) {
+      return attachedBookKey(source.slug, bookId);
+    }
+    return externalLibraryId != null && externalLibraryId.isNotEmpty
+        ? externalIdentityKey(externalLibraryId)
+        : (filePath ?? '');
+  }
 
   static String buildIndexedBookFilePath(Book book) {
     // ‏PDF בלי מזהה חיצוני: ה-id שלו עשוי להיות שאול מספר הטקסט המקביל
     // (תלמוד בבלי) ולהתנגש בו, או להיעדר (סריקת תיקייה) — ולכן הנתיב הוא
     // הזהות היחידה שיש לו.
-    if (book is PdfBook && !_hasExternalIdentity(book)) {
+    // ל-PDF ממסד מצורף יש id מהמסד; מפתח נתיב היה נמחק כיתום כשהכונן מנותק.
+    if (book is PdfBook &&
+        !_hasExternalIdentity(book) &&
+        !(book.source.isAttached && book.id != null)) {
       return book.path;
     }
     return catalogueOrderKey(book);
@@ -1761,6 +1778,7 @@ class IndexingRepository {
     final repos = <SeforimRepository?>[
       SqliteDataProvider.instance.repository,
       UserBooksDatabaseHolder.instance.repositoryIfInitialized,
+      ...await _attachedRepositoriesForBoost(enabled),
     ];
     for (final repo in repos) {
       if (repo == null) continue;
@@ -1773,6 +1791,23 @@ class IndexingRepository {
       } catch (e) {
         debugPrint('[Indexing] DB read-boost toggle failed: $e');
       }
+    }
+  }
+
+  /// מסד מצורף נפתח כאן רק כשמבקשים בוסט; שחזור אינו פותח מסד סגור.
+  static Future<List<SeforimRepository?>> _attachedRepositoriesForBoost(
+    bool enabled,
+  ) async {
+    try {
+      final registry = AttachedLibraryRegistry.instance;
+      if (!enabled) return registry.openRepositories;
+      return await Future.wait([
+        for (final library in registry.visibleLibraries)
+          registry.repositoryFor(library.slug),
+      ]);
+    } catch (e) {
+      debugPrint('[Indexing] attached DB read-boost skipped: $e');
+      return const [];
     }
   }
 
@@ -1831,8 +1866,9 @@ class IndexingRepository {
   /// לעלות בחיפוש, וגרוע מזה: מזהי המסמכים שלהם (המקודדים לפי סדר קטלוגי)
   /// עלולים להתפענח לספר אחר אחרי שהסדר השתנה.
   ///
-  /// שמרני בכוונה: נוגע רק במפתחות ספרים אישיים (`uid:`) ובמפתחות
-  /// נתיב-מוחלט (PDF) שהקובץ מאחוריהם כבר לא קיים בדיסק. מפתחות ספרים
+  /// שמרני בכוונה: נוגע רק במפתחות ספרים אישיים (`uid:`), מסדים מצורפים
+  /// (`db:`, ראה [_attachedOrphanRule]) ובמפתחות נתיב-מוחלט (PDF) שהקובץ
+  /// מאחוריהם כבר לא קיים בדיסק. מפתחות ספרים
   /// רשמיים (`id:`) וחיצוניים (`ext:`) לא נמחקים כאן — טעינה חלקית של
   /// הספרייה הרשמית לא תגרור מחיקת אינדקס המונית ואינדוקס-מחדש של שעות.
   ///
@@ -1841,6 +1877,7 @@ class IndexingRepository {
     Library library, {
     @visibleForTesting List<CustomFolder>? customFolders,
     @visibleForTesting Set<String>? preservedHiddenUserBookKeys,
+    @visibleForTesting List<AttachedLibrary>? attachedLibraries,
   }) async {
     if (WindowRole.isSecondary) return 0;
     final books = library.getIndexableBooks();
@@ -1870,6 +1907,11 @@ class IndexingRepository {
     final hiddenUserBookKeys =
         preservedHiddenUserBookKeys ?? await _hiddenUserBookIndexKeys(folders);
 
+    final isAttachedOrphan = _attachedOrphanRule(
+      books,
+      attachedLibraries ?? _registeredAttachedLibraries(),
+    );
+
     final orphans = <String>{};
     // snapshot — הלולאה מכילה await ואסור שהסט החי ישתנה תחתיה.
     for (final key in _tantivyDataProvider.indexedFilePaths.toList()) {
@@ -1880,6 +1922,8 @@ class IndexingRepository {
         if (hiddenUserBookKeys == null || !hiddenUserBookKeys.contains(key)) {
           orphans.add(key);
         }
+      } else if (key.startsWith('db:')) {
+        if (isAttachedOrphan(key)) orphans.add(key);
       } else if (p.isAbsolute(key) &&
           !unreachableRoots.any((root) => p.isWithin(root, key)) &&
           !await File(key).exists()) {
@@ -1893,6 +1937,48 @@ class IndexingRepository {
     if (!await _deleteIndexedFilePaths(orphans)) return 0;
     debugPrint('🧹 נוקו ${orphans.length} ספרים יתומים מהאינדקס');
     return orphans.length;
+  }
+
+  /// null — הרשימה לא נקראה, ואז אף מפתח `db:` אינו נמחק.
+  static List<AttachedLibrary>? _registeredAttachedLibraries() {
+    try {
+      return AttachedLibraryRegistry.instance.libraries;
+    } catch (error) {
+      debugPrint('⚠️ לא ניתן לקרוא את רשימת המסדים המצורפים: $error');
+      return null;
+    }
+  }
+
+  /// מפתח `db:` יתום רק כשהמסד הוסר מהרשימה, או כשהמסד זמין ונטען לעץ
+  /// והספר כבר אינו בו. מסד לא-זמין או מוסתר שומר את האינדקס שלו (#1295).
+  static bool Function(String key) _attachedOrphanRule(
+    List<Book> books,
+    List<AttachedLibrary>? libraries,
+  ) {
+    if (libraries == null) return (_) => false;
+    final registered = {for (final library in libraries) library.slug};
+    final loaded = {
+      for (final book in books)
+        if (book.source case AttachedBookSource(:final slug)) slug,
+    };
+    final visible = {
+      for (final library in libraries)
+        if (library.isVisibleInLibrary) library.slug,
+    };
+    return (key) {
+      final slug = attachedSlugOfKey(key);
+      if (slug == null) return false;
+      if (!registered.contains(slug)) return true;
+      return visible.contains(slug) && loaded.contains(slug);
+    };
+  }
+
+  /// ה-slug שבמפתח `db:<slug>:<id>`, או null למפתח אחר.
+  static String? attachedSlugOfKey(String key) {
+    if (!key.startsWith('db:')) return null;
+    final separator = key.lastIndexOf(':');
+    if (separator <= 3) return null;
+    return key.substring(3, separator);
   }
 
   /// מפתחות האינדקס של ספרים שקיימים רק בתיקיות שמוסתרות מהעץ.
@@ -2186,13 +2272,10 @@ class IndexingRepository {
   /// ספרי מסמך נכללים — הם ממופים ל-TextBook ב-indexAllBooks דרך
   /// `toTextBook()`, ו-`book.text` כבר יודע לחלץ את התוכן דרך הממיר
   /// המתאים (ראה DatabaseLibraryProvider.getBookText).
-  /// ספרי מסד מצורף אינם מאונדקסים עדיין — מפתחות האינדקס שלהם (`db:`) וסדר
-  /// הקטלוג שלהם טרם נקבעו.
   static bool isIndexableBook(Book book) =>
-      !book.source.isAttached &&
-      (book is TextBook ||
-          (book is PdfBook && !isBundledTalmudBavliPdf(book)) ||
-          book is ConvertibleDocumentBook);
+      book is TextBook ||
+      (book is PdfBook && !isBundledTalmudBavliPdf(book)) ||
+      book is ConvertibleDocumentBook;
 
   /// מסכת PDF מצורפת אינה מאונדקסת: הטקסט המלא שלה כבר באינדקס, ותוצאת
   /// טקסט נפתחת ב-PDF לפי הגדרת פורמט הפתיחה — האינדוקס רק הכפיל תוצאות.

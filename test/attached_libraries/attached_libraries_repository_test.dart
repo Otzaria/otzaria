@@ -254,8 +254,14 @@ void main() {
     test('טביעת אצבע זהה — אין בדיקה חוזרת; קובץ שהשתנה נבדק מחדש', () async {
       final path = fixture(Directory(p.join(tempDir.path, 'src')), 'fp');
       final repository = build();
+      final emitted = <Set<String>>[];
+      final sub = repository.changes.listen(emitted.add);
+      addTearDown(sub.cancel);
       await repository.importFile(path);
       probed.clear();
+      // צירוף ראשון אינו "שינוי תוכן" — ספריו נכנסים לאינדקס כספרים חדשים.
+      await Future<void>.delayed(Duration.zero);
+      expect(emitted.last, isEmpty);
 
       expect(await repository.rescan(), isFalse);
       expect(probed, isEmpty);
@@ -270,6 +276,9 @@ void main() {
       expect(await repository.rescan(), isTrue);
       expect(probed, [path]);
       expect(registry.libraries.single.bookCount, 3);
+      // ספרי המסד שהשתנה — ורק הם — מאונדקסים מחדש.
+      await Future<void>.delayed(Duration.zero);
+      expect(emitted.last, {registry.libraries.single.slug});
     });
   });
 

@@ -66,14 +66,15 @@ class AttachedLibrariesRepository {
   /// במובייל SQLite אינו פותח קבצים מחוץ לאחסון האפליקציה, ולכן מעתיקים.
   final bool copyByDefault;
 
-  final _changes = StreamController<void>.broadcast();
+  final _changes = StreamController<Set<String>>.broadcast();
   Future<void> _tail = Future.value();
 
   AttachedLibraryRegistry get _registry =>
       _registryOverride ?? AttachedLibraryRegistry.instance;
 
-  /// משודר אחרי כל שינוי ברשימה שמשפיע על עץ הספרייה.
-  Stream<void> get changes => _changes.stream;
+  /// משודר אחרי כל שינוי ברשימה שמשפיע על עץ הספרייה, עם ה-slug של כל מסד
+  /// שהקובץ שלו השתנה (טביעת האצבע) — ספריו דורשים אינדוקס מחדש.
+  Stream<Set<String>> get changes => _changes.stream;
 
   List<AttachedLibrary> get libraries => _registry.libraries;
   List<String> get folders => _store.loadFolders();
@@ -360,11 +361,26 @@ class AttachedLibrariesRepository {
           for (var i = 0; i < resolved.length; i++) before[i] != resolved[i],
         ].any((differs) => differs);
     if (!changed) return false;
+    final contentChanged = _contentChangedSlugs(before, resolved);
     await _store.saveLibraries(resolved);
     _registry.update(resolved);
-    _changes.add(null);
+    _changes.add(contentChanged);
     return true;
   }
+
+  static Set<String> _contentChangedSlugs(
+    List<AttachedLibrary> before,
+    List<AttachedLibrary> after,
+  ) => {
+    for (final library in after)
+      if (library.isOk && library.fingerprint != null)
+        for (final old in before)
+          if (p.equals(old.path, library.path) &&
+              old.slug == library.slug &&
+              old.fingerprint != null &&
+              old.fingerprint != library.fingerprint)
+            library.slug,
+  };
 
   static AttachedLibrary _resolveDuplicate(
     AttachedLibrary library,

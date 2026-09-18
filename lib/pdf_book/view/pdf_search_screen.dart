@@ -276,6 +276,8 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   String get _indexedFilePath => IndexingRepository.indexedPdfFilePath(
     externalLibraryId: widget.externalLibraryId,
     filePath: widget.pdfFilePath,
+    source: widget.source,
+    bookId: widget.bookId,
   );
 
   /// החלפת מצב ההתאמה: הסריקה של pdfrx רצה מחדש עם התבנית המתאימה.
@@ -381,6 +383,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       categoryPath: widget.bookCategoryPath,
       externalLibraryId: widget.externalLibraryId,
       bookId: widget.bookId,
+      source: widget.source,
       fileType: 'pdf',
       filePath: widget.pdfFilePath,
     );

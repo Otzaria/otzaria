@@ -94,5 +94,10 @@ class ReleaseAttachedLibrary extends AttachedLibrariesEvent {
 
 /// הרשימה השתנתה ב-repository (גם מסריקת רקע) — טוענים מחדש ומרעננים את העץ.
 class _AttachedLibrariesChanged extends AttachedLibrariesEvent {
-  const _AttachedLibrariesChanged();
+  const _AttachedLibrariesChanged(this.contentChangedSlugs);
+
+  final Set<String> contentChangedSlugs;
+
+  @override
+  List<Object?> get props => [contentChangedSlugs];
 }

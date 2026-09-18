@@ -186,6 +186,12 @@ class AttachedLibraryRegistry {
     _libraries = null;
   }
 
+  /// המאגרים שהחיבור שלהם פתוח כרגע — בלי לפתוח מסד שעדיין סגור.
+  List<SeforimRepository> get openRepositories => [
+    for (final entry in _open.values)
+      if (entry.repository.database.isOpen) entry.repository,
+  ];
+
   @visibleForTesting
   bool isOpen(String slug) => _open[slug]?.repository.database.isOpen ?? false;
 

@@ -2345,7 +2345,8 @@ void main() {
       );
 
       expect(IndexingRepository.catalogueOrderKey(attached), 'db:lib:5');
-      expect(IndexingRepository.catalogueOrderKey(external), 'ext:oh:9');
+      // מסד מצורף קובע את ה-externalLibraryId בעצמו — אסור שיתנגש ברשמי.
+      expect(IndexingRepository.catalogueOrderKey(external), 'db:lib:5');
       expect(
         IndexingRepository.catalogueOrderKeyFromParts(title: 'שבת', bookId: 5),
         'id:5',
