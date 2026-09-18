@@ -482,7 +482,7 @@ export interface BookLink {
   /** `true` למפרש/תרגום/מדרש; `false` להפניה. */
   isCommentary: boolean;
   targetIsUserBook: boolean;
-  /** מקור ספר היעד: `'official'`, `'user'`, או `'db:<slug>'` למסד ספרים מצורף. */
+  /** מקור ספר היעד: `'o'` רשמי, `'u'` אישי, או `'d:<slug>'` למסד ספרים מצורף. */
   targetSource?: string;
   targetCategoryId: number | null;
   /** מוחזר רק כאשר `includeAnchors: true` ולקישור יש עוגן. */

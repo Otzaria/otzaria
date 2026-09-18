@@ -878,8 +878,8 @@ const { data } = await Otzaria.call('library.refreshUserBooks');
 **`getLinks` או `getRawLinks`?** שתיהן בוחרות בדיוק את אותם קישורים ונבדלות
 רק בצורת הפלט. `getLinks` היא ברירת המחדל לכל שימוש תכנותי: 0-based כמו שאר
 ה-SDK, שמות שדות מפורשים, ומידע שקיים רק במסד (`isCommentary`, עוגני-מילה,
-קישורי-טווח, `targetCategoryId`, `targetIsUserBook`, `targetSource` — `'official'`,
-`'user'` או `'db:<slug>'` לספר במסד מצורף). `getRawLinks` מיועדת
+קישורי-טווח, `targetCategoryId`, `targetIsUserBook`, `targetSource` — `'o'` רשמי,
+`'u'` אישי או `'d:<slug>'` לספר במסד מצורף). `getRawLinks` מיועדת
 לכלי שכבר יודע לקרוא את פורמט `links.json` ומצפה בדיוק למפתחות שלו.
 
 ### `library.getCommentators`
