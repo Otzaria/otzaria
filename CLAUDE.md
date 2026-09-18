@@ -864,9 +864,11 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Area | Test File |
 |------|-----------|
 | בדיקת קובץ מסד (כותרת, VIEW מתחזה, טבלאות תוסף, יומן תלוי, slug, פתיחה מוקשחת) | `test/attached_libraries/attached_library_probe_test.dart` |
-| שמירת הרשימה בהגדרות + registry (פתיחה עצלה, שחרור, זמן סרק) | `test/attached_libraries/attached_library_registry_test.dart` |
+| שמירת הרשימה בהגדרות + registry (פתיחה עצלה, שחרור, זמן סרק, מאגר ישן אחרי שחרור, שער העלייה, בדיקת פתיחה מוגבלת בזמן) | `test/attached_libraries/attached_library_registry_test.dart` |
 | צירוף, העתקה, הסרה, תיקיות מסדים, slug כפול, לא זמין, טביעת אצבע | `test/attached_libraries/attached_libraries_repository_test.dart` |
-| עץ הספרייה (שורש נפרד, מיזוג, מוסתר/לא זמין, בלי קטגוריות) + טקסט ותוכן עניינים מקצה לקצה | `test/attached_libraries/attached_library_catalog_test.dart` |
+| עץ הספרייה (שורש נפרד, מיזוג, מוסתר/לא זמין, בלי קטגוריות) + טקסט ותוכן עניינים מקצה לקצה; קטלוג ב-isolate — מסד איטי/מת/שבור מבודד ומסומן לא-זמין | `test/attached_libraries/attached_library_catalog_test.dart` |
+| תוכן עשיר בספר מצורף: קישורים ותוכן מפרש, מפרשים, דורות מהמסד שלו, מפרשי ברירת מחדל, 'כותרות', דיבורי-המתחיל, מהדורות, PDF בנתיב יחסי; מסד מינימלי ריק בלי חריגה | `test/attached_libraries/attached_library_rich_content_test.dart` |
+| נתיב קובץ ספר במסד מצורף (יחסי בלבד, בלי `..`/מוחלט/UNC) + החלת יומן מוקשחת על עותק | `test/attached_libraries/attached_file_path_test.dart` |
 | כרטיס "מסדי ספרים אישיים" בהגדרות | `test/attached_libraries/attached_libraries_panel_test.dart` |
 | מסד עוין (VIEW/טריגר/ATTACH, ZIP, library_id עם `../`, נתיבי קובץ בורחים, סכמה זבל), חיבור מוקשח (בלי mmap), שחרור נעילה, לא-זמין וחזרה, סדר במיזוג | `test/attached_libraries/attached_library_security_test.dart` |
 
@@ -924,6 +926,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Backup archive merge rules | `test/unit/settings/backup/backup_merge_test.dart` |
 | ייבוא ספרים אישיים במובייל (קבצים, ותיקייה שלמה באנדרואיד דרך SAF) | `test/settings/panels/personal_books_import_panel_test.dart`, `test/settings/services/custom_folders/personal_books_import_service_test.dart`, `…android_folder_import_channel_test.dart` |
 | SegmentedSettingsTile | `test/settings/widgets/segmented_settings_tile_test.dart` |
+| נתיב ב-`SettingsActionTile.path` מוצג משמאל לימין | `test/settings/widgets/settings_action_tile_path_direction_test.dart` |
 | SwitchSettingsTile | `test/settings/widgets/switch_settings_tile_test.dart` |
 
 **Widgets (shared)**
