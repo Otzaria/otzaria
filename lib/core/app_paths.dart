@@ -497,6 +497,63 @@ class AppPaths {
     return true;
   }
 
+  /// מאמץ ספרייה שכבר יושבת במיקום ברירת המחדל, כשההגדרה אינה מצביעה על
+  /// ספרייה קיימת — ספרייה שהגיעה למחשב מחוץ לאוצריא (תוכנת העדכון
+  /// האופליינית, העתקה ידנית). בלי האימוץ ההגדרה נשארת ריקה,
+  /// [DatabaseConstants.getDatabasePath] מחזיר נתיב יחסי לתיקיית העבודה,
+  /// וה-DB לא נפתח כלל (issue #1436).
+  ///
+  /// מחזיר [bool] — האם ההגדרה עודכנה. נתיב שמור ששבר (כונן שנותק, תיקייה
+  /// שנמחקה) מוחלף רק כשבברירת המחדל יש ספרייה אמיתית.
+  static Future<bool> adoptLibraryAtDefaultPathIfNeeded() async {
+    final currentPath =
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '';
+    if (currentPath.isNotEmpty &&
+        await _libraryDbFolderName(currentPath) != null) {
+      return false;
+    }
+
+    final defaultPath = await getDefaultLibraryPath();
+    final folderName = await _libraryDbFolderName(defaultPath);
+    if (folderName == null) {
+      return false;
+    }
+
+    await Settings.setValue(SettingsRepository.keyLibraryPath, defaultPath);
+    final savedFolderName =
+        Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
+        '';
+    if (savedFolderName != folderName) {
+      await Settings.setValue(
+        SettingsRepository.keyLibraryFolderName,
+        folderName,
+      );
+    }
+    return true;
+  }
+
+  /// שם תת-התיקייה שבה יושב `seforim.db` תחת [libraryPath] — מחרוזת ריקה
+  /// כשהוא יושב ישירות תחתיה — או null כשאין שם מסד כלל.
+  ///
+  /// מחקה את חישוב הנתיב ב-[DatabaseConstants.getDatabasePath], שמצרף את
+  /// `keyLibraryFolderName` לנתיב הספרייה.
+  static Future<String?> _libraryDbFolderName(String libraryPath) async {
+    if (libraryPath.isEmpty) return null;
+    final savedFolderName =
+        Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
+        '';
+    for (final folderName in <String>{savedFolderName, ''}) {
+      final dbDir = folderName.isEmpty
+          ? libraryPath
+          : p.join(libraryPath, folderName);
+      final db = File(p.join(dbDir, DatabaseConstants.databaseFileName));
+      if (await db.exists()) {
+        return folderName;
+      }
+    }
+    return null;
+  }
+
   /// Gets the search index path.
   ///
   /// On system-wide desktop installs this remains next to the shared library.
