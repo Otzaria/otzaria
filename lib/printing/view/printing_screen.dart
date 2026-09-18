@@ -1228,15 +1228,17 @@ class _PrintingScreenState extends State<PrintingScreen> {
       fileType: fileType,
     );
 
-    if (provider is DatabaseLibraryProvider && categoryId != null) {
+    if ((provider is DatabaseLibraryProvider || book.source.isAttached) &&
+        categoryId != null) {
       try {
-        return await provider.getLinksForBookRange(
+        return await DatabaseLibraryProvider.instance.getLinksForBookRange(
           book.title,
           categoryId,
           fileType,
           startLineIndex: selectedStart,
           endLineIndex: selectedEnd,
           targetBookTitles: widget.activeCommentators,
+          source: book.source,
         );
       } catch (e) {
         // נופלים לנתיב הקבצים — הלוג נדרש כי המפרשים עלולים לצאת שונים

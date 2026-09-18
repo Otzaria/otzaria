@@ -46,6 +46,7 @@ import 'dart:isolate';
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/book_locator.dart';
+import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -2061,6 +2062,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     final summary = await provider.getBookLinkTargetsSummary(
       book.title,
       categoryId,
+      source: book.source,
     );
     if (!mounted || widget.commentatorName != requested) return;
     final targets = commentaryAnchorTargetTitles(
@@ -2103,6 +2105,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         startLineIndex: start,
         endLineIndex: endLine,
         targetBookTitles: targets,
+        source: book.source,
       );
     } catch (e, stackTrace) {
       debugPrint('Failed to load commentary anchors: $e\n$stackTrace');
@@ -2356,9 +2359,28 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
       // מציאת הספר המלא של המפרש עם categoryId
       TextBook book;
-      final bookLocation = await BookLocator.locateBook(widget.commentatorName);
+      final attachedSource = _relevantLinks
+          .map((link) => link.targetSource)
+          .where((source) => source.isAttached)
+          .firstOrNull;
+      // מפרש ממסד מצורף יושב באותו מסד — לא ספר רשמי בשם זהה.
+      final attachedRecord = attachedSource == null
+          ? null
+          : await BookDatabaseResolver.resolveBook(
+              title: widget.commentatorName,
+              preferSource: attachedSource,
+            );
+      final bookLocation = attachedSource != null
+          ? null
+          : await BookLocator.locateBook(widget.commentatorName);
 
-      if (bookLocation != null &&
+      if (attachedRecord != null) {
+        book = TextBook(
+          title: widget.commentatorName,
+          categoryId: attachedRecord.book.categoryId,
+          source: attachedRecord.source,
+        );
+      } else if (bookLocation != null &&
           bookLocation.book != null &&
           bookLocation.categoryId != null) {
         // נמצא ספר ב-DB - נשתמש בנתונים שלו

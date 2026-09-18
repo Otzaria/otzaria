@@ -3903,12 +3903,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         );
         ({List<otz_links.LinkTargetSummary> targets, int maxSourceLine})?
         summary;
-        if (provider is DatabaseLibraryProvider &&
+        if ((provider is DatabaseLibraryProvider ||
+                textBook.source.isAttached) &&
             textBook.categoryId != null) {
-          summary = await provider.getBookLinkTargetsSummary(
-            textBook.title,
-            textBook.categoryId!,
-          );
+          summary = await DatabaseLibraryProvider.instance
+              .getBookLinkTargetsSummary(
+                textBook.title,
+                textBook.categoryId!,
+                source: textBook.source,
+              );
         }
         final Set<String> commentators;
         if (summary != null) {

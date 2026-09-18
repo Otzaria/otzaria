@@ -1641,10 +1641,12 @@ class PluginBridgeAdapter {
     if (book?.categoryId == null) {
       throw Exception('error.not_found: book not found');
     }
+    final source = book!.source;
     final provider =
         _dependencies.linkTargetsSummaryProvider ??
-        DatabaseLibraryProvider.instance.getBookLinkTargetsSummary;
-    final summary = await provider(book!.title, book.categoryId!);
+        (title, categoryId) => DatabaseLibraryProvider.instance
+            .getBookLinkTargetsSummary(title, categoryId, source: source);
+    final summary = await provider(book.title, book.categoryId!);
     if (summary == null) {
       throw Exception('error.internal: link targets summary unavailable');
     }
