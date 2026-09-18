@@ -52,10 +52,16 @@ Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
   );
   if (resolvedBook == null) return null;
 
-  final heCategories = await BookDatabaseResolver.buildCategoryPath(
-    resolvedBook.repository,
-    resolvedBook.book.categoryId,
-  );
+  // ספר מצורף: הנתיב בעץ הממוזג (למשל תחת 'תנ"ך' הרשמי), לא הנתיב הפנימי של
+  // המסד — ממנו נגזרות הגדרות הקטגוריה (מפרשי צורת הדף).
+  final treePath = book.categoryPath;
+  final heCategories =
+      book.source.isAttached && treePath != null && treePath.isNotEmpty
+      ? treePath
+      : await BookDatabaseResolver.buildCategoryPath(
+          resolvedBook.repository,
+          resolvedBook.book.categoryId,
+        );
   final dbAuthors = resolvedBook.book.authors;
   return (
     resolvedId: resolvedBook.book.id,
