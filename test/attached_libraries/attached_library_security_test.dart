@@ -285,6 +285,33 @@ void main() {
       },
     );
 
+    test('VIEW בשם טבלה מוכרת אינו נקרא בעץ ובקריאה', () async {
+      final library = await attach(
+        fixture(
+          'מתחזה',
+          variant: SeforimFixtureVariant.viewImpostor,
+          tamper: (db) {
+            db.execute('DROP TABLE connection_type');
+            db.execute(
+              "CREATE VIEW connection_type AS SELECT 1 AS id, 'מזויף' AS name",
+            );
+          },
+        ),
+      );
+      final catalog = await buildCatalog();
+      final books = catalog
+          .getAllBooks()
+          .where((b) => b.source == library.source)
+          .toList();
+      expect(books, hasLength(2));
+      expect(books.map((b) => b.author), everyElement(isNot('מזויף')));
+      expect(await readText(library), isNotNull);
+      expect(
+        library.capabilities,
+        isNot(contains(AttachedLibraryCapability.links)),
+      );
+    });
+
     test('טבלאות תוסף במסד — העץ נבנה ואין שום התקנה', () async {
       final library = await attach(
         fixture('תוספים', variant: SeforimFixtureVariant.pluginTables),

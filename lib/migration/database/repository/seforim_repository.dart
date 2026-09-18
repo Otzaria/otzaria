@@ -1726,9 +1726,12 @@ class SeforimRepository {
     // סוגים, וה-id שלהם נקבע ע"י היוצר ואינו זהה למבנה הישן — לכן חובה לטעון
     // לפי שם ולא להניח מספרים קבועים.
     final db = await _database.database;
-    for (final row
-        in db.select('SELECT id, name FROM connection_type').toMapList()) {
-      _connectionTypeCache[row['name'] as String] = row['id'] as int;
+    // VIEW מתחזה במסד מצורף אינו טבלה מוכרת ואינו נקרא.
+    if ((await _capabilities).has('connection_type')) {
+      for (final row
+          in db.select('SELECT id, name FROM connection_type').toMapList()) {
+        _connectionTypeCache[row['name'] as String] = row['id'] as int;
+      }
     }
 
     // DB כתיב (user_books/generator) שעדיין חסר סוגים בסיסיים — יוצרים אותם
