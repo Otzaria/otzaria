@@ -1,3 +1,4 @@
+import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -46,6 +47,7 @@ class DataRepository {
   Future<List<Book>>? _hebrewBooksFuture;
   Future<List<Book>>? _localHebrewBooksFuture;
   Future<List<ExternalLibraryBook>>? _otzarBooksFuture;
+  Future<List<ExternalLibraryBook>>? _responsaBooksFuture;
   Future<List<Book>> get hebrewBooks => _hebrewBooksFuture ??= getHebrewBooks();
 
   /// ספרי היברובוקס שקיים להם PDF מקומי (כ-[PdfBook]). נחשבים מקומיים
@@ -59,12 +61,22 @@ class DataRepository {
   Future<List<ExternalLibraryBook>> get otzarBooks =>
       _otzarBooksFuture ??= getOtzarBooks();
 
+  /// ספרי פרויקט השו"ת מהקטלוג המקומי. ~8.5K רשומות ב-DB של ~5MB, קטן
+  /// יותר מקטלוג היברובוקס שכבר נטען כך.
+  Future<List<ExternalLibraryBook>> get responsaBooks =>
+      _responsaBooksFuture ??= getResponsaBooks();
+
+  @visibleForTesting
+  set responsaBooks(Future<List<ExternalLibraryBook>> value) =>
+      _responsaBooksFuture = value;
+
   /// Invalidates cached external books so they are re-fetched on next access.
   /// Call this when the library is refreshed.
   void invalidateExternalBooksCache() {
     _hebrewBooksFuture = null;
     _localHebrewBooksFuture = null;
     _otzarBooksFuture = null;
+    _responsaBooksFuture = null;
   }
 
   DataRepository();
@@ -91,6 +103,11 @@ class DataRepository {
   /// representing books from the Hebrew Books collection
   Future<List<Book>> getHebrewBooks() {
     return FileSystemData.getHebrewBooks();
+  }
+
+  /// ספרי פרויקט השו"ת מהקטלוג שנבנה אצל המשתמש.
+  Future<List<ExternalLibraryBook>> getResponsaBooks() {
+    return ResponsaCatalogRepository.instance.loadBooks();
   }
 
   /// Retrieves the full text content of a specific book
@@ -173,6 +190,7 @@ class DataRepository {
     bool includeOtzar = false,
     bool includeHebrewBooks = false,
     bool includeLocalHebrewBooks = true,
+    bool includeResponsa = false,
     bool sortByRatio = true,
   }) async => (await findBooksAndCategories(
     query,
@@ -181,6 +199,7 @@ class DataRepository {
     includeOtzar: includeOtzar,
     includeHebrewBooks: includeHebrewBooks,
     includeLocalHebrewBooks: includeLocalHebrewBooks,
+    includeResponsa: includeResponsa,
     sortByRatio: sortByRatio,
   )).books;
 
@@ -194,6 +213,7 @@ class DataRepository {
     bool includeOtzar = false,
     bool includeHebrewBooks = false,
     bool includeLocalHebrewBooks = true,
+    bool includeResponsa = false,
     bool sortByRatio = true,
   }) async {
     const empty = (books: <Book>[], categories: <Category>[]);
@@ -219,6 +239,9 @@ class DataRepository {
       // ספרי היברובוקס שיש להם PDF מקומי הם ספרים שכבר נמצאים במחשב, ולכן
       // מוצגים גם כשהצגת הקטלוג החיצוני כבויה — עד שהמשתמש מכבה זאת.
       allBooks.addAll(await localHebrewBooks);
+    }
+    if (includeResponsa) {
+      allBooks.addAll(await responsaBooks);
     }
 
     // no-op אם הקאשים כבר חוממו בעליית האפליקציה
@@ -288,6 +311,11 @@ class DataRepository {
 /// בונה [BookSearchEntry] לספר בודד. ה-lookups מוזרקים כדי לאפשר בדיקה
 /// בלי DB. הכינויים והדור נלקחים לפי [Book.source] — ל-id אין משמעות מחוץ
 /// למסד של הספר.
+///
+/// ספר מספרייה חיצונית אינו פונה למטמונים כלל: ה-id שלו הוא מזהה **אצל
+/// הספק**, ואילו `source` שלו הוא `official` כמו של כל ספר מותקן. בלי
+/// החרגה מפורשת, `rp:1524` של פרויקט השו"ת ו-`oh:1524` של אוצר החכמה
+/// היו מקבלים את הכינויים של ספר 1524 במסד הרשמי — ספר אחר לגמרי.
 @visibleForTesting
 BookSearchEntry buildBookSearchEntry(
   int index,
@@ -295,7 +323,8 @@ BookSearchEntry buildBookSearchEntry(
   required List<String>? Function(BookSource source, int bookId) acronymsFor,
   required int Function(int? bookId, BookSource source) eraOrderForId,
 }) {
-  final id = book.id;
+  // ספר חיצוני: ה-id אינו מזהה במסד שהמטמונים ממופתחים בו.
+  final id = book is ExternalLibraryBook ? null : book.id;
   return BookSearchEntry(
     index: index,
     title: book.title,

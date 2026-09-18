@@ -1271,5 +1271,14 @@
   "המסד יוחלף במקומו; הגרסה הקודמת נשמרת עד שהעדכון יאומת.": "The database is replaced in place; the previous version is kept until the update is verified.",
   "המסד צורף": "Database attached",
   "המסד \"{name}\" צורף לספרייה.": "The database \"{name}\" was attached to the library.",
-  "העדכונים שלו חתומים ויגיעו מ-{domain}. אוצריא תבדוק שם עדכונים כשבדיקת עדכוני הספרייה פעילה, ולא תתקין דבר בלי אישורך.": "Its updates are signed and come from {domain}. Otzaria checks there for updates while library update checks are on, and installs nothing without your approval."
+  "העדכונים שלו חתומים ויגיעו מ-{domain}. אוצריא תבדוק שם עדכונים כשבדיקת עדכוני הספרייה פעילה, ולא תתקין דבר בלי אישורך.": "Its updates are signed and come from {domain}. Otzaria checks there for updates while library update checks are on, and installs nothing without your approval.",
+
+  "@@comment_responsa": "שילוב פרויקט השו\"ת — כרטיס ההגדרות בפאנל הספרייה.",
+  "פרויקט השו\"ת": "The Responsa Project",
+  "קטלוג מקומי שנבנה מההתקנה שבמחשב": "A local catalog built from the installation on this computer",
+  "הצג ספרי פרויקט השו\"ת בחיפוש": "Show Responsa Project books in search",
+  "נמצאו {count} ספרים בגרסה {version}": "Found {count} books in version {version}",
+  "אפשר פתיחת ספרים בתוכנה": "Allow opening books in the software",
+  "לחיצה על ספר תפעיל את פרויקט השו\"ת אם אינו פועל": "Clicking a book will start the Responsa Project if it is not running",
+  "ספרים יוצגו בחיפוש, אך לא ייפתחו בתוכנה": "Books will appear in search but will not open in the software"
 }

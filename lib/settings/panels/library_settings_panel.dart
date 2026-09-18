@@ -4,7 +4,9 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
@@ -22,10 +24,14 @@ class LibrarySettingsPanel extends StatefulWidget {
   /// בודק אם מסד הקטלוגים קיים. ניתן להזרקה לבדיקות; כברירת מחדל בודק את הקובץ.
   final Future<bool> Function()? catalogExistsChecker;
 
+  /// טוען את מצב קטלוג פרויקט השו"ת. ניתן להזרקה לבדיקות.
+  final Future<ResponsaCatalogInfo> Function()? responsaInfoLoader;
+
   const LibrarySettingsPanel({
     super.key,
     this.hebrewBooksPathWidget,
     this.catalogExistsChecker,
+    this.responsaInfoLoader,
   });
 
   /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
@@ -89,10 +95,21 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
   bool? _catalogExists;
   bool _isDownloadingCatalog = false;
 
+  /// null בזמן הבדיקה; אחרת מצב הקטלוג המקומי של פרויקט השו"ת.
+  ResponsaCatalogInfo? _responsaInfo;
+
   @override
   void initState() {
     super.initState();
     _refreshCatalogExists();
+    _refreshResponsaInfo();
+  }
+
+  Future<void> _refreshResponsaInfo() async {
+    final info =
+        await (widget.responsaInfoLoader ??
+            ResponsaCatalogRepository.instance.info)();
+    if (mounted) setState(() => _responsaInfo = info);
   }
 
   Future<bool> _checkCatalogExists() =>
@@ -194,9 +211,74 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
                 ],
               ],
             ),
+
+            if (_responsaInfo?.exists ?? false) ...[
+              kSettingsCardSpacing,
+              _buildResponsaCard(context, state),
+            ],
           ],
         );
       },
+    );
+  }
+
+  /// כרטיס פרויקט השו"ת. מוצג רק כשקיים קטלוג מקומי — בלעדיו אין
+  /// לאוצריא מה להציע, וכרטיס ריק רק מבלבל.
+  Widget _buildResponsaCard(BuildContext context, SettingsState state) {
+    final info = _responsaInfo!;
+    return SettingsCard(
+      cardId: 'library.responsa',
+      title: context.settingsText('פרויקט השו"ת'),
+      subtitle: context.settingsText(
+        'קטלוג מקומי שנבנה מההתקנה שבמחשב',
+        args: {},
+      ),
+      children: [
+        SettingsActionTile.switchTile(
+          icon: FluentIcons.library_24_regular,
+          title: context.settingsText('הצג ספרי פרויקט השו"ת בחיפוש'),
+          subtitle: context.settingsText(
+            'נמצאו {count} ספרים בגרסה {version}',
+            args: {
+              'count': info.bookCount,
+              'version': info.sourceVersion ?? 0,
+            },
+          ),
+          value: state.showResponsaInLibrary,
+          onChanged: (value) => _toggleResponsa(context, state, value),
+        ),
+        // מתג נפרד במכוון: אפשר לראות את הספרים בחיפוש בלי להריץ מופע
+        // של התוכנה ברקע.
+        SettingsActionTile.switchTile(
+          icon: FluentIcons.desktop_24_regular,
+          title: context.settingsText('אפשר פתיחת ספרים בתוכנה'),
+          subtitle: context.settingsText(
+            state.enableResponsaBridge
+                ? 'לחיצה על ספר תפעיל את פרויקט השו"ת אם אינו פועל'
+                : 'ספרים יוצגו בחיפוש, אך לא ייפתחו בתוכנה',
+          ),
+          value: state.enableResponsaBridge,
+          onChanged: (value) {
+            context.read<SettingsBloc>().add(UpdateEnableResponsaBridge(value));
+          },
+        ),
+      ],
+    );
+  }
+
+  void _toggleResponsa(
+    BuildContext context,
+    SettingsState state,
+    bool enabled,
+  ) {
+    final providers = {...state.enabledExternalProviders};
+    if (enabled) {
+      providers.add(ExternalProviderRegistry.responsa.id);
+    } else {
+      providers.remove(ExternalProviderRegistry.responsa.id);
+    }
+    context.read<SettingsBloc>().add(
+      UpdateEnabledExternalProviders(providers),
     );
   }
 

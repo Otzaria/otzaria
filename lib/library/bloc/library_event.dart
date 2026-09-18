@@ -103,11 +103,13 @@ class NavigateUp extends LibraryEvent {}
 class SearchBooks extends LibraryEvent {
   final bool? showOtzarHachochma;
   final bool? showHebrewBooks;
+  final bool? showResponsa;
   final bool? showLocalHebrewBooks;
 
   const SearchBooks({
     this.showOtzarHachochma,
     this.showHebrewBooks,
+    this.showResponsa,
     this.showLocalHebrewBooks,
   });
 
@@ -115,6 +117,7 @@ class SearchBooks extends LibraryEvent {
   List<Object?> get props => [
     showOtzarHachochma,
     showHebrewBooks,
+    showResponsa,
     showLocalHebrewBooks,
   ];
 }

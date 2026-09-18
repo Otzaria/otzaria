@@ -651,5 +651,32 @@ void main() {
       );
       expect(order, [2, 1, 0]);
     });
+
+    // ה-id של ספר חיצוני הוא מזהה **אצל הספק**, ואילו ה-`source` שלו
+    // הוא `official` כמו של כל ספר מותקן. בלי החרגה מפורשת `rp:7`
+    // ו-`oh:7` היו יורשים את הכינויים של ספר 7 במסד הרשמי — ספר אחר
+    // לגמרי.
+    for (final entry in {
+      'פרויקט השו"ת': 'rp:7',
+      'אוצר החכמה': 'oh:7',
+      'היברובוקס': 'hb:7',
+    }.entries) {
+      test('ספר של ${entry.key} עם id מתנגש אינו יורש כינוי ודור', () {
+        final external = ExternalLibraryBook(
+          id: 7,
+          title: 'ספר חיצוני',
+          link: null,
+          externalLibraryId: entry.value,
+        );
+        final built = buildBookSearchEntry(
+          0,
+          external,
+          acronymsFor: acronymsFor,
+          eraOrderForId: eraOrderForId,
+        );
+        expect(built.acronyms, isEmpty);
+        expect(built.eraOrder, 5);
+      });
+    }
   });
 }
