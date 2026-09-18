@@ -553,6 +553,8 @@
       "sz:"
     ],
     "blockedKeys": [
+      "key-attached-libraries",
+      "key-attached-library-folders",
       "key-bookmarks",
       "key-current-tab",
       "key-current-workspace",
