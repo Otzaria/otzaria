@@ -198,7 +198,7 @@ export interface BookMeta {
   bookUid?: string;
   title: string;
   type?: BookType | null;
-  source?: 'library' | 'user' | 'external' | null;
+  source?: 'library' | 'user' | 'external' | 'attached' | null;
   topics?: string[];
   categoryPath?: string | null;
   external?: { provider: 'hebrewbooks' | 'otzar'; id: number | string };
@@ -271,7 +271,7 @@ export interface BookIdentity {
   id?: number | null;
   bookId?: string;
   type?: BookType | null;
-  source?: 'library' | 'user' | 'external' | null;
+  source?: 'library' | 'user' | 'external' | 'attached' | null;
   external?: { provider: 'hebrewbooks' | 'otzar'; id: number | string };
 }
 
@@ -482,6 +482,8 @@ export interface BookLink {
   /** `true` למפרש/תרגום/מדרש; `false` להפניה. */
   isCommentary: boolean;
   targetIsUserBook: boolean;
+  /** מקור ספר היעד: `'official'`, `'user'`, או `'db:<slug>'` למסד ספרים מצורף. */
+  targetSource?: string;
   targetCategoryId: number | null;
   /** מוחזר רק כאשר `includeAnchors: true` ולקישור יש עוגן. */
   anchor?: LinkAnchor;
@@ -781,7 +783,7 @@ export interface ReaderState {
   /** Canonical book id of the active tab (`null` for a non-book tab / no tab). */
   currentId: number | null;
   currentType: BookType | null;
-  currentSource: 'library' | 'user' | 'external' | null;
+  currentSource: 'library' | 'user' | 'external' | 'attached' | null;
   currentIndex: number;
   currentRef: string | null;
   openTabs: Array<{
@@ -792,7 +794,7 @@ export interface ReaderState {
     /** `true` לכרטיסייה של התוסף הקורא עצמו. */
     isSelf: boolean;
     type: BookType | null;
-    source: 'library' | 'user' | 'external' | null;
+    source: 'library' | 'user' | 'external' | 'attached' | null;
     bookId: string;
     /** מזהה ספר יציב (`null` לטאב שאינו ספר). ראה `BookMeta.bookUid`. */
     bookUid: string | null;
@@ -810,7 +812,7 @@ export interface ReaderRefState {
   /** Canonical book id of the active tab (`null` when no book tab is active). */
   currentId: number | null;
   currentType: BookType | null;
-  currentSource: 'library' | 'user' | 'external' | null;
+  currentSource: 'library' | 'user' | 'external' | 'attached' | null;
   currentIndex: number;
   currentRef: string | null;
 }

@@ -57,6 +57,7 @@
 | `otzaria://open/tab/<index>` | מעבר לטאב פתוח לפי מיקומו (0-based). אינו פותח טאב חדש; אם המיקום לא קיים — מתעלם. נתמך לשימוש חיצוני; המיקום נפתר מול החלון הראשי |
 | `otzaria://open/book/<id>` | פותח ספר טקסט רשמי לפי מזהה מסד הנתונים. |
 | `otzaria://open/book/<id>?source=user` | פותח ספר טקסט אישי לפי מזהה מסד הנתונים. |
+| `otzaria://open/book/<id>?source=db:<slug>` | פותח ספר ממסד ספרים מצורף (`<id>` = `book.id` באותו מסד, `<slug>` = מזהה המסד). ראו [personal_databases.md](personal_databases.md). |
 | `otzaria://open/book/<id>?index=<n>` | פותח ספר רשמי בסעיף `n` (אינדקס לא שלילי). הוסף `source=user&` לפני `index` לספר אישי. |
 | `otzaria://open/book/<id>?q=<text>` | פותח את הספר עם מחרוזת חיפוש להדגשה. ניתן לשלב עם `index`. |
 | `otzaria://open/book/<id>?index=<n>&mark` | פותח את הספר בסעיף `n` ומדגיש את כל רקע המקטע בצהוב. |
