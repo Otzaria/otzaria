@@ -2341,6 +2341,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       leadingWidget: leadingWidget,
       title: book.title,
       subtitle: book.author,
+      // הקטגוריה, כמו בשורת ספר מקומי. אצל ספק שאין לו שדה מחבר —
+      // ופרויקט השו"ת הוא כזה — זו השורה היחידה שמסבירה מה נמצא.
+      pathLine: (book.categoryPath ?? '').trim().isNotEmpty
+          ? book.categoryPath!.trim()
+          : null,
       level: level,
       itemStyle: itemStyle,
       isSelected: false,

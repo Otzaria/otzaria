@@ -327,8 +327,8 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
   /// הקטלוג נבנה מההתקנה של המשתמש ולכן חייב להיבנות אצלו; אין קובץ
   /// קטלוג שאפשר להוריד, כי תוכן המאגר משתנה בין מהדורות.
   Widget _buildResponsaCard(BuildContext context, SettingsState state) {
-    final status = _responsaStatus!;
     final info = _responsaInfo;
+    final version = info?.sourceVersion ?? _responsaStatus?.version;
     final hasCatalog = info?.isUsable ?? false;
     final enabled = state.showResponsaInLibrary;
     final progress = _responsaBuildProgress;
@@ -343,21 +343,24 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
           icon: FluentIcons.library_24_regular,
           title: context.settingsText('הצג ופתח ספרי בר אילן'),
           subtitle: context.settingsText(
-            switch ((progress, hasCatalog, enabled)) {
-              (final p?, _, _) => _progressText(p),
-              (_, true, _) =>
+            // מספר המהדורה נכנס למשפט רק כשהוא ידוע. הוא נקרא מכותרת
+            // החלון או משם התיקייה, ואין ערובה לקיומו — "מהדורה 0" הוא
+            // ערך שקרי, ו"מהדורה" בלי מספר הוא משפט שבור.
+            switch ((progress, hasCatalog, enabled, version)) {
+              (final p?, _, _, _) => _progressText(p),
+              (_, true, _, final int _) =>
                 'נמצאו {count} ספרים במהדורה {version}. לחיצה על ספר '
                     'תפתח אותו בבר אילן.',
-              (_, false, true) => 'הקטלוג טרם נבנה — יש לרענן אותו למטה.',
-              (_, false, false) =>
-                'בהדלקה הראשונה ייבנה קטלוג מההתקנה שבמחשב (מהדורה '
-                    '{version}). הסריקה אורכת מספר דקות ודורשת שבר אילן '
-                    'יהיה פתוח.',
+              (_, true, _, null) =>
+                'נמצאו {count} ספרים. לחיצה על ספר תפתח אותו בבר אילן.',
+              (_, false, true, _) => 'הקטלוג טרם נבנה — יש לרענן אותו למטה.',
+              (_, false, false, _) =>
+                'בהדלקה הראשונה ייבנה קטלוג מההתקנה שבמחשב. הסריקה '
+                    'אורכת מספר דקות ודורשת שבר אילן יהיה פתוח.',
             },
             args: {
               'count': info?.bookCount ?? 0,
-              'version':
-                  info?.sourceVersion ?? status.version ?? _unknownVersion,
+              'version': version ?? 0,
               'nodes': progress?.scannedNodes ?? 0,
             },
           ),
@@ -370,9 +373,6 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
       ],
     );
   }
-
-  /// מוצג כשאין מספר מהדורה. אינו 0 — "מהדורה 0" הוא ערך שקרי.
-  static const int _unknownVersion = -1;
 
   /// בנייה ורענון של הקטלוג.
   ///

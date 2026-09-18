@@ -184,21 +184,40 @@ class ResponsaController {
     }
   }
 
+  /// ההתקנה שיש לעבוד מולה ומצבה, כפי שנקרא באיזולט רקע.
+  ///
+  /// `null` כשאין אף התקנה שימושית.
+  static Future<({String executable, String installPath, bool running})?>
+  _resolveTarget(String? installPath) => Isolate.run(() {
+    final selection = ResponsaInstallationDiscovery.selectInstallation(
+      preferredPath: installPath,
+    );
+    if (selection == null) return null;
+    return (
+      executable: selection.installation.executable,
+      installPath: selection.installation.installPath,
+      running: selection.instances.isNotEmpty,
+    );
+  });
+
   /// מוודא שהתוכנה רצה, ומעלה אותה אם מותר.
   ///
   /// **לעולם בלי ארגומנטים.** ארגומנט שאינו מתג מפיל את `RESPONSA.exe`
   /// מיד ב-`0xC000041D`, בלי חלון ובלי הודעה — וזה נראה למשתמש כאילו
   /// אוצריא הפילה את התוכנה.
   Future<ResponsaOpenReport?> _ensureRunning(String? installPath) async {
-    final current = await status();
-    if (current.running) return null;
-    if (!current.installed) {
+    // "רץ" נמדד מול **ההתקנה הנכונה**, לא מול כל מופע שהוא. על מחשב עם
+    // שתי התקנות, מופע חי של האחת גרם לדלג על ההפעלה של האחרת, ואז
+    // הפתיחה נכשלה ב"אינו פעיל" בלי שאיש ניסה להפעיל דבר.
+    var target = await _resolveTarget(installPath);
+    if (target == null) {
       return const ResponsaOpenReport(
         ok: false,
         failure: ResponsaFailure.responsaNotRunning,
         message: 'בר אילן (פרויקט השו"ת) אינו מותקן במחשב הזה.',
       );
     }
+    if (target.running) return null;
     if (!autoStart) {
       return const ResponsaOpenReport(
         ok: false,
@@ -207,24 +226,11 @@ class ResponsaController {
       );
     }
 
-    // ההתקנה שממנה נבנה הקטלוג, אם היא עדיין כאן. אחרת המועדפת.
-    final normalized = installPath?.toLowerCase().replaceAll(
-      RegExp(r'[\\/]+$'),
-      '',
-    );
-    final usable = current.installations.where((i) => i.exists);
-    final installation = usable.firstWhere(
-      (i) =>
-          normalized != null &&
-          i.installPath.toLowerCase().replaceAll(RegExp(r'[\\/]+$'), '') ==
-              normalized,
-      orElse: () => usable.isEmpty ? current.installations.first : usable.first,
-    );
     try {
       await Process.start(
-        installation.executable,
+        target.executable,
         const [],
-        workingDirectory: installation.installPath,
+        workingDirectory: target.installPath,
         mode: ProcessStartMode.detached,
       );
     } catch (error) {
@@ -239,7 +245,8 @@ class ResponsaController {
     final deadline = DateTime.now().add(launchTimeout);
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 600));
-      if ((await status()).running) return null;
+      target = await _resolveTarget(installPath);
+      if (target?.running ?? false) return null;
     }
     // `responsaNotRunning` ולא `timeout`: התוכנה אינה רצה, וזה מה
     // שהמשתמש צריך לדעת. `timeout` היה מוביל להודעה על תוכנה שאינה
