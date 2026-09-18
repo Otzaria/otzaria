@@ -4445,57 +4445,62 @@ class _PdfBookScreenState extends State<PdfBookScreen>
             children: [
               RepaintBoundary(
                 key: _pdfViewportBoundaryKey,
-                child: ColorFiltered(
-                  colorFilter: ColorFilter.mode(
-                    Colors.white,
-                    Theme.of(context).brightness == Brightness.dark
-                        ? BlendMode.difference
-                        : BlendMode.dst,
-                  ),
-                  child: Stack(
-                    children: [
-                      _buildPdfViewerFromFile(_resolvedPdfPath),
-                      BlocBuilder<PdfBookBloc, PdfBookState>(
-                        buildWhen: (prev, curr) {
-                          if (prev is PdfBookLoaded && curr is PdfBookLoaded) {
-                            return prev.isLoading != curr.isLoading ||
-                                prev.loadSucceeded != curr.loadSucceeded;
-                          }
-                          return true;
-                        },
-                        builder: (context, state) {
-                          // בזמן auto-retry נשאר הספינר על המסך
-                          if (state is PdfBookError && !state.autoRetry) {
-                            return const SizedBox.shrink();
-                          }
-                          if (state is PdfBookError ||
-                              state is! PdfBookLoaded ||
-                              state.isLoading) {
-                            // RepaintBoundary סביב הספינר בלבד: בלי הבידוד
-                            // כל טיק שלו מרסטר מחדש את כל שכבת ה-viewport
-                            // (כולל ה-ColorFiltered) — יקר בטעינות ארוכות.
-                            return const Positioned.fill(
-                              child: ColoredBox(
-                                color: AppColors.pageWhite,
-                                child: Center(
-                                  child: RepaintBoundary(
-                                    child: CircularProgressIndicator(),
+                // difference מול לבן צובע גם פיקסלים שקופים, ולכן השכבה מתפשטת
+                // עד הקליפ העוטף — בלי ClipRect היא מכסה בלבן את הסרגל העליון.
+                child: ClipRect(
+                  child: ColorFiltered(
+                    colorFilter: ColorFilter.mode(
+                      Colors.white,
+                      Theme.of(context).brightness == Brightness.dark
+                          ? BlendMode.difference
+                          : BlendMode.dst,
+                    ),
+                    child: Stack(
+                      children: [
+                        _buildPdfViewerFromFile(_resolvedPdfPath),
+                        BlocBuilder<PdfBookBloc, PdfBookState>(
+                          buildWhen: (prev, curr) {
+                            if (prev is PdfBookLoaded &&
+                                curr is PdfBookLoaded) {
+                              return prev.isLoading != curr.isLoading ||
+                                  prev.loadSucceeded != curr.loadSucceeded;
+                            }
+                            return true;
+                          },
+                          builder: (context, state) {
+                            // בזמן auto-retry נשאר הספינר על המסך
+                            if (state is PdfBookError && !state.autoRetry) {
+                              return const SizedBox.shrink();
+                            }
+                            if (state is PdfBookError ||
+                                state is! PdfBookLoaded ||
+                                state.isLoading) {
+                              // RepaintBoundary סביב הספינר בלבד: בלי הבידוד
+                              // כל טיק שלו מרסטר מחדש את כל שכבת ה-viewport
+                              // (כולל ה-ColorFiltered) — יקר בטעינות ארוכות.
+                              return const Positioned.fill(
+                                child: ColoredBox(
+                                  color: AppColors.pageWhite,
+                                  child: Center(
+                                    child: RepaintBoundary(
+                                      child: CircularProgressIndicator(),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            );
-                          }
-                          if (!state.loadSucceeded) {
-                            return const Positioned.fill(
-                              child: Center(
-                                child: Text('Failed to load PDF'),
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                    ],
+                              );
+                            }
+                            if (!state.loadSucceeded) {
+                              return const Positioned.fill(
+                                child: Center(
+                                  child: Text('Failed to load PDF'),
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
