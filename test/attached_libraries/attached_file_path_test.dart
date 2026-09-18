@@ -39,6 +39,9 @@ void main() {
       r'\\server\share\a.pdf',
       '//server/share/a.pdf',
       '.',
+      'a\u0000.pdf',
+      r'\\?\C:\a.pdf',
+      r'pdf\../../a.pdf',
     ]) {
       test('נדחה: $rejected', () {
         expect(resolveAttachedBookFilePath(db, rejected), isNull);
