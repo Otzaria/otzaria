@@ -75,20 +75,20 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildInstructions(context),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _buildTextSelection(context),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _buildErrorTypeSelection(context),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _buildReportingNumbers(context),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _buildValidationErrors(context),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _buildActionButtons(context),
         ],
       ),
@@ -110,7 +110,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               '1. בחר את סוג השגיאה   •  '
               '2. השתמש במספרים המוצגים למטה כשתתקשר',
@@ -134,12 +134,12 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Container(
           constraints: const BoxConstraints(
-            maxHeight: 200,
+            maxHeight: 150,
           ),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             border: Border.all(color: Theme.of(context).dividerColor),
             borderRadius: AppTokens.borderRadiusAll,
@@ -173,7 +173,7 @@ class _PhoneReportTabState extends State<PhoneReportTab> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Wrap(
           spacing: 8, // מרווח אופקי בין הכפתורים
           runSpacing: 8, // מרווח אנכי בין השורות

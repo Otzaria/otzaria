@@ -966,7 +966,7 @@ void main() {
         isNull,
         reason:
             'במסך צר (405px) הקונסטריינטים חייבים להישאר נורמליזיים: '
-            'minWidth ≤ maxWidth, ו-maxWidth מותאם ל-95% מהרוחב במסך צר.',
+            'minWidth ≤ maxWidth.',
       );
       expect(find.text('דיווח על טעות בספר'), findsOneWidget);
     });
@@ -1010,6 +1010,60 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('דיווח על טעות בספר'), findsOneWidget);
+    });
+
+    Future<double> dialogHeightOn(WidgetTester tester, Size size) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => showDialog<void>(
+                  context: ctx,
+                  builder: (_) => const TabbedReportDialog(
+                    selectedText: 'טקסט',
+                    fontSize: 18,
+                    bookTitle: 'ספר בדיקה',
+                    currentLineNumber: 0,
+                    directReportTargetLabel: 'אוצריא',
+                  ),
+                ),
+                child: const Text('פתח'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      return tester
+          .getSize(
+            find
+                .descendant(
+                  of: find.byType(Dialog),
+                  matching: find.byType(Material),
+                )
+                .first,
+          )
+          .height;
+    }
+
+    testWidgets('במסך נמוך הדיאלוג לא נחתך ל-70% מהגובה', (tester) async {
+      final height = await dialogHeightOn(tester, const Size(1200, 700));
+      expect(height, greaterThan(700 * 0.7));
+      expect(height, lessThanOrEqualTo(700));
+    });
+
+    testWidgets('במסך גבוה הדיאלוג נשאר 70% מהגובה', (tester) async {
+      final height = await dialogHeightOn(tester, const Size(1200, 1200));
+      expect(height, closeTo(1200 * 0.7, 1));
     });
   });
 

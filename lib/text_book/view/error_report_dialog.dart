@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -1178,6 +1179,9 @@ class TabbedReportDialog extends StatefulWidget {
   State<TabbedReportDialog> createState() => _TabbedReportDialogState();
 }
 
+/// הגובה שבו טופס הצעת התיקון נכנס כמעט בלי גלילה.
+const double _comfortableReportDialogHeight = 640;
+
 class _TabbedReportDialogState extends State<TabbedReportDialog>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
@@ -1241,18 +1245,23 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
         mediaQuery.padding.top -
         mediaQuery.padding.bottom;
 
-    // במסך צר 0.6 * screenWidth קטן מהמינימום (400) ויוצר קונסטריינטים
-    // לא-נורמליזיים → BoxConstraints assertion crash (Sentry). מרחיבים את
-    // ה-maxWidth ל-95% במסך צר, וסוגרים את minWidth כך שלא יחרוג מ-maxWidth.
+    // minWidth/minHeight נסגרים ל-max, אחרת במסך קטן הקונסטריינטים
+    // אינם נורמליים → BoxConstraints assertion crash.
     final screenWidth = mediaQuery.size.width;
     final isNarrow = screenWidth < 600;
-    final maxWidth = isNarrow ? screenWidth * 0.95 : screenWidth * 0.6;
+    final maxWidth = isNarrow ? screenWidth : screenWidth * 0.6;
     final minWidth = maxWidth < 400 ? maxWidth : 400.0;
-    final maxHeight = availableHeight * 0.7;
+    // במסך נמוך 70% חותך את הטופס; Dialog עצמו מצמצם לגובה הפנוי.
+    final maxHeight = math.max(
+      availableHeight * 0.7,
+      math.min(availableHeight, _comfortableReportDialogHeight),
+    );
     final minHeight = maxHeight < 400 ? maxHeight : 400.0;
+    final isCompact = isNarrow || maxHeight > availableHeight * 0.7;
 
     return Dialog(
       clipBehavior: Clip.antiAlias,
+      insetPadding: isCompact ? const EdgeInsets.all(8) : null,
       child: ConstrainedBox(
         constraints: BoxConstraints(
           minWidth: minWidth,
@@ -1264,10 +1273,10 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Text(
                 'דיווח על טעות בספר',
-                style: Theme.of(context).textTheme.headlineSmall,
+                style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
             TabBar(
@@ -1542,7 +1551,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
       children: [
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1564,7 +1573,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
                     onChanged: (mode) => setState(() => _mode = mode),
                     expandToFillWidth: true,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                 ],
                 if (_isCorrection)
                   TextCorrectionEditor(
@@ -1573,8 +1582,13 @@ class _RegularReportTabState extends State<RegularReportTab> {
                     onChanged: (draft) => setState(() => _draft = draft),
                   )
                 else ...[
-                  const Text('הטקסט שנבחר:'),
-                  const SizedBox(height: 8),
+                  Text(
+                    'הטקסט שנבחר:',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   Container(
                     constraints: const BoxConstraints(
                       maxHeight: 150,
@@ -1602,32 +1616,23 @@ class _RegularReportTabState extends State<RegularReportTab> {
                   ),
                 ],
                 if (showDictaSelfEdit) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   _buildDictaSelfEditBanner(),
                 ],
                 const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    _isCorrection
-                        ? 'הסבר לתיקון: (רשות כשיש הצעה, חובה בלי הצעה)'
-                        : 'פירוט הטעות: (חובה לפרט מהי הטעות, בלא פירוט לא נוכל לטפל)',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
                 RtlTextField(
                   key: const ValueKey('report-details-field'),
                   controller: _detailsController,
-                  minLines: 3,
-                  maxLines: null,
+                  minLines: 2,
+                  maxLines: 6,
                   autofocus: !_isCorrection,
                   decoration: InputDecoration(
                     isDense: true,
                     border: const OutlineInputBorder(),
-                    hintText: 'כתוב כאן מה לא תקין, הצע תיקון וכו\'',
+                    labelText: _isCorrection
+                        ? 'הסבר לתיקון (חובה אם אין הצעה)'
+                        : 'פירוט הטעות (חובה)',
+                    hintText: 'מה לא תקין כאן? בלא פירוט לא נוכל לטפל',
                     helperText:
                         _isCorrection &&
                             _draft?.hasProposal == false &&
@@ -1641,7 +1646,7 @@ class _RegularReportTabState extends State<RegularReportTab> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: _buildActionButtons(),
         ),
       ],

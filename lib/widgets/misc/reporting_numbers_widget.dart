@@ -32,7 +32,7 @@ class ReportingNumbersWidget extends StatelessWidget {
     return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -42,7 +42,7 @@ class ReportingNumbersWidget extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             // Wrap מאפשר לנתונים להיות באותה שורה ולעבור לשורה הבאה אם אין מקום
             Wrap(
@@ -75,9 +75,7 @@ class ReportingNumbersWidget extends StatelessWidget {
             ),
 
             if (showPhoneNumber) ...[
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 8),
+              const Divider(height: 20),
               _buildPhoneSection(context),
             ],
           ],
@@ -136,83 +134,86 @@ class ReportingNumbersWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
           children: [
-            // 1. הכותרת שתוצג בצד ימין
             Text(
               'קו אוצריא:',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-
-            // 2. Spacer שתופס את כל המקום הפנוי ודוחף את שאר הווידג'טים שמאלה
-            const Spacer(),
-
-            // 3. מספר הטלפון מודגש (כבר לא צריך להיות בתוך Expanded)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: AppTokens.borderRadiusAll,
-                border: Border.all(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.3),
-                  width: 1.5,
-                ),
-              ),
-              child: isMobile
-                  ? InkWell(
-                      onTap: () => _makePhoneCall(context),
-                      child: Text(
-                        _phoneNumber,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onPrimaryContainer,
-                          decoration: TextDecoration.underline,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textDirection: TextDirection.ltr,
-                      ),
-                    )
-                  : AppSelectionArea(
-                      child: Text(
-                        _phoneNumber,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textDirection: TextDirection.ltr,
-                      ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: AppTokens.borderRadiusAll,
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.3),
+                      width: 1.5,
                     ),
+                  ),
+                  child: isMobile
+                      ? InkWell(
+                          onTap: () => _makePhoneCall(context),
+                          child: Text(
+                            _phoneNumber,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                  decoration: TextDecoration.underline,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                            textDirection: TextDirection.ltr,
+                          ),
+                        )
+                      : AppSelectionArea(
+                          child: Text(
+                            _phoneNumber,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                            textDirection: TextDirection.ltr,
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () => _copyToClipboard(context, _phoneNumber),
+                  icon: const Icon(FluentIcons.copy_24_regular, size: 18),
+                  tooltip: 'העתק מספר טלפון',
+                  visualDensity: VisualDensity.compact,
+                ),
+                if (isMobile) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    onPressed: () => _makePhoneCall(context),
+                    icon: const Icon(FluentIcons.phone_24_regular, size: 18),
+                    tooltip: 'התקשר',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(width: 8),
-
-            // 4. כפתור ההעתקה
-            IconButton(
-              onPressed: () => _copyToClipboard(context, _phoneNumber),
-              icon: const Icon(FluentIcons.copy_24_regular, size: 18),
-              tooltip: 'העתק מספר טלפון',
-              visualDensity: VisualDensity.compact,
-            ),
-
-            // 5. כפתור החיוג (למובייל)
-            if (isMobile) ...[
-              const SizedBox(width: 4),
-              IconButton(
-                onPressed: () => _makePhoneCall(context),
-                icon: const Icon(FluentIcons.phone_24_regular, size: 18),
-                tooltip: 'התקשר',
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
 
         // טקסט המשנה נשאר כמו שהיה
         Text(
