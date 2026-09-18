@@ -240,6 +240,9 @@ class TextBookRepository {
     int normalizedEnd,
     List<String>? normalizedTargetBookTitles,
   ) async {
+    // קישורים של מסד מצורף טרם נטענים; השאילתות למטה פונות ל-seforim.db
+    // לפי כותרת וקטגוריה, ובספר מצורף היו מחזירות קישורים של ספר אחר.
+    if (book.source.isAttached) return const [];
     final title = book.title;
     final categoryId = book.categoryId;
     final fileType = book.fileType ?? 'txt';

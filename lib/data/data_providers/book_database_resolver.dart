@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -250,12 +251,13 @@ class BookDatabaseResolver {
     return candidates;
   }
 
-  /// המאגר של [source], או null כשהמסד אינו קיים. מסד מצורף עדיין אינו נטען.
+  /// המאגר של [source], או null כשהמסד אינו קיים או אינו נגיש.
   static Future<SeforimRepository?> _loadRepositoryFor(BookSource source) {
     return switch (source) {
       OfficialBookSource() => _loadOfficialRepository(),
       UserBookSource() => _loadUserBooksRepositoryIfExists(),
-      AttachedBookSource() => Future.value(null),
+      AttachedBookSource(:final slug) =>
+        AttachedLibraryRegistry.instance.repositoryFor(slug),
     };
   }
 

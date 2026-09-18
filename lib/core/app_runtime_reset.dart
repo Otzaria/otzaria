@@ -1,3 +1,4 @@
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
@@ -23,6 +24,7 @@ Future<void> resetRuntimeStateForAppRestart() async {
   await PluginRuntimeDispatcher.instance.prepareForAppRestart();
   await SqliteDataProvider.instance.dispose();
   await UserBooksDatabaseHolder.instance.close();
+  await AttachedLibraryRegistry.instance.reset();
   await CacheDatabaseHolder.instance.close();
   await PersonalNotesDatabase.instance.close();
   await PluginSystemDatabase.instance.close();

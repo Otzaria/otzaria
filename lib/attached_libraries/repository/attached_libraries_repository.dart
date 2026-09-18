@@ -1,0 +1,440 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:isolate';
+
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_store.dart';
+import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/migration/database/journal_mode.dart';
+import 'package:path/path.dart' as p;
+
+typedef AttachedLibraryProbeFn =
+    Future<AttachedLibraryProbeResult> Function(String path);
+
+/// תוצאת צירוף קובץ: [library] בהצלחה, אחרת [problem].
+class AttachResult {
+  final AttachedLibrary? library;
+  final AttachedLibraryProblem? problem;
+
+  const AttachResult.success(AttachedLibrary this.library) : problem = null;
+  const AttachResult.failure(AttachedLibraryProblem this.problem)
+    : library = null;
+
+  bool get isOk => library != null;
+}
+
+/// הפעולות על המסדים המצורפים: צירוף, תיקיות מסדים, סריקה, סדר והסרה.
+///
+/// כל שינוי נשמר ב-[AttachedLibraryStore], מעודכן ב-[AttachedLibraryRegistry]
+/// ומשודר ב-[changes] — המאזין בונה מחדש את עץ הספרייה.
+class AttachedLibrariesRepository {
+  AttachedLibrariesRepository({
+    this._store = const AttachedLibraryStore(),
+    AttachedLibraryRegistry? registry,
+    AttachedLibraryProbeFn? probe,
+    Future<String> Function()? copyDirectory,
+    bool? copyByDefault,
+  }) : _registryOverride = registry,
+       _probe = probe ?? AttachedLibraryProbe.probe,
+       _copyDirectory = copyDirectory ?? AppPaths.getAttachedLibrariesCopyPath,
+       copyByDefault = copyByDefault ?? (Platform.isAndroid || Platform.isIOS);
+
+  /// ניתן להחלפה בבדיקות.
+  static AttachedLibrariesRepository instance = AttachedLibrariesRepository();
+
+  final AttachedLibraryStore _store;
+  final AttachedLibraryRegistry? _registryOverride;
+  final AttachedLibraryProbeFn _probe;
+  final Future<String> Function() _copyDirectory;
+
+  /// במובייל SQLite אינו פותח קבצים מחוץ לאחסון האפליקציה, ולכן מעתיקים.
+  final bool copyByDefault;
+
+  final _changes = StreamController<void>.broadcast();
+  Future<void> _tail = Future.value();
+
+  AttachedLibraryRegistry get _registry =>
+      _registryOverride ?? AttachedLibraryRegistry.instance;
+
+  /// משודר אחרי כל שינוי ברשימה שמשפיע על עץ הספרייה.
+  Stream<void> get changes => _changes.stream;
+
+  List<AttachedLibrary> get libraries => _registry.libraries;
+  List<String> get folders => _store.loadFolders();
+
+  AttachedLibraryMode get defaultMode =>
+      copyByDefault ? AttachedLibraryMode.copy : AttachedLibraryMode.link;
+
+  /// פעולות רצות בזו אחר זו — סריקה ברקע וצירוף מהממשק כותבים לאותה רשימה.
+  Future<T> _serial<T>(Future<T> Function() operation) {
+    final result = _tail.then((_) => operation());
+    _tail = result.then<void>((_) {}, onError: (_) {});
+    return result;
+  }
+
+  /// מצרף את קובץ המסד [sourcePath]. במצב העתקה הקובץ מועתק לתיקייה
+  /// שהתוכנה מנהלת; במצב קישור הוא נקרא במקומו ולעולם אינו נכתב.
+  Future<AttachResult> importFile(
+    String sourcePath, {
+    AttachedLibraryMode? mode,
+  }) => _serial(() async {
+    final libraries = [..._registry.libraries];
+    if (libraries.any((l) => p.equals(l.path, sourcePath))) {
+      return const AttachResult.failure(AttachedLibraryProblem.alreadyAttached);
+    }
+    final effectiveMode = mode ?? defaultMode;
+    if (effectiveMode == AttachedLibraryMode.copy) {
+      return _importCopy(sourcePath, libraries);
+    }
+
+    final result = await _probe(sourcePath);
+    if (!result.isOk) return AttachResult.failure(result.problem!);
+    if (_slugTaken(libraries, result.slug)) {
+      return const AttachResult.failure(AttachedLibraryProblem.duplicateSlug);
+    }
+    final library = _fromProbe(
+      sourcePath,
+      result,
+      mode: AttachedLibraryMode.link,
+      priority: _nextPriority(libraries),
+    );
+    await _commit([...libraries, library]);
+    return AttachResult.success(library);
+  });
+
+  Future<AttachResult> _importCopy(
+    String sourcePath,
+    List<AttachedLibrary> libraries,
+  ) async {
+    final directory = await _copyDirectory();
+    final temp = p.join(
+      directory,
+      '.import-${DateTime.now().microsecondsSinceEpoch}.db',
+    );
+    try {
+      await Directory(directory).create(recursive: true);
+      await _copyWithSideFiles(sourcePath, temp);
+      // העותק שלנו: מותר להחיל עליו יומן תלוי ולהעבירו ל-DELETE.
+      await Isolate.run(() => normalizeJournalModeForReadOnly(temp));
+    } catch (e) {
+      debugPrint('[AttachedLibraries] copy of $sourcePath failed: $e');
+      await _deleteDatabaseFiles(temp);
+      return const AttachResult.failure(AttachedLibraryProblem.copyFailed);
+    }
+
+    final result = await _probe(temp);
+    final target = result.isOk ? p.join(directory, '${result.slug}.db') : '';
+    final problem = !result.isOk
+        ? result.problem!
+        : _slugTaken(libraries, result.slug) ||
+              libraries.any((l) => p.equals(l.path, target))
+        ? AttachedLibraryProblem.duplicateSlug
+        : null;
+    if (problem != null) {
+      await _deleteDatabaseFiles(temp);
+      return AttachResult.failure(problem);
+    }
+
+    try {
+      // קובץ יתום באותו שם (עותק שהוסר מהרשימה) אינו שייך לאף מסד.
+      await _deleteDatabaseFiles(target);
+      await File(temp).rename(target);
+    } catch (e) {
+      debugPrint('[AttachedLibraries] rename to $target failed: $e');
+      await _deleteDatabaseFiles(temp);
+      return const AttachResult.failure(AttachedLibraryProblem.copyFailed);
+    }
+    final library = _fromProbe(
+      target,
+      result,
+      mode: AttachedLibraryMode.copy,
+      priority: _nextPriority(libraries),
+    );
+    await _commit([...libraries, library]);
+    return AttachResult.success(library);
+  }
+
+  /// מוסיף תיקיית מסדים וסורק אותה. קובצי `*.db` שבה (לא בתתי-תיקיות)
+  /// מצורפים במצב קישור.
+  Future<bool> addFolder(String folderPath) async {
+    await _serial(() async {
+      final folders = _store.loadFolders();
+      if (folders.any((f) => p.equals(f, folderPath))) return;
+      await _store.saveFolders([...folders, folderPath]);
+    });
+    return rescan();
+  }
+
+  /// מסיר תיקיית מסדים ואת כל המסדים שצורפו ממנה. הקבצים עצמם לא נמחקים.
+  Future<void> removeFolder(String folderPath) => _serial(() async {
+    final folders = _store.loadFolders();
+    await _store.saveFolders([
+      for (final folder in folders)
+        if (!p.equals(folder, folderPath)) folder,
+    ]);
+    final libraries = _registry.libraries;
+    for (final library in libraries) {
+      if (_inFolder(library, folderPath)) await _registry.close(library.slug);
+    }
+    await _commit([
+      for (final library in libraries)
+        if (!_inFolder(library, folderPath)) library,
+    ]);
+  });
+
+  /// מסיר מסד מהרשימה. קובץ מקושר לעולם אינו נמחק; עותק שהתוכנה מנהלת נמחק
+  /// כש-[deleteCopy].
+  Future<void> remove(AttachedLibrary library, {bool deleteCopy = true}) =>
+      _serial(() async {
+        await _registry.close(library.slug);
+        if (library.mode == AttachedLibraryMode.copy && deleteCopy) {
+          final directory = await _copyDirectory();
+          if (p.isWithin(directory, library.path)) {
+            await _deleteDatabaseFiles(library.path);
+          }
+        }
+        await _commit([
+          for (final other in _registry.libraries)
+            if (!p.equals(other.path, library.path)) other,
+        ]);
+      });
+
+  Future<void> setPlacement(
+    AttachedLibrary library,
+    AttachedLibraryPlacement placement,
+  ) => _update(library, (l) => l.copyWith(placement: placement));
+
+  Future<void> setHidden(AttachedLibrary library, bool hidden) =>
+      _update(library, (l) => l.copyWith(hidden: hidden));
+
+  /// מזיז את המסד [delta] מקומות בסדר ההצגה.
+  Future<void> move(AttachedLibrary library, int delta) => _serial(() async {
+    final libraries = [..._registry.libraries];
+    final index = libraries.indexWhere((l) => p.equals(l.path, library.path));
+    if (index < 0) return;
+    final target = (index + delta).clamp(0, libraries.length - 1);
+    if (target == index) return;
+    libraries.insert(target, libraries.removeAt(index));
+    await _commit([
+      for (var i = 0; i < libraries.length; i++)
+        libraries[i].copyWith(priority: i),
+    ]);
+  });
+
+  /// משחרר את נעילת הקובץ. הוא ייפתח שוב בגישה הבאה לספר ממנו.
+  Future<void> release(AttachedLibrary library) =>
+      _registry.close(library.slug);
+
+  /// סורק את תיקיות המסדים ובודק כל מסד רשום: קובץ שנעלם מסומן "לא זמין",
+  /// וקובץ שטביעת האצבע שלו השתנתה נבדק מחדש. מחזיר האם משהו השתנה.
+  Future<bool> rescan() => _serial(() async {
+    final libraries = [..._registry.libraries];
+    final probed = <String>{};
+
+    for (final folder in _store.loadFolders()) {
+      final List<String> files;
+      try {
+        files = await _listDatabaseFiles(folder);
+      } on FileSystemException {
+        // תיקייה לא נגישה: המסדים נשארים ומסומנים לא-זמינים למטה.
+        continue;
+      }
+      libraries.removeWhere(
+        (l) => _inFolder(l, folder) && !files.any((f) => p.equals(f, l.path)),
+      );
+      for (final file in files) {
+        if (libraries.any((l) => p.equals(l.path, file))) continue;
+        final result = await _probe(file);
+        probed.add(file);
+        libraries.add(
+          _fromProbe(
+            file,
+            result,
+            folderPath: folder,
+            mode: AttachedLibraryMode.link,
+            priority: _nextPriority(libraries),
+          ),
+        );
+      }
+    }
+
+    for (var i = 0; i < libraries.length; i++) {
+      final library = libraries[i];
+      if (probed.contains(library.path)) continue;
+      final refreshed = await _refresh(library);
+      if (refreshed != library) {
+        await _registry.close(library.slug);
+        libraries[i] = refreshed;
+      }
+    }
+    return _commit(libraries);
+  });
+
+  Future<AttachedLibrary> _refresh(AttachedLibrary library) async {
+    final file = File(library.path);
+    if (!await file.exists()) {
+      return library.copyWith(status: AttachedLibraryStatus.unreachable);
+    }
+    final stat = await file.stat();
+    final fingerprint = library.fingerprint;
+    final unchanged =
+        fingerprint != null &&
+        !fingerprint.fileDiffers(
+          size: stat.size,
+          modifiedMs: stat.modified.millisecondsSinceEpoch,
+        );
+    if (unchanged &&
+        library.status != AttachedLibraryStatus.unreachable &&
+        library.status != AttachedLibraryStatus.invalid) {
+      return library;
+    }
+    return _applyProbe(library, await _probe(library.path));
+  }
+
+  Future<void> _update(
+    AttachedLibrary library,
+    AttachedLibrary Function(AttachedLibrary) change,
+  ) => _serial(() async {
+    await _commit([
+      for (final other in _registry.libraries)
+        p.equals(other.path, library.path) ? change(other) : other,
+    ]);
+  });
+
+  /// שומר, מעדכן את ה-registry ומשדר כשהרשימה השתנתה. מסדים עם slug זהה —
+  /// הראשון בסדר תקין והשאר מסומנים כפולים; כפול שבן-זוגו הוסר חוזר לתקין.
+  Future<bool> _commit(List<AttachedLibrary> libraries) async {
+    final sorted = [...libraries]
+      ..sort((a, b) => a.priority.compareTo(b.priority));
+    final seen = <String>{};
+    final resolved = [
+      for (final library in sorted) _resolveDuplicate(library, seen),
+    ];
+    final before = _registry.libraries;
+    final changed =
+        before.length != resolved.length ||
+        [
+          for (var i = 0; i < resolved.length; i++) before[i] != resolved[i],
+        ].any((differs) => differs);
+    if (!changed) return false;
+    await _store.saveLibraries(resolved);
+    _registry.update(resolved);
+    _changes.add(null);
+    return true;
+  }
+
+  static AttachedLibrary _resolveDuplicate(
+    AttachedLibrary library,
+    Set<String> seen,
+  ) {
+    final candidate =
+        library.status == AttachedLibraryStatus.ok ||
+        library.status == AttachedLibraryStatus.duplicateSlug;
+    if (!candidate) return library;
+    if (!seen.add(library.slug)) {
+      return library.copyWith(
+        status: AttachedLibraryStatus.duplicateSlug,
+        problem: AttachedLibraryProblem.duplicateSlug,
+      );
+    }
+    return library.status == AttachedLibraryStatus.ok
+        ? library
+        : library.copyWith(
+            status: AttachedLibraryStatus.ok,
+            clearProblem: true,
+          );
+  }
+
+  static bool _slugTaken(List<AttachedLibrary> libraries, String slug) =>
+      libraries.any((l) => l.isOk && l.slug == slug);
+
+  static bool _inFolder(AttachedLibrary library, String folder) =>
+      library.folderPath != null && p.equals(library.folderPath!, folder);
+
+  static int _nextPriority(List<AttachedLibrary> libraries) =>
+      libraries.fold(-1, (max, l) => l.priority > max ? l.priority : max) + 1;
+
+  static AttachedLibrary _fromProbe(
+    String path,
+    AttachedLibraryProbeResult result, {
+    String? folderPath,
+    required AttachedLibraryMode mode,
+    required int priority,
+  }) {
+    final baseName = p.basenameWithoutExtension(path);
+    final placeholder = AttachedLibrary(
+      slug: AttachedLibraryProbe.slugFor(fileName: baseName),
+      displayName: baseName,
+      path: path,
+      folderPath: folderPath,
+      mode: mode,
+      priority: priority,
+      addedAt: DateTime.now(),
+    );
+    return _applyProbe(placeholder, result);
+  }
+
+  static AttachedLibrary _applyProbe(
+    AttachedLibrary library,
+    AttachedLibraryProbeResult result,
+  ) {
+    if (!result.isOk) {
+      return library.copyWith(
+        status: result.problem == AttachedLibraryProblem.notFound
+            ? AttachedLibraryStatus.unreachable
+            : AttachedLibraryStatus.invalid,
+        problem: result.problem,
+      );
+    }
+    return library.copyWith(
+      slug: result.slug,
+      displayName: result.displayName,
+      status: AttachedLibraryStatus.ok,
+      clearProblem: true,
+      capabilities: result.capabilities,
+      bookCount: result.bookCount,
+      fingerprint: result.fingerprint,
+      immutable: result.immutable,
+    );
+  }
+
+  /// קובצי `*.db` שבתיקייה עצמה — לא ברקורסיה: תיקיית מסדים היא רשימה
+  /// שטוחה, וסריקה עמוקה של תיקייה גדולה הייתה מאיטה כל רענון.
+  static Future<List<String>> _listDatabaseFiles(String folder) async {
+    final files = <String>[];
+    await for (final entity in Directory(folder).list(followLinks: false)) {
+      if (entity is! File) continue;
+      final name = p.basename(entity.path);
+      if (name.startsWith('.')) continue;
+      if (p.extension(name).toLowerCase() != '.db') continue;
+      files.add(entity.path);
+    }
+    files.sort();
+    return files;
+  }
+
+  static Future<void> _copyWithSideFiles(String source, String target) async {
+    await File(source).copy(target);
+    for (final suffix in const ['-wal', '-journal']) {
+      final side = File('$source$suffix');
+      if (await side.exists()) await side.copy('$target$suffix');
+    }
+  }
+
+  static Future<void> _deleteDatabaseFiles(String path) async {
+    for (final suffix in const ['', '-wal', '-shm', '-journal']) {
+      try {
+        final file = File('$path$suffix');
+        if (await file.exists()) await file.delete();
+      } catch (e) {
+        debugPrint('[AttachedLibraries] could not delete $path$suffix: $e');
+      }
+    }
+  }
+
+  @visibleForTesting
+  Future<void> dispose() => _changes.close();
+}

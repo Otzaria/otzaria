@@ -22,6 +22,7 @@ import 'topic_dao.dart';
 import '../db_capabilities.dart';
 import '../query_loader.dart';
 import '../sqlite3_utils.dart';
+import '../untrusted_database.dart';
 
 class MyDatabase {
   // הקובץ מוחזק ברמת המופע, לא static. זה מאפשר ליצור כמה מופעים
@@ -35,8 +36,15 @@ class MyDatabase {
   /// (false) כדי לשמר את התנהגות user_books.db / cache.db / ה-generator.
   final bool _readOnly;
 
+  /// מסד שאינו בשליטת התוכנה — נפתח מוקשח דרך [openUntrustedReadOnlyDatabase].
+  final bool _untrusted;
+  final bool _immutable;
+
   /// האם החיבור נפתח במצב read-only.
   bool get isReadOnly => _readOnly;
+
+  /// האם יש כרגע חיבור פתוח. אחרי [close] החיבור נפתח מחדש בגישה הבאה.
+  bool get isOpen => _database != null;
 
   /// נתיב קובץ ה-DB. חיבור sqlite שייך ל-isolate שפתח אותו, ולכן isolate
   /// שמבצע סריקה כבדה חייב את הנתיב כדי לפתוח חיבור read-only משלו.
@@ -173,7 +181,17 @@ class MyDatabase {
   /// אין סינגלטון ברירת-מחדל — כל קוד הצורך גישה ל-seforim.db עובר דרך
   /// [SqliteDataProvider], וקוד הצורך גישה ל-user_books.db דרך
   /// [UserBooksDatabaseHolder].
-  MyDatabase.withPath(String path, {this._readOnly = false}) : _path = path;
+  MyDatabase.withPath(String path, {this._readOnly = false})
+    : _path = path,
+      _untrusted = false,
+      _immutable = false;
+
+  /// מסד ספרים מצורף: read-only ומוקשח; [immutable] — ראה
+  /// [openUntrustedReadOnlyDatabase].
+  MyDatabase.untrusted(String path, {this._immutable = false})
+    : _path = path,
+      _readOnly = true,
+      _untrusted = true;
 
   Future<sqlite3.Database> get database async {
     if (_database != null) return _database!;
@@ -189,6 +207,9 @@ class MyDatabase {
       DbCapabilities.forDatabase(_path, await database);
 
   sqlite3.Database _initDatabase() {
+    if (_untrusted) {
+      return openUntrustedReadOnlyDatabase(_path, immutable: _immutable);
+    }
     if (_readOnly) {
       // Read-only open: never create WAL side-files (-wal/-shm) and never run
       // DDL. This lets seforim.db be opened from read-only media / without

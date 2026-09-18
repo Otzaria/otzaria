@@ -194,6 +194,8 @@ class TextBook extends Book {
   ///
   /// Returns a [Future] that resolves to a [List] of [Link] objects.
   Future<List<Link>> get links async {
+    // השאילתה פונה ל-seforim.db לפי כותרת וקטגוריה — לא לספר ממסד מצורף.
+    if (source.isAttached) return [];
     final provider = LibraryProviderManager.instance.getProviderForBook(
       title,
       categoryId: categoryId,

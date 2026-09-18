@@ -1,3 +1,4 @@
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -23,7 +24,8 @@ Future<String?> refFromDbLine(TextBook book, int index) async {
     final repository = switch (book.source) {
       OfficialBookSource() => SqliteDataProvider.instance.repository,
       UserBookSource() => await UserBooksDatabaseHolder.instance.repository,
-      AttachedBookSource() => null,
+      AttachedBookSource(:final slug) =>
+        await AttachedLibraryRegistry.instance.repositoryFor(slug),
     };
     return await repository?.getLineBreadcrumb(bookId, index);
   } catch (_) {
@@ -40,7 +42,8 @@ Future<String?> heRefFromDbLine(TextBook book, int index) async {
     final repository = switch (book.source) {
       OfficialBookSource() => SqliteDataProvider.instance.repository,
       UserBookSource() => await UserBooksDatabaseHolder.instance.repository,
-      AttachedBookSource() => null,
+      AttachedBookSource(:final slug) =>
+        await AttachedLibraryRegistry.instance.repositoryFor(slug),
     };
     return await repository?.getLineHeRef(bookId, index);
   } catch (_) {

@@ -55,6 +55,9 @@ class SearchCatalogueOrderHelper {
     required T Function(dynamic book) keyOf,
   }) {
     final orderedKeys = <T>[];
+    // ספרי מסד מצורף תמיד בסוף — גם כשהם ממוזגים לקטגוריות הספרייה — כדי
+    // שצירוף מסד לא יזיז את סדר כל שאר הספרים (ויחייב אינדוקס מחדש).
+    final attachedKeys = <T>[];
 
     void collectBooks(Category category) {
       final sortedSubCategories = category.subCategories.toList();
@@ -74,7 +77,7 @@ class SearchCatalogueOrderHelper {
         ..sort((a, b) => a.order.compareTo(b.order));
 
       for (final book in sortedBooks) {
-        orderedKeys.add(keyOf(book));
+        (book.source.isAttached ? attachedKeys : orderedKeys).add(keyOf(book));
       }
 
       for (final subCategory in sortedSubCategories) {
@@ -83,7 +86,7 @@ class SearchCatalogueOrderHelper {
     }
 
     collectBooks(library);
-    return orderedKeys;
+    return [...orderedKeys, ...attachedKeys];
   }
 
   static Map<T, int> buildKeyOrderMap<T>(

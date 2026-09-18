@@ -2186,10 +2186,13 @@ class IndexingRepository {
   /// ספרי מסמך נכללים — הם ממופים ל-TextBook ב-indexAllBooks דרך
   /// `toTextBook()`, ו-`book.text` כבר יודע לחלץ את התוכן דרך הממיר
   /// המתאים (ראה DatabaseLibraryProvider.getBookText).
+  /// ספרי מסד מצורף אינם מאונדקסים עדיין — מפתחות האינדקס שלהם (`db:`) וסדר
+  /// הקטלוג שלהם טרם נקבעו.
   static bool isIndexableBook(Book book) =>
-      book is TextBook ||
-      (book is PdfBook && !isBundledTalmudBavliPdf(book)) ||
-      book is ConvertibleDocumentBook;
+      !book.source.isAttached &&
+      (book is TextBook ||
+          (book is PdfBook && !isBundledTalmudBavliPdf(book)) ||
+          book is ConvertibleDocumentBook);
 
   /// מסכת PDF מצורפת אינה מאונדקסת: הטקסט המלא שלה כבר באינדקס, ותוצאת
   /// טקסט נפתחת ב-PDF לפי הגדרת פורמט הפתיחה — האינדוקס רק הכפיל תוצאות.

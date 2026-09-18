@@ -4,6 +4,8 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
@@ -48,6 +50,32 @@ import 'package:path/path.dart' as p;
 
 /// שם השורש שמרכז את ספרי מסד שאין בו טבלת קטגוריות.
 const kUncategorizedCategoryTitle = 'ללא קטגוריה';
+
+const _kPersonalRootTitle = 'ספרים אישיים';
+
+/// מסדים מצורפים ממוינים תחת "ספרים אישיים" אחרי תיקיות הספרים האישיים.
+const _kAttachedRootOrder = 1000;
+
+/// הנתונים של מסד מצורף אחד בזמן בניית העץ.
+class _AttachedCatalogBuild {
+  _AttachedCatalogBuild({
+    required this.library,
+    required this.source,
+    required this.rows,
+    required this.categoryRows,
+    required this.authors,
+    required this.metadata,
+  });
+
+  final AttachedLibrary library;
+  final AttachedBookSource source;
+  final List<Map<String, dynamic>> rows;
+  final List<Map<String, dynamic>> categoryRows;
+  final Map<int, String> authors;
+  final Map<String, Map<String, dynamic>> metadata;
+  final Map<int, List<Map<String, dynamic>>> booksByCategory = {};
+  final Map<int?, List<db_models.Category>> categoriesByParent = {};
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // Isolate helpers for scanning external-book folders.
@@ -1460,6 +1488,27 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   List<UserBookVersionRecord> _userBookVersions = const [];
 
+  /// מפתחות ספרי המסדים המצורפים. מזהי הקטגוריות טבעיים לכל מסד, ולכן המקור
+  /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
+  final Set<BookCompositeKey> _attachedCachedKeys = {};
+  final Map<String, Map<int, String>> _attachedCategoryPaths = {};
+
+  BookCompositeKey? _attachedKeyFor(
+    String title,
+    int categoryId,
+    String fileType,
+  ) {
+    final normalized = BookCompositeKey.normalizeFileType(fileType);
+    return _attachedCachedKeys
+        .where(
+          (key) =>
+              key.title == title &&
+              key.categoryId == categoryId &&
+              key.fileType == normalized,
+        )
+        .firstOrNull;
+  }
+
   void _registerUserBook(Book book, Category category) {
     final id = book.id;
     if (id != null) _userBooksById[id] = book;
@@ -1522,6 +1571,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       fileType: fileType,
     );
     if (_cachedKeys.contains(seforimKey)) return BookSource.official;
+    final attachedKey = _attachedKeyFor(title, categoryId, fileType);
+    if (attachedKey != null) return attachedKey.source;
     return _isUserBooksCategoryId(categoryId)
         ? BookSource.user
         : BookSource.official;
@@ -1996,6 +2047,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     if (_userBooksCachedKeys.contains(userBookKey)) {
       return true;
     }
+    if (_attachedKeyFor(title, categoryId, fileType) != null) return true;
 
     // אם ה-categoryId רשום כקטגוריית user_books, נבדוק בקובץ הזה.
     if (_isUserBooksCategoryId(categoryId)) {
@@ -2070,6 +2122,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
         includeUserBooks: true,
       );
 
+      final attachedSource = matchedKey?.source;
+      if (attachedSource is AttachedBookSource) {
+        return _attachedCategoryPaths[attachedSource.slug]?[matchedKey!
+            .categoryId];
+      }
       if (matchedKey != null) {
         final path = await _getPathForCategoryId(
           matchedKey.categoryId,
@@ -2206,7 +2263,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
     final candidateSets = <Set<BookCompositeKey>>[
       _cachedKeys,
-      if (includeUserBooks) _userBooksCachedKeys,
+      if (includeUserBooks) ...[_userBooksCachedKeys, _attachedCachedKeys],
     ];
     for (final candidateSet in candidateSets) {
       for (final key in candidateSet) {
@@ -2235,7 +2292,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
       fileType: fileType,
       preferSource: preferSource,
     );
-    if (source.isAttached) return null;
+    if (source is AttachedBookSource) {
+      return _readAttachedBookText(title, categoryId, source);
+    }
     // ספרים מתיקיות מותאמות אישית: לקרוא מ-user_books.db (תוכן מהקובץ
     // עצמו אם isFileBacked, אחרת משורות ה-line).
     if (source.isUser) {
@@ -2294,6 +2353,50 @@ class DatabaseLibraryProvider implements LibraryProvider {
     return null;
   }
 
+  /// ספר ממסד מצורף נקרא תמיד משורות ה-`line` שלו — נתיב קובץ שבמסד אינו
+  /// נפתח (מסד שאינו בשליטת התוכנה).
+  Future<String?> _readAttachedBookText(
+    String title,
+    int categoryId,
+    AttachedBookSource source,
+  ) async {
+    try {
+      final record = await BookDatabaseResolver.resolveBook(
+        title: title,
+        categoryId: categoryId,
+        preferSource: source,
+      );
+      if (record == null || record.source != source) return null;
+      final lines = await record.repository.getLineContents(record.book.id);
+      return lines.isEmpty ? null : lines.join('\n');
+    } catch (e) {
+      debugPrint('⚠️ Error reading attached book text: $e');
+      return null;
+    }
+  }
+
+  Future<List<TocEntry>?> _readAttachedBookToc(
+    String title,
+    int categoryId,
+    AttachedBookSource source,
+  ) async {
+    try {
+      final record = await BookDatabaseResolver.resolveBook(
+        title: title,
+        categoryId: categoryId,
+        preferSource: source,
+      );
+      if (record == null || record.source != source) return null;
+      return await _loadTocFromUserBooksRepo(
+        record.repository,
+        record.book.id,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Error reading attached book TOC: $e');
+      return null;
+    }
+  }
+
   /// קורא את תוכן הספר משורות ה-`line` של `user_books.db` ומחזיר טקסט מאוחד.
   Future<String?> _readBookTextFromUserBooksDb(
     SeforimRepository repo,
@@ -2324,7 +2427,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
       fileType: fileType,
       preferSource: preferSource,
     );
-    if (source.isAttached) return null;
+    if (source is AttachedBookSource) {
+      return _readAttachedBookToc(title, categoryId, source);
+    }
     if (source.isUser) {
       try {
         final repo = await UserBooksDatabaseHolder.instance.repository;
@@ -2369,9 +2474,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
     );
   }
 
-  /// טוען TOC של ספר מ-`user_books.db` ומחזיר עץ TocEntry של מודל ה-app.
-  /// משתמש ב-`getBookTocs` של ה-repository (שכבר עושה JOIN ל-tocText
-  /// ומחזיר רשומות migration עם `text` מאוכלס).
+  /// טוען TOC של ספר ממסד שאינו הרשמי (`user_books.db` או מסד מצורף) ומחזיר
+  /// עץ TocEntry של מודל ה-app.
   Future<List<TocEntry>?> _loadTocFromUserBooksRepo(
     SeforimRepository repo,
     int bookId,
@@ -2404,10 +2508,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
   Future<Set<String>> getAvailableBookTitles() async {
     // Return only books that are actually in the database
     final base = await getDatabaseOnlyBookTitles();
-    if (_userBooksCachedKeys.isEmpty) return base;
+    if (_userBooksCachedKeys.isEmpty && _attachedCachedKeys.isEmpty) {
+      return base;
+    }
     return {
       ...base,
       ..._userBooksCachedKeys.map((key) => key.toStorageKey()),
+      ..._attachedCachedKeys.map((key) => key.toStorageKey()),
     };
   }
 
@@ -2475,6 +2582,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
     _categoriesById.clear();
     _userBooksCachedKeys.clear();
     _userBooksCategoryIds.clear();
+    _attachedCachedKeys.clear();
+    _attachedCategoryPaths.clear();
     _titlesCached = false;
     _bundledTalmudBavliPathCache = null;
     _bundledTalmudBavliExistsCache = null;
@@ -2654,6 +2763,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     // צירוף ספרים מתיקיות מותאמות אישית מ-user_books.db תחת קטגוריית
     // "ספרים אישיים" באותו עץ.
     await _appendUserBooksToLibrary(library, metadata);
+    await _appendAttachedLibraries(library, metadata);
 
     // NOTE: Sorting is now done during build (like Kotlin), no need for post-sort
     // _sortLibraryRecursive(library); // Removed - sorting happens in _buildCatalogCategoryRecursiveOptimized
@@ -3196,6 +3306,242 @@ class DatabaseLibraryProvider implements LibraryProvider {
       // שבור או הרשאות חסרות.
       unawaited(Sentry.captureException(e, stackTrace: stackTrace));
     }
+  }
+
+  /// מצרף לעץ את ספרי המסדים המצורפים הגלויים, לפי סדר העדיפות: תחת
+  /// `ספרים אישיים/<שם המסד>`, או ממוזגים לקטגוריות הספרייה לפי שם. מסד שאינו
+  /// נגיש מדולג; כשל במסד אחד אינו פוגע באחרים.
+  Future<void> _appendAttachedLibraries(
+    Library library,
+    Map<String, Map<String, dynamic>> metadata,
+  ) async {
+    _attachedCachedKeys.clear();
+    _attachedCategoryPaths.clear();
+    final registry = AttachedLibraryRegistry.instance;
+    for (final attached in registry.visibleLibraries) {
+      final source = attached.source;
+      if (source == null) continue;
+      try {
+        final repo = await registry.repositoryFor(attached.slug);
+        if (repo == null) continue;
+        late final List<Map<String, dynamic>> books;
+        late final List<Map<String, dynamic>> categories;
+        late final Map<int, String> authors;
+        final db = await repo.database.database;
+        withTransaction(db, () {
+          books = repo.database.bookDao.getAllBooksMinimal(
+            db,
+            withFileColumns: true,
+          );
+          categories = repo.database.categoryDao.getAllCategoryRows(db);
+          authors = repo.database.bookDao.getBookAuthorsMap(db);
+        });
+        _addAttachedLibraryToCatalog(
+          library,
+          _AttachedCatalogBuild(
+            library: attached,
+            source: source,
+            rows: books,
+            categoryRows: categories,
+            authors: authors,
+            metadata: metadata,
+          ),
+        );
+      } catch (e, stackTrace) {
+        debugPrint('⚠️ Error appending attached library ${attached.slug}: $e');
+        unawaited(Sentry.captureException(e, stackTrace: stackTrace));
+      }
+    }
+  }
+
+  void _addAttachedLibraryToCatalog(
+    Library library,
+    _AttachedCatalogBuild build,
+  ) {
+    final categories = [
+      for (final row in build.categoryRows) db_models.Category.fromJson(row),
+    ];
+    final knownIds = {for (final category in categories) category.id};
+    for (final category in categories) {
+      // הורה שאינו במסד — הקטגוריה נחשבת שורש, במקום להיעלם מהעץ.
+      final parentId = knownIds.contains(category.parentId)
+          ? category.parentId
+          : null;
+      build.categoriesByParent.putIfAbsent(parentId, () => []).add(category);
+    }
+    final looseBooks = <Map<String, dynamic>>[];
+    for (final row in build.rows) {
+      if (!_isAttachedTextRow(row)) continue;
+      final categoryId = row['categoryId'] as int? ?? 0;
+      if (knownIds.contains(categoryId)) {
+        build.booksByCategory.putIfAbsent(categoryId, () => []).add(row);
+      } else {
+        looseBooks.add(row);
+      }
+    }
+
+    Category? libraryRoot;
+    Category ensureLibraryRoot() {
+      final existing = libraryRoot;
+      if (existing != null) return existing;
+      final personal = _personalRootFor(library, build.metadata);
+      final created = Category(
+        title: build.library.displayName,
+        description: '',
+        shortDescription: '',
+        order: _kAttachedRootOrder + build.library.priority,
+        subCategories: [],
+        books: [],
+        parent: personal,
+      );
+      personal.subCategories.add(created);
+      return libraryRoot = created;
+    }
+
+    final roots = [...?build.categoriesByParent[null]]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    final merge =
+        build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary;
+    for (final root in roots) {
+      if (!merge) {
+        final parent = ensureLibraryRoot();
+        parent.subCategories.add(_buildAttachedCategory(root, parent, build));
+        continue;
+      }
+      final existing = _findMergeTarget(library.subCategories, root.title);
+      if (existing == null) {
+        library.subCategories.add(_buildAttachedCategory(root, library, build));
+      } else {
+        _appendAttachedContent(existing, root, build);
+      }
+    }
+
+    // ספרים בלי קטגוריה (מסד בלי טבלת קטגוריות) יושבים תחת שם המסד.
+    if (looseBooks.isNotEmpty) {
+      _addAttachedBooks(
+        ensureLibraryRoot(),
+        0,
+        _sortedByOrder(looseBooks),
+        build,
+      );
+    }
+  }
+
+  Category _buildAttachedCategory(
+    db_models.Category dbCategory,
+    Category parent,
+    _AttachedCatalogBuild build,
+  ) {
+    final category = Category(
+      title: dbCategory.title,
+      description: dbCategory.heDesc ?? '',
+      shortDescription: dbCategory.heShortDesc ?? '',
+      order: dbCategory.orderIndex,
+      subCategories: [],
+      books: [],
+      parent: parent,
+    );
+    _appendAttachedContent(category, dbCategory, build);
+    return category;
+  }
+
+  void _appendAttachedContent(
+    Category category,
+    db_models.Category dbCategory,
+    _AttachedCatalogBuild build,
+  ) {
+    _addAttachedBooks(
+      category,
+      dbCategory.id,
+      _sortedByOrder([...?build.booksByCategory[dbCategory.id]]),
+      build,
+    );
+    final children = [...?build.categoriesByParent[dbCategory.id]]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    for (final child in children) {
+      final existing = _findMergeTarget(category.subCategories, child.title);
+      if (existing == null) {
+        category.subCategories.add(
+          _buildAttachedCategory(child, category, build),
+        );
+      } else {
+        _appendAttachedContent(existing, child, build);
+      }
+    }
+  }
+
+  void _addAttachedBooks(
+    Category category,
+    int categoryId,
+    List<Map<String, dynamic>> rows,
+    _AttachedCatalogBuild build,
+  ) {
+    final slug = build.source.slug;
+    for (final row in rows) {
+      final id = row['id'] as int? ?? 0;
+      final book = _convertMinimalBookMapToBook(
+        // נתיב קובץ שבמסד מצורף אינו נפתח — הספר נקרא משורות ה-DB שלו.
+        {...row, 'filePath': null},
+        category,
+        build.metadata,
+        authorFromDatabase: build.authors[id],
+        source: build.source,
+        idOverride: id,
+        categoryIdOverride: categoryId,
+      );
+      if (book == null) continue;
+      category.books.add(book);
+      _attachedCachedKeys.add(
+        BookCompositeKey.create(
+          title: book.title,
+          categoryId: categoryId,
+          fileType: book.fileType,
+          source: build.source,
+        ),
+      );
+      final path = book.categoryPath;
+      if (path != null && path.isNotEmpty) {
+        _attachedCategoryPaths.putIfAbsent(slug, () => {})[categoryId] = path;
+      }
+    }
+  }
+
+  /// ספר שתוכנו בשורות ה-DB. ספר מבוסס-קובץ (PDF, Word…) ממסד מצורף אינו
+  /// מוצג: נתיבי הקבצים שבמסד טרם נתמכים.
+  static bool _isAttachedTextRow(Map<String, dynamic> row) {
+    final fileType = (row['fileType'] as String?)?.trim().toLowerCase() ?? '';
+    return fileType.isEmpty || fileType == 'txt';
+  }
+
+  static List<Map<String, dynamic>> _sortedByOrder(
+    List<Map<String, dynamic>> rows,
+  ) => rows
+    ..sort((a, b) {
+      final orderA = (a['orderIndex'] as num?)?.toDouble() ?? 999.0;
+      final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
+      return orderA.compareTo(orderB);
+    });
+
+  /// שורש "ספרים אישיים" בעץ — קיים (מהספרים האישיים) או חדש בסוף הספרייה.
+  Category _personalRootFor(
+    Library library,
+    Map<String, Map<String, dynamic>> metadata,
+  ) {
+    final existing = library.subCategories
+        .where((c) => c.title == _kPersonalRootTitle)
+        .firstOrNull;
+    if (existing != null) return existing;
+    final created = Category(
+      title: _kPersonalRootTitle,
+      description: metadata[_kPersonalRootTitle]?['heDesc'] ?? '',
+      shortDescription: metadata[_kPersonalRootTitle]?['heShortDesc'] ?? '',
+      order: 999,
+      subCategories: [],
+      books: [],
+      parent: library,
+    );
+    library.subCategories.add(created);
+    return created;
   }
 
   /// קטגוריית היעד למיזוג תיקייה אישית, בהשוואה שמתעלמת מגרשיים וגרש:
