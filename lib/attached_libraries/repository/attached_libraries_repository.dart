@@ -110,18 +110,20 @@ class AttachedLibrariesRepository {
     List<AttachedLibrary> libraries,
   ) async {
     final directory = await _copyDirectory();
-    final temp = p.join(
+    // שם הקובץ נשמר בעותק הזמני: ממנו נגזרים ה-slug ושם התצוגה.
+    final tempDirectory = p.join(
       directory,
-      '.import-${DateTime.now().microsecondsSinceEpoch}.db',
+      '.import-${DateTime.now().microsecondsSinceEpoch}',
     );
+    final temp = p.join(tempDirectory, p.basename(sourcePath));
     try {
-      await Directory(directory).create(recursive: true);
+      await Directory(tempDirectory).create(recursive: true);
       await _copyWithSideFiles(sourcePath, temp);
       // העותק שלנו: מותר להחיל עליו יומן תלוי ולהעבירו ל-DELETE.
       await Isolate.run(() => normalizeJournalModeForReadOnly(temp));
     } catch (e) {
       debugPrint('[AttachedLibraries] copy of $sourcePath failed: $e');
-      await _deleteDatabaseFiles(temp);
+      await _deleteDirectory(tempDirectory);
       return const AttachResult.failure(AttachedLibraryProblem.copyFailed);
     }
 
@@ -134,7 +136,7 @@ class AttachedLibrariesRepository {
         ? AttachedLibraryProblem.duplicateSlug
         : null;
     if (problem != null) {
-      await _deleteDatabaseFiles(temp);
+      await _deleteDirectory(tempDirectory);
       return AttachResult.failure(problem);
     }
 
@@ -144,8 +146,9 @@ class AttachedLibrariesRepository {
       await File(temp).rename(target);
     } catch (e) {
       debugPrint('[AttachedLibraries] rename to $target failed: $e');
-      await _deleteDatabaseFiles(temp);
       return const AttachResult.failure(AttachedLibraryProblem.copyFailed);
+    } finally {
+      await _deleteDirectory(tempDirectory);
     }
     final library = _fromProbe(
       target,
@@ -421,6 +424,15 @@ class AttachedLibrariesRepository {
     for (final suffix in const ['-wal', '-journal']) {
       final side = File('$source$suffix');
       if (await side.exists()) await side.copy('$target$suffix');
+    }
+  }
+
+  static Future<void> _deleteDirectory(String path) async {
+    try {
+      final directory = Directory(path);
+      if (await directory.exists()) await directory.delete(recursive: true);
+    } catch (e) {
+      debugPrint('[AttachedLibraries] could not delete $path: $e');
     }
   }
 
