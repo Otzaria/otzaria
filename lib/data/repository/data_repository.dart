@@ -214,6 +214,7 @@ class DataRepository {
 
     // no-op אם הקאשים כבר חוממו בעליית האפליקציה
     await AcronymsCache.instance.warmUp();
+    await AcronymsCache.instance.warmUpAttached();
     await GenerationCache.instance.warmUp();
 
     final searchEntries = <BookSearchEntry>[
@@ -221,7 +222,7 @@ class DataRepository {
         buildBookSearchEntry(
           i,
           allBooks[i],
-          acronymsForId: AcronymsCache.instance.getAcronymsForBook,
+          acronymsFor: AcronymsCache.instance.acronymsFor,
           eraOrderForId: GenerationCache.instance.getOrderForBook,
         ),
     ];
@@ -272,13 +273,13 @@ class DataRepository {
 }
 
 /// בונה [BookSearchEntry] לספר בודד. ה-lookups מוזרקים כדי לאפשר בדיקה
-/// בלי DB. עבור ספר אישי מדלגים על כינויים (אין כינויי-משתמש) — ל-id שלו אין
-/// משמעות במאגר הרשמי. הדור נלקח לפי [Book.source] מהמפה הנכונה.
+/// בלי DB. הכינויים והדור נלקחים לפי [Book.source] — ל-id אין משמעות מחוץ
+/// למסד של הספר.
 @visibleForTesting
 BookSearchEntry buildBookSearchEntry(
   int index,
   Book book, {
-  required List<String>? Function(int bookId) acronymsForId,
+  required List<String>? Function(BookSource source, int bookId) acronymsFor,
   required int Function(int? bookId, BookSource source) eraOrderForId,
 }) {
   final id = book.id;
@@ -287,9 +288,7 @@ BookSearchEntry buildBookSearchEntry(
     title: book.title,
     author: book.author ?? '',
     topics: book.topics,
-    acronyms: id == null || !book.source.isOfficial
-        ? const []
-        : acronymsForId(id) ?? const [],
+    acronyms: id == null ? const [] : acronymsFor(book.source, id) ?? const [],
     eraOrder: eraOrderForId(id, book.source),
     source: book.source,
     categoryPath: book.categoryPath ?? '',
