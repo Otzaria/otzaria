@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -263,6 +265,10 @@ class FindRefRepository {
   /// מוטציה של ספרים אישיים, ששניהם עוברים דרך מסלולי ה-refresh).
   List<_UserBookRecord>? _userBooksCache;
 
+  /// קאש ספרי המסדים המצורפים לפי slug, עם רשומת המסד שממנה נבנה.
+  final Map<String, ({AttachedLibrary library, List<_UserBookRecord> books})>
+  _attachedBooksCache = {};
+
   FindRefRepository({
     this.dataRepository,
     this.warmUpReferenceBooksCache,
@@ -334,6 +340,7 @@ class FindRefRepository {
     _altTocFlatCache = null;
     _altBookIdsCache = null;
     _userBooksCache = null;
+    _attachedBooksCache.clear();
   }
 
   /// חימום מוקדם (best-effort) של קאש ה-AltToc הגלובלי, כדי שהחיפוש הראשון
@@ -899,6 +906,9 @@ class FindRefRepository {
 
       if (includePersonalBooks) {
         results.addAll(await _awaitCurrent(_searchPersonalBooks(queryTokens)));
+        results.addAll(
+          await _awaitCurrent(_searchAttachedLibraries(queryTokens)),
+        );
       }
 
       final unique = _dedupeRefs(results);
@@ -1215,6 +1225,9 @@ class FindRefRepository {
 
     if (includePersonalBooks) {
       results.addAll(await _awaitCurrent(_searchPersonalBooks(queryTokens)));
+      results.addAll(
+        await _awaitCurrent(_searchAttachedLibraries(queryTokens)),
+      );
     }
 
     final unique = _dedupeRefs(results);
@@ -1355,165 +1368,330 @@ class FindRefRepository {
   Future<List<DbReferenceResult>> _searchPersonalBooks(
     List<String> queryTokens,
   ) async {
-    final out = <DbReferenceResult>[];
     try {
       // רשימת הספרים האישיים נטענת מקאש בזיכרון (ראה [_loadUserBooks]) — כך
       // אין שאילתת DB לכל הקלדה, רק בחיפוש הראשון אחרי רענון.
       final allBooks = await _awaitCurrent(_loadUserBooks());
+      if (allBooks.isEmpty) return const [];
       SeforimRepository? userRepo;
-
-      if (allBooks.isEmpty) return out;
-
-      // Resolve user TOC fetcher (injection or live DB)
-      Future<List<Map<String, dynamic>>> fetchUserToc(
-        int bookId,
-        String bookTitle, {
-        List<String>? qt,
-      }) async {
-        final injected = getUserBookTocEntries;
-        if (injected != null) {
-          return injected(bookId, bookTitle, queryTokens: qt);
-        }
-        // `UserBooksDatabaseHolder.instance.repository` הוא `Future<SeforimRepository>`,
-        // לכן נדרש `await` ולא cast — הקאסט הקודם היה זורק TypeError כש-userRepo
-        // לא הוזרק מראש (תרחיש שטחי בטסטים, אך bug רדום שראוי לתקן).
-        userRepo ??= await _awaitCurrent(
-          UserBooksDatabaseHolder.instance.repository,
-        );
-        return userRepo!.getTocEntriesForReference(
-          bookId,
-          bookTitle,
-          queryTokens: qt,
-        );
-      }
-
-      const personalBookPath = 'ספרים אישיים';
-      final maxN = queryTokens.length >= 3 ? 3 : queryTokens.length;
-
-      // Find the longest leading phrase that matches position-by-position
-      int? leadingPhraseMatch(List<String> nameTokens, int cap) {
-        for (var n = cap; n >= 1; n--) {
-          if (n > nameTokens.length) continue;
-          var ok = true;
-          for (var i = 0; i < n; i++) {
-            if (!nameTokens[i].startsWith(queryTokens[i])) {
-              ok = false;
-              break;
-            }
+      return await _searchSecondaryBooks(
+        queryTokens,
+        books: allBooks,
+        source: BookSource.user,
+        rootPath: 'ספרים אישיים',
+        fetchToc: (bookId, bookTitle, qt) async {
+          final injected = getUserBookTocEntries;
+          if (injected != null) {
+            return injected(bookId, bookTitle, queryTokens: qt);
           }
-          if (ok) return n;
-        }
-        return null;
-      }
-
-      for (final book in allBooks) {
-        final normalizedTitle = _normalizeForMatch(book.title);
-        final titleTokens = _tokenize(normalizedTitle);
-
-        var nameTokens = titleTokens;
-        var matchedN = leadingPhraseMatch(titleTokens, maxN);
-
-        // הכותרת לא התאימה — ניסיון מול שם תיקייה + כותרת, לכל סיומת של
-        // שרשרת התיקיות ('שות פלוני חלק א'). כך שאילתת שם התיקייה מוצאת את
-        // הקבצים שבתוכה. התקרה כאן לפי אורך השם המורחב, לא ה-3 של כותרת.
-        if (matchedN == null) {
-          for (var i = book.folderTitles.length - 1; i >= 0; i--) {
-            final candidate = _tokenize(
-              _normalizeForMatch(
-                '${book.folderTitles.sublist(i).join(' ')} ${book.title}',
-              ),
-            );
-            final n = leadingPhraseMatch(
-              candidate,
-              queryTokens.length.clamp(0, candidate.length),
-            );
-            // דרישת מינימום: ההתאמה חייבת לכסות את כל מילות התיקייה שבשם —
-            // אחרת 'שות' לבדה הייתה גוררת את כל תוכן התיקייה.
-            if (n != null && n >= candidate.length - titleTokens.length) {
-              nameTokens = candidate;
-              matchedN = n;
-              break;
-            }
-          }
-        }
-        if (matchedN == null) continue;
-
-        final isPdf = book.fileType == 'pdf';
-        final remainingTokens = _getRemainingTokens(
-          queryTokens,
-          nameTokens,
-          prefixMatchTokensCount: matchedN,
-        );
-
-        if (queryTokens.length == 1) {
-          // Single-word: only the book title, no TOC (mirrors main loop)
-          out.add(
-            DbReferenceResult(
-              title: book.title,
-              reference: book.title,
-              segment: 0,
-              isPdf: isPdf,
-              filePath: book.filePath ?? '',
-              orderIndex: book.orderIndex,
-              bookId: book.id,
-              bookPath: book.folderTitles.isEmpty
-                  ? personalBookPath
-                  : book.folderTitles.join(', '),
-              source: BookSource.user,
-            ),
+          userRepo ??= await _awaitCurrent(
+            UserBooksDatabaseHolder.instance.repository,
           );
-        } else if (remainingTokens.isEmpty) {
-          // המשתמש הקליד רק את כותרת הספר — מחזירים את הספר בלבד, סימטרי
-          // למסלול הראשי ולמסלול מילה-אחת לעיל.
-          out.add(
-            DbReferenceResult(
-              title: book.title,
-              reference: book.title,
-              segment: 0,
-              isPdf: isPdf,
-              filePath: book.filePath ?? '',
-              orderIndex: book.orderIndex,
-              bookId: book.id,
-              bookPath: book.folderTitles.isEmpty
-                  ? personalBookPath
-                  : book.folderTitles.join(', '),
-              source: BookSource.user,
-            ),
+          return userRepo!.getTocEntriesForReference(
+            bookId,
+            bookTitle,
+            queryTokens: qt,
           );
-        } else {
-          // Only TOC entries matching remainingTokens
-          final toc = await _awaitCurrent(
-            fetchUserToc(
-              book.id,
-              book.title,
-              qt: remainingTokens,
-            ),
-          );
-          for (final entry in toc) {
-            out.add(
-              DbReferenceResult(
-                title: book.title,
-                reference: entry['reference'] as String,
-                segment: entry['segment'] as int,
-                isPdf: isPdf,
-                filePath: book.filePath ?? '',
-                orderIndex: book.orderIndex,
-                tocLevel: entry['level'] as int,
-                bookId: book.id,
-                bookPath: book.folderTitles.isEmpty
-                    ? personalBookPath
-                    : book.folderTitles.join(', '),
-                sourceLineId: entry['dbLineId'] as int? ?? 0,
-                source: BookSource.user,
-              ),
-            );
-          }
-        }
-      }
+        },
+      );
     } on FindRefQueryCancelled {
       rethrow;
     } catch (e) {
       debugPrint('[FindRef] Personal books search failed: $e');
+      return const [];
+    }
+  }
+
+  /// ספרי המסדים המצורפים הגלויים, מסד אחרי מסד לפי סדר העדיפות. כל מסד
+  /// נחקר דרך המאגר המוקשח שלו: כותרת, כינויים, תוכן עניינים ו-`line_ref`.
+  Future<List<DbReferenceResult>> _searchAttachedLibraries(
+    List<String> queryTokens,
+  ) async {
+    final out = <DbReferenceResult>[];
+    final registry = AttachedLibraryRegistry.instance;
+    final List<AttachedLibrary> libraries;
+    try {
+      libraries = registry.visibleLibraries;
+      if (libraries.isEmpty) return out;
+      await _awaitCurrent(AcronymsCache.instance.warmUpAttached());
+    } on FindRefQueryCancelled {
+      rethrow;
+    } catch (e) {
+      debugPrint('[FindRef] attached libraries unavailable: $e');
+      return out;
+    }
+
+    for (final library in libraries) {
+      try {
+        final repository = await _awaitCurrent(
+          registry.repositoryFor(library.slug),
+        );
+        if (repository == null) continue;
+        final books = await _awaitCurrent(
+          _loadAttachedBooks(library, repository),
+        );
+        if (books.isEmpty) continue;
+        final source = BookSource.attached(library.slug);
+        out.addAll(
+          await _awaitCurrent(
+            _searchSecondaryBooks(
+              queryTokens,
+              books: books,
+              source: source,
+              rootPath: library.displayName,
+              acronymsOf: (id) =>
+                  AcronymsCache.instance.acronymsFor(source, id) ?? const [],
+              fetchToc: (bookId, bookTitle, qt) =>
+                  repository.getTocEntriesForReference(
+                    bookId,
+                    bookTitle,
+                    queryTokens: qt,
+                  ),
+              resolveLineRefs: (bookIds, refKey) async => {
+                for (final entry in (await repository.resolveRefKeyInBooks(
+                  bookIds,
+                  refKey,
+                )).entries)
+                  entry.key: (
+                    lineIndex: entry.value.lineIndex,
+                    lineId: entry.value.lineId,
+                    heRef: entry.value.heRef,
+                  ),
+              },
+            ),
+          ),
+        );
+      } on FindRefQueryCancelled {
+        rethrow;
+      } catch (e) {
+        debugPrint('[FindRef] attached ${library.slug} search failed: $e');
+      }
+    }
+    return out;
+  }
+
+  /// רשימת הספרים של מסד מצורף, מקאש שנבנה מחדש כשרשומת המסד השתנתה.
+  Future<List<_UserBookRecord>> _loadAttachedBooks(
+    AttachedLibrary library,
+    SeforimRepository repository,
+  ) async {
+    final cached = _attachedBooksCache[library.slug];
+    if (cached != null && cached.library == library) return cached.books;
+    final books = await _readSecondaryBooks(repository);
+    _attachedBooksCache[library.slug] = (library: library, books: books);
+    return books;
+  }
+
+  /// הספרים של מסד משני, כל אחד עם שרשרת הקטגוריות שמעליו.
+  Future<List<_UserBookRecord>> _readSecondaryBooks(
+    SeforimRepository repository,
+  ) async {
+    final raw = await _awaitCurrent(
+      repository.database.bookDao.getAllLocalBooks(),
+    );
+    // שרשרת התיקיות של כל ספר — בספרים אישיים שם הספר יושב לרוב על
+    // התיקייה ('חלק א' בתוך 'שות פלוני'), והיא חלק מהתאמת הכותרת.
+    final categories = await _awaitCurrent(
+      repository.database.categoryDao.getAllCategories(),
+    );
+    final byId = {for (final c in categories) c.id: c};
+    List<String> chainOf(int categoryId) {
+      final titles = <String>[];
+      for (
+        var c = byId[categoryId];
+        c != null && titles.length < 12;
+        c = c.parentId == null ? null : byId[c.parentId]
+      ) {
+        titles.insert(0, c.title);
+      }
+      return titles;
+    }
+
+    return [
+      for (final b in raw)
+        (
+          id: b.id,
+          title: b.title,
+          filePath: b.filePath,
+          fileType: b.fileType ?? 'txt',
+          orderIndex: b.order,
+          folderTitles: chainOf(b.categoryId),
+        ),
+    ];
+  }
+
+  /// התאמת שאילתה לספרי מסד משני (אישי או מצורף): כותרת, שם תיקייה + כותרת,
+  /// או כינוי מ-[acronymsOf]; ואחריה שורה מדויקת דרך [resolveLineRefs] או
+  /// ערכי תוכן העניינים שתואמים את שארית השאילתה.
+  Future<List<DbReferenceResult>> _searchSecondaryBooks(
+    List<String> queryTokens, {
+    required List<_UserBookRecord> books,
+    required BookSource source,
+    required String rootPath,
+    required Future<List<Map<String, dynamic>>> Function(
+      int bookId,
+      String bookTitle,
+      List<String> queryTokens,
+    )
+    fetchToc,
+    List<String> Function(int bookId)? acronymsOf,
+    Future<Map<int, _ExactLine>> Function(List<int> bookIds, String refKey)?
+    resolveLineRefs,
+  }) async {
+    final out = <DbReferenceResult>[];
+    final maxN = queryTokens.length >= 3 ? 3 : queryTokens.length;
+
+    // Find the longest leading phrase that matches position-by-position
+    int? leadingPhraseMatch(List<String> nameTokens, int cap) {
+      for (var n = cap; n >= 1; n--) {
+        if (n > nameTokens.length) continue;
+        var ok = true;
+        for (var i = 0; i < n; i++) {
+          if (!nameTokens[i].startsWith(queryTokens[i])) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) return n;
+      }
+      return null;
+    }
+
+    final matches = <(_UserBookRecord, List<String>)>[];
+    for (final book in books) {
+      final titleTokens = _tokenize(_normalizeForMatch(book.title));
+
+      var nameTokens = titleTokens;
+      var matchedN = leadingPhraseMatch(titleTokens, maxN);
+
+      // הכותרת לא התאימה — ניסיון מול שם תיקייה + כותרת, לכל סיומת של
+      // שרשרת התיקיות ('שות פלוני חלק א'). כך שאילתת שם התיקייה מוצאת את
+      // הקבצים שבתוכה. התקרה כאן לפי אורך השם המורחב, לא ה-3 של כותרת.
+      if (matchedN == null) {
+        for (var i = book.folderTitles.length - 1; i >= 0; i--) {
+          final candidate = _tokenize(
+            _normalizeForMatch(
+              '${book.folderTitles.sublist(i).join(' ')} ${book.title}',
+            ),
+          );
+          final n = leadingPhraseMatch(
+            candidate,
+            queryTokens.length.clamp(0, candidate.length),
+          );
+          // דרישת מינימום: ההתאמה חייבת לכסות את כל מילות התיקייה שבשם —
+          // אחרת 'שות' לבדה הייתה גוררת את כל תוכן התיקייה.
+          if (n != null && n >= candidate.length - titleTokens.length) {
+            nameTokens = candidate;
+            matchedN = n;
+            break;
+          }
+        }
+      }
+
+      // כינוי מלא, או שאילתה שכולה תחילית של כינוי.
+      if (matchedN == null && acronymsOf != null) {
+        for (final term in acronymsOf(book.id)) {
+          final termTokens = _tokenize(term);
+          final cap = queryTokens.length < termTokens.length
+              ? queryTokens.length
+              : termTokens.length;
+          final n = leadingPhraseMatch(termTokens, cap);
+          if (n != null &&
+              (n == termTokens.length || n == queryTokens.length)) {
+            nameTokens = termTokens;
+            matchedN = n;
+            break;
+          }
+        }
+      }
+      if (matchedN == null) continue;
+
+      matches.add((
+        book,
+        _getRemainingTokens(
+          queryTokens,
+          nameTokens,
+          prefixMatchTokensCount: matchedN,
+        ),
+      ));
+    }
+
+    // שאילתה מאוגדת אחת לכל מפתח קנוני, כמו במסלול הספרייה הרשמית.
+    final exactLines = <int, _ExactLine>{};
+    if (resolveLineRefs != null && queryTokens.length > 1) {
+      final bookIdsByKey = <String, List<int>>{};
+      for (final (book, remaining) in matches) {
+        if (book.fileType == 'pdf' || remaining.length < 2) continue;
+        final key = buildRefKey(remaining.join(' '));
+        if (key != null) (bookIdsByKey[key] ??= []).add(book.id);
+      }
+      for (final entry in bookIdsByKey.entries) {
+        exactLines.addAll(
+          await _awaitCurrent(resolveLineRefs(entry.value, entry.key)),
+        );
+      }
+    }
+
+    for (final (book, remainingTokens) in matches) {
+      final isPdf = book.fileType == 'pdf';
+      final bookPath = book.folderTitles.isEmpty
+          ? rootPath
+          : book.folderTitles.join(', ');
+      DbReferenceResult result({
+        required String reference,
+        required int segment,
+        int tocLevel = 1,
+        int sourceLineId = 0,
+        bool isSourceLine = false,
+      }) => DbReferenceResult(
+        title: book.title,
+        reference: reference,
+        segment: segment,
+        isPdf: isPdf,
+        filePath: book.filePath ?? '',
+        orderIndex: book.orderIndex,
+        tocLevel: tocLevel,
+        bookId: book.id,
+        bookPath: bookPath,
+        sourceLineId: sourceLineId,
+        source: source,
+        isSourceLine: isSourceLine,
+      );
+
+      final exact = exactLines[book.id];
+      if (exact != null) {
+        out.add(
+          result(
+            reference:
+                exact.heRef ?? '${book.title} ${remainingTokens.join(' ')}',
+            segment: exact.lineIndex,
+            tocLevel: 3,
+            sourceLineId: exact.lineId,
+            isSourceLine: true,
+          ),
+        );
+      }
+
+      // מילה אחת, או שהוקלדה רק כותרת הספר — הספר בלבד, בלי ערכי TOC
+      // (סימטרי למסלול הראשי).
+      if (queryTokens.length == 1 || remainingTokens.isEmpty) {
+        out.add(result(reference: book.title, segment: 0));
+        continue;
+      }
+
+      final toc = await _awaitCurrent(
+        fetchToc(book.id, book.title, remainingTokens),
+      );
+      for (final entry in toc) {
+        out.add(
+          result(
+            reference: entry['reference'] as String,
+            segment: entry['segment'] as int,
+            tocLevel: entry['level'] as int,
+            sourceLineId: entry['dbLineId'] as int? ?? 0,
+          ),
+        );
+      }
     }
     return out;
   }

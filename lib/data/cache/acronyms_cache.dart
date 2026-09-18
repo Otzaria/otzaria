@@ -1,7 +1,12 @@
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/cache/acronym_cache_data.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
+import 'package:otzaria/migration/database/untrusted_database.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 /// קבוצת-על ממוינת של מזהי ספרים שכינוי שלהם עלול להתאים לשאילתה.
@@ -60,11 +65,82 @@ class AcronymsCache {
     Int32List(0),
   );
 
+  /// כינויי ספרי המסדים המצורפים, לפי slug — מרחב id נפרד לכל מסד.
+  final Map<String, Map<int, List<String>>> _attachedAcronyms = {};
+  Future<void>? _attachedLoading;
+  int _attachedGeneration = 0;
+
   bool get isLoaded => _isLoaded;
 
   /// Returns all normalized acronyms for a given book ID.
   /// כל ערך כבר עבר [normalizeForFindRefMatch] בעת הטעינה.
   List<String>? getAcronymsForBook(int bookId) => _acronymsByBookId[bookId];
+
+  /// הכינויים של ספר [bookId] במסד של [source]. לספר אישי אין כינויים.
+  List<String>? acronymsFor(BookSource source, int bookId) => switch (source) {
+    OfficialBookSource() => _acronymsByBookId[bookId],
+    AttachedBookSource(:final slug) => _attachedAcronyms[slug]?[bookId],
+    UserBookSource() => null,
+  };
+
+  /// טוען את טבלת `book_acronym` של כל מסד מצורף גלוי שעוד לא נטען, ב-isolate
+  /// ובפתיחה מוקשחת. מסד בלי הטבלה או שקריאתו נכשלה נשאר בלי כינויים.
+  Future<void> warmUpAttached() =>
+      _attachedLoading ??= _loadAttached().whenComplete(() {
+        _attachedLoading = null;
+      });
+
+  Future<void> _loadAttached() async {
+    final myGen = _attachedGeneration;
+    final registry = AttachedLibraryRegistry.instance;
+    for (final library in registry.visibleLibraries) {
+      if (_attachedAcronyms.containsKey(library.slug)) continue;
+      final path = library.path;
+      final immutable = library.immutable;
+      Map<int, List<String>> terms;
+      try {
+        terms = await Isolate.run(
+          () => readAttachedAcronyms(path, immutable: immutable),
+        ).timeout(AttachedLibraryRegistry.openTimeout);
+      } catch (e) {
+        debugPrint('[AcronymsCache] ${library.slug} acronyms skipped: $e');
+        terms = const {};
+      }
+      if (myGen != _attachedGeneration) return;
+      _attachedAcronyms[library.slug] = terms;
+    }
+  }
+
+  /// שוכח את כינויי המסדים המצורפים; הם נטענים שוב בגישה הבאה.
+  void clearAttached() {
+    _attachedGeneration++;
+    _attachedAcronyms.clear();
+    _attachedLoading = null;
+  }
+
+  /// קריאת הכינויים ממסד מצורף — רץ ב-isolate.
+  @visibleForTesting
+  static Map<int, List<String>> readAttachedAcronyms(
+    String path, {
+    bool immutable = false,
+  }) {
+    final db = openUntrustedReadOnlyDatabase(path, immutable: immutable);
+    try {
+      final hasTable = db.select(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+        "AND name = 'book_acronym'",
+      );
+      if (hasTable.isEmpty) return const {};
+      final rows = db.select('SELECT bookId, term FROM book_acronym');
+      return buildAcronymCacheData([
+        for (final row in rows)
+          if (row['bookId'] is int && row['term'] is String)
+            (row['bookId'] as int, row['term'] as String),
+      ]).acronymsByBookId;
+    } finally {
+      db.close();
+    }
+  }
 
   /// קבוצת-על של הספרים שכינוי שלהם עלול להתאים ל-[normalizedQuery] — בזהות,
   /// בתחילית או בהכלה. `null` פירושו "אין צמצום, סרוק את כל הספרים".
@@ -148,6 +224,9 @@ class AcronymsCache {
 
   void clear() {
     _generation++;
+    _attachedGeneration++;
+    _attachedAcronyms.clear();
+    _attachedLoading = null;
     _acronymsByBookId.clear();
     _bookIdsByBigram.clear();
     _isLoaded = false;
@@ -156,6 +235,18 @@ class AcronymsCache {
 
   /// בדיקות בלבד — מזריק מונחים גולמיים (כמו ב-DB) ומנרמל אותם כמו הטעינה
   /// האמיתית, כדי לבדוק את מסלול ההתאמה בלי DB.
+  @visibleForTesting
+  void setAttachedAcronymsForTesting(
+    String slug,
+    Map<int, List<String>> rawTermsByBookId,
+  ) {
+    _attachedAcronyms[slug] = buildAcronymCacheData(
+      rawTermsByBookId.entries.expand(
+        (entry) => entry.value.map((term) => (entry.key, term)),
+      ),
+    ).acronymsByBookId;
+  }
+
   @visibleForTesting
   void setAcronymsForTesting(Map<int, List<String>> rawTermsByBookId) {
     final data = buildAcronymCacheData(

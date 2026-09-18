@@ -95,26 +95,7 @@ class GenerationCache {
         }
       }
 
-      final localAttached = <String, Map<int, int>>{};
-      for (final library in AttachedLibraryRegistry.instance.visibleLibraries) {
-        try {
-          final attachedRepo = await AttachedLibraryRegistry.instance
-              .repositoryFor(library.slug);
-          if (attachedRepo == null || myGen != _generation) continue;
-          if (!(await attachedRepo.database.capabilities).hasGenerations) {
-            continue;
-          }
-          final attachedDb = await attachedRepo.database.database;
-          _accumulate(
-            attachedDb.select(_selectSql),
-            localAttached[library.slug] = <int, int>{},
-          );
-        } catch (e) {
-          debugPrint(
-            '[GenerationCache] ${library.slug} generations skipped: $e',
-          );
-        }
-      }
+      final localAttached = await _readAttached(myGen);
 
       if (myGen != _generation) return;
       _orderByAttachedBookId
@@ -140,6 +121,39 @@ class GenerationCache {
         _orderByUserBookId.clear();
       }
     }
+  }
+
+  /// טוען מחדש רק את דורות המסדים המצורפים — אחרי צירוף, ניתוק או שינוי
+  /// בקובץ מסד. הדורות של seforim.db ו-user_books.db אינם נקראים שוב.
+  Future<void> reloadAttached() async {
+    final myGen = _generation;
+    final localAttached = await _readAttached(myGen);
+    if (myGen != _generation) return;
+    _orderByAttachedBookId
+      ..clear()
+      ..addAll(localAttached);
+  }
+
+  Future<Map<String, Map<int, int>>> _readAttached(int myGen) async {
+    final localAttached = <String, Map<int, int>>{};
+    for (final library in AttachedLibraryRegistry.instance.visibleLibraries) {
+      try {
+        final attachedRepo = await AttachedLibraryRegistry.instance
+            .repositoryFor(library.slug);
+        if (attachedRepo == null || myGen != _generation) continue;
+        if (!(await attachedRepo.database.capabilities).hasGenerations) {
+          continue;
+        }
+        final attachedDb = await attachedRepo.database.database;
+        _accumulate(
+          attachedDb.select(_selectSql),
+          localAttached[library.slug] = <int, int>{},
+        );
+      } catch (e) {
+        debugPrint('[GenerationCache] ${library.slug} generations skipped: $e');
+      }
+    }
+    return localAttached;
   }
 
   /// צובר bookId→order מתוצאת [_selectSql]. ספר רב-מחברי → הדור המוקדם

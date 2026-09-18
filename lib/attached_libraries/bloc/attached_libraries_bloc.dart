@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/data/cache/acronyms_cache.dart';
+import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 
 part 'attached_libraries_event.dart';
@@ -54,11 +57,18 @@ class AttachedLibrariesBloc
     Emitter<AttachedLibrariesState> emit,
   ) => emit(_loaded(state));
 
-  void _onChanged(
+  Future<void> _onChanged(
     _AttachedLibrariesChanged event,
     Emitter<AttachedLibrariesState> emit,
-  ) {
+  ) async {
     emit(_loaded(state));
+    // לפני הרענון: האינדוקס שאחריו מדרג את ספרי המסד לפי הדורות שלו.
+    AcronymsCache.instance.clearAttached();
+    try {
+      await GenerationCache.instance.reloadAttached();
+    } catch (e) {
+      debugPrint('[AttachedLibrariesBloc] generations reload failed: $e');
+    }
     _addLibraryEvent(
       RefreshLibrary(
         source: RefreshSource.attachedLibraries,
