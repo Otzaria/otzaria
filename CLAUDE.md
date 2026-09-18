@@ -876,6 +876,11 @@ dart format lib/file.dart    # Format ONLY files you modified
 | קובץ מסד שהשתנה ⇒ אינדוקס מחדש רק של ספריו | `test/attached_libraries/attached_libraries_repository_test.dart`, `test/library/bloc/library_attached_reindex_test.dart` |
 | איתור מקורות בספר ממסד מצורף (כותרת, כינוי, line_ref של המסד, תוכן עניינים, הפרדה מספר רשמי) | `test/find_ref/find_ref_attached_library_test.dart` |
 | כינויים ודורות פר-מסד (AcronymsCache / GenerationCache) | `test/data/cache/attached_library_caches_test.dart` |
+| API התוספים לספר ממסד מצורף (resolveRef לפי מקור+מזהה, getLinks לפי `source`/`bookUid`, line_ref של המסד המצורף) | `test/plugins/bridge/plugin_bridge_adapter_test.dart`, `test/plugins/bridge/plugin_bridge_links_api_test.dart`, `test/attached_libraries/attached_library_rich_content_test.dart` |
+| קישורי טווח ההדפסה דרך `TextBookRepository` (כולל קישורי משתמש וחוצי-מסדים) | `test/printing/print_range_links_test.dart` |
+| מפתח הערות אישיות `title\|db:<slug>`: איתור הספר לפי המפתח, עיגון לתוכן המסד המצורף | `test/personal_notes/personal_notes_book_key_test.dart`, `test/attached_libraries/attached_library_rich_content_test.dart` |
+| גיבוי ושחזור רשימת המסדים ותיקיותיהם (קובץ חסר ⇒ 'לא זמין') | `test/settings/services/backup_service_test.dart` |
+| תוכן ספר אינו מפעיל פעולות `otzaria://`; מפרש ממסד מצורף בלי 'דווח על טעות' | `test/utils/text/html_link_handler_test.dart`, `test/utils/context_menu_optional_bloc_test.dart` |
 | חיפוש הספרייה: כינויים ודור לפי מקור, דירוג אחרי רשמי ואישי | `test/data/repository/book_search_fuzzy_match_test.dart` |
 
 **Search**
