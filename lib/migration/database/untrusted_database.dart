@@ -33,6 +33,8 @@ Database openUntrustedReadOnlyDatabase(String path, {bool immutable = false}) {
     }
     db.execute('PRAGMA trusted_schema=OFF');
     db.execute('PRAGMA query_only=ON');
+    // קובץ בכונן נשלף/רשת: שגיאת I/O על mmap היא אות שמפיל את התהליך.
+    db.execute('PRAGMA mmap_size=0');
   } catch (_) {
     db.close();
     rethrow;

@@ -43,6 +43,9 @@ class MyDatabase {
   /// האם החיבור נפתח במצב read-only.
   bool get isReadOnly => _readOnly;
 
+  /// האם המסד אינו בשליטת התוכנה (מסד ספרים מצורף).
+  bool get isUntrusted => _untrusted;
+
   /// האם יש כרגע חיבור פתוח. אחרי [close] החיבור נפתח מחדש בגישה הבאה.
   bool get isOpen => _database != null;
 

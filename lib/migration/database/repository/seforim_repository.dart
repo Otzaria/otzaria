@@ -90,7 +90,10 @@ class SeforimRepository {
     // 50MB מספיק; ה-OS file cache וה-mmap מכסים את רוב הקריאות ממילא.
     await _executeRawQuery('PRAGMA cache_size=-50000'); // 50MB
     await _executeRawQuery('PRAGMA temp_store=MEMORY');
-    await _executeRawQuery('PRAGMA mmap_size=67108864'); // 64MB
+    // מסד מצורף: mmap כבוי בכוונה — ראה openUntrustedReadOnlyDatabase.
+    if (!_database.isUntrusted) {
+      await _executeRawQuery('PRAGMA mmap_size=67108864'); // 64MB
+    }
     if (!_database.isReadOnly) {
       await _executeRawQuery('PRAGMA page_size=4096');
     }
