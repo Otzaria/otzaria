@@ -10,6 +10,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/find_ref/repository/alt_toc_flat_entry.dart';
+import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
 import 'package:otzaria/find_ref/repository/db_commentator_entry.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
@@ -1422,16 +1423,18 @@ class FindRefRepository {
     }
 
     for (final library in libraries) {
+      if (!library.isOk) continue;
       try {
-        final repository = await _awaitCurrent(
-          registry.repositoryFor(library.slug),
-        );
-        if (repository == null) continue;
-        final books = await _awaitCurrent(
-          _loadAttachedBooks(library, repository),
-        );
+        final books = await _awaitCurrent(_loadAttachedBooks(library));
         if (books.isEmpty) continue;
         final source = BookSource.attached(library.slug);
+        final worker = AttachedFindRefWorker.instance;
+        Future<R> run<R>(AttachedDbJob<R> job) => worker.run(
+          library.path,
+          immutable: library.immutable,
+          version: _attachedVersion(library),
+          job: job,
+        );
         out.addAll(
           await _awaitCurrent(
             _searchSecondaryBooks(
@@ -1439,25 +1442,13 @@ class FindRefRepository {
               books: books,
               source: source,
               rootPath: library.displayName,
+              maxTocBooks: maxAttachedTocBooks,
               acronymsOf: (id) =>
                   AcronymsCache.instance.acronymsFor(source, id) ?? const [],
               fetchToc: (bookId, bookTitle, qt) =>
-                  repository.getTocEntriesForReference(
-                    bookId,
-                    bookTitle,
-                    queryTokens: qt,
-                  ),
-              resolveLineRefs: (bookIds, refKey) async => {
-                for (final entry in (await repository.resolveRefKeyInBooks(
-                  bookIds,
-                  refKey,
-                )).entries)
-                  entry.key: (
-                    lineIndex: entry.value.lineIndex,
-                    lineId: entry.value.lineId,
-                    heRef: entry.value.heRef,
-                  ),
-              },
+                  run(_attachedTocJob(bookId, bookTitle, qt)),
+              resolveLineRefs: (bookIds, refKey) =>
+                  run(_attachedLineRefsJob(bookIds, refKey)),
             ),
           ),
         );
@@ -1470,30 +1461,73 @@ class FindRefRepository {
     return out;
   }
 
+  /// כמה ספרים ממסד מצורף אחד מגיעים לשלב תוכן העניינים בכל הקלדה.
+  @visibleForTesting
+  static int maxAttachedTocBooks = 12;
+
+  static String _attachedVersion(AttachedLibrary library) {
+    final fingerprint = library.fingerprint;
+    return fingerprint == null
+        ? ''
+        : '${fingerprint.size}:${fingerprint.modifiedMs}';
+  }
+
+  // העבודות נבנות בפונקציות סטטיות כדי שהסגור לא יגרור את המופע ל-isolate.
+  static AttachedDbJob<List<Map<String, dynamic>>> _attachedTocJob(
+    int bookId,
+    String bookTitle,
+    List<String> queryTokens,
+  ) =>
+      (repository) => repository.getTocEntriesForReference(
+        bookId,
+        bookTitle,
+        queryTokens: queryTokens,
+      );
+
+  static AttachedDbJob<Map<int, _ExactLine>> _attachedLineRefsJob(
+    List<int> bookIds,
+    String refKey,
+  ) =>
+      (repository) async => {
+        for (final entry in (await repository.resolveRefKeyInBooks(
+          bookIds,
+          refKey,
+        )).entries)
+          entry.key: (
+            lineIndex: entry.value.lineIndex,
+            lineId: entry.value.lineId,
+            heRef: entry.value.heRef,
+          ),
+      };
+
+  static Future<List<_UserBookRecord>> _attachedBooksJob(
+    SeforimRepository repository,
+  ) => _readSecondaryBooksFrom(repository);
+
   /// רשימת הספרים של מסד מצורף, מקאש שנבנה מחדש כשרשומת המסד השתנתה.
   Future<List<_UserBookRecord>> _loadAttachedBooks(
     AttachedLibrary library,
-    SeforimRepository repository,
   ) async {
     final cached = _attachedBooksCache[library.slug];
     if (cached != null && cached.library == library) return cached.books;
-    final books = await _readSecondaryBooks(repository);
+    final books = await AttachedFindRefWorker.instance.run(
+      library.path,
+      immutable: library.immutable,
+      version: _attachedVersion(library),
+      job: _attachedBooksJob,
+    );
     _attachedBooksCache[library.slug] = (library: library, books: books);
     return books;
   }
 
   /// הספרים של מסד משני, כל אחד עם שרשרת הקטגוריות שמעליו.
-  Future<List<_UserBookRecord>> _readSecondaryBooks(
+  static Future<List<_UserBookRecord>> _readSecondaryBooksFrom(
     SeforimRepository repository,
   ) async {
-    final raw = await _awaitCurrent(
-      repository.database.bookDao.getAllLocalBooks(),
-    );
+    final raw = await repository.database.bookDao.getAllLocalBooks();
     // שרשרת התיקיות של כל ספר — בספרים אישיים שם הספר יושב לרוב על
     // התיקייה ('חלק א' בתוך 'שות פלוני'), והיא חלק מהתאמת הכותרת.
-    final categories = await _awaitCurrent(
-      repository.database.categoryDao.getAllCategories(),
-    );
+    final categories = await repository.database.categoryDao.getAllCategories();
     final byId = {for (final c in categories) c.id: c};
     List<String> chainOf(int categoryId) {
       final titles = <String>[];
@@ -1537,6 +1571,7 @@ class FindRefRepository {
     List<String> Function(int bookId)? acronymsOf,
     Future<Map<int, _ExactLine>> Function(List<int> bookIds, String refKey)?
     resolveLineRefs,
+    int? maxTocBooks,
   }) async {
     final out = <DbReferenceResult>[];
     final maxN = queryTokens.length >= 3 ? 3 : queryTokens.length;
@@ -1632,6 +1667,7 @@ class FindRefRepository {
       }
     }
 
+    var tocBooks = 0;
     for (final (book, remainingTokens) in matches) {
       final isPdf = book.fileType == 'pdf';
       final bookPath = book.folderTitles.isEmpty
@@ -1679,6 +1715,10 @@ class FindRefRepository {
         continue;
       }
 
+      if (maxTocBooks != null && tocBooks++ >= maxTocBooks) {
+        out.add(result(reference: book.title, segment: 0));
+        continue;
+      }
       final toc = await _awaitCurrent(
         fetchToc(book.id, book.title, remainingTokens),
       );

@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_store.dart';
+import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
@@ -86,6 +87,7 @@ class AttachedLibraryRegistry {
   void update(List<AttachedLibrary> libraries) {
     _libraries = _sorted(libraries);
     _storeUnreadable = false;
+    AttachedFindRefWorker.instance.reset();
     for (final slug in _open.keys.toList()) {
       final library = libraryFor(slug);
       if (library == null || library.path != _open[slug]!.path) {
@@ -183,10 +185,14 @@ class AttachedLibraryRegistry {
   }
 
   /// משחרר את הקובץ של [slug] — החיבור נסגר ונשכח. גישה הבאה פותחת מחדש.
-  Future<void> close(String slug) async => _closeEntry(slug);
+  Future<void> close(String slug) async {
+    AttachedFindRefWorker.instance.reset();
+    _closeEntry(slug);
+  }
 
   /// סוגר את כל החיבורים (איפוס runtime, יציאה).
   Future<void> closeAll() async {
+    AttachedFindRefWorker.instance.reset();
     for (final slug in _open.keys.toList()) {
       _closeEntry(slug);
     }

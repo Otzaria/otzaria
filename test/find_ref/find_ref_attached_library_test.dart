@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,9 +7,11 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/text/ref_key.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
@@ -193,4 +196,66 @@ void main() {
       isEmpty,
     );
   });
+
+  test('החיפוש רץ ב-worker — בלי חיבור למסד ב-main isolate', () async {
+    await attach(createDb(withLineRef: true));
+    final results = attachedOnly(
+      await buildRepo().findRefs('$_title ג', includePersonalBooks: true),
+    );
+    expect(results.map((r) => r.sourceLineId), contains(902));
+    expect(registry.isOpen(_slug), isFalse);
+  });
+
+  test('תקרת ספרים לשלב תוכן העניינים', () async {
+    final previous = FindRefRepository.maxAttachedTocBooks;
+    addTearDown(() => FindRefRepository.maxAttachedTocBooks = previous);
+    FindRefRepository.maxAttachedTocBooks = 0;
+    await attach(createDb(withLineRef: false));
+    final results = attachedOnly(
+      await buildRepo().findRefs('$_title ג', includePersonalBooks: true),
+    );
+    expect(results.map((r) => r.sourceLineId), isNot(contains(902)));
+    expect(results.map((r) => r.bookId), contains(_bookId));
+  });
+
+  group('AttachedFindRefWorker', () {
+    test('עבודה תקועה — timeout, והמסד מושבת זמנית בלי להמתין שוב', () async {
+      final path = createDb(withLineRef: false);
+      final previous = AttachedFindRefWorker.callTimeout;
+      addTearDown(() {
+        AttachedFindRefWorker.callTimeout = previous;
+        AttachedFindRefWorker.instance.reset();
+      });
+      AttachedFindRefWorker.callTimeout = const Duration(milliseconds: 300);
+      final worker = AttachedFindRefWorker.instance;
+
+      await expectLater(
+        worker.run(path, immutable: false, version: '', job: _hangingJob),
+        throwsA(isA<TimeoutException>()),
+      );
+      final stopwatch = Stopwatch()..start();
+      await expectLater(
+        worker.run(path, immutable: false, version: '', job: _countBooksJob),
+        throwsA(isA<StateError>()),
+      );
+      expect(stopwatch.elapsedMilliseconds, lessThan(200));
+
+      worker.reset();
+      expect(
+        await worker.run(
+          path,
+          immutable: false,
+          version: '',
+          job: _countBooksJob,
+        ),
+        greaterThan(0),
+      );
+    });
+  });
 }
+
+Future<int> _hangingJob(SeforimRepository repository) =>
+    Completer<int>().future;
+
+Future<int> _countBooksJob(SeforimRepository repository) async =>
+    (await repository.database.bookDao.getAllLocalBooks()).length;
