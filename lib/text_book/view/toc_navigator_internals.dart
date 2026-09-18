@@ -70,3 +70,50 @@ List<TocFlatItem> flattenVisibleToc(
   }
   return result;
 }
+
+/// מצב ההרחבה של "כווץ הכל": כל ערך עם ילדים סגור, חוץ משרשרת של שורש
+/// יחיד (כותרת הספר שמעל השערים) - אחרת לא היה נשאר דבר גלוי.
+Map<int, bool> collapsedTocExpansion(List<TocEntry> entries) {
+  final result = <int, bool>{};
+  var level = entries;
+  while (level.length == 1 && level.first.children.isNotEmpty) {
+    result[level.first.index] = true;
+    level = level.first.children;
+  }
+  void collapse(List<TocEntry> list) {
+    for (final entry in list) {
+      if (entry.children.isEmpty) continue;
+      result.putIfAbsent(entry.index, () => false);
+      collapse(entry.children);
+    }
+  }
+
+  collapse(level);
+  return result;
+}
+
+/// מצב ההרחבה של "הרחב הכל": כל ערך עם ילדים פתוח.
+Map<int, bool> expandedTocExpansion(List<TocEntry> entries) {
+  final result = <int, bool>{};
+  void expand(List<TocEntry> list) {
+    for (final entry in list) {
+      if (entry.children.isEmpty) continue;
+      result[entry.index] = true;
+      expand(entry.children);
+    }
+  }
+
+  expand(entries);
+  return result;
+}
+
+/// האם העץ הגלוי [visible] כבר במצב [collapsed] (של [collapsedTocExpansion]).
+bool isTocCollapsed(List<TocFlatItem> visible, Map<int, bool> collapsed) {
+  for (final item in visible) {
+    if (item.entry.children.isEmpty) continue;
+    if (item.isExpanded != (collapsed[item.entry.index] ?? false)) {
+      return false;
+    }
+  }
+  return true;
+}

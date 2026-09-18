@@ -461,4 +461,47 @@ void main() {
       expect(count, 1 + 134 + 134 * 63);
     });
   });
+
+  group('כווץ/הרחב הכל (issue #1438)', () {
+    test('כל ערך עם ילדים נסגר; עלים אינם במפה', () {
+      final entries = [
+        _e('שער א', 0, 1, children: [_e('פרק א', 1, 2)]),
+        _e('שער ב', 2, 1, children: [_e('פרק א', 3, 2)]),
+      ];
+      expect(collapsedTocExpansion(entries), {0: false, 2: false});
+    });
+
+    test('שורש יחיד (כותרת הספר) נשאר פתוח כדי שהשערים ייראו', () {
+      final entries = [
+        _e(
+          'ספר',
+          0,
+          0,
+          children: [
+            _e('שער א', 1, 1, children: [_e('פרק א', 2, 2)]),
+            _e('שער ב', 3, 1, children: [_e('פרק א', 4, 2)]),
+          ],
+        ),
+      ];
+      final collapsed = collapsedTocExpansion(entries);
+      expect(collapsed, {0: true, 1: false, 3: false});
+      final visible = flattenVisibleToc(entries, collapsed);
+      expect(visible.map((i) => i.entry.text), ['ספר', 'שער א', 'שער ב']);
+      expect(isTocCollapsed(visible, collapsed), isTrue);
+    });
+
+    test('ברירת המחדל אינה מכווצת; הרחב הכל פותח כל ענף', () {
+      final entries = [
+        _e('שער א', 0, 1, children: [_e('פרק א', 1, 2)]),
+        _e('שער ב', 2, 1, children: [_e('פרק א', 3, 2)]),
+      ];
+      final collapsed = collapsedTocExpansion(entries);
+      expect(
+        isTocCollapsed(flattenVisibleToc(entries, {}), collapsed),
+        isFalse,
+      );
+      final expanded = expandedTocExpansion(entries);
+      expect(flattenVisibleToc(entries, expanded).length, 4);
+    });
+  });
 }
