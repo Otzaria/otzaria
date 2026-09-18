@@ -9,6 +9,7 @@ import 'package:otzaria/attached_libraries/repository/attached_library_registry.
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
@@ -17,6 +18,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -266,10 +268,15 @@ void main() {
     expect([for (final e in toc!) e.text], ['פרק א']);
     expect(bareText!.split('\n').first, startsWith('מינימלי: '));
     expect(bareToc ?? const [], isEmpty);
+    // המסלול של הקורא: טווח שורות מהמסד של הספר.
+    final range = await TextBookRepository(
+      fileSystem: FileSystemData.instance,
+    ).getBookContentRange(book as TextBook, startLine: 1, endLine: 2);
+    expect(range?.lines, ['קריאה: שורה ב', 'קריאה: שורה ג']);
     // בלי תוכן עניינים במסד, ה-fallback אינו לוקח את זה של הספר הרשמי.
     expect(await loadBookToc(bare as TextBook), isEmpty);
     expect(
-      [for (final e in await loadBookToc(book as TextBook)) e.text],
+      [for (final e in await loadBookToc(book)) e.text],
       ['פרק א'],
     );
   });
