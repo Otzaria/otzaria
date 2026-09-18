@@ -19,6 +19,9 @@ enum RefreshSource {
   /// רענון בעקבות סריקת תיקיות אישיות שהסתיימה — התיקיות כבר סונכרנו,
   /// לכן prune מיותר ומדלגים עליו.
   customFoldersScan,
+
+  /// שינוי במסדים המצורפים — התיקיות האישיות לא השתנו, ומדלגים על prune.
+  attachedLibraries,
 }
 
 class RefreshLibrary extends LibraryEvent {

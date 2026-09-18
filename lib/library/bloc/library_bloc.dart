@@ -158,8 +158,8 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   ) async {
     emit(state.copyWith(isLoading: true));
     try {
-      // רענון בעקבות סריקת תיקיות אישיות — התיקיות כבר סונכרנו, prune מיותר.
-      if (event.source != RefreshSource.customFoldersScan) {
+      // רק רענון כללי עלול לנבוע מתיקייה אישית שנמחקה — האחרים מדלגים על prune.
+      if (event.source == RefreshSource.general) {
         await _pruneRemovedCustomFoldersIfNeeded();
       }
 

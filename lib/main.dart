@@ -17,6 +17,8 @@ import 'package:window_manager/window_manager.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
+import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_flow.dart';
@@ -866,6 +868,7 @@ Future<void> _initializeRestartableRuntime() async {
   unawaited(_logJobObjectContainmentFailure());
   unawaited(_runDeferredDataRootWritabilityWarning());
   unawaited(_runDeferredCrashCheck());
+  unawaited(_runDeferredAttachedLibraries());
 }
 
 /// כשקונטיינמנט ה-Job Object לא הוקם, תהליכי msedgewebview2.exe שורדים את
@@ -1047,6 +1050,29 @@ Future<void> _runDeferredCrashCheck() async {
     ).handle(candidate);
   } catch (error, stackTrace) {
     _logNonFatalInitializationError('Crash report check', error, stackTrace);
+  }
+}
+
+/// סריקת תיקיות המסדים ובדיקת המסדים המצורפים (קובץ שנעלם, שהשתנה או
+/// שנוסף). שינוי משודר ל-AttachedLibrariesBloc, שמרענן את עץ הספרייה.
+Future<void> _runDeferredAttachedLibraries() async {
+  // פר-תהליך: הסריקה שומרת את הרשימה בהגדרות; חלון משני קורא אותה בלבד.
+  if (WindowRole.isSecondary) return;
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+    );
+  } on TimeoutException {
+    // ממשיכים בכל זאת — אחרת מסדים חדשים לא ייקלטו עד סריקה ידנית.
+  }
+  try {
+    await AttachedLibrariesRepository.instance.rescan();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError(
+      'Attached libraries scan',
+      error,
+      stackTrace,
+    );
   }
 }
 
@@ -1411,6 +1437,15 @@ class _AppBootstrapState extends State<AppBootstrap> {
               addLibraryEvent: (event) =>
                   context.read<LibraryBloc>().add(event),
             )..add(const LoadCustomFolders()),
+          ),
+          // לא עצל: הבלוק מאזין לשינויי המסדים המצורפים (גם מהסריקה בעלייה)
+          // ומרענן את העץ, גם כשמסך ההגדרות לא נפתח.
+          BlocProvider<AttachedLibrariesBloc>(
+            lazy: false,
+            create: (context) => AttachedLibrariesBloc(
+              addLibraryEvent: (event) =>
+                  context.read<LibraryBloc>().add(event),
+            ),
           ),
           BlocProvider<IndexingBloc>(
             create: (_) => IndexingBloc.create(),

@@ -1210,10 +1210,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
-  /// אייקון סוג המקור — מבדיל בין ספר, כותרת-משנה, PDF וספר אישי.
+  /// אייקון סוג המקור — ספר, כותרת-משנה, PDF, ספר אישי או ספר ממסד מצורף.
   Widget _buildResultIcon(DbReferenceResult ref, Color color) {
     if (ref.isPdf) {
       return Icon(FluentIcons.document_pdf_24_regular, size: 20, color: color);
+    }
+    if (ref.source.isAttached) {
+      return Icon(FluentIcons.database_24_regular, size: 20, color: color);
     }
     if (ref.isUserBook) {
       return Icon(FluentIcons.person_24_regular, size: 20, color: color);

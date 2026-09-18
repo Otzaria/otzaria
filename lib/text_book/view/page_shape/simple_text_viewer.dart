@@ -2217,7 +2217,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (book == null) return const [];
     // בלי categoryId השאילתה על ספר המפרש נכשלת, ותת-התפריט היה נתקע על
     // "שגיאה בטעינה" במקום פשוט לא להופיע.
-    if (book.categoryId == null && !book.isUserBook) return const [];
+    if (book.categoryId == null && book.source.isOfficial) return const [];
 
     final targetLink = Link(
       heRef: book.title,
