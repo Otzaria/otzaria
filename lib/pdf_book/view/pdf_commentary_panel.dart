@@ -588,6 +588,12 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     final eras = await utils.splitByEra(
       availableCommentators,
       source: widget.tab.book.source,
+      sourceByTitle: {
+        for (final target in summary?.targets ?? const <LinkTargetSummary>[])
+          utils.getTitleFromPath(target.targetTitle): ?target.targetSource,
+        for (final link in widget.tab.links)
+          utils.getTitleFromPath(link.path2): link.targetSource,
+      },
     );
     final groups = buildCommentatorGroups(eras, availableCommentators);
     if (!mounted) return;

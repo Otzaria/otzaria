@@ -22,6 +22,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
@@ -3652,7 +3653,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _recordCommentaryOpenedIfNeeded();
   }
 
-  Future<void> _loadCommentatorGroups(Set<String> commentatorsSet) async {
+  Future<void> _loadCommentatorGroups(
+    Set<String> commentatorsSet, {
+    Map<String, BookSource> sourceByTitle = const {},
+  }) async {
     // ודא שבחירה שמורה הוחלה לפני קביעת ברירת מחדל והפתיחה האוטומטית.
     await _loadActiveCommentators();
     await _applyDefaultCommentatorsIfNeeded(commentatorsSet.toList());
@@ -3661,6 +3665,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     final eras = await utils.splitByEra(
       available,
       source: widget.tab.book.source,
+      sourceByTitle: sourceByTitle,
     );
     final groups = buildCommentatorGroups(eras, available);
     if (!mounted) return;
@@ -3950,7 +3955,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           };
         }
         _bookHasCommentaryLinks = commentators.isNotEmpty;
-        await _loadCommentatorGroups(commentators);
+        await _loadCommentatorGroups(
+          commentators,
+          sourceByTitle: {
+            if (summary != null)
+              for (final target in summary.targets)
+                utils.getTitleFromPath(target.targetTitle): ?target.targetSource
+            else
+              for (final link in widget.tab.links)
+                utils.getTitleFromPath(link.path2): link.targetSource,
+          },
+        );
       }
 
       final currentPage = widget.tab.pdfViewerController.isReady

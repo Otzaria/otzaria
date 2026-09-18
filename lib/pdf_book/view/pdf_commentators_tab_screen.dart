@@ -490,6 +490,10 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     final eras = await utils.splitByEra(
       available,
       source: widget.tab.sourceTab.book.source,
+      sourceByTitle: {
+        for (final link in widget.tab.sourceTab.links)
+          utils.getTitleFromPath(link.path2): link.targetSource,
+      },
     );
     final groups = buildCommentatorGroups(eras, available);
     if (!mounted) return;
