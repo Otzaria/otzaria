@@ -1,4 +1,5 @@
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/file/document_format.dart';
 
@@ -43,6 +44,13 @@ class PluginBookIdentity {
     _ when book.isUserBook => 'user',
     _ when book.source.isAttached => 'attached',
     _ => 'library',
+  };
+
+  /// ערך `source` שבחוזה התוספים עבור [source] בלבד, כשאין ספר מהקטלוג.
+  static String sourceOfBookSource(BookSource source) => switch (source) {
+    UserBookSource() => 'user',
+    AttachedBookSource() => 'attached',
+    OfficialBookSource() => 'library',
   };
 
   /// מזהה ספר יציב חוצה-ספקים, יציב בין עדכוני ספרייה והעברת ספרייה.

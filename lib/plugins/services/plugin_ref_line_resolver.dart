@@ -1,3 +1,4 @@
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -26,8 +27,8 @@ class PluginRefLineResolver {
     return lookup(book, tokens.join(' '));
   }
 
-  /// ברירת המחדל בייצור: חיפוש ב-DB המתאים לפי [TextBook.isUserBook] —
-  /// ה-namespaces של seforim.db ו-user_books.db נפרדים ואסור לערבבם.
+  /// ברירת המחדל בייצור: חיפוש במסד של מקור הספר — מרחבי המזהים של
+  /// המסדים נפרדים ואסור לערבבם.
   static Future<int?> _lookupInDatabase(TextBook book, String refKey) async {
     final id = book.id;
     if (id == null) return null;
@@ -35,7 +36,10 @@ class PluginRefLineResolver {
       final repo = switch (book.source) {
         OfficialBookSource() => SqliteDataProvider.instance.repository,
         UserBookSource() => await UserBooksDatabaseHolder.instance.repository,
-        AttachedBookSource() => null,
+        AttachedBookSource() =>
+          await AttachedLibraryRegistry.instance.repositoryForSource(
+            book.source,
+          ),
       };
       if (repo == null) return null;
       return (await repo.resolveRefKeyInBook(id, refKey))?.lineIndex;

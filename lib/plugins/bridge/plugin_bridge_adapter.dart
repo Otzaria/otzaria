@@ -1064,14 +1064,13 @@ class PluginBridgeAdapter {
           final hits = await resolve(ref);
           final books = library.getAllBooks();
           return hits.take(limit).map((h) {
-            // id מספרי חד-משמעי רק בספרייה הרשמית (שאר המסדים חופפים בטווח),
-            // ולכן מוחזר null כדי שצרכן לא יבנה עליו קישור עומק.
-            final identity = (!h.source.isOfficial || h.bookId < 0)
+            // מזהים מספריים של מסדים שונים חופפים — הזהות נקבעת רק יחד עם המקור.
+            final identity = h.bookId < 0
                 ? null
                 : books.firstWhereOrNull(
                     (b) =>
                         b is TextBook &&
-                        b.source.isOfficial &&
+                        b.source == h.source &&
                         b.id == h.bookId,
                   );
             return {
@@ -1086,6 +1085,9 @@ class PluginBridgeAdapter {
               'isPdf': h.isPdf,
               'isSourceLine': h.isSourceLine,
               'isUserBook': h.source.isUser,
+              'source': identity != null
+                  ? PluginBookIdentity.sourceOf(identity)
+                  : PluginBookIdentity.sourceOfBookSource(h.source),
               'bookPath': h.bookPath,
             };
           }).toList();
@@ -1321,9 +1323,11 @@ class PluginBridgeAdapter {
     final bookId = (args['bookId'] ?? args['title']) as String?;
     if (PluginBookIdentity.parseId(args['id']) == null && bookId != null) {
       final categoryId = args['categoryId'] as int?;
+      final source = args['source'] as String?;
       return (_booksByTitle[bookId] ?? const <Book>[])
           .whereType<TextBook>()
           .where((b) => categoryId == null || b.categoryId == categoryId)
+          .where((b) => PluginBookIdentity.matches(b, source: source))
           .firstOrNull;
     }
     final book = _findPluginBook(library, args);
@@ -2313,7 +2317,12 @@ class PluginBridgeAdapter {
               try {
                 final hits = await resolve('$resolvedBookId $ref');
                 final hit = hits
-                    .where((h) => h.title == resolvedBookId && !h.isPdf)
+                    .where(
+                      (h) =>
+                          h.title == resolvedBookId &&
+                          h.source == book.source &&
+                          !h.isPdf,
+                    )
                     .firstOrNull;
                 if (hit != null) {
                   index = hit.index;

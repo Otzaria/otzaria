@@ -1545,6 +1545,62 @@ Future<void> main() async {
 
       expect(result, hasLength(2));
     });
+
+    test('attached hit resolves identity by source + id', () async {
+      category.books.add(
+        TextBook(
+          id: 42,
+          title: 'ספר א',
+          categoryId: 1,
+          source: BookSource.attached('lib-a'),
+        ),
+      );
+      final adapter = buildAdapter(
+        resolveReference: (reference) async => [
+          _refHit(
+            title: 'ספר א',
+            index: 3,
+            bookId: 42,
+            source: BookSource.attached('lib-a'),
+          ),
+        ],
+      );
+
+      final hit =
+          (await adapter.execute('library', 'resolveRef', {'ref': 'ספר א'})
+                      as List<dynamic>)
+                  .single
+              as Map<String, dynamic>;
+      expect(hit['id'], 42);
+      expect(hit['bookUid'], 'db:lib-a:42');
+      expect(hit['source'], 'attached');
+      expect(hit['isUserBook'], isFalse);
+    });
+
+    test(
+      'attached hit never borrows an official book with the same id',
+      () async {
+        final adapter = buildAdapter(
+          resolveReference: (reference) async => [
+            _refHit(
+              title: 'ספר א',
+              index: 3,
+              bookId: 42,
+              source: BookSource.attached('lib-a'),
+            ),
+          ],
+        );
+
+        final hit =
+            (await adapter.execute('library', 'resolveRef', {'ref': 'ספר א'})
+                        as List<dynamic>)
+                    .single
+                as Map<String, dynamic>;
+        expect(hit['id'], isNull);
+        expect(hit['bookUid'], isNull);
+        expect(hit['source'], 'attached');
+      },
+    );
   });
 
   group('PluginBridgeAdapter.library.getBookContent', () {

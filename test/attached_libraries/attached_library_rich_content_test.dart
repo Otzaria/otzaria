@@ -16,6 +16,7 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
+import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -417,6 +418,21 @@ void main() {
     final path = fullAttached('כתיבה');
     final error = await _tryWriteInIsolate(path);
     expect(error, contains('readonly'));
+  });
+
+  test('plugin ref resolver reads line_ref from the attached DB', () async {
+    final path = fullAttached('refs');
+    SeforimFixtureDb.fillLineRef(path);
+    final library = await attach(path);
+    final book = await attachedBook(library, SeforimFixtureIds.bereshitTitle);
+    expect(book.source, library.source);
+
+    // השורה השנייה של בראשית: הפניה "א ב".
+    final line = await PluginRefLineResolver().resolve(
+      book: book,
+      ref: 'א ב',
+    );
+    expect(line, 1);
   });
 }
 
