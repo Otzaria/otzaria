@@ -454,6 +454,9 @@ class _AttachedLibraryTile extends StatelessWidget {
     AttachedLibraryCapability.defaultCommentators => context.settingsText(
       'מפרשי ברירת מחדל',
     ),
+    AttachedLibraryCapability.externalLinks => context.settingsText(
+      'קישורים לספרים אחרים',
+    ),
   };
 }
 

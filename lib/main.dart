@@ -20,6 +20,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_flow.dart';
@@ -1077,6 +1078,19 @@ Future<void> _runDeferredAttachedLibraries() async {
       error,
       stackTrace,
     );
+  }
+  await _syncExternalLinkIndex();
+  AttachedLibrariesRepository.instance.changes.listen(
+    (_) => unawaited(_syncExternalLinkIndex()),
+  );
+}
+
+/// אינדקס הקישורים ההפוכים של מסדים מצורפים (cache.db) — נבנה רק למסד שהשתנה.
+Future<void> _syncExternalLinkIndex() async {
+  try {
+    await ExternalLinkRepository.instance.sync();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('External link index', error, stackTrace);
   }
 }
 

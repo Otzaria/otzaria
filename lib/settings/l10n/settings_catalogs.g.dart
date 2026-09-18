@@ -1029,6 +1029,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'קיצורים לפתיחה מהירה של תוסף מותקן': 'Shortcuts to quickly open an installed plugin',
     'קישור (URL)': 'Link (URL)',
     'קישורים': 'Links',
+    'קישורים לספרים אחרים': 'Links to Other Books',
     'קריסה': 'Crash',
     'ראשי תיבות': 'Acronyms',
     'רבינו תם': 'Rabbeinu Tam',

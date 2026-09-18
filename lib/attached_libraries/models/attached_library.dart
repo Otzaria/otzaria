@@ -55,6 +55,7 @@ enum AttachedLibraryCapability {
   acronyms,
   lineRef,
   defaultCommentators,
+  externalLinks,
 }
 
 /// טביעת האצבע של הקובץ — שינוי בה מחייב בדיקה מחדש של המסד.

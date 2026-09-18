@@ -1479,17 +1479,25 @@ List<String> _refMatchTokens(String s) => normalizeForFindRefMatch(s)
 //פונקציה לחלוקת מפרשים לפי תקופה
 ///
 /// [source] — המקור של הספר הפתוח: מפרשי מסד מצורף מסווגים קודם לפי הדורות
-/// של המסד שלו.
+/// של המסד שלו. [sourceByTitle] — מפרש ממסד אחר (קישור חוצה-מסדים).
 Future<Map<String, List<String>>> splitByEra(
   List<String> titles, {
   BookSource source = BookSource.official,
+  Map<String, BookSource> sourceByTitle = const {},
 }) async {
   // טעינת ה-cache פעם אחת בהתחלה (אם עדיין לא נטען).
   // קריאות מקבילות חולקות את אותה טעינה ולא רואות מפה ריקה באמצע.
   if (_shouldLoadCsvCache()) {
     await (_csvCacheLoading ??= _loadCsvCache());
   }
-  final overlay = await _eraOverlayFor(source);
+  final overlays = <BookSource, Map<String, String>>{
+    source: await _eraOverlayFor(source),
+  };
+  for (final other in sourceByTitle.values.toSet()) {
+    if (!overlays.containsKey(other)) {
+      overlays[other] = await _eraOverlayFor(other);
+    }
+  }
 
   // יוצרים מבנה נתונים ריק לכל הקטגוריות
   final Map<String, List<String>> byEra = {
@@ -1499,6 +1507,7 @@ Future<Map<String, List<String>>> splitByEra(
 
   // ממיינים כל פרשן לקטגוריה הראשונה שמתאימה לו (סינכרוני!)
   for (final t in titles) {
+    final overlay = overlays[sourceByTitle[t] ?? source]!;
     final category = _getTopicSync(t, overlay);
     byEra[category]!.add(t);
   }

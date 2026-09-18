@@ -3024,6 +3024,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final eras = await utils.splitByEra(
         availableCommentators,
         source: book.source,
+        sourceByTitle: await repository.getExternalCommentatorSources(book),
       );
       final groups = buildCommentatorGroups(
         eras,

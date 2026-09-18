@@ -42,6 +42,7 @@ const Set<String> kKnownSeforimTables = {
   'version_line',
   'schema_meta',
   'db_meta',
+  'external_link',
 };
 
 /// אילו מהטבלאות המוכרות קיימות במסד בפורמט seforim.db, ובאילו עמודות.
@@ -150,6 +151,13 @@ class DbCapabilities {
   bool get hasDefaultCommentators => hasBooks && has('default_commentator');
   bool get hasDefaultTargums => hasBooks && has('default_targum');
   bool get hasCategoryClosure => hasCategories && has('category_closure');
+
+  /// קישורים ממסד מצורף אל ספרים במסד אחר (רשמי או מצורף אחר).
+  bool get hasExternalLinks =>
+      hasBooks &&
+      hasColumn('external_link', 'sourceBookId') &&
+      hasColumn('external_link', 'sourceLineIndex') &&
+      hasColumn('external_link', 'targetTitle');
 
   /// בודק את [db] מחדש: שתי שאילתות סכמה, בלי קריאת נתונים.
   static DbCapabilities probe(sqlite3.Database db) {

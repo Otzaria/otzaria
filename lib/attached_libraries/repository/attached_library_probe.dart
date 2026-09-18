@@ -199,5 +199,6 @@ abstract final class AttachedLibraryProbe {
     if (c.hasAcronyms) AttachedLibraryCapability.acronyms,
     if (c.hasLineRef) AttachedLibraryCapability.lineRef,
     if (c.hasDefaultCommentators) AttachedLibraryCapability.defaultCommentators,
+    if (c.hasExternalLinks) AttachedLibraryCapability.externalLinks,
   };
 }

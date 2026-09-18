@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:otzaria/utils/text/ref_key.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -42,6 +43,17 @@ abstract final class SeforimFixtureIds {
 
 /// בונה מסדי-בדיקה בפורמט seforim.db בעזרת package:sqlite3, בלי לעבור דרך
 /// ה-DDL של האפליקציה — כדי לבדוק מסדים שחסרות בהם טבלאות.
+/// שורה בטבלת `external_link` של מסד מצורף.
+typedef ExternalLinkFixtureRow = ({
+  int sourceBookId,
+  int sourceLineIndex,
+  String? targetSource,
+  String targetTitle,
+  String? targetRef,
+  int? targetLineIndex,
+  String? connectionType,
+});
+
 abstract final class SeforimFixtureDb {
   /// יוצר את [variant] בקובץ חדש תחת [directory] ומחזיר את נתיבו.
   static String create(Directory directory, SeforimFixtureVariant variant) {
@@ -85,6 +97,58 @@ abstract final class SeforimFixtureDb {
     'pub_date',
     'book_pub_date',
   };
+
+  /// יוצר במסד [dbPath] את טבלת `external_link` (אם חסרה) ומוסיף לה [rows].
+  static void addExternalLinks(
+    String dbPath,
+    List<ExternalLinkFixtureRow> rows,
+  ) {
+    final db = sqlite3.sqlite3.open(dbPath);
+    try {
+      db.execute(
+        'CREATE TABLE IF NOT EXISTS external_link (sourceBookId INTEGER, '
+        'sourceLineIndex INTEGER, targetSource TEXT, targetTitle TEXT, '
+        'targetRef TEXT, targetLineIndex INTEGER, connectionType TEXT)',
+      );
+      for (final r in rows) {
+        db.execute('INSERT INTO external_link VALUES (?, ?, ?, ?, ?, ?, ?)', [
+          r.sourceBookId,
+          r.sourceLineIndex,
+          r.targetSource,
+          r.targetTitle,
+          r.targetRef,
+          r.targetLineIndex,
+          r.connectionType,
+        ]);
+      }
+    } finally {
+      db.close();
+    }
+  }
+
+  /// ממלא את `line_ref` של מסד מלא מתוך `line.heRef`, כמו בונה המסד.
+  static void fillLineRef(String dbPath) {
+    final db = sqlite3.sqlite3.open(dbPath);
+    try {
+      final rows = db.select(
+        'SELECT l.bookId, l.lineIndex, l.heRef, b.title FROM line l '
+        'JOIN book b ON b.id = l.bookId WHERE l.heRef IS NOT NULL',
+      );
+      for (final row in rows) {
+        final key = buildLineRefKey(row['heRef'] as String, [
+          row['title'] as String,
+        ]);
+        if (key == null) continue;
+        db.execute('INSERT OR IGNORE INTO line_ref VALUES (?, ?, ?)', [
+          row['bookId'],
+          refKeyHash(key),
+          row['lineIndex'],
+        ]);
+      }
+    } finally {
+      db.close();
+    }
+  }
 
   static void _createMinimal(sqlite3.Database db) {
     db.execute('CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT)');

@@ -1,4 +1,5 @@
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
@@ -232,9 +233,27 @@ class TextBookRepository {
       endLineIndex: normalizedEnd,
       targetBookTitles: normalizedTargetBookTitles,
     );
-    if (userLinks.isEmpty) return base;
-    return [...base, ...userLinks];
+    final externalLinks = await ExternalLinkRepository.instance.linksInRange(
+      title: book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      startLineIndex: normalizedStart,
+      endLineIndex: normalizedEnd,
+      targetBookTitles: normalizedTargetBookTitles,
+    );
+    if (userLinks.isEmpty && externalLinks.isEmpty) return base;
+    return [...base, ...userLinks, ...externalLinks];
   }
+
+  /// מפרשים שמקורם בקישורים חוצי-מסדים (`external_link`), עם המסד של כל אחד —
+  /// הדור של מפרש נקבע לפי המסד שלו ולא לפי המסד של הספר הנקרא.
+  Future<Map<String, BookSource>> getExternalCommentatorSources(
+    TextBook book,
+  ) => ExternalLinkRepository.instance.commentatorSources(
+    title: book.title,
+    categoryId: book.categoryId,
+    source: book.source,
+  );
 
   /// טוען את קישורי המאגר (seforim.db / קובץ) בלבד — בלי קישורי-משתמש.
   Future<List<Link>> _loadBaseLinks(
@@ -347,13 +366,16 @@ class TextBookRepository {
   /// הקישורים שהשאילתה כבר מחזירה. ממוין לפי שם.
   Future<({List<CommentatorInfo> commentators, Set<String> rare})>
   getCommentatorsDetailed(TextBook book) async {
-    // מפרשים מקישורי-משתמש (user_books.db) — נוספים לרשימת המפרשים של כל
-    // ספר; מפרש מיובא לעולם אינו "נדיר" (יובא במכוון).
-    final userCommentators = (await loadUserCommentatorTitles(
-      bookTitle: book.title,
-      bookCategoryId: book.categoryId,
-      source: book.source,
-    )).toSet();
+    // מפרשים מקישורי-משתמש ומקישורים חוצי-מסדים — נוספים לרשימה של כל ספר;
+    // מפרש כזה לעולם אינו "נדיר" (נוסף במכוון).
+    final userCommentators = {
+      ...await loadUserCommentatorTitles(
+        bookTitle: book.title,
+        bookCategoryId: book.categoryId,
+        source: book.source,
+      ),
+      ...(await getExternalCommentatorSources(book)).keys,
+    };
     userOnly() => (
       commentators: [
         for (final title in userCommentators.toList()..sort())
