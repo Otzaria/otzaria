@@ -1298,7 +1298,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   static Map<String, Book> _buildBooksByIndexedFilePath(Library library) {
     final booksByIndexedFilePath = <String, Book>{};
 
-    for (final book in library.getAllBooks()) {
+    for (final book in library.getIndexableBooks()) {
       booksByIndexedFilePath.putIfAbsent(
         IndexingRepository.buildIndexedBookFilePath(book),
         () => book,

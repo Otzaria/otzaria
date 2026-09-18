@@ -86,7 +86,12 @@ class SearchCatalogueOrderHelper {
     }
 
     collectBooks(library);
-    return [...orderedKeys, ...attachedKeys];
+    return [
+      ...orderedKeys,
+      ...attachedKeys,
+      // גרסאות שאינן בעץ — בסוף מאותה סיבה.
+      for (final book in library.offTreeBooks) keyOf(book),
+    ];
   }
 
   static Map<T, int> buildKeyOrderMap<T>(

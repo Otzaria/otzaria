@@ -265,7 +265,7 @@ class IndexingRepository {
   Future<bool> hasUnindexedBooks(Library library) async {
     await _tantivyDataProvider.engine;
     return library
-        .getAllBooks()
+        .getIndexableBooks()
         .where(isIndexableBook)
         .any((book) => !isBookIndexed(book));
   }
@@ -299,7 +299,7 @@ class IndexingRepository {
       );
     }
 
-    final allBooks = orderBooksForIndexing(library.getAllBooks())
+    final allBooks = orderBooksForIndexing(library.getIndexableBooks())
         .where(
           (book) =>
               isIndexableBook(book) && (includePdfBooks || book is! PdfBook),
@@ -1843,7 +1843,7 @@ class IndexingRepository {
     @visibleForTesting Set<String>? preservedHiddenUserBookKeys,
   }) async {
     if (WindowRole.isSecondary) return 0;
-    final books = library.getAllBooks();
+    final books = library.getIndexableBooks();
     if (books.isEmpty) return 0;
 
     // מוודא שה-indexedFilePaths כבר נטענו מהאינדקס (חלק מאתחול המנוע).
@@ -2095,7 +2095,7 @@ class IndexingRepository {
         ));
 
     final candidates = library
-        .getAllBooks()
+        .getIndexableBooks()
         .where((b) => b is TextBook || b is ConvertibleDocumentBook)
         .toList();
     final total = candidates.length;

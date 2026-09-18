@@ -328,6 +328,19 @@ class MyDatabase {
         .toSet();
     if (columns.contains('primarySource')) return;
 
+    // נקודת שמירה: קריסה באמצע ההעתקה לא תשאיר טבלה חלקית או ישנה שנמחקה.
+    db.execute('SAVEPOINT upgrade_user_book_version');
+    try {
+      _copyUserBookVersionToNewSchema(db);
+      db.execute('RELEASE upgrade_user_book_version');
+    } catch (_) {
+      db.execute('ROLLBACK TO upgrade_user_book_version');
+      db.execute('RELEASE upgrade_user_book_version');
+      rethrow;
+    }
+  }
+
+  void _copyUserBookVersionToNewSchema(sqlite3.Database db) {
     db.execute('''
       CREATE TABLE user_book_version_new (
           versionBookId INTEGER PRIMARY KEY,

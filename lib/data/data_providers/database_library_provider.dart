@@ -1696,6 +1696,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// בעדכון ספרייה). גרסה שהראשי שלה לא נמצא נשארת ספר אישי רגיל בעץ.
   void _attachCatalogBookVersions(Library library) {
     _catalogVersionPrimaries.clear();
+    _resolveCatalogVersionPrimaries(library);
+    library.offTreeBooks = [
+      for (final id in _hiddenUserVersionBookIds) ?_userBooksById[id],
+    ];
+  }
+
+  void _resolveCatalogVersionPrimaries(Library library) {
     final pending = _userBookVersions.where((v) => v.hasCatalogPrimary);
     if (pending.isEmpty) return;
 

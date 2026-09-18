@@ -126,6 +126,13 @@ class Library extends Category {
     parent = this;
   }
 
+  /// ספרים שאינם בעץ (גרסאות משניות של ספר) אבל מאונדקסים ונפתחים מתוצאות
+  /// חיפוש כספרים בפני עצמם.
+  List<Book> offTreeBooks = const [];
+
+  /// כל הספרים שנכנסים לאינדקס החיפוש: ספרי העץ ואחריהם [offTreeBooks].
+  List<Book> getIndexableBooks() => [...getAllBooks(), ...offTreeBooks];
+
   /// מחפש TextBook לפי כותרת ו-categoryId.
   ///
   /// מחפש התאמה מדויקת לפי categoryId (אם סופק), עם fallback לפי שם בלבד.
