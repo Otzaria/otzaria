@@ -1,0 +1,197 @@
+/// נרמול טקסט עברי והשוואת כותרות עבור אוטומציית פרויקט השו"ת.
+///
+/// שלוש רמות, מהמקילה למחמירה:
+///
+/// * [normalize] — ניקוד, פיסוק, גרשיים, רווחים. להשוואת כותרות.
+/// * [spellingKey] — בנוסף: השמטת אמות קריאה (י/ו) וקיפול אותיות
+///   סופיות. מנטרל את ההבדל בין כתיב מלא לחסר, שהוא רפורמה שיטתית בין
+///   מהדורות (`חידושי` ↔ `חדושי`, `ביאור` ↔ `באור`).
+/// * [numeralToInt] / [intToNumeral] — גימטריה. כותרת חלון היא
+///   `<ספר> סימן <גימטריה>`, והיא האורקל היחיד למיקום הנוכחי.
+class ResponsaHebrew {
+  ResponsaHebrew._();
+
+  static final RegExp _nikud = RegExp('[֑-ׇ]');
+
+  /// גרשיים וגרש הם סימנים **בתוך** מילה (`רשב"א`). מסירים אותם בלי
+  /// להותיר רווח, אחרת `רשב"א` הופך לשתי מילים ואינו משתווה ל-`רשבא`.
+  static final RegExp _intraWordMarks = RegExp('["\'׳״`]');
+
+  static final RegExp _punctuation = RegExp(r'[.,;:!?()\[\]{}<>\-–—_/\\|*]');
+  static final RegExp _whitespace = RegExp(r'\s+');
+  static final RegExp _matres = RegExp('[יו]');
+
+  /// תווים בלתי-נראים ששוברים כל השוואה.
+  static final RegExp _invisible = RegExp(
+    '[​‎‏ ﻿]',
+  );
+
+  static const Map<String, String> _finals = {
+    'ך': 'כ',
+    'ם': 'מ',
+    'ן': 'נ',
+    'ף': 'פ',
+    'ץ': 'צ',
+  };
+
+  static String normalize(String? text) {
+    if (text == null || text.isEmpty) return '';
+    var value = text.replaceAll(_invisible, ' ');
+    value = value.replaceAll(_nikud, '');
+    value = value.replaceAll(_intraWordMarks, '');
+    value = value.replaceAll(_punctuation, ' ');
+    return value.replaceAll(_whitespace, ' ').trim();
+  }
+
+  static String spellingKey(String? text) {
+    var value = normalize(text);
+    if (value.isEmpty) return '';
+    for (final entry in _finals.entries) {
+      value = value.replaceAll(entry.key, entry.value);
+    }
+    value = value.replaceAll(_matres, '');
+    return value.replaceAll(_whitespace, ' ').trim();
+  }
+
+  static List<String> tokens(String? text) =>
+      spellingKey(text).split(' ').where((w) => w.isNotEmpty).toList();
+
+  // ------------------------------------------------------------ גימטריה
+
+  static const List<String> _ones = [
+    '',
+    'א',
+    'ב',
+    'ג',
+    'ד',
+    'ה',
+    'ו',
+    'ז',
+    'ח',
+    'ט',
+  ];
+  static const List<String> _tens = [
+    '',
+    'י',
+    'כ',
+    'ל',
+    'מ',
+    'נ',
+    'ס',
+    'ע',
+    'פ',
+    'צ',
+  ];
+  static const List<String> _hundreds = [
+    '',
+    'ק',
+    'ר',
+    'ש',
+    'ת',
+    'תק',
+    'תר',
+    'תש',
+    'תת',
+    'תתק',
+  ];
+  static const Map<String, int> _letterValues = {
+    'א': 1,
+    'ב': 2,
+    'ג': 3,
+    'ד': 4,
+    'ה': 5,
+    'ו': 6,
+    'ז': 7,
+    'ח': 8,
+    'ט': 9,
+    'י': 10,
+    'כ': 20,
+    'ל': 30,
+    'מ': 40,
+    'נ': 50,
+    'ס': 60,
+    'ע': 70,
+    'פ': 80,
+    'צ': 90,
+    'ק': 100,
+    'ר': 200,
+    'ש': 300,
+    'ת': 400,
+  };
+
+  /// 1..999 → גימטריה כפי שהיא מופיעה בכותרות (טו/טז חריגים).
+  static String intToNumeral(int value) {
+    if (value <= 0 || value >= 1000) {
+      throw ArgumentError.value(value, 'value', 'נתמך 1..999 בלבד');
+    }
+    final text = _hundreds[value ~/ 100];
+    final rest = value % 100;
+    // טו/טז נכתבים כך ולא כ-יה/יו.
+    final suffix = switch (rest) {
+      15 => 'טו',
+      16 => 'טז',
+      _ => '${_tens[rest ~/ 10]}${_ones[rest % 10]}',
+    };
+    return '$text$suffix';
+  }
+
+  /// גימטריה → מספר. `null` כשיש תו שאינו אות-מספר.
+  static int? numeralToInt(String? text) {
+    if (text == null || text.isEmpty) return null;
+    var total = 0;
+    for (final char in text.split('')) {
+      final value = _letterValues[_finals[char] ?? char];
+      if (value == null) return null;
+      total += value;
+    }
+    return total == 0 ? null : total;
+  }
+
+  // ------------------------------------------------- התאמת כותרות
+
+  /// רמת ההתאמה בין הכותרת המצופה לכותרת החלון שנפתח בפועל.
+  ///
+  /// התאמה מלאה אינה נדרשת ואף אינה השכיחה: התוכנה **מרחיבה** את ההפניה
+  /// ומוסיפה לה מיקום — `משנה יבמות` נפתח ככותרת `משנה מסכת יבמות פרק א`.
+  ///
+  /// `substring` חזק מ-`contains` כי הוא שומר על **סדר** המילים:
+  /// `כלל יא` הוא תת-מחרוזת של `רא"ש כלל יא סימן א` אבל **לא** של
+  /// `רא"ש כלל ב סימן יא`, בעוד שהכלה לפי מילים אינה מבדילה ביניהם.
+  static ResponsaMatchLevel matchLevel(String? expected, String? actual) {
+    final want = normalize(expected);
+    final got = normalize(actual);
+    if (want.isEmpty || got.isEmpty) return ResponsaMatchLevel.none;
+    if (want == got) return ResponsaMatchLevel.exact;
+    if (got.startsWith(want) || want.startsWith(got)) {
+      return ResponsaMatchLevel.prefix;
+    }
+    final wantKey = spellingKey(expected);
+    final gotKey = spellingKey(actual);
+    if (wantKey.isNotEmpty &&
+        gotKey.isNotEmpty &&
+        (gotKey.contains(wantKey) || wantKey.contains(gotKey))) {
+      return ResponsaMatchLevel.substring;
+    }
+    final wantWords = tokens(expected);
+    final gotWords = tokens(actual).toSet();
+    if (wantWords.isNotEmpty && wantWords.every(gotWords.contains)) {
+      return ResponsaMatchLevel.contains;
+    }
+    return ResponsaMatchLevel.none;
+  }
+
+  static bool titlesMatch(String? expected, String? actual) =>
+      matchLevel(expected, actual) != ResponsaMatchLevel.none;
+}
+
+/// רמות ההתאמה, מהחזקה לחלשה. הסדר הוא המשמעות — `rank` משמש לבחירת
+/// התוצאה הטובה ביותר מבין תוצאות המנתח.
+enum ResponsaMatchLevel {
+  none,
+  contains,
+  substring,
+  prefix,
+  exact;
+
+  int get rank => index;
+}

@@ -1,8 +1,8 @@
 import 'package:otzaria/external_catalog/providers/external_library_provider.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_capabilities.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
-import 'package:otzaria/external_catalog/responsa/responsa_bridge_client.dart';
-import 'package:otzaria/external_catalog/responsa/responsa_bridge_launcher.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/models/books.dart';
 
@@ -11,23 +11,15 @@ import 'package:otzaria/models/books.dart';
 /// שתי שכבות נפרדות, ובכוונה:
 ///
 /// * **קטלוג** — SQLite מקומי שנבנה מההתקנה של המשתמש. עצם קיום הרשומה
-///   בקטלוג אומר שהספר קיים בגרסה שממנה הקטלוג נבנה; אין לבדוק קובץ,
+///   בקטלוג אומר שהספר קיים במהדורה שממנה הקטלוג נבנה; אין לבדוק קובץ,
 ///   כי כל הספרים יושבים בארכיון אחד ואין התקנה חלקית ברמת ספר.
-/// * **גשר** — נדרש רק לפתיחה. הקטלוג עובד בלעדיו.
+/// * **שליטה בתוכנה** — נדרשת רק לפתיחה, ורצה באיזולט רקע בתוך אוצריא.
+///   אין רכיב חיצוני להתקין ואין מה להגדיר בפרויקט השו"ת.
 class ResponsaLibraryProvider implements ExternalLibraryProvider {
   final ResponsaCatalogRepository catalog;
-  final ResponsaBridgeClient bridge;
-  final ResponsaBridgeLauncher launcher;
+  final ResponsaController controller;
 
-  /// האם ההגדרה מתירה להעלות את הגשר בעת הצורך.
-  final bool Function() bridgeEnabled;
-
-  ResponsaLibraryProvider({
-    required this.catalog,
-    required this.bridge,
-    required this.launcher,
-    required this.bridgeEnabled,
-  });
+  ResponsaLibraryProvider({required this.catalog, required this.controller});
 
   @override
   ExternalProviderDescriptor get descriptor =>
@@ -79,11 +71,7 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
   Future<ExternalOpenResult> openBook(Book book) => open(book);
 
   /// פותח את הספר בתוכנה, ואם נמסר [siman] — מנווט אליו אחרי הפתיחה.
-  Future<ExternalOpenResult> open(
-    Book book, {
-    int? siman,
-    String? requestId,
-  }) async {
+  Future<ExternalOpenResult> open(Book book, {int? siman}) async {
     final key = _keyOf(book);
     if (key == null) {
       return const ExternalOpenResult.failure(
@@ -100,38 +88,20 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
       );
     }
 
-    final launchError = await launcher.ensureRunning(
-      allowStart: bridgeEnabled(),
+    final report = await controller.openBook(
+      openRef,
+      expectedTitle: book.title,
+      siman: siman,
     );
-    if (launchError != null) {
-      return ExternalOpenResult.failure(
-        launchError,
-        _launchMessage(launchError),
-      );
-    }
-
-    final result = siman == null
-        ? await bridge.openBook(
-            openRef,
-            expectedTitle: book.title,
-            requestId: requestId,
-          )
-        : await bridge.openBookAtSiman(
-            openRef,
-            siman,
-            expectedTitle: book.title,
-            requestId: requestId,
-          );
-
-    if (result.ok) return const ExternalOpenResult.success();
+    if (report.ok) return const ExternalOpenResult.success();
     return ExternalOpenResult.failure(
-      result.errorCode ?? 'openFailed',
-      result.message ?? _openMessage(result.errorCode),
+      report.failure?.name ?? 'openFailed',
+      report.message ?? messageFor(report.failure),
     );
   }
 
-  /// ביטול פעולה ארוכה. הביטול אמיתי — הגשר עוצר את הפעולה עצמה.
-  Future<void> cancel(String requestId) => bridge.cancel(requestId);
+  /// ביטול פעולה ארוכה. הביטול אמיתי — הפעולה עצמה נעצרת.
+  void cancel() => controller.cancel();
 
   static String? _keyOf(Book book) {
     final parsed = ExternalProviderRegistry.parse(book.externalLibraryId);
@@ -139,21 +109,20 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
     return parsed!.value;
   }
 
-  static String _launchMessage(String code) => switch (code) {
-    'bridgeDisabled' => 'הפעלת פרויקט השו"ת מתוך אוצריא כבויה בהגדרות.',
-    'bridgeNotInstalled' => 'רכיב החיבור לפרויקט השו"ת אינו מותקן.',
-    'bridgeLaunchFailed' => 'לא ניתן להפעיל את רכיב החיבור לפרויקט השו"ת.',
-    'bridgeNotReady' => 'רכיב החיבור לפרויקט השו"ת לא הגיב בזמן.',
-    _ => 'לא ניתן להתחבר לפרויקט השו"ת.',
-  };
-
-  static String _openMessage(String? code) => switch (code) {
-    'referenceNotParsed' => 'פרויקט השו"ת לא זיהה את ההפניה לספר הזה.',
-    'openedWrongBook' => 'פרויקט השו"ת פתח ספר אחר — הפתיחה בוטלה.',
-    'responsaNotRunning' => 'פרויקט השו"ת אינו פעיל.',
-    'unsupportedResponsaVersion' => 'הגרסה המותקנת של פרויקט השו"ת אינה נתמכת.',
-    'timeout' => 'פרויקט השו"ת לא הגיב בזמן.',
-    'cancelled' => 'הפתיחה בוטלה.',
-    _ => 'פתיחת הספר בפרויקט השו"ת נכשלה.',
+  static String messageFor(ResponsaFailure? failure) => switch (failure) {
+    ResponsaFailure.responsaNotRunning => 'פרויקט השו"ת אינו פעיל.',
+    ResponsaFailure.citationDialogNotFound =>
+      'לא ניתן לפתוח את חלון המקורות בפרויקט השו"ת.',
+    ResponsaFailure.referenceNotParsed =>
+      'פרויקט השו"ת לא זיהה את ההפניה לספר הזה.',
+    ResponsaFailure.openedWrongBook =>
+      'פרויקט השו"ת פתח ספר אחר — הפתיחה בוטלה.',
+    ResponsaFailure.mdiWindowLimitReached =>
+      'פרויקט השו"ת אינו פותח חלונות נוספים. יש לסגור בו כמה חלונות.',
+    ResponsaFailure.resultsNotCleared =>
+      'פרויקט השו"ת אינו מגיב כצפוי. נסה שוב.',
+    ResponsaFailure.timeout => 'פרויקט השו"ת לא הגיב בזמן.',
+    ResponsaFailure.cancelled => 'הפתיחה בוטלה.',
+    null => 'פתיחת הספר בפרויקט השו"ת נכשלה.',
   };
 }

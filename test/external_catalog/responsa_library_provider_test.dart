@@ -1,24 +1,15 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
-import 'package:otzaria/external_catalog/responsa/responsa_bridge_client.dart';
-import 'package:otzaria/external_catalog/responsa/responsa_bridge_launcher.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_library_provider.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
-
-const _endpoint = ResponsaBridgeEndpoint(
-  port: 39627,
-  token: 't',
-  pid: 1,
-  bridgeVersion: 1,
-);
 
 String _createCatalog(Directory directory) {
   final file = path.join(directory.path, 'responsa_catalog.db');
@@ -43,8 +34,8 @@ String _createCatalog(Directory directory) {
   );
   db.execute(
     'INSERT INTO books(external_key, title, norm_title, ref_path, open_ref,'
-    " source_version) VALUES('1524', 'יבמות', 'יבמות',"
-    " 'מפרשים > רא\"ש > יבמות', 'רא\"ש יבמות', 25)",
+    ' source_version) VALUES(?, ?, ?, ?, ?, ?)',
+    ['1524', 'יבמות', 'יבמות', 'מפרשים > רא"ש > יבמות', 'רא"ש יבמות', 25],
   );
   db.close();
   return file;
@@ -58,11 +49,40 @@ ExternalLibraryBook _responsaBook({String id = 'rp:1524'}) =>
       externalLibraryId: id,
     );
 
-http.Response _json(Map<String, Object?> body) => http.Response(
-  jsonEncode(body),
-  200,
-  headers: {'content-type': 'application/json; charset=utf-8'},
-);
+/// בקר מדומה — הבדיקות אינן נוגעות בתוכנה אמיתית.
+class _FakeController implements ResponsaController {
+  _FakeController(this._report);
+
+  final ResponsaOpenReport _report;
+  final List<({String openRef, String? expectedTitle, int? siman})> calls = [];
+  bool cancelled = false;
+
+  @override
+  bool get autoStart => true;
+
+  @override
+  bool get isBusy => false;
+
+  @override
+  void cancel() => cancelled = true;
+
+  @override
+  Future<ResponsaStatus> status() async => const ResponsaStatus(
+    installed: true,
+    running: true,
+    confidence: ResponsaVersionConfidence.verified,
+  );
+
+  @override
+  Future<ResponsaOpenReport> openBook(
+    String openRef, {
+    String? expectedTitle,
+    int? siman,
+  }) async {
+    calls.add((openRef: openRef, expectedTitle: expectedTitle, siman: siman));
+    return _report;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -70,38 +90,16 @@ void main() {
   late Directory tempDir;
   late ResponsaCatalogRepository catalog;
 
-  /// בונה ספק עם גשר מדומה. [bridgeInstalled] false = רכיב החיבור חסר.
-  ({ResponsaLibraryProvider provider, List<Uri> calls}) build({
-    required Future<http.Response> Function(http.Request request) respond,
-    bool bridgeEnabled = true,
-    bool bridgeInstalled = true,
-    bool bridgeRunning = true,
-  }) {
-    final calls = <Uri>[];
-    final client = ResponsaBridgeClient(
-      httpClient: MockClient((request) {
-        calls.add(request.url);
-        return respond(request);
-      }),
-    );
-    if (bridgeRunning) client.endpointOverride = _endpoint;
-
-    final launcher = ResponsaBridgeLauncher(client: client)
-      ..executablePathOverride = bridgeInstalled
-          ? path.join(tempDir.path, 'responsa_bridge.exe')
-          : path.join(tempDir.path, 'missing.exe');
-    if (bridgeInstalled) {
-      File(launcher.executablePathOverride!).writeAsStringSync('stub');
-    }
-
+  ({ResponsaLibraryProvider provider, _FakeController controller}) build(
+    ResponsaOpenReport report,
+  ) {
+    final controller = _FakeController(report);
     return (
       provider: ResponsaLibraryProvider(
         catalog: catalog,
-        bridge: client,
-        launcher: launcher,
-        bridgeEnabled: () => bridgeEnabled,
+        controller: controller,
       ),
-      calls: calls,
+      controller: controller,
     );
   }
 
@@ -115,15 +113,14 @@ void main() {
     if (await tempDir.exists()) await tempDir.delete(recursive: true);
   });
 
+  const success = ResponsaOpenReport(ok: true, window: 'רא"ש מסכת יבמות פרק א');
+
   group('זהות הספק', () {
     test('מזהה, תחילית ויכולות', () {
-      final provider = build(
-        respond: (_) async => _json({'ok': true}),
-      ).provider;
+      final provider = build(success).provider;
 
       expect(provider.id, 'responsa');
       expect(provider.idPrefix, 'rp');
-      expect(provider.displayName, 'פרויקט השו"ת');
       expect(provider.capabilities.webOpen, isFalse);
       expect(provider.capabilities.localOpen, isTrue);
       expect(provider.capabilities.inBookSearch, isFalse);
@@ -133,185 +130,137 @@ void main() {
 
   group('canOpen', () {
     test('ספר שבקטלוג — כן', () async {
-      final provider = build(
-        respond: (_) async => _json({'ok': true}),
-      ).provider;
-      expect(await provider.canOpen(_responsaBook()), isTrue);
+      expect(await build(success).provider.canOpen(_responsaBook()), isTrue);
     });
 
     test('ספר של ספק אחר — לא', () async {
-      final provider = build(
-        respond: (_) async => _json({'ok': true}),
-      ).provider;
-      expect(await provider.canOpen(_responsaBook(id: 'oh:1524')), isFalse);
+      expect(
+        await build(success).provider.canOpen(_responsaBook(id: 'oh:1524')),
+        isFalse,
+      );
     });
 
     test('ספר שאינו בקטלוג — לא', () async {
-      final provider = build(
-        respond: (_) async => _json({'ok': true}),
-      ).provider;
-      expect(await provider.canOpen(_responsaBook(id: 'rp:99999')), isFalse);
+      expect(
+        await build(success).provider.canOpen(_responsaBook(id: 'rp:99999')),
+        isFalse,
+      );
     });
   });
 
   group('פתיחה — מטריצת המצבים', () {
-    test('הצלחה', () async {
-      final built = build(
-        respond: (_) async =>
-            _json({'ok': true, 'window': 'רא"ש מסכת יבמות פרק א'}),
-      );
+    test('הצלחה, וההפניה שנשלחת היא ה-open_ref ולא הכותרת', () async {
+      final built = build(success);
 
       final result = await built.provider.openBook(_responsaBook());
+
       expect(result.ok, isTrue);
-      // תחילה נבדק שהגשר חי, ורק אז נשלחת הפתיחה.
-      expect(
-        built.calls.map((u) => u.path),
-        containsAllInOrder(['/api/status', '/api/openBook']),
-      );
+      expect(built.controller.calls.single.openRef, 'רא"ש יבמות');
+      expect(built.controller.calls.single.expectedTitle, 'יבמות');
     });
 
-    test('ספר שאינו בקטלוג — כשל מסודר בלי לפנות לגשר', () async {
-      final built = build(respond: (_) async => _json({'ok': true}));
+    test('ספר שאינו בקטלוג — כשל מסודר בלי לגעת בתוכנה', () async {
+      final built = build(success);
 
       final result = await built.provider.openBook(
         _responsaBook(id: 'rp:99999'),
       );
-      expect(result.ok, isFalse);
+
       expect(result.errorCode, 'notInCatalog');
-      expect(built.calls, isEmpty);
+      expect(built.controller.calls, isEmpty);
     });
 
     test('ספר של ספק אחר נדחה', () async {
-      final provider = build(
-        respond: (_) async => _json({'ok': true}),
-      ).provider;
+      final result = await build(
+        success,
+      ).provider.openBook(_responsaBook(id: 'hb:5'));
 
-      final result = await provider.openBook(_responsaBook(id: 'hb:5'));
       expect(result.errorCode, 'notAResponsaBook');
     });
 
-    test('הגשר כבוי בהגדרות ואינו רץ — לא מנסים להפעיל', () async {
-      final built = build(
-        respond: (_) async => _json({'ok': true}),
-        bridgeEnabled: false,
-        bridgeRunning: false,
-      );
+    test('התוכנה אינה מותקנת', () async {
+      final result = await build(
+        const ResponsaOpenReport(
+          ok: false,
+          failure: ResponsaFailure.responsaNotRunning,
+          message: 'פרויקט השו"ת אינו מותקן במחשב.',
+        ),
+      ).provider.openBook(_responsaBook());
 
-      final result = await built.provider.openBook(_responsaBook());
-      expect(result.errorCode, 'bridgeDisabled');
-      expect(result.message, contains('כבויה'));
+      expect(result.errorCode, 'responsaNotRunning');
+      expect(result.message, contains('אינו מותקן'));
     });
 
-    test('רכיב החיבור אינו מותקן', () async {
-      final built = build(
-        respond: (_) async => _json({'ok': true}),
-        bridgeInstalled: false,
-        bridgeRunning: false,
-      );
+    test('הפניה שלא נותחה', () async {
+      final result = await build(
+        const ResponsaOpenReport(
+          ok: false,
+          failure: ResponsaFailure.referenceNotParsed,
+        ),
+      ).provider.openBook(_responsaBook());
 
-      final result = await built.provider.openBook(_responsaBook());
-      expect(result.errorCode, 'bridgeNotInstalled');
-    });
-
-    test('הפניה שלא נותחה מוחזרת כהודעה למשתמש', () async {
-      final built = build(
-        respond: (_) async => _json({
-          'ok': false,
-          'error': 'referenceNotParsed',
-        }),
-      );
-
-      final result = await built.provider.openBook(_responsaBook());
       expect(result.ok, isFalse);
-      expect(result.errorCode, 'referenceNotParsed');
       expect(result.message, contains('לא זיהה'));
     });
 
     test('נפתח ספר שגוי — נחשב כשל, לא הצלחה', () async {
-      final built = build(
-        respond: (_) async => _json({'ok': false, 'error': 'openedWrongBook'}),
-      );
+      final result = await build(
+        const ResponsaOpenReport(
+          ok: false,
+          failure: ResponsaFailure.openedWrongBook,
+        ),
+      ).provider.openBook(_responsaBook());
 
-      final result = await built.provider.openBook(_responsaBook());
       expect(result.ok, isFalse);
       expect(result.message, contains('ספר אחר'));
     });
 
-    test('הגשר נופל באמצע הפתיחה — כשל נקי, בלי חריג', () async {
-      // הבדיקה שהגשר חי עוברת, והנפילה קורית רק בפתיחה עצמה.
-      final built = build(
-        respond: (request) async {
-          if (request.url.path == '/api/status') {
-            return _json({'ok': true, 'supported': true});
-          }
-          throw const SocketException('gone');
-        },
-      );
+    test('תקרת חלונות — הודעה שאומרת למשתמש מה לעשות', () async {
+      final result = await build(
+        const ResponsaOpenReport(
+          ok: false,
+          failure: ResponsaFailure.mdiWindowLimitReached,
+        ),
+      ).provider.openBook(_responsaBook());
 
-      final result = await built.provider.openBook(_responsaBook());
-      expect(result.ok, isFalse);
-      expect(result.errorCode, 'bridgeUnavailable');
+      expect(result.message, contains('לסגור'));
     });
 
-    test('גשר שהפסיק לענות — מנסים להפעיל מחדש ומדווחים על הכשל', () async {
-      final built = build(
-        respond: (_) async => throw const SocketException('gone'),
-      );
+    test('ביטול', () async {
+      final result = await build(
+        const ResponsaOpenReport(ok: false, failure: ResponsaFailure.cancelled),
+      ).provider.openBook(_responsaBook());
 
-      final result = await built.provider.openBook(_responsaBook());
-      expect(result.ok, isFalse);
-      expect(result.errorCode, 'bridgeLaunchFailed');
+      expect(result.errorCode, 'cancelled');
     });
 
-    test('גרסה שאינה נתמכת מוחזרת בשמה', () async {
-      final built = build(
-        respond: (_) async => _json({
-          'ok': false,
-          'error': 'unsupportedResponsaVersion',
-        }),
-      );
+    test('פתיחה עם סימן מעבירה אותו הלאה', () async {
+      final built = build(success);
 
-      final result = await built.provider.openBook(_responsaBook());
-      expect(result.message, contains('אינה נתמכת'));
+      await built.provider.open(_responsaBook(), siman: 12);
+
+      expect(built.controller.calls.single.siman, 12);
     });
 
-    test('פתיחה עם סימן פונה גם ל-gotoSiman', () async {
-      final built = build(
-        respond: (request) async => _json({
-          'ok': true,
-          'window': 'רא"ש מסכת יבמות סימן ב',
-        }),
-      );
-
-      final result = await built.provider.open(_responsaBook(), siman: 2);
-      expect(result.ok, isTrue);
-      expect(
-        built.calls.map((u) => u.path),
-        containsAllInOrder(['/api/openBook', '/api/gotoSiman']),
-      );
+    test('ביטול מגיע לבקר', () {
+      final built = build(success);
+      built.provider.cancel();
+      expect(built.controller.cancelled, isTrue);
     });
   });
 
   group('loadBooksByIds', () {
     test('מסנן מזהים של ספקים אחרים', () async {
-      final provider = build(
-        respond: (_) async => _json({'ok': true}),
-      ).provider;
-
-      final books = await provider.loadBooksByIds([
-        'rp:1524',
-        'oh:1524',
-        'hb:1524',
-      ]);
+      final books = await build(
+        success,
+      ).provider.loadBooksByIds(['rp:1524', 'oh:1524', 'hb:1524']);
 
       expect(books, hasLength(1));
       expect(books.single.externalLibraryId, 'rp:1524');
     });
 
     test('קיום ברשומה הוא הזמינות — אין בדיקת קובץ', () async {
-      final provider = build(
-        respond: (_) async => _json({'ok': true}),
-      ).provider;
+      final provider = build(success).provider;
 
       expect(await provider.loadBooksByIds(['1524']), hasLength(1));
       expect(await provider.loadBooksByIds(['404']), isEmpty);
