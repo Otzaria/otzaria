@@ -8,6 +8,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import '../../helpers/memory_settings_cache.dart';
 
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -58,6 +59,7 @@ Widget _wrap(SettingsBloc settingsBloc, {bool catalogExists = true}) {
               // בלי ההזרקה הזו הפאנל היה קורא את הקטלוג האמיתי של
               // פרויקט השו"ת מהמחשב שמריץ את הבדיקה.
               responsaInfoLoader: () async => ResponsaCatalogInfo.missing,
+              responsaStatusLoader: () async => ResponsaStatus.notInstalled,
             ),
           ),
         ),

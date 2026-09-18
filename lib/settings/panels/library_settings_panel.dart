@@ -6,6 +6,13 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_build_service.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_paths.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_service.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
@@ -27,11 +34,15 @@ class LibrarySettingsPanel extends StatefulWidget {
   /// טוען את מצב קטלוג פרויקט השו"ת. ניתן להזרקה לבדיקות.
   final Future<ResponsaCatalogInfo> Function()? responsaInfoLoader;
 
+  /// טוען את מצב ההתקנה של פרויקט השו"ת. ניתן להזרקה לבדיקות.
+  final Future<ResponsaStatus> Function()? responsaStatusLoader;
+
   const LibrarySettingsPanel({
     super.key,
     this.hebrewBooksPathWidget,
     this.catalogExistsChecker,
     this.responsaInfoLoader,
+    this.responsaStatusLoader,
   });
 
   /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
@@ -98,6 +109,13 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
   /// null בזמן הבדיקה; אחרת מצב הקטלוג המקומי של פרויקט השו"ת.
   ResponsaCatalogInfo? _responsaInfo;
 
+  /// null בזמן הבדיקה; אחרת האם פרויקט השו"ת מותקן ובאיזו מהדורה.
+  ResponsaStatus? _responsaStatus;
+
+  final ResponsaCatalogBuildService _responsaBuild =
+      ResponsaCatalogBuildService();
+  ResponsaBuildProgress? _responsaBuildProgress;
+
   @override
   void initState() {
     super.initState();
@@ -109,7 +127,43 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     final info =
         await (widget.responsaInfoLoader ??
             ResponsaCatalogRepository.instance.info)();
-    if (mounted) setState(() => _responsaInfo = info);
+    final status =
+        await (widget.responsaStatusLoader ??
+            ResponsaService.instance.controller.status)();
+    if (mounted) {
+      setState(() {
+        _responsaInfo = info;
+        _responsaStatus = status;
+      });
+    }
+  }
+
+  /// בניית הקטלוג — סריקה חיה של עץ הקטלוג בתוכנה.
+  ///
+  /// ארוכה מטבעה (כ-1.25 מיליון רשומות, כמה דקות), ולכן היא מדווחת
+  /// התקדמות וניתנת לביטול.
+  Future<void> _buildResponsaCatalog() async {
+    final target = ResponsaPaths.catalogPath;
+    if (target == null) return;
+    setState(() {
+      _responsaBuildProgress = const ResponsaBuildProgress(
+        stage: ResponsaBuildStage.starting,
+      );
+    });
+    await for (final progress in _responsaBuild.build(targetPath: target)) {
+      if (!mounted) return;
+      setState(() => _responsaBuildProgress = progress);
+    }
+    if (!mounted) return;
+    final finished = _responsaBuildProgress;
+    if (finished?.stage == ResponsaBuildStage.done) {
+      DataRepository.instance.invalidateExternalBooksCache();
+      UiSnack.show(SettingsMessages.responsaCatalogBuilt(finished!.books));
+    } else if (finished?.error case final error?) {
+      UiSnack.showError(error);
+    }
+    setState(() => _responsaBuildProgress = null);
+    await _refreshResponsaInfo();
   }
 
   Future<bool> _checkCatalogExists() =>
@@ -212,7 +266,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
               ],
             ),
 
-            if (_responsaInfo?.exists ?? false) ...[
+            if (_responsaStatus?.installed ?? false) ...[
               kSettingsCardSpacing,
               _buildResponsaCard(context, state),
             ],
@@ -222,49 +276,124 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     );
   }
 
-  /// כרטיס פרויקט השו"ת. מוצג רק כשקיים קטלוג מקומי — בלעדיו אין
-  /// לאוצריא מה להציע, וכרטיס ריק רק מבלבל.
+  /// כרטיס פרויקט השו"ת (בר אילן). מוצג כשהתוכנה מותקנת במחשב.
+  ///
+  /// הקטלוג נבנה מההתקנה של המשתמש ולכן חייב להיבנות אצלו; אין קובץ
+  /// קטלוג שאפשר להוריד, כי תוכן המאגר משתנה בין מהדורות.
   Widget _buildResponsaCard(BuildContext context, SettingsState state) {
-    final info = _responsaInfo!;
+    final status = _responsaStatus!;
+    final info = _responsaInfo;
+    final hasCatalog = info?.isUsable ?? false;
     return SettingsCard(
       cardId: 'library.responsa',
       title: context.settingsText('פרויקט השו"ת'),
-      subtitle: context.settingsText(
-        'קטלוג מקומי שנבנה מההתקנה שבמחשב',
-        args: {},
-      ),
+      subtitle: context.settingsText('קטלוג מקומי שנבנה מההתקנה שבמחשב'),
       children: [
-        SettingsActionTile.switchTile(
-          icon: FluentIcons.library_24_regular,
-          title: context.settingsText('הצג ספרי פרויקט השו"ת בחיפוש'),
-          subtitle: context.settingsText(
-            'נמצאו {count} ספרים בגרסה {version}',
-            args: {
-              'count': info.bookCount,
-              'version': info.sourceVersion ?? 0,
+        if (!hasCatalog)
+          _buildResponsaBuildTile(context, status)
+        else ...[
+          SettingsActionTile.switchTile(
+            icon: FluentIcons.library_24_regular,
+            title: context.settingsText('הצג ספרי פרויקט השו"ת בחיפוש'),
+            subtitle: context.settingsText(
+              'נמצאו {count} ספרים בגרסה {version}',
+              args: {
+                'count': info!.bookCount,
+                'version': info.sourceVersion ?? status.version ?? 0,
+              },
+            ),
+            value: state.showResponsaInLibrary,
+            onChanged: (value) => _toggleResponsa(context, state, value),
+          ),
+          // מתג נפרד במכוון: אפשר לראות את הספרים בחיפוש בלי להריץ מופע
+          // של התוכנה ברקע.
+          SettingsActionTile.switchTile(
+            icon: FluentIcons.desktop_24_regular,
+            title: context.settingsText('אפשר פתיחת ספרים בתוכנה'),
+            subtitle: context.settingsText(
+              state.enableResponsaBridge
+                  ? 'לחיצה על ספר תפעיל את פרויקט השו"ת אם אינו פועל'
+                  : 'ספרים יוצגו בחיפוש, אך לא ייפתחו בתוכנה',
+            ),
+            value: state.enableResponsaBridge,
+            onChanged: (value) {
+              context.read<SettingsBloc>().add(
+                UpdateEnableResponsaBridge(value),
+              );
             },
           ),
-          value: state.showResponsaInLibrary,
-          onChanged: (value) => _toggleResponsa(context, state, value),
-        ),
-        // מתג נפרד במכוון: אפשר לראות את הספרים בחיפוש בלי להריץ מופע
-        // של התוכנה ברקע.
-        SettingsActionTile.switchTile(
-          icon: FluentIcons.desktop_24_regular,
-          title: context.settingsText('אפשר פתיחת ספרים בתוכנה'),
-          subtitle: context.settingsText(
-            state.enableResponsaBridge
-                ? 'לחיצה על ספר תפעיל את פרויקט השו"ת אם אינו פועל'
-                : 'ספרים יוצגו בחיפוש, אך לא ייפתחו בתוכנה',
-          ),
-          value: state.enableResponsaBridge,
-          onChanged: (value) {
-            context.read<SettingsBloc>().add(UpdateEnableResponsaBridge(value));
-          },
-        ),
+          _buildResponsaRebuildTile(context),
+        ],
       ],
     );
   }
+
+  /// בניית הקטלוג בפעם הראשונה.
+  Widget _buildResponsaBuildTile(BuildContext context, ResponsaStatus status) {
+    final progress = _responsaBuildProgress;
+    return SettingsActionTile.text(
+      icon: FluentIcons.database_search_24_regular,
+      title: context.settingsText('בניית קטלוג פרויקט השו"ת'),
+      subtitle: context.settingsText(
+        progress == null
+            ? 'נמצאה התקנה בגרסה {version}. הבנייה סורקת את קטלוג התוכנה '
+                  'ואורכת מספר דקות; פרויקט השו"ת צריך להיות פתוח.'
+            : _progressText(progress),
+        args: {
+          'version': status.version ?? 0,
+          'nodes': progress?.scannedNodes ?? 0,
+        },
+      ),
+      actions: [
+        if (progress == null)
+          ActionButton.recommended(
+            text: context.settingsText('בנה קטלוג'),
+            onPressed: _buildResponsaCatalog,
+          )
+        else
+          ActionButton.neutral(
+            text: context.settingsText('ביטול'),
+            onPressed: _responsaBuild.cancel,
+          ),
+      ],
+    );
+  }
+
+  /// בנייה מחדש — נדרשת כשההתקנה השתנתה.
+  Widget _buildResponsaRebuildTile(BuildContext context) {
+    final progress = _responsaBuildProgress;
+    return SettingsActionTile.text(
+      icon: FluentIcons.arrow_sync_24_regular,
+      title: context.settingsText('רענון קטלוג פרויקט השו"ת'),
+      subtitle: context.settingsText(
+        progress == null
+            ? 'יש לרענן אחרי התקנת מהדורה אחרת של פרויקט השו"ת'
+            : _progressText(progress),
+        args: {'nodes': progress?.scannedNodes ?? 0},
+      ),
+      actions: [
+        if (progress == null)
+          ActionButton.neutral(
+            text: context.settingsText('רענן'),
+            onPressed: _buildResponsaCatalog,
+          )
+        else
+          ActionButton.neutral(
+            text: context.settingsText('ביטול'),
+            onPressed: _responsaBuild.cancel,
+          ),
+      ],
+    );
+  }
+
+  static String _progressText(ResponsaBuildProgress progress) =>
+      switch (progress.stage) {
+        ResponsaBuildStage.starting => 'מתחבר לפרויקט השו"ת...',
+        ResponsaBuildStage.scanning => 'נסרקו {nodes} רשומות...',
+        ResponsaBuildStage.classifying => 'מזהה ספרים מתוך {nodes} רשומות...',
+        ResponsaBuildStage.done => 'הקטלוג נבנה',
+        ResponsaBuildStage.failed => 'הבנייה נכשלה',
+      };
 
   void _toggleResponsa(
     BuildContext context,

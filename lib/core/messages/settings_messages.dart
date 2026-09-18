@@ -242,4 +242,9 @@ abstract class SettingsMessages {
   static const String attachedLibrariesRescanned = 'המסדים נבדקו מחדש';
   static String attachedLibraryError(Object error) =>
       'שגיאה בטיפול במסד: $error';
+
+  // ── פרויקט השו"ת ───────────────────────────────────────────────────────
+
+  static String responsaCatalogBuilt(int books) =>
+      'קטלוג פרויקט השו"ת נבנה — $books ספרים';
 }
