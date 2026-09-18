@@ -857,6 +857,17 @@ dart format lib/file.dart    # Format ONLY files you modified
 | TantivyDataProvider (search index) | `test/data/data_providers/tantivy_data_provider_test.dart` |
 | External books scanner | `test/data/data_providers/scan_external_books_test.dart` |
 | Library book search (fuzzy + acronyms) | `test/data/repository/book_search_fuzzy_match_test.dart` |
+| מפת היכולות של מסד (טבלאות אופציונליות, VIEW/וירטואלית אינן יכולת) | `test/data/db_capabilities_test.dart` |
+| מסד בפורמט seforim.db בלי טבלאות (minimal, בלי קטגוריות/מחברים) | `test/data_providers/seforim_optional_tables_test.dart` (מסדי בדיקה: `test/helpers/seforim_fixture_db.dart`) |
+
+**Attached libraries (מסדי ספרים אישיים, `lib/attached_libraries/`)**
+| Area | Test File |
+|------|-----------|
+| בדיקת קובץ מסד (כותרת, VIEW מתחזה, טבלאות תוסף, יומן תלוי, slug, פתיחה מוקשחת) | `test/attached_libraries/attached_library_probe_test.dart` |
+| שמירת הרשימה בהגדרות + registry (פתיחה עצלה, שחרור, זמן סרק) | `test/attached_libraries/attached_library_registry_test.dart` |
+| צירוף, העתקה, הסרה, תיקיות מסדים, slug כפול, לא זמין, טביעת אצבע | `test/attached_libraries/attached_libraries_repository_test.dart` |
+| עץ הספרייה (שורש נפרד, מיזוג, מוסתר/לא זמין, בלי קטגוריות) + טקסט ותוכן עניינים מקצה לקצה | `test/attached_libraries/attached_library_catalog_test.dart` |
+| כרטיס "מסדי ספרים אישיים" בהגדרות | `test/attached_libraries/attached_libraries_panel_test.dart` |
 
 **Search**
 | Area | Test File |
