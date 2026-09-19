@@ -124,6 +124,13 @@ dependency_overrides:
       url: https://github.com/DavBfr/dart_pdf
       ref: 5d899ad8dfdc5735fc8d5a09e0c76a9d0767b8c1
       path: printing
+  # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר espresso3389/pdfrx#724 (עיגון התצוגה
+  # באותו פריים כשגודל עמוד משתנה). עד אז הפורק palmoni5, מוצמד לקומיט.
+  pdfrx:
+    git:
+      url: https://github.com/palmoni5/pdfrx
+      ref: 57ee62fe8127d654b63e6b2f84e2028025b7eec9
+      path: packages/pdfrx
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
   # (קריאות WinRT ב-thread ייעודי). עד אז הפורק Otzaria, מוצמד לקומיט.
   # בהסרה: למחוק גם את core.longpaths מ-workflows של Windows - הוא נדרש
