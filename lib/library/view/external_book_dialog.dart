@@ -11,6 +11,7 @@ import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_capabilities.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/view/external_open_button.dart';
+import 'package:otzaria/external_catalog/view/external_book_category_line.dart';
 import 'package:otzaria/library/services/hebrew_books_download_service.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
@@ -107,12 +108,12 @@ class ExternalBookDialog extends StatelessWidget {
                         'מקור הספר',
                         provider.displayName,
                       ),
-                    if (book.categoryPath?.isNotEmpty ?? false)
+                    if (externalBookCategoryLine(book) case final category?)
                       _buildInfoRow(
                         context,
                         FluentIcons.folder_24_regular,
                         'קטגוריה',
-                        book.categoryPath!.replaceAll('/', ' › '),
+                        category,
                       ),
                     // שדה שאין לו מקור אצל הספק אינו מוצג כ"לא ידוע" —
                     // זו אמירה שגויה על הספר ולא על המידע שברשותנו.

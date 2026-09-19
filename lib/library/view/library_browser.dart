@@ -10,6 +10,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_library_tree.dart';
+import 'package:otzaria/external_catalog/view/external_book_category_line.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
@@ -2397,9 +2398,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       subtitle: book.author,
       // הקטגוריה, כמו בשורת ספר מקומי. אצל ספק שאין לו שדה מחבר —
       // ופרויקט השו"ת הוא כזה — זו השורה היחידה שמסבירה מה נמצא.
-      pathLine: (book.categoryPath ?? '').trim().isNotEmpty
-          ? book.categoryPath!.trim()
-          : null,
+      //
+      // מוצגת הקטגוריה **באוצריא** ולא המדף בבר אילן: `שו״ת` ולא
+      // `ספרי שאלות ותשובות (שו"ת) › ... - אחרונים › תורת יקותיאל`.
+      // זה השם שהמשתמש מכיר, ושם הוא ימצא את הספר בעיון.
+      pathLine: externalBookCategoryLine(book),
       level: level,
       itemStyle: itemStyle,
       isSelected: false,

@@ -79,4 +79,37 @@ void main() {
       }
     }
   });
+
+  group('שם להצגה', () {
+    test('הקטגוריה מוצגת בשמות של אוצריא', () {
+      // התלונה: "כותרות שסתם מופיעות באריכות ולא בשם המקובל, למשל
+      // ספרי שאלות ותשובות במקום שו"ת".
+      expect(
+        ResponsaCategoryMap.displayNameFor(
+          'ספרי שאלות ותשובות (שו"ת) > ספרי שאלות ותשובות - אחרונים',
+        ),
+        'שו״ת',
+      );
+      expect(ResponsaCategoryMap.displayNameFor('ספרי חסידות'), 'חסידות');
+    });
+
+    test('נתיב בן שני רכיבים מוצג במלואו', () {
+      expect(
+        ResponsaCategoryMap.displayNameFor('ספרות חז"ל > מדרשי אגדה'),
+        'מדרש › אגדה',
+      );
+    });
+
+    test('בלי שיוך מוצג שורש בר אילן ולא כלום', () {
+      expect(
+        ResponsaCategoryMap.displayNameFor('קטגוריה חדשה > תת-קטגוריה'),
+        'קטגוריה חדשה',
+      );
+    });
+
+    test('ריק מחזיר null', () {
+      expect(ResponsaCategoryMap.displayNameFor(''), isNull);
+      expect(ResponsaCategoryMap.displayNameFor(null), isNull);
+    });
+  });
 }

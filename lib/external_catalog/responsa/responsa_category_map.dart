@@ -102,6 +102,25 @@ class ResponsaCategoryMap {
     return single == null ? null : (target: single, levels: 1);
   }
 
+  /// שם הקטגוריה **להצגה** — בשמות של אוצריא.
+  ///
+  /// השם שבמאגר הוא שם של מדף בתוכנה אחרת: `ספרי שאלות ותשובות (שו"ת)
+  /// › ספרי שאלות ותשובות - אחרונים › תורת יקותיאל`. הוא ארוך, הוא חוזר
+  /// על עצמו, והוא אינו השם שהמשתמש מכיר. מה שמוצג הוא הקטגוריה
+  /// באוצריא — `שו״ת` — כי שם הוא ימצא את הספר בעיון.
+  ///
+  /// כשאין שיוך מוצג שורש הקטגוריה של בר אילן, ולא מחרוזת ריקה.
+  static String? displayNameFor(String? categoryPath) {
+    final match = resolve(categoryPath);
+    if (match != null) return match.target.join(' › ');
+    final root = categoryPath
+        ?.split(pathSeparator)
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .firstOrNull;
+    return (root == null || root.isEmpty) ? null : root;
+  }
+
   /// כל נתיבי היעד באוצריא. משמש לבדיקה שכל יעד קיים באמת בספרייה.
   static Iterable<List<String>> get allTargets => [
     ..._twoLevel.values,
