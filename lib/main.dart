@@ -62,6 +62,7 @@ import 'package:otzaria/library_update/repository/library_update_repository.dart
 import 'package:otzaria/library_update/services/streaming_patch_downloader.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/library_update/services/startup_recovery_check.dart';
+import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 import 'package:otzaria/work_status/work_status_cubit.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
@@ -1558,7 +1559,9 @@ class _AppBootstrapState extends State<AppBootstrap> {
             create: (context) => LibraryUpdateBloc(
               repository: LibraryUpdateRepository(
                 discovery: LibraryUpdateDiscovery(
-                  client: GithubLibraryReleaseClient(),
+                  client: GithubLibraryReleaseClient(
+                    httpClient: GithubRateLimitAwareClient(),
+                  ),
                 ),
                 // זורם לדיסק: patch גדול נפרס בלי לשבת ב-RAM (ראו את המחלקה).
                 downloader: StreamingPatchDownloader(),

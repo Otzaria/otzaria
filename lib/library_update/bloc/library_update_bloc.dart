@@ -6,6 +6,7 @@ import 'package:otzaria/core/internet_connectivity.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/update_source_reachability.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
+import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:otzaria/utils/text/byte_size_text.dart';
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 
@@ -663,6 +664,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   /// ממופה לטקסט קצר. הפרטים המלאים נרשמים ל-errors.txt ב-[_logUpdateError].
   String _errorDetail(Object error) {
     if (error is PatchDownloadException) return error.message;
+    if (error is GithubRateLimitException) {
+      return LibraryMessages.updateRateLimited(error.minutesUntilReset());
+    }
     if (PatchDownloader.isTransientNetworkError(error)) {
       return LibraryMessages.updateNetworkInterrupted;
     }

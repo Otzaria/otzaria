@@ -7,12 +7,16 @@ import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/repository/library_update_repository.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
+import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 class _FakeService implements LibraryUpdateService {
   final LibraryUpdatePlan plan;
   final bool throwOnCheck;
   final bool throwOnApply;
+
+  /// שגיאה ספציפית לזריקה מ-checkForUpdate (קודמת ל-[throwOnCheck]).
+  final Object? checkError;
 
   /// שגיאה ספציפית לזריקה מ-applyDeltaPlan (קודמת ל-[throwOnApply]).
   final Object? applyError;
@@ -24,6 +28,7 @@ class _FakeService implements LibraryUpdateService {
     this.throwOnCheck = false,
     this.throwOnApply = false,
     this.applyError,
+    this.checkError,
   });
 
   @override
@@ -34,6 +39,7 @@ class _FakeService implements LibraryUpdateService {
   Future<LibraryUpdatePlan> checkForUpdate({
     required bool allowPrerelease,
   }) async {
+    if (checkError != null) throw checkError!;
     if (throwOnCheck) throw Exception('check failed');
     return plan;
   }
@@ -796,6 +802,31 @@ void main() {
           'status',
           LibraryUpdateStatus.error,
         ),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'חסימת מכסה של GitHub → הודעה עם זמן ההמתנה במקום 403 גולמי',
+      build: () => _bloc(
+        _FakeService(
+          nonePlan,
+          checkError: GithubRateLimitException(
+            resetAt: DateTime.now().add(
+              const Duration(minutes: 9, seconds: 30),
+            ),
+          ),
+        ),
+      ),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.error)
+            .having(
+              (s) => s.errorMessage,
+              'errorMessage',
+              LibraryMessages.updateRateLimited(10),
+            ),
       ],
     );
 
