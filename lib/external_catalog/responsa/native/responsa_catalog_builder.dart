@@ -4,49 +4,59 @@ import 'package:otzaria/external_catalog/responsa/responsa_catalog_schema.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_names.dart';
+import 'package:otzaria/external_catalog/responsa/text/responsa_structure.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_tree_reader.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 /// ספר אחד כפי שהסיווג מזהה אותו.
+///
+/// השורה נבנית מ**שרשרת הצמתים** ולא מהנתיב כמחרוזת, מפני שההחלטה היכן
+/// מתחיל שם הספר נקראת מ-`lParam` של כל צומת — ראה [ResponsaStructure].
 class ResponsaBookRow {
+  /// השרשרת מהשורש ועד הספר עצמו, כולל.
+  final List<ResponsaChainNode> chain;
+
+  ResponsaBookRow({required this.chain})
+    : assert(chain.isNotEmpty, 'שרשרת ריקה אינה ספר');
+
   /// שם הצומת בעץ, כפי שהוא. זהו שם היחידה — `אבות`, לא `הון עשיר אבות`.
-  final String leafTitle;
+  String get leafTitle => chain.last.name;
 
-  final String refPath;
-  final String? category;
-  final int treeParam;
-  final int level;
+  int get treeParam => chain.last.param;
 
-  ResponsaBookRow({
-    required this.leafTitle,
-    required this.refPath,
-    required this.category,
-    required this.treeParam,
-    required this.level,
-  });
+  int get level => chain.last.level;
 
-  List<String> get ancestors {
-    final parts = refPath.split(ResponsaTreeReader.pathSeparator);
-    return parts.sublist(0, parts.length - 1);
-  }
+  String get refPath => [
+    for (final node in chain) node.name,
+  ].join(ResponsaTreeReader.pathSeparator);
 
-  String get parentPath => ancestors.join(ResponsaTreeReader.pathSeparator);
+  String get parentPath => [
+    for (final node in chain.sublist(0, chain.length - 1)) node.name,
+  ].join(ResponsaTreeReader.pathSeparator);
 
-  ({String title, List<String> coreParts, int levels})? _names;
-  ({String title, List<String> coreParts, int levels}) get _resolved =>
-      _names ??= ResponsaNames.fullTitle(
-        rawTitle: leafTitle,
-        ancestors: ancestors,
-      );
+  ({List<String> nameNodes, List<String> categoryNodes, int workOffset})?
+  _parts;
+  ({List<String> nameNodes, List<String> categoryNodes, int workOffset})
+  get _resolved => _parts ??= ResponsaStructure.decompose(chain)!;
 
-  /// השם שהמשתמש רואה ומחפש לפיו.
-  String get title => _resolved.title;
+  /// האם השרשרת מכילה חיבור. `false` = צומת קטגוריה שהסיווג טעה בו.
+  bool get isWork => ResponsaStructure.decompose(chain) != null;
 
-  /// ההפניה הבסיסית — אותם רכיבים בשמות ליבה.
-  List<String> get baseRef => _resolved.coreParts;
+  /// השם שהמשתמש רואה ומחפש לפיו — `מהרש"א חידושי הלכות בבא בתרא`.
+  String get title => ResponsaNames.titleOf(_resolved.nameNodes);
 
-  /// כמה רמות נתיב כבר נצרכו לשם המלא.
-  int get baseLevels => _resolved.levels;
+  /// רכיבי השם, מהחיבור (או מהשם שמעליו) ומטה.
+  List<String> get nameNodes => _resolved.nameNodes;
+
+  /// כמה רכיבי שם יושבים **מעל** החיבור.
+  int get workOffset => _resolved.workOffset;
+
+  /// רכיבי הקטגוריה, מהשורש ועד לרכיב שמעל השם.
+  List<String> get categoryNodes => _resolved.categoryNodes;
+
+  /// ההפניה הבסיסית — מהחיבור ומטה, בשמות ליבה.
+  String get baseRef =>
+      ResponsaNames.referenceOf(_resolved.nameNodes.sublist(workOffset));
 }
 
 class ResponsaCatalogBuildResult {
@@ -99,30 +109,39 @@ class ResponsaCatalogBuilder {
 
   /// מזהה ספרים מתוך זרם הצמתים.
   ///
-  /// ספר = הצומת הגבוה ביותר שתוכנו מקטעים: יש לו ילד שהוא מקטע, והוא
-  /// עצמו אינו מקטע. כלל מבני ולא היוריסטיקת-רמה, כי עומק הספר משתנה
-  /// בין ענפים — `בראשית` ברמה 1 ו-`משנה > שבת` ברמה 2, ושניהם ספרים.
+  /// ספר = הצומת הגבוה ביותר שתוכנו מקטעים **ושיושב תחת צומת חיבור**:
+  /// יש לו ילד שהוא מקטע, הוא עצמו אינו מקטע, ויש בשרשרת שמעליו צומת
+  /// מסוג חיבור. כלל מבני ולא היוריסטיקת-רמה, כי עומק הספר משתנה בין
+  /// ענפים — `בראשית` ברמה 1 ו-`משנה > שבת` ברמה 2, ושניהם ספרים.
+  ///
+  /// תנאי החיבור הוא שמסלק 58 תוצאות שווא שנמדדו במהדורה המותקנת: צמתי
+  /// קטגוריה שיש להם ילד בעל שם של מקטע (`שולחן ערוך`, `ילקוט יוסף`,
+  /// `מפרשים על הרמב"ם`, ורשומות `מפתח נושאים בשו"ת`). הם הופיעו בחיפוש
+  /// ולא נפתחו לעולם, כי אין מאחוריהם טקסט.
   static List<ResponsaBookRow> classify(Iterable<ResponsaTreeNode> nodes) {
     final books = <ResponsaBookRow>[];
     final stack = <({ResponsaTreeNode node, bool hasSectionChild})>[];
 
+    void emit(({ResponsaTreeNode node, bool hasSectionChild}) entry) {
+      final node = entry.node;
+      if (node.level == 0 || !entry.hasSectionChild) return;
+      if (isSection(node.name, node.param)) return;
+      final chain = <ResponsaChainNode>[
+        for (final ancestor in stack)
+          (
+            level: ancestor.node.level,
+            param: ancestor.node.param,
+            name: ancestor.node.name,
+          ),
+        (level: node.level, param: node.param, name: node.name),
+      ];
+      if (ResponsaStructure.decompose(chain) == null) return;
+      books.add(ResponsaBookRow(chain: chain));
+    }
+
     void closeTo(int level) {
       while (stack.isNotEmpty && stack.last.node.level >= level) {
-        final entry = stack.removeLast();
-        final node = entry.node;
-        if (node.level == 0 || !entry.hasSectionChild) continue;
-        if (isSection(node.name, node.param)) continue;
-        books.add(
-          ResponsaBookRow(
-            leafTitle: node.name,
-            refPath: node.path,
-            category: ResponsaNames.displayOf(
-              node.path.split(ResponsaTreeReader.pathSeparator).first,
-            ),
-            treeParam: node.param,
-            level: node.level,
-          ),
-        );
+        emit(stack.removeLast());
       }
     }
 
@@ -136,140 +155,75 @@ class ResponsaCatalogBuilder {
     }
     closeTo(0);
     while (stack.isNotEmpty) {
-      final entry = stack.removeLast();
-      final node = entry.node;
-      if (node.level == 0 || !entry.hasSectionChild) continue;
-      if (isSection(node.name, node.param)) continue;
-      books.add(
-        ResponsaBookRow(
-          leafTitle: node.name,
-          refPath: node.path,
-          category: ResponsaNames.displayOf(
-            node.path.split(ResponsaTreeReader.pathSeparator).first,
-          ),
-          treeParam: node.param,
-          level: node.level,
-        ),
-      );
+      emit(stack.removeLast());
     }
     return books;
   }
 
-  /// ההפניה הקצרה ביותר שעדיין חד-משמעית, לכל ספר.
+  /// ההפניה הראשית של כל ספר — **השם המלא של הספר**, בלי תוויות.
   ///
-  /// נקודת ההתחלה היא **השם המלא בשמות ליבה** — אותו שם שהמשתמש רואה,
-  /// בלי ההסתייגות שבסוגריים. משם מוסיפים אבות אחד-אחד עד לייחודיות
-  /// בקטלוג. זהו **קירוב** לחד-משמעיות של מנתח ההפניות, ולכן הפתיחה
-  /// בזמן אמת מאמתת את כותרת החלון שנפתח, ויש סולם נסיגה.
-  static List<String> buildOpenRefs(List<ResponsaBookRow> books) {
-    final openRefs = List<String>.filled(books.length, '');
-    var remaining = List<int>.generate(books.length, (i) => i);
-    var extra = 0;
-
-    while (remaining.isNotEmpty) {
-      final candidates = <String, List<int>>{};
-      for (final index in remaining) {
-        candidates
-            .putIfAbsent(_referenceAt(books[index], extra), () => [])
-            .add(index);
-      }
-      final still = <int>[];
-      for (final entry in candidates.entries) {
-        if (entry.value.length == 1) {
-          openRefs[entry.value.single] = entry.key;
-        } else {
-          still.addAll(entry.value);
-        }
-      }
-      if (still.isEmpty) break;
-      final deepest = still
-          .map((i) => _maxExtra(books[i]))
-          .reduce((a, b) => a > b ? a : b);
-      if (extra >= deepest) {
-        // אף אב נוסף אינו מפריד — הנתיב המלא הוא הטוב ביותר שיש.
-        for (final index in still) {
-          openRefs[index] = _referenceAt(books[index], extra);
-        }
-        break;
-      }
-      remaining = still;
-      extra++;
-    }
-
-    for (var i = 0; i < openRefs.length; i++) {
-      if (openRefs[i].isNotEmpty) continue;
-      // שם הצומת הגולמי הוא מוצא אחרון. הפניה ריקה מפילה את האימות
-      // ואיתו את כל הבנייה, בגלל שם אחד חריג מתוך 8,523.
-      final fallback = books[i].baseRef.join(' ');
-      openRefs[i] = fallback.isEmpty ? books[i].leafTitle.trim() : fallback;
-    }
-    return openRefs;
-  }
-
-  /// כמה אבות נוספים אפשר לצרף להפניה — **בלי שורש הקטגוריה**.
+  /// `מהרש"א חידושי הלכות בבא בתרא` ולא `חידושי הלכות בבא בתרא`: זהו
+  /// בדיוק השם שהתוכנה נותנת לחלון שהיא פותחת, וגם השם שהמשתמש רואה
+  /// ברשימה. השם הקצר שייך לכמה מחברים, ופתיחה לפיו הסתיימה בספר אחר.
   ///
-  /// שורש הקטגוריה הוא תווית מיון ולא חלק משם ספר, ומנתח ההפניות אינו
-  /// מכיר אותו: `ספרי שאלות ותשובות ... שאגת אריה` נדחה, ואילו
-  /// `שאגת אריה` נפתח. צירופו רק כדי להשיג ייחודיות בקטלוג מייצר הפניה
-  /// ייחודית שאיש אינו יכול לפתוח, ומוסיף חוליה כושלת לכל פתיחה.
-  static int _maxExtra(ResponsaBookRow book) {
-    final available = book.ancestors.length - book.baseLevels - 1;
-    return available < 0 ? 0 : available;
-  }
-
-  /// ההפניה עם [extra] אבות **נוספים** מעבר לאלה שכבר נכללו בשם המלא.
-  static String _referenceAt(ResponsaBookRow book, int extra) {
-    final base = book.baseRef;
-    if (extra <= 0) return base.join(' ');
-    final ancestors = book.ancestors;
-    final start = ancestors.length - book.baseLevels;
-    final limit = _maxExtra(book);
-    final take = extra > limit ? limit : extra;
-    if (take <= 0) return base.join(' ');
-    return [
-      ...ancestors
-          .sublist(start - take, start)
-          .map(ResponsaNames.coreOf)
-          .where((part) => part.isNotEmpty),
-      ...base,
-    ].join(' ');
-  }
+  /// **לא מוסיפים מעל כך.** תוויות המיון אינן חלק משום הפניה שהמנתח
+  /// מכיר: `ספרי שאלות ותשובות ... שאגת אריה` נדחה אחרי 19 שניות, ואילו
+  /// `שאגת אריה` נפתח מיד. לכן גם `ספרי החפץ חיים`, שהוא תווית אף שהוא
+  /// רכיב בשם המוצג, נשאר מחוץ להפניה.
+  ///
+  /// החד-משמעיות אינה נבדקת מול הקטלוג אלא נמסרת למנתח: ייחודיות
+  /// **בקטלוג** אינה ייחודיות **אצל המנתח**, ובחירת הצורה הקצרה רק
+  /// מפני שהיא ייחודית בקטלוג היא בדיוק מה שהוליך לספר שגוי. מה שמגן
+  /// על הפתיחה הוא אימות כותרת החלון וסולם הנסיגה שמתחתיו.
+  static List<String> buildOpenRefs(List<ResponsaBookRow> books) => [
+    for (final book in books)
+      if (ResponsaNames.referenceOf(book.nameNodes) case final reference)
+        // הפניה ריקה מפילה את אימות הבנייה ואיתו את כל הקטלוג, בגלל שם
+        // אחד חריג מתוך 8,465. שם הצומת הגולמי הוא מוצא אחרון.
+        reference.isEmpty ? book.leafTitle.trim() : reference,
+  ];
 
   /// הפניות חלופיות, לפי סדר יורד של סיכוי — סולם הנסיגה של הפתיחה.
   ///
-  /// הסולם נבנה כאן ולא בזמן הפתיחה, מפני שרק כאן ידועים שמות הליבה
-  /// ומבנה הנתיב. בזמן הפתיחה נשארה רק השמטת מילים מההתחלה, שהיא ניחוש.
+  /// הסולם נבנה כאן ולא בזמן הפתיחה, מפני שרק כאן ידוע מבנה השרשרת.
+  /// בזמן הפתיחה נשארה רק השמטת מילים מההתחלה, שהיא ניחוש: היא פתחה ספר
+  /// אחר ב-3 מתוך 40 פתיחות שנמדדו.
+  ///
+  /// **כל חוליה מתחילה בשם החיבור או מעליו.** חוליה שמתחילה ביחידה
+  /// (`פרשת קדושים`, `פסחים`) שייכת לכל פרשן ולכל מסכת, ונמדד שהיא אינה
+  /// מוסיפה הצלחות — היא פותחת ספר אחר, והאימות פוסל אותו אחרי ששולם
+  /// כבר מחיר הזמן.
   static List<String> alternativeRefs(ResponsaBookRow book, String openRef) {
-    final base = book.baseRef;
-    final leaf = base.last;
-    final parent = book.ancestors.isEmpty
-        ? ''
-        : ResponsaNames.coreOf(book.ancestors.last);
+    final names = book.nameNodes;
+    final head = names.first;
+    final work = names.sublist(book.workOffset);
     final candidates = <List<String>>[
-      base,
-      // שם החיבור ושם היחידה, בלי מה שביניהם. נמדד שהתוכנה מקבלת
-      // `חומת אנך בראשית פרשת בראשית` אך דוחה `תיבת גמא דברים פרשת
-      // האזינו`, ואותו חיבור בדיוק נפתח בצורה הקצרה.
-      if (base.length > 2) [base.first, leaf],
-      if (base.length > 1) base.sublist(1),
-      if (parent.isNotEmpty && parent != leaf) [parent, leaf],
-      [leaf],
+      // החיבור בלי השם שמעליו — עוזר כשהמנתח אינו מכיר את הצירוף.
+      work,
+      // ראש השם והיחידה, בלי מה שביניהם. נמדד חי: התוכנה מכנה את הספר
+      // `חידושי הגר"ח מגילה`, ואילו המאגר קורא לצומת שמעל המסכת
+      // `חידושים על הגמרא` — צירוף שהמנתח אינו מזהה. אותו דפוס בדיוק
+      // ב-`שם משמואל ... תורה ... פרשת בהעלותך`.
+      if (names.length > 1) [head, names.last],
+      // שם החיבור ושם היחידה. נמדד שהתוכנה מקבלת `חומת אנך בראשית פרשת
+      // בראשית` אך דוחה `תיבת גמא דברים פרשת האזינו`, ואותו חיבור
+      // בדיוק נפתח בצורה הקצרה.
+      if (work.length > 2) [work.first, work.last],
+      [work.first],
       // 19 שמות במאגר נושאים הסתייגות בסדר הגיוני ולכן אינם מפורקים
       // על ידי `coreOf` — `הלכות קטנות לרי"ף (מנחות) - הלכות ציצית`.
       // גרסה בלי הסוגריים היא החוליה האחרונה לפני כישלון.
-      [ResponsaNames.withoutQualifier(openRef)],
-      [ResponsaNames.withoutQualifier(leaf)],
     ];
     final seen = <String>{openRef};
     return [
       for (final candidate in candidates)
-        // חוליה שמתחילה בשם יחידה אינה יכולה לזהות ספר: `פרשת קדושים`
-        // שייך לכל פרשן ו-`פסחים` לכל מסכת. נמדד שחוליות כאלה אינן
-        // מוסיפות הצלחות — הן פותחות ספר אחר, והאימות פוסל אותו אחרי
-        // שכבר שולם מחיר הזמן.
-        if (!ResponsaNames.isUnitName(candidate.first))
-          if (candidate.join(' ') case final reference)
-            if (reference.isNotEmpty && seen.add(reference)) reference,
+        if (ResponsaNames.referenceOf(candidate) case final reference)
+          if (reference.isNotEmpty && seen.add(reference)) reference,
+      for (final reference in [
+        ResponsaNames.withoutQualifier(openRef),
+        ResponsaNames.withoutQualifier(ResponsaNames.referenceOf(work)),
+      ])
+        if (reference.isNotEmpty && seen.add(reference)) reference,
     ];
   }
 
@@ -427,6 +381,7 @@ class ResponsaCatalogBuilder {
           alt_refs       TEXT,
           volume         TEXT,
           category       TEXT,
+          category_path  TEXT,
           topics         TEXT,
           tree_param     INTEGER,
           source_version INTEGER NOT NULL
@@ -438,14 +393,17 @@ class ResponsaCatalogBuilder {
 
       final insert = db.prepare(
         'INSERT INTO books(external_key, title, leaf_title, norm_title,'
-        ' ref_path, open_ref, alt_refs, volume, category, topics, tree_param,'
-        ' source_version)'
-        ' VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+        ' ref_path, open_ref, alt_refs, volume, category, category_path,'
+        ' topics, tree_param, source_version)'
+        ' VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
       );
       db.execute('BEGIN');
       for (var i = 0; i < books.length; i++) {
         final book = books[i];
         final alternatives = alternativeRefs(book, openRefs[i]);
+        final categories = [
+          for (final node in book.categoryNodes) ResponsaNames.displayOf(node),
+        ];
         insert.execute([
           assignment.keys[i],
           book.title,
@@ -457,7 +415,10 @@ class ResponsaCatalogBuilder {
           // volume ו-topics נשארים ריקים: אין להם מקור בהתקנה, ואין
           // להמציא ערכים.
           null,
-          book.category,
+          categories.isEmpty ? null : categories.first,
+          categories.isEmpty
+              ? null
+              : categories.join(ResponsaTreeReader.pathSeparator),
           null,
           book.treeParam,
           fingerprint.version ?? 0,

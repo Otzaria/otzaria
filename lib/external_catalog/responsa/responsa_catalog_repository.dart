@@ -230,13 +230,21 @@ class ResponsaCatalogRepository {
   static ExternalLibraryBook mapRow(Map<String, Object?> row) {
     final key = row['external_key']?.toString() ?? '';
     final refPath = row['ref_path']?.toString() ?? '';
+    // `heCategories` הוא **נתיב הקטגוריה המלא בבר אילן**, לא רק השורש:
+    // `ספרות חז"ל` לבדו מתפצל לחמש קטגוריות באוצריא, ורק הרמה השנייה
+    // אומרת לאיזו מהן הספר שייך. קטלוג בסכמה 2 אינו מכיר את העמודה,
+    // ואז השורש הוא מה שיש.
+    final categoryPath =
+        row['category_path']?.toString() ?? row['category']?.toString();
     return ExternalLibraryBook(
       title: row['title']?.toString() ?? '',
       id: int.tryParse(key) ?? 0,
       link: null,
       topics: row['topics']?.toString() ?? '',
       categoryPath: contextPathOf(refPath),
-      heCategories: row['category']?.toString(),
+      heCategories: (categoryPath == null || categoryPath.isEmpty)
+          ? null
+          : categoryPath,
       externalLibraryId: ExternalProviderRegistry.responsa.externalLibraryIdFor(
         key,
       ),

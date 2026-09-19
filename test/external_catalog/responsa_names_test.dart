@@ -51,91 +51,66 @@ void main() {
     });
   });
 
-  group('זיהוי שם יחידה', () {
-    test('מסכת', () {
-      expect(ResponsaNames.isUnitName('בבא קמא'), isTrue);
-      expect(ResponsaNames.isUnitName('אבות'), isTrue);
+  group('גרש מוביל', () {
+    test('גרש בראש השם חוזר לסופו', () {
+      // נמדד: ההפניה `'מלחמת ה` נדחתה על ידי המנתח.
+      expect(ResponsaNames.displayOf("'מלחמת ה"), "מלחמת ה'");
+      expect(ResponsaNames.coreOf("'מלחמת ה"), "מלחמת ה'");
     });
 
-    test('כתיב חלופי במאגר', () {
-      // במאגר מופיעים זה לצד זה, ובלי קיפול הכתיב שני ספרים מכל מסכתות
-      // הש"ס היו נשארים בלי שם החיבור.
-      expect(ResponsaNames.isUnitName('מקוואות'), isTrue);
-      expect(ResponsaNames.isUnitName('עוקצין'), isTrue);
+    test('גרשיים מובילים כשיש עוד אחד בפנים', () {
+      expect(
+        ResponsaNames.displayOf('"ספרי בעל ה"חיי אדם'),
+        'ספרי בעל ה"חיי אדם"',
+      );
     });
 
-    test('ספר תנ"ך וחלק שולחן ערוך', () {
-      expect(ResponsaNames.isUnitName('בראשית'), isTrue);
-      expect(ResponsaNames.isUnitName('יורה דעה'), isTrue);
-    });
-
-    test('מילה פותחת גנרית', () {
-      expect(ResponsaNames.isUnitName('כלל נא'), isTrue);
-      expect(ResponsaNames.isUnitName('פרשת תצוה'), isTrue);
-      expect(ResponsaNames.isUnitName('חלק ב'), isTrue);
-    });
-
-    test('שם חיבור אינו שם יחידה', () {
-      expect(ResponsaNames.isUnitName('הון עשיר'), isFalse);
-      expect(ResponsaNames.isUnitName('נודע ביהודה'), isFalse);
-      expect(ResponsaNames.isUnitName('היכלות'), isFalse);
+    test('שם שאינו מתחיל בסימן אינו משתנה', () {
+      expect(ResponsaNames.displayOf('שאגת אריה'), 'שאגת אריה');
+      expect(ResponsaNames.displayOf('רשב"א'), 'רשב"א');
     });
   });
 
-  group('השם המלא', () {
-    ({String title, List<String> coreParts, int levels}) full(
-      String title,
-      List<String> ancestors,
-    ) => ResponsaNames.fullTitle(rawTitle: title, ancestors: ancestors);
-
-    test('כרך של חיבור מקבל את שם החיבור', () {
-      // הדוגמה שהמשתמש דיווח עליה: ברשימה הופיע `אבות` ושם החיבור
-      // הופיע רק בנתיב הקטן שמתחת.
-      final result = full('אבות', [
-        'מפרשי המשנה ומדרשי הלכה',
-        'הון עשיר',
-      ]);
-      expect(result.title, 'הון עשיר אבות');
-      expect(result.coreParts, ['הון עשיר', 'אבות']);
-      expect(result.levels, 1);
+  group('חיבור רכיבים לשם אחד', () {
+    test('רכיב שחוזר על אביו אינו נכפל', () {
+      // נצפה במאגר: `שמירת הלשון > חלק א > חלק א חתימת הספר`.
+      expect(
+        ResponsaNames.titleOf(['שמירת הלשון', 'חלק א', 'חלק א חתימת הספר']),
+        'שמירת הלשון חלק א חתימת הספר',
+      );
     });
 
-    test('שורש הקטגוריה לעולם אינו מצורף', () {
-      // `בראשית` תחת שורש התנ"ך הוא שם הספר. `תנ"ך בראשית` הוא גם שם
-      // גרוע להצגה וגם הפניה שהמנתח דוחה.
-      final result = full('בראשית', ['(תנ"ך (החומש מחולק לפרקים']);
-      expect(result.title, 'בראשית');
-      expect(result.levels, 0);
+    test('רכיב זהה לאביו מדולג', () {
+      expect(
+        ResponsaNames.titleOf(['בכורי יוסף', 'בכורי יוסף']),
+        'בכורי יוסף',
+      );
     });
 
-    test('שרשור של שתי רמות', () {
-      final result = full('פרשת בראשית', [
-        'פרשנות על התורה',
-        'חומת אנך',
-        'בראשית',
-      ]);
-      expect(result.title, 'חומת אנך בראשית פרשת בראשית');
-      expect(result.coreParts, ['חומת אנך', 'בראשית', 'פרשת בראשית']);
-      expect(result.levels, 2);
+    test('הניקוי הוא על גבול מילה בלבד', () {
+      // `חלק א` אינו תחילית של `חלק אבן העזר` — הן שתי מילים שונות.
+      expect(
+        ResponsaNames.titleOf(['ישועות מלכו', 'חלק אבן העזר']),
+        'ישועות מלכו חלק אבן העזר',
+      );
     });
 
-    test('אב שאינו מוסיף מידע מדולג, והרמה עדיין נספרת', () {
-      final result = full('אבות', ['קטגוריה', 'הון עשיר', 'אבות']);
-      expect(result.title, 'הון עשיר אבות');
-      expect(result.levels, 2);
+    test('ההסתייגות נשמרת בשם ונעלמת מההפניה', () {
+      expect(
+        ResponsaNames.titleOf(['תוספתא', '(בבא בתרא (ליברמן']),
+        'תוספתא בבא בתרא (ליברמן)',
+      );
+      expect(
+        ResponsaNames.referenceOf(['תוספתא', '(בבא בתרא (ליברמן']),
+        'תוספתא בבא בתרא',
+      );
     });
 
-    test('ההסתייגות נשמרת בשם המלא', () {
-      final result = full('(בבא בתרא (ליברמן', ['ספרות חז"ל', 'תוספתא']);
-      expect(result.title, 'תוספתא בבא בתרא (ליברמן)');
-      // ההפניה נשלחת בלי ההסתייגות — המנתח אינו מקבל אותה.
-      expect(result.coreParts, ['תוספתא', 'בבא בתרא']);
-    });
-
-    test('שם חיבור עצמאי נשאר כפי שהוא', () {
-      final result = full('היכלות', ['ספרות חז"ל', 'מדרשי אגדה', 'אוצר']);
-      expect(result.title, 'היכלות');
-      expect(result.levels, 0);
+    test('כתיב מלא וחסר נחשבים חזרה', () {
+      expect(
+        ResponsaNames.titleOf(['חידושי הריטב"א', 'חדושי הריטבא שבת']),
+        'חדושי הריטבא שבת',
+      );
     });
   });
 }
