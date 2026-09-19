@@ -38,6 +38,7 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
     on<AppReportEmailChanged>(_onFieldChanged);
     on<AppReportDiagnosticsToggled>(_onFieldChanged);
     on<AppReportErrorLogToggled>(_onFieldChanged);
+    on<AppReportImagesChanged>(_onFieldChanged);
     on<AppReportSubmitted>(_onSubmitted);
   }
 
@@ -110,6 +111,9 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
       AppReportErrorLogToggled(:final include) => current.copyWith(
         includeErrorLog: include,
       ),
+      AppReportImagesChanged(:final images) => current.copyWith(
+        images: List.unmodifiable(images),
+      ),
       _ => current,
     });
   }
@@ -158,6 +162,7 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
       createdAt: _clock(),
       diagnostics: form.includeDiagnostics ? form.diagnostics : null,
       errorLog: form.includeErrorLog ? form.errorLog : null,
+      images: form.images,
     ).redactedWith(_redactor);
   }
 

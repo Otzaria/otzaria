@@ -7,6 +7,7 @@ import 'package:otzaria/app_report/bloc/app_report_state.dart';
 import 'package:otzaria/app_report/models/app_report.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/view/app_report_result_snack.dart';
+import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_preview_section.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -225,6 +226,12 @@ class _AppReportDialogState extends State<AppReportDialog> {
             ),
             onChanged: (value) => bloc.add(AppReportEmailChanged(value)),
           ),
+        ),
+        const SizedBox(height: 16),
+        AppReportImagesSection(
+          images: state.images,
+          enabled: enabled,
+          onChanged: (images) => bloc.add(AppReportImagesChanged(images)),
         ),
         const SizedBox(height: 16),
         AppReportPreviewSection(

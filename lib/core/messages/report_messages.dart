@@ -138,8 +138,6 @@ abstract class ReportMessages {
       ? 'הדיווח צורף לדיווח קיים על אותה תקלה. תודה!'
       : 'הדיווח צורף לדיווח קיים מספר $issueNumber על אותה תקלה. תודה!';
 
-  static const String appReportIssuePending =
-      'הדיווח נקלט אצל צוות אוצריא. הדיווח הציבורי ייפתח בהמשך.';
   static const String appReportQueued =
       'לא ניתן לשלוח כעת. הדיווח נשמר ויישלח אוטומטית בהמשך. '
       'ניתן לנהל את הדיווחים השמורים בהגדרות.';
@@ -160,6 +158,13 @@ abstract class ReportMessages {
       'הדיווח על הקריסה לא נשלח. ניתן לדווח בכל עת דרך ההגדרות.';
   static const String appReportCannotOpenIssue =
       'לא ניתן לפתוח את הדיווח בדפדפן.';
+  static String appReportImageTooLarge(int maxMegabytes) =>
+      'תמונה גדולה מ-$maxMegabytes MB לא צורפה.';
+  static String appReportTooManyImages(int maxCount) =>
+      'ניתן לצרף עד $maxCount תמונות לדיווח.';
+  static String appReportImagesTotalTooLarge(int maxMegabytes) =>
+      'הגודל הכולל של התמונות מוגבל ל-$maxMegabytes MB.';
+  static const String appReportImageReadFailed = 'לא ניתן היה לקרוא את התמונה.';
 
   // ── דיווח טלפוני (PhoneReportService) ──────────────────────────────────
 

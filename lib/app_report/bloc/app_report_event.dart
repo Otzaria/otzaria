@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/app_report/models/app_report.dart';
+import 'package:otzaria/app_report/models/app_report_image.dart';
 
 /// אירועי טופס הדיווח על התוכנה.
 sealed class AppReportEvent extends Equatable {
@@ -77,6 +78,16 @@ class AppReportErrorLogToggled extends AppReportEvent {
 
   @override
   List<Object?> get props => [include];
+}
+
+/// החלפת רשימת התמונות המצורפות (הוספה או הסרה).
+class AppReportImagesChanged extends AppReportEvent {
+  const AppReportImagesChanged(this.images);
+
+  final List<AppReportImage> images;
+
+  @override
+  List<Object?> get props => [images];
 }
 
 class AppReportSubmitted extends AppReportEvent {

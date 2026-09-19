@@ -9,8 +9,6 @@ void showAppReportResultSnack(AppReportDeliveryResult result) {
     case AppReportDeliveryStatus.sent:
       if (result.merged) {
         UiSnack.showSuccess(ReportMessages.appReportMerged(result.issueNumber));
-      } else if (result.issuePending) {
-        UiSnack.showSuccess(ReportMessages.appReportIssuePending);
       } else {
         UiSnack.showSuccess(ReportMessages.appReportSent(result.issueNumber));
       }
