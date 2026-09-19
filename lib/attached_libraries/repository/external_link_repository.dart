@@ -521,14 +521,23 @@ class ExternalLinkRepository {
 Future<R> _inIsolate<A, R>(R Function(A) computation, A argument) =>
     Isolate.run(() => computation(argument));
 
+/// ספר שעבר את התקרה מחזיר ריק (ולא זורק), כדי שהתוצאה תישמר במטמון ולא
+/// תיקרא מחדש בכל גלילה.
 List<ResolvedExternalLink> _forwardRows(
   (ReadOnlyDbTarget, String, List<ExternalTargetDb>, String, int?) args,
-) => readResolvedExternalLinks(
-  source: args.$1,
-  sourceWireKey: args.$2,
-  targets: args.$3,
-  book: (title: args.$4, categoryId: args.$5),
-);
+) {
+  try {
+    return readResolvedExternalLinks(
+      source: args.$1,
+      sourceWireKey: args.$2,
+      targets: args.$3,
+      book: (title: args.$4, categoryId: args.$5),
+      maxRows: kMaxExternalLinkRowsPerBook,
+    );
+  } on ExternalLinksTooLargeException {
+    return const [];
+  }
+}
 
 /// כל היעדים (wireKey + כותרת) שיש אליהם שורות מוגשות באינדקס ההפוך.
 Set<String> _queryIndexedTargets((String, Map<String, String>) args) {

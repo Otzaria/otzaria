@@ -342,6 +342,10 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
 /// שמנפח את cache.db — מתחת למחצית ~11.4M הקישורים של הספרייה הרשמית.
 const kMaxExternalLinkRows = 5000000;
 
+/// תקרת הקישורים של ספר בודד בקריאה ישירה, שנצברים בזיכרון — פי ~4 מהספר
+/// העשיר ביותר בספרייה הרשמית (~130K).
+const kMaxExternalLinkRowsPerBook = 500000;
+
 /// תקרת אורך לכותרת ולהפניה של יעד — ערך עוין ארוך אינו נשמר ואינו נפתר.
 const kMaxExternalTextLength = 512;
 
