@@ -4,6 +4,7 @@ import 'package:mockito/mockito.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
@@ -65,6 +66,7 @@ class _StubTextBookRepository extends Mock implements TextBookRepository {
   List<String>? capturedTargetBookTitles;
   int? capturedRangeStart;
   int? capturedRangeEnd;
+  TextBook? capturedBook;
 
   @override
   Future<List<Link>> getBookLinksInRange(
@@ -73,6 +75,7 @@ class _StubTextBookRepository extends Mock implements TextBookRepository {
     required int endIndex,
     Iterable<String>? targetBookTitles,
   }) async {
+    capturedBook = book;
     capturedStartIndex = startIndex;
     capturedEndIndex = endIndex;
     capturedTargetBookTitles = targetBookTitles?.toList();
@@ -521,6 +524,57 @@ void main() {
       ];
       expect(titles, ['הערות על בראשית', 'רש״י על בראשית']);
     });
+
+    test('attached book with a shared title is chosen by source', () async {
+      final attached = TextBook(
+        id: 5,
+        title: book.title,
+        categoryId: 7,
+        source: BookSource.attached('lib-a'),
+      );
+      final library = await DataRepository.instance.library;
+      library.subCategories.single.books.add(attached);
+      repository.links = [
+        Link(
+          heRef: 'ref',
+          index1: 1,
+          path2: 'target',
+          index2: 1,
+          connectionType: 'COMMENTARY',
+          targetSource: BookSource.attached('lib-a'),
+        ),
+      ];
+
+      await adapter.execute('library', 'getLinks', {
+        'bookId': book.title,
+        'startLine': 0,
+        'endLine': 1,
+      });
+      expect(repository.capturedBook?.source, BookSource.official);
+
+      final result =
+          await adapter.execute('library', 'getLinks', {
+                'bookId': book.title,
+                'source': 'attached',
+                'startLine': 0,
+                'endLine': 1,
+              })
+              as Map<String, dynamic>;
+      expect(repository.capturedBook?.source, BookSource.attached('lib-a'));
+      final link = (result['links'] as List).single as Map<String, dynamic>;
+      expect(link['targetSource'], 'd:lib-a');
+      expect(link['targetIsUserBook'], isFalse);
+
+      final byUid =
+          await adapter.execute('library', 'getLinks', {
+                'bookUid': 'db:lib-a:5',
+                'startLine': 0,
+                'endLine': 1,
+              })
+              as Map<String, dynamic>;
+      expect(byUid['links'], hasLength(1));
+      expect(repository.capturedBook, same(attached));
+    });
   });
 
   group('library.getRawLinks', () {
@@ -535,7 +589,7 @@ void main() {
           // שדות שקיימים רק במסד — אינם חלק מהפורמט.
           targetCategoryId: 42,
           targetFileType: 'txt',
-          targetIsUserBook: true,
+          targetSource: BookSource.user,
           index2End: 13,
           anchorStart: 4,
         ),

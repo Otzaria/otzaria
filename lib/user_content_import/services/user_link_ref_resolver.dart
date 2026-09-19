@@ -77,7 +77,7 @@ Future<bool> userLinkSourceBookExists({
 }
 
 /// מאתר ספר לפי כותרת בשני המסדים — לקבצים בפורמט ה-native שאינם מציינים
-/// אישי/רשמי. אישי נבדק ראשון (עקרון preferUserBooks). null אם לא נמצא.
+/// אישי/רשמי. אישי נבדק ראשון — ספר אישי בשם זהה גובר. null אם לא נמצא.
 typedef UserLinkBookLocator =
     Future<({bool isUserBook, int? categoryId, int totalLines})?> Function(
       String title,

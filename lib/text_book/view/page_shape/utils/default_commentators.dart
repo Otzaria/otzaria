@@ -1,5 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/settings/services/category_commentators_service.dart';
@@ -18,7 +20,7 @@ class DefaultCommentators {
 
   /// מחזיר את מפרשי ותרגומי ברירת המחדל של [book], ממוינים לפי `position`.
   ///
-  /// ספרים אישיים אינם נכללים ב-seforim.db ולכן מחזירים רשימות ריקות.
+  /// נקרא מהמסד של הספר (seforim.db או מסד מצורף); לספר אישי — ריק.
   static Future<
     ({List<({String title, int position})> commentators, List<String> targums})
   >
@@ -28,9 +30,13 @@ class DefaultCommentators {
       targums: <String>[],
     );
 
-    if (book.isUserBook) return empty;
-
-    final repository = SqliteDataProvider.instance.repository;
+    final source = book.source;
+    final repository = switch (source) {
+      OfficialBookSource() => SqliteDataProvider.instance.repository,
+      UserBookSource() => null,
+      AttachedBookSource(:final slug) =>
+        await AttachedLibraryRegistry.instance.repositoryFor(slug),
+    };
     if (repository == null) return empty;
 
     final dbBook = book.categoryId != null

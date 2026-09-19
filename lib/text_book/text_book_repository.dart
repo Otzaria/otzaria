@@ -1,8 +1,12 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/user_content_import/services/user_links_loader.dart';
@@ -74,7 +78,7 @@ class TextBookRepository {
       title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: book.isUserBook,
+      preferSource: book.source,
     );
     if (providerText != null && providerText.isNotEmpty) {
       return providerText;
@@ -86,6 +90,7 @@ class TextBookRepository {
       category: book.category,
       categoryId: book.categoryId,
       fileType: book.fileType,
+      source: book.source,
     );
     if (dbBook != null) {
       // Best-effort enrichment for subsequent calls.
@@ -105,7 +110,7 @@ class TextBookRepository {
         title,
         dbBook.categoryId,
         dbBook.fileType,
-        book.isUserBook,
+        book.source,
       );
       if (dbText != null && dbText.isNotEmpty) {
         return dbText;
@@ -130,10 +135,10 @@ class TextBookRepository {
       return null;
     }
 
-    // ספרי seforim.db בלבד: השאילתה וה-split רצים ב-isolate (כמו הקישורים),
-    // כדי שלא יחסמו את ה-UI thread בזמן גלילה. ה-isolate פותח רק את seforim.db,
-    // לכן ספרי משתמש נשארים במסלול ה-drift, וכישלון נופל אליו (file-backed וכו').
-    if (categoryId != null && !book.isUserBook) {
+    // ספרי seforim.db ומסדים מצורפים: השאילתה וה-split רצים ב-isolate (כמו
+    // הקישורים), כדי שלא יחסמו את ה-UI thread בזמן גלילה. ספרי משתמש נשארים
+    // במסלול ה-drift, וכישלון נופל אליו (file-backed וכו').
+    if (categoryId != null && !book.source.isUser) {
       // getProviderForBook מסתכל רק ב-_bookToProvider שמתמלא אחרי buildLibraryCatalog.
       // בסטרטאפ (לפני buildLibraryCatalog) הוא מחזיר null — ולכן פונים ישירות
       // ל-DatabaseLibraryProvider שיכול לפתוח seforim.db ב-isolate גם בלי catalog.
@@ -153,6 +158,7 @@ class TextBookRepository {
         startLine: startLine,
         endLine: endLine,
         versionTitle: book.versionTitle,
+        source: book.source,
       );
       if (range != null && range.lines.isNotEmpty) {
         return BookContentRange(
@@ -179,7 +185,7 @@ class TextBookRepository {
       endLine: endLine,
       categoryId: book.categoryId,
       fileType: book.fileType ?? 'txt',
-      preferUserBooks: book.isUserBook,
+      preferSource: book.source,
     );
     if (range == null || range.text.isEmpty) {
       return null;
@@ -223,14 +229,52 @@ class TextBookRepository {
     final userLinks = await loadUserLinksForBook(
       bookTitle: book.title,
       bookCategoryId: book.categoryId,
-      isUserBook: book.isUserBook,
+      source: book.source,
       startLineIndex: normalizedStart,
       endLineIndex: normalizedEnd,
       targetBookTitles: normalizedTargetBookTitles,
     );
-    if (userLinks.isEmpty) return base;
-    return [...base, ...userLinks];
+    final externalLinks = await ExternalLinkRepository.instance.linksInRange(
+      title: book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      startLineIndex: normalizedStart,
+      endLineIndex: normalizedEnd,
+      targetBookTitles: normalizedTargetBookTitles,
+    );
+    if (userLinks.isEmpty && externalLinks.isEmpty) return base;
+    return mergeExtraLinks(base, [...userLinks, ...externalLinks]);
   }
+
+  /// מוסיף ל-[base] את [extra] בלי כפילויות: קישור הדדי בין שני מסדים (A→B
+  /// ו-B→A) או שורה כפולה ב-`external_link` מופיעים פעם אחת.
+  @visibleForTesting
+  static List<Link> mergeExtraLinks(List<Link> base, List<Link> extra) {
+    (int, String, int, BookSource?) keyOf(Link link) =>
+        (link.index1, link.path2, link.index2, link.targetSource);
+    final seen = {for (final link in base) keyOf(link)};
+    return [
+      ...base,
+      for (final link in extra)
+        if (seen.add((
+          link.index1,
+          link.path2,
+          link.index2,
+          link.targetSource,
+        )))
+          link,
+    ];
+  }
+
+  /// מפרשים שמקורם בקישורים חוצי-מסדים (`external_link`), עם המסד של כל אחד —
+  /// הדור של מפרש נקבע לפי המסד שלו ולא לפי המסד של הספר הנקרא.
+  Future<Map<String, BookSource>> getExternalCommentatorSources(
+    TextBook book,
+  ) => ExternalLinkRepository.instance.commentatorSources(
+    title: book.title,
+    categoryId: book.categoryId,
+    source: book.source,
+  );
 
   /// טוען את קישורי המאגר (seforim.db / קובץ) בלבד — בלי קישורי-משתמש.
   Future<List<Link>> _loadBaseLinks(
@@ -242,6 +286,21 @@ class TextBookRepository {
     final title = book.title;
     final categoryId = book.categoryId;
     final fileType = book.fileType ?? 'txt';
+
+    // ספר ממסד מצורף: קישוריו במסד שלו בלבד — ספר בשם זהה ב-seforim.db
+    // הוא ספר אחר.
+    if (book.source.isAttached) {
+      if (categoryId == null) return const [];
+      return DatabaseLibraryProvider.instance.getLinksForBookRange(
+        title,
+        categoryId,
+        fileType,
+        startLineIndex: normalizedStart,
+        endLineIndex: normalizedEnd,
+        targetBookTitles: normalizedTargetBookTitles,
+        source: book.source,
+      );
+    }
 
     final provider = LibraryProviderManager.instance.getProviderForBook(
       title,
@@ -328,13 +387,16 @@ class TextBookRepository {
   /// הקישורים שהשאילתה כבר מחזירה. ממוין לפי שם.
   Future<({List<CommentatorInfo> commentators, Set<String> rare})>
   getCommentatorsDetailed(TextBook book) async {
-    // מפרשים מקישורי-משתמש (user_books.db) — נוספים לרשימת המפרשים של כל
-    // ספר; מפרש מיובא לעולם אינו "נדיר" (יובא במכוון).
-    final userCommentators = (await loadUserCommentatorTitles(
-      bookTitle: book.title,
-      bookCategoryId: book.categoryId,
-      isUserBook: book.isUserBook,
-    )).toSet();
+    // מפרשים מקישורי-משתמש ומקישורים חוצי-מסדים — נוספים לרשימה של כל ספר;
+    // מפרש כזה לעולם אינו "נדיר" (נוסף במכוון).
+    final userCommentators = {
+      ...await loadUserCommentatorTitles(
+        bookTitle: book.title,
+        bookCategoryId: book.categoryId,
+        source: book.source,
+      ),
+      ...(await getExternalCommentatorSources(book)).keys,
+    };
     userOnly() => (
       commentators: [
         for (final title in userCommentators.toList()..sort())
@@ -343,11 +405,8 @@ class TextBookRepository {
       rare: const <String>{},
     );
 
-    // ספרים אישיים אינם כוללים קישורי מפרשים במסד הנתונים הרשמי.
-    // חיפוש לפי book.id ב-seforim.db יחזיר מפרשים של ספר רשמי עם אותו ID.
-    if (book.isUserBook) return userOnly();
-
-    final repository = _sqliteProvider.repository;
+    // קישורי המפרשים במסד של הספר בלבד; ספר אישי — רק מקישורי-משתמש.
+    final repository = await _linksRepositoryFor(book.source);
     if (repository == null) return userOnly();
 
     // מקבל את ה-book ישירות מה-repository (אותו DB שממנו נשלוף את המפרשים)
@@ -405,8 +464,26 @@ class TextBookRepository {
     required int startLine,
     required int endLine,
   }) async {
-    final repository = _sqliteProvider.repository;
-    if (repository == null || book.isUserBook) return const [];
+    final byTitle = <String, CommentatorInfo>{};
+    final externalCounts = <String, int>{};
+    for (final link in await ExternalLinkRepository.instance.linksInRange(
+      title: book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      startLineIndex: startLine,
+      endLineIndex: endLine,
+    )) {
+      if (!LinkTypes.isDependentTextLink(link.connectionType)) continue;
+      externalCounts[link.path2] = (externalCounts[link.path2] ?? 0) + 1;
+    }
+    for (final MapEntry(key: title, value: count) in externalCounts.entries) {
+      byTitle[title] = CommentatorInfo(title: title, linkCount: count);
+    }
+    List<CommentatorInfo> sorted() =>
+        byTitle.values.toList()..sort((a, b) => a.title.compareTo(b.title));
+
+    final repository = await _linksRepositoryFor(book.source);
+    if (repository == null) return sorted();
 
     final dbBook = book.categoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -414,7 +491,7 @@ class TextBookRepository {
             book.categoryId!,
           )
         : await repository.getBookByTitle(book.title);
-    if (dbBook == null) return const [];
+    if (dbBook == null) return sorted();
 
     // הגבול העליון בשאילתה בלעדי, בעוד ש-[endLine] כולל את שורת הסיום.
     final rows = await repository.database.linkDao
@@ -424,7 +501,6 @@ class TextBookRepository {
           endLine + 1,
         );
 
-    final byTitle = <String, CommentatorInfo>{};
     for (final row in rows) {
       final title = row['targetBookTitle'] as String;
       final count = (row['linkCount'] as int?) ?? 0;
@@ -437,7 +513,7 @@ class TextBookRepository {
         );
       }
     }
-    return byTitle.values.toList()..sort((a, b) => a.title.compareTo(b.title));
+    return sorted();
   }
 
   /// מחזיר את "המפרשים הנוספים" על הקטע שבו יושבת שורת המקור [sourceLineIndex]
@@ -453,12 +529,27 @@ class TextBookRepository {
     required int sourceLineIndex,
     required String currentBookTitle,
     required int? currentCategoryId,
-    bool sourceIsUserBook = false,
-    bool currentIsUserBook = false,
+    BookSource sourceBookSource = BookSource.official,
+    BookSource currentBookSource = BookSource.official,
   }) async {
-    final repository = _sqliteProvider.repository;
-    // קישורי המפרשים קיימים רק במסד הרשמי; ספר אישי בשם זהה אינו אותו ספר.
-    if (repository == null || sourceIsUserBook) return [];
+    // מפרשים ממסדים אחרים על אותה שורת מקור, דרך `external_link`.
+    final external = [
+      for (final link in await ExternalLinkRepository.instance.linksInRange(
+        title: sourceBookTitle,
+        categoryId: sourceCategoryId,
+        source: sourceBookSource,
+        startLineIndex: sourceLineIndex,
+        endLineIndex: sourceLineIndex,
+      ))
+        if (LinkTypes.isDependentTextLink(link.connectionType) &&
+            !(link.path2 == currentBookTitle &&
+                link.targetSource == currentBookSource))
+          link,
+    ];
+
+    // קישורי המפרשים במסד של ספר המקור; ספר ממקור אחר בשם זהה אינו אותו ספר.
+    final repository = await _linksRepositoryFor(sourceBookSource);
+    if (repository == null) return CommentaryService.sortLinksByEra(external);
 
     final sourceBook = sourceCategoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -466,9 +557,9 @@ class TextBookRepository {
             sourceCategoryId,
           )
         : await repository.getBookByTitle(sourceBookTitle);
-    if (sourceBook == null) return [];
+    if (sourceBook == null) return CommentaryService.sortLinksByEra(external);
 
-    final currentBook = currentIsUserBook
+    final currentBook = currentBookSource != sourceBookSource
         ? null
         : currentCategoryId != null
         ? await repository.getBookByTitleAndCategory(
@@ -509,12 +600,23 @@ class TextBookRepository {
         targetCategoryId: row['targetCategoryId'] as int?,
         targetBookId: row['targetBookId'] as int?,
         targetFileType: row['targetFileType'] as String?,
+        targetSource: sourceBookSource,
       );
     }).toList();
 
     // מיון לפי דורות (ראשונים→אחרונים→…) לצורך פסי ההפרדה בתת-התפריט.
-    return CommentaryService.sortLinksByEra(links);
+    return CommentaryService.sortLinksByEra(mergeExtraLinks(links, external));
   }
+
+  /// המאגר שבו יושבים קישורי [source]: seforim.db או המסד המצורף. לספר
+  /// אישי — null (קישוריו ב-user_link).
+  Future<SeforimRepository?> _linksRepositoryFor(BookSource source) =>
+      switch (source) {
+        OfficialBookSource() => Future.value(_sqliteProvider.repository),
+        UserBookSource() => Future.value(),
+        AttachedBookSource(:final slug) =>
+          AttachedLibraryRegistry.instance.repositoryFor(slug),
+      };
 
   Future<bool> bookExists(String title) async {
     return await _fileSystem.bookExists(title);

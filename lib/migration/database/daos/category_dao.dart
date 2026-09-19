@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
+import '../db_capabilities.dart';
 import '../sqlite3_utils.dart';
 import '../../models/category.dart';
 import '../query_loader.dart';
@@ -15,7 +16,11 @@ class CategoryDao {
 
   Future<sqlite3.Database> get database => _db.database;
 
+  Future<bool> get _hasCategories async =>
+      (await _db.capabilities).hasCategories;
+
   Future<List<Category>> getAllCategories() async {
+    if (!await _hasCategories) return const [];
     final db = await database;
     final categories = db
         .select(_queries['selectAll']!)
@@ -35,13 +40,24 @@ class CategoryDao {
   /// Gets all category rows, optionally within an ongoing transaction.
   /// Used by [DatabaseLibraryProvider] to load books and categories atomically.
   /// Must be called synchronously inside a [withTransaction] block.
-  List<Map<String, dynamic>> getAllCategoryRows(sqlite3.Database db) {
-    return db
-        .select('SELECT * FROM category ORDER BY orderIndex, title')
-        .toMapList();
+  List<Map<String, dynamic>> getAllCategoryRows(sqlite3.Database db) =>
+      selectCategoryRows(db, DbCapabilities.forDatabase(_db.path, db));
+
+  /// גוף [getAllCategoryRows] בלי תלות במופע — לקריאה ב-isolate.
+  static List<Map<String, dynamic>> selectCategoryRows(
+    sqlite3.Database db,
+    DbCapabilities capabilities,
+  ) {
+    // בלי book.categoryId הספרים אינם משויכים לאף קטגוריה, והעץ נבנה משורש יחיד.
+    if (!capabilities.hasBookCategories) return const [];
+    final order = capabilities.hasColumn('category', 'orderIndex')
+        ? 'orderIndex, title'
+        : 'title';
+    return db.select('SELECT * FROM category ORDER BY $order').toMapList();
   }
 
   Future<Category?> getCategoryById(int id) async {
+    if (!await _hasCategories) return null;
     final db = await database;
     final result = db.select(_queries['selectById']!, [id]).toMapList();
     if (result.isEmpty) return null;
@@ -49,6 +65,7 @@ class CategoryDao {
   }
 
   Future<List<Category>> getRootCategories() async {
+    if (!await _hasCategories) return const [];
     final db = await database;
     final categories = db
         .select(_queries['selectRoot']!)
@@ -66,6 +83,7 @@ class CategoryDao {
   }
 
   Future<List<Category>> getCategoriesByParentId(int parentId) async {
+    if (!await _hasCategories) return const [];
     final db = await database;
     return db
         .select(_queries['selectByParentId']!, [parentId])
@@ -110,6 +128,7 @@ class CategoryDao {
 
   /// Gets a category by its title.
   Future<Category?> getCategoryByTitle(String title) async {
+    if (!await _hasCategories) return null;
     final db = await database;
     final result = db.select(_queries['selectByTitle']!, [title]).toMapList();
     if (result.isEmpty) return null;
@@ -121,6 +140,7 @@ class CategoryDao {
     String title,
     int? parentId,
   ) async {
+    if (!await _hasCategories) return null;
     final db = await database;
     final result = db.select(
       _queries['selectByTitleAndParent']!,

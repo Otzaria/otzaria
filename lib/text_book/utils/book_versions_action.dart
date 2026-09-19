@@ -6,8 +6,8 @@ import 'package:otzaria/models/books.dart';
 /// האם להציע לספר [book] את הפעולה "הצג נוסחאות נוספות".
 ///
 /// בספר רשמי — כשיש מהדורה לבחירה בפועל (ראו
-/// [DatabaseLibraryProvider.hasSelectableBookVersions]); בספר אישי — כשהוא
-/// חלק מקבוצת גרסאות.
+/// [DatabaseLibraryProvider.hasSelectableBookVersions]) או גרסה אישית שהוצהרה
+/// עליו; בספר אישי — כשהוא חלק מקבוצת גרסאות.
 Future<bool> hasBookVersionsToOpen(Book book) async {
   final probe = bookVersionsProbeForTesting;
   if (probe != null) return probe(book);
@@ -15,6 +15,10 @@ Future<bool> hasBookVersionsToOpen(Book book) async {
   if (book.isUserBook) {
     return DatabaseLibraryProvider.instance.getUserBookVersions(book).length >
         1;
+  }
+  if (!book.isOfficialLibraryBook && !book.source.isAttached) return false;
+  if (DatabaseLibraryProvider.instance.getPersonalVersionsOf(book).isNotEmpty) {
+    return true;
   }
   final categoryId = book.categoryId;
   if (book is! TextBook || categoryId == null) return false;
@@ -25,12 +29,14 @@ Future<bool> hasBookVersionsToOpen(Book book) async {
             DatabaseLibraryProvider.instance.getBookVersions(
               book.title,
               categoryId,
+              source: book.source,
             ));
     return versions.any((version) => version.versionTitle != book.versionTitle);
   }
   return DatabaseLibraryProvider.instance.hasSelectableBookVersions(
     book.title,
     categoryId,
+    source: book.source,
   );
 }
 

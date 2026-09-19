@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
@@ -758,6 +759,7 @@ class _FakeIndexingRepository extends IndexingRepository {
     Library library, {
     List<CustomFolder>? customFolders,
     Set<String>? preservedHiddenUserBookKeys,
+    List<AttachedLibrary>? attachedLibraries,
   }) async {
     dropOrphanedCalls++;
     return 0;

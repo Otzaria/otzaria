@@ -3,6 +3,7 @@
 import 'dart:collection';
 
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
@@ -20,10 +21,14 @@ class LinkTargetSummary {
   /// מספר הקישורים מסוג זה אל ספר היעד.
   final int linkCount;
 
+  /// המסד של ספר היעד; null — המסד של הספר הנקרא.
+  final BookSource? targetSource;
+
   const LinkTargetSummary({
     required this.targetTitle,
     required this.connectionType,
     required this.linkCount,
+    this.targetSource,
   });
 }
 
@@ -73,9 +78,11 @@ class Link {
   /// The file type of the target book when known.
   final String? targetFileType;
 
-  /// Whether the target book lives in user_books.db (separate id space).
-  /// Set for user-authored links so the target resolves to the right DB.
-  final bool targetIsUserBook;
+  /// המסד של ספר היעד — מרחבי ה-id של המסדים נפרדים, ולכן קישור שיצר
+  /// המשתמש חייב לציין אותו כדי שהיעד ייפתח מהמסד הנכון.
+  final BookSource targetSource;
+
+  bool get targetIsUserBook => targetSource.isUser;
 
   /// The start character position of the link in the text (optional, for character-based links).
   final int? start;
@@ -125,7 +132,7 @@ class Link {
     this.targetCategoryId,
     this.targetBookId,
     this.targetFileType,
-    this.targetIsUserBook = false,
+    this.targetSource = BookSource.official,
     this.start,
     this.end,
     this.anchorStart,
@@ -153,7 +160,7 @@ class Link {
     // המפתח כולל את זהות היעד (אישי/רשמי+קטגוריה) כדי ששני קישורים לאותה
     // כותרת ואינדקס — אחד אישי ואחד רשמי — לא יחזירו זה את תוכן זה.
     final key =
-        '$path2:$index2:${index2End ?? ''}:${targetIsUserBook ? 'u' : 'o'}:'
+        '$path2:$index2:${index2End ?? ''}:${targetSource.wireKey}:'
         '${targetCategoryId ?? ''}';
     final cached = _contentCache.remove(key);
     if (cached != null) {
@@ -242,7 +249,7 @@ class Link {
   Future<String> get displayReference {
     final cacheKey =
         '${path2}_${index2}_${index2End ?? ''}_'
-        '${targetIsUserBook ? 'u' : 'o'}_'
+        '${targetSource.wireKey}_'
         '${targetCategoryId ?? ''}';
     final cached = _displayReferenceCache.remove(cacheKey);
     if (cached != null) {
@@ -276,7 +283,7 @@ class Link {
               targetTitle,
               categoryId: targetCategoryId,
               fileType: targetFileType,
-              preferUserBooks: targetIsUserBook,
+              preferSource: targetSource,
             )
             .then((toc) => toc ?? const <TocEntry>[]),
       );
@@ -346,7 +353,7 @@ class Link {
           : null,
       targetBookId = null,
       targetFileType = json['file_type_2']?.toString(),
-      targetIsUserBook = false,
+      targetSource = BookSource.official,
       start = json['start'] != null
           ? int.tryParse(json['start'].toString())
           : null,

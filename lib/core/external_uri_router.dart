@@ -8,12 +8,14 @@ import 'package:otzaria/utils/file/text_encoding.dart'
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/info/info_topic.dart';
 import 'package:otzaria/core/info/personal_folders_info.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/models/plugin_store_install_request.dart';
 import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/search/models/search_configuration.dart'
     show SearchMode;
 import 'package:otzaria/settings/view/settings_screen.dart' show SettingsTab;
+import 'package:otzaria/utils/book_link_builder.dart';
 
 /// פעולה הנגזרת מקישור `otzaria://...` חיצוני.
 sealed class ExternalUriAction {
@@ -51,14 +53,14 @@ class OpenPluginAction extends ExternalUriAction {
 /// סדר עדיפות להדגשה: [markText] > [markSection] > [searchQuery].
 class OpenBookAction extends ExternalUriAction {
   final int bookId;
-  final bool isUserBook;
+  final BookSource source;
   final int? index;
   final String? searchQuery;
   final bool markSection;
   final String? markText;
   const OpenBookAction(
     this.bookId, {
-    this.isUserBook = false,
+    this.source = BookSource.official,
     this.index,
     this.searchQuery,
     this.markSection = false,
@@ -77,11 +79,11 @@ class OpenBookAction extends ExternalUriAction {
 /// [page] — מספר עמוד התחלתי (אופציונלי).
 class OpenPdfBookAction extends ExternalUriAction {
   final int bookId;
-  final bool isUserBook;
+  final BookSource source;
   final int? page;
   const OpenPdfBookAction(
     this.bookId, {
-    this.isUserBook = false,
+    this.source = BookSource.official,
     this.page,
   });
 
@@ -604,10 +606,9 @@ class ExternalUriRouter {
         return null;
       }
 
-      final source = queryParameters['source']?.trim().toLowerCase();
-      if (source != null && source != 'official' && source != 'user') {
-        return null;
-      }
+      // מסד מצורף שאינו מוכר עדיין נפתח כ"לא נמצא" בשלב האיתור.
+      final source = parseBookLinkSourceParam(queryParameters['source']);
+      if (source == null) return null;
 
       final indexParam = queryParameters['index']?.trim();
       final parsedIndex = indexParam == null || indexParam.isEmpty
@@ -638,7 +639,7 @@ class ExternalUriRouter {
 
       return OpenBookAction(
         bookId,
-        isUserBook: source == 'user',
+        source: source,
         index: index,
         searchQuery: searchQuery,
         markSection: markSection,
@@ -652,10 +653,9 @@ class ExternalUriRouter {
         return null;
       }
 
-      final source = queryParameters['source']?.trim().toLowerCase();
-      if (source != null && source != 'official' && source != 'user') {
-        return null;
-      }
+      // מסד מצורף שאינו מוכר עדיין נפתח כ"לא נמצא" בשלב האיתור.
+      final source = parseBookLinkSourceParam(queryParameters['source']);
+      if (source == null) return null;
 
       final indexParam = queryParameters['index']?.trim();
       final parsedIndex = int.tryParse(indexParam ?? '');
@@ -665,7 +665,7 @@ class ExternalUriRouter {
 
       return OpenPdfBookAction(
         bookId,
-        isUserBook: source == 'user',
+        source: source,
         page: page,
       );
     }

@@ -203,4 +203,64 @@ void main() {
     expect(raw.select('SELECT * FROM user_alt_toc_entry'), isEmpty);
     expect(raw.select('SELECT * FROM user_book_version'), isEmpty);
   });
+
+  group('גרסה אישית של ספר רשמי', () {
+    test('קובץ הגרסאות שומר את הראשי לפי מקור, כותרת וקטגוריה', () async {
+      final version = await addBook('בראשית כתב יד.txt', 'א');
+      writeSidecar(
+        'גרסאות.csv',
+        'ראשי,גרסה,שם,מקור_ראשי,קטגוריית_ראשי\n'
+            'בראשית,בראשית כתב יד.txt,כתב יד,רשמי,תורה\n',
+      );
+
+      final errors = await UserSidecarSync.applyForFolder(
+        userDb: db,
+        folderPath: folder.path,
+      );
+
+      expect(errors, isEmpty);
+      final raw = await db.database;
+      final row = raw.select('SELECT * FROM user_book_version').single;
+      expect(row['versionBookId'], version);
+      expect(row['primaryBookId'], isNull);
+      expect(row['primarySource'], 'o');
+      expect(row['primaryTitle'], 'בראשית');
+      expect(row['primaryCategoryPath'], 'תורה');
+      expect(row['versionTitle'], 'כתב יד');
+    });
+
+    test('קובץ הגרסה חסר — שגיאה בשורה, בלי לעצור את שאר הקובץ', () async {
+      await addBook('קיים.txt', 'א');
+      writeSidecar(
+        'גרסאות.csv',
+        'ראשי,גרסה,מקור_ראשי\nבראשית,חסר.txt,רשמי\nשמות,קיים.txt,רשמי\n',
+      );
+
+      final errors = await UserSidecarSync.applyForFolder(
+        userDb: db,
+        folderPath: folder.path,
+      );
+
+      expect(errors.single, contains('חסר.txt'));
+      final raw = await db.database;
+      final rows = raw.select('SELECT primaryTitle FROM user_book_version');
+      expect(rows.single['primaryTitle'], 'שמות');
+    });
+
+    test('ייבוא מההגדרות: ראשי ממסד מצורף נשמר גם כשאינו מחובר', () async {
+      final version = await addBook('גרסה מצורפת.txt', 'א');
+      final versionsPath = p.join(tempDir.path, 'גרסאות.csv');
+      File(versionsPath).writeAsStringSync(
+        'ראשי,גרסה,מקור_ראשי\nבראשית,גרסה מצורפת,מסד:ספרייה\n',
+      );
+
+      final result = await UserContentImporter.importFiles([versionsPath], db);
+
+      expect(result.errors, isEmpty);
+      final raw = await db.database;
+      final row = raw.select('SELECT * FROM user_book_version').single;
+      expect(row['versionBookId'], version);
+      expect(row['primarySource'], 'd:ספרייה');
+    });
+  });
 }

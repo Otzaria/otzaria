@@ -4,6 +4,11 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
+import 'package:otzaria/attached_libraries/utils/attached_file_path.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
@@ -11,8 +16,13 @@ import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/migration/database/daos/book_dao.dart';
+import 'package:otzaria/migration/database/daos/category_dao.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/migration/database/untrusted_database.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/user_content_import/repository/user_alt_toc_repository.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_book_versions.dart';
@@ -43,6 +53,120 @@ import 'link_visibility_sql.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:path/path.dart' as p;
+
+/// שם השורש שמרכז את ספרי מסד שאין בו טבלת קטגוריות.
+const kUncategorizedCategoryTitle = 'ללא קטגוריה';
+
+const _kPersonalRootTitle = 'ספרים אישיים';
+
+/// מסדים מצורפים ממוינים תחת "ספרים אישיים" אחרי תיקיות הספרים האישיים.
+const _kAttachedRootOrder = 1000;
+
+/// במיזוג, ספרי מסד מצורף וקטגוריותיו אחרי הרשמיים והאישיים, לפי עדיפות המסד.
+const _kAttachedMergedOrderBase = 1000000;
+const _kAttachedMergedOrderStride = 100000;
+
+/// הנתונים של מסד מצורף אחד בזמן בניית העץ.
+class _AttachedCatalogBuild {
+  _AttachedCatalogBuild({
+    required this.library,
+    required this.source,
+    required this.rows,
+    required this.categoryRows,
+    required this.authors,
+    required this.metadata,
+  });
+
+  final AttachedLibrary library;
+  final AttachedBookSource source;
+  final List<Map<String, dynamic>> rows;
+  final List<Map<String, dynamic>> categoryRows;
+  final Map<int, String> authors;
+  final Map<String, Map<String, dynamic>> metadata;
+  final Map<int, List<Map<String, dynamic>>> booksByCategory = {};
+  final Map<int?, List<db_models.Category>> categoriesByParent = {};
+
+  /// הסדר בעץ של [orderIndex] מהמסד: במיזוג — אחרי כל התוכן הקיים.
+  int order(num? orderIndex) {
+    final own = orderIndex?.toInt() ?? 999;
+    if (library.placement != AttachedLibraryPlacement.mergeIntoLibrary) {
+      return own;
+    }
+    return _kAttachedMergedOrderBase +
+        library.priority * _kAttachedMergedOrderStride +
+        own.clamp(0, _kAttachedMergedOrderStride - 1);
+  }
+}
+
+/// קטלוג מסד מצורף כפי שנקרא ב-isolate. [missing] — הקובץ אינו קיים.
+typedef AttachedCatalogRows = ({
+  bool missing,
+  List<Map<String, dynamic>> books,
+  List<Map<String, dynamic>> categories,
+  Map<int, String> authors,
+});
+
+/// קורא את הקטלוג של מסד מצורף על חיבור מוקשח משלו — רץ ב-isolate, כך
+/// שקובץ איטי או כונן רשת מת אינם חוסמים את בניית העץ.
+AttachedCatalogRows readAttachedCatalogSync(ReadOnlyDbTarget target) {
+  if (!File(target.path).existsSync()) {
+    return (missing: true, books: const [], categories: const [], authors: {});
+  }
+  final db = openReadOnlyTarget(target);
+  try {
+    final capabilities = DbCapabilities.probe(db);
+    late final List<Map<String, dynamic>> books;
+    late final List<Map<String, dynamic>> categories;
+    late final Map<int, String> authors;
+    withTransaction(db, () {
+      books = [
+        for (final row in BookDao.selectBooksMinimal(
+          db,
+          capabilities,
+          withFileColumns: true,
+        ))
+          {...row, 'resolvedFilePath': _existingAttachedFile(target, row)},
+      ];
+      categories = CategoryDao.selectCategoryRows(db, capabilities);
+      authors = BookDao.selectBookAuthorsMap(db, capabilities);
+    });
+    return (
+      missing: false,
+      books: books,
+      categories: categories,
+      authors: authors,
+    );
+  } finally {
+    db.close();
+  }
+}
+
+/// הקובץ של ספר מבוסס-קובץ במסד מצורף, כשהנתיב מותר והקובץ קיים.
+String? _existingAttachedFile(
+  ReadOnlyDbTarget target,
+  Map<String, dynamic> row,
+) {
+  final resolved = resolveAttachedBookFilePath(
+    target.path,
+    row['filePath'] as String?,
+  );
+  return resolved != null && File(resolved).existsSync() ? resolved : null;
+}
+
+Future<AttachedCatalogRows> _readAttachedCatalogInIsolate(
+  ReadOnlyDbTarget target,
+) => Isolate.run(() => readAttachedCatalogSync(target));
+
+/// קריאת קטלוג של מסד מצורף שעדיין רצה, כולל אחרי שבניית העץ ויתרה עליה.
+class _PendingAttachedCatalog {
+  _PendingAttachedCatalog(this.future) {
+    future.then((_) => done = true, onError: (_) => done = true);
+  }
+
+  final Future<AttachedCatalogRows> future;
+  bool done = false;
+  bool timedOut = false;
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // Isolate helpers for scanning external-book folders.
@@ -294,11 +418,12 @@ void _flattenRawRecursive(
 /// side=1) — כך קישור שהצד התלוי שלו משתרע על כמה שורות מופיע בכל שורה בטווח.
 List<Map<String, dynamic>> _loadInverseSourceRows(
   sqlite3.Database db,
+  DbCapabilities capabilities,
   int bookId, {
   int? startLineIndex,
   int? endLineIndex,
 }) {
-  final hasSuppressedSide = hasLinkSuppressedSideTable(db);
+  final hasSuppressedSide = capabilities.hasLinkSuppressedSide;
   final dependentTypes = LinkTypes.dependentTextTypes.toList();
   // קישורי הפניה דו-כיווניים רק בסכמה שמספקת verdict נפרד לכל צד.
   final types = LinkTypes.inverseQueryTypes(bidirectional: hasSuppressedSide);
@@ -310,8 +435,8 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
     hasSuppressedSide,
     displayedSide: 1,
   );
-  final hasLinkAnchor = _hasLinkAnchorTable(db);
-  final hasLinkRanges = _hasLinkRangeTables(db);
+  final hasLinkAnchor = capabilities.hasLinkAnchors;
+  final hasLinkRanges = capabilities.hasLinkRanges;
   final referenceTypes = LinkTypes.referenceTypes
       .map((type) => "'$type'")
       .join(', ');
@@ -331,7 +456,7 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
       : 'AND l.sourceBookId != l.targetBookId';
   final anchorSelect = _anchorSelectColumns(hasLinkAnchor);
   final anchorJoin = _anchorJoinClause(hasLinkAnchor, displayedSide: 1);
-  final provenanceSelect = _hasLinkBaseProvenanceColumn(db)
+  final provenanceSelect = capabilities.hasLinkBaseProvenance
       ? 'l.baseProvenance as baseProvenance,'
       : '0 as baseProvenance,';
   // בפאנל של תצוגת המקור מוצג צד ה-source של הקישור (side=0).
@@ -437,41 +562,24 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
     ''', params).toMapList();
 }
 
-/// עוגני-מילה (link_anchor) — קיים רק במסדים חדשים; במסד ישן השאילתות חוזרות
-/// לעמודות NULL. side=0 = העוגן יושב בשורת המקור של הקישור, side=1 = בשורת
-/// היעד. `displayedSide` הוא הצד שהשורה שלו מוצגת בגוף הטקסט (הסמן/הטווח
-/// מוזרקים אליה), והצד הנגדי הוא קטע-הפאנל (anchorLinked*).
-bool _hasLinkAnchorTable(sqlite3.Database db) => db
-    .select(
-      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='link_anchor' LIMIT 1",
-    )
-    .isNotEmpty;
-
-/// `baseProvenance` — קיימת רק במסדים חדשים; במסד ישן כל הקישורים מקבלים 0
-/// והעדפת המקור נשארת כפי שהייתה.
-bool _hasLinkBaseProvenanceColumn(sqlite3.Database db) => db
-    .select(
-      "SELECT 1 FROM pragma_table_info('link') WHERE name = 'baseProvenance' LIMIT 1",
-    )
-    .isNotEmpty;
-
-/// קישורי-טווח (link_range/link_coverage) — קיימים רק במסדים חדשים; במסד ישן
-/// השאילתות חוזרות לעמודות NULL ולשורת העוגן הראשונה בלבד. שתי הטבלאות
-/// נשלחות יחד, לכן די בבדיקת link_coverage.
-bool _hasLinkRangeTables(sqlite3.Database db) => db
-    .select(
-      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='link_coverage' LIMIT 1",
-    )
-    .isNotEmpty;
-
-/// מהדורות ספרים (book_version/version_line) — קיימות רק במסדים חדשים; במסד
-/// ישן רשימת הגרסאות ריקה ופתיחת גרסה נכשלת בשקט. שתי הטבלאות נשלחות יחד,
-/// לכן די בבדיקת book_version.
-bool _hasBookVersionTables(sqlite3.Database db) => db
-    .select(
-      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='book_version' LIMIT 1",
-    )
-    .isNotEmpty;
+/// מזהה הספר [title] — בקטגוריה [categoryId] כשהמסד מכיר קטגוריות — או null.
+/// במסד בלי עמודת קטגוריה כל הספרים יושבים תחת שורש אחד, וההתאמה לפי כותרת.
+int? _selectBookId(
+  sqlite3.Database db,
+  DbCapabilities capabilities,
+  String title, {
+  int? categoryId,
+}) {
+  if (!capabilities.hasBooks) return null;
+  final byCategory = categoryId != null && capabilities.hasBookCategories;
+  final rows = db.select(
+    byCategory
+        ? 'SELECT id FROM book WHERE title = ? AND categoryId = ? LIMIT 1'
+        : 'SELECT id FROM book WHERE title = ? LIMIT 1',
+    [title, if (byCategory) categoryId],
+  );
+  return rows.isEmpty ? null : rows.first['id'] as int;
+}
 
 /// עמודות קצה-הטווח של צד-הפאנל: heRef של השורה האחרונה בטווח + האינדקס שלה
 /// (0-based), או NULL כשאין טווח / כשהמסד ישן.
@@ -555,30 +663,30 @@ List<LinkAnchorSpan> _parseAnchorSpans(String? spans) {
 }
 
 List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
   required String fileType,
 }) {
   sqlite3.Database? db;
   try {
-    db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+    db = openReadOnlyTarget(target);
+    final capabilities = DbCapabilities.probe(db);
+    if (!capabilities.hasLinks) return const [];
 
-    final bookResults = db.select(
-      'SELECT id FROM book WHERE title = ? AND categoryId = ? LIMIT 1',
-      [title, categoryId],
-    ).toMapList();
+    final bookId = _selectBookId(
+      db,
+      capabilities,
+      title,
+      categoryId: categoryId,
+    );
+    if (bookId == null) return const [];
 
-    if (bookResults.isEmpty) {
-      return const [];
-    }
-
-    final bookId = bookResults.first['id'] as int;
-    final hasLinkAnchor = _hasLinkAnchorTable(db);
-    final hasLinkRanges = _hasLinkRangeTables(db);
+    final hasLinkAnchor = capabilities.hasLinkAnchors;
+    final hasLinkRanges = capabilities.hasLinkRanges;
     // בשאילתה הקדמית השורה המוצגת היא צד המקור השמור.
     final suppressedFilter = suppressedSideFilter(
-      hasLinkSuppressedSideTable(db),
+      capabilities.hasLinkSuppressedSide,
       displayedSide: 0,
     );
 
@@ -626,7 +734,10 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
           [bookId, if (hasLinkRanges) bookId],
         )
         .toMapList();
-    return [...forwardRows, ..._loadInverseSourceRows(db, bookId)];
+    return [
+      ...forwardRows,
+      ..._loadInverseSourceRows(db, capabilities, bookId),
+    ];
   } finally {
     db?.close();
   }
@@ -636,25 +747,27 @@ List<Map<String, dynamic>> _loadBookLinksRowsInIsolate({
 /// GROUP BY זולה במקום למשוך עשרות אלפי שורות קישורים לדארט.
 ({List<Map<String, dynamic>> rows, int? maxSourceLineIndex})
 _loadBookLinkTargetsSummaryRowsInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
 }) {
   sqlite3.Database? db;
   try {
-    db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+    db = openReadOnlyTarget(target);
+    final capabilities = DbCapabilities.probe(db);
+    const empty = (rows: <Map<String, dynamic>>[], maxSourceLineIndex: null);
+    if (!capabilities.hasLinks) return empty;
 
-    final bookResults = db.select(
-      'SELECT id FROM book WHERE title = ? AND categoryId = ? LIMIT 1',
-      [title, categoryId],
-    ).toMapList();
-    if (bookResults.isEmpty) {
-      return (rows: const [], maxSourceLineIndex: null);
-    }
+    final bookId = _selectBookId(
+      db,
+      capabilities,
+      title,
+      categoryId: categoryId,
+    );
+    if (bookId == null) return empty;
 
-    final bookId = bookResults.first['id'] as int;
-    final hasLinkRanges = _hasLinkRangeTables(db);
-    final hasSuppressedSide = hasLinkSuppressedSideTable(db);
+    final hasLinkRanges = capabilities.hasLinkRanges;
+    final hasSuppressedSide = capabilities.hasLinkSuppressedSide;
     final forwardSuppressed = suppressedSideFilter(
       hasSuppressedSide,
       displayedSide: 0,
@@ -778,13 +891,13 @@ _loadBookLinkTargetsSummaryRowsInIsolate({
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
 Future<({List<Map<String, dynamic>> rows, int? maxSourceLineIndex})>
 _runBookLinkTargetsSummaryInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
 }) {
   return Isolate.run(
     () => _loadBookLinkTargetsSummaryRowsInIsolate(
-      dbPath: dbPath,
+      target: target,
       title: title,
       categoryId: categoryId,
     ),
@@ -792,7 +905,7 @@ _runBookLinkTargetsSummaryInIsolate({
 }
 
 List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
   required String fileType,
@@ -802,22 +915,23 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
 }) {
   sqlite3.Database? db;
   try {
-    db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+    db = openReadOnlyTarget(target);
+    // מסד בלי טבלאות קישורים הוא תשובה ריקה תקפה, לא כשל שדורש ניסיון חוזר.
+    final capabilities = DbCapabilities.probe(db);
+    if (!capabilities.hasLinks) return const [];
 
-    final bookResults = db.select(
-      'SELECT id FROM book WHERE title = ? AND categoryId = ? LIMIT 1',
-      [title, categoryId],
-    ).toMapList();
+    final bookId = _selectBookId(
+      db,
+      capabilities,
+      title,
+      categoryId: categoryId,
+    );
+    if (bookId == null) return const [];
 
-    if (bookResults.isEmpty) {
-      return const [];
-    }
-
-    final bookId = bookResults.first['id'] as int;
-    final hasLinkAnchor = _hasLinkAnchorTable(db);
-    final hasLinkRanges = _hasLinkRangeTables(db);
+    final hasLinkAnchor = capabilities.hasLinkAnchors;
+    final hasLinkRanges = capabilities.hasLinkRanges;
     final suppressedFilter = suppressedSideFilter(
-      hasLinkSuppressedSideTable(db),
+      capabilities.hasLinkSuppressedSide,
       displayedSide: 0,
     );
 
@@ -897,37 +1011,35 @@ List<Map<String, dynamic>> _loadBookLinksRowsInRangeInIsolate({
       ...rows,
       ..._loadInverseSourceRows(
         db,
+        capabilities,
         bookId,
         startLineIndex: startLineIndex,
         endLineIndex: endLineIndex,
       ),
     ];
-  } catch (error) {
-    rethrow;
   } finally {
     db?.close();
   }
 }
 
 List<Map<String, dynamic>> _loadAlternativeStructuresRowsInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String bookTitle,
   int? categoryId,
 }) {
   sqlite3.Database? db;
   try {
-    db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+    db = openReadOnlyTarget(target);
+    final capabilities = DbCapabilities.probe(db);
+    if (!capabilities.hasAltTocStructures) return const [];
 
-    final bookResults = db.select(
-      'SELECT id FROM book WHERE title = ? AND (?2 IS NULL OR categoryId = ?2) LIMIT 1',
-      [bookTitle, categoryId],
-    ).toMapList();
-
-    if (bookResults.isEmpty) {
-      return const [];
-    }
-
-    final bookId = bookResults.first['id'] as int;
+    final bookId = _selectBookId(
+      db,
+      capabilities,
+      bookTitle,
+      categoryId: categoryId,
+    );
+    if (bookId == null) return const [];
 
     return db.select(
       'SELECT * FROM alt_toc_structure WHERE bookId = ? ORDER BY id',
@@ -945,13 +1057,13 @@ List<Map<String, dynamic>> _loadAlternativeStructuresRowsInIsolate({
 /// שאינו ניתן לשליחה ל-isolate) ולגרום לכשל
 /// "Illegal argument in isolate message".
 Future<List<Map<String, dynamic>>> _runAlternativeStructuresInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String bookTitle,
   int? categoryId,
 }) {
   return Isolate.run(
     () => _loadAlternativeStructuresRowsInIsolate(
-      dbPath: dbPath,
+      target: target,
       bookTitle: bookTitle,
       categoryId: categoryId,
     ),
@@ -963,23 +1075,23 @@ Future<List<Map<String, dynamic>>> _runAlternativeStructuresInIsolate({
 /// (סעיפים בנושאי-כלים, "סעיף ג"; מגרסת ספרייה 24).
 /// [headings] — רשומות `Topic` ("הלכות ציצית"), רק כשאינן כבר גלויות בטקסט.
 InlineSectionMarks _loadInlineSectionMarksInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String bookTitle,
+  int? categoryId,
 }) {
   sqlite3.Database? db;
   try {
-    db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+    db = openReadOnlyTarget(target);
+    final capabilities = DbCapabilities.probe(db);
+    if (!capabilities.hasAltToc) return (markers: const {}, headings: const {});
 
-    final bookResults = db.select(
-      'SELECT id FROM book WHERE title = ? LIMIT 1',
-      [bookTitle],
-    ).toMapList();
-
-    if (bookResults.isEmpty) {
-      return (markers: const {}, headings: const {});
-    }
-
-    final bookId = bookResults.first['id'] as int;
+    final bookId = _selectBookId(
+      db,
+      capabilities,
+      bookTitle,
+      categoryId: categoryId,
+    );
+    if (bookId == null) return (markers: const {}, headings: const {});
 
     // hasChildren = 0 — רק העלים. רשומות הביניים של המבנה משכפלות
     // כותרות פרשה/פרק/סימן שכבר גלויות בטקסט (ובקוהלת רבה המבנה
@@ -1057,13 +1169,15 @@ typedef InlineSectionMarks = ({
 /// Top-level wrapper עבור טעינת סמני החלוקה ב-isolate.
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
 Future<InlineSectionMarks> _runInlineSectionMarksInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String bookTitle,
+  int? categoryId,
 }) {
   return Isolate.run(
     () => _loadInlineSectionMarksInIsolate(
-      dbPath: dbPath,
+      target: target,
       bookTitle: bookTitle,
+      categoryId: categoryId,
     ),
   );
 }
@@ -1072,24 +1186,23 @@ Future<InlineSectionMarks> _runInlineSectionMarksInIsolate({
 /// (`dhDisplay`) מטבלת `line_dh`. מסד ישן, בלי הטבלה או בלי העמודה, נותן
 /// מפה ריקה.
 Map<int, String> _loadDibburHamatchilInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String bookTitle,
+  int? categoryId,
 }) {
   sqlite3.Database? db;
   try {
-    db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+    db = openReadOnlyTarget(target);
+    final capabilities = DbCapabilities.probe(db);
+    if (!capabilities.hasLineDhDisplay) return const {};
 
-    final hasDisplayColumn = db
-        .select("PRAGMA table_info('line_dh')")
-        .any((row) => row['name'] == 'dhDisplay');
-    if (!hasDisplayColumn) return const {};
-
-    final bookResults = db.select(
-      'SELECT id FROM book WHERE title = ? LIMIT 1',
-      [bookTitle],
-    ).toMapList();
-    if (bookResults.isEmpty) return const {};
-    final bookId = bookResults.first['id'] as int;
+    final bookId = _selectBookId(
+      db,
+      capabilities,
+      bookTitle,
+      categoryId: categoryId,
+    );
+    if (bookId == null) return const {};
 
     final rows = db.select(
       'SELECT lineIndex, dhDisplay FROM line_dh WHERE bookId = ? '
@@ -1113,13 +1226,15 @@ Map<int, String> _loadDibburHamatchilInIsolate({
 /// Top-level wrapper עבור טעינת דיבורי-המתחיל ב-isolate.
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
 Future<Map<int, String>> _runDibburHamatchilInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String bookTitle,
+  int? categoryId,
 }) {
   return Isolate.run(
     () => _loadDibburHamatchilInIsolate(
-      dbPath: dbPath,
+      target: target,
       bookTitle: bookTitle,
+      categoryId: categoryId,
     ),
   );
 }
@@ -1127,14 +1242,14 @@ Future<Map<int, String>> _runDibburHamatchilInIsolate({
 /// Top-level wrapper עבור טעינת קישורי ספר ב-isolate.
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
 Future<List<Map<String, Object?>>> _runBookLinksInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
   required String fileType,
 }) {
   return Isolate.run(
     () => _loadBookLinksRowsInIsolate(
-      dbPath: dbPath,
+      target: target,
       title: title,
       categoryId: categoryId,
       fileType: fileType,
@@ -1145,7 +1260,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInIsolate({
 /// Top-level wrapper עבור טעינת קישורי טווח ב-isolate.
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
 Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
   required String fileType,
@@ -1155,7 +1270,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
 }) {
   return Isolate.run(
     () => _loadBookLinksRowsInRangeInIsolate(
-      dbPath: dbPath,
+      target: target,
       title: title,
       categoryId: categoryId,
       fileType: fileType,
@@ -1170,7 +1285,7 @@ Future<List<Map<String, Object?>>> _runBookLinksInRangeInIsolate({
 /// מתבצע כאן כדי לא לחסום את ה-UI thread. ראה [_runAlternativeStructuresInIsolate].
 ({int startLine, int endLine, int totalLines, List<String> lines})?
 _loadBookTextRangeRowsInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
   required String fileType,
@@ -1180,28 +1295,31 @@ _loadBookTextRangeRowsInIsolate({
 }) {
   sqlite3.Database? db;
   try {
-    db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+    db = openReadOnlyTarget(target);
+    final capabilities = DbCapabilities.probe(db);
+    if (!capabilities.hasLines) return null;
 
-    final bookResults = db.select(
-      'SELECT id, totalLines FROM book WHERE title = ? AND categoryId = ? LIMIT 1',
-      [title, categoryId],
-    ).toMapList();
-    if (bookResults.isEmpty) {
-      return null;
-    }
-
-    final totalLines = bookResults.first['totalLines'] as int;
+    final bookId = _selectBookId(
+      db,
+      capabilities,
+      title,
+      categoryId: categoryId,
+    );
+    if (bookId == null) return null;
+    final totalLinesQuery = capabilities.hasColumn('book', 'totalLines')
+        ? 'SELECT totalLines FROM book WHERE id = ?'
+        : 'SELECT COUNT(*) FROM line WHERE bookId = ?';
+    final totalLines = firstIntValue(db.select(totalLinesQuery, [bookId])) ?? 0;
     if (totalLines <= 0) {
       return null;
     }
-    final bookId = bookResults.first['id'] as int;
 
     final normalizedStart = startLine.clamp(0, totalLines - 1);
     final normalizedEnd = endLine.clamp(normalizedStart, totalLines - 1);
 
     final List<Map<String, dynamic>> rows;
     if (versionTitle != null) {
-      if (!_hasBookVersionTables(db)) return null;
+      if (!capabilities.hasBookVersions) return null;
       final versionRows = db.select(
         'SELECT id FROM book_version WHERE bookId = ? AND versionTitle = ? LIMIT 1',
         [bookId, versionTitle],
@@ -1250,7 +1368,7 @@ _loadBookTextRangeRowsInIsolate({
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
 Future<({int startLine, int endLine, int totalLines, List<String> lines})?>
 _runBookTextRangeInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
   required String fileType,
@@ -1260,7 +1378,7 @@ _runBookTextRangeInIsolate({
 }) {
   return Isolate.run(
     () => _loadBookTextRangeRowsInIsolate(
-      dbPath: dbPath,
+      target: target,
       title: title,
       categoryId: categoryId,
       fileType: fileType,
@@ -1274,21 +1392,23 @@ _runBookTextRangeInIsolate({
 /// Top-level worker לרשימת המהדורות (book_version) של ספר. רשימה ריקה כשה-DB
 /// ישן (אין טבלה) או כשאין לספר מידע גרסאות.
 List<Map<String, dynamic>> _loadBookVersionsRowsInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
 }) {
   sqlite3.Database? db;
   try {
-    db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
-    if (!_hasBookVersionTables(db)) return const [];
+    db = openReadOnlyTarget(target);
+    final capabilities = DbCapabilities.probe(db);
+    if (!capabilities.hasBookVersions) return const [];
 
-    final bookResults = db.select(
-      'SELECT id FROM book WHERE title = ? AND categoryId = ? LIMIT 1',
-      [title, categoryId],
-    ).toMapList();
-    if (bookResults.isEmpty) return const [];
-    final bookId = bookResults.first['id'] as int;
+    final bookId = _selectBookId(
+      db,
+      capabilities,
+      title,
+      categoryId: categoryId,
+    );
+    if (bookId == null) return const [];
 
     return db
         .select(
@@ -1310,13 +1430,13 @@ List<Map<String, dynamic>> _loadBookVersionsRowsInIsolate({
 /// Top-level wrapper עבור רשימת מהדורות ב-isolate.
 /// ראה ההסבר ב-[_runAlternativeStructuresInIsolate].
 Future<List<Map<String, dynamic>>> _runBookVersionsInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
   required String title,
   required int categoryId,
 }) {
   return Isolate.run(
     () => _loadBookVersionsRowsInIsolate(
-      dbPath: dbPath,
+      target: target,
       title: title,
       categoryId: categoryId,
     ),
@@ -1327,15 +1447,16 @@ Future<List<Map<String, dynamic>>> _runBookVersionsInIsolate({
 /// יחידה עם טקסט שמור. גרסה יחידה מטא-דאטה בלבד = הנוסח המוצג עצמו, ואינה
 /// נכללת. נטען פעם אחת ומשמש לקביעת הצגת תפריט 'גרסאות'.
 List<Map<String, dynamic>> _loadSelectableVersionKeysInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
 }) {
   sqlite3.Database? db;
   try {
-    db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
-    if (!_hasBookVersionTables(db)) return const [];
+    db = openReadOnlyTarget(target);
+    final capabilities = DbCapabilities.probe(db);
+    if (!capabilities.hasBookVersions) return const [];
 
     return db.select('''
-      SELECT b.title, b.categoryId
+      SELECT b.title, ${capabilities.hasBookCategories ? 'b.categoryId' : '0 AS categoryId'}
       FROM book b
       WHERE b.id IN (
         SELECT bookId FROM book_version
@@ -1349,10 +1470,10 @@ List<Map<String, dynamic>> _loadSelectableVersionKeysInIsolate({
 }
 
 Future<List<Map<String, dynamic>>> _runSelectableVersionKeysInIsolate({
-  required String dbPath,
+  required ReadOnlyDbTarget target,
 }) {
   return Isolate.run(
-    () => _loadSelectableVersionKeysInIsolate(dbPath: dbPath),
+    () => _loadSelectableVersionKeysInIsolate(target: target),
   );
 }
 
@@ -1430,24 +1551,24 @@ class DatabaseLibraryProvider implements LibraryProvider {
   String? _bundledTalmudBavliPathCache;
   bool? _bundledTalmudBavliExistsCache;
 
-  /// מפתחות "title\u0000categoryId" של ספרים שראוי להציג להם תפריט 'גרסאות'.
-  /// ממוזמז — נטען פעם אחת ל-DB; מנוקה ב-[clearCache].
-  Future<Set<String>>? _selectableVersionKeysFuture;
+  /// מפתחות "title\u0000categoryId" של ספרים שראוי להציג להם תפריט 'גרסאות',
+  /// לפי `BookSource.wireKey`. נטען פעם אחת לכל מסד; מנוקה ב-[clearCache].
+  final Map<String, Future<Set<String>>> _selectableVersionKeysFutures = {};
 
   /// IDs **טבעיים** (native AUTOINCREMENT) של קטגוריות ב-`user_books.db`
   /// שצורפו ל-Library. שימושי כדי לדעת לאיזה DB לפנות בקריאות
-  /// `getBookText`/`getBookToc`/`hasBook` כשרק `categoryId` ידוע (בלי דגל
-  /// `preferUserBooks`).
+  /// `getBookText`/`getBookToc`/`hasBook` כשרק `categoryId` ידוע (בלי
+  /// `preferSource`).
   ///
   /// שים לב: יכולה להיות חפיפה עם IDs של seforim — אם שני ה-DBs קצו 1,2,3…
   /// אז 5 יכול להיות בשניהם. לכן הסט הזה רק *רומז* על user_books, וההכרעה
   /// הסופית נופלת על ה-cache (`_userBooksCachedKeys`) שמשתמש במפתח עם
-  /// `isUserBook: true`.
+  /// `source: BookSource.user`.
   final Set<int> _userBooksCategoryIds = {};
 
   /// מיפוי `(title, categoryId, fileType) → BookCompositeKey` עבור ספרים
   /// שמקורם ב-`user_books.db`. נפרד מ-`_cachedKeys` כדי שהמטמון של seforim
-  /// לא ייפגע. כל המפתחות כאן עם `isUserBook: true`.
+  /// לא ייפגע. כל המפתחות כאן עם `source: BookSource.user`.
   final Set<BookCompositeKey> _userBooksCachedKeys = {};
 
   /// ספרים אישיים לפי מזהה ב-user_books.db — כולל גרסאות שאינן בעץ.
@@ -1457,6 +1578,40 @@ class DatabaseLibraryProvider implements LibraryProvider {
   final Set<int> _hiddenUserVersionBookIds = {};
 
   List<UserBookVersionRecord> _userBookVersions = const [];
+
+  /// הספר הרשמי/המצורף שכל גרסה אישית שלו נפתרה אליו, לפי מזהה ספר הגרסה.
+  final Map<int, Book> _catalogVersionPrimaries = {};
+
+  /// מפתחות ספרי המסדים המצורפים. מזהי הקטגוריות טבעיים לכל מסד, ולכן המקור
+  /// (slug) הוא חלק מהמפתח ומנתיבי הקטגוריות.
+  final Set<BookCompositeKey> _attachedCachedKeys = {};
+  final Map<String, Map<int, String>> _attachedCategoryPaths = {};
+  final Map<String, _PendingAttachedCatalog> _pendingAttachedCatalogs = {};
+
+  /// זמן ההמתנה לקטלוג של מסד מצורף אחד. מסד שלא ענה בזמן מסומן לא-זמין,
+  /// והעץ נבנה בלעדיו; כשהקריאה מסתיימת המסד חוזר והעץ מתרענן.
+  @visibleForTesting
+  static Duration attachedCatalogTimeout = const Duration(seconds: 5);
+
+  @visibleForTesting
+  static Future<AttachedCatalogRows> Function(ReadOnlyDbTarget target)
+  attachedCatalogReader = _readAttachedCatalogInIsolate;
+
+  BookCompositeKey? _attachedKeyFor(
+    String title,
+    int categoryId,
+    String fileType,
+  ) {
+    final normalized = BookCompositeKey.normalizeFileType(fileType);
+    return _attachedCachedKeys
+        .where(
+          (key) =>
+              key.title == title &&
+              key.categoryId == categoryId &&
+              key.fileType == normalized,
+        )
+        .firstOrNull;
+  }
 
   void _registerUserBook(Book book, Category category) {
     final id = book.id;
@@ -1490,28 +1645,111 @@ class DatabaseLibraryProvider implements LibraryProvider {
       bookId: id,
       records: _userBookVersions,
       booksById: _userBooksById,
+      catalogPrimaries: _catalogVersionPrimaries,
     );
+  }
+
+  /// הגרסאות האישיות שהוצהרו על ספר רשמי או ממסד מצורף [book].
+  List<BookVersionInfo> getPersonalVersionsOf(Book book) {
+    if (book.isUserBook || _catalogVersionPrimaries.isEmpty) return const [];
+    return buildPersonalVersionsOfCatalogBook(
+      primary: book,
+      records: _userBookVersions,
+      booksById: _userBooksById,
+      catalogPrimaries: _catalogVersionPrimaries,
+    );
+  }
+
+  static UserBookVersionRecord? _userBookVersionFromRow(
+    Map<String, dynamic> row,
+  ) {
+    final versionBookId = row['versionBookId'] as int;
+    final versionTitle = row['versionTitle'] as String;
+    final versionNotes = row['versionNotes'] as String?;
+    final priority = (row['priority'] as num?)?.toDouble();
+    final source =
+        BookSource.tryParse(row['primarySource'] as String?) ?? BookSource.user;
+    if (source.isUser) {
+      final primaryId = row['primaryBookId'] as int?;
+      if (primaryId == null) return null;
+      return UserBookVersionRecord(
+        versionBookId: versionBookId,
+        primaryBookId: primaryId,
+        versionTitle: versionTitle,
+        versionNotes: versionNotes,
+        priority: priority,
+      );
+    }
+    final primaryTitle = row['primaryTitle'] as String?;
+    if (primaryTitle == null || primaryTitle.trim().isEmpty) return null;
+    return UserBookVersionRecord.ofCatalogBook(
+      versionBookId: versionBookId,
+      primarySource: source,
+      primaryTitle: primaryTitle,
+      primaryCategoryPath: row['primaryCategoryPath'] as String?,
+      versionTitle: versionTitle,
+      versionNotes: versionNotes,
+      priority: priority,
+    );
+  }
+
+  /// קושר גרסאות אישיות לספרים רשמיים/מצורפים לפי כותרת (ולא לפי מזהה, שמשתנה
+  /// בעדכון ספרייה). גרסה שהראשי שלה לא נמצא נשארת ספר אישי רגיל בעץ.
+  void _attachCatalogBookVersions(Library library) {
+    _catalogVersionPrimaries.clear();
+    _resolveCatalogVersionPrimaries(library);
+    library.offTreeBooks = [
+      for (final id in _hiddenUserVersionBookIds) ?_userBooksById[id],
+    ];
+  }
+
+  void _resolveCatalogVersionPrimaries(Library library) {
+    final pending = _userBookVersions.where((v) => v.hasCatalogPrimary);
+    if (pending.isEmpty) return;
+
+    final catalogByTitle = <String, List<Book>>{};
+    for (final book in library.getAllBooks()) {
+      if (book.isUserBook) continue;
+      catalogByTitle
+          .putIfAbsent(normalizeVersionTitle(book.title), () => [])
+          .add(book);
+    }
+    for (final record in pending) {
+      final version = _userBooksById[record.versionBookId];
+      if (version == null) continue;
+      final primary = resolveCatalogPrimary(record, catalogByTitle);
+      if (primary == null) {
+        debugPrint(
+          '⚠️ [UserBookVersions] primary not found for book '
+          '${record.versionBookId} (${record.primarySource.wireKey})',
+        );
+        continue;
+      }
+      _catalogVersionPrimaries[record.versionBookId] = primary;
+      _hiddenUserVersionBookIds.add(record.versionBookId);
+      version.category?.books.remove(version);
+    }
   }
 
   bool _isUserBooksCategoryId(int categoryId) =>
       _userBooksCategoryIds.contains(categoryId);
 
-  bool _shouldUseUserBooks({
+  /// המסד שממנו לקרוא ספר שידוע רק לפי כותרת+קטגוריה+סוג: [preferSource]
+  /// כשאינו רשמי, אחרת אישי רק כשהמטמון או הקטגוריה מעידים על כך.
+  BookSource _resolveSource({
     required String title,
     required int categoryId,
     required String fileType,
-    required bool preferUserBooks,
+    required BookSource preferSource,
   }) {
-    if (preferUserBooks) return true;
-    // המפתח של user_books תמיד עם `isUserBook: true` — לכן יש להרכיב
-    // מפתח-בדיקה תואם.
+    if (!preferSource.isOfficial) return preferSource;
     final key = BookCompositeKey.create(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      isUserBook: true,
+      source: BookSource.user,
     );
-    if (_userBooksCachedKeys.contains(key)) return true;
+    if (_userBooksCachedKeys.contains(key)) return BookSource.user;
     // שני המסדים מונים קטגוריות מ-1, ולכן מזהה קטגוריה לבדו אינו מכריע:
     // ספר שמוכר ל-seforim באותה קטגוריה נשאר רשמי.
     final seforimKey = BookCompositeKey.create(
@@ -1519,9 +1757,32 @@ class DatabaseLibraryProvider implements LibraryProvider {
       categoryId: categoryId,
       fileType: fileType,
     );
-    if (_cachedKeys.contains(seforimKey)) return false;
-    return _isUserBooksCategoryId(categoryId);
+    if (_cachedKeys.contains(seforimKey)) return BookSource.official;
+    final attachedKey = _attachedKeyFor(title, categoryId, fileType);
+    if (attachedKey != null) return attachedKey.source;
+    return _isUserBooksCategoryId(categoryId)
+        ? BookSource.user
+        : BookSource.official;
   }
+
+  /// המסד שממנו קוראים ב-isolate נתוני ספר מ-[source]: seforim.db, או מסד
+  /// מצורף (נפתח מוקשח). null — אין מסד כזה (ספר אישי, מסד שאינו תקין).
+  ReadOnlyDbTarget? _isolateTargetFor(BookSource source) => switch (source) {
+    OfficialBookSource() =>
+      _sqliteProvider.isInitialized && _sqliteProvider.repository != null
+          ? trustedDbTarget(_sqliteProvider.dbPath)
+          : null,
+    UserBookSource() => null,
+    AttachedBookSource(:final slug) => switch (AttachedLibraryRegistry.instance
+        .libraryFor(slug)) {
+      final library? => (
+        path: library.path,
+        untrusted: true,
+        immutable: library.immutable,
+      ),
+      null => null,
+    },
+  };
 
   /// תור פעולות יחיד לכל כתיבות ה-DB של ספרים אישיים.
   /// ה-static מאפשר גישה ישירה ב-DatabaseLibraryProvider.operationQueue
@@ -1542,12 +1803,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
   @visibleForTesting
   static List<Map<String, dynamic>> loadBookLinksRowsForTesting({
     required String dbPath,
+    bool untrusted = false,
     required String title,
     required int categoryId,
     required String fileType,
   }) {
     return _loadBookLinksRowsInIsolate(
-      dbPath: dbPath,
+      target: (path: dbPath, untrusted: untrusted, immutable: false),
       title: title,
       categoryId: categoryId,
       fileType: fileType,
@@ -1557,11 +1819,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
   @visibleForTesting
   static List<Map<String, dynamic>> loadAlternativeStructuresRowsForTesting({
     required String dbPath,
+    bool untrusted = false,
     required String bookTitle,
     int? categoryId,
   }) {
     return _loadAlternativeStructuresRowsInIsolate(
-      dbPath: dbPath,
+      target: (path: dbPath, untrusted: untrusted, immutable: false),
       bookTitle: bookTitle,
       categoryId: categoryId,
     );
@@ -1570,14 +1833,45 @@ class DatabaseLibraryProvider implements LibraryProvider {
   @visibleForTesting
   static Map<int, String> loadDibburHamatchilForTesting({
     required String dbPath,
+    bool untrusted = false,
     required String bookTitle,
+    int? categoryId,
   }) {
-    return _loadDibburHamatchilInIsolate(dbPath: dbPath, bookTitle: bookTitle);
+    return _loadDibburHamatchilInIsolate(
+      target: (path: dbPath, untrusted: untrusted, immutable: false),
+      bookTitle: bookTitle,
+      categoryId: categoryId,
+    );
+  }
+
+  @visibleForTesting
+  static InlineSectionMarks loadInlineSectionMarksForTesting({
+    required String dbPath,
+    bool untrusted = false,
+    required String bookTitle,
+    int? categoryId,
+  }) {
+    return _loadInlineSectionMarksInIsolate(
+      target: (path: dbPath, untrusted: untrusted, immutable: false),
+      bookTitle: bookTitle,
+      categoryId: categoryId,
+    );
+  }
+
+  @visibleForTesting
+  static List<Map<String, dynamic>> loadSelectableVersionKeysForTesting({
+    required String dbPath,
+    bool untrusted = false,
+  }) {
+    return _loadSelectableVersionKeysInIsolate(
+      target: (path: dbPath, untrusted: untrusted, immutable: false),
+    );
   }
 
   @visibleForTesting
   static List<Map<String, dynamic>> loadBookLinksRowsInRangeForTesting({
     required String dbPath,
+    bool untrusted = false,
     required String title,
     required int categoryId,
     required String fileType,
@@ -1586,7 +1880,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     List<String>? targetBookTitles,
   }) {
     return _loadBookLinksRowsInRangeInIsolate(
-      dbPath: dbPath,
+      target: (path: dbPath, untrusted: untrusted, immutable: false),
       title: title,
       categoryId: categoryId,
       fileType: fileType,
@@ -1600,11 +1894,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
   static ({List<Map<String, dynamic>> rows, int? maxSourceLineIndex})
   loadBookLinkTargetsSummaryRowsForTesting({
     required String dbPath,
+    bool untrusted = false,
     required String title,
     required int categoryId,
   }) {
     return _loadBookLinkTargetsSummaryRowsInIsolate(
-      dbPath: dbPath,
+      target: (path: dbPath, untrusted: untrusted, immutable: false),
       title: title,
       categoryId: categoryId,
     );
@@ -1613,11 +1908,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
   @visibleForTesting
   static List<Map<String, dynamic>> loadBookVersionsRowsForTesting({
     required String dbPath,
+    bool untrusted = false,
     required String title,
     required int categoryId,
   }) {
     return _loadBookVersionsRowsInIsolate(
-      dbPath: dbPath,
+      target: (path: dbPath, untrusted: untrusted, immutable: false),
       title: title,
       categoryId: categoryId,
     );
@@ -1627,6 +1923,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
   static ({int startLine, int endLine, int totalLines, List<String> lines})?
   loadBookTextRangeRowsForTesting({
     required String dbPath,
+    bool untrusted = false,
     required String title,
     required int categoryId,
     required String fileType,
@@ -1635,7 +1932,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     String? versionTitle,
   }) {
     return _loadBookTextRangeRowsInIsolate(
-      dbPath: dbPath,
+      target: (path: dbPath, untrusted: untrusted, immutable: false),
       title: title,
       categoryId: categoryId,
       fileType: fileType,
@@ -1962,11 +2259,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      isUserBook: true,
+      source: BookSource.user,
     );
     if (_userBooksCachedKeys.contains(userBookKey)) {
       return true;
     }
+    if (_attachedKeyFor(title, categoryId, fileType) != null) return true;
 
     // אם ה-categoryId רשום כקטגוריית user_books, נבדוק בקובץ הזה.
     if (_isUserBooksCategoryId(categoryId)) {
@@ -2002,14 +2300,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
     int categoryId,
     String fileType,
   ) async {
-    if (!_shouldUseUserBooks(
+    final source = _resolveSource(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: false,
-    )) {
-      return false;
-    }
+      preferSource: BookSource.official,
+    );
+    if (!source.isUser) return false;
     try {
       final repo = await UserBooksDatabaseHolder.instance.repository;
       final book = await repo.getBookByTitleCategoryAndFileType(
@@ -2042,6 +2339,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
         includeUserBooks: true,
       );
 
+      final attachedSource = matchedKey?.source;
+      if (attachedSource is AttachedBookSource) {
+        return _attachedCategoryPaths[attachedSource.slug]?[matchedKey!
+            .categoryId];
+      }
       if (matchedKey != null) {
         final path = await _getPathForCategoryId(
           matchedKey.categoryId,
@@ -2056,14 +2358,15 @@ class DatabaseLibraryProvider implements LibraryProvider {
         title: title,
         categoryId: categoryId,
         fileType: normalizedFileType,
-        preferUserBooks:
-            categoryId != null && _isUserBooksCategoryId(categoryId),
+        preferSource: categoryId != null && _isUserBooksCategoryId(categoryId)
+            ? BookSource.user
+            : BookSource.official,
       );
       if (resolvedBook == null) return null;
-      // categoryId טבעי לשני הסוגים, ההבחנה נעשית דרך `isUserBooks`.
+      // categoryId טבעי לשני הסוגים, ההבחנה נעשית דרך המקור.
       final path = await _getPathForCategoryId(
         resolvedBook.book.categoryId,
-        fromUserBooks: resolvedBook.isUserBooks,
+        fromUserBooks: resolvedBook.source.isUser,
       );
       return path.isEmpty ? null : path;
     } catch (_) {
@@ -2167,7 +2470,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
           title: title,
           categoryId: categoryId,
           fileType: normalizedFileType,
-          isUserBook: true,
+          source: BookSource.user,
         );
         if (_userBooksCachedKeys.contains(userBookKey)) {
           return userBookKey;
@@ -2177,7 +2480,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
     final candidateSets = <Set<BookCompositeKey>>[
       _cachedKeys,
-      if (includeUserBooks) _userBooksCachedKeys,
+      if (includeUserBooks) ...[_userBooksCachedKeys, _attachedCachedKeys],
     ];
     for (final candidateSet in candidateSets) {
       for (final key in candidateSet) {
@@ -2198,16 +2501,20 @@ class DatabaseLibraryProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
-    // ספרים מתיקיות מותאמות אישית: לקרוא מ-user_books.db (תוכן מהקובץ
-    // עצמו אם isFileBacked, אחרת משורות ה-line).
-    if (_shouldUseUserBooks(
+    final source = _resolveSource(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
-    )) {
+      preferSource: preferSource,
+    );
+    if (source is AttachedBookSource) {
+      return _readAttachedBookText(title, categoryId, source);
+    }
+    // ספרים מתיקיות מותאמות אישית: לקרוא מ-user_books.db (תוכן מהקובץ
+    // עצמו אם isFileBacked, אחרת משורות ה-line).
+    if (source.isUser) {
       try {
         final repo = await UserBooksDatabaseHolder.instance.repository;
         final book = await repo.getBookByTitleCategoryAndFileType(
@@ -2253,7 +2560,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
             title,
             categoryId,
             fileType,
-            preferUserBooks,
+            preferSource,
           );
         }
       } catch (e) {
@@ -2261,6 +2568,58 @@ class DatabaseLibraryProvider implements LibraryProvider {
       }
     }
     return null;
+  }
+
+  /// ספר ממסד מצורף נקרא תמיד משורות ה-`line` שלו — נתיב קובץ שבמסד אינו
+  /// נפתח (מסד שאינו בשליטת התוכנה).
+  Future<String?> _readAttachedBookText(
+    String title,
+    int categoryId,
+    AttachedBookSource source,
+  ) async {
+    try {
+      final record = await BookDatabaseResolver.resolveBook(
+        title: title,
+        categoryId: categoryId,
+        preferSource: source,
+      );
+      if (record == null || record.source != source) return null;
+      final lines = await record.repository.getLineContents(record.book.id);
+      if (lines.isNotEmpty) return lines.join('\n');
+      // ספר מבוסס-קובץ: filePath כבר נפתר בתוך תיקיית המסד (או null).
+      final file = record.book.filePath;
+      if (file == null || !await File(file).exists()) return null;
+      return await readFileBackedBookText(
+        File(file),
+        record.book.fileType,
+        title,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Error reading attached book text: $e');
+      return null;
+    }
+  }
+
+  Future<List<TocEntry>?> _readAttachedBookToc(
+    String title,
+    int categoryId,
+    AttachedBookSource source,
+  ) async {
+    try {
+      final record = await BookDatabaseResolver.resolveBook(
+        title: title,
+        categoryId: categoryId,
+        preferSource: source,
+      );
+      if (record == null || record.source != source) return null;
+      return await _loadTocFromUserBooksRepo(
+        record.repository,
+        record.book.id,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Error reading attached book TOC: $e');
+      return null;
+    }
   }
 
   /// קורא את תוכן הספר משורות ה-`line` של `user_books.db` ומחזיר טקסט מאוחד.
@@ -2285,14 +2644,18 @@ class DatabaseLibraryProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
-    if (_shouldUseUserBooks(
+    final source = _resolveSource(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
-    )) {
+      preferSource: preferSource,
+    );
+    if (source is AttachedBookSource) {
+      return _readAttachedBookToc(title, categoryId, source);
+    }
+    if (source.isUser) {
       try {
         final repo = await UserBooksDatabaseHolder.instance.repository;
         final book = await repo.getBookByTitleCategoryAndFileType(
@@ -2332,13 +2695,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
       title,
       categoryId,
       fileType,
-      preferUserBooks,
+      preferSource,
     );
   }
 
-  /// טוען TOC של ספר מ-`user_books.db` ומחזיר עץ TocEntry של מודל ה-app.
-  /// משתמש ב-`getBookTocs` של ה-repository (שכבר עושה JOIN ל-tocText
-  /// ומחזיר רשומות migration עם `text` מאוכלס).
+  /// טוען TOC של ספר ממסד שאינו הרשמי (`user_books.db` או מסד מצורף) ומחזיר
+  /// עץ TocEntry של מודל ה-app.
   Future<List<TocEntry>?> _loadTocFromUserBooksRepo(
     SeforimRepository repo,
     int bookId,
@@ -2371,10 +2733,13 @@ class DatabaseLibraryProvider implements LibraryProvider {
   Future<Set<String>> getAvailableBookTitles() async {
     // Return only books that are actually in the database
     final base = await getDatabaseOnlyBookTitles();
-    if (_userBooksCachedKeys.isEmpty) return base;
+    if (_userBooksCachedKeys.isEmpty && _attachedCachedKeys.isEmpty) {
+      return base;
+    }
     return {
       ...base,
       ..._userBooksCachedKeys.map((key) => key.toStorageKey()),
+      ..._attachedCachedKeys.map((key) => key.toStorageKey()),
     };
   }
 
@@ -2442,10 +2807,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
     _categoriesById.clear();
     _userBooksCachedKeys.clear();
     _userBooksCategoryIds.clear();
+    _attachedCachedKeys.clear();
+    _attachedCategoryPaths.clear();
     _titlesCached = false;
     _bundledTalmudBavliPathCache = null;
     _bundledTalmudBavliExistsCache = null;
-    _selectableVersionKeysFuture = null;
+    _selectableVersionKeysFutures.clear();
     debugPrint('💾 Database cache cleared');
   }
 
@@ -2473,17 +2840,26 @@ class DatabaseLibraryProvider implements LibraryProvider {
   SqliteDataProvider get sqliteProvider => _sqliteProvider;
 
   /// Private helper for database operations to reduce boilerplate
+  /// [requires] — היכולת שבלעדיה המסד אינו מכיל את המידע ומוחזר [defaultValue].
   Future<T> _dbOperation<T>(
     Future<T> Function(sqlite3.Database db) operation,
     T defaultValue,
-    String errorContext,
-  ) async {
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return defaultValue;
-    }
-
+    String errorContext, {
+    bool Function(DbCapabilities capabilities)? requires,
+    BookSource source = BookSource.official,
+  }) async {
     try {
-      final db = await _sqliteProvider.repository!.database.database;
+      final repository = source is AttachedBookSource
+          ? await AttachedLibraryRegistry.instance.repositoryFor(source.slug)
+          : _sqliteProvider.isInitialized
+          ? _sqliteProvider.repository
+          : null;
+      if (repository == null) return defaultValue;
+      final database = repository.database;
+      if (requires != null && !requires(await database.capabilities)) {
+        return defaultValue;
+      }
+      final db = await database.database;
       return await operation(db);
     } catch (e) {
       debugPrint('⚠️ Error in $errorContext: $e');
@@ -2521,7 +2897,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     final tQuery = DateTime.now();
 
     late final List<Map<String, dynamic>> allDbBooks;
-    late final List<Map<String, dynamic>> allCatRows;
+    late List<Map<String, dynamic>> allCatRows;
     late final Map<int, String> authorsByBookId;
 
     final db = await repository.database.database;
@@ -2530,6 +2906,12 @@ class DatabaseLibraryProvider implements LibraryProvider {
       allCatRows = repository.database.categoryDao.getAllCategoryRows(db);
       authorsByBookId = repository.database.bookDao.getBookAuthorsMap(db);
     });
+    // מסד בלי קטגוריות: כל ספריו (categoryId = 0) תחת שורש יחיד.
+    if (allCatRows.isEmpty && allDbBooks.isNotEmpty) {
+      allCatRows = const [
+        {'id': 0, 'parentId': null, 'title': kUncategorizedCategoryTitle},
+      ];
+    }
 
     debugPrint(
       '⏱️ Transaction (books+categories): ${DateTime.now().difference(tQuery).inMilliseconds}ms (${allDbBooks.length} books, ${allCatRows.length} categories)',
@@ -2609,6 +2991,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
     // צירוף ספרים מתיקיות מותאמות אישית מ-user_books.db תחת קטגוריית
     // "ספרים אישיים" באותו עץ.
     await _appendUserBooksToLibrary(library, metadata);
+    await _appendAttachedLibraries(library, metadata);
+    _attachCatalogBookVersions(library);
 
     // NOTE: Sorting is now done during build (like Kotlin), no need for post-sort
     // _sortLibraryRecursive(library); // Removed - sorting happens in _buildCatalogCategoryRecursiveOptimized
@@ -2640,7 +3024,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     if (categoryPath.isEmpty) {
       // Return default category
       final defaultCategory = await repository.getCategoryByTitle(
-        'ללא קטגוריה',
+        kUncategorizedCategoryTitle,
       );
       if (defaultCategory != null) {
         return defaultCategory.id;
@@ -2649,7 +3033,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       return await repository.insertCategory(
         db_models.Category(
           id: 0,
-          title: 'ללא קטגוריה',
+          title: kUncategorizedCategoryTitle,
           parentId: null,
           level: 0,
         ),
@@ -2892,16 +3276,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
         userAuthors = repo.database.bookDao.getBookAuthorsMap(db);
         userVersions = [
           for (final row in db.select(
-            'SELECT versionBookId, primaryBookId, versionTitle, versionNotes, '
-            'priority FROM user_book_version',
+            'SELECT versionBookId, primaryBookId, primarySource, primaryTitle, '
+            'primaryCategoryPath, versionTitle, versionNotes, priority '
+            'FROM user_book_version',
           ))
-            UserBookVersionRecord(
-              versionBookId: row['versionBookId'] as int,
-              primaryBookId: row['primaryBookId'] as int,
-              versionTitle: row['versionTitle'] as String,
-              versionNotes: row['versionNotes'] as String?,
-              priority: (row['priority'] as num?)?.toDouble(),
-            ),
+            ?_userBookVersionFromRow(row),
         ];
       });
 
@@ -2912,11 +3291,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
       _userBooksCachedKeys.clear();
       _userBooksById.clear();
       _userBookVersions = userVersions;
+      _catalogVersionPrimaries.clear();
+      // גרסה של ספר רשמי/מצורף מוסתרת רק אחרי שהראשי נמצא בקטלוג.
       _hiddenUserVersionBookIds
         ..clear()
         ..addAll([
           for (final v in userVersions)
-            if (v.versionBookId != v.primaryBookId) v.versionBookId,
+            if (!v.hasCatalogPrimary && v.versionBookId != v.primaryBookId)
+              v.versionBookId,
         ]);
 
       if (userBooks.isEmpty && userCats.isEmpty) {
@@ -3022,7 +3404,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
           directBooksParent,
           metadata,
           authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
-          isUserBook: true,
+          source: BookSource.user,
           idOverride: dbBook['id'] as int? ?? 0,
           categoryIdOverride: personalRootId,
         );
@@ -3033,7 +3415,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
             title: book.title,
             categoryId: personalRootId,
             fileType: book.fileType,
-            isUserBook: true,
+            source: BookSource.user,
           ),
         );
       }
@@ -3096,7 +3478,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
             looseBooksParent,
             metadata,
             authorFromDatabase: userAuthors[dbBook['id'] as int? ?? 0],
-            isUserBook: true,
+            source: BookSource.user,
             idOverride: dbBook['id'] as int? ?? 0,
             categoryIdOverride: pickedFolder.id,
           );
@@ -3107,7 +3489,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
               title: book.title,
               categoryId: pickedFolder.id,
               fileType: book.fileType,
-              isUserBook: true,
+              source: BookSource.user,
             ),
           );
         }
@@ -3151,6 +3533,314 @@ class DatabaseLibraryProvider implements LibraryProvider {
       // שבור או הרשאות חסרות.
       unawaited(Sentry.captureException(e, stackTrace: stackTrace));
     }
+  }
+
+  /// מצרף לעץ את ספרי המסדים המצורפים הגלויים, לפי סדר העדיפות: תחת
+  /// `ספרים אישיים/<שם המסד>`, או ממוזגים לקטגוריות הספרייה לפי שם. מסד שאינו
+  /// נגיש מדולג; כשל במסד אחד אינו פוגע באחרים.
+  Future<void> _appendAttachedLibraries(
+    Library library,
+    Map<String, Map<String, dynamic>> metadata,
+  ) async {
+    _attachedCachedKeys.clear();
+    _attachedCategoryPaths.clear();
+    final attachedLibraries = [
+      for (final attached in AttachedLibraryRegistry.instance.visibleLibraries)
+        if (attached.source != null) attached,
+    ];
+    // כל המסדים נקראים במקביל, וכל אחד מוגבל בזמן בנפרד.
+    final catalogs = await Future.wait(
+      attachedLibraries.map(_readAttachedCatalog),
+    );
+    for (var i = 0; i < attachedLibraries.length; i++) {
+      final attached = attachedLibraries[i];
+      final rows = catalogs[i];
+      if (rows == null) continue;
+      try {
+        _addAttachedLibraryToCatalog(
+          library,
+          _AttachedCatalogBuild(
+            library: attached,
+            source: attached.source!,
+            rows: rows.books,
+            categoryRows: rows.categories,
+            authors: rows.authors,
+            metadata: metadata,
+          ),
+        );
+      } catch (e, stackTrace) {
+        debugPrint('⚠️ Error appending attached library ${attached.slug}: $e');
+        unawaited(Sentry.captureException(e, stackTrace: stackTrace));
+      }
+    }
+  }
+
+  /// הקטלוג של [attached], או null כשאינו זמין כרגע. קובץ שנעלם, וקריאה
+  /// שלא הסתיימה ב-[attachedCatalogTimeout], מסמנים את המסד לא-זמין.
+  Future<AttachedCatalogRows?> _readAttachedCatalog(
+    AttachedLibrary attached,
+  ) async {
+    final path = attached.path;
+    final attachedRepository = AttachedLibrariesRepository.instance;
+    final pending = _pendingAttachedCatalogs.putIfAbsent(path, () {
+      attachedRepository.setLoading(path, loading: true);
+      return _PendingAttachedCatalog(
+        attachedCatalogReader((
+          path: path,
+          untrusted: true,
+          immutable: attached.immutable,
+        )),
+      );
+    });
+    try {
+      final rows = pending.done
+          ? await pending.future
+          : await pending.future.timeout(
+              pending.timedOut ? Duration.zero : attachedCatalogTimeout,
+            );
+      _pendingAttachedCatalogs.remove(path);
+      attachedRepository.setLoading(path, loading: false);
+      if (rows.missing) {
+        unawaited(_reportAttachedReachability(path, reachable: false));
+        return null;
+      }
+      return rows;
+    } on TimeoutException {
+      if (!pending.timedOut) {
+        pending.timedOut = true;
+        unawaited(_reportAttachedReachability(path, reachable: false));
+        unawaited(
+          pending.future
+              .then(
+                (rows) async {
+                  if (!rows.missing) {
+                    await _reportAttachedReachability(path, reachable: true);
+                  }
+                },
+                onError: (Object _) {},
+              )
+              .whenComplete(
+                () => attachedRepository.setLoading(path, loading: false),
+              ),
+        );
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _pendingAttachedCatalogs.remove(path);
+      attachedRepository.setLoading(path, loading: false);
+      debugPrint('⚠️ Error reading attached library ${attached.slug}: $e');
+      unawaited(Sentry.captureException(e, stackTrace: stackTrace));
+      return null;
+    }
+  }
+
+  Future<void> _reportAttachedReachability(
+    String path, {
+    required bool reachable,
+  }) => AttachedLibrariesRepository.instance
+      .setReachable(path, reachable: reachable)
+      .catchError((Object e) {
+        debugPrint('⚠️ Could not update attached library $path: $e');
+      });
+
+  void _addAttachedLibraryToCatalog(
+    Library library,
+    _AttachedCatalogBuild build,
+  ) {
+    final categories = [
+      for (final row in build.categoryRows) db_models.Category.fromJson(row),
+    ];
+    final knownIds = {for (final category in categories) category.id};
+    for (final category in categories) {
+      // הורה שאינו במסד — הקטגוריה נחשבת שורש, במקום להיעלם מהעץ.
+      final parentId = knownIds.contains(category.parentId)
+          ? category.parentId
+          : null;
+      build.categoriesByParent.putIfAbsent(parentId, () => []).add(category);
+    }
+    final looseBooks = <Map<String, dynamic>>[];
+    for (final row in build.rows) {
+      if (!_isAttachedDisplayableRow(row)) continue;
+      final categoryId = row['categoryId'] as int? ?? 0;
+      if (knownIds.contains(categoryId)) {
+        build.booksByCategory.putIfAbsent(categoryId, () => []).add(row);
+      } else {
+        looseBooks.add(row);
+      }
+    }
+
+    Category? libraryRoot;
+    Category ensureLibraryRoot() {
+      final existing = libraryRoot;
+      if (existing != null) return existing;
+      final personal = _personalRootFor(library, build.metadata);
+      final created = Category(
+        title: build.library.displayName,
+        description: '',
+        shortDescription: '',
+        order: _kAttachedRootOrder + build.library.priority,
+        subCategories: [],
+        books: [],
+        parent: personal,
+      );
+      personal.subCategories.add(created);
+      return libraryRoot = created;
+    }
+
+    final roots = [...?build.categoriesByParent[null]]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    final merge =
+        build.library.placement == AttachedLibraryPlacement.mergeIntoLibrary;
+    for (final root in roots) {
+      if (!merge) {
+        final parent = ensureLibraryRoot();
+        parent.subCategories.add(_buildAttachedCategory(root, parent, build));
+        continue;
+      }
+      final existing = _findMergeTarget(library.subCategories, root.title);
+      if (existing == null) {
+        library.subCategories.add(_buildAttachedCategory(root, library, build));
+      } else {
+        _appendAttachedContent(existing, root, build);
+      }
+    }
+
+    // ספרים בלי קטגוריה (מסד בלי טבלת קטגוריות) יושבים תחת שם המסד.
+    if (looseBooks.isNotEmpty) {
+      _addAttachedBooks(
+        ensureLibraryRoot(),
+        0,
+        _sortedByOrder(looseBooks),
+        build,
+      );
+    }
+  }
+
+  Category _buildAttachedCategory(
+    db_models.Category dbCategory,
+    Category parent,
+    _AttachedCatalogBuild build,
+  ) {
+    final category = Category(
+      title: dbCategory.title,
+      description: dbCategory.heDesc ?? '',
+      shortDescription: dbCategory.heShortDesc ?? '',
+      order: build.order(dbCategory.orderIndex),
+      subCategories: [],
+      books: [],
+      parent: parent,
+    );
+    _appendAttachedContent(category, dbCategory, build);
+    return category;
+  }
+
+  void _appendAttachedContent(
+    Category category,
+    db_models.Category dbCategory,
+    _AttachedCatalogBuild build,
+  ) {
+    _addAttachedBooks(
+      category,
+      dbCategory.id,
+      _sortedByOrder([...?build.booksByCategory[dbCategory.id]]),
+      build,
+    );
+    final children = [...?build.categoriesByParent[dbCategory.id]]
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    for (final child in children) {
+      final existing = _findMergeTarget(category.subCategories, child.title);
+      if (existing == null) {
+        category.subCategories.add(
+          _buildAttachedCategory(child, category, build),
+        );
+      } else {
+        _appendAttachedContent(existing, child, build);
+      }
+    }
+  }
+
+  void _addAttachedBooks(
+    Category category,
+    int categoryId,
+    List<Map<String, dynamic>> rows,
+    _AttachedCatalogBuild build,
+  ) {
+    final slug = build.source.slug;
+    for (final row in rows) {
+      final id = row['id'] as int? ?? 0;
+      final book = _convertMinimalBookMapToBook(
+        // נתיב הקובץ נפתר מראש יחסית לתיקיית המסד; נתיב אחר אינו נפתח.
+        {
+          ...row,
+          'filePath': row['resolvedFilePath'],
+          'orderIndex': build.order(_orderOf(row)),
+        },
+        category,
+        build.metadata,
+        authorFromDatabase: build.authors[id],
+        source: build.source,
+        idOverride: id,
+        categoryIdOverride: categoryId,
+        remapMovedPath: false,
+      );
+      if (book == null) continue;
+      category.books.add(book);
+      _attachedCachedKeys.add(
+        BookCompositeKey.create(
+          title: book.title,
+          categoryId: categoryId,
+          fileType: book.fileType,
+          source: build.source,
+        ),
+      );
+      final path = book.categoryPath;
+      if (path != null && path.isNotEmpty) {
+        _attachedCategoryPaths.putIfAbsent(slug, () => {})[categoryId] = path;
+      }
+    }
+  }
+
+  /// ספר שתוכנו בשורות ה-DB, או ספר מבוסס-קובץ (PDF, Word…) שהקובץ שלו נמצא
+  /// בתיקיית המסד. קובץ שנתיבו אסור או חסר — הספר אינו מוצג.
+  static bool _isAttachedDisplayableRow(Map<String, dynamic> row) {
+    final fileType = (row['fileType'] as String?)?.trim().toLowerCase() ?? '';
+    if (fileType.isEmpty || fileType == 'txt') return true;
+    return row['resolvedFilePath'] != null &&
+        documentFormatOf(fileType: fileType) != null;
+  }
+
+  static num? _orderOf(Map<String, dynamic> row) =>
+      row['orderIndex'] is num ? row['orderIndex'] as num : null;
+
+  static List<Map<String, dynamic>> _sortedByOrder(
+    List<Map<String, dynamic>> rows,
+  ) => rows
+    ..sort((a, b) {
+      final orderA = (a['orderIndex'] as num?)?.toDouble() ?? 999.0;
+      final orderB = (b['orderIndex'] as num?)?.toDouble() ?? 999.0;
+      return orderA.compareTo(orderB);
+    });
+
+  /// שורש "ספרים אישיים" בעץ — קיים (מהספרים האישיים) או חדש בסוף הספרייה.
+  Category _personalRootFor(
+    Library library,
+    Map<String, Map<String, dynamic>> metadata,
+  ) {
+    final existing = library.subCategories
+        .where((c) => c.title == _kPersonalRootTitle)
+        .firstOrNull;
+    if (existing != null) return existing;
+    final created = Category(
+      title: _kPersonalRootTitle,
+      description: metadata[_kPersonalRootTitle]?['heDesc'] ?? '',
+      shortDescription: metadata[_kPersonalRootTitle]?['heShortDesc'] ?? '',
+      order: 999,
+      subCategories: [],
+      books: [],
+      parent: library,
+    );
+    library.subCategories.add(created);
+    return created;
   }
 
   /// קטגוריית היעד למיזוג תיקייה אישית, בהשוואה שמתעלמת מגרשיים וגרש:
@@ -3245,7 +3935,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     Map<String, Map<String, dynamic>> metadata,
   ) {
     // categoryId טבעי מ-user_books.db (בלי offset). הבידול נעשה דרך
-    // `_userBooksCategoryIds` ו-`isUserBook: true` במפתח.
+    // `_userBooksCategoryIds` ו-`source: BookSource.user` במפתח.
     final nativeCategoryId = dbCategory.id;
     _userBooksCategoryIds.add(nativeCategoryId);
 
@@ -3263,7 +3953,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         category,
         metadata,
         authorFromDatabase: authorsByBookId[dbBook['id'] as int? ?? 0],
-        isUserBook: true,
+        source: BookSource.user,
         idOverride: dbBook['id'] as int? ?? 0,
         categoryIdOverride: nativeCategoryId,
       );
@@ -3274,7 +3964,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
           title: book.title,
           categoryId: nativeCategoryId,
           fileType: book.fileType,
-          isUserBook: true,
+          source: BookSource.user,
         ),
       );
     }
@@ -3320,9 +4010,10 @@ class DatabaseLibraryProvider implements LibraryProvider {
     Category category,
     Map<String, Map<String, dynamic>> metadata, {
     String? authorFromDatabase,
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
     int? idOverride,
     int? categoryIdOverride,
+    bool remapMovedPath = true,
   }) {
     final title = bookMap['title'] as String;
     final id = idOverride ?? (bookMap['id'] as int? ?? 0);
@@ -3376,8 +4067,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       return null;
     }
 
-    final resolvedFilePath = filePath == null
-        ? null
+    final resolvedFilePath = filePath == null || !remapMovedPath
+        ? filePath
         : resolveMovedFileBookPath(filePath);
 
     return buildBookForFileType(
@@ -3396,7 +4087,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
       topics: topics,
       categoryPath: categoryPath,
       categoryId: categoryId,
-      isUserBook: isUserBook,
+      source: source,
     );
   }
 
@@ -3417,19 +4108,17 @@ class DatabaseLibraryProvider implements LibraryProvider {
   Future<List<Link>> getAllLinksForBook(
     String title,
     int categoryId,
-    String fileType,
-  ) async {
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return [];
-    }
-
+    String fileType, {
+    BookSource source = BookSource.official,
+  }) async {
     // ראה הערה ב-_runAlternativeStructuresInIsolate: ה-Isolate.run עצמו
     // חייב להיווצר בתוך פונקציה ברמת קובץ, אחרת `this` עלול להיתפס.
-    final dbPath = _sqliteProvider.dbPath;
+    final target = _isolateTargetFor(source);
+    if (target == null) return [];
 
     try {
       final result = await _runBookLinksInIsolate(
-        dbPath: dbPath,
+        target: target,
         title: title,
         categoryId: categoryId,
         fileType: fileType,
@@ -3466,6 +4155,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
               ? (row['targetRangeEndLineIndex'] as int) + 1
               : null,
           baseProvenance: row['baseProvenance'] as int? ?? 0,
+          targetSource: source,
         );
       }).toList();
 
@@ -3484,6 +4174,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
     required int startLineIndex,
     required int endLineIndex,
     Iterable<String>? targetBookTitles,
+    BookSource source = BookSource.official,
   }) async {
     final normalizedTargetBookTitles =
         targetBookTitles
@@ -3494,15 +4185,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
           ?..sort();
     // כשל או מסד סגור זורקים ולא מחזירים ריק: הקורא שומר תוצאה ריקה כחלון
     // "מכוסה" ולא ינסה שוב, והמפרשים נעלמים עד גלילה רחוקה.
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      throw StateError('seforim.db אינו פתוח — קישורי "$title" לא נטענו');
+    final target = _isolateTargetFor(source);
+    if (target == null) {
+      throw StateError('המסד של "$title" אינו פתוח — הקישורים לא נטענו');
     }
 
     // ראה הערה ב-_runAlternativeStructuresInIsolate.
-    final dbPath = _sqliteProvider.dbPath;
-
     final result = await _runBookLinksInRangeInIsolate(
-      dbPath: dbPath,
+      target: target,
       title: title,
       categoryId: categoryId,
       fileType: fileType,
@@ -3542,6 +4232,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
             ? (row['targetRangeEndLineIndex'] as int) + 1
             : null,
         baseProvenance: row['baseProvenance'] as int? ?? 0,
+        targetSource: source,
       );
     }).toList();
     return links;
@@ -3552,20 +4243,27 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// מיועד לבניית רשימת המפרשים של ספר בלי לטעון את כל הקישורים לזיכרון.
   /// מחזיר null אם המסד לא זמין או שהשאילתה נכשלה.
   Future<({List<LinkTargetSummary> targets, int maxSourceLine})?>
-  getBookLinkTargetsSummary(String title, int categoryId) async {
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return null;
-    }
-
+  getBookLinkTargetsSummary(
+    String title,
+    int categoryId, {
+    BookSource source = BookSource.official,
+  }) async {
     // ראה הערה ב-_runAlternativeStructuresInIsolate.
-    final dbPath = _sqliteProvider.dbPath;
+    final target = _isolateTargetFor(source);
+    if (target == null) return null;
 
     try {
       final result = await _runBookLinkTargetsSummaryInIsolate(
-        dbPath: dbPath,
+        target: target,
         title: title,
         categoryId: categoryId,
       );
+      final external = await ExternalLinkRepository.instance.targetsSummary(
+        title: title,
+        categoryId: categoryId,
+        source: source,
+      );
+      final maxSourceLine = (result.maxSourceLineIndex ?? -1) + 1;
       return (
         targets: [
           for (final row in result.rows)
@@ -3575,8 +4273,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
                   row['connectionTypeName'] as String? ?? 'reference',
               linkCount: (row['linkCount'] as int?) ?? 0,
             ),
+          ...external.targets,
         ],
-        maxSourceLine: (result.maxSourceLineIndex ?? -1) + 1,
+        maxSourceLine: external.maxSourceLine > maxSourceLine
+            ? external.maxSourceLine
+            : maxSourceLine,
       );
     } catch (e) {
       debugPrint('⚠️ Error in getBookLinkTargetsSummary "$title": $e');
@@ -3595,17 +4296,15 @@ class DatabaseLibraryProvider implements LibraryProvider {
     required int startLine,
     required int endLine,
     String? versionTitle,
+    BookSource source = BookSource.official,
   }) async {
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return null;
-    }
-
     // ראה הערה ב-_runAlternativeStructuresInIsolate.
-    final dbPath = _sqliteProvider.dbPath;
+    final target = _isolateTargetFor(source);
+    if (target == null) return null;
 
     try {
       return await _runBookTextRangeInIsolate(
-        dbPath: dbPath,
+        target: target,
         title: title,
         categoryId: categoryId,
         fileType: fileType,
@@ -3623,16 +4322,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// רשימה ריקה כשה-DB ישן או כשאין לספר מידע גרסאות.
   Future<List<BookVersionInfo>> getBookVersions(
     String title,
-    int categoryId,
-  ) async {
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return const [];
-    }
-
-    final dbPath = _sqliteProvider.dbPath;
+    int categoryId, {
+    BookSource source = BookSource.official,
+  }) async {
+    final target = _isolateTargetFor(source);
+    if (target == null) return const [];
     try {
       final rows = await _runBookVersionsInIsolate(
-        dbPath: dbPath,
+        target: target,
         title: title,
         categoryId: categoryId,
       );
@@ -3645,24 +4342,30 @@ class DatabaseLibraryProvider implements LibraryProvider {
 
   /// האם להציג לספר תפריט 'גרסאות' — כלומר יש מהדורה לבחירה (2+ גרסאות, או
   /// גרסה יחידה עם טקסט). גרסה יחידה מטא-דאטה בלבד = הנוסח המוצג, ולכן false.
-  Future<bool> hasSelectableBookVersions(String title, int categoryId) async {
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return false;
-    }
-    final keys = await (_selectableVersionKeysFuture ??=
-        _loadSelectableVersionKeys());
+  Future<bool> hasSelectableBookVersions(
+    String title,
+    int categoryId, {
+    BookSource source = BookSource.official,
+  }) async {
+    final target = _isolateTargetFor(source);
+    if (target == null) return false;
+    final sourceKey = source.wireKey;
+    final keys = await (_selectableVersionKeysFutures[sourceKey] ??=
+        _loadSelectableVersionKeys(sourceKey, target));
     return keys.contains('$title\u0000$categoryId');
   }
 
-  Future<Set<String>> _loadSelectableVersionKeys() async {
+  Future<Set<String>> _loadSelectableVersionKeys(
+    String sourceKey,
+    ReadOnlyDbTarget target,
+  ) async {
     try {
-      final rows = await _runSelectableVersionKeysInIsolate(
-        dbPath: _sqliteProvider.dbPath,
-      );
+      final rows = await _runSelectableVersionKeysInIsolate(target: target);
       return rows.map((r) => '${r['title']}\u0000${r['categoryId']}').toSet();
     } catch (e) {
       debugPrint('⚠️ Error loading selectable version keys: $e');
-      _selectableVersionKeysFuture = null; // אפשר ניסיון חוזר בטעינה הבאה
+      // אפשר ניסיון חוזר בטעינה הבאה
+      _selectableVersionKeysFutures.remove(sourceKey);
       return const <String>{};
     }
   }
@@ -3684,7 +4387,7 @@ class DatabaseLibraryProvider implements LibraryProvider {
         title: targetTitle,
         categoryId: link.targetCategoryId,
         fileType: link.targetFileType,
-        preferUserBooks: link.targetIsUserBook,
+        preferSource: link.targetSource,
       );
       if (resolvedBook == null) return 'שגיאה: הספר לא נמצא במסד הנתונים';
 
@@ -3752,8 +4455,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
     return name;
   }
 
-  /// מבני ה-AltToc של [book] מהספרייה הרשמית. ספר אישי ממוספר אחרת מספר
-  /// רשמי בשם זהה, ולכן לעולם אינו מקבל את מבניו.
+  /// מבני ה-AltToc של [book] מהמסד שלו. ספר ממקור אחר בשם זהה ממוספר אחרת,
+  /// ולכן לעולם אינו מקבל את מבניו; כל מבנה נושא את [AltTocStructure.source].
   Future<List<AltTocStructure>> getAlternativeStructuresForBook(
     TextBook book,
   ) async {
@@ -3771,9 +4474,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
         'getAlternativeStructuresForBook (user) "${book.title}"',
       );
     }
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return [];
-    }
+    final target = _isolateTargetFor(book.source);
+    if (target == null) return [];
     final bookTitle = book.title;
 
     // לא להעביר ל-Isolate.run closure שנוצר בתוך instance method הזה -
@@ -3781,16 +4483,17 @@ class DatabaseLibraryProvider implements LibraryProvider {
     // הלא-ניתן-לשליחה), והקריאה תיכשל עם "Illegal argument in isolate
     // message". במקום זאת אנו משתמשים ב-tear-off של פונקציה ברמת קובץ
     // ומעבירים את הפרמטרים כ-record של ערכים פרימיטיביים.
-    final dbPath = _sqliteProvider.dbPath;
-
     try {
       final results = await _runAlternativeStructuresInIsolate(
-        dbPath: dbPath,
+        target: target,
         bookTitle: bookTitle,
         categoryId: book.categoryId,
       );
 
-      return results.map((json) => AltTocStructure.fromJson(json)).toList();
+      return [
+        for (final json in results)
+          AltTocStructure.fromJson(json, source: book.source),
+      ];
     } catch (e) {
       debugPrint(
         '⚠️ Error in getAlternativeStructuresForBook "$bookTitle": $e',
@@ -3844,19 +4547,19 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// סמני חלוקה וכותרות נושא להצגה בגוף הטקסט, לפי `lineIndex` של שורת
   /// התוכן (issues #773, #1121). לספר בלי מבנים כאלה — מפות ריקות.
   Future<InlineSectionMarks> getInlineSectionMarksByLineIndex(
-    String bookTitle,
-  ) async {
+    String bookTitle, {
+    int? categoryId,
+    BookSource source = BookSource.official,
+  }) async {
     const empty = (markers: <int, String>{}, headings: <int, List<String>>{});
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return empty;
-    }
-
-    final dbPath = _sqliteProvider.dbPath;
+    final target = _isolateTargetFor(source);
+    if (target == null) return empty;
 
     try {
       return await _runInlineSectionMarksInIsolate(
-        dbPath: dbPath,
+        target: target,
         bookTitle: bookTitle,
+        categoryId: categoryId,
       );
     } catch (e) {
       debugPrint(
@@ -3870,16 +4573,18 @@ class DatabaseLibraryProvider implements LibraryProvider {
   /// `lineIndex` של שורת הפירוש: הצורה המודפסת של הדיבור, לתצוגה כתת-כותרת
   /// בעץ הניווט. לספר בלי אינדקס, או במסד ישן, מוחזרת מפה ריקה.
   Future<Map<int, String>> getDibburHamatchilByLineIndex(
-    String bookTitle,
-  ) async {
-    if (!_sqliteProvider.isInitialized || _sqliteProvider.repository == null) {
-      return const {};
-    }
+    String bookTitle, {
+    int? categoryId,
+    BookSource source = BookSource.official,
+  }) async {
+    final target = _isolateTargetFor(source);
+    if (target == null) return const {};
 
     try {
       return await _runDibburHamatchilInIsolate(
-        dbPath: _sqliteProvider.dbPath,
+        target: target,
         bookTitle: bookTitle,
+        categoryId: categoryId,
       );
     } catch (e) {
       debugPrint('⚠️ Error in getDibburHamatchilByLineIndex "$bookTitle": $e');
@@ -3898,15 +4603,16 @@ class DatabaseLibraryProvider implements LibraryProvider {
       },
       [],
       'getAlternativeStructures',
+      requires: (c) => c.hasAltTocStructures,
     );
   }
 
   /// Get all alternative TOC entries for a specific structure
   Future<List<AltTocEntry>> getAllAlternativeEntries(
     int structureId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.entries(structureId),
         const [],
@@ -3934,15 +4640,17 @@ class DatabaseLibraryProvider implements LibraryProvider {
       },
       [],
       'getAllAlternativeEntries $structureId',
+      requires: (c) => c.hasAltToc,
+      source: source,
     );
   }
 
   /// מחזיר רשימת (lineIndex, text) לכל ערכי כותרות משנה בעלי שורה מוגדרת
   Future<List<({int lineIndex, String text})>> getAltTocLineIndices(
     int structureId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.lineIndices(structureId),
         const [],
@@ -3976,6 +4684,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       },
       [],
       'getAltTocLineIndices $structureId',
+      requires: (c) => c.hasAltToc,
+      source: source,
     );
   }
 
@@ -3988,9 +4698,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
   >
   getAltTocEntriesWithLineIndex(
     int structureId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.entriesWithLineIndex(structureId),
         const [],
@@ -4029,6 +4739,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       },
       [],
       'getAltTocEntriesWithLineIndex $structureId',
+      requires: (c) => c.hasAltToc,
+      source: source,
     );
   }
 
@@ -4036,9 +4748,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
   Future<List<Link>> getLinksForAltTocEntry(
     int structureId,
     int altTocEntryId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.linksForEntry(structureId, altTocEntryId),
         const [],
@@ -4075,11 +4787,14 @@ class DatabaseLibraryProvider implements LibraryProvider {
             path2: bookTitle,
             index2: lineIndex + 1, // 1-based index for UI
             connectionType: 'alt_toc',
+            targetSource: source,
           );
         }).toList();
       },
       [],
       'getLinksForAltTocEntry',
+      requires: (c) => c.hasLineAltToc,
+      source: source,
     );
   }
 
@@ -4088,9 +4803,9 @@ class DatabaseLibraryProvider implements LibraryProvider {
     String bookTitle,
     int lineIndex,
     int structureId, {
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
+    if (source.isUser) {
       return _userAltTocOperation(
         (repo) => repo.entryForLine(structureId, lineIndex),
         null,
@@ -4120,6 +4835,8 @@ class DatabaseLibraryProvider implements LibraryProvider {
       },
       null,
       'getAltTocEntryForLine',
+      requires: (c) => c.hasLineAltToc,
+      source: source,
     );
   }
 

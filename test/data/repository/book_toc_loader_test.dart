@@ -12,6 +12,7 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/migration/models/toc_entry.dart' as migration_models;
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
@@ -108,7 +109,7 @@ void main() {
         title: 'ספר עם תוכן עניינים',
         categoryId: categoryId,
         fileType: 'txt',
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       final toc = await loadBookTocFallback(book);

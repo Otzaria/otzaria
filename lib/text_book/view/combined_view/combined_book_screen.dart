@@ -778,11 +778,11 @@ class _CombinedViewState extends State<CombinedView> {
         return _textBookBloc.repository.getSiblingCommentaries(
           sourceBookTitle: utils.getTitleFromPath(sourceLink.path2),
           sourceCategoryId: sourceLink.targetCategoryId,
-          sourceIsUserBook: sourceLink.targetIsUserBook,
+          sourceBookSource: sourceLink.targetSource,
           sourceLineIndex: sourceLink.index2 - 1,
           currentBookTitle: state.book.title,
           currentCategoryId: state.book.categoryId,
-          currentIsUserBook: state.book.isUserBook,
+          currentBookSource: state.book.source,
         );
       },
     );
@@ -805,7 +805,7 @@ class _CombinedViewState extends State<CombinedView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<PersonalNotesBloc>().add(
-        LoadPersonalNotes(widget.tab.book.title),
+        LoadPersonalNotes(personalNotesBookKey(widget.tab.book)),
       );
     });
 
@@ -903,9 +903,10 @@ class _CombinedViewState extends State<CombinedView> {
         _handleExternalSelectionChange,
       );
     }
-    if (oldWidget.tab.book.title != widget.tab.book.title) {
+    if (personalNotesBookKey(oldWidget.tab.book) !=
+        personalNotesBookKey(widget.tab.book)) {
       context.read<PersonalNotesBloc>().add(
-        LoadPersonalNotes(widget.tab.book.title),
+        LoadPersonalNotes(personalNotesBookKey(widget.tab.book)),
       );
     }
     if (!sameSourceIdentity(oldWidget.tab.book, widget.tab.book)) {
@@ -950,14 +951,21 @@ class _CombinedViewState extends State<CombinedView> {
         _loadedLineAt,
       );
     } else {
-      final provider = LibraryProviderManager.instance.getProviderForBook(
-        book.title,
-        categoryId: book.categoryId,
-        fileType: book.fileType,
-      );
-      if (provider is! DatabaseLibraryProvider) return;
+      if (book.source.isOfficial &&
+          LibraryProviderManager.instance.getProviderForBook(
+                book.title,
+                categoryId: book.categoryId,
+                fileType: book.fileType,
+              )
+              is! DatabaseLibraryProvider) {
+        return;
+      }
       marks = await DatabaseLibraryProvider.instance
-          .getInlineSectionMarksByLineIndex(book.title);
+          .getInlineSectionMarksByLineIndex(
+            book.title,
+            categoryId: book.categoryId,
+            source: book.source,
+          );
     }
     // כמו ב-_loadSourceBanner: מעבר מהיר בין ספרים עלול לסיים await זה
     // אחרי החלפת הספר.
@@ -1373,7 +1381,7 @@ class _CombinedViewState extends State<CombinedView> {
             icon: FluentIcons.link_24_regular,
             submenuBuilder: () => buildDirectLinkSubmenuActions(
               bookId: state.book.id!,
-              isUserBook: state.book.isUserBook,
+              source: state.book.source,
               index: paragraphIndex,
               selectedText: selectedText,
             ),
@@ -1445,7 +1453,7 @@ class _CombinedViewState extends State<CombinedView> {
         icon: FluentIcons.bookmark_add_24_regular,
         onTap: () => addTextSectionBookmark(context, state, paragraphIndex),
       ),
-      if (!state.book.isUserBook)
+      if (state.book.isOfficialLibraryBook)
         AppContextMenuEntry(
           label: 'דווח על טעות בספר',
           icon: FluentIcons.error_circle_24_regular,
@@ -1862,7 +1870,7 @@ class _CombinedViewState extends State<CombinedView> {
     // טען טיוטה אם קיימת
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: widget.tab.book.title,
+      bookId: personalNotesBookKey(widget.tab.book),
       lineNumber: currentIndex + 1,
     );
 
@@ -1871,7 +1879,7 @@ class _CombinedViewState extends State<CombinedView> {
     // שלח event לפתיחת מצב יצירה בסיידבר
     context.read<PersonalNotesBloc>().add(
       StartCreatingPersonalNote(
-        bookId: widget.tab.book.title,
+        bookId: personalNotesBookKey(widget.tab.book),
         lineNumber: currentIndex + 1,
         referenceText: referenceText,
         selectedText: selectedText?.trim(),
@@ -1891,7 +1899,7 @@ class _CombinedViewState extends State<CombinedView> {
     _addTextBookEventIfOpen(HighlightLine(lineIndex));
     openPersonalNotesTarget(
       context.read<PersonalNotesBloc>(),
-      bookId: widget.tab.book.title,
+      bookId: personalNotesBookKey(widget.tab.book),
       categoryId: widget.tab.book.categoryId,
       lineNumber: lineIndex + 1,
     );
@@ -2190,7 +2198,9 @@ class _CombinedViewState extends State<CombinedView> {
                                             final noteMap =
                                                 <int, List<PersonalNote>>{};
                                             if (notesState.bookId ==
-                                                state.book.title) {
+                                                personalNotesBookKey(
+                                                  state.book,
+                                                )) {
                                               for (final note
                                                   in notesState.locatedNotes) {
                                                 final line = note.lineNumber;

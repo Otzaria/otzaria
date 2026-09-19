@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/models/books.dart';
@@ -16,7 +17,12 @@ class PerBookSettings {
   /// רשמי, או קטגוריות שונות) חייבים מפתחות נפרדים כדי שלא ידרסו זה את הגדרות זה.
   /// קובצי PDF/קובץ ממופתחים לפי הנתיב הייחודי; ספרי DB לפי scope+קטגוריה+שם.
   static String bookKey(Book book) {
-    final scope = book.isUserBook ? 'u' : 'o';
+    // המפתח משמש כשם קובץ, ולכן בלי ה-':' של wireKey.
+    final scope = switch (book.source) {
+      OfficialBookSource() => 'o',
+      UserBookSource() => 'u',
+      AttachedBookSource(:final slug) => 'd_$slug',
+    };
     if (book is FileBook) return '${scope}__${book.path}';
     final cat = book.categoryId?.toString() ?? 'x';
     // נוסח חלופי הוא ספר נפרד לעניין ההגדרות: במפתח משותף כל שינוי בכרטיסייה

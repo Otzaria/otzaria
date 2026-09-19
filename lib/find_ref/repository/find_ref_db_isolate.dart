@@ -726,9 +726,9 @@ void _workerMain(_Bootstrap bootstrap) {
           throw StateError('seforim.db unavailable for bookAcronymCache');
         }
         final db = await repo.database.database;
-        final rows = db.select(
-          'SELECT bookId, term FROM book_acronym ORDER BY bookId',
-        );
+        final rows = (await repo.database.capabilities).hasAcronyms
+            ? db.select('SELECT bookId, term FROM book_acronym ORDER BY bookId')
+            : const <Map<String, Object?>>[];
         final data = buildAcronymCacheData(
           rows.map(
             (row) => (

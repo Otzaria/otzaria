@@ -19,8 +19,10 @@ import 'search_dao.dart';
 import 'toc_dao.dart';
 import 'toc_text_dao.dart';
 import 'topic_dao.dart';
+import '../db_capabilities.dart';
 import '../query_loader.dart';
 import '../sqlite3_utils.dart';
+import '../untrusted_database.dart';
 
 class MyDatabase {
   // הקובץ מוחזק ברמת המופע, לא static. זה מאפשר ליצור כמה מופעים
@@ -34,8 +36,22 @@ class MyDatabase {
   /// (false) כדי לשמר את התנהגות user_books.db / cache.db / ה-generator.
   final bool _readOnly;
 
+  /// מסד שאינו בשליטת התוכנה — נפתח מוקשח דרך [openUntrustedReadOnlyDatabase].
+  final bool _untrusted;
+  final bool _immutable;
+
   /// האם החיבור נפתח במצב read-only.
   bool get isReadOnly => _readOnly;
+
+  /// היעד לפתיחת אותו קובץ ב-isolate אחר, באותה רמת הקשחה.
+  ReadOnlyDbTarget get readOnlyTarget =>
+      (path: _path, untrusted: _untrusted, immutable: _immutable);
+
+  /// האם המסד אינו בשליטת התוכנה (מסד ספרים מצורף).
+  bool get isUntrusted => _untrusted;
+
+  /// האם יש כרגע חיבור פתוח. אחרי [close] החיבור נפתח מחדש בגישה הבאה.
+  bool get isOpen => _database != null;
 
   /// נתיב קובץ ה-DB. חיבור sqlite שייך ל-isolate שפתח אותו, ולכן isolate
   /// שמבצע סריקה כבדה חייב את הנתיב כדי לפתוח חיבור read-only משלו.
@@ -172,10 +188,21 @@ class MyDatabase {
   /// אין סינגלטון ברירת-מחדל — כל קוד הצורך גישה ל-seforim.db עובר דרך
   /// [SqliteDataProvider], וקוד הצורך גישה ל-user_books.db דרך
   /// [UserBooksDatabaseHolder].
-  MyDatabase.withPath(String path, {this._readOnly = false}) : _path = path;
+  MyDatabase.withPath(String path, {this._readOnly = false})
+    : _path = path,
+      _untrusted = false,
+      _immutable = false;
+
+  /// מסד ספרים מצורף: read-only ומוקשח; [immutable] — ראה
+  /// [openUntrustedReadOnlyDatabase].
+  MyDatabase.untrusted(String path, {this._immutable = false})
+    : _path = path,
+      _readOnly = true,
+      _untrusted = true;
 
   Future<sqlite3.Database> get database async {
     if (_database != null) return _database!;
+    if (_retired) throw StateError('Database $_path was released');
     // Initialize QueryLoader before creating DAOs
     await QueryLoader.initialize();
     _database = _initDatabase();
@@ -183,7 +210,14 @@ class MyDatabase {
     return _database!;
   }
 
+  /// מפת הטבלאות והעמודות של המסד — מקור יחיד לבדיקת קיום טבלה/עמודה.
+  Future<DbCapabilities> get capabilities async =>
+      DbCapabilities.forDatabase(_path, await database);
+
   sqlite3.Database _initDatabase() {
+    if (_untrusted) {
+      return openUntrustedReadOnlyDatabase(_path, immutable: _immutable);
+    }
     if (_readOnly) {
       // Read-only open: never create WAL side-files (-wal/-shm) and never run
       // DDL. This lets seforim.db be opened from read-only media / without
@@ -207,6 +241,10 @@ class MyDatabase {
         _ensureAuthorSchema(db);
       } else if (script.contains('CREATE TABLE IF NOT EXISTS user_link')) {
         _ensureUserLinkSchema(db);
+      } else if (script.contains(
+        'CREATE TABLE IF NOT EXISTS user_book_version',
+      )) {
+        _ensureUserBookVersionSchema(db);
       }
     }
 
@@ -281,7 +319,63 @@ class MyDatabase {
     db.execute('ALTER TABLE user_link_new RENAME TO user_link');
   }
 
+  /// משדרג user_book_version לסכמה שבה הראשי יכול להיות ספר ממקור אחר
+  /// (רשמי/מסד מצורף) לפי כותרת. שורות קיימות נשמרות כראשי אישי לפי מזהה.
+  void _ensureUserBookVersionSchema(sqlite3.Database db) {
+    final columns = db
+        .select('PRAGMA table_info(user_book_version)')
+        .map((row) => row['name'] as String)
+        .toSet();
+    if (columns.contains('primarySource')) return;
+
+    // נקודת שמירה: קריסה באמצע ההעתקה לא תשאיר טבלה חלקית או ישנה שנמחקה.
+    db.execute('SAVEPOINT upgrade_user_book_version');
+    try {
+      _copyUserBookVersionToNewSchema(db);
+      db.execute('RELEASE upgrade_user_book_version');
+    } catch (_) {
+      db.execute('ROLLBACK TO upgrade_user_book_version');
+      db.execute('RELEASE upgrade_user_book_version');
+      rethrow;
+    }
+  }
+
+  void _copyUserBookVersionToNewSchema(sqlite3.Database db) {
+    db.execute('''
+      CREATE TABLE user_book_version_new (
+          versionBookId INTEGER PRIMARY KEY,
+          primaryBookId INTEGER,
+          primarySource TEXT NOT NULL DEFAULT 'u',
+          primaryTitle TEXT,
+          primaryCategoryPath TEXT,
+          versionTitle TEXT NOT NULL,
+          versionNotes TEXT,
+          priority REAL,
+          source TEXT NOT NULL
+      );
+    ''');
+    db.execute('''
+      INSERT INTO user_book_version_new (versionBookId, primaryBookId,
+          primarySource, versionTitle, versionNotes, priority, source)
+      SELECT versionBookId, primaryBookId, 'u', versionTitle, versionNotes,
+          priority, source
+      FROM user_book_version;
+    ''');
+    db.execute('DROP TABLE user_book_version');
+    db.execute('ALTER TABLE user_book_version_new RENAME TO user_book_version');
+  }
+
+  bool _retired = false;
+
+  /// סוגר לצמיתות: גישה נוספת זורקת במקום לפתוח את הקובץ מחדש — מאגר
+  /// שמוחזק אחרי "שחרר קובץ" לא ינעל אותו שוב מאחורי גב ה-registry.
+  void retire() {
+    close();
+    _retired = true;
+  }
+
   void close() {
+    DbCapabilities.invalidate(_path);
     final db = _database;
     if (db != null) {
       _readOnly ? db.close() : closeWithCheckpoint(db);
@@ -820,13 +914,15 @@ class MyDatabase {
       ''',
       'CREATE INDEX IF NOT EXISTS idx_user_alt_toc_entry_structure ON user_alt_toc_entry(structureId, lineIndex);',
 
-      // גרסאות של ספר אישי: כל גרסה היא קובץ-ספר נפרד. הגרסה הראשית מוצגת
-      // בעץ, והשאר נגישות רק מתפריט 'גרסאות'. שורה שבה versionBookId =
-      // primaryBookId נותנת שם לגרסה הראשית עצמה.
+      // גרסאות של ספר אישי: כל גרסה היא קובץ-ספר נפרד, והראשית בלבד מוצגת בעץ.
+      // ראשי אישי — לפי primaryBookId; ראשי ממקור אחר — לפי כותרת (מזהה רשמי משתנה).
       '''
       CREATE TABLE IF NOT EXISTS user_book_version (
           versionBookId INTEGER PRIMARY KEY,
-          primaryBookId INTEGER NOT NULL,
+          primaryBookId INTEGER,
+          primarySource TEXT NOT NULL DEFAULT 'u',
+          primaryTitle TEXT,
+          primaryCategoryPath TEXT,
           versionTitle TEXT NOT NULL,
           versionNotes TEXT,
           priority REAL,

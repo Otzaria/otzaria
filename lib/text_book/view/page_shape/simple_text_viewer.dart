@@ -1,3 +1,4 @@
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut.dart';
 import 'package:otzaria/text_display/view/copy_as_menu.dart';
 import 'dart:async';
@@ -155,7 +156,7 @@ CommentaryKeyAction resolveCommentaryKeyAction({
   required bool hasSelectedIndex,
   required String addNoteShortcut,
   String reportErrorShortcut = '',
-  bool isReportBookUserBook = false,
+  bool isReportUnavailable = false,
   bool? isControlPressed,
   bool? isShiftPressed,
   bool? isAltPressed,
@@ -184,7 +185,7 @@ CommentaryKeyAction resolveCommentaryKeyAction({
     return CommentaryKeyAction.addNote;
   }
 
-  if (!isReportBookUserBook &&
+  if (!isReportUnavailable &&
       reportErrorShortcut.isNotEmpty &&
       ShortcutHelper.matchesShortcut(
         event,
@@ -993,11 +994,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           return bloc.repository.getSiblingCommentaries(
             sourceBookTitle: utils.getTitleFromPath(sourceLink.path2),
             sourceCategoryId: sourceLink.targetCategoryId,
-            sourceIsUserBook: sourceLink.targetIsUserBook,
+            sourceBookSource: sourceLink.targetSource,
             sourceLineIndex: sourceLink.index2 - 1,
             currentBookTitle: state.book.title,
             currentCategoryId: state.book.categoryId,
-            currentIsUserBook: state.book.isUserBook,
+            currentBookSource: state.book.source,
           );
         },
       );
@@ -1026,7 +1027,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         final state = context.read<TextBookBloc>().state;
         if (state is TextBookLoaded) {
           context.read<PersonalNotesBloc>().add(
-            LoadPersonalNotes(state.book.title),
+            LoadPersonalNotes(personalNotesBookKey(state.book)),
           );
         }
       });
@@ -1070,9 +1071,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ShortcutValidator.getShortcutValue(ShortcutValidator.reportErrorKey) ??
         '';
     final state = context.read<TextBookBloc>().state;
-    final isReportBookUserBook =
-        widget.reportBook?.isUserBook ??
-        (state is TextBookLoaded && state.book.isUserBook);
+    final reportBook =
+        widget.reportBook ?? (state is TextBookLoaded ? state.book : null);
+    final isReportUnavailable =
+        reportBook != null && !reportBook.isOfficialLibraryBook;
     final action = resolveCommentaryKeyAction(
       event: event,
       isActiveCommentary: _lastActiveCommentary == this,
@@ -1081,10 +1083,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       hasSelectedIndex: _savedSelectedIndex != null,
       addNoteShortcut: addNoteShortcut,
       reportErrorShortcut: reportErrorShortcut,
-      isReportBookUserBook: isReportBookUserBook,
+      isReportUnavailable: isReportUnavailable,
     );
 
-    if (isReportBookUserBook &&
+    if (isReportUnavailable &&
         reportErrorShortcut.isNotEmpty &&
         ShortcutHelper.matchesShortcut(event, reportErrorShortcut)) {
       return true;
@@ -1210,7 +1212,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final bookTitle = widget.bookTitle;
     if (widget.isMainText || bookTitle == null || bookTitle.isEmpty) return;
     final notes = await (widget.notesRepository ?? PersonalNotesRepository())
-        .loadNotes(bookTitle, categoryId: widget.reportBook?.categoryId);
+        .loadNotes(
+          _commentaryNotesKey(bookTitle),
+          categoryId: widget.reportBook?.categoryId,
+        );
     if (!mounted || widget.bookTitle != bookTitle) return;
     setState(() => _commentaryNotes = notes);
   }
@@ -1900,7 +1905,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               icon: FluentIcons.link_24_regular,
               submenuBuilder: () => buildDirectLinkSubmenuActions(
                 bookId: state.book.id!,
-                isUserBook: state.book.isUserBook,
+                source: state.book.source,
                 index: index,
                 selectedText: capturedText,
               ),
@@ -2006,7 +2011,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           icon: FluentIcons.note_add_24_regular,
           onTap: () => _createNoteForCurrentLine(index, capturedText),
         ),
-      if (!reportTargetBook.isUserBook)
+      if (reportTargetBook.isOfficialLibraryBook)
         AppContextMenuEntry(
           label: 'דווח על טעות בספר',
           icon: FluentIcons.error_circle_24_regular,
@@ -2150,7 +2155,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             icon: FluentIcons.link_24_regular,
             childrenBuilder: () => buildDirectLinkContextMenuEntries(
               bookId: commentaryBookId,
-              isUserBook: widget.reportBook?.isUserBook ?? false,
+              source: widget.reportBook?.source ?? BookSource.official,
               index: index,
               selectedText: capturedText,
             ),
@@ -2225,7 +2230,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       connectionType: 'commentary',
       targetCategoryId: book.categoryId,
       targetFileType: book.fileType,
-      targetIsUserBook: book.isUserBook,
+      targetSource: book.source,
     );
 
     Future<void> navigate(Link link) async {
@@ -2381,7 +2386,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     // טען טיוטה אם קיימת
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: state.book.title,
+      bookId: personalNotesBookKey(state.book),
       lineNumber: index + 1,
     );
 
@@ -2390,7 +2395,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     // שלח event לפתיחת מצב יצירה בסיידבר
     context.read<PersonalNotesBloc>().add(
       StartCreatingPersonalNote(
-        bookId: state.book.title,
+        bookId: personalNotesBookKey(state.book),
         lineNumber: index + 1,
         referenceText: referenceText,
         selectedText: selectedText?.trim(),
@@ -2416,6 +2421,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
   }
 
+  /// מפתח ההערות של ספר המפרש — לפי מקורו כשהספר המלא ידוע.
+  String _commentaryNotesKey(String bookTitle) {
+    final book = widget.reportBook;
+    return book != null && book.title == bookTitle
+        ? personalNotesBookKey(book)
+        : bookTitle;
+  }
+
   /// יצירת הערה על מפרש (בצורת הדף) — נשמרת תחת ספר המפרש עצמו.
   ///
   /// [bookTitle] - שם ספר המפרש (למשל "רש"י")
@@ -2429,12 +2442,13 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     String? selectedText,
     int? selectionColumn,
   }) async {
+    final notesKey = _commentaryNotesKey(bookTitle);
     final categoryId = widget.reportBook?.categoryId;
 
     // טען טיוטה קיימת (אם יש) כדי לתמוך בשחזור טקסט לא שמור — כמו במסלול הרגיל.
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: bookTitle,
+      bookId: notesKey,
       categoryId: categoryId,
       lineNumber: lineNumber,
     );
@@ -2447,7 +2461,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         title: 'הערה חדשה - $bookTitle',
         referenceText: referenceText,
         icon: FluentIcons.note_add_24_regular,
-        bookId: bookTitle,
+        bookId: notesKey,
         categoryId: categoryId,
         // draftLineNumber מאפשר לדיאלוג לשמור/לנקות טיוטה בעת סגירה.
         draftLineNumber: lineNumber,
@@ -2462,7 +2476,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     try {
       await saveCommentaryNoteToRepository(
         repository: widget.notesRepository ?? PersonalNotesRepository(),
-        bookId: bookTitle,
+        bookId: notesKey,
         lineNumber: lineNumber,
         result: result,
         selectedText: selectedText,
@@ -2712,7 +2726,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 builder: (context, notesState) {
                   final noteMap = <int, List<PersonalNote>>{};
                   final visibleNotes = widget.isMainText
-                      ? (notesState.bookId == state.book.title
+                      ? (notesState.bookId == personalNotesBookKey(state.book)
                             ? notesState.locatedNotes
                             : const <PersonalNote>[])
                       : _commentaryNotes;
@@ -3255,7 +3269,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                           if (openInSidebar != null &&
                               widget.bookTitle != null) {
                             openInSidebar(
-                              widget.bookTitle!,
+                              _commentaryNotesKey(widget.bookTitle!),
                               widget.reportBook?.categoryId,
                               primaryLineIndex + 1,
                             );

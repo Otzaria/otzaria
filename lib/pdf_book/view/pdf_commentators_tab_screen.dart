@@ -390,7 +390,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
         tab.book.title,
         categoryId: tab.book.categoryId,
         filePath: tab.book.filePath,
-        preferUserBooks: tab.book.isUserBook,
+        preferSource: tab.book.source,
       );
       if (!mounted) return;
       if (headings != null) {
@@ -487,7 +487,14 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     }
     final available = commentatorsSet.toList();
     await _applyDefaultCommentatorsIfNeeded(available);
-    final eras = await utils.splitByEra(available);
+    final eras = await utils.splitByEra(
+      available,
+      source: widget.tab.sourceTab.book.source,
+      sourceByTitle: {
+        for (final link in widget.tab.sourceTab.links)
+          utils.getTitleFromPath(link.path2): link.targetSource,
+      },
+    );
     final groups = buildCommentatorGroups(eras, available);
     if (!mounted) return;
     setState(() {

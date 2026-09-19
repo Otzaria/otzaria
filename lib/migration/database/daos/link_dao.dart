@@ -1,6 +1,7 @@
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/data/data_providers/link_visibility_sql.dart';
 import '../../models/link.dart';
+import '../db_capabilities.dart';
 import '../sqlite3_utils.dart';
 import '../query_loader.dart';
 import 'database.dart';
@@ -15,18 +16,25 @@ class LinkDao {
 
   Future<sqlite3.Database> get database => _db.database;
 
-  String _visibilityAwareQuery(sqlite3.Database db, String queryName) {
+  Future<DbCapabilities> get _capabilities => _db.capabilities;
+
+  /// שאילתה עם מסנן הנראות, או null כשאין במסד קישורים.
+  Future<String?> _visibilityAwareQuery(String queryName) async {
     final query = _queries[queryName]!;
     if (!query.contains(linkVisibilityFilterMarker)) {
       throw StateError('Missing visibility marker in $queryName');
     }
-    return query.replaceFirst(
-      linkVisibilityFilterMarker,
-      suppressedSideFilter(
-        hasLinkSuppressedSideTable(db),
-        displayedSide: 0,
-      ),
-    );
+    final capabilities = await _capabilities;
+    if (!capabilities.hasLinks) return null;
+    return capabilities
+        .adaptBookQuery(query)
+        .replaceFirst(
+          linkVisibilityFilterMarker,
+          suppressedSideFilter(
+            capabilities.hasLinkSuppressedSide,
+            displayedSide: 0,
+          ),
+        );
   }
 
   Future<Link?> selectLinkById(int id) async {
@@ -63,10 +71,10 @@ class LinkDao {
   Future<List<Map<String, dynamic>>> selectCommentatorsByBook(
     int bookId,
   ) async {
+    final query = await _visibilityAwareQuery('selectCommentatorsByBook');
+    if (query == null) return const [];
     final db = await database;
-    return db.select(_visibilityAwareQuery(db, 'selectCommentatorsByBook'), [
-      bookId,
-    ]).toMapList();
+    return db.select(query, [bookId]).toMapList();
   }
 
   /// מחזיר את כל המפרשים על טווח שורות המקור [`startLineIndex`, `endLineIndex`)
@@ -78,9 +86,11 @@ class LinkDao {
     int startLineIndex,
     int endLineIndex,
   ) async {
+    final query = await _visibilityAwareQuery('selectCommentatorsByLineRange');
+    if (query == null) return const [];
     final db = await database;
     return db.select(
-      _visibilityAwareQuery(db, 'selectCommentatorsByLineRange'),
+      query,
       [
         bookId,
         startLineIndex,
@@ -101,9 +111,13 @@ class LinkDao {
     int excludeBookId,
     int exactSourceLineIndex,
   ) async {
+    final query = await _visibilityAwareQuery(
+      'selectCommentaryLinksByLineRange',
+    );
+    if (query == null) return const [];
     final db = await database;
     return db.select(
-      _visibilityAwareQuery(db, 'selectCommentaryLinksByLineRange'),
+      query,
       [
         exactSourceLineIndex,
         bookId,
@@ -119,6 +133,7 @@ class LinkDao {
   Future<List<Map<String, dynamic>>> selectDefaultCommentators(
     int bookId,
   ) async {
+    if (!(await _capabilities).hasDefaultCommentators) return const [];
     final db = await database;
     return db.select(_queries['selectDefaultCommentators']!, [
       bookId,
@@ -128,6 +143,7 @@ class LinkDao {
   /// מחזיר את תרגומי ברירת המחדל של הספר [bookId], ממוינים לפי `position`.
   /// כל שורה: `targetBookTitle` (שם ספר התרגום) ו-`position`.
   Future<List<Map<String, dynamic>>> selectDefaultTargums(int bookId) async {
+    if (!(await _capabilities).hasDefaultTargums) return const [];
     final db = await database;
     return db.select(_queries['selectDefaultTargums']!, [bookId]).toMapList();
   }

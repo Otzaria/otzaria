@@ -30,19 +30,19 @@ String wikiJewishBooksPageUrl(String bookTitle) =>
 
 /// משווה את שדות הזהות שקובעים את מקור הספר. במסלול side-by-side ה-widget
 /// אינו ממופתח לפי identity, ולכן מעבר לספר בעל אותה כותרת אך מקור שונה חייב
-/// לזהות גם הבדל ב-categoryId/fileType/isUserBook כדי לרענן את הבאנר.
+/// לזהות גם הבדל ב-categoryId/fileType/מקור כדי לרענן את הבאנר.
 bool sameSourceIdentity(TextBook a, TextBook b) =>
     a.title == b.title &&
     a.categoryId == b.categoryId &&
     a.fileType == b.fileType &&
-    a.isUserBook == b.isUserBook;
+    a.source == b.source;
 
 /// טוען מה-DB איזה באנר מקור יש להציג לספר, אם בכלל.
-/// ספרי משתמש לעולם אינם ממקורות אלו, ולכן מדלגים על שאילתת DB מיותרת.
+/// רק ספרי הספרייה הרשמית באים ממקורות אלו; לשאר מדלגים על השאילתה.
 Future<BookSourceBannerKind?> resolveBookSourceBannerKind(
   TextBook book,
 ) async {
-  if (book.isUserBook) return null;
+  if (!book.source.isOfficial) return null;
   final sourceName = await SqliteDataProvider.instance.getBookSourceNameFromDb(
     book.title,
     book.categoryId,

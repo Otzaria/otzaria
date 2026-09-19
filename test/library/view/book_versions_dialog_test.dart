@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/view/book_versions_dialog.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/book_version.dart';
 import 'package:otzaria/models/books.dart';
 
@@ -105,24 +106,24 @@ void main() {
         id: 1,
         title: 'רשבא',
         path: '/b/רשבא.pdf',
-        isUserBook: true,
+        source: BookSource.user,
       );
       final kook = PdfBook(
         id: 2,
         title: 'רשבא קוק',
         path: '/b/רשבא קוק.pdf',
-        isUserBook: true,
+        source: BookSource.user,
       );
       bookVersionsListProbeForTesting = (_) async => [
         BookVersionInfo(
           versionTitle: 'דפוס ישן',
           hasContent: true,
-          userBook: primary,
+          separateBook: primary,
         ),
         BookVersionInfo(
           versionTitle: 'מוסד הרב קוק',
           hasContent: true,
-          userBook: kook,
+          separateBook: kook,
         ),
       ];
       Book? selected;
@@ -149,6 +150,96 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(selected, same(kook));
+    });
+
+    group('ספר רשמי עם גרסה אישית', () {
+      final personal = TextBook(
+        id: 7,
+        title: 'כתובות - כתב יד',
+        source: BookSource.user,
+      );
+      final personalVersion = BookVersionInfo(
+        versionTitle: 'כתב יד מינכן',
+        hasContent: true,
+        separateBook: personal,
+      );
+
+      Future<Book?> pumpAndPick(
+        WidgetTester tester,
+        TextBook opened,
+        String pick, {
+        void Function()? beforePick,
+      }) async {
+        Book? selected;
+        await tester.pumpWidget(
+          _wrap(
+            Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showBookVersionsDialog(
+                  context,
+                  opened,
+                  onVersionSelected: (target) => selected = target,
+                ),
+                child: const Text('פתח'),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('פתח'));
+        await tester.pumpAndSettle();
+        beforePick?.call();
+        await tester.tap(find.text(pick));
+        await tester.pumpAndSettle();
+        return selected;
+      }
+
+      testWidgets(
+        'הגרסה האישית מוצגת לצד המהדורות, ובחירתה פותחת את הספר האישי',
+        (
+          tester,
+        ) async {
+          bookVersionsListProbeForTesting = (_) async => [
+            davidson,
+            wikisource,
+            personalVersion,
+          ];
+
+          final selected = await pumpAndPick(
+            tester,
+            book.copyWith(versionTitle: davidson.versionTitle),
+            'כתב יד מינכן',
+          );
+
+          expect(find.text(davidson.displayTitle), findsNothing);
+          expect(selected, same(personal));
+        },
+      );
+
+      testWidgets('גרסה אישית אינה הופכת מהדורה יחידה בלי טקסט ללא-זמינה', (
+        tester,
+      ) async {
+        const metadataOnly = BookVersionInfo(
+          versionTitle: 'Vilna Edition',
+          heVersionTitle: 'דפוס וילנא',
+          hasContent: false,
+        );
+        bookVersionsListProbeForTesting = (_) async => [
+          metadataOnly,
+          personalVersion,
+        ];
+
+        final selected = await pumpAndPick(
+          tester,
+          book,
+          'דפוס וילנא',
+          beforePick: () => expect(
+            find.text('הנוסח המוצג בספרייה'),
+            findsOneWidget,
+          ),
+        );
+
+        expect(selected, same(book));
+      });
     });
   });
 

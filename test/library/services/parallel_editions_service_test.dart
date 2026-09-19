@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/services/parallel_editions_service.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
@@ -184,6 +185,18 @@ void main() {
       _config(),
     );
     expect(editions, isEmpty);
+    expect(recordedSpecs, isEmpty);
+  });
+
+  test('ספר ממסד אחר — המזהה שלו אינו מזהה אוצריא, אין שאילתות', () async {
+    for (final source in [BookSource.user, BookSource.attached('my-db')]) {
+      final current = TextBook(id: 3, title: 'ספר', source: source);
+      final editions = await ParallelEditionsService.externalEditionsFor(
+        current,
+        _config(),
+      );
+      expect(editions, isEmpty);
+    }
     expect(recordedSpecs, isEmpty);
   });
 

@@ -347,6 +347,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       categoryPath: state.book.categoryPath,
       externalLibraryId: state.book.externalLibraryId,
       bookId: state.book.id,
+      source: state.book.source,
       fileType: state.book.fileType,
       filePath: state.book.filePath,
     );
@@ -358,7 +359,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       title: bookTitle,
       topics: topics,
       bookId: state.book.id,
-      isUserBook: state.book.isUserBook,
+      source: state.book.source,
       externalLibraryId: state.book.externalLibraryId,
       categoryPath: state.book.categoryPath,
       fileType: state.book.fileType,

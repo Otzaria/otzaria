@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
@@ -531,6 +532,52 @@ void main() {
 
       expect(bloc.state.tabs, hasLength(2));
       expect(bloc.state.currentTabIndex, 1);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('ספר אישי עם id של ספר רשמי נפתח בטאב נפרד', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final existingTab = TextBookTab(
+        book: TextBook(id: 101, title: 'משנה ברכות', categoryId: 7),
+        index: 0,
+      );
+
+      bloc.add(AddTab(existingTab));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+
+      final targetTab = TextBookTab(
+        book: TextBook(
+          id: 101,
+          title: 'משנה ברכות',
+          categoryId: 7,
+          source: BookSource.user,
+        ),
+        index: 0,
+      );
+      bloc.add(OpenOrFocusTab(targetTab, navigateToPositionIfReused: true));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      expect(bloc.state.currentTabIndex, 1);
+
+      await _closeBlocAndAllowDeferredDispose(bloc);
+    });
+
+    test('ספר אישי שכבר פתוח ממוקד ולא נפתח שוב', () async {
+      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      TextBookTab userTab() => TextBookTab(
+        book: TextBook(id: 101, title: 'משנה ברכות', source: BookSource.user),
+        index: 0,
+      );
+
+      bloc.add(AddTab(userTab()));
+      bloc.add(AddTab(_createTextTab('ספר אחר', categoryId: 2)));
+      await bloc.stream.firstWhere((s) => s.tabs.length == 2);
+
+      bloc.add(OpenOrFocusTab(userTab(), navigateToPositionIfReused: true));
+      await bloc.stream.firstWhere((s) => s.currentTabIndex == 0);
+
+      expect(bloc.state.tabs, hasLength(2));
 
       await _closeBlocAndAllowDeferredDispose(bloc);
     });

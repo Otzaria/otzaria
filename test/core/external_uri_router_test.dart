@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/core/info/info_topic.dart';
 import 'package:otzaria/core/info/personal_folders_info.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart'
     show SearchMode;
@@ -225,7 +226,7 @@ void main() {
         expect(action, isA<OpenBookAction>());
         final book = action as OpenBookAction;
         expect(book.bookId, 1234);
-        expect(book.isUserBook, isFalse);
+        expect(book.source, BookSource.official);
         expect(book.index, isNull);
         expect(book.searchQuery, isNull);
         expect(book.markSection, isFalse);
@@ -239,13 +240,32 @@ void main() {
                 )
                 as OpenBookAction;
 
-        expect(action.isUserBook, isTrue);
+        expect(action.source, BookSource.user);
       });
 
       test('source לא מוכר נדחה', () {
         expect(
           ExternalUriRouter.parseUri(
             Uri.parse('otzaria://open/book/1234?source=unknown'),
+          ),
+          isNull,
+        );
+      });
+
+      test('source=db:<slug> מזהה ספר ממסד מצורף', () {
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/book/1234?source=db%3Amy-lib'),
+                )
+                as OpenBookAction;
+
+        expect(action.source, BookSource.attached('my-lib'));
+      });
+
+      test('source=db עם slug לא חוקי נדחה', () {
+        expect(
+          ExternalUriRouter.parseUri(
+            Uri.parse('otzaria://open/book/1234?source=db%3A'),
           ),
           isNull,
         );
@@ -377,7 +397,17 @@ void main() {
                 )
                 as OpenPdfBookAction;
 
-        expect(action.isUserBook, isTrue);
+        expect(action.source, BookSource.user);
+      });
+
+      test('source=db:<slug> מזהה PDF ממסד מצורף', () {
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/pdf/1234?source=db:lib'),
+                )
+                as OpenPdfBookAction;
+
+        expect(action.source, BookSource.attached('lib'));
       });
 
       test('מפענח index כעמוד התחלתי (1-based)', () {

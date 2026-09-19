@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
@@ -11,17 +12,20 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 /// - inverse: ספר-משתמש אחר מצביע אל הספר הזה (כשקוראים רשמי/אישי שעליו
 ///   נכתב מפרש-משתמש) — כך מפרש-משתמש מופיע גם בספר הרשמי.
 ///
-/// מחזיר רשימה ריקה אם user_books.db לא פתוח (בלי לכפות פתיחתו).
+/// מחזיר רשימה ריקה אם user_books.db לא פתוח (בלי לכפות פתיחתו), או לספר
+/// ממסד מצורף — טבלת user_link מבחינה רק בין רשמי לאישי.
 Future<List<Link>> loadUserLinksForBook({
   required String bookTitle,
   required int? bookCategoryId,
-  required bool isUserBook,
+  required BookSource source,
   required int startLineIndex,
   required int endLineIndex,
   List<String>? targetBookTitles,
 }) async {
+  if (source.isAttached) return const [];
   final repo = UserBooksDatabaseHolder.instance.repositoryIfInitialized;
   if (repo == null) return const [];
+  final isUserBook = source.isUser;
 
   final ucr = UserContentRepository(repo.database);
   final result = <Link>[];
@@ -46,7 +50,7 @@ Future<List<Link>> loadUserLinksForBook({
         index2: targetLine + 1,
         connectionType: r.connectionType,
         targetCategoryId: r.targetCategoryId,
-        targetIsUserBook: r.targetIsUserBook,
+        targetSource: BookSource.fromUserFlag(r.targetIsUserBook),
       ),
     );
   }
@@ -74,7 +78,7 @@ Future<List<Link>> loadUserLinksForBook({
         connectionType: LinkTypes.isDependentTextLink(r.connectionType)
             ? LinkTypes.source
             : r.connectionType,
-        targetIsUserBook: r.sourceIsUserBook,
+        targetSource: BookSource.fromUserFlag(r.sourceIsUserBook),
         targetCategoryId: r.sourceCategoryId,
       ),
     );
@@ -88,13 +92,14 @@ Future<List<Link>> loadUserLinksForBook({
 Future<List<String>> loadUserCommentatorTitles({
   required String bookTitle,
   required int? bookCategoryId,
-  required bool isUserBook,
+  required BookSource source,
 }) async {
+  if (source.isAttached) return const [];
   final repo = UserBooksDatabaseHolder.instance.repositoryIfInitialized;
   if (repo == null) return const [];
   return UserContentRepository(repo.database).userCommentatorTitles(
     bookTitle,
-    sourceIsUserBook: isUserBook,
+    sourceIsUserBook: source.isUser,
     sourceCategoryId: bookCategoryId,
   );
 }
@@ -105,12 +110,12 @@ Future<List<String>> loadUserCommentatorTitles({
 @visibleForTesting
 List<Link> dedupeUserLinks(List<Link> links) {
   final seen = <String>{};
-  // המפתח כולל גם דגל-אישי וקטגוריה — שני ספרים שונים יכולים לחלוק כותרת.
+  // המפתח כולל גם את מקור היעד וקטגוריה — שני ספרים שונים יכולים לחלוק כותרת.
   return links
       .where(
         (l) => seen.add(
           '${l.index1}|${l.path2}|${l.index2}|'
-          '${l.connectionType}|${l.targetIsUserBook}|${l.targetCategoryId}',
+          '${l.connectionType}|${l.targetSource.wireKey}|${l.targetCategoryId}',
         ),
       )
       .toList();

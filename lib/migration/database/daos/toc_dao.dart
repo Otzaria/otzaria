@@ -16,17 +16,12 @@ class TocDao {
   Future<sqlite3.Database> get database => _db.database;
 
   /// ל-seforim.db v3 אין עמודת tocEntry.lineIndex (רק lineId), ואזכור שלה
-  /// היה מפיל את השאילתה ב-prepare. משמיטים אותה מה-COALESCE; ל-user_books.db
-  /// (TOC של ספרי PDF) משאירים אותה.
-  Future<Map<String, String>> _resolved() async {
+  /// היה מפיל את השאילתה ב-prepare. null — אין במסד טבלאות TOC.
+  Future<Map<String, String>?> _resolved() async {
     if (_resolvedQueries != null) return _resolvedQueries!;
-    final db = await database;
-    final hasLineIndex = db
-        .select(
-          "SELECT 1 FROM pragma_table_info('tocEntry') WHERE name = 'lineIndex'",
-        )
-        .isNotEmpty;
-    _resolvedQueries = hasLineIndex
+    final capabilities = await _db.capabilities;
+    if (!capabilities.hasToc) return null;
+    _resolvedQueries = capabilities.hasTocEntryLineIndex
         ? _queries
         : {
             for (final e in _queries.entries)
@@ -41,8 +36,9 @@ class TocDao {
   /// שורות ה-TOC הגולמיות של הספר. מוחזרות כמפות כדי שיוכלו לחצות גבול
   /// isolate; [selectByBookId] הוא העיטוף שממפה אותן ל-[TocEntry].
   Future<List<Map<String, dynamic>>> selectRowsByBookId(int bookId) async {
-    final db = await database;
     final queries = await _resolved();
+    if (queries == null) return const [];
+    final db = await database;
     return db.select(queries['selectByBookId']!, [bookId]).toMapList();
   }
 
@@ -52,16 +48,18 @@ class TocDao {
   }
 
   Future<TocEntry?> selectTocById(int id) async {
-    final db = await database;
     final queries = await _resolved();
+    if (queries == null) return null;
+    final db = await database;
     final result = db.select(queries['selectTocById']!, [id]).toMapList();
     if (result.isEmpty) return null;
     return TocEntry.fromMap(result.first);
   }
 
   Future<List<TocEntry>> selectRootByBookId(int bookId) async {
-    final db = await database;
     final queries = await _resolved();
+    if (queries == null) return const [];
+    final db = await database;
     return db
         .select(queries['selectRootByBookId']!, [bookId])
         .toMapList()
@@ -70,8 +68,9 @@ class TocDao {
   }
 
   Future<List<TocEntry>> selectChildren(int parentId) async {
-    final db = await database;
     final queries = await _resolved();
+    if (queries == null) return const [];
+    final db = await database;
     return db
         .select(queries['selectChildren']!, [parentId])
         .toMapList()
@@ -80,8 +79,9 @@ class TocDao {
   }
 
   Future<TocEntry?> selectByLineId(int lineId) async {
-    final db = await database;
     final queries = await _resolved();
+    if (queries == null) return null;
+    final db = await database;
     final result = db.select(queries['selectByLineId']!, [lineId]).toMapList();
     if (result.isEmpty) return null;
     return TocEntry.fromMap(result.first);

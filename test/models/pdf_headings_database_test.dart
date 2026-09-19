@@ -11,6 +11,7 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/migration/models/toc_entry.dart' as migration_models;
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/pdf_headings.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
@@ -136,7 +137,7 @@ void main() {
 
         final fromUser = await PdfHeadings.loadFromDatabase(
           'משותף',
-          preferUserBooks: true,
+          preferSource: BookSource.user,
         );
         final fromOfficial = await PdfHeadings.loadFromDatabase('משותף');
 

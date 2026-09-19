@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 
 enum NotesImportConflictStrategy {
@@ -160,7 +161,7 @@ class PersonalNotesImportExportService {
           PrintBlock(
             kind: PrintBlockKind.heading,
             headingLevel: 1,
-            text: _escapeHtml(note.bookId),
+            text: _escapeHtml(parsePersonalNotesBookKey(note.bookId).title),
           ),
         );
       }

@@ -19,7 +19,7 @@ Future<List<TocEntry>> loadBookToc(
     book.title,
     categoryId: book.categoryId,
     fileType: book.fileType ?? 'txt',
-    preferUserBooks: book.isUserBook,
+    preferSource: book.source,
   );
   if (providerToc != null && providerToc.isNotEmpty) {
     return providerToc;
@@ -42,6 +42,7 @@ Future<List<TocEntry>> loadBookTocFallback(
     category: book.category,
     categoryId: book.categoryId,
     fileType: book.fileType,
+    source: book.source,
   );
   if (dbBook == null) {
     return [];
@@ -75,7 +76,7 @@ Future<List<TocEntry>> loadBookTocFallback(
     title,
     dbBook.categoryId,
     dbBook.fileType,
-    book.isUserBook,
+    book.source,
   );
   if (dbToc != null && dbToc.isNotEmpty) {
     return dbToc;

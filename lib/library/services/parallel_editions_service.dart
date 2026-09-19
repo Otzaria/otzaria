@@ -33,7 +33,7 @@ class ParallelEdition {
 /// 1. ספר עמית בספריית אוצריא (טקסט↔PDF של אותו ספר).
 /// 2. מהדורות היברובוקס המקומיות, לפי טבלת המיפוי בקטלוג החיצוני.
 /// 3. מהדורות של ספקים שתוספים הצהירו עליהם (`externalEditions`).
-/// 4. גרסאות של ספר אישי (קובצי `גרסאות.csv`).
+/// 4. גרסאות אישיות (קובצי `גרסאות.csv`) — של ספר אישי או של ספר רשמי/מצורף.
 class ParallelEditionsService {
   ParallelEditionsService._();
 
@@ -79,19 +79,23 @@ class ParallelEditionsService {
       editions.add(ParallelEdition(book: companion, isCompanion: true));
     }
 
-    if (current.isUserBook) {
-      for (final version
-          in DatabaseLibraryProvider.instance.getUserBookVersions(current)) {
-        final book = version.userBook;
-        if (book == null || book.id == current.id) continue;
-        editions.add(
-          ParallelEdition(
-            book: book,
-            isCompanion: false,
-            label: version.displayTitle,
-          ),
-        );
+    final provider = DatabaseLibraryProvider.instance;
+    final versions = current.isUserBook
+        ? provider.getUserBookVersions(current)
+        : provider.getPersonalVersionsOf(current);
+    for (final version in versions) {
+      final book = version.separateBook;
+      if (book == null ||
+          (book.source == current.source && book.id == current.id)) {
+        continue;
       }
+      editions.add(
+        ParallelEdition(
+          book: book,
+          isCompanion: false,
+          label: version.displayTitle,
+        ),
+      );
     }
 
     final configs = PluginExternalEditionsRegistry.instance.configs;
@@ -180,7 +184,8 @@ class ParallelEditionsService {
       externalIds = [...await externalIdsFor(otzariaIds.toSet().toList())];
       externalIds.removeWhere((id) => id == currentExternalId);
     } else {
-      final otzariaId = current.id;
+      // המיפוי ממופתח במזהי seforim.db; מזהה של מסד אחר חופף להם ואינו אותו ספר.
+      final otzariaId = current.source.isOfficial ? current.id : null;
       if (otzariaId == null) return const [];
       externalIds = await externalIdsFor([otzariaId]);
     }

@@ -1,3 +1,4 @@
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 /// מאתר את ספר היעד של קישור עומק. מזהה מסד חופף בין ספר רשמי לאישי
@@ -5,12 +6,12 @@ import 'package:otzaria/models/books.dart';
 Book? resolveExternalBookLink(
   Iterable<Book> books,
   int bookId, {
-  required bool isUserBook,
+  required BookSource source,
   required bool isPdf,
 }) {
   for (final book in books) {
     if (book.id == bookId &&
-        book.isUserBook == isUserBook &&
+        book.source == source &&
         (isPdf
             ? book is PdfBook
             : book is TextBook || book is ConvertibleDocumentBook)) {

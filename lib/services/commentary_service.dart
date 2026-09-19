@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -104,7 +105,12 @@ class CommentaryService {
   static String linkChipKey(Link link) {
     final type = LinkTypes.canonicalType(link.connectionType);
     if (!LinkTypes.eraGroupedTypes.contains(type)) return type;
-    return eraChipKey(getCachedBookEra(utils.getTitleFromPath(link.path2)));
+    return eraChipKey(
+      getCachedBookEra(
+        utils.getTitleFromPath(link.path2),
+        source: link.targetSource,
+      ),
+    );
   }
 
   /// כל מפתחות הצ׳יפ שקישור משתייך אליהם: [linkChipKey], ובנוסף
@@ -232,8 +238,16 @@ class CommentaryService {
   ///
   /// מחזיר [CommentaryEra.other] אם הדור עדיין לא נטען.
   /// יש להפעיל [preloadEras] מראש כדי למלא את המטמון.
-  static CommentaryEra getCachedBookEra(String bookTitle) =>
-      _eraCache[bookTitle] ?? CommentaryEra.other;
+  ///
+  /// [source] — המסד של הספר: ספר ממסד מצורף מסווג לפי הדורות של המסד שלו.
+  static CommentaryEra getCachedBookEra(
+    String bookTitle, {
+    BookSource source = BookSource.official,
+  }) => _eraCache[_eraKey(bookTitle, source)] ?? CommentaryEra.other;
+
+  /// מפתח המטמון: הכותרת, ולמסד מצורף — גם המקור (כותרת זהה, מסד אחר).
+  static String _eraKey(String title, BookSource source) =>
+      source is AttachedBookSource ? '${source.wireKey}\u0000$title' : title;
 
   /// טוען מראש את דורות הקישורים אל המטמון (לשימוש [sortLinksByEraSync])
   ///
@@ -241,14 +255,17 @@ class CommentaryService {
   /// מתויג ב-DB מסווג כ"שאר מפרשים".
   ///
   /// [bookTitles] - שמות הספרים לטעינה (כפילויות מסוננות אוטומטית)
-  static Future<void> preloadEras(Iterable<String> bookTitles) async {
+  static Future<void> preloadEras(
+    Iterable<String> bookTitles, {
+    BookSource source = BookSource.official,
+  }) async {
     final missing = bookTitles
         .toSet()
-        .where((t) => !_eraCache.containsKey(t))
+        .where((t) => !_eraCache.containsKey(_eraKey(t, source)))
         .toList();
     if (missing.isEmpty) return;
 
-    final byEra = await utils.splitByEra(missing);
+    final byEra = await utils.splitByEra(missing, source: source);
     // טבלת הדורות לא נטענה => כל הכותרות יצאו "מפרשים נוספים". שמירתן הייתה
     // מקבעת את הסיווג השגוי, כי preloadEras מדלגת על כותרת שכבר במטמון.
     if (!utils.isEraTableLoaded) return;
@@ -256,8 +273,21 @@ class CommentaryService {
     for (final entry in byEra.entries) {
       final era = _eraFromCategory(entry.key);
       for (final title in entry.value) {
-        _eraCache[title] = era;
+        _eraCache[_eraKey(title, source)] = era;
       }
+    }
+  }
+
+  /// [preloadEras] לספרי היעד של [links], כל אחד לפי המסד שלו.
+  static Future<void> preloadErasForLinks(Iterable<Link> links) async {
+    final titlesBySource = <BookSource, Set<String>>{};
+    for (final link in links) {
+      titlesBySource
+          .putIfAbsent(link.targetSource, () => {})
+          .add(utils.getTitleFromPath(link.path2));
+    }
+    for (final entry in titlesBySource.entries) {
+      await preloadEras(entry.value, source: entry.key);
     }
   }
 
@@ -336,7 +366,10 @@ class CommentaryService {
     Set<String> presentTitles,
   ) {
     final title = utils.getTitleFromPath(link.path2);
-    return getCachedBookEra(_notesBaseInSet(title, presentTitles) ?? title);
+    return getCachedBookEra(
+      _notesBaseInSet(title, presentTitles) ?? title,
+      source: link.targetSource,
+    );
   }
 
   /// ממיין רשימת קישורים שטוחה לפי סדר הדורות
@@ -349,7 +382,7 @@ class CommentaryService {
     if (links.length <= 1) return links;
 
     // טעינת הדורות של כל ספרי היעד מראש, ואז מיון סינכרוני מהמטמון
-    await preloadEras(links.map((link) => utils.getTitleFromPath(link.path2)));
+    await preloadErasForLinks(links);
     return sortLinksByEraSync(links);
   }
 
@@ -362,16 +395,19 @@ class CommentaryService {
     if (links.length <= 1) return links;
 
     final titlesByPath = <String, String>{};
+    final sourceByTitle = <String, BookSource>{};
     for (final link in links) {
-      titlesByPath.putIfAbsent(
+      final title = titlesByPath.putIfAbsent(
         link.path2,
         () => utils.getTitleFromPath(link.path2),
       );
+      sourceByTitle.putIfAbsent(title, () => link.targetSource);
     }
 
     final present = titlesByPath.values.toSet();
     final eraMap = <String, CommentaryEra>{
-      for (final title in present) title: getCachedBookEra(title),
+      for (final title in present)
+        title: getCachedBookEra(title, source: sourceByTitle[title]!),
     };
     final baseByTitle = <String, String?>{
       for (final title in present) title: _notesBaseInSet(title, present),

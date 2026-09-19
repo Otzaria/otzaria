@@ -286,6 +286,11 @@ class AppPaths {
   static Future<String> getPersonalBooksImportPath() async =>
       p.join(await getDataRootPath(), 'הספרים שלי');
 
+  /// העותקים שהתוכנה מנהלת של מסדי ספרים מצורפים (במובייל SQLite אינו
+  /// פותח את הקובץ המקורי, ולכן הוא מועתק לכאן).
+  static Future<String> getAttachedLibrariesCopyPath() async =>
+      p.join(await getDataRootPath(), 'מסדים אישיים');
+
   /// תיקיית ארכיוני התוספים שחבילת ההתקנה ארזה, ליד ה-executable — ובמק
   /// ב-`Contents/Resources` שבתוך ה-`.app`. `null` במובייל, שאין בו חבילה
   /// כזו. התיקייה אינה קיימת כשהחבילה נבנתה בלי תוספים.

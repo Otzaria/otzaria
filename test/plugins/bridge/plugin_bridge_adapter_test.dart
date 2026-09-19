@@ -21,6 +21,7 @@ import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -408,7 +409,7 @@ typedef _RefHit = ({
   String reference,
   String bookPath,
   bool isSourceLine,
-  bool isUserBook,
+  BookSource source,
 });
 
 /// ברירות מחדל שפויות, כדי שטסט יציין רק את השדה שהוא בודק.
@@ -420,7 +421,7 @@ _RefHit _refHit({
   String reference = '',
   String bookPath = '',
   bool isSourceLine = false,
-  bool isUserBook = false,
+  BookSource source = BookSource.official,
 }) => (
   title: title,
   index: index,
@@ -429,7 +430,7 @@ _RefHit _refHit({
   reference: reference,
   bookPath: bookPath,
   isSourceLine: isSourceLine,
-  isUserBook: isUserBook,
+  source: source,
 );
 
 Future<void> main() async {
@@ -1441,7 +1442,7 @@ Future<void> main() async {
             title: 'הערות אישיות',
             index: 7,
             bookId: 42,
-            isUserBook: true,
+            source: BookSource.user,
           ),
         ],
       );
@@ -1465,7 +1466,7 @@ Future<void> main() async {
           id: 42,
           title: 'ספר אישי',
           path: '/tmp/personal.pdf',
-          isUserBook: true,
+          source: BookSource.user,
         ),
       );
       final adapter = buildAdapter(
@@ -1544,6 +1545,62 @@ Future<void> main() async {
 
       expect(result, hasLength(2));
     });
+
+    test('attached hit resolves identity by source + id', () async {
+      category.books.add(
+        TextBook(
+          id: 42,
+          title: 'ספר א',
+          categoryId: 1,
+          source: BookSource.attached('lib-a'),
+        ),
+      );
+      final adapter = buildAdapter(
+        resolveReference: (reference) async => [
+          _refHit(
+            title: 'ספר א',
+            index: 3,
+            bookId: 42,
+            source: BookSource.attached('lib-a'),
+          ),
+        ],
+      );
+
+      final hit =
+          (await adapter.execute('library', 'resolveRef', {'ref': 'ספר א'})
+                      as List<dynamic>)
+                  .single
+              as Map<String, dynamic>;
+      expect(hit['id'], 42);
+      expect(hit['bookUid'], 'db:lib-a:42');
+      expect(hit['source'], 'attached');
+      expect(hit['isUserBook'], isFalse);
+    });
+
+    test(
+      'attached hit never borrows an official book with the same id',
+      () async {
+        final adapter = buildAdapter(
+          resolveReference: (reference) async => [
+            _refHit(
+              title: 'ספר א',
+              index: 3,
+              bookId: 42,
+              source: BookSource.attached('lib-a'),
+            ),
+          ],
+        );
+
+        final hit =
+            (await adapter.execute('library', 'resolveRef', {'ref': 'ספר א'})
+                        as List<dynamic>)
+                    .single
+                as Map<String, dynamic>;
+        expect(hit['id'], isNull);
+        expect(hit['bookUid'], isNull);
+        expect(hit['source'], 'attached');
+      },
+    );
   });
 
   group('PluginBridgeAdapter.library.getBookContent', () {
@@ -5376,7 +5433,7 @@ class _FakeBookProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     final key = BookCompositeKey.create(
       title: title,
@@ -5391,7 +5448,7 @@ class _FakeBookProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return null;
   }

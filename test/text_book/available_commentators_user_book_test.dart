@@ -9,6 +9,7 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/migration/models/line.dart' as migration_models;
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:path/path.dart' as path;
@@ -111,7 +112,7 @@ void main() {
         // ללא התיקון, הקריאה ל-seforim.db עם id=1 תחזיר את מפרשי בראשית.
         final userBook = TextBook(
           title: 'הספר שלי',
-          isUserBook: true,
+          source: BookSource.user,
           categoryId: 1,
         );
 
@@ -132,7 +133,7 @@ void main() {
       () async {
         final officialBook = TextBook(
           title: 'בראשית',
-          isUserBook: false,
+          source: BookSource.official,
           categoryId: bereshitCategoryId,
           fileType: 'txt',
         );
@@ -156,7 +157,7 @@ void main() {
 
         final officialBook = TextBook(
           title: 'בראשית',
-          isUserBook: false,
+          source: BookSource.official,
           categoryId: bereshitCategoryId,
           fileType: 'txt',
         );
@@ -183,7 +184,7 @@ void main() {
 
         final officialBook = TextBook(
           title: 'בראשית',
-          isUserBook: false,
+          source: BookSource.official,
           categoryId: bereshitCategoryId,
           fileType: 'txt',
         );

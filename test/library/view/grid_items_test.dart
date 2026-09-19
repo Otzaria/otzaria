@@ -5,6 +5,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 class _FakeFileSystemData extends FileSystemData {
@@ -18,7 +19,7 @@ class _FakeFileSystemData extends FileSystemData {
     required String title,
     int? categoryId,
     String fileType = 'txt',
-    required bool isUserBook,
+    required BookSource source,
   }) async {
     return canDelete;
   }
@@ -262,7 +263,7 @@ void main() {
     final book = TextBook(
       title: 'ספר עצמאי לבדיקה',
       categoryId: 42,
-      isUserBook: true,
+      source: BookSource.user,
     );
 
     await tester.pumpWidget(buildTestWidget(book: book));
@@ -281,7 +282,7 @@ void main() {
     final book = TextBook(
       title: 'ספר מקובץ לבדיקה',
       categoryId: 7,
-      isUserBook: true,
+      source: BookSource.user,
     );
 
     await tester.pumpWidget(buildTestWidget(book: book));
@@ -301,7 +302,7 @@ void main() {
     final book = TextBook(
       title: 'ספר לבדיקה',
       categoryId: 11,
-      isUserBook: true,
+      source: BookSource.user,
     );
 
     await tester.pumpWidget(buildTestWidget(book: book));
@@ -667,7 +668,7 @@ void main() {
       final book = TextBook(
         title: 'ספר עצמאי',
         categoryId: 3,
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       await tester.pumpWidget(buildMenu(book));
@@ -684,7 +685,7 @@ void main() {
       final book = TextBook(
         title: 'ספר מקובץ',
         categoryId: 4,
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       await tester.pumpWidget(buildMenu(book));

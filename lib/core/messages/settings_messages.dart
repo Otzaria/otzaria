@@ -188,4 +188,33 @@ abstract class SettingsMessages {
 
   static String catalogDbDownloadError(Object error) =>
       'שגיאה בהורדת מסד הקטלוגים: $error';
+
+  // ── מסדי ספרים אישיים (attached_libraries_panel) ───────────────────────
+
+  static String attachedLibraryAdded(String name) =>
+      'המסד "$name" צורף לספרייה';
+
+  static const String attachedLibraryNotFound = 'קובץ המסד לא נמצא';
+  static const String attachedLibraryNotSqlite =
+      'הקובץ שנבחר אינו מסד נתונים של SQLite';
+  static const String attachedLibraryPendingJournal =
+      'המסד פתוח בתוכנה אחרת או שלא נסגר כראוי. סגור את התוכנה שכותבת אליו '
+      'ונסה שוב';
+  static const String attachedLibraryNoBooks = 'במסד שנבחר אין טבלת ספרים';
+  static const String attachedLibraryOpenFailed = 'לא ניתן לפתוח את המסד';
+  static const String attachedLibraryDuplicate =
+      'מסד עם אותו מזהה כבר מצורף לספרייה';
+  static const String attachedLibraryCopyFailed =
+      'העתקת המסד נכשלה — בדוק שיש די מקום פנוי';
+  static const String attachedLibraryAlreadyAttached = 'המסד כבר מצורף לספרייה';
+
+  static const String attachedLibraryRemoved = 'המסד הוסר מהספרייה';
+  static const String attachedLibraryReleased =
+      'הקובץ שוחרר. הוא ייפתח שוב כשתפתח ספר ממנו';
+  static const String attachedLibraryFolderAdded = 'תיקיית המסדים נוספה';
+  static const String attachedLibraryFolderRemoved =
+      'תיקיית המסדים הוסרה מהספרייה';
+  static const String attachedLibrariesRescanned = 'המסדים נבדקו מחדש';
+  static String attachedLibraryError(Object error) =>
+      'שגיאה בטיפול במסד: $error';
 }

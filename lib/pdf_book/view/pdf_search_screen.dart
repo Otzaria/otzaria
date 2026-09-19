@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
@@ -43,7 +44,7 @@ class PdfBookSearchView extends StatefulWidget {
     this.bookTopics,
     this.bookCategoryPath,
     this.bookId,
-    this.isUserBook = false,
+    this.source = BookSource.official,
     this.externalLibraryId,
     this.pdfFilePath,
     this.initialSearchText = '',
@@ -70,7 +71,7 @@ class PdfBookSearchView extends StatefulWidget {
   /// מזהי הספר לבניית נתיב ה-facet — חייבים להיכלל בדיוק כמו באינדוקס
   /// (id:/uid:/ext:), אחרת מסלול המנוע מחפש תחת facet שאינו קיים.
   final int? bookId;
-  final bool isUserBook;
+  final BookSource source;
   final String? externalLibraryId;
 
   /// Absolute path to the currently opened PDF file.
@@ -265,7 +266,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   /// מסכת PDF מצורפת אינה מאונדקסת בכוונה, ולכן מסלול המנוע ריק בה תמיד.
   bool get _isBundledTalmudPdf =>
-      !widget.isUserBook &&
+      widget.source.isOfficial &&
       DatabaseConstants.isTalmudBavliPdfExternalLibraryId(
         widget.externalLibraryId,
       );
@@ -275,6 +276,8 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   String get _indexedFilePath => IndexingRepository.indexedPdfFilePath(
     externalLibraryId: widget.externalLibraryId,
     filePath: widget.pdfFilePath,
+    source: widget.source,
+    bookId: widget.bookId,
   );
 
   /// החלפת מצב ההתאמה: הסריקה של pdfrx רצה מחדש עם התבנית המתאימה.
@@ -380,6 +383,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       categoryPath: widget.bookCategoryPath,
       externalLibraryId: widget.externalLibraryId,
       bookId: widget.bookId,
+      source: widget.source,
       fileType: 'pdf',
       filePath: widget.pdfFilePath,
     );
@@ -390,7 +394,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       title: title,
       topics: topics,
       bookId: widget.bookId,
-      isUserBook: widget.isUserBook,
+      source: widget.source,
       externalLibraryId: widget.externalLibraryId,
       categoryPath: widget.bookCategoryPath,
       fileType: 'pdf',

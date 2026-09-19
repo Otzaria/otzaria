@@ -4,16 +4,17 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/journal_mode.dart';
 import 'package:otzaria/migration/models/model_adapters.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/migration/models/toc_entry.dart' as db_models;
 import 'package:otzaria/settings/engine/settings_repository.dart';
-import 'package:otzaria/data/sqlite/sqlite3_api.dart'
-    show SqliteException, sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' show SqliteException;
 
 /// A data provider that manages SQLite database operations for the library.
 ///
@@ -124,7 +125,7 @@ class SqliteDataProvider {
     // דרך [closeForExternalWrite]/[reopenAfterExternalWrite]. לפני הפתיחה
     // ה-read-only יש לוודא שהקובץ אינו במצב WAL — אחרת SQLite לא יוכל לפתוח
     // אותו ללא יצירת קובצי -wal/-shm (שדורשים הרשאת כתיבה).
-    await _normalizeJournalModeForReadOnly(_dbPath);
+    await normalizeJournalModeForReadOnly(_dbPath);
 
     try {
       final database = MyDatabase.withPath(_dbPath, readOnly: true);
@@ -197,60 +198,6 @@ class SqliteDataProvider {
   }) {
     if (pollInterval != null) _externalWriteWaitPollInterval = pollInterval;
     if (maxPolls != null) _maxExternalWriteWaitPolls = maxPolls;
-  }
-
-  /// מנרמל את מצב היומן של [dbPath] ל-DELETE (best-effort) כדי שניתן יהיה
-  /// לפתוח אותו read-only.
-  ///
-  /// התקנות קיימות שמרו את seforim.db במצב WAL. פתיחת קובץ WAL ב-read-only
-  /// דורשת יצירת קובצי -wal/-shm (כתיבה לתיקייה). פתיחה כתיבה חד-פעמית כאן,
-  /// checkpoint, והמרה ל-DELETE פותרים זאת. אם התיקייה אינה כתיבה (מדיה
-  /// read-only אמיתית) — נכשל בשקט; הקובץ המופץ כבר במצב DELETE.
-  Future<void> _normalizeJournalModeForReadOnly(String dbPath) async {
-    try {
-      final file = File(dbPath);
-      if (!await file.exists()) return;
-
-      // זיהוי מצב היומן דרך כותרת SQLite — בייטים 18/19 (write/read format
-      // version): 1 = rollback (DELETE/TRUNCATE), 2 = WAL. זו קריאת בייטים
-      // בלבד, ללא פתיחת DB ולכן ללא כתיבה. רוב ההתקנות (וה-DB המופץ) כבר
-      // ב-rollback, ולכן ב-runtime רגיל לא נפתח כלל חיבור RW.
-      bool isWal;
-      final raf = await file.open();
-      try {
-        await raf.setPosition(18);
-        final header = await raf.read(2);
-        isWal = header.length == 2 && (header[0] == 2 || header[1] == 2);
-      } finally {
-        await raf.close();
-      }
-
-      // יומן rollback "חם": קובץ -journal לא-ריק שנותר מכתיבה שנקטעה (סגירת
-      // התוכנה באמצע עדכון ספרייה). פתיחת RO על מצב כזה נכשלת ב-
-      // SQLITE_READONLY_ROLLBACK (776) כי RO אינו יכול להריץ את ה-rollback.
-      final journal = File('$dbPath-journal');
-      final hasHotJournal =
-          await journal.exists() && (await journal.length()) > 0;
-
-      if (!isWal && !hasHotJournal) return;
-
-      // פתיחת RW זמנית: ממירה WAL→DELETE, וגישתה הראשונה למסד מריצה את
-      // ה-rollback של יומן חם — שניהם מאפשרים את הפתיחה ה-RO שאחריה.
-      final db = sqlite3.open(dbPath);
-      try {
-        try {
-          db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
-        } catch (_) {}
-        db.execute('PRAGMA journal_mode=DELETE');
-      } finally {
-        db.close();
-      }
-    } catch (e) {
-      debugPrint(
-        '[SqliteDataProvider] Could not normalise journal mode '
-        '(directory may be read-only): $e',
-      );
-    }
   }
 
   /// סוגר את חיבור ה-RO לפני שאיזולייט חיצוני (diff-sync / background sync)
@@ -344,7 +291,7 @@ class SqliteDataProvider {
     int currentLine, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     if (!_isInitialized) {
       await initialize();
@@ -356,7 +303,7 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null || resolvedBook.book.totalLines <= 0) {
         return null;
@@ -389,7 +336,7 @@ class SqliteDataProvider {
     required int endLine,
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     if (!_isInitialized) {
       await initialize();
@@ -401,7 +348,7 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null || resolvedBook.book.totalLines <= 0) {
         return null;
@@ -436,7 +383,7 @@ class SqliteDataProvider {
     String title, [
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   ]) async {
     if (!_isInitialized) {
       await initialize();
@@ -448,7 +395,7 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null) return null;
       final book = resolvedBook.book;
@@ -474,7 +421,7 @@ class SqliteDataProvider {
     String title, [
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   ]) async {
     if (!_isInitialized) {
       await initialize();
@@ -486,7 +433,7 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null) return null;
 
@@ -509,7 +456,7 @@ class SqliteDataProvider {
     String title, [
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   ]) async {
     if (!_isInitialized) {
       await initialize();
@@ -521,15 +468,15 @@ class SqliteDataProvider {
         title,
         categoryId: categoryId,
         fileType: fileType,
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
       if (resolvedBook == null) return null;
       final book = resolvedBook.book;
 
       // ‏TOC של seforim.db יכול למנות אלפי שורות ולחסום את פתיחת הספר, ולכן
-      // נקרא ב-isolate. ספרי המשתמש נשארים על החיבור המקומי (DB קטן).
+      // נקרא ב-isolate, שמכיר רק אותו. שאר המסדים נקראים בחיבור המקומי.
       final List<db_models.TocEntry> migrationTocEntries;
-      if (resolvedBook.isUserBooks) {
+      if (!resolvedBook.source.isOfficial) {
         migrationTocEntries = await resolvedBook.repository.getBookTocs(
           book.id,
         );
@@ -714,13 +661,13 @@ class SqliteDataProvider {
     String title, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return await BookDatabaseResolver.resolveBook(
       title: title,
       categoryId: categoryId,
       fileType: fileType,
-      preferUserBooks: preferUserBooks,
+      preferSource: preferSource,
     );
   }
 }

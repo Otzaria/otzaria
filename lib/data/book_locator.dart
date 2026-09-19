@@ -6,6 +6,7 @@ import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_book;
+import 'package:otzaria/models/book_source.dart';
 
 /// מתווך מרכזי לאיתור ספרים במערכת
 ///
@@ -25,6 +26,7 @@ class BookLocator {
     Category? category,
     int? categoryId,
     String? fileType,
+    BookSource source = BookSource.official,
   }) async {
     try {
       // קודם ננסה למצוא ב-DB
@@ -33,6 +35,7 @@ class BookLocator {
         category,
         categoryId: categoryId,
         fileType: fileType,
+        source: source,
       );
       if (dbLocation != null) {
         return dbLocation;
@@ -57,6 +60,7 @@ class BookLocator {
     Category? category, {
     int? categoryId,
     String? fileType,
+    BookSource source = BookSource.official,
   }) async {
     try {
       if (categoryId != null) {
@@ -66,18 +70,19 @@ class BookLocator {
           title: bookTitle,
           categoryId: categoryId,
           fileType: fileType,
-          preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
+          preferSource: BookDatabaseResolver.likelySource(
+            source: source,
             categoryPath: category?.path,
           ),
         );
         if (resolved != null) {
           return BookLocation(
             book: resolved.book,
-            source: BookSource.database,
+            storage: BookStorageKind.database,
             filePath: null,
             categoryId: resolved.book.categoryId,
             repository: resolved.repository,
-            isUserBooks: resolved.isUserBooks,
+            source: resolved.source,
           );
         }
 
@@ -93,11 +98,11 @@ class BookLocator {
         if (candidate != null) {
           return BookLocation(
             book: candidate.book,
-            source: BookSource.database,
+            storage: BookStorageKind.database,
             filePath: null,
             categoryId: candidate.book.categoryId,
             repository: candidate.repository,
-            isUserBooks: candidate.isUserBooks,
+            source: candidate.source,
           );
         }
 
@@ -111,11 +116,11 @@ class BookLocator {
       if (resolved != null) {
         return BookLocation(
           book: resolved.book,
-          source: BookSource.database,
+          storage: BookStorageKind.database,
           filePath: null,
           categoryId: resolved.book.categoryId,
           repository: resolved.repository,
-          isUserBooks: resolved.isUserBooks,
+          source: resolved.source,
         );
       }
     } catch (e) {
@@ -131,11 +136,11 @@ class BookLocator {
     Category category,
   ) async {
     try {
-      final preferUserBooks = BookDatabaseResolver.isLikelyUserBook(
+      final preferSource = BookDatabaseResolver.likelySource(
         categoryPath: category.path,
       );
       final repositories = await BookDatabaseResolver.loadRepositoryCandidates(
-        preferUserBooks: preferUserBooks,
+        preferSource: preferSource,
       );
 
       for (final candidate in repositories) {
@@ -158,7 +163,7 @@ class BookLocator {
             return ResolvedDbBookRecord(
               book: dbBook,
               repository: candidate.repository,
-              isUserBooks: candidate.isUserBooks,
+              source: candidate.source,
             );
           }
         }
@@ -253,7 +258,7 @@ class BookLocator {
 
       return BookLocation(
         book: null,
-        source: BookSource.fileSystem,
+        storage: BookStorageKind.fileSystem,
         filePath: filePath,
         categoryId: null,
       );
@@ -285,7 +290,7 @@ class BookLocator {
         return false;
       }
 
-      if (location.source == BookSource.database) {
+      if (location.storage == BookStorageKind.database) {
         return await _deleteFromDatabase(location);
       } else {
         return await _deleteFromFileSystem(location);
@@ -377,14 +382,16 @@ class BookLocator {
     Category? category,
     int? categoryId,
     String? fileType,
+    BookSource source = BookSource.official,
   }) async {
     final location = await locateBook(
       bookTitle,
       category: category,
       categoryId: categoryId,
       fileType: fileType,
+      source: source,
     );
-    if (location == null || location.source != BookSource.database) {
+    if (location == null || location.storage != BookStorageKind.database) {
       return null;
     }
     return location.book;
@@ -396,8 +403,8 @@ class BookLocation {
   /// הספר מ-DB (אם נמצא ב-DB)
   final migration_book.Book? book;
 
-  /// מקור הספר
-  final BookSource source;
+  /// היכן הספר נמצא: במסד או בתיקיות.
+  final BookStorageKind storage;
 
   /// נתיב הקובץ (אם נמצא בתיקיות)
   final String? filePath;
@@ -408,23 +415,23 @@ class BookLocation {
   /// ה-repository שבו הספר נמצא בפועל.
   final SeforimRepository? repository;
 
-  /// האם הספר נמצא ב-`user_books.db` (כתיב) ולא ב-`seforim.db` הרשמי
-  /// (read-only). קובע אם מחיקה יכולה לרוץ ישירות על [repository] או שהיא
-  /// חייבת לעבור דרך write-session.
-  final bool isUserBooks;
+  /// המסד שבו הספר נמצא. רק `user_books.db` כתיב — קובע אם מחיקה מותרת.
+  final BookSource source;
+
+  bool get isUserBooks => source.isUser;
 
   BookLocation({
     required this.book,
-    required this.source,
+    required this.storage,
     required this.filePath,
     required this.categoryId,
     this.repository,
-    this.isUserBooks = false,
+    this.source = BookSource.official,
   });
 }
 
-/// מקור הספר
-enum BookSource {
+/// היכן ספר שאותר נמצא.
+enum BookStorageKind {
   /// ספר נמצא במסד הנתונים
   database,
 

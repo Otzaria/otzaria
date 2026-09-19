@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:otzaria/models/book_source.dart';
+
 /// מיזוג מניפסטים של גיבוי לארכיון מתגלגל — איחוד לפי זהות פריט.
 ///
 /// עיקרון: פריט שקיים בגיבוי החדש מנצח; פריט שקיים רק בישן נשמר עם
@@ -215,7 +217,8 @@ class BackupMerge {
     if (book is! Map) return '';
     final id = book['id'];
     final title = book['title'] ?? '';
-    return id != null ? 'id:$id' : 'title:$title';
+    final source = BookSource.fromJson(book).identitySuffix;
+    return id != null ? 'id:$id$source' : 'title:$title$source';
   }
 
   static String _bookmarkKey(Map<String, dynamic> m) =>

@@ -131,7 +131,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     _activeWorkId = workId;
 
     final totalCandidates = event.library
-        .getAllBooks()
+        .getIndexableBooks()
         .where((b) => IndexingRepository.isIndexableBook(b))
         .length;
     if (totalCandidates == 0) {
@@ -213,7 +213,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
 
     // Set initial state
     // מחשב מראש את totalBooks כדי לשדר אותו מיד
-    final allBooks = event.library.getAllBooks();
+    final allBooks = event.library.getIndexableBooks();
     final totalBooks = allBooks.length;
     if (totalBooks == 0) {
       emit(IndexingInitial());
@@ -392,7 +392,7 @@ class IndexingBloc extends Bloc<IndexingEvent, IndexingState> {
     }
 
     final indexableBooks = event.library
-        .getAllBooks()
+        .getIndexableBooks()
         .where(IndexingRepository.isIndexableBook)
         .toList();
 

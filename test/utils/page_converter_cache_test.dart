@@ -11,6 +11,7 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/migration/models/pdf_anchor_cache_entry.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -120,7 +121,7 @@ class _FakeTocProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async => toc;
 
   @override
@@ -145,7 +146,7 @@ class _FakeTocProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async => '';
   @override
   Future<Library> buildLibraryCatalog(

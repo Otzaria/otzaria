@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/book_facet.dart';
 
@@ -139,7 +140,7 @@ void main() {
         title: 'הערות',
         topics: '',
         bookId: 5,
-        isUserBook: true,
+        source: BookSource.user,
         categoryPath: '/ספרים אישיים',
       );
 
@@ -165,7 +166,7 @@ void main() {
       topics: book.topics,
       externalLibraryId: book.externalLibraryId,
       bookId: book.id,
-      isUserBook: book.isUserBook,
+      source: book.source,
       categoryPath: book.category?.path ?? book.categoryPath,
       fileType: book.fileType,
       filePath: book is FileBook ? book.path : book.filePath,
@@ -177,7 +178,7 @@ void main() {
         id: 5,
         title: 'שבת',
         categoryPath: '/ספרים אישיים',
-        isUserBook: true,
+        source: BookSource.user,
       ),
       ExternalLibraryBook(
         title: 'ספר חיצוני',

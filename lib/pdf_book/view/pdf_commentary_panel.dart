@@ -33,6 +33,7 @@ import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
 import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
@@ -544,10 +545,14 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         categoryId: companion.categoryId,
         fileType: companion.fileType ?? 'txt',
       );
-      if (provider is! DatabaseLibraryProvider) return null;
-      return await provider.getBookLinkTargetsSummary(
+      if (provider is! DatabaseLibraryProvider &&
+          !companion.source.isAttached) {
+        return null;
+      }
+      return await DatabaseLibraryProvider.instance.getBookLinkTargetsSummary(
         companion.title,
         companion.categoryId!,
+        source: companion.source,
       );
     } catch (_) {
       return null;
@@ -581,7 +586,16 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     }
 
     await eraPreload;
-    final eras = await utils.splitByEra(availableCommentators);
+    final eras = await utils.splitByEra(
+      availableCommentators,
+      source: widget.tab.book.source,
+      sourceByTitle: {
+        for (final target in summary?.targets ?? const <LinkTargetSummary>[])
+          utils.getTitleFromPath(target.targetTitle): ?target.targetSource,
+        for (final link in widget.tab.links)
+          utils.getTitleFromPath(link.path2): link.targetSource,
+      },
+    );
     final groups = buildCommentatorGroups(eras, availableCommentators);
     if (!mounted) return;
     setState(() {
@@ -1727,7 +1741,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   }
 
   Widget _buildNotesView() {
-    final bookId = widget.tab.book.title;
+    final bookId = personalNotesBookKey(widget.tab.book);
 
     return PersonalNotesSidebar(
       key: ValueKey(bookId),

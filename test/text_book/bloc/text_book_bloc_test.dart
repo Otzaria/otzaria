@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
@@ -199,7 +200,7 @@ void main() {
               currentLine, {
               categoryId,
               fileType,
-              preferUserBooks = false,
+              preferSource = BookSource.official,
             }) async {
               previewCalls++;
               return 'מקור גולמי';
@@ -405,20 +406,20 @@ void main() {
                 int currentLine,
                 int? categoryId,
                 String? fileType,
-                bool preferUserBooks,
+                BookSource preferSource,
               })
             >[];
 
         final bloc = _createBloc(
           repository: repository,
           showPageShapeView: false,
-          // ספר אישי בשם זהה לספר רשמי: בלי preferUserBooks ה-quick preview
+          // ספר אישי בשם זהה לספר רשמי: בלי preferSource ה-quick preview
           // היה מאתר את הספר הרשמי לפי שם בלבד מ-seforim.db.
           book: TextBook(
             title: 'ספר כפול',
             categoryId: 42,
             fileType: 'txt',
-            isUserBook: true,
+            source: BookSource.user,
           ),
           quickPreviewLoader:
               (
@@ -426,14 +427,14 @@ void main() {
                 int currentLine, {
                 int? categoryId,
                 String? fileType,
-                bool preferUserBooks = false,
+                BookSource preferSource = BookSource.official,
               }) async {
                 quickPreviewCalls.add((
                   title: title,
                   currentLine: currentLine,
                   categoryId: categoryId,
                   fileType: fileType,
-                  preferUserBooks: preferUserBooks,
+                  preferSource: preferSource,
                 ));
 
                 if (categoryId == 42 && fileType == 'txt') {
@@ -460,7 +461,7 @@ void main() {
         expect(quickPreviewCalls.single.currentLine, 10);
         expect(quickPreviewCalls.single.categoryId, 42);
         expect(quickPreviewCalls.single.fileType, 'txt');
-        expect(quickPreviewCalls.single.preferUserBooks, isTrue);
+        expect(quickPreviewCalls.single.preferSource, BookSource.user);
 
         final state = bloc.state;
         expect(state, isA<TextBookLoaded>());
@@ -1647,7 +1648,7 @@ void main() {
               int currentLine, {
               int? categoryId,
               String? fileType,
-              bool preferUserBooks = false,
+              BookSource preferSource = BookSource.official,
             }) async {
               return 'שורת preview 10\nשורת preview 11';
             },
@@ -1710,7 +1711,7 @@ void main() {
                 int currentLine, {
                 int? categoryId,
                 String? fileType,
-                bool preferUserBooks = false,
+                BookSource preferSource = BookSource.official,
               }) async =>
                   null, // ללא preview – הבלוק נשאר ב-Loading עד getBookContent
         );
@@ -2059,7 +2060,7 @@ TextBookBloc _createBloc({
     int currentLine, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks,
+    BookSource preferSource,
   })?
   quickPreviewLoader,
 }) {

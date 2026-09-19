@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -1163,7 +1164,7 @@ void main() {
           hasSelectedIndex: true,
           addNoteShortcut: 'ctrl+n',
           reportErrorShortcut: 'ctrl+shift+r',
-          isReportBookUserBook: true,
+          isReportUnavailable: true,
           isControlPressed: true,
           isShiftPressed: true,
         ),
@@ -2226,14 +2227,14 @@ class _GatedContentProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async => null;
   @override
   Future<List<TocEntry>?> getBookToc(
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async => const [];
   @override
   Future<Library> buildLibraryCatalog(

@@ -462,9 +462,11 @@ class _BookGridMediaColumn extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        book.isUserBook
+        !book.source.isOfficial
             ? Tooltip(
-                message: 'ספר אישי',
+                message: book.source.isAttached
+                    ? 'ממסד ספרים אישי'
+                    : 'ספר אישי',
                 waitDuration: const Duration(milliseconds: 400),
                 child: SizedBox(
                   width: iconBoxSize,
@@ -488,7 +490,9 @@ class _BookGridMediaColumn extends StatelessWidget {
                             ),
                           ),
                           child: Icon(
-                            FluentIcons.person_24_regular,
+                            book.source.isAttached
+                                ? FluentIcons.database_24_regular
+                                : FluentIcons.person_24_regular,
                             size: 8,
                             color: cs.onPrimary,
                           ),
@@ -926,7 +930,7 @@ Future<bool> _canDeleteBookFromLibrary(Book book) {
     title: book.title,
     categoryId: book.categoryId,
     fileType: book.fileType ?? 'txt',
-    isUserBook: book.isUserBook,
+    source: book.source,
   );
 }
 

@@ -857,6 +857,31 @@ dart format lib/file.dart    # Format ONLY files you modified
 | TantivyDataProvider (search index) | `test/data/data_providers/tantivy_data_provider_test.dart` |
 | External books scanner | `test/data/data_providers/scan_external_books_test.dart` |
 | Library book search (fuzzy + acronyms) | `test/data/repository/book_search_fuzzy_match_test.dart` |
+| מפת היכולות של מסד (טבלאות אופציונליות, VIEW/וירטואלית אינן יכולת) | `test/data/db_capabilities_test.dart` |
+| מסד בפורמט seforim.db בלי טבלאות (minimal, בלי קטגוריות/מחברים) | `test/data_providers/seforim_optional_tables_test.dart` (מסדי בדיקה: `test/helpers/seforim_fixture_db.dart`) |
+
+**Attached libraries (מסדי ספרים אישיים, `lib/attached_libraries/`)**
+| Area | Test File |
+|------|-----------|
+| בדיקת קובץ מסד (כותרת, VIEW מתחזה, טבלאות תוסף, יומן תלוי, slug, פתיחה מוקשחת) | `test/attached_libraries/attached_library_probe_test.dart` |
+| שמירת הרשימה בהגדרות + registry (פתיחה עצלה, שחרור, זמן סרק, מאגר ישן אחרי שחרור, שער העלייה, בדיקת פתיחה מוגבלת בזמן) | `test/attached_libraries/attached_library_registry_test.dart` |
+| צירוף, העתקה, הסרה, תיקיות מסדים, slug כפול, לא זמין, טביעת אצבע | `test/attached_libraries/attached_libraries_repository_test.dart` |
+| עץ הספרייה (שורש נפרד, מיזוג, מוסתר/לא זמין, בלי קטגוריות) + טקסט ותוכן עניינים מקצה לקצה; קטלוג ב-isolate — מסד איטי/מת/שבור מבודד ומסומן לא-זמין | `test/attached_libraries/attached_library_catalog_test.dart` |
+| תוכן עשיר בספר מצורף: קישורים ותוכן מפרש, מפרשים, דורות מהמסד שלו, מפרשי ברירת מחדל, 'כותרות', דיבורי-המתחיל, מהדורות, PDF בנתיב יחסי; מסד מינימלי ריק בלי חריגה | `test/attached_libraries/attached_library_rich_content_test.dart` |
+| קישורים חוצי-מסדים (`external_link`): יעד לפי heRef ואחרת מספר שורה, יעד שלא נפתר נשמט, מפרש מצורף על ספר רשמי (אינדקס-צד ב-cache.db), בנייה מחדש בשינוי קובץ/גרסה רשמית, הסרה, מסד לא נגיש | `test/attached_libraries/attached_external_links_test.dart` |
+| נתיב קובץ ספר במסד מצורף (יחסי בלבד, בלי `..`/מוחלט/UNC) + החלת יומן מוקשחת על עותק | `test/attached_libraries/attached_file_path_test.dart` |
+| כרטיס "מסדי ספרים אישיים" בהגדרות | `test/attached_libraries/attached_libraries_panel_test.dart` |
+| מסד עוין (VIEW/טריגר/ATTACH, ZIP, library_id עם `../`, נתיבי קובץ בורחים, סכמה זבל), חיבור מוקשח (בלי mmap), שחרור נעילה, לא-זמין וחזרה, סדר במיזוג | `test/attached_libraries/attached_library_security_test.dart` |
+| אינדקס החיפוש למסד מצורף: מפתח `db:`, סדר הקטלוג בסוף (צירוף אינו מזיז ספרים), יתומים (הוסר ⇒ נמחק, לא-זמין/מוסתר ⇒ נשמר) | `test/indexing/repository/attached_library_index_test.dart` |
+| קובץ מסד שהשתנה ⇒ אינדוקס מחדש רק של ספריו | `test/attached_libraries/attached_libraries_repository_test.dart`, `test/library/bloc/library_attached_reindex_test.dart` |
+| איתור מקורות בספר ממסד מצורף (כותרת, כינוי, line_ref של המסד, תוכן עניינים, הפרדה מספר רשמי) | `test/find_ref/find_ref_attached_library_test.dart` |
+| כינויים ודורות פר-מסד (AcronymsCache / GenerationCache) | `test/data/cache/attached_library_caches_test.dart` |
+| API התוספים לספר ממסד מצורף (resolveRef לפי מקור+מזהה, getLinks לפי `source`/`bookUid`, line_ref של המסד המצורף) | `test/plugins/bridge/plugin_bridge_adapter_test.dart`, `test/plugins/bridge/plugin_bridge_links_api_test.dart`, `test/attached_libraries/attached_library_rich_content_test.dart` |
+| קישורי טווח ההדפסה דרך `TextBookRepository` (כולל קישורי משתמש וחוצי-מסדים) | `test/printing/print_range_links_test.dart` |
+| מפתח הערות אישיות `title\|db:<slug>`: איתור הספר לפי המפתח, עיגון לתוכן המסד המצורף | `test/personal_notes/personal_notes_book_key_test.dart`, `test/attached_libraries/attached_library_rich_content_test.dart` |
+| גיבוי ושחזור רשימת המסדים ותיקיותיהם (קובץ חסר ⇒ 'לא זמין') | `test/settings/services/backup_service_test.dart` |
+| תוכן ספר אינו מפעיל פעולות `otzaria://`; מפרש ממסד מצורף בלי 'דווח על טעות' | `test/utils/text/html_link_handler_test.dart`, `test/utils/context_menu_optional_bloc_test.dart` |
+| חיפוש הספרייה: כינויים ודור לפי מקור, דירוג אחרי רשמי ואישי | `test/data/repository/book_search_fuzzy_match_test.dart` |
 
 **Search**
 | Area | Test File |
@@ -912,6 +937,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | Backup archive merge rules | `test/unit/settings/backup/backup_merge_test.dart` |
 | ייבוא ספרים אישיים במובייל (קבצים, ותיקייה שלמה באנדרואיד דרך SAF) | `test/settings/panels/personal_books_import_panel_test.dart`, `test/settings/services/custom_folders/personal_books_import_service_test.dart`, `…android_folder_import_channel_test.dart` |
 | SegmentedSettingsTile | `test/settings/widgets/segmented_settings_tile_test.dart` |
+| נתיב ב-`SettingsActionTile.path` מוצג משמאל לימין | `test/settings/widgets/settings_action_tile_path_direction_test.dart` |
 | SwitchSettingsTile | `test/settings/widgets/switch_settings_tile_test.dart` |
 
 **Widgets (shared)**
@@ -977,6 +1003,7 @@ dart format lib/file.dart    # Format ONLY files you modified
 | קליטת `<ספר>.כותרות.csv` / `גרסאות.csv` מתיקיית הספרים והייבוא מההגדרות, ניקוי במחיקת ספר | `test/user_content_import/user_sidecar_sync_test.dart` |
 | קריאת לשונית 'כותרות' של ספר אישי (ניווט, כותרת פעילה, סימני חלוקה) | `test/user_content_import/user_alt_toc_repository_test.dart` |
 | קבוצת הגרסאות של ספר אישי + דיאלוג 'גרסאות' | `test/user_content_import/user_book_versions_test.dart`, `test/library/view/book_versions_dialog_test.dart` |
+| גרסה אישית של ספר רשמי/ממסד מצורף (קישור לפי כותרת, ראשי שלא נמצא, בורר הנוסחאות, מהדורה מקבילה, קריאה; שדרוג הטבלה) | `test/user_content_import/user_book_versions_catalog_test.dart`, `test/migration/user_books_schema_extensions_test.dart`, `test/user_content_import/user_import_parser_test.dart` |
 | DB migration / generator | `test/migration/generator_create_and_process_book_test.dart`, `test/migration/dao/daos/database_locked_test.dart` |
 | Indexing repository | `test/indexing/repository/indexing_repository_test.dart` |
 | External catalog | `test/external_catalog/external_catalog_repository_test.dart`, `…settings_helper_test.dart` |

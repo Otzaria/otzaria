@@ -1,6 +1,11 @@
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/migration/database/untrusted_database.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/services/commentary_service.dart';
 
 /// מטמון בזיכרון של דור הספר לכל ספר (bookId), מתוך טבלת book_generation →
@@ -23,6 +28,9 @@ class GenerationCache {
   /// דור לפי id ב-user_books.db — מרחב id נפרד, לכן מפה נפרדת.
   final Map<int, int> _orderByUserBookId = <int, int>{};
 
+  /// דור לפי id בכל מסד מצורף, לפי slug.
+  final Map<String, Map<int, int>> _orderByAttachedBookId = {};
+
   bool get isLoaded => _isLoaded;
 
   static const String _selectSql = '''
@@ -33,14 +41,26 @@ class GenerationCache {
       ''';
 
   /// מחזיר את סדר הדור של הספר (נמוך = מוקדם). ספר לא ידוע → סוף הרשימה.
-  /// [isUserBook] מנתב למפת ה-id של user_books.db (מרחב id נפרד).
-  int getOrderForBook(int? bookId, bool isUserBook) {
+  /// [source] בוחר את מפת ה-id של המסד (מרחבי id נפרדים).
+  int getOrderForBook(int? bookId, BookSource source) {
     if (bookId == null) return CommentaryEra.other.order;
-    final map = isUserBook ? _orderByUserBookId : _orderByBookId;
+    final map = switch (source) {
+      OfficialBookSource() => _orderByBookId,
+      UserBookSource() => _orderByUserBookId,
+      AttachedBookSource(:final slug) =>
+        _orderByAttachedBookId[slug] ?? const <int, int>{},
+    };
     return map[bookId] ?? CommentaryEra.other.order;
   }
 
   Future<void> warmUp() async {
+    // האינדוקס מדרג ספרי מסד מצורף לפי הדור — ממתין לטעינה מחדש שבדרך.
+    final attachedReload = _attachedReload;
+    if (attachedReload != null) {
+      try {
+        await attachedReload;
+      } catch (_) {}
+    }
     if (_isLoaded) return;
     if (_loadingFuture != null) return _loadingFuture;
 
@@ -65,7 +85,9 @@ class GenerationCache {
       if (myGen != _generation) return;
 
       final local = <int, int>{};
-      _accumulate(db.select(_selectSql), local);
+      if ((await repository.database.capabilities).hasGenerations) {
+        _accumulate(db.select(_selectSql), local);
+      }
 
       // דורות של ספרים אישיים (user_books.db) — רק אם ה-DB כבר פתוח, בלי
       // לכפות יצירתו. מרחב id נפרד, לכן מפה נפרדת.
@@ -75,13 +97,20 @@ class GenerationCache {
         try {
           final userDb = await userRepo.database.database;
           if (myGen != _generation) return;
-          _accumulate(userDb.select(_selectSql), localUser);
+          if ((await userRepo.database.capabilities).hasGenerations) {
+            _accumulate(userDb.select(_selectSql), localUser);
+          }
         } catch (e) {
           debugPrint('[GenerationCache] user_books generations skipped: $e');
         }
       }
 
+      final localAttached = await _readAttached(myGen);
+
       if (myGen != _generation) return;
+      _orderByAttachedBookId
+        ..clear()
+        ..addAll(localAttached);
       _orderByBookId
         ..clear()
         ..addAll(local);
@@ -104,6 +133,74 @@ class GenerationCache {
     }
   }
 
+  /// טוען מחדש רק את דורות המסדים המצורפים — אחרי צירוף, ניתוק או שינוי
+  /// בקובץ מסד. הדורות של seforim.db ו-user_books.db אינם נקראים שוב.
+  /// [warmUp] ממתין לה, כך שהקורא אינו חייב להמתין בעצמו.
+  Future<void> reloadAttached() {
+    late final Future<void> reload;
+    reload = _reloadAttached().whenComplete(() {
+      if (identical(_attachedReload, reload)) _attachedReload = null;
+    });
+    return _attachedReload = reload;
+  }
+
+  Future<void>? _attachedReload;
+
+  Future<void> _reloadAttached() async {
+    final myGen = _generation;
+    final localAttached = await _readAttached(myGen);
+    if (myGen != _generation) return;
+    _orderByAttachedBookId
+      ..clear()
+      ..addAll(localAttached);
+  }
+
+  /// כל מסד נקרא ב-isolate בפתיחה מוקשחת לפי נתיב, במקביל — קריאה סינכרונית
+  /// של מסד גדול (או בכונן רשת) לא תקפיא את ה-UI.
+  Future<Map<String, Map<int, int>>> _readAttached(int myGen) async {
+    final localAttached = <String, Map<int, int>>{};
+    await Future.wait([
+      for (final library in AttachedLibraryRegistry.instance.visibleLibraries)
+        () async {
+          final path = library.path;
+          final immutable = library.immutable;
+          try {
+            final orders = await Isolate.run(
+              () => readAttachedGenerations(path, immutable: immutable),
+            ).timeout(AttachedLibraryRegistry.openTimeout);
+            if (myGen != _generation || orders.isEmpty) return;
+            localAttached[library.slug] = orders;
+          } catch (e) {
+            debugPrint(
+              '[GenerationCache] ${library.slug} generations skipped: $e',
+            );
+          }
+        }(),
+    ]);
+    return localAttached;
+  }
+
+  /// דורות הספרים של מסד מצורף — רץ ב-isolate.
+  @visibleForTesting
+  static Map<int, int> readAttachedGenerations(
+    String path, {
+    bool immutable = false,
+  }) {
+    final db = openUntrustedReadOnlyDatabase(path, immutable: immutable);
+    try {
+      final tables = db.select(
+        "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' "
+        "AND name IN ('book_generation', 'generation')",
+      );
+      if (tables.first['n'] != 2) return const {};
+      final orders = <int, int>{};
+      _accumulate(db.select(_selectSql), orders);
+      return orders;
+    } finally {
+      db.close();
+    }
+  }
+
   /// צובר bookId→order מתוצאת [_selectSql]. ספר רב-מחברי → הדור המוקדם
   /// ביותר (order מינימלי), קומוטטיבי ולכן דטרמיניסטי בלי תלות בסדר השורות.
   static void _accumulate(Iterable rows, Map<int, int> into) {
@@ -121,6 +218,7 @@ class GenerationCache {
 
   void clear() {
     _generation++;
+    _orderByAttachedBookId.clear();
     _orderByBookId.clear();
     _orderByUserBookId.clear();
     _isLoaded = false;

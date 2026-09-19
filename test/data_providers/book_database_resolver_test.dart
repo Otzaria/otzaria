@@ -11,76 +11,91 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('BookDatabaseResolver.isLikelyUserBook', () {
-    test('isUserBook=true גובר על categoryPath', () {
+  group('BookDatabaseResolver.likelySource', () {
+    test('מקור שאינו רשמי גובר על categoryPath', () {
       expect(
-        BookDatabaseResolver.isLikelyUserBook(
-          isUserBook: true,
+        BookDatabaseResolver.likelySource(
+          source: BookSource.user,
           categoryPath: '/תלמוד בבלי/סדר מועד',
         ),
-        isTrue,
+        BookSource.user,
       );
     });
 
     test('categoryPath שמתחיל ב-"ספרים אישיים" מזוהה כספר משתמש', () {
       expect(
-        BookDatabaseResolver.isLikelyUserBook(
+        BookDatabaseResolver.likelySource(
           categoryPath: '/ספרים אישיים/תיקייה',
         ),
-        isTrue,
+        BookSource.user,
       );
     });
 
     test('categoryPath עם פסיקים (פורמט heCategories) נתמך', () {
       // ה-resolver גם מנרמל פסיקים ל-"/" כדי להבין שתי הצורות.
       expect(
-        BookDatabaseResolver.isLikelyUserBook(
+        BookDatabaseResolver.likelySource(
           categoryPath: 'ספרים אישיים, תיקיית עבודה',
         ),
-        isTrue,
+        BookSource.user,
       );
     });
 
     test('categoryPath של ספר רגיל אינו מזוהה כספר משתמש', () {
       expect(
-        BookDatabaseResolver.isLikelyUserBook(
+        BookDatabaseResolver.likelySource(
           categoryPath: '/תנ"ך/תורה/בראשית',
         ),
-        isFalse,
+        BookSource.official,
       );
       expect(
-        BookDatabaseResolver.isLikelyUserBook(
+        BookDatabaseResolver.likelySource(
           categoryPath: 'תלמוד בבלי, סדר מועד, שבת',
         ),
-        isFalse,
+        BookSource.official,
       );
     });
 
-    test('categoryPath ריק או null מחזיר false (ברירת מחדל)', () {
-      expect(BookDatabaseResolver.isLikelyUserBook(), isFalse);
-      expect(BookDatabaseResolver.isLikelyUserBook(categoryPath: ''), isFalse);
+    test('categoryPath ריק או null מחזיר רשמי (ברירת מחדל)', () {
+      expect(BookDatabaseResolver.likelySource(), BookSource.official);
       expect(
-        BookDatabaseResolver.isLikelyUserBook(categoryPath: '   '),
-        isFalse,
+        BookDatabaseResolver.likelySource(categoryPath: ''),
+        BookSource.official,
       );
       expect(
-        BookDatabaseResolver.isLikelyUserBook(categoryPath: '/   /   '),
-        isFalse,
+        BookDatabaseResolver.likelySource(categoryPath: '   '),
+        BookSource.official,
+      );
+      expect(
+        BookDatabaseResolver.likelySource(categoryPath: '/   /   '),
+        BookSource.official,
+      );
+    });
+
+    test('מסד מצורף נשמר גם בנתיב של ספרים אישיים', () {
+      final attached = BookSource.attached('my-db');
+      expect(
+        BookDatabaseResolver.likelySource(
+          source: attached,
+          categoryPath: 'ספרים אישיים, תיקייה',
+        ),
+        attached,
       );
     });
 
     test('categoryPath עם backslashes (Windows-style) נתמך', () {
       expect(
-        BookDatabaseResolver.isLikelyUserBook(
+        BookDatabaseResolver.likelySource(
           categoryPath: r'ספרים אישיים\תיקיית עבודה',
         ),
-        isTrue,
+        BookSource.user,
       );
     });
   });
@@ -210,14 +225,14 @@ void main() {
         candidates: [
           ResolvedBookRepositoryCandidate(
             repository: seforimRepo,
-            isUserBooks: false,
+            source: BookSource.official,
           ),
         ],
       );
 
       expect(result, isNotNull);
       expect(result!.book.title, 'ספר רשמי');
-      expect(result.isUserBooks, isFalse);
+      expect(result.source, BookSource.official);
     });
 
     test('נופל לפי הסדר ל-candidate השני אם הראשון לא מצא', () async {
@@ -228,18 +243,18 @@ void main() {
         candidates: [
           ResolvedBookRepositoryCandidate(
             repository: seforimRepo,
-            isUserBooks: false,
+            source: BookSource.official,
           ),
           ResolvedBookRepositoryCandidate(
             repository: userBooksRepo,
-            isUserBooks: true,
+            source: BookSource.user,
           ),
         ],
       );
 
       expect(result, isNotNull);
       expect(result!.book.title, 'ספר אישי');
-      expect(result.isUserBooks, isTrue);
+      expect(result.source, BookSource.user);
     });
 
     test(
@@ -267,7 +282,7 @@ void main() {
           candidates: [
             ResolvedBookRepositoryCandidate(
               repository: seforimRepo,
-              isUserBooks: false,
+              source: BookSource.official,
             ),
           ],
         );
@@ -303,7 +318,7 @@ void main() {
         candidates: [
           ResolvedBookRepositoryCandidate(
             repository: seforimRepo,
-            isUserBooks: false,
+            source: BookSource.official,
           ),
         ],
       );
@@ -322,11 +337,11 @@ void main() {
         candidates: [
           ResolvedBookRepositoryCandidate(
             repository: seforimRepo,
-            isUserBooks: false,
+            source: BookSource.official,
           ),
           ResolvedBookRepositoryCandidate(
             repository: userBooksRepo,
-            isUserBooks: true,
+            source: BookSource.user,
           ),
         ],
       );
@@ -394,7 +409,7 @@ void main() {
     });
 
     test(
-      'resolveBook ללא preferUserBooks: מוצא קודם ב-seforim ולא יוצר user_books.db',
+      'resolveBook ללא preferSource: מוצא קודם ב-seforim ולא יוצר user_books.db',
       () async {
         final catId = await seforimRepo.insertCategory(
           const migration_models.Category(title: 'תורה'),
@@ -415,7 +430,7 @@ void main() {
 
         expect(resolved, isNotNull);
         expect(resolved!.book.title, 'בראשית');
-        expect(resolved.isUserBooks, isFalse);
+        expect(resolved.source, BookSource.official);
         expect(
           await File(await AppPaths.resolveUserBooksDbPath()).exists(),
           isFalse,
@@ -425,8 +440,36 @@ void main() {
       },
     );
 
+    test('מסד מצורף אינו נופל לספר רשמי בשם זהה', () async {
+      final catId = await seforimRepo.insertCategory(
+        const migration_models.Category(title: 'תורה'),
+      );
+      final sourceId = await seforimRepo.insertSource('test', -1);
+      final bookId = await seforimRepo.insertBook(
+        migration_models.Book(
+          categoryId: catId,
+          sourceId: sourceId,
+          title: 'בראשית',
+          fileType: 'txt',
+        ),
+      );
+      final attached = BookSource.attached('lib');
+
+      expect(
+        await BookDatabaseResolver.resolveBook(
+          title: 'בראשית',
+          preferSource: attached,
+        ),
+        isNull,
+      );
+      expect(
+        await BookDatabaseResolver.resolveBookById(bookId, source: attached),
+        isNull,
+      );
+    });
+
     test(
-      'resolveBook עם preferUserBooks=true מאתר ספר ב-user_books.db',
+      'resolveBook עם preferSource=user מאתר ספר ב-user_books.db',
       () async {
         // יוצרים user_books.db ומכניסים אליו ספר.
         final userBooksRepo = await UserBooksDatabaseHolder.instance.repository;
@@ -445,15 +488,15 @@ void main() {
 
         final resolved = await BookDatabaseResolver.resolveBook(
           title: 'ספר אישי',
-          preferUserBooks: true,
+          preferSource: BookSource.user,
         );
 
         expect(resolved, isNotNull);
         expect(resolved!.book.title, 'ספר אישי');
         expect(
-          resolved.isUserBooks,
-          isTrue,
-          reason: 'preferUserBooks=true מחפש קודם ב-user_books',
+          resolved.source,
+          BookSource.user,
+          reason: 'preferSource=user מחפש קודם ב-user_books',
         );
       },
     );
@@ -484,7 +527,7 @@ void main() {
       },
     );
 
-    test('resolveBookById עם isUserBook=true מחפש רק ב-user_books', () async {
+    test('resolveBookById עם מקור אישי מחפש רק ב-user_books', () async {
       // ב-seforim וב-user_books נוצרים ספרים נפרדים. ה-AUTOINCREMENT יקצה
       // לכל אחד id משלו — שומרים את שני המזהים כדי לבדוק שכל DB מחזיר את שלו.
       final seforimCat = await seforimRepo.insertCategory(
@@ -516,22 +559,22 @@ void main() {
 
       final fromUser = await BookDatabaseResolver.resolveBookById(
         userBookId,
-        isUserBook: true,
+        source: BookSource.user,
       );
       expect(fromUser, isNotNull);
       expect(fromUser!.book.title, 'בעולם האישי');
-      expect(fromUser.isUserBooks, isTrue);
+      expect(fromUser.source, BookSource.user);
 
       final fromOfficial = await BookDatabaseResolver.resolveBookById(
         seforimBookId,
       );
       expect(fromOfficial, isNotNull);
       expect(fromOfficial!.book.title, 'בעולם הרשמי');
-      expect(fromOfficial.isUserBooks, isFalse);
+      expect(fromOfficial.source, BookSource.official);
     });
 
     test(
-      'resolveBookById עם isUserBook=true ובלי user_books.db מחזיר null',
+      'resolveBookById עם מקור אישי ובלי user_books.db מחזיר null',
       () async {
         // לא יצרנו user_books.db; resolveDbPath יחזיר נתיב לקובץ שלא קיים.
         final dbPath = await AppPaths.resolveUserBooksDbPath();
@@ -543,7 +586,7 @@ void main() {
 
         final result = await BookDatabaseResolver.resolveBookById(
           42,
-          isUserBook: true,
+          source: BookSource.user,
         );
 
         expect(result, isNull);

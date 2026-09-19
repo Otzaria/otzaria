@@ -64,7 +64,7 @@ class ContextMenuUtils {
       title: utils.getTitleFromPath(link.path2),
       categoryId: link.targetCategoryId,
       fileType: link.targetFileType,
-      isUserBook: link.targetIsUserBook,
+      source: link.targetSource,
     );
   }
 
@@ -131,7 +131,7 @@ class ContextMenuUtils {
           onNoteSaved: onNoteSaved,
         ),
       ),
-      if (!link.targetIsUserBook)
+      if (link.targetSource.isOfficial)
         AppContextMenuEntry(
           label: 'דווח על טעות בספר',
           icon: FluentIcons.error_circle_24_regular,
@@ -211,7 +211,7 @@ class ContextMenuUtils {
           icon: FluentIcons.link_24_regular,
           childrenBuilder: () => buildDirectLinkContextMenuEntries(
             bookId: targetBookId,
-            isUserBook: link.targetIsUserBook,
+            source: link.targetSource,
             index: link.index2 - 1,
             selectedText: savedSelectedText,
           ),
@@ -268,9 +268,10 @@ class ContextMenuUtils {
     final referenceText = selectedText?.isNotEmpty == true
         ? utils.removeVolwels(selectedText!)
         : utils.stripHtmlIfNeeded(rawContent);
+    final notesKey = personalNotesBookKeyFor(bookTitle, link.targetSource);
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: bookTitle,
+      bookId: notesKey,
       categoryId: link.targetCategoryId,
       lineNumber: link.index2,
     );
@@ -282,7 +283,7 @@ class ContextMenuUtils {
         title: 'הערה חדשה - $bookTitle',
         referenceText: referenceText,
         icon: FluentIcons.note_add_24_regular,
-        bookId: bookTitle,
+        bookId: notesKey,
         categoryId: link.targetCategoryId,
         draftLineNumber: link.index2,
         initialContent: draft?.content ?? '',
@@ -294,7 +295,7 @@ class ContextMenuUtils {
 
     try {
       await PersonalNotesRepository().addNote(
-        bookId: bookTitle,
+        bookId: notesKey,
         lineNumber: link.index2,
         content: result.content,
         contentPlain: result.contentPlain,

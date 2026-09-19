@@ -22,6 +22,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
@@ -52,6 +53,7 @@ import 'package:otzaria/pdf_book/view/pdf_external_matches_bar.dart';
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -1483,7 +1485,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   ) async {
     final textBook = TextBook(
       title: utils.getTitleFromPath(link.path2),
-      isUserBook: link.targetIsUserBook,
+      source: link.targetSource,
       categoryId: link.targetCategoryId,
       fileType: link.targetFileType,
     );
@@ -1981,7 +1983,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                   copyLinkToClipboard(
                     buildPdfBookLink(
                       bookId,
-                      isUserBook: widget.tab.book.isUserBook,
+                      source: widget.tab.book.source,
                     ),
                   );
                 }
@@ -2000,7 +2002,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     buildPdfPageLink(
                       bookId,
                       page,
-                      isUserBook: widget.tab.book.isUserBook,
+                      source: widget.tab.book.source,
                     ),
                   );
                 }
@@ -3652,13 +3654,20 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _recordCommentaryOpenedIfNeeded();
   }
 
-  Future<void> _loadCommentatorGroups(Set<String> commentatorsSet) async {
+  Future<void> _loadCommentatorGroups(
+    Set<String> commentatorsSet, {
+    Map<String, BookSource> sourceByTitle = const {},
+  }) async {
     // ודא שבחירה שמורה הוחלה לפני קביעת ברירת מחדל והפתיחה האוטומטית.
     await _loadActiveCommentators();
     await _applyDefaultCommentatorsIfNeeded(commentatorsSet.toList());
     _maybeAutoOpenCommentaryPane();
     final available = commentatorsSet.toList();
-    final eras = await utils.splitByEra(available);
+    final eras = await utils.splitByEra(
+      available,
+      source: widget.tab.book.source,
+      sourceByTitle: sourceByTitle,
+    );
     final groups = buildCommentatorGroups(eras, available);
     if (!mounted) return;
     setState(() {
@@ -3881,7 +3890,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         bookTitle,
         categoryId: categoryId,
         filePath: filePath,
-        preferUserBooks: widget.tab.book.isUserBook,
+        preferSource: widget.tab.book.source,
       );
       if (headings != null) {
         widget.tab.pdfHeadings = headings;
@@ -3903,12 +3912,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         );
         ({List<otz_links.LinkTargetSummary> targets, int maxSourceLine})?
         summary;
-        if (provider is DatabaseLibraryProvider &&
+        if ((provider is DatabaseLibraryProvider ||
+                textBook.source.isAttached) &&
             textBook.categoryId != null) {
-          summary = await provider.getBookLinkTargetsSummary(
-            textBook.title,
-            textBook.categoryId!,
-          );
+          summary = await DatabaseLibraryProvider.instance
+              .getBookLinkTargetsSummary(
+                textBook.title,
+                textBook.categoryId!,
+                source: textBook.source,
+              );
         }
         final Set<String> commentators;
         if (summary != null) {
@@ -3944,7 +3956,17 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           };
         }
         _bookHasCommentaryLinks = commentators.isNotEmpty;
-        await _loadCommentatorGroups(commentators);
+        await _loadCommentatorGroups(
+          commentators,
+          sourceByTitle: {
+            if (summary != null)
+              for (final target in summary.targets)
+                utils.getTitleFromPath(target.targetTitle): ?target.targetSource
+            else
+              for (final link in widget.tab.links)
+                utils.getTitleFromPath(link.path2): link.targetSource,
+          },
+        );
       }
 
       final currentPage = widget.tab.pdfViewerController.isReady
@@ -4697,7 +4719,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             bookTopics: widget.tab.book.topics,
                             bookCategoryPath: widget.tab.book.categoryPath,
                             bookId: widget.tab.book.id,
-                            isUserBook: widget.tab.book.isUserBook,
+                            source: widget.tab.book.source,
                             externalLibraryId:
                                 widget.tab.book.externalLibraryId,
                             pdfFilePath: _resolvedPdfPath,
@@ -5266,7 +5288,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                       onPressed: () => copyLinkToClipboard(
                         buildPdfBookLink(
                           bookId,
-                          isUserBook: widget.tab.book.isUserBook,
+                          source: widget.tab.book.source,
                         ),
                       ),
                     ),
@@ -5282,7 +5304,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                           buildPdfPageLink(
                             bookId,
                             page,
-                            isUserBook: widget.tab.book.isUserBook,
+                            source: widget.tab.book.source,
                           ),
                         );
                       },
@@ -5610,7 +5632,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     final draftService = PersonalNoteDraftService();
     final draft = await draftService.loadDraft(
-      bookId: widget.tab.book.title,
+      bookId: personalNotesBookKey(widget.tab.book),
       lineNumber: anchorLine,
     );
 
@@ -5618,7 +5640,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     notesBloc.add(
       StartCreatingPersonalNote(
-        bookId: widget.tab.book.title,
+        bookId: personalNotesBookKey(widget.tab.book),
         lineNumber: anchorLine,
         referenceText: 'עמוד $currentPage',
         initialContent: draft?.content ?? '',

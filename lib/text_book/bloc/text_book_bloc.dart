@@ -3,6 +3,7 @@ import 'package:otzaria/core/error_log_file.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
@@ -86,7 +87,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     int currentLine, {
     int? categoryId,
     String? fileType,
-    bool preferUserBooks,
+    BookSource preferSource,
   })
   _quickPreviewLoader;
   final ItemScrollController scrollController;
@@ -167,7 +168,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       int currentLine, {
       int? categoryId,
       String? fileType,
-      bool preferUserBooks,
+      BookSource preferSource,
     })?
     quickPreviewLoader,
     required TextBookInitial initialState,
@@ -778,7 +779,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
             visibleIndices.first,
             categoryId: book.categoryId,
             fileType: book.fileType,
-            preferUserBooks: book.isUserBook,
+            preferSource: book.source,
           );
 
           if (preview != null && preview.isNotEmpty) {
@@ -1285,7 +1286,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       } else {
         _userTouchedCommentators = true;
         // שמירה פר-ספר של בחירת המשתמש (כולל בחירה ריקה) — תמיד, כדי שתיטען
-        // בכל פתיחה. ספרים אישיים אינם נשמרים פר-ספר.
+        // בכל פתיחה. ספר אישי אינו נשמר פר-ספר.
         if (!currentState.book.isUserBook) {
           unawaited(
             _saveActiveCommentatorsPerBook(
@@ -2940,13 +2941,12 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
   /// טוען מראש את דורות ספרי היעד של הקישורים הרגילים (לא מפרשים)
   void _preloadLinkEras(List<Link> links) {
-    final titles = <String>{
+    final eraLinks = [
       for (final link in links)
-        if (!LinkTypes.isDependentTextLink(link.connectionType))
-          utils.getTitleFromPath(link.path2),
-    };
-    if (titles.isEmpty) return;
-    CommentaryService.preloadEras(titles);
+        if (!LinkTypes.isDependentTextLink(link.connectionType)) link,
+    ];
+    if (eraLinks.isEmpty) return;
+    CommentaryService.preloadErasForLinks(eraLinks);
   }
 
   void _onSetLinksLoading(
@@ -3021,7 +3021,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         book,
       );
 
-      final eras = await utils.splitByEra(availableCommentators);
+      final eras = await utils.splitByEra(
+        availableCommentators,
+        source: book.source,
+        sourceByTitle: await repository.getExternalCommentatorSources(book),
+      );
       final groups = buildCommentatorGroups(
         eras,
         availableCommentators,

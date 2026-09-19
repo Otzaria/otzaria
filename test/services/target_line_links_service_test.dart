@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
@@ -369,7 +370,7 @@ void main() {
         path2: 'רש"י',
         index2: 5,
         connectionType: LinkTypes.commentary,
-        targetIsUserBook: true,
+        targetSource: BookSource.user,
       );
 
       service.prefetch(official);
@@ -894,7 +895,7 @@ void main() {
           connectionType: LinkTypes.commentary,
           targetCategoryId: 42,
           targetFileType: 'docx',
-          targetIsUserBook: true,
+          targetSource: BookSource.user,
         ),
       );
       await pumpEventQueue();

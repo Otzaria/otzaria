@@ -4,6 +4,10 @@ import 'dart:io';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
@@ -1301,5 +1305,80 @@ void main() {
 
       expect(await pendingIds(), containsAll(['new', 'old']));
     });
+  });
+
+  group('attached libraries backup', () {
+    final previousRegistry = AttachedLibraryRegistry.instance;
+    final previousRepository = AttachedLibrariesRepository.instance;
+    late AttachedLibraryRegistry registry;
+
+    setUp(() {
+      registry = AttachedLibraryRegistry(idleTimeout: null);
+      AttachedLibraryRegistry.instance = registry;
+      AttachedLibrariesRepository.instance = AttachedLibrariesRepository(
+        registry: registry,
+        probe: (path) async => AttachedLibraryProbe.probeSync(path),
+        copyByDefault: false,
+      );
+    });
+
+    tearDown(() async {
+      await registry.closeAll();
+      await AttachedLibrariesRepository.instance.dispose();
+      AttachedLibraryRegistry.instance = previousRegistry;
+      AttachedLibrariesRepository.instance = previousRepository;
+    });
+
+    test(
+      'list and folders are restored; a missing file shows unreachable',
+      () async {
+        final missingPath = p.join(tempDir.path, 'gone', 'lib.db');
+        final folder = p.join(tempDir.path, 'gone-folder');
+        await Settings.setValue<String>(
+          SettingsRepository.keyAttachedLibraries,
+          jsonEncode([
+            {
+              'slug': 'lib-a',
+              'displayName': 'lib-a',
+              'path': missingPath,
+              'status': 'ok',
+            },
+          ]),
+        );
+        await Settings.setValue<String>(
+          SettingsRepository.keyAttachedLibraryFolders,
+          jsonEncode([folder]),
+        );
+        expect(
+          BackupService.nonPortableSettingsKeys,
+          isNot(contains(SettingsRepository.keyAttachedLibraries)),
+        );
+
+        final backup = await BackupService.createBackup(
+          includeSettings: true,
+          includeBookmarks: false,
+          includeHistory: false,
+          includeNotes: false,
+          includeWorkspaces: false,
+          includeShamorZachor: false,
+          includePlugins: false,
+        );
+        await Settings.setValue<String>(
+          SettingsRepository.keyAttachedLibraries,
+          '[]',
+        );
+        await Settings.setValue<String>(
+          SettingsRepository.keyAttachedLibraryFolders,
+          '[]',
+        );
+
+        await BackupService.restoreFromBackup(backup.path);
+
+        final restored = AttachedLibrariesRepository.instance.libraries;
+        expect(restored.map((l) => l.slug), ['lib-a']);
+        expect(restored.single.status, AttachedLibraryStatus.unreachable);
+        expect(AttachedLibrariesRepository.instance.folders, [folder]);
+      },
+    );
   });
 }

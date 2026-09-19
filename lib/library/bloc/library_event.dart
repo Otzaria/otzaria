@@ -19,6 +19,9 @@ enum RefreshSource {
   /// רענון בעקבות סריקת תיקיות אישיות שהסתיימה — התיקיות כבר סונכרנו,
   /// לכן prune מיותר ומדלגים עליו.
   customFoldersScan,
+
+  /// שינוי במסדים המצורפים — התיקיות האישיות לא השתנו, ומדלגים על prune.
+  attachedLibraries,
 }
 
 class RefreshLibrary extends LibraryEvent {
@@ -31,14 +34,23 @@ class RefreshLibrary extends LibraryEvent {
   /// (גם אחרי מיזוג רענונים מקבילים). רענון שנכשל אינו מדווח אותם.
   final Set<int> requestIds;
 
+  /// מסדים מצורפים שהקובץ שלהם השתנה — כל ספריהם דורשים אינדוקס מחדש.
+  final Set<String> changedAttachedSlugs;
+
   const RefreshLibrary({
     this.changedBookKeys = const {},
     this.source = RefreshSource.general,
     this.requestIds = const {},
+    this.changedAttachedSlugs = const {},
   });
 
   @override
-  List<Object?> get props => [changedBookKeys, source, requestIds];
+  List<Object?> get props => [
+    changedBookKeys,
+    source,
+    requestIds,
+    changedAttachedSlugs,
+  ];
 }
 
 class UpdateLibraryPath extends LibraryEvent {

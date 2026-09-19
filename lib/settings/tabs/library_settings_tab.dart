@@ -6,6 +6,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart'
     hide SwitchSettingsTile;
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
@@ -88,6 +89,14 @@ class LibrarySettingsTab extends StatefulWidget {
       tab: SettingsTab.library,
       cardId: 'library.custom_folders',
       keywords: ['תיקיות', 'מותאם'],
+    ),
+    SettingsSearchEntry(
+      id: 'library.attached_libraries',
+      title: 'מסדי ספרים אישיים',
+      subtitle: 'צירוף קובצי מסד בפורמט של ספריית אוצריא',
+      tab: SettingsTab.library,
+      cardId: 'library.attached_libraries',
+      keywords: ['מסד', 'מסדים', 'db', 'צירוף', 'ייבוא', 'ספרים אישיים'],
     ),
     SettingsSearchEntry(
       id: 'library.android_storage',
@@ -600,6 +609,11 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                         ],
                       ),
                     ],
+
+                    kSettingsCardSpacing,
+                    AttachedLibrariesPanel(
+                      supportsLinking: attachedLibrariesSupportLinking,
+                    ),
 
                     // חיפוש ואינדקס — במובייל ככרטיס נפרד, ללא שורת מיקום
                     // הספרייה (בדסקטופ מוצג בתוך כרטיס מאגר הספרים וחיפוש)

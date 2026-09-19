@@ -28,17 +28,22 @@ String truncateDibbur(String text, {int maxWords = kDibburMaxWords}) {
 
 /// דיבורי-המתחיל של [book] (`lineIndex` → הצורה המודפסת), או מפה ריקה כשאין.
 Future<Map<int, String>> loadDibburimForBook(TextBook book) async {
-  // הדיבורים ממופים ל-lineIndex של הטקסט במסד. ספר אישי בשם זהה, מהדורה
+  // הדיבורים ממופים ל-lineIndex של הטקסט במסד של הספר. ספר אישי, מהדורה
   // חלופית או ספר שתוכנו מוגש מקבצים — ממוספרים אחרת.
   if (book.isUserBook || book.versionTitle != null) return const {};
-  final provider = LibraryProviderManager.instance.getProviderForBook(
-    book.title,
-    categoryId: book.categoryId,
-    fileType: book.fileType,
-  );
-  if (provider is! DatabaseLibraryProvider) return const {};
+  if (book.source.isOfficial &&
+      LibraryProviderManager.instance.getProviderForBook(
+            book.title,
+            categoryId: book.categoryId,
+            fileType: book.fileType,
+          )
+          is! DatabaseLibraryProvider) {
+    return const {};
+  }
   return DatabaseLibraryProvider.instance.getDibburHamatchilByLineIndex(
     book.title,
+    categoryId: book.categoryId,
+    source: book.source,
   );
 }
 

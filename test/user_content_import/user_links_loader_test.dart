@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/user_content_import/services/user_links_loader.dart';
 
@@ -19,7 +20,7 @@ void main() {
         path2: 'הכי גרסינן מגילה',
         index2: 5,
         connectionType: 'COMMENTARY',
-        targetIsUserBook: true,
+        targetSource: BookSource.user,
         targetCategoryId: 7,
       );
       final inverse = Link(
@@ -28,7 +29,7 @@ void main() {
         path2: 'הכי גרסינן מגילה',
         index2: 5,
         connectionType: 'COMMENTARY',
-        targetIsUserBook: true,
+        targetSource: BookSource.user,
         targetCategoryId: 7,
       );
       final result = dedupeUserLinks([forward, inverse]);
@@ -44,7 +45,7 @@ void main() {
         path2: 'משותף',
         index2: 5,
         connectionType: 'COMMENTARY',
-        targetIsUserBook: isUser,
+        targetSource: BookSource.fromUserFlag(isUser),
         targetCategoryId: categoryId,
       );
       final result = dedupeUserLinks([

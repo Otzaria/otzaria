@@ -4,6 +4,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 class BookFacet {
@@ -33,7 +34,7 @@ class BookFacet {
     required String topics,
     String? externalLibraryId,
     int? bookId,
-    bool isUserBook = false,
+    BookSource source = BookSource.official,
     String? categoryPath,
     String? fileType,
     String? filePath,
@@ -47,7 +48,7 @@ class BookFacet {
       title: title,
       externalLibraryId: externalLibraryId,
       bookId: bookId,
-      isUserBook: isUserBook,
+      source: source,
       categoryKey: categoryPath,
       fileTypeKey: fileType,
       pathKey: filePath,
@@ -65,6 +66,7 @@ class BookFacet {
     String? categoryPath,
     String? externalLibraryId,
     int? bookId,
+    BookSource? source,
     String? fileType,
     String? filePath,
   }) async {
@@ -81,6 +83,7 @@ class BookFacet {
         categoryPath: categoryPath,
         externalLibraryId: externalLibraryId,
         bookId: bookId,
+        source: source,
         fileType: fileType,
         filePath: filePath,
       );
@@ -102,20 +105,20 @@ class BookFacet {
       // Fallback: try to get from database directly
       final sqliteProvider = SqliteDataProvider.instance;
       if (sqliteProvider.isInitialized) {
+        // ל-id של ספר ממסד מצורף אין משמעות מחוץ למסד שלו.
+        final likelySource = source is AttachedBookSource
+            ? source
+            : BookDatabaseResolver.likelySource(categoryPath: categoryPath);
         final resolvedBook = bookId != null
             ? await BookDatabaseResolver.resolveBookById(
                 bookId,
-                preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-                  categoryPath: categoryPath,
-                ),
+                source: likelySource,
               )
             : await BookDatabaseResolver.resolveBook(
                 title: title,
                 fileType: fileType,
                 filePath: filePath,
-                preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-                  categoryPath: categoryPath,
-                ),
+                preferSource: likelySource,
               );
         if (resolvedBook != null) {
           debugPrint('📚 BookFacet: Searching in DB for title: $title');
@@ -161,11 +164,13 @@ class BookFacet {
     String? categoryPath,
     String? externalLibraryId,
     int? bookId,
+    BookSource? source,
     String? fileType,
     String? filePath,
   }) {
     final candidates = books.where((book) {
       if (type != null && book.runtimeType != type) return false;
+      if (source != null && book.source != source) return false;
       return book.title == title;
     }).toList();
 

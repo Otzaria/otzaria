@@ -1,5 +1,6 @@
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -75,7 +76,7 @@ void main() {
         author: 'מחבר',
         categoryPath: 'קטגוריה',
         categoryId: 42,
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       final restored = Book.fromJson(epub.toJson());

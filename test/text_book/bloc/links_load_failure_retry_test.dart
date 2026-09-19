@@ -5,6 +5,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -127,7 +128,7 @@ void main() {
         failuresLeft: 1,
         firstCallGate: firstCallGate,
       );
-      final book = TextBook(title: 'ספר בדיקה', isUserBook: true);
+      final book = TextBook(title: 'ספר בדיקה', source: BookSource.user);
       final bloc = TextBookBloc(
         repository: repository,
         initialState: TextBookInitial.named(book, 10, false, const []),
@@ -183,7 +184,7 @@ void main() {
       failuresLeft: 1,
       firstCallGate: firstCallGate,
     );
-    final book = TextBook(title: 'ספר חפיפה', isUserBook: true);
+    final book = TextBook(title: 'ספר חפיפה', source: BookSource.user);
     final bloc = TextBookBloc(
       repository: repository,
       initialState: TextBookInitial.named(book, 10, false, const []),

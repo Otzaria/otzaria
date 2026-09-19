@@ -1,3 +1,4 @@
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -40,7 +41,7 @@ abstract class LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   });
 
   /// Gets the table of contents for a book
@@ -48,7 +49,7 @@ abstract class LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   });
 
   /// Gets all book titles available in this provider

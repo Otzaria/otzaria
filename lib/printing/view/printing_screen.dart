@@ -16,6 +16,7 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/serial_latest_runner.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
@@ -38,8 +39,9 @@ import 'package:pdf/pdf.dart' hide PdfDocument;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
-import 'package:otzaria/data/data_providers/library_provider_manager.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/printing/view/widgets/printing_widgets.dart';
+import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 
 enum _AnchorKind { header, altHeader, line }
@@ -384,7 +386,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       // שימוש ב-structure הראשון בלבד - ריבוי structures מערבב ערכים
       final rows = await DatabaseLibraryProvider.instance.getAltTocLineIndices(
         structures.first.id,
-        isUserBook: structures.first.isUserBook,
+        source: structures.first.source,
       );
       if (!mounted || rows.isEmpty) return;
 
@@ -1218,51 +1220,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
   ) async {
     final book = widget.book;
     if (book == null) return widget.links;
-
-    final categoryId = book.categoryId;
-    final fileType = book.fileType ?? 'txt';
-
-    final provider = LibraryProviderManager.instance.getProviderForBook(
-      book.title,
-      categoryId: categoryId,
-      fileType: fileType,
+    return loadPrintRangeLinks(
+      book,
+      startIndex: selectedStart,
+      endIndex: selectedEnd,
+      targetBookTitles: widget.activeCommentators,
+      fallback: widget.links,
     );
-
-    if (provider is DatabaseLibraryProvider && categoryId != null) {
-      try {
-        return await provider.getLinksForBookRange(
-          book.title,
-          categoryId,
-          fileType,
-          startLineIndex: selectedStart,
-          endLineIndex: selectedEnd,
-          targetBookTitles: widget.activeCommentators,
-        );
-      } catch (e) {
-        // נופלים לנתיב הקבצים — הלוג נדרש כי המפרשים עלולים לצאת שונים
-        debugPrint(
-          '[Print] getLinksForBookRange failed for '
-          '"${book.title}": $e',
-        );
-      }
-    }
-
-    // ספרים מבוססי-קבצים: טעינת כל הקישורים וסינון לפי טווח
-    try {
-      final allLinks = await book.links;
-      if (allLinks.isNotEmpty) {
-        final rangeStart = selectedStart + 1;
-        final rangeEnd = selectedEnd + 1;
-        return allLinks
-            .where((l) => l.index1 >= rangeStart && l.index1 <= rangeEnd)
-            .toList();
-      }
-    } catch (e) {
-      // widget.links אינו מסונן לטווח שנבחר — הכשל חייב להיות גלוי בלוג
-      debugPrint('[Print] file links load failed for "${book.title}": $e');
-    }
-
-    return widget.links;
   }
 
   Future<List<Map<String, String>>> _buildPrintBlocks({
@@ -1633,8 +1597,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
     try {
       final repo = PersonalNotesRepository();
+      final book = widget.book;
       final all = await repo.loadNotes(
-        bookId,
+        book != null ? personalNotesBookKey(book) : bookId,
         categoryId: widget.book?.categoryId,
       );
       final located = all.where((n) => n.hasLocation).toList();
@@ -2720,3 +2685,30 @@ enum _ExportFormat {
 /// יעד הפעולה מהפאנל: הדפסה למדפסת, שמירה ל-PDF או שמירה ל-Word.
 /// הסדר קבוע — האינדקס נשמר ב-Settings.
 enum _PrintDestination { pdf, word, printer }
+
+/// קישורי הטווח להדפסה — אותו מקור של חלונית המפרשים: קישורי הספר לפי מקורו,
+/// קישורי המשתמש וקישורים חוצי-מסדים.
+@visibleForTesting
+Future<List<Link>> loadPrintRangeLinks(
+  TextBook book, {
+  required int startIndex,
+  required int endIndex,
+  required List<String> targetBookTitles,
+  required List<Link> fallback,
+  TextBookRepository? repository,
+}) async {
+  try {
+    return await (repository ??
+            TextBookRepository(fileSystem: FileSystemData.instance))
+        .getBookLinksInRange(
+          book,
+          startIndex: startIndex,
+          endIndex: endIndex,
+          targetBookTitles: targetBookTitles,
+        );
+  } catch (e) {
+    // fallback אינו מסונן לטווח שנבחר — הכשל חייב להיות גלוי בלוג.
+    debugPrint('[Print] range links load failed for "${book.title}": $e');
+    return fallback;
+  }
+}

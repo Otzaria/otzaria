@@ -103,6 +103,7 @@ class AuthorDao {
 
   /// מחזירה מיפוי title ← שם תקופה לכל הספרים שיש להם מחבר עם תקופה ידועה
   Future<Map<String, String>> getAllBookTitleToGeneration() async {
+    if (!(await _db.capabilities).hasGenerations) return {};
     final db = await database;
     final rows = db
         .select(_queries['selectAllBookTitleToGeneration']!)

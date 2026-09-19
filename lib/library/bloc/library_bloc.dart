@@ -14,6 +14,7 @@ import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -32,6 +33,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   bool _refreshPending = false;
   final Set<String> _pendingChangedKeys = {};
   final Set<int> _pendingRequestIds = {};
+  final Set<String> _pendingAttachedSlugs = {};
   RefreshSource _pendingSource = RefreshSource.customFoldersScan;
 
   LibraryBloc() : super(LibraryState.initial()) {
@@ -125,6 +127,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
       _refreshPending = true;
       _pendingChangedKeys.addAll(event.changedBookKeys);
       _pendingRequestIds.addAll(event.requestIds);
+      _pendingAttachedSlugs.addAll(event.changedAttachedSlugs);
       if (event.source == RefreshSource.general) {
         _pendingSource = RefreshSource.general;
       }
@@ -143,13 +146,40 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         changedBookKeys: Set<String>.from(_pendingChangedKeys),
         source: _pendingSource,
         requestIds: Set<int>.from(_pendingRequestIds),
+        changedAttachedSlugs: Set<String>.from(_pendingAttachedSlugs),
       );
       _refreshPending = false;
       _pendingChangedKeys.clear();
       _pendingRequestIds.clear();
+      _pendingAttachedSlugs.clear();
       _pendingSource = RefreshSource.customFoldersScan;
       add(mergedEvent);
     }
+  }
+
+  /// הספרים שתוכנם השתנה: לפי מפתח, או כל ספרי מסד מצורף שהקובץ שלו השתנה.
+  @visibleForTesting
+  static List<Book> booksToReindex(
+    Iterable<Book> books, {
+    required Set<String> changedBookKeys,
+    required Set<String> changedAttachedSlugs,
+  }) {
+    if (changedBookKeys.isEmpty && changedAttachedSlugs.isEmpty) {
+      return const [];
+    }
+    return [
+      for (final book in books)
+        if (changedBookKeys.contains(
+              IndexingRepository.catalogueOrderKey(book),
+            ) ||
+            switch (book.source) {
+              AttachedBookSource(:final slug) => changedAttachedSlugs.contains(
+                slug,
+              ),
+              _ => false,
+            })
+          book,
+    ];
   }
 
   Future<void> _runRefresh(
@@ -158,8 +188,8 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   ) async {
     emit(state.copyWith(isLoading: true));
     try {
-      // רענון בעקבות סריקת תיקיות אישיות — התיקיות כבר סונכרנו, prune מיותר.
-      if (event.source != RefreshSource.customFoldersScan) {
+      // רק רענון כללי עלול לנבוע מתיקייה אישית שנמחקה — האחרים מדלגים על prune.
+      if (event.source == RefreshSource.general) {
         await _pruneRemovedCustomFoldersIfNeeded();
       }
 
@@ -211,16 +241,11 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
           .toList();
 
       // מיפוי מפתחות הספרים שהשתנו (שדווחו ע"י הקורא) לספרים מהקטלוג הטרי
-      final changedBooksToIndex = event.changedBookKeys.isEmpty
-          ? const <Book>[]
-          : library
-                .getAllBooks()
-                .where(
-                  (b) => event.changedBookKeys.contains(
-                    IndexingRepository.catalogueOrderKey(b),
-                  ),
-                )
-                .toList();
+      final changedBooksToIndex = booksToReindex(
+        library.getAllBooks(),
+        changedBookKeys: event.changedBookKeys,
+        changedAttachedSlugs: event.changedAttachedSlugs,
+      );
 
       // חזרה לאותה תיקייה שהיתה פתוחה קודם
       final targetCategory = _findCategoryByPath(library, currentCategoryPath);

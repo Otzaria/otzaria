@@ -9,6 +9,7 @@ import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 
@@ -68,7 +69,7 @@ class _FakeProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return null;
   }
@@ -78,7 +79,7 @@ class _FakeProvider implements LibraryProvider {
     String title,
     int categoryId,
     String fileType, {
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
   }) async {
     return null;
   }
@@ -389,7 +390,7 @@ void main() {
     );
 
     expect(location, isNotNull);
-    expect(location!.source, BookSource.fileSystem);
+    expect(location!.storage, BookStorageKind.fileSystem);
     expect(location.filePath, testFile.path);
 
     await tempDir.delete(recursive: true);
@@ -424,7 +425,7 @@ void main() {
       );
 
       expect(location, isNotNull);
-      expect(location!.source, BookSource.fileSystem);
+      expect(location!.storage, BookStorageKind.fileSystem);
       expect(location.filePath, testFile.path);
 
       await tempDir.delete(recursive: true);

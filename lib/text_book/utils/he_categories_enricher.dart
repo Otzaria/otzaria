@@ -36,7 +36,7 @@ Future<EnrichedBookData> enrichHeCategories(TextBook book) async {
 
 Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
   final sqliteProvider = SqliteDataProvider.instance;
-  if (!await sqliteProvider.databaseExists() && !book.isUserBook) {
+  if (book.source.isOfficial && !await sqliteProvider.databaseExists()) {
     return null;
   }
 
@@ -45,17 +45,23 @@ Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
     categoryId: book.categoryId,
     fileType: book.fileType,
     filePath: book.filePath,
-    preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-      isUserBook: book.isUserBook,
+    preferSource: BookDatabaseResolver.likelySource(
+      source: book.source,
       categoryPath: book.categoryPath,
     ),
   );
   if (resolvedBook == null) return null;
 
-  final heCategories = await BookDatabaseResolver.buildCategoryPath(
-    resolvedBook.repository,
-    resolvedBook.book.categoryId,
-  );
+  // ספר מצורף: הנתיב בעץ הממוזג (למשל תחת 'תנ"ך' הרשמי), לא הנתיב הפנימי של
+  // המסד — ממנו נגזרות הגדרות הקטגוריה (מפרשי צורת הדף).
+  final treePath = book.categoryPath;
+  final heCategories =
+      book.source.isAttached && treePath != null && treePath.isNotEmpty
+      ? treePath
+      : await BookDatabaseResolver.buildCategoryPath(
+          resolvedBook.repository,
+          resolvedBook.book.categoryId,
+        );
   final dbAuthors = resolvedBook.book.authors;
   return (
     resolvedId: resolvedBook.book.id,
@@ -77,7 +83,7 @@ Future<EnrichedBookData> _tryGetIdAndAuthorFromDatabase(TextBook book) async {
   );
   if (book.id != null && book.author != null) return empty;
   final sqliteProvider = SqliteDataProvider.instance;
-  if (!await sqliteProvider.databaseExists() && !book.isUserBook) {
+  if (book.source.isOfficial && !await sqliteProvider.databaseExists()) {
     return empty;
   }
   try {
@@ -86,8 +92,8 @@ Future<EnrichedBookData> _tryGetIdAndAuthorFromDatabase(TextBook book) async {
       categoryId: book.categoryId,
       fileType: book.fileType,
       filePath: book.filePath,
-      preferUserBooks: BookDatabaseResolver.isLikelyUserBook(
-        isUserBook: book.isUserBook,
+      preferSource: BookDatabaseResolver.likelySource(
+        source: book.source,
         categoryPath: book.categoryPath,
       ),
     );

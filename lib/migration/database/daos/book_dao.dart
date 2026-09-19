@@ -1,7 +1,9 @@
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import '../../models/book.dart';
+import '../db_capabilities.dart';
 import '../sqlite3_utils.dart';
 import '../query_loader.dart';
+import 'package:otzaria/attached_libraries/utils/attached_file_path.dart';
 import 'database.dart';
 
 class BookDao {
@@ -14,14 +16,45 @@ class BookDao {
 
   Future<sqlite3.Database> get database => _db.database;
 
-  Future<List<Book>> getAllBooks() async {
+  Future<DbCapabilities> get _capabilities => _db.capabilities;
+
+  /// ספר משורת `book`. במסד מצורף `filePath` נפתר יחסית לתיקיית המסד, ונתיב
+  /// אסור הופך ל-null — כך אף צרכן אינו פותח קובץ מחוץ לתיקייה.
+  Book bookFromRow(Map<String, dynamic> row) {
+    if (!_db.isUntrusted || row['filePath'] == null) return Book.fromJson(row);
+    return Book.fromJson({
+      ...row,
+      'filePath': resolveAttachedBookFilePath(
+        _db.path,
+        row['filePath'] as String?,
+      ),
+    });
+  }
+
+  /// שורה ראשונה של [query], או null כשאין במסד טבלת ספרים.
+  Future<Book?> _selectOne(String query, List<Object?> args) async {
+    final capabilities = await _capabilities;
+    if (!capabilities.hasBooks) return null;
+    final db = await database;
+    final result = db
+        .select(capabilities.adaptBookQuery(query), args)
+        .toMapList();
+    if (result.isEmpty) return null;
+    return bookFromRow(result.first);
+  }
+
+  Future<List<Book>> _selectMany(String query, List<Object?> args) async {
+    final capabilities = await _capabilities;
+    if (!capabilities.hasBooks) return const [];
     final db = await database;
     return db
-        .select(_queries['selectAll']!)
+        .select(capabilities.adaptBookQuery(query), args)
         .toMapList()
-        .map((row) => Book.fromJson(row))
+        .map((row) => bookFromRow(row))
         .toList();
   }
+
+  Future<List<Book>> getAllBooks() => _selectMany(_queries['selectAll']!, []);
 
   /// Gets minimal book data, optionally within an ongoing transaction.
   /// Used by [DatabaseLibraryProvider] to load books and categories atomically.
@@ -33,33 +66,56 @@ class BookDao {
   List<Map<String, dynamic>> getAllBooksMinimal(
     sqlite3.Database db, {
     bool withFileColumns = false,
+  }) => selectBooksMinimal(
+    db,
+    DbCapabilities.forDatabase(_db.path, db),
+    withFileColumns: withFileColumns,
+  );
+
+  /// גוף [getAllBooksMinimal] בלי תלות במופע — לקריאה ב-isolate על חיבור משלו.
+  static List<Map<String, dynamic>> selectBooksMinimal(
+    sqlite3.Database db,
+    DbCapabilities capabilities, {
+    bool withFileColumns = false,
   }) {
-    final hasFullDescription = db
-        .select('PRAGMA table_info(book)')
-        .any((column) => column['name'] == 'heDesc');
-    final fullDescriptionColumn = hasFullDescription
-        ? 'heDesc'
-        : 'NULL AS heDesc';
+    if (!capabilities.hasBooks) return const [];
+    String col(String name, {String fallback = 'NULL'}) =>
+        capabilities.column('book', name, fallback: fallback);
+    final categoryColumn = capabilities.hasBookCategories
+        ? 'categoryId'
+        : '0 AS categoryId';
+    final order = capabilities.hasColumn('book', 'orderIndex')
+        ? 'orderIndex, title'
+        : 'title';
 
     if (withFileColumns) {
       return db.select('''
-        SELECT id, title, categoryId, orderIndex, fileType, filePath,
-               heShortDesc, $fullDescriptionColumn
+        SELECT id, title, $categoryColumn, ${col('orderIndex')},
+               ${col('fileType')}, ${col('filePath')},
+               ${col('heShortDesc')}, ${col('heDesc')}
         FROM book
-        WHERE COALESCE(fileType, '') NOT IN ('link', 'url')
-        ORDER BY orderIndex, title
+        ${capabilities.hasColumn('book', 'fileType') ? "WHERE COALESCE(fileType, '') NOT IN ('link', 'url')" : ''}
+        ORDER BY $order
       ''').toMapList();
     }
     return db.select('''
-      SELECT id, title, categoryId, orderIndex, heShortDesc,
-             $fullDescriptionColumn
+      SELECT id, title, $categoryColumn, ${col('orderIndex')},
+             ${col('heShortDesc')}, ${col('heDesc')}
       FROM book
-      ORDER BY orderIndex, title
+      ORDER BY $order
     ''').toMapList();
   }
 
   /// Loads authors for all local books in one query to keep catalog build fast.
-  Map<int, String> getBookAuthorsMap(sqlite3.Database db) {
+  Map<int, String> getBookAuthorsMap(sqlite3.Database db) =>
+      selectBookAuthorsMap(db, DbCapabilities.forDatabase(_db.path, db));
+
+  /// גוף [getBookAuthorsMap] בלי תלות במופע — לקריאה ב-isolate.
+  static Map<int, String> selectBookAuthorsMap(
+    sqlite3.Database db,
+    DbCapabilities capabilities,
+  ) {
+    if (!capabilities.hasAuthors) return {};
     final rows = db.select('''
       SELECT author_rows.bookId,
              GROUP_CONCAT(author_rows.name, ', ') AS author
@@ -83,9 +139,15 @@ class BookDao {
   /// השדות שהקאש המשותף של טבלת `book` צורך, כמפות. ההקרנה הרזה שומרת את
   /// ההעתקה קטנה כשהשורות חוצות גבול isolate (~7,300 ספרים).
   Future<List<Map<String, dynamic>>> selectAllLocalBooksSlim() async {
+    final capabilities = await _capabilities;
+    if (!capabilities.hasBooks) return const [];
     final db = await database;
     return db
-        .select(_queries['selectAllIgnoreExternalCatalogs']!)
+        .select(
+          capabilities.adaptBookQuery(
+            _queries['selectAllIgnoreExternalCatalogs']!,
+          ),
+        )
         .map(
           (row) => <String, dynamic>{
             'id': row['id'],
@@ -100,23 +162,23 @@ class BookDao {
   }
 
   /// Gets all local books (excluding external catalog books).
-  Future<List<Book>> getAllLocalBooks() async {
-    final db = await database;
-    return db
-        .select(_queries['selectAllIgnoreExternalCatalogs']!)
-        .toMapList()
-        .map((row) => Book.fromJson(row))
-        .toList();
-  }
+  Future<List<Book>> getAllLocalBooks() =>
+      _selectMany(_queries['selectAllIgnoreExternalCatalogs']!, []);
 
   /// Gets all books with their relations (authors, topics, pubPlaces, pubDates) in a single optimized query.
   /// This is much faster than calling getAllBooks() and then loading relations separately.
   Future<List<Map<String, dynamic>>> getAllBooksWithRelations() async {
+    final capabilities = await _capabilities;
+    if (!capabilities.hasBooks) return const [];
     final db = await database;
 
     // Always exclude external catalog books (fileType='link') - they are in a separate DB
     final books = db
-        .select(_queries['selectAllIgnoreExternalCatalogs']!)
+        .select(
+          capabilities.adaptBookQuery(
+            _queries['selectAllIgnoreExternalCatalogs']!,
+          ),
+        )
         .toMapList();
 
     if (books.isEmpty) return [];
@@ -125,28 +187,36 @@ class BookDao {
     final bookIds = books.map((b) => b['id'] as int).toList();
     final bookIdsStr = bookIds.join(',');
 
-    final authorsData = db.select('''
+    final authorsData = !capabilities.hasAuthors
+        ? const <Map<String, dynamic>>[]
+        : db.select('''
         SELECT ba.bookId, a.id, a.name
         FROM book_author ba
         JOIN author a ON ba.authorId = a.id
         WHERE ba.bookId IN ($bookIdsStr)
         ORDER BY ba.bookId
       ''').toMapList();
-    final topicsData = db.select('''
+    final topicsData = !capabilities.hasTopics
+        ? const <Map<String, dynamic>>[]
+        : db.select('''
         SELECT bt.bookId, t.id, t.name
         FROM book_topic bt
         JOIN topic t ON bt.topicId = t.id
         WHERE bt.bookId IN ($bookIdsStr)
         ORDER BY bt.bookId
       ''').toMapList();
-    final pubPlacesData = db.select('''
+    final pubPlacesData = !capabilities.hasPubPlaces
+        ? const <Map<String, dynamic>>[]
+        : db.select('''
         SELECT bpp.bookId, pp.id, pp.name
         FROM book_pub_place bpp
         JOIN pub_place pp ON bpp.pubPlaceId = pp.id
         WHERE bpp.bookId IN ($bookIdsStr)
         ORDER BY bpp.bookId
       ''').toMapList();
-    final pubDatesData = db.select('''
+    final pubDatesData = !capabilities.hasPubDates
+        ? const <Map<String, dynamic>>[]
+        : db.select('''
         SELECT bpd.bookId, pd.id, pd.date
         FROM book_pub_date bpd
         JOIN pub_date pd ON bpd.pubDateId = pd.id
@@ -200,37 +270,26 @@ class BookDao {
     }).toList();
   }
 
-  Future<Book?> getBookById(int id) async {
-    final db = await database;
-    final result = db.select(_queries['selectById']!, [id]).toMapList();
-    if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
-  }
+  Future<Book?> getBookById(int id) =>
+      _selectOne(_queries['selectById']!, [id]);
 
   Future<List<Book>> getBooksByCategory(int categoryId) async {
-    final db = await database;
-    return db
-        .select(_queries['selectByCategoryId']!, [categoryId])
-        .toMapList()
-        .map((row) => Book.fromJson(row))
-        .toList();
+    if (!(await _capabilities).hasBookCategories) return const [];
+    return _selectMany(_queries['selectByCategoryId']!, [categoryId]);
   }
 
-  Future<Book?> getBookByTitle(String title) async {
-    final db = await database;
-    final result = db.select(_queries['selectByTitle']!, [title]).toMapList();
-    if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
-  }
+  Future<Book?> getBookByTitle(String title) =>
+      _selectOne(_queries['selectByTitle']!, [title]);
 
+  /// במסד בלי עמודת קטגוריה כל הספרים יושבים תחת שורש אחד — ההתאמה לפי כותרת.
   Future<Book?> getBookByTitleAndCategory(String title, int categoryId) async {
-    final db = await database;
-    final result = db.select(_queries['selectByTitleAndCategory']!, [
+    if (!(await _capabilities).hasBookCategories) {
+      return getBookByTitle(title);
+    }
+    return _selectOne(_queries['selectByTitleAndCategory']!, [
       title,
       categoryId,
-    ]).toMapList();
-    if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
+    ]);
   }
 
   Future<Book?> getBookByTitleCategoryAndFileType(
@@ -238,34 +297,30 @@ class BookDao {
     int categoryId,
     String fileType,
   ) async {
-    final db = await database;
-    final result = db.select(_queries['selectByTitleCategoryAndFileType']!, [
+    final capabilities = await _capabilities;
+    if (!capabilities.hasBookCategories ||
+        !capabilities.hasColumn('book', 'fileType')) {
+      return null;
+    }
+    return _selectOne(_queries['selectByTitleCategoryAndFileType']!, [
       title,
       categoryId,
       fileType,
-    ]).toMapList();
-    if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
+    ]);
   }
 
   /// Gets a book by its title and file type.
   Future<Book?> getBookByTitleAndFileType(String title, String fileType) async {
-    final db = await database;
-    final result = db.select(_queries['selectByTitleAndFileType']!, [
+    if (!(await _capabilities).hasColumn('book', 'fileType')) return null;
+    return _selectOne(_queries['selectByTitleAndFileType']!, [
       title,
       fileType,
-    ]).toMapList();
-    if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
+    ]);
   }
 
   Future<List<Book>> getBooksByAuthor(String authorName) async {
-    final db = await database;
-    return db
-        .select(_queries['selectByAuthor']!, ['%$authorName%'])
-        .toMapList()
-        .map((row) => Book.fromJson(row))
-        .toList();
+    if (!(await _capabilities).hasAuthors) return const [];
+    return _selectMany(_queries['selectByAuthor']!, ['%$authorName%']);
   }
 
   Future<int> insertBook(
@@ -436,7 +491,7 @@ class BookDao {
     return db
         .select(_queries['selectExternalContent']!)
         .toMapList()
-        .map((row) => Book.fromJson(row))
+        .map((row) => bookFromRow(row))
         .toList();
   }
 
@@ -446,7 +501,7 @@ class BookDao {
     return db
         .select(_queries['selectPersonal']!)
         .toMapList()
-        .map((row) => Book.fromJson(row))
+        .map((row) => bookFromRow(row))
         .toList();
   }
 
@@ -457,7 +512,7 @@ class BookDao {
       filePath,
     ]).toMapList();
     if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
+    return bookFromRow(result.first);
   }
 
   /// Gets an external book by its file path and file type.
@@ -471,7 +526,7 @@ class BookDao {
       fileType,
     ]).toMapList();
     if (result.isEmpty) return null;
-    return Book.fromJson(result.first);
+    return bookFromRow(result.first);
   }
 
   Future<int> updateBookConnectionFlags(
@@ -553,7 +608,7 @@ class BookDao {
           ['%$query%', '%$query%'],
         )
         .toMapList()
-        .map((row) => Book.fromJson(row))
+        .map((row) => bookFromRow(row))
         .toList();
   }
 }

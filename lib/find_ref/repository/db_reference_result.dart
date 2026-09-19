@@ -1,3 +1,5 @@
+import 'package:otzaria/models/book_source.dart';
+
 /// Result of a reference search from the database.
 /// This class mirrors the structure of ReferenceSearchResult from search_engine
 /// but is populated from the database instead of Tantivy.
@@ -41,10 +43,11 @@ class DbReferenceResult {
   /// 0 = לא ידוע / לא רלוונטי (למשל הפניה לספר עצמו או PDF).
   final int sourceLineId;
 
-  /// true = תוצאה מ-user_books.db (ספרים אישיים).
-  /// ה-[bookId] וה-[sourceLineId] שייכים ל-namespace נפרד ואינם תקפים מול
-  /// ה-DB הראשי — אסור להריץ עליהם שאילתות `link` או `commentators`.
-  final bool isUserBook;
+  /// המסד של התוצאה. מחוץ לרשמי, [bookId] ו-[sourceLineId] שייכים למרחב
+  /// מזהים נפרד — אסור להריץ עליהם שאילתות `link` או `commentators` של הרשמי.
+  final BookSource source;
+
+  bool get isUserBook => source.isUser;
 
   /// true = תוצאה שנפתרה לשורת מקור מדויקת (פסוק/הלכה) דרך אינדקס
   /// `line_ref`, ולא לכותרת TOC. המפרשים לתוצאה כזו נטענים על השורה עצמה.
@@ -62,7 +65,7 @@ class DbReferenceResult {
     this.bookId = -1,
     this.bookPath = '',
     this.sourceLineId = 0,
-    this.isUserBook = false,
+    this.source = BookSource.official,
     this.isSourceLine = false,
   });
 

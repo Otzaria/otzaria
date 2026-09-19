@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 
@@ -523,7 +524,7 @@ void main() {
         // אף שהקורא הסלחני Link.fromJson מקבל אותו.
         targetCategoryId: 42,
         targetFileType: 'txt',
-        targetIsUserBook: true,
+        targetSource: BookSource.user,
         anchorStart: 4,
         anchorEnd: 9,
         anchorLabel: 'א',

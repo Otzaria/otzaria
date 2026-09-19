@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/services/custom_folders/personal_books_import_service.dart';
 import 'package:otzaria/utils/file/document_format.dart';
@@ -128,7 +129,7 @@ void main() {
                   path: 'C:/ספרים/ספר.$fileType',
                   filePath: 'C:/ספרים/ספר.$fileType',
                   categoryId: 7,
-                  isUserBook: true,
+                  source: BookSource.user,
                   externalLibraryId: 'hb:123',
                 )
                 as ConvertibleDocumentBook;
@@ -191,7 +192,7 @@ void main() {
           filePath: 'C:/ספרים/ספר.$fileType',
           categoryId: 3,
           fileType: fileType,
-          isUserBook: true,
+          source: BookSource.user,
         );
         final restored = Book.fromJson(original.toJson());
 

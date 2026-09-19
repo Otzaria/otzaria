@@ -1,42 +1,52 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as db_models;
+import 'package:otzaria/models/book_source.dart';
 
 class ResolvedBookRepositoryCandidate {
   final SeforimRepository repository;
-  final bool isUserBooks;
+  final BookSource source;
 
   const ResolvedBookRepositoryCandidate({
     required this.repository,
-    required this.isUserBooks,
+    required this.source,
   });
 }
 
 class ResolvedDbBookRecord {
   final migration_models.Book book;
   final SeforimRepository repository;
-  final bool isUserBooks;
+  final BookSource source;
 
   const ResolvedDbBookRecord({
     required this.book,
     required this.repository,
-    required this.isUserBooks,
+    required this.source,
   });
 }
 
 class BookDatabaseResolver {
   static const String _personalRootTitle = 'ספרים אישיים';
 
-  static bool isLikelyUserBook({
-    bool isUserBook = false,
+  /// המקור המשוער של ספר: [source] כשאינו רשמי, אחרת אישי כשהנתיב שלו
+  /// מתחיל בשורש 'ספרים אישיים' (ספר שהמקור שלו לא נשמר).
+  static BookSource likelySource({
+    BookSource source = BookSource.official,
     String? categoryPath,
   }) {
-    if (isUserBook) return true;
+    if (!source.isOfficial) return source;
+    return _isUnderPersonalRoot(categoryPath)
+        ? BookSource.user
+        : BookSource.official;
+  }
+
+  static bool _isUnderPersonalRoot(String? categoryPath) {
     if (categoryPath == null || categoryPath.trim().isEmpty) {
       return false;
     }
@@ -59,13 +69,13 @@ class BookDatabaseResolver {
 
   /// מאתר ספר לפי מאפייניו במסדי הספרייה.
   ///
-  /// [officialOnly] מונע fallback ל-`user_books.db`.
+  /// [preferSource] נבדק ראשון; [officialOnly] מונע fallback ל-`user_books.db`.
   static Future<ResolvedDbBookRecord?> resolveBook({
     required String title,
     int? categoryId,
     String? fileType,
     String? filePath,
-    bool preferUserBooks = false,
+    BookSource preferSource = BookSource.official,
     bool officialOnly = false,
   }) async {
     final List<ResolvedBookRepositoryCandidate> candidates;
@@ -76,13 +86,11 @@ class BookDatabaseResolver {
           : <ResolvedBookRepositoryCandidate>[
               ResolvedBookRepositoryCandidate(
                 repository: repository,
-                isUserBooks: false,
+                source: BookSource.official,
               ),
             ];
     } else {
-      candidates = await _loadRepositoryCandidates(
-        preferUserBooks: preferUserBooks,
-      );
+      candidates = await _loadRepositoryCandidates(preferSource: preferSource);
     }
 
     return resolveBookInCandidates(
@@ -94,73 +102,26 @@ class BookDatabaseResolver {
     );
   }
 
-  /// מאתר ספר ב-DB לפי `bookId`.
-  ///
-  /// [isUserBook] קובע באיזה DB לחפש. ב-`true` → `user_books.db`,
-  /// אחרת → `seforim.db`. אין יותר זיהוי לפי טווח-ID (offset), ולכן הקורא
-  /// חייב לדעת את המקור (בד"כ מ-`Book.isUserBook`).
-  ///
-  /// [preferUserBooks] משמר את התנהגות ה-fallback ההיסטורית במקרים שבהם
-  /// [isUserBook] לא מסופק או false אבל הספר עשוי להיות ב-user_books.
+  /// מאתר ספר ב-DB לפי `bookId` במסד של [source] בלבד — מרחבי ה-id של
+  /// המסדים חופפים, ולכן הקורא חייב לדעת את המקור.
   static Future<ResolvedDbBookRecord?> resolveBookById(
     int bookId, {
-    bool isUserBook = false,
-    bool preferUserBooks = false,
+    BookSource source = BookSource.official,
   }) async {
-    if (isUserBook) {
-      final repository = await _loadUserBooksRepositoryIfExists();
-      if (repository == null) return null;
-      final book = await repository.getBook(bookId);
-      if (book == null) return null;
-      return ResolvedDbBookRecord(
-        book: book,
-        repository: repository,
-        isUserBooks: true,
-      );
-    }
-
-    final candidates = <ResolvedBookRepositoryCandidate>[];
-    if (preferUserBooks) {
-      final userBooksRepository = await _loadUserBooksRepositoryIfExists();
-      if (userBooksRepository != null) {
-        candidates.add(
-          ResolvedBookRepositoryCandidate(
-            repository: userBooksRepository,
-            isUserBooks: true,
-          ),
-        );
-      }
-    } else {
-      final officialRepository = await _loadOfficialRepository();
-      if (officialRepository != null) {
-        candidates.add(
-          ResolvedBookRepositoryCandidate(
-            repository: officialRepository,
-            isUserBooks: false,
-          ),
-        );
-      }
-    }
-
-    for (final candidate in candidates) {
-      final book = await candidate.repository.getBook(bookId);
-      if (book != null) {
-        return ResolvedDbBookRecord(
-          book: book,
-          repository: candidate.repository,
-          isUserBooks: candidate.isUserBooks,
-        );
-      }
-    }
-
-    return null;
+    final repository = await _loadRepositoryFor(source);
+    if (repository == null) return null;
+    final book = await repository.getBook(bookId);
+    if (book == null) return null;
+    return ResolvedDbBookRecord(
+      book: book,
+      repository: repository,
+      source: source,
+    );
   }
 
   static Future<List<ResolvedBookRepositoryCandidate>>
-  loadRepositoryCandidates({
-    bool preferUserBooks = false,
-  }) {
-    return _loadRepositoryCandidates(preferUserBooks: preferUserBooks);
+  loadRepositoryCandidates({BookSource preferSource = BookSource.official}) {
+    return _loadRepositoryCandidates(preferSource: preferSource);
   }
 
   @visibleForTesting
@@ -183,7 +144,7 @@ class BookDatabaseResolver {
 
       // filePath ו-fileType שייכים רק לסכמת user_books; ל-seforim.db v3 אין
       // עמודות אלה, ולכן מריצים את החיפושים האלה רק על מועמד user_books.
-      if (candidate.isUserBooks &&
+      if (candidate.source.isUser &&
           normalizedFilePath != null &&
           normalizedFilePath.isNotEmpty) {
         final bookByPath = await repository.getExternalBookByFilePath(
@@ -193,12 +154,12 @@ class BookDatabaseResolver {
           return ResolvedDbBookRecord(
             book: bookByPath,
             repository: repository,
-            isUserBooks: candidate.isUserBooks,
+            source: candidate.source,
           );
         }
       }
 
-      if (candidate.isUserBooks &&
+      if (candidate.source.isUser &&
           candidateCategoryId != null &&
           normalizedFileType != null &&
           normalizedFileType.isNotEmpty) {
@@ -212,7 +173,7 @@ class BookDatabaseResolver {
           return ResolvedDbBookRecord(
             book: bookByCompositeKey,
             repository: repository,
-            isUserBooks: candidate.isUserBooks,
+            source: candidate.source,
           );
         }
       }
@@ -226,7 +187,7 @@ class BookDatabaseResolver {
           return ResolvedDbBookRecord(
             book: bookByCategory,
             repository: repository,
-            isUserBooks: candidate.isUserBooks,
+            source: candidate.source,
           );
         }
       }
@@ -236,7 +197,7 @@ class BookDatabaseResolver {
         return ResolvedDbBookRecord(
           book: bookByTitle,
           repository: repository,
-          isUserBooks: candidate.isUserBooks,
+          source: candidate.source,
         );
       }
     }
@@ -268,52 +229,36 @@ class BookDatabaseResolver {
     return pathParts.join(', ');
   }
 
+  /// מועמדי המסדים לפי הסדר: [preferSource] תחילה, ואחריו רשמי ואז אישי.
+  /// מסד מצורף אינו נופל לשאר המסדים — ספר בשם זהה שם הוא ספר אחר.
   static Future<List<ResolvedBookRepositoryCandidate>>
-  _loadRepositoryCandidates({
-    required bool preferUserBooks,
-  }) async {
+  _loadRepositoryCandidates({required BookSource preferSource}) async {
+    final order = preferSource.isAttached
+        ? <BookSource>{preferSource}
+        : <BookSource>{preferSource, BookSource.official, BookSource.user};
     final candidates = <ResolvedBookRepositoryCandidate>[];
-
-    final officialRepository = await _loadOfficialRepository();
-    final userBooksRepository = await _loadUserBooksRepositoryIfExists();
-
-    if (preferUserBooks) {
-      if (userBooksRepository != null) {
+    for (final source in order) {
+      final repository = await _loadRepositoryFor(source);
+      if (repository != null) {
         candidates.add(
           ResolvedBookRepositoryCandidate(
-            repository: userBooksRepository,
-            isUserBooks: true,
+            repository: repository,
+            source: source,
           ),
         );
       }
-      if (officialRepository != null) {
-        candidates.add(
-          ResolvedBookRepositoryCandidate(
-            repository: officialRepository,
-            isUserBooks: false,
-          ),
-        );
-      }
-      return candidates;
-    }
-
-    if (officialRepository != null) {
-      candidates.add(
-        ResolvedBookRepositoryCandidate(
-          repository: officialRepository,
-          isUserBooks: false,
-        ),
-      );
-    }
-    if (userBooksRepository != null) {
-      candidates.add(
-        ResolvedBookRepositoryCandidate(
-          repository: userBooksRepository,
-          isUserBooks: true,
-        ),
-      );
     }
     return candidates;
+  }
+
+  /// המאגר של [source], או null כשהמסד אינו קיים או אינו נגיש.
+  static Future<SeforimRepository?> _loadRepositoryFor(BookSource source) {
+    return switch (source) {
+      OfficialBookSource() => _loadOfficialRepository(),
+      UserBookSource() => _loadUserBooksRepositoryIfExists(),
+      AttachedBookSource(:final slug) =>
+        AttachedLibraryRegistry.instance.repositoryFor(slug),
+    };
   }
 
   static Future<SeforimRepository?> _loadOfficialRepository() async {

@@ -21,6 +21,7 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -96,7 +97,7 @@ class LibraryBookIndex {
     for (final book in category.books) {
       final id = book.id;
       if (book is TextBook) {
-        if (!book.isUserBook && id != null) {
+        if (book.source.isOfficial && id != null) {
           _officialTextBookById.putIfAbsent(id, () => book);
         }
         _textBookByTitle.putIfAbsent(book.title, () => book);
@@ -125,10 +126,23 @@ class LibraryBookIndex {
 /// מאתר ספר טקסט רשמי לפי [bookId] מה-DB הראשי.
 /// מזהי seforim.db אינם ייחודיים מול user_books.db ומול ייצוגי PDF בעץ —
 /// ולכן ספרים אישיים וספרים שאינם TextBook מדולגים ולא מסתירים את היעד.
+/// הספר בעל [bookId] במסד של [source] (אישי או מצורף), מכל סוג.
+@visibleForTesting
+Book? findBookBySourceAndId(Category category, int bookId, BookSource source) {
+  for (final b in category.books) {
+    if (b.source == source && b.id == bookId) return b;
+  }
+  for (final subCat in category.subCategories) {
+    final found = findBookBySourceAndId(subCat, bookId, source);
+    if (found != null) return found;
+  }
+  return null;
+}
+
 @visibleForTesting
 TextBook? findOfficialTextBookById(Category category, int bookId) {
   for (final b in category.books) {
-    if (b is TextBook && !b.isUserBook && b.id == bookId) return b;
+    if (b is TextBook && b.source.isOfficial && b.id == bookId) return b;
   }
   for (final subCat in category.subCategories) {
     final found = findOfficialTextBookById(subCat, bookId);
@@ -455,7 +469,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       // bookId (זהות יציבה); בלי זיהוי ודאי לא ממירים ל-PDF, אחרת בחירה
       // לפי כותרת בלבד עלולה לפתוח ספר אחר בעל שם זהה.
       if (!needsTextBook &&
-          !ref.isUserBook &&
+          ref.source.isOfficial &&
           library != null &&
           ref.bookId > 0) {
         final sourceBook = findOfficialTextBookById(library, ref.bookId);
@@ -511,13 +525,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
         // ספרים אישיים: ה-`bookId` שלהם שייך ל-user_books.db ואין לו תאומים
         // ב-library object, לכן ניפול ל-title; ספר רשמי עם `bookId > 0`
         // נפתח דרך ה-id כדי שלא יחליף שני ספרים בעלי אותה כותרת.
-        final officialBookId = (ref.bookId > 0 && !ref.isUserBook)
-            ? ref.bookId
-            : null;
         book = _findBookInLibraryByIdThenTitle(
           library,
           ref.title,
-          bookId: officialBookId,
+          bookId: ref.bookId > 0 ? ref.bookId : null,
+          source: ref.source,
           preferTextBook: needsTextBook,
         );
         // ספרי בבלי מופיעים בעץ הספרייה כ-PdfBook גם כשה-DB מכיר אותם
@@ -526,7 +538,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
           book = null;
         }
       }
-      book ??= TextBook(title: ref.title);
+      book ??= TextBook(
+        title: ref.title,
+        id: ref.bookId > 0 && !ref.source.isOfficial ? ref.bookId : null,
+        source: ref.source,
+      );
     }
 
     if (!mounted) return;
@@ -613,11 +629,16 @@ class _FindRefDialogState extends State<FindRefDialog> {
     Category category,
     String title, {
     required int? bookId,
+    BookSource source = BookSource.official,
     bool preferTextBook = false,
   }) {
     if (bookId != null) {
-      final byId = findOfficialTextBookById(category, bookId);
+      final byId = source.isOfficial
+          ? findOfficialTextBookById(category, bookId)
+          : findBookBySourceAndId(category, bookId, source);
       if (byId != null) return byId;
+      // id של מסד משני אינו חד-ערכי מול הכותרת — נפילה לכותרת הייתה פותחת ספר רשמי.
+      if (!source.isOfficial) return null;
     }
     return _findBookInLibraryByTitle(
       category,
@@ -1118,7 +1139,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final isSelected = index == _selectedIndex;
-    final eligible = !ref.isPdf && ref.bookId > 0 && !ref.isUserBook;
+    final eligible = !ref.isPdf && ref.bookId > 0 && ref.source.isOfficial;
     // טעינה lazy בעת רינדור — ListView.builder יפעיל את ה-itemBuilder רק
     // עבור שורות נראות. ה-cache ב-repository ימנע קריאות חוזרות.
     if (eligible) _ensureCommentatorsLoaded(ref);
@@ -1210,10 +1231,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
-  /// אייקון סוג המקור — מבדיל בין ספר, כותרת-משנה, PDF וספר אישי.
+  /// אייקון סוג המקור — ספר, כותרת-משנה, PDF, ספר אישי או ספר ממסד מצורף.
   Widget _buildResultIcon(DbReferenceResult ref, Color color) {
     if (ref.isPdf) {
       return Icon(FluentIcons.document_pdf_24_regular, size: 20, color: color);
+    }
+    if (ref.source.isAttached) {
+      return Icon(FluentIcons.database_24_regular, size: 20, color: color);
     }
     if (ref.isUserBook) {
       return Icon(FluentIcons.person_24_regular, size: 20, color: color);

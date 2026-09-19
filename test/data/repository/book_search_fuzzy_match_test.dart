@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 /// בדיקות להתאמה הסלחנית של חיפוש ספרים בספרייה.
@@ -94,7 +95,7 @@ void main() {
         author: '',
         topics: '',
         categoryPath: 'ספרים אישיים, שות פלוני',
-        isUserBook: true,
+        source: BookSource.user,
       ),
       BookSearchEntry(
         index: 1,
@@ -259,7 +260,7 @@ void main() {
           author: '',
           topics: '',
           eraOrder: 5,
-          isUserBook: true,
+          source: BookSource.user,
         ),
         BookSearchEntry(
           index: 1,
@@ -561,16 +562,31 @@ void main() {
 
   group('buildBookSearchEntry - בידוד מרחבי id של ספר אישי', () {
     // ה-lookups מדמים מאגר רשמי שבו id=7 שייך לספר רשמי זר עם כינוי ודור מוקדם.
-    List<String>? acronymsForId(int id) => id == 7 ? const ['רמבם'] : null;
-    int eraOrderForId(int? id, bool isUserBook) =>
-        (!isUserBook && id == 7) ? 2 : 5;
+    final attached = BookSource.attached('lib-a');
+    List<String>? acronymsFor(BookSource source, int id) =>
+        id != 7 || source.isUser
+        ? null
+        : source.isOfficial
+        ? const ['רמבם']
+        : const ['zzz'];
+    int eraOrderForId(int? id, BookSource source) => id != 7
+        ? 5
+        : source.isOfficial
+        ? 2
+        : source.isAttached
+        ? 3
+        : 5;
 
     test('ספר אישי עם id מתנגש מקבל כינויים ריקים ודור ברירת מחדל', () {
-      final userBook = TextBook(id: 7, title: 'הספר שלי', isUserBook: true);
+      final userBook = TextBook(
+        id: 7,
+        title: 'הספר שלי',
+        source: BookSource.user,
+      );
       final entry = buildBookSearchEntry(
         0,
         userBook,
-        acronymsForId: acronymsForId,
+        acronymsFor: acronymsFor,
         eraOrderForId: eraOrderForId,
       );
       expect(
@@ -583,7 +599,7 @@ void main() {
         5,
         reason: 'ספר אישי לא יורש דור מוקדם של ספר רשמי בעל אותו id',
       );
-      expect(entry.isUserBook, isTrue);
+      expect(entry.source, BookSource.user);
     });
 
     test('ספר רשמי עם אותו id כן מקבל את הכינוי והדור מהמאגר', () {
@@ -591,12 +607,49 @@ void main() {
       final entry = buildBookSearchEntry(
         0,
         officialBook,
-        acronymsForId: acronymsForId,
+        acronymsFor: acronymsFor,
         eraOrderForId: eraOrderForId,
       );
       expect(entry.acronyms, equals(['רמבם']));
       expect(entry.eraOrder, 2);
-      expect(entry.isUserBook, isFalse);
+      expect(entry.source, BookSource.official);
+    });
+
+    test('ספר ממסד מצורף — כינויים ודור מהמסד שלו', () {
+      final entry = buildBookSearchEntry(
+        0,
+        TextBook(id: 7, title: 'Book A', source: attached),
+        acronymsFor: acronymsFor,
+        eraOrderForId: eraOrderForId,
+      );
+      expect(entry.acronyms, ['zzz']);
+      expect(entry.eraOrder, 3);
+      expect(entry.source, attached);
+    });
+
+    test('באותה כותרת ודור — רשמי, אחריו אישי, ואחריו מסד מצורף', () {
+      final entries = [
+        for (final (i, source) in [
+          attached,
+          BookSource.user,
+          BookSource.official,
+        ].indexed)
+          BookSearchEntry(
+            index: i,
+            title: 'Book A',
+            author: '',
+            topics: '',
+            source: source,
+          ),
+      ];
+      final order = filterBookSearchEntries(
+        entries: entries,
+        queryWords: const ['book', 'a'],
+        topics: const [],
+        sortByRatio: true,
+        normalizedQuery: 'book a',
+      );
+      expect(order, [2, 1, 0]);
     });
   });
 }

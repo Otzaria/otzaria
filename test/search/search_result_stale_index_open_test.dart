@@ -5,6 +5,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
@@ -158,7 +159,7 @@ void main() {
       tester,
       catalogue: [
         TextBook(id: 5, title: 'שבת'),
-        TextBook(id: 5, title: 'שבת', isUserBook: true),
+        TextBook(id: 5, title: 'שבת', source: BookSource.user),
       ],
       resultTitle: 'שבת',
       indexedFilePath: 'uid:5',

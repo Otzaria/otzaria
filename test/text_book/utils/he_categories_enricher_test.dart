@@ -11,6 +11,7 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/author.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/migration/models/category.dart' as migration_models;
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/utils/he_categories_enricher.dart';
@@ -199,7 +200,7 @@ void main() {
         title: 'ספר אישי',
         categoryId: folderId,
         fileType: 'txt',
-        isUserBook: true,
+        source: BookSource.user,
       );
 
       final result = await enrichHeCategories(book);
@@ -220,7 +221,7 @@ void main() {
           title: 'לא קיים',
           categoryId: 999,
           fileType: 'txt',
-          isUserBook: true,
+          source: BookSource.user,
         );
 
         final result = await enrichHeCategories(book);
