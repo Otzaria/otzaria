@@ -5,6 +5,7 @@ import 'package:otzaria/app_report/models/app_report_image.dart';
 import 'package:otzaria/app_report/services/app_report_image_sources.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
 
 AppReportImage _image(String name, {int size = 4}) => AppReportImage(
   bytes: Uint8List(size),
@@ -103,7 +104,14 @@ void main() {
       tester,
     ) async {
       await pump(tester, _FakeSources(picked: [_image('a.png')]));
-      expect(find.text('הדביקו, שחררו או הקליקו לבחירת תמונה'), findsOneWidget);
+      expect(
+        find.text(
+          PluginFileDropService.isSupported
+              ? 'הדביקו, שחררו או הקליקו לבחירת תמונה'
+              : 'הדביקו או הקליקו לבחירת תמונה',
+        ),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
       await tester.pump();
