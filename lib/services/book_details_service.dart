@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
+import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:otzaria/migration/models/book.dart' as migration_models;
 import 'package:otzaria/models/books.dart';
 
@@ -111,6 +112,21 @@ class BookDetailsService {
 
   /// מחזיר את כל המידע הזמין על הספר לתצוגת "אודות הספר".
   Future<BookInformation> getBookInformation(Book book) async {
+    // ספר מקטלוג חיצוני אינו במסד של אוצריא, ולכן חיפוש בו היה מחזיר
+    // "לא נמצא מקור" — תשובה שגויה: המקור ידוע בוודאות, והוא הספק.
+    if (_externalSource(book) case final source?) {
+      return BookInformation(
+        book: book,
+        databaseBook: null,
+        source: source,
+        generation: null,
+        fileDetails: {
+          'מקור הספר': source,
+          if (book.categoryPath case final path? when path.isNotEmpty)
+            'מיקום במקור': path,
+        },
+      );
+    }
     final resolvedBook = await _tryResolveDbBook(book);
     final databaseBook = resolvedBook?.book;
     final source = await _tryGetDbSourceName(resolvedBook);
@@ -170,6 +186,18 @@ class BookDetailsService {
     }
 
     return details;
+  }
+
+  /// שם הספק שממנו הספר מגיע, או `null` לספר מקומי.
+  ///
+  /// רק ספר שלא הומר לספר מקומי: ספר היברובוקס שהורד נשמר כ-[PdfBook]
+  /// ושומר את המזהה החיצוני, והמקור שלו הוא הקובץ שבמחשב.
+  static String? _externalSource(Book book) {
+    if (book is! ExternalLibraryBook) return null;
+    return ExternalCatalogMapper.providerOf(
+      externalLibraryId: book.externalLibraryId,
+      link: book.link,
+    )?.displayName;
   }
 
   Future<ResolvedDbBookRecord?> _tryResolveDbBook(Book book) async {

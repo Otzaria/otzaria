@@ -122,7 +122,7 @@ class ExternalProviderRegistry {
     id: 'responsa',
     // השם שהמשתמשים מכירים הוא "בר אילן"; "פרויקט השו"ת" לבדו אינו
     // מזוהה אצל רבים.
-    displayName: 'פרויקט השו"ת (בר אילן)',
+    displayName: 'פרויקט השו"ת בר אילן',
     idPrefix: 'rp',
     aliasPrefixes: {'responsa'},
     localOpenLabel: 'פתח בבר אילן',

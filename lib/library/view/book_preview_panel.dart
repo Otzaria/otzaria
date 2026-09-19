@@ -27,6 +27,8 @@ import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/dialogs/password_dialog.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart'
     show kPdfImageCacheMinBytesPerPane;
+import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
+import 'package:otzaria/external_catalog/view/external_open_button.dart';
 import 'package:otzaria/pdf_book/view/pdf_scrollbar.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -59,6 +61,13 @@ class BookPreviewPanel extends StatefulWidget {
   final int searchDistance;
   final SearchMatchPolicy matchPolicy;
 
+  /// פותח ספר חיצוני בתוכנה שממנה הוא מגיע. מוזרק כדי שהתצוגה המקדימה
+  /// לא תכיר את שכבת הגשר.
+  ///
+  /// בלעדיו הכפתור בתצוגה המקדימה קרא למסלול הפתיחה המקומי — ולספר
+  /// חיצוני זה פשוט לא עשה דבר.
+  final Future<String?> Function(ExternalLibraryBook book)? onOpenExternally;
+
   /// הכיתוב כשלא נבחר דבר.
   final String emptyMessage;
 
@@ -66,6 +75,7 @@ class BookPreviewPanel extends StatefulWidget {
     super.key,
     this.book,
     this.onOpenInReader,
+    this.onOpenExternally,
     this.initialTextIndex,
     this.initialPdfPage,
     this.searchText,
@@ -448,7 +458,14 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
     }
 
     // אם זה ספר חיצוני
-    if (widget.book is ExternalLibraryBook) {
+    if (widget.book case final ExternalLibraryBook external) {
+      final provider = ExternalCatalogMapper.providerOf(
+        link: external.link,
+        externalLibraryId: external.externalLibraryId,
+      );
+      final opensLocally =
+          provider?.capabilities.localOpen == true &&
+          widget.onOpenExternally != null;
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -462,7 +479,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             ),
             const SizedBox(height: 16),
             Text(
-              widget.book!.title,
+              external.title,
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -471,7 +488,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
             ),
             const SizedBox(height: 8),
             Text(
-              'ספר חיצוני - לחץ פעמיים לפתיחה',
+              opensLocally
+                  ? 'ספר מ${provider!.displayName} — לחץ פעמיים לפרטים'
+                  : 'ספר חיצוני - לחץ פעמיים לפתיחה',
               style: TextStyle(
                 fontSize: 14,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -479,11 +498,18 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            ActionButton.recommended(
-              text: 'פתח בעיון',
-              icon: FluentIcons.open_24_regular,
-              onPressed: () => widget.onOpenInReader?.call(0),
-            ),
+            if (opensLocally)
+              ExternalOpenButton(
+                book: external,
+                onOpen: widget.onOpenExternally!,
+                label: provider!.localOpenLabel,
+              )
+            else
+              ActionButton.recommended(
+                text: 'פתח',
+                icon: FluentIcons.open_24_regular,
+                onPressed: () => widget.onOpenInReader?.call(0),
+              ),
           ],
         ),
       );

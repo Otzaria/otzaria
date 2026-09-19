@@ -10,6 +10,7 @@ import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_capabilities.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
+import 'package:otzaria/external_catalog/view/external_open_button.dart';
 import 'package:otzaria/library/services/hebrew_books_download_service.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
@@ -223,10 +224,13 @@ class ExternalBookDialog extends StatelessWidget {
             ),
           ),
         if (!_isOtzar && capabilities.localOpen && onOpenLocally != null)
-          _OpenInSoftwareButton(
-            book: book,
-            onOpen: onOpenLocally!,
-            label: _provider?.localOpenLabel ?? 'פתח בתוכנה',
+          Builder(
+            builder: (context) => ExternalOpenButton(
+              book: book,
+              onOpen: onOpenLocally!,
+              label: _provider?.localOpenLabel ?? 'פתח בתוכנה',
+              onOpened: () => Navigator.of(context).pop(),
+            ),
           ),
         if (capabilities.webOpen)
           if (book.link case final url?)
@@ -257,58 +261,6 @@ class ExternalBookDialog extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-/// כפתור פתיחה מקומית לספק שפתיחתו איטית (בר אילן: 3–25 שניות).
-///
-/// הכפתור ננעל בזמן הפתיחה ומציג מצב טעינה. אין כאן "ביטול": הוא ייווסף
-/// רק כשהוא באמת יעצור את הפעולה, ולא כדי להסתיר את מחוון הטעינה.
-class _OpenInSoftwareButton extends StatefulWidget {
-  final ExternalLibraryBook book;
-  final Future<String?> Function(ExternalLibraryBook book) onOpen;
-
-  /// הכיתוב על הכפתור, מהספק. "פתח בבר אילן" אומר למשתמש מה יקרה;
-  /// "פתח בתוכנה" משאיר אותו לנחש איזו.
-  final String label;
-
-  const _OpenInSoftwareButton({
-    required this.book,
-    required this.onOpen,
-    required this.label,
-  });
-
-  @override
-  State<_OpenInSoftwareButton> createState() => _OpenInSoftwareButtonState();
-}
-
-class _OpenInSoftwareButtonState extends State<_OpenInSoftwareButton> {
-  bool _isOpening = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionButton.recommended(
-      text: _isOpening ? 'פותח...' : widget.label,
-      icon: FluentIcons.desktop_24_regular,
-      isLoading: _isOpening,
-      onPressed: _isOpening ? null : _open,
-    );
-  }
-
-  Future<void> _open() async {
-    setState(() => _isOpening = true);
-    String? error;
-    try {
-      error = await widget.onOpen(widget.book);
-    } finally {
-      if (mounted) setState(() => _isOpening = false);
-    }
-    if (!mounted) return;
-    if (error == null) {
-      Navigator.of(context).pop();
-    } else {
-      UiSnack.showError(error);
-    }
   }
 }
 
