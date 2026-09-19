@@ -357,6 +357,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   /// נטען בעצלתיים ונשמר כאן ולא בעץ הספרייה — ראה [ResponsaLibraryTree].
   ResponsaLibraryTree _responsaTree = ResponsaLibraryTree.empty;
   bool _responsaTreeRequested = false;
+  int _responsaTreeGeneration = 0;
 
   static const List<String> _orderedTopCategories = [
     'תנ"ך',
@@ -1545,15 +1546,19 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     if (!enabled) {
       if (_responsaTreeRequested) {
         _responsaTreeRequested = false;
+        _responsaTreeGeneration++;
         _responsaTree = ResponsaLibraryTree.empty;
       }
       return;
     }
     if (_responsaTreeRequested) return;
     _responsaTreeRequested = true;
+    // הטעינה אטית מהכיבוי: משתמש שהדליק, התחרט וכיבה לפני שהקטלוג
+    // נטען היה מקבל את התיקיות בכל זאת, כי ה-Future כבר היה בדרך.
+    final generation = ++_responsaTreeGeneration;
     DataRepository.instance.responsaBooks
         .then((books) {
-          if (!mounted) return;
+          if (!mounted || generation != _responsaTreeGeneration) return;
           setState(() => _responsaTree = ResponsaLibraryTree.build(books));
         })
         .catchError((Object error) {

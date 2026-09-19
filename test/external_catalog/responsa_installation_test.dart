@@ -152,5 +152,48 @@ void main() {
       expect(installationAt(root.path).dataLocation, isNull);
       expect(installationAt(root.path).archivePath, isNull);
     });
+
+    test('נתיב המאגר נקרא מ-Sh_hdisk שב-Responsa.ini', () {
+      // זו שרשרת פתרון הנתונים של התוכנה עצמה: env → DataLocation →
+      // Responsa.ini → [Environment] Sh_hdisk + db\  (docs/56 §22).
+      final data = Directory(p.join(root.path, 'data'))
+        ..createSync(recursive: true);
+      final disk = Directory(p.join(root.path, 'disk', 'db'))
+        ..createSync(recursive: true);
+      File(p.join(disk.path, 'FILE00')).writeAsStringSync('');
+      File(
+        p.join(root.path, 'Responsa.env'),
+      ).writeAsStringSync('DataLocation=${data.path}');
+      File(p.join(data.path, 'Responsa.ini')).writeAsStringSync(
+        [
+          '[Environment]',
+          'Sh_hdisk=${p.join(root.path, 'disk')}',
+          'VolLabel=RESPONSAV25',
+          '',
+          '[General]',
+          'Sh_hdisk=לא מכאן',
+        ].join('\r\n'),
+      );
+      final installation = installationAt(root.path);
+      expect(installation.archivePath, p.join(disk.path, 'FILE00'));
+      expect(installation.volumeLabel, 'RESPONSAV25');
+    });
+
+    test('מפתח מחוץ ל-[Environment] אינו נקרא', () {
+      final data = Directory(p.join(root.path, 'data'))
+        ..createSync(recursive: true);
+      File(
+        p.join(root.path, 'Responsa.env'),
+      ).writeAsStringSync('DataLocation=${data.path}');
+      File(p.join(data.path, 'Responsa.ini')).writeAsStringSync(
+        ['[General]', 'VolLabel=לא מכאן'].join('\r\n'),
+      );
+      expect(installationAt(root.path).volumeLabel, isNull);
+    });
+
+    test('אין Responsa.ini — מפה ריקה ולא חריג', () {
+      expect(installationAt(root.path).iniSettings, isEmpty);
+      expect(installationAt(root.path).volumeLabel, isNull);
+    });
   });
 }

@@ -39,9 +39,6 @@ class ResponsaBookRow {
   ({List<String> nameNodes, List<String> categoryNodes, int workOffset})
   get _resolved => _parts ??= ResponsaStructure.decompose(chain)!;
 
-  /// האם השרשרת מכילה חיבור. `false` = צומת קטגוריה שהסיווג טעה בו.
-  bool get isWork => ResponsaStructure.decompose(chain) != null;
-
   /// השם שהמשתמש רואה ומחפש לפיו — `מהרש"א חידושי הלכות בבא בתרא`.
   String get title => ResponsaNames.titleOf(_resolved.nameNodes);
 

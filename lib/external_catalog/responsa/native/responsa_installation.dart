@@ -28,23 +28,41 @@ class ResponsaInstallation {
 
   bool get exists => File(executable).existsSync();
 
-  /// תיקיית נתוני המשתמש, כפי שהיא רשומה ב-`Responsa.env`.
+  /// נתיב ארכיון הספרים (`db\FILE00`), אם הוא נמצא.
   ///
-  /// בהתקנה מלאה היא יושבת ליד ההתקנה; בהתקנה חלקית היא יכולה לשבת
-  /// בכונן אחר לגמרי. `null` כשהקובץ חסר או אינו קריא — זה מצב חוקי
-  /// ואינו מונע שימוש בהתקנה.
-  /// נתיב ארכיון הספרים (`DB/FILE00`), אם הוא נמצא. בהתקנה חלקית הוא
-  /// יושב באתר הנתונים ולא ליד קובץ ההרצה.
+  /// סדר החיפוש נגזר משרשרת פתרון הנתונים של התוכנה עצמה, כפי שתועדה
+  /// מתוך מחרוזות `RESPONSA.exe` (`docs/56` §22–§24):
+  /// `Responsa.env → DataLocation → Responsa.ini → [Environment]`,
+  /// ונתיב המאגר הוא **`Sh_hdisk` + `db\`**.
+  ///
+  /// בהתקנה **חלקית** הארכיון אינו על הדיסק כלל — הוא על ההתקן הנשלף,
+  /// והתוכנה מאתרת אותו לפי **תווית הכונן** (`VolLabel`). לכן נבדקים גם
+  /// `Sh_cdrom` שב-INI (הנתיב שהתוכנה השתמשה בו לאחרונה) וגם שורש כל
+  /// כונן — אות הכונן משתנה ממחשב למחשב, והתווית היא שמזהה.
+  ///
+  /// `null` הוא מצב חוקי: בהתקנה חלקית שבה ההתקן אינו מחובר כרגע אין
+  /// ארכיון, וזה אינו מונע שימוש בהתקנה.
   String? get archivePath {
+    final settings = iniSettings;
     for (final candidate in [
+      if (settings['sh_hdisk'] case final value?)
+        path.join(value, 'db', 'FILE00'),
       path.join(installPath, 'DB', 'FILE00'),
       if (dataLocation case final data?) path.join(data, 'DB', 'FILE00'),
+      if (settings['sh_cdrom'] case final value?)
+        path.join(value, 'db', 'FILE00'),
+      for (final drive in ResponsaInstallationDiscovery.drives())
+        path.join(drive, 'db', 'FILE00'),
     ]) {
       if (File(candidate).existsSync()) return candidate;
     }
     return null;
   }
 
+  /// תיקיית נתוני המשתמש, כפי שהיא רשומה ב-`Responsa.env`.
+  ///
+  /// בהתקנה מלאה היא יושבת תחת `Public\Documents`; היא יכולה לשבת
+  /// במקום אחר. `null` כשהקובץ חסר או אינו קריא — מצב חוקי.
   String? get dataLocation {
     final file = File(path.join(installPath, 'Responsa.env'));
     if (!file.existsSync()) return null;
@@ -62,6 +80,44 @@ class ResponsaInstallation {
     }
     return null;
   }
+
+  /// המקטע `[Environment]` של `Responsa.ini`, במפתחות קטנים.
+  ///
+  /// זהו המקור שהתוכנה עצמה קוראת ממנו: `Sh_hdisk` (נתיב הדיסק),
+  /// `Sh_data`, `Sh_HD` (מטמון), `Sh_cdrom` (ההתקן) ו-`VolLabel`
+  /// (תווית ההתקן). הקובץ יושב באתר הנתונים, לא ליד קובץ ההרצה.
+  ///
+  /// מפה ריקה כשהקובץ חסר או אינו קריא — כל הקוראים כאן מטפלים בכך.
+  Map<String, String> get iniSettings {
+    final data = dataLocation;
+    if (data == null) return const {};
+    final file = File(path.join(data, 'Responsa.ini'));
+    if (!file.existsSync()) return const {};
+    try {
+      final values = <String, String>{};
+      var inEnvironment = false;
+      for (final line in file.readAsLinesSync()) {
+        final trimmed = line.trim();
+        if (trimmed.startsWith('[')) {
+          inEnvironment = trimmed.toLowerCase() == '[environment]';
+          continue;
+        }
+        if (!inEnvironment) continue;
+        final separator = trimmed.indexOf('=');
+        if (separator <= 0) continue;
+        final value = trimmed.substring(separator + 1).trim();
+        if (value.isEmpty) continue;
+        values[trimmed.substring(0, separator).trim().toLowerCase()] = value;
+      }
+      return values;
+    } catch (e) {
+      debugPrint('ResponsaInstallation: cannot read Responsa.ini: $e');
+      return const {};
+    }
+  }
+
+  /// תווית ההתקן הנשלף שהתוכנה מחפשת (`RESPONSAV25`), אם היא רשומה.
+  String? get volumeLabel => iniSettings['vollabel'];
 
   Map<String, Object?> toJson() => {
     'version': version,
@@ -285,7 +341,7 @@ class ResponsaInstallationDiscovery {
         if (Platform.environment[variable] case final value?)
           if (value.isNotEmpty) value,
     };
-    for (final drive in _drives()) {
+    for (final drive in drives()) {
       roots.add(drive);
       for (final sub in _searchSubdirectories) {
         roots.add(path.join(drive, sub));
@@ -335,7 +391,7 @@ class ResponsaInstallationDiscovery {
     // רמה שנייה בשורש הכונן בלבד: התקנה שהועתקה יושבת לעתים קרובות
     // ב-`D:\תוכנות\בר אילן 25`, שאינה ב-Registry ואינה `Program Files`.
     // התיקיות הכבדות של המערכת מדולגות, והתקרה לכל תיקייה נשמרת.
-    for (final drive in _drives()) {
+    for (final drive in drives()) {
       for (final child in scan(drive)) {
         scan(child.path);
       }
@@ -362,9 +418,12 @@ class ResponsaInstallationDiscovery {
 
   /// אותיות הכוננים הקיימות במחשב, כנתיבי שורש (`E:\`).
   ///
+  /// ציבורי כדי ש-[ResponsaInstallation.archivePath] יוכל לחפש את
+  /// הארכיון על התקן נשלף, שאות הכונן שלו משתנה ממחשב למחשב.
+  ///
   /// `GetLogicalDrives` הוא מפת ביטים בקריאה אחת, ולכן זול בהרבה
   /// מבדיקת 26 תיקיות — שכל אחת מהן על כונן מנותק עולה בהמתנה.
-  static List<String> _drives() {
+  static List<String> drives() {
     final mask = GetLogicalDrives().value;
     if (mask == 0) return const [];
     return [

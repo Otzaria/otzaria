@@ -36,10 +36,15 @@ class ResponsaBookIcon extends StatefulWidget {
   static Future<Uint8List?> _load() async {
     final installPath = await ResponsaCatalogRepository.instance
         .sourceInstallPath();
-    return ResponsaIcon.load(
+    final bytes = await ResponsaIcon.load(
       installPath: installPath,
       cacheDirectory: ResponsaPaths.baseDirectory,
     );
+    // כישלון אינו נשמר במטמון. בהדלקה הראשונה הקטלוג עדיין לא נבנה,
+    // ולכן אין נתיב התקנה; אילו ה-`null` היה נשמר, האייקון היה חסר עד
+    // להפעלה מחדש של אוצריא.
+    if (bytes == null) _future = null;
+    return bytes;
   }
 
   @override

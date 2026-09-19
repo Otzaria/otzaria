@@ -38,18 +38,21 @@ class ResponsaIcon {
         ? null
         : File(path.join(cacheDirectory, fileName));
     try {
-      if (cached != null && cached.existsSync() && cached.lengthSync() > 0) {
-        return cached.readAsBytesSync();
+      if (cached != null && await cached.exists()) {
+        final bytes = await cached.readAsBytes();
+        if (bytes.isNotEmpty) return bytes;
       }
       if (installPath == null || installPath.isEmpty) return null;
       final executable = File(path.join(installPath, 'RESPONSA.exe'));
-      if (!executable.existsSync()) return null;
+      if (!await executable.exists()) return null;
 
-      final bytes = await compute(_extract, executable.readAsBytesSync());
+      // הקריאה והניתוח שניהם מחוץ לאיזולט ה-UI: קובץ ההרצה הוא כ-4.5MB,
+      // וקריאה סינכרונית שלו על ה-platform thread מקפיאה פריימים.
+      final bytes = await compute(_extract, await executable.readAsBytes());
       if (bytes == null) return null;
       if (cached != null) {
-        cached.parent.createSync(recursive: true);
-        cached.writeAsBytesSync(bytes);
+        await cached.parent.create(recursive: true);
+        await cached.writeAsBytes(bytes);
       }
       return bytes;
     } catch (error) {
