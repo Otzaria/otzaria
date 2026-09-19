@@ -268,6 +268,7 @@ class ExternalTargetResolver {
 
 /// קורא את שורות `external_link` של [source] ופותר את יעדיהן. [bookId] ו-
 /// [lineRange] מצמצמים לספר ולטווח שורות; בלעדיהם — כל הטבלה (בניית האינדקס).
+/// עם [onRow] כל שורה נמסרת לו מיד ואינה נצברת — הרשימה המוחזרת ריקה.
 List<ResolvedExternalLink> readResolvedExternalLinks({
   required ReadOnlyDbTarget source,
   required String sourceWireKey,
@@ -275,6 +276,7 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
   ({String title, int? categoryId})? book,
   (int, int)? lineRange,
   int maxRows = kMaxExternalLinkRows,
+  void Function(ResolvedExternalLink row)? onRow,
 }) {
   final db = openReadOnlyTarget(source);
   final resolver = ExternalTargetResolver(
@@ -323,7 +325,8 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
           throw const ExternalLinksTooLargeException();
         }
         final resolved = _resolveRow(cursor.current, resolver);
-        if (resolved != null) result.add(resolved);
+        if (resolved == null) continue;
+        onRow != null ? onRow(resolved) : result.add(resolved);
       }
     } finally {
       statement.close();
@@ -335,8 +338,9 @@ List<ResolvedExternalLink> readResolvedExternalLinks({
   }
 }
 
-/// תקרת השורות שנקראות מ-`external_link` של מסד אחד; מעליה המסד מדולג.
-const kMaxExternalLinkRows = 500000;
+/// תקרת השורות מ-`external_link` של מסד אחד; מעליה המסד מדולג. שומרת ממסד עוין
+/// שמנפח את cache.db — מתחת למחצית ~11.4M הקישורים של הספרייה הרשמית.
+const kMaxExternalLinkRows = 5000000;
 
 /// תקרת אורך לכותרת ולהפניה של יעד — ערך עוין ארוך אינו נשמר ואינו נפתר.
 const kMaxExternalTextLength = 512;

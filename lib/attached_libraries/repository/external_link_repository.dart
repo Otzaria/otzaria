@@ -270,7 +270,8 @@ class ExternalLinkRepository {
       title,
       '$categoryId',
     ]);
-    final cached = _forwardCache.remove(key);    if (cached != null) return _forwardCache[key] = cached;
+    final cached = _forwardCache.remove(key);
+    if (cached != null) return _forwardCache[key] = cached;
 
     final sourceTarget = (
       path: library.path,
@@ -453,6 +454,7 @@ class ExternalLinkRepository {
 
   Future<Set<String>> _sync() async {
     final libraries = _registry.libraries;
+    if (libraries.isEmpty) tooLargeSlugs.value = const {};
     // בלי מסדים מצורפים — ניקוי בלבד, ורק אם נבנה אי-פעם אינדקס.
     if (libraries.isEmpty && _indexKnownAbsent) return const {};
     final path = await _cacheDbPath();
@@ -488,8 +490,10 @@ class ExternalLinkRepository {
         jobs,
         targets,
         maxIndexRows,
+        insertBatchSize,
       ));
       _indexKnownAbsent = jobs.isEmpty && result.hadIndex == false;
+      tooLargeSlugs.value = result.tooLarge;
       if (result.rebuilt.isNotEmpty) _invalidateIndexCaches();
       return result.rebuilt;
     } catch (_) {
@@ -501,6 +505,12 @@ class ExternalLinkRepository {
   /// תקרת השורות למסד אחד בבניית האינדקס — עוברת ל-isolate כארגומנט.
   @visibleForTesting
   static int maxIndexRows = kMaxExternalLinkRows;
+
+  @visibleForTesting
+  static int insertBatchSize = kExternalLinkInsertBatchSize;
+
+  /// ה-slugs של מסדים שקישוריהם החיצוניים לא נטענו כי עברו את תקרת השורות.
+  final ValueNotifier<Set<String>> tooLargeSlugs = ValueNotifier(const {});
 
   /// אחרי סנכרון שמצא cache.db בלי אינדקס ובלי מסדים — אין מה לנקות עוד.
   bool _indexKnownAbsent = false;
@@ -555,8 +565,14 @@ Set<String> _queryIndexedTargets((String, Map<String, String>) args) {
 }
 
 _SyncResult _syncIndexEntry(
-  (String, List<_SyncJob>, List<ExternalTargetDb>, int) args,
-) => _syncIndex(args.$1, args.$2, args.$3, maxRows: args.$4);
+  (String, List<_SyncJob>, List<ExternalTargetDb>, int, int) args,
+) => _syncIndex(
+  args.$1,
+  args.$2,
+  args.$3,
+  maxRows: args.$4,
+  batchSize: args.$5,
+);
 
 enum _SyncStatus { build, clear, keep }
 
@@ -730,26 +746,37 @@ List<_ReverseRow> _queryReverseRows(_ReverseQuery query) {
   }
 }
 
-typedef _SyncResult = ({Set<String> rebuilt, bool hadIndex});
+typedef _SyncResult = ({
+  Set<String> rebuilt,
+  bool hadIndex,
+  Set<String> tooLarge,
+});
 
 /// גודל מנת הכנסה — טרנזקציה קצרה, כדי שכותבים אחרים ל-cache.db לא יקבלו BUSY.
-const _insertBatchSize = 5000;
+const kExternalLinkInsertBatchSize = 5000;
 
 /// סימון שנכתב ל-meta לפני הבנייה: אם הוא נשאר (קריסה, מסד גדול מדי), הבנייה
 /// לא תנוסה שוב עד שהקובץ או מסדי היעד ישתנו.
 String _buildingMarker(String signature) => '!building:$signature';
+
+/// סימון מסד שעבר את תקרת השורות — קישוריו לא נטענו, והכרטיס שלו מציג זאת.
+const _tooLargePrefix = '!toolarge:';
+String _tooLargeMarker(String signature) => '$_tooLargePrefix$signature';
 
 _SyncResult _syncIndex(
   String path,
   List<_SyncJob> jobs,
   List<ExternalTargetDb> targets, {
   int maxRows = kMaxExternalLinkRows,
+  int batchSize = kExternalLinkInsertBatchSize,
 }) {
   final db = _openCacheDb(path);
   try {
     final hadIndex = _hasTable(db, _metaTable);
     // בלי מסדים מצורפים לא יוצרים טבלאות ב-cache.db של משתמש שלא צירף מעולם.
-    if (jobs.isEmpty && !hadIndex) return (rebuilt: const {}, hadIndex: false);
+    if (jobs.isEmpty && !hadIndex) {
+      return (rebuilt: const {}, hadIndex: false, tooLarge: const {});
+    }
     _ensureSchema(db);
     final known = {for (final job in jobs) job.slug};
     final stored = {
@@ -804,32 +831,59 @@ _SyncResult _syncIndex(
       if (previous != null &&
           previous.$1 == job.fingerprint &&
           (previous.$2 == signature ||
-              previous.$2 == _buildingMarker(signature))) {
+              previous.$2 == _buildingMarker(signature) ||
+              previous.$2 == _tooLargeMarker(signature))) {
         continue;
       }
       _transaction(
         db,
         () => writeMeta(job.slug, job.fingerprint, _buildingMarker(signature)),
       );
-      List<ResolvedExternalLink> rows;
+      // שורות בלי שורת יעד ב-_targetTable אינן מוגשות, ולכן הכתיבה במנות תוך
+      // כדי הקריאה אינה חושפת אינדקס חלקי.
+      var started = false;
+      final batch = <ResolvedExternalLink>[];
+      void flush() {
+        _transaction(db, () {
+          if (!started) {
+            db.execute('DELETE FROM $_indexTable WHERE sourceSlug = ?', [
+              job.slug,
+            ]);
+            db.execute('DELETE FROM $_targetTable WHERE sourceSlug = ?', [
+              job.slug,
+            ]);
+            started = true;
+          }
+          _insertRows(db, job.slug, batch);
+        });
+        batch.clear();
+      }
+
       try {
-        rows = readResolvedExternalLinks(
+        readResolvedExternalLinks(
           source: job.source,
           sourceWireKey: wireKey,
           targets: jobTargets,
           maxRows: maxRows,
+          onRow: (row) {
+            batch.add(row);
+            if (batch.length >= batchSize) flush();
+          },
         );
+        flush();
       } on ExternalLinksTooLargeException {
         // הסימון נשאר — לא ננסה שוב עד שהקובץ ישתנה.
         _transaction(db, () {
           clear(job.slug);
-          writeMeta(job.slug, job.fingerprint, _buildingMarker(signature));
+          writeMeta(job.slug, job.fingerprint, _tooLargeMarker(signature));
         });
         continue;
       } catch (_) {
-        // מסד שלא נקרא כעת — נשאר עם השורות הקודמות, וננסה בסנכרון הבא.
+        // מסד שלא נקרא כעת — ננסה בסנכרון הבא. השורות הקודמות נשמרות רק אם
+        // הכתיבה טרם החלה.
         _transaction(db, () {
-          if (previous == null) {
+          if (started) clear(job.slug);
+          if (previous == null || started) {
             db.execute('DELETE FROM $_metaTable WHERE sourceSlug = ?', [
               job.slug,
             ]);
@@ -838,22 +892,6 @@ _SyncResult _syncIndex(
           }
         });
         continue;
-      }
-      // שורות בלי שורת יעד ב-_targetTable אינן מוגשות, ולכן הבנייה במנות
-      // אינה חושפת אינדקס חלקי.
-      _transaction(db, () {
-        db.execute('DELETE FROM $_indexTable WHERE sourceSlug = ?', [
-          job.slug,
-        ]);
-        db.execute('DELETE FROM $_targetTable WHERE sourceSlug = ?', [
-          job.slug,
-        ]);
-      });
-      for (var start = 0; start < rows.length; start += _insertBatchSize) {
-        final end = start + _insertBatchSize < rows.length
-            ? start + _insertBatchSize
-            : rows.length;
-        _transaction(db, () => _insertRows(db, job.slug, rows, start, end));
       }
       _transaction(db, () {
         for (final t in jobTargets) {
@@ -867,7 +905,14 @@ _SyncResult _syncIndex(
       });
       rebuilt.add(job.slug);
     }
-    return (rebuilt: rebuilt, hadIndex: true);
+    final tooLarge = {
+      for (final row in db.select(
+        'SELECT sourceSlug FROM $_metaTable WHERE targetsSignature LIKE ?',
+        ['$_tooLargePrefix%'],
+      ))
+        row['sourceSlug'] as String,
+    };
+    return (rebuilt: rebuilt, hadIndex: true, tooLarge: tooLarge);
   } finally {
     db.close();
   }
@@ -877,8 +922,6 @@ void _insertRows(
   sqlite3.Database db,
   String slug,
   List<ResolvedExternalLink> rows,
-  int start,
-  int end,
 ) {
   final insert = db.prepare(
     'INSERT INTO $_indexTable (sourceSlug, sourceBookId, sourceTitle, '
@@ -887,8 +930,7 @@ void _insertRows(
     'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   try {
-    for (var i = start; i < end; i++) {
-      final r = rows[i];
+    for (final r in rows) {
       insert.execute([
         slug,
         r.sourceBookId,

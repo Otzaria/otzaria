@@ -592,10 +592,57 @@ void main() {
 
       ExternalLinkRepository.maxIndexRows = previous;
       expect(await links.sync(), isEmpty);
+      expect(links.tooLargeSlugs.value, {library.slug});
       touch(path);
       await attached.rescan();
       expect(await links.sync(), {library.slug});
       expect(indexRows(library.slug), 2);
+      expect(links.tooLargeSlugs.value, isEmpty);
+    });
+
+    String? metaSignature(String slug) {
+      final db = sqlite3.sqlite3.open(cachePath());
+      try {
+        return db.select(
+              'SELECT targetsSignature FROM attached_external_link_meta '
+              'WHERE sourceSlug = ?',
+              [slug],
+            ).firstOrNull?['targetsSignature']
+            as String?;
+      } finally {
+        db.close();
+      }
+    }
+
+    List<ExternalLinkFixtureRow> fiveRows() => [
+      for (var i = 0; i < 5; i++) _row(i, targetLineIndex: 1),
+    ];
+
+    test('נבנה במנות תוך כדי הקריאה, וה-meta נכתב בסוף', () async {
+      final previous = ExternalLinkRepository.insertBatchSize;
+      addTearDown(() => ExternalLinkRepository.insertBatchSize = previous);
+      ExternalLinkRepository.insertBatchSize = 2;
+      final library = await attach(attachedDb('ext', rows: fiveRows()));
+      expect(await links.sync(), {library.slug});
+      expect(indexRows(library.slug), 5);
+      expect(metaSignature(library.slug), isNot(startsWith('!')));
+      expect(links.tooLargeSlugs.value, isEmpty);
+    });
+
+    test('תקרה שנחצית אחרי שמנות נכתבו — הכל נמחק והמסד מסומן', () async {
+      final batch = ExternalLinkRepository.insertBatchSize;
+      final max = ExternalLinkRepository.maxIndexRows;
+      addTearDown(() {
+        ExternalLinkRepository.insertBatchSize = batch;
+        ExternalLinkRepository.maxIndexRows = max;
+      });
+      ExternalLinkRepository.insertBatchSize = 2;
+      ExternalLinkRepository.maxIndexRows = 3;
+      final library = await attach(attachedDb('ext', rows: fiveRows()));
+      expect(await links.sync(), isEmpty);
+      expect(indexRows(library.slug), 0);
+      expect(metaSignature(library.slug), startsWith('!toolarge:'));
+      expect(links.tooLargeSlugs.value, {library.slug});
     });
 
     test('כותרת יעד ארוכה מדי אינה נפתרת', () async {
