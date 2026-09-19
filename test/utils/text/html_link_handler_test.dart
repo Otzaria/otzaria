@@ -4,6 +4,7 @@ import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
+import 'package:path/path.dart' as p;
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 // ignore: depend_on_referenced_packages
@@ -221,6 +222,9 @@ void main() {
     ];
 
     test('are real app actions, yet never external or book links', () {
+      // נתיב install-local נבדק בסמנטיקת Windows בכל פלטפורמה שבה הבדיקה רצה.
+      ExternalUriRouter.pathContext = p.windows;
+      addTearDown(() => ExternalUriRouter.pathContext = p.context);
       for (final url in actionLinks) {
         expect(
           ExternalUriRouter.parseUri(Uri.parse(url)),
