@@ -356,7 +356,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
               (_, false, true, _) => 'הקטלוג טרם נבנה — יש לרענן אותו למטה.',
               (_, false, false, _) =>
                 'בהדלקה הראשונה ייבנה קטלוג מההתקנה שבמחשב. הסריקה '
-                    'אורכת מספר דקות ודורשת שבר אילן יהיה פתוח.',
+                    'אורכת מספר דקות, ובר אילן ייפתח לשם כך אם אינו פתוח.',
             },
             args: {
               'count': info?.bookCount ?? 0,
@@ -395,7 +395,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
           (_, true, false) => 'יש לרענן אחרי התקנת מהדורה אחרת של בר אילן',
           (_, false, false) =>
             'הבנייה סורקת את קטלוג התוכנה ואורכת מספר דקות; '
-                'בר אילן צריך להיות פתוח.',
+                'בר אילן ייפתח לשם כך אם אינו פתוח.',
         },
         args: {'nodes': progress?.scannedNodes ?? 0},
       ),

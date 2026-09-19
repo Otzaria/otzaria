@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_builder.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_launcher.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_tree_reader.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
@@ -89,6 +90,26 @@ class ResponsaCatalogBuildService {
     controller.add(
       const ResponsaBuildProgress(stage: ResponsaBuildStage.starting),
     );
+
+    // הקטלוג נקרא מעץ הקטלוג של התוכנה החיה — אין בהתקנה קובץ שמכיל את
+    // רשימת הספרים. לכן בנייה כשהתוכנה כבויה חייבת להעלות אותה, ולא
+    // לדרוש מהמשתמש לפתוח אותה בעצמו: הוא הדליק הגדרה באוצריא וביקש
+    // לרענן, ואין סיבה שיידרש לצעד ידני בתוכנה אחרת.
+    // בלי העדפת נתיב: הבנייה עצמה בוחרת התקנה ב-`selectInstallation`,
+    // וההעלאה משתמשת באותה בחירה בדיוק.
+    final launch = await ResponsaLauncher.ensureRunning();
+    if (!launch.running) {
+      controller
+        ..add(
+          ResponsaBuildProgress(
+            stage: ResponsaBuildStage.failed,
+            error: launch.message ?? 'לא ניתן להפעיל את בר אילן.',
+          ),
+        )
+        ..close();
+      _cleanup(receive, flag);
+      return;
+    }
 
     try {
       _isolate = await Isolate.spawn(

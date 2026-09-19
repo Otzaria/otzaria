@@ -7,6 +7,7 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_launcher.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
 
@@ -194,77 +195,24 @@ class ResponsaController {
     }
   }
 
-  /// ההתקנה שיש לעבוד מולה ומצבה, כפי שנקרא באיזולט רקע.
-  ///
-  /// `null` כשאין אף התקנה שימושית.
-  static Future<({String executable, String installPath, bool running})?>
-  _resolveTarget(String? installPath) => Isolate.run(() {
-    final selection = ResponsaInstallationDiscovery.selectInstallation(
-      preferredPath: installPath,
-    );
-    if (selection == null) return null;
-    return (
-      executable: selection.installation.executable,
-      installPath: selection.installation.installPath,
-      running: selection.instances.isNotEmpty,
-    );
-  });
-
   /// מוודא שהתוכנה רצה, ומעלה אותה אם מותר.
   ///
-  /// **לעולם בלי ארגומנטים.** ארגומנט שאינו מתג מפיל את `RESPONSA.exe`
-  /// מיד ב-`0xC000041D`, בלי חלון ובלי הודעה — וזה נראה למשתמש כאילו
-  /// אוצריא הפילה את התוכנה.
+  /// מחזיר `null` כשהכול תקין, או דוח כשל מוכן למשתמש.
+  ///
+  /// הכשל הוא תמיד `responsaNotRunning` ולא `timeout`: התוכנה אינה רצה,
+  /// וזה מה שהמשתמש צריך לדעת. `timeout` היה מוביל להודעה על תוכנה
+  /// שאינה מגיבה, שהיא תיאור שגוי של המצב.
   Future<ResponsaOpenReport?> _ensureRunning(String? installPath) async {
-    // "רץ" נמדד מול **ההתקנה הנכונה**, לא מול כל מופע שהוא. על מחשב עם
-    // שתי התקנות, מופע חי של האחת גרם לדלג על ההפעלה של האחרת, ואז
-    // הפתיחה נכשלה ב"אינו פעיל" בלי שאיש ניסה להפעיל דבר.
-    var target = await _resolveTarget(installPath);
-    if (target == null) {
-      return const ResponsaOpenReport(
-        ok: false,
-        failure: ResponsaFailure.responsaNotRunning,
-        message: 'בר אילן (פרויקט השו"ת) אינו מותקן במחשב הזה.',
-      );
-    }
-    if (target.running) return null;
-    if (!autoStart) {
-      return const ResponsaOpenReport(
-        ok: false,
-        failure: ResponsaFailure.responsaNotRunning,
-        message: 'הפעלת בר אילן מתוך אוצריא כבויה בהגדרות.',
-      );
-    }
-
-    try {
-      await Process.start(
-        target.executable,
-        const [],
-        workingDirectory: target.installPath,
-        mode: ProcessStartMode.detached,
-      );
-    } catch (error) {
-      debugPrint('ResponsaController: launch failed: $error');
-      return const ResponsaOpenReport(
-        ok: false,
-        failure: ResponsaFailure.responsaNotRunning,
-        message: 'לא ניתן להפעיל את בר אילן. יש לפתוח אותו ידנית ולנסות שוב.',
-      );
-    }
-
-    final deadline = DateTime.now().add(launchTimeout);
-    while (DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      target = await _resolveTarget(installPath);
-      if (target?.running ?? false) return null;
-    }
-    // `responsaNotRunning` ולא `timeout`: התוכנה אינה רצה, וזה מה
-    // שהמשתמש צריך לדעת. `timeout` היה מוביל להודעה על תוכנה שאינה
-    // מגיבה, שהיא תיאור שגוי של המצב.
-    return const ResponsaOpenReport(
+    final result = await ResponsaLauncher.ensureRunning(
+      installPath: installPath,
+      allowLaunch: autoStart,
+      timeout: launchTimeout,
+    );
+    if (result.running) return null;
+    return ResponsaOpenReport(
       ok: false,
       failure: ResponsaFailure.responsaNotRunning,
-      message: 'בר אילן לא עלה בזמן שהוקצב. יש לפתוח אותו ולנסות שוב.',
+      message: result.message,
     );
   }
 

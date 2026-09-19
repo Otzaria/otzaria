@@ -1280,11 +1280,11 @@
   "הצג ופתח ספרי בר אילן": "Show and open Bar-Ilan books",
   "נמצאו {count} ספרים במהדורה {version}. לחיצה על ספר תפתח אותו בבר אילן.": "Found {count} books in edition {version}. Clicking a book opens it in Bar-Ilan.",
   "הקטלוג טרם נבנה — יש לרענן אותו למטה.": "The catalog has not been built yet — refresh it below.",
-  "בהדלקה הראשונה ייבנה קטלוג מההתקנה שבמחשב. הסריקה אורכת מספר דקות ודורשת שבר אילן יהיה פתוח.": "The first time this is turned on, a catalog is built from the installation on this computer. The scan takes a few minutes and requires Bar-Ilan to be open.",
+  "בהדלקה הראשונה ייבנה קטלוג מההתקנה שבמחשב. הסריקה אורכת מספר דקות, ובר אילן ייפתח לשם כך אם אינו פתוח.": "The first time this is turned on, a catalog is built from the installation on this computer. The scan takes a few minutes, and Bar-Ilan is started for it if it is not already running.",
   "נמצאו {count} ספרים. לחיצה על ספר תפתח אותו בבר אילן.": "Found {count} books. Clicking a book opens it in Bar-Ilan.",
   "בניית קטלוג בר אילן": "Build the Bar-Ilan catalog",
   "רענון קטלוג בר אילן": "Refresh the Bar-Ilan catalog",
-  "הבנייה סורקת את קטלוג התוכנה ואורכת מספר דקות; בר אילן צריך להיות פתוח.": "Building scans the software's catalog and takes a few minutes; Bar-Ilan must be open.",
+  "הבנייה סורקת את קטלוג התוכנה ואורכת מספר דקות; בר אילן ייפתח לשם כך אם אינו פתוח.": "Building scans the software's catalog and takes a few minutes; Bar-Ilan is started for it if it is not already running.",
   "יש לרענן אחרי התקנת מהדורה אחרת של בר אילן": "Refresh after installing a different edition of Bar-Ilan",
   "הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים ואת אופן הפתיחה.": "The catalog was built by an older version of Otzaria. Refreshing updates book names and how they open.",
   "בנה קטלוג": "Build catalog"
