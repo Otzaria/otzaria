@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -65,6 +66,9 @@ class _TocViewerState extends State<TocViewer>
   List<TocFlatItem>? _flatResult;
   int _expandedRevision = 0;
   int _flatExpandedRevision = -1;
+
+  List<TocEntry>? _collapsedSource;
+  Map<int, bool> _collapsedExpansion = const {};
 
   // הסינון רץ על השאילתה שהוחלה, ולא על כל תו בזמן ההקלדה.
   Timer? _searchDebounce;
@@ -443,12 +447,61 @@ class _TocViewerState extends State<TocViewer>
     );
   }
 
+  /// כותרת העץ עם כפתור "כווץ/הרחב הכל", שמוצג רק כשיש מה לכווץ.
+  Widget _buildTreeHeader(String title, _TocDisplayData display) {
+    Widget? toggle;
+    if (!display.isSearching) {
+      if (!identical(_collapsedSource, display.entries)) {
+        _collapsedSource = display.entries;
+        _collapsedExpansion = collapsedTocExpansion(display.entries);
+      }
+      if (_collapsedExpansion.containsValue(false)) {
+        final collapsed = isTocCollapsed(
+          _flatItemsFor(display),
+          _collapsedExpansion,
+        );
+        toggle = SizedBox.square(
+          dimension: 28,
+          child: IconButton(
+            tooltip: collapsed ? 'הרחב הכל' : 'כווץ הכל',
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+              collapsed
+                  ? FluentIcons.arrow_expand_all_24_regular
+                  : FluentIcons.arrow_collapse_all_24_regular,
+              size: 18,
+            ),
+            onPressed: () => setState(() {
+              _expanded
+                ..clear()
+                ..addAll(
+                  collapsed
+                      ? expandedTocExpansion(display.entries)
+                      : _collapsedExpansion,
+                );
+              _expandedRevision++;
+            }),
+          ),
+        );
+      }
+    }
+    return NavTreeHeader(
+      title: title,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [?toggle, const NavPanelSearchToggle()],
+      ),
+    );
+  }
+
   /// בונה רשימה וירטואלית מהעץ השטוח והממוטמן.
   Widget _buildVirtualizedTocList(
     List<TocFlatItem> flat,
     int? activeIndex, {
     required bool isSearching,
     required String title,
+    required _TocDisplayData display,
   }) {
     return ScrollablePositionedList.builder(
       itemScrollController: _virtualScrollController,
@@ -457,10 +510,7 @@ class _TocViewerState extends State<TocViewer>
       itemCount: flat.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
-          return NavTreeHeader(
-            title: title,
-            trailing: const NavPanelSearchToggle(),
-          );
+          return _buildTreeHeader(title, display);
         }
         final item = flat[index - 1];
         return _buildTocRow(
@@ -629,16 +679,14 @@ class _TocViewerState extends State<TocViewer>
                               activeIndex,
                               isSearching: display.isSearching,
                               title: state.book.title,
+                              display: display,
                             )
                           : SingleChildScrollView(
                               controller: _tocScrollController,
                               padding: kNavTreeListPadding,
                               child: Column(
                                 children: [
-                                  NavTreeHeader(
-                                    title: state.book.title,
-                                    trailing: const NavPanelSearchToggle(),
-                                  ),
+                                  _buildTreeHeader(state.book.title, display),
                                   ListView.builder(
                                     shrinkWrap: true,
                                     physics:

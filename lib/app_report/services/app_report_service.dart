@@ -92,6 +92,9 @@ class AppReportService {
   static const String sentKind = '$queueBoxName/$sentReportsKey';
   static const int maxSentReportsToKeep = 100;
   static const Duration timeout = Duration(seconds: 10);
+
+  /// צילומי מסך הם עד מגה-בתים רבים; בחיבור איטי 10 שניות לא מספיקות להעלאה.
+  static const Duration timeoutWithImages = Duration(minutes: 2);
   static const Duration _flushInterval = Duration(minutes: 5);
   static const int _maxQueuedFlushPerRun = 20;
 
@@ -357,7 +360,7 @@ class AppReportService {
       debugPrint('App report payload invalid: $e');
       return const _Attempt(_AttemptKind.permanent);
     }
-    if (utf8.encode(body).length > AppReport.maxBodyBytes) {
+    if (utf8.encode(body).length > AppReport.maxRequestBytes) {
       return const _Attempt(
         _AttemptKind.permanent,
         httpStatus: HttpStatus.requestEntityTooLarge,
@@ -374,7 +377,7 @@ class AppReportService {
             },
             body: utf8.encode(body),
           )
-          .timeout(timeout);
+          .timeout(report.images.isEmpty ? timeout : timeoutWithImages);
       final status = response.statusCode;
       final decoded = _decodeBody(response.bodyBytes);
 

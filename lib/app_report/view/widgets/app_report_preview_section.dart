@@ -28,9 +28,9 @@ class AppReportPreviewSection extends StatefulWidget {
   final bool enabled;
 
   static const String privacyNote =
-      'הדיווח הציבורי ב-GitHub כולל רק את הכותרת, התיאור ופרטי הגרסה '
-      'והמערכת. קובצי האבחון ויומן השגיאות נשמרים באתר אוצריא וגלויים '
-      'למפתחי אוצריא בלבד, וכתובת הדואר אינה מופיעה בדיווח הציבורי.';
+      'הכותרת, התיאור, פרטי הגרסה וצילומי המסך נכנסים למעקב התקלות של '
+      'מפתחי אוצריא ב-GitHub. מידע האבחון, יומן השגיאות וכתובת הדואר '
+      'נשארים אצל צוות אוצריא בלבד.';
 
   /// מפת האבחון כטקסט מסודר לתצוגה.
   static String prettyJson(Map<String, dynamic> diagnostics) {

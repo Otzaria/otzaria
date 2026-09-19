@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/app_report/models/app_report.dart';
+import 'package:otzaria/app_report/models/app_report_image.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
@@ -251,6 +253,36 @@ void main() {
       (await service.getPendingReports()).single.description,
       'אחר',
     );
+  });
+
+  test('צילומי מסך: נשלחים, נשמרים בתור בכשל, ונמחקים מההיסטוריה', () async {
+    final image = AppReportImage(
+      bytes: Uint8List.fromList([0x89, 0x50, 0x4e, 0x47, 9]),
+      fileName: 'screenshot-1.png',
+      mimeType: 'image/png',
+    );
+    final report = _report().copyWith(images: [image]);
+
+    final offline = build(MockClient((_) async => http.Response('', 503)));
+    expect((await offline.send(report)).isQueued, isTrue);
+    final queued = (await offline.getPendingReports()).single;
+    expect(queued.images.single.bytes, image.bytes);
+    await offline.clearPendingReports();
+
+    Map<String, dynamic>? sentBody;
+    final online = build(
+      MockClient((request) async {
+        sentBody = jsonDecode(utf8.decode(request.bodyBytes));
+        return _json(200, {'success': true, 'issueNumber': 7});
+      }),
+    );
+    expect((await online.send(report)).isSent, isTrue);
+    await pumpEventQueue();
+    final images = (sentBody!['attachments'] as Map)['images'] as List;
+    expect(images.single['data'], base64Encode(image.bytes));
+    final sent = (await online.getSentReports()).single;
+    expect(sent.images, isEmpty);
+    expect(sent.toJson().containsKey('images'), isFalse);
   });
 }
 

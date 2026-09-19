@@ -113,8 +113,8 @@ void main() {
       final rect = panelRect(tester);
       expect(
         rect.right,
-        moreOrLessEquals(itemRect.left - 6, epsilon: 0.01),
-        reason: 'הקצה השמאלי של הפריט הוא הקצה הימני של החלונית (רווח 6)',
+        moreOrLessEquals(itemRect.left, epsilon: 0.01),
+        reason: 'החלונית צמודה לתפריט, בלי רווח (issue #1422)',
       );
       expect(rect.top, moreOrLessEquals(itemRect.top, epsilon: 0.01));
     });
@@ -128,7 +128,7 @@ void main() {
 
       expect(
         panelRect(tester).left,
-        moreOrLessEquals(itemRect.right + 6, epsilon: 0.01),
+        moreOrLessEquals(itemRect.right, epsilon: 0.01),
       );
     });
 

@@ -272,40 +272,24 @@ void main() {
       },
     );
 
-    // תרחיש רגיל (פתיחה ישירה, ללא סיכון לקפיצות): requiresStableLayout=false
-    // ועמוד ראשון → אין overlay טעינה, כדי לא לאט את הפתיחה (רגרסיית fbed10c5d).
-    blocTest<PdfBookBloc, PdfBookState>(
-      'עמוד ראשון בלי requiresStableLayout → isLoading=false (מהיר)',
-      build: () => _makeBloc(_tab(page: 1)),
-      seed: () => PdfBookLoading(book: _book()),
-      act: (b) =>
-          b.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50)),
-      verify: (b) => expect((b.state as PdfBookLoaded).isLoading, isFalse),
-    );
-
-    // תרחיש סיכון: requiresStableLayout=true (דף יומי / מעבר טקסט→PDF וכדומה)
-    // → overlay טעינה עד שה-layout מתייצב, גם אם זה עמוד 1.
-    blocTest<PdfBookBloc, PdfBookState>(
-      'requiresStableLayout=true → isLoading=true גם בעמוד ראשון',
-      build: () => _makeBloc(
-        PdfBookTab(book: _book(), pageNumber: 1, requiresStableLayout: true),
-      ),
-      seed: () => PdfBookLoading(book: _book()),
-      act: (b) =>
-          b.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50)),
-      verify: (b) => expect((b.state as PdfBookLoaded).isLoading, isTrue),
-    );
-
-    // עמוד עמוק (היסטוריה/סימנייה) גם בלי requiresStableLayout מפורש —
-    // תיקוני הסטייה בלי overlay נראים כריצוד (issue #1026).
-    blocTest<PdfBookBloc, PdfBookState>(
-      'עמוד>1 בלי requiresStableLayout → isLoading=true',
-      build: () => _makeBloc(_tab(page: 10)),
-      seed: () => PdfBookLoading(book: _book()),
-      act: (b) =>
-          b.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50)),
-      verify: (b) => expect((b.state as PdfBookLoaded).isLoading, isTrue),
-    );
+    // אין overlay טעינה באף פתיחה — גם לעמוד יעד ולא רק לעמוד הראשון.
+    for (final (page, stable) in [(1, false), (10, false), (1, true)]) {
+      blocTest<PdfBookBloc, PdfBookState>(
+        'עמוד $page, requiresStableLayout=$stable → isLoading=false',
+        build: () => _makeBloc(
+          PdfBookTab(
+            book: _book(),
+            pageNumber: page,
+            requiresStableLayout: stable,
+          ),
+        ),
+        seed: () => PdfBookLoading(book: _book()),
+        act: (b) => b.add(
+          DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 50),
+        ),
+        verify: (b) => expect((b.state as PdfBookLoaded).isLoading, isFalse),
+      );
+    }
 
     // issue #869: בלי סנכרון ה-notifier בטעינה, כפתור הסגירה בסרגל חישב
     // כיוון הפוך (לפי tab.showLeftPane) והחלונית לא נסגרה.

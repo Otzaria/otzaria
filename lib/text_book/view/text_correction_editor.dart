@@ -321,7 +321,7 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         AppSegmentedControl<ProposalMode>(
           options: const [
             SegmentOption(
@@ -371,7 +371,7 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
             ),
           ),
         if (draft.hasProposal && draft.error == null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
             'השינוי המוצע:',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(

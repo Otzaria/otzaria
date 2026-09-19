@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +7,7 @@ import 'package:otzaria/app_report/bloc/app_report_bloc.dart';
 import 'package:otzaria/app_report/bloc/app_report_event.dart';
 import 'package:otzaria/app_report/bloc/app_report_state.dart';
 import 'package:otzaria/app_report/models/app_report.dart';
+import 'package:otzaria/app_report/models/app_report_image.dart';
 import 'package:otzaria/app_report/models/crash_signature.dart';
 import 'package:otzaria/app_report/repository/app_report_redactor.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
@@ -66,6 +69,30 @@ void main() {
           .having((s) => s.diagnostics, 'diagnostics', {'appInfo': 'x'})
           .having((s) => s.errorLog, 'errorLog', contains('boom'))
           .having((s) => s.includeDiagnostics, 'includeDiagnostics', true),
+    ],
+  );
+
+  blocTest<AppReportBloc, AppReportState>(
+    'צירוף תמונות מעדכן את רשימת התמונות בטופס',
+    build: build,
+    act: (bloc) => bloc
+      ..add(const AppReportAttachmentsRequested())
+      ..add(
+        AppReportImagesChanged([
+          AppReportImage(
+            bytes: Uint8List(3),
+            fileName: 'shot.png',
+            mimeType: 'image/png',
+          ),
+        ]),
+      ),
+    skip: 1,
+    expect: () => [
+      isA<AppReportEditing>().having(
+        (s) => s.images.map((i) => i.fileName),
+        'images',
+        ['shot.png'],
+      ),
     ],
   );
 

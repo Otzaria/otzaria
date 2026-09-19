@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/app_report/models/app_report_image.dart';
 import 'package:otzaria/app_report/models/crash_signature.dart';
 import 'package:otzaria/app_report/repository/app_report_redactor.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
@@ -59,6 +60,7 @@ class AppReport {
     this.sentryEventId,
     this.diagnostics,
     this.errorLog,
+    this.images = const [],
     this.issueNumber,
     this.issueUrl,
     this.merged = false,
@@ -80,6 +82,10 @@ class AppReport {
   static const int maxDiagnosticsBytes = 300 * 1000;
   static const int maxErrorLogBytes = 250 * 1000;
   static const int maxBodyBytes = 700 * 1000;
+
+  /// גבול הבקשה כולה: הטקסט והצרופות, ועוד צילומי המסך בנפרד.
+  static const int maxRequestBytes =
+      maxBodyBytes + AppReportImage.maxPayloadBytes;
 
   static const Set<String> platforms = {
     'windows',
@@ -105,6 +111,9 @@ class AppReport {
   final DateTime createdAt;
   final Map<String, dynamic>? diagnostics;
   final String? errorLog;
+
+  /// צילומי המסך. לא עוברים הסתרת מידע ונשמרים באתר בלבד, לא ב-GitHub.
+  final List<AppReportImage> images;
 
   // ── שדות הרשומה המקומית, אחרי שליחה ──
   final int? issueNumber;
@@ -157,7 +166,7 @@ class AppReport {
     if (log != null && log.isNotEmpty) {
       attachments['errorLog'] = keepTailBytes(log, maxErrorLogBytes);
     }
-    if (attachments.isEmpty) return payload;
+    if (attachments.isEmpty) return _addImages(payload);
     payload['attachments'] = attachments;
 
     // מעבר לגבול הכולל — מקצרים קודם את הלוג (מהישן), ורק אז מוותרים על האבחון.
@@ -173,7 +182,23 @@ class AppReport {
       overflow = _utf8Length(jsonEncode(payload)) - maxBodyBytes;
     }
     if (overflow > 0) attachments.remove('diagnostics');
-    if (attachments.isEmpty) payload.remove('attachments');
+    _addImages(payload);
+    return payload;
+  }
+
+  /// התמונות מתווספות אחרי הקיצוץ: יש להן תקציב משלהן ב-[maxRequestBytes].
+  Map<String, dynamic> _addImages(Map<String, dynamic> payload) {
+    final attachments =
+        (payload['attachments'] as Map<String, dynamic>?) ??
+        <String, dynamic>{};
+    if (images.isNotEmpty) {
+      attachments['images'] = [for (final image in images) image.toJson()];
+    }
+    if (attachments.isEmpty) {
+      payload.remove('attachments');
+    } else {
+      payload['attachments'] = attachments;
+    }
     return payload;
   }
 
@@ -233,6 +258,8 @@ class AppReport {
     'createdAt': createdAt.toUtc().toIso8601String(),
     if (diagnostics != null) 'diagnostics': diagnostics,
     if (errorLog != null) 'errorLog': errorLog,
+    if (images.isNotEmpty)
+      'images': [for (final image in images) image.toJson()],
     if (issueNumber != null) 'issueNumber': issueNumber,
     if (issueUrl != null) 'issueUrl': issueUrl,
     'merged': merged,
@@ -264,6 +291,10 @@ class AppReport {
           ? Map<String, dynamic>.from(diagnostics)
           : null,
       errorLog: json['errorLog'] as String?,
+      images: [
+        if (json['images'] case final List<dynamic> images)
+          for (final image in images.map(AppReportImage.fromJson)) ?image,
+      ],
       issueNumber: json['issueNumber'] is int
           ? json['issueNumber'] as int
           : null,
@@ -287,6 +318,7 @@ class AppReport {
     Object? signature = _unset,
     Object? diagnostics = _unset,
     Object? errorLog = _unset,
+    List<AppReportImage>? images,
     Object? issueNumber = _unset,
     Object? issueUrl = _unset,
     bool? merged,
@@ -317,6 +349,7 @@ class AppReport {
       errorLog: identical(errorLog, _unset)
           ? this.errorLog
           : errorLog as String?,
+      images: images ?? this.images,
       issueNumber: identical(issueNumber, _unset)
           ? this.issueNumber
           : issueNumber as int?,
@@ -331,7 +364,8 @@ class AppReport {
   }
 
   /// רשומת היסטוריה: בלי הצרופות הכבדות, כדי שמאה דיווחים לא ינפחו את המסד.
-  AppReport withoutAttachments() => copyWith(diagnostics: null, errorLog: null);
+  AppReport withoutAttachments() =>
+      copyWith(diagnostics: null, errorLog: null, images: const []);
 
   /// מסתיר מידע אישי בכל הטקסטים שנשלחים, מלבד שדה המייל של המדווח.
   AppReport redactedWith(AppReportRedactor redactor) {
@@ -351,6 +385,10 @@ class AppReport {
           ? null
           : Map<String, dynamic>.from(redactor.redactJson(diag) as Map),
       errorLog: errorLog == null ? null : redactor.redactText(errorLog!),
+      images: [
+        for (final image in images)
+          image.withFileName(redactor.redactText(image.fileName)),
+      ],
     );
   }
 

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/app_report/models/app_report.dart';
+import 'package:otzaria/app_report/models/app_report_image.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 
 /// שלב השליחה של הטופס.
@@ -29,6 +30,7 @@ class AppReportEditing extends AppReportState {
     this.errorLog,
     this.includeDiagnostics = true,
     this.includeErrorLog = true,
+    this.images = const [],
     this.submission = AppReportSubmission.idle,
     this.result,
     this.invalidField,
@@ -46,6 +48,9 @@ class AppReportEditing extends AppReportState {
 
   final bool includeDiagnostics;
   final bool includeErrorLog;
+
+  /// צילומי המסך שצורפו לדיווח.
+  final List<AppReportImage> images;
   final AppReportSubmission submission;
   final AppReportDeliveryResult? result;
 
@@ -65,6 +70,7 @@ class AppReportEditing extends AppReportState {
     String? errorLog,
     bool? includeDiagnostics,
     bool? includeErrorLog,
+    List<AppReportImage>? images,
     AppReportSubmission? submission,
     AppReportDeliveryResult? result,
     String? invalidField,
@@ -80,6 +86,7 @@ class AppReportEditing extends AppReportState {
       errorLog: errorLog ?? this.errorLog,
       includeDiagnostics: includeDiagnostics ?? this.includeDiagnostics,
       includeErrorLog: includeErrorLog ?? this.includeErrorLog,
+      images: images ?? this.images,
       submission: submission ?? this.submission,
       result: result ?? this.result,
       invalidField: clearInvalidField
@@ -99,6 +106,7 @@ class AppReportEditing extends AppReportState {
     errorLog,
     includeDiagnostics,
     includeErrorLog,
+    images,
     submission,
     result,
     invalidField,

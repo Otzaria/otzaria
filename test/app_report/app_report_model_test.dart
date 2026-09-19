@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/models/app_report.dart';
+import 'package:otzaria/app_report/models/app_report_image.dart';
 import 'package:otzaria/app_report/models/crash_signature.dart';
 import 'package:otzaria/app_report/repository/app_report_redactor.dart';
 
@@ -11,6 +13,7 @@ AppReport _report({
   String description = 'תיאור',
   Map<String, dynamic>? diagnostics,
   String? errorLog,
+  List<AppReportImage> images = const [],
 }) => AppReport(
   reportId: AppReport.generateReportId(),
   type: AppReportType.crash,
@@ -31,6 +34,13 @@ AppReport _report({
   createdAt: DateTime.utc(2026, 9, 17, 10),
   diagnostics: diagnostics,
   errorLog: errorLog,
+  images: images,
+);
+
+final _png = AppReportImage(
+  bytes: Uint8List.fromList([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]),
+  fileName: 'screenshot-1.png',
+  mimeType: 'image/png',
 );
 
 void main() {
@@ -169,5 +179,83 @@ void main() {
         (report.toApiPayload()['signature'] as Map)['frames'] as List;
     expect(frames, hasLength(3));
     expect(frames.every((f) => (f as String).length <= 300), isTrue);
+  });
+
+  group('צילומי מסך', () {
+    test('נשלחים ב-attachments.images כ-base64', () {
+      final payload = _report(errorLog: 'log', images: [_png]).toApiPayload();
+      final attachments = payload['attachments'] as Map;
+      expect(attachments['errorLog'], 'log');
+      expect(attachments['images'], [
+        {
+          'fileName': 'screenshot-1.png',
+          'mimeType': 'image/png',
+          'data': base64Encode(_png.bytes),
+        },
+      ]);
+      expect(_report().toApiPayload().containsKey('attachments'), isFalse);
+      expect(
+        (_report(images: [_png]).toApiPayload()['attachments'] as Map).keys,
+        ['images'],
+      );
+    });
+
+    test('אינם נספרים בגבול הטקסט: הלוג לא מקוצר בגללם', () {
+      final big = AppReportImage(
+        bytes: Uint8List(AppReportImage.maxBytes),
+        fileName: 'big.png',
+        mimeType: 'image/png',
+      );
+      final payload = _report(
+        errorLog: 'x' * 200000,
+        images: [big, big, big],
+      ).toApiPayload();
+      final attachments = payload['attachments'] as Map;
+      expect((attachments['errorLog'] as String).length, 200000);
+      expect(attachments['images'], hasLength(3));
+      expect(
+        utf8.encode(jsonEncode(payload)).length,
+        lessThanOrEqualTo(AppReport.maxRequestBytes),
+      );
+    });
+
+    test('נשמרים בתור ונקראים חזרה; נמחקים מרשומת ההיסטוריה', () {
+      final report = _report(images: [_png]);
+      final restored = AppReport.fromJson(
+        jsonDecode(jsonEncode(report.toJson())) as Map<String, dynamic>,
+      );
+      expect(restored.images.single.bytes, _png.bytes);
+      expect(restored.images.single.fileName, 'screenshot-1.png');
+      expect(report.withoutAttachments().images, isEmpty);
+      expect(
+        report.withoutAttachments().toJson().containsKey('images'),
+        isFalse,
+      );
+    });
+
+    test('שם הקובץ עובר הסתרה; שם ארוך נחתך מההתחלה', () {
+      final redactor = AppReportRedactor(
+        environment: const {'USERNAME': 'Moshe'},
+      );
+      final named = _report(
+        images: [
+          AppReportImage(
+            bytes: _png.bytes,
+            fileName: 'Moshe-shot.png',
+            mimeType: 'image/png',
+          ),
+        ],
+      ).redactedWith(redactor);
+      expect(named.images.single.fileName, '<user>-shot.png');
+
+      final long = AppReportImage(
+        bytes: _png.bytes,
+        fileName: '${'a' * 300}.png',
+        mimeType: 'image/png',
+      );
+      final name = long.toJson()['fileName'] as String;
+      expect(name.length, AppReportImage.maxFileNameLength);
+      expect(name.endsWith('.png'), isTrue);
+    });
   });
 }

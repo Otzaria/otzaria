@@ -203,7 +203,7 @@ class _PanelStyle {
     : maxWidth = 380,
       maxHeight = 360,
       elevation = 6,
-      anchorGap = 6,
+      anchorGap = 0,
       padding = const EdgeInsets.all(12),
       _inMenu = true;
 

@@ -264,6 +264,67 @@ Future<void> main() async {
     );
   });
 
+  testWidgets('כפתור כווץ הכל מסתיר את הפרקים ומחזיר אותם (issue #1438)', (
+    tester,
+  ) async {
+    final toc = _buildLargeToc(simanim: 3, seifim: 2);
+    final bloc = _TestTextBookBloc(
+      _loadedState(toc: toc, visibleIndices: const [0]),
+    );
+    addTearDown(bloc.close);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
+      ),
+    );
+    await tester.pump();
+    expect(find.text('seif 0'), findsNWidgets(3));
+
+    await tester.tap(find.byTooltip('כווץ הכל'));
+    await tester.pumpAndSettle();
+    expect(find.text('seif 0'), findsNothing);
+    expect(find.text('siman 2'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('הרחב הכל'));
+    await tester.pumpAndSettle();
+    expect(find.text('seif 0'), findsNWidgets(3));
+  });
+
+  testWidgets('עץ שטוח בלי ענפים - אין כפתור כווץ הכל', (tester) async {
+    final toc = List.generate(
+      3,
+      (i) => TocEntry(text: 'leaf $i', index: i, level: 1),
+    );
+    final bloc = _TestTextBookBloc(
+      _loadedState(toc: toc, visibleIndices: const [0]),
+    );
+    addTearDown(bloc.close);
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        TocViewer(
+          scrollController: ItemScrollController(),
+          closeLeftPaneCallback: () {},
+          focusNode: focusNode,
+        ),
+        bloc,
+      ),
+    );
+    await tester.pump();
+    expect(find.byTooltip('כווץ הכל'), findsNothing);
+    expect(find.byTooltip('הרחב הכל'), findsNothing);
+  });
+
   testWidgets('מטמון השיטוח מתעדכן בסגירה ובפתיחה של ענף', (tester) async {
     final parent = TocEntry(text: 'parent', index: 0, level: 1);
     parent.children = [
