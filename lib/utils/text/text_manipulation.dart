@@ -718,7 +718,8 @@ String _highlightMatchedSearchWords(
 /// [matchPolicy] שאינה ברירת המחדל (טווח פסקה/כותרת, או התאמה חלקית של מילות
 /// השאילתה) מתירה תוצאות שהמילים בהן מפוזרות או חסרות, ולכן ההתאמה המשולבת
 /// פוסלת דווקא את מה שהמנוע מחזיר: במצב כזה מדגישים כל מילת שאילתה בנפרד,
-/// ורק ב-[isSearchResultLine] — שורה שהמנוע החזיר.
+/// ורק ב-[isSearchResultLine] — שורה שהמנוע החזיר. ב-[isFuzzy] המנוע מחפש כל
+/// מילה בנפרד (AND), ולכן בשורת תוצאה בלי הביטוי הרציף מדגישים מילה-מילה.
 ///
 /// אין לשחזר כאן את החלטת המנוע (למשל סף מילים פר-שורה): הסף שלו מחושב על
 /// הסעיף בטווח "תחת אותה כותרת", והוא סופר מילים ייחודיות.
@@ -728,6 +729,7 @@ List<_HighlightMatch> _findHighlightMatches(
   List<bool> requireTokenBoundaries, {
   SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
   bool isSearchResultLine = false,
+  bool isFuzzy = false,
 }) {
   if (!matchPolicy.isStandard) {
     if (!isSearchResultLine) return const [];
@@ -737,7 +739,7 @@ List<_HighlightMatch> _findHighlightMatches(
       requireTokenBoundaries,
     );
   }
-  return compiled.combined
+  final phraseMatches = compiled.combined
       .allMatches(data)
       .map((match) {
         final matchedText = match.group(0)!;
@@ -752,6 +754,10 @@ List<_HighlightMatch> _findHighlightMatches(
       })
       .whereType<_HighlightMatch>()
       .toList();
+  if (!isFuzzy || phraseMatches.isNotEmpty || !isSearchResultLine) {
+    return phraseMatches;
+  }
+  return _findPerWordHighlightMatches(data, compiled, requireTokenBoundaries);
 }
 
 /// התאמות של כל מילת שאילתה בנפרד בשורה שהמנוע החזיר, ממוינות ובלי חפיפות —
@@ -832,6 +838,7 @@ String highLight(
     requireTokenBoundaries,
     matchPolicy: matchPolicy,
     isSearchResultLine: isSearchResultLine,
+    isFuzzy: isFuzzy,
   );
 
   if (matches.isEmpty) return data;
@@ -917,6 +924,7 @@ List<List<int>> computeHighlightRanges(
     requireTokenBoundaries,
     matchPolicy: matchPolicy,
     isSearchResultLine: isSearchResultLine,
+    isFuzzy: isFuzzy,
   );
   final ranges = <List<int>>[];
   for (final highlightMatch in matches) {

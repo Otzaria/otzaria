@@ -171,6 +171,38 @@ Future<void> main() async {
         );
       });
 
+      test('חיפוש מקורב: מילים מפוזרות בשורת תוצאה מודגשות כל אחת', () {
+        // המנוע מחפש במקורב כל מילה בנפרד בשורה, בלי סדר ובלי מרווח.
+        final ranges = computeHighlightRanges(
+          farApart,
+          'תדע זרעך',
+          isFuzzy: true,
+          isSearchResultLine: true,
+        );
+        expect(
+          [for (final range in ranges) farApart.substring(range[0], range[1])],
+          ['תדע', 'זרעך'],
+        );
+        expect(
+          computeHighlightRanges(farApart, 'תדע זרעך', isFuzzy: true),
+          isEmpty,
+        );
+      });
+
+      test('חיפוש מקורב: כשהביטוי רציף בשורה — רק הוא מודגש', () {
+        const line = 'תדע אחת תדע זרעך שתים זרעך';
+        final ranges = computeHighlightRanges(
+          line,
+          'תדע זרעך',
+          isFuzzy: true,
+          isSearchResultLine: true,
+        );
+        expect(ranges, [
+          [8, 11],
+          [12, 16],
+        ]);
+      });
+
       test('הדגל אינו משנה דבר בברירת המחדל — התבנית המשולבת מכריעה', () {
         const line = 'ידע תדע כי גר יהיה זרעך';
         expect(
