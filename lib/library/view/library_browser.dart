@@ -8,6 +8,8 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_library_tree.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
@@ -350,6 +352,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Timer? _searchDebounce;
   bool _lastScrollVisible = true;
 
+  /// תיקיות בר אילן בתוך קטגוריות אוצריא, כשההגדרה דולקת.
+  ///
+  /// נטען בעצלתיים ונשמר כאן ולא בעץ הספרייה — ראה [ResponsaLibraryTree].
+  ResponsaLibraryTree _responsaTree = ResponsaLibraryTree.empty;
+  bool _responsaTreeRequested = false;
+
   static const List<String> _orderedTopCategories = [
     'תנ"ך',
     'מדרש',
@@ -510,6 +518,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       ],
       child: BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, settingsState) {
+          _ensureResponsaTree(settingsState.showResponsaInLibrary);
           return BlocBuilder<LibraryBloc, LibraryState>(
             buildWhen: (p, c) =>
                 p.isLoading != c.isLoading ||
@@ -1528,6 +1537,30 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
+  /// טוען את תיקיות בר אילן פעם אחת, כשההגדרה דולקת.
+  ///
+  /// לא ב-`initState`: ההגדרה עשויה להידלק אחרי שהמסך כבר נבנה, והקטלוג
+  /// עצמו נבנה רק אחרי שהמשתמש הדליק אותה.
+  void _ensureResponsaTree(bool enabled) {
+    if (!enabled) {
+      if (_responsaTreeRequested) {
+        _responsaTreeRequested = false;
+        _responsaTree = ResponsaLibraryTree.empty;
+      }
+      return;
+    }
+    if (_responsaTreeRequested) return;
+    _responsaTreeRequested = true;
+    DataRepository.instance.responsaBooks
+        .then((books) {
+          if (!mounted) return;
+          setState(() => _responsaTree = ResponsaLibraryTree.build(books));
+        })
+        .catchError((Object error) {
+          debugPrint('LibraryBrowser: responsa tree failed: $error');
+        });
+  }
+
   /// תתי-התיקיות והספרים של [category], מסוננים וממוינים לתצוגה.
   ({List<Category> subCategories, List<Book> books}) _displayedContent(
     Category category,
@@ -1537,6 +1570,22 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final filteredSubCategories = category.subCategories
         .where((c) => c.hasBooks)
         .toList();
+
+    // תיקיית בר אילן מצורפת לתצוגה בלבד; היא אינה נכנסת ל-subCategories
+    // של הקטגוריה האמיתית, שאחרת הייתה נסרקת על ידי מנוע האינדוקס.
+    final responsaFolder = category is Library
+        ? null
+        : _responsaTree.folderFor(category.path);
+    if (responsaFolder != null) {
+      responsaFolder.parent = category;
+      filteredSubCategories.add(responsaFolder);
+    }
+    if (category is Library) {
+      for (final folder in _responsaTree.topLevel) {
+        folder.parent = category;
+        filteredSubCategories.add(folder);
+      }
+    }
     if (category is Library) {
       filteredSubCategories.sort(
         (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)),
@@ -2319,12 +2368,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                 fit: BoxFit.contain,
               )
             else
-              Icon(
-                externalProviderFallbackIcon(book) ??
+              externalProviderIcon(book, cs, iconSize) ??
+                  Icon(
                     FluentIcons.book_24_regular,
-                color: cs.onSecondaryContainer,
-                size: iconSize,
-              ),
+                    color: cs.onSecondaryContainer,
+                    size: iconSize,
+                  ),
             const SizedBox(width: 4),
             Icon(
               FluentIcons.open_24_regular,
@@ -2809,14 +2858,17 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         return BookPreviewPanel(
           emptyMessage: 'בחר ספר או תיקייה לתצוגה מקדימה',
           book: previewState.previewBook,
+          onOpenExternally: ResponsaService.instance.openBook,
           onOpenInReader: (i, {bool? forcePdf}) {
-            if (previewState.previewBook != null) {
-              _openBookInReader(
-                previewState.previewBook!,
-                i,
-                forcePdf: forcePdf,
-              );
+            final book = previewState.previewBook;
+            if (book == null) return;
+            // ספר חיצוני אינו נפתח בעיון. בלי הענף הזה הלחיצה נבלעה
+            // במסלול הפתיחה המקומי ולא קרה דבר.
+            if (book is ExternalLibraryBook) {
+              _openOtzarBook(book);
+              return;
             }
+            _openBookInReader(book, i, forcePdf: forcePdf);
           },
         );
       },

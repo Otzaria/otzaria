@@ -1,4 +1,5 @@
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_category_map.dart';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -103,6 +104,19 @@ class DataRepository {
   /// representing books from the Hebrew Books collection
   Future<List<Book>> getHebrewBooks() {
     return FileSystemData.getHebrewBooks();
+  }
+
+  /// האם ספר בר אילן שייך ל-[category] של אוצריא או לאחת מתת-הקטגוריות.
+  ///
+  /// ההשוואה על `Category.path` (`/הלכה/ראשונים`), ולכן קטגוריית אב
+  /// כוללת את כל מה שמתחתיה — בדיוק כמו `getAllBooks()`.
+  static bool _responsaUnder(ExternalLibraryBook book, Category category) {
+    final target = ResponsaCategoryMap.otzariaPathFor(book.heCategories);
+    if (target == null) return false;
+    final bookPath = '/${target.join('/')}';
+    final categoryPath = category.path;
+    if (categoryPath == '/') return true;
+    return bookPath == categoryPath || bookPath.startsWith('$categoryPath/');
   }
 
   /// ספרי פרויקט השו"ת מהקטלוג שנבנה אצל המשתמש.
@@ -241,7 +255,14 @@ class DataRepository {
       allBooks.addAll(await localHebrewBooks);
     }
     if (includeResponsa) {
-      allBooks.addAll(await responsaBooks);
+      final responsa = await responsaBooks;
+      // חיפוש בתוך קטגוריה מחפש **בקטגוריה**. בלי הסינון כל 8,465 ספרי
+      // בר אילן הצטרפו לכל חיפוש מקומי, גם כשהמשתמש עומד בתוך `תנ״ך`.
+      allBooks.addAll(
+        category == null
+            ? responsa
+            : responsa.where((book) => _responsaUnder(book, category)),
+      );
     }
 
     // no-op אם הקאשים כבר חוממו בעליית האפליקציה
