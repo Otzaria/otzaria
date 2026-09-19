@@ -54,7 +54,7 @@ const Set<String> kValidatorKnownTables = {
 };
 
 /// עותקים של `kMaxExternalLinkRows` / `kMaxExternalTextLength`.
-const int kValidatorMaxExternalLinkRows = 500000;
+const int kValidatorMaxExternalLinkRows = 5000000;
 const int kValidatorMaxExternalTextLength = 512;
 
 /// העמודות שהתוכנה קוראת בלי חלופה, לכל טבלה. חסרה אחת — הפיצ'ר נכשל או ריק.
