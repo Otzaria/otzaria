@@ -462,26 +462,28 @@ class ResponsaAutomation {
     // הקטלוג ולא חלק מהשם שהתוכנה מציגה. `היכלות (עמ' 108-126)` נפתח
     // ככותרת `אוצר מדרשים (אייזנשטיין) היכלות`, והשוואה מילולית פסלה
     // פתיחה תקינה לחלוטין.
-    final checks = <String, ResponsaMatchLevel>{
-      'selectedResult': ResponsaHebrew.matchLevel(chosen, title),
-      'requestedRef': ResponsaHebrew.matchLevel(usedRef, title),
-    };
-    final failed = checks.entries
-        .where((e) => e.value == ResponsaMatchLevel.none)
-        .map((e) => e.key)
-        .toList();
-    // הכותרת המצופה נבדקת **לשני הכיוונים**, בניגוד לשתי הבדיקות
-    // שמעליה. היא מחרוזת תצוגה של אוצריא ולא של התוכנה, ולכן היא יכולה
-    // גם להוסיף הקשר שהתוכנה משמיטה (`תיבת גמא דברים פרשת האזינו` מול
-    // `תיבת גמא פרשת האזינו`) וגם להשמיט מיקום שהתוכנה מוסיפה
-    // (`הון עשיר אבות` מול `הון עשיר מסכת אבות הקדמה`). דרישה חד-כיוונית
-    // פסלה פתיחות תקינות לחלוטין.
+    // `selectedResult` נשארת מחמירה: היא בודקת שהחלון שנפתח הוא **השורה
+    // שלחצנו עליה**, וזו השוואה בין שני מחרוזות של התוכנה עצמה.
+    //
+    // `requestedRef` רכה, כי ההפניה נבנתה מהעץ והיא יכולה להכיל צמתי
+    // מבנה שהתוכנה משמיטה: `ילקוט יוסף ... פסקי הלכות סימנים קנב-קנג`
+    // נפתח ככותרת `ילקוט יוסף ... סימנים קנב-קנג` — הספר הנכון בדיוק,
+    // ונפסל רק בגלל `פסקי הלכות`.
+    final failed = <String>[
+      if (ResponsaHebrew.matchLevel(chosen, title) == ResponsaMatchLevel.none)
+        'selectedResult',
+      if (!ResponsaHebrew.coversTitle(usedRef, title)) 'requestedRef',
+    ];
+    // הכותרת המצופה נבדקת ב-[ResponsaHebrew.coversTitle], שהיא רכה יותר
+    // משתי הבדיקות שמעליה: היא מחרוזת תצוגה של אוצריא ולא של התוכנה,
+    // ולכן היא יכולה גם להוסיף הקשר שהתוכנה משמיטה (`חידושים על הגמרא`)
+    // וגם להשמיט מיקום שהתוכנה מוסיפה (`מסכת אבות הקדמה`). דרישה
+    // סימטרית מלאה פסלה פתיחות תקינות לחלוטין.
     if (expectedTitle != null) {
       final expected = ResponsaNames.withoutQualifier(expectedTitle);
-      final covers =
-          ResponsaHebrew.titlesMatch(expected, title) ||
-          ResponsaHebrew.titlesMatch(title, expected);
-      if (!covers) failed.add('expectedTitle');
+      if (!ResponsaHebrew.coversTitle(expected, title)) {
+        failed.add('expectedTitle');
+      }
     }
     if (failed.isNotEmpty) {
       throw ResponsaAutomationException(

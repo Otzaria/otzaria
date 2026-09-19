@@ -193,18 +193,59 @@ class ResponsaHebrew {
     final wantWords = markedTokens(expected);
     final gotWords = tokens(actual).toSet();
     if (wantWords.isNotEmpty &&
-        wantWords.every(
-          (token) => token.abbreviated
-              ? gotWords.any((word) => word.startsWith(token.key))
-              : gotWords.contains(token.key),
-        )) {
+        wantWords.every((token) => _hasWord(gotWords, token))) {
       return ResponsaMatchLevel.contains;
     }
     return ResponsaMatchLevel.none;
   }
 
+  /// אותיות שימוש שהתוכנה מוסיפה לפני שם: `לרמב"ם` מול `רמב"ם`.
+  ///
+  /// נצפה חי: `רמב"ם הוריות` נפתח ככותרת
+  /// `פירוש המשנה לרמב"ם מסכת הוריות`, ונדחה — כי `לרמבמ` ו-`רמבמ` הם
+  /// שני אסימונים שונים. ההרפיה היא **אות אחת בלבד** ומתוך הרשימה
+  /// הסגורה הזו, ולכן אינה פותחת את ההשוואה לכל דבר.
+  static const String _prefixLetters = 'בכלמושהד';
+
+  static bool _hasWord(
+    Set<String> words,
+    ({String key, bool abbreviated}) token,
+  ) {
+    if (token.abbreviated) {
+      return words.any((word) => word.startsWith(token.key));
+    }
+    if (words.contains(token.key)) return true;
+    return words.any(
+      (word) =>
+          word.length == token.key.length + 1 &&
+          word.endsWith(token.key) &&
+          _prefixLetters.contains(word[0]),
+    );
+  }
+
   static bool titlesMatch(String? expected, String? actual) =>
       matchLevel(expected, actual) != ResponsaMatchLevel.none;
+
+  /// האם [actual] הוא הספר ש-[expected] מתאר — בדיקה רכה יותר.
+  ///
+  /// [expected] הוא שם שאוצריא הרכיבה מהעץ, ו-[actual] הוא השם שהתוכנה
+  /// נותנת לחלון. שניהם שמות של אותו ספר, אבל הם נבנו אחרת: העץ מכיל
+  /// צמתי מבנה שהתוכנה משמיטה (`חידושי הגר"ח > חידושים על הגמרא > מכות`
+  /// נפתח ככותרת `חידושי הגר"ח מסכת מכות דף ב עמוד א`), והתוכנה מוסיפה
+  /// מיקום שהעץ אינו מכיל.
+  ///
+  /// לכן, כשההשוואה המלאה נכשלת, די ב**ראש השם ובסופו**: הראש הוא זהות
+  /// החיבור או המחבר, והסוף הוא היחידה. `מנהגי החגים ... יבמות` מול
+  /// `משנה מסכת יבמות` עדיין נדחה — הראש אינו שם.
+  static bool coversTitle(String? expected, String? actual) {
+    if (titlesMatch(expected, actual) || titlesMatch(actual, expected)) {
+      return true;
+    }
+    final want = markedTokens(expected);
+    final got = tokens(actual).toSet();
+    if (want.isEmpty || got.isEmpty) return false;
+    return _hasWord(got, want.first) && _hasWord(got, want.last);
+  }
 }
 
 /// רמות ההתאמה, מהחזקה לחלשה. הסדר הוא המשמעות — `rank` משמש לבחירת
