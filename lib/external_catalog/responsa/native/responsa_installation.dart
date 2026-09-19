@@ -293,15 +293,22 @@ class ResponsaInstallationDiscovery {
     }
 
     final found = <ResponsaInstallation>[];
-    for (final root in roots) {
+    final scanned = <String>{};
+
+    /// סורק תיקייה אחת, ומחזיר את תתי-התיקיות שלה להמשך.
+    List<Directory> scan(String root) {
       final directory = Directory(root);
-      if (!directory.existsSync()) continue;
+      if (!scanned.add(root.toLowerCase())) return const [];
+      if (!directory.existsSync()) return const [];
+      final children = <Directory>[];
       try {
         var seen = 0;
         for (final entry in directory.listSync(followLinks: false)) {
           if (++seen > _maxEntriesPerDirectory) break;
           if (entry is! Directory) continue;
           final name = path.basename(entry.path);
+          if (_skippedDirectories.contains(name.toLowerCase())) continue;
+          children.add(entry);
           final looksRight = name.toLowerCase().startsWith('responsacd');
           if (!looksRight &&
               !File(path.join(entry.path, executableName)).existsSync()) {
@@ -318,11 +325,40 @@ class ResponsaInstallationDiscovery {
         }
       } catch (_) {
         // כונן שאינו זמין, תיקייה ללא הרשאה — לא סיבה להפסיק את הסריקה.
-        continue;
+      }
+      return children;
+    }
+
+    for (final root in roots) {
+      scan(root);
+    }
+    // רמה שנייה בשורש הכונן בלבד: התקנה שהועתקה יושבת לעתים קרובות
+    // ב-`D:\תוכנות\בר אילן 25`, שאינה ב-Registry ואינה `Program Files`.
+    // התיקיות הכבדות של המערכת מדולגות, והתקרה לכל תיקייה נשמרת.
+    for (final drive in _drives()) {
+      for (final child in scan(drive)) {
+        scan(child.path);
       }
     }
     return found;
   }
+
+  /// תיקיות שאין בהן התקנה ושסריקתן יקרה.
+  static const Set<String> _skippedDirectories = {
+    'windows',
+    'winnt',
+    r'$recycle.bin',
+    'system volume information',
+    'users',
+    'documents and settings',
+    'programdata',
+    'perflogs',
+    'recovery',
+    'msocache',
+    'appdata',
+    'node_modules',
+    '.git',
+  };
 
   /// אותיות הכוננים הקיימות במחשב, כנתיבי שורש (`E:\`).
   ///

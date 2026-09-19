@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
 
@@ -93,6 +96,61 @@ void main() {
       final restored = ResponsaFingerprint.fromMeta(print().toMeta());
       expect(restored, isNotNull);
       expect(restored!.matches(print()), isTrue);
+    });
+  });
+
+  group('התקנה חלקית שנטענת מהתקן נשלף', () {
+    late Directory root;
+
+    setUp(() {
+      root = Directory.systemTemp.createTempSync('responsa_partial');
+    });
+
+    tearDown(() {
+      if (root.existsSync()) root.deleteSync(recursive: true);
+    });
+
+    ResponsaInstallation installationAt(String directory) =>
+        ResponsaInstallation(
+          version: null,
+          installPath: directory,
+          displayName: 'partial',
+          source: 'filesystem',
+        );
+
+    test('תיקייה עם קובץ ההרצה היא התקנה, יהיה שמה אשר יהיה', () {
+      File(p.join(root.path, 'RESPONSA.exe')).writeAsStringSync('');
+      expect(installationAt(root.path).exists, isTrue);
+    });
+
+    test('אתר הנתונים נקרא מ-Responsa.env', () {
+      final data = Directory(p.join(root.path, 'elsewhere'))
+        ..createSync(recursive: true);
+      File(p.join(root.path, 'Responsa.env')).writeAsStringSync(
+        ['Something=1', 'DataLocation=${data.path}', 'Other=2'].join('\r\n'),
+      );
+      expect(installationAt(root.path).dataLocation, data.path);
+    });
+
+    test('הארכיון נמצא באתר הנתונים כשאינו ליד קובץ ההרצה', () {
+      // זה בדיוק מצב ההתקנה החלקית: קובץ ההרצה על ההתקן הנשלף,
+      // והמאגר במקום אחר לגמרי.
+      final data = Directory(p.join(root.path, 'elsewhere'))
+        ..createSync(recursive: true);
+      Directory(p.join(data.path, 'DB')).createSync(recursive: true);
+      File(p.join(data.path, 'DB', 'FILE00')).writeAsStringSync('');
+      File(
+        p.join(root.path, 'Responsa.env'),
+      ).writeAsStringSync('DataLocation=${data.path}');
+      expect(
+        installationAt(root.path).archivePath,
+        p.join(data.path, 'DB', 'FILE00'),
+      );
+    });
+
+    test('אין Responsa.env — אין אתר נתונים, וזה מצב חוקי', () {
+      expect(installationAt(root.path).dataLocation, isNull);
+      expect(installationAt(root.path).archivePath, isNull);
     });
   });
 }
