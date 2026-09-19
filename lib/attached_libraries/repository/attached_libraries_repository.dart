@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show ValueNotifier, debugPrint, visibleForTesting;
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_probe.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
@@ -75,6 +76,25 @@ class AttachedLibrariesRepository {
   /// משודר אחרי כל שינוי ברשימה שמשפיע על עץ הספרייה, עם ה-slug של כל מסד
   /// שהקובץ שלו השתנה (טביעת האצבע) — ספריו דורשים אינדוקס מחדש.
   Stream<Set<String>> get changes => _changes.stream;
+
+  /// נתיבי המסדים שקריאת הקטלוג שלהם עדיין רצה. לתצוגה בכרטיס בלבד — אינו
+  /// משודר ב-[changes] ואינו משנה את עץ הספרייה.
+  final ValueNotifier<Set<String>> loadingPaths = ValueNotifier(const {});
+
+  void setLoading(String path, {required bool loading}) {
+    final current = loadingPaths.value;
+    if (current.contains(path) == loading) return;
+    loadingPaths.value = {
+      for (final other in current)
+        if (other != path) other,
+      if (loading) path,
+    };
+  }
+
+  /// האם המסד מוצג "נטען": קריאתו עדיין רצה והוא טרם סומן זמין.
+  bool isLoading(AttachedLibrary library) =>
+      library.status == AttachedLibraryStatus.unreachable &&
+      loadingPaths.value.contains(library.path);
 
   List<AttachedLibrary> get libraries => _registry.libraries;
   List<String> get folders => _store.loadFolders();

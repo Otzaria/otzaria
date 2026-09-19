@@ -1183,6 +1183,8 @@
   "ממוזג": "Merged",
   "זמין": "Available",
   "לא זמין": "Unavailable",
+  "נטען": "Loading",
+  "הקישורים החיצוניים לא נטענו — יותר מדי שורות": "External links not loaded — too many rows",
   "מזהה כפול": "Duplicate ID",
   "אינו מסד SQLite": "Not an SQLite database",
   "פתוח בתוכנה אחרת": "Open in another program",

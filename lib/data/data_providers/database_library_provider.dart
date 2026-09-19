@@ -3581,16 +3581,17 @@ class DatabaseLibraryProvider implements LibraryProvider {
     AttachedLibrary attached,
   ) async {
     final path = attached.path;
-    final pending = _pendingAttachedCatalogs.putIfAbsent(
-      path,
-      () => _PendingAttachedCatalog(
+    final attachedRepository = AttachedLibrariesRepository.instance;
+    final pending = _pendingAttachedCatalogs.putIfAbsent(path, () {
+      attachedRepository.setLoading(path, loading: true);
+      return _PendingAttachedCatalog(
         attachedCatalogReader((
           path: path,
           untrusted: true,
           immutable: attached.immutable,
         )),
-      ),
-    );
+      );
+    });
     try {
       final rows = pending.done
           ? await pending.future
@@ -3598,44 +3599,49 @@ class DatabaseLibraryProvider implements LibraryProvider {
               pending.timedOut ? Duration.zero : attachedCatalogTimeout,
             );
       _pendingAttachedCatalogs.remove(path);
+      attachedRepository.setLoading(path, loading: false);
       if (rows.missing) {
-        _reportAttachedReachability(path, reachable: false);
+        unawaited(_reportAttachedReachability(path, reachable: false));
         return null;
       }
       return rows;
     } on TimeoutException {
       if (!pending.timedOut) {
         pending.timedOut = true;
-        _reportAttachedReachability(path, reachable: false);
+        unawaited(_reportAttachedReachability(path, reachable: false));
         unawaited(
-          pending.future.then(
-            (rows) {
-              if (!rows.missing) {
-                _reportAttachedReachability(path, reachable: true);
-              }
-            },
-            onError: (Object _) {},
-          ),
+          pending.future
+              .then(
+                (rows) async {
+                  if (!rows.missing) {
+                    await _reportAttachedReachability(path, reachable: true);
+                  }
+                },
+                onError: (Object _) {},
+              )
+              .whenComplete(
+                () => attachedRepository.setLoading(path, loading: false),
+              ),
         );
       }
       return null;
     } catch (e, stackTrace) {
       _pendingAttachedCatalogs.remove(path);
+      attachedRepository.setLoading(path, loading: false);
       debugPrint('⚠️ Error reading attached library ${attached.slug}: $e');
       unawaited(Sentry.captureException(e, stackTrace: stackTrace));
       return null;
     }
   }
 
-  void _reportAttachedReachability(String path, {required bool reachable}) {
-    unawaited(
-      AttachedLibrariesRepository.instance
-          .setReachable(path, reachable: reachable)
-          .catchError((Object e) {
-            debugPrint('⚠️ Could not update attached library $path: $e');
-          }),
-    );
-  }
+  Future<void> _reportAttachedReachability(
+    String path, {
+    required bool reachable,
+  }) => AttachedLibrariesRepository.instance
+      .setReachable(path, reachable: reachable)
+      .catchError((Object e) {
+        debugPrint('⚠️ Could not update attached library $path: $e');
+      });
 
   void _addAttachedLibraryToCatalog(
     Library library,

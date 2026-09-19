@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 
@@ -119,6 +120,56 @@ void main() {
     expect(find.text('הוסף תיקיית מסדים'), findsOneWidget);
     // מסד לא נגיש אינו מציע בחירת מיקום בעץ.
     expect(find.text('בנפרד'), findsNWidgets(2));
+  });
+
+  group('מצבים זמניים בכרטיס', () {
+    final previousRepository = AttachedLibrariesRepository.instance;
+    tearDown(() {
+      AttachedLibrariesRepository.instance = previousRepository;
+      ExternalLinkRepository.instance.tooLargeSlugs.value = const {};
+    });
+
+    testWidgets('קריאה שעדיין רצה מוצגת "נטען", וקובץ חסר "לא זמין"', (
+      tester,
+    ) async {
+      final repository = _FakeRepository([
+        _library('dbA', status: AttachedLibraryStatus.unreachable),
+        _library('dbB', status: AttachedLibraryStatus.unreachable),
+      ]);
+      AttachedLibrariesRepository.instance = repository;
+      repository.setLoading('C:/dbs/dbA.db', loading: true);
+      await pumpPanel(tester, repository);
+      expect(find.text('נטען'), findsOneWidget);
+      expect(find.text('לא זמין'), findsOneWidget);
+
+      repository.setLoading('C:/dbs/dbA.db', loading: false);
+      await tester.pump();
+      expect(find.text('נטען'), findsNothing);
+      expect(find.text('לא זמין'), findsNWidgets(2));
+    });
+
+    testWidgets('מסד תקין שקריאתו רצה אינו מוצג "נטען"', (tester) async {
+      final repository = _FakeRepository([_library('dbA')]);
+      AttachedLibrariesRepository.instance = repository;
+      repository.setLoading('C:/dbs/dbA.db', loading: true);
+      await pumpPanel(tester, repository);
+      expect(find.text('זמין'), findsOneWidget);
+      expect(find.text('נטען'), findsNothing);
+    });
+
+    testWidgets('מסד שעבר את תקרת הקישורים מציג הודעה בשורה שלו', (
+      tester,
+    ) async {
+      final repository = _FakeRepository([_library('dbA'), _library('dbB')]);
+      AttachedLibrariesRepository.instance = repository;
+      await pumpPanel(tester, repository);
+      const message = 'הקישורים החיצוניים לא נטענו — יותר מדי שורות';
+      expect(find.text(message), findsNothing);
+
+      ExternalLinkRepository.instance.tooLargeSlugs.value = {'dbB'};
+      await tester.pump();
+      expect(find.text(message), findsOneWidget);
+    });
   });
 
   testWidgets('בלי קישור (מובייל) — אין הוספת תיקייה', (tester) async {

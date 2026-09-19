@@ -350,12 +350,22 @@ void main() {
         await statusSettled(slow, AttachedLibraryStatus.unreachable),
         AttachedLibraryStatus.unreachable,
       );
+      // בכרטיס: "נטען" ולא "לא זמין" כל עוד הקריאה רצה.
+      expect(attached.loadingPaths.value, {slow.path});
+      expect(
+        attached.isLoading(
+          attached.libraries.firstWhere((l) => l.path == slow.path),
+        ),
+        isTrue,
+      );
 
       release.complete();
       expect(
         await statusSettled(slow, AttachedLibraryStatus.ok),
         AttachedLibraryStatus.ok,
       );
+      await pumpEventQueue();
+      expect(attached.loadingPaths.value, isEmpty);
       final rebuilt = await buildCatalog();
       expect(
         _child(_child(rebuilt, _personalRoot)!, slow.displayName),
@@ -381,6 +391,7 @@ void main() {
         await statusSettled(gone, AttachedLibraryStatus.unreachable),
         AttachedLibraryStatus.unreachable,
       );
+      expect(attached.loadingPaths.value, isEmpty);
     });
 
     test('קריאה שנכשלה: המסד מדולג בלי להפיל את העץ', () async {

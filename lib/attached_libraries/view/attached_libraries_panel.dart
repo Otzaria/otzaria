@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
@@ -30,10 +32,26 @@ class AttachedLibrariesPanel extends StatefulWidget {
 }
 
 class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
+  final _repository = AttachedLibrariesRepository.instance;
+  final _links = ExternalLinkRepository.instance;
+
   @override
   void initState() {
     super.initState();
     context.read<AttachedLibrariesBloc>().add(const LoadAttachedLibraries());
+    _repository.loadingPaths.addListener(_rebuild);
+    _links.tooLargeSlugs.addListener(_rebuild);
+  }
+
+  @override
+  void dispose() {
+    _repository.loadingPaths.removeListener(_rebuild);
+    _links.tooLargeSlugs.removeListener(_rebuild);
+    super.dispose();
+  }
+
+  void _rebuild() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _importFile() async {
@@ -237,6 +255,10 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
             for (var i = 0; i < libraries.length; i++)
               _AttachedLibraryTile(
                 library: libraries[i],
+                isLoading: _repository.isLoading(libraries[i]),
+                linksTooLarge: _links.tooLargeSlugs.value.contains(
+                  libraries[i].slug,
+                ),
                 enabled: !state.isBusy,
                 onPlacementChanged: (placement) => context
                     .read<AttachedLibrariesBloc>()
@@ -306,12 +328,16 @@ enum _MenuAction { toggleHidden, moveUp, moveDown, release, copyPath, remove }
 class _AttachedLibraryTile extends StatelessWidget {
   const _AttachedLibraryTile({
     required this.library,
+    required this.isLoading,
+    required this.linksTooLarge,
     required this.enabled,
     required this.onPlacementChanged,
     required this.onMenu,
   });
 
   final AttachedLibrary library;
+  final bool isLoading;
+  final bool linksTooLarge;
   final bool enabled;
   final ValueChanged<AttachedLibraryPlacement> onPlacementChanged;
   final void Function(BuildContext anchor) onMenu;
@@ -350,6 +376,14 @@ class _AttachedLibraryTile extends StatelessWidget {
               if (library.isOk)
                 for (final capability in library.capabilities)
                   _InfoChip(label: _capabilityLabel(context, capability)),
+              if (linksTooLarge)
+                _InfoChip(
+                  label: context.settingsText(
+                    'הקישורים החיצוניים לא נטענו — יותר מדי שורות',
+                  ),
+                  background: cs.errorContainer,
+                  foreground: cs.onErrorContainer,
+                ),
             ],
           ),
         ],
@@ -400,6 +434,11 @@ class _AttachedLibraryTile extends StatelessWidget {
         context.settingsText('זמין'),
         cs.primaryContainer,
         cs.onPrimaryContainer,
+      ),
+      AttachedLibraryStatus.unreachable when isLoading => (
+        context.settingsText('נטען'),
+        cs.surfaceContainerHighest,
+        cs.onSurfaceVariant,
       ),
       AttachedLibraryStatus.unreachable => (
         context.settingsText('לא זמין'),
