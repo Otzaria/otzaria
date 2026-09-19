@@ -361,11 +361,12 @@ class SearchNavigationTree extends StatelessWidget {
             height: _iconSize,
             fit: BoxFit.contain,
           )
-        : Icon(
-            bookFormatIcon(book),
-            color: cs.onSecondaryContainer,
-            size: _iconSize,
-          );
+        : externalProviderIcon(book, cs, _iconSize) ??
+              Icon(
+                bookFormatIcon(book),
+                color: cs.onSecondaryContainer,
+                size: _iconSize,
+              );
     return Container(
       width: _iconBoxSize,
       height: _iconBoxSize,
