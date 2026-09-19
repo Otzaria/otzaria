@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -64,21 +65,45 @@ class ResponsaInstallation {
   /// בהתקנה מלאה היא יושבת תחת `Public\Documents`; היא יכולה לשבת
   /// במקום אחר. `null` כשהקובץ חסר או אינו קריא — מצב חוקי.
   String? get dataLocation {
-    final file = File(path.join(installPath, 'Responsa.env'));
-    if (!file.existsSync()) return null;
-    try {
-      for (final line in file.readAsLinesSync()) {
-        final trimmed = line.trim();
-        if (!trimmed.toLowerCase().startsWith('datalocation')) continue;
-        final separator = trimmed.indexOf('=');
-        if (separator < 0) continue;
-        final value = trimmed.substring(separator + 1).trim();
-        if (value.isNotEmpty) return value;
-      }
-    } catch (e) {
-      debugPrint('ResponsaInstallation: cannot read Responsa.env: $e');
+    for (final line in _readLines(path.join(installPath, 'Responsa.env'))) {
+      final trimmed = line.trim();
+      if (!trimmed.toLowerCase().startsWith('datalocation')) continue;
+      final separator = trimmed.indexOf('=');
+      if (separator < 0) continue;
+      final value = trimmed.substring(separator + 1).trim();
+      if (value.isNotEmpty) return value;
     }
     return null;
+  }
+
+  /// קורא קובץ תצורה של התוכנה, שאינו UTF-8.
+  ///
+  /// `Responsa.ini` נכתב ב-ANSI עברי (CP1255): `Sh_cdrom` מכיל את
+  /// הנתיב שממנו הותקנה התוכנה, ובו עברית. `readAsLinesSync` ברירת
+  /// המחדל זורק `FileSystemException` על הבתים האלה — והקובץ כולו
+  /// היה נזרק בשקט, כולל המפתחות שהם ASCII טהור.
+  ///
+  /// הסדר: UTF-8 (מהדורה עתידית), קידוד המערכת (Windows עברי),
+  /// ו-`latin1` שלעולם אינו זורק. ערך שיתקבל מעוות יפסל ממילא בבדיקת
+  /// קיום הקובץ.
+  static List<String> _readLines(String filePath) {
+    final file = File(filePath);
+    if (!file.existsSync()) return const [];
+    late final List<int> bytes;
+    try {
+      bytes = file.readAsBytesSync();
+    } catch (e) {
+      debugPrint('ResponsaInstallation: cannot read $filePath: $e');
+      return const [];
+    }
+    for (final codec in <Encoding>[utf8, systemEncoding, latin1]) {
+      try {
+        return const LineSplitter().convert(codec.decode(bytes));
+      } catch (_) {
+        continue;
+      }
+    }
+    return const [];
   }
 
   /// המקטע `[Environment]` של `Responsa.ini`, במפתחות קטנים.
@@ -91,29 +116,22 @@ class ResponsaInstallation {
   Map<String, String> get iniSettings {
     final data = dataLocation;
     if (data == null) return const {};
-    final file = File(path.join(data, 'Responsa.ini'));
-    if (!file.existsSync()) return const {};
-    try {
-      final values = <String, String>{};
-      var inEnvironment = false;
-      for (final line in file.readAsLinesSync()) {
-        final trimmed = line.trim();
-        if (trimmed.startsWith('[')) {
-          inEnvironment = trimmed.toLowerCase() == '[environment]';
-          continue;
-        }
-        if (!inEnvironment) continue;
-        final separator = trimmed.indexOf('=');
-        if (separator <= 0) continue;
-        final value = trimmed.substring(separator + 1).trim();
-        if (value.isEmpty) continue;
-        values[trimmed.substring(0, separator).trim().toLowerCase()] = value;
+    final values = <String, String>{};
+    var inEnvironment = false;
+    for (final line in _readLines(path.join(data, 'Responsa.ini'))) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith('[')) {
+        inEnvironment = trimmed.toLowerCase() == '[environment]';
+        continue;
       }
-      return values;
-    } catch (e) {
-      debugPrint('ResponsaInstallation: cannot read Responsa.ini: $e');
-      return const {};
+      if (!inEnvironment) continue;
+      final separator = trimmed.indexOf('=');
+      if (separator <= 0) continue;
+      final value = trimmed.substring(separator + 1).trim();
+      if (value.isEmpty) continue;
+      values[trimmed.substring(0, separator).trim().toLowerCase()] = value;
     }
+    return values;
   }
 
   /// תווית ההתקן הנשלף שהתוכנה מחפשת (`RESPONSAV25`), אם היא רשומה.

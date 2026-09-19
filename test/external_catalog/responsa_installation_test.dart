@@ -191,6 +191,32 @@ void main() {
       expect(installationAt(root.path).volumeLabel, isNull);
     });
 
+    test('קובץ תצורה ב-ANSI עברי נקרא ואינו נזרק', () {
+      // נצפה על ההתקנה: `Responsa.ini` נכתב ב-CP1255, ו-`Sh_cdrom`
+      // מכיל את הנתיב שממנו הותקנה התוכנה — ובו עברית.
+      // `readAsLinesSync` ברירת המחדל זרק `FileSystemException`,
+      // והקובץ כולו נזרק בשקט — כולל המפתחות שהם ASCII טהור.
+      final data = Directory(p.join(root.path, 'data'))
+        ..createSync(recursive: true);
+      final disk = Directory(p.join(root.path, 'disk', 'db'))
+        ..createSync(recursive: true);
+      File(p.join(disk.path, 'FILE00')).writeAsStringSync('');
+      File(
+        p.join(root.path, 'Responsa.env'),
+      ).writeAsStringSync('DataLocation=${data.path}');
+      // `0xE1 0xE5` הם `בו` ב-CP1255, ובתים בלתי-חוקיים ב-UTF-8.
+      File(p.join(data.path, 'Responsa.ini')).writeAsBytesSync([
+        ...'[Environment]\r\nSh_cdrom=D:\\'.codeUnits,
+        0xE1,
+        0xE5,
+        ...'\r\nSh_hdisk=${p.join(root.path, 'disk')}\r\n'.codeUnits,
+        ...'VolLabel=RESPONSAV25\r\n'.codeUnits,
+      ]);
+      final installation = installationAt(root.path);
+      expect(installation.volumeLabel, 'RESPONSAV25');
+      expect(installation.archivePath, p.join(disk.path, 'FILE00'));
+    });
+
     test('אין Responsa.ini — מפה ריקה ולא חריג', () {
       expect(installationAt(root.path).iniSettings, isEmpty);
       expect(installationAt(root.path).volumeLabel, isNull);
