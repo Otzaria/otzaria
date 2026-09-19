@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_tree_reader.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
@@ -30,7 +31,7 @@ void main() {
       isNotEmpty,
       reason: 'בר אילן must be running for the dump',
     );
-    final instance = selection.instances.first;
+    final instance = ResponsaInstance.pick(selection.instances)!;
     print('installation: ${selection.installation.installPath}');
 
     final version =

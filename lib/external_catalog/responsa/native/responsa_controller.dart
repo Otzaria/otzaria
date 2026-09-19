@@ -7,9 +7,9 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_launcher.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
-import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
 
 /// מצב פרויקט השו"ת כפי שאוצריא רואה אותו.
 class ResponsaStatus {
@@ -106,14 +106,15 @@ class ResponsaController {
   static ResponsaStatus _readStatus() {
     final installations = ResponsaInstallationDiscovery.discover();
     final usable = installations.where((i) => i.exists).toList();
-    final live = ResponsaWin32.topWindowsByClass('ResponsaProject');
+    final live = ResponsaInstance.all();
+    // "רץ" = יש מופע שאפשר לעבוד מולו. מופע חונה מחוץ למסך אינו כזה,
+    // והצגתו למשתמש כ"פעיל" היא בדיוק השקר שמסתיר את הבעיה.
+    final active = ResponsaInstance.pick(live);
 
     int? version;
-    int? pid;
-    if (live.isNotEmpty) {
-      pid = live.first.pid;
+    if (active != null) {
       version = ResponsaInstallationDiscovery.versionFromWindowTitle(
-        ResponsaWin32.windowText(live.first.hwnd),
+        active.title,
       );
     }
     version ??= usable.isEmpty ? null : usable.first.version;
@@ -121,10 +122,10 @@ class ResponsaController {
     if (usable.isEmpty && live.isEmpty) return ResponsaStatus.notInstalled;
     return ResponsaStatus(
       installed: usable.isNotEmpty || live.isNotEmpty,
-      running: live.isNotEmpty,
+      running: active != null,
       version: version,
       installPath: usable.isEmpty ? null : usable.first.installPath,
-      pid: pid,
+      pid: active?.pid,
       confidence: ResponsaVersionProfile.forVersion(version).confidence,
       installations: installations,
     );
@@ -223,11 +224,17 @@ class ResponsaController {
   ) async {
     // המופעים של **ההתקנה שממנה נבנה הקטלוג** בלבד. מופע של התקנה אחרת
     // יכול להציג מאגר אחר, ולפתוח ספר שאינו זה שהמשתמש ביקש.
+    //
+    // ומתוכם — רק מופע שאפשר לעבוד מולו. מופע חונה מחוץ למסך עונה
+    // לפקודות ופותח את הספר באמת, ואוצריא הייתה מדווחת הצלחה בזמן
+    // שהמשתמש אינו רואה דבר. ראו [ResponsaInstance].
     final selection = ResponsaInstallationDiscovery.selectInstallation(
       preferredPath: request.installPath,
     );
-    final live = selection?.instances ?? const <({int hwnd, int pid})>[];
-    if (live.isEmpty) {
+    final instance = selection == null
+        ? null
+        : ResponsaInstance.pick(selection.instances);
+    if (instance == null) {
       return ResponsaOpenReport(
         ok: false,
         failure: ResponsaFailure.responsaNotRunning,
@@ -238,16 +245,8 @@ class ResponsaController {
       );
     }
 
-    // מבין אלה — הפנוי ביותר: אין single-instance, ומופע שצבר חלונות
-    // רבים מפסיק לפתוח חדשים.
-    live.sort(
-      (a, b) => ResponsaWin32.mdiTitles(a.hwnd).length.compareTo(
-        ResponsaWin32.mdiTitles(b.hwnd).length,
-      ),
-    );
-    final instance = live.first;
     final version = ResponsaInstallationDiscovery.versionFromWindowTitle(
-      ResponsaWin32.windowText(instance.hwnd),
+      instance.title,
     );
 
     final flag = Pointer<Int32>.fromAddress(request.cancelFlagAddress);

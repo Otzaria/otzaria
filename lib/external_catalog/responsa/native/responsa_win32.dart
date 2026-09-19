@@ -142,6 +142,28 @@ class ResponsaWin32 {
   static bool isVisible(int hwnd) =>
       IsWindowVisible(HWND(Pointer.fromAddress(hwnd)));
 
+  /// האם החלון נמצא על מסך כלשהו.
+  ///
+  /// `MONITOR_DEFAULTTONULL` מחזיר אפס כשהמלבן אינו חותך אף תצוגה. זו
+  /// הבדיקה **היחידה** שמבדילה מופע חונה מחוץ למסך ממופע תקין, ולכן היא
+  /// כאן ולא בקוד הקורא. נמדד על חלון חונה של פרויקט השו"ת:
+  /// `IsWindowVisible` מחזיר `true`, `IsIconic` מחזיר `false`,
+  /// `GetWindowPlacement` מחזיר `SW_SHOWNORMAL`, ו-`IsHungAppWindow`
+  /// מחזיר `false` — כל בדיקה מלבד זו מכריזה עליו תקין.
+  ///
+  /// חלון **ממוזער** עובר את הבדיקה: Windows ממפה אותו למסך הקרוב, גם
+  /// כשמלבנו `-32000,-32000`. זה הנכון — הוא של המשתמש, והוא משוחזר
+  /// ב-[bringToFront].
+  static bool isOnScreen(int hwnd) =>
+      MonitorFromWindow(
+        HWND(Pointer.fromAddress(hwnd)),
+        const MONITOR_FROM_FLAGS(0),
+      ).address !=
+      0;
+
+  static bool isMinimized(int hwnd) =>
+      IsIconic(HWND(Pointer.fromAddress(hwnd)));
+
   static bool isWindow(int hwnd) => IsWindow(HWND(Pointer.fromAddress(hwnd)));
 
   /// `GA_ROOT` — חלון עליון אמיתי ולא ילד שמתחזה.

@@ -3,10 +3,17 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
 import 'package:path/path.dart' as path;
 import 'package:win32/win32.dart' show GetLogicalDrives;
 import 'package:win32_registry/win32_registry.dart';
+
+/// ההתקנה שיש לעבוד מולה, יחד עם כל מופעיה החיים — כולל חונים.
+typedef ResponsaSelection = ({
+  ResponsaInstallation installation,
+  List<ResponsaInstance> instances,
+});
 
 /// התקנה אחת של פרויקט השו"ת.
 class ResponsaInstallation {
@@ -451,14 +458,17 @@ class ResponsaInstallationDiscovery {
     ];
   }
 
-  /// המופעים הרצים ששייכים להתקנה נתונה, כזוגות `(hwnd, pid)`.
+  /// המופעים הרצים ששייכים להתקנה נתונה.
   ///
   /// ההשוואה היא לפי נתיב קובץ ההרצה. מופע ששייך להתקנה אחרת עלול
   /// להציג קטלוג אחר לגמרי.
-  static List<({int hwnd, int pid})> instancesOf(String installPath) {
+  ///
+  /// **בלי סינון שימושיות.** גם מופע חונה מעיד על ההתקנה, וזו בדיוק
+  /// השאלה כאן. מי שצריך מופע לעבוד מולו קורא ל-[ResponsaInstance.pick].
+  static List<ResponsaInstance> instancesOf(String installPath) {
     final wanted = installPath.toLowerCase().replaceAll(RegExp(r'[\\/]+$'), '');
     return [
-      for (final instance in ResponsaWin32.topWindowsByClass('ResponsaProject'))
+      for (final instance in ResponsaInstance.all())
         if (executableOf(instance.pid) case final executable?)
           if (path
                   .dirname(executable)
@@ -475,18 +485,15 @@ class ResponsaInstallationDiscovery {
   ///
   /// 1. **ההתקנה שנתיבה [preferredPath]** — זו שממנה נבנה הקטלוג.
   ///    הפניה שנבנתה ממאגר אחד אינה בהכרח מוליכה לאותו ספר במאגר אחר.
-  /// 2. **ההתקנה הראשונה שיש לה מופע חי.** על מחשב עם שתי התקנות, אחת
-  ///    מהן פתוחה, בחירה בשנייה מסתיימת ב"התוכנה אינה פעילה" בזמן
+  /// 2. **ההתקנה שיש לה מופע שאפשר לעבוד מולו.** על מחשב עם שתי התקנות,
+  ///    אחת מהן פתוחה, בחירה בשנייה מסתיימת ב"התוכנה אינה פעילה" בזמן
   ///    שהמשתמש רואה אותה פתוחה מולו.
-  /// 3. ההתקנה המועדפת לפי דירוג הגילוי, גם בלי מופע חי — כדי שאפשר
+  /// 3. **ההתקנה שיש לה מופע כלשהו**, גם חונה — הוא עדיין מעיד עליה.
+  /// 4. ההתקנה המועדפת לפי דירוג הגילוי, גם בלי מופע חי — כדי שאפשר
   ///    יהיה להעלות אותה.
   ///
   /// `null` רק כשאין אף התקנה שימושית.
-  static ({
-    ResponsaInstallation installation,
-    List<({int hwnd, int pid})> instances,
-  })?
-  selectInstallation({String? preferredPath}) {
+  static ResponsaSelection? selectInstallation({String? preferredPath}) {
     final installations = discover().where((i) => i.exists).toList();
     if (installations.isEmpty) return null;
 
@@ -514,11 +521,20 @@ class ResponsaInstallationDiscovery {
       );
     }
 
-    for (final installation in installations) {
-      final instances = instancesOf(installation.installPath);
-      if (instances.isNotEmpty) {
-        return (installation: installation, instances: instances);
-      }
+    final withInstances = [
+      for (final installation in installations)
+        (
+          installation: installation,
+          instances: instancesOf(installation.installPath),
+        ),
+    ];
+    // **השימושי קודם לחי.** התקנה שכל מופעיה חונים מחוץ למסך אינה
+    // עדיפה על התקנה שאפשר להעלות מופע גלוי שלה.
+    for (final candidate in withInstances) {
+      if (ResponsaInstance.pick(candidate.instances) != null) return candidate;
+    }
+    for (final candidate in withInstances) {
+      if (candidate.instances.isNotEmpty) return candidate;
     }
     return (installation: installations.first, instances: const []);
   }

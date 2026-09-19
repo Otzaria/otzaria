@@ -8,10 +8,10 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_builder.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_launcher.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_tree_reader.dart';
-import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
 
 /// שלב בבניית הקטלוג, לתצוגה למשתמש.
 enum ResponsaBuildStage { starting, scanning, classifying, done, failed }
@@ -175,7 +175,10 @@ class ResponsaCatalogBuildService {
         return;
       }
       final installation = selection.installation;
-      if (selection.instances.isEmpty) {
+      // מופע חונה מחוץ למסך עונה לפקודות, ולכן הבנייה הייתה מצליחה
+      // מולו — אבל היא לוקחת כחמש דקות, והמשתמש לא היה רואה דבר קורה.
+      final instance = ResponsaInstance.pick(selection.instances);
+      if (instance == null) {
         send.send(
           ResponsaBuildProgress(
             stage: ResponsaBuildStage.failed,
@@ -186,10 +189,9 @@ class ResponsaCatalogBuildService {
         );
         return;
       }
-      final instance = selection.instances.first;
       final version =
           ResponsaInstallationDiscovery.versionFromWindowTitle(
-            ResponsaWin32.windowText(instance.hwnd),
+            instance.title,
           ) ??
           installation.version;
       final automation = ResponsaAutomation(

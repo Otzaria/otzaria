@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
 
 /// תוצאת ניסיון להעלות את בר אילן.
 class ResponsaLaunchResult {
@@ -41,6 +42,11 @@ class ResponsaLauncher {
 
   /// ההתקנה שיש לעבוד מולה ומצבה. `null` כשאין אף התקנה שימושית.
   ///
+  /// `running` פירושו **יש מופע שאפשר לעבוד מולו** — לא "יש תהליך".
+  /// מופע חונה מחוץ למסך נחשב כאן ככבוי, וזו כל הנקודה: הוא מגיב
+  /// לפקודות ופותח ספרים, אבל המשתמש אינו רואה דבר. ראו
+  /// [ResponsaInstance].
+  ///
   /// רץ באיזולט רקע: סריקת הכוננים וספירת החלונות הן קריאות Win32
   /// חוסמות, ועל Windows ה-UI isolate רץ על ה-platform thread.
   static Future<({String executable, String installPath, bool running})?>
@@ -52,7 +58,7 @@ class ResponsaLauncher {
     return (
       executable: selection.installation.executable,
       installPath: selection.installation.installPath,
-      running: selection.instances.isNotEmpty,
+      running: ResponsaInstance.pick(selection.instances) != null,
     );
   });
 
