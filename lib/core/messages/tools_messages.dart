@@ -23,6 +23,13 @@ abstract class ToolsMessages {
       'קלט לא תקין. יש להזין אותיות עבריות או מספרים בלבד.';
   static String gematriaSearchError(Object error) => 'שגיאה בחיפוש: $error';
 
+  // ── תיקון קוראים ──
+  static String tikkunLoadError(Object error) => 'שגיאה בטעינת התיקון: $error';
+  static const String tikkunNoData = 'אין נתונים להצגה';
+  static const String tikkunNoHaftarahForNusach = 'אין הפטרה במנהג זה';
+  static const String tikkunExportNoContent = 'אין תוכן לייצוא';
+  static const String tikkunBookmarkExists = 'המיקום הזה כבר שמור בסימניות';
+
   // ── שמור וזכור ──
   static String bookRemovedFromTracking(String bookName) =>
       'הספר "$bookName" הוסר מרשימת המעקב';

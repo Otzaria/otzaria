@@ -31,6 +31,11 @@ class AppFonts {
   /// גופן לעריכת טקסט עם טעמים
   static const String editorFont = 'TaameyAshkenaz';
 
+  /// כתב אשורית, מחבילת `otzaria_ashurit`. במשפחת הסת"ם אין מיפוי לניקוד
+  /// ולטעמים, ולכן תו מנוקד נופל בה אוטומטית לגופן אחר.
+  static const String ashuritFont = 'OtzariaAshurit';
+  static const String ashuritNikudFont = 'OtzariaAshuritNikud';
+
   /// גופנים משתנים (Variable Fonts) עם ציר wght. Flutter לא ממפה
   /// FontWeight.bold לציר הזה אוטומטית — בלי FontVariation מפורש הבולד יוצא
   /// מלאכותי (faux). ראו [boldFontVariations].
@@ -62,7 +67,11 @@ class AppFonts {
 
   /// גופנים מובנים שנרשמו ב-pubspec עם קובץ בולד נפרד. ב-face נפרד ציור האות
   /// שונה מה-regular, ולכן כותרת מודגשת נראית כגופן אחר מהגוף.
-  static const Set<String> _separateBoldFaceFonts = {'FrankRuhlCLM'};
+  static const Set<String> _separateBoldFaceFonts = {
+    'FrankRuhlCLM',
+    'OtzariaAshurit',
+    'OtzariaAshuritNikud',
+  };
 
   /// גופני מערכת שנטען עבורם קובץ בולד אחי ב-[_augmentSystemFontWeights].
   /// מאוכלס בזמן ריצה — אצל משתמש אחד לגופן יש קובץ בולד מותקן ואצל אחר לא.
@@ -680,6 +689,8 @@ class AppFonts {
   /// צרכן חיצוני שמקבל רק את ה-regular (WebView של תוסף) מסנתז בולד מרוח.
   static const Map<String, String> boldFontPaths = {
     'FrankRuhlCLM': 'fonts/FrankRuehlCLM-Bold.ttf',
+    ashuritFont: 'packages/otzaria_ashurit/OtzariaAshurit-Bold.otf',
+    ashuritNikudFont: 'packages/otzaria_ashurit/OtzariaAshuritNikud-Bold.otf',
   };
 
   /// ה-faces של גופן מערכת שאותר בסריקה, או null כשאינו מוכר.

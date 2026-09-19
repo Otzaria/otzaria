@@ -70,12 +70,13 @@ class AppSegmentedControl<T> extends StatelessWidget {
         .map(
           (o) => ButtonSegment<T>(
             value: o.value,
-            label: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                o.label,
-                style: AppTextStyles.settingTitle,
-              ),
+            // בלי FittedBox: בתוך לחצן הוא פורס את הטקסט ברוחב מילה אחת,
+            // ואז maxLines חותך אותו למילה הראשונה.
+            label: Text(
+              o.label,
+              style: AppTextStyles.settingTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             icon: hasIcons ? _buildOptionIcon(o) : null,
           ),

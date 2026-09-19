@@ -75,6 +75,11 @@ dependencies:
   package_info_plus: ^10.2.1
   convert: ^3.1.2
   crypto: ^3.0.7
+  # גופן הסת"ם של "תיקון קוראים"; הגרסה ננעלת ב-pubspec.lock.
+  otzaria_ashurit:
+    git:
+      url: https://github.com/palmoni5/otzaria-ashurit.git
+      path: package
   path: ^1.9.1
   http: ^1.6.0
   zstandard: ^1.5.0
@@ -274,6 +279,22 @@ flutter:
     - family: NotoSerifHebrew
       fonts:
         - asset: fonts/NotoSerifHebrew-VariableFont_wdth,wght.ttf
+    - family: OtzariaAshurit
+      fonts:
+        - asset: packages/otzaria_ashurit/OtzariaAshurit-Regular.otf
+        - asset: packages/otzaria_ashurit/OtzariaAshurit-Bold.otf
+          weight: 700
+    - family: OtzariaAshuritNikud
+      fonts:
+        - asset: packages/otzaria_ashurit/OtzariaAshuritNikud-Regular.otf
+        - asset: packages/otzaria_ashurit/OtzariaAshuritNikud-Bold.otf
+          weight: 700
+    - family: AshkenaziStam
+      fonts:
+        - asset: fonts/tikkun_korim/Ashkenazi-Stam.ttf
+    - family: SefardiStam
+      fonts:
+        - asset: fonts/tikkun_korim/Sefardi-Stam.ttf
 
 sentry:
   upload_debug_symbols: true

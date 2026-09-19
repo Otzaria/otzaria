@@ -67,6 +67,13 @@ const List<BuiltInToolMeta> kBuiltInToolsCatalog = [
     iconFilled: FluentIcons.note_24_filled,
   ),
   BuiltInToolMeta(
+    toolId: 'builtin.tikkun_korim',
+    label: 'תיקון קוראים',
+    order: 40,
+    icon: OtzariaIcons.torah_scroll_24_regular,
+    iconFilled: OtzariaIcons.torah_scroll_24_regular,
+  ),
+  BuiltInToolMeta(
     toolId: 'builtin.gematria',
     label: 'גימטריה',
     order: 50,
