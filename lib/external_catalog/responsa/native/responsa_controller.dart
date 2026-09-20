@@ -108,7 +108,6 @@ class ResponsaController {
   static const Duration launchTimeout = Duration(seconds: 60);
 
   static const Duration openBudget = Duration(minutes: 3);
-  static const Duration simanBudget = Duration(seconds: 90);
 
   /// מצב ההתקנה והמופע. מהיר; אינו נוגע בתוכנה.
   Future<ResponsaStatus> status() async {
@@ -152,7 +151,6 @@ class ResponsaController {
   Future<ResponsaOpenReport> openBook(
     List<String> references, {
     String? expectedTitle,
-    int? siman,
     String? installPath,
   }) async {
     if (!Platform.isWindows) {
@@ -181,7 +179,6 @@ class ResponsaController {
         (flagAddress) => _OpenRequest(
           references: references,
           expectedTitle: expectedTitle,
-          siman: siman,
           installPath: installPath,
           cancelFlagAddress: flagAddress,
           openedWindows: List.of(_openedWindows),
@@ -300,18 +297,6 @@ class ResponsaController {
         ResponsaDeadline(openBudget),
         expectedTitle: request.expectedTitle,
       );
-      if (request.siman != null) {
-        // כשל בניווט אינו מבטל פתיחה מוצלחת — הספר פתוח, רק לא בסימן.
-        try {
-          automation.gotoSiman(
-            _bookTitleOf(outcome.window),
-            request.siman!,
-            ResponsaDeadline(simanBudget),
-          );
-        } on ResponsaAutomationException catch (error) {
-          debugPrint('gotoSiman failed: ${error.message}');
-        }
-      }
       return ResponsaOpenReport(
         ok: true,
         window: outcome.window,
@@ -333,20 +318,11 @@ class ResponsaController {
       );
     }
   }
-
-  /// כותרת חלון היא `<ספר> סימן <גימטריה>`; הניווט מצפה לשם הספר.
-  static String _bookTitleOf(String windowTitle) {
-    final index = windowTitle.indexOf('סימן');
-    return index <= 0
-        ? windowTitle.trim()
-        : windowTitle.substring(0, index).trim();
-  }
 }
 
 class _OpenRequest {
   final List<String> references;
   final String? expectedTitle;
-  final int? siman;
   final String? installPath;
   final int cancelFlagAddress;
 
@@ -357,7 +333,6 @@ class _OpenRequest {
     required this.references,
     required this.cancelFlagAddress,
     this.expectedTitle,
-    this.siman,
     this.installPath,
     this.openedWindows = const [],
   });

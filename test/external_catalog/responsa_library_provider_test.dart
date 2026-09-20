@@ -58,7 +58,6 @@ class _FakeController implements ResponsaController {
     ({
       List<String> references,
       String? expectedTitle,
-      int? siman,
       String? installPath,
     })
   >
@@ -85,13 +84,11 @@ class _FakeController implements ResponsaController {
   Future<ResponsaOpenReport> openBook(
     List<String> references, {
     String? expectedTitle,
-    int? siman,
     String? installPath,
   }) async {
     calls.add((
       references: references,
       expectedTitle: expectedTitle,
-      siman: siman,
       installPath: installPath,
     ));
     return _report;
@@ -137,7 +134,6 @@ void main() {
       expect(provider.idPrefix, 'rp');
       expect(provider.capabilities.webOpen, isFalse);
       expect(provider.capabilities.localOpen, isTrue);
-      expect(provider.capabilities.inBookSearch, isFalse);
       expect(provider.descriptor, ExternalProviderRegistry.responsa);
     });
   });
@@ -272,14 +268,6 @@ void main() {
       expect(result.message, contains('רא"ש יבמות'));
       // מה אפשר לעשות עכשיו — בלי זה ההודעה אינה שימושית.
       expect(result.message, contains('לרענן'));
-    });
-
-    test('פתיחה עם סימן מעבירה אותו הלאה', () async {
-      final built = build(success);
-
-      await built.provider.open(_responsaBook(), siman: 12);
-
-      expect(built.controller.calls.single.siman, 12);
     });
 
     test('ביטול מגיע לבקר', () {

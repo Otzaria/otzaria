@@ -70,8 +70,8 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
   @override
   Future<ExternalOpenResult> openBook(Book book) => open(book);
 
-  /// פותח את הספר בתוכנה, ואם נמסר [siman] — מנווט אליו אחרי הפתיחה.
-  Future<ExternalOpenResult> open(Book book, {int? siman}) async {
+  /// פותח את הספר בתוכנה, בתחילתו.
+  Future<ExternalOpenResult> open(Book book) async {
     final key = _keyOf(book);
     if (key == null) {
       return const ExternalOpenResult.failure(
@@ -92,7 +92,6 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
     final report = await controller.openBook(
       references,
       expectedTitle: book.title,
-      siman: siman,
       installPath: await catalog.sourceInstallPath(),
     );
     if (report.ok) return const ExternalOpenResult.success();

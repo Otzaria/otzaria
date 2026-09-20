@@ -13,18 +13,10 @@ class ExternalProviderCapabilities {
   /// האם ניתן להוריד PDF של הספר.
   final bool pdfDownload;
 
-  /// האם ניתן לפתוח את הספר במיקום מסוים (סימן/עמוד) ולא רק בתחילתו.
-  final bool locationOpen;
-
-  /// האם ניתן לחפש בתוך ספר בודד אצל הספק.
-  final bool inBookSearch;
-
   const ExternalProviderCapabilities({
     this.webOpen = false,
     this.localOpen = false,
     this.pdfDownload = false,
-    this.locationOpen = false,
-    this.inBookSearch = false,
   });
 
   @override
@@ -32,11 +24,8 @@ class ExternalProviderCapabilities {
       other is ExternalProviderCapabilities &&
       other.webOpen == webOpen &&
       other.localOpen == localOpen &&
-      other.pdfDownload == pdfDownload &&
-      other.locationOpen == locationOpen &&
-      other.inBookSearch == inBookSearch;
+      other.pdfDownload == pdfDownload;
 
   @override
-  int get hashCode =>
-      Object.hash(webOpen, localOpen, pdfDownload, locationOpen, inBookSearch);
+  int get hashCode => Object.hash(webOpen, localOpen, pdfDownload);
 }

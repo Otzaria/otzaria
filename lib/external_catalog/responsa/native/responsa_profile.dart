@@ -68,9 +68,6 @@ class ResponsaVersionProfile {
 
   final int browseCommand;
   final int searchCommand;
-  final int simanHeadCommand;
-  final int simanNextCommand;
-  final int simanPrevCommand;
 
   final DialogHints citationDialogHints;
   final DialogHints infoModalHints;
@@ -102,9 +99,6 @@ class ResponsaVersionProfile {
     this.mainWindowClass = 'ResponsaProject',
     this.browseCommand = 32781,
     this.searchCommand = 32857,
-    this.simanHeadCommand = 32779,
-    this.simanNextCommand = 32829,
-    this.simanPrevCommand = 32830,
     this.citationDialogHints = citationHints,
     this.infoModalHints = infoModalHintsDefault,
     this.treeControlHints = treeHints,

@@ -36,9 +36,7 @@ void main() {
       expect(provider.idPrefix, 'rp');
       expect(provider.capabilities.webOpen, isFalse);
       expect(provider.capabilities.localOpen, isTrue);
-      expect(provider.capabilities.locationOpen, isTrue);
       expect(provider.capabilities.pdfDownload, isFalse);
-      expect(provider.capabilities.inBookSearch, isFalse);
       expect(provider.webLinkFor('1524'), isNull);
       expect(provider.externalLibraryIdFor('1524'), 'rp:1524');
     });

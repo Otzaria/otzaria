@@ -46,8 +46,8 @@ class ResponsaService {
   ///
   /// אין כאן חריגים: תוכנה שאינה מותקנת, הפניה שלא נותחה או מופע שנפל
   /// מגיעים כטקסט, ואינם מפילים את אוצריא.
-  Future<String?> openBook(ExternalLibraryBook book, {int? siman}) async {
-    final result = await provider.open(book, siman: siman);
+  Future<String?> openBook(ExternalLibraryBook book) async {
+    final result = await provider.open(book);
     return result.ok ? null : (result.message ?? 'פתיחת הספר נכשלה');
   }
 

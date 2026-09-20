@@ -126,10 +126,7 @@ class ExternalProviderRegistry {
     idPrefix: 'rp',
     aliasPrefixes: {'responsa'},
     localOpenLabel: 'פתח בבר אילן',
-    capabilities: ExternalProviderCapabilities(
-      localOpen: true,
-      locationOpen: true,
-    ),
+    capabilities: ExternalProviderCapabilities(localOpen: true),
   );
 
   static const List<ExternalProviderDescriptor> all = [
