@@ -62,7 +62,19 @@ class ResponsaInstallationDiscovery {
     ]) {
       byPath.putIfAbsent(found.installPath.toLowerCase(), () => found);
     }
-    final result = byPath.values.toList();
+    // `exists` ו-`archivePath` נקראים **פעם אחת לכל התקנה**, לפני
+    // המיון. שניהם קוראים קבצים — `archivePath` קורא שני קובצי תצורה
+    // ובודק עד עשרה נתיבים — ומשווה בתוך `sort` היה מריץ אותם שוב ושוב.
+    // גרוע מכך: התוצאה אינה יציבה (כונן נשלף יכול להיעלם באמצע), ומיון
+    // עם יחס לא-טרנזיטיבי מחזיר סדר שרירותי.
+    final ranked = [
+      for (final installation in byPath.values)
+        (
+          installation: installation,
+          exists: installation.exists,
+          hasArchive: installation.archivePath != null,
+        ),
+    ];
     // סדר העדיפות, מהחזק לחלש: קובץ הרצה קיים, ארכיון ספרים קיים,
     // מהדורה חדשה יותר.
     //
@@ -70,16 +82,16 @@ class ResponsaInstallationDiscovery {
     // `ResponsaCD25H` — אתר נתונים משני של מופע מוסתר. בלי המבחן הזה
     // בחירה שרירותית בין השתיים תבנה קטלוג ממאגר אחד ותתייג אותו
     // בטביעת אצבע של אחר.
-    result.sort((a, b) {
+    ranked.sort((a, b) {
       final byExists = (a.exists ? 0 : 1).compareTo(b.exists ? 0 : 1);
       if (byExists != 0) return byExists;
-      final byArchive = (a.archivePath == null ? 1 : 0).compareTo(
-        b.archivePath == null ? 1 : 0,
-      );
+      final byArchive = (a.hasArchive ? 0 : 1).compareTo(b.hasArchive ? 0 : 1);
       if (byArchive != 0) return byArchive;
-      return (b.version ?? 0).compareTo(a.version ?? 0);
+      return (b.installation.version ?? 0).compareTo(
+        a.installation.version ?? 0,
+      );
     });
-    return result;
+    return [for (final entry in ranked) entry.installation];
   }
 
   static List<ResponsaInstallation> _fromRegistry() {
@@ -92,7 +104,15 @@ class ResponsaInstallationDiscovery {
         continue;
       }
       try {
-        for (final name in base.keys) {
+        final List<String> names;
+        try {
+          // מניית המפתחות עצמה יכולה להיכשל — ומפתח פגום אחד אסור לו
+          // לבטל גם את סריקת הדיסק וגם את המופעים הרצים.
+          names = base.keys.toList();
+        } catch (_) {
+          continue;
+        }
+        for (final name in names) {
           try {
             final display = base.getString('DisplayName', path: name) ?? '';
             final publisher = base.getString('Publisher', path: name) ?? '';
@@ -169,33 +189,40 @@ class ResponsaInstallationDiscovery {
     final found = <ResponsaInstallation>[];
     final scanned = <String>{};
 
+    /// רושם תיקייה כהתקנה אם יש בה את קובץ ההרצה.
+    void consider(String directory) {
+      final name = path.basename(directory);
+      if (!File(path.join(directory, executableName)).existsSync()) return;
+      found.add(
+        ResponsaInstallation(
+          version: versionFromText(name),
+          installPath: directory,
+          displayName: name.isEmpty ? directory : name,
+          source: 'filesystem',
+        ),
+      );
+    }
+
     /// סורק תיקייה אחת, ומחזיר את תתי-התיקיות שלה להמשך.
     List<Directory> scan(String root) {
       final directory = Directory(root);
       if (!scanned.add(root.toLowerCase())) return const [];
       if (!directory.existsSync()) return const [];
+      // גם השורש עצמו. בהתקנה חלקית קובץ ההרצה יושב לעתים ישירות על
+      // ההתקן — `E:\RESPONSA.exe` — וסריקה שבודקת רק ילדים מחמיצה אותה.
+      consider(root);
       final children = <Directory>[];
       try {
         var seen = 0;
         for (final entry in directory.listSync(followLinks: false)) {
-          if (++seen > _maxEntriesPerDirectory) break;
           if (entry is! Directory) continue;
+          // התקרה סופרת **תיקיות**, לא ערכים. שורש כונן עם מאות קבצים
+          // רופפים היה קוטע את הסריקה לפני התיקייה הראשונה.
+          if (++seen > _maxEntriesPerDirectory) break;
           final name = path.basename(entry.path);
           if (_skippedDirectories.contains(name.toLowerCase())) continue;
           children.add(entry);
-          final looksRight = name.toLowerCase().startsWith('responsacd');
-          if (!looksRight &&
-              !File(path.join(entry.path, executableName)).existsSync()) {
-            continue;
-          }
-          found.add(
-            ResponsaInstallation(
-              version: versionFromText(name),
-              installPath: entry.path,
-              displayName: name,
-              source: 'filesystem',
-            ),
-          );
+          consider(entry.path);
         }
       } catch (_) {
         // כונן שאינו זמין, תיקייה ללא הרשאה — לא סיבה להפסיק את הסריקה.
@@ -203,16 +230,22 @@ class ResponsaInstallationDiscovery {
       return children;
     }
 
-    for (final root in roots) {
-      scan(root);
-    }
     // רמה שנייה בשורש הכונן בלבד: התקנה שהועתקה יושבת לעתים קרובות
     // ב-`D:\תוכנות\בר אילן 25`, שאינה ב-Registry ואינה `Program Files`.
     // התיקיות הכבדות של המערכת מדולגות, והתקרה לכל תיקייה נשמרת.
-    for (final drive in drives()) {
+    //
+    // **שורשי הכוננים נסרקים כאן ולא בלולאה שמעל.** `scanned` חוסם
+    // סריקה חוזרת, ולכן סריקת השורשים תחילה הפכה את הלולאה הזו לקוד
+    // מת: `scan(drive)` החזיר רשימה ריקה, ותיקייה בעומק שתיים לא
+    // נסרקה מעולם — בדיוק המקרה שהלולאה נוספה בשבילו.
+    final driveRoots = drives();
+    for (final drive in driveRoots) {
       for (final child in scan(drive)) {
         scan(child.path);
       }
+    }
+    for (final root in roots) {
+      scan(root);
     }
     return found;
   }
@@ -378,8 +411,13 @@ class ResponsaInstallationDiscovery {
     int? mtime;
     if (installation.archivePath case final archive?) {
       final stat = File(archive).statSync();
-      size = stat.size;
-      mtime = stat.modified.millisecondsSinceEpoch ~/ 1000;
+      // גודל שלילי הוא ערך הסנטינל של `statSync` כשהקובץ נעלם בין
+      // הבדיקה לקריאה — התקן נשלף שנשלף. שמירתו הייתה מתייגת את
+      // הקטלוג ב-`-1` ומייצרת "ההתקנה השתנתה" בכל פתיחה מכאן ואילך.
+      if (stat.size >= 0) {
+        size = stat.size;
+        mtime = stat.modified.millisecondsSinceEpoch ~/ 1000;
+      }
     }
     return ResponsaFingerprint(
       version: installation.version,

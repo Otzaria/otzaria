@@ -63,9 +63,28 @@ class ResponsaCatalogBuildService {
   /// אטומית רק אחרי שעברה אימות.
   Stream<ResponsaBuildProgress> build({required String targetPath}) {
     final controller = StreamController<ResponsaBuildProgress>();
+    // בנייה אחת בכל רגע **בכל האפליקציה**. שתי בניות כותבות לאותו קובץ
+    // צדדי (`<target>.building`), והשנייה מוחקת את זה של הראשונה תוך
+    // כדי כתיבה. זה קרה כשמשתמש יצא ממסך ההגדרות באמצע בנייה — המסך
+    // ננטש, האיזולט המשיך, וחזרה למסך יצרה שירות חדש שמתחיל בנייה
+    // שנייה מול אותה תוכנה ואותו קובץ.
+    if (_active) {
+      controller
+        ..add(
+          const ResponsaBuildProgress(
+            stage: ResponsaBuildStage.failed,
+            error: 'בניית קטלוג כבר מתבצעת. יש להמתין לסיומה.',
+          ),
+        )
+        ..close();
+      return controller.stream;
+    }
     _start(controller, targetPath);
     return controller.stream;
   }
+
+  /// האם בנייה כלשהי רצה כרגע — גם כזו שהתחיל מסך שכבר נסגר.
+  static bool _active = false;
 
   Future<void> _start(
     StreamController<ResponsaBuildProgress> controller,
@@ -85,7 +104,10 @@ class ResponsaCatalogBuildService {
 
     final flag = calloc<Int32>();
     _cancelFlag = flag;
+    _active = true;
     final receive = ReceivePort();
+    final exit = ReceivePort();
+    final error = ReceivePort();
 
     controller.add(
       const ResponsaBuildProgress(stage: ResponsaBuildStage.starting),
@@ -107,7 +129,7 @@ class ResponsaCatalogBuildService {
           ),
         )
         ..close();
-      _cleanup(receive, flag);
+      _cleanup(receive, exit, error, flag);
       return;
     }
 
@@ -119,36 +141,76 @@ class ResponsaCatalogBuildService {
           targetPath: targetPath,
           cancelFlagAddress: flag.address,
         ),
+        onExit: exit.sendPort,
+        onError: error.sendPort,
       );
-    } catch (error) {
+    } catch (spawnError) {
       controller
         ..add(
           ResponsaBuildProgress(
             stage: ResponsaBuildStage.failed,
-            error: 'לא ניתן להתחיל את בניית הקטלוג: $error',
+            error: 'לא ניתן להתחיל את בניית הקטלוג: $spawnError',
           ),
         )
         ..close();
-      _cleanup(receive, flag);
+      _cleanup(receive, exit, error, flag);
       return;
+    }
+
+    var finished = false;
+    void finish(ResponsaBuildProgress? last) {
+      if (finished) return;
+      finished = true;
+      if (last != null) controller.add(last);
+      controller.close();
+      _cleanup(receive, exit, error, flag);
     }
 
     receive.listen((message) {
       if (message is ResponsaBuildProgress) {
+        if (finished) return;
         controller.add(message);
         if (message.stage == ResponsaBuildStage.done ||
             message.stage == ResponsaBuildStage.failed) {
-          controller.close();
-          _cleanup(receive, flag);
+          finish(null);
         }
       }
     });
+
+    // איזולט שמת בלי לדווח — קריסה בקוד ה-native, חוסר זיכרון, הרג
+    // חיצוני — השאיר את המסך ב"בונה..." לנצח: המתג נשאר מושבת והכפתור
+    // היחיד שנותר כתב לדגל שאיש לא קרא. שתי היציאות האלה סוגרות את זה.
+    error.listen((message) {
+      debugPrint('ResponsaCatalogBuildService: isolate error: $message');
+      finish(
+        const ResponsaBuildProgress(
+          stage: ResponsaBuildStage.failed,
+          error: 'בניית הקטלוג נכשלה באופן בלתי צפוי.',
+        ),
+      );
+    });
+    exit.listen((_) {
+      finish(
+        const ResponsaBuildProgress(
+          stage: ResponsaBuildStage.failed,
+          error: 'בניית הקטלוג הסתיימה ללא תוצאה.',
+        ),
+      );
+    });
   }
 
-  void _cleanup(ReceivePort receive, Pointer<Int32> flag) {
+  void _cleanup(
+    ReceivePort receive,
+    ReceivePort exit,
+    ReceivePort error,
+    Pointer<Int32> flag,
+  ) {
     receive.close();
+    exit.close();
+    error.close();
     _isolate = null;
     _cancelFlag = null;
+    _active = false;
     calloc.free(flag);
   }
 

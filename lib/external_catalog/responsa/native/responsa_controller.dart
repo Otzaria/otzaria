@@ -55,6 +55,9 @@ class ResponsaOpenReport {
   /// ההפניות שנוסו. בכשל זה מה שהופך "לא נמצא" להודעה שאפשר לפעול לפיה.
   final List<String> triedRefs;
 
+  /// כותרות החלונות שאוצריא פתחה במופע, כולל מפתיחות קודמות.
+  final List<String> openedWindows;
+
   const ResponsaOpenReport({
     required this.ok,
     this.failure,
@@ -62,6 +65,7 @@ class ResponsaOpenReport {
     this.window,
     this.usedRef,
     this.triedRefs = const [],
+    this.openedWindows = const [],
   });
 }
 
@@ -91,7 +95,14 @@ class ResponsaController {
   bool get autoStart => _allowAutoStart();
 
   Pointer<Int32>? _cancelFlag;
-  Isolate? _running;
+  var _busy = false;
+
+  /// כותרות החלונות שאוצריא פתחה בפרויקט השו"ת, לאורך כל הסשן.
+  ///
+  /// יושבות כאן ולא באוטומציה, מפני שכל פתיחה רצה באיזולט משלה: רשימה
+  /// שנולדת עם האוטומציה מתה איתה. בלעדיה `releaseMdiWindows` היה חושב
+  /// שאין לו חלונות משלו לסגור — וסוגר את של המשתמש.
+  final List<String> _openedWindows = [];
 
   /// כמה להמתין לחלון הראשי אחרי הפעלה קרה. נמדד ~5 שניות.
   static const Duration launchTimeout = Duration(seconds: 60);
@@ -152,19 +163,40 @@ class ResponsaController {
       );
     }
 
-    final launch = await _ensureRunning(installPath);
-    if (launch != null) return launch;
+    // פתיחה אחת בכל רגע. בלי זה שתי פתיחות חופפות דורסות זו את דגל
+    // הביטול של זו, והביטול הופך ללא-פעולה עבור זו שעדיין רצה.
+    if (_busy) {
+      return const ResponsaOpenReport(
+        ok: false,
+        failure: ResponsaFailure.responsaNotRunning,
+        message: 'פתיחת ספר בבר אילן כבר מתבצעת. יש להמתין לסיומה.',
+      );
+    }
+    _busy = true;
+    try {
+      final launch = await _ensureRunning(installPath);
+      if (launch != null) return launch;
 
-    return _runCancellable(
-      (flagAddress) => _OpenRequest(
-        references: references,
-        expectedTitle: expectedTitle,
-        siman: siman,
-        installPath: installPath,
-        cancelFlagAddress: flagAddress,
-      ),
-      _openBookInIsolate,
-    );
+      final report = await _runCancellable(
+        (flagAddress) => _OpenRequest(
+          references: references,
+          expectedTitle: expectedTitle,
+          siman: siman,
+          installPath: installPath,
+          cancelFlagAddress: flagAddress,
+          openedWindows: List.of(_openedWindows),
+        ),
+        _openBookInIsolate,
+      );
+      if (report.openedWindows.isNotEmpty) {
+        _openedWindows
+          ..clear()
+          ..addAll(report.openedWindows);
+      }
+      return report;
+    } finally {
+      _busy = false;
+    }
   }
 
   /// מבטל את הפעולה הרצה. הביטול אמיתי — האיזולט עוצר בנקודת ההמתנה
@@ -174,7 +206,11 @@ class ResponsaController {
     if (flag != null) flag.value = 1;
   }
 
-  bool get isBusy => _running != null;
+  /// האם פעולה רצה כרגע.
+  ///
+  /// נגזר מהדגל עצמו ולא משדה נפרד. היה כאן `Isolate? _running` שלא
+  /// הושם לעולם, ולכן `isBusy` החזיר `false` תמיד — שומר שאינו שומר.
+  bool get isBusy => _busy;
 
   Future<ResponsaOpenReport> _runCancellable(
     _OpenRequest Function(int flagAddress) build,
@@ -255,6 +291,7 @@ class ResponsaController {
     final automation = ResponsaAutomation(
       pid: instance.pid,
       profile: ResponsaVersionProfile.forVersion(version),
+      openedWindows: request.openedWindows,
     )..cancelled = () => flag.value != 0;
 
     try {
@@ -280,6 +317,7 @@ class ResponsaController {
         window: outcome.window,
         usedRef: outcome.usedRef,
         triedRefs: outcome.triedRefs,
+        openedWindows: automation.openedWindows,
       );
     } on ResponsaAutomationException catch (error) {
       return ResponsaOpenReport(
@@ -290,6 +328,8 @@ class ResponsaController {
           final List<String> tried => tried,
           _ => request.references,
         },
+        // גם בכשל: ייתכן שנפתח חלון ונפסל, והוא שלנו לסגור.
+        openedWindows: automation.openedWindows,
       );
     }
   }
@@ -310,11 +350,15 @@ class _OpenRequest {
   final String? installPath;
   final int cancelFlagAddress;
 
+  /// החלונות שאוצריא פתחה בפתיחות קודמות. ראו [ResponsaController].
+  final List<String> openedWindows;
+
   const _OpenRequest({
     required this.references,
     required this.cancelFlagAddress,
     this.expectedTitle,
     this.siman,
     this.installPath,
+    this.openedWindows = const [],
   });
 }

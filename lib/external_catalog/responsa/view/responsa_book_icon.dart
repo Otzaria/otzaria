@@ -25,6 +25,9 @@ class ResponsaBookIcon extends StatefulWidget {
 
   static Future<Uint8List?>? _future;
 
+  /// כמה להמתין לפני שניסיון שנכשל מותר שוב.
+  static const Duration _retryAfter = Duration(seconds: 30);
+
   /// מנקה את המטמון. לבדיקות בלבד.
   @visibleForTesting
   static void resetCache() => _future = null;
@@ -40,10 +43,20 @@ class ResponsaBookIcon extends StatefulWidget {
       installPath: installPath,
       cacheDirectory: ResponsaPaths.baseDirectory,
     );
-    // כישלון אינו נשמר במטמון. בהדלקה הראשונה הקטלוג עדיין לא נבנה,
-    // ולכן אין נתיב התקנה; אילו ה-`null` היה נשמר, האייקון היה חסר עד
-    // להפעלה מחדש של אוצריא.
-    if (bytes == null) _future = null;
+    // כישלון אינו נשמר במטמון לנצח. בהדלקה הראשונה הקטלוג עדיין לא
+    // נבנה, ולכן אין נתיב התקנה; אילו ה-`null` היה נשמר, האייקון היה
+    // חסר עד להפעלה מחדש של אוצריא.
+    //
+    // אבל גם לא מנוקה מיד: כל כרטיס ספר בונה את הווידג'ט הזה, וניקוי
+    // מיידי הפך רשימה של 60 ספרים ל-60 ניסיונות טעינה — כל אחד עם
+    // פתיחת SQLite וקריאת 4.5MB. ההשהיה נותנת לבנייה של הקטלוג להסתיים
+    // ולניסיון הבא להצליח, בלי סערת ניסיונות בדרך.
+    if (bytes == null) {
+      final failed = _future;
+      Future<void>.delayed(_retryAfter, () {
+        if (identical(_future, failed)) _future = null;
+      });
+    }
     return bytes;
   }
 

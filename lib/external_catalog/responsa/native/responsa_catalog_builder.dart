@@ -187,14 +187,11 @@ class ResponsaCatalogBuilder {
       }
       stack.add((node: node, order: scanned++, hasSectionChild: false));
     }
+    // `closeTo(0)` מרוקן את המחסנית כולה — כל רמה היא `>= 0`.
     closeTo(0);
-    while (stack.isNotEmpty) {
-      emit(stack.removeLast());
-    }
 
-    // הצמתים נפלטים בסדר יציאה מהמחסנית ולא בסדר הסריקה. הסדר חשוב
-    // פעמיים: הוא קובע איזה מופע של חיבור כפול נחשב הקנוני, והוא גם
-    // סדר הקטלוג שהמשתמש רואה.
+    // הצמתים נפלטים בסדר יציאה מהמחסנית ולא בסדר הסריקה, והסדר קובע
+    // **איזה מופע של חיבור כפול נחשב הקנוני**: הראשון בסריקה.
     found.sort((a, b) => a.order.compareTo(b.order));
     final seen = <({int param, String name})>{};
     final unique = <ResponsaBookRow>[];

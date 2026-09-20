@@ -118,23 +118,35 @@ class ResponsaLauncher {
       );
     }
 
+    // ההמתנה בודקת **מופעים בלבד**, לא התקנות. `resolve` סורק רישום,
+    // את שורש כל כונן ואת ילדיו — פעולה של עשרות בדיקות קובץ שחלקן על
+    // כוננים אופטיים או רשתיים. קריאה לה כל 600ms במשך דקה היא כ-100
+    // סריקות מלאות, וכל אחת באיזולט חדש. ההתקנה כבר ידועה.
+    final wanted = target.installPath;
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(_poll);
-      target = await resolve(installPath);
-      if (target?.running ?? false) {
-        return ResponsaLaunchResult(
-          running: true,
-          installPath: target!.installPath,
-        );
+      if (await _hasUsableInstance(wanted)) {
+        return ResponsaLaunchResult(running: true, installPath: wanted);
       }
     }
     return ResponsaLaunchResult(
       running: false,
-      installPath: target?.installPath,
+      installPath: wanted,
       message:
           'בר אילן הופעל אך לא עלה בתוך ${timeout.inSeconds} שניות. '
           'יש לפתוח אותו ולנסות שוב.',
     );
   }
+
+  /// האם יש מופע שאפשר לעבוד מולו להתקנה שב-[installPath].
+  ///
+  /// בודק מופעים בלבד — בלי סריקת כוננים ובלי רישום.
+  static Future<bool> _hasUsableInstance(String installPath) => Isolate.run(
+    () =>
+        ResponsaInstance.pick(
+          ResponsaInstallationDiscovery.instancesOf(installPath),
+        ) !=
+        null,
+  );
 }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
@@ -109,11 +110,31 @@ class ResponsaCatalogRepository {
 
   /// כל ספרי הקטלוג. ב-CD25 מדובר ב-~8,500 רשומות ב-DB של ~5MB, ולכן
   /// טעינה לזיכרון זולה יותר מקטלוג היברובוקס שכבר נטען כך.
+  ///
+  /// **באיזולט רקע.** כל שאר המתודות כאן קצרות ורצות אצל הקורא, אבל זו
+  /// פותחת מסד, קוראת 8,500 שורות וממירה כל אחת — עבודה של מאות
+  /// אלפי-שניות שרצה על ה-UI isolate ומפילה פריימים בדיוק ברגע שהמשתמש
+  /// מחפש. היא נקראת פעם אחת לסשן.
   Future<List<ExternalLibraryBook>> loadBooks() async {
-    return _select(
-      'SELECT * FROM books ORDER BY title COLLATE NOCASE',
-      const [],
-    );
+    final path = databasePath;
+    if (path == null || !File(path).existsSync()) return const [];
+    try {
+      final rows = await Isolate.run(() {
+        final db = sqlite3.sqlite3.open(path, mode: sqlite3.OpenMode.readOnly);
+        try {
+          return db
+              .select('SELECT * FROM books ORDER BY title COLLATE NOCASE')
+              .map((row) => {for (final key in row.keys) key: row[key]})
+              .toList();
+        } finally {
+          db.close();
+        }
+      });
+      return [for (final row in rows) mapRow(row)];
+    } catch (e) {
+      debugPrint('ResponsaCatalogRepository: loadBooks failed: $e');
+      return const [];
+    }
   }
 
   /// ספרים לפי `external_key` — המסלול של טעינת ספרים שתוסף ביקש.

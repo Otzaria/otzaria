@@ -93,11 +93,17 @@ class ResponsaCatalogWriter {
           for (final node in book.classificationNodes)
             ResponsaNames.displayOf(node),
         ];
+        // כותרת ריקה אינה מפילה את כל הבנייה. `buildOpenRefs` כבר נוהג
+        // כך בהפניה, ואין סיבה שהכותרת תהיה מחמירה ממנה: שם צומת חריג
+        // אחד מתוך 1.25 מיליון היה מבטל קטלוג של שש דקות.
+        final title = book.title.trim().isEmpty
+            ? book.leafTitle.trim()
+            : book.title;
         insert.execute([
           assignment.keys[i],
-          book.title,
+          title,
           book.leafTitle,
-          ResponsaHebrew.normalize(book.title),
+          ResponsaHebrew.normalize(title),
           book.refPath,
           openRefs[i],
           alternatives.isEmpty ? null : alternatives.join('\n'),
@@ -137,9 +143,19 @@ class ResponsaCatalogWriter {
       metaInsert.close();
 
       _validate(db, books.length);
-    } finally {
+    } catch (_) {
       db.close();
+      // קובץ הבנייה נמחק בכישלון. אחרת הוא נשאר על הדיסק בגודל של
+      // מגה-בתים, ובנייה הבאה שתנסה למחוק אותו בזמן שמשהו עדיין מחזיק
+      // בו תיכשל בעצמה — כשל אחד שמשתק את כל הבניות שאחריו.
+      try {
+        if (building.existsSync()) building.deleteSync();
+      } catch (_) {
+        // נעילה על קובץ זמני אינה סיבה להסתיר את הכשל האמיתי.
+      }
+      rethrow;
     }
+    db.close();
 
     _swap(buildingPath, targetPath);
     return ResponsaCatalogBuildResult(
@@ -218,14 +234,31 @@ class ResponsaCatalogWriter {
     }
   }
 
+  /// מחליף את הקטלוג בחדש, ומחזיר את הישן אם ההחלפה נכשלה.
+  ///
+  /// שתי הפעולות אינן אטומיות יחד: בין השינוי לגיבוי לבין השינוי מהחדש
+  /// אפשר להיכשל — נעילת שיתוף ב-Windows, אנטי-וירוס, מפתח חיפוש. בלי
+  /// השחזור, המצב שנותר הוא **בלי קטלוג כלל**: הישן קיים רק בשם
+  /// `.previous` שאיש אינו קורא, והמשתמש מאבד את הספרייה.
   static void _swap(String buildingPath, String targetPath) {
     final target = File(targetPath);
     final backup = File('$targetPath.previous');
+    var backedUp = false;
     if (target.existsSync()) {
       if (backup.existsSync()) backup.deleteSync();
       target.renameSync(backup.path);
+      backedUp = true;
     }
-    File(buildingPath).renameSync(targetPath);
+    try {
+      File(buildingPath).renameSync(targetPath);
+    } catch (error) {
+      if (backedUp && !target.existsSync()) {
+        backup.renameSync(targetPath);
+      }
+      throw ResponsaCatalogBuildException(
+        'לא ניתן היה להחליף את קובץ הקטלוג. הקטלוג הקודם נשמר. ($error)',
+      );
+    }
     if (backup.existsSync()) backup.deleteSync();
   }
 }

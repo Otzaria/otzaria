@@ -360,6 +360,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   bool _responsaTreeRequested = false;
   int _responsaTreeGeneration = 0;
 
+  /// ערך `externalBooksGeneration` שלפיו נבנה העץ הנוכחי.
+  int _responsaCatalogGeneration = -1;
+
   static const List<String> _orderedTopCategories = [
     'תנ"ך',
     'מדרש',
@@ -1552,7 +1555,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       }
       return;
     }
-    if (_responsaTreeRequested) return;
+    // גם כשכבר ביקשנו: קטלוג שנבנה אחרי הבקשה מעלה את מונה המטמון,
+    // וזה בדיוק תרחיש ההדלקה הראשונה — המסך מבקש בזמן שאין עדיין
+    // קטלוג, מקבל רשימה ריקה, והבנייה מסתיימת דקות אחר כך.
+    final catalogGeneration = DataRepository.instance.externalBooksGeneration;
+    if (_responsaTreeRequested &&
+        _responsaCatalogGeneration == catalogGeneration) {
+      return;
+    }
+    _responsaCatalogGeneration = catalogGeneration;
     _responsaTreeRequested = true;
     // הטעינה אטית מהכיבוי: משתמש שהדליק, התחרט וכיבה לפני שהקטלוג
     // נטען היה מקבל את התיקיות בכל זאת, כי ה-Future כבר היה בדרך.

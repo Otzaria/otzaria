@@ -63,11 +63,23 @@ class ResponsaAutomation {
   final int pid;
   final ResponsaVersionProfile profile;
 
-  /// כותרות החלונות שאוצריא עצמה פתחה, מהוותיק לחדש. רק אלה משוחררים
-  /// כברירת מחדל — חלון שהמשתמש פתח אינו שלנו לסגור.
-  final List<String> _openedWindows = [];
+  /// כותרות החלונות שאוצריא עצמה פתחה, מהוותיק לחדש. **רק אלה
+  /// משוחררים** — חלון שהמשתמש פתח אינו שלנו לסגור.
+  ///
+  /// נמסרת מבחוץ ונקראת בחזרה ב-[openedWindows], כי כל פתיחה רצה
+  /// באיזולט משלה: רשימה שנולדת עם המחלקה מתה איתה, והיא הייתה ריקה
+  /// בכל פתיחה.
+  final List<String> _openedWindows;
 
-  ResponsaAutomation({required this.pid, required this.profile});
+  /// החלונות שאוצריא פתחה, כפי שהם אחרי הפעולה. הבקר שומר אותם
+  /// ומחזיר אותם לפתיחה הבאה.
+  List<String> get openedWindows => List.unmodifiable(_openedWindows);
+
+  ResponsaAutomation({
+    required this.pid,
+    required this.profile,
+    List<String> openedWindows = const [],
+  }) : _openedWindows = [...openedWindows];
 
   static const Duration _poll = Duration(milliseconds: 250);
 
@@ -78,6 +90,11 @@ class ResponsaAutomation {
   /// שניות כשהכול תקין; תקציב נדיב אינו מציל מצב תקוע, רק מכפיל את זמן
   /// הכשל בכל חוליה.
   static const Duration dialogBudget = Duration(seconds: 12);
+
+  /// תקציב לניקוי רשימת התוצאות, נפרד מזה של הפעולה. הניקוי מיידי
+  /// כשהכול תקין; תקציב הפעולה כולה כאן פירושו שחוליה אחת תוקעת את
+  /// כל הסולם.
+  static const Duration clearBudget = Duration(seconds: 10);
 
   /// המתנה אחרי פתיחת ספר — התוכנה עסוקה בציור החלון החדש, וקריאה
   /// מיידית אחריה נבלעת.
@@ -223,7 +240,13 @@ class ResponsaAutomation {
     final clearButton = dialog.handle('clear_button');
     if (clearButton != null) ResponsaWin32.click(clearButton);
 
-    while (!deadline.expired) {
+    // תקציב משלו, כמו לדיאלוג. `clear_button` אינו פקד חובה בפרופיל,
+    // וכשהוא אינו נמצא הלולאה הזו הייתה שורפת את שלוש הדקות של הפעולה
+    // כולה על החוליה הראשונה — ואז אף חוליה אחרת לא הייתה נוסה.
+    final own = ResponsaDeadline(
+      deadline.remaining < clearBudget ? deadline.remaining : clearBudget,
+    );
+    while (!own.expired) {
       // `-1` = הרשימה לא ענתה. זה **אינו** "ריקה": המשך מכאן היה מייצר
       // בדיוק את הספירה השקרית שהניקוי נועד למנוע.
       if (ResponsaWin32.listBoxCount(results) == 0) return;
@@ -288,10 +311,19 @@ class ResponsaAutomation {
   /// הלחיצה מתקבלת, אף חלון לא נוצר, וכל פתיחה פוקעת. סגירת 21 חלונות
   /// ב-`WM_MDIDESTROY` החזירה את המופע לתפקוד מלא בלי להפיל אותו.
   ///
-  /// סדר העדיפויות: קודם חלונות שאוצריא פתחה. רק אם אין כאלה והמצבור
-  /// בתקרה — גם ותיקים אחרים. הענף השני אינו תיאורטי: שחזור-הסשן מחזיר
-  /// מופע רווי גם אחרי הפעלה מחדש, ובלעדיו כשל אחד היה משאיר את
-  /// השילוב מקולקל לצמיתות.
+  /// **רק חלונות שאוצריא פתחה.** חלון שהמשתמש פתח אינו שלנו לסגור, ואין
+  /// נסיגה לכלל אחר: כשהמצבור מלא בחלונות של המשתמש, הפתיחה נכשלת
+  /// בהודעה שמבקשת ממנו לסגור — וזו התנהגות נכונה.
+  ///
+  /// הייתה כאן נסיגה ל"ותיקים אחרים כשאין שלנו", והיא הייתה **מסלול
+  /// ברירת המחדל בפועל**: הבקר יוצר `ResponsaAutomation` חדש באיזולט
+  /// חדש בכל פתיחה, ולכן [_openedWindows] היה ריק תמיד, `ours` היה ריק
+  /// תמיד, וכל פתיחה שלוש-עשרה הייתה סוגרת שמונה מחלונות המשתמש.
+  /// הרשימה מגיעה עכשיו מהבקר ושורדת בין פתיחות.
+  ///
+  /// כותרת ריקה אינה נסגרת לעולם: `windowText` מחזיר מחרוזת ריקה גם
+  /// כשהחלון לא ענה בזמן, ו-`''` ברשימת היעד היה סוגר **כל** חלון
+  /// שאינו עונה — סגירה בלתי חסומה, הרבה מעבר לעודף.
   int releaseMdiWindows(int main) {
     final titles = ResponsaWin32.mdiTitles(main);
     if (titles.length < profile.mdiSoftLimit) return 0;
@@ -299,22 +331,23 @@ class ResponsaAutomation {
     final surplus = titles.length - profile.mdiKeep;
     if (surplus <= 0) return 0;
 
-    final ours = _openedWindows.where(titles.contains).toList();
-    var toClose = ours.take(surplus).toList();
-    if (toClose.isEmpty) toClose = titles.take(surplus).toList();
-    if (toClose.isEmpty) return 0;
+    final present = titles.toSet();
+    final wanted = _openedWindows
+        .where((title) => title.isNotEmpty && present.contains(title))
+        .take(surplus)
+        .toSet();
+    if (wanted.isEmpty) return 0;
 
-    final wanted = toClose.toSet();
     final client = ResponsaWin32.mdiClient(main);
+    if (client == null) return 0;
     var closed = 0;
-    if (client != null) {
-      for (final child in ResponsaWin32.directChildren(client)) {
-        if (wanted.contains(ResponsaWin32.windowText(child))) {
-          ResponsaWin32.destroyMdiChild(main, child);
-          closed++;
-          sleepFor(const Duration(milliseconds: 200));
-        }
-      }
+    for (final child in ResponsaWin32.directChildren(client)) {
+      if (closed >= wanted.length) break;
+      final title = ResponsaWin32.windowText(child);
+      if (title.isEmpty || !wanted.contains(title)) continue;
+      ResponsaWin32.destroyMdiChild(main, child);
+      closed++;
+      sleepFor(const Duration(milliseconds: 200));
     }
     _openedWindows.removeWhere(wanted.contains);
     return closed;
@@ -363,7 +396,12 @@ class ResponsaAutomation {
     // שאחריה — `תלמוד מנחות` — מזוהה היטב ופותחת את הגמרא, והחוליה
     // שאחריה, `לעזי רש"י מנחות`, היא הנכונה. עצירה בראשונה שנותחה
     // הפילה 37 ספרים על ספר שנפתח ונפסל.
-    ({DiscoveredDialog dialog, List<String> results, String ref})? fallback;
+    //
+    // **רק ההפניה נשמרת, לא התוצאות.** כל חוליה שאחריה מריצה
+    // `clearResults`, שמנקה את רשימת התוצאות בפקד עצמו; שורות שנשמרו
+    // בזיכרון מתארות רשימה שכבר אינה קיימת, ובחירה לפי אינדקס בתוכן
+    // בוחרת שורה אחרת לגמרי — או שום שורה, ברשימה שהתרוקנה.
+    String? fallbackRef;
     for (final candidate in ladder) {
       if (tried.contains(candidate)) continue;
       tried.add(candidate);
@@ -385,18 +423,18 @@ class ResponsaAutomation {
         results = attempt.results;
         break;
       }
-      fallback ??= (
-        dialog: attempt.dialog,
-        results: attempt.results,
-        ref: candidate,
-      );
+      fallbackRef ??= candidate;
     }
-    if (dialog == null && fallback != null) {
-      // אף חוליה לא הניבה תוצאה משכנעת. פותחים את הטובה ביותר שהייתה
-      // ונותנים לאימות הכותרת להכריע — הוא מדויק יותר מהשוואת השורות.
-      usedRef = fallback.ref;
-      dialog = fallback.dialog;
-      results = fallback.results;
+    if (dialog == null && fallbackRef != null) {
+      // אף חוליה לא הניבה תוצאה משכנעת. מריצים **מחדש** את הטובה
+      // שבהן ונותנים לאימות הכותרת להכריע — הוא מדויק יותר מהשוואת
+      // השורות. הרצה מחדש ולא שחזור מהזיכרון: ראו ההערה למעלה.
+      final again = parseReference(fallbackRef, deadline);
+      if (again.results.isNotEmpty) {
+        usedRef = fallbackRef;
+        dialog = again.dialog;
+        results = again.results;
+      }
     }
     if (dialog == null || results.isEmpty) {
       throw ResponsaAutomationException(
@@ -427,7 +465,17 @@ class ResponsaAutomation {
 
     ResponsaWin32.listBoxSelect(dialog.container, listBox, index);
     _wait(const Duration(milliseconds: 400), deadline);
-    ResponsaWin32.click(showButton);
+    // הלחיצה היא שליחה סינכרונית; `false` פירושו שהתוכנה לא ענתה בתוך
+    // 15 שניות, כלומר הבקשה מעולם לא התקבלה. המתנה לחלון אחריה הייתה
+    // שורפת את יתרת שלוש הדקות ומדווחת "פג הזמן" — תיאור שגוי של מצב
+    // שבו התוכנה תקועה.
+    if (!ResponsaWin32.click(showButton)) {
+      throw ResponsaAutomationException(
+        ResponsaFailure.timeout,
+        'פרויקט השו"ת לא הגיב ללחיצה על "הצג טקסט"',
+        {'ref': openRef, 'usedRef': usedRef},
+      );
+    }
 
     final String title;
     try {
@@ -575,14 +623,26 @@ class ResponsaAutomation {
         ? null
         : ResponsaNames.withoutQualifier(expectedTitle);
     var bestIndex = 0;
-    var bestScore = (-1, -1, -1);
+    var bestScore = (-1, -1, -1, -1);
     for (var index = 0; index < results.length; index++) {
+      // שורה שהמהדורה שלה סותרת את המבוקשת יורדת לתחתית הדירוג.
+      // **כאן** נשמרת המהדורה, ולא באימות: שאר ההשוואות מסירות את
+      // הסוגריים בכוונה, ולכן `שמות רבה (שנאן)` ו-`שמות רבה (וילנא)`
+      // קיבלו ציון זהה, השוויון השאיר את המוקדמת, ומי שנפתח היה מי
+      // שהמנתח החזיר ראשון. פסילה באימות אינה מספיקה — היא מונעת ספר
+      // שגוי אבל אינה פותחת את הנכון.
+      final editionRank =
+          expectedTitle != null &&
+              ResponsaHebrew.editionsConflict(expectedTitle, results[index])
+          ? 0
+          : 1;
       // כמה אסימונים מהכותרת המצופה מופיעים בשורה. דירוג **מדורג** ולא
       // כן/לא: `רי"ד (פסקים) בבא קמא משניות` אינו מוכל באף שורה —
       // `משניות` אינו מופיע באף אחת — ושתי הרמות הבינאריות מחזירות
       // שוויון בין `פסקי רי"ד מסכת ברכות` ל-`פסקי רי"ד מסכת בבא קמא`.
       // ספירה מבדילה ביניהן.
       final score = (
+        editionRank,
         expected == null
             ? 0
             : ResponsaHebrew.sharedTokenCount(expected, results[index]),
@@ -591,15 +651,19 @@ class ResponsaAutomation {
             : ResponsaHebrew.matchLevel(expected, results[index]).rank,
         ResponsaHebrew.matchLevel(openRef, results[index]).rank,
       );
-      if (score.$1 > bestScore.$1 ||
-          (score.$1 == bestScore.$1 &&
-              (score.$2 > bestScore.$2 ||
-                  (score.$2 == bestScore.$2 && score.$3 > bestScore.$3)))) {
+      if (_outranks(score, bestScore)) {
         bestIndex = index;
         bestScore = score;
       }
     }
     return bestIndex;
+  }
+
+  static bool _outranks((int, int, int, int) a, (int, int, int, int) b) {
+    if (a.$1 != b.$1) return a.$1 > b.$1;
+    if (a.$2 != b.$2) return a.$2 > b.$2;
+    if (a.$3 != b.$3) return a.$3 > b.$3;
+    return a.$4 > b.$4;
   }
 
   /// ממתין לחלון MDI מתאים.
@@ -653,7 +717,15 @@ class ResponsaAutomation {
     int rounds = 3,
   }) {
     final main = mainWindow;
-    final targetSuffix = 'סימן ${ResponsaHebrew.intToNumeral(siman)}';
+    // גימטריה מוגדרת ל-1..999 בלבד וזורקת מחוץ לתחום. החריגה הזו אינה
+    // `ResponsaAutomationException`, ולכן היא הייתה מגיעה לבקר כ"כשל
+    // בלתי צפוי" — ומדווחת ככשל פתיחה בזמן שהספר כבר פתוח על המסך.
+    final String targetSuffix;
+    try {
+      targetSuffix = 'סימן ${ResponsaHebrew.intToNumeral(siman)}';
+    } catch (error) {
+      return ResponsaWin32.mdiActiveTitle(main);
+    }
     for (var round = 0; round < rounds; round++) {
       ResponsaWin32.postCommand(main, profile.simanHeadCommand);
       _wait(const Duration(milliseconds: 600), deadline);

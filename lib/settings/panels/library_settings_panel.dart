@@ -160,13 +160,30 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     _refreshResponsaInfo();
   }
 
+  /// קורא את מצב הקטלוג ואת מצב ההתקנה.
+  ///
+  /// שתי הקריאות מוגנות בנפרד. הן סורקות רישום, כוננים וחלונות, וכשל
+  /// באחת מהן השאיר את **שתיהן** `null` — ואז הכרטיס של בר אילן פשוט
+  /// אינו מוצג, בלי שגיאה ובלי דרך למשתמש לדעת שהתכונה קיימת.
   Future<void> _refreshResponsaInfo() async {
-    final info =
-        await (widget.responsaInfoLoader ??
-            ResponsaCatalogRepository.instance.info)();
-    final status =
-        await (widget.responsaStatusLoader ??
-            ResponsaService.instance.controller.status)();
+    ResponsaCatalogInfo info;
+    try {
+      info =
+          await (widget.responsaInfoLoader ??
+              ResponsaCatalogRepository.instance.info)();
+    } catch (error) {
+      debugPrint('LibrarySettingsPanel: responsa info failed: $error');
+      info = ResponsaCatalogInfo.missing;
+    }
+    ResponsaStatus status;
+    try {
+      status =
+          await (widget.responsaStatusLoader ??
+              ResponsaService.instance.controller.status)();
+    } catch (error) {
+      debugPrint('LibrarySettingsPanel: responsa status failed: $error');
+      status = ResponsaStatus.notInstalled;
+    }
     if (mounted) {
       setState(() {
         _responsaInfo = info;

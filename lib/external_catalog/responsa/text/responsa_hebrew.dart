@@ -293,13 +293,20 @@ class ResponsaHebrew {
     return first.intersection(second).isEmpty;
   }
 
+  /// הסתייגות שיש בה ספרה היא **מיקום**, לא מהדורה.
+  ///
+  /// `(עמ' 108-126)` מתאר טווח עמודים ב-110 שמות במאגר; `(וילנא)`,
+  /// `(שנאן)`, `(ליברמן)` מתארים מהדורה. בלי ההבחנה הזו
+  /// `היכלות (עמ' 108-126)` נחשב סותר את `אוצר מדרשים (אייזנשטיין)
+  /// היכלות` — שהוא בדיוק הספר הנכון.
+  static final RegExp _digit = RegExp(r'\d');
+
   static Set<String> _editionsOf(String? text) {
     if (text == null) return const {};
     return {
       for (final match in _parenthetical.allMatches(text))
-        if (spellingKey(match.group(1) ?? '') case final key
-            when key.isNotEmpty)
-          key,
+        if (match.group(1) case final inner? when !_digit.hasMatch(inner))
+          if (spellingKey(inner) case final key when key.isNotEmpty) key,
     };
   }
 }

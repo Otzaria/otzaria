@@ -67,6 +67,15 @@ class DataRepository {
   Future<List<ExternalLibraryBook>> get responsaBooks =>
       _responsaBooksFuture ??= getResponsaBooks();
 
+  /// עולה בכל פעם שהמטמון החיצוני מתבטל.
+  ///
+  /// מי שגוזר מבנה מהספרים — עץ התיקיות של בר אילן במסך הספרייה —
+  /// אינו יכול לדעת מ-`responsaBooks` לבדו שהקטלוג התחלף: ה-Future
+  /// החדש נראה זהה. בלי המונה, קטלוג שנבנה בהדלקה הראשונה לא הופיע
+  /// בעץ עד להפעלה מחדש של אוצריא.
+  int get externalBooksGeneration => _externalBooksGeneration;
+  int _externalBooksGeneration = 0;
+
   @visibleForTesting
   set responsaBooks(Future<List<ExternalLibraryBook>> value) =>
       _responsaBooksFuture = value;
@@ -78,6 +87,7 @@ class DataRepository {
     _localHebrewBooksFuture = null;
     _otzarBooksFuture = null;
     _responsaBooksFuture = null;
+    _externalBooksGeneration++;
   }
 
   DataRepository();
