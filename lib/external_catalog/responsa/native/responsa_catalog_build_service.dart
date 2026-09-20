@@ -6,8 +6,8 @@ import 'dart:isolate';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
-import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_builder.dart';
-import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_writer.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_installation_discovery.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_launcher.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
@@ -249,7 +249,7 @@ class ResponsaCatalogBuildService {
         ),
       );
 
-      final result = ResponsaCatalogBuilder.build(
+      final result = ResponsaCatalogWriter.build(
         nodes: nodes,
         fingerprint: ResponsaInstallationDiscovery.fingerprint(installation),
         targetPath: request.targetPath,

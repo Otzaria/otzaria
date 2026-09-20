@@ -1,7 +1,7 @@
 import 'package:otzaria/external_catalog/providers/external_library_provider.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_capabilities.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
-import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_failure.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/models/books.dart';

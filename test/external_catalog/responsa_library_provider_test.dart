@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
-import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_failure.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_library_provider.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:path/path.dart' as path;

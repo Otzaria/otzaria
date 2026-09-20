@@ -31,14 +31,6 @@ class DiscoveredDialog {
     required this.controls,
   });
 
-  /// שיעור התפקידים שאומתו גם לפי מזהה הפקד. ב-CD25 הוא 1.0; במהדורה
-  /// שבה המזהים שונו הוא יורד, והדיאלוג עדיין נמצא לפי מבנה.
-  double get idConfidence {
-    if (controls.isEmpty) return 0;
-    final byId = controls.values.where((c) => c.matchedBy == MatchedBy.id);
-    return byId.length / controls.length;
-  }
-
   int? handle(String role) => controls[role]?.hwnd;
 
   bool get alive =>

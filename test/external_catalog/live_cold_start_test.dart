@@ -12,7 +12,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
-import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_installation_discovery.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
 import 'package:sqlite3/sqlite3.dart';
 

@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
-import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_installation_discovery.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
 
 /// תוצאת ניסיון להעלות את בר אילן.

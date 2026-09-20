@@ -1,37 +1,11 @@
 import 'dart:io';
 
 import 'package:otzaria/external_catalog/responsa/native/responsa_discovery.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_failure.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_names.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
-
-/// קוד שגיאה יציב של פעולת אוטומציה. אוצריא מסתמכת על הקוד, לא על הטקסט.
-enum ResponsaFailure {
-  responsaNotRunning,
-  citationDialogNotFound,
-  resultsNotCleared,
-  referenceNotParsed,
-  openedWrongBook,
-  mdiWindowLimitReached,
-  timeout,
-  cancelled,
-}
-
-class ResponsaAutomationException implements Exception {
-  final ResponsaFailure failure;
-  final String message;
-  final Map<String, Object?> details;
-
-  const ResponsaAutomationException(
-    this.failure,
-    this.message, [
-    this.details = const {},
-  ]);
-
-  @override
-  String toString() => '${failure.name}: $message';
-}
 
 /// תוצאת פתיחה מוצלחת.
 class ResponsaOpenOutcome {

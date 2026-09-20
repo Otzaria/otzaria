@@ -11,6 +11,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_builder.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_writer.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_tree_reader.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_category_map.dart';
@@ -73,7 +74,7 @@ void main() {
       );
     }
 
-    final result = ResponsaCatalogBuilder.build(
+    final result = ResponsaCatalogWriter.build(
       nodes: nodes,
       fingerprint: const ResponsaFingerprint(
         installPath: r'C:\Program Files (x86)\ResponsaCD25H',
