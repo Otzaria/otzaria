@@ -96,6 +96,9 @@ class ResponsaAutomation {
   /// כל הסולם.
   static const Duration clearBudget = Duration(seconds: 10);
 
+  /// תקציב להמתנה לחלון הספר אחרי לחיצה מוצלחת על "הצג טקסט".
+  static const Duration windowBudget = Duration(seconds: 45);
+
   /// המתנה אחרי פתיחת ספר — התוכנה עסוקה בציור החלון החדש, וקריאה
   /// מיידית אחריה נבלעת.
   static const Duration _afterOpenSettle = Duration(seconds: 1);
@@ -493,6 +496,14 @@ class ResponsaAutomation {
       rethrow;
     }
 
+    // **החלון נרשם כשלנו ברגע שהוא נפתח**, לפני האימות ולפני כל מה
+    // שיכול לזרוק. חלון שנפתח ונפסל הוא שלנו בדיוק כמו חלון שנפתח
+    // והתקבל — ומי שאינו רושם אותו אינו סוגר אותו לעולם. נמדד: מופעים
+    // שהצטברו עד 110MB, וכל פתיחה מהן ואילך פקעה.
+    if (!before.contains(title) && !_openedWindows.contains(title)) {
+      _openedWindows.add(title);
+    }
+
     dismissInfoModals();
     sleepFor(_afterOpenSettle);
 
@@ -518,7 +529,6 @@ class ResponsaAutomation {
     ResponsaWin32.bringToFront(main);
 
     final isNew = !before.contains(title);
-    if (isNew) _openedWindows.add(title);
     return ResponsaOpenOutcome(
       window: title,
       usedRef: usedRef,
@@ -678,7 +688,15 @@ class ResponsaAutomation {
     ResponsaDeadline deadline,
   ) {
     final targets = [?expectedTitle, chosen];
-    while (!deadline.expired) {
+    // תקציב משלו. פתיחה מוצלחת יוצרת חלון בשניות בודדות — חציון 2.8
+    // שניות מקצה לקצה — ומופע שאינו יוצר חלון תוך 45 שניות אינו איטי
+    // אלא תקוע. בלי זה כל כישלון כזה שרף את שלוש הדקות של הפעולה
+    // כולה: נמדד בסריקה מלאה שמופע אחד שנתקע ייצר 65 כשלים של שלוש
+    // דקות, והוריד את הקצב פי שלושה.
+    final own = ResponsaDeadline(
+      deadline.remaining < windowBudget ? deadline.remaining : windowBudget,
+    );
+    while (!own.expired) {
       _checkpoint(deadline);
       final titles = ResponsaWin32.mdiTitles(main);
       final fresh = titles.where((t) => t.isNotEmpty && !before.contains(t));
