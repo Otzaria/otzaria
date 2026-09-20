@@ -58,6 +58,24 @@ class ResponsaBookRow {
     ..._resolved.nameNodes.sublist(0, workOffset),
   ];
 
+  /// השמות שתחתם "רשימת הספרים והמהדורות" עשויה להכיר את החיבור, מהמדויק
+  /// לכללי.
+  ///
+  /// **רק שמות ברמת החיבור.** מפתה לנסות גם את שם היחידה, כי הוא מרחיב
+  /// את הכיסוי — והוא בדיוק מה שמייחס מהדורה שגויה: ל-`רש"י בראשית` שם
+  /// היחידה הוא `בראשית`, ובביבליוגרפיה יש עמוד בשם הזה. מהדורה של ספר
+  /// אחר גרועה מהיעדר מהדורה.
+  List<String> get bibliographyNames {
+    final names = _resolved.nameNodes;
+    final work = names[workOffset];
+    return [
+      ResponsaNames.coreOf(work),
+      if (workOffset > 0)
+        ResponsaNames.referenceOf(names.sublist(0, workOffset + 1)),
+      if (workOffset > 0) ResponsaNames.coreOf(names.first),
+    ];
+  }
+
   /// מפתח זהות הצומת, לאיתור אותו חיבור שמופיע בעץ בשני נתיבים.
   ///
   /// `null` כשצומת הסיום אינו **צומת חיבור**. ההגבלה חיונית: `param`

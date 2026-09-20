@@ -41,6 +41,34 @@ class ResponsaCatalogInfo {
   /// ולכן מוצגת בקשה לרענון.
   bool get isOutdated =>
       exists && (schemaVersion ?? 1) < responsaCatalogSchemaVersion;
+
+  /// האם הקטלוג נבנה מהתקנה שקיימת על המחשב הזה.
+  ///
+  /// הבדיקה נדרשת מפני שהקטלוג יושב בתיקיית הספרייה, והספרייה עוברת בין
+  /// מחשבים. קטלוג שנבנה במחשב אחר מתאר מאגר שאינו כאן: ההפניות שבו
+  /// נבנו ממהדורה אחרת, והפתיחה תיכשל או — גרוע מכך — תפתח ספר אחר.
+  ///
+  /// מחזיר `true` כשאי אפשר לדעת: קטלוג בלי `install_path` (סכמה 1),
+  /// או מחשב שלא נמצאה בו התקנה כלל. אזהרה על סמך חוסר מידע היא אזהרה
+  /// שהמשתמש לומד להתעלם ממנה.
+  bool describesAnyOf(Iterable<String> installPaths) {
+    final source = installPath?.trim();
+    if (source == null || source.isEmpty) return true;
+    final known = installPaths
+        .map((value) => _comparablePath(value))
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    if (known.isEmpty) return true;
+    return known.contains(_comparablePath(source));
+  }
+
+  /// נתיב להשוואה: מערכת הקבצים של Windows אינה רגישה לרישיות, ונתיב
+  /// שנקרא מהרישום יכול להסתיים בלוכסן ונתיב שנקרא מתהליך חי לא.
+  static String _comparablePath(String value) => value
+      .trim()
+      .replaceAll('/', r'\')
+      .replaceAll(RegExp(r'\\+$'), '')
+      .toLowerCase();
 }
 
 /// קורא את `responsa_catalog.db` — הקטלוג המקומי של פרויקט השו"ת.
@@ -244,9 +272,12 @@ class ResponsaCatalogRepository {
 
   /// ממיר שורת קטלוג ל-[ExternalLibraryBook].
   ///
-  /// `link` הוא `null` — לפרויקט השו"ת אין אתר. `author`, `pubDate`
-  /// ו-`pubPlace` נשארים ריקים: המטא-דאטה הזו אינה קיימת בהתקנה, ואין
-  /// להמציא לה ערכים.
+  /// `link` הוא `null` — לפרויקט השו"ת אין אתר.
+  ///
+  /// `author`, `pubPlace` ו-`pubDate` נקראים מ"רשימת הספרים והמהדורות"
+  /// של התוכנה, ולכן הם ריקים לספר שאינו מופיע שם. הם נקראים דרך
+  /// `row[...]` בלי לדרוש את העמודה: קטלוג בסכמה 4 ומטה אינו מכיר אותן,
+  /// ושאילתה שדורשת אותן הייתה משאירה את המשתמש בלי ספרייה עד לרענון.
   @visibleForTesting
   static ExternalLibraryBook mapRow(Map<String, Object?> row) {
     final key = row['external_key']?.toString() ?? '';
@@ -261,6 +292,9 @@ class ResponsaCatalogRepository {
       title: row['title']?.toString() ?? '',
       id: int.tryParse(key) ?? 0,
       link: null,
+      author: _text(row['author']),
+      pubPlace: _text(row['pub_place']),
+      pubDate: _text(row['pub_date']),
       topics: row['topics']?.toString() ?? '',
       categoryPath: contextPathOf(refPath),
       heCategories: (categoryPath == null || categoryPath.isEmpty)
@@ -270,6 +304,16 @@ class ResponsaCatalogRepository {
         key,
       ),
     );
+  }
+
+  /// ערך טקסט מהקטלוג, או `null` כשהוא חסר או ריק.
+  ///
+  /// מחרוזת ריקה אינה "מידע ריק" אלא **מידע שגוי**: הממשק מחליט לפי
+  /// `author != null` אם להציג שורת מחבר, ומחרוזת ריקה הייתה מייצרת
+  /// שורה ריקה מתחת לכל ספר שאין לו מחבר.
+  static String? _text(Object? value) {
+    final text = value?.toString().trim();
+    return (text == null || text.isEmpty) ? null : text;
   }
 
   /// הקטגוריה שמוצגת למשתמש: הנתיב בעץ הקטלוג **בלי** שם הספר עצמו.

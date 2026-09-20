@@ -6,6 +6,7 @@ import 'dart:isolate';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_bibliography_reader.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_writer.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation_discovery.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
@@ -315,6 +316,11 @@ class ResponsaCatalogBuildService {
         nodes: nodes,
         fingerprint: ResponsaInstallationDiscovery.fingerprint(installation),
         targetPath: request.targetPath,
+        // נקראת **אחרי** הסריקה ולא לפניה: היא קריאת קובץ של פחות משנייה,
+        // ואין סיבה לשלם אותה כשהסריקה עומדת להיכשל או להתבטל.
+        bibliography: ResponsaBibliographyReader.forInstallation(
+          installation.installPath,
+        ),
       );
       send.send(
         ResponsaBuildProgress(

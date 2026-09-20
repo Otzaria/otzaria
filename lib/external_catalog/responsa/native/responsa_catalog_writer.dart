@@ -4,6 +4,7 @@ import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_builde
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_schema.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_tree_reader.dart';
+import 'package:otzaria/external_catalog/responsa/text/responsa_bibliography.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_names.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -27,6 +28,7 @@ class ResponsaCatalogWriter {
     required List<ResponsaTreeNode> nodes,
     required ResponsaFingerprint fingerprint,
     required String targetPath,
+    ResponsaBibliography bibliography = ResponsaBibliography.empty,
   }) {
     final watch = Stopwatch()..start();
     final books = ResponsaCatalogBuilder.classify(nodes);
@@ -65,6 +67,10 @@ class ResponsaCatalogWriter {
           category       TEXT,
           category_path  TEXT,
           topics         TEXT,
+          author         TEXT,
+          pub_place      TEXT,
+          pub_date       TEXT,
+          edition        TEXT,
           tree_param     INTEGER,
           source_version INTEGER NOT NULL
         )
@@ -76,9 +82,11 @@ class ResponsaCatalogWriter {
       final insert = db.prepare(
         'INSERT INTO books(external_key, title, leaf_title, norm_title,'
         ' ref_path, open_ref, alt_refs, volume, category, category_path,'
-        ' topics, tree_param, source_version)'
-        ' VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        ' topics, author, pub_place, pub_date, edition, tree_param,'
+        ' source_version)'
+        ' VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       );
+      var described = 0;
       db.execute('BEGIN');
       for (var i = 0; i < books.length; i++) {
         final book = books[i];
@@ -99,6 +107,10 @@ class ResponsaCatalogWriter {
         final title = book.title.trim().isEmpty
             ? book.leafTitle.trim()
             : book.title;
+        // המטא-דאטה מגיעה מ"רשימת הספרים והמהדורות" של התוכנה עצמה. ספר
+        // שאין לו שם רשומה שם נשאר בלעדיה — אין להמציא ערכים.
+        final record = bibliography.lookup(book.bibliographyNames);
+        if (record != null) described++;
         insert.execute([
           assignment.keys[i],
           title,
@@ -115,6 +127,10 @@ class ResponsaCatalogWriter {
               ? null
               : categories.join(ResponsaTreeReader.pathSeparator),
           null,
+          record?.author,
+          record?.pubPlace,
+          record?.pubDate,
+          (record?.edition.isEmpty ?? true) ? null : record!.edition,
           book.treeParam,
           fingerprint.version ?? 0,
         ]);
@@ -133,6 +149,8 @@ class ResponsaCatalogWriter {
         'catalog_schema_version': '$responsaCatalogSchemaVersion',
         'catalog_build_time': DateTime.now().toIso8601String(),
         'catalog_node_count': '${nodes.length}',
+        'bibliography_entries': '${bibliography.entryCount}',
+        'bibliography_matched': '$described',
       };
       final metaInsert = db.prepare(
         'INSERT OR REPLACE INTO db_meta(key, value) VALUES(?, ?)',
