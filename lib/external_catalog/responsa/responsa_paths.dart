@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:path/path.dart' as path;
 
@@ -39,6 +40,9 @@ class ResponsaPaths {
   static String? get baseDirectory {
     if (debugBaseDirectoryOverride case final override?) return override;
     if (!Platform.isWindows) return null;
+    // מיקום הספרייה נקרא מההגדרות. לפני שהן אותחלו אין תשובה, והקריאה
+    // עצמה זורקת — וכל הקוראים כאן מטפלים ב-`null` ממילא.
+    if (!Settings.isInitialized) return null;
     final directory = DatabaseConstants.getDatabaseDirectoryPath();
     return directory.isEmpty ? null : directory;
   }

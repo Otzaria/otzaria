@@ -9,6 +9,7 @@ import '../../helpers/memory_settings_cache.dart';
 
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -348,11 +349,80 @@ void main() {
 
       expect(
         find.text(
-          'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים '
-          'ואת אופן הפתיחה.',
+          'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים, '
+          'את פרטי המהדורה ואת אופן הפתיחה.',
         ),
         findsOneWidget,
       );
+    });
+
+    /// הקטלוג יושב בתיקיית הספרייה, ולכן הוא נודד איתה בין מחשבים.
+    /// קטלוג נודד נראה תקין לחלוטין ורק הפתיחה נכשלת.
+    testWidgets('קטלוג שנבנה מהתקנה אחרת מבקש רענון', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          _FakeSettingsBloc(showResponsa: true),
+          responsaStatus: const ResponsaStatus(
+            installed: true,
+            running: false,
+            version: 25,
+            confidence: ResponsaVersionConfidence.verified,
+            installations: [
+              ResponsaInstallation(
+                installPath: r'C:\Program Files (x86)\ResponsaCD25',
+                version: 25,
+                displayName: 'CD25',
+                source: 'test',
+              ),
+            ],
+          ),
+          responsaInfo: const ResponsaCatalogInfo(
+            exists: true,
+            bookCount: 8402,
+            sourceVersion: 25,
+            schemaVersion: 5,
+            installPath: r'D:\ResponsaCD25',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('נבנה מהתקנה אחרת של בר אילן'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('אותה התקנה — בלי אזהרה, גם כשהרישיות שונה', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          _FakeSettingsBloc(showResponsa: true),
+          responsaStatus: const ResponsaStatus(
+            installed: true,
+            running: false,
+            version: 25,
+            confidence: ResponsaVersionConfidence.verified,
+            installations: [
+              ResponsaInstallation(
+                installPath: r'C:\Program Files (x86)\ResponsaCD25\',
+                version: 25,
+                displayName: 'CD25',
+                source: 'test',
+              ),
+            ],
+          ),
+          responsaInfo: const ResponsaCatalogInfo(
+            exists: true,
+            bookCount: 8402,
+            sourceVersion: 25,
+            schemaVersion: 5,
+            installPath: r'c:\program files (x86)\responsacd25',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('נבנה מהתקנה אחרת'), findsNothing);
     });
   });
 }
