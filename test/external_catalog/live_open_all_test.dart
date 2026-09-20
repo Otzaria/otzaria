@@ -85,13 +85,23 @@ bool _isHealthy(int pid, int? version) {
 
 /// מעלה מופע אחד ומחזיר את מזההו — רק אם הוא עבר את בדיקת הכשירות.
 ///
+/// [claimed] הם מופעים ששייכים כבר לעובד אחר, ולעולם לא יוחזרו.
+/// **זה אינו זהירות יתרה.** מופע שנמצא בעיצומה של פתיחת דיאלוג אינו
+/// ניתן למנייה לרגע, נושר מ-`before`, ואז נבחר שוב כאילו היה חדש.
+/// נמדד: שני עובדים נהגו באותו מופע, וכל אחד ראה את חלונות השני
+/// כחלונות שהוא עצמו פתח — 128 "ספרים שגויים" שכולם נפתחו כשורה.
+///
 /// `null` כשלא עלה בזמן או כשנכשל בבדיקה; הקורא מנסה שוב.
 Future<int?> _startOneInstance(
   String executable,
   String installPath,
   int? version,
+  Set<int> claimed,
 ) async {
-  final before = {for (final instance in ResponsaInstance.all()) instance.pid};
+  final before = {
+    ...claimed,
+    for (final instance in ResponsaInstance.all()) instance.pid,
+  };
   await Process.start(
     executable,
     const [],
@@ -137,6 +147,7 @@ Future<List<int>> _startInstances(
       installation.executable,
       installation.installPath,
       version,
+      accepted.toSet(),
     );
     if (pid == null) {
       print('  instance did not come up healthy — retrying');
@@ -176,11 +187,13 @@ Future<void> _worker(
     String executable,
     String installPath,
     int recycleOffset,
+    Set<int> siblings,
     List<_Book> books,
   })
   request,
 ) async {
   var pid = request.pid;
+  final mine = <int>{pid};
   var automation = ResponsaAutomation(
     pid: pid,
     profile: ResponsaVersionProfile.forVersion(request.version),
@@ -197,9 +210,13 @@ Future<void> _worker(
         request.executable,
         request.installPath,
         request.version,
+        // המופעים של שאר העובדים, כפי שהיו בתחילת הריצה. עובד אינו
+        // רשאי לקחת מופע של עובד אחר, גם אם הוא נראה פנוי לרגע.
+        {...request.siblings, ...mine},
       );
       if (fresh != null) {
         pid = fresh;
+        mine.add(pid);
         automation = ResponsaAutomation(
           pid: pid,
           profile: ResponsaVersionProfile.forVersion(request.version),
@@ -427,6 +444,7 @@ void main() {
         // היסט שונה לכל עובד, כדי ששמונה מופעים לא יוחלפו יחד: העלאה
         // מקבילה של כמה מופעים היא בדיוק מה שמייצר מופע חלקי.
         recycleOffset: (i * 31) % _recycleEvery,
+        siblings: pids.toSet(),
         books: batches[i],
       ));
     }
