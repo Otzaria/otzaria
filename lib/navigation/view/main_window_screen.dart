@@ -106,6 +106,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_install_decision.dart';
 import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart'
     show buildThemePayloadFromScheme;
@@ -201,6 +202,21 @@ class _PinnedToolNavItem {
     return RtlIcon(icon!);
   }
 }
+
+/// ההחלטות שבקשת התקנה או עדכון של תוסף משאירה למשתמש.
+///
+/// עדכון שאין בו מה להחליט אינו נפתח לדיאלוג (issue #1410).
+PluginInstallDecision resolvePluginInstallPrompt(
+  PluginSystemInstallRequiresPermissions state, {
+  required bool isOfflineMode,
+}) => resolvePluginInstallDecision(
+  manifest: state.manifest,
+  previousVersion: state.previousVersion,
+  previousGrantedPermissions: state.previousGrantedPermissions,
+  previousAllowOrderBeforeBuiltInsGranted:
+      state.previousAllowOrderBeforeBuiltInsGranted,
+  isOfflineMode: isOfflineMode,
+);
 
 class MainWindowScreen extends StatefulWidget {
   const MainWindowScreen({super.key});
@@ -1257,6 +1273,26 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final bloc = context.read<PluginSystemBloc>();
     final isOfflineMode = context.read<SettingsBloc>().state.isOfflineMode;
     if (state is PluginSystemInstallRequiresPermissions) {
+      final decision = resolvePluginInstallPrompt(
+        state,
+        isOfflineMode: isOfflineMode,
+      );
+      // עדכון שאין בו מה להחליט מאושר בלי דיאלוג — המשתמש הוא שביקש אותו,
+      // וההרשאות שהעניק נשלחות כפי שהן. הודעת הסיום מגיעה מה-bloc.
+      if (!decision.requiresUserDecision) {
+        bloc.add(
+          ConfirmPluginInstall(
+            state.tempDirPath,
+            state.manifest,
+            Map.unmodifiable(decision.permissionToggles),
+            state.previousAllowOrderBeforeBuiltInsGranted ??
+                state.manifest.allowOrderBeforeBuiltIns,
+            reportContext: state.reportContext,
+            previousVersion: state.previousVersion,
+          ),
+        );
+        return;
+      }
       final handled = await showDialog<bool>(
         context: context,
         builder: (_) => BlocProvider.value(

@@ -5,6 +5,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
+import 'package:otzaria/plugins/models/plugin_install_decision.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_permission_labels.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
@@ -63,61 +64,37 @@ class PluginInstallScreen extends StatefulWidget {
 }
 
 class _PluginInstallScreenState extends State<PluginInstallScreen> {
+  /// כל חישובי ההרשאות של המסך — משותפים עם המארח, שנשען עליהם כדי להחליט
+  /// אם בכלל לפתוח את המסך.
+  late PluginInstallDecision _decision;
+
   /// מצב toggle לכל הרשאה, לפי ברירת המחדל המשותפת למסכי ההרשאות.
   late Map<String, bool> _permissionToggles;
   late bool _allowOrderBeforeBuiltInsGranted;
 
-  /// הרשאות המניפסט בסדר ההצגה — הרגישות ראשונות.
-  late List<String> _orderedPermissions;
-
-  /// הרשאות שהתוסף מבקש לראשונה (אין עליהן החלטה שמורה).
-  late List<String> _newPermissions;
-
-  /// הרשאות מוכרות שמתחילות כבויות או שאינן זמינות זמנית במצב מנותק.
-  late List<String> _revokedPermissions;
+  List<String> get _orderedPermissions => _decision.orderedPermissions;
+  List<String> get _newPermissions => _decision.newPermissions;
+  List<String> get _revokedPermissions => _decision.revokedPermissions;
 
   @override
   void initState() {
     super.initState();
-    final effectivePermissions = effectiveManifestPermissions(
-      widget.manifest.permissions,
-    );
-    _permissionToggles = {
-      for (final p in effectivePermissions) p: _initialGrantFor(p),
-    };
-    _orderedPermissions = orderedPluginPermissions(
-      effectivePermissions,
+    _decision = resolvePluginInstallDecision(
+      manifest: widget.manifest,
+      previousVersion: widget.previousVersion,
+      previousGrantedPermissions: widget.previousGrantedPermissions,
+      previousAllowOrderBeforeBuiltInsGranted:
+          widget.previousAllowOrderBeforeBuiltInsGranted,
       isOfflineMode: widget.isOfflineMode,
     );
-    _newPermissions = _orderedPermissions
-        .where((p) => !widget.previousGrantedPermissions.containsKey(p))
-        .toList();
-    _revokedPermissions = _orderedPermissions
-        .where(
-          (p) =>
-              widget.previousGrantedPermissions.containsKey(p) &&
-              (_permissionToggles[p] == false || _isTemporarilyUnavailable(p)),
-        )
-        .toList();
+    _permissionToggles = Map<String, bool>.of(_decision.permissionToggles);
     _allowOrderBeforeBuiltInsGranted =
         widget.previousAllowOrderBeforeBuiltInsGranted ??
         widget.manifest.allowOrderBeforeBuiltIns;
   }
 
-  /// החלטת עבר נשמרת גם כשהגישה עצמה אינה זמינה זמנית במצב מנותק.
-  bool _initialGrantFor(String permission) {
-    return widget.previousGrantedPermissions[permission] ??
-        pluginPermissionDefaultGrant(
-          permission,
-          isOfflineMode: widget.isOfflineMode,
-        );
-  }
-
   bool _isTemporarilyUnavailable(String permission) =>
-      widget.isUpdate &&
-      widget.isOfflineMode &&
-      permission == pluginNetworkAccessPermission &&
-      widget.previousGrantedPermissions[permission] == true;
+      _decision.temporarilyUnavailablePermissions.contains(permission);
 
   /// בעדכון מוצגות רק הרשאות חדשות או כבויות; בהתקנה ראשונה — הכול.
   List<String> get _visiblePermissions =>
@@ -138,15 +115,12 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
 
   /// שאלת המיקום נשאלת רק כשאין עליה החלטה קודמת.
   bool get _requestsOrderBeforeBuiltIns =>
-      widget.manifest.allowOrderBeforeBuiltIns &&
-      widget.previousAllowOrderBeforeBuiltInsGranted == null;
+      _decision.requestsOrderBeforeBuiltIns;
 
   /// עדכון שאינו דורש שום החלטה — מוצג כאישור עדכון בלבד.
-  bool get _isPlainUpdate =>
-      widget.isUpdate &&
-      _newPermissions.isEmpty &&
-      _revokedPermissions.isEmpty &&
-      !_requestsOrderBeforeBuiltIns;
+  /// במסלול הרגיל המארח כלל אינו פותח את המסך במצב הזה (issue #1410);
+  /// נשאר עבור עדכון תוסף פיתוח, שאין לו החלטות הרשאה שמורות.
+  bool get _isPlainUpdate => _decision.isPlainUpdate;
 
   void _onInstall() {
     if (widget.onConfirm != null) {
