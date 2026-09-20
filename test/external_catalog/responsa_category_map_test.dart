@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_category_map.dart';
+import 'otzaria_categories_fixture.dart';
 
 /// שיוך קטגוריות בר אילן לקטגוריות אוצריא.
 void main() {
@@ -16,10 +17,7 @@ void main() {
     });
 
     test('קטגוריה עם תת-נתיב שאינו בטבלה נופלת לרמה אחת', () {
-      expect(
-        target('ספרי שאלות ותשובות (שו"ת) > ספרי שאלות ותשובות - אחרונים'),
-        ['שו״ת'],
-      );
+      expect(target('ספרי שאלות ותשובות (שו"ת) > מדף שאינו בטבלה'), ['שו״ת']);
     });
   });
 
@@ -80,6 +78,30 @@ void main() {
     }
   });
 
+  test('כל יעד קיים בעץ הקטגוריות של אוצריא', () {
+    // בלי הבדיקה הזו אפשר לכתוב יעד שנראה סביר ואינו קיים — ואז הספרים
+    // פשוט אינם מופיעים בשום מקום, בלי שגיאה ובלי סימן.
+    for (final path in ResponsaCategoryMap.allTargets) {
+      expect(
+        otzariaCategories,
+        contains(path.join('/')),
+        reason: 'היעד ${path.join(' › ')} אינו קיים בעץ של אוצריא',
+      );
+    }
+  });
+
+  test('כל מדף שנמדד בקטלוג משויך', () {
+    // 43 נתיבי הסיווג שנמדדו בקטלוג של מהדורה 25. מדף שאינו משויך
+    // שולח את ספריו לתיקייה עליונה נפרדת במקום לקטגוריה של אוצריא.
+    for (final path in measuredResponsaShelves) {
+      expect(
+        ResponsaCategoryMap.otzariaPathFor(path),
+        isNotNull,
+        reason: 'המדף "$path" אינו משויך לשום קטגוריה באוצריא',
+      );
+    }
+  });
+
   group('שם להצגה', () {
     test('הקטגוריה מוצגת בשמות של אוצריא', () {
       // התלונה: "כותרות שסתם מופיעות באריכות ולא בשם המקובל, למשל
@@ -88,7 +110,7 @@ void main() {
         ResponsaCategoryMap.displayNameFor(
           'ספרי שאלות ותשובות (שו"ת) > ספרי שאלות ותשובות - אחרונים',
         ),
-        'שו״ת',
+        'שו״ת › אחרונים',
       );
       expect(ResponsaCategoryMap.displayNameFor('ספרי חסידות'), 'חסידות');
     });

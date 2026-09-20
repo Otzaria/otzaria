@@ -13,7 +13,7 @@ void main() {
         externalLibraryId: 'rp:$id',
       );
 
-  test('ספר שו"ת נכנס לתיקייה בתוך שו״ת', () {
+  test('ספר שו"ת של אחרונים נכנס לתיקייה בתוך שו״ת › אחרונים', () {
     final tree = ResponsaLibraryTree.build([
       book(
         'תורת יקותיאל אישות',
@@ -21,15 +21,23 @@ void main() {
         1,
       ),
     ]);
-    final folder = tree.folderFor('/שו״ת');
+    // שתי הרמות נצרכו, ולכן הספר יושב ישירות בתיקייה.
+    final folder = tree.folderFor('/שו״ת/אחרונים');
     expect(folder, isNotNull);
     expect(folder!.title, ResponsaLibraryTree.folderTitle);
-    // הרמה השנייה של בר אילן נשמרת כתיקייה בפנים.
-    expect(folder.subCategories.single.title, 'ספרי שאלות ותשובות - אחרונים');
-    expect(
-      folder.subCategories.single.books.single.title,
-      'תורת יקותיאל אישות',
-    );
+    expect(folder.books.single.title, 'תורת יקותיאל אישות');
+    // ולא בשורש `שו״ת`, שבו יושבים רק מדפים שלא פורטו.
+    expect(tree.folderFor('/שו״ת'), isNull);
+  });
+
+  test('תו גרשיים אחר בשם הקטגוריה אינו מנתק את התיקייה', () {
+    // `Category.path` נבנה מכותרות הספרייה המותקנת. בלי נרמול, ספרייה
+    // שכותרתה `שו"ת` ב-ASCII הייתה מאבדת את כל אלף הספרים בשקט.
+    final tree = ResponsaLibraryTree.build([
+      book('תורת יקותיאל אישות', 'ספרי שאלות ותשובות (שו"ת)', 1),
+    ]);
+    expect(tree.folderFor('/שו״ת'), isNotNull);
+    expect(tree.folderFor('/שו"ת'), isNotNull);
   });
 
   test('רמה שנצרכה בשיוך אינה חוזרת כתיקייה', () {

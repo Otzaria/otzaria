@@ -52,7 +52,9 @@ void main() {
     // קטגוריות: כמה שויכו לאוצריא וכמה לא
     final unmapped = <String, int>{};
     for (final book in books) {
-      final path = book.categoryNodes.join(ResponsaCategoryMap.pathSeparator);
+      final path = book.classificationNodes.join(
+        ResponsaCategoryMap.pathSeparator,
+      );
       if (ResponsaCategoryMap.otzariaPathFor(path) == null) {
         unmapped[path] = (unmapped[path] ?? 0) + 1;
       }
@@ -67,7 +69,7 @@ void main() {
         '  ${books[k].title}\n      ref: ${refs[k]}'
         '\n      alt: ${ResponsaCatalogBuilder.alternativeRefs(books[k], refs[k])}'
         '\n      cat: ${books[k].categoryNodes.join(' > ')} -> '
-        '${ResponsaCategoryMap.otzariaPathFor(books[k].categoryNodes.join(ResponsaCategoryMap.pathSeparator))}',
+        '${ResponsaCategoryMap.otzariaPathFor(books[k].classificationNodes.join(ResponsaCategoryMap.pathSeparator))}',
       );
     }
 

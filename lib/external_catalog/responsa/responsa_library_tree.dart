@@ -1,4 +1,5 @@
 import 'package:otzaria/external_catalog/responsa/responsa_category_map.dart';
+import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 
@@ -24,7 +25,11 @@ class ResponsaLibraryTree {
   /// שלה ייראו במקום אחד ברור במקום להיעלם בשקט.
   static const List<String> unmappedTarget = [folderTitle];
 
-  /// מיפוי מ-[Category.path] של קטגוריית היעד אל התיקייה הווירטואלית.
+  /// מיפוי מנתיב קטגוריית היעד, **מנורמל**, אל התיקייה הווירטואלית.
+  ///
+  /// מנורמל ולא גולמי: `Category.path` נבנה מכותרות הספרייה המותקנת,
+  /// ודי בתו גרשיים אחר (`שו"ת` מול `שו״ת`) כדי שההשוואה תיכשל — ואז
+  /// התיקייה פשוט אינה מופיעה, בלי שגיאה ובלי סימן.
   final Map<String, Category> byCategoryPath;
 
   /// תיקיות עליונות — רק עבור ספרים שלא שויכו.
@@ -43,7 +48,15 @@ class ResponsaLibraryTree {
   bool get isEmpty => byCategoryPath.isEmpty && topLevel.isEmpty;
 
   /// התיקייה שיש להציג בתוך [categoryPath], או `null`.
-  Category? folderFor(String categoryPath) => byCategoryPath[categoryPath];
+  Category? folderFor(String categoryPath) =>
+      byCategoryPath[pathKey(categoryPath)];
+
+  /// מפתח ההשוואה של נתיב קטגוריה — רכיב-רכיב, בכתיב מנורמל.
+  static String pathKey(String categoryPath) => categoryPath
+      .split('/')
+      .map(ResponsaHebrew.spellingKey)
+      .where((part) => part.isNotEmpty)
+      .join('/');
 
   /// בונה את העץ מרשימת הספרים של הקטלוג.
   ///
@@ -67,7 +80,9 @@ class ResponsaLibraryTree {
     for (final book in books) {
       final source = book.heCategories;
       final match = ResponsaCategoryMap.resolve(source);
-      final targetPath = match == null ? null : '/${match.target.join('/')}';
+      final targetPath = match == null
+          ? null
+          : pathKey('/${match.target.join('/')}');
 
       final Category root;
       if (targetPath == null) {

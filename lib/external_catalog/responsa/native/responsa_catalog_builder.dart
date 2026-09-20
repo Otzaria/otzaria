@@ -51,6 +51,30 @@ class ResponsaBookRow {
   /// רכיבי הקטגוריה, מהשורש ועד לרכיב שמעל השם.
   List<String> get categoryNodes => _resolved.categoryNodes;
 
+  /// הנתיב שלפיו נקבעת הקטגוריה באוצריא: רכיבי הקטגוריה **ומה שמעל
+  /// החיבור**.
+  ///
+  /// הרכיב שמעל החיבור משרת שני תפקידים בו-זמנית, ושניהם נכונים: הוא
+  /// חלק מהשם (`משנה אבות`) והוא גם מדף (`ספרות חז"ל > משנה`). כשנשמרו
+  /// רק רכיבי הקטגוריה, 259 ספרים — כל המשנה, התוספתא, הבבלי והמסכתות
+  /// הקטנות — נותרו עם `ספרות חז"ל` בלבד ושויכו כולם לתלמוד בבלי.
+  List<String> get classificationNodes => [
+    ..._resolved.categoryNodes,
+    ..._resolved.nameNodes.sublist(0, workOffset),
+  ];
+
+  /// מפתח זהות הצומת, לאיתור אותו חיבור שמופיע בעץ בשני נתיבים.
+  ///
+  /// `null` כשצומת הסיום אינו **צומת חיבור**. ההגבלה חיונית: `param`
+  /// הוא מספר סידורי בתוך הענף ולא מזהה ייחודי, ובמישור היחידות הוא
+  /// חוזר על עצמו אלפי פעמים. נמדד: בלעדיה נמחקו 4,094 ספרים תקינים.
+  /// במישור החיבורים הוא כמעט ייחודי — 1,932 ערכים ל-2,000 צמתים —
+  /// ויחד עם השם הוא מפריד גם בין שני החיבורים שחלקו ערך במקרה.
+  ({int param, String name})? get identity =>
+      ResponsaStructure.kindOf(treeParam) == ResponsaStructure.workKind
+      ? (param: treeParam, name: leafTitle)
+      : null;
+
   /// ההפניה הבסיסית — מהחיבור ומטה, בשמות ליבה.
   String get baseRef =>
       ResponsaNames.referenceOf(_resolved.nameNodes.sublist(workOffset));
@@ -115,11 +139,29 @@ class ResponsaCatalogBuilder {
   /// קטגוריה שיש להם ילד בעל שם של מקטע (`שולחן ערוך`, `ילקוט יוסף`,
   /// `מפרשים על הרמב"ם`, ורשומות `מפתח נושאים בשו"ת`). הם הופיעו בחיפוש
   /// ולא נפתחו לעולם, כי אין מאחוריהם טקסט.
+  ///
+  /// ## אותו חיבור בשני נתיבים
+  ///
+  /// העץ מכיל **הפניות**, לא רק היררכיה: אותו צומת חיבור מופיע בשני
+  /// מקומות. נמדד ש-`אנציקלופדיות שונות > מנהגי החגים > עשרת ימי תשובה
+  /// ויום הכיפורים` מכיל את כל 63 מסכתות המשנה, עם אותם ערכי `lParam`
+  /// ואותם מספרי פרקים כמו תחת `ספרות חז"ל > משנה`. אומת בקריאה חוזרת
+  /// של אותו ענף בלבד, במופע טרי — התוכן זהה, ולכן זהו מבנה אמיתי
+  /// בתוכנה ולא כשל בסריקה.
+  ///
+  /// הכפילויות האלה הפכו ל-63 ספרים ששמם מורכב מנתיב ההפניה
+  /// (`מנהגי החגים עשרת ימי תשובה ויום הכיפורים אבות`) ואינם נפתחים
+  /// לעולם. **המופע הראשון בסדר הסריקה הוא הקנוני**, כי הקטגוריות
+  /// המסודרות קודמות לאנציקלופדיות בעץ.
   static List<ResponsaBookRow> classify(Iterable<ResponsaTreeNode> nodes) {
-    final books = <ResponsaBookRow>[];
-    final stack = <({ResponsaTreeNode node, bool hasSectionChild})>[];
+    final found = <({int order, ResponsaBookRow row})>[];
+    final stack =
+        <({ResponsaTreeNode node, int order, bool hasSectionChild})>[];
+    var scanned = 0;
 
-    void emit(({ResponsaTreeNode node, bool hasSectionChild}) entry) {
+    void emit(
+      ({ResponsaTreeNode node, int order, bool hasSectionChild}) entry,
+    ) {
       final node = entry.node;
       if (node.level == 0 || !entry.hasSectionChild) return;
       if (isSection(node.name, node.param)) return;
@@ -133,7 +175,7 @@ class ResponsaCatalogBuilder {
         (level: node.level, param: node.param, name: node.name),
       ];
       if (ResponsaStructure.decompose(chain) == null) return;
-      books.add(ResponsaBookRow(chain: chain));
+      found.add((order: entry.order, row: ResponsaBookRow(chain: chain)));
     }
 
     void closeTo(int level) {
@@ -146,15 +188,31 @@ class ResponsaCatalogBuilder {
       closeTo(node.level);
       if (stack.isNotEmpty && isSection(node.name, node.param)) {
         final last = stack.removeLast();
-        stack.add((node: last.node, hasSectionChild: true));
+        stack.add((
+          node: last.node,
+          order: last.order,
+          hasSectionChild: true,
+        ));
       }
-      stack.add((node: node, hasSectionChild: false));
+      stack.add((node: node, order: scanned++, hasSectionChild: false));
     }
     closeTo(0);
     while (stack.isNotEmpty) {
       emit(stack.removeLast());
     }
-    return books;
+
+    // הצמתים נפלטים בסדר יציאה מהמחסנית ולא בסדר הסריקה. הסדר חשוב
+    // פעמיים: הוא קובע איזה מופע של חיבור כפול נחשב הקנוני, והוא גם
+    // סדר הקטלוג שהמשתמש רואה.
+    found.sort((a, b) => a.order.compareTo(b.order));
+    final seen = <({int param, String name})>{};
+    final unique = <ResponsaBookRow>[];
+    for (final entry in found) {
+      final identity = entry.row.identity;
+      if (identity != null && !seen.add(identity)) continue;
+      unique.add(entry.row);
+    }
+    return unique;
   }
 
   /// ההפניה הראשית של כל ספר — **השם המלא של הספר**, בלי תוויות.
@@ -398,8 +456,12 @@ class ResponsaCatalogBuilder {
       for (var i = 0; i < books.length; i++) {
         final book = books[i];
         final alternatives = alternativeRefs(book, openRefs[i]);
+        // `classificationNodes` ולא `categoryNodes`: הרכיב שמעל החיבור
+        // הוא גם מדף, והוא זה שמבדיל בין משנה, תוספתא ובבלי שכולם
+        // יושבים תחת `ספרות חז"ל`.
         final categories = [
-          for (final node in book.categoryNodes) ResponsaNames.displayOf(node),
+          for (final node in book.classificationNodes)
+            ResponsaNames.displayOf(node),
         ];
         insert.execute([
           assignment.keys[i],

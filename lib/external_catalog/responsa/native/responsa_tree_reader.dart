@@ -55,33 +55,6 @@ class ResponsaTreeReader {
 
   static const int tveExpand = 0x0002;
 
-  static const int tvifText = 0x0001;
-  static const int tvifParam = 0x0004;
-  static const int tvifChildren = 0x0040;
-
-  /// גודל `TVITEMW` בתהליך 32-ביט.
-  static const int _itemSize32 = 40;
-
-  /// היסטי השדות בפריסת 32-ביט.
-  static const int _offMask = 0;
-  static const int _offItem = 4;
-  static const int _offText = 16;
-  static const int _offTextMax = 20;
-  static const int _offChildren = 32;
-  static const int _offParam = 36;
-
-  /// כמה תווים להקצות לטקסט של צומת.
-  static const int _textChars = 512;
-
-  static const int _processVmOperation = 0x0008;
-  static const int _processVmRead = 0x0010;
-  static const int _processVmWrite = 0x0020;
-  static const int _processQueryInformation = 0x0400;
-  static const int _memCommit = 0x1000;
-  static const int _memReserve = 0x2000;
-  static const int _memRelease = 0x8000;
-  static const int _pageReadWrite = 0x04;
-
   static const String pathSeparator = ' > ';
 
   /// עובר על כל העץ ומחזיר את הצמתים בסדר DFS.
@@ -96,39 +69,12 @@ class ResponsaTreeReader {
     int progressEvery = 500,
     int maxNodes = 3000000,
   }) {
-    final HANDLE process = OpenProcess(
-      PROCESS_ACCESS_RIGHTS(
-        _processVmOperation |
-            _processVmRead |
-            _processVmWrite |
-            _processQueryInformation,
-      ),
-      false,
-      pid,
-    ).value;
-    if (process.address == 0) return const [];
-
-    final remoteItem = VirtualAllocEx(
-      process,
-      nullptr,
-      _itemSize32 + _textChars * 2,
-      VIRTUAL_ALLOCATION_TYPE(_memCommit | _memReserve),
-      PAGE_PROTECTION_FLAGS(_pageReadWrite),
-    ).value;
-    if (remoteItem.address == 0) {
-      CloseHandle(process);
-      return const [];
-    }
-    final remoteText = Pointer.fromAddress(remoteItem.address + _itemSize32);
-
+    final session = _TreeSession.open(pid, treeHandle);
+    if (session == null) return const [];
     final nodes = <ResponsaTreeNode>[];
     try {
-      _walkFrom(
-        treeHandle: treeHandle,
-        process: process,
-        remoteItem: remoteItem,
-        remoteText: remoteText,
-        item: _rootOf(treeHandle),
+      session.walkFrom(
+        item: session.root,
         level: 0,
         parentPath: const <String>[],
         nodes: nodes,
@@ -138,31 +84,201 @@ class ResponsaTreeReader {
         maxNodes: maxNodes,
       );
     } finally {
-      VirtualFreeEx(
-        process,
-        remoteItem,
-        0,
-        VIRTUAL_FREE_TYPE(_memRelease),
-      );
-      CloseHandle(process);
+      session.close();
     }
     return nodes;
   }
 
-  static int _rootOf(int treeHandle) =>
+  /// ילדיו הישירים של הצומת ש[path] מוליך אליו, לפי שמות מהשורש.
+  ///
+  /// כלי אבחון: מאפשר לקרוא ענף בודד בלי לסרוק 1.25 מיליון צמתים, ולכן
+  /// גם לבדוק אם ענף חוזר על עצמו בקריאה שנייה. `null` כשהנתיב לא נמצא.
+  static List<ResponsaTreeNode>? childrenAtPath({
+    required int pid,
+    required int treeHandle,
+    required List<String> path,
+  }) {
+    final session = _TreeSession.open(pid, treeHandle);
+    if (session == null) return null;
+    try {
+      var item = session.root;
+      var level = 0;
+      for (final name in path) {
+        final match = session
+            .siblings(item, level, const [])
+            .where((sibling) => sibling.node.name.trim() == name.trim())
+            .firstOrNull;
+        if (match == null) return null;
+        final child = session.firstChild(match.handle);
+        if (child == 0) return const [];
+        item = child;
+        level++;
+      }
+      return [
+        for (final node in session.siblings(item, level, path)) node.node,
+      ];
+    } finally {
+      session.close();
+    }
+  }
+
+  /// מאתר את ה-TreeView של הקטלוג בתוך דיאלוג העיון.
+  static int? findCatalogTree(int dialogHandle) {
+    for (final child in ResponsaWin32.children(dialogHandle)) {
+      if (ResponsaWin32.className(child) == 'SysTreeView32') return child;
+    }
+    return null;
+  }
+}
+
+/// סשן קריאה אחד: ידית התהליך והחוצץ המרוחק שמשמשים את כל הקריאות.
+///
+/// הקצאת זיכרון בתהליך היעד היא פעולה יקרה, ובסריקה מלאה היא נעשית
+/// למעלה ממיליון פעם — לכן היא נעשית פעם אחת לכל סשן.
+class _TreeSession {
+  final int treeHandle;
+  final HANDLE process;
+  final Pointer remoteItem;
+  final Pointer remoteText;
+
+  /// גודל `TVITEMW` בתהליך 32-ביט.
+  static const int itemSize32 = 40;
+
+  /// היסטי השדות בפריסת 32-ביט.
+  static const int _offMask = 0;
+  static const int _offItem = 4;
+  static const int _offText = 16;
+  static const int _offTextMax = 20;
+  static const int _offChildren = 32;
+  static const int _offParam = 36;
+
+  static const int _tvifText = 0x0001;
+  static const int _tvifParam = 0x0004;
+  static const int _tvifChildren = 0x0040;
+
+  /// כמה תווים להקצות לטקסט של צומת.
+  static const int _textChars = 512;
+
+  static const int _processVmOperation = 0x0008;
+  static const int _processVmRead = 0x0010;
+  static const int _processVmWrite = 0x0020;
+  static const int _processQueryInformation = 0x0400;
+  static const int _memCommit = 0x1000;
+  static const int _memReserve = 0x2000;
+  static const int _memRelease = 0x8000;
+  static const int _pageReadWrite = 0x04;
+
+  _TreeSession._({
+    required this.treeHandle,
+    required this.process,
+    required this.remoteItem,
+    required this.remoteText,
+  });
+
+  static _TreeSession? open(int pid, int treeHandle) {
+    final process = OpenProcess(
+      PROCESS_ACCESS_RIGHTS(
+        _processVmOperation |
+            _processVmRead |
+            _processVmWrite |
+            _processQueryInformation,
+      ),
+      false,
+      pid,
+    ).value;
+    if (process.address == 0) return null;
+
+    final remoteItem = VirtualAllocEx(
+      process,
+      nullptr,
+      itemSize32 + _textChars * 2,
+      VIRTUAL_ALLOCATION_TYPE(_memCommit | _memReserve),
+      PAGE_PROTECTION_FLAGS(_pageReadWrite),
+    ).value;
+    if (remoteItem.address == 0) {
+      CloseHandle(process);
+      return null;
+    }
+    return _TreeSession._(
+      treeHandle: treeHandle,
+      process: process,
+      remoteItem: remoteItem,
+      remoteText: Pointer.fromAddress(remoteItem.address + itemSize32),
+    );
+  }
+
+  void close() {
+    VirtualFreeEx(process, remoteItem, 0, VIRTUAL_FREE_TYPE(_memRelease));
+    CloseHandle(process);
+  }
+
+  int get root =>
       ResponsaWin32.send(
         treeHandle,
-        tvmGetNextItem,
-        wParam: tvgnRoot,
+        ResponsaTreeReader.tvmGetNextItem,
+        wParam: ResponsaTreeReader.tvgnRoot,
         timeoutMs: 5000,
       ) ??
       0;
 
-  static void _walkFrom({
-    required int treeHandle,
-    required HANDLE process,
-    required Pointer remoteItem,
-    required Pointer remoteText,
+  /// מרחיב צומת ומחזיר את ידית ילדו הראשון, או `0`.
+  int firstChild(int item) {
+    ResponsaWin32.send(
+      treeHandle,
+      ResponsaTreeReader.tvmExpand,
+      wParam: ResponsaTreeReader.tveExpand,
+      lParam: item,
+      timeoutMs: 8000,
+    );
+    return ResponsaWin32.send(
+          treeHandle,
+          ResponsaTreeReader.tvmGetNextItem,
+          wParam: ResponsaTreeReader.tvgnChild,
+          lParam: item,
+          timeoutMs: 5000,
+        ) ??
+        0;
+  }
+
+  int nextSibling(int item) =>
+      ResponsaWin32.send(
+        treeHandle,
+        ResponsaTreeReader.tvmGetNextItem,
+        wParam: ResponsaTreeReader.tvgnNext,
+        lParam: item,
+        timeoutMs: 5000,
+      ) ??
+      0;
+
+  /// כל האחים מ-[item] והלאה, בלי להיכנס לילדיהם.
+  List<({int handle, ResponsaTreeNode node})> siblings(
+    int item,
+    int level,
+    List<String> parentPath,
+  ) {
+    final found = <({int handle, ResponsaTreeNode node})>[];
+    var current = item;
+    while (current != 0) {
+      final read = readItem(current);
+      found.add((
+        handle: current,
+        node: ResponsaTreeNode(
+          name: read.name,
+          param: read.param,
+          level: level,
+          path: [
+            ...parentPath,
+            read.name,
+          ].join(ResponsaTreeReader.pathSeparator),
+          childCount: read.children,
+        ),
+      ));
+      current = nextSibling(current);
+    }
+    return found;
+  }
+
+  void walkFrom({
     required int item,
     required int level,
     required List<String> parentPath,
@@ -179,46 +295,23 @@ class ResponsaTreeReader {
         onProgress?.call(nodes.length);
       }
 
-      final read = _readItem(
-        treeHandle: treeHandle,
-        process: process,
-        remoteItem: remoteItem,
-        remoteText: remoteText,
-        item: current,
-      );
+      final read = readItem(current);
       final path = [...parentPath, read.name];
       nodes.add(
         ResponsaTreeNode(
           name: read.name,
           param: read.param,
           level: level,
-          path: path.join(pathSeparator),
+          path: path.join(ResponsaTreeReader.pathSeparator),
           childCount: read.children,
         ),
       );
 
       if (read.children != 0) {
         // חובה להרחיב לפני קריאת הילדים — העץ נטען עצלנית.
-        ResponsaWin32.send(
-          treeHandle,
-          tvmExpand,
-          wParam: tveExpand,
-          lParam: current,
-          timeoutMs: 8000,
-        );
-        final child = ResponsaWin32.send(
-          treeHandle,
-          tvmGetNextItem,
-          wParam: tvgnChild,
-          lParam: current,
-          timeoutMs: 5000,
-        );
-        if (child != null && child != 0) {
-          _walkFrom(
-            treeHandle: treeHandle,
-            process: process,
-            remoteItem: remoteItem,
-            remoteText: remoteText,
+        final child = firstChild(current);
+        if (child != 0) {
+          walkFrom(
             item: child,
             level: level + 1,
             parentPath: path,
@@ -231,32 +324,18 @@ class ResponsaTreeReader {
         }
       }
 
-      current =
-          ResponsaWin32.send(
-            treeHandle,
-            tvmGetNextItem,
-            wParam: tvgnNext,
-            lParam: current,
-            timeoutMs: 5000,
-          ) ??
-          0;
+      current = nextSibling(current);
     }
   }
 
-  static ({String name, int param, int children}) _readItem({
-    required int treeHandle,
-    required HANDLE process,
-    required Pointer remoteItem,
-    required Pointer remoteText,
-    required int item,
-  }) {
+  ({String name, int param, int children}) readItem(int item) {
     // בונים `TVITEMW` בפריסת 32-ביט ומעתיקים אותו לזיכרון היעד.
-    final local = calloc<Uint8>(_itemSize32);
+    final local = calloc<Uint8>(itemSize32);
     try {
-      final bytes = local.asTypedList(_itemSize32).buffer.asByteData();
+      final bytes = local.asTypedList(itemSize32).buffer.asByteData();
       bytes.setUint32(
         _offMask,
-        tvifText | tvifParam | tvifChildren,
+        _tvifText | _tvifParam | _tvifChildren,
         Endian.little,
       );
       bytes.setUint32(_offItem, item, Endian.little);
@@ -265,24 +344,24 @@ class ResponsaTreeReader {
 
       final written = calloc<IntPtr>();
       try {
-        WriteProcessMemory(process, remoteItem, local, _itemSize32, written);
+        WriteProcessMemory(process, remoteItem, local, itemSize32, written);
       } finally {
         calloc.free(written);
       }
 
       final ok = ResponsaWin32.send(
         treeHandle,
-        tvmGetItemW,
+        ResponsaTreeReader.tvmGetItemW,
         lParam: remoteItem.address,
         timeoutMs: 8000,
       );
       if (ok == null || ok == 0) return (name: '', param: 0, children: 0);
 
-      final readBack = calloc<Uint8>(_itemSize32);
+      final readBack = calloc<Uint8>(itemSize32);
       final textBuffer = calloc<Uint16>(_textChars);
       final read = calloc<IntPtr>();
       try {
-        ReadProcessMemory(process, remoteItem, readBack, _itemSize32, read);
+        ReadProcessMemory(process, remoteItem, readBack, itemSize32, read);
         ReadProcessMemory(
           process,
           remoteText,
@@ -290,7 +369,7 @@ class ResponsaTreeReader {
           _textChars * 2,
           read,
         );
-        final view = readBack.asTypedList(_itemSize32).buffer.asByteData();
+        final view = readBack.asTypedList(itemSize32).buffer.asByteData();
         return (
           name: _utf16At(textBuffer, _textChars),
           param: view.getUint32(_offParam, Endian.little),
@@ -310,13 +389,5 @@ class ResponsaTreeReader {
     final units = buffer.asTypedList(maxChars);
     final end = units.indexOf(0);
     return String.fromCharCodes(units.sublist(0, end < 0 ? maxChars : end));
-  }
-
-  /// מאתר את ה-TreeView של הקטלוג בתוך דיאלוג העיון.
-  static int? findCatalogTree(int dialogHandle) {
-    for (final child in ResponsaWin32.children(dialogHandle)) {
-      if (ResponsaWin32.className(child) == 'SysTreeView32') return child;
-    }
-    return null;
   }
 }

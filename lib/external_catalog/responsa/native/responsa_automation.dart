@@ -384,6 +384,12 @@ class ResponsaAutomation {
     var usedRef = openRef;
     DiscoveredDialog? dialog;
     var results = const <String>[];
+    // חוליה שהמנתח זיהה אך תוצאותיה אינן הספר המבוקש. היא נשמרת כנסיגה
+    // ואינה עוצרת את הסולם: `לעזי רש"י תלמוד מנחות` אינו מזוהה, החוליה
+    // שאחריה — `תלמוד מנחות` — מזוהה היטב ופותחת את הגמרא, והחוליה
+    // שאחריה, `לעזי רש"י מנחות`, היא הנכונה. עצירה בראשונה שנותחה
+    // הפילה 37 ספרים על ספר שנפתח ונפסל.
+    ({DiscoveredDialog dialog, List<String> results, String ref})? fallback;
     for (final candidate in ladder) {
       if (tried.contains(candidate)) continue;
       tried.add(candidate);
@@ -398,12 +404,25 @@ class ResponsaAutomation {
         deadline,
         attempts: tried.length == 1 ? 2 : 1,
       );
-      if (attempt.results.isNotEmpty) {
+      if (attempt.results.isEmpty) continue;
+      if (hasPlausibleResult(attempt.results, candidate, expectedTitle)) {
         usedRef = candidate;
         dialog = attempt.dialog;
         results = attempt.results;
         break;
       }
+      fallback ??= (
+        dialog: attempt.dialog,
+        results: attempt.results,
+        ref: candidate,
+      );
+    }
+    if (dialog == null && fallback != null) {
+      // אף חוליה לא הניבה תוצאה משכנעת. פותחים את הטובה ביותר שהייתה
+      // ונותנים לאימות הכותרת להכריע — הוא מדויק יותר מהשוואת השורות.
+      usedRef = fallback.ref;
+      dialog = fallback.dialog;
+      results = fallback.results;
     }
     if (dialog == null || results.isEmpty) {
       throw ResponsaAutomationException(
@@ -508,6 +527,28 @@ class ResponsaAutomation {
       releasedWindows: released,
       triedRefs: tried,
     );
+  }
+
+  /// האם ברשימת התוצאות יש שורה שיכולה להיות הספר המבוקש.
+  ///
+  /// נבדק **לפני** הפתיחה, ולכן הוא חינם: חוליה שהמנתח זיהה אך שכל
+  /// תוצאותיה שייכות לספר אחר נדחית בלי לפתוח חלון ובלי לשלם את
+  /// 17 השניות של כישלון אימות.
+  ///
+  /// הבדיקה רכה בכוונה — [ResponsaHebrew.coversTitle] ולא השוואה
+  /// מלאה — כי רשימת התוצאות מנוסחת בשפת התוכנה (`תלמוד בבלי מסכת
+  /// מנחות`) ואילו הכותרת המצופה היא של הקטלוג. תפקידה לפסול חוליה
+  /// שאינה קשורה, לא לאמת את הפתיחה; האימות נעשה על כותרת החלון.
+  static bool hasPlausibleResult(
+    List<String> results,
+    String reference,
+    String? expectedTitle,
+  ) {
+    final wanted = expectedTitle == null
+        ? reference
+        : ResponsaNames.withoutQualifier(expectedTitle);
+    if (wanted.trim().isEmpty) return true;
+    return results.any((result) => ResponsaHebrew.coversTitle(wanted, result));
   }
 
   /// בוחר את התוצאה שמתאימה ביותר להפניה שביקשנו.
