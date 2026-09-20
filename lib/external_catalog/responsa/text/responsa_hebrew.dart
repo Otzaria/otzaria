@@ -64,13 +64,23 @@ class ResponsaHebrew {
   /// `ר' אברהם מן ההר יבמות` אינו מתאים לכותרת
   /// `רבי אברהם מן ההר (מהד' בלוי) מסכת יבמות` — כי `ר` ו-`רב` הם שני
   /// אסימונים שונים — ופתיחה תקינה לחלוטין נפסלת.
+  /// **המפתח מפוצל שוב אחרי הנרמול.** `spellingKey` מחליף סימני פיסוק
+  /// ברווח, ולכן מילה אחת כמו `כו-כז` הופכת ל-`כ כז` — מפתח שיש בו
+  /// רווח. [tokens] מנרמל את המחרוזת כולה ואז מפצל, ולכן הוא מחזיר שני
+  /// אסימונים; כאן, בלי הפיצול השני, נוצר אסימון יחיד שלעולם אינו
+  /// שווה לאף אסימון מהצד השני.
+  ///
+  /// נמדד: כל שם שיש בו מקף נפסל — `חיי אדם חלק ב-ג (הלכות שבת
+  /// ומועדים) כלל כו-כז` נפתח בכותרת **זהה תו-בתו** ונדחה.
   static List<({String key, bool abbreviated})> markedTokens(String? text) {
     if (text == null || text.isEmpty) return const [];
     final cleaned = text.replaceAll(_invisible, ' ').replaceAll(_nikud, '');
     return [
       for (final word in cleaned.split(_whitespace))
         if (spellingKey(word) case final key when key.isNotEmpty)
-          (key: key, abbreviated: _abbreviationMark.hasMatch(word.trim())),
+          for (final part in key.split(' '))
+            if (part.isNotEmpty)
+              (key: part, abbreviated: _abbreviationMark.hasMatch(word.trim())),
     ];
   }
 
