@@ -71,14 +71,23 @@ void _clearWindows(int pid, int? version) {
     final main = automation.mainWindow;
     final client = ResponsaWin32.mdiClient(main);
     if (client == null) return;
-    final children = ResponsaWin32.directChildren(client);
-    for (final child in children) {
-      ResponsaWin32.destroyMdiChild(main, child);
-      sleep(const Duration(milliseconds: 150));
+    // **בסבבים עד שהמצב יציב.** השחזור אינו מיידי: חלונות ממשיכים
+    // להיווסף דקות אחרי שהמופע עלה, וניקוי חד-פעמי משאיר אחריו זנב
+    // שנראה אחר כך כמו "חלון חדש" בכל פתיחה.
+    var total = 0;
+    for (var round = 0; round < 6; round++) {
+      final children = ResponsaWin32.directChildren(client);
+      if (children.isEmpty) {
+        if (round > 0) break;
+      }
+      for (final child in children) {
+        ResponsaWin32.destroyMdiChild(main, child);
+        sleep(const Duration(milliseconds: 150));
+      }
+      total += children.length;
+      sleep(const Duration(seconds: 5));
     }
-    if (children.isNotEmpty) {
-      print('  instance $pid: cleared ${children.length} restored windows');
-    }
+    if (total > 0) print('  instance $pid: cleared $total restored windows');
   } catch (error) {
     print('  instance $pid: could not clear windows: $error');
   }

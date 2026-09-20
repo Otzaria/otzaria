@@ -722,21 +722,32 @@ class ResponsaAutomation {
     while (!own.expired) {
       _checkpoint(deadline);
       final titles = ResponsaWin32.mdiTitles(main);
-      final fresh = titles.where((t) => t.isNotEmpty && !before.contains(t));
-      if (fresh.isNotEmpty) {
-        for (final title in fresh) {
-          if (targets.any((t) => ResponsaHebrew.titlesMatch(t, title))) {
-            return title;
-          }
+      final fresh = [
+        for (final title in titles)
+          if (title.isNotEmpty && !before.contains(title)) title,
+      ];
+      // חלון חדש **שתואם למה שביקשנו** — המצב הרגיל.
+      for (final title in fresh) {
+        if (targets.any((t) => ResponsaHebrew.titlesMatch(t, title))) {
+          return title;
         }
-        return fresh.first;
       }
+      // חלון קיים שתואם: שחזור-הסשן פותח חלונות בעלייה, ולכן ספר
+      // שכבר פתוח לא ייצור חלון נוסף.
       for (final title in titles) {
         if (title.isNotEmpty &&
             targets.any((t) => ResponsaHebrew.titlesMatch(t, title))) {
           return title;
         }
       }
+      // חלון חדש יחיד שאינו תואם — מתקבל. התוכנה מנסחת את הכותרת
+      // אחרת לפעמים, והאימות שאחרי זה הוא שיכריע.
+      //
+      // **אבל לא כשיש כמה.** שחזור-הסשן ממשיך להוסיף חלונות דקות
+      // אחרי שהמופע עלה, וכל אחד מהם נראה "חדש". בחירה שרירותית
+      // מביניהם ייצרה 60 דיווחי "ספר שגוי" שכולם היו חלון של ספר
+      // אחר לגמרי — `משנה ביכורים` "נפתח" כ-`משנה מסכת בבא קמא`.
+      if (fresh.length == 1) return fresh.single;
       sleepFor(_poll);
     }
     throw const ResponsaAutomationException(
