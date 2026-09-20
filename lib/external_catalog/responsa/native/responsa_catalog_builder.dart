@@ -260,6 +260,20 @@ class ResponsaCatalogBuilder {
       // על ידי `coreOf` — `הלכות קטנות לרי"ף (מנחות) - הלכות ציצית`.
       // גרסה בלי הסוגריים היא החוליה האחרונה לפני כישלון.
     ];
+    // שם החיבור בלי התחום שנדבק לו, עם היחידה ובלעדיה. אחרונות בסולם:
+    // הן מקצרות את שם החיבור, ולכן הן גם המסוכנות ביותר — וזו בדיוק
+    // הסיבה שהן אחרי כל מה שמדויק ממנו.
+    final unit = work.length > 1 ? work.last : null;
+    final scoped = [
+      for (final shortened in ResponsaNames.withoutScope(
+        ResponsaNames.coreOf(work.first),
+      )) ...[
+        if (unit != null)
+          ResponsaNames.referenceOf([shortened, ResponsaNames.coreOf(unit)]),
+        shortened,
+      ],
+    ];
+
     final seen = <String>{openRef};
     return [
       for (final candidate in candidates)
@@ -268,6 +282,7 @@ class ResponsaCatalogBuilder {
       for (final reference in [
         ResponsaNames.withoutQualifier(openRef),
         ResponsaNames.withoutQualifier(ResponsaNames.referenceOf(work)),
+        ...scoped,
       ])
         if (reference.isNotEmpty && seen.add(reference)) reference,
     ];

@@ -160,14 +160,25 @@ void _worker(
     profile: ResponsaVersionProfile.forVersion(request.version),
   );
   var consecutiveFailures = 0;
+  var stop = false;
   for (final book in request.books) {
     if (consecutiveFailures >= _suspectAfter) {
-      if (_isHealthy(request.pid, request.version)) {
-        consecutiveFailures = 0;
-      } else {
-        print('  worker ${request.pid} stopped: instance stopped answering');
-        break;
+      // שלוש בדיקות עם המתנה ביניהן. מופע עסוק או שעדיין טוען נראה
+      // בבדיקה אחת כמו מופע מת, ועצירה בגללה הפקירה 1,050 ספרים
+      // לעובד — נמדד פעמיים בסריקה הראשונה.
+      for (var attempt = 0; attempt < 3; attempt++) {
+        if (_isHealthy(request.pid, request.version)) {
+          consecutiveFailures = 0;
+          break;
+        }
+        if (attempt == 2) {
+          print('  worker ${request.pid} stopped: instance stopped answering');
+          stop = true;
+        } else {
+          sleep(const Duration(seconds: 30));
+        }
       }
+      if (stop) break;
     }
     final watch = Stopwatch()..start();
     _Result result;

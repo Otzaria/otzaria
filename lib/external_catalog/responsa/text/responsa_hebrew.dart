@@ -244,7 +244,47 @@ class ResponsaHebrew {
     final want = markedTokens(expected);
     final got = tokens(actual).toSet();
     if (want.isEmpty || got.isEmpty) return false;
-    return _hasWord(got, want.first) && _hasWord(got, want.last);
+    if (!_hasWord(got, want.last)) return false;
+    // ראש השם, או האסימון שאחריו.
+    //
+    // הוויתור על אסימון מוביל אחד אינו שרירותי: הוא מכסה **מדף שנדבק
+    // לשם**. `מדרש רבה (תורה) > שמות רבה (וילנא)` הוא מדף וחיבור,
+    // והתוכנה מכנה את החלון `שמות רבה (וילנא)` בלבד — 13 ספרים נפסלו
+    // אף שנפתחו נכון.
+    //
+    // ולא יותר מאסימון אחד: `בית הבחירה למאירי על הש"ס ברכות` נפתח
+    // בטעות כ-`שרידי אש על הש"ס ברכות`, ורק הדרישה ל-`בית` או
+    // `הבחירה` פוסלת אותו. ויתור על שניים היה מקבל אותו.
+    if (_hasWord(got, want.first)) return true;
+    return want.length > 2 && _hasWord(got, want[1]);
+  }
+
+  static final RegExp _parenthetical = RegExp(r'\(([^)]*)\)');
+
+  /// האם שתי כותרות נושאות **מהדורות סותרות**.
+  ///
+  /// `שמות רבה (שנאן)` ו-`שמות רבה (וילנא)` הם שני ספרים, וההבדל היחיד
+  /// ביניהם הוא הסוגריים. שאר ההשוואות כאן מתעלמות מהסוגריים בכוונה —
+  /// הן מטא-דאטה של הקטלוג — ולכן דרושה בדיקה נפרדת.
+  ///
+  /// **רק כששתי הכותרות נושאות הסתייגות.** צד אחד בלבד אינו סתירה:
+  /// `היכלות (עמ' 108-126)` נפתח ככותרת `אוצר מדרשים (אייזנשטיין)
+  /// היכלות`, ושתי ההסתייגויות מתארות דברים שונים לגמרי.
+  static bool editionsConflict(String? a, String? b) {
+    final first = _editionsOf(a);
+    final second = _editionsOf(b);
+    if (first.isEmpty || second.isEmpty) return false;
+    return first.intersection(second).isEmpty;
+  }
+
+  static Set<String> _editionsOf(String? text) {
+    if (text == null) return const {};
+    return {
+      for (final match in _parenthetical.allMatches(text))
+        if (spellingKey(match.group(1) ?? '') case final key
+            when key.isNotEmpty)
+          key,
+    };
   }
 }
 

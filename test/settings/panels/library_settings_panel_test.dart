@@ -262,6 +262,33 @@ void main() {
       expect(find.text('אפשר פתיחת ספרים בתוכנה'), findsNothing);
     });
 
+    testWidgets('שורת הרענון מוצגת רק כשהמתג דלוק', (tester) async {
+      // כשהמתג כבוי אין מה לרענן, ושורה שנייה שאינה עושה דבר רק
+      // מבלבלת. נבדק בשני הכיוונים כדי שלא ייעלם גם כשהוא כן נחוץ.
+      await tester.pumpWidget(
+        _wrap(
+          _FakeSettingsBloc(),
+          responsaStatus: installed,
+          responsaInfo: withCatalog,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('הצג ופתח ספרי בר אילן'), findsOneWidget);
+      expect(find.text('רענון קטלוג בר אילן'), findsNothing);
+      expect(find.text('רענן'), findsNothing);
+
+      await tester.pumpWidget(
+        _wrap(
+          _FakeSettingsBloc(showResponsa: true),
+          responsaStatus: installed,
+          responsaInfo: withCatalog,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('רענון קטלוג בר אילן'), findsOneWidget);
+      expect(find.text('רענן'), findsOneWidget);
+    });
+
     testWidgets('הדלקה ראשונה בלי קטלוג מתחילה בנייה', (tester) async {
       var builds = 0;
       final settingsBloc = _FakeSettingsBloc();

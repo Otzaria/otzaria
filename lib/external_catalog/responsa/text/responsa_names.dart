@@ -158,4 +158,39 @@ class ResponsaNames {
   /// השם שהוצג היא הודעה חסרת תועלת.
   static String referenceOf(Iterable<String> parts) =>
       joinParts(parts.map(coreOf));
+
+  // ------------------------------------------ תחום שנדבק לשם החיבור
+
+  static final RegExp _trailingDashClause = RegExp(r'\s+-\s+\S.*$');
+
+  /// שם החיבור בלי **תחום** שנדבק לו, או `null` כשאין מה להסיר.
+  ///
+  /// במאגר יש צמתי חיבור ששמם כולל את תחום התוכן שלהם:
+  /// `תרגום יונתן נביאים`, `תרגום המיוחס ליונתן - תורה`. המנתח מכיר את
+  /// החיבור בשמו בלבד — `תרגום יונתן יהושע` נפתח, ו-`תרגום יונתן נביאים
+  /// יהושע` נדחה אחרי 33 שניות. נמדד על 37 ספרים.
+  ///
+  /// **בלי רשימת מילים.** שתי צורות מבניות בלבד: סעיף אחרי מקף, או
+  /// המילה האחרונה. שתיהן מוחזרות כמועמדות, והן החוליות האחרונות בסולם
+  /// — מה שהן מייצרות נבדק מול רשימת התוצאות לפני שנפתח חלון.
+  ///
+  /// המילה האחרונה מוסרת רק משם בן שלוש מילים ומעלה: קיצור שם בן שתיים
+  /// מותיר מילה אחת גנרית, שהיא בדיוק מה שפותח ספר אחר.
+  static List<String> withoutScope(String workName) {
+    final name = workName.trim();
+    if (name.isEmpty) return const [];
+    final candidates = <String>[];
+
+    final withoutClause = name.replaceFirst(_trailingDashClause, '').trim();
+    if (withoutClause.isNotEmpty && withoutClause != name) {
+      candidates.add(withoutClause);
+    }
+
+    final words = name.split(RegExp(r'\s+'));
+    if (words.length >= 3) {
+      final shorter = words.sublist(0, words.length - 1).join(' ');
+      if (!candidates.contains(shorter)) candidates.add(shorter);
+    }
+    return candidates;
+  }
 }

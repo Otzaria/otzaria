@@ -465,6 +465,11 @@ class ResponsaAutomation {
     final failed = <String>[
       if (ResponsaHebrew.matchLevel(chosen, title) == ResponsaMatchLevel.none)
         'selectedResult',
+      // שתי המחרוזות האלה הן של התוכנה עצמה — השורה שבחרנו וכותרת
+      // החלון שנפתח — ולכן השוואת ההסתייגות ביניהן הוגנת. זה המקום
+      // היחיד שבו מהדורה נבדקת, ובלעדיו `שמות רבה (שנאן)` פותח את
+      // `שמות רבה (וילנא)` והשילוב מדווח הצלחה.
+      if (ResponsaHebrew.editionsConflict(chosen, title)) 'selectedEdition',
       if (!ResponsaHebrew.coversTitle(usedRef, title)) 'requestedRef',
     ];
     // הכותרת המצופה נבדקת ב-[ResponsaHebrew.coversTitle], שהיא רכה יותר
