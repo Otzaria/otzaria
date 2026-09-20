@@ -42,49 +42,116 @@ typedef _Result = ({
   int ladderStep,
 });
 
-/// מעלה [count] מופעים נפרדים ומחזיר את המזהים שלהם.
+/// הפניות שכל התקנה מזהה, מארבעה חלקים שונים של המאגר.
+///
+/// ארבע ולא אחת: נמדד מופע שענה על `בראשית` ונכשל על `ירמיהו` שמונה
+/// ספרים ברציפות — הוא היה **עדיין בטעינה**, ולא פגום. הפניה אחת אינה
+/// מבדילה בין מופע שסיים לטעון למופע שהתחיל.
+const List<String> _smokeReferences = [
+  'בראשית',
+  'ירמיהו',
+  'משנה ברכות',
+  'תלמוד בבלי ברכות',
+];
+
+/// האם המופע באמת מסוגל לענות — ולא רק פתוח.
+///
+/// **זה הלקח המרכזי מהסריקה הראשונה.** מופע שעלה בזמן שמופע אחר עלה
+/// לצידו יכול לעלות **חלקית**: החלון נפתח, דיאלוג העיון נפתח, כל חמשת
+/// הפקדים במקומם — והמנתח מחזיר אפס תוצאות לכל הפניה שהיא. נמדד: 48
+/// "כשלים" רצופים, כולם באותו עובד, כולם ב-4.6 שניות בדיוק, כולם
+/// `referenceNotParsed`, וכולם על ספרים שנפתחים היטב במופע אחר.
+///
+/// בלי הבדיקה הזו הסריקה מודדת את המופעים שלה ולא את הקטלוג.
+bool _isHealthy(int pid, int? version) {
+  try {
+    final automation = ResponsaAutomation(
+      pid: pid,
+      profile: ResponsaVersionProfile.forVersion(version),
+    );
+    for (final reference in _smokeReferences) {
+      final attempt = automation.parseReference(
+        reference,
+        ResponsaDeadline(const Duration(seconds: 45)),
+      );
+      if (attempt.results.isEmpty) return false;
+    }
+    return true;
+  } catch (error) {
+    print('  instance $pid unhealthy: $error');
+    return false;
+  }
+}
+
+/// מעלה [count] מופעים **חדשים** ומחזיר את המזהים שלהם.
+///
+/// חדשים ולא קיימים: המופעים האלה נבדקים, נטענים בעבודה ועשויים
+/// להיסגר — ואין לעשות זאת למופע שהמשתמש פתח.
 ///
 /// אין single-instance, ולכן כל הפעלה מייצרת תהליך נוסף. ההמתנה היא
-/// למופע **שימושי** — חלון שנוצר עדיין אינו חלון שנראה.
+/// למופע **שימושי** (חלון שנוצר עדיין אינו חלון שנראה) ואחריה לבדיקת
+/// כשירות — מופע שנכשל בה נסגר ומוחלף.
 Future<List<int>> _startInstances(
   ResponsaInstallation installation,
   int count,
+  int? version,
 ) async {
-  final pids = <int>{
-    for (final instance in ResponsaInstance.all())
-      if (instance.usable) instance.pid,
-  };
-  while (pids.length < count) {
-    final before = Set.of(pids);
+  final accepted = <int>[];
+  var attempts = 0;
+  while (accepted.length < count) {
+    if (attempts++ > count * 3) {
+      throw StateError('לא עלו $count מופעים כשירים');
+    }
+    final before = {
+      for (final instance in ResponsaInstance.all()) instance.pid,
+    };
     await Process.start(
       installation.executable,
       const [],
       workingDirectory: installation.installPath,
       mode: ProcessStartMode.detached,
     );
+    int? fresh;
     final deadline = DateTime.now().add(const Duration(seconds: 90));
-    while (DateTime.now().isBefore(deadline)) {
+    while (DateTime.now().isBefore(deadline) && fresh == null) {
       await Future<void>.delayed(const Duration(milliseconds: 750));
-      final fresh = [
-        for (final instance in ResponsaInstance.all())
-          if (instance.usable && !before.contains(instance.pid)) instance.pid,
-      ];
-      if (fresh.isNotEmpty) {
-        pids.add(fresh.first);
-        break;
+      for (final instance in ResponsaInstance.all()) {
+        if (instance.usable && !before.contains(instance.pid)) {
+          fresh = instance.pid;
+          break;
+        }
       }
     }
-    if (pids.length == before.length) {
-      throw StateError('מופע נוסף לא עלה בתוך 90 שניות');
+    if (fresh == null) {
+      print('  instance did not come up within 90s');
+      continue;
     }
-    // רווח בין העלאות: שתי העלאות צמודות חולקות שחזור-סשן ומתחרות על
-    // אותם קבצים, ואחת מהן עולה חלקית.
-    await Future<void>.delayed(const Duration(seconds: 3));
+    // רווח לפני הבדיקה: המופע ממשיך לטעון את המאגר גם אחרי שחלונו
+    // נראה, ובמהלך הטעינה הוא עונה על חלק מההפניות ולא על כולן.
+    await Future<void>.delayed(const Duration(seconds: 20));
+    if (_isHealthy(fresh, version)) {
+      accepted.add(fresh);
+      print('  instance $fresh healthy (${accepted.length}/$count)');
+    } else {
+      print('  instance $fresh failed the smoke test — replacing');
+      Process.runSync('taskkill', ['/F', '/PID', '$fresh']);
+      await Future<void>.delayed(const Duration(seconds: 5));
+    }
   }
-  return pids.take(count).toList();
+  return accepted;
 }
 
+/// כמה כשלים רצופים מצדיקים חשד במופע עצמו ולא בספרים.
+///
+/// מופע תקין נכשל מדי פעם — הפניה שהמנתח אינו מכיר היא כשל לגיטימי —
+/// אבל שמונה ברצף הוא דפוס של מופע שחדל לענות.
+const int _suspectAfter = 8;
+
 /// עובד אחד: פותח את הספרים שהוקצו לו במופע קבוע.
+///
+/// כשהוא חושד במופע הוא **עוצר ואינו ממשיך**. הספרים שנותרו לו לא
+/// נכתבים לקובץ, ולכן הרצה חוזרת אוספת אותם — עדיף על אלף שורות כשל
+/// שאינן מתארות את הקטלוג אלא את המופע.
 void _worker(
   ({SendPort send, int pid, int? version, List<_Book> books}) request,
 ) {
@@ -92,7 +159,16 @@ void _worker(
     pid: request.pid,
     profile: ResponsaVersionProfile.forVersion(request.version),
   );
+  var consecutiveFailures = 0;
   for (final book in request.books) {
+    if (consecutiveFailures >= _suspectAfter) {
+      if (_isHealthy(request.pid, request.version)) {
+        consecutiveFailures = 0;
+      } else {
+        print('  worker ${request.pid} stopped: instance stopped answering');
+        break;
+      }
+    }
     final watch = Stopwatch()..start();
     _Result result;
     try {
@@ -129,6 +205,7 @@ void _worker(
         ladderStep: 0,
       );
     }
+    consecutiveFailures = result.ok ? 0 : consecutiveFailures + 1;
     request.send.send(result);
   }
   request.send.send(null);
@@ -174,12 +251,31 @@ void main() {
     db.close();
 
     // המשכה: מה שכבר נכתב לא נבדק שוב.
+    //
+    // ב-RESPONSA_RETRY השורות שנכשלו נמחקות ונבדקות מחדש במופעים טריים.
+    // זו לא הקלה בדרישה אלא ההפך: ספר שנכשל פעם אחת ונפתח בהרצה שנייה
+    // מלמד שהכשל היה במופע, וספר שנכשל בשתיהן הוא כשל אמיתי.
+    final retry = Platform.environment['RESPONSA_RETRY'] == '1';
     final out = File(outPath);
     final done = <int>{};
     if (out.existsSync()) {
-      for (final line in out.readAsLinesSync().skip(1)) {
-        final pk = int.tryParse(line.split('\t').first);
-        if (pk != null) done.add(pk);
+      final kept = <String>[];
+      var dropped = 0;
+      final lines = out.readAsLinesSync();
+      for (final line in lines.skip(1)) {
+        final parts = line.split('\t');
+        final pk = int.tryParse(parts.first);
+        if (pk == null) continue;
+        if (retry && parts.length > 1 && parts[1] == '0') {
+          dropped++;
+          continue;
+        }
+        done.add(pk);
+        kept.add(line);
+      }
+      if (retry) {
+        out.writeAsStringSync('${lines.first}\n${kept.join('\n')}\n');
+        print('retry: $dropped failed rows will be re-checked');
       }
     } else {
       out.writeAsStringSync('pk\tok\tms\tstep\tcategory\ttitle\tdetail\n');
@@ -199,11 +295,13 @@ void main() {
       preferredPath: installPath,
     );
     expect(selection, isNotNull, reason: 'לא נמצאה התקנה של בר אילן');
-    final pids = await _startInstances(selection!.installation, workers);
-    print('instances: $pids');
-    final version = ResponsaInstallationDiscovery.versionFromWindowTitle(
-      ResponsaInstance.all().firstWhere((i) => i.pid == pids.first).title,
+    final version = selection!.installation.version;
+    final pids = await _startInstances(
+      selection.installation,
+      workers,
+      version,
     );
+    print('instances: $pids (version $version)');
 
     // חלוקה סבבית ולא רציפה: ספרים סמוכים בקטלוג הם מאותה קטגוריה,
     // וחלוקה רציפה הייתה מרכזת את הכשלים בעובד אחד ומעוותת את הזמנים.
