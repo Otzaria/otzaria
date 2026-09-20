@@ -1245,7 +1245,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       controller: _searchController,
       decoration: InputDecoration(
         hintText: 'חפש בתוך המפרשים המוצגים...',
-        prefixIcon: const Icon(OtzariaIcons.search_in_the_library_24_regular),
+        prefixIcon: const Icon(OtzariaIcons.search_24_regular),
         suffixIcon: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

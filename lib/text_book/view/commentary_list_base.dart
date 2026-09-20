@@ -778,7 +778,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                         focusNode: _searchFocusNode,
                         controller: _searchController,
                         hintText: 'חפש בתוך המפרשים המוצגים...',
-                        icon: OtzariaIcons.search_in_the_library_24_regular,
+                        icon: OtzariaIcons.search_24_regular,
                         trailingActions: [
                           if (query.isNotEmpty && total > 1) ...[
                             if (currentIndex >= 0)

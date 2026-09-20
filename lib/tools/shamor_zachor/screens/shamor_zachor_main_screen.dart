@@ -516,8 +516,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                 ],
                                 Expanded(
                                   child: OtzariaSearchField(
-                                    icon: OtzariaIcons
-                                        .search_in_the_library_24_regular,
+                                    icon: OtzariaIcons.search_24_regular,
                                     controller: _searchController,
                                     focusNode: _searchFocusNode,
                                     hintText: 'חפש...',
