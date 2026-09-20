@@ -21,22 +21,20 @@ import 'package:path/path.dart' as path;
 class ResponsaIcon {
   ResponsaIcon._();
 
-  static const String fileName = 'responsa_icon.ico';
-
   static const int _rtIcon = 3;
   static const int _rtGroupIcon = 14;
 
   /// האייקון, מהמטמון או מחילוץ חדש. `null` כשאי אפשר לחלץ.
   ///
+  /// [cachePath] הוא קובץ ה-`.ico` שליד הקטלוג — ראה `ResponsaPaths`.
+  ///
   /// כל כשל כאן הוא ערך ולא חריג: אייקון חסר הוא עניין קוסמטי, ואסור
   /// שיפיל את מסך הספרייה.
   static Future<Uint8List?> load({
     required String? installPath,
-    required String? cacheDirectory,
+    required String? cachePath,
   }) async {
-    final cached = cacheDirectory == null
-        ? null
-        : File(path.join(cacheDirectory, fileName));
+    final cached = cachePath == null ? null : File(cachePath);
     try {
       if (cached != null && await cached.exists()) {
         final bytes = await cached.readAsBytes();

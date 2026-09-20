@@ -55,6 +55,14 @@ class DatabaseConstants {
   /// The name of the external catalogs version file in GitHub releases
   static const String externalCatalogVersionFileName = 'version.txt';
 
+  /// קטלוג פרויקט השו"ת (בר אילן) והאייקון שנגזר מההתקנה.
+  ///
+  /// שמותיהם מוגדרים ב-`ResponsaPaths`, וחוזרים כאן כדי שהעברת הספרייה
+  /// תכלול אותם. הם אינם מיובאים משם: הקובץ הזה הוא שכבת הקבועים ואין לו
+  /// תלות בשכבת הקטלוגים החיצוניים.
+  static const String responsaCatalogFileName = 'responsa_catalog.db';
+  static const String responsaIconFileName = 'responsa_icon.ico';
+
   /// The default name of the Otzaria folder
   static const String otzariaFolderName = 'Otzaria';
 
@@ -71,6 +79,10 @@ class DatabaseConstants {
     '$externalCatalogDatabaseFileName-wal',
     '$externalCatalogDatabaseFileName-shm',
     externalCatalogVersionFileName,
+    responsaCatalogFileName,
+    '$responsaCatalogFileName-wal',
+    '$responsaCatalogFileName-shm',
+    responsaIconFileName,
     talmudBavliFolderName,
     'files_manifest.json',
   };

@@ -41,7 +41,7 @@ class ResponsaBookIcon extends StatefulWidget {
         .sourceInstallPath();
     final bytes = await ResponsaIcon.load(
       installPath: installPath,
-      cacheDirectory: ResponsaPaths.baseDirectory,
+      cachePath: ResponsaPaths.iconPath,
     );
     // כישלון אינו נשמר במטמון לנצח. בהדלקה הראשונה הקטלוג עדיין לא
     // נבנה, ולכן אין נתיב התקנה; אילו ה-`null` היה נשמר, האייקון היה

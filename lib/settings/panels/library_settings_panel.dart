@@ -192,6 +192,20 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     }
   }
 
+  /// האם הקטלוג שעל הדיסק נבנה מהתקנה שאינה על המחשב הזה.
+  ///
+  /// הקטלוג יושב בתיקיית הספרייה, ולכן הוא נודד איתה בין מחשבים — ראה
+  /// `ResponsaPaths`. קטלוג נודד נראה תקין לחלוטין ורק הפתיחה נכשלת,
+  /// ולכן הוא מוצג כאן כבקשת רענון ולא כשגיאה בזמן פתיחה.
+  bool get _responsaCatalogIsForeign {
+    final info = _responsaInfo;
+    if (info == null || !info.isUsable) return false;
+    final installations = _responsaStatus?.installations ?? const [];
+    return !info.describesAnyOf(
+      installations.map((installation) => installation.installPath),
+    );
+  }
+
   /// בניית הקטלוג — סריקה חיה של עץ הקטלוג בתוכנה.
   ///
   /// ארוכה מטבעה (כ-1.25 מיליון רשומות, כמה דקות), ולכן היא מדווחת
@@ -398,17 +412,22 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
   Widget _buildResponsaRebuildTile(BuildContext context, bool hasCatalog) {
     final progress = _responsaBuildProgress;
     final outdated = _responsaInfo?.isOutdated ?? false;
+    final foreign = _responsaCatalogIsForeign;
     return SettingsActionTile.text(
       icon: FluentIcons.arrow_sync_24_regular,
       title: context.settingsText(
         hasCatalog ? 'רענון קטלוג בר אילן' : 'בניית קטלוג בר אילן',
       ),
       subtitle: context.settingsText(
-        switch ((progress, hasCatalog, outdated)) {
+        switch ((progress, hasCatalog, outdated || foreign)) {
           (final p?, _, _) => _progressText(p),
+          (_, _, true) when foreign =>
+            'הקטלוג נבנה מהתקנה אחרת של בר אילן — ככל הנראה במחשב אחר, '
+                'והוא עבר לכאן יחד עם תיקיית הספרייה. הספרים שבו אינם '
+                'בהכרח אלה שבמאגר שבמחשב הזה, ויש לרענן אותו.',
           (_, _, true) =>
             'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות '
-                'הספרים ואת אופן הפתיחה.',
+                'הספרים, את פרטי המהדורה ואת אופן הפתיחה.',
           (_, true, false) => 'יש לרענן אחרי התקנת מהדורה אחרת של בר אילן',
           (_, false, false) =>
             'הבנייה סורקת את קטלוג התוכנה ואורכת מספר דקות; '
@@ -418,7 +437,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
       ),
       actions: [
         if (progress == null)
-          if (hasCatalog && !outdated)
+          if (hasCatalog && !outdated && !foreign)
             ActionButton.neutral(
               text: context.settingsText('רענן'),
               onPressed: _buildResponsaCatalog,
