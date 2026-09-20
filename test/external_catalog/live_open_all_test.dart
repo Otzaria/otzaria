@@ -23,6 +23,7 @@ import 'package:otzaria/external_catalog/responsa/native/responsa_installation.d
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation_discovery.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_instance.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 /// ספר אחד לבדיקה. רשומה פשוטה כדי שתעבור בין איזולטים.
@@ -53,6 +54,35 @@ const List<String> _smokeReferences = [
   'משנה ברכות',
   'תלמוד בבלי ברכות',
 ];
+
+/// סוגר את כל חלונות ה-MDI של מופע **שהכלי עצמו העלה**.
+///
+/// פרויקט השו"ת משחזר את הסשן הקודם: מופע טרי עולה עם עד 22 חלונות,
+/// כלומר רווי מהרגע הראשון, והתוכנה מסרבת לפתוח בו חדשים. בסריקה של
+/// אלפי ספרים זה אומר שכל הרצה מרעילה את הבאה אחריה.
+///
+/// מותר כאן בדיוק מפני שהמופעים האלה הם של הכלי, לא של המשתמש.
+void _clearWindows(int pid, int? version) {
+  try {
+    final automation = ResponsaAutomation(
+      pid: pid,
+      profile: ResponsaVersionProfile.forVersion(version),
+    );
+    final main = automation.mainWindow;
+    final client = ResponsaWin32.mdiClient(main);
+    if (client == null) return;
+    final children = ResponsaWin32.directChildren(client);
+    for (final child in children) {
+      ResponsaWin32.destroyMdiChild(main, child);
+      sleep(const Duration(milliseconds: 150));
+    }
+    if (children.isNotEmpty) {
+      print('  instance $pid: cleared ${children.length} restored windows');
+    }
+  } catch (error) {
+    print('  instance $pid: could not clear windows: $error');
+  }
+}
 
 /// האם המופע באמת מסוגל לענות — ולא רק פתוח.
 ///
@@ -123,6 +153,7 @@ Future<int?> _startOneInstance(
   // רווח לפני הבדיקה: המופע ממשיך לטעון את המאגר גם אחרי שחלונו
   // נראה, ובמהלך הטעינה הוא עונה על חלק מההפניות ולא על כולן.
   await Future<void>.delayed(const Duration(seconds: 20));
+  _clearWindows(fresh, version);
   if (_isHealthy(fresh, version)) return fresh;
   Process.runSync('taskkill', ['/F', '/PID', '$fresh']);
   return null;

@@ -88,6 +88,15 @@ class ResponsaVersionProfile {
   /// לכמה חלונות לרדת כשמשחררים.
   final int mdiKeep;
 
+  /// מעל כמה חלונות המופע **אינו שמיש** ומותר לסגור גם חלונות שאוצריא
+  /// לא פתחה.
+  ///
+  /// נמדד: פרויקט השו"ת **משחזר את הסשן הקודם** — מופע טרי לגמרי עלה
+  /// עם 22 חלונות, כלומר רווי מהרגע הראשון. בלי הסף הזה מופע כזה תקוע
+  /// לצמיתות: החלונות אינם "שלנו" (הם משחזור, לא מהריצה הנוכחית),
+  /// ולכן לא היה מי שיסגור אותם, והתוכנה סירבה לפתוח חדשים לעד.
+  final int mdiHardLimit;
+
   const ResponsaVersionProfile({
     required this.version,
     this.mainWindowClass = 'ResponsaProject',
@@ -102,6 +111,7 @@ class ResponsaVersionProfile {
     this.citationTabIndex = 1,
     this.mdiSoftLimit = 12,
     this.mdiKeep = 4,
+    this.mdiHardLimit = 20,
   });
 
   /// הגרסאות שאומתו מקצה לקצה מול התקנה חיה.

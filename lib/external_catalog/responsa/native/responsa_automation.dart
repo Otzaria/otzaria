@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:otzaria/external_catalog/responsa/native/responsa_discovery.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_failure.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
@@ -314,15 +316,22 @@ class ResponsaAutomation {
   /// הלחיצה מתקבלת, אף חלון לא נוצר, וכל פתיחה פוקעת. סגירת 21 חלונות
   /// ב-`WM_MDIDESTROY` החזירה את המופע לתפקוד מלא בלי להפיל אותו.
   ///
-  /// **רק חלונות שאוצריא פתחה.** חלון שהמשתמש פתח אינו שלנו לסגור, ואין
-  /// נסיגה לכלל אחר: כשהמצבור מלא בחלונות של המשתמש, הפתיחה נכשלת
-  /// בהודעה שמבקשת ממנו לסגור — וזו התנהגות נכונה.
+  /// משחרר חלונות כשהמצבור מתקרב לתקרה.
   ///
-  /// הייתה כאן נסיגה ל"ותיקים אחרים כשאין שלנו", והיא הייתה **מסלול
-  /// ברירת המחדל בפועל**: הבקר יוצר `ResponsaAutomation` חדש באיזולט
-  /// חדש בכל פתיחה, ולכן [_openedWindows] היה ריק תמיד, `ours` היה ריק
-  /// תמיד, וכל פתיחה שלוש-עשרה הייתה סוגרת שמונה מחלונות המשתמש.
-  /// הרשימה מגיעה עכשיו מהבקר ושורדת בין פתיחות.
+  /// **שני ספים, ושניהם נמדדו.**
+  ///
+  /// עד [ResponsaVersionProfile.mdiHardLimit] נסגרים **רק חלונות
+  /// שאוצריא פתחה**. חלון שהמשתמש פתח אינו שלנו לסגור. הייתה כאן
+  /// נסיגה ל"ותיקים אחרים כשאין שלנו", והיא הייתה **מסלול ברירת המחדל
+  /// בפועל**: רשימת החלונות שלנו ישבה באוטומציה, הבקר יוצר אוטומציה
+  /// חדשה באיזולט חדש בכל פתיחה, ולכן היא הייתה ריקה תמיד — וכל פתיחה
+  /// שלוש-עשרה סגרה שמונה מחלונות המשתמש.
+  ///
+  /// מעל התקרה הקשה המופע **אינו שמיש כלל**: התוכנה מסרבת לפתוח חלון
+  /// חדש, גם למשתמש עצמו. נמדד שמופע טרי עולה עם 22 חלונות משחזור
+  /// הסשן — כלומר רווי מהרגע הראשון ובלי אף חלון "שלנו". שם, ורק שם,
+  /// נסגרים גם חלונות אחרים, במספר המזערי שמחזיר את המופע לתפקוד,
+  /// ו**לעולם לא החלון הפעיל** — זה שהמשתמש מסתכל בו.
   ///
   /// כותרת ריקה אינה נסגרת לעולם: `windowText` מחזיר מחרוזת ריקה גם
   /// כשהחלון לא ענה בזמן, ו-`''` ברשימת היעד היה סוגר **כל** חלון
@@ -331,28 +340,42 @@ class ResponsaAutomation {
     final titles = ResponsaWin32.mdiTitles(main);
     if (titles.length < profile.mdiSoftLimit) return 0;
 
-    final surplus = titles.length - profile.mdiKeep;
-    if (surplus <= 0) return 0;
+    final present = titles.where((title) => title.isNotEmpty).toSet();
+    final wanted = <String>{
+      for (final title in _openedWindows)
+        if (present.contains(title)) title,
+    };
 
-    final present = titles.toSet();
-    final wanted = _openedWindows
-        .where((title) => title.isNotEmpty && present.contains(title))
-        .take(surplus)
-        .toSet();
-    if (wanted.isEmpty) return 0;
+    if (titles.length >= profile.mdiHardLimit) {
+      final active = ResponsaWin32.mdiActiveTitle(main);
+      final needed = titles.length - profile.mdiSoftLimit + 1;
+      for (final title in present) {
+        if (wanted.length >= needed) break;
+        if (title == active || wanted.contains(title)) continue;
+        wanted.add(title);
+      }
+      debugPrint(
+        'ResponsaAutomation: ${titles.length} חלונות — מעל התקרה הקשה; '
+        'נסגרים ${wanted.length}',
+      );
+    }
+
+    final surplus = titles.length - profile.mdiKeep;
+    final toClose = wanted.take(surplus < 0 ? 0 : surplus).toSet();
+    if (toClose.isEmpty) return 0;
 
     final client = ResponsaWin32.mdiClient(main);
     if (client == null) return 0;
     var closed = 0;
     for (final child in ResponsaWin32.directChildren(client)) {
-      if (closed >= wanted.length) break;
+      if (closed >= toClose.length) break;
       final title = ResponsaWin32.windowText(child);
-      if (title.isEmpty || !wanted.contains(title)) continue;
+      if (title.isEmpty || !toClose.contains(title)) continue;
       ResponsaWin32.destroyMdiChild(main, child);
       closed++;
       sleepFor(const Duration(milliseconds: 200));
     }
-    _openedWindows.removeWhere(wanted.contains);
+    _openedWindows.removeWhere(toClose.contains);
     return closed;
   }
 
