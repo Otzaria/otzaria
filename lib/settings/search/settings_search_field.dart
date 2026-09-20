@@ -50,7 +50,9 @@ class _SettingsSearchFieldState extends State<SettingsSearchField> {
       onChanged: widget.onChanged,
       slim: true,
       hintText: context.settingsText('חיפוש בהגדרות'),
-      icon: OtzariaIcons.search_in_the_settings_24_regular,
+      // גלגל השיניים שבתוך העדשה נמרח לכתם ב-18 הפיקסלים של שדה החיפוש;
+      // בגודל הזה זכוכית פשוטה היא האייקון הקריא (issue #1205).
+      icon: OtzariaIcons.search_24_regular,
       trailingActions: [
         if (hasText)
           OtzariaSearchAction.icon(
