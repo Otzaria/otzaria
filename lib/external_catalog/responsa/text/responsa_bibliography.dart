@@ -271,29 +271,40 @@ class ResponsaBibliography {
   static final RegExp _marks = RegExp('''["'׳״]''');
 
   /// כמה מילים לכל היותר בשם מקום.
-  static const int _maxPlaceWords = 3;
+  ///
+  /// שתיים. כל שם מקום רב-מילי במאגר הוא בן שתי מילים — `בני ברק`,
+  /// `ניו יורק`, `תל אביב`, `פתח תקוה`, `פרנקפורט דמיין`.
+  static const int _maxPlaceWords = 2;
 
   static final RegExp _yearToken = RegExp(r'''^[א-ת]{1,4}["״][א-ת]$''');
 
-  /// מילה עברית, כולל מקף פנימי — `תל-אביב` הוא שם מקום אחד.
+  /// מילה עברית, כולל מקף פנימי — `ניו-יורק` הוא שם מקום אחד.
   static final RegExp _hebrewWord = RegExp(r'^[א-ת][א-ת"״׳\x27\-–]*$');
 
-  /// מקף בודד בין שתי מילים. במאגר `ניו - יורק` ו-`תל - אביב` כתובים כך,
-  /// ובלי הגישור הזה שם העיר נקטע ל-`יורק`.
-  static final RegExp _lonelyDash = RegExp(r'^[-–—]+$');
-
   static final RegExp _hebrewLetters = RegExp(r'[א-ת]');
+  static final RegExp _gershayim = RegExp('["״]');
+  static final RegExp _dash = RegExp(r'[-–—]');
 
   /// האם המילה יכולה להיות רכיב בשם מקום.
   ///
-  /// שתי אותיות לפחות. זה מה שמונע מהגישור מעל המקף לבלוע מספר כרך:
-  /// ב-`חלק א' - ירושלים תשכ"ד` המילה שלפני המקף היא `א'`, והיא אינה
-  /// חלק משם העיר.
-  static bool _canBePlace(String word) =>
-      _hebrewWord.hasMatch(word) &&
-      _hebrewLetters.allMatches(word).length >= 2 &&
-      !_notPlace.contains(word.replaceAll(_marks, '')) &&
-      _yearOf(word) == null;
+  /// שלושה פסילות, וכל אחת מהן נמדדה על שורות מהדורה אמיתיות:
+  ///
+  /// * **גרשיים** מסמנים ראשי תיבות, ואין עיר ששמה כזה. בלי הפסילה
+  ///   הזו `או"ח פרעמישלא` ו-`וחו"מ בני ברק` נרשמו כמקומות הדפסה —
+  ///   שמות מדורי השולחן ערוך נדבקו לשם העיר.
+  /// * **אסימון שכל רכיביו בני אות אחת** הוא מספר כרך ולא מקום:
+  ///   `א'-ד'`, `א'-ב'`. שתי אותיות כבר יכולות להיות מקום (`תל אביב`),
+  ///   וגרש בסוף מילה אינו פוסל — `לודז'` הוא עיר.
+  /// * מילה מ-[_notPlace], או מילה שהיא עצמה שנה.
+  static bool _canBePlace(String word) {
+    if (!_hebrewWord.hasMatch(word)) return false;
+    if (_gershayim.hasMatch(word)) return false;
+    if (_notPlace.contains(word.replaceAll(_marks, ''))) return false;
+    if (_yearOf(word) != null) return false;
+    return word
+        .split(_dash)
+        .any((part) => _hebrewLetters.allMatches(part).length >= 2);
+  }
 
   /// מקום ושנה מתוך שורת מהדורה, או `null` כשאי אפשר לקרוא אותם.
   ///
@@ -301,6 +312,12 @@ class ResponsaBibliography {
   /// הדרישה שיסגור קטע היא שמבדילה בין `ירושלים תשס"ד` לבין
   /// `מהדורת ש"ס וילנא`, שבו `ש"ס` הוא שם חיבור ולא שנה. המקום הוא
   /// המילים העבריות שלפניה באותו קטע.
+  ///
+  /// **מקף בודד עוצר.** במאגר הוא מפריד תווית מהמקום —
+  /// `זרעים - ירושלים תשל"ט`, `מהדורא קמא - ירושלים תשל"ג`,
+  /// `חלק א'-ד' - ירושלים תש"ל`. ניסיון לגשר מעליו (בשביל `ניו - יורק`,
+  /// שנכתב כך ב-15 רשומות) יצר 113 ספרים שמקום הדפסתם `ורשא ירושלים`
+  /// ו-31 ש-`מועד ירושלים`. `ניו-יורק` הצמוד עדיין נקרא כמילה אחת.
   ///
   /// כשאחד מהשניים אינו ניתן לקריאה — שניהם `null`. חצי מהדורה אינה
   /// מהדורה, והמצאה אינה אופציה.
@@ -319,20 +336,32 @@ class ResponsaBibliography {
       final place = <String>[];
       for (var i = words.length - 2; i >= 0; i--) {
         final word = words[i];
-        // מקף בודד מגשר בין שתי מילים של אותו שם, ואינו נכנס לשם עצמו.
-        if (_lonelyDash.hasMatch(word)) {
-          if (place.isEmpty || i == 0 || !_canBePlace(words[i - 1])) break;
-          continue;
-        }
         if (!_canBePlace(word)) break;
         place.insert(0, word);
         if (place.length == _maxPlaceWords) break;
       }
       if (place.isEmpty) continue;
-      return (place: place.join(' '), year: year);
+      return (place: _joinPlace(place), year: year);
     }
     return null;
   }
+
+  /// מחבר את מילות המקום.
+  ///
+  /// מילה שנגמרת במקף נדבקת לבאה אחריה: במאגר כתוב `ניו- יורק` ב-15
+  /// רשומות ו-`ניו-יורק` ב-186, ואלה אותה עיר. בלי זה אותה עיר מופיעה
+  /// בממשק בשתי צורות.
+  static String _joinPlace(List<String> words) {
+    var joined = words.first;
+    for (final word in words.skip(1)) {
+      joined = _endsWithDash.hasMatch(joined)
+          ? '$joined$word'
+          : '$joined $word';
+    }
+    return joined;
+  }
+
+  static final RegExp _endsWithDash = RegExp(r'[-–—]$');
 
   /// טווח הגימטריה של שנה עברית בלי האלף — `תק"ב` = 502 עד `תתש` = 1100.
   ///

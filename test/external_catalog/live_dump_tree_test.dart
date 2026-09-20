@@ -2,7 +2,7 @@
 // שאפשר יהיה לתכנן את כללי השמות והקטגוריות על נתונים אמיתיים בלי
 // להריץ סריקה חיה בכל איטרציה. אינו חלק מחבילת הבדיקות האוטומטית.
 //
-// הרצה: flutter test test/external_catalog/live_dump_tree_test.dart --plain-name dump
+// הרצה: flutter test --run-skipped test/external_catalog/live_dump_tree_test.dart --plain-name dump
 @Tags(['live'])
 library;
 

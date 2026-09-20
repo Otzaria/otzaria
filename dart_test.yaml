@@ -4,7 +4,10 @@
 # הן פותחות תוכנה חיצונית, סורקות אותה דקות ארוכות, וכותבות לקטלוג
 # האמיתי של המשתמש. הן מדולגות כברירת מחדל ורצות רק במפורש:
 #
-#     flutter test --tags live test/external_catalog/live_open_sample_test.dart
+#     flutter test --run-skipped test/external_catalog/live_open_sample_test.dart
+#
+# ‏`--tags live` **אינו** מריץ אותן: הוא מסנן לפי תגית, אבל ה-`skip`
+# שכאן עדיין חל. רק `--run-skipped` מבטל אותו.
 tags:
   live:
-    skip: "כלי מדידה ידני — דורש התקנה חיה של בר אילן. הרצה: --tags live"
+    skip: "כלי מדידה ידני — דורש התקנה חיה של בר אילן. הרצה: --run-skipped"

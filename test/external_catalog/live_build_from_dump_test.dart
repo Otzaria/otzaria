@@ -2,7 +2,7 @@
 // בלי לגעת בתוכנה. מאפשר לבדוק כללי שמות וקטגוריות בשניות במקום בדקות.
 //
 // RESPONSA_DUMP=<tree.tsv> RESPONSA_OUT=<catalog.db> \
-//   flutter test test/external_catalog/live_build_from_dump_test.dart
+//   flutter test --run-skipped test/external_catalog/live_build_from_dump_test.dart
 @Tags(['live'])
 library;
 

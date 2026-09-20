@@ -2,7 +2,7 @@
 // הצלחות, כשלים וזמנים. אינו חלק מחבילת הבדיקות האוטומטית.
 //
 // RESPONSA_DB=<catalog.db> RESPONSA_N=40 RESPONSA_SEED=7 \
-//   flutter test test/external_catalog/live_open_sample_test.dart
+//   flutter test --run-skipped test/external_catalog/live_open_sample_test.dart
 @Tags(['live'])
 library;
 
