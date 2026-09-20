@@ -2713,7 +2713,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7.0.0
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
       - name: Install dependencies for webhook script
         run: pip install bs4 requests pyluach astral yemot-api
