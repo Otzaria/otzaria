@@ -91,13 +91,47 @@ void main() {
       expect(books.every((b) => b.link == null), isTrue);
     });
 
-    test('אין מחבר, שנה או מקום הדפסה — אין מקור מקומי למידע הזה', () async {
+    /// קטלוג בסכמה 1 אינו מכיר את עמודות המטא-דאטה כלל. הוא עדיין
+    /// נקרא — שדרוג קוד אסור לו למחוק את הספרייה מהמסך — והשדות
+    /// נשארים ריקים עד לרענון.
+    test('קטלוג ישן בלי עמודות מטא-דאטה נקרא, והשדות ריקים', () async {
       final books = await repository.loadBooks();
       for (final book in books) {
         expect(book.author, isNull);
         expect(book.pubDate, isNull);
         expect(book.pubPlace, isNull);
       }
+    });
+
+    test('מחבר, מקום ושנת הדפסה עוברים מהקטלוג לספר', () {
+      final book = ResponsaCatalogRepository.mapRow({
+        'external_key': '5',
+        'title': 'שו"ת אבני נזר',
+        'ref_path': 'שו"ת > אבני נזר',
+        'author': 'רבי אברהם בורנשטיין (פולין המאה ה- 19)',
+        'pub_place': 'ירושלים',
+        'pub_date': 'תשס"ו',
+      });
+
+      expect(book.author, 'רבי אברהם בורנשטיין (פולין המאה ה- 19)');
+      expect(book.pubPlace, 'ירושלים');
+      expect(book.pubDate, 'תשס"ו');
+    });
+
+    /// מחרוזת ריקה אינה "מידע ריק" אלא מידע שגוי: הממשק מחליט לפי
+    /// `author != null` אם להציג שורת מחבר, ומחרוזת ריקה הייתה מייצרת
+    /// שורה ריקה מתחת לכל ספר שאין לו מחבר.
+    test('ערך ריק בקטלוג מגיע כ-null ולא כמחרוזת ריקה', () {
+      final book = ResponsaCatalogRepository.mapRow({
+        'external_key': '5',
+        'title': 'ספר',
+        'ref_path': 'ספר',
+        'author': '   ',
+        'pub_place': '',
+      });
+
+      expect(book.author, isNull);
+      expect(book.pubPlace, isNull);
     });
 
     test('loadBooksByKeys מחזיר רק את המבוקשים', () async {
