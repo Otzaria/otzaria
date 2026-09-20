@@ -259,6 +259,22 @@ class ResponsaHebrew {
     return want.length > 2 && _hasWord(got, want[1]);
   }
 
+  /// כמה אסימונים מ-[expected] מופיעים ב-[actual].
+  ///
+  /// דירוג מדורג, שנחוץ בדיוק כשאף שורה אינה מכילה את הכותרת כולה:
+  /// `רי"ד (פסקים) בבא קמא משניות` אינו מוכל לא ב-`פסקי רי"ד מסכת
+  /// ברכות` ולא ב-`פסקי רי"ד מסכת בבא קמא`, כי `משניות` אינו באף אחת.
+  /// [matchLevel] מחזירה `none` לשתיהן; הספירה מבדילה — 1 מול 3.
+  static int sharedTokenCount(String? expected, String? actual) {
+    final got = tokens(actual).toSet();
+    if (got.isEmpty) return 0;
+    var shared = 0;
+    for (final token in markedTokens(expected)) {
+      if (_hasWord(got, token)) shared++;
+    }
+    return shared;
+  }
+
   static final RegExp _parenthetical = RegExp(r'\(([^)]*)\)');
 
   /// האם שתי כותרות נושאות **מהדורות סותרות**.

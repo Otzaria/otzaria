@@ -83,14 +83,45 @@ bool _isHealthy(int pid, int? version) {
   }
 }
 
+/// מעלה מופע אחד ומחזיר את מזההו — רק אם הוא עבר את בדיקת הכשירות.
+///
+/// `null` כשלא עלה בזמן או כשנכשל בבדיקה; הקורא מנסה שוב.
+Future<int?> _startOneInstance(
+  String executable,
+  String installPath,
+  int? version,
+) async {
+  final before = {for (final instance in ResponsaInstance.all()) instance.pid};
+  await Process.start(
+    executable,
+    const [],
+    workingDirectory: installPath,
+    mode: ProcessStartMode.detached,
+  );
+  int? fresh;
+  final deadline = DateTime.now().add(const Duration(seconds: 90));
+  while (DateTime.now().isBefore(deadline) && fresh == null) {
+    await Future<void>.delayed(const Duration(milliseconds: 750));
+    for (final instance in ResponsaInstance.all()) {
+      if (instance.usable && !before.contains(instance.pid)) {
+        fresh = instance.pid;
+        break;
+      }
+    }
+  }
+  if (fresh == null) return null;
+  // רווח לפני הבדיקה: המופע ממשיך לטעון את המאגר גם אחרי שחלונו
+  // נראה, ובמהלך הטעינה הוא עונה על חלק מההפניות ולא על כולן.
+  await Future<void>.delayed(const Duration(seconds: 20));
+  if (_isHealthy(fresh, version)) return fresh;
+  Process.runSync('taskkill', ['/F', '/PID', '$fresh']);
+  return null;
+}
+
 /// מעלה [count] מופעים **חדשים** ומחזיר את המזהים שלהם.
 ///
-/// חדשים ולא קיימים: המופעים האלה נבדקים, נטענים בעבודה ועשויים
-/// להיסגר — ואין לעשות זאת למופע שהמשתמש פתח.
-///
-/// אין single-instance, ולכן כל הפעלה מייצרת תהליך נוסף. ההמתנה היא
-/// למופע **שימושי** (חלון שנוצר עדיין אינו חלון שנראה) ואחריה לבדיקת
-/// כשירות — מופע שנכשל בה נסגר ומוחלף.
+/// חדשים ולא קיימים: המופעים האלה נבדקים, נטענים בעבודה ומוחלפים
+/// במהלך הריצה — ואין לעשות זאת למופע שהמשתמש פתח.
 Future<List<int>> _startInstances(
   ResponsaInstallation installation,
   int count,
@@ -102,41 +133,18 @@ Future<List<int>> _startInstances(
     if (attempts++ > count * 3) {
       throw StateError('לא עלו $count מופעים כשירים');
     }
-    final before = {
-      for (final instance in ResponsaInstance.all()) instance.pid,
-    };
-    await Process.start(
+    final pid = await _startOneInstance(
       installation.executable,
-      const [],
-      workingDirectory: installation.installPath,
-      mode: ProcessStartMode.detached,
+      installation.installPath,
+      version,
     );
-    int? fresh;
-    final deadline = DateTime.now().add(const Duration(seconds: 90));
-    while (DateTime.now().isBefore(deadline) && fresh == null) {
-      await Future<void>.delayed(const Duration(milliseconds: 750));
-      for (final instance in ResponsaInstance.all()) {
-        if (instance.usable && !before.contains(instance.pid)) {
-          fresh = instance.pid;
-          break;
-        }
-      }
-    }
-    if (fresh == null) {
-      print('  instance did not come up within 90s');
+    if (pid == null) {
+      print('  instance did not come up healthy — retrying');
+      await Future<void>.delayed(const Duration(seconds: 5));
       continue;
     }
-    // רווח לפני הבדיקה: המופע ממשיך לטעון את המאגר גם אחרי שחלונו
-    // נראה, ובמהלך הטעינה הוא עונה על חלק מההפניות ולא על כולן.
-    await Future<void>.delayed(const Duration(seconds: 20));
-    if (_isHealthy(fresh, version)) {
-      accepted.add(fresh);
-      print('  instance $fresh healthy (${accepted.length}/$count)');
-    } else {
-      print('  instance $fresh failed the smoke test — replacing');
-      Process.runSync('taskkill', ['/F', '/PID', '$fresh']);
-      await Future<void>.delayed(const Duration(seconds: 5));
-    }
+    accepted.add(pid);
+    print('  instance $pid healthy (${accepted.length}/$count)');
   }
   return accepted;
 }
@@ -147,39 +155,83 @@ Future<List<int>> _startInstances(
 /// אבל שמונה ברצף הוא דפוס של מופע שחדל לענות.
 const int _suspectAfter = 8;
 
-/// עובד אחד: פותח את הספרים שהוקצו לו במופע קבוע.
+/// כל כמה ספרים מוחלף המופע גם בלי סימן לתקלה.
 ///
-/// כשהוא חושד במופע הוא **עוצר ואינו ממשיך**. הספרים שנותרו לו לא
-/// נכתבים לקובץ, ולכן הרצה חוזרת אוספת אותם — עדיף על אלף שורות כשל
-/// שאינן מתארות את הקטלוג אלא את המופע.
-void _worker(
-  ({SendPort send, int pid, int? version, List<_Book> books}) request,
-) {
-  final automation = ResponsaAutomation(
-    pid: request.pid,
+/// מופע שמריץ מאות פתיחות נשחק: הוא צובר חלונות, מאט, ובסופו של דבר
+/// מפסיק לענות. נמדד: בסריקה של שמונה עובדים, ארבעה הפסיקו לענות תוך
+/// כשעה. החלפה יזומה זולה — כ-40 שניות — והיא מה שמאפשר לסריקה של
+/// 8,402 ספרים להסתיים בכלל.
+const int _recycleEvery = 250;
+
+/// עובד אחד: פותח את הספרים שהוקצו לו, ומחליף את המופע כשצריך.
+///
+/// **המופע מוחלף, העובד אינו נעצר.** עצירת עובד מפקירה אלף ספרים
+/// להרצה חוזרת; החלפת מופע עולה 40 שניות. נמדד: מדיניות העצירה הרגה
+/// ארבעה מתוך שמונה עובדים בסריקה אחת.
+Future<void> _worker(
+  ({
+    SendPort send,
+    int pid,
+    int? version,
+    String executable,
+    String installPath,
+    int recycleOffset,
+    List<_Book> books,
+  })
+  request,
+) async {
+  var pid = request.pid;
+  var automation = ResponsaAutomation(
+    pid: pid,
     profile: ResponsaVersionProfile.forVersion(request.version),
   );
-  var consecutiveFailures = 0;
-  var stop = false;
-  for (final book in request.books) {
-    if (consecutiveFailures >= _suspectAfter) {
-      // שלוש בדיקות עם המתנה ביניהן. מופע עסוק או שעדיין טוען נראה
-      // בבדיקה אחת כמו מופע מת, ועצירה בגללה הפקירה 1,050 ספרים
-      // לעובד — נמדד פעמיים בסריקה הראשונה.
-      for (var attempt = 0; attempt < 3; attempt++) {
-        if (_isHealthy(request.pid, request.version)) {
-          consecutiveFailures = 0;
-          break;
-        }
-        if (attempt == 2) {
-          print('  worker ${request.pid} stopped: instance stopped answering');
-          stop = true;
-        } else {
-          sleep(const Duration(seconds: 30));
-        }
+
+  /// מחליף את המופע. מחזיר `false` כשלא הצליח — ואז העובד עוצר, כי
+  /// בלי מופע אין מה לעשות.
+  Future<bool> recycle(String why) async {
+    print('  worker $pid recycling: $why');
+    Process.runSync('taskkill', ['/F', '/PID', '$pid']);
+    await Future<void>.delayed(const Duration(seconds: 5));
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final fresh = await _startOneInstance(
+        request.executable,
+        request.installPath,
+        request.version,
+      );
+      if (fresh != null) {
+        pid = fresh;
+        automation = ResponsaAutomation(
+          pid: pid,
+          profile: ResponsaVersionProfile.forVersion(request.version),
+        );
+        print('  worker replaced its instance with $pid');
+        return true;
       }
-      if (stop) break;
+      await Future<void>.delayed(const Duration(seconds: 10));
     }
+    return false;
+  }
+
+  var consecutiveFailures = 0;
+  var sinceRecycle = request.recycleOffset;
+  for (final book in request.books) {
+    // החלפה יזומה, לפני שהמופע מתחיל להיכשל.
+    if (sinceRecycle++ >= _recycleEvery) {
+      sinceRecycle = 0;
+      if (!await recycle('scheduled after $_recycleEvery books')) break;
+    }
+    if (consecutiveFailures >= _suspectAfter) {
+      // בדיקה אחת, ואם היא נכשלת — מופע חדש. מופע עסוק ייתפס כתקין
+      // בבדיקה, ומופע שחדל לענות יוחלף מיד.
+      if (_isHealthy(pid, request.version)) {
+        consecutiveFailures = 0;
+      } else {
+        sinceRecycle = 0;
+        if (!await recycle('$_suspectAfter consecutive failures')) break;
+        consecutiveFailures = 0;
+      }
+    }
+
     final watch = Stopwatch()..start();
     _Result result;
     try {
@@ -370,6 +422,11 @@ void main() {
         send: receive.sendPort,
         pid: pids[i],
         version: version,
+        executable: selection.installation.executable,
+        installPath: selection.installation.installPath,
+        // היסט שונה לכל עובד, כדי ששמונה מופעים לא יוחלפו יחד: העלאה
+        // מקבילה של כמה מופעים היא בדיוק מה שמייצר מופע חלקי.
+        recycleOffset: (i * 31) % _recycleEvery,
         books: batches[i],
       ));
     }

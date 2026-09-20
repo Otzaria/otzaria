@@ -451,38 +451,12 @@ class ResponsaAutomation {
     // שתי בדיקות בלתי-תלויות: שהחלון הוא **השורה שבחרנו**, ושהוא הספר
     // **שביקשנו**. אחת בלבד אינה מספיקה.
     //
-    // הכותרת המצופה נבדקת בלי ההסתייגות שבסוגריים: היא מטא-דאטה של
-    // הקטלוג ולא חלק מהשם שהתוכנה מציגה. `היכלות (עמ' 108-126)` נפתח
-    // ככותרת `אוצר מדרשים (אייזנשטיין) היכלות`, והשוואה מילולית פסלה
-    // פתיחה תקינה לחלוטין.
-    // `selectedResult` נשארת מחמירה: היא בודקת שהחלון שנפתח הוא **השורה
-    // שלחצנו עליה**, וזו השוואה בין שני מחרוזות של התוכנה עצמה.
-    //
-    // `requestedRef` רכה, כי ההפניה נבנתה מהעץ והיא יכולה להכיל צמתי
-    // מבנה שהתוכנה משמיטה: `ילקוט יוסף ... פסקי הלכות סימנים קנב-קנג`
-    // נפתח ככותרת `ילקוט יוסף ... סימנים קנב-קנג` — הספר הנכון בדיוק,
-    // ונפסל רק בגלל `פסקי הלכות`.
-    final failed = <String>[
-      if (ResponsaHebrew.matchLevel(chosen, title) == ResponsaMatchLevel.none)
-        'selectedResult',
-      // שתי המחרוזות האלה הן של התוכנה עצמה — השורה שבחרנו וכותרת
-      // החלון שנפתח — ולכן השוואת ההסתייגות ביניהן הוגנת. זה המקום
-      // היחיד שבו מהדורה נבדקת, ובלעדיו `שמות רבה (שנאן)` פותח את
-      // `שמות רבה (וילנא)` והשילוב מדווח הצלחה.
-      if (ResponsaHebrew.editionsConflict(chosen, title)) 'selectedEdition',
-      if (!ResponsaHebrew.coversTitle(usedRef, title)) 'requestedRef',
-    ];
-    // הכותרת המצופה נבדקת ב-[ResponsaHebrew.coversTitle], שהיא רכה יותר
-    // משתי הבדיקות שמעליה: היא מחרוזת תצוגה של אוצריא ולא של התוכנה,
-    // ולכן היא יכולה גם להוסיף הקשר שהתוכנה משמיטה (`חידושים על הגמרא`)
-    // וגם להשמיט מיקום שהתוכנה מוסיפה (`מסכת אבות הקדמה`). דרישה
-    // סימטרית מלאה פסלה פתיחות תקינות לחלוטין.
-    if (expectedTitle != null) {
-      final expected = ResponsaNames.withoutQualifier(expectedTitle);
-      if (!ResponsaHebrew.coversTitle(expected, title)) {
-        failed.add('expectedTitle');
-      }
-    }
+    final failed = verifyOpened(
+      window: title,
+      selectedResult: chosen,
+      usedRef: usedRef,
+      expectedTitle: expectedTitle,
+    );
     if (failed.isNotEmpty) {
       throw ResponsaAutomationException(
         ResponsaFailure.openedWrongBook,
@@ -530,26 +504,97 @@ class ResponsaAutomation {
     return results.any((result) => ResponsaHebrew.coversTitle(wanted, result));
   }
 
-  /// בוחר את התוצאה שמתאימה ביותר להפניה שביקשנו.
+  /// שמות הבדיקות שכותרת החלון שנפתח **לא** עברה. ריק = הספר הנכון.
+  ///
+  /// שלוש בדיקות בלתי-תלויות, וכל אחת מהן נחוצה:
+  ///
+  /// * **`selectedResult`** — שהחלון הוא השורה שלחצנו עליה. השוואה בין
+  ///   שתי מחרוזות של התוכנה עצמה, ולכן היא המחמירה שבשלוש.
+  /// * **`selectedEdition`** — שאותן שתי מחרוזות אינן נושאות מהדורות
+  ///   סותרות. זהו המקום **היחיד** שבו מהדורה נבדקת: שאר ההשוואות
+  ///   מתעלמות מהסוגריים בכוונה, כי הן מטא-דאטה של הקטלוג. בלעדיה
+  ///   `שמות רבה (שנאן)` פותח את `שמות רבה (וילנא)` ומדווח הצלחה.
+  /// * **`requestedRef`** — שהחלון מכסה את ההפניה שבה השתמשנו. רכה, כי
+  ///   ההפניה נבנתה מהעץ ויכולה להכיל צמתי מבנה שהתוכנה משמיטה:
+  ///   `ילקוט יוסף ... פסקי הלכות סימנים קנב-קנג` נפתח ככותרת
+  ///   `ילקוט יוסף ... סימנים קנב-קנג` — הספר הנכון בדיוק.
+  /// * **`expectedTitle`** — שהחלון מכסה את שם הספר בקטלוג. הרכה
+  ///   שבכולן: זו מחרוזת תצוגה של אוצריא ולא של התוכנה, והיא יכולה גם
+  ///   להוסיף הקשר שהתוכנה משמיטה (`חידושים על הגמרא`) וגם להשמיט
+  ///   מיקום שהתוכנה מוסיפה (`מסכת אבות הקדמה`). ההסתייגות שבסוגריים
+  ///   מוסרת ממנה: `היכלות (עמ' 108-126)` נפתח ככותרת
+  ///   `אוצר מדרשים (אייזנשטיין) היכלות`, והשוואה מילולית פסלה פתיחה
+  ///   תקינה לחלוטין.
+  ///
+  /// נפרדת מהפתיחה כדי שתהיה ניתנת לבדיקה: כאן יושבת ההכרעה אם ספר
+  /// נפתח או לא, וכל הרפיה בה היא ספר שגוי שמדווח כהצלחה.
+  static List<String> verifyOpened({
+    required String window,
+    required String selectedResult,
+    required String usedRef,
+    String? expectedTitle,
+  }) {
+    final failed = <String>[
+      if (ResponsaHebrew.matchLevel(selectedResult, window) ==
+          ResponsaMatchLevel.none)
+        'selectedResult',
+      if (ResponsaHebrew.editionsConflict(selectedResult, window))
+        'selectedEdition',
+      if (!ResponsaHebrew.coversTitle(usedRef, window)) 'requestedRef',
+    ];
+    if (expectedTitle != null) {
+      final expected = ResponsaNames.withoutQualifier(expectedTitle);
+      if (!ResponsaHebrew.coversTitle(expected, window)) {
+        failed.add('expectedTitle');
+      }
+    }
+    return failed;
+  }
+
+  /// בוחר את התוצאה שמתאימה ביותר ל**ספר שביקשנו**.
   ///
   /// `result[0]` אינו אמין: שם גנרי מחזיר מאות תוצאות שהראשונה בהן ספר
   /// אחר לגמרי. בשוויון נשארת המוקדמת — התנהגות ברירת המחדל.
+  ///
+  /// **הכותרת המצופה קודמת להפניה, ולא להפך.** ההפניה היא רק השאילתה
+  /// שייצרה את הרשימה; הספר שהמשתמש ביקש הוא הכותרת. כשהחוליה שנותחה
+  /// היא חוליית נסיגה, ההפניה מתארת את השאילתה ולא את הספר — ודירוג
+  /// לפיה בוחר את השורה הלא נכונה מתוך רשימה שיש בה את הנכונה.
+  ///
+  /// נמדד על שלוש משפחות: `בית הבחירה למאירי על הש"ס ברכות` נפתח
+  /// כ-`שרידי אש על הש"ס ברכות` (14 ספרים), `רי"ד (פסקים) בבא קמא`
+  /// נפתח כ-`פסקי רי"ד מסכת ברכות`, ו-`רמב"ם מקוואות` נפתח כשורה שאינה
+  /// זו שהחלון הציג. בכל שלושתן החוליה הייתה `על הש"ס ברכות`, `רי"ד`
+  /// או `רמב"ם` — שאילתה רחבה שהרשימה שלה מכילה את הספר הנכון.
   static int bestResult(
     List<String> results,
     String openRef,
     String? expectedTitle,
   ) {
+    final expected = expectedTitle == null
+        ? null
+        : ResponsaNames.withoutQualifier(expectedTitle);
     var bestIndex = 0;
-    var bestScore = (-1, -1);
+    var bestScore = (-1, -1, -1);
     for (var index = 0; index < results.length; index++) {
+      // כמה אסימונים מהכותרת המצופה מופיעים בשורה. דירוג **מדורג** ולא
+      // כן/לא: `רי"ד (פסקים) בבא קמא משניות` אינו מוכל באף שורה —
+      // `משניות` אינו מופיע באף אחת — ושתי הרמות הבינאריות מחזירות
+      // שוויון בין `פסקי רי"ד מסכת ברכות` ל-`פסקי רי"ד מסכת בבא קמא`.
+      // ספירה מבדילה ביניהן.
       final score = (
-        ResponsaHebrew.matchLevel(openRef, results[index]).rank,
-        expectedTitle == null
+        expected == null
             ? 0
-            : ResponsaHebrew.matchLevel(expectedTitle, results[index]).rank,
+            : ResponsaHebrew.sharedTokenCount(expected, results[index]),
+        expected == null
+            ? 0
+            : ResponsaHebrew.matchLevel(expected, results[index]).rank,
+        ResponsaHebrew.matchLevel(openRef, results[index]).rank,
       );
       if (score.$1 > bestScore.$1 ||
-          (score.$1 == bestScore.$1 && score.$2 > bestScore.$2)) {
+          (score.$1 == bestScore.$1 &&
+              (score.$2 > bestScore.$2 ||
+                  (score.$2 == bestScore.$2 && score.$3 > bestScore.$3)))) {
         bestIndex = index;
         bestScore = score;
       }
