@@ -42,6 +42,13 @@ class ResponsaChm {
   /// התקרה מגנה מפני קובץ עזרה חריג שיבלע זיכרון.
   static const int _maxEntryBytes = 4 * 1024 * 1024;
 
+  /// תקרת זיכרון לקריאה כולה.
+  @visibleForTesting
+  static const int maxTotalBytesForBudget = 64 * 1024 * 1024;
+
+  /// עומק מרבי של תיקיות בתוך ה-CHM.
+  static const int _maxDepth = 8;
+
   /// קורא את כל ה-**קבצים** שתחת [folder] בתוך [chmPath], רקורסיבית.
   ///
   /// המפתח במפה הוא הנתיב היחסי ל-[folder], עם `/` כמפריד. הערך הוא
@@ -60,15 +67,24 @@ class ResponsaChm {
 
   static Map<String, Uint8List> _read(String chmPath, List<String> folder) {
     // `CoInitializeEx` מחזיר `RPC_E_CHANGED_MODE` כשהאיזולט כבר אתחל COM
-    // במודל אחר. זה אינו כשל: אפשר להמשיך ולהשתמש ב-COM כרגיל.
-    _coInitializeEx(nullptr, _coinitApartmentThreaded);
+    // במודל אחר. זה אינו כשל: אפשר להמשיך ולהשתמש ב-COM כרגיל, ורק אסור
+    // לשחרר — האתחול שייך למי שעשה אותו.
+    final initialized = _coInitializeEx(nullptr, _coinitApartmentThreaded);
+    final owns = initialized == _sOk || initialized == _sFalse;
 
-    final instance = calloc<Pointer>();
-    Pointer<Uint8>? clsid;
-    Pointer<Uint8>? iid;
+    // כל ידית ש-COM מחזיר נרשמת כאן ומשוחררת בסוף, בסדר הפוך. ניהול
+    // ידני עם `try/finally` מקונן היה משאיר ידיות פתוחות בכל מסלול
+    // יציאה מוקדם — והיו כאן שלושה כאלה.
+    final handles = <Pointer>[];
+    final buffers = <Pointer>[];
     try {
-      clsid = _guid(_clsidITStorage);
-      iid = _guid(_iidITStorage);
+      final clsid = _guid(_clsidITStorage);
+      buffers.add(clsid);
+      final iid = _guid(_iidITStorage);
+      buffers.add(iid);
+      final instance = calloc<Pointer>();
+      buffers.add(instance);
+
       final created = _coCreateInstance(
         clsid,
         nullptr,
@@ -80,42 +96,34 @@ class ResponsaChm {
         debugPrint('ResponsaChm: ITStorage unavailable (0x${_hex(created)})');
         return const {};
       }
+      handles.add(instance.value);
 
-      final itStorage = instance.value;
-      try {
-        final root = _openChm(itStorage, chmPath);
-        if (root == nullptr) return const {};
-        try {
-          var current = root;
-          final opened = <Pointer>[];
-          for (final name in folder) {
-            final child = _openStorage(current, name);
-            if (child == nullptr) {
-              debugPrint('ResponsaChm: "$name" not found in $chmPath');
-              return const {};
-            }
-            opened.add(child);
-            current = child;
-          }
-          try {
-            final found = <String, Uint8List>{};
-            _collect(current, '', found);
-            return found;
-          } finally {
-            for (final handle in opened.reversed) {
-              _release(handle);
-            }
-          }
-        } finally {
-          _release(root);
+      final root = _openChm(instance.value, chmPath);
+      if (root == nullptr) return const {};
+      handles.add(root);
+
+      var current = root;
+      for (final name in folder) {
+        final child = _openStorage(current, name);
+        if (child == nullptr) {
+          debugPrint('ResponsaChm: "$name" not found in $chmPath');
+          return const {};
         }
-      } finally {
-        _release(itStorage);
+        handles.add(child);
+        current = child;
       }
+
+      final found = <String, Uint8List>{};
+      _collect(current, '', found, 0, _Budget());
+      return found;
     } finally {
-      if (clsid != null) calloc.free(clsid);
-      if (iid != null) calloc.free(iid);
-      calloc.free(instance);
+      for (final handle in handles.reversed) {
+        _release(handle);
+      }
+      for (final buffer in buffers) {
+        calloc.free(buffer);
+      }
+      if (owns) _coUninitialize();
     }
   }
 
@@ -148,18 +156,27 @@ class ResponsaChm {
   }
 
   /// אוסף רקורסיבית את כל הזרמים שתחת [storage].
+  ///
+  /// שני חסמים, ושניהם על **קובץ שאיננו מכירים**: עומק ותקציב זיכרון.
+  /// ‏`Bblgrphy` של CD25 הוא 1,306 קבצים בשני מפלסים וכ-2MB, אבל אין
+  /// ערובה למבנה של מהדורה אחרת, וקריאת קטלוג אינה מקום להיתקע בו או
+  /// לבלוע בו מאות מגה-בייטים.
   static void _collect(
     Pointer storage,
     String prefix,
     Map<String, Uint8List> into,
+    int depth,
+    _Budget budget,
   ) {
+    if (depth > _maxDepth || budget.exhausted) return;
     for (final entry in _entries(storage)) {
+      if (budget.exhausted) return;
       final path = prefix.isEmpty ? entry.name : '$prefix/${entry.name}';
       if (entry.type == _typeStorage) {
         final child = _openStorage(storage, entry.name);
         if (child == nullptr) continue;
         try {
-          _collect(child, path, into);
+          _collect(child, path, into, depth + 1, budget);
         } finally {
           _release(child);
         }
@@ -168,7 +185,9 @@ class ResponsaChm {
       if (entry.type != _typeStream) continue;
       if (entry.size <= 0 || entry.size > _maxEntryBytes) continue;
       final bytes = _readStream(storage, entry.name, entry.size);
-      if (bytes != null) into[path] = bytes;
+      if (bytes == null) continue;
+      into[path] = bytes;
+      budget.spend(bytes.length);
     }
   }
 
@@ -292,6 +311,10 @@ class ResponsaChm {
   // ----------------------------------------------------------- COM plumbing
 
   static const int _sOk = 0;
+
+  /// `S_FALSE` — COM כבר אותחל באותו מודל. גם כאן האיזון מחייב שחרור.
+  static const int _sFalse = 1;
+
   static const int _coinitApartmentThreaded = 2;
   static const int _clsctxInprocServer = 1;
 
@@ -317,6 +340,9 @@ class ResponsaChm {
         Int32 Function(Pointer, Pointer, Uint32, Pointer, Pointer<Pointer>),
         int Function(Pointer, Pointer, int, Pointer, Pointer<Pointer>)
       >('CoCreateInstance');
+
+  static final _coUninitialize = _ole32
+      .lookupFunction<Void Function(), void Function()>('CoUninitialize');
 
   static final _coTaskMemFree = _ole32
       .lookupFunction<Void Function(Pointer), void Function(Pointer)>(
@@ -409,3 +435,12 @@ typedef _ReadDart = int Function(Pointer, Pointer<Uint8>, int, Pointer<Uint32>);
 
 typedef _ReleaseNative = Uint32 Function(Pointer);
 typedef _ReleaseDart = int Function(Pointer);
+
+/// תקציב הזיכרון של קריאה אחת.
+class _Budget {
+  int _remaining = ResponsaChm.maxTotalBytesForBudget;
+
+  bool get exhausted => _remaining <= 0;
+
+  void spend(int bytes) => _remaining -= bytes;
+}
