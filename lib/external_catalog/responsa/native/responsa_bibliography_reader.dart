@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_chm.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_bibliography.dart';
 import 'package:path/path.dart' as path;
 
@@ -23,17 +24,40 @@ class ResponsaBibliographyReader {
   /// קובץ עזרה שבשמו מופיע הסימן הזה נבדק ראשון.
   static const String _hebrewHint = 'heb';
 
-  /// קורא את הביבליוגרפיה מתוך [installPath].
+  /// קורא את הביבליוגרפיה של [installation].
+  ///
+  /// החיפוש עובר על אותם שורשים שהתוכנה עצמה פותרת מהם את הנתונים —
+  /// תיקיית ההרצה, `Sh_hdisk`, אתר הנתונים ו-`Sh_cdrom` — כי בהתקנה
+  /// חלקית חלק מהקבצים נשארים על ההתקן הנשלף.
   ///
   /// מחזיר [ResponsaBibliography.empty] כשאין קובץ עזרה, כשאין בו תיקיית
   /// ביבליוגרפיה, או כשהקריאה נכשלה. אף אחד מאלה אינו שגיאה שמצדיקה
   /// עצירת בנייה: הקטלוג שלם גם בלי מטא-דאטה, פשוט בלי שם מחבר ובלי
   /// פרטי הדפסה.
-  static ResponsaBibliography forInstallation(String? installPath) {
-    if (installPath == null || installPath.isEmpty) {
-      return ResponsaBibliography.empty;
+  static ResponsaBibliography forInstallation(
+    ResponsaInstallation installation,
+  ) {
+    final settings = installation.iniSettings;
+    return forRoots([
+      installation.installPath,
+      settings['sh_hdisk'],
+      installation.dataLocation,
+      settings['sh_cdrom'],
+    ]);
+  }
+
+  /// קורא את הביבליוגרפיה מתוך התיקיות שב-[roots], לפי סדר.
+  @visibleForTesting
+  static ResponsaBibliography forRoots(Iterable<String?> roots) {
+    final seen = <String>{};
+    final files = <String>[];
+    for (final root in roots) {
+      if (root == null || root.isEmpty) continue;
+      for (final file in helpFiles(root)) {
+        if (seen.add(file.toLowerCase())) files.add(file);
+      }
     }
-    for (final file in helpFiles(installPath)) {
+    for (final file in files) {
       final pages = ResponsaChm.read(
         file,
         folder: ResponsaBibliography.chmFolder,

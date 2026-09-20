@@ -318,9 +318,7 @@ class ResponsaCatalogBuildService {
         targetPath: request.targetPath,
         // נקראת **אחרי** הסריקה ולא לפניה: היא קריאת קובץ של פחות משנייה,
         // ואין סיבה לשלם אותה כשהסריקה עומדת להיכשל או להתבטל.
-        bibliography: ResponsaBibliographyReader.forInstallation(
-          installation.installPath,
-        ),
+        bibliography: ResponsaBibliographyReader.forInstallation(installation),
       );
       send.send(
         ResponsaBuildProgress(

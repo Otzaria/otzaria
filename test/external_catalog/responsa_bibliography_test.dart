@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_bibliography_reader.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_bibliography.dart';
+import 'package:path/path.dart' as p;
 
 /// עמודי הביבליוגרפיה של פרויקט השו"ת.
 ///
@@ -268,6 +271,51 @@ void main() {
         'a.gif': cp1255(page('ערוך לנר', ['בני ברק תשס"ד'])),
       });
       expect(bibliography.isEmpty, isTrue);
+    });
+  });
+
+  group('איתור קובץ העזרה', () {
+    late Directory root;
+
+    setUp(() => root = Directory.systemTemp.createTempSync('responsa_help'));
+    tearDown(() => root.deleteSync(recursive: true));
+
+    void touch(String relative) {
+      final file = File(p.join(root.path, relative));
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync('');
+    }
+
+    test('הקובץ העברי נבדק לפני האנגלי', () {
+      touch(p.join('HELP', 'RESPENG.CHM'));
+      touch(p.join('HELP', 'Respheb.chm'));
+      expect(
+        ResponsaBibliographyReader.helpFiles(
+          root.path,
+        ).map(p.basename).toList(),
+        ['Respheb.chm', 'RESPENG.CHM'],
+      );
+    });
+
+    test('שם התיקייה אינו קבוע — נסרקות כל תיקיות הבת', () {
+      touch(p.join('Documentation', 'guide.chm'));
+      expect(ResponsaBibliographyReader.helpFiles(root.path), hasLength(1));
+    });
+
+    test('קובץ עזרה בתיקיית ההתקנה עצמה נמצא', () {
+      touch('Respheb.chm');
+      expect(ResponsaBibliographyReader.helpFiles(root.path), hasLength(1));
+    });
+
+    /// `DB` הוא כ-10GB. סריקה עמוקה הייתה עוברת עליו בכל בנייה.
+    test('הסריקה אינה יורדת מתחת לתיקיות הבת', () {
+      touch(p.join('DB', 'deep', 'nested.chm'));
+      expect(ResponsaBibliographyReader.helpFiles(root.path), isEmpty);
+    });
+
+    test('התקנה בלי קובץ עזרה אינה שגיאה', () {
+      expect(ResponsaBibliographyReader.forRoots([root.path]).isEmpty, isTrue);
+      expect(ResponsaBibliographyReader.forRoots([null, '']).isEmpty, isTrue);
     });
   });
 }
