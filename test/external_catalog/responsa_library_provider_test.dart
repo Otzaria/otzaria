@@ -244,6 +244,48 @@ void main() {
       expect(result.errorCode, 'cancelled');
     });
 
+    /// שומר על הכלל: לכל קוד כשל הודעה משלו, ואין קוד שנופל לנוסח הכללי.
+    ///
+    /// בלי זה, קוד כשל חדש מקבל בשקט את "פתיחת הספר נכשלה" — משפט
+    /// שאינו אומר למשתמש מה קרה ולא מה לעשות, ואי אפשר לדעת מהבדיקות
+    /// שזה מה שקרה.
+    test('לכל קוד כשל הודעה ייחודית ופעילה', () {
+      const title = 'רא"ש יבמות';
+      final generic = ResponsaLibraryProvider.messageFor(null, title: title);
+      final seen = <String, ResponsaFailure>{};
+
+      for (final failure in ResponsaFailure.values) {
+        final message = ResponsaLibraryProvider.messageFor(
+          failure,
+          title: title,
+        );
+        expect(message.trim(), isNotEmpty, reason: failure.name);
+        expect(message, isNot(generic), reason: failure.name);
+        final previous = seen[message];
+        expect(
+          previous,
+          isNull,
+          reason: 'אותה הודעה ל-${failure.name} ול-${previous?.name}',
+        );
+        seen[message] = failure;
+      }
+    });
+
+    test('הודעת כשל נוקבת בשם הספר', () {
+      for (final failure in ResponsaFailure.values) {
+        final message = ResponsaLibraryProvider.messageFor(
+          failure,
+          title: 'רא"ש יבמות',
+        );
+        // חוץ מ"בוטל" ו"התוכנה אינה פעילה", שאינם על ספר מסוים.
+        if (failure == ResponsaFailure.cancelled ||
+            failure == ResponsaFailure.responsaNotRunning) {
+          continue;
+        }
+        expect(message, contains('רא"ש יבמות'), reason: failure.name);
+      }
+    });
+
     test('קטלוג בסכמה 1 עדיין מספק הפניה', () async {
       // ה-DB שנבנה כאן הוא סכמה 1 — בלי `alt_refs`. שאילתה ששמה את
       // העמודה במפורש הייתה נכשלת ומשאירה את הספר בלי הפניה כלל, כלומר
