@@ -223,59 +223,48 @@ missed it.
 
 ## MANDATORY UI Components
 
-### 1. Icons - ONLY from `fluentui_system_icons`
+### 1. Icons - `otzaria_icons` first, `fluentui_system_icons` for the rest
+
+> **The full icon policy lives in [`AGENTS.md`](AGENTS.md) § "Icons".** It is the single
+> source of truth: which set to reach for, what `otzaria_icons` is *for*, the deliberate
+> exceptions that stay on Fluent, and the scoped-search icons. Do not duplicate it here —
+> this section drifted out of sync once already and told agents to use Fluent only.
+
+The three rules you must not get wrong:
+
+1. **`otzaria_icons` first.** It is purpose-built for a Hebrew seforim library. Fluent is
+   the fallback for everything it does not cover. Never import Material icons.
+2. **`OtzariaIcons` always go in a plain `Icon()`** — they are drawn RTL natively, so
+   `RtlIcon` would flip an icon that already faces the right way.
+   `rtl_icon_registered_usage_test` fails the build on every such use.
+3. **`RtlIcon` is for Fluent directional icons registered in `lib/widgets/misc/rtl_icon.dart`**
+   (`_fluentMirrorMap`, `_flippableIcons`). Anything unregistered: plain `Icon(...)`.
+   Never `Transform.flip`/`Transform.scale` an icon — register it instead.
+
 ```dart
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
-// Regular icon (symmetric, no RTL flipping needed):
-Icon(FluentIcons.search_24_regular)
-Icon(FluentIcons.settings_24_regular)
-
-// RtlIcon — ONLY for icons registered in lib/widgets/misc/rtl_icon.dart:
-RtlIcon(FluentIcons.book_24_filled)              // in _flippableIcons
-RtlIcon(FluentIcons.arrow_left_24_regular)        // in _fluentMirrorMap — auto-mirrors to arrow_right in RTL
-RtlIcon(FluentIcons.chevron_right_24_regular)     // in _fluentMirrorMap
+Icon(OtzariaIcons.book_pdf_24_regular)          // first choice — always plain Icon
+Icon(FluentIcons.settings_24_regular)           // fallback
+RtlIcon(FluentIcons.chevron_right_24_regular)   // registered in _fluentMirrorMap
 ```
 
-**When to use `RtlIcon` vs `Icon`:**
+`_flippableIcons` is an interim measure: a geometric flip also mirrors asymmetric detail.
+An icon that looks wrong flipped should be redrawn in `otzaria_icons` and removed from the set.
 
-| Icon is registered in `rtl_icon.dart`? | Use |
-|---|---|
-| Yes (in `_fluentMirrorMap`, `_materialMirrorMap`, or `_flippableIcons`) | `RtlIcon(...)` |
-| No | `Icon(...)` — plain, no wrapper |
-
-**Icons currently registered in `lib/widgets/misc/rtl_icon.dart`:**
-
-*`_fluentMirrorMap` (swaps to opposite-direction variant in RTL):*
-- `chevron_right/left_24/20/16_regular`
-- `arrow_right/left_24_regular`, `arrow_right/left_24_filled`
-- `panel_left/right_24_regular`, `panel_left/right_24_filled`
-- `text_align_right/left_24_regular`
-
-*`_materialMirrorMap` (Material icons, swaps in RTL):*
-- `arrow_forward/back`, `arrow_forward/back_ios`
-- `arrow_right/left`, `chevron_right/left`
-- `navigate_next/before`, `keyboard_arrow_right/left`
-- `first_page/last_page`, `skip_next/previous`
-
-*`_flippableIcons` (geometrically flipped in RTL — no opposite-direction variant in library):*
-- `book_24_regular`, `book_24_filled`
-- `book_information_24_regular`
-- `text_align_distributed_24_regular`
-- `list_24_regular`
-
-**If you need to flip an icon that is NOT yet registered:**
-Add it to the appropriate set/map in `lib/widgets/misc/rtl_icon.dart`, then use `RtlIcon`. Do NOT add manual `Transform.flip`/`Transform.scale` in feature files.
+A plugin that declares an icon by name resolves as
+`OtzariaIcons.allIcons[name] ?? fluentIconFromName(name)` (`plugin_icon_resolver.dart`).
 
 **Never use:**
-- Material Icons (unless in `_materialMirrorMap` above)
-- Cupertino Icons
-- Custom icon fonts
+- Material Icons or Cupertino Icons — `lib/` is free of them by design, and
+  `_materialMirrorMap` was deleted along with them
 - Random icon packages
 - `mirrorIcon` parameter on any widget — **FORBIDDEN**, removed in commit 3b4d357
-- Manual `Transform.scale(scaleX: -1, ...)` or `Transform.flip(flipX: true, ...)` around icons — register in `rtl_icon.dart` instead
-- Comments explaining why `RtlIcon` or `Icon(...)` was chosen — the decision rule is documented here; do NOT repeat it inline in code
+- Manual `Transform.scale(scaleX: -1, ...)` / `Transform.flip(flipX: true, ...)` around icons
+- Comments explaining why `RtlIcon` or `Icon(...)` was chosen — the rule is documented here
+  and in `AGENTS.md`; do NOT repeat it inline in code
 
 ### 2. User Messages - ONLY via `UiSnack`
 ```dart
@@ -1177,7 +1166,7 @@ if (Platform.isAndroid || Platform.isIOS) {
 1. **No progression with errors** - Fix ALL analyzer errors before next step
 2. **Run `flutter analyze` after EVERY file change** - Don't accumulate errors
 3. **RTL text fields** - Use `RtlTextField` exclusively, never `TextField`
-4. **Icons** - Only `fluentui_system_icons`. Use `RtlIcon` **only** for icons registered in `lib/widgets/misc/rtl_icon.dart` (`_fluentMirrorMap`, `_materialMirrorMap`, `_flippableIcons`). All other icons: plain `Icon(...)`. Never add manual `Transform` on icons — register in `rtl_icon.dart` instead.
+4. **Icons** - `otzaria_icons` first, `fluentui_system_icons` for the rest (full policy: `AGENTS.md` § Icons). `OtzariaIcons` are drawn RTL natively → always plain `Icon(...)`; `RtlIcon` on them fails the build. Use `RtlIcon` **only** for Fluent icons registered in `lib/widgets/misc/rtl_icon.dart` (`_fluentMirrorMap`, `_flippableIcons`). Never add manual `Transform` on icons — register in `rtl_icon.dart` instead.
 5. **User messages** - Only through `UiSnack`, never direct SnackBar
 6. **Dialogs** - Only through `custom_ui_components` (SingleActionDialog, TwoActionsDialog, WarningDialog)
 7. **Action buttons** - Only `ActionButton.recommended` / `.neutral` / `.ghost` from `widgets_exports.dart`
@@ -1202,7 +1191,7 @@ if (Platform.isAndroid || Platform.isIOS) {
 - Asking multiple separate questions instead of batching all open questions into one message
 - Writing a large diff to fix what should be a small bug
 - Using `TextField` instead of `RtlTextField`
-- Using Material/Cupertino icons instead of FluentUI (unless Material icon is in `_materialMirrorMap` in `rtl_icon.dart`)
+- Using Material/Cupertino icons — `lib/` is free of them by design
 - Using `RtlIcon` for icons **not** registered in `lib/widgets/misc/rtl_icon.dart` — check first; if not registered, use plain `Icon(...)`
 - Forgetting to use `RtlIcon` for icons that **are** registered in `lib/widgets/misc/rtl_icon.dart`
 - Adding `mirrorIcon` parameter to any widget — FORBIDDEN (removed in commit 3b4d357)
