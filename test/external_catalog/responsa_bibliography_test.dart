@@ -342,6 +342,29 @@ void main() {
       expect(ResponsaBibliographyReader.helpFiles(root.path), isEmpty);
     });
 
+    /// התקנה שנייה על אותו מחשב נבנית לעיתים כתיקייה שבה `HELP` ו-`DB`
+    /// הם קישורים לתיקיות של ההתקנה הראשית. בלי מעקב אחרי קישורים
+    /// הקטלוג נבנה שם בלי מחבר ובלי פרטי הדפסה, בלי שום סימן למשתמש.
+    test('תיקייה שהיא קישור נסרקת כמו תיקייה רגילה', () {
+      final target = Directory(
+        p.join(root.path, '..', 'responsa_help_target'),
+      ).absolute;
+      target.createSync(recursive: true);
+      addTearDown(() => target.deleteSync(recursive: true));
+      File(p.join(target.path, 'Respheb.chm')).writeAsStringSync('');
+      try {
+        Link(p.join(root.path, 'HELP')).createSync(target.path);
+      } on FileSystemException {
+        // יצירת קישור ב-Windows דורשת הרשאה שאינה קיימת בכל סביבה.
+        markTestSkipped('אין הרשאה ליצירת קישור בסביבה הזו');
+        return;
+      }
+      expect(
+        ResponsaBibliographyReader.helpFiles(root.path).map(p.basename),
+        ['Respheb.chm'],
+      );
+    });
+
     test('התקנה בלי קובץ עזרה אינה שגיאה', () {
       expect(ResponsaBibliographyReader.forRoots([root.path]).isEmpty, isTrue);
       expect(ResponsaBibliographyReader.forRoots([null, '']).isEmpty, isTrue);

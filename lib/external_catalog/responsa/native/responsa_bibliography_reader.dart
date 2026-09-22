@@ -90,10 +90,19 @@ class ResponsaBibliographyReader {
   static int _rank(String file) =>
       path.basename(file).toLowerCase().contains(_hebrewHint) ? 0 : 1;
 
+  /// סורק תיקייה אחת ויורד לתיקיות הבת עד [_maxDepth].
+  ///
+  /// **עוקב אחרי קישורים.** התקנה שנייה על אותו מחשב נבנית לעיתים
+  /// כתיקייה שבה `HELP` ו-`DB` הם קישורים לתיקיות של ההתקנה הראשית —
+  /// זה בדיוק מה שמאפשר שתי גרסאות בלי לשכפל 10GB. בלי מעקב, `HELP`
+  /// חוזר כ-[Link] ולא כ-[Directory], קובץ העזרה אינו נמצא, והקטלוג
+  /// נבנה בלי שם מחבר ובלי פרטי הדפסה — בלי שום סימן למשתמש.
+  ///
+  /// מעגל קישורים אינו מסוכן כאן: העומק חסום ב-[_maxDepth] ממילא.
   static void _collect(Directory directory, int depth, List<String> into) {
     List<FileSystemEntity> entries;
     try {
-      entries = directory.listSync(followLinks: false);
+      entries = directory.listSync(followLinks: true);
     } on FileSystemException {
       // תיקייה בלי הרשאת קריאה אינה סיבה לוותר על השאר.
       return;
