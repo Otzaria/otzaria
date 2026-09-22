@@ -8,6 +8,7 @@ import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/responsa/view/responsa_book_icon.dart';
+import 'package:otzaria/external_catalog/view/external_book_lines.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'dart:math';
 import 'package:otzaria/core/ui_snack.dart';
@@ -544,6 +545,9 @@ class _BookGridTextColumn extends StatelessWidget {
     final authorStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSecondaryContainer,
     );
+    final sourceStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.tertiary,
+    );
     // זמני: התיאור הקצר הוסר מגוף הכרטיס. להחזרה — בטלו את ההערות כאן ולהלן.
     // final descriptionStyle = theme.textTheme.bodySmall?.copyWith(
     //   color: theme.colorScheme.onSurfaceVariant,
@@ -578,11 +582,19 @@ class _BookGridTextColumn extends StatelessWidget {
         //     : titleOverflow
         //     ? 2
         //     : 3;
+        // מקור הספר — שם הספרייה החיצונית, או `null` לספר מותקן.
+        final sourceText = externalBookSourceLine(book);
+        final hasSource = sourceText != null && sourceText.isNotEmpty;
         // בתוצאות חיפוש מוצג נתיב הקטגוריות — הוא שמסביר למשתמש למה הספר
         // הותאם, ובספרים אישיים שם הספר יושב עליו ולא על הקובץ.
-        final pathText = (book.categoryPath ?? '').trim().isNotEmpty
-            ? book.categoryPath!.trim()
-            : book.topics.trim();
+        //
+        // בספר חיצוני זו הקטגוריה **באוצריא**, כמו בשורת הרשימה ובדיאלוג
+        // פרטי הספר; נתיב המדף אצל הספק אינו שם שהמשתמש מכיר.
+        final pathText = hasSource
+            ? (externalBookCategoryLine(book) ?? '')
+            : ((book.categoryPath ?? '').trim().isNotEmpty
+                  ? book.categoryPath!.trim()
+                  : book.topics.trim());
         final hasTopics = showTopics && pathText.isNotEmpty;
         final topicsMaxLines = !hasTopics
             ? 0
@@ -611,6 +623,15 @@ class _BookGridTextColumn extends StatelessWidget {
                 maxLines: authorMaxLines,
                 textAlign: TextAlign.right,
                 style: authorStyle,
+              ),
+            ],
+            if (hasSource) ...[
+              const SizedBox(height: 3),
+              LibraryOverflowTooltipText(
+                text: sourceText,
+                maxLines: 1,
+                textAlign: TextAlign.right,
+                style: sourceStyle,
               ),
             ],
             // if (hasShortDescription) ...[
