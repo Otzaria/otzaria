@@ -49,10 +49,9 @@ class CategoryPreviewPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  FluentIcons.folder_24_regular,
-                  size: 32,
-                  color: cs.onSecondaryContainer,
+                SizedBox.square(
+                  dimension: 32,
+                  child: categoryIconChild(category, cs, 32),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -105,13 +104,17 @@ class CategoryPreviewPanel extends StatelessWidget {
                 itemBuilder: (context, index) {
                   if (index < subCategories.length) {
                     return _ContentRow(
-                      icon: FluentIcons.folder_24_regular,
+                      icon: categoryIconChild(subCategories[index], cs, 16),
                       title: subCategories[index].title,
                     );
                   }
                   final book = books[index - subCategories.length];
                   return _ContentRow(
-                    icon: bookFormatIcon(book),
+                    icon: Icon(
+                      bookFormatIcon(book),
+                      size: 16,
+                      color: cs.onSurfaceVariant,
+                    ),
                     title: book.title,
                     subtitle: book.author,
                   );
@@ -141,7 +144,8 @@ String? categoryContentCountsText({
 }
 
 class _ContentRow extends StatelessWidget {
-  final IconData icon;
+  /// ווידג'ט ולא [IconData]: לוגו של ספרייה חיצונית הוא תמונה, לא גופן.
+  final Widget icon;
   final String title;
   final String? subtitle;
 
@@ -156,7 +160,7 @@ class _ContentRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: cs.onSurfaceVariant),
+          SizedBox.square(dimension: 16, child: icon),
           const SizedBox(width: 10),
           Expanded(
             child: Text.rich(

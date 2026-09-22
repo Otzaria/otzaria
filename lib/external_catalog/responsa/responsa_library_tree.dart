@@ -1,3 +1,4 @@
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_category_map.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -61,6 +62,9 @@ class ResponsaLibraryTree {
     final roots = <String, Category>{};
     final unmapped = <String, Category>{};
 
+    // כל תיקייה בעץ הזה נושאת את מזהה הספק, כולל תיקיות הבת: המשתמש
+    // יורד לתוך `שו"ת אחרונים` ומשם ל-`תורת יקותיאל`, וגם שם צריך
+    // להיות ברור שכל מה שבפנים ייפתח בתוכנה אחרת.
     Category folder(String title, Category? parent, int order) => Category(
       title: title,
       description: '',
@@ -69,6 +73,7 @@ class ResponsaLibraryTree {
       subCategories: [],
       books: [],
       parent: parent,
+      externalProviderId: ExternalProviderRegistry.responsa.id,
     );
 
     for (final book in books) {

@@ -51,6 +51,17 @@ class Category {
   /// A pointer to the parent category, or null if this is a top level category.
   Category? parent;
 
+  /// מזהה הספרייה החיצונית שהתיקייה הזו מציגה, או `null` לתיקייה מותקנת.
+  ///
+  /// הערך הוא `ExternalProviderDescriptor.id` — `responsa` וכדומה — ולא
+  /// `prefix:value` כמו ב-[Book.externalLibraryId]: לתיקייה אין מזהה
+  /// פריט אצל הספק, רק שיוך.
+  ///
+  /// נדרש בתצוגה בלבד: בלעדיו תיקייה שכל תוכנה מגיע מתוכנה חיצונית
+  /// נראית זהה לתיקייה של ספרים מותקנים, ורק כניסה אליה מגלה את ההבדל.
+  /// התיקיות האלה נבנות בשכבת התצוגה ואינן חלק מעץ הספרייה.
+  final String? externalProviderId;
+
   ///returns all the books in this category and its subcategories
   List<Book> getAllBooks() {
     List<Book> books = [];
@@ -100,6 +111,7 @@ class Category {
     required this.subCategories,
     required this.books,
     required this.parent,
+    this.externalProviderId,
   });
 }
 

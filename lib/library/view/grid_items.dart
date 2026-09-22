@@ -93,6 +93,39 @@ Widget? externalProviderIcon(Book book, ColorScheme cs, double iconSize) {
   return ResponsaBookIcon(size: iconSize, color: cs.onSecondaryContainer);
 }
 
+/// אייקון תיקייה: לוגו הספרייה החיצונית שהתיקייה מציגה, או אייקון
+/// התיקייה הרגיל.
+///
+/// תיקייה שכל תוכנה מגיע מתוכנה חיצונית נראית אחרת מתיקייה של ספרים
+/// מותקנים — בלי זה המשתמש רואה שתי תיקיות זהות זו לצד זו, ורק כניסה
+/// לתוכן מגלה שהאחת נפתחת בתוכנה אחרת.
+Widget categoryIconChild(
+  Category category,
+  ColorScheme cs,
+  double iconSize, {
+  bool isOpen = false,
+}) {
+  final provider = ExternalProviderRegistry.byId(category.externalProviderId);
+  if (provider != null) {
+    if (provider.iconAsset case final asset?) {
+      return Image.asset(
+        asset,
+        width: iconSize,
+        height: iconSize,
+        fit: BoxFit.contain,
+      );
+    }
+    if (provider.kind == ExternalProviderKind.responsa) {
+      return ResponsaBookIcon(size: iconSize, color: cs.onSecondaryContainer);
+    }
+  }
+  return Icon(
+    isOpen ? FluentIcons.folder_open_24_regular : FluentIcons.folder_24_regular,
+    color: cs.onSecondaryContainer,
+    size: iconSize,
+  );
+}
+
 /// בונה את תוכן אייקון הספר: לוגו הקטלוג החיצוני אם קיים, אחרת אייקון לפי סוג הקובץ.
 Widget _buildBookIconChild(Book book, ColorScheme cs, double iconSize) {
   final logoAsset = externalCatalogLogoAsset(book);
@@ -367,10 +400,8 @@ class CategoryGridItem extends StatelessWidget {
                 color: cs.secondaryContainer,
                 borderRadius: AppTokens.borderRadiusAll,
               ),
-              child: Icon(
-                FluentIcons.folder_24_regular,
-                color: cs.onSecondaryContainer,
-                size: 16,
+              child: Center(
+                child: categoryIconChild(category, cs, 16),
               ),
             ),
           ],

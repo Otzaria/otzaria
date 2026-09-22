@@ -71,6 +71,22 @@ void main() {
     );
   });
 
+  /// בלי המזהה תיקיית בר אילן מקבלת את אייקון התיקייה הרגיל, ויושבת
+  /// בתוך `שו״ת › אחרונים` כשכנה זהה לתיקייה של ספרים מותקנים.
+  test('כל תיקייה בעץ נושאת את מזהה הספק, כולל תיקיות הבת', () {
+    final tree = ResponsaLibraryTree.build([
+      book('מדרש', 'ספרות חז"ל > מדרשי אגדה > מדרש רבה', 3),
+      book('ספר יתום', 'קטגוריה חדשה במהדורה הבאה', 9),
+    ]);
+    final roots = [...tree.byCategoryPath.values, ...tree.topLevel];
+    expect(roots, hasLength(2));
+    for (final root in roots) {
+      for (final folder in [root, ...root.getAllCategories()]) {
+        expect(folder.externalProviderId, 'responsa', reason: folder.title);
+      }
+    }
+  });
+
   test('רשימה ריקה מחזירה עץ ריק', () {
     expect(ResponsaLibraryTree.build(const []).isEmpty, isTrue);
     expect(ResponsaLibraryTree.empty.isEmpty, isTrue);
