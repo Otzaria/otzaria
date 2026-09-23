@@ -86,6 +86,8 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
       previousAllowOrderBeforeBuiltInsGranted:
           widget.previousAllowOrderBeforeBuiltInsGranted,
       isOfflineMode: widget.isOfflineMode,
+      // המסך נבנה רק אחרי שהוחלט לפתוח דיאלוג; ההכרעה כאן היא מה להציג.
+      isUserInitiated: true,
     );
     _permissionToggles = Map<String, bool>.of(_decision.permissionToggles);
     _allowOrderBeforeBuiltInsGranted =

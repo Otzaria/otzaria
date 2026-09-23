@@ -36,6 +36,8 @@ PluginInstallDecision _decide({
   bool? previousAllowOrder,
   bool allowOrderBeforeBuiltIns = false,
   bool isOfflineMode = false,
+  // הבדיקות כאן עוסקות בהכרעת ההרשאות; מי יזם את ההתקנה נבדק בקובץ נפרד.
+  bool isUserInitiated = true,
 }) => resolvePluginInstallDecision(
   manifest: _manifest(
     permissions: permissions,
@@ -45,6 +47,7 @@ PluginInstallDecision _decide({
   previousGrantedPermissions: previousGranted,
   previousAllowOrderBeforeBuiltInsGranted: previousAllowOrder,
   isOfflineMode: isOfflineMode,
+  isUserInitiated: isUserInitiated,
 );
 
 void main() {
@@ -119,11 +122,13 @@ void main() {
       List<String> permissions = const [],
       String? previousVersion = '1.0.0',
       Map<String, bool> previousGranted = const {},
+      bool isUserInitiated = true,
     }) => PluginSystemInstallRequiresPermissions(
       manifest: _manifest(permissions: permissions),
       tempDirPath: '/tmp/plugin',
       previousVersion: previousVersion,
       previousGrantedPermissions: previousGranted,
+      isUserInitiated: isUserInitiated,
     );
 
     test('עדכון בלי הרשאות חדשות אינו נפתח לדיאלוג', () {
@@ -136,6 +141,20 @@ void main() {
       );
 
       expect(decision.requiresUserDecision, isFalse);
+    });
+
+    test('אותו עדכון שקט כשתוסף יזם אותו — כן נפתח לדיאלוג', () {
+      final decision = resolvePluginInstallPrompt(
+        state(
+          permissions: const ['search.fulltext.read'],
+          previousGranted: const {'search.fulltext.read': true},
+          isUserInitiated: false,
+        ),
+        isOfflineMode: false,
+      );
+
+      expect(decision.isPlainUpdate, isTrue);
+      expect(decision.requiresUserDecision, isTrue);
     });
 
     test('עדכון עם הרשאה חדשה כן נפתח לדיאלוג', () {

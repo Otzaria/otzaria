@@ -216,6 +216,7 @@ PluginInstallDecision resolvePluginInstallPrompt(
   previousAllowOrderBeforeBuiltInsGranted:
       state.previousAllowOrderBeforeBuiltInsGranted,
   isOfflineMode: isOfflineMode,
+  isUserInitiated: state.isUserInitiated,
 );
 
 class MainWindowScreen extends StatefulWidget {

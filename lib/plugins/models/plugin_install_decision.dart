@@ -29,6 +29,10 @@ class PluginInstallDecision {
   /// האם זהו עדכון לגרסה מותקנת.
   final bool isUpdate;
 
+  /// האם התוכנה עצמה ציירה את הכפתור וקיבלה את ההקשה. לחיצה בתוך WebView
+  /// של תוסף אינה ניתנת לאימות, ולכן אינה נחשבת יזומה בידי המשתמש.
+  final bool isUserInitiated;
+
   const PluginInstallDecision({
     required this.orderedPermissions,
     required this.newPermissions,
@@ -37,6 +41,7 @@ class PluginInstallDecision {
     required this.requestsOrderBeforeBuiltIns,
     required this.temporarilyUnavailablePermissions,
     required this.isUpdate,
+    required this.isUserInitiated,
   });
 
   /// עדכון שאינו דורש שום החלטה מהמשתמש.
@@ -46,9 +51,9 @@ class PluginInstallDecision {
       revokedPermissions.isEmpty &&
       !requestsOrderBeforeBuiltIns;
 
-  /// האם יש בכלל מה לשאול. עדכון שאין בו החלטה מאושר בלי דיאלוג — המשתמש
-  /// הוא זה שביקש את העדכון, וההרשאות שהעניק נשארות כפי שהן.
-  bool get requiresUserDecision => !isPlainUpdate;
+  /// האם יש בכלל מה לשאול. עדכון שאין בו החלטה מדלג על הדיאלוג רק כשהמשתמש
+  /// עצמו יזם אותו בממשק — אחרת תוסף היה מעדכן את עצמו בלי ידיעתו.
+  bool get requiresUserDecision => !isPlainUpdate || !isUserInitiated;
 }
 
 /// מחשב את [PluginInstallDecision] עבור מניפסט שעומד להיות מותקן.
@@ -61,6 +66,7 @@ PluginInstallDecision resolvePluginInstallDecision({
   required Map<String, bool> previousGrantedPermissions,
   required bool? previousAllowOrderBeforeBuiltInsGranted,
   required bool isOfflineMode,
+  required bool isUserInitiated,
 }) {
   final isUpdate = previousVersion != null;
   final effective = effectiveManifestPermissions(manifest.permissions);
@@ -102,5 +108,6 @@ PluginInstallDecision resolvePluginInstallDecision({
         .where(isTemporarilyUnavailable)
         .toSet(),
     isUpdate: isUpdate,
+    isUserInitiated: isUserInitiated,
   );
 }
