@@ -250,6 +250,18 @@ This sets `Directionality.rtl` **globally** for the entire widget tree — every
 
 **textDirection rule — Critical:**
 - **NEVER add** `textDirection: TextDirection.rtl` to `Text` — it is completely redundant.
+- **The rule applies to `Text` only.** Every one of the 19 such calls in `lib/` is required, and
+  removing them breaks the app:
+  - **`TextPainter`** (11) — it has no `BuildContext` and inherits nothing. `layout()` throws
+    `TextPainter.textDirection must be set to a non-null value`. Guarded by
+    `test/widgets/text_painter_direction_test.dart`.
+  - **`Directionality`** (3) — pinning a subtree back to RTL is the mechanism itself
+    (`ContentDirectionality`, the PDF export, a colour swatch grid whose order must not flip).
+  - **A widget that may render under an LTR interface language** (4) — anything reached from
+    `lib/settings/`, where `ChromeDirectionality` applies the interface language. A Hebrew
+    quotation there needs the explicit `rtl`, or it flips when the settings are in English.
+  - **A `MaterialApp` built without a `locale`** (1) — the startup-failure fallback in
+    `main.dart`, which has no localization delegates and therefore defaults to LTR.
 - **ADD** `textDirection: TextDirection.ltr` **only** for inherently LTR content:
   - OS file / folder paths
   - Email addresses

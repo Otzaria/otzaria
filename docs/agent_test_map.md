@@ -171,6 +171,7 @@
 | Work/indexing status overlays | `test/widgets/work_status_overlay_test.dart`, `…indexing_status_overlay_test.dart` |
 | App dropdown/search menu | `test/widgets/app_dropdown_field_test.dart`, `…app_search_menu_test.dart` |
 | Search pane base | `test/widgets/search_pane_base_test.dart` |
+| כל `TextPainter` ב-`lib` מקבל `textDirection` (issue #1474) | `test/widgets/text_painter_direction_test.dart` |
 | חיפוש בלשונית חלונית הניווט (אייקון בכותרת, X סוגר ומנקה, חיצים לשורות) | `test/widgets/nav_panel_search_test.dart` |
 | חלונית לא נעוצה מרחפת מעל התוכן; נעיצה אינה בונה מחדש את התוכן | `test/widgets/adaptive_side_pane_test.dart` |
 | נתוני פופאפ "אוצריא מתגייסת" (`assets/support_organizations.json`) | `test/services/support_organizations_test.dart` |
