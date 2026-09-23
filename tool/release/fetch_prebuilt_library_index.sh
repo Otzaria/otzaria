@@ -66,16 +66,23 @@ actual_database=$(hash_file "$database_archive")
 [ "$expected_database" = "$actual_database" ] || fail \
   "the stored index was built from seforim.db.zst $expected_database (release $library_tag) but this build packages $actual_database — rerun build-library-index.yml in Otzaria/SeforimLibrary for the current database release"
 
-# ‏2. אותו מנוע חיפוש. סכמת האינדקס נקבעת ע"י otzaria_search_engine, ואינדקס
-# שנבנה במנוע אחר היה מגיע למשתמש כאינדקס שהאפליקציה דוחה ובונה מחדש.
+# ‏2. סכמת האינדקס של המנוע שנפתר כאן. זו אותה השוואה שהאפליקציה עושה אצל
+# המשתמש — גרסת חבילה שונה בלי שינוי סכמה אינה פוסלת (ה-lock אינו ב-git ו-^ נפתר מחדש).
 expected_engine=$(read_provenance '.searchEngineVersion')
-actual_engine=$(awk '
-  $1 == "otzaria_search_engine:" { found = 1; next }
-  found && $1 == "version:" { gsub(/"/, "", $2); print $2; exit }
-' "$pubspec_lock")
-[ -n "$actual_engine" ] || fail "pubspec.lock pins no otzaria_search_engine version"
-[ "$expected_engine" = "$actual_engine" ] || fail \
-  "the stored index was built with otzaria_search_engine $expected_engine but this build resolves $actual_engine — rerun build-library-index.yml in Otzaria/SeforimLibrary with otzaria_run_id set to a build of this revision"
+package_config="$(dirname "$pubspec_lock")/.dart_tool/package_config.json"
+[ -f "$package_config" ] || fail "package_config.json not found next to $pubspec_lock — run flutter pub get first"
+engine_root=$(jq -er '.packages[] | select(.name == "otzaria_search_engine") | .rootUri' "$package_config") \
+  || fail "package_config.json resolves no otzaria_search_engine"
+engine_root=${engine_root#file://}
+engine_source="$engine_root/rust/src/api/search_engine.rs"
+[ -f "$engine_source" ] || fail "search engine source not found: $engine_source"
+engine_const() { # engine_const <NAME>
+  sed -nE "s/^(pub(\([a-z]+\))? )?const $1: [^=]+= \"?([^\";]+)\"?;.*/\3/p" "$engine_source" | head -n1
+}
+required_format=$(engine_const INDEX_FORMAT)
+required_schema=$(engine_const INDEX_SCHEMA_VERSION)
+[ -n "$required_format" ] && [ -n "$required_schema" ] \
+  || fail "cannot read INDEX_FORMAT / INDEX_SCHEMA_VERSION from $engine_source"
 
 # ‏3. אותה קבוצת כרכי תלמוד. הכרכים אינם מאונדקסים, אבל הם יושבים בעץ הקטלוג
 # ולכן קובעים את catalogueOrder — החצי העליון של כל מזהה מסמך. סט אחר מזיז את
@@ -120,6 +127,12 @@ rm -f "$work/$archive_name".part-*
 zstd -d -c "$work/$archive_name" | tar -C "$work/extract" -xf -
 rm -f "$work/$archive_name"
 [ -d "$work/extract/index" ] || fail "$archive_name does not contain an index/ directory"
+index_meta="$work/extract/index/otzaria_index_meta.json"
+[ -f "$index_meta" ] || fail "$archive_name has no index/otzaria_index_meta.json"
+found_format=$(jq -er '.format' "$index_meta") || fail "otzaria_index_meta.json has no format"
+found_schema=$(jq -er '.schema_version' "$index_meta") || fail "otzaria_index_meta.json has no schema_version"
+[ "$found_format" = "$required_format" ] && [ "$found_schema" = "$required_schema" ] || fail \
+  "the stored index is $found_format schema $found_schema (engine $expected_engine) but this build's otzaria_search_engine requires $required_format schema $required_schema — rerun build-library-index.yml in Otzaria/SeforimLibrary with otzaria_run_id set to a build of this revision"
 mv "$work/extract/index" "$index_dir"
 [ -n "$(find "$index_dir" -mindepth 1 -maxdepth 1 -print -quit)" ] \
   || fail "the extracted index is empty"

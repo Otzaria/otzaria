@@ -140,7 +140,7 @@ void main() {
     );
   });
 
-  test('אינדקס מאוחסן מותקן רק כשה-DB והמנוע של הבנייה תואמים', () async {
+  test('אינדקס מאוחסן מותקן רק כשה-DB וסכמת המנוע של הבנייה תואמים', () async {
     final temp = Directory.systemTemp.createTempSync('otzaria_prebuilt_index_');
     addTearDown(() => temp.deleteSync(recursive: true));
 
@@ -157,6 +157,10 @@ void main() {
     final sourceIndex = Directory(p.join(temp.path, 'src', 'index'))
       ..createSync(recursive: true);
     File(p.join(sourceIndex.path, 'meta.json')).writeAsStringSync('{"o":1}');
+    File(p.join(sourceIndex.path, 'otzaria_index_meta.json')).writeAsStringSync(
+      '{"format":"otzaria-search-index","schema_version":4,'
+      '"engine_version":"0.8.4"}',
+    );
     final dist = Directory(p.join(temp.path, 'dist'))..createSync();
     final archive = p.join(temp.path, 'otzaria-library-index.tar.zst');
     final packed = await sh(
@@ -206,13 +210,34 @@ packages:
     source: hosted
     version: "0.8.4"
 ''');
+    // ההשוואה היא מול קבועי המקור של החבילה שנפתרה, דרך package_config.
+    final engineSource = File(
+      p.join(temp.path, 'engine', 'rust', 'src', 'api', 'search_engine.rs'),
+    )..createSync(recursive: true);
+    Directory(p.join(temp.path, '.dart_tool')).createSync();
+    File(p.join(temp.path, '.dart_tool', 'package_config.json'))
+        .writeAsStringSync(
+          jsonEncode({
+            'packages': [
+              {
+                'name': 'otzaria_search_engine',
+                'rootUri': 'file://${p.join(temp.path, 'engine')}',
+              },
+            ],
+          }),
+        );
 
     Future<ProcessResult> fetch({
       required String databaseSha256,
       required String engineVersion,
       required String indexDirectory,
       String? volumesDigest,
+      int requiredSchema = 4,
     }) async {
+      engineSource.writeAsStringSync(
+        'const INDEX_FORMAT: &str = "otzaria-search-index";\n'
+        'pub(crate) const INDEX_SCHEMA_VERSION: u32 = $requiredSchema;\n',
+      );
       File(p.join(dist.path, 'otzaria-library-index.provenance.json'))
           .writeAsStringSync(
             jsonEncode({
@@ -256,14 +281,31 @@ packages:
     expect(wrongDatabase.exitCode, isNot(0));
     expect(wrongDatabase.stderr, contains('build-library-index.yml'));
 
-    // מנוע חיפוש אחר: האפליקציה הייתה דוחה את האינדקס ובונה אותו מחדש אצל המשתמש.
+    // גרסת מנוע אחרת באותה סכמה: האפליקציה מקבלת את האינדקס, ולכן גם הבנייה.
+    final otherEngineSameSchema = await fetch(
+      databaseSha256: await sha256Of(database.path),
+      engineVersion: '0.8.3',
+      indexDirectory: p.join(temp.path, 'same-schema', 'index'),
+    );
+    expect(
+      otherEngineSameSchema.exitCode,
+      0,
+      reason: '${otherEngineSameSchema.stdout}\n${otherEngineSameSchema.stderr}',
+    );
+
+    // סכמה אחרת: האפליקציה הייתה דוחה את האינדקס ובונה אותו מחדש אצל המשתמש.
     final wrongEngine = await fetch(
       databaseSha256: await sha256Of(database.path),
-      engineVersion: '0.7.0',
+      engineVersion: '0.8.4',
       indexDirectory: p.join(temp.path, 'wrong-engine', 'index'),
+      requiredSchema: 5,
     );
     expect(wrongEngine.exitCode, isNot(0));
-    expect(wrongEngine.stderr, contains('otzaria_search_engine'));
+    expect(wrongEngine.stderr, contains('otzaria_search_engine requires'));
+    expect(
+      Directory(p.join(temp.path, 'wrong-engine', 'index')).existsSync(),
+      isFalse,
+    );
 
     // כרכי תלמוד אחרים: catalogueOrder של כמעט כל הספרייה היה זז מול
     // מה שהאפליקציה מחשבת אצל המשתמש, בלי ששום בדיקה הייתה תופסת זאת.
