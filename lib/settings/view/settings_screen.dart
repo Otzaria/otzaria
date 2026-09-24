@@ -332,6 +332,10 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     (label: 'מערכת', indices: <int>[5, 6]),
   ];
 
+  TextStyle? _mobileTitleStyle(BuildContext context) => Theme.of(
+    context,
+  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold);
+
   @override
   Widget build(BuildContext context) {
     // הכיווניות והשפה חלות על תת-העץ של ההגדרות בלבד; שאר האפליקציה
@@ -386,6 +390,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                       context.settingsText(
                         showResults ? 'תוצאות חיפוש' : 'הגדרות',
                       ),
+                      style: _mobileTitleStyle(context),
                     ),
                     leading: showResults
                         ? Tooltip(
@@ -478,6 +483,7 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
                             ? 'תוצאות חיפוש'
                             : _tabsData[_selectedIndex].label,
                       ),
+                      style: _mobileTitleStyle(context),
                     ),
                     leading: Tooltip(
                       message: context.settingsText('חזור (Esc)'),
