@@ -35,6 +35,7 @@ import 'package:otzaria/settings/dialogs/library_setup_dialog.dart';
 import 'package:otzaria/settings/services/orphan_library_service.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:path/path.dart' as p;
+import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 
 /// טאב הגדרות ספרייה
 class LibrarySettingsTab extends StatefulWidget {
@@ -513,9 +514,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                 ? _buildHebrewBooksLocationWidget(context)
                 : null;
 
-            return SingleChildScrollView(
-              primary: true,
-              padding: const EdgeInsets.all(16.0),
+            return SettingsTabScrollView(
               child: ToolPanelWrapper(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
