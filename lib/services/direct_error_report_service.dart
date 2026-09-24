@@ -78,6 +78,28 @@ class DirectReportDeliveryResult {
   bool get isQueued => status == DirectReportDeliveryStatus.queued;
 }
 
+/// תוצאת [DirectErrorReportService.handOffPendingReports].
+class ReportHandoffResult {
+  /// נכתבו והועברו להיסטוריה.
+  final int handedOff;
+
+  /// נכתבו, אבל אוצריא הפתוחה ערכה או שלחה אותם בינתיים — ולא הועברו.
+  final int changedMeanwhile;
+
+  /// דיווחים פסולים שדולגו ונשארו בתור, כמו בייצוא סקריפט השליחה.
+  final List<String> invalidIds;
+
+  /// כשלי כתיבה לפי מזהה דיווח; הדיווחים נשארו בתור.
+  final Map<String, Object> failures;
+
+  const ReportHandoffResult({
+    required this.handedOff,
+    required this.changedMeanwhile,
+    required this.invalidIds,
+    required this.failures,
+  });
+}
+
 class DirectErrorReportService {
   static const String _endpoint = 'https://otzaria.org/api/reportingerrors';
   static const String queueBoxName = 'error_reports_queue';
@@ -290,7 +312,7 @@ class DirectErrorReportService {
     required OfflineSendScriptTarget target,
   }) {
     // דיווח פסול היה נדחה בשרת ממילא; הוא נשאר בתור לעריכה ולא מפיל את הייצוא.
-    final sendable = reports.where((r) => _digestOrNull(r) != null).toList();
+    final sendable = reports.where(isSendable).toList();
     return buildOfflineReportScript(
       target: target,
       endpoint: _endpoint,
@@ -298,6 +320,75 @@ class DirectErrorReportService {
       ids: sendable.map((report) => report.id).toList(),
       idField: 'report_id',
       baseFileName: 'otzaria_send_saved_reports',
+    );
+  }
+
+  static const String pendingFormat = 'otzaria-reports-pending';
+  static const int pendingFormatVersion = 1;
+  static const String handoffFormat = 'otzaria-report';
+  static const int handoffFormatVersion = 1;
+
+  /// דיווח פסול (surrogate בודד) היה נדחה בשרת ממילא, ולכן אינו נשלח.
+  static bool isSendable(DirectErrorReport report) =>
+      _digestOrNull(report) != null;
+
+  /// מספר הדיווחים בתור שאפשר להעביר למחשב מחובר.
+  Future<int> getSendablePendingReportsCount() async =>
+      (await getPendingReports()).where(isSendable).length;
+
+  static Map<String, dynamic> pendingDocument(int count) => {
+    'format': pendingFormat,
+    'version': pendingFormatVersion,
+    'pending': count,
+  };
+
+  /// מסמך העברה של דיווח למחשב מחובר, ששולח את `body` כמות שהוא ל-`endpoint`.
+  static Map<String, dynamic> handoffDocument(DirectErrorReport report) => {
+    'format': handoffFormat,
+    'version': handoffFormatVersion,
+    'report_id': report.id,
+    'endpoint': _endpoint,
+    'book_title': report.bookTitle,
+    'created_at': report.createdAt.toIso8601String(),
+    'body': report.toApiPayload(),
+  };
+
+  /// מוסר כל דיווח שבתור ל-[write], ורק אחרי שנכתב מעביר אותו להיסטוריה —
+  /// כמו [markPendingReportAsSent]. דיווח שנכשל נשאר בתור.
+  Future<ReportHandoffResult> handOffPendingReports(
+    Future<void> Function(DirectErrorReport report) write,
+  ) async {
+    var handedOff = 0;
+    var changedMeanwhile = 0;
+    final invalidIds = <String>[];
+    final failures = <String, Object>{};
+    for (final row in await _reports.listByKind(pendingKind)) {
+      final report = _decode(row);
+      if (!isSendable(report)) {
+        invalidIds.add(report.id);
+        continue;
+      }
+      try {
+        await write(report);
+      } catch (error) {
+        failures[report.id] = error;
+        continue;
+      }
+      final kept = _sentReportsCount(await _reports.listByKind(sentKind));
+      final move = await _reports.moveIfUnchanged(row, sentKind);
+      if (!move.moved) {
+        changedMeanwhile++;
+        continue;
+      }
+      handedOff++;
+      await _reports.trimKind(sentKind, maxSentReportsToKeep);
+      if (!move.replaced) await _sentCounter.increment(floor: kept);
+    }
+    return ReportHandoffResult(
+      handedOff: handedOff,
+      changedMeanwhile: changedMeanwhile,
+      invalidIds: List.unmodifiable(invalidIds),
+      failures: Map.unmodifiable(failures),
     );
   }
 

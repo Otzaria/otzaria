@@ -111,6 +111,7 @@ import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
+import 'package:otzaria/services/error_reports_cli.dart';
 import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
@@ -1364,6 +1365,8 @@ String _buildLocalPluginInstallUri(String filePath) {
 ///       בונה אינדקס חיפוש מבודד עבור חבילת ההפצה המלאה.
 ///   `otzaria info [<נושא>] [--limit=<n>] [--compact] [--out=<path>]`
 ///       מדפיס דוח JSON על ההתקנה ל-stdout (ראה [AppInfoCli]).
+///   `otzaria reports <pending|handoff> [--out=<path>]`
+///       מעביר דיווחי טעויות שמורים למחשב מחובר (ראה [ErrorReportsCli]).
 ///
 /// הלוגיקה עצמה ב-[PluginPackagerCli.run] כדי לשתף בדיוק את אותו הקוד
 /// עם `tool/plugins/package_plugin.dart`.
@@ -1388,6 +1391,13 @@ Future<bool> _maybeRunCliCommand(List<String> args) async {
 
   if (normalized == 'info') {
     final exitCode = await AppInfoCli.run(args.skip(1).toList());
+    await stdout.flush();
+    await stderr.flush();
+    exit(exitCode);
+  }
+
+  if (normalized == 'reports') {
+    final exitCode = await ErrorReportsCli.run(args.skip(1).toList());
     await stdout.flush();
     await stderr.flush();
     exit(exitCode);

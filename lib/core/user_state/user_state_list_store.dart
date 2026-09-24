@@ -39,7 +39,7 @@ class UserStateListStore {
 
   Future<void> write(String box, String key, List<dynamic> value) async {
     final db = await _database.database;
-    _withImmediateTransaction(db, () => _writeIn(db, box, key, value));
+    withImmediateTransaction(db, () => _writeIn(db, box, key, value));
     _notifyPeers(box, key);
   }
 
@@ -52,7 +52,7 @@ class UserStateListStore {
   ) async {
     final db = await _database.database;
     late List<dynamic> result;
-    _withImmediateTransaction(db, () {
+    withImmediateTransaction(db, () {
       result = apply(_readIn(db, box, key));
       _writeIn(db, box, key, result);
     });
@@ -103,7 +103,7 @@ class UserStateListStore {
   /// הטרנזקציה רואה את המצב שאף חלון אחר לא ישנה עד ה-COMMIT.
   /// ⚠️ בלי ניסיון חוזר: כל החלונות חולקים thread אחד, ולכן נעילה של
   /// חלון אחר בתהליך אינה יכולה להשתחרר בזמן שאנחנו ממתינים לה.
-  void _withImmediateTransaction(Database db, void Function() body) {
+  static void withImmediateTransaction(Database db, void Function() body) {
     db.execute('BEGIN IMMEDIATE');
     try {
       body();

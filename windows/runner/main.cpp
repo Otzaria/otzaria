@@ -149,7 +149,8 @@ static bool EqualsIgnoreCase(const std::string& a, const std::string& b) {
 //
 // `info` prints a JSON report to stdout: it must skip the single-instance
 // guard so it works while the GUI is running, and must never raise or show a
-// window — the caller is another program reading our stdout.
+// window — the caller is another program reading our stdout. `reports` is
+// called the same way, by an offline-update tool, while the GUI may be open.
 //
 // Note: |args| is the list returned by GetCommandLineArguments(), which
 // already strips argv[0]. The first user-supplied argument is therefore at
@@ -164,7 +165,8 @@ static bool IsCliInvocation(const std::vector<std::string>& args) {
     if (c == '_') c = '-';
   }
   return EqualsIgnoreCase(cmd, "pack-plugin") || EqualsIgnoreCase(cmd, "info") ||
-         EqualsIgnoreCase(cmd, "build-release-index");
+         EqualsIgnoreCase(cmd, "build-release-index") ||
+         EqualsIgnoreCase(cmd, "reports");
 }
 
 // Case-insensitive check whether `s` ends with `suffix` (ASCII only).

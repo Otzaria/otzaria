@@ -4,7 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/cli_command.dart';
 
 /// הפקודות שהצד של Dart מטפל בהן ב-`_maybeRunCliCommand`.
-const _dartCommands = {'pack-plugin', 'build-release-index', 'info'};
+const _dartCommands = {
+  'pack-plugin',
+  'build-release-index',
+  'info',
+  'reports',
+};
 
 /// הפקודות שה-runner של Windows מריץ headless (בלי mutel מופע-יחיד ובלי splash).
 Set<String> _readRunnerCommands() {
@@ -69,6 +74,10 @@ void main() {
 
     test('IsCliInvocation מכיל את `info`', () {
       expect(_readRunnerCommands(), contains('info'));
+    });
+
+    test('IsCliInvocation מכיל את `reports`', () {
+      expect(_readRunnerCommands(), contains('reports'));
     });
   });
 }

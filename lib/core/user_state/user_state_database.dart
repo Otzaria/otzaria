@@ -18,11 +18,19 @@ class UserStateDatabase {
 
   Database? _database;
   String? _pathOverride;
+  int _busyTimeoutMs = 1000;
 
   /// פותח את המסד בנתיב הזה במקום בתיקיית המסדים; לבדיקות בלבד.
   @visibleForTesting
   static UserStateDatabase openAt(String path) =>
       UserStateDatabase._().._pathOverride = path;
+
+  /// פתיחה מתהליך נפרד (CLI), שאינו חוסם חלונות — ולכן ממתין יותר לנעילה
+  /// של המופע הגרפי, כבר בהגדרת ה-WAL שבפתיחה.
+  static UserStateDatabase openInSeparateProcess(String path) =>
+      UserStateDatabase._()
+        .._pathOverride = path
+        .._busyTimeoutMs = 5000;
 
   @visibleForTesting
   void overridePath(String path) {
@@ -46,7 +54,7 @@ class UserStateDatabase {
     final db = sqlite3.open(path);
     // ההמתנה חוסמת את ה-thread המשותף לכל החלונות, ולכן קצרה: היא עוזרת
     // רק מול תהליך אחר (גיבוי, checkpoint).
-    db.execute('PRAGMA busy_timeout=1000');
+    db.execute('PRAGMA busy_timeout=$_busyTimeoutMs');
     enableWalBestEffort(db, 'UserStateDatabase');
     _createSchema(db);
     _migrateSchema(db);

@@ -245,6 +245,8 @@ flutter:
     - assets/Acronyms.json
     - assets/support_organizations.json
     - assets/export_restricted_books.json
+    # נקרא מהדיסק ע"י כלים חיצוניים, בלי להריץ את התוכנה (ראה docs/deep_links.md)
+    - assets/cli_capabilities.json
 
   fonts:
     # החבילה מספקת את הגופן אך אינה מצהירה עליו, ולכן שני אייקוני ה-light

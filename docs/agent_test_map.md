@@ -279,6 +279,7 @@
 | תיקוני טקסט — חוזה A (מודל schema 2, round-trip מדויק, null מול "", לקוח ישן, 409/413/429, `correction_supported`) | `test/models/direct_error_report_text_correction_test.dart`, `test/services/direct_error_report_service_test.dart` |
 | digest קנוני OCJ-1 מול ה-fixtures המשותפים לאתר | `test/utils/canonical_json_test.dart` |
 | סקריפט שליחה אופליין (bat/sh) — ה-payload מגיע לשרת כלשונו (הרצה אמיתית ב-bash/PowerShell) | `test/services/offline_report_script_payload_test.dart` |
+| `otzaria reports pending/handoff` — העברת דיווחים שמורים בקבצים (ספירה, גוף זהה ל-API, כשל באמצע, שמות קבצים) | `test/services/error_reports_cli_test.dart`, `test/core/user_state/window_session_and_reports_store_test.dart` |
 
 **Calendar (`lib/tools/calendar/`)**
 | Area | Test File |

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:otzaria/core/user_state/user_state_database.dart';
+import 'package:otzaria/core/user_state/user_state_list_store.dart';
 
 /// רשומה אחת בתור דיווחים.
 class PendingReport {
@@ -90,6 +91,55 @@ class PendingReportStore {
       'DELETE FROM pending_reports WHERE id IN ($placeholders)',
       list,
     );
+  }
+
+  /// מעביר את [row] לסוף [kind] בטרנזקציה אחת, ורק אם לא השתנתה מאז שנקראה —
+  /// אחרת עריכה או שליחה של חלון אחר בינתיים הייתה נבלעת. רשומה קודמת ב-[kind]
+  /// באותו `id` מוחלפת, ו-`replaced` מציין שהייתה כזו.
+  Future<({bool moved, bool replaced})> moveIfUnchanged(
+    PendingReport row,
+    String kind,
+  ) async {
+    final db = await _database.database;
+    final payloadJson = jsonEncode(row.payload);
+    var moved = false;
+    var replaced = false;
+    UserStateListStore.withImmediateTransaction(db, () {
+      final current = db.select(
+        'SELECT payload_json FROM pending_reports WHERE id = ? AND kind = ?',
+        [row.id, row.kind],
+      );
+      moved =
+          current.isNotEmpty &&
+          jsonEncode(jsonDecode(current.first['payload_json'] as String)) ==
+              payloadJson;
+      if (!moved) return;
+      final reportId = row.payload['id'];
+      final sameId = reportId == null
+          ? const <int>[]
+          : db
+                .select(
+                  'SELECT id, payload_json FROM pending_reports WHERE kind = ?',
+                  [kind],
+                )
+                .where(
+                  (other) =>
+                      jsonDecode(other['payload_json'] as String)['id'] ==
+                      reportId,
+                )
+                .map((other) => other['id'] as int)
+                .toList();
+      replaced = sameId.isNotEmpty;
+      for (final id in [row.id, ...sameId]) {
+        db.execute('DELETE FROM pending_reports WHERE id = ?', [id]);
+      }
+      db.execute(
+        'INSERT INTO pending_reports (kind, payload_json, created_at) '
+        'VALUES (?, ?, ?)',
+        [kind, payloadJson, DateTime.now().millisecondsSinceEpoch],
+      );
+    });
+    return (moved: moved, replaced: replaced);
   }
 
   Future<void> deleteAllOfKind(String kind) async {

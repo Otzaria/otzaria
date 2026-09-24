@@ -78,5 +78,56 @@ void main() {
       expect(await store.countByKind('errors/pending'), 0);
       expect(await store.countByKind('plugins/pending'), 1);
     });
+
+    test('moveIfUnchanged מעביר לסוף הסוג, ומוותר כשהשורה השתנתה', () async {
+      final store = PendingReportStore(database: db);
+      await store.add('errors/sent', {'id': 'x', 'm': 0});
+      await store.add('errors/pending', {'id': 'a', 'm': 1});
+      await store.add('errors/pending', {'id': 'b', 'm': 2});
+      await store.add('errors/pending', {'id': 'c', 'm': 3});
+      final rows = await store.listByKind('errors/pending');
+
+      expect(await store.moveIfUnchanged(rows[0], 'errors/sent'), (
+        moved: true,
+        replaced: false,
+      ));
+      // חלון אחר ערך את השנייה ושלח את השלישית אחרי שנקראו.
+      await store.updatePayload(rows[1].id, {'id': 'b', 'm': 20});
+      await store.deleteIds([rows[2].id]);
+      expect(
+        (await store.moveIfUnchanged(rows[1], 'errors/sent')).moved,
+        false,
+      );
+      expect(
+        (await store.moveIfUnchanged(rows[2], 'errors/sent')).moved,
+        false,
+      );
+
+      expect(
+        (await store.listByKind('errors/sent')).map((r) => r.payload['m']),
+        [0, 1],
+      );
+      expect(
+        (await store.listByKind('errors/pending')).map((r) => r.payload['m']),
+        [20],
+      );
+    });
+
+    test('moveIfUnchanged מחליף רשומה קודמת באותו id', () async {
+      final store = PendingReportStore(database: db);
+      await store.add('errors/sent', {'id': 'a', 'm': 0});
+      await store.add('errors/sent', {'id': 'x', 'm': 9});
+      await store.add('errors/pending', {'id': 'a', 'm': 1});
+      final row = (await store.listByKind('errors/pending')).single;
+
+      expect(await store.moveIfUnchanged(row, 'errors/sent'), (
+        moved: true,
+        replaced: true,
+      ));
+      expect(
+        (await store.listByKind('errors/sent')).map((r) => r.payload['m']),
+        [9, 1],
+      );
+    });
   });
 }
