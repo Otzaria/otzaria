@@ -342,6 +342,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   // Cache לרשימת אינדקסי TOC ממוינת - למניעת חישוב מחדש בכל לחיצה
   List<int>? _cachedTocIndices;
+  int? _pendingSegmentTarget;
+  int? _pendingTocLine;
   String? _cachedTocBookTitle;
   List<TocEntry>? _cachedToc;
 
@@ -2344,22 +2346,32 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   void _onNavPreviousToc() => _runNavigation(_navigateToPreviousToc);
   void _onNavNextToc() => _runNavigation(_navigateToNextToc);
 
-  void _scrollToPreviousSegment(TextBookLoaded state) {
-    final positions = state.positionsListener.itemPositions.value;
-    if (positions.isEmpty) return;
-    state.scrollController.scrollTo(
-      duration: const Duration(milliseconds: 300),
-      index: max(0, _topmostVisibleIndex(state) - 1),
-    );
-  }
+  void _scrollToPreviousSegment(TextBookLoaded state) =>
+      _scrollBySegments(state, -1);
 
-  void _scrollToNextSegment(TextBookLoaded state) {
-    final positions = state.positionsListener.itemPositions.value;
-    if (positions.isEmpty) return;
-    state.scrollController.scrollTo(
+  void _scrollToNextSegment(TextBookLoaded state) =>
+      _scrollBySegments(state, 1);
+
+  /// לחיצה תוך כדי גלילה ממשיכה מהיעד הקודם: הקטע העליון מתעדכן כלפי מטה רק
+  /// בסוף האנימציה, ובלי זה לחיצות רצופות קדימה חוזרות על אותו יעד.
+  void _scrollBySegments(TextBookLoaded state, int delta) {
+    if (state.positionsListener.itemPositions.value.isEmpty) return;
+    final lastIndex = state.readingSegments.isNotEmpty
+        ? state.readingSegments.length - 1
+        : state.content.length - 1;
+    final int target =
+        ((_pendingSegmentTarget ?? _topmostVisibleIndex(state)) + delta).clamp(
+          0,
+          max(0, lastIndex),
+        );
+    final scroll = state.scrollController.scrollTo(
       duration: const Duration(milliseconds: 300),
-      index: _topmostVisibleIndex(state) + 1,
+      index: target,
     );
+    _pendingSegmentTarget = target;
+    scroll.whenComplete(() {
+      if (_pendingSegmentTarget == target) _pendingSegmentTarget = null;
+    });
   }
 
   /// מחזיר רשימה ממוינת של כל אינדקסי ה-TOC (עם cache)
@@ -2444,36 +2456,38 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
 
   /// ניווט לכותרת הקודמת ב-TOC
   void _navigateToPreviousToc(TextBookLoaded state) {
-    final currentIndex = _topmostVisibleSourceLine(state);
-    final prevIndex = _findPreviousTocIndex(
-      state.tableOfContents,
-      currentIndex,
-      state.book.title,
+    final currentIndex = _pendingTocLine ?? _topmostVisibleSourceLine(state);
+    _scrollToTocLine(
+      state,
+      _findPreviousTocIndex(
+        state.tableOfContents,
+        currentIndex,
+        state.book.title,
+      ),
     );
-    if (prevIndex != null) {
-      state.scrollController.scrollTo(
-        // ה-TOC עובד בשורות מקור; ה-ListView לפי itemIndex (=segmentIndex
-        // במצב רצף).
-        index: _itemIndexForSourceLine(state, prevIndex),
-        duration: const Duration(milliseconds: 300),
-      );
-    }
   }
 
   /// ניווט לכותרת הבאה ב-TOC
   void _navigateToNextToc(TextBookLoaded state) {
-    final currentIndex = _topmostVisibleSourceLine(state);
-    final nextIndex = _findNextTocIndex(
-      state.tableOfContents,
-      currentIndex,
-      state.book.title,
+    final currentIndex = _pendingTocLine ?? _topmostVisibleSourceLine(state);
+    _scrollToTocLine(
+      state,
+      _findNextTocIndex(state.tableOfContents, currentIndex, state.book.title),
     );
-    if (nextIndex != null) {
-      state.scrollController.scrollTo(
-        index: _itemIndexForSourceLine(state, nextIndex),
-        duration: const Duration(milliseconds: 300),
-      );
-    }
+  }
+
+  void _scrollToTocLine(TextBookLoaded state, int? line) {
+    if (line == null) return;
+    final scroll = state.scrollController.scrollTo(
+      // ה-TOC עובד בשורות מקור; ה-ListView לפי itemIndex (=segmentIndex
+      // במצב רצף).
+      index: _itemIndexForSourceLine(state, line),
+      duration: const Duration(milliseconds: 300),
+    );
+    _pendingTocLine = line;
+    scroll.whenComplete(() {
+      if (_pendingTocLine == line) _pendingTocLine = null;
+    });
   }
 
   Widget _buildPrintButton(
@@ -2882,26 +2896,31 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyF):
                 _openSearchFromToolbar,
           },
-          child: TextBookScaffold(
-            content: state.content,
-            openBookCallback: widget.openBookCallback,
-            openLeftPaneTab: _openLeftPaneTab,
-            onSelectedTextChanged: _onSelectedTextChanged,
-            searchTextController: TextEditingValue(text: state.searchText),
-            tab: widget.tab,
-            initialSidebarTabIndex: _sidebarTabIndex,
-            onSidebarTabChanged: (index) {
-              if (_sidebarTabIndex != index) {
-                setState(() {
-                  _sidebarTabIndex = index;
-                });
-              }
-            },
-            pageShapeKey: _pageShapeKey,
-            pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
-            pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
-            pageShapeOpenSettingsNotifier: _pageShapeOpenSettingsNotifier,
-            openSearch: _openSearchWithText,
+          child: Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            onKeyEvent: passSegmentArrowsToGlobalShortcuts,
+            child: TextBookScaffold(
+              content: state.content,
+              openBookCallback: widget.openBookCallback,
+              openLeftPaneTab: _openLeftPaneTab,
+              onSelectedTextChanged: _onSelectedTextChanged,
+              searchTextController: TextEditingValue(text: state.searchText),
+              tab: widget.tab,
+              initialSidebarTabIndex: _sidebarTabIndex,
+              onSidebarTabChanged: (index) {
+                if (_sidebarTabIndex != index) {
+                  setState(() {
+                    _sidebarTabIndex = index;
+                  });
+                }
+              },
+              pageShapeKey: _pageShapeKey,
+              pageShapePrintBoundaryKey: _pageShapePrintBoundaryKey,
+              pageShapeSidebarTabNotifier: _pageShapeSidebarTabNotifier,
+              pageShapeOpenSettingsNotifier: _pageShapeOpenSettingsNotifier,
+              openSearch: _openSearchWithText,
+            ),
           ),
         ),
       ),
@@ -3062,6 +3081,27 @@ int _topmostVisibleIndex(TextBookLoaded state) =>
 // ה-helpers הבאים הם wrapper-ים דקים לפונקציות הטהורות ב-visible_index.dart
 // (`resolveTopmostSourceLine`/`resolveItemIndexForSourceLine`).
 // הלוגיקה נבדקת ב-test/text_book/utils/visible_index_test.dart.
+
+/// אזורי הבחירה בולעים את Alt+חיצים כפעולת בחירה ריקה, ואז קיצור הניווט לא
+/// מגיע ל-late handler הגלובלי. בשדה טקסט המקשים נשארים להזזת הסמן.
+@visibleForTesting
+KeyEventResult passSegmentArrowsToGlobalShortcuts(FocusNode _, KeyEvent event) {
+  final keyboard = HardwareKeyboard.instance;
+  final isSegmentArrow =
+      const SingleActivator(
+        LogicalKeyboardKey.arrowUp,
+        alt: true,
+      ).accepts(event, keyboard) ||
+      const SingleActivator(
+        LogicalKeyboardKey.arrowDown,
+        alt: true,
+      ).accepts(event, keyboard);
+  if (!isSegmentArrow ||
+      isTextInputFocusNode(FocusManager.instance.primaryFocus)) {
+    return KeyEventResult.ignored;
+  }
+  return KeyEventResult.skipRemainingHandlers;
+}
 
 int _topmostVisibleSourceLine(TextBookLoaded state) => resolveTopmostSourceLine(
   positions: state.positionsListener.itemPositions.value,
