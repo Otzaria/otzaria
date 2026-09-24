@@ -52,7 +52,6 @@ import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/core/external_uri_router.dart';
-import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria/utils/ui/editable_focus.dart';
 
 // ── קבועים ────────────────────────────────────────────────────────────────────
@@ -2312,7 +2311,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Center(
-        child: _buildListRowIconChild(book, cs, iconSize),
+        child: bookIconChild(book, cs, iconSize),
       ),
     );
 
@@ -2340,25 +2339,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       trailing: ExcludeFocusTraversal(
         child: BookActionsMenuButton(book: book, onBookDeleted: onBookDeleted),
       ),
-    );
-  }
-
-  /// תוכן אייקון שורת הספר: לוגו הקטלוג החיצוני אם הספר הגיע ממנו (גם כשהוא
-  /// ספר היברובוקס מקומי שהומר ל-PdfBook), אחרת אייקון לפי סוג הספר.
-  Widget _buildListRowIconChild(Book book, ColorScheme cs, double iconSize) {
-    final logoAsset = externalCatalogLogoAsset(book);
-    if (logoAsset != null) {
-      return Image.asset(
-        logoAsset,
-        width: iconSize,
-        height: iconSize,
-        fit: BoxFit.contain,
-      );
-    }
-    return BookFormatIcon(
-      book: book,
-      color: cs.onSecondaryContainer,
-      size: iconSize,
     );
   }
 

@@ -127,7 +127,12 @@ Widget categoryIconChild(
 }
 
 /// בונה את תוכן אייקון הספר: לוגו הקטלוג החיצוני אם קיים, אחרת אייקון לפי סוג הקובץ.
-Widget _buildBookIconChild(Book book, ColorScheme cs, double iconSize) {
+Widget bookIconChild(
+  Book book,
+  ColorScheme cs,
+  double iconSize, {
+  Color? color,
+}) {
   final logoAsset = externalCatalogLogoAsset(book);
   if (logoAsset != null) {
     return Image.asset(
@@ -140,7 +145,7 @@ Widget _buildBookIconChild(Book book, ColorScheme cs, double iconSize) {
   if (externalProviderIcon(book, cs, iconSize) case final icon?) return icon;
   return BookFormatIcon(
     book: book,
-    color: cs.onSecondaryContainer,
+    color: color ?? cs.onSecondaryContainer,
     size: iconSize,
   );
 }
@@ -503,7 +508,7 @@ class _BookGridMediaColumn extends StatelessWidget {
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Center(
-        child: _buildBookIconChild(book, cs, iconSize),
+        child: bookIconChild(book, cs, iconSize),
       ),
     );
 

@@ -3,7 +3,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// תצוגה מקדימה של תיקייה בספרייה: שם, נתיב, תיאור (אם קיים), מונים ורשימת
@@ -110,9 +109,10 @@ class CategoryPreviewPanel extends StatelessWidget {
                   }
                   final book = books[index - subCategories.length];
                   return _ContentRow(
-                    icon: Icon(
-                      bookFormatIcon(book),
-                      size: 16,
+                    icon: bookIconChild(
+                      book,
+                      cs,
+                      16,
                       color: cs.onSurfaceVariant,
                     ),
                     title: book.title,
