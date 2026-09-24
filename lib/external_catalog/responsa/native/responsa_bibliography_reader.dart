@@ -61,7 +61,7 @@ class ResponsaBibliographyReader {
       // כל הקובץ, ולא תיקייה בשם ידוע: שם התיקייה משתנה בין מהדורות,
       // ו-[ResponsaBibliography.onlyBibliographyFolder] מאתר אותה לפי
       // המבנה.
-      final pages = ResponsaChm.read(file, folder: const <String>[]);
+      final pages = ResponsaChm.read(file);
       if (pages.isEmpty) continue;
       final bibliography = ResponsaBibliography.parse(
         ResponsaBibliography.onlyBibliographyFolder(pages),

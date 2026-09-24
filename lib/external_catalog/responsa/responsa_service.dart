@@ -50,7 +50,4 @@ class ResponsaService {
     final result = await provider.open(book);
     return result.ok ? null : (result.message ?? 'פתיחת הספר נכשלה');
   }
-
-  /// מבטל פתיחה שרצה כרגע.
-  void cancelOpen() => provider.cancel();
 }

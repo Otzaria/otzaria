@@ -62,16 +62,9 @@ class _FakeController implements ResponsaController {
     })
   >
   calls = [];
-  bool cancelled = false;
 
   @override
   bool get autoStart => true;
-
-  @override
-  bool get isBusy => false;
-
-  @override
-  void cancel() => cancelled = true;
 
   @override
   Future<ResponsaStatus> status() async => const ResponsaStatus(
@@ -310,12 +303,6 @@ void main() {
       expect(result.message, contains('רא"ש יבמות'));
       // מה אפשר לעשות עכשיו — בלי זה ההודעה אינה שימושית.
       expect(result.message, contains('לרענן'));
-    });
-
-    test('ביטול מגיע לבקר', () {
-      final built = build(success);
-      built.provider.cancel();
-      expect(built.controller.cancelled, isTrue);
     });
   });
 

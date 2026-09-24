@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_failure.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
@@ -94,7 +92,6 @@ class ResponsaController {
   /// נכשלת ב"ההפעלה כבויה בהגדרות" בזמן שהיא דלוקה.
   bool get autoStart => _allowAutoStart();
 
-  Pointer<Int32>? _cancelFlag;
   var _busy = false;
 
   /// כותרות החלונות שאוצריא פתחה בפרויקט השו"ת, לאורך כל הסשן.
@@ -161,8 +158,8 @@ class ResponsaController {
       );
     }
 
-    // פתיחה אחת בכל רגע. בלי זה שתי פתיחות חופפות דורסות זו את דגל
-    // הביטול של זו, והביטול הופך ללא-פעולה עבור זו שעדיין רצה.
+    // פתיחה אחת בכל רגע: שתי פתיחות חופפות מתחרות על אותו מופע
+    // ומשאירות חלונות פתוחים שאיש אינו סוגר.
     if (_busy) {
       return const ResponsaOpenReport(
         ok: false,
@@ -175,15 +172,13 @@ class ResponsaController {
       final launch = await _ensureRunning(installPath);
       if (launch != null) return launch;
 
-      final report = await _runCancellable(
-        (flagAddress) => _OpenRequest(
+      final report = await _runInIsolate(
+        _OpenRequest(
           references: references,
           expectedTitle: expectedTitle,
           installPath: installPath,
-          cancelFlagAddress: flagAddress,
           openedWindows: List.of(_openedWindows),
         ),
-        _openBookInIsolate,
       );
       if (report.openedWindows.isNotEmpty) {
         _openedWindows
@@ -196,27 +191,9 @@ class ResponsaController {
     }
   }
 
-  /// מבטל את הפעולה הרצה. הביטול אמיתי — האיזולט עוצר בנקודת ההמתנה
-  /// הבאה ומחזיר `cancelled`.
-  void cancel() {
-    final flag = _cancelFlag;
-    if (flag != null) flag.value = 1;
-  }
-
-  /// האם פעולה רצה כרגע.
-  ///
-  /// נגזר מהדגל עצמו ולא משדה נפרד. היה כאן `Isolate? _running` שלא
-  /// הושם לעולם, ולכן `isBusy` החזיר `false` תמיד — שומר שאינו שומר.
-  bool get isBusy => _busy;
-
-  Future<ResponsaOpenReport> _runCancellable(
-    _OpenRequest Function(int flagAddress) build,
-    Future<ResponsaOpenReport> Function(_OpenRequest) body,
-  ) async {
-    final flag = calloc<Int32>();
-    _cancelFlag = flag;
+  Future<ResponsaOpenReport> _runInIsolate(_OpenRequest request) async {
     try {
-      return await Isolate.run(() => body(build(flag.address)));
+      return await Isolate.run(() => _openBookInIsolate(request));
     } catch (error, stackTrace) {
       // כשל לא צפוי באיזולט לעולם לא מגיע ל-UI כחריג.
       debugPrint('ResponsaController: isolate failed: $error\n$stackTrace');
@@ -225,9 +202,6 @@ class ResponsaController {
         failure: ResponsaFailure.timeout,
         message: 'פתיחת הספר בבר אילן נכשלה באופן בלתי צפוי: $error',
       );
-    } finally {
-      _cancelFlag = null;
-      calloc.free(flag);
     }
   }
 
@@ -284,12 +258,11 @@ class ResponsaController {
       instance.title,
     );
 
-    final flag = Pointer<Int32>.fromAddress(request.cancelFlagAddress);
     final automation = ResponsaAutomation(
       pid: instance.pid,
       profile: ResponsaVersionProfile.forVersion(version),
       openedWindows: request.openedWindows,
-    )..cancelled = () => flag.value != 0;
+    );
 
     try {
       final outcome = automation.openBook(
@@ -324,14 +297,12 @@ class _OpenRequest {
   final List<String> references;
   final String? expectedTitle;
   final String? installPath;
-  final int cancelFlagAddress;
 
   /// החלונות שאוצריא פתחה בפתיחות קודמות. ראו [ResponsaController].
   final List<String> openedWindows;
 
   const _OpenRequest({
     required this.references,
-    required this.cancelFlagAddress,
     this.expectedTitle,
     this.installPath,
     this.openedWindows = const [],

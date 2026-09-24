@@ -107,8 +107,6 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
   }
 
   /// ביטול פעולה ארוכה. הביטול אמיתי — הפעולה עצמה נעצרת.
-  void cancel() => controller.cancel();
-
   static String? _keyOf(Book book) {
     final parsed = ExternalProviderRegistry.parse(book.externalLibraryId);
     if (parsed?.provider.kind != ExternalProviderKind.responsa) return null;

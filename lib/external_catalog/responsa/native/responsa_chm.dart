@@ -43,29 +43,25 @@ class ResponsaChm {
   static const int _maxEntryBytes = 4 * 1024 * 1024;
 
   /// תקרת זיכרון לקריאה כולה.
-  @visibleForTesting
-  static const int maxTotalBytesForBudget = 64 * 1024 * 1024;
+  static const int _maxTotalBytes = 64 * 1024 * 1024;
 
   /// עומק מרבי של תיקיות בתוך ה-CHM.
   static const int _maxDepth = 8;
 
-  /// קורא את כל ה-**קבצים** שתחת [folder] בתוך [chmPath], רקורסיבית.
+  /// קורא את כל ה-**קבצים** שב-[chmPath], רקורסיבית.
   ///
-  /// המפתח במפה הוא הנתיב היחסי ל-[folder], עם `/` כמפריד. הערך הוא
-  /// התוכן הגולמי — הפענוח לטקסט שייך לקורא, כי CHM אינו מצהיר קידוד.
-  static Map<String, Uint8List> read(
-    String chmPath, {
-    required List<String> folder,
-  }) {
+  /// המפתח במפה הוא הנתיב בתוך הקובץ, עם `/` כמפריד. הערך הוא התוכן
+  /// הגולמי — הפענוח לטקסט שייך לקורא, כי CHM אינו מצהיר קידוד.
+  static Map<String, Uint8List> read(String chmPath) {
     try {
-      return _read(chmPath, folder);
+      return _read(chmPath);
     } catch (error) {
       debugPrint('ResponsaChm: reading $chmPath failed: $error');
       return const {};
     }
   }
 
-  static Map<String, Uint8List> _read(String chmPath, List<String> folder) {
+  static Map<String, Uint8List> _read(String chmPath) {
     // `CoInitializeEx` מחזיר `RPC_E_CHANGED_MODE` כשהאיזולט כבר אתחל COM
     // במודל אחר. זה אינו כשל: אפשר להמשיך ולהשתמש ב-COM כרגיל, ורק אסור
     // לשחרר — האתחול שייך למי שעשה אותו.
@@ -102,19 +98,8 @@ class ResponsaChm {
       if (root == nullptr) return const {};
       handles.add(root);
 
-      var current = root;
-      for (final name in folder) {
-        final child = _openStorage(current, name);
-        if (child == nullptr) {
-          debugPrint('ResponsaChm: "$name" not found in $chmPath');
-          return const {};
-        }
-        handles.add(child);
-        current = child;
-      }
-
       final found = <String, Uint8List>{};
-      _collect(current, '', found, 0, _Budget());
+      _collect(root, '', found, 0, _Budget());
       return found;
     } finally {
       for (final handle in handles.reversed) {
@@ -438,7 +423,7 @@ typedef _ReleaseDart = int Function(Pointer);
 
 /// תקציב הזיכרון של קריאה אחת.
 class _Budget {
-  int _remaining = ResponsaChm.maxTotalBytesForBudget;
+  int _remaining = ResponsaChm._maxTotalBytes;
 
   bool get exhausted => _remaining <= 0;
 
