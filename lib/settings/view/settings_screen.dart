@@ -652,6 +652,8 @@ class _SettingsContentPane extends StatefulWidget {
 }
 
 class _SettingsContentPaneState extends State<_SettingsContentPane> {
+  final GlobalKey _diagContentKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -661,6 +663,7 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
       // אבחון זמני ל-issue #1386 — להסיר עם סגירת ה-issue.
       ScrollDiagnostics.start();
       ScrollDiagnostics.watch(widget.scrollController);
+      ScrollDiagnostics.watchContent(_diagContentKey);
     });
   }
 
@@ -722,7 +725,10 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
                     interactive: true,
                     child: PrimaryScrollController(
                       controller: widget.scrollController,
-                      child: widget.overrideContent ?? widget.child,
+                      child: KeyedSubtree(
+                        key: _diagContentKey,
+                        child: widget.overrideContent ?? widget.child,
+                      ),
                     ),
                   ),
                 ),

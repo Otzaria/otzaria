@@ -19,7 +19,9 @@ class ScrollDiagnostics {
   static int _written = 0;
   static DateTime? _epoch;
   static ScrollPosition? _position;
+  static GlobalKey? _contentKey;
   static double? _lastPixels;
+  static double? _lastMax;
   static String? _lastActivity;
 
   static String get logPath =>
@@ -38,6 +40,58 @@ class ScrollDiagnostics {
   static void watch(ScrollController controller) {
     if (!controller.hasClients) return;
     _position = controller.position;
+  }
+
+  /// שורש התוכן הנגלל — ממנו סורקים את גבהי התיבות כדי לזהות מי משתנה.
+  static void watchContent(GlobalKey key) => _contentKey = key;
+
+  /// גבהי התיבות מהסריקה הקודמת, לפי נתיב בעץ.
+  static Map<String, ({double height, String type})> _heights = {};
+
+  static Map<String, ({double height, String type})> _scanHeights() {
+    final result = <String, ({double height, String type})>{};
+    final root = _contentKey?.currentContext?.findRenderObject();
+    if (root is! RenderBox) return result;
+    void visit(RenderObject node, String path, int depth) {
+      if (result.length > 4000 || depth > 8) return;
+      if (node is RenderBox && node.hasSize) {
+        result[path] = (height: node.size.height, type: '${node.runtimeType}');
+      }
+      var index = 0;
+      node.visitChildren((child) {
+        visit(child, '$path/${index++}', depth + 1);
+      });
+    }
+
+    visit(root, '', 0);
+    return result;
+  }
+
+  /// רושם אילו תיבות שינו גובה מאז הסריקה הקודמת — כך מאתרים את הרכיב
+  /// שמזיז את גבול הגלילה בשבריר פיקסל.
+  static void _logHeightChanges() {
+    final Map<String, ({double height, String type})> current;
+    try {
+      current = _scanHeights();
+    } catch (_) {
+      return;
+    }
+    if (_heights.isNotEmpty) {
+      var reported = 0;
+      for (final entry in current.entries) {
+        final previous = _heights[entry.key];
+        if (previous == null || previous.height == entry.value.height) continue;
+        if (reported++ >= 12) break;
+        _log(
+          'height ${entry.key} ${entry.value.type} '
+          '${previous.height.toStringAsFixed(3)} -> '
+          '${entry.value.height.toStringAsFixed(3)}',
+        );
+      }
+      final added = current.length - _heights.length;
+      if (added != 0) _log('height boxCountDelta=$added');
+    }
+    _heights = current;
   }
 
   static void _onPointerEvent(PointerEvent event) {
@@ -68,8 +122,21 @@ class ScrollDiagnostics {
     // מדפיסים רק כשמשהו השתנה — אחרת הלוג מתמלא בפריימים זהים.
     // תיאור ה-ScrollPosition כולל את ה-ScrollActivity הפעילה, וזו התשובה
     // לשאלה מי מזיז את המיקום: גרירה, בליסטיקה או קפיצה מאולצת.
-    final activity = _activityOf(position);
+    // תיאור מלא של ה-ScrollActivity קיים רק בבנייה debug, ולכן בגרסת release
+    // נשאר הדגל הזה בלבד.
+    final activity = 'scrolling=${position.isScrollingNotifier.value}';
     final pixels = position.pixels;
+    final max = position.maxScrollExtent;
+    // שינוי של שבריר פיקסל בגבול הוא הטריגר לבאג, ולכן נסרק בכל שינוי שלו.
+    final maxChanged = _lastMax == null || (max - _lastMax!).abs() > 0.0001;
+    if (maxChanged) {
+      _log(
+        'maxChanged ${_lastMax?.toStringAsFixed(4) ?? '-'} -> '
+        '${max.toStringAsFixed(4)} over=${(pixels - max).toStringAsFixed(2)}',
+      );
+      _lastMax = max;
+      _logHeightChanges();
+    }
     if (_lastPixels != null &&
         (pixels - _lastPixels!).abs() < 0.01 &&
         activity == _lastActivity) {
@@ -78,17 +145,10 @@ class ScrollDiagnostics {
     _lastPixels = pixels;
     _lastActivity = activity;
     _log(
-      'frame px=${pixels.toStringAsFixed(1)} max=${position.maxScrollExtent.toStringAsFixed(1)} '
+      'frame px=${pixels.toStringAsFixed(2)} max=${max.toStringAsFixed(4)} '
       'viewport=${position.viewportDimension.toStringAsFixed(1)} activity=$activity '
       'dir=${position.userScrollDirection.name}',
     );
-  }
-
-  static String _activityOf(ScrollPosition position) {
-    final match = RegExp(
-      r'(\w*ScrollActivity)#',
-    ).firstMatch(position.toString());
-    return match?.group(1) ?? 'unknown';
   }
 
   static void _log(String line) {
