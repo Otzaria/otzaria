@@ -3,6 +3,7 @@ import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_blo
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -218,6 +219,17 @@ InAppWebViewSettings buildPluginTabWebViewSettings({
         ? const [pluginAssetScheme]
         : const [],
   );
+}
+
+/// בלי recognizer אנכי, הגרירה האופקית של ה-PageView (במובייל, כשיש יותר
+/// מטאב אחד) מעכבת את המגע עד השחרור — והתוסף לא נגלל.
+Set<Factory<OneSequenceGestureRecognizer>>? pluginTabWebViewGestureRecognizers({
+  required bool isTouchPlatform,
+}) {
+  if (!isTouchPlatform) return null;
+  return {
+    Factory<VerticalDragGestureRecognizer>(VerticalDragGestureRecognizer.new),
+  };
 }
 
 class PluginTabPage extends StatefulWidget {
@@ -880,6 +892,9 @@ class _PluginTabPageState extends State<PluginTabPage> {
       ),
       initialSettings: buildPluginTabWebViewSettings(
         isDevelopment: widget.plugin.isDevelopment,
+      ),
+      gestureRecognizers: pluginTabWebViewGestureRecognizers(
+        isTouchPlatform: Platform.isAndroid || Platform.isIOS,
       ),
       // Stub SDK — injected BEFORE any page JS runs
       initialUserScripts: UnmodifiableListView<UserScript>([

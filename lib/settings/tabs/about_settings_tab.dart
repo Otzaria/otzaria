@@ -17,6 +17,7 @@ import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/widgets/dialogs/ad_popup_dialog.dart';
 import 'package:otzaria/utils/ui/image_decode_size.dart';
+import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 
 /// פותח כתובת URL בדפדפן החיצוני.
 /// בלי canLaunchUrl — באנדרואיד 11+ הוא מחזיר false ל-https ומשתיק את הפתיחה.
@@ -127,9 +128,7 @@ class AboutSettingsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      primary: true,
-      padding: const EdgeInsets.all(16.0),
+    return SettingsTabScrollView(
       child: ToolPanelWrapper(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

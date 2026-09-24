@@ -25,6 +25,7 @@ import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 
 /// טאב קיצורי מקלדת — מוצג רק בדסקטופ.
 class ShortcutsSettingsTab extends StatelessWidget {
@@ -470,9 +471,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
       );
     }
 
-    return SingleChildScrollView(
-      primary: true,
-      padding: const EdgeInsets.all(16.0),
+    return SettingsTabScrollView(
       child: ToolPanelWrapper(
         // עוטף ב-BlocBuilder כדי לרענן את רשימת הטיילים והכרטיס "הוסף קיצור"
         // מיד עם שינוי הקיצורים (פעולה זמינה -> מוגדרת ולהיפך).

@@ -15,6 +15,7 @@ import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
+import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 
 enum _SidebarMode { pinned, openOnBook, closed }
 
@@ -177,9 +178,7 @@ class DesignSettingsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, state) {
-        return SingleChildScrollView(
-          primary: true,
-          padding: const EdgeInsets.all(16.0),
+        return SettingsTabScrollView(
           child: ToolPanelWrapper(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

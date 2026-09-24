@@ -4,6 +4,7 @@ import 'package:otzaria/tools/calendar/utils/calendar_cubit.dart';
 import 'package:otzaria/settings/panels/settings_panels_exports.dart';
 import 'package:otzaria/settings/panels/tools_management_panel.dart';
 import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
+import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 
 /// טאב כלים — לוח שנה, גימטריות, עורך.
 ///
@@ -19,9 +20,7 @@ class ToolsSettingsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = SingleChildScrollView(
-      primary: true,
-      padding: const EdgeInsets.all(16.0),
+    final content = SettingsTabScrollView(
       child: ToolPanelWrapper(
         child: const Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

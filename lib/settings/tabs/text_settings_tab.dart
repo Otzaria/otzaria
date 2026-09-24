@@ -16,6 +16,7 @@ import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 
 /// טאב הגדרות תצוגת ספרים
 /// ניתן להשתמש בו גם כתוכן בתוך דיאלוג וגם כטאב במסך הגדרות
@@ -216,9 +217,7 @@ class TextSettingsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, settingsState) {
-        final content = SingleChildScrollView(
-          primary: true,
-          padding: const EdgeInsets.all(16.0),
+        final content = SettingsTabScrollView(
           child: ToolPanelWrapper(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
