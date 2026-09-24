@@ -50,16 +50,46 @@ List<FlatLibraryRow> _rows(
   Set<String> expanded = const {},
   List<String> topOrder = const [],
   Set<String> talmudTextTitles = const {},
+  List<Category> Function(Category)? subCategoriesOf,
 }) => buildFlatLibraryRows(
   category: root,
   expandedPaths: expanded,
   topCategoryOrder: _topOrderOf(topOrder),
   normalizeOrder: _normalizeOrder,
   talmudTextTitles: talmudTextTitles,
+  subCategoriesOf: subCategoriesOf,
 );
 
 void main() {
   group('buildFlatLibraryRows — עץ הספרייה המשוטח', () {
+    /// תיקיית בר אילן אינה חלק מ-`subCategories` — היא הייתה נסרקת על
+    /// ידי מנוע האינדוקס. תצוגת הרשת צירפה אותה בעצמה, והעץ לא, ולכן
+    /// בתצוגת "רשימה" כל ספריית בר אילן פשוט לא הופיעה.
+    test('תיקייה וירטואלית מצטרפת לעץ דרך subCategoriesOf', () {
+      final virtual = _category(
+        'פרויקט השו"ת בר אילן',
+        books: [_book('ספר ב')],
+      );
+      final real = _category('אחרונים', books: [_book('ספר א')]);
+      final root = _library([real]);
+
+      final rows = _rows(
+        root,
+        expanded: {real.path},
+        subCategoriesOf: (category) => [
+          ...category.subCategories.where((c) => c.hasBooks),
+          if (identical(category, real)) virtual,
+        ],
+      );
+
+      expect(
+        rows
+            .where((r) => r.kind == FlatLibraryRowKind.categoryHeader)
+            .map((r) => r.category!.title),
+        ['אחרונים', 'פרויקט השו"ת בר אילן'],
+      );
+    });
+
     test('קטגוריות מכווצות: שורת כותרת אחת לכל קטגוריה, עם שני דגלי קצה', () {
       final root = _library([
         _category('הלכה', books: [_book('ספר א')]),

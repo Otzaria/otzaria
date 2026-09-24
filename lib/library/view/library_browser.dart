@@ -176,8 +176,12 @@ List<FlatLibraryRow> buildFlatLibraryRows({
   required int Function(Category) topCategoryOrder,
   required int Function(int) normalizeOrder,
   Set<String> talmudTextTitles = const {},
+  List<Category> Function(Category)? subCategoriesOf,
 }) {
   final rows = <FlatLibraryRow>[];
+  final childrenOf =
+      subCategoriesOf ??
+      (Category c) => c.subCategories.where((s) => s.hasBooks).toList();
 
   void collect(Category current, int level) {
     final books =
@@ -187,7 +191,7 @@ List<FlatLibraryRow> buildFlatLibraryRows({
             )
             .toList()
           ..sort((a, b) => a.order.compareTo(b.order));
-    final subs = current.subCategories.where((c) => c.hasBooks).toList();
+    final subs = childrenOf(current);
     if (current is Library) {
       subs.sort((a, b) => topCategoryOrder(a).compareTo(topCategoryOrder(b)));
     } else {
@@ -1578,31 +1582,33 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         });
   }
 
+  /// תתי-התיקיות של [category] כפי שהן מוצגות, לפני מיון.
+  ///
+  /// תיקיית בר אילן מצורפת כאן ולא ב-`subCategories` של הקטגוריה
+  /// האמיתית — אחרת היא הייתה נסרקת על ידי מנוע האינדוקס (ראה
+  /// [ResponsaLibraryTree]). כל שלוש התצוגות — רשת, עץ מקונן ועץ משוטח —
+  /// עוברות דרך כאן, אחרת הספרייה של בר אילן נעלמת בתצוגת רשימה.
+  List<Category> _displayedSubCategories(Category category) {
+    final subs = category.subCategories.where((c) => c.hasBooks).toList();
+    if (category is Library) {
+      for (final folder in _responsaTree.topLevel) {
+        folder.parent = category;
+        subs.add(folder);
+      }
+    } else if (_responsaTree.folderFor(category.path) case final folder?) {
+      folder.parent = category;
+      subs.add(folder);
+    }
+    return subs;
+  }
+
   /// תתי-התיקיות והספרים של [category], מסוננים וממוינים לתצוגה.
   ({List<Category> subCategories, List<Book> books}) _displayedContent(
     Category category,
   ) {
     final filteredBooks = _visibleBooks(category.books)
       ..sort((a, b) => a.order.compareTo(b.order));
-    final filteredSubCategories = category.subCategories
-        .where((c) => c.hasBooks)
-        .toList();
-
-    // תיקיית בר אילן מצורפת לתצוגה בלבד; היא אינה נכנסת ל-subCategories
-    // של הקטגוריה האמיתית, שאחרת הייתה נסרקת על ידי מנוע האינדוקס.
-    final responsaFolder = category is Library
-        ? null
-        : _responsaTree.folderFor(category.path);
-    if (responsaFolder != null) {
-      responsaFolder.parent = category;
-      filteredSubCategories.add(responsaFolder);
-    }
-    if (category is Library) {
-      for (final folder in _responsaTree.topLevel) {
-        folder.parent = category;
-        filteredSubCategories.add(folder);
-      }
-    }
+    final filteredSubCategories = _displayedSubCategories(category);
     if (category is Library) {
       filteredSubCategories.sort(
         (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)),
@@ -1886,6 +1892,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         topCategoryOrder: _getTopCategoryOrder,
         normalizeOrder: _normalizeOrder,
         talmudTextTitles: _talmudTextTitles(),
+        subCategoriesOf: _displayedSubCategories,
       );
 
   /// Key יציב לשורה — בלעדיו אנימציית השברון ומצב hover "זולגים" בין
@@ -1977,9 +1984,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     final List<Widget> widgets = [];
     final filteredBooks = _visibleBooks(category.books)
       ..sort((a, b) => a.order.compareTo(b.order));
-    final filteredSubs = category.subCategories
-        .where((c) => c.hasBooks)
-        .toList();
+    final filteredSubs = _displayedSubCategories(category);
     if (category is Library) {
       filteredSubs.sort(
         (a, b) => _getTopCategoryOrder(a).compareTo(_getTopCategoryOrder(b)),
