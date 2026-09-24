@@ -56,10 +56,8 @@ class _ExternalOpenButtonState extends State<ExternalOpenButton> {
     try {
       error = await widget.onOpen(widget.book);
     } catch (exception) {
-      // `onOpen` מתועד כמי שאינו זורק, אבל מסלול הפתיחה עובר גילוי
-      // התקנות וקריאות מערכת קבצים. בלי ה-catch הזה חריגה הייתה
-      // בורחת מ-`_open`, שה-Future שלו נזרק — הכפתור היה מפסיק
-      // להסתובב ושום דבר לא היה נאמר למשתמש.
+      // `onOpen` מתועד כמי שאינו זורק, אבל מסלולו עובר גילוי התקנות
+      // וקריאות מערכת קבצים; חריגה בורחת ל-Future שאיש אינו ממתין לו.
       error = 'פתיחת הספר נכשלה: $exception';
     } finally {
       if (mounted) setState(() => _isOpening = false);

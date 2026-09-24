@@ -64,11 +64,9 @@ class ResponsaCatalogBuildService {
   /// אטומית רק אחרי שעברה אימות.
   Stream<ResponsaBuildProgress> build({required String targetPath}) {
     final controller = StreamController<ResponsaBuildProgress>();
-    // בנייה אחת בכל רגע **בכל האפליקציה**. שתי בניות כותבות לאותו קובץ
-    // צדדי (`<target>.building`), והשנייה מוחקת את זה של הראשונה תוך
-    // כדי כתיבה. זה קרה כשמשתמש יצא ממסך ההגדרות באמצע בנייה — המסך
-    // ננטש, האיזולט המשיך, וחזרה למסך יצרה שירות חדש שמתחיל בנייה
-    // שנייה מול אותה תוכנה ואותו קובץ.
+    // בנייה אחת בכל רגע **בכל האפליקציה**: שתיהן כותבות לאותו
+    // `<target>.building`, והשנייה מוחקת את זה של הראשונה תוך כדי
+    // כתיבה. יציאה ממסך ההגדרות באמצע בנייה אינה עוצרת את האיזולט.
     if (_active) {
       controller
         ..add(
@@ -114,12 +112,9 @@ class ResponsaCatalogBuildService {
       const ResponsaBuildProgress(stage: ResponsaBuildStage.starting),
     );
 
-    // הקטלוג נקרא מעץ הקטלוג של התוכנה החיה — אין בהתקנה קובץ שמכיל את
-    // רשימת הספרים. לכן בנייה כשהתוכנה כבויה חייבת להעלות אותה, ולא
-    // לדרוש מהמשתמש לפתוח אותה בעצמו: הוא הדליק הגדרה באוצריא וביקש
-    // לרענן, ואין סיבה שיידרש לצעד ידני בתוכנה אחרת.
-    // בלי העדפת נתיב: הבנייה עצמה בוחרת התקנה ב-`selectInstallation`,
-    // וההעלאה משתמשת באותה בחירה בדיוק.
+    // אין בהתקנה קובץ עם רשימת הספרים — הקטלוג נקרא מהעץ של התוכנה
+    // החיה, ולכן הבנייה מעלה אותה בעצמה. בלי העדפת נתיב: הבחירה נעשית
+    // ב-`selectInstallation`, וההעלאה משתמשת בה.
     final launch = await ResponsaLauncher.ensureRunning();
     if (!launch.running) {
       controller

@@ -231,12 +231,9 @@ class ResponsaController {
   static Future<ResponsaOpenReport> _openBookInIsolate(
     _OpenRequest request,
   ) async {
-    // המופעים של **ההתקנה שממנה נבנה הקטלוג** בלבד. מופע של התקנה אחרת
-    // יכול להציג מאגר אחר, ולפתוח ספר שאינו זה שהמשתמש ביקש.
-    //
-    // ומתוכם — רק מופע שאפשר לעבוד מולו. מופע חונה מחוץ למסך עונה
-    // לפקודות ופותח את הספר באמת, ואוצריא הייתה מדווחת הצלחה בזמן
-    // שהמשתמש אינו רואה דבר. ראו [ResponsaInstance].
+    // רק מופעים של **ההתקנה שממנה נבנה הקטלוג**, ומתוכם רק מופע
+    // שאפשר לעבוד מולו: מופע חונה מחוץ למסך פותח את הספר באמת,
+    // והמשתמש אינו רואה דבר. ראו [ResponsaInstance].
     final selection = ResponsaInstallationDiscovery.selectInstallation(
       preferredPath: request.installPath,
     );

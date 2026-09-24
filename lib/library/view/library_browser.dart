@@ -2365,8 +2365,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // הזיהוי לפי הספק ולא לפי הקישור: לפרויקט השו"ת אין קישור
-            // כלל, ובמבחן הישן הוא היה מקבל את הלוגו של היברובוקס.
+            // לפי הספק ולא לפי הקישור: לפרויקט השו"ת אין קישור כלל,
+            // וזיהוי לפיו נותן לו את הלוגו של היברובוקס.
             if (externalCatalogLogoAsset(book) case final logo?)
               Image.asset(
                 logo,
