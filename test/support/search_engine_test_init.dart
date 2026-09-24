@@ -117,6 +117,7 @@ void _pruneStaleCopies(String base, String extension, String keepName) {
 }
 
 bool? _initResult;
+Object? _lastInitError;
 
 /// טוען את ספריית מנוע החיפוש הנייטיבית ומאתחל את [RustLib]. פונקציות כמו
 /// `sanitizeQuery`/`splitQueryWords`/`normalizeTextForIndexing` מאצילות למנוע,
@@ -132,7 +133,9 @@ Future<bool> tryInitSearchEngine() async {
       final loadPath = _testLoadCopy(path) ?? path;
       await RustLib.init(externalLibrary: ExternalLibrary.open(loadPath));
       return _initResult = true;
-    } catch (_) {
+    } catch (error) {
+      // המועמדים ממוינים מהחדש לישן — השגיאה של הבנייה החדשה היא הרלוונטית.
+      _lastInitError ??= error;
       // אתחול כושל עלול להשאיר instance חלקי שחוסם ניסיון נוסף.
       try {
         RustLib.dispose();
@@ -142,6 +145,8 @@ Future<bool> tryInitSearchEngine() async {
   return _initResult = false;
 }
 
-/// הודעת דילוג אחידה לקבוצות טסט שתלויות במנוע הנייטיבי.
-const String searchEngineSkipReason =
-    'ספריית מנוע החיפוש הנייטיבית לא נמצאה — הריצו cargo build בחבילה';
+/// הודעת דילוג אחידה לקבוצות טסט שתלויות במנוע הנייטיבי. ספרייה שנמצאה ולא
+/// נטענה (ארכיטקטורה, חתימה, linker) מציגה את השגיאה במקום "לא נמצאה".
+String get searchEngineSkipReason => _lastInitError == null
+    ? 'ספריית מנוע החיפוש הנייטיבית לא נמצאה — הריצו cargo build בחבילה'
+    : 'ספריית מנוע החיפוש נמצאה אך לא נטענה: $_lastInitError';
