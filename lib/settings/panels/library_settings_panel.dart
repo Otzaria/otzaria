@@ -24,6 +24,19 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// פאנל הגדרות תצוגת ספרייה
+/// התווית המוצגת לכל שלב בבניית קטלוג בר אילן.
+///
+/// ברמת הקובץ ולא בתוך ה-State: התוויות נמסרות ל-`settingsText` דרך
+/// משתנה, והסורק של בדיקת התרגום רואה רק ארגומנט קבוע. בדיקת התוויות
+/// עוברת מכאן על כל ערכי ה-enum, כך שגם שלב שיתווסף בעתיד ייתפס.
+String responsaBuildProgressLabel(ResponsaBuildStage stage) => switch (stage) {
+  ResponsaBuildStage.starting => 'מתחבר לפרויקט השו"ת...',
+  ResponsaBuildStage.scanning => 'נסרקו {nodes} רשומות...',
+  ResponsaBuildStage.classifying => 'מזהה ספרים מתוך {nodes} רשומות...',
+  ResponsaBuildStage.done => 'הקטלוג נבנה',
+  ResponsaBuildStage.failed => 'הבנייה נכשלה',
+};
+
 class LibrarySettingsPanel extends StatefulWidget {
   /// ווידג'ט להצגת מיקום ספרי היברובוקס (מועבר מהטאב הראשי כדי לתמוך בבחירת תיקייה)
   final Widget? hebrewBooksPathWidget;
@@ -457,13 +470,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
   }
 
   static String _progressText(ResponsaBuildProgress progress) =>
-      switch (progress.stage) {
-        ResponsaBuildStage.starting => 'מתחבר לפרויקט השו"ת...',
-        ResponsaBuildStage.scanning => 'נסרקו {nodes} רשומות...',
-        ResponsaBuildStage.classifying => 'מזהה ספרים מתוך {nodes} רשומות...',
-        ResponsaBuildStage.done => 'הקטלוג נבנה',
-        ResponsaBuildStage.failed => 'הבנייה נכשלה',
-      };
+      responsaBuildProgressLabel(progress.stage);
 
   /// מדליק או מכבה את בר אילן, ובהדלקה הראשונה גם בונה את הקטלוג.
   ///

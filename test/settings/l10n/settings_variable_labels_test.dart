@@ -5,7 +5,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_build_service.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/settings/panels/library_settings_panel.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchScope, WordMatchMode;
 import 'package:otzaria/search/search_query_builder.dart';
@@ -133,7 +135,6 @@ void main() {
       }
     });
 
-
     test('שמות המסכים בפס הכותרת מתורגמים', () {
       for (final key in ['אוצריא', 'ספרייה|titleBar']) {
         expect(catalog, contains(key), reason: key);
@@ -209,6 +210,17 @@ void main() {
       test('[${tip.id.name}] הטיפ מתורגם', () {
         expect(catalog, contains(tip.title), reason: tip.title);
         expect(catalog, contains(tip.description), reason: tip.description);
+      });
+    }
+  });
+
+  group('בניית קטלוג בר אילן', () {
+    // חמש תוויות ההתקדמות נבנות ב-progressLabelFor ונמסרות ל-settingsText
+    // דרך משתנה. המעבר על כל ערכי ה-enum תופס גם שלב שיתווסף בעתיד.
+    for (final stage in ResponsaBuildStage.values) {
+      final label = responsaBuildProgressLabel(stage);
+      test('[${stage.name}] "$label"', () {
+        expect(catalog, contains(label));
       });
     }
   });
