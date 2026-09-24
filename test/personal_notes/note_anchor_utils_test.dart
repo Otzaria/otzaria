@@ -36,7 +36,7 @@ void main() {
       // ולכן הבחירה כוללת רווח שם — חייב להתאים לעיגון.
       const raw = '<b>ובו ט סעיפים:</b><br>יתגבר כארי';
       final p = projectLine(raw);
-      expect(p.normalized, 'ובו ט סעיפים: יתגבר כארי');
+      expect(p.normalized, 'ובו ט סעיפים יתגבר כארי');
       // הטקסט שנבחר (\n מ-<br>) מנורמל לרווח ונמצא בעיגון.
       final range = locateAnchor(rawLine: raw, anchorText: 'סעיפים:\nיתגבר');
       expect(range, isNotNull);

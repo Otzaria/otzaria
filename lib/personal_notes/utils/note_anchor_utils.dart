@@ -1,7 +1,7 @@
 /// כלים לעיגון הערות אישיות למילים ספציפיות בתוך שורה.
 ///
-/// השורה הגולמית מכילה HTML וניקוד/טעמים, בעוד שהטקסט שנבחר נשמר מנורמל
-/// (בלי ניקוד, רווחים מכווצים). כדי לסמן את המילים במקומן צריך:
+/// השורה הגולמית מכילה HTML, ניקוד/טעמים ופיסוק, בעוד שהטקסט שנבחר נשמר מנורמל
+/// (בלי ניקוד ופיסוק, רווחים מכווצים). כדי לסמן את המילים במקומן צריך:
 /// 1. להקרין את השורה הגולמית למחרוזת מנורמלת + מפת אינדקסים חזרה לגולמי
 ///    ([projectLine]).
 /// 2. לאתר את הביטוי המנורמל בתוך ההקרנה, תוך שימוש בהקשר (prefix/suffix)
@@ -13,7 +13,7 @@ import 'package:otzaria/personal_notes/utils/note_text_utils.dart';
 
 /// תוצאת הקרנת שורה גולמית לטקסט מנורמל.
 class LineProjection {
-  /// הטקסט המנורמל: בלי תגיות HTML, בלי ניקוד/טעמים, רווחים מכווצים לרווח יחיד.
+  /// הטקסט המנורמל: בלי תגיות HTML, ניקוד/טעמים ופיסוק, רווחים מכווצים לרווח יחיד.
   final String normalized;
 
   /// מיפוי מאינדקס בטקסט המנורמל לאינדקס המתאים בשורה הגולמית.
@@ -27,6 +27,13 @@ class LineProjection {
 // (כמו ב-removeHebrewDiacritics), לכן הוא מוחרג מבדיקת הניקוד.
 bool _isDiacritic(int code) =>
     code >= 0x0591 && code <= 0x05C7 && code != 0x05BE;
+
+// פיסוק שעשוי להיות מוסתר בתצוגה (כמו _isIgnored ב-html_slice): הבחירה מגיעה
+// בלעדיו, ולכן מתעלמים ממנו בשני צידי ההשוואה.
+final _punctuation = RegExp('[!"\',\\-.:;?\u05F3\u05F4\u2013\u2014]');
+bool _isPunctuation(String ch) => _punctuation.hasMatch(ch);
+String _withoutPunctuation(String? s) =>
+    s == null ? '' : s.replaceAll(_punctuation, '');
 
 // בודק אם המקטע rawLine[start..end] (מ-'<' עד '>') הוא תגית <br>.
 bool _isBreakTag(String s, int start, int end) {
@@ -42,7 +49,7 @@ bool _isBreakTag(String s, int start, int end) {
 }
 
 /// מקרין שורה גולמית (HTML+ניקוד) למחרוזת מנורמלת עם מפת אינדקסים חזרה.
-LineProjection projectLine(String rawLine) {
+LineProjection projectLine(String rawLine, {bool keepPunctuation = false}) {
   final buffer = StringBuffer();
   final rawIndex = <int>[];
   bool inTag = false;
@@ -84,8 +91,10 @@ LineProjection projectLine(String rawLine) {
       continue;
     }
 
-    // ניקוד וטעמים — מושמטים לחלוטין.
-    if (_isDiacritic(code)) continue;
+    // ניקוד, טעמים ופיסוק — מושמטים לחלוטין.
+    if (_isDiacritic(code) || (!keepPunctuation && _isPunctuation(ch))) {
+      continue;
+    }
 
     // מקף עברי (מקף) ורווחים — מכווצים לרווח יחיד.
     final isWhitespace = code == 0x05BE || ch.trim().isEmpty;
@@ -105,9 +114,9 @@ LineProjection projectLine(String rawLine) {
   return LineProjection(buffer.toString(), rawIndex);
 }
 
-/// מנרמל טקסט שנבחר לצורך חיפוש: הסרת ניקוד, כיווץ רווחים וקיצוץ.
+/// מנרמל טקסט שנבחר לצורך חיפוש: הסרת ניקוד ופיסוק, כיווץ רווחים וקיצוץ.
 String normalizeAnchorText(String text) {
-  final withoutNikud = removeHebrewDiacritics(text);
+  final withoutNikud = _withoutPunctuation(removeHebrewDiacritics(text));
   return withoutNikud.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
@@ -204,6 +213,15 @@ int _pickBestOccurrence(
   return bestIdx;
 }
 
+/// סוף הטווח הגולמי: אחרי התו האחרון שהתאים והניקוד שלו, בלי הפיסוק שאחריו.
+int _rawEnd(LineProjection p, String rawLine, int matchEnd) {
+  var end = p.rawIndex[matchEnd - 1] + 1;
+  while (end < rawLine.length && _isDiacritic(rawLine.codeUnitAt(end))) {
+    end++;
+  }
+  return end;
+}
+
 /// ממפה אינדקס בטקסט המנורמל לאינדקס המתאים ברמז הגולמי הקרוב ביותר.
 int? _rawToNormalizedIndex(LineProjection p, int rawHint) {
   if (rawHint <= 0) return 0;
@@ -238,14 +256,14 @@ NoteAnchorRange? locateAnchor({
     p.normalized,
     occurrences,
     needle.length,
-    prefix,
-    suffix,
+    _withoutPunctuation(prefix),
+    _withoutPunctuation(suffix),
     normalizedHint,
   );
   final matchEnd = matchStart + needle.length;
 
   final rawStart = p.rawIndex[matchStart];
-  final rawEnd = p.rawIndex[matchEnd];
+  final rawEnd = _rawEnd(p, rawLine, matchEnd);
   if (rawStart < 0 || rawEnd > rawLine.length || rawStart >= rawEnd) {
     return null;
   }
@@ -271,9 +289,12 @@ ComputedAnchor? computeAnchorForSelection({
 
   int matchStart = occurrences.first;
   if (selectionColumnHint != null && occurrences.length > 1) {
-    int bestDist = (occurrences.first - selectionColumnHint).abs();
+    // הרמז נמדד בטקסט המוצג, שבו הפיסוק נספר כברירת מחדל.
+    final shown = projectLine(rawLine, keepPunctuation: true);
+    int shownIndex(int idx) => _rawToNormalizedIndex(shown, p.rawIndex[idx])!;
+    int bestDist = (shownIndex(occurrences.first) - selectionColumnHint).abs();
     for (final idx in occurrences.skip(1)) {
-      final dist = (idx - selectionColumnHint).abs();
+      final dist = (shownIndex(idx) - selectionColumnHint).abs();
       if (dist < bestDist) {
         bestDist = dist;
         matchStart = idx;
@@ -291,7 +312,7 @@ ComputedAnchor? computeAnchorForSelection({
 
   return ComputedAnchor(
     start: p.rawIndex[matchStart],
-    end: p.rawIndex[matchEnd],
+    end: _rawEnd(p, rawLine, matchEnd),
     prefix: p.normalized.substring(prefixStart, matchStart),
     suffix: p.normalized.substring(matchEnd, suffixEnd),
   );
