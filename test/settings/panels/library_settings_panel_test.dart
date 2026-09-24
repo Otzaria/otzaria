@@ -1,3 +1,4 @@
+import 'package:otzaria/external_catalog/responsa/responsa_catalog_schema.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -233,11 +234,13 @@ void main() {
       version: 25,
       confidence: ResponsaVersionConfidence.verified,
     );
-    const withCatalog = ResponsaCatalogInfo(
+    // סכמה עדכנית: אחרת כל בדיקה שמשתמשת ב-fixture רצה במצב "קטלוג
+    // ישן", והמצב התקין אינו מרונדר באף בדיקה.
+    final withCatalog = ResponsaCatalogInfo(
       exists: true,
       bookCount: 8523,
       sourceVersion: 25,
-      schemaVersion: 2,
+      schemaVersion: responsaCatalogSchemaVersion,
     );
 
     testWidgets('אינו מוצג כשבר אילן אינו מותקן', (tester) async {
@@ -261,6 +264,32 @@ void main() {
 
       expect(find.text('הצג ופתח ספרי בר אילן'), findsOneWidget);
       expect(find.text('אפשר פתיחת ספרים בתוכנה'), findsNothing);
+    });
+
+    testWidgets('קטלוג עדכני — כמה ספרים נמצאו, ובלי בקשת רענון', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          _FakeSettingsBloc(showResponsa: true),
+          responsaStatus: installed,
+          responsaInfo: withCatalog,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'נמצאו 8523 ספרים במהדורה 25. לחיצה על ספר תפתח אותו בבר אילן.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('נבנה בגרסה ישנה'),
+        findsNothing,
+        reason: 'הקטלוג עדכני',
+      );
+      expect(find.textContaining('מהתקנה אחרת'), findsNothing);
     });
 
     testWidgets('שורת הרענון מוצגת רק כשהמתג דלוק', (tester) async {

@@ -6,6 +6,9 @@
 @Tags(['live'])
 library;
 
+// כלי מדידה ידני: הפלט שלו הוא **התוצר**, והוא נקרא בטרמינל.
+// ignore_for_file: avoid_print
+
 import 'dart:io';
 import 'dart:math';
 

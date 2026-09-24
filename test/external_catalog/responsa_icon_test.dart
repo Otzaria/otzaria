@@ -52,7 +52,7 @@ void main() {
     ];
     final found = candidates.map(File.new).where((f) => f.existsSync());
     if (found.isEmpty) {
-      printOnFailure('no installation on this machine');
+      markTestSkipped('אין התקנה של בר אילן על המכונה הזו');
       return;
     }
     final icon = ResponsaIcon.extractFrom(found.first.readAsBytesSync());

@@ -55,7 +55,7 @@ void main() {
   });
 
   group('טביעת אצבע', () {
-    ResponsaFingerprint print({
+    ResponsaFingerprint fingerprint({
       int? version = 25,
       String install = r'C:\Program Files (x86)\ResponsaCD25',
       int? size = 2140586529,
@@ -66,37 +66,40 @@ void main() {
     );
 
     test('זהות מלאה מתאימה', () {
-      expect(print().matches(print()), isTrue);
+      expect(fingerprint().matches(fingerprint()), isTrue);
     });
 
     test('נתיב התקנה שונה — אינו מתאים', () {
-      expect(print().matches(print(install: r'E:\ResponsaCD25')), isFalse);
+      expect(
+        fingerprint().matches(fingerprint(install: r'E:\ResponsaCD25')),
+        isFalse,
+      );
     });
 
     test('גרסה שונה — אינה מתאימה', () {
-      expect(print().matches(print(version: 29)), isFalse);
+      expect(fingerprint().matches(fingerprint(version: 29)), isFalse);
     });
 
     test('שדה שחסר באחד הצדדים אינו מכשיל', () {
       // אחרת קטלוג שנבנה לפני שנוסף שדה היה נפסל רק בגלל הוספתו —
       // וזה קורה בדיוק בהתקנה חלקית, שבה הארכיון אינו ליד קובץ ההרצה.
-      expect(print().matches(print(size: null)), isTrue);
-      expect(print(size: null).matches(print()), isTrue);
+      expect(fingerprint().matches(fingerprint(size: null)), isTrue);
+      expect(fingerprint(size: null).matches(fingerprint()), isTrue);
     });
 
     test('לוכסן סופי ואותיות גדולות אינם מבדילים', () {
       expect(
-        print().matches(
-          print(install: r'c:\program files (x86)\responsacd25\'),
+        fingerprint().matches(
+          fingerprint(install: r'c:\program files (x86)\responsacd25\'),
         ),
         isTrue,
       );
     });
 
     test('מטא-דאטה עוברת הלוך ושוב', () {
-      final restored = ResponsaFingerprint.fromMeta(print().toMeta());
+      final restored = ResponsaFingerprint.fromMeta(fingerprint().toMeta());
       expect(restored, isNotNull);
-      expect(restored!.matches(print()), isTrue);
+      expect(restored!.matches(fingerprint()), isTrue);
     });
   });
 

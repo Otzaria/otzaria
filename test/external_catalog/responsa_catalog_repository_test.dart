@@ -96,6 +96,9 @@ void main() {
     /// נשארים ריקים עד לרענון.
     test('קטלוג ישן בלי עמודות מטא-דאטה נקרא, והשדות ריקים', () async {
       final books = await repository.loadBooks();
+      // בלי זה, קריאה שנשברה והחזירה רשימה ריקה — בדיוק מה שהבדיקה
+      // נועדה למנוע — הייתה עוברת עם לולאה ריקה.
+      expect(books, isNotEmpty);
       for (final book in books) {
         expect(book.author, isNull);
         expect(book.pubDate, isNull);

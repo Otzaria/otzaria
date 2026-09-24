@@ -2,6 +2,9 @@
 @Tags(['live'])
 library;
 
+// כלי מדידה ידני: הפלט שלו הוא **התוצר**, והוא נקרא בטרמינל.
+// ignore_for_file: avoid_print
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation_discovery.dart';
 
