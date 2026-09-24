@@ -373,6 +373,25 @@ Future<void> main() async {
       expect(removePunctuation('ב"כִּי'), equals('בכִּי'));
     });
 
+    test('issue #1528: שומר ראשי תיבות שפיסוק צמוד אליהם', () {
+      // הפיסוק נמחק ומצמיד את ראשי התיבות למילה הבאה — ההכרעה על הגרשיים
+      // חייבת להיעשות על השורה המקורית.
+      expect(removePunctuation('רש"י,ובגמ\' איתא'), equals('רש"יובגמ\' איתא'));
+      expect(removePunctuation('ע"ש.וכן כתב'), equals('ע"שוכן כתב'));
+      expect(removePunctuation('ז"ל-והנה'), equals('ז"לוהנה'));
+    });
+
+    test('issue #1528: שומר ראשי תיבות שתג HTML נופל בתוכם', () {
+      expect(
+        removePunctuation('רש"<span class="a">י</span> כתב'),
+        equals('רש"<span class="a">י</span> כתב'),
+      );
+      expect(
+        removePunctuation('ב"<b>כי</b> יותן'),
+        equals('ב<b>כי</b> יותן'),
+      );
+    });
+
     test('לא פוגע ב-href של קישור inline מוטמע (linker)', () {
       // לפני התיקון: ה-":" וה-"-" בתוך otzaria://inline-link וה-"?" נמחקו,
       // וגרשי ה-href הוסרו - מה שהשאיר קישור <a> שבור ולא-פעיל.
