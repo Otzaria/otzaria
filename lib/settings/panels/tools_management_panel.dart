@@ -985,7 +985,10 @@ class _PluginRowState extends State<_PluginRow> {
           icon: FluentIcons.arrow_sync_24_regular,
           label: context.settingsText('עדכון זמין'),
           onTap: () => context.read<PluginSystemBloc>().add(
-            InstallRemotePluginRequested(update!.downloadUrl),
+            InstallRemotePluginRequested(
+              update!.downloadUrl,
+              isUserInitiated: true,
+            ),
           ),
         ),
       if (plugin.manifest.permissions.contains(pluginNetworkAccessPermission))

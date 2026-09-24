@@ -36,11 +36,16 @@ class InstallRemotePluginRequested extends PluginSystemEvent {
   /// כזה ההורדה מוגבלת למארחי החנות בכל hop, כולל אחרי redirect.
   final bool storeOnly;
 
+  /// התוכנה עצמה ציירה את הכפתור וקיבלה את ההקשה (צ'יפ העדכון, כרטיס ניהול
+  /// התוספים). ברירת המחדל false: מסלול חדש יקבל דיאלוג עד שיוחלט אחרת.
+  final bool isUserInitiated;
+
   const InstallRemotePluginRequested(
     this.downloadUrl, {
     this.forceOverwrite = false,
     this.reportContext,
     this.storeOnly = false,
+    this.isUserInitiated = false,
   });
 
   @override
@@ -50,6 +55,7 @@ class InstallRemotePluginRequested extends PluginSystemEvent {
     reportContext?.token,
     reportContext?.callbackUrl,
     storeOnly,
+    isUserInitiated,
   ];
 }
 

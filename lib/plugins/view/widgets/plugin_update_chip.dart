@@ -69,7 +69,10 @@ class _PluginUpdateChipState extends State<PluginUpdateChip> {
                   : () {
                       setState(() => _updating = true);
                       context.read<PluginSystemBloc>().add(
-                        InstallRemotePluginRequested(update!.downloadUrl),
+                        InstallRemotePluginRequested(
+                          update!.downloadUrl,
+                          isUserInitiated: true,
+                        ),
                       );
                     },
               child: Padding(

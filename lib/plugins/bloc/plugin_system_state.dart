@@ -138,6 +138,9 @@ class PluginSystemInstallRequiresPermissions extends PluginSystemState {
   final Map<String, bool> previousGrantedPermissions;
   final PluginInstallReportContext? reportContext;
 
+  /// ההתקנה נדרשה מממשק התוכנה עצמו ולא מתוסף או מקישור חיצוני.
+  final bool isUserInitiated;
+
   const PluginSystemInstallRequiresPermissions({
     required this.manifest,
     required this.tempDirPath,
@@ -145,6 +148,7 @@ class PluginSystemInstallRequiresPermissions extends PluginSystemState {
     this.previousAllowOrderBeforeBuiltInsGranted,
     this.previousGrantedPermissions = const {},
     this.reportContext,
+    this.isUserInitiated = false,
   });
 
   bool get isUpdate => previousVersion != null;
@@ -158,5 +162,6 @@ class PluginSystemInstallRequiresPermissions extends PluginSystemState {
     previousGrantedPermissions,
     reportContext?.token,
     reportContext?.callbackUrl,
+    isUserInitiated,
   ];
 }

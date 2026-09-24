@@ -167,7 +167,11 @@ void main() {
       final shared = sharedNames;
       for (final row in rows) {
         final name = row.group(1)!;
-        expect(row.group(2)!.contains('✔'), shared.contains(name), reason: name);
+        expect(
+          row.group(2)!.contains('✔'),
+          shared.contains(name),
+          reason: name,
+        );
       }
     });
 

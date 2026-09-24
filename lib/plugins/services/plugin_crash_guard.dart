@@ -127,7 +127,10 @@ class PluginCrashGuard {
   /// מסמן שמתחילים לטעון את התוסף. אם הקוד יקרוס מכאן והלאה, ההפעלה הבאה
   /// תראה את ה-pluginId בקובץ ותסרב לטעון אותו אוטומטית.
   /// [owner] מזהה את המופע הטוען — ראו [_loadsInFlight].
-  static Future<void> markLoadAttempt(String pluginId, {String owner = ''}) async {
+  static Future<void> markLoadAttempt(
+    String pluginId, {
+    String owner = '',
+  }) async {
     await ensureInitialized();
     _sessionAttempts.add(pluginId);
     _loadsInFlight.putIfAbsent(pluginId, () => <String>{}).add(owner);
@@ -154,7 +157,10 @@ class PluginCrashGuard {
 
   /// מסמן שסיום הטעינה של [owner] הגיע בעוד התהליך חי. הסימון מוסר מ-disk
   /// רק כשלא נותרה טעינה פתוחה של מופע אחר לאותו תוסף.
-  static Future<void> markLoadSuccess(String pluginId, {String owner = ''}) async {
+  static Future<void> markLoadSuccess(
+    String pluginId, {
+    String owner = '',
+  }) async {
     await ensureInitialized();
     if (!_finishLoad(pluginId, owner)) return;
     final removed = _blocked!.remove(pluginId);
