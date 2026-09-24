@@ -602,7 +602,6 @@ class _BookGridTextColumn extends StatelessWidget {
               textAlign: TextAlign.right,
             );
 
-        final authorMaxLines = titleOverflow ? 1 : 2;
         final hasAuthor = (book.author ?? '').isNotEmpty;
         // final shortDescription = truncateBookCardDescription(
         //   book.heShortDesc ?? '',
@@ -627,12 +626,17 @@ class _BookGridTextColumn extends StatelessWidget {
                   ? book.categoryPath!.trim()
                   : book.topics.trim());
         final hasTopics = showTopics && pathText.isNotEmpty;
+        // גובה הכרטיס קבוע, ושורת המקור צורכת ממנו שורה. בלי לקצץ את
+        // שורת המחבר לשורה אחת, ספר שמחברו ארוך — `רבי יעקב משולם
+        // אורנשטיין (פולין, המאה ה - 18)` — הגליש את הכרטיס.
+        final authorMaxLines = (titleOverflow || hasSource) ? 1 : 2;
         final topicsMaxLines = !hasTopics
             ? 0
-            : constraints.maxHeight < 110
+            : constraints.maxHeight < 110 || (hasSource && hasAuthor)
             ? 1
             : constraints.maxHeight < 140 ||
                   hasAuthor ||
+                  hasSource ||
                   titleOverflow // || hasShortDescription
             ? 2
             : 3;
