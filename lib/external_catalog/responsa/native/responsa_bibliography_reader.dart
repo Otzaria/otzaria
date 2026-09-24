@@ -58,19 +58,20 @@ class ResponsaBibliographyReader {
       }
     }
     for (final file in files) {
-      final pages = ResponsaChm.read(
-        file,
-        folder: ResponsaBibliography.chmFolder,
-      );
+      // כל הקובץ, ולא תיקייה בשם ידוע: שם התיקייה משתנה בין מהדורות,
+      // ו-[ResponsaBibliography.onlyBibliographyFolder] מאתר אותה לפי
+      // המבנה.
+      final pages = ResponsaChm.read(file, folder: const <String>[]);
       if (pages.isEmpty) continue;
-      final bibliography = ResponsaBibliography.parse(pages);
-      if (!bibliography.isEmpty) {
-        debugPrint(
-          'ResponsaBibliography: ${bibliography.entryCount} entries '
-          'from ${path.basename(file)}',
-        );
-        return bibliography;
-      }
+      final bibliography = ResponsaBibliography.parse(
+        ResponsaBibliography.onlyBibliographyFolder(pages),
+      );
+      if (bibliography.isEmpty) continue;
+      debugPrint(
+        'ResponsaBibliography: ${bibliography.entryCount} entries '
+        'from ${path.basename(file)}',
+      );
+      return bibliography;
     }
     return ResponsaBibliography.empty;
   }

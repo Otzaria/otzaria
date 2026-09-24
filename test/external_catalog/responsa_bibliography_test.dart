@@ -303,6 +303,77 @@ void main() {
     });
   });
 
+  group('איתור תיקיית הביבליוגרפיה', () {
+    Uint8List help(String title) => cp1255(
+      '<HTML><HEAD><TITLE>$title</TITLE></HEAD><BODY>'
+      '<P>לחיצה על $title תפתח חלון ובו רשימה כללית של מאגרים בכל ספרי '
+      'התנ"ך, ובחירה בכל אחד מהם תפרוש רשימה של ספרים.</P>'
+      '</BODY></HTML>',
+    );
+
+    /// בקובץ העזרה של CD25 יש 98 עמודי הדרכה שעוברים את `parsePage`:
+    /// `גימטריה` מקבל מקום הדפסה `בכל ספרי` ושנה `התנ"ך`. אורך הטקסט
+    /// אינו מבדיל — רק המיקום.
+    test('עמודי הדרכה מחוץ לתיקייה נשארים בחוץ', () {
+      final pages = <String, Uint8List>{
+        for (var i = 0; i < 20; i++)
+          'html/Bblgrphy/shoot/$i.htm': cp1255(
+            page('שו"ת ספר $i', ['רבי פלוני אלמוני', 'ירושלים תשס"ו']),
+          ),
+        'html/Menu/Gimatria.htm': help('גימטריה'),
+        'html/Menu/Biographia.htm': help('ביוגרפיה'),
+      };
+      final selected = ResponsaBibliography.onlyBibliographyFolder(pages);
+      expect(selected.keys, hasLength(20));
+      expect(
+        selected.keys.every((k) => k.startsWith('html/Bblgrphy/')),
+        isTrue,
+      );
+
+      final bibliography = ResponsaBibliography.parse(selected);
+      expect(bibliography.lookup(['שו"ת ספר 1'])?.pubPlace, 'ירושלים');
+      expect(bibliography.lookup(['גימטריה']), isNull);
+    });
+
+    /// שם התיקייה אינו קבוע בין מהדורות. הבחירה היא לפי המבנה, ולכן
+    /// תיקייה בשם אחר לגמרי עובדת בלי שינוי קוד.
+    test('תיקייה בשם אחר נבחרת בדיוק כמו המוכרת', () {
+      final pages = <String, Uint8List>{
+        for (var i = 0; i < 20; i++)
+          'DOCS/SefarimList/$i.htm': cp1255(
+            page('שו"ת ספר $i', ['ירושלים תשס"ו']),
+          ),
+        'DOCS/Help/Gimatria.htm': help('גימטריה'),
+      };
+      final selected = ResponsaBibliography.onlyBibliographyFolder(pages);
+      expect(selected.keys, hasLength(20));
+      expect(
+        ResponsaBibliography.parse(selected).lookup(['שו"ת ספר 5'])?.pubDate,
+        'תשס"ו',
+      );
+    });
+
+    /// מטא-דאטה שגויה גרועה מהיעדר מטא-דאטה: בקובץ שבו הכול שטוח אין
+    /// דרך להבדיל בין רשומה לעמוד הדרכה, ולכן לא נבחר דבר.
+    test('קובץ שאין בו תיקייה נפרדת אינו מנחש', () {
+      final pages = <String, Uint8List>{
+        'a.htm': cp1255(page('שו"ת ספר', ['ירושלים תשס"ו'])),
+        'b.htm': help('גימטריה'),
+      };
+      expect(ResponsaBibliography.onlyBibliographyFolder(pages), isEmpty);
+    });
+
+    test('קובץ בלי עמודים שנקראים כרשומה מחזיר ריק', () {
+      expect(
+        ResponsaBibliography.onlyBibliographyFolder({
+          'html/Menu/a.htm': help('גימטריה'),
+        }),
+        isEmpty,
+      );
+      expect(ResponsaBibliography.onlyBibliographyFolder(const {}), isEmpty);
+    });
+  });
+
   group('איתור קובץ העזרה', () {
     late Directory root;
 

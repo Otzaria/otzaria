@@ -64,9 +64,6 @@ class ResponsaBibliographyEntry {
 ///   שהתוכנה מפסיקה לפתוח חלונות ב-22. כלומר כשעתיים של הנעת התוכנה
 ///   בכל מחשב, בכל בנייה מחדש.
 class ResponsaBibliography {
-  /// התיקייה שבתוך ה-CHM.
-  static const List<String> chmFolder = ['html', 'Bblgrphy'];
-
   /// שמות קובצי העזרה, לפי סדר העדפה. העברי ראשון — הוא זה שבו השמות
   /// כתובים בעברית ותואמים לעץ.
   static const List<String> helpFileNames = [
@@ -74,6 +71,13 @@ class ResponsaBibliography {
     'RESPHEB.CHM',
     'RESPENG.CHM',
   ];
+
+  /// איזה חלק מהעמודים שנקראים כרשומה צריך לשבת תחת תיקייה אחת כדי
+  /// שהיא תיחשב תיקיית הביבליוגרפיה.
+  ///
+  /// ב-CD25: 1,238 מתוך 1,336 (92.7%) תחת `html/Bblgrphy`, והשאר פזורים
+  /// ב-`html/Menu`, ‏`html/General` ועוד.
+  static const double _folderMajority = 0.8;
 
   final Map<String, List<ResponsaBibliographyEntry>> _byKey;
 
@@ -87,14 +91,68 @@ class ResponsaBibliography {
   int get entryCount =>
       _byKey.values.expand((entries) => entries).toSet().length;
 
+  /// מצמצם את עמודי קובץ העזרה לתיקיית הביבליוגרפיה בלבד.
+  ///
+  /// **כך המימוש אינו תלוי בשם התיקייה.** ב-CD25 היא `html/Bblgrphy`,
+  /// ואין לדעת מה שמה במהדורה אחרת; במקום להיתלות בשם, נבחרת התיקייה
+  /// שתחתיה יושבים [_folderMajority] מכלל העמודים שנקראים כרשומה —
+  /// העמוקה ביותר שעדיין עומדת ברוב הזה.
+  ///
+  /// הסינון הזה הכרחי ואינו זהירות יתר: בקובץ העזרה של CD25 יש 98 עמודי
+  /// הדרכה שעוברים את [parsePage] ומייצרים שטות — `גימטריה` מקבל מקום
+  /// הדפסה `בכל ספרי` ושנה `התנ"ך`. אורך הטקסט אינו מבדיל ביניהם
+  /// (הרשומות האמיתיות מגיעות עד 189 תווים והזבל מתחיל ב-46), ורק
+  /// המיקום מבדיל.
+  ///
+  /// כשאין תיקייה כזו — למשל קובץ עזרה שהכול בו שטוח — מוחזרת מפה ריקה.
+  /// מטא-דאטה שגויה גרועה מהיעדר מטא-דאטה.
+  static Map<String, Uint8List> onlyBibliographyFolder(
+    Map<String, Uint8List> pages,
+  ) {
+    final keys = [
+      for (final entry in pages.entries)
+        if (_isHtml(entry.key) && parsePage(decodeCp1255(entry.value)) != null)
+          entry.key,
+    ];
+    if (keys.isEmpty) return const {};
+
+    // כמה עמודים תחת כל תחילית-נתיב אפשרית.
+    final counts = <String, int>{};
+    for (final key in keys) {
+      final parts = key.replaceAll('\\', '/').split('/');
+      for (var depth = 1; depth < parts.length; depth++) {
+        final prefix = parts.take(depth).join('/').toLowerCase();
+        counts[prefix] = (counts[prefix] ?? 0) + 1;
+      }
+    }
+    final needed = keys.length * _folderMajority;
+    String? chosen;
+    for (final entry in counts.entries) {
+      if (entry.value < needed) continue;
+      if (chosen == null || entry.key.length > chosen.length) {
+        chosen = entry.key;
+      }
+    }
+    if (chosen == null) return const {};
+
+    final prefix = '$chosen/';
+    return {
+      for (final entry in pages.entries)
+        if (entry.key.replaceAll('\\', '/').toLowerCase().startsWith(prefix))
+          entry.key: entry.value,
+    };
+  }
+
+  static bool _isHtml(String key) {
+    final lower = key.toLowerCase();
+    return lower.endsWith('.htm') || lower.endsWith('.html');
+  }
+
   /// בונה אינדקס מעמודי ה-CHM הגולמיים, כפי ש-[ResponsaChm] מחזיר אותם.
   static ResponsaBibliography parse(Map<String, Uint8List> pages) {
     final index = <String, List<ResponsaBibliographyEntry>>{};
     for (final entry in pages.entries) {
-      if (!entry.key.toLowerCase().endsWith('.htm') &&
-          !entry.key.toLowerCase().endsWith('.html')) {
-        continue;
-      }
+      if (!_isHtml(entry.key)) continue;
       final page = parsePage(decodeCp1255(entry.value));
       if (page == null) continue;
       for (final name in _keysFor(page.names)) {
