@@ -135,6 +135,16 @@ class ExternalProviderRegistry {
     responsa,
   ];
 
+  /// האם הפתיחה המקומית של [provider] עוברת דרך הקולבק המשותף.
+  ///
+  /// לאוצר החכמה מסלול משלו (`OtzarUtils.launchOtzarLocal`), ולכן הכפתור
+  /// המשותף אינו שלו: לחיצה עליו מגיעה לפותחן של פרויקט השו"ת ונכשלת
+  /// בהודעה "הספר אינו ספר של פרויקט השו"ת".
+  static bool usesSharedLocalOpen(ExternalProviderDescriptor? provider) =>
+      provider != null &&
+      provider.capabilities.localOpen &&
+      provider.kind != ExternalProviderKind.otzar;
+
   static ExternalProviderDescriptor of(ExternalProviderKind kind) =>
       switch (kind) {
         ExternalProviderKind.otzar => otzar,

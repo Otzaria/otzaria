@@ -224,7 +224,8 @@ class ExternalBookDialog extends StatelessWidget {
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
-        if (!_isOtzar && capabilities.localOpen && onOpenLocally != null)
+        if (ExternalProviderRegistry.usesSharedLocalOpen(_provider) &&
+            onOpenLocally != null)
           Builder(
             builder: (context) => ExternalOpenButton(
               book: book,

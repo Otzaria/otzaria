@@ -28,6 +28,7 @@ import 'package:otzaria/widgets/dialogs/password_dialog.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart'
     show kPdfImageCacheMinBytesPerPane;
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
+import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/view/external_open_button.dart';
 import 'package:otzaria/pdf_book/view/pdf_scrollbar.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -464,7 +465,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
         externalLibraryId: external.externalLibraryId,
       );
       final opensLocally =
-          provider?.capabilities.localOpen == true &&
+          ExternalProviderRegistry.usesSharedLocalOpen(provider) &&
           widget.onOpenExternally != null;
       return Center(
         child: Column(

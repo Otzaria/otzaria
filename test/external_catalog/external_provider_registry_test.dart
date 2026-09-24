@@ -50,6 +50,33 @@ void main() {
       }
     });
 
+    /// הכפתור המשותף מחווט לפותחן של פרויקט השו"ת. ספר של אוצר החכמה
+    /// שהגיע אליו נכשל בהודעה "הספר אינו ספר של פרויקט השו"ת", ומסלול
+    /// הפתיחה המקומי האמיתי שלו אינו נקרא כלל.
+    test('הכפתור המשותף לפתיחה מקומית אינו של אוצר החכמה', () {
+      expect(
+        ExternalProviderRegistry.usesSharedLocalOpen(
+          ExternalProviderRegistry.responsa,
+        ),
+        isTrue,
+      );
+      expect(
+        ExternalProviderRegistry.usesSharedLocalOpen(
+          ExternalProviderRegistry.otzar,
+        ),
+        isFalse,
+        reason: 'לאוצר החכמה מסלול פתיחה מקומי משלו',
+      );
+      expect(
+        ExternalProviderRegistry.usesSharedLocalOpen(
+          ExternalProviderRegistry.hebrewBooks,
+        ),
+        isFalse,
+        reason: 'אין לו פתיחה מקומית כלל',
+      );
+      expect(ExternalProviderRegistry.usesSharedLocalOpen(null), isFalse);
+    });
+
     test('byId ו-byPrefix אינם רגישים לרישיות ולרווחים', () {
       expect(ExternalProviderRegistry.byId(' Responsa ')?.idPrefix, 'rp');
       expect(ExternalProviderRegistry.byPrefix('OH')?.id, 'otzar');
