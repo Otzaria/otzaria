@@ -208,10 +208,4 @@ class ResponsaCategoryMap {
     ..._twoLevel.values,
     ..._oneLevel.values,
   ];
-
-  /// כל מפתחות המקור בבר אילן. משמש לבדיקה שכל מדף בקטלוג משויך.
-  static Iterable<String> get allSources => [
-    ..._twoLevel.keys,
-    ..._oneLevel.keys,
-  ];
 }

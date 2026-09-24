@@ -67,11 +67,9 @@ class ResponsaVersionProfile {
   final String mainWindowClass;
 
   final int browseCommand;
-  final int searchCommand;
 
   final DialogHints citationDialogHints;
   final DialogHints infoModalHints;
-  final ControlHints treeControlHints;
 
   /// תווית העמוד "כתיבת מקורות" בתוך ה-TabControl של דיאלוג העיון.
   final int citationTabIndex;
@@ -98,10 +96,8 @@ class ResponsaVersionProfile {
     required this.version,
     this.mainWindowClass = 'ResponsaProject',
     this.browseCommand = 32781,
-    this.searchCommand = 32857,
     this.citationDialogHints = citationHints,
     this.infoModalHints = infoModalHintsDefault,
-    this.treeControlHints = treeHints,
     this.citationTabIndex = 1,
     this.mdiSoftLimit = 12,
     this.mdiKeep = 4,
@@ -172,11 +168,5 @@ class ResponsaVersionProfile {
         textContains: {'אישור'},
       ),
     ],
-  );
-
-  static const ControlHints treeHints = ControlHints(
-    role: 'catalog_tree',
-    classNames: {'SysTreeView32'},
-    controlIds: {1002},
   );
 }

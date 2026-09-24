@@ -36,9 +36,6 @@ class ResponsaStructure {
   /// סוג הצומת של מחבר או סדרה שמעל החיבור. תמיד חלק מהשם.
   static const int collectionKind = 3;
 
-  /// הסוגים שמתארים רמת קטגוריה.
-  static const Set<int> categoryKinds = {1, 2, 3};
-
   /// מילות פתיחה של תווית מיון.
   ///
   /// הסיום `(?=[\s"'׳״]|$)` ולא `\b` — ב-Dart גבול המילה הוא ASCII ואות

@@ -6,7 +6,7 @@
 /// * [spellingKey] — בנוסף: השמטת אמות קריאה (י/ו) וקיפול אותיות
 ///   סופיות. מנטרל את ההבדל בין כתיב מלא לחסר, שהוא רפורמה שיטתית בין
 ///   מהדורות (`חידושי` ↔ `חדושי`, `ביאור` ↔ `באור`).
-/// * [numeralToInt] / [intToNumeral] — גימטריה. כותרת חלון היא
+/// * [numeralToInt] — גימטריה. כותרת חלון היא
 ///   `<ספר> סימן <גימטריה>`, והיא האורקל היחיד למיקום הנוכחי.
 class ResponsaHebrew {
   ResponsaHebrew._();
@@ -86,42 +86,6 @@ class ResponsaHebrew {
 
   // ------------------------------------------------------------ גימטריה
 
-  static const List<String> _ones = [
-    '',
-    'א',
-    'ב',
-    'ג',
-    'ד',
-    'ה',
-    'ו',
-    'ז',
-    'ח',
-    'ט',
-  ];
-  static const List<String> _tens = [
-    '',
-    'י',
-    'כ',
-    'ל',
-    'מ',
-    'נ',
-    'ס',
-    'ע',
-    'פ',
-    'צ',
-  ];
-  static const List<String> _hundreds = [
-    '',
-    'ק',
-    'ר',
-    'ש',
-    'ת',
-    'תק',
-    'תר',
-    'תש',
-    'תת',
-    'תתק',
-  ];
   static const Map<String, int> _letterValues = {
     'א': 1,
     'ב': 2,
@@ -146,22 +110,6 @@ class ResponsaHebrew {
     'ש': 300,
     'ת': 400,
   };
-
-  /// 1..999 → גימטריה כפי שהיא מופיעה בכותרות (טו/טז חריגים).
-  static String intToNumeral(int value) {
-    if (value <= 0 || value >= 1000) {
-      throw ArgumentError.value(value, 'value', 'נתמך 1..999 בלבד');
-    }
-    final text = _hundreds[value ~/ 100];
-    final rest = value % 100;
-    // טו/טז נכתבים כך ולא כ-יה/יו.
-    final suffix = switch (rest) {
-      15 => 'טו',
-      16 => 'טז',
-      _ => '${_tens[rest ~/ 10]}${_ones[rest % 10]}',
-    };
-    return '$text$suffix';
-  }
 
   /// גימטריה → מספר. `null` כשיש תו שאינו אות-מספר.
   static int? numeralToInt(String? text) {
