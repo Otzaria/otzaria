@@ -40,4 +40,17 @@ void main() {
     await tryInitSearchEngine();
     expect(dir.listSync(), hasLength(before));
   });
+
+  test(
+    'ספרייה שנמצאה ולא נטענה — סיבת הדילוג מציגה את השגיאה (issue #1491)',
+    () async {
+      final candidates = searchEngineLibraryCandidates();
+      if (candidates.isEmpty || await tryInitSearchEngine()) {
+        markTestSkipped('נדרשת ספרייה שקיימת אך אינה נטענת');
+        return;
+      }
+
+      expect(searchEngineSkipReason, contains('נמצאה אך לא נטענה'));
+    },
+  );
 }
