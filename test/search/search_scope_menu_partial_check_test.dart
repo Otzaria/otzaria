@@ -8,6 +8,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
+import '../support/search_engine_test_init.dart';
 
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
     implements LibraryBloc {}
@@ -40,7 +41,8 @@ Library _buildLibrary() {
   return library;
 }
 
-void main() {
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
   Future<void> pumpMenu(WidgetTester tester, Set<String> selected) async {
     final libraryBloc = _MockLibraryBloc();
     whenListen(
@@ -161,5 +163,5 @@ void main() {
         findsNothing,
       );
     });
-  });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 }

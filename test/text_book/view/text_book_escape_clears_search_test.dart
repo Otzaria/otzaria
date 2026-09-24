@@ -31,10 +31,12 @@ import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../support/search_engine_test_init.dart';
 
 /// ההדגשה של החיפוש-בספר נגזרת מ-`searchText`, ולכן היא שרדה גם אחרי סגירת
 /// החלונית. Esc באזור הקריאה מנקה אותה בלי לפתוח את החלונית (issue #1135).
-void main() {
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FocusRepository focusRepository;
@@ -129,6 +131,10 @@ void main() {
   }
 
   testWidgets('Esc מנקה את הדגשת החיפוש כשהחלונית סגורה', (tester) async {
+    if (!engineReady) {
+      markTestSkipped(searchEngineSkipReason);
+      return;
+    }
     final bloc = await pumpScreen(tester, searchText: 'בראשית');
     bloc.recordedEvents.clear();
 

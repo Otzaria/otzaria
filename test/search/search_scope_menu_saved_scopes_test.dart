@@ -10,6 +10,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/search_scope_preferences.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
+import '../support/search_engine_test_init.dart';
 
 class _MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
     implements LibraryBloc {}
@@ -29,7 +30,8 @@ Library _buildLibrary() {
   return library;
 }
 
-void main() {
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Set<String> selection;
@@ -140,7 +142,7 @@ void main() {
       // המחיקה אינה משנה את הבחירה שכבר הוחלה.
       expect(selection, {'/ראשונים', '/קבלה'});
     });
-  });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 }
 
 Future<void> openMenu(WidgetTester tester) async {
