@@ -25,6 +25,7 @@ import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../support/search_engine_test_init.dart';
 
 class _MockHistoryBloc extends MockBloc<HistoryEvent, HistoryState>
     implements HistoryBloc {}
@@ -53,7 +54,8 @@ Library _buildLibrary() {
   return library;
 }
 
-void main() {
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
@@ -164,6 +166,10 @@ void main() {
     });
 
     testWidgets('טאב בעריכה גובר על ההעדפה השמורה', (tester) async {
+      if (!engineReady) {
+        markTestSkipped(searchEngineSkipReason);
+        return;
+      }
       await SearchScopePreferences.save(
         searchAllCategories: false,
         manualFacets: {'/תנ״ך/בראשית'},

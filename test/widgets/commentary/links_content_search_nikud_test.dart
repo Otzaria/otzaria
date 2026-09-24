@@ -14,6 +14,7 @@ import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 import '../../helpers/memory_settings_cache.dart';
+import '../../support/search_engine_test_init.dart';
 
 /// תוכן הקישורים הוא הטקסט המנוקד ביותר בספרייה (פסוקים, משניות, ציטוטים).
 /// הסינון חייב להתעלם מניקוד כמו כל שאר משטחי החיפוש באפליקציה.
@@ -77,7 +78,8 @@ Future<void> _searchInContent(WidgetTester tester, String query) async {
   await tester.pumpAndSettle();
 }
 
-void main() {
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
   setUpAll(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await Settings.init(cacheProvider: MemorySettingsCache());
@@ -127,6 +129,10 @@ void main() {
 
   group('חיפוש בתוכן הקישורים — HTML', () {
     testWidgets('ישות HTML בין המילים אינה חוסמת ביטוי', (tester) async {
+      if (!engineReady) {
+        markTestSkipped(searchEngineSkipReason);
+        return;
+      }
       final links = [
         _ContentLink(
           heRef: 'הפניה',

@@ -29,6 +29,7 @@ import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
+import '../support/search_engine_test_init.dart';
 
 class _MockSettingsBloc extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
@@ -56,7 +57,8 @@ class _SearchBloc extends SearchBloc {
   }
 }
 
-void main() {
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
@@ -155,6 +157,10 @@ void main() {
   testWidgets('הסרגל הרחב שומר ספירות ומיקום של תוצאות חיצוניות', (
     tester,
   ) async {
+    if (!engineReady) {
+      markTestSkipped(searchEngineSkipReason);
+      return;
+    }
     await pumpSearch(tester, width: 1200);
 
     expect(find.textContaining('אוצריא: 0/12'), findsOneWidget);
@@ -174,6 +180,10 @@ void main() {
   testWidgets('הסרגל המכווץ שומר על הפקד החיצוני במצב קומפקטי', (
     tester,
   ) async {
+    if (!engineReady) {
+      markTestSkipped(searchEngineSkipReason);
+      return;
+    }
     await pumpSearch(tester, width: 850);
 
     final control = tester.widget<ExternalResultsPositionControl>(
@@ -194,6 +204,10 @@ void main() {
   testWidgets('סרגל ברוחב 909 עם ספק חיצוני אינו חורג (Pixel XL landscape)', (
     tester,
   ) async {
+    if (!engineReady) {
+      markTestSkipped(searchEngineSkipReason);
+      return;
+    }
     await pumpSearch(tester, width: 909);
 
     expect(tester.takeException(), isNull);
@@ -202,6 +216,10 @@ void main() {
   testWidgets('סרגל ברוחב 909 בלי ספק חיצוני — שורת מונים אחת ובלי חריגה', (
     tester,
   ) async {
+    if (!engineReady) {
+      markTestSkipped(searchEngineSkipReason);
+      return;
+    }
     await pumpSearch(
       tester,
       width: 909,
@@ -224,6 +242,10 @@ void main() {
   testWidgets('בלוק המונים תחום ברוחב כשספק חיצוני פעיל (issue #1051)', (
     tester,
   ) async {
+    if (!engineReady) {
+      markTestSkipped(searchEngineSkipReason);
+      return;
+    }
     await pumpSearch(
       tester,
       width: 1200,
@@ -249,6 +271,10 @@ void main() {
   testWidgets('הטאב ממקד את התוכן שלו כששדה החיפוש אינו מוצג (issue #1349)', (
     tester,
   ) async {
+    if (!engineReady) {
+      markTestSkipped(searchEngineSkipReason);
+      return;
+    }
     // אחרי תוסף הפוקוס "חונה" בשורש — כך מדמים את המצב שב-WebView.
     FocusManager.instance.rootScope.requestScopeFocus();
     await pumpSearch(tester, width: 1200);
@@ -259,6 +285,10 @@ void main() {
   });
 
   testWidgets('סרגל ברוחב 411 שומר רוחב מזערי למילות החיפוש', (tester) async {
+    if (!engineReady) {
+      markTestSkipped(searchEngineSkipReason);
+      return;
+    }
     await pumpSearch(
       tester,
       width: 411,
