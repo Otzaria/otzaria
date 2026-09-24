@@ -112,9 +112,22 @@ void main() {
     expect(await search('מחבר שאינו קיים'), isEmpty);
   });
 
-  test('שדה המחבר נשאר ריק — אין לו מקור, ואין להמציא לו ערך', () async {
-    final books = await repository.responsaBooks;
-    expect(books.every((b) => b.author == null), isTrue);
+  /// 994 ספרים מקבלים שם מחבר מ"רשימת הספרים והמהדורות" שבקובץ העזרה.
+  /// שם כזה חייב להיות ניתן לחיפוש בדיוק כמו שם שיושב בנתיב.
+  test('מחבר שנקרא מקובץ העזרה נמצא בחיפוש', () async {
+    repository.responsaBooks = Future.value([
+      ExternalLibraryBook(
+        title: 'שו"ת אבני נזר חלק אורח חיים',
+        id: 7,
+        link: null,
+        author: 'רבי אברהם בורנשטיין (פולין המאה ה- 19)',
+        externalLibraryId: 'rp:7',
+      ),
+    ]);
+
+    expect(await search('בורנשטיין'), ['rp:7']);
+    // ולא כל שאילתה מחזירה אותו.
+    expect(await search('סופר'), isEmpty);
   });
 }
 

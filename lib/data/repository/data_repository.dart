@@ -62,6 +62,10 @@ class DataRepository {
   Future<List<ExternalLibraryBook>> get otzarBooks =>
       _otzarBooksFuture ??= getOtzarBooks();
 
+  @visibleForTesting
+  set otzarBooks(Future<List<ExternalLibraryBook>> value) =>
+      _otzarBooksFuture = value;
+
   /// ספרי פרויקט השו"ת מהקטלוג המקומי. ~8.5K רשומות ב-DB של ~5MB, קטן
   /// יותר מקטלוג היברובוקס שכבר נטען כך.
   Future<List<ExternalLibraryBook>> get responsaBooks =>

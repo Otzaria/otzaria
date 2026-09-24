@@ -35,6 +35,7 @@ void main() {
     repository = DataRepository()
       ..library = Future.value(Library(categories: []))
       ..responsaBooks = Future.value([responsaBook()])
+      ..otzarBooks = Future.value([otzarBook()])
       ..localHebrewBooks = Future.value(const []);
   });
 
@@ -76,14 +77,26 @@ void main() {
     expect(found, isEmpty);
   });
 
-  test('הפעלת פרויקט השו"ת אינה מכניסה ספרים לשאילתה של ספק אחר', () async {
-    final found = await repository.findBooks(
-      otzarBook().title,
-      null,
-      includeResponsa: true,
+  /// שני הספקים מוזרקים, ורק אחד מופעל. בלי ההזרקה של אוצר החכמה
+  /// הבדיקה לא הייתה יכולה להיכשל: אין ספר כזה במרחב החיפוש.
+  test('הפעלת פרויקט השו"ת אינה מכניסה ספרים של ספק אחר', () async {
+    expect(
+      await repository.findBooks(
+        otzarBook().title,
+        null,
+        includeResponsa: true,
+      ),
+      isEmpty,
     );
-
-    expect(found, isEmpty);
+    // ולראיה שהספר אכן במרחב: עם הדגל שלו הוא נמצא.
+    expect(
+      (await repository.findBooks(
+        otzarBook().title,
+        null,
+        includeOtzar: true,
+      )).single.externalLibraryId,
+      'oh:42',
+    );
   });
 }
 
