@@ -246,6 +246,35 @@ void main() {
         );
       },
     );
+    testWidgets('מובייל: כותרת ההגדרות מודגשת בתפריט ובתוך טאב (issue #1503)', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(buildScreen());
+      await tester.pump();
+      await tester.pump();
+
+      FontWeight? appBarTitleWeight() => tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byType(AppBar),
+              matching: find.byType(Text),
+            ),
+          )
+          .style
+          ?.fontWeight;
+
+      expect(appBarTitleWeight(), FontWeight.bold);
+
+      await tester.tap(find.widgetWithText(ListTile, 'כתב'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(appBarTitleWeight(), FontWeight.bold);
+    });
+
     // "קיצורי מקשים" זמין רק בדסקטופ (ShortcutsSettingsTab מציג במובייל
     // "זמין רק בדסקטופ"), ולכן אסור שהשורה תופיע ברשימת המובייל.
     testWidgets('מובייל: "קיצורי מקשים" אינו ברשימת ההגדרות', (tester) async {
