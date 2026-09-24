@@ -244,6 +244,32 @@ void main() {
     expect(find.byType(TabSearchButton), findsOneWidget);
   });
 
+  testWidgets('קו מפריד בין כפתורי הכותרת לכרטיסיות (issue #1503)', (
+    tester,
+  ) async {
+    for (final collapsed in [false, true]) {
+      await pumpPanel(tester, collapsed: collapsed);
+      final divider = find.descendant(
+        of: find.byType(ReadingTabsSidePanel),
+        matching: find.byType(Divider),
+      );
+      expect(divider, findsOneWidget, reason: 'collapsed: $collapsed');
+      final dividerRect = tester.getRect(divider);
+      expect(
+        dividerRect.top,
+        greaterThanOrEqualTo(
+          tester.getRect(find.byType(TabSearchButton)).bottom,
+        ),
+      );
+      expect(
+        dividerRect.bottom,
+        lessThanOrEqualTo(
+          tester.getRect(find.byType(VerticalReadingTabStrip)).top,
+        ),
+      );
+    }
+  });
+
   testWidgets('לחיצת גלגלת סוגרת את הכרטיסיה ורושמת אותה בהיסטוריה', (
     tester,
   ) async {
