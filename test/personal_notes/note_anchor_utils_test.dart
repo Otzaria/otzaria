@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
 
 void main() {
   group('projectLine', () {
@@ -35,7 +36,7 @@ void main() {
       // ולכן הבחירה כוללת רווח שם — חייב להתאים לעיגון.
       const raw = '<b>ובו ט סעיפים:</b><br>יתגבר כארי';
       final p = projectLine(raw);
-      expect(p.normalized, 'ובו ט סעיפים: יתגבר כארי');
+      expect(p.normalized, 'ובו ט סעיפים יתגבר כארי');
       // הטקסט שנבחר (\n מ-<br>) מנורמל לרווח ונמצא בעיגון.
       final range = locateAnchor(rawLine: raw, anchorText: 'סעיפים:\nיתגבר');
       expect(range, isNotNull);
@@ -102,6 +103,45 @@ void main() {
         selectedText: 'משה',
       );
       expect(anchor!.start, 0);
+    });
+  });
+
+  group('עיגון כשהפיסוק מוסתר בתצוגה (issue #1518)', () {
+    const raw =
+        'אָמַר רַבִּי יוֹחָנָן, מַאי דִּכְתִיב? "וַיֹּאמֶר" - לְעוֹלָם.';
+    final shown = removePunctuation(raw);
+
+    test('בחירה מהטקסט המוצג נמצאת בשורה הגולמית', () {
+      final start = shown.indexOf('יוֹחָנָן');
+      final selected = shown.substring(start, shown.indexOf('דִּכְתִיב') + 9);
+      final anchor = computeAnchorForSelection(
+        rawLine: raw,
+        selectedText: selected,
+      );
+      expect(anchor, isNotNull);
+      final sub = raw.substring(anchor!.start, anchor.end);
+      expect(sub, 'יוֹחָנָן, מַאי דִּכְתִיב');
+    });
+
+    test('כשהפיסוק מוצג, רמז העמודה בוחר את המופע שנבחר בפועל', () {
+      const line =
+          'א, ב, ג, ד, ה, ו, ז, ח, ט, י, כ, ל, מ, נ, ס, ע, פ, צ, ק, ר, '
+          'אמר רבא בר אמר רבא';
+      final anchor = computeAnchorForSelection(
+        rawLine: line,
+        selectedText: 'אמר רבא',
+        selectionColumnHint: line.indexOf('אמר רבא'),
+      );
+      expect(anchor!.start, line.indexOf('אמר רבא'));
+    });
+
+    test('עוגן שנשמר כשהפיסוק הוצג נמצא גם כשהוא מוסתר', () {
+      final range = locateAnchor(
+        rawLine: raw,
+        anchorText: 'מאי דכתיב? "ויאמר"',
+      );
+      expect(range, isNotNull);
+      expect(raw.substring(range!.start, range.end), startsWith('מַאי'));
     });
   });
 
