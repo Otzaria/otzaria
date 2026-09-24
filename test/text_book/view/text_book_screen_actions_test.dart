@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:math';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1052,6 +1054,110 @@ void main() {
       },
     );
   });
+
+  group('ניווט בין קטעים בקיצור (issue #1516)', () {
+    Future<(TextBookTab, TextBookLoaded)> pumpLongBook(
+      WidgetTester tester,
+    ) async {
+      final book = TextBook(title: 'ספר בדיקה');
+      final state = _loadedState(
+        book,
+        content: List.generate(200, (i) => 'שורה מספר $i'),
+      );
+      final bloc = _TestTextBookBloc(state);
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        tab.dispose();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 700));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+      );
+      final wired = state.copyWith(
+        scrollController: tab.scrollController,
+        positionsListener: tab.positionsListener,
+      );
+      bloc.emitStateForTest(wired);
+      await tester.pumpAndSettle();
+      return (tab, wired);
+    }
+
+    testWidgets('Alt+↓ באזור הקריאה מגיע למטפל הקיצורים הגלובלי', (
+      tester,
+    ) async {
+      await pumpLongBook(tester);
+      var reached = 0;
+      KeyEventResult handler(KeyEvent event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowDown &&
+            HardwareKeyboard.instance.isAltPressed) {
+          reached++;
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      }
+
+      FocusManager.instance.addLateKeyEventHandler(handler);
+      addTearDown(
+        () => FocusManager.instance.removeLateKeyEventHandler(handler),
+      );
+
+      await tester.tap(find.text('שורה מספר 2'));
+      await tester.pump();
+      expect(
+        FocusManager.instance.primaryFocus?.context
+            ?.findAncestorWidgetOfExactType<SelectionArea>(),
+        isNotNull,
+        reason: 'הפוקוס צריך להיות באזור הקריאה, כמו אצל המדווח',
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      // מסיים את טיימר הלחיצה הכפולה שנפתח בהקשה על הטקסט.
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(reached, 1);
+    });
+
+    testWidgets('לחיצות רצופות על "הבא" מתקדמות קטע בכל לחיצה', (
+      tester,
+    ) async {
+      final (tab, state) = await pumpLongBook(tester);
+
+      for (var i = 0; i < 10; i++) {
+        tab.navNextSegmentNotifier.value++;
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pumpAndSettle();
+
+      final top = state.positionsListener.itemPositions.value
+          .where((p) => p.itemTrailingEdge > 0)
+          .map((p) => p.index)
+          .reduce(min);
+      expect(top, 10);
+    });
+  });
 }
 
 Future<void> _pumpTextBookScreen(
@@ -1139,11 +1245,15 @@ void _mockRestrictedBooksAsset(List<String> titles) {
   );
 }
 
-TextBookLoaded _loadedState(TextBook book, {bool showSplitView = false}) {
+TextBookLoaded _loadedState(
+  TextBook book, {
+  bool showSplitView = false,
+  List<String> content = const ['שורה א', 'שורה ב', 'שורה ג'],
+}) {
   return TextBookLoaded(
     book: book,
     showLeftPane: false,
-    content: const ['שורה א', 'שורה ב', 'שורה ג'],
+    content: content,
     fontSize: 18,
     showSplitView: showSplitView,
     activeCommentators: const [],
