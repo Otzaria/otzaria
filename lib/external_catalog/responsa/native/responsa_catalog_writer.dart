@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_builder.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
@@ -175,7 +176,18 @@ class ResponsaCatalogWriter {
     }
     db.close();
 
-    _swap(buildingPath, targetPath);
+    try {
+      _swap(buildingPath, targetPath);
+    } catch (_) {
+      // אותה סיבה כמו בכשל הכתיבה: קובץ בנייה שנשאר הוא חמישה
+      // מגה-בתים שהבנייה הבאה תיתקל בהם.
+      try {
+        if (building.existsSync()) building.deleteSync();
+      } catch (_) {
+        // נעילה על קובץ זמני אינה סיבה להסתיר את הכשל האמיתי.
+      }
+      rethrow;
+    }
     return ResponsaCatalogBuildResult(
       books: books.length,
       scannedNodes: nodes.length,
@@ -184,6 +196,11 @@ class ResponsaCatalogWriter {
     );
   }
 
+  /// המזהים שכבר הוקצו בקטלוג הקיים, לשימור בין בנייה לבנייה.
+  ///
+  /// רשימה ריקה פירושה שכל ספר יקבל `external_key` חדש — כלומר כל
+  /// סימנייה, פריט היסטוריה ומועדף של ספרי בר אילן יצביעו על ספר אחר.
+  /// לכן כשל בקריאה נרשם ואינו נבלע.
   static List<({String key, String refPath, int? treeParam})> _readExisting(
     String targetPath,
   ) {
@@ -204,7 +221,11 @@ class ResponsaCatalogWriter {
       } finally {
         db.close();
       }
-    } catch (_) {
+    } catch (error) {
+      debugPrint(
+        'ResponsaCatalogWriter: הקטלוג הקיים לא נקרא ($error) — '
+        'כל הספרים יקבלו מזהה חדש',
+      );
       return const [];
     }
   }

@@ -1,5 +1,5 @@
 import 'dart:ffi';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 import 'package:ffi/ffi.dart';
 import 'package:win32/win32.dart';
@@ -186,7 +186,15 @@ class _TreeSession {
       false,
       pid,
     ).value;
-    if (process.address == 0) return null;
+    if (process.address == 0) {
+      // ההבדל בין "העץ ריק" לבין "אין גישה לתהליך" אינו נראה מלמעלה:
+      // שניהם מחזירים רשימה ריקה. זה הסימן היחיד.
+      debugPrint(
+        'ResponsaTreeReader: OpenProcess($pid) נכשל — '
+        'ייתכן שבר אילן רץ בהרשאה גבוהה יותר מאוצריא',
+      );
+      return null;
+    }
 
     final remoteItem = VirtualAllocEx(
       process,
@@ -196,6 +204,7 @@ class _TreeSession {
       PAGE_PROTECTION_FLAGS(_pageReadWrite),
     ).value;
     if (remoteItem.address == 0) {
+      debugPrint('ResponsaTreeReader: VirtualAllocEx בתהליך $pid נכשל');
       CloseHandle(process);
       return null;
     }

@@ -158,26 +158,30 @@ class ResponsaAutomation {
 
   // -------------------------------------------------------- מודאל "מידע"
 
-  /// סוגר כל מודאל "מידע" פתוח בלחיצה על כפתור האישור.
+  /// סוגר כל מודאל "מידע" פתוח בלחיצה על כפתור האישור, ומחזיר כמה
+  /// מודאלים **נראו**.
   ///
-  /// הלולאה חסומה כדי שמודאל שאינו נסגר לא יהפוך לולאה אינסופית.
+  /// נראו ולא נסגרו: הקורא שואל "האם המנתח ענה תשובה סופית", ולשאלה
+  /// הזו עצם הופעת המודאל היא התשובה.
   int dismissInfoModals({int limit = 5}) {
-    var closed = 0;
+    var seen = 0;
     for (var attempt = 0; attempt < limit; attempt++) {
       final modals = ResponsaDiscovery.discoverAll(
         pid,
         profile.infoModalHints,
       );
-      if (modals.isEmpty) break;
+      if (modals.isEmpty) return seen;
       for (final modal in modals) {
-        final button = modal.handle('ok_button');
-        if (button == null) continue;
-        ResponsaWin32.click(button);
-        closed++;
+        if (modal.handle('ok_button') case final button?) {
+          ResponsaWin32.click(button);
+        }
+        seen++;
       }
       sleepFor(const Duration(milliseconds: 400));
     }
-    return closed;
+    // מודאל ששרד את כל הניסיונות חוסם את הערוץ לכל מה שיבוא אחריו.
+    debugPrint('ResponsaAutomation: מודאל "מידע" לא נסגר אחרי $limit ניסיונות');
+    return seen;
   }
 
   // ------------------------------------------------------- דיאלוג העיון

@@ -62,6 +62,11 @@ class ResponsaLibraryTree {
     final roots = <String, Category>{};
     final unmapped = <String, Category>{};
 
+    // תיקייה -> תיקיות הבת שלה לפי שם. חיפוש לינארי ב-`subCategories`
+    // הוא O(אחים), ומדף אחד מגיע לאלפי תיקיות — 8,400 ספרים × סריקה
+    // כזו הם מיליוני השוואות מחרוזות בתוך `setState`.
+    final children = <Category, Map<String, Category>>{};
+
     // כל תיקייה בעץ הזה נושאת את מזהה הספק, כולל תיקיות הבת: המשתמש
     // יורד לתוך `שו"ת אחרונים` ומשם ל-`תורת יקותיאל`, וגם שם צריך
     // להיות ברור שכל מה שבפנים ייפתח בתוכנה אחרת.
@@ -76,9 +81,16 @@ class ResponsaLibraryTree {
       externalProviderId: ExternalProviderRegistry.responsa.id,
     );
 
+    // 8,400 ספרים מתחלקים על פני ~96 מדפים, ולכן כמעט כל קריאה חוזרת
+    // על נתיב שכבר נפתר — ופתרון הוא ארבעה מעברי regex.
+    final resolved = <String, ({List<String> target, int levels})?>{};
+
     for (final book in books) {
       final source = book.heCategories;
-      final match = ResponsaCategoryMap.resolve(source);
+      final match = resolved.putIfAbsent(
+        source ?? '',
+        () => ResponsaCategoryMap.resolve(source),
+      );
       final targetPath = match == null
           ? null
           : pathKey('/${match.target.join('/')}');
@@ -107,14 +119,15 @@ class ResponsaLibraryTree {
       final consumed = match?.levels ?? 0;
       var current = root;
       for (final part in parts.skip(consumed)) {
-        current = current.subCategories.firstWhere(
-          (child) => child.title == part,
-          orElse: () {
-            final created = folder(part, current, current.subCategories.length);
-            current.subCategories.add(created);
-            return created;
-          },
-        );
+        current = children.putIfAbsent(current, () => {}).putIfAbsent(part, () {
+          final created = folder(
+            part,
+            current,
+            current.subCategories.length,
+          );
+          current.subCategories.add(created);
+          return created;
+        });
       }
       current.books.add(book);
     }
