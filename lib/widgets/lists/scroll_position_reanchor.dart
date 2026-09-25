@@ -29,6 +29,7 @@ class ScrollPositionReanchor extends StatefulWidget {
     required this.positionsListener,
     required this.child,
     this.enabled = true,
+    this.preferredIndex,
   });
 
   /// מבדיל בין "הגלילה נחה" לבין אנימציית גלילה שעדיין רצה — עיגון מחדש
@@ -38,6 +39,10 @@ class ScrollPositionReanchor extends StatefulWidget {
   final ItemScrollController scrollController;
   final ItemPositionsListener positionsListener;
   final bool enabled;
+
+  /// הפסקה הנבחרת: כשרוחב התצוגה משתנה היא חוזרת לגובה שבו הייתה, כדי שפתיחת
+  /// חלונית לא תדחוף אותה מהמסך כשהפסקאות שמעליה מתארכות.
+  final int? preferredIndex;
   final Widget child;
 
   @override
@@ -48,15 +53,69 @@ class _ScrollPositionReanchorState extends State<ScrollPositionReanchor> {
   Timer? _idleTimer;
   int? _lastIndex;
   double? _lastAlignment;
+  double? _lastWidth;
+  double? _selectedEdge;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.positionsListener.itemPositions.addListener(_trackSelected);
+  }
+
+  @override
+  void didUpdateWidget(covariant ScrollPositionReanchor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.preferredIndex != oldWidget.preferredIndex) _trackSelected();
+  }
 
   @override
   void dispose() {
     _idleTimer?.cancel();
+    widget.positionsListener.itemPositions.removeListener(_trackSelected);
     super.dispose();
+  }
+
+  void _trackSelected() {
+    final index = widget.preferredIndex;
+    _selectedEdge = index == null
+        ? null
+        : widget.positionsListener.itemPositions.value
+              .where((p) => p.index == index)
+              .map((p) => p.itemLeadingEdge)
+              .where((edge) => edge >= 0 && edge <= 1)
+              .firstOrNull;
+  }
+
+  /// נקרא לפני שהרשימה נפרסת ברוחב החדש, ולכן [_selectedEdge] עדיין מהרוחב
+  /// הקודם.
+  void _onWidth(double width) {
+    final previous = _lastWidth;
+    _lastWidth = width;
+    final index = widget.preferredIndex;
+    final edge = _selectedEdge;
+    if (previous == null || previous == width || !widget.enabled) return;
+    if (index == null || edge == null) return;
+    // עוגן ישן (הגלילה עוד לא נחה): קפיצה אחרי השפיכה מפילה layout cycles.
+    if (_idleTimer?.isActive ?? false) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.scrollController.isAttached) return;
+      _lastIndex = index;
+      _lastAlignment = edge;
+      widget.scrollController.jumpTo(index: index, alignment: edge);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _onWidth(constraints.maxWidth);
+        return _buildListener();
+      },
+    );
+  }
+
+  Widget _buildListener() {
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (!widget.enabled) return false;
