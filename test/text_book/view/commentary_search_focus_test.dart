@@ -109,6 +109,53 @@ Future<void> main() async {
       expect(controller.text, isEmpty);
     }, skip: !engineReady);
   });
+
+  group('חיפוש במפרשים (issue #1505)', () {
+    setUp(() async {
+      // ברטנורא על משנה נדה ב, ו — מתוך הסרטון שבדיווח.
+      final provider = _FakeLibraryProvider(
+        content:
+            '<b>דֵּהֶה.</b> שֶׁנִּדְהֵית מַרְאִיתוֹ וְאֵינוֹ שָׁחֹר כָּל כָּךְ. וְהוּא הַדִּין לְכָל דָּמִים טְמֵאִים<i data-commentator="IkkarTosfotYomTov" data-label="טז"></i>, דִּבְכֻלְּהוּ עָמֹק מִכָּאן טָמֵא, דֵּהֶה מִכָּאן טָהוֹר, חוּץ מִיַּיִן מָזוּג, דְּבֵין עָמֹק בֵּין דֵּהֶה טָהוֹר:',
+      );
+      LibraryProviderManager.instance.seedMappingsForTesting(
+        mapping: {
+          BookCompositeKey.create(
+            title: 'ברטנורא על משנה נדה',
+            categoryId: 1,
+            fileType: 'txt',
+          ): provider,
+        },
+        providers: [provider],
+      );
+      await textBookBloc.close();
+      textBookBloc = _TestTextBookBloc(
+        _loadedState(commentator: 'ברטנורא על משנה נדה', linkCount: 40),
+      );
+    });
+
+    testWidgets('ניווט לתוצאה רחוקה אינו מפיל את הרשימה', (tester) async {
+      await _pumpWidget(
+        tester,
+        textBookBloc: textBookBloc,
+        settingsBloc: settingsBloc,
+      );
+      await _openInlineSearch(tester);
+      await tester.enterText(find.byType(TextField), 'עמק');
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+
+      // Enter עובר לתוצאה הבאה; התוצאה ה-30 רחוקה מהמסך ועוד לא נבנתה.
+      for (var i = 0; i < 30; i++) {
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('30/'), findsOneWidget);
+    }, skip: !engineReady);
+  });
 }
 
 Future<void> _openInlineSearch(WidgetTester tester) async {
@@ -158,16 +205,22 @@ TextEditingController _searchController(WidgetTester tester) {
   return textField.controller!;
 }
 
-TextBookLoaded _loadedState() {
-  final link = Link(
-    heRef: 'בראשית א',
-    index1: 1,
-    path2: 'מפרש בדיקה.txt',
-    index2: 1,
-    connectionType: 'COMMENTARY',
-    targetCategoryId: 1,
-    targetFileType: 'txt',
-  );
+TextBookLoaded _loadedState({
+  String commentator = 'מפרש בדיקה',
+  int linkCount = 1,
+}) {
+  final links = [
+    for (var i = 1; i <= linkCount; i++)
+      Link(
+        heRef: 'בראשית א',
+        index1: 1,
+        path2: '$commentator.txt',
+        index2: i,
+        connectionType: 'COMMENTARY',
+        targetCategoryId: 1,
+        targetFileType: 'txt',
+      ),
+  ];
 
   return TextBookLoaded(
     book: TextBook(title: 'ספר בדיקה'),
@@ -175,13 +228,13 @@ TextBookLoaded _loadedState() {
     content: const ['שורה א'],
     fontSize: 18,
     showSplitView: false,
-    activeCommentators: const ['מפרש בדיקה'],
+    activeCommentators: [commentator],
     commentatorGroups: const [],
-    availableCommentators: const ['מפרש בדיקה'],
-    links: [link],
+    availableCommentators: [commentator],
+    links: links,
     visibleLinks: const [],
     linksByLine: {
-      1: [link],
+      1: links,
     },
     tableOfContents: const [],
     removeNikud: false,
@@ -215,6 +268,12 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
 }
 
 class _FakeLibraryProvider implements LibraryProvider {
+  _FakeLibraryProvider({
+    this.content = 'זהו פירוש לבדיקה עם טקסט שניתן לבחור',
+  });
+
+  final String content;
+
   @override
   String get displayName => 'Fake';
 
@@ -274,7 +333,7 @@ class _FakeLibraryProvider implements LibraryProvider {
 
   @override
   Future<String> getLinkContent(Link link) async {
-    return 'זהו פירוש לבדיקה עם טקסט שניתן לבחור';
+    return content;
   }
 
   @override
