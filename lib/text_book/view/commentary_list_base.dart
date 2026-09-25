@@ -1428,12 +1428,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       if (!itemInRenderTree) {
         final flatIndex = _linkFlatIndex[linkKey];
         if (flatIndex != null && _itemScrollController.isAttached) {
-          _itemScrollController.scrollTo(
-            index: flatIndex,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-            alignment: 0.05,
-          );
+          // לא scrollTo: הוא בונה רשימה שנייה, ובשתיהן אותו GlobalKey (issue #1505).
+          _itemScrollController.jumpTo(index: flatIndex, alignment: 0.05);
         }
         await Future.delayed(const Duration(milliseconds: 350));
         if (!mounted) return;
