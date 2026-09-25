@@ -319,8 +319,9 @@ String _stripQuotesOutsideTags(String text) {
   return buffer.toString();
 }
 
-final RegExp _leadingTags = RegExp(r'^(?:<[^>]*>)+');
-final RegExp _trailingTags = RegExp(r'(?:<[^>]*>)+$');
+// תגים ופיסוק שצמודים לגרשיים אינם חלק מההכרעה (גם שגיאת הקלדה כמו א,"א).
+final RegExp _leadingSkippable = RegExp(r'^(?:<[^>]*>|[!:;.,?\-—–])+');
+final RegExp _trailingSkippable = RegExp(r'(?:<[^>]*>|[!:;.,?\-—–])+$');
 
 /// מסיר גרשיים/מירכאות מהטווח [start, end) של [text] (ללא תגי HTML), פרט
 /// לראשי תיבות. ההקשר נבדק על כל השורה, כי תג יכול ליפול בתוך ראשי התיבות.
@@ -335,12 +336,12 @@ String _stripAcronymQuotes(String text, int start, int end) {
     // מנקים ניקוד משני הצדדים כדי שאות מנוקדת (רַשִׁ"י, ב"כִּי) לא תיחשב
     // בטעות כסימן ניקוד או כאות בודדת.
     final before = removeVolwels(
-      text.substring(0, index).replaceFirst(_trailingTags, ''),
+      text.substring(0, index).replaceFirst(_trailingSkippable, ''),
     );
     final hasBefore =
         before.isNotEmpty && letter.hasMatch(before[before.length - 1]);
     final rest = removeVolwels(
-      text.substring(index + 1).replaceFirst(_leadingTags, ''),
+      text.substring(index + 1).replaceFirst(_leadingSkippable, ''),
     );
     final hasSingleLetterAfter =
         rest.isNotEmpty &&

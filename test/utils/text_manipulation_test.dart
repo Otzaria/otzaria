@@ -379,6 +379,9 @@ Future<void> main() async {
       expect(removePunctuation('רש"י,ובגמ\' איתא'), equals('רש"יובגמ\' איתא'));
       expect(removePunctuation('ע"ש.וכן כתב'), equals('ע"שוכן כתב'));
       expect(removePunctuation('ז"ל-והנה'), equals('ז"לוהנה'));
+      // פיסוק בתוך ראשי התיבות (שגיאת הקלדה במקור) לא מבטל אותם.
+      expect(removePunctuation('לכן א,"א להיות'), equals('לכן א"א להיות'));
+      expect(removePunctuation('יש ג״.כ גליא'), equals('יש ג״כ גליא'));
     });
 
     test('issue #1528: שומר גרשיים בין שני תגי הדגשה (הערות על חברותא)', () {
