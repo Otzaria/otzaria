@@ -165,7 +165,9 @@ String removePunctuation(String text) {
       continue;
     }
 
-    String processed = line;
+    // הגרשיים מוכרעים לפני הסרת הפיסוק — אחרת ב-'רש"י,ובגמ' הפסיק נמחק,
+    // ראשי התיבות נדבקים למילה הבאה ונראים כמירכאות ציטוט.
+    String processed = _stripQuotesOutsideTags(line);
 
     final lastAllowedPunctuationMatch = RegExp(
       r'[.:](\s*)$',
@@ -248,8 +250,6 @@ String removePunctuation(String text) {
     }
     processed = buffer.toString();
 
-    processed = _stripQuotesOutsideTags(processed);
-
     processedLines.add(processed);
   }
 
@@ -311,28 +311,38 @@ String _stripQuotesOutsideTags(String text) {
   final buffer = StringBuffer();
   var lastEnd = 0;
   for (final match in _htmlTagSpan.allMatches(text)) {
-    buffer.write(_stripAcronymQuotes(text.substring(lastEnd, match.start)));
+    buffer.write(_stripAcronymQuotes(text, lastEnd, match.start));
     buffer.write(match.group(0));
     lastEnd = match.end;
   }
-  buffer.write(_stripAcronymQuotes(text.substring(lastEnd)));
+  buffer.write(_stripAcronymQuotes(text, lastEnd, text.length));
   return buffer.toString();
 }
 
-/// מסיר גרשיים/מירכאות מקטע טקסט (ללא תגי HTML), פרט לראשי תיבות.
-String _stripAcronymQuotes(String segment) {
+// תגים ופיסוק שצמודים לגרשיים אינם חלק מההכרעה (גם שגיאת הקלדה כמו א,"א).
+final RegExp _leadingSkippable = RegExp(r'^(?:<[^>]*>|[!:;.,?\-—–])+');
+final RegExp _trailingSkippable = RegExp(r'(?:<[^>]*>|[!:;.,?\-—–])+$');
+
+/// מסיר גרשיים/מירכאות מהטווח [start, end) של [text] (ללא תגי HTML), פרט
+/// לראשי תיבות. ההקשר נבדק על כל השורה, כי תג יכול ליפול בתוך ראשי התיבות.
+String _stripAcronymQuotes(String text, int start, int end) {
+  final segment = text.substring(start, end);
   if (segment.isEmpty) return segment;
   return segment.replaceAllMapped(RegExp(r'["״]'), (match) {
-    final index = match.start;
+    final index = start + match.start;
     final letter = RegExp(r'[א-תa-zA-Z]');
     // ראשי תיבות: הגרשיים לפני האות האחרונה, כלומר אות אחת בלבד אחריו
     // ואז גבול מילה. שתי אותיות אחריו = מירכאות ציטוט (כמו ב"כי יותן).
     // מנקים ניקוד משני הצדדים כדי שאות מנוקדת (רַשִׁ"י, ב"כִּי) לא תיחשב
     // בטעות כסימן ניקוד או כאות בודדת.
-    final before = removeVolwels(segment.substring(0, index));
+    final before = removeVolwels(
+      text.substring(0, index).replaceFirst(_trailingSkippable, ''),
+    );
     final hasBefore =
         before.isNotEmpty && letter.hasMatch(before[before.length - 1]);
-    final rest = removeVolwels(segment.substring(index + 1));
+    final rest = removeVolwels(
+      text.substring(index + 1).replaceFirst(_leadingSkippable, ''),
+    );
     final hasSingleLetterAfter =
         rest.isNotEmpty &&
         letter.hasMatch(rest[0]) &&
