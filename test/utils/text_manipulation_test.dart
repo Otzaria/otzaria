@@ -386,6 +386,17 @@ Future<void> main() async {
         removePunctuation('רש"<span class="a">י</span> כתב'),
         equals('רש"<span class="a">י</span> כתב'),
       );
+      // גבול של ציטוט לינקר בין האות לגרשיים.
+      expect(
+        removePunctuation(
+          'רש<a href="otzaria://anchor?ref=0_1&range=1">"י</a>',
+        ),
+        equals('רש<a href="otzaria://anchor?ref=0_1&range=1">"י</a>'),
+      );
+      expect(
+        removePunctuation('<a class="link-anchor-range">שו</a>"ע או"ח'),
+        equals('<a class="link-anchor-range">שו</a>"ע או"ח'),
+      );
       expect(
         removePunctuation('ב"<b>כי</b> יותן'),
         equals('ב<b>כי</b> יותן'),
