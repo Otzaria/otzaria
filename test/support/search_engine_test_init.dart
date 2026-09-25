@@ -45,6 +45,13 @@ List<String> searchEngineLibraryCandidates() {
     'build/linux/x64/debug/plugins/otzaria_search_engine',
   ];
 
+  // במק המנוע נארז ב-framework, והבינארי שבו חסר סיומת.
+  final macFrameworks = [
+    for (final profile in ['Release', 'Debug'])
+      'build/macos/Build/Products/$profile/otzaria_search_engine/'
+          'search_engine.framework/search_engine',
+  ];
+
   final candidates = <File>[];
   for (final root in roots) {
     for (final name in names) {
@@ -55,6 +62,7 @@ List<String> searchEngineLibraryCandidates() {
       }
     }
   }
+  candidates.addAll(macFrameworks.map(File.new).where((f) => f.existsSync()));
   candidates.sort(
     (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
   );
@@ -90,7 +98,6 @@ String? _testLoadCopy(String source) {
     file.copySync(temp.path);
     try {
       temp.renameSync(target.path);
-      _pruneStaleCopies(base, extension, targetName);
     } catch (_) {
       // tester מקביל הקדים אותנו — העותק שלו זהה בתוכנו.
       try {
@@ -103,13 +110,14 @@ String? _testLoadCopy(String source) {
   }
 }
 
-/// מוחק עותקים של בניות קודמות. קובץ שטוען אותו כרגע tester אחר אינו נמחק.
-void _pruneStaleCopies(String base, String extension, String keepName) {
+/// מוחק עותקים של בניות קודמות, מכל מקור (cargo או framework של מק). קובץ
+/// שטוען אותו כרגע tester אחר אינו נמחק.
+void _pruneStaleCopies(String keepName) {
+  final copyName = RegExp(r'^(?:lib)?search_engine_\d+_\d+(?:\.\w+)?$');
   for (final entity in Directory(_testLoadDir).listSync()) {
     if (entity is! File) continue;
     final name = _fileName(entity.path);
-    if (name == keepName) continue;
-    if (!name.startsWith('${base}_') || !name.endsWith(extension)) continue;
+    if (name == keepName || !copyName.hasMatch(name)) continue;
     try {
       entity.deleteSync();
     } catch (_) {}
@@ -131,6 +139,8 @@ Future<bool> tryInitSearchEngine() async {
     try {
       final loadPath = _testLoadCopy(path) ?? path;
       await RustLib.init(externalLibrary: ExternalLibrary.open(loadPath));
+      // מנקים רק אחרי טעינה מוצלחת — מועמד שנדחה לא ימחק עותק תקין.
+      if (loadPath != path) _pruneStaleCopies(_fileName(loadPath));
       return _initResult = true;
     } catch (_) {
       // אתחול כושל עלול להשאיר instance חלקי שחוסם ניסיון נוסף.
