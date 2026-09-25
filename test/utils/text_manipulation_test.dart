@@ -381,6 +381,17 @@ Future<void> main() async {
       expect(removePunctuation('ז"ל-והנה'), equals('ז"לוהנה'));
     });
 
+    test('issue #1528: שומר גרשיים בין שני תגי הדגשה (הערות על חברותא)', () {
+      expect(
+        removePunctuation('אולם <b>ברמב</b>"<b>ן</b> [סהמ"צ ל"ת ל-ה]'),
+        equals('אולם <b>ברמב</b>"<b>ן</b> [סהמ"צ ל"ת לה]'),
+      );
+      expect(
+        removePunctuation('וראה <b>בחידושי הגרי</b>"<b>ז</b> למנחות'),
+        equals('וראה <b>בחידושי הגרי</b>"<b>ז</b> למנחות'),
+      );
+    });
+
     test('issue #1528: שומר ראשי תיבות שתג HTML נופל בתוכם', () {
       expect(
         removePunctuation('רש"<span class="a">י</span> כתב'),
