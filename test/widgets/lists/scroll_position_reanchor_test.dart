@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/lists/scroll_position_reanchor.dart';
@@ -10,6 +12,7 @@ Widget _buildList({
   required ItemScrollController controller,
   required ItemPositionsListener listener,
   required bool enabled,
+  int? preferredIndex,
 }) {
   return MaterialApp(
     home: Directionality(
@@ -20,6 +23,7 @@ Widget _buildList({
           height: 400,
           child: ScrollPositionReanchor(
             enabled: enabled,
+            preferredIndex: preferredIndex,
             scrollController: controller,
             positionsListener: listener,
             child: ScrollablePositionedList.builder(
@@ -186,6 +190,153 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_topIndex(listener), 120);
+    });
+  });
+
+  group('פסקה נבחרת כשהעמודה מצטמצמת (issue #1533)', () {
+    Future<ItemPosition?> selectThenNarrow(
+      WidgetTester tester, {
+      required double distance,
+    }) async {
+      final controller = ItemScrollController();
+      final listener = ItemPositionsListener.create();
+      Widget list(double width, int? selected) => _buildList(
+        width: width,
+        controller: controller,
+        listener: listener,
+        enabled: true,
+        preferredIndex: selected,
+      );
+
+      await tester.pumpWidget(list(600, null));
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byType(ScrollablePositionedList),
+        Offset(0, -distance),
+      );
+      await tester.pumpAndSettle();
+      await tester.pump(ScrollPositionReanchor.idleDelay);
+      await tester.pumpAndSettle();
+
+      // פסקה בערך בשלושה רבעים מגובה המסך, כמו בחירה לפני פתיחת החלונית.
+      final selected = _topIndex(listener) + 10;
+      await tester.pumpWidget(list(600, selected));
+      await tester.pump(ScrollPositionReanchor.idleDelay);
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(list(300, selected));
+      await tester.pumpAndSettle();
+
+      return listener.itemPositions.value
+          .where((p) => p.index == selected)
+          .firstOrNull;
+    }
+
+    testWidgets('הפסקה הנבחרת נשארת במסך', (tester) async {
+      final position = await selectThenNarrow(tester, distance: 1500);
+      expect(position, isNotNull, reason: 'הפסקה הנבחרת יצאה מהמסך');
+      expect(position!.itemTrailingEdge, lessThanOrEqualTo(1));
+    });
+
+    testWidgets('גם אחרי גלילה קצרה ממסך', (tester) async {
+      final position = await selectThenNarrow(tester, distance: 200);
+      expect(position, isNotNull, reason: 'הפסקה הנבחרת יצאה מהמסך');
+      expect(position!.itemTrailingEdge, lessThanOrEqualTo(1));
+    });
+
+    testWidgets('הפסקה חוזרת לאותו גובה, גם כשהבחירה והצמצום באותו פריים', (
+      tester,
+    ) async {
+      final controller = ItemScrollController();
+      final listener = ItemPositionsListener.create();
+      Widget list(double width, int? selected) => _buildList(
+        width: width,
+        controller: controller,
+        listener: listener,
+        enabled: true,
+        preferredIndex: selected,
+      );
+
+      await tester.pumpWidget(list(600, null));
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byType(ScrollablePositionedList),
+        const Offset(0, -1500),
+      );
+      await tester.pumpAndSettle();
+      await tester.pump(ScrollPositionReanchor.idleDelay);
+      await tester.pumpAndSettle();
+
+      final selected = _topIndex(listener) + 10;
+      final edgeBefore = listener.itemPositions.value
+          .firstWhere((p) => p.index == selected)
+          .itemLeadingEdge;
+      await tester.pumpWidget(list(300, selected));
+      await tester.pumpAndSettle();
+
+      final after = listener.itemPositions.value
+          .where((p) => p.index == selected)
+          .firstOrNull;
+      expect(after, isNotNull, reason: 'הפסקה הנבחרת יצאה מהמסך');
+      expect(
+        after!.itemLeadingEdge,
+        moreOrLessEquals(edgeBefore, epsilon: 0.01),
+      );
+    });
+
+    testWidgets('צמצום מיד אחרי גלילה ארוכה, לפני שהגלילה נחה, אינו מפיל', (
+      tester,
+    ) async {
+      final controller = ItemScrollController();
+      final listener = ItemPositionsListener.create();
+      Widget list(double width, int? selected) => _buildList(
+        width: width,
+        controller: controller,
+        listener: listener,
+        enabled: true,
+        preferredIndex: selected,
+      );
+
+      await tester.pumpWidget(list(600, null));
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byType(ScrollablePositionedList),
+        const Offset(0, -3000),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(list(300, _topIndex(listener) + 10));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
+
+    // ניווט לתוצאה שעל המסך בוחר שורה וגולל אליה באותו רגע.
+    testWidgets('בחירה בזמן גלילה אינה מבטלת את הגלילה', (tester) async {
+      final controller = ItemScrollController();
+      final listener = ItemPositionsListener.create();
+      Widget list(int? selected) => _buildList(
+        width: 600,
+        controller: controller,
+        listener: listener,
+        enabled: true,
+        preferredIndex: selected,
+      );
+
+      await tester.pumpWidget(list(null));
+      await tester.pumpAndSettle();
+      unawaited(
+        controller.scrollTo(
+          index: 8,
+          duration: const Duration(milliseconds: 600),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pumpWidget(list(8));
+      await tester.pumpAndSettle();
+      await tester.pump(ScrollPositionReanchor.idleDelay);
+      await tester.pumpAndSettle();
+
+      expect(_topIndex(listener), 8);
     });
   });
 }
