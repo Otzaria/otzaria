@@ -93,37 +93,70 @@ Widget? externalProviderIcon(Book book, ColorScheme cs, double iconSize) {
   return ResponsaBookIcon(size: iconSize, color: cs.onSecondaryContainer);
 }
 
-/// אייקון תיקייה: לוגו הספרייה החיצונית שהתיקייה מציגה, או אייקון
-/// התיקייה הרגיל.
+/// אייקון תיקייה, ועליו תג של הספרייה החיצונית כשהתיקייה מציגה אחת.
 ///
-/// תיקייה שכל תוכנה מגיע מתוכנה חיצונית נראית אחרת מתיקייה של ספרים
-/// מותקנים — בלי זה המשתמש רואה שתי תיקיות זהות זו לצד זו, ורק כניסה
-/// לתוכן מגלה שהאחת נפתחת בתוכנה אחרת.
+/// שני הסימנים יחד ולא אחד במקום השני: לוגו לבדו אינו נראה כתיקייה,
+/// ותיקייה לבדה נראית זהה לתיקייה של ספרים מותקנים — ורק כניסה לתוכן
+/// מגלה שהספרים שבה נפתחים בתוכנה אחרת.
+///
+/// התג חורג מעט מפינת הריבוע, כמו תג קיצור דרך של מערכת ההפעלה. בתוך
+/// הריבוע הוא הסתיר את רוב התיקייה: האייקון הוא 14–16 פיקסלים בשורות
+/// ובכרטיסים, ותג קטן יותר כבר אינו מזוהה. הריבוע עצמו לא גדל, ולכן כל
+/// פריסה שמניחה אייקון ריבועי נשארת כפי שהיא — לכולן יש ריפוד סביבו.
 Widget categoryIconChild(
   Category category,
   ColorScheme cs,
   double iconSize, {
   bool isOpen = false,
 }) {
-  final provider = ExternalProviderRegistry.byId(category.externalProviderId);
-  if (provider != null) {
-    if (provider.iconAsset case final asset?) {
-      return Image.asset(
-        asset,
-        width: iconSize,
-        height: iconSize,
-        fit: BoxFit.contain,
-      );
-    }
-    if (provider.kind == ExternalProviderKind.responsa) {
-      return ResponsaBookIcon(size: iconSize, color: cs.onSecondaryContainer);
-    }
-  }
-  return Icon(
+  final folder = Icon(
     isOpen ? FluentIcons.folder_open_24_regular : FluentIcons.folder_24_regular,
     color: cs.onSecondaryContainer,
     size: iconSize,
   );
+  final badgeSize = iconSize * _badgeScale;
+  final badge = _providerBadge(category, cs, badgeSize);
+  if (badge == null) return folder;
+  return SizedBox.square(
+    dimension: iconSize,
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        folder,
+        PositionedDirectional(
+          end: -iconSize * _badgeOverhang,
+          bottom: -iconSize * _badgeOverhang,
+          child: DecoratedBox(
+            // רקע בצבע המשטח: בלעדיו קווי התיקייה עוברים דרך התג.
+            decoration: BoxDecoration(
+              color: cs.surface,
+              borderRadius: BorderRadius.circular(badgeSize / 4),
+            ),
+            child: Padding(padding: const EdgeInsets.all(1), child: badge),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// גודל התג ביחס לאייקון התיקייה. קטן מזה, ב-14 פיקסלים של שורת רשימה,
+/// האייקון של בר אילן כבר אינו מזוהה.
+const double _badgeScale = 0.62;
+
+/// כמה התג חורג מהריבוע, ביחס לאייקון.
+const double _badgeOverhang = 0.18;
+
+Widget? _providerBadge(Category category, ColorScheme cs, double size) {
+  final provider = ExternalProviderRegistry.byId(category.externalProviderId);
+  if (provider == null) return null;
+  if (provider.iconAsset case final asset?) {
+    return Image.asset(asset, width: size, height: size, fit: BoxFit.contain);
+  }
+  if (provider.kind == ExternalProviderKind.responsa) {
+    return ResponsaBookIcon(size: size, color: cs.onSecondaryContainer);
+  }
+  return null;
 }
 
 /// בונה את תוכן אייקון הספר: לוגו הקטלוג החיצוני אם קיים, אחרת אייקון לפי סוג הקובץ.
