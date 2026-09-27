@@ -53,40 +53,60 @@ class ResponsaTreeReader {
   static const int tvgnNext = 0x0001;
   static const int tvgnChild = 0x0004;
 
+  static const int tveCollapse = 0x0001;
   static const int tveExpand = 0x0002;
+  static const int tveCollapseReset = 0x8000;
 
   static const String pathSeparator = ' > ';
 
   /// עובר על כל העץ ומחזיר את הצמתים בסדר DFS.
   ///
   /// [onProgress] נקרא מדי [progressEvery] צמתים. [shouldStop] נבדק
-  /// באותה תדירות ומאפשר ביטול אמיתי באמצע סריקה ארוכה.
+  /// באותה תדירות ומאפשר ביטול אמיתי באמצע סריקה ארוכה. [onSection] נקרא
+  /// בסוף כל ענף עליון, עם מספר הענפים שנסרקו ומספרם הכולל — זו ההתקדמות
+  /// היחידה שידועה מראש בבנייה ראשונה, כשעוד אין מספר צמתים משוער.
+  ///
+  /// **מה שהורחב נמחק מהתוכנה מיד אחרי שנקרא.** ההרחבה נדרשת לקריאה,
+  /// אבל בלעדי המחיקה היא נשארת: 1.25 מיליון פריטים טעונים ב-TreeView של
+  /// מופע שהמשתמש משאיר פתוח ימים — וכל `WM_SETTINGCHANGE`, ש-Windows
+  /// שולחת בין השאר ביציאה משינה, משבית אותו לכמה שניות. ראה
+  /// [_TreeSession.collapse].
   static List<ResponsaTreeNode> walk({
     required int pid,
     required int treeHandle,
     void Function(int scanned)? onProgress,
+    void Function(int done, int total)? onSection,
     bool Function()? shouldStop,
     int progressEvery = 500,
     int maxNodes = 3000000,
   }) {
     final session = _TreeSession.open(pid, treeHandle);
     if (session == null) return const [];
-    final nodes = <ResponsaTreeNode>[];
+    final walk = _Walk(
+      session: session,
+      onProgress: onProgress,
+      shouldStop: shouldStop,
+      progressEvery: progressEvery,
+      maxNodes: maxNodes,
+    );
     try {
-      session.walkFrom(
-        item: session.root,
-        level: 0,
-        parentPath: const <String>[],
-        nodes: nodes,
-        onProgress: onProgress,
-        shouldStop: shouldStop,
-        progressEvery: progressEvery,
-        maxNodes: maxNodes,
-      );
+      final sections = [
+        for (
+          var item = session.root;
+          item != 0;
+          item = session.nextSibling(item)
+        )
+          item,
+      ];
+      onSection?.call(0, sections.length);
+      for (var i = 0; i < sections.length; i++) {
+        if (!walk.visit(sections[i], 0, const <String>[])) break;
+        onSection?.call(i + 1, sections.length);
+      }
     } finally {
       session.close();
     }
-    return nodes;
+    return walk.nodes;
   }
 
   /// ילדיו הישירים של הצומת ש[path] מוליך אליו, לפי שמות מהשורש.
@@ -287,53 +307,29 @@ class _TreeSession {
     return found;
   }
 
-  void walkFrom({
-    required int item,
-    required int level,
-    required List<String> parentPath,
-    required List<ResponsaTreeNode> nodes,
-    required void Function(int)? onProgress,
-    required bool Function()? shouldStop,
-    required int progressEvery,
-    required int maxNodes,
-  }) {
-    var current = item;
-    while (current != 0 && nodes.length < maxNodes) {
-      if (nodes.length % progressEvery == 0) {
-        if (shouldStop?.call() ?? false) return;
-        onProgress?.call(nodes.length);
-      }
-
-      final read = readItem(current);
-      final path = [...parentPath, read.name];
-      nodes.add(
-        ResponsaTreeNode(
-          name: read.name,
-          param: read.param,
-          level: level,
-          path: path.join(ResponsaTreeReader.pathSeparator),
-          childCount: read.children,
-        ),
+  /// מקפל צומת ומוחק את צאצאיו מה-TreeView.
+  ///
+  /// **המחיקה היא התיקון, לא הקיפול.** נמדד על ענף של 234 אלף צמתים:
+  /// `WM_SETTINGCHANGE` אורך 1.4 שניות כשהוא פתוח, ואותן 1.4 שניות גם
+  /// אחרי קיפול בלבד — העלות היא על כל פריט טעון, גלוי או לא. אחרי מחיקה:
+  /// אפס. בטוח מפני שהעץ נטען עצלנית בכל רמה: הרחבה הבאה מבקשת מהתוכנה
+  /// למלא את הילדים מחדש, ונמדד שאותו ענף חוזר באותם 234,355 צמתים.
+  ///
+  /// **שתי קריאות, קיפול ואז מחיקה.** מחיקה של ענף מקופל: 26 מיקרו-שניות
+  /// לפריט. מחיקה של ענף פתוח — מה ש-`TVE_COLLAPSERESET` לבדו עושה —
+  /// איטית פי 40, כי כל פריט גלוי שנמחק מחשב מחדש את פריסת העץ.
+  void collapse(int item) {
+    for (final action in const [
+      ResponsaTreeReader.tveCollapse,
+      ResponsaTreeReader.tveCollapse | ResponsaTreeReader.tveCollapseReset,
+    ]) {
+      ResponsaWin32.send(
+        treeHandle,
+        ResponsaTreeReader.tvmExpand,
+        wParam: action,
+        lParam: item,
+        timeoutMs: 30000,
       );
-
-      if (read.children != 0) {
-        // חובה להרחיב לפני קריאת הילדים — העץ נטען עצלנית.
-        final child = firstChild(current);
-        if (child != 0) {
-          walkFrom(
-            item: child,
-            level: level + 1,
-            parentPath: path,
-            nodes: nodes,
-            onProgress: onProgress,
-            shouldStop: shouldStop,
-            progressEvery: progressEvery,
-            maxNodes: maxNodes,
-          );
-        }
-      }
-
-      current = nextSibling(current);
     }
   }
 
@@ -398,5 +394,69 @@ class _TreeSession {
     final units = buffer.asTypedList(maxChars);
     final end = units.indexOf(0);
     return String.fromCharCodes(units.sublist(0, end < 0 ? maxChars : end));
+  }
+}
+
+/// מצב סריקה אחת: הצמתים שנאספו והקולבקים.
+class _Walk {
+  final _TreeSession session;
+  final void Function(int)? onProgress;
+  final bool Function()? shouldStop;
+  final int progressEvery;
+  final int maxNodes;
+  final nodes = <ResponsaTreeNode>[];
+
+  /// עד איזה עומק צמתים נמחקים אחרי שנקראו.
+  ///
+  /// המחיקה משביתה את התוכנה לזמן שהיא נמשכת, ולכן היחידה היא ענף ברמה
+  /// 2: הגדול שבהם 27,054 צמתים ב-CD25 ו-28,115 ב-CD29 — פחות משנייה.
+  /// ברמה 1 הגדול הוא 256 אלף (337 אלף ב-CD29), כמעט תשע שניות. מחיקה
+  /// בכל רמה הייתה מוסיפה הודעה לכל אחד מרבע מיליון ההורים שבעץ.
+  static const int _collapseDepth = 2;
+
+  _Walk({
+    required this.session,
+    required this.onProgress,
+    required this.shouldStop,
+    required this.progressEvery,
+    required this.maxNodes,
+  });
+
+  /// קורא את [item] ואת כל צאצאיו. `false` כשהסריקה נעצרה באמצע.
+  bool visit(int item, int level, List<String> parentPath) {
+    if (nodes.length >= maxNodes) return false;
+    if (nodes.length % progressEvery == 0) {
+      if (shouldStop?.call() ?? false) return false;
+      onProgress?.call(nodes.length);
+    }
+
+    final read = session.readItem(item);
+    final path = [...parentPath, read.name];
+    nodes.add(
+      ResponsaTreeNode(
+        name: read.name,
+        param: read.param,
+        level: level,
+        path: path.join(ResponsaTreeReader.pathSeparator),
+        childCount: read.children,
+      ),
+    );
+    if (read.children == 0) return true;
+
+    // חובה להרחיב לפני קריאת הילדים — העץ נטען עצלנית.
+    var completed = true;
+    for (
+      var child = session.firstChild(item);
+      child != 0;
+      child = session.nextSibling(child)
+    ) {
+      if (!visit(child, level + 1, path)) {
+        completed = false;
+        break;
+      }
+    }
+    // גם בביטול: ענף שהורחב ולא נמחק נשאר טעון בתוכנה.
+    if (level <= _collapseDepth) session.collapse(item);
+    return completed;
   }
 }
