@@ -250,6 +250,20 @@ void main() {
       expect(find.text('הצג ופתח ספרי בר אילן'), findsNothing);
     });
 
+    testWidgets('מוצג בלי התקנה כשיש קטלוג — כדי שאפשר יהיה לכבות', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          _FakeSettingsBloc(showResponsa: true),
+          responsaInfo: withCatalog,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('הצג ופתח ספרי בר אילן'), findsOneWidget);
+    });
+
     testWidgets('מתג אחד לחיפוש ולפתיחה, לא שניים', (tester) async {
       // המתג הנפרד ל"אפשר פתיחת ספרים בתוכנה" הוסר: ספר שנמצא בחיפוש
       // ואי אפשר לפתוח אותו הוא תוצאה חסרת ערך.

@@ -39,11 +39,15 @@ class ResponsaCatalogBackup {
     );
     try {
       if (await catalog.exists()) {
-        if (!await _same(catalog, backup)) await _copy(catalog, backup);
+        if (!await _same(catalog, backup)) {
+          await _copy(catalog, backup, replace: true);
+        }
         return false;
       }
-      if (!await backup.exists()) return false;
-      await _copy(backup, catalog);
+      if (!await backup.exists() || !await _canRestoreInto(catalog)) {
+        return false;
+      }
+      if (!await _copy(backup, catalog, replace: false)) return false;
       debugPrint('ResponsaCatalogBackup: הקטלוג שוחזר מ-${backup.path}');
       return true;
     } catch (error) {
@@ -62,13 +66,33 @@ class ResponsaCatalogBackup {
         sa.modified.difference(sb.modified).inSeconds.abs() < 2;
   }
 
-  /// העתקה לקובץ צדדי והחלפה, כדי שקורא לעולם לא יראה קובץ חלקי.
-  static Future<void> _copy(File from, File to) async {
-    await to.parent.create(recursive: true);
+  /// שחזור רק לתוך תיקיית ספרייה קיימת, ולא באמצע בנייה.
+  ///
+  /// תיקייה חסרה היא ספרייה שנמחקה או נתיב שלא הוגדר (`.`) — שחזור היה
+  /// יוצר אותה. `.building` ו-`.previous` הם הרגע שבין שני שינויי השם של
+  /// הבנייה, שבו הקטלוג חסר לשבריר שנייה ועומד לחזור חדש.
+  static Future<bool> _canRestoreInto(File catalog) async =>
+      await catalog.parent.exists() &&
+      !await File('${catalog.path}.building').exists() &&
+      !await File('${catalog.path}.previous').exists();
+
+  /// העתקה לקובץ צדדי ושינוי שם, כדי שקורא לעולם לא יראה קובץ חלקי.
+  ///
+  /// בלי [replace] יעד שהופיע בינתיים נשאר — שחזור אינו דורס קטלוג שבנייה
+  /// כתבה באותו רגע. מחזיר `false` כשלא הועתק.
+  static Future<bool> _copy(File from, File to, {required bool replace}) async {
+    if (replace) await to.parent.create(recursive: true);
     final temporary = File('${to.path}.copying');
     await from.copy(temporary.path);
     await temporary.setLastModified(await from.lastModified());
-    if (await to.exists()) await to.delete();
+    if (await to.exists()) {
+      if (!replace) {
+        await temporary.delete();
+        return false;
+      }
+      await to.delete();
+    }
     await temporary.rename(to.path);
+    return true;
   }
 }

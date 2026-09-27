@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -104,18 +105,19 @@ class ResponsaCatalogRepository {
     return File(target).exists();
   }
 
-  /// יישור עותק הביטחון, פעם אחת לסשן — לפני הקריאה הראשונה, כדי שקטלוג
-  /// שנמחק ישוחזר לפני שמישהו מסיק שאין קטלוג.
-  Future<void>? _backupSync;
+  /// הנתיב שעותק הביטחון שלו כבר יושר בסשן הזה.
+  String? _syncedPath;
 
-  /// מיישר מחדש את עותק הביטחון. נקרא אחרי בנייה, שהחליפה את הקטלוג.
-  Future<void> refreshBackup() => _backupSync = _syncBackup();
-
-  Future<void> _syncBackup() async {
+  /// מיישר את עותק הביטחון עכשיו. לפני בנייה — כדי שקטלוג שנמחק ישוחזר
+  /// ומזהי הספרים יישמרו — ואחריה, כי הקטלוג הוחלף.
+  Future<void> refreshBackup() async {
     final target = databasePath;
-    // בבדיקות הנתיב מוחלף, ועותק שהיה נכתב לתיקיית הגיבויים האמיתית של
-    // המשתמש הוא בדיוק מה שאסור שבדיקה תעשה.
-    if (target == null || databasePathOverride != null) return;
+    if (target != null) await _syncBackup(target);
+  }
+
+  Future<void> _syncBackup(String target) async {
+    // עותק שהיה נכתב מבדיקה לתיקיית הגיבויים האמיתית של המשתמש.
+    if (databasePathOverride != null) return;
     try {
       await ResponsaCatalogBackup.sync(
         catalogPath: target,
@@ -126,10 +128,21 @@ class ResponsaCatalogRepository {
     }
   }
 
-  /// נתיב הקטלוג, אחרי שעותק הביטחון יושר.
+  /// נתיב הקטלוג, ואם הוא חסר — אחרי ניסיון לשחזר אותו מהעותק.
+  ///
+  /// קטלוג קיים אינו ממתין לעותק: תיקיית גיבויים ברשת שאינה זמינה הייתה
+  /// תוקעת כל קריאה. קטלוג חסר נבדק בכל קריאה ולא פעם לסשן — ספרייה
+  /// שעברה מיקום באמצע הסשן הייתה נשארת בלעדיו.
   Future<String?> _readyPath() async {
-    await (_backupSync ??= _syncBackup());
-    return databasePath;
+    final target = databasePath;
+    if (target == null) return null;
+    if (!File(target).existsSync()) {
+      await _syncBackup(target);
+    } else if (_syncedPath != target) {
+      _syncedPath = target;
+      unawaited(_syncBackup(target));
+    }
+    return target;
   }
 
   Future<sqlite3.Database?> _open() async {
@@ -202,30 +215,6 @@ class ResponsaCatalogRepository {
     }
   }
 
-  /// ספרים לפי `external_key` — המסלול של טעינת ספרים שתוסף ביקש.
-  Future<List<ExternalLibraryBook>> loadBooksByKeys(
-    Iterable<String> keys,
-  ) async {
-    final list = keys.map((k) => k.trim()).where((k) => k.isNotEmpty).toList();
-    if (list.isEmpty) return const [];
-    final results = <ExternalLibraryBook>[];
-    // מתחת למגבלת המשתנים של SQLite.
-    for (var start = 0; start < list.length; start += 900) {
-      final chunk = list.sublist(
-        start,
-        start + 900 < list.length ? start + 900 : list.length,
-      );
-      final placeholders = List.filled(chunk.length, '?').join(',');
-      results.addAll(
-        await _select(
-          'SELECT * FROM books WHERE external_key IN ($placeholders)',
-          chunk,
-        ),
-      );
-    }
-    return results;
-  }
-
   /// ה-`open_ref` של ספר — ההפניה שנשלחת למנתח ההפניות של התוכנה.
   ///
   /// הוא נפרד מהכותרת בכוונה: `openBook("רא\"ש")` מחזיר מאות תוצאות
@@ -282,26 +271,6 @@ class ResponsaCatalogRepository {
     } catch (e) {
       debugPrint('ResponsaCatalogRepository: sourceInstallPath failed: $e');
       return null;
-    } finally {
-      db.close();
-    }
-  }
-
-  Future<List<ExternalLibraryBook>> _select(
-    String sql,
-    List<Object?> arguments,
-  ) async {
-    final db = await _open();
-    if (db == null) return const [];
-    try {
-      return [
-        for (final row in db.select(sql, arguments))
-          mapRow(row as Map<String, Object?>),
-      ];
-    } catch (e) {
-      // דגרדציה מכוונת: קטלוג פגום משאיר את שאר הספקים עובדים.
-      debugPrint('ResponsaCatalogRepository: query failed: $e');
-      return const [];
     } finally {
       db.close();
     }

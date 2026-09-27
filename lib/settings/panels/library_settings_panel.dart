@@ -226,12 +226,16 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
         stage: ResponsaBuildStage.starting,
       );
     });
+    // הבנייה קוראת את הקטלוג הקודם כדי לשמר את מזהי הספרים — וקטלוג
+    // שנמחק צריך לחזור מהעותק לפני כן.
+    await ResponsaCatalogRepository.instance.refreshBackup();
+    ResponsaBuildProgress? finished;
+    // הזרם נצרך עד סופו גם אחרי יציאה מהמסך: האיזולט ממשיך לרוץ, ובלי זה
+    // הספרייה והעותק לא היו מתעדכנים עד ההפעלה הבאה.
     await for (final progress in _responsaBuild.build(targetPath: target)) {
-      if (!mounted) return;
-      setState(() => _responsaBuildProgress = progress);
+      finished = progress;
+      if (mounted) setState(() => _responsaBuildProgress = progress);
     }
-    if (!mounted) return;
-    final finished = _responsaBuildProgress;
     if (finished?.stage == ResponsaBuildStage.done) {
       DataRepository.instance.invalidateExternalBooksCache();
       unawaited(ResponsaCatalogRepository.instance.refreshBackup());
@@ -239,6 +243,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     } else if (finished?.error case final error?) {
       UiSnack.showError(error);
     }
+    if (!mounted) return;
     setState(() => _responsaBuildProgress = null);
     await _refreshResponsaInfo();
   }
@@ -343,7 +348,10 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
               ],
             ),
 
-            if (_responsaStatus?.installed ?? false) ...[
+            // גם בלי התקנה, כשיש קטלוג: ספרייה שהועתקה ממחשב אחר מביאה
+            // איתה ספרי בר אילן, ובלי הכרטיס אין דרך לכבות אותם.
+            if ((_responsaStatus?.installed ?? false) ||
+                (_responsaInfo?.exists ?? false)) ...[
               kSettingsCardSpacing,
               _buildResponsaCard(context, state),
             ],

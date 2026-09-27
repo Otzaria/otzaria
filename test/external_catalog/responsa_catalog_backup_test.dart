@@ -59,9 +59,32 @@ void main() {
     File(catalog).deleteSync();
     await sync();
 
-    final before = backupFile().lastModifiedSync();
+    // תוכן אחר באותו גודל ובאותו זמן שינוי: העתקה חוזרת הייתה דורסת אותו.
+    final modified = backupFile().lastModifiedSync();
+    backupFile()
+      ..writeAsStringSync('v2')
+      ..setLastModifiedSync(modified);
     await sync();
-    expect(backupFile().lastModifiedSync(), before);
+    expect(backupFile().readAsStringSync(), 'v2');
+  });
+
+  test('אין שחזור באמצע החלפת הקטלוג של בנייה', () async {
+    File(catalog).writeAsStringSync('v1');
+    await sync();
+    File(catalog).deleteSync();
+    File('$catalog.building').writeAsStringSync('new');
+
+    expect(await sync(), isFalse);
+    expect(File(catalog).existsSync(), isFalse);
+  });
+
+  test('אין שחזור לתיקיית ספרייה שאינה קיימת', () async {
+    File(catalog).writeAsStringSync('v1');
+    await sync();
+    Directory(p.dirname(catalog)).deleteSync(recursive: true);
+
+    expect(await sync(), isFalse);
+    expect(Directory(p.dirname(catalog)).existsSync(), isFalse);
   });
 
   test('אין קטלוג ואין עותק — כלום, ובלי חריג', () async {

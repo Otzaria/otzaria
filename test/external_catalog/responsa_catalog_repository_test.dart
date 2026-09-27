@@ -136,16 +136,6 @@ void main() {
       expect(book.author, isNull);
       expect(book.pubPlace, isNull);
     });
-
-    test('loadBooksByKeys מחזיר רק את המבוקשים', () async {
-      final books = await repository.loadBooksByKeys(['7']);
-      expect(books, hasLength(1));
-      expect(books.single.title, 'משנה ברורה');
-    });
-
-    test('קבוצת מפתחות ריקה אינה פונה ל-DB', () async {
-      expect(await repository.loadBooksByKeys(const []), isEmpty);
-    });
   });
 
   group('open_ref', () {
