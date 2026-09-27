@@ -24,6 +24,13 @@ class ResponsaBuildProgress {
   /// כמה צמתים נסרקו עד כה. בהתקנה מלאה מדובר בכ-1.25 מיליון.
   final int scannedNodes;
 
+  /// כמה ענפים עליונים של העץ נסרקו עד סופם, ומתוך כמה.
+  ///
+  /// `sectionsTotal` הוא `0` עד שהסריקה מתחילה. הענפים אינם שווים בגודלם,
+  /// ולכן זה מדד התקדמות גס — אבל הוא ידוע גם בבנייה הראשונה.
+  final int sectionsDone;
+  final int sectionsTotal;
+
   /// כמה ספרים נמצאו. זמין רק בסיום.
   final int books;
 
@@ -32,6 +39,8 @@ class ResponsaBuildProgress {
   const ResponsaBuildProgress({
     required this.stage,
     this.scannedNodes = 0,
+    this.sectionsDone = 0,
+    this.sectionsTotal = 0,
     this.books = 0,
     this.error,
   });
@@ -278,17 +287,29 @@ class ResponsaCatalogBuildService {
       send.send(
         const ResponsaBuildProgress(stage: ResponsaBuildStage.scanning),
       );
+      var scanned = 0;
+      var sections = (done: 0, total: 0);
+      void report() => send.send(
+        ResponsaBuildProgress(
+          stage: ResponsaBuildStage.scanning,
+          scannedNodes: scanned,
+          sectionsDone: sections.done,
+          sectionsTotal: sections.total,
+        ),
+      );
       final nodes = ResponsaTreeReader.walk(
         pid: instance.pid,
         treeHandle: tree,
         progressEvery: 2000,
         shouldStop: cancelled,
-        onProgress: (scanned) => send.send(
-          ResponsaBuildProgress(
-            stage: ResponsaBuildStage.scanning,
-            scannedNodes: scanned,
-          ),
-        ),
+        onProgress: (count) {
+          scanned = count;
+          report();
+        },
+        onSection: (done, total) {
+          sections = (done: done, total: total);
+          report();
+        },
       );
 
       if (cancelled()) {

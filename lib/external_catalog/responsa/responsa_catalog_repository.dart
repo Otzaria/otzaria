@@ -20,6 +20,11 @@ class ResponsaCatalogInfo {
   final int? schemaVersion;
   final String? installPath;
   final String? builtAt;
+
+  /// כמה צמתים נסרקו בבנייה שיצרה את הקטלוג. המכנה של סרגל ההתקדמות
+  /// בבנייה הבאה.
+  final int? nodeCount;
+
   final Map<String, String> fingerprint;
 
   const ResponsaCatalogInfo({
@@ -29,6 +34,7 @@ class ResponsaCatalogInfo {
     this.schemaVersion,
     this.installPath,
     this.builtAt,
+    this.nodeCount,
     this.fingerprint = const {},
   });
 
@@ -126,6 +132,7 @@ class ResponsaCatalogRepository {
         schemaVersion: int.tryParse(meta['catalog_schema_version'] ?? ''),
         installPath: meta['install_path'],
         builtAt: meta['catalog_build_time'],
+        nodeCount: int.tryParse(meta['catalog_node_count'] ?? ''),
         fingerprint: meta,
       );
     } catch (e) {

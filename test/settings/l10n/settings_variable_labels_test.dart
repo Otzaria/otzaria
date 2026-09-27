@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_build_service.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria/settings/panels/library_settings_panel.dart';
+import 'package:otzaria/external_catalog/responsa/view/responsa_build_progress_view.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchScope, WordMatchMode;
 import 'package:otzaria/search/search_query_builder.dart';
@@ -215,11 +215,40 @@ void main() {
   });
 
   group('בניית קטלוג בר אילן', () {
-    // חמש תוויות ההתקדמות נבנות ב-progressLabelFor ונמסרות ל-settingsText
-    // דרך משתנה. המעבר על כל ערכי ה-enum תופס גם שלב שיתווסף בעתיד.
-    for (final stage in ResponsaBuildStage.values) {
-      final label = responsaBuildProgressLabel(stage);
-      test('[${stage.name}] "$label"', () {
+    // תוויות ההתקדמות נבנות ב-ResponsaBuildStatus ונמסרות ל-settingsText
+    // דרך משתנה. המעבר על כל ערכי ה-enum, ועל כל צורה של שורת הסריקה
+    // ושל שורת הזמנים, תופס גם שלב או צורה שיתווספו בעתיד.
+    final statuses = [
+      for (final stage in ResponsaBuildStage.values)
+        ResponsaBuildStatus.of(ResponsaBuildProgress(stage: stage)),
+      ResponsaBuildStatus.of(
+        const ResponsaBuildProgress(
+          stage: ResponsaBuildStage.scanning,
+          scannedNodes: 500,
+        ),
+        expectedNodes: 1000,
+        scanElapsed: const Duration(minutes: 1),
+      ),
+      ResponsaBuildStatus.of(
+        const ResponsaBuildProgress(
+          stage: ResponsaBuildStage.scanning,
+          scannedNodes: 500,
+          sectionsTotal: 20,
+        ),
+      ),
+      ResponsaBuildStatus.of(
+        const ResponsaBuildProgress(stage: ResponsaBuildStage.scanning),
+        expectedNodes: 1000,
+      ),
+    ];
+    final labels = {
+      for (final status in statuses) ...[
+        status.headline.template,
+        status.detail(Duration.zero).template,
+      ],
+    };
+    for (final label in labels) {
+      test('"$label"', () {
         expect(catalog, contains(label));
       });
     }

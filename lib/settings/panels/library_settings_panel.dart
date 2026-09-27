@@ -14,6 +14,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
+import 'package:otzaria/external_catalog/responsa/view/responsa_build_progress_view.dart';
 import 'package:otzaria/external_catalog/view/external_catalog_settings_helper.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
@@ -24,19 +25,6 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// פאנל הגדרות תצוגת ספרייה
-/// התווית המוצגת לכל שלב בבניית קטלוג בר אילן.
-///
-/// ברמת הקובץ ולא בתוך ה-State: התוויות נמסרות ל-`settingsText` דרך
-/// משתנה, והסורק של בדיקת התרגום רואה רק ארגומנט קבוע. בדיקת התוויות
-/// עוברת מכאן על כל ערכי ה-enum, כך שגם שלב שיתווסף בעתיד ייתפס.
-String responsaBuildProgressLabel(ResponsaBuildStage stage) => switch (stage) {
-  ResponsaBuildStage.starting => 'מתחבר לפרויקט השו"ת...',
-  ResponsaBuildStage.scanning => 'נסרקו {nodes} רשומות...',
-  ResponsaBuildStage.classifying => 'מזהה ספרים מתוך {nodes} רשומות...',
-  ResponsaBuildStage.done => 'הקטלוג נבנה',
-  ResponsaBuildStage.failed => 'הבנייה נכשלה',
-};
-
 class LibrarySettingsPanel extends StatefulWidget {
   /// ווידג'ט להצגת מיקום ספרי היברובוקס (מועבר מהטאב הראשי כדי לתמוך בבחירת תיקייה)
   final Widget? hebrewBooksPathWidget;
@@ -386,34 +374,39 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
         SettingsActionTile.switchTile(
           icon: FluentIcons.library_24_regular,
           title: context.settingsText('הצג ופתח ספרי בר אילן'),
-          subtitle: context.settingsText(
-            // מספר המהדורה נכנס למשפט רק כשהוא ידוע. הוא נקרא מכותרת
-            // החלון או משם התיקייה, ואין ערובה לקיומו — "מהדורה 0" הוא
-            // ערך שקרי, ו"מהדורה" בלי מספר הוא משפט שבור.
-            switch ((progress, hasCatalog, enabled, version)) {
-              (final p?, _, _, _) => _progressText(p),
-              (_, true, _, final int _) =>
-                'נמצאו {count} ספרים במהדורה {version}. לחיצה על ספר '
-                    'תפתח אותו בבר אילן.',
-              (_, true, _, null) =>
-                'נמצאו {count} ספרים. לחיצה על ספר תפתח אותו בבר אילן.',
-              (_, false, true, _) => 'הקטלוג טרם נבנה — יש לרענן אותו למטה.',
-              (_, false, false, _) =>
-                'בהדלקה הראשונה ייבנה קטלוג מההתקנה שבמחשב. הסריקה '
-                    'אורכת מספר דקות, ובר אילן ייפתח לשם כך אם אינו פתוח.',
-            },
-            args: {
-              'count': info?.bookCount ?? 0,
-              'version': version ?? 0,
-              'nodes': progress?.scannedNodes ?? 0,
-            },
-          ),
+          subtitle: progress != null
+              ? _progressText(context, progress)
+              : context.settingsText(
+                  // מספר המהדורה נכנס למשפט רק כשהוא ידוע. הוא נקרא מכותרת
+                  // החלון או משם התיקייה, ואין ערובה לקיומו — "מהדורה 0" הוא
+                  // ערך שקרי, ו"מהדורה" בלי מספר הוא משפט שבור.
+                  switch ((hasCatalog, enabled, version)) {
+                    (true, _, final int _) =>
+                      'נמצאו {count} ספרים במהדורה {version}. לחיצה על ספר '
+                          'תפתח אותו בבר אילן.',
+                    (true, _, null) =>
+                      'נמצאו {count} ספרים. לחיצה על ספר תפתח אותו בבר אילן.',
+                    (false, true, _) => 'הקטלוג טרם נבנה — יש לרענן אותו למטה.',
+                    (false, false, _) =>
+                      'בהדלקה הראשונה ייבנה קטלוג מההתקנה שבמחשב. הסריקה '
+                          'אורכת מספר דקות, ובר אילן ייפתח לשם כך אם אינו פתוח.',
+                  },
+                  args: {
+                    'count': info?.bookCount ?? 0,
+                    'version': version ?? 0,
+                  },
+                ),
           value: enabled,
           onChanged: progress != null
               ? null
               : (value) => _toggleResponsa(context, state, value),
         ),
         if (enabled) _buildResponsaRebuildTile(context, hasCatalog),
+        if (progress != null)
+          ResponsaBuildProgressView(
+            progress: progress,
+            expectedNodes: _expectedNodes,
+          ),
       ],
     );
   }
@@ -431,23 +424,23 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
       title: context.settingsText(
         hasCatalog ? 'רענון קטלוג בר אילן' : 'בניית קטלוג בר אילן',
       ),
-      subtitle: context.settingsText(
-        switch ((progress, hasCatalog, outdated || foreign)) {
-          (final p?, _, _) => _progressText(p),
-          (_, _, true) when foreign =>
-            'הקטלוג נבנה מהתקנה אחרת של בר אילן — ככל הנראה במחשב אחר, '
-                'והוא עבר לכאן יחד עם תיקיית הספרייה. הספרים שבו אינם '
-                'בהכרח אלה שבמאגר שבמחשב הזה, ויש לרענן אותו.',
-          (_, _, true) =>
-            'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות '
-                'הספרים והמחברים, את פרטי המהדורה ואת אופן הפתיחה.',
-          (_, true, false) => 'יש לרענן אחרי התקנת מהדורה אחרת של בר אילן',
-          (_, false, false) =>
-            'הבנייה סורקת את קטלוג התוכנה ואורכת מספר דקות; '
-                'בר אילן ייפתח לשם כך אם אינו פתוח.',
-        },
-        args: {'nodes': progress?.scannedNodes ?? 0},
-      ),
+      subtitle: progress != null
+          ? _progressText(context, progress)
+          : context.settingsText(
+              switch ((hasCatalog, outdated || foreign)) {
+                (_, true) when foreign =>
+                  'הקטלוג נבנה מהתקנה אחרת של בר אילן — ככל הנראה במחשב אחר, '
+                      'והוא עבר לכאן יחד עם תיקיית הספרייה. הספרים שבו אינם '
+                      'בהכרח אלה שבמאגר שבמחשב הזה, ויש לרענן אותו.',
+                (_, true) =>
+                  'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות '
+                      'הספרים והמחברים, את פרטי המהדורה ואת אופן הפתיחה.',
+                (true, false) => 'יש לרענן אחרי התקנת מהדורה אחרת של בר אילן',
+                (false, false) =>
+                  'הבנייה סורקת את קטלוג התוכנה ואורכת מספר דקות; '
+                      'בר אילן ייפתח לשם כך אם אינו פתוח.',
+              },
+            ),
       actions: [
         if (progress == null)
           if (hasCatalog && !outdated && !foreign)
@@ -469,8 +462,18 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     );
   }
 
-  static String _progressText(ResponsaBuildProgress progress) =>
-      responsaBuildProgressLabel(progress.stage);
+  /// מספר הצמתים בבנייה הקודמת — רק כשהקטלוג נבנה מההתקנה שבמחשב.
+  /// קטלוג שהגיע ממחשב אחר מתאר עץ אחר, ומכנה ממנו הוא ניחוש.
+  int? get _expectedNodes =>
+      _responsaCatalogIsForeign ? null : _responsaInfo?.nodeCount;
+
+  String _progressText(BuildContext context, ResponsaBuildProgress progress) {
+    final headline = ResponsaBuildStatus.of(
+      progress,
+      expectedNodes: _expectedNodes,
+    ).headline;
+    return context.settingsText(headline.template, args: headline.args);
+  }
 
   /// מדליק או מכבה את בר אילן, ובהדלקה הראשונה גם בונה את הקטלוג.
   ///
