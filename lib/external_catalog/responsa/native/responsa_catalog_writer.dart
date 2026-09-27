@@ -5,6 +5,7 @@ import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_builde
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_schema.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_tree_reader.dart';
+import 'package:otzaria/external_catalog/responsa/text/responsa_author_table.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_bibliography.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_names.dart';
@@ -30,6 +31,7 @@ class ResponsaCatalogWriter {
     required ResponsaFingerprint fingerprint,
     required String targetPath,
     ResponsaBibliography bibliography = ResponsaBibliography.empty,
+    ResponsaAuthorTable authors = ResponsaAuthorTable.empty,
   }) {
     final watch = Stopwatch()..start();
     final books = ResponsaCatalogBuilder.classify(nodes);
@@ -88,6 +90,7 @@ class ResponsaCatalogWriter {
         ' VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       );
       var described = 0;
+      var authored = 0;
       db.execute('BEGIN');
       for (var i = 0; i < books.length; i++) {
         final book = books[i];
@@ -110,8 +113,14 @@ class ResponsaCatalogWriter {
             : book.title;
         // המטא-דאטה מגיעה מ"רשימת הספרים והמהדורות" של התוכנה עצמה. ספר
         // שאין לו שם רשומה שם נשאר בלעדיה — אין להמציא ערכים.
-        final record = bibliography.lookup(book.bibliographyNames);
+        final record = consistentRecord(
+          book,
+          authors,
+          bibliography.lookup(book.bibliographyNames),
+        );
         if (record != null) described++;
+        final author = authorOf(book, authors, record);
+        if (author != null) authored++;
         insert.execute([
           assignment.keys[i],
           title,
@@ -128,7 +137,7 @@ class ResponsaCatalogWriter {
               ? null
               : categories.join(ResponsaTreeReader.pathSeparator),
           null,
-          record?.author,
+          author,
           record?.pubPlace,
           record?.pubDate,
           (record?.edition.isEmpty ?? true) ? null : record!.edition,
@@ -152,6 +161,8 @@ class ResponsaCatalogWriter {
         'catalog_node_count': '${nodes.length}',
         'bibliography_entries': '${bibliography.entryCount}',
         'bibliography_matched': '$described',
+        'author_table_entries': '${authors.authorCount}',
+        'books_with_author': '$authored',
       };
       final metaInsert = db.prepare(
         'INSERT OR REPLACE INTO db_meta(key, value) VALUES(?, ?)',
@@ -194,6 +205,43 @@ class ResponsaCatalogWriter {
       elapsed: watch.elapsed,
       idMatching: assignment.stats,
     );
+  }
+
+  /// המחבר של [book].
+  ///
+  /// מטבלת המחברים של בר אילן כשהיא מכירה את החיבור — **גם כשאין לו שם
+  /// מחבר שם**: תנ"ך, משנה ומדרש מוכרים בה בלי מחבר, והביבליוגרפיה, שמותאמת
+  /// לפי שם, הייתה נותנת להם מחבר של חיבור אחר באותו שם. רק חיבור שהטבלה
+  /// אינה מכירה — או מהדורה שהטבלה בה אינה במבנה המוכר — נופל לביבליוגרפיה.
+  @visibleForTesting
+  static String? authorOf(
+    ResponsaBookRow book,
+    ResponsaAuthorTable authors,
+    ResponsaBibliographyEntry? record,
+  ) {
+    final id = ResponsaAuthorTable.bookIdOf(book.workParam);
+    if (authors.knows(id)) return authors.authorOf(id);
+    return record?.author;
+  }
+
+  /// הרשומה מהביבליוגרפיה, או `null` כשהמחבר שבה סותר את טבלת המחברים.
+  ///
+  /// הביבליוגרפיה מותאמת לספר לפי שם, ושם אינו מזהה: `פרחי כהונה` הם שני
+  /// חיבורים, ו-`ר"ש` על זרעים נמצא בעמוד של רש"י. כשהמחבר שבעמוד הוא אדם
+  /// אחר מהמחבר של החיבור, גם מקום ההדפסה והשנה שבעמוד שייכים לספר אחר.
+  /// נמדד ב-CD25: 66 ספרים, בארבע קבוצות, וכולן טעויות.
+  @visibleForTesting
+  static ResponsaBibliographyEntry? consistentRecord(
+    ResponsaBookRow book,
+    ResponsaAuthorTable authors,
+    ResponsaBibliographyEntry? record,
+  ) {
+    final listed = record?.author;
+    final known = authors.authorOf(
+      ResponsaAuthorTable.bookIdOf(book.workParam),
+    );
+    if (listed == null || known == null) return record;
+    return ResponsaAuthorTable.mayBeSamePerson(listed, known) ? record : null;
   }
 
   /// המזהים שכבר הוקצו בקטלוג הקיים, לשימור בין בנייה לבנייה.

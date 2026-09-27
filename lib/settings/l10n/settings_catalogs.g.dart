@@ -494,7 +494,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הקובץ שהורד פגום — נסו שוב': 'The downloaded file is corrupt — try again',
     'הקטלוג טרם נבנה — יש לרענן אותו למטה.': 'The catalog has not been built yet — refresh it below.',
     'הקטלוג נבנה': 'The catalog was built',
-    'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים, את פרטי המהדורה ואת אופן הפתיחה.': 'The catalog was built by an older version of Otzaria. Refreshing updates book names, edition details and how they open.',
+    'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים והמחברים, את פרטי המהדורה ואת אופן הפתיחה.': 'The catalog was built by an older version of Otzaria. Refreshing updates book and author names, edition details and how they open.',
     'הקטלוג נבנה מהתקנה אחרת של בר אילן — ככל הנראה במחשב אחר, והוא עבר לכאן יחד עם תיקיית הספרייה. הספרים שבו אינם בהכרח אלה שבמאגר שבמחשב הזה, ויש לרענן אותו.': 'The catalog was built from a different Bar-Ilan installation, most likely on another computer, and travelled here with the library folder. Its books are not necessarily the ones in the database on this computer; refresh it.',
     'הקטלוג של אוצר החכמה והיברובוקס חסר במערכת. יש להוריד אותו כדי להציג ולחפש ספרים ממקורות אלו.': 'The Otzar HaChochma and HebrewBooks catalog is not included. Download it to display and search these collections.',
     'הקטנת הטקסט / התצוגה': 'Decrease Text / View Size',

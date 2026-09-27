@@ -5,6 +5,7 @@ import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/external_catalog/responsa/native/responsa_author_table_reader.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_automation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_bibliography_reader.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_writer.dart';
@@ -314,6 +315,7 @@ class ResponsaCatalogBuildService {
         // נקראת **אחרי** הסריקה ולא לפניה: היא קריאת קובץ של פחות משנייה,
         // ואין סיבה לשלם אותה כשהסריקה עומדת להיכשל או להתבטל.
         bibliography: ResponsaBibliographyReader.forInstallation(installation),
+        authors: ResponsaAuthorTableReader.forInstallation(installation),
       );
       send.send(
         ResponsaBuildProgress(

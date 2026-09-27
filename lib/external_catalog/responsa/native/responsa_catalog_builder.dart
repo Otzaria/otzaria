@@ -43,6 +43,12 @@ class ResponsaBookRow {
   /// כמה רכיבי שם יושבים **מעל** החיבור.
   int get workOffset => _resolved.workOffset;
 
+  /// `lParam` של צומת החיבור — לא של הספר עצמו. רק בצומת החיבור הבית
+  /// הנמוך הוא מזהה החיבור של בר אילן; ביחידות שתחתיו (`רש"י הושע`) הוא
+  /// מספר סידורי, ומחבר שנקרא לפיו הוא מחבר של חיבור אחר.
+  int get workParam =>
+      chain[chain.length - _resolved.nameNodes.length + workOffset].param;
+
   /// רכיבי הקטגוריה, מהשורש ועד לרכיב שמעל השם.
   List<String> get categoryNodes => _resolved.categoryNodes;
 

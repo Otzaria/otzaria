@@ -1291,7 +1291,7 @@
   "רענון קטלוג בר אילן": "Refresh the Bar-Ilan catalog",
   "הבנייה סורקת את קטלוג התוכנה ואורכת מספר דקות; בר אילן ייפתח לשם כך אם אינו פתוח.": "Building scans the software's catalog and takes a few minutes; Bar-Ilan is started for it if it is not already running.",
   "יש לרענן אחרי התקנת מהדורה אחרת של בר אילן": "Refresh after installing a different edition of Bar-Ilan",
-  "הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים, את פרטי המהדורה ואת אופן הפתיחה.": "The catalog was built by an older version of Otzaria. Refreshing updates book names, edition details and how they open.",
+  "הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים והמחברים, את פרטי המהדורה ואת אופן הפתיחה.": "The catalog was built by an older version of Otzaria. Refreshing updates book and author names, edition details and how they open.",
   "הקטלוג נבנה מהתקנה אחרת של בר אילן — ככל הנראה במחשב אחר, והוא עבר לכאן יחד עם תיקיית הספרייה. הספרים שבו אינם בהכרח אלה שבמאגר שבמחשב הזה, ויש לרענן אותו.": "The catalog was built from a different Bar-Ilan installation, most likely on another computer, and travelled here with the library folder. Its books are not necessarily the ones in the database on this computer; refresh it.",
   "בנה קטלוג": "Build catalog"
 }

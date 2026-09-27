@@ -378,8 +378,8 @@ void main() {
 
       expect(
         find.text(
-          'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים, '
-          'את פרטי המהדורה ואת אופן הפתיחה.',
+          'הקטלוג נבנה בגרסה ישנה של אוצריא. רענון יעדכן את שמות הספרים '
+          'והמחברים, את פרטי המהדורה ואת אופן הפתיחה.',
         ),
         findsOneWidget,
       );
@@ -409,7 +409,7 @@ void main() {
             exists: true,
             bookCount: 8402,
             sourceVersion: 25,
-            schemaVersion: 5,
+            schemaVersion: responsaCatalogSchemaVersion,
             installPath: r'D:\ResponsaCD25',
           ),
         ),
@@ -444,7 +444,7 @@ void main() {
             exists: true,
             bookCount: 8402,
             sourceVersion: 25,
-            schemaVersion: 5,
+            schemaVersion: responsaCatalogSchemaVersion,
             installPath: r'c:\program files (x86)\responsacd25',
           ),
         ),
