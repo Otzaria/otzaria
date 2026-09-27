@@ -1,10 +1,30 @@
-import 'package:otzaria/external_catalog/providers/external_library_provider.dart';
-import 'package:otzaria/external_catalog/providers/external_provider_capabilities.dart';
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_failure.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/models/books.dart';
+
+/// תוצאת ניסיון פתיחה של ספר חיצוני.
+///
+/// לעולם אינה חריג: כשל בפתיחה של ספק חיצוני (תוכנה שאינה מותקנת, גשר
+/// שנפל, הפניה שלא נותחה) חייב להגיע ל-UI כערך, לא כ-exception שמפיל את
+/// אוצריא.
+class ExternalOpenResult {
+  final bool ok;
+
+  /// קוד שגיאה יציב, כשהפתיחה נכשלה.
+  final String? errorCode;
+
+  /// הודעה למשתמש. ריקה כשהפתיחה הצליחה.
+  final String? message;
+
+  const ExternalOpenResult.success()
+    : ok = true,
+      errorCode = null,
+      message = null;
+
+  const ExternalOpenResult.failure(this.errorCode, [this.message]) : ok = false;
+}
 
 /// ספק פרויקט השו"ת.
 ///
@@ -15,60 +35,11 @@ import 'package:otzaria/models/books.dart';
 ///   כי כל הספרים יושבים בארכיון אחד ואין התקנה חלקית ברמת ספר.
 /// * **שליטה בתוכנה** — נדרשת רק לפתיחה, ורצה באיזולט רקע בתוך אוצריא.
 ///   אין רכיב חיצוני להתקין ואין מה להגדיר בפרויקט השו"ת.
-class ResponsaLibraryProvider implements ExternalLibraryProvider {
+class ResponsaLibraryProvider {
   final ResponsaCatalogRepository catalog;
   final ResponsaController controller;
 
   ResponsaLibraryProvider({required this.catalog, required this.controller});
-
-  @override
-  ExternalProviderDescriptor get descriptor =>
-      ExternalProviderRegistry.responsa;
-
-  @override
-  String get id => descriptor.id;
-
-  @override
-  String get displayName => descriptor.displayName;
-
-  @override
-  String get idPrefix => descriptor.idPrefix;
-
-  @override
-  String? get iconAsset => descriptor.iconAsset;
-
-  @override
-  ExternalProviderCapabilities get capabilities => descriptor.capabilities;
-
-  @override
-  Future<List<Book>> loadBooks() => catalog.loadBooks();
-
-  /// טעינת ספרים לפי מזהים חיצוניים (`rp:1524`) — המסלול שתוספים
-  /// משתמשים בו. אין בדיקת קובץ: קיום ברשומה **הוא** הזמינות.
-  Future<List<Book>> loadBooksByIds(Iterable<String> externalLibraryIds) {
-    final keys = <String>[];
-    for (final value in externalLibraryIds) {
-      final parsed = ExternalProviderRegistry.parse(value);
-      if (parsed?.provider.kind == ExternalProviderKind.responsa) {
-        keys.add(parsed!.value);
-      } else {
-        // מזהה בלי תחילית מתקבל כמפתח גולמי, לנוחות קוראים פנימיים.
-        final raw = value.trim();
-        if (raw.isNotEmpty && !raw.contains(':')) keys.add(raw);
-      }
-    }
-    return catalog.loadBooksByKeys(keys);
-  }
-
-  @override
-  Future<bool> canOpen(Book book) async {
-    final key = _keyOf(book);
-    if (key == null) return false;
-    return (await catalog.openRefFor(key)) != null;
-  }
-
-  @override
-  Future<ExternalOpenResult> openBook(Book book) => open(book);
 
   /// פותח את הספר בתוכנה, בתחילתו.
   Future<ExternalOpenResult> open(Book book) async {
@@ -106,7 +77,7 @@ class ResponsaLibraryProvider implements ExternalLibraryProvider {
     );
   }
 
-  /// ביטול פעולה ארוכה. הביטול אמיתי — הפעולה עצמה נעצרת.
+  /// המפתח בקטלוג, או `null` לספר שאינו של בר אילן.
   static String? _keyOf(Book book) {
     final parsed = ExternalProviderRegistry.parse(book.externalLibraryId);
     if (parsed?.provider.kind != ExternalProviderKind.responsa) return null;

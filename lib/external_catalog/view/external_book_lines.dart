@@ -13,7 +13,8 @@ import 'package:otzaria/models/books.dart';
 /// המשנה — מחבר וקטגוריה — נראות בדיוק כמו של ספר מותקן, והמשתמש אינו
 /// יודע שלחיצה תפתח תוכנה אחרת או דפדפן. האייקון לבדו אינו מספיק:
 /// הוא 14 פיקסלים, ובשלושה ספקים הוא אינו מזוהה בלי הסבר.
-String? externalBookSourceLine(Book book) => _providerOf(book)?.displayName;
+String? externalBookSourceLine(Book book) =>
+    ExternalCatalogMapper.providerOfBook(book)?.displayName;
 
 /// שורת הקטגוריה שמוצגת לספר חיצוני, או `null` כשאין.
 ///
@@ -21,7 +22,7 @@ String? externalBookSourceLine(Book book) => _providerOf(book)?.displayName;
 /// `שו״ת` ולא `ספרי שאלות ותשובות (שו"ת) › ... - אחרונים › תורת
 /// יקותיאל`. זה השם שהמשתמש מכיר, ושם הוא ימצא את הספר בעיון.
 String? externalBookCategoryLine(Book book) {
-  final provider = _providerOf(book);
+  final provider = ExternalCatalogMapper.providerOfBook(book);
   if (provider?.kind == ExternalProviderKind.responsa) {
     final categories = book is ExternalLibraryBook ? book.heCategories : null;
     if (ResponsaCategoryMap.displayNameFor(categories) case final mapped?) {
@@ -31,9 +32,3 @@ String? externalBookCategoryLine(Book book) {
   final path = book.categoryPath?.trim();
   return (path == null || path.isEmpty) ? null : path.replaceAll('/', ' › ');
 }
-
-ExternalProviderDescriptor? _providerOf(Book book) =>
-    ExternalCatalogMapper.providerOf(
-      externalLibraryId: book.externalLibraryId,
-      link: book is ExternalLibraryBook ? book.link : null,
-    );

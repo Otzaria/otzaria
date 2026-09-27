@@ -5,9 +5,7 @@ enum ExternalProviderKind { otzar, hebrewBooks, responsa }
 
 /// תיאור סטטי של ספק: זהות, תחיליות מזהה, לוגו ויכולות.
 ///
-/// התיאור אינו יודע לטעון ספרים או לפתוח אותם — לזה נועד
-/// `ExternalLibraryProvider`. ההפרדה מאפשרת לזהות ספר של ספק שאינו
-/// מותקן/מופעל, בלי להביא את שכבת הריצה שלו.
+/// אינו טוען ספרים ואינו פותח אותם, ולכן מזהה ספר של ספק שאינו מופעל.
 class ExternalProviderDescriptor {
   final ExternalProviderKind kind;
 

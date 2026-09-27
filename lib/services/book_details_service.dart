@@ -194,10 +194,7 @@ class BookDetailsService {
   /// ושומר את המזהה החיצוני, והמקור שלו הוא הקובץ שבמחשב.
   static String? _externalSource(Book book) {
     if (book is! ExternalLibraryBook) return null;
-    return ExternalCatalogMapper.providerOf(
-      externalLibraryId: book.externalLibraryId,
-      link: book.link,
-    )?.displayName;
+    return ExternalCatalogMapper.providerOfBook(book)?.displayName;
   }
 
   Future<ResolvedDbBookRecord?> _tryResolveDbBook(Book book) async {

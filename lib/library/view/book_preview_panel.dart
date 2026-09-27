@@ -460,10 +460,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
 
     // אם זה ספר חיצוני
     if (widget.book case final ExternalLibraryBook external) {
-      final provider = ExternalCatalogMapper.providerOf(
-        link: external.link,
-        externalLibraryId: external.externalLibraryId,
-      );
+      final provider = ExternalCatalogMapper.providerOfBook(external);
       final opensLocally =
           ExternalProviderRegistry.usesSharedLocalOpen(provider) &&
           widget.onOpenExternally != null;

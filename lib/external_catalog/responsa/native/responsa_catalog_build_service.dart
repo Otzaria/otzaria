@@ -58,9 +58,6 @@ class ResponsaCatalogBuildService {
   ResponsaCatalogBuildService();
 
   Pointer<Int32>? _cancelFlag;
-  Isolate? _isolate;
-
-  bool get isRunning => _isolate != null;
 
   /// מבטל בנייה שרצה. הביטול אמיתי — הסריקה נעצרת בנקודת הבדיקה הבאה.
   void cancel() {
@@ -140,7 +137,7 @@ class ResponsaCatalogBuildService {
     }
 
     try {
-      _isolate = await Isolate.spawn(
+      await Isolate.spawn(
         _buildEntry,
         _BuildRequest(
           sendPort: receive.sendPort,
@@ -214,7 +211,6 @@ class ResponsaCatalogBuildService {
     receive.close();
     exit.close();
     error.close();
-    _isolate = null;
     _cancelFlag = null;
     _active = false;
     calloc.free(flag);

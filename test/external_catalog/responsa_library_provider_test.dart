@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
@@ -119,43 +118,11 @@ void main() {
 
   const success = ResponsaOpenReport(ok: true, window: 'רא"ש מסכת יבמות פרק א');
 
-  group('זהות הספק', () {
-    test('מזהה, תחילית ויכולות', () {
-      final provider = build(success).provider;
-
-      expect(provider.id, 'responsa');
-      expect(provider.idPrefix, 'rp');
-      expect(provider.capabilities.webOpen, isFalse);
-      expect(provider.capabilities.localOpen, isTrue);
-      expect(provider.descriptor, ExternalProviderRegistry.responsa);
-    });
-  });
-
-  group('canOpen', () {
-    test('ספר שבקטלוג — כן', () async {
-      expect(await build(success).provider.canOpen(_responsaBook()), isTrue);
-    });
-
-    test('ספר של ספק אחר — לא', () async {
-      expect(
-        await build(success).provider.canOpen(_responsaBook(id: 'oh:1524')),
-        isFalse,
-      );
-    });
-
-    test('ספר שאינו בקטלוג — לא', () async {
-      expect(
-        await build(success).provider.canOpen(_responsaBook(id: 'rp:99999')),
-        isFalse,
-      );
-    });
-  });
-
   group('פתיחה — מטריצת המצבים', () {
     test('הצלחה, וההפניה שנשלחת היא ה-open_ref ולא הכותרת', () async {
       final built = build(success);
 
-      final result = await built.provider.openBook(_responsaBook());
+      final result = await built.provider.open(_responsaBook());
 
       expect(result.ok, isTrue);
       expect(built.controller.calls.single.references.first, 'רא"ש יבמות');
@@ -165,7 +132,7 @@ void main() {
     test('ספר שאינו בקטלוג — כשל מסודר בלי לגעת בתוכנה', () async {
       final built = build(success);
 
-      final result = await built.provider.openBook(
+      final result = await built.provider.open(
         _responsaBook(id: 'rp:99999'),
       );
 
@@ -176,7 +143,7 @@ void main() {
     test('ספר של ספק אחר נדחה', () async {
       final result = await build(
         success,
-      ).provider.openBook(_responsaBook(id: 'hb:5'));
+      ).provider.open(_responsaBook(id: 'hb:5'));
 
       expect(result.errorCode, 'notAResponsaBook');
     });
@@ -188,7 +155,7 @@ void main() {
           failure: ResponsaFailure.responsaNotRunning,
           message: 'פרויקט השו"ת אינו מותקן במחשב.',
         ),
-      ).provider.openBook(_responsaBook());
+      ).provider.open(_responsaBook());
 
       expect(result.errorCode, 'responsaNotRunning');
       expect(result.message, contains('אינו מותקן'));
@@ -200,7 +167,7 @@ void main() {
           ok: false,
           failure: ResponsaFailure.referenceNotParsed,
         ),
-      ).provider.openBook(_responsaBook());
+      ).provider.open(_responsaBook());
 
       expect(result.ok, isFalse);
       expect(result.message, contains('לא זיהה'));
@@ -212,7 +179,7 @@ void main() {
           ok: false,
           failure: ResponsaFailure.openedWrongBook,
         ),
-      ).provider.openBook(_responsaBook());
+      ).provider.open(_responsaBook());
 
       expect(result.ok, isFalse);
       expect(result.message, contains('ספר אחר'));
@@ -224,7 +191,7 @@ void main() {
           ok: false,
           failure: ResponsaFailure.mdiWindowLimitReached,
         ),
-      ).provider.openBook(_responsaBook());
+      ).provider.open(_responsaBook());
 
       expect(result.message, contains('לסגור'));
     });
@@ -232,7 +199,7 @@ void main() {
     test('ביטול', () async {
       final result = await build(
         const ResponsaOpenReport(ok: false, failure: ResponsaFailure.cancelled),
-      ).provider.openBook(_responsaBook());
+      ).provider.open(_responsaBook());
 
       expect(result.errorCode, 'cancelled');
     });
@@ -285,7 +252,7 @@ void main() {
       // שדרוג של אוצריא היה שובר את הפתיחה עד לרענון הקטלוג.
       final built = build(success);
 
-      await built.provider.openBook(_responsaBook());
+      await built.provider.open(_responsaBook());
 
       expect(built.controller.calls.single.references, ['רא"ש יבמות']);
     });
@@ -297,30 +264,12 @@ void main() {
           failure: ResponsaFailure.referenceNotParsed,
           triedRefs: ['רא"ש יבמות', 'יבמות'],
         ),
-      ).provider.openBook(_responsaBook());
+      ).provider.open(_responsaBook());
 
       expect(result.message, contains('יבמות'));
       expect(result.message, contains('רא"ש יבמות'));
       // מה אפשר לעשות עכשיו — בלי זה ההודעה אינה שימושית.
       expect(result.message, contains('לרענן'));
-    });
-  });
-
-  group('loadBooksByIds', () {
-    test('מסנן מזהים של ספקים אחרים', () async {
-      final books = await build(
-        success,
-      ).provider.loadBooksByIds(['rp:1524', 'oh:1524', 'hb:1524']);
-
-      expect(books, hasLength(1));
-      expect(books.single.externalLibraryId, 'rp:1524');
-    });
-
-    test('קיום ברשומה הוא הזמינות — אין בדיקת קובץ', () async {
-      final provider = build(success).provider;
-
-      expect(await provider.loadBooksByIds(['1524']), hasLength(1));
-      expect(await provider.loadBooksByIds(['404']), isEmpty);
     });
   });
 }

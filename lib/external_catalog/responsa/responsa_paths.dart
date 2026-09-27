@@ -29,16 +29,12 @@ class ResponsaPaths {
   /// המיקום עדיין זהה, כדי ששני הקבצים שהשילוב מייצר יישבו יחד.
   static const String iconFileName = 'responsa_icon.ico';
 
-  /// עוקף את תיקיית הבסיס בבדיקות.
-  static String? debugBaseDirectoryOverride;
-
   /// תיקיית הקטלוגים, או `null` בכל פלטפורמה שאינה Windows — פרויקט
   /// השו"ת הוא Win32 בלבד.
   ///
   /// קוראת מההגדרות, ולכן היא שייכת לאיזולט הראשי בלבד. שכבת הבנייה
   /// מקבלת נתיב מוחלט ואינה קוראת לכאן.
   static String? get baseDirectory {
-    if (debugBaseDirectoryOverride case final override?) return override;
     if (!Platform.isWindows) return null;
     // מיקום הספרייה נקרא מההגדרות. לפני שהן אותחלו אין תשובה, והקריאה
     // עצמה זורקת — וכל הקוראים כאן מטפלים ב-`null` ממילא.

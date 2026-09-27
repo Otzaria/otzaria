@@ -28,14 +28,6 @@ class ResponsaBookIcon extends StatefulWidget {
   /// כמה להמתין לפני שניסיון שנכשל מותר שוב.
   static const Duration _retryAfter = Duration(seconds: 30);
 
-  /// מנקה את המטמון. לבדיקות בלבד.
-  @visibleForTesting
-  static void resetCache() => _future = null;
-
-  /// עוקף את הטעינה בבדיקות.
-  @visibleForTesting
-  static set debugFuture(Future<Uint8List?>? value) => _future = value;
-
   static Future<Uint8List?> _load() async {
     final installPath = await ResponsaCatalogRepository.instance
         .sourceInstallPath();

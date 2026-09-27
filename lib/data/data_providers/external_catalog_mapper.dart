@@ -1,4 +1,5 @@
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
+import 'package:otzaria/models/books.dart';
 
 /// כלי עזר למיפוי ספרי קטלוגים חיצוניים.
 ///
@@ -20,6 +21,12 @@ class ExternalCatalogMapper {
     if (parsed != null) return parsed.provider;
     return ExternalProviderRegistry.fromLink(link);
   }
+
+  /// הספק של [book], או `null` לספר מקומי.
+  static ExternalProviderDescriptor? providerOfBook(Book book) => providerOf(
+    externalLibraryId: book.externalLibraryId,
+    link: book is ExternalLibraryBook ? book.link : null,
+  );
 
   /// מפענח `externalLibraryId` לספק ולערך.
   static ExternalBookRef? parse(String? externalLibraryId) =>

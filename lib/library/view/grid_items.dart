@@ -61,17 +61,8 @@ String? categoryInfoText(Category category) {
 /// `FileSystemData.mapHebrewBooksToLocal`) אך שומר את [Book.externalLibraryId]
 /// (למשל `hb:123`). לכן הזיהוי מסתמך על המזהה החיצוני האמין — ולא על נתיב
 /// הקובץ, שעלול להכיל את המחרוזת `otzaria` ולגרום לזיהוי שגוי של כל ספר מקומי.
-String? externalCatalogLogoAsset(Book book) {
-  final id = book.externalLibraryId;
-  final link = book is ExternalLibraryBook ? book.link : null;
-  if ((id == null || id.isEmpty) && (link == null || link.isEmpty)) {
-    return null;
-  }
-  return ExternalCatalogMapper.providerOf(
-    externalLibraryId: id,
-    link: link,
-  )?.iconAsset;
-}
+String? externalCatalogLogoAsset(Book book) =>
+    ExternalCatalogMapper.providerOfBook(book)?.iconAsset;
 
 /// האם הספר מגיע מבר אילן.
 ///
@@ -80,11 +71,8 @@ String? externalCatalogLogoAsset(Book book) {
 /// המחשב של המשתמש. בלי אייקון משלו ספריו נראים בתוצאות כמו ספר מקומי
 /// רגיל, והמשתמש אינו יודע שלחיצה עליו תפתח תוכנה אחרת.
 bool isResponsaBook(Book book) {
-  final provider = ExternalCatalogMapper.providerOf(
-    externalLibraryId: book.externalLibraryId,
-    link: book is ExternalLibraryBook ? book.link : null,
-  );
-  return provider?.kind == ExternalProviderKind.responsa;
+  return ExternalCatalogMapper.providerOfBook(book)?.kind ==
+      ExternalProviderKind.responsa;
 }
 
 /// אייקון הספק לספר חיצוני שאין לו לוגו בחבילה, או `null` לספר מקומי.

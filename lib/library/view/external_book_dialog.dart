@@ -35,10 +35,8 @@ class ExternalBookDialog extends StatelessWidget {
     this.onOpenLocally,
   });
 
-  ExternalProviderDescriptor? get _provider => ExternalCatalogMapper.providerOf(
-    link: book.link,
-    externalLibraryId: book.externalLibraryId,
-  );
+  ExternalProviderDescriptor? get _provider =>
+      ExternalCatalogMapper.providerOfBook(book);
 
   ExternalProviderCapabilities get _capabilities =>
       _provider?.capabilities ?? const ExternalProviderCapabilities();
