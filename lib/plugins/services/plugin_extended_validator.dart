@@ -124,6 +124,7 @@ const Set<String> _knownApiMethods = {
   'workspace.switch',
   'navigation.goTo',
   'plugin.openSelf',
+  'plugin.setNewTabPage',
   'plugin.openOther',
   'plugin.backgroundDone',
   'plugin.listInstalled',
@@ -316,6 +317,7 @@ const Map<String, String> _methodRequiredPermission = {
   'workspace.switch': pluginWorkspaceManagePermission,
   'navigation.goTo': 'navigation.write',
   'plugin.openSelf': 'navigation.write',
+  'plugin.setNewTabPage': 'navigation.write',
   'plugin.openOther': pluginOpenOtherPermission,
   'plugin.listInstalled': 'app.info.read',
   'notes.list': 'notes.read',
@@ -515,6 +517,7 @@ const Map<String, String> _methodMinVersion = {
   'app.openUrl': '0.9.95',
   // 0.9.96
   'plugin.openSelf': '0.9.96',
+  'plugin.setNewTabPage': '0.9.97',
   'plugin.openOther': '0.9.97',
   'library.listBookAltStructures': '0.9.96',
   'library.getBookAltToc': '0.9.96',

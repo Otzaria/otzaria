@@ -931,6 +931,24 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                     // 2. עדכוני מערכת (רשת + עדכון מפתחים)
                     _buildSystemUpdatesSection(context, state),
 
+                    SettingsCard(
+                      cardId: 'system.new_tab_button',
+                      title: context.settingsText('כרטיסייה חדשה'),
+                      children: [
+                        SettingsActionTile.switchTile(
+                          icon: FluentIcons.add_24_regular,
+                          title: context.settingsText('הצג לחצן +'),
+                          subtitle: context.settingsText(
+                            'מציג לחצן לפתיחת כרטיסייה חדשה. ברירת המחדל היא הספרייה; תוסף יכול לשנות את יעד הפתיחה בלבד.',
+                          ),
+                          value: state.showNewTabButton,
+                          onChanged: (value) => context
+                              .read<SettingsBloc>()
+                              .add(UpdateShowNewTabButton(value)),
+                        ),
+                      ],
+                    ),
+
                     // 3. דיווחי טעויות
                     _buildErrorReportsSection(context, state),
 

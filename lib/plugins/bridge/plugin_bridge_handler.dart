@@ -497,6 +497,7 @@ class PluginBridgeHandler {
     // openSelf מעביר את המשתמש למסך אחר — הרשאת ניווט; openOther מפעיל תוסף
     // שלישי — הרשאה נפרדת וחזקה יותר.
     'plugin.openSelf': 'navigation.write',
+    'plugin.setNewTabPage': 'navigation.write',
     'plugin.openOther': pluginOpenOtherPermission,
     'plugin.listInstalled': 'app.info.read',
     'plugin.requestInstall': 'app.info.read',

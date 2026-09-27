@@ -203,6 +203,7 @@ if (response.success) {
 | `workspace.switch` | 0.9.97 |
 | `navigation.goTo` | 0.9.89 |
 | `plugin.openSelf` | 0.9.96 |
+| `plugin.setNewTabPage` | 0.9.97 |
 | `plugin.openOther` | 0.9.97 |
 | `plugin.backgroundDone` | 0.9.97 |
 | `plugin.listInstalled` | 0.9.97 |

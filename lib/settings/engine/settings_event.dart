@@ -405,6 +405,15 @@ class UpdateCompactMenuMode extends SettingsEvent {
   List<Object?> get props => [compactMenuMode];
 }
 
+class UpdateShowNewTabButton extends SettingsEvent {
+  final bool show;
+
+  const UpdateShowNewTabButton(this.show);
+
+  @override
+  List<Object?> get props => [show];
+}
+
 class UpdateReadingTabsPlacement extends SettingsEvent {
   final String placement;
 

@@ -12,6 +12,7 @@ import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_registry.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
+import 'package:otzaria/plugins/services/plugin_new_tab_page_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_startup_contributions_service.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
@@ -592,6 +593,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       PluginHighlightRegistry.instance.removePlugin(event.pluginId);
       PluginFileServer.instance.revokeAllForPlugin(event.pluginId);
       _removeSearchProviders(event.pluginId);
+      PluginNewTabPageRegistry.instance.remove(event.pluginId);
       await _installerService.uninstallPlugin(event.pluginId);
       add(LoadPlugins());
     } catch (e) {
@@ -669,6 +671,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       PluginHighlightRegistry.instance.removePlugin(event.pluginId);
       PluginFileServer.instance.revokeAllForPlugin(event.pluginId);
       _removeSearchProviders(event.pluginId);
+      PluginNewTabPageRegistry.instance.remove(event.pluginId);
       final plugin = await repository.getPlugin(event.pluginId);
       if (plugin != null) {
         await repository.savePlugin(plugin.copyWith(enabled: false));
@@ -777,6 +780,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       PluginToolbarRegistry.instance.removeAll(event.pluginId);
       PluginHighlightRegistry.instance.removePlugin(event.pluginId);
       _removeSearchProviders(event.pluginId);
+      PluginNewTabPageRegistry.instance.remove(event.pluginId);
       PluginFileServer.instance.revokeAllForPlugin(event.pluginId);
       await repository.detachDevelopmentPlugin(event.pluginId);
       devWatchService.stopWatcher(event.pluginId);

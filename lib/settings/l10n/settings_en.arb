@@ -1271,5 +1271,8 @@
   "המסד יוחלף במקומו; הגרסה הקודמת נשמרת עד שהעדכון יאומת.": "The database is replaced in place; the previous version is kept until the update is verified.",
   "המסד צורף": "Database attached",
   "המסד \"{name}\" צורף לספרייה.": "The database \"{name}\" was attached to the library.",
-  "העדכונים שלו חתומים ויגיעו מ-{domain}. אוצריא תבדוק שם עדכונים כשבדיקת עדכוני הספרייה פעילה, ולא תתקין דבר בלי אישורך.": "Its updates are signed and come from {domain}. Otzaria checks there for updates while library update checks are on, and installs nothing without your approval."
+  "העדכונים שלו חתומים ויגיעו מ-{domain}. אוצריא תבדוק שם עדכונים כשבדיקת עדכוני הספרייה פעילה, ולא תתקין דבר בלי אישורך.": "Its updates are signed and come from {domain}. Otzaria checks there for updates while library update checks are on, and installs nothing without your approval.",
+  "כרטיסייה חדשה": "New Tab",
+  "הצג לחצן +": "Show + button",
+  "מציג לחצן לפתיחת כרטיסייה חדשה. ברירת המחדל היא הספרייה; תוסף יכול לשנות את יעד הפתיחה בלבד.": "Shows a button for opening a new tab. By default it opens the library; a plugin can change only the destination."
 }

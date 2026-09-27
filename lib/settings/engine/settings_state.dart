@@ -80,6 +80,7 @@ class SettingsState extends Equatable {
   final bool compactMenuMode;
 
   /// מיקום כרטיסיות העיון: `top` ברצועת הכותרת, `side` בעמודה אנכית.
+  final bool showNewTabButton;
   final String readingTabsPlacement;
   final double readingTabsColumnWidth;
   final bool readingTabsColumnCollapsed;
@@ -144,6 +145,7 @@ class SettingsState extends Equatable {
     required this.protectedModeEnabled,
     this.protectedModePasswordSet = false,
     this.compactMenuMode = false,
+    this.showNewTabButton = true,
     this.readingTabsPlacement = SettingsRepository.readingTabsPlacementTop,
     this.readingTabsColumnWidth =
         SettingsRepository.defaultReadingTabsColumnWidth,
@@ -250,6 +252,7 @@ class SettingsState extends Equatable {
     bool? protectedModeEnabled,
     bool? protectedModePasswordSet,
     bool? compactMenuMode,
+    bool? showNewTabButton,
     String? readingTabsPlacement,
     double? readingTabsColumnWidth,
     bool? readingTabsColumnCollapsed,
@@ -332,6 +335,7 @@ class SettingsState extends Equatable {
       protectedModePasswordSet:
           protectedModePasswordSet ?? this.protectedModePasswordSet,
       compactMenuMode: compactMenuMode ?? this.compactMenuMode,
+      showNewTabButton: showNewTabButton ?? this.showNewTabButton,
       readingTabsPlacement: readingTabsPlacement ?? this.readingTabsPlacement,
       readingTabsColumnWidth:
           readingTabsColumnWidth ?? this.readingTabsColumnWidth,
@@ -403,6 +407,7 @@ class SettingsState extends Equatable {
     protectedModeEnabled,
     protectedModePasswordSet,
     compactMenuMode,
+    showNewTabButton,
     readingTabsPlacement,
     readingTabsColumnWidth,
     readingTabsColumnCollapsed,

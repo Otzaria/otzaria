@@ -85,6 +85,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       _onUpdatePersonalNotesCollapsedByDefault,
     );
     on<UpdateCompactMenuMode>(_onUpdateCompactMenuMode);
+    on<UpdateShowNewTabButton>(_onUpdateShowNewTabButton);
     on<UpdateReadingTabsPlacement>(_onUpdateReadingTabsPlacement);
     on<UpdateReadingTabsColumnWidth>(_onUpdateReadingTabsColumnWidth);
     on<UpdateReadingTabsColumnCollapsed>(_onUpdateReadingTabsColumnCollapsed);
@@ -274,6 +275,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateCompactMenuMode(event.compactMenuMode);
     emit(state.copyWith(compactMenuMode: event.compactMenuMode));
+  }
+
+  Future<void> _onUpdateShowNewTabButton(
+    UpdateShowNewTabButton event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateShowNewTabButton(event.show);
+    emit(state.copyWith(showNewTabButton: event.show));
   }
 
   Future<void> _onUpdateReadingTabsPlacement(
