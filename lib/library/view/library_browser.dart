@@ -356,9 +356,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   Timer? _searchDebounce;
   bool _lastScrollVisible = true;
 
-  /// תיקיות בר אילן בתוך קטגוריות אוצריא, כשההגדרה דולקת.
-  ///
-  /// נטען בעצלתיים ונשמר כאן ולא בעץ הספרייה — ראה [ResponsaLibraryTree].
+  /// תיקיות בר אילן בתוך קטגוריות אוצריא. נשמרות כאן ולא בעץ הספרייה -
+  /// ראה [ResponsaLibraryTree].
   ResponsaLibraryTree _responsaTree = ResponsaLibraryTree.empty;
   bool _responsaTreeRequested = false;
   int _responsaTreeGeneration = 0;
@@ -1545,10 +1544,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  /// טוען את תיקיות בר אילן פעם אחת, כשההגדרה דולקת.
-  ///
-  /// לא ב-`initState`: ההגדרה עשויה להידלק אחרי שהמסך כבר נבנה, והקטלוג
-  /// עצמו נבנה רק אחרי שהמשתמש הדליק אותה.
+  /// לא ב-`initState`: ההגדרה עשויה להידלק אחרי שהמסך נבנה, והקטלוג עצמו
+  /// נבנה רק אחרי ההדלקה.
   void _ensureResponsaTree(bool enabled) {
     if (!enabled) {
       if (_responsaTreeRequested) {
@@ -1558,9 +1555,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       }
       return;
     }
-    // גם כשכבר ביקשנו: קטלוג שנבנה אחרי הבקשה מעלה את מונה המטמון,
-    // וזה בדיוק תרחיש ההדלקה הראשונה — המסך מבקש בזמן שאין עדיין
-    // קטלוג, מקבל רשימה ריקה, והבנייה מסתיימת דקות אחר כך.
+    // גם כשכבר ביקשנו: בהדלקה הראשונה הבקשה מקבלת רשימה ריקה, והקטלוג
+    // שנבנה דקות אחר כך מעלה את מונה המטמון.
     final catalogGeneration = DataRepository.instance.externalBooksGeneration;
     if (_responsaTreeRequested &&
         _responsaCatalogGeneration == catalogGeneration) {
@@ -1581,12 +1577,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         });
   }
 
-  /// תתי-התיקיות של [category] כפי שהן מוצגות, לפני מיון.
-  ///
-  /// תיקיית בר אילן מצורפת כאן ולא ב-`subCategories` של הקטגוריה
-  /// האמיתית — אחרת היא הייתה נסרקת על ידי מנוע האינדוקס (ראה
-  /// [ResponsaLibraryTree]). כל שלוש התצוגות — רשת, עץ מקונן ועץ משוטח —
-  /// עוברות דרך כאן, אחרת הספרייה של בר אילן נעלמת בתצוגת רשימה.
+  /// תיקיית בר אילן מצורפת כאן ולא ב-`subCategories`, אחרת האינדוקס סורק
+  /// אותה. כל שלוש התצוגות חייבות לעבור דרך כאן, או שהתיקייה תיעלם מהן.
   List<Category> _displayedSubCategories(Category category) {
     final subs = category.subCategories.where((c) => c.hasBooks).toList();
     if (category is Library) {
@@ -2866,8 +2858,7 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           onOpenInReader: (i, {bool? forcePdf}) {
             final book = previewState.previewBook;
             if (book == null) return;
-            // ספר חיצוני אינו נפתח בעיון. בלי הענף הזה הלחיצה נבלעה
-            // במסלול הפתיחה המקומי ולא קרה דבר.
+            // ספר חיצוני אינו נפתח בעיון - במסלול המקומי הלחיצה לא עושה דבר.
             if (book is ExternalLibraryBook) {
               _openOtzarBook(book);
               return;

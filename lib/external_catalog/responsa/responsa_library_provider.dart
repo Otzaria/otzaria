@@ -4,11 +4,7 @@ import 'package:otzaria/external_catalog/responsa/native/responsa_controller.dar
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.dart';
 import 'package:otzaria/models/books.dart';
 
-/// תוצאת ניסיון פתיחה של ספר חיצוני.
-///
-/// לעולם אינה חריג: כשל בפתיחה של ספק חיצוני (תוכנה שאינה מותקנת, גשר
-/// שנפל, הפניה שלא נותחה) חייב להגיע ל-UI כערך, לא כ-exception שמפיל את
-/// אוצריא.
+/// כשל בפתיחה אצל ספק חיצוני מגיע ל-UI כערך, לא כחריג שמפיל את אוצריא.
 class ExternalOpenResult {
   final bool ok;
 
@@ -26,15 +22,8 @@ class ExternalOpenResult {
   const ExternalOpenResult.failure(this.errorCode, [this.message]) : ok = false;
 }
 
-/// ספק פרויקט השו"ת.
-///
-/// שתי שכבות נפרדות, ובכוונה:
-///
-/// * **קטלוג** — SQLite מקומי שנבנה מההתקנה של המשתמש. עצם קיום הרשומה
-///   בקטלוג אומר שהספר קיים במהדורה שממנה הקטלוג נבנה; אין לבדוק קובץ,
-///   כי כל הספרים יושבים בארכיון אחד ואין התקנה חלקית ברמת ספר.
-/// * **שליטה בתוכנה** — נדרשת רק לפתיחה, ורצה באיזולט רקע בתוך אוצריא.
-///   אין רכיב חיצוני להתקין ואין מה להגדיר בפרויקט השו"ת.
+/// רשומה בקטלוג מספיקה כדי לדעת שהספר קיים - כל הספרים בארכיון אחד ואין
+/// התקנה חלקית. השליטה בתוכנה נדרשת רק לפתיחה.
 class ResponsaLibraryProvider {
   final ResponsaCatalogRepository catalog;
   final ResponsaController controller;
@@ -84,12 +73,8 @@ class ResponsaLibraryProvider {
     return parsed!.value;
   }
 
-  /// הודעת הכשל שהמשתמש רואה.
-  ///
-  /// שלושת המרכיבים — מה נכשל, על איזה ספר, ומה אפשר לעשות — נמסרים
-  /// תמיד. "פתיחת הספר נכשלה" אינו מאפשר למשתמש שום צעד הבא, ובפרויקט
-  /// השו"ת יש לו כמה צעדים אמיתיים: לסגור חלונות, לרענן קטלוג, או לדעת
-  /// שהספר פשוט אינו במהדורה שברשותו.
+  /// תמיד מה נכשל, על איזה ספר ומה אפשר לעשות - "הפתיחה נכשלה" לבדו אינו
+  /// מאפשר למשתמש שום צעד הבא.
   static String messageFor(
     ResponsaFailure? failure, {
     String? title,

@@ -2,11 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_catalog_builder.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_structure.dart';
 
-/// שימור `external_key` בין בנייה לבנייה.
-///
-/// ה-key הוא זהות הספר מחוץ לקטלוג: הסימניות, ההיסטוריה והמועדפים של
-/// המשתמש מצביעים עליו. רענון שמזיז אותו אינו שגיאה שהמשתמש רואה —
-/// הוא פותח ספר אחר.
+/// סימניות, היסטוריה ומועדפים מצביעים על `external_key`, ולכן רענון שמזיז
+/// אותו אינו מציג שגיאה — הוא פותח ספר אחר.
 void main() {
   /// שרשרת עץ שבה הצומת האחרון הוא החיבור (סוג 4).
   ResponsaBookRow row(List<String> path, {int param = 7}) => ResponsaBookRow(
@@ -113,8 +110,8 @@ void main() {
     expect(result.keys, ['100', '101']);
   });
 
-  /// זה מה שקורה כשקריאת הקטלוג הקיים נכשלת: הרשימה חוזרת ריקה, וכל
-  /// הספרים מקבלים מזהה חדש. הבדיקה מתעדת את המחיר.
+  /// כך נראית קריאה כושלת של הקטלוג הקיים: הרשימה ריקה, וכל הספרים מקבלים
+  /// מזהה חדש.
   test('בלי קטלוג קיים — כל הספרים מקבלים מזהה חדש', () {
     final books = [
       row(['שו"ת', 'א']),

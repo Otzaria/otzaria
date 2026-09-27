@@ -319,11 +319,8 @@ class TextBook extends Book {
 /// This class extends the [Book] class and includes additional properties
 /// specific to Otzar HaChochma books, such as the Otzar ID and online link.
 class ExternalLibraryBook extends Book {
-  /// קישור לפתיחת הספר באתר הספק, או `null` לספק ללא נוכחות ברשת.
-  ///
-  /// `null` הוא ערך תקף ולא ייצוג של מידע חסר: לספרי פרויקט השו"ת אין
-  /// URL כלל. אין להמציא כתובת מזויפת — צרכן שצריך לדעת אם יש פתיחה
-  /// באתר שואל את יכולות הספק, לא את השדה הזה.
+  /// `null` תקף לספק ללא אתר (פרויקט השו"ת) - אין להמציא כתובת; האם יש
+  /// פתיחה באתר נקבע לפי יכולות הספק, לא לפי השדה הזה.
   final String? link;
 
   /// Creates an [ExternalLibraryBook] instance.

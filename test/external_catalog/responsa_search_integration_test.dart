@@ -4,9 +4,8 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/models/library.dart';
 
-/// ספרי פרויקט השו"ת נכנסים לאותו מסלול חיפוש של שאר הספרייה.
-/// הבדיקה נועלת שני דברים: שהם מופיעים רק כשהספק מופעל, ושההקשר
-/// מהנתיב בעץ נחשב בחיפוש — בלעדיו כותרת כמו "יבמות" אינה ניתנת לאיתור.
+/// ספרי פרויקט השו"ת מופיעים רק כשהספק מופעל, וההקשר מהנתיב נחשב בחיפוש —
+/// בלעדיו כותרת כמו "יבמות" אינה ניתנת לאיתור.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

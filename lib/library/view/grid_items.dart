@@ -64,12 +64,8 @@ String? categoryInfoText(Category category) {
 String? externalCatalogLogoAsset(Book book) =>
     ExternalCatalogMapper.providerOfBook(book)?.iconAsset;
 
-/// האם הספר מגיע מבר אילן.
-///
-/// פרויקט השו"ת הוא תוכנה מותקנת ולא אתר, ואין בחבילה קובץ לוגו שלו —
-/// הלוגו הוא סימן של צד שלישי. במקומו מוצג האייקון שבקובץ ההרצה שעל
-/// המחשב של המשתמש. בלי אייקון משלו ספריו נראים בתוצאות כמו ספר מקומי
-/// רגיל, והמשתמש אינו יודע שלחיצה עליו תפתח תוכנה אחרת.
+/// לפרויקט השו"ת אין לוגו בחבילה (סימן של צד שלישי), ולכן ספריו מקבלים את
+/// האייקון מקובץ ההרצה המותקן - בלעדיו הם נראים כספר מקומי רגיל.
 bool isResponsaBook(Book book) {
   return ExternalCatalogMapper.providerOfBook(book)?.kind ==
       ExternalProviderKind.responsa;
@@ -81,16 +77,8 @@ Widget? externalProviderIcon(Book book, ColorScheme cs, double iconSize) {
   return ResponsaBookIcon(size: iconSize, color: cs.onSecondaryContainer);
 }
 
-/// אייקון תיקייה, ועליו תג של הספרייה החיצונית כשהתיקייה מציגה אחת.
-///
-/// שני הסימנים יחד ולא אחד במקום השני: לוגו לבדו אינו נראה כתיקייה,
-/// ותיקייה לבדה נראית זהה לתיקייה של ספרים מותקנים — ורק כניסה לתוכן
-/// מגלה שהספרים שבה נפתחים בתוכנה אחרת.
-///
-/// התג חורג מעט מפינת הריבוע, כמו תג קיצור דרך של מערכת ההפעלה. בתוך
-/// הריבוע הוא הסתיר את רוב התיקייה: האייקון הוא 14–16 פיקסלים בשורות
-/// ובכרטיסים, ותג קטן יותר כבר אינו מזוהה. הריבוע עצמו לא גדל, ולכן כל
-/// פריסה שמניחה אייקון ריבועי נשארת כפי שהיא — לכולן יש ריפוד סביבו.
+/// אייקון תיקייה ועליו תג הספרייה החיצונית. התג חורג מהריבוע ולא נדחס לתוכו:
+/// ב-14 פיקסלים תג פנימי מסתיר את התיקייה, וקטן יותר כבר אינו מזוהה.
 Widget categoryIconChild(
   Category category,
   ColorScheme cs,
@@ -128,8 +116,7 @@ Widget categoryIconChild(
   );
 }
 
-/// גודל התג ביחס לאייקון התיקייה. קטן מזה, ב-14 פיקסלים של שורת רשימה,
-/// האייקון של בר אילן כבר אינו מזוהה.
+/// קטן מזה, ב-14 פיקסלים של שורת רשימה, האייקון של בר אילן אינו מזוהה.
 const double _badgeScale = 0.62;
 
 /// כמה התג חורג מהריבוע, ביחס לאייקון.
@@ -638,23 +625,19 @@ class _BookGridTextColumn extends StatelessWidget {
         //     : titleOverflow
         //     ? 2
         //     : 3;
-        // מקור הספר — שם הספרייה החיצונית, או `null` לספר מותקן.
         final sourceText = externalBookSourceLine(book);
         final hasSource = sourceText != null && sourceText.isNotEmpty;
         // בתוצאות חיפוש מוצג נתיב הקטגוריות — הוא שמסביר למשתמש למה הספר
         // הותאם, ובספרים אישיים שם הספר יושב עליו ולא על הקובץ.
-        //
-        // בספר חיצוני זו הקטגוריה **באוצריא**, כמו בשורת הרשימה ובדיאלוג
-        // פרטי הספר; נתיב המדף אצל הספק אינו שם שהמשתמש מכיר.
         final pathText = hasSource
+            // בספר חיצוני: הקטגוריה באוצריא, לא נתיב המדף אצל הספק.
             ? (externalBookCategoryLine(book) ?? '')
             : ((book.categoryPath ?? '').trim().isNotEmpty
                   ? book.categoryPath!.trim()
                   : book.topics.trim());
         final hasTopics = showTopics && pathText.isNotEmpty;
-        // גובה הכרטיס קבוע, ושורת המקור צורכת ממנו שורה. בלי לקצץ את
-        // שורת המחבר לשורה אחת, ספר שמחברו ארוך — `רבי יעקב משולם
-        // אורנשטיין (פולין, המאה ה - 18)` — הגליש את הכרטיס.
+        // גובה הכרטיס קבוע ושורת המקור צורכת ממנו שורה - מחבר ארוך בשתי
+        // שורות גולש מהכרטיס.
         final authorMaxLines = (titleOverflow || hasSource) ? 1 : 2;
         final topicsMaxLines = !hasTopics
             ? 0

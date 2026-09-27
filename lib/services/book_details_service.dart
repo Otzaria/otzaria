@@ -188,10 +188,8 @@ class BookDetailsService {
     return details;
   }
 
-  /// שם הספק שממנו הספר מגיע, או `null` לספר מקומי.
-  ///
-  /// רק ספר שלא הומר לספר מקומי: ספר היברובוקס שהורד נשמר כ-[PdfBook]
-  /// ושומר את המזהה החיצוני, והמקור שלו הוא הקובץ שבמחשב.
+  /// ספר היברובוקס שהורד נשמר כ-[PdfBook] עם המזהה החיצוני, אך המקור שלו
+  /// הוא הקובץ שבמחשב - לכן רק [ExternalLibraryBook] נחשב חיצוני.
   static String? _externalSource(Book book) {
     if (book is! ExternalLibraryBook) return null;
     return ExternalCatalogMapper.providerOfBook(book)?.displayName;

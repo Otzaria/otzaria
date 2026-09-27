@@ -1,8 +1,5 @@
-// כלי מחקר ידני: בונה קטלוג מתוך דאמפ העץ שנשמר ב-live_dump_tree_test,
-// בלי לגעת בתוכנה. מאפשר לבדוק כללי שמות וקטגוריות בשניות במקום בדקות.
-//
-// RESPONSA_DUMP=<tree.tsv> RESPONSA_OUT=<catalog.db> \
-//   flutter test --run-skipped test/external_catalog/live_build_from_dump_test.dart
+// כלי מחקר ידני: בונה קטלוג מדאמפ העץ של live_dump_tree_test, בלי להריץ את התוכנה.
+// RESPONSA_DUMP=<tree.tsv> RESPONSA_OUT=<catalog.db> flutter test --run-skipped test/external_catalog/live_build_from_dump_test.dart
 @Tags(['live'])
 library;
 

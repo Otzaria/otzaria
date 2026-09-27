@@ -37,8 +37,8 @@ class ResponsaStatus {
     confidence: ResponsaVersionConfidence.unknown,
   );
 
-  /// האם אפשר לנסות לפתוח ספר. אין כאן רשימת גרסאות — המבנה נבדק בפועל
-  /// בזמן הפתיחה, ולכן כל מהדורה מותקנת היא מועמדת.
+  /// אין רשימת גרסאות נתמכות - המבנה נבדק בזמן הפתיחה, ולכן כל מהדורה
+  /// מותקנת היא מועמדת.
   bool get canOpen => installed;
 }
 
@@ -67,15 +67,8 @@ class ResponsaOpenReport {
   });
 }
 
-/// הפעלת פרויקט השו"ת ושליטה בו — מתוך אוצריא, בלי שום רכיב חיצוני.
-///
-/// **כל פעולה חוסמת רצה באיזולט רקע.** על Windows ה-UI isolate רץ על
-/// ה-platform thread, וקריאת Win32 סינכרונית שם מקפיאה כל פריים וכל
-/// טיימר. הבקר הוא הגבול: מעליו הכול אסינכרוני, מתחתיו הכול חוסם.
-///
-/// הביטול אמיתי: דגל ב**זיכרון משותף** (`Pointer<Int32>`) שהאיזולט בודק
-/// בכל נקודת המתנה. פורט הודעות לא היה עובד — האיזולט חסום בקוד
-/// סינכרוני ואינו מעבד הודעות.
+/// הגבול בין UI אסינכרוני לאוטומציה חוסמת: כל פעולה חוסמת רצה באיזולט רקע,
+/// כי ב-Windows ה-UI isolate רץ על ה-platform thread וקריאת Win32 מקפיאה אותו.
 class ResponsaController {
   ResponsaController({bool Function()? allowAutoStart})
     : _allowAutoStart = allowAutoStart ?? _always;
@@ -84,24 +77,17 @@ class ResponsaController {
 
   final bool Function() _allowAutoStart;
 
-  /// האם מותר להעלות מופע של התוכנה כשאינה רצה.
-  ///
-  /// **נקרא בכל פעם מחדש ולא נלכד בבנייה.** הבקר נוצר כשמסך ההגדרות
-  /// שואל על מצב ההתקנה — כלומר *לפני* שהמשתמש הדליק את ההגדרה — וערך
-  /// שנלכד אז היה נשאר `false` עד להפעלה מחדש של אוצריא, והפתיחה הייתה
-  /// נכשלת ב"ההפעלה כבויה בהגדרות" בזמן שהיא דלוקה.
+  /// נקרא מחדש בכל פעם ולא נלכד בבנייה: הבקר נוצר לפני שהמשתמש מדליק את
+  /// ההגדרה, וערך לכוד היה נשאר `false` עד הפעלה מחדש.
   bool get autoStart => _allowAutoStart();
 
   var _busy = false;
 
-  /// כותרות החלונות שאוצריא פתחה בפרויקט השו"ת, לאורך כל הסשן.
-  ///
-  /// יושבות כאן ולא באוטומציה, מפני שכל פתיחה רצה באיזולט משלה: רשימה
-  /// שנולדת עם האוטומציה מתה איתה. בלעדיה `releaseMdiWindows` היה חושב
-  /// שאין לו חלונות משלו לסגור — וסוגר את של המשתמש.
+  /// כאן ולא באוטומציה, כי כל פתיחה רצה באיזולט משלה; בלעדיה
+  /// `releaseMdiWindows` לא מכיר את חלונותינו וסוגר את של המשתמש.
   final List<String> _openedWindows = [];
 
-  /// כמה להמתין לחלון הראשי אחרי הפעלה קרה. נמדד ~5 שניות.
+  /// חלון ראשי אחרי הפעלה קרה עולה בדרך כלל תוך ~5 שניות.
   static const Duration launchTimeout = Duration(seconds: 60);
 
   static const Duration openBudget = Duration(minutes: 3);
@@ -116,8 +102,7 @@ class ResponsaController {
     final installations = ResponsaInstallationDiscovery.discover();
     final usable = installations.where((i) => i.exists).toList();
     final live = ResponsaInstance.all();
-    // "רץ" = יש מופע שאפשר לעבוד מולו. מופע חונה מחוץ למסך אינו כזה,
-    // והצגתו למשתמש כ"פעיל" היא בדיוק השקר שמסתיר את הבעיה.
+    // "רץ" = יש מופע שאפשר לעבוד מולו; מופע חונה מחוץ למסך אינו נחשב.
     final active = ResponsaInstance.pick(live);
 
     int? version;
@@ -140,11 +125,8 @@ class ResponsaController {
     );
   }
 
-  /// פותח ספר. [references] הוא סולם ההפניות מהקטלוג, לא הכותרת.
-  ///
-  /// [installPath] הוא נתיב ההתקנה שממנה נבנה הקטלוג. הוא אינו קישוט:
-  /// הפניה שנבנתה ממאגר אחד אינה בהכרח מוליכה לאותו ספר במאגר אחר, ועל
-  /// מחשב עם שתי התקנות אפשר בקלות לפתוח את הספר הלא-נכון.
+  /// [installPath] = ההתקנה שממנה נבנה הקטלוג: הפניה ממאגר אחד לא בהכרח
+  /// מוליכה לאותו ספר במאגר אחר.
   Future<ResponsaOpenReport> openBook(
     List<String> references, {
     String? expectedTitle,
@@ -205,13 +187,8 @@ class ResponsaController {
     }
   }
 
-  /// מוודא שהתוכנה רצה, ומעלה אותה אם מותר.
-  ///
-  /// מחזיר `null` כשהכול תקין, או דוח כשל מוכן למשתמש.
-  ///
-  /// הכשל הוא תמיד `responsaNotRunning` ולא `timeout`: התוכנה אינה רצה,
-  /// וזה מה שהמשתמש צריך לדעת. `timeout` היה מוביל להודעה על תוכנה
-  /// שאינה מגיבה, שהיא תיאור שגוי של המצב.
+  /// `null` כשהכול תקין. הכשל הוא `responsaNotRunning` ולא `timeout`, שהיה
+  /// מציג בטעות "התוכנה אינה מגיבה".
   Future<ResponsaOpenReport?> _ensureRunning(String? installPath) async {
     final result = await ResponsaLauncher.ensureRunning(
       installPath: installPath,
@@ -231,9 +208,8 @@ class ResponsaController {
   static Future<ResponsaOpenReport> _openBookInIsolate(
     _OpenRequest request,
   ) async {
-    // רק מופעים של **ההתקנה שממנה נבנה הקטלוג**, ומתוכם רק מופע
-    // שאפשר לעבוד מולו: מופע חונה מחוץ למסך פותח את הספר באמת,
-    // והמשתמש אינו רואה דבר. ראו [ResponsaInstance].
+    // רק מופע של ההתקנה שממנה נבנה הקטלוג, ולא חונה מחוץ למסך - שם הספר
+    // נפתח והמשתמש אינו רואה דבר.
     final selection = ResponsaInstallationDiscovery.selectInstallation(
       preferredPath: request.installPath,
     );
@@ -295,7 +271,7 @@ class _OpenRequest {
   final String? expectedTitle;
   final String? installPath;
 
-  /// החלונות שאוצריא פתחה בפתיחות קודמות. ראו [ResponsaController].
+  /// החלונות שאוצריא פתחה בפתיחות קודמות.
   final List<String> openedWindows;
 
   const _OpenRequest({

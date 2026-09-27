@@ -1,8 +1,5 @@
-// כלי מחקר ידני: מוריד את עץ הקטלוג המלא של בר אילן לקובץ TSV, כדי
-// שאפשר יהיה לתכנן את כללי השמות והקטגוריות על נתונים אמיתיים בלי
-// להריץ סריקה חיה בכל איטרציה. אינו חלק מחבילת הבדיקות האוטומטית.
-//
-// הרצה: flutter test --run-skipped test/external_catalog/live_dump_tree_test.dart --plain-name dump
+// כלי מחקר ידני: מוריד את עץ הקטלוג של בר אילן ל-TSV, לתכנון כללי שמות וקטגוריות בלי סריקה חיה.
+// RESPONSA_DUMP=<tree.tsv> flutter test --run-skipped test/external_catalog/live_dump_tree_test.dart --plain-name dump
 @Tags(['live'])
 library;
 
@@ -63,8 +60,8 @@ void main() {
     );
     print('nodes: ${nodes.length} in ${watch.elapsed}');
 
-    // כתיבה סינכרונית בקבוצות. `IOSink.close()` מחזיר Future, והבדיקה
-    // מסתיימת לפניו — כך נכתבו 153 שורות מתוך 1.25 מיליון.
+    // כתיבה סינכרונית: `IOSink.close()` מחזיר Future שהבדיקה מסתיימת לפניו,
+    // והקובץ נקטע באמצע.
     final file = File(target).openSync(mode: FileMode.write);
     final buffer = StringBuffer('level\tparam\tchildren\tname\n');
     for (final node in nodes) {

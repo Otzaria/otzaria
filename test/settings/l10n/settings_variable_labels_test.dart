@@ -215,9 +215,8 @@ void main() {
   });
 
   group('בניית קטלוג בר אילן', () {
-    // תוויות ההתקדמות נבנות ב-ResponsaBuildStatus ונמסרות ל-settingsText
-    // דרך משתנה. המעבר על כל ערכי ה-enum, ועל כל צורה של שורת הסריקה
-    // ושל שורת הזמנים, תופס גם שלב או צורה שיתווספו בעתיד.
+    // תוויות ההתקדמות נמסרות ל-settingsText דרך משתנה; המעבר על כל ערכי
+    // ה-enum וכל צורות השורה תופס גם שלב או צורה שיתווספו בעתיד.
     final statuses = [
       for (final stage in ResponsaBuildStage.values)
         ResponsaBuildStatus.of(ResponsaBuildProgress(stage: stage)),

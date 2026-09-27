@@ -4,20 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_author_table.dart';
 
-/// קריאת טבלת המחברים מארכיון הספרים של ההתקנה.
-///
-/// הארכיון הוא קובץ של כ-2GB, אבל נקראים ממנו רק ספריית המכל (כ-40KB)
-/// וקובצי הטבלה — הגדול שבהם 20KB ב-CD25.
+/// קריאת טבלת המחברים מארכיון הספרים (כ-2GB) של ההתקנה.
+/// נקראים ממנו רק ספריית המכל וקובצי הטבלה, לא הארכיון כולו.
 class ResponsaAuthorTableReader {
   ResponsaAuthorTableReader._();
 
-  /// מעל הגודל הזה קובץ אינו טבלה של רשומות קצרות, והמבנה שונה ממה
-  /// שחשבנו. חסם שמונע קריאה של מאות מגה-בתים לזיכרון בגלל ספרייה שגויה.
+  /// חסם: ספרייה שגויה לא תגרום לקריאת מאות מגה-בתים לזיכרון.
   static const int _maxMemberBytes = 1 << 20;
 
-  /// הטבלה של [installation], או [ResponsaAuthorTable.empty] כשאין ארכיון
-  /// (התקנה חלקית שההתקן שלה אינו מחובר) או שהמבנה אינו מוכר. אף אחד
-  /// מאלה אינו סיבה לעצור בנייה: הביבליוגרפיה נשארת נסיגה.
+  /// [ResponsaAuthorTable.empty] כשאין ארכיון או שהמבנה לא מוכר - לא עוצרים
+  /// בנייה בגלל זה, הביבליוגרפיה נשארת נסיגה.
   static ResponsaAuthorTable forInstallation(
     ResponsaInstallation installation,
   ) {

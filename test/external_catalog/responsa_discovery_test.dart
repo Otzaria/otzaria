@@ -2,9 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_discovery.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 
-/// זיהוי הדיאלוגים בכל שפות הממשק של בר אילן.
-///
-/// הכותרות כאן הן כפי שהן במשאבי Hebrew.dll, English.dll ו-French.dll.
+/// הכותרות כאן הן כפי שהן במשאבי Hebrew.dll, English.dll ו-French.dll של
+/// בר אילן.
 void main() {
   const citation = ResponsaVersionProfile.citationHints;
   const info = ResponsaVersionProfile.infoModalHintsDefault;

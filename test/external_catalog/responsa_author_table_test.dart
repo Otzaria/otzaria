@@ -34,7 +34,7 @@ Uint8List table(List<Uint8List> records) =>
 void main() {
   group('bookIdOf', () {
     test('המזהה הוא המילה הנמוכה של lParam בסדר בתים הפוך', () {
-      // נמדד: `אבן האזל` הוא 0x46109 בעץ ו-2401 בטבלה.
+      // `אבן האזל`: 0x46109 בעץ, 2401 בטבלה.
       expect(ResponsaAuthorTable.bookIdOf(0x46109), 2401);
       // `בראשית`: 0x40300 בעץ, 3 בטבלה.
       expect(ResponsaAuthorTable.bookIdOf(0x40300), 3);
@@ -68,7 +68,7 @@ void main() {
     });
 
     test('רשומת מחבר בלי כותרת באותו מדור אינה נלקחת', () {
-      // ב-CD25: שש רשומות במדור הרמב"ם בלי כותרת, שנתנו שני מחברים.
+      // רשומה בלי כותרת במדור הייתה נותנת לספר מחבר שני.
       final t = ResponsaAuthorTable.parse({
         'FILE25.MA': table([record(2201, 'בית הבחירה')]),
         'FILE65.MA': table([record(2201, "ר' מנחם בן שלמה המאירי")]),

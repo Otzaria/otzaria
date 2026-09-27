@@ -23,32 +23,19 @@ class ResponsaLaunchResult {
   });
 }
 
-/// העלאת בר אילן מתוך אוצריא.
-///
-/// משותף לפתיחת ספר ולבניית הקטלוג. שתיהן זקוקות למופע חי, ושתיהן
-/// נכשלו קודם בהודעה "אינו פעיל" בלי שאיש ניסה להפעיל דבר.
-///
-/// **לעולם בלי ארגומנטים.** ארגומנט שאינו מתג מפיל את `RESPONSA.exe`
-/// מיד ב-`0xC000041D`, בלי חלון ובלי הודעה — וזה נראה למשתמש כאילו
-/// אוצריא הפילה את התוכנה.
+/// לעולם בלי ארגומנטים: ארגומנט שאינו מתג מפיל את `RESPONSA.exe` מיד
+/// ב-`0xC000041D`, בלי חלון ובלי הודעה.
 class ResponsaLauncher {
   ResponsaLauncher._();
 
-  /// כמה להמתין לחלון הראשי אחרי הפעלה קרה. נמדד ~5 שניות.
+  /// חלון ראשי אחרי הפעלה קרה עולה בדרך כלל תוך ~5 שניות.
   static const Duration launchTimeout = Duration(seconds: 60);
 
   /// כל כמה זמן לבדוק אם המופע עלה.
   static const Duration _poll = Duration(milliseconds: 600);
 
-  /// ההתקנה שיש לעבוד מולה ומצבה. `null` כשאין אף התקנה שימושית.
-  ///
-  /// `running` פירושו **יש מופע שאפשר לעבוד מולו** — לא "יש תהליך".
-  /// מופע חונה מחוץ למסך נחשב כאן ככבוי, וזו כל הנקודה: הוא מגיב
-  /// לפקודות ופותח ספרים, אבל המשתמש אינו רואה דבר. ראו
-  /// [ResponsaInstance].
-  ///
-  /// רץ באיזולט רקע: סריקת הכוננים וספירת החלונות הן קריאות Win32
-  /// חוסמות, ועל Windows ה-UI isolate רץ על ה-platform thread.
+  /// `running` = יש מופע שמיש, לא "יש תהליך" (חונה נחשב כבוי). באיזולט רקע
+  /// כי סריקת הכוננים חוסמת.
   static Future<({String executable, String installPath, bool running})?>
   resolve(String? installPath) => Isolate.run(() {
     final selection = ResponsaInstallationDiscovery.selectInstallation(
@@ -62,11 +49,8 @@ class ResponsaLauncher {
     );
   });
 
-  /// מוודא שיש מופע חי של ההתקנה המבוקשת, ומעלה אותה כש-[allowLaunch].
-  ///
-  /// "רץ" נמדד מול **ההתקנה הנכונה**, לא מול כל מופע שהוא. על מחשב עם
-  /// שתי התקנות, מופע חי של האחת גרם לדלג על ההפעלה של האחרת, ואז
-  /// הפעולה נכשלה על התקנה כבויה.
+  /// "רץ" נבדק מול ההתקנה המבוקשת ולא מול כל מופע: מופע של התקנה אחרת היה
+  /// מדלג על ההפעלה.
   static Future<ResponsaLaunchResult> ensureRunning({
     String? installPath,
     bool allowLaunch = true,
@@ -118,10 +102,8 @@ class ResponsaLauncher {
       );
     }
 
-    // ההמתנה בודקת **מופעים בלבד**, לא התקנות. `resolve` סורק רישום,
-    // את שורש כל כונן ואת ילדיו — פעולה של עשרות בדיקות קובץ שחלקן על
-    // כוננים אופטיים או רשתיים. קריאה לה כל 600ms במשך דקה היא כ-100
-    // סריקות מלאות, וכל אחת באיזולט חדש. ההתקנה כבר ידועה.
+    // בודקים מופעים בלבד ולא `resolve`, שסורק את כל הכוננים - בכל 600ms
+    // זו סריקה מלאה, וההתקנה כבר ידועה.
     final wanted = target.installPath;
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
@@ -139,9 +121,7 @@ class ResponsaLauncher {
     );
   }
 
-  /// האם יש מופע שאפשר לעבוד מולו להתקנה שב-[installPath].
-  ///
-  /// בודק מופעים בלבד — בלי סריקת כוננים ובלי רישום.
+  /// מופעים בלבד - בלי סריקת כוננים ובלי רישום.
   static Future<bool> _hasUsableInstance(String installPath) => Isolate.run(
     () =>
         ResponsaInstance.pick(

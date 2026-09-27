@@ -1,18 +1,12 @@
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
 import 'package:otzaria/models/books.dart';
 
-/// כלי עזר למיפוי ספרי קטלוגים חיצוניים.
-///
-/// כל הזיהוי כאן נשען על [ExternalProviderRegistry]; המחלקה הזו היא
-/// שכבת תאימות דקה לקוראים הקיימים.
+/// שכבת תאימות דקה מעל [ExternalProviderRegistry] לקוראים הקיימים.
 class ExternalCatalogMapper {
   ExternalCatalogMapper._();
 
-  /// קובע את הספק לפי מזהה חיצוני, ובהיעדרו לפי קישור.
-  ///
-  /// הסדר חשוב: `externalLibraryId` הוא המקור האמין. ספר היברובוקס
-  /// שהורד מקומית מומר ל-`PdfBook` ושומר `hb:123` — נתיב הקובץ שלו
-  /// עלול להכיל את המחרוזת `otzaria` ולהטעות.
+  /// המזהה החיצוני קודם לקישור: ספר היברובוקס שהורד הופך ל-`PdfBook` עם
+  /// `hb:123`, ונתיב הקובץ שלו עלול להכיל `otzaria` ולהטעות.
   static ExternalProviderDescriptor? providerOf({
     String? link,
     String? externalLibraryId,
@@ -32,10 +26,8 @@ class ExternalCatalogMapper {
   static ExternalBookRef? parse(String? externalLibraryId) =>
       ExternalProviderRegistry.parse(externalLibraryId);
 
-  /// מחלץ את המזהה המספרי של הספר אצל הספק.
-  ///
-  /// רק מתוך מזהה חיצוני תקין או מתוך קישור של ספק מוכר — ולא על ידי
-  /// שליפת הספרות הראשונות מכל מחרוזת. `"ספר 3 חלקים"` אינו `3`.
+  /// רק ממזהה תקין או מקישור של ספק מוכר, לא מהספרות הראשונות שבכל
+  /// מחרוזת: `"ספר 3 חלקים"` אינו `3`.
   static int? extractExternalId({String? externalLibraryId, String? link}) {
     final parsed = ExternalProviderRegistry.parse(externalLibraryId);
     if (parsed != null) return parsed.numericValue;

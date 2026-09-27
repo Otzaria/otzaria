@@ -1,8 +1,5 @@
-// כלי מדידה ידני: פותח מדגם ספרים אקראי מהקטלוג בבר אילן החי ומדווח
-// הצלחות, כשלים וזמנים. אינו חלק מחבילת הבדיקות האוטומטית.
-//
-// RESPONSA_DB=<catalog.db> RESPONSA_N=40 RESPONSA_SEED=7 \
-//   flutter test --run-skipped test/external_catalog/live_open_sample_test.dart
+// כלי מדידה ידני: פותח מדגם ספרים אקראי בבר אילן החי ומדווח הצלחות, כשלים וזמנים.
+// RESPONSA_DB=<catalog.db> RESPONSA_N=40 RESPONSA_SEED=7 flutter test --run-skipped test/external_catalog/live_open_sample_test.dart
 @Tags(['live'])
 library;
 

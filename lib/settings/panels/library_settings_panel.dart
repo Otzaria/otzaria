@@ -163,11 +163,8 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     _refreshResponsaInfo();
   }
 
-  /// קורא את מצב הקטלוג ואת מצב ההתקנה.
-  ///
-  /// שתי הקריאות מוגנות בנפרד. הן סורקות רישום, כוננים וחלונות, וכשל
-  /// באחת מהן השאיר את **שתיהן** `null` — ואז הכרטיס של בר אילן פשוט
-  /// אינו מוצג, בלי שגיאה ובלי דרך למשתמש לדעת שהתכונה קיימת.
+  /// שתי הקריאות מוגנות בנפרד: כשל באחת שמשאיר את שתיהן `null` מסתיר את
+  /// כרטיס בר אילן בשקט.
   Future<void> _refreshResponsaInfo() async {
     ResponsaCatalogInfo info;
     try {
@@ -195,11 +192,8 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     }
   }
 
-  /// האם הקטלוג שעל הדיסק נבנה מהתקנה שאינה על המחשב הזה.
-  ///
-  /// הקטלוג יושב בתיקיית הספרייה, ולכן הוא נודד איתה בין מחשבים — ראה
-  /// `ResponsaPaths`. קטלוג נודד נראה תקין לחלוטין ורק הפתיחה נכשלת,
-  /// ולכן הוא מוצג כאן כבקשת רענון ולא כשגיאה בזמן פתיחה.
+  /// הקטלוג נודד עם תיקיית הספרייה בין מחשבים ונראה תקין, אבל הפתיחה
+  /// נכשלת - לכן מזהים אותו כאן ומבקשים רענון.
   bool get _responsaCatalogIsForeign {
     final info = _responsaInfo;
     if (info == null || !info.isUsable) return false;
@@ -209,10 +203,8 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     );
   }
 
-  /// בניית הקטלוג — סריקה חיה של עץ הקטלוג בתוכנה.
-  ///
-  /// ארוכה מטבעה (כ-1.25 מיליון רשומות, כמה דקות), ולכן היא מדווחת
-  /// התקדמות וניתנת לביטול.
+  /// סריקה חיה של עץ הקטלוג בתוכנה - כמה דקות, ולכן מדווחת התקדמות
+  /// וניתנת לביטול.
   Future<void> _buildResponsaCatalog() async {
     if (widget.responsaCatalogBuilder case final injected?) {
       await injected();
@@ -231,7 +223,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     await ResponsaCatalogRepository.instance.refreshBackup();
     ResponsaBuildProgress? finished;
     // הזרם נצרך עד סופו גם אחרי יציאה מהמסך: האיזולט ממשיך לרוץ, ובלי זה
-    // הספרייה והעותק לא היו מתעדכנים עד ההפעלה הבאה.
+    // הספרייה והעותק אינם מתעדכנים עד ההפעלה הבאה.
     await for (final progress in _responsaBuild.build(targetPath: target)) {
       finished = progress;
       if (mounted) setState(() => _responsaBuildProgress = progress);
@@ -361,14 +353,8 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     );
   }
 
-  /// כרטיס פרויקט השו"ת (בר אילן). מוצג כשהתוכנה מותקנת במחשב.
-  ///
-  /// **מתג אחד.** חיפוש ופתיחה אינם שתי יכולות נפרדות מבחינת המשתמש:
-  /// ספר שנמצא בחיפוש ואי אפשר לפתוח אותו הוא תוצאה חסרת ערך. המתג
-  /// מדליק את שניהם, ובהדלקה הראשונה גם בונה את הקטלוג.
-  ///
-  /// הקטלוג נבנה מההתקנה של המשתמש ולכן חייב להיבנות אצלו; אין קובץ
-  /// קטלוג שאפשר להוריד, כי תוכן המאגר משתנה בין מהדורות.
+  /// מתג אחד לחיפוש ולפתיחה: ספר שנמצא ואי אפשר לפתוח הוא תוצאה חסרת ערך.
+  /// אין קטלוג להורדה - התוכן משתנה בין מהדורות, ולכן נבנה מההתקנה המקומית.
   Widget _buildResponsaCard(BuildContext context, SettingsState state) {
     final info = _responsaInfo;
     final version = info?.sourceVersion ?? _responsaStatus?.version;
@@ -388,9 +374,8 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
           subtitle: progress != null
               ? _progressText(context, progress)
               : context.settingsText(
-                  // מספר המהדורה נכנס למשפט רק כשהוא ידוע. הוא נקרא מכותרת
-                  // החלון או משם התיקייה, ואין ערובה לקיומו — "מהדורה 0" הוא
-                  // ערך שקרי, ו"מהדורה" בלי מספר הוא משפט שבור.
+                  // המהדורה נקראת מכותרת החלון או משם התיקייה ועשויה לחסור -
+                  // אז אסור להציג "מהדורה 0" או "מהדורה" בלי מספר.
                   switch ((hasCatalog, enabled, version)) {
                     (true, _, final int _) =>
                       'נמצאו {count} ספרים במהדורה {version}. לחיצה על ספר '
@@ -422,10 +407,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     );
   }
 
-  /// בנייה ורענון של הקטלוג.
-  ///
-  /// חוליה אחת לשני המצבים: הפעולה זהה, ורק הניסוח משתנה לפי קיום
-  /// הקטלוג ולפי היותו ישן.
+  /// חוליה אחת לבנייה ולרענון: הפעולה זהה ורק הניסוח משתנה.
   Widget _buildResponsaRebuildTile(BuildContext context, bool hasCatalog) {
     final progress = _responsaBuildProgress;
     final outdated = _responsaInfo?.isOutdated ?? false;
@@ -486,11 +468,8 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     return context.settingsText(headline.template, args: headline.args);
   }
 
-  /// מדליק או מכבה את בר אילן, ובהדלקה הראשונה גם בונה את הקטלוג.
-  ///
-  /// הבנייה אינה רצה בעליית אוצריא ואינה רצה מאליה: היא מתחילה כאן,
-  /// אחרי שהמשתמש ביקש במפורש — זו סריקה של מיליון רשומות שמצריכה
-  /// מופע פתוח של התוכנה.
+  /// בהדלקה הראשונה גם בונה את הקטלוג - רק כאן ולא בעלייה, כי הבנייה
+  /// סורקת מיליון רשומות ומצריכה מופע פתוח של התוכנה.
   void _toggleResponsa(
     BuildContext context,
     SettingsState state,

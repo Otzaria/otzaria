@@ -1,9 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 
-/// `ExternalLibraryBook.link` הוא `String?` כדי שספק ללא נוכחות ברשת
-/// (פרויקט השו"ת) לא ייאלץ להמציא URL. הבדיקות כאן נועלות את שני הכיוונים:
-/// `null` שורד round-trip, וספק עם קישור אינו מושפע.
+/// `link` הוא `String?` כדי שספק ללא נוכחות ברשת (פרויקט השו"ת) לא ייאלץ
+/// להמציא URL; `null` חייב לשרוד round-trip.
 void main() {
   group('ExternalLibraryBook ללא קישור', () {
     test('link: null שורד toJson/fromJson', () {

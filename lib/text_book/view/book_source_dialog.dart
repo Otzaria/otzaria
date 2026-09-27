@@ -298,8 +298,7 @@ Widget _buildBookDetailsContent(
             const _TashmaCopyrightNotice()
           else
             _SourceCredit(info: sourceInfo),
-          // ספר מקטלוג חיצוני אינו קובץ במחשב, ולכן אין לו מפתח כזה
-          // כלל. בלי בדיקת ה-null כאן `!` היה מפיל את הדיאלוג.
+          // לספר מקטלוג חיצוני אין מפתח כזה כלל - `!` היה מפיל את הדיאלוג.
           if (bookDetails['נתיב הקובץ'] case final filePath?)
             if (filePath != BookDetailsService.bookNotFoundText)
               _buildFilePathSection(filePath),

@@ -3,11 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/view/external_book_dialog.dart';
 import 'package:otzaria/models/books.dart';
 
-/// דיאלוג פרטי הספר עבור ספר של בר אילן.
-///
-/// הניסוח כאן אינו קוסמטיקה: המשתמש מגיע לדיאלוג כדי להחליט אם ללחוץ,
-/// ו"פתח בתוכנה" משאיר אותו לנחש איזו תוכנה תיפתח. כך גם "מקור" מול
-/// "מקור הספר" ו"הקשר" מול "קטגוריה".
+/// הניסוח אינו קוסמטיקה: המשתמש מחליט כאן אם ללחוץ, ו"פתח בתוכנה" משאיר
+/// אותו לנחש איזו תוכנה תיפתח.
 void main() {
   ExternalLibraryBook book() => ExternalLibraryBook(
     title: 'הון עשיר אבות',

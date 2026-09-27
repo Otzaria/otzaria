@@ -33,20 +33,8 @@ class ResponsaInstallation {
 
   bool get exists => File(executable).existsSync();
 
-  /// נתיב ארכיון הספרים (`db\FILE00`), אם הוא נמצא.
-  ///
-  /// סדר החיפוש נגזר משרשרת פתרון הנתונים של התוכנה עצמה, כפי שתועדה
-  /// מתוך מחרוזות `RESPONSA.exe` (`docs/56` §22–§24):
-  /// `Responsa.env → DataLocation → Responsa.ini → [Environment]`,
-  /// ונתיב המאגר הוא **`Sh_hdisk` + `db\`**.
-  ///
-  /// בהתקנה **חלקית** הארכיון אינו על הדיסק כלל — הוא על ההתקן הנשלף,
-  /// והתוכנה מאתרת אותו לפי **תווית הכונן** (`VolLabel`). לכן נבדקים גם
-  /// `Sh_cdrom` שב-INI (הנתיב שהתוכנה השתמשה בו לאחרונה) וגם שורש כל
-  /// כונן — אות הכונן משתנה ממחשב למחשב, והתווית היא שמזהה.
-  ///
-  /// `null` הוא מצב חוקי: בהתקנה חלקית שבה ההתקן אינו מחובר כרגע אין
-  /// ארכיון, וזה אינו מונע שימוש בהתקנה.
+  /// לפי שרשרת הפתרון של התוכנה (`Sh_hdisk` + `db\`). בהתקנה חלקית הארכיון על
+  /// התקן נשלף שאות הכונן שלו משתנה, ו-`null` (לא מחובר) הוא מצב חוקי.
   String? get archivePath {
     final settings = iniSettings;
     for (final candidate in [
@@ -64,10 +52,7 @@ class ResponsaInstallation {
     return null;
   }
 
-  /// תיקיית נתוני המשתמש, כפי שהיא רשומה ב-`Responsa.env`.
-  ///
-  /// בהתקנה מלאה היא יושבת תחת `Public\Documents`; היא יכולה לשבת
-  /// במקום אחר. `null` כשהקובץ חסר או אינו קריא — מצב חוקי.
+  /// תיקיית נתוני המשתמש מ-`Responsa.env`; `null` כשהקובץ חסר - מצב חוקי.
   String? get dataLocation {
     for (final line in _readLines(path.join(installPath, 'Responsa.env'))) {
       final trimmed = line.trim();
@@ -80,16 +65,8 @@ class ResponsaInstallation {
     return null;
   }
 
-  /// קורא קובץ תצורה של התוכנה, שאינו UTF-8.
-  ///
-  /// `Responsa.ini` נכתב ב-ANSI עברי (CP1255): `Sh_cdrom` מכיל את
-  /// הנתיב שממנו הותקנה התוכנה, ובו עברית. `readAsLinesSync` בברירת
-  /// המחדל זורק `FileSystemException` על הבתים האלה, ואיתו נופל הקובץ
-  /// כולו — כולל המפתחות שהם ASCII טהור.
-  ///
-  /// הסדר: UTF-8 (מהדורה עתידית), קידוד המערכת (Windows עברי),
-  /// ו-`latin1` שלעולם אינו זורק. ערך שיתקבל מעוות יפסל ממילא בבדיקת
-  /// קיום הקובץ.
+  /// `Responsa.ini` ב-CP1255, ו-`readAsLinesSync` היה זורק ומפיל את כל הקובץ.
+  /// `latin1` אחרון כי אינו זורק; ערך מעוות ייפסל ממילא בבדיקת קיום.
   static List<String> _readLines(String filePath) {
     final file = File(filePath);
     if (!file.existsSync()) return const [];
@@ -110,13 +87,8 @@ class ResponsaInstallation {
     return const [];
   }
 
-  /// המקטע `[Environment]` של `Responsa.ini`, במפתחות קטנים.
-  ///
-  /// זהו המקור שהתוכנה עצמה קוראת ממנו: `Sh_hdisk` (נתיב הדיסק),
-  /// `Sh_data`, `Sh_HD` (מטמון), `Sh_cdrom` (ההתקן) ו-`VolLabel`
-  /// (תווית ההתקן). הקובץ יושב באתר הנתונים, לא ליד קובץ ההרצה.
-  ///
-  /// מפה ריקה כשהקובץ חסר או אינו קריא — כל הקוראים כאן מטפלים בכך.
+  /// `[Environment]` של `Responsa.ini`, במפתחות קטנים. הקובץ יושב באתר
+  /// הנתונים ולא ליד קובץ ההרצה; מפה ריקה כשהוא חסר.
   Map<String, String> get iniSettings {
     final data = dataLocation;
     if (data == null) return const {};
@@ -190,10 +162,7 @@ class ResponsaFingerprint {
     );
   }
 
-  /// האם קטלוג שנבנה מ-[other] עדיין תקף להתקנה הזו.
-  ///
-  /// שדה שחסר באחד הצדדים אינו מכשיל — אחרת קטלוג ישן היה נפסל רק בגלל
-  /// שדה שנוסף מאוחר יותר.
+  /// שדה שחסר באחד הצדדים אינו מכשיל, אחרת קטלוג ישן נפסל בגלל שדה חדש.
   bool matches(ResponsaFingerprint? other) {
     if (other == null) return false;
     if (_conflicts(version, other.version)) return false;

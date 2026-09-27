@@ -71,12 +71,8 @@ class DataRepository {
   Future<List<ExternalLibraryBook>> get responsaBooks =>
       _responsaBooksFuture ??= getResponsaBooks();
 
-  /// עולה בכל פעם שהמטמון החיצוני מתבטל.
-  ///
-  /// מי שגוזר מבנה מהספרים — עץ התיקיות של בר אילן במסך הספרייה —
-  /// אינו יכול לדעת מ-`responsaBooks` לבדו שהקטלוג התחלף: ה-Future
-  /// החדש נראה זהה. בלי המונה, קטלוג שנבנה בהדלקה הראשונה לא הופיע
-  /// בעץ עד להפעלה מחדש של אוצריא.
+  /// עולה בכל ביטול מטמון: מי שגוזר מבנה מהספרים (עץ בר אילן) לא יכול לזהות
+  /// מ-`responsaBooks` לבדו שהקטלוג התחלף, ובלעדיו העץ לא מתעדכן.
   int get externalBooksGeneration => _externalBooksGeneration;
   int _externalBooksGeneration = 0;
 
@@ -120,10 +116,8 @@ class DataRepository {
     return FileSystemData.getHebrewBooks();
   }
 
-  /// האם ספר בר אילן שייך ל-[category] של אוצריא או לאחת מתת-הקטגוריות.
-  ///
-  /// ההשוואה על `Category.path` (`/הלכה/ראשונים`), ולכן קטגוריית אב
-  /// כוללת את כל מה שמתחתיה — בדיוק כמו `getAllBooks()`.
+  /// השוואה על `Category.path`, כך שקטגוריית אב כוללת את כל מה שמתחתיה -
+  /// בדיוק כמו `getAllBooks()`.
   static bool _responsaUnder(ExternalLibraryBook book, Category category) {
     final target = ResponsaCategoryMap.otzariaPathFor(book.heCategories);
     if (target == null) return false;
@@ -270,8 +264,7 @@ class DataRepository {
     }
     if (includeResponsa) {
       final responsa = await responsaBooks;
-      // חיפוש בתוך קטגוריה מחפש **בקטגוריה**. בלי הסינון כל 8,465 ספרי
-      // בר אילן הצטרפו לכל חיפוש מקומי, גם כשהמשתמש עומד בתוך `תנ״ך`.
+      // בלי הסינון כל ספרי בר אילן מצטרפים לחיפוש בתוך כל קטגוריה, גם `תנ״ך`.
       allBooks.addAll(
         category == null
             ? responsa
@@ -346,11 +339,6 @@ class DataRepository {
 /// בונה [BookSearchEntry] לספר בודד. ה-lookups מוזרקים כדי לאפשר בדיקה
 /// בלי DB. הכינויים והדור נלקחים לפי [Book.source] — ל-id אין משמעות מחוץ
 /// למסד של הספר.
-///
-/// ספר מספרייה חיצונית אינו פונה למטמונים כלל: ה-id שלו הוא מזהה **אצל
-/// הספק**, ואילו `source` שלו הוא `official` כמו של כל ספר מותקן. בלי
-/// החרגה מפורשת, `rp:1524` של פרויקט השו"ת ו-`oh:1524` של אוצר החכמה
-/// היו מקבלים את הכינויים של ספר 1524 במסד הרשמי — ספר אחר לגמרי.
 @visibleForTesting
 BookSearchEntry buildBookSearchEntry(
   int index,
@@ -358,7 +346,8 @@ BookSearchEntry buildBookSearchEntry(
   required List<String>? Function(BookSource source, int bookId) acronymsFor,
   required int Function(int? bookId, BookSource source) eraOrderForId,
 }) {
-  // ספר חיצוני: ה-id אינו מזהה במסד שהמטמונים ממופתחים בו.
+  // ה-id של ספר חיצוני הוא מזהה אצל הספק, אך ה-source שלו `official` - בלי
+  // ההחרגה `rp:1524` יקבל את הכינויים של ספר 1524 במסד הרשמי.
   final id = book is ExternalLibraryBook ? null : book.id;
   return BookSearchEntry(
     index: index,

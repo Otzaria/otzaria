@@ -11,21 +11,15 @@ import 'package:otzaria/external_catalog/responsa/text/responsa_hebrew.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_names.dart';
 import 'package:sqlite3/sqlite3.dart';
 
-/// כתיבת `responsa_catalog.db` — הבנייה האטומית והסכמה.
-///
-/// נפרד מ-[ResponsaCatalogBuilder] מפני שאלו שתי אחריות שונות: הסיווג
-/// עונה על "מה נחשב ספר ואיך קוראים לו" והוא נבדק על דאמפ של העץ בלי
-/// מסד נתונים, והכתיבה עונה על "איך הקטלוג מוחלף בלי לאבד אותו".
+/// כתיבת `responsa_catalog.db` - הסכמה וההחלפה האטומית. הסיווג נפרד
+/// ב-[ResponsaCatalogBuilder] כדי שייבדק על דאמפ של העץ בלי מסד נתונים.
 class ResponsaCatalogWriter {
   ResponsaCatalogWriter._();
 
   // ------------------------------------------------------ כתיבה אטומית
 
-  /// בונה קטלוג חדש ומחליף את הקיים **רק אחרי** שהוא נמצא תקין.
-  ///
-  /// הבנייה נכתבת ל-`<target>.building`; הקטלוג הפעיל נשאר על כנו עד
-  /// שהחדש עובר בדיקת שלמות, ספירה ושאילתות smoke. בנייה שנכשלה
-  /// משאירה את הישן.
+  /// נכתב ל-`<target>.building` ומחליף את הקיים רק אחרי בדיקת שלמות וספירה;
+  /// בנייה שנכשלה משאירה את הישן.
   static ResponsaCatalogBuildResult build({
     required List<ResponsaTreeNode> nodes,
     required ResponsaFingerprint fingerprint,
@@ -98,21 +92,17 @@ class ResponsaCatalogWriter {
           book,
           openRefs[i],
         );
-        // `classificationNodes` ולא `categoryNodes`: הרכיב שמעל החיבור
-        // הוא גם מדף, והוא זה שמבדיל בין משנה, תוספתא ובבלי שכולם
-        // יושבים תחת `ספרות חז"ל`.
+        // `classificationNodes` ולא `categoryNodes`: הרכיב שמעל החיבור מבדיל
+        // בין משנה, תוספתא ובבלי שכולם תחת `ספרות חז"ל`.
         final categories = [
           for (final node in book.classificationNodes)
             ResponsaNames.displayOf(node),
         ];
-        // כותרת ריקה אינה מפילה את כל הבנייה. `buildOpenRefs` כבר נוהג
-        // כך בהפניה, ואין סיבה שהכותרת תהיה מחמירה ממנה: שם צומת חריג
-        // אחד מתוך 1.25 מיליון היה מבטל קטלוג של שש דקות.
+        // כותרת ריקה לא תפיל את האימות: שם צומת חריג אחד היה מבטל בנייה של
+        // שש דקות.
         final title = book.title.trim().isEmpty
             ? book.leafTitle.trim()
             : book.title;
-        // המטא-דאטה מגיעה מ"רשימת הספרים והמהדורות" של התוכנה עצמה. ספר
-        // שאין לו שם רשומה שם נשאר בלעדיה — אין להמציא ערכים.
         final record = consistentRecord(
           book,
           authors,
@@ -129,8 +119,7 @@ class ResponsaCatalogWriter {
           book.refPath,
           openRefs[i],
           alternatives.isEmpty ? null : alternatives.join('\n'),
-          // volume ו-topics נשארים ריקים: אין להם מקור בהתקנה, ואין
-          // להמציא ערכים.
+          // volume ו-topics ריקים: אין להם מקור בהתקנה.
           null,
           categories.isEmpty ? null : categories.first,
           categories.isEmpty
@@ -175,9 +164,8 @@ class ResponsaCatalogWriter {
       _validate(db, books.length);
     } catch (_) {
       db.close();
-      // קובץ הבנייה נמחק בכישלון. אחרת הוא נשאר על הדיסק בגודל של
-      // מגה-בתים, ובנייה הבאה שתנסה למחוק אותו בזמן שמשהו עדיין מחזיק
-      // בו תיכשל בעצמה — כשל אחד שמשתק את כל הבניות שאחריו.
+      // קובץ בנייה שנשאר עלול להיות נעול כשהבנייה הבאה תנסה למחוק אותו,
+      // וכשל אחד משתק את כל הבניות שאחריו.
       try {
         if (building.existsSync()) building.deleteSync();
       } catch (_) {
@@ -190,8 +178,7 @@ class ResponsaCatalogWriter {
     try {
       _swap(buildingPath, targetPath);
     } catch (_) {
-      // אותה סיבה כמו בכשל הכתיבה: קובץ בנייה שנשאר הוא חמישה
-      // מגה-בתים שהבנייה הבאה תיתקל בהם.
+      // כמו בכשל הכתיבה: לא משאירים קובץ בנייה לבנייה הבאה.
       try {
         if (building.existsSync()) building.deleteSync();
       } catch (_) {
@@ -207,12 +194,8 @@ class ResponsaCatalogWriter {
     );
   }
 
-  /// המחבר של [book].
-  ///
-  /// מטבלת המחברים של בר אילן כשהיא מכירה את החיבור — **גם כשאין לו שם
-  /// מחבר שם**: תנ"ך, משנה ומדרש מוכרים בה בלי מחבר, והביבליוגרפיה, שמותאמת
-  /// לפי שם, הייתה נותנת להם מחבר של חיבור אחר באותו שם. רק חיבור שהטבלה
-  /// אינה מכירה — או מהדורה שהטבלה בה אינה במבנה המוכר — נופל לביבליוגרפיה.
+  /// הטבלה קובעת גם כשאין בה מחבר (תנ"ך, משנה): הביבליוגרפיה מותאמת לפי שם
+  /// ותיתן מחבר של חיבור אחר. רק חיבור שהטבלה לא מכירה נופל אליה.
   @visibleForTesting
   static String? authorOf(
     ResponsaBookRow book,
@@ -224,12 +207,8 @@ class ResponsaCatalogWriter {
     return record?.author;
   }
 
-  /// הרשומה מהביבליוגרפיה, או `null` כשהמחבר שבה סותר את טבלת המחברים.
-  ///
-  /// הביבליוגרפיה מותאמת לספר לפי שם, ושם אינו מזהה: `פרחי כהונה` הם שני
-  /// חיבורים, ו-`ר"ש` על זרעים נמצא בעמוד של רש"י. כשהמחבר שבעמוד הוא אדם
-  /// אחר מהמחבר של החיבור, גם מקום ההדפסה והשנה שבעמוד שייכים לספר אחר.
-  /// נמדד ב-CD25: 66 ספרים, בארבע קבוצות, וכולן טעויות.
+  /// `null` כשהמחבר סותר את טבלת המחברים: ההתאמה לפי שם, ושם אינו מזהה - אז
+  /// גם מקום ההדפסה והשנה שבעמוד שייכים לספר אחר.
   @visibleForTesting
   static ResponsaBibliographyEntry? consistentRecord(
     ResponsaBookRow book,
@@ -244,11 +223,8 @@ class ResponsaCatalogWriter {
     return ResponsaAuthorTable.mayBeSamePerson(listed, known) ? record : null;
   }
 
-  /// המזהים שכבר הוקצו בקטלוג הקיים, לשימור בין בנייה לבנייה.
-  ///
-  /// רשימה ריקה פירושה שכל ספר יקבל `external_key` חדש — כלומר כל
-  /// סימנייה, פריט היסטוריה ומועדף של ספרי בר אילן יצביעו על ספר אחר.
-  /// לכן כשל בקריאה נרשם ואינו נבלע.
+  /// רשימה ריקה = כל סימנייה והיסטוריה של ספרי בר אילן יצביעו על ספר אחר,
+  /// ולכן כשל בקריאה נרשם ואינו נבלע.
   static List<({String key, String refPath, int? treeParam})> _readExisting(
     String targetPath,
   ) {
@@ -321,12 +297,8 @@ class ResponsaCatalogWriter {
     }
   }
 
-  /// מחליף את הקטלוג בחדש, ומחזיר את הישן אם ההחלפה נכשלה.
-  ///
-  /// שתי הפעולות אינן אטומיות יחד: בין השינוי לגיבוי לבין השינוי מהחדש
-  /// אפשר להיכשל — נעילת שיתוף ב-Windows, אנטי-וירוס, מפתח חיפוש. בלי
-  /// השחזור, המצב שנותר הוא **בלי קטלוג כלל**: הישן קיים רק בשם
-  /// `.previous` שאיש אינו קורא, והמשתמש מאבד את הספרייה.
+  /// שני שינויי השם אינם אטומיים יחד (נעילה, אנטי-וירוס); בלי שחזור הגיבוי
+  /// המשתמש נשאר בלי קטלוג כלל.
   static void _swap(String buildingPath, String targetPath) {
     final target = File(targetPath);
     final backup = File('$targetPath.previous');

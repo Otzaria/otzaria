@@ -64,9 +64,6 @@ class BookPreviewPanel extends StatefulWidget {
 
   /// פותח ספר חיצוני בתוכנה שממנה הוא מגיע. מוזרק כדי שהתצוגה המקדימה
   /// לא תכיר את שכבת הגשר.
-  ///
-  /// בלעדיו הכפתור בתצוגה המקדימה קרא למסלול הפתיחה המקומי — ולספר
-  /// חיצוני זה פשוט לא עשה דבר.
   final Future<String?> Function(ExternalLibraryBook book)? onOpenExternally;
 
   /// הכיתוב כשלא נבחר דבר.

@@ -51,15 +51,8 @@ class Category {
   /// A pointer to the parent category, or null if this is a top level category.
   Category? parent;
 
-  /// מזהה הספרייה החיצונית שהתיקייה הזו מציגה, או `null` לתיקייה מותקנת.
-  ///
-  /// הערך הוא `ExternalProviderDescriptor.id` — `responsa` וכדומה — ולא
-  /// `prefix:value` כמו ב-[Book.externalLibraryId]: לתיקייה אין מזהה
-  /// פריט אצל הספק, רק שיוך.
-  ///
-  /// נדרש בתצוגה בלבד: בלעדיו תיקייה שכל תוכנה מגיע מתוכנה חיצונית
-  /// נראית זהה לתיקייה של ספרים מותקנים, ורק כניסה אליה מגלה את ההבדל.
-  /// התיקיות האלה נבנות בשכבת התצוגה ואינן חלק מעץ הספרייה.
+  /// `ExternalProviderDescriptor.id` של הספרייה החיצונית שהתיקייה מציגה, או
+  /// `null`. לא `prefix:value` כמו ב-[Book.externalLibraryId]: אין מזהה פריט.
   final String? externalProviderId;
 
   ///returns all the books in this category and its subcategories

@@ -6,10 +6,8 @@ import 'package:otzaria/external_catalog/responsa/responsa_library_provider.dart
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
-/// נקודת הכניסה היחידה לפרויקט השו"ת מתוך שאר האפליקציה.
-///
-/// **שום דבר כאן אינו רץ בעליית אוצריא.** הקטלוג נקרא בפעם הראשונה
-/// שמחפשים, והתוכנה עולה רק כשמבקשים לפתוח ספר וההגדרה מתירה זאת.
+/// נקודת הכניסה לפרויקט השו"ת. שום דבר כאן אינו רץ בעליית אוצריא -
+/// הקטלוג נקרא בחיפוש הראשון, והתוכנה עולה רק בפתיחת ספר.
 class ResponsaService {
   ResponsaService._();
 
@@ -26,13 +24,8 @@ class ResponsaService {
     controller: controller,
   );
 
-  /// האם המשתמש התיר להעלות מופע של בר אילן כשאינו רץ.
-  ///
-  /// **אותה הגדרה שמפעילה את החיפוש.** ספר שנמצא בחיפוש ואי אפשר
-  /// לפתוח אותו הוא תוצאה חסרת ערך, ולכן אין כאן מתג שני.
-  ///
-  /// נקרא ישירות מהאחסון ולא דרך ה-BLoC: הקריאה מגיעה משכבת הספקים,
-  /// שאין לה `BuildContext`.
+  /// אותה הגדרה שמפעילה את החיפוש - ספר שנמצא ואי אפשר לפתוח חסר ערך.
+  /// נקרא מהאחסון ולא מה-BLoC, כי לשכבת הספקים אין `BuildContext`.
   static bool allowAutoStart() {
     if (!Settings.isInitialized) return false;
     return SettingsRepository.decodeEnabledExternalProviders(
@@ -42,10 +35,7 @@ class ResponsaService {
     ).contains(ExternalProviderRegistry.responsa.id);
   }
 
-  /// פותח ספר בתוכנה. מחזיר `null` בהצלחה, או הודעת שגיאה למשתמש.
-  ///
-  /// אין כאן חריגים: תוכנה שאינה מותקנת, הפניה שלא נותחה או מופע שנפל
-  /// מגיעים כטקסט, ואינם מפילים את אוצריא.
+  /// מחזיר `null` בהצלחה, או הודעת שגיאה למשתמש - לעולם לא חריג.
   Future<String?> openBook(ExternalLibraryBook book) async {
     final result = await provider.open(book);
     return result.ok ? null : (result.message ?? 'פתיחת הספר נכשלה');

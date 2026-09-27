@@ -30,10 +30,8 @@ class SettingsRepository {
   static const String keyShowLocalHebrewBooks = 'key-show-local-hebrew-books';
   static const String keyShowExternalBooks = 'key-show-external-books';
 
-  /// קבוצת הספקים החיצוניים המופעלים, בפורמט `v1:<id>,<id>`.
-  ///
-  /// התחילית `v1:` הכרחית: בלעדיה מחרוזת ריקה הייתה דו-משמעית — "אף ספק"
-  /// מול "ההגדרה מעולם לא נכתבה", ומיגרציה הייתה רצה שוב בכל עלייה.
+  /// בפורמט `v1:<id>,<id>`. התחילית מבדילה "אף ספק" מ"מעולם לא נכתב" -
+  /// בלעדיה המיגרציה מהמפתחות הישנים הייתה רצה שוב בכל עלייה.
   static const String keyEnabledExternalProviders =
       'key-enabled-external-providers';
 
@@ -679,10 +677,8 @@ class SettingsRepository {
     await _settings.setValue(keyShowLocalHebrewBooks, value);
   }
 
-  /// טוען את הספקים החיצוניים המופעלים.
-  ///
-  /// בהיעדר הערך החדש נגזרת הקבוצה מהמפתחות הישנים (`showExternalBooks`
-  /// כמתג-אב, ושני המתגים לכל ספק) — מיגרציה שקטה שנשמרת בכתיבה הבאה.
+  /// בהיעדר הערך החדש נגזרת הקבוצה מהמתגים הישנים - מיגרציה שקטה
+  /// שנשמרת בכתיבה הבאה.
   Set<String> loadEnabledExternalProviders() {
     final raw = _settings.getValue<String>(
       keyEnabledExternalProviders,
@@ -703,11 +699,8 @@ class SettingsRepository {
 
   static const String _providersPrefix = 'v1:';
 
-  /// מפענח את ערך הספקים המופעלים כפי שהוא באחסון.
-  ///
-  /// ציבורי בשביל שכבת הספקים, שאין לה `BuildContext` ואינה מחזיקה
-  /// מופע של המאגר. ערך שאינו בפורמט החדש מוחזר כקבוצה ריקה — המיגרציה
-  /// מהמתגים הישנים לעולם אינה מדליקה ספק שלא היה לו מתג ישן.
+  /// ציבורי לשכבת הספקים, שאין לה מופע של המאגר. ערך בפורמט הישן מחזיר
+  /// קבוצה ריקה: המיגרציה לעולם אינה מדליקה ספק שלא היה לו מתג ישן.
   static Set<String> decodeEnabledExternalProviders(String? raw) =>
       raw != null && raw.startsWith(_providersPrefix)
       ? _decodeProviders(raw)

@@ -10,10 +10,8 @@ import 'package:otzaria/external_catalog/responsa/responsa_catalog_schema.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_structure.dart';
 import 'package:path/path.dart' as p;
 
-/// הכתיבה האטומית: **בנייה שנכשלה משאירה את הקטלוג הקיים**.
-///
-/// זה הקובץ היחיד של המשתמש שאי אפשר להוריד מחדש מהרשת — הוא נבנה
-/// מההתקנה שלו, ובנייה מלאה אורכת שש דקות.
+/// בנייה שנכשלה חייבת להשאיר את הקטלוג הקיים: אי אפשר להוריד אותו מהרשת,
+/// ובנייה מלאה מההתקנה אורכת דקות ארוכות.
 void main() {
   late Directory dir;
   late String target;

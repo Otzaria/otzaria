@@ -1,6 +1,4 @@
-// כלי מדידה ידני: מריץ את בניית הקטלוג בדיוק כפי שאוצריא מריצה אותה —
-// כולל העלאת בר אילן כשהוא סגור — וכותב לקטלוג האמיתי.
-//
+// כלי מדידה ידני: בונה את הקטלוג כמו אוצריא (כולל העלאת בר אילן) וכותב לקטלוג האמיתי.
 // RESPONSA_TARGET=<db> flutter test --run-skipped test/external_catalog/live_build_catalog_test.dart
 @Tags(['live'])
 library;

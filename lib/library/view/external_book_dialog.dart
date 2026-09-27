@@ -17,11 +17,8 @@ import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
-/// דיאלוג פרטי ספר של ספרייה חיצונית.
-///
-/// הפעולות נקבעות לפי **יכולות הספק**, לא לפי שם המחלקה של הספר ולא
-/// לפי ניחוש מתוך הקישור. ספק בלי `webOpen` פשוט אינו מקבל "פתח באתר",
-/// וספק חדש אינו דורש ענף נוסף כאן.
+/// דיאלוג פרטי ספר של ספרייה חיצונית. הפעולות נקבעות לפי יכולות הספק —
+/// לא לפי סוג הספר או הקישור — כך שספק חדש אינו דורש ענף נוסף כאן.
 class ExternalBookDialog extends StatelessWidget {
   final ExternalLibraryBook book;
 

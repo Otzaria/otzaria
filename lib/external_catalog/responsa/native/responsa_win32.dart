@@ -3,21 +3,8 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:win32/win32.dart';
 
-/// עטיפה דקה ל-Win32 עבור אוטומציית פרויקט השו"ת.
-///
-/// כל קריאה כאן היא קריאה **חוצת-תהליכים** אל `RESPONSA.exe`. שלוש
-/// מלכודות מאומתות מקובעות במודול, כדי שלא יחזרו:
-///
-/// 1. `GetWindowText` אינו עובד חוצה-תהליכים על פקדי ילד — חובה
-///    `WM_GETTEXTLENGTH` + `WM_GETTEXT`.
-/// 2. `WM_CLOSE` על חלון של האפליקציה **מפיל אותה**. המודול אינו חושף
-///    אותו כלל; חלון MDI נסגר ב-`WM_MDIDESTROY`, שהוא ההודעה התקנית.
-/// 3. **כל שליחה סינכרונית עוברת `SendMessageTimeout`.** `SendMessage`
-///    רגיל חוזר רק כשהתהליך היעד מעבד את ההודעה, וכשמודאל פתוח הוא אינו
-///    חוזר לעולם — גם timeout ברמת הפעולה לא מציל, כי השרשור עצמו תקוע.
-///
-/// **חובה להריץ באיזולט רקע.** הקריאות סינכרוניות וחוסמות; על Windows
-/// ה-UI isolate רץ על ה-platform thread, וקריאה חוסמת שם מקפיאה כל פריים.
+/// קריאות חוצות-תהליכים וחוסמות אל `RESPONSA.exe` - רק מאיזולט רקע. `WM_CLOSE`
+/// מפיל את התוכנה ולכן אינו חשוף כאן כלל.
 class ResponsaWin32 {
   ResponsaWin32._();
 
@@ -42,8 +29,8 @@ class ResponsaWin32 {
   /// תקרת זמן לשליחה סינכרונית בודדת.
   static const int defaultSendTimeoutMs = 15000;
 
-  /// תקרה קצרה לקריאות סריקה (כותרת, ספירה). חלון חונה שאינו מגיב עולה
-  /// את מלוא התקרה, ואסור שחלון אחד יעצור מיפוי שלם.
+  /// תקרה קצרה לסריקה: חלון חונה שאינו מגיב עולה את מלוא התקרה, ואסור שחלון
+  /// אחד יעצור מיפוי שלם.
   static const int scanTimeoutMs = 2000;
 
   static const int _smtoAbortIfHung = 0x0002;
@@ -55,7 +42,8 @@ class ResponsaWin32 {
 
   // ------------------------------------------------------------ שליחה
 
-  /// שליחה סינכרונית עם תקרת זמן. `null` כשהיעד לא ענה.
+  /// תמיד `SendMessageTimeout`: `SendMessage` מול מודאל פתוח לא חוזר לעולם.
+  /// `null` כשהיעד לא ענה.
   static int? send(
     int hwnd,
     int message, {
@@ -107,7 +95,7 @@ class ResponsaWin32 {
     }
   }
 
-  /// טקסט של חלון או פקד — עובד גם חוצה-תהליכים.
+  /// `WM_GETTEXT` ולא `GetWindowText`, שאינו עובד חוצה-תהליכים על פקדי ילד.
   static String windowText(int hwnd, {int timeoutMs = scanTimeoutMs}) {
     final length = send(hwnd, wmGetTextLength, timeoutMs: timeoutMs) ?? 0;
     if (length <= 0) return '';
@@ -142,18 +130,8 @@ class ResponsaWin32 {
   static bool isVisible(int hwnd) =>
       IsWindowVisible(HWND(Pointer.fromAddress(hwnd)));
 
-  /// האם החלון נמצא על מסך כלשהו.
-  ///
-  /// `MONITOR_DEFAULTTONULL` מחזיר אפס כשהמלבן אינו חותך אף תצוגה. זו
-  /// הבדיקה **היחידה** שמבדילה מופע חונה מחוץ למסך ממופע תקין, ולכן היא
-  /// כאן ולא בקוד הקורא. נמדד על חלון חונה של פרויקט השו"ת:
-  /// `IsWindowVisible` מחזיר `true`, `IsIconic` מחזיר `false`,
-  /// `GetWindowPlacement` מחזיר `SW_SHOWNORMAL`, ו-`IsHungAppWindow`
-  /// מחזיר `false` — כל בדיקה מלבד זו מכריזה עליו תקין.
-  ///
-  /// חלון **ממוזער** עובר את הבדיקה: Windows ממפה אותו למסך הקרוב, גם
-  /// כשמלבנו `-32000,-32000`. זה הנכון — הוא של המשתמש, והוא משוחזר
-  /// ב-[bringToFront].
+  /// הבדיקה היחידה שמבדילה מופע חונה מתקין (כל השאר מכריזות עליו תקין).
+  /// חלון ממוזער עובר אותה בכוונה - הוא של המשתמש ומשוחזר ב-[bringToFront].
   static bool isOnScreen(int hwnd) =>
       MonitorFromWindow(
         HWND(Pointer.fromAddress(hwnd)),
@@ -249,8 +227,8 @@ class ResponsaWin32 {
 
   // ---------------------------------------------------------- ListBox
 
-  /// `-1` כשהרשימה לא ענתה. **אינו** שווה ל-0: הפרש בין "ריקה" ל"לא
-  /// ידוע" הוא בדיוק ההבדל שמייצר ספירה שקרית.
+  /// `-1` כשהרשימה לא ענתה - לא 0: בלבול בין "ריקה" ל"לא ידוע" מייצר ספירה
+  /// שקרית.
   static int listBoxCount(int hwnd) =>
       send(hwnd, lbGetCount, timeoutMs: 3000) ?? -1;
 
@@ -280,10 +258,8 @@ class ResponsaWin32 {
     return [for (var i = 0; i < take; i++) listBoxItem(hwnd, i)];
   }
 
-  /// בחירת פריט ברשימת התוצאות והודעה להורה.
-  ///
-  /// הרשימה היא Multi-Select, ולכן `LB_SETCURSEL` מחזיר `-1` תמיד. בלי
-  /// הודעת `LBN_SELCHANGE` ידנית האפליקציה אינה יודעת שהבחירה השתנתה.
+  /// הרשימה Multi-Select (`LB_SETCURSEL` תמיד `-1`), ובלי `LBN_SELCHANGE` ידני
+  /// האפליקציה לא יודעת שהבחירה השתנתה.
   static void listBoxSelect(int parent, int listBox, int index) {
     send(listBox, lbSetSel, wParam: 1, lParam: index);
     final notify = (lbnSelChange << 16) | (controlId(listBox) & 0xFFFF);
@@ -296,12 +272,8 @@ class ResponsaWin32 {
 
   // -------------------------------------------------------------- MDI
 
-  /// נתיב קובץ ההרצה של תהליך.
-  ///
-  /// `QueryFullProcessImageName` ולא הרצת `powershell`: זו קריאה אחת
-  /// במקום יצירת תהליך, והיא נקראת פעם אחת לכל מופע בכל פתיחת ספר.
-  /// יצירת תהליך בלולאה היא בדיוק מה שהופך פעולה של שנייה לפעולה של
-  /// שבע במכונה עמוסה.
+  /// קריאת API ולא הרצת `powershell`: נקרא לכל מופע בכל פתיחה, ויצירת תהליך
+  /// בלולאה מאטה פתיחה של שנייה לשבע.
   static String? processImagePath(int pid) {
     final handle = OpenProcess(
       const PROCESS_ACCESS_RIGHTS(0x1000), // PROCESS_QUERY_LIMITED_INFORMATION
@@ -346,11 +318,7 @@ class ResponsaWin32 {
     return active == 0 ? null : windowText(active);
   }
 
-  /// סוגר חלון MDI בודד.
-  ///
-  /// `WM_MDIDESTROY` היא ההודעה התקנית של MDI ונשלחת ל-`MDIClient`.
-  /// **אין** להחליף אותה ב-`WM_CLOSE` על חלון של האפליקציה — זה הפיל את
-  /// המופע פעמיים במדידות.
+  /// `WM_MDIDESTROY` ל-`MDIClient`; אין להחליף ב-`WM_CLOSE`, שמפיל את המופע.
   static bool destroyMdiChild(int mainWindow, int child) {
     final client = mdiClient(mainWindow);
     if (client == null) return false;
@@ -363,15 +331,8 @@ class ResponsaWin32 {
   static const int _swRestore = 9;
   static const int _swShow = 5;
 
-  /// מביא חלון לחזית, ומשחזר אותו אם הוא ממוזער.
-  ///
-  /// שלושת הצעדים נחוצים ואינם חופפים: חלון ממוזער לא ייראה גם אם יעבור
-  /// לחזית, `SetForegroundWindow` הוא זה שמעביר את הפוקוס בין תהליכים,
-  /// ו-`BringWindowToTop` מסדר את ה-Z-order כשהפוקוס כבר שם.
-  ///
-  /// Windows מתיר החלפת חזית רק לתהליך שהוא עצמו בחזית. מכאן שהקריאה
-  /// חייבת לצאת בזמן שאוצריא פעילה — כלומר מיד בתום הפתיחה, ולא מאוחר
-  /// יותר. כשלון אינו משמעותי: הספר נפתח, רק החלון לא קפץ.
+  /// שלושת הצעדים נחוצים ואינם חופפים. Windows מתיר החלפת חזית רק לתהליך
+  /// שבחזית, ולכן חייב לרוץ מיד בתום הפתיחה כשאוצריא עוד פעילה.
   static void bringToFront(int hwnd) {
     final handle = HWND(Pointer.fromAddress(hwnd));
     if (IsIconic(handle)) {

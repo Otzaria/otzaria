@@ -1,10 +1,5 @@
-// כלי מדידה ידני: **הפעלה קרה**. סוגר כל מופע, ממתין שהמצב יתייצב,
-// ואז מבקש מאוצריא לפתוח ספר — בדיוק כמו שהמשתמש עושה כשבר אילן סגור.
-//
-// הבדיקה היא לא "האם נפתח" אלא **באיזה מופע נפתח**: מופע חונה מחוץ
-// למסך פותח ספרים בהצלחה בלי שהמשתמש רואה דבר.
-//
-//   flutter test --run-skipped test/external_catalog/live_cold_start_test.dart
+// כלי מדידה ידני: סוגר את בר אילן ובודק באיזה מופע ספר נפתח (מופע חונה מחוץ למסך "מצליח" בסתר).
+// flutter test --run-skipped test/external_catalog/live_cold_start_test.dart
 @Tags(['live'])
 library;
 
@@ -85,7 +80,6 @@ void main() {
 
     expect(report.ok, isTrue, reason: report.message);
 
-    // הספר חייב להיות בחלון שהמשתמש רואה.
     final hosting = ResponsaInstance.all()
         .where((i) => i.openWindows > 0 && i.usable)
         .toList();

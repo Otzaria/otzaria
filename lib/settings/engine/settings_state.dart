@@ -27,10 +27,7 @@ class SettingsState extends Equatable {
   final double commentatorsFontSize;
   final double
   lineHeight; // מרווח בין שורות (1.0 = רגיל, 1.5 = מרווח וחצי, וכו')
-  /// מזהי הספקים החיצוניים המופעלים (`otzar`, `hebrewbooks`, `responsa`).
-  ///
-  /// מחליף שדה bool נפרד לכל ספק: ספק חדש נוסף לקבוצה ואינו דורש שדה,
-  /// אירוע ו-copyWith משלו.
+  /// קבוצה ולא bool לכל ספק: ספק חדש אינו דורש שדה, אירוע ו-copyWith.
   final Set<String> enabledExternalProviders;
 
   bool isExternalProviderEnabled(ExternalProviderDescriptor provider) =>

@@ -5,10 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_installation_discovery.dart';
 
-/// זיהוי המהדורה וטביעת האצבע של ההתקנה.
-///
-/// **אין כאן רשימת מהדורות נתמכות.** מספר המהדורה נקרא מכל מקור שיש
-/// ואינו מסונן מול רשימה: מהדורה שתצא מחר צריכה להתגלות בלי שינוי קוד.
+/// מספר המהדורה אינו מסונן מול רשימת מהדורות נתמכות: מהדורה שתצא מחר צריכה
+/// להתגלות בלי שינוי קוד.
 void main() {
   group('מספר המהדורה מכל מקור', () {
     test('שם תיקיית התקנה', () {
@@ -159,7 +157,7 @@ void main() {
 
     test('נתיב המאגר נקרא מ-Sh_hdisk שב-Responsa.ini', () {
       // זו שרשרת פתרון הנתונים של התוכנה עצמה: env → DataLocation →
-      // Responsa.ini → [Environment] Sh_hdisk + db\  (docs/56 §22).
+      // Responsa.ini → [Environment] Sh_hdisk + db\
       final data = Directory(p.join(root.path, 'data'))
         ..createSync(recursive: true);
       final disk = Directory(p.join(root.path, 'disk', 'db'))
@@ -196,10 +194,8 @@ void main() {
     });
 
     test('קובץ תצורה ב-ANSI עברי נקרא ואינו נזרק', () {
-      // נצפה על ההתקנה: `Responsa.ini` נכתב ב-CP1255, ו-`Sh_cdrom`
-      // מכיל את הנתיב שממנו הותקנה התוכנה — ובו עברית.
-      // `readAsLinesSync` ברירת המחדל זרק `FileSystemException`,
-      // והקובץ כולו נזרק בשקט — כולל המפתחות שהם ASCII טהור.
+      // `Responsa.ini` נכתב ב-CP1255, ו-`readAsLinesSync` בברירת המחדל זורק
+      // על העברית שבו ומאבד בשקט גם את המפתחות שהם ASCII טהור.
       final data = Directory(p.join(root.path, 'data'))
         ..createSync(recursive: true);
       final disk = Directory(p.join(root.path, 'disk', 'db'))

@@ -24,10 +24,8 @@ class ResponsaBuildProgress {
   /// כמה צמתים נסרקו עד כה. בהתקנה מלאה מדובר בכ-1.25 מיליון.
   final int scannedNodes;
 
-  /// כמה ענפים עליונים של העץ נסרקו עד סופם, ומתוך כמה.
-  ///
-  /// `sectionsTotal` הוא `0` עד שהסריקה מתחילה. הענפים אינם שווים בגודלם,
-  /// ולכן זה מדד התקדמות גס — אבל הוא ידוע גם בבנייה הראשונה.
+  /// ענפים עליונים שנסרקו, מתוך `sectionsTotal` (0 עד תחילת הסריקה). מדד
+  /// גס, כי הענפים לא שווים בגודלם - אבל ידוע גם בבנייה הראשונה.
   final int sectionsDone;
   final int sectionsTotal;
 
@@ -46,14 +44,8 @@ class ResponsaBuildProgress {
   });
 }
 
-/// בניית קטלוג פרויקט השו"ת — הליכה חיה בעץ ובנייה, באיזולט רקע.
-///
-/// הבנייה ארוכה מטבעה: היא סורקת את כל עץ הקטלוג של התוכנה, שהוא כ-1.25
-/// מיליון צמתים, ולוקחת כ-6 דקות. לכן היא מדווחת התקדמות וניתנת לביטול
-/// אמיתי.
-///
-/// **היא אינה רצה מאליה.** הקטלוג נבנה רק כשהמשתמש מבקש, או כשההתקנה
-/// השתנתה והוא אישר בנייה מחדש.
+/// בניית קטלוג פרויקט השו"ת באיזולט רקע, בהליכה חיה על כ-1.25 מיליון צמתים
+/// (כ-6 דקות) - ולכן עם דיווח התקדמות וביטול אמיתי. רצה רק לבקשת המשתמש.
 class ResponsaCatalogBuildService {
   ResponsaCatalogBuildService();
 
@@ -65,15 +57,12 @@ class ResponsaCatalogBuildService {
     if (flag != null) flag.value = 1;
   }
 
-  /// בונה את הקטלוג ומדווח התקדמות.
-  ///
-  /// [targetPath] הוא היעד הסופי; הבנייה עצמה נכתבת לקובץ צדדי ומוחלפת
-  /// אטומית רק אחרי שעברה אימות.
+  /// [targetPath] הוא היעד הסופי; הבנייה נכתבת לקובץ צדדי ומוחלפת אטומית רק
+  /// אחרי שעברה אימות.
   Stream<ResponsaBuildProgress> build({required String targetPath}) {
     final controller = StreamController<ResponsaBuildProgress>();
-    // בנייה אחת בכל רגע **בכל האפליקציה**: שתיהן כותבות לאותו
-    // `<target>.building`, והשנייה מוחקת את זה של הראשונה תוך כדי
-    // כתיבה. יציאה ממסך ההגדרות באמצע בנייה אינה עוצרת את האיזולט.
+    // בנייה אחת בכל האפליקציה (גם אחרי יציאה מהמסך): שתיים כותבות לאותו
+    // `<target>.building`, והשנייה מוחקת את זה של הראשונה.
     if (_active) {
       controller
         ..add(
@@ -119,9 +108,8 @@ class ResponsaCatalogBuildService {
       const ResponsaBuildProgress(stage: ResponsaBuildStage.starting),
     );
 
-    // אין בהתקנה קובץ עם רשימת הספרים — הקטלוג נקרא מהעץ של התוכנה
-    // החיה, ולכן הבנייה מעלה אותה בעצמה. בלי העדפת נתיב: הבחירה נעשית
-    // ב-`selectInstallation`, וההעלאה משתמשת בה.
+    // אין בהתקנה קובץ עם רשימת הספרים - הקטלוג נקרא מהעץ של התוכנה החיה,
+    // ולכן הבנייה מעלה אותה בעצמה.
     final launch = await ResponsaLauncher.ensureRunning();
     if (!launch.running) {
       controller
@@ -180,9 +168,8 @@ class ResponsaCatalogBuildService {
       }
     });
 
-    // איזולט שמת בלי לדווח — קריסה בקוד ה-native, חוסר זיכרון, הרג
-    // חיצוני — השאיר את המסך ב"בונה..." לנצח: המתג נשאר מושבת והכפתור
-    // היחיד שנותר כתב לדגל שאיש לא קרא. שתי היציאות האלה סוגרות את זה.
+    // איזולט שמת בלי לדווח (קריסת native, זיכרון, הרג) משאיר אחרת את המסך
+    // ב"בונה..." לנצח.
     error.listen((message) {
       debugPrint('ResponsaCatalogBuildService: isolate error: $message');
       finish(
@@ -224,10 +211,8 @@ class ResponsaCatalogBuildService {
     bool cancelled() => flag.value != 0;
 
     try {
-      // ההתקנה נבחרת **לפני** המופע, והמופע נבחר כדי להתאים לה.
-      // יכולים לרוץ כמה מופעים, ולכל אחד יכול להיות אתר נתונים אחר:
-      // בנייה ממופע אחד שתויגה בטביעת אצבע של התקנה אחרת מתארת מאגר
-      // שאינו קיים. זה קרה בפועל — קטלוג בן 2,179 ספרים במקום 8,523.
+      // ההתקנה נבחרת לפני המופע והמופע מותאם לה: לכל מופע יכול להיות אתר
+      // נתונים אחר, ובנייה ממופע של התקנה אחרת מתארת מאגר שאינו קיים.
       final selection = ResponsaInstallationDiscovery.selectInstallation();
       if (selection == null) {
         send.send(
@@ -239,8 +224,8 @@ class ResponsaCatalogBuildService {
         return;
       }
       final installation = selection.installation;
-      // מופע חונה מחוץ למסך עונה לפקודות, ולכן הבנייה הייתה מצליחה
-      // מולו — אבל היא לוקחת כחמש דקות, והמשתמש לא היה רואה דבר קורה.
+      // לא מופע חונה מחוץ למסך: הבנייה הייתה מצליחה, אבל המשתמש לא היה
+      // רואה דבר במשך דקות.
       final instance = ResponsaInstance.pick(selection.instances);
       if (instance == null) {
         send.send(
@@ -329,8 +314,6 @@ class ResponsaCatalogBuildService {
         nodes: nodes,
         fingerprint: ResponsaInstallationDiscovery.fingerprint(installation),
         targetPath: request.targetPath,
-        // נקראת **אחרי** הסריקה ולא לפניה: היא קריאת קובץ של פחות משנייה,
-        // ואין סיבה לשלם אותה כשהסריקה עומדת להיכשל או להתבטל.
         bibliography: ResponsaBibliographyReader.forInstallation(installation),
         authors: ResponsaAuthorTableReader.forInstallation(installation),
       );

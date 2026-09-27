@@ -3,9 +3,7 @@ import 'package:otzaria/external_catalog/providers/external_provider_capabilitie
 /// הספקים החיצוניים שאוצריא מכירה.
 enum ExternalProviderKind { otzar, hebrewBooks, responsa }
 
-/// תיאור סטטי של ספק: זהות, תחיליות מזהה, לוגו ויכולות.
-///
-/// אינו טוען ספרים ואינו פותח אותם, ולכן מזהה ספר של ספק שאינו מופעל.
+/// תיאור סטטי של ספק. אינו טוען ספרים, ולכן מזהה גם ספר של ספק שאינו מופעל.
 class ExternalProviderDescriptor {
   final ExternalProviderKind kind;
 
@@ -22,10 +20,7 @@ class ExternalProviderDescriptor {
 
   final String? iconAsset;
 
-  /// הכיתוב על כפתור הפתיחה המקומית.
-  ///
-  /// "פתח בתוכנה" הוא נכון ומעורפל: המשתמש יודע איזו תוכנה מותקנת אצלו
-  /// ורוצה לראות את שמה.
+  /// הכיתוב על כפתור הפתיחה המקומית - עדיף שם התוכנה על "פתח בתוכנה".
   final String localOpenLabel;
 
   final ExternalProviderCapabilities capabilities;
@@ -80,10 +75,7 @@ class ExternalBookRef {
   String toString() => canonicalId;
 }
 
-/// רישום מרכזי של הספקים החיצוניים.
-///
-/// כל מקום שצריך לדעת "מאיזה ספק הספר הזה" פונה לכאן, במקום לשחזר
-/// `switch` על אוצר/היברובוקס/שו"ת בכל קובץ.
+/// המקום היחיד שמזהה "מאיזה ספק הספר הזה", במקום `switch` על הספקים בכל קובץ.
 class ExternalProviderRegistry {
   ExternalProviderRegistry._();
 
@@ -133,11 +125,8 @@ class ExternalProviderRegistry {
     responsa,
   ];
 
-  /// האם הפתיחה המקומית של [provider] עוברת דרך הקולבק המשותף.
-  ///
-  /// לאוצר החכמה מסלול משלו (`OtzarUtils.launchOtzarLocal`), ולכן הכפתור
-  /// המשותף אינו שלו: לחיצה עליו מגיעה לפותחן של פרויקט השו"ת ונכשלת
-  /// בהודעה "הספר אינו ספר של פרויקט השו"ת".
+  /// לאוצר החכמה מסלול משלו (`OtzarUtils.launchOtzarLocal`); דרך הקולבק
+  /// המשותף הוא מגיע לפותחן של פרויקט השו"ת ונכשל.
   static bool usesSharedLocalOpen(ExternalProviderDescriptor? provider) =>
       provider != null &&
       provider.capabilities.localOpen &&
@@ -168,11 +157,8 @@ class ExternalProviderRegistry {
     return null;
   }
 
-  /// מפענח `externalLibraryId` בצורת `prefix:value`.
-  ///
-  /// חילוץ ספרות מכל מחרוזת הוא **לא** הדרך: `"ספר 3 חלקים"` אינו מזהה
-  /// חיצוני, ו-`rp:1524` אינו `1524` של היברובוקס. תחילית לא מוכרת,
-  /// ערך ריק או מחרוזת בלי נקודתיים — כולם מחזירים `null`.
+  /// מפענח רק `prefix:value` עם תחילית מוכרת - לא חילוץ ספרות: `"ספר 3 חלקים"`
+  /// אינו מזהה, ו-`rp:1524` אינו `1524` של היברובוקס.
   static ExternalBookRef? parse(String? externalLibraryId) {
     final raw = externalLibraryId?.trim();
     if (raw == null || raw.isEmpty) return null;

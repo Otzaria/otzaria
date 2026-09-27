@@ -6,14 +6,8 @@ import 'package:otzaria/external_catalog/responsa/responsa_catalog_repository.da
 import 'package:otzaria/external_catalog/responsa/responsa_icon.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_paths.dart';
 
-/// האייקון של בר אילן, כפי שהוא בהתקנה של המשתמש.
-///
-/// הבייטים נטענים פעם אחת לכל ריצת אפליקציה ונשמרים ב-[future]: כל
-/// כרטיס ספר בתוצאות מבקש את אותו אייקון, וקריאה מחדש לכל אחד מהם
-/// הייתה קוראת את קובץ ההרצה שוב ושוב.
-///
-/// כשאין התקנה, אין הרשאת קריאה, או שקובץ ההרצה אינו מכיל אייקון —
-/// מוצג [fallback]. אייקון חסר הוא עניין קוסמטי ואסור שיפיל מסך.
+/// האייקון של בר אילן מההתקנה. נטען פעם אחת לריצה ב-`_future`, כי כל כרטיס
+/// ספר מבקש אותו; בכל כשל מוצג [fallback].
 class ResponsaBookIcon extends StatefulWidget {
   final double size;
   final Color? color;

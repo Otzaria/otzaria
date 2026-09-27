@@ -9,14 +9,8 @@ import 'package:path/path.dart' as path;
 import 'package:win32/win32.dart' show GetLogicalDrives;
 import 'package:win32_registry/win32_registry.dart';
 
-/// גילוי ההתקנות של פרויקט השו"ת.
-///
-/// שני עקרונות:
-///
-/// * **מחזיר רשימה, לא התקנה יחידה.** אין מניעת single-instance, נתוני
-///   המשתמש יכולים לשבת בתיקייה נפרדת, ויתכנו שתי מהדורות זו לצד זו.
-/// * **מספר הגרסה נלקח מכל מקור שיש** — שם התיקייה, ה-`DisplayName`
-///   ב-Registry, וכותרת החלון של מופע חי. אף אחד מהם אינו חובה.
+/// מחזיר רשימה ולא התקנה יחידה: יתכנו כמה מהדורות זו לצד זו. הגרסה נלקחת
+/// מכל מקור שיש (תיקייה, Registry, כותרת חלון), ואף אחד אינו חובה.
 class ResponsaInstallationDiscovery {
   ResponsaInstallationDiscovery._();
 
@@ -42,10 +36,8 @@ class ResponsaInstallationDiscovery {
     return null;
   }
 
-  /// הגרסה מכותרת החלון של מופע חי (`פרוייקט השו"ת : גירסה 25`).
-  ///
-  /// זה המקור האמין ביותר: הוא מגיע מהתוכנה עצמה ולא מהמיקום שבו
-  /// הותקנה, ולכן עובד גם בהתקנה שהועתקה או ששמה שונה.
+  /// המקור האמין ביותר (`פרוייקט השו"ת : גירסה 25`): מגיע מהתוכנה עצמה, ולכן
+  /// עובד גם בהתקנה שהועתקה או ששמה שונה.
   static int? versionFromWindowTitle(String title) {
     final byName = versionFromText(title);
     if (byName != null) return byName;
@@ -62,9 +54,8 @@ class ResponsaInstallationDiscovery {
     ]) {
       byPath.putIfAbsent(found.installPath.toLowerCase(), () => found);
     }
-    // שני השדות נקראים **פעם אחת לכל התקנה**, לפני המיון: שניהם
-    // קוראים קבצים, והתוצאה אינה יציבה — כונן נשלף יכול להיעלם באמצע
-    // מיון, ויחס לא-טרנזיטיבי מחזיר סדר שרירותי.
+    // נקראים פעם אחת לפני המיון: כונן נשלף יכול להיעלם באמצע, ויחס
+    // לא-טרנזיטיבי מחזיר סדר שרירותי.
     final ranked = [
       for (final installation in byPath.values)
         (
@@ -73,9 +64,8 @@ class ResponsaInstallationDiscovery {
           hasArchive: installation.archivePath != null,
         ),
     ];
-    // קובץ הרצה קיים, ארכיון ספרים קיים, מהדורה חדשה יותר. הארכיון
-    // מכריע בין התקנה לבין אתר נתונים משני שלצידה — בחירה שרירותית
-    // בונה קטלוג ממאגר אחד ומתייגת אותו בטביעת אצבע של אחר.
+    // הארכיון מכריע בין התקנה לאתר נתונים משני שלצידה; בחירה שרירותית
+    // מתייגת קטלוג ממאגר אחד בטביעת אצבע של אחר.
     ranked.sort((a, b) {
       final byExists = (a.exists ? 0 : 1).compareTo(b.exists ? 0 : 1);
       if (byExists != 0) return byExists;
@@ -100,8 +90,7 @@ class ResponsaInstallationDiscovery {
       try {
         final List<String> names;
         try {
-          // מניית המפתחות עצמה יכולה להיכשל — ומפתח פגום אחד אסור לו
-          // לבטל גם את סריקת הדיסק וגם את המופעים הרצים.
+          // מפתח פגום אחד לא יבטל את סריקת הדיסק ואת המופעים הרצים.
           names = base.keys.toList();
         } catch (_) {
           continue;
@@ -148,21 +137,11 @@ class ResponsaInstallationDiscovery {
     'BarIlan',
   ];
 
-  /// כמה רשומות לסרוק בתיקייה אחת. שורש כונן מכיל עשרות פריטים; התקרה
   /// מגינה מפני תיקייה חריגה שתעכב את הגילוי.
   static const int _maxEntriesPerDirectory = 400;
 
-  /// גיבוי ל-Registry: סריקת **כל הכוננים** — קבועים, נשלפים ותקליטורים.
-  ///
-  /// שני מצבים שה-Registry אינו מכסה, ושניהם נפוצים:
-  ///
-  /// * התקנה שהועתקה ממחשב אחר ואינה רשומה.
-  /// * **התקנה חלקית שרצה מהתקן נשלף** — קובץ ההרצה יושב על הכונן
-  ///   הנשלף עצמו, מחוץ ל-`Program Files`, ואות הכונן משתנה ממחשב
-  ///   למחשב. זיהוי לפי נתיב קבוע לא היה מוצא אותה כלל.
-  ///
-  /// הזיהוי אינו תלוי בשם התיקייה: תיקייה שיש בה [executableName] היא
-  /// התקנה, גם אם שמה `שות בר אילן` וגם אם המהדורה עתידית.
+  /// כל הכוננים, לא רק Registry: התקנה מועתקת אינה רשומה, והתקנה חלקית רצה
+  /// מהתקן נשלף שאות הכונן שלו משתנה.
   static List<ResponsaInstallation> _fromFileSystem() {
     final roots = <String>{
       for (final variable in const [
@@ -183,7 +162,6 @@ class ResponsaInstallationDiscovery {
     final found = <ResponsaInstallation>[];
     final scanned = <String>{};
 
-    /// רושם תיקייה כהתקנה אם יש בה את קובץ ההרצה.
     void consider(String directory) {
       final name = path.basename(directory);
       if (!File(path.join(directory, executableName)).existsSync()) return;
@@ -202,16 +180,15 @@ class ResponsaInstallationDiscovery {
       final directory = Directory(root);
       if (!scanned.add(root.toLowerCase())) return const [];
       if (!directory.existsSync()) return const [];
-      // גם השורש עצמו. בהתקנה חלקית קובץ ההרצה יושב לעתים ישירות על
-      // ההתקן — `E:\RESPONSA.exe` — וסריקה שבודקת רק ילדים מחמיצה אותה.
+      // גם השורש עצמו: בהתקנה חלקית קובץ ההרצה יושב לעתים ב-`E:\RESPONSA.exe`.
       consider(root);
       final children = <Directory>[];
       try {
         var seen = 0;
         for (final entry in directory.listSync(followLinks: false)) {
           if (entry is! Directory) continue;
-          // התקרה סופרת **תיקיות**, לא ערכים. שורש כונן עם מאות קבצים
-          // רופפים היה קוטע את הסריקה לפני התיקייה הראשונה.
+          // סופרים תיקיות ולא ערכים: מאות קבצים רופפים בשורש היו קוטעים
+          // את הסריקה לפני התיקייה הראשונה.
           if (++seen > _maxEntriesPerDirectory) break;
           final name = path.basename(entry.path);
           if (_skippedDirectories.contains(name.toLowerCase())) continue;
@@ -224,8 +201,7 @@ class ResponsaInstallationDiscovery {
       return children;
     }
 
-    // רמה שנייה בשורש הכונן: התקנה שהועתקה יושבת לעתים ב-`D:\תוכנות\בר
-    // אילן 25`. חייב לרוץ **לפני** לולאת `roots` — `scanned` חוסם סריקה
+    // רמה שנייה בשורש הכונן, ולפני לולאת `roots`: `scanned` חוסם סריקה
     // חוזרת, ושורש שנסרק קודם היה מחזיר כאן רשימה ריקה.
     final driveRoots = drives();
     for (final drive in driveRoots) {
@@ -256,13 +232,8 @@ class ResponsaInstallationDiscovery {
     '.git',
   };
 
-  /// אותיות הכוננים הקיימות במחשב, כנתיבי שורש (`E:\`).
-  ///
-  /// ציבורי כדי ש-[ResponsaInstallation.archivePath] יוכל לחפש את
-  /// הארכיון על התקן נשלף, שאות הכונן שלו משתנה ממחשב למחשב.
-  ///
-  /// `GetLogicalDrives` הוא מפת ביטים בקריאה אחת, ולכן זול בהרבה
-  /// מבדיקת 26 תיקיות — שכל אחת מהן על כונן מנותק עולה בהמתנה.
+  /// נתיבי שורש (`E:\`). `GetLogicalDrives` בקריאה אחת, כי בדיקת 26 תיקיות
+  /// עולה בהמתנה על כל כונן מנותק.
   static List<String> drives() {
     final mask = GetLogicalDrives().value;
     if (mask == 0) return const [];
@@ -273,13 +244,8 @@ class ResponsaInstallationDiscovery {
     ];
   }
 
-  /// המופעים הרצים ששייכים להתקנה נתונה.
-  ///
-  /// ההשוואה היא לפי נתיב קובץ ההרצה. מופע ששייך להתקנה אחרת עלול
-  /// להציג קטלוג אחר לגמרי.
-  ///
-  /// **בלי סינון שימושיות.** גם מופע חונה מעיד על ההתקנה, וזו בדיוק
-  /// השאלה כאן. מי שצריך מופע לעבוד מולו קורא ל-[ResponsaInstance.pick].
+  /// לפי נתיב קובץ ההרצה, כולל מופעים חונים (הם עדיין מעידים על ההתקנה).
+  /// מופע לעבודה בוחרים ב-[ResponsaInstance.pick].
   static List<ResponsaInstance> instancesOf(String installPath) {
     final wanted = installPath.toLowerCase().replaceAll(RegExp(r'[\\/]+$'), '');
     return [
@@ -294,20 +260,8 @@ class ResponsaInstallationDiscovery {
     ];
   }
 
-  /// בוחר את ההתקנה שיש לעבוד מולה, יחד עם המופעים החיים שלה.
-  ///
-  /// סדר ההכרעה, וכל שלב בו נובע מכשל שנצפה:
-  ///
-  /// 1. **ההתקנה שנתיבה [preferredPath]** — זו שממנה נבנה הקטלוג.
-  ///    הפניה שנבנתה ממאגר אחד אינה בהכרח מוליכה לאותו ספר במאגר אחר.
-  /// 2. **ההתקנה שיש לה מופע שאפשר לעבוד מולו.** על מחשב עם שתי התקנות,
-  ///    אחת מהן פתוחה, בחירה בשנייה מסתיימת ב"התוכנה אינה פעילה" בזמן
-  ///    שהמשתמש רואה אותה פתוחה מולו.
-  /// 3. **ההתקנה שיש לה מופע כלשהו**, גם חונה — הוא עדיין מעיד עליה.
-  /// 4. ההתקנה המועדפת לפי דירוג הגילוי, גם בלי מופע חי — כדי שאפשר
-  ///    יהיה להעלות אותה.
-  ///
-  /// `null` רק כשאין אף התקנה שימושית.
+  /// סדר: [preferredPath] (ממנה נבנה הקטלוג), התקנה עם מופע שמיש, עם מופע
+  /// כלשהו, ואז הראשונה בדירוג. `null` רק כשאין התקנה שימושית.
   static ResponsaSelection? selectInstallation({String? preferredPath}) {
     final installations = discover().where((i) => i.exists).toList();
     if (installations.isEmpty) return null;
@@ -343,8 +297,8 @@ class ResponsaInstallationDiscovery {
           instances: instancesOf(installation.installPath),
         ),
     ];
-    // **השימושי קודם לחי.** התקנה שכל מופעיה חונים מחוץ למסך אינה
-    // עדיפה על התקנה שאפשר להעלות מופע גלוי שלה.
+    // השמיש קודם לחי: אחרת נבחרת התקנה שמופעה חונה, והמשתמש רואה "אינה
+    // פעילה" מול תוכנה פתוחה.
     for (final candidate in withInstances) {
       if (ResponsaInstance.pick(candidate.instances) != null) return candidate;
     }
@@ -374,35 +328,28 @@ class ResponsaInstallationDiscovery {
     return found;
   }
 
-  /// נתיב קובץ ההרצה של מופע רץ.
-  ///
-  /// נדרש כדי לקשור מופע להתקנה: יכולים לרוץ כמה מופעים, ולכל אחד יכול
-  /// להיות אתר נתונים אחר. קטלוג שנבנה ממופע אחד ותויג בטביעת אצבע של
-  /// התקנה אחרת מתאר מאגר שאינו קיים.
+  /// קושר מופע להתקנה: לכל מופע יכול להיות אתר נתונים אחר.
   static String? executableOf(int pid) => _executableOf(pid);
 
   static String? _executableOf(int pid) => ResponsaWin32.processImagePath(pid);
 
   // ------------------------------------------------------- טביעת אצבע
 
-  /// מעל הגודל הזה לא מחשבים SHA-256. `RESPONSA.exe` הוא ~3.9MB ולכן
-  /// תמיד נכנס; המגבלה מגינה מפני שינוי מבנה עתידי.
+  /// `RESPONSA.exe` הוא ~3.9MB; המגבלה מגינה מפני שינוי עתידי.
   static const int _maxHashBytes = 64 * 1024 * 1024;
 
   static ResponsaFingerprint fingerprint(
     ResponsaInstallation installation, {
     bool withHash = true,
   }) {
-    // בהתקנה חלקית הארכיון אינו יושב ליד קובץ ההרצה אלא באתר הנתונים
-    // (או על ההתקן הנשלף). היעדרו אינו כשל — טביעת האצבע נשארת תקפה גם
-    // בלעדיו, והיא מסתמכת אז על הנתיב, הגרסה ו-hash של קובץ ההרצה.
+    // בהתקנה חלקית הארכיון יכול להיעדר; טביעת האצבע נשענת אז על הנתיב,
+    // הגרסה ו-hash של קובץ ההרצה.
     int? size;
     int? mtime;
     if (installation.archivePath case final archive?) {
       final stat = File(archive).statSync();
-      // גודל שלילי הוא ערך הסנטינל של `statSync` כשהקובץ נעלם בין
-      // הבדיקה לקריאה — התקן נשלף שנשלף. שמירתו הייתה מתייגת את
-      // הקטלוג ב-`-1` ומייצרת "ההתקנה השתנתה" בכל פתיחה מכאן ואילך.
+      // גודל שלילי = הקובץ נעלם בין הבדיקה לקריאה; שמירת `-1` הייתה מייצרת
+      // "ההתקנה השתנתה" בכל פתיחה.
       if (stat.size >= 0) {
         size = stat.size;
         mtime = stat.modified.millisecondsSinceEpoch ~/ 1000;

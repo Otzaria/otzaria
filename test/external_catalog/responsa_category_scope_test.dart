@@ -4,10 +4,8 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 
-/// חיפוש **בתוך קטגוריה** מחפש בקטגוריה.
-///
-/// בלי הסינון כל 8,400 ספרי בר אילן הצטרפו לכל חיפוש מקומי, גם כשהמשתמש
-/// עומד בתוך `תנ״ך` — והציפו את התוצאות של הספרים שבאמת שם.
+/// בלי סינון לפי קטגוריה כל ספרי בר אילן מצטרפים לכל חיפוש מקומי, גם בתוך
+/// `תנ״ך`, ומציפים את תוצאות הספרים שבאמת שם.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
