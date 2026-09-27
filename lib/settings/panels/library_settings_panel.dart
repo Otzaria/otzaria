@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart'
@@ -232,6 +234,7 @@ class _LibrarySettingsPanelState extends State<LibrarySettingsPanel> {
     final finished = _responsaBuildProgress;
     if (finished?.stage == ResponsaBuildStage.done) {
       DataRepository.instance.invalidateExternalBooksCache();
+      unawaited(ResponsaCatalogRepository.instance.refreshBackup());
       UiSnack.show(SettingsMessages.responsaCatalogBuilt(finished!.books));
     } else if (finished?.error case final error?) {
       UiSnack.showError(error);

@@ -2,8 +2,10 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/external_catalog/providers/external_provider_registry.dart';
+import 'package:otzaria/external_catalog/responsa/responsa_catalog_backup.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_catalog_schema.dart';
 import 'package:otzaria/external_catalog/responsa/responsa_paths.dart';
 import 'package:otzaria/external_catalog/responsa/text/responsa_names.dart';
@@ -97,13 +99,41 @@ class ResponsaCatalogRepository {
   String? get databasePath => databasePathOverride ?? ResponsaPaths.catalogPath;
 
   Future<bool> exists() async {
-    final target = databasePath;
+    final target = await _readyPath();
     if (target == null) return false;
     return File(target).exists();
   }
 
-  sqlite3.Database? _open() {
+  /// יישור עותק הביטחון, פעם אחת לסשן — לפני הקריאה הראשונה, כדי שקטלוג
+  /// שנמחק ישוחזר לפני שמישהו מסיק שאין קטלוג.
+  Future<void>? _backupSync;
+
+  /// מיישר מחדש את עותק הביטחון. נקרא אחרי בנייה, שהחליפה את הקטלוג.
+  Future<void> refreshBackup() => _backupSync = _syncBackup();
+
+  Future<void> _syncBackup() async {
     final target = databasePath;
+    // בבדיקות הנתיב מוחלף, ועותק שהיה נכתב לתיקיית הגיבויים האמיתית של
+    // המשתמש הוא בדיוק מה שאסור שבדיקה תעשה.
+    if (target == null || databasePathOverride != null) return;
+    try {
+      await ResponsaCatalogBackup.sync(
+        catalogPath: target,
+        backupDirectory: await AppPaths.getBackupPath(),
+      );
+    } catch (error) {
+      debugPrint('ResponsaCatalogRepository: backup sync failed: $error');
+    }
+  }
+
+  /// נתיב הקטלוג, אחרי שעותק הביטחון יושר.
+  Future<String?> _readyPath() async {
+    await (_backupSync ??= _syncBackup());
+    return databasePath;
+  }
+
+  Future<sqlite3.Database?> _open() async {
+    final target = await _readyPath();
     if (target == null || !File(target).existsSync()) return null;
     try {
       return sqlite3.sqlite3.open(target, mode: sqlite3.OpenMode.readOnly);
@@ -115,7 +145,7 @@ class ResponsaCatalogRepository {
 
   /// מצב הקטלוג — קיים, כמה ספרים, ומאיזו התקנה נבנה.
   Future<ResponsaCatalogInfo> info() async {
-    final db = _open();
+    final db = await _open();
     if (db == null) return ResponsaCatalogInfo.missing;
     try {
       final meta = <String, String>{};
@@ -151,7 +181,7 @@ class ResponsaCatalogRepository {
   /// אלפי-שניות שרצה על ה-UI isolate ומפילה פריימים בדיוק ברגע שהמשתמש
   /// מחפש. היא נקראת פעם אחת לסשן.
   Future<List<ExternalLibraryBook>> loadBooks() async {
-    final path = databasePath;
+    final path = await _readyPath();
     if (path == null || !File(path).existsSync()) return const [];
     try {
       final rows = await Isolate.run(() {
@@ -209,7 +239,7 @@ class ResponsaCatalogRepository {
   /// נסיגה בזמן ריצה יכולה רק להשמיט מילים, וזה ניחוש: `היכלות` נפתח,
   /// ואילו השם כפי שהוא במאגר — `(108-126 'היכלות (עמ` — אינו נפתח כלל.
   Future<List<String>> openRefsFor(String externalKey) async {
-    final db = _open();
+    final db = await _open();
     if (db == null) return const [];
     try {
       // `SELECT *` ולא רשימת עמודות: קטלוג בסכמה 1 אינו מכיר `alt_refs`,
@@ -240,7 +270,7 @@ class ResponsaCatalogRepository {
   /// נדרש בזמן פתיחה: על מחשב עם שתי התקנות, הפניה שנבנתה ממאגר אחד
   /// יכולה להוליך לספר אחר במאגר השני.
   Future<String?> sourceInstallPath() async {
-    final db = _open();
+    final db = await _open();
     if (db == null) return null;
     try {
       final rows = db.select(
@@ -261,7 +291,7 @@ class ResponsaCatalogRepository {
     String sql,
     List<Object?> arguments,
   ) async {
-    final db = _open();
+    final db = await _open();
     if (db == null) return const [];
     try {
       return [
