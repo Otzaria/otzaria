@@ -1,31 +1,19 @@
+import 'package:flutter/foundation.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_profile.dart';
 import 'package:otzaria/external_catalog/responsa/native/responsa_win32.dart';
 
-/// איך פקד זוהה. משמש למדידת דרגת הביטחון בגילוי.
-enum MatchedBy { id, text, uniqueClass }
-
 class MatchedControl {
-  final String role;
   final int hwnd;
-  final int controlId;
-  final MatchedBy matchedBy;
 
-  const MatchedControl({
-    required this.role,
-    required this.hwnd,
-    required this.controlId,
-    required this.matchedBy,
-  });
+  const MatchedControl({required this.hwnd});
 }
 
 class DiscoveredDialog {
-  final String role;
   final int hwnd;
   final int container;
   final Map<String, MatchedControl> controls;
 
   const DiscoveredDialog({
-    required this.role,
     required this.hwnd,
     required this.container,
     required this.controls,
@@ -53,7 +41,8 @@ class ResponsaDiscovery {
     return null;
   }
 
-  static bool _titleMatches(String title, DialogHints hints) {
+  @visibleForTesting
+  static bool titleMatches(String title, DialogHints hints) {
     if (hints.titleEquals.isNotEmpty) {
       return hints.titleEquals.contains(title.trim());
     }
@@ -81,7 +70,7 @@ class ResponsaDiscovery {
       if (ResponsaWin32.className(hwnd) != hints.windowClass) continue;
       if (visibleOnly && !ResponsaWin32.isVisible(hwnd)) continue;
       if (hints.topLevel && !ResponsaWin32.isTopLevel(hwnd)) continue;
-      if (!_titleMatches(ResponsaWin32.windowText(hwnd), hints)) continue;
+      if (!titleMatches(ResponsaWin32.windowText(hwnd), hints)) continue;
       found.add(hwnd);
     }
     found.sort((a, b) {
@@ -105,12 +94,7 @@ class ResponsaDiscovery {
       for (final hwnd in byClass) {
         final id = ResponsaWin32.controlId(hwnd);
         if (hints.controlIds.contains(id)) {
-          return MatchedControl(
-            role: hints.role,
-            hwnd: hwnd,
-            controlId: id,
-            matchedBy: MatchedBy.id,
-          );
+          return MatchedControl(hwnd: hwnd);
         }
       }
     }
@@ -120,23 +104,13 @@ class ResponsaDiscovery {
         // '&' הוא סמן מקש-קיצור ואינו חלק מהתווית.
         final text = ResponsaWin32.windowText(hwnd).replaceAll('&', '');
         if (hints.textContains.any(text.contains)) {
-          return MatchedControl(
-            role: hints.role,
-            hwnd: hwnd,
-            controlId: ResponsaWin32.controlId(hwnd),
-            matchedBy: MatchedBy.text,
-          );
+          return MatchedControl(hwnd: hwnd);
         }
       }
     }
 
     if (byClass.length == 1) {
-      return MatchedControl(
-        role: hints.role,
-        hwnd: byClass.single,
-        controlId: ResponsaWin32.controlId(byClass.single),
-        matchedBy: MatchedBy.uniqueClass,
-      );
+      return MatchedControl(hwnd: byClass.single);
     }
     return null;
   }
@@ -174,7 +148,6 @@ class ResponsaDiscovery {
         final matched = _matchContainer(container, hints);
         if (matched != null && matched.isNotEmpty) {
           return DiscoveredDialog(
-            role: hints.role,
             hwnd: dialog,
             container: container,
             controls: matched,
@@ -190,7 +163,6 @@ class ResponsaDiscovery {
     for (final dialog in candidateDialogs(pid, hints, visibleOnly: true))
       if (_matchContainer(dialog, hints) case final matched?)
         DiscoveredDialog(
-          role: hints.role,
           hwnd: dialog,
           container: dialog,
           controls: matched,

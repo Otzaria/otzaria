@@ -119,10 +119,12 @@ class ResponsaVersionProfile {
   static ResponsaVersionProfile forVersion(int? version) =>
       ResponsaVersionProfile(version: version);
 
+  // הכותרות והתוויות בשלוש שפות הממשק, כפי שהן במשאבי Hebrew.dll,
+  // English.dll ו-French.dll. מזהי הפקדים זהים בשלושתן.
   static const DialogHints citationHints = DialogHints(
     role: 'citation',
     windowClass: '#32770',
-    titleContains: {'עיון'},
+    titleContains: {'עיון', 'Text'},
     controls: [
       ControlHints(
         role: 'reference_edit',
@@ -133,7 +135,7 @@ class ResponsaVersionProfile {
         role: 'search_button',
         classNames: {'Button'},
         controlIds: {1187},
-        textContains: {'חיפוש', 'בצע'},
+        textContains: {'חיפוש', 'בצע', 'Search', 'Rechercher'},
       ),
       ControlHints(
         role: 'results_list',
@@ -144,14 +146,14 @@ class ResponsaVersionProfile {
         role: 'clear_button',
         classNames: {'Button'},
         controlIds: {1062},
-        textContains: {'ניקוי'},
+        textContains: {'ניקוי', 'Clear', 'Effacer'},
         required: false,
       ),
       ControlHints(
         role: 'show_text_button',
         classNames: {'Button'},
         controlIds: {1},
-        textContains: {'הצג'},
+        textContains: {'הצג', 'Display', 'Afficher'},
         required: false,
       ),
     ],
@@ -160,12 +162,12 @@ class ResponsaVersionProfile {
   static const DialogHints infoModalHintsDefault = DialogHints(
     role: 'info_modal',
     windowClass: '#32770',
-    titleEquals: {'מידע'},
+    titleEquals: {'מידע', 'Information'},
     controls: [
       ControlHints(
         role: 'ok_button',
         classNames: {'Button'},
-        textContains: {'אישור'},
+        textContains: {'אישור', 'OK'},
       ),
     ],
   );
