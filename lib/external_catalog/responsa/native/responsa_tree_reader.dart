@@ -27,6 +27,18 @@ class ResponsaTreeNode {
   });
 }
 
+/// הסריקה לא הושלמה, ולכן אסור שתחליף קטלוג קיים.
+///
+/// הודעת השגיאה מיועדת למשתמש כפי שהיא.
+class ResponsaTreeReadException implements Exception {
+  final String message;
+
+  const ResponsaTreeReadException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 /// קריאת עץ הקטלוג של פרויקט השו"ת, חוצה-תהליכים.
 ///
 /// **זה המקור היחיד לרשימת הספרים.** בהתקנה אין קובץ קריא שמכיל אותה:
@@ -71,6 +83,11 @@ class ResponsaTreeReader {
   /// מופע שהמשתמש משאיר פתוח ימים — וכל `WM_SETTINGCHANGE`, ש-Windows
   /// שולחת בין השאר ביציאה משינה, משבית אותו לכמה שניות. ראה
   /// [_TreeSession.collapse].
+  ///
+  /// **זורק [ResponsaTreeReadException] כשהסריקה לא הושלמה** — אין גישה
+  /// לתהליך, או שהודעה אחת לא נענתה. הודעה שלא נענתה נראית כמו "אין עוד
+  /// ילדים", וסריקה שנקטעה הייתה נשמרת כקטלוג שלם: הספרים החסרים נעלמים,
+  /// ובבנייה הבאה הם מקבלים מזהים חדשים ששוברים סימניות. ביטול אינו כשל.
   static List<ResponsaTreeNode> walk({
     required int pid,
     required int treeHandle,
@@ -81,7 +98,12 @@ class ResponsaTreeReader {
     int maxNodes = 3000000,
   }) {
     final session = _TreeSession.open(pid, treeHandle);
-    if (session == null) return const [];
+    if (session == null) {
+      throw const ResponsaTreeReadException(
+        'אין גישה לחלון של בר אילן. ייתכן שהוא פועל כמנהל מערכת ואוצריא לא '
+        '— יש לפתוח את שניהם באותה הרשאה.',
+      );
+    }
     final walk = _Walk(
       session: session,
       onProgress: onProgress,
@@ -106,40 +128,13 @@ class ResponsaTreeReader {
     } finally {
       session.close();
     }
-    return walk.nodes;
-  }
-
-  /// ילדיו הישירים של הצומת ש[path] מוליך אליו, לפי שמות מהשורש.
-  ///
-  /// כלי אבחון: מאפשר לקרוא ענף בודד בלי לסרוק 1.25 מיליון צמתים, ולכן
-  /// גם לבדוק אם ענף חוזר על עצמו בקריאה שנייה. `null` כשהנתיב לא נמצא.
-  static List<ResponsaTreeNode>? childrenAtPath({
-    required int pid,
-    required int treeHandle,
-    required List<String> path,
-  }) {
-    final session = _TreeSession.open(pid, treeHandle);
-    if (session == null) return null;
-    try {
-      var item = session.root;
-      var level = 0;
-      for (final name in path) {
-        final match = session
-            .siblings(item, level, const [])
-            .where((sibling) => sibling.node.name.trim() == name.trim())
-            .firstOrNull;
-        if (match == null) return null;
-        final child = session.firstChild(match.handle);
-        if (child == 0) return const [];
-        item = child;
-        level++;
-      }
-      return [
-        for (final node in session.siblings(item, level, path)) node.node,
-      ];
-    } finally {
-      session.close();
+    if (session.failed) {
+      throw const ResponsaTreeReadException(
+        'בר אילן הפסיק להגיב באמצע הסריקה, או שנסגר. הקטלוג הקיים לא הוחלף '
+        '— יש לנסות שוב.',
+      );
     }
+    return walk.nodes;
   }
 
   /// מאתר את ה-TreeView של הקטלוג בתוך דיאלוג העיון.
@@ -160,6 +155,28 @@ class _TreeSession {
   final HANDLE process;
   final Pointer remoteItem;
   final Pointer remoteText;
+
+  /// האם הודעת קריאה אחת לפחות לא נענתה — חלון תקוע, סגור, או חסום.
+  bool failed = false;
+
+  /// הודעת קריאה. `null` (לא נענתה) נרשם ב-[failed], ומוחזר `0` — מה
+  /// שהמתקשר ממילא מפרש כ"אין".
+  int _read(
+    int message, {
+    int wParam = 0,
+    int lParam = 0,
+    int timeoutMs = 5000,
+  }) {
+    final result = ResponsaWin32.send(
+      treeHandle,
+      message,
+      wParam: wParam,
+      lParam: lParam,
+      timeoutMs: timeoutMs,
+    );
+    if (result == null) failed = true;
+    return result ?? 0;
+  }
 
   /// גודל `TVITEMW` בתהליך 32-ביט.
   static const int itemSize32 = 40;
@@ -241,71 +258,31 @@ class _TreeSession {
     CloseHandle(process);
   }
 
-  int get root =>
-      ResponsaWin32.send(
-        treeHandle,
-        ResponsaTreeReader.tvmGetNextItem,
-        wParam: ResponsaTreeReader.tvgnRoot,
-        timeoutMs: 5000,
-      ) ??
-      0;
+  int get root => _read(
+    ResponsaTreeReader.tvmGetNextItem,
+    wParam: ResponsaTreeReader.tvgnRoot,
+  );
 
   /// מרחיב צומת ומחזיר את ידית ילדו הראשון, או `0`.
   int firstChild(int item) {
-    ResponsaWin32.send(
-      treeHandle,
+    _read(
       ResponsaTreeReader.tvmExpand,
       wParam: ResponsaTreeReader.tveExpand,
       lParam: item,
       timeoutMs: 8000,
     );
-    return ResponsaWin32.send(
-          treeHandle,
-          ResponsaTreeReader.tvmGetNextItem,
-          wParam: ResponsaTreeReader.tvgnChild,
-          lParam: item,
-          timeoutMs: 5000,
-        ) ??
-        0;
+    return _read(
+      ResponsaTreeReader.tvmGetNextItem,
+      wParam: ResponsaTreeReader.tvgnChild,
+      lParam: item,
+    );
   }
 
-  int nextSibling(int item) =>
-      ResponsaWin32.send(
-        treeHandle,
-        ResponsaTreeReader.tvmGetNextItem,
-        wParam: ResponsaTreeReader.tvgnNext,
-        lParam: item,
-        timeoutMs: 5000,
-      ) ??
-      0;
-
-  /// כל האחים מ-[item] והלאה, בלי להיכנס לילדיהם.
-  List<({int handle, ResponsaTreeNode node})> siblings(
-    int item,
-    int level,
-    List<String> parentPath,
-  ) {
-    final found = <({int handle, ResponsaTreeNode node})>[];
-    var current = item;
-    while (current != 0) {
-      final read = readItem(current);
-      found.add((
-        handle: current,
-        node: ResponsaTreeNode(
-          name: read.name,
-          param: read.param,
-          level: level,
-          path: [
-            ...parentPath,
-            read.name,
-          ].join(ResponsaTreeReader.pathSeparator),
-          childCount: read.children,
-        ),
-      ));
-      current = nextSibling(current);
-    }
-    return found;
-  }
+  int nextSibling(int item) => _read(
+    ResponsaTreeReader.tvmGetNextItem,
+    wParam: ResponsaTreeReader.tvgnNext,
+    lParam: item,
+  );
 
   /// מקפל צומת ומוחק את צאצאיו מה-TreeView.
   ///
@@ -354,13 +331,12 @@ class _TreeSession {
         calloc.free(written);
       }
 
-      final ok = ResponsaWin32.send(
-        treeHandle,
+      final ok = _read(
         ResponsaTreeReader.tvmGetItemW,
         lParam: remoteItem.address,
         timeoutMs: 8000,
       );
-      if (ok == null || ok == 0) return (name: '', param: 0, children: 0);
+      if (ok == 0) return (name: '', param: 0, children: 0);
 
       final readBack = calloc<Uint8>(itemSize32);
       final textBuffer = calloc<Uint16>(_textChars);
@@ -431,6 +407,7 @@ class _Walk {
     }
 
     final read = session.readItem(item);
+    if (session.failed) return false;
     final path = [...parentPath, read.name];
     nodes.add(
       ResponsaTreeNode(
