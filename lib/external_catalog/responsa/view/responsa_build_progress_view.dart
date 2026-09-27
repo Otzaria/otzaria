@@ -71,7 +71,7 @@ class ResponsaBuildStatus {
     if (total > 0 && scanned <= total * _overshoot) {
       final fraction = (scanned / total).clamp(0.0, 0.99);
       Duration? remaining;
-      if (scanElapsed >= _settle && scanned > 0) {
+      if (scanElapsed >= _settle && scanned > 0 && scanned < total) {
         final seconds = scanElapsed.inSeconds * (total - scanned) / scanned;
         // עיגול לחמש שניות: הקצב משתנה בין ענפים, ומספר שקופץ בכל
         // שנייה נראה כמו ניחוש — וזה מה שהוא ברזולוציה הזו.
@@ -180,6 +180,10 @@ class _ResponsaBuildProgressViewState extends State<ResponsaBuildProgressView> {
   final Stopwatch _scan = Stopwatch();
   late final Timer _tick;
 
+  /// הסרגל אינו חוזר אחורה. כשהסריקה עוברת את המכנה של הבנייה הקודמת
+  /// ההתקדמות עוברת לספירת קטגוריות, שהיא בדרך כלל נמוכה יותר.
+  double _shown = 0;
+
   @override
   void initState() {
     super.initState();
@@ -199,6 +203,12 @@ class _ResponsaBuildProgressViewState extends State<ResponsaBuildProgressView> {
     final scanning = widget.progress.stage == ResponsaBuildStage.scanning;
     if (scanning && !_scan.isRunning) _scan.start();
     if (!scanning && _scan.isRunning) _scan.stop();
+  }
+
+  double? _monotonic(double? fraction) {
+    if (fraction == null) return null;
+    if (fraction > _shown) _shown = fraction;
+    return _shown;
   }
 
   @override
@@ -222,7 +232,7 @@ class _ResponsaBuildProgressViewState extends State<ResponsaBuildProgressView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           LinearProgressIndicator(
-            value: status.fraction,
+            value: _monotonic(status.fraction),
             minHeight: 6,
             borderRadius: BorderRadius.circular(3),
           ),

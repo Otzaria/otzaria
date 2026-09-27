@@ -42,6 +42,16 @@ void main() {
     );
   });
 
+  test('בין המכנה ל-5% מעליו — בלי "נותרו כ-0:00"', () {
+    final status = ResponsaBuildStatus.of(
+      scanning(1020000),
+      expectedNodes: 1000000,
+      scanElapsed: const Duration(minutes: 5),
+    );
+    expect(status.fraction, 0.99);
+    expect(status.remaining, isNull);
+  });
+
   test('הסריקה עברה את המכנה — הוא כבר אינו מכנה', () {
     final status = ResponsaBuildStatus.of(
       scanning(1200000, done: 3, total: 20),

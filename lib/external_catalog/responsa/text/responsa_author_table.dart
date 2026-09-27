@@ -46,7 +46,7 @@ class ResponsaAuthorTable {
   String? authorOf(int bookId) => _authors[bookId];
 
   /// האם שני שמות יכולים להיות של אותו אדם: יש ביניהם מילת שם משותפת
-  /// אחת לפחות, מלבד תארים ומילות יחוס.
+  /// אחת לפחות, מלבד תארים, מילות יחוס ושם האב שאחרי `בן`.
   ///
   /// **מחמיר רק במקרה המובהק.** השוואה של שם המשפחה בלבד נמדדה ונפסלה:
   /// היא פוסלת את `הלברשטאם` מול `הלברשטם` ואת `פרעסבורגער` מול
@@ -55,23 +55,39 @@ class ResponsaAuthorTable {
   static bool mayBeSamePerson(String a, String b) =>
       _nameWords(a).intersection(_nameWords(b)).isNotEmpty;
 
-  static Set<String> _nameWords(String name) => {
+  static Set<String> _nameWords(String name) {
+    final words = <String>{};
+    var father = false;
     for (final word in ResponsaHebrew.tokens(
       ResponsaNames.withoutQualifier(name),
-    ))
-      if (!_titleWords.contains(word)) word,
-  };
+    )) {
+      if (father) {
+        father = false;
+      } else if (_fatherWords.contains(word)) {
+        father = true;
+      } else if (!_titleWords.contains(word)) {
+        words.add(word);
+      }
+    }
+    return words;
+  }
+
+  /// `בן` ו-`בר`: המילה שאחריהן היא שם האב — `רבי שלמה בן יצחק` אינו
+  /// אותו אדם כמו `ר' יצחק אלפסי`.
+  static const Set<String> _fatherWords = {'בנ', 'בר'};
 
   /// תארים ומילות יחוס, אחרי [ResponsaHebrew.spellingKey] — `רבי` הוא
   /// `רב`, `הלוי` הוא `הל`. שני אנשים שונים חולקים אותן תמיד.
   static const Set<String> _titleWords = {
     'ר',
     'רב',
+    'הרב',
     'רבנ',
-    'בנ',
-    'בר',
     'הכהנ',
     'הל',
+    'אבנ',
+    'ד',
+    'דה',
   };
 
   /// גודל רשומה, בשתי הטבלאות.

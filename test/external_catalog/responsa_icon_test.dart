@@ -45,7 +45,7 @@ void main() {
     });
   });
 
-  test('חילוץ מההתקנה שעל המכונה', () {
+  test('חילוץ מההתקנה שעל המכונה', tags: ['live'], () {
     const candidates = [
       r'C:\Program Files (x86)\ResponsaCD25H\RESPONSA.exe',
       r'C:\Program Files (x86)\ResponsaCD25\RESPONSA.exe',

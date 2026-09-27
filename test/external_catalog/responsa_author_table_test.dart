@@ -196,6 +196,23 @@ void main() {
       );
     });
 
+    test('שם האב ו"אבן" אינם שם משותף', () {
+      expect(
+        ResponsaAuthorTable.mayBeSamePerson(
+          'רבי שלמה בן יצחק (צרפת, המאה ה - 11)',
+          "ר' יצחק אלפסי",
+        ),
+        isFalse,
+      );
+      expect(
+        ResponsaAuthorTable.mayBeSamePerson(
+          'רבי יוסף אבן חביב',
+          "ר' אברהם אבן עזרא",
+        ),
+        isFalse,
+      );
+    });
+
     test('שני אנשים שונים — גם כששניהם "הכהן"', () {
       expect(
         ResponsaAuthorTable.mayBeSamePerson(
