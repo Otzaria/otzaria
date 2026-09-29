@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
@@ -1408,38 +1409,90 @@ String removeTeamim(String s) => s
     .replaceAll('׀', '')
     .replaceAll(_cantillationOnly, '');
 
-/// נורמליזציה לצורך התאמת מקור (FindRef):
-/// מסיר ניקוד, טעמים, גרשיים, סימני פיסוק, ומאחד רווחים.
-/// "שו"ע" → "שוע" ; "בְּרֵאשִׁית" → "בראשית".
+/// נורמליזציה להתאמת מקור: בלי ניקוד, טעמים, גרשיים ופיסוק; "שו"ע" → "שוע".
+/// "ב." → "ב א", "ב:" → "ב ב" לרצף 1–3 אותיות שלפניו אין גרש ("פ"א." = קיצור).
 String normalizeForFindRefMatch(String input) {
-  var cleaned = removeTeamim(removeVolwels(input));
+  // שלב 1: כמו removeVolwels — מקף, פסק ו-| לרווח; ניקוד וטעמים נמחקים.
+  final units = Uint16List(input.length);
+  var n = 0;
+  for (var i = 0; i < input.length; i++) {
+    final c = input.codeUnitAt(i);
+    if (c == 0x05BE || c == 0x05C0 || c == 0x7C) {
+      units[n++] = 0x20;
+    } else if (c < 0x0591 || c > 0x05C7) {
+      units[n++] = c;
+    }
+  }
 
-  // הרחבת סימון עמוד גמרא — חייב לרוץ לפני הסרת הגרשיים.
-  // כך קיצורים כמו "פ"א." (גרש לפני האות) נשמרים: הלוקבאק
-  // השלילי מכיל גם גרשיים/גרש, ולכן "פ"א." לא יפורש כציון דף.
-  //   "ב."  (נקודה = עמוד א)  →  "ב א"
-  //   "ב:"  (נקודתיים = עמוד ב)  →  "ב ב"
-  // הטוקנים "א"/"ב" תואמים את ownTokens של רשומות TOC בפורמט "דף ב עמוד א".
-  // הדפוס תופס 1–3 אותיות עבריות הסמוכות לנקודה/נקודתיים בגבול מילה.
-  cleaned = cleaned.replaceAllMapped(
-    RegExp(r'''(?<![א-ת'"״׳])([א-ת]{1,3})\.(?=\s|$)'''),
-    (m) => '${m[1]} א',
-  );
-  cleaned = cleaned.replaceAllMapped(
-    RegExp(r'''(?<![א-ת'"״׳])([א-ת]{1,3}):(?=\s|$)'''),
-    (m) => '${m[1]} ב',
-  );
+  // שלב 2: ציון עמוד, מחיקת גרשיים, החלפת תווים אסורים ואיחוד רווחים.
+  final out = Uint16List(n + (n >> 1) + 1);
+  var m = 0;
+  var pendingSpace = false;
+  void emit(int c) {
+    if (_isFindRefQuote(c)) return;
+    if (c >= 0x41 && c <= 0x5A) {
+      c += 0x20;
+    } else if (!((c >= 0x61 && c <= 0x7A) ||
+        (c >= 0x30 && c <= 0x39) ||
+        (c >= 0x0590 && c <= 0x05FF))) {
+      pendingSpace = true;
+      return;
+    }
+    if (pendingSpace) {
+      if (m > 0) out[m++] = 0x20;
+      pendingSpace = false;
+    }
+    out[m++] = c;
+  }
 
-  // הסרה מוחלטת של גרשיים — כך מ"ב הופך למב (לא מ ב)
-  cleaned = cleaned
-      .replaceAll('"', '')
-      .replaceAll("'", '')
-      .replaceAll('״', '')
-      .replaceAll('׳', '');
+  var i = 0;
+  while (i < n) {
+    final c = units[i];
+    if (!_isHebrewLetter(c)) {
+      emit(c);
+      i++;
+      continue;
+    }
+    // תמיד תחילת רצף אותיות: אות שקודמת לה אות כבר נצרכה בתוך הרצף.
+    var end = i + 1;
+    while (end < n && _isHebrewLetter(units[end])) {
+      end++;
+    }
+    for (var k = i; k < end; k++) {
+      emit(units[k]);
+    }
+    if (end - i <= 3 &&
+        end < n &&
+        (units[end] == 0x2E || units[end] == 0x3A) &&
+        (end + 1 == n || _isRegExpWhitespace(units[end + 1])) &&
+        (i == 0 || !_isFindRefQuote(units[i - 1]))) {
+      pendingSpace = true;
+      emit(units[end] == 0x2E ? 0x05D0 : 0x05D1);
+      end++;
+    }
+    i = end;
+  }
+  return String.fromCharCodes(out, 0, m);
+}
 
-  cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9֐-׿\s]'), ' ');
-  cleaned = cleaned.toLowerCase();
-  return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+bool _isHebrewLetter(int c) => c >= 0x05D0 && c <= 0x05EA;
+
+bool _isFindRefQuote(int c) =>
+    c == 0x22 || c == 0x27 || c == 0x05F3 || c == 0x05F4;
+
+/// התווים ש-`\s` תופס ב-RegExp של Dart (תקן JS), לא ה-White_Space של trim.
+bool _isRegExpWhitespace(int c) {
+  if (c <= 0x20) return c == 0x20 || (c >= 0x09 && c <= 0x0D);
+  if (c < 0xA0) return false;
+  return c == 0xA0 ||
+      c == 0x1680 ||
+      (c >= 0x2000 && c <= 0x200A) ||
+      c == 0x2028 ||
+      c == 0x2029 ||
+      c == 0x202F ||
+      c == 0x205F ||
+      c == 0x3000 ||
+      c == 0xFEFF;
 }
 
 /// מחזיר את [titleToken] בלי אות-חיבור פותחת שהמשתמש עשוי לא להקליד —
