@@ -135,10 +135,32 @@ class LibraryBookIndex {
   final Map<String, TextBook> _textBookByTitle = {};
   final Map<String, Book> _bookByTitle = {};
 
+  // בלי סינון הסתרה: ספר מוסתר שנמצא לפי מזהה חוסם, ואינו נופל לכותרת.
+  final Map<int, TextBook> _anyOfficialTextBookById = {};
+  final Map<(BookSource, int), Book> _bookBySourceAndId = {};
+  final Map<String, PdfBook> _pdfBookByPath = {};
+  final Map<String, Book> _visibleOfficialByTitle = {};
+  final Map<String, TextBook> _visibleOfficialTextByTitle = {};
+
   void _collect(Category category) {
     for (final book in category.books) {
-      if (!visibility.allowsBook(book)) continue;
       final id = book.id;
+      if (id != null) {
+        if (book is TextBook && book.source.isOfficial) {
+          _anyOfficialTextBookById.putIfAbsent(id, () => book);
+        }
+        _bookBySourceAndId.putIfAbsent((book.source, id), () => book);
+      }
+      if (book is PdfBook && book.path.isNotEmpty) {
+        _pdfBookByPath.putIfAbsent(book.path, () => book);
+      }
+      if (!visibility.allowsBook(book)) continue;
+      if (book.source.isOfficial) {
+        _visibleOfficialByTitle.putIfAbsent(book.title, () => book);
+        if (book is TextBook) {
+          _visibleOfficialTextByTitle.putIfAbsent(book.title, () => book);
+        }
+      }
       if (book is TextBook) {
         if (book.source.isOfficial && id != null) {
           _officialTextBookById.putIfAbsent(id, () => book);
@@ -163,6 +185,32 @@ class LibraryBookIndex {
     }
     // fallback ל-title (תאימות לאחור עם DB שלא מחזיר targetBookId).
     return _textBookByTitle[title] ?? _bookByTitle[title];
+  }
+
+  /// כמו [findOfficialTextBookById] על [library], בלי סריקה.
+  TextBook? officialTextBookById(int bookId) =>
+      _anyOfficialTextBookById[bookId];
+
+  /// ה-PdfBook שבעץ לקובץ [path] — עם המזהה והמקור שלו, לזהות טאב והיסטוריה.
+  PdfBook? pdfBookByPath(String path) => _pdfBookByPath[path];
+
+  /// כמו [resolveFindRefBookInLibrary] על [library], בלי סריקה. [visibility]
+  /// של האינדקס חייב להיות זה שהסריקה הייתה מקבלת.
+  Book? resolveFindRefBook(
+    String title, {
+    required int? bookId,
+    required BookSource source,
+    bool preferTextBook = false,
+  }) {
+    if (bookId != null) {
+      final byId = source.isOfficial
+          ? _anyOfficialTextBookById[bookId]
+          : _bookBySourceAndId[(source, bookId)];
+      if (byId != null) return visibility.allowsBook(byId) ? byId : null;
+      if (!source.isOfficial) return null;
+    }
+    return (preferTextBook ? _visibleOfficialTextByTitle[title] : null) ??
+        _visibleOfficialByTitle[title];
   }
 }
 
@@ -669,13 +717,25 @@ class _FindRefDialogState extends State<FindRefDialog> {
     List<String>? initialCommentators,
   }) async {
     _rememberCurrentQuery();
+    // אינדקס 0 נקרא "בלי מיקום" ומשוחזר מההיסטוריה; רק תוצאת ספר-בלבד היא כזו.
+    final hasExplicitLocation = ref.reference != ref.title;
     Book? book;
     var openAsPdf = ref.isPdf;
     var segment = ref.segment.toInt();
 
     if (ref.isPdf && ref.filePath.isNotEmpty) {
-      // Use filePath directly — library search may return a same-titled text book
-      book = PdfBook(title: ref.title, path: ref.filePath);
+      // לפי הנתיב ולא לפי הכותרת — לאותה כותרת עשוי להיות גם ספר טקסט.
+      Library? library;
+      try {
+        library = await DataRepository.instance.library;
+      } catch (e) {
+        debugPrint('Error loading library: $e');
+      }
+      book =
+          (library == null
+              ? null
+              : _indexFor(library).pdfBookByPath(ref.filePath)) ??
+          PdfBook(title: ref.title, path: ref.filePath);
     } else {
       // אם המשתמש ביקש מפרש מסוים — חייבים TextBookTab, כי PdfBookTab אינו
       // מקבל commentators כלל.
@@ -689,11 +749,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
         debugPrint('Error loading library: $e');
       }
 
-      final visibility = library == null
-          ? null
-          : const HiddenLibraryStore().load().isEmpty
-          ? FindRefVisibility.empty()
-          : _indexFor(library).visibility;
+      final index = library == null ? null : _indexFor(library);
+      final visibility = index?.visibility;
       if (visibility != null &&
           !visibility.allowsCandidate(
             ref.source,
@@ -712,7 +769,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           ref.source.isOfficial &&
           library != null &&
           ref.bookId > 0) {
-        final sourceBook = findOfficialTextBookById(library, ref.bookId);
+        final sourceBook = index!.officialTextBookById(ref.bookId);
         if (sourceBook != null) {
           final target = await resolveTalmudBavliPdfBook(sourceBook);
           if (target != null) {
@@ -743,6 +800,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 sourceBook,
                 segment,
                 '',
+                ignoreHistory: segment == 0 && hasExplicitLocation,
                 initialCommentators: initialCommentators,
                 dedupeKey: dedupeKey,
               ),
@@ -765,13 +823,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
         // ספרים אישיים: ה-`bookId` שלהם שייך ל-user_books.db ואין לו תאומים
         // ב-library object, לכן ניפול ל-title; ספר רשמי עם `bookId > 0`
         // נפתח דרך ה-id כדי שלא יחליף שני ספרים בעלי אותה כותרת.
-        book = resolveFindRefBookInLibrary(
-          library,
+        book = index!.resolveFindRefBook(
           ref.title,
           bookId: ref.bookId > 0 ? ref.bookId : null,
           source: ref.source,
           preferTextBook: needsTextBook,
-          visibility: visibility!,
         );
         // ספרי בבלי מופיעים בעץ הספרייה כ-PdfBook גם כשה-DB מכיר אותם
         // כ-txt; ה-segment הוא אינדקס טקסט, לכן נפתחת מהדורת הטקסט.
@@ -793,7 +849,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       book,
       segment,
       '',
-      ignoreHistory: openAsPdf,
+      ignoreHistory: openAsPdf || (segment == 0 && hasExplicitLocation),
       requiresStableLayout: openAsPdf,
       initialCommentators: initialCommentators,
     );

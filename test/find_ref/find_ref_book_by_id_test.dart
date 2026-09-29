@@ -244,4 +244,71 @@ void main() {
       }
     });
   });
+
+  test('פתרון תוצאה דרך האינדקס זהה לסריקות העץ', () {
+    final personalCat = _category('ספרים אישיים');
+    final root = _category('תלמוד בבלי');
+    final sub = _category('ראשונים', parent: root);
+    final hiddenText = TextBook(id: 4, title: 'נזיר');
+    root.books.addAll([
+      PdfBook(id: 1, title: 'ברכות', path: '/berachot.pdf'),
+      TextBook(id: 1, title: 'ברכות'),
+      TextBook(id: 2, title: 'שבת'),
+      hiddenText,
+      TextBook(id: 6, title: 'נזיר'),
+    ]);
+    sub.books.addAll([
+      TextBook(id: 3, title: 'רש"י'),
+      TextBook(id: 2, title: 'שבת'),
+      PdfBook(id: 5, title: 'תוספות', path: '/tos.pdf'),
+    ]);
+    personalCat.books.addAll([
+      TextBook(id: 1, title: 'ברכות', source: BookSource.user),
+      TextBook(id: 3, title: 'שלי', source: BookSource.user),
+      PdfBook(id: 7, title: 'סרוק', path: '/user.pdf', source: BookSource.user),
+    ]);
+    final library = Library(categories: [personalCat, root]);
+    final visibility = FindRefVisibility(
+      HiddenLibrarySelection(bookKeys: {PerBookSettings.bookKey(hiddenText)}),
+      library,
+    );
+    final index = LibraryBookIndex(library, visibility: visibility);
+
+    const titles = ['ברכות', 'שבת', 'נזיר', 'רש"י', 'תוספות', 'שלי', 'אין'];
+    const sources = [BookSource.official, BookSource.user];
+    for (final title in titles) {
+      for (final bookId in [null, 1, 2, 3, 4, 5, 7, 99]) {
+        for (final source in sources) {
+          for (final preferText in [false, true]) {
+            expect(
+              index.resolveFindRefBook(
+                title,
+                bookId: bookId,
+                source: source,
+                preferTextBook: preferText,
+              ),
+              same(
+                resolveFindRefBookInLibrary(
+                  library,
+                  title,
+                  bookId: bookId,
+                  source: source,
+                  visibility: visibility,
+                  preferTextBook: preferText,
+                ),
+              ),
+              reason: '$title id=$bookId $source preferText=$preferText',
+            );
+          }
+        }
+      }
+    }
+    for (var id = 0; id <= 8; id++) {
+      expect(
+        index.officialTextBookById(id),
+        same(findOfficialTextBookById(library, id)),
+        reason: 'id=$id',
+      );
+    }
+  });
 }
