@@ -32,9 +32,13 @@ await verifyZdb('seforim.zdb'); // decodes every frame, checks content hash
 
 `convertToZdb` runs on a worker isolate; compression uses a bounded pool of
 native threads (`threads`, default `cores - 1`, max 16). Memory is bounded by
-two batches of `batchBytes` (default 16MB) plus their compressed output.
-The output goes to `<destination>.part` and is renamed on success; on error
-or cancellation the partial file is deleted.
+two batches of `batchBytes` (default 16MB, clamped to 256MB) plus their
+compressed output. A zstd source may use a long window (`seforim.db.zst` is
+made with `--long=31`): the decoder accepts up to 2^31 (2^30 on 32-bit) and
+allocates the window the stream declares, so such a source needs about 2GB
+of RAM while converting. The output goes to `<destination>.part` and is
+renamed on success; on error or cancellation the partial file is deleted.
+A crash leaves the `.part` behind; the next run overwrites it.
 
 Source rules: must start with a valid SQLite header; the length must be a
 multiple of the page size and at least the page count in the header

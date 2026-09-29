@@ -290,6 +290,10 @@ ZVFS_API int zvfs_conv_feed_zstd(zvfs_conv *c, const void *data, size_t len) {
     c->zbuf = (uint8_t *)malloc(ZSTD_DStreamOutSize());
     if (!c->zin || !c->zbuf) return fail(c, ZVFS_ERR_NOMEM, "out of memory");
     ZSTD_initDStream(c->zin);
+    /* seforim.db.zst is made with --long=31; the default cap is 2^27 */
+    if (ZSTD_isError(ZSTD_DCtx_setParameter(c->zin, ZSTD_d_windowLogMax,
+                                            ZSTD_WINDOWLOG_MAX)))
+      return fail(c, ZVFS_ERR_INVALID, "zstd window limit rejected");
   }
   ZSTD_inBuffer in = {data, len, 0};
   for (;;) {
@@ -326,6 +330,8 @@ ZVFS_API int zvfs_conv_create(const char *dst, const void *dict,
   if (threads > MAX_THREADS) threads = MAX_THREADS;
   if (frame_pages < 1) frame_pages = 1;
   if (batch_bytes == 0) batch_bytes = 16ull << 20;
+  /* keeps the batch buffer math inside size_t on 32-bit targets */
+  if (batch_bytes > (256ull << 20)) batch_bytes = 256ull << 20;
   zvfs_conv *c = (zvfs_conv *)calloc(1, sizeof *c);
   if (!c) return ZVFS_ERR_NOMEM;
   c->cancel = cancel;

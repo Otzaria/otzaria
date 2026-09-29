@@ -340,6 +340,42 @@ static void test_fuzz(int iters) {
   free(src);
 }
 
+/* A source compressed with a window above zstd's 128MB decoder default,
+   like `zstd --long=31` (how seforim.db.zst is published). */
+static void test_zstd_long_window_source(void) {
+  uint32_t ps = 4096, pages = 40;
+  uint8_t *src = make_source(ps, pages, 0);
+  size_t n = (size_t)ps * pages;
+  ZSTD_CCtx *cc = ZSTD_createCCtx();
+  ZSTD_CCtx_setParameter(cc, ZSTD_c_windowLog, 28);
+  ZSTD_CCtx_setParameter(cc, ZSTD_c_enableLongDistanceMatching, 1);
+  size_t cap = ZSTD_compressBound(n) + 1024;
+  uint8_t *z = (uint8_t *)malloc(cap);
+  ZSTD_outBuffer zo = {z, cap, 0};
+  ZSTD_inBuffer zi = {src, n, 0};
+  /* continue-then-end keeps the size unknown, so the window stays 2^28 */
+  CHECK(!ZSTD_isError(ZSTD_compressStream2(cc, &zo, &zi, ZSTD_e_continue)));
+  ZSTD_inBuffer empty = {NULL, 0, 0};
+  CHECK_EQ(ZSTD_compressStream2(cc, &zo, &empty, ZSTD_e_end), 0);
+  ZSTD_freeCCtx(cc);
+  ZSTD_frameHeader fh;
+  CHECK_EQ(ZSTD_getFrameHeader(&fh, z, zo.pos), 0);
+  CHECK(fh.windowSize > (1ull << 27));
+
+  const char *dst = tmp_path("long.zdb");
+  zvfs_conv *c = NULL;
+  CHECK_EQ(zvfs_conv_create(dst, NULL, 0, NULL, 3, 2, 1, 1 << 16, NULL, &c),
+           ZVFS_OK);
+  CHECK_EQ(zvfs_conv_feed_zstd(c, z, zo.pos), ZVFS_OK);
+  zvfs_info info;
+  CHECK_EQ(zvfs_conv_finish(c, &info), ZVFS_OK);
+  zvfs_conv_destroy(c);
+  CHECK_EQ(info.content_xxh64, zvfs_xxh64(src, n, 0));
+  remove(dst);
+  free(z);
+  free(src);
+}
+
 typedef struct {
   zdb_file *f;
   membuf *mb;
@@ -425,6 +461,7 @@ int main(void) {
   test_roundtrips();
   test_converter_errors();
   test_concurrency();
+  test_zstd_long_window_source();
   test_fuzz(iters);
   if (g_failures) {
     fprintf(stderr, "%d check(s) failed\n", g_failures);
