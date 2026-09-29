@@ -580,8 +580,8 @@ class FindRefRepository {
     FindRefVisibility? visibility,
   }) async {
     try {
-      // מסלול הייצור: הסינון רץ בתוך ה-worker isolate ומחזיר רק התאמות —
-      // 61k+ הערכים והנרמול שלהם לא חוצים את גבול ה-isolate ולא חוסמים UI.
+      // מסלול הייצור: הסינון רץ ב-worker ומחזיר רק התאמות — הקאש כולו
+      // והנרמול שלו לא חוצים את גבול ה-isolate.
       final searchFn = searchAltTocFlatEntries;
       if (searchFn != null) {
         final rows = await searchFn(queryTokens, maxRefTokens: maxRefTokens);
@@ -615,26 +615,30 @@ class FindRefRepository {
       }
 
       final flat = await _getAltTocFlatCache();
-      for (final entry in flat) {
-        if (visibility != null &&
-            !visibility.allowsCandidate(
-              BookSource.official,
-              entry.bookId,
-              '',
-            )) {
-          continue;
-        }
-        // Require that ALL query tokens appear in the matched reference.
-        // Prevents partial matches from unrelated books (e.g., "הפטרת נח"
-        // matching only "נח" when the query is "נח עליה ב").
-        if (!altTocFlatMatches(
-          entry.refTokens,
-          queryTokens,
-          maxRefTokens: maxRefTokens,
-        )) {
-          continue;
-        }
-
+      // כל טוקני השאילתה בנתיב הערך — אחרת "הפטרת נח" תואם את "נח עליה ב".
+      final matches = [
+        for (final entry in flat)
+          if ((visibility == null ||
+                  visibility.allowsCandidate(
+                    BookSource.official,
+                    entry.bookId,
+                    '',
+                  )) &&
+              altTocFlatMatches(
+                entry.refTokens,
+                queryTokens,
+                maxRefTokens: maxRefTokens,
+              ))
+            entry,
+      ];
+      final pruned = pruneGlobalAltTocMatches(
+        matches,
+        bookIdOf: (e) => e.bookId,
+        referenceOf: (e) => e.reference,
+        orderOf: (e) => e.bookOrderIndex,
+        suppressDescendants: maxRefTokens == null,
+      );
+      for (final entry in pruned) {
         results.add(
           DbReferenceResult(
             title: entry.bookTitle,

@@ -54,3 +54,53 @@ bool altTocFlatMatches(
   if (maxRefTokens != null && refTokens.length > maxRefTokens) return false;
   return queryTokens.every(refTokens.contains);
 }
+
+/// תקרת ההתאמות של ה-fallback הגלובלי שמגיעות לדירוג — פי חמישה מתקרת
+/// התוצאות המוחלטת של האיתור.
+const int maxGlobalAltTocMatches = 500;
+
+/// מצמצם את התאמות ה-fallback הגלובלי לפני הדירוג. [suppressDescendants]
+/// מסיר ערך שאב שלו (תחילית עד רווח באותו ספר) גם הוא התאמה, כפי שהדירוג
+/// היה מסיר; מעבר ל-[cap] נשמרים הקודמים בסדר הספרייה, והסדר המקורי נשמר.
+List<T> pruneGlobalAltTocMatches<T>(
+  List<T> matches, {
+  required int Function(T) bookIdOf,
+  required String Function(T) referenceOf,
+  required double Function(T) orderOf,
+  required bool suppressDescendants,
+  int cap = maxGlobalAltTocMatches,
+}) {
+  var kept = matches;
+  if (suppressDescendants && matches.length > 1) {
+    final referencesByBook = <int, Set<String>>{};
+    for (final m in matches) {
+      (referencesByBook[bookIdOf(m)] ??= {}).add(referenceOf(m));
+    }
+    kept = [
+      for (final m in matches)
+        if (!_hasAncestorIn(referenceOf(m), referencesByBook[bookIdOf(m)]!)) m,
+    ];
+  }
+  if (kept.length <= cap) return kept;
+  final byOrder = List<int>.generate(kept.length, (i) => i)
+    ..sort((a, b) {
+      final c = orderOf(kept[a]).compareTo(orderOf(kept[b]));
+      return c != 0 ? c : a.compareTo(b);
+    });
+  final keep = byOrder.take(cap).toSet();
+  return [
+    for (var i = 0; i < kept.length; i++)
+      if (keep.contains(i)) kept[i],
+  ];
+}
+
+bool _hasAncestorIn(String reference, Set<String> siblings) {
+  for (
+    var i = reference.indexOf(' ');
+    i >= 0;
+    i = reference.indexOf(' ', i + 1)
+  ) {
+    if (siblings.contains(reference.substring(0, i))) return true;
+  }
+  return false;
+}

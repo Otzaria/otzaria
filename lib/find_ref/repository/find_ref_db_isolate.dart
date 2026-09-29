@@ -261,8 +261,8 @@ class FindRefDbIsolate {
     return _castRows(res);
   }
 
-  /// מסנן את קאש ה-AltToc השטוח **בתוך ה-worker** ומחזיר רק את ההתאמות —
-  /// כך 61k+ הערכים (והנרמול שלהם) לעולם לא חוצים את גבול ה-isolate.
+  /// מסנן את קאש ה-AltToc השטוח **בתוך ה-worker** ומחזיר רק את ההתאמות,
+  /// מצומצמות ב-[pruneGlobalAltTocMatches] — הקאש כולו לא חוצה את גבול ה-isolate.
   Future<List<Map<String, dynamic>>> searchAltTocFlat(
     List<String> queryTokens, {
     int? maxRefTokens,
@@ -998,7 +998,7 @@ void _workerMain(_Bootstrap bootstrap) {
         final cache = await ensureAltTocFlatCache();
         final queryTokens = (args['queryTokens'] as List).cast<String>();
         final maxRefTokens = args['maxRefTokens'] as int?;
-        return [
+        final matches = [
           for (final e in cache)
             if (altTocFlatMatches(
               e.refTokens,
@@ -1007,6 +1007,15 @@ void _workerMain(_Bootstrap bootstrap) {
             ))
               e.row,
         ];
+        // מסלול המילה האחת אינו מסנן צאצאים בדירוג, ולכן גם לא כאן.
+        return pruneGlobalAltTocMatches(
+          matches,
+          bookIdOf: (row) => row['bookId'] as int,
+          referenceOf: (row) => row['reference'] as String,
+          orderOf: (row) =>
+              (row['bookOrderIndex'] as num?)?.toDouble() ?? 999.0,
+          suppressDescendants: maxRefTokens == null,
+        );
       case 'altBookIds':
         final repo = await ensureRepo();
         if (repo == null) return null;
