@@ -844,22 +844,9 @@ class FindRefRepository {
     String rawRef, {
     bool includePersonalBooks = false,
   }) async {
-    // לפני הנרמול: הוא מוחק את הגרשיים, ו"ע"א" נהפך למספר הדף "עא".
-    final ref = expandQueryAmudMarks(rawRef);
-    final cleanedQuery = _normalizeForMatch(ref);
-    if (cleanedQuery.isEmpty) {
-      return const [];
-    }
-
-    var queryTokens = _tokenize(cleanedQuery);
-    if (queryTokens.isEmpty) {
-      return const [];
-    }
-
-    // "תוספות ברכות ד"ה מאימתי": הזנב שאחרי הסמן נפתר מול `line_dh`, והראש
-    // ממשיך במסלול הרגיל — כאילו הוקלד שם הספר לבדו.
-    final dibburQuery = _detectDibburQuery(queryTokens);
-    if (dibburQuery != null) queryTokens = dibburQuery.headTokens;
+    final query = _parseQuery(rawRef);
+    if (query == null) return const [];
+    final queryTokens = query.tokens;
 
     final SeforimRepository? repository =
         SqliteDataProvider.instance.repository;
@@ -867,95 +854,12 @@ class FindRefRepository {
       debugPrint('[FindRef] Database not initialized');
       await _throwLibraryUnavailable();
     }
-
-    Future<List<Map<String, dynamic>>> fetchTocEntries(
-      int bookId,
-      String bookTitle, {
-      List<String>? queryTokens,
-    }) {
-      final injected = getTocEntriesForReference;
-      if (injected != null) {
-        return injected(bookId, bookTitle, queryTokens: queryTokens);
-      }
-      return repository!.getTocEntriesForReference(
-        bookId,
-        bookTitle,
-        queryTokens: queryTokens,
-      );
-    }
-
-    Future<List<Map<String, dynamic>>> fetchAltTocEntries(
-      int bookId,
-      String bookTitle, {
-      List<String>? queryTokens,
-    }) {
-      final injected = getAltTocEntriesForReference;
-      if (injected != null) {
-        return injected(bookId, bookTitle, queryTokens: queryTokens);
-      }
-      return repository?.getAltTocEntriesForReference(
-            bookId,
-            bookTitle,
-            queryTokens: queryTokens,
-          ) ??
-          Future.value(const []);
-    }
-
-    Future<List<TocBatchResult>> fetchTocBatch(
-      List<TocBatchRequest> books,
-    ) async {
-      final batch = getTocForBooks;
-      if (batch != null) return batch(books);
-      final out = <TocBatchResult>[];
-      for (final book in books) {
-        var toc = await _awaitCurrent(
-          fetchTocEntries(
-            book.bookId,
-            book.bookTitle,
-            queryTokens: book.queryTokens,
-          ),
-        );
-        final fallback = book.fallbackTokens;
-        if (toc.isEmpty && fallback != null) {
-          toc = await _awaitCurrent(
-            fetchTocEntries(book.bookId, book.bookTitle, queryTokens: fallback),
-          );
-        }
-        final altTokens = book.altTocTokens;
-        out.add((
-          toc: toc,
-          altToc: altTokens == null
-              ? const <Map<String, dynamic>>[]
-              : await _awaitCurrent(
-                  fetchAltTocEntries(
-                    book.bookId,
-                    book.bookTitle,
-                    queryTokens: altTokens,
-                  ),
-                ),
-        ));
-      }
-      return out;
-    }
-
-    bool cacheLoaded() =>
-        isReferenceBooksCacheLoaded?.call() ??
-        ReferenceBooksCache.instance.isLoaded;
-    if (!cacheLoaded()) {
-      await _awaitCurrent(
-        warmUpReferenceBooksCache?.call() ??
-            ReferenceBooksCache.instance.warmUp(),
-      );
-      // ה-warmUp חוזר בלי לזרוק גם כשהוא נכשל (DB נעול, יציאה ממצב שינה).
-      // בלי הבדיקה השנייה נחפש על מטמון ריק ונדווח "לא נמצא ספר".
-      if (!cacheLoaded()) await _throwLibraryUnavailable();
-    }
+    await _ensureReferenceBooksLoaded();
 
     final visibility = await _currentVisibility();
 
     // מצב "דור + נושא": "ראשונים סנהדרין" / "סנהדרין ראשונים" → כל הראשונים על
-    // סנהדרין. מזוהה בכל מיקום בשאילתה. אם הוא לא מחזיר תוצאות — נופלים למסלול
-    // הרגיל כדי שהשאילתה תמיד תעשה משהו סביר.
+    // סנהדרין. בלי תוצאות — נופלים למסלול הרגיל.
     final eraQuery = _detectEraQuery(queryTokens);
     if (eraQuery != null) {
       final eraResults = await _awaitCurrent(
@@ -964,62 +868,69 @@ class FindRefRepository {
       if (eraResults.isNotEmpty) return eraResults;
     }
 
-    // Prefer matching the longest leading phrase (up to 3 tokens) as the book key.
-    // This supports multi-word acronyms like "שוע אוח".
-    final maxPhraseTokens = queryTokens.length >= 3 ? 3 : queryTokens.length;
+    final books = _BookSearch(
+      injected: searchReferenceBooks,
+      queryTokens: queryTokens,
+      visibility: visibility,
+    );
+    final detection = _detectBooks(books, queryTokens);
+    final search = _FindRefSearch(
+      rawQuery: query.ref,
+      queryTokens: queryTokens,
+      isDibburQuery: query.dibbur != null,
+      visibility: visibility,
+      books: books,
+      detection: detection,
+      bookMatchRanks: _bookMatchRanks(detection.hits),
+      dibburim: query.dibbur == null
+          ? const <int, List<_Dibbur>>{}
+          : await _awaitCurrent(
+              _resolveDibburim(detection.hits, query.dibbur!.prefix),
+            ),
+      includePersonalBooks: includePersonalBooks,
+    );
 
-    // גבוה בכוונה: ה-hits מסוננים אחרי החיפוש לפי שאר הטוקנים, וחיתוך מוקדם
-    // זרק ספרים רלוונטיים. מילה אחת: 200, אחרת "מא" לא מחזיר את יומא (#839).
-    final bookSearchLimit = queryTokens.length >= 2 ? 1000 : 200;
-    final allowsOfficial = visibility.selection.isEmpty
-        ? null
-        : (int id, String path, String type) => visibility.allowsCandidate(
-            BookSource.official,
-            id,
-            path,
-            fileType: type,
-          );
+    return queryTokens.length == 1
+        ? _singleWordResults(search)
+        : _multiWordResults(search, repository);
+  }
 
-    // שם הספר בכל אורך, והשאלה אם הטוקן שאחריו הוא כותרת של ספר, נענים
-    // מסריקה אחת של הקטלוג במקום סריקה לכל קריאה.
-    ReferenceBookSearchBatch? batch;
-    ReferenceBookSearchBatch officialBatch() =>
-        batch ??= ReferenceBooksCache.instance.searchBatch(
-          [
-            for (var n = maxPhraseTokens; n >= 1; n--)
-              queryTokens.take(n).join(' '),
-          ],
-          limit: bookSearchLimit,
-          allowsBook: allowsOfficial,
-          exactTitles: {
-            for (var i = 1; i <= maxPhraseTokens && i < queryTokens.length; i++)
-              queryTokens[i],
-          },
-        );
-    List<ReferenceBookHit> searchBooks(String query, {int limit = 50}) {
-      final injected = searchReferenceBooks;
-      if (injected != null) {
-        final hits = injected(query, limit: limit);
-        if (visibility.selection.isEmpty) return hits;
-        return hits
-            .where(
-              (hit) => visibility.allowsCandidate(
-                BookSource.official,
-                hit.bookId,
-                hit.filePath,
-                fileType: hit.fileType,
-              ),
-            )
-            .toList();
-      }
-      return officialBatch().hitsFor(query, limit: limit) ??
-          ReferenceBooksCache.instance.search(
-            query,
-            limit: limit,
-            allowsBook: allowsOfficial,
-          );
-    }
+  /// הטוקנים המנורמלים של השאילתה; `null` כשלא נשאר בה דבר לחפש.
+  ({
+    String ref,
+    List<String> tokens,
+    ({List<String> headTokens, String prefix})? dibbur,
+  })?
+  _parseQuery(String rawRef) {
+    // לפני הנרמול: הוא מוחק את הגרשיים, ו"ע"א" נהפך למספר הדף "עא".
+    final ref = expandQueryAmudMarks(rawRef);
+    final cleanedQuery = _normalizeForMatch(ref);
+    if (cleanedQuery.isEmpty) return null;
+    final tokens = _tokenize(cleanedQuery);
+    if (tokens.isEmpty) return null;
 
+    // "תוספות ברכות ד"ה מאימתי": הזנב שאחרי הסמן נפתר מול `line_dh`, והראש
+    // ממשיך במסלול הרגיל — כאילו הוקלד שם הספר לבדו.
+    final dibbur = _detectDibburQuery(tokens);
+    return (ref: ref, tokens: dibbur?.headTokens ?? tokens, dibbur: dibbur);
+  }
+
+  Future<void> _ensureReferenceBooksLoaded() async {
+    bool cacheLoaded() =>
+        isReferenceBooksCacheLoaded?.call() ??
+        ReferenceBooksCache.instance.isLoaded;
+    if (cacheLoaded()) return;
+    await _awaitCurrent(
+      warmUpReferenceBooksCache?.call() ??
+          ReferenceBooksCache.instance.warmUp(),
+    );
+    // ה-warmUp חוזר בלי לזרוק גם כשהוא נכשל (DB נעול, יציאה ממצב שינה).
+    // בלי הבדיקה השנייה נחפש על מטמון ריק ונדווח "לא נמצא ספר".
+    if (!cacheLoaded()) await _throwLibraryUnavailable();
+  }
+
+  /// אילו ספרים השאילתה מזכירה, ובכמה מטוקני הראש השתמש שם הספר.
+  _BookDetection _detectBooks(_BookSearch books, List<String> queryTokens) {
     var bookQueryTokenCount = 1;
     List<ReferenceBookHit> bookHits = const <ReferenceBookHit>[];
 
@@ -1035,9 +946,9 @@ class FindRefRepository {
     // ב-bookQueryTokenCount, ובליעת ה-prefix שלהם חייבת את ה-n שלהם עצמם.
     final secondaryPhraseTokenCount = <ReferenceBookHit, int>{};
 
-    for (var n = maxPhraseTokens; n >= 1; n--) {
+    for (var n = books.maxPhraseTokens; n >= 1; n--) {
       final phrase = queryTokens.take(n).join(' ');
-      final hits = searchBooks(phrase, limit: bookSearchLimit);
+      final hits = books.search(phrase, limit: books.bookSearchLimit);
       if (hits.isEmpty) continue;
 
       // For single-token queries, keep all hits as usual.
@@ -1113,23 +1024,29 @@ class FindRefRepository {
         for (final hit in [...bookHits, ...secondaryHits])
           (hit.bookId, hit.filePath),
       };
-      for (final hit in searchBooks(queryTokens.first, limit: 50)) {
+      for (final hit in books.search(queryTokens.first, limit: 50)) {
         if (!seen.add((hit.bookId, hit.filePath))) continue;
         secondaryHits.add(hit);
         secondaryPhraseTokenCount[hit] = 1;
       }
     }
 
-    // צרף את ה-secondary hits בסוף, כך שיופיעו אחרי ה-primary בדירוג.
-    // ההצמדה היא בכל מקרה — בין אם נמצאו hits ראשיים ובין אם לא.
+    // ה-secondary בסוף, כך שיופיעו אחרי ה-primary בדירוג — גם כשאין primary.
     if (secondaryHits.isNotEmpty) {
       bookHits = [...bookHits, ...secondaryHits];
     }
+    return (
+      hits: bookHits,
+      phraseTokenCount: bookQueryTokenCount,
+      secondaryPhraseTokenCount: secondaryPhraseTokenCount,
+    );
+  }
 
-    // דרגת ההתאמה של שם הספר חייבת לשרוד עד למיון הסופי: תוצאה מקורבת
-    // אינה רשאית לדחוק כינוי מדויק רק בגלל סדר הספרייה או תקרת התוצאות.
+  /// דרגת ההתאמה של שם הספר חייבת לשרוד עד למיון הסופי: תוצאה מקורבת
+  /// אינה רשאית לדחוק כינוי מדויק רק בגלל סדר הספרייה או תקרת התוצאות.
+  static Map<(int, String), int> _bookMatchRanks(List<ReferenceBookHit> hits) {
     final bookMatchRanks = <(int, String), int>{};
-    for (final hit in bookHits) {
+    for (final hit in hits) {
       if (hit.bookId > 0 || hit.filePath.isNotEmpty) {
         final key = (hit.bookId, hit.bookId > 0 ? '' : hit.filePath);
         final previous = bookMatchRanks[key];
@@ -1138,124 +1055,101 @@ class FindRefRepository {
         }
       }
     }
+    return bookMatchRanks;
+  }
 
-    final dibburim = dibburQuery == null
-        ? const <int, List<_Dibbur>>{}
-        : await _awaitCurrent(_resolveDibburim(bookHits, dibburQuery.prefix));
+  static DbReferenceResult _bookResult(ReferenceBookHit hit) =>
+      DbReferenceResult(
+        title: hit.title,
+        reference: hit.title,
+        segment: 0,
+        isPdf: hit.fileType == 'pdf',
+        filePath: hit.filePath,
+        orderIndex: hit.orderIndex,
+        bookId: hit.bookId,
+      );
 
+  static Iterable<DbReferenceResult> _dibburResults(
+    ReferenceBookHit hit,
+    Map<int, List<_Dibbur>> dibburim,
+  ) => [
+    for (final dibbur in dibburim[hit.bookId] ?? const <_Dibbur>[])
+      DbReferenceResult(
+        title: hit.title,
+        reference: '${hit.title} ד"ה ${dibbur.display}',
+        segment: dibbur.lineIndex,
+        filePath: hit.filePath,
+        orderIndex: hit.orderIndex,
+        tocLevel: 3,
+        bookId: hit.bookId,
+        sourceLineId: dibbur.lineId,
+        isSourceLine: true,
+      ),
+  ];
+
+  /// מילה אחת: בלי חיפוש TOC פר-ספר, אבל כותרות AltToc קצרות נמצאות גלובלית
+  /// ("נח" / "פרשת האזינו") — issue #983.
+  Future<List<DbReferenceResult>> _singleWordResults(
+    _FindRefSearch search,
+  ) async {
+    final queryTokens = search.queryTokens;
     final results = <DbReferenceResult>[];
     final directMatches = <DbReferenceResult>{};
-
-    void addDibburim(ReferenceBookHit hit) {
-      for (final dibbur in dibburim[hit.bookId] ?? const <_Dibbur>[]) {
-        results.add(
-          DbReferenceResult(
-            title: hit.title,
-            reference: '${hit.title} ד"ה ${dibbur.display}',
-            segment: dibbur.lineIndex,
-            filePath: hit.filePath,
-            orderIndex: hit.orderIndex,
-            tocLevel: 3,
-            bookId: hit.bookId,
-            sourceLineId: dibbur.lineId,
-            isSourceLine: true,
-          ),
-        );
-      }
+    for (final hit in search.detection.hits) {
+      results.addAll(_dibburResults(hit, search.dibburim));
+      results.add(_bookResult(hit));
     }
 
-    // Single-word query: skip per-book TOC search, but still match short
-    // AltToc headings globally ("נח" / "פרשת האזינו") — issue #983.
-    if (queryTokens.length == 1) {
-      for (final hit in bookHits) {
-        final isPdf = hit.fileType == 'pdf';
-
-        addDibburim(hit);
-        results.add(
-          DbReferenceResult(
-            title: hit.title,
-            reference: hit.title,
-            segment: 0,
-            isPdf: isPdf,
-            filePath: hit.filePath,
-            orderIndex: hit.orderIndex,
-            bookId: hit.bookId,
-          ),
-        );
-      }
-
-      if (queryTokens.first.length >= 2) {
-        final start = results.length;
-        await _awaitCurrent(
-          _addGlobalAltTocMatches(
-            results,
-            queryTokens,
-            maxRefTokens: 2,
-            visibility: visibility.selection.isEmpty ? null : visibility,
-          ),
-        );
-        directMatches.addAll(results.skip(start));
-      }
-
-      if (includePersonalBooks) {
-        results.addAll(
-          await _awaitCurrent(_searchPersonalBooks(queryTokens, visibility)),
-        );
-        results.addAll(
-          await _awaitCurrent(
-            _searchAttachedLibraries(queryTokens, visibility),
-          ),
-        );
-      }
-
-      final unique = _dedupeRefs(results);
-      final ranked = _rankResults(
-        unique,
-        queryTokens,
-        bookMatchRanks: bookMatchRanks,
-        directMatches: directMatches,
-        preserveSubstringTail: queryTokens.length == 1,
+    if (queryTokens.first.length >= 2) {
+      final start = results.length;
+      await _awaitCurrent(
+        _addGlobalAltTocMatches(
+          results,
+          queryTokens,
+          maxRefTokens: 2,
+          visibility: search.visibilityFilter,
+        ),
       );
-      return await _awaitCurrent(_enrichWithPaths(ranked));
+      directMatches.addAll(results.skip(start));
     }
 
-    // If the *next* token after the matched book-phrase is an exact book match,
-    // avoid TOC search to prevent cross-book false positives.
-    final nextTokenIndex = bookQueryTokenCount;
-    final nextToken = queryTokens.length > nextTokenIndex
-        ? queryTokens[nextTokenIndex]
-        : '';
-    final hasExactNextTokenMatch =
-        nextToken.isNotEmpty &&
-        ((searchReferenceBooks == null
-                ? officialBatch().hasExactTitle(nextToken)
-                : null) ??
-            searchBooks(
-              nextToken,
-              limit: 50,
-            ).any((hit) => hit.matchRank == 0));
+    await _addSecondaryBookResults(results, search);
 
-    // תקרה על קריאות ה-TOC היקרות (שאילתת DB / outline לכל ספר). ה-limit הגבוה
-    // מאפשר לטוקן ראשון רחב ("ראש") להתאים מאות ספרים; ה-suppress מסנן את רובם
-    // בחינם, אך כשאין טוקן-ספר הבא (אין suppress) התקרה מונעת הצפת שאילתות.
-    var tocLookups = 0;
-    const maxTocLookups = 50;
+    final unique = _dedupeRefs(results);
+    final ranked = _rankResults(
+      unique,
+      queryTokens,
+      bookMatchRanks: search.bookMatchRanks,
+      directMatches: directMatches,
+      preserveSubstringTail: true,
+    );
+    return await _awaitCurrent(_enrichWithPaths(ranked));
+  }
+
+  Future<List<DbReferenceResult>> _multiWordResults(
+    _FindRefSearch search,
+    SeforimRepository? repository,
+  ) async {
+    final queryTokens = search.queryTokens;
+    final detection = search.detection;
 
     // כשהטוקן הראשון תפס ספרים רבים (כמו "ראש") בלי אקרוניום שמצמצם, הספר
     // המכוון עלול לשבת עמוק ברשימה ולהיחתך ע"י התקרה (למשל "ראש בבא בתרא"
     // בלי אקרוניום → הרא"ש על ב"ב במקום ~138). ממיינים כך שספרים שכותרתם
     // מכסה יותר מטוקני-השאילתה (מעבר לאותיות-מיקום בודדות) ייבדקו קודם.
-    bookHits = _prioritizeByTitleCoverage(bookHits, queryTokens, maxTocLookups);
-
-    // רק ~5% מהספרים הם בעלי מבנה AltToc — לשאר לא מבקשים AltToc כלל.
-    final altBookIds = await _awaitCurrent(_getAltBookIds());
+    final bookHits = _prioritizeByTitleCoverage(
+      detection.hits,
+      queryTokens,
+      _maxTocLookups,
+    );
 
     // אורך ה-phrase שזיהה כל hit: זה שנקבע בלולאה, או קצר יותר ל-hits שנאספו
     // בפירוש חלופי — חיתוך לפי האורך הגלובלי היה בולע להם טוקן-קטע.
     final remainingByHit = <ReferenceBookHit, List<String>>{};
     for (final hit in bookHits) {
       final phraseTokenCount =
-          secondaryPhraseTokenCount[hit] ?? bookQueryTokenCount;
+          detection.secondaryPhraseTokenCount[hit] ??
+          detection.phraseTokenCount;
       remainingByHit[hit] = _getRemainingTokens(
         queryTokens,
         hit.titleTokens,
@@ -1263,22 +1157,106 @@ class FindRefRepository {
         prefixMatchTokensCount: hit.matchRank >= 3 ? 0 : phraseTokenCount,
       );
     }
+
+    final plans = await _planTocLookups(search, bookHits, remainingByHit);
     final exactLines = await _awaitCurrent(
       _resolveExactLines(
         bookHits,
         remainingByHit,
         // זנב הדיבור כבר נחתך מהטוקנים, וספירת טווח מול השאילתה הגולמית
         // הייתה מודדת אותו.
-        tokensAfterRange: dibburQuery != null
+        tokensAfterRange: search.isDibburQuery
             ? 0
-            : _tokensAfterRange(ref, queryTokens),
+            : _tokensAfterRange(search.rawQuery, queryTokens),
       ),
     );
+    final tocResponses = plans.requests.isEmpty
+        ? const <TocBatchResult>[]
+        : await _awaitCurrent(_fetchTocBatch(repository, plans.requests));
 
-    // שלב א: אילו ספרים מגיעים לחיפוש תוכן העניינים. התקרה משותפת ל-PDF
-    // ולספרי המסד ונספרת לפי סדר הספרים.
+    // התוצאות, בסדר הספרים.
+    final results = <DbReferenceResult>[];
+    for (var i = 0; i < bookHits.length; i++) {
+      final hit = bookHits[i];
+      final plan = plans.plans[i];
+      final remainingTokens = remainingByHit[hit]!;
+      if (hit.bookId == -1) {
+        results.addAll(await _pdfHitResults(hit, plan, remainingTokens));
+        continue;
+      }
+      final requestIndex = plan.requestIndex;
+      results.addAll(
+        _dbHitResults(
+          hit,
+          remainingTokens,
+          dibburim: search.dibburim,
+          exactLines: exactLines[hit.bookId] ?? const <_ExactLine>[],
+          toc: requestIndex == null ? null : tocResponses[requestIndex],
+        ),
+      );
+    }
+
+    final directMatches = <DbReferenceResult>{};
+    // AltToc גלובלי רק כשהלולאה הפר-ספר לא מצאה שום כותרת פנימית (AltToc או
+    // TOC ברמה 2+), למשל "נח עליה ב" בלי שם ספר. אחרת התאמות ה-`every(contains)`
+    // מספרים מוקדמים דוחקות תוצאות ספציפיות ("ברכות ב" מאבד את ה-PDF של ברכות).
+    final perBookHasSpecificMatch = results.any(
+      (r) => r.isAltToc || r.tocLevel >= 2,
+    );
+    if (!perBookHasSpecificMatch) {
+      final start = results.length;
+      await _awaitCurrent(
+        _addGlobalAltTocMatches(
+          results,
+          queryTokens,
+          visibility: search.visibilityFilter,
+        ),
+      );
+      directMatches.addAll(results.skip(start));
+    }
+
+    await _addSecondaryBookResults(results, search);
+
+    final unique = _dedupeRefs(results);
+    final pruned = _suppressDeeperVariants(unique);
+    final ranked = _rankResults(
+      pruned,
+      queryTokens,
+      bookMatchRanks: search.bookMatchRanks,
+      directMatches: directMatches,
+    );
+    return await _awaitCurrent(_enrichWithPaths(ranked));
+  }
+
+  /// תקרה על חיפושי ה-TOC היקרים (שאילתת DB / outline לכל ספר). ה-limit הגבוה
+  /// מאפשר לטוקן ראשון רחב ("ראש") להתאים מאות ספרים; ה-suppress מסנן את רובם
+  /// בחינם, אך כשאין טוקן-ספר הבא (אין suppress) התקרה מונעת הצפת שאילתות.
+  static const int _maxTocLookups = 50;
+
+  /// אילו ספרים מגיעים לחיפוש תוכן העניינים. התקרה משותפת ל-PDF ולספרי המסד
+  /// ונספרת לפי סדר הספרים.
+  Future<({List<_TocPlan> plans, List<TocBatchRequest> requests})>
+  _planTocLookups(
+    _FindRefSearch search,
+    List<ReferenceBookHit> bookHits,
+    Map<ReferenceBookHit, List<String>> remainingByHit,
+  ) async {
+    final queryTokens = search.queryTokens;
+    // If the *next* token after the matched book-phrase is an exact book match,
+    // avoid TOC search to prevent cross-book false positives.
+    final nextTokenIndex = search.detection.phraseTokenCount;
+    final nextToken = queryTokens.length > nextTokenIndex
+        ? queryTokens[nextTokenIndex]
+        : '';
+    final hasExactNextTokenMatch =
+        nextToken.isNotEmpty && search.books.hasExactTitle(nextToken);
+
+    // רק ~5% מהספרים הם בעלי מבנה AltToc — לשאר לא מבקשים AltToc כלל.
+    final altBookIds = await _awaitCurrent(_getAltBookIds());
+
+    var tocLookups = 0;
     final plans = <_TocPlan>[];
-    final tocRequests = <TocBatchRequest>[];
+    final requests = <TocBatchRequest>[];
     for (final hit in bookHits) {
       final remainingTokens = remainingByHit[hit]!;
       // טוקן-ספר עצמאי אחרי השם ("תורה אור") יוצר התאמות חוצות-ספרים — אלא אם
@@ -1289,7 +1267,7 @@ class FindRefRepository {
           !_isSectionThenDafCitation(remainingTokens);
       if (remainingTokens.isEmpty || suppressTocForCrossBook) {
         plans.add(_TocPlan.none);
-      } else if (tocLookups >= maxTocLookups) {
+      } else if (tocLookups >= _maxTocLookups) {
         plans.add(_TocPlan.overCap);
       } else {
         tocLookups++;
@@ -1300,8 +1278,8 @@ class FindRefRepository {
         // ראש-תיבות שזנבו אינו מילת-כותרת ("טור יורה דעה" מול הכותרת "טור")
         // מציין חלק בתוך הספר; הזנב אינו בהכרח חלק ("חזקוני על התורה") — ולכן נסיגה.
         final sectionTokens = _acronymSectionTokens(hit);
-        plans.add(_TocPlan.request(tocRequests.length));
-        tocRequests.add((
+        plans.add(_TocPlan.request(requests.length));
+        requests.add((
           bookId: hit.bookId,
           bookTitle: hit.title,
           queryTokens: [...sectionTokens, ...remainingTokens],
@@ -1312,218 +1290,249 @@ class FindRefRepository {
         ));
       }
     }
+    return (plans: plans, requests: requests);
+  }
 
-    final tocResponses = tocRequests.isEmpty
-        ? const <TocBatchResult>[]
-        : await _awaitCurrent(fetchTocBatch(tocRequests));
-
-    // שלב ב: התוצאות, בסדר הספרים.
-    for (var i = 0; i < bookHits.length; i++) {
-      final hit = bookHits[i];
-      final plan = plans[i];
-      final bookId = hit.bookId;
-      final title = hit.title;
-      final isPdf = hit.fileType == 'pdf';
-      final remainingTokens = remainingByHit[hit]!;
-
-      // bookId == -1: file-system PDF not in DB — use PDF outline as TOC,
-      // mirroring the regular book flow as closely as possible.
-      if (bookId == -1) {
-        // בלי זנב לא נסקר ה-outline: ב-PDF רבים הוא ברמת דף-לדף, והדפים
-        // דחקו החוצה ספרי מסד.
-        if (remainingTokens.isEmpty) {
-          results.add(
-            DbReferenceResult(
-              title: title,
-              reference: title,
-              segment: 0,
-              isPdf: true,
-              filePath: hit.filePath,
-              orderIndex: hit.orderIndex,
-            ),
-          );
-          continue;
-        }
-        if (!plan.isPdfOutline) continue;
-
-        final outlineFn =
-            getPdfOutlineEntries ??
-            ReferenceBooksCache.instance.getPdfOutlineEntries;
-        final outlineEntries = await _awaitCurrent(outlineFn(hit.filePath));
-        final normalizedBookTitle = _normalizeForMatch(title);
-
-        // ציטוט דף: התאמה מיקומית (מספר מול מספר, עמוד מול עמוד) — כדי ש-"ב"
-        // בודד לא ייתפס ע"י סימון צד ע"ב ("דף ג:") של כל דף ב-outline.
-        final cite = parseDafCitation(remainingTokens);
-
-        for (final (normChapter, origChapter, pageNumber) in outlineEntries) {
-          if (normChapter == normalizedBookTitle) continue;
-          final chapterWords = _tokenize(normChapter);
-          bool matches;
-          final dafMatch = cite == null
-              ? null
-              : matchDafCitation(chapterWords, cite);
-          if (dafMatch != null) {
-            matches = dafMatch;
-          } else {
-            matches = remainingTokens.every(
-              (t) => chapterWords.any((w) => w.startsWith(t)),
-            );
-          }
-          if (!matches) continue;
-          results.add(
-            DbReferenceResult(
-              title: title,
-              reference: '$title $origChapter',
-              segment: pageNumber,
-              isPdf: true,
-              filePath: hit.filePath,
-              orderIndex: hit.orderIndex,
-              tocLevel: 2,
-            ),
-          );
-        }
-        continue;
-      }
-
-      addDibburim(hit);
-
-      for (final exact in exactLines[bookId] ?? const <_ExactLine>[]) {
-        results.add(
-          DbReferenceResult(
-            title: title,
-            reference: exact.heRef ?? '$title ${remainingTokens.join(' ')}',
-            segment: exact.lineIndex,
-            filePath: hit.filePath,
-            orderIndex: hit.orderIndex,
-            tocLevel: 3,
-            bookId: bookId,
-            sourceLineId: exact.lineId,
-            isSourceLine: true,
-          ),
-        );
-      }
-
-      DbReferenceResult bookResult() => DbReferenceResult(
-        title: title,
-        reference: title,
-        segment: 0,
-        isPdf: isPdf,
-        filePath: hit.filePath,
-        orderIndex: hit.orderIndex,
-        bookId: bookId,
-      );
-
-      // הוקלדה רק כותרת הספר — הספר בלבד, בלי ערכי TOC.
-      if (remainingTokens.isEmpty) {
-        results.add(bookResult());
-        continue;
-      }
-      final requestIndex = plan.requestIndex;
-      if (requestIndex == null) continue;
-      final response = tocResponses[requestIndex];
-
-      final resultsBeforeToc = results.length;
-      for (final entry in response.toc) {
-        results.add(
-          DbReferenceResult(
-            title: title,
-            reference: entry['reference'] as String,
-            segment: entry['segment'] as int,
-            isPdf: isPdf,
-            filePath: hit.filePath,
-            orderIndex: hit.orderIndex,
-            tocLevel: entry['level'] as int,
-            bookId: bookId,
-            sourceLineId: entry['dbLineId'] as int? ?? 0,
-          ),
-        );
-      }
-
-      // ה-reference של AltToc יחסי לספר ("פרשת לך לך עליה ו" בתוך "בראשית"),
-      // ולכן שם הספר מצורף כדי שהתצוגה תזהה לאיזה ספר התוצאה שייכת.
-      for (final entry in response.altToc) {
-        final ref = entry['reference'] as String;
-        // כל טוקני הזנב בערך — אחרת ספר שהותאם ברפיון ("נחל שורק" מול "נח")
-        // מחזיר את "הפטרת נח" עבור "נח עליה ב".
-        final refTokens = _tokenize(_normalizeForMatch(ref));
-        if (!remainingTokens.every((qt) => refTokens.contains(qt))) continue;
-
-        results.add(
-          DbReferenceResult(
-            title: title,
-            reference: qualifyAltTocReference(title, ref),
-            segment: entry['segment'] as int,
-            isPdf: isPdf,
-            filePath: hit.filePath,
-            orderIndex: hit.orderIndex,
-            tocLevel: entry['level'] as int,
-            isAltToc: true,
-            bookId: bookId,
-            sourceLineId: entry['dbLineId'] as int? ?? 0,
-          ),
-        );
-      }
-
-      // מפלט אחרון: הזנב הוא שם הקטגוריה שהספר יושב בה ("רמבם המדע" —
-      // "מדע" אינו בשום כותרת או ראש-תיבות, רק בקטגוריה "ספר מדע"). רק
-      // כשה-TOC לא החזיר כלום, כדי שכותרת פנימית תמיד תגבר.
-      if (results.length == resultsBeforeToc &&
-          _remainingTokensAreLeafCategory(bookId, remainingTokens)) {
-        results.add(bookResult());
-      }
+  /// PDF ממערכת הקבצים שאינו במסד: ה-outline שלו משמש כתוכן עניינים.
+  Future<List<DbReferenceResult>> _pdfHitResults(
+    ReferenceBookHit hit,
+    _TocPlan plan,
+    List<String> remainingTokens,
+  ) async {
+    final title = hit.title;
+    // בלי זנב לא נסקר ה-outline: ב-PDF רבים הוא ברמת דף-לדף, והדפים
+    // דחקו החוצה ספרי מסד.
+    if (remainingTokens.isEmpty) {
+      return [
+        DbReferenceResult(
+          title: title,
+          reference: title,
+          segment: 0,
+          isPdf: true,
+          filePath: hit.filePath,
+          orderIndex: hit.orderIndex,
+        ),
+      ];
     }
+    if (!plan.isPdfOutline) return const [];
 
-    // Global AltToc fallback: when no specific result was found in the per-book
-    // loop, search AltToc across all books. This handles queries like
-    // "נח עליה ב" where the user doesn't type the book name, even if some
-    // other book matched the first token (e.g., "תולדות יצחק" matching "תולדות").
-    //
-    // התנאי הוא **AltToc *או* TOC L2+ ריקים** — כלומר, גם הפניות פנימיות
-    // רגילות נחשבות "ספציפיות". הסיבה: עם המעבר לקאש השטוח הגלובלי, הפילטר
-    // הוא רק `every(contains)`, שמייצר הרבה false-positives של AltToc
-    // מספרים עם orderIndex נמוך. אלה דוחקים החוצה תוצאות TOC PDF מספרים עם
-    // orderIndex גבוה (כי `_rankResults` בודק orderIndex לפני tocLevel),
-    // ובפועל גורם ל"ברכות ב" לא להציג את ה-PDF של ברכות. אם ה-per-book כבר
-    // החזיר התאמה ספציפית, אין צורך ב-fallback — שום שאילתה ש"דורשת" כותרת
-    // פנימית של ספר אחר.
-    //
-    // נעטף ב-try/catch כדי שכשלון במסלול ה-fallback לא יבלע את התוצאות
-    // הקיימות מהלולאת ה-per-book.
-    final bool perBookHasSpecificMatch = results.any(
-      (r) => r.isAltToc || r.tocLevel >= 2,
-    );
-    if (!perBookHasSpecificMatch && queryTokens.length >= 2) {
-      final start = results.length;
-      await _awaitCurrent(
-        _addGlobalAltTocMatches(
-          results,
-          queryTokens,
-          visibility: visibility.selection.isEmpty ? null : visibility,
+    final outlineFn =
+        getPdfOutlineEntries ??
+        ReferenceBooksCache.instance.getPdfOutlineEntries;
+    final outlineEntries = await _awaitCurrent(outlineFn(hit.filePath));
+    final normalizedBookTitle = _normalizeForMatch(title);
+
+    // ציטוט דף: התאמה מיקומית (מספר מול מספר, עמוד מול עמוד) — כדי ש-"ב"
+    // בודד לא ייתפס ע"י סימון צד ע"ב ("דף ג:") של כל דף ב-outline.
+    final cite = parseDafCitation(remainingTokens);
+
+    final results = <DbReferenceResult>[];
+    for (final (normChapter, origChapter, pageNumber) in outlineEntries) {
+      if (normChapter == normalizedBookTitle) continue;
+      final chapterWords = _tokenize(normChapter);
+      final matches =
+          (cite == null ? null : matchDafCitation(chapterWords, cite)) ??
+          remainingTokens.every(
+            (t) => chapterWords.any((w) => w.startsWith(t)),
+          );
+      if (!matches) continue;
+      results.add(
+        DbReferenceResult(
+          title: title,
+          reference: '$title $origChapter',
+          segment: pageNumber,
+          isPdf: true,
+          filePath: hit.filePath,
+          orderIndex: hit.orderIndex,
+          tocLevel: 2,
         ),
       );
-      directMatches.addAll(results.skip(start));
+    }
+    return results;
+  }
+
+  /// תוצאות ספר מהמסד: דיבורים, שורות מדויקות, ותוכן העניינים וה-AltToc
+  /// שלו מתוך [toc] (`null` = הספר לא הגיע לחיפוש TOC).
+  List<DbReferenceResult> _dbHitResults(
+    ReferenceBookHit hit,
+    List<String> remainingTokens, {
+    required Map<int, List<_Dibbur>> dibburim,
+    required List<_ExactLine> exactLines,
+    required TocBatchResult? toc,
+  }) {
+    final title = hit.title;
+    final bookId = hit.bookId;
+    final isPdf = hit.fileType == 'pdf';
+    final results = <DbReferenceResult>[..._dibburResults(hit, dibburim)];
+
+    for (final exact in exactLines) {
+      results.add(
+        DbReferenceResult(
+          title: title,
+          reference: exact.heRef ?? '$title ${remainingTokens.join(' ')}',
+          segment: exact.lineIndex,
+          filePath: hit.filePath,
+          orderIndex: hit.orderIndex,
+          tocLevel: 3,
+          bookId: bookId,
+          sourceLineId: exact.lineId,
+          isSourceLine: true,
+        ),
+      );
     }
 
-    if (includePersonalBooks) {
-      results.addAll(
-        await _awaitCurrent(_searchPersonalBooks(queryTokens, visibility)),
-      );
-      results.addAll(
-        await _awaitCurrent(_searchAttachedLibraries(queryTokens, visibility)),
+    // הוקלדה רק כותרת הספר — הספר בלבד, בלי ערכי TOC.
+    if (remainingTokens.isEmpty) return results..add(_bookResult(hit));
+    if (toc == null) return results;
+
+    final resultsBeforeToc = results.length;
+    for (final entry in toc.toc) {
+      results.add(
+        DbReferenceResult(
+          title: title,
+          reference: entry['reference'] as String,
+          segment: entry['segment'] as int,
+          isPdf: isPdf,
+          filePath: hit.filePath,
+          orderIndex: hit.orderIndex,
+          tocLevel: entry['level'] as int,
+          bookId: bookId,
+          sourceLineId: entry['dbLineId'] as int? ?? 0,
+        ),
       );
     }
 
-    final unique = _dedupeRefs(results);
-    final pruned = _suppressDeeperVariants(unique);
-    final ranked = _rankResults(
-      pruned,
-      queryTokens,
-      bookMatchRanks: bookMatchRanks,
-      directMatches: directMatches,
+    // ה-reference של AltToc יחסי לספר ("פרשת לך לך עליה ו" בתוך "בראשית"),
+    // ולכן שם הספר מצורף כדי שהתצוגה תזהה לאיזה ספר התוצאה שייכת.
+    for (final entry in toc.altToc) {
+      final ref = entry['reference'] as String;
+      // כל טוקני הזנב בערך — אחרת ספר שהותאם ברפיון ("נחל שורק" מול "נח")
+      // מחזיר את "הפטרת נח" עבור "נח עליה ב".
+      final refTokens = _tokenize(_normalizeForMatch(ref));
+      if (!remainingTokens.every((qt) => refTokens.contains(qt))) continue;
+
+      results.add(
+        DbReferenceResult(
+          title: title,
+          reference: qualifyAltTocReference(title, ref),
+          segment: entry['segment'] as int,
+          isPdf: isPdf,
+          filePath: hit.filePath,
+          orderIndex: hit.orderIndex,
+          tocLevel: entry['level'] as int,
+          isAltToc: true,
+          bookId: bookId,
+          sourceLineId: entry['dbLineId'] as int? ?? 0,
+        ),
+      );
+    }
+
+    // מפלט אחרון: הזנב הוא שם הקטגוריה שהספר יושב בה ("רמבם המדע" —
+    // "מדע" אינו בשום כותרת או ראש-תיבות, רק בקטגוריה "ספר מדע"). רק
+    // כשה-TOC לא החזיר כלום, כדי שכותרת פנימית תמיד תגבר.
+    if (results.length == resultsBeforeToc &&
+        _remainingTokensAreLeafCategory(bookId, remainingTokens)) {
+      results.add(_bookResult(hit));
+    }
+    return results;
+  }
+
+  /// הספרים האישיים והמסדים המצורפים, כשהמתג פעיל.
+  Future<void> _addSecondaryBookResults(
+    List<DbReferenceResult> results,
+    _FindRefSearch search,
+  ) async {
+    if (!search.includePersonalBooks) return;
+    results.addAll(
+      await _awaitCurrent(
+        _searchPersonalBooks(search.queryTokens, search.visibility),
+      ),
     );
+    results.addAll(
+      await _awaitCurrent(
+        _searchAttachedLibraries(search.queryTokens, search.visibility),
+      ),
+    );
+  }
 
-    return await _awaitCurrent(_enrichWithPaths(ranked));
+  Future<List<Map<String, dynamic>>> _fetchTocEntries(
+    SeforimRepository? repository,
+    int bookId,
+    String bookTitle, {
+    List<String>? queryTokens,
+  }) {
+    final injected = getTocEntriesForReference;
+    if (injected != null) {
+      return injected(bookId, bookTitle, queryTokens: queryTokens);
+    }
+    return repository!.getTocEntriesForReference(
+      bookId,
+      bookTitle,
+      queryTokens: queryTokens,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchAltTocEntries(
+    SeforimRepository? repository,
+    int bookId,
+    String bookTitle, {
+    List<String>? queryTokens,
+  }) {
+    final injected = getAltTocEntriesForReference;
+    if (injected != null) {
+      return injected(bookId, bookTitle, queryTokens: queryTokens);
+    }
+    return repository?.getAltTocEntriesForReference(
+          bookId,
+          bookTitle,
+          queryTokens: queryTokens,
+        ) ??
+        Future.value(const []);
+  }
+
+  Future<List<TocBatchResult>> _fetchTocBatch(
+    SeforimRepository? repository,
+    List<TocBatchRequest> books,
+  ) async {
+    final batch = getTocForBooks;
+    if (batch != null) return batch(books);
+    final out = <TocBatchResult>[];
+    for (final book in books) {
+      var toc = await _awaitCurrent(
+        _fetchTocEntries(
+          repository,
+          book.bookId,
+          book.bookTitle,
+          queryTokens: book.queryTokens,
+        ),
+      );
+      final fallback = book.fallbackTokens;
+      if (toc.isEmpty && fallback != null) {
+        toc = await _awaitCurrent(
+          _fetchTocEntries(
+            repository,
+            book.bookId,
+            book.bookTitle,
+            queryTokens: fallback,
+          ),
+        );
+      }
+      final altTokens = book.altTocTokens;
+      out.add((
+        toc: toc,
+        altToc: altTokens == null
+            ? const <Map<String, dynamic>>[]
+            : await _awaitCurrent(
+                _fetchAltTocEntries(
+                  repository,
+                  book.bookId,
+                  book.bookTitle,
+                  queryTokens: altTokens,
+                ),
+              ),
+      ));
+    }
+    return out;
   }
 
   /// תוצאות PDF של תלמוד בבלי אינן מוצגות באיתור — מהדורת הטקסט מייצגת את
@@ -2851,4 +2860,117 @@ class _TocPlan {
   final int? requestIndex;
   final bool isOverCap;
   final bool isPdfOutline;
+}
+
+/// הספרים שהשאילתה מזכירה ([FindRefRepository._detectBooks]).
+typedef _BookDetection = ({
+  List<ReferenceBookHit> hits,
+  int phraseTokenCount,
+  Map<ReferenceBookHit, int> secondaryPhraseTokenCount,
+});
+
+/// חיפוש שמות ספרים בקטלוג הרשמי לשאילתה אחת, בכפוף להסתרה.
+class _BookSearch {
+  _BookSearch({
+    required this.injected,
+    required this.queryTokens,
+    required this.visibility,
+  }) : maxPhraseTokens = queryTokens.length >= 3 ? 3 : queryTokens.length,
+       // גבוה בכוונה: ה-hits מסוננים אחרי החיפוש לפי שאר הטוקנים, וחיתוך מוקדם
+       // זרק ספרים רלוונטיים. מילה אחת: 200, אחרת "מא" לא מחזיר את יומא (#839).
+       bookSearchLimit = queryTokens.length >= 2 ? 1000 : 200;
+
+  final List<ReferenceBookHit> Function(String query, {int limit})? injected;
+  final List<String> queryTokens;
+  final FindRefVisibility visibility;
+
+  /// הצירוף הארוך ביותר (עד 3 טוקנים) שנבדק כשם ספר — כך "שוע אוח" מזוהה.
+  final int maxPhraseTokens;
+  final int bookSearchLimit;
+
+  ReferenceBookSearchBatch? _batch;
+
+  late final bool Function(int, String, String)? _allowsOfficial =
+      visibility.selection.isEmpty
+      ? null
+      : (int id, String path, String type) => visibility.allowsCandidate(
+          BookSource.official,
+          id,
+          path,
+          fileType: type,
+        );
+
+  // שם הספר בכל אורך, והשאלה אם הטוקן שאחריו הוא כותרת של ספר, נענים
+  // מסריקה אחת של הקטלוג במקום סריקה לכל קריאה.
+  ReferenceBookSearchBatch _officialBatch() =>
+      _batch ??= ReferenceBooksCache.instance.searchBatch(
+        [
+          for (var n = maxPhraseTokens; n >= 1; n--)
+            queryTokens.take(n).join(' '),
+        ],
+        limit: bookSearchLimit,
+        allowsBook: _allowsOfficial,
+        exactTitles: {
+          for (var i = 1; i <= maxPhraseTokens && i < queryTokens.length; i++)
+            queryTokens[i],
+        },
+      );
+
+  List<ReferenceBookHit> search(String query, {int limit = 50}) {
+    final injected = this.injected;
+    if (injected != null) {
+      final hits = injected(query, limit: limit);
+      if (visibility.selection.isEmpty) return hits;
+      return hits
+          .where(
+            (hit) => visibility.allowsCandidate(
+              BookSource.official,
+              hit.bookId,
+              hit.filePath,
+              fileType: hit.fileType,
+            ),
+          )
+          .toList();
+    }
+    return _officialBatch().hitsFor(query, limit: limit) ??
+        ReferenceBooksCache.instance.search(
+          query,
+          limit: limit,
+          allowsBook: _allowsOfficial,
+        );
+  }
+
+  /// האם [token] הוא בעצמו כותרת מדויקת של ספר.
+  bool hasExactTitle(String token) =>
+      (injected == null ? _officialBatch().hasExactTitle(token) : null) ??
+      search(token, limit: 50).any((hit) => hit.matchRank == 0);
+}
+
+/// מה שנקבע לשאילתה אחת לפני איסוף התוצאות, משותף לשלבי [FindRefRepository].
+class _FindRefSearch {
+  _FindRefSearch({
+    required this.rawQuery,
+    required this.queryTokens,
+    required this.isDibburQuery,
+    required this.visibility,
+    required this.books,
+    required this.detection,
+    required this.bookMatchRanks,
+    required this.dibburim,
+    required this.includePersonalBooks,
+  });
+
+  /// השאילתה אחרי הרחבת ע"א/ע"ב, לפני הנרמול.
+  final String rawQuery;
+  final List<String> queryTokens;
+  final bool isDibburQuery;
+  final FindRefVisibility visibility;
+  final _BookSearch books;
+  final _BookDetection detection;
+  final Map<(int, String), int> bookMatchRanks;
+  final Map<int, List<_Dibbur>> dibburim;
+  final bool includePersonalBooks;
+
+  FindRefVisibility? get visibilityFilter =>
+      visibility.selection.isEmpty ? null : visibility;
 }
