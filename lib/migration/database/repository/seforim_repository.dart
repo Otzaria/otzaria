@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:logging/logging.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 
@@ -40,9 +41,15 @@ class SeforimRepository {
 
   bool _initialized = false;
 
-  /// קאש בזיכרון לערכי TOC מעובדים לכל ספר.
-  /// המפתח: bookId. הערך: מבנה הכולל את כל הערכים + מבנה היררכי.
+  /// קאש LRU לערכי TOC מעובדים לכל ספר (מפתח: bookId), חסום לפי מספר הערכים
+  /// הכולל — ראו [defaultTocCacheMaxEntries]. סדר ההכנסה הוא סדר השימוש.
   final Map<int, _TocBookCache> _tocCache = <int, _TocBookCache>{};
+  int _tocCacheEntryCount = 0;
+  final int _tocCacheMaxEntries;
+
+  /// כ-217 בתים לערך (נמדד על הספרייה החיה): כ-40MB, ששה מהספרים הגדולים
+  /// (עד 33 אלף ערכים) או כ-1,200 ספרים ממוצעים. בלי תקרה — כ-265MB.
+  static const int defaultTocCacheMaxEntries = 200000;
 
   /// קאש בזיכרון לערכי AltToc (כותרות-משנה) לכל ספר, ממוינים לפי segment.
   final Map<int, List<AltTocIndexEntry>> _altTocCache =
@@ -52,7 +59,10 @@ class SeforimRepository {
   /// מחליף את [_altTocCache] — אותם אובייקטים, בלי עותק שני.
   Map<int, List<AltTocIndexEntry>>? _altTocIndexByBook;
 
-  SeforimRepository(this._database);
+  SeforimRepository(
+    this._database, {
+    this._tocCacheMaxEntries = defaultTocCacheMaxEntries,
+  });
 
   Future<DbCapabilities> get _capabilities => _database.capabilities;
 
@@ -60,10 +70,11 @@ class SeforimRepository {
   /// אם [bookId] סופק — מבטל רק את הערך של אותו ספר; אחרת מנקה הכול.
   void _invalidateTocCache({int? bookId}) {
     if (bookId != null) {
-      _tocCache.remove(bookId);
+      _tocCacheEntryCount -= _tocCache.remove(bookId)?.all.length ?? 0;
       _altTocCache.remove(bookId);
     } else {
       _tocCache.clear();
+      _tocCacheEntryCount = 0;
       _altTocCache.clear();
     }
     _altTocIndexByBook = null;
@@ -81,6 +92,24 @@ class SeforimRepository {
     _altTocIndexByBook = byBook;
     _altTocCache.clear();
   }
+
+  /// מפנה את הספרים שלא נקראו זמן רב ביותר עד שהקאש בתוך התקרה. הספר החדש
+  /// נשאר גם כשהוא לבדו גדול מהתקרה — אחרת כל חיפוש בו היה בונה אותו מחדש.
+  void _putTocCache(int bookId, _TocBookCache cache) {
+    _tocCacheEntryCount -= _tocCache.remove(bookId)?.all.length ?? 0;
+    _tocCache[bookId] = cache;
+    _tocCacheEntryCount += cache.all.length;
+    while (_tocCacheEntryCount > _tocCacheMaxEntries && _tocCache.length > 1) {
+      final oldest = _tocCache.keys.first;
+      _tocCacheEntryCount -= _tocCache.remove(oldest)!.all.length;
+    }
+  }
+
+  @visibleForTesting
+  int get debugTocCacheEntryCount => _tocCacheEntryCount;
+
+  @visibleForTesting
+  Iterable<int> get debugTocCachedBookIds => _tocCache.keys;
 
   int? _lastDataVersion;
 
@@ -3290,8 +3319,8 @@ extension BookAcronymRepository on SeforimRepository {
     int bookId,
     String bookTitle,
   ) async {
-    final cached = _tocCache[bookId];
-    if (cached != null) return cached;
+    final cached = _tocCache.remove(bookId);
+    if (cached != null) return _tocCache[bookId] = cached;
     if (!(await _capabilities).hasToc) return _TocBookCache.empty;
 
     final db = await _database.database;
@@ -3328,7 +3357,7 @@ extension BookAcronymRepository on SeforimRepository {
     _sortByLineIndexThenLevel(tocEntries);
 
     if (tocEntries.isEmpty) {
-      _tocCache[bookId] = _TocBookCache.empty;
+      _putTocCache(bookId, _TocBookCache.empty);
       return _TocBookCache.empty;
     }
 
@@ -3412,7 +3441,7 @@ extension BookAcronymRepository on SeforimRepository {
       rootEntries: rootEntries,
       childrenByParentId: childrenByParentId,
     );
-    _tocCache[bookId] = cache;
+    _putTocCache(bookId, cache);
     return cache;
   }
 

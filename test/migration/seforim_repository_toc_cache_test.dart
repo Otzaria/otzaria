@@ -1148,4 +1148,41 @@ void main() {
       },
     );
   });
+
+  group('תקרת קאש ה-TOC (LRU לפי מספר ערכים)', () {
+    Future<List<int>> buildBooks(int count) async => [
+      for (var i = 0; i < count; i++) await buildSampleBook('ספר $i'),
+    ];
+
+    test('מפנה את הספר שלא נקרא זמן רב ביותר', () async {
+      final lru = SeforimRepository(database, tocCacheMaxEntries: 8);
+      final [a, b, c] = await buildBooks(3);
+      await lru.getTocEntriesForReference(a, 'ספר 0');
+      await lru.getTocEntriesForReference(b, 'ספר 1');
+      expect(lru.debugTocCacheEntryCount, 8);
+
+      // קריאה חוזרת ל-a הופכת את b לישן ביותר.
+      await lru.getTocEntriesForReference(a, 'ספר 0');
+      await lru.getTocEntriesForReference(c, 'ספר 2');
+
+      expect(lru.debugTocCachedBookIds, [a, c]);
+      expect(lru.debugTocCacheEntryCount, 8);
+      expect(
+        await lru.getTocEntriesForReference(b, 'ספר 1'),
+        hasLength(4),
+        reason: 'ספר שפונה נבנה מחדש מהמסד',
+      );
+      expect(lru.debugTocCachedBookIds, [c, b]);
+    });
+
+    test('ספר שגדול מהתקרה לבדו נשמר', () async {
+      final lru = SeforimRepository(database, tocCacheMaxEntries: 2);
+      final [a, b] = await buildBooks(2);
+      await lru.getTocEntriesForReference(a, 'ספר 0');
+      expect(lru.debugTocCachedBookIds, [a]);
+      await lru.getTocEntriesForReference(b, 'ספר 1');
+      expect(lru.debugTocCachedBookIds, [b]);
+      expect(lru.debugTocCacheEntryCount, 4);
+    });
+  });
 }

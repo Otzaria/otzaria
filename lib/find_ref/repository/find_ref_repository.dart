@@ -319,8 +319,11 @@ class FindRefRepository {
   /// (`bookId`, `sourceLineId`, `isAltToc`, `tocLevel`, `segment`) — לא מספיק
   /// `bookId:sourceLineId` בלבד: TOC רגיל ו-AltToc יכולים לחלוק את אותה שורת
   /// התחלה (למשל "בראשית פרק א" ו"פרשת בראשית" — שניהם בשורה הראשונה), אך
-  /// הטווח המחושב להם שונה. חי כל זמן שה-repository חי; קטן יחסית בפועל.
+  /// הטווח המחושב להם שונה. LRU: סדר ההכנסה הוא סדר השימוש.
   final Map<String, List<DbCommentatorEntry>> _commentatorsCache = {};
+
+  /// כ-15 שורות גלויות לכל תוצאה — מספיק לעשרות חיפושים אחרונים.
+  static const int _maxCommentatorsCacheEntries = 500;
 
   /// חיתוך בסיס של רשימת התוצאות. מורחב ע"י [_rankResults] לכל מי שחולק את
   /// מפתח-הרלוונטיות של התוצאה ה-20, כך שתוצאות שווֹת-רלוונטיות לא נחתכות
@@ -706,8 +709,8 @@ class FindRefRepository {
 
     final cacheKey = _cacheKeyFor(ref);
     await _currentVisibility();
-    final cached = _commentatorsCache[cacheKey];
-    if (cached != null) return cached;
+    final cached = _commentatorsCache.remove(cacheKey);
+    if (cached != null) return _commentatorsCache[cacheKey] = cached;
 
     final repository = SqliteDataProvider.instance.repository;
     final fetchFn =
@@ -751,7 +754,7 @@ class FindRefRepository {
     }
 
     if (entries.isEmpty) {
-      _commentatorsCache[cacheKey] = const [];
+      _cacheCommentators(cacheKey, const []);
       return const [];
     }
 
@@ -778,8 +781,15 @@ class FindRefRepository {
         currentVisibility.selection != const HiddenLibraryStore().load()) {
       return const [];
     }
-    _commentatorsCache[cacheKey] = sorted;
+    _cacheCommentators(cacheKey, sorted);
     return sorted;
+  }
+
+  void _cacheCommentators(String key, List<DbCommentatorEntry> entries) {
+    _commentatorsCache[key] = entries;
+    if (_commentatorsCache.length > _maxCommentatorsCacheEntries) {
+      _commentatorsCache.remove(_commentatorsCache.keys.first);
+    }
   }
 
   /// הקאש מכריע לכל מפרש עם מזהה; השאר נפתרים לפי שם בבקשה מאוגדת אחת.

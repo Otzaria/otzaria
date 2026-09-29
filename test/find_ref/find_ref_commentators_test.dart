@@ -397,6 +397,32 @@ void main() {
       expect(calls, 2);
     });
 
+    test('cache — חסום ל-500 רשומות, והנקראת לאחרונה נשמרת', () async {
+      final fetched = <int>[];
+      final repo = _repoWith(
+        fetch: (ref) async {
+          fetched.add(ref.sourceLineId);
+          return [
+            {'targetBookTitle': 'רש"י', 'targetBookId': 1},
+          ];
+        },
+      );
+
+      for (var line = 1; line <= 500; line++) {
+        await repo.getCommentatorsForResult(_ref(sourceLineId: line));
+      }
+      // שורה 1 נקראת שוב, ולכן 2 היא הישנה ביותר כשנכנסת 501.
+      await repo.getCommentatorsForResult(_ref(sourceLineId: 1));
+      await repo.getCommentatorsForResult(_ref(sourceLineId: 501));
+      fetched.clear();
+
+      await repo.getCommentatorsForResult(_ref(sourceLineId: 1));
+      await repo.getCommentatorsForResult(_ref(sourceLineId: 3));
+      expect(fetched, isEmpty);
+      await repo.getCommentatorsForResult(_ref(sourceLineId: 2));
+      expect(fetched, [2]);
+    });
+
     test('בלי injection ובלי DB — מחזיר ריק בלי לזרוק', () async {
       // ה-repository ייפול ל-`SqliteDataProvider.instance.repository` שמחזיר
       // null כאשר ה-DB לא מאותחל (כמו בסביבת טסט). המתודה אמורה להחזיר ריק
