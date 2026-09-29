@@ -1035,6 +1035,29 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     });
 
+    testWidgets('סט תוצאות של שאילתה אחרת מתחיל מראש הרשימה', (tester) async {
+      final repo = _QueryRepository({
+        'בראשית': [for (var i = 1; i <= 40; i++) _ref('בראשית $i')],
+        'שמות': [for (var i = 1; i <= 40; i++) _ref('שמות $i')],
+      });
+      await _pumpDialog(tester, repository: repo);
+      await tester.enterText(find.byType(TextField), 'בראשית');
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+
+      final list = find.byType(Scrollable).last;
+      await tester.drag(list, const Offset(0, -1500));
+      await tester.pumpAndSettle();
+      expect(find.text('בראשית 1'), findsNothing);
+
+      await tester.enterText(find.byType(TextField), 'שמות');
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('שמות 1'), findsOneWidget);
+    });
+
     testWidgets('מקום כפתור המפרשים שמור מהפריים הראשון', (tester) async {
       await _pumpDialog(tester, results: [_ref('בראשית פרק א')]);
       await tester.enterText(find.byType(TextField), 'בראשית');

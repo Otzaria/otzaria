@@ -292,6 +292,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
   /// תיפתח כשתגיע.
   bool _pendingEnter = false;
 
+  /// השאילתה של סט התוצאות האחרון; סט של שאילתה אחרת מתחיל מראש הרשימה.
+  String? _resultsQuery;
+
   /// התוצאות שמוצגות כרגע. נשמרות כדי שהקלדה של אות נוספת לא תרוקן את
   /// הרשימה ותחזיר אותה — הרשימה הקודמת נשארת עד שהחדשה מגיעה.
   List<DbReferenceResult> _shownRefs = const <DbReferenceResult>[];
@@ -1236,6 +1239,14 @@ class _FindRefDialogState extends State<FindRefDialog> {
           _hasMoreBelow.value = false;
         }
         if (state is FindRefSuccess) {
+          if (state.query != _resultsQuery) {
+            _resultsQuery = state.query;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _resultsScrollController.hasClients) {
+                _resultsScrollController.jumpTo(0);
+              }
+            });
+          }
           if (_pendingEnter && _isCurrentSuccess(state)) {
             _pendingEnter = false;
             if (state.refs.isNotEmpty) _openRef(state.refs.first);
