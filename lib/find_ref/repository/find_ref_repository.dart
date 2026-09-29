@@ -1897,6 +1897,7 @@ class FindRefRepository {
     }
 
     final matches = <(_UserBookRecord, List<String>)>[];
+    final matchedCounts = <int>[];
     final restrict = !visibility.selection.isEmpty;
     for (final secondary in books) {
       final book = secondary.record;
@@ -1952,6 +1953,7 @@ class FindRefRepository {
       }
       if (matchedN == null) continue;
 
+      matchedCounts.add(matchedN);
       matches.add((
         book,
         _getRemainingTokens(
@@ -1978,8 +1980,22 @@ class FindRefRepository {
       }
     }
 
-    var tocBooks = 0;
-    for (final (book, remainingTokens) in matches) {
+    // התקרה נותנת את חיפושי ה-TOC לספרים שהשם שלהם כיסה הכי הרבה מהשאילתה
+    // ("שות פלוני חלק טו ג" → "חלק טו"), לא ל-12 הראשונים בסדר הקטלוג.
+    Set<int>? tocAllowed;
+    if (maxTocBooks != null) {
+      final eligible = [
+        for (var i = 0; i < matches.length; i++)
+          if (queryTokens.length > 1 && matches[i].$2.isNotEmpty) i,
+      ];
+      mergeSort(
+        eligible,
+        compare: (a, b) => matchedCounts[b].compareTo(matchedCounts[a]),
+      );
+      tocAllowed = eligible.take(maxTocBooks).toSet();
+    }
+
+    for (final (i, (book, remainingTokens)) in matches.indexed) {
       final isPdf = book.fileType == 'pdf';
       final bookPath = book.folderTitles.isEmpty
           ? rootPath
@@ -2026,7 +2042,7 @@ class FindRefRepository {
         continue;
       }
 
-      if (maxTocBooks != null && tocBooks++ >= maxTocBooks) {
+      if (tocAllowed != null && !tocAllowed.contains(i)) {
         out.add(result(reference: book.title, segment: 0));
         continue;
       }

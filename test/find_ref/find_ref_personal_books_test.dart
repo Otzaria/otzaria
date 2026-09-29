@@ -105,6 +105,55 @@ void main() {
     );
   });
 
+  test('התקרה מעדיפה את הכרך שהשם שלו כיסה יותר מהשאילתה', () async {
+    const volumes = [
+      'א',
+      'ב',
+      'ג',
+      'ד',
+      'ה',
+      'ו',
+      'ז',
+      'ח',
+      'ט',
+      'י',
+      'יא',
+      'יב',
+      'יג',
+      'יד',
+      'טו',
+      'טז',
+      'יז',
+      'יח',
+      'יט',
+      'כ',
+    ];
+    final books = [
+      for (var i = 0; i < volumes.length; i++)
+        _book(i + 1, 'חלק ${volumes[i]}', folders: const ['שות פלוני']),
+    ];
+    final tocCalls = <int>[];
+    final repo = _repo(
+      books: books,
+      userToc: (bookId, title, {queryTokens}) async {
+        tocCalls.add(bookId);
+        return [
+          if (title == 'חלק טו' && queryTokens!.join(' ') == 'ג')
+            {'reference': 'חלק טו, סימן ג', 'segment': 3, 'level': 2},
+        ];
+      },
+    );
+
+    final results = await repo.findRefs(
+      'שות פלוני חלק טו ג',
+      includePersonalBooks: true,
+    );
+
+    expect(tocCalls, hasLength(FindRefRepository.maxPersonalTocBooks));
+    expect(tocCalls, contains(15));
+    expect(results.map((r) => r.reference), contains('חלק טו, סימן ג'));
+  });
+
   group('תוכן עניינים של ספר אישי ב-worker', () {
     late Directory tempDir;
     late String dbPath;
