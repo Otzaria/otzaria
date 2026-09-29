@@ -63,10 +63,15 @@ uint64_t zplat_now_ms(void);
 #define ZDB_HEADER_SIZE 4096u
 #define ZDB_HEADER_CORE 256u
 #define ZDB_FORMAT_MAJOR 1u
-#define ZDB_FORMAT_MINOR 0u
+#define ZDB_FORMAT_MINOR 1u
 #define ZDB_CODEC_ZSTD_MAGICLESS 1u
 #define ZDB_COMPAT_WAL_HEADER_PATCHED 0x1u
-#define ZDB_KNOWN_INCOMPAT 0x0u
+/* 1.1: [gapStart, gapEnd) is padding over SQLite's lock bytes (see README). */
+#define ZDB_INCOMPAT_LOCK_GAP 0x1u
+#define ZDB_KNOWN_INCOMPAT ZDB_INCOMPAT_LOCK_GAP
+/* PENDING_BYTE of SQLite's OS layers; locks cover [it, it + 512). */
+#define ZDB_LOCK_BYTE 0x40000000ull
+#define ZDB_LOCK_SIZE 512u
 #define ZDB_MAX_DICT (1u << 20)
 #define ZDB_MAX_FRAME_BYTES (16u << 20)
 #define ZDB_OVERLAY_SUFFIX "-zovl"
@@ -83,6 +88,7 @@ typedef struct zdb_header {
   uint8_t uuid[16];
   uint64_t created_ms;
   char dict_name[32];
+  uint64_t gap_start, gap_end; /* only with ZDB_INCOMPAT_LOCK_GAP */
 } zdb_header;
 
 int zdb_has_magic(const void *p, size_t n);
@@ -122,6 +128,11 @@ void zdb_file_free(zdb_file *f);
 int zdb_file_read(zdb_file *f, zdb_read_fn rd, void *ctx, void *buf,
                   uint64_t n, uint64_t off);
 void zdb_fill_info(const zdb_file *f, zvfs_info *out);
+/* End of frame i's bytes; the frame before a lock gap ends at gapStart. */
+uint64_t zdb_frame_end(const zdb_file *f, uint64_t i);
+
+/* Converter test seam: where the lock-byte gap goes (ZDB_LOCK_BYTE). */
+extern uint64_t zvfs_g_lock_byte;
 
 extern volatile int64_t zvfs_g_cache_budget;
 void zvfs_stat_open_files(int64_t delta);

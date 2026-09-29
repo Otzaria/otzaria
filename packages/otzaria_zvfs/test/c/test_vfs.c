@@ -258,6 +258,53 @@ static void test_threads(void) {
   remove(zdb);
 }
 
+#if defined(_WIN32)
+#include <windows.h>
+/* A writer's RESERVED/PENDING/SHARED locks sit on [1GB, 1GB + 512) of the base
+   and are mandatory on Windows: with the gap no page read may touch them. */
+static void test_windows_lock_bytes(void) {
+  const char *plain = tmp_path("wl_plain.db");
+  const char *zdb = tmp_path("wl.zdb");
+  remove(plain);
+  remove(zdb);
+  sqlite3 *db = open_db(plain, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  exec(db, "PRAGMA page_size=16384; CREATE TABLE t(id INTEGER PRIMARY KEY, b BLOB);"
+           "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE "
+           "i<70000) INSERT INTO t SELECT i, randomblob(16000) FROM n;");
+  sqlite3_close(db);
+  zvfs_conv *c = NULL;
+  CHECK_EQ(zvfs_conv_create(zdb, NULL, 0, NULL, 1, 8, 1, 16 << 20, NULL, &c), 0);
+  FILE *in = fopen(plain, "rb");
+  static uint8_t buf[1 << 20];
+  size_t k;
+  while (c && in && (k = fread(buf, 1, sizeof buf, in)) > 0)
+    if (zvfs_conv_feed(c, buf, k)) break;
+  if (in) fclose(in);
+  CHECK_EQ(zvfs_conv_finish(c, NULL), 0);
+  zvfs_conv_destroy(c);
+  remove(plain);
+  HANDLE h = CreateFileA(zdb, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                         NULL, OPEN_EXISTING, 0, NULL);
+  /* a writer's RESERVED byte: readers stay allowed, as in SQLite */
+  OVERLAPPED ov;
+  memset(&ov, 0, sizeof ov);
+  ov.Offset = (DWORD)ZDB_LOCK_BYTE + 1;
+  CHECK(LockFileEx(h, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1,
+                   0, &ov));
+  zvfs_set_cache_budget(0);
+  sqlite3 *r = open_db(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  int rc;
+  query_hash(r, "SELECT count(*), sum(length(b)) FROM t", &rc);
+  CHECK_EQ(rc, SQLITE_OK);
+  sqlite3_close(r);
+  zvfs_set_cache_budget(16 << 20);
+  UnlockFileEx(h, 0, 1, 0, &ov);
+  CloseHandle(h);
+  printf("windows lock bytes: full scan while RESERVED is held: rc=%d\n", rc);
+  remove(zdb);
+}
+#endif
+
 int main(void) {
   sqlite3_auto_extension((void (*)(void))sqlite3_otzariazvfs_init);
   sqlite3 *m = NULL;
@@ -271,6 +318,9 @@ int main(void) {
   test_roundtrip(65536, 0);
   test_corrupt_and_overlay();
   test_threads();
+#if defined(_WIN32)
+  if (getenv("ZVFS_BIG_TESTS")) test_windows_lock_bytes();
+#endif
   zvfs_stats s;
   zvfs_get_stats(&s);
   printf("stats: frames %lld hits %lld misses %lld corrupt %lld open %lld\n",

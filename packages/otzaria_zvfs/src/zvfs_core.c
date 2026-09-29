@@ -111,6 +111,8 @@ void zdb_header_encode(const zdb_header *h, uint8_t r[ZDB_HEADER_CORE]) {
   memcpy(r + 112, h->uuid, 16);
   put64(r + 128, h->created_ms);
   memcpy(r + 136, h->dict_name, 31);
+  put64(r + 208, h->gap_start);
+  put64(r + 216, h->gap_end);
   put64(r + 248, XXH64(r, 248, 0));
 }
 
@@ -142,6 +144,8 @@ int zdb_header_decode(const uint8_t r[ZDB_HEADER_CORE], zdb_header *h) {
   memcpy(h->uuid, r + 112, 16);
   h->created_ms = get64(r + 128);
   memcpy(h->dict_name, r + 136, 32);
+  h->gap_start = get64(r + 208);
+  h->gap_end = get64(r + 216);
   if (h->incompat & ~ZDB_KNOWN_INCOMPAT) return ZVFS_ERR_UNSUPPORTED;
   if (h->codec != ZDB_CODEC_ZSTD_MAGICLESS) return ZVFS_ERR_UNSUPPORTED;
 
@@ -165,6 +169,13 @@ int zdb_header_decode(const uint8_t r[ZDB_HEADER_CORE], zdb_header *h) {
   if (h->index_offset < h->dict_offset + h->dict_length + h->frame_count ||
       h->index_offset > (1ull << 60))
     return ZVFS_ERR_CORRUPT;
+  if (h->incompat & ZDB_INCOMPAT_LOCK_GAP) {
+    if (h->gap_start < h->dict_offset + h->dict_length ||
+        h->gap_end <= h->gap_start || h->gap_end > h->index_offset)
+      return ZVFS_ERR_CORRUPT;
+  } else if (h->gap_start || h->gap_end) {
+    return ZVFS_ERR_CORRUPT;
+  }
   return ZVFS_OK;
 }
 
@@ -282,17 +293,29 @@ int zdb_file_load(zdb_read_fn rd, void *ctx, uint64_t phys, zdb_file **out) {
       goto fail;
     }
     uint64_t maxlen = zdb_max_frame_len(&f->h);
-    if (f->index[0] != f->h.dict_offset + f->h.dict_length ||
-        f->index[f->h.frame_count] != f->h.index_offset) {
+    uint64_t first = f->h.dict_offset + f->h.dict_length;
+    int gap = (f->h.incompat & ZDB_INCOMPAT_LOCK_GAP) != 0, gap_seen = !gap;
+    /* the gap may also sit right after the dictionary */
+    if (gap && f->h.gap_start == first) {
+      first = f->h.gap_end;
+      gap_seen = 1;
+    }
+    if (f->index[0] != first || f->index[f->h.frame_count] != f->h.index_offset) {
       rc = ZVFS_ERR_CORRUPT;
       goto fail;
     }
     for (uint64_t i = 0; i < f->h.frame_count; i++) {
-      if (f->index[i + 1] <= f->index[i] ||
-          f->index[i + 1] - f->index[i] > maxlen) {
+      uint64_t a = f->index[i], e = zdb_frame_end(f, i);
+      if (f->index[i + 1] <= a || e <= a || e - a > maxlen ||
+          (gap && a >= f->h.gap_start && a < f->h.gap_end)) {
         rc = ZVFS_ERR_CORRUPT;
         goto fail;
       }
+      if (gap && f->index[i + 1] == f->h.gap_end) gap_seen = 1;
+    }
+    if (!gap_seen) {
+      rc = ZVFS_ERR_CORRUPT;
+      goto fail;
     }
   }
 
@@ -389,10 +412,17 @@ static size_t frame_len(const zdb_file *f, uint64_t frame) {
   return (size_t)(left < f->frame_bytes ? left : f->frame_bytes);
 }
 
+uint64_t zdb_frame_end(const zdb_file *f, uint64_t i) {
+  uint64_t e = f->index[i + 1];
+  return (f->h.incompat & ZDB_INCOMPAT_LOCK_GAP) && e == f->h.gap_end
+             ? f->h.gap_start
+             : e;
+}
+
 static int decode_frame(zdb_file *f, zdb_read_fn rd, void *ctx, uint64_t frame,
                         uint8_t *dst) {
   uint64_t a = f->index[frame];
-  size_t clen = (size_t)(f->index[frame + 1] - a);
+  size_t clen = (size_t)(zdb_frame_end(f, frame) - a);
   size_t want = frame_len(f, frame);
   uint8_t *src = (uint8_t *)malloc(clen);
   if (!src) return ZVFS_ERR_NOMEM;

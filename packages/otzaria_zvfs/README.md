@@ -46,7 +46,7 @@ multiple of the page size and at least the page count in the header
 rejected. A WAL-mode source is served with a rollback-mode header
 (bytes 18/19 = 1, compat bit 0), so read-only opens need no `-shm`.
 
-## File format v1.0
+## File format v1.1
 
 All integers little-endian. A file is:
 
@@ -63,9 +63,9 @@ Header core:
 |----:|----:|---|---|
 | 0 | 8 | magic | `4F 54 5A 5A 44 42 1A 0A` ("OTZZDB\x1a\n") |
 | 8 | 2 | formatMajor | 1. Readers refuse other majors (fixed offset forever) |
-| 10 | 2 | formatMinor | 0. Additive changes only; readers accept higher minors |
+| 10 | 2 | formatMinor | 1. Additive changes only; readers accept higher minors |
 | 12 | 4 | headerSize | 4096 |
-| 16 | 4 | incompatFeatures | reader must know every bit set, else refuses |
+| 16 | 4 | incompatFeatures | reader must know every bit set, else refuses; bit 0 = lock gap |
 | 20 | 4 | compatFeatures | ignorable; bit 0 = WAL header patched |
 | 24 | 4 | pageSize | SQLite page size, power of two 512..65536 |
 | 28 | 4 | framePages | pages per frame (converter uses 1); frameBytes <= 16MB |
@@ -84,13 +84,34 @@ Header core:
 | 112 | 16 | fileUuid | random per file; overlays bind to it |
 | 128 | 8 | createdUnixMs | informational |
 | 136 | 32 | dictName | ASCII, NUL-terminated, e.g. `seforim-v1` |
-| 168 | 80 | reserved | zero in 1.0; future minors add fields here |
+| 168 | 40 | reserved | zero; future minors add fields here |
+| 208 | 8 | gapStart | 1.1, with incompat bit 0: padding start (else 0) |
+| 216 | 8 | gapEnd | 1.1, with incompat bit 0: padding end (else 0) |
+| 224 | 24 | reserved | zero |
 | 248 | 8 | headerXxh64 | XXH64 of bytes [0, 248) |
 
 `index[0]` is the first byte after the dictionary, `index[frameCount]` equals
 `indexOffset`, offsets strictly increase and no frame exceeds
 `ZSTD_compressBound(frameBytes) + 64`. Frame `i` decodes to
-`min(frameBytes, logicalSize - i * frameBytes)` bytes.
+`min(frameBytes, logicalSize - i * frameBytes)` bytes. Frame `i` occupies
+`[index[i], index[i+1])`, except with a lock gap (below).
+
+### SQLite lock bytes (1.1)
+
+SQLite locks bytes `[0x40000000, 0x40000000 + 512)` of every database file
+(PENDING, RESERVED and the SHARED range), and on Windows those locks are
+mandatory: while another handle holds them, reading those bytes fails with
+`ERROR_LOCK_VIOLATION`, which surfaced as `SQLITE_IOERR` for the page whose
+frame covered them. SQLite never uses its own pending-byte page; the converter
+likewise never places frame or index bytes there. When the next frame (or the
+index) would touch the range, it writes zeros from the current offset up to
+`0x40000000 + 512`, records `gapStart`/`gapEnd`, sets incompat bit 0 and goes
+on after the gap. The entry `index[j] == gapEnd` then starts the next frame
+(or the index), and frame `j-1` ends at `gapStart` (the gap may also follow the
+dictionary directly). Readers never read the gap. Files that do not reach the
+range (under 1GB) carry no gap and no flag, and are readable by 1.0 readers;
+a file with a gap is refused by readers that do not know the bit, instead of
+being decoded with padding appended to a frame.
 
 ### Validation
 

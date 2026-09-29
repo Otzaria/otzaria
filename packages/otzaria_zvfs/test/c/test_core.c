@@ -531,7 +531,165 @@ static void test_builtin_dict(void) {
   CHECK_EQ(zvfs_builtin_dict(99, NULL, NULL, NULL, NULL), ZVFS_ERR_INVALID);
 }
 
+/* No frame and no index byte may sit in [lock, lock + 512): SQLite locks
+   those bytes of the base file, and on Windows the locks are mandatory. */
+static int check_gap_layout(const uint8_t *z, size_t zn, uint64_t lock,
+                            const uint8_t *src, size_t n) {
+  membuf mb = {z, zn};
+  zdb_file *f = NULL;
+  if (zdb_file_load(mem_rd, &mb, zn, &f) != ZVFS_OK) return -1;
+  uint64_t hi = lock + ZDB_LOCK_SIZE;
+  int gap = (f->h.incompat & ZDB_INCOMPAT_LOCK_GAP) != 0, bad = 0;
+  for (uint64_t i = 0; i < f->h.frame_count; i++) {
+    uint64_t a = f->index[i], e = zdb_frame_end(f, i);
+    if (!(e <= lock || a >= hi)) bad++;
+  }
+  if (!(zn <= lock || f->h.index_offset >= hi)) bad++;
+  if (gap && !(f->h.gap_start <= lock && f->h.gap_end == hi)) bad++;
+  if (src) {
+    uint8_t *all = (uint8_t *)malloc(n);
+    if (zdb_file_read(f, mem_rd, &mb, all, n, 0) != ZVFS_OK ||
+        memcmp(all, src, n) != 0)
+      bad++;
+    free(all);
+  }
+  zdb_file_free(f);
+  return bad ? -1 : gap;
+}
+
+static void test_lock_gap(void) {
+  uint32_t ps = 4096, pages = 300;
+  uint8_t *src = make_source(ps, pages, 0);
+  size_t n = (size_t)ps * pages;
+  const char *dst = tmp_path("gap.zdb");
+  zvfs_g_lock_byte = 1ull << 40;
+  CHECK_EQ(convert_buf(dst, src, n, NULL, 0, 2, 1, 16 << 10, 0, NULL, NULL), 0);
+  uint8_t *z;
+  size_t zn;
+  CHECK_EQ(read_file(dst, &z, &zn), 0);
+  CHECK_EQ(check_gap_layout(z, zn, zvfs_g_lock_byte, src, n), 0);
+  free(z);
+  /* every lock position from the first frame to past the end of file */
+  int gapped = 0, plain = 0, bad = 0;
+  uint64_t step = zn / 700 | 1;
+  for (uint64_t lock = ZDB_HEADER_SIZE + 64; lock < zn + 700; lock += step) {
+    zvfs_g_lock_byte = lock;
+    uint32_t fp = lock % 3 == 0 ? 2 : 1;
+    int rc = convert_buf(dst, src, n, NULL, 0, 1 + (int)(lock % 3), fp,
+                         (lock % 5 + 1) * 8192, 0, NULL, NULL);
+    uint8_t *g;
+    size_t gn;
+    if (rc || read_file(dst, &g, &gn)) {
+      bad++;
+      continue;
+    }
+    int r = check_gap_layout(g, gn, lock, src, n);
+    if (r < 0) {
+      if (bad++ < 3) fprintf(stderr, "lock gap: bad layout at lock %llu\n",
+                             (unsigned long long)lock);
+    } else if (r) {
+      gapped++;
+      /* clearing the flag must not make the padding readable as a frame */
+      uint8_t hdr[ZDB_HEADER_CORE];
+      memcpy(hdr, g, sizeof hdr);
+      zdb_header h;
+      CHECK_EQ(zdb_header_decode(hdr, &h), ZVFS_OK);
+      h.incompat &= ~ZDB_INCOMPAT_LOCK_GAP;
+      zdb_header_encode(&h, g);
+      membuf mb = {g, gn};
+      zdb_file *f = NULL;
+      CHECK(zdb_file_load(mem_rd, &mb, gn, &f) != ZVFS_OK);
+      zdb_file_free(f);
+    } else {
+      plain++;
+    }
+    free(g);
+  }
+  zvfs_g_lock_byte = ZDB_LOCK_BYTE;
+  CHECK_EQ(bad, 0);
+  CHECK(gapped > 100 && plain > 0);
+  printf("  lock gap: %d layouts with a gap, %d without, all readable\n", gapped,
+         plain);
+  remove(dst);
+  free(src);
+}
+
+/* Real lock byte: a >1GB base from incompressible synthetic pages. */
+static void big_page(uint32_t ps, uint64_t pg, uint8_t *out) {
+  uint64_t x = pg * 0x9E3779B97F4A7C15ull + 1;
+  for (uint32_t i = 0; i < ps; i += 8) {
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    memcpy(out + i, &x, 8);
+  }
+}
+
+static int file_rd(void *ctx, void *buf, size_t n, uint64_t off) {
+  size_t got = 0;
+  int rc = zplat_pread((zplat_file *)ctx, buf, n, off, &got);
+  if (rc) return rc;
+  return got == n ? ZVFS_OK : ZVFS_ERR_SHORT_READ;
+}
+
+static void test_big_lock_gap(void) {
+  const uint32_t ps = 16384;
+  const uint64_t pages = (ZDB_LOCK_BYTE + (96ull << 20)) / ps;
+  const char *dst = tmp_path("big_gap.zdb");
+  zvfs_conv *c = NULL;
+  CHECK_EQ(zvfs_conv_create(dst, NULL, 0, NULL, 1, 8, 1, 16 << 20, NULL, &c), 0);
+  uint8_t *pg = (uint8_t *)malloc(ps);
+  for (uint64_t i = 0; c && i < pages; i++) {
+    big_page(ps, i, pg);
+    if (i == 0) {
+      memset(pg, 0, 100);
+      memcpy(pg, "SQLite format 3", 16);
+      pg[16] = (uint8_t)(ps >> 8);
+      pg[18] = pg[19] = 1;
+    }
+    if (zvfs_conv_feed(c, pg, ps)) break;
+  }
+  CHECK_EQ(zvfs_conv_finish(c, NULL), 0);
+  zvfs_conv_destroy(c);
+  zplat_file *pf = NULL;
+  uint64_t size = 0;
+  CHECK_EQ(zplat_open_read(dst, &pf), 0);
+  zplat_size(pf, &size);
+  zdb_file *f = NULL;
+  CHECK_EQ(zdb_file_load(file_rd, pf, size, &f), 0);
+  if (f) {
+    CHECK(size > ZDB_LOCK_BYTE + ZDB_LOCK_SIZE);
+    CHECK(f->h.incompat & ZDB_INCOMPAT_LOCK_GAP);
+    CHECK_EQ(f->h.gap_end, ZDB_LOCK_BYTE + ZDB_LOCK_SIZE);
+    int bad = 0;
+    uint64_t at = 0;
+    for (uint64_t i = 0; i < f->h.frame_count; i++) {
+      if (!(zdb_frame_end(f, i) <= ZDB_LOCK_BYTE ||
+            f->index[i] >= ZDB_LOCK_BYTE + ZDB_LOCK_SIZE))
+        bad++;
+      if (f->index[i + 1] == f->h.gap_end) at = i;
+    }
+    CHECK_EQ(bad, 0);
+    /* the pages on both sides of the gap decode to their source */
+    uint8_t *got = (uint8_t *)malloc(ps);
+    for (uint64_t i = at - 2; i < at + 3; i++) {
+      big_page(ps, i, pg);
+      CHECK_EQ(zdb_file_read(f, file_rd, pf, got, ps, i * ps), 0);
+      CHECK(memcmp(got, pg, ps) == 0);
+    }
+    free(got);
+    printf("  big lock gap: %.2f GB base, gap [%llu, %llu) before page %llu\n",
+           size / 1073741824.0, (unsigned long long)f->h.gap_start,
+           (unsigned long long)f->h.gap_end, (unsigned long long)(at + 1));
+    zdb_file_free(f);
+  }
+  zplat_close(pf);
+  free(pg);
+  remove(dst);
+}
+
 int main(void) {
+  setvbuf(stdout, NULL, _IONBF, 0);
   const char *it = getenv("ZVFS_FUZZ_ITERS");
   int iters = it ? atoi(it) : 20000;
   test_header_codec();
@@ -541,6 +699,8 @@ int main(void) {
   test_concurrency();
   test_zstd_long_window_source();
   test_exhaustive_damage();
+  test_lock_gap();
+  if (getenv("ZVFS_BIG_TESTS")) test_big_lock_gap();
   test_fuzz(iters);
   if (g_failures) {
     fprintf(stderr, "%d check(s) failed\n", g_failures);

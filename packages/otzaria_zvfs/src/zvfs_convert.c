@@ -64,6 +64,8 @@ struct zvfs_conv {
   int n_threads_started;
 };
 
+uint64_t zvfs_g_lock_byte = ZDB_LOCK_BYTE;
+
 static int fail(zvfs_conv *c, int code, const char *msg) {
   if (!c->failed) {
     c->failed = code;
@@ -144,6 +146,27 @@ static int write_at(zvfs_conv *c, const void *p, size_t n) {
   return ZVFS_OK;
 }
 
+/* Would n bytes at `at` touch SQLite's lock bytes (mandatory on Windows)? */
+static int needs_gap(const zvfs_conv *c, uint64_t at, uint64_t n) {
+  uint64_t lo = zvfs_g_lock_byte, hi = lo + ZDB_LOCK_SIZE;
+  return !(c->h.incompat & ZDB_INCOMPAT_LOCK_GAP) && at < hi && at + n > lo;
+}
+
+/* Pads from the write position past the lock bytes; readers never read it. */
+static int write_gap(zvfs_conv *c) {
+  static const uint8_t zero[4096];
+  uint64_t end = zvfs_g_lock_byte + ZDB_LOCK_SIZE;
+  c->h.gap_start = c->write_off;
+  c->h.gap_end = end;
+  c->h.incompat |= ZDB_INCOMPAT_LOCK_GAP;
+  while (c->write_off < end) {
+    uint64_t k = end - c->write_off;
+    int rc = write_at(c, zero, k < sizeof zero ? (size_t)k : sizeof zero);
+    if (rc) return rc;
+  }
+  return ZVFS_OK;
+}
+
 /* Waits for the in-flight batch and appends its frames in order. */
 static int drain(zvfs_conv *c) {
   if (c->inflight < 0) return c->failed;
@@ -169,6 +192,12 @@ static int drain(zvfs_conv *c) {
   }
   size_t packed = 0;
   for (uint32_t i = 0; i < b->n_frames; i++) {
+    if (needs_gap(c, c->write_off + packed, b->out_len[i])) {
+      int rc = packed ? write_at(c, b->out, packed) : ZVFS_OK;
+      if (!rc) rc = write_gap(c);
+      if (rc) return rc;
+      packed = 0;
+    }
     c->index[b->first_frame + i] = c->write_off + packed;
     memmove(b->out + packed, b->out + (size_t)i * c->out_stride, b->out_len[i]);
     packed += b->out_len[i];
@@ -419,6 +448,10 @@ ZVFS_API int zvfs_conv_finish(zvfs_conv *c, zvfs_info *info) {
     if (!ni) return fail(c, ZVFS_ERR_NOMEM, "out of memory (index)");
     c->index = ni;
     c->index_cap = n + 1;
+  }
+  if (needs_gap(c, c->write_off, (n + 1) * 8)) {
+    rc = write_gap(c);
+    if (rc) return rc;
   }
   c->index[n] = c->write_off;
   c->h.index_offset = c->write_off;
