@@ -162,7 +162,7 @@ static void one_config(int with_overlay, int mode, int sync, stats *st,
         else MF.fail_sync = k;
         int c = run_txn(mode, sync, 97);
         memfs_crash(pol);
-        int dbl = (k % 5) == 0;
+        int dbl = (iters % 5) == 4; /* independent of the sampling stride */
         if (dbl) {
           /* crash again while recovery (hot journal / WAL) runs */
           MF.writes = MF.syncs = 0;
