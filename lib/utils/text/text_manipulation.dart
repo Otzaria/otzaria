@@ -1628,7 +1628,11 @@ bool? matchDafCitation(
     return false;
   }
   if (cite.amud != null) {
-    final entryAmud = heading.length >= 3 ? _amudToken(heading[2]) : null;
+    // "דף מג עמוד א": העמוד אחרי המילה "עמוד".
+    final amudAt = heading.length > 3 && heading[2] == 'עמוד' ? 3 : 2;
+    final entryAmud = heading.length > amudAt
+        ? _amudToken(heading[amudAt])
+        : null;
     if (cite.amud != entryAmud) return false;
   }
   return true;
@@ -1655,10 +1659,8 @@ bool _isBareDafHeading(List<String> tokens) {
 /// "ב" של "דף יב" או של תת-כותרת תחתיו אינו דף ב.
 bool nearestDafInPathMatches(List<String> pathTokens, DafCitation cite) {
   final dafAt = pathTokens.lastIndexOf('דף');
-  if (dafAt < 0) return false;
-  // "דף מג עמוד א" — matchDafCitation מצפה לעמוד מיד אחרי המספר.
-  final dafTokens = pathTokens.sublist(dafAt).where((t) => t != 'עמוד');
-  return matchDafCitation(dafTokens.toList(), cite) == true;
+  return dafAt >= 0 &&
+      matchDafCitation(pathTokens.sublist(dafAt), cite) == true;
 }
 
 /// בודק אם כותרת TOC תואמת להפניה חופשית של תוסף (למשל "ס\"ד ע\"ב" ↔ "דף סד:").

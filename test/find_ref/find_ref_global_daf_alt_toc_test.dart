@@ -183,4 +183,24 @@ void main() {
       );
     },
   );
+
+  test('AltToc של ספר: כותרת "דף מג עמוד א" תואמת לציון עמוד', () async {
+    final database = MyDatabase.withPath(dbPath, readOnly: true);
+    addTearDown(database.close);
+    final seforim = SeforimRepository(database);
+    await seforim.ensureInitialized();
+
+    Future<List<Object?>> refs(List<String> tokens) async => [
+      for (final r in await seforim.getAltTocEntriesForReference(
+        4,
+        'קרן אורה על חולין',
+        queryTokens: tokens,
+      ))
+        r['reference'],
+    ];
+
+    const amudA = ['אלו טרפות דף מג עמוד א'];
+    expect(await refs(const ['אלו', 'טרפות', 'דף', 'מג', 'א']), amudA);
+    expect(await refs(const ['דף', 'מג', 'עמוד', 'א']), amudA);
+  });
 }
