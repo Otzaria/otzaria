@@ -586,23 +586,71 @@ class ReferenceBooksCache {
     bool Function(int bookId, String filePath, String fileType)? allowsBook,
   }) {
     if (limit <= 0) return const <ReferenceBookHit>[];
+    return searchBatch(
+      [query],
+      limit: limit,
+      allowsBook: allowsBook,
+    ).hitsFor(query, limit: limit)!;
+  }
 
-    final q = _normalizeForMatch(query);
-    if (q.isEmpty) return const <ReferenceBookHit>[];
+  /// בדיקות בלבד: מספר הסריקות של הקטלוג ב-[search]/[searchBatch].
+  @visibleForTesting
+  static int debugCatalogScans = 0;
 
-    final starts = <ReferenceBookHit>[];
-    final contains = <ReferenceBookHit>[];
+  /// [search] לכמה שאילתות בסריקה אחת של הקטלוג. [limit] הוא הגבול הגדול
+  /// ביותר ש-[ReferenceBookSearchBatch.hitsFor] יתבקש עבורו.
+  ///
+  /// [exactTitles] — טוקנים מנורמלים שנבדק עבורם רק אם יש ספר גלוי שכותרתו
+  /// זהה להם (דירוג 0), בלי חישוב התאמות מלא.
+  ReferenceBookSearchBatch searchBatch(
+    Iterable<String> queries, {
+    required int limit,
+    bool Function(int bookId, String filePath, String fileType)? allowsBook,
+    Set<String> exactTitles = const <String>{},
+  }) {
+    final scanByRaw = <String, _QueryScan?>{};
+    final scans = <String, _QueryScan>{};
+    for (final raw in queries) {
+      if (scanByRaw.containsKey(raw)) continue;
+      final q = _normalizeForMatch(raw);
+      scanByRaw[raw] = q.isEmpty
+          ? null
+          : scans.putIfAbsent(q, () {
+              final words = q.split(' ');
+              return _QueryScan(
+                q,
+                words,
+                // מסננת הביגרמים חוסכת את המעבר על כינויי כל הספרים — היא
+                // קבוצת-על, ולכן הלולאה נשארת הפוסקת היחידה על הדירוג.
+                AcronymsCache.instance.candidatesFor(q),
+                // בלעדיה כל שאילתה הייתה מריצה מרחק-עריכה על כל ספר.
+                _fuzzyCandidateBooks(words),
+              );
+            });
+    }
+    final foundExactTitles = <String>{};
+    if (scans.isEmpty && exactTitles.isEmpty) {
+      return ReferenceBookSearchBatch._(
+        scanByRaw,
+        exactTitles,
+        foundExactTitles,
+      );
+    }
+    debugCatalogScans++;
+
+    // שאילתה שמכילה שאילתה קצרה ממנה ("ברכות ב" ⊃ "ברכות") נבדקת רק בספרים
+    // שהקצרה לא נפסלה בהם — הקצרות קודמות, והאב הוא הארוך שבהן.
+    final active = scans.values.toList(growable: false)
+      ..sort((a, b) => a.q.length.compareTo(b.q.length));
+    final parentOf = List<int>.filled(active.length, -1);
+    for (var i = 0; i < active.length; i++) {
+      for (var j = 0; j < i; j++) {
+        if (active[i].q.contains(active[j].q)) parentOf[i] = j;
+      }
+    }
+    final masks = List<int>.filled(active.length, 0);
+
     final visibleDbPdfTitles = allowsBook == null ? null : <String>{};
-
-    // מסננת הביגרמים חוסכת את המעבר על כינויי כל הספרים בכל הקלדה — היא
-    // קבוצת-על, ולכן הלולאה שמתחתיה נשארת הפוסקת היחידה על הדירוג.
-    final acronymCandidates = AcronymsCache.instance.candidatesFor(q);
-
-    // מסננת אוצר-המילים של ההתאמה המקורבת. בלעדיה כל הקלדה הייתה מריצה
-    // מרחק-עריכה על הכותרת ועל כל כינוי של כל ספר שלא הותאם מילולית.
-    final queryWords = q.split(' ');
-    final fuzzyCandidates = _fuzzyCandidateBooks(queryWords);
-
     for (final book in BooksCache.instance.books) {
       if (allowsBook != null &&
           !allowsBook(book.id, book.filePath ?? '', book.fileType)) {
@@ -611,67 +659,139 @@ class ReferenceBooksCache {
       final t = _normalizedTitles[book.id] ?? '';
       if (t.isEmpty) continue;
       if (book.fileType == 'pdf') visibleDbPdfTitles?.add(book.title);
+      if (exactTitles.contains(t)) foundExactTitles.add(t);
+      for (var i = 0; i < active.length; i++) {
+        final parent = parentOf[i];
+        masks[i] = _matchBook(
+          active[i],
+          book,
+          t,
+          parent < 0 ? _mayMatchAll : masks[parent],
+        );
+      }
+    }
 
-      int? matchRank;
-      String? matchedTerm;
-      var tailIsTitleWords = false;
+    for (final (t, baseHit) in _fsPdfBooks) {
+      if ((visibleDbPdfTitles ?? _dbPdfTitles).contains(baseHit.title)) {
+        continue;
+      }
+      if (allowsBook != null &&
+          !allowsBook(baseHit.bookId, baseHit.filePath, baseHit.fileType)) {
+        continue;
+      }
+      if (exactTitles.contains(t)) foundExactTitles.add(t);
+      for (final scan in active) {
+        final int matchRank;
+        if (t == scan.q) {
+          matchRank = 0;
+        } else if (t.startsWith(scan.q)) {
+          matchRank = 1;
+        } else if (t.contains(scan.q)) {
+          matchRank = 2;
+        } else {
+          continue;
+        }
+        scan.add(
+          ReferenceBookHit(
+            bookId: baseHit.bookId,
+            title: baseHit.title,
+            normalizedTitle: t,
+            filePath: baseHit.filePath,
+            fileType: baseHit.fileType,
+            matchRank: matchRank,
+            orderIndex: baseHit.orderIndex,
+          ),
+        );
+      }
+    }
 
+    for (final scan in active) {
+      scan.select(limit);
+    }
+    return ReferenceBookSearchBatch._(scanByRaw, exactTitles, foundExactTitles);
+  }
+
+  /// מה שנשאר אפשרי בספר אחרי בדיקת שאילתה — מסנן את השאילתות שמכילות אותה.
+  static const int _titleMay = 1;
+  static const int _acronymMay = 2;
+  static const int _mayMatchAll = _titleMay | _acronymMay;
+
+  /// מוסיף את התאמת [book] ל-[scan], ומחזיר מה עוד אפשרי בו לשאילתה ארוכה
+  /// יותר שמכילה את `scan.q`. [parentMask] — אותו דבר, לשאילתה הקצרה שבתוכה.
+  int _matchBook(
+    _QueryScan scan,
+    BookCacheEntry book,
+    String t,
+    int parentMask,
+  ) {
+    final q = scan.q;
+    int? matchRank;
+    String? matchedTerm;
+    var tailIsTitleWords = false;
+    var mask = 0;
+
+    if (parentMask & _titleMay != 0) {
       if (t == q) {
         matchRank = 0;
       } else if (t.startsWith(q)) {
         matchRank = 1;
       } else if (t.contains(q)) {
         matchRank = 2;
-      } else if (acronymCandidates?.contains(book.id) ?? true) {
-        // התאמת ראשי תיבות — המונחים כבר מנורמלים בעת טעינת הקאש.
-        final normalizedAcronyms = AcronymsCache.instance.getAcronymsForBook(
-          book.id,
-        );
-        if (normalizedAcronyms != null) {
-          // עצל: החישוב רץ על כל ספר בספרייה בכל הקלדה, ורק התאמת-תחילית
-          // צריכה אותו.
-          Set<String>? titleTokens;
-          for (final a in normalizedAcronyms) {
-            if (a == q) {
-              matchRank = 3;
+      }
+    }
+    if (matchRank != null) {
+      // ענף הכינויים לא נבדק — אין מידע שמותר לפסול בו.
+      mask = _mayMatchAll;
+    } else if (parentMask & _acronymMay != 0 &&
+        (scan.acronymCandidates?.contains(book.id) ?? true)) {
+      // התאמת ראשי תיבות — המונחים כבר מנורמלים בעת טעינת הקאש.
+      final normalizedAcronyms = AcronymsCache.instance.getAcronymsForBook(
+        book.id,
+      );
+      if (normalizedAcronyms != null) {
+        // עצל: רק התאמת-תחילית של ראשי-תיבות צריכה את טוקני הכותרת.
+        Set<String>? titleTokens;
+        for (final a in normalizedAcronyms) {
+          if (a == q) {
+            matchRank = 3;
+            matchedTerm = a;
+            break;
+          }
+          if (a.startsWith(q)) {
+            titleTokens ??= titleMatchTokens(t);
+            final tailIsTitle = _acronymTailIsTitleWords(a, q, titleTokens);
+            // דירוג טוב יותר גובר על קודמיו — אחרת מונח "contains" (5) שנסרק
+            // קודם היה מקבע 5 ומונע מהתאמת-התחילית הזו לדרג 4.
+            if (matchRank == null ||
+                matchRank > 4 ||
+                (tailIsTitle && !tailIsTitleWords)) {
+              matchRank = 4;
               matchedTerm = a;
-              break;
+              tailIsTitleWords = tailIsTitle;
             }
-            if (a.startsWith(q)) {
-              titleTokens ??= titleMatchTokens(t);
-              final tailIsTitle = _acronymTailIsTitleWords(a, q, titleTokens);
-              // דירוג טוב יותר גובר על קודמיו — אחרת מונח "contains" (5) שנסרק
-              // קודם היה מקבע 5 ומונע מהתאמת-התחילית הזו לדרג 4.
-              if (matchRank == null ||
-                  matchRank > 4 ||
-                  (tailIsTitle && !tailIsTitleWords)) {
-                matchRank = 4;
-                matchedTerm = a;
-                tailIsTitleWords = tailIsTitle;
-              }
-            } else if (a.contains(q) && matchRank == null) {
-              matchRank = 5;
-              matchedTerm = a;
-            }
+          } else if (a.contains(q) && matchRank == null) {
+            matchRank = 5;
+            matchedTerm = a;
           }
         }
       }
+      if (matchRank != null) mask = _acronymMay;
+    }
 
-      // מפלט אחרון: התאמה מקורבת, שמכסה כתיב מלא/חסר ושגיאות הקלדה
-      // (issue #1310). רצה רק כשכל ההתאמות המילוליות נכשלו, ומדורגת מתחת
-      // לכולן — כך סדר התוצאות הקיים אינו זז.
-      if (matchRank == null && fuzzyCandidates.contains(book.id)) {
-        final matched = _fuzzyMatchedTerm(queryWords, t, book.id);
-        if (matched != null) {
-          matchRank = fuzzyMatchRank;
-          // כותרת שהותאמה אינה "מונח" — matchedTerm שמור לראשי-תיבות.
-          if (matched != t) matchedTerm = matched;
-        }
+    // מפלט אחרון: התאמה מקורבת (issue #1310), מדורגת מתחת לכל ההתאמות
+    // המילוליות — כך סדר התוצאות הקיים אינו זז.
+    if (matchRank == null && scan.fuzzyCandidates.contains(book.id)) {
+      final matched = _fuzzyMatchedTerm(scan.words, t, book.id);
+      if (matched != null) {
+        matchRank = fuzzyMatchRank;
+        // כותרת שהותאמה אינה "מונח" — matchedTerm שמור לראשי-תיבות.
+        if (matched != t) matchedTerm = matched;
       }
+    }
 
-      if (matchRank == null) continue;
-
-      final hit = ReferenceBookHit(
+    if (matchRank == null) return mask;
+    scan.add(
+      ReferenceBookHit(
         bookId: book.id,
         title: book.title,
         normalizedTitle: t,
@@ -681,77 +801,9 @@ class ReferenceBooksCache {
         matchedTerm: matchedTerm,
         orderIndex: book.orderIndex,
         acronymTailIsTitleWords: tailIsTitleWords,
-      );
-
-      if (matchRank <= 1) {
-        starts.add(hit);
-      } else {
-        contains.add(hit);
-      }
-    }
-
-    // Search file-system PDF books
-    for (final (t, baseHit) in _fsPdfBooks) {
-      if ((visibleDbPdfTitles ?? _dbPdfTitles).contains(baseHit.title)) {
-        continue;
-      }
-      if (allowsBook != null &&
-          !allowsBook(baseHit.bookId, baseHit.filePath, baseHit.fileType)) {
-        continue;
-      }
-      int? matchRank;
-      if (t == q) {
-        matchRank = 0;
-      } else if (t.startsWith(q)) {
-        matchRank = 1;
-      } else if (t.contains(q)) {
-        matchRank = 2;
-      }
-      if (matchRank == null) continue;
-
-      final hit = ReferenceBookHit(
-        bookId: baseHit.bookId,
-        title: baseHit.title,
-        normalizedTitle: t,
-        filePath: baseHit.filePath,
-        fileType: baseHit.fileType,
-        matchRank: matchRank,
-        orderIndex: baseHit.orderIndex,
-      );
-
-      if (matchRank <= 1) {
-        starts.add(hit);
-      } else {
-        contains.add(hit);
-      }
-    }
-
-    int cmp(ReferenceBookHit a, ReferenceBookHit b) {
-      final r = a.matchRank.compareTo(b.matchRank);
-      if (r != 0) return r;
-      // Prefer lower orderIndex, then shorter title.
-      final o = a.orderIndex.compareTo(b.orderIndex);
-      if (o != 0) return o;
-      return a.title.length.compareTo(b.title.length);
-    }
-
-    starts.sort(cmp);
-    contains.sort(cmp);
-
-    final merged = <ReferenceBookHit>[...starts, ...contains];
-    if (merged.length <= limit) return merged;
-
-    // issue #839: כשהתאמות-התחילית לבדן ממלאות את ה-limit, התאמות ה"מכיל"
-    // נחתכות כליל ("מא" לא החזיר את יומא) — שמורה להן מכסה בזנב, starts ראשונות.
-    const containsReserve = 10;
-    if (starts.length >= limit && contains.isNotEmpty) {
-      var reserve = containsReserve < contains.length
-          ? containsReserve
-          : contains.length;
-      if (reserve >= limit) reserve = limit - 1;
-      return [...starts.take(limit - reserve), ...contains.take(reserve)];
-    }
-    return merged.take(limit).toList();
+      ),
+    );
+    return mask;
   }
 
   /// מצב "דור + נושא" של איתור מקורות: מחזיר את כל הספרים שדורם (לפי נתיב
@@ -1226,4 +1278,125 @@ class ReferenceBookHit {
     this.matchedTerm,
     this.acronymTailIsTitleWords = false,
   });
+}
+
+/// תוצאות [ReferenceBooksCache.searchBatch]: כל שאילתה נענית כמו ב-[search].
+class ReferenceBookSearchBatch {
+  ReferenceBookSearchBatch._(
+    this._scanByRaw,
+    this._exactTitles,
+    this._foundExactTitles,
+  );
+
+  final Map<String, _QueryScan?> _scanByRaw;
+  final Set<String> _exactTitles;
+  final Set<String> _foundExactTitles;
+
+  /// האם יש ספר גלוי שכותרתו המנורמלת היא [token] — כמו דירוג 0 ב-[search].
+  /// `null` אם [token] לא נכלל ב-`exactTitles`.
+  bool? hasExactTitle(String token) =>
+      _exactTitles.contains(token) ? _foundExactTitles.contains(token) : null;
+
+  /// התוצאות של [query] עד [limit], או `null` אם לא נכללה בסריקה.
+  List<ReferenceBookHit>? hitsFor(String query, {required int limit}) {
+    if (!_scanByRaw.containsKey(query)) return null;
+    return _scanByRaw[query]?.hits(limit) ?? const <ReferenceBookHit>[];
+  }
+}
+
+/// שאילתה אחת בתוך סריקה משותפת: אוספת התאמות ובוחרת רק את הטובות ביותר.
+class _QueryScan {
+  _QueryScan(this.q, this.words, this.acronymCandidates, this.fuzzyCandidates);
+
+  final String q;
+  final List<String> words;
+  final AcronymCandidateBooks? acronymCandidates;
+  final Set<int> fuzzyCandidates;
+
+  List<ReferenceBookHit> _starts = <ReferenceBookHit>[];
+  List<ReferenceBookHit> _contains = <ReferenceBookHit>[];
+  int _startsCount = 0;
+  int _containsCount = 0;
+  int _selected = 0;
+
+  void add(ReferenceBookHit hit) =>
+      (hit.matchRank <= 1 ? _starts : _contains).add(hit);
+
+  void select(int limit) {
+    _startsCount = _starts.length;
+    _containsCount = _contains.length;
+    _selected = limit;
+    _starts = _topK(_starts, limit);
+    _contains = _topK(_contains, limit);
+  }
+
+  List<ReferenceBookHit> hits(int limit) {
+    assert(limit <= _selected, 'limit גדול מזה שנבחר בסריקה');
+    if (limit <= 0) return const <ReferenceBookHit>[];
+    if (_startsCount + _containsCount <= limit) {
+      return <ReferenceBookHit>[..._starts, ..._contains];
+    }
+
+    // issue #839: כשהתאמות-התחילית לבדן ממלאות את ה-limit, התאמות ה"מכיל"
+    // נחתכות כליל ("מא" לא החזיר את יומא) — שמורה להן מכסה בזנב.
+    const containsReserve = 10;
+    if (_startsCount >= limit && _containsCount > 0) {
+      var reserve = containsReserve < _containsCount
+          ? containsReserve
+          : _containsCount;
+      if (reserve >= limit) reserve = limit - 1;
+      return [..._starts.take(limit - reserve), ..._contains.take(reserve)];
+    }
+    return [..._starts, ..._contains].take(limit).toList();
+  }
+
+  /// [k] ההתאמות הטובות ביותר, ממוינות — בלי למיין את כולן (אות בודדת תופסת
+  /// אלפי ספרים). כשאין חיתוך — אותו מיון בדיוק כמו תמיד, גם בסדר השוויונות.
+  static List<ReferenceBookHit> _topK(List<ReferenceBookHit> hits, int k) {
+    if (k <= 0 || hits.isEmpty) return const <ReferenceBookHit>[];
+    if (hits.length <= k) return hits..sort(_compareHits);
+    // בחיתוך שובר-השוויון הוא סדר ההוספה, כדי שהבחירה תהיה דטרמיניסטית.
+    int compare(int a, int b) {
+      final r = _compareHits(hits[a], hits[b]);
+      return r != 0 ? r : a.compareTo(b);
+    }
+
+    // ערימת-מקסימום של k הנבחרים: בשורש — הגרוע שבהם.
+    final heap = List<int>.generate(k, (i) => i);
+    void siftDown(int i) {
+      while (true) {
+        final left = 2 * i + 1;
+        if (left >= k) return;
+        final right = left + 1;
+        var worst = left;
+        if (right < k && compare(heap[right], heap[left]) > 0) worst = right;
+        if (compare(heap[worst], heap[i]) <= 0) return;
+        final tmp = heap[i];
+        heap[i] = heap[worst];
+        heap[worst] = tmp;
+        i = worst;
+      }
+    }
+
+    for (var i = k ~/ 2 - 1; i >= 0; i--) {
+      siftDown(i);
+    }
+    for (var i = k; i < hits.length; i++) {
+      if (compare(i, heap[0]) < 0) {
+        heap[0] = i;
+        siftDown(0);
+      }
+    }
+    heap.sort(compare);
+    return [for (final i in heap) hits[i]];
+  }
+
+  static int _compareHits(ReferenceBookHit a, ReferenceBookHit b) {
+    final r = a.matchRank.compareTo(b.matchRank);
+    if (r != 0) return r;
+    // Prefer lower orderIndex, then shorter title.
+    final o = a.orderIndex.compareTo(b.orderIndex);
+    if (o != 0) return o;
+    return a.title.length.compareTo(b.title.length);
+  }
 }

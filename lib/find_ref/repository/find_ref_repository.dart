@@ -882,6 +882,38 @@ class FindRefRepository {
       if (eraResults.isNotEmpty) return eraResults;
     }
 
+    // Prefer matching the longest leading phrase (up to 3 tokens) as the book key.
+    // This supports multi-word acronyms like "שוע אוח".
+    final maxPhraseTokens = queryTokens.length >= 3 ? 3 : queryTokens.length;
+
+    // גבוה בכוונה: ה-hits מסוננים אחרי החיפוש לפי שאר הטוקנים, וחיתוך מוקדם
+    // זרק ספרים רלוונטיים. מילה אחת: 200, אחרת "מא" לא מחזיר את יומא (#839).
+    final bookSearchLimit = queryTokens.length >= 2 ? 1000 : 200;
+    final allowsOfficial = visibility.selection.isEmpty
+        ? null
+        : (int id, String path, String type) => visibility.allowsCandidate(
+            BookSource.official,
+            id,
+            path,
+            fileType: type,
+          );
+
+    // שם הספר בכל אורך, והשאלה אם הטוקן שאחריו הוא כותרת של ספר, נענים
+    // מסריקה אחת של הקטלוג במקום סריקה לכל קריאה.
+    ReferenceBookSearchBatch? batch;
+    ReferenceBookSearchBatch officialBatch() =>
+        batch ??= ReferenceBooksCache.instance.searchBatch(
+          [
+            for (var n = maxPhraseTokens; n >= 1; n--)
+              queryTokens.take(n).join(' '),
+          ],
+          limit: bookSearchLimit,
+          allowsBook: allowsOfficial,
+          exactTitles: {
+            for (var i = 1; i <= maxPhraseTokens && i < queryTokens.length; i++)
+              queryTokens[i],
+          },
+        );
     List<ReferenceBookHit> searchBooks(String query, {int limit = 50}) {
       final injected = searchReferenceBooks;
       if (injected != null) {
@@ -898,31 +930,14 @@ class FindRefRepository {
             )
             .toList();
       }
-      return ReferenceBooksCache.instance.search(
-        query,
-        limit: limit,
-        allowsBook: visibility.selection.isEmpty
-            ? null
-            : (id, path, type) => visibility.allowsCandidate(
-                BookSource.official,
-                id,
-                path,
-                fileType: type,
-              ),
-      );
+      return officialBatch().hitsFor(query, limit: limit) ??
+          ReferenceBooksCache.instance.search(
+            query,
+            limit: limit,
+            allowsBook: allowsOfficial,
+          );
     }
 
-    // Prefer matching the longest leading phrase (up to 3 tokens) as the book key.
-    // This supports multi-word acronyms like "שוע אוח".
-    final maxPhraseTokens = queryTokens.length >= 3 ? 3 : queryTokens.length;
-
-    // כש-query רב-מילים, ה-hits מסוננים *אחרי* החיפוש לפי שאר הטוקנים (suppress
-    // וכותרות פנימיות), ולכן אסור לחתוך מוקדם: ספר רלוונטי כמו "פסקי הרא"ש על
-    // ברכות" נדחק ע"י עשרות התאמות "ראש" קצרות יותר ונזרק לפני הסינון. ה-cap
-    // הגבוה הוא רשת ביטחון נגד ספריות ענק; החיתוך הפונקציונלי הוא 15 הסופיות.
-    // מילה-אחת: 200 ולא 50 — אחרת התאמות "מכיל" נחתכות לפי סדר-הספרייה עוד
-    // לפני הדירוג, ויומא לא שורד את 56 ספרי "מא..." (issue #839).
-    final bookSearchLimit = queryTokens.length >= 2 ? 1000 : 200;
     var bookQueryTokenCount = 1;
     List<ReferenceBookHit> bookHits = const <ReferenceBookHit>[];
 
@@ -1129,12 +1144,15 @@ class FindRefRepository {
     final nextToken = queryTokens.length > nextTokenIndex
         ? queryTokens[nextTokenIndex]
         : '';
-    final nextTokenMatches = nextToken.isEmpty
-        ? const <ReferenceBookHit>[]
-        : searchBooks(nextToken, limit: 50);
-    final hasExactNextTokenMatch = nextTokenMatches.any(
-      (hit) => hit.matchRank == 0,
-    );
+    final hasExactNextTokenMatch =
+        nextToken.isNotEmpty &&
+        ((searchReferenceBooks == null
+                ? officialBatch().hasExactTitle(nextToken)
+                : null) ??
+            searchBooks(
+              nextToken,
+              limit: 50,
+            ).any((hit) => hit.matchRank == 0));
 
     // תקרה על קריאות ה-TOC היקרות (שאילתת DB / outline לכל ספר). ה-limit הגבוה
     // מאפשר לטוקן ראשון רחב ("ראש") להתאים מאות ספרים; ה-suppress מסנן את רובם
