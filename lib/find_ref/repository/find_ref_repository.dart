@@ -818,6 +818,23 @@ class FindRefRepository {
   }) {
     if (_disposed) return Future.error(const FindRefQueryCancelled());
     cancelPendingSearch();
+    return _runSearch(ref, includePersonalBooks: includePersonalBooks);
+  }
+
+  /// כמו [findRefs] בלי לבטל איתורים קודמים — לקוראים שמריצים כמה במקביל
+  /// (תוספים). עדיין מתבטל ב-[cancelPendingSearch], ב-[findRefs] וב-dispose.
+  Future<List<DbReferenceResult>> findRefsConcurrently(
+    String ref, {
+    bool includePersonalBooks = false,
+  }) {
+    if (_disposed) return Future.error(const FindRefQueryCancelled());
+    return _runSearch(ref, includePersonalBooks: includePersonalBooks);
+  }
+
+  Future<List<DbReferenceResult>> _runSearch(
+    String ref, {
+    required bool includePersonalBooks,
+  }) {
     final generation = _searchGeneration;
     return runZoned(
       () => _findRefs(ref, includePersonalBooks: includePersonalBooks),

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
@@ -72,6 +73,34 @@ void main() {
       final hits = await repository.findRefs('ספר אישי');
 
       expect(hits, isEmpty);
+    });
+
+    test('שתי פתירות מקבילות של אותו תוסף אינן מבטלות זו את זו', () async {
+      final repository = _buildRepository();
+      addTearDown(repository.dispose);
+      final resolve = buildPluginReferenceResolver(repository);
+
+      final results = await Future.wait([
+        resolve('ספר אישי פרק ראשון'),
+        resolve('ספר אישי'),
+      ]);
+
+      expect(results[0].single.index, 12);
+      expect(results[1].single.reference, 'ספר אישי');
+    });
+
+    test('איתור רגיל עדיין מבטל את הקודם לו', () async {
+      final repository = _buildRepository();
+      addTearDown(repository.dispose);
+
+      final first = repository.findRefs('ספר אישי', includePersonalBooks: true);
+      final second = repository.findRefs(
+        'ספר אישי',
+        includePersonalBooks: true,
+      );
+
+      await expectLater(first, throwsA(isA<FindRefQueryCancelled>()));
+      expect(await second, hasLength(1));
     });
   });
 }

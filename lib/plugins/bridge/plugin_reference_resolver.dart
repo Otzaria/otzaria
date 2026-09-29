@@ -19,11 +19,12 @@ typedef PluginReferenceHit = ({
 ///
 /// הרשאת `library.books.read` כוללת את כל קטלוג הספרייה, לרבות ספרים
 /// אישיים, ולכן החיפוש כולל אותם בכל מופע של תוסף (קדמי או רקע).
+/// תוסף רשאי לפתור כמה ציונים במקביל, ולכן פתירה אינה מבטלת את קודמתה.
 Future<List<PluginReferenceHit>> Function(String) buildPluginReferenceResolver(
   FindRefRepository findRefRepository,
 ) {
   return (reference) async {
-    final results = await findRefRepository.findRefs(
+    final results = await findRefRepository.findRefsConcurrently(
       reference,
       includePersonalBooks: true,
     );
