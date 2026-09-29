@@ -1602,6 +1602,12 @@ DafCitation? parseDafCitation(List<String> tokens) {
   return (number: number, amud: amud);
 }
 
+/// ציטוט דף מהטוקן "דף" ואילך, גם כששם קודם לו ("מאימתי דף ב"), או null.
+DafCitation? parseDafCitationFromDafToken(List<String> tokens) {
+  final dafAt = tokens.indexOf('דף');
+  return dafAt < 0 ? null : parseDafCitation(tokens.sublist(dafAt));
+}
+
 /// התאמה מיקומית של טוקני ערך בפורמט "דף מספר עמוד" לציטוט דף [cite].
 /// מחזיר null אם הערך אינו בפורמט "דף ..." (אז המתקשר משתמש בהתאמה הרגילה),
 /// אחרת bool האם המספר (וגם העמוד, אם צוין בשאילתה) תואמים.
@@ -1618,6 +1624,16 @@ bool? matchDafCitation(List<String> ownTokens, DafCitation cite) {
     if (cite.amud != entryAmud) return false;
   }
   return true;
+}
+
+/// האם כותרת ה"דף" הקרובה בנתיב (הערך עצמו או האב הקרוב) תואמת ל-[cite].
+/// "ב" של "דף יב" או של תת-כותרת תחתיו אינו דף ב.
+bool nearestDafInPathMatches(List<String> pathTokens, DafCitation cite) {
+  final dafAt = pathTokens.lastIndexOf('דף');
+  if (dafAt < 0) return false;
+  // "דף מג עמוד א" — matchDafCitation מצפה לעמוד מיד אחרי המספר.
+  final dafTokens = pathTokens.sublist(dafAt).where((t) => t != 'עמוד');
+  return matchDafCitation(dafTokens.toList(), cite) == true;
 }
 
 /// בודק אם כותרת TOC תואמת להפניה חופשית של תוסף (למשל "ס\"ד ע\"ב" ↔ "דף סד:").

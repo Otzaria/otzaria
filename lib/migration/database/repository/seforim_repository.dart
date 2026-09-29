@@ -3632,13 +3632,32 @@ extension BookAcronymRepository on SeforimRepository {
   ) {
     if (tokens.isEmpty) return const [];
 
-    final cite = parseDafCitation(tokens);
+    var cite = parseDafCitation(tokens);
+    // "<פרק> דף ב": הציטוט מ"דף" ואילך, והשם שלפניו חייב להופיע בנתיב.
+    var citePrefix = const <String>[];
+    if (cite == null) {
+      cite = parseDafCitationFromDafToken(tokens);
+      if (cite != null) citePrefix = tokens.sublist(0, tokens.indexOf('דף'));
+    }
+    final explicitDaf = cite != null && tokens.contains('דף');
     final lastAlts = hebrewTokenAlternatives(tokens.last);
 
     return entries.where((e) {
       if (cite != null) {
         final m = matchDafCitation(e.ownTokens, cite);
-        if (m != null) return m; // ערך "דף" — התאמה מיקומית מכריעה
+        if (m != null) {
+          // ערך "דף" — התאמה מיקומית מכריעה
+          return m &&
+              citePrefix.every(
+                (t) => hebrewTokenAlternatives(t).any(e.pathTokens.contains),
+              );
+        }
+        // תת-כותרת תחת דף ("דף יב." → "ב") שייכת לדף שמעליה.
+        if (explicitDaf &&
+            e.pathTokens.contains('דף') &&
+            !nearestDafInPathMatches(e.pathTokens, cite)) {
+          return false;
+        }
       }
       // אנטי-הצפה: הטוקן האחרון חייב להתאים לטקסט של הערך עצמו (העלה).
       if (!lastAlts.any((a) => e.ownTokens.contains(a))) return false;

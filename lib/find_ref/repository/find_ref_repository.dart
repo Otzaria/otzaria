@@ -633,7 +633,8 @@ class FindRefRepository {
       }
 
       final flat = await _getAltTocFlatCache();
-      // כל טוקני השאילתה בנתיב הערך — אחרת "הפטרת נח" תואם את "נח עליה ב".
+      final dafCitation = parseDafCitationFromDafToken(queryTokens);
+      // מילות ההקשר נדרשות גם כשמספר הדף והעמוד נבדקים מיקומית.
       final matches = [
         for (final entry in flat)
           if ((visibility == null ||
@@ -646,6 +647,7 @@ class FindRefRepository {
                 entry.refTokens,
                 queryTokens,
                 maxRefTokens: maxRefTokens,
+                dafCitation: dafCitation,
               ))
             entry,
       ];

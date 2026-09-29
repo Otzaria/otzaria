@@ -11,6 +11,8 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/services/commentary_service.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show parseDafCitationFromDafToken;
 
 /// נזרק כשבקשה נזרקה מתור ה-worker בגלל הקלדה חדשה. אינו שגיאה — הקורא
 /// אמור לנטוש בשקט את השאילתה שהתיישנה.
@@ -984,12 +986,14 @@ void _workerMain(_Bootstrap bootstrap) {
         final cache = await ensureAltTocFlatCache();
         final queryTokens = (args['queryTokens'] as List).cast<String>();
         final maxRefTokens = args['maxRefTokens'] as int?;
+        final dafCitation = parseDafCitationFromDafToken(queryTokens);
         final matches = [
           for (final e in cache)
             if (altTocFlatMatches(
               e.refTokens,
               queryTokens,
               maxRefTokens: maxRefTokens,
+              dafCitation: dafCitation,
             ))
               e,
         ];

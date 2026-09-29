@@ -1,4 +1,5 @@
 import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
 
 /// רשומת AltToc שטוחה, מיועדת לחיפוש גלובלי על פני כל הספרים בבת אחת.
 ///
@@ -48,12 +49,17 @@ class AltTocFlatEntry {
 /// ול-worker isolate, כדי שהסמנטיקה תישאר זהה בשני המסלולים.
 ///
 /// [maxRefTokens] מגביל את אורך הערך (מסלול מילה בודדת); `null` = ללא הגבלה.
+/// [dafCitation] (מ-[parseDafCitationFromDafToken]) מחייב התאמה מיקומית.
 bool altTocFlatMatches(
   List<String> refTokens,
   List<String> queryTokens, {
   int? maxRefTokens,
+  DafCitation? dafCitation,
 }) {
   if (maxRefTokens != null && refTokens.length > maxRefTokens) return false;
+  if (dafCitation != null && !nearestDafInPathMatches(refTokens, dafCitation)) {
+    return false;
+  }
   return queryTokens.every(refTokens.contains);
 }
 
