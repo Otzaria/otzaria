@@ -11,7 +11,6 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/services/commentary_service.dart';
-import 'package:otzaria/utils/text/text_manipulation.dart';
 
 /// נזרק כשבקשה נזרקה מתור ה-worker בגלל הקלדה חדשה. אינו שגיאה — הקורא
 /// אמור לנטוש בשקט את השאילתה שהתיישנה.
@@ -697,36 +696,31 @@ const String _backgroundLane = 'background';
 /// [SeforimRepository.beginAltTocFlatBuild]), כך שבקשה ממתינה למקטע אחד בלבד.
 const int _altTocNormalizeChunkSize = 5000;
 
-typedef _AltTocFlatItem = ({Map<String, dynamic> row, List<String> refTokens});
-
-/// בניית קאש ה-AltToc השטוח: שלבי המסד במקטעים, ואחריהם נרמול במקטעים.
-/// הקאש נחשף רק כשהבנייה הושלמה.
+/// בניית קאש ה-AltToc השטוח: שלבי המסד במקטעים, ואחריהם נרמול הנתיבים
+/// במקטעים. הקאש נחשף רק כשהבנייה הושלמה.
 class _AltTocFlatBuild {
-  _AltTocFlatBuild(this._source, this._normalizeChunk);
+  _AltTocFlatBuild(this.repository, this._source, this._normalizeChunk);
 
+  final SeforimRepository repository;
   final AltTocFlatBuild _source;
   final int _normalizeChunk;
-  final List<_AltTocFlatItem> items = [];
+  int _normalized = 0;
+
+  List<AltTocIndexEntry> get entries => _source.entries;
 
   bool get isNormalizing => _source.isDone;
 
-  bool get isDone => _source.isDone && items.length >= _source.result.length;
+  bool get isDone => _source.isDone && _normalized >= entries.length;
 
   Future<void> step() async {
     if (!_source.isDone) {
       await _source.step();
       return;
     }
-    final rows = _source.result;
-    final end = math.min(items.length + _normalizeChunk, rows.length);
-    for (var i = items.length; i < end; i++) {
-      final row = rows[i];
-      items.add((
-        row: row,
-        refTokens: normalizeForFindRefMatch(
-          row['reference'] as String,
-        ).split(' ').where((t) => t.isNotEmpty).toList(growable: false),
-      ));
+    final end = math.min(_normalized + _normalizeChunk, entries.length);
+    for (; _normalized < end; _normalized++) {
+      final entry = entries[_normalized];
+      entry.refTokens = _source.refTokensOf(entry);
     }
   }
 }
@@ -791,7 +785,7 @@ void _workerMain(_Bootstrap bootstrap) {
 
   // קאש AltToc שטוח עם טוקנים מנורמלים מראש — נבנה פעם אחת ב-worker ומשרת
   // את פקודת searchAltTocFlat. חי עד reset (רענון/החלפת ספרייה).
-  List<_AltTocFlatItem>? altTocFlatCache;
+  List<AltTocIndexEntry>? altTocFlatCache;
   _AltTocFlatBuild? altTocBuild;
 
   Future<SeforimRepository?> ensureRepo() async {
@@ -818,6 +812,7 @@ void _workerMain(_Bootstrap bootstrap) {
     if (repo == null) return null;
     final chunk = bootstrap.altTocTuning?.chunkSize;
     return altTocBuild = _AltTocFlatBuild(
+      repo,
       chunk == null
           ? repo.beginAltTocFlatBuild()
           : repo.beginAltTocFlatBuild(
@@ -829,13 +824,17 @@ void _workerMain(_Bootstrap bootstrap) {
     );
   }
 
-  List<_AltTocFlatItem> completeAltTocBuild(_AltTocFlatBuild build) {
+  List<AltTocIndexEntry> completeAltTocBuild(_AltTocFlatBuild build) {
     altTocBuild = null;
-    return altTocFlatCache = build.items;
+    final entries = build.entries;
+    if (identical(build.repository, repository)) {
+      build.repository.attachAltTocIndex(entries);
+    }
+    return altTocFlatCache = entries;
   }
 
   // בקשה אינטראקטיבית משלימה בנייה חלקית של החימום במקום להתחיל מחדש.
-  Future<List<_AltTocFlatItem>> ensureAltTocFlatCache() async {
+  Future<List<AltTocIndexEntry>> ensureAltTocFlatCache() async {
     final cached = altTocFlatCache;
     if (cached != null) return cached;
     final build = await startAltTocBuild();
@@ -992,19 +991,27 @@ void _workerMain(_Bootstrap bootstrap) {
               queryTokens,
               maxRefTokens: maxRefTokens,
             ))
-              e.row,
+              e,
         ];
         // מסלול המילה האחת אינו מסנן צאצאים בדירוג, ולכן גם לא כאן.
-        return pruneGlobalAltTocMatches(
-          matches,
-          keyOf: altTocRowKey,
-          queryTokens: queryTokens,
-          suppressDescendants: maxRefTokens == null,
-          occupied: [
-            for (final map in (args['occupied'] as List?) ?? const [])
-              decodeAltTocResultKey(map as Map),
-          ],
-        );
+        return [
+          for (final e in pruneGlobalAltTocMatches(
+            matches,
+            keyOf: (e) => (
+              bookId: e.book.id,
+              title: e.book.title,
+              segment: e.segment,
+              reference: qualifyAltTocReference(e.book.title, e.reference),
+            ),
+            queryTokens: queryTokens,
+            suppressDescendants: maxRefTokens == null,
+            occupied: [
+              for (final map in (args['occupied'] as List?) ?? const [])
+                decodeAltTocResultKey(map as Map),
+            ],
+          ))
+            e.toFlatRow(),
+        ];
       case 'altBookIds':
         final repo = await ensureRepo();
         if (repo == null) return null;

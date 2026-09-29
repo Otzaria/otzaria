@@ -179,4 +179,67 @@ void main() {
       );
     });
   });
+
+  group('AltToc פר-ספר מתוך הקאש הגלובלי', () {
+    Future<void> attachGlobalIndex() async {
+      final build = repository.beginAltTocFlatBuild();
+      while (!await build.step()) {}
+      repository.attachAltTocIndex(build.entries);
+    }
+
+    const queries = [
+      ['הלכות', 'הלואה'],
+      ['ציצית'],
+      ['חושן'],
+      ['חושן', 'משפט', 'הלכות', 'דיינים'],
+    ];
+
+    test('מחזיר בדיוק את מה שהבנייה הפר-ספר מחזירה', () async {
+      final bookId = await buildTurWithAltToc();
+      final perBook = [
+        for (final q in queries)
+          await repository.getAltTocEntriesForReference(
+            bookId,
+            'טור',
+            queryTokens: q,
+          ),
+      ];
+
+      await attachGlobalIndex();
+
+      for (var i = 0; i < queries.length; i++) {
+        expect(
+          await repository.getAltTocEntriesForReference(
+            bookId,
+            'טור',
+            queryTokens: queries[i],
+          ),
+          perBook[i],
+          reason: '${queries[i]}',
+        );
+      }
+    });
+
+    test('אחרי החיבור הספר נקרא מהקאש ולא מהמסד', () async {
+      final bookId = await buildTurWithAltToc();
+      await attachGlobalIndex();
+
+      final db = await database.database;
+      db.execute("INSERT INTO tocText (text) VALUES ('הלכות שבת')");
+      db.execute(
+        'INSERT INTO alt_toc_entry (structureId, parentId, textId, level) '
+        'SELECT id, NULL, ?, 0 FROM alt_toc_structure LIMIT 1',
+        [db.lastInsertRowId],
+      );
+
+      expect(
+        await repository.getAltTocEntriesForReference(
+          bookId,
+          'טור',
+          queryTokens: const ['שבת'],
+        ),
+        isEmpty,
+      );
+    });
+  });
 }

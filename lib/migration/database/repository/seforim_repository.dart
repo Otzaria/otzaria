@@ -44,8 +44,13 @@ class SeforimRepository {
   /// המפתח: bookId. הערך: מבנה הכולל את כל הערכים + מבנה היררכי.
   final Map<int, _TocBookCache> _tocCache = <int, _TocBookCache>{};
 
-  /// קאש בזיכרון לערכי AltToc (כותרות-משנה) לכל ספר.
-  final Map<int, _TocBookCache> _altTocCache = <int, _TocBookCache>{};
+  /// קאש בזיכרון לערכי AltToc (כותרות-משנה) לכל ספר, ממוינים לפי segment.
+  final Map<int, List<AltTocIndexEntry>> _altTocCache =
+      <int, List<AltTocIndexEntry>>{};
+
+  /// הקאש הגלובלי מקובץ לפי ספר (ראו [attachAltTocIndex]); כשהוא קיים הוא
+  /// מחליף את [_altTocCache] — אותם אובייקטים, בלי עותק שני.
+  Map<int, List<AltTocIndexEntry>>? _altTocIndexByBook;
 
   SeforimRepository(this._database);
 
@@ -61,6 +66,20 @@ class SeforimRepository {
       _tocCache.clear();
       _altTocCache.clear();
     }
+    _altTocIndexByBook = null;
+  }
+
+  /// מגיש את ה-AltToc הפר-ספר מתוך [entries] של הקאש הגלובלי, עד לאיפוס הבא.
+  void attachAltTocIndex(List<AltTocIndexEntry> entries) {
+    final byBook = <int, List<AltTocIndexEntry>>{};
+    for (final e in entries) {
+      (byBook[e.book.id] ??= []).add(e);
+    }
+    for (final list in byBook.values) {
+      _sortAltTocForBook(list);
+    }
+    _altTocIndexByBook = byBook;
+    _altTocCache.clear();
   }
 
   int? _lastDataVersion;
@@ -3025,7 +3044,7 @@ extension BookAcronymRepository on SeforimRepository {
     // עמוקה בלי שמות הביניים ("דף לו" תחת ספר→פרשה→דף ב"הזוהר המתורגם",
     // "סימן ה" תחת בית יוסף→אורח חיים).
     final altCache = await _buildAltTocCacheForBook(bookId, bookTitle);
-    if (altCache.all.isNotEmpty) {
+    if (altCache.isNotEmpty) {
       // ציטוט דף, או טוקן בודד שה-AltToc כבר מוצא ("זהר לו"), מטופלים שם.
       // אחרת ("בית יוסף תקיב") מותר לדלג על חלק ביניים, בהתאמה לכותרת היעד עצמה.
       if (_isDafCitationForAltTocFallback(queryTokens) ||
@@ -3098,11 +3117,11 @@ extension BookAcronymRepository on SeforimRepository {
       endIdx = startLineIndex + 1;
     } else if (sourceLineId > 0) {
       // קטע ספציפי: מהכותרת ועד הכותרת הבאה ברמה <= level.
-      final cache = isAltToc
+      final entries = isAltToc
           ? await _buildAltTocCacheForBook(bookId, bookTitle)
-          : await _buildTocCacheForBook(bookId, bookTitle);
+          : (await _buildTocCacheForBook(bookId, bookTitle)).all;
       startIdx = startLineIndex;
-      endIdx = _nextHeadingLineIndex(cache, startLineIndex, level);
+      endIdx = _nextHeadingLineIndex(entries, startLineIndex, level);
     } else {
       // תוצאת ספר: אם יש כותרות פנימיות — אין קטע נבחר, מחזירים ריק.
       // אחרת — כל הספר (ספר ללא TOC פנימי, כל מפרשיו רלוונטיים).
@@ -3152,13 +3171,13 @@ extension BookAcronymRepository on SeforimRepository {
     required int excludeBookId,
     bool isAltToc = false,
   }) async {
-    final cache = isAltToc
+    final entries = isAltToc
         ? await _buildAltTocCacheForBook(bookId, bookTitle)
-        : await _buildTocCacheForBook(bookId, bookTitle);
+        : (await _buildTocCacheForBook(bookId, bookTitle)).all;
 
     // הכותרת המכילה: העמוקה ביותר מבין אלו שה-segment שלהן <= lineIndex.
-    _CachedTocEntry? containing;
-    for (final e in cache.all) {
+    _TocSpan? containing;
+    for (final e in entries) {
       if (e.segment > lineIndex) continue;
       if (containing == null ||
           e.segment > containing.segment ||
@@ -3170,7 +3189,7 @@ extension BookAcronymRepository on SeforimRepository {
     final startIdx = containing?.segment ?? 0;
     final endIdx = containing == null
         ? 0x7fffffff
-        : _nextHeadingLineIndex(cache, startIdx, containing.level);
+        : _nextHeadingLineIndex(entries, startIdx, containing.level);
 
     return _database.linkDao.selectCommentaryLinksByLineRange(
       bookId,
@@ -3186,12 +3205,12 @@ extension BookAcronymRepository on SeforimRepository {
   /// הכותרת הבאה באותה רמה או רדודה יותר חוסמת את הקטע, בעוד תת-כותרות
   /// (רמה עמוקה יותר) נכללות בו.
   int _nextHeadingLineIndex(
-    _TocBookCache cache,
+    List<_TocSpan> entries,
     int afterLineIndex,
     int level,
   ) {
     var end = 0x7fffffff;
-    for (final e in cache.all) {
+    for (final e in entries) {
       if (e.level >= 1 &&
           e.level <= level &&
           e.segment > afterLineIndex &&
@@ -3556,11 +3575,11 @@ extension BookAcronymRepository on SeforimRepository {
   }) async {
     if (queryTokens == null || queryTokens.isEmpty) return const [];
 
-    final cache = await _buildAltTocCacheForBook(bookId, bookTitle);
-    if (cache.all.isEmpty) return const [];
+    final entries = await _buildAltTocCacheForBook(bookId, bookTitle);
+    if (entries.isEmpty) return const [];
 
-    final matches = _searchAltTocFlat(cache, queryTokens);
-    return matches.map((e) => e.toMap()).toList();
+    final matches = _searchAltTocFlat(entries, queryTokens);
+    return matches.map((e) => e.toTocMap()).toList();
   }
 
   /// חיפוש **שטוח** בכותרות-המשנה: מחזיר כל ערך שכל טוקני השאילתה מופיעים
@@ -3573,8 +3592,8 @@ extension BookAcronymRepository on SeforimRepository {
   /// "חושן" מחזירה רק את החלק "חושן משפט", לא את כל 133 ההלכות שתחתיו.
   ///
   /// תומך בטרנספוזיציית אותיות עבריות ("טל" ↔ "לט") כמו החיפוש ההיררכי.
-  List<_CachedTocEntry> _searchAltTocFlat(
-    _TocBookCache cache,
+  List<AltTocIndexEntry> _searchAltTocFlat(
+    List<AltTocIndexEntry> entries,
     List<String> tokens,
   ) {
     if (tokens.isEmpty) return const [];
@@ -3582,7 +3601,7 @@ extension BookAcronymRepository on SeforimRepository {
     final cite = parseDafCitation(tokens);
     final lastAlts = hebrewTokenAlternatives(tokens.last);
 
-    return cache.all.where((e) {
+    return entries.where((e) {
       if (cite != null) {
         final m = matchDafCitation(e.ownTokens, cite);
         if (m != null) return m; // ערך "דף" — התאמה מיקומית מכריעה
@@ -3590,32 +3609,33 @@ extension BookAcronymRepository on SeforimRepository {
       // אנטי-הצפה: הטוקן האחרון חייב להתאים לטקסט של הערך עצמו (העלה).
       if (!lastAlts.any((a) => e.ownTokens.contains(a))) return false;
       // כל טוקני השאילתה חייבים להופיע בנתיב המלא (בכל סדר).
+      final pathTokens = e.pathTokens;
       for (final token in tokens) {
         final alts = hebrewTokenAlternatives(token);
-        if (!alts.any((a) => e.pathTokens.contains(a))) return false;
+        if (!alts.any((a) => pathTokens.contains(a))) return false;
       }
       return true;
     }).toList();
   }
 
-  /// בונה (פעם אחת לכל [bookId]) את קאש ה-AltToc.
-  /// מאחד את כל המבנים החלופיים (structureId) של הספר לתוך קאש יחיד.
-  /// כל ערך כולל את `pathTokens` (טוקני הנתיב המלא) עבור החיפוש השטוח
-  /// ב-[_searchAltTocFlat].
-  Future<_TocBookCache> _buildAltTocCacheForBook(
+  /// ערכי ה-AltToc של [bookId] (כל המבנים החלופיים יחד), ממוינים לפי segment.
+  /// מהקאש הגלובלי כשהוא מחובר; אחרת נבנים פעם אחת לספר.
+  Future<List<AltTocIndexEntry>> _buildAltTocCacheForBook(
     int bookId,
     String bookTitle,
   ) async {
+    final index = _altTocIndexByBook;
+    if (index != null) return index[bookId] ?? const [];
     final cached = _altTocCache[bookId];
     if (cached != null) return cached;
-    if (!(await _capabilities).hasAltToc) return _TocBookCache.empty;
+    if (!(await _capabilities).hasAltToc) return const [];
 
     final db = await _database.database;
 
     final rawEntries = db
         .select(
           '''
-        SELECT e.id, t.text, e.level, e.lineId, e.parentId
+        SELECT e.id, t.text, e.level, e.lineId, e.parentId, e.textId
         FROM alt_toc_entry e
         JOIN tocText t ON e.textId = t.id
         WHERE e.structureId IN (
@@ -3632,99 +3652,36 @@ extension BookAcronymRepository on SeforimRepository {
             for (final e in rawEntries)
               if (e['lineId'] case final int lineId) lineId,
           ]);
-    final entries = <Map<String, dynamic>>[];
-    for (final e in rawEntries) {
-      final lineId = e['lineId'] as int?;
-      entries.add({
-        ...e,
-        'lineIndex': lineId == null ? 0 : (lineIndexes[lineId] ?? 0),
-        'dbLineId': lineId ?? 0,
-      });
-    }
-    _sortByLineIndexThenLevel(entries);
+    final rowsById = {for (final e in rawEntries) e['id'] as int: e};
+    final built = <int, AltTocIndexEntry>{};
+    final tokens = _AltTocTokenPool();
+    final book = AltTocBook(bookId, bookTitle, 0);
 
-    if (entries.isEmpty) {
-      _altTocCache[bookId] = _TocBookCache.empty;
-      return _TocBookCache.empty;
-    }
-
-    final entryTexts = <int, String>{};
-    final entryParentIds = <int, int?>{};
-    final entryOwnTokens = <int, List<String>>{};
-    for (final e in entries) {
-      final id = e['id'] as int;
-      entryTexts[id] = e['text'] as String;
-      entryParentIds[id] = e['parentId'] as int?;
-      entryOwnTokens[id] = normalizeForFindRefMatch(
-        e['text'] as String,
-      ).split(' ').where((t) => t.isNotEmpty).toList(growable: false);
-    }
-
-    // בונה נתיב reference **ללא** שם הספר — AltToc references הם יחסיים לספר.
-    // רמה 1: "פרשת לך לך"  (ולא "בראשית פרשת לך לך")
-    // רמה 2: "פרשת לך לך עליה ו"
-    String buildPath(int? id) {
-      if (id == null) return ''; // שורש ריק — ללא שם הספר
-      final parentId = entryParentIds[id];
-      final parent = buildPath(parentId);
-      return parent.isEmpty ? entryTexts[id]! : '$parent ${entryTexts[id]!}';
-    }
-
-    // טוקני הנתיב המלא (שורש→ערך) — לחיפוש השטוח של AltToc.
-    List<String> buildPathTokens(int? id) {
-      if (id == null) return const [];
-      return [...buildPathTokens(entryParentIds[id]), ...?entryOwnTokens[id]];
-    }
-
-    final built = <_CachedTocEntry>[];
-    final childrenByParentId = <int, List<_CachedTocEntry>>{};
-    final rootEntries = <_CachedTocEntry>[];
-
-    for (final e in entries) {
-      final id = e['id'] as int;
-      final level = e['level'] as int;
-      final text = e['text'] as String;
-      final lineIndex = e['lineIndex'] as int? ?? 0;
-      final dbLineId = e['dbLineId'] as int? ?? 0;
-      final parentId = e['parentId'] as int?;
-
-      final ancestorPath = buildPath(parentId);
-      final fullRef = text.isNotEmpty
-          ? (ancestorPath.isEmpty ? text : '$ancestorPath $text')
-          : ancestorPath;
-
-      final entry = _CachedTocEntry(
+    AltTocIndexEntry? entryFor(int? id) {
+      if (id == null) return null;
+      final existing = built[id];
+      if (existing != null) return existing;
+      final row = rowsById[id];
+      if (row == null) return null;
+      final lineId = row['lineId'] as int?;
+      return built[id] = AltTocIndexEntry(
         id: id,
-        reference: fullRef,
-        segment: lineIndex,
-        level: level,
-        dbLineId: dbLineId,
-        ownTokens: entryOwnTokens[id] ?? const [],
-        pathTokens: buildPathTokens(id),
+        book: book,
+        parent: entryFor(row['parentId'] as int?),
+        text: row['text'] as String,
+        segment: lineId == null ? 0 : (lineIndexes[lineId] ?? 0),
+        level: row['level'] as int,
+        dbLineId: lineId ?? 0,
+        ownTokens: tokens.ownTokens(
+          row['textId'] as int,
+          row['text'] as String,
+        ),
       );
-
-      built.add(entry);
-
-      if (parentId == null) {
-        rootEntries.add(entry);
-      } else {
-        childrenByParentId.putIfAbsent(parentId, () => []).add(entry);
-      }
     }
 
-    built.sort((a, b) => a.segment.compareTo(b.segment));
-    rootEntries.sort((a, b) => a.segment.compareTo(b.segment));
-    for (final children in childrenByParentId.values) {
-      children.sort((a, b) => a.segment.compareTo(b.segment));
-    }
-
-    final cache = _TocBookCache(
-      all: built,
-      rootEntries: rootEntries,
-      childrenByParentId: childrenByParentId,
-    );
-    _altTocCache[bookId] = cache;
-    return cache;
+    final entries = [for (final id in rowsById.keys) entryFor(id)!];
+    _sortAltTocForBook(entries);
+    return _altTocCache[bookId] = entries;
   }
 
   /// מחזיר את כל הספרים שיש להם לפחות מבנה AltToc אחד.
@@ -3763,11 +3720,11 @@ extension BookAcronymRepository on SeforimRepository {
   Future<List<Map<String, dynamic>>> getAllAltTocFlatEntries() async {
     final build = beginAltTocFlatBuild();
     while (!await build.step()) {}
-    return build.result;
+    return [for (final e in build.entries) e.toFlatRow()];
   }
 
-  /// אותה תוצאה כמו [getAllAltTocFlatEntries], במקטעים סינכרוניים קצרים —
-  /// כדי ש-worker ישלב בקשות אחרות בין המקטעים.
+  /// אותם ערכים כמו [getAllAltTocFlatEntries], כ-[AltTocIndexEntry] ובמקטעים
+  /// סינכרוניים קצרים — כדי ש-worker ישלב בקשות אחרות בין המקטעים.
   AltTocFlatBuild beginAltTocFlatBuild({
     int entriesPerStep = 5000,
     int linesPerStep = 10000,
@@ -3775,12 +3732,30 @@ extension BookAcronymRepository on SeforimRepository {
   }) => AltTocFlatBuild._(this, entriesPerStep, linesPerStep, rowsPerStep);
 }
 
+/// הסדר של `ORDER BY lineIndex, level, id` ואחריו מיון לפי segment. המיון
+/// השני אינו יציב, ולכן חייב לרוץ על אותו קלט כדי לשמור על אותו סדר.
+void _sortAltTocForBook(List<AltTocIndexEntry> entries) {
+  entries.sort((a, b) {
+    if (a.segment != b.segment) return a.segment.compareTo(b.segment);
+    if (a.level != b.level) return a.level.compareTo(b.level);
+    return a.id.compareTo(b.id);
+  });
+  entries.sort((a, b) => a.segment.compareTo(b.segment));
+}
+
+/// מה שחישוב טווח קטע צריך מכותרת: מיקומה ורמתה.
+abstract interface class _TocSpan {
+  int get segment;
+  int get level;
+}
+
 /// ערך TOC מעובד שנשמר בקאש בזיכרון של [SeforimRepository].
-/// `tokens` הם תוצאת [normalizeForFindRefMatch] על `reference`, מפוצלת לטוקנים.
-class _CachedTocEntry {
+class _CachedTocEntry implements _TocSpan {
   final int id;
   final String reference;
+  @override
   final int segment;
+  @override
   final int level;
 
   /// מזהה השורה הגלובלי ב-`line` table (או 0 אם לא ידוע).
@@ -3790,10 +3765,6 @@ class _CachedTocEntry {
   /// טוקנים של הטקסט של ערך זה בלבד (ללא אבות) — לשימוש בחיפוש היררכי.
   final List<String> ownTokens;
 
-  /// טוקנים של הנתיב המלא משורש העץ עד הערך הזה (כולל) — לשימוש בחיפוש
-  /// השטוח של AltToc. ריק כברירת מחדל (TOC רגיל משתמש בחיפוש היררכי בלבד).
-  final List<String> pathTokens;
-
   const _CachedTocEntry({
     required this.id,
     required this.reference,
@@ -3801,7 +3772,6 @@ class _CachedTocEntry {
     required this.level,
     required this.dbLineId,
     required this.ownTokens,
-    this.pathTokens = const [],
   });
 
   Map<String, dynamic> toMap() => {
@@ -3810,6 +3780,92 @@ class _CachedTocEntry {
     'level': level,
     'dbLineId': dbLineId,
   };
+}
+
+/// ספר של ערכי [AltTocIndexEntry] — אובייקט אחד לספר, משותף לכל ערכיו.
+final class AltTocBook {
+  const AltTocBook(this.id, this.title, this.orderIndex);
+
+  final int id;
+  final String title;
+  final double orderIndex;
+}
+
+/// ערך AltToc קומפקטי. הנתיב וטוקניו נגזרים משרשרת [parent] ולא נשמרים בכל
+/// ערך: הקאש הגלובלי מחזיק כ-166 אלף ערכים לאורך כל חיי ה-worker.
+final class AltTocIndexEntry implements _TocSpan {
+  AltTocIndexEntry({
+    required this.id,
+    required this.book,
+    required this.parent,
+    required this.text,
+    required this.segment,
+    required this.level,
+    required this.dbLineId,
+    required this.ownTokens,
+  });
+
+  /// `alt_toc_entry.id`.
+  final int id;
+  final AltTocBook book;
+  final AltTocIndexEntry? parent;
+  final String text;
+
+  /// ה-`lineIndex` שאליו מנווטים; 0 כשהערך אינו מקושר לשורה.
+  @override
+  final int segment;
+  @override
+  final int level;
+
+  /// `line.id` של השורה המקושרת, או 0.
+  final int dbLineId;
+
+  /// טוקני [text] המנורמלים; רשימה אחת לכל טקסט חוזר.
+  final List<String> ownTokens;
+
+  /// טוקני [reference] המנורמל כמחרוזת אחת — נקבעים רק בקאש הגלובלי.
+  late final List<String> refTokens;
+
+  String get _path {
+    final parentPath = parent?._path ?? '';
+    return parentPath.isEmpty ? text : '$parentPath $text';
+  }
+
+  /// הנתיב המלא, יחסי לספר (בלי שם הספר), למשל "פרשת לך לך עליה ו".
+  String get reference => text.isEmpty ? (parent?._path ?? '') : _path;
+
+  List<String> get pathTokens => [...?parent?.pathTokens, ...ownTokens];
+
+  Map<String, dynamic> toTocMap() => {
+    'reference': reference,
+    'segment': segment,
+    'level': level,
+    'dbLineId': dbLineId,
+  };
+
+  Map<String, dynamic> toFlatRow() => {
+    'bookId': book.id,
+    'bookTitle': book.title,
+    'bookOrderIndex': book.orderIndex,
+    'reference': reference,
+    'segment': segment,
+    'level': level,
+    'dbLineId': dbLineId,
+  };
+}
+
+/// מחרוזת אחת לכל טוקן חוזר ורשימה אחת לכל טקסט חוזר ("עליה א" בכל פרשה).
+class _AltTocTokenPool {
+  final Map<String, String> _strings = {};
+  final Map<int, List<String>> _byTextId = {};
+
+  List<String> ownTokens(int textId, String text) =>
+      _byTextId[textId] ??= tokensOf(text);
+
+  List<String> tokensOf(String text) => [
+    for (final t in normalizeForFindRefMatch(text).split(' '))
+      if (t.isNotEmpty) _strings.putIfAbsent(t, () => t),
+  ].toList(growable: false);
 }
 
 /// קאש TOC לספר יחיד: רשימה שטוחה + מבנה היררכי לחיפוש.
@@ -3858,14 +3914,20 @@ class AltTocFlatBuild {
   int _cursor = 0;
   int _maxEntryId = 0;
   final List<Map<String, dynamic>> _entries = [];
-  final Map<int, String> _entryTexts = {};
-  final Map<int, int?> _entryParents = {};
-  final Map<int, String> _pathCache = {};
+  final Map<int, int> _rowIndexById = {};
+  final Map<int, AltTocBook> _books = {};
+  final Map<int, AltTocIndexEntry> _built = {};
+  final _AltTocTokenPool _tokens = _AltTocTokenPool();
   final Map<int, int> _lineIndexes = {};
   List<List<int>> _lineSlices = const [];
   String? _lineSliceSql;
 
-  final List<Map<String, dynamic>> result = [];
+  /// בסדר `alt_toc_entry.id`; [AltTocIndexEntry.refTokens] לא נקבעים כאן.
+  final List<AltTocIndexEntry> entries = [];
+
+  /// טוקני [AltTocIndexEntry.reference] מנורמל, עם אותן מחרוזות משותפות.
+  List<String> refTokensOf(AltTocIndexEntry entry) =>
+      _tokens.tokensOf(entry.reference);
 
   bool get isDone => _phase == _AltTocFlatPhase.done;
 
@@ -3919,7 +3981,8 @@ class AltTocFlatBuild {
              t.text AS text,
              e.level AS level,
              e.parentId AS parentId,
-             e.lineId AS lineId
+             e.lineId AS lineId,
+             e.textId AS textId
       FROM alt_toc_entry e
       JOIN alt_toc_structure s ON e.structureId = s.id
       JOIN book b ON b.id = s.bookId
@@ -3931,11 +3994,9 @@ class AltTocFlatBuild {
         )
         .toMapList();
     for (final r in rows) {
-      final id = r['entryId'] as int;
-      _entryTexts[id] = r['text'] as String;
-      _entryParents[id] = r['parentId'] as int?;
+      _rowIndexById[r['entryId'] as int] = _entries.length;
+      _entries.add(r);
     }
-    _entries.addAll(rows);
     _cursor = upper;
     if (_cursor > _maxEntryId) _phase = _AltTocFlatPhase.lineSetup;
   }
@@ -4027,15 +4088,30 @@ class AltTocFlatBuild {
     }
   }
 
-  String _buildPath(int? id) {
-    if (id == null) return '';
-    final cached = _pathCache[id];
-    if (cached != null) return cached;
-    final parent = _buildPath(_entryParents[id]);
-    final text = _entryTexts[id]!;
-    final path = parent.isEmpty ? text : '$parent $text';
-    _pathCache[id] = path;
-    return path;
+  AltTocIndexEntry? _entryFor(int? id) {
+    if (id == null) return null;
+    final existing = _built[id];
+    if (existing != null) return existing;
+    final rowIndex = _rowIndexById[id];
+    if (rowIndex == null) return null;
+    final r = _entries[rowIndex];
+    final bookId = r['bookId'] as int;
+    final lineId = r['lineId'] as int?;
+    final text = r['text'] as String;
+    return _built[id] = AltTocIndexEntry(
+      id: id,
+      book: _books[bookId] ??= AltTocBook(
+        bookId,
+        r['bookTitle'] as String,
+        (r['bookOrderIndex'] as num).toDouble(),
+      ),
+      parent: _entryFor(r['parentId'] as int?),
+      text: text,
+      segment: lineId == null ? 0 : (_lineIndexes[lineId] ?? 0),
+      level: r['level'] as int,
+      dbLineId: lineId ?? 0,
+      ownTokens: _tokens.ownTokens(r['textId'] as int, text),
+    );
   }
 
   void _buildRows() {
@@ -4043,24 +4119,15 @@ class AltTocFlatBuild {
         ? _entries.length
         : _cursor + _rowsPerStep;
     for (var i = _cursor; i < end; i++) {
-      final r = _entries[i];
-      final text = r['text'] as String;
-      final ancestorPath = _buildPath(r['parentId'] as int?);
-      final fullRef = text.isEmpty
-          ? ancestorPath
-          : (ancestorPath.isEmpty ? text : '$ancestorPath $text');
-      final lineId = r['lineId'] as int?;
-      result.add({
-        'bookId': r['bookId'] as int,
-        'bookTitle': r['bookTitle'] as String,
-        'bookOrderIndex': (r['bookOrderIndex'] as num).toDouble(),
-        'reference': fullRef,
-        'segment': lineId == null ? 0 : (_lineIndexes[lineId] ?? 0),
-        'level': r['level'] as int,
-        'dbLineId': lineId ?? 0,
-      });
+      entries.add(_entryFor(_entries[i]['entryId'] as int)!);
     }
     _cursor = end;
-    if (_cursor >= _entries.length) _phase = _AltTocFlatPhase.done;
+    if (_cursor < _entries.length) return;
+    _phase = _AltTocFlatPhase.done;
+    // נחוצים רק לבנייה; מאגר הטוקנים נשאר לנרמול הנתיבים שאחריה.
+    _entries.clear();
+    _rowIndexById.clear();
+    _built.clear();
+    _lineIndexes.clear();
   }
 }
