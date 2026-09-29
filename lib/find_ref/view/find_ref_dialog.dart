@@ -1200,16 +1200,17 @@ class _FindRefDialogState extends State<FindRefDialog> {
         if (refs.isEmpty) return KeyEventResult.ignored;
         final key = event.logicalKey;
         final current = _selectedIndex.value;
-        // Home/End לבדם מזיזים את הסמן בשדה ההקלדה, ולכן לרשימה — עם Ctrl.
-        final ctrl = HardwareKeyboard.instance.isControlPressed;
+        // Home/End (גם Ctrl+Shift לבחירה) שייכים לשדה; Ctrl לבדו — לרשימה.
+        final keyboard = HardwareKeyboard.instance;
+        final ctrlOnly = keyboard.isControlPressed && !keyboard.isShiftPressed;
         final int? target = switch (key) {
           LogicalKeyboardKey.arrowDown => current + 1,
           LogicalKeyboardKey.arrowUp => current - 1,
           LogicalKeyboardKey.pageDown =>
             current + _resultsPageStep(refs.length),
           LogicalKeyboardKey.pageUp => current - _resultsPageStep(refs.length),
-          LogicalKeyboardKey.home when ctrl => 0,
-          LogicalKeyboardKey.end when ctrl => refs.length - 1,
+          LogicalKeyboardKey.home when ctrlOnly => 0,
+          LogicalKeyboardKey.end when ctrlOnly => refs.length - 1,
           _ => null,
         };
         if (target == null) return KeyEventResult.ignored;
@@ -1480,6 +1481,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           selected: isSelected,
+          // selected צובע את כפתור המפרשים ב-primary; שומרים על צבעו הרגיל.
+          selectedColor: colorScheme.onSurfaceVariant,
           hoverColor: showButton ? Colors.transparent : null,
           visualDensity: VisualDensity.compact,
           contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 4, 8, 4),

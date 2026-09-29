@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -544,6 +545,58 @@ void main() {
     expect(_selectedTiles(tester), ['בראשית פרק ב']);
   });
 
+  testWidgets('הסימון אינו צובע את כפתור המפרשים', (tester) async {
+    final previousLibrary =
+        DataRepository.instance.cachedLibraryFutureForTesting;
+    final library = Library(categories: []);
+    final category = Category(
+      title: 'מפרשים',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: library,
+    );
+    library.subCategories.add(category);
+    category.books.add(TextBook(id: 81, title: 'מפרש', category: category));
+    DataRepository.instance.library = Future.value(library);
+    addTearDown(() {
+      if (previousLibrary == null) {
+        DataRepository.instance.invalidateLibraryCache();
+      } else {
+        DataRepository.instance.library = previousLibrary;
+      }
+    });
+    final repo = _FakeRepository(
+      [_ref('בראשית פרק א'), _ref('בראשית פרק ב')],
+      commentators: const [
+        DbCommentatorEntry(title: 'מפרש', bookId: 81, targetSegment: 0),
+      ],
+    );
+    await _pumpDialog(tester, repository: repo);
+    await tester.enterText(find.byType(TextField), 'בראשית');
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+    await tester.pump();
+
+    await tester.pumpAndSettle();
+    final buttons = find.byTooltip('הצג מפרשים זמינים');
+    expect(buttons, findsNWidgets(2));
+    final colors = [
+      for (final element
+          in find.byIcon(FluentIcons.library_24_regular).evaluate())
+        IconTheme.of(element).color,
+    ];
+    final context = tester.element(find.byType(FindRefDialog));
+
+    expect(_selectedTiles(tester), ['בראשית פרק א']);
+    expect(colors, [
+      for (var i = 0; i < 2; i++)
+        Theme.of(context).colorScheme.onSurfaceVariant,
+    ]);
+  });
+
   group('מקשי דפדוף ברשימת התוצאות', () {
     final many = [for (var i = 1; i <= 40; i++) _ref('בראשית פרק $i')];
 
@@ -583,6 +636,28 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_selectedTiles(tester), ['בראשית פרק 1']);
+    });
+
+    testWidgets('Ctrl+Shift+End בוחר בשדה ואינו מזיז את הסימון', (
+      tester,
+    ) async {
+      await pumpMany(tester);
+      final controller = FocusRepository().findRefSearchController;
+      controller.selection = const TextSelection.collapsed(offset: 0);
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      expect(_selectedTiles(tester), ['בראשית פרק 1']);
+      expect(
+        controller.selection,
+        TextSelection(baseOffset: 0, extentOffset: controller.text.length),
+      );
     });
 
     testWidgets('PageDown ו-PageUp מזיזים עמוד שלם של שורות', (tester) async {
