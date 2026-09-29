@@ -281,7 +281,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
   late List<String> _suggestions;
   late bool _suggestionsAreRecent;
 
-  int _selectedIndex = 0;
+  /// הסימון משתנה בכל חץ והקלדה — רק השורות מאזינות לו, לא הדיאלוג כולו.
+  final ValueNotifier<int> _selectedIndex = ValueNotifier<int>(0);
+  bool _queryIsEmpty = true;
 
   /// התוצאות שמוצגות כרגע. נשמרות כדי שהקלדה של אות נוספת לא תרוקן את
   /// הרשימה ותחזיר אותה — הרשימה הקודמת נשארת עד שהחדשה מגיעה.
@@ -346,6 +348,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
     // בחירת הטקסט הקיים כאשר חוזרים למסך
     // מבוצע מיד ולא ב-postFrameCallback כדי למנוע אובדן פוקוס באנדרואיד
     final controller = FocusRepository().findRefSearchController;
+    _queryIsEmpty = controller.text.isEmpty;
+    controller.addListener(_onQueryTextChanged);
     if (controller.text.isNotEmpty) {
       controller.selection = TextSelection(
         baseOffset: 0,
@@ -377,9 +381,32 @@ class _FindRefDialogState extends State<FindRefDialog> {
     _resultsScrollController.removeListener(_updateHasMoreBelow);
     _resultsScrollController.dispose();
     _hasMoreBelow.dispose();
+    FocusRepository().findRefSearchController.removeListener(
+      _onQueryTextChanged,
+    );
+    _selectedIndex.dispose();
     final restorer = _focusRestorer;
     if (restorer != null) FocusRepository().unregisterActiveRestorer(restorer);
     super.dispose();
+  }
+
+  /// כפתור הניקוי תלוי רק בשאלה אם השדה ריק — בנייה מחדש רק כשזה מתהפך.
+  void _onQueryTextChanged() {
+    final isEmpty = FocusRepository().findRefSearchController.text.isEmpty;
+    if (isEmpty != _queryIsEmpty && mounted) {
+      setState(() => _queryIsEmpty = isEmpty);
+    }
+  }
+
+  /// שולח איתור חדש מהמסך ומאפס את הסימון לתוצאה הראשונה.
+  void _dispatchSearch(String text, {bool? includePersonalBooks}) {
+    _selectedIndex.value = 0;
+    context.read<FindRefBloc>().add(
+      SearchRefRequested(
+        text,
+        includePersonalBooks: includePersonalBooks ?? _includePersonalBooks,
+      ),
+    );
   }
 
   void _refreshVisibilityIfChanged() {
@@ -512,7 +539,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   void _scrollToSelected() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final key = _getKeyForIndex(_selectedIndex);
+      final key = _getKeyForIndex(_selectedIndex.value);
       final context = key.currentContext;
       if (context != null) {
         Scrollable.ensureVisible(
@@ -831,13 +858,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final controller = focusRepository.findRefSearchController;
     controller.text = suggestion;
     controller.selection = TextSelection.collapsed(offset: suggestion.length);
-    setState(() => _selectedIndex = 0);
-    context.read<FindRefBloc>().add(
-      SearchRefRequested(
-        suggestion,
-        includePersonalBooks: _includePersonalBooks,
-      ),
-    );
+    _dispatchSearch(suggestion);
     focusRepository.findRefSearchFocusNode.requestFocus();
   }
 
@@ -966,15 +987,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 .read<FocusRepository>()
                 .findRefSearchFocusNode,
             hint: context.settingsText('לחיצה תחליף את הטקסט שהוקלד'),
-            onApplied: (suggestion) {
-              setState(() => _selectedIndex = 0);
-              context.read<FindRefBloc>().add(
-                SearchRefRequested(
-                  suggestion,
-                  includePersonalBooks: _includePersonalBooks,
-                ),
-              );
-            },
+            onApplied: _dispatchSearch,
           ),
           SizedBox(height: isShort ? 8 : 10),
           // Wrap ולא Row: ה-Switch אינו מתכווץ (Transform.scale משפיע על
@@ -1028,15 +1041,17 @@ class _FindRefDialogState extends State<FindRefDialog> {
         // טיפול בחיצים רק אם יש תוצאות
         if (refs.isNotEmpty) {
           if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-            setState(() {
-              _selectedIndex = (_selectedIndex + 1).clamp(0, refs.length - 1);
-            });
+            _selectedIndex.value = (_selectedIndex.value + 1).clamp(
+              0,
+              refs.length - 1,
+            );
             _scrollToSelected();
             return KeyEventResult.handled;
           } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-            setState(() {
-              _selectedIndex = (_selectedIndex - 1).clamp(0, refs.length - 1);
-            });
+            _selectedIndex.value = (_selectedIndex.value - 1).clamp(
+              0,
+              refs.length - 1,
+            );
             _scrollToSelected();
             return KeyEventResult.handled;
           }
@@ -1054,7 +1069,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           labelText: context.settingsText('מקור'),
           hintText: context.settingsText('לדוגמה: בראשית פרק א'),
           prefixIcon: const Icon(FluentIcons.search_24_regular),
-          suffixIcon: controller.text.isEmpty
+          suffixIcon: _queryIsEmpty
               ? null
               : IconButton(
                   icon: const Icon(FluentIcons.dismiss_24_regular),
@@ -1070,24 +1085,12 @@ class _FindRefDialogState extends State<FindRefDialog> {
                     BlocProvider.of<FindRefBloc>(
                       context,
                     ).add(ClearSearchRequested());
-                    setState(() {
-                      _selectedIndex = 0;
-                    });
+                    _selectedIndex.value = 0;
                   },
                 ),
         ),
-        onChanged: (ref) {
-          setState(() => _selectedIndex = 0);
-          // ההקלדה נשלחת מיידית — ה-debounce עצמו מבוצע בתוך
-          // ה-handler ב-bloc, כך שכל הקלדה חדשה גם מבטלת מיידית
-          // כל handler שכבר רץ (גם אם הוא באמצע fetch).
-          BlocProvider.of<FindRefBloc>(context).add(
-            SearchRefRequested(
-              ref,
-              includePersonalBooks: _includePersonalBooks,
-            ),
-          );
-        },
+        // ה-debounce מבוצע בבלוק, כך שכל הקלדה מבטלת מיד גם חיפוש שכבר רץ.
+        onChanged: _dispatchSearch,
         onSubmitted: (value) {
           // ניסיון לטפל בקישור ישיר — אם זה קישור, ייפתח ישירות
           if (_isDeepLinkText(value)) {
@@ -1097,7 +1100,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           // פתיחת המקור הנבחר בלחיצה על אנטר. הסימון נחתך לגבולות הרשימה
           // כדי שסט תוצאות שהתקצר לא יפיל את הפתיחה.
           if (refs.isNotEmpty) {
-            _openRef(refs[_selectedIndex.clamp(0, refs.length - 1)]);
+            _openRef(refs[_selectedIndex.value.clamp(0, refs.length - 1)]);
           }
         },
       ),
@@ -1145,19 +1148,15 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 onChanged: (v) {
                   // איפוס הסימון: סט התוצאות משתנה, ואינדקס ישן היה מפיל
                   // את פתיחת התוצאה ב-Enter.
-                  setState(() {
-                    _includePersonalBooks = v;
-                    _selectedIndex = 0;
-                  });
+                  setState(() => _includePersonalBooks = v);
+                  _selectedIndex.value = 0;
                   FindRefPersonalBooksSetting.save(v);
                   final text = context
                       .read<FocusRepository>()
                       .findRefSearchController
                       .text;
                   if (text.length >= 2) {
-                    context.read<FindRefBloc>().add(
-                      SearchRefRequested(text, includePersonalBooks: v),
-                    );
+                    _dispatchSearch(text, includePersonalBooks: v);
                   }
                 },
               ),
@@ -1247,8 +1246,16 @@ class _FindRefDialogState extends State<FindRefDialog> {
           8,
         ),
         itemCount: refs.length,
-        itemBuilder: (context, index) =>
-            _buildResultTile(refs[index], index, interactive: interactive),
+        itemBuilder: (context, index) => ValueListenableBuilder<int>(
+          key: _getKeyForIndex(index),
+          valueListenable: _selectedIndex,
+          builder: (context, selectedIndex, _) => _buildResultTile(
+            refs[index],
+            index,
+            isSelected: index == selectedIndex,
+            interactive: interactive,
+          ),
+        ),
       ),
     );
   }
@@ -1256,10 +1263,10 @@ class _FindRefDialogState extends State<FindRefDialog> {
   Widget _buildResultTile(
     DbReferenceResult ref,
     int index, {
+    required bool isSelected,
     required bool interactive,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isSelected = index == _selectedIndex;
     final eligible = !ref.isPdf && ref.bookId > 0 && ref.source.isOfficial;
     // טעינה lazy בעת רינדור — ListView.builder יפעיל את ה-itemBuilder רק
     // עבור שורות נראות. ה-cache ב-repository ימנע קריאות חוזרות.
@@ -1271,7 +1278,6 @@ class _FindRefDialogState extends State<FindRefDialog> {
     // Material (ולא Container צבוע) כדי שהצבע והריפל של ה-ListTile ייראו —
     // ListTile מצייר אותם על ה-Material הקרוב, ורקע שמעליו מסתיר אותם.
     return Padding(
-      key: _getKeyForIndex(index),
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: isSelected

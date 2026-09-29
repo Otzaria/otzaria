@@ -471,6 +471,29 @@ void main() {
     );
   });
 
+  testWidgets('חצים והקלדה אינם בונים מחדש את הדיאלוג כולו', (tester) async {
+    await _pumpDialog(
+      tester,
+      results: [_ref('בראשית פרק א'), _ref('בראשית פרק ב')],
+    );
+    await tester.enterText(find.byType(TextField), 'בראשית');
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+    // מופע ווידג'ט הכותרת מתחלף רק כשה-State של הדיאלוג נבנה מחדש.
+    Widget header() => tester.widget(find.text('איתור מקורות'));
+    final before = header();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(_titleStyleOf(tester, 'בראשית פרק ב')?.fontWeight, FontWeight.w600);
+    expect(identical(header(), before), isTrue, reason: 'חץ');
+
+    await tester.enterText(find.byType(TextField), 'בראשית פ');
+    await tester.pump();
+    expect(identical(header(), before), isTrue, reason: 'הקלדה');
+    await tester.pump(_pastDebounce);
+  });
+
   testWidgets('חץ למעלה מחזיר את הסימון לתוצאה הקודמת', (tester) async {
     await _pumpDialog(
       tester,
