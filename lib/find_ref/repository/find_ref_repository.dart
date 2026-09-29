@@ -781,7 +781,9 @@ class FindRefRepository {
   }
 
   void _cacheCommentators(String key, List<DbCommentatorEntry> entries) {
-    _commentatorsCache[key] = entries;
+    _commentatorsCache
+      ..remove(key)
+      ..[key] = entries;
     if (_commentatorsCache.length > _maxCommentatorsCacheEntries) {
       _commentatorsCache.remove(_commentatorsCache.keys.first);
     }

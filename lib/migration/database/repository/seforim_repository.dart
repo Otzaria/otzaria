@@ -47,8 +47,7 @@ class SeforimRepository {
   int _tocCacheEntryCount = 0;
   final int _tocCacheMaxEntries;
 
-  /// כ-217 בתים לערך (נמדד על הספרייה החיה): כ-40MB, ששה מהספרים הגדולים
-  /// (עד 33 אלף ערכים) או כ-1,200 ספרים ממוצעים. בלי תקרה — כ-265MB.
+  /// מספיק לכמה מהספרים הגדולים ביותר יחד; ספר שגדול מהתקרה לבדו עדיין נשמר.
   static const int defaultTocCacheMaxEntries = 200000;
 
   /// קאש בזיכרון לערכי AltToc (כותרות-משנה) לכל ספר, ממוינים לפי segment.
