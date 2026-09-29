@@ -355,6 +355,137 @@ void main() {
     );
   });
 
+  group('חימום AltToc ברקע', () {
+    const entryCount = 8;
+
+    Future<String> seedAltTocDb() async {
+      final dbPath = await seedDb('seforim', 'בראשית');
+      final database = MyDatabase.withPath(dbPath);
+      final db = await database.database;
+      db.execute(
+        "INSERT INTO alt_toc_structure (id, bookId, key) VALUES (1, 1, 'p')",
+      );
+      for (var i = 0; i < entryCount; i++) {
+        db.execute(
+          'INSERT INTO tocText (id, text) VALUES (?, ?)',
+          [500 + i, 'פרשה $i'],
+        );
+        db.execute(
+          'INSERT INTO alt_toc_entry (id, structureId, textId, level, lineId) '
+          'VALUES (?, 1, ?, 1, 100)',
+          [900 + i, 500 + i],
+        );
+      }
+      database.close();
+      await Settings.setValue<String>(
+        SettingsRepository.keyDbEffectivePath,
+        dbPath,
+      );
+      return dbPath;
+    }
+
+    /// מקטע של ערך אחד עם השהיה סינכרונית — החימום נמשך כ-800ms.
+    Future<FindRefDbIsolate> slowBuildIsolate() async {
+      FindRefDbIsolate.debugAltTocBuildTuning = (
+        chunkSize: 1,
+        stepDelay: const Duration(milliseconds: 100),
+      );
+      addTearDown(() => FindRefDbIsolate.debugAltTocBuildTuning = null);
+      final isolate = await FindRefDbIsolate.instance();
+      addTearDown(isolate.disposeForTesting);
+      expect(await isolate.getAllLocalBooksSlim(), hasLength(1));
+      return isolate;
+    }
+
+    test('בקשה אינטראקטיבית אחרי החימום מסתיימת לפני שהחימום מסתיים', () async {
+      await seedAltTocDb();
+      final isolate = await slowBuildIsolate();
+
+      var prewarmDone = false;
+      final prewarm = isolate.prewarmAltTocFlat().then(
+        (_) => prewarmDone = true,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+
+      expect(await isolate.getTocEntries(1, 'בראשית'), isNotEmpty);
+      expect(prewarmDone, isFalse, reason: 'הבקשה עקפה את החימום');
+
+      await prewarm;
+      expect(
+        await isolate.searchAltTocFlat(['פרשה']),
+        hasLength(entryCount),
+      );
+    });
+
+    test('ביטול הקלדה ממשיך לזרוק בקשות ממתינות בזמן חימום', () async {
+      await seedAltTocDb();
+      final isolate = await slowBuildIsolate();
+      final scope = FindRefDbIsolate.allocateSearchScope();
+
+      final prewarm = isolate.prewarmAltTocFlat();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      final queued = [
+        for (var i = 0; i < 20; i++)
+          isolate.getTocEntries(
+            1,
+            'בראשית',
+            searchScope: scope,
+            searchEpoch: 1,
+          ),
+      ];
+      FindRefDbIsolate.cancelSearchScopeIfRunning(scope, 2);
+
+      var cancelled = 0;
+      for (final future in queued) {
+        try {
+          await future;
+        } on FindRefQueryCancelled {
+          cancelled++;
+        }
+      }
+      expect(cancelled, greaterThan(0));
+      await prewarm;
+      expect(
+        await isolate.getTocEntries(
+          1,
+          'בראשית',
+          searchScope: scope,
+          searchEpoch: 2,
+        ),
+        isNotEmpty,
+      );
+    });
+
+    test('השהיה באמצע חימום משחררת את החיבור ואינה חושפת קאש חלקי', () async {
+      await seedAltTocDb();
+      final isolate = await slowBuildIsolate();
+      addTearDown(FindRefDbIsolate.resumeAfterExternalWrite);
+
+      var prewarmDone = false;
+      final prewarm = isolate.prewarmAltTocFlat().then(
+        (_) => prewarmDone = true,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      final stopwatch = Stopwatch()..start();
+      expect(await FindRefDbIsolate.suspendForExternalWrite(), isTrue);
+      expect(
+        stopwatch.elapsed,
+        lessThan(const Duration(milliseconds: 500)),
+        reason: 'ההשהיה אינה ממתינה לסוף החימום',
+      );
+      await prewarm;
+      expect(prewarmDone, isTrue);
+      expect(await isolate.searchAltTocFlat(['פרשה']), isEmpty);
+
+      await FindRefDbIsolate.resumeAfterExternalWrite();
+      expect(
+        await isolate.searchAltTocFlat(['פרשה']),
+        hasLength(entryCount),
+      );
+    });
+  });
+
   test('שחרור scope במהלך spawn מנקה ביטול שהמתין לאתחול', () async {
     final dbPath = await seedDb('seforim', 'בראשית');
     await Settings.setValue<String>(

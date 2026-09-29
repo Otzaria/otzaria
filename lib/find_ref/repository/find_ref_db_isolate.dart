@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' show sleep;
 import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/error_log_file.dart';
@@ -63,6 +65,11 @@ class FindRefDbIsolate {
   /// מחיקת קובץ עם handle פתוח נכשלת, ולכן ה-worker חייב להישאר בלי חיבור.
   static bool _suspendedForExternalWrite = false;
 
+  /// בדיקות בלבד: גודל מקטע בבניית קאש ה-AltToc והשהיה סינכרונית אחרי כל
+  /// מקטע (מדמה בנייה כבדה). נקרא ב-spawn.
+  @visibleForTesting
+  static ({int chunkSize, Duration stepDelay})? debugAltTocBuildTuning;
+
   /// מחזיר את המופע הפעיל, ומאתחל (spawn) בעצלתיים בקריאה הראשונה.
   /// קריאות מקבילות שמגיעות בזמן ה-spawn חולקות את אותו Future.
   static Future<FindRefDbIsolate> instance() {
@@ -125,6 +132,9 @@ class FindRefDbIsolate {
         mainSendPort: receivePort.sendPort,
         queryCache: QueryLoader.cacheSnapshot,
         dbPath: DatabaseConstants.getDatabasePath(),
+        altTocChunkSize:
+            debugAltTocBuildTuning?.chunkSize ?? _altTocBuildChunkSize,
+        altTocStepDelay: debugAltTocBuildTuning?.stepDelay ?? Duration.zero,
       ),
       debugName: 'find_ref_db_worker',
       onError: errorPort.sendPort,
@@ -220,10 +230,10 @@ class FindRefDbIsolate {
     return _castRows(res);
   }
 
-  /// בונה מראש את קאש ה-AltToc השטוח בתוך ה-worker (בנייה + נרמול ~1-2s),
-  /// כדי שהחיפוש הראשון שזקוק לו לא ישלם את המחיר. fire-and-forget.
+  /// בונה מראש את קאש ה-AltToc השטוח בתוך ה-worker, כדי שהחיפוש הראשון
+  /// לא ישלם את המחיר. רץ בנתיב הרקע במקטעים, כך שאינו מעכב בקשות אחרות.
   Future<void> prewarmAltTocFlat() async {
-    await _request('prewarmAltTocFlat', const {});
+    await _request('prewarmAltTocFlat', const {}, background: true);
   }
 
   /// מזהי הספרים שיש להם מבנה AltToc — מאפשר לדלג על שאילתות AltToc
@@ -426,10 +436,8 @@ class FindRefDbIsolate {
     }
   }
 
-  /// תקרת המתנה לפקודות ההשהיה/השחרור. הן נכנסות לתור הסדרתי של ה-worker
-  /// ועשויות להמתין לחימום AltToc (1-2 שניות); worker תקוע אינו זורק, ולכן
-  /// בלי תקרה `closeForExternalWrite` — שנקרא מחוץ ל-try של העדכון — היה
-  /// חוסם לנצח את שחרור ה-write session.
+  /// תקרת המתנה לפקודות ההשהיה/השחרור. worker תקוע אינו זורק, ולכן בלי
+  /// תקרה `closeForExternalWrite` (מחוץ ל-try של העדכון) היה חוסם לנצח.
   static const Duration _lifecycleCommandTimeout = Duration(seconds: 10);
 
   /// משחרר את חיבור ה-RO של ה-worker לפני שכתיבה חיצונית מחליפה את קובץ
@@ -514,13 +522,15 @@ class FindRefDbIsolate {
   /// ה-proxy מעביר [searchEpoch] שנלכד לפני await של ה-spawn, כך שבקשה
   /// ישנה לא תיחתום בטעות על המחזור החדש.
   /// בקשות שאינן שייכות לאיתור מקורות (קאש הספרים, TOC בפתיחת ספר) נשלחות
-  /// בלי epoch ולעולם אינן מבוטלות.
+  /// בלי epoch ולעולם אינן מבוטלות. [background] — חימום שמטופל רק כשאין
+  /// בקשה אחרת בתור.
   Future<dynamic> _request(
     String method,
     Map<String, Object?> args, {
     bool cancellable = false,
     int searchScope = 0,
     int? searchEpoch,
+    bool background = false,
   }) async {
     if (_disposed) {
       throw StateError('FindRefDbIsolate was disposed');
@@ -537,6 +547,7 @@ class FindRefDbIsolate {
       // קריאות ישירות ממשיכות להשתמש ב-_epoch המקומי לצורך תאימות.
       if (cancellable) 'epoch': searchEpoch ?? _epoch,
       if (cancellable) 'scope': searchScope,
+      if (background) 'lane': _backgroundLane,
     });
     return completer.future;
   }
@@ -625,17 +636,52 @@ class FindRefDbIsolate {
       .toList(growable: false);
 }
 
+const String _backgroundLane = 'background';
+
+/// מקטע הוא עבודה סינכרונית של עשרות מילישניות לכל היותר — זו ההמתנה
+/// המרבית של בקשה אינטראקטיבית או ביטול מאחורי החימום.
+const int _altTocBuildChunkSize = 5000;
+
+typedef _AltTocFlatItem = ({Map<String, dynamic> row, List<String> refTokens});
+
+/// בניית קאש ה-AltToc השטוח בשלבים. הקאש נחשף רק כשהבנייה הושלמה.
+class _AltTocFlatBuild {
+  _AltTocFlatBuild(this._rows);
+
+  final List<Map<String, dynamic>> _rows;
+  final List<_AltTocFlatItem> items = [];
+
+  bool get isDone => items.length >= _rows.length;
+
+  void step(int count) {
+    final end = math.min(items.length + count, _rows.length);
+    for (var i = items.length; i < end; i++) {
+      final row = _rows[i];
+      items.add((
+        row: row,
+        refTokens: normalizeForFindRefMatch(
+          row['reference'] as String,
+        ).split(' ').where((t) => t.isNotEmpty).toList(growable: false),
+      ));
+    }
+  }
+}
+
 // ── Worker bootstrap & entry point ──────────────────────────────────────────
 
 class _Bootstrap {
   final SendPort mainSendPort;
   final Map<String, Map<String, String>> queryCache;
   final String dbPath;
+  final int altTocChunkSize;
+  final Duration altTocStepDelay;
 
   const _Bootstrap({
     required this.mainSendPort,
     required this.queryCache,
     required this.dbPath,
+    required this.altTocChunkSize,
+    required this.altTocStepDelay,
   });
 }
 
@@ -654,7 +700,8 @@ void _workerMain(_Bootstrap bootstrap) {
 
   // קאש AltToc שטוח עם טוקנים מנורמלים מראש — נבנה פעם אחת ב-worker ומשרת
   // את פקודת searchAltTocFlat. חי עד reset (רענון/החלפת ספרייה).
-  List<({Map<String, dynamic> row, List<String> refTokens})>? altTocFlatCache;
+  List<_AltTocFlatItem>? altTocFlatCache;
+  _AltTocFlatBuild? altTocBuild;
 
   Future<SeforimRepository?> ensureRepo() async {
     if (suspended) return null;
@@ -673,24 +720,86 @@ void _workerMain(_Bootstrap bootstrap) {
     }
   }
 
-  Future<List<({Map<String, dynamic> row, List<String> refTokens})>>
-  ensureAltTocFlatCache() async {
+  Future<_AltTocFlatBuild?> startAltTocBuild() async {
+    final pending = altTocBuild;
+    if (pending != null) return pending;
+    final repo = await ensureRepo();
+    if (repo == null) return null;
+    return altTocBuild = _AltTocFlatBuild(
+      await repo.getAllAltTocFlatEntries(),
+    );
+  }
+
+  List<_AltTocFlatItem> completeAltTocBuild(_AltTocFlatBuild build) {
+    altTocBuild = null;
+    return altTocFlatCache = build.items;
+  }
+
+  // בקשה אינטראקטיבית משלימה בנייה חלקית של החימום במקום להתחיל מחדש.
+  Future<List<_AltTocFlatItem>> ensureAltTocFlatCache() async {
     final cached = altTocFlatCache;
     if (cached != null) return cached;
-    final repo = await ensureRepo();
-    if (repo == null) return const [];
-    final rows = await repo.getAllAltTocFlatEntries();
-    final built = [
-      for (final r in rows)
-        (
-          row: r,
-          refTokens: normalizeForFindRefMatch(
-            r['reference'] as String,
-          ).split(' ').where((t) => t.isNotEmpty).toList(growable: false),
-        ),
-    ];
-    altTocFlatCache = built;
-    return built;
+    final build = await startAltTocBuild();
+    if (build == null) return const [];
+    while (!build.isDone) {
+      build.step(bootstrap.altTocChunkSize);
+    }
+    return completeAltTocBuild(build);
+  }
+
+  /// מקטע אחד של החימום. מחזיר true כשאין עוד מה לבנות.
+  Future<bool> prewarmAltTocStep() async {
+    if (altTocFlatCache != null) return true;
+    final resuming = altTocBuild != null;
+    final build = await startAltTocBuild();
+    if (build == null) return true;
+    // השאילתה עצמה היא מקטע; הנרמול מתחיל רק בסבב הבא.
+    if (resuming || build.isDone) {
+      build.step(bootstrap.altTocChunkSize);
+      if (bootstrap.altTocStepDelay > Duration.zero) {
+        sleep(bootstrap.altTocStepDelay);
+      }
+    }
+    if (!build.isDone) return false;
+    completeAltTocBuild(build);
+    return true;
+  }
+
+  // הבקשות מעובדות **בזו אחר זו** מהתור הזה, לפי סדר ההגעה. בלי זה, בקשות
+  // מקבילות (למשל כמה `era` ב-Future.wait, או טעינת מפרשים לכמה שורות במקביל)
+  // היו נכנסות ל-ensureRepo יחד ופותחות יותר מחיבור DB אחד, ו-reset היה יכול
+  // לסגור את החיבור באמצע שאילתה אחרת בנקודת await. עיבוד עוקב מבטל את שני
+  // ה-races בלי לפגוע ב-throughput (sqlite3 סינכרוני — ממילא לא רץ במקביל על
+  // אותו חיבור), וה-main isolate נשאר פנוי כך או כך.
+  //
+  // תור מפורש ולא שרשרת `Future.then`: שרשרת אינה ניתנת לגזירה, ולכן שאילתה
+  // של הקלדה חדשה הייתה ממתינה שכל עבודת ההקלדה הקודמת תתרוקן.
+  // נתיב הרקע (חימום) מתקדם מקטע אחד בכל סבב, ורק כשהתור הראשי ריק.
+  final queue = <Map<String, Object?>>[];
+  final backgroundQueue = <Map<String, Object?>>[];
+  var draining = false;
+
+  // בקשות שנשלחו עם `epoch` קטן מזה נזרקות מהתור. הבקשה שכבר רצה אינה
+  // ניתנת לקטיעה — sqlite3 סינכרוני.
+  final minEpochByScope = <int, int>{};
+
+  void reply(int id, {Object? result, String? error, bool cancelled = false}) {
+    bootstrap.mainSendPort.send({
+      'id': id,
+      'error': ?error,
+      if (cancelled) 'cancelled': true,
+      if (error == null && !cancelled) 'result': result,
+    });
+  }
+
+  // reset/השהיה באמצע חימום: הבנייה החלקית נזרקת והממתינים לה משוחררים.
+  void dropAltTocCache() {
+    altTocFlatCache = null;
+    altTocBuild = null;
+    for (final message in backgroundQueue) {
+      reply(message['id'] as int);
+    }
+    backgroundQueue.clear();
   }
 
   Future<Object?> dispatch(String method, Map<String, Object?> args) async {
@@ -698,7 +807,7 @@ void _workerMain(_Bootstrap bootstrap) {
       case 'reset':
         repository?.database.close();
         repository = null;
-        altTocFlatCache = null;
+        dropAltTocCache();
         final newPath = args['dbPath'] as String?;
         if (newPath != null && newPath.isNotEmpty) dbPath = newPath;
         return null;
@@ -706,7 +815,7 @@ void _workerMain(_Bootstrap bootstrap) {
         // הדגל והאיפוס קודמים ל-close: גם אם הסגירה זורקת, ensureRepo לא
         // יחזיר את החיבור הישן ולא ייצור handle נוסף.
         suspended = true;
-        altTocFlatCache = null;
+        dropAltTocCache();
         final closing = repository;
         repository = null;
         try {
@@ -789,9 +898,6 @@ void _workerMain(_Bootstrap bootstrap) {
             ))
               e.row,
         ];
-      case 'prewarmAltTocFlat':
-        await ensureAltTocFlatCache();
-        return null;
       case 'altBookIds':
         final repo = await ensureRepo();
         if (repo == null) return null;
@@ -875,42 +981,35 @@ void _workerMain(_Bootstrap bootstrap) {
     }
   }
 
-  // הבקשות מעובדות **בזו אחר זו** מהתור הזה, לפי סדר ההגעה. בלי זה, בקשות
-  // מקבילות (למשל כמה `era` ב-Future.wait, או טעינת מפרשים לכמה שורות במקביל)
-  // היו נכנסות ל-ensureRepo יחד ופותחות יותר מחיבור DB אחד, ו-reset היה יכול
-  // לסגור את החיבור באמצע שאילתה אחרת בנקודת await. עיבוד עוקב מבטל את שני
-  // ה-races בלי לפגוע ב-throughput (sqlite3 סינכרוני — ממילא לא רץ במקביל על
-  // אותו חיבור), וה-main isolate נשאר פנוי כך או כך.
-  //
-  // תור מפורש ולא שרשרת `Future.then`: שרשרת אינה ניתנת לגזירה, ולכן שאילתה
-  // של הקלדה חדשה הייתה ממתינה שכל עבודת ההקלדה הקודמת תתרוקן.
-  final queue = <Map<String, Object?>>[];
-  var draining = false;
-
-  // בקשות שנשלחו עם `epoch` קטן מזה נזרקות מהתור. הבקשה שכבר רצה אינה
-  // ניתנת לקטיעה — sqlite3 סינכרוני.
-  final minEpochByScope = <int, int>{};
-
-  void reply(int id, {Object? result, String? error, bool cancelled = false}) {
-    bootstrap.mainSendPort.send({
-      'id': id,
-      'error': ?error,
-      if (cancelled) 'cancelled': true,
-      if (error == null && !cancelled) 'result': result,
-    });
+  Future<void> runBackgroundStep() async {
+    final message = backgroundQueue.first;
+    bool done;
+    String? error;
+    try {
+      done = await prewarmAltTocStep();
+    } catch (e) {
+      done = true;
+      error = e.toString();
+    }
+    if (done && backgroundQueue.remove(message)) {
+      reply(message['id'] as int, error: error);
+    }
   }
 
   Future<void> drain() async {
     if (draining) return;
     draining = true;
     try {
-      while (queue.isNotEmpty) {
+      while (queue.isNotEmpty || backgroundQueue.isNotEmpty) {
         // חובה למסור את התור לתור-האירועים בין בקשה לבקשה: `await` על
         // dispatch מתוזמן כ-microtask, וכל עוד יש microtasks הודעות ה-
         // ReceivePort אינן נמסרות — פקודת 'cancel' הייתה מגיעה רק אחרי
         // שהתור התרוקן, כלומר בדיוק מתי שהיא כבר חסרת תועלת.
         await Future<void>.delayed(Duration.zero);
-        if (queue.isEmpty) break;
+        if (queue.isEmpty) {
+          if (backgroundQueue.isNotEmpty) await runBackgroundStep();
+          continue;
+        }
         final message = queue.removeAt(0);
         final id = message['id'] as int;
         final epoch = message['epoch'] as int?;
@@ -965,7 +1064,7 @@ void _workerMain(_Bootstrap bootstrap) {
     final id = message['id'] as int?;
     final method = message['method'] as String?;
     if (id == null || method == null) return;
-    queue.add({
+    (message['lane'] == _backgroundLane ? backgroundQueue : queue).add({
       'id': id,
       'method': method,
       'args': message['args'],
