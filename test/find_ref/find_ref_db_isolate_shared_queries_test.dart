@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/models/toc_entry.dart';
+import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 
@@ -352,6 +353,40 @@ void main() {
     await expectLater(
       isolate.getTocEntries(1, 'בראשית', searchScope: active, searchEpoch: 1),
       throwsA(isA<FindRefQueryCancelled>()),
+    );
+  });
+
+  test('דורות כמה מפרשים נפתרים בבקשה אחת, בסדר הבקשה', () async {
+    final dbPath = await seedDb('seforim', 'רמב"ם');
+    final database = MyDatabase.withPath(dbPath);
+    final db = await database.database;
+    db.execute(
+      "INSERT INTO book (id, categoryId, sourceId, title, orderIndex, "
+      "filePath, fileType) VALUES (2, 7, 1, 'משנה', 1, '/b/m.txt', 'txt'), "
+      "(3, 7, 1, 'ספר בלי דור', 2, '/b/x.txt', 'txt')",
+    );
+    db.execute(
+      "INSERT INTO generation (id, name) VALUES (1, 'ראשונים'), (2, 'חז\"ל')",
+    );
+    db.execute(
+      'INSERT INTO book_generation (bookId, generationId) VALUES (1, 1), (2, 2)',
+    );
+    database.close();
+    await Settings.setValue<String>(
+      SettingsRepository.keyDbEffectivePath,
+      dbPath,
+    );
+    final isolate = await FindRefDbIsolate.instance();
+    addTearDown(isolate.disposeForTesting);
+
+    expect(
+      await isolate.getBookEras(['משנה', 'ספר בלי דור', 'רמב"ם', 'לא קיים']),
+      [
+        CommentaryEra.chazal,
+        CommentaryEra.other,
+        CommentaryEra.rishonim,
+        CommentaryEra.other,
+      ],
     );
   });
 

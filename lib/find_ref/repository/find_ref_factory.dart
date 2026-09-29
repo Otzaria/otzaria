@@ -1,6 +1,8 @@
+import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 
 /// בונה [FindRefRepository] מחווט ל-[FindRefDbIsolate] לכל שאילתות `seforim.db`
 /// הכבדות (TOC/AltToc/מפרשים/דור), כך שלא יקפיאו את ה-UI.
@@ -108,11 +110,14 @@ FindRefRepository buildFindRefRepository({bool respectHiddenLibrary = true}) {
         searchEpoch: request.epoch,
       );
     },
-    getBookEra: (bookTitle) async {
+    cachedEraOrder: (bookId) => GenerationCache.instance.isLoaded
+        ? GenerationCache.instance.getOrderForBook(bookId, BookSource.official)
+        : null,
+    getBookEras: (bookTitles) async {
       final request = await searchWorker();
       repository.throwIfSearchGenerationCancelled(request.epoch);
-      return request.worker.getBookEra(
-        bookTitle,
+      return request.worker.getBookEras(
+        bookTitles,
         searchScope: scope,
         searchEpoch: request.epoch,
       );

@@ -8,7 +8,7 @@ import 'package:otzaria/services/commentary_service.dart';
 // המבחנים בודקים את ההתנהגות האמיתית של
 // [FindRefRepository.getCommentatorsForResult] — לא שכפול מקומי.
 // אנחנו מזריקים את שורות המפרשים הגולמיות דרך ה-constructor
-// (`fetchCommentatorRows` / `getBookEra`) ובודקים שהקוד האמיתי מנקה כפילויות,
+// (`fetchCommentatorRows` / `getBookEras`) ובודקים שהקוד האמיתי מנקה כפילויות,
 // ממיין לפי דורות, מוסיף ל-cache, ומכבד את התנאים של PDF / bookId<=0 /
 // isUserBook, ובונה את ה-`targetSegment` מ-`targetLineIndex`.
 //
@@ -16,7 +16,7 @@ import 'package:otzaria/services/commentary_service.dart';
 // אינו באחריות ה-repository הזה אלא של [SeforimRepository.getCommentatorsForReference]
 // — ולכן הוא נבדק בנפרד מול DB אמיתי, לא כאן.
 //
-// במבחנים ללא [getBookEra] אנו מסתמכים על fallback ל-CommentaryService.getBookEra:
+// במבחנים ללא [getBookEras] אנו מסתמכים על fallback ל-CommentaryService.getBookEra:
 // בסביבת טסט SqliteDataProvider אינו מאותחל ולכן הוא מחזיר CommentaryEra.other
 // לכל המפרשים — מה שגורר מיון אלפביתי על פי `String.compareTo`.
 
@@ -43,9 +43,17 @@ DbReferenceResult _ref({
 FindRefRepository _repoWith({
   Future<List<Map<String, dynamic>>> Function(DbReferenceResult)? fetch,
   Future<CommentaryEra> Function(String)? era,
+  int? Function(int bookId)? cachedEraOrder,
+  void Function(List<String> titles)? onEraBatch,
 }) => FindRefRepository(
   fetchCommentatorRows: fetch,
-  getBookEra: era,
+  cachedEraOrder: cachedEraOrder,
+  getBookEras: era == null
+      ? null
+      : (titles) {
+          onEraBatch?.call(titles);
+          return Future.wait(titles.map(era));
+        },
 );
 
 List<String> _titles(List<DbCommentatorEntry> entries) => [
@@ -139,7 +147,7 @@ void main() {
       expect(result.single.targetSegment, isNull);
     });
 
-    test('מיון לפי דורות: עם injection של [getBookEra]', () async {
+    test('מיון לפי דורות: עם injection של [getBookEras]', () async {
       // ה-loader מחזיר 4 מפרשים בסדר שרירותי. ה-eraResolver ממפה כל אחד לדור
       // אחר. אנו מאמתים שהמיון הוא: chazal → rishonim → acharonim → modern.
       // השמות לא ממוינים אלפביתית — לכן אם המיון נשבר, הסדר ישתנה.
@@ -396,6 +404,79 @@ void main() {
       final repo = FindRefRepository();
       final result = await repo.getCommentatorsForResult(_ref());
       expect(result, isEmpty);
+    });
+  });
+
+  group('דורות המפרשים — בלי בקשה לכל מפרש', () {
+    const eraByTitle = {
+      'משנה': CommentaryEra.chazal,
+      'רמב"ם': CommentaryEra.rishonim,
+      'חתם סופר': CommentaryEra.acharonim,
+      'מחבר מודרני': CommentaryEra.modern,
+      'ספר בלי דור': CommentaryEra.other,
+    };
+    final rows = [
+      for (final (i, title) in eraByTitle.keys.indexed)
+        {'targetBookTitle': title, 'targetBookId': 100 + i},
+    ];
+    int? orderById(int bookId) =>
+        eraByTitle.values.elementAt(bookId - 100).order;
+    const expected = [
+      'משנה',
+      'רמב"ם',
+      'חתם סופר',
+      'מחבר מודרני',
+      'ספר בלי דור',
+    ];
+
+    test('N מפרשים בלי קאש — בקשת דורות אחת לכולם', () async {
+      final batches = <List<String>>[];
+      final repo = _repoWith(
+        fetch: (_) async => rows,
+        era: (title) async => eraByTitle[title]!,
+        onEraBatch: batches.add,
+      );
+
+      final result = await repo.getCommentatorsForResult(_ref());
+
+      expect(batches, hasLength(1));
+      expect(batches.single, unorderedEquals(eraByTitle.keys));
+      expect(_titles(result), expected);
+    });
+
+    test('קאש הדורות חם — אין בקשה, ואותו סדר כמו בפתרון לפי שם', () async {
+      final batches = <List<String>>[];
+      final repo = _repoWith(
+        fetch: (_) async => rows,
+        era: (title) async => eraByTitle[title]!,
+        cachedEraOrder: orderById,
+        onEraBatch: batches.add,
+      );
+
+      final result = await repo.getCommentatorsForResult(_ref());
+
+      expect(batches, isEmpty);
+      expect(_titles(result), expected);
+    });
+
+    test('מפרש בלי מזהה נפתר לפי שם, והשאר מהקאש', () async {
+      final batches = <List<String>>[];
+      final repo = _repoWith(
+        fetch: (_) async => [
+          ...rows.skip(1),
+          {'targetBookTitle': 'משנה'},
+        ],
+        era: (title) async => eraByTitle[title]!,
+        cachedEraOrder: orderById,
+        onEraBatch: batches.add,
+      );
+
+      final result = await repo.getCommentatorsForResult(_ref());
+
+      expect(batches, [
+        ['משנה'],
+      ]);
+      expect(_titles(result), expected);
     });
   });
 }

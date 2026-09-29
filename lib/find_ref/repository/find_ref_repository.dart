@@ -250,9 +250,14 @@ class FindRefRepository {
   })?
   resolveDibburim;
 
-  /// Injection for testing: מחזירה את הדור של מפרש לפי שם.
-  /// In production calls [CommentaryService.getBookEra].
-  final Future<CommentaryEra> Function(String bookTitle)? getBookEra;
+  /// סדר הדור של ספר רשמי מקאש בזיכרון, או null כשהקאש לא נטען.
+  /// In production: [GenerationCache].
+  final int? Function(int bookId)? cachedEraOrder;
+
+  /// דורות המפרשים שאין להם דור בקאש, לפי שם — בבקשה אחת.
+  /// In production: [FindRefDbIsolate.getBookEras].
+  final Future<List<CommentaryEra>> Function(List<String> bookTitles)?
+  getBookEras;
 
   /// Injection for testing: גרסה סינכרונית של [getCategoryPath], משמשת את
   /// `_rankResults` כדי לסווג "ספר יסוד" מול "מפרש" לפי הנתיב המלא של
@@ -350,7 +355,8 @@ class FindRefRepository {
     this.resolveLineRefs,
     this.resolvePartialLineRefs,
     this.resolveDibburim,
-    this.getBookEra,
+    this.cachedEraOrder,
+    this.getBookEras,
     this.getCategoryPathSync,
     this.beginSearchEpoch,
     this.releaseSearchScope,
@@ -705,13 +711,12 @@ class FindRefRepository {
 
     // מיון לפי סדר הדורות (תורה → חז"ל → ראשונים → אחרונים → מודרני → שאר),
     // ובתוך כל דור — אלפביתי. תואם להתנהגות תפריט המפרשים ב-text-book viewer.
-    final eraResolver = getBookEra ?? CommentaryService.getBookEra;
-    final eras = await Future.wait(entries.map((e) => eraResolver(e.title)));
+    final eraOrders = await _eraOrdersFor(entries);
     final indices = List<int>.generate(entries.length, (i) => i)
       ..sort((a, b) {
-        final ea = eras[a];
-        final eb = eras[b];
-        if (ea.order != eb.order) return ea.order.compareTo(eb.order);
+        final ea = eraOrders[a];
+        final eb = eraOrders[b];
+        if (ea != eb) return ea.compareTo(eb);
         return entries[a].title.compareTo(entries[b].title);
       });
     final sorted = [
@@ -729,6 +734,30 @@ class FindRefRepository {
     }
     _commentatorsCache[cacheKey] = sorted;
     return sorted;
+  }
+
+  /// הקאש מכריע לכל מפרש עם מזהה; השאר נפתרים לפי שם בבקשה מאוגדת אחת.
+  Future<List<int>> _eraOrdersFor(
+    List<({String title, int? bookId, int? segment})> entries,
+  ) async {
+    final orders = [
+      for (final e in entries)
+        e.bookId == null ? null : cachedEraOrder?.call(e.bookId!),
+    ];
+    final missing = [
+      for (var i = 0; i < entries.length; i++)
+        if (orders[i] == null) i,
+    ];
+    if (missing.isNotEmpty) {
+      final titles = [for (final i in missing) entries[i].title];
+      final eras =
+          await (getBookEras?.call(titles) ??
+              Future.wait(titles.map(CommentaryService.getBookEra)));
+      for (var k = 0; k < missing.length; k++) {
+        orders[missing[k]] = eras[k].order;
+      }
+    }
+    return [for (final order in orders) order!];
   }
 
   Future<List<DbReferenceResult>> findRefs(

@@ -362,26 +362,27 @@ class FindRefDbIsolate {
     return _castRows(res);
   }
 
-  /// מחזיר את דור המפרש לפי שמו. הזיהוי מתבצע בתוך ה-isolate מול ה-DB שלו,
-  /// וחוזר כ-`order` (int); ההמרה חזרה ל-[CommentaryEra] נעשית כאן.
-  Future<CommentaryEra> getBookEra(
-    String bookTitle, {
+  /// דורות המפרשים לפי שמם, בסדר [bookTitles] — בקשה אחת לכל הרשימה.
+  /// הזיהוי מול ה-DB נעשה ב-isolate וחוזר כ-`order`.
+  Future<List<CommentaryEra>> getBookEras(
+    List<String> bookTitles, {
     int searchScope = 0,
     int? searchEpoch,
   }) async {
-    final order =
-        await _request(
-              'era',
-              {'bookTitle': bookTitle},
-              cancellable: true,
-              searchScope: searchScope,
-              searchEpoch: searchEpoch,
-            )
-            as int;
-    return CommentaryEra.values.firstWhere(
-      (e) => e.order == order,
-      orElse: () => CommentaryEra.other,
+    final orders = await _request(
+      'eras',
+      {'bookTitles': bookTitles},
+      cancellable: true,
+      searchScope: searchScope,
+      searchEpoch: searchEpoch,
     );
+    return [
+      for (final order in (orders as List).cast<int>())
+        CommentaryEra.values.firstWhere(
+          (e) => e.order == order,
+          orElse: () => CommentaryEra.other,
+        ),
+    ];
   }
 
   // ── Shared seforim.db queries (צרכנים מחוץ ל"איתור מקורות") ────────────────
@@ -964,18 +965,25 @@ void _workerMain(_Bootstrap bootstrap) {
           isAltToc: args['isAltToc'] as bool,
           isSourceLine: args['isSourceLine'] as bool? ?? false,
         );
-      case 'era':
+      case 'eras':
+        final titles = (args['bookTitles'] as List).cast<String>();
         final repo = await ensureRepo();
-        if (repo == null) return CommentaryEra.other.order;
-        final info = await repo.getBookGenerationInfoByTitle(
-          args['bookTitle'] as String,
-        );
-        if (info == null) return CommentaryEra.other.order;
-        final era = CommentaryEra.values.firstWhere(
-          (e) => e.hebrewName == info.generationName,
-          orElse: () => CommentaryEra.other,
-        );
-        return era.order;
+        if (repo == null) {
+          return [for (final _ in titles) CommentaryEra.other.order];
+        }
+        return [
+          for (final title in titles)
+            switch (await repo.getBookGenerationInfoByTitle(title)) {
+              null => CommentaryEra.other.order,
+              final info =>
+                CommentaryEra.values
+                    .firstWhere(
+                      (e) => e.hebrewName == info.generationName,
+                      orElse: () => CommentaryEra.other,
+                    )
+                    .order,
+            },
+        ];
       default:
         throw StateError('Unknown find_ref DB isolate method: $method');
     }
