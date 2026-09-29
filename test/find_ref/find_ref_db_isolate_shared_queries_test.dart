@@ -409,10 +409,16 @@ void main() {
           'INSERT INTO tocText (id, text) VALUES (?, ?)',
           [500 + i, '$text $i'],
         );
+        // שורה נפרדת לכל ערך: ערכים באותה שורה הם כפילות שהחיפוש מצמצם.
+        db.execute(
+          'INSERT INTO line (id, bookId, lineIndex, content) '
+          "VALUES (?, 1, ?, 'שורה')",
+          [200 + i, 10 + i],
+        );
         db.execute(
           'INSERT INTO alt_toc_entry (id, structureId, textId, level, lineId) '
-          'VALUES (?, 1, ?, 1, 100)',
-          [900 + i, 500 + i],
+          'VALUES (?, 1, ?, 1, ?)',
+          [900 + i, 500 + i, 200 + i],
         );
       }
       database.close();

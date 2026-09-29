@@ -224,16 +224,17 @@ void main() {
             ]
           : const [],
       getTocEntriesForReference: (_, _, {queryTokens}) async => const [],
-      searchAltTocFlatEntries: (queryTokens, {maxRefTokens}) async => [
-        {
-          'bookTitle': 'סדר תפילה',
-          'reference': 'תפלה ב',
-          'bookId': 1,
-          'bookOrderIndex': 0,
-          'segment': 4,
-          'level': 2,
-        },
-      ],
+      searchAltTocFlatEntries:
+          (queryTokens, {maxRefTokens, occupied = const []}) async => [
+            {
+              'bookTitle': 'סדר תפילה',
+              'reference': 'תפלה ב',
+              'bookId': 1,
+              'bookOrderIndex': 0,
+              'segment': 4,
+              'level': 2,
+            },
+          ],
     );
 
     final results = await repo.findRefs('תפלה ב');
@@ -265,16 +266,17 @@ void main() {
               ]
             : const [],
         getTocEntriesForReference: (_, _, {queryTokens}) async => const [],
-        searchAltTocFlatEntries: (queryTokens, {maxRefTokens}) async => [
-          {
-            'bookTitle': 'סדר תפילה',
-            'reference': 'תפלה ב',
-            'bookId': 1,
-            'bookOrderIndex': 0,
-            'segment': 0,
-            'level': 0,
-          },
-        ],
+        searchAltTocFlatEntries:
+            (queryTokens, {maxRefTokens, occupied = const []}) async => [
+              {
+                'bookTitle': 'סדר תפילה',
+                'reference': 'תפלה ב',
+                'bookId': 1,
+                'bookOrderIndex': 0,
+                'segment': 0,
+                'level': 0,
+              },
+            ],
       );
 
       final results = await repo.findRefs('תפלה ב');
@@ -4464,20 +4466,21 @@ void main() {
           getTocEntriesForReference: (_, _, {queryTokens}) async => const [],
           getAllAltTocFlatEntries: () async =>
               throw StateError('המסלול המקומי לא אמור לרוץ כשיש hook'),
-          searchAltTocFlatEntries: (queryTokens, {maxRefTokens}) async {
-            calls.add((queryTokens, maxRefTokens));
-            return const [
-              {
-                'bookId': 1,
-                'bookTitle': 'בראשית',
-                'bookOrderIndex': 1.0,
-                'reference': 'נח',
-                'segment': 30,
-                'level': 0,
-                'dbLineId': 7,
+          searchAltTocFlatEntries:
+              (queryTokens, {maxRefTokens, occupied = const []}) async {
+                calls.add((queryTokens, maxRefTokens));
+                return const [
+                  {
+                    'bookId': 1,
+                    'bookTitle': 'בראשית',
+                    'bookOrderIndex': 1.0,
+                    'reference': 'נח',
+                    'segment': 30,
+                    'level': 0,
+                    'dbLineId': 7,
+                  },
+                ];
               },
-            ];
-          },
         );
 
         final single = await repo.findRefs('נח');

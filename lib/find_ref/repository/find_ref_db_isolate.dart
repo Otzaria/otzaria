@@ -266,6 +266,7 @@ class FindRefDbIsolate {
   Future<List<Map<String, dynamic>>> searchAltTocFlat(
     List<String> queryTokens, {
     int? maxRefTokens,
+    List<AltTocResultKey> occupied = const [],
     int searchScope = 0,
     int? searchEpoch,
   }) async {
@@ -274,6 +275,7 @@ class FindRefDbIsolate {
       {
         'queryTokens': queryTokens,
         'maxRefTokens': maxRefTokens,
+        'occupied': [for (final key in occupied) encodeAltTocResultKey(key)],
       },
       cancellable: true,
       searchScope: searchScope,
@@ -1010,11 +1012,13 @@ void _workerMain(_Bootstrap bootstrap) {
         // מסלול המילה האחת אינו מסנן צאצאים בדירוג, ולכן גם לא כאן.
         return pruneGlobalAltTocMatches(
           matches,
-          bookIdOf: (row) => row['bookId'] as int,
-          referenceOf: (row) => row['reference'] as String,
-          orderOf: (row) =>
-              (row['bookOrderIndex'] as num?)?.toDouble() ?? 999.0,
+          keyOf: altTocRowKey,
+          queryTokens: queryTokens,
           suppressDescendants: maxRefTokens == null,
+          occupied: [
+            for (final map in (args['occupied'] as List?) ?? const [])
+              decodeAltTocResultKey(map as Map),
+          ],
         );
       case 'altBookIds':
         final repo = await ensureRepo();

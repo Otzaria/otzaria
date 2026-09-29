@@ -443,7 +443,8 @@ void main() {
       dataRepository: data,
       respectHiddenLibrary: true,
       getTocEntriesForReference: (_, _, {queryTokens}) async => const [],
-      searchAltTocFlatEntries: (_, {maxRefTokens}) async => const [],
+      searchAltTocFlatEntries: (_, {maxRefTokens, occupied = const []}) async =>
+          const [],
     );
     addTearDown(repository.dispose);
     expect((await repository.findRefs('בראשית')).map((r) => r.bookId), [2]);
@@ -494,7 +495,8 @@ void main() {
       dataRepository: data,
       respectHiddenLibrary: true,
       getTocEntriesForReference: (_, _, {queryTokens}) async => const [],
-      searchAltTocFlatEntries: (_, {maxRefTokens}) async => const [],
+      searchAltTocFlatEntries: (_, {maxRefTokens, occupied = const []}) async =>
+          const [],
     );
     addTearDown(repository.dispose);
 
@@ -526,22 +528,23 @@ void main() {
         _hit(2, 'בראשית'),
       ],
       getTocEntriesForReference: (_, _, {queryTokens}) async => const [],
-      searchAltTocFlatEntries: (_, {maxRefTokens}) async => [
-        {
-          'bookId': 1,
-          'bookTitle': 'בראשית',
-          'reference': 'נח',
-          'segment': 1,
-          'level': 1,
-        },
-        {
-          'bookId': 2,
-          'bookTitle': 'בראשית',
-          'reference': 'נח',
-          'segment': 2,
-          'level': 1,
-        },
-      ],
+      searchAltTocFlatEntries: (_, {maxRefTokens, occupied = const []}) async =>
+          [
+            {
+              'bookId': 1,
+              'bookTitle': 'בראשית',
+              'reference': 'נח',
+              'segment': 1,
+              'level': 1,
+            },
+            {
+              'bookId': 2,
+              'bookTitle': 'בראשית',
+              'reference': 'נח',
+              'segment': 2,
+              'level': 1,
+            },
+          ],
     );
     addTearDown(repository.dispose);
 

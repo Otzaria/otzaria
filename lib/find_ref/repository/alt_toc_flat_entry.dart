@@ -1,3 +1,5 @@
+import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
+
 /// רשומת AltToc שטוחה, מיועדת לחיפוש גלובלי על פני כל הספרים בבת אחת.
 ///
 /// נוצרת מראש (lazy, פעם אחת ל-session) מתוך שאילתת DB אחת שמאחדת את כל
@@ -55,43 +57,124 @@ bool altTocFlatMatches(
   return queryTokens.every(refTokens.contains);
 }
 
-/// תקרת ההתאמות של ה-fallback הגלובלי שמגיעות לדירוג — פי חמישה מתקרת
-/// התוצאות המוחלטת של האיתור.
-const int maxGlobalAltTocMatches = 500;
+/// מפתח תוצאה לצמצום ה-fallback הגלובלי; [reference] כפי שהוא מוצג (עם שם הספר).
+typedef AltTocResultKey = ({
+  int bookId,
+  String title,
+  num segment,
+  String reference,
+});
 
-/// מצמצם את התאמות ה-fallback הגלובלי לפני הדירוג. [suppressDescendants]
-/// מסיר ערך שאב שלו (תחילית עד רווח באותו ספר) גם הוא התאמה, כפי שהדירוג
-/// היה מסיר; מעבר ל-[cap] נשמרים הקודמים בסדר הספרייה, והסדר המקורי נשמר.
+/// לכל ספר: תקרת התוצאות הסופית ועוד מרווח לשוויונות בדירוג.
+const int maxGlobalAltTocMatchesPerBook = findRefMaxResultCap + 200;
+
+/// מה שהדירוג היה מסיר ממילא: כפילות (כמו `_dedupeRefs`, מול [occupied]),
+/// צאצא של התאמה, וגלישה מעבר ל-[perBookCap] לפי סדר הדירוג בתוך הספר.
 List<T> pruneGlobalAltTocMatches<T>(
   List<T> matches, {
-  required int Function(T) bookIdOf,
-  required String Function(T) referenceOf,
-  required double Function(T) orderOf,
+  required AltTocResultKey Function(T) keyOf,
+  required List<String> queryTokens,
   required bool suppressDescendants,
-  int cap = maxGlobalAltTocMatches,
+  Iterable<AltTocResultKey> occupied = const [],
+  int perBookCap = maxGlobalAltTocMatchesPerBook,
 }) {
-  var kept = matches;
-  if (suppressDescendants && matches.length > 1) {
+  // שני המפתחות נרשמים תמיד, גם לתוצאה שנזרקת — בדיוק כמו ב-_dedupeRefs.
+  final seen = <String>{};
+  bool isNew(AltTocResultKey k) {
+    final newSegment = seen.add('${k.bookId}|${k.title}|${k.segment}');
+    final newReference = seen.add('${k.bookId}|${k.title}|ref:${k.reference}');
+    return newSegment && newReference;
+  }
+
+  occupied.forEach(isNew);
+  final kept = <T>[];
+  final keys = <AltTocResultKey>[];
+  for (final m in matches) {
+    final key = keyOf(m);
+    if (!isNew(key)) continue;
+    kept.add(m);
+    keys.add(key);
+  }
+
+  var survivors = List<int>.generate(kept.length, (i) => i);
+  if (suppressDescendants && survivors.length > 1) {
     final referencesByBook = <int, Set<String>>{};
-    for (final m in matches) {
-      (referencesByBook[bookIdOf(m)] ??= {}).add(referenceOf(m));
+    for (final k in keys) {
+      (referencesByBook[k.bookId] ??= {}).add(k.reference);
     }
-    kept = [
-      for (final m in matches)
-        if (!_hasAncestorIn(referenceOf(m), referencesByBook[bookIdOf(m)]!)) m,
+    survivors = [
+      for (final i in survivors)
+        if (!_hasAncestorIn(
+          keys[i].reference,
+          referencesByBook[keys[i].bookId]!,
+        ))
+          i,
     ];
   }
-  if (kept.length <= cap) return kept;
-  final byOrder = List<int>.generate(kept.length, (i) => i)
-    ..sort((a, b) {
-      final c = orderOf(kept[a]).compareTo(orderOf(kept[b]));
-      return c != 0 ? c : a.compareTo(b);
-    });
-  final keep = byOrder.take(cap).toSet();
+
+  final byBook = <int, List<int>>{};
+  for (final i in survivors) {
+    (byBook[keys[i].bookId] ??= []).add(i);
+  }
+  final isDafCitation = queryLooksDafCitation(queryTokens);
+  FindRefInBookKey inBook(int i) => (
+    reference: keys[i].reference,
+    segment: keys[i].segment,
+    isSourceLine: false,
+    isAltToc: true,
+    tocLevel: 0,
+  );
+  final dropped = <int>{};
+  for (final group in byBook.values) {
+    if (group.length <= perBookCap) continue;
+    final ranked = [...group]
+      ..sort((a, b) {
+        final c = compareWithinBook(
+          inBook(a),
+          inBook(b),
+          isDafCitation: isDafCitation,
+        );
+        return c != 0 ? c : a.compareTo(b);
+      });
+    dropped.addAll(ranked.skip(perBookCap));
+  }
   return [
-    for (var i = 0; i < kept.length; i++)
-      if (keep.contains(i)) kept[i],
+    for (final i in survivors)
+      if (!dropped.contains(i)) kept[i],
   ];
+}
+
+/// מפתח התוצאה של שורת AltToc גולמית מהקאש השטוח.
+AltTocResultKey altTocRowKey(Map<String, dynamic> row) {
+  final title = row['bookTitle'] as String;
+  return (
+    bookId: row['bookId'] as int,
+    title: title,
+    segment: row['segment'] as int? ?? 0,
+    reference: qualifyAltTocReference(title, row['reference'] as String),
+  );
+}
+
+Map<String, Object> encodeAltTocResultKey(AltTocResultKey key) => {
+  'bookId': key.bookId,
+  'title': key.title,
+  'segment': key.segment,
+  'reference': key.reference,
+};
+
+AltTocResultKey decodeAltTocResultKey(Map<dynamic, dynamic> map) => (
+  bookId: map['bookId'] as int,
+  title: map['title'] as String,
+  segment: map['segment'] as num,
+  reference: map['reference'] as String,
+);
+
+/// מצרף את שם הספר ל-reference יחסי מ-AltToc, אלא אם כבר מתחיל בו.
+String qualifyAltTocReference(String bookTitle, String reference) {
+  if (bookTitle.isEmpty) return reference;
+  if (reference == bookTitle) return reference;
+  if (reference.startsWith('$bookTitle ')) return reference;
+  return '$bookTitle $reference';
 }
 
 bool _hasAncestorIn(String reference, Set<String> siblings) {

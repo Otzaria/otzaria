@@ -14,6 +14,7 @@ import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
 import 'package:otzaria/find_ref/repository/db_commentator_entry.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
+import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
 import 'package:otzaria/find_ref/repository/find_ref_visibility.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
@@ -195,9 +196,11 @@ class FindRefRepository {
   /// מסלול הייצור של ה-fallback הגלובלי: סינון קאש ה-AltToc השטוח בתוך
   /// ה-worker isolate, שמחזיר רק את ההתאמות. כשהוא `null` (בדיקות / אין
   /// isolate) — נופלים למסלול המקומי דרך [getAllAltTocFlatEntries].
+  /// [occupied] — התוצאות שכבר נאספו, כדי שהצמצום ב-worker יראה את הכפילויות.
   final Future<List<Map<String, dynamic>>> Function(
     List<String> queryTokens, {
     int? maxRefTokens,
+    List<AltTocResultKey> occupied,
   })?
   searchAltTocFlatEntries;
 
@@ -326,7 +329,7 @@ class FindRefRepository {
 
   /// תקרת-ביטחון מוחלטת על מספר התוצאות — רשת מפני קבוצת-רלוונטיות פתולוגית
   /// (למשל נושא רחב במצב era). הסט הלגיטימי הגדול בפועל קטן בהרבה.
-  static const int _maxResultCap = 100;
+  static const int _maxResultCap = findRefMaxResultCap;
 
   /// תקרת הספרים שבהם מחפשים דיבור-מתחיל. שאילתה אחת מאוגדת, מוגשת
   /// מהאינדקס — התקרה היא רשת ביטחון מול טוקן-ספר רחב שתפס מאות ספרים.
@@ -582,9 +585,23 @@ class FindRefRepository {
     try {
       // מסלול הייצור: הסינון רץ ב-worker ומחזיר רק התאמות — הקאש כולו
       // והנרמול שלו לא חוצים את גבול ה-isolate.
+      final occupied = [
+        for (final r in results)
+          if (r.source.isOfficial && !r.isPdf && r.bookId > 0)
+            (
+              bookId: r.bookId,
+              title: r.title,
+              segment: r.segment,
+              reference: r.reference,
+            ),
+      ];
       final searchFn = searchAltTocFlatEntries;
       if (searchFn != null) {
-        final rows = await searchFn(queryTokens, maxRefTokens: maxRefTokens);
+        final rows = await searchFn(
+          queryTokens,
+          maxRefTokens: maxRefTokens,
+          occupied: occupied,
+        );
         for (final r in rows) {
           if (visibility != null &&
               !visibility.allowsCandidate(
@@ -598,7 +615,7 @@ class FindRefRepository {
           results.add(
             DbReferenceResult(
               title: bookTitle,
-              reference: _qualifyAltTocReference(
+              reference: qualifyAltTocReference(
                 bookTitle,
                 r['reference'] as String,
               ),
@@ -633,16 +650,21 @@ class FindRefRepository {
       ];
       final pruned = pruneGlobalAltTocMatches(
         matches,
-        bookIdOf: (e) => e.bookId,
-        referenceOf: (e) => e.reference,
-        orderOf: (e) => e.bookOrderIndex,
+        keyOf: (e) => (
+          bookId: e.bookId,
+          title: e.bookTitle,
+          segment: e.segment,
+          reference: qualifyAltTocReference(e.bookTitle, e.reference),
+        ),
+        queryTokens: queryTokens,
         suppressDescendants: maxRefTokens == null,
+        occupied: occupied,
       );
       for (final entry in pruned) {
         results.add(
           DbReferenceResult(
             title: entry.bookTitle,
-            reference: _qualifyAltTocReference(
+            reference: qualifyAltTocReference(
               entry.bookTitle,
               entry.reference,
             ),
@@ -1249,12 +1271,8 @@ class FindRefRepository {
     final tocRequests = <TocBatchRequest>[];
     for (final hit in bookHits) {
       final remainingTokens = remainingByHit[hit]!;
-      // הטוקן שאחרי שם-הספר עלול להיות בעצמו ספר עצמאי ("תורה אור" — "אור" ספר),
-      // ואז חיפוש TOC לפיו יוצר התאמות-שווא חוצות-ספרים. אבל אם הטוקן הוא חלק
-      // מכותרת הספר הנוכחי ("ברכות" בתוך "פסקי הרא"ש על ברכות") — אין חציית ספר,
-      // ומותר לרדת לכותרות הפנימיות.
-      // ציטוט דף בזנב ("זהר בראשית דף לו") מכריע שהטוקן הוא קטע פנימי ולא ספר
-      // אחר — בלי החריג הזה כל פרשה ששמה גם שם ספר חוסמת את הירידה לכותרות.
+      // טוקן-ספר עצמאי אחרי השם ("תורה אור") יוצר התאמות חוצות-ספרים — אלא אם
+      // הוא חלק מהכותרת הנוכחית, או שבזנב ציטוט דף ("זהר בראשית דף לו").
       final suppressTocForCrossBook =
           hasExactNextTokenMatch &&
           !hit.titleTokens.contains(nextToken) &&
@@ -1424,7 +1442,7 @@ class FindRefRepository {
         results.add(
           DbReferenceResult(
             title: title,
-            reference: _qualifyAltTocReference(title, ref),
+            reference: qualifyAltTocReference(title, ref),
             segment: entry['segment'] as int,
             isPdf: isPdf,
             filePath: hit.filePath,
@@ -1459,10 +1477,6 @@ class FindRefRepository {
     // ובפועל גורם ל"ברכות ב" לא להציג את ה-PDF של ברכות. אם ה-per-book כבר
     // החזיר התאמה ספציפית, אין צורך ב-fallback — שום שאילתה ש"דורשת" כותרת
     // פנימית של ספר אחר.
-    //
-    // היסטורית הוזרמו 339 שאילתות SQL סדרתיות (אחת לכל ספר עם AltToc).
-    // עכשיו אנחנו מחזיקים קאש שטוח שנבנה פעם אחת ב-session, וכל הסינון
-    // הוא O(N) ב-Dart על רשימה in-memory.
     //
     // נעטף ב-try/catch כדי שכשלון במסלול ה-fallback לא יבלע את התוצאות
     // הקיימות מהלולאת ה-per-book.
@@ -2409,11 +2423,11 @@ class FindRefRepository {
 
   /// סדר הספציפיות בתוך אותו ספר: שורת מקור מדויקת < TOC L1 < TOC L2 <
   /// AltToc < TOC L3+.
-  static int _specificityRank(DbReferenceResult r) {
-    if (r.isSourceLine) return 0;
-    if (r.isAltToc) return 4;
-    return r.tocLevel <= 2 ? r.tocLevel + 1 : r.tocLevel + 2;
-  }
+  static int _specificityRank(DbReferenceResult r) => findRefSpecificityRank(
+    isSourceLine: r.isSourceLine,
+    isAltToc: r.isAltToc,
+    tocLevel: r.tocLevel,
+  );
 
   /// האם כל [remainingTokens] הם מילים בשם הקטגוריה *הישירה* של הספר. רק
   /// העלה נבדק — segment אב ("הלכה", "מפרשים") משותף לאלפי ספרים והיה מחזיר
@@ -2544,7 +2558,7 @@ class FindRefRepository {
     // זיהוי סגנון ציון גמרא: הטוקן האחרון הוא "א" או "ב" + לפחות עוד טוקן.
     // כשמזוהה — ערכים שה-reference שלהם מכיל "דף" יקבלו עדיפות על פני ערכים
     // שאינם מכילים "דף" (כגון משנה), כדי ש-"שבת עא ב" יציג גמרא לפני משנה.
-    final isDafCitation = _queryLooksDafCitation(queryTokens);
+    final isDafCitation = queryLooksDafCitation(queryTokens);
 
     // resolver של categoryPath לסיווג tier יסוד. בייצור — ReferenceBooksCache;
     // בטסטים — דרך ה-injection `getCategoryPathSync`.
@@ -2558,7 +2572,7 @@ class FindRefRepository {
       final normTitle = _normalize(r.title);
       // citationMatch=true  → מתאים לסגנון הציון שהוזן
       // citationMatch=false → אינו מתאים (ירד מתחת לספרים שמתאימים)
-      final citationMatch = !isDafCitation || r.reference.contains('דף');
+      final citationMatch = findRefCitationMatch(isDafCitation, r.reference);
       // tier יסוד: 1=מקרא ... 10=שו"ע, null=מפרש/ספרות עזר.
       // ספר שאינו רשמי: ה-bookId שלו במרחב של מסד אחר ועלול להתנגש במזהה
       // רשמי — שליפת נתיב לפיו הייתה מסווגת אותו לפי ספר זר.
@@ -2677,14 +2691,12 @@ class FindRefRepository {
     decorated.sort((a, b) {
       final rel = compareRelevance(a, b);
       if (rel != 0) return rel;
-      // שובר-שוויון לתצוגה בלבד: ציון קצר יותר עולה קודם.
-      final lenCmp = a.result.reference.length.compareTo(
-        b.result.reference.length,
+      return compareFindRefDisplayOrder(
+        a.result.reference,
+        a.result.segment,
+        b.result.reference,
+        b.result.segment,
       );
-      if (lenCmp != 0) return lenCmp;
-      // "כג." ו-"כג:" שווי-אורך — בלי הכרעה לפי מיקום בספר, המיון (הלא-יציב)
-      // עלול להציג עמוד ב לפני עמוד א.
-      return a.result.segment.compareTo(b.result.segment);
     });
 
     // cap מודע-רלוונטיות: חותכים ב-[_baseResultCap], אך מרחיבים לכל מי שחולק
@@ -2729,46 +2741,6 @@ class FindRefRepository {
     return [for (final d in capped) d.result];
   }
 
-  /// מחזיר true כשהשאילתה נראית כציון בסגנון גמרא (דף + עמוד).
-  ///
-  /// תנאי הזיהוי (כולם נדרשים):
-  ///   1. הטוקן האחרון הוא "א" או "ב" (עמוד א/ב).
-  ///   2. לפחות עוד טוקן קיים לפניו.
-  ///   3. OR:  מופיע "דף" / "עמוד" במפורש בשאילתה
-  ///      OR:  הטוקן לפני האחרון הוא מספר עברי של 2–4 אותיות (כמו "עא", "לט", "קה", "קמד"),
-  ///           ואינו מילת מבנה ("פרק", "משנה", "פסוק", ...).
-  ///           טוקן של אות בודדת או שם ספר ארוך אינם מפעילים את הבוסט.
-  ///
-  /// דוגמות שמפעילות: ["שבת","עא","ב"], ["ברכות","דף","כ","א"], ["נדה","ל","ב"]
-  /// דוגמות שלא מפעילות: ["בראשית","א","ב"], ["ברכות","ב"], ["ברכות","פרק","א","ב"]
-  bool _queryLooksDafCitation(List<String> tokens) {
-    if (tokens.length < 2) return false;
-    final last = tokens.last;
-    if (last != 'א' && last != 'ב') {
-      return false;
-    }
-    // מפורש — מילת "דף" או "עמוד" בשאילתה
-    if (tokens.contains('דף') || tokens.contains('עמוד')) return true;
-    // מספר דף עברי: 2–4 אותיות עבריות, ואינו מילת מבנה
-    const structureWords = {
-      'פרק',
-      'משנה',
-      'פסוק',
-      'הלכה',
-      'סעיף',
-      'סימן',
-      'חלק',
-      'שאלה',
-    };
-    final penultimate = tokens[tokens.length - 2];
-    if (structureWords.contains(penultimate)) return false;
-    return penultimate.length >= 2 &&
-        penultimate.length <= 4 &&
-        penultimate.codeUnits.every(
-          (c) => c >= 0x05D0 && c <= 0x05EA,
-        ); // אותיות עבריות בלבד
-  }
-
   String _normalize(String? s) =>
       (s ?? '').trim().toLowerCase().replaceAll(_whitespaceRun, ' ');
 
@@ -2804,16 +2776,6 @@ class FindRefRepository {
       if (ok) return true;
     }
     return false;
-  }
-
-  /// מצרף את שם הספר ל-prefix של reference יחסי מ-AltToc. אם ה-reference
-  /// כבר מתחיל בשם הספר (אם פעם תתווסף שכבת ספרים שבה ה-DB מחזיר ערכים
-  /// כוללים) — אין הכפלה.
-  static String _qualifyAltTocReference(String bookTitle, String reference) {
-    if (bookTitle.isEmpty) return reference;
-    if (reference == bookTitle) return reference;
-    if (reference.startsWith('$bookTitle ')) return reference;
-    return '$bookTitle $reference';
   }
 }
 

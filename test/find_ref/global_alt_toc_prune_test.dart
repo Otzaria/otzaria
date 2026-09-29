@@ -12,24 +12,32 @@ import 'package:path/path.dart' as path;
 import '../test_helpers/memory_cache_provider.dart';
 import 'support/seeded_reference_library.dart';
 
-typedef _Match = ({int bookId, String reference, double order});
-
-/// צמצום התאמות ה-AltToc הגלובלי לפני שהן חוזרות לדירוג.
+/// צמצום התאמות ה-AltToc הגלובלי לפני שהן חוזרות לדירוג: הרשימה הסופית
+/// חייבת להיות זהה לזו שבלי הצמצום.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  AltTocResultKey key(int bookId, String reference, {int segment = 0}) => (
+    bookId: bookId,
+    title: 'ספר $bookId',
+    segment: segment,
+    reference: reference,
+  );
+
   List<String> prune(
-    List<_Match> matches, {
+    List<AltTocResultKey> matches, {
     bool suppressDescendants = true,
-    int cap = maxGlobalAltTocMatches,
+    List<AltTocResultKey> occupied = const [],
+    List<String> queryTokens = const ['פרשת'],
+    int perBookCap = maxGlobalAltTocMatchesPerBook,
   }) => [
-    for (final m in pruneGlobalAltTocMatches<_Match>(
+    for (final m in pruneGlobalAltTocMatches<AltTocResultKey>(
       matches,
-      bookIdOf: (m) => m.bookId,
-      referenceOf: (m) => m.reference,
-      orderOf: (m) => m.order,
+      keyOf: (m) => m,
+      queryTokens: queryTokens,
       suppressDescendants: suppressDescendants,
-      cap: cap,
+      occupied: occupied,
+      perBookCap: perBookCap,
     ))
       '${m.bookId}:${m.reference}',
   ];
@@ -37,10 +45,10 @@ void main() {
   test('צאצא של התאמה באותו ספר מוסר; ספר אחר וגבול מילה לא', () {
     expect(
       prune([
-        (bookId: 1, reference: 'פרשת נח', order: 1),
-        (bookId: 1, reference: 'פרשת נח עליה א', order: 1),
-        (bookId: 1, reference: 'פרשת נחמו', order: 1),
-        (bookId: 2, reference: 'פרשת נח עליה א', order: 2),
+        key(1, 'פרשת נח', segment: 1),
+        key(1, 'פרשת נח עליה א', segment: 2),
+        key(1, 'פרשת נחמו', segment: 3),
+        key(2, 'פרשת נח עליה א', segment: 1),
       ]),
       ['1:פרשת נח', '1:פרשת נחמו', '2:פרשת נח עליה א'],
     );
@@ -49,73 +57,177 @@ void main() {
   test('בלי סינון צאצאים (מסלול מילה אחת) כל ההתאמות נשמרות', () {
     expect(
       prune([
-        (bookId: 1, reference: 'נח', order: 1),
-        (bookId: 1, reference: 'נח א', order: 1),
+        key(1, 'נח', segment: 1),
+        key(1, 'נח א', segment: 2),
       ], suppressDescendants: false),
       ['1:נח', '1:נח א'],
     );
   });
 
-  test('מעבר לתקרה נשמרים הקודמים בסדר הספרייה, בסדר המקורי', () {
+  test('אב שנזרק ככפילות אינו מסתיר את צאצאיו', () {
+    // האב חולק שורה עם תוצאה שכבר נאספה (TOC באותו ספר) — הדירוג זורק אותו.
     expect(
       prune(
         [
-          (bookId: 3, reference: 'א', order: 30),
-          (bookId: 1, reference: 'ב', order: 10),
-          (bookId: 4, reference: 'ג', order: 40),
-          (bookId: 2, reference: 'ד', order: 20),
+          key(1, 'פרשת נח', segment: 10),
+          key(1, 'פרשת נח עליה א', segment: 11),
         ],
-        cap: 2,
+        occupied: [key(1, 'ספר 1 פרק ו', segment: 10)],
       ),
-      ['1:ב', '2:ד'],
+      ['1:פרשת נח עליה א'],
+    );
+    // וכך גם מול התאמה גלובלית קודמת באותה שורה.
+    expect(
+      prune([
+        key(1, 'הפטרה', segment: 5),
+        key(1, 'פרשת נח', segment: 5),
+        key(1, 'פרשת נח עליה א', segment: 6),
+      ]),
+      ['1:הפטרה', '1:פרשת נח עליה א'],
     );
   });
 
-  test('הרשימה הסופית זהה עם צמצום ב-worker ובלעדיו', () async {
-    addTearDown(resetSeededLibrary);
-    seedLibrary(const [(id: 1, title: 'ספר אחר', acronyms: [])]);
-    Map<String, dynamic> row(int bookId, String reference, int segment) => {
+  test('תקרה פר-ספר לפי סדר הדירוג בתוך הספר, בלי לגעת בספר אחר', () {
+    expect(
+      prune(
+        [
+          key(1, 'סעיף א ארוך מאוד', segment: 1),
+          key(1, 'סעיף א דף ב', segment: 9),
+          key(1, 'סעיף א', segment: 5),
+          key(1, 'סעיף א', segment: 3),
+          key(2, 'סעיף א ארוך מאוד', segment: 1),
+        ],
+        queryTokens: const ['סעיף', 'א'],
+        suppressDescendants: false,
+        perBookCap: 2,
+      ),
+      ['1:סעיף א דף ב', '1:סעיף א', '2:סעיף א ארוך מאוד'],
+      reason: 'הכפילות נזרקת, שתי הקצרות נשמרות, והפלט בסדר המקורי',
+    );
+    expect(
+      prune(
+        [
+          key(1, 'עא ארוך', segment: 1),
+          key(1, 'דף עא', segment: 2),
+          key(1, 'עא', segment: 3),
+        ],
+        queryTokens: const ['שבת', 'עא', 'ב'],
+        suppressDescendants: false,
+        perBookCap: 1,
+      ),
+      ['1:דף עא'],
+      reason: 'בציון דף, ערך עם "דף" קודם גם כשהוא ארוך יותר',
+    );
+  });
+
+  group('הרשימה הסופית זהה עם צמצום ב-worker ובלעדיו', () {
+    tearDown(resetSeededLibrary);
+
+    Map<String, dynamic> row(
+      int bookId,
+      String reference,
+      int segment, {
+      double? order,
+      String? title,
+    }) => {
       'bookId': bookId,
-      'bookTitle': 'ספר $bookId',
-      'bookOrderIndex': bookId,
+      'bookTitle': title ?? 'ספר $bookId',
+      'bookOrderIndex': order ?? bookId.toDouble(),
       'reference': reference,
       'segment': segment,
       'level': reference.split(' ').length,
       'dbLineId': segment,
     };
-    final rows = [
-      row(5, 'פרשת נח', 0),
-      row(5, 'פרשת נח עליה א', 3),
-      row(5, 'פרשת נח עליה ב', 7),
-      row(6, 'פרשת נח עליה ג', 2),
-    ];
-    Future<List<String>> run(bool pruned) async {
+
+    Future<List<String>> run(
+      String query,
+      List<Map<String, dynamic>> rows, {
+      required bool pruned,
+      Map<int, List<Map<String, dynamic>>> tocByBookId = const {},
+    }) async {
       final repo = FindRefRepository(
         isReferenceBooksCacheLoaded: () => true,
-        getTocEntriesForReference: (id, title, {queryTokens}) async => const [],
+        getAltStructureBookIds: () async => const [],
+        getTocEntriesForReference: (id, title, {queryTokens}) async =>
+            tocByBookId[id] ?? const [],
         getAltTocEntriesForReference: (id, title, {queryTokens}) async =>
             const [],
-        searchAltTocFlatEntries: (tokens, {maxRefTokens}) async => pruned
+        searchAltTocFlatEntries:
+            (tokens, {maxRefTokens, occupied = const []}) async => pruned
             ? pruneGlobalAltTocMatches(
                 rows,
-                bookIdOf: (r) => r['bookId'] as int,
-                referenceOf: (r) => r['reference'] as String,
-                orderOf: (r) => (r['bookOrderIndex'] as num).toDouble(),
+                keyOf: altTocRowKey,
+                queryTokens: tokens,
                 suppressDescendants: maxRefTokens == null,
+                occupied: occupied,
               )
             : rows,
         getCategoryPath: (_) async => 'ספרייה',
       );
       addTearDown(repo.dispose);
       return [
-        for (final r in await repo.findRefs('פרשת נח'))
+        for (final r in await repo.findRefs(query))
           '${r.bookId}|${r.reference}|${r.segment}',
       ];
     }
 
-    final unpruned = await run(false);
-    expect(unpruned, hasLength(2));
-    expect(await run(true), unpruned);
+    test('צאצאים באותו ספר ובספר אחר', () async {
+      seedLibrary(const [(id: 1, title: 'ספר אחר', acronyms: [])]);
+      final rows = [
+        row(5, 'פרשת נח', 0),
+        row(5, 'פרשת נח עליה א', 3),
+        row(5, 'פרשת נח עליה ב', 7),
+        row(6, 'פרשת נח עליה ג', 2),
+      ];
+      final unpruned = await run('פרשת נח', rows, pruned: false);
+      expect(unpruned, hasLength(2));
+      expect(await run('פרשת נח', rows, pruned: true), unpruned);
+    });
+
+    test('אב שהתנגש בשורת TOC של אותו ספר — צאצאיו נשארים', () async {
+      // כמו "לך לך": הספר עצמו תואם, ה-TOC שלו ברמה 1 חולק שורה עם האב.
+      seedLibrary(const [(id: 5, title: 'פרשת השבוע', acronyms: [])]);
+      final toc = {
+        5: [
+          {'reference': 'פרשת השבוע נח', 'segment': 10, 'level': 1},
+        ],
+      };
+      final rows = [
+        row(5, 'פרשת נח', 10, title: 'פרשת השבוע'),
+        row(5, 'פרשת נח עליה א', 11, title: 'פרשת השבוע'),
+        row(5, 'פרשת נח עליה ב', 12, title: 'פרשת השבוע'),
+      ];
+      final unpruned = await run(
+        'פרשת נח',
+        rows,
+        pruned: false,
+        tocByBookId: toc,
+      );
+      expect(unpruned, contains('5|פרשת השבוע פרשת נח עליה א|11'));
+      expect(
+        await run('פרשת נח', rows, pruned: true, tocByBookId: toc),
+        unpruned,
+      );
+    });
+
+    test('ספר מאוחר בסדר אך ספר-יסוד אינו נחתך בגלל ספרים קודמים', () async {
+      // כמו "סעיף א": ספר מוקדם עם מאות התאמות, וספר יסוד מאוחר שמדורג ראשון.
+      seedLibrary(
+        const [
+          (id: 1, title: 'ספר אחר', acronyms: []),
+          (id: 6, title: 'ספר שישי', acronyms: []),
+          (id: 7, title: 'ספר שביעי', acronyms: []),
+        ],
+        categoryPaths: {7: 'תנ"ך, תורה'},
+      );
+      final rows = [
+        for (var i = 0; i < 600; i++) row(6, 'סימן $i סעיף א', i, order: 1),
+        for (var i = 0; i < 50; i++) row(7, 'פרק $i סעיף א', i, order: 900),
+      ];
+      final unpruned = await run('סעיף א', rows, pruned: false);
+      expect(unpruned.first, startsWith('7|'));
+      expect(await run('סעיף א', rows, pruned: true), unpruned);
+    });
   });
 
   group('ב-worker', () {
@@ -148,7 +260,7 @@ void main() {
       );
       db.execute(
         "INSERT INTO line (id, bookId, lineIndex, content) VALUES "
-        "(100, 1, 0, 'שורה')",
+        "(100, 1, 0, 'שורה'), (101, 1, 1, 'שורה'), (102, 1, 2, 'שורה')",
       );
       db.execute(
         "INSERT INTO tocText (id, text) VALUES (1, 'פרשה נח'), "
@@ -160,8 +272,8 @@ void main() {
       db.execute(
         'INSERT INTO alt_toc_entry '
         '(id, structureId, parentId, textId, level, lineId) VALUES '
-        '(900, 1, NULL, 1, 1, 100), (901, 1, 900, 2, 2, 100), '
-        '(902, 1, NULL, 3, 1, 100)',
+        '(900, 1, NULL, 1, 1, 100), (901, 1, 900, 2, 2, 101), '
+        '(902, 1, NULL, 3, 1, 102)',
       );
       database.close();
       await Settings.setValue<String>(
