@@ -845,9 +845,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
       }
 
       if (library != null) {
-        // ספרים אישיים: ה-`bookId` שלהם שייך ל-user_books.db ואין לו תאומים
-        // ב-library object, לכן ניפול ל-title; ספר רשמי עם `bookId > 0`
-        // נפתח דרך ה-id כדי שלא יחליף שני ספרים בעלי אותה כותרת.
+        // רשמי לפי המזהה, ולפי כותרת רק כשהמזהה חסר בעץ; אישי/מצורף לפי מקור
+        // ומזהה בלבד. בלי ספר גלוי תואם נבנה TextBook מהתוצאה (למטה).
         book = index!.resolveFindRefBook(
           ref.title,
           bookId: ref.bookId > 0 ? ref.bookId : null,
