@@ -29,6 +29,17 @@ void main() {
       }
     });
 
+    test('close מודיע למאזינים פעם אחת לכל מאזין', () async {
+      var calls = 0;
+      void listener() => calls++;
+      UserBooksDatabaseHolder.instance
+        ..addCloseListener(listener)
+        ..addCloseListener(listener);
+
+      await UserBooksDatabaseHolder.instance.close();
+      expect(calls, 1);
+    });
+
     test('repository מאותחל פעם אחת ומוחזק במטמון (אותו instance)', () async {
       final first = await UserBooksDatabaseHolder.instance.repository;
       final second = await UserBooksDatabaseHolder.instance.repository;

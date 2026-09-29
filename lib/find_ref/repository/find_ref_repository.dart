@@ -1741,6 +1741,8 @@ class FindRefRepository {
     }
     final path = _userBooksDbPath;
     if (path == null) return const [];
+    // סגירת ה-holder (העברת ספרייה, יציאה) חייבת לשחרר גם את חיבור ה-worker.
+    UserBooksDatabaseHolder.instance.addCloseListener(_resetSecondaryWorker);
     try {
       return await AttachedFindRefWorker.instance.run(
         path,
@@ -1753,6 +1755,8 @@ class FindRefRepository {
       return const [];
     }
   }
+
+  static void _resetSecondaryWorker() => AttachedFindRefWorker.instance.reset();
 
   static AttachedDbJob<List<Map<String, dynamic>>> _userBookTocJob(
     int bookId,

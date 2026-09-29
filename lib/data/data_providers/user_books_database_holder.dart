@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
-import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 
@@ -56,9 +55,17 @@ class UserBooksDatabaseHolder {
     return repo;
   }
 
-  /// סוגר את ה-DB, וגם את חיבור הקריאה של איתור המקורות כדי שהקובץ ישוחרר.
+  final Set<void Function()> _closeListeners = {};
+
+  /// נקרא ב-[close] — לחיבורים נוספים לקובץ (למשל ב-isolate) שחייבים לשחרר אותו.
+  void addCloseListener(void Function() listener) =>
+      _closeListeners.add(listener);
+
+  /// סוגר את ה-DB ומודיע ל-[addCloseListener] כדי שהקובץ ישוחרר.
   Future<void> close() async {
-    AttachedFindRefWorker.instance.reset();
+    for (final listener in _closeListeners) {
+      listener();
+    }
     _database?.close();
     _database = null;
     _repository = null;

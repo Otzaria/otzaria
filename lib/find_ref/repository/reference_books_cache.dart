@@ -615,11 +615,8 @@ class ReferenceBooksCache {
   @visibleForTesting
   static int debugCatalogScans = 0;
 
-  /// [search] לכמה שאילתות בסריקה אחת של הקטלוג. [limit] הוא הגבול הגדול
-  /// ביותר ש-[ReferenceBookSearchBatch.hitsFor] יתבקש עבורו.
-  ///
-  /// [exactTitles] — טוקנים מנורמלים שנבדק עבורם רק אם יש ספר גלוי שכותרתו
-  /// זהה להם (דירוג 0), בלי חישוב התאמות מלא.
+  /// [search] לכמה שאילתות בסריקה אחת; [limit] — הגבול הגדול ביותר שיתבקש.
+  /// ל-[exactTitles] נבדק רק אם יש ספר גלוי שזו כותרתו (דירוג 0).
   ReferenceBookSearchBatch searchBatch(
     Iterable<String> queries, {
     required int limit,
