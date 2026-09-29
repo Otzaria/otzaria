@@ -1,0 +1,120 @@
+name: otzaria_zvfs
+
+on:
+  push:
+    paths:
+      - "packages/otzaria_zvfs/**"
+      - ".github/workflows/zvfs.yml"
+  pull_request:
+    paths:
+      - "packages/otzaria_zvfs/**"
+      - ".github/workflows/zvfs.yml"
+  workflow_dispatch:
+
+env:
+  SQLITE_AMALGAMATION_URL: https://www.sqlite.org/2026/sqlite-amalgamation-3530400.zip
+
+jobs:
+  dart:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: packages/otzaria_zvfs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.2
+      - name: Install zstd CLI (optional test input)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y zstd
+      - run: dart pub get
+      - run: dart analyze
+      - run: dart test -r expanded
+        env:
+          ZVFS_FUZZ_ITERS: "1000"
+
+  c-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+            flags: ""
+          - name: linux-asan-ubsan
+            os: ubuntu-latest
+            flags: "-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer"
+          - name: linux-tsan
+            os: ubuntu-latest
+            flags: "-fsanitize=thread"
+          - name: windows
+            os: windows-2022
+            flags: ""
+          - name: macos
+            os: macos-latest
+            flags: ""
+    name: c-tests (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch SQLite amalgamation (VFS tests only)
+        shell: bash
+        run: |
+          curl -sSL -o sqlite.zip "$SQLITE_AMALGAMATION_URL"
+          unzip -q sqlite.zip -d "$RUNNER_TEMP"
+          echo "AMAL=$(ls -d "$RUNNER_TEMP"/sqlite-amalgamation-*)" >> "$GITHUB_ENV"
+      - name: Configure
+        shell: bash
+        run: >
+          cmake -S packages/otzaria_zvfs/test/c -B build/c
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DZVFS_SQLITE_AMALGAMATION="$AMAL"
+          ${{ matrix.flags != '' && format('-DCMAKE_C_FLAGS="{0}"', matrix.flags) || '' }}
+      - run: cmake --build build/c --config RelWithDebInfo
+      - name: Test
+        shell: bash
+        run: |
+          if [ "${{ matrix.name }}" = "linux-tsan" ]; then export ZVFS_FUZZ_ITERS=2000; W="setarch $(uname -m) -R"; fi
+          $W ctest --test-dir build/c -C RelWithDebInfo --output-on-failure
+
+  cross-compile:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: android-arm64-v8a
+            os: ubuntu-latest
+            abi: arm64-v8a
+          - name: android-armeabi-v7a
+            os: ubuntu-latest
+            abi: armeabi-v7a
+          - name: android-x86_64
+            os: ubuntu-latest
+            abi: x86_64
+          - name: ios-arm64
+            os: macos-latest
+            abi: ""
+    name: cross-compile (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Android library (minSdk 21)
+        if: runner.os == 'Linux'
+        run: >
+          cmake -S packages/otzaria_zvfs/test/c -B build/x -DZVFS_BUILD_TESTS=OFF
+          -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake"
+          -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-21
+          -DCMAKE_C_FLAGS="-Werror=implicit-function-declaration"
+          && cmake --build build/x
+      - name: iOS library
+        if: runner.os == 'macOS'
+        run: >
+          cmake -S packages/otzaria_zvfs/test/c -B build/x -G Xcode -DZVFS_BUILD_TESTS=OFF
+          -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+          && cmake --build build/x --config Release -- CODE_SIGNING_ALLOWED=NO
