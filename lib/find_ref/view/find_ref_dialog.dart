@@ -542,6 +542,30 @@ class _FindRefDialogState extends State<FindRefDialog> {
     }();
   }
 
+  /// השורות שנבנו בפריים הנוכחי — ListView.builder בונה רק שורות נראות.
+  final Set<int> _rowsAwaitingCommentators = {};
+  bool _commentatorsLoadScheduled = false;
+
+  /// הטעינה עצמה נדחית לאחר הפריים: build נשאר נקי מבקשות, ורשימה
+  /// שהתיישנה עד אז אינה מבקשת מפרשים בכלל.
+  void _requestCommentatorsAfterFrame(int index) {
+    _rowsAwaitingCommentators.add(index);
+    if (_commentatorsLoadScheduled) return;
+    _commentatorsLoadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _commentatorsLoadScheduled = false;
+      final rows = _rowsAwaitingCommentators.toList();
+      _rowsAwaitingCommentators.clear();
+      if (!mounted) return;
+      final state = context.read<FindRefBloc>().state;
+      if (!_isCurrentSuccess(state)) return;
+      final refs = (state as FindRefSuccess).refs;
+      for (final index in rows) {
+        if (index < refs.length) _ensureCommentatorsLoaded(refs[index]);
+      }
+    });
+  }
+
   LibraryBookIndex _indexFor(Library library) {
     final selection = const HiddenLibraryStore().load();
     final existing = _bookIndex;
@@ -1305,9 +1329,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final eligible = !ref.isPdf && ref.bookId > 0 && ref.source.isOfficial;
-    // טעינה lazy בעת רינדור — ListView.builder יפעיל את ה-itemBuilder רק
-    // עבור שורות נראות. ה-cache ב-repository ימנע קריאות חוזרות.
-    if (eligible) _ensureCommentatorsLoaded(ref);
+    if (eligible && interactive) _requestCommentatorsAfterFrame(index);
     final cached = _commentatorsByRef[_commentatorsKey(ref)];
     final showButton = eligible && cached != null && cached.isNotEmpty;
     final menuButtonKey = _getCommentatorsButtonKey(index);

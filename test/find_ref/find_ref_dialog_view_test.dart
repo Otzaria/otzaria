@@ -11,6 +11,7 @@ import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/find_ref_recent_store.dart';
 import 'package:otzaria/find_ref/repository/db_commentator_entry.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
+import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/view/find_ref_dialog.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
@@ -141,6 +142,33 @@ class _FlakyRepository extends _FakeRepository {
   }) async {
     if (calls++ == 0) throw Exception('DB down');
     return results;
+  }
+}
+
+/// כמו [_GatedRepository], וסופר בקשות מפרשים. הבקשה הראשונה נזרקת
+/// כשהקלדה חדשה מבטלת את החיפוש, כמו תור ה-worker בייצור.
+class _CommentatorCountingRepository extends _GatedRepository {
+  _CommentatorCountingRepository({required super.first, required super.second});
+
+  int commentatorCalls = 0;
+  Completer<List<DbCommentatorEntry>>? _firstCommentators;
+
+  @override
+  void cancelPendingSearch() {
+    final pending = _firstCommentators;
+    if (pending != null && !pending.isCompleted) {
+      pending.completeError(const FindRefQueryCancelled());
+    }
+  }
+
+  @override
+  Future<List<DbCommentatorEntry>> getCommentatorsForResult(
+    DbReferenceResult ref,
+  ) {
+    if (commentatorCalls++ == 0) {
+      return (_firstCommentators = Completer()).future;
+    }
+    return Future.value(const []);
   }
 }
 
@@ -980,6 +1008,31 @@ void main() {
       repo.gate.complete();
       await tester.pump(_pastDebounce);
       expect(find.text('בראשית פרק ב'), findsOneWidget);
+    });
+
+    testWidgets('בזמן טעינה הרשימה הישנה אינה מבקשת מפרשים', (tester) async {
+      final repo = _CommentatorCountingRepository(
+        first: [_ref('בראשית פרק א')],
+        second: [_ref('בראשית פרק ב')],
+      );
+      await _pumpDialog(tester, repository: repo);
+      await tester.enterText(find.byType(TextField), 'בראשית');
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+      expect(repo.commentatorCalls, 1);
+
+      await tester.enterText(find.byType(TextField), 'בראשית פרק');
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+      await tester.pump();
+      expect(repo.commentatorCalls, 1, reason: 'רשימה ישנה בזמן טעינה');
+
+      repo.gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('בראשית פרק ב'), findsOneWidget);
+      expect(repo.commentatorCalls, 2);
+      await tester.pump(const Duration(milliseconds: 500));
     });
 
     testWidgets('מקום כפתור המפרשים שמור מהפריים הראשון', (tester) async {
