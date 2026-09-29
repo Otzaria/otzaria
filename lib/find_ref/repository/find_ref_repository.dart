@@ -785,9 +785,11 @@ class FindRefRepository {
   }
 
   Future<List<DbReferenceResult>> _findRefs(
-    String ref, {
+    String rawRef, {
     bool includePersonalBooks = false,
   }) async {
+    // לפני הנרמול: הוא מוחק את הגרשיים, ו"ע"א" נהפך למספר הדף "עא".
+    final ref = expandQueryAmudMarks(rawRef);
     final cleanedQuery = _normalizeForMatch(ref);
     if (cleanedQuery.isEmpty) {
       return const [];

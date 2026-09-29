@@ -51,6 +51,11 @@ final RegExp _trailingRange = RegExp(
 final RegExp _amudA = RegExp('''(?<![א-ת])ע["'״׳]א(?![א-ת])''');
 final RegExp _amudB = RegExp('''(?<![א-ת])ע["'״׳]ב(?![א-ת])''');
 
+/// ע"א/ע"ב בשאילתת איתור → "עמוד א"/"עמוד ב": מילת המיקום מסמנת את הטוקן
+/// שלפניה כמספר דף גם כשהוא אות בודדת ("ברכות ב ע"א").
+String expandQueryAmudMarks(String query) =>
+    query.replaceAll(_amudA, 'עמוד א').replaceAll(_amudB, 'עמוד ב');
+
 /// טוקני המפתח הקנוני של [ref], לפי הסדר: חיתוך טווח, הרחבת סימוני דף,
 /// הסרת ניקוד/טעמים, מיפוי ע"א/ע"ב, הסרת גרשיים/פיסוק והסרת מילות מיקום.
 List<String> refKeyTokens(String ref) {
