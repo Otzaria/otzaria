@@ -661,10 +661,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
-  void _scrollToSelected() {
+  void _scrollToSelected({int count = 0}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final key = _getKeyForIndex(_selectedIndex.value);
-      final context = key.currentContext;
+      if (!mounted) return;
+      final index = _selectedIndex.value;
+      final context = _getKeyForIndex(index).currentContext;
       if (context != null) {
         Scrollable.ensureVisible(
           context,
@@ -672,8 +673,32 @@ class _FindRefDialogState extends State<FindRefDialog> {
           curve: Curves.easeInOut,
           alignment: 0.5, // מרכז המסך
         );
+        return;
       }
+      // שורה רחוקה (Ctrl+End, PageDown) עוד לא נבנתה ואין לה context:
+      // קופצים לאומדן מיקומה, והשורה תמורכז בפריים הבא.
+      if (count == 0 || !_resultsScrollController.hasClients) return;
+      final position = _resultsScrollController.position;
+      final rowExtent =
+          (position.maxScrollExtent + position.viewportDimension) / count;
+      _resultsScrollController.jumpTo(
+        (rowExtent * index - position.viewportDimension / 2).clamp(
+          0.0,
+          position.maxScrollExtent,
+        ),
+      );
+      _scrollToSelected();
     });
+  }
+
+  /// מספר השורות שנכנסות בגובה הרשימה, לפי הגובה הממוצע של שורה בה.
+  int _resultsPageStep(int count) {
+    if (!_resultsScrollController.hasClients || count == 0) return 1;
+    final position = _resultsScrollController.position;
+    final rowExtent =
+        (position.maxScrollExtent + position.viewportDimension) / count;
+    if (rowExtent <= 0) return 1;
+    return math.max(1, (position.viewportDimension / rowExtent).floor());
   }
 
   /// חץ הגלילה לסוף הרשימה, לפי [_hasMoreBelow]. ה-IconButton נשאר במקומו
@@ -1171,25 +1196,25 @@ class _FindRefDialogState extends State<FindRefDialog> {
           return KeyEventResult.ignored;
         }
 
-        // טיפול בחיצים רק אם יש תוצאות
-        if (refs.isNotEmpty) {
-          if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-            _selectedIndex.value = (_selectedIndex.value + 1).clamp(
-              0,
-              refs.length - 1,
-            );
-            _scrollToSelected();
-            return KeyEventResult.handled;
-          } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-            _selectedIndex.value = (_selectedIndex.value - 1).clamp(
-              0,
-              refs.length - 1,
-            );
-            _scrollToSelected();
-            return KeyEventResult.handled;
-          }
-        }
-        return KeyEventResult.ignored;
+        if (refs.isEmpty) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        final current = _selectedIndex.value;
+        // Home/End לבדם מזיזים את הסמן בשדה ההקלדה, ולכן לרשימה — עם Ctrl.
+        final ctrl = HardwareKeyboard.instance.isControlPressed;
+        final int? target = switch (key) {
+          LogicalKeyboardKey.arrowDown => current + 1,
+          LogicalKeyboardKey.arrowUp => current - 1,
+          LogicalKeyboardKey.pageDown =>
+            current + _resultsPageStep(refs.length),
+          LogicalKeyboardKey.pageUp => current - _resultsPageStep(refs.length),
+          LogicalKeyboardKey.home when ctrl => 0,
+          LogicalKeyboardKey.end when ctrl => refs.length - 1,
+          _ => null,
+        };
+        if (target == null) return KeyEventResult.ignored;
+        _selectedIndex.value = target.clamp(0, refs.length - 1);
+        _scrollToSelected(count: refs.length);
+        return KeyEventResult.handled;
       },
       child: RtlTextField(
         focusNode: focusRepository.findRefSearchFocusNode,
@@ -1453,6 +1478,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
         ),
         clipBehavior: Clip.antiAlias,
         child: ListTile(
+          selected: isSelected,
           hoverColor: showButton ? Colors.transparent : null,
           visualDensity: VisualDensity.compact,
           contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 4, 8, 4),

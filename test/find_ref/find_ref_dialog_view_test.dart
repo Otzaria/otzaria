@@ -257,6 +257,22 @@ Future<void> _pumpDialog(
 TextStyle? _titleStyleOf(WidgetTester tester, String reference) =>
     tester.widget<Text>(find.text(reference)).style;
 
+/// כותרות השורות שה-ListTile שלהן מסומן selected.
+List<String> _selectedTiles(WidgetTester tester) => [
+  for (final element in find.byType(ListTile).evaluate())
+    if ((element.widget as ListTile).selected)
+      tester
+          .widget<Text>(
+            find
+                .descendant(
+                  of: find.byWidget(element.widget),
+                  matching: find.byType(Text),
+                )
+                .first,
+          )
+          .data!,
+];
+
 List<String> _chipLabels(WidgetTester tester) => [
   ...tester
       .widgetList<InputChip>(find.byType(InputChip))
@@ -511,6 +527,77 @@ void main() {
       _titleStyleOf(tester, 'בראשית פרק א')?.fontWeight,
       FontWeight.normal,
     );
+  });
+
+  testWidgets('השורה המסומנת מדווחת כנבחרת לנגישות', (tester) async {
+    await _pumpDialog(
+      tester,
+      results: [_ref('בראשית פרק א'), _ref('בראשית פרק ב')],
+    );
+    await tester.enterText(find.byType(TextField), 'בראשית');
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+
+    expect(_selectedTiles(tester), ['בראשית פרק ב']);
+  });
+
+  group('מקשי דפדוף ברשימת התוצאות', () {
+    final many = [for (var i = 1; i <= 40; i++) _ref('בראשית פרק $i')];
+
+    Future<void> pumpMany(WidgetTester tester) async {
+      await _pumpDialog(
+        tester,
+        results: many,
+        screenSize: const Size(1000, 1400),
+      );
+      await tester.enterText(find.byType(TextField), 'בראשית');
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+    }
+
+    testWidgets('Ctrl+End ו-Ctrl+Home קופצים לסוף ולתחילת הרשימה', (
+      tester,
+    ) async {
+      await pumpMany(tester);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(_selectedTiles(tester), ['בראשית פרק 40']);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(_selectedTiles(tester), ['בראשית פרק 1']);
+    });
+
+    testWidgets('End בלי Ctrl נשאר לשדה ההקלדה', (tester) async {
+      await pumpMany(tester);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pumpAndSettle();
+
+      expect(_selectedTiles(tester), ['בראשית פרק 1']);
+    });
+
+    testWidgets('PageDown ו-PageUp מזיזים עמוד שלם של שורות', (tester) async {
+      await pumpMany(tester);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+      await tester.pumpAndSettle();
+      final afterDown = _selectedTiles(tester).single;
+      final step = int.parse(afterDown.split(' ').last) - 1;
+      expect(step, greaterThan(1));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
+      await tester.pumpAndSettle();
+      expect(_selectedTiles(tester), ['בראשית פרק 1']);
+    });
   });
 
   testWidgets('חצים והקלדה אינם בונים מחדש את הדיאלוג כולו', (tester) async {
