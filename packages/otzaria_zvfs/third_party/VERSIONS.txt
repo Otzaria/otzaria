@@ -1,0 +1,13 @@
+zstd 1.5.7
+  source:  https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz
+  sha256:  eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3 (matches the release .sha256)
+  vendored: lib/{common,compress,decompress,dictBuilder}, zstd.h, zdict.h,
+            zstd_errors.h, LICENSE, COPYING - unmodified.
+  removed:  lib/decompress/huf_decompress_amd64.S (built with ZSTD_DISABLE_ASM=1),
+            lib/legacy, lib/deprecated, build files.
+  license:  BSD-3-Clause (LICENSE) or GPLv2 (COPYING), at our choice: BSD.
+
+sqlite 3.53.4 headers only (sqlite3.h, sqlite3ext.h), from the amalgamation
+  SQLITE_SOURCE_ID "2026-07-24 19:02:57 bf7c7f30031888f4e796e429ab3978879485813aaca6f641c7b33e4e09459bcc"
+  Used only for the extension API declarations; no SQLite code is compiled.
+  license:  public domain.
