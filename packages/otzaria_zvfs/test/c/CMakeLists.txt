@@ -62,7 +62,9 @@ if(ZVFS_SQLITE_AMALGAMATION)
   if(UNIX)
     target_link_libraries(sqlite_amal PUBLIC m ${CMAKE_DL_LIBS})
   endif()
-  foreach(t vfs)
+  # crash: memfs power-loss injection; kill: real process kills;
+  # write: logical equivalence, overlay codec, threads.
+  foreach(t vfs write crash kill)
     add_executable(zvfs_${t}_tests test_${t}.c)
     target_link_libraries(zvfs_${t}_tests zvfs_static sqlite_amal)
     add_test(NAME ${t} COMMAND zvfs_${t}_tests)
