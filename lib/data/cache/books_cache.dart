@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
@@ -31,8 +33,10 @@ class BooksCache {
   /// הדור הנוכחי, לצילום *לפני* קריאת נתונים שתיזרע ל-[seedFromBooks].
   int get generation => _generation;
 
-  /// Returns all cached books
-  List<BookCacheEntry> get books => List.unmodifiable(_books);
+  /// כל הספרים — תצוגה חיה ולא עותק (נקראת בכל הקלדה); מי שממתין באמצע
+  /// מעבר עליה חייב להעתיק.
+  List<BookCacheEntry> get books => _booksView;
+  late final List<BookCacheEntry> _booksView = UnmodifiableListView(_books);
 
   /// Returns a book by its ID, or null if not found
   BookCacheEntry? getBookById(int id) => _booksById[id];

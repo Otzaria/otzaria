@@ -44,6 +44,13 @@ class ReferenceBooksCache {
   // Normalized titles cache (computed from BooksCache)
   final Map<int, String> _normalizedTitles = <int, String>{};
 
+  /// טוקני הכותרת המנורמלת לכל ספר — מחושבים פעם אחת עם הכותרות, ועוברים
+  /// ל-[ReferenceBookHit] כדי שהצרכנים לא יפצלו מחדש בכל הקלדה.
+  final Map<int, List<String>> _titleTokens = <int, List<String>>{};
+
+  /// [titleMatchTokens] לכל ספר, בעצלתיים — רק מעטים מגיעים למסלול שצריך אותם.
+  final Map<int, Set<String>> _titleMatchTokens = <int, Set<String>>{};
+
   /// כל המילים השונות שבכותרות ובכינויים, ומזהי הספרים לכל מילה. הספרייה
   /// כולה מכילה ~6,900 מילים שונות בלבד, ולכן ההתאמה המקורבת רצה עליהן פעם
   /// אחת לכל מילת שאילתה במקום על ~190,000 המילים שבספרים.
@@ -132,7 +139,8 @@ class ReferenceBooksCache {
       final localNormalizedTitles = <int, String>{};
       const yieldBatch = 1000;
       var processed = 0;
-      for (final book in BooksCache.instance.books) {
+      // עותק: הלולאה ממתינה באמצע, ו-books הוא תצוגה חיה של הקאש.
+      for (final book in BooksCache.instance.books.toList(growable: false)) {
         localNormalizedTitles[book.id] = _normalizeForMatch(book.title);
         if (++processed % yieldBatch == 0) {
           await Future<void>.delayed(Duration.zero);
@@ -196,9 +204,7 @@ class ReferenceBooksCache {
       // Swap אטומי — רק אם הדור עדיין שלנו.
       if (myGen != _generation) return;
 
-      _normalizedTitles
-        ..clear()
-        ..addAll(localNormalizedTitles);
+      _installNormalizedTitles(localNormalizedTitles);
       _fsPdfBooks
         ..clear()
         ..addAll(localFsPdfBooks);
@@ -266,7 +272,7 @@ class ReferenceBooksCache {
       // לא מסמנים loaded: כשל זמני (למשל DB נעול ביציאה ממצב שינה) יאופשר
       // retry ב-warmUp הבא, במקום קאש ריק שמחזיר "לא נמצא ספר" לכל ה-session.
       if (myGen == _generation) {
-        _normalizedTitles.clear();
+        _installNormalizedTitles(const {});
         _fuzzyVocabulary.clear();
         _fuzzyVocabularyBooks.clear();
         _fuzzyWordCandidates.clear();
@@ -277,9 +283,22 @@ class ReferenceBooksCache {
     }
   }
 
+  void _installNormalizedTitles(Map<int, String> titles) {
+    _normalizedTitles
+      ..clear()
+      ..addAll(titles);
+    _titleTokens
+      ..clear()
+      ..addAll({
+        for (final entry in titles.entries)
+          entry.key: _splitTitleTokens(entry.value),
+      });
+    _titleMatchTokens.clear();
+  }
+
   void clear() {
     _generation++;
-    _normalizedTitles.clear();
+    _installNormalizedTitles(const {});
     _fuzzyVocabulary.clear();
     _fuzzyVocabularyBooks.clear();
     _fuzzyWordCandidates.clear();
@@ -392,7 +411,8 @@ class ReferenceBooksCache {
 
       const yieldBatch = 1000;
       var processed = 0;
-      for (final book in BooksCache.instance.books) {
+      // עותק: הלולאה ממתינה באמצע, ו-books הוא תצוגה חיה של הקאש.
+      for (final book in BooksCache.instance.books.toList(growable: false)) {
         _categoryPaths[book.id] = pathFor(book.categoryId);
         if (++processed % yieldBatch == 0) {
           await Future<void>.delayed(Duration.zero);
@@ -551,9 +571,7 @@ class ReferenceBooksCache {
     required Map<int, String> normalizedTitles,
     required Map<int, String> categoryPaths,
   }) {
-    _normalizedTitles
-      ..clear()
-      ..addAll(normalizedTitles);
+    _installNormalizedTitles(normalizedTitles);
     _dbPdfTitles
       ..clear()
       ..addAll(
@@ -758,7 +776,7 @@ class ReferenceBooksCache {
             break;
           }
           if (a.startsWith(q)) {
-            titleTokens ??= titleMatchTokens(t);
+            titleTokens ??= _titleMatchTokensFor(book.id, t);
             final tailIsTitle = _acronymTailIsTitleWords(a, q, titleTokens);
             // דירוג טוב יותר גובר על קודמיו — אחרת מונח "contains" (5) שנסרק
             // קודם היה מקבע 5 ומונע מהתאמת-התחילית הזו לדרג 4.
@@ -801,10 +819,17 @@ class ReferenceBooksCache {
         matchedTerm: matchedTerm,
         orderIndex: book.orderIndex,
         acronymTailIsTitleWords: tailIsTitleWords,
+        titleTokens: _titleTokens[book.id],
+        titleMatchTokens: _titleMatchTokens[book.id],
       ),
     );
     return mask;
   }
+
+  Set<String> _titleMatchTokensFor(int bookId, String title) =>
+      _titleMatchTokens[bookId] ??= titleMatchTokensOf(
+        _titleTokens[bookId] ?? _splitTitleTokens(title),
+      );
 
   /// מצב "דור + נושא" של איתור מקורות: מחזיר את כל הספרים שדורם (לפי נתיב
   /// הקטגוריה) הוא [era] וכותרתם תואמת את כל [topicTokens]. למשל
@@ -1267,7 +1292,7 @@ class ReferenceBookHit {
   /// הוא כותרת פנימית ("טור חושן" ⊂ "טור חושן משפט", ו"משפט" אינה בכותרת "טור").
   final bool acronymTailIsTitleWords;
 
-  const ReferenceBookHit({
+  ReferenceBookHit({
     required this.bookId,
     required this.title,
     required this.normalizedTitle,
@@ -1277,8 +1302,27 @@ class ReferenceBookHit {
     required this.orderIndex,
     this.matchedTerm,
     this.acronymTailIsTitleWords = false,
-  });
+    List<String>? titleTokens,
+    Set<String>? titleMatchTokens,
+  }) : _givenTitleTokens = titleTokens,
+       _givenTitleMatchTokens = titleMatchTokens;
+
+  final List<String>? _givenTitleTokens;
+  final Set<String>? _givenTitleMatchTokens;
+
+  /// טוקני [normalizedTitle]; בדרך כלל מחושבים מראש במטמון.
+  late final List<String> titleTokens =
+      _givenTitleTokens ?? _splitTitleTokens(normalizedTitle);
+
+  /// [titleMatchTokensOf] של [titleTokens] — מילות הכותרת גם בלי אות-חיבור.
+  late final Set<String> titleMatchTokens =
+      _givenTitleMatchTokens ?? titleMatchTokensOf(titleTokens);
 }
+
+List<String> _splitTitleTokens(String normalizedTitle) => normalizedTitle
+    .split(' ')
+    .where((t) => t.isNotEmpty)
+    .toList(growable: false);
 
 /// תוצאות [ReferenceBooksCache.searchBatch]: כל שאילתה נענית כמו ב-[search].
 class ReferenceBookSearchBatch {

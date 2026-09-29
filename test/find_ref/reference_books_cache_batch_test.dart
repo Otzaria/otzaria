@@ -53,6 +53,16 @@ void main() {
     expect(batch.hitsFor('לא נכלל', limit: 50), isNull);
   });
 
+  test('טוקני הכותרת מגיעים מחושבים מראש מהמטמון', () {
+    final cache = ReferenceBooksCache.instance;
+    final first = cache.search('פסקי').single;
+    final second = cache.search('פסקי הראש').single;
+
+    expect(first.titleTokens, ['פסקי', 'הראש', 'על', 'ברכות']);
+    expect(identical(first.titleTokens, second.titleTokens), isTrue);
+    expect(first.titleMatchTokens, containsAll(['הראש', 'ראש', 'ברכות']));
+  });
+
   test('hasExactTitle שקול לדירוג 0 ב-search', () {
     const tokens = ['ברכות', 'ברכת', 'אור', 'אור זרוע', 'מב', 'לא קיים'];
     final batch = ReferenceBooksCache.instance.searchBatch(

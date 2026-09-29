@@ -1516,8 +1516,11 @@ String? titleTokenWithoutConjunction(
 
 /// טוקני [normalizedTitle] בתוספת הגרסאות בלי אות-חיבור פותחת — לשאלה "האם
 /// המילה הזו היא מילה מכותרת הספר". ראו [titleTokenWithoutConjunction].
-Set<String> titleMatchTokens(String normalizedTitle) {
-  final tokens = normalizedTitle.split(' ');
+Set<String> titleMatchTokens(String normalizedTitle) =>
+    titleMatchTokensOf(normalizedTitle.split(' '));
+
+/// [titleMatchTokens] לכותרת שכבר פוצלה לטוקנים.
+Set<String> titleMatchTokensOf(List<String> tokens) {
   final result = <String>{...tokens};
   for (var i = 0; i < tokens.length; i++) {
     final bare = titleTokenWithoutConjunction(tokens[i], allowVav: i > 0);

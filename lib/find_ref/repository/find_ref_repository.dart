@@ -80,6 +80,9 @@ class _SecondaryBook {
 
 final Object _searchGenerationZoneKey = Object();
 
+final RegExp _rangeDash = RegExp('[-–־]');
+final RegExp _whitespaceRun = RegExp(r'\s+');
+
 class FindRefRepository {
   int _searchGeneration = 0;
   bool _disposed = false;
@@ -999,8 +1002,7 @@ class FindRefRepository {
           }
           continue;
         }
-        // הכותרת המנורמלת כבר מחושבת מראש בתוך הקאש.
-        final titleTokens = _tokenize(hit.normalizedTitle);
+        final titleTokens = hit.titleTokens;
         if (!_phraseAppearsAsTokens(titleTokens, phraseTokens)) continue;
         if (hit.matchRank == 2) {
           secondaryHits.add(hit);
@@ -1172,7 +1174,7 @@ class FindRefRepository {
           secondaryPhraseTokenCount[hit] ?? bookQueryTokenCount;
       remainingByHit[hit] = _getRemainingTokens(
         queryTokens,
-        _tokenize(hit.normalizedTitle),
+        hit.titleTokens,
         stripLeadingTokensCount: hit.matchRank >= 3 ? phraseTokenCount : 0,
         prefixMatchTokensCount: hit.matchRank >= 3 ? 0 : phraseTokenCount,
       );
@@ -1194,8 +1196,7 @@ class FindRefRepository {
       final title = hit.title;
       final isPdf = hit.fileType == 'pdf';
 
-      // הכותרת המנורמלת כבר זמינה מהקאש — אין צורך לנרמל מחדש.
-      final titleTokens = _tokenize(hit.normalizedTitle);
+      final titleTokens = hit.titleTokens;
       final remainingTokens = remainingByHit[hit]!;
 
       // ראש-תיבות שזנבו אינו מילת-כותרת ("טור יורה דעה" / "טור יו"ד" מול
@@ -1603,22 +1604,31 @@ class FindRefRepository {
   ) {
     if (entries.length < 2) return entries;
 
+    final referencesByGroup = <(int, BookSource, bool, bool), Set<String>>{};
+    for (final e in entries) {
+      (referencesByGroup[(e.bookId, e.source, e.isAltToc, e.isPdf)] ??= {}).add(
+        e.reference,
+      );
+    }
     return entries.where((entry) {
       // שורת מקור היא התוצאה הספציפית ביותר — לעולם אינה "וריאנט עמוק" של
       // כותרת. בלי הסייג, תוצאת ספר ("תוספות על ברכות") בלעה את הדיבור שתחתיה.
       if (entry.isSourceLine) return true;
-      for (final other in entries) {
-        if (identical(other, entry)) continue;
-        if (other.bookId != entry.bookId) continue;
-        if (other.source != entry.source) continue;
-        if (other.isAltToc != entry.isAltToc) continue;
-        if (other.isPdf != entry.isPdf) continue;
-        // משווים אורך reference ולא tocLevel — TOC ו-AltToc מתחילים ברמות
-        // שונות, וגם אם הרמות זהות, ה-prefix הקצר יותר הוא ה"אב" הלוגי.
-        if (other.reference.length >= entry.reference.length) continue;
-        // ה-prefix המלא — כולל רווח בסוף — מבטיח התאמת "מילה שלמה" ולא
-        // התאמה חלקית של מחרוזת ("פרק א" לא חוסם "פרק אבות").
-        if (entry.reference.startsWith('${other.reference} ')) return false;
+      final siblings =
+          referencesByGroup[(
+            entry.bookId,
+            entry.source,
+            entry.isAltToc,
+            entry.isPdf,
+          )]!;
+      // אב = reference אחר שהוא תחילית עד גבול רווח ("פרק א" לא חוסם "פרק אבות").
+      final reference = entry.reference;
+      for (
+        var i = reference.indexOf(' ');
+        i >= 0;
+        i = reference.indexOf(' ', i + 1)
+      ) {
+        if (siblings.contains(reference.substring(0, i))) return false;
       }
       return true;
     }).toList();
@@ -2051,14 +2061,28 @@ class FindRefRepository {
         .toSet();
     if (uniqueIds.isEmpty) return _dropTalmudBavliPdfRefs(results);
 
-    final pathFn =
-        getCategoryPath ?? ReferenceBooksCache.instance.getCategoryPathForBook;
+    // בייצור הנתיבים כבר בקאש מה-warmUp — Future לכל ספר רק למה שחסר בו.
+    final cache = ReferenceBooksCache.instance;
     final pathMap = <int, String>{};
-    await Future.wait(
-      uniqueIds.map((id) async {
-        pathMap[id] = await pathFn(id);
-      }),
-    );
+    final missing = <int>[];
+    for (final id in uniqueIds) {
+      final cached = getCategoryPath == null
+          ? cache.getCategoryPathForBookSync(id)
+          : null;
+      if (cached == null) {
+        missing.add(id);
+      } else {
+        pathMap[id] = cached;
+      }
+    }
+    if (missing.isNotEmpty) {
+      final pathFn = getCategoryPath ?? cache.getCategoryPathForBook;
+      await Future.wait(
+        missing.map((id) async {
+          pathMap[id] = await pathFn(id);
+        }),
+      );
+    }
 
     final enriched = results.map((r) {
       if (r.bookPath.isNotEmpty) return r; // already set — don't overwrite
@@ -2086,7 +2110,7 @@ class FindRefRepository {
     if (hits.length <= maxTocLookups || significant.length < 2) return hits;
 
     int coverage(ReferenceBookHit hit) {
-      final titleTokens = _tokenize(hit.normalizedTitle);
+      final titleTokens = hit.titleTokens;
       var score = 0;
       for (final qt in significant) {
         // התאמת טוקן שלם, כולל אות-חיבור בכותרת — אותם כללים כמו
@@ -2124,7 +2148,7 @@ class FindRefRepository {
     if (hit.matchRank != 3 || term == null) return const [];
 
     final termTokens = term.split(' ').where((t) => t.isNotEmpty).toList();
-    final titleTokens = titleMatchTokens(hit.normalizedTitle);
+    final titleTokens = hit.titleMatchTokens;
     var start = termTokens.length;
     while (start > 0 && !titleTokens.contains(termTokens[start - 1])) {
       start--;
@@ -2286,7 +2310,7 @@ class FindRefRepository {
   /// מספר הטוקנים שאחרי סימן הטווח בשאילתה הגולמית — הנרמול הופך את המקף
   /// לרווח, ובלי הספירה הזו "לב יא-יג" היה נראה כהפניה תלת-רכיבית.
   int _tokensAfterRange(String rawQuery, List<String> queryTokens) {
-    final dash = rawQuery.indexOf(RegExp('[-–־]'));
+    final dash = rawQuery.indexOf(_rangeDash);
     if (dash <= 0) return 0;
     final head = _tokenize(_normalizeForMatch(rawQuery.substring(0, dash)));
     final after = queryTokens.length - head.length;
@@ -2661,7 +2685,7 @@ class FindRefRepository {
   }
 
   String _normalize(String? s) =>
-      (s ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+      (s ?? '').trim().toLowerCase().replaceAll(_whitespaceRun, ' ');
 
   String _normalizeForMatch(String input) => normalizeForFindRefMatch(input);
 

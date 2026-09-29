@@ -101,5 +101,16 @@ void main() {
       expect(BooksCache.instance.isLoaded, isFalse);
       expect(BooksCache.instance.books, isEmpty);
     });
+
+    test('books אינו מעתיק את הרשימה בכל גישה, ואינו ניתן לשינוי', () {
+      BooksCache.instance.seedFromBooks(
+        [_book(1, 'בראשית')],
+        generation: BooksCache.instance.generation,
+      );
+      final books = BooksCache.instance.books;
+
+      expect(identical(books, BooksCache.instance.books), isTrue);
+      expect(() => books.add(books.first), throwsUnsupportedError);
+    });
   });
 }
