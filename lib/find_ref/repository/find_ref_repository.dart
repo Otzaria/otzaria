@@ -526,12 +526,8 @@ class FindRefRepository {
     return list;
   }
 
-  /// מחזיר את הקאש הגלובלי של AltToc; טוען אותו פעם אחת בקריאה הראשונה
-  /// ושומר ב-[_altTocFlatCache]. כל קריאה לאחר מכן היא in-memory.
-  ///
-  /// הקריאה הזו אמורה להיות בטוחה לכשלון: אם השאילתה נופלת או שערך כלשהו
-  /// אינו במבנה הצפוי — מוחזר רשימה ריקה (ולא מתפשטת חריגה). כך מסלול
-  /// ה-per-book בתוך `findRefs` מתמיד גם אם ה-AltToc הגלובלי תקול.
+  /// הקאש הגלובלי של ה-AltToc במסלול המקומי (בלי worker), נטען פעם אחת.
+  /// כשל מחזיר רשימה ריקה, כדי שהמסלול הפר-ספר ימשיך.
   Future<List<AltTocFlatEntry>> _getAltTocFlatCache() async {
     final cached = _altTocFlatCache;
     if (cached != null) return cached;
@@ -569,9 +565,8 @@ class FindRefRepository {
       rethrow;
     } catch (e, st) {
       debugPrint('[FindRef] AltToc flat cache build failed: $e\n$st');
-      // אל **תקבע** את הקאש לריק במקרה כשל — אם הסיבה הייתה זמנית
-      // (rebuild של DB, lock רגעי), שאילתה הבאה תקבל ניסיון חוזר.
-      // אם הכשל קבוע, ההשהיה ב-await יחזור ולא מקסים נזק.
+      // הקאש לא נקבע לריק: בכשל זמני (DB נבנה מחדש, נעילה רגעית) השאילתה
+      // הבאה תנסה שוב.
       return const [];
     }
   }

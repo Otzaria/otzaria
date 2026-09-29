@@ -3821,7 +3821,7 @@ final class AltTocBook {
 }
 
 /// ערך AltToc קומפקטי. הנתיב וטוקניו נגזרים משרשרת [parent] ולא נשמרים בכל
-/// ערך: הקאש הגלובלי מחזיק כ-166 אלף ערכים לאורך כל חיי ה-worker.
+/// ערך: הקאש הגלובלי מחזיק את כל ערכי הספרייה לאורך חיי ה-worker.
 final class AltTocIndexEntry implements _TocSpan {
   AltTocIndexEntry({
     required this.id,
