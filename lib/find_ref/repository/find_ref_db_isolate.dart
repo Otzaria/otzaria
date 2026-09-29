@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show sleep;
 import 'dart:isolate';
 import 'dart:math' as math;
 
@@ -65,10 +64,11 @@ class FindRefDbIsolate {
   /// מחיקת קובץ עם handle פתוח נכשלת, ולכן ה-worker חייב להישאר בלי חיבור.
   static bool _suspendedForExternalWrite = false;
 
-  /// בדיקות בלבד: גודל מקטע בבניית קאש ה-AltToc והשהיה סינכרונית אחרי כל
-  /// מקטע (מדמה בנייה כבדה). נקרא ב-spawn.
+  /// בדיקות בלבד: גודל מקטע בכל שלבי בניית קאש ה-AltToc, והשהיה אחרי כל מקטע
+  /// של שלבי השאילתה/הנתיבים ושל הנרמול. נקרא ב-spawn.
   @visibleForTesting
-  static ({int chunkSize, Duration stepDelay})? debugAltTocBuildTuning;
+  static ({int chunkSize, Duration phaseDelay, Duration normalizeDelay})?
+  debugAltTocBuildTuning;
 
   /// מחזיר את המופע הפעיל, ומאתחל (spawn) בעצלתיים בקריאה הראשונה.
   /// קריאות מקבילות שמגיעות בזמן ה-spawn חולקות את אותו Future.
@@ -132,9 +132,7 @@ class FindRefDbIsolate {
         mainSendPort: receivePort.sendPort,
         queryCache: QueryLoader.cacheSnapshot,
         dbPath: DatabaseConstants.getDatabasePath(),
-        altTocChunkSize:
-            debugAltTocBuildTuning?.chunkSize ?? _altTocBuildChunkSize,
-        altTocStepDelay: debugAltTocBuildTuning?.stepDelay ?? Duration.zero,
+        altTocTuning: debugAltTocBuildTuning,
       ),
       debugName: 'find_ref_db_worker',
       onError: errorPort.sendPort,
@@ -639,25 +637,34 @@ class FindRefDbIsolate {
 
 const String _backgroundLane = 'background';
 
-/// מקטע הוא עבודה סינכרונית של עשרות מילישניות לכל היותר — זו ההמתנה
-/// המרבית של בקשה אינטראקטיבית או ביטול מאחורי החימום.
-const int _altTocBuildChunkSize = 5000;
+/// גודל מקטע הנרמול. גם שלבי השאילתה והנתיבים מחולקים (ראו
+/// [SeforimRepository.beginAltTocFlatBuild]), כך שבקשה ממתינה למקטע אחד בלבד.
+const int _altTocNormalizeChunkSize = 5000;
 
 typedef _AltTocFlatItem = ({Map<String, dynamic> row, List<String> refTokens});
 
-/// בניית קאש ה-AltToc השטוח בשלבים. הקאש נחשף רק כשהבנייה הושלמה.
+/// בניית קאש ה-AltToc השטוח: שלבי המסד במקטעים, ואחריהם נרמול במקטעים.
+/// הקאש נחשף רק כשהבנייה הושלמה.
 class _AltTocFlatBuild {
-  _AltTocFlatBuild(this._rows);
+  _AltTocFlatBuild(this._source, this._normalizeChunk);
 
-  final List<Map<String, dynamic>> _rows;
+  final AltTocFlatBuild _source;
+  final int _normalizeChunk;
   final List<_AltTocFlatItem> items = [];
 
-  bool get isDone => items.length >= _rows.length;
+  bool get isNormalizing => _source.isDone;
 
-  void step(int count) {
-    final end = math.min(items.length + count, _rows.length);
+  bool get isDone => _source.isDone && items.length >= _source.result.length;
+
+  Future<void> step() async {
+    if (!_source.isDone) {
+      await _source.step();
+      return;
+    }
+    final rows = _source.result;
+    final end = math.min(items.length + _normalizeChunk, rows.length);
     for (var i = items.length; i < end; i++) {
-      final row = _rows[i];
+      final row = rows[i];
       items.add((
         row: row,
         refTokens: normalizeForFindRefMatch(
@@ -674,15 +681,14 @@ class _Bootstrap {
   final SendPort mainSendPort;
   final Map<String, Map<String, String>> queryCache;
   final String dbPath;
-  final int altTocChunkSize;
-  final Duration altTocStepDelay;
+  final ({int chunkSize, Duration phaseDelay, Duration normalizeDelay})?
+  altTocTuning;
 
   const _Bootstrap({
     required this.mainSendPort,
     required this.queryCache,
     required this.dbPath,
-    required this.altTocChunkSize,
-    required this.altTocStepDelay,
+    required this.altTocTuning,
   });
 }
 
@@ -726,8 +732,16 @@ void _workerMain(_Bootstrap bootstrap) {
     if (pending != null) return pending;
     final repo = await ensureRepo();
     if (repo == null) return null;
+    final chunk = bootstrap.altTocTuning?.chunkSize;
     return altTocBuild = _AltTocFlatBuild(
-      await repo.getAllAltTocFlatEntries(),
+      chunk == null
+          ? repo.beginAltTocFlatBuild()
+          : repo.beginAltTocFlatBuild(
+              entriesPerStep: chunk,
+              linesPerStep: chunk,
+              rowsPerStep: chunk,
+            ),
+      chunk ?? _altTocNormalizeChunkSize,
     );
   }
 
@@ -743,7 +757,7 @@ void _workerMain(_Bootstrap bootstrap) {
     final build = await startAltTocBuild();
     if (build == null) return const [];
     while (!build.isDone) {
-      build.step(bootstrap.altTocChunkSize);
+      await build.step();
     }
     return completeAltTocBuild(build);
   }
@@ -751,31 +765,21 @@ void _workerMain(_Bootstrap bootstrap) {
   /// מקטע אחד של החימום. מחזיר true כשאין עוד מה לבנות.
   Future<bool> prewarmAltTocStep() async {
     if (altTocFlatCache != null) return true;
-    final resuming = altTocBuild != null;
     final build = await startAltTocBuild();
     if (build == null) return true;
-    // השאילתה עצמה היא מקטע; הנרמול מתחיל רק בסבב הבא.
-    if (resuming || build.isDone) {
-      build.step(bootstrap.altTocChunkSize);
-      if (bootstrap.altTocStepDelay > Duration.zero) {
-        sleep(bootstrap.altTocStepDelay);
-      }
-    }
+    final tuning = bootstrap.altTocTuning;
+    final delay = build.isNormalizing
+        ? tuning?.normalizeDelay
+        : tuning?.phaseDelay;
+    await build.step();
+    if (delay != null && delay > Duration.zero) await Future.delayed(delay);
     if (!build.isDone) return false;
     completeAltTocBuild(build);
     return true;
   }
 
-  // הבקשות מעובדות **בזו אחר זו** מהתור הזה, לפי סדר ההגעה. בלי זה, בקשות
-  // מקבילות (למשל כמה `era` ב-Future.wait, או טעינת מפרשים לכמה שורות במקביל)
-  // היו נכנסות ל-ensureRepo יחד ופותחות יותר מחיבור DB אחד, ו-reset היה יכול
-  // לסגור את החיבור באמצע שאילתה אחרת בנקודת await. עיבוד עוקב מבטל את שני
-  // ה-races בלי לפגוע ב-throughput (sqlite3 סינכרוני — ממילא לא רץ במקביל על
-  // אותו חיבור), וה-main isolate נשאר פנוי כך או כך.
-  //
-  // תור מפורש ולא שרשרת `Future.then`: שרשרת אינה ניתנת לגזירה, ולכן שאילתה
-  // של הקלדה חדשה הייתה ממתינה שכל עבודת ההקלדה הקודמת תתרוקן.
-  // נתיב הרקע (חימום) מתקדם מקטע אחד בכל סבב, ורק כשהתור הראשי ריק.
+  // עיבוד סדרתי: בקשות מקבילות היו פותחות כמה חיבורים, ו-reset היה סוגר חיבור
+  // באמצע שאילתה. הרקע (חימום) מתקדם מקטע אחד בכל סבב, רק כשהתור הראשי ריק.
   final queue = <Map<String, Object?>>[];
   final backgroundQueue = <Map<String, Object?>>[];
   var draining = false;

@@ -393,17 +393,21 @@ void main() {
   group('חימום AltToc ברקע', () {
     const entryCount = 8;
 
-    Future<String> seedAltTocDb() async {
-      final dbPath = await seedDb('seforim', 'בראשית');
+    Future<String> seedAltTocDb({
+      String name = 'seforim',
+      String text = 'פרשה',
+      int count = entryCount,
+    }) async {
+      final dbPath = await seedDb(name, 'בראשית');
       final database = MyDatabase.withPath(dbPath);
       final db = await database.database;
       db.execute(
         "INSERT INTO alt_toc_structure (id, bookId, key) VALUES (1, 1, 'p')",
       );
-      for (var i = 0; i < entryCount; i++) {
+      for (var i = 0; i < count; i++) {
         db.execute(
           'INSERT INTO tocText (id, text) VALUES (?, ?)',
-          [500 + i, 'פרשה $i'],
+          [500 + i, '$text $i'],
         );
         db.execute(
           'INSERT INTO alt_toc_entry (id, structureId, textId, level, lineId) '
@@ -419,11 +423,16 @@ void main() {
       return dbPath;
     }
 
-    /// מקטע של ערך אחד עם השהיה סינכרונית — החימום נמשך כ-800ms.
-    Future<FindRefDbIsolate> slowBuildIsolate() async {
+    /// מקטע של ערך אחד בכל שלב, עם השהיה אחרי כל מקטע. בברירת המחדל רק
+    /// הנרמול איטי — כ-800ms.
+    Future<FindRefDbIsolate> slowBuildIsolate({
+      Duration phaseDelay = Duration.zero,
+      Duration normalizeDelay = const Duration(milliseconds: 100),
+    }) async {
       FindRefDbIsolate.debugAltTocBuildTuning = (
         chunkSize: 1,
-        stepDelay: const Duration(milliseconds: 100),
+        phaseDelay: phaseDelay,
+        normalizeDelay: normalizeDelay,
       );
       addTearDown(() => FindRefDbIsolate.debugAltTocBuildTuning = null);
       final isolate = await FindRefDbIsolate.instance();
@@ -450,6 +459,67 @@ void main() {
         await isolate.searchAltTocFlat(['פרשה']),
         hasLength(entryCount),
       );
+    });
+
+    test('שלבי השאילתה והנתיבים מחולקים גם הם למקטעים', () async {
+      await seedAltTocDb();
+      // רק השלבים שלפני הנרמול איטיים: 8 ערכים לשאילתה ו-8 לנתיבים.
+      final isolate = await slowBuildIsolate(
+        phaseDelay: const Duration(milliseconds: 100),
+        normalizeDelay: Duration.zero,
+      );
+
+      var prewarmDone = false;
+      final prewarm = isolate.prewarmAltTocFlat().then(
+        (_) => prewarmDone = true,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      expect(await isolate.getTocEntries(1, 'בראשית'), isNotEmpty);
+      expect(prewarmDone, isFalse, reason: 'הבקשה עקפה את שלבי המסד');
+
+      await prewarm;
+      expect(
+        await isolate.searchAltTocFlat(['פרשה']),
+        hasLength(entryCount),
+      );
+    });
+
+    test('חיפוש AltToc באמצע חימום משלים את הבנייה החלקית', () async {
+      await seedAltTocDb();
+      final isolate = await slowBuildIsolate();
+
+      var prewarmDone = false;
+      final prewarm = isolate.prewarmAltTocFlat().then(
+        (_) => prewarmDone = true,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      expect(
+        await isolate.searchAltTocFlat(['פרשה']),
+        hasLength(entryCount),
+      );
+      expect(prewarmDone, isFalse);
+      await prewarm;
+      expect(
+        await isolate.searchAltTocFlat(['פרשה', '3']),
+        hasLength(1),
+      );
+    });
+
+    test('החלפת ספרייה באמצע חימום זורקת את הבנייה הישנה', () async {
+      await seedAltTocDb();
+      final isolate = await slowBuildIsolate();
+
+      final prewarm = isolate.prewarmAltTocFlat();
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      await seedAltTocDb(name: 'other', text: 'סימן', count: 3);
+      FindRefDbIsolate.resetIfRunning();
+      await prewarm;
+
+      expect(await isolate.searchAltTocFlat(['פרשה']), isEmpty);
+      expect(await isolate.searchAltTocFlat(['סימן']), hasLength(3));
     });
 
     test('ביטול הקלדה ממשיך לזרוק בקשות ממתינות בזמן חימום', () async {

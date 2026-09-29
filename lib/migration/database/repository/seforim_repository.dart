@@ -3736,14 +3736,6 @@ extension BookAcronymRepository on SeforimRepository {
         .toList();
   }
 
-  /// מחזיר רשימה שטוחה של *כל* ערכי ה-AltToc על פני כל הספרים, עם הנתיב
-  /// המלא לכל ערך — בשאילתת SQL אחת. נועד ל-fallback הגלובלי של FindRef:
-  /// במקום 339 שאילתות סדרתיות (אחת לכל ספר), הוא מקבל קאש שטוח בודד
-  /// ושאר העבודה היא פילטר O(N) ב-Dart.
-  ///
-  /// כל map בתוצאה כולל את המפתחות:
-  /// `bookId`, `bookTitle`, `bookOrderIndex`, `reference` (נתיב מלא יחסי
-  /// לספר, ללא שם הספר), `segment` (=lineIndex), `level`, `dbLineId`.
   /// מזהי כל הספרים שיש להם מבנה AltToc — מאפשר לצרכן לדלג על שאילתות
   /// AltToc פר-ספר עבור הרוב המכריע של הספרים שאין להם כזה.
   Future<List<int>> getAltStructureBookIds() async {
@@ -3753,94 +3745,21 @@ extension BookAcronymRepository on SeforimRepository {
     return [for (final r in rows) r['bookId'] as int];
   }
 
-  /// מיפוי `line.id → line.lineIndex` לכל ה-AltToc בספרייה. `INDEXED BY`
-  /// חובה: בלעדיו SQLite בוחר rowid, ואז 185MB קריאות במקום 15MB.
-  Map<int, int> _allAltTocLineIndexes(
-    sqlite3.Database db,
-    List<Map<String, dynamic>> rows,
-  ) {
-    final needed = [
-      for (final r in rows)
-        if (r['lineId'] case final int lineId) lineId,
-    ];
-    if (needed.isEmpty) return const {};
-    if (!_hasLineBookIndex(db)) return _lineIndexesByIds(db, needed);
-
-    final indexRows = db.select('''
-      SELECT l.id AS id, l.lineIndex AS lineIndex
-      FROM line l INDEXED BY idx_line_book_index
-      WHERE l.bookId IN (SELECT bookId FROM alt_toc_structure)
-        AND l.id IN (SELECT lineId FROM alt_toc_entry WHERE lineId IS NOT NULL)
-    ''');
-    return {
-      for (final row in indexRows) row['id'] as int: row['lineIndex'] as int,
-    };
-  }
-
+  /// כל ערכי ה-AltToc בספרייה עם הנתיב המלא, לחיפוש הגלובלי של FindRef.
+  /// מפתחות: bookId, bookTitle, bookOrderIndex, reference, segment, level, dbLineId.
   Future<List<Map<String, dynamic>>> getAllAltTocFlatEntries() async {
-    if (!(await _capabilities).hasAltToc) return const [];
-    final db = await _database.database;
-    final rows = db.select('''
-      SELECT s.bookId AS bookId,
-             b.title AS bookTitle,
-             b.orderIndex AS bookOrderIndex,
-             e.id AS entryId,
-             t.text AS text,
-             e.level AS level,
-             e.parentId AS parentId,
-             e.lineId AS lineId
-      FROM alt_toc_entry e
-      JOIN alt_toc_structure s ON e.structureId = s.id
-      JOIN book b ON b.id = s.bookId
-      JOIN tocText t ON e.textId = t.id
-    ''').toMapList();
-
-    if (rows.isEmpty) return const [];
-
-    final lineIndexes = _allAltTocLineIndexes(db, rows);
-
-    // נבנה memoized buildPath עבור parentId → reference. ה-`entryId` יחיד
-    // ברמת ה-DB, ולכן מספיק קאש גלובלי אחד מעבר לכל הספרים.
-    final entryTexts = <int, String>{};
-    final entryParents = <int, int?>{};
-    for (final r in rows) {
-      final id = r['entryId'] as int;
-      entryTexts[id] = r['text'] as String;
-      entryParents[id] = r['parentId'] as int?;
-    }
-
-    final pathCache = <int, String>{};
-    String buildPath(int? id) {
-      if (id == null) return '';
-      final cached = pathCache[id];
-      if (cached != null) return cached;
-      final parent = buildPath(entryParents[id]);
-      final text = entryTexts[id]!;
-      final result = parent.isEmpty ? text : '$parent $text';
-      pathCache[id] = result;
-      return result;
-    }
-
-    final result = <Map<String, dynamic>>[];
-    for (final r in rows) {
-      final text = r['text'] as String;
-      final ancestorPath = buildPath(r['parentId'] as int?);
-      final fullRef = text.isEmpty
-          ? ancestorPath
-          : (ancestorPath.isEmpty ? text : '$ancestorPath $text');
-      final lineId = r['lineId'] as int?;
-      result.add({
-        'bookId': r['bookId'] as int,
-        'bookTitle': r['bookTitle'] as String,
-        'bookOrderIndex': (r['bookOrderIndex'] as num).toDouble(),
-        'reference': fullRef,
-        'segment': lineId == null ? 0 : (lineIndexes[lineId] ?? 0),
-        'level': r['level'] as int,
-        'dbLineId': lineId ?? 0,
-      });
-    }
-    return result;
+    final build = beginAltTocFlatBuild();
+    while (!await build.step()) {}
+    return build.result;
   }
+
+  /// אותה תוצאה כמו [getAllAltTocFlatEntries], במקטעים סינכרוניים קצרים —
+  /// כדי ש-worker ישלב בקשות אחרות בין המקטעים.
+  AltTocFlatBuild beginAltTocFlatBuild({
+    int entriesPerStep = 5000,
+    int linesPerStep = 10000,
+    int rowsPerStep = 5000,
+  }) => AltTocFlatBuild._(this, entriesPerStep, linesPerStep, rowsPerStep);
 }
 
 /// ערך TOC מעובד שנשמר בקאש בזיכרון של [SeforimRepository].
@@ -3902,4 +3821,233 @@ class _TocBookCache {
     required this.rootEntries,
     required this.childrenByParentId,
   });
+}
+
+enum _AltTocFlatPhase { start, entries, lineSetup, lines, rows, done }
+
+/// בניית [SeforimRepository.getAllAltTocFlatEntries] בשלבים. סדר הערכים הוא
+/// סדר `alt_toc_entry.id`, כמו בסריקת השאילתה המקורית.
+class AltTocFlatBuild {
+  AltTocFlatBuild._(
+    this._repo,
+    this._entriesPerStep,
+    this._linesPerStep,
+    this._rowsPerStep,
+  );
+
+  final SeforimRepository _repo;
+  final int _entriesPerStep;
+  final int _linesPerStep;
+  final int _rowsPerStep;
+
+  _AltTocFlatPhase _phase = _AltTocFlatPhase.start;
+  late sqlite3.Database _db;
+  int _cursor = 0;
+  int _maxEntryId = 0;
+  final List<Map<String, dynamic>> _entries = [];
+  final Map<int, String> _entryTexts = {};
+  final Map<int, int?> _entryParents = {};
+  final Map<int, String> _pathCache = {};
+  final Map<int, int> _lineIndexes = {};
+  List<List<int>> _lineSlices = const [];
+  String? _lineSliceSql;
+
+  final List<Map<String, dynamic>> result = [];
+
+  bool get isDone => _phase == _AltTocFlatPhase.done;
+
+  /// מבצע מקטע אחד. מחזיר true כשהבנייה הושלמה.
+  Future<bool> step() async {
+    switch (_phase) {
+      case _AltTocFlatPhase.start:
+        await _start();
+      case _AltTocFlatPhase.entries:
+        _readEntries();
+      case _AltTocFlatPhase.lineSetup:
+        await _planLineSlices();
+      case _AltTocFlatPhase.lines:
+        _readLineSlice();
+      case _AltTocFlatPhase.rows:
+        _buildRows();
+      case _AltTocFlatPhase.done:
+        break;
+    }
+    return isDone;
+  }
+
+  Future<void> _start() async {
+    if (!(await _repo._capabilities).hasAltToc) {
+      _phase = _AltTocFlatPhase.done;
+      return;
+    }
+    _db = await _repo._database.database;
+    final range = _db.select(
+      'SELECT MIN(id) AS lo, MAX(id) AS hi FROM alt_toc_entry',
+    );
+    final lo = range.first['lo'] as int?;
+    if (lo == null) {
+      _phase = _AltTocFlatPhase.done;
+      return;
+    }
+    _cursor = lo;
+    _maxEntryId = range.first['hi'] as int;
+    _phase = _AltTocFlatPhase.entries;
+  }
+
+  void _readEntries() {
+    final upper = _cursor + _entriesPerStep;
+    final rows = _db
+        .select(
+          '''
+      SELECT s.bookId AS bookId,
+             b.title AS bookTitle,
+             b.orderIndex AS bookOrderIndex,
+             e.id AS entryId,
+             t.text AS text,
+             e.level AS level,
+             e.parentId AS parentId,
+             e.lineId AS lineId
+      FROM alt_toc_entry e
+      JOIN alt_toc_structure s ON e.structureId = s.id
+      JOIN book b ON b.id = s.bookId
+      JOIN tocText t ON e.textId = t.id
+      WHERE e.id >= ? AND e.id < ?
+      ORDER BY e.id
+    ''',
+          [_cursor, upper],
+        )
+        .toMapList();
+    for (final r in rows) {
+      final id = r['entryId'] as int;
+      _entryTexts[id] = r['text'] as String;
+      _entryParents[id] = r['parentId'] as int?;
+    }
+    _entries.addAll(rows);
+    _cursor = upper;
+    if (_cursor > _maxEntryId) _phase = _AltTocFlatPhase.lineSetup;
+  }
+
+  /// `INDEXED BY` חובה: בלעדיו SQLite בוחר rowid, ואז 185MB קריאות במקום 15MB.
+  /// הספרים מחולקים לפי מספר שורות, כדי שכל מקטע יסרוק כ-[_linesPerStep].
+  Future<void> _planLineSlices() async {
+    _cursor = 0;
+    _phase = _AltTocFlatPhase.lines;
+    final needed = [
+      for (final r in _entries)
+        if (r['lineId'] case final int lineId) lineId,
+    ];
+    if (needed.isEmpty) {
+      _phase = _AltTocFlatPhase.rows;
+      return;
+    }
+    if (!_repo._hasLineBookIndex(_db)) {
+      final ids = needed.toSet().toList(growable: false);
+      _lineSlices = [
+        for (var i = 0; i < ids.length; i += _linesPerStep)
+          ids.sublist(
+            i,
+            i + _linesPerStep > ids.length ? ids.length : i + _linesPerStep,
+          ),
+      ];
+      return;
+    }
+    final hasLineIndexOnEntries = _db
+        .select(
+          "SELECT 1 FROM sqlite_master WHERE type = 'index' "
+          "AND name = 'idx_alt_toc_entry_line'",
+        )
+        .isNotEmpty;
+    // בלי אינדקס על lineId, EXISTS היה סורק את הטבלה לכל שורה.
+    final entryFilter = hasLineIndexOnEntries
+        ? 'EXISTS (SELECT 1 FROM alt_toc_entry e WHERE e.lineId = l.id)'
+        : 'l.id IN (SELECT lineId FROM alt_toc_entry WHERE lineId IS NOT NULL)';
+    final weightColumn =
+        (await _repo._capabilities).hasColumn(
+          'book',
+          'totalLines',
+        )
+        ? 'totalLines'
+        : '0';
+    final books = _db.select(
+      'SELECT id, $weightColumn AS weight FROM book '
+      'WHERE id IN (SELECT bookId FROM alt_toc_structure) ORDER BY id',
+    );
+    final slices = <List<int>>[];
+    var current = <int>[];
+    var weight = 0;
+    for (final row in books) {
+      current.add(row['id'] as int);
+      final lines = row['weight'] as int? ?? 0;
+      weight += lines > 0 ? lines : 1000;
+      if (weight >= _linesPerStep || current.length >= 500) {
+        slices.add(current);
+        current = <int>[];
+        weight = 0;
+      }
+    }
+    if (current.isNotEmpty) slices.add(current);
+    _lineSlices = slices;
+    _lineSliceSql = entryFilter;
+  }
+
+  void _readLineSlice() {
+    if (_cursor >= _lineSlices.length) {
+      _cursor = 0;
+      _phase = _AltTocFlatPhase.rows;
+      return;
+    }
+    final slice = _lineSlices[_cursor++];
+    final filter = _lineSliceSql;
+    if (filter == null) {
+      _lineIndexes.addAll(_repo._lineIndexesByIds(_db, slice));
+      return;
+    }
+    final placeholders = List.filled(slice.length, '?').join(',');
+    final rows = _db.select(
+      'SELECT l.id AS id, l.lineIndex AS lineIndex '
+      'FROM line l INDEXED BY idx_line_book_index '
+      'WHERE l.bookId IN ($placeholders) AND $filter',
+      slice,
+    );
+    for (final row in rows) {
+      _lineIndexes[row['id'] as int] = row['lineIndex'] as int;
+    }
+  }
+
+  String _buildPath(int? id) {
+    if (id == null) return '';
+    final cached = _pathCache[id];
+    if (cached != null) return cached;
+    final parent = _buildPath(_entryParents[id]);
+    final text = _entryTexts[id]!;
+    final path = parent.isEmpty ? text : '$parent $text';
+    _pathCache[id] = path;
+    return path;
+  }
+
+  void _buildRows() {
+    final end = _cursor + _rowsPerStep > _entries.length
+        ? _entries.length
+        : _cursor + _rowsPerStep;
+    for (var i = _cursor; i < end; i++) {
+      final r = _entries[i];
+      final text = r['text'] as String;
+      final ancestorPath = _buildPath(r['parentId'] as int?);
+      final fullRef = text.isEmpty
+          ? ancestorPath
+          : (ancestorPath.isEmpty ? text : '$ancestorPath $text');
+      final lineId = r['lineId'] as int?;
+      result.add({
+        'bookId': r['bookId'] as int,
+        'bookTitle': r['bookTitle'] as String,
+        'bookOrderIndex': (r['bookOrderIndex'] as num).toDouble(),
+        'reference': fullRef,
+        'segment': lineId == null ? 0 : (_lineIndexes[lineId] ?? 0),
+        'level': r['level'] as int,
+        'dbLineId': lineId ?? 0,
+      });
+    }
+    _cursor = end;
+    if (_cursor >= _entries.length) _phase = _AltTocFlatPhase.done;
+  }
 }
