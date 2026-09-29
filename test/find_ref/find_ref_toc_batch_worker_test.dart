@@ -178,4 +178,44 @@ void main() {
     );
     expect(fresh.single.toc, isNotEmpty);
   });
+
+  List<TocBatchRequest> batchOf(int bookCount) => [
+    for (var b = 1; b <= bookCount; b++)
+      (
+        bookId: b,
+        bookTitle: 'ספר $b',
+        queryTokens: ['א'],
+        fallbackTokens: null,
+        altTocTokens: null,
+      ),
+  ];
+
+  test('בקשה אינטראקטיבית נענית בין ספר לספר ולא בסוף האצווה', () async {
+    const bookCount = 20;
+    const perBook = Duration(milliseconds: 100);
+    await seedDb(bookCount);
+    FindRefDbIsolate.debugTocBatchBookDelay = perBook;
+    final isolate = await FindRefDbIsolate.instance();
+    addTearDown(isolate.disposeForTesting);
+    expect(await isolate.getAllLocalBooksSlim(), hasLength(bookCount));
+
+    var batchDone = false;
+    final batch = isolate
+        .getTocForBooks(batchOf(bookCount), searchEpoch: 1)
+        .whenComplete(() => batchDone = true);
+    await Future<void>.delayed(perBook * 1.5);
+
+    final stopwatch = Stopwatch()..start();
+    expect(await isolate.getBookTocRows(1), isNotEmpty);
+    expect(
+      stopwatch.elapsed,
+      lessThan(perBook * 3),
+      reason: 'פתיחת ספר ממתינה לספר אחד של האצווה לכל היותר',
+    );
+    expect(batchDone, isFalse);
+
+    final results = await batch;
+    expect(results, hasLength(bookCount));
+    expect(results.every((r) => r.toc.isNotEmpty), isTrue);
+  });
 }

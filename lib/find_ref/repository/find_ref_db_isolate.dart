@@ -223,7 +223,7 @@ class FindRefDbIsolate {
   }
 
   /// תוכן העניינים וה-AltToc של כמה ספרים בבקשה אחת, בסדר [books]. ה-worker
-  /// בודק ביטול בין ספר לספר, כך שהקלדה חדשה עוצרת גם אצווה שכבר רצה.
+  /// עונה לבקשות אחרות ובודק ביטול בין ספר לספר.
   Future<List<TocBatchResult>> getTocForBooks(
     List<TocBatchRequest> books, {
     int searchScope = 0,
@@ -731,6 +731,28 @@ class _AltTocFlatBuild {
   }
 }
 
+/// בקשה בתור ה-worker.
+class _Job {
+  _Job(this.id, this.method, this.args, this.epoch, this.scope);
+
+  final int id;
+  final String method;
+  final Map<String, Object?> args;
+  final int? epoch;
+  final int scope;
+
+  /// מצב אצוות TOC: מתקדמת ספר אחד בכל סבב וחוזרת לסוף התור, כך שבקשות
+  /// שהגיעו בינתיים (פתיחת ספר, חיפוש) נענות בין ספר לספר.
+  _TocBatchProgress? tocBatch;
+}
+
+class _TocBatchProgress {
+  _TocBatchProgress(this.repository);
+
+  final SeforimRepository? repository;
+  final List<Map<String, Object?>> out = [];
+}
+
 // ── Worker bootstrap & entry point ──────────────────────────────────────────
 
 class _Bootstrap {
@@ -838,13 +860,18 @@ void _workerMain(_Bootstrap bootstrap) {
 
   // עיבוד סדרתי: בקשות מקבילות היו פותחות כמה חיבורים, ו-reset היה סוגר חיבור
   // באמצע שאילתה. הרקע (חימום) מתקדם מקטע אחד בכל סבב, רק כשהתור הראשי ריק.
-  final queue = <Map<String, Object?>>[];
+  final queue = <_Job>[];
   final backgroundQueue = <Map<String, Object?>>[];
   var draining = false;
 
   // בקשות שנשלחו עם `epoch` קטן מזה נזרקות מהתור. הבקשה שכבר רצה אינה
   // ניתנת לקטיעה — sqlite3 סינכרוני.
   final minEpochByScope = <int, int>{};
+
+  bool isStale(_Job job) {
+    final epoch = job.epoch;
+    return epoch != null && epoch < (minEpochByScope[job.scope] ?? 0);
+  }
 
   void reply(int id, {Object? result, String? error, bool cancelled = false}) {
     bootstrap.mainSendPort.send({
@@ -865,11 +892,7 @@ void _workerMain(_Bootstrap bootstrap) {
     backgroundQueue.clear();
   }
 
-  Future<Object?> dispatch(
-    String method,
-    Map<String, Object?> args,
-    bool Function() isCancelled,
-  ) async {
+  Future<Object?> dispatch(String method, Map<String, Object?> args) async {
     switch (method) {
       case 'reset':
         repository?.database.close();
@@ -914,50 +937,6 @@ void _workerMain(_Bootstrap bootstrap) {
           args['bookTitle'] as String,
           queryTokens: (args['queryTokens'] as List?)?.cast<String>(),
         );
-      case 'tocBatch':
-        final books = (args['books'] as List).cast<Map>();
-        final repo = await ensureRepo();
-        final out = <Map<String, Object?>>[];
-        for (final book in books) {
-          if (out.isNotEmpty) {
-            // מסירת התור בין ספר לספר, כדי שפקודת 'cancel' תגיע באמצע האצווה.
-            await Future<void>.delayed(
-              bootstrap.tocBatchBookDelay ?? Duration.zero,
-            );
-            if (isCancelled()) throw const FindRefQueryCancelled();
-          }
-          if (repo == null) {
-            out.add(const {'toc': [], 'altToc': []});
-            continue;
-          }
-          final bookId = book['bookId'] as int;
-          final title = book['bookTitle'] as String;
-          final fallback = (book['fallbackTokens'] as List?)?.cast<String>();
-          final altTokens = (book['altTocTokens'] as List?)?.cast<String>();
-          var toc = await repo.getTocEntriesForReference(
-            bookId,
-            title,
-            queryTokens: (book['queryTokens'] as List).cast<String>(),
-          );
-          if (toc.isEmpty && fallback != null) {
-            toc = await repo.getTocEntriesForReference(
-              bookId,
-              title,
-              queryTokens: fallback,
-            );
-          }
-          out.add({
-            'toc': toc,
-            'altToc': altTokens == null
-                ? const <Map<String, dynamic>>[]
-                : await repo.getAltTocEntriesForReference(
-                    bookId,
-                    title,
-                    queryTokens: altTokens,
-                  ),
-          });
-        }
-        return out;
       case 'allLocalBooksSlim':
         final repo = await ensureRepo();
         if (repo == null) {
@@ -1110,6 +1089,56 @@ void _workerMain(_Bootstrap bootstrap) {
     }
   }
 
+  /// ספר אחד של אצוות TOC. מחזיר true כשהאצווה הושלמה.
+  Future<bool> tocBatchStep(_Job job) async {
+    final books = (job.args['books'] as List).cast<Map>();
+    var progress = job.tocBatch;
+    if (progress == null) {
+      progress = job.tocBatch = _TocBatchProgress(await ensureRepo());
+    } else {
+      final delay = bootstrap.tocBatchBookDelay;
+      if (delay != null) await Future<void>.delayed(delay);
+      // reset/השהיה נכנסו בין הספרים: שאר האצווה היה נשלף ממסד אחר.
+      if (!identical(repository, progress.repository)) {
+        throw const FindRefQueryCancelled();
+      }
+    }
+    if (progress.out.length >= books.length) return true;
+    final repo = progress.repository;
+    final book = books[progress.out.length];
+    if (repo == null) {
+      progress.out.add(const {'toc': [], 'altToc': []});
+    } else {
+      final bookId = book['bookId'] as int;
+      final title = book['bookTitle'] as String;
+      final fallback = (book['fallbackTokens'] as List?)?.cast<String>();
+      final altTokens = (book['altTocTokens'] as List?)?.cast<String>();
+      var toc = await repo.getTocEntriesForReference(
+        bookId,
+        title,
+        queryTokens: (book['queryTokens'] as List).cast<String>(),
+      );
+      if (toc.isEmpty && fallback != null) {
+        toc = await repo.getTocEntriesForReference(
+          bookId,
+          title,
+          queryTokens: fallback,
+        );
+      }
+      progress.out.add({
+        'toc': toc,
+        'altToc': altTokens == null
+            ? const <Map<String, dynamic>>[]
+            : await repo.getAltTocEntriesForReference(
+                bookId,
+                title,
+                queryTokens: altTokens,
+              ),
+      });
+    }
+    return progress.out.length >= books.length;
+  }
+
   Future<void> runBackgroundStep() async {
     final message = backgroundQueue.first;
     bool done;
@@ -1139,30 +1168,23 @@ void _workerMain(_Bootstrap bootstrap) {
           if (backgroundQueue.isNotEmpty) await runBackgroundStep();
           continue;
         }
-        final message = queue.removeAt(0);
-        final id = message['id'] as int;
-        final epoch = message['epoch'] as int?;
-        final scope = message['scope'] as int? ?? 0;
-        if (epoch != null && epoch < (minEpochByScope[scope] ?? 0)) {
-          reply(id, cancelled: true);
+        final job = queue.removeAt(0);
+        if (isStale(job)) {
+          reply(job.id, cancelled: true);
           continue;
         }
-        final method = message['method'] as String;
-        final args =
-            (message['args'] as Map?)?.cast<String, Object?>() ?? const {};
         try {
-          reply(
-            id,
-            result: await dispatch(
-              method,
-              args,
-              () => epoch != null && epoch < (minEpochByScope[scope] ?? 0),
-            ),
-          );
+          if (job.method != 'tocBatch') {
+            reply(job.id, result: await dispatch(job.method, job.args));
+          } else if (!await tocBatchStep(job)) {
+            queue.add(job);
+          } else {
+            reply(job.id, result: job.tocBatch!.out);
+          }
         } on FindRefQueryCancelled {
-          reply(id, cancelled: true);
+          reply(job.id, cancelled: true);
         } catch (e) {
-          reply(id, error: e.toString());
+          reply(job.id, error: e.toString());
         }
       }
     } finally {
@@ -1182,13 +1204,8 @@ void _workerMain(_Bootstrap bootstrap) {
         minEpochByScope[scope] = epoch;
       }
       queue.removeWhere((queued) {
-        final queuedEpoch = queued['epoch'] as int?;
-        if ((queued['scope'] as int? ?? 0) != scope ||
-            queuedEpoch == null ||
-            queuedEpoch >= minEpochByScope[scope]!) {
-          return false;
-        }
-        reply(queued['id'] as int, cancelled: true);
+        if (queued.scope != scope || !isStale(queued)) return false;
+        reply(queued.id, cancelled: true);
         return true;
       });
       return;
@@ -1202,13 +1219,19 @@ void _workerMain(_Bootstrap bootstrap) {
     final id = message['id'] as int?;
     final method = message['method'] as String?;
     if (id == null || method == null) return;
-    (message['lane'] == _backgroundLane ? backgroundQueue : queue).add({
-      'id': id,
-      'method': method,
-      'args': message['args'],
-      'epoch': message['epoch'],
-      'scope': message['scope'],
-    });
+    if (message['lane'] == _backgroundLane) {
+      backgroundQueue.add({'id': id, 'method': method});
+    } else {
+      queue.add(
+        _Job(
+          id,
+          method,
+          (message['args'] as Map?)?.cast<String, Object?>() ?? const {},
+          message['epoch'] as int?,
+          message['scope'] as int? ?? 0,
+        ),
+      );
+    }
     drain();
   });
 }
