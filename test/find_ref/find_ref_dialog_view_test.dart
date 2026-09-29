@@ -133,8 +133,6 @@ class _PopCounter extends NavigatorObserver {
 class _FlakyRepository extends _FakeRepository {
   _FlakyRepository(super.results);
 
-  int calls = 0;
-
   @override
   Future<List<DbReferenceResult>> findRefs(
     String ref, {
