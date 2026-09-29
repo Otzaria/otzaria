@@ -2,6 +2,10 @@
    SQLite, compaction, and concurrent WAL readers. */
 #include "test_sql.h"
 
+#if !defined(_WIN32)
+#include <sched.h>
+#endif
+
 /* ================= overlay codec on an in-memory sidecar ================= */
 typedef struct memovl {
   uint8_t *p;
@@ -541,9 +545,15 @@ typedef struct seal_arg {
 
 static void sealer(void *p) {
   seal_arg *a = (seal_arg *)p;
-  while (!zplat_atomic_load(&a->stop)) {
+  /* yield: a spinning sealer starves the writer (TSan livelocked on it) */
+  while (!zplat_atomic_load(&a->stop) && a->seals < 200000) {
     zovl_commit(a->o, 0);
     a->seals++;
+#if defined(_WIN32)
+    SwitchToThread();
+#else
+    sched_yield();
+#endif
   }
 }
 
@@ -1111,6 +1121,7 @@ static void test_concurrent_wal(int readers, int txns) {
 }
 
 int main(void) {
+  setvbuf(stdout, NULL, _IONBF, 0); /* progress stays visible in logs */
   sqlite3_auto_extension((void (*)(void))sqlite3_otzariazvfs_init);
   sqlite3 *m = NULL;
   sqlite3_open(":memory:", &m);

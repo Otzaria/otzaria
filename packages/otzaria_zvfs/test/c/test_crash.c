@@ -207,6 +207,7 @@ static void one_config(int with_overlay, int mode, int sync, stats *st,
 }
 
 int main(void) {
+  setvbuf(stdout, NULL, _IONBF, 0); /* progress stays visible in logs */
   memfs_register();
   sqlite3_auto_extension((void (*)(void))sqlite3_otzariazvfs_init);
   sqlite3 *m = NULL;

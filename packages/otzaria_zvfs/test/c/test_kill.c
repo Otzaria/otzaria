@@ -220,6 +220,7 @@ static int last_marker(const char *out, char tag) {
 }
 
 int main(int argc, char **argv) {
+  setvbuf(stdout, NULL, _IONBF, 0); /* progress stays visible in logs */
   sqlite3_auto_extension((void (*)(void))sqlite3_otzariazvfs_init);
   sqlite3 *m = NULL;
   sqlite3_open(":memory:", &m);

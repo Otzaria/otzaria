@@ -78,6 +78,11 @@ static uint64_t mf_rand(void) {
   return MF.rng;
 }
 
+/* Empty images have no buffer yet: memcpy needs non-NULL even for 0 bytes. */
+static void mf_copy(void *dst, const void *src, size_t n) {
+  if (n) memcpy(dst, src, n);
+}
+
 static mf_node *mf_find(const char *name) {
   for (mf_node *n = MF.nodes; n; n = n->next)
     if (strcmp(n->name, name) == 0) return n;
@@ -220,7 +225,7 @@ static int mfSync(sqlite3_file *pf, int flags) {
   }
   free(n->dur);
   n->dur = (uint8_t *)malloc((size_t)(n->cur_len ? n->cur_len : 1));
-  memcpy(n->dur, n->cur, (size_t)n->cur_len);
+  mf_copy(n->dur, n->cur, (size_t)n->cur_len);
   n->dur_len = n->cur_len;
   mf_clear_ops(n);
   return SQLITE_OK;
@@ -475,11 +480,11 @@ static void memfs_put(const char *name, const uint8_t *data, int64_t len) {
   mf_clear_ops(n);
   n->cur_len = 0;
   mf_reserve(&n->cur, &n->cur_cap, len ? len : 1);
-  memcpy(n->cur, data, (size_t)len);
+  mf_copy(n->cur, data, (size_t)len);
   n->cur_len = len;
   free(n->dur);
   n->dur = (uint8_t *)malloc((size_t)(len ? len : 1));
-  memcpy(n->dur, data, (size_t)len);
+  mf_copy(n->dur, data, (size_t)len);
   n->dur_len = len;
 }
 
@@ -487,7 +492,7 @@ static int64_t memfs_get(const char *name, uint8_t **data) {
   mf_node *n = mf_find(name);
   if (!n) return -1;
   *data = (uint8_t *)malloc((size_t)(n->cur_len ? n->cur_len : 1));
-  memcpy(*data, n->cur, (size_t)n->cur_len);
+  mf_copy(*data, n->cur, (size_t)n->cur_len);
   return n->cur_len;
 }
 
@@ -503,7 +508,7 @@ static void memfs_sync_all(void) {
   for (mf_node *n = MF.nodes; n; n = n->next) {
     free(n->dur);
     n->dur = (uint8_t *)malloc((size_t)(n->cur_len ? n->cur_len : 1));
-    memcpy(n->dur, n->cur, (size_t)n->cur_len);
+    mf_copy(n->dur, n->cur, (size_t)n->cur_len);
     n->dur_len = n->cur_len;
     mf_clear_ops(n);
   }
@@ -515,7 +520,7 @@ static void memfs_crash(int policy) {
     uint8_t *buf = NULL;
     int64_t len = 0, cap = 0;
     mf_reserve(&buf, &cap, n->dur_len ? n->dur_len : 1);
-    memcpy(buf, n->dur, (size_t)n->dur_len);
+    mf_copy(buf, n->dur, (size_t)n->dur_len);
     len = n->dur_len;
     int keep = n->nops;
     int torn = -1;
@@ -536,7 +541,7 @@ static void memfs_crash(int policy) {
     n->cur_cap = cap;
     free(n->dur);
     n->dur = (uint8_t *)malloc((size_t)(len ? len : 1));
-    memcpy(n->dur, buf, (size_t)len);
+    mf_copy(n->dur, buf, (size_t)len);
     n->dur_len = len;
     mf_clear_ops(n);
     for (int i = 0; i < n->shm_n; i++) free(n->shm[i]);
@@ -564,7 +569,7 @@ static void memfs_snapshot(mf_snap *s) {
     snprintf(s->names[s->n], 512, "%s", n->name);
     s->len[s->n] = n->cur_len;
     s->data[s->n] = (uint8_t *)malloc((size_t)(n->cur_len ? n->cur_len : 1));
-    memcpy(s->data[s->n], n->cur, (size_t)n->cur_len);
+    mf_copy(s->data[s->n], n->cur, (size_t)n->cur_len);
     s->n++;
   }
 }
