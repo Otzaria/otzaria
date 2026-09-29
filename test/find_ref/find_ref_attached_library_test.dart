@@ -251,7 +251,57 @@ void main() {
         greaterThan(0),
       );
     });
+
+    test('עבודה מאוגדת מקבלת תוספת קטנה לכל שאילתה, לא כפולה', () async {
+      final path = createDb(withLineRef: false);
+      final previous = (
+        AttachedFindRefWorker.callTimeout,
+        AttachedFindRefWorker.perCallTimeout,
+      );
+      addTearDown(() {
+        AttachedFindRefWorker.callTimeout = previous.$1;
+        AttachedFindRefWorker.perCallTimeout = previous.$2;
+        AttachedFindRefWorker.instance.reset();
+      });
+      AttachedFindRefWorker.callTimeout = const Duration(milliseconds: 300);
+      AttachedFindRefWorker.perCallTimeout = const Duration(milliseconds: 100);
+      final worker = AttachedFindRefWorker.instance;
+
+      // 450ms: מעבר לתקרה של שאילתה אחת, בתוך 300 + 2×100 של שלוש.
+      expect(
+        await worker.run(
+          path,
+          immutable: false,
+          version: '',
+          job: _slowJob,
+          calls: 3,
+        ),
+        1,
+      );
+
+      final stopwatch = Stopwatch()..start();
+      await expectLater(
+        worker.run(
+          path,
+          immutable: false,
+          version: '',
+          job: _hangingJob,
+          calls: 12,
+        ),
+        throwsA(isA<TimeoutException>()),
+      );
+      expect(
+        stopwatch.elapsedMilliseconds,
+        lessThan(2000),
+        reason: 'תקרה של 300 + 11×100, לא 12×300',
+      );
+    });
   });
+}
+
+Future<int> _slowJob(SeforimRepository repository) async {
+  await Future<void>.delayed(const Duration(milliseconds: 450));
+  return 1;
 }
 
 Future<int> _hangingJob(SeforimRepository repository) =>

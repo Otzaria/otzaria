@@ -24,6 +24,10 @@ class AttachedFindRefWorker {
 
   @visibleForTesting
   static Duration callTimeout = const Duration(seconds: 5);
+
+  /// תוספת לכל שאילתה נוספת בעבודה מאוגדת — כונן תקוע מזוהה כמעט באותו זמן.
+  @visibleForTesting
+  static Duration perCallTimeout = const Duration(milliseconds: 250);
   static Duration idleClose = const Duration(minutes: 1);
   static Duration failureBackoff = const Duration(minutes: 1);
 
@@ -32,12 +36,13 @@ class AttachedFindRefWorker {
   final Map<String, DateTime> _failedUntil = {};
 
   /// מריץ את [job] על המסד שב-[path]. [version] מזהה את תוכן הקובץ; שינוי
-  /// שלו סוגר את החיבור הקודם לאותו נתיב.
+  /// שלו סוגר את החיבור הקודם לאותו נתיב. [calls] — שאילתות שהעבודה מאגדת.
   Future<R> run<R>(
     String path, {
     required bool immutable,
     required String version,
     required AttachedDbJob<R> job,
+    int calls = 1,
   }) async {
     final failedUntil = _failedUntil[path];
     if (failedUntil != null && failedUntil.isAfter(DateTime.now())) {
@@ -51,7 +56,9 @@ class AttachedFindRefWorker {
       port.send(
         _Request(path, immutable, version, job, reply.sendPort),
       );
-      final message = await reply.first.timeout(callTimeout);
+      final message = await reply.first.timeout(
+        callTimeout + perCallTimeout * (calls - 1),
+      );
       if (message is _Failure) throw StateError(message.error);
       return message as R;
     } on TimeoutException {
