@@ -53,6 +53,10 @@ class DbReferenceResult {
   /// `line_ref`, ולא לכותרת TOC. המפרשים לתוצאה כזו נטענים על השורה עצמה.
   final bool isSourceLine;
 
+  /// true = ערך TOC שהחיפוש ההיררכי הגיע אליו בלי לצרוך את כל השאילתה
+  /// ("פרק א" עבור "א ב") — מדורג אחרי כל התאמה מלאה באותו ספר.
+  final bool isPartialTocMatch;
+
   const DbReferenceResult({
     required this.title,
     required this.reference,
@@ -67,6 +71,7 @@ class DbReferenceResult {
     this.sourceLineId = 0,
     this.source = BookSource.official,
     this.isSourceLine = false,
+    this.isPartialTocMatch = false,
   });
 
   DbReferenceResult copyWith({
@@ -83,6 +88,7 @@ class DbReferenceResult {
     int? sourceLineId,
     BookSource? source,
     bool? isSourceLine,
+    bool? isPartialTocMatch,
   }) {
     return DbReferenceResult(
       title: title ?? this.title,
@@ -98,6 +104,7 @@ class DbReferenceResult {
       sourceLineId: sourceLineId ?? this.sourceLineId,
       source: source ?? this.source,
       isSourceLine: isSourceLine ?? this.isSourceLine,
+      isPartialTocMatch: isPartialTocMatch ?? this.isPartialTocMatch,
     );
   }
 

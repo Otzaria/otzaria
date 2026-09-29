@@ -1,9 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
+import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
+
+import '../helpers/seforim_fixture_db.dart';
 
 class _MockDataRepository extends Mock implements DataRepository {}
 
@@ -38,6 +44,8 @@ FindRefRepository _repo({
 );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('שם ספר בגרשיים זהה לשאילתה מקבל התאמה מלאה', () async {
     final repo = _repo(
       hits: [
@@ -49,5 +57,73 @@ void main() {
     final results = await repo.findRefs('רש"י על בראשית');
 
     expect(results.first.title, 'רש"י על בראשית');
+  });
+
+  test('התאמת TOC מלאה באותו ספר קודמת להתאמה חלקית רדודה', () async {
+    final repo = _repo(
+      hits: [_hit(1, 'ספר בדיקה')],
+      toc: (_, _, _) async => [
+        {
+          'reference': 'ספר בדיקה חלק א',
+          'segment': 10,
+          'level': 2,
+          'dbLineId': 0,
+          'partialMatch': true,
+        },
+        {
+          'reference': 'ספר בדיקה חלק ב פרק א',
+          'segment': 50,
+          'level': 3,
+          'dbLineId': 0,
+        },
+      ],
+    );
+
+    final results = await repo.findRefs('ספר בדיקה ב א');
+
+    expect(results.map((r) => r.segment).take(2), [50, 10]);
+    expect(results.first.isPartialTocMatch, isFalse);
+  });
+
+  group('SeforimRepository.getTocEntriesForReference — סימון התאמה חלקית', () {
+    late Directory tempDir;
+    late MyDatabase database;
+    late SeforimRepository repo;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('otzaria_toc_partial');
+      final dbPath = SeforimFixtureDb.create(
+        tempDir,
+        SeforimFixtureVariant.full,
+      );
+      database = MyDatabase.withPath(dbPath, readOnly: true);
+      repo = SeforimRepository(database);
+      await repo.ensureInitialized();
+    });
+
+    tearDown(() async {
+      database.close();
+      try {
+        await tempDir.delete(recursive: true);
+      } catch (_) {}
+    });
+
+    test('ירידה שנעצרה לפני סוף השאילתה מסומנת partialMatch', () async {
+      final full = await repo.getTocEntriesForReference(
+        SeforimFixtureIds.bereshitId,
+        SeforimFixtureIds.bereshitTitle,
+        queryTokens: const ['א'],
+      );
+      final partial = await repo.getTocEntriesForReference(
+        SeforimFixtureIds.bereshitId,
+        SeforimFixtureIds.bereshitTitle,
+        queryTokens: const ['א', 'ב'],
+      );
+
+      expect(full, isNotEmpty);
+      expect(full.every((e) => e['partialMatch'] == null), isTrue);
+      expect(partial, isNotEmpty);
+      expect(partial.every((e) => e['partialMatch'] == true), isTrue);
+    });
   });
 }

@@ -3063,9 +3063,12 @@ extension BookAcronymRepository on SeforimRepository {
     }
 
     // חיפוש היררכי: יורד רמה-אחר-רמה עם תמיכה בטרנספוזיציית אותיות.
-    final matches = _searchTocHierarchically(cache, queryTokens);
+    final (:matches, :complete) = _searchTocHierarchically(cache, queryTokens);
     if (matches.isNotEmpty) {
-      return matches.map((e) => e.toMap()).toList();
+      return [
+        for (final e in matches)
+          if (complete) e.toMap() else {...e.toMap(), 'partialMatch': true},
+      ];
     }
 
     // Fallback שטוח — רק כשההיררכי לא מצא דבר. מאפשר לציטוט להגיע לכותרת
@@ -3445,8 +3448,8 @@ extension BookAcronymRepository on SeforimRepository {
   }
 
   /// חיפוש היררכי ב-TOC: יורד רמה-אחר-רמה עבור כל טוקן.
-  /// תומך בטרנספוזיציה של שתי אותיות עבריות ("טל" ↔ "לט").
-  List<_CachedTocEntry> _searchTocHierarchically(
+  /// [complete] = false כשהירידה נעצרה לפני סוף השאילתה ("פרק א" ל"א ב").
+  ({List<_CachedTocEntry> matches, bool complete}) _searchTocHierarchically(
     _TocBookCache cache,
     List<String> tokens,
   ) {
@@ -3460,9 +3463,12 @@ extension BookAcronymRepository on SeforimRepository {
         (e) => e.ownTokens.isNotEmpty && e.ownTokens.first == 'דף',
       );
       if (rootHasDaf) {
-        return cache.rootEntries
-            .where((e) => matchDafCitation(e.ownTokens, cite) == true)
-            .toList();
+        return (
+          matches: cache.rootEntries
+              .where((e) => matchDafCitation(e.ownTokens, cite) == true)
+              .toList(),
+          complete: true,
+        );
       }
     }
 
@@ -3500,7 +3506,7 @@ extension BookAcronymRepository on SeforimRepository {
             )) {
           continue;
         }
-        break;
+        return (matches: currentMatches, complete: false);
       }
 
       // שומר רק את הרמה הרדודה ביותר בין ההתאמות.
@@ -3534,7 +3540,7 @@ extension BookAcronymRepository on SeforimRepository {
       }
     }
 
-    return currentMatches;
+    return (matches: currentMatches, complete: true);
   }
 
   /// מחזיר את כל הצאצאים (ילדים, נכדים, ...) של [entry].

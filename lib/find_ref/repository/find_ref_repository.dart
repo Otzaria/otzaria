@@ -1394,6 +1394,7 @@ class FindRefRepository {
           tocLevel: entry['level'] as int,
           bookId: bookId,
           sourceLineId: entry['dbLineId'] as int? ?? 0,
+          isPartialTocMatch: entry['partialMatch'] == true,
         ),
       );
     }
@@ -2113,6 +2114,7 @@ class FindRefRepository {
         int tocLevel = 1,
         int sourceLineId = 0,
         bool isSourceLine = false,
+        bool isPartialTocMatch = false,
       }) => DbReferenceResult(
         title: book.title,
         reference: reference,
@@ -2126,6 +2128,7 @@ class FindRefRepository {
         sourceLineId: sourceLineId,
         source: source,
         isSourceLine: isSourceLine,
+        isPartialTocMatch: isPartialTocMatch,
       );
 
       final exact = exactLines[book.id];
@@ -2154,6 +2157,7 @@ class FindRefRepository {
             segment: entry['segment'] as int,
             tocLevel: entry['level'] as int,
             sourceLineId: entry['dbLineId'] as int? ?? 0,
+            isPartialTocMatch: entry['partialMatch'] == true,
           ),
         );
       }
@@ -2436,12 +2440,11 @@ class FindRefRepository {
   static bool _isSectionThenDafCitation(List<String> tokens) =>
       tokens.length >= 2 && parseDafCitation(tokens.sublist(1)) != null;
 
-  /// סדר הספציפיות בתוך אותו ספר: שורת מקור מדויקת < TOC L1 < TOC L2 <
-  /// AltToc < TOC L3+.
   static int _specificityRank(DbReferenceResult r) => findRefSpecificityRank(
     isSourceLine: r.isSourceLine,
     isAltToc: r.isAltToc,
     tocLevel: r.tocLevel,
+    isPartialTocMatch: r.isPartialTocMatch,
   );
 
   /// האם כל [remainingTokens] הם מילים בשם הקטגוריה *הישירה* של הספר. רק

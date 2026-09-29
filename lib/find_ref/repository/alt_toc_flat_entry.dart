@@ -123,6 +123,7 @@ List<T> pruneGlobalAltTocMatches<T>(
     isSourceLine: false,
     isAltToc: true,
     tocLevel: 0,
+    isPartialTocMatch: false,
   );
   final dropped = <int>{};
   for (final group in byBook.values) {

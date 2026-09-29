@@ -49,17 +49,21 @@ bool queryLooksDafCitation(List<String> tokens) {
 bool findRefCitationMatch(bool isDafCitation, String reference) =>
     !isDafCitation || reference.contains('דף');
 
-/// סדר הספציפיות בתוך אותו ספר: שורת מקור מדויקת < TOC L1 < TOC L2 <
-/// AltToc < TOC L3+.
+/// סדר הספציפיות בתוך אותו ספר: שורת מקור מדויקת < התאמת TOC מלאה <
+/// התאמה חלקית; בתוך כל אחת: TOC L1 < TOC L2 < AltToc < TOC L3+.
 int findRefSpecificityRank({
   required bool isSourceLine,
   required bool isAltToc,
   required int tocLevel,
+  bool isPartialTocMatch = false,
 }) {
   if (isSourceLine) return 0;
-  if (isAltToc) return 4;
-  return tocLevel <= 2 ? tocLevel + 1 : tocLevel + 2;
+  final byLevel = isAltToc ? 4 : (tocLevel <= 2 ? tocLevel + 1 : tocLevel + 2);
+  return isPartialTocMatch ? _partialTocRankOffset + byLevel : byLevel;
 }
+
+/// גדול מכל דרגת רמה אפשרית, כך שהתאמה חלקית תמיד אחרי כל התאמה מלאה.
+const int _partialTocRankOffset = 1 << 16;
 
 /// שובר-שוויון לתצוגה: ציון קצר יותר קודם, ואז לפי מיקום בספר — אחרת "כג."
 /// ו-"כג:" שווי-האורך עלולים להופיע עמוד ב לפני עמוד א.
@@ -80,6 +84,7 @@ typedef FindRefInBookKey = ({
   bool isSourceLine,
   bool isAltToc,
   int tocLevel,
+  bool isPartialTocMatch,
 });
 
 /// סדר הדירוג בין שתי תוצאות של אותו ספר רשמי ששתיהן התאמה ישירה: שאר
@@ -98,11 +103,13 @@ int compareWithinBook(
         isSourceLine: a.isSourceLine,
         isAltToc: a.isAltToc,
         tocLevel: a.tocLevel,
+        isPartialTocMatch: a.isPartialTocMatch,
       ).compareTo(
         findRefSpecificityRank(
           isSourceLine: b.isSourceLine,
           isAltToc: b.isAltToc,
           tocLevel: b.tocLevel,
+          isPartialTocMatch: b.isPartialTocMatch,
         ),
       );
   if (rankCmp != 0) return rankCmp;
