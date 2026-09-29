@@ -20,10 +20,17 @@ class FindRefSuccess extends FindRefState {
   /// המשתמש ממשיך להקליד בזמן שהתוצאות הקודמות עדיין מוצגות.
   final String query;
 
-  const FindRefSuccess(this.refs, {this.query = ''});
+  /// מצב מתג הספרים האישיים שבו רץ [query].
+  final bool includePersonalBooks;
+
+  const FindRefSuccess(
+    this.refs, {
+    this.query = '',
+    this.includePersonalBooks = false,
+  });
 
   @override
-  List<Object> get props => [refs, query];
+  List<Object> get props => [refs, query, includePersonalBooks];
 }
 
 /// מטמון הספרים של האיתור לא נטען, ולכן לא היה במה לחפש. נבדל מ-

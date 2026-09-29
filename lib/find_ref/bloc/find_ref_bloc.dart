@@ -21,6 +21,9 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
   /// ה-handler באותה נקודת await — כך שאף חיפוש לא יורץ מתחת ל-debounce.
   static const Duration _searchDebounce = Duration(milliseconds: 250);
 
+  /// הנרמול שקובע אם שתי שאילתות זהות — משותף לבלוק ולמסך.
+  static String normalizeQuery(String query) => normalizeForFindRefMatch(query);
+
   /// השאילתה המנורמלת שהניבה את התוצאות שמוצגות כרגע, יחד עם מצב הטוגל.
   /// הקלדה שאינה משנה את הנרמול (רווח, גרשיים, פיסוק) לא מריצה חיפוש מחדש
   /// ולא מהבהבת ספינר על אותן תוצאות בדיוק.
@@ -53,7 +56,7 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     SearchRefRequested event,
     Emitter<FindRefState> emit,
   ) async {
-    final normalized = normalizeForFindRefMatch(event.refText);
+    final normalized = normalizeQuery(event.refText);
     final includePersonalBooks =
         event.includePersonalBooks ?? FindRefPersonalBooksSetting.load();
     final visibility = findRefRepository.respectHiddenLibrary
@@ -98,7 +101,13 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
       _shownIncludePersonalBooks = includePersonalBooks;
       _shownVisibility = visibility;
       _retriedQuery = null;
-      emit(FindRefSuccess(refs, query: event.refText));
+      emit(
+        FindRefSuccess(
+          refs,
+          query: event.refText,
+          includePersonalBooks: includePersonalBooks,
+        ),
+      );
     } on ReferenceLibraryNotReadyException {
       if (emit.isDone || requestGeneration != _requestGeneration) return;
       emit(const FindRefNotReady());

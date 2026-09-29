@@ -285,6 +285,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
   final ValueNotifier<int> _selectedIndex = ValueNotifier<int>(0);
   bool _queryIsEmpty = true;
 
+  /// השאילתה המנורמלת שבשדה. תוצאות של שאילתה אחרת מוצגות אך אינן נפתחות.
+  final ValueNotifier<String> _typedQuery = ValueNotifier<String>('');
+
+  /// Enter נלחץ לפני שהגיעו תוצאות לשאילתה שבשדה — התוצאה הראשונה שלה
+  /// תיפתח כשתגיע.
+  bool _pendingEnter = false;
+
   /// התוצאות שמוצגות כרגע. נשמרות כדי שהקלדה של אות נוספת לא תרוקן את
   /// הרשימה ותחזיר אותה — הרשימה הקודמת נשארת עד שהחדשה מגיעה.
   List<DbReferenceResult> _shownRefs = const <DbReferenceResult>[];
@@ -349,6 +356,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
     // מבוצע מיד ולא ב-postFrameCallback כדי למנוע אובדן פוקוס באנדרואיד
     final controller = FocusRepository().findRefSearchController;
     _queryIsEmpty = controller.text.isEmpty;
+    _typedQuery.value = FindRefBloc.normalizeQuery(controller.text);
     controller.addListener(_onQueryTextChanged);
     if (controller.text.isNotEmpty) {
       controller.selection = TextSelection(
@@ -385,6 +393,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       _onQueryTextChanged,
     );
     _selectedIndex.dispose();
+    _typedQuery.dispose();
     final restorer = _focusRestorer;
     if (restorer != null) FocusRepository().unregisterActiveRestorer(restorer);
     super.dispose();
@@ -392,7 +401,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
   /// כפתור הניקוי תלוי רק בשאלה אם השדה ריק — בנייה מחדש רק כשזה מתהפך.
   void _onQueryTextChanged() {
-    final isEmpty = FocusRepository().findRefSearchController.text.isEmpty;
+    final text = FocusRepository().findRefSearchController.text;
+    _typedQuery.value = FindRefBloc.normalizeQuery(text);
+    final isEmpty = text.isEmpty;
     if (isEmpty != _queryIsEmpty && mounted) {
       setState(() => _queryIsEmpty = isEmpty);
     }
@@ -401,6 +412,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   /// שולח איתור חדש מהמסך ומאפס את הסימון לתוצאה הראשונה.
   void _dispatchSearch(String text, {bool? includePersonalBooks}) {
     _selectedIndex.value = 0;
+    _pendingEnter = false;
     context.read<FindRefBloc>().add(
       SearchRefRequested(
         text,
@@ -408,6 +420,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
       ),
     );
   }
+
+  /// התוצאות שייכות לשאילתה ולמתג שבמסך כרגע, ולכן מותר לפתוח אותן.
+  bool _isCurrentSuccess(FindRefState state) =>
+      state is FindRefSuccess &&
+      !identical(state, _supersededVisibilityState) &&
+      state.includePersonalBooks == _includePersonalBooks &&
+      FindRefBloc.normalizeQuery(state.query) == _typedQuery.value;
 
   void _refreshVisibilityIfChanged() {
     if (!mounted) return;
@@ -1086,6 +1105,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                       context,
                     ).add(ClearSearchRequested());
                     _selectedIndex.value = 0;
+                    _pendingEnter = false;
                   },
                 ),
         ),
@@ -1097,10 +1117,17 @@ class _FindRefDialogState extends State<FindRefDialog> {
             _tryHandleDeepLink(value);
             return;
           }
-          // פתיחת המקור הנבחר בלחיצה על אנטר. הסימון נחתך לגבולות הרשימה
-          // כדי שסט תוצאות שהתקצר לא יפיל את הפתיחה.
-          if (refs.isNotEmpty) {
-            _openRef(refs[_selectedIndex.value.clamp(0, refs.length - 1)]);
+          // תוצאות של שאילתה קודמת אינן נפתחות: Enter ממתין לתוצאות החדשות.
+          final state = context.read<FindRefBloc>().state;
+          if (!_isCurrentSuccess(state)) {
+            _pendingEnter = value.length >= 2;
+            return;
+          }
+          final current = (state as FindRefSuccess).refs;
+          if (current.isNotEmpty) {
+            _openRef(
+              current[_selectedIndex.value.clamp(0, current.length - 1)],
+            );
           }
         },
       ),
@@ -1184,6 +1211,14 @@ class _FindRefDialogState extends State<FindRefDialog> {
         if (_shownRefs.isEmpty && _hasMoreBelow.value) {
           _hasMoreBelow.value = false;
         }
+        if (state is FindRefSuccess) {
+          if (_pendingEnter && _isCurrentSuccess(state)) {
+            _pendingEnter = false;
+            if (state.refs.isNotEmpty) _openRef(state.refs.first);
+          }
+        } else if (state is! FindRefLoading) {
+          _pendingEnter = false;
+        }
       },
       builder: (context, state) {
         if (identical(state, _supersededVisibilityState)) {
@@ -1191,11 +1226,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
         }
         if (state is FindRefLoading) {
           if (_shownRefs.isNotEmpty) {
-            return _buildResultsList(
-              _shownRefs,
-              horizontalPadding,
-              interactive: false,
-            );
+            return _buildResultsList(_shownRefs, horizontalPadding);
           }
           return const _DelayedLoader();
         }
@@ -1209,7 +1240,11 @@ class _FindRefDialogState extends State<FindRefDialog> {
           return _buildErrorState(state.kind);
         }
         if (state is FindRefSuccess && state.refs.isNotEmpty) {
-          return _buildResultsList(state.refs, horizontalPadding);
+          return _buildResultsList(
+            state.refs,
+            horizontalPadding,
+            source: state,
+          );
         }
         final query = context
             .read<FocusRepository>()
@@ -1223,11 +1258,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
+  /// [source] — ה-state שהניב את [refs]; null בזמן טעינה, כשהרשימה ישנה.
   Widget _buildResultsList(
     List<DbReferenceResult> refs,
     double horizontalPadding, {
-    bool interactive = true,
+    FindRefSuccess? source,
   }) {
+    final rowInputs = Listenable.merge([_selectedIndex, _typedQuery]);
     return NotificationListener<ScrollMetricsNotification>(
       // תופס את החיבור הראשון של ה-ListView וכל שינוי maxScrollExtent; העדכון
       // נדחה לסוף ה-frame כדי לא לשנות ValueNotifier בזמן build.
@@ -1246,14 +1283,14 @@ class _FindRefDialogState extends State<FindRefDialog> {
           8,
         ),
         itemCount: refs.length,
-        itemBuilder: (context, index) => ValueListenableBuilder<int>(
+        itemBuilder: (context, index) => ListenableBuilder(
           key: _getKeyForIndex(index),
-          valueListenable: _selectedIndex,
-          builder: (context, selectedIndex, _) => _buildResultTile(
+          listenable: rowInputs,
+          builder: (context, _) => _buildResultTile(
             refs[index],
             index,
-            isSelected: index == selectedIndex,
-            interactive: interactive,
+            isSelected: index == _selectedIndex.value,
+            interactive: source != null && _isCurrentSuccess(source),
           ),
         ),
       ),

@@ -144,6 +144,19 @@ class _FlakyRepository extends _FakeRepository {
   }
 }
 
+/// תוצאות לפי השאילתה, כדי להבדיל בין סט ישן לחדש.
+class _QueryRepository extends _FakeRepository {
+  _QueryRepository(this.byQuery) : super(const []);
+
+  final Map<String, List<DbReferenceResult>> byQuery;
+
+  @override
+  Future<List<DbReferenceResult>> findRefs(
+    String ref, {
+    bool includePersonalBooks = false,
+  }) async => byQuery[ref] ?? const [];
+}
+
 DbReferenceResult _ref(String reference, {String path = 'תנ"ך, תורה'}) =>
     DbReferenceResult(
       title: 'בראשית',
@@ -538,8 +551,8 @@ void main() {
     await tester.enterText(find.byType(TextField), 'בראשית');
     await tester.pump(_pastDebounce);
     await tester.pump();
-    // הקלדה נוספת שטרם עברה את ה-debounce — התוצאות הקודמות עדיין מוצגות.
-    await tester.enterText(find.byType(TextField), 'בראשיתXYZ');
+    // רווח אינו משנה את הנרמול — התוצאות עדיין של השאילתה שבשדה.
+    await tester.enterText(find.byType(TextField), 'בראשית ');
     await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(find.text('בראשית פרק א'));
     await tester.pump();
@@ -548,6 +561,82 @@ void main() {
 
     // ניקוז ה-debounce התלוי — טיימר ששורד את פירוק העץ מכשיל את הבדיקה.
     await tester.pump(_pastDebounce);
+  });
+
+  group('תוצאות של שאילתה קודמת (U1)', () {
+    final repo = _QueryRepository({
+      'בראשית': [_ref('בראשית פרק א')],
+      'שמות': [_ref('שמות פרק א')],
+      'שמות ב': [_ref('שמות פרק ב')],
+    });
+
+    Future<void> showFirstResults(WidgetTester tester) async {
+      await _pumpDialog(tester, repository: repo);
+      await tester.enterText(find.byType(TextField), 'בראשית');
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+      expect(find.text('בראשית פרק א'), findsOneWidget);
+    }
+
+    testWidgets('לחיצה בתוך ה-debounce אינה פותחת תוצאה ישנה', (tester) async {
+      await showFirstResults(tester);
+      await tester.enterText(find.byType(TextField), 'שמות');
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final oldTile = find.ancestor(
+        of: find.text('בראשית פרק א'),
+        matching: find.byType(ListTile),
+      );
+      expect(tester.widget<ListTile>(oldTile).onTap, isNull);
+      await tester.tap(find.text('בראשית פרק א'));
+      await tester.pump();
+      expect(FindRefRecentStore.load(), isEmpty);
+      await tester.pump(_pastDebounce);
+    });
+
+    testWidgets('Enter בתוך ה-debounce אינו פותח את התוצאה הישנה', (
+      tester,
+    ) async {
+      await showFirstResults(tester);
+      await tester.enterText(find.byType(TextField), 'שמות');
+      await tester.pump(const Duration(milliseconds: 50));
+
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+
+      expect(FindRefRecentStore.load(), isNot(contains('בראשית')));
+      await tester.pump(_pastDebounce);
+    });
+
+    testWidgets('Enter ממתין ופותח את התוצאה הראשונה של השאילתה החדשה', (
+      tester,
+    ) async {
+      await showFirstResults(tester);
+      await tester.enterText(find.byType(TextField), 'שמות');
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(FindRefRecentStore.load(), isEmpty);
+
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+
+      expect(FindRefRecentStore.load(), ['שמות']);
+    });
+
+    testWidgets('הקלדה אחרי Enter מבטלת את הפתיחה הממתינה', (tester) async {
+      await showFirstResults(tester);
+      await tester.enterText(find.byType(TextField), 'שמות');
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'שמות ב');
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+
+      expect(find.text('שמות פרק ב'), findsOneWidget);
+      expect(FindRefRecentStore.load(), isEmpty);
+    });
   });
 
   testWidgets('כפתור הניקוי מרוקן את השדה ומחזיר למצב הפתיחה', (tester) async {
