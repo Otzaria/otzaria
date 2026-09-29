@@ -1649,8 +1649,7 @@ class FindRefRepository {
         visibility: visibility,
         source: BookSource.user,
         rootPath: 'ספרים אישיים',
-        maxTocBooks: maxPersonalTocBooks,
-        fetchToc: _fetchUserBookToc,
+        fetchTocBatch: _fetchUserBookTocs,
       );
     } on FindRefQueryCancelled {
       rethrow;
@@ -1687,11 +1686,12 @@ class FindRefRepository {
         if (books.isEmpty) continue;
         final source = BookSource.attached(library.slug);
         final worker = AttachedFindRefWorker.instance;
-        Future<R> run<R>(AttachedDbJob<R> job) => worker.run(
+        Future<R> run<R>(AttachedDbJob<R> job, {int calls = 1}) => worker.run(
           library.path,
           immutable: library.immutable,
           version: _attachedVersion(library),
           job: job,
+          calls: calls,
         );
         out.addAll(
           await _awaitCurrent(
@@ -1704,8 +1704,8 @@ class FindRefRepository {
               maxTocBooks: maxAttachedTocBooks,
               acronymsOf: (id) =>
                   AcronymsCache.instance.acronymsFor(source, id) ?? const [],
-              fetchToc: (bookId, bookTitle, qt) =>
-                  run(_attachedTocJob(bookId, bookTitle, qt)),
+              fetchTocBatch: (books) =>
+                  run(_attachedTocJob(books), calls: books.length),
               resolveLineRefs: (bookIds, refKey) =>
                   run(_attachedLineRefsJob(bookIds, refKey)),
             ),
@@ -1724,23 +1724,26 @@ class FindRefRepository {
   @visibleForTesting
   static int maxAttachedTocBooks = 12;
 
-  /// כמו [maxAttachedTocBooks], לספרים האישיים.
-  @visibleForTesting
-  static int maxPersonalTocBooks = 12;
-
-  /// תוכן העניינים של ספר אישי — ב-worker, כדי שהשאילתה הסינכרונית לא תחסום
-  /// את ההקלדה. כשל מדלג על ה-TOC של הספר בלבד; תוצאת הספר עצמו נשארת.
-  Future<List<Map<String, dynamic>>> _fetchUserBookToc(
-    int bookId,
-    String bookTitle,
-    List<String> queryTokens,
+  /// תוכן העניינים של כל הספרים האישיים המועמדים — בבקשה אחת ל-worker, כדי
+  /// שהשאילתה הסינכרונית לא תחסום את ההקלדה. כשל מדלג על ה-TOC בלבד.
+  Future<List<List<Map<String, dynamic>>>> _fetchUserBookTocs(
+    List<_SecondaryTocRequest> books,
   ) async {
     final injected = getUserBookTocEntries;
     if (injected != null) {
-      return injected(bookId, bookTitle, queryTokens: queryTokens);
+      return [
+        for (final book in books)
+          await _awaitCurrent(
+            injected(
+              book.bookId,
+              book.bookTitle,
+              queryTokens: book.queryTokens,
+            ),
+          ),
+      ];
     }
     final path = _userBooksDbPath;
-    if (path == null) return const [];
+    if (path == null) return [for (final _ in books) const []];
     // סגירת ה-holder (העברת ספרייה, יציאה) חייבת לשחרר גם את חיבור ה-worker.
     UserBooksDatabaseHolder.instance.addCloseListener(_resetSecondaryWorker);
     try {
@@ -1748,28 +1751,23 @@ class FindRefRepository {
         path,
         immutable: false,
         version: '$_userBooksVersion',
-        job: _userBookTocJob(bookId, bookTitle, queryTokens),
+        job: _userBookTocJob(books),
+        calls: books.length,
       );
     } catch (e) {
       debugPrint('[FindRef] personal TOC lookup failed: $e');
-      return const [];
+      return [for (final _ in books) const []];
     }
   }
 
   static void _resetSecondaryWorker() => AttachedFindRefWorker.instance.reset();
 
-  static AttachedDbJob<List<Map<String, dynamic>>> _userBookTocJob(
-    int bookId,
-    String bookTitle,
-    List<String> queryTokens,
+  static AttachedDbJob<List<List<Map<String, dynamic>>>> _userBookTocJob(
+    List<_SecondaryTocRequest> books,
   ) => (repository) async {
     // ה-holder ב-main כותב לקובץ; קאש ה-TOC של החיבור הזה לא יודע על כך.
     await repository.invalidateTocCacheIfChangedExternally();
-    return repository.getTocEntriesForReference(
-      bookId,
-      bookTitle,
-      queryTokens: queryTokens,
-    );
+    return _tocsOf(repository, books);
   };
 
   static String _attachedVersion(AttachedLibrary library) {
@@ -1780,16 +1778,33 @@ class FindRefRepository {
   }
 
   // העבודות נבנות בפונקציות סטטיות כדי שהסגור לא יגרור את המופע ל-isolate.
-  static AttachedDbJob<List<Map<String, dynamic>>> _attachedTocJob(
-    int bookId,
-    String bookTitle,
-    List<String> queryTokens,
+  static AttachedDbJob<List<List<Map<String, dynamic>>>> _attachedTocJob(
+    List<_SecondaryTocRequest> books,
   ) =>
-      (repository) => repository.getTocEntriesForReference(
-        bookId,
-        bookTitle,
-        queryTokens: queryTokens,
-      );
+      (repository) => _tocsOf(repository, books);
+
+  /// כשל בספר אחד מדלג רק על ה-TOC שלו, לא על כל האצווה.
+  static Future<List<List<Map<String, dynamic>>>> _tocsOf(
+    SeforimRepository repository,
+    List<_SecondaryTocRequest> books,
+  ) async {
+    final out = <List<Map<String, dynamic>>>[];
+    for (final book in books) {
+      try {
+        out.add(
+          await repository.getTocEntriesForReference(
+            book.bookId,
+            book.bookTitle,
+            queryTokens: book.queryTokens,
+          ),
+        );
+      } catch (e) {
+        debugPrint('[FindRef] secondary TOC lookup failed: $e');
+        out.add(const []);
+      }
+    }
+    return out;
+  }
 
   static AttachedDbJob<Map<int, _ExactLine>> _attachedLineRefsJob(
     List<int> bookIds,
@@ -1870,12 +1885,10 @@ class FindRefRepository {
     required FindRefVisibility visibility,
     required BookSource source,
     required String rootPath,
-    required Future<List<Map<String, dynamic>>> Function(
-      int bookId,
-      String bookTitle,
-      List<String> queryTokens,
+    required Future<List<List<Map<String, dynamic>>>> Function(
+      List<_SecondaryTocRequest> books,
     )
-    fetchToc,
+    fetchTocBatch,
     List<String> Function(int bookId)? acronymsOf,
     Future<Map<int, _ExactLine>> Function(List<int> bookIds, String refKey)?
     resolveLineRefs,
@@ -1984,8 +1997,8 @@ class FindRefRepository {
       }
     }
 
-    // התקרה נותנת את חיפושי ה-TOC לספרים שהשם שלהם כיסה הכי הרבה מהשאילתה
-    // ("שות פלוני חלק טו ג" → "חלק טו"), לא ל-12 הראשונים בסדר הקטלוג.
+    // תקרה (מסדים מצורפים) נותנת את ה-TOC לספרים שהשם שלהם כיסה הכי הרבה
+    // מהשאילתה ("שות פלוני חלק טו ג" → "חלק טו"), לא לראשונים בסדר הקטלוג.
     Set<int>? tocAllowed;
     if (maxTocBooks != null) {
       final eligible = [
@@ -1999,7 +2012,28 @@ class FindRefRepository {
       tocAllowed = eligible.take(maxTocBooks).toSet();
     }
 
+    // מילה אחת, רק כותרת, או ספר מעבר לתקרה — הספר בלבד, בלי ערכי TOC.
+    final tocRequests = <_SecondaryTocRequest>[];
+    final tocIndexByMatch = <int?>[];
     for (final (i, (book, remainingTokens)) in matches.indexed) {
+      final wantsToc = queryTokens.length > 1 && remainingTokens.isNotEmpty;
+      if (wantsToc && (tocAllowed == null || tocAllowed.contains(i))) {
+        tocIndexByMatch.add(tocRequests.length);
+        tocRequests.add((
+          bookId: book.id,
+          bookTitle: book.title,
+          queryTokens: remainingTokens,
+        ));
+      } else {
+        tocIndexByMatch.add(null);
+      }
+    }
+    final tocs = tocRequests.isEmpty
+        ? const <List<Map<String, dynamic>>>[]
+        : await _awaitCurrent(fetchTocBatch(tocRequests));
+
+    for (var m = 0; m < matches.length; m++) {
+      final (book, remainingTokens) = matches[m];
       final isPdf = book.fileType == 'pdf';
       final bookPath = book.folderTitles.isEmpty
           ? rootPath
@@ -2039,21 +2073,12 @@ class FindRefRepository {
         );
       }
 
-      // מילה אחת, או שהוקלדה רק כותרת הספר — הספר בלבד, בלי ערכי TOC
-      // (סימטרי למסלול הראשי).
-      if (queryTokens.length == 1 || remainingTokens.isEmpty) {
+      final tocIndex = tocIndexByMatch[m];
+      if (tocIndex == null) {
         out.add(result(reference: book.title, segment: 0));
         continue;
       }
-
-      if (tocAllowed != null && !tocAllowed.contains(i)) {
-        out.add(result(reference: book.title, segment: 0));
-        continue;
-      }
-      final toc = await _awaitCurrent(
-        fetchToc(book.id, book.title, remainingTokens),
-      );
-      for (final entry in toc) {
+      for (final entry in tocs[tocIndex]) {
         out.add(
           result(
             reference: entry['reference'] as String,
@@ -2787,5 +2812,11 @@ class _RankKey {
 }
 
 typedef _ExactLine = ({int lineIndex, int lineId, String? heRef});
+
+typedef _SecondaryTocRequest = ({
+  int bookId,
+  String bookTitle,
+  List<String> queryTokens,
+});
 
 typedef _Dibbur = ({int lineIndex, int lineId, String display});

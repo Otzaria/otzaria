@@ -78,34 +78,37 @@ void main() {
     expect(FindRefRepository.debugSecondaryNameNormalizations, afterLoad);
   });
 
-  test('תוכן העניינים של ספרים אישיים מוגבל לתקרה בכל הקלדה', () async {
-    var tocCalls = 0;
-    final books = [for (var i = 1; i <= 20; i++) _book(i, 'ספר פלוני $i')];
+  test('תוכן העניינים נבדק בכל הספרים האישיים שהשם שלהם תאם', () async {
+    final books = [for (var i = 1; i <= 13; i++) _book(i, 'ספר פלוני')];
+    final tocCalls = <int>[];
     final repo = _repo(
       books: books,
-      userToc: (_, _, {queryTokens}) async {
-        tocCalls++;
-        return const [];
+      userToc: (bookId, title, {queryTokens}) async {
+        tocCalls.add(bookId);
+        return [
+          if (bookId == 13 && queryTokens!.join(' ') == 'פרק ב')
+            {'reference': '$title פרק ב', 'segment': 88, 'level': 1},
+        ];
       },
     );
 
     final results = await repo.findRefs(
-      'ספר פלוני ג',
+      'ספר פלוני פרק ב',
       includePersonalBooks: true,
     );
 
-    expect(tocCalls, FindRefRepository.maxPersonalTocBooks);
-    // הספרים שמעבר לתקרה עדיין מוצגים כתוצאת ספר.
+    expect(tocCalls, [for (var i = 1; i <= 13; i++) i]);
     expect(
-      results.where((r) => r.source == BookSource.user).map((r) => r.title),
-      containsAll([
-        for (var i = FindRefRepository.maxPersonalTocBooks + 1; i <= 20; i++)
-          'ספר פלוני $i',
-      ]),
+      results
+          .where((r) => r.source == BookSource.user && r.bookId == 13)
+          .map(
+            (r) => (r.reference, r.segment),
+          ),
+      contains(('ספר פלוני פרק ב', 88)),
     );
   });
 
-  test('התקרה מעדיפה את הכרך שהשם שלו כיסה יותר מהשאילתה', () async {
+  test('כרך שהשם שלו כיסה יותר מהשאילתה נמצא בין עשרים כרכים', () async {
     const volumes = [
       'א',
       'ב',
@@ -149,7 +152,6 @@ void main() {
       includePersonalBooks: true,
     );
 
-    expect(tocCalls, hasLength(FindRefRepository.maxPersonalTocBooks));
     expect(tocCalls, contains(15));
     expect(results.map((r) => r.reference), contains('חלק טו, סימן ג'));
   });
@@ -210,6 +212,47 @@ void main() {
       // חיבור אחר כותב — קאש ה-TOC של ה-worker חייב להתבטל.
       addHeading(902, 'ד');
       expect(await userRefs(repo, '$title ד'), contains('$title ד'));
+    });
+
+    test('13 ספרים באותו שם — הכותרת שרק בספר ה-13 נמצאת', () async {
+      final db = sqlite3.sqlite3.open(dbPath);
+      try {
+        for (var id = 11; id <= 23; id++) {
+          db.execute(
+            'INSERT INTO book (id, categoryId, sourceId, title, orderIndex) '
+            "VALUES (?, 2, 1, 'ספר פלוני', ?)",
+            [id, id],
+          );
+        }
+        db.execute(
+          'INSERT INTO line (id, bookId, lineIndex, content) '
+          "VALUES (500, 23, 88, 'שורה')",
+        );
+        db.execute("INSERT INTO tocText (id, text) VALUES (950, 'פרק ב')");
+        db.execute(
+          'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId) '
+          'VALUES (950, 23, NULL, 950, 1, 500)',
+        );
+      } finally {
+        db.close();
+      }
+      final userRepo = SeforimRepository(userDb);
+      final repo = _repo(
+        books: const [],
+        openUserBooksRepository: () async => userRepo,
+      );
+
+      final results = await repo.findRefs(
+        'ספר פלוני פרק ב',
+        includePersonalBooks: true,
+      );
+
+      expect(
+        results
+            .where((r) => r.source == BookSource.user && r.bookId == 23)
+            .map((r) => r.segment),
+        contains(88),
+      );
     });
   });
 }
