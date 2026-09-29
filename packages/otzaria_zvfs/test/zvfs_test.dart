@@ -249,32 +249,65 @@ void main() {
     plain.close();
   });
 
-  test('zdb is read-only even when opened read-write', () async {
-    final plain = p('ro.db');
-    final zdb = p('ro.zdb');
-    createTestDb(plain);
-    await convertFile(plain, zdb);
-    final db = sqlite3.open(zdb, vfs: ZVfs.name);
-    try {
+  test(
+    'read-only opens refuse writes; read-write opens use the overlay',
+    () async {
+      final plain = p('ro.db');
+      final zdb = p('ro.zdb');
+      createTestDb(plain);
+      await convertFile(plain, zdb);
+      final ro = openZdb(zdb);
+      try {
+        expect(
+          () => ro.execute("INSERT INTO book VALUES (9999, 'x', 1)"),
+          throwsA(
+            isA<SqliteException>().having((e) => e.resultCode, 'resultCode', 8),
+          ),
+        );
+      } finally {
+        ro.close();
+      }
+      expect(File('$zdb-zovl').existsSync(), isFalse);
+      final base = File(zdb).readAsBytesSync();
+      final db = sqlite3.open(zdb, vfs: ZVfs.name);
+      try {
+        db.execute("INSERT INTO book VALUES (9999, 'x', 1)");
+        expect(db.select('SELECT count(*) AS c FROM book').single['c'], 151);
+      } finally {
+        db.close();
+      }
       expect(
-        () => db.execute("INSERT INTO book VALUES (9999, 'x', 1)"),
-        throwsA(
-          isA<SqliteException>().having((e) => e.resultCode, 'resultCode', 8),
-        ),
+        File(zdb).readAsBytesSync(),
+        base,
+        reason: 'the base is immutable',
       );
-      expect(db.select('SELECT count(*) AS c FROM book').single['c'], 150);
-    } finally {
-      db.close();
-    }
-  });
+      expect(readZdbOverlayInfo(zdb).seq, greaterThan(0));
+      final again = openZdb(zdb);
+      expect(
+        again
+            .select('SELECT title FROM book WHERE id = 9999')
+            .single
+            .columnAt(0),
+        'x',
+      );
+      again.close();
+    },
+  );
 
-  test('an overlay sidecar blocks opening the base', () async {
+  test('a torn sidecar is ignored, a foreign one refused', () async {
     final plain = p('ov.db');
     final zdb = p('ov.zdb');
     createTestDb(plain);
     await convertFile(plain, zdb);
     File('$zdb-zovl').writeAsStringSync('x');
-    expect(() => openZdb(zdb), throwsA(isA<SqliteException>()));
+    openZdb(zdb).close();
+    File('$zdb-zovl').writeAsBytesSync(List.filled(300, 0x33));
+    expect(
+      () => openZdb(zdb),
+      throwsA(
+        isA<SqliteException>().having((e) => e.resultCode, 'resultCode', 11),
+      ),
+    );
     File('$zdb-zovl').deleteSync();
     openZdb(zdb).close();
   });

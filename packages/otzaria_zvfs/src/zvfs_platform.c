@@ -1,5 +1,6 @@
 #include "zvfs_internal.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -198,6 +199,36 @@ uint64_t zplat_now_ms(void) {
   return (t - 116444736000000000ull) / 10000ull;
 }
 
+int zplat_exists(const char *path) {
+  wchar_t *w = widen(path);
+  if (!w) return -1;
+  DWORD a = GetFileAttributesW(w);
+  DWORD e = a == INVALID_FILE_ATTRIBUTES ? GetLastError() : 0;
+  free(w);
+  if (a != INVALID_FILE_ATTRIBUTES) return 1;
+  return e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND ? 0 : -1;
+}
+
+int zplat_rename_durable(const char *from, const char *to) {
+  wchar_t *a = widen(from), *b = widen(to);
+  int ok = a && b &&
+           MoveFileExW(a, b, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+  free(a);
+  free(b);
+  return ok ? ZVFS_OK : ZVFS_ERR_IO;
+}
+
+int zplat_delete_durable(const char *path) {
+  wchar_t *w = widen(path);
+  if (!w) return ZVFS_ERR_INVALID;
+  BOOL ok = DeleteFileW(w);
+  DWORD e = ok ? 0 : GetLastError();
+  free(w);
+  if (ok || e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND)
+    return ZVFS_OK;
+  return ZVFS_ERR_IO;
+}
+
 #else /* POSIX */
 
 void zplat_mutex_init(zplat_mutex *m) { pthread_mutex_init(m, NULL); }
@@ -355,6 +386,42 @@ uint64_t zplat_now_ms(void) {
   struct timeval tv;
   gettimeofday(&tv, NULL);
   return (uint64_t)tv.tv_sec * 1000ull + (uint64_t)tv.tv_usec / 1000ull;
+}
+
+int zplat_exists(const char *path) {
+  if (access(path, F_OK) == 0) return 1;
+  return errno == ENOENT || errno == ENOTDIR ? 0 : -1;
+}
+
+/* A rename or unlink is durable only once its directory is synced. */
+static int sync_parent(const char *path) {
+  size_t n = strlen(path);
+  while (n > 0 && path[n - 1] != '/') n--;
+  char *dir = (char *)malloc(n + 2);
+  if (!dir) return ZVFS_ERR_NOMEM;
+  if (n == 0) {
+    dir[0] = '.';
+    dir[1] = 0;
+  } else {
+    memcpy(dir, path, n);
+    dir[n] = 0;
+  }
+  int fd = open(dir, O_RDONLY | O_CLOEXEC);
+  free(dir);
+  if (fd < 0) return ZVFS_ERR_IO;
+  int rc = fsync(fd) == 0 ? ZVFS_OK : ZVFS_ERR_IO;
+  close(fd);
+  return rc;
+}
+
+int zplat_rename_durable(const char *from, const char *to) {
+  if (rename(from, to) != 0) return ZVFS_ERR_IO;
+  return sync_parent(to);
+}
+
+int zplat_delete_durable(const char *path) {
+  if (unlink(path) != 0) return errno == ENOENT ? ZVFS_OK : ZVFS_ERR_IO;
+  return sync_parent(path);
 }
 
 #endif

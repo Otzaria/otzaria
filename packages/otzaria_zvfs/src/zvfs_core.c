@@ -11,9 +11,11 @@
 /* ---- stats ---- */
 static volatile int64_t g_frames_decoded, g_cache_hits, g_cache_misses,
     g_compressed_read, g_corrupt_frames, g_cache_bytes_total, g_open_files;
+static volatile int64_t g_ovl[6];
 volatile int64_t zvfs_g_cache_budget = 16ll << 20;
 
 void zvfs_stat_open_files(int64_t d) { zplat_atomic_add(&g_open_files, d); }
+void zvfs_stat_add(int which, int64_t d) { zplat_atomic_add(&g_ovl[which], d); }
 
 ZVFS_API void zvfs_set_cache_budget(int64_t bytes) {
   zplat_atomic_store(&zvfs_g_cache_budget, bytes < 0 ? 0 : bytes);
@@ -30,6 +32,12 @@ ZVFS_API void zvfs_get_stats(zvfs_stats *o) {
   o->corrupt_frames = zplat_atomic_load(&g_corrupt_frames);
   o->cache_bytes = zplat_atomic_load(&g_cache_bytes_total);
   o->open_files = zplat_atomic_load(&g_open_files);
+  o->overlay_records = zplat_atomic_load(&g_ovl[ZST_OVL_RECORDS]);
+  o->overlay_commits = zplat_atomic_load(&g_ovl[ZST_OVL_COMMITS]);
+  o->overlay_bytes = zplat_atomic_load(&g_ovl[ZST_OVL_BYTES]);
+  o->overlay_syncs = zplat_atomic_load(&g_ovl[ZST_OVL_SYNCS]);
+  o->overlay_page_reads = zplat_atomic_load(&g_ovl[ZST_OVL_PAGE_READS]);
+  o->overlay_refresh_scans = zplat_atomic_load(&g_ovl[ZST_OVL_REFRESH_SCANS]);
 }
 
 ZVFS_API const char *zvfs_errstr(int code) {
@@ -43,7 +51,9 @@ ZVFS_API const char *zvfs_errstr(int code) {
     case ZVFS_ERR_CANCELLED: return "cancelled";
     case ZVFS_ERR_NOT_ZDB: return "not a zdb file";
     case ZVFS_ERR_SHORT_READ: return "short read";
+    case ZVFS_ERR_FULL: return "overlay is full; compact the database";
     case ZVFS_ERR_BUSY: return "database is in use";
+    case ZVFS_ERR_READONLY: return "read-only";
     default: return "unknown error";
   }
 }
@@ -55,23 +65,27 @@ ZVFS_API uint64_t zvfs_xxh64(const void *data, size_t len, uint64_t seed) {
 }
 
 /* ---- little-endian codec ---- */
-static uint32_t get32(const uint8_t *p) {
+uint32_t zdb_get32(const uint8_t *p) {
   return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 |
          (uint32_t)p[3] << 24;
 }
-static uint64_t get64(const uint8_t *p) {
-  return (uint64_t)get32(p) | (uint64_t)get32(p + 4) << 32;
+uint64_t zdb_get64(const uint8_t *p) {
+  return (uint64_t)zdb_get32(p) | (uint64_t)zdb_get32(p + 4) << 32;
 }
-static void put32(uint8_t *p, uint32_t v) {
+void zdb_put32(uint8_t *p, uint32_t v) {
   p[0] = (uint8_t)v;
   p[1] = (uint8_t)(v >> 8);
   p[2] = (uint8_t)(v >> 16);
   p[3] = (uint8_t)(v >> 24);
 }
-static void put64(uint8_t *p, uint64_t v) {
-  put32(p, (uint32_t)v);
-  put32(p + 4, (uint32_t)(v >> 32));
+void zdb_put64(uint8_t *p, uint64_t v) {
+  zdb_put32(p, (uint32_t)v);
+  zdb_put32(p + 4, (uint32_t)(v >> 32));
 }
+#define get32 zdb_get32
+#define get64 zdb_get64
+#define put32 zdb_put32
+#define put64 zdb_put64
 
 int zdb_has_magic(const void *p, size_t n) {
   return n >= ZDB_MAGIC_LEN && memcmp(p, ZDB_MAGIC, ZDB_MAGIC_LEN) == 0;
@@ -112,6 +126,9 @@ void zdb_header_encode(const zdb_header *h, uint8_t r[ZDB_HEADER_CORE]) {
   memcpy(r + 112, h->uuid, 16);
   put64(r + 128, h->created_ms);
   memcpy(r + 136, h->dict_name, 31);
+  memcpy(r + 168, h->derived_from_uuid, 16);
+  memcpy(r + 184, h->includes_overlay_uuid, 16);
+  put64(r + 200, h->includes_overlay_seq);
   put64(r + 208, h->gap_start);
   put64(r + 216, h->gap_end);
   put64(r + 248, XXH64(r, 248, 0));
@@ -145,6 +162,10 @@ int zdb_header_decode(const uint8_t r[ZDB_HEADER_CORE], zdb_header *h) {
   memcpy(h->uuid, r + 112, 16);
   h->created_ms = get64(r + 128);
   memcpy(h->dict_name, r + 136, 32);
+  /* older minors have zeros here */
+  memcpy(h->derived_from_uuid, r + 168, 16);
+  memcpy(h->includes_overlay_uuid, r + 184, 16);
+  h->includes_overlay_seq = get64(r + 200);
   h->gap_start = get64(r + 208);
   h->gap_end = get64(r + 216);
   if (h->incompat & ~ZDB_KNOWN_INCOMPAT) return ZVFS_ERR_UNSUPPORTED;
@@ -260,8 +281,11 @@ int zdb_file_load(zdb_read_fn rd, void *ctx, uint64_t phys, zdb_file **out) {
       f->ddict = ZSTD_createDDict(dict, f->h.dict_length);
       if (!f->ddict) rc = ZVFS_ERR_CORRUPT;
     }
-    free(dict);
-    if (rc) goto fail;
+    if (rc) {
+      free(dict);
+      goto fail;
+    }
+    f->dict = dict;
   } else if (f->h.dict_id != 0) {
     rc = ZVFS_ERR_CORRUPT;
     goto fail;
@@ -395,12 +419,14 @@ static void cache_insert(zdb_file *f, zdb_cache_entry *e, int64_t budget) {
 
 void zdb_file_free(zdb_file *f) {
   if (!f) return;
+  zovl_free(f->ovl);
   if (f->buckets) {
     while (f->lru_tail) cache_remove(f, f->lru_tail);
     free(f->buckets);
   }
   free(f->index);
   if (f->ddict) ZSTD_freeDDict((ZSTD_DDict *)f->ddict);
+  free(f->dict);
   zplat_mutex_destroy(&f->mu);
   free(f->key);
   free(f);
@@ -420,6 +446,31 @@ uint64_t zdb_frame_end(const zdb_file *f, uint64_t i) {
              : e;
 }
 
+int zdb_decode(const void *ddict, const uint8_t *src, size_t clen, uint8_t *dst,
+               size_t want) {
+  /* The frame must carry its content size and checksum, or the decoder
+     would accept a header whose checksum flag was flipped off. */
+  ZSTD_frameHeader zfh;
+  size_t hr = ZSTD_getFrameHeader_advanced(&zfh, src, clen,
+                                           ZSTD_f_zstd1_magicless);
+  if (hr != 0 || zfh.frameType != ZSTD_frame || !zfh.checksumFlag ||
+      zfh.frameContentSize != (unsigned long long)want || zfh.dictID != 0) {
+    zplat_atomic_add(&g_corrupt_frames, 1);
+    return ZVFS_ERR_CORRUPT;
+  }
+  ZSTD_DCtx *d = dctx_get();
+  if (!d) return ZVFS_ERR_NOMEM;
+  size_t z = ZSTD_DCtx_refDDict(d, (const ZSTD_DDict *)ddict);
+  if (!ZSTD_isError(z)) z = ZSTD_decompressDCtx(d, dst, want, src, clen);
+  dctx_put(d);
+  if (ZSTD_isError(z) || z != want) {
+    zplat_atomic_add(&g_corrupt_frames, 1);
+    return ZVFS_ERR_CORRUPT;
+  }
+  zplat_atomic_add(&g_frames_decoded, 1);
+  return ZVFS_OK;
+}
+
 static int decode_frame(zdb_file *f, zdb_read_fn rd, void *ctx, uint64_t frame,
                         uint8_t *dst) {
   uint64_t a = f->index[frame];
@@ -429,38 +480,46 @@ static int decode_frame(zdb_file *f, zdb_read_fn rd, void *ctx, uint64_t frame,
   if (!src) return ZVFS_ERR_NOMEM;
   int rc = rd(ctx, src, clen, a);
   if (rc == ZVFS_ERR_SHORT_READ) rc = ZVFS_ERR_CORRUPT;
-  if (rc) {
-    free(src);
-    return rc;
+  if (!rc) {
+    zplat_atomic_add(&g_compressed_read, (int64_t)clen);
+    rc = zdb_decode(f->ddict, src, clen, dst, want);
   }
-  zplat_atomic_add(&g_compressed_read, (int64_t)clen);
-
-  /* The frame must carry its content size and checksum, or the decoder
-     would accept a header whose checksum flag was flipped off. */
-  ZSTD_frameHeader zfh;
-  size_t hr = ZSTD_getFrameHeader_advanced(&zfh, src, clen,
-                                           ZSTD_f_zstd1_magicless);
-  if (hr != 0 || zfh.frameType != ZSTD_frame || !zfh.checksumFlag ||
-      zfh.frameContentSize != (unsigned long long)want || zfh.dictID != 0) {
-    free(src);
-    zplat_atomic_add(&g_corrupt_frames, 1);
-    return ZVFS_ERR_CORRUPT;
-  }
-  ZSTD_DCtx *d = dctx_get();
-  if (!d) {
-    free(src);
-    return ZVFS_ERR_NOMEM;
-  }
-  size_t z = ZSTD_DCtx_refDDict(d, (const ZSTD_DDict *)f->ddict);
-  if (!ZSTD_isError(z)) z = ZSTD_decompressDCtx(d, dst, want, src, clen);
-  dctx_put(d);
   free(src);
-  if (ZSTD_isError(z) || z != want) {
-    zplat_atomic_add(&g_corrupt_frames, 1);
-    return ZVFS_ERR_CORRUPT;
+  return rc;
+}
+
+int zdb_cache_get(zdb_file *f, uint64_t key, uint8_t *dst, size_t inner,
+                  size_t part) {
+  zplat_lock(&f->mu);
+  zdb_cache_entry *e = cache_find(f, key);
+  if (e) {
+    lru_unlink(f, e);
+    lru_push_front(f, e);
+    memcpy(dst, e->data + inner, part);
   }
-  zplat_atomic_add(&g_frames_decoded, 1);
-  return ZVFS_OK;
+  zplat_unlock(&f->mu);
+  zplat_atomic_add(e ? &g_cache_hits : &g_cache_misses, 1);
+  return e != NULL;
+}
+
+void zdb_cache_put(zdb_file *f, uint64_t key, const uint8_t *data, size_t len) {
+  int64_t budget = zplat_atomic_load(&zvfs_g_cache_budget);
+  if (budget < (int64_t)len) return;
+  zdb_cache_entry *ne =
+      (zdb_cache_entry *)malloc(offsetof(zdb_cache_entry, data) + len);
+  if (!ne) return;
+  memcpy(ne->data, data, len);
+  ne->frame = key;
+  ne->len = len;
+  ne->prev = ne->next = ne->hnext = NULL;
+  zplat_lock(&f->mu);
+  if (cache_find(f, key)) {
+    zplat_unlock(&f->mu);
+    free(ne);
+    return;
+  }
+  cache_insert(f, ne, budget);
+  zplat_unlock(&f->mu);
 }
 
 int zdb_file_read(zdb_file *f, zdb_read_fn rd, void *ctx, void *buf,
@@ -550,83 +609,14 @@ void zdb_fill_info(const zdb_file *f, zvfs_info *o) {
   o->created_unix_ms = f->h.created_ms;
   memcpy(o->file_uuid, f->h.uuid, 16);
   memcpy(o->dict_name, f->h.dict_name, 32);
+  o->base_logical_size = f->h.logical_size;
+  o->includes_overlay_seq = f->h.includes_overlay_seq;
+  memcpy(o->derived_from_uuid, f->h.derived_from_uuid, 16);
+  memcpy(o->includes_overlay_uuid, f->h.includes_overlay_uuid, 16);
 }
 
-/* ---- standalone reader ---- */
-struct zvfs_reader {
-  zplat_file *pf;
-  zdb_file *f;
-};
-
-static int reader_rd(void *ctx, void *buf, size_t n, uint64_t off) {
-  size_t got = 0;
-  int rc = zplat_pread((zplat_file *)ctx, buf, n, off, &got);
-  if (rc) return rc;
-  return got == n ? ZVFS_OK : ZVFS_ERR_SHORT_READ;
-}
-
-ZVFS_API int zvfs_probe_path(const char *path) {
-  zplat_file *pf;
-  if (!path) return 0;
-  int u = zvfs_in_use(path);
-  if (u) return u == 2;
-  if (zplat_open_read(path, &pf)) return 0;
-  uint8_t m[ZDB_MAGIC_LEN];
-  size_t got = 0;
-  int ok = zplat_pread(pf, m, sizeof m, 0, &got) == ZVFS_OK &&
-           zdb_has_magic(m, got);
-  zplat_close(pf);
-  return ok;
-}
-
-ZVFS_API int zvfs_reader_open(const char *path, zvfs_reader **out) {
-  if (!path || !out) return ZVFS_ERR_INVALID;
-  *out = NULL;
-  if (zvfs_in_use(path)) return ZVFS_ERR_BUSY;
-  zvfs_reader *r = (zvfs_reader *)calloc(1, sizeof *r);
-  if (!r) return ZVFS_ERR_NOMEM;
-  int rc = zplat_open_read(path, &r->pf);
-  uint64_t size = 0;
-  if (!rc) rc = zplat_size(r->pf, &size);
-  if (!rc) {
-    uint8_t m[ZDB_MAGIC_LEN];
-    size_t got = 0;
-    rc = zplat_pread(r->pf, m, sizeof m, 0, &got);
-    if (!rc && !zdb_has_magic(m, got)) rc = ZVFS_ERR_NOT_ZDB;
-  }
-  if (!rc) rc = zdb_file_load(reader_rd, r->pf, size, &r->f);
-  if (rc) {
-    zplat_close(r->pf);
-    free(r);
-    return rc;
-  }
-  *out = r;
-  return ZVFS_OK;
-}
-
-ZVFS_API int zvfs_reader_info(zvfs_reader *r, zvfs_info *out) {
-  if (!r || !out) return ZVFS_ERR_INVALID;
-  zdb_fill_info(r->f, out);
-  return ZVFS_OK;
-}
-
-ZVFS_API int zvfs_reader_read(zvfs_reader *r, void *buf, int64_t n,
-                              int64_t off) {
-  if (!r || !buf || n < 0 || off < 0) return ZVFS_ERR_INVALID;
-  return zdb_file_read(r->f, reader_rd, r->pf, buf, (uint64_t)n, (uint64_t)off);
-}
-
-ZVFS_API void zvfs_reader_close(zvfs_reader *r) {
-  if (!r) return;
-  zdb_file_free(r->f);
-  zplat_close(r->pf);
-  free(r);
-}
-
-ZVFS_API int zvfs_reader_verify(zvfs_reader *r, volatile int32_t *cancel,
-                                volatile int64_t *progress) {
-  if (!r) return ZVFS_ERR_INVALID;
-  zdb_file *f = r->f;
+int zdb_verify_base(zdb_file *f, zdb_read_fn rd, void *ctx,
+                    volatile int32_t *cancel, volatile int64_t *progress) {
   uint8_t *buf = (uint8_t *)malloc((size_t)f->frame_bytes);
   if (!buf) return ZVFS_ERR_NOMEM;
   XXH64_state_t st;
@@ -637,13 +627,15 @@ ZVFS_API int zvfs_reader_verify(zvfs_reader *r, volatile int32_t *cancel,
       rc = ZVFS_ERR_CANCELLED;
       break;
     }
-    rc = decode_frame(f, reader_rd, r->pf, i, buf);
+    rc = decode_frame(f, rd, ctx, i, buf);
     if (rc) break;
     size_t len = frame_len(f, i);
     XXH64_update(&st, buf, len);
-    if (progress) zplat_atomic_store(progress, (int64_t)((i + 1) * f->frame_bytes));
+    if (progress)
+      zplat_atomic_store(progress, (int64_t)((i + 1) * f->frame_bytes));
   }
   free(buf);
   if (!rc && XXH64_digest(&st) != f->h.content_xxh64) rc = ZVFS_ERR_CORRUPT;
   return rc;
 }
+

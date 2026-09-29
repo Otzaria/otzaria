@@ -1,5 +1,5 @@
-/// Read-only zstd-compressed page VFS for SQLite (`zvfs`) and a streaming
-/// converter from plain SQLite databases to the `.zdb` format.
+/// zstd-compressed page VFS for SQLite (`zvfs`) with an append-only write
+/// overlay, a streaming converter from plain SQLite to `.zdb`, and compaction.
 library;
 
 export 'src/zvfs.dart'
@@ -8,15 +8,19 @@ export 'src/zvfs.dart'
         ZVfsStats,
         ZdbCancellationToken,
         ZdbCancelledException,
+        ZdbCompactResult,
         ZdbConvertProgress,
         ZdbConvertResult,
         ZdbDictionary,
         ZdbException,
         ZdbInfo,
+        ZdbOverlayInfo,
         ZdbSource,
+        compactZdb,
         convertToZdb,
         isZdb,
         readZdbBytes,
         readZdbInfo,
+        readZdbOverlayInfo,
         verifyZdb,
         zdbMagic;

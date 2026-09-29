@@ -19,7 +19,10 @@ add_library(zvfs_static STATIC
   ${PKG}/src/zvfs_core.c
   ${PKG}/src/zvfs_convert.c
   ${PKG}/src/zvfs_dicts.c
-  ${PKG}/src/zvfs_sqlite.c)
+  ${PKG}/src/zvfs_sqlite.c
+  ${PKG}/src/zvfs_overlay.c
+  ${PKG}/src/zvfs_reader.c
+  ${PKG}/src/zvfs_compact.c)
 # Keep in sync with hook/build.dart.
 target_compile_definitions(zvfs_static PUBLIC
   ZSTD_DISABLE_ASM=1 ZSTD_LEGACY_SUPPORT=0 ZSTD_TRACE=0
@@ -39,6 +42,8 @@ endif()
 if(NOT ZVFS_BUILD_TESTS)
   return()
 endif()
+# test-only seams in the library (never in the shipped build)
+target_compile_definitions(zvfs_static PUBLIC ZVFS_TEST_HOOKS=1)
 
 add_executable(zvfs_core_tests test_core.c)
 target_link_libraries(zvfs_core_tests zvfs_static)
@@ -51,13 +56,16 @@ add_test(NAME core COMMAND zvfs_core_tests)
 set_tests_properties(core PROPERTIES ENVIRONMENT "ZVFS_TEST_TMP=${CMAKE_CURRENT_BINARY_DIR}")
 
 if(ZVFS_SQLITE_AMALGAMATION)
-  add_executable(zvfs_vfs_tests test_vfs.c ${ZVFS_SQLITE_AMALGAMATION}/sqlite3.c)
-  target_include_directories(zvfs_vfs_tests PRIVATE ${ZVFS_SQLITE_AMALGAMATION})
-  target_compile_definitions(zvfs_vfs_tests PRIVATE SQLITE_THREADSAFE=1)
-  target_link_libraries(zvfs_vfs_tests zvfs_static)
+  add_library(sqlite_amal STATIC ${ZVFS_SQLITE_AMALGAMATION}/sqlite3.c)
+  target_include_directories(sqlite_amal PUBLIC ${ZVFS_SQLITE_AMALGAMATION})
+  target_compile_definitions(sqlite_amal PUBLIC SQLITE_THREADSAFE=1)
   if(UNIX)
-    target_link_libraries(zvfs_vfs_tests m ${CMAKE_DL_LIBS})
+    target_link_libraries(sqlite_amal PUBLIC m ${CMAKE_DL_LIBS})
   endif()
-  add_test(NAME vfs COMMAND zvfs_vfs_tests)
-  set_tests_properties(vfs PROPERTIES ENVIRONMENT "ZVFS_TEST_TMP=${CMAKE_CURRENT_BINARY_DIR}")
+  foreach(t vfs)
+    add_executable(zvfs_${t}_tests test_${t}.c)
+    target_link_libraries(zvfs_${t}_tests zvfs_static sqlite_amal)
+    add_test(NAME ${t} COMMAND zvfs_${t}_tests)
+    set_tests_properties(${t} PROPERTIES ENVIRONMENT "ZVFS_TEST_TMP=${CMAKE_CURRENT_BINARY_DIR}")
+  endforeach()
 endif()

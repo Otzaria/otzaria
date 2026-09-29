@@ -41,6 +41,39 @@ final class ZvfsInfoStruct extends Struct {
   external Array<Uint8> fileUuid;
   @Array(32)
   external Array<Uint8> dictName;
+  @Uint64()
+  external int baseLogicalSize;
+  @Uint64()
+  external int includesOverlaySeq;
+  @Array(16)
+  external Array<Uint8> derivedFromUuid;
+  @Array(16)
+  external Array<Uint8> includesOverlayUuid;
+}
+
+final class ZvfsOverlayInfoStruct extends Struct {
+  @Int32()
+  external int present;
+  @Uint32()
+  external int reserved0;
+  @Uint64()
+  external int seq;
+  @Uint64()
+  external int commits;
+  @Uint64()
+  external int records;
+  @Uint64()
+  external int fileSize;
+  @Uint64()
+  external int committedEnd;
+  @Uint64()
+  external int logicalSize;
+  @Uint64()
+  external int mappedPages;
+  @Uint64()
+  external int baseVisiblePages;
+  @Array(16)
+  external Array<Uint8> overlayUuid;
 }
 
 final class ZvfsStatsStruct extends Struct {
@@ -58,6 +91,18 @@ final class ZvfsStatsStruct extends Struct {
   external int cacheBytes;
   @Int64()
   external int openFiles;
+  @Int64()
+  external int overlayRecords;
+  @Int64()
+  external int overlayCommits;
+  @Int64()
+  external int overlayBytes;
+  @Int64()
+  external int overlaySyncs;
+  @Int64()
+  external int overlayPageReads;
+  @Int64()
+  external int overlayRefreshScans;
 }
 
 final class ZvfsReader extends Opaque {}
@@ -79,6 +124,9 @@ external int sqlite3_otzariazvfs_init(
 
 @Native<Int Function()>(isLeaf: true)
 external int zvfs_is_registered();
+
+@Native<Int Function(Int)>()
+external int zvfs_set_default(int on);
 
 @Native<Void Function(Int64)>(isLeaf: true)
 external void zvfs_set_cache_budget(int bytes);
@@ -129,6 +177,42 @@ external int zvfs_reader_verify(
   Pointer<Int32> cancel,
   Pointer<Int64> progress,
 );
+
+@Native<Int Function(Pointer<ZvfsReader>, Pointer<ZvfsOverlayInfoStruct>)>(
+  isLeaf: true,
+)
+external int zvfs_reader_overlay_info(
+  Pointer<ZvfsReader> r,
+  Pointer<ZvfsOverlayInfoStruct> out,
+);
+
+@Native<
+  Int Function(
+    Pointer<Utf8>,
+    Pointer<Utf8>,
+    Int,
+    Int,
+    Pointer<Int32>,
+    Pointer<Int64>,
+    Pointer<ZvfsInfoStruct>,
+    Pointer<Utf8>,
+    Size,
+  )
+>()
+external int zvfs_compact(
+  Pointer<Utf8> path,
+  Pointer<Utf8> dst,
+  int level,
+  int threads,
+  Pointer<Int32> cancel,
+  Pointer<Int64> progress,
+  Pointer<ZvfsInfoStruct> out,
+  Pointer<Utf8> err,
+  int errLen,
+);
+
+@Native<Int Function(Pointer<Utf8>, Pointer<Utf8>)>()
+external int zvfs_compact_swap(Pointer<Utf8> path, Pointer<Utf8> newPath);
 
 @Native<
   Int Function(

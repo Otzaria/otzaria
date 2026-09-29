@@ -10,6 +10,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'ffi/native.dart' as native;
 
+part 'compact.dart';
 part 'convert.dart';
 
 /// First 8 bytes of every .zdb file.
@@ -28,7 +29,9 @@ class ZdbException implements Exception {
   static const int invalid = 5;
   static const int cancelled = 6;
   static const int notZdb = 7;
+  static const int full = 9;
   static const int busy = 10;
+  static const int readOnly = 11;
 
   factory ZdbException.fromCode(int code, [String? detail]) {
     final base = native.zvfs_errstr(code).toDartString();
@@ -78,6 +81,16 @@ class ZVfsStats {
   final int corruptFrames;
   final int cacheBytes;
   final int openFiles;
+
+  /// Page and commit records appended to overlays by this process.
+  final int overlayRecords;
+  final int overlayCommits;
+  final int overlayBytes;
+  final int overlaySyncs;
+  final int overlayPageReads;
+
+  /// Scans of sidecar bytes (open, and commits of other processes).
+  final int overlayRefreshScans;
   const ZVfsStats({
     required this.framesDecoded,
     required this.cacheHits,
@@ -86,23 +99,41 @@ class ZVfsStats {
     required this.corruptFrames,
     required this.cacheBytes,
     required this.openFiles,
+    this.overlayRecords = 0,
+    this.overlayCommits = 0,
+    this.overlayBytes = 0,
+    this.overlaySyncs = 0,
+    this.overlayPageReads = 0,
+    this.overlayRefreshScans = 0,
   });
 
   @override
   String toString() =>
       'ZVfsStats(frames: $framesDecoded, hits: $cacheHits, misses: '
       '$cacheMisses, read: $compressedBytesRead, corrupt: $corruptFrames, '
-      'cache: $cacheBytes, files: $openFiles)';
+      'cache: $cacheBytes, files: $openFiles, overlay records: '
+      '$overlayRecords, commits: $overlayCommits, bytes: $overlayBytes)';
 }
 
 /// The "zvfs" SQLite VFS. Open databases with `vfs: ZVfs.name`; files
 /// without the zdb magic are passed through to the default VFS unchanged.
+/// A `.zdb` opened read-write takes its writes into the `-zovl` overlay.
 abstract final class ZVfs {
   static const String name = 'zvfs';
 
   /// Registers the VFS in this process (idempotent, safe from any isolate).
-  static void register({int? cacheBytesPerFile}) {
+  /// With [makeDefault], opens that name no VFS (e.g. the library updater)
+  /// also go through zvfs; other files still pass through unchanged.
+  static void register({int? cacheBytesPerFile, bool? makeDefault}) {
     if (cacheBytesPerFile != null) ZVfs.cacheBytesPerFile = cacheBytesPerFile;
+    _register();
+    if (makeDefault != null &&
+        native.zvfs_set_default(makeDefault ? 1 : 0) != 0) {
+      throw StateError('zvfs default VFS switch failed');
+    }
+  }
+
+  static void _register() {
     if (isRegistered) return;
     final entry =
         Native.addressOf<
@@ -146,6 +177,12 @@ abstract final class ZVfs {
         corruptFrames: s.corruptFrames,
         cacheBytes: s.cacheBytes,
         openFiles: s.openFiles,
+        overlayRecords: s.overlayRecords,
+        overlayCommits: s.overlayCommits,
+        overlayBytes: s.overlayBytes,
+        overlaySyncs: s.overlaySyncs,
+        overlayPageReads: s.overlayPageReads,
+        overlayRefreshScans: s.overlayRefreshScans,
       );
     } finally {
       calloc.free(p);
@@ -194,6 +231,15 @@ class ZdbInfo {
   final DateTime created;
   final Uint8List fileUuid;
 
+  /// [logicalSize] includes the overlay; this is the base image alone.
+  final int baseLogicalSize;
+
+  /// Set on a compacted base: the base and the overlay (up to
+  /// [includesOverlaySeq]) it was built from. Zero-filled otherwise.
+  final Uint8List derivedFromUuid;
+  final Uint8List includesOverlayUuid;
+  final int includesOverlaySeq;
+
   const ZdbInfo({
     required this.formatMajor,
     required this.formatMinor,
@@ -211,6 +257,10 @@ class ZdbInfo {
     required this.contentXxh64,
     required this.created,
     required this.fileUuid,
+    required this.baseLogicalSize,
+    required this.derivedFromUuid,
+    required this.includesOverlayUuid,
+    required this.includesOverlaySeq,
   });
 
   /// Bit 0: the source was in WAL mode; the served header says rollback.
@@ -242,8 +292,48 @@ class ZdbInfo {
       fileUuid: Uint8List.fromList([
         for (var i = 0; i < 16; i++) s.fileUuid[i],
       ]),
+      baseLogicalSize: s.baseLogicalSize,
+      derivedFromUuid: Uint8List.fromList([
+        for (var i = 0; i < 16; i++) s.derivedFromUuid[i],
+      ]),
+      includesOverlayUuid: Uint8List.fromList([
+        for (var i = 0; i < 16; i++) s.includesOverlayUuid[i],
+      ]),
+      includesOverlaySeq: s.includesOverlaySeq,
     );
   }
+}
+
+/// The `-zovl` overlay next to a `.zdb`, as a new connection replays it.
+class ZdbOverlayInfo {
+  /// False without a sidecar, or when it is a torn creation or obsolete
+  /// after a compaction (then the base alone is served).
+  final bool present;
+
+  /// Sequence number of the last valid commit (0 = none).
+  final int seq;
+  final int commits;
+  final int records;
+  final int fileSize;
+  final int committedEnd;
+  final int logicalSize;
+  final int mappedPages;
+  final Uint8List overlayUuid;
+
+  const ZdbOverlayInfo({
+    required this.present,
+    required this.seq,
+    required this.commits,
+    required this.records,
+    required this.fileSize,
+    required this.committedEnd,
+    required this.logicalSize,
+    required this.mappedPages,
+    required this.overlayUuid,
+  });
+
+  /// Bytes past the last commit: a torn tail the next writer drops.
+  int get uncommittedBytes => present ? fileSize - committedEnd : 0;
 }
 
 T _withReader<T>(String path, T Function(Pointer<native.ZvfsReader> r) body) {
@@ -263,9 +353,10 @@ T _withReader<T>(String path, T Function(Pointer<native.ZvfsReader> r) body) {
   }
 }
 
-/// Parses and validates header, dictionary and index (not the frames). For a
-/// path open through zvfs, the open state answers ([ZdbException.busy] when
-/// it is open but not as a zdb); the file is not opened again.
+/// Parses and validates header, dictionary and index (not the frames) and
+/// replays the overlay: [ZdbInfo.logicalSize] is the size SQLite sees. For
+/// a path open through zvfs the open state answers ([ZdbException.busy]
+/// when it is open but not as a zdb); the file is not opened again.
 ZdbInfo readZdbInfo(String path) {
   if (_inUse(path) != 0) {
     final p = path.toNativeUtf8();
@@ -290,7 +381,31 @@ ZdbInfo readZdbInfo(String path) {
   });
 }
 
-/// Reads [length] logical (decompressed) bytes at [offset], without SQLite.
+/// The overlay as a new connection would replay it.
+ZdbOverlayInfo readZdbOverlayInfo(String path) => _withReader(path, (r) {
+  final p = calloc<native.ZvfsOverlayInfoStruct>();
+  try {
+    native.zvfs_reader_overlay_info(r, p);
+    final s = p.ref;
+    return ZdbOverlayInfo(
+      present: s.present != 0,
+      seq: s.seq,
+      commits: s.commits,
+      records: s.records,
+      fileSize: s.fileSize,
+      committedEnd: s.committedEnd,
+      logicalSize: s.logicalSize,
+      mappedPages: s.mappedPages,
+      overlayUuid: Uint8List.fromList([
+        for (var i = 0; i < 16; i++) s.overlayUuid[i],
+      ]),
+    );
+  } finally {
+    calloc.free(p);
+  }
+});
+
+/// Reads [length] logical bytes (base + overlay) at [offset], without SQLite.
 /// [ZdbException.busy] while the path is open through zvfs in this process.
 Uint8List readZdbBytes(String path, int offset, int length) =>
     _withReader(path, (r) {
@@ -304,7 +419,8 @@ Uint8List readZdbBytes(String path, int offset, int length) =>
       }
     });
 
-/// Decodes every frame off the calling isolate and checks the content hash.
+/// Decodes every base frame off the calling isolate, checks the content
+/// hash, then decodes every overlay page.
 /// [ZdbException.busy] while the path is open through zvfs in this process.
 Future<ZdbInfo> verifyZdb(
   String path, {

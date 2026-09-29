@@ -1,4 +1,4 @@
-/* SQLite VFS shim: .zdb files are served read-only, others pass through. */
+/* SQLite VFS shim: .zdb bases + overlay sidecar; other files pass through. */
 #include <stdlib.h>
 #include <string.h>
 
@@ -25,6 +25,8 @@ typedef struct zfile {
   sqlite3_file base;
   zdb_file *z; /* NULL: passthrough */
   sqlite3_file *real;
+  int writable;
+  int lock; /* level held through xLock/xUnlock */
   open_path *plain;
 } zfile;
 
@@ -35,8 +37,19 @@ static int map_rc(int rc) {
     case ZVFS_ERR_NOMEM: return SQLITE_NOMEM;
     case ZVFS_ERR_SHORT_READ: return SQLITE_IOERR_SHORT_READ;
     case ZVFS_ERR_UNSUPPORTED: return SQLITE_CANTOPEN;
+    case ZVFS_ERR_FULL: return SQLITE_FULL;
+    case ZVFS_ERR_READONLY: return SQLITE_READONLY;
     default: return SQLITE_IOERR_READ;
   }
+}
+
+/* Keeps SHORT_READ/CORRUPT/FULL/NOMEM/READONLY, else the op's I/O code. */
+static int map_io(int rc, int ioerr) {
+  if (rc == ZVFS_OK) return SQLITE_OK;
+  if (rc == ZVFS_ERR_SHORT_READ || rc == ZVFS_ERR_CORRUPT ||
+      rc == ZVFS_ERR_FULL || rc == ZVFS_ERR_NOMEM || rc == ZVFS_ERR_READONLY)
+    return map_rc(rc);
+  return ioerr;
 }
 
 static int real_rd(void *ctx, void *buf, size_t n, uint64_t off) {
@@ -54,48 +67,180 @@ static int real_rd(void *ctx, void *buf, size_t n, uint64_t off) {
   return ZVFS_OK;
 }
 
+/* ---- overlay sidecar through the base VFS (its retries, no locking) ---- */
+typedef struct ovl_env {
+  char *path; /* "<db>-zovl", double-NUL terminated; outlives the handle */
+} ovl_env;
+
+static int ov_read(void *h, void *buf, size_t n, uint64_t off) {
+  sqlite3_file *f = (sqlite3_file *)h;
+  int rc = f->pMethods->xRead(f, buf, (int)n, (sqlite3_int64)off);
+  if (rc == SQLITE_IOERR_SHORT_READ) return ZVFS_ERR_SHORT_READ;
+  return rc == SQLITE_OK ? ZVFS_OK : ZVFS_ERR_IO;
+}
+static int ov_write(void *h, const void *buf, size_t n, uint64_t off) {
+  sqlite3_file *f = (sqlite3_file *)h;
+  int rc = f->pMethods->xWrite(f, buf, (int)n, (sqlite3_int64)off);
+  if (rc == SQLITE_FULL) return ZVFS_ERR_FULL;
+  if (rc == SQLITE_READONLY) return ZVFS_ERR_READONLY;
+  return rc == SQLITE_OK ? ZVFS_OK : ZVFS_ERR_IO;
+}
+static int ov_truncate(void *h, uint64_t size) {
+  sqlite3_file *f = (sqlite3_file *)h;
+  int rc = f->pMethods->xTruncate(f, (sqlite3_int64)size);
+  return rc == SQLITE_OK ? ZVFS_OK : ZVFS_ERR_IO;
+}
+static int ov_sync(void *h, int flags) {
+  sqlite3_file *f = (sqlite3_file *)h;
+  if (!(flags & 0x0F)) flags |= SQLITE_SYNC_NORMAL;
+  return f->pMethods->xSync(f, flags) == SQLITE_OK ? ZVFS_OK : ZVFS_ERR_IO;
+}
+static int ov_size(void *h, uint64_t *out) {
+  sqlite3_file *f = (sqlite3_file *)h;
+  sqlite3_int64 n = 0;
+  int rc = f->pMethods->xFileSize(f, &n);
+  *out = n < 0 ? 0 : (uint64_t)n;
+  return rc == SQLITE_OK ? ZVFS_OK : ZVFS_ERR_IO;
+}
+static void ov_close(void *h) {
+  sqlite3_file *f = (sqlite3_file *)h;
+  if (f->pMethods) f->pMethods->xClose(f);
+  sqlite3_free(f);
+}
+static int ov_open(void *env, int create, void **out) {
+  ovl_env *e = (ovl_env *)env;
+  *out = NULL;
+  if (!create) {
+    int exists = 0;
+    if (g_base->xAccess(g_base, e->path, SQLITE_ACCESS_EXISTS, &exists) !=
+        SQLITE_OK)
+      return ZVFS_ERR_IO;
+    if (!exists) return ZVFS_OK;
+  }
+  sqlite3_file *f = (sqlite3_file *)sqlite3_malloc(g_base->szOsFile);
+  if (!f) return ZVFS_ERR_NOMEM;
+  memset(f, 0, (size_t)g_base->szOsFile);
+  /* Journal type: never locked; POSIX fsyncs the directory after create. */
+  int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_MAIN_JOURNAL |
+              (create ? SQLITE_OPEN_CREATE : 0);
+  int outf = 0;
+  int rc = g_base->xOpen(g_base, e->path, f, flags, &outf);
+  if (rc != SQLITE_OK && !create) {
+    f->pMethods = NULL;
+    rc = g_base->xOpen(g_base, e->path, f,
+                       SQLITE_OPEN_READONLY | SQLITE_OPEN_MAIN_JOURNAL, &outf);
+  }
+  if (rc != SQLITE_OK) {
+    int exists = 1;
+    if (!create) g_base->xAccess(g_base, e->path, SQLITE_ACCESS_EXISTS, &exists);
+    sqlite3_free(f);
+    if (!exists) return ZVFS_OK; /* removed between the two calls */
+    return rc == SQLITE_READONLY ? ZVFS_ERR_READONLY : ZVFS_ERR_IO;
+  }
+  *out = f;
+  return ZVFS_OK;
+}
+static void ov_env_free(void *env) {
+  ovl_env *e = (ovl_env *)env;
+  sqlite3_free(e->path);
+  sqlite3_free(e);
+}
+
+static const zovl_ops g_ovl_ops = {ov_read, ov_write, ov_truncate, ov_sync,
+                                   ov_size, ov_close,  ov_open,     ov_env_free};
+
+static char *with_suffix(const char *path, const char *suffix) {
+  size_t n = strlen(path), k = strlen(suffix);
+  char *p = (char *)sqlite3_malloc64(n + k + 2);
+  if (!p) return NULL;
+  memcpy(p, path, n);
+  memcpy(p + n, suffix, k);
+  p[n + k] = p[n + k + 1] = 0;
+  return p;
+}
+
+static ovl_env *make_env(const char *db_path) {
+  ovl_env *e = (ovl_env *)sqlite3_malloc(sizeof *e);
+  if (!e) return NULL;
+  e->path = with_suffix(db_path, ZDB_OVERLAY_SUFFIX);
+  if (!e->path) {
+    sqlite3_free(e);
+    return NULL;
+  }
+  return e;
+}
+
+/* ---- io methods ---- */
 static int zRead(sqlite3_file *pf, void *buf, int amt, sqlite3_int64 off) {
   zfile *f = (zfile *)pf;
   if (!f->z) return f->real->pMethods->xRead(f->real, buf, amt, off);
   if (amt < 0 || off < 0) return SQLITE_IOERR_READ;
-  return map_rc(zdb_file_read(f->z, real_rd, f->real, buf, (uint64_t)amt,
-                              (uint64_t)off));
+  return map_io(zovl_read(f->z->ovl, real_rd, f->real, (uint8_t *)buf,
+                          (uint64_t)amt, (uint64_t)off),
+                SQLITE_IOERR_READ);
 }
 
 static int zWrite(sqlite3_file *pf, const void *b, int amt, sqlite3_int64 off) {
   zfile *f = (zfile *)pf;
-  if (f->z) return SQLITE_READONLY;
-  return f->real->pMethods->xWrite(f->real, b, amt, off);
+  if (!f->z) return f->real->pMethods->xWrite(f->real, b, amt, off);
+  if (!f->writable) return SQLITE_READONLY;
+  if (amt < 0 || off < 0) return SQLITE_IOERR_WRITE;
+  return map_io(zovl_write(f->z->ovl, real_rd, f->real, (const uint8_t *)b,
+                           (uint64_t)amt, (uint64_t)off),
+                SQLITE_IOERR_WRITE);
 }
 
 static int zTruncate(sqlite3_file *pf, sqlite3_int64 size) {
   zfile *f = (zfile *)pf;
-  if (f->z) return SQLITE_READONLY;
-  return f->real->pMethods->xTruncate(f->real, size);
+  if (!f->z) return f->real->pMethods->xTruncate(f->real, size);
+  if (!f->writable) return SQLITE_READONLY;
+  if (size < 0) return SQLITE_IOERR_TRUNCATE;
+  return map_io(zovl_truncate(f->z->ovl, real_rd, f->real, (uint64_t)size),
+                SQLITE_IOERR_TRUNCATE);
 }
 
 static int zSync(sqlite3_file *pf, int flags) {
   zfile *f = (zfile *)pf;
-  if (f->z) return SQLITE_OK;
-  return f->real->pMethods->xSync(f->real, flags);
+  if (!f->z) return f->real->pMethods->xSync(f->real, flags);
+  return map_io(zovl_commit(f->z->ovl, flags ? flags : SQLITE_SYNC_NORMAL),
+                SQLITE_IOERR_FSYNC);
 }
 
 static int zFileSize(sqlite3_file *pf, sqlite3_int64 *size) {
   zfile *f = (zfile *)pf;
   if (f->z) {
-    *size = (sqlite3_int64)f->z->h.logical_size;
+    *size = (sqlite3_int64)zovl_logical_size(f->z->ovl);
     return SQLITE_OK;
   }
   return f->real->pMethods->xFileSize(f->real, size);
 }
 
+/* Unsealed writes are committed before a lock release publishes them. */
+static int seal(zfile *f) {
+  return f->z ? zovl_commit(f->z->ovl, 0) : ZVFS_OK;
+}
+
 static int zLock(sqlite3_file *pf, int l) {
   zfile *f = (zfile *)pf;
-  return f->real->pMethods->xLock(f->real, l);
+  int rc = f->real->pMethods->xLock(f->real, l);
+  if (rc == SQLITE_OK && f->z) {
+    /* another process may have committed while we held no lock */
+    int zr = zovl_refresh(f->z->ovl);
+    if (zr) {
+      f->real->pMethods->xUnlock(f->real, f->lock);
+      return map_io(zr, SQLITE_IOERR_LOCK);
+    }
+  }
+  if (rc == SQLITE_OK) f->lock = l;
+  return rc;
 }
 static int zUnlock(sqlite3_file *pf, int l) {
   zfile *f = (zfile *)pf;
-  return f->real->pMethods->xUnlock(f->real, l);
+  int zr = seal(f);
+  int rc = f->real->pMethods->xUnlock(f->real, l);
+  if (rc == SQLITE_OK) f->lock = l;
+  if (rc == SQLITE_OK && zr) rc = map_io(zr, SQLITE_IOERR_UNLOCK);
+  return rc;
 }
 static int zCheckReserved(sqlite3_file *pf, int *out) {
   zfile *f = (zfile *)pf;
@@ -112,6 +257,12 @@ static int zFileControl(sqlite3_file *pf, int op, void *arg) {
       case SQLITE_FCNTL_SIZE_HINT:
       case SQLITE_FCNTL_CHUNK_SIZE:
         return SQLITE_OK;
+      case SQLITE_FCNTL_CKPT_DONE: {
+        /* nBackfill is published after this, possibly without an xSync */
+        int zr = seal(f);
+        if (zr) return map_io(zr, SQLITE_IOERR_WRITE);
+        break;
+      }
       default:
         break;
     }
@@ -143,7 +294,19 @@ static int zShmMap(sqlite3_file *pf, int pg, int sz, int ext, void volatile **pp
 static int zShmLock(sqlite3_file *pf, int off, int n, int flags) {
   zfile *f = (zfile *)pf;
   if (f->real->pMethods->iVersion < 2) return SQLITE_IOERR_SHMLOCK;
-  return f->real->pMethods->xShmLock(f->real, off, n, flags);
+  int unlock = (flags & SQLITE_SHM_UNLOCK) != 0;
+  int zr = f->z && unlock ? seal(f) : ZVFS_OK;
+  int rc = f->real->pMethods->xShmLock(f->real, off, n, flags);
+  if (rc != SQLITE_OK || !f->z) return rc;
+  if (unlock) return zr ? map_io(zr, SQLITE_IOERR_SHMLOCK) : SQLITE_OK;
+  /* WAL readers and checkpointers learn of new db pages through the shm */
+  zr = zovl_refresh(f->z->ovl);
+  if (zr) {
+    int mode = flags & (SQLITE_SHM_SHARED | SQLITE_SHM_EXCLUSIVE);
+    f->real->pMethods->xShmLock(f->real, off, n, SQLITE_SHM_UNLOCK | mode);
+    return map_io(zr, SQLITE_IOERR_SHMLOCK);
+  }
+  return SQLITE_OK;
 }
 static void zShmBarrier(sqlite3_file *pf) {
   zfile *f = (zfile *)pf;
@@ -221,6 +384,7 @@ static void register_plain(zfile *f, const char *path) {
 
 static int zClose(sqlite3_file *pf) {
   zfile *f = (zfile *)pf;
+  if (f->z) seal(f);
   int rc = f->real->pMethods ? f->real->pMethods->xClose(f->real) : SQLITE_OK;
   if (f->z) release_shared(f->z);
   if (f->plain) release_plain(f->plain);
@@ -235,20 +399,26 @@ static const sqlite3_io_methods g_methods = {
     zFileControl, zSectorSize, zDeviceChar,    zShmMap,       zShmLock,
     zShmBarrier, zShmUnmap,    zFetch,         zUnfetch};
 
-/* Shares one decoded state per (path, header) so a replaced file never
-   reuses a stale index. */
+static zdb_file *find_shared(const char *path, uint64_t phys,
+                             const uint8_t *raw) {
+  for (zdb_file *z = g_files; z; z = z->next)
+    if (z->physical_size == phys && strcmp(z->key, path) == 0 &&
+        memcmp(z->raw_header, raw, ZDB_HEADER_CORE) == 0)
+      return z;
+  return NULL;
+}
+
+/* One state per (path, header): a replaced base never reuses a stale index,
+   and all connections of a process share one overlay page map. */
 static int attach_shared(zfile *f, const char *path, uint64_t phys) {
   uint8_t raw[ZDB_HEADER_CORE];
   int rc = real_rd(f->real, raw, sizeof raw, 0);
   if (rc) return rc == ZVFS_ERR_SHORT_READ ? ZVFS_ERR_CORRUPT : rc;
   zplat_lock(&g_mu);
-  for (zdb_file *z = g_files; z; z = z->next) {
-    if (z->physical_size == phys && strcmp(z->key, path) == 0 &&
-        memcmp(z->raw_header, raw, sizeof raw) == 0) {
-      z->refs++;
-      f->z = z;
-      break;
-    }
+  zdb_file *z = find_shared(path, phys, raw);
+  if (z) {
+    z->refs++;
+    f->z = z;
   }
   zplat_unlock(&g_mu);
   if (f->z) return ZVFS_OK;
@@ -258,22 +428,26 @@ static int attach_shared(zfile *f, const char *path, uint64_t phys) {
   if (rc) return rc;
   size_t n = strlen(path) + 1;
   nz->key = (char *)malloc(n);
-  if (!nz->key) {
+  ovl_env *env = make_env(path);
+  if (!nz->key || !env) {
+    if (env) ov_env_free(env);
     zdb_file_free(nz);
     return ZVFS_ERR_NOMEM;
   }
   memcpy(nz->key, path, n);
+  rc = zovl_create(&g_ovl_ops, env, nz, &nz->ovl);
+  if (rc) {
+    ov_env_free(env);
+    zdb_file_free(nz);
+    return rc;
+  }
   nz->refs = 1;
   zplat_lock(&g_mu);
-  for (zdb_file *z = g_files; z; z = z->next) {
-    if (z->physical_size == phys && strcmp(z->key, path) == 0 &&
-        memcmp(z->raw_header, nz->raw_header, ZDB_HEADER_CORE) == 0) {
-      z->refs++;
-      f->z = z;
-      break;
-    }
-  }
-  if (!f->z) {
+  z = find_shared(path, phys, nz->raw_header);
+  if (z) {
+    z->refs++;
+    f->z = z;
+  } else {
     nz->next = g_files;
     g_files = nz;
     f->z = nz;
@@ -283,19 +457,6 @@ static int attach_shared(zfile *f, const char *path, uint64_t phys) {
   if (nz) zdb_file_free(nz);
   else zvfs_stat_open_files(1);
   return ZVFS_OK;
-}
-
-/* An overlay written by a newer build must not be silently ignored. */
-static int overlay_present(const char *path) {
-  size_t n = strlen(path);
-  char *p = (char *)sqlite3_malloc64(n + sizeof ZDB_OVERLAY_SUFFIX);
-  if (!p) return -1;
-  memcpy(p, path, n);
-  memcpy(p + n, ZDB_OVERLAY_SUFFIX, sizeof ZDB_OVERLAY_SUFFIX);
-  int exists = 0;
-  int rc = g_base->xAccess(g_base, p, SQLITE_ACCESS_EXISTS, &exists);
-  sqlite3_free(p);
-  return rc == SQLITE_OK ? exists : -1;
 }
 
 static int zOpen(sqlite3_vfs *vfs, sqlite3_filename name, sqlite3_file *pf,
@@ -320,16 +481,14 @@ static int zOpen(sqlite3_vfs *vfs, sqlite3_filename name, sqlite3_file *pf,
     else
       size = 0;
     if (zr == SQLITE_OK && size > 0 && zdb_has_magic(magic, sizeof magic)) {
-      int ov = overlay_present(name);
-      int err = ov != 0 ? (ov < 0 ? ZVFS_ERR_IO : ZVFS_ERR_UNSUPPORTED)
-                        : attach_shared(f, name, (uint64_t)size);
+      int err = attach_shared(f, name, (uint64_t)size);
       if (err) {
         f->real->pMethods->xClose(f->real);
         f->base.pMethods = NULL;
         return map_rc(err);
       }
-      /* SQLite marks the pager read-only when xOpen reports so. */
-      inner_flags = (inner_flags & ~SQLITE_OPEN_READWRITE) | SQLITE_OPEN_READONLY;
+      /* The base is never written; writes go to the overlay. */
+      f->writable = (inner_flags & SQLITE_OPEN_READWRITE) != 0;
     } else {
       register_plain(f, name);
     }
@@ -476,6 +635,7 @@ ZVFS_API int zvfs_state_info(const char *path, zvfs_info *out) {
   for (zdb_file *z = g_files; z; z = z->next) {
     if (strcmp(z->key, full) == 0) {
       zdb_fill_info(z, out);
+      if (z->ovl) out->logical_size = zovl_logical_size(z->ovl);
       rc = ZVFS_OK;
       break;
     }
@@ -483,4 +643,49 @@ ZVFS_API int zvfs_state_info(const char *path, zvfs_info *out) {
   zplat_unlock(&g_mu);
   sqlite3_free(full);
   return rc;
+}
+
+ZVFS_API int zvfs_set_default(int on) {
+  if (!zvfs_is_registered()) return ZVFS_ERR_INVALID;
+  zplat_lock(&g_mu);
+  int rc = sqlite3_vfs_register(on ? &g_vfs : g_base, 1);
+  zplat_unlock(&g_mu);
+  return rc == SQLITE_OK ? ZVFS_OK : ZVFS_ERR_INVALID;
+}
+
+/* ---- compaction swap ---- */
+ZVFS_API int zvfs_compact_swap(const char *path, const char *new_path) {
+  if (!path || !new_path || strlen(path) > 4000) return ZVFS_ERR_INVALID;
+  int u = zvfs_in_use(path);
+  if (u) return u < 0 ? ZVFS_ERR_NOMEM : ZVFS_ERR_BUSY;
+  if (zvfs_sidecars_busy(path)) return ZVFS_ERR_BUSY;
+  zvfs_reader *cur = NULL, *nw = NULL;
+  int rc = zvfs_reader_open(path, &cur);
+  if (!rc) rc = zvfs_reader_open(new_path, &nw);
+  if (!rc) {
+    zvfs_info ci, ni;
+    zvfs_overlay_info co;
+    zvfs_reader_info(cur, &ci);
+    zvfs_reader_info(nw, &ni);
+    zvfs_reader_overlay_info(cur, &co);
+    uint8_t zero[16] = {0};
+    const uint8_t *ovl_uuid = co.present ? co.overlay_uuid : zero;
+    uint64_t seq = co.present ? co.seq : 0;
+    /* the new base must contain exactly what path serves right now */
+    if (memcmp(ni.derived_from_uuid, ci.file_uuid, 16) != 0 ||
+        memcmp(ni.includes_overlay_uuid, ovl_uuid, 16) != 0 ||
+        ni.includes_overlay_seq != seq || ni.logical_size != ci.logical_size)
+      rc = ZVFS_ERR_BUSY;
+  }
+  zvfs_reader_close(cur);
+  zvfs_reader_close(nw);
+  if (rc) return rc;
+  rc = zplat_rename_durable(new_path, path);
+  if (rc) return rc;
+  /* Until this delete lands the old sidecar is obsolete by lineage. */
+  char ov[4096];
+  size_t n = strlen(path);
+  memcpy(ov, path, n);
+  memcpy(ov + n, ZDB_OVERLAY_SUFFIX, sizeof ZDB_OVERLAY_SUFFIX);
+  return zplat_delete_durable(ov);
 }

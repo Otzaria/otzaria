@@ -17,6 +17,9 @@ const _ownSources = [
   'src/zvfs_convert.c',
   'src/zvfs_dicts.c',
   'src/zvfs_sqlite.c',
+  'src/zvfs_overlay.c',
+  'src/zvfs_reader.c',
+  'src/zvfs_compact.c',
 ];
 
 void main(List<String> args) async {

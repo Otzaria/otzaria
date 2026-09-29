@@ -415,6 +415,13 @@ ZVFS_API int zvfs_conv_create(const char *dst, const void *dict,
   return ZVFS_OK;
 }
 
+void zvfs_conv_set_lineage(zvfs_conv *c, const uint8_t derived_from[16],
+                           const uint8_t overlay_uuid[16], uint64_t seq) {
+  memcpy(c->h.derived_from_uuid, derived_from, 16);
+  memcpy(c->h.includes_overlay_uuid, overlay_uuid, 16);
+  c->h.includes_overlay_seq = seq;
+}
+
 static void put64le(uint8_t *p, uint64_t v) {
   for (int i = 0; i < 8; i++) p[i] = (uint8_t)(v >> (8 * i));
 }
@@ -496,6 +503,10 @@ ZVFS_API int zvfs_conv_finish(zvfs_conv *c, zvfs_info *info) {
     info->created_unix_ms = c->h.created_ms;
     memcpy(info->file_uuid, c->h.uuid, 16);
     memcpy(info->dict_name, c->h.dict_name, 32);
+    info->base_logical_size = c->h.logical_size;
+    info->includes_overlay_seq = c->h.includes_overlay_seq;
+    memcpy(info->derived_from_uuid, c->h.derived_from_uuid, 16);
+    memcpy(info->includes_overlay_uuid, c->h.includes_overlay_uuid, 16);
   }
   zplat_close(c->out);
   c->out = NULL;

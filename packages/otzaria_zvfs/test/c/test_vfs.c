@@ -4,6 +4,15 @@
 #include "zvfs.h"
 #include "zvfs_internal.h"
 
+static void remove_all(const char *path) {
+  static const char *sfx[] = {"", "-zovl", "-journal", "-wal", "-shm"};
+  char b[1100];
+  for (int i = 0; i < 5; i++) {
+    snprintf(b, sizeof b, "%s%s", path, sfx[i]);
+    remove(b);
+  }
+}
+
 static sqlite3 *open_db(const char *path, int flags, const char *vfs) {
   sqlite3 *db = NULL;
   int rc = sqlite3_open_v2(path, &db, flags, vfs);
@@ -24,7 +33,7 @@ static void exec(sqlite3 *db, const char *sql) {
 }
 
 static void make_db(const char *path, int page_size, int wal) {
-  remove(path);
+  remove_all(path);
   sqlite3 *db = open_db(path, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
   char sql[256];
   snprintf(sql, sizeof sql, "PRAGMA page_size=%d;", page_size);
@@ -51,6 +60,7 @@ static void make_db(const char *path, int page_size, int wal) {
 }
 
 static int convert_file(const char *src, const char *dst) {
+  remove_all(dst);
   uint8_t *data;
   size_t n;
   if (read_file(src, &data, &n)) return -1;
@@ -111,6 +121,7 @@ static void test_roundtrip(int page_size, int wal) {
   const char *plain = tmp_path("vfs_plain.db");
   const char *zdb = tmp_path("vfs.zdb");
   make_db(plain, page_size, wal);
+  remove_all(zdb);
   CHECK_EQ(convert_file(plain, zdb), 0);
   sqlite3 *a = open_db(plain, SQLITE_OPEN_READONLY, NULL);
   sqlite3 *b = open_db(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
@@ -130,17 +141,32 @@ static void test_roundtrip(int page_size, int wal) {
   sqlite3_close(a);
   sqlite3_close(b);
 
-  /* Opened read-write, the pager is still read-only. */
+  /* Opened read-only the pager refuses writes; read-write goes to the overlay. */
+  sqlite3 *ro = open_db(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  CHECK(ro && sqlite3_db_readonly(ro, "main") == 1);
+  if (ro) {
+    CHECK(sqlite3_exec(ro, "INSERT INTO book VALUES(9999,'x',1)", 0, 0, 0) ==
+          SQLITE_READONLY);
+    sqlite3_close(ro);
+  }
   sqlite3 *w = open_db(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
   CHECK(w != NULL);
   if (w) {
-    CHECK(sqlite3_db_readonly(w, "main") == 1);
-    CHECK(sqlite3_exec(w, "INSERT INTO book VALUES(9999,'x',1)", 0, 0, 0) ==
-          SQLITE_READONLY);
+    CHECK(sqlite3_db_readonly(w, "main") == 0);
+    CHECK_EQ(sqlite3_exec(w, "INSERT INTO book VALUES(9999,'x',1)", 0, 0, 0),
+             SQLITE_OK);
     sqlite3_close(w);
   }
+  a = open_db(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  if (a) {
+    int rc;
+    CHECK(query_hash(a, "SELECT title FROM book WHERE id=9999", &rc) !=
+          query_hash(a, "SELECT 1 WHERE 0", NULL));
+    CHECK_EQ(rc, SQLITE_OK);
+    sqlite3_close(a);
+  }
   remove(plain);
-  remove(zdb);
+  remove_all(zdb);
 }
 
 static void test_passthrough(void) {
@@ -198,10 +224,19 @@ static void test_corrupt_and_overlay(void) {
   write_file(zdb, d, n);
   char ov[1100];
   snprintf(ov, sizeof ov, "%s%s", zdb, ZDB_OVERLAY_SUFFIX);
+  /* a sidecar no longer than its header is a torn creation: ignored */
   write_file(ov, "x", 1);
   c = NULL;
   rc = sqlite3_open_v2(zdb, &c, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
-  CHECK_EQ(rc, SQLITE_CANTOPEN);
+  CHECK_EQ(rc, SQLITE_OK);
+  sqlite3_close(c);
+  /* longer than a header but not bound to this base: refused */
+  uint8_t junk[300];
+  memset(junk, 0x33, sizeof junk);
+  write_file(ov, junk, sizeof junk);
+  c = NULL;
+  rc = sqlite3_open_v2(zdb, &c, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  CHECK_EQ(rc, SQLITE_CORRUPT);
   sqlite3_close(c);
   remove(ov);
   free(d);
