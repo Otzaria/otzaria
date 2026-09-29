@@ -5,10 +5,10 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 class FindRefPersonalBooksSetting {
   FindRefPersonalBooksSetting._();
 
-  static const String _key = 'key-find-ref-include-personal-books';
+  static const String key = 'key-find-ref-include-personal-books';
 
   static bool load() =>
-      Settings.getValue<bool>(_key, defaultValue: true) ?? true;
+      Settings.getValue<bool>(key, defaultValue: true) ?? true;
 
-  static Future<void> save(bool value) => Settings.setValue<bool>(_key, value);
+  static Future<void> save(bool value) => Settings.setValue<bool>(key, value);
 }

@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/windowing/settings_sync.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
+import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/find_ref_recent_store.dart';
 import 'package:otzaria/find_ref/repository/db_commentator_entry.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
@@ -577,8 +578,14 @@ void main() {
     await tester.enterText(find.byType(TextField), 'בראשית');
     await tester.pump(_pastDebounce);
     await tester.pump();
-    // רווח אינו משנה את הנרמול — התוצאות עדיין של השאילתה שבשדה.
-    await tester.enterText(find.byType(TextField), 'בראשית ');
+    // גרש אינו משנה את הנרמול, ו-trim אינו מסיר אותו: הנשמר מבדיל ביניהם.
+    const variant = "בראשית'";
+    expect(
+      FindRefBloc.normalizeQuery(variant),
+      FindRefBloc.normalizeQuery('בראשית'),
+    );
+    expect(variant.trim(), isNot('בראשית'));
+    await tester.enterText(find.byType(TextField), variant);
     await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(find.text('בראשית פרק א'));
     await tester.pump();
@@ -648,6 +655,26 @@ void main() {
       await tester.pump();
 
       expect(FindRefRecentStore.load(), ['שמות']);
+    });
+
+    testWidgets('קישור איתור חיצוני אחרי Enter מבטל את הפתיחה הממתינה', (
+      tester,
+    ) async {
+      await showFirstResults(tester);
+      await tester.enterText(find.byType(TextField), 'שמות');
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+
+      // כמו otzaria://detection מהמסך הראשי: הטקסט מוחלף בלי onChanged.
+      FocusRepository().findRefSearchController.text = 'שמות ב';
+      final context = tester.element(find.byType(FindRefDialog));
+      context.read<FindRefBloc>().add(const SearchRefRequested('שמות ב'));
+      await tester.pump(_pastDebounce);
+      await tester.pump();
+
+      expect(find.text('שמות פרק ב'), findsOneWidget);
+      expect(FindRefRecentStore.load(), isEmpty);
     });
 
     testWidgets('הקלדה אחרי Enter מבטלת את הפתיחה הממתינה', (tester) async {
@@ -843,6 +870,56 @@ void main() {
     expect(find.text('אירעה שגיאה בזמן האיתור'), findsOneWidget);
     expect(find.textContaining('DB down'), findsNothing);
     expect(find.widgetWithText(ActionButton, 'נסה שוב'), findsOneWidget);
+  });
+
+  testWidgets('Enter במצב שגיאה אינו פותח תוצאה אחרי "נסה שוב"', (
+    tester,
+  ) async {
+    final repo = _FlakyRepository([_ref('בראשית פרק א')]);
+    await _pumpDialog(
+      tester,
+      repository: repo,
+      screenSize: const Size(1200, 900),
+    );
+    await tester.enterText(find.byType(TextField), 'בראשית');
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+    expect(find.text('האיתור נכשל'), findsOneWidget);
+
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    final retry = find.widgetWithText(ActionButton, 'נסה שוב');
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+
+    expect(find.text('בראשית פרק א'), findsOneWidget);
+    expect(FindRefRecentStore.load(), isEmpty);
+  });
+
+  testWidgets('מתג שהשתנה מחוץ לדיאלוג אינו משאיר תוצאות נעולות', (
+    tester,
+  ) async {
+    await _pumpDialog(tester, results: [_ref('בראשית פרק א')]);
+    await tester.enterText(find.byType(TextField), 'בראשית');
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+
+    // חלון אחר הפך את המתג, וקישור חיצוני הריץ איתור בלי ערך מפורש.
+    await Settings.setValue<bool>('key-find-ref-include-personal-books', true);
+    FocusRepository().findRefSearchController.text = 'בראשית פרק';
+    final context = tester.element(find.byType(FindRefDialog));
+    context.read<FindRefBloc>().add(const SearchRefRequested('בראשית פרק'));
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+
+    final tile = find.ancestor(
+      of: find.text('בראשית פרק א'),
+      matching: find.byType(ListTile),
+    );
+    expect(tester.widget<ListTile>(tile).onTap, isNotNull);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
   });
 
   testWidgets('"נסה שוב" במצב שגיאה מריץ את השאילתה מחדש', (tester) async {

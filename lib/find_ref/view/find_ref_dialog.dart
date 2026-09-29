@@ -335,6 +335,9 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
 
     _visibilityChanges = SettingsSync.instance.changes.listen((key) {
+      if (key.isEmpty || key == FindRefPersonalBooksSetting.key) {
+        _syncPersonalBooksToggle();
+      }
       if (key.isNotEmpty &&
           key != HiddenLibraryStore.bookKeysSetting &&
           key != HiddenLibraryStore.categoryPathsSetting) {
@@ -405,10 +408,22 @@ class _FindRefDialogState extends State<FindRefDialog> {
   /// כפתור הניקוי תלוי רק בשאלה אם השדה ריק — בנייה מחדש רק כשזה מתהפך.
   void _onQueryTextChanged() {
     final text = FocusRepository().findRefSearchController.text;
-    _typedQuery.value = FindRefBloc.normalizeQuery(text);
+    final normalized = FindRefBloc.normalizeQuery(text);
+    // גם שינוי שלא דרך ההקלדה (קישור איתור חיצוני) מבטל Enter ממתין.
+    if (normalized != _typedQuery.value) _pendingEnter = false;
+    _typedQuery.value = normalized;
     final isEmpty = text.isEmpty;
     if (isEmpty != _queryIsEmpty && mounted) {
       setState(() => _queryIsEmpty = isEmpty);
+    }
+  }
+
+  /// ההגדרה היא המקור היחיד: חלון אחר או קישור עשויים לשנות אותה בזמן
+  /// שהדיאלוג פתוח, ובלי עדכון התוצאות לא היו נחשבות עדכניות לעולם.
+  void _syncPersonalBooksToggle() {
+    final stored = FindRefPersonalBooksSetting.load();
+    if (stored != _includePersonalBooks && mounted) {
+      setState(() => _includePersonalBooks = stored);
     }
   }
 
@@ -909,6 +924,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   }
 
   void _retrySearch() {
+    _pendingEnter = false;
     final query = context.read<FocusRepository>().findRefSearchController.text;
     context.read<FindRefBloc>().add(
       SearchRefRequested(query, includePersonalBooks: _includePersonalBooks),
@@ -1147,7 +1163,12 @@ class _FindRefDialogState extends State<FindRefDialog> {
           // תוצאות של שאילתה קודמת אינן נפתחות: Enter ממתין לתוצאות החדשות.
           final state = context.read<FindRefBloc>().state;
           if (!_isCurrentSuccess(state)) {
-            _pendingEnter = value.length >= 2;
+            // במצב שגיאה אין תוצאות שבדרך — פתיחה ממתינה הייתה קופצת בניסיון חוזר.
+            _pendingEnter =
+                value.length >= 2 &&
+                (state is FindRefLoading ||
+                    state is FindRefSuccess ||
+                    state is FindRefInitial);
             return;
           }
           final current = (state as FindRefSuccess).refs;
@@ -1239,6 +1260,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           _hasMoreBelow.value = false;
         }
         if (state is FindRefSuccess) {
+          _syncPersonalBooksToggle();
           if (state.query != _resultsQuery) {
             _resultsQuery = state.query;
             WidgetsBinding.instance.addPostFrameCallback((_) {
