@@ -407,5 +407,57 @@ void main() {
 
       await history.close();
     });
+
+    test('explicitIndex פותח ב-0 ושומר את המפרשים מההיסטוריה', () async {
+      final book = _makeBook('ספר טקסט');
+      final history = await _makeLoadedHistory([
+        Bookmark(
+          ref: 'ספר טקסט',
+          book: book,
+          index: 30,
+          commentatorsToShow: const ['מפרש'],
+        ),
+      ]);
+      final tabsBloc = _CapturingTabsBloc();
+      final coordinator = _makeCoordinator(
+        tabsBloc: tabsBloc,
+        historyBloc: history,
+      );
+
+      coordinator.openBook(book, 0, '', explicitIndex: true);
+
+      final tab =
+          (tabsBloc.capturedEvents.first as OpenOrFocusTab).tab as TextBookTab;
+      expect(tab.index, 0);
+      expect(tab.commentators, ['מפרש']);
+
+      await history.close();
+    });
+
+    test('ignoreHistory אינו משחזר גם את המפרשים', () async {
+      final book = _makeBook('ספר טקסט');
+      final history = await _makeLoadedHistory([
+        Bookmark(
+          ref: 'ספר טקסט',
+          book: book,
+          index: 30,
+          commentatorsToShow: const ['מפרש'],
+        ),
+      ]);
+      final tabsBloc = _CapturingTabsBloc();
+      final coordinator = _makeCoordinator(
+        tabsBloc: tabsBloc,
+        historyBloc: history,
+      );
+
+      coordinator.openBook(book, 0, '', ignoreHistory: true);
+
+      final tab =
+          (tabsBloc.capturedEvents.first as OpenOrFocusTab).tab as TextBookTab;
+      expect(tab.index, 0);
+      expect(tab.commentators, isNull);
+
+      await history.close();
+    });
   });
 }

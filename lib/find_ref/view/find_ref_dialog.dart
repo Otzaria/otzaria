@@ -825,7 +825,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
                 sourceBook,
                 segment,
                 '',
-                ignoreHistory: segment == 0 && hasExplicitLocation,
+                explicitIndex: hasExplicitLocation,
                 initialCommentators: initialCommentators,
                 dedupeKey: dedupeKey,
               ),
@@ -874,7 +874,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
       book,
       segment,
       '',
-      ignoreHistory: openAsPdf || (segment == 0 && hasExplicitLocation),
+      ignoreHistory: openAsPdf,
+      explicitIndex: hasExplicitLocation,
       requiresStableLayout: openAsPdf,
       initialCommentators: initialCommentators,
     );

@@ -14,6 +14,7 @@ void openBook(
   int index,
   String searchQuery, {
   bool ignoreHistory = false,
+  bool explicitIndex = false,
   bool requiresStableLayout = false,
   String? pinpointHighlight,
   bool markSection = false,
@@ -32,6 +33,7 @@ void openBook(
     index,
     searchQuery,
     ignoreHistory: ignoreHistory,
+    explicitIndex: explicitIndex,
     requiresStableLayout: requiresStableLayout,
     pinpointHighlight: pinpointHighlight,
     markSection: markSection,

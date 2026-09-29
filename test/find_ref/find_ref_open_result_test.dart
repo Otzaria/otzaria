@@ -17,9 +17,11 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/navigation_repository.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/resolving_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
@@ -216,6 +218,99 @@ void main() {
     );
 
     expect((tab as TextBookTab).index, 0);
+  });
+
+  testWidgets('תוצאה בשורה 0 שומרת את המפרשים מההיסטוריה', (tester) async {
+    final book = TextBook(id: 1, title: 'בראשית');
+    final tab = await _openResult(
+      tester,
+      library: _libraryWith([book]),
+      history: [
+        Bookmark(
+          ref: 'בראשית',
+          book: book,
+          index: 40,
+          commentatorsToShow: const ['מפרש'],
+        ),
+      ],
+      result: const DbReferenceResult(
+        title: 'בראשית',
+        reference: 'בראשית פרק א',
+        segment: 0,
+        bookId: 1,
+      ),
+    );
+
+    expect((tab as TextBookTab).index, 0);
+    expect(tab.commentators, ['מפרש']);
+  });
+
+  testWidgets('בבלי כ-PDF: טאב הטקסט החלופי בשורה 0 שומר את המפרשים', (
+    tester,
+  ) async {
+    await Settings.setValue<String>(
+      SettingsRepository.keyTalmudBavliOpenFormat,
+      'pdf',
+    );
+    addTearDown(
+      () => Settings.setValue<String>(
+        SettingsRepository.keyTalmudBavliOpenFormat,
+        'text',
+      ),
+    );
+    final library = Library(categories: []);
+    final bavliRoot = Category(
+      title: 'תלמוד בבלי',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: library,
+    );
+    library.subCategories.add(bavliRoot);
+    final seder = Category(
+      title: 'סדר זרעים',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [],
+      parent: bavliRoot,
+    );
+    bavliRoot.subCategories.add(seder);
+    final text = TextBook(id: 3, title: 'ברכות', category: seder);
+    seder.books.add(text);
+    bavliRoot.books.add(
+      PdfBook(
+        title: 'ברכות',
+        path: r'C:\books\תלמוד בבלי\ברכות.pdf',
+        category: bavliRoot,
+      ),
+    );
+
+    final tab = await _openResult(
+      tester,
+      library: library,
+      history: [
+        Bookmark(
+          ref: 'ברכות',
+          book: text,
+          index: 40,
+          commentatorsToShow: const ['מפרש'],
+        ),
+      ],
+      result: const DbReferenceResult(
+        title: 'ברכות',
+        reference: 'ברכות דף ב',
+        segment: 0,
+        bookId: 3,
+      ),
+    );
+
+    final fallback = (tab as ResolvingTab).fallbackTab as TextBookTab;
+    expect(fallback.index, 0);
+    expect(fallback.commentators, ['מפרש']);
   });
 
   testWidgets('תוצאת ספר בלבד ממשיכה מהמיקום שבהיסטוריה', (tester) async {

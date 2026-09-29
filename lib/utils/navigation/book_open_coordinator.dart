@@ -30,6 +30,7 @@ class BookOpenCoordinator {
     int index,
     String searchQuery, {
     bool ignoreHistory = false,
+    bool explicitIndex = false,
     bool requiresStableLayout = false,
     String? pinpointHighlight,
     bool markSection = false,
@@ -45,6 +46,7 @@ class BookOpenCoordinator {
       index,
       searchQuery,
       ignoreHistory: ignoreHistory,
+      explicitIndex: explicitIndex,
       requiresStableLayout: requiresStableLayout,
       pinpointHighlight: pinpointHighlight,
       markSection: markSection,
@@ -92,11 +94,15 @@ class BookOpenCoordinator {
 
   /// בונה את הטאב עם אותה סמנטיקת פתיחה של [openBook] (שחזור מיקום ומפרשים
   /// מההיסטוריה, צורת-דף שמורה) — למסלולים שמוסיפים את הטאב בעצמם.
+  ///
+  /// [explicitIndex] מכבד את [index] גם כשהוא ברירת המחדל, ובניגוד ל-
+  /// [ignoreHistory] עדיין משחזר מההיסטוריה את המפרשים.
   OpenedTab buildTab(
     Book book,
     int index,
     String searchQuery, {
     bool ignoreHistory = false,
+    bool explicitIndex = false,
     bool requiresStableLayout = false,
     String? pinpointHighlight,
     bool markSection = false,
@@ -129,7 +135,10 @@ class BookOpenCoordinator {
     // במיקום מפורש שיש לכבד; אחרת נופלים לשחזור המיקום מההיסטוריה.
     final int defaultIndex = book is PdfBook ? 1 : 0;
     final initialIndex =
-        (ignoreHistory || hasAnyHighlight || index != defaultIndex)
+        (ignoreHistory ||
+            hasAnyHighlight ||
+            explicitIndex ||
+            index != defaultIndex)
         ? index
         : (lastOpened?.index ?? defaultIndex);
     // סמנטיקה של [initialCommentators]:
