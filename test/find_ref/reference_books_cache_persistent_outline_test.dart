@@ -149,6 +149,9 @@ void main() {
           return const [('חדש', 'חדש', 9)];
         };
 
+        final staleNow = 2 + const Duration(days: 31).inMilliseconds;
+        cache.nowProviderOverride = () => staleNow;
+
         final result = await cache.getPdfOutlineEntries('/cached.pdf');
         await Future<void>.delayed(Duration.zero);
 
@@ -156,9 +159,35 @@ void main() {
         expect(parserCalled, isFalse);
         final row = await repository.getPdfOutlineCacheEntry('/cached.pdf');
         expect(row, isNotNull);
-        expect(row!.accessedAt, equals(123456789));
+        expect(row!.accessedAt, equals(staleNow));
       },
     );
+
+    test('רשומה שנגעו בה לאחרונה נטענת בלי כתיבה ל-SQLite', () async {
+      final accessedAt = 123456789 - const Duration(days: 10).inMilliseconds;
+      await repository.upsertPdfOutlineCacheEntry(
+        PdfOutlineCacheEntry(
+          filePath: '/fresh.pdf',
+          fileSize: 10,
+          lastModified: 20,
+          outlineJson: PdfOutlineCacheEntry.encodeOutlineEntries(
+            const [('ברכות', 'ברכות', 1)],
+          ),
+          createdAt: 1,
+          accessedAt: accessedAt,
+        ),
+      );
+      cache.pdfFileMetadataProviderOverride = (_) async => (
+        fileSize: 10,
+        lastModified: 20,
+      );
+
+      await cache.getPdfOutlineEntries('/fresh.pdf');
+      await Future<void>.delayed(Duration.zero);
+
+      final row = await repository.getPdfOutlineCacheEntry('/fresh.pdf');
+      expect(row!.accessedAt, equals(accessedAt));
+    });
 
     test('metadata mismatch reparses and updates SQLite cache', () async {
       await repository.upsertPdfOutlineCacheEntry(

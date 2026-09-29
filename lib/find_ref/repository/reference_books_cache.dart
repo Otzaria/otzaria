@@ -35,6 +35,10 @@ class ReferenceBooksCache {
   static final ReferenceBooksCache instance = ReferenceBooksCache._();
   static const Duration _persistentPdfOutlineCacheTtl = Duration(days: 90);
 
+  /// רענון accessedAt רק כשהתיישן כך: החימום קורא כל PDF בכל הפעלה, ו-UPDATE
+  /// לכל אחד היה כתיבה ל-cache.db בכל עלייה. נשאר מרווח גדול לפני ה-TTL.
+  static const Duration _persistentPdfOutlineTouchAge = Duration(days: 30);
+
   bool _isLoaded = false;
   Future<void>? _loadingFuture;
 
@@ -445,14 +449,7 @@ class ReferenceBooksCache {
         if (persistentEntry != null) {
           try {
             final entries = persistentEntry.decodeEntries();
-            unawaited(
-              _touchPersistentPdfOutline(filePath).catchError((e) {
-                debugPrint(
-                  '[ReferenceBooksCache] Failed to touch PDF outline cache '
-                  'for $filePath: $e',
-                );
-              }),
-            );
+            _touchPersistentPdfOutlineIfStale(persistentEntry);
             return entries;
           } catch (e) {
             debugPrint(
@@ -473,14 +470,7 @@ class ReferenceBooksCache {
         if (matchesCurrentFile) {
           try {
             final entries = persistentEntry.decodeEntries();
-            unawaited(
-              _touchPersistentPdfOutline(filePath).catchError((e) {
-                debugPrint(
-                  '[ReferenceBooksCache] Failed to touch PDF outline cache '
-                  'for $filePath: $e',
-                );
-              }),
-            );
+            _touchPersistentPdfOutlineIfStale(persistentEntry);
             return entries;
           } catch (e) {
             debugPrint(
@@ -1147,6 +1137,20 @@ class ReferenceBooksCache {
         '${entry.filePath}: $e',
       );
     }
+  }
+
+  void _touchPersistentPdfOutlineIfStale(PdfOutlineCacheEntry entry) {
+    final age = _nowMillis() - entry.accessedAt;
+    if (age < _persistentPdfOutlineTouchAge.inMilliseconds) return;
+    final filePath = entry.filePath;
+    unawaited(
+      _touchPersistentPdfOutline(filePath).catchError((e) {
+        debugPrint(
+          '[ReferenceBooksCache] Failed to touch PDF outline cache '
+          'for $filePath: $e',
+        );
+      }),
+    );
   }
 
   Future<void> _touchPersistentPdfOutline(String filePath) async {
