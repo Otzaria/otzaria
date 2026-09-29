@@ -340,6 +340,84 @@ static void test_fuzz(int iters) {
   free(src);
 }
 
+/* Every truncation length and one bit flip at every offset, exhaustively. */
+static void test_exhaustive_damage(void) {
+  uint32_t ps = 1024, pages = 24;
+  uint8_t *src = make_source(ps, pages, 0);
+  size_t n = (size_t)ps * pages;
+  uint8_t *out = (uint8_t *)malloc(n);
+  zvfs_set_cache_budget(0);
+  for (int variant = 0; variant < 2; variant++) {
+    size_t dl = 0;
+    void *dict = variant ? train_small_dict(src, ps, pages, &dl) : NULL;
+    const char *dst = tmp_path("exh.zdb");
+    CHECK_EQ(convert_buf(dst, src, n, dict, dl, 2, variant ? 2 : 1, 1 << 13, 0,
+                         NULL, NULL),
+             ZVFS_OK);
+    uint8_t *good;
+    size_t good_n;
+    CHECK_EQ(read_file(dst, &good, &good_n), 0);
+    remove(dst);
+    zdb_header h;
+    CHECK_EQ(zdb_header_decode(good, &h), ZVFS_OK);
+    uint8_t *m = (uint8_t *)malloc(good_n);
+    int frame_benign = 0, frame_detected = 0;
+    for (size_t off = 0; off < good_n; off++) {
+      /* truncated file, reported size either honest or stale */
+      membuf tb = {good, off};
+      zdb_file *f = NULL;
+      CHECK(zdb_file_load(mem_rd, &tb, off, &f) != ZVFS_OK);
+      CHECK(zdb_file_load(mem_rd, &tb, good_n, &f) != ZVFS_OK);
+
+      memcpy(m, good, good_n);
+      m[off] ^= (uint8_t)(1u << (off % 8));
+      membuf fb = {m, good_n};
+      int in_reserved = off >= ZDB_HEADER_CORE && off < ZDB_HEADER_SIZE;
+      int in_frames = off >= h.dict_offset + h.dict_length && off < h.index_offset;
+      int rc = zdb_file_load(mem_rd, &fb, good_n, &f);
+      if (!in_reserved && !in_frames) {
+        CHECK(rc != ZVFS_OK);
+        if (rc == ZVFS_OK) zdb_file_free(f);
+        continue;
+      }
+      CHECK_EQ(rc, ZVFS_OK);
+      if (rc) continue;
+      rc = zdb_file_read(f, mem_rd, &fb, out, n, 0);
+      CHECK(rc != ZVFS_OK || memcmp(out, src, n) == 0);
+      if (in_reserved) CHECK_EQ(rc, ZVFS_OK);
+      if (in_frames) {
+        /* a flip zstd ignores (unused header bit, entropy slack) decodes
+           to identical bytes, which the check above already proved */
+        CHECK(rc == ZVFS_OK || rc == ZVFS_ERR_CORRUPT);
+        if (rc == ZVFS_OK) frame_benign++;
+        else frame_detected++;
+      }
+      zdb_file_free(f);
+    }
+
+    /* the file shrinks after a successful open */
+    membuf full = {good, good_n};
+    zdb_file *f = NULL;
+    CHECK_EQ(zdb_file_load(mem_rd, &full, good_n, &f), ZVFS_OK);
+    for (size_t off = 0; f && off < good_n; off++) {
+      membuf sb = {good, off};
+      int rc = zdb_file_read(f, mem_rd, &sb, out, n, 0);
+      if (off < h.index_offset) CHECK_EQ(rc, ZVFS_ERR_CORRUPT);
+      else CHECK(rc == ZVFS_OK && memcmp(out, src, n) == 0);
+    }
+    zdb_file_free(f);
+    printf("exhaustive variant %d: %zu offsets, frame flips: %d detected, "
+           "%d decoded identically\n",
+           variant, good_n, frame_detected, frame_benign);
+    free(m);
+    free(good);
+    free(dict);
+  }
+  zvfs_set_cache_budget(16 << 20);
+  free(out);
+  free(src);
+}
+
 /* A source compressed with a window above zstd's 128MB decoder default,
    like `zstd --long=31` (how seforim.db.zst is published). */
 static void test_zstd_long_window_source(void) {
@@ -462,6 +540,7 @@ int main(void) {
   test_converter_errors();
   test_concurrency();
   test_zstd_long_window_source();
+  test_exhaustive_damage();
   test_fuzz(iters);
   if (g_failures) {
     fprintf(stderr, "%d check(s) failed\n", g_failures);

@@ -165,6 +165,15 @@ run under ASan/UBSan and TSan on Linux (see `.github/workflows/zvfs.yml`).
 
 `tool/bench_live.dart` benchmarks against a real database (outside CI).
 
+## Third-party code
+
+- `third_party/zstd`: zstd 1.5.7, unmodified `lib/` of the official release
+  tarball (sha256 `eb33e51f49a15e023950cd7825ca74a4a2b43db8354825ac24fc1b7ee09e6fa3`),
+  used under its BSD license (`LICENSE`; `COPYING` is the GPLv2 alternative).
+- `third_party/sqlite`: `sqlite3.h` and `sqlite3ext.h` from the SQLite 3.53.4
+  amalgamation (public domain), matching the SQLite that `package:sqlite3`
+  3.6.0 loads.
+
 ## Platforms
 
 The native code is C99 with a small platform layer (Win32 or POSIX threads,
