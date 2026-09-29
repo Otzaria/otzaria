@@ -3,6 +3,8 @@ include: package:flutter_lints/flutter.yaml
 analyzer:
   exclude:
     - otzaria_search_engine/**
+    # לכל חבילה ב-packages/ יש pubspec ו-CI משלה; בלי pub get שם הניתוח מהשורש נכשל.
+    - packages/**
     - build/**
     - android/**
     - ios/**
