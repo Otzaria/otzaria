@@ -90,7 +90,8 @@ class FindRefRepository {
 
   Future<FindRefVisibility> _currentVisibility() async {
     if (!respectHiddenLibrary) return FindRefVisibility.empty();
-    var selection = const HiddenLibraryStore().load();
+    // פעם אחת לשאילתה: הקריאה מפענחת JSON מההגדרות.
+    final selection = const HiddenLibraryStore().load();
     if (selection.isEmpty) {
       if (_visibilitySelection == selection && _visibility != null) {
         return _visibility!;
@@ -104,13 +105,6 @@ class FindRefRepository {
     final library = await _awaitCurrent(
       (dataRepository ?? DataRepository.instance).library,
     );
-    selection = const HiddenLibraryStore().load();
-    if (selection.isEmpty) {
-      if (_visibilitySelection != selection) _commentatorsCache.clear();
-      _visibilitySelection = selection;
-      _visibilityLibrary = null;
-      return _visibility = FindRefVisibility.empty();
-    }
     if (selection == _visibilitySelection &&
         identical(library, _visibilityLibrary) &&
         _visibility != null) {

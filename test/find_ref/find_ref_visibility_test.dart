@@ -30,6 +30,23 @@ class _TestDataRepository extends DataRepository {
   }
 }
 
+/// סופר קריאות של מפתח ההסתרה — כל load() של HiddenLibraryStore קורא אותו פעם אחת.
+class _CountingSettingsCache extends MemorySettingsCache {
+  int hiddenBookKeyReads = 0;
+
+  @override
+  T? getValue<T>(String key, {T? defaultValue}) {
+    if (key == HiddenLibraryStore.bookKeysSetting) hiddenBookKeyReads++;
+    return super.getValue<T>(key, defaultValue: defaultValue);
+  }
+
+  @override
+  String? getString(String key, {String? defaultValue}) {
+    if (key == HiddenLibraryStore.bookKeysSetting) hiddenBookKeyReads++;
+    return super.getString(key, defaultValue: defaultValue);
+  }
+}
+
 ReferenceBookHit _hit(int id, String title) => ReferenceBookHit(
   bookId: id,
   title: title,
@@ -49,8 +66,10 @@ void main() {
   late TextBook visible;
   late _TestDataRepository data;
 
+  final settingsCache = _CountingSettingsCache();
+
   setUpAll(() async {
-    await Settings.init(cacheProvider: MemorySettingsCache());
+    await Settings.init(cacheProvider: settingsCache);
   });
 
   setUp(() async {
@@ -141,6 +160,27 @@ void main() {
     );
     addTearDown(repository.dispose);
     expect((await repository.findRefs('שמות')).map((r) => r.bookId), [4]);
+  });
+
+  test('בחירת ההסתרה נקראת מההגדרות פעם אחת לשאילתה', () async {
+    await store.save(
+      HiddenLibrarySelection(bookKeys: {PerBookSettings.bookKey(hidden)}),
+    );
+    final repository = FindRefRepository(
+      dataRepository: data,
+      respectHiddenLibrary: true,
+      isReferenceBooksCacheLoaded: () => true,
+      searchReferenceBooks: (_, {limit = 50}) => [
+        _hit(1, 'בראשית'),
+        _hit(2, 'בראשית'),
+      ],
+      getTocEntriesForReference: (_, _, {queryTokens}) async => const [],
+    );
+    addTearDown(repository.dispose);
+
+    settingsCache.hiddenBookKeyReads = 0;
+    expect((await repository.findRefs('בראשית')).map((r) => r.bookId), [2]);
+    expect(settingsCache.hiddenBookKeyReads, 1);
   });
 
   test('זהות המקור והנתיב שומרים על ספרים בעלי מזהה או שם משותף', () {
