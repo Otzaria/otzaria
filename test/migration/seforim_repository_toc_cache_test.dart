@@ -13,6 +13,7 @@ import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/migration/models/line.dart';
 import 'package:otzaria/migration/models/toc_entry.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:path/path.dart' as path;
 
 void main() {
@@ -858,6 +859,113 @@ void main() {
         expect(results, isEmpty);
       },
     );
+
+    /// ספר(L1) → [parent](L2) → [headings](L3), כמו פירושים על מסכת.
+    Future<int> buildNestedDafBook(
+      String title,
+      List<String> headings, {
+      String parent = 'פרק א',
+    }) async {
+      final catId = await createCategory();
+      final bookId = await createBook(catId, title);
+      await insertLines(
+        bookId,
+        List.generate(headings.length + 1, (i) => 'l$i'),
+      );
+      final bookNode = await insertToc(
+        bookId: bookId,
+        lineIndex: 0,
+        text: title,
+        level: 1,
+      );
+      final parentNode = await insertToc(
+        bookId: bookId,
+        lineIndex: 0,
+        text: parent,
+        level: 2,
+        parentId: bookNode,
+      );
+      for (var i = 0; i < headings.length; i++) {
+        await insertToc(
+          bookId: bookId,
+          lineIndex: i + 1,
+          text: headings[i],
+          level: 3,
+          parentId: parentNode,
+        );
+      }
+      await repository.updateTocEntryLineIdsByLineIndex(bookId);
+      return bookId;
+    }
+
+    Future<Set<Object?>> refsFor(int bookId, String title, String query) async {
+      final results = await repository.getTocEntriesForReference(
+        bookId,
+        title,
+        queryTokens: normalizeForFindRefMatch(query).split(' '),
+      );
+      return results.map((r) => r['reference']).toSet();
+    }
+
+    test('כותרת "דף ב ע"ב" תואמת ל-"דף ב:"', () async {
+      const title = 'ראשון לציון על סוכה';
+      final bookId = await buildNestedDafBook(title, [
+        'דף ב ע"ב',
+        'דף ג ע"א',
+        'דף ג ע"ב',
+      ]);
+
+      expect(await refsFor(bookId, title, 'דף ב:'), {
+        '$title $title פרק א דף ב ע"ב',
+      });
+      expect(await refsFor(bookId, title, 'דף ג.'), {
+        '$title $title פרק א דף ג ע"א',
+      });
+    });
+
+    test('כותרת "ב." בלי "דף" בספר דפים תואמת ל-"דף ב."', () async {
+      const title = 'ציון לנפש חיה על פסחים';
+      final bookId = await buildNestedDafBook(title, [
+        'ב.',
+        'ב:',
+        'ג.',
+        'יב.',
+      ], parent: 'פסחים');
+
+      expect(await refsFor(bookId, title, 'דף ב.'), {
+        '$title $title פסחים ב.',
+      });
+      expect(await refsFor(bookId, title, 'דף ב'), {
+        '$title $title פסחים ב.',
+        '$title $title פסחים ב:',
+      });
+    });
+
+    test('כותרת "תלמוד ב." תואמת ל-"דף ב."', () async {
+      final catId = await createCategory();
+      const title = 'מאירי על ברכות';
+      final bookId = await createBook(catId, title);
+      const headings = ['הקדמה', 'תלמוד ב.', 'תלמוד ב:', 'תלמוד ג.'];
+      await insertLines(bookId, List.generate(headings.length, (i) => 'l$i'));
+      for (var i = 0; i < headings.length; i++) {
+        await insertToc(
+          bookId: bookId,
+          lineIndex: i,
+          text: headings[i],
+          level: 1,
+        );
+      }
+      await repository.updateTocEntryLineIdsByLineIndex(bookId);
+
+      expect(await refsFor(bookId, title, 'דף ב.'), {'$title תלמוד ב.'});
+    });
+
+    test('סעיפים ממוספרים ("א.", "ב.") אינם כותרות דף', () async {
+      const title = 'ספר סעיפים';
+      final bookId = await buildNestedDafBook(title, ['א.', 'ב.', 'ג.']);
+
+      expect(await refsFor(bookId, title, 'דף ב'), isEmpty);
+    });
   });
 
   // ── כותרת רב-מילים ברמה עליונה ("טור" → "אורח חיים" → "סימן יב") ──────────

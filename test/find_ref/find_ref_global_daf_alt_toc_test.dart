@@ -35,11 +35,13 @@ void main() {
       "(1, 7, 1, 'ברכות', 1, '/b/1.txt', 'txt'), "
       "(2, 7, 1, 'ירושלמי ברכות', 2, '/b/2.txt', 'txt'), "
       "(3, 7, 1, 'בראשית', 3, '/b/3.txt', 'txt'), "
-      "(4, 7, 1, 'קרן אורה על חולין', 4, '/b/4.txt', 'txt')",
+      "(4, 7, 1, 'קרן אורה על חולין', 4, '/b/4.txt', 'txt'), "
+      "(5, 7, 1, 'ראשון לציון על סוכה', 5, '/b/5.txt', 'txt')",
     );
     db.execute(
       'INSERT INTO alt_toc_structure (id, bookId, key) VALUES '
-      "(1, 1, 'Chapters'), (2, 2, 'Daf'), (3, 3, 'Parasha'), (4, 4, 'Chapters')",
+      "(1, 1, 'Chapters'), (2, 2, 'Daf'), (3, 3, 'Parasha'), (4, 4, 'Chapters'), "
+      "(5, 5, 'Chapters')",
     );
     const entries = [
       // (id, structureId, parentId, level, text)
@@ -59,6 +61,8 @@ void main() {
       (30, 4, null, 0, 'אלו טרפות'),
       (31, 4, 30, 1, 'דף מג עמוד א'),
       (32, 4, 30, 1, 'דף מג עמוד ב'),
+      (40, 5, null, 0, 'פרק א'),
+      (41, 5, 40, 1, 'דף ב ע"ב'),
     ];
     for (final (id, structureId, parentId, level, text) in entries) {
       // שורה נפרדת לכל ערך — אחרת ה-dedupe לפי segment מאחד אותם.
@@ -132,6 +136,13 @@ void main() {
       expect(
         await globalAltToc('דף מג.'),
         equals(['קרן אורה על חולין אלו טרפות דף מג עמוד א']),
+      );
+    });
+
+    test('כותרת "דף ב ע"ב" תואמת ל-"דף ב:"', () async {
+      expect(
+        await globalAltToc('דף ב:'),
+        equals(['ברכות מאימתי דף ב:', 'ראשון לציון על סוכה פרק א דף ב ע"ב']),
       );
     });
 

@@ -1611,19 +1611,44 @@ DafCitation? parseDafCitationFromDafToken(List<String> tokens) {
 /// התאמה מיקומית של טוקני ערך בפורמט "דף מספר עמוד" לציטוט דף [cite].
 /// מחזיר null אם הערך אינו בפורמט "דף ..." (אז המתקשר משתמש בהתאמה הרגילה),
 /// אחרת bool האם המספר (וגם העמוד, אם צוין בשאילתה) תואמים.
-bool? matchDafCitation(List<String> ownTokens, DafCitation cite) {
-  if (ownTokens.length < 2 || ownTokens.first != 'דף') return null;
-  if (!hebrewTokenAlternatives(cite.number).contains(ownTokens[1])) {
+///
+/// [implicitDaf] מקבל גם כותרת בלי "דף" — "ב." או "תלמוד ב." — ומיועד רק
+/// לשאילתה עם "דף" בספר שבנוי מדפים; אחרת "ב." הוא סעיף ממוספר.
+bool? matchDafCitation(
+  List<String> ownTokens,
+  DafCitation cite, {
+  bool implicitDaf = false,
+}) {
+  var heading = ownTokens;
+  if (implicitDaf && _isBareDafHeading(heading)) {
+    heading = ['דף', ...heading.sublist(heading.length - 2)];
+  }
+  if (heading.length < 2 || heading.first != 'דף') return null;
+  if (!hebrewTokenAlternatives(cite.number).contains(heading[1])) {
     return false;
   }
   if (cite.amud != null) {
-    final entryAmud =
-        ownTokens.length >= 3 && (ownTokens[2] == 'א' || ownTokens[2] == 'ב')
-        ? ownTokens[2]
-        : null;
+    final entryAmud = heading.length >= 3 ? _amudToken(heading[2]) : null;
     if (cite.amud != entryAmud) return false;
   }
   return true;
+}
+
+/// עמוד כטוקן מנורמל: "א"/"ב" (מ-"."/":" או "עמוד א") או "עא"/"עב" (ע"א/ע"ב).
+String? _amudToken(String token) => switch (token) {
+  'א' || 'עא' => 'א',
+  'ב' || 'עב' => 'ב',
+  _ => null,
+};
+
+/// "ב." / "תלמוד ב." אחרי נרמול: מספר דף ועמוד, בלי "דף".
+bool _isBareDafHeading(List<String> tokens) {
+  final start = tokens.length == 3 && tokens.first == 'תלמוד' ? 1 : 0;
+  if (tokens.length - start != 2) return false;
+  final number = tokens[start];
+  return number.length <= 3 &&
+      number.codeUnits.every((c) => c >= 0x05D0 && c <= 0x05EA) &&
+      (tokens[start + 1] == 'א' || tokens[start + 1] == 'ב');
 }
 
 /// האם כותרת ה"דף" הקרובה בנתיב (הערך עצמו או האב הקרוב) תואמת ל-[cite].

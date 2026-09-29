@@ -3438,10 +3438,15 @@ extension BookAcronymRepository on SeforimRepository {
       children.sort((a, b) => a.segment.compareTo(b.segment));
     }
 
+    bool hasBareDafMark(String mark) => entryTexts.values.any(
+      (t) => _bareDafHeadingPattern.firstMatch(t.trim())?.group(1) == mark,
+    );
+
     final cache = _TocBookCache(
       all: built,
       rootEntries: rootEntries,
       childrenByParentId: childrenByParentId,
+      hasBareDafHeadings: hasBareDafMark('.') && hasBareDafMark(':'),
     );
     _putTocCache(bookId, cache);
     return cache;
@@ -3569,6 +3574,7 @@ extension BookAcronymRepository on SeforimRepository {
     if (tokens.isEmpty) return const [];
 
     final cite = parseDafCitation(tokens);
+    final implicitDaf = cache.hasBareDafHeadings && tokens.contains('דף');
     final lastAlts = hebrewTokenAlternatives(tokens.last);
 
     return cache.all.where((e) {
@@ -3578,7 +3584,11 @@ extension BookAcronymRepository on SeforimRepository {
         );
       }
       if (cite != null) {
-        final m = matchDafCitation(e.ownTokens, cite);
+        final m = matchDafCitation(
+          e.ownTokens,
+          cite,
+          implicitDaf: implicitDaf,
+        );
         if (m != null) return m; // ערך "דף" — התאמה מיקומית מכריעה
       }
       if (!lastAlts.any((a) => e.ownTokens.contains(a))) return false;
@@ -3920,6 +3930,7 @@ class _AltTocTokenPool {
       if (t.isNotEmpty) _strings.putIfAbsent(t, () => t),
   ].toList(growable: false);
 }
+final _bareDafHeadingPattern = RegExp(r'^(?:תלמוד )?[א-ת]{1,3}([.:])$');
 
 /// קאש TOC לספר יחיד: רשימה שטוחה + מבנה היררכי לחיפוש.
 class _TocBookCache {
@@ -3932,6 +3943,10 @@ class _TocBookCache {
   /// מיפוי id → ילדים ישירים (ממוינים לפי segment).
   final Map<int, List<_CachedTocEntry>> childrenByParentId;
 
+  /// כותרות דף בלי "דף" בשני העמודים ("ב." וגם "ב:") — ספר שבנוי מדפים, ולא
+  /// סעיפים ממוספרים ("א.", "ב.").
+  final bool hasBareDafHeadings;
+
   static const empty = _TocBookCache(
     all: [],
     rootEntries: [],
@@ -3942,6 +3957,7 @@ class _TocBookCache {
     required this.all,
     required this.rootEntries,
     required this.childrenByParentId,
+    this.hasBareDafHeadings = false,
   });
 }
 
