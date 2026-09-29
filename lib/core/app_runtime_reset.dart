@@ -13,6 +13,7 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/migration/sync/background_sync_initializer.dart';
@@ -55,6 +56,7 @@ Future<void> resetRuntimeStateForAppRestart() async {
   // ה-FindRefRepository מחזיק caches פנימיים (מפרשים, AltToc שטוח) שלא
   // ניזונים מהקאשים שלמעלה. בלי איפוס יזום הם ישרדו עד restart מלא.
   FindRefRepository.clearAllCaches();
+  FindRefBloc.clearAllSearches();
   CommentaryService.clearEraCache();
   TargetLineLinksService.instance.clearCache();
 }

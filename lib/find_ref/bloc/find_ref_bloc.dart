@@ -42,10 +42,21 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     // שעדיין בהמתנה וגם כאלה שכבר התחילו fetch.
     on<SearchRefRequested>(_onSearchRefRequested, transformer: restartable());
     on<ClearSearchRequested>(_onClearSearchRequested);
+    _liveBlocs.add(this);
+  }
+
+  static final Set<FindRefBloc> _liveBlocs = <FindRefBloc>{};
+
+  /// אחרי החלפת ספרייה התוצאות המוצגות מצביעות על ספרים של הספרייה הקודמת.
+  static void clearAllSearches() {
+    for (final bloc in _liveBlocs) {
+      bloc.add(ClearSearchRequested());
+    }
   }
 
   @override
   Future<void> close() {
+    _liveBlocs.remove(this);
     findRefRepository.dispose();
     return super.close();
   }

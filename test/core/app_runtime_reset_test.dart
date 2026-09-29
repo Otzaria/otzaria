@@ -7,6 +7,10 @@ import 'package:otzaria/data/data_providers/file_system_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
+import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
+import 'package:otzaria/find_ref/repository/db_reference_result.dart';
+import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -171,5 +175,20 @@ void main() {
     expect(FileSystemData.instance.libraryPath, 'C:/restored-library');
     expect(DataRepository.instance.cachedLibraryFutureForTesting, isNull);
     expect(DataRepository.instance.lastSuccessfulLibrary, isNull);
+  });
+
+  test('איפוס מנקה את תוצאות האיתור המוצגות', () async {
+    final bloc = FindRefBloc(findRefRepository: FindRefRepository());
+    addTearDown(bloc.close);
+    bloc.emit(
+      const FindRefSuccess([
+        DbReferenceResult(title: 'בראשית', reference: 'בראשית', segment: 0),
+      ], query: 'בראשית'),
+    );
+
+    await resetRuntimeStateForAppRestart();
+    await pumpEventQueue();
+
+    expect(bloc.state, isA<FindRefInitial>());
   });
 }
