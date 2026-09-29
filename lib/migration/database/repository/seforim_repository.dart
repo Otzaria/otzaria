@@ -63,6 +63,19 @@ class SeforimRepository {
     }
   }
 
+  int? _lastDataVersion;
+
+  /// מנקה את קאש ה-TOC אם חיבור אחר כתב למסד מאז הקריאה הקודמת — לחיבור
+  /// קריאה נוסף (worker), שאינו רואה את ה-invalidate של החיבור הכותב.
+  Future<void> invalidateTocCacheIfChangedExternally() async {
+    final db = await _database.database;
+    final version = db.select('PRAGMA data_version').first.columnAt(0) as int;
+    if (_lastDataVersion != null && version != _lastDataVersion) {
+      _invalidateTocCache();
+    }
+    _lastDataVersion = version;
+  }
+
   /// Ensures the database is initialized before use
   Future<void> ensureInitialized() async {
     if (_initialized) return;

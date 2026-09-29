@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 
@@ -55,8 +56,9 @@ class UserBooksDatabaseHolder {
     return repo;
   }
 
-  /// סוגר את ה-DB. שימושי בעיקר לבדיקות.
+  /// סוגר את ה-DB, וגם את חיבור הקריאה של איתור המקורות כדי שהקובץ ישוחרר.
   Future<void> close() async {
+    AttachedFindRefWorker.instance.reset();
     _database?.close();
     _database = null;
     _repository = null;

@@ -11,8 +11,8 @@ import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 /// סטטית: סגור שנוצר במתודת מופע גורר את `this` ל-isolate.
 typedef AttachedDbJob<R> = Future<R> Function(SeforimRepository repository);
 
-/// isolate ארוך-חיים ששאילתות "איתור מקורות" על מסדים מצורפים רצות בו —
-/// החיבור הסינכרוני (FFI) לא יחסום את ההקלדה ב-main isolate.
+/// isolate ארוך-חיים ששאילתות "איתור מקורות" על מסדים משניים (מצורפים וספרים
+/// אישיים) רצות בו — החיבור הסינכרוני (FFI) לא יחסום את ההקלדה ב-main isolate.
 ///
 /// החיבורים נפתחים בו בפתיחה מוקשחת לפי נתיב, ונסגרים אחרי [idleClose].
 /// קריאה שלא חזרה תוך [callTimeout] נוטשת את ה-worker (ייתכן שהוא תקוע
