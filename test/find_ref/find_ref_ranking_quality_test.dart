@@ -32,6 +32,12 @@ FindRefRepository _repo({
     List<String>? queryTokens,
   )?
   toc,
+  Future<List<Map<String, dynamic>>> Function(
+    int bookId,
+    String title,
+    List<String>? queryTokens,
+  )?
+  altToc,
 }) => FindRefRepository(
   dataRepository: _MockDataRepository(),
   isReferenceBooksCacheLoaded: () => true,
@@ -39,6 +45,8 @@ FindRefRepository _repo({
   searchReferenceBooks: (_, {int limit = 50}) => hits,
   getTocEntriesForReference: (bookId, title, {queryTokens}) async =>
       toc == null ? const [] : toc(bookId, title, queryTokens),
+  getAltTocEntriesForReference: (bookId, title, {queryTokens}) async =>
+      altToc == null ? const [] : altToc(bookId, title, queryTokens),
   getCategoryPathSync: (_) => null,
   getCategoryPath: (_) async => '',
 );
@@ -59,30 +67,28 @@ void main() {
     expect(results.first.title, 'רש"י על בראשית');
   });
 
-  test('התאמת TOC מלאה באותו ספר קודמת להתאמה חלקית רדודה', () async {
+  test('AltToc מלא באותו ספר קודם להתאמת TOC חלקית רדודה', () async {
+    // קריאת TOC אחת מחזירה דגל complete אחד, ולכן החלקית מתחרה ב-AltToc.
     final repo = _repo(
       hits: [_hit(1, 'ספר בדיקה')],
       toc: (_, _, _) async => [
         {
-          'reference': 'ספר בדיקה חלק א',
+          'reference': 'ספר בדיקה חלק ב',
           'segment': 10,
-          'level': 2,
+          'level': 1,
           'dbLineId': 0,
           'partialMatch': true,
         },
-        {
-          'reference': 'ספר בדיקה חלק ב פרק א',
-          'segment': 50,
-          'level': 3,
-          'dbLineId': 0,
-        },
+      ],
+      altToc: (_, _, _) async => [
+        {'reference': 'שער ב סימן א', 'segment': 50, 'level': 2, 'dbLineId': 0},
       ],
     );
 
     final results = await repo.findRefs('ספר בדיקה ב א');
 
     expect(results.map((r) => r.segment).take(2), [50, 10]);
-    expect(results.first.isPartialTocMatch, isFalse);
+    expect(results.first.isAltToc, isTrue);
   });
 
   group('SeforimRepository.getTocEntriesForReference — סימון התאמה חלקית', () {
