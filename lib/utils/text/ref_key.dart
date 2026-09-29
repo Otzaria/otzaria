@@ -51,10 +51,52 @@ final RegExp _trailingRange = RegExp(
 final RegExp _amudA = RegExp('''(?<![א-ת])ע["'״׳]א(?![א-ת])''');
 final RegExp _amudB = RegExp('''(?<![א-ת])ע["'״׳]ב(?![א-ת])''');
 
-/// ע"א/ע"ב בשאילתת איתור → "עמוד א"/"עמוד ב": מילת המיקום מסמנת את הטוקן
-/// שלפניה כמספר דף גם כשהוא אות בודדת ("ברכות ב ע"א").
+final RegExp _quoteMarks = RegExp('["\'״׳]');
+final RegExp _amudAfterToken = RegExp(
+  '''(?<!\\S)(\\S+)(\\s+)ע["'״׳]([אב])(?![א-ת])''',
+);
+
+/// ע"א/ע"ב בשאילתת איתור → "עמוד א"/"עמוד ב", רק אחרי מספר עברי ("ברכות ב ע"א",
+/// גם "פרק ב ע"א"); אחרי מילה ("תהלים ע"א", "סימן ע"ב", "דף ע"א") הם המספרים 71/72.
 String expandQueryAmudMarks(String query) =>
-    query.replaceAll(_amudA, 'עמוד א').replaceAll(_amudB, 'עמוד ב');
+    query.replaceAllMapped(_amudAfterToken, (m) {
+      final number = m[1]!.replaceAll(_quoteMarks, '');
+      if (!isHebrewNumeral(number)) return m[0]!;
+      return '${m[1]}${m[2]}עמוד ${m[3]}';
+    });
+
+/// האם [token] הוא מספר עברי של 1–3 אותיות (בלי סופיות): מאות, עשרות ואחדות
+/// בסדר יורד, כולל ט"ו/ט"ז. "שבת" ו"פרק" אינם מספרים, "קכא" ו"ב" כן.
+bool isHebrewNumeral(String token) {
+  if (token.isEmpty || token.length > 3) return false;
+  if (token == 'טו' || token == 'טז') return true;
+  var place = 3; // 3 = מאות, 2 = עשרות, 1 = אחדות
+  for (final c in token.codeUnits) {
+    final int p;
+    if (c >= 0x05D0 && c <= 0x05D8) {
+      p = 1; // א-ט
+    } else if (const [
+      0x05D9,
+      0x05DB,
+      0x05DC,
+      0x05DE,
+      0x05E0,
+      0x05E1,
+      0x05E2,
+      0x05E4,
+      0x05E6,
+    ].contains(c)) {
+      p = 2; // י כ ל מ נ ס ע פ צ
+    } else if (c >= 0x05E7 && c <= 0x05EA) {
+      p = 3; // ק ר ש ת
+    } else {
+      return false;
+    }
+    if (p > place || (p == place && p != 3)) return false;
+    place = p;
+  }
+  return true;
+}
 
 /// טוקני המפתח הקנוני של [ref], לפי הסדר: חיתוך טווח, הרחבת סימוני דף,
 /// הסרת ניקוד/טעמים, מיפוי ע"א/ע"ב, הסרת גרשיים/פיסוק והסרת מילות מיקום.
