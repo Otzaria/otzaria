@@ -422,8 +422,14 @@ class _FindRefDialogState extends State<FindRefDialog> {
   /// שהדיאלוג פתוח, ובלי עדכון התוצאות לא היו נחשבות עדכניות לעולם.
   void _syncPersonalBooksToggle() {
     final stored = FindRefPersonalBooksSetting.load();
-    if (stored != _includePersonalBooks && mounted) {
-      setState(() => _includePersonalBooks = stored);
+    if (stored == _includePersonalBooks || !mounted) return;
+    setState(() => _includePersonalBooks = stored);
+    // תוצאות של הערך הקודם נעולות; בלי חיפוש חוזר לא יגיעו תוצאות עדכניות.
+    final bloc = context.read<FindRefBloc>();
+    final text = FocusRepository().findRefSearchController.text;
+    if (text.length >= 2 && !_isCurrentSuccess(bloc.state)) {
+      _selectedIndex.value = 0;
+      bloc.add(SearchRefRequested(text, includePersonalBooks: stored));
     }
   }
 

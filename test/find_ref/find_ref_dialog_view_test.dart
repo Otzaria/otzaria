@@ -38,6 +38,7 @@ class _FakeRepository implements FindRefRepository {
   final Object? error;
   final List<DbCommentatorEntry> commentators;
   int calls = 0;
+  final List<bool> personalBooksFlags = [];
 
   @override
   void cancelPendingSearch() {}
@@ -48,6 +49,7 @@ class _FakeRepository implements FindRefRepository {
     bool includePersonalBooks = false,
   }) async {
     calls++;
+    personalBooksFlags.add(includePersonalBooks);
     if (error != null) throw error!;
     return results;
   }
@@ -920,6 +922,40 @@ void main() {
     );
     expect(tester.widget<ListTile>(tile).onTap, isNotNull);
     expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+  });
+
+  testWidgets('מתג שסונכרן מחלון אחר מריץ מחדש, והתוצאות נפתחות', (
+    tester,
+  ) async {
+    final repo = _FakeRepository([_ref('בראשית פרק א')]);
+    final sync = SettingsSync.instance;
+    final previousApply = sync.applyLocally;
+    sync.applyLocally = (key, value) =>
+        Settings.setValue<bool>(key, value as bool);
+    addTearDown(() => sync.applyLocally = previousApply);
+    await _pumpDialog(tester, repository: repo);
+    await tester.enterText(find.byType(TextField), 'בראשית');
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+    expect(repo.personalBooksFlags, [false]);
+
+    await sync.applyAuthoritativeValues({
+      'key-find-ref-include-personal-books': true,
+    });
+    await tester.pump();
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    // Enter לפני שהחיפוש החוזר הסתיים ממתין לו ופותח את תוצאתו.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+
+    expect(repo.personalBooksFlags, [false, true]);
+    final tile = find.ancestor(
+      of: find.text('בראשית פרק א'),
+      matching: find.byType(ListTile),
+    );
+    expect(tester.widget<ListTile>(tile).onTap, isNotNull);
+    expect(FindRefRecentStore.load(), ['בראשית']);
   });
 
   testWidgets('"נסה שוב" במצב שגיאה מריץ את השאילתה מחדש', (tester) async {
