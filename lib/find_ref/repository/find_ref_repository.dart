@@ -82,7 +82,6 @@ class _SecondaryBook {
 final Object _searchGenerationZoneKey = Object();
 
 final RegExp _rangeDash = RegExp('[-–־]');
-final RegExp _whitespaceRun = RegExp(r'\s+');
 
 class FindRefRepository {
   int _searchGeneration = 0;
@@ -2582,10 +2581,15 @@ class FindRefRepository {
         getCategoryPathSync ??
         ReferenceBooksCache.instance.getCategoryPathForBookSync;
 
+    // השאילתה מנורמלת במלואה; כותרת בנרמול חלקי (עם גרשיים) לא תשתווה לה.
+    final normTitles = <String, String>{};
     // Decorate: כל מפתחות המיון מחושבים פעם אחת לכל תוצאה.
     final decorated = List<_RankKey>.generate(results.length, (i) {
       final r = results[i];
-      final normTitle = _normalize(r.title);
+      final normTitle = normTitles.putIfAbsent(
+        r.title,
+        () => _normalizeForMatch(r.title),
+      );
       // citationMatch=true  → מתאים לסגנון הציון שהוזן
       // citationMatch=false → אינו מתאים (ירד מתחת לספרים שמתאימים)
       final citationMatch = findRefCitationMatch(isDafCitation, r.reference);
@@ -2756,9 +2760,6 @@ class FindRefRepository {
 
     return [for (final d in capped) d.result];
   }
-
-  String _normalize(String? s) =>
-      (s ?? '').trim().toLowerCase().replaceAll(_whitespaceRun, ' ');
 
   String _normalizeForMatch(String input) => normalizeForFindRefMatch(input);
 
