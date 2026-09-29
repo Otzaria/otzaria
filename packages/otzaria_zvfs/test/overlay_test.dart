@@ -503,7 +503,7 @@ void main() {
       expect(res.info.derivedFromUuid, before.fileUuid);
       expect(res.info.includesOverlayUuid, ovl.overlayUuid);
       expect(res.info.includesOverlaySeq, ovl.seq);
-      expect(res.info.formatMinor, 1);
+      expect(res.info.formatMinor, 2);
       expect(res.bytesAfter, lessThan(res.bytesBefore));
       expect(progress.last, res.info.logicalSize);
       final r = sqlite3.open(zdb, vfs: ZVfs.name, mode: OpenMode.readOnly);

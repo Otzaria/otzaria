@@ -273,6 +273,13 @@ static int expected_state(const history *h, uint64_t cut) {
   return s;
 }
 
+/* 1 = every offset; sanitizer runs sample (ZVFS_TORN_STRIDE). */
+static size_t torn_stride(void) {
+  const char *e = getenv("ZVFS_TORN_STRIDE");
+  int v = e ? atoi(e) : 1;
+  return v < 1 ? 1 : (size_t)v;
+}
+
 static void test_ovl_roundtrip_and_torn(uint32_t ps) {
   build_membase(ps);
   memovl m;
@@ -293,7 +300,8 @@ static void test_ovl_roundtrip_and_torn(uint32_t ps) {
 
   /* torn at every byte offset */
   int bad = 0;
-  for (size_t cut = 0; cut <= glen; cut++) {
+  const size_t stride = torn_stride();
+  for (size_t cut = 0; cut <= glen; cut += stride) {
     memovl t;
     memset(&t, 0, sizeof t);
     t.exists = 1;
@@ -328,7 +336,7 @@ static void test_ovl_roundtrip_and_torn(uint32_t ps) {
 
   /* one flipped bit at every offset: header -> refused, else a prefix */
   int flips = 0, refused = 0;
-  for (size_t pos = 0; pos < glen; pos++) {
+  for (size_t pos = 0; pos < glen; pos += pos < ZOVL_HEADER_SIZE ? 1 : stride) {
     memovl t;
     memset(&t, 0, sizeof t);
     t.exists = 1;
@@ -359,8 +367,8 @@ static void test_ovl_roundtrip_and_torn(uint32_t ps) {
   }
   CHECK_EQ(flips, 0);
   CHECK_EQ(refused, ZOVL_HEADER_SIZE);
-  printf("  overlay ps=%u: %zu bytes, %d commits, torn/flip at every offset ok\n",
-         ps, glen, h.n - 1);
+  printf("  overlay ps=%u: %zu bytes, %d commits, torn/flip ok (every %zu. offset)\n",
+         ps, glen, h.n - 1, stride);
   free(good);
   free(m.p);
   hist_free(&h);

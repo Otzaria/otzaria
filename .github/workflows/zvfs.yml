@@ -82,8 +82,8 @@ jobs:
           # crash/kill sampling: every 5th fault point, fewer under sanitizers
           export ZVFS_CRASH_STRIDE=5 ZVFS_KILL_ITERS=120
           case "${{ matrix.name }}" in
-            linux-asan-ubsan) export ZVFS_CRASH_STRIDE=15 ZVFS_KILL_ITERS=40 ;;
-            linux-tsan) export ZVFS_FUZZ_ITERS=2000 ZVFS_CRASH_STRIDE=40 ZVFS_KILL_ITERS=20
+            linux-asan-ubsan) export ZVFS_CRASH_STRIDE=15 ZVFS_KILL_ITERS=40 ZVFS_TORN_STRIDE=3 ;;
+            linux-tsan) export ZVFS_FUZZ_ITERS=2000 ZVFS_CRASH_STRIDE=40 ZVFS_KILL_ITERS=20 ZVFS_TORN_STRIDE=7
                         W="setarch $(uname -m) -R" ;;
           esac
           $W ctest --test-dir build/c -C RelWithDebInfo --output-on-failure --timeout 3600
