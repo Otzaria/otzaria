@@ -38,11 +38,13 @@ FindRefRepository _repo({
     List<String>? queryTokens,
   )?
   altToc,
+  List<ReferenceBookHit> Function(String query)? hitsFor,
 }) => FindRefRepository(
   dataRepository: _MockDataRepository(),
   isReferenceBooksCacheLoaded: () => true,
   warmUpReferenceBooksCache: () async {},
-  searchReferenceBooks: (_, {int limit = 50}) => hits,
+  searchReferenceBooks: (query, {int limit = 50}) =>
+      hitsFor?.call(query) ?? hits,
   getTocEntriesForReference: (bookId, title, {queryTokens}) async =>
       toc == null ? const [] : toc(bookId, title, queryTokens),
   getAltTocEntriesForReference: (bookId, title, {queryTokens}) async =>
@@ -89,6 +91,76 @@ void main() {
 
     expect(results.map((r) => r.segment).take(2), [50, 10]);
     expect(results.first.isAltToc, isTrue);
+  });
+
+  test('TOC חלקי ו-AltToc מלא לאותה שורה — ההתאמה המלאה נשמרת', () async {
+    // כמו "שיר השירים רבה א פרק א פרשה א": ה-TOC מקדים ל-AltToc בסדר האיסוף.
+    final repo = _repo(
+      hits: [_hit(1, 'ספר בדיקה')],
+      hitsFor: (query) =>
+          query.startsWith('ספר') ? [_hit(1, 'ספר בדיקה')] : const [],
+      toc: (_, _, _) async => [
+        {
+          'reference': 'ספר בדיקה פרשה א',
+          'segment': 2,
+          'level': 1,
+          'dbLineId': 0,
+          'partialMatch': true,
+        },
+      ],
+      altToc: (_, _, _) async => [
+        {'reference': 'פרק א פרשה א', 'segment': 2, 'level': 1, 'dbLineId': 0},
+        {'reference': 'פרשה ב פרק א', 'segment': 91, 'level': 1, 'dbLineId': 0},
+      ],
+    );
+
+    final results = await repo.findRefs('ספר בדיקה פרק א פרשה א');
+
+    expect(results.map((r) => r.segment).take(2), [2, 91]);
+    expect(results.first.isPartialTocMatch, isFalse);
+  });
+
+  test('אב חלקי אינו מסתיר צאצא מלא באותו ספר', () async {
+    // אותו ספר פעמיים: התאמה ישירה ל"ספר בדיקה" ומקורבת לצירוף בן 3 טוקנים.
+    final fuzzy = ReferenceBookHit(
+      bookId: 1,
+      title: 'ספר בדיקה',
+      normalizedTitle: 'ספר בדיקה',
+      filePath: '',
+      fileType: 'txt',
+      matchRank: ReferenceBooksCache.fuzzyMatchRank,
+      orderIndex: 999,
+    );
+    final repo = _repo(
+      hits: const [],
+      hitsFor: (query) => switch (query) {
+        'ספר בדיקה' => [_hit(1, 'ספר בדיקה')],
+        'ספר בדיקה פרק' => [fuzzy],
+        _ => const [],
+      },
+      toc: (_, _, tokens) async => [
+        if (tokens!.length == 2)
+          {
+            'reference': 'ספר בדיקה פרק א',
+            'segment': 5,
+            'level': 2,
+            'dbLineId': 0,
+          }
+        else
+          {
+            'reference': 'ספר בדיקה פרק',
+            'segment': 1,
+            'level': 1,
+            'dbLineId': 0,
+            'partialMatch': true,
+          },
+      ],
+    );
+
+    final results = await repo.findRefs('ספר בדיקה פרק א');
+
+    expect(results.first.segment, 5);
+    expect(results.first.isPartialTocMatch, isFalse);
   });
 
   group('SeforimRepository.getTocEntriesForReference — סימון התאמה חלקית', () {

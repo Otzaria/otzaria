@@ -210,6 +210,35 @@ void main() {
       );
     });
 
+    test('שורת TOC חלקית אינה חוסמת AltToc מלא לאותה שורה', () async {
+      seedLibrary(const [(id: 5, title: 'ספר חמש', acronyms: [])]);
+      final toc = {
+        5: [
+          {
+            'reference': 'ספר חמש פרק',
+            'segment': 10,
+            'level': 1,
+            'partialMatch': true,
+          },
+        ],
+      };
+      final rows = [
+        row(5, 'פרק א', 10, title: 'ספר חמש'),
+        row(5, 'פרק ב סימן א', 20, title: 'ספר חמש'),
+      ];
+      final unpruned = await run(
+        'ספר חמש פרק א',
+        rows,
+        pruned: false,
+        tocByBookId: toc,
+      );
+      expect(unpruned.first, '5|ספר חמש פרק א|10');
+      expect(
+        await run('ספר חמש פרק א', rows, pruned: true, tocByBookId: toc),
+        unpruned,
+      );
+    });
+
     test('ספר מאוחר בסדר אך ספר-יסוד אינו נחתך בגלל ספרים קודמים', () async {
       // כמו "סעיף א": ספר מוקדם עם מאות התאמות, וספר יסוד מאוחר שמדורג ראשון.
       seedLibrary(

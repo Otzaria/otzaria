@@ -582,9 +582,13 @@ class FindRefRepository {
     try {
       // מסלול הייצור: הסינון רץ ב-worker ומחזיר רק התאמות — הקאש כולו
       // והנרמול שלו לא חוצים את גבול ה-isolate.
+      // התאמה חלקית אינה תופסת את השורה: `_dedupeRefs` מחליף אותה בהתאמה מלאה.
       final occupied = [
         for (final r in results)
-          if (r.source.isOfficial && !r.isPdf && r.bookId > 0)
+          if (r.source.isOfficial &&
+              !r.isPdf &&
+              r.bookId > 0 &&
+              !r.isPartialTocMatch)
             (
               bookId: r.bookId,
               title: r.title,
@@ -1683,11 +1687,13 @@ class FindRefRepository {
   ) {
     if (entries.length < 2) return entries;
 
-    final referencesByGroup = <(int, BookSource, bool, bool), Set<String>>{};
+    // reference → האם כל הערכים שלו התאמות חלקיות; אב חלקי אינו מסתיר צאצא מלא.
+    final referencesByGroup =
+        <(int, BookSource, bool, bool), Map<String, bool>>{};
     for (final e in entries) {
-      (referencesByGroup[(e.bookId, e.source, e.isAltToc, e.isPdf)] ??= {}).add(
-        e.reference,
-      );
+      final refs =
+          referencesByGroup[(e.bookId, e.source, e.isAltToc, e.isPdf)] ??= {};
+      refs[e.reference] = (refs[e.reference] ?? true) && e.isPartialTocMatch;
     }
     return entries.where((entry) {
       // שורת מקור היא התוצאה הספציפית ביותר — לעולם אינה "וריאנט עמוק" של
@@ -1707,7 +1713,9 @@ class FindRefRepository {
         i >= 0;
         i = reference.indexOf(' ', i + 1)
       ) {
-        if (siblings.contains(reference.substring(0, i))) return false;
+        final ancestorIsPartial = siblings[reference.substring(0, i)];
+        if (ancestorIsPartial == null) continue;
+        if (!ancestorIsPartial || entry.isPartialTocMatch) return false;
       }
       return true;
     }).toList();
@@ -2534,7 +2542,7 @@ class FindRefRepository {
   }
 
   List<DbReferenceResult> _dedupeRefs(List<DbReferenceResult> results) {
-    final seen = <String>{};
+    final seen = <String, int>{};
     final out = <DbReferenceResult>[];
 
     for (final r in results) {
@@ -2557,12 +2565,19 @@ class FindRefRepository {
           '${r.bookId}|${r.source.wireKey}|${r.title}|${r.isPdf}|$filePathKey';
       // אותה כתובת מלאה באותו ספר — גם כשה-segment שונה (כותרת "סעיף ג" ב-TOC
       // מול עלה "סעיף ג" במבנה הסעיפים המסונתז שמצביע לשורת התוכן, issue #1249).
-      // למשתמש שתי השורות זהות; הראשונה (TOC) נשמרת.
-      final newSegment = seen.add('$bookKey|${r.segment}');
-      final newReference = seen.add('$bookKey|ref:${r.reference}');
-      if (newSegment && newReference) {
+      // למשתמש שתי השורות זהות; הראשונה (TOC) נשמרת, אלא אם היא התאמה חלקית
+      // והכפילה מלאה — אחרת הדירוג מעניש את השורה על ההתאמה שנזרקה.
+      final segmentKey = '$bookKey|${r.segment}';
+      final referenceKey = '$bookKey|ref:${r.reference}';
+      final kept = seen[segmentKey] ?? seen[referenceKey];
+      if (kept == null) {
+        seen[segmentKey] = seen[referenceKey] = out.length;
         out.add(r);
+        continue;
       }
+      seen.putIfAbsent(segmentKey, () => kept);
+      seen.putIfAbsent(referenceKey, () => kept);
+      if (out[kept].isPartialTocMatch && !r.isPartialTocMatch) out[kept] = r;
     }
 
     return out;
