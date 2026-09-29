@@ -1,4 +1,3 @@
-import 'package:otzaria/models/books.dart'; // Import Book models
 import 'package:equatable/equatable.dart';
 
 abstract class FindRefEvent extends Equatable {
@@ -21,16 +20,3 @@ class SearchRefRequested extends FindRefEvent {
 }
 
 class ClearSearchRequested extends FindRefEvent {}
-
-class OpenBookRequested extends FindRefEvent {
-  final Book book;
-  final int index;
-
-  const OpenBookRequested({
-    required this.book,
-    required this.index,
-  });
-
-  @override
-  List<Object> get props => [book, index];
-}

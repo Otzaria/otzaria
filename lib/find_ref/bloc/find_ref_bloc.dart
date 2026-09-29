@@ -9,7 +9,6 @@ import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
-import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
@@ -43,7 +42,6 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     // שעדיין בהמתנה וגם כאלה שכבר התחילו fetch.
     on<SearchRefRequested>(_onSearchRefRequested, transformer: restartable());
     on<ClearSearchRequested>(_onClearSearchRequested);
-    on<OpenBookRequested>(_onOpenBookRequested);
   }
 
   @override
@@ -150,26 +148,4 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
     _retriedQuery = null;
     emit(FindRefInitial());
   }
-
-  void _onOpenBookRequested(
-    OpenBookRequested event,
-    Emitter<FindRefState> emit,
-  ) {
-    final book = event.book;
-    final index = event.index;
-    emit(
-      FindRefBookOpening(book: book, index: index),
-    ); // Emit BookOpening state
-  }
-}
-
-class FindRefBookOpening extends FindRefState {
-  // Define BookOpening state
-  final Book book;
-  final int index;
-
-  const FindRefBookOpening({required this.book, required this.index});
-
-  @override
-  List<Object> get props => [book, index];
 }

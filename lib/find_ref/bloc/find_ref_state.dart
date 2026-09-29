@@ -1,4 +1,3 @@
-import 'package:otzaria/models/books.dart'; // Import Book model
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 
@@ -54,14 +53,4 @@ class FindRefError extends FindRefState {
 
   @override
   List<Object> get props => [kind];
-}
-
-class FindRefBookOpening extends FindRefState {
-  final Book book;
-  final int index;
-
-  const FindRefBookOpening({required this.book, required this.index});
-
-  @override
-  List<Object> get props => [book, index];
 }
