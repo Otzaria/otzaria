@@ -218,4 +218,29 @@ void main() {
     expect(results, hasLength(bookCount));
     expect(results.every((r) => r.toc.isNotEmpty), isTrue);
   });
+
+  test('שחרור ה-scope אחרי ביטול אינו מחייה את האצווה שרצה', () async {
+    const bookCount = 20;
+    const perBook = Duration(milliseconds: 100);
+    await seedDb(bookCount);
+    FindRefDbIsolate.debugTocBatchBookDelay = perBook;
+    final isolate = await FindRefDbIsolate.instance();
+    addTearDown(isolate.disposeForTesting);
+    expect(await isolate.getAllLocalBooksSlim(), hasLength(bookCount));
+
+    final scope = FindRefDbIsolate.allocateSearchScope();
+    final batch = isolate.getTocForBooks(
+      batchOf(bookCount),
+      searchScope: scope,
+      searchEpoch: 1,
+    );
+    await Future<void>.delayed(perBook * 2.5);
+    final stopwatch = Stopwatch()..start();
+    // סדר הסגירה של הדיאלוג: ביטול ואז שחרור.
+    FindRefDbIsolate.cancelSearchScopeIfRunning(scope, 2);
+    FindRefDbIsolate.releaseSearchScope(scope);
+
+    await expectLater(batch, throwsA(isA<FindRefQueryCancelled>()));
+    expect(stopwatch.elapsed, lessThan(perBook * 3));
+  });
 }

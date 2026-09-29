@@ -741,6 +741,10 @@ class _Job {
   final int? epoch;
   final int scope;
 
+  /// ביטול שנקבע על הבקשה עצמה, כדי ששחרור ה-scope (שמוחק את סימן הביטול
+  /// שלו) לא יחזיר לחיים עבודה שכבר בוטלה.
+  bool cancelled = false;
+
   /// מצב אצוות TOC: מתקדמת ספר אחד בכל סבב וחוזרת לסוף התור, כך שבקשות
   /// שהגיעו בינתיים (פתיחת ספר, חיפוש) נענות בין ספר לספר.
   _TocBatchProgress? tocBatch;
@@ -861,6 +865,7 @@ void _workerMain(_Bootstrap bootstrap) {
   // עיבוד סדרתי: בקשות מקבילות היו פותחות כמה חיבורים, ו-reset היה סוגר חיבור
   // באמצע שאילתה. הרקע (חימום) מתקדם מקטע אחד בכל סבב, רק כשהתור הראשי ריק.
   final queue = <_Job>[];
+  _Job? running;
   final backgroundQueue = <Map<String, Object?>>[];
   var draining = false;
 
@@ -870,7 +875,8 @@ void _workerMain(_Bootstrap bootstrap) {
 
   bool isStale(_Job job) {
     final epoch = job.epoch;
-    return epoch != null && epoch < (minEpochByScope[job.scope] ?? 0);
+    return job.cancelled ||
+        epoch != null && epoch < (minEpochByScope[job.scope] ?? 0);
   }
 
   void reply(int id, {Object? result, String? error, bool cancelled = false}) {
@@ -1173,18 +1179,23 @@ void _workerMain(_Bootstrap bootstrap) {
           reply(job.id, cancelled: true);
           continue;
         }
+        running = job;
         try {
           if (job.method != 'tocBatch') {
             reply(job.id, result: await dispatch(job.method, job.args));
-          } else if (!await tocBatchStep(job)) {
-            queue.add(job);
-          } else {
+          } else if (await tocBatchStep(job)) {
             reply(job.id, result: job.tocBatch!.out);
+          } else if (isStale(job)) {
+            reply(job.id, cancelled: true);
+          } else {
+            queue.add(job);
           }
         } on FindRefQueryCancelled {
           reply(job.id, cancelled: true);
         } catch (e) {
           reply(job.id, error: e.toString());
+        } finally {
+          running = null;
         }
       }
     } finally {
@@ -1212,7 +1223,11 @@ void _workerMain(_Bootstrap bootstrap) {
     }
 
     if (message['method'] == 'releaseScope') {
-      minEpochByScope.remove(message['scope'] as int);
+      final scope = message['scope'] as int;
+      for (final job in [...queue, ?running]) {
+        if (job.scope == scope && isStale(job)) job.cancelled = true;
+      }
+      minEpochByScope.remove(scope);
       return;
     }
 
