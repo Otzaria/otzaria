@@ -128,6 +128,22 @@ class _PopCounter extends NavigatorObserver {
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) => pops++;
 }
 
+/// נכשל בקריאה הראשונה ומצליח בבאות.
+class _FlakyRepository extends _FakeRepository {
+  _FlakyRepository(super.results);
+
+  int calls = 0;
+
+  @override
+  Future<List<DbReferenceResult>> findRefs(
+    String ref, {
+    bool includePersonalBooks = false,
+  }) async {
+    if (calls++ == 0) throw Exception('DB down');
+    return results;
+  }
+}
+
 DbReferenceResult _ref(String reference, {String path = 'תנ"ך, תורה'}) =>
     DbReferenceResult(
       title: 'בראשית',
@@ -686,6 +702,32 @@ void main() {
     await tester.pump();
 
     expect(find.text('האיתור נכשל'), findsOneWidget);
+    expect(find.text('אירעה שגיאה בזמן האיתור'), findsOneWidget);
+    expect(find.textContaining('DB down'), findsNothing);
+    expect(find.widgetWithText(ActionButton, 'נסה שוב'), findsOneWidget);
+  });
+
+  testWidgets('"נסה שוב" במצב שגיאה מריץ את השאילתה מחדש', (tester) async {
+    final repo = _FlakyRepository([_ref('בראשית פרק א')]);
+    await _pumpDialog(
+      tester,
+      repository: repo,
+      screenSize: const Size(1200, 900),
+    );
+
+    await tester.enterText(find.byType(TextField), 'בראשית');
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+    expect(find.text('האיתור נכשל'), findsOneWidget);
+
+    final retry = find.widgetWithText(ActionButton, 'נסה שוב');
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+
+    expect(repo.calls, 2);
+    expect(find.text('בראשית פרק א'), findsOneWidget);
   });
 
   group('התאמה לגדלי מסך', () {

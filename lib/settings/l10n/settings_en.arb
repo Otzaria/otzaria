@@ -1024,6 +1024,8 @@
   "האיתור יהיה זמין בעוד רגע": "Find will be available in a moment",
   "נסה שוב": "Try again",
   "האיתור נכשל": "Find failed",
+  "החיפוש בוטל לפני שהסתיים": "The search was cancelled before it finished",
+  "אירעה שגיאה בזמן האיתור": "An error occurred while finding the source",
   "Enter פותח את המקור המסומן, מקשי החצים מנווטים בין התוצאות": "Enter opens the highlighted result; arrow keys move between results",
 
   "@@comment_search_dialog": "דיאלוג החיפוש בספרייה (issue #1101)",

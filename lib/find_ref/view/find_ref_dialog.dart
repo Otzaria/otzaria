@@ -1207,7 +1207,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           return _buildLibraryMissingState();
         }
         if (state is FindRefError) {
-          return _buildErrorState(state.message);
+          return _buildErrorState(state.kind);
         }
         if (state is FindRefSuccess && state.refs.isNotEmpty) {
           return _buildResultsList(state.refs, horizontalPadding);
@@ -1560,12 +1560,24 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
-  Widget _buildErrorState(String message) {
+  Widget _buildErrorState(FindRefErrorKind kind) {
     return _buildCenteredState(
       icon: FluentIcons.error_circle_24_regular,
       iconColor: Theme.of(context).colorScheme.error,
       title: context.settingsText('האיתור נכשל'),
-      message: message,
+      message: switch (kind) {
+        FindRefErrorKind.cancelled => context.settingsText(
+          'החיפוש בוטל לפני שהסתיים',
+        ),
+        FindRefErrorKind.failed => context.settingsText(
+          'אירעה שגיאה בזמן האיתור',
+        ),
+      },
+      action: ActionButton.recommended(
+        text: context.settingsText('נסה שוב'),
+        onPressed: _retrySearch,
+        icon: FluentIcons.arrow_clockwise_24_regular,
+      ),
     );
   }
 

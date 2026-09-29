@@ -1,4 +1,5 @@
 import 'package:bloc_concurrency/bloc_concurrency.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_event.dart';
 import 'package:otzaria/find_ref/find_ref_personal_books_setting.dart';
@@ -120,10 +121,11 @@ class FindRefBloc extends Bloc<FindRefEvent, FindRefState> {
         );
         return;
       }
-      emit(const FindRefError('החיפוש בוטל לפני שהסתיים'));
-    } catch (e) {
+      emit(const FindRefError(FindRefErrorKind.cancelled));
+    } catch (e, stackTrace) {
       if (emit.isDone || requestGeneration != _requestGeneration) return;
-      emit(FindRefError(e.toString()));
+      debugPrint('[FindRef] search failed: $e\n$stackTrace');
+      emit(const FindRefError(FindRefErrorKind.failed));
     }
   }
 

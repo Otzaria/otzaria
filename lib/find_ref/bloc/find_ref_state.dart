@@ -38,12 +38,15 @@ class FindRefLibraryMissing extends FindRefState {
   const FindRefLibraryMissing();
 }
 
+enum FindRefErrorKind { cancelled, failed }
+
+/// הטקסט המוצג נקבע במסך לפי [kind]; פרטי החריגה נרשמים ללוג בלבד.
 class FindRefError extends FindRefState {
-  final String message;
-  const FindRefError(this.message);
+  final FindRefErrorKind kind;
+  const FindRefError(this.kind);
 
   @override
-  List<Object> get props => [message];
+  List<Object> get props => [kind];
 }
 
 class FindRefBookOpening extends FindRefState {

@@ -149,9 +149,9 @@ void main() {
       expect: () => [
         isA<FindRefLoading>(),
         isA<FindRefError>().having(
-          (s) => s.message,
-          'message',
-          contains('DB error'),
+          (s) => s.kind,
+          'kind',
+          FindRefErrorKind.failed,
         ),
       ],
     );
@@ -183,7 +183,10 @@ void main() {
       build: () => _bloc(error: const FindRefQueryCancelled()),
       act: (b) => b.add(const SearchRefRequested('בראשית')),
       wait: _kTwoDebounces,
-      expect: () => [isA<FindRefLoading>(), isA<FindRefError>()],
+      expect: () => [
+        isA<FindRefLoading>(),
+        const FindRefError(FindRefErrorKind.cancelled),
+      ],
     );
   });
 
