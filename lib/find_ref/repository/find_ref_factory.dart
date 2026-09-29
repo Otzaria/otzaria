@@ -42,6 +42,15 @@ FindRefRepository buildFindRefRepository({bool respectHiddenLibrary = true}) {
         searchEpoch: request.epoch,
       );
     },
+    getTocForBooks: (books) async {
+      final request = await searchWorker();
+      repository.throwIfSearchGenerationCancelled(request.epoch);
+      return request.worker.getTocForBooks(
+        books,
+        searchScope: scope,
+        searchEpoch: request.epoch,
+      );
+    },
     getAllAltTocFlatEntries: () async =>
         (await FindRefDbIsolate.instance()).getAllAltTocFlat(),
     searchAltTocFlatEntries: (queryTokens, {maxRefTokens}) async {

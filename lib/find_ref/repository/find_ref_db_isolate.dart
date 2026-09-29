@@ -22,6 +22,21 @@ class FindRefQueryCancelled implements Exception {
   String toString() => 'FindRefQueryCancelled';
 }
 
+/// ספר אחד בבקשת תוכן-העניינים המאוגדת ([FindRefDbIsolate.getTocForBooks]).
+/// [fallbackTokens] — חיפוש חוזר כשה-TOC ריק; [altTocTokens] `null` = בלי AltToc.
+typedef TocBatchRequest = ({
+  int bookId,
+  String bookTitle,
+  List<String> queryTokens,
+  List<String>? fallbackTokens,
+  List<String>? altTocTokens,
+});
+
+typedef TocBatchResult = ({
+  List<Map<String, dynamic>> toc,
+  List<Map<String, dynamic>> altToc,
+});
+
 /// מריץ את שאילתות ה-DB הכבדות של "איתור מקורות" ב-isolate נפרד, כך שהן
 /// אינן חוסמות את ה-thread של ה-UI בזמן הקלדה.
 ///
@@ -69,6 +84,10 @@ class FindRefDbIsolate {
   @visibleForTesting
   static ({int chunkSize, Duration phaseDelay, Duration normalizeDelay})?
   debugAltTocBuildTuning;
+
+  /// בדיקות בלבד: השהיה בין ספר לספר בבקשת TOC מאוגדת. נקרא ב-spawn.
+  @visibleForTesting
+  static Duration? debugTocBatchBookDelay;
 
   /// מחזיר את המופע הפעיל, ומאתחל (spawn) בעצלתיים בקריאה הראשונה.
   /// קריאות מקבילות שמגיעות בזמן ה-spawn חולקות את אותו Future.
@@ -133,6 +152,7 @@ class FindRefDbIsolate {
         queryCache: QueryLoader.cacheSnapshot,
         dbPath: DatabaseConstants.getDatabasePath(),
         altTocTuning: debugAltTocBuildTuning,
+        tocBatchBookDelay: debugTocBatchBookDelay,
       ),
       debugName: 'find_ref_db_worker',
       onError: errorPort.sendPort,
@@ -200,6 +220,40 @@ class FindRefDbIsolate {
       searchEpoch: searchEpoch,
     );
     return _castRows(res);
+  }
+
+  /// תוכן העניינים וה-AltToc של כמה ספרים בבקשה אחת, בסדר [books]. ה-worker
+  /// בודק ביטול בין ספר לספר, כך שהקלדה חדשה עוצרת גם אצווה שכבר רצה.
+  Future<List<TocBatchResult>> getTocForBooks(
+    List<TocBatchRequest> books, {
+    int searchScope = 0,
+    int? searchEpoch,
+  }) async {
+    final res = await _request(
+      'tocBatch',
+      {
+        'books': [
+          for (final b in books)
+            {
+              'bookId': b.bookId,
+              'bookTitle': b.bookTitle,
+              'queryTokens': b.queryTokens,
+              'fallbackTokens': b.fallbackTokens,
+              'altTocTokens': b.altTocTokens,
+            },
+        ],
+      },
+      cancellable: true,
+      searchScope: searchScope,
+      searchEpoch: searchEpoch,
+    );
+    return [
+      for (final item in res as List)
+        (
+          toc: _castRows((item as Map)['toc']),
+          altToc: _castRows(item['altToc']),
+        ),
+    ];
   }
 
   Future<List<Map<String, dynamic>>> getAllAltTocFlat() async {
@@ -683,12 +737,14 @@ class _Bootstrap {
   final String dbPath;
   final ({int chunkSize, Duration phaseDelay, Duration normalizeDelay})?
   altTocTuning;
+  final Duration? tocBatchBookDelay;
 
   const _Bootstrap({
     required this.mainSendPort,
     required this.queryCache,
     required this.dbPath,
     required this.altTocTuning,
+    required this.tocBatchBookDelay,
   });
 }
 
@@ -807,7 +863,11 @@ void _workerMain(_Bootstrap bootstrap) {
     backgroundQueue.clear();
   }
 
-  Future<Object?> dispatch(String method, Map<String, Object?> args) async {
+  Future<Object?> dispatch(
+    String method,
+    Map<String, Object?> args,
+    bool Function() isCancelled,
+  ) async {
     switch (method) {
       case 'reset':
         repository?.database.close();
@@ -852,6 +912,50 @@ void _workerMain(_Bootstrap bootstrap) {
           args['bookTitle'] as String,
           queryTokens: (args['queryTokens'] as List?)?.cast<String>(),
         );
+      case 'tocBatch':
+        final books = (args['books'] as List).cast<Map>();
+        final repo = await ensureRepo();
+        final out = <Map<String, Object?>>[];
+        for (final book in books) {
+          if (out.isNotEmpty) {
+            // מסירת התור בין ספר לספר, כדי שפקודת 'cancel' תגיע באמצע האצווה.
+            await Future<void>.delayed(
+              bootstrap.tocBatchBookDelay ?? Duration.zero,
+            );
+            if (isCancelled()) throw const FindRefQueryCancelled();
+          }
+          if (repo == null) {
+            out.add(const {'toc': [], 'altToc': []});
+            continue;
+          }
+          final bookId = book['bookId'] as int;
+          final title = book['bookTitle'] as String;
+          final fallback = (book['fallbackTokens'] as List?)?.cast<String>();
+          final altTokens = (book['altTocTokens'] as List?)?.cast<String>();
+          var toc = await repo.getTocEntriesForReference(
+            bookId,
+            title,
+            queryTokens: (book['queryTokens'] as List).cast<String>(),
+          );
+          if (toc.isEmpty && fallback != null) {
+            toc = await repo.getTocEntriesForReference(
+              bookId,
+              title,
+              queryTokens: fallback,
+            );
+          }
+          out.add({
+            'toc': toc,
+            'altToc': altTokens == null
+                ? const <Map<String, dynamic>>[]
+                : await repo.getAltTocEntriesForReference(
+                    bookId,
+                    title,
+                    queryTokens: altTokens,
+                  ),
+          });
+        }
+        return out;
       case 'allLocalBooksSlim':
         final repo = await ensureRepo();
         if (repo == null) {
@@ -1034,7 +1138,16 @@ void _workerMain(_Bootstrap bootstrap) {
         final args =
             (message['args'] as Map?)?.cast<String, Object?>() ?? const {};
         try {
-          reply(id, result: await dispatch(method, args));
+          reply(
+            id,
+            result: await dispatch(
+              method,
+              args,
+              () => epoch != null && epoch < (minEpochByScope[scope] ?? 0),
+            ),
+          );
+        } on FindRefQueryCancelled {
+          reply(id, cancelled: true);
         } catch (e) {
           reply(id, error: e.toString());
         }
