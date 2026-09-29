@@ -16,6 +16,7 @@ import 'package:otzaria/find_ref/find_ref_personal_books_setting.dart';
 import 'package:otzaria/find_ref/find_ref_recent_store.dart';
 import 'package:otzaria/find_ref/repository/db_reference_result.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
+import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/core/focus_repository.dart';
@@ -520,8 +521,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   }
 
   String _commentatorsKey(DbReferenceResult ref) =>
-      '${ref.bookId}:${ref.sourceLineId}:${ref.isAltToc ? 1 : 0}'
-      ':${ref.tocLevel}:${ref.segment.toInt()}';
+      FindRefRepository.commentatorsKeyFor(ref);
 
   /// טוען את רשימת המפרשים ל-[ref] ברקע אם עוד לא נטענה, יחד עם ה-[Book]
   /// המתאים לכל מפרש. רשומות מלאות נשמרות ב-[_commentatorsByRef] כך שהקליק

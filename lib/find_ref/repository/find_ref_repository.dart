@@ -350,10 +350,10 @@ class FindRefRepository {
     'אחרונים': CommentaryEra.acharonim,
   };
 
-  /// מפתח קאש לרשומות מפרשים — ראה [_commentatorsCache].
-  static String _cacheKeyFor(DbReferenceResult ref) =>
+  /// מפתח לרשומות המפרשים של [ref]: תוצאות שחולקות אותו מחשבות אותו טווח.
+  static String commentatorsKeyFor(DbReferenceResult ref) =>
       '${ref.bookId}:${ref.sourceLineId}:${ref.isAltToc ? 1 : 0}'
-      ':${ref.tocLevel}:${ref.segment.toInt()}';
+      ':${ref.isSourceLine ? 1 : 0}:${ref.tocLevel}:${ref.segment.toInt()}';
 
   /// קאש שטוח של כל ערכי ה-AltToc על פני כל הספרים. נבנה lazy בקריאה
   /// הראשונה ל-fallback הגלובלי, ומשרת את כל ה-sessions שלאחר מכן.
@@ -701,7 +701,7 @@ class FindRefRepository {
   ) async {
     if (ref.isPdf || ref.bookId <= 0 || !ref.source.isOfficial) return const [];
 
-    final cacheKey = _cacheKeyFor(ref);
+    final cacheKey = commentatorsKeyFor(ref);
     await _currentVisibility();
     final cached = _commentatorsCache.remove(cacheKey);
     if (cached != null) return _commentatorsCache[cacheKey] = cached;

@@ -27,6 +27,7 @@ DbReferenceResult _ref({
   int tocLevel = 1,
   bool isAltToc = false,
   bool isPdf = false,
+  bool isSourceLine = false,
   BookSource source = BookSource.official,
 }) => DbReferenceResult(
   title: 'בראשית',
@@ -37,6 +38,7 @@ DbReferenceResult _ref({
   tocLevel: tocLevel,
   isAltToc: isAltToc,
   isPdf: isPdf,
+  isSourceLine: isSourceLine,
   source: source,
 );
 
@@ -377,6 +379,25 @@ void main() {
         );
       },
     );
+
+    test('cache — שורת מקור וכותרת על אותה שורה לא מתערבבות', () async {
+      // לשורת מקור נטענים מפרשי השורה בלבד, ולכותרת — כל הקטע.
+      final repo = _repoWith(
+        fetch: (ref) async => [
+          {'targetBookTitle': ref.isSourceLine ? 'מפרש-שורה' : 'מפרש-קטע'},
+        ],
+      );
+
+      final tocResult = await repo.getCommentatorsForResult(
+        _ref(sourceLineId: 100, tocLevel: 3),
+      );
+      final lineResult = await repo.getCommentatorsForResult(
+        _ref(sourceLineId: 100, tocLevel: 3, isSourceLine: true),
+      );
+
+      expect(_titles(tocResult), ['מפרש-קטע']);
+      expect(_titles(lineResult), ['מפרש-שורה']);
+    });
 
     test('ספרים שונים — לא מערבבים cache', () async {
       var calls = 0;
