@@ -424,12 +424,14 @@ class _FindRefDialogState extends State<FindRefDialog> {
     final stored = FindRefPersonalBooksSetting.load();
     if (stored == _includePersonalBooks || !mounted) return;
     setState(() => _includePersonalBooks = stored);
-    // תוצאות של הערך הקודם נעולות; בלי חיפוש חוזר לא יגיעו תוצאות עדכניות.
+    // גם תוצאות עדכניות אינן מוכיחות שאין חיפוש ישן ב-debounce.
+    // הבלוק מבטל אותו ומדלג על חיפוש חוזר כשכבר מוצגות אותן תוצאות.
     final bloc = context.read<FindRefBloc>();
     final text = FocusRepository().findRefSearchController.text;
-    if (text.length >= 2 && !_isCurrentSuccess(bloc.state)) {
+    if (text.length >= 2) {
       _selectedIndex.value = 0;
       bloc.add(SearchRefRequested(text, includePersonalBooks: stored));
+      _openPendingEnterIfCurrent(bloc.state);
     }
   }
 
@@ -451,6 +453,13 @@ class _FindRefDialogState extends State<FindRefDialog> {
       !identical(state, _supersededVisibilityState) &&
       state.includePersonalBooks == _includePersonalBooks &&
       FindRefBloc.normalizeQuery(state.query) == _typedQuery.value;
+
+  void _openPendingEnterIfCurrent(FindRefState state) {
+    if (!_pendingEnter || !_isCurrentSuccess(state)) return;
+    _pendingEnter = false;
+    final refs = (state as FindRefSuccess).refs;
+    if (refs.isNotEmpty) _openRef(refs.first);
+  }
 
   void _refreshVisibilityIfChanged() {
     if (!mounted) return;
@@ -1275,10 +1284,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
               }
             });
           }
-          if (_pendingEnter && _isCurrentSuccess(state)) {
-            _pendingEnter = false;
-            if (state.refs.isNotEmpty) _openRef(state.refs.first);
-          }
+          _openPendingEnterIfCurrent(state);
         } else if (state is! FindRefLoading) {
           _pendingEnter = false;
         }

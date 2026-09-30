@@ -903,7 +903,8 @@ void main() {
   testWidgets('מתג שהשתנה מחוץ לדיאלוג אינו משאיר תוצאות נעולות', (
     tester,
   ) async {
-    await _pumpDialog(tester, results: [_ref('בראשית פרק א')]);
+    final repo = _FakeRepository([_ref('בראשית פרק א')]);
+    await _pumpDialog(tester, repository: repo);
     await tester.enterText(find.byType(TextField), 'בראשית');
     await tester.pump(_pastDebounce);
     await tester.pump();
@@ -922,6 +923,7 @@ void main() {
     );
     expect(tester.widget<ListTile>(tile).onTap, isNotNull);
     expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    expect(repo.personalBooksFlags, [false, true]);
   });
 
   testWidgets('מתג שסונכרן מחלון אחר מריץ מחדש, והתוצאות נפתחות', (
@@ -957,6 +959,60 @@ void main() {
     expect(tester.widget<ListTile>(tile).onTap, isNotNull);
     expect(FindRefRecentStore.load(), ['בראשית']);
   });
+
+  for (final initialValue in [false, true]) {
+    for (final submitDuringDebounce in [false, true]) {
+      testWidgets(
+        'סנכרון המתג הלוך וחזור בתוך debounce ($initialValue, Enter: $submitDuringDebounce)',
+        (tester) async {
+          final repo = _FakeRepository([_ref('בראשית פרק א')]);
+          final sync = SettingsSync.instance;
+          final previousApply = sync.applyLocally;
+          sync.applyLocally = (key, value) =>
+              Settings.setValue<bool>(key, value as bool);
+          addTearDown(() => sync.applyLocally = previousApply);
+          await Settings.setValue<bool>(
+            'key-find-ref-include-personal-books',
+            initialValue,
+          );
+          await _pumpDialog(tester, repository: repo);
+          await tester.enterText(find.byType(TextField), 'בראשית');
+          await tester.pump(_pastDebounce);
+          await tester.pump();
+
+          await sync.applyAuthoritativeValues({
+            'key-find-ref-include-personal-books': !initialValue,
+          });
+          await tester.pump(const Duration(milliseconds: 180));
+          if (submitDuringDebounce) {
+            await tester.testTextInput.receiveAction(TextInputAction.done);
+            await tester.pump();
+            expect(FindRefRecentStore.load(), isEmpty);
+          }
+          await sync.applyAuthoritativeValues({
+            'key-find-ref-include-personal-books': initialValue,
+          });
+          await tester.pump(_pastDebounce);
+          await tester.pump();
+
+          expect(repo.personalBooksFlags, [initialValue]);
+          expect(
+            tester.widget<Switch>(find.byType(Switch)).value,
+            initialValue,
+          );
+          final tile = find.ancestor(
+            of: find.text('בראשית פרק א'),
+            matching: find.byType(ListTile),
+          );
+          expect(tester.widget<ListTile>(tile).onTap, isNotNull);
+          expect(
+            FindRefRecentStore.load(),
+            submitDuringDebounce ? ['בראשית'] : isEmpty,
+          );
+        },
+      );
+    }
+  }
 
   testWidgets('"נסה שוב" במצב שגיאה מריץ את השאילתה מחדש', (tester) async {
     final repo = _FlakyRepository([_ref('בראשית פרק א')]);
