@@ -396,6 +396,47 @@ static void test_probe_keeps_locks(void) {
   printf("probe/reader of an open file keep its locks\n");
 }
 
+#if !defined(_WIN32)
+/* A path through a symlink names the same file (xFullPathname resolves it). */
+static void test_symlink_path(void) {
+  const char *plain = tmp_path("sl_plain.db");
+  const char *zdb = tmp_path("sl.zdb");
+  char link_path[4200];
+  snprintf(link_path, sizeof link_path, "%s.lnk", zdb);
+  make_db(plain, 4096, 0);
+  CHECK_EQ(convert_file(plain, zdb), 0);
+  unlink(link_path);
+  CHECK_EQ(symlink(zdb, link_path), 0);
+  CHECK_EQ(zvfs_in_use(link_path), 0);
+  CHECK_EQ(zvfs_probe_path(link_path), 1);
+  zvfs_reader *r = NULL;
+  CHECK_EQ(zvfs_reader_open(link_path, &r), ZVFS_OK);
+  zvfs_reader_close(r);
+  const char *opened[] = {zdb, link_path};
+  for (int i = 0; i < 2; i++) {
+    sqlite3 *db = open_db(opened[i], SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+    sqlite3_stmt *st = NULL;
+    exec(db, "BEGIN");
+    sqlite3_prepare_v2(db, "SELECT count(*) FROM book", -1, &st, NULL);
+    CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+    CHECK_EQ(zvfs_in_use(link_path), 2);
+    CHECK_EQ(zvfs_in_use(zdb), 2);
+    CHECK_EQ(zvfs_probe_path(opened[1 - i]), 1);
+    r = NULL;
+    CHECK_EQ(zvfs_reader_open(opened[1 - i], &r), ZVFS_ERR_BUSY);
+    CHECK_EQ(run_lockprobe(zdb), 1);
+    sqlite3_finalize(st);
+    exec(db, "COMMIT");
+    sqlite3_close(db);
+  }
+  CHECK_EQ(zvfs_in_use(link_path), 0);
+  unlink(link_path);
+  remove(plain);
+  remove(zdb);
+  printf("a path through a symlink is the same file\n");
+}
+#endif
+
 int main(int argc, char **argv) {
   if (argc == 3 && strcmp(argv[1], "lockprobe") == 0) return child_lockprobe(argv[2]);
   g_self = argv[0];
@@ -412,6 +453,9 @@ int main(int argc, char **argv) {
   test_corrupt_and_overlay();
   test_threads();
   test_probe_keeps_locks();
+#if !defined(_WIN32)
+  test_symlink_path();
+#endif
 #if defined(_WIN32)
   if (getenv("ZVFS_BIG_TESTS")) test_windows_lock_bytes();
 #endif

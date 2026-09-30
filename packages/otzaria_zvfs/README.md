@@ -179,6 +179,10 @@ readers already refuse.
   answer from the open state instead (`readZdbBytes`/`verifyZdb`:
   `ZdbException.busy`); `ZVfs.isOpen(path)` tells. Files open through another
   VFS in the same process are not tracked: do not probe those.
+- A file is recognized by its full path (`xFullPathname`, which resolves
+  symlinks on POSIX). A hardlink, or a different letter case on a
+  case-insensitive file system (Windows, APFS), is not recognized as the same
+  file: open and probe a library through one spelling of its path.
 
 ## Tests
 

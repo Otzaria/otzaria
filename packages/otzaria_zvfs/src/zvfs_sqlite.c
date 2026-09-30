@@ -441,7 +441,9 @@ ZVFS_API int sqlite3_otzariazvfs_init(void *db, char **pzErrMsg,
 static char *full_path(const char *path) {
   int n = g_base->mxPathname + 1;
   char *full = (char *)sqlite3_malloc(n);
-  if (full && g_base->xFullPathname(g_base, path, n, full) != SQLITE_OK) {
+  /* unix returns SQLITE_OK_SYMLINK for a path through a symlink */
+  if (full &&
+      (g_base->xFullPathname(g_base, path, n, full) & 0xff) != SQLITE_OK) {
     sqlite3_free(full);
     full = NULL;
   }
