@@ -135,6 +135,7 @@
 * הורידו את גרסת Linux מ-releases, חלצו והריצו את Otzaria.
 * עבור גרסאות רשמיות קיים גם חבילה מלאה (FULL): `otzaria-linux-full.tar.zst`.
 * החבילה המלאה כוללת את האפליקציה והספרייה יחד. חלצו אותה (`tar --zstd -xf otzaria-linux-full.tar.zst`) והריצו את `run-otzaria.sh`.
+* חבילה מלאה שגדולה מ-2 GiB מתפרסמת בחלקים (`….part-000`, `….part-001` ו-`….manifest.json`). מסייע ההורדה מרכיב אותם, או ידנית: `bash assemble_split_asset.sh otzaria-linux-full.tar.zst.manifest.json`.
 * בהרצה הראשונה של האפליקציה, תתבקשו להוריד את הספרייה.
 * לחלופין, ניתן להוריד את הספרייה ידנית מ-[כאן](https://github.com/Otzaria/SeforimLibrary/releases), לחלץ אותה ולספק את הנתיב שלה לאפליקציה.
 
@@ -154,6 +155,7 @@
 * הורידו את גרסת MacOS האחרונה מדף ה-releases.
 * עבור גרסאות רשמיות קיים גם חבילה מלאה (FULL): `otzaria-macos-full.tar.zst`.
 * החבילה המלאה כוללת את האפליקציה והספרייה יחד. חלצו אותה בטרמינל (`tar --zstd -xf otzaria-macos-full.tar.zst`; אם חסר zstd: `brew install zstd`) והפעילו את `Run Otzaria.command`.
+* חבילה מלאה שגדולה מ-2 GiB מתפרסמת בחלקים. מסייע ההורדה מרכיב אותם, או ידנית: `bash assemble_split_asset.sh otzaria-macos-full.tar.zst.manifest.json`.
 * הריצו את האפליקציה תוך לחיצה על מקש ctrl.
 * בהרצה הראשונה של האפליקציה, תתבקשו להוריד את הספרייה.
 * לחלופין, ניתן להוריד את הספרייה ידנית מ-[כאן](https://github.com/Otzaria/SeforimLibrary/releases), לחלץ אותה ולספק את הנתיב שלה לאפליקציה.

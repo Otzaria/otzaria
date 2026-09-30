@@ -419,7 +419,7 @@ packages:
         workflow,
         contains(
           r'for installer in release-files/otzaria-*-windows-full.exe '
-          r'release-files/otzaria-*-windows_arm64-full.exe; do',
+          r'release-files/otzaria-*-windows_arm64-full.exe \',
         ),
       );
       expect(

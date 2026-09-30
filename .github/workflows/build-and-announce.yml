@@ -1574,9 +1574,13 @@ jobs:
           # חבילת ה-FULL אינה ניידת (נתוני המשתמש נשארים בתיקיית המשתמש);
           # ה-marker שייך רק לחבילת ה-raw — מסירים את העותק שהגיע מ-linux-build.
           rm -f "$BUNDLE_ROOT/app/portable.marker"
-          # החבילה נדחסת כולה ב-zstd, ו-zdb (דחוס בדפים) היה מעלה אותה מעל 2 GiB — לכן מסד רגיל.
+          # מסכמה 6 המסד המותקן הוא seforim.zdb עצמו; release מסכמה 5 עדיין מחולץ ל-seforim.db.
           DB_ASSET=$(bash tool/release/library_db_asset.sh path full_installer/library_db)
-          bash tool/release/library_db_asset.sh expand "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.db"
+          if [[ "$DB_ASSET" == *.zdb ]]; then
+            ln "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.zdb"
+          else
+            bash tool/release/library_db_asset.sh expand "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.db"
+          fi
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/אוצריא/otzar-HB_catalog.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT/אוצריא"
           # בלי קובץ הגרסה בתיקייה, בדיקת העדכון הראשונה של האפליקציה מורידה את
@@ -1607,12 +1611,10 @@ jobs:
           Start the app using ./run-otzaria.sh so the app can detect the bundled library folder.
           EOF
 
-          # gzip הביא את החבילה ל-2.5GB, מעל מגבלת 2 GiB לקובץ ב-GitHub Releases.
-          # --long=27 הוא חלון שכל zstd מחלץ בלי דגלים נוספים.
+          # --long=27 הוא חלון שכל zstd מחלץ בלי דגלים נוספים. חבילה מעל 2 GiB
+          # מפוצלת לחלקים ב-create_release, כמו מתקין ה-FULL לווינדוס.
           pack_full_bundle() {
             tar -C full_installer -cf - otzaria-linux-full | zstd -19 -T0 --long=27 -o "$1"
-            [ "$(stat -c '%s' "$1")" -lt 2147483648 ] \
-              || { echo "::error::$1 exceeds GitHub's 2 GiB release-asset limit"; exit 1; }
           }
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
             pack_full_bundle otzaria-linux-full-arm64.tar.zst
@@ -1644,11 +1646,6 @@ jobs:
           esac
           [ ! -L "$BUNDLED_MARKER" ] || { echo "::error::Bundled marker must not be a symlink"; exit 1; }
           [ ! -e "$BUNDLED_MARKER" ] || rm -f -- "$BUNDLED_MARKER"
-          # החבילה המאונדקסת מפוצלת ממילא, ולכן היא נושאת את ה-zdb עצמו כמסד המותקן.
-          if [[ "$DB_ASSET" == *.zdb ]]; then
-            rm -f -- "$INDEXED_LIBRARY_ROOT/books/seforim.db"
-            ln "$DB_ASSET" "$INDEXED_LIBRARY_ROOT/books/seforim.zdb"
-          fi
           # סכמת מנוע חדשה (יציאה 3): האינדקס נבנה מהריצה הזו עצמה — ה-raw
           # וה-index-inputs שלה כבר הועלו — ואז מריצים שוב את המשימות שנכשלו.
           rebuild_tag_file="$RUNNER_TEMP/prebuilt-index-rebuild-tag"
@@ -2038,18 +2035,8 @@ jobs:
           rm -rf "$BUNDLE_ROOT"
           mkdir -p "$BUNDLE_ROOT/library_db"
           cp build/app/outputs/flutter-apk/app-release.apk "$BUNDLE_ROOT/otzaria-android.apk"
-          DB_ASSET=$(bash tool/release/library_db_asset.sh path full_installer/library_db)
-          for asset in full_installer/library_db/*; do
-            [ "$asset" = "$DB_ASSET" ] || cp "$asset" "$BUNDLE_ROOT/library_db/"
-          done
-          if [[ "$DB_ASSET" == *.zdb ]]; then
-            # ייבוא הספרייה באנדרואיד מקבל ZIP/ZST של seforim.db, ולכן ה-zdb מיוצא ונדחס מחדש.
-            bash tool/release/library_db_asset.sh expand "$DB_ASSET" "$RUNNER_TEMP/seforim.db"
-            zstd -19 -T0 -q "$RUNNER_TEMP/seforim.db" -o "$BUNDLE_ROOT/library_db/seforim.db.zst"
-            rm -f "$RUNNER_TEMP/seforim.db"
-          else
-            cp "$DB_ASSET" "$BUNDLE_ROOT/library_db/"
-          fi
+          # seforim.zdb (מסכמה 6) או seforim.db.zst נארזים כמות שהם; ייבוא הספרייה מקבל את שניהם.
+          cp full_installer/library_db/* "$BUNDLE_ROOT/library_db/"
           cat > "$BUNDLE_ROOT/README.txt" << 'EOF'
           Otzaria Android FULL bundle
 
@@ -2381,9 +2368,13 @@ jobs:
           # Derive binary name from bundle name (strip .app suffix)
           APP_BINARY="${APP_BUNDLE%.app}"
           cp -R "$APP_PATH" "$BUNDLE_ROOT/$APP_BUNDLE"
-          # החבילה נדחסת כולה ב-zstd, ו-zdb (דחוס בדפים) היה מעלה אותה מעל 2 GiB — לכן מסד רגיל.
+          # מסכמה 6 המסד המותקן הוא seforim.zdb עצמו; release מסכמה 5 עדיין מחולץ ל-seforim.db.
           DB_ASSET=$(bash tool/release/library_db_asset.sh path full_installer/library_db)
-          bash tool/release/library_db_asset.sh expand "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.db"
+          if [[ "$DB_ASSET" == *.zdb ]]; then
+            cp "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.zdb"
+          else
+            bash tool/release/library_db_asset.sh expand "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.db"
+          fi
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/אוצריא/otzar-HB_catalog.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT/אוצריא"
           # בלי קובץ הגרסה בתיקייה, בדיקת העדכון הראשונה של האפליקציה מורידה את
@@ -2414,10 +2405,8 @@ jobs:
           Start the app using Run Otzaria.command so the app can detect the bundled library folder.
           EOF
 
-          # zip הביא את החבילה ל-2.5GB, מעל מגבלת 2 GiB לקובץ ב-GitHub Releases.
+          # חבילה מעל 2 GiB מפוצלת לחלקים ב-create_release, כמו מתקין ה-FULL לווינדוס.
           tar -C full_installer -cf - otzaria-macos-full | zstd -19 -T0 --long=27 -o otzaria-macos-full.tar.zst
-          [ "$(stat -f '%z' otzaria-macos-full.tar.zst)" -lt 2147483648 ] \
-            || { echo "::error::otzaria-macos-full.tar.zst exceeds GitHub's 2 GiB release-asset limit"; exit 1; }
 
       - name: Upload macOS DMG
         if: always()
@@ -2776,8 +2765,8 @@ jobs:
             fi
           done
 
-      # מתקין ה-FULL מתקרב למגבלת ה-2 GiB לנכס בודד ב-GitHub. כשיחצה אותה
-      # הוא יפוצל לחלקים, ומסייע ההורדה מרכיב אותם חזרה לקובץ הפעלה אחד.
+      # חבילות ה-FULL שחוצות את מגבלת ה-2 GiB לנכס בודד ב-GitHub מפוצלות
+      # לחלקים, ומסייע ההורדה מרכיב אותם חזרה לקובץ אחד.
       - name: Split the Windows FULL installer if it reaches GitHub's asset limit
         run: |
           set -euo pipefail
@@ -2787,7 +2776,10 @@ jobs:
           PART_SIZE=1992294400
 
           # x64 ו-ARM64; המאונדקס (-windows-full-indexed.exe) קטן ואינו נתפס כאן.
-          for installer in release-files/otzaria-*-windows-full.exe release-files/otzaria-*-windows_arm64-full.exe; do
+          # חבילות ה-FULL ל-Linux, ל-macOS ולאנדרואיד נושאות את seforim.zdb (~1.9GB).
+          for installer in release-files/otzaria-*-windows-full.exe release-files/otzaria-*-windows_arm64-full.exe \
+            release-files/otzaria-linux-full.tar.zst release-files/otzaria-linux-full-arm64.tar.zst \
+            release-files/otzaria-macos-full.tar.zst release-files/otzaria-android-full.zip; do
             name=$(basename "$installer")
             size=$(stat -c '%s' "$installer")
             if [ "$size" -lt "$GITHUB_ASSET_LIMIT" ]; then
@@ -2860,14 +2852,20 @@ jobs:
           download_assistant=()
           android_apk=()
           android_full=()
+          android_full_parts=()
+          android_full_support=()
           linux_deb=()
           linux_rpm=()
           linux_portable=()
           linux_full=()
+          linux_full_parts=()
+          linux_full_support=()
           indexed_library_parts=()
           indexed_library_support=()
           mac_dmg=()
           mac_full=()
+          mac_full_parts=()
+          mac_full_support=()
 
           emit_link_group() {
             local label="$1"
@@ -2916,6 +2914,25 @@ jobs:
                 ;;
               assemble_split_asset.sh|assemble_split_asset.ps1)
                 indexed_library_support+=("$file")
+                ;;
+              # לפני *linux-full*.tar.* ו-*macos-full*.tar.*, שהיו מציגים כל חלק כחבילה.
+              *linux-full*.tar.zst.part-*)
+                linux_full_parts+=("$file")
+                ;;
+              *linux-full*.tar.zst.manifest.json)
+                linux_full_support+=("$file")
+                ;;
+              *macos-full*.tar.zst.part-*)
+                mac_full_parts+=("$file")
+                ;;
+              *macos-full*.tar.zst.manifest.json)
+                mac_full_support+=("$file")
+                ;;
+              *android-full*.zip.part-*)
+                android_full_parts+=("$file")
+                ;;
+              *android-full*.zip.manifest.json)
+                android_full_support+=("$file")
                 ;;
               *windows-full*.exe)
                 windows_full+=("$file")
@@ -3036,7 +3053,7 @@ jobs:
             fi
           fi
 
-          if [ ${#android_apk[@]} -gt 0 ] || [ ${#android_full[@]} -gt 0 ]; then
+          if [ ${#android_apk[@]} -gt 0 ] || [ ${#android_full[@]} -gt 0 ] || [ ${#android_full_parts[@]} -gt 0 ]; then
             printf "## אנדרואיד\n\n" >> release-body.md
 
             if [ ${#android_apk[@]} -gt 0 ]; then
@@ -3045,14 +3062,19 @@ jobs:
               printf "\n" >> release-body.md
             fi
 
-            if [ ${#android_full[@]} -gt 0 ]; then
+            if [ ${#android_full[@]} -gt 0 ] || [ ${#android_full_parts[@]} -gt 0 ]; then
               printf "### גרסת ספרייה מלאה\n\n" >> release-body.md
               emit_link_group "חבילה מלאה לאנדרואיד" "${android_full[@]}"
+              emit_link_group "חלק מהחבילה המלאה לאנדרואיד" "${android_full_parts[@]}"
+              emit_link_group "קובץ אימות לחבילה המלאה לאנדרואיד" "${android_full_support[@]}"
+              if [ ${#android_full_parts[@]} -gt 0 ]; then
+                printf "\n> **החבילה המלאה גדולה ממגבלת הקובץ הבודד של GitHub ולכן חולקה לחלקים.** הורידו אותה במסייע ההורדה שבסוף העמוד, או הורידו את כל החלקים, את קובץ ה־manifest ואת %sassemble_split_asset.sh%s לאותה תיקייה והריצו %sbash assemble_split_asset.sh <קובץ ה-manifest>%s.\n" '`' '`' '`' '`' >> release-body.md
+              fi
               printf "\n> **הבהרה:** חבילת ה־FULL לאנדרואיד כוללת את ה־APK יחד עם חומרי הספרייה, ומיועדת להפצה או להתקנה ידנית.\n\n" >> release-body.md
             fi
           fi
 
-          if [ ${#linux_deb[@]} -gt 0 ] || [ ${#linux_rpm[@]} -gt 0 ] || [ ${#linux_portable[@]} -gt 0 ] || [ ${#linux_full[@]} -gt 0 ]; then
+          if [ ${#linux_deb[@]} -gt 0 ] || [ ${#linux_rpm[@]} -gt 0 ] || [ ${#linux_portable[@]} -gt 0 ] || [ ${#linux_full[@]} -gt 0 ] || [ ${#linux_full_parts[@]} -gt 0 ]; then
             printf "## לינוקס\n\n" >> release-body.md
 
             if [ ${#linux_deb[@]} -gt 0 ] || [ ${#linux_rpm[@]} -gt 0 ] || [ ${#linux_portable[@]} -gt 0 ]; then
@@ -3066,15 +3088,20 @@ jobs:
               printf "\n" >> release-body.md
             fi
 
-            if [ ${#linux_full[@]} -gt 0 ]; then
+            if [ ${#linux_full[@]} -gt 0 ] || [ ${#linux_full_parts[@]} -gt 0 ]; then
               printf "### גרסת ספרייה מלאה\n\n" >> release-body.md
               emit_link_group "חבילה מלאה ללינוקס" "${linux_full[@]}"
+              emit_link_group "חלק מהחבילה המלאה ללינוקס" "${linux_full_parts[@]}"
+              emit_link_group "קובץ אימות לחבילה המלאה ללינוקס" "${linux_full_support[@]}"
+              if [ ${#linux_full_parts[@]} -gt 0 ]; then
+                printf "\n> **החבילה המלאה גדולה ממגבלת הקובץ הבודד של GitHub ולכן חולקה לחלקים.** הורידו אותה במסייע ההורדה שבסוף העמוד, או הורידו את כל החלקים, את קובץ ה־manifest ואת %sassemble_split_asset.sh%s לאותה תיקייה והריצו %sbash assemble_split_asset.sh <קובץ ה-manifest>%s.\n" '`' '`' '`' '`' >> release-body.md
+              fi
               printf "\nחילוץ: %star --zstd -xf <הקובץ>%s ואז %s./run-otzaria.sh%s.\n\n" '`' '`' '`' '`' >> release-body.md
             fi
 
           fi
 
-          if [ ${#mac_dmg[@]} -gt 0 ] || [ ${#mac_full[@]} -gt 0 ]; then
+          if [ ${#mac_dmg[@]} -gt 0 ] || [ ${#mac_full[@]} -gt 0 ] || [ ${#mac_full_parts[@]} -gt 0 ]; then
             printf "## מק\n\n" >> release-body.md
 
             if [ ${#mac_dmg[@]} -gt 0 ]; then
@@ -3083,9 +3110,14 @@ jobs:
               printf "\n" >> release-body.md
             fi
 
-            if [ ${#mac_full[@]} -gt 0 ]; then
+            if [ ${#mac_full[@]} -gt 0 ] || [ ${#mac_full_parts[@]} -gt 0 ]; then
               printf "### גרסת ספרייה מלאה\n\n" >> release-body.md
               emit_link_group "חבילה מלאה למק" "${mac_full[@]}"
+              emit_link_group "חלק מהחבילה המלאה למק" "${mac_full_parts[@]}"
+              emit_link_group "קובץ אימות לחבילה המלאה למק" "${mac_full_support[@]}"
+              if [ ${#mac_full_parts[@]} -gt 0 ]; then
+                printf "\n> **החבילה המלאה גדולה ממגבלת הקובץ הבודד של GitHub ולכן חולקה לחלקים.** הורידו אותה במסייע ההורדה שבסוף העמוד, או הורידו את כל החלקים, את קובץ ה־manifest ואת %sassemble_split_asset.sh%s לאותה תיקייה והריצו %sbash assemble_split_asset.sh <קובץ ה-manifest>%s.\n" '`' '`' '`' '`' >> release-body.md
+              fi
               printf "\nחילוץ בטרמינל: %star --zstd -xf <הקובץ>%s (אם חסר zstd: %sbrew install zstd%s) ואז %sRun Otzaria.command%s.\n\n" '`' '`' '`' '`' '`' '`' >> release-body.md
             fi
           fi

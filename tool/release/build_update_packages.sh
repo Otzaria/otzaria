@@ -65,11 +65,18 @@ extract_tree() {
 }
 
 [ -f "$new_manifest" ] || { echo "::warning::$new_manifest is missing - no update packages for $platform $arch"; exit 0; }
-[ -f "$new_zip" ] || { echo "::warning::$new_zip is missing - no update packages for $platform $arch"; exit 0; }
 
 mkdir -p "$out_dir"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+
+# חבילת FULL מעל 2 GiB מתפרסמת בחלקים (split_release_asset.sh) ומורכבת כאן.
+assemble=$(dirname "$0")/assemble_split_asset.sh
+if [ ! -f "$new_zip" ] && [ -f "$new_zip.manifest.json" ]; then
+  bash "$assemble" "$new_zip.manifest.json" "$work/new-archive" >&2 \
+    && new_zip="$work/new-archive"
+fi
+[ -f "$new_zip" ] || { echo "::warning::$new_zip is missing - no update packages for $platform $arch"; exit 0; }
 
 new_root=$(extract_tree "$new_zip" "$work/new")
 [ -n "$new_root" ] && [ -d "$new_root" ] || { echo "::warning::$new_zip holds no install tree"; exit 0; }
@@ -109,7 +116,17 @@ for entry in "${candidates[@]}"; do
     continue
   fi
 
-  if [ "$platform" = linux ]; then
+  if [ "$platform" = linux ] && gh release download "$tag" --repo "$source_repo" \
+    --pattern "$base_asset.manifest.json" --dir "$base" >/dev/null 2>&1; then
+    old_root=""
+    if gh release download "$tag" --repo "$source_repo" \
+      --pattern "$base_asset.part-*" --dir "$base" >/dev/null 2>&1 &&
+      bash "$assemble" "$base/$base_asset.manifest.json" "$base/$base_asset" >&2; then
+      rm -f "$base/$base_asset".part-*
+      old_root=$(extract_tree "$base/$base_asset" "$base/root") || old_root=""
+      rm -f "$base/$base_asset"
+    fi
+  elif [ "$platform" = linux ]; then
     old_root=$(gh release download "$tag" --repo "$source_repo" \
       --pattern "$base_asset" --output - 2>/dev/null |
       extract_tree - "$base/root") || old_root=""

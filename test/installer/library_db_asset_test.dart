@@ -371,6 +371,59 @@ EOF
       );
     });
 
+    test('חבילות FULL מעל 2 GiB מפוצלות, והחלקים מוצגים ומורכבים', () {
+      final workflow = read('.github/workflows/build-and-announce.yml');
+      final splitStart = workflow.indexOf('GITHUB_ASSET_LIMIT=2147483648');
+      final split = workflow.substring(
+        splitStart,
+        workflow.indexOf(r'split_release_asset.sh "$installer"', splitStart),
+      );
+      for (final name in [
+        'release-files/otzaria-linux-full.tar.zst',
+        'release-files/otzaria-linux-full-arm64.tar.zst',
+        'release-files/otzaria-macos-full.tar.zst',
+        'release-files/otzaria-android-full.zip',
+      ]) {
+        expect(split, contains(name), reason: 'לולאת הפיצול');
+      }
+
+      // החלקים מסווגים לפני התבנית הכללית, שהייתה מציגה כל חלק כחבילה.
+      for (final entry in const {
+        '*linux-full*.tar.zst.part-*)': '*linux-full*.tar.*)',
+        '*macos-full*.tar.zst.part-*)': '*macos-full*.tar.*)',
+        '*android-full*.zip.part-*)': '*android-full*.zip)',
+      }.entries) {
+        final part = workflow.indexOf(entry.key);
+        expect(part, greaterThan(0), reason: entry.key);
+        expect(workflow.indexOf(entry.value), greaterThan(part));
+      }
+      expect(
+        'bash assemble_split_asset.sh <קובץ ה-manifest>'
+            .allMatches(workflow)
+            .length,
+        3,
+      );
+
+      // העדכון הדיפרנציאלי ב-Linux פורס את app/ גם מחבילה מפוצלת.
+      final script = read('tool/release/build_update_packages.sh');
+      expect(
+        script,
+        contains(
+          r'bash "$assemble" "$new_zip.manifest.json" "$work/new-archive"',
+        ),
+      );
+      expect(script, contains(r'--pattern "$base_asset.part-*"'));
+      expect(
+        read('tool/release/generate_release_manifest.dart'),
+        allOf(
+          contains(r"pattern: r'^otzaria-linux-full\.tar\.zst\.manifest\.json$'"),
+          contains(r"pattern: r'^otzaria-macos-full\.tar\.zst\.manifest\.json$'"),
+          contains(r"pattern: r'^otzaria-android-full\.zip\.manifest\.json$'"),
+        ),
+        reason: 'מסייע ההורדה מקבל את החלקים ממניפסט ה-release',
+      );
+    });
+
     test('חבילות ה-FULL נשענות על library_db_asset.sh', () {
       final workflow = read('.github/workflows/build-and-announce.yml');
       expect(
@@ -381,11 +434,28 @@ EOF
         3,
         reason: 'Linux, Android ו-macOS',
       );
+      // מסכמה 6 אין מסד רגיל על הדיסק של המשתמש: החבילות נושאות את ה-zdb.
+      // expand נשאר רק ל-release מסכמה 5 (Linux ו-macOS).
       expect(
         r'library_db_asset.sh expand "$DB_ASSET"'.allMatches(workflow).length,
-        3,
+        2,
       );
+      expect(
+        workflow,
+        contains(r'ln "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.zdb"'),
+      );
+      expect(
+        workflow,
+        contains(r'cp "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.zdb"'),
+      );
+      expect(
+        workflow,
+        contains(r'cp full_installer/library_db/* "$BUNDLE_ROOT/library_db/"'),
+        reason: 'חבילת אנדרואיד נושאת את seforim.zdb כמות שהוא',
+      );
+      expect(workflow, isNot(contains('zstd -19 -T0 -q "\$RUNNER_TEMP')));
       expect(workflow, isNot(contains('full_installer/library_db/seforim.db')));
+      expect(workflow, isNot(contains("exceeds GitHub's 2 GiB")));
       // האינדקס המאוחסן נבנה מה-sha256 של הנכס שהורד בפועל, zst או zdb.
       expect(
         workflow,
@@ -393,10 +463,6 @@ EOF
           '"\$INDEXED_LIBRARY_ROOT/index" \\\n'
           '              "\$DB_ASSET" \\',
         ),
-      );
-      expect(
-        workflow,
-        contains(r'ln "$DB_ASSET" "$INDEXED_LIBRARY_ROOT/books/seforim.zdb"'),
       );
 
       final screenshots = read('.github/workflows/installer-screenshots.yml');
