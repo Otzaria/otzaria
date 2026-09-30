@@ -868,4 +868,33 @@ void main() {
     removeAll(plain);
     removeAll(zdb);
   });
+
+  test('compactZdb and verifyZdb take a progress callback that is not '
+      'sendable', () async {
+    final plain = p('ns.db');
+    final zdb = p('ns.zdb');
+    createTestDb(plain);
+    removeAll(zdb);
+    await convert(plain, zdb);
+    final w = sqlite3.open(zdb, vfs: ZVfs.name);
+    w.execute("UPDATE meta SET v = 'x' WHERE k = 'key3'");
+    w.close();
+    // a ReceivePort cannot cross isolates; the callbacks capture it
+    final port = ReceivePort();
+    var calls = 0;
+    void onProgress(int done, int total) {
+      if (port.sendPort.hashCode != 0) calls++;
+    }
+
+    try {
+      final res = await compactZdb(zdb, level: 3, onProgress: onProgress);
+      final info = await verifyZdb(zdb, onProgress: onProgress);
+      expect(info.logicalSize, res.info.logicalSize);
+      expect(calls, greaterThan(0));
+    } finally {
+      port.close();
+    }
+    removeAll(plain);
+    removeAll(zdb);
+  });
 }

@@ -54,32 +54,28 @@ Future<ZdbCompactResult> compactZdb(
   final nThreads = (threads ?? (Platform.numberOfProcessors - 1))
       .clamp(1, 16)
       .toInt();
-  final before = readZdbInfo(path);
-  final ovl = File('$path-zovl');
-  final bytesBefore =
-      before.physicalSize + (ovl.existsSync() ? ovl.lengthSync() : 0);
   final cancel = calloc<Int32>();
   final progress = calloc<Int64>();
   cancellationToken?._attach(cancel);
-  final cancelAddr = cancel.address;
-  final progressAddr = progress.address;
-  final total = before.logicalSize;
+  // the worker reports the total once it has replayed the overlay
+  final totals = onProgress == null ? null : ReceivePort();
   Timer? timer;
-  if (onProgress != null) {
-    timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      onProgress(progress.value.clamp(0, total), total);
+  totals?.listen((total) {
+    timer ??= Timer.periodic(const Duration(milliseconds: 200), (_) {
+      onProgress!(progress.value.clamp(0, total as int), total);
     });
-  }
+  });
   final sw = Stopwatch()..start();
   try {
-    final (info, stats) = await Isolate.run(
-      () => _compactWorker(
+    final (info, stats, bytesBefore, total) = await Isolate.run(
+      _compactJob(
         path,
         level,
         nThreads,
         verify,
-        cancelAddr,
-        progressAddr,
+        cancel.address,
+        progress.address,
+        totals?.sendPort,
       ),
     );
     onProgress?.call(total, total);
@@ -94,6 +90,7 @@ Future<ZdbCompactResult> compactZdb(
     );
   } finally {
     timer?.cancel();
+    totals?.close();
     cancellationToken?._detach(cancel);
     calloc.free(cancel);
     calloc.free(progress);
@@ -138,14 +135,45 @@ Future<ZdbInfo> installZdb(
   });
 }
 
-(ZdbInfo, (int, int, int)) _compactWorker(
+typedef _CompactOutcome = (ZdbInfo, (int, int, int), int, int);
+
+// A closure made here captures only these values: one made in compactZdb
+// would share its context with the progress timer and send onProgress along.
+_CompactOutcome Function() _compactJob(
   String path,
   int level,
   int threads,
   bool verify,
   int cancelAddr,
   int progressAddr,
+  SendPort? totals,
+) =>
+    () => _compactWorker(
+      path,
+      level,
+      threads,
+      verify,
+      cancelAddr,
+      progressAddr,
+      totals,
+    );
+
+/// Returns the new base, the stats, the bytes before and the logical size.
+_CompactOutcome _compactWorker(
+  String path,
+  int level,
+  int threads,
+  bool verify,
+  int cancelAddr,
+  int progressAddr,
+  SendPort? totals,
 ) {
+  // replays the overlay: never on the calling (UI) isolate
+  final before = readZdbInfo(path);
+  final ovl = File('$path-zovl');
+  final bytesBefore =
+      before.physicalSize + (ovl.existsSync() ? ovl.lengthSync() : 0);
+  totals?.send(before.logicalSize);
   final dst = '$path.new';
   final pPath = path.toNativeUtf8();
   final pDst = dst.toNativeUtf8();
@@ -187,6 +215,8 @@ Future<ZdbInfo> installZdb(
     return (
       readZdbInfo(path),
       (s.frames, s.framesCopied, s.freelistLeaves),
+      bytesBefore,
+      before.logicalSize,
     );
   } finally {
     if (!swapped) {

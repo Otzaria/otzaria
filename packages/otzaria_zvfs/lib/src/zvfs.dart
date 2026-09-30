@@ -433,6 +433,30 @@ Uint8List readZdbBytes(String path, int offset, int length) =>
       }
     });
 
+// Built outside verifyZdb so that the closure captures only these values.
+ZdbInfo Function() _verifyJob(
+  String path,
+  int cancelAddr,
+  int progressAddr,
+  SendPort? totals,
+) =>
+    () => _withReader(path, (r) {
+      final info = calloc<native.ZvfsInfoStruct>();
+      try {
+        native.zvfs_reader_info(r, info);
+        totals?.send(info.ref.logicalSize);
+        final rc = native.zvfs_reader_verify(
+          r,
+          Pointer<Int32>.fromAddress(cancelAddr),
+          Pointer<Int64>.fromAddress(progressAddr),
+        );
+        if (rc != 0) throw ZdbException.fromCode(rc, path);
+        return ZdbInfo.fromNative(info.ref);
+      } finally {
+        calloc.free(info);
+      }
+    });
+
 /// Decodes every base frame off the calling isolate, checks the content
 /// hash, then decodes every overlay page.
 /// [ZdbException.busy] while the path is open through zvfs in this process.
@@ -444,35 +468,21 @@ Future<ZdbInfo> verifyZdb(
   final cancel = calloc<Int32>();
   final progress = calloc<Int64>();
   cancellationToken?._attach(cancel);
-  final cancelAddr = cancel.address;
-  final progressAddr = progress.address;
+  // the worker reports the total once it has the index loaded
+  final totals = onProgress == null ? null : ReceivePort();
   Timer? timer;
-  if (onProgress != null) {
-    final total = readZdbInfo(path).logicalSize;
-    timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      onProgress(progress.value.clamp(0, total), total);
+  totals?.listen((total) {
+    timer ??= Timer.periodic(const Duration(milliseconds: 200), (_) {
+      onProgress!(progress.value.clamp(0, total as int), total);
     });
-  }
+  });
   try {
     return await Isolate.run(
-      () => _withReader(path, (r) {
-        final rc = native.zvfs_reader_verify(
-          r,
-          Pointer<Int32>.fromAddress(cancelAddr),
-          Pointer<Int64>.fromAddress(progressAddr),
-        );
-        if (rc != 0) throw ZdbException.fromCode(rc, path);
-        final info = calloc<native.ZvfsInfoStruct>();
-        try {
-          native.zvfs_reader_info(r, info);
-          return ZdbInfo.fromNative(info.ref);
-        } finally {
-          calloc.free(info);
-        }
-      }),
+      _verifyJob(path, cancel.address, progress.address, totals?.sendPort),
     );
   } finally {
     timer?.cancel();
+    totals?.close();
     cancellationToken?._detach(cancel);
     calloc.free(cancel);
     calloc.free(progress);
