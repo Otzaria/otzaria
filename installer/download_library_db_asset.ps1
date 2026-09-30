@@ -2,9 +2,11 @@
 # tool/release/library_db_asset.sh: עד סכמה 5 seforim.db.zst, ומסכמה 6
 # seforim-schema<N>.zdb עם <name>.manifest.json. נבחרת הסכמה הגבוהה שהתוכנה קוראת.
 # נשמר כ-<OutDir>\seforim.db.zst או <OutDir>\seforim.zdb, והנתיב מודפס בסוף.
+# ReleaseTag (ברירת מחדל LIBRARY_DB_RELEASE_TAG) מצמיד תג אחד לכל ריצת workflow.
 param(
   [Parameter(Mandatory = $true)] [string]$OutDir,
-  [string]$ReleaseApi = 'https://api.github.com/repos/Otzaria/SeforimLibrary/releases/latest'
+  [string]$ReleaseTag = $env:LIBRARY_DB_RELEASE_TAG,
+  [string]$ReleaseApi
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,6 +44,11 @@ if ($constants -notmatch 'static const int readableDbSchemaVersion = (\d+);') {
 }
 $maxSchema = [int]$Matches[1]
 
+if (-not $ReleaseApi) {
+  $releases = 'https://api.github.com/repos/Otzaria/SeforimLibrary/releases'
+  $ReleaseApi = if ($ReleaseTag) { "$releases/tags/$ReleaseTag" } else { "$releases/latest" }
+}
+
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 $work = Join-Path $OutDir ('.library-db.' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
@@ -49,6 +56,9 @@ try {
   $releasePath = Join-Path $work 'release.json'
   Invoke-Fetch $ReleaseApi $releasePath
   $release = Get-Content -Raw -LiteralPath $releasePath -Encoding utf8 | ConvertFrom-Json
+  if ($ReleaseTag -and $release.tag_name -cne $ReleaseTag) {
+    Fail "$ReleaseApi is release $($release.tag_name), not the pinned $ReleaseTag"
+  }
 
   $best = $null
   $bestSchema = -1

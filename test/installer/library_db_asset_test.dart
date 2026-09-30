@@ -169,6 +169,23 @@ void main() {
       expect(result.stderr, contains('above schema $_readable'));
     });
 
+    test('תג מוצמד חייב להיות התג של ה-release שנקרא', () async {
+      final zst = await zstFixture([1, 2, 3]);
+      final json = release('pinned', [_asset(zst, 'seforim.db.zst')]);
+      Future<ProcessResult> pinned(String tag, String dir) => _bash(
+        ['download', p.join(temp.path, dir)],
+        {'LIBRARY_DB_RELEASE_API': _url(json), 'LIBRARY_DB_RELEASE_TAG': tag},
+      );
+
+      final ok = await pinned('v30', 'ok');
+      expect(ok.exitCode, 0, reason: '${ok.stdout}\n${ok.stderr}');
+
+      final other = await pinned('v31', 'other');
+      expect(other.exitCode, isNot(0));
+      expect(other.stderr, contains('not the pinned v31'));
+      expect(_names(p.join(temp.path, 'other')), isEmpty);
+    });
+
     test(
       'zdb מיוצא ל-DB רגיל ב-zvfs_cli שנבנה מהמאגר הזה',
       () async {
@@ -227,16 +244,18 @@ EOF
   });
 
   group('download_library_db_asset.ps1', () {
-    Future<ProcessResult> run(File json, String outDir) => Process.run('pwsh', [
-      '-NoLogo',
-      '-NoProfile',
-      '-File',
-      _ps1,
-      '-OutDir',
-      outDir,
-      '-ReleaseApi',
-      _url(json),
-    ]);
+    Future<ProcessResult> run(File json, String outDir, {String? tag}) =>
+        Process.run('pwsh', [
+          '-NoLogo',
+          '-NoProfile',
+          '-File',
+          _ps1,
+          '-OutDir',
+          outDir,
+          '-ReleaseApi',
+          _url(json),
+          if (tag != null) ...['-ReleaseTag', tag],
+        ]);
 
     test('בוחר zdb בסכמה הקריאה, מאמת, ונופל ל-zst ב-release ישן', () async {
       final name = 'seforim-schema$_readable.zdb';
@@ -288,6 +307,21 @@ EOF
       expect(bad.stdout, contains('dbSchemaVersion'));
       expect(_names(badDir), isEmpty);
     });
+
+    test('תג מוצמד שאינו התג של ה-release נכשל', () async {
+      final zst = File(p.join(temp.path, 'seforim.db.zst'))
+        ..writeAsBytesSync([4, 5]);
+      final json = release('pinned', [_asset(zst, 'seforim.db.zst')]);
+
+      final ok = await run(json, p.join(temp.path, 'ok'), tag: 'v30');
+      expect(ok.exitCode, 0, reason: '${ok.stdout}\n${ok.stderr}');
+
+      final otherDir = p.join(temp.path, 'other');
+      final other = await run(json, otherDir, tag: 'v31');
+      expect(other.exitCode, isNot(0));
+      expect(other.stdout, contains('not the pinned v31'));
+      expect(_names(otherDir), isEmpty);
+    });
   });
 
   group('צרכני המסד המלא ב-workflows', () {
@@ -308,6 +342,33 @@ EOF
           reason: path,
         );
       }
+    });
+
+    test('כל ה-jobs מקבלים את אותו תג ספרייה שנפתר פעם אחת', () {
+      final workflow = read('.github/workflows/build-and-announce.yml');
+      const output = r'${{ needs.bump_version.outputs.library_tag }}';
+
+      expect(
+        workflow,
+        contains(r'library_tag: ${{ steps.library_release.outputs.tag }}'),
+      );
+      expect(
+        workflow,
+        contains('gh api repos/Otzaria/SeforimLibrary/releases/latest'),
+      );
+      expect(
+        'LIBRARY_DB_RELEASE_TAG: $output'.allMatches(workflow).length,
+        5,
+        reason: 'Windows x64, Windows ARM64, Linux, Android ו-macOS',
+      );
+      expect(
+        workflow,
+        contains(
+          'PREBUILT_LIBRARY_INDEX_BASE_URL: '
+          'https://github.com/Otzaria/SeforimLibrary/releases/download/$output',
+        ),
+        reason: 'האינדקס המאוחסן נלקח מאותו release כמו המסד',
+      );
     });
 
     test('חבילות ה-FULL נשענות על library_db_asset.sh', () {

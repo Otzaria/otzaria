@@ -10,13 +10,17 @@
 # .github/scripts/db_asset_names.sh). The highest schema this app reads wins.
 # A zdb is exported with zvfs_cli built from this checkout.
 #
+# LIBRARY_DB_RELEASE_TAG pins the release (one tag per workflow run; default latest);
 # LIBRARY_DB_RELEASE_API overrides the release JSON URL (file:// in the tests);
 # ZVFS_CLI points at a prebuilt zvfs_cli.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
-release_api=${LIBRARY_DB_RELEASE_API:-https://api.github.com/repos/Otzaria/SeforimLibrary/releases/latest}
+release_tag=${LIBRARY_DB_RELEASE_TAG:-}
+releases=https://api.github.com/repos/Otzaria/SeforimLibrary/releases
+if [ -n "$release_tag" ]; then default_api="$releases/tags/$release_tag"; else default_api="$releases/latest"; fi
+release_api=${LIBRARY_DB_RELEASE_API:-$default_api}
 usage='usage: library_db_asset.sh download <dir> | path <dir> | expand <asset> <out.db>'
 
 fail() { echo "::error::$*" >&2; exit 1; }
@@ -103,6 +107,9 @@ EOF
 
   local tag schema name url size digest manifest_url manifest_digest local_name actual
   IFS='|' read -r tag schema name url size digest manifest_url manifest_digest <<< "$selection"
+  if [ -n "$release_tag" ] && [ "$tag" != "$release_tag" ]; then
+    fail "$release_api is release $tag, not the pinned $release_tag"
+  fi
   if [ "$schema" = 0 ]; then local_name=seforim.db.zst; else local_name=seforim.zdb; fi
   echo "library DB: $name from release $tag ($size bytes)" >&2
 
