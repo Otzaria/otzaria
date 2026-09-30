@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bloc/bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -454,7 +455,10 @@ void main() {
           ),
         );
 
-        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await _waitFor(
+          () => bloc.state is TextBookLoaded,
+          description: 'TextBookLoaded',
+        );
 
         expect(quickPreviewCalls, hasLength(1));
         expect(quickPreviewCalls.single.title, 'ספר כפול');
@@ -935,7 +939,10 @@ void main() {
         ),
       );
 
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await _waitFor(
+        () => repository.lastTargetBookTitles != null,
+        description: 'טעינת קישורים',
+      );
 
       expect(
         repository.lastTargetBookTitles,
@@ -965,12 +972,18 @@ void main() {
         ),
       );
 
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await _waitFor(
+        () => repository.getBookLinksInRangeCalls >= 1,
+        description: 'טעינה ראשונה',
+      );
       expect(repository.getBookLinksInRangeCalls, 1);
 
       // חורג מחלון הקישורים שכבר נטען, אחרת הגלילה נענית ממנו בלי שאילתה.
       bloc.add(UpdateVisibleIndecies([_farLine, _farLine + 1, _farLine + 2]));
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+      await _waitFor(
+        () => repository.getBookLinksInRangeCalls >= 2,
+        description: 'טעינה מחדש בגלילה',
+      );
 
       expect(repository.getBookLinksInRangeCalls, 2);
 
@@ -996,7 +1009,10 @@ void main() {
           ),
         );
 
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _waitFor(
+          () => repository.getBookLinksInRangeCalls >= 1,
+          description: 'טעינה ראשונה',
+        );
         expect(repository.getBookLinksInRangeCalls, 1);
 
         bloc.add(const UpdateSelectedIndex(12));
@@ -1093,7 +1109,10 @@ void main() {
           ),
         );
 
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _waitFor(
+          () => repository.getBookLinksInRangeCalls >= 1,
+          description: 'טעינה ראשונה',
+        );
 
         // גלילה בתוך החלון שכבר נטען אינה מייצרת שאילתה נוספת.
         bloc.add(const UpdateVisibleIndecies([20, 21, 22]));
@@ -1101,7 +1120,10 @@ void main() {
         expect(repository.getBookLinksInRangeCalls, 1);
 
         bloc.add(const UpdateCommentators(['אבן עזרא על בראשית']));
-        await Future<void>.delayed(const Duration(milliseconds: 80));
+        await _waitFor(
+          () => repository.getBookLinksInRangeCalls >= 2,
+          description: 'טעינה אחרי שינוי מפרשים',
+        );
 
         expect(repository.getBookLinksInRangeCalls, 2);
         expect(repository.lastStartIndex, 0);
@@ -1253,6 +1275,13 @@ void main() {
     });
 
     test('ToggleLeftPane לא פולט state חדש אם הערך לא השתנה', () async {
+      // סופרים רק מעברים של האירוע עצמו; טעינות רקע ממשיכות לפלוט במקביל.
+      // ה-observer נלכד בבניית הבלוק, ולכן מוגדר לפניה.
+      final transitions = <Transition<Object?, Object?>>[];
+      final previousObserver = Bloc.observer;
+      Bloc.observer = _TransitionRecorder(transitions);
+      addTearDown(() => Bloc.observer = previousObserver);
+
       final repository = _FakeTextBookRepository();
       final bloc = _createBloc(
         repository: repository,
@@ -1268,19 +1297,16 @@ void main() {
         ),
       );
 
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      var emittedStates = 0;
-      final subscription = bloc.stream.listen((_) {
-        emittedStates++;
-      });
+      await _waitFor(
+        () => bloc.state is TextBookLoaded,
+        description: 'TextBookLoaded',
+      );
 
       bloc.add(const ToggleLeftPane(false));
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(emittedStates, 0);
+      expect(transitions.where((t) => t.event is ToggleLeftPane), isEmpty);
 
-      await subscription.cancel();
       await bloc.close();
     });
 
@@ -1304,7 +1330,10 @@ void main() {
             loadCommentators: false,
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _waitFor(
+          () => bloc.state is TextBookLoaded,
+          description: 'TextBookLoaded',
+        );
         expect((bloc.state as TextBookLoaded).removeNikud, isFalse);
 
         // המשתמש מפעיל הסרת ניקוד ידנית
@@ -1314,13 +1343,16 @@ void main() {
             patch: TextDisplayPatch(nikud: MarkVisibility.hide),
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await _waitFor(
+          () => (bloc.state as TextBookLoaded).removeNikud,
+          description: 'הסרת ניקוד ידנית',
+        );
         expect((bloc.state as TextBookLoaded).removeNikud, isTrue);
 
         // רענון בגין שינוי גופן בלבד – מצפה שמצב הניקוד יישמר
         bloc.add(
           const LoadContent(
-            fontSize: 20,
+            fontSize: 21,
             showSplitView: false,
             removeNikud: false, // ערך Settings: false
             preserveState: true,
@@ -1328,7 +1360,12 @@ void main() {
             loadCommentators: false,
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _waitFor(
+          () =>
+              bloc.state is TextBookLoaded &&
+              (bloc.state as TextBookLoaded).fontSize == 21,
+          description: 'רענון עם הגופן החדש',
+        );
 
         expect(
           (bloc.state as TextBookLoaded).removeNikud,
@@ -1357,7 +1394,10 @@ void main() {
             loadCommentators: false,
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _waitFor(
+          () => bloc.state is TextBookLoaded,
+          description: 'TextBookLoaded',
+        );
 
         bloc.add(
           const ApplyDisplayPatch(
@@ -1371,18 +1411,26 @@ void main() {
             patch: TextDisplayPatch(punctuation: MarkVisibility.show),
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await _waitFor(
+          () => _commentaryOverridesApplied(bloc.state),
+          description: 'עקיפות מפרשים',
+        );
 
         bloc.add(
           const LoadContent(
-            fontSize: 20,
+            fontSize: 21,
             showSplitView: false,
             removeNikud: false,
             preserveState: true,
             loadCommentators: false,
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _waitFor(
+          () =>
+              bloc.state is TextBookLoaded &&
+              (bloc.state as TextBookLoaded).fontSize == 21,
+          description: 'רענון עם הגופן החדש',
+        );
 
         final state = bloc.state as TextBookLoaded;
         expect(state.commentaryRemoveNikudOverride, isFalse);
@@ -1493,7 +1541,7 @@ void main() {
         // רענון בגין שינוי גופן – מצפה שהסתרת הפיסוק תישמר
         bloc.add(
           const LoadContent(
-            fontSize: 20,
+            fontSize: 21,
             showSplitView: false,
             removeNikud: false,
             preserveState: true,
@@ -1502,7 +1550,12 @@ void main() {
             loadCommentators: false,
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _waitFor(
+          () =>
+              bloc.state is TextBookLoaded &&
+              (bloc.state as TextBookLoaded).fontSize == 21,
+          description: 'רענון עם הגופן החדש',
+        );
 
         expect(
           (bloc.state as TextBookLoaded).removePunctuation,
@@ -1796,7 +1849,10 @@ void main() {
         repository.completeFullContent(
           List.generate(30, (index) => 'שורה $index').join('\n'),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _waitFor(
+          () => bloc.state is TextBookLoaded,
+          description: 'TextBookLoaded',
+        );
 
         final state = bloc.state;
         expect(state, isA<TextBookLoaded>());
@@ -2164,6 +2220,26 @@ TextBookBloc _createBloc({
     scrollController: ItemScrollController(),
     positionsListener: ItemPositionsListener.create(),
   );
+}
+
+bool _commentaryOverridesApplied(TextBookState state) =>
+    state is TextBookLoaded &&
+    state.commentaryRemoveNikudOverride == false &&
+    state.commentaryRemovePunctuationOverride == false;
+
+class _TransitionRecorder extends BlocObserver {
+  _TransitionRecorder(this.transitions);
+
+  final List<Transition<Object?, Object?>> transitions;
+
+  @override
+  void onTransition(
+    Bloc<dynamic, dynamic> bloc,
+    Transition<dynamic, dynamic> transition,
+  ) {
+    super.onTransition(bloc, transition);
+    transitions.add(transition);
+  }
 }
 
 class _FakeTextBookRepository extends TextBookRepository {
