@@ -63,18 +63,15 @@ class LibraryUpdateProgress {
   });
 }
 
-typedef LibraryUpdateProgressCallback = void Function(
-  LibraryUpdateProgress progress,
-);
+typedef LibraryUpdateProgressCallback =
+    void Function(LibraryUpdateProgress progress);
 
 /// נורה סינכרונית ברגע שבו ה-DB המלא החדש כבר החליף את הישן ואין עוד נקודת
 /// ביטול בטוחה. המאזין חייב לבצע עבודה סינכרונית וקלה בלבד.
 typedef FullDbReplacedCallback = void Function();
 
-typedef FullDbExtractor = Future<void> Function(
-  String archivePath,
-  String outputPath,
-);
+typedef FullDbExtractor =
+    Future<void> Function(String archivePath, String outputPath);
 
 /// אין מספיק מקום פנוי בדיסק לעדכון (הורדה מלאה או צעד דלתא) — נבדק לפני
 /// תחילת ההורדה.
