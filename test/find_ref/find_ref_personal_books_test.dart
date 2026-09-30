@@ -214,45 +214,50 @@ void main() {
       expect(await userRefs(repo, '$title ד'), contains('$title ד'));
     });
 
-    test('13 ספרים באותו שם — הכותרת שרק בספר ה-13 נמצאת', () async {
-      final db = sqlite3.sqlite3.open(dbPath);
-      try {
-        for (var id = 11; id <= 23; id++) {
+    for (final count in [13, 200]) {
+      test('$count ספרים באותו שם — הכותרת שבספר האחרון נמצאת', () async {
+        final lastId = 10 + count;
+        final db = sqlite3.sqlite3.open(dbPath);
+        try {
+          for (var id = 11; id <= lastId; id++) {
+            db.execute(
+              'INSERT INTO book (id, categoryId, sourceId, title, orderIndex) '
+              "VALUES (?, 2, 1, 'ספר פלוני', ?)",
+              [id, id],
+            );
+          }
           db.execute(
-            'INSERT INTO book (id, categoryId, sourceId, title, orderIndex) '
-            "VALUES (?, 2, 1, 'ספר פלוני', ?)",
-            [id, id],
+            'INSERT INTO line (id, bookId, lineIndex, content) '
+            "VALUES (500, ?, 88, 'שורה')",
+            [lastId],
           );
+          db.execute("INSERT INTO tocText (id, text) VALUES (950, 'פרק ב')");
+          db.execute(
+            'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId) '
+            'VALUES (950, ?, NULL, 950, 1, 500)',
+            [lastId],
+          );
+        } finally {
+          db.close();
         }
-        db.execute(
-          'INSERT INTO line (id, bookId, lineIndex, content) '
-          "VALUES (500, 23, 88, 'שורה')",
+        final userRepo = SeforimRepository(userDb);
+        final repo = _repo(
+          books: const [],
+          openUserBooksRepository: () async => userRepo,
         );
-        db.execute("INSERT INTO tocText (id, text) VALUES (950, 'פרק ב')");
-        db.execute(
-          'INSERT INTO tocEntry (id, bookId, parentId, textId, level, lineId) '
-          'VALUES (950, 23, NULL, 950, 1, 500)',
+
+        final results = await repo.findRefs(
+          'ספר פלוני פרק ב',
+          includePersonalBooks: true,
         );
-      } finally {
-        db.close();
-      }
-      final userRepo = SeforimRepository(userDb);
-      final repo = _repo(
-        books: const [],
-        openUserBooksRepository: () async => userRepo,
-      );
 
-      final results = await repo.findRefs(
-        'ספר פלוני פרק ב',
-        includePersonalBooks: true,
-      );
-
-      expect(
-        results
-            .where((r) => r.source == BookSource.user && r.bookId == 23)
-            .map((r) => r.segment),
-        contains(88),
-      );
-    });
+        expect(
+          results
+              .where((r) => r.source == BookSource.user && r.bookId == lastId)
+              .map((r) => r.segment),
+          contains(88),
+        );
+      });
+    }
   });
 }

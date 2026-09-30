@@ -85,6 +85,7 @@ final RegExp _whitespaceRun = RegExp(r'\s+');
 
 class FindRefRepository {
   int _searchGeneration = 0;
+  final int _secondaryScope = AttachedFindRefWorker.allocateSearchScope();
   bool _disposed = false;
   final bool respectHiddenLibrary;
   HiddenLibrarySelection? _visibilitySelection;
@@ -125,6 +126,10 @@ class FindRefRepository {
     if (_disposed) return;
     _searchGeneration++;
     beginSearchEpoch?.call();
+    AttachedFindRefWorker.instance.cancelSearchScope(
+      _secondaryScope,
+      _searchGeneration,
+    );
   }
 
   /// The immutable generation captured by the current findRefs invocation.
@@ -420,6 +425,7 @@ class FindRefRepository {
     cancelPendingSearch();
     _disposed = true;
     releaseSearchScope?.call();
+    AttachedFindRefWorker.instance.releaseSearchScope(_secondaryScope);
     _liveInstances.remove(this);
   }
 
@@ -1704,8 +1710,14 @@ class FindRefRepository {
               maxTocBooks: maxAttachedTocBooks,
               acronymsOf: (id) =>
                   AcronymsCache.instance.acronymsFor(source, id) ?? const [],
-              fetchTocBatch: (books) =>
-                  run(_attachedTocJob(books), calls: books.length),
+              fetchTocBatch: (books) => worker.runBatch(
+                library.path,
+                immutable: library.immutable,
+                version: _attachedVersion(library),
+                jobs: [for (final book in books) _attachedTocJob(book)],
+                searchScope: _secondaryScope,
+                searchEpoch: currentSearchGeneration,
+              ),
               resolveLineRefs: (bookIds, refKey) =>
                   run(_attachedLineRefsJob(bookIds, refKey)),
             ),
@@ -1747,13 +1759,19 @@ class FindRefRepository {
     // סגירת ה-holder (העברת ספרייה, יציאה) חייבת לשחרר גם את חיבור ה-worker.
     UserBooksDatabaseHolder.instance.addCloseListener(_resetSecondaryWorker);
     try {
-      return await AttachedFindRefWorker.instance.run(
+      return await AttachedFindRefWorker.instance.runBatch(
         path,
         immutable: false,
         version: '$_userBooksVersion',
-        job: _userBookTocJob(books),
-        calls: books.length,
+        jobs: [
+          for (final (index, book) in books.indexed)
+            _userBookTocJob(book, invalidateCache: index == 0),
+        ],
+        searchScope: _secondaryScope,
+        searchEpoch: currentSearchGeneration,
       );
+    } on FindRefQueryCancelled {
+      rethrow;
     } catch (e) {
       debugPrint('[FindRef] personal TOC lookup failed: $e');
       return [for (final _ in books) const []];
@@ -1762,12 +1780,14 @@ class FindRefRepository {
 
   static void _resetSecondaryWorker() => AttachedFindRefWorker.instance.reset();
 
-  static AttachedDbJob<List<List<Map<String, dynamic>>>> _userBookTocJob(
-    List<_SecondaryTocRequest> books,
-  ) => (repository) async {
-    // ה-holder ב-main כותב לקובץ; קאש ה-TOC של החיבור הזה לא יודע על כך.
-    await repository.invalidateTocCacheIfChangedExternally();
-    return _tocsOf(repository, books);
+  static AttachedDbJob<List<Map<String, dynamic>>> _userBookTocJob(
+    _SecondaryTocRequest book, {
+    required bool invalidateCache,
+  }) => (repository) async {
+    if (invalidateCache) {
+      await repository.invalidateTocCacheIfChangedExternally();
+    }
+    return _tocOf(repository, book);
   };
 
   static String _attachedVersion(AttachedLibrary library) {
@@ -1778,32 +1798,26 @@ class FindRefRepository {
   }
 
   // העבודות נבנות בפונקציות סטטיות כדי שהסגור לא יגרור את המופע ל-isolate.
-  static AttachedDbJob<List<List<Map<String, dynamic>>>> _attachedTocJob(
-    List<_SecondaryTocRequest> books,
+  static AttachedDbJob<List<Map<String, dynamic>>> _attachedTocJob(
+    _SecondaryTocRequest book,
   ) =>
-      (repository) => _tocsOf(repository, books);
+      (repository) => _tocOf(repository, book);
 
-  /// כשל בספר אחד מדלג רק על ה-TOC שלו, לא על כל האצווה.
-  static Future<List<List<Map<String, dynamic>>>> _tocsOf(
+  /// כשל בספר אחד אינו מונע איתור בשאר הספרים.
+  static Future<List<Map<String, dynamic>>> _tocOf(
     SeforimRepository repository,
-    List<_SecondaryTocRequest> books,
+    _SecondaryTocRequest book,
   ) async {
-    final out = <List<Map<String, dynamic>>>[];
-    for (final book in books) {
-      try {
-        out.add(
-          await repository.getTocEntriesForReference(
-            book.bookId,
-            book.bookTitle,
-            queryTokens: book.queryTokens,
-          ),
-        );
-      } catch (e) {
-        debugPrint('[FindRef] secondary TOC lookup failed: $e');
-        out.add(const []);
-      }
+    try {
+      return await repository.getTocEntriesForReference(
+        book.bookId,
+        book.bookTitle,
+        queryTokens: book.queryTokens,
+      );
+    } catch (e) {
+      debugPrint('[FindRef] secondary TOC lookup failed: $e');
+      return const [];
     }
-    return out;
   }
 
   static AttachedDbJob<Map<int, _ExactLine>> _attachedLineRefsJob(
