@@ -167,11 +167,12 @@ jobs:
           cache: true
       - uses: dtolnay/rust-toolchain@stable
       - run: flutter pub get
-      - run: flutter build macos --debug
+      # debug בונה רק את ארכיטקטורת המכונה; release בונה universal, כמו בשחרור.
+      - run: flutter build macos --release
       - name: The bundled zvfs library is universal
         run: |
           set -euo pipefail
-          app=$(find build/macos/Build/Products/Debug -maxdepth 1 -name '*.app' | head -n1)
+          app=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -n1)
           [ -n "$app" ] || { echo "::error::no .app was built"; exit 1; }
           lib=$(find "$app/Contents/Frameworks" -type f \( -name 'libotzaria_zvfs.dylib' -o -name 'otzaria_zvfs' \) | head -n1)
           [ -n "$lib" ] || { echo "::error::$app does not bundle otzaria_zvfs"; find "$app/Contents/Frameworks" -maxdepth 2; exit 1; }
