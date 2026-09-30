@@ -155,6 +155,10 @@ ZVFS_API int zvfs_conv_create(const char *dst_path_utf8, const void *dict,
                               zvfs_conv **out);
 ZVFS_API int zvfs_conv_feed(zvfs_conv *c, const void *data, size_t len);
 ZVFS_API int zvfs_conv_feed_zstd(zvfs_conv *c, const void *data, size_t len);
+/* Reproducible output: fileUuid hashed from the other header fields, and a
+   fixed createdUnixMs (< 0 keeps the current time). Before finish. */
+ZVFS_API int zvfs_conv_set_identity(zvfs_conv *c, int uuid_from_content,
+                                    int64_t created_unix_ms);
 ZVFS_API int zvfs_conv_finish(zvfs_conv *c, zvfs_info *out);
 ZVFS_API void zvfs_conv_progress(zvfs_conv *c, uint64_t *bytes_in,
                                  uint64_t *bytes_out);

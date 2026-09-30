@@ -36,7 +36,7 @@ void main(List<String> args) async {
     ];
     final os = input.config.code.targetOS;
 
-    // Keep in sync with test/c/CMakeLists.txt.
+    // Keep in sync with test/c/CMakeLists.txt and tool/build_cli.sh.
     final builder = CBuilder.library(
       name: 'otzaria_zvfs',
       assetName: 'src/ffi/native.dart',

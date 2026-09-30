@@ -74,7 +74,7 @@ jobs:
           cmake -S packages/otzaria_zvfs/test/c -B build/c
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DZVFS_SQLITE_AMALGAMATION="$AMAL"
-          ${{ matrix.flags != '' && format('-DCMAKE_C_FLAGS="{0}"', matrix.flags) || '' }}
+          ${{ matrix.flags != '' && format('-DCMAKE_C_FLAGS="{0}"', matrix.flags) || '-DZVFS_BUILD_CLI=ON' }}
       - run: cmake --build build/c --config RelWithDebInfo
       - name: Test
         shell: bash
@@ -90,6 +90,26 @@ jobs:
                         W="setarch $(uname -m) -R" ONLY='-R ^(core|vfs|write)$' ;;
           esac
           $W ctest --test-dir build/c -C RelWithDebInfo --output-on-failure --timeout 3600 $ONLY
+
+  # The production CLI as the SeforimLibrary runners build it: plain cc, no cmake.
+  cli:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    name: cli (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: packages/otzaria_zvfs
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zstd CLI (stdin roundtrip)
+        run: sudo apt-get install -y zstd
+      - name: Build
+        run: CFLAGS="-Werror=implicit-function-declaration" sh tool/build_cli.sh build/zvfs_cli
+      - name: Roundtrip
+        run: sh tool/cli_roundtrip.sh build/zvfs_cli
 
   cross-compile:
     strategy:

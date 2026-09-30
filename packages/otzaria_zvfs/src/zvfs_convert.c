@@ -33,6 +33,7 @@ struct zvfs_conv {
   uint64_t batch_bytes;
   ZSTD_CDict *cdict;
   zdb_header h;
+  int uuid_from_content;
 
   uint8_t sqlite_hdr[SQLITE_HDR];
   size_t sqlite_hdr_len;
@@ -422,8 +423,28 @@ void zvfs_conv_set_lineage(zvfs_conv *c, const uint8_t derived_from[16],
   c->h.includes_overlay_seq = seq;
 }
 
+ZVFS_API int zvfs_conv_set_identity(zvfs_conv *c, int uuid_from_content,
+                                    int64_t created_unix_ms) {
+  if (!c || c->failed) return ZVFS_ERR_INVALID;
+  c->uuid_from_content = uuid_from_content != 0;
+  if (created_unix_ms >= 0) c->h.created_ms = (uint64_t)created_unix_ms;
+  return ZVFS_OK;
+}
+
 static void put64le(uint8_t *p, uint64_t v) {
   for (int i = 0; i < 8; i++) p[i] = (uint8_t)(v >> (8 * i));
+}
+
+/* Hash of every other header field (created_ms excluded), so equal inputs
+   and settings give equal files. */
+static void uuid_from_header(zdb_header *h) {
+  zdb_header t = *h;
+  memset(t.uuid, 0, sizeof t.uuid);
+  t.created_ms = 0;
+  uint8_t raw[ZDB_HEADER_CORE];
+  zdb_header_encode(&t, raw);
+  put64le(h->uuid, XXH64(raw, ZDB_HEADER_CORE - 8, 1));
+  put64le(h->uuid + 8, XXH64(raw, ZDB_HEADER_CORE - 8, 2));
 }
 
 ZVFS_API int zvfs_conv_finish(zvfs_conv *c, zvfs_info *info) {
@@ -477,6 +498,7 @@ ZVFS_API int zvfs_conv_finish(zvfs_conv *c, zvfs_info *info) {
     i += k;
   }
   c->h.index_xxh64 = XXH64_digest(&ih);
+  if (c->uuid_from_content) uuid_from_header(&c->h);
 
   uint8_t raw[ZDB_HEADER_CORE];
   zdb_header_encode(&c->h, raw);

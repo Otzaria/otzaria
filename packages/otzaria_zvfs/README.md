@@ -156,6 +156,8 @@ The converter picks a dictionary by name from the built-in registry in
 zvfs_cli train <seforim.db> src/dicts/seforim_v1.inc 6000 112
 ```
 
+(`zvfs_cli`: see Command-line tool.)
+
 To add a new dictionary: train into `src/dicts/seforim_v2.inc` (rename the
 array), add it at the top of `k_dicts`, add the name/id/sha256 constants in
 `lib/src/convert.dart` and a row above. Never modify a shipped `.inc`.
@@ -396,6 +398,42 @@ earlier deletes durable.
   when the path is open through zvfs; `readZdbBytes`, `verifyZdb` and
   `compactZdb` then fail with `ZdbException.busy`. Paths open through another
   VFS in the same process are not tracked: do not probe those.
+
+## Command-line tool
+
+`tool/zvfs_cli.c` is the production CLI (built without the test hooks), for
+the pipeline that publishes the library:
+
+```
+sh tool/build_cli.sh [out=build/zvfs_cli]    # plain cc/gcc, no cmake; CC, CFLAGS
+cmake -S test/c -B build/c -DZVFS_BUILD_CLI=ON -DZVFS_BUILD_TESTS=OFF   # or cmake
+
+zvfs_cli convert <in.db|-> <out.zdb> [--dict NAME | --no-dict] [--level N]
+         [--threads N] [--zstd] [--uuid-from-content] [--created-ms MS]
+zvfs_cli verify <file.zdb>          # every frame + content hash, then the overlay
+zvfs_cli info [--json] <file.zdb>   # every header field, plus the overlay
+zvfs_cli export <file.zdb> <out.db> # back to a plain SQLite file
+zvfs_cli dicts                      # built-in dictionaries (first = default)
+zvfs_cli train <db> <out.inc> [samples] [dict_kb] [seed]
+```
+
+`convert` reads a file or stdin (`-`; `--zstd` for a zstd stream), writes
+`<out>.part` and renames it on success. Defaults: the newest dictionary,
+level 9, 4 threads. The output bytes do not depend on the thread count, but
+`fileUuid` is random and `createdUnixMs` is the clock: `--uuid-from-content`
+derives the uuid from the XXH64 of every other header field (content hash,
+sizes, dictionary, level, index hash; `createdUnixMs` excluded) and
+`--created-ms` fixes the timestamp, so the same input, options, CLI build and
+zstd version give the same file byte for byte. Two such files with equal
+content share a uuid; an overlay made on one is valid on the other.
+
+`info --json` prints the header as read (`logicalSize` is the base image),
+64-bit hashes as 16 hex digits and uuids as 32. `export` refuses a base with
+a `-zovl` (compact it first) or a pending `-journal`/`-wal`; a WAL-mode source
+comes back with the rollback header the zdb serves (bytes 18/19 = 1).
+Exit status: 0 ok, 1 failure, 2 usage. CI builds it with `build_cli.sh` on
+Linux x64 and arm64 and checks convert, verify, info, export (`cmp` equal to
+the source) and reproducibility (`tool/cli_roundtrip.sh`).
 
 ## Tests
 
