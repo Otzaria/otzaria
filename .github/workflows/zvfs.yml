@@ -19,7 +19,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-2022, macos-latest]
+        # macos-15-intel: the last Intel image (macos-13 was retired).
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-2022, macos-latest, macos-15-intel]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -150,3 +151,105 @@ jobs:
           -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64
           -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
           && cmake --build build/x --config Release -- CODE_SIGNING_ALLOWED=NO
+
+  # The library inside the application builds that ship seforim.zdb: the hook
+  # builds and the build bundles it for every architecture the package covers.
+  app-macos:
+    name: app build (macOS universal)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.2
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+      - run: flutter pub get
+      - run: flutter build macos --debug
+      - name: The bundled zvfs library is universal
+        run: |
+          set -euo pipefail
+          app=$(find build/macos/Build/Products/Debug -maxdepth 1 -name '*.app' | head -n1)
+          [ -n "$app" ] || { echo "::error::no .app was built"; exit 1; }
+          lib=$(find "$app/Contents/Frameworks" -type f \( -name 'libotzaria_zvfs.dylib' -o -name 'otzaria_zvfs' \) | head -n1)
+          [ -n "$lib" ] || { echo "::error::$app does not bundle otzaria_zvfs"; find "$app/Contents/Frameworks" -maxdepth 2; exit 1; }
+          lipo -info "$lib"
+          lipo "$lib" -verify_arch x86_64 arm64
+
+  # There is no arm64 Linux archive of the Flutter SDK, and the full app needs
+  # the WPE SDK; a probe app runs the same native-assets build and loads it.
+  app-linux-arm64:
+    name: app bundle (Linux arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Flutter from git
+        run: |
+          git clone --depth 1 --branch 3.47.2 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Linux build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
+      - name: Build a probe app that registers zvfs
+        run: |
+          set -euo pipefail
+          probe="$RUNNER_TEMP/probe"
+          flutter create --platforms=linux --project-name zvfs_probe "$probe"
+          cd "$probe"
+          flutter pub add otzaria_zvfs --path "$GITHUB_WORKSPACE/packages/otzaria_zvfs"
+          cat > lib/main.dart <<'EOF'
+          import 'dart:io';
+
+          import 'package:otzaria_zvfs/otzaria_zvfs.dart';
+
+          void main() {
+            ZVfs.register();
+            stdout.writeln('zvfs registered=${ZVfs.isRegistered} zstd=${ZVfs.zstdVersion}');
+            exit(ZVfs.isRegistered ? 0 : 1);
+          }
+          EOF
+          flutter build linux --debug
+      - name: The bundle carries an arm64 zvfs that loads
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/probe/build/linux/arm64/debug/bundle"
+          so="$bundle/lib/libotzaria_zvfs.so"
+          [ -f "$so" ] || { echo "::error::$bundle does not bundle libotzaria_zvfs.so"; find "$bundle" -maxdepth 2; exit 1; }
+          info=$(file "$so"); echo "$info"
+          case "$info" in *'ARM aarch64'*) ;; *) echo "::error::$so is not arm64"; exit 1 ;; esac
+          timeout 120 xvfb-run -a "$bundle/zvfs_probe" | tee "$RUNNER_TEMP/probe.log"
+          grep -q 'zvfs registered=true' "$RUNNER_TEMP/probe.log"
+
+  app-android:
+    name: app build (Android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.2
+          cache: true
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - run: flutter pub get
+      - run: flutter build apk --debug
+      - name: The APK carries zvfs for every shipped ABI
+        run: |
+          set -euo pipefail
+          apk=build/app/outputs/flutter-apk/app-debug.apk
+          unzip -l "$apk" | grep 'libotzaria_zvfs' || true
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            unzip -l "$apk" "lib/$abi/libotzaria_zvfs.so" >/dev/null \
+              || { echo "::error::$apk has no lib/$abi/libotzaria_zvfs.so"; exit 1; }
+          done
