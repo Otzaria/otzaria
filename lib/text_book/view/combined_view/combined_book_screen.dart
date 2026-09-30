@@ -293,6 +293,7 @@ class _CombinedViewState extends State<CombinedView> {
   int? _selectionPointerLineIndex;
   // שמירת reference ל-BLoC לשימוש ב-listeners
   late final TextBookBloc _textBookBloc;
+  StreamSubscription<TextBookState>? _textBookSubscription;
 
   // תת-התפריט "מפרשים נוספים על הדף" (רק בספרי מפרש).
   late final SiblingCommentariesController _siblingController;
@@ -819,7 +820,7 @@ class _CombinedViewState extends State<CombinedView> {
     widget.tab.dynamicCopyRequestNotifier.addListener(_onDynamicCopyRequest);
 
     // האזנה לשינויים ב-state כדי לגלול למיקום הנכון בפעם הראשונה
-    _textBookBloc.stream.listen((state) {
+    _textBookSubscription = _textBookBloc.stream.listen((state) {
       if (state is! TextBookLoaded) return;
       if (!_hasScrolledToInitialPosition && state.visibleIndices.isNotEmpty) {
         _hasScrolledToInitialPosition = true;
@@ -993,6 +994,7 @@ class _CombinedViewState extends State<CombinedView> {
 
   @override
   void dispose() {
+    unawaited(_textBookSubscription?.cancel());
     widget.tab.dynamicCopyRequestNotifier.removeListener(_onDynamicCopyRequest);
     PluginHighlightRevealService.instance.removeListener(
       _handlePluginHighlightReveal,

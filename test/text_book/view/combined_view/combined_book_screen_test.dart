@@ -586,6 +586,58 @@ void main() {
     });
   });
 
+  testWidgets('disposing the view cancels its bloc subscriptions', (
+    tester,
+  ) async {
+    final textBookBloc = _ListenerCountingTextBookBloc(_loadedState());
+    addTearDown(textBookBloc.close);
+    final tab = TextBookTab(book: TextBook(title: 'ספר בדיקה'), index: 0);
+    addTearDown(tab.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<PersonalNotesBloc>.value(
+              value: _TestPersonalNotesBloc(
+                PersonalNotesState(
+                  isLoading: false,
+                  bookId: 'ספר בדיקה',
+                  locatedNotes: const [],
+                  missingNotes: const [],
+                  errorMessage: null,
+                  filteredLocatedNotes: const [],
+                  filteredMissingNotes: const [],
+                ),
+              ),
+            ),
+            BlocProvider<SettingsBloc>.value(
+              value: _TestSettingsBloc(SettingsState.initial()),
+            ),
+          ],
+          child: Scaffold(
+            body: CombinedView(
+              data: const ['שורה א'],
+              openBookCallback: (_) {},
+              openLeftPaneTab: (_, {searchText}) {},
+              textSize: 18,
+              showCommentaryAsExpansionTiles: true,
+              tab: tab,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(textBookBloc.activeListeners, greaterThan(0));
+
+    // The bloc belongs to the tab and outlives the view.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(textBookBloc.activeListeners, 0);
+  });
+
   testWidgets('לחיצה על פסקה לא שולחת event ל-bloc סגור', (tester) async {
     final textBookBloc = _ClosedTextBookBloc(_loadedState());
     final personalNotesBloc = _TestPersonalNotesBloc(
@@ -1090,6 +1142,29 @@ class _RecordingTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _ListenerCountingTextBookBloc extends _RecordingTextBookBloc {
+  _ListenerCountingTextBookBloc(super.initialState);
+
+  int activeListeners = 0;
+
+  @override
+  Stream<TextBookState> get stream {
+    final source = super.stream;
+    return Stream<TextBookState>.multi((controller) {
+      activeListeners++;
+      final subscription = source.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: controller.close,
+      );
+      controller.onCancel = () {
+        activeListeners--;
+        return subscription.cancel();
+      };
+    }, isBroadcast: true);
+  }
 }
 
 class _TestTextBookRepository implements TextBookRepository {
