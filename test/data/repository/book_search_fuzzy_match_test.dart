@@ -30,6 +30,26 @@ void main() {
     }
   });
 
+  group('bookSearchWordMatchesFuzzy - doubled vav/yod (issue #1502)', () {
+    const pairs = [('חות', 'חוות'), ('מצות', 'מצוות'), ('עין', 'עיין')];
+
+    for (final (single, doubled) in pairs) {
+      test('$single ↔ $doubled', () {
+        expect(bookSearchWordMatchesFuzzy(single, 'ספר $doubled'), isTrue);
+        expect(bookSearchWordMatchesFuzzy(doubled, 'ספר $single'), isTrue);
+      });
+    }
+
+    test('matches the doubled form inside a longer word', () {
+      expect(bookSearchWordMatchesFuzzy('חות', 'ספר החוות'), isTrue);
+    });
+
+    test('a vowel vav is still not bridged in short words', () {
+      expect(bookSearchWordMatchesFuzzy('שבת', 'מסכת שבות'), isFalse);
+      expect(bookSearchWordMatchesFuzzy('חות', 'ספר חיות'), isFalse);
+    });
+  });
+
   group('bookSearchWordMatchesFuzzy - מניעת התאמות שווא', () {
     test('מילים קצרות באותו אורך נשארות מדויקות', () {
       expect(bookSearchWordMatchesFuzzy('מדות', 'ספר מצות'), isFalse);

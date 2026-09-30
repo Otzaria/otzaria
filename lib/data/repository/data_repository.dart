@@ -661,6 +661,10 @@ int _maxAllowedEdits(int len) {
 bool _wordPairMatches(String queryWord, String textWord) {
   if (textWord.contains(queryWord)) return true;
   if (queryWord.length < 3) return false;
+  if (_hasDoubledVavYod(queryWord) || _hasDoubledVavYod(textWord)) {
+    final collapsedQuery = _collapseDoubledVavYod(queryWord);
+    if (_collapseDoubledVavYod(textWord).contains(collapsedQuery)) return true;
+  }
 
   final allowed = _maxAllowedEdits(
     queryWord.length > textWord.length ? queryWord.length : textWord.length,
@@ -671,6 +675,14 @@ bool _wordPairMatches(String queryWord, String textWord) {
   if ((textWord.length - queryWord.length).abs() > allowed) return false;
   return _editDistanceAtMost(queryWord, textWord, allowed);
 }
+
+bool _hasDoubledVavYod(String word) =>
+    word.contains('וו') || word.contains('יי');
+
+// Plene spelling doubles a consonantal vav/yod (חוות, מצוות, עיין). A vowel
+// vav/yod is not bridged here: שבת and שבות are different words.
+String _collapseDoubledVavYod(String word) =>
+    word.replaceAll('וו', 'ו').replaceAll('יי', 'י');
 
 /// [bookSearchWordMatchesFuzzy] על מילה בודדת. מסננת אוצר-המילים של איתור
 /// מקורות היא קבוצת-על רק כל עוד ההתאמה כאן נשארת בין מילה למילה.
