@@ -97,7 +97,7 @@ class _FakeHistoryRepository extends HistoryRepository {
 
 class _FakeNavigationRepository implements NavigationRepository {
   @override
-  bool checkLibraryIsEmpty() => false;
+  Future<bool> checkLibraryIsEmpty() async => false;
   @override
   Future<void> refreshLibrary() async {}
 }
