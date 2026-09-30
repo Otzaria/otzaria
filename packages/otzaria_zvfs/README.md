@@ -303,6 +303,9 @@ and then only re-checked by size and header, not rescanned on every lock.
 zvfs holds a shared lock on byte 0 of `<path>-zlck` (one descriptor per
 process and path, opened with the first connection and closed with the last,
 so no other close drops it on POSIX). It is taken before the base is opened.
+All isolates of a process (in Otzaria: all its windows) share that one
+descriptor, so between them the lock proves nothing; the in-process registry
+refuses the swap instead.
 The swap needs it exclusively: while any connection of any process is open it
 fails with `ZdbException.busy`, and an open that meets a swap in progress
 waits for it (up to 5s, then `SQLITE_BUSY`). The empty file stays next to the
@@ -373,12 +376,18 @@ earlier deletes durable.
 
 ## Requirements for the app integration (S5c)
 
-- **Compaction and other processes.** The swap lock (see Compaction) makes
-  `compactZdb` fail with `ZdbException.busy` while any process, including
-  Otzaria's secondary windows (separate processes), has the database open
-  through zvfs. S5c runs compaction when the library is closed everywhere,
-  retries later on `busy`, and opens the library only through zvfs: a
-  connection through another VFS or plain `dart:io` takes no swap lock.
+- **Compaction, install and windows.** Otzaria's secondary windows are not
+  separate processes: each is its own `FlutterEngine` and isolate in the
+  same process (`lib/core/windowing/multi_window_service.dart`,
+  `docs/multi-window.md`). `-zlck` therefore does not separate them (a
+  process holds one shared lock for all its connections); what does is the
+  in-process registry behind `ZVfs.isOpen`, shared by all isolates:
+  `compactZdb` and `installZdb` fail with `ZdbException.busy` while any
+  connection of any isolate of any window has the library open, and the swap
+  lock adds the same for other processes. S5c closes the library in every
+  isolate of every window first, retries later on `busy`, and opens it only
+  through zvfs: a connection through another VFS or plain `dart:io` is
+  neither registered nor holds the swap lock.
 - **Converting.** `convertToZdb` reads its source through `dart:io` without
   any check: never convert a database that this process has open through
   another VFS (on POSIX closing that descriptor drops its locks).
@@ -477,7 +486,9 @@ exported and zstd cannot clash with `zstandard_native` or tantivy's zstd.
 | platform | status |
 |---|---|
 | Windows x64 | built by the hook, Dart + C tests pass locally |
+| Windows ARM64 | CI job (`windows-11-arm`): build + C tests; not run locally |
 | Linux x64 | C tests (plus ASan/UBSan/TSan) pass in WSL; Dart tests in CI |
+| Linux arm64 | CI: CLI build (`build_cli.sh`) + roundtrip |
 | macOS | CI job; not run locally |
 | Android | CI cross-compile of the library (NDK, arm64/armv7/x86_64) |
 | iOS | CI cross-compile of the library (Xcode, arm64) |
