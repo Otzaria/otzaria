@@ -607,6 +607,22 @@ void main() {
       ),
     );
     expect(File('$zdb-zovl').existsSync(), isTrue);
+
+    // a flipped byte inside a frame passes the open checks, not the verify
+    final good = File(cand).readAsBytesSync();
+    final bad = Uint8List.fromList(good);
+    bad[bad.length ~/ 2] ^= 0x5A;
+    File(cand).writeAsBytesSync(bad);
+    await expectLater(
+      installZdb(zdb, cand),
+      throwsA(
+        isA<ZdbException>().having((e) => e.code, 'code', ZdbException.corrupt),
+      ),
+    );
+    expect(File('$zdb-zovl').existsSync(), isTrue);
+    expect(File('$zdb.install').existsSync(), isFalse);
+    File(cand).writeAsBytesSync(good);
+
     File('$zdb.new').writeAsBytesSync([1, 2, 3]);
     final info = await installZdb(zdb, cand);
     expect(info.includesOverlaySeq, 0);

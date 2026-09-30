@@ -82,13 +82,23 @@ Future<ZdbCompactResult> compactZdb(
 
 /// Installs the downloaded `.zdb` at [candidatePath] as the base of [path].
 ///
-/// Validates the candidate's header, dictionary and index, deletes the
-/// `-journal`, `-wal`, `-shm`, `-zovl` and `.new` of [path], then durably
-/// renames the candidate over [path]; `-zlck` stays. A crash before the
-/// rename leaves the old content (or the old base without its overlay).
+/// Checks the candidate's header, dictionary and index and, unless [verify]
+/// is false, decodes every frame against its checksums and the content hash
+/// (as [verifyZdb]). It then proves the rename can succeed: [path] must be
+/// replaceable (Windows: no other handle open without delete sharing, retried
+/// for about 2s) and the candidate is moved next to it as `<path>.install`,
+/// which fails for another volume. Only then are the `-journal`, `-wal`,
+/// `-shm`, `-zovl` and `.new` of [path] deleted and the candidate durably
+/// renamed over [path]; `-zlck` stays. A failure leaves the candidate at
+/// [candidatePath], and before the deletes everything else as it was. A crash
+/// can leave the candidate as `<path>.install`, and after the deletes the old
+/// base without its overlay (an older, consistent database).
 /// [ZdbException.busy] while [path] is open in this process or any other.
-/// Both paths must be on the same volume.
-Future<ZdbInfo> installZdb(String path, String candidatePath) async {
+Future<ZdbInfo> installZdb(
+  String path,
+  String candidatePath, {
+  bool verify = true,
+}) async {
   if (ZVfs.isOpen(path)) {
     throw ZdbException(ZdbException.busy, 'open in this process: $path');
   }
@@ -97,7 +107,8 @@ Future<ZdbInfo> installZdb(String path, String candidatePath) async {
     final pPath = path.toNativeUtf8();
     final pCand = candidatePath.toNativeUtf8();
     try {
-      final rc = native.zvfs_install(pPath, pCand);
+      final flags = verify ? native.zvfsInstallVerify : 0;
+      final rc = native.zvfs_install(pPath, pCand, flags);
       if (rc != 0) throw ZdbException.fromCode(rc, candidatePath);
     } finally {
       calloc.free(pPath);

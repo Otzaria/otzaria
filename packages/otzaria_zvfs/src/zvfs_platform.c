@@ -209,13 +209,59 @@ int zplat_exists(const char *path) {
   return e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND ? 0 : -1;
 }
 
+static int transient(DWORD e) {
+  return e == ERROR_SHARING_VIOLATION || e == ERROR_ACCESS_DENIED ||
+         e == ERROR_LOCK_VIOLATION;
+}
+
+/* Sleeps before the next attempt; 0 once ZPLAT_RETRY_MS are spent. */
+static int backoff(DWORD *wait, DWORD *spent) {
+  if (*spent >= ZPLAT_RETRY_MS) return 0;
+  Sleep(*wait);
+  *spent += *wait;
+  *wait = *wait < 160 ? *wait * 2 : 200;
+  return 1;
+}
+
 int zplat_rename_durable(const char *from, const char *to) {
   wchar_t *a = widen(from), *b = widen(to);
-  int ok = a && b &&
-           MoveFileExW(a, b, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+  BOOL ok = FALSE;
+  for (DWORD wait = 10, spent = 0; a && b;) {
+    ok = MoveFileExW(a, b, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+    if (ok || !transient(GetLastError()) || !backoff(&wait, &spent)) break;
+  }
   free(a);
   free(b);
   return ok ? ZVFS_OK : ZVFS_ERR_IO;
+}
+
+/* Opening for DELETE fails while any other handle does not share delete,
+   which is exactly when MoveFileEx cannot replace the file. */
+int zplat_replaceable(const char *path) {
+  wchar_t *w = widen(path);
+  if (!w) return ZVFS_ERR_INVALID;
+  int rc = ZVFS_OK;
+  for (DWORD wait = 10, spent = 0;;) {
+    HANDLE h = CreateFileW(w, DELETE,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           NULL, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    if (h != INVALID_HANDLE_VALUE) {
+      CloseHandle(h);
+      break;
+    }
+    DWORD e = GetLastError();
+    if (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND) break;
+    if (!transient(e)) {
+      rc = ZVFS_ERR_IO;
+      break;
+    }
+    if (!backoff(&wait, &spent)) {
+      rc = ZVFS_ERR_BUSY;
+      break;
+    }
+  }
+  free(w);
+  return rc;
 }
 
 int zplat_delete_durable(const char *path) {
@@ -464,6 +510,12 @@ static int sync_parent(const char *path) {
 int zplat_rename_durable(const char *from, const char *to) {
   if (rename(from, to) != 0) return ZVFS_ERR_IO;
   return sync_parent(to);
+}
+
+/* rename(2) replaces a file that is open; the directory is proven by staging. */
+int zplat_replaceable(const char *path) {
+  (void)path;
+  return ZVFS_OK;
 }
 
 int zplat_delete_durable(const char *path) {

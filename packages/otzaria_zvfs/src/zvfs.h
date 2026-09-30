@@ -141,10 +141,13 @@ ZVFS_API int zvfs_compact(const char *path_utf8, const char *dst_utf8,
    overlay. ZVFS_ERR_BUSY when path is open in this process or a journal or
    non-empty WAL exists; other processes must have closed it (see README). */
 ZVFS_API int zvfs_compact_swap(const char *path_utf8, const char *new_path_utf8);
-/* Installs a downloaded .zdb as the base of path: deletes path's -journal,
-   -wal, -shm, -zovl and .new, then durably renames candidate over path.
-   ZVFS_ERR_BUSY while any process has path open (swap lock, see README). */
-ZVFS_API int zvfs_install(const char *path_utf8, const char *candidate_utf8);
+/* Installs a downloaded .zdb as the base of path: once the rename is proven
+   possible, deletes path's -journal, -wal, -shm, -zovl and .new, then durably
+   renames candidate over path. ZVFS_INSTALL_VERIFY first decodes every frame
+   of the candidate. ZVFS_ERR_BUSY while any process has path open (see README). */
+#define ZVFS_INSTALL_VERIFY 1
+ZVFS_API int zvfs_install(const char *path_utf8, const char *candidate_utf8,
+                          int flags);
 
 /* Streaming converter: plain SQLite bytes (or a zstd stream of them) -> .zdb. */
 typedef struct zvfs_conv zvfs_conv;

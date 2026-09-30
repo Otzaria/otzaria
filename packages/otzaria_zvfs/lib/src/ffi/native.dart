@@ -220,8 +220,15 @@ external int zvfs_compact(
 @Native<Int Function(Pointer<Utf8>, Pointer<Utf8>)>()
 external int zvfs_compact_swap(Pointer<Utf8> path, Pointer<Utf8> newPath);
 
-@Native<Int Function(Pointer<Utf8>, Pointer<Utf8>)>()
-external int zvfs_install(Pointer<Utf8> path, Pointer<Utf8> candidate);
+@Native<Int Function(Pointer<Utf8>, Pointer<Utf8>, Int)>()
+external int zvfs_install(
+  Pointer<Utf8> path,
+  Pointer<Utf8> candidate,
+  int flags,
+);
+
+/// [zvfs_install] flag: decode every frame of the candidate first.
+const int zvfsInstallVerify = 1;
 
 @Native<
   Int Function(

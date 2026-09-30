@@ -58,8 +58,13 @@ void zplat_random(void *buf, size_t n);
 uint64_t zplat_now_ms(void);
 /* 1 exists, 0 absent, <0 error. */
 int zplat_exists(const char *path_utf8);
-/* Durable replace: the rename is on disk before this returns. */
+/* Durable replace: the rename is on disk before this returns. Windows retries
+   a sharing violation (antivirus, indexers) for up to ZPLAT_RETRY_MS. */
 int zplat_rename_durable(const char *from_utf8, const char *to_utf8);
+/* ZVFS_OK when a rename can replace path now (or path is absent); Windows:
+   ZVFS_ERR_BUSY while a handle without FILE_SHARE_DELETE stays open. */
+int zplat_replaceable(const char *path_utf8);
+#define ZPLAT_RETRY_MS 2000
 /* Delete (ZVFS_OK when absent); POSIX then syncs the directory. Windows has
    no directory flush: the delete may be lost on power loss. */
 int zplat_delete_durable(const char *path_utf8);
@@ -88,6 +93,7 @@ void zplat_lockfile_unlock(zplat_file *f);
 #define ZDB_MAX_FRAME_BYTES (16u << 20)
 #define ZDB_OVERLAY_SUFFIX "-zovl"
 #define ZDB_LOCKFILE_SUFFIX "-zlck"
+#define ZDB_INSTALL_SUFFIX ".install"
 
 typedef struct zdb_header {
   uint32_t major, minor, header_size, incompat, compat;
@@ -251,11 +257,15 @@ void zvfs_fill_overlay_info(zovl *o, zvfs_overlay_info *out);
 void zvfs_lineage_of(const zovl_info *oi, uint8_t uuid[16], uint64_t *seq);
 
 int zvfs_sidecars_busy(const char *path);
-/* zvfs_install under the swap lock: validates, deletes sidecars, renames. */
+/* zvfs_install under the swap lock: validates, stages the candidate as
+   <path>.install, deletes the sidecars, renames. */
 int zvfs_install_locked(const char *path, const char *candidate);
 #ifdef ZVFS_TEST_HOOKS
-/* Nonzero stops the install after delete step i, as a crash would. */
+/* Nonzero fails the install after delete step i: the files are as a crash
+   leaves them, except that the candidate is handed back. */
 extern int (*zvfs_test_install_step)(int step);
+/* Runs while the swap holds <path>-zlck exclusively. */
+extern void (*zvfs_test_swap_locked)(void);
 #endif
 
 /* Compaction output records what it includes (zdb minor 1 fields). */

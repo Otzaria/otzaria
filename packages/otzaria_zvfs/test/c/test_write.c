@@ -4,6 +4,7 @@
 
 #if !defined(_WIN32)
 #include <sched.h>
+#include <sys/stat.h>
 #endif
 
 /* ================= overlay codec on an in-memory sidecar ================= */
@@ -1297,7 +1298,7 @@ static int install_stop(int step) { return step == g_install_stop; }
 
 static void test_install(void) {
   char plain[1024], zdb[1024], cand[1024], master[1024], kb[1024], ko[1024];
-  char ov[1100], lck[1100], nw[1100], sh[1100], jr[1100], cov[1100];
+  char ov[1100], lck[1100], nw[1100], sh[1100], jr[1100], cov[1100], stg[1100];
   snprintf(plain, sizeof plain, "%s", tmp_path("in_plain.db"));
   snprintf(zdb, sizeof zdb, "%s", tmp_path("in.zdb"));
   snprintf(cand, sizeof cand, "%s", tmp_path("in_cand.zdb"));
@@ -1310,6 +1311,7 @@ static void test_install(void) {
   snprintf(sh, sizeof sh, "%s-shm", zdb);
   snprintf(jr, sizeof jr, "%s-journal", zdb);
   snprintf(cov, sizeof cov, "%s-zovl", cand);
+  snprintf(stg, sizeof stg, "%s.install", zdb);
   const char *all[] = {plain, zdb, cand, master};
   for (int i = 0; i < 4; i++) ts_remove_all(all[i]);
   remove(kb);
@@ -1340,17 +1342,17 @@ static void test_install(void) {
   /* busy: open here, or in another process; nothing is touched */
   CHECK_EQ(copy_file(master, cand), 0);
   z = ts_open(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
-  CHECK_EQ(zvfs_install(zdb, cand), ZVFS_ERR_BUSY);
+  CHECK_EQ(zvfs_install(zdb, cand, 0), ZVFS_ERR_BUSY);
   sqlite3_close(z);
   proc_t c = spawn_zlck("hold", zdb, 1500);
-  CHECK_EQ(zvfs_install(zdb, cand), ZVFS_ERR_BUSY);
+  CHECK_EQ(zvfs_install(zdb, cand, 0), ZVFS_ERR_BUSY);
   CHECK_EQ(wait_proc(c), 0);
   CHECK(zplat_exists(cand) == 1 && zplat_exists(ov) == 1);
   /* refusals before any delete: not a zdb, itself, a candidate with an overlay */
-  CHECK_EQ(zvfs_install(zdb, plain), ZVFS_ERR_NOT_ZDB);
-  CHECK_EQ(zvfs_install(zdb, zdb), ZVFS_ERR_INVALID);
+  CHECK_EQ(zvfs_install(zdb, plain, 0), ZVFS_ERR_NOT_ZDB);
+  CHECK_EQ(zvfs_install(zdb, zdb, 0), ZVFS_ERR_INVALID);
   touch(cov);
-  CHECK_EQ(zvfs_install(zdb, cand), ZVFS_ERR_INVALID);
+  CHECK_EQ(zvfs_install(zdb, cand, 0), ZVFS_ERR_INVALID);
   remove(cov);
   CHECK(zplat_exists(ov) == 1 && open_hash(zdb, &ok) == old_logical && ok);
 
@@ -1369,15 +1371,15 @@ static void test_install(void) {
     touch(sh);
     touch(jr);
     g_install_stop = stop;
-    CHECK_EQ(zvfs_install(zdb, cand), ZVFS_ERR_IO);
+    CHECK_EQ(zvfs_install(zdb, cand, 0), ZVFS_ERR_IO);
     uint64_t h = open_hash(zdb, &ok);
     CHECK(ok && h == (stop < 3 ? old_logical : old_base));
-    CHECK(zplat_exists(cand) == 1);
+    CHECK(zplat_exists(cand) == 1 && zplat_exists(stg) == 0);
     CHECK_EQ(zplat_exists(ov), stop < 3);
     CHECK_EQ(zplat_exists(nw), stop < 4);
     /* the retry completes it */
     g_install_stop = -1;
-    CHECK_EQ(zvfs_install(zdb, cand), 0);
+    CHECK_EQ(zvfs_install(zdb, cand, 0), 0);
     CHECK(open_hash(zdb, &ok) == new_hash && ok);
     CHECK(zplat_exists(cand) == 0 && zplat_exists(ov) == 0 && zplat_exists(nw) == 0);
     CHECK(zplat_exists(sh) == 0 && zplat_exists(jr) == 0 && zplat_exists(lck) == 1);
@@ -1388,7 +1390,7 @@ static void test_install(void) {
   remove(zdb);
   CHECK_EQ(copy_file(ko, ov), 0);
   CHECK_EQ(copy_file(master, cand), 0);
-  CHECK_EQ(zvfs_install(zdb, cand), 0);
+  CHECK_EQ(zvfs_install(zdb, cand, 0), 0);
   CHECK(zplat_exists(ov) == 0);
   CHECK(open_hash(zdb, &ok) == new_hash && ok);
   z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
@@ -1402,6 +1404,181 @@ static void test_install(void) {
   remove(ko);
   snprintf(nw, sizeof nw, "%s.ready", zdb);
   remove(nw);
+}
+
+/* ---- install and compaction swap against openers and foreign handles ---- */
+typedef struct swap_opener {
+  const char *path;
+  uint64_t hash;
+  int ok;
+} swap_opener;
+
+static void swap_opener_main(void *p) {
+  swap_opener *o = (swap_opener *)p;
+  o->hash = open_hash(o->path, &o->ok);
+}
+
+static swap_opener g_so;
+static zplat_thread g_so_th;
+
+/* An isolate opening mid-swap: it must wait without holding the base. */
+static void start_opener(void) {
+  zvfs_test_swap_locked = NULL;
+  CHECK_EQ(zplat_thread_start(&g_so_th, swap_opener_main, &g_so), 0);
+  sleep_ms(300);
+}
+
+#if defined(_WIN32)
+/* What SQLite's win32 VFS, antivirus or an indexer hold: no FILE_SHARE_DELETE. */
+static HANDLE g_foreign;
+static void close_foreign(void *p) {
+  sleep_ms(*(int *)p);
+  CloseHandle(g_foreign);
+}
+static void open_foreign(const char *path) {
+  g_foreign = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          NULL, OPEN_EXISTING, 0, NULL);
+  CHECK(g_foreign != INVALID_HANDLE_VALUE);
+}
+#endif
+
+/* A directory on another file system than tmp_path, or NULL. */
+static const char *other_volume(void) {
+  const char *d = getenv("ZVFS_TEST_OTHER_VOLUME");
+  if (d && *d) return d;
+#if defined(__linux__)
+  struct stat a, b;
+  if (stat("/dev/shm", &a) == 0 && stat(tmp_path("."), &b) == 0 &&
+      a.st_dev != b.st_dev)
+    return "/dev/shm";
+#endif
+  return NULL;
+}
+
+static void test_install_failures(void) {
+  char plain[1024], zdb[1024], cand[1024], master[1024], kb[1024], ko[1024];
+  char ov[1100], nw[1100], stg[1100], xv[1100];
+  snprintf(plain, sizeof plain, "%s", tmp_path("if_plain.db"));
+  snprintf(zdb, sizeof zdb, "%s", tmp_path("if.zdb"));
+  snprintf(cand, sizeof cand, "%s", tmp_path("if_cand.zdb"));
+  snprintf(master, sizeof master, "%s", tmp_path("if_master.zdb"));
+  snprintf(kb, sizeof kb, "%s", tmp_path("if_keep.zdb"));
+  snprintf(ko, sizeof ko, "%s", tmp_path("if_keep.zovl"));
+  snprintf(ov, sizeof ov, "%s-zovl", zdb);
+  snprintf(nw, sizeof nw, "%s.new", zdb);
+  snprintf(stg, sizeof stg, "%s.install", zdb);
+  const char *all[] = {plain, zdb, cand, master};
+  for (int i = 0; i < 4; i++) ts_remove_all(all[i]);
+  sqlite3 *p = ts_open(plain, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  ts_make_base(p, 30, 5000);
+  sqlite3_close(p);
+  CHECK_EQ(ts_convert(plain, zdb), 0);
+  sqlite3 *z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  ts_must(z, "UPDATE line SET content = upper(content) WHERE id % 5 = 0");
+  sqlite3_close(z);
+  int ok;
+  uint64_t old_logical = open_hash(zdb, &ok);
+  CHECK(ok);
+  CHECK_EQ(copy_file(zdb, kb), 0);
+  CHECK_EQ(copy_file(ov, ko), 0);
+  p = ts_open(plain, SQLITE_OPEN_READWRITE, NULL);
+  ts_must(p, "DELETE FROM line WHERE id % 6 = 0");
+  sqlite3_close(p);
+  CHECK_EQ(ts_convert(plain, master), 0);
+  uint64_t new_hash = open_hash(master, &ok);
+  CHECK(ok && new_hash != old_logical);
+#define RESET_PAIR()                        \
+  do {                                      \
+    CHECK_EQ(copy_file(kb, zdb), 0);        \
+    CHECK_EQ(copy_file(ko, ov), 0);         \
+    CHECK_EQ(copy_file(master, cand), 0);   \
+  } while (0)
+#define UNTOUCHED()                                                       \
+  CHECK(zplat_exists(ov) == 1 && zplat_exists(cand) == 1 &&               \
+        zplat_exists(stg) == 0 && open_hash(zdb, &ok) == old_logical && ok)
+
+  /* an open that meets the install waits for it and gets the new base */
+  RESET_PAIR();
+  g_so.path = zdb;
+  zvfs_test_swap_locked = start_opener;
+  CHECK_EQ(zvfs_install(zdb, cand, 0), 0);
+  zvfs_test_swap_locked = NULL;
+  zplat_thread_join(g_so_th);
+  CHECK(g_so.ok && g_so.hash == new_hash);
+  CHECK(zplat_exists(ov) == 0 && open_hash(zdb, &ok) == new_hash && ok);
+
+  /* the same for the compaction swap */
+  RESET_PAIR();
+  CHECK_EQ(zvfs_compact(zdb, nw, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  zvfs_test_swap_locked = start_opener;
+  CHECK_EQ(zvfs_compact_swap(zdb, nw), 0);
+  zvfs_test_swap_locked = NULL;
+  zplat_thread_join(g_so_th);
+  CHECK(g_so.ok && g_so.hash == old_logical);
+  CHECK(zplat_exists(ov) == 0 && zplat_exists(nw) == 0);
+
+  /* a corrupt frame passes the open checks; the full verify refuses it */
+  RESET_PAIR();
+  uint8_t *d;
+  size_t n;
+  CHECK_EQ(read_file(cand, &d, &n), 0);
+  d[n / 2] ^= 0x5A;
+  CHECK_EQ(write_file(cand, d, n), 0);
+  free(d);
+  CHECK_EQ(zvfs_install(zdb, cand, ZVFS_INSTALL_VERIFY), ZVFS_ERR_CORRUPT);
+  UNTOUCHED();
+  CHECK_EQ(copy_file(master, cand), 0);
+  CHECK_EQ(zvfs_install(zdb, cand, ZVFS_INSTALL_VERIFY), 0);
+  CHECK(open_hash(zdb, &ok) == new_hash && ok);
+  int checks = 3;
+
+#if defined(_WIN32)
+  /* a foreign handle that outlasts the retries: busy before any delete */
+  RESET_PAIR();
+  open_foreign(zdb);
+  uint64_t t0 = zplat_now_ms();
+  CHECK_EQ(zvfs_install(zdb, cand, 0), ZVFS_ERR_BUSY);
+  uint64_t waited = zplat_now_ms() - t0;
+  CloseHandle(g_foreign);
+  CHECK(waited >= ZPLAT_RETRY_MS / 2);
+  UNTOUCHED();
+  /* and one that goes away while retrying */
+  open_foreign(zdb);
+  int ms = 300;
+  zplat_thread th;
+  CHECK_EQ(zplat_thread_start(&th, close_foreign, &ms), 0);
+  CHECK_EQ(zvfs_install(zdb, cand, 0), 0);
+  zplat_thread_join(th);
+  CHECK(zplat_exists(ov) == 0 && open_hash(zdb, &ok) == new_hash && ok);
+  checks += 2;
+#endif
+
+  /* a candidate on another volume fails at staging, before any delete */
+  const char *other = other_volume();
+  if (other) {
+    RESET_PAIR();
+    snprintf(xv, sizeof xv, "%s/if_xv_cand.zdb", other);
+    CHECK_EQ(copy_file(master, xv), 0);
+    CHECK_EQ(zvfs_install(zdb, xv, 0), ZVFS_ERR_IO);
+    CHECK(zplat_exists(xv) == 1);
+    UNTOUCHED();
+    remove(xv);
+    checks++;
+  }
+  printf("  install failures: %d scenarios (opener mid-install and mid-compaction,"
+         " corrupt frame%s%s)\n",
+         checks,
+#if defined(_WIN32)
+         ", foreign handle held and released",
+#else
+         "",
+#endif
+         other ? ", other volume" : ", other volume skipped");
+#undef RESET_PAIR
+#undef UNTOUCHED
+  for (int i = 0; i < 4; i++) ts_remove_all(all[i]);
+  remove(kb);
+  remove(ko);
 }
 
 /* ================= concurrency: WAL writer + reader threads ================= */
@@ -1576,6 +1753,7 @@ int main(int argc, char **argv) {
   test_swap_lock();
   test_lock_wait_isolated();
   test_install();
+  test_install_failures();
   printf("concurrency\n");
   test_concurrent_wal(4, 400);
   free(g_mb.p);

@@ -573,10 +573,9 @@ static int lock_path(const char *key, path_lock **out) {
 
 /* Base VFS close: unix defers the fd close while this process holds locks
    on the inode, so no other connection loses its locks. */
-static int reopen_real(zfile *f, const char *name, int flags, int *inner) {
+static void close_real(zfile *f) {
   f->real->pMethods->xClose(f->real);
   memset(f->real, 0, (size_t)g_base->szOsFile);
-  return g_base->xOpen(g_base, name, f->real, flags, inner);
 }
 
 static int detect_zdb(zfile *f, sqlite3_int64 *size) {
@@ -689,13 +688,16 @@ static int zOpen(sqlite3_vfs *vfs, sqlite3_filename name, sqlite3_file *pf,
     int is_zdb = detect_zdb(f, &size);
     int err = SQLITE_OK;
     if (is_zdb && !f->pl) {
-      /* opened before the lock: reopen, a swap may have replaced it */
+      /* Opened before the lock: reopen, a swap may have replaced it. Closed
+         while waiting: on Windows a held handle makes the swap's rename fail. */
+      close_real(f);
       int lr = lock_path(name, &f->pl);
       if (lr)
         err = lr == ZVFS_ERR_BUSY    ? SQLITE_BUSY
               : lr == ZVFS_ERR_NOMEM ? SQLITE_NOMEM
                                      : SQLITE_CANTOPEN;
-      else if ((err = reopen_real(f, name, flags, &inner_flags)) != SQLITE_OK)
+      else if ((err = g_base->xOpen(g_base, name, f->real, flags,
+                                    &inner_flags)) != SQLITE_OK)
         f->real->pMethods = NULL;
       else
         is_zdb = detect_zdb(f, &size);
@@ -937,6 +939,13 @@ static int swap_cb(const char *full, void *new_path) {
 
 typedef int (*locked_fn)(const char *full, void *ctx);
 
+#ifdef ZVFS_TEST_HOOKS
+void (*zvfs_test_swap_locked)(void);
+#define SWAP_LOCKED() (zvfs_test_swap_locked ? zvfs_test_swap_locked() : (void)0)
+#else
+#define SWAP_LOCKED() ((void)0)
+#endif
+
 /* Exclusive on <path>-zlck: no connection of any process has the base open,
    and none can open it until fn is done. */
 static int with_swap_lock(const char *path, locked_fn fn, void *ctx) {
@@ -959,6 +968,7 @@ static int with_swap_lock(const char *path, locked_fn fn, void *ctx) {
   if (!rc) rc = zplat_lockfile_open(lp, &lf);
   if (!rc) rc = zplat_lockfile_try(lf, 1);
   if (!rc) {
+    SWAP_LOCKED();
     rc = fn(full, ctx);
     zplat_lockfile_unlock(lf);
   }
@@ -984,11 +994,19 @@ static int install_cb(const char *full, void *candidate) {
   return strcmp(c, full) == 0 ? ZVFS_ERR_INVALID : zvfs_install_locked(full, c);
 }
 
-ZVFS_API int zvfs_install(const char *path, const char *candidate) {
+ZVFS_API int zvfs_install(const char *path, const char *candidate, int flags) {
   if (!candidate || !zvfs_is_registered()) return ZVFS_ERR_INVALID;
   char *cfull = full_path(candidate);
   if (!cfull) return ZVFS_ERR_NOMEM;
-  int rc = with_swap_lock(path, install_cb, cfull);
+  int rc = ZVFS_OK;
+  /* before the lock, which would keep openers waiting for the whole decode */
+  if (flags & ZVFS_INSTALL_VERIFY) {
+    zvfs_reader *r = NULL;
+    rc = zvfs_reader_open(cfull, &r);
+    if (!rc) rc = zvfs_reader_verify(r, NULL, NULL);
+    zvfs_reader_close(r);
+  }
+  if (!rc) rc = with_swap_lock(path, install_cb, cfull);
   sqlite3_free(cfull);
   return rc;
 }

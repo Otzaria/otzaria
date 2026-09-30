@@ -54,25 +54,35 @@ int (*zvfs_test_install_step)(int step);
 
 int zvfs_install_locked(const char *path, const char *candidate) {
   size_t n = strlen(path) > strlen(candidate) ? strlen(path) : strlen(candidate);
-  char *b = (char *)malloc(n + 16);
-  if (!b) return ZVFS_ERR_NOMEM;
+  char *b = (char *)malloc(n + 16), *stage = (char *)malloc(n + 16);
+  int rc = b && stage ? ZVFS_OK : ZVFS_ERR_NOMEM;
+  const char *src = candidate;
   /* its overlay would stay behind under the old name */
-  snprintf(b, n + 16, "%s%s", candidate, ZDB_OVERLAY_SUFFIX);
-  int rc = zplat_exists(b) == 0 ? ZVFS_OK : ZVFS_ERR_INVALID;
+  if (!rc) snprintf(b, n + 16, "%s%s", candidate, ZDB_OVERLAY_SUFFIX);
+  if (!rc && zplat_exists(b) != 0) rc = ZVFS_ERR_INVALID;
   zvfs_reader *r = NULL;
   if (!rc) rc = zvfs_reader_open(candidate, &r);
   zvfs_reader_close(r);
+  /* Before any delete, prove the final rename: path is replaceable and the
+     candidate, staged next to it, is on its volume. */
+  if (!rc) rc = zplat_replaceable(path);
+  if (!rc) snprintf(stage, n + 16, "%s%s", path, ZDB_INSTALL_SUFFIX);
+  if (!rc && strcmp(candidate, stage) != 0 &&
+      !(rc = zplat_rename_durable(candidate, stage)))
+    src = stage;
   /* journal and WAL first: replayed onto the bare old base they would corrupt it */
   static const char *const sfx[] = {"-journal", "-wal", "-shm",
                                     ZDB_OVERLAY_SUFFIX, ".new"};
   for (int i = 0; !rc && i < 5; i++) {
     snprintf(b, n + 16, "%s%s", path, sfx[i]);
-    if (strcmp(b, candidate) != 0) rc = zplat_delete_durable(b);
+    rc = zplat_delete_durable(b);
     if (!rc && INSTALL_STEP(i)) rc = ZVFS_ERR_IO;
   }
-  free(b);
   /* NTFS logs metadata in order: the write-through rename flushes the deletes */
-  if (!rc) rc = zplat_rename_durable(candidate, path);
+  if (!rc) rc = zplat_rename_durable(src, path);
+  if (rc && src != candidate) zplat_rename_durable(src, candidate);
+  free(b);
+  free(stage);
   return rc;
 }
 

@@ -325,28 +325,50 @@ shared lock (theoretical: open the library through one spelling).
 
 ### Install
 
-`installZdb(path, candidate)` (C: `zvfs_install`) makes a freshly downloaded
-`.zdb` the base of `path`, under the same swap lock as compaction:
+`installZdb(path, candidate, verify: true)` (C: `zvfs_install` with
+`ZVFS_INSTALL_VERIFY`) makes a freshly downloaded `.zdb` the base of `path`,
+under the same swap lock as compaction:
 
-1. refuses with `ZdbException.busy` if `path` is open in this process
+1. with `verify`, decodes every frame of the candidate and checks the content
+   hash, as `verifyZdb` does (`corrupt`), before the lock: the lock would keep
+   openers waiting for the whole decode. Without it only the header,
+   dictionary and index are checked (step 3), so a damaged frame is found
+   only when that page is read;
+2. refuses with `ZdbException.busy` if `path` is open in this process
    (checked before anything opens it) or `-zlck` cannot be taken exclusively
    (another process has it open);
-2. validates the candidate: header, dictionary and index, as an open does
+3. validates the candidate: header, dictionary and index, as an open does
    (`notZdb`, `corrupt`, `unsupported`); a candidate that is `path` itself or
    has its own `-zovl` is refused (`invalid`);
-3. durably deletes `-journal`, `-wal`, `-shm`, `-zovl` and `.new` of `path`;
-4. durably renames the candidate over `path` (`MOVEFILE_WRITE_THROUGH`;
-   POSIX: rename + directory fsync). `-zlck` stays.
+4. proves the final rename before deleting anything: `path` must be
+   replaceable (Windows: no handle open on it without `FILE_SHARE_DELETE`,
+   as SQLite's own, antivirus and indexers hold; retried for about 2s, then
+   `busy`), and the candidate is renamed to `<path>.install` next to it, which
+   fails for another volume or mount (`io`). A failure up to here changes
+   nothing, and the candidate is moved back;
+5. durably deletes `-journal`, `-wal`, `-shm`, `-zovl` and `.new` of `path`;
+6. durably renames `<path>.install` over `path` (`MOVEFILE_WRITE_THROUGH`,
+   retried on a sharing violation; POSIX: rename + directory fsync). `-zlck`
+   stays.
 
 The deletes come before the rename: a crash in between leaves the old base
 without its overlay, an older but consistent database, and the next install
 finishes the job. The other order would leave the new base next to an overlay
 bound to the old one (`SQLITE_CORRUPT`). Journal and WAL go before the
 overlay, because replayed onto the bare old base they would corrupt it; so a
-crash between those deletes still serves base + overlay. The candidate must be
-on the same volume as `path`. On Windows a delete has no directory flush;
-NTFS logs metadata in order, so the write-through rename also makes the
-earlier deletes durable.
+crash between those deletes still serves base + overlay. A crash after step 4
+can leave the candidate as `<path>.install`; the next install replaces it.
+On Windows a delete has no directory flush; NTFS logs metadata in order, so
+the write-through rename also makes the earlier deletes durable.
+
+An open that meets a swap waits for `-zlck` without holding the base: it
+closes the handle it used to read the magic, so the rename is not blocked by
+it. What step 4 cannot rule out is a handle opened after the probe and held
+past the rename retries (an antivirus scan of a large file); then the install
+fails after the deletes (`io`), with the old base alone, as after a crash.
+
+On Windows `path` should not be a symbolic link: the rename replaces the link
+itself, not its target (POSIX resolves it, as `xFullPathname` does).
 
 ## Runtime model
 
@@ -402,7 +424,12 @@ earlier deletes durable.
 - **Not on the UI isolate at startup.** Opening a `.zdb` (and `readZdbInfo`)
   replays the overlay synchronously, one sequential read of the sidecar.
 - **Leftovers.** A crashed compaction leaves `<path>.new`; delete it (the next
-  `compactZdb` overwrites it anyway).
+  `compactZdb` overwrites it anyway). A crashed install can leave
+  `<path>.install`; delete it or install again.
+- **The overlay grows until compaction runs.** Every write appends; nothing
+  reclaims superseded pages before `compactZdb` (up to the 64GB limit, then
+  `SQLITE_FULL`). Until S5c schedules compaction, patches keep adding to the
+  sidecar.
 - `isZdb`, `readZdbInfo` and `readZdbOverlayInfo` answer from the open state
   when the path is open through zvfs; `readZdbBytes`, `verifyZdb` and
   `compactZdb` then fail with `ZdbException.busy`. Paths open through another
@@ -454,7 +481,11 @@ cmake --build build/c && ctest --test-dir build/c   # C: core + VFS
 
 C test binaries: `core` (format), `vfs` (read path), `write` (overlay codec,
 torn/flipped bytes at every offset, fuzz, SQL equivalence with plain SQLite
-byte for byte, compaction windows, install crash points, WAL reader threads), `crash` (patch-shaped
+byte for byte, compaction windows, install crash points, an open during an
+install or a compaction swap, a corrupt candidate frame, a foreign handle
+without delete sharing (Windows) and a candidate on another volume
+(`ZVFS_TEST_OTHER_VOLUME`, else `/dev/shm` on Linux when it is another file
+system; skipped otherwise), WAL reader threads), `crash` (patch-shaped
 transactions over an in-memory VFS that fails the N-th write or sync and then
 drops, reorders or tears unsynced writes), `kill` (child processes killed with
 `TerminateProcess`/`SIGKILL`, with a concurrent reader process).
