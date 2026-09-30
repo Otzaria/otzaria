@@ -995,6 +995,7 @@ class LibraryUpdateRepository
       // הפענוח המלא רץ כאן, מחוץ לשער: הספרייה נשארת פתוחה לקריאה בזמנו.
       await verifyLibraryZdbFrames(
         downloadPath,
+        isCancelled: isCancelled,
         onProgress: (done, total) => report(
           LibraryUpdatePhase.verifying,
           zdbStageVerify,
@@ -1005,6 +1006,8 @@ class LibraryUpdateRepository
       _deleteDownloadStateQuietly(downloadPath, sidecarPath);
       rethrow;
     } on LibraryZdbException catch (error) {
+      // ההורדה שלמה ותקינה עד כה; הריצה הבאה תאמת אותה מחדש בלי להוריד.
+      if (error.isCancelled) throw const PatchDownloadCancelled();
       // קובץ פגום שנשמר היה נמצא שלם בריצה הבאה ונכשל שוב בלולאה.
       if (!error.isBusy) _deleteDownloadStateQuietly(downloadPath, sidecarPath);
       rethrow;
@@ -1235,27 +1238,41 @@ class LibraryUpdateRepository
         applyProgress: fraction,
       ),
     );
-    report(null);
     try {
-      await DatabaseLibraryProvider.operationQueue.enqueue(() async {
-        _throwIfCancelled(isCancelled);
-        // התוכן זהה, ולכן בלי markDbReplaced: החלונות רק פותחים מחדש.
-        await accessGate.runExclusive(
-          dbPath: dbPath,
-          body: (_) => compactLibraryZdb(
-            dbPath,
-            onProgress: (done, total) =>
-                report(total > 0 ? (done / total).clamp(0.0, 1.0) : null),
-          ),
-        );
-      });
+      final compacted = await DatabaseLibraryProvider.operationQueue.enqueue(
+        () async {
+          _throwIfCancelled(isCancelled);
+          // ריצה שהמתינה בתור מאחורי דחיסה אחרת מוצאת בסיס בלי overlay.
+          final ratio = await zdbOverlayRatio(dbPath);
+          if (ratio == null || ratio <= kZdbOverlayRebaseRatio) return false;
+          report(null);
+          // התוכן זהה, ולכן בלי markDbReplaced: החלונות רק פותחים מחדש.
+          await accessGate.runExclusive(
+            dbPath: dbPath,
+            body: (_) => compactLibraryZdb(
+              dbPath,
+              isCancelled: isCancelled,
+              onProgress: (done, total) =>
+                  report(total > 0 ? (done / total).clamp(0.0, 1.0) : null),
+            ),
+          );
+          return true;
+        },
+      );
+      return compacted
+          ? LibraryStorageMaintenance.compacted
+          : LibraryStorageMaintenance.notNeeded;
     } on PatchDownloadCancelled {
+      return LibraryStorageMaintenance.deferred;
+    } on LibraryZdbException catch (error, stackTrace) {
+      if (!error.isCancelled) {
+        _logQuietly('Library Update: compaction deferred', error, stackTrace);
+      }
       return LibraryStorageMaintenance.deferred;
     } catch (error, stackTrace) {
       _logQuietly('Library Update: compaction deferred', error, stackTrace);
       return LibraryStorageMaintenance.deferred;
     }
-    return LibraryStorageMaintenance.compacted;
   }
 
   /// מוחק קובץ DB יחד עם קובצי ה-wal/-shm שלו — בלעדיהם בדיקת ה-DB שהורד

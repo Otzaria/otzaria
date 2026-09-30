@@ -320,6 +320,27 @@ void main() {
       expect(File(downloadPath()).existsSync(), isFalse);
     });
 
+    test('ביטול בזמן האימות: אין התקנה, וההורדה נשמרת להמשך', () async {
+      final legacy = LibraryZdbFiles.legacyPathIn(tmp.path);
+      writeFixtureLibraryDb(legacy, version: 1, schemaVersion: 5);
+      var cancelled = false;
+      await expectLater(
+        repository(dbPath: legacy).applyFullDownload(
+          fullPlan(),
+          isCancelled: () => cancelled,
+          onProgress: (progress) {
+            if (progress.stage == LibraryUpdateRepository.zdbStageVerify) {
+              cancelled = true;
+            }
+          },
+        ),
+        throwsA(isA<PatchDownloadCancelled>()),
+      );
+      expect(File(zdbPath).existsSync(), isFalse);
+      expect(File(legacy).existsSync(), isTrue);
+      expect(File(downloadPath()).lengthSync(), releaseBytes.length);
+    });
+
     test('busy: הבסיס הישן וה-overlay נשארים, וההורדה נשמרת להמשך', () async {
       await writeFixtureZdb(zdbPath, version: 1, marker: 'old');
       growZdbOverlay(zdbPath);
@@ -494,6 +515,48 @@ void main() {
       );
       expect(readFixtureLibrary(zdbPath).marker, 'local');
       expect(File(downloadPath()).existsSync(), isFalse);
+    });
+
+    test('שתי ריצות חופפות דוחסות פעם אחת בלבד', () async {
+      await writeFixtureZdb(zdbPath, version: 2, marker: 'local');
+      growZdbOverlay(zdbPath);
+      final repo = await checked(
+        repository(dbPath: zdbPath, withFullDb: false),
+      );
+      final results = await Future.wait([
+        repo.maintainLibraryStorage(),
+        repo.maintainLibraryStorage(),
+      ]);
+      expect(
+        results.where((r) => r == LibraryStorageMaintenance.compacted),
+        hasLength(1),
+      );
+      expect(results, contains(LibraryStorageMaintenance.notNeeded));
+      expect(readFixtureLibrary(zdbPath).marker, 'local');
+    });
+
+    test('ביטול באמצע הדחיסה — נדחה, והבסיס וה-overlay שלמים', () async {
+      await writeFixtureZdb(zdbPath, version: 2, marker: 'local');
+      growZdbOverlay(zdbPath);
+      final overlay = File('$zdbPath-zovl').lengthSync();
+      final repo = await checked(
+        repository(dbPath: zdbPath, withFullDb: false),
+      );
+      var cancelled = false;
+      expect(
+        await repo.maintainLibraryStorage(
+          isCancelled: () => cancelled,
+          onProgress: (progress) {
+            if (progress.stage == LibraryUpdateRepository.zdbStageCompact) {
+              cancelled = true;
+            }
+          },
+        ),
+        LibraryStorageMaintenance.deferred,
+      );
+      expect(File('$zdbPath-zovl').lengthSync(), overlay);
+      expect(File('$zdbPath.new').existsSync(), isFalse);
+      expect(readFixtureLibrary(zdbPath).marker, 'local');
     });
 
     test('המשתמש קורא — הדחיסה נדחית וה-overlay נשאר', () async {
