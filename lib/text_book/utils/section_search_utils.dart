@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
@@ -132,6 +133,39 @@ double matchFractionInLine(
   }
   if (offset <= 0) return 0;
   return (offset / clean.length).clamp(0.0, 1.0);
+}
+
+/// Like [matchFractionInLine], but locates the match with the reader's highlight
+/// pattern, so distance, prefix and alternative-word queries resolve too.
+double searchHighlightFractionInLine(
+  String rawLine,
+  String query, {
+  Map<String, Map<String, bool>> searchOptions = const {},
+  Map<int, List<String>> alternativeWords = const {},
+  Map<String, String> spacingValues = const {},
+  bool isFuzzy = false,
+  int searchDistance = 0,
+  SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
+  bool wholeWord = true,
+}) {
+  final ranges = utils.computeHighlightRanges(
+    cleanLineForSearch(rawLine),
+    query,
+    searchOptions: searchOptions,
+    alternativeWords: alternativeWords,
+    spacingValues: spacingValues,
+    isFuzzy: isFuzzy,
+    searchDistance: searchDistance,
+    matchPolicy: matchPolicy,
+    isSearchResultLine: true,
+    partialWordMatch: !wholeWord,
+  );
+  return matchFractionInLine(
+    rawLine,
+    query,
+    matchOffset: ranges.isEmpty ? null : ranges.first.first,
+    wholeWord: wholeWord,
+  );
 }
 
 /// שבר המיקום של ההופעה בשורה כשטקסט השורה עצמו אינו זמין — למשל אחרי ששוחרר

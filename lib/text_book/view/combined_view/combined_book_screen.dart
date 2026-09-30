@@ -827,9 +827,15 @@ class _CombinedViewState extends State<CombinedView> {
         final isFromSearch =
             state.searchText.isNotEmpty && initialIndex < state.content.length;
         final intraLineFraction = isFromSearch
-            ? matchFractionInLine(
+            ? searchHighlightFractionInLine(
                 state.content[initialIndex],
                 state.searchText,
+                searchOptions: state.searchOptions,
+                alternativeWords: state.alternativeWords,
+                spacingValues: state.spacingValues,
+                isFuzzy: state.searchMode == SearchMode.fuzzy,
+                searchDistance: state.searchDistance,
+                matchPolicy: state.matchPolicy,
                 wholeWord: state.searchWholeWord,
               )
             : 0.0;
