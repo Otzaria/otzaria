@@ -1296,7 +1296,7 @@ static int g_install_stop = -1;
 static int install_stop(int step) { return step == g_install_stop; }
 
 static void test_install(void) {
-  char plain[1100], zdb[1100], cand[1100], master[1100], kb[1100], ko[1100];
+  char plain[1024], zdb[1024], cand[1024], master[1024], kb[1024], ko[1024];
   char ov[1100], lck[1100], nw[1100], sh[1100], jr[1100], cov[1100];
   snprintf(plain, sizeof plain, "%s", tmp_path("in_plain.db"));
   snprintf(zdb, sizeof zdb, "%s", tmp_path("in.zdb"));

@@ -38,6 +38,7 @@ Future<ZdbCompactResult> compactZdb(
   if (ZVfs.isOpen(path)) {
     throw ZdbException(ZdbException.busy, 'open in this process: $path');
   }
+  ZVfs._register(); // the swap resolves the path through SQLite's VFS
   final nThreads = (threads ?? (Platform.numberOfProcessors - 1))
       .clamp(1, 16)
       .toInt();
@@ -91,7 +92,7 @@ Future<ZdbInfo> installZdb(String path, String candidatePath) async {
   if (ZVfs.isOpen(path)) {
     throw ZdbException(ZdbException.busy, 'open in this process: $path');
   }
-  ZVfs._register();
+  ZVfs._register(); // the swap resolves the path through SQLite's VFS
   return Isolate.run(() {
     final pPath = path.toNativeUtf8();
     final pCand = candidatePath.toNativeUtf8();
