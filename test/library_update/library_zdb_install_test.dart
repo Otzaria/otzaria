@@ -168,6 +168,29 @@ void main() {
       expect(File(libraryZdb).existsSync(), isTrue);
     });
 
+    test('לוואי של הורדה, ייבוא ודחיסה נמחקים; -zlck של הבסיס נשמר', () async {
+      final download = LibraryZdbFiles.downloadPathFor(libraryZdb);
+      final import = LibraryZdbFiles.importTempFor(libraryZdb);
+      File(download).writeAsStringSync('partial');
+      File(PatchDownloader.resumeSidecarPath(download)).writeAsStringSync('t');
+      final leftovers = [
+        for (final suffix in LibraryZdbFiles.candidateSidecarSuffixes) ...[
+          '$download$suffix',
+          '$import$suffix',
+        ],
+        import,
+      ];
+      for (final path in [...leftovers, '$libraryZdb-zlck']) {
+        File(path).writeAsStringSync('x');
+      }
+      await cleanUpZdbLeftovers(tmp.path);
+      for (final path in leftovers) {
+        expect(File(path).existsSync(), isFalse, reason: path);
+      }
+      expect(File(download).existsSync(), isTrue);
+      expect(File('$libraryZdb-zlck').existsSync(), isTrue);
+    });
+
     test('הורדה עם קובץ resume נשמרת להמשך', () async {
       final download = LibraryZdbFiles.downloadPathFor(libraryZdb);
       File(download).writeAsStringSync('partial');

@@ -37,6 +37,21 @@ abstract final class LibraryZdbFiles {
   static String compactionTempFor(String zdbPath) => '$zdbPath.new';
   static String installTempFor(String zdbPath) => '$zdbPath.install';
 
+  /// מועמד של ייבוא מקומי. שם משלו: הייבוא מצמיד לו overlay ודוחס אותו
+  /// לדקות, וקריסה שם לא תשאיר -zovl ליד ההורדה.
+  static String importTempFor(String zdbPath) => '$zdbPath.import';
+
+  /// קובצי הלוואי של zvfs ו-SQLite שמועמד (או קובץ זמני) עשוי להשאיר.
+  static const List<String> candidateSidecarSuffixes = [
+    '-zovl',
+    '-zlck',
+    '-journal',
+    '-wal',
+    '-shm',
+    '.new',
+    '.new-zlck',
+  ];
+
   /// seforim.db הרגיל ולוואיו.
   static const List<String> legacySuffixes = ['', '-journal', '-wal', '-shm'];
 
@@ -188,18 +203,31 @@ Future<void> deleteLegacyLibraryDb(String directory) async {
   if (failure != null) throw failure;
 }
 
-/// מנקה שאריות הורדה/התקנה/דחיסה ליד seforim.zdb, ואת seforim.db כשיש zdb תקין.
-/// לא נוגע ב-`-zlck`; הורדה עם קובץ resume נשמרת לבדיקת העדכון הבאה.
+/// מוחק את קובצי הלוואי של המועמד [candidatePath], לא את המועמד עצמו. -zovl
+/// שנשאר ליד מועמד חוסם את installZdb (invalid) ומזייף את האימות.
+Future<void> deleteZdbCandidateSidecars(String candidatePath) async {
+  for (final suffix in LibraryZdbFiles.candidateSidecarSuffixes) {
+    await _deleteQuietly('$candidatePath$suffix');
+  }
+}
+
+/// מנקה שאריות הורדה/התקנה/דחיסה/ייבוא ליד seforim.zdb, ואת seforim.db כשיש
+/// zdb תקין. -zlck של הבסיס החי לא נמחק; הורדה עם קובץ resume נשמרת.
 Future<void> cleanUpZdbLeftovers(String directory) async {
   final zdb = LibraryZdbFiles.zdbPathIn(directory);
-  await _deleteQuietly(LibraryZdbFiles.compactionTempFor(zdb));
-  await _deleteQuietly('${LibraryZdbFiles.compactionTempFor(zdb)}-zlck');
-  await _deleteQuietly(LibraryZdbFiles.installTempFor(zdb));
   final download = LibraryZdbFiles.downloadPathFor(zdb);
+  for (final temp in [
+    LibraryZdbFiles.compactionTempFor(zdb),
+    LibraryZdbFiles.installTempFor(zdb),
+    LibraryZdbFiles.importTempFor(zdb),
+  ]) {
+    await _deleteQuietly(temp);
+    await deleteZdbCandidateSidecars(temp);
+  }
   if (!await File(PatchDownloader.resumeSidecarPath(download)).exists()) {
     await _deleteQuietly(download);
   }
-  if (!await File(download).exists()) await _deleteQuietly('$download-zlck');
+  await deleteZdbCandidateSidecars(download);
 
   final legacy = LibraryZdbFiles.legacyPathIn(directory);
   if (!await File(legacy).exists() || !await File(zdb).exists()) return;

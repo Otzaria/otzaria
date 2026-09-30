@@ -524,6 +524,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     FullDbManifest? manifest,
     void Function(double progress)? onProgress,
   }) async {
+    await deleteZdbCandidateSidecars(candidatePath);
     await verifyZdbCandidate(candidatePath, manifest: manifest);
     await verifyLibraryZdbFrames(
       candidatePath,
@@ -551,7 +552,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     String target, {
     void Function(double progress)? onProgress,
   }) async {
-    final candidate = LibraryZdbFiles.downloadPathFor(
+    final candidate = LibraryZdbFiles.importTempFor(
       LibraryZdbFiles.zdbPathIn(target),
     );
     final sourceOverlay = File('${source.path}-zovl');
@@ -591,9 +592,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   }
 
   static Future<void> _deleteZdbCandidate(String candidate) async {
-    for (final suffix in ['', '-zovl', '-zlck', '.new', '.new-zlck']) {
-      await _deleteEntity('$candidate$suffix');
-    }
+    await _deleteEntity(candidate);
+    await deleteZdbCandidateSidecars(candidate);
   }
 
   /// seforim.zdb ולוואיו, בלי `-zlck` (ראו README של otzaria_zvfs).
@@ -1691,6 +1691,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     // מנקה sidecar מהפורמט המקומי הישן. מכאן ואילך PatchDownloader מנהל
     // Range/If-Range, אימות 206/416, גודל, timeout וסגירת משאבים במקום אחד.
     await deleteDownloadSidecar(tempPath);
+    if (asset.zdbManifest != null) await deleteZdbCandidateSidecars(tempPath);
     final downloader = PatchDownloader(
       decompress: (_) async => null,
       httpClient: _httpClient,

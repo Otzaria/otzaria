@@ -121,6 +121,10 @@ void main() {
       );
       await writeFixtureZdb(sourceZdb, version: 4, marker: 'with-overlay');
       growZdbOverlay(sourceZdb);
+      final download = LibraryZdbFiles.downloadPathFor(
+        LibraryZdbFiles.zdbPathIn(library.path),
+      );
+      File(download).writeAsStringSync('resumable');
 
       final bloc = EmptyLibraryBloc();
       addTearDown(bloc.close);
@@ -136,9 +140,18 @@ void main() {
       final zdb = LibraryZdbFiles.zdbPathIn(library.path);
       expect(File('$zdb-zovl').existsSync(), isFalse);
       expect(readFixtureLibrary(zdb).marker, 'with-overlay');
-      for (final leftover in ['.download', '.download-zovl', '.download.new']) {
+      for (final leftover in ['.import', '.import-zovl', '.import.new']) {
         expect(File('$zdb$leftover').existsSync(), isFalse, reason: leftover);
       }
+      // ההורדה של העדכון נשארה כפי שהייתה: הייבוא לא משתמש בשם שלה.
+      expect(
+        File(LibraryZdbFiles.downloadPathFor(zdb)).readAsStringSync(),
+        'resumable',
+      );
+      expect(
+        File('${LibraryZdbFiles.downloadPathFor(zdb)}-zovl').existsSync(),
+        isFalse,
+      );
     });
 
     test('zdb שאינו תואם למניפסט נדחה, והיעד לא נגע', () async {

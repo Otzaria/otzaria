@@ -82,6 +82,7 @@ void main() {
     List<String>? retargeted,
     _CountingRefresh? refresh,
     int? latestVersion,
+    void Function()? onRequest,
   }) {
     final body = served ?? releaseBytes;
     return LibraryUpdateRepository(
@@ -96,14 +97,15 @@ void main() {
         ),
       ),
       downloader: PatchDownloader(
-        httpClient: MockClient.streaming(
-          (request, _) async => http.StreamedResponse(
+        httpClient: MockClient.streaming((request, _) async {
+          onRequest?.call();
+          return http.StreamedResponse(
             Stream.value(body),
             200,
             contentLength: body.length,
             headers: const {'etag': '"zdb-1"'},
-          ),
-        ),
+          );
+        }),
         decompress: (b) async => b,
       ),
       refreshService: refresh ?? _CountingRefresh(),
@@ -193,6 +195,44 @@ void main() {
       expect(File('$zdbPath-zovl').existsSync(), isFalse);
       expect(readFixtureLibrary(zdbPath), (version: 2, marker: 'release'));
     });
+
+    test(
+      '-zovl שנשאר ליד ההורדה אינו חוסם התקנה (לפני ואחרי ניקוי העלייה)',
+      () async {
+        final legacy = LibraryZdbFiles.legacyPathIn(tmp.path);
+        writeFixtureLibraryDb(legacy, version: 1, schemaVersion: 5);
+        // כמו אחרי קריסה באמצע ייבוא עם overlay: מועמד + -zovl, בלי resume.
+        final other = p.join(tmp.path, 'other.zdb');
+        await writeFixtureZdb(other, version: 1, marker: 'imported');
+        growZdbOverlay(other);
+        File(other).copySync(downloadPath());
+        File('$other-zovl').copySync('${downloadPath()}-zovl');
+        File('${downloadPath()}.new').writeAsStringSync('x');
+        File('${downloadPath()}.new-zlck').writeAsStringSync('');
+
+        await cleanUpZdbLeftovers(tmp.path);
+        for (final suffix in ['', '-zovl', '.new', '.new-zlck', '-zlck']) {
+          expect(
+            File('${downloadPath()}$suffix').existsSync(),
+            isFalse,
+            reason: suffix,
+          );
+        }
+
+        // גם בלי ניקוי העלייה: שארית שנוצרה אחריו נמחקת לפני ההורדה והאימות.
+        File('${downloadPath()}-zovl').writeAsStringSync('stale overlay');
+        var requests = 0;
+        await repository(
+          dbPath: legacy,
+          served: releaseBytes,
+          onRequest: () => requests++,
+        ).applyFullDownload(fullPlan());
+
+        expect(readFixtureLibrary(zdbPath), (version: 2, marker: 'release'));
+        expect(requests, 1);
+        expect(File('${downloadPath()}-zovl').existsSync(), isFalse);
+      },
+    );
 
     test('sha256 שאינו תואם: ההורדה נמחקת והספרייה לא נגעה', () async {
       final legacy = LibraryZdbFiles.legacyPathIn(tmp.path);

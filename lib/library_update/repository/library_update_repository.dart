@@ -968,6 +968,7 @@ class LibraryUpdateRepository
       dbDir: dbDir,
     );
 
+    await deleteZdbCandidateSidecars(downloadPath);
     report(LibraryUpdatePhase.downloading, zdbStageDownload);
     await downloader.downloadToFile(
       url: asset.downloadUrl,
@@ -988,6 +989,7 @@ class LibraryUpdateRepository
     _throwIfCancelled(isCancelled);
 
     report(LibraryUpdatePhase.verifying, zdbStageVerify);
+    await deleteZdbCandidateSidecars(downloadPath);
     try {
       await verifyZdbCandidate(downloadPath, manifest: manifest);
       // הפענוח המלא רץ כאן, מחוץ לשער: הספרייה נשארת פתוחה לקריאה בזמנו.
