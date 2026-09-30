@@ -836,18 +836,21 @@ Future<void> _recoverOrphanedDbBackup() async {
 }
 
 Future<void> _initializeRestartableRuntime() async {
-  // חייב לקדום לכל פתיחה של מסד הספרייה (גם בשחזורים שלמטה). קריאת FFI קצרה.
-  await _timedPhase('zvfs', () async {
-    ensureLibraryVfs();
-    final failure = libraryVfsRegistrationFailure;
-    if (failure != null) {
-      _logNonFatalInitializationError(
-        'zvfs registration',
-        failure.error,
-        failure.stackTrace,
-      );
-    }
-  });
+  // רק לספריית zdb: פתיחות בלי VFS (בדיקת השחזור, ה-updater) צריכות אותו
+  // כברירת המחדל של התהליך. פתיחות zdb בקוד שלנו נרשמות בעצמן.
+  if (isZdbPath(DatabaseConstants.getDatabasePath())) {
+    await _timedPhase('zvfs', () async {
+      ensureLibraryVfs();
+      final failure = libraryVfsRegistrationFailure;
+      if (failure != null) {
+        _logNonFatalInitializationError(
+          'zvfs registration',
+          failure.error,
+          failure.stackTrace,
+        );
+      }
+    });
+  }
 
   // שני השחזורים חייבים לרוץ לפני פתיחת ה-DB ולפני בדיקת "ספרייה ריקה".
   // שחזור עדכון ספרייה שנקטע (marker+backup) קודם: הוא כותב DB משלו, ולהחזיר

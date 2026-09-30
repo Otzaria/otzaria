@@ -128,12 +128,13 @@ class SqliteDataProvider {
     // דרך [closeForExternalWrite]/[reopenAfterExternalWrite]. לפני הפתיחה
     // ה-read-only יש לוודא שהקובץ אינו במצב WAL — אחרת SQLite לא יוכל לפתוח
     // אותו ללא יצירת קובצי -wal/-shm (שדורשים הרשאת כתיבה).
-    await normalizeJournalModeForReadOnly(_dbPath);
-    // הפתיחה הראשונה של zdb (אינדקס + overlay) סינכרונית; ב-worker היא לא
-    // חוסמת את ה-UI isolate, והפתיחה כאן מצטרפת למצב המשותף לתהליך.
-    if (isZdbPath(_dbPath) && !isLibraryDbOpenInProcess(_dbPath)) {
-      await DbReadWorker.warmUp(_dbPath);
-    }
+    // ב-zdb הנרמול והפתיחה הראשונה (שחזור overlay, סינכרוני) רצים ב-worker,
+    // והפתיחה כאן מצטרפת למצב החם בלי לחסום את ה-UI isolate.
+    final warm =
+        isZdbPath(_dbPath) &&
+        (isLibraryDbOpenInProcess(_dbPath) ||
+            await DbReadWorker.warmUp(_dbPath));
+    if (!warm) await normalizeJournalModeForReadOnly(_dbPath);
 
     try {
       final database = MyDatabase.withPath(
@@ -261,6 +262,8 @@ class SqliteDataProvider {
       return;
     }
     try {
+      // לפני האתחול: worker מושהה היה מדלג על חימום ה-zdb.
+      await DbReadWorker.resumeAfterExternalWrite();
       if (reopenDatabase) {
         // המונה כבר 0, ולכן initialize() לא ייכנס לבלוק ההמתנה ל-gate (אין
         // deadlock), ומנגנון _initializationFuture מונע פתיחה כפולה מול קורא מקביל.
@@ -270,7 +273,6 @@ class SqliteDataProvider {
       // ב-finally: worker שנשאר מושהה אחרי כשל פתיחה יחזיר שגיאה לכל TOC
       // וקטלוג עד סוף ה-session.
       await FindRefDbIsolate.resumeAfterExternalWrite();
-      await DbReadWorker.resumeAfterExternalWrite();
       // משחררים את הקוראים הממתינים. ה-finally מבטיח שחרור גם אם הפתיחה-מחדש
       // נכשלה (אחרת היו נתקעים לנצח).
       final gate = _externalWriteGate;

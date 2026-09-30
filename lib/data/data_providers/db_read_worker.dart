@@ -9,6 +9,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart'
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/db_capabilities.dart';
+import 'package:otzaria/migration/database/journal_mode.dart';
 import 'package:otzaria/migration/database/query_loader.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/book.dart' as db_models;
@@ -154,7 +155,8 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
 /// לכל אחד חיבור RO עצל; קריאת ספר לא מעכבת פתיחה וגלילה של ספר אחר.
 ///
 /// נפרד מ-FindRefDbIsolate: חימום ה-AltToc שם אורך שניות, ופתיחת ספר לא
-/// תמתין מאחוריו. נוצר בעצלתיים בבקשה הראשונה; בעלייה רק ל-[warmUp] של zdb.
+/// תמתין מאחוריו. נוצר בעצלתיים בבקשה הראשונה; בעלייה רק כשהספרייה היא zdb,
+/// כי הפתיחה הראשונה שלו ([warmUp]) חוסמת את ה-isolate שמבצע אותה.
 class DbReadWorker {
   DbReadWorker._(this._slot);
 
@@ -304,13 +306,24 @@ class DbReadWorker {
     }
   }
 
-  /// פותח את [dbPath] ב-worker ומשאיר אותו פתוח: פתיחה אחריו בכל isolate
-  /// מצטרפת למצב zvfs החם. כשל אינו חוסם — הפתיחה הבאה פשוט תהיה קרה.
-  static Future<void> warmUp(String dbPath) async {
+  /// שחזור overlay גדול אחרי עדכון אורך יותר מ-[stallTimeout], ואינו תקיעה.
+  @visibleForTesting
+  static Duration warmUpTimeout = const Duration(seconds: 60);
+
+  /// מנרמל את היומן של [dbPath] ופותח אותו ב-worker, ומשאיר אותו פתוח: פתיחה
+  /// אחריו בכל isolate מצטרפת למצב zvfs החם. `false` — לא בוצע (אז הקורא מנרמל).
+  static Future<bool> warmUp(String dbPath) async {
+    // עוקף את [_closedUntilReopen]: החימום הוא חלק מהאתחול שיתיר את הפתיחה.
+    if (_suspendedForExternalWrite) return false;
+    final generation = _generation;
     try {
-      await request('warm', {'dbPath': dbPath});
+      final service = await _instanceOrSpawn(_ranges);
+      if (_suspendedForExternalWrite || generation != _generation) return false;
+      await service._send('warm', {'dbPath': dbPath}).timeout(warmUpTimeout);
+      return generation == _generation;
     } catch (e) {
       debugPrint('[DbReadWorker] warm-up skipped: $e');
+      return false;
     }
   }
 
@@ -640,8 +653,11 @@ void _workerMain(_Bootstrap bootstrap) {
     }
   }
 
-  Future<SeforimRepository> ensureRepo(String path) async {
-    if (suspended || closed) throw const _Suspended();
+  Future<SeforimRepository> ensureRepo(
+    String path, {
+    bool ignoreClosed = false,
+  }) async {
+    if (suspended || (closed && !ignoreClosed)) throw const _Suspended();
     final current = repository;
     if (current != null && openPath == path) return current;
     closeConnection();
@@ -721,7 +737,20 @@ void _workerMain(_Bootstrap bootstrap) {
       case 'shrinkMemory':
         return repository?.database.shrinkMemoryIfOpen() ?? false;
       case 'warm':
-        await ensureRepo(args['dbPath'] as String);
+        final path = args['dbPath'] as String;
+        if (suspended) throw const _Suspended();
+        // חיבור הכתיבה פתוח בזמן פתיחת ה-RO, כך שה-overlay משוחזר פעם אחת.
+        sqlite3.Database? journal;
+        try {
+          journal = openWithDeleteJournal(path);
+        } catch (e) {
+          debugPrint('[DbReadWorker] journal normalisation failed: $e');
+        }
+        try {
+          await ensureRepo(path, ignoreClosed: true);
+        } finally {
+          journal?.close();
+        }
         return null;
       case 'linkContent':
         final repo = await ensureRepo(args['dbPath'] as String);

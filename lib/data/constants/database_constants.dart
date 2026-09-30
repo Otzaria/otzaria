@@ -88,11 +88,13 @@ class DatabaseConstants {
     databaseFileName,
     '$databaseFileName-wal',
     '$databaseFileName-shm',
+    '$databaseFileName-journal',
     zdbDatabaseFileName,
     '$zdbDatabaseFileName-zovl',
     '$zdbDatabaseFileName-zlck',
     '$zdbDatabaseFileName-wal',
     '$zdbDatabaseFileName-shm',
+    '$zdbDatabaseFileName-journal',
     lexicalDatabaseFileName,
     externalCatalogDatabaseFileName,
     '$externalCatalogDatabaseFileName-wal',
@@ -122,11 +124,12 @@ class DatabaseConstants {
     return resolveLibraryDbSibling(_buildDbPath(libraryPath, folderName));
   }
 
-  /// קובץ המסד הפעיל ב-[directory]: `seforim.zdb` כשהוא zdb תקין, אחרת
+  /// קובץ המסד הפעיל ב-[directory]: `seforim.zdb` כשיש לו magic של zdb, אחרת
   /// `seforim.db` (גם כשאינו קיים).
   static String resolveLibraryDbPath(String directory) {
     final zdb = path.join(directory, zdbDatabaseFileName);
-    // stat לפני ה-probe: בלי zdb לא נטענת הספרייה הנייטיבית כלל.
+    // magic בלבד: אימות = טעינת אינדקס ושחזור overlay על ה-UI isolate. כל כותב
+    // מפרסם zdb ב-rename אחרי אימות, ולכן כותרת פגומה היא נזק מדיה.
     if (File(zdb).existsSync() && isLibraryZdb(zdb)) return zdb;
     return path.join(directory, databaseFileName);
   }
@@ -138,13 +141,9 @@ class DatabaseConstants {
     return resolveLibraryDbPath(path.dirname(dbPath));
   }
 
-  /// האם יש ב-[directory] מסד ספרייה באחד משני השמות.
-  static Future<bool> libraryDbExistsIn(String directory) async {
-    for (final name in const [zdbDatabaseFileName, databaseFileName]) {
-      if (await File(path.join(directory, name)).exists()) return true;
-    }
-    return false;
-  }
+  /// האם קיים ב-[directory] הקובץ ש-[resolveLibraryDbPath] בוחר.
+  static Future<bool> libraryDbExistsIn(String directory) =>
+      File(resolveLibraryDbPath(directory)).exists();
 
   /// Gets the directory that contains the main database file.
   /// When keyDbEffectivePath is set (Android copy to internal storage),

@@ -239,8 +239,8 @@ class MyDatabase {
       DbCapabilities.forDatabase(_path, await database);
 
   sqlite3.Database _initDatabase() {
-    // isolate שעלה לפני הרישום בעלייה חייב לראות את zvfs כברירת המחדל.
-    ensureLibraryVfs();
+    // בעלייה zvfs נרשם רק לספריית zdb; zdb שמופיע אחר כך נרשם כאן.
+    if (isZdb) ensureLibraryVfs();
     final db = _openDatabase();
     if (isZdb) db.execute('PRAGMA mmap_size=0');
     return db;

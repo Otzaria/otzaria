@@ -3,7 +3,8 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:otzaria/data/sqlite/library_vfs.dart';
-import 'package:otzaria/data/sqlite/sqlite3_api.dart' show sqlite3;
+import 'package:otzaria/data/sqlite/sqlite3_api.dart'
+    show Database, OpenMode, sqlite3;
 import 'package:otzaria/migration/database/untrusted_database.dart';
 
 const List<int> _sqliteMagic = [
@@ -76,22 +77,30 @@ Future<void> normalizeJournalModeForReadOnly(
         await journal.exists() && (await journal.length()) > 0;
     if (!isWal && !hasHotJournal) return;
 
-    // הגישה הראשונה בחיבור כתיבה מריצה את ה-rollback של יומן חם.
-    ensureLibraryVfs();
-    final db = sqlite3.open(dbPath);
-    try {
-      if (untrusted) hardenUntrustedConnection(db);
-      try {
-        db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
-      } catch (_) {}
-      db.execute('PRAGMA journal_mode=DELETE');
-    } finally {
-      db.close();
-    }
+    openWithDeleteJournal(dbPath, untrusted: untrusted).close();
   } catch (e) {
     debugPrint(
       '[journal_mode] Could not normalise journal mode of $dbPath '
       '(directory may be read-only): $e',
     );
   }
+}
+
+/// פותח את [dbPath] לכתיבה, מחיל יומן חם ומעביר ל-DELETE (no-op כשכבר כך),
+/// ומחזיר את החיבור פתוח: zdb שנפתח שוב בזמן שהוא פתוח אינו משחזר את ה-overlay.
+Database openWithDeleteJournal(String dbPath, {bool untrusted = false}) {
+  if (isZdbPath(dbPath)) ensureLibraryVfs();
+  final db = sqlite3.open(dbPath, mode: OpenMode.readWrite);
+  try {
+    // הגישה הראשונה בחיבור כתיבה מריצה את ה-rollback של יומן חם.
+    if (untrusted) hardenUntrustedConnection(db);
+    try {
+      db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
+    } catch (_) {}
+    db.execute('PRAGMA journal_mode=DELETE');
+  } catch (_) {
+    db.close();
+    rethrow;
+  }
+  return db;
 }

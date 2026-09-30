@@ -76,6 +76,16 @@ class LibraryUpdateDiskSpaceException implements Exception {
   String toString() => message;
 }
 
+/// הורדה מלאה אינה נתמכת כשהספרייה הפעילה היא seforim.zdb: ה-DB שהורד הוא
+/// SQLite רגיל, ובסיס zdb מוחלף רק דרך installZdb (שלב A3).
+class LibraryUpdateZdbFullDownloadUnsupportedException implements Exception {
+  const LibraryUpdateZdbFullDownloadUnsupportedException();
+
+  @override
+  String toString() =>
+      'הורדה מלאה של הספרייה עדיין אינה נתמכת בספרייה דחוסה (seforim.zdb)';
+}
+
 /// תוצאת מסלול דלתא ברמת האפליקציה.
 ///
 /// מעבר למזהי הספרים, נשמר גם האם השתנו טבלאות שלא ניתן למפות לספרים
@@ -217,6 +227,13 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
   }
 
+  /// ה-updater פותח את המסד בלי לציין VFS, ולכן zvfs חייב להיות ברירת המחדל.
+  String _libraryDbPath() {
+    final path = dbPathProvider();
+    if (isZdbPath(path)) ensureLibraryVfs();
+    return path;
+  }
+
   /// גודל הקובץ, או null כשהוא חסר/ריק — ה-planner מתעלם מגודל לא ידוע.
   static int? _fileSizeOrNull(String path) {
     try {
@@ -249,14 +266,14 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   /// נקרא בעליית האפליקציה, לפני פתיחת ה-DB, כדי לשחזר עדכון שנקטע.
   @override
   Future<RecoveryResult> recoverIfNeeded() =>
-      recovery.recoverIfNeeded(dbPathProvider());
+      recovery.recoverIfNeeded(_libraryDbPath());
 
   /// בודק אם יש עדכון זמין ומחזיר את התוכנית.
   @override
   Future<LibraryUpdatePlan> checkForUpdate({
     required bool allowPrerelease,
   }) async {
-    final dbPath = dbPathProvider();
+    final dbPath = _libraryDbPath();
     final local = versionReader.read(dbPath);
     final result = await discovery.discover(allowPrerelease: allowPrerelease);
     return planner.plan(
@@ -284,7 +301,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
   }) async {
-    final dbPath = dbPathProvider();
+    final dbPath = _libraryDbPath();
     final cacheDir = Directory(
       p.join(await dataRootProvider(), 'library_update_cache'),
     );
@@ -699,7 +716,12 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     if (asset == null) {
       throw StateError('אין DB מלא בתוכנית');
     }
-    final dbPath = dbPathProvider();
+    final dbPath = _libraryDbPath();
+    // `$dbPath.new` הוא שם הזמני של הדחיסה ב-zvfs, ו-rename על הבסיס משאיר
+    // -zovl שקשור לבסיס הישן. נחסם לפני כל הורדה או מחיקה.
+    if (isZdbPath(dbPath)) {
+      throw const LibraryUpdateZdbFullDownloadUnsupportedException();
+    }
     final cacheDir = Directory(
       p.join(await dataRootProvider(), 'library_update_cache'),
     );

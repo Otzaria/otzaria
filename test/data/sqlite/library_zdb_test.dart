@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
@@ -11,8 +13,11 @@ import 'package:otzaria/migration/database/journal_mode.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria_zvfs/otzaria_zvfs.dart';
 import 'package:path/path.dart' as p;
+
+import '../../helpers/memory_settings_cache.dart';
 
 /// מסד הספרייה הדחוס (seforim.zdb) דרך zvfs כ-VFS ברירת המחדל, ומסדים רגילים
 /// שעוברים דרכו ללא שינוי.
@@ -84,10 +89,21 @@ void main() {
       expect(DatabaseConstants.resolveLibraryDbSibling(other), other);
     });
 
-    test('libraryDbExistsIn מזהה כל אחד משני השמות', () async {
-      expect(await DatabaseConstants.libraryDbExistsIn(tempDir.path), isFalse);
-      File(p.join(tempDir.path, 'seforim.zdb')).writeAsStringSync('z');
-      expect(await DatabaseConstants.libraryDbExistsIn(tempDir.path), isTrue);
+    test('libraryDbExistsIn תואם לקובץ שהרזולבר בוחר', () async {
+      final dir = tempDir.path;
+      expect(await DatabaseConstants.libraryDbExistsIn(dir), isFalse);
+      File(p.join(dir, 'seforim.zdb')).writeAsStringSync('z' * 64);
+      expect(await DatabaseConstants.libraryDbExistsIn(dir), isFalse);
+      File(p.join(dir, 'seforim.zdb')).deleteSync();
+      await seedZdb();
+      expect(await DatabaseConstants.libraryDbExistsIn(dir), isTrue);
+    });
+
+    test('קובצי היומן של שני השמות מנוהלים', () {
+      expect(
+        DatabaseConstants.libraryManagedEntryNames(),
+        containsAll(['seforim.db-journal', 'seforim.zdb-journal']),
+      );
     });
   });
 
@@ -173,16 +189,75 @@ void main() {
     });
   });
 
-  test('warmUp משאיר את ה-zdb פתוח ב-worker עד סגירת החיבור', () async {
-    final zdb = await seedZdb();
-    expect(isLibraryDbOpenInProcess(zdb), isFalse);
+  group('DbReadWorker.warmUp', () {
+    test('משאיר את ה-zdb פתוח ב-worker עד סגירת החיבור', () async {
+      final zdb = await seedZdb();
+      expect(isLibraryDbOpenInProcess(zdb), isFalse);
 
-    await DbReadWorker.warmUp(zdb);
-    expect(isLibraryDbOpenInProcess(zdb), isTrue);
+      expect(await DbReadWorker.warmUp(zdb), isTrue);
+      expect(isLibraryDbOpenInProcess(zdb), isTrue);
 
-    await DbReadWorker.closeConnectionIfRunning();
-    expect(isLibraryDbOpenInProcess(zdb), isFalse);
-    DbReadWorker.allowReopen();
+      await DbReadWorker.closeConnectionIfRunning();
+      expect(isLibraryDbOpenInProcess(zdb), isFalse);
+      DbReadWorker.allowReopen();
+    });
+
+    test('מנרמל WAL ב-worker', () async {
+      final zdb = await seedZdb();
+      final rw = sqlite3.open(zdb);
+      rw.execute('PRAGMA journal_mode=WAL');
+      rw.close();
+
+      expect(await DbReadWorker.warmUp(zdb), isTrue);
+      await DbReadWorker.closeConnectionIfRunning();
+      DbReadWorker.allowReopen();
+      expect(readZdbBytes(zdb, 18, 2), [1, 1]);
+    });
+
+    test('רץ גם אחרי סגירת החיבור, לא בזמן השהיה', () async {
+      final zdb = await seedZdb();
+      await DbReadWorker.closeConnectionIfRunning();
+      expect(await DbReadWorker.warmUp(zdb), isTrue);
+      expect(isLibraryDbOpenInProcess(zdb), isTrue);
+
+      expect(await DbReadWorker.suspendForExternalWrite(), isTrue);
+      expect(isLibraryDbOpenInProcess(zdb), isFalse);
+      expect(await DbReadWorker.warmUp(zdb), isFalse);
+      expect(isLibraryDbOpenInProcess(zdb), isFalse);
+      await DbReadWorker.resumeAfterExternalWrite();
+      DbReadWorker.allowReopen();
+    });
+
+    test('פתיחה מחדש אחרי כתיבה חיצונית מחממת ב-worker', () async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        tempDir.path,
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryFolderName,
+        '',
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
+      await seedZdb();
+      final provider = SqliteDataProvider.instance;
+      try {
+        await provider.initialize();
+        expect(provider.isInitialized, isTrue);
+
+        await provider.closeForExternalWrite();
+        await provider.reopenAfterExternalWrite();
+
+        expect(provider.isInitialized, isTrue);
+        // true רק כשה-worker מחזיק חיבור פתוח, כלומר החימום לא דולג.
+        expect(await DbReadWorker.shrinkMemoryIfRunning(), isTrue);
+      } finally {
+        await provider.dispose();
+      }
+    });
   });
 
   group('מסדים רגילים דרך zvfs (passthrough)', () {

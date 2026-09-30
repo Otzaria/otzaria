@@ -488,6 +488,60 @@ void main() {
     });
   });
 
+  test(
+    'applyFullDownload בספריית zdb נחסם לפני הורדה ואינו נוגע בקבצים',
+    () async {
+      final zdbPath = p.join(tmp.path, DatabaseConstants.zdbDatabaseFileName);
+      File(zdbPath).writeAsStringSync('base');
+      File('$zdbPath-zovl').writeAsStringSync('overlay');
+      var diskChecked = false;
+      final repository = LibraryUpdateRepository(
+        discovery: _unusedDiscovery(),
+        downloader: PatchDownloader(
+          httpClient: MockClient.streaming(
+            (request, bodyStream) async => throw Exception('download-started'),
+          ),
+          decompress: (b) async => b,
+        ),
+        refreshService: _NoopRefreshService(),
+        dbPathProvider: () => zdbPath,
+        dataRootProvider: () async => tmp.path,
+        diskSpaceProvider: (_) async {
+          diskChecked = true;
+          return DiskSpaceInfo.unknown;
+        },
+        fullDbExtractor: (a, o) async => fail('אסור להגיע לחילוץ'),
+      );
+
+      await expectLater(
+        repository.applyFullDownload(
+          LibraryUpdatePlan.fullDownload(
+            localVersion: 1,
+            targetVersion: 2,
+            asset: ReleaseAsset(
+              name: DatabaseConstants.databaseArchiveFileName,
+              downloadUrl: 'https://x/seforim.db.zst',
+              size: 1,
+            ),
+            releaseTag: 'v2',
+          ),
+        ),
+        throwsA(isA<LibraryUpdateZdbFullDownloadUnsupportedException>()),
+      );
+
+      expect(diskChecked, isFalse);
+      expect(File(zdbPath).readAsStringSync(), 'base');
+      expect(File('$zdbPath-zovl').readAsStringSync(), 'overlay');
+      for (final suffix in ['.new', '.applying', '.backup']) {
+        expect(File('$zdbPath$suffix').existsSync(), isFalse, reason: suffix);
+      }
+      expect(
+        File(p.join(tmp.path, DatabaseConstants.databaseFileName)).existsSync(),
+        isFalse,
+      );
+    },
+  );
+
   group('applyDeltaPlan: בדיקת מקום פנוי לפני הורדת הצעד', () {
     const oneGb = 1 << 30;
 

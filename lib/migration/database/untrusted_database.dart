@@ -42,7 +42,7 @@ ReadOnlyDbTarget trustedDbTarget(String path) =>
 
 /// פותח את [target] לקריאה בלבד: מסד מצורף — מוקשח, אחרת פתיחה רגילה.
 Database openReadOnlyTarget(ReadOnlyDbTarget target) {
-  ensureLibraryVfs();
+  if (isZdbPath(target.path)) ensureLibraryVfs();
   return target.untrusted
       ? openUntrustedReadOnlyDatabase(target.path, immutable: target.immutable)
       : _openTrustedReadOnlyDatabase(target.path);
