@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -132,6 +133,62 @@ void main() {
           libraryDbLogicalSizeOf(zdbPath),
         );
       }
+    });
+  });
+
+  group('עטיפות zvfs', () {
+    test('callback שאינו sendable מקבל גם את הדיווח האחרון (100%)', () async {
+      growZdbOverlay(zdbPath);
+      final unsendable = ReceivePort();
+      addTearDown(unsendable.close);
+      final verified = <(int, int)>[];
+      await verifyLibraryZdbFrames(
+        zdbPath,
+        onProgress: (done, total) {
+          unsendable.hashCode;
+          verified.add((done, total));
+        },
+      );
+      // קובץ קטן מסתיים לפני הדיווח הראשון של ה-timer.
+      if (verified.isNotEmpty) expect(verified.last.$1, verified.last.$2);
+
+      final compacted = <(int, int)>[];
+      await compactLibraryZdb(
+        zdbPath,
+        onProgress: (done, total) {
+          unsendable.hashCode;
+          compacted.add((done, total));
+        },
+      );
+      expect(compacted, isNotEmpty);
+      expect(compacted.last.$1, compacted.last.$2);
+    });
+
+    test('ביטול עוצר את האימות ואת הדחיסה, והבסיס נשאר', () async {
+      growZdbOverlay(zdbPath);
+      final overlay = File('$zdbPath-zovl').lengthSync();
+      await expectLater(
+        verifyLibraryZdbFrames(zdbPath, isCancelled: () => true),
+        throwsA(
+          isA<LibraryZdbException>().having(
+            (e) => e.isCancelled,
+            'isCancelled',
+            true,
+          ),
+        ),
+      );
+      await expectLater(
+        compactLibraryZdb(zdbPath, isCancelled: () => true),
+        throwsA(
+          isA<LibraryZdbException>().having(
+            (e) => e.isCancelled,
+            'isCancelled',
+            true,
+          ),
+        ),
+      );
+      expect(File('$zdbPath-zovl').lengthSync(), overlay);
+      expect(File('$zdbPath.new').existsSync(), isFalse);
     });
   });
 

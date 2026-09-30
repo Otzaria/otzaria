@@ -34,7 +34,15 @@ class LibraryZdbHeader {
 }
 
 /// סוג הכשל של פעולת zdb, ממופה מקודי השגיאה של zvfs.
-enum LibraryZdbFailure { busy, corrupt, unsupported, notZdb, io, other }
+enum LibraryZdbFailure {
+  busy,
+  corrupt,
+  unsupported,
+  notZdb,
+  io,
+  cancelled,
+  other,
+}
 
 /// כשל של פעולת zdb (קריאה, אימות, התקנה או דחיסה).
 class LibraryZdbException implements Exception {
@@ -45,6 +53,8 @@ class LibraryZdbException implements Exception {
 
   /// הקובץ פתוח בתהליך הזה או באחר. ניסיון מאוחר יותר עשוי להצליח.
   bool get isBusy => failure == LibraryZdbFailure.busy;
+
+  bool get isCancelled => failure == LibraryZdbFailure.cancelled;
 
   @override
   String toString() => 'LibraryZdbException(${failure.name}): $message';

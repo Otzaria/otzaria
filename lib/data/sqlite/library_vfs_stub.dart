@@ -28,6 +28,7 @@ LibraryZdbHeader readLibraryZdbHeader(String path) =>
 Future<void> verifyLibraryZdbFrames(
   String path, {
   void Function(int bytesDone, int totalBytes)? onProgress,
+  bool Function()? isCancelled,
 }) => throw UnsupportedError('zvfs אינו זמין בפלטפורמה זו');
 
 Future<void> installLibraryZdb(
@@ -39,4 +40,5 @@ Future<void> installLibraryZdb(
 Future<void> compactLibraryZdb(
   String path, {
   void Function(int bytesDone, int totalBytes)? onProgress,
+  bool Function()? isCancelled,
 }) => throw UnsupportedError('zvfs אינו זמין בפלטפורמה זו');

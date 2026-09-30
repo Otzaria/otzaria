@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
@@ -82,12 +83,16 @@ LibraryZdbHeader readLibraryZdbHeader(String path) => _mapped(() {
 });
 
 /// מפענח כל frame של [path] ובודק את hash התוכן, מחוץ ל-isolate הקורא.
+/// [isCancelled] נדגם תוך כדי הפענוח ועוצר אותו (failure=cancelled).
 Future<void> verifyLibraryZdbFrames(
   String path, {
   void Function(int bytesDone, int totalBytes)? onProgress,
+  bool Function()? isCancelled,
 }) => _withProgressPort(
   onProgress,
-  (report) => verifyZdb(path, onProgress: report),
+  isCancelled,
+  (report, token) =>
+      verifyZdb(path, onProgress: report, cancellationToken: token),
 );
 
 /// מתקין את [candidatePath] כבסיס של [path] (ראו `installZdb`).
@@ -98,35 +103,75 @@ Future<void> installLibraryZdb(
 }) => _mappedAsync(() => installZdb(path, candidatePath, verify: verify));
 
 /// דוחס בסיס + overlay של [path] לבסיס חדש (ראו `compactZdb`).
+/// [isCancelled] נדגם תוך כדי ועוצר את הדחיסה לפני ההחלפה (failure=cancelled).
 Future<void> compactLibraryZdb(
   String path, {
   void Function(int bytesDone, int totalBytes)? onProgress,
+  bool Function()? isCancelled,
 }) => _withProgressPort(
   onProgress,
-  (report) => compactZdb(path, onProgress: report),
+  isCancelled,
+  (report, token) =>
+      compactZdb(path, onProgress: report, cancellationToken: token),
 );
+
+/// כל כמה זמן נדגם [isCancelled] בזמן פעולה ארוכה של zvfs.
+const Duration _cancelPollInterval = Duration(milliseconds: 200);
 
 /// ב-zvfs ה-closure של Isolate.run לוכד גם את onProgress, ולכן הוא חייב להיות
 /// sendable: מעבירים דרכו רק SendPort, וה-callback של הקורא נשאר כאן.
 Future<void> _withProgressPort(
   void Function(int bytesDone, int totalBytes)? onProgress,
-  Future<Object?> Function(void Function(int, int)? report) run,
+  bool Function()? isCancelled,
+  Future<Object?> Function(
+    void Function(int, int)? report,
+    ZdbCancellationToken? token,
+  )
+  run,
 ) async {
-  if (onProgress == null) return _mappedAsync(() => run(null));
-  final port = ReceivePort();
-  final subscription = port.listen((message) {
-    if (message is (int, int)) onProgress(message.$1, message.$2);
+  final token = isCancelled == null ? null : ZdbCancellationToken();
+  if (token != null && isCancelled!()) token.cancel();
+  final poll = token == null
+      ? null
+      : Timer.periodic(_cancelPollInterval, (_) {
+          if (isCancelled!()) token.cancel();
+        });
+  final port = onProgress == null ? null : ReceivePort();
+  final drained = Completer<void>();
+  (int, int)? last;
+  final subscription = port?.listen((message) {
+    if (message is (int, int)) {
+      last = message;
+      onProgress!(message.$1, message.$2);
+    } else if (message == _drainMarker) {
+      drained.complete();
+    }
   });
+  var succeeded = false;
   try {
-    await _mappedAsync(() => run(_portReporter(port.sendPort)));
+    await _mappedAsync(() => run(_portReporter(port?.sendPort), token));
+    succeeded = true;
   } finally {
-    await subscription.cancel();
-    port.close();
+    poll?.cancel();
+    if (port != null) {
+      // הדיווח האחרון (100%) עוד בדרך; ה-port שומר על סדר, ולכן הסמן מגיע אחריו.
+      port.sendPort.send(_drainMarker);
+      await drained.future;
+      await subscription!.cancel();
+      port.close();
+      // verifyZdb מדווח רק מה-timer, ולכן פעולה שהצליחה לא תמיד הגיעה ל-100%.
+      final reported = last;
+      if (succeeded && reported != null && reported.$1 < reported.$2) {
+        onProgress!(reported.$2, reported.$2);
+      }
+    }
   }
 }
 
-void Function(int, int) _portReporter(SendPort port) =>
-    (done, total) => port.send((done, total));
+const String _drainMarker = 'zvfs-progress-drained';
+
+void Function(int, int)? _portReporter(SendPort? port) =>
+    port == null ? null : (done, total) => port.send((done, total));
 
 T _mapped<T>(T Function() body) {
   try {
@@ -151,6 +196,7 @@ LibraryZdbException _toLibraryException(ZdbException error) =>
       ZdbException.unsupported => LibraryZdbFailure.unsupported,
       ZdbException.notZdb => LibraryZdbFailure.notZdb,
       ZdbException.io => LibraryZdbFailure.io,
+      ZdbException.cancelled => LibraryZdbFailure.cancelled,
       _ => LibraryZdbFailure.other,
     }, error.message);
 
