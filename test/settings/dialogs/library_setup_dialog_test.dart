@@ -159,6 +159,32 @@ class _CopyingFilePickerPlatform extends FilePickerPlatform
   }
 }
 
+/// בורר שמתעד את הסיומות שהתבקשו ומחזיר את [path].
+class _RecordingFilePickerPlatform extends FilePickerPlatform
+    with MockPlatformInterfaceMixin {
+  _RecordingFilePickerPlatform(this.path);
+  final String path;
+  List<String>? allowedExtensions;
+
+  @override
+  Future<PlatformFile?> pickFile({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    int compressionQuality = 0,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async {
+    this.allowedExtensions = allowedExtensions;
+    return _PickedFile(path);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -293,6 +319,22 @@ void main() {
         expect(find.text('בחר קובץ ספרייה'), findsOneWidget);
       },
     );
+  });
+
+  testWidgets('בחירת קובץ דחוס מקבלת גם קובץ ספרייה seforim.zdb בודד', (
+    tester,
+  ) async {
+    final picker = _RecordingFilePickerPlatform('/bundle/seforim.zdb');
+    FilePickerPlatform.instance = picker;
+    await _openSetup(tester, defaultTargetPath: '/default/library');
+    await _select(tester, 'בחירת קובץ דחוס');
+    await tester.ensureVisible(find.text('בחר קובץ דחוס'));
+    await tester.tap(find.text('בחר קובץ דחוס'));
+    await tester.pumpAndSettle();
+
+    expect(picker.allowedExtensions, containsAll(['zip', 'zst', 'zdb']));
+    expect(find.text('seforim.zdb'), findsOneWidget);
+    expect(_actionOnPressed(tester, 'אישור'), isNotNull);
   });
 
   group('בחירת תיקייה שאינה ניתנת לקריאה (issue #1219)', () {

@@ -10,10 +10,13 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/empty_library/services/android_storage_service.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
+import 'package:otzaria/library_update/services/library_access_gate.dart';
+import 'package:otzaria/library_update/services/library_zdb_install.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/download_eta_estimator.dart';
@@ -49,7 +52,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     extractZipArchive,
     this._defaultLibraryPathOverride,
     this.downloadConnectTimeout = _defaultDownloadConnectTimeout,
+    LibraryAccessGate? accessGate,
   }) : _httpClient = httpClient ?? http.Client(),
+       _accessGate = accessGate ?? _defaultAccessGate(),
        _extractCompressedDatabase = extractCompressedDatabase ?? _extractZst,
        _extractTarArchive = extractTarArchive ?? _extractTarZst,
        _extractZipArchive = extractZipArchive ?? extractArchiveFileToDisk,
@@ -72,6 +77,44 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
   final http.Client _httpClient;
   final Duration downloadConnectTimeout;
+
+  /// סוגר את הספרייה בכל החלונות לפני שמחליפים את קובץ המסד.
+  final LibraryAccessGate _accessGate;
+
+  // המסך הזה מחליף ספרייה; ה-UI פותח אותה מחדש אחרי DirectorySelected.
+  static LibraryAccessGate _defaultAccessGate() => LibraryAccessGate(
+    selfAccess: LibraryAccessRoutine(
+      suspend: () => SqliteDataProvider.instance.closeForExternalWrite(),
+      resume: (_) => SqliteDataProvider.instance.reopenAfterExternalWrite(
+        reopenDatabase: false,
+      ),
+    ),
+  );
+
+  /// מריץ [body] כשהספרייה ב-[libraryDir] סגורה בכל החלונות; בלי ספרייה
+  /// קיימת — מיד. כשל ההשעיה עצמה מוצג כשגיאה ([body] מטפל בשלו).
+  Future<void> _withLibraryReleased(
+    String? libraryDir,
+    Emitter<EmptyLibraryState> emit,
+    Future<void> Function() body,
+  ) async {
+    if (libraryDir == null) return body();
+    try {
+      await _accessGate.runExclusive(
+        dbPath: DatabaseConstants.resolveLibraryDbPath(libraryDir),
+        body: (scope) async {
+          // שאר החלונות טוענים את הספרייה מחדש גם אם הפעולה שוחזרה.
+          scope.markDbReplaced();
+          await body();
+        },
+      );
+    } on LibrarySuspendFailed catch (e) {
+      emit(_error(errorMessage: e.message));
+    } on LibraryStillOpenException catch (e) {
+      emit(_error(errorMessage: 'הספרייה עדיין פתוחה: $e'));
+    }
+  }
+
   final Future<void> Function(
     String archivePath,
     String outputPath,
@@ -142,44 +185,36 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     Emitter<EmptyLibraryState> emit,
   ) async {
     final backupPath = event.backupExistingPath;
-    String? backupDir;
-    final closesWorker = backupPath != null;
-    var writeSessionStarted = false;
-    try {
-      if (closesWorker) {
-        await SqliteDataProvider.instance.closeForExternalWrite();
-        writeSessionStarted = true;
-      }
-      if (backupPath != null) {
-        backupDir = await _backupDatabaseFiles(backupPath);
-      }
-      await _importLibraryFolder(event.sourceFolder, event.targetPath, emit);
-      if (backupDir != null) {
+    await _withLibraryReleased(backupPath, emit, () async {
+      String? backupDir;
+      try {
+        if (backupPath != null) {
+          backupDir = await _backupDatabaseFiles(backupPath);
+        }
+        await _importLibraryFolder(event.sourceFolder, event.targetPath, emit);
+        if (backupDir != null) {
+          if (state is EmptyLibraryDirectorySelected) {
+            await _discardBackupDir(backupDir);
+          } else {
+            await _restoreDatabaseFiles(backupDir, backupPath!);
+          }
+        }
         if (state is EmptyLibraryDirectorySelected) {
-          await _discardBackupDir(backupDir);
-        } else {
+          await clearFilePickerCache();
+        }
+      } catch (e) {
+        if (backupDir != null) {
           await _restoreDatabaseFiles(backupDir, backupPath!);
         }
+        // Scoped Storage באנדרואיד: התיקייה נראית אך אינה ניתנת לקריאה (#1219).
+        final message = e is PathAccessException
+            ? 'אין לתוכנה הרשאת קריאה לקובץ המקור ${e.path}. '
+                  'באנדרואיד יש לבחור את קובץ ${DatabaseConstants.databaseFileName} '
+                  'דרך "בחר קובץ ספרייה".'
+            : 'שגיאה בייבוא הספרייה: $e';
+        emit(_error(errorMessage: message, selectedPath: event.sourceFolder));
       }
-      if (state is EmptyLibraryDirectorySelected) await clearFilePickerCache();
-    } catch (e) {
-      if (backupDir != null) {
-        await _restoreDatabaseFiles(backupDir, backupPath!);
-      }
-      // Scoped Storage באנדרואיד: התיקייה נראית אך אינה ניתנת לקריאה (#1219).
-      final message = e is PathAccessException
-          ? 'אין לתוכנה הרשאת קריאה לקובץ המקור ${e.path}. '
-                'באנדרואיד יש לבחור את קובץ ${DatabaseConstants.databaseFileName} '
-                'דרך "בחר קובץ ספרייה".'
-          : 'שגיאה בייבוא הספרייה: $e';
-      emit(_error(errorMessage: message, selectedPath: event.sourceFolder));
-    } finally {
-      if (writeSessionStarted) {
-        await SqliteDataProvider.instance.reopenAfterExternalWrite(
-          reopenDatabase: false,
-        );
-      }
-    }
+    });
   }
 
   /// מייבא את הספרייה מארכיון ZIP או ZST, ומשחזר את ה-DB הישן אם הפעולה
@@ -189,43 +224,35 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     Emitter<EmptyLibraryState> emit,
   ) async {
     final backupPath = event.backupExistingPath;
-    String? backupDir;
-    final closesWorker = backupPath != null;
-    var writeSessionStarted = false;
-    try {
-      if (closesWorker) {
-        await SqliteDataProvider.instance.closeForExternalWrite();
-        writeSessionStarted = true;
-      }
-      if (backupPath != null) {
-        backupDir = await _backupDatabaseFiles(backupPath);
-      }
-      await _importLibraryArchive(event.archivePath, event.targetPath, emit);
-      if (backupDir != null) {
+    await _withLibraryReleased(backupPath, emit, () async {
+      String? backupDir;
+      try {
+        if (backupPath != null) {
+          backupDir = await _backupDatabaseFiles(backupPath);
+        }
+        await _importLibraryArchive(event.archivePath, event.targetPath, emit);
+        if (backupDir != null) {
+          if (state is EmptyLibraryDirectorySelected) {
+            await _discardBackupDir(backupDir);
+          } else {
+            await _restoreDatabaseFiles(backupDir, backupPath!);
+          }
+        }
         if (state is EmptyLibraryDirectorySelected) {
-          await _discardBackupDir(backupDir);
-        } else {
+          await clearFilePickerCache();
+        }
+      } catch (e) {
+        if (backupDir != null) {
           await _restoreDatabaseFiles(backupDir, backupPath!);
         }
-      }
-      if (state is EmptyLibraryDirectorySelected) await clearFilePickerCache();
-    } catch (e) {
-      if (backupDir != null) {
-        await _restoreDatabaseFiles(backupDir, backupPath!);
-      }
-      emit(
-        _error(
-          errorMessage: 'שגיאה בייבוא הארכיון: $e',
-          selectedPath: event.archivePath,
-        ),
-      );
-    } finally {
-      if (writeSessionStarted) {
-        await SqliteDataProvider.instance.reopenAfterExternalWrite(
-          reopenDatabase: false,
+        emit(
+          _error(
+            errorMessage: 'שגיאה בייבוא הארכיון: $e',
+            selectedPath: event.archivePath,
+          ),
         );
       }
-    }
+    });
   }
 
   Future<void> _importLibraryArchive(
@@ -234,8 +261,10 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     Emitter<EmptyLibraryState> emit,
   ) async {
     final lowerPath = archivePath.toLowerCase();
-    if (!lowerPath.endsWith('.zip') && !lowerPath.endsWith('.zst')) {
-      throw ArgumentError('יש לבחור קובץ ZIP או ZST');
+    if (!lowerPath.endsWith('.zip') &&
+        !lowerPath.endsWith('.zst') &&
+        !isZdbPath(lowerPath)) {
+      throw ArgumentError('יש לבחור קובץ ZIP, ZST או ZDB');
     }
     await Directory(target).create(recursive: true);
     emit(
@@ -254,6 +283,17 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       } finally {
         await _deleteEntity(staging);
       }
+    } else if (isZdbPath(lowerPath)) {
+      // קובץ ספרייה בודד (חבילת FULL באנדרואיד): אימות והתקנה, בלי חילוץ.
+      await _importZdbFile(
+        File(archivePath),
+        target,
+        onProgress: _extractProgress(
+          emit,
+          archivePath,
+          'מעתיק ומאמת את קובץ הספרייה...',
+        ),
+      );
     } else {
       await _writeDbAtomically(
         path.join(target, DatabaseConstants.databaseFileName),
@@ -292,25 +332,41 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
     // seforim.db — דחוס או רגיל. נדרש אלא אם כבר קיים ביעד (ייבוא נלווים בלבד
     // אל ספרייה קיימת).
-    var dbZst = File(
-      path.join(source, DatabaseConstants.databaseArchiveFileName),
-    );
+    File? dbZst;
+    File? dbZdb;
     for (final name in DatabaseConstants.supportedDatabaseArchiveFileNames) {
       final candidate = File(path.join(source, name));
       if (await candidate.exists()) {
-        dbZst = candidate;
+        if (isZdbPath(name)) {
+          dbZdb = candidate;
+        } else {
+          dbZst = candidate;
+        }
         break;
       }
     }
-    final dbPlain = File(path.join(source, DatabaseConstants.databaseFileName));
-    final targetDb = File(
-      path.join(target, DatabaseConstants.databaseFileName),
+    final plainZdb = File(
+      path.join(source, DatabaseConstants.zdbDatabaseFileName),
     );
-    if (await dbZst.exists()) {
+    if (dbZst == null && dbZdb == null && await plainZdb.exists()) {
+      dbZdb = plainZdb;
+    }
+    final dbPlain = File(path.join(source, DatabaseConstants.databaseFileName));
+    if (dbZdb != null) {
+      await _importZdbFile(
+        dbZdb,
+        target,
+        onProgress: _extractProgress(
+          emit,
+          source,
+          'מעתיק ומאמת את ספריית הספרים...',
+        ),
+      );
+    } else if (dbZst != null) {
       await _writeDbAtomically(
         path.join(target, DatabaseConstants.databaseFileName),
         (tempPath) => _extractCompressedDatabase(
-          dbZst.path,
+          dbZst!.path,
           tempPath,
           _extractProgress(emit, source, 'מחלץ את ספריית הספרים...'),
         ),
@@ -332,7 +388,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
               : copyFileWithProgress(dbPlain, tempPath, onProgress: onProgress);
         },
       );
-    } else if (!await targetDb.exists()) {
+    } else if (!await DatabaseConstants.libraryDbExistsIn(target)) {
       emit(
         _error(
           errorMessage:
@@ -412,44 +468,37 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     Emitter<EmptyLibraryState> emit,
   ) async {
     final target = event.targetPath;
-    String? backupDir;
-    var writeSessionStarted = false;
-    try {
-      await SqliteDataProvider.instance.closeForExternalWrite();
-      writeSessionStarted = true;
-      backupDir = await _backupDatabaseFiles(event.existingLibraryPath);
-      if (event.isDownload) {
-        await _downloadLibrary(target, emit);
-      } else {
-        emit(
-          EmptyLibraryExtracting(
-            selectedPath: target,
-            progress: 0.0,
-            message: 'מעתיק את קובץ הספרייה החדש...',
-          ),
-        );
-        await Directory(target).create(recursive: true);
-        await _copyDatabaseFiles(event.sourceFolder!, target);
-        await _handleDirectorySelection(target, emit);
+    await _withLibraryReleased(event.existingLibraryPath, emit, () async {
+      String? backupDir;
+      try {
+        backupDir = await _backupDatabaseFiles(event.existingLibraryPath);
+        if (event.isDownload) {
+          await _downloadLibrary(target, emit);
+        } else {
+          emit(
+            EmptyLibraryExtracting(
+              selectedPath: target,
+              progress: 0.0,
+              message: 'מעתיק את קובץ הספרייה החדש...',
+            ),
+          );
+          await Directory(target).create(recursive: true);
+          await _copyDatabaseFiles(event.sourceFolder!, target);
+          await _handleDirectorySelection(target, emit);
+        }
+        // הצלחה = state סופי DirectorySelected; אחרת (כשל שקט) משחזרים.
+        if (state is EmptyLibraryDirectorySelected) {
+          if (backupDir != null) await _discardBackupDir(backupDir);
+        } else if (backupDir != null) {
+          await _restoreDatabaseFiles(backupDir, event.existingLibraryPath);
+        }
+      } catch (e) {
+        if (backupDir != null) {
+          await _restoreDatabaseFiles(backupDir, event.existingLibraryPath);
+        }
+        emit(_error(errorMessage: 'שגיאה בעדכון הספרייה: $e'));
       }
-      // הצלחה = state סופי DirectorySelected; אחרת (כשל שקט) משחזרים.
-      if (state is EmptyLibraryDirectorySelected) {
-        if (backupDir != null) await _discardBackupDir(backupDir);
-      } else if (backupDir != null) {
-        await _restoreDatabaseFiles(backupDir, event.existingLibraryPath);
-      }
-    } catch (e) {
-      if (backupDir != null) {
-        await _restoreDatabaseFiles(backupDir, event.existingLibraryPath);
-      }
-      emit(_error(errorMessage: 'שגיאה בעדכון הספרייה: $e'));
-    } finally {
-      if (writeSessionStarted) {
-        await SqliteDataProvider.instance.reopenAfterExternalWrite(
-          reopenDatabase: false,
-        );
-      }
-    }
+    });
   }
 
   /// שם הקובץ הזמני שאליו נכתב ה-DB לפני ההעברה לשם הסופי.
@@ -464,6 +513,97 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           await f.delete();
         } catch (_) {}
       }
+    }
+  }
+
+  /// מאמת את ה-zdb שב-[candidatePath] (באותה תיקייה כמו [targetDir]) ומתקין
+  /// אותו כ-seforim.zdb. seforim.db ישן ב-[targetDir] נמחק אחרי ההתקנה.
+  static Future<void> _installZdbCandidate(
+    String candidatePath,
+    String targetDir, {
+    FullDbManifest? manifest,
+    void Function(double progress)? onProgress,
+  }) async {
+    await verifyZdbCandidate(candidatePath, manifest: manifest);
+    await verifyLibraryZdbFrames(
+      candidatePath,
+      onProgress: (done, total) =>
+          onProgress?.call(total > 0 ? (done / total).clamp(0.0, 1.0) : 0),
+    );
+    await SqliteDataProvider.instance.dispose();
+    await installLibraryZdb(
+      LibraryZdbFiles.zdbPathIn(targetDir),
+      candidatePath,
+      verify: false,
+    );
+    try {
+      await deleteLegacyLibraryDb(targetDir);
+    } on FileSystemException catch (e) {
+      // הרזולבר כבר בוחר ב-zdb; ניקוי העלייה ינסה שוב.
+      debugPrint('[EmptyLibrary] מחיקת seforim.db הישן נכשלה: $e');
+    }
+  }
+
+  /// מייבא קובץ zdb: מעתיק אותו ליד היעד (בשביל ה-rename של ההתקנה), מאחד
+  /// overlay שלצידו, מאמת ומתקין. מניפסט שלצידו נבדק כשאין overlay.
+  static Future<void> _importZdbFile(
+    File source,
+    String target, {
+    void Function(double progress)? onProgress,
+  }) async {
+    final candidate = LibraryZdbFiles.downloadPathFor(
+      LibraryZdbFiles.zdbPathIn(target),
+    );
+    final sourceOverlay = File('${source.path}-zovl');
+    final hasOverlay = await sourceOverlay.exists();
+    FullDbManifest? manifest;
+    final manifestFile = File(fullDbManifestNameFor(source.path));
+    if (!hasOverlay && await manifestFile.exists()) {
+      final decoded = jsonDecode(await manifestFile.readAsString());
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('מניפסט הספרייה אינו תקין');
+      }
+      manifest = FullDbManifest.fromJson(decoded);
+      checkZdbManifestSupported(manifest);
+    }
+    await _deleteZdbCandidate(candidate);
+    try {
+      void copied(double p) => onProgress?.call(p / 2);
+      if (await isFilePickerCacheFile(source)) {
+        await moveFileWithProgress(source, candidate, onProgress: copied);
+      } else {
+        await copyFileWithProgress(source, candidate, onProgress: copied);
+      }
+      if (hasOverlay) {
+        await sourceOverlay.copy('$candidate-zovl');
+        // installZdb מסרב למועמד עם overlay; הדחיסה מאחדת אותם לבסיס אחד.
+        await compactLibraryZdb(candidate);
+      }
+      await _installZdbCandidate(
+        candidate,
+        target,
+        manifest: manifest,
+        onProgress: (p) => onProgress?.call(0.5 + p / 2),
+      );
+    } finally {
+      await _deleteZdbCandidate(candidate);
+    }
+  }
+
+  static Future<void> _deleteZdbCandidate(String candidate) async {
+    for (final suffix in ['', '-zovl', '-zlck', '.new', '.new-zlck']) {
+      await _deleteEntity('$candidate$suffix');
+    }
+  }
+
+  /// seforim.zdb ולוואיו, בלי `-zlck` (ראו README של otzaria_zvfs).
+  static const _zdbFileSuffixes = ['', '-zovl', '-journal', '-wal', '-shm'];
+
+  /// seforim.db רגיל שנכתב לתיקייה עם seforim.zdb היה מוסתר על ידו ברזולבר.
+  static Future<void> _deleteZdbFamily(String dir) async {
+    final zdb = LibraryZdbFiles.zdbPathIn(dir);
+    for (final suffix in _zdbFileSuffixes.reversed) {
+      await _deleteEntity('$zdb$suffix');
     }
   }
 
@@ -483,6 +623,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     } catch (_) {
       await _deleteDbFamily(tempPath);
       rethrow;
+    }
+    if (path.basename(finalPath) == DatabaseConstants.databaseFileName) {
+      await _deleteZdbFamily(path.dirname(finalPath));
     }
   }
 
@@ -546,8 +689,21 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     String target,
   ) async {
     final dbName = DatabaseConstants.databaseFileName;
-    final family = {for (final s in _dbFileSuffixes) '$dbName$s'};
+    final zdbName = DatabaseConstants.zdbDatabaseFileName;
+    final family = {
+      for (final s in _dbFileSuffixes) '$dbName$s',
+      for (final s in [..._zdbFileSuffixes, '-zlck']) '$zdbName$s',
+    };
     await _renameEntriesOver(staging, target, skip: family);
+    // rename על בסיס zdb היה משאיר לידו overlay של הבסיס הקודם.
+    final stagedZdb = File(path.join(staging, zdbName));
+    if (await stagedZdb.exists()) {
+      if (await File('${stagedZdb.path}-zovl').exists()) {
+        await compactLibraryZdb(stagedZdb.path);
+      }
+      await _installZdbCandidate(stagedZdb.path, target);
+      return;
+    }
     final stagedDb = File(path.join(staging, dbName));
     if (!await stagedDb.exists()) return;
     await _deleteDbFamily(path.join(target, dbName));
@@ -584,7 +740,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         .toList();
     if (backups.isEmpty) return;
     Directory? newest;
-    if (!await File(path.join(dir, dbName)).exists()) {
+    if (!await DatabaseConstants.libraryDbExistsIn(dir)) {
       DateTime? newestTime;
       for (final backup in backups) {
         final db = File(path.join(backup.path, dbName));
@@ -759,6 +915,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
   /// מעתיק את seforim.db (ולוואיו) מתיקיית המקור אל היעד (דורס אם קיים).
   Future<void> _copyDatabaseFiles(String sourceDir, String targetDir) async {
+    final sourceActive = DatabaseConstants.resolveLibraryDbPath(sourceDir);
+    if (isZdbPath(sourceActive)) {
+      await _importZdbFile(File(sourceActive), targetDir);
+      return;
+    }
     final sourceDb = File(
       path.join(sourceDir, DatabaseConstants.databaseFileName),
     );
@@ -801,10 +962,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       }
 
       // מחפש את המסד בתיקייה שנבחרה (ללא חיפוש עמוק)
-      final dbFilePath = path.join(
-        directoryPath,
-        DatabaseConstants.databaseFileName,
-      );
+      final dbFilePath = DatabaseConstants.resolveLibraryDbPath(directoryPath);
       final dbFile = File(dbFilePath);
 
       if (!await dbFile.exists()) {
@@ -821,7 +979,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       // [בדיקת אנדרואיד] זרימת SAF: העתקת seforim.db מאחסון לא-נגיש ל-native
       // אל אחסון פנימי. לא נגישה מ-UI כרגע — לאמת על מכשיר לפני שינוי.
       if (Platform.isAndroid && !_isPathNativeAccessible(dbFilePath)) {
-        final internalDbPath = await _getInternalDbPath();
+        final internalDbPath = await _getInternalDbPath(
+          path.basename(dbFilePath),
+        );
         final dbStat = await dbFile.stat();
         final dbSize = dbStat.size;
         final appDir = await getApplicationDocumentsDirectory();
@@ -850,6 +1010,13 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           final destFile = File(internalDbPath);
           await destFile.parent.create(recursive: true);
           await File(dbFilePath).openRead().pipe(destFile.openWrite());
+          // בסיס zdb בלי ה-overlay שלו הוא גרסה ישנה יותר של הספרייה.
+          final overlay = File('$dbFilePath-zovl');
+          if (await overlay.exists()) {
+            await overlay.openRead().pipe(
+              File('$internalDbPath-zovl').openWrite(),
+            );
+          }
 
           // העתקה הצליחה — שמור הגדרות והמשך
           await Settings.setValue(
@@ -940,13 +1107,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   }
 
   /// מחזיר את הנתיב הפנימי שאליו יועתק seforim.db ב-Android.
-  static Future<String> _getInternalDbPath() async {
+  static Future<String> _getInternalDbPath([
+    String fileName = DatabaseConstants.databaseFileName,
+  ]) async {
     final appDir = await getApplicationDocumentsDirectory();
-    return path.join(
-      appDir.path,
-      'otzaria',
-      DatabaseConstants.databaseFileName,
-    );
+    return path.join(appDir.path, 'otzaria', fileName);
   }
 
   /// מחזיר מידע df עבור נתיב נתון: filesystem ומקום פנוי בבייטים.
@@ -997,7 +1162,10 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   ///
   /// מחזיר הודעת שגיאה אם אין מספיק מקום, או null אם הכל תקין.
   /// מטפל גם בתרחיש שבו temp ותיקיית הספרייה חולקים אותו volume.
-  Future<String?> _checkSpaceForDownload({int? downloadSize}) async {
+  Future<String?> _checkSpaceForDownload({
+    int? downloadSize,
+    bool mainDbIsZdb = false,
+  }) async {
     if (!Platform.isAndroid) return null;
 
     // הספרייה שמורה על כרטיס SD שאינו זמין כרגע — הורדה חדשה תיצור ספרייה
@@ -1019,7 +1187,8 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     // הקבוע בהתאם — אחרת בדיקת הסף הראשונית עלולה לעבור בטעות במכשירים עם
     // מעט מקום (הבדיקה האמיתית מול grandTotal עדיין תתפוס זאת בהמשך).
     final int kDownloadSize = downloadSize ?? 1610612736; // אומדן 1.5 GB
-    const int kExtractSize = 6979321856; // 6.5 GB
+    // zdb אינו מחולץ: הוא והנלווים תופסים ביעד בערך את גודל ההורדה.
+    final int kExtractSize = mainDbIsZdb ? kDownloadSize : 6979321856;
 
     final tempPath = Directory.systemTemp.path;
     final libraryPath =
@@ -1205,9 +1374,12 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           .where(
             (entity) =>
                 entity is File &&
-                entity.path.toLowerCase().endsWith(
-                  DatabaseConstants.databaseFileName,
-                ),
+                (entity.path.toLowerCase().endsWith(
+                      DatabaseConstants.databaseFileName,
+                    ) ||
+                    entity.path.toLowerCase().endsWith(
+                      DatabaseConstants.zdbDatabaseFileName,
+                    )),
           )
           .cast<File>()
           .toList();
@@ -1266,6 +1438,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   ) async {
     {
       final latestAsset = await _fetchLatestDatabaseAsset();
+      final zdbManifest = latestAsset.isZdb
+          ? await _fetchZdbManifest(latestAsset)
+          : null;
 
       // ה-release האחרון של otzaria-library לא תמיד מכיל את התלמוד (יש בו גם
       // releases של fordb) — מאתרים דרך ה-API, עם fallback לכתובת ה-latest.
@@ -1287,15 +1462,34 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       // שלושת הקבצים מורדים יחד ואז מחולצים יחד. פס ההתקדמות בשני השלבים
       // מתייחס לסכום שלושתם; רק כותרת המשנה משתנה לפי הקובץ הנוכחי.
       final assets = <_DownloadAsset>[
-        _DownloadAsset(
-          url: latestAsset.downloadUrl,
-          tempFileName: 'otzaria_${latestAsset.assetName}',
-          downloadTitle: 'מוריד את ספריית אוצריא',
-          extractTitle: 'מחלץ את ספריית אוצריא',
-          isTar: false,
-          outputFileName: DatabaseConstants.databaseFileName,
-          isMainDb: true,
-        ),
+        if (zdbManifest != null)
+          // ליד היעד: ההתקנה היא rename, שנכשל בין כוננים.
+          _DownloadAsset(
+            url: latestAsset.downloadUrl,
+            tempFileName: path.basename(
+              LibraryZdbFiles.downloadPathFor(
+                DatabaseConstants.zdbDatabaseFileName,
+              ),
+            ),
+            downloadDir: libraryPath,
+            downloadTitle: 'מוריד את ספריית אוצריא',
+            extractTitle: 'מאמת ומתקין את ספריית אוצריא',
+            isTar: false,
+            outputFileName: DatabaseConstants.zdbDatabaseFileName,
+            isMainDb: true,
+            sha256: zdbManifest.sha256,
+            zdbManifest: zdbManifest,
+          )
+        else
+          _DownloadAsset(
+            url: latestAsset.downloadUrl,
+            tempFileName: 'otzaria_${latestAsset.assetName}',
+            downloadTitle: 'מוריד את ספריית אוצריא',
+            extractTitle: 'מחלץ את ספריית אוצריא',
+            isTar: false,
+            outputFileName: DatabaseConstants.databaseFileName,
+            isMainDb: true,
+          ),
         _DownloadAsset(
           url:
               talmudRelease?.assetUrl ??
@@ -1359,6 +1553,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       // אומדן קבוע). גם safety net למצב שהדיסק התמלא אחרי טעינת המסך.
       final spaceError = await _checkSpaceForDownload(
         downloadSize: grandTotal > 0 ? grandTotal : null,
+        mainDbIsZdb: zdbManifest != null,
       );
       if (spaceError != null) {
         _downloadDisabledReason = spaceError;
@@ -1452,7 +1647,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     required DownloadEtaEstimator estimator,
     required Emitter<EmptyLibraryState> emit,
   }) async {
-    final tempPath = path.join(Directory.systemTemp.path, asset.tempFileName);
+    final tempPath = asset.localPath;
     final tempFile = File(tempPath);
     final identity =
         asset.identity ?? '${asset.resolvedUrl}|${asset.compressedSize}';
@@ -1552,7 +1747,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     required String outputDir,
     required Emitter<EmptyLibraryState> emit,
   }) async {
-    final tempPath = path.join(Directory.systemTemp.path, asset.tempFileName);
+    final tempPath = asset.localPath;
 
     void report(double assetProgress) {
       final combined = totalWeight > 0
@@ -1571,7 +1766,15 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     report(0.0);
 
     try {
-      if (asset.isTar) {
+      final zdbManifest = asset.zdbManifest;
+      if (zdbManifest != null) {
+        await _installZdbCandidate(
+          tempPath,
+          outputDir,
+          manifest: zdbManifest,
+          onProgress: report,
+        );
+      } else if (asset.isTar) {
         await _extractTarArchive(tempPath, outputDir, report);
         // עדיף digest: תגי otzaria-library מתחלפים כמעט יומית גם כשהתוכן זהה.
         await _writeTalmudVersionMarker(
@@ -1608,7 +1811,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           await _extractCompressedDatabase(tempPath, outputPath, report);
         }
       }
-    } catch (_) {
+    } catch (e) {
+      // busy: הקובץ שלם ומאומת, וההתקנה תצליח כשהספרייה תשתחרר.
+      if (e is LibraryZdbException && e.isBusy) rethrow;
       // חילוץ שנכשל על קובץ שלם (פגום/franken) משאיר temp שיגרום לדילוג על
       // ההורדה בניסיון הבא ולולאה אינסופית — מוחקים כדי לכפות הורדה מחדש.
       await File(tempPath).delete().catchError((_) => File(tempPath));
@@ -1748,6 +1953,26 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     return asset;
   }
 
+  /// המניפסט של ה-zdb שב-release, נבדק לפני הורדת ~2GB.
+  Future<FullDbManifest> _fetchZdbManifest(DatabaseReleaseAsset asset) async {
+    final response = await _httpClient
+        .get(Uri.parse(asset.manifestUrl!))
+        .timeout(downloadConnectTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('שגיאה בקבלת מניפסט הספרייה: ${response.statusCode}');
+    }
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('מניפסט הספרייה אינו תקין');
+    }
+    final manifest = FullDbManifest.fromJson(decoded);
+    if (manifest.file != asset.assetName) {
+      throw FormatException('המניפסט שייך ל-${manifest.file}');
+    }
+    checkZdbManifestSupported(manifest);
+    return manifest;
+  }
+
   @visibleForTesting
   /// מחלץ מתוך JSON של רליס את קובץ ה-DB הדחוס של הספרייה.
   static DatabaseReleaseAsset? parseLatestDatabaseAsset(
@@ -1772,8 +1997,18 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     // הסכמה הגבוהה ביותר שהגרסה הזו קוראת; ארכיון בסכמה חדשה יותר מדולג.
     for (final name in DatabaseConstants.supportedDatabaseArchiveFileNames) {
       final downloadUrl = urlsByName[name];
-      if (downloadUrl != null) {
+      if (downloadUrl == null) continue;
+      if (!isZdbPath(name)) {
         return DatabaseReleaseAsset(assetName: name, downloadUrl: downloadUrl);
+      }
+      // zdb בלי מניפסט אינו ניתן לאימות, ולכן אינו מוצע.
+      final manifestUrl = urlsByName[fullDbManifestNameFor(name)];
+      if (manifestUrl != null) {
+        return DatabaseReleaseAsset(
+          assetName: name,
+          downloadUrl: downloadUrl,
+          manifestUrl: manifestUrl,
+        );
       }
     }
 
@@ -1809,7 +2044,18 @@ class _DownloadAsset {
     this.isCompressed = true,
     this.optional = false,
     this.sha256,
+    this.downloadDir,
+    this.zdbManifest,
   });
+
+  /// תיקיית ההורדה; null — תיקיית ה-temp של המערכת.
+  final String? downloadDir;
+
+  /// מניפסט ה-DB כשהוא zdb: מאומת ומותקן במקום לחלץ אותו.
+  final FullDbManifest? zdbManifest;
+
+  String get localPath =>
+      path.join(downloadDir ?? Directory.systemTemp.path, tempFileName);
 
   /// כתובת ההורדה (לפני פתרון redirect).
   final String url;
@@ -1863,8 +2109,14 @@ class DatabaseReleaseAsset {
   const DatabaseReleaseAsset({
     required this.assetName,
     required this.downloadUrl,
+    this.manifestUrl,
   });
 
   final String assetName;
   final String downloadUrl;
+
+  /// מניפסט ה-zdb (`<name>.manifest.json`). חובה ל-zdb; null לארכיון zst.
+  final String? manifestUrl;
+
+  bool get isZdb => isZdbPath(assetName);
 }

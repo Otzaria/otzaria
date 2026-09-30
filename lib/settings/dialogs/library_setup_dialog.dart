@@ -119,6 +119,7 @@ Future<LibraryFolderScan> scanLibraryFolderAssets(String folder) async {
   String? probePath;
   final dbPath = await firstExisting([
     DatabaseConstants.databaseFileName,
+    DatabaseConstants.zdbDatabaseFileName,
     ...DatabaseConstants.supportedDatabaseArchiveFileNames,
   ]);
   if (dbPath != null) {
@@ -352,9 +353,7 @@ class _LibrarySetupDialogContentState
       dialogTitle: context.settingsText('בחר את תיקיית הספרייה הקיימת'),
     );
     if (folder == null || !mounted) return;
-    final hasDb = await File(
-      p.join(folder, DatabaseConstants.databaseFileName),
-    ).exists();
+    final hasDb = await DatabaseConstants.libraryDbExistsIn(folder);
     if (!mounted) return;
     setState(() {
       _inPlaceFolder = folder;
@@ -365,8 +364,10 @@ class _LibrarySetupDialogContentState
   Future<void> _pickSourceArchive() async {
     final file = await _pickFileWithCopyFeedback(
       action: _LibraryAction.chooseArchive,
-      allowedExtensions: const ['zip', 'zst'],
-      dialogTitle: context.settingsText('בחר ארכיון ספרייה (ZIP או ZST)'),
+      allowedExtensions: const ['zip', 'zst', 'zdb'],
+      dialogTitle: context.settingsText(
+        'בחר ארכיון או קובץ ספרייה (ZIP, ZST או ZDB)',
+      ),
     );
     if (file == null || !mounted) return;
     setState(() => _sourceArchive = file.path);
@@ -474,7 +475,9 @@ class _LibrarySetupDialogContentState
       return _copyingPickedFileText();
     }
     return _sourceArchive == null
-        ? context.settingsText('בחר קובץ ZIP או ZST המכיל את seforim.db')
+        ? context.settingsText(
+            'בחר קובץ ZIP או ZST המכיל את seforim.db, או קובץ ספרייה ZDB',
+          )
         : p.basename(_sourceArchive!);
   }
 

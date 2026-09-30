@@ -8,11 +8,15 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
+import 'package:otzaria/library_update/services/library_zdb_install.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
+
+import '../helpers/zdb_fixture.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -99,27 +103,35 @@ void main() {
         final asset = EmptyLibraryBloc.parseLatestDatabaseAsset({
           'assets': [
             {
-              'name': 'seforim-schema99.db.zst',
+              'name': 'seforim-schema99.zdb',
               'browser_download_url': 'https://example.com/s99',
+            },
+            {
+              'name': 'seforim-schema99.zdb.manifest.json',
+              'browser_download_url': 'https://example.com/s99.json',
             },
             {
               'name': 'seforim.db.zst',
               'browser_download_url': 'https://example.com/legacy',
             },
             {
-              'name': 'seforim-schema6.db.zst',
+              'name': 'seforim-schema6.zdb',
               'browser_download_url': 'https://example.com/s6',
+            },
+            {
+              'name': 'seforim-schema6.zdb.manifest.json',
+              'browser_download_url': 'https://example.com/s6.json',
             },
           ],
         });
 
-        expect(asset!.assetName, 'seforim-schema6.db.zst');
+        expect(asset!.assetName, 'seforim-schema6.zdb');
         expect(asset.downloadUrl, 'https://example.com/s6');
         expect(
           EmptyLibraryBloc.parseLatestDatabaseAsset({
             'assets': [
               {
-                'name': 'seforim-schema99.db.zst',
+                'name': 'seforim-schema99.zdb',
                 'browser_download_url': 'https://example.com/s99',
               },
             ],
@@ -2589,6 +2601,115 @@ void main() {
           containsAll([seforimUrl, talmudUrl, catalogUrl, lexicalUrl]),
         );
       },
+    );
+  });
+
+  // בקובץ הזה ולא בקובץ נפרד: ההורדה כותבת לשמות קבועים בתיקיית ה-temp,
+  // וקבצי בדיקה רצים במקביל.
+  group('התקנה ראשונה של seforim.zdb', () {
+    late Directory tmp;
+    late Directory library;
+    late String releaseZdb;
+
+    setUpAll(() => expect(ensureLibraryVfs(), isTrue));
+
+    setUp(() async {
+      tmp = Directory.systemTemp.createTempSync('empty_library_zdb_dl_');
+      library = Directory(path.join(tmp.path, 'library'))..createSync();
+      releaseZdb = path.join(tmp.path, 'seforim-schema6.zdb');
+      await writeFixtureZdb(releaseZdb, version: 4, marker: 'release');
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+      await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+      await Settings.setValue<String>(
+        SettingsRepository.keyDbEffectivePath,
+        '',
+      );
+    });
+
+    tearDown(() => tmp.deleteSync(recursive: true));
+
+    Future<EmptyLibraryState> finalState(EmptyLibraryBloc bloc) => bloc.stream
+        .firstWhere(
+          (s) => s is EmptyLibraryDirectorySelected || s is EmptyLibraryError,
+        )
+        .timeout(const Duration(seconds: 20));
+
+    test(
+      'DownloadLibraryRequested: zdb יורד ליד הספרייה, מאומת ומותקן',
+      () async {
+        final zdbBytes = File(releaseZdb).readAsBytesSync();
+        final manifest = fixtureManifestJsonFor(releaseZdb, dbVersion: 4);
+        final client = MockClient((request) async {
+          final url = request.url.toString();
+          if (url.contains('/repos/Otzaria/otzaria-library/releases/latest')) {
+            return http.Response(
+              jsonEncode({'tag_name': 'v1', 'assets': []}),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/releases/latest')) {
+            return http.Response(
+              jsonEncode({
+                'assets': [
+                  {
+                    'name': 'seforim-schema6.zdb',
+                    'browser_download_url': 'https://example.com/z.zdb',
+                  },
+                  {
+                    'name': 'seforim-schema6.zdb.manifest.json',
+                    'browser_download_url': 'https://example.com/z.json',
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (url == 'https://example.com/z.json') {
+            return http.Response(jsonEncode(manifest), 200);
+          }
+          if (url == 'https://example.com/z.zdb') {
+            return http.Response.bytes(zdbBytes, 200);
+          }
+          if (request.url.host == 'github.com') {
+            return http.Response.bytes(utf8.encode('companion'), 200);
+          }
+          return http.Response('not found', 404);
+        });
+        final bloc = EmptyLibraryBloc(
+          httpClient: client,
+          defaultLibraryPathOverride: library.path,
+          extractCompressedDatabase: (archive, output, _) async {
+            expect(path.basename(output), isNot(startsWith('seforim')));
+            await File(output).writeAsString('catalog');
+          },
+          extractTarArchive: (archive, outputDir, _) async {},
+        );
+        addTearDown(bloc.close);
+
+        final done = finalState(bloc);
+        bloc.add(DownloadLibraryRequested());
+        final state = await done;
+
+        expect(state, isA<EmptyLibraryDirectorySelected>());
+        final zdb = LibraryZdbFiles.zdbPathIn(library.path);
+        expect(readFixtureLibrary(zdb), (version: 4, marker: 'release'));
+        expect(DatabaseConstants.resolveLibraryDbPath(library.path), zdb);
+        expect(
+          File(LibraryZdbFiles.downloadPathFor(zdb)).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(
+            path.join(library.path, DatabaseConstants.databaseFileName),
+          ).existsSync(),
+          isFalse,
+        );
+        expect(
+          Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+          library.path,
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 60)),
     );
   });
 }
