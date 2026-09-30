@@ -42,6 +42,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   /// חותמת הזמן שממנה נגזרת תדירות הבדיקה האוטומטית בעלייה.
   final void Function()? onCheckSucceeded;
 
+  /// ייעול אחסון ה-zdb אחרי בדיקה או עדכון מוצלחים. null (בבדיקות) — מדלגים.
+  final LibraryStorageMaintainer? storageMaintainer;
+
   /// שעון — ניתן להזרקה לבדיקות ויסות ההתקדמות.
   final DateTime Function() _now;
 
@@ -77,6 +80,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     required this.areUpdatesEnabled,
     required this.allowPrerelease,
     this.companionAssets,
+    this.storageMaintainer,
     this.hasInternet = hasInternetConnection,
     this.isSourceReachable = isUpdateSourceReachable,
     this.onCheckSucceeded,
@@ -175,6 +179,8 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       onCheckSucceeded?.call();
       switch (plan.kind) {
         case LibraryUpdatePlanKind.none:
+          await _runStorageMaintenance(opId);
+          if (_isStale(opId)) return;
           final assetsChanged =
               await _runCompanionAssets(emit, opId) || _unreportedAssetsChange;
           // ביטול בזמן הנלווים אחרי שתלמוד/קטלוג כבר שונו: בלי completed עם
@@ -295,6 +301,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
         changedBookIds: deltaResult.changedBookIds,
         requiresFullIndexRefresh: deltaResult.requiresFullIndexRefresh,
       );
+      await _runStorageMaintenance(opId);
       await _runCompanionAssets(emit, opId);
       final completed = _pendingCompleted;
       _pendingCompleted = null;
@@ -468,6 +475,16 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     await _runDelta(plan, emit, opId);
   }
 
+  /// בסיס zdb חדש כשה-overlay גדל מדי. אינו זורק ואינו משנה את תוצאת העדכון.
+  Future<void> _runStorageMaintenance(int opId) async {
+    final maintainer = storageMaintainer;
+    if (maintainer == null || _isStale(opId)) return;
+    await maintainer.maintainLibraryStorage(
+      isCancelled: () => _isStale(opId),
+      onProgress: (progress) => _reportProgress(progress, opId),
+    );
+  }
+
   /// מוודא שהקבצים הנלווים (תלמוד, קטלוגים, מילון) קיימים ומעודכנים, בסוף
   /// כל בדיקת/החלת עדכון. best-effort — כשל לא הופך את העדכון לשגיאה.
   /// מחזיר האם תוכן הספרייה השתנה (ראה [CompanionAssetsService.verifyAndUpdate]).
@@ -602,9 +619,15 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     if (p.phase == LibraryUpdatePhase.done) return;
     final message = switch (p.phase) {
       LibraryUpdatePhase.checking => 'בודק עדכוני ספרייה',
+      LibraryUpdatePhase.downloading
+          when p.stage == LibraryUpdateRepository.zdbStageDownload =>
+        LibraryMessages.zdbFullDownloading,
       LibraryUpdatePhase.downloading =>
         'מוריד עדכון ספרייה'
             '${p.totalSteps > 1 ? ' (${p.stepIndex + 1}/${p.totalSteps})' : ''}',
+      LibraryUpdatePhase.verifying
+          when p.stage == LibraryUpdateRepository.zdbStageVerify =>
+        LibraryMessages.zdbFullVerifying,
       LibraryUpdatePhase.verifying => 'מאמת קובץ עדכון',
       LibraryUpdatePhase.applying =>
         _heavyDeltaNotice
@@ -613,6 +636,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
               )
             : _applyStageMessage(p.stage),
       LibraryUpdatePhase.refreshing => 'מרענן ספרייה',
+      LibraryUpdatePhase.optimizing => _optimizingMessage(p.stage),
       LibraryUpdatePhase.done => 'מסיים',
     };
     final status = switch (p.phase) {
@@ -621,6 +645,10 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       LibraryUpdatePhase.verifying => LibraryUpdateStatus.applying,
       LibraryUpdatePhase.applying => LibraryUpdateStatus.applying,
       LibraryUpdatePhase.refreshing => LibraryUpdateStatus.refreshing,
+      LibraryUpdatePhase.optimizing =>
+        p.stage == LibraryUpdateRepository.zdbStageDownload
+            ? LibraryUpdateStatus.downloading
+            : LibraryUpdateStatus.applying,
       LibraryUpdatePhase.done => LibraryUpdateStatus.checking,
     };
     emit(
@@ -647,7 +675,19 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     'verifyToHash' => 'מאמת את הספרייה המעודכנת',
     'verifyDeferred' => 'בודק את שאר הספרייה (ניתן להמשיך לקרוא)',
     'commit' => 'שומר שינויים',
+    LibraryUpdateRepository.zdbStageInstall =>
+      LibraryMessages.zdbFullInstalling,
     _ => 'מחיל עדכון',
+  };
+
+  String _optimizingMessage(String? stage) => switch (stage) {
+    LibraryUpdateRepository.zdbStageDownload =>
+      LibraryMessages.storageOptimizingDownload,
+    LibraryUpdateRepository.zdbStageVerify =>
+      LibraryMessages.storageOptimizingVerify,
+    LibraryUpdateRepository.zdbStageInstall =>
+      LibraryMessages.storageOptimizingInstall,
+    _ => LibraryMessages.storageOptimizingCompact,
   };
 
   String _formatSize(int bytes) {

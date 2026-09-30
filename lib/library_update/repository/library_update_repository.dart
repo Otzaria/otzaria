@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -10,6 +11,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/sqlite/library_vfs.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as p;
@@ -18,6 +20,7 @@ import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 import '../services/library_access_gate.dart';
 import '../services/library_runtime_refresh_service.dart';
+import '../services/library_zdb_install.dart';
 import '../services/streaming_patch_downloader.dart';
 import '../services/update_sqlite_setup.dart';
 
@@ -28,6 +31,9 @@ enum LibraryUpdatePhase {
   verifying,
   applying,
   refreshing,
+
+  /// ייעול אחסון ה-zdb אחרי עדכון: בסיס חדש או דחיסה (ראו [LibraryUpdateProgress.stage]).
+  optimizing,
   done,
 }
 
@@ -77,14 +83,39 @@ class LibraryUpdateDiskSpaceException implements Exception {
   String toString() => message;
 }
 
-/// הורדה מלאה אינה נתמכת כשהספרייה הפעילה היא seforim.zdb: ה-DB שהורד הוא
-/// SQLite רגיל, ובסיס zdb מוחלף רק דרך installZdb (שלב A3).
+/// הורדה מלאה בפורמט הישן (`seforim.db.zst`) כשהספרייה הפעילה היא seforim.zdb:
+/// הארכיון מחולץ ל-SQLite רגיל, ובסיס zdb מוחלף רק דרך installZdb.
 class LibraryUpdateZdbFullDownloadUnsupportedException implements Exception {
   const LibraryUpdateZdbFullDownloadUnsupportedException();
 
   @override
   String toString() =>
-      'הורדה מלאה של הספרייה עדיין אינה נתמכת בספרייה דחוסה (seforim.zdb)';
+      'הורדה מלאה בפורמט הישן (seforim.db.zst) אינה נתמכת בספרייה דחוסה '
+      '(seforim.zdb)';
+}
+
+/// תוצאת [LibraryStorageMaintainer.maintainLibraryStorage].
+enum LibraryStorageMaintenance {
+  /// אין zdb, או שה-overlay קטן מהסף.
+  notNeeded,
+
+  /// הותקן בסיס עדכני שהורד (ה-overlay נמחק).
+  rebased,
+
+  /// בסיס + overlay נדחסו מקומית לבסיס חדש.
+  compacted,
+
+  /// נדרש, אך נדחה לבדיקה הבאה (busy, אין מקום, המשתמש קורא, ביטול).
+  deferred,
+}
+
+/// ייעול אחסון הספרייה אחרי עדכון. נפרד מ-[LibraryUpdateService] כי אינו
+/// חלק מתוכנית העדכון, ולעולם אינו מכשיל אותה.
+abstract interface class LibraryStorageMaintainer {
+  Future<LibraryStorageMaintenance> maintainLibraryStorage({
+    LibraryUpdateProgressCallback? onProgress,
+    bool Function()? isCancelled,
+  });
 }
 
 /// תוצאת מסלול דלתא ברמת האפליקציה.
@@ -172,7 +203,8 @@ abstract interface class LibraryUpdateService {
 
 /// מתזמר את כל תהליך עדכון הספרייה: התאוששות, בדיקת עדכון, הורדה, החלת
 /// patches (אטומית, ב-Isolate), וריענון runtime.
-class LibraryUpdateRepository implements LibraryUpdateService {
+class LibraryUpdateRepository
+    implements LibraryUpdateService, LibraryStorageMaintainer {
   final LibraryUpdateDiscovery discovery;
   final LibraryUpdatePlanner planner;
   final LocalDbVersionReader versionReader;
@@ -192,6 +224,13 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   final Future<PatchApplier> Function() applierProvider;
   final Future<void> Function() sqliteTempDirectoryInitializer;
 
+  /// האם מותר להשעות את הספרייה לדקות לדחיסה מקומית (המשתמש אינו קורא).
+  final bool Function() isLibraryIdle;
+
+  /// נקרא אחרי ש-seforim.zdb החליף את seforim.db, להעברת הגדרת הנתיב.
+  final Future<void> Function(String legacyPath, String zdbPath)
+  onLegacyDbReplaced;
+
   LibraryUpdateRepository({
     required this.discovery,
     this.planner = const LibraryUpdatePlanner(
@@ -209,7 +248,12 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     Future<DiskSpaceInfo> Function(String dirPath)? diskSpaceProvider,
     Future<PatchApplier> Function()? applierProvider,
     Future<void> Function()? sqliteTempDirectoryInitializer,
-  }) : dbPathProvider = dbPathProvider ?? DatabaseConstants.getDatabasePath,
+    bool Function()? isLibraryIdle,
+    Future<void> Function(String legacyPath, String zdbPath)?
+    onLegacyDbReplaced,
+  }) : isLibraryIdle = isLibraryIdle ?? _neverIdle,
+       onLegacyDbReplaced = onLegacyDbReplaced ?? _retargetEffectiveDbPath,
+       dbPathProvider = dbPathProvider ?? DatabaseConstants.getDatabasePath,
        dataRootProvider = dataRootProvider ?? AppPaths.getDataRootPath,
        nowTimestamp = nowTimestamp ?? (() => DateTime.now().toIso8601String()),
        fullDbExtractor = fullDbExtractor ?? _defaultFullDbExtractor,
@@ -221,6 +265,28 @@ class LibraryUpdateRepository implements LibraryUpdateService {
        sqliteTempDirectoryInitializer =
            sqliteTempDirectoryInitializer ??
            _installSqliteTempDirectoryWhenQuiesced;
+
+  static bool _neverIdle() => false;
+
+  /// באנדרואיד המסד עשוי לשבת בעותק פנימי שנתיבו שמור בהגדרות.
+  static Future<void> _retargetEffectiveDbPath(
+    String legacyPath,
+    String zdbPath,
+  ) async {
+    final key = SettingsRepository.keyDbEffectivePath;
+    if (Settings.getValue<String>(key) != legacyPath) return;
+    await Settings.setValue<String>(key, zdbPath);
+  }
+
+  // ה-plan אינו נושא את מניפסט ה-DB המלא; נשמר מהבדיקה האחרונה.
+  ReleaseAsset? _latestFullDbAsset;
+  FullDbManifest? _latestFullDbManifest;
+  bool _lastAllowPrerelease = false;
+
+  void _rememberDiscovery(LibraryDiscoveryResult result) {
+    _latestFullDbAsset = result.latestFullDbAsset;
+    _latestFullDbManifest = result.latestFullDbManifest;
+  }
 
   static Future<void> _installSqliteTempDirectoryWhenQuiesced() async {
     final setup = LibraryUpdateSqliteSetup.instance;
@@ -281,7 +347,9 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   }) async {
     final dbPath = _libraryDbPath();
     final local = versionReader.read(dbPath);
+    _lastAllowPrerelease = allowPrerelease;
     final result = await discovery.discover(allowPrerelease: allowPrerelease);
+    _rememberDiscovery(result);
     return planner.plan(
       localDbSizeBytes: isZdbPath(dbPath)
           ? await _zdbLogicalSizeOrNull(dbPath)
@@ -707,10 +775,8 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
   }
 
-  /// מבצע הורדה מלאה: מוריד את `seforim.db.zst`, מחלץ בזרימה ליד ה-DB,
-  /// מאמת (quick_check + גרסה), ומחליף אטומית את ה-DB הישן.
-  ///
-  /// נקרא רק אחרי אישור מפורש של המשתמש (ההורדה גדולה — ~1.1GB).
+  /// הורדה מלאה, רק אחרי אישור המשתמש (~2GB). zdb: אימות מול המניפסט והתקנה
+  /// ב-installZdb (כך seforim.db עובר ל-zdb); zst: חילוץ, quick_check ו-rename.
   @override
   Future<void> applyFullDownload(
     LibraryUpdatePlan plan, {
@@ -723,6 +789,32 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       throw StateError('אין DB מלא בתוכנית');
     }
     final dbPath = _libraryDbPath();
+    if (asset.fullDbContainer == FullDbContainer.zdb) {
+      final manifest = await _fullDbManifestFor(asset);
+      final target = plan.targetVersion;
+      if (target != null && manifest.dbVersion != target) {
+        throw LibraryZdbVerificationException(
+          'גרסת קובץ הספרייה (${manifest.dbVersion}) אינה הגרסה הצפויה '
+          '($target)',
+        );
+      }
+      await _downloadAndInstallZdb(
+        activeDbPath: dbPath,
+        asset: asset,
+        manifest: manifest,
+        onProgress: onProgress,
+        isCancelled: isCancelled,
+        onDbReplaced: onDbReplaced,
+      );
+      onProgress?.call(
+        const LibraryUpdateProgress(phase: LibraryUpdatePhase.refreshing),
+      );
+      await refreshService.refreshAfterDbUpdate();
+      onProgress?.call(
+        const LibraryUpdateProgress(phase: LibraryUpdatePhase.done),
+      );
+      return;
+    }
     // `$dbPath.new` הוא שם הזמני של הדחיסה ב-zvfs, ו-rename על הבסיס משאיר
     // -zovl שקשור לבסיס הישן. נחסם לפני כל הורדה או מחיקה.
     if (isZdbPath(dbPath)) {
@@ -813,6 +905,348 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       _deleteDbWithSidecarsQuietly(newDbPath);
       rethrow;
     }
+  }
+
+  /// המניפסט של [asset] מהבדיקה האחרונה; בלעדיו (plan ישן) — גילוי מחדש.
+  Future<FullDbManifest> _fullDbManifestFor(ReleaseAsset asset) async {
+    var manifest = _latestFullDbManifest;
+    if (!_manifestMatches(manifest, asset)) {
+      final result = await discovery.discover(
+        allowPrerelease: _lastAllowPrerelease,
+      );
+      _rememberDiscovery(result);
+      manifest = result.latestFullDbManifest;
+    }
+    if (manifest == null || !_manifestMatches(manifest, asset)) {
+      throw FullDbManifestException(
+        'אין מניפסט תואם ל-${asset.name}; לא ניתן לאמת את ההורדה',
+      );
+    }
+    return manifest;
+  }
+
+  static bool _manifestMatches(FullDbManifest? manifest, ReleaseAsset asset) =>
+      manifest != null &&
+      manifest.file == asset.name &&
+      manifest.size == asset.size;
+
+  /// מוריד את ה-zdb ליד המסד, מאמת ומתקין אותו כ-seforim.zdb. [phase] — השלב
+  /// לכל הדיווחים, כשזו אינה הורדה מלאה שהמשתמש ביקש.
+  Future<void> _downloadAndInstallZdb({
+    required String activeDbPath,
+    required ReleaseAsset asset,
+    required FullDbManifest manifest,
+    LibraryUpdatePhase? phase,
+    LibraryUpdateProgressCallback? onProgress,
+    bool Function()? isCancelled,
+    FullDbReplacedCallback? onDbReplaced,
+  }) async {
+    checkZdbManifestSupported(manifest);
+    final dbDir = p.dirname(activeDbPath);
+    final zdbPath = LibraryZdbFiles.zdbPathIn(dbDir);
+    final downloadPath = LibraryZdbFiles.downloadPathFor(zdbPath);
+    final sidecarPath = PatchDownloader.resumeSidecarPath(downloadPath);
+    void report(
+      LibraryUpdatePhase own,
+      String stage, {
+      int? downloaded,
+      int? total,
+      double? fraction,
+    }) => onProgress?.call(
+      LibraryUpdateProgress(
+        phase: phase ?? own,
+        stage: stage,
+        bytesDownloaded: downloaded,
+        bytesTotal: total,
+        applyProgress: fraction,
+      ),
+    );
+
+    await _ensureDiskSpaceForZdbDownload(
+      downloadPath: downloadPath,
+      size: manifest.size,
+      dbDir: dbDir,
+    );
+
+    report(LibraryUpdatePhase.downloading, zdbStageDownload);
+    await downloader.downloadToFile(
+      url: asset.downloadUrl,
+      destPath: downloadPath,
+      expectedSize: manifest.size,
+      expectedSha256: manifest.sha256,
+      resumeToken:
+          '${asset.downloadUrl}|${manifest.size}|${manifest.sha256}|'
+          '${asset.id ?? ''}|${asset.updatedAt ?? ''}',
+      isCancelled: isCancelled,
+      onProgress: (downloaded, total) => report(
+        LibraryUpdatePhase.downloading,
+        zdbStageDownload,
+        downloaded: downloaded,
+        total: total,
+      ),
+    );
+    _throwIfCancelled(isCancelled);
+
+    report(LibraryUpdatePhase.verifying, zdbStageVerify);
+    try {
+      await verifyZdbCandidate(downloadPath, manifest: manifest);
+      // הפענוח המלא רץ כאן, מחוץ לשער: הספרייה נשארת פתוחה לקריאה בזמנו.
+      await verifyLibraryZdbFrames(
+        downloadPath,
+        onProgress: (done, total) => report(
+          LibraryUpdatePhase.verifying,
+          zdbStageVerify,
+          fraction: total > 0 ? (done / total).clamp(0.0, 1.0) : null,
+        ),
+      );
+    } on LibraryZdbVerificationException {
+      _deleteDownloadStateQuietly(downloadPath, sidecarPath);
+      rethrow;
+    } on LibraryZdbException catch (error) {
+      // קובץ פגום שנשמר היה נמצא שלם בריצה הבאה ונכשל שוב בלולאה.
+      if (!error.isBusy) _deleteDownloadStateQuietly(downloadPath, sidecarPath);
+      rethrow;
+    }
+    _throwIfCancelled(isCancelled);
+
+    report(LibraryUpdatePhase.applying, zdbStageInstall);
+    await _installZdbInQueue(
+      activeDbPath: activeDbPath,
+      zdbPath: zdbPath,
+      candidatePath: downloadPath,
+      isCancelled: isCancelled,
+      onDbReplaced: onDbReplaced,
+    );
+    _deleteQuietly(sidecarPath);
+  }
+
+  /// תת-השלבים של הורדת zdb ושל הדחיסה, ב-[LibraryUpdateProgress.stage].
+  static const String zdbStageDownload = 'zdbDownload';
+  static const String zdbStageVerify = 'zdbVerify';
+  static const String zdbStageInstall = 'zdbInstall';
+  static const String zdbStageCompact = 'zdbCompact';
+
+  /// מתקין כשהספרייה סגורה בכל החלונות. בלי גיבוי ה-updater: installZdb שומר
+  /// את הבסיס הישן עד ה-rename, וקריסה משאירה בסיס עקבי — אין מה לשחזר.
+  Future<void> _installZdbInQueue({
+    required String activeDbPath,
+    required String zdbPath,
+    required String candidatePath,
+    bool Function()? isCancelled,
+    FullDbReplacedCallback? onDbReplaced,
+  }) {
+    return DatabaseLibraryProvider.operationQueue.enqueue(() async {
+      _throwIfCancelled(isCancelled);
+      await accessGate.runExclusive(
+        dbPath: activeDbPath,
+        body: (scope) async {
+          _throwIfCancelled(isCancelled);
+          final overlay = File('$zdbPath-zovl');
+          final hadOverlay = overlay.existsSync();
+          try {
+            // הפענוח המלא כבר רץ ב-[_downloadAndInstallZdb], מחוץ לשער.
+            await installLibraryZdb(zdbPath, candidatePath, verify: false);
+          } on LibraryZdbException {
+            // כשל אחרי המחיקות משאיר את הבסיס הישן בלי ה-overlay: תוכן אחר.
+            if (hadOverlay && !overlay.existsSync()) scope.markDbReplaced();
+            rethrow;
+          }
+          scope.markDbReplaced();
+          try {
+            onDbReplaced?.call();
+          } catch (error, stackTrace) {
+            debugPrint(
+              'Full DB replacement callback failed: $error\n$stackTrace',
+            );
+          }
+          if (activeDbPath != zdbPath) {
+            await _retireLegacyDb(activeDbPath, zdbPath);
+          }
+        },
+      );
+    });
+  }
+
+  /// אחרי מעבר ל-zdb: מוחק את seforim.db הישן. כשל אינו מכשיל את ההתקנה —
+  /// הרזולבר כבר בוחר ב-zdb, וניקוי העלייה ינסה שוב.
+  Future<void> _retireLegacyDb(String legacyPath, String zdbPath) async {
+    try {
+      await onLegacyDbReplaced(legacyPath, zdbPath);
+    } catch (error, stackTrace) {
+      _logQuietly('Library Update: effective DB path', error, stackTrace);
+    }
+    recovery.clearStaleArtifacts(legacyPath);
+    try {
+      await deleteLegacyLibraryDb(p.dirname(legacyPath));
+    } catch (error, stackTrace) {
+      _logQuietly('Library Update: legacy DB cleanup', error, stackTrace);
+    }
+  }
+
+  void _logQuietly(String title, Object error, StackTrace? stackTrace) {
+    debugPrint('$title: $error');
+    try {
+      ErrorLogFile.append(title: title, error: error, stackTrace: stackTrace);
+    } catch (_) {}
+  }
+
+  /// ה-zdb אינו מחולץ: המקום הנדרש הוא ההורדה בלבד, ליד המסד.
+  Future<void> _ensureDiskSpaceForZdbDownload({
+    required String downloadPath,
+    required int size,
+    required String dbDir,
+  }) async {
+    final partial = File(downloadPath);
+    final resumed = partial.existsSync() ? partial.lengthSync() : 0;
+    final needed = (size - resumed).clamp(0, size);
+    final info = await diskSpaceProvider(dbDir);
+    if (info.freeBytes >= 0 && info.freeBytes < needed) {
+      String gb(int bytes) => (bytes / (1 << 30)).toStringAsFixed(1);
+      throw LibraryUpdateDiskSpaceException(
+        'אין מספיק מקום פנוי להורדת הספרייה: נדרש ~${gb(needed)}GB ליד '
+        'הספרייה, פנוי ${gb(info.freeBytes)}GB',
+      );
+    }
+  }
+
+  /// overlay מעל [kZdbOverlayRebaseRatio]: מוריד בסיס עדכני, ובכשל דוחס מקומית.
+  /// היחס בדיסק הוא הסימון לבדיקה הבאה; אינו זורק (busy וכו' — deferred).
+  @override
+  Future<LibraryStorageMaintenance> maintainLibraryStorage({
+    LibraryUpdateProgressCallback? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    try {
+      final dbPath = _libraryDbPath();
+      if (!isZdbPath(dbPath)) return LibraryStorageMaintenance.notNeeded;
+      final ratio = await zdbOverlayRatio(dbPath);
+      if (ratio == null || ratio <= kZdbOverlayRebaseRatio) {
+        // אין הורדה מלאה שממתינה לה: שארית של ~2GB הייתה נשארת לתמיד.
+        final download = LibraryZdbFiles.downloadPathFor(dbPath);
+        _deleteDownloadStateQuietly(
+          download,
+          PatchDownloader.resumeSidecarPath(download),
+        );
+        return LibraryStorageMaintenance.notNeeded;
+      }
+      final rebase = await _rebaseFromLatestFullDb(
+        dbPath,
+        onProgress: onProgress,
+        isCancelled: isCancelled,
+      );
+      if (rebase != null) return rebase;
+      return await _compactOverlay(
+        dbPath,
+        onProgress: onProgress,
+        isCancelled: isCancelled,
+      );
+    } catch (error, stackTrace) {
+      _logQuietly('Library Update: storage maintenance', error, stackTrace);
+      return LibraryStorageMaintenance.deferred;
+    }
+  }
+
+  /// null — אין בסיס עדכני להתקין או שההורדה נכשלה, ולכן עוברים לדחיסה.
+  Future<LibraryStorageMaintenance?> _rebaseFromLatestFullDb(
+    String dbPath, {
+    LibraryUpdateProgressCallback? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    final asset = _latestFullDbAsset;
+    final manifest = _latestFullDbManifest;
+    if (asset == null ||
+        manifest == null ||
+        asset.fullDbContainer != FullDbContainer.zdb ||
+        !_manifestMatches(manifest, asset)) {
+      return null;
+    }
+    final local = await _localDbVersionInIsolate(dbPath);
+    // בסיס ישן מהמקומי היה מחזיר את הספרייה לאחור.
+    if (manifest.dbVersion < local) return null;
+    try {
+      await _downloadAndInstallZdb(
+        activeDbPath: dbPath,
+        asset: asset,
+        manifest: manifest,
+        phase: LibraryUpdatePhase.optimizing,
+        onProgress: onProgress,
+        isCancelled: isCancelled,
+      );
+    } on PatchDownloadCancelled {
+      return LibraryStorageMaintenance.deferred;
+    } on LibraryZdbException catch (error, stackTrace) {
+      if (!error.isBusy) {
+        _logQuietly('Library Update: rebase failed', error, stackTrace);
+        return null;
+      }
+      _logQuietly('Library Update: rebase deferred (busy)', error, stackTrace);
+      return LibraryStorageMaintenance.deferred;
+    } on LibrarySuspendFailed {
+      return LibraryStorageMaintenance.deferred;
+    } on LibraryStillOpenException {
+      return LibraryStorageMaintenance.deferred;
+    } catch (error, stackTrace) {
+      _logQuietly('Library Update: rebase download failed', error, stackTrace);
+      return null;
+    }
+    onProgress?.call(
+      const LibraryUpdateProgress(phase: LibraryUpdatePhase.refreshing),
+    );
+    await refreshService.refreshAfterDbUpdate();
+    return LibraryStorageMaintenance.rebased;
+  }
+
+  // static: ה-closure של Isolate.run לוכד את כל ה-scope, ו-this אינו sendable.
+  static Future<int> _localDbVersionInIsolate(String dbPath) => Isolate.run(() {
+    ensureLibraryVfs();
+    return const LocalDbVersionReader().read(dbPath).dbVersion;
+  });
+
+  /// הגיבוי לבסיס חדש: דוחס בסיס + overlay כשהמשתמש אינו קורא ויש מקום.
+  /// הספרייה מושעית בכל החלונות לכל משך הדחיסה.
+  Future<LibraryStorageMaintenance> _compactOverlay(
+    String dbPath, {
+    LibraryUpdateProgressCallback? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    if (!isLibraryIdle()) return LibraryStorageMaintenance.deferred;
+    final overlay = File('$dbPath-zovl');
+    final needed =
+        File(dbPath).lengthSync() +
+        (overlay.existsSync() ? overlay.lengthSync() : 0);
+    final space = await diskSpaceProvider(p.dirname(dbPath));
+    if (space.freeBytes >= 0 && space.freeBytes < needed) {
+      debugPrint('Library Update: no space to compact ($needed bytes)');
+      return LibraryStorageMaintenance.deferred;
+    }
+    void report(double? fraction) => onProgress?.call(
+      LibraryUpdateProgress(
+        phase: LibraryUpdatePhase.optimizing,
+        stage: zdbStageCompact,
+        applyProgress: fraction,
+      ),
+    );
+    report(null);
+    try {
+      await DatabaseLibraryProvider.operationQueue.enqueue(() async {
+        _throwIfCancelled(isCancelled);
+        // התוכן זהה, ולכן בלי markDbReplaced: החלונות רק פותחים מחדש.
+        await accessGate.runExclusive(
+          dbPath: dbPath,
+          body: (_) => compactLibraryZdb(
+            dbPath,
+            onProgress: (done, total) =>
+                report(total > 0 ? (done / total).clamp(0.0, 1.0) : null),
+          ),
+        );
+      });
+    } on PatchDownloadCancelled {
+      return LibraryStorageMaintenance.deferred;
+    } catch (error, stackTrace) {
+      _logQuietly('Library Update: compaction deferred', error, stackTrace);
+      return LibraryStorageMaintenance.deferred;
+    }
+    return LibraryStorageMaintenance.compacted;
   }
 
   /// מוחק קובץ DB יחד עם קובצי ה-wal/-shm שלו — בלעדיהם בדיקת ה-DB שהורד

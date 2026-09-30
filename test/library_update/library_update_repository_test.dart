@@ -1135,7 +1135,7 @@ void main() {
                   'prerelease': false,
                   'assets': [
                     {
-                      'name': 'seforim-schema7.db.zst',
+                      'name': 'seforim-schema7.zdb',
                       'browser_download_url': 'https://example.com/schema7',
                       'size': 100,
                     },

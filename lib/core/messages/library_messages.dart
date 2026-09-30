@@ -165,4 +165,19 @@ abstract class LibraryMessages {
   /// נלווה להודעת שלב ההחלה כשמסלול הדלתא כבד ואין הורדה מלאה חלופית.
   static String applyStageWithHeavyDeltaNotice(String stageMessage) =>
       '$stageMessage — ההחלה עשויה להימשך זמן רב';
+
+  // ===== קובץ הספרייה הדחוס (seforim.zdb) =====
+  static const String zdbFullDownloading = 'מוריד ספרייה מלאה';
+  static const String zdbFullVerifying = 'מאמת את קובץ הספרייה שהורד';
+  static const String zdbFullInstalling = 'מתקין את קובץ הספרייה';
+
+  /// ייעול האחסון אחרי עדכון: בסיס חדש במקום שכבת העדכונים שהצטברה.
+  static const String storageOptimizingDownload =
+      'מייעל את אחסון הספרייה: מוריד עותק עדכני (ניתן להמשיך לקרוא)';
+  static const String storageOptimizingVerify =
+      'מייעל את אחסון הספרייה: מאמת את העותק שהורד (ניתן להמשיך לקרוא)';
+  static const String storageOptimizingInstall =
+      'מייעל את אחסון הספרייה: מתקין את העותק';
+  static const String storageOptimizingCompact =
+      'מייעל את אחסון הספרייה — הספרייה סגורה עד הסיום';
 }

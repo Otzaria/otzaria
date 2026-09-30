@@ -50,6 +50,7 @@ import 'package:otzaria/update/differential/swap_recovery.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
@@ -60,6 +61,7 @@ import 'package:otzaria/app_bloc_observer.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -67,6 +69,7 @@ import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/repository/library_update_repository.dart';
+import 'package:otzaria/library_update/services/library_zdb_install.dart';
 import 'package:otzaria/library_update/services/streaming_patch_downloader.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/library_update/services/startup_recovery_check.dart';
@@ -914,6 +917,7 @@ Future<void> _initializeRestartableRuntime() async {
   unawaited(_runDeferredRestoreWindows());
   unawaited(_runDeferredProtocolRegistration());
   unawaited(_runDeferredSwapRecovery());
+  unawaited(_runDeferredZdbLeftoverCleanup());
   unawaited(_logJobObjectContainmentFailure());
   unawaited(_runDeferredDataRootWritabilityWarning());
   unawaited(_runDeferredCrashCheck());
@@ -1680,8 +1684,9 @@ class _AppBootstrapState extends State<AppBootstrap> {
           ),
           BlocProvider<LibraryUpdateBloc>(
             lazy: true,
-            create: (context) => LibraryUpdateBloc(
-              repository: LibraryUpdateRepository(
+            create: (context) {
+              final tabsBloc = context.read<TabsBloc>();
+              final repository = LibraryUpdateRepository(
                 discovery: LibraryUpdateDiscovery(
                   client: GithubLibraryReleaseClient(
                     httpClient: GithubRateLimitAwareClient(),
@@ -1691,28 +1696,38 @@ class _AppBootstrapState extends State<AppBootstrap> {
                 ),
                 // זורם לדיסק: patch גדול נפרס בלי לשבת ב-RAM (ראו את המחלקה).
                 downloader: StreamingPatchDownloader(),
-              ),
-              companionAssets: CompanionAssetsService(),
-              isOfflineMode: () =>
-                  Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ??
-                  false,
-              // ⚠️ חלון משני לעולם אינו בודק עדכונים. עדכון ספרייה הוא
-              // פעולה פר-תהליך: שני חלונות ששאלו את GitHub במקביל קיבלו
-              // 403, והמשתמש ראה "שגיאה בקבלת רשימת ה-releases" בכל
-              // פתיחת חלון.
-              areUpdatesEnabled: () =>
-                  !WindowRole.isSecondary &&
-                  (Settings.getValue<bool>(
-                        SettingsRepository.keySoftwareAndBookUpdatesEnabled,
-                      ) ??
-                      true),
-              // עדכוני ספרייה תמיד ליציב בלבד — מנותק מערוץ הפיתוח, שמשפיע רק
-              // על עדכוני התוכנה.
-              allowPrerelease: () => false,
-              onCheckSucceeded: () => recordSuccessfulUpdateCheck(
-                SettingsRepository.keyLastLibraryUpdateCheck,
-              ),
-            ),
+                // הדחיסה סוגרת את הספרייה לדקות: רק בלי ספר פתוח ובלי חלון נוסף.
+                isLibraryIdle: () =>
+                    WindowBus.instance.otherRegisteredSlots().isEmpty &&
+                    tabsBloc.state.tabs.every((tab) => tab is ToolTab),
+              );
+              return LibraryUpdateBloc(
+                repository: repository,
+                storageMaintainer: repository,
+                companionAssets: CompanionAssetsService(),
+                isOfflineMode: () =>
+                    Settings.getValue<bool>(
+                      SettingsRepository.keyOfflineMode,
+                    ) ??
+                    false,
+                // ⚠️ חלון משני לעולם אינו בודק עדכונים. עדכון ספרייה הוא
+                // פעולה פר-תהליך: שני חלונות ששאלו את GitHub במקביל קיבלו
+                // 403, והמשתמש ראה "שגיאה בקבלת רשימת ה-releases" בכל
+                // פתיחת חלון.
+                areUpdatesEnabled: () =>
+                    !WindowRole.isSecondary &&
+                    (Settings.getValue<bool>(
+                          SettingsRepository.keySoftwareAndBookUpdatesEnabled,
+                        ) ??
+                        true),
+                // עדכוני ספרייה תמיד ליציב בלבד — מנותק מערוץ הפיתוח, שמשפיע רק
+                // על עדכוני התוכנה.
+                allowPrerelease: () => false,
+                onCheckSucceeded: () => recordSuccessfulUpdateCheck(
+                  SettingsRepository.keyLastLibraryUpdateCheck,
+                ),
+              );
+            },
           ),
           BlocProvider<PluginUpdatesCubit>(
             lazy: true,
@@ -2172,6 +2187,28 @@ Future<T> _timedPhase<T>(String name, Future<T> Function() body) async {
 /// לא יוסיף את הכרטיסיה שוב בהפעלה מחדש של העץ. הפענוח קורה שם ולא
 /// כאן — ראו ההערה ב-[secondaryWindowMain].
 String? secondaryWindowPayload;
+
+/// שאריות הורדה, התקנה או דחיסה של seforim.zdb, ו-seforim.db שהוחלף בו.
+/// אינן חוסמות פתיחה, ולכן אחרי החשיפה, בתור פעולות המסד (כמו הדחיסה עצמה).
+Future<void> _runDeferredZdbLeftoverCleanup() async {
+  // פר-תהליך: קובצי הספרייה משותפים לכל החלונות.
+  if (WindowRole.isSecondary) return;
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+    );
+  } on TimeoutException {
+    // ממשיכים בכל זאת — אחרת השאריות יישארו על הדיסק.
+  }
+  try {
+    final directory = p.dirname(DatabaseConstants.getDatabasePath());
+    await DatabaseLibraryProvider.operationQueue.enqueue(
+      () => cleanUpZdbLeftovers(directory),
+    );
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('zdb leftovers cleanup', error, stackTrace);
+  }
+}
 
 /// משלים או מבטל החלפת עדכון שנקטעה. בדרך כלל רק שתי בדיקות קיום; השחזור
 /// עצמו רץ במעדכן אחרי יציאת אוצריא, כי ההתקנה החיה נעולה כל עוד היא רצה.

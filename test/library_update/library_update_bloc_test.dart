@@ -2089,4 +2089,73 @@ void main() {
       );
     });
   });
+
+  group('ייעול אחסון zdb', () {
+    LibraryUpdateBloc build(_FakeService service, _FakeMaintainer maintainer) =>
+        LibraryUpdateBloc(
+          repository: service,
+          storageMaintainer: maintainer,
+          isOfflineMode: () => false,
+          areUpdatesEnabled: () => true,
+          allowPrerelease: () => false,
+          hasInternet: () async => true,
+          isSourceReachable: () async => true,
+        );
+
+    test('רץ אחרי דלתא מוצלחת ואחרי "אין עדכון", ומציג שלב ייעול', () async {
+      for (final plan in [deltaPlan, nonePlan]) {
+        final maintainer = _FakeMaintainer();
+        final bloc = build(_FakeService(plan), maintainer);
+        final messages = <String>[];
+        final sub = bloc.stream.listen((s) => messages.add(s.message));
+        bloc.add(const StartLibraryUpdate());
+        await bloc.stream
+            .firstWhere((s) => s.status == LibraryUpdateStatus.completed)
+            .timeout(const Duration(seconds: 5));
+        await sub.cancel();
+        await bloc.close();
+        expect(maintainer.calls, 1, reason: plan.kind.name);
+        expect(
+          messages,
+          contains(LibraryMessages.storageOptimizingCompact),
+          reason: plan.kind.name,
+        );
+      }
+    });
+
+    test('דלתא שנכשלה אינה מפעילה ייעול', () async {
+      final maintainer = _FakeMaintainer();
+      final bloc = build(
+        _FakeService(deltaPlan, throwOnApply: true),
+        maintainer,
+      );
+      bloc.add(const StartLibraryUpdate());
+      await bloc.stream
+          .firstWhere((s) => s.status == LibraryUpdateStatus.error)
+          .timeout(const Duration(seconds: 5));
+      await bloc.close();
+      expect(maintainer.calls, 0);
+    });
+  });
+}
+
+class _FakeMaintainer implements LibraryStorageMaintainer {
+  int calls = 0;
+
+  @override
+  Future<LibraryStorageMaintenance> maintainLibraryStorage({
+    LibraryUpdateProgressCallback? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    calls++;
+    onProgress?.call(
+      const LibraryUpdateProgress(
+        phase: LibraryUpdatePhase.optimizing,
+        stage: LibraryUpdateRepository.zdbStageCompact,
+      ),
+    );
+    // ה-progress עובר דרך אירוע; נותנים לו להיפלט לפני הסיום.
+    await Future<void>.delayed(Duration.zero);
+    return LibraryStorageMaintenance.compacted;
+  }
 }

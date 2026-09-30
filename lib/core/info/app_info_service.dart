@@ -168,8 +168,8 @@ class AppInfoService {
     // getLibraryPath אינו נשמר, ו-getDatabasePath היה מחזיר נתיב מיושן —
     // ואז 'path' ו-'databasePath' באותו JSON סותרים זה את זה.
     final libraryPath = await AppPaths.getLibraryPath();
-    final databasePath = DatabaseConstants.getDatabasePathForLibrary(
-      libraryPath,
+    final databasePath = DatabaseConstants.resolveLibraryDbSibling(
+      DatabaseConstants.getDatabasePathForLibrary(libraryPath),
     );
     final version = await DataCollectionService().readLibraryVersion(
       databasePath: databasePath,
@@ -177,20 +177,33 @@ class AppInfoService {
     final databaseFile = File(databasePath);
     final databaseExists = await databaseFile.exists();
     final stat = databaseExists ? await databaseFile.stat() : null;
+    // עדכון דלתא ב-zdb כותב רק ל-overlay; הבסיס משתנה רק בהתקנה או בדחיסה.
+    final overlay = File('$databasePath-zovl');
+    final overlayStat = databaseExists && await overlay.exists()
+        ? await overlay.stat()
+        : null;
+    final overlayModified = overlayStat?.modified;
+    final modified =
+        overlayModified != null &&
+            (stat == null || overlayModified.isAfter(stat.modified))
+        ? overlayModified
+        : stat?.modified;
 
     final books = await _loadBooks();
     final personalBooks = books?.where((book) => book.isUserBook).length;
 
     return {
       'version': version == 'unknown' ? null : version,
-      // עדכון ספרייה כותב מחדש את seforim.db, ולכן זמן השינוי של הקובץ הוא
-      // תאריך העדכון האחרון בפועל.
-      'lastUpdatedAt': _utc(stat?.modified),
+      // עדכון ספרייה כותב מחדש את המסד או את ה-overlay שלו, ולכן זמן השינוי
+      // המאוחר מביניהם הוא תאריך העדכון האחרון בפועל.
+      'lastUpdatedAt': _utc(modified),
       'path': libraryPath,
       'indexPath': await AppPaths.getIndexPath(),
       'databasePath': databasePath,
       'databaseExists': databaseExists,
-      'databaseSizeBytes': stat?.size,
+      'databaseSizeBytes': stat == null
+          ? null
+          : stat.size + (overlayStat?.size ?? 0),
       'totalBooks': books?.length,
       'personalBooks': personalBooks,
       'officialBooks': (books == null || personalBooks == null)
