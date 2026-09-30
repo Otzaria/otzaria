@@ -132,10 +132,19 @@ ZVFS_API int zvfs_state_overlay_info(const char *path_utf8,
                                      zvfs_overlay_info *out);
 
 /* Compaction step 1: writes the logical content of path (base + overlay) to
-   dst as a new base that records the overlay it includes. */
+   dst as a new base that records the overlay it includes. Frames of pages
+   the overlay did not touch are copied; freelist leaf pages become zeros. */
+#define ZVFS_COMPACT_RECOMPRESS 1     /* compress every frame at level */
+#define ZVFS_COMPACT_KEEP_FREELIST 2  /* keep freelist leaf pages as they are */
+typedef struct zvfs_compact_stats {
+  uint64_t frames;          /* frames written */
+  uint64_t frames_copied;   /* of them copied from the old base */
+  uint64_t freelist_leaves; /* pages written as zeros */
+} zvfs_compact_stats;
 ZVFS_API int zvfs_compact(const char *path_utf8, const char *dst_utf8,
-                          int level, int threads, volatile int32_t *cancel,
-                          volatile int64_t *progress, zvfs_info *out,
+                          int level, int threads, int flags,
+                          volatile int32_t *cancel, volatile int64_t *progress,
+                          zvfs_info *out, zvfs_compact_stats *stats,
                           char *err, size_t err_len);
 /* Compaction step 2: durably replaces path by new_path, then deletes the
    overlay. ZVFS_ERR_BUSY when path is open in this process or a journal or
@@ -162,6 +171,10 @@ ZVFS_API int zvfs_conv_feed_zstd(zvfs_conv *c, const void *data, size_t len);
    fixed createdUnixMs (< 0 keeps the current time). Before finish. */
 ZVFS_API int zvfs_conv_set_identity(zvfs_conv *c, int uuid_from_content,
                                     int64_t created_unix_ms);
+/* Before the first feed: reads the SQLite freelist of the source file (the
+   same bytes that will be fed) and writes its leaf pages as zeros. */
+ZVFS_API int zvfs_conv_zero_freelist(zvfs_conv *c, const char *src_path_utf8,
+                                     uint64_t *leaf_pages);
 ZVFS_API int zvfs_conv_finish(zvfs_conv *c, zvfs_info *out);
 ZVFS_API void zvfs_conv_progress(zvfs_conv *c, uint64_t *bytes_in,
                                  uint64_t *bytes_out);
@@ -173,10 +186,17 @@ ZVFS_API int zvfs_builtin_dict_count(void);
 ZVFS_API int zvfs_builtin_dict(int index, const char **name, const void **data,
                                size_t *len, uint32_t *id);
 
-/* Build-time tool: trains a page dictionary from random pages of a DB. */
+/* Build-time tool: trains a page dictionary from random pages of a DB.
+   params NULL = the legacy trainer (ZDICT_trainFromBuffer, seforim-v1). */
+typedef struct zvfs_train_params {
+  uint32_t fastcover; /* 1 = ZDICT_trainFromBuffer_fastCover with k/d/f/accel */
+  uint32_t k, d, f, accel;
+  int32_t level; /* zstd level the entropy tables are tuned for, 0 = default */
+} zvfs_train_params;
 ZVFS_API int zvfs_train_dict(const char *db_path_utf8, uint32_t samples,
-                             uint64_t seed, void *out, size_t capacity,
-                             size_t *out_len, uint32_t *out_id);
+                             uint64_t seed, const zvfs_train_params *params,
+                             void *out, size_t capacity, size_t *out_len,
+                             uint32_t *out_id);
 
 ZVFS_API uint64_t zvfs_xxh64(const void *data, size_t len, uint64_t seed);
 

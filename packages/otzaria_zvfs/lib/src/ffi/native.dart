@@ -76,6 +76,15 @@ final class ZvfsOverlayInfoStruct extends Struct {
   external Array<Uint8> overlayUuid;
 }
 
+final class ZvfsCompactStatsStruct extends Struct {
+  @Uint64()
+  external int frames;
+  @Uint64()
+  external int framesCopied;
+  @Uint64()
+  external int freelistLeaves;
+}
+
 final class ZvfsStatsStruct extends Struct {
   @Int64()
   external int framesDecoded;
@@ -198,9 +207,11 @@ external int zvfs_reader_overlay_info(
     Pointer<Utf8>,
     Int,
     Int,
+    Int,
     Pointer<Int32>,
     Pointer<Int64>,
     Pointer<ZvfsInfoStruct>,
+    Pointer<ZvfsCompactStatsStruct>,
     Pointer<Utf8>,
     Size,
   )
@@ -210,9 +221,11 @@ external int zvfs_compact(
   Pointer<Utf8> dst,
   int level,
   int threads,
+  int flags,
   Pointer<Int32> cancel,
   Pointer<Int64> progress,
   Pointer<ZvfsInfoStruct> out,
+  Pointer<ZvfsCompactStatsStruct> stats,
   Pointer<Utf8> err,
   int errLen,
 );
@@ -265,6 +278,13 @@ external int zvfs_conv_feed_zstd(
   Pointer<ZvfsConv> c,
   Pointer<Void> data,
   int len,
+);
+
+@Native<Int Function(Pointer<ZvfsConv>, Pointer<Utf8>, Pointer<Uint64>)>()
+external int zvfs_conv_zero_freelist(
+  Pointer<ZvfsConv> c,
+  Pointer<Utf8> srcPath,
+  Pointer<Uint64> leafPages,
 );
 
 @Native<Int Function(Pointer<ZvfsConv>, Pointer<ZvfsInfoStruct>)>()

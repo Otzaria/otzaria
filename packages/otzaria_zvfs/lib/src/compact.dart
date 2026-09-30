@@ -7,21 +7,33 @@ class ZdbCompactResult {
   /// Physical bytes of base + overlay before, and of the new base.
   final int bytesBefore;
   final int bytesAfter;
+
+  /// Frames written, and of them copied from the old base unchanged.
+  final int frames;
+  final int framesCopied;
+
+  /// SQLite freelist leaf pages written as zeros.
+  final int freelistPagesZeroed;
   final Duration elapsed;
   const ZdbCompactResult(
     this.info,
     this.bytesBefore,
     this.bytesAfter,
-    this.elapsed,
-  );
+    this.elapsed, {
+    this.frames = 0,
+    this.framesCopied = 0,
+    this.freelistPagesZeroed = 0,
+  });
 }
 
 /// Rewrites base + overlay of [path] into a new base and swaps it in.
 ///
 /// Writes `<path>.new` through the logical view, verifies it (unless
 /// [verify] is false), durably renames it over [path] and deletes the
-/// overlay. A crash at any step leaves a readable database with the same
-/// content. No connection to [path] may be open, in this process or any
+/// overlay. Frames of pages the overlay did not change are copied as they
+/// are (so [level] applies only to the others), and SQLite freelist leaf
+/// pages are written as zeros. A crash at any step leaves a readable
+/// database with the same content. No connection to [path] may be open, in this process or any
 /// other ([ZdbException.busy]); this process is checked before the file is
 /// touched, other processes through the swap lock (see README). A pending
 /// `-journal` or non-empty `-wal` also fails with [ZdbException.busy]: open
@@ -60,7 +72,7 @@ Future<ZdbCompactResult> compactZdb(
   }
   final sw = Stopwatch()..start();
   try {
-    final info = await Isolate.run(
+    final (info, stats) = await Isolate.run(
       () => _compactWorker(
         path,
         level,
@@ -71,7 +83,15 @@ Future<ZdbCompactResult> compactZdb(
       ),
     );
     onProgress?.call(total, total);
-    return ZdbCompactResult(info, bytesBefore, info.physicalSize, sw.elapsed);
+    return ZdbCompactResult(
+      info,
+      bytesBefore,
+      info.physicalSize,
+      sw.elapsed,
+      frames: stats.$1,
+      framesCopied: stats.$2,
+      freelistPagesZeroed: stats.$3,
+    );
   } finally {
     timer?.cancel();
     cancellationToken?._detach(cancel);
@@ -118,7 +138,7 @@ Future<ZdbInfo> installZdb(
   });
 }
 
-ZdbInfo _compactWorker(
+(ZdbInfo, (int, int, int)) _compactWorker(
   String path,
   int level,
   int threads,
@@ -130,6 +150,7 @@ ZdbInfo _compactWorker(
   final pPath = path.toNativeUtf8();
   final pDst = dst.toNativeUtf8();
   final out = calloc<native.ZvfsInfoStruct>();
+  final stats = calloc<native.ZvfsCompactStatsStruct>();
   const errLen = 256;
   final err = calloc<Uint8>(errLen);
   final cancel = Pointer<Int32>.fromAddress(cancelAddr);
@@ -140,9 +161,11 @@ ZdbInfo _compactWorker(
       pDst,
       level,
       threads,
+      0,
       cancel,
       Pointer<Int64>.fromAddress(progressAddr),
       out,
+      stats,
       err.cast(),
       errLen,
     );
@@ -160,7 +183,11 @@ ZdbInfo _compactWorker(
     // After a failed overlay delete the base is already swapped in.
     swapped = rc == 0 || !File(dst).existsSync();
     if (rc != 0) throw ZdbException.fromCode(rc, path);
-    return readZdbInfo(path);
+    final s = stats.ref;
+    return (
+      readZdbInfo(path),
+      (s.frames, s.framesCopied, s.freelistLeaves),
+    );
   } finally {
     if (!swapped) {
       try {
@@ -172,6 +199,7 @@ ZdbInfo _compactWorker(
     calloc.free(pPath);
     calloc.free(pDst);
     calloc.free(out);
+    calloc.free(stats);
     calloc.free(err);
   }
 }

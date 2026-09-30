@@ -50,7 +50,17 @@ A crash leaves the `.part` behind; the next run overwrites it.
 
 Source rules: must start with a valid SQLite header; the length must be a
 multiple of the page size and at least the page count in the header
-(catches truncated streams). A file source with a non-empty `-wal` is
+(catches truncated streams).
+
+**Freelist.** SQLite never reads the bytes of a freelist *leaf* page (a
+free page listed in a trunk page; `PRAGMA secure_delete` zeroes them the same
+way). A `ZdbSource.file` (CLI: a file argument) is scanned first, header
+fields 32/36 and the trunk chain, and its leaf pages are written as zeros
+(`zeroFreelist: true`, CLI `--keep-freelist` to turn it off); trunk pages are
+kept as they are. A chain that does not add up (a page out of range or listed
+twice, a loop, a count that differs from the header) is left entirely as it
+is. A stream or zstd source cannot be read twice and is converted as it is. A
+freshly `VACUUM`ed database has no freelist, so this changes nothing there. A file source with a non-empty `-wal` is
 rejected. A WAL-mode source is served with a rollback-mode header
 (bytes 18/19 = 1, compat bit 0), so read-only opens need no `-shm`.
 
@@ -139,11 +149,20 @@ major or incompat bit as `SQLITE_CANTOPEN`; nothing is read out of bounds.
 ## Dictionaries and versions
 
 The dictionary is trained at build time and **embedded in every `.zdb`**
-(about 112KB against ~2GB), so a reader never needs a dictionary registry and
-files made with an old dictionary stay readable forever.
+(up to 1MB against ~2GB), so a reader never needs a dictionary registry and
+files made with an old dictionary stay readable forever. Readers accept any
+dictionary the format allows: a zstd dictionary (magic `37 A4 30 EC`, whose
+header carries the id) or raw content, 1 byte to 1MB.
 
 The converter picks a dictionary by name from the built-in registry in
-`src/zvfs_dicts.c` (index 0 = newest), or takes custom bytes.
+`src/zvfs_dicts.c` (index 0 = newest), or takes custom bytes
+(`ZdbDictionary.custom(name, bytes)`, CLI `--dict-file PATH --dict-name
+NAME`). `dictName` is what the caller gives (printable ASCII, at most 31
+bytes; the CLI defaults to the file name without its extension). `dictId` is
+always the id zstd reads from the dictionary (`ZSTD_getDictID_fromDict`): the
+`ZDICT` id of a trained dictionary, which zstd derives from its content, or 0
+for raw content, which then is identified by `dictXxh64` alone. Readers check
+exactly that, so no other value could be stored.
 
 | name | id | bytes | sha256 |
 |---|---|---|---|
@@ -158,9 +177,40 @@ zvfs_cli train <seforim.db> src/dicts/seforim_v1.inc 6000 112
 
 (`zvfs_cli`: see Command-line tool.)
 
-To add a new dictionary: train into `src/dicts/seforim_v2.inc` (rename the
-array), add it at the top of `k_dicts`, add the name/id/sha256 constants in
-`lib/src/convert.dart` and a row above. Never modify a shipped `.inc`.
+To add a new built-in dictionary: train into `src/dicts/seforim_v2.inc`
+(`--name seforim-v2` names the array `k_seforim_v2`), add it at the top of
+`k_dicts`, add the name/id/sha256 constants in `lib/src/convert.dart` and a
+row above. Never modify a shipped `.inc`. The library publisher does not need
+one: it trains a dictionary per build and embeds it with `--dict-file`, and
+the built-in registry stays small.
+
+### Training recipe
+
+Recommended for the library (measured on the 7.9GB `seforim.db`: -6.4% total
+size at level 19 against `seforim-v1`, no decoding cost):
+
+```
+zvfs_cli train seforim.db seforim.dict 12000 1024 --fastcover --k 2000 --d 8
+zvfs_cli convert seforim.db seforim.zdb --dict-file seforim.dict \
+         --dict-name seforim-<build> --level 19 --threads 16
+```
+
+- samples: 12000 random pages (with replacement, xorshift64 seeded by `seed`,
+  default `0x9E3779B97F4A7C15`), about 200MB of RAM at 16KB pages;
+- size: 1024KB, the format maximum (`ZDB_MAX_DICT`);
+- `--fastcover` runs `ZDICT_trainFromBuffer_fastCover` with the given `k`
+  (segment size) and `d` (dmer size); `--f` (log2 of the frequency table,
+  default 20, 6 x 2^f bytes of RAM), `--accel` (1..10, default 1) and
+  `--level` (the level its entropy tables are tuned for, default zstd's) are
+  optional. Without `--fastcover` the legacy `ZDICT_trainFromBuffer` runs, as
+  for `seforim-v1`.
+
+Training is deterministic: the same database, options and zstd version give
+the same bytes. The sampler is fixed, and fastcover with explicit `k`/`d` is
+single-threaded in zstd (threads only serve the `optimize*` parameter
+search, which the CLI does not use; the builds here also lack
+`ZSTD_MULTITHREAD`). Output ending in `.inc` is a C array, anything else the
+raw dictionary.
 
 ## Overlay `<path>-zovl` (S5b)
 
@@ -284,8 +334,24 @@ the files are on a local filesystem with a coherent page cache.
    opens it), or a non-empty `-journal` or `-wal` exists (the logical content
    is then not base + overlay);
 2. streams the logical content into `<path>.new` (a new base with the same
-   dictionary, lineage = old `fileUuid` + `overlayUuid` + last `seq`) and
-   fsyncs it; `verify` decodes it completely;
+   dictionary and `framePages`, lineage = old `fileUuid` + `overlayUuid` +
+   last `seq`) and fsyncs it; `verify` decodes it completely. Two things keep
+   it close to a fresh base, both on by default (C flags
+   `ZVFS_COMPACT_RECOMPRESS`, `ZVFS_COMPACT_KEEP_FREELIST` turn them off):
+   - **frame copies**: a frame none of whose pages the overlay serves (and of
+     the same length as before) is copied byte for byte from the old base. It
+     is still decoded, on the compression threads, which checks its frame
+     checksum and feeds `contentXxh64` (the XXH64 of the logical bytes, so
+     it needs them), but not compressed again: a 16KB page decodes at about
+     160MB/s per thread, and compresses at level 9 at about 20MB/s. So `level` applies only to the pages the overlay
+     changed; frame 0 is always compressed again, through the SQLite header
+     checks;
+   - **freelist**: the SQLite freelist of the logical content is read as in
+     the converter (see Freelist above) and its leaf pages are written as
+     zeros. Patches free pages without writing them, so their stale bytes
+     would otherwise stay in the base; a copied frame that holds a leaf is
+     compressed again unless the leaf is already zero (it is after the first
+     compaction). Trunk pages stay as they are.
 3. takes `<path>-zlck` exclusively (see below), re-checks that the overlay
    did not move, then renames `.new` over the base durably
    (`MOVEFILE_WRITE_THROUGH`; POSIX: rename + directory fsync);
@@ -449,9 +515,16 @@ zvfs_cli convert <in.db|-> <out.zdb> [--dict NAME | --no-dict] [--level N]
 zvfs_cli verify <file.zdb>          # every frame + content hash, then the overlay
 zvfs_cli info [--json] <file.zdb>   # every header field, plus the overlay
 zvfs_cli export <file.zdb> <out.db> # back to a plain SQLite file
+zvfs_cli compact <file.zdb> <out.zdb> [--level N] [--threads N]
+         [--recompress] [--keep-freelist]  # step 1 only; the source is untouched
 zvfs_cli dicts                      # built-in dictionaries (first = default)
-zvfs_cli train <db> <out.inc> [samples] [dict_kb] [seed]
+zvfs_cli train <db> <out.inc|out.dict> [samples] [dict_kb] [seed]
+         [--fastcover --k N --d N [--f N] [--accel N] [--level N]] [--name NAME]
 ```
+
+`convert` takes a dictionary by name (`--dict`), none (`--no-dict`) or from a
+file (`--dict-file`, with `--dict-name`; see Dictionaries), and zeroes the
+freelist leaves of a file source unless `--keep-freelist`.
 
 `convert` reads a file or stdin (`-`; `--zstd` for a zstd stream), writes
 `<out>.part` and renames it on success. Defaults: the newest dictionary,
@@ -463,13 +536,18 @@ sizes, dictionary, level, index hash; `createdUnixMs` excluded) and
 zstd version give the same file byte for byte. Two such files with equal
 content share a uuid; an overlay made on one is valid on the other.
 
+`compact` writes base + overlay as a new base to `<out.zdb>` and reports how
+many frames it copied and how many freelist pages it zeroed; installing it
+is `installZdb`'s job (or `compactZdb` does both steps).
 `info --json` prints the header as read (`logicalSize` is the base image),
 64-bit hashes as 16 hex digits and uuids as 32. `export` refuses a base with
 a `-zovl` (compact it first) or a pending `-journal`/`-wal`; a WAL-mode source
 comes back with the rollback header the zdb serves (bytes 18/19 = 1).
 Exit status: 0 ok, 1 failure, 2 usage. CI builds it with `build_cli.sh` on
 Linux x64 and arm64 and checks convert, verify, info, export (`cmp` equal to
-the source) and reproducibility (`tool/cli_roundtrip.sh`). On Windows
+the source), a dictionary file, train determinism, freelist zeroing
+(integrity and content through Python's sqlite3) and compaction
+(`tool/cli_roundtrip.sh`). On Windows
 `build_cli.sh` also works with MinGW gcc (it adds `-lbcrypt`), and the CLI
 reads its arguments as UTF-16, so paths outside the ANSI code page (Hebrew)
 work.

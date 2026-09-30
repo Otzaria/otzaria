@@ -19,6 +19,7 @@ typedef struct batch {
   uint32_t n_frames;
   uint8_t *out;
   size_t *out_len;
+  uint8_t *pre; /* frame already compressed (copied by compaction) */
   volatile int64_t next;
   volatile int64_t err;
 } batch;
@@ -52,6 +53,13 @@ struct zvfs_conv {
   XXH64_state_t content;
   volatile int64_t bytes_in, bytes_out;
 
+  /* pages written as zeros (freelist leaves), bit = 0-based page */
+  uint8_t *zero;
+  uint64_t zero_npages, frames_copied;
+  uint32_t zero_ps;
+  int copy;               /* zvfs_conv_feed_frame is enabled */
+  const void *copy_ddict; /* borrowed from the source */
+
   ZSTD_DStream *zin;
   uint8_t *zbuf;
   int zin_mid_frame;
@@ -79,6 +87,26 @@ static int cancelled(zvfs_conv *c) {
   return c->cancel && zplat_atomic_load32(c->cancel) != 0;
 }
 
+static int zero_page(const zvfs_conv *c, uint64_t pg);
+
+/* A copied frame is decoded into its input slot (checking its checksum,
+   for the content hash); if it holds a stale freelist leaf it is compressed. */
+static int decode_copy(zvfs_conv *c, batch *b, int64_t i, uint8_t *in,
+                       size_t len) {
+  uint8_t *src = b->out + (size_t)i * c->out_stride;
+  int rc = zdb_decode(c->copy_ddict, src, b->out_len[i], in, len);
+  if (rc || !c->zero) return rc;
+  const uint32_t ps = c->h.page_size;
+  uint64_t first = (b->first_frame + (uint64_t)i) * c->frame_bytes / ps;
+  for (size_t o = 0; o < len; o += ps) {
+    if (!zero_page(c, first + o / ps)) continue;
+    for (size_t k = 0; k < ps && b->pre[i]; k++)
+      if (in[o + k]) b->pre[i] = 0;
+    memset(in + o, 0, ps);
+  }
+  return ZVFS_OK;
+}
+
 static void compress_batch(zvfs_conv *c, ZSTD_CCtx *cc, batch *b) {
   for (;;) {
     int64_t i = zplat_atomic_add(&b->next, 1) - 1;
@@ -91,6 +119,11 @@ static void compress_batch(zvfs_conv *c, ZSTD_CCtx *cc, batch *b) {
     size_t start = (size_t)i * (size_t)c->frame_bytes;
     size_t len = b->in_len - start < c->frame_bytes ? b->in_len - start
                                                      : (size_t)c->frame_bytes;
+    if (b->pre[i]) {
+      int rc = decode_copy(c, b, i, b->in + start, len);
+      if (rc) zplat_atomic_store(&b->err, rc);
+      if (rc || b->pre[i]) continue;
+    }
     size_t z = ZSTD_compress2(cc, b->out + (size_t)i * c->out_stride,
                               c->out_stride, b->in + start, len);
     if (ZSTD_isError(z)) {
@@ -179,8 +212,12 @@ static int drain(zvfs_conv *c) {
   c->inflight = -1;
   int64_t err = zplat_atomic_load(&b->err);
   if (err == ZVFS_ERR_CANCELLED) return fail(c, ZVFS_ERR_CANCELLED, "cancelled");
+  if (err == ZVFS_ERR_CORRUPT) return fail(c, ZVFS_ERR_CORRUPT, "a copied frame is corrupt");
   if (err) return fail(c, (int)err, "compression failed");
   if (c->failed) return c->failed;
+  /* in order: copied frames are decoded only by the workers */
+  XXH64_update(&c->content, b->in, b->in_len);
+  for (uint32_t i = 0; i < b->n_frames; i++) c->frames_copied += b->pre[i];
 
   uint64_t need = b->first_frame + b->n_frames + 1;
   if (need > c->index_cap) {
@@ -225,6 +262,7 @@ static int submit_fill(zvfs_conv *c) {
   c->inflight = c->fill;
   c->fill ^= 1;
   c->b[c->fill].in_len = 0;
+  memset(c->b[c->fill].pre, 0, c->frames_per_batch);
   return ZVFS_OK;
 }
 
@@ -249,6 +287,8 @@ static int setup_from_sqlite_header(zvfs_conv *c) {
   }
   if ((uint64_t)ps * c->frame_pages > ZDB_MAX_FRAME_BYTES)
     return fail(c, ZVFS_ERR_INVALID, "frame too large");
+  if (c->zero && c->zero_ps != ps)
+    return fail(c, ZVFS_ERR_INVALID, "source changed after its freelist was read");
   c->h.page_size = ps;
   c->frame_bytes = (uint64_t)ps * c->frame_pages;
   c->out_stride = ZSTD_compressBound((size_t)c->frame_bytes);
@@ -261,19 +301,32 @@ static int setup_from_sqlite_header(zvfs_conv *c) {
     b->in = (uint8_t *)malloc((size_t)(fpb * c->frame_bytes));
     b->out = (uint8_t *)malloc((size_t)fpb * c->out_stride);
     b->out_len = (size_t *)calloc((size_t)fpb, sizeof(size_t));
-    if (!b->in || !b->out || !b->out_len)
+    b->pre = (uint8_t *)calloc((size_t)fpb, 1);
+    if (!b->in || !b->out || !b->out_len || !b->pre)
       return fail(c, ZVFS_ERR_NOMEM, "out of memory (batch buffers)");
   }
   return ZVFS_OK;
 }
 
+static int zero_page(const zvfs_conv *c, uint64_t pg) {
+  return pg < c->zero_npages && (c->zero[pg >> 3] >> (pg & 7) & 1);
+}
+
 static int append_plain(zvfs_conv *c, const uint8_t *p, size_t n) {
+  const uint32_t ps = c->h.page_size;
   while (n) {
     batch *b = &c->b[c->fill];
     size_t cap = (size_t)(c->frames_per_batch * c->frame_bytes);
     size_t k = cap - b->in_len < n ? cap - b->in_len : n;
-    memcpy(b->in + b->in_len, p, k);
-    XXH64_update(&c->content, p, k);
+    uint8_t *dst = b->in + b->in_len;
+    int zero = 0;
+    if (c->zero) {
+      size_t left = ps - (size_t)(c->appended % ps);
+      if (k > left) k = left;
+      zero = zero_page(c, c->appended / ps);
+    }
+    if (zero) memset(dst, 0, k);
+    else memcpy(dst, p, k);
     b->in_len += k;
     c->appended += k;
     p += k;
@@ -290,6 +343,9 @@ static int feed_plain(zvfs_conv *c, const void *data, size_t len) {
   if (c->failed) return c->failed;
   if (cancelled(c)) return fail(c, ZVFS_ERR_CANCELLED, "cancelled");
   const uint8_t *p = (const uint8_t *)data;
+  if (c->frame_bytes && c->appended % c->frame_bytes &&
+      c->b[c->fill].pre[c->b[c->fill].in_len / c->frame_bytes])
+    return fail(c, ZVFS_ERR_INVALID, "internal: data after a partial copied frame");
   if (c->sqlite_hdr_len < SQLITE_HDR) {
     size_t k = SQLITE_HDR - c->sqlite_hdr_len;
     if (k > len) k = len;
@@ -310,6 +366,34 @@ ZVFS_API int zvfs_conv_feed(zvfs_conv *c, const void *data, size_t len) {
   int rc = feed_plain(c, data, len);
   if (!rc) zplat_atomic_add(&c->bytes_in, (int64_t)len);
   return rc;
+}
+
+int zvfs_conv_feed_frame(zvfs_conv *c, const void *frame, size_t flen,
+                         size_t n) {
+  if (!c || !frame) return ZVFS_ERR_INVALID;
+  if (c->failed) return c->failed;
+  if (cancelled(c)) return fail(c, ZVFS_ERR_CANCELLED, "cancelled");
+  /* frame 0 goes through the header checks */
+  if (!c->copy || c->sqlite_hdr_len < SQLITE_HDR || !n ||
+      n > c->frame_bytes || c->appended % c->frame_bytes ||
+      flen > c->out_stride)
+    return ZVFS_ERR_UNSUPPORTED;
+  batch *b = &c->b[c->fill];
+  size_t slot = b->in_len / (size_t)c->frame_bytes;
+  memcpy(b->out + slot * c->out_stride, frame, flen);
+  b->out_len[slot] = flen;
+  b->pre[slot] = 1;
+  b->in_len += n;
+  c->appended += n;
+  zplat_atomic_add(&c->bytes_in, (int64_t)n);
+  if (b->in_len == (size_t)(c->frames_per_batch * c->frame_bytes))
+    return submit_fill(c);
+  return ZVFS_OK;
+}
+
+void zvfs_conv_set_copy_ddict(zvfs_conv *c, const void *ddict) {
+  c->copy = 1;
+  c->copy_ddict = ddict;
 }
 
 ZVFS_API int zvfs_conv_feed_zstd(zvfs_conv *c, const void *data, size_t len) {
@@ -563,7 +647,9 @@ ZVFS_API void zvfs_conv_destroy(zvfs_conv *c) {
     free(c->b[i].in);
     free(c->b[i].out);
     free(c->b[i].out_len);
+    free(c->b[i].pre);
   }
+  free(c->zero);
   zplat_close(c->out);
   if (c->cdict) ZSTD_freeCDict(c->cdict);
   if (c->zin) ZSTD_freeDStream(c->zin);
@@ -573,4 +659,112 @@ ZVFS_API void zvfs_conv_destroy(zvfs_conv *c) {
   zplat_cond_destroy(&c->cv_done);
   zplat_mutex_destroy(&c->mu);
   free(c);
+}
+
+/* ---- SQLite freelist (see the file format: trunk and leaf pages) ---- */
+#define BIT_GET(m, i) ((m)[(i) >> 3] >> ((i) & 7) & 1)
+#define BIT_SET(m, i) ((m)[(i) >> 3] |= (uint8_t)(1u << ((i) & 7)))
+
+int zvfs_freelist_leaves(zdb_read_fn rd, void *ctx, uint64_t size,
+                         zvfs_pageset *out) {
+  memset(out, 0, sizeof *out);
+  uint8_t hd[SQLITE_HDR];
+  int rc = rd(ctx, hd, sizeof hd, 0);
+  if (rc) return rc == ZVFS_ERR_SHORT_READ ? ZVFS_OK : rc;
+  if (memcmp(hd, "SQLite format 3", 16) != 0) return ZVFS_OK;
+  uint32_t ps = be16(hd + 16);
+  if (ps == 1) ps = 65536;
+  if (ps < 512 || ps > 65536 || (ps & (ps - 1))) return ZVFS_OK;
+  uint64_t pages = size / ps;
+  uint32_t trunk = be32(hd + 32), total = be32(hd + 36);
+  uint32_t usable = ps - hd[20];
+  if (!trunk || !total || total >= pages || usable < 480) return ZVFS_OK;
+  size_t nb = (size_t)((pages + 7) / 8);
+  uint8_t *seen = (uint8_t *)calloc(nb, 1), *leaf = (uint8_t *)calloc(nb, 1);
+  uint8_t *page = (uint8_t *)malloc(ps);
+  if (!seen || !leaf || !page) rc = ZVFS_ERR_NOMEM;
+  uint64_t count = 0, leaves = 0;
+  int ok = !rc;
+  /* page numbers are 1-based, bits 0-based */
+  while (ok && trunk) {
+    if (trunk < 2 || trunk > pages || BIT_GET(seen, trunk - 1) || ++count > total) {
+      ok = 0;
+      break;
+    }
+    BIT_SET(seen, trunk - 1);
+    rc = rd(ctx, page, ps, (uint64_t)(trunk - 1) * ps);
+    if (rc) {
+      if (rc == ZVFS_ERR_SHORT_READ) rc = ZVFS_OK;
+      ok = 0;
+      break;
+    }
+    uint32_t n = be32(page + 4);
+    if (n > usable / 4 - 2 || count + n > total) {
+      ok = 0;
+      break;
+    }
+    for (uint32_t i = 0; ok && i < n; i++) {
+      uint32_t p = be32(page + 8 + 4 * i);
+      if (p < 2 || p > pages || BIT_GET(seen, p - 1)) {
+        ok = 0;
+      } else {
+        BIT_SET(seen, p - 1);
+        BIT_SET(leaf, p - 1);
+      }
+    }
+    count += n;
+    leaves += n;
+    trunk = be32(page);
+  }
+  /* an inconsistent list is left as it is: nothing is zeroed */
+  if (ok && !rc && count == total && leaves) {
+    out->bits = leaf;
+    out->npages = pages;
+    out->count = leaves;
+    out->page_size = ps;
+    leaf = NULL;
+  }
+  free(seen);
+  free(leaf);
+  free(page);
+  return rc;
+}
+
+int zvfs_conv_set_zero_pages(zvfs_conv *c, zvfs_pageset *set) {
+  if (c->failed) return c->failed;
+  if (c->sqlite_hdr_len || c->zero) return fail(c, ZVFS_ERR_INVALID, "already fed");
+  c->zero = set->bits;
+  c->zero_npages = set->npages;
+  c->zero_ps = set->page_size;
+  set->bits = NULL;
+  return ZVFS_OK;
+}
+
+uint64_t zvfs_conv_frames_copied(const zvfs_conv *c) { return c->frames_copied; }
+
+static int file_rd(void *ctx, void *buf, size_t n, uint64_t off) {
+  size_t got = 0;
+  int rc = zplat_pread((zplat_file *)ctx, buf, n, off, &got);
+  if (rc) return rc;
+  return got == n ? ZVFS_OK : ZVFS_ERR_SHORT_READ;
+}
+
+ZVFS_API int zvfs_conv_zero_freelist(zvfs_conv *c, const char *src_path,
+                                     uint64_t *leaf_pages) {
+  if (!c || !src_path) return ZVFS_ERR_INVALID;
+  if (leaf_pages) *leaf_pages = 0;
+  zplat_file *pf;
+  uint64_t size = 0;
+  int rc = zplat_open_read(src_path, &pf);
+  if (rc) return rc;
+  zvfs_pageset set;
+  rc = zplat_size(pf, &size);
+  if (!rc) rc = zvfs_freelist_leaves(file_rd, pf, size, &set);
+  zplat_close(pf);
+  if (rc) return rc;
+  if (!set.bits) return ZVFS_OK;
+  if (leaf_pages) *leaf_pages = set.count;
+  rc = zvfs_conv_set_zero_pages(c, &set);
+  free(set.bits);
+  return rc;
 }

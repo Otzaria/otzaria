@@ -820,6 +820,13 @@ int zovl_verify(zovl *o, volatile int32_t *cancel) {
   return rc;
 }
 
+int zovl_page_from_base(zovl *o, uint64_t pg) {
+  zplat_lock(&o->mu);
+  int v = pg < o->base_limit && !map_get(o, pg);
+  zplat_unlock(&o->mu);
+  return v;
+}
+
 uint64_t zovl_logical_size(zovl *o) {
   zplat_lock(&o->mu);
   uint64_t v = o->logical;

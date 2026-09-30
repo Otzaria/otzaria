@@ -688,6 +688,232 @@ static void test_big_lock_gap(void) {
   remove(dst);
 }
 
+/* ---- dictionaries of any valid size, from outside the registry ---- */
+static int dict_roundtrip(const uint8_t *src, size_t n, uint32_t ps,
+                          const void *dict, size_t dl, uint32_t *id_out) {
+  const char *dst = tmp_path("dict_any.zdb");
+  zvfs_info info;
+  int rc = convert_buf(dst, src, n, dict, dl, 2, 1, 1 << 16, 0, NULL, &info);
+  if (rc) return rc;
+  uint8_t *z;
+  size_t zn;
+  if (read_file(dst, &z, &zn)) return -1;
+  membuf mb = {z, zn};
+  zdb_file *f = NULL;
+  rc = zdb_file_load(mem_rd, &mb, zn, &f);
+  uint8_t *all = (uint8_t *)malloc(n);
+  if (!rc) rc = zdb_file_read(f, mem_rd, &mb, all, n, 0);
+  if (!rc) rc = zdb_verify_base(f, mem_rd, &mb, NULL, NULL);
+  if (!rc && (memcmp(all, src, n) != 0 || f->h.dict_length != dl ||
+              f->h.dict_id != info.dict_id))
+    rc = -1;
+  if (id_out) *id_out = info.dict_id;
+  zdb_file_free(f);
+  free(all);
+  free(z);
+  remove(dst);
+  (void)ps;
+  return rc;
+}
+
+static void test_any_dict(void) {
+  uint32_t ps = 4096, pages = 200;
+  uint8_t *src = make_source(ps, pages, 0);
+  size_t n = (size_t)ps * pages;
+  /* a finalized (ZDICT) 1MB dictionary: the id comes from its header */
+  const size_t max = ZDB_MAX_DICT;
+  uint8_t *content = (uint8_t *)malloc(max);
+  for (size_t i = 0; i < max; i++) content[i] = src[(i * 7919) % n];
+  size_t *lens = (size_t *)malloc(pages * sizeof(size_t));
+  for (uint32_t i = 0; i < pages; i++) lens[i] = ps;
+  uint8_t *dict = (uint8_t *)malloc(max);
+  ZDICT_params_t zp;
+  memset(&zp, 0, sizeof zp);
+  size_t dl = ZDICT_finalizeDictionary(dict, max, content, max - 4096, src,
+                                       lens, pages, zp);
+  CHECK(!ZDICT_isError(dl) && dl > max - 8192 && dl <= max);
+  uint32_t id = 0;
+  if (!ZDICT_isError(dl)) {
+    CHECK_EQ(dict_roundtrip(src, n, ps, dict, dl, &id), 0);
+    CHECK(id != 0 && id == ZDICT_getDictID(dict, dl));
+  }
+  /* raw content of exactly 1MB: zstd has no id for it, so dictId is 0 */
+  CHECK_EQ(dict_roundtrip(src, n, ps, content, max, &id), 0);
+  CHECK_EQ(id, 0);
+  /* over the format limit, or a zstd dictionary with broken tables */
+  zvfs_conv *c = NULL;
+  CHECK_EQ(zvfs_conv_create(tmp_path("dict_big.zdb"), content, max + 1,
+                            "x", 3, 1, 1, 0, NULL, &c),
+           ZVFS_ERR_INVALID);
+  if (!ZDICT_isError(dl)) {
+    memset(dict + 8, 0xff, 64);
+    CHECK(zvfs_conv_create(tmp_path("dict_bad.zdb"), dict, dl, "x", 3, 1, 1, 0,
+                           NULL, &c) != ZVFS_OK);
+  }
+  remove(tmp_path("dict_big.zdb"));
+  remove(tmp_path("dict_bad.zdb"));
+  printf("  any dictionary: 1MB zdict (id %u) and 1MB raw content roundtrip\n",
+         ZDICT_isError(dl) ? 0 : ZDICT_getDictID(dict, dl));
+  free(content);
+  free(lens);
+  free(dict);
+  free(src);
+}
+
+/* ---- trainer: the same bytes for the same inputs ---- */
+static void test_train_deterministic(void) {
+  uint32_t ps = 4096, pages = 600;
+  uint8_t *src = make_source(ps, pages, 0);
+  const char *db = tmp_path("train_src.db");
+  CHECK_EQ(write_file(db, src, (size_t)ps * pages), 0);
+  zvfs_train_params fc = {1, 256, 8, 16, 1, 0};
+  const zvfs_train_params *modes[2] = {NULL, &fc};
+  size_t cap = 32 << 10;
+  uint8_t *a = (uint8_t *)malloc(cap), *b = (uint8_t *)malloc(cap);
+  for (int m = 0; m < 2; m++) {
+    size_t la = 0, lb = 0;
+    uint32_t ia = 0, ib = 0;
+    CHECK_EQ(zvfs_train_dict(db, 500, 11, modes[m], a, cap, &la, &ia), 0);
+    CHECK_EQ(zvfs_train_dict(db, 500, 11, modes[m], b, cap, &lb, &ib), 0);
+    CHECK(la > 1024 && la == lb && ia == ib && memcmp(a, b, la) == 0);
+    CHECK(ia != 0 && ia == ZSTD_getDictID_fromDict(a, la));
+    CHECK_EQ(dict_roundtrip(src, (size_t)ps * pages, ps, a, la, NULL), 0);
+  }
+  /* explicit parameters are checked */
+  size_t l = 0;
+  zvfs_train_params bad = {1, 8, 16, 0, 0, 0};
+  CHECK_EQ(zvfs_train_dict(db, 500, 11, &bad, a, cap, &l, NULL), ZVFS_ERR_INVALID);
+  CHECK_EQ(zvfs_train_dict(db, 500, 11, NULL, a, ZDB_MAX_DICT + 1, &l, NULL),
+           ZVFS_ERR_INVALID);
+  printf("  train: legacy and fastcover reproducible\n");
+  remove(db);
+  free(a);
+  free(b);
+  free(src);
+}
+
+/* ---- SQLite freelist: trunk chain parsing and zeroed leaf pages ---- */
+static void put_be32(uint8_t *p, uint32_t v) {
+  p[0] = (uint8_t)(v >> 24);
+  p[1] = (uint8_t)(v >> 16);
+  p[2] = (uint8_t)(v >> 8);
+  p[3] = (uint8_t)v;
+}
+
+/* Trunks at pages 5 and 40 (1-based); leaves: 7..(7+n1), 60..(60+n2). */
+static void make_freelist(uint8_t *s, uint32_t ps, uint32_t n1, uint32_t n2) {
+  put_be32(s + 32, 5);
+  put_be32(s + 36, 2 + n1 + n2);
+  uint8_t *t = s + (size_t)4 * ps;
+  put_be32(t, 40);
+  put_be32(t + 4, n1);
+  for (uint32_t i = 0; i < n1; i++) put_be32(t + 8 + 4 * i, 7 + i);
+  t = s + (size_t)39 * ps;
+  put_be32(t, 0);
+  put_be32(t + 4, n2);
+  for (uint32_t i = 0; i < n2; i++) put_be32(t + 8 + 4 * i, 60 + i);
+}
+
+static int is_leaf(uint32_t pg1, uint32_t n1, uint32_t n2) {
+  return (pg1 >= 7 && pg1 < 7 + n1) || (pg1 >= 60 && pg1 < 60 + n2);
+}
+
+static void test_freelist(void) {
+  uint32_t ps = 1024, pages = 200, n1 = 20, n2 = 30;
+  size_t n = (size_t)ps * pages;
+  uint8_t *src = make_source(ps, pages, 0);
+  make_freelist(src, ps, n1, n2);
+  membuf mb = {src, n};
+  zvfs_pageset set;
+  CHECK_EQ(zvfs_freelist_leaves(mem_rd, &mb, n, &set), 0);
+  CHECK(set.bits && set.count == n1 + n2 && set.page_size == ps);
+  int wrong = 0;
+  for (uint32_t pg = 0; set.bits && pg < pages; pg++)
+    wrong += ((set.bits[pg >> 3] >> (pg & 7)) & 1) != is_leaf(pg + 1, n1, n2);
+  CHECK_EQ(wrong, 0);
+  free(set.bits);
+
+  /* an inconsistent list is not touched */
+  static const struct {
+    uint32_t off, val;
+  } breaks[] = {
+      {36, 51},                      /* count too small */
+      {36, 53},                      /* count too large */
+      {32, 1},                       /* page 1 as trunk */
+      {32, 201},                     /* trunk past the end */
+      {4 * 1024 + 8, 40},            /* a leaf that is also a trunk */
+      {4 * 1024 + 12, 7},            /* a leaf listed twice */
+      {39 * 1024, 5},                /* the chain loops */
+      {4 * 1024 + 4, 1024 / 4 - 1},  /* more leaves than fit in a trunk */
+  };
+  uint8_t *bad = (uint8_t *)malloc(n);
+  for (size_t i = 0; i < sizeof breaks / sizeof breaks[0]; i++) {
+    memcpy(bad, src, n);
+    put_be32(bad + breaks[i].off, breaks[i].val);
+    membuf bm = {bad, n};
+    CHECK_EQ(zvfs_freelist_leaves(mem_rd, &bm, n, &set), 0);
+    if (set.bits) fprintf(stderr, "freelist break %zu accepted\n", i);
+    CHECK(set.bits == NULL);
+    free(set.bits);
+  }
+  free(bad);
+
+  /* convert with the leaves zeroed: everything else identical, hash valid */
+  const char *db = tmp_path("fl_src.db");
+  const char *dst = tmp_path("fl.zdb");
+  CHECK_EQ(write_file(db, src, n), 0);
+  for (uint32_t fp = 1; fp <= 3; fp += 2) {
+    zvfs_conv *c = NULL;
+    uint64_t leaves = 0;
+    CHECK_EQ(zvfs_conv_create(dst, NULL, 0, NULL, 3, 2, fp, 1 << 14, NULL, &c), 0);
+    CHECK_EQ(zvfs_conv_zero_freelist(c, db, &leaves), 0);
+    CHECK_EQ(leaves, n1 + n2);
+    for (size_t off = 0; off < n;) {
+      size_t k = 1 + (size_t)(rnd() % 5000);
+      if (k > n - off) k = n - off;
+      CHECK_EQ(zvfs_conv_feed(c, src + off, k), 0);
+      off += k;
+    }
+    CHECK_EQ(zvfs_conv_finish(c, NULL), 0);
+    zvfs_conv_destroy(c);
+    uint8_t *z;
+    size_t zn;
+    CHECK_EQ(read_file(dst, &z, &zn), 0);
+    membuf zm = {z, zn};
+    zdb_file *f = NULL;
+    CHECK_EQ(zdb_file_load(mem_rd, &zm, zn, &f), 0);
+    uint8_t *all = (uint8_t *)malloc(n);
+    CHECK_EQ(zdb_file_read(f, mem_rd, &zm, all, n, 0), 0);
+    CHECK_EQ(zdb_verify_base(f, mem_rd, &zm, NULL, NULL), 0);
+    int diff = 0;
+    for (uint32_t pg = 0; pg < pages; pg++) {
+      const uint8_t *got = all + (size_t)pg * ps;
+      if (is_leaf(pg + 1, n1, n2)) {
+        for (uint32_t i = 0; i < ps; i++) diff += got[i] != 0;
+      } else {
+        diff += memcmp(got, src + (size_t)pg * ps, ps) != 0;
+      }
+    }
+    CHECK_EQ(diff, 0);
+    zdb_file_free(f);
+    free(all);
+    free(z);
+  }
+  /* the source's page size must not change between the scan and the feed */
+  zvfs_conv *c = NULL;
+  CHECK_EQ(zvfs_conv_create(dst, NULL, 0, NULL, 3, 1, 1, 0, NULL, &c), 0);
+  CHECK_EQ(zvfs_conv_zero_freelist(c, db, NULL), 0);
+  uint8_t *other = make_source(2048, 100, 0);
+  CHECK_EQ(zvfs_conv_feed(c, other, 2048 * 100), ZVFS_ERR_INVALID);
+  zvfs_conv_destroy(c);
+  free(other);
+  printf("  freelist: %u leaves found, zeroed on convert (framePages 1 and 3), "
+         "8 broken chains left alone\n", n1 + n2);
+  remove(db);
+  remove(dst);
+  free(src);
+}
+
 int main(void) {
   setvbuf(stdout, NULL, _IONBF, 0);
   const char *it = getenv("ZVFS_FUZZ_ITERS");
@@ -700,6 +926,9 @@ int main(void) {
   test_zstd_long_window_source();
   test_exhaustive_damage();
   test_lock_gap();
+  test_any_dict();
+  test_train_deterministic();
+  test_freelist();
   if (getenv("ZVFS_BIG_TESTS")) test_big_lock_gap();
   test_fuzz(iters);
   if (g_failures) {

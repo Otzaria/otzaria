@@ -743,4 +743,129 @@ void main() {
       r.close();
     },
   );
+
+  test(
+    'compaction zeroes freelist leaves and copies untouched frames',
+    () async {
+      final plain = p('fl.db');
+      final zdb = p('fl.zdb');
+      createTestDb(plain);
+      removeAll(zdb);
+      await convert(plain, zdb);
+      final w = sqlite3.open(zdb, vfs: ZVfs.name);
+      w.execute('DELETE FROM line WHERE id BETWEEN 3000 AND 9000');
+      w.execute("UPDATE meta SET v = 'changed' WHERE k = 'key12'");
+      final freePages =
+          w.select('PRAGMA freelist_count').single.columnAt(0) as int;
+      final want = dbDigest(w);
+      w.close();
+      expect(freePages, greaterThan(50));
+      final res = await compactZdb(zdb, level: 3);
+      expect(res.freelistPagesZeroed, greaterThan(0));
+      expect(res.freelistPagesZeroed, lessThan(freePages)); // minus trunks
+      expect(res.framesCopied, greaterThan(0));
+      expect(res.framesCopied, lessThan(res.frames));
+      expect(res.frames, res.info.frameCount);
+      final r = sqlite3.open(zdb, vfs: ZVfs.name);
+      expect(dbDigest(r), want);
+      expect(integrity(r), 'ok');
+      expect(r.select('PRAGMA freelist_count').single.columnAt(0), freePages);
+      // SQLite takes the zeroed pages back from the freelist
+      r.execute(
+        'INSERT INTO line SELECT id + 100000, bookId, lineIndex, content, '
+        'extra FROM line WHERE id < 2500',
+      );
+      expect(integrity(r), 'ok');
+      r.close();
+      // nothing changed since: only frame 0 is compressed again
+      final again = await compactZdb(zdb, level: 3);
+      expect(again.framesCopied, greaterThan(again.frames ~/ 2));
+      await verifyZdb(zdb);
+      print(
+        'compaction: ${res.framesCopied} of ${res.frames} frames copied, '
+        '${res.freelistPagesZeroed} freelist pages zeroed',
+      );
+      removeAll(plain);
+      removeAll(zdb);
+    },
+  );
+
+  test('convertToZdb zeroes the freelist of a file source', () async {
+    final plain = p('flc.db');
+    final zdb = p('flc.zdb');
+    final keep = p('flc_keep.zdb');
+    createTestDb(plain);
+    final db = sqlite3.open(plain);
+    db.execute('DELETE FROM line WHERE id > 7000');
+    final freePages =
+        db.select('PRAGMA freelist_count').single.columnAt(0) as int;
+    db.close();
+    expect(freePages, greaterThan(50));
+    removeAll(zdb);
+    removeAll(keep);
+    final res = await convertToZdb(
+      source: ZdbSource.file(plain),
+      destination: zdb,
+      level: 3,
+    );
+    final kept = await convertToZdb(
+      source: ZdbSource.file(plain),
+      destination: keep,
+      level: 3,
+      zeroFreelist: false,
+    );
+    expect(res.freelistPagesZeroed, greaterThan(0));
+    expect(kept.freelistPagesZeroed, 0);
+    expect(res.info.physicalSize, lessThan(kept.info.physicalSize));
+    final bytes = File(plain).readAsBytesSync();
+    expect(readZdbBytes(keep, 0, bytes.length), bytes);
+    final a = sqlite3.open(plain, mode: OpenMode.readOnly);
+    final b = sqlite3.open(zdb, vfs: ZVfs.name, mode: OpenMode.readOnly);
+    expect(dbDigest(b), dbDigest(a));
+    expect(integrity(b), 'ok');
+    a.close();
+    b.close();
+    print(
+      'convert: ${res.freelistPagesZeroed} freelist pages zeroed, '
+      '${kept.info.physicalSize} -> ${res.info.physicalSize} bytes',
+    );
+    removeAll(plain);
+    removeAll(zdb);
+    removeAll(keep);
+  });
+
+  test('a custom 1MB dictionary is carried and read back', () async {
+    final plain = p('dict.db');
+    final zdb = p('dict.zdb');
+    createTestDb(plain);
+    removeAll(zdb);
+    final src = File(plain).readAsBytesSync();
+    final raw = Uint8List(ZdbDictionary.maxBytes);
+    for (var i = 0; i < raw.length; i++) {
+      raw[i] = src[(i * 7919) % src.length];
+    }
+    final res = await convertToZdb(
+      source: ZdbSource.file(plain),
+      destination: zdb,
+      dictionary: ZdbDictionary.custom('raw-1mb', raw),
+      level: 3,
+    );
+    final info = readZdbInfo(zdb);
+    expect(info.dictLength, ZdbDictionary.maxBytes);
+    expect(info.dictName, 'raw-1mb');
+    expect(info.dictId, 0); // raw content has no zstd id
+    expect(res.info.dictLength, ZdbDictionary.maxBytes);
+    await verifyZdb(zdb);
+    final a = sqlite3.open(plain, mode: OpenMode.readOnly);
+    final b = sqlite3.open(zdb, vfs: ZVfs.name, mode: OpenMode.readOnly);
+    expect(dbDigest(b), dbDigest(a));
+    a.close();
+    b.close();
+    expect(
+      () => ZdbDictionary.custom('big', Uint8List(ZdbDictionary.maxBytes + 1)),
+      throwsArgumentError,
+    );
+    removeAll(plain);
+    removeAll(zdb);
+  });
 }

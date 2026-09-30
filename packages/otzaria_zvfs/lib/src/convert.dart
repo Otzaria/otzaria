@@ -16,8 +16,17 @@ final class ZdbDictionary {
   /// No dictionary: works for any data, compresses small pages worse.
   static const ZdbDictionary none = ZdbDictionary._('', null);
 
-  factory ZdbDictionary.custom(String name, Uint8List bytes) =>
-      ZdbDictionary._(name, Uint8List.fromList(bytes));
+  /// Any zstd dictionary (or raw content) of 1 byte to 1MB, e.g. one written
+  /// by `zvfs_cli train`; [name] goes into the header (ASCII, <= 31 bytes).
+  factory ZdbDictionary.custom(String name, Uint8List bytes) {
+    if (bytes.isEmpty || bytes.length > maxBytes) {
+      throw ArgumentError.value(bytes.length, 'bytes', 'must be 1..$maxBytes');
+    }
+    return ZdbDictionary._(name, Uint8List.fromList(bytes));
+  }
+
+  /// The largest dictionary a .zdb can carry.
+  static const int maxBytes = 1 << 20;
 
   /// Built-in dictionary names, newest first.
   static List<String> get builtinNames => [
@@ -123,7 +132,14 @@ class ZdbConvertProgress {
 class ZdbConvertResult {
   final ZdbInfo info;
   final Duration elapsed;
-  const ZdbConvertResult(this.info, this.elapsed);
+
+  /// SQLite freelist leaf pages written as zeros (file sources only).
+  final int freelistPagesZeroed;
+  const ZdbConvertResult(
+    this.info,
+    this.elapsed, {
+    this.freelistPagesZeroed = 0,
+  });
 }
 
 class _Job {
@@ -134,6 +150,7 @@ class _Job {
   final int level;
   final int threads;
   final int batchBytes;
+  final bool zeroFreelist;
   final int cancelAddress;
   final SendPort? progress;
   const _Job(
@@ -144,6 +161,7 @@ class _Job {
     this.level,
     this.threads,
     this.batchBytes,
+    this.zeroFreelist,
     this.cancelAddress,
     this.progress,
   );
@@ -153,6 +171,9 @@ class _Job {
 ///
 /// Runs on a worker isolate with [threads] native compression threads. The
 /// output is written to `<destination>.part` and renamed on success.
+/// With [zeroFreelist] a [ZdbSource.file] has its SQLite freelist leaf pages
+/// (free space whose bytes SQLite never reads) written as zeros; other
+/// sources are converted as they are.
 Future<ZdbConvertResult> convertToZdb({
   required ZdbSource source,
   required String destination,
@@ -160,6 +181,7 @@ Future<ZdbConvertResult> convertToZdb({
   int level = 9,
   int? threads,
   int batchBytes = 16 << 20,
+  bool zeroFreelist = true,
   void Function(ZdbConvertProgress progress)? onProgress,
   ZdbCancellationToken? cancellationToken,
 }) async {
@@ -194,6 +216,7 @@ Future<ZdbConvertResult> convertToZdb({
     level,
     nThreads,
     batchBytes,
+    zeroFreelist,
     cancel.address,
     port.sendPort,
   );
@@ -252,7 +275,7 @@ Future<ZdbConvertResult> _convertWorker(_Job job) async {
   final partPath = part.toNativeUtf8();
   final dictName = job.dictName.toNativeUtf8();
   final convOut = calloc<Pointer<native.ZvfsConv>>();
-  final pin = calloc<Uint64>(2);
+  final pin = calloc<Uint64>(3);
   Pointer<native.ZvfsConv> conv = nullptr;
   var ok = false;
 
@@ -300,6 +323,14 @@ Future<ZdbConvertResult> _convertWorker(_Job job) async {
       ),
     );
     conv = convOut.value;
+    if (src is _FileSource && job.zeroFreelist) {
+      final srcPath = src.path.toNativeUtf8();
+      try {
+        check(native.zvfs_conv_zero_freelist(conv, srcPath, pin + 2));
+      } finally {
+        calloc.free(srcPath);
+      }
+    }
     switch (src) {
       case _FileSource(:final path) || _ZstdFileSource(:final path):
         final raf = File(path).openSync();
@@ -330,7 +361,11 @@ Future<ZdbConvertResult> _convertWorker(_Job job) async {
       final result = ZdbInfo.fromNative(info.ref);
       File(part).renameSync(job.destination);
       ok = true;
-      return ZdbConvertResult(result, sw.elapsed);
+      return ZdbConvertResult(
+        result,
+        sw.elapsed,
+        freelistPagesZeroed: pin[2],
+      );
     } finally {
       calloc.free(info);
     }

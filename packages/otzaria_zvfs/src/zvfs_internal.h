@@ -242,6 +242,8 @@ int zovl_truncate(zovl *o, zdb_read_fn rd, void *ctx, uint64_t size);
 /* Seals pending records with a commit record; sync_flags != 0 also fsyncs. */
 int zovl_commit(zovl *o, int sync_flags);
 uint64_t zovl_logical_size(zovl *o);
+/* 1 when page pg (0-based) is served unchanged from the base. */
+int zovl_page_from_base(zovl *o, uint64_t pg);
 void zovl_get_info(zovl *o, zovl_info *out);
 int zovl_is_present(zovl *o);
 /* Decodes every mapped overlay page. */
@@ -271,5 +273,26 @@ extern void (*zvfs_test_swap_locked)(void);
 /* Compaction output records what it includes (zdb minor 1 fields). */
 void zvfs_conv_set_lineage(zvfs_conv *c, const uint8_t derived_from[16],
                            const uint8_t overlay_uuid[16], uint64_t seq);
+/* Appends a frame of n logical bytes as its compressed bytes (same
+   dictionary and framePages); the workers decode it for the content hash.
+   ZVFS_ERR_UNSUPPORTED (converter unchanged): feed the bytes instead. */
+int zvfs_conv_feed_frame(zvfs_conv *c, const void *frame, size_t flen,
+                         size_t n);
+/* The source's decoding dictionary (NULL = none); enables feed_frame. */
+void zvfs_conv_set_copy_ddict(zvfs_conv *c, const void *ddict);
+uint64_t zvfs_conv_frames_copied(const zvfs_conv *c);
+
+/* Pages as a 0-based bitmap. */
+typedef struct zvfs_pageset {
+  uint8_t *bits; /* NULL = empty */
+  uint64_t npages, count;
+  uint32_t page_size;
+} zvfs_pageset;
+/* Freelist leaf pages of the SQLite image read through rd (size bytes);
+   empty when there are none or the list is inconsistent. */
+int zvfs_freelist_leaves(zdb_read_fn rd, void *ctx, uint64_t size,
+                         zvfs_pageset *out);
+/* Before the first feed: these pages are written as zeros (takes bits). */
+int zvfs_conv_set_zero_pages(zvfs_conv *c, zvfs_pageset *set);
 
 #endif

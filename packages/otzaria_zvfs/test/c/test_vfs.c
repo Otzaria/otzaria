@@ -418,7 +418,7 @@ static void test_probe_keeps_locks(void) {
       if (action == 3) {
         char dst[1100];
         snprintf(dst, sizeof dst, "%s.new", files[fi]);
-        CHECK_EQ(zvfs_compact(files[fi], dst, 3, 1, NULL, NULL, NULL, NULL, 0),
+        CHECK_EQ(zvfs_compact(files[fi], dst, 3, 1, 0, NULL, NULL, NULL, NULL, NULL, 0),
                  ZVFS_ERR_BUSY);
         CHECK_EQ(zvfs_compact_swap(files[fi], dst), ZVFS_ERR_BUSY);
         CHECK(zplat_exists(dst) == 0);

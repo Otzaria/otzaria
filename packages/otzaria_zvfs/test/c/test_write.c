@@ -737,6 +737,61 @@ static int same_logical_bytes(const char *plain, const char *zdb) {
   return ok;
 }
 
+static int buf_rd(void *ctx, void *buf, size_t n, uint64_t off) {
+  const uint8_t *const *m = (const uint8_t *const *)ctx;
+  size_t size = (size_t)(m[1] - m[0]);
+  if (off + n > size) return ZVFS_ERR_SHORT_READ;
+  memcpy(buf, m[0] + off, n);
+  return ZVFS_OK;
+}
+
+static uint8_t *logical_bytes(const char *zdb, size_t *n) {
+  zvfs_reader *r = NULL;
+  if (zvfs_reader_open(zdb, &r)) return NULL;
+  zvfs_info info;
+  zvfs_reader_info(r, &info);
+  uint8_t *b = (uint8_t *)malloc((size_t)info.logical_size + 1);
+  if (zvfs_reader_read(r, b, (int64_t)info.logical_size, 0)) {
+    free(b);
+    b = NULL;
+  }
+  *n = (size_t)info.logical_size;
+  zvfs_reader_close(r);
+  return b;
+}
+
+/* The logical bytes of zdb equal plain, except that plain's freelist leaf
+   pages are zeros; returns that leaf count, or -1. */
+static int64_t same_live_bytes(const char *plain, const char *zdb) {
+  uint8_t *a, *b;
+  size_t na, nb;
+  if (read_file(plain, &a, &na)) return -1;
+  b = logical_bytes(zdb, &nb);
+  const uint8_t *m[2] = {a, a + na};
+  zvfs_pageset set = {0};
+  int64_t leaves = -1;
+  if (b && nb == na && !zvfs_freelist_leaves(buf_rd, (void *)m, na, &set)) {
+    uint32_t ps = (uint32_t)a[16] << 8 | a[17];
+    if (ps == 1) ps = 65536;
+    leaves = (int64_t)set.count;
+    for (size_t pg = 0; leaves >= 0 && pg < na / ps; pg++) {
+      const uint8_t *pa = a + pg * ps, *pb = b + pg * ps;
+      int leaf = set.bits && (set.bits[pg >> 3] >> (pg & 7) & 1);
+      if (leaf) {
+        for (uint32_t i = 0; i < ps; i++)
+          if (pb[i]) leaves = -1;
+      } else if (memcmp(pa, pb, ps) != 0) {
+        if (ts_verbose) fprintf(stderr, "live page %zu differs\n", pg);
+        leaves = -1;
+      }
+    }
+  }
+  free(set.bits);
+  free(a);
+  free(b);
+  return leaves;
+}
+
 static void random_statement(char *sql, size_t cap, int step, int *tables) {
   uint64_t r = rnd();
   int t = (int)(r % 6);
@@ -883,13 +938,14 @@ static void test_sql_equivalence(int page_size, int steps) {
   snprintf(dst, sizeof dst, "%s.new", zdb);
   zvfs_info ci;
   char err[256];
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, &ci, err, sizeof err), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, &ci, NULL, err, sizeof err), 0);
   CHECK(ci.includes_overlay_seq == oi.seq);
   CHECK_EQ(zvfs_compact_swap(zdb, dst), 0);
   char ov[1100];
   snprintf(ov, sizeof ov, "%s-zovl", zdb);
   CHECK(zplat_exists(ov) == 0);
-  CHECK(same_logical_bytes(plain, zdb));
+  /* compaction writes the freelist leaves as zeros */
+  CHECK(same_live_bytes(plain, zdb) >= 0);
   ts_remove_all(plain);
   ts_remove_all(zdb);
 }
@@ -940,7 +996,7 @@ static void test_stale_sidecar(void) {
   uint64_t want = open_hash(zdb, &ok);
   CHECK(ok);
   /* rename landed, the sidecar delete did not */
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
   CHECK(zplat_exists(ov) == 1);
   CHECK(open_hash(zdb, &ok) == want && ok);
@@ -952,13 +1008,13 @@ static void test_stale_sidecar(void) {
   sqlite3_close(z);
   CHECK(scans < 3);
   /* compacting again and crashing at the same point: still readable */
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
   CHECK(zplat_exists(ov) == 1);
   CHECK(open_hash(zdb, &ok) == want && ok);
   /* three more crashes there, then a write, then one more */
   for (int k = 0; k < 3; k++) {
-    CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+    CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
     CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
     CHECK(open_hash(zdb, &ok) == want && ok);
   }
@@ -967,11 +1023,11 @@ static void test_stale_sidecar(void) {
   sqlite3_close(z);
   uint64_t want2 = open_hash(zdb, &ok);
   CHECK(ok && want2 != want);
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
   CHECK(open_hash(zdb, &ok) == want2 && ok);
   /* and a full swap, then a write, then reopen */
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   CHECK_EQ(zvfs_compact_swap(zdb, dst), 0);
   CHECK(zplat_exists(ov) == 0);
   CHECK(open_hash(zdb, &ok) == want2 && ok);
@@ -1004,7 +1060,7 @@ static void test_derived_newer(void) {
   ts_must(z, "UPDATE line SET content = upper(content) WHERE id % 4 = 0;"
              "DELETE FROM link WHERE id % 3 = 0;");
   sqlite3_close(z);
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
   ts_must(z, "DELETE FROM line WHERE id > 6000; VACUUM;"
              "UPDATE meta SET v='after' WHERE k='key9';");
@@ -1019,6 +1075,178 @@ static void test_derived_newer(void) {
   printf("  derived overlay newer than the compacted base: replayed on top\n");
   ts_remove_all(plain);
   ts_remove_all(zdb);
+}
+
+/* ================= compaction: freelist zeroing and frame copies ================= */
+static int convert_fp(const char *src, const char *dst, uint32_t fp) {
+  uint8_t *data;
+  size_t n;
+  if (read_file(src, &data, &n)) return -1;
+  const char *name;
+  const void *dict;
+  size_t dl;
+  zvfs_builtin_dict(0, &name, &dict, &dl, NULL);
+  zvfs_conv *c = NULL;
+  int rc = zvfs_conv_create(dst, dict, dl, name, 3, 2, fp, 1 << 20, NULL, &c);
+  if (!rc) rc = zvfs_conv_feed(c, data, n);
+  if (!rc) rc = zvfs_conv_finish(c, NULL);
+  zvfs_conv_destroy(c);
+  free(data);
+  return rc;
+}
+
+/* Frames of the new base that are byte-identical to a frame of the old one. */
+static uint64_t shared_frames(const char *a, const char *b) {
+  uint8_t *x, *y;
+  size_t nx, ny;
+  if (read_file(a, &x, &nx) || read_file(b, &y, &ny)) return 0;
+  const uint8_t *mx[2] = {x, x + nx}, *my[2] = {y, y + ny};
+  zdb_file *fa = NULL, *fb = NULL;
+  uint64_t same = 0;
+  if (!zdb_file_load(buf_rd, (void *)mx, nx, &fa) &&
+      !zdb_file_load(buf_rd, (void *)my, ny, &fb)) {
+    for (uint64_t i = 0; i < fb->h.frame_count && i < fa->h.frame_count; i++) {
+      uint64_t la = zdb_frame_end(fa, i) - fa->index[i];
+      uint64_t lb = zdb_frame_end(fb, i) - fb->index[i];
+      same += la == lb && !memcmp(x + fa->index[i], y + fb->index[i], (size_t)la);
+    }
+  }
+  zdb_file_free(fa);
+  zdb_file_free(fb);
+  free(x);
+  free(y);
+  return same;
+}
+
+static void test_compact_freelist(uint32_t fp, uint64_t lock_byte) {
+  const char *plain = tmp_path("cf_plain.db");
+  const char *zdb = tmp_path("cf.zdb");
+  const char *patch = tmp_path("cf_patch.db");
+  const char *out = tmp_path("cf_out.zdb");
+  char alt[1100]; /* tmp_path has only four slots */
+  snprintf(alt, sizeof alt, "%s.alt", out);
+  ts_remove_all(plain);
+  ts_remove_all(zdb);
+  ts_remove_all(patch);
+  ts_remove_all(out);
+  zvfs_g_lock_byte = lock_byte;
+  sqlite3 *p = ts_open(plain, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  ts_must(p, "PRAGMA page_size=4096");
+  ts_make_base(p, 40, 30000);
+  sqlite3_close(p);
+  CHECK_EQ(convert_fp(plain, zdb, fp), 0);
+  char base_copy[1100];
+  snprintf(base_copy, sizeof base_copy, "%s.base", zdb);
+  CHECK_EQ(copy_file(zdb, base_copy), 0);
+  sqlite3 *pp = ts_open(patch, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  ts_make_patch(pp, 3, 30000, 2000, 1500, 2500);
+  sqlite3_close(pp);
+  /* the same patch and a large delete on both: freelist pages appear */
+  static const char *more =
+      "DELETE FROM line WHERE id BETWEEN 9000 AND 17000;"
+      "DELETE FROM link WHERE id % 2 = 0;";
+  p = ts_open(plain, SQLITE_OPEN_READWRITE, NULL);
+  sqlite3 *z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  CHECK_EQ(ts_apply_patch(p, patch, 700), 0);
+  CHECK_EQ(ts_apply_patch(z, patch, 700), 0);
+  ts_must(p, more);
+  ts_must(z, more);
+  int64_t free_pages = ts_int(p, "PRAGMA freelist_count");
+  CHECK(free_pages > 50 && free_pages == ts_int(z, "PRAGMA freelist_count"));
+  int ra = 0;
+  uint64_t want = ts_content_hash(p, &ra);
+  CHECK(!ra);
+  sqlite3_close(p);
+  sqlite3_close(z);
+  CHECK(same_logical_bytes(plain, zdb));
+
+  /* every flag combination: valid, and logically what it promises */
+  uint8_t *ref = NULL;
+  size_t nref = 0;
+  for (int flags = 0; flags < 4; flags++) {
+    zvfs_compact_stats st;
+    zvfs_info ci;
+    char err[256];
+    const char *dst = flags ? alt : out;
+    CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, flags, NULL, NULL, &ci, &st, err,
+                          sizeof err), 0);
+    zvfs_reader *r = NULL;
+    CHECK_EQ(zvfs_reader_open(dst, &r), 0);
+    CHECK_EQ(zvfs_reader_verify(r, NULL, NULL), 0);
+    zvfs_reader_close(r);
+    int keep = (flags & ZVFS_COMPACT_KEEP_FREELIST) != 0;
+    int recompress = (flags & ZVFS_COMPACT_RECOMPRESS) != 0;
+    if (keep) {
+      CHECK(same_logical_bytes(plain, dst));
+      CHECK_EQ(st.freelist_leaves, 0);
+    } else {
+      int64_t leaves = same_live_bytes(plain, dst);
+      CHECK(leaves > 0 && leaves < free_pages);
+      CHECK_EQ(st.freelist_leaves, leaves);
+    }
+    if (recompress) CHECK_EQ(st.frames_copied, 0);
+    else CHECK(st.frames_copied > 0 && st.frames_copied < st.frames);
+    /* copied frames are the old base's bytes; recompressed ones mostly not */
+    uint64_t shared = shared_frames(base_copy, dst);
+    if (!recompress) CHECK(shared >= st.frames_copied);
+    size_t nb = 0;
+    uint8_t *b = logical_bytes(dst, &nb);
+    if (flags == 0) {
+      ref = b;
+      nref = nb;
+    } else {
+      /* reuse and recompress give the same logical bytes */
+      if (flags == ZVFS_COMPACT_RECOMPRESS) CHECK(b && nb == nref && !memcmp(b, ref, nb));
+      free(b);
+    }
+    printf("  compact fp=%u flags=%d: %llu frames, %llu copied (%llu shared), "
+           "%llu leaves zeroed, %llu bytes\n",
+           fp, flags, (unsigned long long)st.frames,
+           (unsigned long long)st.frames_copied, (unsigned long long)shared,
+           (unsigned long long)st.freelist_leaves,
+           (unsigned long long)ci.physical_size);
+    remove(alt);
+  }
+  free(ref);
+
+  /* the zeroed base in place: integrity, same content, freelist reusable */
+  CHECK_EQ(zvfs_compact_swap(zdb, out), 0);
+  int ok;
+  CHECK(open_hash(zdb, &ok) == want && ok);
+  z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  CHECK_EQ(ts_int(z, "PRAGMA freelist_count"), free_pages);
+  ts_must(z, "INSERT INTO line SELECT id + 1000000, bookId, lineIndex, content, extra"
+             " FROM line WHERE id < 6000");
+  CHECK(ts_int(z, "PRAGMA freelist_count") < free_pages);
+  CHECK(ts_integrity_ok(z));
+  sqlite3_close(z);
+  /* compacting it again copies the already-zero leaves too */
+  zvfs_compact_stats st2;
+  CHECK_EQ(zvfs_compact(zdb, out, 3, 2, 0, NULL, NULL, NULL, &st2, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact_swap(zdb, out), 0);
+  z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  CHECK(z && ts_integrity_ok(z));
+  ts_must(z, "VACUUM");
+  CHECK(ts_integrity_ok(z));
+  CHECK_EQ(ts_int(z, "PRAGMA freelist_count"), 0);
+  sqlite3_close(z);
+  zvfs_compact_stats st3;
+  CHECK_EQ(zvfs_compact(zdb, out, 3, 2, 0, NULL, NULL, NULL, &st3, NULL, 0), 0);
+  CHECK_EQ(st3.freelist_leaves, 0);
+  remove(out);
+  /* no overlay at all: everything but frame 0 is copied */
+  zvfs_compact_stats st4;
+  CHECK_EQ(zvfs_compact(base_copy, out, 3, 2, 0, NULL, NULL, NULL, &st4, NULL, 0), 0);
+  CHECK_EQ(st4.frames_copied, st4.frames - 1);
+  CHECK_EQ(shared_frames(base_copy, out), st4.frames);
+  printf("  recompact: %llu of %llu frames copied; after VACUUM no leaves\n",
+         (unsigned long long)st2.frames_copied, (unsigned long long)st2.frames);
+  zvfs_g_lock_byte = ZDB_LOCK_BYTE;
+  remove(base_copy);
+  ts_remove_all(plain);
+  ts_remove_all(zdb);
+  ts_remove_all(patch);
+  ts_remove_all(out);
 }
 
 static void test_compaction_windows(void) {
@@ -1047,10 +1275,10 @@ static void test_compaction_windows(void) {
 
   /* busy: open in this process (refused before any open), stale output */
   z = ts_open(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), ZVFS_ERR_BUSY);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), ZVFS_ERR_BUSY);
   CHECK_EQ(zvfs_compact_swap(zdb, dst), ZVFS_ERR_BUSY);
   sqlite3_close(z);
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
   ts_must(z, "UPDATE meta SET v='later' WHERE k='key3'");
   sqlite3_close(z);
@@ -1059,7 +1287,7 @@ static void test_compaction_windows(void) {
   CHECK_EQ(copy_file(keep_ovl, ov), 0);
 
   /* step 1 crashed: a partial .new next to the intact pair */
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   uint8_t *nd;
   size_t nn;
   CHECK_EQ(read_file(dst, &nd, &nn), 0);
@@ -1089,7 +1317,7 @@ static void test_compaction_windows(void) {
   sqlite3_close(pl);
   CHECK(open_hash(zdb, &ok) == want2 && ok);
   /* and compacting again finishes cleanly */
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   CHECK_EQ(zvfs_compact_swap(zdb, dst), 0);
   CHECK(zplat_exists(ov) == 0);
   CHECK(open_hash(zdb, &ok) == want2 && ok);
@@ -1206,7 +1434,7 @@ static void test_swap_lock(void) {
 
   /* another process reads: the swap must refuse, not rename under it */
   proc_t c = spawn_zlck("hold", zdb, 1500);
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   int busy = zvfs_compact_swap(zdb, dst);
   CHECK_EQ(busy, ZVFS_ERR_BUSY);
   CHECK_EQ(wait_proc(c), 0);
@@ -1509,7 +1737,7 @@ static void test_install_failures(void) {
 
   /* the same for the compaction swap */
   RESET_PAIR();
-  CHECK_EQ(zvfs_compact(zdb, nw, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, nw, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0), 0);
   zvfs_test_swap_locked = start_opener;
   CHECK_EQ(zvfs_compact_swap(zdb, nw), 0);
   zvfs_test_swap_locked = NULL;
@@ -1750,6 +1978,9 @@ int main(int argc, char **argv) {
   test_compaction_windows();
   test_stale_sidecar();
   test_derived_newer();
+  test_compact_freelist(1, ZDB_LOCK_BYTE);
+  test_compact_freelist(4, ZDB_LOCK_BYTE);
+  test_compact_freelist(1, 700u << 10); /* runs of copies end at the gap */
   test_swap_lock();
   test_lock_wait_isolated();
   test_install();

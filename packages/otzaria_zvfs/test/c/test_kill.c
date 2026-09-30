@@ -147,7 +147,7 @@ static int child_writer(const char *zdb, int start, int compact) {
     if (compact && i % 25 == 0) {
       char dst[4200];
       snprintf(dst, sizeof dst, "%s.new", zdb);
-      int rc = zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0);
+      int rc = zvfs_compact(zdb, dst, 3, 2, 0, NULL, NULL, NULL, NULL, NULL, 0);
       for (int t = 0; rc == ZVFS_OK && t < 50; t++) {
         rc = zvfs_compact_swap(zdb, dst);
         if (rc == ZVFS_OK) printf("K %d\n", i);
