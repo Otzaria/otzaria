@@ -714,6 +714,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       }
     }
     await stagedDb.rename(path.join(target, dbName));
+    await _deleteZdbFamily(target);
   }
 
   /// תיקיית הגיבוי הזמני של ה-DB בזמן עדכון. שם קבוע: ריצה שנהרגה באמצע

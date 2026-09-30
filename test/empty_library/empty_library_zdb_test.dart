@@ -282,6 +282,33 @@ void main() {
     expect(readFixtureLibrary(zdb).marker, 'release');
   });
 
+  test(
+    'promoteStagedImport: seforim.db בלבד מה-ZIP מחליף ספריית zdb',
+    () async {
+      final zdb = LibraryZdbFiles.zdbPathIn(library.path);
+      await writeFixtureZdb(zdb, version: 1, marker: 'old-zdb');
+      growZdbOverlay(zdb);
+      final staging = Directory(EmptyLibraryBloc.stagingDirFor(library.path))
+        ..createSync();
+      writeFixtureLibraryDb(
+        path.join(staging.path, DatabaseConstants.databaseFileName),
+        version: 9,
+        schemaVersion: 5,
+        marker: 'imported-plain',
+      );
+
+      await EmptyLibraryBloc.promoteStagedImport(staging.path, library.path);
+
+      final active = DatabaseConstants.resolveLibraryDbPath(library.path);
+      expect(path.basename(active), DatabaseConstants.databaseFileName);
+      expect(readFixtureLibrary(active).marker, 'imported-plain');
+      expect(File('$zdb-zovl').existsSync(), isFalse);
+      // ניקוי העלייה מוחק seforim.db רק כשיש zdb — כאן אין.
+      await cleanUpZdbLeftovers(library.path);
+      expect(File(active).existsSync(), isTrue);
+    },
+  );
+
   test('בעלייה: גיבוי seforim.db יתום אינו מוחזר לספריית zdb', () async {
     final zdb = LibraryZdbFiles.zdbPathIn(library.path);
     await writeFixtureZdb(zdb, version: 4);
