@@ -16,6 +16,7 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
 import 'package:otzaria/migration/models/toc_entry.dart' as db_models;
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show SqliteException;
 
 /// A data provider that manages SQLite database operations for the library.
@@ -128,6 +129,11 @@ class SqliteDataProvider {
     // ה-read-only יש לוודא שהקובץ אינו במצב WAL — אחרת SQLite לא יוכל לפתוח
     // אותו ללא יצירת קובצי -wal/-shm (שדורשים הרשאת כתיבה).
     await normalizeJournalModeForReadOnly(_dbPath);
+    // הפתיחה הראשונה של zdb (אינדקס + overlay) סינכרונית; ב-worker היא לא
+    // חוסמת את ה-UI isolate, והפתיחה כאן מצטרפת למצב המשותף לתהליך.
+    if (isZdbPath(_dbPath) && !isLibraryDbOpenInProcess(_dbPath)) {
+      await DbReadWorker.warmUp(_dbPath);
+    }
 
     try {
       final database = MyDatabase.withPath(

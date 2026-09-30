@@ -5,6 +5,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -131,8 +132,9 @@ class ReleaseIndexBuilderCli {
     void Function(String message) log,
   ) async {
     final libraryDirectory = Directory(config.libraryPath);
+    ensureLibraryVfs();
     final database = File(
-      p.join(config.libraryPath, DatabaseConstants.databaseFileName),
+      DatabaseConstants.resolveLibraryDbPath(config.libraryPath),
     );
     if (!libraryDirectory.existsSync() || !database.existsSync()) {
       throw StateError('לא נמצא מסד ספרייה ב-${database.path}');
@@ -205,7 +207,7 @@ class ReleaseIndexBuilderCli {
       'שימוש: otzaria build-release-index '
       '--library <dir> --index <dir> --data <dir>\n'
       '\n'
-      'בונה אינדקס חיפוש להפצה מתוך seforim.db שבתיקיית הספרייה.',
+      'בונה אינדקס חיפוש להפצה מתוך מסד הספרייה (seforim.zdb או seforim.db).',
     );
   }
 }

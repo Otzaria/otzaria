@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show sqlite3;
 import 'package:otzaria/migration/database/untrusted_database.dart';
 
@@ -52,15 +54,22 @@ Future<void> normalizeJournalModeForReadOnly(
     final file = File(dbPath);
     if (!await file.exists()) return;
 
-    bool isWal;
-    final raf = await file.open();
-    try {
-      await raf.setPosition(18);
-      final header = await raf.read(2);
-      isWal = header.length == 2 && (header[0] == 2 || header[1] == 2);
-    } finally {
-      await raf.close();
+    final List<int> header;
+    if (isZdbPath(dbPath)) {
+      // הבתים הגולמיים שייכים לכותרת zdb, וב-POSIX סגירת handle גולמי מפילה
+      // נעילות SQLite. קובץ פתוח בתהליך כבר נורמל ע"י מי שפתח אותו.
+      if (isLibraryDbOpenInProcess(dbPath)) return;
+      header = await Isolate.run(() => readLibraryZdbBytes(dbPath, 18, 2));
+    } else {
+      final raf = await file.open();
+      try {
+        await raf.setPosition(18);
+        header = await raf.read(2);
+      } finally {
+        await raf.close();
+      }
     }
+    final isWal = header.length == 2 && (header[0] == 2 || header[1] == 2);
 
     final journal = File('$dbPath-journal');
     final hasHotJournal =
@@ -68,6 +77,7 @@ Future<void> normalizeJournalModeForReadOnly(
     if (!isWal && !hasHotJournal) return;
 
     // הגישה הראשונה בחיבור כתיבה מריצה את ה-rollback של יומן חם.
+    ensureLibraryVfs();
     final db = sqlite3.open(dbPath);
     try {
       if (untrusted) hardenUntrustedConnection(db);

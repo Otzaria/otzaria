@@ -1,3 +1,4 @@
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 
 import 'author_dao.dart';
@@ -55,6 +56,13 @@ class MyDatabase {
   bool get isUntrusted => _untrusted;
 
   bool get isOfficial => _official;
+
+  /// מסד ספרייה דחוס (seforim.zdb), הנקרא דרך zvfs.
+  bool get isZdb => isZdbPath(_path);
+
+  /// mmap כבוי במסד מצורף (ראה [openUntrustedReadOnlyDatabase]) ואינו
+  /// אפשרי ב-zdb.
+  bool get allowsMmap => !_untrusted && !isZdb;
 
   /// האם יש כרגע חיבור פתוח. אחרי [close] החיבור נפתח מחדש בגישה הבאה.
   bool get isOpen => _database != null;
@@ -231,6 +239,14 @@ class MyDatabase {
       DbCapabilities.forDatabase(_path, await database);
 
   sqlite3.Database _initDatabase() {
+    // isolate שעלה לפני הרישום בעלייה חייב לראות את zvfs כברירת המחדל.
+    ensureLibraryVfs();
+    final db = _openDatabase();
+    if (isZdb) db.execute('PRAGMA mmap_size=0');
+    return db;
+  }
+
+  sqlite3.Database _openDatabase() {
     if (_untrusted) {
       return openUntrustedReadOnlyDatabase(_path, immutable: _immutable);
     }

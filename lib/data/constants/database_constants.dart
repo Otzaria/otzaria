@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:seforim_library_updater/seforim_library_updater.dart'
@@ -8,8 +9,11 @@ import 'package:seforim_library_updater/seforim_library_updater.dart'
 
 /// Database configuration constants
 class DatabaseConstants {
-  /// The name of the main database file
+  /// שם המסד הרגיל (השם הישן, עד סכמה 5). המסד הפעיל נקבע ב-[resolveLibraryDbPath].
   static const String databaseFileName = 'seforim.db';
+
+  /// שם המסד הדחוס (מסכמה 6), הנקרא דרך zvfs.
+  static const String zdbDatabaseFileName = 'seforim.zdb';
 
   /// The name of the compressed main database archive (as published on releases).
   static const String databaseArchiveFileName = 'seforim.db.zst';
@@ -78,12 +82,17 @@ class DatabaseConstants {
 
   /// שמות הקבצים והתיקיות שהתוכנה מנהלת בתוך תיקיית הספרייה. בהעברת מיקום
   /// הספרייה מעבירים רק אותם — קבצים שהמשתמש הוסיף לתיקייה נשארים במקומם.
-  /// כולל קובצי לוואי של SQLite (-wal/-shm) שעשויים להישאר ליד ה-DB.
+  /// כולל קובצי לוואי של SQLite (-wal/-shm) ושל zvfs (-zovl/-zlck) ליד ה-DB.
   /// קבצי ארכיון דחוסים (zst) אינם כאן בכוונה — אינם נצרכים ולא מועברים.
   static Set<String> libraryManagedEntryNames() => {
     databaseFileName,
     '$databaseFileName-wal',
     '$databaseFileName-shm',
+    zdbDatabaseFileName,
+    '$zdbDatabaseFileName-zovl',
+    '$zdbDatabaseFileName-zlck',
+    '$zdbDatabaseFileName-wal',
+    '$zdbDatabaseFileName-shm',
     lexicalDatabaseFileName,
     externalCatalogDatabaseFileName,
     '$externalCatalogDatabaseFileName-wal',
@@ -103,14 +112,38 @@ class DatabaseConstants {
     final effectivePath =
         Settings.getValue<String>(SettingsRepository.keyDbEffectivePath) ?? '';
     if (effectivePath.isNotEmpty) {
-      return effectivePath;
+      return resolveLibraryDbSibling(effectivePath);
     }
     final libraryPath =
         Settings.getValue<String>(SettingsRepository.keyLibraryPath) ?? '.';
     final folderName =
         Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
         '';
-    return _buildDbPath(libraryPath, folderName);
+    return resolveLibraryDbSibling(_buildDbPath(libraryPath, folderName));
+  }
+
+  /// קובץ המסד הפעיל ב-[directory]: `seforim.zdb` כשהוא zdb תקין, אחרת
+  /// `seforim.db` (גם כשאינו קיים).
+  static String resolveLibraryDbPath(String directory) {
+    final zdb = path.join(directory, zdbDatabaseFileName);
+    // stat לפני ה-probe: בלי zdb לא נטענת הספרייה הנייטיבית כלל.
+    if (File(zdb).existsSync() && isLibraryZdb(zdb)) return zdb;
+    return path.join(directory, databaseFileName);
+  }
+
+  /// [dbPath] באחד משני שמות המסד — הקובץ הפעיל שלצידו; נתיב אחר כמות שהוא.
+  static String resolveLibraryDbSibling(String dbPath) {
+    final name = path.basename(dbPath);
+    if (name != databaseFileName && name != zdbDatabaseFileName) return dbPath;
+    return resolveLibraryDbPath(path.dirname(dbPath));
+  }
+
+  /// האם יש ב-[directory] מסד ספרייה באחד משני השמות.
+  static Future<bool> libraryDbExistsIn(String directory) async {
+    for (final name in const [zdbDatabaseFileName, databaseFileName]) {
+      if (await File(path.join(directory, name)).exists()) return true;
+    }
+    return false;
   }
 
   /// Gets the directory that contains the main database file.

@@ -154,7 +154,7 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
 /// לכל אחד חיבור RO עצל; קריאת ספר לא מעכבת פתיחה וגלילה של ספר אחר.
 ///
 /// נפרד מ-FindRefDbIsolate: חימום ה-AltToc שם אורך שניות, ופתיחת ספר לא
-/// תמתין מאחוריו. נוצר בעצלתיים בבקשה הראשונה, לעולם לא בעלייה.
+/// תמתין מאחוריו. נוצר בעצלתיים בבקשה הראשונה; בעלייה רק ל-[warmUp] של zdb.
 class DbReadWorker {
   DbReadWorker._(this._slot);
 
@@ -301,6 +301,16 @@ class DbReadWorker {
     } catch (_) {
       if (generation != _generation) throw const DbReadWorkerSuspended();
       rethrow;
+    }
+  }
+
+  /// פותח את [dbPath] ב-worker ומשאיר אותו פתוח: פתיחה אחריו בכל isolate
+  /// מצטרפת למצב zvfs החם. כשל אינו חוסם — הפתיחה הבאה פשוט תהיה קרה.
+  static Future<void> warmUp(String dbPath) async {
+    try {
+      await request('warm', {'dbPath': dbPath});
+    } catch (e) {
+      debugPrint('[DbReadWorker] warm-up skipped: $e');
     }
   }
 
@@ -710,6 +720,9 @@ void _workerMain(_Bootstrap bootstrap) {
         return null;
       case 'shrinkMemory':
         return repository?.database.shrinkMemoryIfOpen() ?? false;
+      case 'warm':
+        await ensureRepo(args['dbPath'] as String);
+        return null;
       case 'linkContent':
         final repo = await ensureRepo(args['dbPath'] as String);
         final book = await resolveOfficialBook(

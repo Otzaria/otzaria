@@ -9,6 +9,7 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 import 'package:path/path.dart' as p;
@@ -228,6 +229,16 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     }
   }
 
+  /// הגודל ש-SQLite רואה ב-zdb (הדחוס קטן פי ~4), כדי שה-planner ישווה
+  /// patch למסד ולא לקובץ הדחוס. קריאת הכותרת משחזרת overlay — ב-isolate.
+  static Future<int?> _zdbLogicalSizeOrNull(String path) async {
+    try {
+      return await Isolate.run(() => libraryZdbLogicalSize(path));
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<void> _defaultFullDbExtractor(
     String archivePath,
     String outputPath,
@@ -249,7 +260,9 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     final local = versionReader.read(dbPath);
     final result = await discovery.discover(allowPrerelease: allowPrerelease);
     return planner.plan(
-      localDbSizeBytes: _fileSizeOrNull(dbPath),
+      localDbSizeBytes: isZdbPath(dbPath)
+          ? await _zdbLogicalSizeOrNull(dbPath)
+          : _fileSizeOrNull(dbPath),
       localVersion: local.dbVersion,
       localSchemaVersion: local.schemaVersion,
       hasLocalVersionMeta: local.hasVersionMeta,

@@ -341,8 +341,8 @@ class AppPaths {
 
     for (final dir in candidates) {
       final marker = File(p.join(dir, _bundledLibraryMarkerFileName));
-      final db = File(p.join(dir, 'seforim.db'));
-      if (await marker.exists() && await db.exists()) {
+      if (await marker.exists() &&
+          await DatabaseConstants.libraryDbExistsIn(dir)) {
         _cachedBundledLibraryPath = dir;
         return dir;
       }
@@ -490,8 +490,7 @@ class AppPaths {
         ? libraryPath
         : p.join(libraryPath, folderName);
 
-    final db = File(p.join(dbDir, 'seforim.db'));
-    if (!await db.exists()) {
+    if (!await DatabaseConstants.libraryDbExistsIn(dbDir)) {
       return false;
     }
     // ה-marker יושב באותה רמה כמו ה-DB (זה מבנה ה-FULL bundle שה-CI יוצר).
@@ -523,7 +522,18 @@ class AppPaths {
         ) ??
         '';
     if (effectiveDbPath.isNotEmpty) {
-      if (await File(effectiveDbPath).exists()) return false;
+      // עותק פנימי שהוחלף ב-seforim.zdb שלצידו: ההגדרה עוברת לקובץ הפעיל.
+      final activeDbPath = DatabaseConstants.resolveLibraryDbSibling(
+        effectiveDbPath,
+      );
+      if (await File(activeDbPath).exists()) {
+        if (activeDbPath == effectiveDbPath) return false;
+        await Settings.setValue(
+          SettingsRepository.keyDbEffectivePath,
+          activeDbPath,
+        );
+        return true;
+      }
       await Settings.setValue(SettingsRepository.keyDbEffectivePath, '');
       settingsChanged = true;
     }
@@ -579,8 +589,7 @@ class AppPaths {
       final dbDir = folderName.isEmpty
           ? libraryPath
           : p.join(libraryPath, folderName);
-      final db = File(p.join(dbDir, DatabaseConstants.databaseFileName));
-      if (await db.exists()) {
+      if (await DatabaseConstants.libraryDbExistsIn(dbDir)) {
         return folderName;
       }
     }

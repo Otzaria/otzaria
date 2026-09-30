@@ -148,8 +148,7 @@ class SeforimRepository {
           : 'PRAGMA cache_size=-50000', // 50MB
     );
     await _executeRawQuery('PRAGMA temp_store=MEMORY');
-    // מסד מצורף: mmap כבוי בכוונה — ראה openUntrustedReadOnlyDatabase.
-    if (!_database.isUntrusted) {
+    if (_database.allowsMmap) {
       await _executeRawQuery('PRAGMA mmap_size=67108864'); // 64MB
     }
     if (!_database.isReadOnly) {
@@ -294,7 +293,9 @@ class SeforimRepository {
     await executeRawQuery('PRAGMA locking_mode=EXCLUSIVE');
     await executeRawQuery('PRAGMA cache_size=-200000'); // 200MB (שלילי=ק"ב)
     await executeRawQuery('PRAGMA temp_store=MEMORY');
-    await executeRawQuery('PRAGMA mmap_size=536870912'); // 512MB memory-mapped
+    if (_database.allowsMmap) {
+      await executeRawQuery('PRAGMA mmap_size=536870912'); // 512MB mmap
+    }
     _logger.info('Maximum performance mode enabled');
   }
 
@@ -304,7 +305,7 @@ class SeforimRepository {
   /// [restoreReadCacheDefaults] בסיום כדי לחזור לפרופיל הסרק החסכוני.
   Future<void> setReadBoostMode() async {
     await _executeRawQuery('PRAGMA cache_size=-200000'); // 200MB (שלילי=ק"ב)
-    if (!_database.isUntrusted) {
+    if (_database.allowsMmap) {
       await _executeRawQuery('PRAGMA mmap_size=536870912'); // 512MB
     }
   }
@@ -316,7 +317,9 @@ class SeforimRepository {
       return;
     }
     await _executeRawQuery('PRAGMA cache_size=-50000'); // 50MB (שלילי=ק"ב)
-    await _executeRawQuery('PRAGMA mmap_size=67108864'); // 64MB
+    if (_database.allowsMmap) {
+      await _executeRawQuery('PRAGMA mmap_size=67108864'); // 64MB
+    }
   }
 
   /// Restores normal performance mode after bulk operations

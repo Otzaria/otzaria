@@ -1,3 +1,4 @@
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
 
 // קבועי sqlite3_db_config — https://www.sqlite.org/c3ref/c_dbconfig_defensive.html
@@ -40,9 +41,12 @@ ReadOnlyDbTarget trustedDbTarget(String path) =>
     (path: path, untrusted: false, immutable: false);
 
 /// פותח את [target] לקריאה בלבד: מסד מצורף — מוקשח, אחרת פתיחה רגילה.
-Database openReadOnlyTarget(ReadOnlyDbTarget target) => target.untrusted
-    ? openUntrustedReadOnlyDatabase(target.path, immutable: target.immutable)
-    : _openTrustedReadOnlyDatabase(target.path);
+Database openReadOnlyTarget(ReadOnlyDbTarget target) {
+  ensureLibraryVfs();
+  return target.untrusted
+      ? openUntrustedReadOnlyDatabase(target.path, immutable: target.immutable)
+      : _openTrustedReadOnlyDatabase(target.path);
+}
 
 /// כוונון הקריאה של החיבור הראשי ב-SeforimRepository (mmap רק למסד מהימן).
 Database _openTrustedReadOnlyDatabase(String path) {
@@ -50,7 +54,10 @@ Database _openTrustedReadOnlyDatabase(String path) {
   try {
     db.execute('PRAGMA query_only=ON');
     db.execute('PRAGMA temp_store=MEMORY');
-    db.execute('PRAGMA mmap_size=67108864'); // 64MB
+    // zvfs אינו ממפה עמודים; 0 מפורש, כדי שלא ייראה כאילו mmap פעיל.
+    db.execute(
+      isZdbPath(path) ? 'PRAGMA mmap_size=0' : 'PRAGMA mmap_size=67108864',
+    );
   } catch (_) {
     db.close();
     rethrow;

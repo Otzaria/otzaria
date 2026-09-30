@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria_zvfs/otzaria_zvfs.dart' show zdbMagic;
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -1466,6 +1467,47 @@ void main() {
         expect(DatabaseConstants.getDatabasePath(), internalDb);
       },
     );
+
+    test('עותק פנימי שהוחלף ב-seforim.zdb: ההגדרה עוברת לקובץ הפעיל', () async {
+      final internalDir = p.join(dataRoot.path, 'פנימי');
+      final internalZdb = p.join(internalDir, 'seforim.zdb');
+      await Directory(internalDir).create(recursive: true);
+      // הרזולבר בודק magic בלבד.
+      await File(internalZdb).writeAsBytes([...zdbMagic, 0, 0]);
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        p.join(dataRoot.path, 'ספרייה חיצונית'),
+      );
+      await Settings.setValue(
+        SettingsRepository.keyDbEffectivePath,
+        p.join(internalDir, 'seforim.db'),
+      );
+
+      expect(await AppPaths.adoptLibraryAtDefaultPathIfNeeded(), isTrue);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyDbEffectivePath),
+        internalZdb,
+      );
+      expect(DatabaseConstants.getDatabasePath(), internalZdb);
+    });
+
+    test('ספרייה שיש בה רק seforim.zdb מאומצת', () async {
+      final library = defaultLibrary();
+      await Directory(library).create(recursive: true);
+      await File(
+        p.join(library, 'seforim.zdb'),
+      ).writeAsBytes([...zdbMagic, 0, 0]);
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        p.join(dataRoot.path, 'כונן שנותק'),
+      );
+
+      expect(await AppPaths.adoptLibraryAtDefaultPathIfNeeded(), isTrue);
+      expect(
+        DatabaseConstants.getDatabasePath(),
+        p.join(library, 'seforim.zdb'),
+      );
+    });
 
     test('עותק DB פנימי חסר מתנקה לפני אימוץ ספריית ברירת המחדל', () async {
       final missingInternalDb = p.join(dataRoot.path, 'פנימי', 'חסר.db');

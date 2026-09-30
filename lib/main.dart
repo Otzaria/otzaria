@@ -63,6 +63,7 @@ import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/repository/library_update_repository.dart';
@@ -835,6 +836,19 @@ Future<void> _recoverOrphanedDbBackup() async {
 }
 
 Future<void> _initializeRestartableRuntime() async {
+  // חייב לקדום לכל פתיחה של מסד הספרייה (גם בשחזורים שלמטה). קריאת FFI קצרה.
+  await _timedPhase('zvfs', () async {
+    ensureLibraryVfs();
+    final failure = libraryVfsRegistrationFailure;
+    if (failure != null) {
+      _logNonFatalInitializationError(
+        'zvfs registration',
+        failure.error,
+        failure.stackTrace,
+      );
+    }
+  });
+
   // שני השחזורים חייבים לרוץ לפני פתיחת ה-DB ולפני בדיקת "ספרייה ריקה".
   // שחזור עדכון ספרייה שנקטע (marker+backup) קודם: הוא כותב DB משלו, ולהחזיר
   // לפניו גיבוי יתום פירושו העתקת ~5.5GB שתידרס מיד.
