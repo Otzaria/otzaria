@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:path_provider/path_provider.dart';
 import 'package:seforim_library_updater/seforim_library_updater.dart';
@@ -49,7 +50,7 @@ class LibraryUpdateSqliteSetup {
   Future<PatchApplier> prepareApplier() => _applier ??= _prepare();
 
   Future<PatchApplier> _prepare() async {
-    if (!_isMobile) return const PatchApplier();
+    if (!_isMobile) return const PatchApplier(logicalSizeOf: _logicalSizeOf);
     if (_needsTempDir) await _prepareSqliteTempDirectory();
     int? ramMb;
     try {
@@ -70,12 +71,18 @@ class LibraryUpdateSqliteSetup {
   @visibleForTesting
   static PatchApplier applierForPhysicalRam(int? ramMb) {
     final ram = (ramMb == null || ramMb <= 0) ? fallbackRamMb : ramMb;
-    if (ram >= _desktopReferenceRamMb) return const PatchApplier();
+    if (ram >= _desktopReferenceRamMb) {
+      return const PatchApplier(logicalSizeOf: _logicalSizeOf);
+    }
     return PatchApplier(
       cacheSizeKib: ram * 1024 ~/ 32,
       hashCacheSizeKib: ram * 1024 ~/ 128,
+      logicalSizeOf: _logicalSizeOf,
     );
   }
+
+  /// מד האימות מחושב מגודל המסד; ב-zdb הקובץ קטן פי ~4 מהגודל ש-SQLite רואה.
+  static int _logicalSizeOf(String dbPath) => libraryDbLogicalSizeOf(dbPath);
 
   Future<void> _prepareSqliteTempDirectory() async {
     try {

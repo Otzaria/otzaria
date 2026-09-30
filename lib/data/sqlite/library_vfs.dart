@@ -3,6 +3,7 @@
 library;
 
 export 'library_vfs_stub.dart' if (dart.library.io) 'library_vfs_io.dart';
+export 'library_zdb_types.dart';
 
 /// סיומת קובץ הספרייה הדחוס. הרזולבר בוחר קובץ כזה רק כשהוא zdb תקין.
 const String zdbFileExtension = '.zdb';
