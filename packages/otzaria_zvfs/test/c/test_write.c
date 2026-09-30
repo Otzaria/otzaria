@@ -1291,6 +1291,119 @@ static void test_lock_wait_isolated(void) {
   ts_remove_all(y);
 }
 
+/* ================= install of a downloaded base ================= */
+static int g_install_stop = -1;
+static int install_stop(int step) { return step == g_install_stop; }
+
+static void test_install(void) {
+  char plain[1100], zdb[1100], cand[1100], master[1100], kb[1100], ko[1100];
+  char ov[1100], lck[1100], nw[1100], sh[1100], jr[1100], cov[1100];
+  snprintf(plain, sizeof plain, "%s", tmp_path("in_plain.db"));
+  snprintf(zdb, sizeof zdb, "%s", tmp_path("in.zdb"));
+  snprintf(cand, sizeof cand, "%s", tmp_path("in_cand.zdb"));
+  snprintf(master, sizeof master, "%s", tmp_path("in_master.zdb"));
+  snprintf(kb, sizeof kb, "%s", tmp_path("in_keep.zdb"));
+  snprintf(ko, sizeof ko, "%s", tmp_path("in_keep.zovl"));
+  snprintf(ov, sizeof ov, "%s-zovl", zdb);
+  snprintf(lck, sizeof lck, "%s-zlck", zdb);
+  snprintf(nw, sizeof nw, "%s.new", zdb);
+  snprintf(sh, sizeof sh, "%s-shm", zdb);
+  snprintf(jr, sizeof jr, "%s-journal", zdb);
+  snprintf(cov, sizeof cov, "%s-zovl", cand);
+  const char *all[] = {plain, zdb, cand, master};
+  for (int i = 0; i < 4; i++) ts_remove_all(all[i]);
+  remove(kb);
+  remove(ko);
+
+  sqlite3 *p = ts_open(plain, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  ts_make_base(p, 30, 5000);
+  sqlite3_close(p);
+  CHECK_EQ(ts_convert(plain, zdb), 0);
+  int ok;
+  uint64_t old_base = open_hash(zdb, &ok);
+  CHECK(ok);
+  sqlite3 *z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  ts_must(z, "UPDATE line SET content = upper(content) WHERE id % 4 = 0;"
+             "DELETE FROM link WHERE id % 3 = 0;");
+  sqlite3_close(z);
+  uint64_t old_logical = open_hash(zdb, &ok);
+  CHECK(ok && old_logical != old_base);
+  CHECK_EQ(copy_file(zdb, kb), 0);
+  CHECK_EQ(copy_file(ov, ko), 0);
+  p = ts_open(plain, SQLITE_OPEN_READWRITE, NULL);
+  ts_must(p, "DELETE FROM line WHERE id % 7 = 0; UPDATE meta SET v='new' WHERE k='key5'");
+  sqlite3_close(p);
+  CHECK_EQ(ts_convert(plain, master), 0);
+  uint64_t new_hash = open_hash(master, &ok);
+  CHECK(ok && new_hash != old_base && new_hash != old_logical);
+
+  /* busy: open here, or in another process; nothing is touched */
+  CHECK_EQ(copy_file(master, cand), 0);
+  z = ts_open(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  CHECK_EQ(zvfs_install(zdb, cand), ZVFS_ERR_BUSY);
+  sqlite3_close(z);
+  proc_t c = spawn_zlck("hold", zdb, 1500);
+  CHECK_EQ(zvfs_install(zdb, cand), ZVFS_ERR_BUSY);
+  CHECK_EQ(wait_proc(c), 0);
+  CHECK(zplat_exists(cand) == 1 && zplat_exists(ov) == 1);
+  /* refusals before any delete: not a zdb, itself, a candidate with an overlay */
+  CHECK_EQ(zvfs_install(zdb, plain), ZVFS_ERR_NOT_ZDB);
+  CHECK_EQ(zvfs_install(zdb, zdb), ZVFS_ERR_INVALID);
+  touch(cov);
+  CHECK_EQ(zvfs_install(zdb, cand), ZVFS_ERR_INVALID);
+  remove(cov);
+  CHECK(zplat_exists(ov) == 1 && open_hash(zdb, &ok) == old_logical && ok);
+
+  /* the reverse order (rename, then delete) leaves a base that refuses to open */
+  CHECK_EQ(zplat_rename_durable(cand, zdb), 0);
+  open_hash(zdb, &ok);
+  CHECK(!ok);
+
+  /* a crash after each delete: the old content, or the old base alone */
+  zvfs_test_install_step = install_stop;
+  for (int stop = 0; stop < 5; stop++) {
+    CHECK_EQ(copy_file(kb, zdb), 0);
+    CHECK_EQ(copy_file(ko, ov), 0);
+    CHECK_EQ(copy_file(master, cand), 0);
+    touch(nw);
+    touch(sh);
+    touch(jr);
+    g_install_stop = stop;
+    CHECK_EQ(zvfs_install(zdb, cand), ZVFS_ERR_IO);
+    uint64_t h = open_hash(zdb, &ok);
+    CHECK(ok && h == (stop < 3 ? old_logical : old_base));
+    CHECK(zplat_exists(cand) == 1);
+    CHECK_EQ(zplat_exists(ov), stop < 3);
+    CHECK_EQ(zplat_exists(nw), stop < 4);
+    /* the retry completes it */
+    g_install_stop = -1;
+    CHECK_EQ(zvfs_install(zdb, cand), 0);
+    CHECK(open_hash(zdb, &ok) == new_hash && ok);
+    CHECK(zplat_exists(cand) == 0 && zplat_exists(ov) == 0 && zplat_exists(nw) == 0);
+    CHECK(zplat_exists(sh) == 0 && zplat_exists(jr) == 0 && zplat_exists(lck) == 1);
+  }
+  zvfs_test_install_step = NULL;
+
+  /* first install, next to a foreign overlay (bound to another base) */
+  remove(zdb);
+  CHECK_EQ(copy_file(ko, ov), 0);
+  CHECK_EQ(copy_file(master, cand), 0);
+  CHECK_EQ(zvfs_install(zdb, cand), 0);
+  CHECK(zplat_exists(ov) == 0);
+  CHECK(open_hash(zdb, &ok) == new_hash && ok);
+  z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  ts_must(z, "UPDATE meta SET v='after' WHERE k='key9'");
+  CHECK(ts_integrity_ok(z));
+  sqlite3_close(z);
+  printf("  install: busy here and in another process, refusals, 5 crash points,"
+         " reverse order corrupt, foreign overlay removed\n");
+  for (int i = 0; i < 4; i++) ts_remove_all(all[i]);
+  remove(kb);
+  remove(ko);
+  snprintf(nw, sizeof nw, "%s.ready", zdb);
+  remove(nw);
+}
+
 /* ================= concurrency: WAL writer + reader threads ================= */
 typedef struct cc_arg {
   const char *path;
@@ -1462,6 +1575,7 @@ int main(int argc, char **argv) {
   test_derived_newer();
   test_swap_lock();
   test_lock_wait_isolated();
+  test_install();
   printf("concurrency\n");
   test_concurrent_wal(4, 400);
   free(g_mb.p);

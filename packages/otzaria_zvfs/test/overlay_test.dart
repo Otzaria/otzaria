@@ -559,6 +559,68 @@ void main() {
     r2.close();
   });
 
+  test('installZdb swaps in a download and drops the old sidecars', () async {
+    final plain = p('in.db');
+    final plain2 = p('in2.db');
+    final zdb = p('in.zdb');
+    final cand = p('in_download.zdb');
+    createTestDb(plain);
+    createTestDb(plain2);
+    final d2 = sqlite3.open(plain2);
+    d2.execute("UPDATE meta SET v = 'installed' WHERE k = 'key3'");
+    final want = dbDigest(d2);
+    d2.close();
+    removeAll(zdb);
+    removeAll(cand);
+    await convert(plain, zdb);
+    await convert(plain2, cand);
+    final w = sqlite3.open(zdb, vfs: ZVfs.name);
+    w.execute('DELETE FROM line WHERE id % 5 = 0');
+    final busy = throwsA(
+      isA<ZdbException>().having((e) => e.code, 'code', ZdbException.busy),
+    );
+    await expectLater(installZdb(zdb, cand), busy);
+    w.close();
+
+    // another window: an isolate of this same process holding a connection
+    final events = ReceivePort();
+    final stream = events.asBroadcastStream();
+    await Isolate.spawn((SendPort out) async {
+      final db = sqlite3.open(zdb, vfs: ZVfs.name, mode: OpenMode.readOnly);
+      db.select('SELECT count(*) FROM book');
+      final ctl = ReceivePort();
+      out.send(ctl.sendPort);
+      await ctl.first;
+      db.close();
+      out.send('closed');
+    }, events.sendPort);
+    final ctl = await stream.first as SendPort;
+    await expectLater(installZdb(zdb, cand), busy);
+    ctl.send(null);
+    await stream.firstWhere((e) => e == 'closed');
+    events.close();
+
+    await expectLater(
+      installZdb(zdb, plain),
+      throwsA(
+        isA<ZdbException>().having((e) => e.code, 'code', ZdbException.notZdb),
+      ),
+    );
+    expect(File('$zdb-zovl').existsSync(), isTrue);
+    File('$zdb.new').writeAsBytesSync([1, 2, 3]);
+    final info = await installZdb(zdb, cand);
+    expect(info.includesOverlaySeq, 0);
+    for (final s in ['-zovl', '.new', '-journal', '-wal']) {
+      expect(File('$zdb$s').existsSync(), isFalse, reason: s);
+    }
+    expect(File(cand).existsSync(), isFalse);
+    expect(File('$zdb-zlck').existsSync(), isTrue);
+    final r = sqlite3.open(zdb, vfs: ZVfs.name, mode: OpenMode.readOnly);
+    expect(dbDigest(r), want);
+    expect(integrity(r), 'ok');
+    r.close();
+  });
+
   test(
     'overlay fuzz: never crashes, serves a committed state or refuses',
     () async {

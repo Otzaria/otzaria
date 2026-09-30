@@ -34,6 +34,7 @@ await verifyZdb('seforim.zdb'); // decodes every frame, checks content hash
 final rw = sqlite3.open(path, vfs: ZVfs.name); // writes go to <path>-zovl
 readZdbOverlayInfo(path);       // commits, size, mapped pages
 await compactZdb(path);         // no connection may be open (see below)
+await installZdb(path, download); // a downloaded .zdb becomes the base
 ZVfs.register(makeDefault: true); // VFS-less opens (the updater) use zvfs
 ```
 
@@ -317,6 +318,31 @@ On a case-insensitive APFS a second spelling of the same path in this process
 is not recognized, so the swap's own descriptor could drop that process's
 shared lock (theoretical: open the library through one spelling).
 
+### Install
+
+`installZdb(path, candidate)` (C: `zvfs_install`) makes a freshly downloaded
+`.zdb` the base of `path`, under the same swap lock as compaction:
+
+1. refuses with `ZdbException.busy` if `path` is open in this process
+   (checked before anything opens it) or `-zlck` cannot be taken exclusively
+   (another process has it open);
+2. validates the candidate: header, dictionary and index, as an open does
+   (`notZdb`, `corrupt`, `unsupported`); a candidate that is `path` itself or
+   has its own `-zovl` is refused (`invalid`);
+3. durably deletes `-journal`, `-wal`, `-shm`, `-zovl` and `.new` of `path`;
+4. durably renames the candidate over `path` (`MOVEFILE_WRITE_THROUGH`;
+   POSIX: rename + directory fsync). `-zlck` stays.
+
+The deletes come before the rename: a crash in between leaves the old base
+without its overlay, an older but consistent database, and the next install
+finishes the job. The other order would leave the new base next to an overlay
+bound to the old one (`SQLITE_CORRUPT`). Journal and WAL go before the
+overlay, because replayed onto the bare old base they would corrupt it; so a
+crash between those deletes still serves base + overlay. The candidate must be
+on the same volume as `path`. On Windows a delete has no directory flush;
+NTFS logs metadata in order, so the write-through rename also makes the
+earlier deletes durable.
+
 ## Runtime model
 
 - Each connection has its own base file handle; locking and shm calls pass
@@ -354,10 +380,10 @@ shared lock (theoretical: open the library through one spelling).
 - **Converting.** `convertToZdb` reads its source through `dart:io` without
   any check: never convert a database that this process has open through
   another VFS (on POSIX closing that descriptor drops its locks).
-- **Replacing the base.** Before a full download replaces `<path>`, delete
-  `<path>-zovl` (and `-journal`, `-wal`, `-shm`): a sidecar bound to the old
-  base makes the new one refuse to open (`SQLITE_CORRUPT`). Keep
-  `<path>-zlck`.
+- **Replacing the base.** A full download goes in through
+  `installZdb(path, candidate)` (see Install), never a plain rename: a
+  sidecar bound to the old base makes the new one refuse to open
+  (`SQLITE_CORRUPT`).
 - **Hot journal after an updater crash.** A read-only open then fails with
   `SQLITE_READONLY_ROLLBACK` until one read-write open rolls the journal back;
   do that once before read-only connections. `immutable=1` must not be used:
@@ -381,7 +407,7 @@ cmake --build build/c && ctest --test-dir build/c   # C: core + VFS
 
 C test binaries: `core` (format), `vfs` (read path), `write` (overlay codec,
 torn/flipped bytes at every offset, fuzz, SQL equivalence with plain SQLite
-byte for byte, compaction windows, WAL reader threads), `crash` (patch-shaped
+byte for byte, compaction windows, install crash points, WAL reader threads), `crash` (patch-shaped
 transactions over an in-memory VFS that fails the N-th write or sync and then
 drops, reorders or tears unsynced writes), `kill` (child processes killed with
 `TerminateProcess`/`SIGKILL`, with a concurrent reader process).

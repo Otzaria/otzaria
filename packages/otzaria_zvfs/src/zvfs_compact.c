@@ -45,6 +45,37 @@ void zvfs_lineage_of(const zovl_info *oi, uint8_t uuid[16], uint64_t *seq) {
   }
 }
 
+#ifdef ZVFS_TEST_HOOKS
+int (*zvfs_test_install_step)(int step);
+#define INSTALL_STEP(i) (zvfs_test_install_step && zvfs_test_install_step(i))
+#else
+#define INSTALL_STEP(i) 0
+#endif
+
+int zvfs_install_locked(const char *path, const char *candidate) {
+  size_t n = strlen(path) > strlen(candidate) ? strlen(path) : strlen(candidate);
+  char *b = (char *)malloc(n + 16);
+  if (!b) return ZVFS_ERR_NOMEM;
+  /* its overlay would stay behind under the old name */
+  snprintf(b, n + 16, "%s%s", candidate, ZDB_OVERLAY_SUFFIX);
+  int rc = zplat_exists(b) == 0 ? ZVFS_OK : ZVFS_ERR_INVALID;
+  zvfs_reader *r = NULL;
+  if (!rc) rc = zvfs_reader_open(candidate, &r);
+  zvfs_reader_close(r);
+  /* journal and WAL first: replayed onto the bare old base they would corrupt it */
+  static const char *const sfx[] = {"-journal", "-wal", "-shm",
+                                    ZDB_OVERLAY_SUFFIX, ".new"};
+  for (int i = 0; !rc && i < 5; i++) {
+    snprintf(b, n + 16, "%s%s", path, sfx[i]);
+    if (strcmp(b, candidate) != 0) rc = zplat_delete_durable(b);
+    if (!rc && INSTALL_STEP(i)) rc = ZVFS_ERR_IO;
+  }
+  free(b);
+  /* NTFS logs metadata in order: the write-through rename flushes the deletes */
+  if (!rc) rc = zplat_rename_durable(candidate, path);
+  return rc;
+}
+
 static void set_err(char *err, size_t n, const char *msg) {
   if (err && n) snprintf(err, n, "%s", msg);
 }

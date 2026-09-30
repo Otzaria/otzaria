@@ -79,6 +79,33 @@ Future<ZdbCompactResult> compactZdb(
   }
 }
 
+/// Installs the downloaded `.zdb` at [candidatePath] as the base of [path].
+///
+/// Validates the candidate's header, dictionary and index, deletes the
+/// `-journal`, `-wal`, `-shm`, `-zovl` and `.new` of [path], then durably
+/// renames the candidate over [path]; `-zlck` stays. A crash before the
+/// rename leaves the old content (or the old base without its overlay).
+/// [ZdbException.busy] while [path] is open in this process or any other.
+/// Both paths must be on the same volume.
+Future<ZdbInfo> installZdb(String path, String candidatePath) async {
+  if (ZVfs.isOpen(path)) {
+    throw ZdbException(ZdbException.busy, 'open in this process: $path');
+  }
+  ZVfs._register();
+  return Isolate.run(() {
+    final pPath = path.toNativeUtf8();
+    final pCand = candidatePath.toNativeUtf8();
+    try {
+      final rc = native.zvfs_install(pPath, pCand);
+      if (rc != 0) throw ZdbException.fromCode(rc, candidatePath);
+    } finally {
+      calloc.free(pPath);
+      calloc.free(pCand);
+    }
+    return readZdbInfo(path);
+  });
+}
+
 ZdbInfo _compactWorker(
   String path,
   int level,

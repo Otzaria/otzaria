@@ -251,6 +251,12 @@ void zvfs_fill_overlay_info(zovl *o, zvfs_overlay_info *out);
 void zvfs_lineage_of(const zovl_info *oi, uint8_t uuid[16], uint64_t *seq);
 
 int zvfs_sidecars_busy(const char *path);
+/* zvfs_install under the swap lock: validates, deletes sidecars, renames. */
+int zvfs_install_locked(const char *path, const char *candidate);
+#ifdef ZVFS_TEST_HOOKS
+/* Nonzero stops the install after delete step i, as a crash would. */
+extern int (*zvfs_test_install_step)(int step);
+#endif
 
 /* Compaction output records what it includes (zdb minor 1 fields). */
 void zvfs_conv_set_lineage(zvfs_conv *c, const uint8_t derived_from[16],

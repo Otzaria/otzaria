@@ -931,10 +931,17 @@ static int swap_checked(const char *path, const char *new_path) {
   return zplat_delete_durable(ov);
 }
 
+static int swap_cb(const char *full, void *new_path) {
+  return swap_checked(full, (const char *)new_path);
+}
+
+typedef int (*locked_fn)(const char *full, void *ctx);
+
 /* Exclusive on <path>-zlck: no connection of any process has the base open,
-   and none can open it until the swap is done. */
-ZVFS_API int zvfs_compact_swap(const char *path, const char *new_path) {
-  if (!path || !new_path || strlen(path) > 4000) return ZVFS_ERR_INVALID;
+   and none can open it until fn is done. */
+static int with_swap_lock(const char *path, locked_fn fn, void *ctx) {
+  if (!path || strlen(path) > 4000) return ZVFS_ERR_INVALID;
+  if (!zvfs_is_registered()) return ZVFS_ERR_INVALID; /* needs the base VFS */
   char *full = full_path(path);
   if (!full) return ZVFS_ERR_NOMEM;
   char *lp = strlen(full) <= 4000 ? with_suffix(full, ZDB_LOCKFILE_SUFFIX) : NULL;
@@ -952,7 +959,7 @@ ZVFS_API int zvfs_compact_swap(const char *path, const char *new_path) {
   if (!rc) rc = zplat_lockfile_open(lp, &lf);
   if (!rc) rc = zplat_lockfile_try(lf, 1);
   if (!rc) {
-    rc = swap_checked(full, new_path);
+    rc = fn(full, ctx);
     zplat_lockfile_unlock(lf);
   }
   if (lf) zplat_close(lf);
@@ -964,5 +971,24 @@ ZVFS_API int zvfs_compact_swap(const char *path, const char *new_path) {
   }
   sqlite3_free(lp);
   sqlite3_free(full);
+  return rc;
+}
+
+ZVFS_API int zvfs_compact_swap(const char *path, const char *new_path) {
+  if (!new_path) return ZVFS_ERR_INVALID;
+  return with_swap_lock(path, swap_cb, (void *)new_path);
+}
+
+static int install_cb(const char *full, void *candidate) {
+  const char *c = (const char *)candidate;
+  return strcmp(c, full) == 0 ? ZVFS_ERR_INVALID : zvfs_install_locked(full, c);
+}
+
+ZVFS_API int zvfs_install(const char *path, const char *candidate) {
+  if (!candidate || !zvfs_is_registered()) return ZVFS_ERR_INVALID;
+  char *cfull = full_path(candidate);
+  if (!cfull) return ZVFS_ERR_NOMEM;
+  int rc = with_swap_lock(path, install_cb, cfull);
+  sqlite3_free(cfull);
   return rc;
 }
