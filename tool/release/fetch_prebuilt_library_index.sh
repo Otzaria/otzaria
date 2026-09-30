@@ -2,8 +2,11 @@
 # Fetch the prebuilt library search index that Otzaria/SeforimLibrary publishes
 # alongside every database release, and verify it belongs to THIS build.
 #
-#   fetch_prebuilt_library_index.sh <index-dir> <seforim.db.zst> \
+#   fetch_prebuilt_library_index.sh <index-dir> <full-db-asset> \
 #       <talmud_bavli_latest.tar.zst> <pubspec.lock>
+#
+# <full-db-asset> is the release asset exactly as downloaded: seforim.db.zst
+# up to DB schema 5, seforim-schema<N>.zdb (stored as seforim.zdb) from 6.
 #
 # Exit 3 = only the engine's index schema differs, so an index built from THIS
 # run fixes it; the library release tag is then written to
@@ -16,7 +19,7 @@
 # release. כאן רק מורידים אותו ומאמתים שהוא שייך בדיוק לבנייה הזאת.
 set -euo pipefail
 
-usage='usage: fetch_prebuilt_library_index.sh <index-dir> <seforim.db.zst> <talmud_bavli_latest.tar.zst> <pubspec.lock>'
+usage='usage: fetch_prebuilt_library_index.sh <index-dir> <full-db-asset> <talmud_bavli_latest.tar.zst> <pubspec.lock>'
 index_dir=${1:?$usage}
 database_archive=${2:?$usage}
 talmud_archive=${3:?$usage}
@@ -62,13 +65,13 @@ schema=$(read_provenance '.schemaVersion')
 
 library_tag=$(read_provenance '.libraryReleaseTag')
 
-# ‏1. האינדקס נבנה בדיוק מה-DB שנארז כאן. seforim.db.zst מגיע מ-
-# releases/latest/download, ו-"latest" עלול להתחלף בין שתי ההורדות — ההשוואה
-# הזו היא מה שהופך את הזוג לאטומי.
+# ‏1. האינדקס נבנה בדיוק מה-DB שנארז כאן. ה-DB מגיע מה-release האחרון, ו-"latest"
+# עלול להתחלף בין שתי ההורדות — ההשוואה הזו היא מה שהופך את הזוג לאטומי.
+# ‏seforimDbZstSha256 הוא ה-sha256 של נכס ה-DB המלא שהורד, גם כשהוא zdb.
 expected_database=$(read_provenance '.seforimDbZstSha256')
 actual_database=$(hash_file "$database_archive")
 [ "$expected_database" = "$actual_database" ] || fail \
-  "the stored index was built from seforim.db.zst $expected_database (release $library_tag) but this build packages $actual_database — rerun build-library-index.yml in Otzaria/SeforimLibrary for the current database release"
+  "the stored index was built from the full DB asset $expected_database (release $library_tag) but this build packages $actual_database — rerun build-library-index.yml in Otzaria/SeforimLibrary for the current database release"
 
 # ‏2. סכמת האינדקס של המנוע שנפתר כאן. זו אותה השוואה שהאפליקציה עושה אצל
 # המשתמש — גרסת חבילה שונה בלי שינוי סכמה אינה פוסלת (ה-lock אינו ב-git ו-^ נפתר מחדש).

@@ -40,6 +40,17 @@
   #error IndexedSplitFull is built for x64 only
 #endif
 
+; מסד הספרייה המשובץ: seforim.zdb (release מסכמה 6) נארז ומועתק כמות שהוא, ו-seforim.db.zst
+; (סכמה 5 ומטה) מחולץ. download_library_db_asset.ps1 מוריד בדיוק אחד מהם ל-library_db.
+#ifndef IndexedSplitFull
+  #if FileExists(AddBackslash(SourcePath) + "library_db\seforim.zdb")
+    #define BundledLibraryZdb
+    #define BundledLibraryDbName "seforim.zdb"
+  #else
+    #define BundledLibraryDbName "seforim.db"
+  #endif
+#endif
+
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
@@ -745,6 +756,7 @@ begin
   if not DirExists(Path) then
     exit;
   if FileExists(Path + '\seforim.db') or
+     FileExists(Path + '\seforim.zdb') or
      FileExists(Path + '\otzar-HB_catalog.db') or
      DirExists(Path + '\תלמוד בבלי') then
     Result := True;
@@ -1750,6 +1762,39 @@ begin
   DeleteFile(ArchivePath);
 end;
 
+#ifdef BundledLibraryZdb
+// ה-zdb כבר דחוס בדפים ונקרא כמות שהוא; {tmp} יושב לרוב בכונן אחר, ואז rename נכשל ומעתיקים.
+procedure InstallBundledZdb(const FileName, TargetRoot: String);
+var
+  TmpPath, TargetPath: String;
+begin
+  TmpPath := ExpandConstant('{tmp}\' + FileName);
+  if not FileExists(TmpPath) then
+  begin
+    Log('Bundled library database not found: ' + TmpPath);
+    MsgBox('קובץ הספרייה ' + FileName + ' חסר בקבצי ההתקנה הזמניים.'
+      + #13#10 + 'ייתכן שתוכנת ניקוי דיסק מחקה אותו או שאין מספיק מקום פנוי. פנה מקום ונסה להתקין שוב.',
+      mbCriticalError, MB_OK);
+    Abort;
+  end;
+
+  TargetPath := TargetRoot + '\' + FileName;
+  ForceDirectories(TargetRoot);
+  if not RenameFile(TmpPath, TargetPath) then
+  begin
+    if not FileCopy(TmpPath, TargetPath, False) then
+    begin
+      Log('Copying the bundled library database to ' + TargetPath + ' failed');
+      MsgBox('העתקת מסד הנתונים ' + FileName + ' נכשלה.'
+        + #13#10#13#10 + 'ייתכן שאין מספיק מקום פנוי בכונן. פנה מקום ונסה להתקין שוב.',
+        mbCriticalError, MB_OK);
+      Abort;
+    end;
+    DeleteFile(TmpPath);
+  end;
+end;
+#endif
+
 procedure ExtractBundledTarArchive(const ArchiveName, TargetDirName, TargetRoot: String);
 var
   ArchivePath, TarPath, ParentDir, TargetDir, ZstdPath, SevenZipPath, Params, ErrOutput, Hint: String;
@@ -1830,9 +1875,15 @@ begin
   DelTree(StagingBooks, True, True, True);
   ForceDirectories(StagingBooks);
 
+#ifdef BundledLibraryZdb
+  WizardForm.StatusLabel.Caption := 'מעתיק את מסד הנתונים seforim.zdb...';
+  WizardForm.StatusLabel.Update;
+  InstallBundledZdb('seforim.zdb', StagingBooks);
+#else
   WizardForm.StatusLabel.Caption := 'מחלץ מסד הנתונים seforim.db...';
   WizardForm.StatusLabel.Update;
   ExtractBundledDatabase('seforim.db.zst', 'seforim.db', StagingBooks);
+#endif
 
   WizardForm.StatusLabel.Caption := 'מחלץ קטלוג אוצר החכמה...';
   WizardForm.StatusLabel.Update;
@@ -1859,12 +1910,12 @@ begin
     end;
   end;
 
-  // אימות אחרון לפני ההחלפה — כמו במסלול המאונדקס; ספרייה בלי seforim.db
+  // אימות אחרון לפני ההחלפה — כמו במסלול המאונדקס; ספרייה בלי מסד
   // אסור שתחליף ספרייה קיימת ותוצג כהתקנה מוצלחת (issue #862).
-  if not FileExists(StagingBooks + '\seforim.db') then
+  if not FileExists(StagingBooks + '\{#BundledLibraryDbName}') then
   begin
-    Log('Staging library is missing seforim.db - aborting swap');
-    MsgBox('חילוץ הספרייה לא הושלם — מסד הנתונים seforim.db חסר.',
+    Log('Staging library is missing {#BundledLibraryDbName} - aborting swap');
+    MsgBox('חילוץ הספרייה לא הושלם — מסד הנתונים {#BundledLibraryDbName} חסר.',
       mbCriticalError, MB_OK);
     Abort;
   end;
@@ -1942,7 +1993,8 @@ begin
     Abort;
   end;
 
-  if (not FileExists(SourceBooks + '\seforim.db')) or
+  if ((not FileExists(SourceBooks + '\seforim.zdb')) and
+    (not FileExists(SourceBooks + '\seforim.db'))) or
     (not FileExists(SourceIndex + '\.otzaria_prebuilt_index')) then
   begin
     Log('Indexed package is missing its database or index marker');
@@ -2434,7 +2486,11 @@ Source: "bundled_plugins\*"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: i
 ; {tmp} is always writable by the installer process (unlike {app} under Program Files)
 ; and is auto-deleted when setup exits, even on abort
 #ifndef IndexedSplitFull
+#ifdef BundledLibraryZdb
+Source: "library_db\seforim.zdb"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
+#else
 Source: "library_db\seforim.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
+#endif
 Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
 Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
 Source: "library_db\lexical.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression

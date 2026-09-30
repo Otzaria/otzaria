@@ -1110,12 +1110,13 @@ jobs:
       - name: Download library assets for Linux FULL bundle
         if: matrix.target == 'full'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p full_installer/library_db
-          # מסכמה 6 ה-DB מתפרסם בשם משלו; seforim.db.zst שמור לסכמה 5 ומטה.
-          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim-schema6.db.zst -o full_installer/library_db/seforim.db.zst \
-            || curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o full_installer/library_db/seforim.db.zst
+          # seforim.db.zst (סכמה 5 ומטה) או seforim.zdb (מסכמה 6), לפי נכסי ה-release ומאומת מולם.
+          bash tool/release/library_db_asset.sh download full_installer/library_db
           curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
           curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
           curl -L --fail https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db -o full_installer/library_db/lexical.db
@@ -1552,7 +1553,9 @@ jobs:
           # חבילת ה-FULL אינה ניידת (נתוני המשתמש נשארים בתיקיית המשתמש);
           # ה-marker שייך רק לחבילת ה-raw — מסירים את העותק שהגיע מ-linux-build.
           rm -f "$BUNDLE_ROOT/app/portable.marker"
-          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/seforim.db.zst > "$BUNDLE_ROOT/אוצריא/seforim.db"
+          # החבילה נדחסת כולה ב-zstd, ו-zdb (דחוס בדפים) היה מעלה אותה מעל 2 GiB — לכן מסד רגיל.
+          DB_ASSET=$(bash tool/release/library_db_asset.sh path full_installer/library_db)
+          bash tool/release/library_db_asset.sh expand "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/אוצריא/otzar-HB_catalog.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT/אוצריא"
           # בלי קובץ הגרסה בתיקייה, בדיקת העדכון הראשונה של האפליקציה מורידה את
@@ -1620,6 +1623,11 @@ jobs:
           esac
           [ ! -L "$BUNDLED_MARKER" ] || { echo "::error::Bundled marker must not be a symlink"; exit 1; }
           [ ! -e "$BUNDLED_MARKER" ] || rm -f -- "$BUNDLED_MARKER"
+          # החבילה המאונדקסת מפוצלת ממילא, ולכן היא נושאת את ה-zdb עצמו כמסד המותקן.
+          if [[ "$DB_ASSET" == *.zdb ]]; then
+            rm -f -- "$INDEXED_LIBRARY_ROOT/books/seforim.db"
+            ln "$DB_ASSET" "$INDEXED_LIBRARY_ROOT/books/seforim.zdb"
+          fi
           # סכמת מנוע חדשה (יציאה 3): האינדקס נבנה מהריצה הזו עצמה — ה-raw
           # וה-index-inputs שלה כבר הועלו — ואז מריצים שוב את המשימות שנכשלו.
           rebuild_tag_file="$RUNNER_TEMP/prebuilt-index-rebuild-tag"
@@ -1627,7 +1635,7 @@ jobs:
           PREBUILT_INDEX_REBUILD_TAG_FILE="$rebuild_tag_file" \
             bash tool/release/fetch_prebuilt_library_index.sh \
               "$INDEXED_LIBRARY_ROOT/index" \
-              full_installer/library_db/seforim.db.zst \
+              "$DB_ASSET" \
               full_installer/library_db/talmud_bavli_latest.tar.zst \
               pubspec.lock || fetch_status=$?
           if [ "$fetch_status" = 3 ]; then
@@ -1950,12 +1958,13 @@ jobs:
       - name: Download library assets for Android FULL bundle
         if: true
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p full_installer/library_db
-          # מסכמה 6 ה-DB מתפרסם בשם משלו; seforim.db.zst שמור לסכמה 5 ומטה.
-          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim-schema6.db.zst -o full_installer/library_db/seforim.db.zst \
-            || curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o full_installer/library_db/seforim.db.zst
+          # seforim.db.zst (סכמה 5 ומטה) או seforim.zdb (מסכמה 6), לפי נכסי ה-release ומאומת מולם.
+          bash tool/release/library_db_asset.sh download full_installer/library_db
           curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
           curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
           curl -L --fail https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db -o full_installer/library_db/lexical.db
@@ -2007,7 +2016,18 @@ jobs:
           rm -rf "$BUNDLE_ROOT"
           mkdir -p "$BUNDLE_ROOT/library_db"
           cp build/app/outputs/flutter-apk/app-release.apk "$BUNDLE_ROOT/otzaria-android.apk"
-          cp full_installer/library_db/* "$BUNDLE_ROOT/library_db/"
+          DB_ASSET=$(bash tool/release/library_db_asset.sh path full_installer/library_db)
+          for asset in full_installer/library_db/*; do
+            [ "$asset" = "$DB_ASSET" ] || cp "$asset" "$BUNDLE_ROOT/library_db/"
+          done
+          if [[ "$DB_ASSET" == *.zdb ]]; then
+            # ייבוא הספרייה באנדרואיד מקבל ZIP/ZST של seforim.db, ולכן ה-zdb מיוצא ונדחס מחדש.
+            bash tool/release/library_db_asset.sh expand "$DB_ASSET" "$RUNNER_TEMP/seforim.db"
+            zstd -19 -T0 -q "$RUNNER_TEMP/seforim.db" -o "$BUNDLE_ROOT/library_db/seforim.db.zst"
+            rm -f "$RUNNER_TEMP/seforim.db"
+          else
+            cp "$DB_ASSET" "$BUNDLE_ROOT/library_db/"
+          fi
           cat > "$BUNDLE_ROOT/README.txt" << 'EOF'
           Otzaria Android FULL bundle
 
@@ -2141,12 +2161,13 @@ jobs:
       - name: Download library assets for macOS FULL bundle
         if: true
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p full_installer/library_db
-          # מסכמה 6 ה-DB מתפרסם בשם משלו; seforim.db.zst שמור לסכמה 5 ומטה.
-          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim-schema6.db.zst -o full_installer/library_db/seforim.db.zst \
-            || curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o full_installer/library_db/seforim.db.zst
+          # seforim.db.zst (סכמה 5 ומטה) או seforim.zdb (מסכמה 6), לפי נכסי ה-release ומאומת מולם.
+          bash tool/release/library_db_asset.sh download full_installer/library_db
           curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
           curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
           curl -L --fail https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db -o full_installer/library_db/lexical.db
@@ -2337,7 +2358,9 @@ jobs:
           # Derive binary name from bundle name (strip .app suffix)
           APP_BINARY="${APP_BUNDLE%.app}"
           cp -R "$APP_PATH" "$BUNDLE_ROOT/$APP_BUNDLE"
-          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/seforim.db.zst > "$BUNDLE_ROOT/אוצריא/seforim.db"
+          # החבילה נדחסת כולה ב-zstd, ו-zdb (דחוס בדפים) היה מעלה אותה מעל 2 GiB — לכן מסד רגיל.
+          DB_ASSET=$(bash tool/release/library_db_asset.sh path full_installer/library_db)
+          bash tool/release/library_db_asset.sh expand "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/אוצריא/otzar-HB_catalog.db"
           zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT/אוצריא"
           # בלי קובץ הגרסה בתיקייה, בדיקת העדכון הראשונה של האפליקציה מורידה את

@@ -384,7 +384,9 @@ void main() {
           script,
           'procedure ExtractEmbeddedLibraryArchives();',
         );
-        final verify = extract.indexOf("StagingBooks + '\\seforim.db'");
+        final verify = extract.indexOf(
+          "StagingBooks + '\\{#BundledLibraryDbName}'",
+        );
         final swap = extract.indexOf(
           'RenameFile(StagingBooks, SelectedBooksPath)',
         );
@@ -406,6 +408,76 @@ void main() {
       expect(script, contains('windows-full-indexed'));
       expect(script, contains('#ifndef IndexedSplitFull'));
       expect(script, contains(r'Source: "library_db\seforim.db.zst"'));
+    });
+
+    test('מסד מסכמה 6 נארז כ-seforim.zdb ומועתק כמות שהוא', () {
+      final script = _script(_full);
+
+      expect(
+        script,
+        contains(
+          r'#if FileExists(AddBackslash(SourcePath) + "library_db\seforim.zdb")',
+        ),
+      );
+      expect(script, contains(r'Source: "library_db\seforim.zdb"'));
+      expect(script, contains('#define BundledLibraryDbName "seforim.zdb"'));
+      expect(script, contains('#define BundledLibraryDbName "seforim.db"'));
+      expect(
+        DatabaseConstants.zdbDatabaseFileName,
+        'seforim.zdb',
+        reason: 'המתקין מניח את ה-zdb בשם שהאפליקציה פותרת ליד seforim.db',
+      );
+
+      final install = _routine(script, 'procedure InstallBundledZdb(');
+      expect(install, isNot(contains('zstd')));
+      final missing = install.indexOf('not FileExists(TmpPath)');
+      expect(missing, greaterThanOrEqualTo(0));
+      expect(install.indexOf('Abort;'), greaterThan(missing));
+      // {tmp} בכונן אחר מהספרייה: rename נכשל, וההעתקה היא המסלול הרגיל.
+      expect(install, contains('FileCopy(TmpPath, TargetPath, False)'));
+
+      final extract = _routine(
+        script,
+        'procedure ExtractEmbeddedLibraryArchives();',
+      );
+      expect(
+        extract,
+        contains("InstallBundledZdb('seforim.zdb', StagingBooks)"),
+      );
+      expect(
+        extract,
+        contains(
+          "ExtractBundledDatabase('seforim.db.zst', 'seforim.db', "
+          'StagingBooks)',
+        ),
+      );
+    });
+
+    test('תיקיית ספרים עם seforim.zdb בלבד מזוהה כתיקיית אוצריא', () {
+      for (final name in _scripts) {
+        final body = _routine(_script(name), 'function IsOtzariaBooksFolder(');
+        expect(
+          body,
+          contains(r"FileExists(Path + '\seforim.zdb')"),
+          reason: name,
+        );
+      }
+    });
+
+    test('החבילה המאונדקסת מתקבלת עם seforim.zdb או עם seforim.db', () {
+      final body = _routine(
+        _script(_full),
+        'procedure ExtractIndexedLibraryArchive();',
+      );
+
+      expect(
+        body,
+        contains("(not FileExists(SourceBooks + '\\seforim.zdb')) and"),
+      );
+      expect(
+        body,
+        contains("(not FileExists(SourceBooks + '\\seforim.db'))"),
+      );
     });
 
     test('מזהה manifest וחלקים תקינים לצד קובץ המתקין', () {
@@ -1106,7 +1178,7 @@ void main() {
         'installer/download_full_installer_assets.ps1',
       ).readAsStringSync();
       for (final asset in const [
-        'seforim.db.zst',
+        'download_library_db_asset.ps1',
         'otzar-HB_catalog.db.zst',
         'talmud_bavli_latest.tar.zst',
         'lexical.db.zst',

@@ -43,6 +43,8 @@ jobs:
 
       - name: Download latest library
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/library"
@@ -53,15 +55,14 @@ jobs:
 
           # אותם מקורות כמו חבילות ה-FULL ב-build-and-announce.yml.
           fetch() { curl -L --fail --retry 3 -o "$dl/$2" "https://github.com/Otzaria/$1/releases/latest/download/$2"; }
-          # מסכמה 6 ה-DB מתפרסם בשם משלו; seforim.db.zst שמור לסכמה 5 ומטה.
-          curl -L --fail --retry 3 -o "$dl/seforim.db.zst" \
-            https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim-schema6.db.zst \
-            || fetch SeforimLibrary seforim.db.zst
+          db_asset=$(bash tool/release/library_db_asset.sh download "$dl")
           fetch otzar-HB_catalog otzar-HB_catalog.db.zst
           fetch otzaria-library talmud_bavli_latest.tar.zst
           fetch SeforimMagicIndexer lexical.db
 
-          zstd -d --long=31 --memory=2048MB "$dl/seforim.db.zst" -o "$books/seforim.db"
+          # מסד רגיל, כמו בחבילת ה-FULL ל-macOS; zdb מיוצא ב-zvfs_cli שנבנה מהמאגר הזה.
+          bash tool/release/library_db_asset.sh expand "$db_asset" "$books/seforim.db"
+          rm -f "$db_asset"
           zstd -d --long=31 --memory=2048MB "$dl/otzar-HB_catalog.db.zst" -o "$books/otzar-HB_catalog.db"
           # לא בצינור: bsdtar סוגר את הקלט בסמן סוף-הארכיון, ו-zstd נכשל ב-Broken pipe על הריפוד.
           zstd -d --long=31 --memory=2048MB "$dl/talmud_bavli_latest.tar.zst" -o "$dl/talmud.tar"

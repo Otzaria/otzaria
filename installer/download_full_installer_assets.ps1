@@ -9,32 +9,17 @@ $ErrorActionPreference = "Stop"
 $apiHeaders = @{ Authorization = "Bearer $env:GH_TOKEN" }
 
 try {
-  # הורדת מסד הספרייה הראשי
-  $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Otzaria/SeforimLibrary/releases/latest" -Headers $apiHeaders
-  # מסכמה 6 ה-DB מתפרסם בשם משלו; seforim.db.zst שמור לסכמה 5 ומטה.
-  $dbAsset = $latestRelease.assets | Where-Object { $_.name -eq "seforim-schema6.db.zst" }
-  if (-not $dbAsset) {
-    $dbAsset = $latestRelease.assets | Where-Object { $_.name -eq "seforim.db.zst" }
-  }
-  
-  if (-not $dbAsset) {
-    Write-Host "::error::Could not find seforim-schema6.db.zst or seforim.db.zst in latest release"
-    exit 1
-  }
-  
-  Write-Host "Library version: $($latestRelease.tag_name)"
-  Write-Host "Downloading from: $($dbAsset.browser_download_url)"
-  Write-Host "Size: $([math]::Round($dbAsset.size / 1MB, 2)) MB"
-  
   if (Test-Path "installer\library_db") {
     Remove-Item -Path "installer\library_db" -Recurse -Force
   }
   New-Item -ItemType Directory -Path "installer\library_db" -Force | Out-Null
 
-  # הורדת ה-DB הדחוס שה-installer יחלץ בזמן ההתקנה
+  # מסד הספרייה: seforim.db.zst (סכמה 5 ומטה) או seforim.zdb (מסכמה 6), מאומת מול ה-release.
+  # otzaria_full.iss בוחר ביניהם לפי הקובץ שנמצא ב-library_db.
   $ProgressPreference = 'SilentlyContinue'
-  Invoke-WebRequest -Uri $dbAsset.browser_download_url -OutFile "installer\library_db\seforim.db.zst" -UseBasicParsing
-  Write-Host "Compressed library DB downloaded successfully"
+  $libraryDb = & ".\installer\download_library_db_asset.ps1" -OutDir "installer\library_db"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  Write-Host "Library DB downloaded successfully: $libraryDb"
 
   # הורדת מסד הקטלוגים החיצוני
   Write-Host "Downloading external catalog DB for full installer from Otzaria/otzar-HB_catalog..."

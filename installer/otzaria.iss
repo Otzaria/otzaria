@@ -1100,6 +1100,7 @@ begin
   if not DirExists(Path) then
     exit;
   if FileExists(Path + '\seforim.db') or
+     FileExists(Path + '\seforim.zdb') or
      FileExists(Path + '\otzar-HB_catalog.db') or
      DirExists(Path + '\תלמוד בבלי') then
     Result := True;
