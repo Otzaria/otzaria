@@ -22,9 +22,10 @@ class ZdbCompactResult {
 /// [verify] is false), durably renames it over [path] and deletes the
 /// overlay. A crash at any step leaves a readable database with the same
 /// content. No connection to [path] may be open, in this process or any
-/// other; this process is checked first ([ZdbException.busy]) before the
-/// file is touched, other processes are the caller's job (see README). A pending `-journal` or non-empty `-wal` also
-/// fails with [ZdbException.busy]: open the database once to recover it.
+/// other ([ZdbException.busy]); this process is checked before the file is
+/// touched, other processes through the swap lock (see README). A pending
+/// `-journal` or non-empty `-wal` also fails with [ZdbException.busy]: open
+/// the database once to recover it.
 Future<ZdbCompactResult> compactZdb(
   String path, {
   int level = 9,

@@ -955,10 +955,25 @@ static void test_stale_sidecar(void) {
   CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
   CHECK(zplat_exists(ov) == 1);
   CHECK(open_hash(zdb, &ok) == want && ok);
+  /* three more crashes there, then a write, then one more */
+  for (int k = 0; k < 3; k++) {
+    CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+    CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
+    CHECK(open_hash(zdb, &ok) == want && ok);
+  }
+  z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  ts_must(z, "UPDATE meta SET v='between' WHERE k='key4'");
+  sqlite3_close(z);
+  uint64_t want2 = open_hash(zdb, &ok);
+  CHECK(ok && want2 != want);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
+  CHECK(open_hash(zdb, &ok) == want2 && ok);
   /* and a full swap, then a write, then reopen */
   CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
   CHECK_EQ(zvfs_compact_swap(zdb, dst), 0);
   CHECK(zplat_exists(ov) == 0);
+  CHECK(open_hash(zdb, &ok) == want2 && ok);
   z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
   ts_must(z, "UPDATE meta SET v='later' WHERE k='key2'");
   sqlite3_close(z);
@@ -1083,6 +1098,144 @@ static void test_compaction_windows(void) {
   remove(keep_base);
   remove(keep_ovl);
   printf("  compaction: busy/stale refusals, partial output and swap window ok\n");
+}
+
+/* ================= swap lock across processes ================= */
+#if defined(_WIN32)
+#include <process.h>
+#include <windows.h>
+typedef intptr_t proc_t;
+#else
+#include <sys/wait.h>
+#include <unistd.h>
+typedef pid_t proc_t;
+#endif
+
+static char g_self[1100];
+
+static void sleep_ms(int ms) {
+#if defined(_WIN32)
+  Sleep((DWORD)ms);
+#else
+  usleep((useconds_t)ms * 1000);
+#endif
+}
+
+static void touch(const char *p) {
+  FILE *f = fopen(p, "wb");
+  if (f) fclose(f);
+}
+
+/* Children: hold a read transaction, or <zdb>-zlck exclusively, for ms. */
+static int child_zlck(const char *mode, const char *zdb, int ms) {
+  char ready[1100];
+  snprintf(ready, sizeof ready, "%s.ready", zdb);
+  if (strcmp(mode, "hold") == 0) {
+    sqlite3 *db = ts_open(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+    if (!db || ts_exec(db, "BEGIN") || ts_int(db, "SELECT count(*) FROM book") < 0)
+      return 2;
+    touch(ready);
+    sleep_ms(ms);
+    ts_exec(db, "COMMIT");
+    sqlite3_close(db);
+    return 0;
+  }
+  char lp[1100];
+  snprintf(lp, sizeof lp, "%s-zlck", zdb);
+  zplat_file *f = NULL;
+  if (zplat_lockfile_open(lp, &f) || zplat_lockfile_try(f, 1)) return 2;
+  touch(ready);
+  sleep_ms(ms);
+  zplat_lockfile_unlock(f);
+  zplat_close(f);
+  return 0;
+}
+
+static proc_t spawn_zlck(const char *mode, const char *zdb, int ms) {
+  char ready[1100], msb[16];
+  snprintf(ready, sizeof ready, "%s.ready", zdb);
+  snprintf(msb, sizeof msb, "%d", ms);
+  remove(ready);
+#if defined(_WIN32)
+  char q[1200];
+  snprintf(q, sizeof q, "\"%s\"", zdb);
+  proc_t p = _spawnl(_P_NOWAIT, g_self, g_self, "zlck", mode, q, msb, NULL);
+#else
+  proc_t p = fork();
+  if (p == 0) {
+    execl(g_self, g_self, "zlck", mode, zdb, msb, (char *)NULL);
+    _exit(127);
+  }
+#endif
+  for (int i = 0; i < 1000 && zplat_exists(ready) != 1; i++) sleep_ms(10);
+  CHECK(zplat_exists(ready) == 1);
+  return p;
+}
+
+static int wait_proc(proc_t p) {
+#if defined(_WIN32)
+  int st = -1;
+  _cwait(&st, p, 0);
+  return st;
+#else
+  int st = 0;
+  waitpid(p, &st, 0);
+  return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+#endif
+}
+
+static void test_swap_lock(void) {
+  const char *plain = tmp_path("sl_plain.db");
+  const char *zdb = tmp_path("sl.zdb");
+  char dst[1100], ready[1100];
+  snprintf(dst, sizeof dst, "%s.new", zdb);
+  snprintf(ready, sizeof ready, "%s.ready", zdb);
+  ts_remove_all(plain);
+  ts_remove_all(zdb);
+  sqlite3 *p = ts_open(plain, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  ts_make_base(p, 30, 5000);
+  sqlite3_close(p);
+  CHECK_EQ(ts_convert(plain, zdb), 0);
+  sqlite3 *z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  ts_must(z, "UPDATE line SET content = upper(content) WHERE id % 4 = 0");
+  sqlite3_close(z);
+  int ok;
+  uint64_t want = open_hash(zdb, &ok);
+  CHECK(ok);
+
+  /* another process reads: the swap must refuse, not rename under it */
+  proc_t c = spawn_zlck("hold", zdb, 1500);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  int busy = zvfs_compact_swap(zdb, dst);
+  CHECK_EQ(busy, ZVFS_ERR_BUSY);
+  CHECK_EQ(wait_proc(c), 0);
+  CHECK_EQ(zvfs_compact_swap(zdb, dst), 0);
+  CHECK(open_hash(zdb, &ok) == want && ok);
+
+  /* a swap in progress elsewhere: an open waits for it */
+  c = spawn_zlck("excl", zdb, 400);
+  uint64_t t0 = zplat_now_ms();
+  CHECK(open_hash(zdb, &ok) == want && ok);
+  uint64_t waited = zplat_now_ms() - t0;
+  CHECK_EQ(wait_proc(c), 0);
+  CHECK(waited >= 200);
+
+  /* and gives up with SQLITE_BUSY when it does not end */
+  c = spawn_zlck("excl", zdb, 7000);
+  sqlite3 *db = NULL;
+  t0 = zplat_now_ms();
+  int orc = sqlite3_open_v2(zdb, &db, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  uint64_t gave_up = zplat_now_ms() - t0;
+  sqlite3_close(db);
+  CHECK_EQ(orc, SQLITE_BUSY);
+  CHECK_EQ(wait_proc(c), 0);
+  CHECK(open_hash(zdb, &ok) == want && ok);
+  printf("  swap lock: busy under another process's reader, open waited %llu ms,"
+         " gave up after %llu ms\n",
+         (unsigned long long)waited, (unsigned long long)gave_up);
+  remove(ready);
+  ts_remove_all(plain);
+  ts_remove_all(zdb);
 }
 
 /* ================= concurrency: WAL writer + reader threads ================= */
@@ -1222,12 +1375,19 @@ static void test_concurrent_wal(int readers, int txns) {
   ts_remove_all(zdb);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
   setvbuf(stdout, NULL, _IONBF, 0); /* progress stays visible in logs */
   sqlite3_auto_extension((void (*)(void))sqlite3_otzariazvfs_init);
   sqlite3 *m = NULL;
   sqlite3_open(":memory:", &m);
   sqlite3_close(m);
+  if (argc == 5 && strcmp(argv[1], "zlck") == 0)
+    return child_zlck(argv[2], argv[3], atoi(argv[4]));
+#if defined(_WIN32)
+  GetModuleFileNameA(NULL, g_self, sizeof g_self);
+#else
+  snprintf(g_self, sizeof g_self, "%s", argv[0]);
+#endif
   CHECK(zvfs_is_registered());
   ts_verbose = getenv("ZVFS_VERBOSE") != NULL;
   const char *fz = getenv("ZVFS_FUZZ_ITERS");
@@ -1247,6 +1407,7 @@ int main(void) {
   test_compaction_windows();
   test_stale_sidecar();
   test_derived_newer();
+  test_swap_lock();
   printf("concurrency\n");
   test_concurrent_wal(4, 400);
   free(g_mb.p);

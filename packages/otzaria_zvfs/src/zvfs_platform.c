@@ -229,6 +229,44 @@ int zplat_delete_durable(const char *path) {
   return ZVFS_ERR_IO;
 }
 
+/* No FILE_SHARE_DELETE: a lock file removed while held would split the lock. */
+int zplat_lockfile_open(const char *path, zplat_file **out) {
+  wchar_t *w = widen(path);
+  if (!w) return ZVFS_ERR_INVALID;
+  DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE;
+  HANDLE h = CreateFileW(w, GENERIC_READ | GENERIC_WRITE, share, NULL,
+                         OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (h == INVALID_HANDLE_VALUE)
+    h = CreateFileW(w, GENERIC_READ, share, NULL, OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL, NULL);
+  free(w);
+  if (h == INVALID_HANDLE_VALUE) return ZVFS_ERR_IO;
+  zplat_file *f = (zplat_file *)malloc(sizeof *f);
+  if (!f) {
+    CloseHandle(h);
+    return ZVFS_ERR_NOMEM;
+  }
+  f->h = h;
+  *out = f;
+  return ZVFS_OK;
+}
+
+int zplat_lockfile_try(zplat_file *f, int exclusive) {
+  OVERLAPPED o;
+  memset(&o, 0, sizeof o);
+  DWORD fl = LOCKFILE_FAIL_IMMEDIATELY | (exclusive ? LOCKFILE_EXCLUSIVE_LOCK : 0);
+  if (LockFileEx(f->h, fl, 0, 1, 0, &o)) return ZVFS_OK;
+  DWORD e = GetLastError();
+  return e == ERROR_LOCK_VIOLATION || e == ERROR_IO_PENDING ? ZVFS_ERR_BUSY
+                                                            : ZVFS_ERR_IO;
+}
+
+void zplat_lockfile_unlock(zplat_file *f) {
+  OVERLAPPED o;
+  memset(&o, 0, sizeof o);
+  UnlockFileEx(f->h, 0, 1, 0, &o);
+}
+
 #else /* POSIX */
 
 void zplat_mutex_init(zplat_mutex *m) { pthread_mutex_init(m, NULL); }
@@ -423,5 +461,31 @@ int zplat_delete_durable(const char *path) {
   if (unlink(path) != 0) return errno == ENOENT ? ZVFS_OK : ZVFS_ERR_IO;
   return sync_parent(path);
 }
+
+int zplat_lockfile_open(const char *path, zplat_file **out) {
+  int rc = open_common(path, O_RDWR | O_CREAT, out);
+  return rc == ZVFS_ERR_IO ? open_common(path, O_RDONLY, out) : rc;
+}
+
+static int set_lock(int fd, short type) {
+  struct flock fl;
+  memset(&fl, 0, sizeof fl);
+  fl.l_type = type;
+  fl.l_whence = SEEK_SET;
+  fl.l_start = 0;
+  fl.l_len = 1;
+  int r;
+  do {
+    r = fcntl(fd, F_SETLK, &fl);
+  } while (r < 0 && errno == EINTR);
+  return r;
+}
+
+int zplat_lockfile_try(zplat_file *f, int exclusive) {
+  if (set_lock(f->fd, exclusive ? F_WRLCK : F_RDLCK) == 0) return ZVFS_OK;
+  return errno == EAGAIN || errno == EACCES ? ZVFS_ERR_BUSY : ZVFS_ERR_IO;
+}
+
+void zplat_lockfile_unlock(zplat_file *f) { set_lock(f->fd, F_UNLCK); }
 
 #endif

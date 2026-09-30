@@ -143,14 +143,18 @@ static void make_start(const char *plain) {
 static int child_writer(const char *zdb, int start, int compact) {
   char sql[4096];
   for (int i = start;; i++) {
-    /* other processes must have closed the file (see README), so only
-       without the concurrent reader */
+    /* with a concurrent reader the swap may refuse (BUSY) */
     if (compact && i % 25 == 0) {
       char dst[4200];
       snprintf(dst, sizeof dst, "%s.new", zdb);
-      if (zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0) == ZVFS_OK &&
-          zvfs_compact_swap(zdb, dst) == ZVFS_OK)
-        printf("K %d\n", i);
+      int rc = zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0);
+      for (int t = 0; rc == ZVFS_OK && t < 50; t++) {
+        rc = zvfs_compact_swap(zdb, dst);
+        if (rc == ZVFS_OK) printf("K %d\n", i);
+        if (rc != ZVFS_ERR_BUSY) break;
+        rc = ZVFS_OK;
+        sleep_ms(2);
+      }
       fflush(stdout);
     }
     sqlite3 *db = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
@@ -204,6 +208,7 @@ static int child_reader(const char *zdb) {
       reads++;
     }
     sqlite3_close(db);
+    sleep_ms(2); /* lets a swap in */
     if (reads % 200 == 0) {
       printf("R %d\n", reads);
       fflush(stdout);
@@ -247,13 +252,13 @@ int main(int argc, char **argv) {
   int rc0 = 0;
   ref_hash[0] = ts_content_hash(ref, &rc0);
   char sql[4096], args[8192];
-  int next = 1, bad = 0, readers_bad = 0, compactions = 0, mid = 0;
+  int next = 1, bad = 0, readers_bad = 0, compactions = 0, comp_rd = 0, mid = 0;
   int64_t reads = 0;
   srand(12345);
   for (int it = 0; it < iters && !bad; it++) {
     child w, r;
     int with_reader = it % 3 == 1;
-    snprintf(args, sizeof args, "writer \"%s\" %d %d", zdb, next, !with_reader);
+    snprintf(args, sizeof args, "writer \"%s\" %d 1", zdb, next);
     CHECK_EQ(spawn(&w, args), 0);
     if (with_reader) {
       snprintf(args, sizeof args, "reader \"%s\"", zdb);
@@ -272,7 +277,7 @@ int main(int argc, char **argv) {
       free(rout);
     }
     int k = last_marker(out, 'C');
-    if (strstr(out, "K ")) compactions++;
+    if (strstr(out, "K ")) compactions++, comp_rd += with_reader;
     free(out);
     /* recover and check */
     sqlite3 *db = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
@@ -312,9 +317,10 @@ int main(int argc, char **argv) {
     zvfs_reader_close(zr);
   }
   printf("kill harness: %d kills, %d transactions committed, %d kills between "
-         "commit and ack, %d compactions, %lld concurrent reads, reader "
+         "commit and ack, %d compactions (%d beside a reader), %lld concurrent "
+         "reads, reader "
          "violations %d, failures %d (overlay now %llu bytes)\n",
-         iters, next - 1, mid, compactions, (long long)reads, readers_bad, bad,
+         iters, next - 1, mid, compactions, comp_rd, (long long)reads, readers_bad, bad,
          (unsigned long long)oi.file_size);
   CHECK_EQ(bad, 0);
   CHECK_EQ(readers_bad, 0);

@@ -38,9 +38,10 @@ static sqlite3 *ts_open(const char *path, int flags, const char *vfs) {
 }
 
 static void ts_remove_all(const char *path) {
-  static const char *sfx[] = {"", "-zovl", "-journal", "-wal", "-shm", ".new"};
+  static const char *sfx[] = {"",     "-zovl", "-journal", "-wal",
+                              "-shm", ".new",  "-zlck"};
   char b[1100];
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 7; i++) {
     snprintf(b, sizeof b, "%s%s", path, sfx[i]);
     remove(b);
   }

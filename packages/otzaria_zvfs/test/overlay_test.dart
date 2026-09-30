@@ -15,7 +15,7 @@ late Directory tmp;
 String p(String name) => '${tmp.path}${Platform.pathSeparator}$name';
 
 void removeAll(String path) {
-  for (final s in ['', '-zovl', '-journal', '-wal', '-shm', '.new']) {
+  for (final s in ['', '-zovl', '-journal', '-wal', '-shm', '.new', '-zlck']) {
     final f = File('$path$s');
     if (f.existsSync()) f.deleteSync();
   }

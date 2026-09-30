@@ -283,9 +283,10 @@ the files are on a local filesystem with a coherent page cache.
 2. streams the logical content into `<path>.new` (a new base with the same
    dictionary, lineage = old `fileUuid` + `overlayUuid` + last `seq`) and
    fsyncs it; `verify` decodes it completely;
-3. re-checks that the overlay did not move, then renames `.new` over the
-   base durably (`MOVEFILE_WRITE_THROUGH`; POSIX: rename + directory fsync);
-4. deletes the sidecar.
+3. takes `<path>-zlck` exclusively (see below), re-checks that the overlay
+   did not move, then renames `.new` over the base durably
+   (`MOVEFILE_WRITE_THROUGH`; POSIX: rename + directory fsync);
+4. deletes the sidecar and releases the lock.
 
 A crash before 3 leaves the old pair (plus a stale `.new`). Between 3 and 4
 the old sidecar no longer binds to the new base, but the base names it
@@ -293,9 +294,18 @@ the old sidecar no longer binds to the new base, but the base names it
 and replaced by the next write. An obsolete sidecar that is still there at
 the next compaction is named by that base too, so the same crash window stays
 harmless however often it repeats. An obsolete or torn sidecar is scanned once
-and then only re-checked by size and header, not rescanned on every lock. Other processes must have closed the
-database: Windows refuses the rename while they hold it; POSIX does not, so
-the orchestration (S5c) has to ensure it.
+and then only re-checked by size and header, not rescanned on every lock.
+
+**Swap lock `<path>-zlck`.** Every process that has a `.zdb` open through
+zvfs holds a shared lock on byte 0 of `<path>-zlck` (one descriptor per
+process and path, opened with the first connection and closed with the last,
+so no other close drops it on POSIX). It is taken before the base is opened.
+The swap needs it exclusively: while any connection of any process is open it
+fails with `ZdbException.busy`, and an open that meets a swap in progress
+waits for it (up to 5s, then `SQLITE_BUSY`). The empty file stays next to the
+base; never delete it while the database may be open (a new file would split
+the lock). Where it cannot be created or locked (read-only directory, no lock
+support) connections open without it, and a swap there fails.
 
 ## Runtime model
 
@@ -325,17 +335,19 @@ the orchestration (S5c) has to ensure it.
 
 ## Requirements for the app integration (S5c)
 
-- **One process during compaction.** `compactZdb` detects connections of its
-  own process only. Windows also refuses the rename while another process
-  holds the base; POSIX does not, and the check-then-rename window
-  (`zvfs_compact_swap`) cannot be closed from here: a lock of our own on the
-  base would be dropped whenever SQLite closes one of its descriptors of that
-  file. So S5c must guarantee that no other app process has the database
-  open (the single-instance lock), and must not rely on `ZdbException.busy`
-  for that.
+- **Compaction and other processes.** The swap lock (see Compaction) makes
+  `compactZdb` fail with `ZdbException.busy` while any process, including
+  Otzaria's secondary windows (separate processes), has the database open
+  through zvfs. S5c runs compaction when the library is closed everywhere,
+  retries later on `busy`, and opens the library only through zvfs: a
+  connection through another VFS or plain `dart:io` takes no swap lock.
+- **Converting.** `convertToZdb` reads its source through `dart:io` without
+  any check: never convert a database that this process has open through
+  another VFS (on POSIX closing that descriptor drops its locks).
 - **Replacing the base.** Before a full download replaces `<path>`, delete
   `<path>-zovl` (and `-journal`, `-wal`, `-shm`): a sidecar bound to the old
-  base makes the new one refuse to open (`SQLITE_CORRUPT`).
+  base makes the new one refuse to open (`SQLITE_CORRUPT`). Keep
+  `<path>-zlck`.
 - **Hot journal after an updater crash.** A read-only open then fails with
   `SQLITE_READONLY_ROLLBACK` until one read-write open rolls the journal back;
   do that once before read-only connections. `immutable=1` must not be used:

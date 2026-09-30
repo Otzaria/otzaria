@@ -63,6 +63,11 @@ int zplat_rename_durable(const char *from_utf8, const char *to_utf8);
 /* Delete (ZVFS_OK when absent); POSIX then syncs the directory. Windows has
    no directory flush: the delete may be lost on power loss. */
 int zplat_delete_durable(const char *path_utf8);
+/* Advisory lock on byte 0 of a lock file, never blocking: ZVFS_OK,
+   ZVFS_ERR_BUSY (held elsewhere) or ZVFS_ERR_IO (no lock support). */
+int zplat_lockfile_open(const char *path_utf8, zplat_file **out);
+int zplat_lockfile_try(zplat_file *f, int exclusive);
+void zplat_lockfile_unlock(zplat_file *f);
 
 /* ---- on-disk format (see README.md, "Format") ---- */
 #define ZDB_MAGIC "OTZZDB\x1a\n"
@@ -82,6 +87,7 @@ int zplat_delete_durable(const char *path_utf8);
 #define ZDB_MAX_DICT (1u << 20)
 #define ZDB_MAX_FRAME_BYTES (16u << 20)
 #define ZDB_OVERLAY_SUFFIX "-zovl"
+#define ZDB_LOCKFILE_SUFFIX "-zlck"
 
 typedef struct zdb_header {
   uint32_t major, minor, header_size, incompat, compat;
