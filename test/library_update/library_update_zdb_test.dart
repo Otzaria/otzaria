@@ -331,6 +331,39 @@ void main() {
     });
   });
 
+  group('checkForUpdate', () {
+    LibraryUpdateRepository recordingRepository(String dbPath) =>
+        LibraryUpdateRepository(
+          discovery: _FixedDiscovery(
+            const LibraryDiscoveryResult(
+              latestVersion: 0,
+              edges: [],
+              latestFullDbAsset: null,
+              latestReleaseTag: null,
+            ),
+          ),
+          versionReader: _IsolateRecordingReader(Isolate.current.debugName),
+          downloader: PatchDownloader(decompress: (b) async => b),
+          dbPathProvider: () => dbPath,
+          dataRootProvider: () async => tmp.path,
+        );
+
+    test('גרסת zdb נקראת מחוץ ל-UI isolate, ומסד רגיל עליו', () async {
+      await writeFixtureZdb(zdbPath, version: 2);
+      final zdbPlan = await recordingRepository(
+        zdbPath,
+      ).checkForUpdate(allowPrerelease: false);
+      expect(zdbPlan.localVersion, _IsolateRecordingReader.otherIsolate);
+
+      final legacy = LibraryZdbFiles.legacyPathIn(tmp.path);
+      writeFixtureLibraryDb(legacy, version: 2, schemaVersion: 5);
+      final plainPlan = await recordingRepository(
+        legacy,
+      ).checkForUpdate(allowPrerelease: false);
+      expect(plainPlan.localVersion, _IsolateRecordingReader.callingIsolate);
+    });
+  });
+
   group('maintainLibraryStorage', () {
     Future<LibraryUpdateRepository> checked(
       LibraryUpdateRepository repo,
@@ -516,4 +549,23 @@ class _CountingRefresh extends LibraryRuntimeRefreshService {
 
   @override
   Future<void> refreshAfterDbUpdate() async => calls++;
+}
+
+/// מחזיר גרסה שמקודדת את ה-isolate שבו רץ. sendable (שדה מחרוזת בלבד).
+class _IsolateRecordingReader extends LocalDbVersionReader {
+  const _IsolateRecordingReader(this.callerName);
+
+  static const int callingIsolate = 1;
+  static const int otherIsolate = 2;
+
+  final String? callerName;
+
+  @override
+  LocalDbVersion read(String dbPath) => LocalDbVersion(
+    dbVersion: Isolate.current.debugName == callerName
+        ? callingIsolate
+        : otherIsolate,
+    schemaVersion: 6,
+    hasVersionMeta: true,
+  );
 }

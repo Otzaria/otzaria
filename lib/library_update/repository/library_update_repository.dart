@@ -63,15 +63,18 @@ class LibraryUpdateProgress {
   });
 }
 
-typedef LibraryUpdateProgressCallback =
-    void Function(LibraryUpdateProgress progress);
+typedef LibraryUpdateProgressCallback = void Function(
+  LibraryUpdateProgress progress,
+);
 
 /// נורה סינכרונית ברגע שבו ה-DB המלא החדש כבר החליף את הישן ואין עוד נקודת
 /// ביטול בטוחה. המאזין חייב לבצע עבודה סינכרונית וקלה בלבד.
 typedef FullDbReplacedCallback = void Function();
 
-typedef FullDbExtractor =
-    Future<void> Function(String archivePath, String outputPath);
+typedef FullDbExtractor = Future<void> Function(
+  String archivePath,
+  String outputPath,
+);
 
 /// אין מספיק מקום פנוי בדיסק לעדכון (הורדה מלאה או צעד דלתא) — נבדק לפני
 /// תחילת ההורדה.
@@ -346,7 +349,7 @@ class LibraryUpdateRepository
     required bool allowPrerelease,
   }) async {
     final dbPath = _libraryDbPath();
-    final local = versionReader.read(dbPath);
+    final local = await _readLocalVersion(versionReader, dbPath);
     _lastAllowPrerelease = allowPrerelease;
     final result = await discovery.discover(allowPrerelease: allowPrerelease);
     _rememberDiscovery(result);
@@ -1160,7 +1163,7 @@ class LibraryUpdateRepository
         !_manifestMatches(manifest, asset)) {
       return null;
     }
-    final local = await _localDbVersionInIsolate(dbPath);
+    final local = (await _readLocalVersion(versionReader, dbPath)).dbVersion;
     // בסיס ישן מהמקומי היה מחזיר את הספרייה לאחור.
     if (manifest.dbVersion < local) return null;
     try {
@@ -1196,11 +1199,18 @@ class LibraryUpdateRepository
     return LibraryStorageMaintenance.rebased;
   }
 
-  // static: ה-closure של Isolate.run לוכד את כל ה-scope, ו-this אינו sendable.
-  static Future<int> _localDbVersionInIsolate(String dbPath) => Isolate.run(() {
-    ensureLibraryVfs();
-    return const LocalDbVersionReader().read(dbPath).dbVersion;
-  });
+  /// פתיחת zdb משחזרת את ה-overlay סינכרונית (מאות ms), ולכן לא על ה-UI isolate.
+  /// static: ה-closure של Isolate.run לוכד את כל ה-scope, ו-this אינו sendable.
+  static Future<LocalDbVersion> _readLocalVersion(
+    LocalDbVersionReader reader,
+    String dbPath,
+  ) async {
+    if (!isZdbPath(dbPath)) return reader.read(dbPath);
+    return Isolate.run(() {
+      ensureLibraryVfs();
+      return reader.read(dbPath);
+    });
+  }
 
   /// הגיבוי לבסיס חדש: דוחס בסיס + overlay כשהמשתמש אינו קורא ויש מקום.
   /// הספרייה מושעית בכל החלונות לכל משך הדחיסה.
@@ -1421,7 +1431,7 @@ class LibraryUpdateRepository
       // WAL מאפשר לקוראים להמשיך לקרוא את ה-snapshot שלפני העדכון בזמן
       // שהאיזולייט כותב — בלי לסגור את חיבור ה-RO (שחסם פתיחת ספרים לדקות).
       // אם ההמרה נכשלת, נסוגים למסלול הישן: סגירת ה-RO למשך הכתיבה.
-      final walFailure = _trySetJournalMode(dbPath, 'WAL');
+      final walFailure = await _trySetJournalMode(dbPath, 'WAL');
       final concurrentReads = walFailure == null;
       if (!concurrentReads) {
         _logJournalModeFailure('WAL', walFailure);
@@ -1469,7 +1479,7 @@ class LibraryUpdateRepository
               // העדכון כבר נשמר; worker תקוע רק מונע את החזרה ל-DELETE.
               _logJournalModeFailure('DELETE', error.message);
             }
-            final revertFailure = _trySetJournalMode(dbPath, 'DELETE');
+            final revertFailure = await _trySetJournalMode(dbPath, 'DELETE');
             if (revertFailure != null) {
               _logJournalModeFailure('DELETE', revertFailure);
             }
@@ -1493,8 +1503,17 @@ class LibraryUpdateRepository
   }
 
   /// ממיר את מצב היומן של [dbPath]; מחזיר null בהצלחה, אחרת את סיבת הכשל.
+  /// zdb נפתח ב-isolate: פתיחת כתיבה משחזרת את ה-overlay סינכרונית.
+  static Future<String?> _trySetJournalMode(String dbPath, String mode) async {
+    if (!isZdbPath(dbPath)) return _setJournalMode(dbPath, mode);
+    return Isolate.run(() {
+      ensureLibraryVfs();
+      return _setJournalMode(dbPath, mode);
+    });
+  }
+
   /// ההמרה דורשת נעילה בלעדית קצרה — busy_timeout מכסה קריאות קצרות שבאמצע.
-  String? _trySetJournalMode(String dbPath, String mode) {
+  static String? _setJournalMode(String dbPath, String mode) {
     try {
       final db = sqlite3.sqlite3.open(dbPath);
       try {
