@@ -1,11 +1,8 @@
 import 'package:otzaria/find_ref/repository/find_ref_ranking.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
-/// רשומת AltToc שטוחה, מיועדת לחיפוש גלובלי על פני כל הספרים בבת אחת.
-///
-/// נוצרת מראש (lazy, פעם אחת ל-session) מתוך שאילתת DB אחת שמאחדת את כל
-/// טבלאות ה-AltToc. כל שדה — כולל `refTokens` המנורמלים — מחושב פעם אחת
-/// בעת בניית הקאש, כך שהפילטר לכל שאילתה הוא O(N) מעבר על הרשימה בלבד.
+/// רשומת AltToc בקאש הגלובלי. הטוקנים מחושבים פעם אחת בבניית הקאש,
+/// כדי שהסינון לכל שאילתה יעבור רק על הרשומות המנורמלות.
 class AltTocFlatEntry {
   /// מזהה הספר ב-DB.
   final int bookId;
@@ -29,8 +26,7 @@ class AltTocFlatEntry {
   /// `line.id` הגלובלי של השורה המקושרת, אם קיים; 0 אם לא.
   final int dbLineId;
 
-  /// טוקנים מנורמלים של [reference] (אחרי [normalizeForFindRefMatch]).
-  /// משמש את הפילטר `queryTokens.every((qt) => refTokens.contains(qt))`.
+  /// טוקנים מנורמלים של [reference], המחושבים פעם אחת בבניית הקאש.
   final List<String> refTokens;
 
   const AltTocFlatEntry({
@@ -45,11 +41,8 @@ class AltTocFlatEntry {
   });
 }
 
-/// פילטר ההתאמה של ה-fallback הגלובלי — משותף למסלול המקומי (main isolate)
-/// ול-worker isolate, כדי שהסמנטיקה תישאר זהה בשני המסלולים.
-///
-/// [maxRefTokens] מגביל את אורך הערך (מסלול מילה בודדת); `null` = ללא הגבלה.
-/// [dafCitation] (מ-[parseDafCitationFromDafToken]) מחייב התאמה מיקומית.
+/// פילטר גלובלי משותף ל-main ול-worker. [maxRefTokens] מגביל אורך נתיב,
+/// ו-[dafCitation] מ-[parseDafCitationFromDafToken] מחייב התאמה מיקומית.
 bool altTocFlatMatches(
   List<String> refTokens,
   List<String> queryTokens, {
@@ -60,7 +53,12 @@ bool altTocFlatMatches(
   if (dafCitation != null && !nearestDafInPathMatches(refTokens, dafCitation)) {
     return false;
   }
-  return queryTokens.every(refTokens.contains);
+  for (final token in queryTokens) {
+    // הסיומת נבדקה מיקומית; כתיבים שקולים של דף/עמוד אינם טוקנים זהים.
+    if (dafCitation != null && token == 'דף') break;
+    if (!refTokens.contains(token)) return false;
+  }
+  return true;
 }
 
 /// מפתח תוצאה לצמצום ה-fallback הגלובלי; [reference] כפי שהוא מוצג (עם שם הספר).
@@ -74,8 +72,7 @@ typedef AltTocResultKey = ({
 /// לכל ספר: תקרת התוצאות הסופית ועוד מרווח לשוויונות בדירוג.
 const int maxGlobalAltTocMatchesPerBook = findRefMaxResultCap + 200;
 
-/// מה שהדירוג היה מסיר ממילא: כפילות (כמו `_dedupeRefs`, מול [occupied]),
-/// צאצא של התאמה, וגלישה מעבר ל-[perBookCap] לפי סדר הדירוג בתוך הספר.
+/// מצמצם כפילות מול [occupied], צאצאים וחריגה מ-[perBookCap] לפי הדירוג.
 List<T> pruneGlobalAltTocMatches<T>(
   List<T> matches, {
   required AltTocResultKey Function(T) keyOf,

@@ -146,6 +146,56 @@ void main() {
       );
     });
 
+    for (final (amud, mark) in [('א', '.'), ('ב', ':')]) {
+      test('כתיב עמוד $amud שקול בחיפוש הגלובלי', () async {
+        final database = MyDatabase.withPath(dbPath);
+        final db = await database.database;
+        db.execute('UPDATE tocText SET text = ? WHERE id = 31', ['דף מג ע"א']);
+        db.execute('UPDATE tocText SET text = ? WHERE id = 32', ['דף מג ע"ב']);
+        database.close();
+
+        final expected = ['קרן אורה על חולין אלו טרפות דף מג ע"$amud'];
+        expect(await globalAltToc('דף מג$mark'), expected);
+        expect(await globalAltToc('דף מג עמוד $amud'), expected);
+        expect(await globalAltToc('אלו טרפות דף מג$mark'), expected);
+        expect(await globalAltToc('מאימתי דף מג$mark'), isEmpty);
+        expect(await globalAltToc('דף מד$mark'), isEmpty);
+      });
+
+      test('ה-worker מזהה כתיבי עמוד $amud שקולים', () async {
+        final database = MyDatabase.withPath(dbPath);
+        final db = await database.database;
+        db.execute('UPDATE tocText SET text = ? WHERE id = 31', ['דף מג ע"א']);
+        db.execute('UPDATE tocText SET text = ? WHERE id = 32', ['דף מג ע"ב']);
+        database.close();
+        await Settings.init(cacheProvider: MemoryCacheProvider());
+        await Settings.setValue<String>(
+          SettingsRepository.keyDbEffectivePath,
+          dbPath,
+        );
+        final isolate = await FindRefDbIsolate.instance();
+        addTearDown(isolate.disposeForTesting);
+        for (final tokens in [
+          ['דף', 'מג', amud],
+          ['דף', 'מג', 'עמוד', amud],
+          ['אלו', 'טרפות', 'דף', 'מג', amud],
+        ]) {
+          final rows = await isolate.searchAltTocFlat(tokens);
+          expect(rows.map((r) => r['reference']), [
+            'אלו טרפות דף מג ע"$amud',
+          ]);
+        }
+        expect(
+          await isolate.searchAltTocFlat(['מאימתי', 'דף', 'מג', amud]),
+          isEmpty,
+        );
+        expect(
+          await isolate.searchAltTocFlat(['דף', 'מד', amud]),
+          isEmpty,
+        );
+      });
+    }
+
     test('"נח ב" (בלי "דף") נשאר התאמת טוקנים רגילה', () async {
       expect(await globalAltToc('נח ב'), equals(['בראשית נח עליה ב']));
     });

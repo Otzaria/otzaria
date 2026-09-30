@@ -3930,6 +3930,7 @@ class _AltTocTokenPool {
       if (t.isNotEmpty) _strings.putIfAbsent(t, () => t),
   ].toList(growable: false);
 }
+
 final _bareDafHeadingPattern = RegExp(r'^(?:תלמוד )?[א-ת]{1,3}([.:])$');
 
 /// קאש TOC לספר יחיד: רשימה שטוחה + מבנה היררכי לחיפוש.
