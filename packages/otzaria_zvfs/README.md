@@ -469,7 +469,10 @@ a `-zovl` (compact it first) or a pending `-journal`/`-wal`; a WAL-mode source
 comes back with the rollback header the zdb serves (bytes 18/19 = 1).
 Exit status: 0 ok, 1 failure, 2 usage. CI builds it with `build_cli.sh` on
 Linux x64 and arm64 and checks convert, verify, info, export (`cmp` equal to
-the source) and reproducibility (`tool/cli_roundtrip.sh`).
+the source) and reproducibility (`tool/cli_roundtrip.sh`). On Windows
+`build_cli.sh` also works with MinGW gcc (it adds `-lbcrypt`), and the CLI
+reads its arguments as UTF-16, so paths outside the ANSI code page (Hebrew)
+work.
 
 ## Tests
 

@@ -10,7 +10,25 @@
 #if defined(_WIN32)
 #include <fcntl.h>
 #include <io.h>
+#include <windows.h>
+#include <shellapi.h>
+#if defined(_MSC_VER)
+#pragma comment(lib, "shell32.lib")
 #endif
+#endif
+
+/* Paths are UTF-8 (see main); fopen on Windows would take the ANSI code page. */
+static FILE *open_utf8(const char *path, const char *mode) {
+#if defined(_WIN32)
+  wchar_t wp[4096], wm[8];
+  if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, wp, 4096) ||
+      !MultiByteToWideChar(CP_UTF8, 0, mode, -1, wm, 8))
+    return NULL;
+  return _wfopen(wp, wm);
+#else
+  return fopen(path, mode);
+#endif
+}
 
 static int usage(void) {
   fprintf(stderr,
@@ -62,23 +80,27 @@ static int cmd_dicts(void) {
 }
 
 static int cmd_train(int argc, char **argv) {
-  if (argc < 4) return usage();
-  uint32_t samples = argc > 4 ? (uint32_t)atoi(argv[4]) : 6000;
-  size_t cap = (size_t)(argc > 5 ? atoi(argv[5]) : 112) * 1024;
-  uint64_t seed = argc > 6 ? strtoull(argv[6], NULL, 10) : 0;
+  if (argc < 4 || argc > 7) return usage();
+  long long samples = 6000, kb = 112, seed = 0;
+  if (argc > 4 && !parse_i64(argv[4], 1, 1000000, &samples)) return 2;
+  if (argc > 5 && !parse_i64(argv[5], 1, 1024, &kb)) return 2;
+  if (argc > 6 && !parse_i64(argv[6], 0, 0x7fffffffffffffffll, &seed)) return 2;
+  size_t cap = (size_t)kb * 1024;
   void *dict = malloc(cap);
   size_t len = 0;
   uint32_t id = 0;
   clock_t t0 = clock();
-  int rc = dict ? zvfs_train_dict(argv[2], samples, seed, dict, cap, &len, &id)
+  int rc = dict ? zvfs_train_dict(argv[2], (uint32_t)samples, (uint64_t)seed,
+                                 dict, cap, &len, &id)
                 : ZVFS_ERR_NOMEM;
   if (rc) {
     fprintf(stderr, "train failed: %s\n", zvfs_errstr(rc));
     free(dict);
     return 1;
   }
-  FILE *f = fopen(argv[3], "w");
+  FILE *f = open_utf8(argv[3], "w");
   if (!f) {
+    fprintf(stderr, "cannot create %s: %s\n", argv[3], strerror(errno));
     free(dict);
     return 1;
   }
@@ -89,7 +111,11 @@ static int cmd_train(int argc, char **argv) {
   for (size_t i = 0; i < len; i++)
     fprintf(f, "%u%s", p[i], i + 1 == len ? "\n" : ((i + 1) % 24 ? "," : ",\n"));
   fprintf(f, "};\n");
-  fclose(f);
+  if (ferror(f) | fclose(f)) {
+    fprintf(stderr, "cannot write %s\n", argv[3]);
+    free(dict);
+    return 1;
+  }
   printf("dict %zu bytes id %u in %.1fs\n", len, id,
          (double)(clock() - t0) / CLOCKS_PER_SEC);
   free(dict);
@@ -135,7 +161,7 @@ static int cmd_convert(int argc, char **argv) {
     }
   }
   FILE *in = stdin;
-  if (strcmp(argv[2], "-")) in = fopen(argv[2], "rb");
+  if (strcmp(argv[2], "-")) in = open_utf8(argv[2], "rb");
 #if defined(_WIN32)
   else _setmode(_fileno(stdin), _O_BINARY);
 #endif
@@ -335,7 +361,7 @@ static int cmd_export(int argc, char **argv) {
   return rc ? 1 : 0;
 }
 
-int main(int argc, char **argv) {
+static int run(int argc, char **argv) {
   if (argc < 2) return usage();
   if (!strcmp(argv[1], "convert")) return cmd_convert(argc, argv);
   if (!strcmp(argv[1], "verify")) return cmd_verify(argc, argv);
@@ -345,3 +371,26 @@ int main(int argc, char **argv) {
   if (!strcmp(argv[1], "train")) return cmd_train(argc, argv);
   return usage();
 }
+
+#if defined(_WIN32)
+/* argv is in the ANSI code page, which cannot hold every path: use UTF-16. */
+int main(void) {
+  int argc = 0;
+  wchar_t **wv = CommandLineToArgvW(GetCommandLineW(), &argc);
+  char **argv = wv ? (char **)calloc((size_t)argc + 1, sizeof *argv) : NULL;
+  for (int i = 0; argv && i < argc; i++) {
+    int n = WideCharToMultiByte(CP_UTF8, 0, wv[i], -1, NULL, 0, NULL, NULL);
+    if (n <= 0 || !(argv[i] = (char *)malloc((size_t)n)) ||
+        !WideCharToMultiByte(CP_UTF8, 0, wv[i], -1, argv[i], n, NULL, NULL))
+      argv = NULL;
+  }
+  if (!argv) {
+    fprintf(stderr, "cannot read the command line\n");
+    return 1;
+  }
+  LocalFree(wv);
+  return run(argc, argv);
+}
+#else
+int main(int argc, char **argv) { return run(argc, argv); }
+#endif

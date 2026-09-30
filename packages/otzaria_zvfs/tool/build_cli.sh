@@ -9,6 +9,10 @@ cc=${CC:-cc}
 mkdir -p "$(dirname "$out")"
 
 # Keep in sync with hook/build.dart and test/c/CMakeLists.txt.
+libs=
+case "$("$cc" -dumpmachine 2>/dev/null || true)" in
+  *mingw* | *windows* | *cygwin*) libs=-lbcrypt ;; # BCryptGenRandom
+esac
 # shellcheck disable=SC2086
 "$cc" -std=gnu99 -O2 ${CFLAGS:-} \
   -DZSTD_DISABLE_ASM=1 -DZSTD_LEGACY_SUPPORT=0 -DZSTD_TRACE=0 \
@@ -20,5 +24,5 @@ mkdir -p "$(dirname "$out")"
   "$here"/third_party/zstd/lib/decompress/*.c \
   "$here"/third_party/zstd/lib/dictBuilder/*.c \
   "$here"/src/*.c "$here/tool/zvfs_cli.c" \
-  -o "$out" -pthread
+  -o "$out" -pthread $libs
 echo "built $out"

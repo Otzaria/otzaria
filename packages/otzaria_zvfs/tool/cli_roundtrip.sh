@@ -57,6 +57,12 @@ if command -v zstd >/dev/null 2>&1; then
   cmp "$dir/a.zdb" "$dir/c.zdb"
 fi
 
+# a path outside the ANSI code page (Windows takes the arguments as UTF-16)
+# shellcheck disable=SC2086
+"$cli" convert "$dir/src.db" "$dir/ספר.zdb" --dict seforim-v1 --level 3 $det
+cmp "$dir/a.zdb" "$dir/ספר.zdb"
+"$cli" verify "$dir/ספר.zdb"
+
 # export refuses a base with an overlay
 : > "$dir/a.zdb-zovl"
 if "$cli" export "$dir/a.zdb" "$dir/out2.db" 2>/dev/null; then
