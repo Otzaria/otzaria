@@ -25,14 +25,16 @@ static open_path *g_plain;
 /* <path>-zlck, shared by every connection of this process to a .zdb and held
    exclusively by the swap. One descriptor per process: closing another would
    drop the POSIX lock. */
+enum { PL_ACQUIRING, PL_READY, PL_SWAPPING };
 typedef struct path_lock {
   struct path_lock *next;
   char *key;
   int count;
+  int state;
   zplat_file *f; /* NULL: no lock file (read-only directory, no lock support) */
 } path_lock;
 static path_lock *g_locks;
-static zplat_mutex g_lck_mu = ZPLAT_MUTEX_INIT; /* g_locks; held by a swap */
+static zplat_mutex g_lck_mu = ZPLAT_MUTEX_INIT; /* g_locks only, never waits */
 #define ZLCK_WAIT_MS 5000
 
 typedef struct zfile {
@@ -461,98 +463,129 @@ static path_lock *find_lock(const char *key) {
   return pl;
 }
 
-static int plain_registered(const char *key) {
-  zplat_lock(&g_mu);
-  open_path *op = g_plain;
-  while (op && strcmp(op->key, key) != 0) op = op->next;
-  zplat_unlock(&g_mu);
-  return op != NULL;
+static void unlink_lock(path_lock *pl) {
+  path_lock **pp = &g_locks;
+  while (*pp && *pp != pl) pp = &(*pp)->next;
+  if (*pp) *pp = pl->next;
+}
+
+static void free_lock(path_lock *pl) {
+  if (pl->f) {
+    zplat_lockfile_unlock(pl->f);
+    zplat_close(pl->f);
+  }
+  free(pl->key);
+  free(pl);
+}
+
+static path_lock *new_lock(const char *key, int state) {
+  path_lock *pl = (path_lock *)calloc(1, sizeof *pl);
+  size_t n = strlen(key) + 1;
+  if (pl) pl->key = (char *)malloc(n);
+  if (!pl || !pl->key) {
+    free(pl);
+    return NULL;
+  }
+  memcpy(pl->key, key, n);
+  pl->state = state;
+  pl->count = 1;
+  pl->next = g_locks;
+  g_locks = pl;
+  return pl;
 }
 
 static void unlock_path(path_lock *pl) {
   if (!pl) return;
   zplat_lock(&g_lck_mu);
   int last = --pl->count == 0;
-  if (last) {
-    path_lock **pp = &g_locks;
-    while (*pp && *pp != pl) pp = &(*pp)->next;
-    if (*pp) *pp = pl->next;
-    if (pl->f) {
-      zplat_lockfile_unlock(pl->f);
-      zplat_close(pl->f);
-    }
-    free(pl->key);
-    free(pl);
-  }
+  if (last) unlink_lock(pl);
   zplat_unlock(&g_lck_mu);
+  if (last) free_lock(pl);
 }
 
-/* Taken before the base is opened: a base opened first could be the one a
-   concurrent swap in another process is replacing. */
-static int lock_path(const char *key, int peek, path_lock **out) {
-  *out = NULL;
-  int rc = ZVFS_OK;
+/* A lock held since before the base was opened: no swap can have replaced
+   that base since. */
+static path_lock *join_ready(const char *key) {
   zplat_lock(&g_lck_mu);
   path_lock *pl = find_lock(key);
-  if (pl) {
+  if (pl && pl->state == PL_READY)
     pl->count++;
-    *out = pl;
-    zplat_unlock(&g_lck_mu);
-    return ZVFS_OK;
+  else
+    pl = NULL;
+  zplat_unlock(&g_lck_mu);
+  return pl;
+}
+
+static int acquire_shared(const char *key, uint64_t until, zplat_file **out) {
+  *out = NULL;
+  char *lp = with_suffix(key, ZDB_LOCKFILE_SUFFIX);
+  if (!lp) return ZVFS_ERR_NOMEM;
+  zplat_file *lf = NULL;
+  int rc = zplat_lockfile_open(lp, &lf);
+  sqlite3_free(lp);
+  if (!rc) {
+    while ((rc = zplat_lockfile_try(lf, 0)) == ZVFS_ERR_BUSY &&
+           zplat_now_ms() < until)
+      g_base->xSleep(g_base, 10000);
+    if (rc) zplat_close(lf);
+    else *out = lf;
   }
-  if (peek) {
-    /* Safe to open here: no zdb connection of this process holds locks on it,
-       and a plain one is registered before it can lock. */
-    int is_zdb = 0;
-    if (!plain_registered(key)) {
-      zplat_file *pf = NULL;
-      uint8_t magic[ZDB_MAGIC_LEN];
-      size_t got = 0;
-      if (zplat_open_read(key, &pf) == ZVFS_OK) {
-        is_zdb = zplat_pread(pf, magic, sizeof magic, 0, &got) == ZVFS_OK &&
-                 zdb_has_magic(magic, got);
-        zplat_close(pf);
-      }
-    }
-    if (!is_zdb) {
+  return rc == ZVFS_ERR_READONLY ? ZVFS_OK : rc; /* cannot lock there */
+}
+
+/* Waits (up to ZLCK_WAIT_MS) without g_lck_mu, so other files open and close
+   meanwhile; one thread per path acquires, the others wait for it. */
+static int lock_path(const char *key, path_lock **out) {
+  *out = NULL;
+  uint64_t until = zplat_now_ms() + ZLCK_WAIT_MS;
+  for (;;) {
+    zplat_lock(&g_lck_mu);
+    path_lock *pl = find_lock(key);
+    if (pl && pl->state == PL_READY) {
+      pl->count++;
+      *out = pl;
       zplat_unlock(&g_lck_mu);
       return ZVFS_OK;
     }
-  }
-  pl = (path_lock *)calloc(1, sizeof *pl);
-  char *lp = with_suffix(key, ZDB_LOCKFILE_SUFFIX);
-  size_t n = strlen(key) + 1;
-  if (pl) pl->key = (char *)malloc(n);
-  if (!pl || !pl->key || !lp) {
-    rc = ZVFS_ERR_NOMEM;
-  } else {
-    memcpy(pl->key, key, n);
-    zplat_file *lf = NULL;
-    if (zplat_lockfile_open(lp, &lf) == ZVFS_OK) {
-      uint64_t until = zplat_now_ms() + ZLCK_WAIT_MS;
-      while ((rc = zplat_lockfile_try(lf, 0)) == ZVFS_ERR_BUSY &&
-             zplat_now_ms() < until)
-        g_base->xSleep(g_base, 10000);
+    if (!pl) {
+      pl = new_lock(key, PL_ACQUIRING);
+      zplat_unlock(&g_lck_mu);
+      if (!pl) return ZVFS_ERR_NOMEM;
+      zplat_file *lf = NULL;
+      int rc = acquire_shared(key, until, &lf);
+      zplat_lock(&g_lck_mu);
       if (rc) {
-        zplat_close(lf);
-        lf = NULL;
-        if (rc != ZVFS_ERR_BUSY) rc = ZVFS_OK; /* no lock support there */
+        unlink_lock(pl);
+      } else {
+        pl->f = lf;
+        pl->state = PL_READY;
+        *out = pl;
       }
+      zplat_unlock(&g_lck_mu);
+      if (rc) free_lock(pl);
+      return rc;
     }
-    pl->f = lf;
+    zplat_unlock(&g_lck_mu); /* acquiring in another thread, or swapping */
+    if (zplat_now_ms() >= until) return ZVFS_ERR_BUSY;
+    g_base->xSleep(g_base, 10000);
   }
-  sqlite3_free(lp);
-  if (rc) {
-    if (pl) free(pl->key);
-    free(pl);
-  } else {
-    pl->count = 1;
-    pl->next = g_locks;
-    g_locks = pl;
-    *out = pl;
-  }
-  zplat_unlock(&g_lck_mu);
-  return rc;
+}
+
+/* Base VFS close: unix defers the fd close while this process holds locks
+   on the inode, so no other connection loses its locks. */
+static int reopen_real(zfile *f, const char *name, int flags, int *inner) {
+  f->real->pMethods->xClose(f->real);
+  memset(f->real, 0, (size_t)g_base->szOsFile);
+  return g_base->xOpen(g_base, name, f->real, flags, inner);
+}
+
+static int detect_zdb(zfile *f, sqlite3_int64 *size) {
+  uint8_t magic[ZDB_MAGIC_LEN];
+  *size = 0;
+  int zr = f->real->pMethods->xFileSize(f->real, size);
+  if (zr != SQLITE_OK || *size < ZDB_MAGIC_LEN) return 0;
+  zr = f->real->pMethods->xRead(f->real, magic, sizeof magic, 0);
+  return zr == SQLITE_OK && zdb_has_magic(magic, sizeof magic);
 }
 
 static int zClose(sqlite3_file *pf) {
@@ -641,13 +674,7 @@ static int zOpen(sqlite3_vfs *vfs, sqlite3_filename name, sqlite3_file *pf,
   memset(f, 0, sizeof *f);
   f->real = (sqlite3_file *)((char *)f + ((sizeof(zfile) + 7) & ~(size_t)7));
   int main_db = (flags & SQLITE_OPEN_MAIN_DB) && name;
-  if (main_db) {
-    int lr = lock_path(name, 1, &f->pl);
-    if (lr) {
-      f->base.pMethods = NULL;
-      return lr == ZVFS_ERR_BUSY ? SQLITE_BUSY : map_rc(lr);
-    }
-  }
+  if (main_db) f->pl = join_ready(name);
   int inner_flags = 0;
   int rc = g_base->xOpen(g_base, name, f->real, flags, &inner_flags);
   if (rc != SQLITE_OK) {
@@ -658,23 +685,33 @@ static int zOpen(sqlite3_vfs *vfs, sqlite3_filename name, sqlite3_file *pf,
   }
   f->base.pMethods = &g_methods;
   if (main_db) {
-    uint8_t magic[ZDB_MAGIC_LEN];
     sqlite3_int64 size = 0;
-    int zr = f->real->pMethods->xFileSize(f->real, &size);
-    if (zr == SQLITE_OK && size >= ZDB_MAGIC_LEN)
-      zr = f->real->pMethods->xRead(f->real, magic, sizeof magic, 0);
-    else
-      size = 0;
-    if (zr == SQLITE_OK && size > 0 && zdb_has_magic(magic, sizeof magic)) {
-      int err = f->pl ? ZVFS_OK : lock_path(name, 0, &f->pl); /* became a zdb */
-      if (!err) err = attach_shared(f, name, (uint64_t)size);
-      if (err) {
-        f->real->pMethods->xClose(f->real);
-        unlock_path(f->pl);
-        f->pl = NULL;
-        f->base.pMethods = NULL;
-        return err == ZVFS_ERR_BUSY ? SQLITE_BUSY : map_rc(err);
-      }
+    int is_zdb = detect_zdb(f, &size);
+    int err = SQLITE_OK;
+    if (is_zdb && !f->pl) {
+      /* opened before the lock: reopen, a swap may have replaced it */
+      int lr = lock_path(name, &f->pl);
+      if (lr)
+        err = lr == ZVFS_ERR_BUSY    ? SQLITE_BUSY
+              : lr == ZVFS_ERR_NOMEM ? SQLITE_NOMEM
+                                     : SQLITE_CANTOPEN;
+      else if ((err = reopen_real(f, name, flags, &inner_flags)) != SQLITE_OK)
+        f->real->pMethods = NULL;
+      else
+        is_zdb = detect_zdb(f, &size);
+    }
+    if (!err && is_zdb) {
+      int ar = attach_shared(f, name, (uint64_t)size);
+      if (ar) err = map_rc(ar);
+    }
+    if (err) {
+      if (f->real->pMethods) f->real->pMethods->xClose(f->real);
+      unlock_path(f->pl);
+      f->pl = NULL;
+      f->base.pMethods = NULL;
+      return err;
+    }
+    if (is_zdb) {
       /* The base is never written; writes go to the overlay. */
       f->writable = (inner_flags & SQLITE_OPEN_READWRITE) != 0;
     } else {
@@ -905,8 +942,12 @@ ZVFS_API int zvfs_compact_swap(const char *path, const char *new_path) {
     sqlite3_free(full);
     return ZVFS_ERR_INVALID;
   }
+  /* the mark keeps this process's openers of path off the lock file */
   zplat_lock(&g_lck_mu);
+  path_lock *mark = NULL;
   int rc = find_lock(full) || zvfs_in_use(full) ? ZVFS_ERR_BUSY : ZVFS_OK;
+  if (!rc && !(mark = new_lock(full, PL_SWAPPING))) rc = ZVFS_ERR_NOMEM;
+  zplat_unlock(&g_lck_mu);
   zplat_file *lf = NULL;
   if (!rc) rc = zplat_lockfile_open(lp, &lf);
   if (!rc) rc = zplat_lockfile_try(lf, 1);
@@ -915,7 +956,12 @@ ZVFS_API int zvfs_compact_swap(const char *path, const char *new_path) {
     zplat_lockfile_unlock(lf);
   }
   if (lf) zplat_close(lf);
-  zplat_unlock(&g_lck_mu);
+  if (mark) {
+    zplat_lock(&g_lck_mu);
+    unlink_lock(mark);
+    zplat_unlock(&g_lck_mu);
+    free_lock(mark);
+  }
   sqlite3_free(lp);
   sqlite3_free(full);
   return rc;

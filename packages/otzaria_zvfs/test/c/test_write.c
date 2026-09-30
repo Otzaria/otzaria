@@ -1238,6 +1238,59 @@ static void test_swap_lock(void) {
   ts_remove_all(zdb);
 }
 
+/* An open waiting for a swap elsewhere does not stall other files. */
+typedef struct opener {
+  const char *path;
+  int rc;
+  uint64_t ms;
+} opener;
+
+static void opener_main(void *p) {
+  opener *o = (opener *)p;
+  uint64_t t = zplat_now_ms();
+  sqlite3 *db = NULL;
+  o->rc = sqlite3_open_v2(o->path, &db, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  o->ms = zplat_now_ms() - t;
+  sqlite3_close(db);
+}
+
+static void test_lock_wait_isolated(void) {
+  const char *plain = tmp_path("lw_plain.db");
+  const char *x = tmp_path("lw_x.zdb");
+  const char *y = tmp_path("lw_y.zdb");
+  ts_remove_all(plain);
+  ts_remove_all(x);
+  ts_remove_all(y);
+  sqlite3 *p = ts_open(plain, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  ts_make_base(p, 5, 300);
+  sqlite3_close(p);
+  CHECK_EQ(ts_convert(plain, x), 0);
+  CHECK_EQ(ts_convert(plain, y), 0);
+  sqlite3 *yd = ts_open(y, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  CHECK(ts_int(yd, "SELECT count(*) FROM book") > 0);
+  proc_t c = spawn_zlck("excl", x, 2500);
+  opener o = {x, -1, 0};
+  zplat_thread th;
+  CHECK_EQ(zplat_thread_start(&th, opener_main, &o), 0);
+  sleep_ms(300);
+  uint64_t t = zplat_now_ms();
+  sqlite3_close(yd);
+  sqlite3 *pd = ts_open(plain, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  CHECK(ts_int(pd, "SELECT count(*) FROM book") > 0);
+  sqlite3_close(pd);
+  uint64_t other = zplat_now_ms() - t;
+  zplat_thread_join(th);
+  CHECK_EQ(wait_proc(c), 0);
+  CHECK_EQ(o.rc, SQLITE_OK);
+  CHECK(o.ms >= 1500);
+  CHECK(other < 1000);
+  printf("  lock wait: open of x waited %llu ms, other files meanwhile %llu ms\n",
+         (unsigned long long)o.ms, (unsigned long long)other);
+  ts_remove_all(plain);
+  ts_remove_all(x);
+  ts_remove_all(y);
+}
+
 /* ================= concurrency: WAL writer + reader threads ================= */
 typedef struct cc_arg {
   const char *path;
@@ -1408,6 +1461,7 @@ int main(int argc, char **argv) {
   test_stale_sidecar();
   test_derived_newer();
   test_swap_lock();
+  test_lock_wait_isolated();
   printf("concurrency\n");
   test_concurrent_wal(4, 400);
   free(g_mb.p);

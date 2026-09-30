@@ -304,8 +304,18 @@ The swap needs it exclusively: while any connection of any process is open it
 fails with `ZdbException.busy`, and an open that meets a swap in progress
 waits for it (up to 5s, then `SQLITE_BUSY`). The empty file stays next to the
 base; never delete it while the database may be open (a new file would split
-the lock). Where it cannot be created or locked (read-only directory, no lock
-support) connections open without it, and a swap there fails.
+the lock). Where it cannot be created or locked (read-only directory or
+file system, no lock support, a directory that is not on disk because the
+base VFS is not the OS file system: `EACCES`/`EROFS`/`ENOLCK`/`ENOENT`)
+connections open
+without it, and a swap there fails; other errors fail the open
+(`SQLITE_CANTOPEN`). So processes that cannot create `-zlck` (another user
+with read access only) are not protected from a swap: give every process
+that opens the library write access to its directory. The wait for a swap
+runs without any global lock: other files open and close meanwhile.
+On a case-insensitive APFS a second spelling of the same path in this process
+is not recognized, so the swap's own descriptor could drop that process's
+shared lock (theoretical: open the library through one spelling).
 
 ## Runtime model
 

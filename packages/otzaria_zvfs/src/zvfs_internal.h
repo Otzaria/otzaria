@@ -63,8 +63,8 @@ int zplat_rename_durable(const char *from_utf8, const char *to_utf8);
 /* Delete (ZVFS_OK when absent); POSIX then syncs the directory. Windows has
    no directory flush: the delete may be lost on power loss. */
 int zplat_delete_durable(const char *path_utf8);
-/* Advisory lock on byte 0 of a lock file, never blocking: ZVFS_OK,
-   ZVFS_ERR_BUSY (held elsewhere) or ZVFS_ERR_IO (no lock support). */
+/* Advisory lock on byte 0 of a lock file, never blocking: ZVFS_OK, ZVFS_ERR_BUSY
+   (held elsewhere), ZVFS_ERR_READONLY (cannot lock there) or ZVFS_ERR_IO. */
 int zplat_lockfile_open(const char *path_utf8, zplat_file **out);
 int zplat_lockfile_try(zplat_file *f, int exclusive);
 void zplat_lockfile_unlock(zplat_file *f);

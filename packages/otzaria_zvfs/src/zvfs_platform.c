@@ -236,11 +236,18 @@ int zplat_lockfile_open(const char *path, zplat_file **out) {
   DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE;
   HANDLE h = CreateFileW(w, GENERIC_READ | GENERIC_WRITE, share, NULL,
                          OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-  if (h == INVALID_HANDLE_VALUE)
+  DWORD e = h == INVALID_HANDLE_VALUE ? GetLastError() : 0;
+  if (e == ERROR_ACCESS_DENIED || e == ERROR_WRITE_PROTECT) {
     h = CreateFileW(w, GENERIC_READ, share, NULL, OPEN_EXISTING,
                     FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) e = GetLastError();
+  }
   free(w);
-  if (h == INVALID_HANDLE_VALUE) return ZVFS_ERR_IO;
+  if (h == INVALID_HANDLE_VALUE)
+    return e == ERROR_ACCESS_DENIED || e == ERROR_WRITE_PROTECT ||
+                   e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND
+               ? ZVFS_ERR_READONLY
+               : ZVFS_ERR_IO;
   zplat_file *f = (zplat_file *)malloc(sizeof *f);
   if (!f) {
     CloseHandle(h);
@@ -257,8 +264,10 @@ int zplat_lockfile_try(zplat_file *f, int exclusive) {
   DWORD fl = LOCKFILE_FAIL_IMMEDIATELY | (exclusive ? LOCKFILE_EXCLUSIVE_LOCK : 0);
   if (LockFileEx(f->h, fl, 0, 1, 0, &o)) return ZVFS_OK;
   DWORD e = GetLastError();
-  return e == ERROR_LOCK_VIOLATION || e == ERROR_IO_PENDING ? ZVFS_ERR_BUSY
-                                                            : ZVFS_ERR_IO;
+  if (e == ERROR_LOCK_VIOLATION || e == ERROR_IO_PENDING) return ZVFS_ERR_BUSY;
+  return e == ERROR_NOT_SUPPORTED || e == ERROR_INVALID_FUNCTION
+             ? ZVFS_ERR_READONLY
+             : ZVFS_ERR_IO;
 }
 
 void zplat_lockfile_unlock(zplat_file *f) {
@@ -462,9 +471,16 @@ int zplat_delete_durable(const char *path) {
   return sync_parent(path);
 }
 
+static int denied(int e) { return e == EACCES || e == EROFS || e == EPERM; }
+
 int zplat_lockfile_open(const char *path, zplat_file **out) {
   int rc = open_common(path, O_RDWR | O_CREAT, out);
-  return rc == ZVFS_ERR_IO ? open_common(path, O_RDONLY, out) : rc;
+  if (rc != ZVFS_ERR_IO) return rc;
+  if (errno == ENOENT || errno == ENOTDIR) return ZVFS_ERR_READONLY;
+  if (!denied(errno)) return ZVFS_ERR_IO;
+  rc = open_common(path, O_RDONLY, out);
+  if (rc != ZVFS_ERR_IO) return rc;
+  return errno == ENOENT || denied(errno) ? ZVFS_ERR_READONLY : ZVFS_ERR_IO;
 }
 
 static int set_lock(int fd, short type) {
@@ -483,7 +499,8 @@ static int set_lock(int fd, short type) {
 
 int zplat_lockfile_try(zplat_file *f, int exclusive) {
   if (set_lock(f->fd, exclusive ? F_WRLCK : F_RDLCK) == 0) return ZVFS_OK;
-  return errno == EAGAIN || errno == EACCES ? ZVFS_ERR_BUSY : ZVFS_ERR_IO;
+  if (errno == EAGAIN || errno == EACCES) return ZVFS_ERR_BUSY;
+  return errno == ENOLCK ? ZVFS_ERR_READONLY : ZVFS_ERR_IO;
 }
 
 void zplat_lockfile_unlock(zplat_file *f) { set_lock(f->fd, F_UNLCK); }

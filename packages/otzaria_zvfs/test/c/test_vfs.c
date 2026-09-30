@@ -480,6 +480,29 @@ static void test_symlink_path(void) {
 }
 #endif
 
+/* A connection of another VFS keeps its locks when zvfs opens the file. */
+static void test_other_vfs_keeps_locks(void) {
+  const char *plain = tmp_path("ov_plain.db");
+  make_db(plain, 4096, 0);
+  sqlite3 *d = open_db(plain, SQLITE_OPEN_READONLY, NULL);
+  sqlite3_stmt *st = NULL;
+  exec(d, "BEGIN");
+  sqlite3_prepare_v2(d, "SELECT count(*) FROM book", -1, &st, NULL);
+  CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+  sqlite3 *z = open_db(plain, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  sqlite3_stmt *zs = NULL;
+  sqlite3_prepare_v2(z, "SELECT count(*) FROM book", -1, &zs, NULL);
+  CHECK_EQ(sqlite3_step(zs), SQLITE_ROW);
+  sqlite3_finalize(zs);
+  sqlite3_close(z);
+  CHECK_EQ(run_lockprobe(plain), 1);
+  sqlite3_finalize(st);
+  exec(d, "COMMIT");
+  sqlite3_close(d);
+  remove(plain);
+  printf("a connection of another VFS keeps its locks\n");
+}
+
 int main(int argc, char **argv) {
   if (argc == 3 && strcmp(argv[1], "lockprobe") == 0) return child_lockprobe(argv[2]);
   g_self = argv[0];
@@ -496,6 +519,7 @@ int main(int argc, char **argv) {
   test_corrupt_and_overlay();
   test_threads();
   test_probe_keeps_locks();
+  test_other_vfs_keeps_locks();
 #if !defined(_WIN32)
   test_symlink_path();
 #endif
