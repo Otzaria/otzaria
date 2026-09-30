@@ -28,6 +28,7 @@ class ZdbException implements Exception {
   static const int invalid = 5;
   static const int cancelled = 6;
   static const int notZdb = 7;
+  static const int busy = 10;
 
   factory ZdbException.fromCode(int code, [String? detail]) {
     final base = native.zvfs_errstr(code).toDartString();
@@ -123,6 +124,9 @@ abstract final class ZVfs {
 
   static bool get isRegistered => native.zvfs_is_registered() != 0;
 
+  /// Whether a connection of this process has [path] open through zvfs.
+  static bool isOpen(String path) => _inUse(path) != 0;
+
   /// Byte budget of the decoded-page LRU shared by all connections to one
   /// file. Applies to new inserts immediately; 0 disables the cache.
   static int get cacheBytesPerFile => native.zvfs_get_cache_budget();
@@ -151,21 +155,24 @@ abstract final class ZVfs {
   static String get zstdVersion => native.zvfs_zstd_version().toDartString();
 }
 
-/// Whether [path] starts with the zdb magic (does not validate the file).
-bool isZdb(String path) {
-  RandomAccessFile? f;
+int _inUse(String path) {
+  final p = path.toNativeUtf8();
   try {
-    f = File(path).openSync();
-    final head = f.readSync(zdbMagic.length);
-    if (head.length != zdbMagic.length) return false;
-    for (var i = 0; i < zdbMagic.length; i++) {
-      if (head[i] != zdbMagic[i]) return false;
-    }
-    return true;
-  } on FileSystemException {
-    return false;
+    return native.zvfs_in_use(p);
   } finally {
-    f?.closeSync();
+    calloc.free(p);
+  }
+}
+
+/// Whether [path] starts with the zdb magic (does not validate the file).
+/// A path open through zvfs is answered without opening it again: on POSIX
+/// closing any descriptor of a file drops the process's SQLite locks on it.
+bool isZdb(String path) {
+  final p = path.toNativeUtf8();
+  try {
+    return native.zvfs_probe_path(p) == 1;
+  } finally {
+    calloc.free(p);
   }
 }
 
@@ -256,18 +263,35 @@ T _withReader<T>(String path, T Function(Pointer<native.ZvfsReader> r) body) {
   }
 }
 
-/// Parses and validates header, dictionary and index (not the frames).
-ZdbInfo readZdbInfo(String path) => _withReader(path, (r) {
-  final info = calloc<native.ZvfsInfoStruct>();
-  try {
-    native.zvfs_reader_info(r, info);
-    return ZdbInfo.fromNative(info.ref);
-  } finally {
-    calloc.free(info);
+/// Parses and validates header, dictionary and index (not the frames). For a
+/// path open through zvfs, the open state answers ([ZdbException.busy] when
+/// it is open but not as a zdb); the file is not opened again.
+ZdbInfo readZdbInfo(String path) {
+  if (_inUse(path) != 0) {
+    final p = path.toNativeUtf8();
+    final info = calloc<native.ZvfsInfoStruct>();
+    try {
+      final rc = native.zvfs_state_info(p, info);
+      if (rc != 0) throw ZdbException.fromCode(ZdbException.busy, path);
+      return ZdbInfo.fromNative(info.ref);
+    } finally {
+      calloc.free(p);
+      calloc.free(info);
+    }
   }
-});
+  return _withReader(path, (r) {
+    final info = calloc<native.ZvfsInfoStruct>();
+    try {
+      native.zvfs_reader_info(r, info);
+      return ZdbInfo.fromNative(info.ref);
+    } finally {
+      calloc.free(info);
+    }
+  });
+}
 
 /// Reads [length] logical (decompressed) bytes at [offset], without SQLite.
+/// [ZdbException.busy] while the path is open through zvfs in this process.
 Uint8List readZdbBytes(String path, int offset, int length) =>
     _withReader(path, (r) {
       final buf = malloc<Uint8>(length == 0 ? 1 : length);
@@ -281,6 +305,7 @@ Uint8List readZdbBytes(String path, int offset, int length) =>
     });
 
 /// Decodes every frame off the calling isolate and checks the content hash.
+/// [ZdbException.busy] while the path is open through zvfs in this process.
 Future<ZdbInfo> verifyZdb(
   String path, {
   void Function(int bytesDone, int totalBytes)? onProgress,

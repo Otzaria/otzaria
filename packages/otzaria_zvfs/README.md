@@ -172,6 +172,13 @@ readers already refuse.
   `ZSTD_DCtx` objects from a shared pool.
 - A replaced file (different header) gets a fresh state; old connections keep
   the old one until they close.
+- `isZdb`, `readZdbInfo` and the C probe/reader never open a file that a
+  connection of this process has open through zvfs: on POSIX closing any
+  descriptor of a file drops every fcntl lock the process holds on it, which
+  would let another process take the write lock under a live reader. They
+  answer from the open state instead (`readZdbBytes`/`verifyZdb`:
+  `ZdbException.busy`); `ZVfs.isOpen(path)` tells. Files open through another
+  VFS in the same process are not tracked: do not probe those.
 
 ## Tests
 

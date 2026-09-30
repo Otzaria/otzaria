@@ -13,10 +13,19 @@ static volatile int64_t g_registered;
 static zplat_mutex g_mu = ZPLAT_MUTEX_INIT; /* registration + g_files */
 static zdb_file *g_files;
 
+/* Main databases opened through zvfs without the zdb magic, by full path. */
+typedef struct open_path {
+  struct open_path *next;
+  char *key;
+  int count;
+} open_path;
+static open_path *g_plain;
+
 typedef struct zfile {
   sqlite3_file base;
   zdb_file *z; /* NULL: passthrough */
   sqlite3_file *real;
+  open_path *plain;
 } zfile;
 
 static int map_rc(int rc) {
@@ -173,11 +182,50 @@ static void release_shared(zdb_file *z) {
   }
 }
 
+static void release_plain(open_path *op) {
+  zplat_lock(&g_mu);
+  int last = --op->count == 0;
+  if (last) {
+    open_path **pp = &g_plain;
+    while (*pp && *pp != op) pp = &(*pp)->next;
+    if (*pp) *pp = op->next;
+  }
+  zplat_unlock(&g_mu);
+  if (last) {
+    free(op->key);
+    free(op);
+  }
+}
+
+/* Best effort: a failed registration only weakens the in-use answer. */
+static void register_plain(zfile *f, const char *path) {
+  zplat_lock(&g_mu);
+  open_path *op = g_plain;
+  while (op && strcmp(op->key, path) != 0) op = op->next;
+  if (!op && (op = (open_path *)calloc(1, sizeof *op)) != NULL) {
+    size_t n = strlen(path) + 1;
+    op->key = (char *)malloc(n);
+    if (op->key) {
+      memcpy(op->key, path, n);
+      op->next = g_plain;
+      g_plain = op;
+    } else {
+      free(op);
+      op = NULL;
+    }
+  }
+  if (op) op->count++;
+  f->plain = op;
+  zplat_unlock(&g_mu);
+}
+
 static int zClose(sqlite3_file *pf) {
   zfile *f = (zfile *)pf;
   int rc = f->real->pMethods ? f->real->pMethods->xClose(f->real) : SQLITE_OK;
   if (f->z) release_shared(f->z);
+  if (f->plain) release_plain(f->plain);
   f->z = NULL;
+  f->plain = NULL;
   return rc;
 }
 
@@ -282,6 +330,8 @@ static int zOpen(sqlite3_vfs *vfs, sqlite3_filename name, sqlite3_file *pf,
       }
       /* SQLite marks the pager read-only when xOpen reports so. */
       inner_flags = (inner_flags & ~SQLITE_OPEN_READWRITE) | SQLITE_OPEN_READONLY;
+    } else {
+      register_plain(f, name);
     }
   }
   if (out_flags) *out_flags = inner_flags;
@@ -383,5 +433,52 @@ ZVFS_API int sqlite3_otzariazvfs_init(void *db, char **pzErrMsg,
     }
   }
   zplat_unlock(&g_mu);
+  return rc;
+}
+
+/* ---- in-use queries (probe, reader and compaction must not open the file:
+   closing any fd drops the process's POSIX locks on it) ---- */
+static char *full_path(const char *path) {
+  int n = g_base->mxPathname + 1;
+  char *full = (char *)sqlite3_malloc(n);
+  if (full && g_base->xFullPathname(g_base, path, n, full) != SQLITE_OK) {
+    sqlite3_free(full);
+    full = NULL;
+  }
+  return full;
+}
+
+ZVFS_API int zvfs_in_use(const char *path) {
+  if (!path) return 0;
+  if (!zvfs_is_registered()) return 0;
+  char *full = full_path(path);
+  if (!full) return -1;
+  int kind = 0;
+  zplat_lock(&g_mu);
+  for (zdb_file *z = g_files; z && !kind; z = z->next)
+    if (strcmp(z->key, full) == 0) kind = 2;
+  for (open_path *op = g_plain; op && !kind; op = op->next)
+    if (strcmp(op->key, full) == 0) kind = 1;
+  zplat_unlock(&g_mu);
+  sqlite3_free(full);
+  return kind;
+}
+
+ZVFS_API int zvfs_state_info(const char *path, zvfs_info *out) {
+  if (!path || !out) return ZVFS_ERR_INVALID;
+  if (!zvfs_is_registered()) return ZVFS_ERR_NOT_ZDB;
+  char *full = full_path(path);
+  if (!full) return ZVFS_ERR_NOMEM;
+  int rc = ZVFS_ERR_NOT_ZDB;
+  zplat_lock(&g_mu);
+  for (zdb_file *z = g_files; z; z = z->next) {
+    if (strcmp(z->key, full) == 0) {
+      zdb_fill_info(z, out);
+      rc = ZVFS_OK;
+      break;
+    }
+  }
+  zplat_unlock(&g_mu);
+  sqlite3_free(full);
   return rc;
 }

@@ -25,6 +25,7 @@ extern "C" {
 #define ZVFS_ERR_CANCELLED 6
 #define ZVFS_ERR_NOT_ZDB 7
 #define ZVFS_ERR_SHORT_READ 8
+#define ZVFS_ERR_BUSY 10
 
 #define ZVFS_VFS_NAME "zvfs"
 
@@ -72,10 +73,18 @@ ZVFS_API void zvfs_set_cache_budget(int64_t bytes);
 ZVFS_API int64_t zvfs_get_cache_budget(void);
 ZVFS_API void zvfs_get_stats(zvfs_stats *out);
 
-/* 1 = .zdb magic, 0 = not a zdb (or unreadable). */
+/* 1 = .zdb magic, 0 = not a zdb (or unreadable). A path open through zvfs
+   is answered from its state: on POSIX closing any fd drops SQLite's locks. */
 ZVFS_API int zvfs_probe_path(const char *path_utf8);
+/* 0 = not open through zvfs in this process, 1 = open (plain), 2 = open
+   (.zdb), -1 = could not tell (treat as open). */
+ZVFS_API int zvfs_in_use(const char *path_utf8);
+/* Info of a .zdb open in this process, from its state; ZVFS_ERR_NOT_ZDB when
+   it is not open as one. */
+ZVFS_API int zvfs_state_info(const char *path_utf8, zvfs_info *out);
 
-/* Standalone reader (no SQLite): validates header + index on open. */
+/* Standalone reader (no SQLite): validates header + index on open.
+   ZVFS_ERR_BUSY when the path is open through zvfs in this process. */
 typedef struct zvfs_reader zvfs_reader;
 ZVFS_API int zvfs_reader_open(const char *path_utf8, zvfs_reader **out);
 ZVFS_API int zvfs_reader_info(zvfs_reader *r, zvfs_info *out);

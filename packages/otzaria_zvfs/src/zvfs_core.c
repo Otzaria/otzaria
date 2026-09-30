@@ -43,6 +43,7 @@ ZVFS_API const char *zvfs_errstr(int code) {
     case ZVFS_ERR_CANCELLED: return "cancelled";
     case ZVFS_ERR_NOT_ZDB: return "not a zdb file";
     case ZVFS_ERR_SHORT_READ: return "short read";
+    case ZVFS_ERR_BUSY: return "database is in use";
     default: return "unknown error";
   }
 }
@@ -566,7 +567,10 @@ static int reader_rd(void *ctx, void *buf, size_t n, uint64_t off) {
 
 ZVFS_API int zvfs_probe_path(const char *path) {
   zplat_file *pf;
-  if (!path || zplat_open_read(path, &pf)) return 0;
+  if (!path) return 0;
+  int u = zvfs_in_use(path);
+  if (u) return u == 2;
+  if (zplat_open_read(path, &pf)) return 0;
   uint8_t m[ZDB_MAGIC_LEN];
   size_t got = 0;
   int ok = zplat_pread(pf, m, sizeof m, 0, &got) == ZVFS_OK &&
@@ -578,6 +582,7 @@ ZVFS_API int zvfs_probe_path(const char *path) {
 ZVFS_API int zvfs_reader_open(const char *path, zvfs_reader **out) {
   if (!path || !out) return ZVFS_ERR_INVALID;
   *out = NULL;
+  if (zvfs_in_use(path)) return ZVFS_ERR_BUSY;
   zvfs_reader *r = (zvfs_reader *)calloc(1, sizeof *r);
   if (!r) return ZVFS_ERR_NOMEM;
   int rc = zplat_open_read(path, &r->pf);

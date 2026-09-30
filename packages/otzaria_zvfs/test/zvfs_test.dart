@@ -279,6 +279,45 @@ void main() {
     openZdb(zdb).close();
   });
 
+  test('an open file is probed from its state, not reopened', () async {
+    final plain = p('st.db');
+    final zdb = p('st.zdb');
+    createTestDb(plain);
+    await convertFile(plain, zdb);
+    final before = readZdbInfo(zdb);
+    expect(ZVfs.isOpen(zdb), isFalse);
+    final db = openZdb(zdb);
+    try {
+      expect(ZVfs.isOpen(zdb), isTrue);
+      expect(isZdb(zdb), isTrue);
+      expect(readZdbInfo(zdb).contentXxh64, before.contentXxh64);
+      expect(
+        () => readZdbBytes(zdb, 0, 16),
+        throwsA(
+          isA<ZdbException>().having((e) => e.code, 'code', ZdbException.busy),
+        ),
+      );
+      await expectLater(
+        verifyZdb(zdb),
+        throwsA(
+          isA<ZdbException>().having((e) => e.code, 'code', ZdbException.busy),
+        ),
+      );
+    } finally {
+      db.close();
+    }
+    expect(ZVfs.isOpen(zdb), isFalse);
+    final pl = sqlite3.open(plain, vfs: ZVfs.name);
+    try {
+      expect(ZVfs.isOpen(plain), isTrue);
+      expect(isZdb(plain), isFalse);
+      expect(() => readZdbInfo(plain), throwsA(isA<ZdbException>()));
+    } finally {
+      pl.close();
+    }
+    await verifyZdb(zdb);
+  });
+
   test('corruption fuzz: never crashes, never returns wrong rows', () async {
     final plain = p('fuzz.db');
     final zdb = p('fuzz.zdb');
@@ -405,7 +444,8 @@ void main() {
           }),
       ]);
       expect(results, everyElement(4 * testQueries.length));
-      expect(ZVfs.stats.openFiles, 0);
+      // per path: other suites run in the same process
+      expect(ZVfs.isOpen(zdb), isFalse);
     } finally {
       ZVfs.cacheBytesPerFile = 16 << 20;
     }

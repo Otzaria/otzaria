@@ -305,7 +305,100 @@ static void test_windows_lock_bytes(void) {
 }
 #endif
 
-int main(void) {
+/* ---- probe/reader must not drop this process's locks (POSIX: closing any
+   fd of a file releases all of the process's fcntl locks on it) ---- */
+#if defined(_WIN32)
+#include <process.h>
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
+static const char *g_self;
+
+/* Child: exclusive lock on SQLite's SHARED range; 0 = acquired. */
+static int child_lockprobe(const char *path) {
+#if defined(_WIN32)
+  HANDLE h = CreateFileA(path, GENERIC_READ | GENERIC_WRITE,
+                         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                         NULL, OPEN_EXISTING, 0, NULL);
+  if (h == INVALID_HANDLE_VALUE) return 2;
+  OVERLAPPED ov;
+  memset(&ov, 0, sizeof ov);
+  ov.Offset = (DWORD)(ZDB_LOCK_BYTE + 2);
+  BOOL ok = LockFileEx(h, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0,
+                       ZDB_LOCK_SIZE - 2, 0, &ov);
+  if (ok) UnlockFileEx(h, 0, ZDB_LOCK_SIZE - 2, 0, &ov);
+  CloseHandle(h);
+  return ok ? 0 : 1;
+#else
+  int fd = open(path, O_RDWR);
+  if (fd < 0) return 2;
+  struct flock fl;
+  memset(&fl, 0, sizeof fl);
+  fl.l_type = F_WRLCK;
+  fl.l_whence = SEEK_SET;
+  fl.l_start = (off_t)(ZDB_LOCK_BYTE + 2);
+  fl.l_len = ZDB_LOCK_SIZE - 2;
+  int ok = fcntl(fd, F_SETLK, &fl) == 0;
+  close(fd);
+  return ok ? 0 : 1;
+#endif
+}
+
+static int run_lockprobe(const char *path) {
+#if defined(_WIN32)
+  return (int)_spawnl(_P_WAIT, g_self, g_self, "lockprobe", path, NULL);
+#else
+  char cmd[4200];
+  snprintf(cmd, sizeof cmd, "'%s' lockprobe '%s'", g_self, path);
+  int st = system(cmd);
+  return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+#endif
+}
+
+static void test_probe_keeps_locks(void) {
+  const char *plain = tmp_path("lk_plain.db");
+  const char *zdb = tmp_path("lk.zdb");
+  make_db(plain, 4096, 0);
+  CHECK_EQ(convert_file(plain, zdb), 0);
+  const char *files[] = {plain, zdb};
+  for (int fi = 0; fi < 2; fi++) {
+    for (int action = 0; action < 3; action++) {
+      sqlite3 *db = open_db(files[fi], SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+      sqlite3_stmt *st = NULL;
+      exec(db, "BEGIN");
+      sqlite3_prepare_v2(db, "SELECT count(*) FROM book", -1, &st, NULL);
+      CHECK_EQ(sqlite3_step(st), SQLITE_ROW); /* SHARED is now held */
+      CHECK_EQ(zvfs_in_use(files[fi]), fi ? 2 : 1);
+      if (action == 1) CHECK_EQ(zvfs_probe_path(files[fi]), fi);
+      if (action == 2) {
+        zvfs_reader *r = NULL;
+        CHECK_EQ(zvfs_reader_open(files[fi], &r), ZVFS_ERR_BUSY);
+        zvfs_info info;
+        CHECK_EQ(zvfs_state_info(files[fi], &info), fi ? ZVFS_OK : ZVFS_ERR_NOT_ZDB);
+      }
+      /* another process must not get a write lock over our SHARED */
+      int child = run_lockprobe(files[fi]);
+      if (child != 1)
+        fprintf(stderr, "lock kept? file %d action %d: child %d\n", fi, action, child);
+      CHECK_EQ(child, 1);
+      sqlite3_finalize(st);
+      exec(db, "COMMIT");
+      sqlite3_close(db);
+    }
+    CHECK_EQ(zvfs_in_use(files[fi]), 0);
+  }
+  remove(plain);
+  remove(zdb);
+  printf("probe/reader of an open file keep its locks\n");
+}
+
+int main(int argc, char **argv) {
+  if (argc == 3 && strcmp(argv[1], "lockprobe") == 0) return child_lockprobe(argv[2]);
+  g_self = argv[0];
   sqlite3_auto_extension((void (*)(void))sqlite3_otzariazvfs_init);
   sqlite3 *m = NULL;
   sqlite3_open(":memory:", &m);
@@ -318,6 +411,7 @@ int main(void) {
   test_roundtrip(65536, 0);
   test_corrupt_and_overlay();
   test_threads();
+  test_probe_keeps_locks();
 #if defined(_WIN32)
   if (getenv("ZVFS_BIG_TESTS")) test_windows_lock_bytes();
 #endif
