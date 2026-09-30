@@ -6,11 +6,14 @@
 /// alt-TOC מסוג `Simanim`, והשיוך לסעיף רק בקישורי ה-COMMENTARY — ולכן
 /// הם מוזרקים כאן לתצוגה בלבד, בראש השורה.
 ///
-/// כך גם כותרות נושא ממבנה `Topic` ("הלכות ציצית") שקיימות רק בעץ הניווט.
+/// כך גם כותרות נושא ממבנה `Topic` ("הלכות ציצית") ושמות הפרשה ממבנה
+/// `Parasha`, שקיימים רק בעץ הניווט.
 ///
 /// ההזרקה מוסיפה תוכן גלוי, ולכן חייבת לרוץ *אחרי* הזרקת סמני עוגן-מילה
 /// ([injectLinkAnchorMarkers]) שמסתמכת על אופסטי התווים של הטקסט השמור.
 library;
+
+import 'package:otzaria/tools/tikkun_korim/data/parasha_index.g.dart';
 
 /// מקדים לשורה את סמן החלוקה שלה, בסוגריים מרובעים ובהדגשה —
 /// כמוסכמת `[אות ב]` המודפסת בתוספות רבי עקיבא איגר.
@@ -44,6 +47,21 @@ final RegExp _bracketPrefix = RegExp(r'^\s*\[[^\]]*\]\s*');
 /// שמשכפלת את כותרת הסימן הגלויה.
 String cleanSectionHeadingLabel(String label) =>
     label.replaceAll('\ufeff', '').replaceFirst(_bracketPrefix, '').trim();
+
+final Set<String> _parashaKeys = {
+  for (final parasha in kAllParashotOrder) _normalizeForMatch(parasha),
+};
+
+/// תווית כותרת פרשה: "נח" ← "פרשת נח". תווית שאינה שם פרשה ("הקדמה",
+/// "ספר בראשית") מחזירה null — היא לא פרשה ולא מוזרקת.
+String? parashaHeadingLabel(String label) {
+  final key = _normalizeForMatch(label);
+  if (key.startsWith('פרשת ')) return label.trim();
+  final isParashaName = _parashaKeys.any(
+    (parasha) => key == parasha || key.startsWith('$parasha '),
+  );
+  return isParashaName ? 'פרשת ${label.trim()}' : null;
+}
 
 final RegExp _regularHeadingLine = RegExp(r'^\s*<h[2-6]\b');
 

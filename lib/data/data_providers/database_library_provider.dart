@@ -1119,7 +1119,8 @@ Future<List<Map<String, dynamic>>> _runAlternativeStructuresInIsolate({
 /// סמני חלוקה וכותרות נושא בגוף הטקסט של ספר, ממופתחים לפי `lineIndex`.
 /// [markers] — עלי `Simanim` (אותיות פסקה במדרש רבה, "א") ו-`Seifim`
 /// (סעיפים בנושאי-כלים, "סעיף ג"; מגרסת ספרייה 24).
-/// [headings] — רשומות `Topic` ("הלכות ציצית"), רק כשאינן כבר גלויות בטקסט.
+/// [headings] — רשומות `Topic` ("הלכות ציצית") ושמות פרשה (`Parasha` ברמה 0,
+/// בלי העליות), רק כשאינם כבר גלויים בטקסט.
 InlineSectionMarks _loadInlineSectionMarksInIsolate({
   required ReadOnlyDbTarget target,
   required String bookTitle,
@@ -1171,7 +1172,8 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
     final headingRows = db.select(
       capabilities.hasSplitLineContent
           ? '''
-      SELECT l.lineIndex AS lineIndex, t.text AS label, lc.content AS line0,
+      SELECT s.key AS structureKey, l.lineIndex AS lineIndex, t.text AS label,
+        lc.content AS line0,
         (SELECT pc.content FROM line p JOIN line_content pc ON pc.id = p.id
           WHERE p.bookId = l.bookId AND p.lineIndex = l.lineIndex - 1) AS line1,
         (SELECT pc.content FROM line p JOIN line_content pc ON pc.id = p.id
@@ -1181,11 +1183,13 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
       JOIN tocText t ON t.id = e.textId
       JOIN line l ON l.id = e.lineId
       LEFT JOIN line_content lc ON lc.id = l.id
-      WHERE s.bookId = ? AND s.key = 'Topic'
+      WHERE s.bookId = ?
+        AND (s.key = 'Topic' OR (s.key = 'Parasha' AND e.level = 0))
       ORDER BY l.lineIndex, e.level
       '''
           : '''
-      SELECT l.lineIndex AS lineIndex, t.text AS label, l.content AS line0,
+      SELECT s.key AS structureKey, l.lineIndex AS lineIndex, t.text AS label,
+        l.content AS line0,
         (SELECT p.content FROM line p
           WHERE p.bookId = l.bookId AND p.lineIndex = l.lineIndex - 1) AS line1,
         (SELECT p.content FROM line p
@@ -1194,7 +1198,8 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
       JOIN alt_toc_entry e ON e.structureId = s.id
       JOIN tocText t ON t.id = e.textId
       JOIN line l ON l.id = e.lineId
-      WHERE s.bookId = ? AND s.key = 'Topic'
+      WHERE s.bookId = ?
+        AND (s.key = 'Topic' OR (s.key = 'Parasha' AND e.level = 0))
       ORDER BY l.lineIndex, e.level
       ''',
       [bookId],
@@ -1205,8 +1210,12 @@ InlineSectionMarks _loadInlineSectionMarksInIsolate({
     final rows = <({int lineIndex, String label})>[];
     for (final row in headingRows) {
       final lineIndex = row['lineIndex'];
-      final label = row['label'];
-      if (lineIndex is! int || label is! String) continue;
+      final rawLabel = row['label'];
+      if (lineIndex is! int || rawLabel is! String) continue;
+      final label = row['structureKey'] == 'Parasha'
+          ? parashaHeadingLabel(rawLabel)
+          : rawLabel;
+      if (label == null) continue;
       linesByIndex[lineIndex] = row['line0'] as String?;
       linesByIndex[lineIndex - 1] ??= row['line1'] as String?;
       linesByIndex[lineIndex - 2] ??= row['line2'] as String?;

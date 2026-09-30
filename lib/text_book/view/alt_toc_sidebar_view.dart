@@ -383,15 +383,17 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
     }
   }
 
-  bool _isTopicStructure(int structureId) =>
-      _structures.any((s) => s.id == structureId && s.key == 'Topic');
+  /// מבנים שכותרותיהם מוזרקות לגוף הטקסט ([buildSectionHeadings]).
+  bool _hasInjectedHeadings(int structureId) => _structures.any(
+    (s) => s.id == structureId && (s.key == 'Topic' || s.key == 'Parasha'),
+  );
 
   Future<int?> _entryIdForLine(int lineIndex, int structureId) async {
     if (structureId != kDibburimStructureId) {
       // כותרת סימן מעל פתיחת נושא משויכת במסד לנושא הקודם, אך מוצגת תחת
       // הנושא החדש — הרשומה נקבעת לפי שורת התוכן שהיא פותחת.
       final state = context.read<TextBookBloc>().state;
-      if (_isTopicStructure(structureId) && state is TextBookLoaded) {
+      if (_hasInjectedHeadings(structureId) && state is TextBookLoaded) {
         final content = state.content;
         while (lineIndex + 1 < content.length &&
             sectionHeadingLinesAbove([content[lineIndex]]) == 1) {
@@ -647,7 +649,7 @@ class _AltTocSidebarViewState extends State<AltTocSidebarView>
       if (links.isNotEmpty) {
         final link = links.first;
         final state = context.read<TextBookBloc>().state;
-        if (_isTopicStructure(structureId) &&
+        if (_hasInjectedHeadings(structureId) &&
             link.path2 == widget.book.title &&
             state is TextBookLoaded) {
           // כותרת הנושא מוצגת מעל כותרות הסימן שלפני שורת היעד — אליה מנווטים.

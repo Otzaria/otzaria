@@ -130,6 +130,15 @@ String _createDb(Directory dir, {required bool split}) {
     db.execute(
       'INSERT INTO alt_toc_entry VALUES (1, 1, 1, 12, 1, 0), (2, 1, 2, 14, 1, 0)',
     );
+
+    // פרשה בשורה 3 ועלייה בשורה 4 — רק שם הפרשה נכנס לגוף הטקסט.
+    db.execute("INSERT INTO tocText VALUES (3, 'נח'), (4, 'שני')");
+    db.execute("INSERT INTO alt_toc_structure VALUES (2, ?, 'Parasha')", [
+      _bookId,
+    ]);
+    db.execute(
+      'INSERT INTO alt_toc_entry VALUES (3, 2, 3, 13, 0, 1), (4, 2, 4, 14, 1, 0)',
+    );
   } finally {
     db.close();
   }
@@ -216,13 +225,14 @@ void main() {
       expect(partial!.lines, ['הלכות שבת פתיחה', 'נוסח ממוזג ג']);
     });
 
-    test('$shape: כותרות נושא נבדקות מול תוכן השורות', () {
+    test('$shape: כותרות נושא ופרשה נבדקות מול תוכן השורות', () {
       final marks = DatabaseLibraryProvider.loadInlineSectionMarksForTesting(
         dbPath: dbPaths[split]!,
         bookTitle: _title,
         categoryId: _categoryId,
       );
       expect(marks.headings, {
+        3: ['פרשת נח'],
         4: ['הלכות עירובין'],
       });
     });

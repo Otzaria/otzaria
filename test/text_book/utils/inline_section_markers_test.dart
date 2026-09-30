@@ -140,4 +140,31 @@ void main() {
       );
     });
   });
+
+  group('parashaHeadingLabel', () {
+    test('שם פרשה מקבל קידומת "פרשת", גם בכתיב חסר או מורחב', () {
+      expect(parashaHeadingLabel('נח'), 'פרשת נח');
+      expect(parashaHeadingLabel('בהעלותך'), 'פרשת בהעלותך');
+      expect(parashaHeadingLabel('קדשים'), 'פרשת קדשים');
+      expect(parashaHeadingLabel('שלח לך'), 'פרשת שלח לך');
+    });
+
+    test('תווית שכבר מתחילה ב"פרשת" נשארת כלשונה', () {
+      expect(parashaHeadingLabel('פרשת נח'), 'פרשת נח');
+    });
+
+    test('תווית שאינה פרשה (רבנו בחיי: "הקדמה לספר") — null', () {
+      expect(parashaHeadingLabel('הקדמה לספר'), isNull);
+      expect(parashaHeadingLabel('ספר בראשית'), isNull);
+      expect(parashaHeadingLabel('איוב'), isNull);
+    });
+
+    test('"פרשת בראשית" אינה נבלעת בדיבור המתחיל "בראשית" (רש"י)', () {
+      final label = parashaHeadingLabel('בראשית')!;
+      expect(
+        isSectionHeadingVisible(label, ['<b>בראשית.</b> אמר רבי יצחק']),
+        isFalse,
+      );
+    });
+  });
 }
