@@ -332,25 +332,24 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
 
     // seforim.db — דחוס או רגיל. נדרש אלא אם כבר קיים ביעד (ייבוא נלווים בלבד
     // אל ספרייה קיימת).
-    File? dbZst;
-    File? dbZdb;
-    for (final name in DatabaseConstants.supportedDatabaseArchiveFileNames) {
-      final candidate = File(path.join(source, name));
-      if (await candidate.exists()) {
-        if (isZdbPath(name)) {
-          dbZdb = candidate;
-        } else {
-          dbZst = candidate;
-        }
-        break;
+    // zdb קודם ל-zst, כמו ברזולבר וב-_copyDatabaseFiles: גרסת zst נקראת רק
+    // אחרי פריסה מלאה, ו-zdb בתיקייה הוא בדרך כלל הספרייה החיה.
+    Future<File?> firstExisting(Iterable<String> names) async {
+      for (final name in names) {
+        final candidate = File(path.join(source, name));
+        if (await candidate.exists()) return candidate;
       }
+      return null;
     }
-    final plainZdb = File(
-      path.join(source, DatabaseConstants.zdbDatabaseFileName),
-    );
-    if (dbZst == null && dbZdb == null && await plainZdb.exists()) {
-      dbZdb = plainZdb;
-    }
+
+    final archives = DatabaseConstants.supportedDatabaseArchiveFileNames;
+    final dbZdb = await firstExisting([
+      ...archives.where(isZdbPath),
+      DatabaseConstants.zdbDatabaseFileName,
+    ]);
+    final dbZst = dbZdb == null
+        ? await firstExisting(archives.where((name) => !isZdbPath(name)))
+        : null;
     final dbPlain = File(path.join(source, DatabaseConstants.databaseFileName));
     if (dbZdb != null) {
       await _importZdbFile(
@@ -366,7 +365,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       await _writeDbAtomically(
         path.join(target, DatabaseConstants.databaseFileName),
         (tempPath) => _extractCompressedDatabase(
-          dbZst!.path,
+          dbZst.path,
           tempPath,
           _extractProgress(emit, source, 'מחלץ את ספריית הספרים...'),
         ),

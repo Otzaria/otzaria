@@ -154,6 +154,33 @@ void main() {
       );
     });
 
+    test('seforim.zdb חי עדיף על seforim.db.zst ישן באותה תיקייה', () async {
+      final source = Directory(path.join(tmp.path, 'source'))..createSync();
+      await writeFixtureZdb(
+        path.join(source.path, DatabaseConstants.zdbDatabaseFileName),
+        version: 7,
+        marker: 'live-zdb',
+      );
+      File(
+        path.join(source.path, DatabaseConstants.databaseArchiveFileName),
+      ).writeAsStringSync('old archive');
+      final bloc = EmptyLibraryBloc(
+        extractCompressedDatabase: (archive, out, _) async =>
+            fail('ה-zst הישן אינו נבחר'),
+      );
+      addTearDown(bloc.close);
+      final done = finalState(bloc);
+      bloc.add(
+        ImportLibraryFolderRequested(
+          sourceFolder: source.path,
+          targetPath: library.path,
+        ),
+      );
+      expect(await done, isA<EmptyLibraryDirectorySelected>());
+      final active = DatabaseConstants.resolveLibraryDbPath(library.path);
+      expect(readFixtureLibrary(active).marker, 'live-zdb');
+    });
+
     test('zdb שאינו תואם למניפסט נדחה, והיעד לא נגע', () async {
       final source = Directory(path.join(tmp.path, 'source'))..createSync();
       final sourceZdb = path.join(source.path, 'seforim-schema6.zdb');
