@@ -1,13 +1,22 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
+import 'package:otzaria/data/sqlite/library_vfs.dart';
 
 /// Service for collecting data required for phone error reporting
 class DataCollectionService {
+  DataCollectionService({
+    @visibleForTesting String? Function(String dbPath)? versionQuery,
+  }) : _versionQuery = versionQuery ?? _readDbVersion;
+
+  /// חייבת להיות sendable: בספריית zdb היא רצה ב-isolate.
+  final String? Function(String dbPath) _versionQuery;
+
   /// Read library version from the database (schema_meta).
   /// Returns "unknown" if not found or cannot be read.
   ///
@@ -17,39 +26,44 @@ class DataCollectionService {
       // הבדיקה על הנתיב שנפתח כאן ולא על SqliteDataProvider, שה-_dbPath שלו
       // מאוכלס רק ב-initialize() — תהליך headless לא מאתחל אותו.
       final dbPath = databasePath ?? DatabaseConstants.getDatabasePath();
-      if (await File(dbPath).exists()) {
-        sqlite3.Database? db;
-        try {
-          // קריאה בלבד — נפתח read-only כדי לתמוך ב-seforim.db על מדיה
-          // לקריאה-בלבד ולא ליצור קובצי WAL צדדיים.
-          db = sqlite3.sqlite3.open(
-            dbPath,
-            mode: sqlite3.OpenMode.readOnly,
-          );
-          final result = db.select(
-            'SELECT value FROM schema_meta WHERE key = ? LIMIT 1',
-            ['db_version'],
-          );
-
-          if (result.isNotEmpty) {
-            final version = result.first['value']?.toString();
-            if (version != null && version.isNotEmpty) {
-              debugPrint('Library version from schema_meta: $version');
-              return version;
-            }
-          }
-        } catch (e) {
-          debugPrint('Error reading library version from schema_meta: $e');
-        } finally {
-          db?.close();
-        }
-      }
-
+      if (!await File(dbPath).exists()) return 'unknown';
+      final query = _versionQuery;
+      // פתיחת zdb משחזרת את ה-overlay סינכרונית, ולכן לא על ה-isolate הקורא.
+      final version = isZdbPath(dbPath)
+          ? await Isolate.run(() {
+              ensureLibraryVfs();
+              return query(dbPath);
+            })
+          : query(dbPath);
       // גרסת הספרייה מגיעה רק מ-schema_meta; קובץ "גירסת ספריה.txt" הוסר ב-v3.
-      return 'unknown';
+      return version ?? 'unknown';
     } catch (e) {
       debugPrint('Error reading library version: $e');
       return 'unknown';
+    }
+  }
+
+  /// קורא את `schema_meta.db_version`; null כשהוא חסר או לא קריא.
+  static String? _readDbVersion(String dbPath) {
+    sqlite3.Database? db;
+    try {
+      // קריאה בלבד — נפתח read-only כדי לתמוך ב-seforim.db על מדיה
+      // לקריאה-בלבד ולא ליצור קובצי WAL צדדיים.
+      db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+      final result = db.select(
+        'SELECT value FROM schema_meta WHERE key = ? LIMIT 1',
+        ['db_version'],
+      );
+      if (result.isEmpty) return null;
+      final version = result.first['value']?.toString();
+      if (version == null || version.isEmpty) return null;
+      debugPrint('Library version from schema_meta: $version');
+      return version;
+    } catch (e) {
+      debugPrint('Error reading library version from schema_meta: $e');
+      return null;
+    } finally {
+      db?.close();
     }
   }
 

@@ -77,6 +77,13 @@ Future<void> normalizeJournalModeForReadOnly(
         await journal.exists() && (await journal.length()) > 0;
     if (!isWal && !hasHotJournal) return;
 
+    // פתיחת כתיבה של zdb משחזרת את ה-overlay סינכרונית — לא על ה-isolate הקורא.
+    if (isZdbPath(dbPath)) {
+      await Isolate.run(
+        () => openWithDeleteJournal(dbPath, untrusted: untrusted).close(),
+      );
+      return;
+    }
     openWithDeleteJournal(dbPath, untrusted: untrusted).close();
   } catch (e) {
     debugPrint(

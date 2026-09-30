@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as p;
 
 import '../helpers/memory_settings_cache.dart';
+import '../helpers/zdb_fixture.dart';
 
 /// `readLibraryVersion` נקרא גם מתהליכים שלא אתחלו את `SqliteDataProvider`
 /// (פקודת `otzaria info`). הבדיקות מאמתות שהוא נשען על נתיב ה-DB בפועל ולא
@@ -18,10 +20,7 @@ void main() {
 
   Future<void> initSettings() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
-    await Settings.setValue(
-      SettingsRepository.keyLibraryPath,
-      libraryDir.path,
-    );
+    await Settings.setValue(SettingsRepository.keyLibraryPath, libraryDir.path);
     await Settings.setValue(SettingsRepository.keyLibraryFolderName, '');
   }
 
@@ -68,4 +67,24 @@ void main() {
   test('DB חסר מחזיר unknown ולא זורק', () async {
     expect(await DataCollectionService().readLibraryVersion(), 'unknown');
   });
+
+  test('ספריית zdb נקראת מחוץ ל-isolate הקורא, ומסד רגיל עליו', () async {
+    seedDatabase(dbVersion: '21');
+    final plain = DataCollectionService(versionQuery: _isolateName);
+    expect(await plain.readLibraryVersion(), Isolate.current.debugName);
+
+    final zdb = p.join(libraryDir.path, DatabaseConstants.zdbDatabaseFileName);
+    await writeFixtureZdb(zdb, version: 22);
+    expect(
+      await plain.readLibraryVersion(databasePath: zdb),
+      isNot(Isolate.current.debugName),
+    );
+    // הקריאה האמיתית דרך zvfs ב-isolate.
+    expect(
+      await DataCollectionService().readLibraryVersion(databasePath: zdb),
+      '22',
+    );
+  });
 }
+
+String? _isolateName(String dbPath) => Isolate.current.debugName;
