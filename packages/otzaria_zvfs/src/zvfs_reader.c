@@ -112,10 +112,9 @@ ZVFS_API int zvfs_reader_info(zvfs_reader *r, zvfs_info *out) {
   return ZVFS_OK;
 }
 
-ZVFS_API int zvfs_reader_overlay_info(zvfs_reader *r, zvfs_overlay_info *out) {
-  if (!r || !out) return ZVFS_ERR_INVALID;
+void zvfs_fill_overlay_info(zovl *o, zvfs_overlay_info *out) {
   zovl_info i;
-  zovl_get_info(r->f->ovl, &i);
+  zovl_get_info(o, &i);
   memset(out, 0, sizeof *out);
   out->present = i.present;
   out->seq = i.seq;
@@ -127,6 +126,11 @@ ZVFS_API int zvfs_reader_overlay_info(zvfs_reader *r, zvfs_overlay_info *out) {
   out->mapped_pages = i.mapped_pages;
   out->base_visible_pages = i.base_visible_pages;
   memcpy(out->overlay_uuid, i.overlay_uuid, 16);
+}
+
+ZVFS_API int zvfs_reader_overlay_info(zvfs_reader *r, zvfs_overlay_info *out) {
+  if (!r || !out) return ZVFS_ERR_INVALID;
+  zvfs_fill_overlay_info(r->f->ovl, out);
   return ZVFS_OK;
 }
 

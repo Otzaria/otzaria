@@ -277,8 +277,9 @@ the files are on a local filesystem with a coherent page cache.
 
 `compactZdb(path)`:
 
-1. refuses if the file is open in this process, or a non-empty `-journal`
-   or `-wal` exists (the logical content is then not base + overlay);
+1. refuses if the file is open in this process (checked before anything
+   opens it), or a non-empty `-journal` or `-wal` exists (the logical content
+   is then not base + overlay);
 2. streams the logical content into `<path>.new` (a new base with the same
    dictionary, lineage = old `fileUuid` + `overlayUuid` + last `seq`) and
    fsyncs it; `verify` decodes it completely;
@@ -289,7 +290,10 @@ the files are on a local filesystem with a coherent page cache.
 A crash before 3 leaves the old pair (plus a stale `.new`). Between 3 and 4
 the old sidecar no longer binds to the new base, but the base names it
 (`includesOverlayUuid`) and its seq is not newer: it is ignored as obsolete
-and replaced by the next write. Other processes must have closed the
+and replaced by the next write. An obsolete sidecar that is still there at
+the next compaction is named by that base too, so the same crash window stays
+harmless however often it repeats. An obsolete or torn sidecar is scanned once
+and then only re-checked by size and header, not rescanned on every lock. Other processes must have closed the
 database: Windows refuses the rename while they hold it; POSIX does not, so
 the orchestration (S5c) has to ensure it.
 
@@ -318,6 +322,32 @@ the orchestration (S5c) has to ensure it.
   symlinks on POSIX). A hardlink, or a different letter case on a
   case-insensitive file system (Windows, APFS), is not recognized as the same
   file: open and probe a library through one spelling of its path.
+
+## Requirements for the app integration (S5c)
+
+- **One process during compaction.** `compactZdb` detects connections of its
+  own process only. Windows also refuses the rename while another process
+  holds the base; POSIX does not, and the check-then-rename window
+  (`zvfs_compact_swap`) cannot be closed from here: a lock of our own on the
+  base would be dropped whenever SQLite closes one of its descriptors of that
+  file. So S5c must guarantee that no other app process has the database
+  open (the single-instance lock), and must not rely on `ZdbException.busy`
+  for that.
+- **Replacing the base.** Before a full download replaces `<path>`, delete
+  `<path>-zovl` (and `-journal`, `-wal`, `-shm`): a sidecar bound to the old
+  base makes the new one refuse to open (`SQLITE_CORRUPT`).
+- **Hot journal after an updater crash.** A read-only open then fails with
+  `SQLITE_READONLY_ROLLBACK` until one read-write open rolls the journal back;
+  do that once before read-only connections. `immutable=1` must not be used:
+  it skips the journal and the overlay refresh.
+- **Not on the UI isolate at startup.** Opening a `.zdb` (and `readZdbInfo`)
+  replays the overlay synchronously, one sequential read of the sidecar.
+- **Leftovers.** A crashed compaction leaves `<path>.new`; delete it (the next
+  `compactZdb` overwrites it anyway).
+- `isZdb`, `readZdbInfo` and `readZdbOverlayInfo` answer from the open state
+  when the path is open through zvfs; `readZdbBytes`, `verifyZdb` and
+  `compactZdb` then fail with `ZdbException.busy`. Paths open through another
+  VFS in the same process are not tracked: do not probe those.
 
 ## Tests
 

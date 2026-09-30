@@ -56,6 +56,16 @@ struct zovl {
   size_t wcap, wlen;
   /* sticky: a failed commit or fsync leaves memory and disk out of step */
   int failed;
+  /* h is a torn or obsolete sidecar (base served alone): rescanned only when
+     its size or header changes */
+  int stale;
+  uint64_t stale_size;
+  uint8_t stale_hdr[ZOVL_HEADER_SIZE];
+  /* the obsolete sidecar's identity, recorded by the next compaction */
+  int stale_obsolete;
+  uint8_t stale_uuid[16];
+  uint64_t stale_seq;
+  uint64_t loaded_size;
 };
 
 #ifdef ZVFS_TEST_HOOKS
@@ -314,9 +324,11 @@ static int scan(zovl *o, uint64_t size) {
 static int load(zovl *o, int *present) {
   reset_to_base(o);
   *present = 0;
+  o->stale_obsolete = 0;
   uint64_t size = 0;
   int rc = o->ops->size(o->h, &size);
   if (rc) return rc;
+  o->loaded_size = size;
   /* Records follow only a synced header: a file this short holds no commit,
      whatever its bytes say (a torn creation). */
   if (size <= ZOVL_HEADER_SIZE) return ZVFS_OK;
@@ -333,6 +345,9 @@ static int load(zovl *o, int *present) {
   if (rc) return rc;
   o->scan_seen = size;
   if (derived && o->seq <= o->base->h.includes_overlay_seq) {
+    o->stale_obsolete = 1;
+    memcpy(o->stale_uuid, h + 64, 16);
+    o->stale_seq = o->seq;
     reset_to_base(o);
     return ZVFS_OK;
   }
@@ -343,6 +358,35 @@ static int load(zovl *o, int *present) {
 static void close_file(zovl *o) {
   if (o->h) o->ops->close(o->h);
   o->h = NULL;
+  o->stale = 0;
+}
+
+/* The sidecar stays open but serves nothing; remember what it looked like. */
+static void mark_stale(zovl *o) {
+  o->stale = 1;
+  o->stale_size = o->loaded_size;
+  memset(o->stale_hdr, 0, sizeof o->stale_hdr);
+  o->ops->read(o->h, o->stale_hdr, sizeof o->stale_hdr, 0);
+}
+
+static int stale_changed(zovl *o) {
+  uint64_t size = 0;
+  uint8_t h[ZOVL_HEADER_SIZE];
+  memset(h, 0, sizeof h);
+  if (o->ops->size(o->h, &size) || size != o->stale_size) return 1;
+  int rc = o->ops->read(o->h, h, sizeof h, 0);
+  if (rc && rc != ZVFS_ERR_SHORT_READ) return 1;
+  return memcmp(h, o->stale_hdr, sizeof h) != 0;
+}
+
+/* Caller holds mu and h is open: replay it, or mark it stale. */
+static int reload(zovl *o) {
+  int present = 0;
+  int rc = load(o, &present);
+  if (rc) close_file(o);
+  else if (!present) mark_stale(o);
+  else o->stale = 0;
+  return rc;
 }
 
 int zovl_create(const zovl_ops *ops, void *env, zdb_file *base, zovl **out) {
@@ -358,9 +402,7 @@ int zovl_create(const zovl_ops *ops, void *env, zdb_file *base, zovl **out) {
   int rc = ops->open(env, 0, &o->h);
   if (!rc && o->h) {
     o->env = env;
-    int present = 0;
-    rc = load(o, &present);
-    if (rc || !present) close_file(o);
+    rc = reload(o);
   }
   if (rc) {
     o->env = NULL; /* the caller keeps ownership on failure */
@@ -412,11 +454,12 @@ int zovl_refresh(zovl *o) {
   if (o->batch_open) goto out; /* we are the writer: nobody else appends */
   if (!o->h) {
     rc = o->ops->open(o->env, 0, &o->h);
-    if (!rc && o->h) {
-      int present = 0;
-      rc = load(o, &present);
-      if (rc || !present) close_file(o);
-    }
+    if (!rc && o->h) rc = reload(o);
+    goto out;
+  }
+  if (o->stale) {
+    /* same size and header: no rescan (a new sidecar has a new uuid) */
+    if (stale_changed(o)) rc = reload(o);
     goto out;
   }
   uint64_t size = 0;
@@ -434,7 +477,8 @@ out:
 
 /* ---- writer ---- */
 static int ensure_file(zovl *o) {
-  if (o->h) return ZVFS_OK;
+  if (o->h && !o->stale) return ZVFS_OK;
+  close_file(o); /* a stale handle may be read-only */
   int rc = o->ops->open(o->env, 1, &o->h);
   if (rc) return rc;
   if (!o->h) return ZVFS_ERR_READONLY;
@@ -490,11 +534,12 @@ static int append(zovl *o, const uint8_t *rec, size_t n) {
 
 static int writer_init(zovl *o) {
   if (o->cctx) return ZVFS_OK;
+  /* a retry after a failed allocation keeps what the last attempt got */
   o->wcap = (size_t)align_up(ZOVL_PAGE_HDR + max_payload(o->ps));
-  o->wbuf = (uint8_t *)malloc(o->wcap);
-  o->page_tmp = (uint8_t *)malloc(o->ps);
+  if (!o->wbuf) o->wbuf = (uint8_t *)malloc(o->wcap);
+  if (!o->page_tmp) o->page_tmp = (uint8_t *)malloc(o->ps);
   if (!o->wbuf || !o->page_tmp) return ZVFS_ERR_NOMEM;
-  if (o->base->h.dict_length) {
+  if (o->base->h.dict_length && !o->cdict) {
     o->cdict = ZSTD_createCDict(o->base->dict, o->base->h.dict_length, ZOVL_LEVEL);
     if (!o->cdict) return ZVFS_ERR_NOMEM;
   }
@@ -784,7 +829,7 @@ uint64_t zovl_logical_size(zovl *o) {
 
 int zovl_is_present(zovl *o) {
   zplat_lock(&o->mu);
-  int v = o->h != NULL;
+  int v = o->h && !o->stale;
   zplat_unlock(&o->mu);
   return v;
 }
@@ -792,17 +837,18 @@ int zovl_is_present(zovl *o) {
 void zovl_get_info(zovl *o, zovl_info *out) {
   memset(out, 0, sizeof *out);
   zplat_lock(&o->mu);
-  out->present = o->h != NULL;
+  out->present = o->h && !o->stale;
+  out->stale_obsolete = o->h && o->stale && o->stale_obsolete;
+  memcpy(out->stale_uuid, o->stale_uuid, 16);
+  out->stale_seq = o->stale_seq;
   out->seq = o->seq;
   out->commits = o->commits;
   out->records = o->records;
-  out->committed_end = o->h ? o->committed_end : 0;
+  out->committed_end = out->present ? o->committed_end : 0;
   out->logical_size = o->logical;
   out->mapped_pages = o->mapped;
   out->base_visible_pages = o->base_limit;
-  if (o->h) {
-    memcpy(out->overlay_uuid, o->hdr + 64, 16);
-    o->ops->size(o->h, &out->file_size);
-  }
+  if (out->present) memcpy(out->overlay_uuid, o->hdr + 64, 16);
+  if (o->h) o->ops->size(o->h, &out->file_size);
   zplat_unlock(&o->mu);
 }

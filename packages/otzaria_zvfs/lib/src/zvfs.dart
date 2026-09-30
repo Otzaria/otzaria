@@ -381,29 +381,43 @@ ZdbInfo readZdbInfo(String path) {
   });
 }
 
-/// The overlay as a new connection would replay it.
-ZdbOverlayInfo readZdbOverlayInfo(String path) => _withReader(path, (r) {
+ZdbOverlayInfo _overlayInfo(native.ZvfsOverlayInfoStruct s) => ZdbOverlayInfo(
+  present: s.present != 0,
+  seq: s.seq,
+  commits: s.commits,
+  records: s.records,
+  fileSize: s.fileSize,
+  committedEnd: s.committedEnd,
+  logicalSize: s.logicalSize,
+  mappedPages: s.mappedPages,
+  overlayUuid: Uint8List.fromList([
+    for (var i = 0; i < 16; i++) s.overlayUuid[i],
+  ]),
+);
+
+/// The overlay as a new connection would replay it; for a path open through
+/// zvfs, as this process's open state sees it (the file is not reopened).
+ZdbOverlayInfo readZdbOverlayInfo(String path) {
   final p = calloc<native.ZvfsOverlayInfoStruct>();
   try {
-    native.zvfs_reader_overlay_info(r, p);
-    final s = p.ref;
-    return ZdbOverlayInfo(
-      present: s.present != 0,
-      seq: s.seq,
-      commits: s.commits,
-      records: s.records,
-      fileSize: s.fileSize,
-      committedEnd: s.committedEnd,
-      logicalSize: s.logicalSize,
-      mappedPages: s.mappedPages,
-      overlayUuid: Uint8List.fromList([
-        for (var i = 0; i < 16; i++) s.overlayUuid[i],
-      ]),
-    );
+    if (_inUse(path) != 0) {
+      final np = path.toNativeUtf8();
+      try {
+        final rc = native.zvfs_state_overlay_info(np, p);
+        if (rc != 0) throw ZdbException.fromCode(ZdbException.busy, path);
+      } finally {
+        calloc.free(np);
+      }
+      return _overlayInfo(p.ref);
+    }
+    return _withReader(path, (r) {
+      native.zvfs_reader_overlay_info(r, p);
+      return _overlayInfo(p.ref);
+    });
   } finally {
     calloc.free(p);
   }
-});
+}
 
 /// Reads [length] logical bytes (base + overlay) at [offset], without SQLite.
 /// [ZdbException.busy] while the path is open through zvfs in this process.

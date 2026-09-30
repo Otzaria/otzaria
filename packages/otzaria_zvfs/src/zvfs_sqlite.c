@@ -334,7 +334,14 @@ static int zSectorSize(sqlite3_file *pf) {
 }
 static int zDeviceChar(sqlite3_file *pf) {
   zfile *f = (zfile *)pf;
-  return f->real->pMethods->xDeviceCharacteristics(f->real);
+  int dc = f->real->pMethods->xDeviceCharacteristics(f->real);
+  /* the base's atomic-write promises say nothing about the overlay */
+  if (f->z)
+    dc &= ~(SQLITE_IOCAP_ATOMIC | SQLITE_IOCAP_ATOMIC512 | SQLITE_IOCAP_ATOMIC1K |
+            SQLITE_IOCAP_ATOMIC2K | SQLITE_IOCAP_ATOMIC4K | SQLITE_IOCAP_ATOMIC8K |
+            SQLITE_IOCAP_ATOMIC16K | SQLITE_IOCAP_ATOMIC32K |
+            SQLITE_IOCAP_ATOMIC64K | SQLITE_IOCAP_BATCH_ATOMIC);
+  return dc;
 }
 
 static int zShmMap(sqlite3_file *pf, int pg, int sz, int ext, void volatile **pp) {
@@ -704,6 +711,25 @@ ZVFS_API int zvfs_set_default(int on) {
   return rc == SQLITE_OK ? ZVFS_OK : ZVFS_ERR_INVALID;
 }
 
+ZVFS_API int zvfs_state_overlay_info(const char *path, zvfs_overlay_info *out) {
+  if (!path || !out) return ZVFS_ERR_INVALID;
+  if (!zvfs_is_registered()) return ZVFS_ERR_NOT_ZDB;
+  char *full = full_path(path);
+  if (!full) return ZVFS_ERR_NOMEM;
+  int rc = ZVFS_ERR_NOT_ZDB;
+  zplat_lock(&g_mu);
+  for (zdb_file *z = g_files; z; z = z->next) {
+    if (strcmp(z->key, full) == 0 && z->ovl) {
+      zvfs_fill_overlay_info(z->ovl, out);
+      rc = ZVFS_OK;
+      break;
+    }
+  }
+  zplat_unlock(&g_mu);
+  sqlite3_free(full);
+  return rc;
+}
+
 /* ---- compaction swap ---- */
 ZVFS_API int zvfs_compact_swap(const char *path, const char *new_path) {
   if (!path || !new_path || strlen(path) > 4000) return ZVFS_ERR_INVALID;
@@ -715,13 +741,13 @@ ZVFS_API int zvfs_compact_swap(const char *path, const char *new_path) {
   if (!rc) rc = zvfs_reader_open(new_path, &nw);
   if (!rc) {
     zvfs_info ci, ni;
-    zvfs_overlay_info co;
+    zovl_info co;
     zvfs_reader_info(cur, &ci);
     zvfs_reader_info(nw, &ni);
-    zvfs_reader_overlay_info(cur, &co);
-    uint8_t zero[16] = {0};
-    const uint8_t *ovl_uuid = co.present ? co.overlay_uuid : zero;
-    uint64_t seq = co.present ? co.seq : 0;
+    zovl_get_info(cur->f->ovl, &co);
+    uint8_t ovl_uuid[16];
+    uint64_t seq;
+    zvfs_lineage_of(&co, ovl_uuid, &seq);
     /* the new base must contain exactly what path serves right now */
     if (memcmp(ni.derived_from_uuid, ci.file_uuid, 16) != 0 ||
         memcmp(ni.includes_overlay_uuid, ovl_uuid, 16) != 0 ||

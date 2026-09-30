@@ -60,7 +60,8 @@ uint64_t zplat_now_ms(void);
 int zplat_exists(const char *path_utf8);
 /* Durable replace: the rename is on disk before this returns. */
 int zplat_rename_durable(const char *from_utf8, const char *to_utf8);
-/* Durable delete; ZVFS_OK when already absent. */
+/* Delete (ZVFS_OK when absent); POSIX then syncs the directory. Windows has
+   no directory flush: the delete may be lost on power loss. */
 int zplat_delete_durable(const char *path_utf8);
 
 /* ---- on-disk format (see README.md, "Format") ---- */
@@ -209,6 +210,10 @@ typedef struct zovl_info {
   uint64_t seq, commits, records, file_size, committed_end, logical_size;
   uint64_t mapped_pages, base_visible_pages;
   uint8_t overlay_uuid[16];
+  /* an obsolete sidecar left by an interrupted compaction swap */
+  int stale_obsolete;
+  uint8_t stale_uuid[16];
+  uint64_t stale_seq;
 } zovl_info;
 
 /* Binds to base; opens and replays an existing sidecar. Owns env on success. */
@@ -236,6 +241,8 @@ struct zvfs_reader {
   zdb_file *f;
 };
 int zvfs_read_logical(zvfs_reader *r, void *buf, uint64_t n, uint64_t off);
+void zvfs_fill_overlay_info(zovl *o, zvfs_overlay_info *out);
+void zvfs_lineage_of(const zovl_info *oi, uint8_t uuid[16], uint64_t *seq);
 
 int zvfs_sidecars_busy(const char *path);
 

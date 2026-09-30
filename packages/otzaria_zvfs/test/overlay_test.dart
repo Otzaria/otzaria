@@ -466,7 +466,8 @@ void main() {
       results[0],
     );
     db.close();
-    expect(ZVfs.stats.openFiles, 0);
+    // per path: other suites run in the same process
+    expect(ZVfs.isOpen(zdb), isFalse);
   }, timeout: const Timeout(Duration(minutes: 5)));
 
   test(

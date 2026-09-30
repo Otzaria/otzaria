@@ -127,6 +127,9 @@ ZVFS_API void zvfs_reader_close(zvfs_reader *r);
 ZVFS_API int zvfs_reader_verify(zvfs_reader *r, volatile int32_t *cancel,
                                 volatile int64_t *progress);
 ZVFS_API int zvfs_reader_overlay_info(zvfs_reader *r, zvfs_overlay_info *out);
+/* Overlay info of a .zdb open in this process, from its state. */
+ZVFS_API int zvfs_state_overlay_info(const char *path_utf8,
+                                     zvfs_overlay_info *out);
 
 /* Compaction step 1: writes the logical content of path (base + overlay) to
    dst as a new base that records the overlay it includes. */

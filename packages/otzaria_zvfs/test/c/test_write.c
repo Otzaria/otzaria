@@ -912,6 +912,99 @@ static uint64_t open_hash(const char *zdb, int *ok) {
   return h;
 }
 
+/* ---- sidecar left by a crash between the compaction rename and delete ---- */
+static int64_t refresh_scans(void) {
+  zvfs_stats s;
+  zvfs_get_stats(&s);
+  return s.overlay_refresh_scans;
+}
+
+static void test_stale_sidecar(void) {
+  const char *plain = tmp_path("st_plain.db");
+  const char *zdb = tmp_path("st.zdb");
+  char ov[1100], dst[1100];
+  snprintf(ov, sizeof ov, "%s-zovl", zdb);
+  snprintf(dst, sizeof dst, "%s.new", zdb);
+  ts_remove_all(plain);
+  ts_remove_all(zdb);
+  sqlite3 *p = ts_open(plain, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  ts_make_base(p, 30, 20000);
+  sqlite3_close(p);
+  CHECK_EQ(ts_convert(plain, zdb), 0);
+  sqlite3 *z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  for (int i = 0; i < 20; i++)
+    ts_must(z, "UPDATE line SET content = content || 'x' WHERE id % 3 = 0");
+  sqlite3_close(z);
+  int ok;
+  uint64_t want = open_hash(zdb, &ok);
+  CHECK(ok);
+  /* rename landed, the sidecar delete did not */
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
+  CHECK(zplat_exists(ov) == 1);
+  CHECK(open_hash(zdb, &ok) == want && ok);
+  /* a stale sidecar is scanned once, not on every lock */
+  z = ts_open(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  int64_t before = refresh_scans();
+  for (int i = 0; i < 200; i++) ts_int(z, "SELECT count(*) FROM book");
+  int64_t scans = refresh_scans() - before;
+  sqlite3_close(z);
+  CHECK(scans < 3);
+  /* compacting again and crashing at the same point: still readable */
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
+  CHECK(zplat_exists(ov) == 1);
+  CHECK(open_hash(zdb, &ok) == want && ok);
+  /* and a full swap, then a write, then reopen */
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact_swap(zdb, dst), 0);
+  CHECK(zplat_exists(ov) == 0);
+  z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  ts_must(z, "UPDATE meta SET v='later' WHERE k='key2'");
+  sqlite3_close(z);
+  z = ts_open(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
+  CHECK(z && ts_integrity_ok(z) &&
+        ts_int(z, "SELECT count(*) FROM meta WHERE v='later'") == 1);
+  sqlite3_close(z);
+  printf("  stale sidecar: %lld scans for 200 queries, second compaction ok\n",
+         (long long)scans);
+  ts_remove_all(plain);
+  ts_remove_all(zdb);
+}
+
+/* A derived overlay that moved on past includesOverlaySeq replays on top. */
+static void test_derived_newer(void) {
+  const char *plain = tmp_path("dn_plain.db");
+  const char *zdb = tmp_path("dn.zdb");
+  char dst[1100];
+  snprintf(dst, sizeof dst, "%s.new", zdb);
+  ts_remove_all(plain);
+  ts_remove_all(zdb);
+  sqlite3 *p = ts_open(plain, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  ts_make_base(p, 30, 8000);
+  sqlite3_close(p);
+  CHECK_EQ(ts_convert(plain, zdb), 0);
+  sqlite3 *z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  ts_must(z, "UPDATE line SET content = upper(content) WHERE id % 4 = 0;"
+             "DELETE FROM link WHERE id % 3 = 0;");
+  sqlite3_close(z);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
+  ts_must(z, "DELETE FROM line WHERE id > 6000; VACUUM;"
+             "UPDATE meta SET v='after' WHERE k='key9';");
+  sqlite3_close(z);
+  int ok;
+  uint64_t want = open_hash(zdb, &ok);
+  CHECK(ok);
+  /* the swap refuses; emulate the unguarded race of another process */
+  CHECK_EQ(zvfs_compact_swap(zdb, dst), ZVFS_ERR_BUSY);
+  CHECK_EQ(zplat_rename_durable(dst, zdb), 0);
+  CHECK(open_hash(zdb, &ok) == want && ok);
+  printf("  derived overlay newer than the compacted base: replayed on top\n");
+  ts_remove_all(plain);
+  ts_remove_all(zdb);
+}
+
 static void test_compaction_windows(void) {
   const char *plain = tmp_path("cw_plain.db");
   const char *zdb = tmp_path("cw.zdb");
@@ -936,11 +1029,12 @@ static void test_compaction_windows(void) {
   CHECK_EQ(copy_file(zdb, keep_base), 0);
   CHECK_EQ(copy_file(ov, keep_ovl), 0);
 
-  /* busy: open in this process, pending journal, stale output */
+  /* busy: open in this process (refused before any open), stale output */
   z = ts_open(zdb, SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
-  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), ZVFS_ERR_BUSY);
   CHECK_EQ(zvfs_compact_swap(zdb, dst), ZVFS_ERR_BUSY);
   sqlite3_close(z);
+  CHECK_EQ(zvfs_compact(zdb, dst, 3, 2, NULL, NULL, NULL, NULL, 0), 0);
   z = ts_open(zdb, SQLITE_OPEN_READWRITE, ZVFS_VFS_NAME);
   ts_must(z, "UPDATE meta SET v='later' WHERE k='key3'");
   sqlite3_close(z);
@@ -1151,6 +1245,8 @@ int main(void) {
   test_sql_equivalence(1024, 200);
   test_sql_equivalence(65536, 30);
   test_compaction_windows();
+  test_stale_sidecar();
+  test_derived_newer();
   printf("concurrency\n");
   test_concurrent_wal(4, 400);
   free(g_mb.p);

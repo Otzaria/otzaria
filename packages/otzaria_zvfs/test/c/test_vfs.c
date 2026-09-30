@@ -401,7 +401,7 @@ static void test_probe_keeps_locks(void) {
   CHECK_EQ(convert_file(plain, zdb), 0);
   const char *files[] = {plain, zdb};
   for (int fi = 0; fi < 2; fi++) {
-    for (int action = 0; action < 3; action++) {
+    for (int action = 0; action < 4; action++) {
       sqlite3 *db = open_db(files[fi], SQLITE_OPEN_READONLY, ZVFS_VFS_NAME);
       sqlite3_stmt *st = NULL;
       exec(db, "BEGIN");
@@ -414,6 +414,14 @@ static void test_probe_keeps_locks(void) {
         CHECK_EQ(zvfs_reader_open(files[fi], &r), ZVFS_ERR_BUSY);
         zvfs_info info;
         CHECK_EQ(zvfs_state_info(files[fi], &info), fi ? ZVFS_OK : ZVFS_ERR_NOT_ZDB);
+      }
+      if (action == 3) {
+        char dst[1100];
+        snprintf(dst, sizeof dst, "%s.new", files[fi]);
+        CHECK_EQ(zvfs_compact(files[fi], dst, 3, 1, NULL, NULL, NULL, NULL, 0),
+                 ZVFS_ERR_BUSY);
+        CHECK_EQ(zvfs_compact_swap(files[fi], dst), ZVFS_ERR_BUSY);
+        CHECK(zplat_exists(dst) == 0);
       }
       /* another process must not get a write lock over our SHARED */
       int child = run_lockprobe(files[fi]);
@@ -428,7 +436,7 @@ static void test_probe_keeps_locks(void) {
   }
   remove(plain);
   remove(zdb);
-  printf("probe/reader of an open file keep its locks\n");
+  printf("probe/reader/compaction of an open file keep its locks\n");
 }
 
 #if !defined(_WIN32)

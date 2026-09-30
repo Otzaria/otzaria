@@ -31,6 +31,20 @@ int zvfs_sidecars_busy(const char *path) {
   return busy;
 }
 
+/* The overlay a compacted base names. An obsolete sidecar left by an
+   interrupted swap is named too, so it stays obsolete if it survives again. */
+void zvfs_lineage_of(const zovl_info *oi, uint8_t uuid[16], uint64_t *seq) {
+  memset(uuid, 0, 16);
+  *seq = 0;
+  if (oi->present) {
+    memcpy(uuid, oi->overlay_uuid, 16);
+    *seq = oi->seq;
+  } else if (oi->stale_obsolete) {
+    memcpy(uuid, oi->stale_uuid, 16);
+    *seq = oi->stale_seq;
+  }
+}
+
 static void set_err(char *err, size_t n, const char *msg) {
   if (err && n) snprintf(err, n, "%s", msg);
 }
@@ -41,6 +55,12 @@ ZVFS_API int zvfs_compact(const char *path, const char *dst, int level,
                           char *err, size_t err_len) {
   if (!path || !dst) return ZVFS_ERR_INVALID;
   set_err(err, err_len, "");
+  /* before any open: closing a descriptor would drop this process's locks */
+  int u = zvfs_in_use(path);
+  if (u) {
+    set_err(err, err_len, "the database is open in this process");
+    return u < 0 ? ZVFS_ERR_NOMEM : ZVFS_ERR_BUSY;
+  }
   if (zvfs_sidecars_busy(path)) {
     set_err(err, err_len, "a journal or WAL file is pending; open the database first");
     return ZVFS_ERR_BUSY;
@@ -68,9 +88,10 @@ ZVFS_API int zvfs_compact(const char *path, const char *dst, int level,
     set_err(err, err_len, "cannot create the destination");
     return rc;
   }
-  uint8_t zero[16] = {0};
-  zvfs_conv_set_lineage(c, f->h.uuid, oi.present ? oi.overlay_uuid : zero,
-                        oi.present ? oi.seq : 0);
+  uint8_t lin_uuid[16];
+  uint64_t lin_seq;
+  zvfs_lineage_of(&oi, lin_uuid, &lin_seq);
+  zvfs_conv_set_lineage(c, f->h.uuid, lin_uuid, lin_seq);
   const size_t chunk = 4u << 20;
   uint8_t *buf = (uint8_t *)malloc(chunk);
   if (!buf) rc = ZVFS_ERR_NOMEM;

@@ -146,6 +146,12 @@ external int zvfs_in_use(Pointer<Utf8> path);
 @Native<Int Function(Pointer<Utf8>, Pointer<ZvfsInfoStruct>)>()
 external int zvfs_state_info(Pointer<Utf8> path, Pointer<ZvfsInfoStruct> out);
 
+@Native<Int Function(Pointer<Utf8>, Pointer<ZvfsOverlayInfoStruct>)>()
+external int zvfs_state_overlay_info(
+  Pointer<Utf8> path,
+  Pointer<ZvfsOverlayInfoStruct> out,
+);
+
 @Native<Int Function(Pointer<Utf8>, Pointer<Pointer<ZvfsReader>>)>()
 external int zvfs_reader_open(
   Pointer<Utf8> path,
