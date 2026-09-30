@@ -33,6 +33,9 @@ class WindowBus {
 
   static String _slotName(int slot) => '$namespace.$slot';
 
+  /// שם גלובלי לתהליך תחת אותה קידומת, כך שבדיקות נשארות מבודדות.
+  static String sharedName(String suffix) => '$namespace.$suffix';
+
   /// שם המשבצת של הבעלים — החלון שמחזיק את המאגרים המשותפים.
   ///
   /// ⚠️ כינוי ולא סריקה. איתור הבעלים בשאילתת `describe` לכל משבצת עלה
@@ -68,6 +71,16 @@ class WindowBus {
   /// האם משבצת רשומה, כלומר חלון תפס אותה. סינכרוני, בלי סבב אפיק.
   bool isSlotRegistered(int slot) =>
       IsolateNameServer.lookupPortByName(_slotName(slot)) != null;
+
+  /// ה-port של החלון במשבצת [slot], או null אם אינה תפוסה.
+  SendPort? portOf(int slot) =>
+      IsolateNameServer.lookupPortByName(_slotName(slot));
+
+  /// המשבצות התפוסות חוץ משלנו. סינכרוני; משבצת רשומה אינה מבטיחה מאזין.
+  List<int> otherRegisteredSlots() => [
+    for (var candidate = 1; candidate <= slotCount; candidate++)
+      if (candidate != _slot && isSlotRegistered(candidate)) candidate,
+  ];
 
   /// מטפל בבקשות נכנסות. נקבע פעם אחת על ידי החלון.
   ///

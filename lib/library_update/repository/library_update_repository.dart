@@ -16,6 +16,7 @@ import 'package:path/path.dart' as p;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:seforim_library_updater/seforim_library_updater.dart';
 
+import '../services/library_access_gate.dart';
 import '../services/library_runtime_refresh_service.dart';
 import '../services/streaming_patch_downloader.dart';
 import '../services/update_sqlite_setup.dart';
@@ -180,6 +181,9 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   final LibraryRuntimeRefreshService refreshService;
   final FullDbExtractor fullDbExtractor;
 
+  /// משעה את הספרייה בכל החלונות לפני החלפת קובץ המסד.
+  final LibraryAccessGate accessGate;
+
   /// ניתנים להזרקה לצורך בדיקות.
   final String Function() dbPathProvider;
   final Future<String> Function() dataRootProvider;
@@ -198,6 +202,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     this.recovery = const LibraryDbRecoveryService(),
     this.refreshService = const LibraryRuntimeRefreshService(),
     FullDbExtractor? fullDbExtractor,
+    LibraryAccessGate? accessGate,
     String Function()? dbPathProvider,
     Future<String> Function()? dataRootProvider,
     String Function()? nowTimestamp,
@@ -208,6 +213,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
        dataRootProvider = dataRootProvider ?? AppPaths.getDataRootPath,
        nowTimestamp = nowTimestamp ?? (() => DateTime.now().toIso8601String()),
        fullDbExtractor = fullDbExtractor ?? _defaultFullDbExtractor,
+       accessGate = accessGate ?? LibraryAccessGate.instance,
        diskSpaceProvider = diskSpaceProvider ?? getDiskSpaceInfo,
        applierProvider =
            applierProvider ??
@@ -919,44 +925,48 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       // ייתכן שהפעולה המתינה זמן רב מאחורי כתיבה אחרת. ביטול שהגיע בזמן
       // ההמתנה חייב לעצור לפני סגירת ה-runtime ולפני יצירת גיבוי כבד.
       _throwIfCancelled(isCancelled);
-      await SqliteDataProvider.instance.closeForExternalWrite();
-      var recoveryStarted = false;
-      try {
-        _throwIfCancelled(isCancelled);
-        recoveryStarted = true;
-        await recovery.beginApply(
-          dbPath: dbPath,
-          fromVersion: plan.localVersion,
-          toVersion: plan.targetVersion ?? 0,
-          timestamp: nowTimestamp(),
-        );
-        // beginApply מעתיק DB של כמה GB ועשוי להימשך דקות. זו בדיקת הביטול
-        // האחרונה; מכאן עד ה-rename אין await ולכן אין חלון race נוסף.
-        _throwIfCancelled(isCancelled);
-        _deleteDbWithSidecarsQuietly(dbPath);
-        File(newDbPath).renameSync(dbPath);
-        _deleteQuietly('$newDbPath-wal');
-        _deleteQuietly('$newDbPath-shm');
-        recovery.finishSuccess(dbPath);
-        // מסמנים את נקודת האל-חזור לפני ה-await של reopen. כך ה-BLoC חוסם
-        // Cancel/Reset גם אם הפתיחה מחדש או ריענון ה-runtime נמשכים/נכשלים.
-        try {
-          onDbReplaced?.call();
-        } catch (error, stackTrace) {
-          // callback הוא התראה בלבד; אסור שכשל במאזין יגלגל לאחור DB תקין
-          // אחרי שגיבוי ההתאוששות כבר נוקה.
-          debugPrint(
-            'Full DB replacement callback failed: $error\n$stackTrace',
-          );
-        }
-      } catch (_) {
-        // לפני beginApply אין לפעולה הזו artifacts משלה; rollback בשלב הזה
-        // עלול לגעת בטעות בגיבוי ישן שאינו שייך לריצה הנוכחית.
-        if (recoveryStarted) await recovery.rollback(dbPath);
-        rethrow;
-      } finally {
-        await SqliteDataProvider.instance.reopenAfterExternalWrite();
-      }
+      // חלון משני מחזיק handle משלו, ו-rename עליו נכשל ב-Windows.
+      await accessGate.runExclusive(
+        dbPath: dbPath,
+        body: (scope) async {
+          var recoveryStarted = false;
+          try {
+            _throwIfCancelled(isCancelled);
+            recoveryStarted = true;
+            await recovery.beginApply(
+              dbPath: dbPath,
+              fromVersion: plan.localVersion,
+              toVersion: plan.targetVersion ?? 0,
+              timestamp: nowTimestamp(),
+            );
+            // beginApply מעתיק DB של כמה GB ועשוי להימשך דקות. זו בדיקת הביטול
+            // האחרונה; מכאן עד ה-rename אין await ולכן אין חלון race נוסף.
+            _throwIfCancelled(isCancelled);
+            _deleteDbWithSidecarsQuietly(dbPath);
+            File(newDbPath).renameSync(dbPath);
+            scope.markDbReplaced();
+            _deleteQuietly('$newDbPath-wal');
+            _deleteQuietly('$newDbPath-shm');
+            recovery.finishSuccess(dbPath);
+            // מסמנים את נקודת האל-חזור לפני ה-await של reopen. כך ה-BLoC חוסם
+            // Cancel/Reset גם אם הפתיחה מחדש או ריענון ה-runtime נמשכים/נכשלים.
+            try {
+              onDbReplaced?.call();
+            } catch (error, stackTrace) {
+              // callback הוא התראה בלבד; אסור שכשל במאזין יגלגל לאחור DB תקין
+              // אחרי שגיבוי ההתאוששות כבר נוקה.
+              debugPrint(
+                'Full DB replacement callback failed: $error\n$stackTrace',
+              );
+            }
+          } catch (_) {
+            // לפני beginApply אין לפעולה הזו artifacts משלה; rollback בשלב הזה
+            // עלול לגעת בטעות בגיבוי ישן שאינו שייך לריצה הנוכחית.
+            if (recoveryStarted) await recovery.rollback(dbPath);
+            rethrow;
+          }
+        },
+      );
     });
   }
 

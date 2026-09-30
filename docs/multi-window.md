@@ -148,6 +148,48 @@ window_sessions
 SQLite סינכרונית על ה-UI; סגירת חלון מריצה כתיבה ממתינה מיד
 (`TabsRepository.flushPendingWrites`).
 
+### מסד הספרייה: השעיה בכל החלונות
+
+כל חלון פותח את `seforim.db` / `seforim.zdb` בעצמו — provider, DbReadWorker
+ו-FindRef משלו — ו-`closeForExternalWrite` סוגר רק את ה-isolate שקרא לו.
+החלפת קובץ המסד (הורדה מלאה, ובהמשך דחיסה ו-`installZdb`) דורשת שאף
+isolate בתהליך לא יחזיק אותו: ב-Windows ה-rename נכשל, וב-zvfs מתקבל busy.
+
+`LibraryAccessGate` (`lib/library_update/services/library_access_gate.dart`):
+
+1. **`suspendAll()`** רושם את `LibrarySuspensionMarker` ושולח
+   `library.suspend` לכל משבצת. החלון מאשר רק אחרי ש-`closeForExternalWrite`
+   הסתיים, כלומר ה-handles נסגרו בפועל. חלון שנרשם באמצע מקבל suspend בסבב
+   נוסף (עד 3).
+2. חלון שלא אישר בתוך `ackTimeout` (20 שניות) או נכשל בשחרור →
+   `LibrarySuspendFailed`, וכל החלונות כבר קיבלו resume. חלון שנעלם
+   מהמשבצת באמצע אינו מכשיל; האימות בשלב 3 תופס handle שנשאר.
+3. **`verifyReleased(path)`** — zdb: `ZVfs.isOpen`; מסד רגיל ב-Windows:
+   rename שמוחזר מיד. כשל → `LibraryStillOpenException` ורישום ל-`errors.txt`.
+4. **`resumeAll(s, dbReplaced:)`** מסיר קודם את הסימון ואז שולח
+   `library.resume`. עם `dbReplaced` החלון מריץ `refreshAfterDbUpdate`
+   ו-`RefreshLibrary`; בלעדיו רק `reopenAfterExternalWrite`.
+
+חלון שנפתח בזמן ההשעיה ממתין לסימון ב-`SqliteDataProvider.initialize`.
+resume שאבד אינו משאיר חלון סגור: כשהסימון נעלם החלון מתחדש לבד (עם רענון).
+
+`runExclusive(dbPath:, body:)` עוטף את כל הרצף, כולל סגירת ה-isolate הנוכחי,
+וזה ה-API לשלבים הבאים:
+
+```dart
+await LibraryAccessGate.instance.runExclusive(
+  dbPath: dbPath,
+  body: (scope) async {
+    installZdb(...);          // או דחיסה
+    scope.markDbReplaced();   // מיד אחרי נקודת האל-חזור
+  },
+);
+```
+
+⚠️ **החלת דלתא אינה משעה חלונות אחרים.** היא כותבת ב-WAL בתוך טרנזקציה
+אחת, והקוראים בחלונות האחרים ממשיכים על ה-snapshot הקודם, כמו החלון הראשי.
+אחריה החלונות האחרים אינם מרועננים — הקטלוג שלהם מתעדכן בפתיחה הבאה.
+
 ---
 
 ## הגרירה

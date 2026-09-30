@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:otzaria/core/windowing/library_suspension_marker.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
@@ -114,6 +115,9 @@ class SqliteDataProvider {
   }
 
   Future<void> _initializeInternal() async {
+    // חלון שנפתח בזמן החלפת המסד בחלון אחר עוד לא קיבל library.suspend.
+    await LibrarySuspensionMarker.waitUntilReleased();
+
     // Use centralized database path
     _dbPath = DatabaseConstants.getDatabasePath();
 
