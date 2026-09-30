@@ -120,6 +120,37 @@ void main() {
     expect(results.first.isPartialTocMatch, isFalse);
   });
 
+  test('גשר חלקי בין שתי מלאות אינו מוחק כתובת מלאה נפרדת', () async {
+    final repo = _repo(
+      hits: [_hit(1, 'ספר בדיקה')],
+      hitsFor: (query) =>
+          query == 'ספר בדיקה' ? [_hit(1, 'ספר בדיקה')] : const [],
+      toc: (_, _, _) async => [
+        {
+          'reference': 'ספר בדיקה פרשה א פרק א',
+          'segment': 20,
+          'level': 1,
+          'partialMatch': true,
+        },
+      ],
+      altToc: (_, _, _) async => [
+        {'reference': 'פרשה א פרק א', 'segment': 10, 'level': 1},
+        {'reference': 'פרק א פרשה א', 'segment': 20, 'level': 1},
+      ],
+    );
+    addTearDown(repo.dispose);
+
+    final results = await repo.findRefs('ספר בדיקה א פרק א פרשה א');
+
+    expect(results, hasLength(2));
+    expect(results.map((r) => r.segment), [10, 20]);
+    expect(results.every((r) => !r.isPartialTocMatch), isTrue);
+    expect(results.map((r) => r.reference).toSet(), {
+      'ספר בדיקה פרשה א פרק א',
+      'ספר בדיקה פרק א פרשה א',
+    });
+  });
+
   test('אב חלקי אינו מסתיר צאצא מלא באותו ספר', () async {
     // אותו ספר פעמיים: התאמה ישירה ל"ספר בדיקה" ומקורבת לצירוף בן 3 טוקנים.
     final fuzzy = ReferenceBookHit(

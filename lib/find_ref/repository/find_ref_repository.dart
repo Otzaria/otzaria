@@ -2542,42 +2542,24 @@ class FindRefRepository {
   }
 
   List<DbReferenceResult> _dedupeRefs(List<DbReferenceResult> results) {
-    final seen = <String, int>{};
+    final seen = <String>{};
     final out = <DbReferenceResult>[];
 
-    for (final r in results) {
-      // Deduplicate by (bookId, source, title, isPdf [, filePath]) +
-      // segment, וגם + reference:
-      //   - title|segment|isPdf — שני TOC/AltToc שמובילים לאותה שורה באותו ספר
-      //     הם כפילות, ללא תלות בפורמט ה-reference
-      //     ("בראשית תולדות עליה ב" מול "תולדות עליה ב").
-      //   - bookId + source — שני ספרים *שונים* (למשל ספר רשמי וספר אישי,
-      //     או שני רשמיים) בעלי אותה כותרת *אינם* כפילות; מרחבי ה-id של
-      //     המסדים נפרדים, ובלעדיהם מפתח אחיד היה מוחק את אחד מהם משרירותיות.
-      //   - filePath נוסף **רק** עבור FS PDFs (`bookId == -1`): לכולם אותו
-      //     bookId שלילי, וההבדלה היחידה ביניהם היא הקובץ עצמו. שני קבצי PDF
-      //     שונים מהדיסק עם אותה כותרת חייבים לשרוד את ה-dedupe. עבור
-      //     תוצאות DB אנחנו דווקא רוצים שה-filePath *לא* יבדיל — מסלול
-      //     ה-global AltToc fallback מייצר תוצאה עם filePath ריק, וצריך
-      //     להתמזג עם תוצאת ה-per-book של אותו bookId שיש לה filePath ידוע.
-      final filePathKey = r.bookId == -1 ? r.filePath : '';
-      final bookKey =
-          '${r.bookId}|${r.source.wireKey}|${r.title}|${r.isPdf}|$filePathKey';
-      // אותה כתובת מלאה באותו ספר — גם כשה-segment שונה (כותרת "סעיף ג" ב-TOC
-      // מול עלה "סעיף ג" במבנה הסעיפים המסונתז שמצביע לשורת התוכן, issue #1249).
-      // למשתמש שתי השורות זהות; הראשונה (TOC) נשמרת, אלא אם היא התאמה חלקית
-      // והכפילה מלאה — אחרת הדירוג מעניש את השורה על ההתאמה שנזרקה.
-      final segmentKey = '$bookKey|${r.segment}';
-      final referenceKey = '$bookKey|ref:${r.reference}';
-      final kept = seen[segmentKey] ?? seen[referenceKey];
-      if (kept == null) {
-        seen[segmentKey] = seen[referenceKey] = out.length;
-        out.add(r);
-        continue;
+    // המלאות תופסות את המפתחות תחילה, בלי להחליף תוצאה שכבר נשמרה.
+    for (final partial in [false, true]) {
+      for (final r in results) {
+        if (r.isPartialTocMatch != partial) continue;
+        // ל-PDF מהדיסק אין bookId ייחודי; ב-DB נתיב ריק של fallback אינו ספר אחר.
+        final filePathKey = r.bookId == -1 ? r.filePath : '';
+        final bookKey =
+            '${r.bookId}|${r.source.wireKey}|${r.title}|${r.isPdf}|$filePathKey';
+        final segmentKey = '$bookKey|${r.segment}';
+        final referenceKey = '$bookKey|ref:${r.reference}';
+        // גם שורה או כתובת של כפילה נשארות מוכרות לרשומות הבאות.
+        final newSegment = seen.add(segmentKey);
+        final newReference = seen.add(referenceKey);
+        if (newSegment && newReference) out.add(r);
       }
-      seen.putIfAbsent(segmentKey, () => kept);
-      seen.putIfAbsent(referenceKey, () => kept);
-      if (out[kept].isPartialTocMatch && !r.isPartialTocMatch) out[kept] = r;
     }
 
     return out;
