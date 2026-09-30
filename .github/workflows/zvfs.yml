@@ -83,10 +83,12 @@ jobs:
           export ZVFS_CRASH_STRIDE=5 ZVFS_KILL_ITERS=120
           case "${{ matrix.name }}" in
             linux-asan-ubsan) export ZVFS_CRASH_STRIDE=15 ZVFS_KILL_ITERS=40 ZVFS_TORN_STRIDE=3 ;;
-            linux-tsan) export ZVFS_FUZZ_ITERS=2000 ZVFS_CRASH_STRIDE=40 ZVFS_KILL_ITERS=20 ZVFS_TORN_STRIDE=7
-                        W="setarch $(uname -m) -R" ;;
+            # crash and kill are single-threaded (kill races are cross-process,
+            # invisible to TSan): TSan runs only the suites with threads
+            linux-tsan) export ZVFS_FUZZ_ITERS=2000 ZVFS_TORN_STRIDE=7
+                        W="setarch $(uname -m) -R" ONLY='-R ^(core|vfs|write)$' ;;
           esac
-          $W ctest --test-dir build/c -C RelWithDebInfo --output-on-failure --timeout 3600
+          $W ctest --test-dir build/c -C RelWithDebInfo --output-on-failure --timeout 3600 $ONLY
 
   cross-compile:
     strategy:
