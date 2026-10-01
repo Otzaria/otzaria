@@ -187,10 +187,18 @@ abstract class LibraryMessages {
   static String storageRebaseOffer(String size) =>
       'ייעול אחסון: הורדה של ~$size';
   static const String storageRebaseDialogTitle = 'ייעול אחסון הספרייה';
-  static String storageRebaseDialogContent(String size) =>
+  static String storageRebaseDialogContent(
+    String size, {
+    bool recommendWifi = false,
+  }) =>
       'העדכונים שהצטברו תופסים כבר יותר ממחצית גודל הספרייה, והם מאטים את '
       'פתיחתה. הורדה של עותק עדכני (כ-$size) תחליף אותם. אפשר גם לדחות — '
-      'השאלה תחזור בבדיקת העדכון הבאה.';
+      'אז האחסון ייועל במחשב כשהספרייה פנויה, או שהשאלה תחזור בבדיקה הבאה.'
+      '${recommendWifi ? '\n\n$storageRebaseWifiHint' : ''}';
+
+  /// באנדרואיד בלבד: ההורדה גדולה, ורשת סלולרית עלולה להיות מוגבלת או בתשלום.
+  static const String storageRebaseWifiHint =
+      'מומלץ להתחבר לרשת Wi-Fi לפני ההורדה.';
   static const String storageRebaseConfirm = 'הורד וייעל';
   static const String storageRebaseLater = 'אחר כך';
 }

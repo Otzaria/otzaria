@@ -1110,7 +1110,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
             ? LibraryMessages.storageRebaseDialogTitle
             : 'נדרשת הורדה מלאה של הספרייה',
         content: rebase
-            ? LibraryMessages.storageRebaseDialogContent(sizeText)
+            ? LibraryMessages.storageRebaseDialogContent(
+                sizeText,
+                recommendWifi: Platform.isAndroid,
+              )
             : 'לא נמצא מסלול עדכון מצומצם למצב הנוכחי. כדי לעדכן יש להוריד '
                   'את הספרייה המלאה (כ-$sizeText). אפשר גם להמשיך עם הגרסה '
                   'הנוכחית ללא עדכון.',
