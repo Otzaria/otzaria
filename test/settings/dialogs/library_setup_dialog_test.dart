@@ -1,18 +1,24 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 // ignore: depend_on_referenced_packages
 import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/dialogs/library_setup_dialog.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:path/path.dart' as p;
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+
+import '../../helpers/memory_settings_cache.dart';
 
 // navigatorKey — כדי ש-UiSnack ימצא Overlay להודעות השגיאה.
 Widget _host(void Function(BuildContext) onOpen) => MaterialApp(
@@ -320,6 +326,55 @@ void main() {
       },
     );
   });
+
+  testWidgets(
+    'zip בלי DB: הדיאלוג נשאר פתוח לייבוא קובץ הספרייה לאותו יעד',
+    (tester) async {
+      await Settings.init(cacheProvider: MemorySettingsCache());
+      final temp = Directory.systemTemp.createTempSync('setup_two_file_');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final zip = p.join(temp.path, 'otzaria-android-full.zip');
+      File(zip).writeAsBytesSync(
+        ZipEncoder().encode(
+          Archive()..addFile(ArchiveFile.bytes('lexical.db', [1, 2, 3])),
+        ),
+      );
+      final root = p.join(temp.path, 'root');
+      FilePickerPlatform.instance = _RecordingFilePickerPlatform(zip);
+      await _openSetup(tester, defaultTargetPath: root);
+      await _select(tester, 'בחירת קובץ דחוס');
+      await tester.ensureVisible(find.text('בחר קובץ דחוס'));
+      await tester.tap(find.text('בחר קובץ דחוס'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('אישור'));
+      await tester.pump();
+
+      final books = p.join(root, 'books');
+      // ה-IO האמיתי מסתיים מחוץ לזמן המדומה, וה-pump מריץ את ההמשכים שלו.
+      for (var i = 0; i < 300; i++) {
+        if (Settings.getValue<String>(SettingsRepository.keyLibraryPath) ==
+            books) {
+          break;
+        }
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(File(p.join(books, 'lexical.db')).existsSync(), isTrue);
+      expect(
+        find.text(LibraryMessages.archiveImportedAwaitingDatabase),
+        findsWidgets,
+      );
+      // הדיאלוג לא נסגר, והקובץ הבא נבחר לאותו יעד.
+      expect(find.text('בחירת קובץ דחוס'), findsOneWidget);
+      expect(_actionOnPressed(tester, 'אישור'), isNull);
+      // ה-UiSnack נסגר בעצמו אחרי כמה שניות.
+      await tester.pump(const Duration(seconds: 7));
+    },
+  );
 
   testWidgets('בחירת קובץ דחוס מקבלת גם קובץ ספרייה seforim.zdb בודד', (
     tester,

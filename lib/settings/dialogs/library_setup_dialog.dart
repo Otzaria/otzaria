@@ -611,6 +611,15 @@ class _LibrarySetupDialogContentState
   Widget build(BuildContext context) {
     return BlocConsumer<EmptyLibraryBloc, EmptyLibraryState>(
       listener: (context, state) async {
+        if (state is EmptyLibraryAwaitingDatabase) {
+          // הדיאלוג נשאר פתוח לצעד הבא, לאותה תיקיית יעד.
+          setState(() {
+            _action = _LibraryAction.chooseArchive;
+            _sourceArchive = null;
+          });
+          UiSnack.show(state.message);
+          return;
+        }
         if (state is! EmptyLibraryDirectorySelected) return;
         // שימוש במקום אינו מעביר קבצים — הספרייה הישנה נשארת ואינה נמחקת,
         // והאינדקס נקבע לפי השורש של התיקייה שנבחרה.
@@ -861,6 +870,8 @@ class _LibrarySetupDialogContentState
           ),
         if (state is EmptyLibraryError && state.errorMessage != null)
           MoveContentsWarning(text: state.errorMessage!),
+        if (state is EmptyLibraryAwaitingDatabase)
+          MoveContentsWarning(text: state.message),
         if (downloadSelected && downloadDisabled != null)
           MoveContentsWarning(text: downloadDisabled),
       ],
