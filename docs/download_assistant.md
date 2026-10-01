@@ -229,7 +229,7 @@ macOS ו-Linux מריצים בבדיקות שלהם את שני המניפסטי
 | Windows | מתקין x64 / ARM64 | ZIP x64 / ARM64 | מתקין FULL x64 / ARM64, מתקין FULL מאונדקס (x64) |
 | Linux | DEB x64/ARM64, RPM x64/ARM64 | ZIP raw (רק כשה-DEB נכשל) | `otzaria-linux-full[-arm64].tar.zst` |
 | macOS | `otzaria-macos.dmg` | — | `otzaria-macos-full.tar.zst` |
-| Android | ה-APK | — | `otzaria-android-full.zip` |
+| Android | ה-APK | — | `otzaria-android-full.zip` + `otzaria-android-library.zdb` (תלוי ב-APK) |
 
 `library-full-indexed` הוא `any` בשדות הסינון, אבל `installedBy` שלו הוא
 `otzaria-windows-full-indexed` — המתקין היחיד שקורא את החלקים לצדו
@@ -284,7 +284,7 @@ macOS ו-Linux מריצים בבדיקות שלהם את שני המניפסטי
 זהה להצעה קודמת אינה מוצגת. **"בסיסית" מסומנת מראש** (`kDefaultPresetId`) בשלושת
 המסייעים: במחשב עם אינטרנט הספרייה יורדת מתוך התוכנה, ו"מלאה" מיועדת למחשב בלי
 אינטרנט. "מלאה" נשארת ראשונה ברשימה, כי סדר ההצעות קובע איזו כפולה מושמטת; כשאין
-"בסיסית" (Linux נייד) מסומנת הראשונה. ב-Android: "מלאה" = `otzaria-android-full.zip`,
+"בסיסית" (Linux נייד) מסומנת הראשונה. ב-Android: "מלאה" = `otzaria-android-full.zip` ו-`otzaria-android-library.zdb` עם ה-APK (`dependsOn`),
 "בסיסית" = ה-APK. ב-Linux עם `portable`: רק "מלאה" (החבילה הניידת עם הספרייה),
 כי אין רכיב תוכנה נייד בלי ספרייה.
 
