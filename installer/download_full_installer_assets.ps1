@@ -9,20 +9,28 @@ $ErrorActionPreference = "Stop"
 $apiHeaders = @{ Authorization = "Bearer $env:GH_TOKEN" }
 
 try {
-  # הורדת מסד הספרייה הראשי
-  $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Otzaria/SeforimLibrary/releases/latest" -Headers $apiHeaders
+  # הורדת מסד הספרייה הראשי. LIBRARY_DB_RELEASE_TAG מצמיד את כל ה-jobs של
+  # ריצת build-and-announce לאותו release; בלעדיו נלקח האחרון.
+  $libraryReleases = "https://api.github.com/repos/Otzaria/SeforimLibrary/releases"
+  $libraryTag = $env:LIBRARY_DB_RELEASE_TAG
+  $libraryReleaseApi = if ($libraryTag) { "$libraryReleases/tags/$libraryTag" } else { "$libraryReleases/latest" }
+  $libraryRelease = Invoke-RestMethod -Uri $libraryReleaseApi -Headers $apiHeaders
+  if ($libraryTag -and $libraryRelease.tag_name -cne $libraryTag) {
+    Write-Host "::error::$libraryReleaseApi is release $($libraryRelease.tag_name), not the pinned $libraryTag"
+    exit 1
+  }
   # מסכמה 6 ה-DB מתפרסם בשם משלו; seforim.db.zst שמור לסכמה 5 ומטה.
-  $dbAsset = $latestRelease.assets | Where-Object { $_.name -eq "seforim-schema6.db.zst" }
+  $dbAsset = $libraryRelease.assets | Where-Object { $_.name -eq "seforim-schema6.db.zst" }
   if (-not $dbAsset) {
-    $dbAsset = $latestRelease.assets | Where-Object { $_.name -eq "seforim.db.zst" }
+    $dbAsset = $libraryRelease.assets | Where-Object { $_.name -eq "seforim.db.zst" }
   }
   
   if (-not $dbAsset) {
-    Write-Host "::error::Could not find seforim-schema6.db.zst or seforim.db.zst in latest release"
+    Write-Host "::error::Could not find seforim-schema6.db.zst or seforim.db.zst in release $($libraryRelease.tag_name)"
     exit 1
   }
   
-  Write-Host "Library version: $($latestRelease.tag_name)"
+  Write-Host "Library version: $($libraryRelease.tag_name)"
   Write-Host "Downloading from: $($dbAsset.browser_download_url)"
   Write-Host "Size: $([math]::Round($dbAsset.size / 1MB, 2)) MB"
   

@@ -55,7 +55,24 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ steps.push.outputs.sha || github.sha }}
+      library_tag: ${{ steps.library_release.outputs.tag }}
     steps:
+      # תג אחד של SeforimLibrary לכל הריצה: "latest" עלול להתחלף בין ה-jobs,
+      # וכל חבילה הייתה נארזת עם מסד אחר.
+      - name: Resolve the library release for this run
+        id: library_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            tag=$(gh api repos/Otzaria/SeforimLibrary/releases/latest --jq .tag_name) && [ -n "$tag" ] && break
+            [ "$attempt" = 3 ] && { echo "::error::cannot resolve the latest SeforimLibrary release"; exit 1; }
+            sleep 10
+          done
+          echo "SeforimLibrary release for this run: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Validate requested version
         if: github.event_name == 'workflow_dispatch' && (inputs.new_version != '' || inputs.hotfix != '0')
         env:
@@ -410,6 +427,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LIBRARY_DB_RELEASE_TAG: ${{ needs.bump_version.outputs.library_tag }}
         run: |
           .\installer\download_full_installer_assets.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -806,6 +824,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LIBRARY_DB_RELEASE_TAG: ${{ needs.bump_version.outputs.library_tag }}
         run: |
           .\installer\download_full_installer_assets.ps1
           if ($LASTEXITCODE -ne 0) { throw "FULL installer assets download failed" }
@@ -1110,12 +1129,15 @@ jobs:
       - name: Download library assets for Linux FULL bundle
         if: matrix.target == 'full'
         shell: bash
+        env:
+          LIBRARY_DB_RELEASE_TAG: ${{ needs.bump_version.outputs.library_tag }}
         run: |
           set -euo pipefail
           mkdir -p full_installer/library_db
+          library_release="https://github.com/Otzaria/SeforimLibrary/releases/download/${LIBRARY_DB_RELEASE_TAG:?library release tag was not resolved}"
           # מסכמה 6 ה-DB מתפרסם בשם משלו; seforim.db.zst שמור לסכמה 5 ומטה.
-          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim-schema6.db.zst -o full_installer/library_db/seforim.db.zst \
-            || curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o full_installer/library_db/seforim.db.zst
+          curl -L --fail "$library_release/seforim-schema6.db.zst" -o full_installer/library_db/seforim.db.zst \
+            || curl -L --fail "$library_release/seforim.db.zst" -o full_installer/library_db/seforim.db.zst
           curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
           curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
           curl -L --fail https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db -o full_installer/library_db/lexical.db
@@ -1542,6 +1564,7 @@ jobs:
         shell: bash
         env:
           SEFORIM_LIBRARY_DISPATCH_TOKEN: ${{ secrets.SEFORIM_LIBRARY_DISPATCH_TOKEN }}
+          PREBUILT_LIBRARY_INDEX_BASE_URL: https://github.com/Otzaria/SeforimLibrary/releases/download/${{ needs.bump_version.outputs.library_tag }}
         run: |
           set -euo pipefail
           BUNDLE_ROOT="full_installer/otzaria-linux-full"
@@ -1950,12 +1973,15 @@ jobs:
       - name: Download library assets for Android FULL bundle
         if: true
         shell: bash
+        env:
+          LIBRARY_DB_RELEASE_TAG: ${{ needs.bump_version.outputs.library_tag }}
         run: |
           set -euo pipefail
           mkdir -p full_installer/library_db
+          library_release="https://github.com/Otzaria/SeforimLibrary/releases/download/${LIBRARY_DB_RELEASE_TAG:?library release tag was not resolved}"
           # מסכמה 6 ה-DB מתפרסם בשם משלו; seforim.db.zst שמור לסכמה 5 ומטה.
-          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim-schema6.db.zst -o full_installer/library_db/seforim.db.zst \
-            || curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o full_installer/library_db/seforim.db.zst
+          curl -L --fail "$library_release/seforim-schema6.db.zst" -o full_installer/library_db/seforim.db.zst \
+            || curl -L --fail "$library_release/seforim.db.zst" -o full_installer/library_db/seforim.db.zst
           curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
           curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
           curl -L --fail https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db -o full_installer/library_db/lexical.db
@@ -2141,12 +2167,15 @@ jobs:
       - name: Download library assets for macOS FULL bundle
         if: true
         shell: bash
+        env:
+          LIBRARY_DB_RELEASE_TAG: ${{ needs.bump_version.outputs.library_tag }}
         run: |
           set -euo pipefail
           mkdir -p full_installer/library_db
+          library_release="https://github.com/Otzaria/SeforimLibrary/releases/download/${LIBRARY_DB_RELEASE_TAG:?library release tag was not resolved}"
           # מסכמה 6 ה-DB מתפרסם בשם משלו; seforim.db.zst שמור לסכמה 5 ומטה.
-          curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim-schema6.db.zst -o full_installer/library_db/seforim.db.zst \
-            || curl -L --fail https://github.com/Otzaria/SeforimLibrary/releases/latest/download/seforim.db.zst -o full_installer/library_db/seforim.db.zst
+          curl -L --fail "$library_release/seforim-schema6.db.zst" -o full_installer/library_db/seforim.db.zst \
+            || curl -L --fail "$library_release/seforim.db.zst" -o full_installer/library_db/seforim.db.zst
           curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
           curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
           curl -L --fail https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db -o full_installer/library_db/lexical.db
