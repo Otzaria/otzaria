@@ -14,4 +14,13 @@ void main() {
     expect(android, startsWith(desktop));
     expect(android, endsWith(LibraryMessages.storageRebaseWifiHint));
   });
+
+  test('הודעות ייעול האחסון אינן מניחות מחשב', () {
+    for (final text in [
+      LibraryMessages.storageRebaseDialogContent('1GB', recommendWifi: true),
+      LibraryMessages.storageOptimizedLocally,
+    ]) {
+      expect(text, isNot(contains('מחשב')));
+    }
+  });
 }

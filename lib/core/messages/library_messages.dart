@@ -187,7 +187,7 @@ abstract class LibraryMessages {
   static const String storageOptimizingCancelled = 'ייעול אחסון הספרייה בוטל';
   static const String storageOptimized = 'אחסון הספרייה יועל';
   static const String storageOptimizedLocally =
-      'ההורדה נכשלה, ואחסון הספרייה יועל במחשב';
+      'ההורדה נכשלה, ואחסון הספרייה יועל מקומית';
   static const String storageOptimizeDeferred =
       'ייעול אחסון הספרייה נדחה לבדיקת העדכון הבאה';
   static const String storageOptimizeLater =
@@ -203,7 +203,7 @@ abstract class LibraryMessages {
   }) =>
       'העדכונים שהצטברו תופסים כבר יותר ממחצית גודל הספרייה, והם מאטים את '
       'פתיחתה. הורדה של עותק עדכני (כ-$size) תחליף אותם. אפשר גם לדחות — '
-      'אז האחסון ייועל במחשב כשהספרייה פנויה, או שהשאלה תחזור בבדיקה הבאה.'
+      'אז האחסון ייועל מקומית כשהספרייה פנויה, או שהשאלה תחזור בבדיקה הבאה.'
       '${recommendWifi ? '\n\n$storageRebaseWifiHint' : ''}';
 
   /// באנדרואיד בלבד: ההורדה גדולה, ורשת סלולרית עלולה להיות מוגבלת או בתשלום.
