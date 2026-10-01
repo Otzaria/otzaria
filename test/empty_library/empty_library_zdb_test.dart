@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
+
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
@@ -316,6 +319,174 @@ void main() {
     expect(await done, isA<EmptyLibraryError>());
     expect(File(LibraryZdbFiles.zdbPathIn(library.path)).existsSync(), isFalse);
     expect(File(legacy).existsSync(), isTrue);
+  });
+
+  group('חבילת FULL של אנדרואיד בשני קבצים', () {
+    /// zip שטוח של הקבצים הנלווים בלבד, כמו otzaria-android-full.zip.
+    String sideFilesZip({String? nestedDbFrom}) {
+      final archive = Archive()
+        ..addFile(
+          ArchiveFile.bytes(
+            DatabaseConstants.externalCatalogDatabaseFileName,
+            utf8.encode('catalog'),
+          ),
+        )
+        ..addFile(ArchiveFile.bytes('lexical.db', utf8.encode('lexical')))
+        ..addFile(ArchiveFile.bytes('lexical.db.version', utf8.encode('v1')))
+        ..addFile(
+          ArchiveFile.bytes(
+            '${DatabaseConstants.talmudBavliFolderName}/a.pdf',
+            utf8.encode('pdf'),
+          ),
+        );
+      if (nestedDbFrom != null) {
+        archive.addFile(
+          ArchiveFile.bytes(
+            'otzaria-android-full/library_db/otzaria-android-library.zdb',
+            File(nestedDbFrom).readAsBytesSync(),
+          ),
+        );
+      }
+      final zip = path.join(tmp.path, 'otzaria-android-full.zip');
+      File(zip).writeAsBytesSync(ZipEncoder().encode(archive));
+      return zip;
+    }
+
+    Future<EmptyLibraryState> importArchive(String archive) async {
+      final bloc = EmptyLibraryBloc(
+        extractCompressedDatabase: (archivePath, output, _) async =>
+            writeFixtureLibraryDb(
+              output,
+              version: 5,
+              schemaVersion: 5,
+              marker: 'from-zst',
+            ),
+      );
+      addTearDown(bloc.close);
+      final done = bloc.stream
+          .firstWhere(
+            (s) =>
+                s is EmptyLibraryDirectorySelected ||
+                s is EmptyLibraryAwaitingDatabase ||
+                s is EmptyLibraryError,
+          )
+          .timeout(const Duration(seconds: 20));
+      bloc.add(
+        ImportLibraryArchiveRequested(
+          archivePath: archive,
+          targetPath: library.path,
+        ),
+      );
+      return done;
+    }
+
+    String androidZdb() {
+      final file = path.join(tmp.path, 'otzaria-android-library.zdb');
+      File(releaseZdb).copySync(file);
+      return file;
+    }
+
+    void expectSideFiles() {
+      for (final name in [
+        DatabaseConstants.externalCatalogDatabaseFileName,
+        'lexical.db',
+        'lexical.db.version',
+        path.join(DatabaseConstants.talmudBavliFolderName, 'a.pdf'),
+      ]) {
+        expect(
+          File(path.join(library.path, name)).existsSync(),
+          isTrue,
+          reason: name,
+        );
+      }
+    }
+
+    test('zip בלי DB: הקבצים נשמרים, הספרייה נקבעת, ונדרש קובץ ה-DB', () async {
+      final state = await importArchive(sideFilesZip());
+
+      expect(state, isA<EmptyLibraryAwaitingDatabase>());
+      expect(
+        (state as EmptyLibraryAwaitingDatabase).message,
+        LibraryMessages.archiveImportedAwaitingDatabase,
+      );
+      expect(state.selectedPath, library.path);
+      expectSideFiles();
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        library.path,
+      );
+      // בלי DB הספרייה אינה תקינה: לא ברזולבר ולא ב-libraryDbExistsIn.
+      expect(await DatabaseConstants.libraryDbExistsIn(library.path), isFalse);
+      expect(
+        File(DatabaseConstants.resolveLibraryDbPath(library.path)).existsSync(),
+        isFalse,
+      );
+    });
+
+    test('zip ואז zdb בשם שרירותי: ספרייה שלמה באותו יעד', () async {
+      expect(
+        await importArchive(sideFilesZip()),
+        isA<EmptyLibraryAwaitingDatabase>(),
+      );
+      final state = await importArchive(androidZdb());
+
+      expect(state, isA<EmptyLibraryDirectorySelected>());
+      expect(state.selectedPath, library.path);
+      expectSideFiles();
+      final active = DatabaseConstants.resolveLibraryDbPath(library.path);
+      expect(path.basename(active), DatabaseConstants.zdbDatabaseFileName);
+      expect(readFixtureLibrary(active).marker, 'release');
+    });
+
+    test('zdb ואז zip: הקבצים הנלווים מתווספים, וה-zdb נשאר', () async {
+      expect(
+        await importArchive(androidZdb()),
+        isA<EmptyLibraryDirectorySelected>(),
+      );
+      final state = await importArchive(sideFilesZip());
+
+      expect(state, isA<EmptyLibraryDirectorySelected>());
+      expectSideFiles();
+      final active = DatabaseConstants.resolveLibraryDbPath(library.path);
+      expect(readFixtureLibrary(active).marker, 'release');
+    });
+
+    test('db.zst בשם שרירותי נפרס ל-seforim.db', () async {
+      final zst = path.join(tmp.path, 'otzaria-android-library.db.zst');
+      File(zst).writeAsStringSync('compressed');
+      final state = await importArchive(zst);
+
+      expect(state, isA<EmptyLibraryDirectorySelected>());
+      final active = DatabaseConstants.resolveLibraryDbPath(library.path);
+      expect(path.basename(active), DatabaseConstants.databaseFileName);
+      expect(readFixtureLibrary(active).marker, 'from-zst');
+    });
+
+    test('מניפסט ליד zdb בשם שרירותי נבדק (ונדחה כשאינו תואם)', () async {
+      final zdb = androidZdb();
+      File('$zdb.manifest.json').writeAsStringSync(
+        jsonEncode(fixtureManifestJsonFor(zdb, dbVersion: 99)),
+      );
+      final state = await importArchive(zdb);
+
+      expect(state, isA<EmptyLibraryError>());
+      expect(await DatabaseConstants.libraryDbExistsIn(library.path), isFalse);
+    });
+
+    test('מבנה מקונן ישן נכשל בהודעה ברורה, בלי להתקין חלקית', () async {
+      final state = await importArchive(sideFilesZip(nestedDbFrom: releaseZdb));
+
+      expect(state, isA<EmptyLibraryError>());
+      expect(
+        state.errorMessage,
+        contains(LibraryMessages.archiveNestedDatabaseUnsupported),
+      );
+      expect(library.listSync(), isEmpty);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        isNot(library.path),
+      );
+    });
   });
 
   test('seforim.db שיובא לספריית zdb מחליף אותה ברזולבר', () async {

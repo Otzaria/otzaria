@@ -42,6 +42,20 @@ class EmptyLibraryDirectorySelected extends EmptyLibraryState {
   }) : super(selectedPath: selectedPath);
 }
 
+/// הקבצים הנלווים יובאו ל-[selectedPath], אבל אין בו עדיין מסד ספרייה. זה
+/// אינו מצב שגיאה: הצעד הבא הוא ייבוא קובץ ה-DB לאותה ספרייה.
+class EmptyLibraryAwaitingDatabase extends EmptyLibraryState {
+  final String message;
+
+  const EmptyLibraryAwaitingDatabase({
+    required String selectedPath,
+    required this.message,
+  }) : super(selectedPath: selectedPath);
+
+  @override
+  List<Object?> get props => [...super.props, message];
+}
+
 class EmptyLibraryError extends EmptyLibraryState {
   const EmptyLibraryError({
     super.errorMessage,

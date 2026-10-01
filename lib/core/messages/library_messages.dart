@@ -166,6 +166,15 @@ abstract class LibraryMessages {
   static String applyStageWithHeavyDeltaNotice(String stageMessage) =>
       '$stageMessage — ההחלה עשויה להימשך זמן רב';
 
+  // ===== ייבוא ספרייה בשני קבצים (חבילת FULL של אנדרואיד) =====
+  /// הארכיון הכיל רק קבצים נלווים; ה-DB מגיע בקובץ נפרד.
+  static const String archiveImportedAwaitingDatabase =
+      'הקבצים הנלווים יובאו. כעת יש לייבא לאותה ספרייה את קובץ הספרייה '
+      '(.zdb או .db.zst).';
+  static const String archiveNestedDatabaseUnsupported =
+      'מבנה הארכיון אינו נתמך: קובץ הספרייה נמצא בתוך תיקייה. יש לייבא את '
+      'הארכיון של הקבצים הנלווים ואת קובץ הספרייה (.zdb) כל אחד בנפרד.';
+
   // ===== קובץ הספרייה הדחוס (seforim.zdb) =====
   static const String zdbFullDownloading = 'מוריד ספרייה מלאה';
   static const String zdbFullVerifying = 'מאמת את קובץ הספרייה שהורד';

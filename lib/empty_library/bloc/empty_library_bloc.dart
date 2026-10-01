@@ -9,6 +9,7 @@ import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/http_client_registry.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/sqlite/library_vfs.dart';
@@ -237,6 +238,11 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
             await _discardBackupDir(backupDir);
           } else {
             await _restoreDatabaseFiles(backupDir, backupPath!);
+            // ארכיון נלווים לספרייה קיימת: אחרי ההחזרה יש DB, והייבוא הושלם.
+            if (state is EmptyLibraryAwaitingDatabase &&
+                await DatabaseConstants.libraryDbExistsIn(event.targetPath)) {
+              await _saveImportedLibrary(event.targetPath, emit);
+            }
           }
         }
         if (state is EmptyLibraryDirectorySelected) {
@@ -280,10 +286,29 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       await _deleteEntity(staging);
       try {
         await _extractZipArchive(archivePath, staging);
+        // לפני ההעברה: מבנה ישן עם DB בתיקייה פנימית היה מותקן רק בחלקו.
+        if (await hasNestedLibraryDatabase(staging)) {
+          throw const _ArchiveLayoutException(
+            LibraryMessages.archiveNestedDatabaseUnsupported,
+          );
+        }
         await promoteStagedImport(staging, target);
       } finally {
         await _deleteEntity(staging);
       }
+      emit(
+        EmptyLibraryExtracting(
+          selectedPath: archivePath,
+          progress: 1.0,
+          message: 'הייבוא הושלם',
+        ),
+      );
+      if (await DatabaseConstants.libraryDbExistsIn(target)) {
+        await _saveImportedLibrary(target, emit);
+      } else {
+        await _awaitDatabaseImport(target, emit);
+      }
+      return;
     } else if (isZdbPath(lowerPath)) {
       // קובץ ספרייה בודד (חבילת FULL באנדרואיד): אימות והתקנה, בלי חילוץ.
       await _importZdbFile(
@@ -313,6 +338,59 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       ),
     );
     await _checkAndSaveExtractedDatabase(target, emit);
+  }
+
+  /// ארכיון בלי DB (חבילת FULL של אנדרואיד): הקבצים הנלווים נשמרים והספרייה
+  /// נקבעת ליעד, כדי שייבוא קובץ ה-DB הבא ייכנס לאותה ספרייה. בלי DB הרזולבר
+  /// והבדיקה libraryDbExistsIn נשארים false, והספרייה אינה נחשבת תקינה.
+  Future<void> _awaitDatabaseImport(
+    String target,
+    Emitter<EmptyLibraryState> emit,
+  ) async {
+    await Settings.setValue(SettingsRepository.keyLibraryPath, target);
+    await Settings.setValue(SettingsRepository.keyLibraryFolderName, '');
+    await Settings.setValue(SettingsRepository.keyDbEffectivePath, '');
+    emit(
+      EmptyLibraryAwaitingDatabase(
+        selectedPath: target,
+        message: LibraryMessages.archiveImportedAwaitingDatabase,
+      ),
+    );
+  }
+
+  /// [target] מכיל מסד פעיל: שומר אותו כנתיב הספרייה.
+  Future<void> _saveImportedLibrary(
+    String target,
+    Emitter<EmptyLibraryState> emit,
+  ) async {
+    await Settings.setValue(SettingsRepository.keyLibraryPath, target);
+    await Settings.setValue(SettingsRepository.keyLibraryFolderName, '');
+    await Settings.setValue(SettingsRepository.keyDbEffectivePath, '');
+    emit(EmptyLibraryDirectorySelected(selectedPath: target));
+  }
+
+  /// האם בארכיון שחולץ ל-[staging] יש קובץ ספרייה שאינו `seforim.db` או
+  /// `seforim.zdb` בשורש: בתיקייה פנימית, או בשם אחר (`*.zdb`, `*.db.zst`).
+  @visibleForTesting
+  static Future<bool> hasNestedLibraryDatabase(String staging) async {
+    final rootNames = {
+      DatabaseConstants.databaseFileName,
+      DatabaseConstants.zdbDatabaseFileName,
+    };
+    await for (final entity in Directory(
+      staging,
+    ).list(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      final name = path.basename(entity.path).toLowerCase();
+      final atRoot = path.equals(path.dirname(entity.path), staging);
+      if (atRoot && rootNames.contains(name)) continue;
+      if (rootNames.contains(name) ||
+          isZdbPath(name) ||
+          name.endsWith('.db.zst')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// ליבת ייבוא התיקייה (זורקת בכשל). לכל נכס — מעדיפים גרסה דחוסה (חילוץ),
@@ -2076,6 +2154,16 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     _httpClient.close();
     return super.close();
   }
+}
+
+/// ארכיון במבנה שאינו נתמך; ההודעה מוצגת למשתמש כמות שהיא.
+class _ArchiveLayoutException implements Exception {
+  const _ArchiveLayoutException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 /// תוצאת קריאת df עבור נתיב נתון.
