@@ -11,6 +11,7 @@ import 'package:otzaria/data/sqlite/library_vfs.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
+import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/library_update/services/library_zdb_install.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
@@ -411,9 +412,10 @@ void main() {
       );
       expect(state.selectedPath, library.path);
       expectSideFiles();
+      // נתיב הספרייה נשמר רק כשה-DB יובא; עד אז הוא נשאר כשהיה.
       expect(
         Settings.getValue<String>(SettingsRepository.keyLibraryPath),
-        library.path,
+        isNot(library.path),
       );
       // בלי DB הספרייה אינה תקינה: לא ברזולבר ולא ב-libraryDbExistsIn.
       expect(await DatabaseConstants.libraryDbExistsIn(library.path), isFalse);
@@ -432,11 +434,85 @@ void main() {
 
       expect(state, isA<EmptyLibraryDirectorySelected>());
       expect(state.selectedPath, library.path);
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        library.path,
+      );
       expectSideFiles();
       final active = DatabaseConstants.resolveLibraryDbPath(library.path);
       expect(path.basename(active), DatabaseConstants.zdbDatabaseFileName);
       expect(readFixtureLibrary(active).marker, 'release');
     });
+
+    test('zip בלי DB ליעד חדש לא מנתק את הספרייה הקיימת', () async {
+      final libraryA = Directory(path.join(tmp.path, 'A'))..createSync();
+      await writeFixtureZdb(
+        LibraryZdbFiles.zdbPathIn(libraryA.path),
+        version: 3,
+      );
+      await Settings.setValue<String>(
+        SettingsRepository.keyLibraryPath,
+        libraryA.path,
+      );
+
+      expect(
+        await importArchive(sideFilesZip()),
+        isA<EmptyLibraryAwaitingDatabase>(),
+      );
+      // המשתמש סגר את הדיאלוג בלי לייבא את ה-DB: התוכנה נשארת על A.
+      expect(
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        libraryA.path,
+      );
+      expect(File(DatabaseConstants.getDatabasePath()).existsSync(), isTrue);
+    });
+
+    test(
+      'zip נלווים לספרייה קיימת עם seforim.db: רק המצב הסופי נפלט',
+      () async {
+        final legacy = path.join(
+          library.path,
+          DatabaseConstants.databaseFileName,
+        );
+        writeFixtureLibraryDb(legacy, version: 3, schemaVersion: 5);
+        final tempRoot = Directory(path.join(tmp.path, 'temp-root'))
+          ..createSync();
+        EmptyLibraryBloc.tempRootOverride = tempRoot.path;
+        addTearDown(() => EmptyLibraryBloc.tempRootOverride = null);
+        final bloc = EmptyLibraryBloc(
+          accessGate: LibraryAccessGate(
+            selfAccess: LibraryAccessRoutine(
+              suspend: () async {},
+              resume: (_) async {},
+            ),
+            renameProbe: false,
+            logError: (_, _, _) {},
+          ),
+        );
+        addTearDown(bloc.close);
+        final seen = <EmptyLibraryState>[];
+        final sub = bloc.stream.listen(seen.add);
+        final done = bloc.stream
+            .firstWhere(
+              (s) =>
+                  s is EmptyLibraryDirectorySelected || s is EmptyLibraryError,
+            )
+            .timeout(const Duration(seconds: 20));
+        bloc.add(
+          ImportLibraryArchiveRequested(
+            archivePath: sideFilesZip(),
+            targetPath: library.path,
+            backupExistingPath: library.path,
+          ),
+        );
+        expect(await done, isA<EmptyLibraryDirectorySelected>());
+        await sub.cancel();
+
+        expect(seen.whereType<EmptyLibraryAwaitingDatabase>(), isEmpty);
+        expectSideFiles();
+        expect(readFixtureLibrary(legacy).version, 3);
+      },
+    );
 
     test('zdb ואז zip: הקבצים הנלווים מתווספים, וה-zdb נשאר', () async {
       expect(

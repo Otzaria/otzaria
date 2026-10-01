@@ -232,17 +232,24 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         if (backupPath != null) {
           backupDir = await _backupDatabaseFiles(backupPath);
         }
-        await _importLibraryArchive(event.archivePath, event.targetPath, emit);
+        final awaitingDatabase = await _importLibraryArchive(
+          event.archivePath,
+          event.targetPath,
+          emit,
+        );
         if (backupDir != null) {
           if (state is EmptyLibraryDirectorySelected) {
             await _discardBackupDir(backupDir);
           } else {
             await _restoreDatabaseFiles(backupDir, backupPath!);
-            // ארכיון נלווים לספרייה קיימת: אחרי ההחזרה יש DB, והייבוא הושלם.
-            if (state is EmptyLibraryAwaitingDatabase &&
-                await DatabaseConstants.libraryDbExistsIn(event.targetPath)) {
-              await _saveImportedLibrary(event.targetPath, emit);
-            }
+          }
+        }
+        // ההחלטה אחרי החזרת הגיבוי: ארכיון נלווים לספרייה קיימת מסתיים בה.
+        if (awaitingDatabase) {
+          if (await DatabaseConstants.libraryDbExistsIn(event.targetPath)) {
+            await _saveImportedLibrary(event.targetPath, emit);
+          } else {
+            _awaitDatabaseImport(event.targetPath, emit);
           }
         }
         if (state is EmptyLibraryDirectorySelected) {
@@ -262,7 +269,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     });
   }
 
-  Future<void> _importLibraryArchive(
+  /// מחזיר true כשהארכיון הכיל רק קבצים נלווים ובליעד אין DB; אז ה-state
+  /// הסופי נקבע אצל הקורא, אחרי החזרת גיבוי אם יש.
+  Future<bool> _importLibraryArchive(
     String archivePath,
     String target,
     Emitter<EmptyLibraryState> emit,
@@ -303,12 +312,9 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
           message: 'הייבוא הושלם',
         ),
       );
-      if (await DatabaseConstants.libraryDbExistsIn(target)) {
-        await _saveImportedLibrary(target, emit);
-      } else {
-        await _awaitDatabaseImport(target, emit);
-      }
-      return;
+      if (!await DatabaseConstants.libraryDbExistsIn(target)) return true;
+      await _saveImportedLibrary(target, emit);
+      return false;
     } else if (isZdbPath(lowerPath)) {
       // קובץ ספרייה בודד (חבילת FULL באנדרואיד): אימות והתקנה, בלי חילוץ.
       await _importZdbFile(
@@ -338,18 +344,13 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
       ),
     );
     await _checkAndSaveExtractedDatabase(target, emit);
+    return false;
   }
 
-  /// ארכיון בלי DB (חבילת FULL של אנדרואיד): הקבצים הנלווים נשמרים והספרייה
-  /// נקבעת ליעד, כדי שייבוא קובץ ה-DB הבא ייכנס לאותה ספרייה. בלי DB הרזולבר
-  /// והבדיקה libraryDbExistsIn נשארים false, והספרייה אינה נחשבת תקינה.
-  Future<void> _awaitDatabaseImport(
-    String target,
-    Emitter<EmptyLibraryState> emit,
-  ) async {
-    await Settings.setValue(SettingsRepository.keyLibraryPath, target);
-    await Settings.setValue(SettingsRepository.keyLibraryFolderName, '');
-    await Settings.setValue(SettingsRepository.keyDbEffectivePath, '');
+  /// ארכיון בלי DB (חבילת FULL של אנדרואיד): הקבצים הנלווים נשמרים ביעד, אבל
+  /// keyLibraryPath לא משתנה עד שקובץ ה-DB יובא. אחרת סגירת הדיאלוג או
+  /// הפעלה מחדש היו משאירות את התוכנה מצביעה על תיקייה בלי DB.
+  void _awaitDatabaseImport(String target, Emitter<EmptyLibraryState> emit) {
     emit(
       EmptyLibraryAwaitingDatabase(
         selectedPath: target,

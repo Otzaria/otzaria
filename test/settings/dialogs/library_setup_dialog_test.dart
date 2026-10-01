@@ -351,11 +351,11 @@ void main() {
 
       final books = p.join(root, 'books');
       // ה-IO האמיתי מסתיים מחוץ לזמן המדומה, וה-pump מריץ את ההמשכים שלו.
+      final awaiting = find.text(
+        LibraryMessages.archiveImportedAwaitingDatabase,
+      );
       for (var i = 0; i < 300; i++) {
-        if (Settings.getValue<String>(SettingsRepository.keyLibraryPath) ==
-            books) {
-          break;
-        }
+        if (awaiting.evaluate().isNotEmpty) break;
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 20)),
         );
@@ -364,9 +364,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(File(p.join(books, 'lexical.db')).existsSync(), isTrue);
+      expect(awaiting, findsWidgets);
+      // נתיב הספרייה נשמר רק כשה-DB יובא.
       expect(
-        find.text(LibraryMessages.archiveImportedAwaitingDatabase),
-        findsWidgets,
+        Settings.getValue<String>(SettingsRepository.keyLibraryPath),
+        isNot(books),
       );
       // הדיאלוג לא נסגר, והקובץ הבא נבחר לאותו יעד.
       expect(find.text('בחירת קובץ דחוס'), findsOneWidget);
