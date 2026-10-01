@@ -21,6 +21,23 @@ import '../helpers/zdb_fixture.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  // ההורדות והגיבוי נכתבים לשמות קבועים ב-temp, והניקוי מוחק כל
+  // otzaria_db_backup שם: בלי בידוד, ריצה מקבילה דורסת או מוחקת אותם.
+  final realTemp = Directory.systemTemp;
+  late Directory isolatedTemp;
+  setUp(() {
+    isolatedTemp = realTemp.createTempSync('otzaria-elb-test-');
+    IOOverrides.global = _IsolatedTempOverrides(isolatedTemp);
+    EmptyLibraryBloc.tempRootOverride = isolatedTemp.path;
+  });
+  tearDown(() async {
+    EmptyLibraryBloc.tempRootOverride = null;
+    IOOverrides.global = null;
+    try {
+      await isolatedTemp.delete(recursive: true);
+    } catch (_) {}
+  });
+
   group('EmptyLibraryBloc', () {
     test('UseLibraryInPlaceRequested שומר את הנתיב בלי להעתיק דבר', () async {
       final libDir = await Directory.systemTemp.createTemp('otzaria-inplace-');
@@ -2730,6 +2747,15 @@ Future<void> _cleanDownloadTemps() async {
     final resume = File(path.join(Directory.systemTemp.path, '$name.resume'));
     if (await resume.exists()) await resume.delete();
   }
+}
+
+final class _IsolatedTempOverrides extends IOOverrides {
+  _IsolatedTempOverrides(this.root);
+
+  final Directory root;
+
+  @override
+  Directory getSystemTempDirectory() => root;
 }
 
 class _MemoryCacheProvider extends CacheProvider {
