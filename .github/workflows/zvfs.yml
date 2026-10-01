@@ -86,6 +86,7 @@ jobs:
             # crash and kill are single-threaded (kill races are cross-process,
             # invisible to TSan): TSan runs only the suites with threads
             linux-tsan) export ZVFS_FUZZ_ITERS=2000 ZVFS_TORN_STRIDE=7
+                        export TSAN_OPTIONS="suppressions=$PWD/packages/otzaria_zvfs/test/c/tsan.supp"
                         W="setarch $(uname -m) -R" ONLY='-R ^(core|vfs|write)$' ;;
           esac
           $W ctest --test-dir build/c -C RelWithDebInfo --output-on-failure --timeout 3600 $ONLY

@@ -1,0 +1,3 @@
+# SQLite's WAL index reads shm lock-free and re-validates under the lock (by design).
+race_top:walTryBeginRead
+race_top:walIndexRecover
