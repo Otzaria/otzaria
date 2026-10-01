@@ -611,43 +611,46 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     String target, {
     void Function(double progress)? onProgress,
   }) async {
-    final candidate = LibraryZdbFiles.importTempFor(
-      LibraryZdbFiles.zdbPathIn(target),
-    );
-    final sourceOverlay = File('${source.path}-zovl');
-    final hasOverlay = await sourceOverlay.exists();
-    FullDbManifest? manifest;
-    final manifestFile = File(fullDbManifestNameFor(source.path));
-    if (!hasOverlay && await manifestFile.exists()) {
-      final decoded = jsonDecode(await manifestFile.readAsString());
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('מניפסט הספרייה אינו תקין');
-      }
-      manifest = FullDbManifest.fromJson(decoded);
-      checkZdbManifestSupported(manifest);
-    }
-    await _deleteZdbCandidate(candidate);
-    try {
-      void copied(double p) => onProgress?.call(p / 2);
-      if (await isFilePickerCacheFile(source)) {
-        await moveFileWithProgress(source, candidate, onProgress: copied);
-      } else {
-        await copyFileWithProgress(source, candidate, onProgress: copied);
-      }
-      if (hasOverlay) {
-        await sourceOverlay.copy('$candidate-zovl');
-        // installZdb מסרב למועמד עם overlay; הדחיסה מאחדת אותם לבסיס אחד.
-        await compactLibraryZdb(candidate);
-      }
-      await _installZdbCandidate(
-        candidate,
-        target,
-        manifest: manifest,
-        onProgress: (p) => onProgress?.call(0.5 + p / 2),
+    // ניקוי העלייה לא ימחק את seforim.zdb.import באמצע הייבוא.
+    await runZdbImport(() async {
+      final candidate = LibraryZdbFiles.importTempFor(
+        LibraryZdbFiles.zdbPathIn(target),
       );
-    } finally {
+      final sourceOverlay = File('${source.path}-zovl');
+      final hasOverlay = await sourceOverlay.exists();
+      FullDbManifest? manifest;
+      final manifestFile = File(fullDbManifestNameFor(source.path));
+      if (!hasOverlay && await manifestFile.exists()) {
+        final decoded = jsonDecode(await manifestFile.readAsString());
+        if (decoded is! Map<String, dynamic>) {
+          throw const FormatException('מניפסט הספרייה אינו תקין');
+        }
+        manifest = FullDbManifest.fromJson(decoded);
+        checkZdbManifestSupported(manifest);
+      }
       await _deleteZdbCandidate(candidate);
-    }
+      try {
+        void copied(double p) => onProgress?.call(p / 2);
+        if (await isFilePickerCacheFile(source)) {
+          await moveFileWithProgress(source, candidate, onProgress: copied);
+        } else {
+          await copyFileWithProgress(source, candidate, onProgress: copied);
+        }
+        if (hasOverlay) {
+          await sourceOverlay.copy('$candidate-zovl');
+          // installZdb מסרב למועמד עם overlay; הדחיסה מאחדת אותם לבסיס אחד.
+          await compactLibraryZdb(candidate);
+        }
+        await _installZdbCandidate(
+          candidate,
+          target,
+          manifest: manifest,
+          onProgress: (p) => onProgress?.call(0.5 + p / 2),
+        );
+      } finally {
+        await _deleteZdbCandidate(candidate);
+      }
+    });
   }
 
   static Future<void> _deleteZdbCandidate(String candidate) async {

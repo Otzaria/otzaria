@@ -203,6 +203,19 @@ Future<void> deleteLegacyLibraryDb(String directory) async {
   if (failure != null) throw failure;
 }
 
+int _activeZdbImports = 0;
+
+/// מריץ ייבוא שכותב ל-[LibraryZdbFiles.importTempFor]. ניקוי העלייה מדלג על
+/// הקובץ הזה בזמן שייבוא רץ, כי ייבוא עם overlay נמשך דקות.
+Future<T> runZdbImport<T>(Future<T> Function() body) async {
+  _activeZdbImports++;
+  try {
+    return await body();
+  } finally {
+    _activeZdbImports--;
+  }
+}
+
 /// מוחק את קובצי הלוואי של המועמד [candidatePath], לא את המועמד עצמו. -zovl
 /// שנשאר ליד מועמד חוסם את installZdb (invalid) ומזייף את האימות.
 Future<void> deleteZdbCandidateSidecars(String candidatePath) async {
@@ -219,7 +232,7 @@ Future<void> cleanUpZdbLeftovers(String directory) async {
   for (final temp in [
     LibraryZdbFiles.compactionTempFor(zdb),
     LibraryZdbFiles.installTempFor(zdb),
-    LibraryZdbFiles.importTempFor(zdb),
+    if (_activeZdbImports == 0) LibraryZdbFiles.importTempFor(zdb),
   ]) {
     await _deleteQuietly(temp);
     await deleteZdbCandidateSidecars(temp);

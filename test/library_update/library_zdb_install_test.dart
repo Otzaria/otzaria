@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -246,6 +247,26 @@ void main() {
       }
       expect(File(download).existsSync(), isTrue);
       expect(File('$libraryZdb-zlck').existsSync(), isTrue);
+    });
+
+    test('ייבוא שרץ — הקובץ הזמני שלו אינו נמחק, ואחריו כן', () async {
+      final import = LibraryZdbFiles.importTempFor(libraryZdb);
+      final release = Completer<void>();
+      final running = runZdbImport(() async {
+        File(import).writeAsStringSync('importing');
+        File('$import-zovl').writeAsStringSync('overlay');
+        await release.future;
+      });
+      await Future<void>.delayed(Duration.zero);
+      await cleanUpZdbLeftovers(tmp.path);
+      expect(File(import).existsSync(), isTrue);
+      expect(File('$import-zovl').existsSync(), isTrue);
+
+      release.complete();
+      await running;
+      await cleanUpZdbLeftovers(tmp.path);
+      expect(File(import).existsSync(), isFalse);
+      expect(File('$import-zovl').existsSync(), isFalse);
     });
 
     test('הורדה עם קובץ resume נשמרת להמשך', () async {
