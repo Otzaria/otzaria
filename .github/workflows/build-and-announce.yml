@@ -2031,28 +2031,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # בטלפון אין הרכבת חלקים, ולכן כל נכס לאנדרואיד נשאר קובץ אחד מתחת ל-2 GiB:
+          # ZIP של קובצי הלוואי בפריסת הספרייה המותקנת, והמסד כקובץ נפרד לייבוא.
           BUNDLE_ROOT="full_installer/otzaria-android-full"
           rm -rf "$BUNDLE_ROOT"
-          mkdir -p "$BUNDLE_ROOT/library_db"
-          cp build/app/outputs/flutter-apk/app-release.apk "$BUNDLE_ROOT/otzaria-android.apk"
-          # seforim.zdb (מסכמה 6) או seforim.db.zst נארזים כמות שהם; ייבוא הספרייה מקבל את שניהם.
-          cp full_installer/library_db/* "$BUNDLE_ROOT/library_db/"
-          cat > "$BUNDLE_ROOT/README.txt" << 'EOF'
-          Otzaria Android FULL bundle
-
-          This bundle includes the APK and the offline library payload.
-          The APK itself cannot preinstall external library files automatically.
-          Use this bundle when distributing the APK together with the library payload.
-          EOF
-          cd full_installer
-          zip -r ../otzaria-android-full.zip otzaria-android-full
+          mkdir -p "$BUNDLE_ROOT"
+          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/otzar-HB_catalog.db"
+          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT"
+          sha256sum full_installer/library_db/talmud_bavli_latest.tar.zst \
+            | cut -d' ' -f1 > "$BUNDLE_ROOT/תלמוד בבלי/.version"
+          cp full_installer/library_db/lexical.db "$BUNDLE_ROOT/lexical.db"
+          sha256sum full_installer/library_db/lexical.db \
+            | cut -d' ' -f1 > "$BUNDLE_ROOT/lexical.db.version"
+          # הרשומות בשורש ה-ZIP: ייבוא ZIP מעביר את מה שבשורש לתיקיית הספרייה.
+          (cd "$BUNDLE_ROOT" && LC_ALL=C.UTF-8 zip -r -q "$GITHUB_WORKSPACE/otzaria-android-full.zip" .)
+          DB_ASSET=$(bash tool/release/library_db_asset.sh path full_installer/library_db)
+          case "$DB_ASSET" in
+            *.zdb) cp "$DB_ASSET" otzaria-android-library.zdb ;;
+            *) cp "$DB_ASSET" otzaria-android-library.db.zst ;;
+          esac
+          for asset in otzaria-android-full.zip otzaria-android-library.*; do
+            size=$(stat -c '%s' "$asset")
+            [ "$size" -lt 2147483648 ] \
+              || { echo "::error::$asset is $size bytes; an Android asset must stay one file below 2 GiB"; exit 1; }
+          done
 
       - name: Upload Android FULL bundle
         if: true
         uses: actions/upload-artifact@v7.0.1
         with:
           name: otzaria-android-full
-          path: otzaria-android-full.zip
+          path: |
+            otzaria-android-full.zip
+            otzaria-android-library.*
       
       - name: Final cleanup
         if: always()
@@ -2703,6 +2714,7 @@ jobs:
           # Android FULL bundle
           if [ -d "artifacts/otzaria-android-full" ]; then
             cp artifacts/otzaria-android-full/*.zip release-files/ || true
+            cp artifacts/otzaria-android-full/otzaria-android-library.* release-files/ || true
           fi
           
           # macOS DMG
@@ -2776,11 +2788,17 @@ jobs:
           PART_SIZE=1992294400
 
           # x64 ו-ARM64; המאונדקס (-windows-full-indexed.exe) קטן ואינו נתפס כאן.
-          # חבילות ה-FULL ל-Linux, ל-macOS ולאנדרואיד נושאות את seforim.zdb (~1.9GB).
+          # חבילות ה-FULL ל-Linux ול-macOS נושאות את seforim.zdb (~1.9GB). אנדרואיד
+          # אינו מפוצל: בטלפון אין הרכבה, ולכן הבנייה שומרת כל נכס שלו מתחת ל-2 GiB.
           for installer in release-files/otzaria-*-windows-full.exe release-files/otzaria-*-windows_arm64-full.exe \
             release-files/otzaria-linux-full.tar.zst release-files/otzaria-linux-full-arm64.tar.zst \
-            release-files/otzaria-macos-full.tar.zst release-files/otzaria-android-full.zip; do
+            release-files/otzaria-macos-full.tar.zst; do
             name=$(basename "$installer")
+            # job שנכשל או דולג לא העלה את החבילה שלו — כמו בשלב ההעתקה.
+            if [ ! -f "$installer" ]; then
+              echo "$name is not in this release - nothing to split"
+              continue
+            fi
             size=$(stat -c '%s' "$installer")
             if [ "$size" -lt "$GITHUB_ASSET_LIMIT" ]; then
               echo "$name is $size bytes, below the $GITHUB_ASSET_LIMIT limit - uploading as a single asset"
@@ -2852,8 +2870,7 @@ jobs:
           download_assistant=()
           android_apk=()
           android_full=()
-          android_full_parts=()
-          android_full_support=()
+          android_library=()
           linux_deb=()
           linux_rpm=()
           linux_portable=()
@@ -2928,11 +2945,8 @@ jobs:
               *macos-full*.tar.zst.manifest.json)
                 mac_full_support+=("$file")
                 ;;
-              *android-full*.zip.part-*)
-                android_full_parts+=("$file")
-                ;;
-              *android-full*.zip.manifest.json)
-                android_full_support+=("$file")
+              otzaria-android-library.zdb|otzaria-android-library.db.zst)
+                android_library+=("$file")
                 ;;
               *windows-full*.exe)
                 windows_full+=("$file")
@@ -3053,7 +3067,7 @@ jobs:
             fi
           fi
 
-          if [ ${#android_apk[@]} -gt 0 ] || [ ${#android_full[@]} -gt 0 ] || [ ${#android_full_parts[@]} -gt 0 ]; then
+          if [ ${#android_apk[@]} -gt 0 ] || [ ${#android_full[@]} -gt 0 ] || [ ${#android_library[@]} -gt 0 ]; then
             printf "## אנדרואיד\n\n" >> release-body.md
 
             if [ ${#android_apk[@]} -gt 0 ]; then
@@ -3062,15 +3076,11 @@ jobs:
               printf "\n" >> release-body.md
             fi
 
-            if [ ${#android_full[@]} -gt 0 ] || [ ${#android_full_parts[@]} -gt 0 ]; then
+            if [ ${#android_full[@]} -gt 0 ] || [ ${#android_library[@]} -gt 0 ]; then
               printf "### גרסת ספרייה מלאה\n\n" >> release-body.md
-              emit_link_group "חבילה מלאה לאנדרואיד" "${android_full[@]}"
-              emit_link_group "חלק מהחבילה המלאה לאנדרואיד" "${android_full_parts[@]}"
-              emit_link_group "קובץ אימות לחבילה המלאה לאנדרואיד" "${android_full_support[@]}"
-              if [ ${#android_full_parts[@]} -gt 0 ]; then
-                printf "\n> **החבילה המלאה גדולה ממגבלת הקובץ הבודד של GitHub ולכן חולקה לחלקים.** הורידו אותה במסייע ההורדה שבסוף העמוד, או הורידו את כל החלקים, את קובץ ה־manifest ואת %sassemble_split_asset.sh%s לאותה תיקייה והריצו %sbash assemble_split_asset.sh <קובץ ה-manifest>%s.\n" '`' '`' '`' '`' >> release-body.md
-              fi
-              printf "\n> **הבהרה:** חבילת ה־FULL לאנדרואיד כוללת את ה־APK יחד עם חומרי הספרייה, ומיועדת להפצה או להתקנה ידנית.\n\n" >> release-body.md
+              emit_link_group "קובצי הספרייה לאנדרואיד (ZIP, בלי מסד הספרים)" "${android_full[@]}"
+              emit_link_group "מסד הספרים לאנדרואיד" "${android_library[@]}"
+              printf "\nהתקנה במכשיר בלי אינטרנט: 1. מתקינים את ה־APK שמעל. 2. בהגדרת הספרייה מייבאים את קובץ ה־ZIP. 3. מייבאים את קובץ מסד הספרים לאותה ספרייה.\n\n" >> release-body.md
             fi
           fi
 

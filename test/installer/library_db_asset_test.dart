@@ -29,16 +29,28 @@ Map<String, Object?> _asset(File file, String name) => {
   'digest': 'sha256:${_sha256(file)}',
 };
 
-File _manifest(Directory dir, File zdb, String name, {int? schema}) =>
-    File(p.join(dir.path, '$name.manifest.json'))..writeAsStringSync(
-      jsonEncode({
-        'manifestVersion': 1,
-        'file': name,
-        'size': zdb.lengthSync(),
-        'sha256': _sha256(zdb),
-        'dbSchemaVersion': schema ?? _readable,
-      }),
-    );
+File _manifest(
+  Directory dir,
+  File zdb,
+  String name, {
+  Object? schema,
+  Object manifestVersion = 1,
+}) => File(p.join(dir.path, '$name.manifest.json'))
+  ..writeAsStringSync(
+    jsonEncode({
+      'manifestVersion': manifestVersion,
+      'file': name,
+      'size': zdb.lengthSync(),
+      'sha256': _sha256(zdb),
+      'dbSchemaVersion': schema ?? _readable,
+    }),
+  );
+
+/// ב-Windows `bash` הוא של WSL, שאינו יורש משתני סביבה: בלי
+/// LIBRARY_DB_RELEASE_API הסקריפט היה מוריד את ה-release האמיתי.
+final String? _skipBash = Platform.isWindows
+    ? 'bash של WSL אינו מקבל את סביבת הבדיקה ויוריד נכסים אמיתיים'
+    : null;
 
 List<String> _names(String dir) =>
     Directory(dir).listSync().map((e) => p.basename(e.path)).toList();
@@ -55,7 +67,7 @@ void main() {
       File(p.join(temp.path, '$name.json'))
         ..writeAsStringSync(jsonEncode({'tag_name': 'v30', 'assets': assets}));
 
-  group('library_db_asset.sh', () {
+  group('library_db_asset.sh', skip: _skipBash, () {
     Future<File> zstFixture(List<int> bytes) async {
       final plain = File(p.join(temp.path, 'plain.db'))
         ..writeAsBytesSync(bytes);
@@ -155,6 +167,37 @@ void main() {
         isEmpty,
         reason: 'נכס שלא אומת אינו נשאר ליד שאר נכסי החבילה',
       );
+
+      // שלמים בלבד, כמו ב-ps1: ב-Python ‏True == 1 ו-6.0 == 6.
+      for (final entry in <String, ({Object version, Object schema})>{
+        'bool-version': (version: true, schema: _readable),
+        'float-schema': (version: 1, schema: _readable.toDouble()),
+      }.entries) {
+        _manifest(
+          temp,
+          zdb,
+          name,
+          manifestVersion: entry.value.version,
+          schema: entry.value.schema,
+        );
+        final loose = await download(releaseWith(), entry.key);
+        expect(loose.exitCode, isNot(0), reason: entry.key);
+      }
+    });
+
+    test('הורדה שנכשלה אינה משאירה מסד ישן בתיקייה', () async {
+      final out = Directory(p.join(temp.path, 'out'))..createSync();
+      File(p.join(out.path, 'seforim.zdb')).writeAsBytesSync([1]);
+      File(p.join(out.path, 'seforim.db.zst')).writeAsBytesSync([2]);
+      final future = File(p.join(temp.path, 'future.zdb'))
+        ..writeAsBytesSync([9]);
+      final json = release('future', [
+        _asset(future, 'seforim-schema${_readable + 1}.zdb'),
+      ]);
+
+      final result = await download(json, 'out');
+      expect(result.exitCode, isNot(0));
+      expect(_names(out.path), isEmpty, reason: 'path היה מחזיר קובץ ישן');
     });
 
     test('release בלי מסד שהתוכנה קוראת מכשיל את ההורדה', () async {
@@ -306,6 +349,12 @@ EOF
       expect(bad.exitCode, isNot(0));
       expect(bad.stdout, contains('dbSchemaVersion'));
       expect(_names(badDir), isEmpty);
+
+      // גם קובץ שנשאר מריצה קודמת נמחק כשההורדה נכשלת.
+      File(p.join(outDir, 'seforim.db.zst')).writeAsBytesSync([7]);
+      final failed = await run(newRelease(), outDir);
+      expect(failed.exitCode, isNot(0));
+      expect(_names(outDir), isEmpty);
     });
 
     test('תג מוצמד שאינו התג של ה-release נכשל', () async {
@@ -382,16 +431,21 @@ EOF
         'release-files/otzaria-linux-full.tar.zst',
         'release-files/otzaria-linux-full-arm64.tar.zst',
         'release-files/otzaria-macos-full.tar.zst',
-        'release-files/otzaria-android-full.zip',
       ]) {
         expect(split, contains(name), reason: 'לולאת הפיצול');
       }
+      expect(split, isNot(contains('android')), reason: 'בטלפון אין הרכבה');
+      // job שנכשל לא העלה את החבילה שלו, ו-stat עליה היה מפיל את השחרור.
+      expect(split, contains(r'if [ ! -f "$installer" ]; then'));
+      expect(
+        split.indexOf(r'if [ ! -f "$installer" ]; then'),
+        lessThan(split.indexOf(r'size=$(stat')),
+      );
 
       // החלקים מסווגים לפני התבנית הכללית, שהייתה מציגה כל חלק כחבילה.
       for (final entry in const {
         '*linux-full*.tar.zst.part-*)': '*linux-full*.tar.*)',
         '*macos-full*.tar.zst.part-*)': '*macos-full*.tar.*)',
-        '*android-full*.zip.part-*)': '*android-full*.zip)',
       }.entries) {
         final part = workflow.indexOf(entry.key);
         expect(part, greaterThan(0), reason: entry.key);
@@ -401,7 +455,7 @@ EOF
         'bash assemble_split_asset.sh <קובץ ה-manifest>'
             .allMatches(workflow)
             .length,
-        3,
+        2,
       );
 
       // העדכון הדיפרנציאלי ב-Linux פורס את app/ גם מחבילה מפוצלת.
@@ -416,12 +470,59 @@ EOF
       expect(
         read('tool/release/generate_release_manifest.dart'),
         allOf(
-          contains(r"pattern: r'^otzaria-linux-full\.tar\.zst\.manifest\.json$'"),
-          contains(r"pattern: r'^otzaria-macos-full\.tar\.zst\.manifest\.json$'"),
-          contains(r"pattern: r'^otzaria-android-full\.zip\.manifest\.json$'"),
+          contains(
+            r"pattern: r'^otzaria-linux-full\.tar\.zst\.manifest\.json$'",
+          ),
+          contains(
+            r"pattern: r'^otzaria-macos-full\.tar\.zst\.manifest\.json$'",
+          ),
+          // אנדרואיד אינו מפוצל, ולכן אין לו תבנית split.
+          isNot(contains('otzaria-android-full\\.zip\\.manifest')),
         ),
         reason: 'מסייע ההורדה מקבל את החלקים ממניפסט ה-release',
       );
+    });
+
+    test('נכסי אנדרואיד: ZIP בלי מסד ומסד נפרד, כל אחד קובץ יחיד', () {
+      final workflow = read('.github/workflows/build-and-announce.yml');
+      final start = workflow.indexOf('- name: Create Android FULL bundle');
+      final bundle = workflow.substring(
+        start,
+        workflow.indexOf('\n      - name: ', start + 1),
+      );
+      // הרשומות בשורש ה-ZIP, בלי APK ובלי מסד; המסד כקובץ נפרד כמו שהוא.
+      expect(
+        bundle,
+        contains(r'(cd "$BUNDLE_ROOT" && LC_ALL=C.UTF-8 zip -r -q'),
+      );
+      expect(bundle, isNot(contains('app-release.apk')));
+      expect(bundle, isNot(contains('library_db/"')));
+      expect(
+        bundle,
+        contains(r'*.zdb) cp "$DB_ASSET" otzaria-android-library.zdb'),
+      );
+      expect(bundle, contains(r'[ "$size" -lt 2147483648 ]'));
+      expect(bundle, isNot(contains('zstd -19')));
+
+      final upload = workflow.substring(
+        workflow.indexOf('- name: Upload Android FULL bundle'),
+      );
+      expect(upload.substring(0, 300), contains('otzaria-android-library.*'));
+      expect(
+        workflow,
+        contains(
+          'cp artifacts/otzaria-android-full/otzaria-android-library.* '
+          'release-files/',
+        ),
+      );
+
+      // סדר ההתקנה בהערות השחרור: APK, ואז ה-ZIP, ואז המסד.
+      final notes = workflow.substring(
+        workflow.indexOf('התקנה במכשיר בלי אינטרנט'),
+      );
+      final zip = notes.indexOf('מייבאים את קובץ ה־ZIP');
+      expect(notes.indexOf('מתקינים את ה־APK'), inInclusiveRange(0, zip));
+      expect(notes.indexOf('מייבאים את קובץ מסד הספרים'), greaterThan(zip));
     });
 
     test('חבילות ה-FULL נשענות על library_db_asset.sh', () {
@@ -447,11 +548,6 @@ EOF
       expect(
         workflow,
         contains(r'cp "$DB_ASSET" "$BUNDLE_ROOT/אוצריא/seforim.zdb"'),
-      );
-      expect(
-        workflow,
-        contains(r'cp full_installer/library_db/* "$BUNDLE_ROOT/library_db/"'),
-        reason: 'חבילת אנדרואיד נושאת את seforim.zdb כמות שהוא',
       );
       expect(workflow, isNot(contains('zstd -19 -T0 -q "\$RUNNER_TEMP')));
       expect(workflow, isNot(contains('full_installer/library_db/seforim.db')));

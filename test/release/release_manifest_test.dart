@@ -314,6 +314,15 @@ void main() {
         platform: 'android',
       );
 
+      // המסד לאנדרואיד הוא נכס שני של אותו רכיב, וה-APK מגיע דרך dependsOn.
+      writeFile('otzaria-android-library.zdb', 'zdb');
+      final withDb = componentById(build(), 'otzaria-android-full');
+      expect(
+        (withDb['assets'] as List).map((a) => (a as Map)['name']),
+        ['otzaria-android-full.zip', 'otzaria-android-library.zdb'],
+      );
+      expect(withDb['dependsOn'], ['otzaria-android']);
+
       // ה-zip של macOS הוא ערוץ העדכון הפנימי, לא רכיב להורדה.
       expect(jsonEncode(manifest), isNot(contains('"otzaria-macos.zip"')));
     });

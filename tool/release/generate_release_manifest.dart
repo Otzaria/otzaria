@@ -343,17 +343,18 @@ const List<ComponentSpec> kKnownComponents = [
   ComponentSpec(
     id: 'otzaria-android-full',
     name: 'אוצריא ל-Android עם ספרייה מלאה',
-    description: 'ארכיון ZIP ובו קובץ ה-APK והספרייה המלאה, להעתקה אל המכשיר.',
+    description:
+        'ארכיון ZIP של קובצי הספרייה וקובץ מסד הספרים, לייבוא במכשיר. '
+        'כל אחד מהם קובץ יחיד, כי בטלפון אין הרכבת חלקים.',
     type: 'application-bundle',
     required: false,
     platform: 'android',
     installOrder: 20,
+    // ה-APK אינו בתוך ה-ZIP: ייבוא ZIP מעביר את כל מה שבשורש לתיקיית הספרייה.
+    dependsOn: ['otzaria-android'],
     assets: [
       AssetSpec(pattern: r'^otzaria-android-full\.zip$'),
-      AssetSpec(
-        pattern: r'^otzaria-android-full\.zip\.manifest\.json$',
-        split: true,
-      ),
+      AssetSpec(pattern: r'^otzaria-android-library\.(zdb|db\.zst)$'),
     ],
   ),
   ComponentSpec(

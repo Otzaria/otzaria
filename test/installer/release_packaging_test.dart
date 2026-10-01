@@ -142,7 +142,11 @@ void main() {
     );
   });
 
-  test('אינדקס מאוחסן מותקן רק כשה-DB וסכמת המנוע של הבנייה תואמים', () async {
+  test('אינדקס מאוחסן מותקן רק כשה-DB וסכמת המנוע של הבנייה תואמים',
+      // bash של WSL אינו מקבל את PREBUILT_LIBRARY_INDEX_BASE_URL, ואז הסקריפט
+      // מוריד את האינדקס האמיתי (כמה GB).
+      skip: Platform.isWindows ? 'bash של WSL אינו מקבל את סביבת הבדיקה' : null,
+      () async {
     final temp = Directory.systemTemp.createTempSync('otzaria_prebuilt_index_');
     addTearDown(() => temp.deleteSync(recursive: true));
 

@@ -50,6 +50,10 @@ if (-not $ReleaseApi) {
 }
 
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
+# המתקין בוחר לפי מה שב-OutDir, ולכן כשל בהמשך אסור שישאיר שם מסד ישן.
+foreach ($stale in @('seforim.db.zst', 'seforim.zdb')) {
+  Remove-Item -LiteralPath (Join-Path $OutDir $stale) -Force -ErrorAction SilentlyContinue
+}
 $work = Join-Path $OutDir ('.library-db.' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
@@ -113,9 +117,6 @@ try {
     }
   }
 
-  foreach ($stale in @('seforim.db.zst', 'seforim.zdb')) {
-    Remove-Item -LiteralPath (Join-Path $OutDir $stale) -Force -ErrorAction SilentlyContinue
-  }
   $target = Join-Path $OutDir $localName
   Move-Item -LiteralPath $localPath -Destination $target
   Write-Output $target

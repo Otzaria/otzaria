@@ -60,7 +60,7 @@ jobs:
           fetch otzaria-library talmud_bavli_latest.tar.zst
           fetch SeforimMagicIndexer lexical.db
 
-          # מסד רגיל, כמו בחבילת ה-FULL ל-macOS; zdb מיוצא ב-zvfs_cli שנבנה מהמאגר הזה.
+          # בניית האינדקס והצילום רצים על מסד רגיל; zdb מיוצא ב-zvfs_cli שנבנה מהמאגר הזה.
           bash tool/release/library_db_asset.sh expand "$db_asset" "$books/seforim.db"
           rm -f "$db_asset"
           zstd -d --long=31 --memory=2048MB "$dl/otzar-HB_catalog.db.zst" -o "$books/otzar-HB_catalog.db"

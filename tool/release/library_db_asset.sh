@@ -65,6 +65,8 @@ cmd_download() {
   local dir=${1:?$usage} max_schema work selection
   max_schema=$(max_readable_schema)
   mkdir -p "$dir"
+  # path מחזיר את מה שבתיקייה, ולכן כשל בהמשך אסור שישאיר שם מסד ישן.
+  rm -f "$dir/seforim.db.zst" "$dir/seforim.zdb"
   work=$(mktemp -d "$dir/.library-db.XXXXXX")
   # shellcheck disable=SC2064
   trap "rm -rf '$work'" EXIT
@@ -131,16 +133,16 @@ EOF
 import json, sys
 path, name, size, sha256, schema = sys.argv[1:]
 m = json.load(open(path, encoding="utf-8"))
+# type() too: in Python True == 1 and 6.0 == 6, and the ps1 accepts neither.
 problems = [f"{key} is {m.get(key)!r}, expected {want!r}" for key, want in [
     ("manifestVersion", 1), ("file", name), ("size", int(size)),
     ("sha256", sha256), ("dbSchemaVersion", int(schema)),
-] if m.get(key) != want]
+] if type(m.get(key)) is not type(want) or m.get(key) != want]
 if problems:
     sys.exit("; ".join(problems))
 EOF
   fi
 
-  rm -f "$dir/seforim.db.zst" "$dir/seforim.zdb"
   mv "$work/$local_name" "$dir/$local_name"
   echo "$dir/$local_name"
 }
