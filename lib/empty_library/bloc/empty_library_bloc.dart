@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:bloc/bloc.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:file_picker/file_picker.dart';
@@ -343,10 +344,17 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     }
 
     final archives = DatabaseConstants.supportedDatabaseArchiveFileNames;
-    final dbZdb = await firstExisting([
-      ...archives.where(isZdbPath),
-      DatabaseConstants.zdbDatabaseFileName,
-    ]);
+    final zdbFiles = [
+      for (final name in [
+        ...archives.where(isZdbPath),
+        DatabaseConstants.zdbDatabaseFileName,
+      ])
+        if (await File(path.join(source, name)).exists())
+          File(path.join(source, name)),
+    ];
+    final dbZdb = zdbFiles.length < 2
+        ? zdbFiles.firstOrNull
+        : await _newestZdb(zdbFiles);
     final dbZst = dbZdb == null
         ? await firstExisting(archives.where((name) => !isZdbPath(name)))
         : null;
@@ -541,6 +549,30 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         } catch (_) {}
       }
     }
+  }
+
+  /// ארכיון שהורד ו-seforim.zdb שקיבל דלתאות מאז: ה-db_version הגבוה מנצח,
+  /// ובתיקו seforim.zdb (האחרון ברשימה). הקריאה משחזרת overlay — ב-isolate.
+  static Future<File> _newestZdb(List<File> files) async {
+    final paths = [for (final file in files) file.path];
+    final versions = await Isolate.run(() {
+      ensureLibraryVfs();
+      return [
+        for (final path in paths)
+          () {
+            try {
+              return const LocalDbVersionReader().read(path).dbVersion;
+            } catch (_) {
+              return -1;
+            }
+          }(),
+      ];
+    });
+    var best = 0;
+    for (var i = 1; i < files.length; i++) {
+      if (versions[i] >= versions[best]) best = i;
+    }
+    return files[best];
   }
 
   /// מאמת את ה-zdb שב-[candidatePath] (באותה תיקייה כמו [targetDir]) ומתקין

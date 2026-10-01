@@ -181,6 +181,61 @@ void main() {
       expect(readFixtureLibrary(active).marker, 'live-zdb');
     });
 
+    test(
+      'seforim.zdb שעודכן מאז עדיף על ארכיון seforim-schema6.zdb ישן',
+      () async {
+        final source = Directory(path.join(tmp.path, 'source'))..createSync();
+        await writeFixtureZdb(
+          path.join(source.path, 'seforim-schema6.zdb'),
+          version: 2,
+          marker: 'stale-archive',
+        );
+        await writeFixtureZdb(
+          path.join(source.path, DatabaseConstants.zdbDatabaseFileName),
+          version: 7,
+          marker: 'live-zdb',
+        );
+        final bloc = EmptyLibraryBloc();
+        addTearDown(bloc.close);
+        final done = finalState(bloc);
+        bloc.add(
+          ImportLibraryFolderRequested(
+            sourceFolder: source.path,
+            targetPath: library.path,
+          ),
+        );
+        expect(await done, isA<EmptyLibraryDirectorySelected>());
+        final active = DatabaseConstants.resolveLibraryDbPath(library.path);
+        expect(readFixtureLibrary(active), (version: 7, marker: 'live-zdb'));
+      },
+    );
+
+    test('ארכיון חדש מ-seforim.zdb שבאותה תיקייה נבחר', () async {
+      final source = Directory(path.join(tmp.path, 'source'))..createSync();
+      await writeFixtureZdb(
+        path.join(source.path, 'seforim-schema6.zdb'),
+        version: 9,
+        marker: 'new-archive',
+      );
+      await writeFixtureZdb(
+        path.join(source.path, DatabaseConstants.zdbDatabaseFileName),
+        version: 7,
+        marker: 'old-live',
+      );
+      final bloc = EmptyLibraryBloc();
+      addTearDown(bloc.close);
+      final done = finalState(bloc);
+      bloc.add(
+        ImportLibraryFolderRequested(
+          sourceFolder: source.path,
+          targetPath: library.path,
+        ),
+      );
+      expect(await done, isA<EmptyLibraryDirectorySelected>());
+      final active = DatabaseConstants.resolveLibraryDbPath(library.path);
+      expect(readFixtureLibrary(active).marker, 'new-archive');
+    });
+
     test('zdb שאינו תואם למניפסט נדחה, והיעד לא נגע', () async {
       final source = Directory(path.join(tmp.path, 'source'))..createSync();
       final sourceZdb = path.join(source.path, 'seforim-schema6.zdb');
