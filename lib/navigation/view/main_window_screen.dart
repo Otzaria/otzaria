@@ -1103,15 +1103,23 @@ class MainWindowScreenState extends State<MainWindowScreen>
         ? '${(sizeMb / 1024).toStringAsFixed(1)} GB'
         : '$sizeMb MB';
     try {
+      final rebase = state.isStorageRebaseOffer;
       final confirmed = await showTwoActionsDialog(
         context: context,
-        title: 'נדרשת הורדה מלאה של הספרייה',
-        content:
-            'לא נמצא מסלול עדכון מצומצם למצב הנוכחי. כדי לעדכן יש להוריד '
-            'את הספרייה המלאה (כ-$sizeText). אפשר גם להמשיך עם הגרסה הנוכחית '
-            'ללא עדכון.',
-        cancelText: 'המשך עם הנוכחי',
-        confirmText: 'הורד עדכון מלא',
+        title: rebase
+            ? LibraryMessages.storageRebaseDialogTitle
+            : 'נדרשת הורדה מלאה של הספרייה',
+        content: rebase
+            ? LibraryMessages.storageRebaseDialogContent(sizeText)
+            : 'לא נמצא מסלול עדכון מצומצם למצב הנוכחי. כדי לעדכן יש להוריד '
+                  'את הספרייה המלאה (כ-$sizeText). אפשר גם להמשיך עם הגרסה '
+                  'הנוכחית ללא עדכון.',
+        cancelText: rebase
+            ? LibraryMessages.storageRebaseLater
+            : 'המשך עם הנוכחי',
+        confirmText: rebase
+            ? LibraryMessages.storageRebaseConfirm
+            : 'הורד עדכון מלא',
       );
       if (!context.mounted) return;
       bloc.add(

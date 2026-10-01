@@ -171,13 +171,26 @@ abstract class LibraryMessages {
   static const String zdbFullVerifying = 'מאמת את קובץ הספרייה שהורד';
   static const String zdbFullInstalling = 'מתקין את קובץ הספרייה';
 
-  /// ייעול האחסון אחרי עדכון: בסיס חדש במקום שכבת העדכונים שהצטברה.
-  static const String storageOptimizingDownload =
-      'מייעל את אחסון הספרייה: מוריד עותק עדכני (ניתן להמשיך לקרוא)';
-  static const String storageOptimizingVerify =
-      'מייעל את אחסון הספרייה: מאמת את העותק שהורד (ניתן להמשיך לקרוא)';
-  static const String storageOptimizingInstall =
-      'מייעל את אחסון הספרייה: מתקין את העותק';
+  /// ייעול האחסון אחרי עדכון: דחיסה מקומית כשאין עותק עדכני להוריד.
   static const String storageOptimizingCompact =
       'מייעל את אחסון הספרייה — הספרייה סגורה עד הסיום';
+  static const String storageOptimizingCancelled = 'ייעול אחסון הספרייה בוטל';
+  static const String storageOptimized = 'אחסון הספרייה יועל';
+  static const String storageOptimizedLocally =
+      'ההורדה נכשלה, ואחסון הספרייה יועל במחשב';
+  static const String storageOptimizeDeferred =
+      'ייעול אחסון הספרייה נדחה לבדיקת העדכון הבאה';
+  static const String storageOptimizeLater =
+      'ייעול אחסון הספרייה יוצע שוב בבדיקת העדכון הבאה';
+
+  /// הצעת הורדה של בסיס עדכני (באישור, כמו כל הורדה מלאה).
+  static String storageRebaseOffer(String size) =>
+      'ייעול אחסון: הורדה של ~$size';
+  static const String storageRebaseDialogTitle = 'ייעול אחסון הספרייה';
+  static String storageRebaseDialogContent(String size) =>
+      'העדכונים שהצטברו תופסים כבר יותר ממחצית גודל הספרייה, והם מאטים את '
+      'פתיחתה. הורדה של עותק עדכני (כ-$size) תחליף אותם. אפשר גם לדחות — '
+      'השאלה תחזור בבדיקת העדכון הבאה.';
+  static const String storageRebaseConfirm = 'הורד וייעל';
+  static const String storageRebaseLater = 'אחר כך';
 }

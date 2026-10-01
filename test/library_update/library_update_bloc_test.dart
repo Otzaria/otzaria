@@ -2091,6 +2091,17 @@ void main() {
   });
 
   group('ייעול אחסון zdb', () {
+    final offerPlan = LibraryUpdatePlan.fullDownload(
+      localVersion: 3,
+      targetVersion: 3,
+      asset: const ReleaseAsset(
+        name: 'seforim-schema6.zdb',
+        downloadUrl: 'https://x/z',
+        size: 1900000000,
+      ),
+      releaseTag: 'v3',
+    );
+
     LibraryUpdateBloc build(_FakeService service, _FakeMaintainer maintainer) =>
         LibraryUpdateBloc(
           repository: service,
@@ -2102,29 +2113,155 @@ void main() {
           isSourceReachable: () async => true,
         );
 
-    test('רץ אחרי דלתא מוצלחת ואחרי "אין עדכון", ומציג שלב ייעול', () async {
+    Future<List<LibraryUpdateState>> run(
+      LibraryUpdateBloc bloc,
+      bool Function(LibraryUpdateState) until,
+      void Function() act,
+    ) async {
+      final states = <LibraryUpdateState>[];
+      final sub = bloc.stream.listen(states.add);
+      final reached = bloc.stream.firstWhere(until);
+      act();
+      await reached.timeout(const Duration(seconds: 5));
+      await Future<void>.delayed(Duration.zero);
+      await sub.cancel();
+      return states;
+    }
+
+    test('בלי בסיס להוריד: דחיסה לפני הסיום, עם שלב ייעול', () async {
       for (final plan in [deltaPlan, nonePlan]) {
         final maintainer = _FakeMaintainer();
         final bloc = build(_FakeService(plan), maintainer);
-        final messages = <String>[];
-        final sub = bloc.stream.listen((s) => messages.add(s.message));
-        bloc.add(const StartLibraryUpdate());
-        await bloc.stream
-            .firstWhere((s) => s.status == LibraryUpdateStatus.completed)
-            .timeout(const Duration(seconds: 5));
-        await sub.cancel();
-        await bloc.close();
-        expect(maintainer.calls, 1, reason: plan.kind.name);
-        expect(
-          messages,
-          contains(LibraryMessages.storageOptimizingCompact),
-          reason: plan.kind.name,
+        final states = await run(
+          bloc,
+          (s) => s.status == LibraryUpdateStatus.completed,
+          () => bloc.add(const StartLibraryUpdate()),
         );
+        await bloc.close();
+        expect(maintainer.compactions, 1, reason: plan.kind.name);
+        final optimizing = states.indexWhere(
+          (s) => s.message == LibraryMessages.storageOptimizingCompact,
+        );
+        final completed = states.indexWhere(
+          (s) => s.status == LibraryUpdateStatus.completed,
+        );
+        expect(optimizing, isNonNegative, reason: plan.kind.name);
+        expect(optimizing, lessThan(completed), reason: plan.kind.name);
       }
     });
 
+    test('בסיס זמין: הסיום נפלט קודם, ואז הצעה באישור — בלי הורדה', () async {
+      for (final plan in [deltaPlan, nonePlan]) {
+        final maintainer = _FakeMaintainer(offer: offerPlan);
+        final service = _FakeService(plan);
+        final bloc = build(service, maintainer);
+        final states = await run(
+          bloc,
+          (s) => s.isStorageRebaseOffer,
+          () => bloc.add(const StartLibraryUpdate()),
+        );
+        await bloc.close();
+        final completed = states.indexWhere(
+          (s) => s.status == LibraryUpdateStatus.completed,
+        );
+        final offer = states.indexWhere((s) => s.isStorageRebaseOffer);
+        expect(completed, isNonNegative, reason: plan.kind.name);
+        expect(completed, lessThan(offer), reason: plan.kind.name);
+        expect(
+          states[offer].status,
+          LibraryUpdateStatus.needsFullConfirmation,
+        );
+        expect(states[offer].hasUpdate, isFalse);
+        expect(states[offer].message, contains('ייעול אחסון'));
+        expect(service.fullCalled, isFalse);
+        expect(maintainer.compactions, 0);
+      }
+    });
+
+    test('אישור ההצעה מוריד; דחייה נזכרת רק עד הבדיקה הבאה', () async {
+      final maintainer = _FakeMaintainer(offer: offerPlan);
+      final service = _FakeService(nonePlan);
+      final bloc = build(service, maintainer);
+      await run(
+        bloc,
+        (s) => s.isStorageRebaseOffer,
+        () => bloc.add(const StartLibraryUpdate()),
+      );
+      final declined = await run(
+        bloc,
+        (s) => s.status == LibraryUpdateStatus.completed,
+        () => bloc.add(const DeclineFullDownload()),
+      );
+      expect(declined.last.message, LibraryMessages.storageOptimizeLater);
+      expect(declined.last.hasUpdate, isFalse);
+      expect(service.fullCalled, isFalse);
+
+      // הבדיקה הבאה שואלת שוב, והאישור מריץ את ההורדה המלאה.
+      await run(
+        bloc,
+        (s) => s.isStorageRebaseOffer,
+        () => bloc.add(const StartLibraryUpdate()),
+      );
+      final confirmed = await run(
+        bloc,
+        (s) =>
+            s.status == LibraryUpdateStatus.completed &&
+            s.message == LibraryMessages.storageOptimized,
+        () => bloc.add(const ConfirmFullDownload()),
+      );
+      await bloc.close();
+      expect(service.fullCalled, isTrue);
+      expect(confirmed.last.hasUpdate, isTrue);
+    });
+
+    test('הורדת ההצעה נכשלה: דחיסה מקומית, בלי מצב שגיאה', () async {
+      final maintainer = _FakeMaintainer(offer: offerPlan);
+      final bloc = build(
+        _FakeService(nonePlan, throwOnApply: true),
+        maintainer,
+      );
+      await run(
+        bloc,
+        (s) => s.isStorageRebaseOffer,
+        () => bloc.add(const StartLibraryUpdate()),
+      );
+      final states = await run(
+        bloc,
+        (s) => s.status == LibraryUpdateStatus.completed,
+        () => bloc.add(const ConfirmFullDownload()),
+      );
+      await bloc.close();
+      expect(maintainer.compactions, 1);
+      expect(states.last.message, LibraryMessages.storageOptimizedLocally);
+      expect(
+        states.map((s) => s.status),
+        isNot(contains(LibraryUpdateStatus.error)),
+      );
+    });
+
+    test('ביטול בזמן הדחיסה עוצר אותה ואינו "העדכון בוטל"', () async {
+      final gate = Completer<void>();
+      final maintainer = _FakeMaintainer(compactGate: gate);
+      final bloc = build(_FakeService(nonePlan), maintainer);
+      await run(
+        bloc,
+        (s) => s.message == LibraryMessages.storageOptimizingCompact,
+        () => bloc.add(const StartLibraryUpdate()),
+      );
+      final states = await run(
+        bloc,
+        (s) => s.status == LibraryUpdateStatus.completed,
+        () => bloc.add(const CancelLibraryUpdate()),
+      );
+      expect(maintainer.cancelSeen(), isTrue);
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
+      await bloc.close();
+      expect(states.last.message, LibraryMessages.storageOptimizingCancelled);
+    });
+
     test('דלתא שנכשלה אינה מפעילה ייעול', () async {
-      final maintainer = _FakeMaintainer();
+      final maintainer = _FakeMaintainer(offer: offerPlan);
       final bloc = build(
         _FakeService(deltaPlan, throwOnApply: true),
         maintainer,
@@ -2134,20 +2271,34 @@ void main() {
           .firstWhere((s) => s.status == LibraryUpdateStatus.error)
           .timeout(const Duration(seconds: 5));
       await bloc.close();
-      expect(maintainer.calls, 0);
+      expect(maintainer.offers, 0);
+      expect(maintainer.compactions, 0);
     });
   });
 }
 
 class _FakeMaintainer implements LibraryStorageMaintainer {
-  int calls = 0;
+  _FakeMaintainer({this.offer, this.compactGate});
+
+  final LibraryUpdatePlan? offer;
+  final Completer<void>? compactGate;
+  int offers = 0;
+  int compactions = 0;
+  bool Function() cancelSeen = () => false;
 
   @override
-  Future<LibraryStorageMaintenance> maintainLibraryStorage({
+  Future<LibraryUpdatePlan?> storageRebaseOffer() async {
+    offers++;
+    return offer;
+  }
+
+  @override
+  Future<LibraryStorageMaintenance> compactLibraryStorage({
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
   }) async {
-    calls++;
+    compactions++;
+    cancelSeen = isCancelled ?? () => false;
     onProgress?.call(
       const LibraryUpdateProgress(
         phase: LibraryUpdatePhase.optimizing,
@@ -2156,6 +2307,7 @@ class _FakeMaintainer implements LibraryStorageMaintainer {
     );
     // ה-progress עובר דרך אירוע; נותנים לו להיפלט לפני הסיום.
     await Future<void>.delayed(Duration.zero);
+    await compactGate?.future;
     return LibraryStorageMaintenance.compacted;
   }
 }

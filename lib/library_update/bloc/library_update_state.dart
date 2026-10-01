@@ -68,6 +68,9 @@ class LibraryUpdateState extends Equatable {
   /// שם החיווי נסגר מעצמו, וכפתור עדכון הספרייה נשאר כעוגן לניסיון חוזר.
   final bool isCheckFailure;
 
+  /// ההורדה המלאה ב-[plan] היא ייעול אחסון (בסיס zdb עדכני), לא עדכון תוכן.
+  final bool isStorageRebaseOffer;
+
   const LibraryUpdateState({
     this.status = LibraryUpdateStatus.idle,
     this.message = 'בדוק עדכוני ספרייה',
@@ -82,6 +85,7 @@ class LibraryUpdateState extends Equatable {
     this.requiresFullIndexRefresh = false,
     this.errorMessage,
     this.isCheckFailure = false,
+    this.isStorageRebaseOffer = false,
   });
 
   bool get isBusy =>
@@ -158,5 +162,6 @@ class LibraryUpdateState extends Equatable {
     requiresFullIndexRefresh,
     errorMessage,
     isCheckFailure,
+    isStorageRebaseOffer,
   ];
 }

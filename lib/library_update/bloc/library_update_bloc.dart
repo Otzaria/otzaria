@@ -70,6 +70,12 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   // נושאות אזהרה שההחלה ארוכה.
   bool _heavyDeltaNotice = false;
 
+  // הצעת ייעול האחסון שב-state: אישורה אינו עדכון תוכן, וכשל בה נופל לדחיסה.
+  LibraryUpdatePlan? _storageRebaseOffer;
+
+  // דחיסה מקומית רצה: ביטול עוצר אותה (טוקן) ואינו "העדכון בוטל".
+  bool _compacting = false;
+
   // שינוי נלווים שריצה מבוטלת לא יכלה לדווח כי ריצה חדשה כבר busy —
   // הריצה החדשה תדווח אותו, אחרת הריענון/אינדוקס אובדים.
   bool _unreportedAssetsChange = false;
@@ -179,7 +185,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       onCheckSucceeded?.call();
       switch (plan.kind) {
         case LibraryUpdatePlanKind.none:
-          await _runStorageMaintenance(opId);
+          final rebaseOffer = await _prepareStorage(opId);
           if (_isStale(opId)) return;
           final assetsChanged =
               await _runCompanionAssets(emit, opId) || _unreportedAssetsChange;
@@ -200,6 +206,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
               hasUpdate: assetsChanged,
             ),
           );
+          _offerStorageRebase(emit, rebaseOffer, opId);
         case LibraryUpdatePlanKind.delta:
           // דלתא כבדה (issue #1211): ההחלה עשויה להימשך שעה. כשיש הורדה מלאה
           // חלופית הבחירה היא של המשתמש; בלעדיה רק מזהירים וממשיכים.
@@ -301,12 +308,13 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
         changedBookIds: deltaResult.changedBookIds,
         requiresFullIndexRefresh: deltaResult.requiresFullIndexRefresh,
       );
-      await _runStorageMaintenance(opId);
+      final rebaseOffer = await _prepareStorage(opId);
       await _runCompanionAssets(emit, opId);
       final completed = _pendingCompleted;
       _pendingCompleted = null;
       if (_isStale(opId) || completed == null) return;
       emit(completed);
+      _offerStorageRebase(emit, rebaseOffer, opId);
     } on PatchDownloadCancelled {
       // ביטול לפני apply — לא שגיאה; _onCancel כבר העביר ל-idle.
     } catch (e, st) {
@@ -396,6 +404,8 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       emit(const LibraryUpdateState());
       return;
     }
+    final isRebase = identical(plan, _storageRebaseOffer);
+    _storageRebaseOffer = null;
     final opId = ++_operationId;
     _heavyDeltaNotice = false;
     _fullDownloadDbReplaced = false;
@@ -417,7 +427,9 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       if (_isStale(opId)) return;
       _pendingCompleted = state.copyWith(
         status: LibraryUpdateStatus.completed,
-        message: 'הספרייה הותקנה מחדש לגרסה ${plan.targetVersion}',
+        message: isRebase
+            ? LibraryMessages.storageOptimized
+            : 'הספרייה הותקנה מחדש לגרסה ${plan.targetVersion}',
         hasUpdate: true,
       );
       await _runCompanionAssets(emit, opId);
@@ -431,6 +443,20 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       if (_isStale(opId)) return;
       _logUpdateError('applyFullDownload', e, st);
       final dbReplaced = _fullDownloadDbReplaced;
+      if (isRebase && !dbReplaced) {
+        // ייעול שנכשל אינו שגיאת עדכון: הספרייה תקינה, ונופלים לדחיסה.
+        final result = await _compactStorage(opId);
+        if (_isStale(opId)) return;
+        emit(
+          LibraryUpdateState(
+            status: LibraryUpdateStatus.completed,
+            message: result == LibraryStorageMaintenance.compacted
+                ? LibraryMessages.storageOptimizedLocally
+                : LibraryMessages.storageOptimizeDeferred,
+          ),
+        );
+        return;
+      }
       emit(
         LibraryUpdateState(
           status: LibraryUpdateStatus.error,
@@ -475,13 +501,49 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     await _runDelta(plan, emit, opId);
   }
 
-  /// בסיס zdb חדש כשה-overlay גדל מדי. אינו זורק ואינו משנה את תוצאת העדכון.
-  Future<void> _runStorageMaintenance(int opId) async {
+  /// overlay מעל הסף: מחזיר הצעת הורדה של בסיס עדכני (שתוצג אחרי הסיום),
+  /// ובלי בסיס זמין דוחס מקומית כבר עכשיו. אינו זורק.
+  Future<LibraryUpdatePlan?> _prepareStorage(int opId) async {
     final maintainer = storageMaintainer;
-    if (maintainer == null || _isStale(opId)) return;
-    await maintainer.maintainLibraryStorage(
-      isCancelled: () => _isStale(opId),
-      onProgress: (progress) => _reportProgress(progress, opId),
+    if (maintainer == null || _isStale(opId)) return null;
+    final offer = await maintainer.storageRebaseOffer();
+    if (offer != null || _isStale(opId)) return offer;
+    await _compactStorage(opId);
+    return null;
+  }
+
+  Future<LibraryStorageMaintenance> _compactStorage(int opId) async {
+    final maintainer = storageMaintainer;
+    if (maintainer == null) return LibraryStorageMaintenance.notNeeded;
+    _compacting = true;
+    try {
+      return await maintainer.compactLibraryStorage(
+        isCancelled: () => _isStale(opId),
+        onProgress: (progress) => _reportProgress(progress, opId),
+      );
+    } finally {
+      _compacting = false;
+    }
+  }
+
+  /// הורדה של ~2GB תמיד באישור המשתמש, כמו כל הורדה מלאה; "אחר כך" נזכר רק
+  /// עד הבדיקה הבאה, כי היחס בדיסק עדיין מעל הסף.
+  void _offerStorageRebase(
+    Emitter<LibraryUpdateState> emit,
+    LibraryUpdatePlan? offer,
+    int opId,
+  ) {
+    if (offer == null || _isStale(opId)) return;
+    _storageRebaseOffer = offer;
+    emit(
+      LibraryUpdateState(
+        status: LibraryUpdateStatus.needsFullConfirmation,
+        message: LibraryMessages.storageRebaseOffer(
+          _formatSize(offer.totalDownloadSize),
+        ),
+        plan: offer,
+        isStorageRebaseOffer: true,
+      ),
     );
   }
 
@@ -536,6 +598,16 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     DeclineFullDownload event,
     Emitter<LibraryUpdateState> emit,
   ) {
+    if (state.isStorageRebaseOffer) {
+      _storageRebaseOffer = null;
+      emit(
+        const LibraryUpdateState(
+          status: LibraryUpdateStatus.completed,
+          message: LibraryMessages.storageOptimizeLater,
+        ),
+      );
+      return;
+    }
     // המשתמש בחר להישאר עם הגרסה הנוכחית — לא מורידים כלום. אם fallback
     // הוצע אחרי כשל בצעד מאוחר, שומרים את שינויי הצעדים שכבר הושלמו כדי
     // שהספרייה והאינדקס יתרעננו לגרסת הביניים התקינה.
@@ -563,6 +635,16 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       emit(pending);
       return;
     }
+    // הטוקן עוצר את הדחיסה והבסיס נשאר; העדכון עצמו כבר הסתיים.
+    if (_compacting) {
+      emit(
+        const LibraryUpdateState(
+          status: LibraryUpdateStatus.completed,
+          message: LibraryMessages.storageOptimizingCancelled,
+        ),
+      );
+      return;
+    }
     // ביטול הורדה מלאה שהוצעה אחרי כשל בצעד דלתא מאוחר אינו מבטל את
     // הצעדים שכבר נכתבו. פולטים completed כדי שה-listener ירענן אותם.
     if (state.hasUpdate) {
@@ -584,6 +666,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
   /// (החלת ה-patch); בהורדה מלאה שלב ה-applying הוא רק חילוץ, והחסימה מתחילה
   /// בהתראת onDbReplaced הסינכרונית או כשה-state כבר הגיע ל-refreshing.
   bool _canCancel(LibraryUpdateState state) {
+    if (_compacting) return true;
     if (_deltaWriteStarted && _pendingCompleted == null) return false;
     if (_fullDownloadDbReplaced && _pendingCompleted == null) return false;
     switch (state.status) {
@@ -636,7 +719,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
               )
             : _applyStageMessage(p.stage),
       LibraryUpdatePhase.refreshing => 'מרענן ספרייה',
-      LibraryUpdatePhase.optimizing => _optimizingMessage(p.stage),
+      LibraryUpdatePhase.optimizing => LibraryMessages.storageOptimizingCompact,
       LibraryUpdatePhase.done => 'מסיים',
     };
     final status = switch (p.phase) {
@@ -645,10 +728,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
       LibraryUpdatePhase.verifying => LibraryUpdateStatus.applying,
       LibraryUpdatePhase.applying => LibraryUpdateStatus.applying,
       LibraryUpdatePhase.refreshing => LibraryUpdateStatus.refreshing,
-      LibraryUpdatePhase.optimizing =>
-        p.stage == LibraryUpdateRepository.zdbStageDownload
-            ? LibraryUpdateStatus.downloading
-            : LibraryUpdateStatus.applying,
+      LibraryUpdatePhase.optimizing => LibraryUpdateStatus.applying,
       LibraryUpdatePhase.done => LibraryUpdateStatus.checking,
     };
     emit(
@@ -678,16 +758,6 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     LibraryUpdateRepository.zdbStageInstall =>
       LibraryMessages.zdbFullInstalling,
     _ => 'מחיל עדכון',
-  };
-
-  String _optimizingMessage(String? stage) => switch (stage) {
-    LibraryUpdateRepository.zdbStageDownload =>
-      LibraryMessages.storageOptimizingDownload,
-    LibraryUpdateRepository.zdbStageVerify =>
-      LibraryMessages.storageOptimizingVerify,
-    LibraryUpdateRepository.zdbStageInstall =>
-      LibraryMessages.storageOptimizingInstall,
-    _ => LibraryMessages.storageOptimizingCompact,
   };
 
   String _formatSize(int bytes) {

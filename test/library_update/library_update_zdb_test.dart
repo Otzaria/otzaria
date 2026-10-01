@@ -425,7 +425,7 @@ void main() {
     });
   });
 
-  group('maintainLibraryStorage', () {
+  group('ייעול אחסון', () {
     Future<LibraryUpdateRepository> checked(
       LibraryUpdateRepository repo,
     ) async {
@@ -433,35 +433,54 @@ void main() {
       return repo;
     }
 
-    test('מתחת לסף — אין פעולה, והורדה שנשארה נמחקת', () async {
+    test('מתחת לסף — אין הצעה ואין דחיסה, והורדה שנשארה נמחקת', () async {
       await writeFixtureZdb(zdbPath, version: 2);
       File(downloadPath()).writeAsStringSync('stale');
       final repo = await checked(repository(dbPath: zdbPath));
+      expect(await repo.storageRebaseOffer(), isNull);
       expect(
-        await repo.maintainLibraryStorage(),
+        await repo.compactLibraryStorage(),
         LibraryStorageMaintenance.notNeeded,
       );
       expect(File(downloadPath()).existsSync(), isFalse);
     });
 
-    test('מעל הסף — מוריד ומתקין את הבסיס העדכני', () async {
+    test('מעל הסף — מוצעת הורדה, ושום דבר אינו יורד בלי אישור', () async {
       await writeFixtureZdb(zdbPath, version: 2, marker: 'local');
       growZdbOverlay(zdbPath);
-      final refresh = _CountingRefresh();
-      final phases = <LibraryUpdatePhase>{};
+      var requests = 0;
       final repo = await checked(
-        repository(dbPath: zdbPath, refresh: refresh),
+        repository(dbPath: zdbPath, onRequest: () => requests++),
       );
-      expect(
-        await repo.maintainLibraryStorage(
-          onProgress: (progress) => phases.add(progress.phase),
-        ),
-        LibraryStorageMaintenance.rebased,
-      );
+      final offer = await repo.storageRebaseOffer();
+      expect(offer, isNotNull);
+      expect(offer!.kind, LibraryUpdatePlanKind.fullDownload);
+      expect(offer.fullDbAsset, asset);
+      expect(offer.totalDownloadSize, releaseBytes.length);
+      expect(requests, 0);
+      expect(File('$zdbPath-zovl').existsSync(), isTrue);
+
+      // אישור = הורדה מלאה רגילה של ההצעה.
+      await repo.applyFullDownload(offer);
+      expect(requests, 1);
       expect(File('$zdbPath-zovl').existsSync(), isFalse);
       expect(readFixtureLibrary(zdbPath).marker, 'release');
-      expect(refresh.calls, 1);
-      expect(phases, contains(LibraryUpdatePhase.optimizing));
+    });
+
+    test('בסיס ישן מהמקומי אינו מוצע', () async {
+      await writeFixtureZdb(zdbPath, version: 3, marker: 'local');
+      growZdbOverlay(zdbPath);
+      final repo = await checked(repository(dbPath: zdbPath, latestVersion: 3));
+      expect(await repo.storageRebaseOffer(), isNull);
+    });
+
+    test('בלי DB מלא זמין — אין הצעה, והדחיסה היא הגיבוי', () async {
+      await writeFixtureZdb(zdbPath, version: 2);
+      growZdbOverlay(zdbPath);
+      final repo = await checked(
+        repository(dbPath: zdbPath, withFullDb: false),
+      );
+      expect(await repo.storageRebaseOffer(), isNull);
     });
 
     test('בלי DB מלא זמין — דחיסה מקומית כשהמשתמש אינו קורא', () async {
@@ -474,7 +493,7 @@ void main() {
       addTearDown(unsendable.close);
       var compactProgress = 0;
       expect(
-        await repo.maintainLibraryStorage(
+        await repo.compactLibraryStorage(
           onProgress: (progress) {
             unsendable.hashCode;
             if (progress.stage == LibraryUpdateRepository.zdbStageCompact) {
@@ -489,34 +508,6 @@ void main() {
       expect(readFixtureLibrary(zdbPath).marker, 'local');
     });
 
-    test('הורדה שנכשלה — נופלים לדחיסה', () async {
-      await writeFixtureZdb(zdbPath, version: 2, marker: 'local');
-      growZdbOverlay(zdbPath);
-      final repo = await checked(
-        repository(dbPath: zdbPath, served: Uint8List(10)),
-      );
-      expect(
-        await repo.maintainLibraryStorage(),
-        LibraryStorageMaintenance.compacted,
-      );
-      expect(readFixtureLibrary(zdbPath).marker, 'local');
-      expect(File(downloadPath()).existsSync(), isFalse);
-    });
-
-    test('בסיס ישן מהמקומי אינו מותקן', () async {
-      await writeFixtureZdb(zdbPath, version: 3, marker: 'local');
-      growZdbOverlay(zdbPath);
-      final repo = await checked(
-        repository(dbPath: zdbPath, idle: false, latestVersion: 3),
-      );
-      expect(
-        await repo.maintainLibraryStorage(),
-        LibraryStorageMaintenance.deferred,
-      );
-      expect(readFixtureLibrary(zdbPath).marker, 'local');
-      expect(File(downloadPath()).existsSync(), isFalse);
-    });
-
     test('שתי ריצות חופפות דוחסות פעם אחת בלבד', () async {
       await writeFixtureZdb(zdbPath, version: 2, marker: 'local');
       growZdbOverlay(zdbPath);
@@ -524,8 +515,8 @@ void main() {
         repository(dbPath: zdbPath, withFullDb: false),
       );
       final results = await Future.wait([
-        repo.maintainLibraryStorage(),
-        repo.maintainLibraryStorage(),
+        repo.compactLibraryStorage(),
+        repo.compactLibraryStorage(),
       ]);
       expect(
         results.where((r) => r == LibraryStorageMaintenance.compacted),
@@ -544,7 +535,7 @@ void main() {
       );
       var cancelled = false;
       expect(
-        await repo.maintainLibraryStorage(
+        await repo.compactLibraryStorage(
           isCancelled: () => cancelled,
           onProgress: (progress) {
             if (progress.stage == LibraryUpdateRepository.zdbStageCompact) {
@@ -566,7 +557,7 @@ void main() {
         repository(dbPath: zdbPath, withFullDb: false, idle: false),
       );
       expect(
-        await repo.maintainLibraryStorage(),
+        await repo.compactLibraryStorage(),
         LibraryStorageMaintenance.deferred,
       );
       expect(File('$zdbPath-zovl').existsSync(), isTrue);
@@ -588,7 +579,7 @@ void main() {
       );
       try {
         expect(
-          await repo.maintainLibraryStorage(),
+          await repo.compactLibraryStorage(),
           LibraryStorageMaintenance.deferred,
         );
       } finally {
@@ -598,33 +589,13 @@ void main() {
       expect(readFixtureLibrary(zdbPath).marker, 'local');
     });
 
-    test('busy בהתקנת הבסיס — נדחה ואינו נופל לדחיסה', () async {
-      await writeFixtureZdb(zdbPath, version: 2, marker: 'local');
-      growZdbOverlay(zdbPath);
-      final repo = await checked(
-        repository(dbPath: zdbPath, isOpenInProcess: (_) => false),
-      );
-      final reader = sqlite3.sqlite3.open(
-        zdbPath,
-        mode: sqlite3.OpenMode.readOnly,
-      );
-      try {
-        expect(
-          await repo.maintainLibraryStorage(),
-          LibraryStorageMaintenance.deferred,
-        );
-      } finally {
-        reader.close();
-      }
-      expect(File('$zdbPath-zovl').existsSync(), isTrue);
-      expect(File(downloadPath()).existsSync(), isTrue);
-    });
-
     test('ספריית seforim.db — אין מה לייעל', () async {
       final legacy = LibraryZdbFiles.legacyPathIn(tmp.path);
       writeFixtureLibraryDb(legacy, version: 2, schemaVersion: 5);
+      final repo = repository(dbPath: legacy);
+      expect(await repo.storageRebaseOffer(), isNull);
       expect(
-        await repository(dbPath: legacy).maintainLibraryStorage(),
+        await repo.compactLibraryStorage(),
         LibraryStorageMaintenance.notNeeded,
       );
     });

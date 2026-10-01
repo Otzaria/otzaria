@@ -94,13 +94,10 @@ class LibraryUpdateZdbFullDownloadUnsupportedException implements Exception {
       '(seforim.zdb)';
 }
 
-/// תוצאת [LibraryStorageMaintainer.maintainLibraryStorage].
+/// תוצאת [LibraryStorageMaintainer.compactLibraryStorage].
 enum LibraryStorageMaintenance {
   /// אין zdb, או שה-overlay קטן מהסף.
   notNeeded,
-
-  /// הותקן בסיס עדכני שהורד (ה-overlay נמחק).
-  rebased,
 
   /// בסיס + overlay נדחסו מקומית לבסיס חדש.
   compacted,
@@ -112,7 +109,12 @@ enum LibraryStorageMaintenance {
 /// ייעול אחסון הספרייה אחרי עדכון. נפרד מ-[LibraryUpdateService] כי אינו
 /// חלק מתוכנית העדכון, ולעולם אינו מכשיל אותה.
 abstract interface class LibraryStorageMaintainer {
-  Future<LibraryStorageMaintenance> maintainLibraryStorage({
+  /// הורדה מלאה של הבסיס העדכני כשה-overlay מעל [kZdbOverlayRebaseRatio],
+  /// להצעה למשתמש (כמו כל הורדה מלאה); null כשאין צורך או שאין בסיס זמין.
+  Future<LibraryUpdatePlan?> storageRebaseOffer();
+
+  /// דחיסה מקומית כשה-overlay מעל הסף — הגיבוי כשאין בסיס להוריד.
+  Future<LibraryStorageMaintenance> compactLibraryStorage({
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
   });
@@ -281,11 +283,13 @@ class LibraryUpdateRepository
   // ה-plan אינו נושא את מניפסט ה-DB המלא; נשמר מהבדיקה האחרונה.
   ReleaseAsset? _latestFullDbAsset;
   FullDbManifest? _latestFullDbManifest;
+  String? _latestFullDbReleaseTag;
   bool _lastAllowPrerelease = false;
 
   void _rememberDiscovery(LibraryDiscoveryResult result) {
     _latestFullDbAsset = result.latestFullDbAsset;
     _latestFullDbManifest = result.latestFullDbManifest;
+    _latestFullDbReleaseTag = result.latestReleaseTag;
   }
 
   static Future<void> _installSqliteTempDirectoryWhenQuiesced() async {
@@ -930,13 +934,11 @@ class LibraryUpdateRepository
       manifest.file == asset.name &&
       manifest.size == asset.size;
 
-  /// מוריד את ה-zdb ליד המסד, מאמת ומתקין אותו כ-seforim.zdb. [phase] — השלב
-  /// לכל הדיווחים, כשזו אינה הורדה מלאה שהמשתמש ביקש.
+  /// מוריד את ה-zdb ליד המסד, מאמת ומתקין אותו כ-seforim.zdb.
   Future<void> _downloadAndInstallZdb({
     required String activeDbPath,
     required ReleaseAsset asset,
     required FullDbManifest manifest,
-    LibraryUpdatePhase? phase,
     LibraryUpdateProgressCallback? onProgress,
     bool Function()? isCancelled,
     FullDbReplacedCallback? onDbReplaced,
@@ -954,7 +956,7 @@ class LibraryUpdateRepository
       double? fraction,
     }) => onProgress?.call(
       LibraryUpdateProgress(
-        phase: phase ?? own,
+        phase: own,
         stage: stage,
         bytesDownloaded: downloaded,
         bytesTotal: total,
@@ -1114,16 +1116,12 @@ class LibraryUpdateRepository
     }
   }
 
-  /// overlay מעל [kZdbOverlayRebaseRatio]: מוריד בסיס עדכני, ובכשל דוחס מקומית.
-  /// היחס בדיסק הוא הסימון לבדיקה הבאה; אינו זורק (busy וכו' — deferred).
+  /// היחס בדיסק הוא הסימון: בלי אישור, השאלה חוזרת בבדיקה הבאה. לא זורק.
   @override
-  Future<LibraryStorageMaintenance> maintainLibraryStorage({
-    LibraryUpdateProgressCallback? onProgress,
-    bool Function()? isCancelled,
-  }) async {
+  Future<LibraryUpdatePlan?> storageRebaseOffer() async {
     try {
       final dbPath = _libraryDbPath();
-      if (!isZdbPath(dbPath)) return LibraryStorageMaintenance.notNeeded;
+      if (!isZdbPath(dbPath)) return null;
       final ratio = await zdbOverlayRatio(dbPath);
       if (ratio == null || ratio <= kZdbOverlayRebaseRatio) {
         // אין הורדה מלאה שממתינה לה: שארית של ~2GB הייתה נשארת לתמיד.
@@ -1132,14 +1130,43 @@ class LibraryUpdateRepository
           download,
           PatchDownloader.resumeSidecarPath(download),
         );
+        return null;
+      }
+      final asset = _latestFullDbAsset;
+      final manifest = _latestFullDbManifest;
+      if (asset == null ||
+          manifest == null ||
+          asset.fullDbContainer != FullDbContainer.zdb ||
+          !_manifestMatches(manifest, asset)) {
+        return null;
+      }
+      final local = (await _readLocalVersion(versionReader, dbPath)).dbVersion;
+      // בסיס ישן מהמקומי היה מחזיר את הספרייה לאחור.
+      if (manifest.dbVersion < local) return null;
+      return LibraryUpdatePlan.fullDownload(
+        localVersion: local,
+        targetVersion: manifest.dbVersion,
+        asset: asset,
+        releaseTag: _latestFullDbReleaseTag ?? '',
+      );
+    } catch (error, stackTrace) {
+      _logQuietly('Library Update: storage rebase offer', error, stackTrace);
+      return null;
+    }
+  }
+
+  @override
+  Future<LibraryStorageMaintenance> compactLibraryStorage({
+    LibraryUpdateProgressCallback? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    try {
+      final dbPath = _libraryDbPath();
+      if (!isZdbPath(dbPath)) return LibraryStorageMaintenance.notNeeded;
+      final ratio = await zdbOverlayRatio(dbPath);
+      if (ratio == null || ratio <= kZdbOverlayRebaseRatio) {
         return LibraryStorageMaintenance.notNeeded;
       }
-      final rebase = await _rebaseFromLatestFullDb(
-        dbPath,
-        onProgress: onProgress,
-        isCancelled: isCancelled,
-      );
-      if (rebase != null) return rebase;
       return await _compactOverlay(
         dbPath,
         onProgress: onProgress,
@@ -1149,56 +1176,6 @@ class LibraryUpdateRepository
       _logQuietly('Library Update: storage maintenance', error, stackTrace);
       return LibraryStorageMaintenance.deferred;
     }
-  }
-
-  /// null — אין בסיס עדכני להתקין או שההורדה נכשלה, ולכן עוברים לדחיסה.
-  Future<LibraryStorageMaintenance?> _rebaseFromLatestFullDb(
-    String dbPath, {
-    LibraryUpdateProgressCallback? onProgress,
-    bool Function()? isCancelled,
-  }) async {
-    final asset = _latestFullDbAsset;
-    final manifest = _latestFullDbManifest;
-    if (asset == null ||
-        manifest == null ||
-        asset.fullDbContainer != FullDbContainer.zdb ||
-        !_manifestMatches(manifest, asset)) {
-      return null;
-    }
-    final local = (await _readLocalVersion(versionReader, dbPath)).dbVersion;
-    // בסיס ישן מהמקומי היה מחזיר את הספרייה לאחור.
-    if (manifest.dbVersion < local) return null;
-    try {
-      await _downloadAndInstallZdb(
-        activeDbPath: dbPath,
-        asset: asset,
-        manifest: manifest,
-        phase: LibraryUpdatePhase.optimizing,
-        onProgress: onProgress,
-        isCancelled: isCancelled,
-      );
-    } on PatchDownloadCancelled {
-      return LibraryStorageMaintenance.deferred;
-    } on LibraryZdbException catch (error, stackTrace) {
-      if (!error.isBusy) {
-        _logQuietly('Library Update: rebase failed', error, stackTrace);
-        return null;
-      }
-      _logQuietly('Library Update: rebase deferred (busy)', error, stackTrace);
-      return LibraryStorageMaintenance.deferred;
-    } on LibrarySuspendFailed {
-      return LibraryStorageMaintenance.deferred;
-    } on LibraryStillOpenException {
-      return LibraryStorageMaintenance.deferred;
-    } catch (error, stackTrace) {
-      _logQuietly('Library Update: rebase download failed', error, stackTrace);
-      return null;
-    }
-    onProgress?.call(
-      const LibraryUpdateProgress(phase: LibraryUpdatePhase.refreshing),
-    );
-    await refreshService.refreshAfterDbUpdate();
-    return LibraryStorageMaintenance.rebased;
   }
 
   /// פתיחת zdb משחזרת את ה-overlay סינכרונית (מאות ms), ולכן לא על ה-UI isolate.
