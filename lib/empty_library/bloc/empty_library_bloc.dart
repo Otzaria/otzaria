@@ -503,6 +503,34 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   /// שם הקובץ הזמני שאליו נכתב ה-DB לפני ההעברה לשם הסופי.
   static String _dbTempPathFor(String finalPath) => '$finalPath.new';
 
+  /// מעתיק קובץ מסד (וה-overlay של zdb) אל [destPath] דרך שם זמני. לוואים
+  /// ישנים ביעד נמחקים לפני ההחלפה: overlay של בסיס קודם היה פוסל את החדש.
+  @visibleForTesting
+  static Future<void> copyLibraryDbFile(
+    String sourcePath,
+    String destPath,
+  ) async {
+    final temp = '$destPath.copying';
+    final overlay = File('$sourcePath-zovl');
+    final hasOverlay = await overlay.exists();
+    await File(destPath).parent.create(recursive: true);
+    try {
+      await File(sourcePath).openRead().pipe(File(temp).openWrite());
+      if (hasOverlay) {
+        await overlay.openRead().pipe(File('$temp-zovl').openWrite());
+      }
+      // -zlck נשאר: הוא מנעול ההחלפה של zvfs, לא חלק מהתוכן.
+      for (final suffix in ['-zovl', '-journal', '-wal', '-shm']) {
+        await _deleteEntity('$destPath$suffix');
+      }
+      await File(temp).rename(destPath);
+      if (hasOverlay) await File('$temp-zovl').rename('$destPath-zovl');
+    } finally {
+      await _deleteEntity(temp);
+      await _deleteEntity('$temp-zovl');
+    }
+  }
+
   /// מוחק את [dbPath] ואת לוואיו (shm/wal/journal), בשקט.
   static Future<void> _deleteDbFamily(String dbPath) async {
     for (final suffix in _dbFileSuffixes) {
@@ -1007,16 +1035,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         // נסה להעתיק ישירות — עובד אם לאפליקציה יש READ_EXTERNAL_STORAGE
         emit(EmptyLibraryLoading(selectedPath: directoryPath));
         try {
-          final destFile = File(internalDbPath);
-          await destFile.parent.create(recursive: true);
-          await File(dbFilePath).openRead().pipe(destFile.openWrite());
-          // בסיס zdb בלי ה-overlay שלו הוא גרסה ישנה יותר של הספרייה.
-          final overlay = File('$dbFilePath-zovl');
-          if (await overlay.exists()) {
-            await overlay.openRead().pipe(
-              File('$internalDbPath-zovl').openWrite(),
-            );
-          }
+          await copyLibraryDbFile(dbFilePath, internalDbPath);
 
           // העתקה הצליחה — שמור הגדרות והמשך
           await Settings.setValue(

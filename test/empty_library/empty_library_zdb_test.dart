@@ -336,6 +336,27 @@ void main() {
     },
   );
 
+  test('copyLibraryDbFile: בסיס חדש מעל בסיס עם overlay נשאר קריא', () async {
+    final internal = Directory(path.join(tmp.path, 'internal'))..createSync();
+    final internalZdb = path.join(internal.path, 'seforim.zdb');
+    await writeFixtureZdb(internalZdb, version: 1, marker: 'old-internal');
+    growZdbOverlay(internalZdb);
+
+    await EmptyLibraryBloc.copyLibraryDbFile(releaseZdb, internalZdb);
+
+    expect(readFixtureLibrary(internalZdb).marker, 'release');
+    expect(File('$internalZdb-zovl').existsSync(), isFalse);
+    expect(File('$internalZdb.copying').existsSync(), isFalse);
+
+    // מקור עם overlay: שניהם מועתקים, והתוכן הוא של המקור כולו.
+    final source = path.join(tmp.path, 'with-overlay.zdb');
+    await writeFixtureZdb(source, version: 4, marker: 'source-overlay');
+    growZdbOverlay(source);
+    await EmptyLibraryBloc.copyLibraryDbFile(source, internalZdb);
+    expect(readFixtureLibrary(internalZdb).marker, 'source-overlay');
+    expect(File('$internalZdb-zovl').existsSync(), isTrue);
+  });
+
   test('בעלייה: גיבוי seforim.db יתום אינו מוחזר לספריית zdb', () async {
     final zdb = LibraryZdbFiles.zdbPathIn(library.path);
     await writeFixtureZdb(zdb, version: 4);
