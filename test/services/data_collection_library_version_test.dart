@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,4 +69,14 @@ void main() {
   test('DB חסר מחזיר unknown ולא זורק', () async {
     expect(await DataCollectionService().readLibraryVersion(), 'unknown');
   });
+
+  test('המסד נפתח מחוץ ל-isolate הקורא', () async {
+    seedDatabase(dbVersion: '21');
+    final service = DataCollectionService(versionQuery: _isolateName);
+    final ranOn = await service.readLibraryVersion();
+    expect(ranOn, isNotNull);
+    expect(ranOn, isNot(Isolate.current.debugName));
+  });
 }
+
+String? _isolateName(String dbPath) => Isolate.current.debugName;

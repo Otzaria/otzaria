@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -1065,6 +1066,24 @@ void main() {
     expect(planner.seenLocalDbSizeBytes, File(dbPath).lengthSync());
   });
 
+  test('checkForUpdate קורא את הגרסה המקומית מחוץ ל-UI isolate', () async {
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeDb(dbPath, version: 1, marker: 'old');
+    final planner = _RecordingPlanner();
+    final repository = LibraryUpdateRepository(
+      discovery: _unusedDiscovery(),
+      planner: planner,
+      versionReader: _IsolateRecordingReader(Isolate.current.debugName),
+      downloader: _PatchMapDownloader(const {}),
+      dbPathProvider: () => dbPath,
+      dataRootProvider: () async => tmp.path,
+    );
+
+    await repository.checkForUpdate(allowPrerelease: false);
+
+    expect(planner.seenLocalVersion, _IsolateRecordingReader.otherIsolate);
+  });
+
   test('release בסכמה חדשה ללא דלתא דורש עדכון אפליקציה', () async {
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
     _writeDb(dbPath, version: 1, marker: 'old');
@@ -1675,6 +1694,7 @@ String _journalMode(String dbPath) {
 /// לוכד את גודל ה-DB המקומי שהריפוזיטורי מעביר ל-planner.
 class _RecordingPlanner extends LibraryUpdatePlanner {
   int? seenLocalDbSizeBytes;
+  int? seenLocalVersion;
 
   @override
   LibraryUpdatePlan plan({
@@ -1689,6 +1709,7 @@ class _RecordingPlanner extends LibraryUpdatePlanner {
     int? localDbSizeBytes,
   }) {
     seenLocalDbSizeBytes = localDbSizeBytes;
+    seenLocalVersion = localVersion;
     return super.plan(
       localVersion: localVersion,
       localSchemaVersion: localSchemaVersion,
@@ -1701,6 +1722,25 @@ class _RecordingPlanner extends LibraryUpdatePlanner {
       localDbSizeBytes: localDbSizeBytes,
     );
   }
+}
+
+/// מחזיר גרסה שמקודדת את ה-isolate שבו רץ. sendable (שדה מחרוזת בלבד).
+class _IsolateRecordingReader extends LocalDbVersionReader {
+  const _IsolateRecordingReader(this.callerName);
+
+  static const int callingIsolate = 1;
+  static const int otherIsolate = 2;
+
+  final String? callerName;
+
+  @override
+  LocalDbVersion read(String dbPath) => LocalDbVersion(
+    dbVersion: Isolate.current.debugName == callerName
+        ? callingIsolate
+        : otherIsolate,
+    schemaVersion: 6,
+    hasVersionMeta: true,
+  );
 }
 
 LibraryUpdateDiscovery _unusedDiscovery() {

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show sqlite3;
@@ -67,21 +68,26 @@ Future<void> normalizeJournalModeForReadOnly(
         await journal.exists() && (await journal.length()) > 0;
     if (!isWal && !hasHotJournal) return;
 
-    // הגישה הראשונה בחיבור כתיבה מריצה את ה-rollback של יומן חם.
-    final db = sqlite3.open(dbPath);
-    try {
-      if (untrusted) hardenUntrustedConnection(db);
-      try {
-        db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
-      } catch (_) {}
-      db.execute('PRAGMA journal_mode=DELETE');
-    } finally {
-      db.close();
-    }
+    // ה-checkpoint וה-rollback סינכרוניים ועלולים להימשך — לא על ה-isolate הקורא.
+    await Isolate.run(() => _switchToDeleteJournal(dbPath, untrusted));
   } catch (e) {
     debugPrint(
       '[journal_mode] Could not normalise journal mode of $dbPath '
       '(directory may be read-only): $e',
     );
+  }
+}
+
+void _switchToDeleteJournal(String dbPath, bool untrusted) {
+  // הגישה הראשונה בחיבור כתיבה מריצה את ה-rollback של יומן חם.
+  final db = sqlite3.open(dbPath);
+  try {
+    if (untrusted) hardenUntrustedConnection(db);
+    try {
+      db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
+    } catch (_) {}
+    db.execute('PRAGMA journal_mode=DELETE');
+  } finally {
+    db.close();
   }
 }

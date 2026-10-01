@@ -235,6 +235,13 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     return ZstdStreamExtractor.extractToFile(archivePath, outputPath);
   }
 
+  /// פתיחת המסד חוסמת עשרות ms ויותר, וב-Windows ה-UI isolate הוא ה-platform thread.
+  /// static: ה-closure של Isolate.run לוכד את כל ה-scope, ו-this אינו sendable.
+  static Future<LocalDbVersion> _readLocalVersion(
+    LocalDbVersionReader reader,
+    String dbPath,
+  ) => Isolate.run(() => reader.read(dbPath));
+
   /// נקרא בעליית האפליקציה, לפני פתיחת ה-DB, כדי לשחזר עדכון שנקטע.
   @override
   Future<RecoveryResult> recoverIfNeeded() =>
@@ -246,7 +253,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     required bool allowPrerelease,
   }) async {
     final dbPath = dbPathProvider();
-    final local = versionReader.read(dbPath);
+    final local = await _readLocalVersion(versionReader, dbPath);
     final result = await discovery.discover(allowPrerelease: allowPrerelease);
     return planner.plan(
       localDbSizeBytes: _fileSizeOrNull(dbPath),
@@ -942,7 +949,7 @@ class LibraryUpdateRepository implements LibraryUpdateService {
       // WAL מאפשר לקוראים להמשיך לקרוא את ה-snapshot שלפני העדכון בזמן
       // שהאיזולייט כותב — בלי לסגור את חיבור ה-RO (שחסם פתיחת ספרים לדקות).
       // אם ההמרה נכשלת, נסוגים למסלול הישן: סגירת ה-RO למשך הכתיבה.
-      final walFailure = _trySetJournalMode(dbPath, 'WAL');
+      final walFailure = await _trySetJournalMode(dbPath, 'WAL');
       final concurrentReads = walFailure == null;
       if (!concurrentReads) {
         _logJournalModeFailure('WAL', walFailure);
@@ -990,7 +997,10 @@ class LibraryUpdateRepository implements LibraryUpdateService {
               // העדכון כבר נשמר; worker תקוע רק מונע את החזרה ל-DELETE.
               _logJournalModeFailure('DELETE', error.message);
             }
-            final revertFailure = _trySetJournalMode(dbPath, 'DELETE');
+            final revertFailure = await _trySetJournalMode(
+              dbPath,
+              'DELETE',
+            );
             if (revertFailure != null) {
               _logJournalModeFailure('DELETE', revertFailure);
             }
@@ -1014,8 +1024,12 @@ class LibraryUpdateRepository implements LibraryUpdateService {
   }
 
   /// ממיר את מצב היומן של [dbPath]; מחזיר null בהצלחה, אחרת את סיבת הכשל.
+  /// רץ ב-isolate: פתיחת הכתיבה וה-busy_timeout לא יחסמו את ה-UI.
+  static Future<String?> _trySetJournalMode(String dbPath, String mode) =>
+      Isolate.run(() => _setJournalMode(dbPath, mode));
+
   /// ההמרה דורשת נעילה בלעדית קצרה — busy_timeout מכסה קריאות קצרות שבאמצע.
-  String? _trySetJournalMode(String dbPath, String mode) {
+  static String? _setJournalMode(String dbPath, String mode) {
     try {
       final db = sqlite3.sqlite3.open(dbPath);
       try {
