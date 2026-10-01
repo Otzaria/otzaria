@@ -238,22 +238,32 @@
     {
       "id": "otzaria-android-full",
       "name": "אוצריא ל-Android עם ספרייה מלאה",
-      "description": "ארכיון ZIP ובו קובץ ה-APK והספרייה המלאה, להעתקה אל המכשיר.",
+      "description": "ארכיון ZIP של קובצי הספרייה וקובץ מסד הספרים, לייבוא במכשיר. כל אחד מהם קובץ יחיד, כי בטלפון אין הרכבת חלקים.",
       "type": "application-bundle",
       "required": false,
       "origin": "built",
       "platform": "android",
       "installOrder": 20,
-      "dependsOn": [],
-      "downloadSize": 1925,
+      "dependsOn": [
+        "otzaria-android"
+      ],
+      "downloadSize": 2410,
       "assets": [
         {
           "kind": "single",
           "repository": "Otzaria/otzaria",
           "releaseTag": "0.10.3+143",
           "name": "otzaria-android-full.zip",
-          "size": 1925,
-          "sha256": "73d2389d12fef256044ef62716f76871862498e20a04eebd69157f3d011ba1ee"
+          "size": 560,
+          "sha256": "cb0eb7a8fd44a3c56462b86eb276d1e19d0491538a54fe486d98402987bc04d3"
+        },
+        {
+          "kind": "single",
+          "repository": "Otzaria/otzaria",
+          "releaseTag": "0.10.3+143",
+          "name": "otzaria-android-library.zdb",
+          "size": 1850,
+          "sha256": "b5e15833c1e21bb646703e9fb8fa02dbed8a0ac40982b7a3cba9c9f1896a7413"
         }
       ]
     },

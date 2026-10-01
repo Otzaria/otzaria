@@ -35,7 +35,9 @@ const Map<String, int> _singleFiles = {
   'otzaria-macos.zip': 86,
   'otzaria-macos-full.tar.zst': 1853,
   'app-release.apk': 96,
-  'otzaria-android-full.zip': 1925,
+  // ה-ZIP בלי המסד, והמסד כקובץ נפרד: בטלפון אין הרכבת חלקים.
+  'otzaria-android-full.zip': 560,
+  'otzaria-android-library.zdb': 1850,
   // אינם רכיבים — חייבים להיעדר מהמניפסט.
   'Otzaria-Download-Assistant-windows.exe': 5,
   'Otzaria-Download-Assistant-macos.zip': 5,

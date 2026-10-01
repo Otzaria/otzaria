@@ -331,12 +331,15 @@
         {
           "id": "full",
           "members": [
+            "otzaria-android",
             "otzaria-android-full"
           ],
           "outputFiles": [
-            "otzaria-android-full.zip"
+            "app-release.apk",
+            "otzaria-android-full.zip",
+            "otzaria-android-library.zdb"
           ],
-          "outputSubfolder": ""
+          "outputSubfolder": "אוצריא להתקנה ל-Android"
         },
         {
           "id": "basic",
