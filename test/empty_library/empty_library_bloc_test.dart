@@ -1752,9 +1752,8 @@ void main() {
           await File(path.join(libDir.path, dbName)).readAsString(),
           'new-db',
         );
-        expect(
-          Directory(EmptyLibraryBloc.dbBackupDirPath).existsSync(),
-          isFalse,
+        await _eventually(
+          () => !Directory(EmptyLibraryBloc.dbBackupDirPath).existsSync(),
         );
       },
     );
@@ -2208,7 +2207,7 @@ void main() {
             await File(path.join(libDir.path, dbName)).readAsString(),
             'new-db',
           );
-          expect(backupDirs(), isEmpty);
+          await _eventually(() => backupDirs().isEmpty);
         },
       );
     });
@@ -2746,6 +2745,17 @@ Future<void> _cleanDownloadTemps() async {
     if (await meta.exists()) await meta.delete();
     final resume = File(path.join(Directory.systemTemp.path, '$name.resume'));
     if (await resume.exists()) await resume.delete();
+  }
+}
+
+/// DirectorySelected נפלט לפני שהמטפל מוחק את הגיבוי; ממתינים לסיום המחיקה.
+Future<void> _eventually(bool Function() condition) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('התנאי לא התקיים תוך 5 שניות');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
   }
 }
 
