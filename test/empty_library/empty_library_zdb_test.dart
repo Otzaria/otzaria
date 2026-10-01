@@ -473,6 +473,57 @@ void main() {
       expect(await DatabaseConstants.libraryDbExistsIn(library.path), isFalse);
     });
 
+    test(
+      'zip עם seforim.zdb וקטלוג otzar-HB_catalog.db.zst בשורש מתקבל',
+      () async {
+        final zip = path.join(tmp.path, 'bundle.zip');
+        File(zip).writeAsBytesSync(
+          ZipEncoder().encode(
+            Archive()
+              ..addFile(
+                ArchiveFile.bytes(
+                  DatabaseConstants.zdbDatabaseFileName,
+                  File(releaseZdb).readAsBytesSync(),
+                ),
+              )
+              ..addFile(
+                ArchiveFile.bytes(
+                  DatabaseConstants.externalCatalogArchiveFileName,
+                  utf8.encode('catalog archive'),
+                ),
+              ),
+          ),
+        );
+        final state = await importArchive(zip);
+
+        expect(state, isA<EmptyLibraryDirectorySelected>());
+        expect(
+          readFixtureLibrary(
+            DatabaseConstants.resolveLibraryDbPath(library.path),
+          ).marker,
+          'release',
+        );
+      },
+    );
+
+    test('ארכיון DB ראשי בשורש ה-zip נדחה גם הוא', () async {
+      for (final name in ['otzaria-android-library.zdb', 'seforim.db.zst']) {
+        expect(
+          await EmptyLibraryBloc.hasNestedLibraryDatabase(
+            (Directory(path.join(tmp.path, 'stage-$name'))..createSync()).path,
+          ),
+          isFalse,
+        );
+        final stage = path.join(tmp.path, 'stage-$name');
+        File(path.join(stage, name)).writeAsStringSync('db');
+        expect(
+          await EmptyLibraryBloc.hasNestedLibraryDatabase(stage),
+          isTrue,
+          reason: name,
+        );
+      }
+    });
+
     test('מבנה מקונן ישן נכשל בהודעה ברורה, בלי להתקין חלקית', () async {
       final state = await importArchive(sideFilesZip(nestedDbFrom: releaseZdb));
 

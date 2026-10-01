@@ -369,26 +369,30 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     emit(EmptyLibraryDirectorySelected(selectedPath: target));
   }
 
-  /// האם בארכיון שחולץ ל-[staging] יש קובץ ספרייה שאינו `seforim.db` או
-  /// `seforim.zdb` בשורש: בתיקייה פנימית, או בשם אחר (`*.zdb`, `*.db.zst`).
+  /// האם בארכיון שחולץ ל-[staging] יש קובץ ספרייה שיש לייבא בנפרד: `seforim.db`
+  /// או `seforim.zdb` בתיקייה פנימית, כל `*.zdb` אחר, או ארכיון DB ראשי
+  /// (`*.db.zst`). קבצים נלווים מוכרים, כמו קטלוג אוצר החכמה, אינם נחשבים.
   @visibleForTesting
   static Future<bool> hasNestedLibraryDatabase(String staging) async {
     final rootNames = {
       DatabaseConstants.databaseFileName,
       DatabaseConstants.zdbDatabaseFileName,
     };
+    final sideAssets = {
+      DatabaseConstants.externalCatalogArchiveFileName.toLowerCase(),
+    };
     await for (final entity in Directory(
       staging,
     ).list(recursive: true, followLinks: false)) {
       if (entity is! File) continue;
       final name = path.basename(entity.path).toLowerCase();
+      if (sideAssets.contains(name)) continue;
       final atRoot = path.equals(path.dirname(entity.path), staging);
-      if (atRoot && rootNames.contains(name)) continue;
-      if (rootNames.contains(name) ||
-          isZdbPath(name) ||
-          name.endsWith('.db.zst')) {
-        return true;
+      if (rootNames.contains(name)) {
+        if (!atRoot) return true;
+        continue;
       }
+      if (isZdbPath(name) || name.endsWith('.db.zst')) return true;
     }
     return false;
   }
