@@ -2300,6 +2300,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           '{count} סימניות',
           args: {'count': added.bookmarks},
         ),
+      if (added.bookmarkGroups > 0)
+        context.settingsText(
+          '{count} קבוצות סימניות',
+          args: {'count': added.bookmarkGroups},
+        ),
       if (added.notes > 0)
         context.settingsText('{count} הערות', args: {'count': added.notes}),
       if (added.notesUpdated > 0)

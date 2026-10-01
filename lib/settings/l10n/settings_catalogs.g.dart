@@ -22,6 +22,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     '{count} ספרים מיובאים': '{count} seforim imported',
     '{count} פעולות זמינות': '{count} actions available',
     '{count} פריטים': '{count} items',
+    '{count} קבוצות סימניות': '{count} bookmark groups',
     '{count} רשומות היסטוריה': '{count} history entries',
     '{count} שולחנות עבודה': '{count} workspaces',
     '{count} תוספים': '{count} plugins',

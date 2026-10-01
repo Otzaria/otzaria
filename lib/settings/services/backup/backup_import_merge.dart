@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 
@@ -15,6 +16,7 @@ enum BackupImportMode {
 /// מה נוסף בייבוא ממזג — לדיווח למשתמש בסיום.
 class BackupImportCounts {
   int bookmarks = 0;
+  int bookmarkGroups = 0;
   int history = 0;
   int notes = 0;
   int notesUpdated = 0;
@@ -24,6 +26,7 @@ class BackupImportCounts {
 
   int get total =>
       bookmarks +
+      bookmarkGroups +
       history +
       notes +
       notesUpdated +
@@ -49,6 +52,13 @@ class BackupImportMerge {
     List<Bookmark> incoming,
   ) => _mergeByKey(local, incoming, (b) => b.bookmarkIdentity);
 
+  /// Bookmark groups: an imported group is added unless a group with the same
+  /// id exists here, so re-importing a backup of this device adds nothing.
+  static ({List<BookmarkGroup> merged, int added}) mergeBookmarkGroups(
+    List<BookmarkGroup> local,
+    List<BookmarkGroup> incoming,
+  ) => _mergeByKey(local, incoming, (g) => g.id);
+
   /// היסטוריה: רשומה אחת לכל [Bookmark.historyKey], גזורה ל-[maxHistory].
   /// המקומיות קודמות, אך בתקרה מפנות מקום למיובאות — אחרת הייבוא לא-פעולה.
   static ({List<Bookmark> merged, int added}) mergeHistory(
@@ -66,17 +76,17 @@ class BackupImportMerge {
     );
   }
 
-  static ({List<Bookmark> merged, int added}) _mergeByKey(
-    List<Bookmark> local,
-    List<Bookmark> incoming,
-    String Function(Bookmark) keyOf,
+  static ({List<T> merged, int added}) _mergeByKey<T>(
+    List<T> local,
+    List<T> incoming,
+    String Function(T) keyOf,
   ) {
     final merged = [...local];
     final keys = local.map(keyOf).toSet();
     var added = 0;
-    for (final bookmark in incoming) {
-      if (!keys.add(keyOf(bookmark))) continue;
-      merged.add(bookmark);
+    for (final item in incoming) {
+      if (!keys.add(keyOf(item))) continue;
+      merged.add(item);
       added++;
     }
     return (merged: merged, added: added);

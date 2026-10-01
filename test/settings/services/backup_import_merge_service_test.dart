@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
+import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/bookmarks/repository/bookmark_repository.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
@@ -144,6 +146,51 @@ void main() {
     expect(added?.bookmarks, 1);
     expect((await history.loadHistory()).length, 2);
     expect(added?.history, 1);
+  });
+
+  group('bookmark groups', () {
+    BookmarkGroup group(String id, String name) =>
+        BookmarkGroup(id: id, name: name, items: [buildBookmark(name)]);
+
+    List<String> names(List<BookmarkGroup> groups) =>
+        groups.map((g) => g.name).toList();
+
+    test('a restore brings the groups back', () async {
+      final repo = BookmarkRepository();
+      await repo.replaceGroups([group('g1', 'ראשונים')]);
+      final path = await createFullBackup();
+      await repo.replaceGroups([]);
+
+      await BackupService.restoreFromBackup(path);
+
+      expect(names(await repo.loadGroups()), ['ראשונים']);
+    });
+
+    test('a merge import adds only groups that are not here', () async {
+      final repo = BookmarkRepository();
+      await repo.replaceGroups([group('g1', 'משותפת'), group('g2', 'מהגיבוי')]);
+      final path = await createFullBackup();
+      await repo.replaceGroups([group('g1', 'משותפת'), group('g3', 'מקומית')]);
+
+      final added = await importMerge(path);
+
+      expect(names(await repo.loadGroups()), ['משותפת', 'מקומית', 'מהגיבוי']);
+      expect(added?.bookmarkGroups, 1);
+    });
+
+    test('a backup made before groups were saved keeps them', () async {
+      final repo = BookmarkRepository();
+      final path = await createFullBackup();
+      final json =
+          jsonDecode(await File(path).readAsString()) as Map<String, dynamic>;
+      json.remove('bookmarkGroups');
+      await File(path).writeAsString(jsonEncode(json));
+      await repo.replaceGroups([group('g1', 'קיימת')]);
+
+      await BackupService.restoreFromBackup(path);
+
+      expect(names(await repo.loadGroups()), ['קיימת']);
+    });
   });
 
   test('ההגדרות והכרטיסיות הפתוחות אינן משתנות', () async {

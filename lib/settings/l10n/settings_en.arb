@@ -1179,6 +1179,7 @@
   "התוספים אינם מפותחים ע\"י אוצריא, ואין לפנות אליהם בנושא": "Plugins are not developed by Otzaria; please do not contact Otzaria about them",
   "לחנות התוספים המלאה": "Open the full plugin store",
   "שחזר את כל החלונות בהפעלה": "Reopen all windows on startup",
+  "{count} קבוצות סימניות": "{count} bookmark groups",
   "כל החלונות שהיו פתוחים בסגירה ייפתחו שוב, במקומם": "Every window that was open at exit reopens where it was",
   "ייפתח חלון אחד, עם הכרטיסיות של כל החלונות": "A single window opens, with the tabs of all windows",
 

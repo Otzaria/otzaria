@@ -4,8 +4,8 @@ import 'package:otzaria/data/repository/base_list_repository.dart';
 import 'package:otzaria/data/repository/user_state_list_repository.dart';
 
 class BookmarkRepository extends BaseListRepository<Bookmark> {
-  /// סימניות מרוכזות — באותו מאגר תחת מפתח נפרד, כך שהן נכללות אוטומטית
-  /// בגיבוי של הסימניות.
+  /// סימניות מרוכזות — באותו מאגר תחת מפתח נפרד. הגיבוי שומר אותן במפורש
+  /// (`bookmarkGroups`), כי הוא קורא כל מפתח בנפרד.
   final UserStateListRepository<BookmarkGroup> _groupsRepository;
 
   BookmarkRepository({super.store})

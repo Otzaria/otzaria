@@ -5,6 +5,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:logging/logging.dart';
+import 'package:otzaria/bookmarks/models/bookmark_group.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
@@ -151,6 +152,7 @@ class BackupService {
       // Backup bookmarks
       if (includeBookmarks) {
         backupData['bookmarks'] = await _backupBookmarks();
+        backupData['bookmarkGroups'] = await _backupBookmarkGroups();
       }
 
       // Backup history
@@ -388,6 +390,11 @@ class BackupService {
     final repo = BookmarkRepository();
     final bookmarks = await repo.loadBookmarks();
     return bookmarks.map((b) => b.toJson()).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> _backupBookmarkGroups() async {
+    final groups = await BookmarkRepository().loadGroups();
+    return groups.map((g) => g.toJson()).toList();
   }
 
   /// Backup history
@@ -783,6 +790,13 @@ class BackupService {
         (backupData['bookmarks'] as List).cast<Map<String, dynamic>>(),
         counts: counts,
       );
+      // Older backups have no groups; the current ones are then kept.
+      if (backupData.containsKey('bookmarkGroups')) {
+        await _restoreBookmarkGroups(
+          (backupData['bookmarkGroups'] as List).cast<Map<String, dynamic>>(),
+          counts: counts,
+        );
+      }
     }
 
     // Restore history
@@ -1066,6 +1080,28 @@ class BackupService {
       return result.merged;
     });
     counts.bookmarks += added;
+  }
+
+  /// Restore bookmark groups. [counts] לא ריק = ייבוא ממזג, והקבוצות מתווספות.
+  static Future<void> _restoreBookmarkGroups(
+    List<Map<String, dynamic>> groupsData, {
+    BackupImportCounts? counts,
+  }) async {
+    final repo = BookmarkRepository();
+    final groups = groupsData.map(BookmarkGroup.fromJson).toList();
+    if (counts == null) {
+      await repo.replaceGroups(groups);
+      return;
+    }
+    // `mutate`, as for bookmarks: a group added in another window meanwhile
+    // must survive the import.
+    var added = 0;
+    await repo.mutateGroups((current) {
+      final result = BackupImportMerge.mergeBookmarkGroups(current, groups);
+      added = result.added;
+      return result.merged;
+    });
+    counts.bookmarkGroups += added;
   }
 
   /// Restore history. [counts] לא ריק = ייבוא ממזג, והרשומות מתווספות.
