@@ -76,6 +76,16 @@ class BackupMerge {
     );
     if (bookmarks != null) result['bookmarks'] = bookmarks;
 
+    final bookmarkGroups = _mergeItemLists(
+      older['bookmarkGroups'],
+      newer['bookmarkGroups'],
+      keyOf: (m) => (m['id'] ?? '').toString(),
+      olderSeen: olderSeen,
+      newerSeen: newerSeen,
+      cutoff: cutoff,
+    );
+    if (bookmarkGroups != null) result['bookmarkGroups'] = bookmarkGroups;
+
     final history = _mergeItemLists(
       older['history'],
       newer['history'],

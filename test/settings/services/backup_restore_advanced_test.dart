@@ -22,6 +22,7 @@ import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
+import 'package:otzaria/settings/services/backup/backup_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_rotation.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
@@ -693,6 +694,34 @@ void main() {
       expect(await File(oldPath).exists(), isFalse);
       expect(await File(manualPath).exists(), isTrue);
       expect(await BackupService.getArchivePathIfExists(), isNotNull);
+    });
+
+    test('רוטציה משמרת קבוצות סימניות לפני מחיקת הגיבוי', () async {
+      final timestamp = agedTimestamp(500);
+      final group = {'id': 'group-1', 'name': 'סוגיא', 'items': <Object>[]};
+      final oldPath = await writeBackupFile(
+        timestamp: timestamp,
+        data: {
+          ...manifestWithBookmarks(timestamp, []),
+          'bookmarkGroups': [group],
+        },
+      );
+
+      final result = await BackupMaintenance.runMaintenance();
+
+      expect(result.deletedBackups, 1);
+      expect(await File(oldPath).exists(), isFalse);
+      final archive = await readManifest(
+        (await BackupService.getArchivePathIfExists())!,
+      );
+      expect(archive['bookmarkGroups'], [
+        {
+          ...group,
+          'lastSeenAt': BackupMerge.parseManifestTimestamp(
+            timestamp,
+          )!.toIso8601String(),
+        },
+      ]);
     });
 
     test('פרופיל "שמור הכל" אינו מוחק דבר', () async {

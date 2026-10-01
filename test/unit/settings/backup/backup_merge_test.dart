@@ -48,6 +48,28 @@ void main() {
     });
   });
 
+  test('קבוצות מזוהות לפי id, החדש מנצח ופריטים ישנים נגזמים', () {
+    final oldOnly = {'id': 'old', 'name': 'נשמרת', 'items': <Object>[]};
+    final updated = {'id': 'same', 'name': 'שם חדש', 'items': <Object>[]};
+    final merged = merge(
+      {
+        'bookmarkGroups': [
+          oldOnly,
+          {...updated, 'name': 'שם ישן'},
+          {'id': 'expired', 'lastSeenAt': '2020-01-01T00:00:00.000'},
+        ],
+      },
+      {
+        'bookmarkGroups': [updated],
+      },
+    );
+    expect(merged['bookmarkGroups'], [
+      {...updated, 'lastSeenAt': newerTs.toIso8601String()},
+      {...oldOnly, 'lastSeenAt': olderTs.toIso8601String()},
+    ]);
+    expect(merge({}, {}).containsKey('bookmarkGroups'), isFalse);
+  });
+
   group('סימניות', () {
     test('ref שונה באותו מיקום אינו מכפיל סימנייה בארכיון', () {
       final oldBookmark = Bookmark(
