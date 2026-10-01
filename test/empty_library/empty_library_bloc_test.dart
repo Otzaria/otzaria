@@ -17,6 +17,23 @@ import 'package:path/path.dart' as path;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  // ההורדות והגיבוי נכתבים לשמות קבועים ב-temp, והניקוי מוחק כל
+  // otzaria_db_backup שם: בלי בידוד, ריצה מקבילה דורסת או מוחקת אותם.
+  final realTemp = Directory.systemTemp;
+  late Directory isolatedTemp;
+  setUp(() {
+    isolatedTemp = realTemp.createTempSync('otzaria-elb-test-');
+    IOOverrides.global = _IsolatedTempOverrides(isolatedTemp);
+    EmptyLibraryBloc.tempRootOverride = isolatedTemp.path;
+  });
+  tearDown(() async {
+    EmptyLibraryBloc.tempRootOverride = null;
+    IOOverrides.global = null;
+    try {
+      await isolatedTemp.delete(recursive: true);
+    } catch (_) {}
+  });
+
   group('EmptyLibraryBloc', () {
     test('UseLibraryInPlaceRequested שומר את הנתיב בלי להעתיק דבר', () async {
       final libDir = await Directory.systemTemp.createTemp('otzaria-inplace-');
@@ -1723,9 +1740,8 @@ void main() {
           await File(path.join(libDir.path, dbName)).readAsString(),
           'new-db',
         );
-        expect(
-          Directory(EmptyLibraryBloc.dbBackupDirPath).existsSync(),
-          isFalse,
+        await _eventually(
+          () => !Directory(EmptyLibraryBloc.dbBackupDirPath).existsSync(),
         );
       },
     );
@@ -2179,7 +2195,7 @@ void main() {
             await File(path.join(libDir.path, dbName)).readAsString(),
             'new-db',
           );
-          expect(backupDirs(), isEmpty);
+          await _eventually(() => backupDirs().isEmpty);
         },
       );
     });
@@ -2609,6 +2625,26 @@ Future<void> _cleanDownloadTemps() async {
     final resume = File(path.join(Directory.systemTemp.path, '$name.resume'));
     if (await resume.exists()) await resume.delete();
   }
+}
+
+/// DirectorySelected נפלט לפני שהמטפל מוחק את הגיבוי; ממתינים לסיום המחיקה.
+Future<void> _eventually(bool Function() condition) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('התנאי לא התקיים תוך 5 שניות');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+}
+
+final class _IsolatedTempOverrides extends IOOverrides {
+  _IsolatedTempOverrides(this.root);
+
+  final Directory root;
+
+  @override
+  Directory getSystemTempDirectory() => root;
 }
 
 class _MemoryCacheProvider extends CacheProvider {
