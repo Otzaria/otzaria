@@ -594,16 +594,24 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     }
   }
 
-  void _onDeclineFull(
+  Future<void> _onDeclineFull(
     DeclineFullDownload event,
     Emitter<LibraryUpdateState> emit,
-  ) {
+  ) async {
     if (state.isStorageRebaseOffer) {
       _storageRebaseOffer = null;
+      // בלי הדחיסה, "אחר כך" בכל בדיקה משאיר overlay שגדל בלי גבול, והשאלה
+      // חוזרת תמיד. אחרי דחיסה היחס יורד מתחת לסף וההצעה נעלמת.
+      final opId = ++_operationId;
+      _resetProgressThrottle();
+      final result = await _compactStorage(opId);
+      if (_isStale(opId)) return;
       emit(
-        const LibraryUpdateState(
+        LibraryUpdateState(
           status: LibraryUpdateStatus.completed,
-          message: LibraryMessages.storageOptimizeLater,
+          message: result == LibraryStorageMaintenance.compacted
+              ? LibraryMessages.storageOptimized
+              : LibraryMessages.storageOptimizeLater,
         ),
       );
       return;

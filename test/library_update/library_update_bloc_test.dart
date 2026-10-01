@@ -2178,7 +2178,7 @@ void main() {
       }
     });
 
-    test('אישור ההצעה מוריד; דחייה נזכרת רק עד הבדיקה הבאה', () async {
+    test('"אחר כך" מריץ את הדחיסה המקומית, וההצעה לא מורידה דבר', () async {
       final maintainer = _FakeMaintainer(offer: offerPlan);
       final service = _FakeService(nonePlan);
       final bloc = build(service, maintainer);
@@ -2192,9 +2192,35 @@ void main() {
         (s) => s.status == LibraryUpdateStatus.completed,
         () => bloc.add(const DeclineFullDownload()),
       );
-      expect(declined.last.message, LibraryMessages.storageOptimizeLater);
+      await bloc.close();
+      expect(maintainer.compactions, 1);
+      expect(
+        declined.map((s) => s.message),
+        contains(LibraryMessages.storageOptimizingCompact),
+      );
+      expect(declined.last.message, LibraryMessages.storageOptimized);
       expect(declined.last.hasUpdate, isFalse);
       expect(service.fullCalled, isFalse);
+    });
+
+    test('"אחר כך" כשהדחיסה אינה אפשרית: נזכר עד הבדיקה הבאה', () async {
+      final maintainer = _FakeMaintainer(
+        offer: offerPlan,
+        compactResult: LibraryStorageMaintenance.deferred,
+      );
+      final service = _FakeService(nonePlan);
+      final bloc = build(service, maintainer);
+      await run(
+        bloc,
+        (s) => s.isStorageRebaseOffer,
+        () => bloc.add(const StartLibraryUpdate()),
+      );
+      final declined = await run(
+        bloc,
+        (s) => s.status == LibraryUpdateStatus.completed,
+        () => bloc.add(const DeclineFullDownload()),
+      );
+      expect(declined.last.message, LibraryMessages.storageOptimizeLater);
 
       // הבדיקה הבאה שואלת שוב, והאישור מריץ את ההורדה המלאה.
       await run(
@@ -2278,10 +2304,15 @@ void main() {
 }
 
 class _FakeMaintainer implements LibraryStorageMaintainer {
-  _FakeMaintainer({this.offer, this.compactGate});
+  _FakeMaintainer({
+    this.offer,
+    this.compactGate,
+    this.compactResult = LibraryStorageMaintenance.compacted,
+  });
 
   final LibraryUpdatePlan? offer;
   final Completer<void>? compactGate;
+  final LibraryStorageMaintenance compactResult;
   int offers = 0;
   int compactions = 0;
   bool Function() cancelSeen = () => false;
@@ -2308,6 +2339,6 @@ class _FakeMaintainer implements LibraryStorageMaintainer {
     // ה-progress עובר דרך אירוע; נותנים לו להיפלט לפני הסיום.
     await Future<void>.delayed(Duration.zero);
     await compactGate?.future;
-    return LibraryStorageMaintenance.compacted;
+    return compactResult;
   }
 }
