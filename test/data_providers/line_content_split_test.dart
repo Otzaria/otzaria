@@ -322,7 +322,7 @@ void main() {
         final expected = [for (final (_, _, content, _) in _lines) content];
         expect(await readBookContentText(db, book), expected.join('\n'));
         final bytes = await readBookContentBytes(db, book);
-        expect(utf8.decode(bytes!), expected.join('\n'));
+        expect(utf8.decode(bytes!.bytes), expected.join('\n'));
       } finally {
         db.close();
       }
@@ -408,7 +408,10 @@ void main() {
       final db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
       try {
         expect(await readBookContentText(db, book), expected);
-        expect(utf8.decode((await readBookContentBytes(db, book))!), expected);
+        expect(
+          utf8.decode((await readBookContentBytes(db, book))!.bytes),
+          expected,
+        );
       } finally {
         db.close();
       }

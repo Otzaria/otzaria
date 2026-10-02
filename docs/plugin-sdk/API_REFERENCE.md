@@ -1350,6 +1350,7 @@ const { data } = await Otzaria.call('search.fullText', {
 - `type` — סוג הספר: `"text"` לספר טקסט, `"pdf"` ל-PDF
 - `book` — שם הספר
 - `text` — קטע הטקסט
+- `textStatus` — מצב הטקסט (ראו `search.query` להלן)
 - `index` — אינדקס השורה/עמוד בספר
 
 > **הערה:** `search.fullText` אינו מחזיר `id` כי מנוע החיפוש (Tantivy) אינו שומר את מזהה הספר מה-DB. כדי לקבל את `id` — יש לקרוא ל-`library.getBookMetadata({ bookId, type })` עם התוצאה. `search.query` (להלן) כן מחזיר זהות מלאה.
@@ -1435,6 +1436,7 @@ for await (const chunk of chunks) {
     book: 'ויקרא', categoryPath: '/הלכה/משנה תורה',
     reference: 'ויקרא, פרק יט',
     text: 'ואהבת לרעך כמוך...',
+    textStatus: 'ok',     // 'ok' | 'stale' | 'unavailable' — ראו להלן
     index: 1234,          // אינדקס השורה/עמוד לפתיחה עם reader.openBook
     mergedCount: 1,       // מספר התוצאות שאוחדו לכרטיס (במצב grouping)
     merged: [{ id, type, bookId, source, book, categoryPath, reference, index }]
@@ -1448,6 +1450,14 @@ for await (const chunk of chunks) {
   bookCounts: [{ id, type, bookId, source, title, count }]  // רק עם includeBookCounts
 }
 ```
+
+**`textStatus`** — האם `text` הוא השורה שבה נמצאה ההתאמה:
+- `'ok'` — כן.
+- `'stale'` — הספר השתנה מאז עדכון אינדקס החיפוש; `text` הוא השורה הנוכחית
+  באותו מיקום, בלי הדגשה, או ריק אם השורה כבר אינה קיימת.
+- `'unavailable'` — הטקסט אינו זמין כעת (למשל בזמן עדכון ספרייה); `text` ריק.
+
+בגרסאות קודמות השדה חסר; יש להתייחס להיעדרו כ-`'ok'`.
 
 אין לצבור את כל התוצאות לפני ציור המסך: יש להוסיף כל `results` מיד עם הגעת
 ה־chunk. אם החיפוש נכשל, האיטרטור זורק שגיאה; chunks שכבר התקבלו נשארים בידי

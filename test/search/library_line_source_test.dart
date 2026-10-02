@@ -102,6 +102,43 @@ void main() {
       engine.readyAfterRegistration = false;
       expect(await LibraryLineSource.ensureHostSqlite(), isFalse);
     });
+
+    group('כשל רישום נכתב ליומן השגיאות', () {
+      late List<Object> logged;
+
+      setUp(() {
+        logged = [];
+        LibraryLineSource.registrationFailureLog = (error, _) =>
+            logged.add(error);
+      });
+
+      test('חריגה ברישום — פעם אחת בלבד גם בניסיונות חוזרים', () async {
+        final failure = Exception('אין auto_extension');
+        engine.failRegistrationWith = failure;
+        await LibraryLineSource.ensureHostSqlite();
+        await LibraryLineSource.ensureHostSqlite();
+        expect(engine.registrations, 2);
+        expect(logged, [failure]);
+      });
+
+      test('מנוע שנשאר לא מוכן אחרי הרישום', () async {
+        engine.readyAfterRegistration = false;
+        await LibraryLineSource.ensureHostSqlite();
+        await LibraryLineSource.ensureHostSqlite();
+        expect(logged, hasLength(1));
+      });
+
+      test('מנוע שלא נטען ב-isolate (StateError) אינו כשל לדיווח', () async {
+        engine.failRegistrationWith = StateError('המנוע לא נטען');
+        await LibraryLineSource.ensureHostSqlite();
+        expect(logged, isEmpty);
+      });
+
+      test('רישום מוצלח אינו נכתב', () async {
+        expect(await LibraryLineSource.ensureHostSqlite(), isTrue);
+        expect(logged, isEmpty);
+      });
+    });
   });
 
   test('נתיב ריק אינו מוגדר במנוע', () async {

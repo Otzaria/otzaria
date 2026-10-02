@@ -136,11 +136,7 @@ class TantivyDataProvider {
   /// ב-SQLite (המילון המורפולוגי וקריאת שורות התוצאה). כשל אינו עוצר אתחול.
   Future<void> _prepareLibraryLineSource() async {
     await LibraryLineSource.ensureHostSqlite();
-    try {
-      await LibraryLineSource.configure(DatabaseConstants.getDatabasePath());
-    } catch (e) {
-      debugPrint('⚠️ נתיב seforim.db למקור השורות לא נקבע: $e');
-    }
+    await LibraryLineSource.configure(DatabaseConstants.getDatabasePath());
   }
 
   /// קורא את תוצאת בדיקת התאימות מהאינדקס עצמו. כשל בבדיקה אינו עוצר את

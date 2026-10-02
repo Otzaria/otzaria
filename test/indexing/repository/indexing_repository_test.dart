@@ -2668,7 +2668,7 @@ void main() {
       expect(decide('uid:5', 5), TextStorage.inIndex);
       expect(decide('db:slug:5', 5), TextStorage.inIndex);
       expect(decide('ext:abc', 5), TextStorage.inIndex);
-      expect(decide(r'C:ooks.txt', 5), TextStorage.inIndex);
+      expect(decide(r'C:\books\a.txt', 5), TextStorage.inIndex);
     });
 
     group('במסלול האינדוקס', () {

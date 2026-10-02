@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -551,6 +552,15 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         'filteredResults=${results.length}, title="$expectedTitle"',
       );
 
+      // בחיפוש בספר התוכן הטעון קובע; בלעדיו נשארת הודעת "אינו זמין".
+      if (results.any(isResultTextUnavailable)) {
+        try {
+          await _ensureContent();
+        } catch (e) {
+          debugPrint('טעינת תוכן הספר לתוצאות נכשלה: $e');
+        }
+      }
+
       if (mounted && requestId == _activeSearchRequestId) {
         _applySearchResults(
           _convertSearchResults(results),
@@ -821,10 +831,25 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     return null;
   }
 
+  /// השורה מהתוכן הטעון, כקטע מוברח כמו טקסט המנוע (בלי הדגשה — היא
+  /// מחושבת בתצוגה). null כשהשורה אינה טעונה.
+  String? _loadedLineSnippet(int index, TextBookState state) {
+    final line = state is TextBookLoaded ? _lineTextAt(index, state) : null;
+    if (line == null) return null;
+    final excerpt = SnippetBuilder.buildExcerptText(
+      fullText: SnippetBuilder.htmlToPlainText(line),
+      query: searchTextController.text,
+      maxChars: _maxResultSnippetChars,
+      wholeWord: _wholeWord,
+    );
+    return const HtmlEscape(HtmlEscapeMode.element).convert(excerpt);
+  }
+
   List<TextSearchResult> _convertSearchResults(List<SearchResult> results) {
     // רק עותק השורות המלא תוחם את מספרי השורות. `state.content` יכול להיות
     // חלון חלקי סביב מקום הקריאה, ולפיו היו נזרקות תוצאות מנוע תקפות.
     final int? contentLength = _content?.length;
+    final state = context.read<TextBookBloc>().state;
     final List<TextSearchResult> converted = [];
     for (final result in results) {
       try {
@@ -835,7 +860,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             TextSearchResult(
               index: lineNumber,
               snippet: isResultTextUnavailable(result)
-                  ? unavailableResultText
+                  ? _loadedLineSnippet(lineNumber, state) ??
+                        unavailableResultText
                   : result.text,
               address: result.reference,
               query: searchTextController.text,

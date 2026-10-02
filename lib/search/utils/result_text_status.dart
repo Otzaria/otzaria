@@ -4,6 +4,14 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 /// עדכון ספרייה) — שורה ריקה נראית כמו תקלה.
 const String unavailableResultText = 'טקסט השורה אינו זמין כעת';
 
-/// האם המנוע החזיר את התוצאה בלי טקסט ([TextStatus.unavailable]).
+/// האם אין לתוצאה טקסט להציג: המנוע לא קרא אותו, או ששורתה כבר אינה במסד.
 bool isResultTextUnavailable(SearchResult result) =>
-    result.textStatus == TextStatus.unavailable;
+    switch (result.textStatus) {
+      TextStatus.ok => false,
+      TextStatus.stale => result.text.isEmpty,
+      TextStatus.unavailable => true,
+    };
+
+/// האם יש בתוצאה טקסט שאפשר להעתיק.
+bool hasCopyableResultText(SearchResult result) =>
+    !isResultTextUnavailable(result) && result.text.isNotEmpty;

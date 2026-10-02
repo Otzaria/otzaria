@@ -427,6 +427,7 @@ class SqliteDataProvider {
   /// מאוחים ב-`\n` — מסלול האינדוקס מעביר אותם למנוע כמות-שהם
   /// (addTextBookBytes) בלי פענוח ל-String וקידוד חוזר על גשר ה-FFI.
   /// [officialBookId] — ה-id ב-seforim.db כשהשורות נקראו משם, אחרת null.
+  /// גם null כששורה מכילה `\n`: מספרי השורות במנוע לא יתאימו לרשומות.
   Future<({Uint8List bytes, int? officialBookId})?> getBookTextBytesFromDb(
     String title, [
     int? categoryId,
@@ -447,14 +448,14 @@ class SqliteDataProvider {
       );
       if (resolvedBook == null) return null;
 
-      final bytes = await BookTextReader.bytes(
+      final read = await BookTextReader.bytes(
         resolvedBook.repository,
         resolvedBook.book,
       );
-      if (bytes == null || bytes.isEmpty) return null;
+      if (read == null || read.bytes.isEmpty) return null;
       return (
-        bytes: bytes,
-        officialBookId: resolvedBook.source.isOfficial
+        bytes: read.bytes,
+        officialBookId: resolvedBook.source.isOfficial && !read.rowHasNewline
             ? resolvedBook.book.id
             : null,
       );

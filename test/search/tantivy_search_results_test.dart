@@ -3,11 +3,18 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/external_search_status.dart';
+import 'package:otzaria/search/utils/index_freshness_warner.dart';
 import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/search/view/search_result_source_tag.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
@@ -16,6 +23,8 @@ import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
+
+import '../test_helpers/memory_cache_provider.dart';
 
 class MockSearchBloc extends MockBloc<SearchEvent, SearchState>
     implements SearchBloc {}
@@ -407,6 +416,110 @@ void main() {
       expect(staleText, ['שורה שהשתנתה & נוספה']);
     });
 
+    group('טקסט שהשתנה או אינו זמין', () {
+      SearchResult result(int i, String text, TextStatus status) =>
+          SearchResult(
+            id: BigInt.from(i),
+            title: 'ספר $i',
+            reference: 'סימן $i',
+            text: text,
+            segment: BigInt.from(i),
+            isPdf: false,
+            filePath: 'id:$i',
+            mergedCount: 1,
+            merged: const [],
+            textStatus: status,
+          );
+
+      Finder copyButtons() => find.ancestor(
+        of: find.byWidgetPredicate(
+          (w) => w is Icon && w.icon == FluentIcons.copy_24_regular,
+        ),
+        matching: find.byType(IconButton),
+      );
+
+      testWidgets('שורה שנמחקה (stale ריק) מוצגת כלא-זמינה, '
+          'ואין מה להעתיק ממנה', (tester) async {
+        String? copiedText;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copiedText = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          },
+        );
+        searchBloc.emitState(
+          searchBloc.state.copyWith(
+            totalResults: 3,
+            results: [
+              result(1, '', TextStatus.unavailable),
+              result(2, '', TextStatus.stale),
+              result(3, 'שורה קיימת', TextStatus.ok),
+            ],
+          ),
+        );
+        await tester.pumpWidget(buildWidget());
+        await tester.pump();
+
+        expect(find.text(unavailableResultText), findsNWidgets(2));
+        final enabled = tester
+            .widgetList<IconButton>(copyButtons())
+            .map((button) => button.onPressed != null)
+            .toList();
+        expect(enabled, [false, false, true]);
+
+        await tester.tap(copyButtons().at(2));
+        await tester.pump();
+        expect(copiedText, 'שורה קיימת');
+      });
+
+      testWidgets('תוצאה stale מפעילה את בדיקת טריות האינדקס של הספר', (
+        tester,
+      ) async {
+        final warner = IndexFreshnessWarner.instance;
+        final checkedBooks = <String>[];
+        final notifications = <String>[];
+        final engine = _FingerprintEngine();
+        warner
+          ..resetForTesting()
+          ..providerResolver = (() => _WarnerProvider(engine))
+          ..debugBookVerifier = (book, _) async {
+            checkedBooks.add(book.title);
+            return false;
+          }
+          ..debugNotifier = notifications.add;
+        addTearDown(warner.resetForTesting);
+        await Settings.init(cacheProvider: MemoryCacheProvider());
+        DataRepository.instance.library = Future.value(
+          Library(categories: [])
+            ..books.addAll([
+              TextBook(id: 7, title: 'ספר 7'),
+              TextBook(id: 8, title: 'ספר 8'),
+            ]),
+        );
+
+        await tester.pumpWidget(buildWidget());
+        await tester.pump();
+        searchBloc.emitState(
+          searchBloc.state.copyWith(
+            totalResults: 3,
+            results: [
+              result(7, 'שורה שהשתנתה', TextStatus.stale),
+              result(7, '', TextStatus.stale),
+              result(8, 'שורה תקינה', TextStatus.ok),
+            ],
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        expect(checkedBooks, ['ספר 7']);
+        expect(notifications, [LibraryMessages.searchResultContentDrifted]);
+      });
+    });
+
     testWidgets('מספר תוצאה בן 4 ספרות נשאר בשורה אחת בתוך הריבוע', (
       tester,
     ) async {
@@ -587,4 +700,26 @@ void main() {
       },
     );
   });
+}
+
+class _FingerprintEngine implements SearchEngine {
+  @override
+  Future<BigInt> getBookTextFingerprint({required String filePath}) =>
+      Future.value(BigInt.one);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _WarnerProvider implements TantivyDataProvider {
+  _WarnerProvider(SearchEngine engine) : engine = Future.value(engine);
+
+  @override
+  Future<SearchEngine> engine;
+
+  @override
+  ValueNotifier<bool> isIndexing = ValueNotifier(false);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

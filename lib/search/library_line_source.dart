@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/data/sqlite/sqlite_auto_extension.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
@@ -36,6 +37,8 @@ abstract final class LibraryLineSource {
     _hostRegistration = null;
     _heldForExternalWrite = false;
     _queue = Future.value();
+    _registrationFailureReported = false;
+    registrationFailureLog = _appendRegistrationFailureToErrorLog;
   }
 
   /// קובע את [hostApiReady] בטסטים שאינם טוענים את המנוע.
@@ -62,12 +65,51 @@ abstract final class LibraryLineSource {
       }
       _hostApiReady = (await _engine.status()).hostApiReady;
       if (!_hostApiReady) {
-        debugPrint('⚠️ המנוע לא קיבל את SQLite של Dart — אינדוקס עם טקסט');
+        _reportRegistrationFailure(
+          'המנוע לא קיבל את SQLite של Dart — אינדוקס עם טקסט',
+          null,
+        );
       }
-    } catch (error) {
-      _logFailure('מסירת SQLite של Dart למנוע', error);
+    } catch (error, stackTrace) {
+      if (error is! StateError) _reportRegistrationFailure(error, stackTrace);
     }
     return _hostApiReady;
+  }
+
+  /// כותב את כשל הרישום ל-errors.txt; מוחלף בטסטים.
+  @visibleForTesting
+  static void Function(Object error, StackTrace? stackTrace)
+  registrationFailureLog = _appendRegistrationFailureToErrorLog;
+
+  static bool _registrationFailureReported = false;
+
+  // בלי הרישום, ספרים שאונדקסו בלי טקסט מוצגים "אינו זמין" — הסיבה חייבת
+  // להגיע ל-errors.txt, פעם אחת לתהליך.
+  static void _reportRegistrationFailure(Object error, StackTrace? stackTrace) {
+    debugPrint('⚠️ מסירת SQLite של Dart למנוע נכשלה: $error');
+    if (_registrationFailureReported) return;
+    _registrationFailureReported = true;
+    registrationFailureLog(error, stackTrace);
+  }
+
+  static void _appendRegistrationFailureToErrorLog(
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    if (kDebugMode) return;
+    try {
+      ErrorLogFile.append(
+        title: 'Initialization Warning',
+        error: error,
+        stackTrace: stackTrace,
+        details: const {
+          'Phase': 'initialize',
+          'Component': 'Search line source (host SQLite)',
+        },
+      );
+    } catch (_) {
+      // כשל בכתיבת הלוג אינו עוצר את אתחול המנוע.
+    }
   }
 
   /// מגדיר למנוע את נתיב seforim.db. הפתיחה עצלה; נתיב חדש מנקה את הקאשים.

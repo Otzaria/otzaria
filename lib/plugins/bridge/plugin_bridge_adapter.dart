@@ -2114,6 +2114,7 @@ class PluginBridgeAdapter {
                 'type': r.isPdf ? 'pdf' : 'text',
                 'book': r.title,
                 'text': r.text,
+                'textStatus': r.textStatus.name,
                 'index': r.segment.toInt(),
               },
             )

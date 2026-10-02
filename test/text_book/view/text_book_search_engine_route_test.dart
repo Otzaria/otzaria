@@ -11,6 +11,7 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -145,6 +146,53 @@ Future<void> main() async {
       expect(find.text('אין תוצאות'), findsNothing);
       expect(find.text('בראשית, פרק טו'), findsOneWidget);
       expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
+    'שורה שהמנוע לא קרא מוצגת מתוכן הספר הטעון',
+    (tester) async {
+      final repository = _RecordingSearchRepository(
+        results: [
+          _result(
+            title: 'בראשית',
+            reference: 'פרק טו',
+            segment: 0,
+            text: '',
+            textStatus: TextStatus.unavailable,
+          ),
+          _result(
+            title: 'בראשית',
+            reference: 'פרק טז',
+            segment: 1,
+            text: '',
+            textStatus: TextStatus.stale,
+          ),
+        ],
+      );
+
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'תדע זרעך',
+        searchDistance: 3,
+        bookTitle: 'בראשית',
+        content: const [
+          'ויאמר לאברם ידע תדע כי־גר יהיה זרעך',
+          'שורה <b>שנייה</b> תדע את זרעך',
+        ],
+      );
+
+      await harness.settle();
+
+      expect(find.text(unavailableResultText), findsNothing);
+      String resultText(String needle) => tester
+          .widgetList<RichText>(find.byType(RichText))
+          .map((widget) => widget.text.toPlainText())
+          .singleWhere((text) => text.contains(needle));
+      expect(resultText('לאברם'), 'ויאמר לאברם ידע תדע כי־גר יהיה זרעך');
+      expect(resultText('שנייה'), 'שורה שנייה תדע את זרעך');
     },
     skip: !engineReady,
   );
@@ -396,19 +444,21 @@ SearchResult _result({
   required String title,
   required String reference,
   required int segment,
+  String text =
+      'ידע <font color=red>תדע</font> כי־גר יהיה <font color=red>זרעך</font>',
+  TextStatus textStatus = TextStatus.ok,
 }) {
   return SearchResult(
     id: BigInt.from(segment + 1),
     title: title,
     reference: reference,
-    text:
-        'ידע <font color=red>תדע</font> כי־גר יהיה <font color=red>זרעך</font>',
+    text: text,
     segment: BigInt.from(segment),
     isPdf: false,
     filePath: 'id:1',
     mergedCount: 1,
     merged: const [],
-    textStatus: TextStatus.ok,
+    textStatus: textStatus,
   );
 }
 
