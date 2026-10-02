@@ -502,6 +502,7 @@ Future<void> main() async {
       filePath: 'id:7',
       mergedCount: 1,
       merged: const [],
+      textStatus: engine.TextStatus.ok,
     );
 
     test('תוצאה עם ספר מזוהה נושאת זהות מלאה', () {
@@ -547,6 +548,7 @@ Future<void> main() async {
             filePath: 'id:8',
           ),
         ],
+        textStatus: engine.TextStatus.ok,
       );
 
       final json = PluginSearchApi.resultToJson(
@@ -602,6 +604,7 @@ Future<void> main() async {
             filePath: 'id:8',
           ),
         ],
+        textStatus: engine.TextStatus.ok,
       );
 
       final json = PluginSearchApi.resultToJson(

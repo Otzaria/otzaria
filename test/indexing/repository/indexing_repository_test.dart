@@ -18,6 +18,7 @@ import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/utils/file/document_format.dart';
@@ -2645,6 +2646,73 @@ void main() {
     );
   });
 
+  group('IndexingRepository.textStorageFor', () {
+    TextStorage decide(String filePath, int? id, {bool ready = true}) =>
+        IndexingRepository.textStorageFor(
+          filePath: filePath,
+          libraryDbBookId: id,
+          hostApiReady: ready,
+        );
+
+    test('ספר רשמי שנקרא מ-seforim.db — הטקסט לא נשמר באינדקס', () {
+      expect(decide('id:5', 5), TextStorage.libraryDb);
+    });
+
+    test('בלי SQLite משותף למנוע — הטקסט נשמר באינדקס', () {
+      expect(decide('id:5', 5, ready: false), TextStorage.inIndex);
+    });
+
+    test('מקור שאינו seforim.db או מפתח אחר — הטקסט נשמר באינדקס', () {
+      expect(decide('id:5', null), TextStorage.inIndex);
+      expect(decide('id:6', 5), TextStorage.inIndex);
+      expect(decide('uid:5', 5), TextStorage.inIndex);
+      expect(decide('db:slug:5', 5), TextStorage.inIndex);
+      expect(decide('ext:abc', 5), TextStorage.inIndex);
+      expect(decide(r'C:ooks.txt', 5), TextStorage.inIndex);
+    });
+
+    group('במסלול האינדוקס', () {
+      tearDown(LibraryLineSource.debugReset);
+
+      Future<_CancellationRecordingEngine> index({
+        required bool hostApiReady,
+      }) async {
+        LibraryLineSource.debugHostApiReady = hostApiReady;
+        final engine = _CancellationRecordingEngine();
+        final provider = _RecordingTantivyDataProvider(engine);
+        final repository = _FakeExtractionRepository(provider)
+          ..libraryDbBookIdByTitle['מהמסד'] = 301;
+        final fromDb = TextBook(id: 301, title: 'מהמסד');
+        final fromFile = TextBook(id: 302, title: 'מקובץ');
+        final library = Library(categories: [])
+          ..books.addAll([fromDb, fromFile]);
+        final result = await repository.indexBooks(
+          [fromDb, fromFile],
+          library,
+          onProgress: (_, _) {},
+        );
+        expect(result.completed, isTrue);
+        return engine;
+      }
+
+      test('רק הספר שנקרא מהמסד מאונדקס בלי טקסט', () async {
+        final engine = await index(hostApiReady: true);
+        expect(engine.textStorageByFilePath, {
+          'id:301': TextStorage.libraryDb,
+          'id:302': TextStorage.inIndex,
+        });
+      });
+
+      test('כשהמנוע לא קיבל SQLite — הכול נשמר באינדקס', () async {
+        final engine = await index(hostApiReady: false);
+        expect(engine.textStorageByFilePath, {
+          'id:301': TextStorage.inIndex,
+          'id:302': TextStorage.inIndex,
+        });
+      });
+    });
+  });
+
   group('IndexingRepository.optimizeIndexBestEffort', () {
     test('מחזיר true כש-optimize מצליח', () async {
       var called = false;
@@ -2821,13 +2889,12 @@ class _CancelDuringLoadRepository extends IndexingRepository {
   final loadedTitles = <String>[];
 
   @override
-  Future<({Uint8List? bytes, String? text})> loadTextBookSource(
-    TextBook book,
-  ) async {
+  Future<({Uint8List? bytes, String? text, int? libraryDbBookId})>
+  loadTextBookSource(TextBook book) async {
     loadedTitles.add(book.title);
     await Future<void>.delayed(Duration.zero);
     provider.isIndexing.value = false; // לחיצת ביטול בזמן טעינת התוכן
-    return (bytes: null, text: 'תוכן');
+    return (bytes: null, text: 'תוכן', libraryDbBookId: null);
   }
 }
 
@@ -2854,13 +2921,19 @@ class _FakeExtractionRepository extends IndexingRepository {
   /// כותרות שחילוצן מחזיר אפס עמודים — PDF סרוק, או כל העמודים ב-timeout.
   final emptyPagesTitles = <String>{};
 
+  /// ה-id ב-seforim.db שממנו "נקרא" ספר הטקסט, לפי כותרת.
+  final libraryDbBookIdByTitle = <String, int>{};
+
   @override
-  Future<({Uint8List? bytes, String? text})> loadTextBookSource(
-    TextBook book,
-  ) async {
+  Future<({Uint8List? bytes, String? text, int? libraryDbBookId})>
+  loadTextBookSource(TextBook book) async {
     final failure = textFailureByTitle[book.title];
     if (failure != null) throw failure;
-    return (bytes: null, text: 'תוכן');
+    return (
+      bytes: null,
+      text: 'תוכן',
+      libraryDbBookId: libraryDbBookIdByTitle[book.title],
+    );
   }
 
   @override
@@ -2924,6 +2997,7 @@ class _GatedPdfExtractionRepository extends _FakeExtractionRepository {
 class _CancellationRecordingEngine extends _RecordingSearchEngine {
   final pendingCounts = <String, int>{};
   final committedCounts = <String, int>{};
+  final textStorageByFilePath = <String, TextStorage>{};
   void Function(String title)? onTextAdded;
 
   void _add(String key) =>
@@ -2938,8 +3012,10 @@ class _CancellationRecordingEngine extends _RecordingSearchEngine {
     required int generationOrder,
     required String text,
     List<String>? extraFacets,
+    required TextStorage textStorage,
   }) async {
     _add(filePath);
+    textStorageByFilePath[filePath] = textStorage;
     onTextAdded?.call(title);
     return 1;
   }

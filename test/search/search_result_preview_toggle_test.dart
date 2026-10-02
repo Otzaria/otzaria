@@ -211,6 +211,7 @@ SearchState _searchState({String query = 'תדע זרעך'}) => SearchState(
       filePath: 'id:1',
       mergedCount: 1,
       merged: const [],
+      textStatus: TextStatus.ok,
     ),
   ],
 );

@@ -8,9 +8,12 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/models/category.dart' as migration_models;
+import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart' show SqliteException;
+
+import '../support/fake_line_source_engine.dart';
 
 /// בדיקות ל-gate הכתיבה החיצונית של [SqliteDataProvider]: seforim.db פתוח
 /// read-only, ו-[closeForExternalWrite]/[reopenAfterExternalWrite] סוגרים אותו
@@ -172,6 +175,31 @@ void main() {
     await reader.timeout(const Duration(seconds: 5));
 
     expect(SqliteDataProvider.instance.isInitialized, isTrue);
+  });
+
+  test('מקור השורות של המנוע סגור לאורך כל הכתיבות החופפות, '
+      'ונפתח פעם אחת בסוף האחרונה', () async {
+    final engine = FakeLineSourceEngine();
+    LibraryLineSource.debugReset(engine: engine);
+    addTearDown(LibraryLineSource.debugReset);
+
+    await SqliteDataProvider.instance.closeForExternalWrite();
+    await SqliteDataProvider.instance.closeForExternalWrite();
+    expect(engine.depth, 1);
+
+    await SqliteDataProvider.instance.reopenAfterExternalWrite();
+    expect(engine.depth, 1, reason: 'עוד כתיבה חיצונית פעילה');
+
+    await SqliteDataProvider.instance.reopenAfterExternalWrite();
+    expect(engine.depth, 0);
+    // reopen עודף אינו מחדש בלי השעיה תואמת.
+    await SqliteDataProvider.instance.reopenAfterExternalWrite();
+    expect(engine.resumes, 1);
+
+    // dispose רגיל משחרר את הקובץ גם במנוע, בלי להשאיר אותו מושהה.
+    await SqliteDataProvider.instance.dispose();
+    expect(engine.suspends, 2);
+    expect(engine.depth, 0);
   });
 
   test('initialize() לא נתקעת לנצח כש-reopen מתפספס — חוזרת בתקרת הזמן '

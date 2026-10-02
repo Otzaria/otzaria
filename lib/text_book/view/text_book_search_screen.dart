@@ -23,6 +23,7 @@ import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/index_freshness_warner.dart';
+import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -833,7 +834,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           converted.add(
             TextSearchResult(
               index: lineNumber,
-              snippet: result.text,
+              snippet: isResultTextUnavailable(result)
+                  ? unavailableResultText
+                  : result.text,
               address: result.reference,
               query: searchTextController.text,
             ),

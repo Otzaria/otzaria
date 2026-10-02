@@ -120,6 +120,7 @@ SearchResult _result(String text) => SearchResult(
   filePath: 'book.txt',
   mergedCount: 1,
   merged: const [],
+  textStatus: TextStatus.ok,
 );
 
 class _ControlledSearchRepository extends SearchRepository {

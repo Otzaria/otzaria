@@ -62,7 +62,8 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         SearchResult,
         SearchScope,
         SearchStreamUpdate,
-        WordMatchMode;
+        WordMatchMode,
+        TextStatus;
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -4193,6 +4194,7 @@ Future<void> main() async {
                   filePath: 'id:10',
                   mergedCount: 1,
                   merged: const <MergedSibling>[],
+                  textStatus: TextStatus.ok,
                 ),
               ],
               truncated: false,

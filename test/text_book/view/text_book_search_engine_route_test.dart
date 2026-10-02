@@ -408,6 +408,7 @@ SearchResult _result({
     filePath: 'id:1',
     mergedCount: 1,
     merged: const [],
+    textStatus: TextStatus.ok,
   );
 }
 

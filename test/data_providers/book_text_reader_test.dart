@@ -352,10 +352,9 @@ void main() {
       final sentBefore = DbReadWorker.sentMessageCount;
 
       expect(await provider.getBookTextFromDb('בראשית', 7, 'txt'), legacy.text);
-      expect(
-        await provider.getBookTextBytesFromDb('בראשית', 7, 'txt'),
-        legacy.bytes,
-      );
+      final read = await provider.getBookTextBytesFromDb('בראשית', 7, 'txt');
+      expect(read?.bytes, legacy.bytes);
+      expect(read?.officialBookId, 1);
       expect(await provider.getBookTextFromDb('ריק', 7, 'txt'), isNull);
       expect(await provider.getBookTextBytesFromDb('ריק', 7, 'txt'), isNull);
       // שורה ריקה יחידה: טקסט '' אך בלי בייטים — כמו קודם.
@@ -390,10 +389,9 @@ void main() {
       final legacy = legacyRead(dbPath, 1);
 
       expect(await provider.getBookTextFromDb('בראשית', 7, 'txt'), legacy.text);
-      expect(
-        await provider.getBookTextBytesFromDb('בראשית', 7, 'txt'),
-        legacy.bytes,
-      );
+      final read = await provider.getBookTextBytesFromDb('בראשית', 7, 'txt');
+      expect(read?.bytes, legacy.bytes);
+      expect(read?.officialBookId, 1);
       expect(BookTextReader.mainConnectionReads, 0);
     });
 

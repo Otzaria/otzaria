@@ -29,6 +29,7 @@ import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/book_facet.dart';
+import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
@@ -725,6 +726,11 @@ class IndexingRepository {
       final generationOrder = chronologicalOrderForBook(book);
       final engineStopwatch = Stopwatch()..start();
       final extraFacets = _bookExtraFacets(book);
+      final textStorage = textStorageFor(
+        filePath: filePath,
+        libraryDbBookId: source.libraryDbBookId,
+        hostApiReady: LibraryLineSource.hostApiReady,
+      );
       final added = hasBytes
           ? await engine.addTextBookBytes(
               title: title,
@@ -734,6 +740,7 @@ class IndexingRepository {
               generationOrder: generationOrder,
               text: bytes,
               extraFacets: extraFacets,
+              textStorage: textStorage,
             )
           : await engine.addTextBook(
               title: title,
@@ -743,6 +750,7 @@ class IndexingRepository {
               generationOrder: generationOrder,
               text: text!,
               extraFacets: extraFacets,
+              textStorage: textStorage,
             );
       engineStopwatch.stop();
       final size = hasBytes
@@ -1339,19 +1347,22 @@ class IndexingRepository {
   /// (בלי פענוח/קידוד על ה-UI isolate), וירידה לטקסט מפוענח ומנוקה רק
   /// כשחייבים (תמונות מוטמעות, פורמט מומר, ספר בלי categoryId). משותף
   /// לאינדוקס ולאימות הטריות — כך שתי החתימות מחושבות על אותו קלט בדיוק.
+  /// [libraryDbBookId] — ה-id ב-seforim.db כשהמקור הוא שורות הספר משם.
   @visibleForTesting
-  Future<({Uint8List? bytes, String? text})> loadTextBookSource(
-    TextBook book,
-  ) async {
+  Future<({Uint8List? bytes, String? text, int? libraryDbBookId})>
+  loadTextBookSource(TextBook book) async {
     Uint8List? bytes;
     String? text;
+    int? libraryDbBookId;
     if (book.categoryId != null) {
-      bytes = await SqliteDataProvider.instance.getBookTextBytesFromDb(
+      final fromDb = await SqliteDataProvider.instance.getBookTextBytesFromDb(
         book.title,
         book.categoryId,
         book.fileType ?? 'txt',
         book.source,
       );
+      bytes = fromDb?.bytes;
+      libraryDbBookId = fromDb?.officialBookId;
       // ניקוי תמונות מוטמעות חייב לרוץ בשני הצדדים — אחרת חתימת האינדוקס
       // לעולם לא תתאים לאימות ו-reconcile יאנדקס את הספר מחדש בכל ריצה.
       if (bytes != null) {
@@ -1365,9 +1376,10 @@ class IndexingRepository {
       }
     }
     if ((bytes == null || bytes.isEmpty) && (text == null || text.isEmpty)) {
+      libraryDbBookId = null;
       text = await _loadTextForIndex(book);
     }
-    return (bytes: bytes, text: text);
+    return (bytes: bytes, text: text, libraryDbBookId: libraryDbBookId);
   }
 
   Future<String?> _loadTextBookText(TextBook book) async {
@@ -1535,6 +1547,20 @@ class IndexingRepository {
 
     return '$title|${categoryKey ?? ''}|${fileTypeKey ?? ''}|${pathKey ?? ''}';
   }
+
+  /// [TextStorage.libraryDb] רק לשורות ספר מ-seforim.db שמפתחו `id:<אותו id>`
+  /// וכשהמנוע יכול לקרוא את המסד; אחרת הטקסט נשמר באינדקס.
+  @visibleForTesting
+  static TextStorage textStorageFor({
+    required String filePath,
+    required int? libraryDbBookId,
+    required bool hostApiReady,
+  }) =>
+      hostApiReady &&
+          libraryDbBookId != null &&
+          filePath == officialBookKey(libraryDbBookId)
+      ? TextStorage.libraryDb
+      : TextStorage.inIndex;
 
   /// מפתח catalogueOrderKey לספר אישי (user_books.db) לפי id גולמי.
   static String userBookKey(int id) => 'uid:$id';

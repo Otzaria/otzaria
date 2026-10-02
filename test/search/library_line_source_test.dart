@@ -1,0 +1,112 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/search/library_line_source.dart';
+
+import '../support/fake_line_source_engine.dart';
+
+void main() {
+  late FakeLineSourceEngine engine;
+
+  setUp(() {
+    engine = FakeLineSourceEngine();
+    LibraryLineSource.debugReset(engine: engine);
+  });
+
+  tearDown(LibraryLineSource.debugReset);
+
+  group('השעיה לכתיבה חיצונית', () {
+    test('החזקה ושחרור מאוזנים, וחוזרים על עצמם בלי השעיה כפולה', () async {
+      await LibraryLineSource.holdForExternalWrite();
+      await LibraryLineSource.holdForExternalWrite();
+      expect(engine.depth, 1);
+
+      await LibraryLineSource.releaseExternalWriteHold();
+      await LibraryLineSource.releaseExternalWriteHold();
+      expect(engine.depth, 0);
+      expect(engine.suspends, 1);
+      expect(engine.resumes, 1);
+    });
+
+    test('שחרור בלי החזקה אינו מחדש דבר', () async {
+      await LibraryLineSource.releaseExternalWriteHold();
+      expect(engine.resumes, 0);
+    });
+
+    test('החזקות מקבילות מבצעות השעיה אחת בלבד', () async {
+      engine.suspendGate = Completer<void>();
+      final first = LibraryLineSource.holdForExternalWrite();
+      final second = LibraryLineSource.holdForExternalWrite();
+      final release = LibraryLineSource.releaseExternalWriteHold();
+      engine.suspendGate!.complete();
+      await Future.wait([first, second, release]);
+
+      expect(engine.suspends, 1);
+      expect(engine.resumes, 1);
+      expect(engine.depth, 0);
+    });
+
+    test('השעיה שנכשלה אינה מחודשת בשחרור', () async {
+      engine.failSuspendWith = StateError('המנוע לא נטען');
+      await LibraryLineSource.holdForExternalWrite();
+      await LibraryLineSource.releaseExternalWriteHold();
+      expect(engine.resumes, 0);
+      expect(engine.depth, 0);
+    });
+
+    test('סגירה מיידית משאירה את המקור פתוח לחיפוש הבא', () async {
+      await LibraryLineSource.closeNow();
+      expect(engine.suspends, 1);
+      expect(engine.depth, 0);
+    });
+
+    test('סגירה מיידית בזמן החזקה אינה נוגעת בהחזקה', () async {
+      await LibraryLineSource.holdForExternalWrite();
+      await LibraryLineSource.closeNow();
+      expect(engine.suspends, 1);
+      expect(engine.depth, 1);
+      await LibraryLineSource.releaseExternalWriteHold();
+      expect(engine.depth, 0);
+    });
+  });
+
+  group('SQLite משותף למנוע', () {
+    test('נרשם פעם אחת, וקריאות מקבילות ממתינות לאותו רישום', () async {
+      final results = await Future.wait([
+        LibraryLineSource.ensureHostSqlite(),
+        LibraryLineSource.ensureHostSqlite(),
+      ]);
+      expect(results, [true, true]);
+      expect(await LibraryLineSource.ensureHostSqlite(), isTrue);
+      expect(engine.registrations, 1);
+      expect(LibraryLineSource.hostApiReady, isTrue);
+    });
+
+    test('כשהמנוע כבר מוכן אין רישום', () async {
+      engine.hostReady = true;
+      expect(await LibraryLineSource.ensureHostSqlite(), isTrue);
+      expect(engine.registrations, 0);
+    });
+
+    test('כשל רישום משאיר אינדוקס עם טקסט, ונוסה שוב בפעם הבאה', () async {
+      engine.failRegistrationWith = Exception('אין auto_extension');
+      expect(await LibraryLineSource.ensureHostSqlite(), isFalse);
+      expect(LibraryLineSource.hostApiReady, isFalse);
+
+      engine.failRegistrationWith = null;
+      expect(await LibraryLineSource.ensureHostSqlite(), isTrue);
+      expect(engine.registrations, 2);
+    });
+
+    test('רישום שלא הפך את המנוע למוכן נחשב כשל', () async {
+      engine.readyAfterRegistration = false;
+      expect(await LibraryLineSource.ensureHostSqlite(), isFalse);
+    });
+  });
+
+  test('נתיב ריק אינו מוגדר במנוע', () async {
+    await LibraryLineSource.configure('');
+    await LibraryLineSource.configure('/lib/seforim.db');
+    expect(engine.configuredPaths, ['/lib/seforim.db']);
+  });
+}

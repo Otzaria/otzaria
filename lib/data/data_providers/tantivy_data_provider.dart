@@ -6,6 +6,8 @@ import 'package:path/path.dart' as p;
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/data/data_providers/catalogue_order_revision.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -106,6 +108,7 @@ class TantivyDataProvider {
     activeIndexPath = null;
 
     final indexPath = await AppPaths.getIndexPath();
+    await _prepareLibraryLineSource();
     _indexCompatibility = await _checkIndexCompatibility(indexPath);
 
     // אינדקס בסכמה לא תואמת אינו נפתח כלל: המנוע נכנס לפאניקה בפתיחתו,
@@ -127,6 +130,17 @@ class TantivyDataProvider {
     // "אין אינדקס" מתוך הקבוצה צריכים לחכות לסימן הזה כדי לא להציג שגוי בהפעלה.
     isInitialized.value = true;
     return engine;
+  }
+
+  /// מוסר למנוע את ה-SQLite של Dart ואת נתיב seforim.db — לפני כל שימוש שלו
+  /// ב-SQLite (המילון המורפולוגי וקריאת שורות התוצאה). כשל אינו עוצר אתחול.
+  Future<void> _prepareLibraryLineSource() async {
+    await LibraryLineSource.ensureHostSqlite();
+    try {
+      await LibraryLineSource.configure(DatabaseConstants.getDatabasePath());
+    } catch (e) {
+      debugPrint('⚠️ נתיב seforim.db למקור השורות לא נקבע: $e');
+    }
   }
 
   /// קורא את תוצאת בדיקת התאימות מהאינדקס עצמו. כשל בבדיקה אינו עוצר את

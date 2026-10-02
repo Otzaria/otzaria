@@ -15,6 +15,7 @@ import 'package:otzaria/migration/database/journal_mode.dart';
 import 'package:otzaria/migration/models/model_adapters.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/find_ref/repository/find_ref_db_isolate.dart';
+import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/migration/models/toc_entry.dart' as db_models;
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show SqliteException;
@@ -131,6 +132,7 @@ class SqliteDataProvider {
       await _repository.ensureInitialized();
       _isInitialized = true;
       DbReadWorker.allowReopen();
+      unawaited(LibraryLineSource.configure(_dbPath));
     } on SqliteException catch (e) {
       // SQLITE_CANTOPEN (code 14) on Android: clear a stale keyDbEffectivePath
       // so the library path is re-resolved on the next check.
@@ -170,6 +172,8 @@ class SqliteDataProvider {
     }
     // ה-worker פותח לפי הנתיב של החיבור הזה, ולכן לא יחזיק את הקובץ אחריו.
     await DbReadWorker.closeConnectionIfRunning(wait: waitForWorker);
+    // ביציאה אין טעם, ובכתיבה חיצונית closeForExternalWrite מחזיק אותו סגור.
+    if (waitForWorker) await LibraryLineSource.closeNow();
   }
 
   /// מספר ה-write-sessions הפעילים. כשהוא > 0 חיבור ה-RO סגור ו-[initialize]
@@ -219,6 +223,7 @@ class SqliteDataProvider {
     _externalWriteGate ??= Completer<void>();
     _activeWriteSessions++;
     try {
+      await LibraryLineSource.holdForExternalWrite();
       try {
         await _initializationFuture;
       } finally {
@@ -265,6 +270,7 @@ class SqliteDataProvider {
       // וקטלוג עד סוף ה-session.
       await FindRefDbIsolate.resumeAfterExternalWrite();
       await DbReadWorker.resumeAfterExternalWrite();
+      await LibraryLineSource.releaseExternalWriteHold();
       // משחררים את הקוראים הממתינים. ה-finally מבטיח שחרור גם אם הפתיחה-מחדש
       // נכשלה (אחרת היו נתקעים לנצח).
       final gate = _externalWriteGate;
@@ -420,7 +426,8 @@ class SqliteDataProvider {
   /// כמו [getBookTextFromDb], אבל כבייטים גולמיים (UTF-8 כפי שמאוחסן),
   /// מאוחים ב-`\n` — מסלול האינדוקס מעביר אותם למנוע כמות-שהם
   /// (addTextBookBytes) בלי פענוח ל-String וקידוד חוזר על גשר ה-FFI.
-  Future<Uint8List?> getBookTextBytesFromDb(
+  /// [officialBookId] — ה-id ב-seforim.db כשהשורות נקראו משם, אחרת null.
+  Future<({Uint8List bytes, int? officialBookId})?> getBookTextBytesFromDb(
     String title, [
     int? categoryId,
     String? fileType,
@@ -445,7 +452,12 @@ class SqliteDataProvider {
         resolvedBook.book,
       );
       if (bytes == null || bytes.isEmpty) return null;
-      return bytes;
+      return (
+        bytes: bytes,
+        officialBookId: resolvedBook.source.isOfficial
+            ? resolvedBook.book.id
+            : null,
+      );
     } catch (e, st) {
       debugPrint(
         '[SqliteDataProvider] getBookTextBytesFromDb failed for '

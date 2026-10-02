@@ -8,6 +8,7 @@ import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/external_search_status.dart';
+import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/search/view/search_result_source_tag.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -92,6 +93,7 @@ void main() {
           filePath: 'book_0.txt',
           mergedCount: 1,
           merged: const [],
+          textStatus: TextStatus.ok,
         ),
         SearchResult(
           id: BigInt.from(2),
@@ -103,6 +105,7 @@ void main() {
           filePath: 'book_1.txt',
           mergedCount: 1,
           merged: const [],
+          textStatus: TextStatus.ok,
         ),
         SearchResult(
           id: BigInt.from(3),
@@ -114,6 +117,7 @@ void main() {
           filePath: 'book_2.txt',
           mergedCount: 1,
           merged: const [],
+          textStatus: TextStatus.ok,
         ),
         ...List.generate(
           97,
@@ -127,6 +131,7 @@ void main() {
             filePath: 'book_${i + 3}.txt',
             mergedCount: 1,
             merged: const [],
+            textStatus: TextStatus.ok,
           ),
         ),
       ];
@@ -263,6 +268,7 @@ void main() {
           filePath: 'book_999.txt',
           mergedCount: 1,
           merged: const [],
+          textStatus: TextStatus.ok,
         ),
       ];
       searchBloc.emitState(searchBloc.state.copyWith(results: moreResults));
@@ -365,6 +371,42 @@ void main() {
       );
     });
 
+    testWidgets('תוצאה שהמנוע לא קרא את הטקסט שלה מציגה הודעה ולא שורה ריקה', (
+      tester,
+    ) async {
+      SearchResult result(int i, String text, TextStatus status) =>
+          SearchResult(
+            id: BigInt.from(i),
+            title: 'ספר $i',
+            reference: 'סימן $i',
+            text: text,
+            segment: BigInt.from(i),
+            isPdf: false,
+            filePath: 'id:$i',
+            mergedCount: 1,
+            merged: const [],
+            textStatus: status,
+          );
+      searchBloc.emitState(
+        searchBloc.state.copyWith(
+          totalResults: 2,
+          results: [
+            result(1, '', TextStatus.unavailable),
+            result(2, 'שורה שהשתנתה &amp; נוספה', TextStatus.stale),
+          ],
+        ),
+      );
+      await tester.pumpWidget(buildWidget());
+      await tester.pump();
+
+      expect(find.text(unavailableResultText), findsOneWidget);
+      final staleText = tester
+          .widgetList<RichText>(find.byType(RichText))
+          .map((widget) => _allTextFromInlineSpan(widget.text))
+          .where((text) => text.contains('שורה שהשתנתה'));
+      expect(staleText, ['שורה שהשתנתה & נוספה']);
+    });
+
     testWidgets('מספר תוצאה בן 4 ספרות נשאר בשורה אחת בתוך הריבוע', (
       tester,
     ) async {
@@ -384,6 +426,7 @@ void main() {
               filePath: 'book_$i.txt',
               mergedCount: 1,
               merged: const [],
+              textStatus: TextStatus.ok,
             ),
           ),
         ),
@@ -480,6 +523,7 @@ void main() {
                 filePath: 'book_0.txt',
                 mergedCount: 1,
                 merged: const [],
+                textStatus: TextStatus.ok,
               ),
             ],
           ),

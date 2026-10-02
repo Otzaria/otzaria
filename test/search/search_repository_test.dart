@@ -357,5 +357,6 @@ SearchResult _result({required int id, required String text}) {
     filePath: 'book.txt',
     mergedCount: 1,
     merged: const [],
+    textStatus: TextStatus.ok,
   );
 }
