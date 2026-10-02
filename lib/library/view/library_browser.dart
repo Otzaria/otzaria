@@ -10,6 +10,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/search/view/layout_fix_suggestion_banner.dart';
@@ -106,10 +107,31 @@ bool libraryUpdateButtonResets(LibraryUpdateStatus status) =>
     status == LibraryUpdateStatus.error ||
     status == LibraryUpdateStatus.blocked;
 
-/// פוקוס אוטומטי לשדה החיפוש נוח עם מקלדת פיזית; במכשיר מגע הוא פותח את
-/// המקלדת הווירטואלית בכל כניסה למסך (issue #1317).
-bool shouldAutofocusLibrarySearch(TargetPlatform platform) =>
-    platform != TargetPlatform.android && platform != TargetPlatform.iOS;
+const _libraryNavigationShortcutKeys = {
+  'key-shortcut-open-library-browser',
+  'key-shortcut-open-find-ref',
+  'key-shortcut-open-reading-screen',
+  'key-shortcut-open-new-search',
+  'key-shortcut-open-settings',
+  'key-shortcut-open-more',
+};
+
+/// פוקוס אוטומטי נוח עם מקלדת פיזית, אלא אם הוא יחסום קיצור תו יחיד שזמין
+/// בפריטי סרגל הניווט. קיצורי פעולה אחרים אינם משפיעים על הפוקוס כאן.
+bool shouldAutofocusLibrarySearch(
+  TargetPlatform platform,
+  Map<String, String> shortcuts,
+) {
+  if (platform == TargetPlatform.android || platform == TargetPlatform.iOS) {
+    return false;
+  }
+
+  return !shortcuts.entries.any(
+    (entry) =>
+        _libraryNavigationShortcutKeys.contains(entry.key) &&
+        ShortcutHelper.isUnmodifiedCharacterShortcut(entry.value),
+  );
+}
 
 /// פעולת לחצני "חזור"/"בית" במצב "אין תוצאות".
 enum LibraryEmptyStateAction {
@@ -908,7 +930,10 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               icon: OtzariaIcons.search_in_the_library_24_regular,
               controller: focusRepository.librarySearchController,
               focusNode: focusRepository.librarySearchFocusNode,
-              autofocus: shouldAutofocusLibrarySearch(defaultTargetPlatform),
+              autofocus: shouldAutofocusLibrarySearch(
+                defaultTargetPlatform,
+                settingsState.shortcuts,
+              ),
               slim: isCompact,
               hintText: context.settingsText(
                 'איתור ספר או מחבר ב{category}',
