@@ -836,11 +836,29 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   String? _loadedLineSnippet(int index, TextBookState state) {
     final line = state is TextBookLoaded ? _lineTextAt(index, state) : null;
     if (line == null) return null;
+    final query = searchTextController.text;
+    // מרווחים ווריאנטים של המנוע אינם בתבנית הליטרלית; מעגנים כמו ההדגשה.
+    int? firstHighlight(String text) {
+      final ranges = utils.computeHighlightRanges(
+        text,
+        query,
+        searchOptions: _searchOptions,
+        alternativeWords: _alternativeWords,
+        spacingValues: _spacingValues,
+        isFuzzy: _searchMode == SearchMode.fuzzy,
+        searchDistance: _searchDistance,
+        matchPolicy: _matchPolicy,
+        isSearchResultLine: true,
+      );
+      return ranges.isEmpty ? null : ranges.first.first;
+    }
+
     final excerpt = SnippetBuilder.buildExcerptText(
       fullText: SnippetBuilder.htmlToPlainText(line),
-      query: searchTextController.text,
+      query: query,
       maxChars: _maxResultSnippetChars,
       wholeWord: _wholeWord,
+      anchorOf: firstHighlight,
     );
     return const HtmlEscape(HtmlEscapeMode.element).convert(excerpt);
   }

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:isolate';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/library_line_source.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../support/fake_line_source_engine.dart';
 
@@ -128,10 +130,37 @@ void main() {
         expect(logged, hasLength(1));
       });
 
-      test('מנוע שלא נטען ב-isolate (StateError) אינו כשל לדיווח', () async {
-        engine.failRegistrationWith = StateError('המנוע לא נטען');
+      test('מנוע שלא נטען ב-isolate אינו כשל לדיווח', () async {
+        engine.failRegistrationWith = StateError(
+          'flutter_rust_bridge has not been initialized. '
+          'Did you forget to call `await RustLib.init();`?',
+        );
         await LibraryLineSource.ensureHostSqlite();
         expect(logged, isEmpty);
+      });
+
+      test('StateError אחר מדווח', () async {
+        final failure = StateError('sqlite3_auto_extension failed');
+        engine.failRegistrationWith = failure;
+        await LibraryLineSource.ensureHostSqlite();
+        expect(logged, [failure]);
+      });
+
+      test('פעם אחת לתהליך: isolate נוסף אינו כותב שוב', () async {
+        engine.failRegistrationWith = Exception('אין auto_extension');
+        await LibraryLineSource.ensureHostSqlite();
+        expect(logged, hasLength(1));
+
+        final loggedByOther = await Isolate.run(() async {
+          final other = FakeLineSourceEngine()
+            ..failRegistrationWith = Exception('אין auto_extension');
+          LibraryLineSource.debugReset(engine: other, keepProcessMarkers: true);
+          var count = 0;
+          LibraryLineSource.registrationFailureLog = (_, _) => count++;
+          await LibraryLineSource.ensureHostSqlite();
+          return count;
+        });
+        expect(loggedByOther, 0);
       });
 
       test('רישום מוצלח אינו נכתב', () async {
@@ -141,9 +170,44 @@ void main() {
     });
   });
 
+  group('נפילות לאינדוקס עם טקסט', () {
+    late List<BigInt> logged;
+
+    setUp(() {
+      logged = [];
+      LibraryLineSource.fallbacksLog = logged.add;
+    });
+
+    test('בלי נפילות אין דיווח', () async {
+      await LibraryLineSource.reportLibraryFallbacks();
+      expect(logged, isEmpty);
+    });
+
+    test('הספירה נכתבת פעם אחת לתהליך', () async {
+      engine.libraryFallbacks = BigInt.from(3);
+      await LibraryLineSource.reportLibraryFallbacks();
+      engine.libraryFallbacks = BigInt.from(5);
+      await LibraryLineSource.reportLibraryFallbacks();
+      expect(logged, [BigInt.from(3)]);
+    });
+
+    test('מנוע שלא נטען אינו מדווח', () async {
+      LibraryLineSource.debugReset(engine: _ThrowingStatusEngine());
+      LibraryLineSource.fallbacksLog = logged.add;
+      await LibraryLineSource.reportLibraryFallbacks();
+      expect(logged, isEmpty);
+    });
+  });
+
   test('נתיב ריק אינו מוגדר במנוע', () async {
     await LibraryLineSource.configure('');
     await LibraryLineSource.configure('/lib/seforim.db');
     expect(engine.configuredPaths, ['/lib/seforim.db']);
   });
+}
+
+class _ThrowingStatusEngine extends FakeLineSourceEngine {
+  @override
+  Future<LineSourceStatus> status() =>
+      Future.error(StateError('flutter_rust_bridge has not been initialized'));
 }

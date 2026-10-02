@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:ui' show IsolateNameServer;
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/error_log_file.dart';
@@ -29,16 +30,25 @@ abstract final class LibraryLineSource {
   static bool _heldForExternalWrite = false;
   static Future<void> _queue = Future.value();
 
-  /// מחליף את המנוע בטסטים ומאפס את המצב המקומי.
+  /// מחליף את המנוע בטסטים ומאפס את המצב המקומי. [keepProcessMarkers] מדמה
+  /// isolate נוסף באותו תהליך.
   @visibleForTesting
-  static void debugReset({LineSourceEngine? engine}) {
+  static void debugReset({
+    LineSourceEngine? engine,
+    bool keepProcessMarkers = false,
+  }) {
     _engine = engine ?? const _RustLineSourceEngine();
     _hostApiReady = false;
     _hostRegistration = null;
     _heldForExternalWrite = false;
     _queue = Future.value();
     _registrationFailureReported = false;
+    _fallbacksReported = false;
     registrationFailureLog = _appendRegistrationFailureToErrorLog;
+    fallbacksLog = _appendFallbacksToErrorLog;
+    if (keepProcessMarkers) return;
+    IsolateNameServer.removePortNameMapping(_registrationFailureMarker);
+    IsolateNameServer.removePortNameMapping(_fallbacksMarker);
   }
 
   /// קובע את [hostApiReady] בטסטים שאינם טוענים את המנוע.
@@ -71,9 +81,28 @@ abstract final class LibraryLineSource {
         );
       }
     } catch (error, stackTrace) {
-      if (error is! StateError) _reportRegistrationFailure(error, stackTrace);
+      if (!_isEngineNotLoaded(error)) {
+        _reportRegistrationFailure(error, stackTrace);
+      }
     }
     return _hostApiReady;
+  }
+
+  // כלי שורת פקודה וטסטים שלא טענו את המנוע ב-isolate הזה.
+  static bool _isEngineNotLoaded(Object error) =>
+      error is StateError &&
+      error.message.startsWith('flutter_rust_bridge has not been initialized');
+
+  static const _registrationFailureMarker =
+      'otzaria.lineSource.registrationFailureLogged';
+  static const _fallbacksMarker = 'otzaria.lineSource.fallbacksLogged';
+
+  // כל חלון הוא isolate משלו; שם ב-IsolateNameServer משותף לכל התהליך.
+  static bool _claimOncePerProcess(String name) {
+    final port = ReceivePort();
+    final claimed = IsolateNameServer.registerPortWithName(port.sendPort, name);
+    port.close();
+    return claimed;
   }
 
   /// כותב את כשל הרישום ל-errors.txt; מוחלף בטסטים.
@@ -89,7 +118,48 @@ abstract final class LibraryLineSource {
     debugPrint('⚠️ מסירת SQLite של Dart למנוע נכשלה: $error');
     if (_registrationFailureReported) return;
     _registrationFailureReported = true;
+    if (!_claimOncePerProcess(_registrationFailureMarker)) return;
     registrationFailureLog(error, stackTrace);
+  }
+
+  /// כותב את ספירת הנפילות ל-errors.txt; מוחלף בטסטים.
+  @visibleForTesting
+  static void Function(BigInt count) fallbacksLog = _appendFallbacksToErrorLog;
+
+  static bool _fallbacksReported = false;
+
+  /// מדווח, פעם אחת לתהליך, על ספרים רשמיים שהמנוע אינדקס עם הטקסט שלהם
+  /// כי לא יכול היה לאמת אותם מול המסד. נקרא בסוף ריצת אינדוקס.
+  static Future<void> reportLibraryFallbacks() async {
+    if (_fallbacksReported) return;
+    final BigInt count;
+    try {
+      count = (await _engine.status()).libraryFallbacks;
+    } catch (error) {
+      _logFailure('קריאת מצב מקור השורות', error);
+      return;
+    }
+    if (count == BigInt.zero) return;
+    _fallbacksReported = true;
+    debugPrint('⚠️ $count ספרים אונדקסו עם הטקסט שלהם במקום ממסד הספרייה');
+    if (!_claimOncePerProcess(_fallbacksMarker)) return;
+    fallbacksLog(count);
+  }
+
+  static void _appendFallbacksToErrorLog(BigInt count) {
+    if (kDebugMode) return;
+    try {
+      ErrorLogFile.append(
+        title: 'Indexing Warning',
+        error: 'Library books indexed with their text in the index: $count',
+        details: const {
+          'Phase': 'indexing',
+          'Component': 'Search line source (library fallback)',
+        },
+      );
+    } catch (_) {
+      // כשל בכתיבת הלוג אינו עוצר את האינדוקס.
+    }
   }
 
   static void _appendRegistrationFailureToErrorLog(

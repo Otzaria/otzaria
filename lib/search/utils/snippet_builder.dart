@@ -223,11 +223,15 @@ class SnippetBuilder {
 
   /// מחזיר קטע טקסט סביב ההופעה הליטרלית הראשונה של [query], מוגבל
   /// ל-[maxChars] תווים, עם חיתוך בגבולות מילים והוספת "..." בקצוות.
+  ///
+  /// [anchorOf] מקבל את הטקסט המנורמל ומחזיר את תחילת ההתאמה במקום התבנית
+  /// הליטרלית; null ממנו נופל לתבנית הליטרלית.
   static String buildExcerptText({
     required String fullText,
     required String query,
     required int maxChars,
     bool wholeWord = true,
+    int? Function(String text)? anchorOf,
   }) {
     final text = fullText.replaceAll(_whitespace, ' ').trim();
     if (text.length <= maxChars) return text;
@@ -244,8 +248,12 @@ class SnippetBuilder {
       return lastSpace != -1 ? lastSpace + 1 : 0;
     }
 
-    final pattern = buildLiteralPattern(query, wholeWord: wholeWord)?.regExp;
-    final anchor = pattern?.firstMatch(text);
+    final anchor =
+        anchorOf?.call(text) ??
+        buildLiteralPattern(
+          query,
+          wholeWord: wholeWord,
+        )?.regExp.firstMatch(text)?.start;
     if (anchor == null) {
       final end = findWordEnd(maxChars);
       final suffix = end < text.length ? ' ...' : '';
@@ -253,7 +261,7 @@ class SnippetBuilder {
     }
 
     final len = text.length;
-    var start = (anchor.start - (maxChars ~/ 3)).clamp(0, len);
+    var start = (anchor - (maxChars ~/ 3)).clamp(0, len);
     var end = (start + maxChars).clamp(0, len);
     if (end - start < maxChars) {
       start = (end - maxChars).clamp(0, len);

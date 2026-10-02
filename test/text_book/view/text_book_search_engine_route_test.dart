@@ -198,6 +198,43 @@ Future<void> main() async {
   );
 
   testWidgets(
+    'קטע משורה ארוכה שהמנוע לא קרא נחתך סביב התאמה עם מרווח',
+    (tester) async {
+      final repository = _RecordingSearchRepository(
+        results: [
+          _result(
+            title: 'בראשית',
+            reference: 'פרק טו',
+            segment: 0,
+            text: '',
+            textStatus: TextStatus.unavailable,
+          ),
+        ],
+      );
+      final filler = List.filled(16, 'מילה אחרת בלי קשר').join(' ');
+
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'תדע זרעך',
+        searchDistance: 3,
+        bookTitle: 'בראשית',
+        content: ['$filler ידע תדע כי גר יהיה זרעך בארץ'],
+      );
+
+      await harness.settle();
+
+      final shown = tester
+          .widgetList<RichText>(find.byType(RichText))
+          .map((widget) => widget.text.toPlainText())
+          .singleWhere((text) => text.contains('מילה אחרת'));
+      expect(shown, contains('תדע כי גר יהיה זרעך'));
+      expect(shown, startsWith('... '));
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
     'שאילתה בלי תוספות אינה פונה למנוע',
     (tester) async {
       final repository = _RecordingSearchRepository(results: const []);

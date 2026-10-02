@@ -676,6 +676,7 @@ class IndexingRepository {
     } finally {
       prefetcher.dispose();
       _tantivyDataProvider.isIndexing.value = false;
+      await LibraryLineSource.reportLibraryFallbacks();
     }
     return cancelled
         ? IndexingRunResult.cancelled(
@@ -1837,6 +1838,7 @@ class IndexingRepository {
       }
     } finally {
       _tantivyDataProvider.isIndexing.value = false;
+      await LibraryLineSource.reportLibraryFallbacks();
     }
     return cancelled
         ? IndexingRunResult.cancelled(

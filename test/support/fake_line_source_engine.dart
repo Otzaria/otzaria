@@ -10,6 +10,7 @@ class FakeLineSourceEngine implements LineSourceEngine {
   int resumes = 0;
   int registrations = 0;
   bool hostReady = false;
+  BigInt libraryFallbacks = BigInt.zero;
   bool readyAfterRegistration = true;
   Object? failSuspendWith;
   Object? failRegistrationWith;
@@ -23,6 +24,7 @@ class FakeLineSourceEngine implements LineSourceEngine {
     suspendDepth: depth,
     hostApiReady: hostReady,
     generation: BigInt.zero,
+    libraryFallbacks: libraryFallbacks,
   );
 
   @override
