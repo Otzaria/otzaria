@@ -1,4 +1,5 @@
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/hidden/hidden_titles.dart';
 import 'package:otzaria/core/windowing/settings_sync.dart';
@@ -1679,7 +1680,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (storedConfiguration != null) {
       configuration = storedConfiguration;
     } else {
-      final defaults = await DefaultCommentators.getPageShapeDefaults(
+      final defaults = await PageShapeDefaultCommentators.getPageShapeDefaults(
         state.book,
         availableCommentators: candidateCommentators,
       );

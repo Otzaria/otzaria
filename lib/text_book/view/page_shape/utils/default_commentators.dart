@@ -1,5 +1,4 @@
 import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
-import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -13,17 +12,15 @@ import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 /// ב-seforim.db. ה-`position` ממיין כל טבלה בנפרד (אין מרחב position משותף
 /// בין שתי הטבלאות) — הוא קובע את סדר ההקדמה ברשימה ואת סדר המיקומים בצורת
 /// הדף בתוך כל סוג. היחס בין מפרשים לתרגומים קבוע: המפרשים תמיד קודמים
-/// לתרגומים (ב-[getBaseCommentators] וב-[getDefaults] כאחד).
+/// לתרגומים (ב-[getBaseCommentators] וגם במיפוי לחלוניות צורת הדף).
 class DefaultCommentators {
-  static const _pageShapePanelKeys = ['left', 'right', 'bottom', 'bottomRight'];
-
   /// מחזיר את מפרשי ותרגומי ברירת המחדל של [book], ממוינים לפי `position`.
   ///
   /// נקרא מהמסד של הספר (seforim.db או מסד מצורף); לספר אישי — ריק.
   static Future<
     ({List<({String title, int position})> commentators, List<String> targums})
   >
-  _fetchDefaults(Book book) async {
+  fetchDefaults(Book book) async {
     const empty = (
       commentators: <({String title, int position})>[],
       targums: <String>[],
@@ -68,7 +65,7 @@ class DefaultCommentators {
   /// מחזיר את רשימת המפרשים הבסיסיים של [book] (מפרשים ואחריהם תרגומים),
   /// ממוינת לפי `position`. משמש להקדמת המפרשים הבסיסיים בתוך קבוצות הדורות.
   static Future<List<String>> getBaseCommentators(Book book) async {
-    final data = await _fetchDefaults(book);
+    final data = await fetchDefaults(book);
     return [...data.commentators.map((c) => c.title), ...data.targums];
   }
 
@@ -147,115 +144,5 @@ class DefaultCommentators {
       availableCommentators: availableCommentators,
     );
     return defaults.isEmpty ? null : defaults;
-  }
-
-  /// מחזיר מפרשי ברירת מחדל למיקומי צורת הדף (right/left/bottom/bottomRight),
-  /// ממופים לפי ה-`position` של כל מפרש (פירוט המיפוי ב-[mapToPageShape]).
-  /// [availableCommentators] משמש להתאמת השם המלא הזמין בספר הנוכחי.
-  static Future<Map<String, String?>> getDefaults(
-    TextBook book, {
-    List<String>? availableCommentators,
-  }) async {
-    final defaults = await getPageShapeDefaults(
-      book,
-      availableCommentators: availableCommentators,
-    );
-    return defaults.commentators;
-  }
-
-  /// מחזיר את ברירת המחדל המלאה לצורת הדף: בחירת מפרשים וגם נראות חלוניות.
-  ///
-  /// חלונית מוסתרת רק כשיש "חור" מכוון בתוך מיקומי ברירת המחדל של הספר עצמו
-  /// (לדוגמה position 0 ואז 2). חלוניות שמעבר למיקום האחרון נשארות ברירת מחדל.
-  static Future<
-    ({
-      Map<String, String?> commentators,
-      Map<String, bool> visibility,
-    })
-  >
-  getPageShapeDefaults(
-    TextBook book, {
-    List<String>? availableCommentators,
-  }) async {
-    final data = await _fetchDefaults(book);
-    final defaults = mapToPageShapeDefaults(data.commentators, data.targums);
-    var commentators = defaults.commentators;
-
-    if (availableCommentators != null && availableCommentators.isNotEmpty) {
-      commentators = _resolveCommentatorNamesFromAvailable(
-        commentators,
-        availableCommentators,
-      );
-    }
-
-    return (commentators: commentators, visibility: defaults.visibility);
-  }
-
-  /// ממפה מפרשים (לפי `position` מהטבלה) ותרגומים ל-4 מיקומי צורת הדף:
-  /// position 0→ימין, 1→שמאל, 2→תחתון, 3→תחתון נוסף. position חסר (slot ריק
-  /// מכוון, ראה ה-sentinel "-" ב-seed) → המיקום נשאר ריק. התרגומים ממולאים
-  /// במיקומים שאחרי ה-position המקסימלי של המפרשים.
-  @visibleForTesting
-  static Map<String, String?> mapToPageShape(
-    List<({String title, int position})> commentators,
-    List<String> targums,
-  ) => mapToPageShapeDefaults(commentators, targums).commentators;
-
-  @visibleForTesting
-  static ({
-    Map<String, String?> commentators,
-    Map<String, bool> visibility,
-  })
-  mapToPageShapeDefaults(
-    List<({String title, int position})> commentators,
-    List<String> targums,
-  ) {
-    final slots = <String?>[null, null, null, null];
-    var maxPosition = -1;
-    for (final c in commentators) {
-      if (c.position >= 0 && c.position < slots.length) {
-        slots[c.position] = c.title;
-      }
-      if (c.position > maxPosition) maxPosition = c.position;
-    }
-
-    var targumSlot = maxPosition + 1;
-    for (final targum in targums) {
-      if (targumSlot >= slots.length) break;
-      slots[targumSlot] = targum;
-      targumSlot++;
-    }
-
-    // מפתחות הפאנלים הפוכים לצד הפיזי (Row שיורש RTL): 'left' מוצג בימין ולהפך.
-    final mappedCommentators = <String, String?>{};
-    final mappedVisibility = <String, bool>{};
-    for (var i = 0; i < _pageShapePanelKeys.length; i++) {
-      final key = _pageShapePanelKeys[i];
-      mappedCommentators[key] = slots[i];
-      mappedVisibility[key] = !(i <= maxPosition && slots[i] == null);
-    }
-
-    return (commentators: mappedCommentators, visibility: mappedVisibility);
-  }
-
-  static Map<String, String?> _resolveCommentatorNamesFromAvailable(
-    Map<String, String?> defaults,
-    List<String> availableCommentators,
-  ) {
-    return {
-      'right': findMatchingCommentator(
-        defaults['right'],
-        availableCommentators,
-      ),
-      'left': findMatchingCommentator(defaults['left'], availableCommentators),
-      'bottom': findMatchingCommentator(
-        defaults['bottom'],
-        availableCommentators,
-      ),
-      'bottomRight': findMatchingCommentator(
-        defaults['bottomRight'],
-        availableCommentators,
-      ),
-    };
   }
 }
