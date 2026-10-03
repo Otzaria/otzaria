@@ -28,7 +28,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
-import 'package:otzaria/text_book/utils/search_query_sync.dart';
+import 'package:otzaria/search/utils/search_query_sync.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:otzaria/widgets/navigation/search_result_nav_button.dart';

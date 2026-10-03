@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/services/category_commentators_service.dart';
-import 'package:otzaria/text_book/utils/category_settings_utils.dart';
+import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';

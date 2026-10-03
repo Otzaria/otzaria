@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
+import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 

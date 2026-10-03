@@ -15,7 +15,7 @@ import 'package:otzaria/data/book_locator.dart';
 import 'package:otzaria/data/repository/book_toc_loader.dart';
 import 'package:otzaria/utils/file/document_converter.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
-import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
+import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'dart:io';

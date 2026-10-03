@@ -1,4 +1,5 @@
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/hidden/hidden_titles.dart';
 import 'package:otzaria/core/windowing/settings_sync.dart';
@@ -18,7 +19,7 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -31,14 +32,14 @@ import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/text_book/utils/he_categories_enricher.dart';
-import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
+import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
@@ -1679,7 +1680,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (storedConfiguration != null) {
       configuration = storedConfiguration;
     } else {
-      final defaults = await DefaultCommentators.getPageShapeDefaults(
+      final defaults = await PageShapeDefaultCommentators.getPageShapeDefaults(
         state.book,
         availableCommentators: candidateCommentators,
       );

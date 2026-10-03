@@ -5,7 +5,7 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
-import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';

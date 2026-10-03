@@ -7,7 +7,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
-import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
+import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -22,18 +22,18 @@ import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
-import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
+import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/text_display/models/text_display_slot.dart';
 // מיוצא כאן כדי שצרכני כרטיסיית הטקסט יייבאו אותו מנקודה אחת.
-export 'package:otzaria/text_book/utils/commentary_search_utils.dart'
+export 'package:otzaria/book_common/utils/commentary_search_utils.dart'
     show CommentarySearchSnippet;
-import 'package:otzaria/text_book/utils/category_settings_utils.dart';
+import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 import 'package:otzaria/text_book/utils/commentary_title_visibility.dart';
-import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
-import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
-import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
+import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';
@@ -56,7 +56,7 @@ import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
-import 'package:otzaria/text_book/view/selection/selection_hit_test.dart';
+import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';

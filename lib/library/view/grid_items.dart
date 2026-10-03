@@ -17,7 +17,7 @@ import 'package:otzaria/library/view/category_details_dialog.dart';
 import 'package:otzaria/library/view/book_versions_dialog.dart';
 import 'package:otzaria/text_book/utils/book_versions_action.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/text_book/view/book_source_dialog.dart';
+import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';

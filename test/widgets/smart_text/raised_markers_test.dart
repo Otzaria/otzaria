@@ -4,7 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart'
     show HtmlWidget;
-import 'package:otzaria/text_book/utils/link_anchor_variants.dart'
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart'
     show kLinkAnchorMarkerScale;
 import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';

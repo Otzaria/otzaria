@@ -1,6 +1,6 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 
 // מקור האמת של הווריאנטים משרת שני מסלולי רינדור: CSS (HtmlWidget) ו-TextStyle
 // (קריאה רציפה). הטסטים כאן נועלים את שקילות שני התרגומים.

@@ -1,11 +1,11 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
+import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
-import '../../../support/search_engine_test_init.dart';
+import '../../support/search_engine_test_init.dart';
 
 /// בדיקות לשחזור מעברי שורה בהעתקה, המדמות את הצינור המלא: שורת מקור →
 /// הטקסט המוצג → הבחירה השטוחה של פלאטר → השחזור מול השורות המרונדרות.

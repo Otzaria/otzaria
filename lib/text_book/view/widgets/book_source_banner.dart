@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/text_book/view/book_source_dialog.dart';
+import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// המקורות שעבורם מוצג באנר קרדיט מעל תחילת הספר.

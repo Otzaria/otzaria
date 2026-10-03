@@ -1,8 +1,9 @@
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/services/category_commentators_service.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
 
@@ -13,9 +14,9 @@ void main() {
   ({String title, int position}) c(String title, int position) =>
       (title: title, position: position);
 
-  group('DefaultCommentators.mapToPageShape', () {
+  group('PageShapeDefaultCommentators.mapToPageShape', () {
     test('תורה: מפרש בימין, תרגום בשמאל', () {
-      final result = DefaultCommentators.mapToPageShape(
+      final result = PageShapeDefaultCommentators.mapToPageShape(
         [c('רש"י', 0)],
         ['תרגום אונקלוס'],
       );
@@ -27,7 +28,7 @@ void main() {
     });
 
     test('בבלי ללא תרגום: המפרש השני נכנס לשמאל', () {
-      final result = DefaultCommentators.mapToPageShape(
+      final result = PageShapeDefaultCommentators.mapToPageShape(
         [c('רש"י', 0), c('תוספות', 1)],
         [],
       );
@@ -39,7 +40,7 @@ void main() {
     });
 
     test('ארבעה מפרשים ללא תרגום ממלאים את כל המיקומים לפי הסדר', () {
-      final result = DefaultCommentators.mapToPageShape(
+      final result = PageShapeDefaultCommentators.mapToPageShape(
         [
           c('רש"י', 0),
           c('מצודת דוד', 1),
@@ -56,7 +57,7 @@ void main() {
     });
 
     test('שני מפרשים + תרגום: מפרשים בימין ובשמאל, התרגום בתחתון', () {
-      final result = DefaultCommentators.mapToPageShape(
+      final result = PageShapeDefaultCommentators.mapToPageShape(
         [c('רש"י', 0), c('רד"ק', 1)],
         ['תרגום אונקלוס'],
       );
@@ -69,7 +70,7 @@ void main() {
 
     test('slot ריק (position מדולג): המיקום נשאר ריק והמפרש הבא במקומו', () {
       // מפרש ב-position 0 (ימין), דילוג על 1 (שמאל), מפרש ב-position 2 (תחתון)
-      final result = DefaultCommentators.mapToPageShape(
+      final result = PageShapeDefaultCommentators.mapToPageShape(
         [c('מפרש א', 0), c('מפרש ב', 2)],
         [],
       );
@@ -81,7 +82,7 @@ void main() {
     });
 
     test('slot ריק מכוון מוסתר בנראות ברירת המחדל', () {
-      final result = DefaultCommentators.mapToPageShapeDefaults(
+      final result = PageShapeDefaultCommentators.mapToPageShapeDefaults(
         [c('מפרש א', 0), c('מפרש ב', 2)],
         [],
       );
@@ -96,7 +97,7 @@ void main() {
     });
 
     test('slotים שאחרי המיקום האחרון לא מוסתרים בגלל ברירת מחדל חסרה', () {
-      final result = DefaultCommentators.mapToPageShapeDefaults(
+      final result = PageShapeDefaultCommentators.mapToPageShapeDefaults(
         [c('רש"י', 0)],
         [],
       );
@@ -108,7 +109,7 @@ void main() {
     });
 
     test('רשימות ריקות מחזירות null בכל המיקומים', () {
-      final result = DefaultCommentators.mapToPageShape([], []);
+      final result = PageShapeDefaultCommentators.mapToPageShape([], []);
 
       expect(result['right'], isNull);
       expect(result['left'], isNull);

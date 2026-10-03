@@ -6,7 +6,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:html/dom.dart' as dom;
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
-import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';

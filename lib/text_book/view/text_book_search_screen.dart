@@ -32,7 +32,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
-import 'package:otzaria/text_book/utils/search_query_sync.dart';
+import 'package:otzaria/search/utils/search_query_sync.dart';
 import 'package:otzaria/utils/text/ref_helper.dart' show tocSectionAt;
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/navigation/search_result_nav_button.dart';

@@ -3,7 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:otzaria/plugins/models/plugin_highlight.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/text_source_map_service.dart';
-import 'package:otzaria/text_book/view/selection/selection_hit_test.dart';
+import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
 /// מאתר את הדגשות התוספים שנקודת הלחיצה [globalPosition] נופלת עליהן

@@ -3,7 +3,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/services/book_details_service.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
@@ -124,14 +123,6 @@ bool isWikiJewishBooksSource(String? sourceFolder) {
     '',
   );
   return normalized.contains('wikijewishbooks');
-}
-
-/// הצגת דיאלוג אודות הספר
-Future<void> showBookSourceDialog(
-  BuildContext context,
-  TextBookLoaded state,
-) {
-  return showBookDetailsDialog(context, state.book);
 }
 
 /// מציג את כל פרטי הספר הזמינים, גם מחוץ לקורא הטקסט.

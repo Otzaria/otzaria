@@ -5,9 +5,9 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
-import 'package:otzaria/text_book/utils/category_settings_utils.dart';
-import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
-import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
+import 'package:otzaria/book_common/utils/category_settings_utils.dart';
+import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
+import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 

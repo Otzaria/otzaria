@@ -5,7 +5,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 import '../helpers/memory_settings_cache.dart';

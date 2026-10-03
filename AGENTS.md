@@ -115,6 +115,7 @@ lib/
 ├── bookmarks/repository/              # Bookmarks system
 ├── history/                           # Reading history
 ├── personal_notes/                    # User notes feature
+├── book_common/                       # Shared by text and PDF books
 ├── pdf_book/                          # PDF viewer screens
 ├── text_book/                         # Text viewer screens
 └── utils/

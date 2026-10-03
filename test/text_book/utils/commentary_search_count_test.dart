@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 

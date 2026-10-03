@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/text_book/view/book_source_dialog.dart';
+import 'package:otzaria/book_common/view/book_source_dialog.dart';
 
 void main() {
   group('libraryDisplayPath', () {

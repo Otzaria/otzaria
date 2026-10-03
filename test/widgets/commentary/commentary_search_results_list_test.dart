@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
-import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 
 import '../../helpers/memory_settings_cache.dart';

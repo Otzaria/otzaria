@@ -1,7 +1,7 @@
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/services/reader_selection_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
-import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
+import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
 /// בונה payload של בחירה בפסקה יחידה לתוסף, בדיוק כמו תפריט הלחיצה הימנית.

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/services/category_commentators_service.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
-import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
+import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 
 /// טסטים להקדמת המפרשים הבסיסיים בתוך קבוצות הדורות (דרישה א).
 void main() {
