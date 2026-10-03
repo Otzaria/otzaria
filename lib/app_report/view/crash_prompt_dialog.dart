@@ -238,7 +238,6 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
           ],
           currentValue: _nextTime,
           expandToFillWidth: true,
-          showSelectedIcon: false,
           onChanged: (mode) => setState(() => _nextTime = mode),
         ),
         const SizedBox(height: 8),

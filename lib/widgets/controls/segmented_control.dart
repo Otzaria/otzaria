@@ -60,7 +60,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
     required this.currentValue,
     required this.onChanged,
     this.expandToFillWidth = false,
-    this.showSelectedIcon = true,
+    this.showSelectedIcon = false,
     this.height,
   });
 

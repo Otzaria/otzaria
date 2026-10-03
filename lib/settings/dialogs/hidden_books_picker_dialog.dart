@@ -207,6 +207,7 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
                   ),
                 ],
                 selected: {_showCategories},
+                showSelectedIcon: false,
                 onSelectionChanged: (selection) {
                   setState(() => _showCategories = selection.single);
                   _search.clear();
