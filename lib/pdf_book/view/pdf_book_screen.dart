@@ -446,16 +446,27 @@ List<AppContextMenuEntry> buildGroupedCommentatorEntries({
   required List<String> relevantCommentators,
   required List<CommentatorGroup> commentatorGroups,
   required Set<String> activeCommentators,
-  required void Function(String commentator) onToggleCommentator,
+  required void Function(Set<String> updated) onCommentatorsChanged,
   required void Function(List<String> commentators) onToggleAll,
 }) {
   final items = <AppContextMenuEntry>[];
 
-  AppContextMenuEntry buildItem(String commentator) => AppContextMenuEntry(
-    label: commentator,
-    isSelected: activeCommentators.contains(commentator),
-    onTap: () => onToggleCommentator(commentator),
-  );
+  AppContextMenuEntry buildItem(String commentator) {
+    final isActive = activeCommentators.contains(commentator);
+    return AppContextMenuEntry(
+      label: commentator,
+      isSelected: isActive,
+      onTap: () {
+        final updated = Set<String>.from(activeCommentators);
+        if (isActive) {
+          updated.remove(commentator);
+        } else {
+          updated.add(commentator);
+        }
+        onCommentatorsChanged(updated);
+      },
+    );
+  }
 
   if (commentatorGroups.isNotEmpty) {
     final allGrouped = commentatorGroups
@@ -1505,12 +1516,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     );
   }
 
-  void _toggleCommentator(String commentator) {
-    if (widget.tab.activeCommentators.contains(commentator)) {
-      widget.tab.activeCommentators.remove(commentator);
-    } else {
-      widget.tab.activeCommentators.add(commentator);
-    }
+  void _setActiveCommentators(Set<String> updated) {
+    widget.tab.activeCommentators
+      ..clear()
+      ..addAll(updated);
     _saveActiveCommentators();
     _openCommentaryPane();
   }
@@ -1533,7 +1542,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       relevantCommentators: relevantCommentators,
       commentatorGroups: _commentatorGroups,
       activeCommentators: widget.tab.activeCommentators,
-      onToggleCommentator: _toggleCommentator,
+      onCommentatorsChanged: _setActiveCommentators,
       onToggleAll: _toggleAllCommentators,
     );
   }

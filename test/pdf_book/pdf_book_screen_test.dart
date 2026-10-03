@@ -436,7 +436,7 @@ void main() {
         relevantCommentators: const ['רש"י', 'רמב"ן', 'מצודת דוד', 'מלבי"ם'],
         commentatorGroups: groups,
         activeCommentators: const <String>{},
-        onToggleCommentator: (_) {},
+        onCommentatorsChanged: (_) {},
         onToggleAll: (_) {},
       );
 
@@ -455,7 +455,7 @@ void main() {
         relevantCommentators: const ['רש"י', 'רמב"ן', 'מצודת דוד'],
         commentatorGroups: groups,
         activeCommentators: const {'רש"י', 'רמב"ן'},
-        onToggleCommentator: (_) {},
+        onCommentatorsChanged: (_) {},
         onToggleAll: (_) {},
       );
 
@@ -476,7 +476,7 @@ void main() {
         relevantCommentators: const ['רש"י', 'מצודת דוד'],
         commentatorGroups: groups,
         activeCommentators: const <String>{},
-        onToggleCommentator: (_) {},
+        onCommentatorsChanged: (_) {},
         onToggleAll: (list) => toggled = list,
       );
 
@@ -491,7 +491,7 @@ void main() {
         relevantCommentators: const ['רש"י'], // אין אחרונים רלוונטיים
         commentatorGroups: groups,
         activeCommentators: const <String>{},
-        onToggleCommentator: (_) {},
+        onCommentatorsChanged: (_) {},
         onToggleAll: (_) {},
       );
 
@@ -505,7 +505,7 @@ void main() {
         relevantCommentators: const ['רש"י', 'מפרש לא ידוע'],
         commentatorGroups: groups,
         activeCommentators: const <String>{},
-        onToggleCommentator: (_) {},
+        onCommentatorsChanged: (_) {},
         onToggleAll: (_) {},
       );
 
@@ -525,7 +525,7 @@ void main() {
         relevantCommentators: const ['רש"י', 'רמב"ן'],
         commentatorGroups: const [],
         activeCommentators: const <String>{},
-        onToggleCommentator: (_) {},
+        onCommentatorsChanged: (_) {},
         onToggleAll: (_) {},
       );
 
@@ -535,6 +535,33 @@ void main() {
         labels.any((l) => l != null && l.startsWith('הצג את כל')),
         isFalse,
       );
+    });
+
+    Set<String>? tapCommentator(Set<String> active, String commentator) {
+      Set<String>? updated;
+      final entries = buildGroupedCommentatorEntries(
+        relevantCommentators: const ['רש"י', 'רמב"ן'],
+        commentatorGroups: const [],
+        activeCommentators: active,
+        onCommentatorsChanged: (value) => updated = value,
+        onToggleAll: (_) {},
+      );
+      entries.firstWhere((e) => e.label == commentator).onTap!();
+      return updated;
+    }
+
+    test('לחיצה על מפרש שאינו פעיל מוסיפה אותו', () {
+      expect(tapCommentator({'רמב"ן'}, 'רש"י'), {'רמב"ן', 'רש"י'});
+    });
+
+    test('לחיצה על מפרש פעיל מסירה אותו', () {
+      expect(tapCommentator({'רש"י', 'רמב"ן'}, 'רש"י'), {'רמב"ן'});
+    });
+
+    test('הלחיצה אינה משנה את הקבוצה שהתקבלה', () {
+      final active = {'רמב"ן'};
+      tapCommentator(active, 'רש"י');
+      expect(active, {'רמב"ן'});
     });
   });
 
