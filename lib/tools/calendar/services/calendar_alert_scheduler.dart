@@ -55,7 +55,7 @@ class CalendarAlertScheduler {
 
   /// Cancels the notifications of [timeId] in the rolling window.
   Future<void> cancelZmanAlert(String timeId) async {
-    final now = DateTime.now();
+    final now = _now();
     final today = DateTime(now.year, now.month, now.day);
     for (int i = 0; i <= _zmanScheduleDaysAhead; i++) {
       final d = today.add(Duration(days: i));
@@ -95,7 +95,7 @@ class CalendarAlertScheduler {
     }
     final location = tz.getLocation(timeZoneId);
 
-    final now = DateTime.now();
+    final now = _now();
     final today = DateTime(now.year, now.month, now.day);
 
     for (final entry in alerts.entries) {
