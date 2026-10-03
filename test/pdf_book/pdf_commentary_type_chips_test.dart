@@ -14,7 +14,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
-import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
+import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 
 import '../helpers/memory_settings_cache.dart';

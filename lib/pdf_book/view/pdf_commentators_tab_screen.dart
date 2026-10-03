@@ -20,7 +20,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
-import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
+import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/data/repository/data_repository.dart';

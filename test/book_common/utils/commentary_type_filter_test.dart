@@ -4,7 +4,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
-import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
+import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 
 void main() {
   group('chipKeys', () {
