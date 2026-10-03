@@ -1052,7 +1052,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
             onToggle: _toggleWholeWord,
           ),
       ],
-      hintText: 'חפש כאן..',
+      hintText: 'חפש כאן...',
       onAdvancedSearch: () async {
         final pdfBookBloc = context.read<PdfBookBloc>();
         // ראה הערה מקבילה ב-text_book_search_screen.dart: initialConfiguration
