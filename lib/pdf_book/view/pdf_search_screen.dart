@@ -453,6 +453,15 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     final title = widget.bookTitle?.trim();
     if (title == null || title.isEmpty) return;
 
+    await _resolveBookPath(title);
+    if (!mounted) return;
+
+    if (widget.searchController.text.isNotEmpty) {
+      _searchTextUpdated();
+    }
+  }
+
+  Future<void> _resolveBookPath(String title) async {
     final topics = await BookFacet.resolveTopics(
       title: title,
       initialTopics: widget.bookTopics ?? '',
@@ -477,10 +486,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       fileType: 'pdf',
       filePath: widget.pdfFilePath,
     );
-
-    if (widget.searchController.text.isNotEmpty && mounted) {
-      _searchTextUpdated();
-    }
   }
 
   void _onTextSearcherMatchesChanged() {
