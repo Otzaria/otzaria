@@ -29,7 +29,7 @@ import 'package:otzaria/text_display/models/text_display_slot.dart';
 // מיוצא כאן כדי שצרכני כרטיסיית הטקסט יייבאו אותו מנקודה אחת.
 export 'package:otzaria/book_common/utils/commentary_search_utils.dart'
     show CommentarySearchSnippet;
-import 'package:otzaria/text_book/utils/category_settings_utils.dart';
+import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 import 'package:otzaria/text_book/utils/commentary_title_visibility.dart';
 import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';

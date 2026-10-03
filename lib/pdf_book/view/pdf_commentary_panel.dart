@@ -39,7 +39,7 @@ import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
-import 'package:otzaria/text_book/utils/category_settings_utils.dart';
+import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;

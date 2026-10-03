@@ -5,7 +5,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
-import 'package:otzaria/text_book/utils/category_settings_utils.dart';
+import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/dialogs/category_commentators_dialog.dart';
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
