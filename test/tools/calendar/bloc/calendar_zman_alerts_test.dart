@@ -103,6 +103,7 @@ void main() {
 
     final scheduled = notifications.scheduled;
     expect(scheduled.length, 46);
+    expect(scheduled.map((s) => s.id).toSet(), hasLength(46));
     expect(scheduled.every((s) => s.title == 'תזכורת: הנץ החמה'), isTrue);
     expect(scheduled.every((s) => s.minutes == 15), isTrue);
     expect(scheduled.first.body, startsWith('בעוד 15 דקות הנץ החמה ('));
