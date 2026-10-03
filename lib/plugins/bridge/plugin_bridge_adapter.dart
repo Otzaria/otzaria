@@ -59,7 +59,7 @@ import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/services/plugin_reader_actions.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/services/book_details_service.dart';
-import 'package:otzaria/text_book/view/book_source_dialog.dart'
+import 'package:otzaria/book_common/view/book_source_dialog.dart'
     show getSourceDisplayInfo, libraryDisplayPath;
 import 'package:otzaria/tools/biographies/models/biography.dart';
 import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
