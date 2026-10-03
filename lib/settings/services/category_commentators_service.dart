@@ -1,6 +1,6 @@
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/book_common/utils/category_settings_utils.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 
 /// מפרשים קבועים לקטגוריה בתצוגת הקריאה הרגילה (issue #866).
 ///

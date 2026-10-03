@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -6,7 +7,6 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/settings/services/category_commentators_service.dart';
 import 'package:otzaria/book_common/utils/category_settings_utils.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 
 /// מחלקה לניהול מפרשי ברירת המחדל ("מפרשים בסיסיים") של ספר.
 ///
