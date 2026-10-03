@@ -59,7 +59,7 @@ import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart'
 import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
-import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
+import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_book/view/widgets/book_source_banner.dart';
 import 'package:otzaria/tools/dictionary/dictionary_context_menu_entries.dart';
