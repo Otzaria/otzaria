@@ -23,10 +23,10 @@ import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
+import 'package:otzaria/search/view/in_book_advanced_search_dialog.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
-import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/text_book/utils/search_query_sync.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -1055,38 +1055,17 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       hintText: 'חפש כאן..',
       onAdvancedSearch: () async {
         final pdfBookBloc = context.read<PdfBookBloc>();
-        // ראה הערה מקבילה ב-text_book_search_screen.dart: initialConfiguration
-        // נמנעת מ-race condition של events ו-dispose נדחה ל-frame הבא כדי
-        // למנוע FocusNode disposed בזמן rebuild של ה-dialog.
-        final tempTab = SearchingTab(
-          'חיפוש',
-          widget.searchController.text,
-          initialConfiguration: SearchConfiguration.forInBookSearch(
-            searchMode: _searchMode,
-            distance: _searchDistance,
-            matchPolicy: _matchPolicy,
-          ),
-        );
-        tempTab.copyWordSettingsFrom(
+        final result = await showInBookAdvancedSearchDialog(
+          context,
+          bookTitle: widget.bookTitle,
+          query: widget.searchController.text,
+          searchMode: _searchMode,
+          distance: _searchDistance,
+          matchPolicy: _matchPolicy,
           searchOptions: _searchOptions,
           alternativeWords: _alternativeWords,
           spacingValues: _spacingValues,
         );
-
-        final result = await showDialog<SearchDialogResult>(
-          context: context,
-          builder: (context) => SearchDialog(
-            existingTab: tempTab,
-            bookTitle: widget.bookTitle,
-            returnResultOnSubmit: true,
-          ),
-        );
-
-        // ראה הערה ב-text_book_search_screen: דחיה של 500ms מאפשרת ל-dialog
-        // fade-out animation להסתיים לפני שחרור ה-FocusNode.
-        Future.delayed(const Duration(milliseconds: 500), () {
-          tempTab.dispose();
-        });
 
         if (!mounted || result == null) {
           return;
