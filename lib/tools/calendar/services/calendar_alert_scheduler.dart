@@ -55,10 +55,10 @@ class CalendarAlertScheduler {
 
   /// Cancels the notifications of [timeId] in the rolling window.
   Future<void> cancelZmanAlert(String timeId) async {
-    final now = DateTime.now();
+    final now = _now();
     final today = DateTime(now.year, now.month, now.day);
     for (int i = 0; i <= _zmanScheduleDaysAhead; i++) {
-      final d = today.add(Duration(days: i));
+      final d = DateTime(today.year, today.month, today.day + i);
       final id = _zmanNotificationId(timeId, d);
       // cancelNotification עצמו async (platform channel) — מספיק כדי לא לחסום UI
       await _notifications.cancelNotification(id);
@@ -95,7 +95,7 @@ class CalendarAlertScheduler {
     }
     final location = tz.getLocation(timeZoneId);
 
-    final now = DateTime.now();
+    final now = _now();
     final today = DateTime(now.year, now.month, now.day);
 
     for (final entry in alerts.entries) {
@@ -105,7 +105,7 @@ class CalendarAlertScheduler {
       for (int i = 0; i <= _zmanScheduleDaysAhead; i++) {
         // yield לאירוע loop — מאפשר ל-UI לרנדר פריים בין כל חישוב
         await Future.delayed(Duration.zero);
-        final d = today.add(Duration(days: i));
+        final d = DateTime(today.year, today.month, today.day + i);
         final times = zmanim_helpers.calculateDailyTimes(d, city);
         final timeStr = times[timeId];
 
