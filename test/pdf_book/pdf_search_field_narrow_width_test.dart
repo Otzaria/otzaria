@@ -77,7 +77,7 @@ Future<void> _pumpPdfSearchPane(WidgetTester tester, Size screen) async {
                           resultsWidget: const SizedBox(),
                           isNoResults: false,
                           resetSearchCallback: () {},
-                          hintText: 'חפש כאן..',
+                          hintText: 'חפש כאן...',
                           onAdvancedSearch: () {},
                           searchFieldActions: [
                             OtzariaSearchAction.icon(
