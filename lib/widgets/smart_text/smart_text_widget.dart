@@ -357,10 +357,10 @@ class SmartTextWidget extends StatelessWidget {
               }
               // סמן-אות של מפרש (עוגן-נקודה): הגליף שקוף — הווריאנט הטיפוגרפי
               // נשאר עליו כדי שרוחב המקום בשורה יתאים לציור המורם, שנושא את
-              // הצבע, הרקע הפעיל וההדגשה (ראו RaisedMarkerOverlay).
+              // הצבע והרקע הפעיל (ראו RaisedMarkerOverlay).
               if ((element.localName == 'span' || element.localName == 'a') &&
                   element.classes.contains('link-anchor')) {
-                final style = <String, String>{
+                return {
                   'font-size': '${kLinkAnchorMarkerScale}em',
                   'white-space': 'nowrap',
                   'color': 'transparent',
@@ -369,12 +369,6 @@ class SmartTextWidget extends StatelessWidget {
                     linkAnchorVariantFromClasses(element.classes),
                   ),
                 };
-                // אות פעילה מצוירת מודגשת — ההדגשה נשארת גם על הגליף השקוף כדי
-                // שרוחבו יתאים; הרקע עבר לציור המורם.
-                if (element.classes.contains('link-anchor-active')) {
-                  style['font-weight'] = 'bold';
-                }
-                return style;
               }
               // טווח-ציטוט (לינקר): צבע ה-primary בגופן הטקסט הסובב, בלי קו תחתון.
               // בלי וריאנט טיפוגרפי — הוא שייך לסמני-האות של המפרשים בלבד.

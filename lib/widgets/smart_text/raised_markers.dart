@@ -29,7 +29,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
-import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/selection_fill_text.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 
@@ -43,8 +42,8 @@ const String kRaisedSupClass = 'raised-sup';
 /// יחס גודל של מרקר הערה לגופן הטקסט.
 const double kFootnoteMarkerScale = 0.75;
 
-/// גובה ההרמה כיחס מגודל גופן *הסימון* — תואם לכוונת `top: -0.55em` המקורית.
-const double kRaisedMarkerRaiseFactor = 0.55;
+/// הרמת קו הבסיס של הסימון מעל קו הבסיס של הטקסט, כיחס מגודל גופן *הסימון*.
+const double kRaisedMarkerRaiseFactor = 0.40;
 
 /// סימון מורם אחד: הטקסט הגלוי שלו (כולל תווי בידוד הכיווניות), המופע שלו
 /// בטקסט הקטע (בספירת indexOf לא-חופפת — אותה ספירה שמבצעת שכבת הציור),
@@ -548,17 +547,11 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
       if (marker.useLinkColor && _linkColor != null) {
         style = style.copyWith(color: _linkColor);
       }
+      // רק רקע, בלי הדגשה: אות רחבה יותר הייתה פורסת מחדש את השורה.
       if (marker.active && _activeBackground != null) {
         style = style.copyWith(
-          fontWeight: FontWeight.bold,
-          fontVariations: AppFonts.boldFontVariations(style.fontFamily),
           backgroundColor: _activeBackground,
           color: _activeForeground ?? style.color,
-        );
-      } else if (marker.active) {
-        style = style.copyWith(
-          fontWeight: FontWeight.bold,
-          fontVariations: AppFonts.boldFontVariations(style.fontFamily),
         );
       }
       final painter = TextPainter(
@@ -711,10 +704,13 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
 
       final painter = _painterFor(marker);
       final raise = _fontSizeOf(marker) * kRaisedMarkerRaiseFactor;
-      // ממורכז אופקית על העוגן; אנכית — מורם, עם הצמדה לגבול העליון של
-      // השכבה כדי לא להיחתך בשורה הראשונה.
+      // אותו גופן ואותו גודל: תחתית התיבה ההדוקה מגדירה את קו הבסיס בשניהם, בלי
+      // תלות במטריקות ה-ascent של הגופן. הצמדה לראש השכבה מונעת חיתוך.
       final dx = anchorRect.center.dx - painter.width / 2;
-      final dy = math.max(0.0, anchorRect.top - raise);
+      final dy = math.max(
+        0.0,
+        anchorRect.bottom - _glyphBottomOf(painter, marker) - raise,
+      );
 
       placements.add(
         RaisedMarkerPlacement(
@@ -725,6 +721,13 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
       );
     }
     return placements;
+  }
+
+  double _glyphBottomOf(TextPainter painter, RaisedMarker marker) {
+    final boxes = painter.getBoxesForSelection(
+      TextSelection(baseOffset: 0, extentOffset: marker.text.length),
+    );
+    return boxes.isEmpty ? painter.height : sameLineAnchorRect(boxes)!.bottom;
   }
 
   static int _nthOccurrence(String text, String pattern, int n) {

@@ -365,29 +365,23 @@ List<InlineSpan> _nodeToSpans(
         style,
         hideRaisedMarkers: hideRaisedMarkers,
       );
-      // עוגן-מילה וטווח-ציטוט — צבע ה-primary של הנושא בלי קו תחתון; במצב
-      // active מודגש עם רקע; שאר הקישורים — קו תחתון + צבע theme.
+      // עוגן-מילה וטווח-ציטוט — צבע ה-primary של הנושא בלי קו תחתון; active
+      // מקבל רקע בלבד (הדגשה מרחיבה את האות ופורסת מחדש את השורה).
+      // שאר הקישורים — קו תחתון + צבע theme.
       //
       // כשהגליפים מוסתרים (hideRaisedMarkers) עוגן-מילה וסימון הערה נשארים
-      // שקופים: הצבע והרקע עוברים לציור המורם של RaisedMarkerOverlay, ורק
-      // ההדגשה של active נשארת כדי שרוחב המקום בשורה יתאים לציור.
+      // שקופים: הצבע והרקע עוברים לציור המורם של RaisedMarkerOverlay.
       final effectiveLinkStyle = node.classes.contains('link-anchor')
           // הווריאנט שב-childStyle נשמר גם ב-active (מיזוג linkStyle היה גורר
           // קו תחתון של קישור ומוחק את קו-התחתון שהוא סימנו של וריאנט 5).
-          ? (node.classes.contains('link-anchor-active')
-                ? childStyle.copyWith(
-                    color: hideRaisedMarkers ? null : linkStyle?.color,
-                    fontWeight: FontWeight.bold,
-                    fontVariations: AppFonts.boldFontVariations(
-                      childStyle.fontFamily,
-                    ),
-                    backgroundColor: hideRaisedMarkers
-                        ? null
-                        : anchorActiveBackground,
-                  )
-                : hideRaisedMarkers
+          ? (hideRaisedMarkers
                 ? childStyle
-                : childStyle.copyWith(color: linkStyle?.color))
+                : childStyle.copyWith(
+                    color: linkStyle?.color,
+                    backgroundColor: node.classes.contains('link-anchor-active')
+                        ? anchorActiveBackground
+                        : null,
+                  ))
           : node.classes.contains('book-note-marker') && hideRaisedMarkers
           ? childStyle
           : node.classes.contains('numbered-note-marker')
