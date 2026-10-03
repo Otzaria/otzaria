@@ -154,7 +154,8 @@ void main() {
   }
 
   /// מאנדקס את [book] בשלבים של IndexingRepository._indexTextBook: בייטים
-  /// גולמיים מהמסד, ניקוי data:, והחלטת ה-TextStorage של האפליקציה.
+  /// גולמיים מהמסד, ניקוי data:, והחלטת ה-TextStorage של האפליקציה. שורות
+  /// התמונות של ספר שנקרא מהמסד נשמרות באינדקס.
   Future<TextStorage> indexLikeTheApp(
     SearchEngine engine,
     String dbPath,
@@ -180,6 +181,9 @@ void main() {
           libraryDbBookId: read.rowHasNewline ? null : book.id,
           hostApiReady: LibraryLineSource.hostApiReady,
         );
+    final storedLines = storage == TextStorage.libraryDb
+        ? cleaned.dataUriLines
+        : null;
     final bytes = cleaned.bytes;
     final added = bytes != null
         ? await engine.addTextBookBytes(
@@ -190,6 +194,7 @@ void main() {
             generationOrder: 0,
             text: bytes,
             textStorage: storage,
+            storedLines: storedLines,
           )
         : await engine.addTextBook(
             title: book.title,
@@ -199,6 +204,7 @@ void main() {
             generationOrder: 0,
             text: cleaned.text!,
             textStorage: storage,
+            storedLines: storedLines,
           );
     expect(added, greaterThan(0), reason: book.title);
     return storage;
@@ -336,13 +342,19 @@ void main() {
       }
       expect((await lineSourceStatus()).libraryFallbacks, BigInt.zero);
 
-      // בזמן השעיה הטקסט אינו באינדקס כלל; הספר שנשמר באינדקס אינו מושפע.
+      // בזמן השעיה הטקסט אינו באינדקס כלל; הספר שנשמר באינדקס ושורת התמונה,
+      // שנשמרה בו בניקויה, אינם מושפעים.
       await LibraryLineSource.holdForExternalWrite();
       final suspended = await lineSourceStatus();
       expect(suspended.suspendDepth, 1);
       expect(suspended.open, isFalse);
-      for (final (query, _, _) in cases) {
+      for (final (query, _, expected) in cases) {
         final result = await single(library, query);
+        if (query == 'כאשר דבר') {
+          expect(result.textStatus, TextStatus.ok, reason: query);
+          expect(withoutHighlight(result.text), expected, reason: query);
+          continue;
+        }
         expect(result.textStatus, TextStatus.unavailable, reason: query);
         expect(result.text, isEmpty, reason: query);
       }

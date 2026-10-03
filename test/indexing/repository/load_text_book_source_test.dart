@@ -28,6 +28,13 @@ void main() {
 
   // מתרוקן לגמרי בניקוי ה-data URI, ולכן הטקסט נלקח מהקובץ.
   final imageOnlyRow = 'data:image/png;base64,${'A' * 100}';
+  const bom = '\uFEFF';
+  final illustratedRows = [
+    '$bom<img src="$imageOnlyRow"> פתיחה',
+    'שורה נקייה',
+    'שתיים: <img src="$imageOnlyRow"> <img src="$imageOnlyRow">',
+    'קצר data:abc נשאר',
+  ];
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('otzaria_load_source');
@@ -44,6 +51,7 @@ void main() {
       (301, 'שורות נקיות', ['א', 'ב']),
       (302, 'מעבר בשורה', ['א\nב', 'ג']),
       (303, 'תמונה בלבד', [imageOnlyRow]),
+      (304, 'ספר מצויר', illustratedRows),
     ]) {
       db.execute(
         'INSERT INTO book (id, categoryId, sourceId, title, orderIndex, '
@@ -95,6 +103,22 @@ void main() {
     expect(source.bytes, utf8.encode('א\nב'));
     expect(source.libraryDbBookId, 301);
     expect(storageFor(book, source.libraryDbBookId), TextStorage.libraryDb);
+    expect(source.dataUriLines, isNull);
+  });
+
+  test('ספר מצויר מהמסד — שורות התמונות נמסרות לפי מיקומן', () async {
+    final book = TextBook(id: 304, title: 'ספר מצויר', categoryId: 7);
+    final source = await repository.loadTextBookSource(book);
+
+    expect(source.libraryDbBookId, 304);
+    expect(storageFor(book, source.libraryDbBookId), TextStorage.libraryDb);
+    expect(source.dataUriLines, [0, 2]);
+    // המיקום הוא מספר השורה שהמנוע מקבל אחרי הפיצול ב-\n.
+    final lines = source.text!.split('\n');
+    expect(lines, hasLength(illustratedRows.length));
+    expect(lines[0], '<img src=""> פתיחה');
+    expect(lines[2], 'שתיים: <img src=""> <img src="">');
+    expect(lines[3], illustratedRows[3]);
   });
 
   test(r'שורה עם \n פנימי — הטקסט נשמר באינדקס', () async {
@@ -122,6 +146,7 @@ void main() {
     expect(source.text, contains('מהקובץ'));
     expect(source.libraryDbBookId, isNull);
     expect(storageFor(book, source.libraryDbBookId), TextStorage.inIndex);
+    expect(source.dataUriLines, isNull);
   });
 }
 

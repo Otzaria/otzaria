@@ -104,7 +104,7 @@ dependencies:
   otzaria_search_engine:
     git:
       url: https://github.com/palmoni5/otzaria_search_engine
-      ref: bed34a1d6bff1d7bebceb118b9807daff432a4df
+      ref: f84b6fb45035279c895f45a288b644b823bc742f
   seforim_library_updater:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
