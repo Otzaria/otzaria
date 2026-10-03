@@ -32,7 +32,7 @@ import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';

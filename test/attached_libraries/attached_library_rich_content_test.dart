@@ -23,7 +23,7 @@ import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/text_book_repository.dart';
 import 'package:otzaria/text_book/utils/dibburim_structure.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;

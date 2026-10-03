@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
 
 /// Default commentators of a book mapped to the page shape panels.
 class PageShapeDefaultCommentators {

@@ -3,7 +3,7 @@ import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_comme
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/services/category_commentators_service.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
 
