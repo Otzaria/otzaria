@@ -5,7 +5,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
-import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';

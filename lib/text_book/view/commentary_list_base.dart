@@ -33,7 +33,7 @@ import 'package:otzaria/text_book/utils/category_settings_utils.dart';
 import 'package:otzaria/text_book/utils/commentary_title_visibility.dart';
 import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
-import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/view/commentators_list_screen.dart';
 import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 import 'package:otzaria/widgets/layout/commentators_filter_screen.dart';

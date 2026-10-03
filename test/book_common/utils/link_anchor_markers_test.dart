@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
-import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 
 Link _anchorLink({

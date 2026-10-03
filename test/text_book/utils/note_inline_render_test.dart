@@ -5,7 +5,7 @@ import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
-import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 

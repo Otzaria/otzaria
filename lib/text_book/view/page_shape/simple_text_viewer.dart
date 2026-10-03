@@ -83,7 +83,7 @@ import 'package:otzaria/text_book/utils/commentators_context_menu.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
     as inline_notes;
-import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
 import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
