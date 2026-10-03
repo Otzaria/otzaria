@@ -26,7 +26,7 @@
 | תפריט הקשר בצורת הדף (מפרשים / קטע היעד) | `test/text_book/view/page_shape/simple_text_viewer_context_menu_test.dart` |
 | תת-תפריט "מפרשים" המשותף + מדיניות הצגה | `test/text_book/utils/commentators_context_menu_test.dart` |
 | SimpleTextViewer | `test/text_book/view/page_shape/simple_text_viewer_test.dart` |
-| Selected text copy/restore | `test/text_book/view/selection/selected_text_copy_test.dart`, `…selected_text_restore_test.dart` |
+| Selected text copy/restore | `test/text_book/view/selection/selected_text_copy_test.dart`, `test/book_common/selection/selected_text_restore_test.dart` |
 | SelectionSyncController | `test/text_book/view/selection/selection_sync_controller_test.dart` |
 | בחירה כלפי מעלה מעבר לנקודת העיגון של הרשימה (sliver הפוך) | `test/text_book/view/selection/selection_upward_across_anchor_test.dart` |
 | Commentary open-filter request | `test/text_book/view/commentary_list_base_open_filter_test.dart` |
