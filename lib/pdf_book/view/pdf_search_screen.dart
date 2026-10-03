@@ -272,6 +272,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   /// מוצגת במקום "אין תוצאות" הגנרי: כשל מנוע/FFI או ספר שאינו באינדקס.
   String? _searchErrorMessage;
   String? _bookPath;
+  bool _bookPathResolved = false;
   final Map<int, String> _pageTitles = <int, String>{};
 
   bool _forceSearchEngine = false;
@@ -394,6 +395,11 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       _onIncomingSearchConfiguration,
     );
     widget.textSearcher.addListener(_onTextSearcherMatchesChanged);
+    // The engine search waits for the book's facet path; until then the pane
+    // shows it as running rather than as "no results".
+    _isSearching =
+        !_isSimpleSearch &&
+        _searchableQuery(widget.searchController.text) != null;
     _initializeBookPath();
   }
 
@@ -451,10 +457,15 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   Future<void> _initializeBookPath() async {
     final title = widget.bookTitle?.trim();
-    if (title == null || title.isEmpty) return;
-
-    await _resolveBookPath(title);
-    if (!mounted) return;
+    if (title != null && title.isNotEmpty) {
+      try {
+        await _resolveBookPath(title);
+      } catch (e, st) {
+        debugPrint('[PdfSearch] resolving the book path failed: $e\n$st');
+      }
+      if (!mounted) return;
+    }
+    _bookPathResolved = true;
 
     if (widget.searchController.text.isNotEmpty) {
       _searchTextUpdated();
@@ -779,7 +790,24 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       return;
     }
 
-    if (searchable == null || (!_isSimpleSearch && _bookPath == null)) {
+    if (searchable != null && !_isSimpleSearch && _bookPath == null) {
+      // _initializeBookPath runs the search again once the path is resolved.
+      _pendingSimpleSearchScrollFor = null;
+      _lastAdvancedHighlightPattern = null;
+      _schedulePdfHighlight(null);
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isSearching = !_bookPathResolved;
+          _searchErrorMessage = _bookPathResolved
+              ? PdfMessages.searchError
+              : null;
+        });
+      }
+      return;
+    }
+
+    if (searchable == null) {
       // איפוס גלילה ממתינה כדי שתוצאות מיושנות לא יגרמו לקפיצה אחרי
       // ניקוי השדה.
       _pendingSimpleSearchScrollFor = null;
