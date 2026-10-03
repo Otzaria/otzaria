@@ -12,7 +12,7 @@ import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
 import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
