@@ -665,7 +665,6 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
       children: [
         AppSegmentedControl<AppReportType>(
           expandToFillWidth: true,
-          showSelectedIcon: false,
           options: [
             for (final type in AppReportType.values)
               SegmentOption(value: type, label: widget.typeLabel(type)),

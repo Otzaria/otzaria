@@ -207,7 +207,6 @@ class _TikkunExportFormState extends State<TikkunExportForm> {
                 'היקף',
                 AppSegmentedControl<TikkunExportScope>(
                   expandToFillWidth: true,
-                  showSelectedIcon: false,
                   currentValue: _options.scope,
                   options: _scopeOptions,
                   onChanged: (value) =>
@@ -234,7 +233,6 @@ class _TikkunExportFormState extends State<TikkunExportForm> {
                 'עימוד',
                 AppSegmentedControl<TikkunExportMode>(
                   expandToFillWidth: true,
-                  showSelectedIcon: false,
                   currentValue: _options.mode,
                   options: const [
                     SegmentOption(
@@ -253,7 +251,6 @@ class _TikkunExportFormState extends State<TikkunExportForm> {
               'טורים',
               AppSegmentedControl<TikkunExportColumns>(
                 expandToFillWidth: true,
-                showSelectedIcon: false,
                 currentValue: _options.columns,
                 options: const [
                   SegmentOption(
