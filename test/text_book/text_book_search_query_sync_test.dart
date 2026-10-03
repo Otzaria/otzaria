@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/text_book/utils/search_query_sync.dart';
+import 'package:otzaria/search/utils/search_query_sync.dart';
 
 void main() {
   test('syncSearchControllerQuery updates text and places caret at end', () {
