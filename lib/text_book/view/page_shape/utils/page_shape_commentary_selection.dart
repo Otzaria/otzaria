@@ -100,7 +100,7 @@ String? resolvePageShapeCommentatorSelection({
   }
 
   if (!isPageShapeMultiCommentatorsValue(selection)) {
-    return findMatchingPageShapeCommentator(
+    return findMatchingCommentator(
           selection,
           availableCommentators,
           commentedBookTitle: commentedBookTitle,
@@ -111,7 +111,7 @@ String? resolvePageShapeCommentatorSelection({
   final resolved = <String>[];
   final seen = <String>{};
   for (final commentator in decodePageShapeCommentatorsSelection(selection)) {
-    final match = findMatchingPageShapeCommentator(
+    final match = findMatchingCommentator(
       commentator,
       availableCommentators,
       commentedBookTitle: commentedBookTitle,
@@ -144,7 +144,7 @@ String? resolvePageShapeSingleCommentatorSelection({
   }
 
   if (!isPageShapeMultiCommentatorsValue(selection)) {
-    return findMatchingPageShapeCommentator(
+    return findMatchingCommentator(
           selection,
           availableCommentators,
           commentedBookTitle: commentedBookTitle,
@@ -153,7 +153,7 @@ String? resolvePageShapeSingleCommentatorSelection({
   }
 
   for (final commentator in decodePageShapeCommentatorsSelection(selection)) {
-    final match = findMatchingPageShapeCommentator(
+    final match = findMatchingCommentator(
       commentator,
       availableCommentators,
       commentedBookTitle: commentedBookTitle,

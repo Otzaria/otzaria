@@ -71,7 +71,7 @@ class PageShapeSettingsManager {
     String? fullName, {
     String? commentedBookTitle,
   }) {
-    return pageShapeCommentatorBaseName(
+    return commentatorBaseName(
       fullName,
       commentedBookTitle: commentedBookTitle,
     );

@@ -263,21 +263,21 @@ void main() {
     });
   });
 
-  group('findMatchingPageShapeCommentator — התאמה לספר הנוכחי', () {
+  group('findMatchingCommentator — התאמה לספר הנוכחי', () {
     test('שם בסיס חדש מותאם למסכת הנוכחית', () {
       expect(
-        findMatchingPageShapeCommentator('יכין', _mishnaNidaCommentators),
+        findMatchingCommentator('יכין', _mishnaNidaCommentators),
         'יכין נדה',
       );
       expect(
-        findMatchingPageShapeCommentator('ברטנורא', _mishnaNidaCommentators),
+        findMatchingCommentator('ברטנורא', _mishnaNidaCommentators),
         'ברטנורא על משנה נדה',
       );
     });
 
     test('הגדרה ישנה עם שם מסכת אחרת מותאמת לפי חלק-המפרש', () {
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'יכין מקואות',
           _mishnaNidaCommentators,
           commentedBookTitle: 'משנה נדה',
@@ -285,7 +285,7 @@ void main() {
         'יכין נדה',
       );
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'ריף בבא מציעא',
           const ['רשי על שבת', 'ריף שבת', 'תוספות על שבת'],
           commentedBookTitle: 'שבת',
@@ -293,7 +293,7 @@ void main() {
         'ריף שבת',
       );
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'רלבג שיר השירים',
           const ['רלבג אסתר', 'אבן עזרא על אסתר'],
           commentedBookTitle: 'אסתר',
@@ -301,7 +301,7 @@ void main() {
         'רלבג אסתר',
       );
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'ברטנורא על משנה מקואות',
           _mishnaNidaCommentators,
           commentedBookTitle: 'משנה נדה',
@@ -312,7 +312,7 @@ void main() {
 
     test('בלי שם הספר הנוכחי אין ריפוי של הגדרה ישנה', () {
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'יכין מקואות',
           _mishnaNidaCommentators,
         ),
@@ -322,7 +322,7 @@ void main() {
 
     test('הקידומת הארוכה ביותר גוברת על קידומת קצרה יותר', () {
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'תוספות יום טוב על משנה פרה',
           _mishnaNidaCommentators,
           commentedBookTitle: 'משנה נדה',
@@ -333,7 +333,7 @@ void main() {
 
     test('משפחות שחולקות קידומת אינן מתבלבלות', () {
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'עיקר תוספות יום טוב',
           _mishnaNidaCommentators,
           commentedBookTitle: 'משנה נדה',
@@ -341,7 +341,7 @@ void main() {
         'עיקר תוספות יום טוב על משנה נדה',
       );
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'תוספות רבי עקיבא איגר',
           _mishnaNidaCommentators,
           commentedBookTitle: 'משנה נדה',
@@ -349,7 +349,7 @@ void main() {
         'תוספות רבי עקיבא איגר על משנה נדה',
       );
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'רמבם',
           _mishnaNidaCommentators,
           commentedBookTitle: 'משנה נדה',
@@ -361,7 +361,7 @@ void main() {
     test('מפרש חסר אינו מוחלף במפרש של מחבר אחר', () {
       // רגרסיה: התאמה לפי מילות פתיחה משותפות החזירה כאן "תוספות יום טוב".
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'תוספות רבי עקיבא איגר',
           const ['ברטנורא על משנה עדיות', 'תוספות יום טוב על משנה עדיות'],
           commentedBookTitle: 'משנה עדיות',
@@ -369,7 +369,7 @@ void main() {
         isNull,
       );
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'עיקר תוספות יום טוב',
           const ['ברטנורא על משנה עדיות', 'תוספות יום טוב על משנה עדיות'],
           commentedBookTitle: 'משנה עדיות',
@@ -380,7 +380,7 @@ void main() {
 
     test('שכבה חסרה של אותו מחבר נופלת חזרה לפירושו בספר הנוכחי', () {
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'מלבים באור המילות',
           const ['מלבים על רות', 'אבן עזרא על רות'],
           commentedBookTitle: 'רות',
@@ -391,7 +391,7 @@ void main() {
 
     test('מפרש שאין לו מקבילה בספר הנוכחי אינו מותאם', () {
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'מלאכת שלמה על משנה נדה',
           const ['רשי על בראשית', 'רמבן על בראשית'],
           commentedBookTitle: 'בראשית',
@@ -399,7 +399,7 @@ void main() {
         isNull,
       );
       expect(
-        findMatchingPageShapeCommentator(
+        findMatchingCommentator(
           'יכין מקואות',
           const [],
           commentedBookTitle: 'משנה נדה',
@@ -410,7 +410,7 @@ void main() {
 
     test('null אינו מותאם', () {
       expect(
-        findMatchingPageShapeCommentator(null, _mishnaNidaCommentators),
+        findMatchingCommentator(null, _mishnaNidaCommentators),
         isNull,
       );
     });

@@ -493,7 +493,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         );
         if (resolved != null &&
             !availableCommentators.contains(resolved) &&
-            findMatchingPageShapeCommentator(
+            findMatchingCommentator(
                   entry.value ?? resolved,
                   hiddenList,
                   commentedBookTitle: bookTitle,

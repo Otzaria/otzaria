@@ -122,7 +122,7 @@ class DefaultCommentators {
 
     final resolved = <String>[];
     for (final name in baseNames) {
-      final match = findMatchingPageShapeCommentator(
+      final match = findMatchingCommentator(
         name,
         availableCommentators,
         commentedBookTitle: book.title,

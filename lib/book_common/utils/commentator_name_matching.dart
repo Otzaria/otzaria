@@ -1,7 +1,7 @@
 /// מחזיר את שם המפרש בלי שם הספר שהוא מפרש.
 /// "רמב"ן על ברכות" → "רמב"ן"; "יכין מקואות" עם [commentedBookTitle]
 /// "משנה מקואות" → "יכין". יש משפחות מפרשים שאינן כוללות "על" בשם.
-String? pageShapeCommentatorBaseName(
+String? commentatorBaseName(
   String? fullName, {
   String? commentedBookTitle,
 }) {
@@ -41,7 +41,7 @@ List<String> _splitWords(String value) =>
 ///
 /// [commentedBookTitle] מאפשר להתאים גם בחירה ישנה שנשמרה עם שם ספר אחר צרוב
 /// בתוכה ("יכין מקואות" בזמן קריאה במסכת נדה).
-String? findMatchingPageShapeCommentator(
+String? findMatchingCommentator(
   String? selection,
   List<String> availableCommentators, {
   String? commentedBookTitle,
@@ -86,7 +86,7 @@ String? _matchByCommentatorBase(
   var bestLength = 0;
 
   for (final commentator in availableCommentators) {
-    final base = pageShapeCommentatorBaseName(
+    final base = commentatorBaseName(
       commentator,
       commentedBookTitle: commentedBookTitle,
     );

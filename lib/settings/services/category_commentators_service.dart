@@ -22,7 +22,7 @@ class CategoryCommentatorsService {
   }) async {
     final baseNames = <String>[];
     for (final name in selection) {
-      final base = pageShapeCommentatorBaseName(
+      final base = commentatorBaseName(
         name,
         commentedBookTitle: bookTitle,
       );
