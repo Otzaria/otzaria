@@ -456,15 +456,9 @@ List<AppContextMenuEntry> buildGroupedCommentatorEntries({
     return AppContextMenuEntry(
       label: commentator,
       isSelected: isActive,
-      onTap: () {
-        final updated = Set<String>.from(activeCommentators);
-        if (isActive) {
-          updated.remove(commentator);
-        } else {
-          updated.add(commentator);
-        }
-        onCommentatorsChanged(updated);
-      },
+      // An active commentator is not removed here; the tap only opens the
+      // pane. Removing it silently made every retry flip it (issue #904).
+      onTap: () => onCommentatorsChanged({...activeCommentators, commentator}),
     );
   }
 
