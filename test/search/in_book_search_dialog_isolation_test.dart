@@ -156,6 +156,36 @@ Future<void> main() async {
       },
       skip: !engineReady,
     );
+
+    testWidgets(
+      '${pdf ? 'PDF' : 'טקסט'}: פתיחה חוזרת של החיפוש המתקדם עורכת את האפשרויות פר-מילה',
+      (tester) async {
+        final previous = SearchQueryBuilder.normalizeParametersForMode(
+          SearchMode.advanced,
+          alternativeWords: const {},
+          searchOptions: {
+            'שלום_0': {'קידומות': true},
+          },
+          customSpacing: const {},
+        );
+        await _pumpSearchView(tester, pdf: pdf, previous: previous);
+
+        await tester.tap(find.byTooltip('הגדרות חיפוש'));
+        await _settle(tester);
+        final tab = tester
+            .widget<AdvancedSearchControls>(find.byType(AdvancedSearchControls))
+            .tab;
+
+        expect(tab.useGlobalSearchOptions.value, isFalse);
+        expect(tab.searchOptions['שלום_0'], {'קידומות': true});
+
+        await tester.tap(find.byTooltip('סגור'));
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      },
+      skip: !engineReady,
+    );
   }
 }
 

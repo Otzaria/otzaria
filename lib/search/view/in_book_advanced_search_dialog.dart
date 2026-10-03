@@ -41,7 +41,7 @@ SearchingTab createInBookSearchDialogTab({
 /// submitted settings, or null when the dialog was closed.
 Future<SearchDialogResult?> showInBookAdvancedSearchDialog(
   BuildContext context, {
-  required String bookTitle,
+  required String? bookTitle,
   required String query,
   required SearchMode searchMode,
   required int distance,
