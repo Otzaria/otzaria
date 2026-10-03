@@ -1,6 +1,6 @@
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart'
     show getTitleFromPath, notesBookBaseTitle;
 
