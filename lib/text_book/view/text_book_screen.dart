@@ -613,7 +613,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     context.read<TourCubit>().recordInteraction(
       TourInteraction(type: TourInteractionType.bookSourceViewed),
     );
-    showBookSourceDialog(context, state);
+    showBookDetailsDialog(context, state.book);
   }
 
   Future<void> _handlePrintPress(TextBookLoaded state) async {
