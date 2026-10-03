@@ -33,7 +33,8 @@
 | Commentary search focus | `test/text_book/view/commentary_search_focus_test.dart` |
 | Commentary grouping | `test/text_book/commentary_grouping_test.dart` |
 | הסתרת כותרת מקור מיותרת במקטע מפרש | `test/text_book/view/commentary_item_title_visibility_test.dart` |
-| Book source dialog | `test/text_book/view/book_source_dialog_test.dart` |
+| Book source dialog | `test/book_common/view/book_source_dialog_test.dart` |
+| Commentator name matching | `test/book_common/utils/commentator_name_matching_test.dart`, `test/text_book/view/page_shape/page_shape_category_commentator_matching_test.dart` |
 | Error report dialog | `test/text_book/view/error_report_dialog_test.dart` |
 | הצעת תיקון בדיאלוג הדיווח (עורך, diff, מחיקה מול ללא-הצעה, מיפוי בחירה לשורה הגולמית) | `test/text_book/view/text_correction_editor_test.dart` |
 
