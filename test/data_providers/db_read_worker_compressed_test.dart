@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
+import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/line_content_codec.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
@@ -158,10 +158,13 @@ void main() {
     final text = await DbReadWorker.request('bookText', args);
     expect(text, _lines.join('\n'));
 
-    final bytes = await DbReadWorker.request('bookTextBytes', args);
+    final bytes =
+        (await DbReadWorker.request('bookTextBytes', args))!
+            as TransferableBookContent;
+    expect(bytes.rowHasNewline, isFalse);
     expect(
       utf8.decode(
-        (bytes! as TransferableTypedData).materialize().asUint8List(),
+        bytes.data.materialize().asUint8List(),
       ),
       _lines.join('\n'),
     );

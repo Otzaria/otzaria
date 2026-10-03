@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ffi';
 import 'dart:isolate';
 import 'dart:ui' show IsolateNameServer;
 
@@ -13,21 +14,22 @@ abstract interface class LineSourceEngine {
 
   Future<void> configure(String dbPath);
 
-  Future<void> suspend();
+  Future<void> suspend(int ownerPort);
 
-  Future<void> resume();
+  Future<void> resume(int ownerPort);
 
   /// רושם את נקודת הכניסה של המנוע ב-SQLite של Dart ופותח חיבור שמפעיל אותה.
   Future<void> registerHostSqlite();
 }
 
 /// המנוע קורא את שורות התוצאה של ספרים שאונדקסו עם [TextStorage.libraryDb]
-/// מ-seforim.db. מצבו גלובלי לתהליך; כל isolate מאזן רק את ההשעיות שלו.
+/// מ-seforim.db. מצבו גלובלי לתהליך; ההחזקה קשורה ל-port שנסגר גם ביציאת isolate.
 abstract final class LibraryLineSource {
   static LineSourceEngine _engine = const _RustLineSourceEngine();
   static bool _hostApiReady = false;
   static Future<bool>? _hostRegistration;
   static bool _heldForExternalWrite = false;
+  static RawReceivePort? _ownerPort;
   static Future<void> _queue = Future.value();
 
   /// מחליף את המנוע בטסטים ומאפס את המצב המקומי. [keepProcessMarkers] מדמה
@@ -41,6 +43,8 @@ abstract final class LibraryLineSource {
     _hostApiReady = false;
     _hostRegistration = null;
     _heldForExternalWrite = false;
+    _ownerPort?.close();
+    _ownerPort = null;
     _queue = Future.value();
     _registrationFailureReported = false;
     _fallbacksReported = false;
@@ -221,9 +225,14 @@ abstract final class LibraryLineSource {
 
   static Future<bool> _trySuspend() async {
     try {
-      await _engine.suspend();
+      final port = RawReceivePort((_) {}, 'line source hold')
+        ..keepIsolateAlive = false;
+      _ownerPort = port;
+      await _engine.suspend(port.sendPort.nativePort);
       return true;
     } catch (error) {
+      _ownerPort?.close();
+      _ownerPort = null;
       _logFailure('השעיית מקור השורות', error);
       return false;
     }
@@ -231,9 +240,12 @@ abstract final class LibraryLineSource {
 
   static Future<void> _tryResume() async {
     try {
-      await _engine.resume();
+      await _engine.resume(_ownerPort!.sendPort.nativePort);
     } catch (error) {
       _logFailure('חידוש מקור השורות', error);
+    } finally {
+      _ownerPort?.close();
+      _ownerPort = null;
     }
   }
 
@@ -254,10 +266,12 @@ class _RustLineSourceEngine implements LineSourceEngine {
   Future<void> configure(String dbPath) => configureLineSource(dbPath: dbPath);
 
   @override
-  Future<void> suspend() => suspendLineSource();
+  Future<void> suspend(int ownerPort) =>
+      suspendLineSourceOwned(ownerPort: ownerPort);
 
   @override
-  Future<void> resume() => resumeLineSource();
+  Future<void> resume(int ownerPort) =>
+      resumeLineSourceOwned(ownerPort: ownerPort);
 
   @override
   Future<void> registerHostSqlite() async {

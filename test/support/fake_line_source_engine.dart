@@ -31,7 +31,7 @@ class FakeLineSourceEngine implements LineSourceEngine {
   Future<void> configure(String dbPath) async => configuredPaths.add(dbPath);
 
   @override
-  Future<void> suspend() async {
+  Future<void> suspend(int ownerPort) async {
     final failure = failSuspendWith;
     if (failure != null) throw failure;
     await suspendGate?.future;
@@ -40,7 +40,7 @@ class FakeLineSourceEngine implements LineSourceEngine {
   }
 
   @override
-  Future<void> resume() async {
+  Future<void> resume(int ownerPort) async {
     if (depth == 0) throw Exception('resume without a matching suspend');
     resumes++;
     depth--;
