@@ -48,7 +48,7 @@ void main() {
   setUp(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
     // קונפיגורציה ריקה לספר → `_loadConfiguration` חוזרת בלי לקרוא ל-
-    // `DefaultCommentators.getDefaults` (שניגש ל-DB ולא יעבוד בטסט).
+    // `PageShapeDefaultCommentators.getPageShapeDefaults` (שניגש ל-DB ולא יעבוד בטסט).
     await Settings.setValue<String>(
       'page_shape_book_$bookTitle',
       'left|null||right|null||bottom|null||bottomRight|null',

@@ -7,20 +7,6 @@ import 'package:otzaria/book_common/utils/default_commentators.dart';
 class PageShapeDefaultCommentators {
   static const _pageShapePanelKeys = ['left', 'right', 'bottom', 'bottomRight'];
 
-  /// מחזיר מפרשי ברירת מחדל למיקומי צורת הדף (right/left/bottom/bottomRight),
-  /// ממופים לפי ה-`position` של כל מפרש (פירוט המיפוי ב-[mapToPageShape]).
-  /// [availableCommentators] משמש להתאמת השם המלא הזמין בספר הנוכחי.
-  static Future<Map<String, String?>> getDefaults(
-    TextBook book, {
-    List<String>? availableCommentators,
-  }) async {
-    final defaults = await getPageShapeDefaults(
-      book,
-      availableCommentators: availableCommentators,
-    );
-    return defaults.commentators;
-  }
-
   /// מחזיר את ברירת המחדל המלאה לצורת הדף: בחירת מפרשים וגם נראות חלוניות.
   ///
   /// חלונית מוסתרת רק כשיש "חור" מכוון בתוך מיקומי ברירת המחדל של הספר עצמו
