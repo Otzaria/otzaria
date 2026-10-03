@@ -26,8 +26,7 @@ import 'package:otzaria/search/utils/index_freshness_warner.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
-import 'package:otzaria/search/view/search_dialog.dart';
-import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/search/view/in_book_advanced_search_dialog.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
@@ -1097,45 +1096,20 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       onArrowDown: () => _moveBetweenResults(1),
       onArrowUp: () => _moveBetweenResults(-1),
       onAdvancedSearch: () async {
-        // מטמיעים את ה-configuration ישירות ב-Bloc במקום events, כי events
-        // אסינכרוניים עלולים לרוץ אחרי שה-dialog פותח חיפוש ראשון.
-        final tempTab = SearchingTab(
-          'חיפוש',
-          searchTextController.text,
-          initialConfiguration: SearchConfiguration.forInBookSearch(
-            searchMode: _searchMode,
-            distance: _searchDistance,
-            matchPolicy: _matchPolicy,
-          ),
-        );
-        tempTab.copyWordSettingsFrom(
+        final bookTitle =
+            (context.read<TextBookBloc>().state as TextBookLoaded).book.title;
+
+        final result = await showInBookAdvancedSearchDialog(
+          context,
+          bookTitle: bookTitle,
+          query: searchTextController.text,
+          searchMode: _searchMode,
+          distance: _searchDistance,
+          matchPolicy: _matchPolicy,
           searchOptions: _searchOptions,
           alternativeWords: _alternativeWords,
           spacingValues: _spacingValues,
         );
-        // התוצאה החוזרת מהדיאלוג היא תמיד מפת פר-מילה; קריאה במצב גלובלי
-        // הייתה קוראת מהמפה הגלובלית הריקה ומאבדת את הבחירות המשוחזרות.
-        tempTab.useGlobalSearchOptions.value = false;
-
-        final bookTitle =
-            (context.read<TextBookBloc>().state as TextBookLoaded).book.title;
-
-        final result = await showDialog<SearchDialogResult>(
-          context: context,
-          builder: (dialogContext) => SearchDialog(
-            existingTab: tempTab,
-            bookTitle: bookTitle,
-            returnResultOnSubmit: true,
-          ),
-        );
-
-        // dispose נדחה כדי לחכות ל-fade-out animation של ה-dialog (~200ms)
-        // ולכל ה-animations הפנימיים של ה-TextField (cursor blink וכו') —
-        // אחרת ה-FocusNode של ה-tempTab משוחרר בזמן ש-Widget tree של ה-dialog
-        // עדיין rebuilds, וגורם ל-"FocusNode used after being disposed" crash.
-        Future.delayed(const Duration(milliseconds: 500), () {
-          tempTab.dispose();
-        });
 
         if (!mounted || result == null) {
           return;
