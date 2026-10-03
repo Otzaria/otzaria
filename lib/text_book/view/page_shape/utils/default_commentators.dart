@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
@@ -94,7 +93,7 @@ class DefaultCommentators {
     final base = baseCommentators ?? await getBaseCommentators(book);
     final resolved = <String>[];
     for (final name in base) {
-      final match = _findMatchingCommentator(name, availableCommentators);
+      final match = findMatchingCommentator(name, availableCommentators);
       if (match != null && !resolved.contains(match)) {
         resolved.add(match);
       }
@@ -244,44 +243,19 @@ class DefaultCommentators {
     List<String> availableCommentators,
   ) {
     return {
-      'right': _findMatchingCommentator(
+      'right': findMatchingCommentator(
         defaults['right'],
         availableCommentators,
       ),
-      'left': _findMatchingCommentator(defaults['left'], availableCommentators),
-      'bottom': _findMatchingCommentator(
+      'left': findMatchingCommentator(defaults['left'], availableCommentators),
+      'bottom': findMatchingCommentator(
         defaults['bottom'],
         availableCommentators,
       ),
-      'bottomRight': _findMatchingCommentator(
+      'bottomRight': findMatchingCommentator(
         defaults['bottomRight'],
         availableCommentators,
       ),
     };
-  }
-
-  /// מחפש מפרש שמתאים לשם הנתון מתוך הזמינים בפועל בספר.
-  /// מחזיר את השם המלא אם נמצא, או null אם לא.
-  static String? _findMatchingCommentator(
-    String? name,
-    List<String> available,
-  ) {
-    if (name == null) return null;
-
-    // 1. התאמה מדויקת
-    String? match = available.firstWhereOrNull((item) => item == name);
-    if (match != null) return match;
-
-    // 2. התאמה של התחלה
-    match = available.firstWhereOrNull((item) => item.startsWith(name));
-    if (match != null) return match;
-
-    // 3. התאמה של הכלה
-    match = available.firstWhereOrNull((item) => item.contains(name));
-    if (match != null) return match;
-
-    // 4. התאמה הפוכה - השם בהגדרות מכיל את השם הזמין
-    match = available.firstWhereOrNull((item) => name.contains(item));
-    return match;
   }
 }
