@@ -95,27 +95,28 @@ void main() {
 
     // קורא בלי שכבת סימונים מורמים (hideRaisedMarkers: false) מקבל את המראה
     // המלא בשורה — כמו לפני שהאות עברה לציור המורם.
-    test('קורא בלי שכבה — רקע והדגשה על הגליף עצמו', () {
+    test('קורא בלי שכבה — רקע על הגליף עצמו, בלי הדגשה', () {
+      // וריאנט 1 (נטוי) — לא מודגש מעצמו.
       final style = continuousStyleOf(
-        activeMarker(0),
+        activeMarker(1),
         '(א)',
         hideRaisedMarkers: false,
       );
       expect(_background(style), activeBackground.toARGB32());
-      expect(style.fontWeight, FontWeight.bold);
+      expect(style.fontWeight, isNot(FontWeight.bold));
       expect(style.color, linkColor);
     });
 
     test('ברירת המחדל (עם שכבה): הגליף שקוף והרקע עובר לציור המורם', () {
-      final style = continuousStyleOf(activeMarker(0), '(א)');
+      final style = continuousStyleOf(activeMarker(1), '(א)');
       expect(
         style.color!.toARGB32() >> 24,
         0,
         reason: 'הגליף בשורה חייב להיות שקוף — הציור המורם נושא את הצבע',
       );
       expect(_background(style), isNull);
-      // ההדגשה נשארת כדי שרוחב המקום בשורה יתאים לציור המודגש.
-      expect(style.fontWeight, FontWeight.bold);
+      // הדגשה הייתה מרחיבה את האות ופורסת מחדש את השורה בפתיחת החלונית.
+      expect(style.fontWeight, isNot(FontWeight.bold));
     });
 
     test('קריאה רציפה — סמן לא-פעיל בלי רקע', () {
@@ -129,7 +130,7 @@ void main() {
     });
 
     test('הווריאנט נשמר גם כשהסמן פעיל', () {
-      // וריאנט 3 = כתב רש"י; ההדגשה מתווספת עליו ולא מחליפה אותו.
+      // וריאנט 3 = כתב רש"י; המצב הפעיל לא מחליף אותו.
       expect(
         continuousStyleOf(
           activeMarker(3),
@@ -138,7 +139,7 @@ void main() {
         ).fontFamily,
         kLinkAnchorRashiFont,
       );
-      // וריאנט 5 = קו תחתון, סימנו המבחין של המפרש — חייב לשרוד את ההדגשה.
+      // וריאנט 5 = קו תחתון, סימנו המבחין של המפרש — חייב לשרוד את המצב הפעיל.
       expect(
         continuousStyleOf(
           activeMarker(5),
@@ -154,7 +155,7 @@ void main() {
       );
     });
 
-    testWidgets('שני המסלולים מסתירים את הגליף ומעבירים את ההדגשה לשכבה', (
+    testWidgets('שני המסלולים מסתירים את הגליף ומעבירים את הסימון לשכבה', (
       tester,
     ) async {
       for (var index = 0; index < kLinkAnchorVariants.length; index++) {
@@ -200,6 +201,12 @@ void main() {
           continuousStyle.fontFamily,
           htmlStyle.fontFamily,
           reason: 'גופן זהה לרוחב מקום זהה, וריאנט $index',
+        );
+        // רוחב האות הפעילה זהה ללא-פעילה, אחרת השורה נשברת מחדש.
+        expect(
+          htmlStyle.fontWeight == FontWeight.bold,
+          kLinkAnchorVariants[index].bold,
+          reason: 'וריאנט $index',
         );
 
         // הציור המורם נושא את מלוא העיצוב: וריאנט, מצב פעיל וצבעי הנושא.
