@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:http/http.dart' as http;
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
@@ -28,6 +29,8 @@ class BundledPluginSeedService {
   final Set<String> _allowedIds;
   final String? _bundleDirPath;
   final AssetBundle _assetBundle;
+  final Set<String> _networkGatedIds;
+  final Future<bool> Function() _isSiteReachable;
 
   BundledPluginSeedService({
     PluginRegistryRepository? repository,
@@ -35,6 +38,8 @@ class BundledPluginSeedService {
     Set<String>? allowedIds,
     Object? bundleDirPath = _defaultBundleDir,
     AssetBundle? assetBundle,
+    this._networkGatedIds = networkGatedBundledPluginIds,
+    Future<bool> Function()? isSiteReachable,
   }) : _repository = repository ?? PluginRegistryRepository(),
        _installerService =
            installerService ?? PluginInstallerService(repository: repository),
@@ -44,7 +49,19 @@ class BundledPluginSeedService {
        _bundleDirPath = identical(bundleDirPath, _defaultBundleDir)
            ? AppPaths.getBundledPluginsPath()
            : bundleDirPath as String?,
-       _assetBundle = assetBundle ?? rootBundle;
+       _assetBundle = assetBundle ?? rootBundle,
+       _isSiteReachable = isSiteReachable ?? _otzariaSiteReturnsOk;
+
+  static Future<bool> _otzariaSiteReturnsOk() async {
+    try {
+      final response = await http
+          .get(Uri.parse('https://otzaria.org/'))
+          .timeout(const Duration(seconds: 10));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// מחזירה `true` אם נרשם תוסף חדש — ואז על הקורא לרענן את רשימת התוספים.
   Future<bool> seedPending() async {
@@ -54,6 +71,7 @@ class BundledPluginSeedService {
     final initialSeededCount = seeded.length;
     var registered = false;
     Directory? assetStagingDir;
+    Future<bool>? siteReachable;
 
     try {
       for (final pluginId in _allowedIds) {
@@ -79,6 +97,12 @@ class BundledPluginSeedService {
           final staged = await _stageAssetArchive(pluginId, assetStagingDir);
           if (staged == null) continue;
           archivePath = staged;
+        }
+
+        // לא מסומן כמטופל — ינוסה שוב בעלייה הבאה, כשאולי יש רשת.
+        if (_networkGatedIds.contains(pluginId) &&
+            !await (siteReachable ??= _isSiteReachable())) {
+          continue;
         }
 
         if (await _install(pluginId, archivePath)) {

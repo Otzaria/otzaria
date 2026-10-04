@@ -225,6 +225,48 @@ void main() {
     );
   });
 
+  group('תוסף שתלוי ברשת — נרשם רק כש-otzaria.org עונה 200', () {
+    BundledPluginSeedService buildGatedService({required bool reachable}) {
+      return BundledPluginSeedService(
+        repository: repository,
+        allowedIds: {'test.bundled'},
+        bundleDirPath: bundleDir.path,
+        networkGatedIds: {'test.bundled'},
+        isSiteReachable: () async => reachable,
+      );
+    }
+
+    setUp(() {
+      writePluginArchive(
+        p.join(bundleDir.path, 'test.bundled.otzplugin'),
+        'test.bundled',
+      );
+    });
+
+    test('בלי תשובת 200 אינו מותקן ואינו מסומן — ינוסה שוב', () async {
+      final registered = await buildGatedService(
+        reachable: false,
+      ).seedPending();
+
+      expect(registered, isFalse);
+      expect(repository.savedIds, isEmpty);
+      expect(
+        Settings.getValue<String>(
+          SettingsRepository.keySeededBundledPlugins,
+          defaultValue: '',
+        ),
+        '',
+      );
+    });
+
+    test('עם תשובת 200 מותקן ומסומן כמטופל', () async {
+      final registered = await buildGatedService(reachable: true).seedPending();
+
+      expect(registered, isTrue);
+      expect(repository.savedIds, ['test.bundled']);
+    });
+  });
+
   group('מובייל — ארכיונים מ-assets (אין תיקייה ליד ה-executable)', () {
     BundledPluginSeedService buildAssetService(
       Set<String> allowedIds,

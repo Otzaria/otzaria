@@ -26,6 +26,11 @@ const bundledPlugins = <String, String>{
   '6a9342ce60ff32edf765ec31': 'com.otzaria_word_editor.superdoc@windows,linux,macos',
 ```
 
+תוסף שאין בו תועלת בלי רשת (כמו חנות התוספים) מוסיפים גם ל-
+`networkGatedBundledPluginIds` באותו קובץ: הוא נארז כרגיל, אבל נרשם רק כאשר
+בקשה ל-`https://otzaria.org/` מחזירה 200. אחרת הוא לא מסומן כמטופל, והרישום
+ינוסה שוב בעלייה הבאה.
+
 בלי `@` התוסף נארז בכל הפלטפורמות. הסינון נאכף פעמיים: סקריפט ההורדה מקבל
 את שם הפלטפורמה הנבנית ומדלג על רשומות לא רלוונטיות (הארכיון כלל לא נארז),
 ו-`bundledPluginIdsForPlatform` מסנן גם בצד האפליקציה.
