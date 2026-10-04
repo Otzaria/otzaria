@@ -75,6 +75,7 @@ SemanticSearchResponse _response({
   required int totalCount,
   int? groupCount,
   required bool hasMore,
+  bool sessionRestarted = false,
 }) => SemanticSearchResponse(
   results: [for (var i = 1; i <= results; i++) _result(i)],
   totalCount: totalCount,
@@ -88,6 +89,7 @@ SemanticSearchResponse _response({
   candidateWindowTruncated: false,
   truncated: false,
   hasMore: hasMore,
+  sessionRestarted: sessionRestarted,
 );
 
 Future<void> main() async {
@@ -152,6 +154,21 @@ Future<void> main() async {
     expect(last!.hasMore, isFalse);
     expect(last.totalCount, 500);
     expect(last.groupCount, 400);
+  });
+
+  test('התחלה מחדש של דפדוף מועברת מהמנוע למקור', () async {
+    backend.response = _response(
+      results: 3,
+      totalCount: 40,
+      hasMore: true,
+      sessionRestarted: true,
+    );
+    final page = await source.fetch(
+      const SemanticQueryOptions(query: 'שבת'),
+      offset: 30,
+      limit: 30,
+    );
+    expect(page!.sessionRestarted, isTrue);
   });
 
   test('סימון הקטע: יעד לכל פריט, בסדרם, והביטול מגיע למנוע', () async {

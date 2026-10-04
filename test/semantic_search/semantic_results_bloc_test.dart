@@ -25,6 +25,65 @@ Future<void> _settle(SemanticResultsBloc bloc) async {
 }
 
 void main() {
+  group('דפדוף שאיבד את הסשן', () {
+    test('מחזיר עמוד ראשון חדש, מאפס הצבעות וסימונים ומשוב', () async {
+      final items = [for (var i = 1; i <= 60; i++) resultItem(i)];
+      final source = FakeResultsSource(items: items);
+      final recorder = RecordingRecorder();
+      final bloc = buildResultsBloc(source: source, recorder: recorder);
+      addTearDown(bloc.close);
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      final oldId = bloc.state.searchId;
+      final oldContext = bloc.searchContext;
+      bloc.add(const SemanticVoteToggled(0, SearchFeedbackVote.like));
+      await _settle(bloc);
+      expect(bloc.state.votes, isNotEmpty);
+
+      items
+        ..clear()
+        ..addAll([for (var i = 101; i <= 160; i++) resultItem(i)]);
+      source.restartContinuation = true;
+      bloc.add(const SemanticMoreResultsRequested());
+      await _settle(bloc);
+
+      expect(bloc.state.items, hasLength(30));
+      expect(bloc.state.items.first.id, BigInt.from(101));
+      expect(bloc.state.votes, isEmpty);
+      expect(bloc.state.passageHighlights, isEmpty);
+      expect(bloc.state.searchId, greaterThan(oldId));
+      expect(identical(bloc.searchContext, oldContext), isFalse);
+      expect(recorder.searches, hasLength(2));
+      expect(recorder.shown.map((page) => page.offset), [0, 0]);
+      expect(source.fetches.map((page) => page.offset), [0, 30, 0]);
+      expect(bloc.state.message, SemanticSearchMessages.resultsRefreshed);
+
+      source.restartContinuation = false;
+      bloc.add(const SemanticMoreResultsRequested());
+      await _settle(bloc);
+      expect(bloc.state.items, hasLength(60));
+      expect(bloc.state.items.map((item) => item.id).toSet(), hasLength(60));
+    });
+
+    test('מעבר למצב fallback אינו מצרף סדר אחר', () async {
+      final source = FakeResultsSource(total: 60);
+      final recorder = RecordingRecorder();
+      final bloc = buildResultsBloc(source: source, recorder: recorder);
+      addTearDown(bloc.close);
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      source.executedMode = 'lexicalOnly';
+      bloc.add(const SemanticMoreResultsRequested());
+      await _settle(bloc);
+      expect(bloc.state.items, hasLength(30));
+      expect(recorder.searches.last.response.executedMode, 'lexicalOnly');
+      expect(source.fetches.map((page) => page.offset), [0, 30, 0]);
+      bloc.add(const SemanticMoreResultsRequested());
+      await _settle(bloc);
+      expect(bloc.state.items, hasLength(60));
+    });
+  });
+
   group('שער ההסכמה', () {
     test('בלי הסכמה אין חיפוש ואין רישום', () async {
       final source = FakeResultsSource();

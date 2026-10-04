@@ -1,4 +1,5 @@
 import "dart:async";
+
 import "package:flutter/services.dart";
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
@@ -167,6 +168,27 @@ void main() {
     await settle(tester);
     return (recorder: recorder, tabs: tabs, tab: tab, source: source);
   }
+
+  testWidgets('restart replaces the list and returns its scroll to zero', (
+    tester,
+  ) async {
+    final source = FakeResultsSource(total: 100);
+    final setup = await pumpScreen(tester, injectedSource: source);
+    final list = find.byType(ListView);
+    await tester.drag(list, const Offset(0, -2000));
+    await settle(tester);
+    final scroll = tester.state<ScrollableState>(
+      find.descendant(of: list, matching: find.byType(Scrollable)).first,
+    );
+    expect(scroll.position.pixels, greaterThan(0));
+    source.restartContinuation = true;
+    final oldSearchId = setup.tab.resultsBloc.state.searchId;
+    setup.tab.resultsBloc.add(const SemanticMoreResultsRequested());
+    await settle(tester);
+    expect(setup.tab.resultsBloc.state.searchId, greaterThan(oldSearchId));
+    expect(setup.tab.resultsBloc.state.items, hasLength(30));
+    expect(scroll.position.pixels, 0);
+  });
 
   testWidgets('הכרטיסים מציגים את תווית המקור', (tester) async {
     await pumpScreen(tester);

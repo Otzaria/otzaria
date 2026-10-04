@@ -38,6 +38,8 @@ abstract class SemanticSearchMessages {
       'לא ניתן לקבוע את גרסת הספרייה המותקנת.';
   static const String notReady = 'נתוני {name} עוד לא הותקנו.';
   static const String internal = 'אירעה שגיאה ב{name}.';
+  static const String resultsRefreshed =
+      'תוצאות החיפוש רועננו. מוצג העמוד הראשון.';
   static const String vectorsBusy =
       'נתוני {name} מתעדכנים כרגע. הניסיון יחזור מעצמו בעוד כמה דקות.';
   static const String unsupportedRelease =

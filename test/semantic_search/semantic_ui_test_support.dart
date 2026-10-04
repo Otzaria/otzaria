@@ -122,6 +122,8 @@ class FakeResultsSource implements SemanticResultsSource {
 
   /// ה-hasMore שהמקור מדווח; `null` = לפי [total].
   bool? reportsHasMore;
+  bool restartContinuation = false;
+  String executedMode = 'hybrid';
   int cancels = 0;
   final List<({int offset, int limit})> fetches = [];
 
@@ -144,11 +146,14 @@ class FakeResultsSource implements SemanticResultsSource {
     if (failure != null) throw failure;
     if (returnsNull) return null;
     final all = items ?? [for (var i = 1; i <= total; i++) resultItem(i)];
-    final page = all.skip(offset).take(limit).toList();
+    final restarted = offset > 0 && restartContinuation;
+    final pageOffset = restarted ? 0 : offset;
+    final page = all.skip(pageOffset).take(limit).toList();
     return SemanticResultsPage(
       items: page,
-      hasMore: reportsHasMore ?? offset + page.length < all.length,
-      executedMode: 'hybrid',
+      hasMore: reportsHasMore ?? pageOffset + page.length < all.length,
+      sessionRestarted: restarted,
+      executedMode: executedMode,
       semanticAvailable: true,
       latencyMs: 12,
       totalCount: all.length,

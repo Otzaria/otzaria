@@ -125,6 +125,9 @@ class SemanticResultsPage {
 
   /// האם יש עמוד נוסף; לא נגזר מהספירות, שמתארות חלון מועמדים.
   final bool hasMore;
+
+  /// המנוע איבד את סשן הדפדוף; העמוד הוא התחלה חדשה ולא המשך לרשימה.
+  final bool sessionRestarted;
   final String executedMode;
   final bool semanticAvailable;
   final String? fallbackReason;
@@ -140,6 +143,7 @@ class SemanticResultsPage {
   const SemanticResultsPage({
     required this.items,
     required this.hasMore,
+    this.sessionRestarted = false,
     required this.executedMode,
     required this.semanticAvailable,
     required this.latencyMs,

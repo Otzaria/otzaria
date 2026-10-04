@@ -109,6 +109,7 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
           SemanticResultItem.fromEngine(result),
       ],
       hasMore: response.hasMore,
+      sessionRestarted: response.sessionRestarted,
       executedMode: response.executedMode.name,
       semanticAvailable: response.semanticAvailable,
       fallbackReason: response.fallbackReason,

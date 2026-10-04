@@ -118,8 +118,9 @@ class SemanticResultsBloc
 
   Future<void> _onSubmitted(
     SemanticSearchSubmitted event,
-    Emitter<SemanticResultsState> emit,
-  ) async {
+    Emitter<SemanticResultsState> emit, {
+    String? message,
+  }) async {
     final generation = ++_generation;
     _source?.cancel();
     _highlightCancel?.cancel();
@@ -186,6 +187,7 @@ class SemanticResultsBloc
         items: page.items,
         morePages: page.hasMore,
         isDebugPreview: source.isDebugPreview,
+        message: message,
       ),
     );
     add(SemanticHighlightsRequested(generation, 0, page.items.length));
@@ -215,6 +217,18 @@ class SemanticResultsBloc
     if (generation != _generation) return;
     if (page == null) {
       emit(state.copyWith(isLoadingMore: false));
+      return;
+    }
+    // אין לצרף עמוד מסדר חדש לרשימה הישנה. חיפוש מחדש מאפס גם הצבעות,
+    // סימונים והקשר משוב, ומבטל תשובות שעדיין מגיעות מהחיפוש הקודם.
+    if (page.sessionRestarted ||
+        (_context != null &&
+            page.executedMode != _context!.response.executedMode)) {
+      await _onSubmitted(
+        SemanticSearchSubmitted(options),
+        emit,
+        message: SemanticSearchMessages.resultsRefreshed,
+      );
       return;
     }
     final flags = await _userFlags(page.items);
