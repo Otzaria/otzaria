@@ -131,12 +131,21 @@ class _DirectReportDetails extends StatelessWidget {
                 label: 'פירוט הטעות',
                 value: report.errorDetails,
               ),
-              if (report.correction != null)
+              if (report.correction case final correction?)
                 _ReportDetailRow(
                   label: report.serverAcceptedCorrection == false
                       ? 'הצעת תיקון (נקלטה כטקסט בלבד)'
                       : 'הצעת תיקון',
-                  value: report.correction!.fallbackBlock,
+                  value: correction.fallbackBlock,
+                  child: correction.proposedText == null
+                      ? null
+                      : TextCorrectionDiffView(
+                          before: correction.target,
+                          after: correction.proposedText!,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium ??
+                              const TextStyle(),
+                        ),
                 ),
               _ReportDetailRow(label: 'הקשר', value: report.contextText),
               _ReportDetailRow(label: 'נתיב קובץ', value: report.filePath),
@@ -160,9 +169,13 @@ class _ReportDetailRow extends StatelessWidget {
   final String label;
   final String value;
 
+  /// מוצג במקום [value] כשיש תצוגה עשירה יותר לערך.
+  final Widget? child;
+
   const _ReportDetailRow({
     required this.label,
     required this.value,
+    this.child,
   });
 
   @override
@@ -178,10 +191,11 @@ class _ReportDetailRow extends StatelessWidget {
             style: Theme.of(context).textTheme.labelMedium,
           ),
           const SizedBox(height: 3),
-          Text(
-            displayValue,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          child ??
+              Text(
+                displayValue,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
         ],
       ),
     );

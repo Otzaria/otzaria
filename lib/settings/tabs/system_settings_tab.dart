@@ -46,6 +46,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/models/direct_error_report.dart';
+import 'package:otzaria/text_book/view/text_correction_editor.dart';
 import 'package:otzaria/plugins/models/plugin_report_record.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
@@ -697,17 +698,28 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         width: 560,
         child: _PendingReportEditFields(
           initialValues: editValues,
+          correction: report.correction,
           onChanged: (values) => editValues = values,
         ),
       ),
     );
 
     if (confirmed == true) {
+      final draft = editValues.correctionDraft;
+      if (draft != null &&
+          (!draft.isValid ||
+              (!draft.hasProposal && editValues.errorDetails.trim().isEmpty))) {
+        UiSnack.showError(
+          draft.error ?? ReportMessages.proposalNeedsDetailsOrChange,
+        );
+        return;
+      }
       await DirectErrorReportService().updatePendingReport(
         report.copyWith(
           selectedText: replaceLoneSurrogates(editValues.selectedText.trim()),
           errorDetails: replaceLoneSurrogates(editValues.errorDetails.trim()),
           contextText: replaceLoneSurrogates(editValues.contextText.trim()),
+          correction: draft?.correction,
         ),
       );
       if (!mounted) return;
@@ -3083,11 +3095,13 @@ class _PendingReportEditValues {
   final String selectedText;
   final String errorDetails;
   final String contextText;
+  final TextCorrectionDraft? correctionDraft;
 
   const _PendingReportEditValues({
     required this.selectedText,
     required this.errorDetails,
     required this.contextText,
+    this.correctionDraft,
   });
 
   _PendingReportEditValues copyWith({
@@ -3099,6 +3113,7 @@ class _PendingReportEditValues {
       selectedText: selectedText ?? this.selectedText,
       errorDetails: errorDetails ?? this.errorDetails,
       contextText: contextText ?? this.contextText,
+      correctionDraft: correctionDraft,
     );
   }
 }
@@ -3107,9 +3122,13 @@ class _PendingReportEditFields extends StatefulWidget {
   final _PendingReportEditValues initialValues;
   final ValueChanged<_PendingReportEditValues> onChanged;
 
+  /// בדיווח הצעת תיקון נפתח אותו עורך כמו בטופס המקורי.
+  final TextCorrection? correction;
+
   const _PendingReportEditFields({
     required this.initialValues,
     required this.onChanged,
+    this.correction,
   });
 
   @override
@@ -3121,6 +3140,7 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
   late final TextEditingController _selectedTextController;
   late final TextEditingController _detailsController;
   late final TextEditingController _contextController;
+  TextCorrectionDraft? _draft;
 
   @override
   void initState() {
@@ -3150,12 +3170,47 @@ class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
         selectedText: _selectedTextController.text,
         errorDetails: _detailsController.text,
         contextText: _contextController.text,
+        correctionDraft: _draft,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final correction = widget.correction;
+    if (correction != null) {
+      return SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextCorrectionEditor(
+              original: correction,
+              restoreProposal: true,
+              fontSize: Theme.of(context).textTheme.bodyLarge?.fontSize ?? 16,
+              onChanged: (draft) {
+                _draft = draft;
+                _notifyChanged();
+              },
+            ),
+            const SizedBox(height: 12),
+            RtlTextField(
+              controller: _detailsController,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+              minLines: 1,
+              maxLines: 6,
+              onChanged: (_) => _notifyChanged(),
+              decoration: InputDecoration(
+                labelText: context.settingsText('פירוט הטעות'),
+                isDense: true,
+                contentPadding: const EdgeInsets.only(top: 12, bottom: 12),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [

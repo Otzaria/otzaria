@@ -389,4 +389,62 @@ void main() {
       );
     });
   });
+
+  group('TextCorrectionEditor — עריכת דיווח שמור (#1767)', () {
+    Future<List<TextCorrectionDraft>> pumpRestored(
+      WidgetTester tester,
+      String? proposedText,
+    ) async {
+      final drafts = <TextCorrectionDraft>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: TextCorrectionEditor(
+                original: buildCorrectionTemplate(
+                  _line,
+                  'אֱלֹהִ֑ים',
+                ).withProposedText(proposedText),
+                restoreProposal: true,
+                fontSize: 18,
+                onChanged: drafts.add,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return drafts;
+    }
+
+    Finder proposalField() => find.descendant(
+      of: find.byKey(const ValueKey('correction-proposal-field')),
+      matching: find.byType(TextField),
+    );
+
+    testWidgets('נטען מההצעה השמורה ומציג את ה-diff', (tester) async {
+      final drafts = await pumpRestored(tester, 'אֱלֹקִ֑ים');
+
+      expect(
+        tester.widget<TextField>(proposalField()).controller!.text,
+        'אֱלֹקִ֑ים',
+      );
+      expect(find.byKey(const ValueKey('correction-diff')), findsOneWidget);
+      expect(drafts.last.correction.proposedText, 'אֱלֹקִ֑ים');
+    });
+
+    testWidgets('מחיקה שמורה נפתחת במצב מחיקה', (tester) async {
+      final drafts = await pumpRestored(tester, '');
+
+      expect(proposalField(), findsNothing);
+      expect(drafts.last.correction.proposedText, '');
+    });
+
+    testWidgets('"ללא הצעה" שמור נשאר ללא הצעה', (tester) async {
+      final drafts = await pumpRestored(tester, null);
+
+      expect(proposalField(), findsNothing);
+      expect(drafts.last.hasProposal, isFalse);
+    });
+  });
 }

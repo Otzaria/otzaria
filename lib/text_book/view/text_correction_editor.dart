@@ -207,11 +207,15 @@ class TextCorrectionEditor extends StatefulWidget {
   final double fontSize;
   final ValueChanged<TextCorrectionDraft> onChanged;
 
+  /// נטען מההצעה שב-[original] (עריכת דיווח שמור) במקום מהטקסט המקורי.
+  final bool restoreProposal;
+
   const TextCorrectionEditor({
     super.key,
     required this.original,
     required this.fontSize,
     required this.onChanged,
+    this.restoreProposal = false,
   });
 
   @override
@@ -220,9 +224,22 @@ class TextCorrectionEditor extends StatefulWidget {
 
 class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
   late final TextEditingController _controller = TextEditingController(
-    text: widget.original.target,
+    text: _restoredText ?? widget.original.target,
   );
-  ProposalMode _mode = ProposalMode.replace;
+  late ProposalMode _mode = !widget.restoreProposal
+      ? ProposalMode.replace
+      : switch (widget.original.proposedText) {
+          null => ProposalMode.none,
+          '' => ProposalMode.delete,
+          _ => ProposalMode.replace,
+        };
+
+  String? get _restoredText {
+    final proposed = widget.original.proposedText;
+    return widget.restoreProposal && proposed != null && proposed.isNotEmpty
+        ? proposed
+        : null;
+  }
 
   TextCorrectionDraft get _draft => evaluateCorrectionDraft(
     original: widget.original,
