@@ -31,6 +31,9 @@ class SettingsSearchEntry {
   /// (רלוונטי לכרטיסים עם AnimatedSize/expandable, כגון גיבוי, סייפר).
   final String? expandSection;
 
+  /// ערכים ל-`{מפתח}` שבכותרת ובתיאור (למשל שם מצב שעשוי להשתנות).
+  final Map<String, Object?> args;
+
   const SettingsSearchEntry({
     required this.id,
     required this.title,
@@ -39,12 +42,36 @@ class SettingsSearchEntry {
     this.cardId,
     this.keywords = const [],
     this.expandSection,
+    this.args = const {},
   });
+
+  /// הכותרת בשפת התצוגה, עם [args] מתורגמים.
+  String titleIn(SettingsLanguage language) =>
+      resolveSettingsText(title, language: language, args: argsIn(language));
+
+  /// התיאור בשפת התצוגה, עם [args] מתורגמים.
+  String subtitleIn(SettingsLanguage language) => resolveSettingsText(
+    subtitle,
+    language: language,
+    args: argsIn(language),
+  );
+
+  /// [args] בשפת התצוגה (ערך טקסט מתורגם דרך הקטלוג).
+  Map<String, Object?> argsIn(SettingsLanguage language) => {
+    for (final entry in args.entries)
+      entry.key: entry.value is String
+          ? resolveSettingsText(entry.value as String, language: language)
+          : entry.value,
+  };
 
   /// מחשב ציון התאמה (גבוה יותר = רלוונטי יותר) לשאילתת חיפוש מנורמלת.
   /// 0 = לא מתאים. שאילתה ריקה תחזיר 0.
-  int matchScore(String normalizedQuery) =>
-      _scoreFor(normalizedQuery, title, subtitle, keywords);
+  int matchScore(String normalizedQuery) => _scoreFor(
+    normalizedQuery,
+    titleIn(SettingsLanguage.source),
+    subtitleIn(SettingsLanguage.source),
+    keywords,
+  );
 
   /// ציון התאמה בשפת התצוגה [language].
   ///
@@ -58,8 +85,8 @@ class SettingsSearchEntry {
         resolveSettingsText(text, language: language);
     final translatedScore = _scoreFor(
       normalizedQuery,
-      translate(title),
-      translate(subtitle),
+      titleIn(language),
+      subtitleIn(language),
       keywords.map(translate).toList(),
     );
     return hebrewScore > translatedScore ? hebrewScore : translatedScore;
@@ -112,5 +139,7 @@ class SettingsSearchEntry {
 
   /// טקסט החיפוש המנורמל לאותה הגדרה (משמש להשוואה).
   String get normalizedSearchText =>
-      '${normalize(title)} ${normalize(subtitle)} ${keywords.map(normalize).join(' ')}';
+      '${normalize(titleIn(SettingsLanguage.source))} '
+      '${normalize(subtitleIn(SettingsLanguage.source))} '
+      '${keywords.map(normalize).join(' ')}';
 }

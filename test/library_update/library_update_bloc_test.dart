@@ -390,6 +390,7 @@ class _FakeCompanionService extends CompanionAssetsService {
     CompanionAssetStatusCallback? onStatus,
     void Function(int received, int? total)? onDownloadProgress,
     bool Function()? isCancelled,
+    String? libraryReleaseTag,
   }) async {
     calls++;
     if (throwOnRun) throw Exception('companion failed');
@@ -411,6 +412,7 @@ class _GatedCompanionService extends CompanionAssetsService {
     CompanionAssetStatusCallback? onStatus,
     void Function(int received, int? total)? onDownloadProgress,
     bool Function()? isCancelled,
+    String? libraryReleaseTag,
   }) async {
     onStatus?.call(
       'מוריד את התלמוד הבבלי',
@@ -434,6 +436,7 @@ class _RaceCompanionService extends CompanionAssetsService {
     CompanionAssetStatusCallback? onStatus,
     void Function(int received, int? total)? onDownloadProgress,
     bool Function()? isCancelled,
+    String? libraryReleaseTag,
   }) async {
     calls++;
     if (calls == 1) {

@@ -10,3 +10,7 @@
 # developer (and would do the same on a windows CI runner) while git itself
 # showed no diff at all.
 docs/plugin-sdk/spec.json text eol=lf
+
+# model.json is compared byte-for-byte with the published release copy and
+# handed to the engine as-is; autocrlf must not rewrite it.
+assets/semantic/** -text

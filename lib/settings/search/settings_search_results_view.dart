@@ -3,6 +3,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
+import 'package:otzaria/settings/l10n/settings_text_scope.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/theme/layout_tokens.dart';
@@ -112,7 +113,9 @@ class _SearchResultTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _HighlightedText(
-                      text: context.settingsText(entry.title),
+                      text: entry.titleIn(
+                        SettingsTextScope.languageOf(context),
+                      ),
                       query: query,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
@@ -121,7 +124,9 @@ class _SearchResultTile extends StatelessWidget {
                     if (entry.subtitle.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       _HighlightedText(
-                        text: context.settingsText(entry.subtitle),
+                        text: entry.subtitleIn(
+                          SettingsTextScope.languageOf(context),
+                        ),
                         query: query,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,

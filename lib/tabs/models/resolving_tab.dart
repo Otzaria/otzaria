@@ -20,9 +20,13 @@ class ResolvingTab extends OpenedTab {
     super.dedupeKey,
   }) : super(fallbackTab.title);
 
+  /// הטאב הסופי שהחליף את זה, אחרי שהרזולוציה הסתיימה.
+  OpenedTab? resolvedTab;
+
   /// מתחיל את הרזולוציה (פעם אחת) ומחזיר את הטאב הסופי.
   /// בכשל מוחזר עותק טרי של טאב היעד החלופי.
-  Future<OpenedTab> ensureResolved() => _resolution ??= _resolveOrFallback();
+  Future<OpenedTab> ensureResolved() =>
+      _resolution ??= _resolveOrFallback().then((tab) => resolvedTab = tab);
 
   Future<OpenedTab> _resolveOrFallback() async {
     try {

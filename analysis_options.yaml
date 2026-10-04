@@ -10,6 +10,9 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # TODO(engine-pin): להסיר כשהמנוע מוצמד ל-78ff9f5 — כתובים מול ה-API של ONNX.
+    - lib/semantic_search/engine/onnx_semantic_engine_adapter.dart
+    - test/semantic_search/engine/onnx_semantic_engine_adapter_pending.dart
 
 # גרסת שפה 3.12 מפעילה את הפורמטר החדש (tall style) שמפרמט מחדש קבצים שלמים.
 # preserve משאיר את הפסיקים הנגררים הקיימים — וכך את הסגנון הנוכחי של הקוד —

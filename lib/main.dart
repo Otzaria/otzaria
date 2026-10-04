@@ -69,6 +69,7 @@ import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/library_update/repository/library_update_repository.dart';
 import 'package:otzaria/library_update/services/streaming_patch_downloader.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
+import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/library_update/services/startup_recovery_check.dart';
 import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:seforim_library_updater/seforim_library_updater.dart';
@@ -1689,7 +1690,12 @@ class _AppBootstrapState extends State<AppBootstrap> {
                 // זורם לדיסק: patch גדול נפרס בלי לשבת ב-RAM (ראו את המחלקה).
                 downloader: StreamingPatchDownloader(),
               ),
-              companionAssets: CompanionAssetsService(),
+              companionAssets: CompanionAssetsService(
+                // רק אחרי שהמשתמש הוריד את נתוני החיפוש הסמנטי; אחרת לא עושה דבר.
+                scheduleSemanticVectorsUpdate: (tag) => SemanticSearchRepository
+                    .instance
+                    .scheduleVectorsUpdate(libraryTag: tag),
+              ),
               isOfflineMode: () =>
                   Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ??
                   false,

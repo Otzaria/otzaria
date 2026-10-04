@@ -5,10 +5,13 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/semantic_search_messages.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchScope, WordMatchMode;
 import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/search_feedback/semantic_search_strings.dart';
+import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/about_settings_data.dart';
 import 'package:otzaria/theme/app_seed_colors.dart';
@@ -40,6 +43,18 @@ void main() {
         });
       }
     }
+
+    test('שם מצב החיפוש הסמנטי ונוסח ההסכמה', () {
+      expect(catalog, contains(kSemanticSearchModeName));
+      expect(catalog, contains(kSemanticSearchConsentTemplate));
+    });
+
+    test('הודעות הכשל של נתוני החיפוש הסמנטי', () {
+      for (final kind in SemanticFailureKind.values) {
+        final message = SemanticSearchMessages.failure(kind);
+        expect(catalog, contains(message), reason: kind.name);
+      }
+    });
 
     test('שמות צבעי הבסיס', () {
       for (final option in AppSeedColors.options) {
@@ -132,7 +147,6 @@ void main() {
         expect(catalog, contains(label), reason: label);
       }
     });
-
 
     test('שמות המסכים בפס הכותרת מתורגמים', () {
       for (final key in ['אוצריא', 'ספרייה|titleBar']) {

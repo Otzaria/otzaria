@@ -4,6 +4,7 @@ a tab is either a pdf book or a text book, or a full text search window*/
 import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
@@ -154,8 +155,6 @@ abstract class OpenedTab {
         splitRatio: tab.splitRatio,
         isPinned: tab.isPinned,
       );
-    } else if (tab is SearchingTab) {
-      return SearchingTab.clone(tab);
     }
     return tab.clone();
   }
@@ -247,6 +246,8 @@ abstract class OpenedTab {
       return ToolTab.fromJson(json);
     } else if (type == 'SearchingTabWindow' || type == 'SearchingTab') {
       return SearchingTab.fromJson(json);
+    } else if (type == 'SemanticSearchTab') {
+      return SemanticSearchTab.fromJson(json);
     } else if (type == 'CommentatorsTab') {
       return CommentatorsTab.fromJson(json);
     } else if (type == 'PdfCommentatorsTab') {

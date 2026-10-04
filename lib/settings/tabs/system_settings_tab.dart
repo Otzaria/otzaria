@@ -1,3 +1,4 @@
+import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -28,6 +29,8 @@ import 'package:otzaria/settings/dialogs/settings_dialogs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/settings/services/offline_send_target.dart';
 import 'package:otzaria/settings/panels/app_reports_panel.dart';
+import 'package:otzaria/settings/panels/search_feedback_panel.dart';
+import 'package:otzaria/settings/panels/semantic_data_panel.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
@@ -167,6 +170,23 @@ class SystemSettingsTab extends StatefulWidget {
       tab: SettingsTab.system,
       cardId: 'system.appReports',
       keywords: ['קריסה', 'דיווח', 'אוטומטי', 'שאל'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.searchFeedback.consent',
+      title: 'שיפור המנגנון',
+      subtitle: 'שליחת נתוני שימוש אנונימיים לשיפור החיפוש',
+      tab: SettingsTab.system,
+      cardId: 'system.searchFeedback',
+      keywords: ['פרטיות', 'נתוני שימוש', 'אנונימי', 'הסכמה'],
+    ),
+    SettingsSearchEntry(
+      id: 'system.semanticData.status',
+      title: 'נתוני {name}',
+      subtitle: 'הורדת הנתונים, הרישיון ומחיקת הנתונים',
+      args: {'name': kSemanticSearchModeName},
+      tab: SettingsTab.system,
+      cardId: 'system.semanticData',
+      keywords: ['סמנטי', 'הורדה', 'רישיון'],
     ),
     SettingsSearchEntry(
       id: 'system.advanced.restoreAllWindows',
@@ -944,6 +964,10 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                       crashReportMode: _crashReportMode,
                       onCrashReportModeChanged: _setCrashReportMode,
                     ),
+
+                    const SearchFeedbackPanel(),
+
+                    const SemanticDataPanel(),
 
                     // 4. מתקדם (גיבוי + מצב סייפר)
                     _buildAdvancedSection(context, state),

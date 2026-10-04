@@ -14,6 +14,7 @@ import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 
 /// חיווי קצר להגדרות החיפוש הכלליות שאינן ברירת מחדל, לתצוגה בפריט
@@ -257,6 +258,8 @@ class HistoryBloc extends Bloc<HistoryEvent, HistoryState> {
   }) async {
     final workspaceName = _currentWorkspaceName;
 
+    // ההיסטוריה משחזרת חיפוש מילולי; חיפוש סמנטי היה חוזר בה כמילולי.
+    if (tab is SemanticSearchTab) return null;
     if (tab is SearchingTab) {
       final searchingTab = tab;
       final text = searchingTab.queryController.text;

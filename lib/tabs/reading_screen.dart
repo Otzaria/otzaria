@@ -20,6 +20,8 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/tabs/models/semantic_search_tab.dart';
+import 'package:otzaria/semantic_search/view/semantic_search_results_screen.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
@@ -623,6 +625,8 @@ class _ReadingScreenState extends State<ReadingScreen>
           ),
         ),
       );
+    } else if (tab is SemanticSearchTab) {
+      return SemanticSearchResultsScreen(key: ValueKey(tab), tab: tab);
     } else if (tab is SearchingTab) {
       return BlocProvider.value(
         key: ValueKey(tab),

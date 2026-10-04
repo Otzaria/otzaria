@@ -452,6 +452,37 @@ void main() {
       expect(await Directory(newIndex).exists(), isFalse);
       expect(await Directory(newDatabases).exists(), isFalse);
     });
+
+    test('סט הוקטורים עובר מ-<root>/vectors ל-<יעד>/vectors', () {
+      final base = Directory.systemTemp.path;
+      final from = p.join(base, 'old', 'books');
+      final newLibrary = p.join(base, 'new', 'books');
+
+      final paths = semanticVectorsMovePaths(from, newLibrary);
+
+      expect(paths.from, p.join(base, 'old', 'vectors'));
+      expect(paths.to, p.join(base, 'new', 'vectors'));
+    });
+
+    test('כשל בהעברה מוחק גם את סט הוקטורים שנוצר ביעד', () async {
+      final tempDir = await Directory.systemTemp.createTemp('move_vectors_');
+      addTearDown(() => tempDir.delete(recursive: true));
+      final newVectors = p.join(tempDir.path, 'vectors');
+      await File(p.join(newVectors, 'segment.bin')).create(recursive: true);
+
+      await cleanupCreatedMoveTargetsForTesting(
+        newLibrary: p.join(tempDir.path, 'books'),
+        newIndex: p.join(tempDir.path, 'index'),
+        newDatabases: p.join(tempDir.path, 'databases'),
+        finalLibraryCreated: false,
+        finalIndexCreated: false,
+        finalDatabasesCreated: false,
+        newVectors: newVectors,
+        finalVectorsCreated: true,
+      );
+
+      expect(await Directory(newVectors).exists(), isFalse);
+    });
   });
 }
 

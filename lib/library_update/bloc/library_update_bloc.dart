@@ -295,7 +295,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
         changedBookIds: deltaResult.changedBookIds,
         requiresFullIndexRefresh: deltaResult.requiresFullIndexRefresh,
       );
-      await _runCompanionAssets(emit, opId);
+      await _runCompanionAssets(emit, opId, libraryTag: libraryTagOf(plan));
       final completed = _pendingCompleted;
       _pendingCompleted = null;
       if (_isStale(opId) || completed == null) return;
@@ -413,7 +413,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
         message: 'הספרייה הותקנה מחדש לגרסה ${plan.targetVersion}',
         hasUpdate: true,
       );
-      await _runCompanionAssets(emit, opId);
+      await _runCompanionAssets(emit, opId, libraryTag: libraryTagOf(plan));
       final completed = _pendingCompleted;
       _pendingCompleted = null;
       if (_isStale(opId) || completed == null) return;
@@ -468,17 +468,32 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
     await _runDelta(plan, emit, opId);
   }
 
+  /// תג ה-release של גרסת היעד: מכתובת המניפסט של צעד הדלתא האחרון, או תג
+  /// ה-DB המלא; `null` כשאינו ידוע.
+  @visibleForTesting
+  static String? libraryTagOf(LibraryUpdatePlan plan) {
+    if (plan.deltaSteps.isNotEmpty) {
+      final match = RegExp(
+        r'/releases/download/([^/]+)/',
+      ).firstMatch(plan.deltaSteps.last.manifestUrl);
+      if (match != null) return Uri.decodeComponent(match.group(1)!);
+    }
+    return plan.fullDbReleaseTag;
+  }
+
   /// מוודא שהקבצים הנלווים (תלמוד, קטלוגים, מילון) קיימים ומעודכנים, בסוף
   /// כל בדיקת/החלת עדכון. best-effort — כשל לא הופך את העדכון לשגיאה.
   /// מחזיר האם תוכן הספרייה השתנה (ראה [CompanionAssetsService.verifyAndUpdate]).
   Future<bool> _runCompanionAssets(
     Emitter<LibraryUpdateState> emit,
-    int opId,
-  ) async {
+    int opId, {
+    String? libraryTag,
+  }) async {
     final service = companionAssets;
     if (service == null) return false;
     try {
       return await service.verifyAndUpdate(
+        libraryReleaseTag: libraryTag,
         isCancelled: () => _isStale(opId),
         onStatus: (message, phase) {
           if (_isStale(opId)) return;

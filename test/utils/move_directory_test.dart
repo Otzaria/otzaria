@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/semantic_search/models/semantic_paths.dart';
 import 'package:otzaria/utils/move_directory.dart';
 import 'package:path/path.dart' as p;
 
@@ -198,6 +199,26 @@ void main() {
       );
       expect(await File(p.join(dest, 'my_notes.txt')).exists(), isFalse);
       expect(await File(p.join(source, 'my_notes.txt')).exists(), isTrue);
+    });
+
+    test('תיקיית המודל של החיפוש הסמנטי עוברת עם הספרייה', () async {
+      final source = src('from');
+      final dest = src('to');
+      final model = p.join(source, kSemanticModelFolderName, 'tokenizer.json');
+      await File(model).create(recursive: true);
+
+      await moveDirectory(
+        source,
+        dest,
+        includeOnly: DatabaseConstants.libraryManagedEntryNames(),
+      );
+
+      expect(
+        await File(
+          p.join(dest, kSemanticModelFolderName, 'tokenizer.json'),
+        ).exists(),
+        isTrue,
+      );
     });
 
     test('קבצי ארכיון דחוסים נשארים במקומם בהעברת הספרייה', () async {

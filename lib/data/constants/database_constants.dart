@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/semantic_search/models/semantic_paths.dart'
+    show kSemanticModelFolderName;
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:seforim_library_updater/seforim_library_updater.dart'
@@ -91,6 +93,7 @@ class DatabaseConstants {
     externalCatalogVersionFileName,
     talmudBavliFolderName,
     'files_manifest.json',
+    kSemanticModelFolderName,
   };
 
   /// Gets the full database path based on the library path setting.

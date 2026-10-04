@@ -1,0 +1,20 @@
+{
+  "family_id": "ArieLLL123/judaic-semantic-round2-onnx-zayit@1ec8dc68888bcea774ae9f735b2fe7cd9dc7f3ca",
+  "tokenizer_checksum": "0664287976ecb078bdfd8f5e5515dc87d8cb7f985a79a481aa1cdf7a7321c0e9",
+  "embedding_dim": 256,
+  "pooling": "in-graph",
+  "max_tokens": 256,
+  "embedding_text_version": 2,
+  "normalization_version": 1,
+  "chunking_identity": 2685558872390372738,
+  "query_packages": [
+    {
+      "checksum": "9e408407922b4aab26dd148cbe4b9a0e573c65591cfc799ba28e991d77d9d065",
+      "quantization": "int8"
+    },
+    {
+      "checksum": "4a4a2ae88a86f15ffe6069bfcefc3abd13c207cec5d7aaef52c0c59d752ade46",
+      "quantization": "fp32"
+    }
+  ]
+}

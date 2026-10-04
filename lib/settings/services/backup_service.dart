@@ -260,6 +260,8 @@ class BackupService {
         '(deleteStaleWindowRoots) ומסונכרנים חי עם ההגדרות של החלון הראשון',
     'user_books.db': 'קטלוג הספרים האישיים, נבנה מחדש מסריקת התיקיות',
     'cache.db': 'קאש חישובים, נבנה מחדש לפי הצורך',
+    'search_feedback':
+        'זהות אנונימית של ההתקנה ותור משוב שלא נשלח — אסור שיעברו להתקנה אחרת',
     AppPaths.libraryPathRecordFileName:
         'נתיב הספרייה עבור ה-uninstaller; נגזר מההגדרות ונרשם מחדש בכל '
         'עלייה, ושחזור נתיב ממכשיר אחר מטעה אותו',
@@ -291,6 +293,13 @@ class BackupService {
     SettingsRepository.keyGoogleCalendarCredentialsJson,
     HiddenLibraryStore.pendingIndexReconciliationSetting,
     HiddenLibraryStore.pendingVisibilityIndexSetting,
+    // הסכמה לשליחת נתוני שימוש ניתנת לכל התקנה בנפרד, לא משוחזרת מגיבוי.
+    SettingsRepository.keySearchFeedbackConsent,
+    SettingsRepository.keySearchFeedbackConsentVersion,
+    // מצביע על נתונים שהורדו למכשיר הזה; שחזור היה מפעיל הורדה של 1.6GB.
+    SettingsRepository.keySemanticDataEnabled,
+    SettingsRepository.keySemanticDownloadPaused,
+    SettingsRepository.keySemanticSkippedVectorsRelease,
     // דגל פנימי שמסמן שברירות המחדל נכתבו לדיסק.
     'settings_initialized',
   };
