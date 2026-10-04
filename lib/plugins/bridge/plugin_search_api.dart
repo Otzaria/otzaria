@@ -333,6 +333,7 @@ class PluginSearchApi {
         'categoryPath': FacetHelper.resolveCategoryPath(resolved),
       'reference': result.reference,
       'text': result.text,
+      'textStatus': result.textStatus.name,
       'index': result.segment.toInt(),
       'mergedCount': result.mergedCount,
       if (result.merged.isNotEmpty)

@@ -124,6 +124,9 @@ void _pruneStaleCopies(String keepName) {
   }
 }
 
+/// אותו בינארי לכל isolates של טסט, כדי שישתפו את מצב המנוע התהליכי.
+String? searchEngineLoadedLibraryPath;
+
 bool? _initResult;
 Object? _lastInitError;
 
@@ -140,6 +143,7 @@ Future<bool> tryInitSearchEngine() async {
     try {
       final loadPath = _testLoadCopy(path) ?? path;
       await RustLib.init(externalLibrary: ExternalLibrary.open(loadPath));
+      searchEngineLoadedLibraryPath = File(loadPath).absolute.path;
       // מנקים רק אחרי טעינה מוצלחת — מועמד שנדחה לא ימחק עותק תקין.
       if (loadPath != path) _pruneStaleCopies(_fileName(loadPath));
       return _initResult = true;

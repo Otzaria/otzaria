@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/line_content_codec.dart';
@@ -28,6 +29,17 @@ const _lines = [
   (12, 2, 'הלכות שבת פתיחה', 'טור ב'),
   (13, 3, 'נוסח ממוזג ג', 'טור ג'),
   (14, 4, 'נוסח ממוזג ד', 'טור ד'),
+];
+
+/// ספר שני עם תמונות מוטמעות: (id, lineIndex, content).
+const _imageBookId = 2;
+const _imageTitle = 'ספר מצויר';
+final _image = 'data:image/png;base64,${'A' * 80}';
+final _imageLines = [
+  (20, 0, '\uFEFF<img src="$_image">'),
+  (21, 1, 'שורה נקייה'),
+  (22, 2, '<img src="$_image"> ו-<img src="$_image">'),
+  (23, 3, 'קצר data:abc'),
 ];
 
 /// נוסח המהדורה: שורה 11 שונה, 12 ו-14 זהות לבסיס, ל-13 אין שורה.
@@ -107,6 +119,27 @@ String _createDb(Directory dir, _Shape shape, {DynamicLibrary? zstd}) {
       _categoryId,
       _lines.length,
     ]);
+    db.execute('INSERT INTO book VALUES (?, ?, ?, ?)', [
+      _imageBookId,
+      _imageTitle,
+      _categoryId,
+      _imageLines.length,
+    ]);
+    for (final (id, lineIndex, content) in _imageLines) {
+      if (split) {
+        db.execute(
+          'INSERT INTO line (id, bookId, lineIndex) VALUES (?, ?, ?)',
+          [id, _imageBookId, lineIndex],
+        );
+        db.execute('INSERT INTO line_content VALUES (?, ?)', [id, content]);
+      } else {
+        db.execute(
+          'INSERT INTO line (id, bookId, lineIndex, content) '
+          'VALUES (?, ?, ?, ?)',
+          [id, _imageBookId, lineIndex, content],
+        );
+      }
+    }
     for (final (id, lineIndex, content, heRef) in _lines) {
       if (split) {
         db.execute(
@@ -322,7 +355,26 @@ void main() {
         final expected = [for (final (_, _, content, _) in _lines) content];
         expect(await readBookContentText(db, book), expected.join('\n'));
         final bytes = await readBookContentBytes(db, book);
-        expect(utf8.decode(bytes!), expected.join('\n'));
+        expect(utf8.decode(bytes!.bytes), expected.join('\n'));
+      } finally {
+        db.close();
+      }
+    }, skip: skip);
+
+    test('${shape.label}: שורות התמונות של האינדוקס לפי מיקומן', () async {
+      final db = sqlite3.sqlite3.open(
+        dbPaths[shape]!,
+        mode: sqlite3.OpenMode.readOnly,
+      );
+      try {
+        const book = (id: _imageBookId, title: _imageTitle);
+        final read = await readBookContentBytes(db, book);
+        expect(read!.rowHasNewline, isFalse);
+        final cleaned = await IndexingRepository.cleanDataUrisOffFrame(
+          read.bytes,
+        );
+        expect(cleaned.dataUriLines, [0, 2]);
+        expect(cleaned.text!.split('\n'), hasLength(_imageLines.length));
       } finally {
         db.close();
       }
@@ -408,7 +460,10 @@ void main() {
       final db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
       try {
         expect(await readBookContentText(db, book), expected);
-        expect(utf8.decode((await readBookContentBytes(db, book))!), expected);
+        expect(
+          utf8.decode((await readBookContentBytes(db, book))!.bytes),
+          expected,
+        );
       } finally {
         db.close();
       }

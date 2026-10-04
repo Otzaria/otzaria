@@ -418,6 +418,7 @@ Future<void> main() async {
         catalogueOrder: 5,
         generationOrder: 5,
         text: text,
+        textStorage: TextStorage.inIndex,
       );
       await engine.commit();
     }

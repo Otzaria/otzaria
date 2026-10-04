@@ -5,6 +5,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:otzaria/core/info/personal_folders_info.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
@@ -29,6 +30,7 @@ import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/book_facet.dart';
+import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
@@ -675,6 +677,7 @@ class IndexingRepository {
     } finally {
       prefetcher.dispose();
       _tantivyDataProvider.isIndexing.value = false;
+      await LibraryLineSource.reportLibraryFallbacks();
     }
     return cancelled
         ? IndexingRunResult.cancelled(
@@ -725,6 +728,14 @@ class IndexingRepository {
       final generationOrder = chronologicalOrderForBook(book);
       final engineStopwatch = Stopwatch()..start();
       final extraFacets = _bookExtraFacets(book);
+      final textStorage = textStorageFor(
+        filePath: filePath,
+        libraryDbBookId: source.libraryDbBookId,
+        hostApiReady: LibraryLineSource.hostApiReady,
+      );
+      final storedLines = textStorage == TextStorage.libraryDb
+          ? source.dataUriLines
+          : null;
       final added = hasBytes
           ? await engine.addTextBookBytes(
               title: title,
@@ -734,6 +745,8 @@ class IndexingRepository {
               generationOrder: generationOrder,
               text: bytes,
               extraFacets: extraFacets,
+              textStorage: textStorage,
+              storedLines: storedLines,
             )
           : await engine.addTextBook(
               title: title,
@@ -743,6 +756,8 @@ class IndexingRepository {
               generationOrder: generationOrder,
               text: text!,
               extraFacets: extraFacets,
+              textStorage: textStorage,
+              storedLines: storedLines,
             );
       engineStopwatch.stop();
       final size = hasBytes
@@ -1208,7 +1223,7 @@ class IndexingRepository {
   @visibleForTesting
   static String stripDataUrisForIndex(String text) {
     const scheme = 'data:';
-    const minPayloadLength = 64;
+    const minPayloadLength = _minDataUriPayload;
     var matchStart = text.indexOf(scheme);
     if (matchStart < 0) return text;
 
@@ -1247,6 +1262,41 @@ class IndexingRepository {
     return false;
   }
 
+  static const _minDataUriPayload = 64;
+
+  /// השורות (0-based, לפי `\n`) ש-[stripDataUrisForIndex] מסיר מהן data URI.
+  /// המנוע שומר את הטקסט המנוקה שלהן באינדקס במקום לקרוא מהמסד את התמונה.
+  @visibleForTesting
+  static Uint32List dataUriLineOrdinals(Uint8List bytes) {
+    final lines = <int>[];
+    var line = 0;
+    var i = 0;
+    while (i < bytes.length) {
+      final byte = bytes[i];
+      if (byte == 0x0A) {
+        line++;
+      } else if (byte == 0x64 &&
+          i + 5 <= bytes.length &&
+          bytes[i + 1] == 0x61 &&
+          bytes[i + 2] == 0x74 &&
+          bytes[i + 3] == 0x61 &&
+          bytes[i + 4] == 0x3A) {
+        var end = i + 5;
+        while (end < bytes.length && _isDataUriChar(bytes[end])) {
+          end++;
+        }
+        if (end - i - 5 >= _minDataUriPayload &&
+            (lines.isEmpty || lines.last != line)) {
+          lines.add(line);
+        }
+        i = end;
+        continue;
+      }
+      i++;
+    }
+    return Uint32List.fromList(lines);
+  }
+
   static bool _isDataUriChar(int c) =>
       (c >= 0x41 && c <= 0x5A) || // A-Z
       (c >= 0x61 && c <= 0x7A) || // a-z
@@ -1271,38 +1321,43 @@ class IndexingRepository {
   /// זהה ל-[bytesContainDataUriScheme] + [stripDataUrisForIndex], בלי לחסום
   /// פריים בספר גדול: הסריקה נפרסת למנות על ה-thread הקורא, ורק כשנמצא
   /// `data:` הפענוח והבנייה מחדש עוברים ל-isolate. [bytes] נשמר רק כשהוא
-  /// נקי; אחרת [text] מחזיק את המקור המנוקה.
+  /// נקי; אחרת [text] מחזיק את המקור המנוקה, ו-[dataUriLines] את
+  /// [dataUriLineOrdinals] שלו (null כשאין).
   ///
   /// הסריקה רצה **פעם אחת**, וכאן — תוצאתה היא שמכריעה אם צריך isolate
   /// בכלל. גרסה שסרקה כאן וגם שוב בתוך ה-isolate הכפילה את החסימה.
   @visibleForTesting
-  static Future<({Uint8List? bytes, String? text})> cleanDataUrisOffFrame(
-    Uint8List bytes,
-  ) async {
+  static Future<({Uint8List? bytes, String? text, Uint32List? dataUriLines})>
+  cleanDataUrisOffFrame(Uint8List bytes) async {
     if (bytes.length < _dataUriOffFrameThreshold) {
-      final cleaned = _cleanDataUris(bytes);
-      return (bytes: cleaned == null ? bytes : null, text: cleaned);
+      if (!bytesContainDataUriScheme(bytes)) {
+        return (bytes: bytes, text: null, dataUriLines: null);
+      }
+      final cleaned = _stripDataUriBytes(bytes);
+      return (bytes: null, text: cleaned.text, dataUriLines: cleaned.lines);
     }
     if (!await _containsDataUriInChunks(bytes)) {
-      return (bytes: bytes, text: null);
+      return (bytes: bytes, text: null, dataUriLines: null);
     }
     // מעבירים בעלות על הבתים במקום ללכוד Uint8List ב-closure: שליחת רשימה
     // mutable ל-isolate מעתיקה אותה, ובספר מצויר גדול מוסיפה עותק שלם לשיא
     // הזיכרון. אחרי הסריקה החיובית אין עוד צורך להחזיק במסלול ה-bytes.
     final transferable = TransferableTypedData.fromList([bytes]);
-    return (
-      bytes: null,
-      text: await Isolate.run(
-        () => _stripTransferredDataUrisForIndex(transferable),
-      ),
+    final cleaned = await Isolate.run(
+      () => _stripDataUriBytes(transferable.materialize().asUint8List()),
     );
+    return (bytes: null, text: cleaned.text, dataUriLines: cleaned.lines);
   }
 
-  static String _stripTransferredDataUrisForIndex(
-    TransferableTypedData transferable,
-  ) => stripDataUrisForIndex(
-    utf8.decode(transferable.materialize().asUint8List(), allowMalformed: true),
-  );
+  static ({String text, Uint32List? lines}) _stripDataUriBytes(
+    Uint8List bytes,
+  ) {
+    final lines = dataUriLineOrdinals(bytes);
+    return (
+      text: stripDataUrisForIndex(utf8.decode(bytes, allowMalformed: true)),
+      lines: lines.isEmpty ? null : lines,
+    );
+  }
 
   /// המנות חופפות ב-4 בייטים — בלי החפיפה `data:` שיושב על תפר בין מנות
   /// נעלם, וספר מצויר נחשב נקי.
@@ -1319,11 +1374,6 @@ class IndexingRepository {
     return false;
   }
 
-  static String? _cleanDataUris(Uint8List bytes) =>
-      bytesContainDataUriScheme(bytes)
-      ? stripDataUrisForIndex(utf8.decode(bytes, allowMalformed: true))
-      : null;
-
   /// [stripDataUrisForIndex] בלי לחסום פריים בספר גדול. כאן, בשונה ממסלול
   /// ה-bytes, גם הסריקה עוברת ל-isolate: מחרוזת אינה מועתקת בהעברה (נמדד
   /// 0ms על 20M תווים), ולכן בדיקה מקדימה כאן רק הייתה מכפילה את החסימה.
@@ -1339,19 +1389,31 @@ class IndexingRepository {
   /// (בלי פענוח/קידוד על ה-UI isolate), וירידה לטקסט מפוענח ומנוקה רק
   /// כשחייבים (תמונות מוטמעות, פורמט מומר, ספר בלי categoryId). משותף
   /// לאינדוקס ולאימות הטריות — כך שתי החתימות מחושבות על אותו קלט בדיוק.
+  /// [libraryDbBookId] — ה-id ב-seforim.db כשהמקור הוא שורות הספר משם.
+  /// [dataUriLines] — השורות שנוקו מהן תמונות; ראו [dataUriLineOrdinals].
   @visibleForTesting
-  Future<({Uint8List? bytes, String? text})> loadTextBookSource(
-    TextBook book,
-  ) async {
+  Future<
+    ({
+      Uint8List? bytes,
+      String? text,
+      int? libraryDbBookId,
+      Uint32List? dataUriLines,
+    })
+  >
+  loadTextBookSource(TextBook book) async {
     Uint8List? bytes;
     String? text;
+    int? libraryDbBookId;
+    Uint32List? dataUriLines;
     if (book.categoryId != null) {
-      bytes = await SqliteDataProvider.instance.getBookTextBytesFromDb(
+      final fromDb = await SqliteDataProvider.instance.getBookTextBytesFromDb(
         book.title,
         book.categoryId,
         book.fileType ?? 'txt',
         book.source,
       );
+      bytes = fromDb?.bytes;
+      libraryDbBookId = fromDb?.officialBookId;
       // ניקוי תמונות מוטמעות חייב לרוץ בשני הצדדים — אחרת חתימת האינדוקס
       // לעולם לא תתאים לאימות ו-reconcile יאנדקס את הספר מחדש בכל ריצה.
       if (bytes != null) {
@@ -1362,12 +1424,20 @@ class IndexingRepository {
         final cleaned = await cleanDataUrisOffFrame(rawBytes);
         bytes = cleaned.bytes;
         text = cleaned.text;
+        dataUriLines = cleaned.dataUriLines;
       }
     }
     if ((bytes == null || bytes.isEmpty) && (text == null || text.isEmpty)) {
+      libraryDbBookId = null;
+      dataUriLines = null;
       text = await _loadTextForIndex(book);
     }
-    return (bytes: bytes, text: text);
+    return (
+      bytes: bytes,
+      text: text,
+      libraryDbBookId: libraryDbBookId,
+      dataUriLines: dataUriLines,
+    );
   }
 
   Future<String?> _loadTextBookText(TextBook book) async {
@@ -1535,6 +1605,20 @@ class IndexingRepository {
 
     return '$title|${categoryKey ?? ''}|${fileTypeKey ?? ''}|${pathKey ?? ''}';
   }
+
+  /// [TextStorage.libraryDb] רק לשורות ספר מ-seforim.db שמפתחו `id:<אותו id>`
+  /// וכשהמנוע יכול לקרוא את המסד; אחרת הטקסט נשמר באינדקס.
+  @visibleForTesting
+  static TextStorage textStorageFor({
+    required String filePath,
+    required int? libraryDbBookId,
+    required bool hostApiReady,
+  }) =>
+      hostApiReady &&
+          libraryDbBookId != null &&
+          filePath == officialBookKey(libraryDbBookId)
+      ? TextStorage.libraryDb
+      : TextStorage.inIndex;
 
   /// מפתח catalogueOrderKey לספר אישי (user_books.db) לפי id גולמי.
   static String userBookKey(int id) => 'uid:$id';
@@ -1811,6 +1895,7 @@ class IndexingRepository {
       }
     } finally {
       _tantivyDataProvider.isIndexing.value = false;
+      await LibraryLineSource.reportLibraryFallbacks();
     }
     return cancelled
         ? IndexingRunResult.cancelled(

@@ -18,6 +18,7 @@ import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/utils/file/document_format.dart';
@@ -1126,6 +1127,61 @@ void main() {
     });
   });
 
+  group('IndexingRepository.dataUriLineOrdinals', () {
+    const bom = '\uFEFF';
+    final image = 'data:image/png;base64,${'A' * 80}';
+    List<int> ordinals(List<String> rows) =>
+        IndexingRepository.dataUriLineOrdinals(
+          Uint8List.fromList(utf8.encode(rows.join('\n'))),
+        );
+
+    /// השורות שהניקוי משנה בפועל — ההגדרה ש-[dataUriLineOrdinals] מקיים.
+    List<int> changedRows(List<String> rows) => [
+      for (final (i, row) in rows.indexed)
+        if (IndexingRepository.stripDataUrisForIndex(row) != row) i,
+    ];
+
+    test('data: בשורה הראשונה, ושורות עם BOM', () {
+      final rows = [
+        '$bom<img src="$image">',
+        '$bomשורה נקייה',
+        'שורה עם $image באמצע',
+        '$bom$image',
+      ];
+      expect(ordinals(rows), [0, 2, 3]);
+      expect(ordinals(rows), changedRows(rows));
+    });
+
+    test('כמה תמונות בשורה אחת נספרות פעם אחת', () {
+      final rows = ['א', '<img src="$image"> ו-<img src="$image">', 'ב'];
+      expect(ordinals(rows), [1]);
+    });
+
+    test('data: קצר אינו מנוקה ולכן אינו נספר', () {
+      final rows = ['קצר data:abc נשאר', 'metadata: x', '$image data:ab'];
+      expect(ordinals(rows), [2]);
+      expect(ordinals(rows), changedRows(rows));
+    });
+
+    test('ספר בלי data: — רשימה ריקה; שורות ריקות נספרות במיקום', () {
+      expect(ordinals(['א', '', 'ב']), isEmpty);
+      expect(ordinals(['', '', image, '']), [2]);
+      expect(ordinals([image]), [0]);
+    });
+
+    test('UTF-8 פגום אינו מזיז את מספרי השורות', () {
+      final bytes = BytesBuilder()
+        ..add([0xE0, 0x0A, 0xFF]) // רצף פגום, ואחריו \n אמיתי
+        ..add(utf8.encode(image))
+        ..addByte(0x0A)
+        ..add(utf8.encode('ג'));
+      final raw = bytes.takeBytes();
+      expect(IndexingRepository.dataUriLineOrdinals(raw), [1]);
+      final text = utf8.decode(raw, allowMalformed: true);
+      expect(changedRows(text.split('\n')), [1]);
+    });
+  });
+
   group('IndexingRepository — עבודת data URI מחוץ לפריים', () {
     // מעל 1MB הסריקה נפרסת למנות על ה-thread הקורא והניקוי עובר ל-isolate;
     // הבדיקות מקבעות שהתוצאה זהה בשני צדי הסף — טביעת האצבע נגזרת ממנה.
@@ -1163,6 +1219,15 @@ void main() {
         ),
       );
       expect(imageSource.bytes, isNull);
+      expect(imageSource.dataUriLines, [1]);
+      expect(cleanSource.dataUriLines, isNull);
+
+      // data: קצר בלבד: עובר לטקסט, אבל אין שורה שהשתנתה.
+      final shortOnly = await IndexingRepository.cleanDataUrisOffFrame(
+        Uint8List.fromList(utf8.encode('א\nקצר data:abc')),
+      );
+      expect(shortOnly.text, 'א\nקצר data:abc');
+      expect(shortOnly.dataUriLines, isNull);
     });
 
     test('bytes גדולים (מסלול ה-isolate): אותה תוצאה בדיוק', () async {
@@ -1178,6 +1243,7 @@ void main() {
         ),
       );
       expect(source.bytes, isNull);
+      expect(source.dataUriLines, [2]);
     });
 
     test('bytes גדולים בלי data URI נשארים במסלול ה-bytes', () async {
@@ -2645,6 +2711,81 @@ void main() {
     );
   });
 
+  group('IndexingRepository.textStorageFor', () {
+    TextStorage decide(String filePath, int? id, {bool ready = true}) =>
+        IndexingRepository.textStorageFor(
+          filePath: filePath,
+          libraryDbBookId: id,
+          hostApiReady: ready,
+        );
+
+    test('ספר רשמי שנקרא מ-seforim.db — הטקסט לא נשמר באינדקס', () {
+      expect(decide('id:5', 5), TextStorage.libraryDb);
+    });
+
+    test('בלי SQLite משותף למנוע — הטקסט נשמר באינדקס', () {
+      expect(decide('id:5', 5, ready: false), TextStorage.inIndex);
+    });
+
+    test('מקור שאינו seforim.db או מפתח אחר — הטקסט נשמר באינדקס', () {
+      expect(decide('id:5', null), TextStorage.inIndex);
+      expect(decide('id:6', 5), TextStorage.inIndex);
+      expect(decide('uid:5', 5), TextStorage.inIndex);
+      expect(decide('db:slug:5', 5), TextStorage.inIndex);
+      expect(decide('ext:abc', 5), TextStorage.inIndex);
+      expect(decide(r'C:\books\a.txt', 5), TextStorage.inIndex);
+    });
+
+    group('במסלול האינדוקס', () {
+      tearDown(LibraryLineSource.debugReset);
+
+      Future<_CancellationRecordingEngine> index({
+        required bool hostApiReady,
+      }) async {
+        LibraryLineSource.debugHostApiReady = hostApiReady;
+        final engine = _CancellationRecordingEngine();
+        final provider = _RecordingTantivyDataProvider(engine);
+        final repository = _FakeExtractionRepository(provider)
+          ..libraryDbBookIdByTitle['מהמסד'] = 301
+          ..dataUriLinesByTitle['מהמסד'] = Uint32List.fromList([0, 2])
+          ..dataUriLinesByTitle['מקובץ'] = Uint32List.fromList([1]);
+        final fromDb = TextBook(id: 301, title: 'מהמסד');
+        final fromFile = TextBook(id: 302, title: 'מקובץ');
+        final library = Library(categories: [])
+          ..books.addAll([fromDb, fromFile]);
+        final result = await repository.indexBooks(
+          [fromDb, fromFile],
+          library,
+          onProgress: (_, _) {},
+        );
+        expect(result.completed, isTrue);
+        return engine;
+      }
+
+      test('רק הספר שנקרא מהמסד מאונדקס בלי טקסט', () async {
+        final engine = await index(hostApiReady: true);
+        expect(engine.textStorageByFilePath, {
+          'id:301': TextStorage.libraryDb,
+          'id:302': TextStorage.inIndex,
+        });
+        // שורות התמונות נשמרות באינדקס רק בספר שטקסטו נקרא מהמסד.
+        expect(engine.storedLinesByFilePath, {
+          'id:301': [0, 2],
+          'id:302': null,
+        });
+      });
+
+      test('כשהמנוע לא קיבל SQLite — הכול נשמר באינדקס', () async {
+        final engine = await index(hostApiReady: false);
+        expect(engine.textStorageByFilePath, {
+          'id:301': TextStorage.inIndex,
+          'id:302': TextStorage.inIndex,
+        });
+        expect(engine.storedLinesByFilePath, {'id:301': null, 'id:302': null});
+      });
+    });
+  });
+
   group('IndexingRepository.optimizeIndexBestEffort', () {
     test('מחזיר true כש-optimize מצליח', () async {
       var called = false;
@@ -2812,6 +2953,13 @@ class _FixedHiddenStore extends HiddenLibraryStore {
   HiddenLibrarySelection load() => selection;
 }
 
+typedef _TextBookSource = ({
+  Uint8List? bytes,
+  String? text,
+  int? libraryDbBookId,
+  Uint32List? dataUriLines,
+});
+
 /// טעינת מקור הספר מתפרקת לשלבים עם yield (קריאת ה-DB במנות, עבודת ה-data
 /// URI ב-isolate); הבדיקה מקבעת שביטול שנפל בתוך הטעינה עדיין נכבד.
 class _CancelDuringLoadRepository extends IndexingRepository {
@@ -2821,13 +2969,16 @@ class _CancelDuringLoadRepository extends IndexingRepository {
   final loadedTitles = <String>[];
 
   @override
-  Future<({Uint8List? bytes, String? text})> loadTextBookSource(
-    TextBook book,
-  ) async {
+  Future<_TextBookSource> loadTextBookSource(TextBook book) async {
     loadedTitles.add(book.title);
     await Future<void>.delayed(Duration.zero);
     provider.isIndexing.value = false; // לחיצת ביטול בזמן טעינת התוכן
-    return (bytes: null, text: 'תוכן');
+    return (
+      bytes: null,
+      text: 'תוכן',
+      libraryDbBookId: null,
+      dataUriLines: null,
+    );
   }
 }
 
@@ -2854,13 +3005,22 @@ class _FakeExtractionRepository extends IndexingRepository {
   /// כותרות שחילוצן מחזיר אפס עמודים — PDF סרוק, או כל העמודים ב-timeout.
   final emptyPagesTitles = <String>{};
 
+  /// ה-id ב-seforim.db שממנו "נקרא" ספר הטקסט, לפי כותרת.
+  final libraryDbBookIdByTitle = <String, int>{};
+
+  /// שורות התמונות שנוקו מספר הטקסט, לפי כותרת.
+  final dataUriLinesByTitle = <String, Uint32List>{};
+
   @override
-  Future<({Uint8List? bytes, String? text})> loadTextBookSource(
-    TextBook book,
-  ) async {
+  Future<_TextBookSource> loadTextBookSource(TextBook book) async {
     final failure = textFailureByTitle[book.title];
     if (failure != null) throw failure;
-    return (bytes: null, text: 'תוכן');
+    return (
+      bytes: null,
+      text: 'תוכן',
+      libraryDbBookId: libraryDbBookIdByTitle[book.title],
+      dataUriLines: dataUriLinesByTitle[book.title],
+    );
   }
 
   @override
@@ -2924,6 +3084,8 @@ class _GatedPdfExtractionRepository extends _FakeExtractionRepository {
 class _CancellationRecordingEngine extends _RecordingSearchEngine {
   final pendingCounts = <String, int>{};
   final committedCounts = <String, int>{};
+  final textStorageByFilePath = <String, TextStorage>{};
+  final storedLinesByFilePath = <String, Uint32List?>{};
   void Function(String title)? onTextAdded;
 
   void _add(String key) =>
@@ -2938,8 +3100,12 @@ class _CancellationRecordingEngine extends _RecordingSearchEngine {
     required int generationOrder,
     required String text,
     List<String>? extraFacets,
+    required TextStorage textStorage,
+    Uint32List? storedLines,
   }) async {
     _add(filePath);
+    textStorageByFilePath[filePath] = textStorage;
+    storedLinesByFilePath[filePath] = storedLines;
     onTextAdded?.call(title);
     return 1;
   }

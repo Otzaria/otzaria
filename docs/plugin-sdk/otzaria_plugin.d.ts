@@ -257,8 +257,17 @@ export interface SearchResult {
   type: 'text' | 'pdf';
   book: string;
   text: string;
+  /** ראה `SearchTextStatus`. */
+  textStatus?: SearchTextStatus;
   index: number;
 }
+
+/**
+ * האם `text` הוא השורה שבה נמצאה ההתאמה. `'stale'`: הספר השתנה מאז האינדקס,
+ * ו-`text` הוא השורה הנוכחית בלי הדגשה (או ריק). `'unavailable'`: `text` ריק.
+ * חסר בגרסאות קודמות — להתייחס כ-`'ok'`.
+ */
+export type SearchTextStatus = 'ok' | 'stale' | 'unavailable';
 
 /**
  * זהות ספר קנונית. בקלט די באחד מ-`bookUid`/`id`/`bookId`.
@@ -344,6 +353,8 @@ export interface SearchQueryHit extends BookIdentity {
   categoryPath?: string | null;
   reference: string;
   text: string;
+  /** ראה `SearchTextStatus`. */
+  textStatus?: SearchTextStatus;
   index: number;
   mergedCount: number;
   merged?: Array<

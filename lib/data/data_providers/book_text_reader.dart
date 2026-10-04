@@ -29,6 +29,10 @@ String _contentSql(sqlite3.Database db, {required bool blob}) {
 /// הספר שנפתר על ה-UI isolate; קריאה שהמזהה שלה כבר אינו שלו מחזירה null.
 typedef BookTextKey = ({int id, String title});
 
+/// בייטי הספר. [rowHasNewline]: שורה מכילה `\n`, ולכן פיצול הבייטים לשורות
+/// אינו מחזיר את מספר הרשומות.
+typedef BookContentBytes = ({Uint8List bytes, bool rowHasNewline});
+
 /// נקרא כל [_rowsPerCheckpoint] שורות; זריקה ממנו קוטעת את הקריאה.
 typedef ReadCheckpoint = Future<void> Function();
 
@@ -63,15 +67,21 @@ class BookTextReader {
   );
 
   /// כמו [text], כבייטים גולמיים (UTF-8 כפי שמאוחסן) — מסלול האינדוקס.
-  static Future<Uint8List?> bytes(
+  static Future<BookContentBytes?> bytes(
     SeforimRepository repository,
     db_models.Book book,
   ) => _load(
     repository,
     book,
     workerMethod: 'bookTextBytes',
-    fromWorker: (result) =>
-        (result as TransferableTypedData?)?.materialize().asUint8List(),
+    fromWorker: (result) {
+      final read = result as TransferableBookContent?;
+      if (read == null) return null;
+      return (
+        bytes: read.data.materialize().asUint8List(),
+        rowHasNewline: read.rowHasNewline,
+      );
+    },
     read: readBookContentBytes,
   );
 
@@ -125,10 +135,11 @@ const _chunkBytes = 64 * 1024;
 
 /// שורות [book] מאוחות ב-`\n`, כרצף חוצצים; null כשאין לו שורות.
 /// תוכן NULL נקרא כשורה ריקה.
-Future<List<Uint8List>?> _readJoinedChunks(
+Future<({List<Uint8List> chunks, bool rowHasNewline})?> _readJoinedChunks(
   sqlite3.Database db,
   BookTextKey book, {
   bool stripRowBom = false,
+  bool detectRowNewline = false,
   ReadCheckpoint? checkpoint,
 }) async {
   final codec = LineContentCodec.of(db);
@@ -141,6 +152,7 @@ Future<List<Uint8List>?> _readJoinedChunks(
     var chunk = Uint8List(0);
     var used = 0;
     var rows = 0;
+    var rowHasNewline = false;
     while (raw.step()) {
       // לפי סוג האחסון, כמו LineDao: BLOB שאינו מתפענח נדחה ולא עובר כטקסט.
       final text = raw.columnInt64(1) != 0
@@ -160,6 +172,13 @@ Future<List<Uint8List>?> _readJoinedChunks(
       } else {
         used += raw.columnBlobInto(0, chunk, used);
       }
+      if (detectRowNewline && !rowHasNewline) {
+        rowHasNewline = Uint8List.sublistView(
+          chunk,
+          start,
+          used,
+        ).contains(0x0A);
+      }
       // utf8.decode משמיט BOM בתחילת כל שורה; בחוצץ אחד — רק בשורה הראשונה.
       if (stripRowBom && rows > 0 && _startsWithBom(chunk, start, used)) {
         chunk.setRange(start, used - 3, chunk, start + 3);
@@ -172,7 +191,7 @@ Future<List<Uint8List>?> _readJoinedChunks(
     }
     if (rows == 0) return null;
     if (used > 0) chunks.add(_usedChunk(chunk, used));
-    return chunks;
+    return (chunks: chunks, rowHasNewline: rowHasNewline);
   } finally {
     statement.close();
   }
@@ -205,23 +224,44 @@ Uint8List _concat(List<Uint8List> chunks) {
 }
 
 /// תוכן [book] כבייטים מאוחים ב-`\n`, או null כשאין לו שורות.
-Future<Uint8List?> readBookContentBytes(
+Future<BookContentBytes?> readBookContentBytes(
   sqlite3.Database db,
   BookTextKey book, {
   ReadCheckpoint? checkpoint,
 }) async {
-  final chunks = await _readJoinedChunks(db, book, checkpoint: checkpoint);
-  return chunks == null ? null : _concat(chunks);
+  final read = await _readJoinedChunks(
+    db,
+    book,
+    detectRowNewline: true,
+    checkpoint: checkpoint,
+  );
+  if (read == null) return null;
+  return (bytes: _concat(read.chunks), rowHasNewline: read.rowHasNewline);
 }
 
+/// [BookContentBytes] כחוצץ שעובר ל-isolate אחר בלי העתקה נוספת.
+typedef TransferableBookContent = ({
+  TransferableTypedData data,
+  bool rowHasNewline,
+});
+
 /// כמו [readBookContentBytes], כחוצץ שעובר ל-isolate אחר בלי העתקה נוספת.
-Future<TransferableTypedData?> readBookContentTransferable(
+Future<TransferableBookContent?> readBookContentTransferable(
   sqlite3.Database db,
   BookTextKey book, {
   ReadCheckpoint? checkpoint,
 }) async {
-  final chunks = await _readJoinedChunks(db, book, checkpoint: checkpoint);
-  return chunks == null ? null : TransferableTypedData.fromList(chunks);
+  final read = await _readJoinedChunks(
+    db,
+    book,
+    detectRowNewline: true,
+    checkpoint: checkpoint,
+  );
+  if (read == null) return null;
+  return (
+    data: TransferableTypedData.fromList(read.chunks),
+    rowHasNewline: read.rowHasNewline,
+  );
 }
 
 /// הטקסט המלא של [book] — זהה ל-`join('\n')` של תוכן השורות.
@@ -238,11 +278,11 @@ Future<String?> readBookContentText(
     final codec = LineContentCodec.of(db);
     return rows.map((row) => codec.text(row.values.first) ?? '').join('\n');
   }
-  final chunks = await _readJoinedChunks(
+  final read = await _readJoinedChunks(
     db,
     book,
     stripRowBom: true,
     checkpoint: checkpoint,
   );
-  return chunks == null ? null : utf8.decode(_concat(chunks));
+  return read == null ? null : utf8.decode(_concat(read.chunks));
 }

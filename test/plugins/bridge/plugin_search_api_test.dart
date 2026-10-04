@@ -502,6 +502,7 @@ Future<void> main() async {
       filePath: 'id:7',
       mergedCount: 1,
       merged: const [],
+      textStatus: engine.TextStatus.ok,
     );
 
     test('תוצאה עם ספר מזוהה נושאת זהות מלאה', () {
@@ -547,6 +548,7 @@ Future<void> main() async {
             filePath: 'id:8',
           ),
         ],
+        textStatus: engine.TextStatus.ok,
       );
 
       final json = PluginSearchApi.resultToJson(
@@ -602,6 +604,7 @@ Future<void> main() async {
             filePath: 'id:8',
           ),
         ],
+        textStatus: engine.TextStatus.ok,
       );
 
       final json = PluginSearchApi.resultToJson(
@@ -616,6 +619,30 @@ Future<void> main() async {
       expect(sibling['bookId'], 'מהדורה אחרת');
       expect(sibling['book'], 'מהדורה אחרת');
       expect(sibling.containsKey('categoryPath'), isFalse);
+    });
+
+    test('מצב הטקסט מוחזר כמחרוזת', () {
+      for (final status in engine.TextStatus.values) {
+        final result = engine.SearchResult(
+          title: 'בראשית',
+          reference: 'בראשית, פרק א',
+          text: status == engine.TextStatus.unavailable ? '' : 'בראשית ברא',
+          id: BigInt.one,
+          segment: BigInt.from(12),
+          isPdf: false,
+          filePath: 'id:7',
+          mergedCount: 1,
+          merged: const [],
+          textStatus: status,
+        );
+        final json = PluginSearchApi.resultToJson(result, null);
+        expect(json['textStatus'], status.name);
+      }
+      expect(engine.TextStatus.values.map((status) => status.name), [
+        'ok',
+        'stale',
+        'unavailable',
+      ]);
     });
 
     test('שדות התוצאה עצמם נשמרים גם כשהזהות נדחתה', () {

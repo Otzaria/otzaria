@@ -496,6 +496,11 @@ jobs:
       - name: Run Windows-relevant tests
         run: flutter test test/core/ test/tabs/ test/navigation/ test/workspaces/ test/personal_notes/
 
+      # המנוע בבניית האפליקציה בלי SQLite משלו; כשל ברישום אינו נראה בשום טסט
+      # יחידה. רץ על הבנייה הנייטיבית שלמעלה, ולכן מוסיף רק קומפילציה וריצה.
+      - name: Engine SQLite integration test (Windows)
+        run: flutter test integration_test/external_line_text_test.dart -d windows --timeout 5m
+
       # שומר לוגים בכישלון: כשהבנייה נופלת, הלוג של MSBuild הוא הדבר היחיד
       # שמסביר למה — ההודעה ב-stdout מפנה לכיוון הלא נכון בדרך כלל.
       - name: Collect native build logs on failure
@@ -627,3 +632,9 @@ jobs:
 
       - name: Build Linux (debug)
         run: flutter build linux --debug
+
+      # ראו את הצעד המקביל ב-build_windows. ה-runner של GTK צריך תצוגה.
+      - name: Engine SQLite integration test (Linux)
+        run: >-
+          xvfb-run -a flutter test integration_test/external_line_text_test.dart
+          -d linux --timeout 5m

@@ -1,0 +1,173 @@
+name: Engine SQLite Integration
+
+# מנוע החיפוש בבניית האפליקציה אינו כולל SQLite ומקבל את זה של Dart דרך
+# sqlite3_auto_extension. כשל ברישום בפלטפורמה אחת אינו נראה בשום טסט יחידה:
+# האינדוקס נופל לטקסט באינדקס, והמילון המורפולוגי לא נטען כלל.
+# Windows ו-Linux רצים בכל PR ב-flutter_tests.yml, על הבנייה שכבר נעשית שם.
+# כאן הפלטפורמות היקרות, רק כשמשתנה מה שמשפיע על הרישום.
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - ".github/workflows/engine_sqlite_integration.yml"
+      - "integration_test/external_line_text_test.dart"
+      - "lib/search/library_line_source.dart"
+      - "lib/data/sqlite/**"
+      # גרסת המנוע ו-package:sqlite3.
+      - "pubspec.yaml"
+  workflow_dispatch:
+    inputs:
+      macos:
+        description: macOS
+        type: boolean
+        default: true
+      android:
+        description: Android (אמולטור)
+        type: boolean
+        default: true
+      ios:
+        description: iOS (סימולטור, ניסיוני)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-sqlite-integration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: Engine SQLite (macOS)
+    if: github.event_name == 'pull_request' || inputs.macos
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.2
+          # ב-macOS ה-cache כמעט לא נמצא בין ריצות, ושמירתו איטית מהתקנה.
+          cache: false
+
+      # קומיט מנוע שעוד אין לו בינאריים מוכנים נבנה מהמקור דרך cargokit.
+      - name: Install Rust for native source fallback
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run engine SQLite integration test
+        run: flutter test integration_test/external_line_text_test.dart -d macos --timeout 5m
+
+  android:
+    name: Engine SQLite (Android emulator)
+    if: github.event_name == 'pull_request' || inputs.android
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # כמו build_android: בלי פינוי אין מקום ל-NDK, ל-llama.cpp ולתמונת האמולטור.
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          df -h
+
+      - name: Set up Java
+        uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.2
+          cache: true
+
+      # האמולטור x86_64, וה-ABI מוגבל אליו בשלב שלפני הבדיקה.
+      - name: Install Rust for native source fallback
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # flutter test בונה דיבאג לכל ה-ABI-ים; ב-x86 שני פלאגינים אורזים libc++_shared.so.
+      - name: Build only the emulator ABI
+        run: echo 'target-platform=android-x64' >> android/gradle.properties
+
+      - name: Run engine SQLite integration test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: flutter test integration_test/external_line_text_test.dart -d emulator-5554 --timeout 10m
+
+  # אין בנייה ל-iOS בשום workflow, ולא אומת שהאפליקציה נבנית לסימולטור. לכן
+  # רק בהרצה ידנית; להעביר ל-pull_request אחרי ריצה ירוקה ראשונה.
+  ios:
+    name: Engine SQLite (iOS simulator)
+    if: github.event_name == 'workflow_dispatch' && inputs.ios
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.2
+          cache: false
+
+      - name: Install Rust for native source fallback
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Boot an iPhone simulator
+        id: simulator
+        run: |
+          set -euo pipefail
+          udid=$(xcrun simctl list devices available --json | jq -r '
+            [.devices | to_entries[] | select(.key | test("iOS"))
+              | .value[] | select(.name | startswith("iPhone"))][0].udid')
+          if [ -z "$udid" ] || [ "$udid" = "null" ]; then
+            echo "::error::No available iPhone simulator on this runner"
+            exit 1
+          fi
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Run engine SQLite integration test
+        run: >-
+          flutter test integration_test/external_line_text_test.dart
+          -d ${{ steps.simulator.outputs.udid }} --timeout 10m

@@ -157,12 +157,12 @@ void main() {
           legacy.text,
           reason: '$bookId',
         );
-        expect(await readBookContentBytes(db, k), legacy.bytes);
+        expect((await readBookContentBytes(db, k))?.bytes, legacy.bytes);
         expect(
           (await readBookContentTransferable(
             db,
             k,
-          ))?.materialize().asUint8List(),
+          ))?.data.materialize().asUint8List(),
           legacy.bytes,
         );
       }
@@ -185,10 +185,10 @@ void main() {
     expect(await readBookContentText(db, key(1)), legacy.text);
     // הבייטים נשארים כפי שמאוחסנים, כולל ה-BOM.
     expect(
-      await readBookContentBytes(db, key(1)),
+      (await readBookContentBytes(db, key(1)))?.bytes,
       utf8.encode(rows.join('\n')),
     );
-    expect(await readBookContentBytes(db, key(1)), legacy.bytes);
+    expect((await readBookContentBytes(db, key(1)))?.bytes, legacy.bytes);
   });
 
   test('גבולות חוצץ וחצי חוצץ, שורות ארוכות ו-BOM — זהה', () async {
@@ -216,12 +216,12 @@ void main() {
 
     final legacy = legacyRead(dbPath, 1);
     expect(await readBookContentText(db, key(1)), legacy.text);
-    expect(await readBookContentBytes(db, key(1)), legacy.bytes);
+    expect((await readBookContentBytes(db, key(1)))?.bytes, legacy.bytes);
     expect(
       (await readBookContentTransferable(
         db,
         key(1),
-      ))?.materialize().asUint8List(),
+      ))?.data.materialize().asUint8List(),
       legacy.bytes,
     );
   });
@@ -243,7 +243,7 @@ void main() {
       expect(await readBookContentText(db, key(1)), legacy.text);
       expect(await readBookContentText(db, key(2)), isNull);
       if (encoding == 'UTF-8') {
-        expect(await readBookContentBytes(db, key(1)), legacy.bytes);
+        expect((await readBookContentBytes(db, key(1)))?.bytes, legacy.bytes);
       }
     });
   }
@@ -257,6 +257,30 @@ void main() {
     expect(await readBookContentText(db, stale), isNull);
     expect(await readBookContentBytes(db, stale), isNull);
     expect(await readBookContentTransferable(db, stale), isNull);
+  });
+
+  test(r'שורה עם \n פנימי מסומנת; המפריד בין השורות אינו נספר', () async {
+    final dbPath = path.join(tempDir.path, 'newline.db');
+    final db = sqlite3.sqlite3.open(dbPath);
+    addTearDown(db.close);
+    createBareTables(db);
+    db.execute("INSERT INTO book VALUES (3, 'שורה ריקה')");
+    for (final (bookId, rows) in [
+      (1, ['א', 'ב\nג', 'ד']),
+      (2, ['א', 'ב', '']),
+      (3, ['ב\n']),
+    ]) {
+      for (var i = 0; i < rows.length; i++) {
+        db.execute('INSERT INTO line VALUES (?, ?, ?)', [bookId, i, rows[i]]);
+      }
+    }
+
+    for (final (bookId, expected) in [(1, true), (2, false), (3, true)]) {
+      final bytes = await readBookContentBytes(db, key(bookId));
+      final transferable = await readBookContentTransferable(db, key(bookId));
+      expect(bytes?.rowHasNewline, expected, reason: '$bookId');
+      expect(transferable?.rowHasNewline, expected, reason: '$bookId');
+    }
   });
 
   test(
@@ -303,7 +327,7 @@ void main() {
       legacyRead(dbPath, 1).text,
     );
     expect(
-      await BookTextReader.bytes(repository, book(1)),
+      (await BookTextReader.bytes(repository, book(1)))?.bytes,
       legacyRead(dbPath, 1).bytes,
     );
     expect(await BookTextReader.text(repository, book(2)), isNull);
@@ -352,10 +376,9 @@ void main() {
       final sentBefore = DbReadWorker.sentMessageCount;
 
       expect(await provider.getBookTextFromDb('בראשית', 7, 'txt'), legacy.text);
-      expect(
-        await provider.getBookTextBytesFromDb('בראשית', 7, 'txt'),
-        legacy.bytes,
-      );
+      final read = await provider.getBookTextBytesFromDb('בראשית', 7, 'txt');
+      expect(read?.bytes, legacy.bytes);
+      expect(read?.officialBookId, isNull, reason: r'שורה עם \n פנימי');
       expect(await provider.getBookTextFromDb('ריק', 7, 'txt'), isNull);
       expect(await provider.getBookTextBytesFromDb('ריק', 7, 'txt'), isNull);
       // שורה ריקה יחידה: טקסט '' אך בלי בייטים — כמו קודם.
@@ -368,6 +391,35 @@ void main() {
       expect(BookTextReader.mainConnectionReads, 0);
       expect(DbReadWorker.sentMessageCount - sentBefore, 6);
     });
+
+    for (final stalled in [false, true]) {
+      test('id רשמי רק לספר שאין בשורותיו \\n '
+          '(${stalled ? 'isolate חד-פעמי' : 'worker'})', () async {
+        final writer = sqlite3.sqlite3.open(dbPath);
+        writer.execute(
+          'INSERT INTO book (id, categoryId, sourceId, title, orderIndex, '
+          "totalLines) VALUES (4, 7, 1, 'שמות', 4, 2)",
+        );
+        writer.execute(
+          'INSERT INTO line (id, bookId, lineIndex, content) '
+          "VALUES (400, 4, 0, 'א'), (401, 4, 1, 'ב')",
+        );
+        writer.close();
+        if (stalled) DbReadWorker.stallTimeout = Duration.zero;
+        final provider = SqliteDataProvider.instance;
+
+        final clean = await provider.getBookTextBytesFromDb('שמות', 7, 'txt');
+        expect(clean?.bytes, utf8.encode('א\nב'));
+        expect(clean?.officialBookId, 4);
+        final withNewline = await provider.getBookTextBytesFromDb(
+          'בראשית',
+          7,
+          'txt',
+        );
+        expect(withNewline?.bytes, legacyRead(dbPath, 1).bytes);
+        expect(withNewline?.officialBookId, isNull);
+      });
+    }
 
     test('patch שהחליף את הספר במזהה אחרי הפתרון — לא נקרא תוכן זר', () async {
       final repository = SqliteDataProvider.instance.repository!;
@@ -390,10 +442,9 @@ void main() {
       final legacy = legacyRead(dbPath, 1);
 
       expect(await provider.getBookTextFromDb('בראשית', 7, 'txt'), legacy.text);
-      expect(
-        await provider.getBookTextBytesFromDb('בראשית', 7, 'txt'),
-        legacy.bytes,
-      );
+      final read = await provider.getBookTextBytesFromDb('בראשית', 7, 'txt');
+      expect(read?.bytes, legacy.bytes);
+      expect(read?.officialBookId, isNull, reason: r'שורה עם \n פנימי');
       expect(BookTextReader.mainConnectionReads, 0);
     });
 

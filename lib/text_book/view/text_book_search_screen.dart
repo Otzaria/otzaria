@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/index_freshness_warner.dart';
+import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/search/book_facet.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -550,6 +552,15 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         'filteredResults=${results.length}, title="$expectedTitle"',
       );
 
+      // בחיפוש בספר התוכן הטעון קובע; בלעדיו נשארת הודעת "אינו זמין".
+      if (results.any(isResultTextUnavailable)) {
+        try {
+          await _ensureContent();
+        } catch (e) {
+          debugPrint('טעינת תוכן הספר לתוצאות נכשלה: $e');
+        }
+      }
+
       if (mounted && requestId == _activeSearchRequestId) {
         _applySearchResults(
           _convertSearchResults(results),
@@ -820,10 +831,43 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     return null;
   }
 
+  /// השורה מהתוכן הטעון, כקטע מוברח כמו טקסט המנוע (בלי הדגשה — היא
+  /// מחושבת בתצוגה). null כשהשורה אינה טעונה.
+  String? _loadedLineSnippet(int index, TextBookState state) {
+    final line = state is TextBookLoaded ? _lineTextAt(index, state) : null;
+    if (line == null) return null;
+    final query = searchTextController.text;
+    // מרווחים ווריאנטים של המנוע אינם בתבנית הליטרלית; מעגנים כמו ההדגשה.
+    int? firstHighlight(String text) {
+      final ranges = utils.computeHighlightRanges(
+        text,
+        query,
+        searchOptions: _searchOptions,
+        alternativeWords: _alternativeWords,
+        spacingValues: _spacingValues,
+        isFuzzy: _searchMode == SearchMode.fuzzy,
+        searchDistance: _searchDistance,
+        matchPolicy: _matchPolicy,
+        isSearchResultLine: true,
+      );
+      return ranges.isEmpty ? null : ranges.first.first;
+    }
+
+    final excerpt = SnippetBuilder.buildExcerptText(
+      fullText: SnippetBuilder.htmlToPlainText(line),
+      query: query,
+      maxChars: _maxResultSnippetChars,
+      wholeWord: _wholeWord,
+      anchorOf: firstHighlight,
+    );
+    return const HtmlEscape(HtmlEscapeMode.element).convert(excerpt);
+  }
+
   List<TextSearchResult> _convertSearchResults(List<SearchResult> results) {
     // רק עותק השורות המלא תוחם את מספרי השורות. `state.content` יכול להיות
     // חלון חלקי סביב מקום הקריאה, ולפיו היו נזרקות תוצאות מנוע תקפות.
     final int? contentLength = _content?.length;
+    final state = context.read<TextBookBloc>().state;
     final List<TextSearchResult> converted = [];
     for (final result in results) {
       try {
@@ -833,7 +877,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           converted.add(
             TextSearchResult(
               index: lineNumber,
-              snippet: result.text,
+              snippet: isResultTextUnavailable(result)
+                  ? _loadedLineSnippet(lineNumber, state) ??
+                        unavailableResultText
+                  : result.text,
               address: result.reference,
               query: searchTextController.text,
             ),

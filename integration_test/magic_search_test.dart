@@ -12,6 +12,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
@@ -23,6 +24,8 @@ void main() {
 
   setUpAll(() async {
     await RustLib.init();
+    // המנוע משתמש ב-SQLite של Dart; בלי הרישום המילון לא נטען.
+    expect(await LibraryLineSource.ensureHostSqlite(), isTrue);
   });
 
   setUp(() async {

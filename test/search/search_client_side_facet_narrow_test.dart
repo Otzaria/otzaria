@@ -382,6 +382,7 @@ Future<void> main() async {
               filePath: 'id:999999',
               mergedCount: 1,
               merged: const [],
+              textStatus: TextStatus.ok,
             ),
           ],
         ),
@@ -459,6 +460,7 @@ SearchResult _result({
     filePath: IndexingRepository.buildIndexedBookFilePath(book),
     mergedCount: 1,
     merged: const [],
+    textStatus: TextStatus.ok,
   );
 }
 
@@ -477,6 +479,7 @@ class _RecordingSearchRepository extends SearchRepository {
     filePath: 'id:6234',
     mergedCount: 1,
     merged: const [],
+    textStatus: TextStatus.ok,
   );
 
   @override

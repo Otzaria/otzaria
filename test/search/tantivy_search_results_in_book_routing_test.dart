@@ -62,6 +62,7 @@ void main() {
             filePath: 'id:1',
             mergedCount: 1,
             merged: const [],
+            textStatus: TextStatus.ok,
           ),
         ],
       ),

@@ -62,7 +62,8 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         SearchResult,
         SearchScope,
         SearchStreamUpdate,
-        WordMatchMode;
+        WordMatchMode,
+        TextStatus;
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -130,6 +131,34 @@ class _StubSearchRepository extends SearchRepository {
   int pageCalls = 0;
   int streamWithCountsCalls = 0;
   Stream<SearchStreamUpdate>? streamOverride;
+  List<SearchResult> fullTextResults = const [];
+
+  @override
+  Future<List<SearchResult>> searchTexts(
+    String query,
+    List<String> facets,
+    int limit, {
+    int offset = 0,
+    ResultsOrder order = ResultsOrder.relevance,
+    bool fuzzy = false,
+    int distance = 0,
+    String negativeQuery = '',
+    int? negativeDistance,
+    SearchScope scope = SearchScope.wordDistance,
+    SearchScope? negativeScope,
+    SearchMode searchMode = SearchMode.exact,
+    Map<String, String>? customSpacing,
+    Map<String, String>? negativeCustomSpacing,
+    Map<int, List<String>>? alternativeWords,
+    Map<int, List<String>>? negativeAlternativeWords,
+    Map<String, Map<String, bool>>? searchOptions,
+    Map<String, Map<String, bool>>? negativeSearchOptions,
+    bool matchNikud = false,
+    bool matchTaamim = false,
+    ResultGrouping? grouping,
+    WordMatchMode wordMatchMode = WordMatchMode.all,
+    int? wordMatchCount,
+  }) async => fullTextResults;
 
   void _capture(
     String query,
@@ -4193,6 +4222,7 @@ Future<void> main() async {
                   filePath: 'id:10',
                   mergedCount: 1,
                   merged: const <MergedSibling>[],
+                  textStatus: TextStatus.ok,
                 ),
               ],
               truncated: false,
@@ -4247,6 +4277,7 @@ Future<void> main() async {
         expect(hit['id'], 10);
         expect(hit['type'], 'text');
         expect(hit['index'], 12);
+        expect(hit['textStatus'], 'ok');
         expect(hit['reference'], 'בראשית, פרק א');
         expect((chunks.first['bookCounts'] as List).single, {
           'id': 10,
@@ -4730,6 +4761,38 @@ Future<void> main() async {
 
       expect(result['currentId'], isNull);
       expect(result['currentType'], isNull);
+    });
+
+    test('search.fullText מחזיר את מצב הטקסט של כל תוצאה', () async {
+      SearchResult hit(int i, String text, TextStatus status) => SearchResult(
+        title: 'ספר $i',
+        reference: 'פרק $i',
+        text: text,
+        id: BigInt.from(i),
+        segment: BigInt.from(i),
+        isPdf: false,
+        filePath: 'id:$i',
+        mergedCount: 1,
+        merged: const <MergedSibling>[],
+        textStatus: status,
+      );
+      final stub = _StubSearchRepository()
+        ..fullTextResults = [
+          hit(1, 'שורה', TextStatus.ok),
+          hit(2, 'שורה חדשה', TextStatus.stale),
+          hit(3, '', TextStatus.unavailable),
+        ];
+      final adapter = buildAdapter(books: const [], searchRepository: stub);
+
+      final results =
+          await adapter.execute('search', 'fullText', {'query': 'שורה'})
+              as List;
+
+      expect(
+        [for (final result in results) (result as Map)['textStatus']],
+        ['ok', 'stale', 'unavailable'],
+      );
+      expect((results.last as Map)['text'], '');
     });
 
     test('search.fullText אינו מחזיר id — type תלוי ב-isPdf', () {
