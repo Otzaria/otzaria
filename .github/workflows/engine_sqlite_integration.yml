@@ -96,7 +96,7 @@ jobs:
           flutter-version: 3.47.2
           cache: true
 
-      # האמולטור x86_64; cargokit בונה רק את ה-ABI של המכשיר המחובר.
+      # האמולטור x86_64, וה-ABI מוגבל אליו בשלב שלפני הבדיקה.
       - name: Install Rust for native source fallback
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -111,6 +111,10 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      # flutter test בונה דיבאג לכל ה-ABI-ים; ב-x86 שני פלאגינים אורזים libc++_shared.so.
+      - name: Build only the emulator ABI
+        run: echo 'target-platform=android-x64' >> android/gradle.properties
 
       - name: Run engine SQLite integration test
         uses: reactivecircus/android-emulator-runner@v2
