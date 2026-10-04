@@ -2270,6 +2270,10 @@ jobs:
           if [ -f "$APP_PATH/Contents/MacOS/otzaria-atomic-swap" ]; then
             codesign --force --sign - "$APP_PATH/Contents/MacOS/otzaria-atomic-swap"
           fi
+          # ONNX Runtime מוטמע בשלב Xcode; חיפוש סמנטי בלעדיו מדווח "לא זמין".
+          ort_dylib="$APP_PATH/Contents/Frameworks/libonnxruntime.dylib"
+          [ -f "$ort_dylib" ] || { echo "::error::ONNX Runtime missing from the app bundle"; exit 1; }
+          codesign --force --sign - "$ort_dylib"
           # אותה חתימה ad-hoc שה-Xcode עושה (CODE_SIGN_IDENTITY = "-"); בלי
           # --entitlements החתימה מחדש מוחקת את ההרשאות שהבינארי קיבל.
           codesign --force --sign - \

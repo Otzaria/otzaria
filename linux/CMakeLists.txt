@@ -141,3 +141,15 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# ONNX Runtime for semantic search, in <bundle>/onnxruntime/; the app passes its
+# full path to the engine, so it is never resolved through the library path.
+if(DEFINED FLUTTER_TARGET_PLATFORM)
+  set(ORT_TARGET_PLATFORM "${FLUTTER_TARGET_PLATFORM}")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  set(ORT_TARGET_PLATFORM "linux-arm64")
+else()
+  set(ORT_TARGET_PLATFORM "linux-x64")
+endif()
+include("${CMAKE_SOURCE_DIR}/../tool/onnxruntime/onnxruntime.cmake")
+otzaria_bundle_onnxruntime("${ORT_TARGET_PLATFORM}" "${CMAKE_INSTALL_PREFIX}/onnxruntime")

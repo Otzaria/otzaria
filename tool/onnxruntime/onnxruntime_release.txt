@@ -1,0 +1,10 @@
+# Microsoft's official ONNX Runtime release that ships with the app (CPU builds).
+# Read by onnxruntime.cmake (Windows, Linux) and embed_onnxruntime_macos.sh.
+# Format: <flutter target platform> <asset name> <sha256 of the asset>
+# Source: https://github.com/microsoft/onnxruntime/releases/tag/v1.28.0
+version 1.28.0
+windows-x64 onnxruntime-win-x64-1.28.0.zip abef733dacbe2f571547a7150b479b5cb9cc0df22f96c24983a42cadb1b4f8bc
+windows-arm64 onnxruntime-win-arm64-1.28.0.zip cbe4547463ece092b505c3581376ed5896d22b5429f39d5e645e425ecdd369ad
+linux-x64 onnxruntime-linux-x64-1.28.0.tgz a3e1b79d7bb1bf09696ce675f49e4064e6c81f6202b8225624fff0e93f8d6407
+linux-arm64 onnxruntime-linux-aarch64-1.28.0.tgz e15ff8b5d85afe6c144d97c6fd432254bf76a219daaf17658087d6ecb3e8f0bb
+darwin-arm64 onnxruntime-osx-arm64-1.28.0.tgz 1268b359718099bde2cedb55787f182a130067bc4f31e8c88478c445b850d3d8

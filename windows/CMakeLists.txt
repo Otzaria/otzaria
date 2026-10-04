@@ -140,3 +140,8 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/../installer/vcredist/${VCREDIST_ARCH}/"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime
   FILES_MATCHING PATTERN "*.dll")
+
+# ONNX Runtime for semantic search, in its own folder: System32 may hold an
+# older onnxruntime.dll, so the app passes this file's full path explicitly.
+include("${CMAKE_SOURCE_DIR}/../tool/onnxruntime/onnxruntime.cmake")
+otzaria_bundle_onnxruntime("windows-${VCREDIST_ARCH}" "${CMAKE_INSTALL_PREFIX}/onnxruntime")

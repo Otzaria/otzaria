@@ -2422,6 +2422,8 @@ Name: "resetsettings"; Description: "איפוס הגדרות משתמש — אז
 [Files]
 ; Copy DLL files without compression to prevent corruption
 Source: "..\build\windows\{#AppArch}\runner\Release\*.dll"; DestDir: "{app}"; Flags: ignoreversion nocompression
+; ה-Excludes "*.dll" שלמטה חל על כל תת-תיקייה, ולכן ONNX Runtime נכלל כאן במפורש.
+Source: "..\build\windows\{#AppArch}\runner\Release\onnxruntime\*.dll"; DestDir: "{app}\onnxruntime"; Flags: ignoreversion nocompression
 ; Copy all other app files
 Source: "..\build\windows\{#AppArch}\runner\Release\*"; \
   Excludes: "*.dll"; \
