@@ -100,11 +100,11 @@ dependencies:
   googleapis_auth: ^2.3.4
   characters: ^1.4.1
   collection: ^1.19.1
-  # סכמת אינדקס 5 (טקסט השורות ממסד הספרייה); עד מיזוג otzaria_search_engine#32 — מהפורק.
+  # סכמת אינדקס 5: טקסט השורות נקרא ממסד הספרייה.
   otzaria_search_engine:
     git:
-      url: https://github.com/palmoni5/otzaria_search_engine
-      ref: f84b6fb45035279c895f45a288b644b823bc742f
+      url: https://github.com/Otzaria/otzaria_search_engine
+      ref: v0.10.0
   seforim_library_updater:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
