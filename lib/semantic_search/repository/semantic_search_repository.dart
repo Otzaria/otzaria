@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:archive/archive.dart' show ZipDecoder;
 import 'package:crypto/crypto.dart';
 
 import 'package:flutter/foundation.dart';
@@ -910,16 +911,7 @@ class SemanticSearchRepository {
       final partial = '${target.dest}.part';
       final before = done;
       _reportProgress(SemanticDownloadItem.model, before, force: true);
-      await _fetch(
-        url: release.urlOf(target.file),
-        destPath: partial,
-        resumeIdentity: target.file.sha256,
-        expectedSize: target.file.size,
-        expectedSha256: target.file.sha256,
-        onProgress: (received, _) =>
-            _reportProgress(SemanticDownloadItem.model, before + received),
-        isCancelled: () => _jobCancel.isCancelled,
-      );
+      await _fetchModelFile(release, target.file, partial, before);
       done += target.file.size;
       if (target.file == release.identity) {
         await _checkPublishedIdentity(partial, identity);
@@ -936,6 +928,55 @@ class SemanticSearchRepository {
       await identityFile.writeAsString(identity.rawJson, flush: true);
     }
   }
+
+  /// [file] אל [partial]; אם הורדתו נכשלה (לא בביטול) ויש לו zip — ממנו.
+  Future<void> _fetchModelFile(
+    SemanticModelRelease release,
+    SemanticModelFile file,
+    String partial,
+    int before,
+  ) async {
+    void progress(int received, int? _) =>
+        _reportProgress(SemanticDownloadItem.model, before + received);
+    bool cancelled() => _jobCancel.isCancelled;
+    try {
+      await _fetch(
+        url: release.urlOf(file),
+        destPath: partial,
+        resumeIdentity: file.sha256,
+        expectedSize: file.size,
+        expectedSha256: file.sha256,
+        onProgress: progress,
+        isCancelled: cancelled,
+      );
+      return;
+    } catch (error, stackTrace) {
+      final zipped = file.zipped;
+      if (zipped == null || cancelled() || _isCancellation(error)) rethrow;
+      _log('download ${file.name}; trying ${zipped.name}', error, stackTrace);
+    }
+    final zipped = file.zipped!;
+    await CompanionAssetsService.discardDownload(partial);
+    final archive = '${p.withoutExtension(partial)}.zip.part';
+    await _fetch(
+      url: release.urlOf(zipped),
+      destPath: archive,
+      resumeIdentity: zipped.sha256,
+      expectedSize: zipped.size,
+      expectedSha256: zipped.sha256,
+      onProgress: progress,
+      isCancelled: cancelled,
+    );
+    try {
+      await _unzipModelFile(archive, file, partial);
+    } finally {
+      await CompanionAssetsService.discardDownload(archive);
+    }
+  }
+
+  static bool _isCancellation(Object error) =>
+      error is PatchDownloadCancelled ||
+      (error is SemanticFailure && error.kind == SemanticFailureKind.cancelled);
 
   /// ה-model.json שב-release אמור להיות זהה לנכס המצורף; אם לא — הנכס גובר.
   static Future<void> _checkPublishedIdentity(
@@ -1189,3 +1230,37 @@ Future<bool> _verifyModelFile(
   if (!await file.exists() || await file.length() != expectedSize) return false;
   return (await sha256.bind(file.openRead()).first).toString() == expectedSha;
 });
+
+/// [file] מתוך ה-zip [archive] אל [dest]: רשומה יחידה בשמו ובגודלו, ואז ה-SHA-256 שלו.
+Future<void> _unzipModelFile(
+  String archive,
+  SemanticModelFile file,
+  String dest,
+) async {
+  final name = file.name;
+  final size = file.size;
+  final zipBytes = await File(archive).readAsBytes();
+  final bytes = await Isolate.run(() {
+    try {
+      final entries = ZipDecoder().decodeBytes(zipBytes).files;
+      if (entries.length != 1) return null;
+      final entry = entries.single;
+      if (!entry.isFile || entry.name != name || entry.size != size) {
+        return null;
+      }
+      final content = entry.readBytes();
+      return content != null && content.length == size ? content : null;
+    } catch (_) {
+      // zip פגום (גם RangeError של נתונים קטועים) אינו מחזיק את הקובץ.
+      return null;
+    }
+  });
+  if (bytes != null) await File(dest).writeAsBytes(bytes, flush: true);
+  if (bytes == null || !await _verifyModelFile(dest, size, file.sha256)) {
+    await CompanionAssetsService.discardDownload(dest);
+    throw SemanticFailure(
+      SemanticFailureKind.checksumMismatch,
+      '${p.basename(archive)} does not hold the published $name',
+    );
+  }
+}

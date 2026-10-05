@@ -12,14 +12,18 @@ class SemanticModelFile extends Equatable {
   final int size;
   final String sha256;
 
+  /// אותו קובץ לבדו בתוך zip, להורדה כשהקובץ עצמו לא ירד; התוכן מאומת באותו SHA-256.
+  final SemanticModelFile? zipped;
+
   const SemanticModelFile({
     required this.name,
     required this.size,
     required this.sha256,
+    this.zipped,
   });
 
   @override
-  List<Object?> get props => [name, size, sha256];
+  List<Object?> get props => [name, size, sha256, zipped];
 }
 
 /// release של חבילת מודל ב-GitHub: `<baseUrl>/<שם הקובץ>`.
@@ -70,6 +74,12 @@ kSemanticModelReleases = {
       size: 2191362,
       sha256:
           '0664287976ecb078bdfd8f5e5515dc87d8cb7f985a79a481aa1cdf7a7321c0e9',
+      zipped: SemanticModelFile(
+        name: '$kSemanticTokenizerFileName.zip',
+        size: 445252,
+        sha256:
+            '07353eea8a9e5036f5a50691424b7818fa7768a3f5220a8daf8505f4b8bd3da0',
+      ),
     ),
     identity: SemanticModelFile(
       name: kSemanticModelIdentityFileName,
