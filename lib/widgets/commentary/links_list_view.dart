@@ -718,7 +718,8 @@ class _LinksListViewState extends State<LinksListView> {
               identifier: instanceKey,
             )
             as bool?;
-    final isExpanded = _expanded[instanceKey] ?? restoredExpanded ?? false;
+    // קישור חדש נפתח מורחב, כמו מפרש בלוח המפרשים (issue #1924).
+    final isExpanded = _expanded[instanceKey] ?? restoredExpanded ?? true;
     return ExpansionTile(
       key: PageStorageKey(instanceKey),
       initiallyExpanded: isExpanded,
@@ -814,11 +815,6 @@ class _LinksListViewState extends State<LinksListView> {
         },
       ),
       onExpansionChanged: (isExpanded) {
-        // טוען תוכן רק אם נפתח ועדיין לא נטען
-        if (isExpanded && !_contentCache.containsKey(contentKey)) {
-          _contentCache[contentKey] = link.content;
-        }
-
         // עדכון מצב ההרחבה עם setState בטוח - דוחה עד אחרי הבנייה
         if (_expanded[instanceKey] != isExpanded) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -838,7 +834,7 @@ class _LinksListViewState extends State<LinksListView> {
               vertical: 8.0,
             ),
             child: AppFutureBuilder<String>(
-              future: _contentCache[contentKey],
+              future: _contentCache[contentKey] ??= link.content,
               builder: (context, content) => _buildLinkContent(content, link),
               errorBuilder: (context, error) =>
                   BlocBuilder<SettingsBloc, SettingsState>(

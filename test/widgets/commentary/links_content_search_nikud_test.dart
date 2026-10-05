@@ -148,8 +148,6 @@ Future<void> main() async {
       await _searchInContent(tester, 'ודר שאל');
 
       expect(find.text('לא נמצאו קישורים התואמים לחיפוש'), findsNothing);
-      await tester.tap(find.byType(ExpansionTile));
-      await tester.pumpAndSettle();
       final renderedLink = tester.widget<SmartTextWidget>(
         find.byType(SmartTextWidget),
       );

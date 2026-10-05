@@ -11,6 +11,7 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/widgets/commentary/links_list_view.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
@@ -31,17 +32,20 @@ class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
+/// קישור נפתח מורחב ותוכנו נטען מיד; בלי תוכן מוכן הטעינה הייתה ממתינה
+/// לספרייה שאינה קיימת בבדיקה.
 Link _link({
   required String path2,
   required String connectionType,
   int index1 = 5,
   int index2 = 1,
-}) => Link(
+}) => _LongContentLink(
   heRef: 'הפניה $path2',
   index1: index1,
   path2: path2,
   index2: index2,
   connectionType: connectionType,
+  content: 'תוכן $path2',
 );
 
 class _LongContentLink extends Link {
@@ -394,6 +398,49 @@ void main() {
     expect(bar.offsetController, same(list.scrollOffsetController));
   });
 
+  testWidgets('קישור נפתח מורחב כברירת מחדל ותוכנו נטען בלי הקשה', (
+    tester,
+  ) async {
+    final link = _LongContentLink(
+      heRef: 'שבת, כ., א',
+      index1: 1,
+      path2: 'שבת',
+      index2: 1,
+      connectionType: LinkTypes.quotation,
+      content: 'תוכן המקור המצוטט',
+    );
+    CommentaryService.seedEraCache({'שבת': CommentaryEra.other});
+    addTearDown(CommentaryService.clearEraCache);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider<SettingsBloc>.value(
+          value: _FakeSettingsBloc(),
+          child: Scaffold(
+            body: LinksListView(
+              displayProfile: TextDisplayProfile.defaults,
+              links: [link],
+              chipSourceLinks: [link],
+              openBookTitle: 'ברכות',
+              selectedLinkTypes: const {},
+              onSelectedLinkTypesChanged: (_) {},
+              openBookCallback: (_) {},
+              fontSize: 16,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final tile = tester.widget<ExpansionTile>(find.byType(ExpansionTile));
+    expect(tile.initiallyExpanded, isTrue, reason: 'issue #1924');
+    final rendered = tester.widget<SmartTextWidget>(
+      find.byType(SmartTextWidget),
+    );
+    expect(rendered.text, contains('תוכן המקור המצוטט'));
+  });
+
   testWidgets('גרירת המסילה גוללת בתוך קישור יחיד ומורחב', (tester) async {
     final longContent = List.filled(200, 'תוכן ארוך לבדיקה').join('\n');
     final link = _LongContentLink(
@@ -429,9 +476,6 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byType(ExpansionTile));
     await tester.pumpAndSettle();
 
     final scrollbar = find.byType(ScrollablePositionedListScrollbar);
