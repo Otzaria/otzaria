@@ -1,10 +1,4 @@
-// ⚠️ רצה בכל פלטפורמה, ובמכוון.
-//
-// כל מסלול הגרירה מגודר ב-`MultiWindowService.canOpenWindows`, שהוא
-// `Platform.isWindows`, ולכן הקובץ היה מסומן `@TestOn('windows')` — וה-CI
-// רץ על ubuntu. כלומר כל הבדיקות כאן היו ירוקות על מכונת המפתח בלבד.
-// ההיגיון שנבדק אינו תלוי פלטפורמה: מה שמעבר לערוץ מדומה ב-[_FakeRunner],
-// ו-`debugSupportedOverride` פותח את השער.
+// בדיקות הגרירה פועלות בכל פלטפורמה דרך runner מדומה.
 library;
 
 import 'dart:async';
@@ -13,6 +7,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart' as services;
 import 'package:flutter_test/flutter_test.dart';
@@ -30,8 +25,6 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 /// ⚠️ קידומת ייחודית לסוויטה — [ui.IsolateNameServer] גלובלי לתהליך.
 const String _namespace = 'otzaria.test.crosswindowdrag';
 
-/// מסלול הגרירה בין חלונות נבדק עד כה **ידנית בלבד**, וזה הפער שהדוח סימן.
-/// כאן נבדקת ההחלטה עצמה: מה קורה לכרטיסיה בכל אחת מארבע התוצאות.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -230,12 +223,8 @@ void main() {
   });
 
   group('מסירת הגרירה ל-Windows (Snap Layouts)', () {
-    // ⚠️ המתנה **אמיתית**, ולא `FakeAsync`. המסירה נתלית על טיימר תקופתי
-    // שכל פעימה שלו היא קריאת ערוץ, והתשובה חוזרת דרך ה-messenger
-    // האסינכרוני — כלומר זמן מדומה לא היה מקדם את המסלול שנבדק.
-    //
-    // ⚠️ ארוכה מ-`_snapshotGracePolls`: הבדיקות אינן שולחות מוק, ובלי זה היו
-    // מודדות את ההמתנה לו במקום את המסירה.
+    // צילום והודעות בין isolates דורשים זמן אמיתי; ההמתנה מכסה את
+    // פעימות החסד למוק, כדי לבדוק מסירה ולא רק המתנה לצילום.
     const settle = Duration(milliseconds: 620);
 
     const colors = DragPreviewColors(
@@ -1012,26 +1001,56 @@ void main() {
       expect(tabsBloc.events, isEmpty);
     });
 
-    test('⚠️ הגרירה נעצרת בפעימה הראשונה בחוץ ואינה חוזרת בלולאה', () async {
-      // ⚠️ הבדיקה הזו היא ההגנה על H4: `canTransfer` בונה כרטיסיה מלאה —
-      // BLoC, repository ומנויים — וקודם לכן היא נקראה מתוך לולאת הפעימות
-      // של 60ms. כשהכרטיסיה נדחתה, `_handOffToSystem` חזר בלי לסמן דבר,
-      // הטיימר המשיך, וכל 60ms נבנה BLoC חדש ונזרק כל עוד הסמן בחוץ.
-      var cancelled = false;
-      drag.begin(
-        tabsBloc.state.tabs.first,
-        colors,
-        tabsBloc: tabsBloc,
-        cancelDrag: () => cancelled = true,
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+    test('⚠️ הגרירה נעצרת בפעימה הראשונה בחוץ ואינה חוזרת בלולאה', () {
+      fakeAsync((clock) {
+        var cancellations = 0;
+        drag.begin(
+          tabsBloc.state.tabs.first,
+          colors,
+          tabsBloc: tabsBloc,
+          cancelDrag: () => cancellations++,
+        );
+        // מקדמים גם את תשובת הערוץ; זמן שעבר אינו מבטיח שהיא כבר התקבלה.
+        clock.flushMicrotasks();
+        clock.elapse(const Duration(milliseconds: 60));
 
-      expect(cancelled, isTrue, reason: 'הגרירה בוטלה עם הודעה');
-      expect(runner.systemDragCalls, 0, reason: 'לא נמסרה למערכת');
-      expect(runner.openWindowCalls, 0);
-      expect(tabsBloc.events, isEmpty);
-      // הפעימות נמשכו 400ms; בלי העצירה היו כאן שש קריאות ומעלה.
-      expect(runner.cursorQueries, lessThanOrEqualTo(2));
+        expect(cancellations, 1, reason: 'הגרירה בוטלה בפעימה הראשונה');
+        expect(clock.periodicTimerCount, 0);
+        clock.elapse(const Duration(milliseconds: 400));
+        expect(cancellations, 1);
+        expect(runner.systemDragCalls, 0, reason: 'לא נמסרה למערכת');
+        expect(runner.openWindowCalls, 0);
+        expect(tabsBloc.events, isEmpty);
+        expect(runner.cursorQueries, 2, reason: 'דגימת המקור ופעימה אחת בלבד');
+      });
+    });
+
+    test('תשובות ערוץ מאוחרות מבטלות פעם אחת ועוצרות את הפעימות', () {
+      fakeAsync((clock) {
+        runner.cursorGate = Completer<void>();
+        var cancellations = 0;
+        drag.begin(
+          tabsBloc.state.tabs.first,
+          colors,
+          tabsBloc: tabsBloc,
+          cancelDrag: () => cancellations++,
+        );
+        clock.elapse(const Duration(milliseconds: 400));
+        expect(cancellations, 0, reason: 'בירור מיקום הסמן עדיין ממתין לתשובה');
+        final queriesBeforeReply = runner.cursorQueries;
+        expect(queriesBeforeReply, greaterThan(2));
+
+        runner.cursorGate!.complete();
+        clock.flushMicrotasks();
+        expect(cancellations, 1);
+        expect(clock.periodicTimerCount, 0);
+        clock.elapse(const Duration(seconds: 1));
+        expect(cancellations, 1);
+        expect(runner.cursorQueries, queriesBeforeReply);
+        expect(runner.systemDragCalls, 0);
+        expect(runner.openWindowCalls, 0);
+        expect(tabsBloc.events, isEmpty);
+      });
     });
   });
 }
