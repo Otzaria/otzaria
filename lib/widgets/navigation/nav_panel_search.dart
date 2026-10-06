@@ -425,6 +425,7 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                         ? Material(
                             color: AppSurfaces.navPanelBackground(context),
                             shape: const CircleBorder(),
+                            clipBehavior: Clip.antiAlias,
                             elevation: 1,
                             child: _SearchToggleButton(
                               hintText: widget.delegate.hintText,
