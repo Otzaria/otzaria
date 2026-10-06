@@ -1578,15 +1578,15 @@ begin
 end;
 
 // שאלה בתחילת ההסרה: האם למחוק גם את הנתונים והספרים?
-// בהסרה שקטה (כולל עדכון שמריץ unins000.exe /SILENT) MsgBox מחזיר אוטומטית
-// את ברירת המחדל; MB_DEFBUTTON2 דואג שברירת המחדל היא "לא" כך שנתוני
-// המשתמש נשמרים אם הוא לא בחר במפורש למחוק.
+// MsgBox מוצג גם תחת /SUPPRESSMSGBOXES — הסרה שקטה מדלגת ושומרת את הנתונים.
 function InitializeUninstall(): Boolean;
 var
   CustomPath, Msg: String;
 begin
   Result := True;
   DeleteUserDataOnUninstall := False;
+  if UninstallSilent then
+    exit;
 
   CustomPath := GetCustomLibraryPath();
 

@@ -1487,6 +1487,38 @@ void main() {
     }
   });
 
+  group('הסרה שקטה לא שואלת על מחיקת הספרים', () {
+    String uninit(String name) =>
+        _routine(_script(name), 'function InitializeUninstall(): Boolean;');
+
+    for (final name in _scripts) {
+      test(
+        '$name: כל MsgBox ב-InitializeUninstall אחרי יציאה ב-UninstallSilent',
+        () {
+          final body = uninit(name);
+          final guard = body.indexOf('if UninstallSilent then\n    exit;');
+          expect(
+            guard,
+            greaterThanOrEqualTo(0),
+            reason:
+                'MsgBox אינו מדוכא ב-/SUPPRESSMSGBOXES (רק SuppressibleMsgBox), '
+                'ולכן ההסרה בהיקף השני (/VERYSILENT /CROSSSCOPE=1) נתקעה על השאלה',
+          );
+          expect(guard, lessThan(body.indexOf('MsgBox(')));
+          expect(
+            guard,
+            greaterThan(body.indexOf('DeleteUserDataOnUninstall := False;')),
+            reason: 'ברירת המחדל השקטה שומרת את הספרים והנתונים',
+          );
+        },
+      );
+    }
+
+    test('שני המתקינים חולקים AppId — שגרת ההסרה זהה', () {
+      expect(uninit(_full), uninit(_regular));
+    });
+  });
+
   group('שיגור-מחדש עם מצב מפורש — בלי לשאול שוב', () {
     for (final name in _scripts) {
       test(
