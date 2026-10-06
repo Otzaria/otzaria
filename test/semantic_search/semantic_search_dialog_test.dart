@@ -478,6 +478,32 @@ void main() {
     expect(_queryField, findsNothing);
   });
 
+  // התפריט שומר רק את מצב החיפוש הרגיל, ובחיפוש החכם הציג "מדויק" (#1955).
+  testWidgets('בחיפוש החכם אין תפריט ברירות מחדל של החיפוש הרגיל', (
+    tester,
+  ) async {
+    await pumpDialog(tester, _availability(SemanticAvailabilityPhase.ready));
+    final defaultsMenu = find
+        .byKey(const ValueKey('search-dialog-defaults-menu'))
+        .hitTestable();
+    final footer = find
+        .ancestor(
+          of: find.byKey(const ValueKey('search-dialog-submit')),
+          matching: find.byType(Row),
+        )
+        .first;
+    expect(defaultsMenu, findsOneWidget);
+    final footerHeight = tester.getSize(footer).height;
+    await tester.tap(_semanticSegment);
+    await tester.pumpAndSettle();
+    expect(defaultsMenu, findsNothing);
+    // הסתרת התפריט אינה משנה את גובה השורה התחתונה.
+    expect(tester.getSize(footer).height, footerHeight);
+    await tester.tap(find.text('מתקדם'));
+    await tester.pumpAndSettle();
+    expect(defaultsMenu, findsOneWidget);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
   testWidgets('טאב זמני מבחוץ (איתור/ספרייה) נסגר אחרי שליחה סמנטית', (
     tester,
   ) async {
