@@ -243,6 +243,23 @@ void main() {
         offset,
       );
     });
+
+    // issue #1942 — שכבת הריחוף המרובעת של הכפתור בלטה מחוץ לעיגול.
+    testWidgets('הרקע העגול חותך את שכבת הריחוף של הכפתור', (tester) async {
+      await tester.pumpWidget(wrap(const _Host(rowCount: 80)));
+      await tester.pumpAndSettle();
+      await scrollBy(tester, -1500);
+
+      final circle = tester.widget<Material>(
+        find.ancestor(
+          of: searchIcon(),
+          matching: find.byWidgetPredicate(
+            (w) => w is Material && w.shape is CircleBorder,
+          ),
+        ),
+      );
+      expect(circle.clipBehavior, isNot(Clip.none));
+    });
   });
 
   group('מקלדת בשדה החיפוש', () {
