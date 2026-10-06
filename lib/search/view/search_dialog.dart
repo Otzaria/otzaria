@@ -1829,8 +1829,18 @@ class _SearchDialogState extends State<SearchDialog> {
       padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 24, 14),
       child: Row(
         children: [
-          BlocBuilder<SearchBloc, SearchState>(
-            builder: (context, state) => _buildDefaultsMenu(state),
+          // ברירות המחדל בתפריט שייכות לחיפוש הרגיל בלבד.
+          _withSemanticAvailability(
+            (availability) => Visibility(
+              visible: !(_semanticSelected && _semanticVisible(availability)),
+              // שומר את גובה השורה, כדי ש"חפש" לא יקפוץ בין המצבים.
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: BlocBuilder<SearchBloc, SearchState>(
+                builder: (context, state) => _buildDefaultsMenu(state),
+              ),
+            ),
           ),
           const Spacer(),
           ValueListenableBuilder<bool>(
