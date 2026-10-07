@@ -25,7 +25,9 @@ import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
-import 'package:otzaria/printing/export_restriction_service.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/printing/safer_print_service.dart';
 import 'package:otzaria/printing/view/slow_preview_hint.dart';
 import 'package:otzaria/printing/word_export_service.dart';
@@ -97,6 +99,9 @@ class PrintingScreen extends StatefulWidget {
 
   /// כותרת המסמך (שם הספר) כשמשתמשים ב-[prebuiltBlocks].
   final String? documentTitle;
+
+  /// הגבלת המו"ל על התוכן. null — נקבעת לפי [book], אם סופק.
+  final BookProtection? protection;
   const PrintingScreen({
     super.key,
     required this.data,
@@ -117,6 +122,7 @@ class PrintingScreen extends StatefulWidget {
     this.pdfOutline = const [],
     this.prebuiltBlocks,
     this.documentTitle,
+    this.protection,
   });
   @override
   State<PrintingScreen> createState() => _PrintingScreenState();
@@ -216,21 +222,69 @@ class _PrintingScreenState extends State<PrintingScreen> {
   late _PrintDestination _destination;
 
   bool get _supportsWord =>
-      widget.createPdfOverride == null && !_editableExportRestricted;
+      widget.createPdfOverride == null &&
+      _effectiveProtection.allowsEditableExport;
 
-  /// ספר שהוגבל לייצוא לפורמט קל לעריכה — גם כשהוא מגיע רק כמפרש שנכלל בפלט.
-  bool get _editableExportRestricted =>
-      ExportRestrictionService.blocksEditableExport(
-        documentTitle: widget.documentTitle ?? widget.bookId,
-        commentariesIncluded:
-            widget.prebuiltBlocks != null || _includeCommentaries,
-        commentators: _selectedCommentators,
-      );
+  bool get _supportsPdf => _effectiveProtection.allowsPdfExport;
 
-  /// מחזיר את היעד ל-PDF כשייצוא Word חדל להיות זמין (למשל בהכללת מפרש מוגבל).
-  void _syncDestinationWithWordSupport() {
+  BookProtection _mainProtection = BookProtection.none;
+  Map<String, BookProtection> _commentatorProtection = const {};
+  late final Future<void> _protectionReady;
+
+  /// ההגבלה המחמירה מבין הספר והמפרשים שנכללים בפלט.
+  BookProtection get _effectiveProtection {
+    var result = _mainProtection;
+    if (widget.prebuiltBlocks == null && _includeCommentaries) {
+      for (final title in _selectedCommentators) {
+        result = result.strictest(
+          _commentatorProtection[title] ?? BookProtection.none,
+        );
+      }
+    }
+    return result;
+  }
+
+  /// סוף הטווח (בלעדי) אחרי מגבלת ההדפסה של המו"ל.
+  int _limitPrintEnd(int start, int end) =>
+      _effectiveProtection.limitPrintEnd(start, end);
+
+  Future<void> _loadProtection() async {
+    final repository = BookProtectionRepository.instance;
+    final book = widget.book;
+    final main =
+        widget.protection ??
+        (book == null ? BookProtection.none : await repository.forBook(book));
+    final commentators = <String, BookProtection>{};
+    if (widget.prebuiltBlocks == null) {
+      final source = book?.source ?? BookSource.official;
+      for (final title in {
+        ...widget.activeCommentators,
+        ...?widget.availableCommentators,
+      }) {
+        commentators[title] = await repository.forTitle(title, source: source);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _mainProtection = main;
+      _commentatorProtection = commentators;
+      _syncDestinationWithProtection();
+    });
+    if (widget.createPdfOverride == null && widget.prebuiltBlocks == null) {
+      await _applyCurrentRange();
+      if (mounted) _refreshPreview();
+    }
+  }
+
+  /// מחזיר את היעד ליעד מותר כשיעד נחסם (למשל בהכללת מפרש מוגבל).
+  void _syncDestinationWithProtection() {
     if (_destination == _PrintDestination.word && !_supportsWord) {
-      _destination = _PrintDestination.pdf;
+      _destination = _supportsPdf
+          ? _PrintDestination.pdf
+          : _PrintDestination.printer;
+    }
+    if (_destination == _PrintDestination.pdf && !_supportsPdf) {
+      _destination = _PrintDestination.printer;
     }
   }
 
@@ -257,10 +311,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     if (_destination == _PrintDestination.word && !_supportsWord) {
       _destination = _PrintDestination.pdf;
     }
-    // הרשימה נטענת מ-assets ולכן עשויה עוד לא להיות זמינה כאן.
-    ExportRestrictionService.ensureLoaded().then((_) {
-      if (mounted) setState(_syncDestinationWithWordSupport);
-    });
+    _protectionReady = _loadProtection();
 
     // אתחול הגדרות ניקוד וטעמים לפי תצוגת הספר
     final profile = widget.displayProfile;
@@ -384,7 +435,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       return;
     }
     startLine = s.clamp(0, totalLines);
-    endLine = e.clamp(startLine, totalLines);
+    endLine = _limitPrintEnd(startLine, e.clamp(startLine, totalLines));
   }
 
   /// שורת ההתחלה של עוגן: כותרת/כותרת משנה → שורת הכותרת; שורה → השורה עצמה.
@@ -774,6 +825,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _includeCommentaries,
       (List.of(_selectedCommentators)..sort()).join("\u0000"),
       _includePersonalNotes,
+      _effectiveProtection.effectiveLevel,
     ].join('|');
   }
 
@@ -903,7 +955,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
     String bookName = allLines.isNotEmpty ? stripHtmlIfNeeded(allLines[0]) : '';
     bookName = _applyTextTransforms(bookName, shouldReplaceHolyNames);
     final selectedStart = startLine.clamp(0, allLines.length);
-    final selectedEnd = endLine.clamp(selectedStart, allLines.length);
+    final selectedEnd = _limitPrintEnd(
+      selectedStart,
+      endLine.clamp(selectedStart, allLines.length),
+    );
 
     final personalNotes = _includePersonalNotes
         ? await _getPersonalNotesForBook(widget.bookId)
@@ -1338,7 +1393,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
     }
 
     final selectedStart = startLine.clamp(0, allLines.length);
-    final selectedEnd = endLine.clamp(selectedStart, allLines.length);
+    final selectedEnd = _limitPrintEnd(
+      selectedStart,
+      endLine.clamp(selectedStart, allLines.length),
+    );
     final personalNotes = _includePersonalNotes
         ? await _getPersonalNotesForBook(widget.bookId)
         : const <PersonalNote>[];
@@ -1452,6 +1510,12 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   /// מבצע את הפעולה לפי היעד הנבחר: הדפסה למדפסת, או שמירה ל-PDF/Word.
   Future<void> _performDestinationAction(BuildContext context) async {
+    await _protectionReady;
+    if (!mounted || !context.mounted) return;
+    final requested = _destination;
+    setState(_syncDestinationWithProtection);
+    // יעד שנחסם אחרי הבחירה — הרשימה התעדכנה, והמשתמש יבחר שוב.
+    if (_destination != requested) return;
     switch (_destination) {
       case _PrintDestination.printer:
         final printed = await printPdfWithSaferMode(
@@ -1469,9 +1533,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
           Navigator.of(context).pop(true);
         }
       case _PrintDestination.word:
-        await ExportRestrictionService.ensureLoaded();
-        if (!mounted) return;
-        if (_editableExportRestricted) {
+        if (!_supportsWord) {
           UiSnack.showError(PdfMessages.editableExportRestricted);
           return;
         }
@@ -1939,7 +2001,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                                 alignment: AlignmentDirectional
                                                     .centerStart,
                                                 child: Text(
-                                                  '${(endLine - startLine).clamp(0, totalLines)} שורות נבחרו מתוך $totalLines',
+                                                  '${(_limitPrintEnd(startLine, endLine) - startLine).clamp(0, totalLines)} שורות נבחרו מתוך $totalLines',
                                                   style: TextStyle(
                                                     color: colorScheme.primary,
                                                     fontSize: 12,
@@ -1966,7 +2028,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                               onChanged: (value) {
                                                 setState(() {
                                                   _includeCommentaries = value;
-                                                  _syncDestinationWithWordSupport();
+                                                  _syncDestinationWithProtection();
                                                   _refreshPreview();
                                                 });
                                               },
@@ -1986,7 +2048,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                                     (selected) => setState(() {
                                                       _selectedCommentators =
                                                           List.of(selected);
-                                                      _syncDestinationWithWordSupport();
+                                                      _syncDestinationWithProtection();
                                                       _refreshPreview();
                                                     }),
                                               ),
@@ -2246,10 +2308,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
                         value: _PrintDestination.printer,
                         label: 'הדפס',
                       ),
-                      const AppMenuEntry(
-                        value: _PrintDestination.pdf,
-                        label: 'שמור ל-PDF',
-                      ),
+                      if (_supportsPdf)
+                        const AppMenuEntry(
+                          value: _PrintDestination.pdf,
+                          label: 'שמור ל-PDF',
+                        ),
                       if (_supportsWord)
                         const AppMenuEntry(
                           value: _PrintDestination.word,

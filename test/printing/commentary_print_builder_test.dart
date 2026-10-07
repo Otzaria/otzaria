@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
 import 'package:otzaria/printing/print_content_models.dart';
@@ -60,6 +61,28 @@ void main() {
       expect(blocks, hasLength(2));
       expect(blocks[0].kind, PrintBlockKind.commentaryGroupTitle);
       expect(blocks[1].text, 'תוכן');
+    });
+
+    test('מפרש ברמה 2 נחתך ל-15 קטעים, ומפרש חופשי נשאר שלם', () async {
+      final groups = [
+        _group('מוגן', [for (var i = 1; i <= 20; i++) _link('a/מוגן.txt', i)]),
+        _group('חופשי', [
+          for (var i = 1; i <= 20; i++) _link('a/חופשי.txt', i),
+        ]),
+      ];
+
+      final blocks = await buildCommentaryPrintBlocks(
+        groups,
+        contentResolver: (link) async => 'קטע ${link.index2}',
+        protectionResolver: (link) async => link.path2.contains('מוגן')
+            ? const BookProtection(level: 2)
+            : BookProtection.none,
+      );
+
+      // כותרת + 15 קטעים, ואז כותרת + 20 קטעים.
+      expect(blocks, hasLength(1 + 15 + 1 + 20));
+      expect(blocks[15].text, 'קטע 15');
+      expect(blocks[16].text, 'חופשי');
     });
 
     test('מדלג על קבוצה שכל הקישורים בה ריקים (ללא כותרת)', () async {

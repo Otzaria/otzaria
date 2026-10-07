@@ -23,6 +23,7 @@ import 'package:otzaria/pdf_book/utils/pdf_commentary_visibility.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
@@ -1300,6 +1301,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       UiSnack.show(PdfMessages.noCommentariesToPrint);
       return;
     }
+    final protection = await BookProtectionRepository.instance
+        .strictestForLinks(groups.expand((group) => group.links));
     if (!mounted) return;
 
     final bookTitle = widget.tab.book.title;
@@ -1311,6 +1314,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         bookId: bookTitle,
         documentTitle: bookTitle,
         prebuiltBlocks: blocks,
+        protection: protection,
         activeCommentators: groups
             .map((group) => group.bookTitle)
             .toList(growable: false),
