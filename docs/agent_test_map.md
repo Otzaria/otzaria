@@ -169,6 +169,7 @@
 | הדגשת חיפוש כששם הוי"ה מוחלף (הדגשה לפני ההחלפה, issue #1248) | `test/widgets/smart_text/text_renderer_holy_name_highlight_test.dart` |
 | Smart text ↔ plugin section sync gate | `test/widgets/smart_text/smart_text_section_sync_gate_test.dart` |
 | קיבוע מדויק של גובה השורה (סימוני הערות, `<big>`) בשלושת מסלולי הרינדור | `test/widgets/smart_text/exact_line_height_test.dart` |
+| אותיות העוגן של המפרשים — חוזה התצוגה מקצה לקצה, בדיקה לכל רגרסיה (issue #2075) | `test/widgets/smart_text/anchor_marker_display_contract_test.dart` |
 | Work/indexing status overlays | `test/widgets/work_status_overlay_test.dart`, `…indexing_status_overlay_test.dart` |
 | App dropdown/search menu | `test/widgets/app_dropdown_field_test.dart`, `…app_search_menu_test.dart` |
 | Search pane base | `test/widgets/search_pane_base_test.dart` |
