@@ -60,6 +60,7 @@ import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_book/view/widgets/book_source_banner.dart';
@@ -2182,7 +2183,10 @@ class _CombinedViewState extends State<CombinedView> {
                         );
 
                         // שליחת event לפלאגינים עם ה-index המדויק
-                        final selectionText = source.text?.trim() ?? '';
+                        final selectionText = limitTextToCopySegments(
+                          loadedState?.protection ?? BookProtection.none,
+                          source.text?.trim() ?? '',
+                        );
                         if (selectionText.isNotEmpty && loadedState != null) {
                           unawaited(
                             PluginRuntimeDispatcher.instance.dispatchEvent(

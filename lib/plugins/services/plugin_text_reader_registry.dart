@@ -57,11 +57,13 @@ class PluginTextReaderRegistry extends ChangeNotifier {
 
   InstalledPlugin? get activePlugin => PluginSafeMode.isActive ? null : _active;
 
+  /// ספר עם הגבלת מו"ל נפתח תמיד בקורא הרגיל — התוסף אינו מקבל את הטקסט.
   bool usesPlugin(TextBookTab tab) =>
       activePlugin != null &&
       PluginBookIdentity.typeOf(tab.book) == 'text' &&
       !(tab.bloc.state is TextBookLoaded &&
-          (tab.bloc.state as TextBookLoaded).showPageShapeView) &&
+          ((tab.bloc.state as TextBookLoaded).showPageShapeView ||
+              (tab.bloc.state as TextBookLoaded).protection.isProtected)) &&
       _nativeTabs[tab] != true;
 
   String instanceIdFor(TextBookTab tab) =>

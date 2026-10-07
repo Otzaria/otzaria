@@ -1586,7 +1586,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         PluginRuntimeDispatcher.instance.dispatchEvent(
           'reader.selection_changed',
           buildPageShapePluginSelectionPayload(
-            selectedText: sourceText,
+            selectedText: limitTextToCopySegments(
+              textBookState.protection,
+              sourceText,
+            ),
             bookTitle: textBookState.book.title,
             sectionIndex:
                 selectedIndex ??
