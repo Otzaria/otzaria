@@ -53,6 +53,8 @@ const Set<String> kValidatorKnownTables = {
   'schema_meta',
   'db_meta',
   'external_link',
+  'book_banner',
+  'book_protection',
 };
 
 /// עותקים של `kMaxExternalLinkRows` / `kMaxExternalTextLength`.
