@@ -624,4 +624,126 @@ void main() {
       },
     );
   });
+
+  group('הגדרות עיצוב לאותיות העוגן (issue #2075)', () {
+    tearDown(() => AnchorMarkerStyle.current = const AnchorMarkerStyle());
+
+    testWidgets('גודל: הגליף והציור בשני המסלולים לפי ההגדרה (issue #2075)', (
+      tester,
+    ) async {
+      AnchorMarkerStyle.current = const AnchorMarkerStyle(scale: 0.9);
+      final raw = _inject(line, [_point('מפרש', 7)], styles: {'מפרש': 1});
+      await _pumpSmart(tester, raw);
+      final letter = wrapLinkAnchorLetter('א', 1);
+      expect(_widgetStyle(tester, letter).fontSize, closeTo(18, 0.01));
+      expect(_continuousStyle(raw, letter).fontSize, closeTo(18, 0.01));
+      expect(_placements(tester).single.marker.scale, 0.9);
+    });
+
+    testWidgets('הרמה: הציור מורם לפי ההגדרה (issue #2075)', (tester) async {
+      Future<double> raiseOf(double raise) async {
+        AnchorMarkerStyle.current = AnchorMarkerStyle(raise: raise);
+        await _pumpSmart(
+          tester,
+          _inject('שורה ראשונה<br>$line', [_point('מפרש', 20)]),
+        );
+        final placement = _placements(tester).single;
+        return placement.anchorRect.bottom - placement.paintRect.bottom;
+      }
+
+      final low = await raiseOf(0.1);
+      final high = await raiseOf(0.6);
+      expect(high - low, closeTo(0.5 * 20 * kLinkAnchorMarkerScale, 0.5));
+    });
+
+    testWidgets('גופן כתב רש"י לכל ציון, בשני המסלולים (issue #2075)', (
+      tester,
+    ) async {
+      AnchorMarkerStyle.current = const AnchorMarkerStyle(
+        font: AnchorMarkerFont.rashi,
+      );
+      final raw = _inject(line, [_point('מפרש', 7)], styles: {'מפרש': 0});
+      await _pumpSmart(tester, raw);
+      final letter = wrapLinkAnchorLetter('א', 0);
+      for (final style in [
+        _widgetStyle(tester, letter),
+        _continuousStyle(raw, letter),
+      ]) {
+        expect(style.fontFamily, kLinkAnchorRashiFont);
+        expect(style.fontWeight, FontWeight.bold);
+      }
+      expect(
+        _widgetStyle(tester, 'בראשית').fontFamily,
+        isNot(kLinkAnchorRashiFont),
+      );
+    });
+
+    testWidgets(
+      'עיצוב אחיד: בלי וריאנט, בסוגריים עגולים, והחלונית תואמת לגוף הטקסט (issue #2075)',
+      (tester) async {
+        AnchorMarkerStyle.current = const AnchorMarkerStyle(
+          variants: AnchorMarkerVariants.uniform,
+        );
+        final link = _point('מפרש', 7);
+        final raw = _inject(line, [link], styles: {'מפרש': 6}, active: 0);
+        expect(raw, contains('class="link-anchor link-anchor-active"'));
+        expect(anchorMarkerText(link), '(א)');
+
+        await _pumpSmart(tester, raw);
+        for (final style in [
+          _widgetStyle(tester, '(א)'),
+          _continuousStyle(raw, '(א)'),
+        ]) {
+          expect(style.fontWeight ?? FontWeight.normal, FontWeight.normal);
+          expect(style.fontStyle ?? FontStyle.normal, FontStyle.normal);
+          expect(style.decoration ?? TextDecoration.none, TextDecoration.none);
+        }
+        final marker = _placements(tester).single.marker;
+        expect(marker.variantIndex, isNull);
+        expect(marker.active, isTrue);
+      },
+    );
+
+    testWidgets('צבע הטקסט: הציור בצבע הטקסט בשני המסלולים (issue #2075)', (
+      tester,
+    ) async {
+      AnchorMarkerStyle.current = const AnchorMarkerStyle(
+        color: AnchorMarkerColor.text,
+      );
+      final theme = ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+      );
+      final raw = _inject(line, [_point('מפרש', 7)]);
+      for (final continuous in [false, true]) {
+        if (continuous) {
+          await _pumpContinuous(tester, [raw], theme: theme);
+        } else {
+          await _pumpSmart(tester, raw, theme: theme);
+        }
+        final overlay = tester.widget<RaisedMarkerOverlay>(
+          find.byType(RaisedMarkerOverlay),
+        );
+        expect(overlay.linkColor, overlay.baseStyle.color);
+        expect(overlay.linkColor, isNot(theme.colorScheme.primary));
+      }
+    });
+
+    test(
+      'שמירה: JSON הלוך-חזור, וערך חסר או פגום נופל לברירת המחדל (issue #2075)',
+      () {
+        const style = AnchorMarkerStyle(
+          scale: 0.9,
+          raise: 0.2,
+          font: AnchorMarkerFont.rashi,
+          variants: AnchorMarkerVariants.uniform,
+          color: AnchorMarkerColor.text,
+        );
+        expect(AnchorMarkerStyle.fromJson(style.toJson()), style);
+        expect(
+          AnchorMarkerStyle.fromJson({'scale': 'x', 'font': 'nope'}),
+          const AnchorMarkerStyle(),
+        );
+      },
+    );
+  });
 }
