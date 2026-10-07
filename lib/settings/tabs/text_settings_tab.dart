@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
+import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
@@ -13,6 +16,8 @@ import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/layout/adaptive_row.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -83,6 +88,14 @@ class TextSettingsTab extends StatelessWidget {
       tab: SettingsTab.text,
       cardId: 'text.font',
       keywords: ['רוחב', 'עמודה'],
+    ),
+    SettingsSearchEntry(
+      id: 'text.font.anchor_markers',
+      title: 'עיצוב ציוני המפרשים',
+      subtitle: 'גודל, הרמה, גופן וצבע של אותיות העוגן בטקסט',
+      tab: SettingsTab.text,
+      cardId: 'text.font',
+      keywords: ['אותיות עוגן', 'ציונים', 'כתב רש"י'],
     ),
     SettingsSearchEntry(
       id: 'text.font.continuous_reading',
@@ -391,6 +404,7 @@ class TextSettingsTab extends StatelessWidget {
             );
           },
         ),
+        _AnchorMarkerStyleSection(state: state),
       ],
     );
   }
@@ -765,6 +779,143 @@ class _TextWidthSliderState extends State<_TextWidthSlider> {
               );
             },
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AnchorMarkerStyleSection extends StatefulWidget {
+  final SettingsState state;
+
+  const _AnchorMarkerStyleSection({required this.state});
+
+  @override
+  State<_AnchorMarkerStyleSection> createState() =>
+      _AnchorMarkerStyleSectionState();
+}
+
+class _AnchorMarkerStyleSectionState extends State<_AnchorMarkerStyleSection> {
+  bool _open = false;
+
+  static final List<Link> _sampleLinks = [
+    for (final (title, start, label) in [
+      ('רש"י', 4, 'א'),
+      ('תוספות', 14, 'ב'),
+    ])
+      Link(
+        heRef: title,
+        index1: 1,
+        path2: title,
+        index2: 1,
+        connectionType: 'commentary',
+        anchorStart: start,
+        anchorLabel: label,
+      ),
+  ];
+
+  void _update(AnchorMarkerStyle style) =>
+      context.read<SettingsBloc>().add(UpdateAnchorMarkerStyle(style));
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.settingsText;
+    final style = widget.state.anchorMarkerStyle;
+    double rounded(double value) => (value * 100).round() / 100;
+    return ExpandableSection(
+      icon: FluentIcons.text_superscript_24_regular,
+      title: t('עיצוב ציוני המפרשים'),
+      subtitle: t('גודל, הרמה, גופן וצבע של אותיות העוגן בטקסט'),
+      isExpanded: _open,
+      onTap: () => setState(() => _open = !_open),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: SmartTextWidget(
+            text: injectLinkAnchorMarkers(
+              rawLine: 'אמר רבי יוחנן כל המברך על היין',
+              anchorLinks: _sampleLinks,
+              styleIndexByCommentator: anchorStyleIndexByCommentator(
+                _sampleLinks,
+              ),
+            ),
+            settings: RenderSettings(
+              fontSize: widget.state.fontSize,
+              fontFamily: widget.state.fontFamily,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: AdaptiveRow(
+            children: [
+              _FontSizeSlider(
+                icon: FluentIcons.text_font_size_24_regular,
+                label: t('גודל הציון'),
+                value: style.scale,
+                min: 0.5,
+                max: 1.0,
+                divisions: 5,
+                onChanged: (value) =>
+                    _update(style.copyWith(scale: rounded(value))),
+              ),
+              _FontSizeSlider(
+                icon: FluentIcons.arrow_up_24_regular,
+                label: t('הרמה מעל השורה'),
+                value: style.raise,
+                min: 0.0,
+                max: 0.8,
+                divisions: 8,
+                onChanged: (value) =>
+                    _update(style.copyWith(raise: rounded(value))),
+              ),
+            ],
+          ),
+        ),
+        SettingsActionTile.segmentedTile<AnchorMarkerFont>(
+          icon: FluentIcons.text_font_24_regular,
+          title: t('גופן הציון'),
+          options: [
+            SegmentOption(
+              value: AnchorMarkerFont.line,
+              label: t('גופן השורה'),
+            ),
+            SegmentOption(value: AnchorMarkerFont.rashi, label: t('כתב רש"י')),
+          ],
+          currentValue: style.font,
+          onChanged: (value) => _update(style.copyWith(font: value)),
+        ),
+        SettingsActionTile.segmentedTile<AnchorMarkerVariants>(
+          icon: OtzariaIcons.beit_behind_alef_24_regular,
+          title: t('הבחנה בין מפרשים'),
+          options: [
+            SegmentOption(
+              value: AnchorMarkerVariants.perCommentator,
+              label: t('סגנון לכל מפרש'),
+            ),
+            SegmentOption(
+              value: AnchorMarkerVariants.uniform,
+              label: t('אחיד'),
+            ),
+          ],
+          currentValue: style.variants,
+          onChanged: (value) => _update(style.copyWith(variants: value)),
+        ),
+        SettingsActionTile.segmentedTile<AnchorMarkerColor>(
+          icon: FluentIcons.color_24_regular,
+          title: t('צבע הציון'),
+          options: [
+            SegmentOption(
+              value: AnchorMarkerColor.primary,
+              label: t('צבע ההדגשה'),
+            ),
+            SegmentOption(
+              value: AnchorMarkerColor.text,
+              label: t('צבע הטקסט'),
+            ),
+          ],
+          currentValue: style.color,
+          onChanged: (value) => _update(style.copyWith(color: value)),
         ),
       ],
     );

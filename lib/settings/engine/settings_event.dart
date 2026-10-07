@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 
 abstract class SettingsEvent extends Equatable {
@@ -185,6 +186,15 @@ class UpdateTextDisplayPolicy extends SettingsEvent {
 
   @override
   List<Object?> get props => [textDisplayPolicy];
+}
+
+class UpdateAnchorMarkerStyle extends SettingsEvent {
+  final AnchorMarkerStyle anchorMarkerStyle;
+
+  const UpdateAnchorMarkerStyle(this.anchorMarkerStyle);
+
+  @override
+  List<Object?> get props => [anchorMarkerStyle];
 }
 
 class UpdateDefaultContinuousReadingMode extends SettingsEvent {

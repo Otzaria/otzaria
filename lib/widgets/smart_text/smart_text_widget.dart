@@ -299,6 +299,7 @@ class SmartTextWidget extends StatelessWidget {
               colorScheme.onSurfaceVariant,
               onAnchorHover != null,
               onOpenBook != null,
+              AnchorMarkerStyle.current,
             ],
             factoryBuilder: _SmartTextWidgetFactory.new,
             customStylesBuilder: (dom.Element element) {
@@ -361,13 +362,10 @@ class SmartTextWidget extends StatelessWidget {
               if ((element.localName == 'span' || element.localName == 'a') &&
                   element.classes.contains('link-anchor')) {
                 return {
-                  'font-size': '${kLinkAnchorMarkerScale}em',
                   'white-space': 'nowrap',
                   'color': 'transparent',
                   'text-decoration': 'none',
-                  ...linkAnchorVariantCss(
-                    linkAnchorVariantFromClasses(element.classes),
-                  ),
+                  ...anchorMarkerCss(element.classes),
                 };
               }
               // טווח-ציטוט (לינקר): צבע ה-primary בגופן הטקסט הסובב, בלי קו תחתון.

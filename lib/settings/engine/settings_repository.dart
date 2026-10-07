@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
@@ -40,6 +41,7 @@ class SettingsRepository {
   /// המדיניות המאוחדת של תצוגת הטקסט (JSON). מקור האמת; ששת המפתחות הישנים
   /// (ניקוד/תנ"ך/פיסוק/טעמים/שם הוי"ה) משוקפים ממנה לתאימות.
   static const String keyTextDisplayPolicy = 'key-text-display-policy';
+  static const String keyAnchorMarkerStyle = 'key-anchor-marker-style';
   static const String keyContinuousReadingMode = 'key-continuous-reading-mode';
   static const String keyDefaultSidebarOpen = 'key-default-sidebar-open';
   static const String keyDefaultCommentaryOpen = 'key-default-commentary-open';
@@ -254,6 +256,7 @@ class SettingsRepository {
     keyRemoveNikudFromTanach,
     keyDefaultRemovePunctuation,
     keyTextDisplayPolicy,
+    keyAnchorMarkerStyle,
     keyContinuousReadingMode,
     keyDefaultSidebarOpen,
     keyDefaultCommentaryOpen,
@@ -424,6 +427,7 @@ class SettingsRepository {
         defaultValue: true,
       ),
       'textDisplayPolicy': loadTextDisplayPolicy(),
+      'anchorMarkerStyle': loadAnchorMarkerStyle(),
       'defaultContinuousReadingMode': _settings.getValue<bool>(
         keyContinuousReadingMode,
         defaultValue: false,
@@ -757,6 +761,24 @@ class SettingsRepository {
         _settings.getValue<String>(keyHolyNameStyle, defaultValue: 'kuf'),
       ),
     );
+  }
+
+  AnchorMarkerStyle loadAnchorMarkerStyle() {
+    final raw = _settings.getValue<String>(
+      keyAnchorMarkerStyle,
+      defaultValue: '',
+    );
+    try {
+      final decoded = raw.isEmpty ? null : jsonDecode(raw);
+      if (decoded is Map) {
+        return AnchorMarkerStyle.fromJson(Map<String, dynamic>.from(decoded));
+      }
+    } catch (_) {}
+    return const AnchorMarkerStyle();
+  }
+
+  Future<void> updateAnchorMarkerStyle(AnchorMarkerStyle style) async {
+    await _settings.setValue(keyAnchorMarkerStyle, jsonEncode(style.toJson()));
   }
 
   Future<void> updateTextDisplayPolicy(TextDisplayPolicy policy) async {
@@ -1229,6 +1251,7 @@ class SettingsRepository {
     await _settings.setValue(keyShowLocalHebrewBooks, true);
     await _settings.setValue(keyShowExternalBooks, false);
     await updateTextDisplayPolicy(TextDisplayPolicy.empty);
+    await updateAnchorMarkerStyle(const AnchorMarkerStyle());
     await _settings.setValue(keyAutoUpdateIndex, true);
     await _settings.setValue(keyContinuousReadingMode, false);
     await _settings.setValue(keyDefaultSidebarOpen, false);

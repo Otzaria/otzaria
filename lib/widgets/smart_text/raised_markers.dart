@@ -42,9 +42,6 @@ const String kRaisedSupClass = 'raised-sup';
 /// יחס גודל של מרקר הערה לגופן הטקסט.
 const double kFootnoteMarkerScale = 0.75;
 
-/// הרמת קו הבסיס של הסימון מעל קו הבסיס של הטקסט, כיחס מגודל גופן *הסימון*.
-const double kRaisedMarkerRaiseFactor = 0.40;
-
 /// סימון מורם אחד: הטקסט הגלוי שלו (כולל תווי בידוד הכיווניות), המופע שלו
 /// בטקסט הקטע (בספירת indexOf לא-חופפת — אותה ספירה שמבצעת שכבת הציור),
 /// והמטריקות שבהן הוא מוצג.
@@ -170,6 +167,10 @@ class RaisedMarkers {
       return const [];
     }
 
+    if (_cacheStyle != AnchorMarkerStyle.current) {
+      clearCacheForTesting();
+      _cacheStyle = AnchorMarkerStyle.current;
+    }
     final cached = _cache.remove(html);
     if (cached != null) {
       _cache[html] = cached;
@@ -239,7 +240,7 @@ class RaisedMarkers {
       } else {
         // אות מפרש — צבע קישור, וריאנט טיפוגרפי קבוע למפרש, רקע כשפעילה.
         rawContent = match[6] ?? '';
-        scale = kLinkAnchorMarkerScale;
+        scale = AnchorMarkerStyle.current.scale;
         clickable = true;
         useLinkColor = true;
         final extraClasses = match[5] ?? '';
@@ -315,6 +316,7 @@ class RaisedMarkers {
   static final LinkedHashMap<String, List<RaisedMarker>> _cache =
       LinkedHashMap<String, List<RaisedMarker>>();
   static int _cacheChars = 0;
+  static AnchorMarkerStyle _cacheStyle = AnchorMarkerStyle.current;
   static const int _cacheMaxChars = 1024 * 1024;
 
   @visibleForTesting
@@ -371,6 +373,7 @@ class RaisedMarkerOverlay extends SingleChildRenderObjectWidget {
   }) {
     if (markers.isEmpty) return child;
     final colorScheme = Theme.of(context).colorScheme;
+    final textColor = AnchorMarkerStyle.current.color == AnchorMarkerColor.text;
     final style = baseStyle.color != null
         ? baseStyle
         : baseStyle.copyWith(
@@ -381,7 +384,7 @@ class RaisedMarkerOverlay extends SingleChildRenderObjectWidget {
     return RaisedMarkerOverlay(
       markers: markers,
       baseStyle: style,
-      linkColor: linkColor ?? colorScheme.primary,
+      linkColor: textColor ? style.color : linkColor ?? colorScheme.primary,
       activeBackground: activeBackground ?? colorScheme.primaryContainer,
       activeForeground: activeForeground ?? colorScheme.onPrimaryContainer,
       child: child,
@@ -527,7 +530,7 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
 
   TextPainter _painterFor(RaisedMarker marker) {
     final key =
-        '${marker.scale}|${marker.italic}|${marker.useLinkColor}'
+        '${AnchorMarkerStyle.current.hashCode}|${marker.scale}|${marker.italic}|${marker.useLinkColor}'
         '|${marker.variantIndex}|${marker.active}|${marker.text}';
     return _painters.putIfAbsent(key, () {
       var style = _baseStyle.copyWith(
@@ -538,9 +541,9 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
       // אות מפרש: הווריאנט הטיפוגרפי של המפרש, צבע הקישור, והדגשה עם רקע
       // כשחלונית התצוגה שלה פתוחה — אותו מראה שהיה לגליף לפני שהוסתר.
       final variantIndex = marker.variantIndex;
-      if (variantIndex != null) {
+      if (marker.useLinkColor) {
         style = applyLinkAnchorVariant(
-          kLinkAnchorVariants[variantIndex],
+          variantIndex == null ? null : kLinkAnchorVariants[variantIndex],
           style,
         );
       }
@@ -610,7 +613,7 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
   /// משתנה. הליכה על העץ היא O(צמתים) ולא נוגעת בטקסט עצמו.
   List<RaisedMarkerPlacement> _resolvePlacements() {
     final paragraphs = _collectParagraphs();
-    final signature = <Object?>[];
+    final signature = <Object?>[AnchorMarkerStyle.current];
     for (final info in paragraphs) {
       signature
         ..add(info.paragraph)
@@ -703,7 +706,11 @@ class RenderRaisedMarkerOverlay extends RenderProxyBox {
       final anchorRect = sameLineAnchorRect(boxes)!.shift(info.offset);
 
       final painter = _painterFor(marker);
-      final raise = _fontSizeOf(marker) * kRaisedMarkerRaiseFactor;
+      final raise =
+          _fontSizeOf(marker) *
+          (marker.useLinkColor
+              ? AnchorMarkerStyle.current.raise
+              : kRaisedMarkerRaiseFactor);
       // אותו גופן ואותו גודל: תחתית התיבה ההדוקה מגדירה את קו הבסיס בשניהם, בלי
       // תלות במטריקות ה-ascent של הגופן. הצמדה לראש השכבה מונעת חיתוך.
       final dx = anchorRect.center.dx - painter.width / 2;

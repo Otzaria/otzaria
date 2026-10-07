@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -37,6 +38,7 @@ class SettingsState extends Equatable {
   /// המדיניות הגלובלית של תצוגת הטקסט (ניקוד, טעמים, פיסוק, שם הוי"ה,
   /// ציונים) — מקור האמת היחיד. הגטרים שאחריה הם תאימות למפתחות הישנים.
   final TextDisplayPolicy textDisplayPolicy;
+  final AnchorMarkerStyle anchorMarkerStyle;
   bool get showTeamim => textDisplayPolicy.showTeamim;
   bool get replaceHolyNames => textDisplayPolicy.replaceHolyNames;
   HolyNameStyle get holyNameStyle => textDisplayPolicy.holyNameStyle;
@@ -119,6 +121,7 @@ class SettingsState extends Equatable {
     this.showLocalHebrewBooks = true,
     required this.showExternalBooks,
     TextDisplayPolicy? textDisplayPolicy,
+    this.anchorMarkerStyle = const AnchorMarkerStyle(),
     required this.autoUpdateIndex,
     this.defaultContinuousReadingMode = false,
     required this.defaultSidebarOpen,
@@ -219,6 +222,7 @@ class SettingsState extends Equatable {
     bool? showLocalHebrewBooks,
     bool? showExternalBooks,
     TextDisplayPolicy? textDisplayPolicy,
+    AnchorMarkerStyle? anchorMarkerStyle,
     bool? showTeamim,
     bool? replaceHolyNames,
     HolyNameStyle? holyNameStyle,
@@ -283,6 +287,7 @@ class SettingsState extends Equatable {
     }
     return SettingsState(
       textDisplayPolicy: policy,
+      anchorMarkerStyle: anchorMarkerStyle ?? this.anchorMarkerStyle,
       isDarkMode: isDarkMode ?? this.isDarkMode,
       followSystemTheme: followSystemTheme ?? this.followSystemTheme,
       seedColor: seedColor ?? this.seedColor,
@@ -378,6 +383,7 @@ class SettingsState extends Equatable {
     showLocalHebrewBooks,
     showExternalBooks,
     textDisplayPolicy,
+    anchorMarkerStyle,
     autoUpdateIndex,
     defaultContinuousReadingMode,
     defaultSidebarOpen,

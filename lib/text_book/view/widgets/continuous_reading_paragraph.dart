@@ -537,12 +537,7 @@ TextStyle _styleForElement(
   // סמן-אות של מפרש: מוקטן, והטיפוגרפיה נקבעת אך ורק בווריאנט שהוקצה למפרש.
   // נטייה כפויה כאן הייתה מוחקת את ההבחנה בין המפרשים.
   if (element.classes.contains('link-anchor')) {
-    style = applyLinkAnchorVariant(
-      linkAnchorVariantFromClasses(element.classes),
-      style.copyWith(
-        fontSize: (style.fontSize ?? 18) * kLinkAnchorMarkerScale,
-      ),
-    );
+    style = anchorMarkerTextStyle(element.classes, style);
     // הגליף שקוף; הווריאנט נשאר עליו כדי שרוחב המקום יתאים לציור המורם.
     if (hideRaisedMarkers) {
       style = style.copyWith(color: const Color(0x00000000));

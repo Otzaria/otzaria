@@ -22,7 +22,7 @@ String? anchorMarkerLetter(Link link) => _letterFor(link, link.anchorLabel);
 String? anchorMarkerText(Link link) {
   final letter = anchorMarkerLetter(link);
   if (letter == null) return null;
-  return wrapLinkAnchorLetter(letter, _stableStyleIndex(link.path2));
+  return wrapLinkAnchorLetter(letter, _styleIndexFor(link.path2));
 }
 
 String? _letterFor(Link link, String? storedLabel) {
@@ -53,6 +53,12 @@ Map<String, int> anchorStyleIndexByCommentator(Iterable<Link> links) {
     for (final title in titles) title: _stableStyleIndex(title),
   };
 }
+
+/// בעיצוב אחיד אין וריאנט (-1): בלי מחלקת וריאנט, בסוגריים עגולים.
+int _styleIndexFor(String title, [Map<String, int>? assigned]) =>
+    AnchorMarkerStyle.current.variants == AnchorMarkerVariants.uniform
+    ? -1
+    : assigned?[title] ?? (assigned == null ? _stableStyleIndex(title) : 0);
 
 int _stableStyleIndex(String title) {
   var hash = 0x811c9dc5;
@@ -111,7 +117,7 @@ String injectLinkAnchorMarkers({
                 label: link.anchorLabel,
               ),
           ];
-    final styleIndex = styleIndexByCommentator[link.path2] ?? 0;
+    final styleIndex = _styleIndexFor(link.path2, styleIndexByCommentator);
     for (final span in spans) {
       if (span.start < 0) continue;
       final end = span.end;
@@ -156,7 +162,7 @@ String injectLinkAnchorMarkers({
           at: visibleStart,
           order: 1,
           html:
-              '<$tag class="link-anchor link-anchor-$styleIndex$activeClass"$href>'
+              '<$tag class="link-anchor${styleIndex < 0 ? '' : ' link-anchor-$styleIndex'}$activeClass"$href>'
               '${wrapLinkAnchorLetter(letter, styleIndex)}</$tag>',
         ));
       }

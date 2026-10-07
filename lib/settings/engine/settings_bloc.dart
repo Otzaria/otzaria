@@ -2,6 +2,7 @@ import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -32,6 +33,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
                      .hasProtectedModePassword(),
                ),
        ) {
+    AnchorMarkerStyle.current = state.anchorMarkerStyle;
     on<LoadSettings>(_onLoadSettings);
     on<UpdateDarkMode>(_onUpdateDarkMode);
     on<UpdateFollowSystemTheme>(_onUpdateFollowSystemTheme);
@@ -54,6 +56,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateShowExternalBooks>(_onUpdateShowExternalBooks);
     on<UpdateAutoUpdateIndex>(_onUpdateAutoUpdateIndex);
     on<UpdateTextDisplayPolicy>(_onUpdateTextDisplayPolicy);
+    on<UpdateAnchorMarkerStyle>((event, emit) async {
+      await _repository.updateAnchorMarkerStyle(event.anchorMarkerStyle);
+      emit(state.copyWith(anchorMarkerStyle: event.anchorMarkerStyle));
+    });
     on<UpdateDefaultContinuousReadingMode>(
       _onUpdateDefaultContinuousReadingMode,
     );
@@ -125,6 +131,12 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     );
   }
 
+  @override
+  void onChange(Change<SettingsState> change) {
+    super.onChange(change);
+    AnchorMarkerStyle.current = change.nextState.anchorMarkerStyle;
+  }
+
   static SettingsState _stateFromSettings(
     Map<String, dynamic> settings, {
     required bool protectedModePasswordSet,
@@ -148,6 +160,9 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       showExternalBooks: settings['showExternalBooks'],
       autoUpdateIndex: settings['autoUpdateIndex'],
       textDisplayPolicy: settings['textDisplayPolicy'] as TextDisplayPolicy?,
+      anchorMarkerStyle:
+          settings['anchorMarkerStyle'] as AnchorMarkerStyle? ??
+          const AnchorMarkerStyle(),
       defaultContinuousReadingMode:
           settings['defaultContinuousReadingMode'] ?? false,
       defaultSidebarOpen: settings['defaultSidebarOpen'],
