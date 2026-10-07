@@ -476,8 +476,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   FocusNode? _keyboardFocusNode;
   bool _shouldPreserveKeyboardFocus = false;
 
-  // באנר קרדיט מקור המוצג מעל השורה הראשונה (נטען פעם אחת לכל ספר), אם קיים.
-  BookSourceBannerKind? _sourceBannerKind;
   bool _pendingKeyboardFocusRestore = false;
   bool _wasMenuFocused = false;
   String? _savedSelectedText;
@@ -1014,7 +1012,6 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           );
         },
       );
-      _loadSourceBanner();
       FocusManager.instance.addListener(_handleGlobalFocusChange);
       // רישום למנגנון הפוקוס הפר-טאבי כדי שמעבר *חזרה* לטאב צורת-הדף ימקד את
       // אזור הקריאה דרך reading_screen (גלילה בחצים עובדת מיד).
@@ -1198,26 +1195,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         oldTab is TextBookTab &&
         newTab is TextBookTab &&
         !sameSourceIdentity(oldTab.book, newTab.book)) {
-      _loadSourceBanner();
       // ה-State עלול להישמר במעבר ספר — מטמון ה"מפרשים הנוספים" ממופה לפי
       // שורה בלבד, ולכן חייב להתאפס כדי לא להחזיר מפרשים של הספר הקודם.
       _siblingController?.clear();
-    }
-  }
-
-  Future<void> _loadSourceBanner() async {
-    final tab = widget.tab;
-    if (tab is! TextBookTab) return;
-    final book = tab.book;
-    final kind = await resolveBookSourceBannerKind(book);
-    // מעבר מהיר בין ספרים עלול לסיים await זה אחרי שכבר עברנו לספר אחר -
-    // יש לוודא שהספר עדיין הנוכחי לפני שדורסים את _sourceBannerKind.
-    final currentTab = widget.tab;
-    if (mounted &&
-        currentTab is TextBookTab &&
-        sameSourceIdentity(book, currentTab.book) &&
-        kind != _sourceBannerKind) {
-      setState(() => _sourceBannerKind = kind);
     }
   }
 
@@ -2787,16 +2767,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       segments.isNotEmpty && index < segments.length ? segments[index] : null,
       continuous,
     );
-    final sourceBannerKind = _sourceBannerKind;
-    if (index == 0 && sourceBannerKind != null) {
+    final bannerText = state.protection.bannerText;
+    if (index == 0 && widget.isMainText && state.protection.hasBanner) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          BookSourceBanner(
-            kind: sourceBannerKind,
-            bookTitle: state.book.title,
-            fontSize: widget.fontSize,
-          ),
+          BookSourceBanner(text: bannerText!, fontSize: widget.fontSize),
           line,
         ],
       );

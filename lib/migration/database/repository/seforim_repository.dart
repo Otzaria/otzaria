@@ -31,6 +31,12 @@ import '../sqlite3_utils.dart';
 
 part 'alt_toc_flat_index.dart';
 
+/// רמות הגבלת המו"ל ([levels]) והבאנרים ([banners]) לפי bookId.
+typedef BookProtectionTables = ({
+  Map<int, int> levels,
+  Map<int, String> banners,
+});
+
 /// Repository class for accessing and manipulating the Seforim database.
 /// Provides methods for CRUD operations on books, categories, lines, TOC entries, and links.
 ///
@@ -906,6 +912,55 @@ class SeforimRepository {
       await linkPubDateToBook(pubDateId, bookId);
     }
     return bookId;
+  }
+
+  // --- Book banner / protection ---
+
+  DbCapabilities? _protectionTablesCapabilities;
+  Future<BookProtectionTables>? _protectionTables;
+
+  /// רמות ההגבלה והבאנרים לפי bookId. הטבלאות זעירות ונטענות פעם אחת לכל
+  /// מפת יכולות — טבלה שנוספה או הוחלפה מעדכנת את המפה ונטענת מחדש.
+  Future<BookProtectionTables> getBookProtectionTables() async {
+    final capabilities = await _capabilities;
+    if (!identical(capabilities, _protectionTablesCapabilities) ||
+        _protectionTables == null) {
+      _protectionTablesCapabilities = capabilities;
+      _protectionTables = _loadBookProtectionTables(capabilities);
+    }
+    try {
+      return await _protectionTables!;
+    } catch (_) {
+      _protectionTables = null;
+      rethrow;
+    }
+  }
+
+  /// מאלץ טעינה מחדש בקריאה הבאה — תוכן הטבלאות מוחלף בכל patch בלי שינוי סכמה.
+  void invalidateBookProtectionTables() => _protectionTables = null;
+
+  Future<BookProtectionTables> _loadBookProtectionTables(
+    DbCapabilities capabilities,
+  ) async {
+    if (!capabilities.hasBookProtection && !capabilities.hasBookBanners) {
+      return (levels: const <int, int>{}, banners: const <int, String>{});
+    }
+    final db = await _database.database;
+    final levels = <int, int>{
+      if (capabilities.hasBookProtection)
+        for (final row in db.select(
+          'SELECT bookId, level FROM book_protection',
+        ))
+          if (row['bookId'] is int && row['level'] is int)
+            row['bookId'] as int: row['level'] as int,
+    };
+    final banners = <int, String>{
+      if (capabilities.hasBookBanners)
+        for (final row in db.select('SELECT bookId, text FROM book_banner'))
+          if (row['bookId'] is int && row['text'] is String)
+            row['bookId'] as int: row['text'] as String,
+    };
+    return (levels: levels, banners: banners);
   }
 
   // --- Sources ---

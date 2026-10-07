@@ -778,9 +778,6 @@ class _CombinedViewState extends State<CombinedView> {
   // הפסקאות שמחייב עיגון מחדש (issue #1973).
   ({List<ReadingSegment> segments, bool continuous})? _reflowBasis;
 
-  // באנר קרדיט מקור המוצג מעל השורה הראשונה (נטען פעם אחת לכל ספר), אם קיים.
-  BookSourceBannerKind? _sourceBannerKind;
-
   /// סמני חלוקה לפי lineIndex — אותיות פסקה במדרש רבה, סעיפים בנושאי-כלים.
   Map<int, String> _sectionMarkersByLine = const {};
 
@@ -896,7 +893,6 @@ class _CombinedViewState extends State<CombinedView> {
       },
     );
 
-    _loadSourceBanner();
     _loadSectionMarkers();
 
     // אתחול מנהל הבחירה
@@ -1028,23 +1024,10 @@ class _CombinedViewState extends State<CombinedView> {
       );
     }
     if (!sameSourceIdentity(oldWidget.tab.book, widget.tab.book)) {
-      _loadSourceBanner();
       _loadSectionMarkers();
       // ה-State עלול להישמר במעבר ספר — מטמון ה"מפרשים הנוספים" ממופה לפי
       // שורה בלבד, ולכן חייב להתאפס כדי לא להחזיר מפרשים של הספר הקודם.
       _siblingController.clear();
-    }
-  }
-
-  Future<void> _loadSourceBanner() async {
-    final book = widget.tab.book;
-    final kind = await resolveBookSourceBannerKind(book);
-    // מעבר מהיר בין ספרים עלול לסיים await זה אחרי שכבר עברנו לספר אחר -
-    // יש לוודא שהספר עדיין הנוכחי לפני שדורסים את _sourceBannerKind.
-    if (mounted &&
-        sameSourceIdentity(book, widget.tab.book) &&
-        kind != _sourceBannerKind) {
-      setState(() => _sourceBannerKind = kind);
     }
   }
 
@@ -1085,8 +1068,7 @@ class _CombinedViewState extends State<CombinedView> {
             source: book.source,
           );
     }
-    // כמו ב-_loadSourceBanner: מעבר מהיר בין ספרים עלול לסיים await זה
-    // אחרי החלפת הספר.
+    // מעבר מהיר בין ספרים עלול לסיים await זה אחרי החלפת הספר.
     if (!mounted || !sameSourceIdentity(book, widget.tab.book)) return;
     if (marks.markers.isEmpty &&
         marks.headings.isEmpty &&
@@ -2420,17 +2402,13 @@ class _CombinedViewState extends State<CombinedView> {
         final tile = RepaintBoundary(
           child: buildExpansiomTile(index, state, noteMap),
         );
-        final sourceBannerKind = _sourceBannerKind;
-        if (index == 0 && sourceBannerKind != null) {
+        final bannerText = state.protection.bannerText;
+        if (index == 0 && state.protection.hasBanner) {
           return ViewportAlignedSelectionContainer(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                BookSourceBanner(
-                  kind: sourceBannerKind,
-                  bookTitle: widget.tab.book.title,
-                  fontSize: widget.textSize,
-                ),
+                BookSourceBanner(text: bannerText!, fontSize: widget.textSize),
                 tile,
               ],
             ),

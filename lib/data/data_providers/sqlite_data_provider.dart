@@ -541,37 +541,6 @@ class SqliteDataProvider {
     }
   }
 
-  /// Retrieves source name for a book from DB source table.
-  Future<String?> getBookSourceNameFromDb(
-    String title, [
-    int? categoryId,
-    String? fileType,
-  ]) async {
-    if (!_isInitialized) {
-      await initialize();
-    }
-    if (!_isInitialized) return null;
-
-    try {
-      final resolvedBook = await _resolveBookRecord(
-        title,
-        categoryId: categoryId,
-        fileType: fileType,
-      );
-      if (resolvedBook == null) return null;
-      final source = await resolvedBook.repository.getSourceById(
-        resolvedBook.book.sourceId,
-      );
-      return source?.name;
-    } catch (e, st) {
-      debugPrint(
-        '[SqliteDataProvider] getBookSourceNameFromDb failed for '
-        '"$title": $e\n$st',
-      );
-      return null;
-    }
-  }
-
   /// Gets the repository instance (for advanced operations)
   SeforimRepository? get repository => _isInitialized ? _repository : null;
 
