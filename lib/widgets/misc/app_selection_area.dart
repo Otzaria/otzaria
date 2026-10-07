@@ -1,6 +1,8 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
@@ -12,9 +14,12 @@ import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 /// (במקום תפריט ברירת המחדל של Flutter). לתוכן קריא כללי —
 /// דיאלוגים, חלוניות וכותרות.
 class AppSelectionArea extends StatefulWidget {
-  const AppSelectionArea({super.key, required this.child});
+  const AppSelectionArea({super.key, required this.child, this.protection});
 
   final Widget child;
+
+  /// הגבלת המו"ל של הטקסט שבאזור, כשהוא תוכן ספר.
+  final Future<BookProtection> Function()? protection;
 
   @override
   State<AppSelectionArea> createState() => AppSelectionAreaState();
@@ -36,6 +41,27 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
   void removeSelectionSource(String Function() source) =>
       _selectionSources.remove(source);
 
+  final _protectionSources = <Future<BookProtection> Function()>{};
+
+  /// תוכן ספר שמוצג באזור (למשל תצוגה מקדימה של קישור) רושם כאן את הגבלתו.
+  void addProtectionSource(Future<BookProtection> Function() source) =>
+      _protectionSources.add(source);
+
+  void removeProtectionSource(Future<BookProtection> Function() source) =>
+      _protectionSources.remove(source);
+
+  bool get _isGuarded =>
+      widget.protection != null || _protectionSources.isNotEmpty;
+
+  Future<bool> _copyAllowed(String text) async {
+    if (!_isGuarded) return true;
+    var protection = BookProtection.none;
+    for (final source in [?widget.protection, ..._protectionSources]) {
+      protection = protection.strictest(await source());
+    }
+    return ensureCopyAllowed(protection, countTextSegments(text));
+  }
+
   bool get _hasSelection =>
       _selectedText != null && _selectedText!.trim().isNotEmpty;
 
@@ -50,6 +76,7 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
   }
 
   Future<void> _copy(String text) async {
+    if (!await _copyAllowed(text)) return;
     await Clipboard.setData(ClipboardData(text: text));
     UiSnack.show(CommonMessages.textCopiedShort);
   }
@@ -59,7 +86,10 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
     final platform = Theme.of(context).platform;
     final useNativeTouchMenu =
         platform == TargetPlatform.android || platform == TargetPlatform.iOS;
-    return SelectionCutFallthrough(
+    return Actions(
+      actions: <Type, Action<Intent>>{
+        CopySelectionTextIntent: _GuardedCopyAction(this),
+      },
       child: RtlSelectionShortcuts(
         child: SelectionArea(
           contextMenuBuilder: useNativeTouchMenu
@@ -105,5 +135,32 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
         ),
       ),
     );
+  }
+}
+
+/// משחרר את Ctrl+X (כמו [SelectionCutFallthrough]), ובאזור עם תוכן ספר מוגן
+/// מעביר את Ctrl+C דרך מגבלת ההעתקה.
+class _GuardedCopyAction extends Action<CopySelectionTextIntent> {
+  _GuardedCopyAction(this._area);
+
+  final AppSelectionAreaState _area;
+
+  @override
+  bool get isActionEnabled => callingAction?.isActionEnabled ?? true;
+
+  @override
+  bool isEnabled(CopySelectionTextIntent intent) {
+    if (isReadOnlyCutIntent(intent)) return false;
+    return callingAction?.isEnabled(intent) ?? true;
+  }
+
+  @override
+  Object? invoke(CopySelectionTextIntent intent) {
+    final text = _area._selectedText;
+    if (!_area._isGuarded || text == null || text.trim().isEmpty) {
+      return callingAction?.invoke(intent);
+    }
+    _area._copy(text);
+    return null;
   }
 }

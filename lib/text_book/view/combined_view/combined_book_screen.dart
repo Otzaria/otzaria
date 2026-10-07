@@ -59,6 +59,8 @@ import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
+import 'package:otzaria/book_common/selection/commentary_selection.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_book/view/widgets/book_source_banner.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
@@ -258,7 +260,12 @@ class SelectionLineCache {
 }
 
 @visibleForTesting
-({String text, Link? link})? commentarySelectionForCopy({
+({
+  String text,
+  Link? link,
+  Future<CommentaryCopyGuard?> Function()? copyGuard,
+})?
+commentarySelectionForCopy({
   required SelectionSyncController? controller,
   required Object mainTextOwner,
 }) {
@@ -269,7 +276,11 @@ class SelectionLineCache {
       text.trim().isEmpty) {
     return null;
   }
-  return (text: text, link: controller.activeSelectionLink);
+  return (
+    text: text,
+    link: controller.activeSelectionLink,
+    copyGuard: controller.activeCopyGuard,
+  );
 }
 
 /// מעבד טקסט גולמי לפי פרופיל ערוץ ההעתקה, כך שפעולת "העתק את כל הפסקה"
@@ -1556,6 +1567,7 @@ class _CombinedViewState extends State<CombinedView> {
         book: state.book,
         paragraphIndex: paragraphIndex,
         selectedText: selectedText,
+        protection: state.protection,
         onCopy: () => _copyFormattedText(selectedText),
         onAddNote: () => _showNoteEditor(
           selectedText,
@@ -1815,6 +1827,8 @@ class _CombinedViewState extends State<CombinedView> {
         mainTextOwner: _selectionOwner,
       );
       if (commentarySelection != null) {
+        final guard = await commentarySelection.copyGuard?.call();
+        if (!mounted) return;
         final settingsState = context.read<SettingsBloc>().state;
         await ContextMenuUtils.copyFormattedText(
           context: context,
@@ -1824,6 +1838,8 @@ class _CombinedViewState extends State<CombinedView> {
           removeNikud: removeNikud,
           copyProfile: profile,
           plainTextOnly: plainTextOnly,
+          protection: guard?.protection,
+          segmentCount: guard?.segmentCount,
         );
         return;
       }
@@ -1841,6 +1857,11 @@ class _CombinedViewState extends State<CombinedView> {
         selectedIndex: _currentSelectedIndex.value,
         sourceContent: widget.data,
         textBookState: textBookState,
+        segmentCount: selectionSegmentCount(
+          start: _selectionLineStart,
+          end: _selectionLineEnd,
+          text: plainText,
+        ),
         settingsState: settingsState,
         fontFamily: settingsState.fontFamily,
         fontSize: widget.textSize,

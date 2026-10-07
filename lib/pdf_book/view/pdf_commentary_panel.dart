@@ -1018,12 +1018,41 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       : _savedSelectedText;
 
   /// העתקת טקסט מעוצב (HTML) ללוח
-  Future<void> _copyFormattedText() async {
+  Future<void> _copyFormattedText() => _copySelection(context, null);
+
+  /// מעתיק את הבחירה; בחירה החוצה כמה מפרשים (או "בחר הכול") כפופה להגבלה
+  /// המחמירה של המפרשים שבה.
+  Future<void> _copySelection(
+    BuildContext menuContext,
+    Link? fallbackLink, {
+    bool removeNikud = false,
+  }) async {
+    final spansItems = _selectionSpansMultipleItems();
+    final selectedKeys = selectedItemKeys(_itemKeys);
+    final guardLinks = _commentarySelectionDelegate.hasCurrentFullSelection
+        ? _orderedLinks
+        : selectedKeys.length > 1
+        ? _orderedLinks
+              .where((link) => selectedKeys.contains(_getLinkKey(link)))
+              .toList()
+        : null;
+    final guardProtection = guardLinks == null
+        ? null
+        : await BookProtectionRepository.instance.strictestForLinks(
+            guardLinks,
+          );
+    if (!menuContext.mounted) return;
     await ContextMenuUtils.copyFormattedText(
-      context: context,
+      context: menuContext,
       savedSelectedText: _restoreLineBreaks(_currentSelectedText),
       fontSize: widget.fontSize,
-      link: _selectionSpansMultipleItems() ? null : _lastSelectedLink,
+      link: spansItems ? null : (_lastSelectedLink ?? fallbackLink),
+      removeNikud: removeNikud,
+      protection: guardProtection,
+      segmentCount: guardLinks?.fold<int>(
+        0,
+        (sum, link) => sum + (link.index2End ?? link.index2) - link.index2 + 1,
+      ),
     );
   }
 
@@ -1048,23 +1077,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       copyDisplayProfile: widget.copyDisplayProfile,
       savedSelectedText: _currentSelectedText,
       onNavigateToLink: _navigateToLink,
-      onCopySelected: () => ContextMenuUtils.copyFormattedText(
-        context: menuCtx,
-        savedSelectedText: _restoreLineBreaks(_currentSelectedText),
-        fontSize: widget.fontSize,
-        link: _selectionSpansMultipleItems()
-            ? null
-            : (_lastSelectedLink ?? link),
-      ),
-      onCopySelectedWithoutNikud: () => ContextMenuUtils.copyFormattedText(
-        context: menuCtx,
-        savedSelectedText: _restoreLineBreaks(_currentSelectedText),
-        fontSize: widget.fontSize,
-        link: _selectionSpansMultipleItems()
-            ? null
-            : (_lastSelectedLink ?? link),
-        removeNikud: true,
-      ),
+      onCopySelected: () => _copySelection(menuCtx, link),
+      onCopySelectedWithoutNikud: () =>
+          _copySelection(menuCtx, link, removeNikud: true),
     );
   }
 
