@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -49,6 +51,8 @@ String resolveHtmlTextForSelection({
 /// [copyTarget] — בלי [copyProfile], ערוץ ההעתקה של היעד הזה חל על העותק.
 /// [source] — הבחירה בלי ציוני המפרשים, לפרופיל שמסתיר אותם.
 /// [plainTextOnly] — טקסט פשוט בלבד, בלי HTML מעוצב.
+/// [protection] — הגבלת המו"ל של מקור הטקסט; ברירת המחדל היא של
+/// [textBookState]. [segmentCount] — מספר שורות המקור שבבחירה, כשידוע.
 Future<void> copySelectedTextForBook({
   required String plainText,
   required int? selectedIndex,
@@ -64,7 +68,15 @@ Future<void> copySelectedTextForBook({
   TextTarget? copyTarget,
   SourceSelection? source,
   bool plainTextOnly = false,
+  BookProtection? protection,
+  int? segmentCount,
 }) async {
+  if (!ensureCopyAllowed(
+    protection ?? textBookState?.protection ?? BookProtection.none,
+    segmentCount ?? countTextSegments(plainText),
+  )) {
+    return;
+  }
   final copyContent = await buildSelectedTextCopy(
     plainText: plainText,
     selectedIndex: selectedIndex,

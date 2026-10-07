@@ -1,5 +1,6 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/tools/dictionary/dictionary_context_menu_entries.dart';
@@ -43,6 +44,7 @@ AppContextMenuEntry buildReaderIconRow({
   required String? selectedText,
   required VoidCallback onCopy,
   required VoidCallback onAddNote,
+  BookProtection protection = BookProtection.none,
 }) {
   final bookId = book.id;
   return AppContextMenuEntry.iconRow([
@@ -71,6 +73,7 @@ AppContextMenuEntry buildReaderIconRow({
           source: book.source,
           index: paragraphIndex,
           selectedText: selectedText,
+          protection: () async => protection,
         ),
       ),
   ]);

@@ -71,6 +71,9 @@ import 'package:otzaria/text_book/view/selection/selection_persistence.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
@@ -1832,6 +1835,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           book: state.book,
           paragraphIndex: index,
           selectedText: capturedText,
+          protection: state.protection,
           onCopy: () => _copyFormattedText(capturedText),
           onAddNote: () => _createNoteForCurrentLine(index, capturedText),
         ),
@@ -2001,6 +2005,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             source: widget.reportBook?.source ?? BookSource.official,
             index: index,
             selectedText: capturedText,
+            protection: () => _textProtection(state),
           ),
         );
       }
@@ -2454,6 +2459,15 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
   }
 
+  /// הגבלת המו"ל של הטקסט שבעמודה: הספר הראשי, או המפרש שבעמודת מפרש.
+  Future<BookProtection> _textProtection(TextBookLoaded state) {
+    if (widget.isMainText) return Future.value(state.protection);
+    final reportBook = widget.reportBook;
+    return reportBook != null
+        ? BookProtectionRepository.instance.forBook(reportBook)
+        : BookProtectionRepository.instance.forTitle(widget.bookTitle ?? '');
+  }
+
   Future<void> _copyFormattedText([
     String? capturedText,
     bool removeNikud = false,
@@ -2471,15 +2485,23 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
 
     try {
-      final settingsState = context.read<SettingsBloc>().state;
       final textBookState = context.read<TextBookBloc>().state;
       if (textBookState is! TextBookLoaded) return;
+      final protection = await _textProtection(textBookState);
+      if (!mounted) return;
+      final settingsState = context.read<SettingsBloc>().state;
 
       await copySelectedTextForBook(
         plainText: plainText,
         selectedIndex: _savedSelectedIndex,
         sourceContent: widget.content,
         textBookState: textBookState,
+        protection: protection,
+        segmentCount: selectionSegmentCount(
+          start: _selectionLineStart,
+          end: _selectionLineEnd,
+          text: plainText,
+        ),
         settingsState: settingsState,
         fontFamily: widget.fontFamily ?? settingsState.fontFamily,
         fontSize: widget.fontSize,

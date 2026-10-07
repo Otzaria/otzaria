@@ -32,6 +32,8 @@ abstract class TextBookMessages {
   static const String textFileSaved = 'קובץ טקסט נשמר בהצלחה';
   static const String editableExportRestricted =
       'ספר זה אינו ניתן לייצוא לפורמט הניתן לעריכה. ניתן להדפיסו או לשמרו כ-PDF.';
+  static const String copyRestrictedByPublisher =
+      'העתקה בספר זה הוגבלה לבקשת המו"ל';
   static const String exportFileLocked =
       'לא ניתן לשמור את הקובץ כי הוא פתוח בתוכנה אחרת. יש לסגור אותו ולנסות שוב.';
   static const String noCommentatorsToPrint = 'אין מפרשים להדפסה';

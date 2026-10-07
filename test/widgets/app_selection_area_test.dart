@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 
@@ -272,5 +273,60 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  group('תוכן ספר מוגן', () {
+    late List<String> clipboard;
+
+    setUp(() {
+      clipboard = [];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.setData') {
+              clipboard.add((call.arguments as Map)['text'] as String);
+            }
+            return null;
+          });
+    });
+
+    tearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    Future<void> pumpProtected(WidgetTester tester, String text) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppSelectionArea(
+              protection: () async => const BookProtection(level: 1),
+              child: Text(text),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await selectAll(tester);
+    }
+
+    Future<void> invokeCopy(WidgetTester tester) async {
+      Actions.invoke(
+        tester.element(find.byType(SelectableRegion)),
+        CopySelectionTextIntent.copy,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Ctrl+C על יותר מ-5 שורות נחסם', (tester) async {
+      await pumpProtected(tester, 'א\nב\nג\nד\nה\nו');
+      await invokeCopy(tester);
+      expect(clipboard, isEmpty);
+    });
+
+    testWidgets('Ctrl+C על עד 5 שורות מועתק', (tester) async {
+      await pumpProtected(tester, 'א\nב\nג');
+      await invokeCopy(tester);
+      expect(clipboard, ['א\nב\nג']);
+    });
   });
 }
