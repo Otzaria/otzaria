@@ -11,8 +11,8 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
-import 'package:otzaria/printing/export_restriction_service.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -74,7 +74,6 @@ Future<String> _exportWord(
   tester.view.physicalSize = const Size(1600, 1200);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  ExportRestrictionService.setRestrictedTitlesForTesting(const []);
   final picker = _CapturingFilePicker();
   FilePickerPlatform.instance = picker;
   final settingsBloc = _MockSettingsBloc();
@@ -244,6 +243,7 @@ void main() {
         ),
       ],
       contentResolver: (_) async => '<h2>מפרש, בדיקה</h2>\n$_verse',
+      protectionResolver: (_) async => BookProtection.none,
       keepHtml: true,
     );
     final xml = await _exportWord(

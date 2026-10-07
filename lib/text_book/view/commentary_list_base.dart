@@ -14,6 +14,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
@@ -819,6 +820,9 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     }
     if (!mounted) return;
 
+    final protection = await BookProtectionRepository.instance
+        .strictestForLinks(links);
+    if (!mounted) return;
     final bookTitle = _bookTitle(blocState);
     final profile = blocState.commentaryDisplayProfile;
     await showDialog<bool>(
@@ -829,6 +833,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         bookId: bookTitle,
         documentTitle: bookTitle,
         prebuiltBlocks: blocks,
+        protection: protection,
         activeCommentators: groups
             .map((group) => group.bookTitle)
             .toList(growable: false),
