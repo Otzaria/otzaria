@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:otzaria/book_common/view/parallel_editions_action.dart';
 import 'package:otzaria/plugins/utils/reader_plugin_toolbar_actions.dart';
@@ -3301,7 +3302,10 @@ bool _handleGlobalKeyEvent(
           : buildTextMarkLink(
               bookId,
               index,
-              selectedTextForNote ?? '',
+              limitTextToCopySegments(
+                state.protection,
+                selectedTextForNote ?? '',
+              ),
               source: state.book.source,
             );
       if (bookId == null) {
