@@ -1,0 +1,226 @@
+name: CI Experiment (temporary)
+
+# Temporary: measures CPU use and wall time of test configurations on one runner.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/ci_experiment.yml
+
+jobs:
+  experiment:
+    name: Experiment (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [baseline, j4, two-proc, two-proc-double]
+    env:
+      OTZARIA_REQUIRE_CODEC_TESTS: '1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.2
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get --enforce-lockfile
+
+      # Resolve the Git or hosted package to cache the native library under the
+      # exact root used by flutter_test_config.dart.
+      - name: Resolve search engine package root
+        id: engine-package
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+          from urllib.parse import urljoin, urlparse
+          from urllib.request import url2pathname
+
+          config = Path('.dart_tool/package_config.json').resolve()
+          packages = json.loads(config.read_text())['packages']
+          package = next(p for p in packages if p['name'] == 'otzaria_search_engine')
+          uri = urlparse(urljoin(config.as_uri(), package['rootUri']))
+          if uri.scheme != 'file' or uri.netloc:
+              raise ValueError(f'Expected a local package root, got {uri.geturl()}')
+          root = Path(url2pathname(uri.path)).resolve()
+          if not (root / 'rust/Cargo.toml').is_file():
+              raise FileNotFoundError(f'Engine Cargo.toml missing in {root}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print(f'root={root}', file=output)
+          print(f'Search engine package root: {root}')
+          PYTHON
+
+      # Cache by the immutable package reference so later runs can reuse the
+      # native library. The first uncached run builds it through Cargokit.
+      - name: Cache search engine library
+        id: engine-cache
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ steps.engine-package.outputs.root }}/rust/target/release/libsearch_engine.so
+          key: ${{ runner.os }}-search-engine-lib-v3-${{ hashFiles('pubspec.yaml', 'pubspec.lock') }}
+
+      # flutter_test has no plugin assets. Cargokit downloads signed release
+      # artifacts when available and builds the pinned Git engine from source
+      # when that crate hash has not been published.
+      - name: Fetch native libraries (search engine, OpenType shaper)
+        env:
+          ENGINE_PACKAGE_ROOT: ${{ steps.engine-package.outputs.root }}
+        run: |
+          for pkg in otzaria_search_engine opentype_shaper; do
+            pkg_root=$(jq -r --arg pkg "$pkg" '.packages[] | select(.name == $pkg) | .rootUri' .dart_tool/package_config.json)
+            pkg_root=${pkg_root#file://}
+            case "$pkg_root" in
+              /*) ;;
+              *) pkg_root=".dart_tool/$pkg_root" ;;
+            esac
+            pkg_root=$(realpath "$pkg_root")
+            echo "Fetching $pkg at: $pkg_root"
+            if [ "$pkg" = "otzaria_search_engine" ] && \
+                [ -s "$ENGINE_PACKAGE_ROOT/rust/target/release/libsearch_engine.so" ]; then
+              echo "Using cached search engine native library"
+              continue
+            fi
+            mkdir -p "$pkg_root/rust/target/release"
+            CARGOKIT_CONFIGURATION=Release \
+            CARGOKIT_TARGET_PLATFORM=linux-x64 \
+            CARGOKIT_MANIFEST_DIR="$pkg_root/rust" \
+            CARGOKIT_OUTPUT_DIR="$pkg_root/rust/target/release" \
+            CARGOKIT_TARGET_TEMP_DIR="$RUNNER_TEMP/cargokit/$pkg/target" \
+            CARGOKIT_TOOL_TEMP_DIR="$RUNNER_TEMP/cargokit/$pkg/tool" \
+            CARGOKIT_ROOT_PROJECT_DIR="$GITHUB_WORKSPACE" \
+              bash "$pkg_root/cargokit/run_build_tool.sh" build-cmake
+            ls -la "$pkg_root/rust/target/release"
+          done
+          test -s "$ENGINE_PACKAGE_ROOT/rust/target/release/libsearch_engine.so"
+
+      # הטסטים תלויים בקבצים המחוללים, לכן החילול רץ גם בכל shard (~20 שניות).
+      - name: Generate settings search index
+        run: |
+          set +e
+
+          for attempt in 1 2 3; do
+            output=$(dart run tool/generate_search_index.dart 2>&1)
+            status=$?
+            printf '%s\n' "$output"
+
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+
+            case "$output" in
+              *'Running build hooks failed'*) ;;
+              *) exit "$status" ;;
+            esac
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::בניית נכסים נייטיביים נכשלה (ניסיון $attempt מתוך 3) - ניסיון נוסף בעוד 15 שניות"
+              sleep 15
+            fi
+          done
+
+          echo "::error::בניית הנכסים הנייטיביים נכשלה בשלושה ניסיונות"
+          exit 1
+
+      - name: Generate settings translation catalog
+        run: dart run tool/generate_settings_l10n.dart
+
+      # המילון האמיתי (2MB) לא נכנס לרפו: הוא מגיע מ-SeforimLibrary בקומיט נעוץ ונבדק
+      # לפי SHA-256, ועותק וקטור ה-golden שב-test/fixtures חייב להיות זהה למקור שם.
+      - name: Fetch the SeforimLibrary line dictionary (pinned)
+        env:
+          SL_COMMIT: cdc5a50fc5c831284e190ad15791b72af8198a57
+          DICT_SHA256: 7b08b7c3534c9f9cd0e8f18414b4326aeeb64cfd574cc0f12d83b6f92bd6a396
+        run: |
+          set -euo pipefail
+          base="https://raw.githubusercontent.com/Otzaria/SeforimLibrary/$SL_COMMIT/generator/common/src"
+          mkdir -p build/test_fixtures
+          curl -fsSL --retry 3 --retry-delay 5 -o build/test_fixtures/line_content.zdict \
+            "$base/jvmMain/resources/zstd/line_content.zdict"
+          printf '%s  %s\n' "$DICT_SHA256" build/test_fixtures/line_content.zdict | sha256sum -c -
+          curl -fsSL --retry 3 --retry-delay 5 "$base/jvmTest/resources/zstd/line_content_golden_frames.json" \
+            | cmp - test/fixtures/line_content_codec/sl_golden_frames.json
+          ldconfig -p | grep -F 'libzstd.so.1'
+
+      # Fail immediately if a missing or incompatible binary would make the
+      # engine-dependent test groups skip themselves.
+      - name: Verify the cached native engine loads
+        run: |
+          preflight=$(mktemp --suffix=_test.dart test/search_engine_ci_XXXXXX)
+          trap 'rm -f "$preflight"' EXIT
+          cat > "$preflight" <<'DART'
+          import 'package:flutter_test/flutter_test.dart';
+          import 'support/search_engine_test_init.dart';
+
+          void main() {
+            test('CI loads the resolved native search engine', () async {
+              if (!await tryInitSearchEngine()) {
+                throw StateError(searchEngineSkipReason);
+              }
+            });
+          }
+          DART
+          flutter test "$preflight"
+
+      # הרצת הטסטים עם retry: אם הריצה הראשונה נכשלה, נחלץ את קבצי הטסט
+      # שנכשלו ונריץ אותם שוב. רק אם הם נכשלים גם בריצה השנייה - הסטפ נכשל.
+
+      - name: Run experiment
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          set +e
+          mapfile -t all < <(find test -name "*_test.dart" | sort)
+          s0=(); s1=(); half_a=(); half_b=()
+          for i in "${!all[@]}"; do
+            case $((i % 6)) in
+              0) s0+=("${all[$i]}")
+                 if [ $(( (i / 6) % 2 )) -eq 0 ]; then half_a+=("${all[$i]}"); else half_b+=("${all[$i]}"); fi ;;
+              1) s1+=("${all[$i]}") ;;
+            esac
+          done
+          echo "nproc=$(nproc)"; free -m
+
+          ws2="$RUNNER_TEMP/ws2"
+          if [[ "$MODE" == two-proc* ]]; then
+            cp -a "$GITHUB_WORKSPACE" "$ws2"
+          fi
+
+          vmstat -n 5 > "$RUNNER_TEMP/vmstat.log" &
+          vm=$!
+          start=$(date +%s)
+          case "$MODE" in
+            baseline) flutter test --file-reporter json:"$RUNNER_TEMP/r1.json" "${s0[@]}" > "$RUNNER_TEMP/out1.log" 2>&1 ;;
+            j4) flutter test -j 4 --file-reporter json:"$RUNNER_TEMP/r1.json" "${s0[@]}" > "$RUNNER_TEMP/out1.log" 2>&1 ;;
+            two-proc)
+              flutter test --file-reporter json:"$RUNNER_TEMP/r1.json" "${half_a[@]}" > "$RUNNER_TEMP/out1.log" 2>&1 &
+              p1=$!
+              (cd "$ws2" && flutter test --file-reporter json:"$RUNNER_TEMP/r2.json" "${half_b[@]}" > "$RUNNER_TEMP/out2.log" 2>&1) &
+              p2=$!
+              wait $p1 $p2 ;;
+            two-proc-double)
+              flutter test --file-reporter json:"$RUNNER_TEMP/r1.json" "${s0[@]}" > "$RUNNER_TEMP/out1.log" 2>&1 &
+              p1=$!
+              (cd "$ws2" && flutter test --file-reporter json:"$RUNNER_TEMP/r2.json" "${s1[@]}" > "$RUNNER_TEMP/out2.log" 2>&1) &
+              p2=$!
+              wait $p1 $p2 ;;
+          esac
+          end=$(date +%s)
+          kill $vm
+
+          tail -n 3 "$RUNNER_TEMP"/out*.log
+          cpu=$(awk 'NR>2 { us+=$13; sy+=$14; id+=$15; wa+=$16; n++; if (min=="" || $4<min) min=$4 }
+                     END { printf "us=%.0f%% sy=%.0f%% idle=%.0f%% wa=%.0f%% minFreeMB=%d samples=%d", us/n, sy/n, id/n, wa/n, min/1024, n }' "$RUNNER_TEMP/vmstat.log")
+          counts=$(cat "$RUNNER_TEMP"/r*.json | jq -rs '
+            map(select(.type == "testDone" and (.hidden | not)))
+            | "tests=\(length) failed=\(map(select(.result != "success")) | length) skipped=\(map(select(.skipped)) | length)"')
+          elapsed=$((end - start))
+          line="mode=$MODE elapsed=$((elapsed / 60))m$((elapsed % 60))s $cpu $counts"
+          echo "$line"
+          echo "$line" >> "$GITHUB_STEP_SUMMARY"
