@@ -151,7 +151,11 @@ void main() {
     await tester.tap(
       find.byWidgetPredicate((w) => w is AppDropdownField).first,
     );
-    await tester.pumpAndSettle();
+    // התצוגה המקדימה ממשיכה לרנדר ברקע, ולכן אין להמתין ל-pumpAndSettle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    // התפריט פתוח: הפריט מופיע גם בשדה וגם ברשימה.
+    expect(find.text('הדפס'), findsAtLeastNWidgets(2));
     expect(find.text('שמור ל-PDF'), findsNothing);
     expect(find.text('שמור ל-Word'), findsNothing);
     await tester.pumpWidget(const SizedBox());
