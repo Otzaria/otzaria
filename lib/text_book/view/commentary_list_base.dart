@@ -367,20 +367,20 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   /// הגבלת המו"ל ומספר הקטעים של בחירה שחוצה כמה מפרשים; null לבחירה
   /// בתוך מפרש יחיד, שההגבלה שלה נגזרת מהקישור שלו.
   Future<CommentaryCopyGuard?> _multiItemCopyGuard() async {
-    final keys = selectedItemKeys(_itemKeys);
-    if (keys.length < 2) return null;
-    final links = _orderedLinks
-        .where((link) => keys.contains(_getLinkKey(link)))
-        .toList();
+    final links = selectedItemLinks(_itemKeys, _orderedLinks, _getLinkKey);
+    if (links.length < 2) return null;
     return (
       protection: await BookProtectionRepository.instance.strictestForLinks(
         links,
       ),
-      segmentCount: links.fold<int>(
-        0,
-        (sum, link) => sum + (link.index2End ?? link.index2) - link.index2 + 1,
-      ),
+      segmentCount: linksSegmentCount(links),
     );
+  }
+
+  /// הקישור של הבחירה כשהיא בתוך פריט יחיד, גם בלי לחיצה שסימנה אותו.
+  Link? _singleSelectedLink() {
+    final links = selectedItemLinks(_itemKeys, _orderedLinks, _getLinkKey);
+    return links.length == 1 ? links.single : null;
   }
 
   // סדר הקישורים המוצגים, שעליו מבוססים היסטי החיפוש.
@@ -1825,7 +1825,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         selectionText: _restoreLineBreaks(text),
         selectionLink: selectionSpansMultipleItems(_itemKeys)
             ? null
-            : _lastSelectedLink.value,
+            : _lastSelectedLink.value ?? _singleSelectedLink(),
         copyGuard: _multiItemCopyGuard,
       );
     } else {
@@ -2136,7 +2136,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                       // (היא הייתה משתייכת למפרש בודד בלבד).
                       final link = selectionSpansMultipleItems(_itemKeys)
                           ? null
-                          : _lastSelectedLink.value;
+                          : _lastSelectedLink.value ?? _singleSelectedLink();
                       final guard = await _multiItemCopyGuard();
                       if (!context.mounted) return;
                       await ContextMenuUtils.copyFormattedText(

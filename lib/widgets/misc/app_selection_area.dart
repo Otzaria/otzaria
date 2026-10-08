@@ -75,6 +75,41 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
     return _hasSelection ? _selectedText : null;
   }
 
+  /// Ctrl+C באזור עם תוכן ספר מוגן; false משאיר את העתקת ברירת המחדל.
+  bool _copyGuardedSelection() {
+    final text = _selectedText;
+    if (!_isGuarded || text == null || text.trim().isEmpty) return false;
+    _copy(text);
+    return true;
+  }
+
+  /// סרגל המגע של המערכת; כפתור ההעתקה שלו עובר דרך מגבלת ההעתקה.
+  Widget _buildTouchToolbar(
+    BuildContext context,
+    SelectableRegionState state,
+  ) {
+    if (!_isGuarded) {
+      return AdaptiveTextSelectionToolbar.selectableRegion(
+        selectableRegionState: state,
+      );
+    }
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: state.contextMenuAnchors,
+      buttonItems: [
+        for (final item in state.contextMenuButtonItems)
+          item.type == ContextMenuButtonType.copy
+              ? item.copyWith(
+                  onPressed: () {
+                    state.hideToolbar();
+                    final text = _selectedText;
+                    if (text != null && text.trim().isNotEmpty) _copy(text);
+                  },
+                )
+              : item,
+      ],
+    );
+  }
+
   Future<void> _copy(String text) async {
     if (!await _copyAllowed(text)) return;
     await Clipboard.setData(ClipboardData(text: text));
@@ -86,17 +121,12 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
     final platform = Theme.of(context).platform;
     final useNativeTouchMenu =
         platform == TargetPlatform.android || platform == TargetPlatform.iOS;
-    return Actions(
-      actions: <Type, Action<Intent>>{
-        CopySelectionTextIntent: _GuardedCopyAction(this),
-      },
+    return SelectionCutFallthrough(
+      copyOverride: _copyGuardedSelection,
       child: RtlSelectionShortcuts(
         child: SelectionArea(
           contextMenuBuilder: useNativeTouchMenu
-              ? (context, state) =>
-                    AdaptiveTextSelectionToolbar.selectableRegion(
-                      selectableRegionState: state,
-                    )
+              ? _buildTouchToolbar
               : (context, _) => const SizedBox.shrink(),
           onSelectionChanged: (selection) {
             trackRtlSelection(selection?.plainText);
@@ -135,32 +165,5 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
         ),
       ),
     );
-  }
-}
-
-/// משחרר את Ctrl+X (כמו [SelectionCutFallthrough]), ובאזור עם תוכן ספר מוגן
-/// מעביר את Ctrl+C דרך מגבלת ההעתקה.
-class _GuardedCopyAction extends Action<CopySelectionTextIntent> {
-  _GuardedCopyAction(this._area);
-
-  final AppSelectionAreaState _area;
-
-  @override
-  bool get isActionEnabled => callingAction?.isActionEnabled ?? true;
-
-  @override
-  bool isEnabled(CopySelectionTextIntent intent) {
-    if (isReadOnlyCutIntent(intent)) return false;
-    return callingAction?.isEnabled(intent) ?? true;
-  }
-
-  @override
-  Object? invoke(CopySelectionTextIntent intent) {
-    final text = _area._selectedText;
-    if (!_area._isGuarded || text == null || text.trim().isEmpty) {
-      return callingAction?.invoke(intent);
-    }
-    _area._copy(text);
-    return null;
   }
 }

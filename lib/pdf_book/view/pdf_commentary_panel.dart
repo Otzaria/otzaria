@@ -24,6 +24,7 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
@@ -1028,13 +1029,15 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     bool removeNikud = false,
   }) async {
     final spansItems = _selectionSpansMultipleItems();
-    final selectedKeys = selectedItemKeys(_itemKeys);
+    final selectedLinks = selectedItemLinks(
+      _itemKeys,
+      _orderedLinks,
+      _getLinkKey,
+    );
     final guardLinks = _commentarySelectionDelegate.hasCurrentFullSelection
         ? _orderedLinks
-        : selectedKeys.length > 1
-        ? _orderedLinks
-              .where((link) => selectedKeys.contains(_getLinkKey(link)))
-              .toList()
+        : selectedLinks.length > 1
+        ? selectedLinks
         : null;
     final guardProtection = guardLinks == null
         ? null
@@ -1046,13 +1049,14 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       context: menuContext,
       savedSelectedText: _restoreLineBreaks(_currentSelectedText),
       fontSize: widget.fontSize,
-      link: spansItems ? null : (_lastSelectedLink ?? fallbackLink),
+      link: spansItems
+          ? null
+          : _lastSelectedLink ??
+                fallbackLink ??
+                (selectedLinks.length == 1 ? selectedLinks.single : null),
       removeNikud: removeNikud,
       protection: guardProtection,
-      segmentCount: guardLinks?.fold<int>(
-        0,
-        (sum, link) => sum + (link.index2End ?? link.index2) - link.index2 + 1,
-      ),
+      segmentCount: guardLinks == null ? null : linksSegmentCount(guardLinks),
     );
   }
 

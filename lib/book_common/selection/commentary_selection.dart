@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/models/links.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 
 /// Restores the line breaks of a multi-line selection that Flutter returns
@@ -82,6 +83,17 @@ Set<String> selectedItemKeys(Map<String, GlobalKey> itemKeys) {
           when rect.bottom >= top && rect.top <= bottom)
         entry.key,
   };
+}
+
+/// הקישורים של הפריטים שבבחירה, בסדר [orderedLinks].
+List<Link> selectedItemLinks(
+  Map<String, GlobalKey> itemKeys,
+  Iterable<Link> orderedLinks,
+  String Function(Link) keyOf,
+) {
+  final keys = selectedItemKeys(itemKeys);
+  if (keys.isEmpty) return const [];
+  return orderedLinks.where((link) => keys.contains(keyOf(link))).toList();
 }
 
 /// הגבלת המו"ל ומספר הקטעים של בחירה בכמה מפרשים.

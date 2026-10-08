@@ -323,6 +323,28 @@ void main() {
       expect(clipboard, isEmpty);
     });
 
+    testWidgets('כפתור ההעתקה בסרגל המגע עובר דרך המגבלה', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.android),
+          home: Scaffold(
+            body: AppSelectionArea(
+              protection: () async => const BookProtection(level: 1),
+              child: const Text('א\nב\nג\nד\nה\nו'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byType(Text).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Select all'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Copy'));
+      await tester.pumpAndSettle();
+      expect(clipboard, isEmpty);
+    });
+
     testWidgets('Ctrl+C על עד 5 שורות מועתק', (tester) async {
       await pumpProtected(tester, 'א\nב\nג');
       await invokeCopy(tester);
