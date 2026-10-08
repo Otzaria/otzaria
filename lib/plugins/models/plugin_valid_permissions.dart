@@ -107,6 +107,11 @@ const Map<String, String> apiCallToPermissionHint = {
   'reader.updateToolbarItem': 'reader.toolbar',
   'reader.findTextOccurrences': 'reader.open',
   'reader.getSectionTextMap': 'reader.open',
+  'reader.beginCorrectionSession': pluginReaderLocalEditPermission,
+  'reader.getCorrectionSession': pluginReaderLocalEditPermission,
+  'reader.restoreCorrectionDraft': pluginReaderLocalEditPermission,
+  'reader.resetCorrection': pluginReaderLocalEditPermission,
+  'reader.endCorrectionSession': pluginReaderLocalEditPermission,
   'reader.setHighlight': 'reader.highlight',
   'reader.updateHighlight': 'reader.highlight',
   'reader.getHighlights': 'reader.highlight',
@@ -155,6 +160,9 @@ const Set<String> apiCallsWithoutPermission = {
   'ui.exportPdf',
   'ui.setUnsavedChanges',
 };
+
+/// שכבת תיקונים זמנית בקורא ללא כתיבה למקור הספר.
+const pluginReaderLocalEditPermission = 'reader.local_edit';
 
 /// קריאת רשימת שולחנות העבודה ושמותיהם. נפרדת מהניהול, כי השם עצמו הוא
 /// תוכן אישי: הוא מסגיר מה המשתמש לומד. מטעם זה `key-workspaces` ו-
@@ -327,6 +335,7 @@ const pluginValidPermissions = <String>[
 
   /// הוספה וניהול של הדגשות צבעוניות בטקסט
   'reader.highlight',
+  pluginReaderLocalEditPermission,
 
   // ===== ניווט =====
   /// מעבר בין מסכים באפליקציה

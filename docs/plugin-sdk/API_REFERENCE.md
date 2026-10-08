@@ -188,6 +188,11 @@ if (response.success) {
 | `reader.getHighlightCapabilities` | 0.9.97 |
 | `reader.findTextOccurrences` | 0.9.95 |
 | `reader.getSectionTextMap` | 0.9.95 |
+| `reader.beginCorrectionSession` | 0.9.100 |
+| `reader.getCorrectionSession` | 0.9.100 |
+| `reader.restoreCorrectionDraft` | 0.9.100 |
+| `reader.resetCorrection` | 0.9.100 |
+| `reader.endCorrectionSession` | 0.9.100 |
 | `reader.registerInBookSearchProvider` | 0.9.97 |
 | `reader.respondInBookSearch` | 0.9.97 |
 | `reader.registerExternalSearchProvider` | 0.9.97 |
@@ -2090,6 +2095,106 @@ if (data.hasMore) {
 - `lenient` — מוסיף הסרת פיסוק ואיחוד אותיות סופיות.
 
 ה־cursor קשור לספר, למקטע, לשכבה, לשאילתה, לפרופיל ול־hash של הטקסט. שימוש בו לאחר שינוי אחד מהם מחזיר `error.invalid_params`. מקטע מעל 50,000 grapheme clusters מחזיר `error.section_too_large`.
+
+### `reader.beginCorrectionSession`
+
+**גרסת מינימום:** `0.9.100`. **הרשאה:** `reader.local_edit` לכל פעולות הסשן.
+
+פותחת שכבת תיקונים זמנית בלשונית טקסט רשמית ממסד הספרייה, בקורא הרגיל בלבד.
+צורת הדף, תצוגה מפוצלת וקורא תוסף אינם נתמכים. פתיחת הסשן מפעילה שדות עריכה
+מובנים (`RtlTextField`) בפסקאות פשוטות בקורא הרגיל והרציף. השדות מציגים את
+המקור הגולמי ללא עיבודי פרופיל תצוגה בזמן העריכה, בסגנון הקורא הרגיל.
+אוצריא אינה כותבת לספר, לקובץ המקור או למסד הספרייה.
+
+```javascript
+const { data: state } = await Otzaria.call('reader.getCurrentState');
+const { data: session } = await Otzaria.call('reader.beginCorrectionSession', {
+  tabId: state.currentTabId,
+});
+```
+
+מ־`0.9.100`, `getCurrentState` מחזירה `currentTabId` ו־`openTabs[].tabId`:
+מזהה יציב למשך חיי לשונית הטקסט, ו־`null` עבור לשוניות אחרות. המזהה אינו נשמר
+בין הפעלות. מעבר ללשונית אחרת אינו משנה את יעד הסשן. לכל לשונית בעלים יחיד;
+פתיחה חוזרת של אותו תוסף מחזירה את הסשן הקיים. תוסף אחר מקבל `error.correction_busy`.
+
+כל הפעולות מחזירות `CorrectionSessionSnapshot`: `sessionId`, `tabId`, `bookId`,
+`bookUid`, `libraryVersion`, `revision`, `changes` ו־`capabilities`.
+כל שינוי כולל `sectionIndex` אפסי, `originalSourceText`, `originalText` ו־`proposedText`.
+בפסקאות הנתמכות הטקסט העריך זהה למקור הגולמי, והיסטים נמדדים ביחידות UTF-16.
+HTML, ישויות HTML, מעברי שורה ו־surrogates פגומים נדחים; אין שינוי גבולות פסקה.
+פסקת מקור ריקה אינה ניתנת לעריכה בתוך הקורא. בקריאה רציפה יש שדה נפרד לכל
+פסקת מקור נתמכת, ואינדקסי המקור נשמרים.
+
+היכולות הן `plainTextOnly: true`, `paragraphBoundaries: false`, `offsetUnit: 'utf16'`,
+`maxChanges: 500`, `maxTextLength: 20000` ו־`maxChangesBytes: 1048576`.
+מגבלת הבתים מתייחסת לסכום ייצוגי JSON של השינויים ב־UTF-8, ללא מעטפת הסשן.
+יכולות התצוגה הן `sourceSelection: false`,
+`sourceAnchorsOnCorrectedParagraphs: false`, `continuousReading: true`,
+`pageShape: false` ו־`splitView: false`.
+
+פסקאות מתוקנות שומרות את אינדקסי המקור לצורך ניווט. אין עליהן קישורים,
+הערות, הדגשות תוסף או הדגשות חיפוש
+המבוססים על היסטים במקור. מעקב המקור נשאר ביחס לנוסח הרשמי.
+כל עוד הסשן פעיל בלשונית, `reader.getSelection` מחזירה
+`error.unsupported_context`. תפריט הבחירה המובנה מאפשר העתקה בלבד,
+כטקסט פשוט של הנוסח המוצע; אין להשתמש בבחירה כעוגן למקור.
+
+`reader.getSectionTextMap` עם `layer: 'source'` וללא בקשת מפת מקור ממשיכה להחזיר
+את המקור הרשמי. `layer: 'rendered'`, `layer: 'both'` ובקשות `includeSourceMap`
+מחזירות `error.unsupported_context` כל עוד יש סשן פעיל באחת הלשוניות של אותו ספר.
+גם `reader.findTextOccurrences` בשכבת rendered אינה זמינה באותו מצב;
+חיפוש וקריאת source נשארים ביחס למקור הרשמי.
+
+### `reader.getCorrectionSession`
+
+**הרשאה:** `reader.local_edit`. מקבלת `{ sessionId }` ומחזירה snapshot מלא ועקבי.
+רק התוסף המאומת שפתח את הסשן יכול לקרוא אותו. כל שינוי טקסט שהתקבל בשדה
+המובנה מסנכרן את הסשן מיד ומעלה revision. ה־snapshot כולל את הטקסט האחרון
+גם כשהשדה עדיין ממוקד או במהלך composition; אין צורך להוציא ממנו את המיקוד.
+
+### `reader.restoreCorrectionDraft`
+
+**הרשאה:** `reader.local_edit`. מקבלת
+`{ sessionId, bookUid, libraryVersion, expectedRevision, changes }`.
+מחליפה את **כל** הטיוטה אטומית, לאחר אימות הגרסה וכל פסקאות המקור. `changes: []`
+מנקה את כל התיקונים וגם מאמתת גרסה והרשאה. פסקה שלא נכללה חוזרת למקור;
+הצעה זהה למקור אינה נשמרת כשינוי. כשל אימות אינו מחיל אף פסקה.
+
+התוסף חייב לשמור את הטיוטה באחסון שלו **לפני** הקריאה: הסשנים בזיכרון בלבד.
+`expectedRevision` חייב להתאים ל־snapshot האחרון; שינוי בפועל מעלה `revision`.
+גרסה ישנה מחזירה `error.revision_conflict`; מקור או גרסת ספרייה שהשתנו מחזירים
+`error.source_changed`. בעלים שגוי או סשן שהסתיים מחזירים `error.not_found`.
+קלט פגום מחזיר `error.invalid_params`, תוכן או הקשר שאינם נתמכים מחזירים
+`error.unsupported_context`, וחריגה ממגבלה מחזירה `error.limit_exceeded`.
+
+### `reader.resetCorrection`
+
+**הרשאה:** `reader.local_edit`. מקבלת `{ sessionId, sectionIndex, expectedRevision }`,
+מסירה תיקון לפסקה ומחזירה snapshot. פסקה ללא תיקון אינה משנה את `revision`.
+
+### `reader.endCorrectionSession`
+
+**הרשאה:** `reader.local_edit`. מקבלת `{ sessionId, expectedRevision }`, מחזירה את
+ה־snapshot האחרון ומסירה את הסשן ושכבת התצוגה. אינה שולחת דיווח או מוחקת
+טיוטה באחסון התוסף. יש לשמור טיוטה לפני סיום; שליחה נעשית בנפרד באמצעות
+`feedback.submitBookCorrection` ובהרשאת `feedback.send_email`.
+
+### Event: `reader.correctionSessionChanged`
+
+אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.100`.
+כולל `{ sessionId, revision, sectionIndex? }`; מבקש מהתוסף למשוך snapshot,
+ואינו מחליף קריאת מצב מלא. כל שינוי מתקבל בעורך המובנה מפיק אירוע עם
+`sectionIndex`; גם איפוס פסקה מצרף אותו. restore אטומי יכול להשמיט את האינדקס.
+
+### Event: `reader.correctionSessionEnded`
+
+אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.100`.
+כולל `{ sessionId, reason, snapshot }`; הסיבות הן `explicit`, `tab_closed`
+ו־`plugin_unavailable`. סגירת לשונית, הסרת תוסף, השבתתו או ביטול הרשאה מנקים
+סשנים. האירוע אינו הבטחת התמדה: תוסף שכבר נסגר או הושבת עשוי שלא לקבל אותו.
+`snapshot` הוא המצב האחרון, כולל ההקלדה האחרונה. התוסף אחראי לשמירה שוטפת,
+לשחזור ולשליחה; אין אחסון התאוששות נוסף בצד אוצריא.
 
 ### `reader.getSectionTextMap`
 **הרשאה:** `reader.open`
@@ -5472,6 +5577,10 @@ await Otzaria.call('reader.addContextMenuItem', {
 - אפשר להגדיר `onClickEvent` או `onColorClickEvent` כאירוע מותאם אישית
 
 **פעולה ללא סימון — `reader-book` (מ־`0.9.99`):**
+מ־`0.9.100`, `selection.tabId` מזהה את לשונית הטקסט המדויקת שממנה נפתח התפריט,
+גם כשאותו ספר פתוח בכמה לשוניות או בחלוניות מפוצלות. מעבירים אותו ישירות ל־
+`reader.beginCorrectionSession`; אין לבחור לשונית לפי כותרת הספר או לפי הלשונית
+הפעילה לאחר פתיחת התוסף. השדה יכול להיעדר בתצוגה מקדימה שאינה מחוברת ללשונית.
 אפשר לרשום `contexts: ['reader-book']` להצגת פעולה בלחיצה ימנית ללא סימון, בשני קוראי הטקסט: הקורא הרגיל וקורא צורת הדף. ה־payload כולל את זהות הספר ואת `sectionIndex` ו־`currentIndex` של הפסקה שנלחצה. בשדה `selection`, הערך `text` הוא מחרוזת ריקה, `start` ו־`end` הם `null`, ואין `sourceRange`. ברירות המחדל של פריט ללא `contexts` נשארות שני הקשרי הבחירה; ילדים ללא `contexts` יורשים את הקשרי האב גם עבור `reader-book`.
 
 **בחירה חוצת־פסקאות — `selection.sections` (מ-`0.9.97`):**

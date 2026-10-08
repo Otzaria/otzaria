@@ -120,6 +120,7 @@ import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_store_link_parser.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/plugins/services/plugin_book_correction_service.dart';
+import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/services/data_collection_service.dart';
@@ -2876,6 +2877,9 @@ class PluginBridgeAdapter {
               : (t is PdfBookTab ? t.book : null);
           return {
             'toolId': t is ToolTab ? t.toolId : null,
+            'tabId': t is TextBookTab
+                ? PluginCorrectionSessionService.tabIdFor(t)
+                : null,
             'isSelf':
                 t is ToolTab &&
                 t.toolId == plugin.pluginId &&
@@ -2900,6 +2904,7 @@ class PluginBridgeAdapter {
         if (currentPane == null) {
           return {
             'currentBook': null,
+            'currentTabId': null,
             'currentBookId': null,
             'bookUid': null,
             'currentId': null,
@@ -2916,6 +2921,9 @@ class PluginBridgeAdapter {
             : (currentPane is PdfBookTab ? currentPane.book : null);
         return {
           'currentBook': currentPane.title,
+          'currentTabId': currentPane is TextBookTab
+              ? PluginCorrectionSessionService.tabIdFor(currentPane)
+              : null,
           'currentBookId': currentPane.title,
           'bookUid': currentPaneBook != null
               ? PluginBookIdentity.uidOf(currentPaneBook)
@@ -3004,12 +3012,31 @@ class PluginBridgeAdapter {
         }
       case 'getSelection':
         final currentPane = _dependencies.tabsBloc.state.readingPane;
+        if (currentPane is TextBookTab &&
+            PluginCorrectionSessionService.instance.hasSessionForTab(
+              PluginCorrectionSessionService.tabIdFor(currentPane),
+            )) {
+          throw const PluginCorrectionException(
+            'error.unsupported_context',
+            'בחירה בנוסח מתוקן אינה ניתנת למיפוי בטוח למקור.',
+          );
+        }
         final snapshot = await resolveReaderLocation(currentPane);
         return _buildCurrentSelection(currentPane, snapshot?.currentRef);
       case 'findTextOccurrences':
         return _findTextOccurrences(args);
       case 'getSectionTextMap':
         return _getSectionTextMap(args);
+      case 'beginCorrectionSession':
+        return _beginCorrectionSession(args);
+      case 'getCorrectionSession':
+        return _correctionSessionAction(action, args);
+      case 'restoreCorrectionDraft':
+        return _correctionSessionAction(action, args);
+      case 'resetCorrection':
+        return _correctionSessionAction(action, args);
+      case 'endCorrectionSession':
+        return _correctionSessionAction(action, args);
       case 'addContextMenuItem':
         ContextMenuRegistry.instance.registerPayload(
           plugin.pluginId,
@@ -3300,6 +3327,16 @@ class PluginBridgeAdapter {
         'bookId, sectionIndex, and query are required',
       );
     }
+    if (layer == 'rendered' &&
+        PluginCorrectionSessionService.instance.hasSessionForBook(
+          bookId,
+          args['bookUid'] is String ? args['bookUid'] as String : null,
+        )) {
+      throw const PluginCorrectionException(
+        'error.unsupported_context',
+        'חיפוש בנוסח המתוקן אינו ניתן למיפוי בטוח למקור.',
+      );
+    }
     final section = await _loadPluginTextSection(
       bookId,
       sectionIndex,
@@ -3422,6 +3459,202 @@ class PluginBridgeAdapter {
     );
   }
 
+  TextBookTab _correctionTab(String id) {
+    for (final tab in _dependencies.tabsBloc.state.tabs.expand(leafPanes)) {
+      if (tab is TextBookTab &&
+          PluginCorrectionSessionService.tabIdFor(tab) == id) {
+        return tab;
+      }
+    }
+    throw const PluginCorrectionException(
+      'error.not_found',
+      'לשונית הספר אינה פתוחה.',
+    );
+  }
+
+  void _requireCorrectionContext(TextBookTab tab) {
+    final state = tab.bloc.state;
+    if (state is! TextBookLoaded ||
+        state.showPageShapeView ||
+        state.showSplitView ||
+        PluginTextReaderRegistry.instance.usesPlugin(tab) ||
+        !tab.book.isOfficialLibraryBook ||
+        tab.book.id == null ||
+        tab.book.versionTitle != null) {
+      throw const PluginCorrectionException(
+        'error.unsupported_context',
+        'תיקונים מקומיים נתמכים בקורא הטקסט הרגיל של ספר רשמי בלבד.',
+      );
+    }
+  }
+
+  Future<void> _requireCorrectionPermission() async {
+    if (!plugin.enabled ||
+        !(await _getGrantedPermissions()).contains('reader.local_edit')) {
+      throw const PluginCorrectionException(
+        'error.permission_denied',
+        'חסרה הרשאת תיקון מקומי.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> _beginCorrectionSession(
+    Map<String, dynamic> args,
+  ) async {
+    if (args.length != 1 ||
+        args['tabId'] is! String ||
+        (args['tabId'] as String).isEmpty) {
+      throw const PluginCorrectionException(
+        'error.invalid_params',
+        'נדרש tabId של לשונית ספר.',
+      );
+    }
+    await _requireCorrectionPermission();
+    final id = args['tabId'] as String;
+    final tab = _correctionTab(id);
+    _requireCorrectionContext(tab);
+    final resolved = await BookDatabaseResolver.resolveBookById(tab.book.id!);
+    if (resolved == null ||
+        !resolved.source.isOfficial ||
+        resolved.book.isFileBacked) {
+      throw const PluginCorrectionException(
+        'error.unsupported_context',
+        'נדרש מקור במסד הספרייה הרשמי.',
+      );
+    }
+    final version = await DataCollectionService().readLibraryVersion();
+    if (version == 'unknown' || version.trim().isEmpty) {
+      throw const PluginCorrectionException(
+        'error.source_changed',
+        'גרסת הספרייה אינה מזוהה.',
+      );
+    }
+    await _requireCorrectionPermission();
+    if (!identical(_correctionTab(id), tab)) {
+      throw const PluginCorrectionException(
+        'error.not_found',
+        'לשונית הספר נסגרה.',
+      );
+    }
+    _requireCorrectionContext(tab);
+    return PluginCorrectionSessionService.instance.begin(
+      owner: plugin.pluginId,
+      tabId: id,
+      bookId: tab.book.title,
+      bookUid: PluginBookIdentity.uidOf(tab.book),
+      libraryVersion: version,
+      validateSource: () async {
+        final currentVersion = await DataCollectionService()
+            .readLibraryVersion();
+        if (currentVersion != version) {
+          throw const PluginCorrectionException(
+            'error.source_changed',
+            'גרסת הספרייה השתנתה.',
+          );
+        }
+        await _requireCorrectionPermission();
+        _requireCorrectionContext(_correctionTab(id));
+      },
+      loadSource: (index) async {
+        _requireCorrectionContext(_correctionTab(id));
+        final lines = await DbReadWorker.lines(
+          SqliteDataProvider.instance.dbPath,
+          resolved.book.id,
+          index,
+          index,
+        );
+        if (lines.length != 1) {
+          throw const PluginCorrectionException(
+            'error.not_found',
+            'פסקת המקור אינה קיימת.',
+          );
+        }
+        return lines.single.content;
+      },
+      onEvent: (topic, payload) {
+        final injected = _dependencies.dispatchEventToPlugin;
+        unawaited(
+          injected != null
+              ? injected(plugin.pluginId, topic, payload)
+              : PluginRuntimeDispatcher.instance.dispatchEventToPlugin(
+                  plugin.pluginId,
+                  topic,
+                  payload,
+                  preferBackground: true,
+                  resumeForegroundIfNeeded: true,
+                ),
+        );
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> _correctionSessionAction(
+    String action,
+    Map<String, dynamic> args,
+  ) async {
+    final keys = switch (action) {
+      'getCorrectionSession' => const {'sessionId'},
+      'restoreCorrectionDraft' => const {
+        'sessionId',
+        'expectedRevision',
+        'bookUid',
+        'libraryVersion',
+        'changes',
+      },
+      'resetCorrection' => const {
+        'sessionId',
+        'expectedRevision',
+        'sectionIndex',
+      },
+      _ => const {'sessionId', 'expectedRevision'},
+    };
+    if (args.keys.any((key) => !keys.contains(key)) ||
+        args['sessionId'] is! String ||
+        (action != 'getCorrectionSession' &&
+            args['expectedRevision'] is! int)) {
+      throw const PluginCorrectionException(
+        'error.invalid_params',
+        'נתוני הסשן אינם תקינים.',
+      );
+    }
+    await _requireCorrectionPermission();
+    final service = PluginCorrectionSessionService.instance;
+    final id = args['sessionId'] as String;
+    final owner = plugin.pluginId;
+    final snapshot = service.get(owner, id);
+    if (action == 'getCorrectionSession') return snapshot;
+    final revision = args['expectedRevision'] as int;
+    if (action == 'endCorrectionSession') {
+      return service.end(owner, id, revision);
+    }
+    _requireCorrectionContext(_correctionTab(snapshot['tabId'] as String));
+    if (action == 'resetCorrection') {
+      if (args['sectionIndex'] is! int) {
+        throw const PluginCorrectionException(
+          'error.invalid_params',
+          'נדרש אינדקס פסקה.',
+        );
+      }
+      return service.reset(owner, id, args['sectionIndex'] as int, revision);
+    }
+    if (args['bookUid'] is! String ||
+        args['libraryVersion'] is! String ||
+        args['changes'] is! List) {
+      throw const PluginCorrectionException(
+        'error.invalid_params',
+        'נדרשת טיוטה עם זהות מקור.',
+      );
+    }
+    return service.restore(
+      owner: owner,
+      id: id,
+      expectedRevision: revision,
+      bookUid: args['bookUid'] as String,
+      libraryVersion: args['libraryVersion'] as String,
+      changes: args['changes'] as List<dynamic>,
+    );
+  }
+
   Future<Map<String, dynamic>> _getSectionTextMap(
     Map<String, dynamic> args,
   ) async {
@@ -3453,6 +3686,16 @@ class PluginBridgeAdapter {
       throw const PluginSectionTextMapException(
         'error.unsupported_context',
         'DOM rectangles are not available in this SDK version',
+      );
+    }
+    if ((layer == 'rendered' || layer == 'both' || includeSourceMap) &&
+        PluginCorrectionSessionService.instance.hasSessionForBook(
+          bookId,
+          args['bookUid'] is String ? args['bookUid'] as String : null,
+        )) {
+      throw const PluginCorrectionException(
+        'error.unsupported_context',
+        'מיפוי הנוסח המתוקן אינו נתמך; יש לבקש את שכבת המקור.',
       );
     }
     final normalizeJson = _normalizationJson(
