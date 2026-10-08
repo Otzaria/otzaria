@@ -432,6 +432,10 @@ jobs:
     env:
       # MSBuild FileTracker still limits llama.cpp scratch paths to MAX_PATH.
       CARGOKIT_TEMP_DIR: D:/ck
+      # כמו בבניית ההפצה: בלי אלה MSBuild מקמפל קובץ C++ אחד בכל פעם.
+      UseMultiToolTask: 'true'
+      EnforceProcessCountAcrossBuilds: 'true'
+      CMAKE_BUILD_PARALLEL_LEVEL: '4'
     # מדידה מקומית: בנייה קרה 6 דקות. ראנר CI איטי יותר ומוסיף checkout,
     # setup ו-pub get. 30 נותן מרווח בלי לתת ל-job תקוע לשרוף שעה שלמה.
     # לכווץ אחרי הריצה הראשונה לפי הזמן שנמדד בפועל.
