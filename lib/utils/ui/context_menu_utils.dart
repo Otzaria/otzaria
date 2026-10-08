@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -407,7 +409,7 @@ class ContextMenuUtils {
       final settingsState = context.read<SettingsBloc>().state;
       if (!ensureCopyAllowed(
         await BookProtectionRepository.instance.forLink(link),
-        _linkSegmentCount(link),
+        linkSegmentCount(link),
       )) {
         return;
       }
@@ -485,10 +487,6 @@ class ContextMenuUtils {
     TextDisplayProfile displayProfile,
   ) => applyTextDisplayProfile(content, displayProfile);
 
-  /// שורות המקור שקטע מפרש מכסה (קישור-טווח מכסה כמה).
-  static int _linkSegmentCount(Link link) =>
-      (link.index2End ?? link.index2) - link.index2 + 1;
-
   /// העתקת טקסט מעוצב (HTML) ללוח
   /// [removeNikud] — "העתק בלי ניקוד" (issue #851): מסיר ניקוד וטעמים
   /// מהעותק בלבד, בלי לגעת בתצוגה.
@@ -522,7 +520,8 @@ class ContextMenuUtils {
       segmentCount ??
           (link == null
               ? countTextSegments(plainText)
-              : _linkSegmentCount(link)),
+              // בחירה חלקית בתוך קישור-טווח אינה מכסה את כל שורותיו.
+              : min(linkSegmentCount(link), countTextSegments(plainText))),
     )) {
       return;
     }
