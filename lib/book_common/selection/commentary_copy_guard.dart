@@ -67,9 +67,12 @@ class _CommentarySelectionTrackerState
     );
   }
 
+  // בלי SelectionArea מעל אין מה לעקוב, ומיכל בחירה יתום משנה את רינדור הטקסט.
   @override
   Widget build(BuildContext context) =>
-      SelectionListener(selectionNotifier: _notifier, child: widget.child);
+      SelectionContainer.maybeOf(context) == null
+      ? widget.child
+      : SelectionListener(selectionNotifier: _notifier, child: widget.child);
 
   @override
   void dispose() {
