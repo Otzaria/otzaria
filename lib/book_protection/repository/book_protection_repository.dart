@@ -39,6 +39,15 @@ class BookProtectionRepository {
     );
   }
 
+  /// ההגבלה של הספר [bookId] במסד של [source].
+  Future<BookProtection> forBookId(
+    int bookId, {
+    BookSource source = BookSource.official,
+  }) async {
+    final tables = await _tablesFor(source);
+    return tables == null ? BookProtection.none : _fromTables(tables, bookId);
+  }
+
   /// ההגבלה של ספר היעד של [link] (מפרש, קישור).
   Future<BookProtection> forLink(Link link) async {
     final source = link.targetSource;
@@ -50,9 +59,7 @@ class BookProtectionRepository {
         categoryId: link.targetCategoryId,
       );
     }
-    final tables = await _tablesFor(source);
-    if (tables == null) return BookProtection.none;
-    return _fromTables(tables, bookId);
+    return forBookId(bookId, source: source);
   }
 
   /// ההגבלה של הספר [title] במסד של [source]. עם [categoryId] נדרשת התאמה

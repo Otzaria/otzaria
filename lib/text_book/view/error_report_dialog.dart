@@ -110,8 +110,13 @@ class _DirectReportDetails extends StatelessWidget {
     return SizedBox(
       width: 560,
       child: AppSelectionArea(
-        protection: () =>
-            BookProtectionRepository.instance.forTitle(report.bookTitle),
+        // דיווח נשלח רק על ספר מהספרייה הרשמית; המזהה מדויק מהכותרת.
+        protection: () => switch (report.location?.bookId) {
+          final int bookId => BookProtectionRepository.instance.forBookId(
+            bookId,
+          ),
+          null => BookProtectionRepository.instance.forTitle(report.bookTitle),
+        },
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
