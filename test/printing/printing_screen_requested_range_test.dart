@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -140,6 +141,7 @@ void main() {
     );
 
     expect(find.text('15 שורות נבחרו מתוך 20'), findsOneWidget);
+    expect(find.text(PdfMessages.printLimitedByPublisher(15)), findsOneWidget);
     await tester.tap(
       find.byWidgetPredicate((w) => w is AppDropdownField).first,
     );
