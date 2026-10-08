@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -41,7 +42,7 @@ Future<List<PrintBlock>> buildCommentaryPrintBlocks(
     var segments = 0;
     for (final link in group.links) {
       if (maxSegments != null) {
-        segments += (link.index2End ?? link.index2) - link.index2 + 1;
+        segments += linkSegmentCount(link);
         if (segments > maxSegments) break;
       }
       String text;

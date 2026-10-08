@@ -27,6 +27,7 @@ import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/printing/safer_print_service.dart';
 import 'package:otzaria/printing/view/slow_preview_hint.dart';
@@ -223,16 +224,16 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
   bool get _supportsWord =>
       widget.createPdfOverride == null &&
-      _effectiveProtection.allowsEditableExport;
+      _exportProtection.allowsEditableExport;
 
-  bool get _supportsPdf => _effectiveProtection.allowsPdfExport;
+  bool get _supportsPdf => _exportProtection.allowsPdfExport;
 
   BookProtection _mainProtection = BookProtection.none;
   Map<String, BookProtection> _commentatorProtection = const {};
   late final Future<void> _protectionReady;
 
-  /// ההגבלה המחמירה מבין הספר והמפרשים שנכללים בפלט.
-  BookProtection get _effectiveProtection {
+  /// ההגבלה המחמירה מבין הספר והמפרשים שנכללים בפלט — קובעת את יעדי השמירה.
+  BookProtection get _exportProtection {
     var result = _mainProtection;
     if (widget.prebuiltBlocks == null && _includeCommentaries) {
       for (final title in _selectedCommentators) {
@@ -244,9 +245,19 @@ class _PrintingScreenState extends State<PrintingScreen> {
     return result;
   }
 
-  /// סוף הטווח (בלעדי) אחרי מגבלת ההדפסה של המו"ל.
+  /// סוף הטווח (בלעדי) אחרי מגבלת ההדפסה של הספר עצמו; מפרש מוגבל נחתך
+  /// בנפרד, בקטעים שלו.
   int _limitPrintEnd(int start, int end) =>
-      _effectiveProtection.limitPrintEnd(start, end);
+      _mainProtection.limitPrintEnd(start, end);
+
+  /// מגבלת ההדפסה של מפרש שנכלל, ב-[_buildPrintBlocks].
+  int? _commentatorPrintLimit(String title) =>
+      _commentatorProtection[title]?.maxPrintSegments;
+
+  bool get _anyIncludedCommentatorLimited =>
+      widget.prebuiltBlocks == null &&
+      _includeCommentaries &&
+      _selectedCommentators.any((t) => _commentatorPrintLimit(t) != null);
 
   Future<void> _loadProtection() async {
     final repository = BookProtectionRepository.instance;
@@ -825,7 +836,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _includeCommentaries,
       (List.of(_selectedCommentators)..sort()).join("\u0000"),
       _includePersonalNotes,
-      _effectiveProtection.effectiveLevel,
+      _mainProtection.effectiveLevel,
+      identityHashCode(_commentatorProtection),
     ].join('|');
   }
 
@@ -1281,6 +1293,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final rangeLinks = _includeCommentaries
         ? await _loadLinksForPrintRange(selectedStart, selectedEnd)
         : <Link>[];
+    final printedSegments = <String, int>{};
 
     for (var i = selectedStart; i < selectedEnd; i++) {
       // הסרת HTML + ניקוד/טעמים + שמות קודש מוחלת כאן, על שורות הטווח הנבחר
@@ -1300,12 +1313,25 @@ class _PrintingScreenState extends State<PrintingScreen> {
           commentatorsToShow: _selectedCommentators,
         );
 
-        if (linksForLine.isNotEmpty) {
+        // מפרש עם מגבלת הדפסה נחתך לפי הקטעים שלו לאורך כל העבודה.
+        final printable = <Link>[];
+        for (final link in linksForLine) {
+          final title = getTitleFromPath(link.path2);
+          final limit = _commentatorPrintLimit(title);
+          if (limit != null) {
+            final used = (printedSegments[title] ?? 0) + linkSegmentCount(link);
+            if (used > limit) continue;
+            printedSegments[title] = used;
+          }
+          printable.add(link);
+        }
+
+        if (printable.isNotEmpty) {
           blocks.add({'kind': 'commentaryTitle', 'title': 'מפרשים'});
 
           // קיבוץ לפי מפרש (כמו בתצוגת PDF): כותרת לכל מפרש, ומתחתיה כל הקטעים שלו
           String? currentGroupTitle;
-          for (final link in linksForLine) {
+          for (final link in printable) {
             final commentatorTitle = getTitleFromPath(link.path2);
             if (currentGroupTitle != commentatorTitle) {
               currentGroupTitle = commentatorTitle;
@@ -1508,14 +1534,41 @@ class _PrintingScreenState extends State<PrintingScreen> {
     return trimmed;
   }
 
+  /// הערה קבועה מתחת לבחירת הטווח כשהמו"ל הגביל את ההדפסה.
+  Widget? _buildPrintLimitHint(ColorScheme colorScheme) {
+    final mainLimit = _mainProtection.maxPrintSegments;
+    final text = mainLimit != null
+        ? PdfMessages.printLimitedByPublisher(mainLimit)
+        : _anyIncludedCommentatorLimited
+        ? PdfMessages.commentaryPrintLimitedByPublisher(
+            BookProtection.printSegmentLimit,
+          )
+        : null;
+    if (text == null) return null;
+    return Padding(
+      padding: kPrintingRowPadding,
+      child: Text(
+        text,
+        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+      ),
+    );
+  }
+
   /// מבצע את הפעולה לפי היעד הנבחר: הדפסה למדפסת, או שמירה ל-PDF/Word.
   Future<void> _performDestinationAction(BuildContext context) async {
-    await _protectionReady;
+    try {
+      await _protectionReady;
+    } catch (error) {
+      debugPrint('Print protection lookup failed: $error');
+    }
     if (!mounted || !context.mounted) return;
     final requested = _destination;
     setState(_syncDestinationWithProtection);
     // יעד שנחסם אחרי הבחירה — הרשימה התעדכנה, והמשתמש יבחר שוב.
-    if (_destination != requested) return;
+    if (_destination != requested) {
+      UiSnack.show(PdfMessages.exportFormatRestrictedByPublisher);
+      return;
+    }
     switch (_destination) {
       case _PrintDestination.printer:
         final printed = await printPdfWithSaferMode(
@@ -2022,6 +2075,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                               isStart: false,
                                               totalLines: totalLines,
                                             ),
+                                            ?_buildPrintLimitHint(colorScheme),
                                             PrintingSwitchRow(
                                               label: 'כלול מפרשים',
                                               value: _includeCommentaries,

@@ -1,6 +1,14 @@
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/models/links.dart';
+
+/// שורות המקור שקטע של [link] מכסה (קישור-טווח מכסה כמה).
+int linkSegmentCount(Link link) =>
+    (link.index2End ?? link.index2) - link.index2 + 1;
+
+int linksSegmentCount(Iterable<Link> links) =>
+    links.fold(0, (sum, link) => sum + linkSegmentCount(link));
 
 /// מספר השורות בטקסט שנבחר, כשטווח השורות במקור אינו ידוע.
 int countTextSegments(String text) {
@@ -17,7 +25,9 @@ int selectionSegmentCount({int? start, int? end, required String text}) {
 /// האם מותר להעתיק [segmentCount] שורות; אחרת מציג הודעה ידידותית.
 bool ensureCopyAllowed(BookProtection protection, int segmentCount) {
   if (protection.allowsCopyOf(segmentCount)) return true;
-  UiSnack.show(TextBookMessages.copyRestrictedByPublisher);
+  UiSnack.show(
+    TextBookMessages.copyLimitedByPublisher(protection.maxCopySegments!),
+  );
   return false;
 }
 
