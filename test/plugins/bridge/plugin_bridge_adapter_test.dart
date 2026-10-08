@@ -1161,7 +1161,9 @@ Future<void> main() async {
       expect(sourceRange['occurrenceCountInSection'], 2);
     });
 
-    test('reader.getSelection בספר מוגן מחזיר רק חמש שורות', () async {
+    test('reader.getSelection בספר מוגן מחזיר רק עד המגבלה', () async {
+      const limit = BookProtection.copySegmentLimit;
+      final lines = [for (var i = 1; i <= limit + 2; i++) 'שורה $i'];
       final currentTab = TextBookTab(book: TextBook(title: 'מוגן'), index: 0);
       currentTab.bloc.emit(
         TextBookLoaded.initial(
@@ -1171,8 +1173,8 @@ Future<void> main() async {
           splitView: false,
         ).copyWith(
           protection: const BookProtection(level: 1),
-          content: const ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז'],
-          selectedTextForNote: 'א\nב\nג\nד\nה\nו\nז',
+          content: lines,
+          selectedTextForNote: lines.join('\n'),
         ),
       );
       tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
@@ -1181,7 +1183,7 @@ Future<void> main() async {
           await adapter.execute('reader', 'getSelection', {})
               as Map<String, dynamic>;
 
-      expect(data['text'], 'א\nב\nג\nד\nה');
+      expect(data['text'], lines.take(limit).join('\n'));
     });
 
     test('reader.getSectionTextMap בספר מוגן נחסם', () async {

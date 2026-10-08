@@ -26,8 +26,8 @@ class _FakeSettingsRepository extends Fake implements SettingsRepository {
   bool hasProtectedModePassword() => false;
 }
 
-/// ספר בן 20 שורות: כותרת ספר, ושלושה פרקים בשורות 1, 7 ו-12.
-const _bookText = [
+/// כותרת ספר ושלושה פרקים בשורות 1, 7 ו-12; פרק ג ארוך ממגבלת ההדפסה.
+final _bookText = [
   '<h1>תהילים</h1>',
   '<h2>פרק א</h2>',
   'א1',
@@ -41,14 +41,11 @@ const _bookText = [
   'ב3',
   'ב4',
   '<h2>פרק ג</h2>',
-  'ג1',
-  'ג2',
-  'ג3',
-  'ג4',
-  'ג5',
-  'ג6',
-  'ג7',
+  for (var i = 1; i <= BookProtection.printSegmentLimit - 5; i++) 'ג$i',
 ];
+
+String _selectedLabel(int count) =>
+    '$count שורות נבחרו מתוך ${_bookText.length}';
 
 final _toc = [
   TocEntry(text: 'תהילים', index: 0, level: 1),
@@ -131,25 +128,34 @@ void main() {
   ) async {
     await pumpScreen(tester, endLine: 12);
 
-    expect(find.text('11 שורות נבחרו מתוך 20'), findsOneWidget);
+    expect(find.text(_selectedLabel(11)), findsOneWidget);
     expect(find.text('פרק א'), findsWidgets);
     expect(find.text('פרק ב'), findsWidgets);
     await tester.pumpWidget(const SizedBox());
   }, skip: skip != null);
 
-  testWidgets('רמה 2 — הטווח נחתך ל-15 שורות ו"שמור ל-PDF" מוסתר', (
+  testWidgets('רמה 2 — הטווח נחתך למגבלה ו"שמור ל-PDF" מוסתר', (
     tester,
   ) async {
+    const limit = BookProtection.printSegmentLimit;
+    expect(_bookText.length - 1, greaterThan(limit));
     await pumpScreen(
       tester,
-      endLine: 20,
+      endLine: _bookText.length,
       protection: const BookProtection(level: 2),
     );
 
-    expect(find.text('15 שורות נבחרו מתוך 20'), findsOneWidget);
-    expect(find.text(PdfMessages.printLimitedByPublisher(15)), findsOneWidget);
+    expect(find.text(_selectedLabel(limit)), findsOneWidget);
+    expect(
+      find.text(PdfMessages.printLimitedByPublisher(limit)),
+      findsOneWidget,
+    );
+    // תצוגה מקדימה של כמה עמודים מוסיפה לפניו בורר עמודים.
     await tester.tap(
-      find.byWidgetPredicate((w) => w is AppDropdownField).first,
+      find.ancestor(
+        of: find.text('הדפס'),
+        matching: find.byWidgetPredicate((w) => w is AppDropdownField),
+      ),
     );
     // התצוגה המקדימה ממשיכה לרנדר ברקע, ולכן אין להמתין ל-pumpAndSettle.
     await tester.pump();
@@ -167,7 +173,7 @@ void main() {
     await pumpScreen(tester);
 
     // פרק א בלבד (שורות 1–6)
-    expect(find.text('6 שורות נבחרו מתוך 20'), findsOneWidget);
+    expect(find.text(_selectedLabel(6)), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   }, skip: skip != null);
   testWidgets(
