@@ -363,6 +363,8 @@ Future<void> _pump(
             .evaluate()
             .isNotEmpty,
   );
+  // מיכל הבחירה של כל מפרש נרשם ב-SelectionArea רק בפריים שאחרי הציור.
+  await tester.pump();
   expect(_selectionAreaFinder(), findsOneWidget);
 }
 
