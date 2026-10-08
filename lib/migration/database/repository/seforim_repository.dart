@@ -31,10 +31,12 @@ import '../sqlite3_utils.dart';
 
 part 'alt_toc_flat_index.dart';
 
-/// רמות הגבלת המו"ל ([levels]) והבאנרים ([banners]) לפי bookId.
+/// רמות הגבלת המו"ל ([levels]) והבאנרים ([banners]) לפי bookId, ו-[booksByTitle]
+/// — רק הספרים שבטבלאות, לאיתור לפי כותרת בלי שאילתה.
 typedef BookProtectionTables = ({
   Map<int, int> levels,
   Map<int, String> banners,
+  Map<String, List<({int id, int? categoryId})>> booksByTitle,
 });
 
 /// Repository class for accessing and manipulating the Seforim database.
@@ -936,14 +938,15 @@ class SeforimRepository {
     }
   }
 
-  /// מאלץ טעינה מחדש בקריאה הבאה — תוכן הטבלאות מוחלף בכל patch בלי שינוי סכמה.
-  void invalidateBookProtectionTables() => _protectionTables = null;
-
   Future<BookProtectionTables> _loadBookProtectionTables(
     DbCapabilities capabilities,
   ) async {
     if (!capabilities.hasBookProtection && !capabilities.hasBookBanners) {
-      return (levels: const <int, int>{}, banners: const <int, String>{});
+      return (
+        levels: const <int, int>{},
+        banners: const <int, String>{},
+        booksByTitle: const <String, List<({int id, int? categoryId})>>{},
+      );
     }
     final db = await _database.database;
     final levels = <int, int>{
@@ -960,7 +963,25 @@ class SeforimRepository {
           if (row['bookId'] is int && row['text'] is String)
             row['bookId'] as int: row['text'] as String,
     };
-    return (levels: levels, banners: banners);
+    // רק הספרים שבטבלאות — כדי שאיתור לפי כותרת ייעשה בזיכרון.
+    final booksByTitle = <String, List<({int id, int? categoryId})>>{};
+    if (levels.isNotEmpty || banners.isNotEmpty) {
+      final categoryColumn = capabilities.column('book', 'categoryId');
+      final idSources = [
+        if (capabilities.hasBookProtection)
+          'SELECT bookId FROM book_protection',
+        if (capabilities.hasBookBanners) 'SELECT bookId FROM book_banner',
+      ].join(' UNION ');
+      for (final row in db.select(
+        'SELECT id, title, $categoryColumn FROM book WHERE id IN ($idSources)',
+      )) {
+        booksByTitle.putIfAbsent(row['title'] as String, () => []).add((
+          id: row['id'] as int,
+          categoryId: row['categoryId'] as int?,
+        ));
+      }
+    }
+    return (levels: levels, banners: banners, booksByTitle: booksByTitle);
   }
 
   // --- Sources ---

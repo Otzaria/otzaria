@@ -726,9 +726,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     }
 
     // במקביל לטעינת התוכן, כדי שה-UI יקבל את ההגבלה כבר במצב ה-Loaded.
-    final protectionFuture = state is TextBookLoaded
-        ? Future.value((state as TextBookLoaded).protection)
-        : _protectionLoader(book);
+    // גם בטעינה-מחדש: הספרייה עשויה להתעדכן בינתיים.
+    final protectionFuture = _protectionLoader(book);
 
     // ספר שנפתח עם חיפוש פעיל (מתוצאות חיפוש או טאב משוחזר): מזינים ברקע את
     // תבנית ההדגשה מבוססת-האינדקס, במקביל לטעינת התוכן — כך הרינדור מדגיש
