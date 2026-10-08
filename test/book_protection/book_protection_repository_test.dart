@@ -83,6 +83,7 @@ void main() {
     final tables = await repository.getBookProtectionTables();
     expect(tables.levels, {protectedId: 2});
     expect(tables.banners, {bannerId: 'שורה\nב'});
+    expect(tables.booksByTitle.keys.toSet(), {'ספר מוגן', 'ספר עם באנר'});
   });
 
   test('טבלה שנוספה אחרי הטעינה הראשונה נקלטת', () async {
@@ -94,14 +95,25 @@ void main() {
     expect((await repository.getBookProtectionTables()).levels, {id: 1});
   });
 
-  test('תוכן שהוחלף בלי שינוי סכמה נקלט אחרי invalidate', () async {
-    final id = await insertBook('ספר');
+  test('ספר בשם זהה בקטגוריה אחרת אינו יורש את ההגבלה', () async {
+    final id = await insertBook('ספר מוגן');
     await createTables();
-    expect((await repository.getBookProtectionTables()).levels, isEmpty);
     final db = await database.database;
-    db.execute('INSERT INTO book_protection VALUES (?, 2)', [id]);
-    repository.invalidateBookProtectionTables();
-    expect((await repository.getBookProtectionTables()).levels, {id: 2});
+    db.execute('INSERT INTO book_protection VALUES (?, 1)', [id]);
+    final service = BookProtectionRepository.instance;
+
+    expect(
+      (await service.forTitle('ספר מוגן', categoryId: categoryId)).level,
+      1,
+    );
+    expect(
+      (await service.forTitle(
+        'ספר מוגן',
+        categoryId: categoryId + 1,
+      )).isProtected,
+      isFalse,
+    );
+    expect((await service.forTitle('ספר מוגן')).level, 1);
   });
 
   test('איתור לפי ספר, גרסה חלופית, קישור וכותרת', () async {

@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
-import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/book_source.dart';
@@ -13,26 +12,19 @@ import 'package:otzaria/utils/text/text_manipulation.dart'
 /// מאתר את הגבלת המו"ל והבאנר של ספר מתוך המסד שלו.
 ///
 /// רק הספרייה הרשמית ומסדים מצורפים נבדקים; ספר אישי — אין הגבלה. מזהי ספרים
-/// חופפים בין מסדים, ולכן כל חיפוש נעשה במסד של מקור הספר בלבד.
+/// חופפים בין מסדים, ולכן כל חיפוש נעשה במסד של מקור הספר בלבד. האיתור כולו
+/// בזיכרון, מתוך הטבלאות שנטענו פעם אחת לכל מסד.
 class BookProtectionRepository {
   BookProtectionRepository._();
 
   static final BookProtectionRepository instance = BookProtectionRepository._();
-
-  static const int _maxMemoEntries = 4000;
-
-  /// מפתח: מקור + כותרת + קטגוריה; נשמר יחד עם מפת הרמות שממנה חושב.
-  final Map<String, (Map<int, int>, Future<BookProtection>)> _memo = {};
 
   /// מחליף את איתור המסד לפי מקור — לבדיקות בלבד.
   @visibleForTesting
   Future<SeforimRepository?> Function(BookSource source)? debugRepositoryFor;
 
   @visibleForTesting
-  void debugReset() {
-    _memo.clear();
-    debugRepositoryFor = null;
-  }
+  void debugReset() => debugRepositoryFor = null;
 
   /// ההגבלה של [book]. גרסה חלופית (versionTitle) חולקת את כותרת הספר הראשי.
   Future<BookProtection> forBook(Book book) {
@@ -44,7 +36,6 @@ class BookProtectionRepository {
       book.title,
       source: book.source,
       categoryId: book.categoryId,
-      fileType: book.fileType,
     );
   }
 
@@ -57,7 +48,6 @@ class BookProtectionRepository {
         getTitleFromPath(link.path2),
         source: source,
         categoryId: link.targetCategoryId,
-        fileType: link.targetFileType,
       );
     }
     final tables = await _tablesFor(source);
@@ -65,43 +55,23 @@ class BookProtectionRepository {
     return _fromTables(tables, bookId);
   }
 
-  /// ההגבלה של הספר [title] במסד של [source].
+  /// ההגבלה של הספר [title] במסד של [source]. עם [categoryId] נדרשת התאמה
+  /// מדויקת — ספר בשם זהה בקטגוריה אחרת הוא ספר אחר.
   Future<BookProtection> forTitle(
     String title, {
     BookSource source = BookSource.official,
     int? categoryId,
-    String? fileType,
   }) async {
-    if (source.isUser || title.trim().isEmpty) return BookProtection.none;
-    try {
-      final repository = await _repositoryFor(source);
-      if (repository == null) return BookProtection.none;
-      final tables = await repository.getBookProtectionTables();
-      if (tables.levels.isEmpty && tables.banners.isEmpty) {
-        return BookProtection.none;
+    if (title.trim().isEmpty) return BookProtection.none;
+    final tables = await _tablesFor(source);
+    final candidates = tables?.booksByTitle[title];
+    if (tables == null || candidates == null) return BookProtection.none;
+    for (final candidate in candidates) {
+      if (categoryId == null || candidate.categoryId == categoryId) {
+        return _fromTables(tables, candidate.id);
       }
-      final key = '${source.wireKey}|$categoryId|$title';
-      final cached = _memo[key];
-      if (cached != null && identical(cached.$1, tables.levels)) {
-        return await cached.$2;
-      }
-      if (_memo.length >= _maxMemoEntries) _memo.clear();
-      final future = _resolveByTitle(
-        repository,
-        tables,
-        source,
-        title,
-        categoryId,
-        fileType,
-      );
-      _memo[key] = (tables.levels, future);
-      return await future;
-    } catch (error, stackTrace) {
-      debugPrint(
-        'BookProtection lookup failed for $title: $error\n$stackTrace',
-      );
-      return BookProtection.none;
     }
+    return BookProtection.none;
   }
 
   /// ההגבלה המחמירה מבין [titles] (למשל מפרשים שנכללים בהדפסה).
@@ -127,26 +97,6 @@ class BookProtectionRepository {
       result = result.strictest(await forLink(link));
     }
     return BookProtection(level: result.level);
-  }
-
-  Future<BookProtection> _resolveByTitle(
-    SeforimRepository repository,
-    BookProtectionTables tables,
-    BookSource source,
-    String title,
-    int? categoryId,
-    String? fileType,
-  ) async {
-    final record = await BookDatabaseResolver.resolveBookInCandidates(
-      title: title,
-      candidates: [
-        ResolvedBookRepositoryCandidate(repository: repository, source: source),
-      ],
-      categoryId: categoryId,
-      fileType: fileType,
-    );
-    if (record == null) return BookProtection.none;
-    return _fromTables(tables, record.book.id);
   }
 
   Future<BookProtectionTables?> _tablesFor(BookSource source) async {
