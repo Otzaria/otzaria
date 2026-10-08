@@ -33,6 +33,10 @@ TextBookLoaded _state(BookProtection protection) => TextBookLoaded(
   searchMode: SearchMode.exact,
 );
 
+const _copyLimit = BookProtection.copySegmentLimit;
+
+List<String> _lines(int count) => [for (var i = 1; i <= count; i++) 'שורה $i'];
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -49,17 +53,18 @@ void main() {
     });
 
     test('limitTextToCopySegments שומר רק את השורות המותרות', () {
-      const text = 'א\nב\nג\nד\nה\nו\nז';
+      final text = _lines(_copyLimit + 2).join('\n');
       expect(
         limitTextToCopySegments(const BookProtection(level: 1), text),
-        'א\nב\nג\nד\nה',
+        _lines(_copyLimit).join('\n'),
       );
       expect(limitTextToCopySegments(BookProtection.none, text), text);
     });
 
-    test('ensureCopyAllowed חוסם מעל 5 שורות בספר מוגן', () {
-      expect(ensureCopyAllowed(const BookProtection(level: 1), 5), isTrue);
-      expect(ensureCopyAllowed(const BookProtection(level: 1), 6), isFalse);
+    test('ensureCopyAllowed חוסם מעל המגבלה בספר מוגן', () {
+      const p = BookProtection(level: 1);
+      expect(ensureCopyAllowed(p, _copyLimit), isTrue);
+      expect(ensureCopyAllowed(p, _copyLimit + 1), isFalse);
       expect(ensureCopyAllowed(BookProtection.none, 600), isTrue);
     });
   });
@@ -78,11 +83,11 @@ void main() {
       BookProtection stateProtection, {
       BookProtection? protection,
       int? segmentCount,
-      String text = 'א\nב\nג\nד\nה\nו',
+      String? text,
     }) => copySelectedTextForBook(
-      plainText: text,
+      plainText: text ?? _lines(_copyLimit + 1).join('\n'),
       selectedIndex: 0,
-      sourceContent: const ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז'],
+      sourceContent: _lines(_copyLimit + 2),
       textBookState: _state(stateProtection),
       settingsState: SettingsState.initial().copyWith(copyWithHeaders: 'none'),
       fontFamily: 'x',
@@ -91,16 +96,16 @@ void main() {
       segmentCount: segmentCount,
     );
 
-    test('ספר מוגן — 6 שורות נחסמות והלוח לא נדרס', () async {
-      await copy(const BookProtection(level: 1), segmentCount: 6);
+    test('ספר מוגן — שורה מעל המגבלה נחסמת והלוח לא נדרס', () async {
+      await copy(const BookProtection(level: 1), segmentCount: _copyLimit + 1);
       expect(copied, isEmpty);
     });
 
-    test('ספר מוגן — עד 5 שורות מועתקות', () async {
+    test('ספר מוגן — עד המגבלה מועתק', () async {
       await copy(
         const BookProtection(level: 2),
-        segmentCount: 5,
-        text: 'א\nב\nג\nד\nה',
+        segmentCount: _copyLimit,
+        text: _lines(_copyLimit).join('\n'),
       );
       expect(copied, hasLength(1));
     });
@@ -119,7 +124,7 @@ void main() {
       await copy(
         BookProtection.none,
         protection: const BookProtection(level: 1),
-        segmentCount: 6,
+        segmentCount: _copyLimit + 1,
       );
       expect(copied, isEmpty);
     });

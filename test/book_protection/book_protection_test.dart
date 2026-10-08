@@ -13,35 +13,40 @@ void main() {
       expect(p.allowsCopyOf(1000), isTrue);
     });
 
-    test('רמה 1 — בלי ייצוא לעריכה, PDF והדפסה חופשיים, העתקה עד 5', () {
+    test('רמה 1 — בלי ייצוא לעריכה, PDF והדפסה חופשיים, העתקה מוגבלת', () {
       const p = BookProtection(level: 1);
+      const limit = BookProtection.copySegmentLimit;
       expect(p.allowsEditableExport, isFalse);
       expect(p.allowsPdfExport, isTrue);
       expect(p.maxPrintSegments, isNull);
-      expect(p.maxCopySegments, 5);
-      expect(p.allowsCopyOf(5), isTrue);
-      expect(p.allowsCopyOf(6), isFalse);
+      expect(p.maxCopySegments, limit);
+      expect(p.allowsCopyOf(limit), isTrue);
+      expect(p.allowsCopyOf(limit + 1), isFalse);
     });
 
-    test('רמה 2 — גם בלי PDF, והדפסה עד 15', () {
+    test('רמה 2 — גם בלי PDF, והדפסה מוגבלת', () {
       const p = BookProtection(level: 2);
       expect(p.allowsEditableExport, isFalse);
       expect(p.allowsPdfExport, isFalse);
-      expect(p.maxPrintSegments, 15);
-      expect(p.maxCopySegments, 5);
+      expect(p.maxPrintSegments, BookProtection.printSegmentLimit);
+      expect(p.maxCopySegments, BookProtection.copySegmentLimit);
     });
 
     test('רמה לא מוכרת מעל 2 נחשבת למחמירה ביותר', () {
       const p = BookProtection(level: 7);
       expect(p.effectiveLevel, BookProtection.maxKnownLevel);
       expect(p.allowsPdfExport, isFalse);
-      expect(p.maxPrintSegments, 15);
+      expect(p.maxPrintSegments, BookProtection.printSegmentLimit);
     });
 
     test('limitPrintEnd חותך רק ברמה 2', () {
+      const limit = BookProtection.printSegmentLimit;
+      const p2 = BookProtection(level: 2);
       expect(const BookProtection(level: 1).limitPrintEnd(10, 100), 100);
-      expect(const BookProtection(level: 2).limitPrintEnd(10, 100), 25);
-      expect(const BookProtection(level: 2).limitPrintEnd(10, 20), 20);
+      expect(p2.limitPrintEnd(10, 100), 10 + limit);
+      expect(p2.limitPrintEnd(10, 10 + limit), 10 + limit);
+      expect(p2.limitPrintEnd(10, 10 + limit + 1), 10 + limit);
+      expect(p2.limitPrintEnd(10, 20), 20);
     });
 
     test('strictest בוחר את הרמה הגבוהה ושומר את הבאנר של this', () {
