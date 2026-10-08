@@ -104,7 +104,7 @@ dependencies:
   seforim_library_updater:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
-      ref: e19880621773a289424ac33d400d48cb879f436a
+      ref: 33d3d2c11776012687a77552c2d19119cc4dc707
   window_manager: ^0.5.2
   screen_retriever: ^0.2.2
   flutter_spinbox: ^0.13.1
@@ -266,7 +266,6 @@ flutter:
     - assets/dictionary.json
     - assets/Acronyms.json
     - assets/support_organizations.json
-    - assets/export_restricted_books.json
     # זהות המודל הסמנטי (model.json מ-otzaria-semantic-search)
     - assets/semantic/meivin-round2-onnx/
 

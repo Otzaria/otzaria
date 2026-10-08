@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
@@ -33,6 +34,13 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
+  // טור המפרש מאתר את הגבלת המו"ל במסד; IO אמיתי נתקע תחת FakeAsync.
+  setUp(
+    () =>
+        BookProtectionRepository.instance.debugRepositoryFor = (_) async =>
+            null,
+  );
+  tearDown(BookProtectionRepository.instance.debugReset);
   tearDown(UiSnack.hide);
 
   testWidgets('Ctrl+C ממפרש ממשיך לעבוד אחרי לחיצה ימנית על הבחירה', (

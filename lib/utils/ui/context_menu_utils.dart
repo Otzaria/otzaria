@@ -1,7 +1,12 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
@@ -209,6 +214,7 @@ class ContextMenuUtils {
           source: link.targetSource,
           index: link.index2 - 1,
           selectedText: savedSelectedText,
+          protection: () => BookProtectionRepository.instance.forLink(link),
         ),
       );
     }
@@ -381,6 +387,12 @@ class ContextMenuUtils {
   }) async {
     try {
       final settingsState = context.read<SettingsBloc>().state;
+      if (!ensureCopyAllowed(
+        await BookProtectionRepository.instance.forLink(link),
+        linkSegmentCount(link),
+      )) {
+        return;
+      }
 
       final content = await link.content;
       if (content.trim().isEmpty) {
@@ -458,6 +470,8 @@ class ContextMenuUtils {
   /// העתקת טקסט מעוצב (HTML) ללוח
   /// [removeNikud] — "העתק בלי ניקוד" (issue #851): מסיר ניקוד וטעמים
   /// מהעותק בלבד, בלי לגעת בתצוגה.
+  /// [protection]/[segmentCount] — לבחירה החוצה כמה מפרשים ([link] null);
+  /// אחרת נגזרים מ-[link].
   static Future<void> copyFormattedText({
     required BuildContext context,
     required String? savedSelectedText,
@@ -466,6 +480,8 @@ class ContextMenuUtils {
     bool removeNikud = false,
     TextDisplayProfile? copyProfile,
     bool plainTextOnly = false,
+    BookProtection? protection,
+    int? segmentCount,
   }) async {
     final plainText = savedSelectedText;
 
@@ -473,6 +489,23 @@ class ContextMenuUtils {
       UiSnack.show(CommonMessages.noTextSelected);
       return;
     }
+
+    final resolvedProtection =
+        protection ??
+        (link == null
+            ? BookProtection.none
+            : await BookProtectionRepository.instance.forLink(link));
+    if (!ensureCopyAllowed(
+      resolvedProtection,
+      segmentCount ??
+          (link == null
+              ? countTextSegments(plainText)
+              // בחירה חלקית בתוך קישור-טווח אינה מכסה את כל שורותיו.
+              : min(linkSegmentCount(link), countTextSegments(plainText))),
+    )) {
+      return;
+    }
+    if (!context.mounted) return;
 
     try {
       final clipboard = SystemClipboard.instance;
@@ -493,6 +526,8 @@ class ContextMenuUtils {
             removeNikud: removeNikud,
             copyProfile: copyProfile,
             plainTextOnly: plainTextOnly,
+            protection: resolvedProtection,
+            segmentCount: 1,
           );
           return;
         }

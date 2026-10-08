@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -191,6 +192,9 @@ class TextBookLoaded extends TextBookState {
   final List<TocEntry> tableOfContents;
   final bool isTanach;
 
+  /// הגבלת המו"ל והבאנר של הספר, מהמסד שלו.
+  final BookProtection protection;
+
   /// שכבות תצוגת הטקסט, מהספציפי לכללי: עקיפות זמניות של הכרטיסייה, קובץ
   /// ההגדרות של הספר, והמדיניות הגלובלית כפי שנטענה. ראה [displayProfile].
   final TextDisplayLayer displayOverrides;
@@ -288,6 +292,7 @@ class TextBookLoaded extends TextBookState {
     bool? removeNikud,
     bool removePunctuation = false,
     this.isTanach = false,
+    this.protection = BookProtection.none,
     bool nikudExemptByTanach = false,
     bool punctuationExemptByTanach = false,
     bool? commentaryRemoveNikudOverride,
@@ -502,6 +507,7 @@ class TextBookLoaded extends TextBookState {
     bool? removeNikud,
     bool? removePunctuation,
     bool? isTanach,
+    BookProtection? protection,
     bool? nikudExemptByTanach,
     bool? punctuationExemptByTanach,
     bool? commentaryRemoveNikudOverride,
@@ -641,6 +647,7 @@ class TextBookLoaded extends TextBookState {
       linksByLine: linksByLine ?? this.linksByLine,
       tableOfContents: tableOfContents ?? this.tableOfContents,
       isTanach: isTanach ?? this.isTanach,
+      protection: protection ?? this.protection,
       displayOverrides: overrides,
       bookDisplayLayer: bookDisplayLayer ?? this.bookDisplayLayer,
       displayPolicy: policy,
@@ -747,6 +754,7 @@ class TextBookLoaded extends TextBookState {
     selectedLinkTypes,
     tableOfContents.length,
     isTanach,
+    protection,
     displayOverrides,
     bookDisplayLayer,
     displayPolicy,

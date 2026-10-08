@@ -5,6 +5,7 @@ import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
+import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_flat_items.dart';
@@ -23,6 +24,7 @@ import 'package:otzaria/pdf_book/utils/pdf_commentary_visibility.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
@@ -128,7 +130,8 @@ List<Link> pdfScopedCommentaryLinks({
 @visibleForTesting
 String pdfCommentaryItemKey(Link link) =>
     '${link.index1}_${link.path2}_${link.index2}'
-    '${link.targetSource.isOfficial ? '' : '|${link.targetSource.wireKey}'}';
+    '${link.targetSource.isOfficial ? '' : '|${link.targetSource.wireKey}'}'
+    '${link.index2End == null ? '' : '|end:${link.index2End}'}';
 
 /// מפתח ה-PageStorage של רשימת המפרשים. תלוי בבחירת המפרשים בלבד: הכללת
 /// העמוד או מצב הכיווץ יוצרת רשימה חדשה ומאבדת את מיקום הגלילה.
@@ -1017,12 +1020,43 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       : _savedSelectedText;
 
   /// העתקת טקסט מעוצב (HTML) ללוח
-  Future<void> _copyFormattedText() async {
+  Future<void> _copyFormattedText() => _copySelection(context, null);
+
+  /// מעתיק את הבחירה; בחירה החוצה כמה מפרשים (או "בחר הכול") כפופה להגבלה
+  /// המחמירה של המפרשים שבה.
+  Future<void> _copySelection(
+    BuildContext menuContext,
+    Link? fallbackLink, {
+    bool removeNikud = false,
+  }) async {
+    final spansItems = _selectionSpansMultipleItems();
+    final selectedLinks = selectedItemLinks(
+      _itemKeys,
+      _orderedLinks,
+      _getLinkKey,
+    );
+    final selectAll = _commentarySelectionDelegate.hasCurrentFullSelection;
+    final guard = await buildCommentaryCopyGuard(
+      selectAll ? _orderedLinks : selectedLinks,
+      selectAll: selectAll,
+      selectionOf: (link) => CommentarySelectionTracker.selectionIn(
+        _itemKeys[_getLinkKey(link)]!,
+      ),
+      renderSettings: RenderSettings.fromProfile(widget.displayProfile),
+    );
+    if (!menuContext.mounted) return;
     await ContextMenuUtils.copyFormattedText(
-      context: context,
+      context: menuContext,
       savedSelectedText: _restoreLineBreaks(_currentSelectedText),
       fontSize: widget.fontSize,
-      link: _selectionSpansMultipleItems() ? null : _lastSelectedLink,
+      link: spansItems
+          ? null
+          : _lastSelectedLink ??
+                fallbackLink ??
+                (selectedLinks.length == 1 ? selectedLinks.single : null),
+      removeNikud: removeNikud,
+      protection: guard.protection,
+      segmentCount: guard.segmentCount,
     );
   }
 
@@ -1047,23 +1081,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       copyDisplayProfile: widget.copyDisplayProfile,
       savedSelectedText: _currentSelectedText,
       onNavigateToLink: _navigateToLink,
-      onCopySelected: () => ContextMenuUtils.copyFormattedText(
-        context: menuCtx,
-        savedSelectedText: _restoreLineBreaks(_currentSelectedText),
-        fontSize: widget.fontSize,
-        link: _selectionSpansMultipleItems()
-            ? null
-            : (_lastSelectedLink ?? link),
-      ),
-      onCopySelectedWithoutNikud: () => ContextMenuUtils.copyFormattedText(
-        context: menuCtx,
-        savedSelectedText: _restoreLineBreaks(_currentSelectedText),
-        fontSize: widget.fontSize,
-        link: _selectionSpansMultipleItems()
-            ? null
-            : (_lastSelectedLink ?? link),
-        removeNikud: true,
-      ),
+      onCopySelected: () => _copySelection(menuCtx, link),
+      onCopySelectedWithoutNikud: () =>
+          _copySelection(menuCtx, link, removeNikud: true),
     );
   }
 
@@ -1300,6 +1320,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       UiSnack.show(PdfMessages.noCommentariesToPrint);
       return;
     }
+    final protection = await BookProtectionRepository.instance
+        .strictestForLinks(groups.expand((group) => group.links));
     if (!mounted) return;
 
     final bookTitle = widget.tab.book.title;
@@ -1311,6 +1333,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         bookId: bookTitle,
         documentTitle: bookTitle,
         prebuiltBlocks: blocks,
+        protection: protection,
         activeCommentators: groups
             .map((group) => group.bookTitle)
             .toList(growable: false),

@@ -308,10 +308,12 @@ class PluginSearchApi {
   /// ממיר תוצאת מנוע ל-JSON של ה-SDK. [book] הוא הספר שזוהה לפי
   /// `filePath` של האינדקס — הוא שמאפשר להחזיר `id`/`source`, מה ש-
   /// `search.fullText` הישן לא ידע לעשות.
+  /// [textRestricted] — ספר עם הגבלת מו"ל: הטקסט מושמט והשורה מסומנת.
   static Map<String, dynamic> resultToJson(
     engine.SearchResult result,
     Book? book, {
     Map<String, Book> booksByPath = const {},
+    bool textRestricted = false,
   }) {
     // אינדקס שאינו מסונכרן ממפה את מפתח המסמך לספר אחר; עדיף להחזיר לתוסף
     // זהות ריקה מאשר לייחס לתוצאה את ה-id של ספר זר.
@@ -332,7 +334,8 @@ class PluginSearchApi {
       if (resolved != null)
         'categoryPath': FacetHelper.resolveCategoryPath(resolved),
       'reference': result.reference,
-      'text': result.text,
+      'text': textRestricted ? '' : result.text,
+      if (textRestricted) 'error': 'forbidden',
       'textStatus': result.textStatus.name,
       'continuesToNextLine': result.continuesToNextLine,
       'index': result.segment.toInt(),
