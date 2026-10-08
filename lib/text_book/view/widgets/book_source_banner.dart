@@ -21,11 +21,10 @@ typedef BannerSegment = ({String text, Uri? url});
 final _bannerLinkPattern = RegExp(r'\[([^\]\n]+)\]\(([^)\s]+)\)');
 
 /// מפרק את טקסט הבאנר מהמסד לשורות של קטעים. הסימון היחיד הוא
-/// `[תווית](כתובת)`; כתובת שאינה http/https/mailto נשארת טקסט.
-/// `\n` (אמיתי או מילולי) מפריד שורות.
+/// `[תווית](כתובת)`; כתובת שאינה http/https/mailto נשארת טקסט. שבירת שורה
+/// אמיתית מפרידה שורות.
 List<List<BannerSegment>> parseBannerText(String raw) => [
-  for (final line in raw.replaceAll(r'\n', '\n').split('\n'))
-    _parseBannerLine(line),
+  for (final line in raw.split('\n')) _parseBannerLine(line),
 ];
 
 List<BannerSegment> _parseBannerLine(String line) {
@@ -69,7 +68,9 @@ class BookSourceBanner extends StatefulWidget {
 
 class _BookSourceBannerState extends State<BookSourceBanner> {
   List<List<BannerSegment>> _lines = const [];
-  final Map<BannerSegment, TapGestureRecognizer> _recognizers = {};
+
+  /// מקביל ל-[_lines]; null לקטע שאינו קישור.
+  List<List<TapGestureRecognizer?>> _recognizers = const [];
 
   @override
   void initState() {
@@ -86,25 +87,29 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
   void _parse() {
     _disposeRecognizers();
     _lines = parseBannerText(widget.text);
-    for (final line in _lines) {
-      for (final segment in line) {
-        final uri = segment.url;
-        if (uri == null) continue;
-        _recognizers[segment] = TapGestureRecognizer()
-          ..onTap = () async {
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri);
-            }
-          };
-      }
-    }
+    _recognizers = [
+      for (final line in _lines)
+        [for (final segment in line) _recognizerFor(segment.url)],
+    ];
+  }
+
+  static TapGestureRecognizer? _recognizerFor(Uri? uri) {
+    if (uri == null) return null;
+    return TapGestureRecognizer()
+      ..onTap = () async {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
+      };
   }
 
   void _disposeRecognizers() {
-    for (final recognizer in _recognizers.values) {
-      recognizer.dispose();
+    for (final line in _recognizers) {
+      for (final recognizer in line) {
+        recognizer?.dispose();
+      }
     }
-    _recognizers.clear();
+    _recognizers = const [];
   }
 
   @override
@@ -129,36 +134,40 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
     );
     final isOfflineMode = context.watch<SettingsBloc>().state.isOfflineMode;
     // במצב לא מקוון שורה עם קישור אינה מוצגת — ההנחיה שבה אינה ברת ביצוע.
-    final lines = isOfflineMode
-        ? _lines.where((line) => line.every((s) => s.url == null)).toList()
-        : _lines;
-    if (lines.isEmpty) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text.rich(
-        TextSpan(
-          style: textStyle,
-          children: [
-            for (var i = 0; i < lines.length; i++) ...[
-              if (i > 0) const TextSpan(text: '\n'),
-              for (final segment in lines[i])
-                segment.url == null
-                    ? TextSpan(text: segment.text)
-                    : TextSpan(
-                        text: segment.text,
-                        style: linkStyle,
-                        recognizer: _recognizers[segment],
-                      ),
-            ],
-          ],
+    final lineIndices = [
+      for (var i = 0; i < _lines.length; i++)
+        if (!isOfflineMode || _lines[i].every((s) => s.url == null)) i,
+    ];
+    if (lineIndices.isEmpty) return const SizedBox.shrink();
+    // אינו חלק מהספר: בחירה והעתקה של הטקסט אינן כוללות אותו.
+    return SelectionContainer.disabled(
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
         ),
-        textAlign: TextAlign.center,
+        child: Text.rich(
+          TextSpan(
+            style: textStyle,
+            children: [
+              for (final (n, i) in lineIndices.indexed) ...[
+                if (n > 0) const TextSpan(text: '\n'),
+                for (var j = 0; j < _lines[i].length; j++)
+                  _lines[i][j].url == null
+                      ? TextSpan(text: _lines[i][j].text)
+                      : TextSpan(
+                          text: _lines[i][j].text,
+                          style: linkStyle,
+                          recognizer: _recognizers[i][j],
+                        ),
+              ],
+            ],
+          ),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }

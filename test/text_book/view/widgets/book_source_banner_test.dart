@@ -45,13 +45,13 @@ Widget _wrap(Widget child, {bool isOfflineMode = false}) {
 
 void main() {
   group('parseBannerText', () {
-    test('splits real and literal line breaks into lines', () {
+    test('only a real line break splits lines', () {
       final lines = parseBannerText(
         'א\nב'
         r'\n'
         'ג',
       );
-      expect(lines.map((l) => l.single.text).toList(), ['א', 'ב', 'ג']);
+      expect(lines.map((l) => l.single.text).toList(), ['א', r'ב\nג']);
       expect(lines.every((l) => l.single.url == null), isTrue);
     });
 
@@ -118,6 +118,26 @@ void main() {
       expect(find.textContaining('אפשר ללחוץ כאן ולתקן'), findsOneWidget);
       expect(find.textContaining('https://'), findsNothing);
       expect(_linkSpans(tester), hasLength(1));
+    });
+
+    testWidgets('the banner is excluded from text selection', (tester) async {
+      await tester.pumpWidget(
+        _wrap(SelectionArea(child: const BookSourceBanner(text: text))),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(BookSourceBanner),
+          matching: find.byType(SelectionContainer),
+        ),
+        findsOneWidget,
+      );
+      final container = tester.widget<SelectionContainer>(
+        find.descendant(
+          of: find.byType(BookSourceBanner),
+          matching: find.byType(SelectionContainer),
+        ),
+      );
+      expect(container.delegate, isNull);
     });
 
     testWidgets('omits lines that contain a link when offline', (
