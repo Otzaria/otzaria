@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:otzaria/book_common/view/parallel_editions_action.dart';
@@ -58,6 +57,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
+import 'package:otzaria/printing/page_shape_print_policy.dart';
 import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/view/text_book_scaffold.dart';
@@ -624,21 +624,28 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     context.read<TourCubit>().recordInteraction(
       TourInteraction(type: TourInteractionType.printUsed),
     );
+    var commentators = state.activeCommentators;
+    var protection = state.protection;
+    var useScreenshot = state.showPageShapeView;
     if (state.showPageShapeView) {
+      final policy = await resolvePageShapePrintPolicy(
+        mainProtection: state.protection,
+        layout: widget.tab.pageShapePluginController.layout,
+        availableCommentators: state.availableCommentators,
+        links: state.links,
+      );
+      commentators = policy.commentators;
+      protection = policy.protection;
+      useScreenshot = policy.useScreenshot;
+    }
+    if (!mounted) return;
+    if (useScreenshot) {
       final png = await _capturePageShapeViewPng();
       if (!mounted) return;
-
       if (png == null || png.isEmpty) {
         UiSnack.showError(TextBookMessages.cannotCapturePageShapeForPrint);
         return;
       }
-      // הצילום כולל גם את המפרשים שבצורת הדף.
-      final protection = state.protection.strictest(
-        await BookProtectionRepository.instance.strictestForTitles(
-          state.activeCommentators,
-          source: state.book.source,
-        ),
-      );
       if (!mounted) return;
 
       showDialog(
@@ -682,7 +689,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         book: state.book,
         protection: state.protection,
         links: state.links,
-        activeCommentators: state.activeCommentators,
+        activeCommentators: commentators,
+        initialIncludeCommentaries: state.showPageShapeView,
         startLine: _topmostVisibleSourceLine(state),
         displayProfile: _exportProfile(state),
         tableOfContents: state.tableOfContents,

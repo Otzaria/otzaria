@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -27,8 +28,7 @@ import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
-import 'package:otzaria/book_protection/utils/copy_guard.dart';
-import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/printing/commentary_print_limit.dart';
 import 'package:otzaria/printing/safer_print_service.dart';
 import 'package:otzaria/printing/view/slow_preview_hint.dart';
 import 'package:otzaria/printing/word_export_service.dart';
@@ -77,6 +77,9 @@ class PrintingScreen extends StatefulWidget {
 
   /// כשמסופק, מאפשר בחירת מפרשים במסך בלי לשנות את בחירת הקורא.
   final List<String>? availableCommentators;
+
+  /// כולל את המפרשים מיד כשמסלול צילום מוגבל עובר להדפסת שורות מקור.
+  final bool initialIncludeCommentaries;
   final bool removeNikud;
   final bool removeTaamim;
 
@@ -112,6 +115,7 @@ class PrintingScreen extends StatefulWidget {
     this.links = const [],
     this.activeCommentators = const [],
     this.availableCommentators,
+    this.initialIncludeCommentaries = false,
     this.startLine = 0,
     this.endLine,
     this.removeNikud = false,
@@ -267,12 +271,12 @@ class _PrintingScreenState extends State<PrintingScreen> {
         (book == null ? BookProtection.none : await repository.forBook(book));
     final commentators = <String, BookProtection>{};
     if (widget.prebuiltBlocks == null) {
-      final source = book?.source ?? BookSource.official;
-      for (final title in {
-        ...widget.activeCommentators,
-        ...?widget.availableCommentators,
-      }) {
-        commentators[title] = await repository.forTitle(title, source: source);
+      final seen = <String>{};
+      for (final link in widget.links) {
+        if (!seen.add(link.targetIdentityKey)) continue;
+        final title = getTitleFromPath(link.path2);
+        commentators[title] = (commentators[title] ?? BookProtection.none)
+            .strictest(await repository.forLink(link));
       }
     }
     if (!mounted) return;
@@ -308,6 +312,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   void initState() {
     super.initState();
     _selectedCommentators = List.of(widget.activeCommentators);
+    _includeCommentaries = widget.initialIncludeCommentaries;
     _dataFuture = widget.data;
     startLine = widget.startLine;
     endLine = startLine;
@@ -1269,6 +1274,24 @@ class _PrintingScreenState extends State<PrintingScreen> {
     );
   }
 
+  Future<void> _loadCommentaryProtection(Iterable<Link> links) async {
+    final protections = Map<String, BookProtection>.of(_commentatorProtection);
+    final seen = <String>{};
+    for (final link in links) {
+      if (!seen.add(link.targetIdentityKey)) continue;
+      final title = getTitleFromPath(link.path2);
+      protections[title] = (protections[title] ?? BookProtection.none)
+          .strictest(
+            await BookProtectionRepository.instance.forLink(link),
+          );
+    }
+    if (!mounted || mapEquals(protections, _commentatorProtection)) return;
+    setState(() {
+      _commentatorProtection = protections;
+      _syncDestinationWithProtection();
+    });
+  }
+
   Future<List<Map<String, String>>> _buildPrintBlocks({
     required List<String> allLines,
     required int selectedStart,
@@ -1293,7 +1316,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final rangeLinks = _includeCommentaries
         ? await _loadLinksForPrintRange(selectedStart, selectedEnd)
         : <Link>[];
-    final printedSegments = <String, int>{};
+    await _loadCommentaryProtection(rangeLinks);
+    final limit = CommentaryPrintLimit();
 
     for (var i = selectedStart; i < selectedEnd; i++) {
       // הסרת HTML + ניקוד/טעמים + שמות קודש מוחלת כאן, על שורות הטווח הנבחר
@@ -1316,14 +1340,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
         // מפרש עם מגבלת הדפסה נחתך לפי הקטעים שלו לאורך כל העבודה.
         final printable = <Link>[];
         for (final link in linksForLine) {
-          final title = getTitleFromPath(link.path2);
-          final limit = _commentatorPrintLimit(title);
-          if (limit != null) {
-            final used = (printedSegments[title] ?? 0) + linkSegmentCount(link);
-            if (used > limit) continue;
-            printedSegments[title] = used;
-          }
-          printable.add(link);
+          final selected = await limit.take(link);
+          if (selected != null) printable.add(selected);
         }
 
         if (printable.isNotEmpty) {
@@ -1563,6 +1581,12 @@ class _PrintingScreenState extends State<PrintingScreen> {
     }
     if (!mounted || !context.mounted) return;
     final requested = _destination;
+    if (_includeCommentaries && widget.prebuiltBlocks == null) {
+      await _loadCommentaryProtection(
+        await _loadLinksForPrintRange(startLine, endLine),
+      );
+    }
+    if (!mounted || !context.mounted) return;
     setState(_syncDestinationWithProtection);
     // יעד שנחסם אחרי הבחירה — הרשימה התעדכנה, והמשתמש יבחר שוב.
     if (_destination != requested) {

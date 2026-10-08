@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:otzaria/book_protection/models/book_protection.dart';
-import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
-import 'package:otzaria/book_protection/utils/copy_guard.dart';
+import 'package:otzaria/printing/commentary_print_limit.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -30,21 +29,14 @@ Future<List<PrintBlock>> buildCommentaryPrintBlocks(
   Future<BookProtection> Function(Link link)? protectionResolver,
 }) async {
   final resolve = contentResolver ?? (Link link) => link.content;
-  final protectionOf =
-      protectionResolver ?? BookProtectionRepository.instance.forLink;
+  final limit = CommentaryPrintLimit(protectionResolver: protectionResolver);
   final blocks = <PrintBlock>[];
 
   for (final group in groups) {
     final groupBlocks = <PrintBlock>[];
-    final maxSegments = group.links.isEmpty
-        ? null
-        : (await protectionOf(group.links.first)).maxPrintSegments;
-    var segments = 0;
-    for (final link in group.links) {
-      if (maxSegments != null) {
-        segments += linkSegmentCount(link);
-        if (segments > maxSegments) break;
-      }
+    for (final original in group.links) {
+      final link = await limit.take(original);
+      if (link == null) continue;
       String text;
       try {
         text = stripHtmlIfNeeded(await resolve(link)).trim();

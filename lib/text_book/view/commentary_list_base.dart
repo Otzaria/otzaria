@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
+import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_flat_items.dart';
 import 'package:otzaria/theme/app_fonts.dart';
@@ -364,16 +365,19 @@ class CommentaryListBaseState extends State<CommentaryListBase>
 
   String _getLinkKey(Link link) => commentaryLinkKey(link);
 
-  /// הגבלת המו"ל ומספר הקטעים של בחירה שחוצה כמה מפרשים; null לבחירה
-  /// בתוך מפרש יחיד, שההגבלה שלה נגזרת מהקישור שלו.
   Future<CommentaryCopyGuard?> _multiItemCopyGuard() async {
     final links = selectedItemLinks(_itemKeys, _orderedLinks, _getLinkKey);
-    if (links.length < 2) return null;
-    return (
-      protection: await BookProtectionRepository.instance.strictestForLinks(
-        links,
+    if (links.isEmpty) return null;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return null;
+    return buildCommentaryCopyGuard(
+      links,
+      selectionOf: (link) => CommentarySelectionTracker.selectionIn(
+        _itemKeys[_getLinkKey(link)]!,
       ),
-      segmentCount: linksSegmentCount(links),
+      renderSettings: RenderSettings.fromProfile(
+        state.commentaryDisplayProfile,
+      ),
     );
   }
 
@@ -428,7 +432,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     return links
         .map(
           (link) =>
-              '${link.index1}|${link.path2}|${link.index2}|${link.connectionType}',
+              '${link.index1}|${link.contentIdentityKey}|${link.connectionType}',
         )
         .join('||');
   }
@@ -2789,9 +2793,7 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                     );
                   },
                   child: CommentaryContent(
-                    key: ValueKey(
-                      '${link.index1}_${link.path2}_${link.index2}',
-                    ),
+                    key: ValueKey(widget.getLinkKey(link)),
                     link: link,
                     fontSize: widget.fontSize,
                     openBookCallback: widget.openBookCallback,

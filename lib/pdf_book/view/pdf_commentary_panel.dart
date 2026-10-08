@@ -5,6 +5,7 @@ import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
+import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_flat_items.dart';
@@ -24,7 +25,6 @@ import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
-import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
@@ -130,7 +130,8 @@ List<Link> pdfScopedCommentaryLinks({
 @visibleForTesting
 String pdfCommentaryItemKey(Link link) =>
     '${link.index1}_${link.path2}_${link.index2}'
-    '${link.targetSource.isOfficial ? '' : '|${link.targetSource.wireKey}'}';
+    '${link.targetSource.isOfficial ? '' : '|${link.targetSource.wireKey}'}'
+    '${link.index2End == null ? '' : '|end:${link.index2End}'}';
 
 /// מפתח ה-PageStorage של רשימת המפרשים. תלוי בבחירת המפרשים בלבד: הכללת
 /// העמוד או מצב הכיווץ יוצרת רשימה חדשה ומאבדת את מיקום הגלילה.
@@ -1034,16 +1035,15 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       _orderedLinks,
       _getLinkKey,
     );
-    final guardLinks = _commentarySelectionDelegate.hasCurrentFullSelection
-        ? _orderedLinks
-        : selectedLinks.length > 1
-        ? selectedLinks
-        : null;
-    final guardProtection = guardLinks == null
-        ? null
-        : await BookProtectionRepository.instance.strictestForLinks(
-            guardLinks,
-          );
+    final selectAll = _commentarySelectionDelegate.hasCurrentFullSelection;
+    final guard = await buildCommentaryCopyGuard(
+      selectAll ? _orderedLinks : selectedLinks,
+      selectAll: selectAll,
+      selectionOf: (link) => CommentarySelectionTracker.selectionIn(
+        _itemKeys[_getLinkKey(link)]!,
+      ),
+      renderSettings: RenderSettings.fromProfile(widget.displayProfile),
+    );
     if (!menuContext.mounted) return;
     await ContextMenuUtils.copyFormattedText(
       context: menuContext,
@@ -1055,8 +1055,8 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
                 fallbackLink ??
                 (selectedLinks.length == 1 ? selectedLinks.single : null),
       removeNikud: removeNikud,
-      protection: guardProtection,
-      segmentCount: guardLinks == null ? null : linksSegmentCount(guardLinks),
+      protection: guard.protection,
+      segmentCount: guard.segmentCount,
     );
   }
 
