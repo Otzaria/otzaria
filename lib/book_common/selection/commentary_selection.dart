@@ -96,5 +96,5 @@ List<Link> selectedItemLinks(
   return orderedLinks.where((link) => keys.contains(keyOf(link))).toList();
 }
 
-/// הגבלת המו"ל ומספר הקטעים של בחירה בכמה מפרשים.
+/// הגבלת הספרים הנבחרים וספירת המקור המרבית בספר מוגן אחד.
 typedef CommentaryCopyGuard = ({BookProtection protection, int segmentCount});

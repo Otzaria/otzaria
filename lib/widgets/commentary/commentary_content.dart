@@ -19,6 +19,7 @@ import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
+import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
@@ -254,35 +255,37 @@ class _CommentaryContentState extends State<CommentaryContent>
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SmartTextWidget(
-                        text: displayData,
-                        settings: renderSettings,
-                        onAnchorTap: !hasPanelLinks
-                            ? null
-                            : (url) {
-                                cancelAnchorHover();
-                                final link = anchorLinkFromUrl(url);
-                                if (link != null) _openAnchorTarget(link);
-                              },
-                        onAnchorHover: !hasPanelLinks
-                            ? null
-                            : (url, position) => handleAnchorHover(
-                                url,
-                                position,
-                                onOpen: _openAnchorTarget,
-                                displayProfile: widget.displayProfile,
-                              ),
-                        onAnchorHoverExit: !hasPanelLinks
-                            ? null
-                            : handleAnchorHoverExit,
-                        onNoteTap: notesForLine.isEmpty
-                            ? null
-                            : (_) => openCommentaryPersonalNote(
-                                context: context,
-                                link: widget.link,
-                                notes: notesForLine,
-                                onOpenPersonalNote: widget.onOpenPersonalNote,
-                              ),
+                      CommentarySelectionTracker(
+                        child: SmartTextWidget(
+                          text: displayData,
+                          settings: renderSettings,
+                          onAnchorTap: !hasPanelLinks
+                              ? null
+                              : (url) {
+                                  cancelAnchorHover();
+                                  final link = anchorLinkFromUrl(url);
+                                  if (link != null) _openAnchorTarget(link);
+                                },
+                          onAnchorHover: !hasPanelLinks
+                              ? null
+                              : (url, position) => handleAnchorHover(
+                                  url,
+                                  position,
+                                  onOpen: _openAnchorTarget,
+                                  displayProfile: widget.displayProfile,
+                                ),
+                          onAnchorHoverExit: !hasPanelLinks
+                              ? null
+                              : handleAnchorHoverExit,
+                          onNoteTap: notesForLine.isEmpty
+                              ? null
+                              : (_) => openCommentaryPersonalNote(
+                                  context: context,
+                                  link: widget.link,
+                                  notes: notesForLine,
+                                  onOpenPersonalNote: widget.onOpenPersonalNote,
+                                ),
+                        ),
                       ),
                       LaazCommentarySubBlock(link: widget.link),
                     ],
