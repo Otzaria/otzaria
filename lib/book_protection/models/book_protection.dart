@@ -12,10 +12,10 @@ class BookProtection extends Equatable {
   static const int maxKnownLevel = 2;
 
   /// מספר השורות המרבי בפעולת העתקה אחת בספר מוגן.
-  static const int copySegmentLimit = 5;
+  static const int copySegmentLimit = 40;
 
   /// מספר השורות המרבי בעבודת הדפסה אחת ברמה 2.
-  static const int printSegmentLimit = 15;
+  static const int printSegmentLimit = 40;
 
   final int level;
   final String? bannerText;

@@ -6,6 +6,11 @@ import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 
+const _copyLimit = BookProtection.copySegmentLimit;
+
+String _lines(int count) =>
+    [for (var i = 1; i <= count; i++) 'שורה $i'].join('\n');
+
 void main() {
   Widget buildHarness({required Widget child, TargetPlatform? platform}) {
     return MaterialApp(
@@ -317,8 +322,8 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('Ctrl+C על יותר מ-5 שורות נחסם', (tester) async {
-      await pumpProtected(tester, 'א\nב\nג\nד\nה\nו');
+    testWidgets('Ctrl+C על שורה מעל המגבלה נחסם', (tester) async {
+      await pumpProtected(tester, _lines(_copyLimit + 1));
       await invokeCopy(tester);
       expect(clipboard, isEmpty);
     });
@@ -330,7 +335,7 @@ void main() {
           home: Scaffold(
             body: AppSelectionArea(
               protection: () async => const BookProtection(level: 1),
-              child: const Text('א\nב\nג\nד\nה\nו'),
+              child: Text(_lines(_copyLimit + 1)),
             ),
           ),
         ),
@@ -345,10 +350,10 @@ void main() {
       expect(clipboard, isEmpty);
     });
 
-    testWidgets('Ctrl+C על עד 5 שורות מועתק', (tester) async {
-      await pumpProtected(tester, 'א\nב\nג');
+    testWidgets('Ctrl+C על עד המגבלה מועתק', (tester) async {
+      await pumpProtected(tester, _lines(_copyLimit));
       await invokeCopy(tester);
-      expect(clipboard, ['א\nב\nג']);
+      expect(clipboard, [_lines(_copyLimit)]);
     });
   });
 }

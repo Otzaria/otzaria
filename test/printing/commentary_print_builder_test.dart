@@ -17,6 +17,9 @@ Link _link(String path, int index2) => Link(
 LinkGroup _group(String title, List<Link> links) =>
     LinkGroup(bookTitle: title, links: links);
 
+const _limit = BookProtection.printSegmentLimit;
+const _long = _limit + 5;
+
 void main() {
   group('buildCommentaryPrintBlocks', () {
     test('בונה כותרת קבוצה ובלוק תוכן לכל קישור', () async {
@@ -64,11 +67,13 @@ void main() {
       expect(blocks[1].text, 'תוכן');
     });
 
-    test('מפרש ברמה 2 נחתך ל-15 קטעים, ומפרש חופשי נשאר שלם', () async {
+    test('מפרש ברמה 2 נחתך למגבלה, ומפרש חופשי נשאר שלם', () async {
       final groups = [
-        _group('מוגן', [for (var i = 1; i <= 20; i++) _link('a/מוגן.txt', i)]),
+        _group('מוגן', [
+          for (var i = 1; i <= _long; i++) _link('a/מוגן.txt', i),
+        ]),
         _group('חופשי', [
-          for (var i = 1; i <= 20; i++) _link('a/חופשי.txt', i),
+          for (var i = 1; i <= _long; i++) _link('a/חופשי.txt', i),
         ]),
       ];
 
@@ -80,10 +85,10 @@ void main() {
             : BookProtection.none,
       );
 
-      // כותרת + 15 קטעים, ואז כותרת + 20 קטעים.
-      expect(blocks, hasLength(1 + 15 + 1 + 20));
-      expect(blocks[15].text, 'קטע 15');
-      expect(blocks[16].text, 'חופשי');
+      // כותרת + מגבלה קטעים, ואז כותרת + כל הקטעים.
+      expect(blocks, hasLength(1 + _limit + 1 + _long));
+      expect(blocks[_limit].text, 'קטע $_limit');
+      expect(blocks[_limit + 1].text, 'חופשי');
     });
 
     test('טווח מקור ארוך נחתך לפני קריאת התוכן', () async {
@@ -92,7 +97,7 @@ void main() {
         index1: 1,
         path2: 'מוגן.txt',
         index2: 1,
-        index2End: 20,
+        index2End: _long,
         targetBookId: 7,
         connectionType: 'COMMENTARY',
       );
@@ -102,7 +107,7 @@ void main() {
         ],
         protectionResolver: (_) async => const BookProtection(level: 2),
         contentResolver: (link) async {
-          expect(link.index2End, 15);
+          expect(link.index2End, _limit);
           expect(link.targetBookId, 7);
           return [
             for (var i = link.index2; i <= link.index2End!; i++)
@@ -111,9 +116,9 @@ void main() {
         },
       );
       expect(blocks, hasLength(2));
-      expect(blocks.last.text, contains('שורה 15'));
-      expect(blocks.last.text, isNot(contains('שורה 16')));
-      expect(blocks.last.text, contains('המשך 15'));
+      expect(blocks.last.text, contains('שורה $_limit'));
+      expect(blocks.last.text, isNot(contains('שורה ${_limit + 1}')));
+      expect(blocks.last.text, contains('המשך $_limit'));
     });
 
     test('אותו שם בשני מסדים ומפרש חופשי אינם חולקים מכסת הדפסה', () async {
@@ -127,7 +132,7 @@ void main() {
             index1: 1,
             path2: 'מפרש.txt',
             index2: 1,
-            index2End: 20,
+            index2End: _long,
             targetBookId: 1,
             targetSource: source,
             connectionType: 'COMMENTARY',
@@ -142,12 +147,12 @@ void main() {
             '${link.targetSource.wireKey}:${link.index2End}',
       );
       expect(blocks, hasLength(3));
-      expect(blocks[1].text, endsWith(':15'));
-      expect(blocks[2].text, endsWith(':20'));
+      expect(blocks[1].text, endsWith(':$_limit'));
+      expect(blocks[2].text, endsWith(':$_long'));
     });
 
     test(
-      'שני ספרים מוגנים באותו שם ממסדים שונים מקבלים 15 שורות כל אחד',
+      'שני ספרים מוגנים באותו שם ממסדים שונים מקבלים מכסה מלאה כל אחד',
       () async {
         final links = [
           for (final source in [
@@ -159,7 +164,7 @@ void main() {
               index1: 1,
               path2: 'מפרש.txt',
               index2: 1,
-              index2End: 20,
+              index2End: _long,
               targetBookId: 1,
               targetSource: source,
               connectionType: 'COMMENTARY',
@@ -172,25 +177,29 @@ void main() {
               '${link.targetSource.wireKey}:${link.index2End}',
         );
         expect(blocks, hasLength(3));
-        expect(blocks[1].text, endsWith(':15'));
-        expect(blocks[2].text, endsWith(':15'));
+        expect(blocks[1].text, endsWith(':$_limit'));
+        expect(blocks[2].text, endsWith(':$_limit'));
       },
     );
 
     test('מכסת אותו ספר נצברת גם כשהוא מפוצל לכמה קבוצות', () async {
       final blocks = await buildCommentaryPrintBlocks(
         [
-          _group('מוגן', [for (var i = 1; i <= 10; i++) _link('מוגן.txt', i)]),
-          _group('מוגן', [for (var i = 11; i <= 20; i++) _link('מוגן.txt', i)]),
+          _group('מוגן', [
+            for (var i = 1; i < _limit; i++) _link('מוגן.txt', i),
+          ]),
+          _group('מוגן', [
+            for (var i = _limit; i <= _long; i++) _link('מוגן.txt', i),
+          ]),
         ],
         protectionResolver: (_) async => const BookProtection(level: 2),
         contentResolver: (link) async => 'שורה ${link.index2}',
       );
       expect(
         blocks.where((block) => block.kind == PrintBlockKind.commentary),
-        hasLength(15),
+        hasLength(_limit),
       );
-      expect(blocks.last.text, 'שורה 15');
+      expect(blocks.last.text, 'שורה $_limit');
     });
 
     test('מדלג על קבוצה שכל הקישורים בה ריקים (ללא כותרת)', () async {

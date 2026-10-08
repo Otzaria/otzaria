@@ -28,6 +28,8 @@ Link link(
 void main() {
   const settings = RenderSettings();
   const protected = BookProtection(level: 2);
+  const limit = BookProtection.copySegmentLimit;
+  const overLimit = limit + 1;
   Future<({BookProtection protection, int segmentCount})> guard(
     List<Link> links, {
     bool selectAll = true,
@@ -53,12 +55,12 @@ void main() {
     expect(result.protection.allowsCopyOf(result.segmentCount), isTrue);
   });
 
-  test('יותר מחמש שורות באותו ספר נאסרות גם בכמה קישורים', () async {
+  test('שורות מעל המגבלה באותו ספר נאסרות גם בכמה קישורים', () async {
     final result = await guard([
       link(1, last: 3),
-      link(4, last: 6, category: 7),
+      link(4, last: overLimit, category: 7),
     ]);
-    expect(result.segmentCount, 6);
+    expect(result.segmentCount, overLimit);
     expect(result.protection.allowsCopyOf(result.segmentCount), isFalse);
   });
 
@@ -68,10 +70,10 @@ void main() {
 
   test('זהות ושם חופפים במסדים שונים מקבלים מכסות נפרדות', () async {
     final result = await guard([
-      link(1, last: 5),
-      link(6, last: 10, source: BookSource.attached('extra')),
+      link(1, last: limit),
+      link(limit + 1, last: 2 * limit, source: BookSource.attached('extra')),
     ]);
-    expect(result.segmentCount, 5);
+    expect(result.segmentCount, limit);
     expect(result.protection.allowsCopyOf(result.segmentCount), isTrue);
   });
 
@@ -93,41 +95,41 @@ void main() {
     expect(result.segmentCount, 2);
   });
 
-  test('בחירה הפוכה וטקסט שטוח של עשרים שורות לא עוקפים את ההגבלה', () async {
+  test('בחירה הפוכה וטקסט שטוח מעל המגבלה לא עוקפים את ההגבלה', () async {
     var reads = 0;
-    final text = [for (var i = 1; i <= 20; i++) 'שורה $i'].join(' ');
+    final text = [for (var i = 1; i <= overLimit; i++) 'שורה $i'].join(' ');
     final result = await guard(
-      [link(1, last: 20)],
+      [link(1, last: overLimit)],
       selectAll: false,
       selection: (_) => (text: text, start: text.length, end: 0),
       read: (_) async {
         reads++;
-        return [for (var i = 1; i <= 20; i++) 'שורה $i'];
+        return [for (var i = 1; i <= overLimit; i++) 'שורה $i'];
       },
     );
     expect(reads, 0);
-    expect(result.segmentCount, 20);
+    expect(result.segmentCount, overLimit);
     expect(result.protection.allowsCopyOf(result.segmentCount), isFalse);
   });
 
   test('אי התאמה למקור אינה מתירה בחירת טווח ארוך', () async {
     final result = await guard(
-      [link(1, last: 20)],
+      [link(1, last: overLimit)],
       selectAll: false,
       selection: (_) => (text: 'טקסט שטוח', start: 0, end: 10),
       read: (_) async => [],
     );
-    expect(result.segmentCount, 20);
+    expect(result.segmentCount, overLimit);
   });
 
   test('כשל קריאת מקור משאיר את טווח הספר המוגן מוגבל', () async {
     final result = await guard(
-      [link(1, last: 20)],
+      [link(1, last: overLimit)],
       selectAll: false,
       selection: (_) => (text: 'מקור ארוך', start: 0, end: 4),
       read: (_) async => throw StateError('source unavailable'),
     );
-    expect(result.segmentCount, 20);
+    expect(result.segmentCount, overLimit);
     expect(result.protection.allowsCopyOf(result.segmentCount), isFalse);
   });
 
