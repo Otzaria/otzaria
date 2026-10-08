@@ -6,6 +6,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -21,12 +22,15 @@ import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/selection/enhanced_gesture_detector.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
+import 'package:otzaria/text_book/utils/reading_segments.dart';
+import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
 
@@ -35,6 +39,300 @@ void main() {
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+  });
+
+  group('תיקוני תוסף מקומיים בקורא המשולב', () {
+    for (final mode in [(false, false), (true, false), (false, true), (true, true)]) {
+      final continuous = mode.$1;
+      final splitView = mode.$2;
+      testWidgets(
+        'תצוגה ${continuous ? 'רציפה' : 'רגילה'} עם מפרשים ${splitView ? 'בצד' : 'מתחת'} מבודדת לשוניות ושומרת מקור אחרי reset/end',
+        (tester) async {
+          final registry = PluginCorrectionSessionService.instance;
+          addTearDown(() => registry.removeOwner('widget-correction'));
+          final source = [
+            'שורה א',
+            'שורה ב',
+            for (var index = 2; index < 40; index++) 'שורת מקור מספר $index',
+          ];
+          final book = TextBook(id: 42, title: 'ספר בדיקה');
+          final state = _loadedState().copyWith(
+            book: book,
+            content: source,
+            supportsContinuousReadingMode: true,
+            continuousReadingMode: continuous,
+            showSplitView: splitView,
+            readingSegments: buildReadingSegments(
+              source,
+              continuous: continuous,
+            ),
+          );
+          final blocs = List.generate(2, (_) => _RecordingTextBookBloc(state));
+          final tabs = List.generate(
+            2,
+            (index) => TextBookTab(
+              book: book,
+              index: 0,
+              blocOverride: blocs[index],
+            ),
+          );
+          final settings = _TestSettingsBloc(SettingsState.initial());
+          final notes = _TestPersonalNotesBloc(
+            const PersonalNotesState.initial(),
+          );
+          addTearDown(settings.close);
+          addTearDown(notes.close);
+          for (final tab in tabs) {
+            addTearDown(tab.dispose);
+          }
+          final keys = [GlobalKey(), GlobalKey()];
+          Future<void> mount({double size = 18}) async {
+            await tester.pumpWidget(
+              MaterialApp(
+                home: Scaffold(
+                  body: Row(
+                    children: List.generate(
+                      2,
+                      (index) => Expanded(
+                        child: MultiBlocProvider(
+                          providers: [
+                            BlocProvider<TextBookBloc>.value(
+                              value: blocs[index],
+                            ),
+                            BlocProvider<SettingsBloc>.value(value: settings),
+                            BlocProvider<PersonalNotesBloc>.value(value: notes),
+                          ],
+                          child: CombinedView(
+                            key: keys[index],
+                            data: source,
+                            tab: tabs[index],
+                            openBookCallback: (_) {},
+                            openLeftPaneTab: (_, {searchText}) {},
+                            textSize: size,
+                            showCommentaryAsExpansionTiles: !splitView,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+          }
+
+          List<String> displayed(int index) {
+            final fields = find.descendant(
+              of: find.byKey(keys[index]),
+              matching: find.byType(RtlTextField),
+            );
+            if (fields.evaluate().isNotEmpty) {
+              return tester
+                  .widgetList<RtlTextField>(fields)
+                  .map((field) => field.controller!.text)
+                  .toList();
+            }
+            final descendants = find.descendant(
+              of: find.byKey(keys[index]),
+              matching: find.byType(
+                continuous ? ContinuousReadingParagraph : SmartTextWidget,
+              ),
+            );
+            return continuous
+                ? tester
+                      .widgetList<ContinuousReadingParagraph>(descendants)
+                      .expand(
+                        (paragraph) => paragraph.lines.map((line) => line.text),
+                      )
+                      .toList()
+                : tester
+                      .widgetList<SmartTextWidget>(descendants)
+                      .map((widget) => widget.text)
+                      .toList();
+          }
+
+          await mount();
+          expect(displayed(0).join(' '), contains('שורה א'));
+          expect(displayed(1).join(' '), contains('שורה א'));
+          final changeEvents = <Map<String, dynamic>>[];
+          final session = registry.begin(
+            owner: 'widget-correction',
+            tabId: PluginCorrectionSessionService.tabIdFor(tabs.first),
+            bookId: book.title,
+            bookUid: 'id:42',
+            libraryVersion: '1',
+            loadSource: (index) async => source[index],
+            onEvent: (topic, payload) {
+              if (topic == 'reader.correctionSessionChanged') {
+                changeEvents.add(payload);
+              }
+            },
+          );
+          await tester.pumpAndSettle();
+          final editorFinder = find.descendant(
+            of: find.byKey(keys.first),
+            matching: find.byType(RtlTextField),
+          );
+          expect(editorFinder, findsWidgets);
+          expect(
+            find.descendant(
+              of: find.byKey(keys[1]),
+              matching: find.byType(RtlTextField),
+            ),
+            findsNothing,
+          );
+          Future<Map<String, dynamic>> apply(int revision) => registry.restore(
+            owner: 'widget-correction',
+            id: session['sessionId'],
+            expectedRevision: revision,
+            bookUid: 'id:42',
+            libraryVersion: '1',
+            changes: [
+              {
+                'sectionIndex': 0,
+                'originalSourceText': source.first,
+                'originalText': source.first,
+                'proposedText': 'נוסח מתוקן ארוך 😀',
+              },
+            ],
+          );
+          await tester.runAsync(() => apply(0));
+          await tester.pumpAndSettle();
+          expect(displayed(0).join(' '), contains('נוסח מתוקן ארוך 😀'));
+          expect(displayed(1).join(' '), contains('שורה א'));
+          final firstEditor = editorFinder.first;
+          final editor = tester.widget<RtlTextField>(firstEditor);
+          await tester.enterText(firstEditor, 'עריכה ישירה אחרונה 😀');
+          final latest = registry.get(
+            'widget-correction',
+            session['sessionId'],
+          );
+          expect(latest['revision'], 2);
+          expect(
+            (latest['changes'] as List).single['proposedText'],
+            'עריכה ישירה אחרונה 😀',
+          );
+          expect(changeEvents.last['revision'], 2);
+          expect(changeEvents.last['sectionIndex'], 0);
+          expect(editor.focusNode!.hasFocus, isTrue);
+          editor.controller!.selection = const TextSelection.collapsed(
+            offset: 3,
+          );
+          await tester.pump();
+          expect(
+            tester.widget<RtlTextField>(firstEditor).focusNode,
+            same(editor.focusNode),
+          );
+          expect(editor.focusNode!.hasFocus, isTrue);
+          expect(editor.controller!.selection.extentOffset, 3);
+          await mount(size: 22);
+          expect(displayed(0).join(' '), contains('עריכה ישירה אחרונה 😀'));
+          expect(
+            tester.widget<RtlTextField>(firstEditor).focusNode,
+            same(editor.focusNode),
+          );
+          expect(editor.focusNode!.hasFocus, isTrue);
+          expect(editor.controller!.selection.extentOffset, 3);
+          tester.testTextInput.updateEditingValue(
+            const TextEditingValue(
+              text: 'עריכה ישירה אחרונה 😀ק',
+              selection: TextSelection.collapsed(offset: 22),
+              composing: TextRange(start: 21, end: 22),
+            ),
+          );
+          await tester.pump();
+          expect(
+            editor.controller!.value.composing,
+            const TextRange(start: 21, end: 22),
+          );
+          expect(
+            (registry.get('widget-correction', session['sessionId'])['changes']
+                    as List)
+                .single['proposedText'],
+            'עריכה ישירה אחרונה 😀ק',
+          );
+          await mount(size: 24);
+          expect(
+            editor.controller!.value.composing,
+            const TextRange(start: 21, end: 22),
+          );
+          expect(editor.focusNode!.hasFocus, isTrue);
+          tester.testTextInput.updateEditingValue(
+            const TextEditingValue(
+              text: 'עריכה ישירה אחרונה 😀ק',
+              selection: TextSelection.collapsed(offset: 22),
+            ),
+          );
+          await tester.pump();
+          expect(
+            registry.get('widget-correction', session['sessionId'])['revision'],
+            3,
+          );
+          for (final rejected in ['שתי\nפסקאות', '<b>תגית</b>']) {
+            await tester.enterText(firstEditor, rejected);
+            await tester.pump();
+            expect(editor.controller!.text, 'עריכה ישירה אחרונה 😀ק');
+            expect(
+              registry.get(
+                'widget-correction',
+                session['sessionId'],
+              )['revision'],
+              3,
+            );
+          }
+          editor.controller!.text = 'הדבקה ידנית\nשאינה פסקה אחת';
+          editor.onChanged!(editor.controller!.text);
+          await tester.pump();
+          expect(editor.controller!.text, 'עריכה ישירה אחרונה 😀ק');
+          expect(
+            registry.get('widget-correction', session['sessionId'])['revision'],
+            3,
+          );
+          editor.focusNode!.unfocus();
+          if (!continuous) {
+            tabs.first.scrollController.jumpTo(index: 30);
+            await tester.pumpAndSettle();
+            expect(
+              displayed(0).join(' '),
+              isNot(contains('עריכה ישירה אחרונה 😀ק')),
+            );
+            tabs.first.scrollController.jumpTo(index: 0);
+            await tester.pumpAndSettle();
+            expect(displayed(0).join(' '), contains('עריכה ישירה אחרונה 😀ק'));
+          }
+          for (final bloc in blocs) {
+            expect((bloc.state as TextBookLoaded).content, source);
+          }
+          registry.reset('widget-correction', session['sessionId'], 0, 3);
+          await tester.pumpAndSettle();
+          expect(displayed(0).join(' '), contains('שורה א'));
+          expect(
+            registry.get('widget-correction', session['sessionId'])['changes'],
+            isEmpty,
+          );
+          await tester.runAsync(() => apply(4));
+          await tester.pumpAndSettle();
+          final ended = registry.end(
+            'widget-correction',
+            session['sessionId'],
+            5,
+          );
+          expect(
+            (ended['changes'] as List).single['proposedText'],
+            'נוסח מתוקן ארוך 😀',
+          );
+          await tester.pumpAndSettle();
+          expect(displayed(0).join(' '), contains('שורה א'));
+          expect(displayed(1).join(' '), contains('שורה א'));
+          expect(find.byType(RtlTextField), findsNothing);
+          for (final bloc in blocs) {
+            expect((bloc.state as TextBookLoaded).content, source);
+          }
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pumpAndSettle();
+        },
+      );
+    }
   });
 
   group('shouldOpenPreviewLinkInBook', () {

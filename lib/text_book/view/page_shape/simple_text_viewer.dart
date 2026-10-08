@@ -2031,6 +2031,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (widget.isMainText) {
       entries.addAll(
         buildReaderPluginMenuEntries(
+          tabId: readerBookTabId(widget.tab, state),
           root: context.findRenderObject(),
           state: state,
           lines: widget.content,

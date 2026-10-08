@@ -10,6 +10,7 @@ import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_registry.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
+import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_startup_contributions_service.dart';
@@ -666,6 +667,7 @@ class PluginRuntimeDispatcher {
     await PluginSafeMode.ready;
     if (PluginSafeMode.isActive) return;
     if (_shutdownMode != _PluginRuntimeShutdownMode.idle) return;
+    PluginCorrectionSessionService.instance.removeOwner(pluginId);
     ContextMenuRegistry.instance.removeAll(pluginId);
     PluginShortcutRegistry.instance.removeAll(pluginId);
     PluginToolbarRegistry.instance.removeAll(pluginId);

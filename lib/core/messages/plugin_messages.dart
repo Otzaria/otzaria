@@ -1,5 +1,7 @@
 /// ריכוז הודעות המערכת (UiSnack) של מערכת התוספים.
 abstract class PluginMessages {
+  static String correctionEditRejected(String message) =>
+      'התיקון לא הוחל: $message';
   static const String nativeTextReader = 'קורא רגיל';
   static const String textReaderSettings = 'הגדרות קורא התוסף';
   static const String externalBookNotFound = 'הספר לא נמצא בקטלוג החיצוני';
