@@ -1,6 +1,8 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
@@ -12,9 +14,12 @@ import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 /// (במקום תפריט ברירת המחדל של Flutter). לתוכן קריא כללי —
 /// דיאלוגים, חלוניות וכותרות.
 class AppSelectionArea extends StatefulWidget {
-  const AppSelectionArea({super.key, required this.child});
+  const AppSelectionArea({super.key, required this.child, this.protection});
 
   final Widget child;
+
+  /// הגבלת המו"ל של הטקסט שבאזור, כשהוא תוכן ספר.
+  final Future<BookProtection> Function()? protection;
 
   @override
   State<AppSelectionArea> createState() => AppSelectionAreaState();
@@ -36,6 +41,27 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
   void removeSelectionSource(String Function() source) =>
       _selectionSources.remove(source);
 
+  final _protectionSources = <Future<BookProtection> Function()>{};
+
+  /// תוכן ספר שמוצג באזור (למשל תצוגה מקדימה של קישור) רושם כאן את הגבלתו.
+  void addProtectionSource(Future<BookProtection> Function() source) =>
+      _protectionSources.add(source);
+
+  void removeProtectionSource(Future<BookProtection> Function() source) =>
+      _protectionSources.remove(source);
+
+  bool get _isGuarded =>
+      widget.protection != null || _protectionSources.isNotEmpty;
+
+  Future<bool> _copyAllowed(String text) async {
+    if (!_isGuarded) return true;
+    var protection = BookProtection.none;
+    for (final source in [?widget.protection, ..._protectionSources]) {
+      protection = protection.strictest(await source());
+    }
+    return ensureCopyAllowed(protection, countTextSegments(text));
+  }
+
   bool get _hasSelection =>
       _selectedText != null && _selectedText!.trim().isNotEmpty;
 
@@ -49,7 +75,43 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
     return _hasSelection ? _selectedText : null;
   }
 
+  /// Ctrl+C באזור עם תוכן ספר מוגן; false משאיר את העתקת ברירת המחדל.
+  bool _copyGuardedSelection() {
+    final text = _selectedText;
+    if (!_isGuarded || text == null || text.trim().isEmpty) return false;
+    _copy(text);
+    return true;
+  }
+
+  /// סרגל המגע של המערכת; כפתור ההעתקה שלו עובר דרך מגבלת ההעתקה.
+  Widget _buildTouchToolbar(
+    BuildContext context,
+    SelectableRegionState state,
+  ) {
+    if (!_isGuarded) {
+      return AdaptiveTextSelectionToolbar.selectableRegion(
+        selectableRegionState: state,
+      );
+    }
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: state.contextMenuAnchors,
+      buttonItems: [
+        for (final item in state.contextMenuButtonItems)
+          item.type == ContextMenuButtonType.copy
+              ? item.copyWith(
+                  onPressed: () {
+                    state.hideToolbar();
+                    final text = _selectedText;
+                    if (text != null && text.trim().isNotEmpty) _copy(text);
+                  },
+                )
+              : item,
+      ],
+    );
+  }
+
   Future<void> _copy(String text) async {
+    if (!await _copyAllowed(text)) return;
     await Clipboard.setData(ClipboardData(text: text));
     UiSnack.show(CommonMessages.textCopiedShort);
   }
@@ -60,13 +122,11 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
     final useNativeTouchMenu =
         platform == TargetPlatform.android || platform == TargetPlatform.iOS;
     return SelectionCutFallthrough(
+      copyOverride: _copyGuardedSelection,
       child: RtlSelectionShortcuts(
         child: SelectionArea(
           contextMenuBuilder: useNativeTouchMenu
-              ? (context, state) =>
-                    AdaptiveTextSelectionToolbar.selectableRegion(
-                      selectableRegionState: state,
-                    )
+              ? _buildTouchToolbar
               : (context, _) => const SizedBox.shrink(),
           onSelectionChanged: (selection) {
             trackRtlSelection(selection?.plainText);

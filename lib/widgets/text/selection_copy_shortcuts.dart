@@ -84,15 +84,22 @@ class FormattedCopyAction extends Action<CopySelectionTextIntent> {
 /// יש למקם אותו *מעל* ה-SelectionArea — מנגנון ה-override מאתר override רק
 /// כלפי מעלה בעץ. אין צורך בו מתחת ל-[SelectionCopyShortcuts], שכבר מטפל בכך.
 class SelectionCutFallthrough extends StatelessWidget {
-  const SelectionCutFallthrough({super.key, required this.child});
+  const SelectionCutFallthrough({
+    super.key,
+    required this.child,
+    this.copyOverride,
+  });
 
   final Widget child;
+
+  /// מטפל בהעתקה במקום ברירת המחדל; מחזיר false כדי להשאיר אותה לברירת המחדל.
+  final bool Function()? copyOverride;
 
   @override
   Widget build(BuildContext context) {
     return Actions(
       actions: <Type, Action<Intent>>{
-        CopySelectionTextIntent: _CutFallthroughAction(),
+        CopySelectionTextIntent: _CutFallthroughAction(copyOverride),
       },
       child: child,
     );
@@ -100,6 +107,10 @@ class SelectionCutFallthrough extends StatelessWidget {
 }
 
 class _CutFallthroughAction extends Action<CopySelectionTextIntent> {
+  _CutFallthroughAction(this.copyOverride);
+
+  final bool Function()? copyOverride;
+
   @override
   bool get isActionEnabled => callingAction?.isActionEnabled ?? true;
 
@@ -110,6 +121,8 @@ class _CutFallthroughAction extends Action<CopySelectionTextIntent> {
   }
 
   @override
-  Object? invoke(CopySelectionTextIntent intent) =>
-      callingAction?.invoke(intent);
+  Object? invoke(CopySelectionTextIntent intent) {
+    if (copyOverride?.call() ?? false) return null;
+    return callingAction?.invoke(intent);
+  }
 }

@@ -93,7 +93,7 @@ if (response.success) {
 | קוד | קטגוריה | משמעות |
 |---|---|---|
 | `permission_denied` / `error.permission_denied` | `permission` | ההרשאה לא הוצהרה במניפסט או לא אושרה |
-| `error.forbidden` | `permission` | ההרשאה קיימת אך היעד עצמו חסום — נתיב מחוץ לתיקייה מאושרת, תיקייה מוגנת, או URL שאינו ב-allowlist |
+| `error.forbidden` | `permission` | ההרשאה קיימת אך היעד עצמו חסום — נתיב מחוץ לתיקייה מאושרת, תיקייה מוגנת, URL שאינו ב-allowlist, או ספר שהמו"ל הגביל את מסירת הטקסט שלו |
 | `error.invalid_params` | `validation` | פרמטרים חסרים או שגויים |
 | `error.selection_empty` | `validation` | הבחירה שהתבקשה ריקה — אין טקסט לחפש בו התאמות |
 | `error.not_found` | `not_found` | הפריט המבוקש אינו קיים |
@@ -1222,7 +1222,7 @@ const { data } = await Otzaria.call('library.getLinkTargetsSummary', {
 
 תוכן הצד המקושר — עד **25 פריטים** בקריאה אחת (יותר מכך:
 `error.invalid_params`). ה-`items` מוחזרים באותו סדר של הקלט; פריט שלא ניתן
-לטעון מוחזר כ-`{ error: "not_found" }`.
+לטעון מוחזר כ-`{ error: "not_found" }`, ופריט מספר שהמו"ל הגביל — כ-`{ error: "forbidden" }`.
 
 העבירו את `targetTitle`, `targetLine`, `targetLineEnd`, `targetIsUserBook`
 ו-`targetCategoryId` בדיוק כפי שהתקבלו מ-`getLinks` — הם מזהים את הספר הנכון
@@ -1362,6 +1362,7 @@ const { data } = await Otzaria.call('search.fullText', {
 - `textStatus` — מצב הטקסט (ראו `search.query` להלן)
 - `continuesToNextLine` — הביטוי נמשך לשורה הבאה (ראו `search.query` להלן)
 - `index` — אינדקס השורה/עמוד בספר
+- `error` — `"forbidden"` בתוצאה מספר שהמו"ל הגביל; `text` ריק בה
 
 > **הערה:** `search.fullText` אינו מחזיר `id` כי מנוע החיפוש (Tantivy) אינו שומר את מזהה הספר מה-DB. כדי לקבל את `id` — יש לקרוא ל-`library.getBookMetadata({ bookId, type })` עם התוצאה. `search.query` (להלן) כן מחזיר זהות מלאה.
 
@@ -1469,6 +1470,9 @@ for await (const chunk of chunks) {
 - `'unavailable'` — הטקסט אינו זמין כעת (למשל בזמן עדכון ספרייה); `text` ריק.
 
 בגרסאות קודמות השדה חסר; יש להתייחס להיעדרו כ-`'ok'`.
+
+**`error`** — `"forbidden"` בתוצאה מספר שהמו"ל הגביל את מסירת הטקסט שלו;
+`text` ריק בה, ושאר השדות (זהות, `index`) נשמרים.
 
 **`continuesToNextLine`** — `true` כשהביטוי מתחיל בסוף השורה `index` ונמשך
 בתחילת השורה הבאה (`index + 1`). `text` מחבר אז את סוף השורה ואת תחילת הבאה
@@ -1939,6 +1943,9 @@ const { data } = await Otzaria.call('reader.getSelection');
 //   sourceRange: { ... }
 // }
 ```
+
+בספר שהמו"ל הגביל, `text` כולל לכל היותר את חמש השורות הראשונות של הבחירה,
+והעוגן המורחב אינו מוחזר כשהבחירה קוצרה.
 
 יחידת המיקום הקנונית היא grapheme cluster לפי חלוקת Unicode של ה־Host. `codePoint` ו־`utf16` נמסרים לצורכי שילוב בלבד; אין להשתמש ב־`String.length` של JavaScript כעוגן קנוני.
 
@@ -5764,6 +5771,8 @@ Otzaria.on('reader.selection_changed', (data) => {
 //   source: "library"
 // }
 ```
+
+בספר שהמו"ל הגביל, `text` כולל לכל היותר את חמש השורות הראשונות של הבחירה.
 
 ---
 

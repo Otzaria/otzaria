@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/printing/commentary_print_limit.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -18,17 +20,23 @@ typedef CommentaryContentResolver = Future<String> Function(Link link);
 /// [groups] - קבוצות המפרשים בסדר התצוגה.
 /// [contentResolver] - פותר תוכן חלופי (לבדיקות); ברירת מחדל היא [Link.content].
 ///
+/// מפרש עם הגבלת הדפסה של המו"ל נחתך למספר השורות המותר לו.
+///
 /// מחזירה [Future<List<PrintBlock>>] - בלוקים מוכנים להדפסה (ריק אם אין תוכן).
 Future<List<PrintBlock>> buildCommentaryPrintBlocks(
   List<LinkGroup> groups, {
   CommentaryContentResolver? contentResolver,
+  Future<BookProtection> Function(Link link)? protectionResolver,
 }) async {
   final resolve = contentResolver ?? (Link link) => link.content;
+  final limit = CommentaryPrintLimit(protectionResolver: protectionResolver);
   final blocks = <PrintBlock>[];
 
   for (final group in groups) {
     final groupBlocks = <PrintBlock>[];
-    for (final link in group.links) {
+    for (final original in group.links) {
+      final link = await limit.take(original);
+      if (link == null) continue;
       String text;
       try {
         text = stripHtmlIfNeeded(await resolve(link)).trim();

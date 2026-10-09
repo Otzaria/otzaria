@@ -106,6 +106,11 @@ class _PluginTextReaderState extends State<PluginTextReader> {
                 previous.fontSize != current.fontSize ||
                 previous.bodyDisplayProfile != current.bodyDisplayProfile),
         listener: (context, state) {
+          // ההגבלה ידועה רק במצב Loaded; היא מחזירה את הטאב לקורא הרגיל.
+          if (state is TextBookLoaded && state.protection.isProtected) {
+            setState(() {});
+            return;
+          }
           registry.command(widget.tab, 'display');
         },
         child: ListenableBuilder(

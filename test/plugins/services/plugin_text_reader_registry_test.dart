@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
@@ -170,6 +172,25 @@ void main() {
       expect(registry.selectedPluginId, 'test.columns');
     },
   );
+
+  test('ספר עם הגבלת מו"ל נפתח בקורא הרגיל', () async {
+    final registry = PluginTextReaderRegistry(saveSelection: (_) async {});
+    addTearDown(registry.dispose);
+    await registry.select(plugin(), true);
+    final book = TextBook(title: 'מוגן');
+    final tab = TextBookTab(book: book, index: 0);
+    addTearDown(tab.dispose);
+    expect(registry.usesPlugin(tab), true);
+    tab.bloc.emit(
+      TextBookLoaded.initial(
+        book: book,
+        index: 0,
+        showLeftPane: false,
+        splitView: false,
+      ).copyWith(protection: const BookProtection(level: 1)),
+    );
+    expect(registry.usesPlugin(tab), false);
+  });
 
   test('document formats keep their dedicated native reader', () async {
     final registry = PluginTextReaderRegistry(saveSelection: (_) async {});

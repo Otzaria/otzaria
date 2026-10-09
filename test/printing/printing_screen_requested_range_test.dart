@@ -5,12 +5,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:opentype_shaper/opentype_shaper.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 
 import '../helpers/memory_settings_cache.dart';
 import '../support/shaper_test_init.dart';
@@ -77,6 +80,7 @@ void main() {
     int? endLine,
     List<String>? availableCommentators,
     List<String> activeCommentators = const [],
+    BookProtection? protection,
   }) async {
     tester.view.physicalSize = const Size(1600, 1200);
     tester.view.devicePixelRatio = 1;
@@ -107,6 +111,7 @@ void main() {
               tableOfContents: _toc,
               availableCommentators: availableCommentators,
               activeCommentators: activeCommentators,
+              protection: protection,
             ),
           ),
         ),
@@ -129,6 +134,30 @@ void main() {
     expect(find.text('11 שורות נבחרו מתוך 20'), findsOneWidget);
     expect(find.text('פרק א'), findsWidgets);
     expect(find.text('פרק ב'), findsWidgets);
+    await tester.pumpWidget(const SizedBox());
+  }, skip: skip != null);
+
+  testWidgets('רמה 2 — הטווח נחתך ל-15 שורות ו"שמור ל-PDF" מוסתר', (
+    tester,
+  ) async {
+    await pumpScreen(
+      tester,
+      endLine: 20,
+      protection: const BookProtection(level: 2),
+    );
+
+    expect(find.text('15 שורות נבחרו מתוך 20'), findsOneWidget);
+    expect(find.text(PdfMessages.printLimitedByPublisher(15)), findsOneWidget);
+    await tester.tap(
+      find.byWidgetPredicate((w) => w is AppDropdownField).first,
+    );
+    // התצוגה המקדימה ממשיכה לרנדר ברקע, ולכן אין להמתין ל-pumpAndSettle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    // התפריט פתוח: הפריט מופיע גם בשדה וגם ברשימה.
+    expect(find.text('הדפס'), findsAtLeastNWidgets(2));
+    expect(find.text('שמור ל-PDF'), findsNothing);
+    expect(find.text('שמור ל-Word'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   }, skip: skip != null);
 

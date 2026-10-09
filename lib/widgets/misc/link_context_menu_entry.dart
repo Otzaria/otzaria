@@ -4,12 +4,15 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/smart_text/exact_line_height.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
@@ -131,6 +134,28 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
   static const double _expandedBottomMargin = 24;
 
   bool _expanded = false;
+
+  AppSelectionAreaState? _selectionArea;
+
+  Future<BookProtection> _protection() =>
+      BookProtectionRepository.instance.forLink(widget.link);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // תוכן הקישור הוא טקסט של ספר אחר; ההעתקה ממנו כפופה להגבלה שלו.
+    final area = AppSelectionArea.maybeOf(context);
+    if (!identical(area, _selectionArea)) {
+      _selectionArea?.removeProtectionSource(_protection);
+      _selectionArea = area?..addProtectionSource(_protection);
+    }
+  }
+
+  @override
+  void dispose() {
+    _selectionArea?.removeProtectionSource(_protection);
+    super.dispose();
+  }
 
   /// המקום הפנוי מתחת לתוכן ברגע הפרישה; מגביל את הגובה הפרוש, כדי שהחלונית
   /// תגדל כלפי מטה עד שולי המסך ולא תקפוץ למעלה.

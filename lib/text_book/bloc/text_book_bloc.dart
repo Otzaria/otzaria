@@ -6,6 +6,8 @@ import 'package:otzaria/core/error_log_file.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -92,6 +94,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     BookSource preferSource,
   })
   _quickPreviewLoader;
+
+  final Future<BookProtection> Function(Book book) _protectionLoader;
   final ItemScrollController scrollController;
   final ItemPositionsListener positionsListener;
   final ScrollOffsetController? scrollOffsetController;
@@ -177,6 +181,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       BookSource preferSource,
     })?
     quickPreviewLoader,
+    Future<BookProtection> Function(Book book)? protectionLoader,
     required TextBookInitial initialState,
     required this.scrollController,
     required this.positionsListener,
@@ -184,6 +189,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   }) : _quickPreviewLoader =
            quickPreviewLoader ??
            SqliteDataProvider.instance.getBookQuickPreview,
+       _protectionLoader =
+           protectionLoader ?? BookProtectionRepository.instance.forBook,
        super(initialState) {
     on<LoadContent>(_onLoadContent);
     on<UpdateResolvedBookId>(_onUpdateResolvedBookId);
@@ -718,6 +725,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       return;
     }
 
+    // במקביל לטעינת התוכן, כדי שה-UI יקבל את ההגבלה כבר במצב ה-Loaded.
+    // גם בטעינה-מחדש: הספרייה עשויה להתעדכן בינתיים.
+    final protectionFuture = _protectionLoader(book);
+
     // ספר שנפתח עם חיפוש פעיל (מתוצאות חיפוש או טאב משוחזר): מזינים ברקע את
     // תבנית ההדגשה מבוססת-האינדקס, במקביל לטעינת התוכן — כך הרינדור מדגיש
     // את הווריאנטים שהחיפוש באמת התאים (שגיאות כתיב, קידומות, חלק ממילה).
@@ -1003,8 +1014,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       existingCommentatorGroups = _withoutHiddenGroups(
         existingCommentatorGroups,
       );
+      final protection = await protectionFuture;
       TextBookLoaded loadedState = TextBookLoaded(
         book: book,
+        protection: protection,
         content: contentLines,
         contentVersion: contentLines.isEmpty ? 0 : 1,
         links: emptyLinks,

@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
 import 'package:otzaria/plugins/utils/highlight_click_resolver.dart';
@@ -36,7 +37,16 @@ Map<String, dynamic> buildReaderSelectionPayload({
   const selectionService = ReaderSelectionService();
   final book = state.book;
   final lineStart = anchor.lineStart;
-  final lineEnd = anchor.lineEnd;
+  var lineEnd = anchor.lineEnd;
+  // תוסף מקבל מבחירה בספר מוגן רק את מה שמותר להעתיק.
+  selectedText = limitTextToCopySegments(state.protection, selectedText);
+  final maxSegments = state.protection.maxCopySegments;
+  if (maxSegments != null &&
+      lineStart != null &&
+      lineEnd != null &&
+      lineEnd - lineStart >= maxSegments) {
+    lineEnd = lineStart + maxSegments - 1;
+  }
   if (lineStart != null &&
       lineEnd != null &&
       lineEnd > lineStart &&
