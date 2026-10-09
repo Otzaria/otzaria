@@ -66,21 +66,13 @@ class CalendarDatePickerPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: bodyHeight,
-      child: showHebrew
-          ? _HebrewMonthGrid(
-              selectedDate: selectedDate,
-              currentDate: currentDate,
-              firstDate: firstDate,
-              lastDate: lastDate,
-              onDateChanged: onDateChanged,
-            )
-          : _GregorianMonthGrid(
-              selectedDate: selectedDate,
-              currentDate: currentDate,
-              firstDate: firstDate,
-              lastDate: lastDate,
-              onDateChanged: onDateChanged,
-            ),
+      child: (showHebrew ? _HebrewMonthGrid.new : _GregorianMonthGrid.new)(
+        selectedDate: selectedDate,
+        currentDate: currentDate,
+        firstDate: firstDate,
+        lastDate: lastDate,
+        onDateChanged: onDateChanged,
+      ),
     );
   }
 }
@@ -238,30 +230,28 @@ class _DateCell extends StatelessWidget {
   }
 }
 
-// ── רשת חודש עברי ───────────────────────────────────────────────────────────
-
-class _HebrewMonthGrid extends StatefulWidget {
+abstract class _MonthGrid extends StatefulWidget {
   final DateTime selectedDate;
   final DateTime currentDate;
   final DateTime firstDate;
   final DateTime lastDate;
   final ValueChanged<DateTime> onDateChanged;
 
-  const _HebrewMonthGrid({
+  const _MonthGrid({
     required this.selectedDate,
     required this.currentDate,
     required this.firstDate,
     required this.lastDate,
     required this.onDateChanged,
   });
-
-  @override
-  State<_HebrewMonthGrid> createState() => _HebrewMonthGridState();
 }
 
-class _HebrewMonthGridState extends State<_HebrewMonthGrid> {
+/// החודש המוצג; מסתנכרן לתאריך הנבחר כשהוא משתנה מבחוץ.
+abstract class _MonthGridState extends State<_MonthGrid> {
   late int _year;
   late int _month;
+
+  void _syncToSelected();
 
   @override
   void initState() {
@@ -270,11 +260,29 @@ class _HebrewMonthGridState extends State<_HebrewMonthGrid> {
   }
 
   @override
-  void didUpdateWidget(covariant _HebrewMonthGrid oldWidget) {
+  void didUpdateWidget(covariant _MonthGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectedDate != widget.selectedDate) _syncToSelected();
   }
+}
 
+// ── רשת חודש עברי ───────────────────────────────────────────────────────────
+
+class _HebrewMonthGrid extends _MonthGrid {
+  const _HebrewMonthGrid({
+    required super.selectedDate,
+    required super.currentDate,
+    required super.firstDate,
+    required super.lastDate,
+    required super.onDateChanged,
+  });
+
+  @override
+  State<_MonthGrid> createState() => _HebrewMonthGridState();
+}
+
+class _HebrewMonthGridState extends _MonthGridState {
+  @override
   void _syncToSelected() {
     final jd = JewishDate.fromDateTime(widget.selectedDate);
     _year = jd.getJewishYear();
@@ -353,41 +361,21 @@ class _HebrewMonthGridState extends State<_HebrewMonthGrid> {
 
 // ── רשת חודש לועזי ──────────────────────────────────────────────────────────
 
-class _GregorianMonthGrid extends StatefulWidget {
-  final DateTime selectedDate;
-  final DateTime currentDate;
-  final DateTime firstDate;
-  final DateTime lastDate;
-  final ValueChanged<DateTime> onDateChanged;
-
+class _GregorianMonthGrid extends _MonthGrid {
   const _GregorianMonthGrid({
-    required this.selectedDate,
-    required this.currentDate,
-    required this.firstDate,
-    required this.lastDate,
-    required this.onDateChanged,
+    required super.selectedDate,
+    required super.currentDate,
+    required super.firstDate,
+    required super.lastDate,
+    required super.onDateChanged,
   });
 
   @override
-  State<_GregorianMonthGrid> createState() => _GregorianMonthGridState();
+  State<_MonthGrid> createState() => _GregorianMonthGridState();
 }
 
-class _GregorianMonthGridState extends State<_GregorianMonthGrid> {
-  late int _year;
-  late int _month;
-
+class _GregorianMonthGridState extends _MonthGridState {
   @override
-  void initState() {
-    super.initState();
-    _syncToSelected();
-  }
-
-  @override
-  void didUpdateWidget(covariant _GregorianMonthGrid oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedDate != widget.selectedDate) _syncToSelected();
-  }
-
   void _syncToSelected() {
     _year = widget.selectedDate.year;
     _month = widget.selectedDate.month;
