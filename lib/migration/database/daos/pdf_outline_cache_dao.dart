@@ -1,60 +1,28 @@
-import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
-
 import '../../models/pdf_outline_cache_entry.dart';
-import '../query_loader.dart';
 import '../sqlite3_utils.dart';
 import 'database.dart';
+import 'file_cache_dao.dart';
 
-class PdfOutlineCacheDao {
-  final MyDatabase _db;
-  late final Map<String, String> _queries;
-
-  PdfOutlineCacheDao(this._db) {
-    _queries = QueryLoader.loadQueries('PdfOutlineCacheQueries.sq');
-  }
-
-  Future<sqlite3.Database> get database => _db.database;
-
-  Future<PdfOutlineCacheEntry?> selectByFilePath(String filePath) async {
-    final db = await database;
-    final result = db.select(_queries['selectByFilePath']!, [
-      filePath,
-    ]).toMapList();
-    if (result.isEmpty) return null;
-    return PdfOutlineCacheEntry.fromMap(result.first);
-  }
-
-  Future<void> upsert(PdfOutlineCacheEntry entry) async {
-    final db = await database;
-    db.execute(_queries['upsert']!, [
-      entry.filePath,
-      entry.fileSize,
-      entry.lastModified,
-      entry.outlineJson,
-      entry.createdAt,
-      entry.accessedAt,
-    ]);
-  }
-
-  Future<void> updateAccessedAt(String filePath, int accessedAt) async {
-    final db = await database;
-    db.execute(_queries['updateAccessedAt']!, [accessedAt, filePath]);
-  }
-
-  Future<void> deleteByFilePath(String filePath) async {
-    final db = await database;
-    db.execute(_queries['deleteByFilePath']!, [filePath]);
-  }
-
-  Future<void> deleteAccessedBefore(int cutoffMillis) async {
-    final db = await database;
-    db.execute(_queries['deleteAccessedBefore']!, [cutoffMillis]);
-  }
+class PdfOutlineCacheDao extends FileCacheDao<PdfOutlineCacheEntry> {
+  PdfOutlineCacheDao(MyDatabase db)
+    : super(
+        db,
+        'PdfOutlineCacheQueries.sq',
+        PdfOutlineCacheEntry.fromMap,
+        (entry) => [
+          entry.filePath,
+          entry.fileSize,
+          entry.lastModified,
+          entry.outlineJson,
+          entry.createdAt,
+          entry.accessedAt,
+        ],
+      );
 
   Future<List<String>> selectAllFilePaths() async {
     final db = await database;
     return db
-        .select(_queries['selectAllFilePaths']!)
+        .select(queries['selectAllFilePaths']!)
         .toMapList()
         .map((row) => row['filePath'] as String)
         .toList();
@@ -66,7 +34,7 @@ class PdfOutlineCacheDao {
     final stalePaths = allPaths.where((path) => !keepFilePaths.contains(path));
     withTransaction(db, () {
       for (final stalePath in stalePaths) {
-        db.execute(_queries['deleteByFilePath']!, [stalePath]);
+        db.execute(queries['deleteByFilePath']!, [stalePath]);
       }
     });
   }
