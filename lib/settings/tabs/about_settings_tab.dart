@@ -60,14 +60,6 @@ class AboutSettingsTab extends StatelessWidget {
       keywords: ['סיוע', 'תורה', 'לומדי תורה', 'עזרה'],
     ),
     SettingsSearchEntry(
-      id: 'about.editing',
-      title: 'הצטרף לצוות העריכה ומהדירי הספרים',
-      subtitle: 'עזור לנו להוסיף ספרים חדשים לספריית אוצריא',
-      tab: SettingsTab.about,
-      cardId: 'about.library',
-      keywords: ['עריכה', 'הצטרף', 'הוספת ספרים'],
-    ),
-    SettingsSearchEntry(
       id: 'about.dev',
       title: 'אודות פיתוח התוכנה',
       subtitle: 'מידע על מפתחי אוצריא ופיתוח התוכנה',
@@ -268,22 +260,6 @@ class AboutSettingsTab extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
-                SettingsActionTile.text(
-                  icon: FluentIcons.edit_24_regular,
-                  title: context.settingsText(
-                    'הצטרף לצוות העריכה ומהדירי הספרים',
-                  ),
-                  subtitle: context.settingsText(
-                    'עזור לנו להוסיף ספרים חדשים לספריית אוצריא',
-                  ),
-                  actions: [
-                    ActionButton.recommended(
-                      text: context.settingsText('הצטרף לעריכה'),
-                      onPressed: () =>
-                          _openUrl('https://www.otzaria.org/library'),
-                    ),
-                  ],
                 ),
               ],
             ),
