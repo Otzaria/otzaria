@@ -110,36 +110,6 @@ bool isTashmaSource(String? sourceFolder) {
   return normalized.contains('tashma');
 }
 
-/// בודק האם מקור הספר הוא "יד הרמב"ם" של הספרייה הלאומית
-/// (המקור National-LibraryToOtzaria ב-DB). מנורמל כמו [isTashmaSource].
-bool isNationalLibrarySource(String? sourceFolder) {
-  final normalized = (sourceFolder ?? '').toLowerCase().replaceAll(
-    _sourceNormalizationRegex,
-    '',
-  );
-  return normalized.contains('nationallibrary');
-}
-
-/// בודק האם מקור הספר הוא "אוצר הספרים היהודי השיתופי"
-/// (המקור wikiJewishBooksToOtzaria ב-DB). מנורמל כמו [isTashmaSource].
-bool isWikiJewishBooksSource(String? sourceFolder) {
-  final normalized = (sourceFolder ?? '').toLowerCase().replaceAll(
-    _sourceNormalizationRegex,
-    '',
-  );
-  return normalized.contains('wikijewishbooks');
-}
-
-/// בודק האם מקור הספר הוא "מכון בית אהרן וישראל"
-/// (המקור BeitAharonVeYisraelToOtzaria ב-DB). מנורמל כמו [isTashmaSource].
-bool isBeitAharonVeYisraelSource(String? sourceFolder) {
-  final normalized = (sourceFolder ?? '').toLowerCase().replaceAll(
-    _sourceNormalizationRegex,
-    '',
-  );
-  return normalized.contains('beitaharonveyisrael');
-}
-
 /// מציג את כל פרטי הספר הזמינים, גם מחוץ לקורא הטקסט.
 Future<void> showBookDetailsDialog(
   BuildContext context,

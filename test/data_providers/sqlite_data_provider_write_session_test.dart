@@ -316,6 +316,51 @@ void main() {
       reason: 'הטרנזקציה הלא-גמורה לא הוחלה',
     );
   });
+
+  test(
+    'הגבלות ובאנרים נטענים מחדש אחרי כתיבה חיצונית, גם בלי שינוי סכמה',
+    () async {
+      final provider = SqliteDataProvider.instance;
+      final dbPath = path.join(libraryPath, DatabaseConstants.databaseFileName);
+      expect(
+        (await provider.repository!.getBookProtectionTables()).levels,
+        isEmpty,
+      );
+
+      Future<void> writeExternally(List<String> statements) async {
+        await provider.closeForExternalWrite();
+        final db = MyDatabase.withPath(dbPath);
+        final raw = await db.database;
+        for (final sql in statements) {
+          raw.execute(sql);
+        }
+        db.close();
+        await provider.reopenAfterExternalWrite();
+      }
+
+      // patch ראשון יוצר את הטבלאות.
+      await writeExternally([
+        'CREATE TABLE IF NOT EXISTS book_protection '
+            '(bookId INTEGER PRIMARY KEY NOT NULL, level INTEGER NOT NULL)',
+        'CREATE TABLE IF NOT EXISTS book_banner '
+            '(bookId INTEGER PRIMARY KEY NOT NULL, text TEXT NOT NULL)',
+        'INSERT INTO book_protection VALUES (7, 1)',
+      ]);
+      expect((await provider.repository!.getBookProtectionTables()).levels, {
+        7: 1,
+      });
+
+      // patch הבא מחליף רק תוכן — schema_version אינו משתנה.
+      await writeExternally([
+        'DELETE FROM book_protection',
+        'INSERT INTO book_protection VALUES (7, 2)',
+        "INSERT INTO book_banner VALUES (7, 'באנר')",
+      ]);
+      final tables = await provider.repository!.getBookProtectionTables();
+      expect(tables.levels, {7: 2});
+      expect(tables.banners, {7: 'באנר'});
+    },
+  );
 }
 
 class _MemoryCacheProvider extends CacheProvider {

@@ -44,6 +44,10 @@ const Set<String> kKnownSeforimTables = {
   'schema_meta',
   'db_meta',
   'external_link',
+  // טבלאות אופציונליות מחוץ לחוזה ה-hash של סכמה 6.
+  // TODO: בסכמה 7 להעביר אותן לחוזה הסכמה ולוותר על ערוץ הצד.
+  'book_banner',
+  'book_protection',
 };
 
 /// אילו מהטבלאות המוכרות קיימות במסד בפורמט seforim.db, ובאילו עמודות.
@@ -157,6 +161,15 @@ class DbCapabilities {
   bool get hasDefaultCommentators => hasBooks && has('default_commentator');
   bool get hasDefaultTargums => hasBooks && has('default_targum');
   bool get hasCategoryClosure => hasCategories && has('category_closure');
+
+  /// באנר קרדיט לספר; טבלה אופציונלית ודלילה.
+  bool get hasBookBanners =>
+      hasColumn('book_banner', 'bookId') && hasColumn('book_banner', 'text');
+
+  /// רמת הגבלת מו"ל לספר; טבלה אופציונלית ודלילה.
+  bool get hasBookProtection =>
+      hasColumn('book_protection', 'bookId') &&
+      hasColumn('book_protection', 'level');
 
   /// קישורים ממסד מצורף אל ספרים במסד אחר (רשמי או מצורף אחר).
   bool get hasExternalLinks =>

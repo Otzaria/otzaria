@@ -10,7 +10,9 @@ import 'package:otzaria/models/links.dart';
 /// `index2` הוא מה שמבדיל בין שני קטעים של אותו מפרש על אותה שורה; בלעדיו
 /// שניהם היו נראים כאותו יעד.
 String commentaryLinkKey(Link link) =>
-    '${link.index1}_${link.path2}_${link.index2}';
+    '${link.index1}_${link.path2}_${link.index2}'
+    '${link.targetSource.isOfficial ? '' : '|${link.targetSource.wireKey}'}'
+    '${link.index2End == null ? '' : '|end:${link.index2End}'}';
 
 /// בקשה לגלול את רשימת המפרשים אל מפרש מסוים, ואם אפשר אל הקטע המדויק שלו.
 ///

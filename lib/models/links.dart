@@ -160,6 +160,37 @@ class Link {
   /// זהות תוכן היעד, כולל המסד והטווח, לשיתוף בין מטמוני תצוגה וייצוא.
   String get contentIdentityKey => _contentKey;
 
+  /// זהות ספר היעד, ללא טווח, לצבירת מגבלות נפרדת לכל מסד וספר.
+  String get targetIdentityKey => targetBookId != null
+      ? '${targetSource.wireKey}|id:$targetBookId'
+      : '${targetSource.wireKey}|title:${utils.getTitleFromPath(path2)}|${targetCategoryId ?? ''}';
+
+  /// אותו יעד עם טווח מקור מצומצם (1-based, כולל).
+  Link withTargetRange(int first, int last) => Link(
+    heRef: heRef,
+    index1: index1,
+    index1End: index1End,
+    path2: path2,
+    index2: first,
+    index2End: last == first ? null : last,
+    connectionType: connectionType,
+    targetCategoryId: targetCategoryId,
+    targetBookId: targetBookId,
+    targetFileType: targetFileType,
+    targetSource: targetSource,
+    start: start,
+    end: end,
+    anchorStart: anchorStart,
+    anchorEnd: anchorEnd,
+    anchorOffsetsAreRaw: anchorOffsetsAreRaw,
+    anchorLabel: anchorLabel,
+    linkedAnchorStart: linkedAnchorStart,
+    linkedAnchorEnd: linkedAnchorEnd,
+    anchorSpans: anchorSpans,
+    heRefEnd: last == index2End ? heRefEnd : null,
+    baseProvenance: baseProvenance,
+  );
+
   static final LinkedHashMap<String, Future<String>> _contentCache =
       LinkedHashMap<String, Future<String>>();
   static final Map<String, String> _loadedContent = {};
@@ -168,7 +199,7 @@ class Link {
   // כותרת ואינדקס — אחד אישי ואחד רשמי — לא יחזירו זה את תוכן זה.
   String get _contentKey =>
       '$path2:$index2:${index2End ?? ''}:${targetSource.wireKey}:'
-      '${targetCategoryId ?? ''}';
+      '${targetCategoryId ?? ''}:${targetBookId ?? ''}';
 
   /// התוכן כפי שכבר נטען דרך [content], או null אם טרם נטען.
   String? get loadedContent => _loadedContent[_contentKey];

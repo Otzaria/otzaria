@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
@@ -109,6 +110,13 @@ class _DirectReportDetails extends StatelessWidget {
     return SizedBox(
       width: 560,
       child: AppSelectionArea(
+        // דיווח נשלח רק על ספר מהספרייה הרשמית; המזהה מדויק מהכותרת.
+        protection: () => switch (report.location?.bookId) {
+          final int bookId => BookProtectionRepository.instance.forBookId(
+            bookId,
+          ),
+          null => BookProtectionRepository.instance.forTitle(report.bookTitle),
+        },
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:otzaria/book_common/view/parallel_editions_action.dart';
 import 'package:otzaria/plugins/utils/reader_plugin_toolbar_actions.dart';
@@ -56,7 +57,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
-import 'package:otzaria/printing/export_restriction_service.dart';
+import 'package:otzaria/printing/page_shape_print_policy.dart';
 import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/view/text_book_scaffold.dart';
@@ -623,14 +624,29 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     context.read<TourCubit>().recordInteraction(
       TourInteraction(type: TourInteractionType.printUsed),
     );
+    var commentators = state.activeCommentators;
+    var protection = state.protection;
+    var useScreenshot = state.showPageShapeView;
     if (state.showPageShapeView) {
+      final policy = await resolvePageShapePrintPolicy(
+        mainProtection: state.protection,
+        layout: widget.tab.pageShapePluginController.layout,
+        availableCommentators: state.availableCommentators,
+        links: state.links,
+      );
+      commentators = policy.commentators;
+      protection = policy.protection;
+      useScreenshot = policy.useScreenshot;
+    }
+    if (!mounted) return;
+    if (useScreenshot) {
       final png = await _capturePageShapeViewPng();
       if (!mounted) return;
-
       if (png == null || png.isEmpty) {
         UiSnack.showError(TextBookMessages.cannotCapturePageShapeForPrint);
         return;
       }
+      if (!mounted) return;
 
       showDialog(
         context: context,
@@ -639,6 +655,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           // במצב זה ה-PDF נוצר מצילום המסך, ולכן אין צורך בנתוני הטקסט
           data: Future.value(''),
           bookId: state.book.title,
+          protection: protection,
           displayProfile: _exportProfile(state),
           createPdfOverride: (PdfPageFormat format) async {
             final doc = pw.Document(compress: false);
@@ -670,8 +687,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         data: contentData,
         bookId: state.book.title,
         book: state.book,
+        protection: state.protection,
         links: state.links,
-        activeCommentators: state.activeCommentators,
+        activeCommentators: commentators,
+        initialIncludeCommentaries: state.showPageShapeView,
         startLine: _topmostVisibleSourceLine(state),
         displayProfile: _exportProfile(state),
         tableOfContents: state.tableOfContents,
@@ -680,9 +699,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 
   Future<void> _exportWholeBook(TextBookLoaded state) async {
-    await ExportRestrictionService.ensureLoaded();
-    if (!mounted) return;
-    if (ExportRestrictionService.isRestricted(state.book.title)) {
+    if (!state.protection.allowsEditableExport) {
       UiSnack.showError(TextBookMessages.editableExportRestricted);
       return;
     }
@@ -775,12 +792,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   @override
   void initState() {
     super.initState();
-
-    // רשימת הספרים המוגבלים לייצוא נטענת מ-asset, ולכן עשויה עוד לא להיות
-    // זמינה כשהכפתור נבנה. טעינה כאן במקום בעלייה מכסה גם חלון משני.
-    ExportRestrictionService.ensureLoaded().then((_) {
-      if (mounted) setState(() {});
-    });
 
     // טעינת נתוני שמור וזכור ברקע כדי שהמצב יהיה נכון בפתיחת ספר
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1978,8 +1989,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ),
 
       // ייצוא הספר המלא - Word מעוצב או טקסט פשוט
-      if (!widget.isInCombinedView &&
-          !ExportRestrictionService.isRestricted(state.book.title))
+      if (!widget.isInCombinedView && state.protection.allowsEditableExport)
         (
           50,
           ActionButtonData(
@@ -2053,7 +2063,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 tooltip: 'הדפסה',
                 onPressed: () => _handlePrintPress(state),
               ),
-              if (!ExportRestrictionService.isRestricted(state.book.title))
+              if (state.protection.allowsEditableExport)
                 ActionButtonData(
                   widget: const SizedBox.shrink(),
                   icon: OtzariaIcons.document_download_24_regular,
@@ -2489,6 +2499,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             data: contentData,
             bookId: state.book.title,
             book: state.book,
+            protection: state.protection,
             links: state.links,
             activeCommentators: state.activeCommentators,
             startLine: _topmostVisibleSourceLine(state),
@@ -3179,6 +3190,7 @@ bool _handleGlobalKeyEvent(
         data: contentData,
         bookId: state.book.title,
         book: state.book,
+        protection: state.protection,
         links: state.links,
         activeCommentators: state.activeCommentators,
         startLine: _topmostVisibleSourceLine(state),
@@ -3298,7 +3310,10 @@ bool _handleGlobalKeyEvent(
           : buildTextMarkLink(
               bookId,
               index,
-              selectedTextForNote ?? '',
+              limitTextToCopySegments(
+                state.protection,
+                selectedTextForNote ?? '',
+              ),
               source: state.book.source,
             );
       if (bookId == null) {
