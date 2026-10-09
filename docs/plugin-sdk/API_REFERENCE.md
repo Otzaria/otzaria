@@ -188,11 +188,11 @@ if (response.success) {
 | `reader.getHighlightCapabilities` | 0.9.97 |
 | `reader.findTextOccurrences` | 0.9.95 |
 | `reader.getSectionTextMap` | 0.9.95 |
-| `reader.beginCorrectionSession` | 0.9.100 |
-| `reader.getCorrectionSession` | 0.9.100 |
-| `reader.restoreCorrectionDraft` | 0.9.100 |
-| `reader.resetCorrection` | 0.9.100 |
-| `reader.endCorrectionSession` | 0.9.100 |
+| `reader.beginCorrectionSession` | 0.9.99 |
+| `reader.getCorrectionSession` | 0.9.99 |
+| `reader.restoreCorrectionDraft` | 0.9.99 |
+| `reader.resetCorrection` | 0.9.99 |
+| `reader.endCorrectionSession` | 0.9.99 |
 | `reader.registerInBookSearchProvider` | 0.9.97 |
 | `reader.respondInBookSearch` | 0.9.97 |
 | `reader.registerExternalSearchProvider` | 0.9.97 |
@@ -2098,12 +2098,13 @@ if (data.hasMore) {
 
 ### `reader.beginCorrectionSession`
 
-**גרסת מינימום:** `0.9.100`. **הרשאה:** `reader.local_edit` לכל פעולות הסשן.
+**גרסת מינימום:** `0.9.99`. **הרשאה:** `reader.local_edit` לכל פעולות הסשן.
+קבלת `tabId` דרך `reader.getCurrentState` דורשת גם `reader.open`.
 
-פותחת שכבת תיקונים זמנית בלשונית טקסט רשמית ממסד הספרייה, בקורא הרגיל בלבד.
-צורת הדף, תצוגה מפוצלת וקורא תוסף אינם נתמכים. פתיחת הסשן מפעילה שדות עריכה
+פותחת שכבת תיקונים זמנית בלשונית טקסט רשמית ממסד הספרייה, עם מפרשים בצד או מתחת.
+צורת הדף וקורא תוסף אינם נתמכים. פתיחת הסשן מפעילה שדות עריכה
 מובנים (`RtlTextField`) בפסקאות פשוטות בקורא הרגיל והרציף. השדות מציגים את
-המקור הגולמי ללא עיבודי פרופיל תצוגה בזמן העריכה, בסגנון הקורא הרגיל.
+טקסט המקור לאחר `TextRendererService.stripHtml`, ללא עיבודי פרופיל תצוגה בזמן העריכה.
 אוצריא אינה כותבת לספר, לקובץ המקור או למסד הספרייה.
 
 ```javascript
@@ -2113,25 +2114,44 @@ const { data: session } = await Otzaria.call('reader.beginCorrectionSession', {
 });
 ```
 
-מ־`0.9.100`, `getCurrentState` מחזירה `currentTabId` ו־`openTabs[].tabId`:
+מ־`0.9.99`, `getCurrentState` מחזירה `currentTabId` ו־`openTabs[].tabId`:
 מזהה יציב למשך חיי לשונית הטקסט, ו־`null` עבור לשוניות אחרות. המזהה אינו נשמר
 בין הפעלות. מעבר ללשונית אחרת אינו משנה את יעד הסשן. לכל לשונית בעלים יחיד;
 פתיחה חוזרת של אותו תוסף מחזירה את הסשן הקיים. תוסף אחר מקבל `error.correction_busy`.
 
+`currentCorrectionSessionId` ו־`openTabs[].correctionSessionId` מפנים רק לסשן קיים
+השייך לתוסף הקורא, או מחזירים `null`. אפשר לקרוא `getCorrectionSession` עם המזהה
+לאחר פתיחת דף התוסף כדי להציג עריכה שהופעלה ברקע, ללא `beginCorrectionSession` נוסף.
+המזהים זמניים ואינם זהות טיוטה בין הפעלות. אירועי הסשן נמסרים למופע הקדמי
+אם הוא קיים, כולל חידוש מופע מושהה; אחרת הם נמסרים למופע הרקע.
+בלשונית שמחולקת לשתי חלוניות, `openTabs` מציגה רק את החלונית הפעילה; את `tabId`
+של החלונית השנייה מקבלים מ־`selection.tabId` בתפריט `reader-book`.
+
+מעבר לצורת הדף אינו מסיים את הסשן. התיקונים מוסתרים בה ומוצגים שוב בחזרה
+למפרשים בצד או מתחת. בזמן צורת הדף `restoreCorrectionDraft` ו־`resetCorrection`
+מחזירות `error.unsupported_context`, ו־`getCorrectionSession` ו־`endCorrectionSession` זמינות.
+
 כל הפעולות מחזירות `CorrectionSessionSnapshot`: `sessionId`, `tabId`, `bookId`,
 `bookUid`, `libraryVersion`, `revision`, `changes` ו־`capabilities`.
 כל שינוי כולל `sectionIndex` אפסי, `originalSourceText`, `originalText` ו־`proposedText`.
-בפסקאות הנתמכות הטקסט העריך זהה למקור הגולמי, והיסטים נמדדים ביחידות UTF-16.
-HTML, ישויות HTML, מעברי שורה ו־surrogates פגומים נדחים; אין שינוי גבולות פסקה.
+`originalSourceText` שומר את המקור הגולמי כולל תגיות וישויות HTML;
+`originalText` הוא הטקסט הקנוני לאחר `TextRendererService.stripHtml`.
+ההצעה היא טקסט פשוט; תגיות, ישויות לא מפוענחות, מעברי שורה ו־surrogates פגומים נדחים.
+אין שינוי גבולות פסקה, והיסטים נמדדים ביחידות UTF-16 בטקסט הקנוני.
 פסקת מקור ריקה אינה ניתנת לעריכה בתוך הקורא. בקריאה רציפה יש שדה נפרד לכל
 פסקת מקור נתמכת, ואינדקסי המקור נשמרים.
 
-היכולות הן `plainTextOnly: true`, `paragraphBoundaries: false`, `offsetUnit: 'utf16'`,
+היכולות הן `plainTextOnly: true`, `htmlSource: true`, `paragraphBoundaries: false`, `offsetUnit: 'utf16'`,
 `maxChanges: 500`, `maxTextLength: 20000` ו־`maxChangesBytes: 1048576`.
 מגבלת הבתים מתייחסת לסכום ייצוגי JSON של השינויים ב־UTF-8, ללא מעטפת הסשן.
 יכולות התצוגה הן `sourceSelection: false`,
 `sourceAnchorsOnCorrectedParagraphs: false`, `continuousReading: true`,
-`pageShape: false` ו־`splitView: false`.
+`pageShape: false` ו־`splitView: true`.
+
+בשליחה דרך `feedback.submitBookCorrection` מעבירים `snapshots[].text` לפי `originalText`,
+ולא לפי `originalSourceText`. השליחה מאמתת את הטקסט הקנוני מול המקור הרשמי;
+שחזור טיוטה מאמת גם את המקור הגולמי. שינוי שחוצה תגיות ונעדר
+מיפוי מדויק נשלח כדיווח חופשי עם המקור וההצעה, ללא שינוי HTML בספר המקומי.
 
 פסקאות מתוקנות שומרות את אינדקסי המקור לצורך ניווט. אין עליהן קישורים,
 הערות, הדגשות תוסף או הדגשות חיפוש
@@ -2182,14 +2202,14 @@ HTML, ישויות HTML, מעברי שורה ו־surrogates פגומים נדח�
 
 ### Event: `reader.correctionSessionChanged`
 
-אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.100`.
+אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.99`.
 כולל `{ sessionId, revision, sectionIndex? }`; מבקש מהתוסף למשוך snapshot,
 ואינו מחליף קריאת מצב מלא. כל שינוי מתקבל בעורך המובנה מפיק אירוע עם
 `sectionIndex`; גם איפוס פסקה מצרף אותו. restore אטומי יכול להשמיט את האינדקס.
 
 ### Event: `reader.correctionSessionEnded`
 
-אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.100`.
+אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.99`.
 כולל `{ sessionId, reason, snapshot }`; הסיבות הן `explicit`, `tab_closed`
 ו־`plugin_unavailable`. סגירת לשונית, הסרת תוסף, השבתתו או ביטול הרשאה מנקים
 סשנים. האירוע אינו הבטחת התמדה: תוסף שכבר נסגר או הושבת עשוי שלא לקבל אותו.
@@ -5577,7 +5597,7 @@ await Otzaria.call('reader.addContextMenuItem', {
 - אפשר להגדיר `onClickEvent` או `onColorClickEvent` כאירוע מותאם אישית
 
 **פעולה ללא סימון — `reader-book` (מ־`0.9.99`):**
-מ־`0.9.100`, `selection.tabId` מזהה את לשונית הטקסט המדויקת שממנה נפתח התפריט,
+מ־`0.9.99`, `selection.tabId` מזהה את לשונית הטקסט המדויקת שממנה נפתח התפריט,
 גם כשאותו ספר פתוח בכמה לשוניות או בחלוניות מפוצלות. מעבירים אותו ישירות ל־
 `reader.beginCorrectionSession`; אין לבחור לשונית לפי כותרת הספר או לפי הלשונית
 הפעילה לאחר פתיחת התוסף. השדה יכול להיעדר בתצוגה מקדימה שאינה מחוברת ללשונית.

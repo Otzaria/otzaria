@@ -61,6 +61,41 @@ void main() {
     expect(service.get('owner', session['sessionId'])['changes'], hasLength(1));
   });
 
+  test('פסקת איגרא רמה עם HTML נערכת כטקסט ושומרת מקור גולמי לשחזור', () async {
+    const raw = '<b>בגמרא</b> חנן התם וגג <big>לחלק</big> &amp; 😀';
+    const plain = 'בגמרא חנן התם וגג לחלק & 😀';
+    source[0] = raw;
+    expect(service.canEditParagraph('tab', raw), isTrue);
+    expect(service.editableText('tab', 0, raw), plain);
+    service.editParagraph('tab', 0, raw, '$plain תיקון');
+    final latest = service.get('owner', session['sessionId']);
+    final edited = (latest['changes'] as List).single;
+    expect(edited['originalSourceText'], raw);
+    expect(edited['originalText'], plain);
+    expect(edited['proposedText'], '$plain תיקון');
+    expect(source[0], raw);
+    service.reset('owner', session['sessionId'], 0, 1);
+    expect(service.editableText('tab', 0, raw), plain);
+    expect(service.displayText('other-tab', 0, raw), raw);
+    await restore([edited], revision: 2);
+    expect(service.editableText('tab', 0, raw), '$plain תיקון');
+    service.editParagraph('tab', 0, raw, plain);
+    expect(service.get('owner', session['sessionId'])['changes'], isEmpty);
+    await expectLater(
+      restore([
+        {...edited, 'originalText': raw},
+      ], revision: 4),
+      error('error.invalid_params'),
+    );
+    source[0] = raw
+        .replaceFirst('<b>', '<strong>')
+        .replaceFirst('</b>', '</strong>');
+    await expectLater(
+      restore([edited], revision: 4),
+      error('error.source_changed'),
+    );
+  });
+
   test('בעלות אינה ניתנת להעברה ואינה חושפת סשן זר', () {
     expect(
       () => service.get('other', session['sessionId']),

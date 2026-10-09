@@ -616,6 +616,39 @@ void main() {
       },
     );
 
+    for (final foregroundExists in [true, false]) {
+      for (final topic in [
+        'reader.correctionSessionChanged',
+        'reader.correctionSessionEnded',
+      ]) {
+        test(
+          '$topic נמסר ל-${foregroundExists ? 'קדמי' : 'רקע'} בלבד',
+          () async {
+            final foreground = _LifecycleFakeController();
+            final background = _LifecycleFakeController();
+            if (foregroundExists) _d.registerController(pluginId, foreground);
+            _d.registerController(
+              pluginId,
+              background,
+              instanceId: 'background',
+            );
+            await _d.dispatchEventToPlugin(
+              pluginId,
+              topic,
+              {'sessionId': 'existing-session'},
+              preferBackground: false,
+              resumeForegroundIfNeeded: true,
+            );
+            final selected = foregroundExists ? foreground : background;
+            final other = foregroundExists ? background : foreground;
+            expect(selected.jsEvents, hasLength(1));
+            expect(selected.jsEvents.single, contains(topic));
+            expect(other.jsEvents, isEmpty);
+          },
+        );
+      }
+    }
+
     test('targeted context-menu event explicitly prefers background', () async {
       final foreground = _LifecycleFakeController();
       final background = _LifecycleFakeController();

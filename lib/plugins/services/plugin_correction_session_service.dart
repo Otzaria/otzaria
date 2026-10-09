@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
 class PluginCorrectionException implements Exception {
   final String code;
@@ -104,9 +105,9 @@ class PluginCorrectionSessionService extends ChangeNotifier {
       final raw = value['originalSourceText'] as String;
       final original = value['originalText'] as String;
       final proposed = value['proposedText'] as String;
-      _sourceText(raw);
+      final plain = _sourceText(raw);
       _plainText(proposed);
-      if (raw != original) {
+      if (plain != original) {
         _fail('error.invalid_params', 'הטקסט העריך אינו תואם למקור.');
       }
       final change = <String, dynamic>{
@@ -231,20 +232,29 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     return source;
   }
 
-  bool hasChangesForTab(String tabId) => _sessions.values.any(
-    (session) => session.tabId == tabId && session.changes.isNotEmpty,
-  );
+  String editableText(String tabId, int index, String source) =>
+      TextRendererService.stripHtml(displayText(tabId, index, source));
 
   bool hasSessionForTab(String tabId) => _sessionForTab(tabId) != null;
 
-  int revisionForTab(String tabId) => _sessionForTab(tabId)?.revision ?? -1;
+  String? sessionIdForTab(String owner, String tabId) {
+    final session = _sessionForTab(tabId);
+    return session?.owner == owner ? session?.id : null;
+  }
 
-  bool canEditParagraph(String tabId, String source) =>
-      hasSessionForTab(tabId) &&
-      source.isNotEmpty &&
-      source.length <= maxTextLength &&
-      !_unsupportedText.hasMatch(source) &&
-      _validUtf16(source);
+  bool canEditParagraph(String tabId, String source) {
+    if (!hasSessionForTab(tabId) ||
+        source.isEmpty ||
+        source.length > maxTextLength ||
+        !_validUtf16(source)) {
+      return false;
+    }
+    final plain = TextRendererService.stripHtml(source);
+    return plain.isNotEmpty &&
+        plain.length <= maxTextLength &&
+        !_unsupportedText.hasMatch(plain) &&
+        _validUtf16(plain);
+  }
 
   void validateNativeEdit(
     String tabId,
@@ -254,14 +264,14 @@ class PluginCorrectionSessionService extends ChangeNotifier {
   ) {
     final session = _sessionForTab(tabId);
     if (session == null) _fail('error.not_found', 'סשן התיקון הסתיים.');
-    _sourceText(source);
+    final original = _sourceText(source);
     _plainText(proposed);
     final previous = session.changes[index];
     if (index < 0 ||
         previous != null && previous['originalSourceText'] != source) {
       _fail('error.source_changed', 'פסקת המקור השתנתה.');
     }
-    if (proposed == source) return;
+    if (proposed == original) return;
     if (previous == null && session.changes.length >= maxChanges) {
       _fail('error.limit_exceeded', 'מספר הפסקאות המתוקנות הגיע למגבלה.');
     }
@@ -279,9 +289,10 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     validateNativeEdit(tabId, index, source, proposed);
     final session = _sessionForTab(tabId)!;
     final previous = session.changes[index];
-    if ((previous?['proposedText'] ?? source) == proposed) return;
+    final original = TextRendererService.stripHtml(source);
+    if ((previous?['proposedText'] ?? original) == proposed) return;
     session.changesBytes -= previous == null ? 0 : _changeBytes(previous);
-    if (proposed == source) {
+    if (proposed == original) {
       session.changes.remove(index);
     } else {
       final change = _nativeChange(index, source, proposed);
@@ -304,7 +315,7 @@ class PluginCorrectionSessionService extends ChangeNotifier {
   ) => {
     'sectionIndex': index,
     'originalSourceText': source,
-    'originalText': source,
+    'originalText': TextRendererService.stripHtml(source),
     'proposedText': proposed,
   };
 
@@ -340,14 +351,22 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     }
   }
 
-  void _sourceText(String text) {
-    if (text.isEmpty) {
+  String _sourceText(String text) {
+    if (text.length > maxTextLength) {
+      _fail('error.limit_exceeded', 'טקסט פסקת המקור גדול מדי.');
+    }
+    if (!_validUtf16(text)) {
+      _fail('error.invalid_params', 'מקור הספר מכיל תו פגום.');
+    }
+    final plain = TextRendererService.stripHtml(text);
+    if (plain.isEmpty) {
       _fail(
         'error.unsupported_context',
         'פסקת מקור ריקה אינה נתמכת בעריכה מקומית.',
       );
     }
-    _plainText(text);
+    _plainText(plain);
+    return plain;
   }
 
   void _plainText(String text) {
@@ -422,13 +441,14 @@ class _Session {
     'revision': revision,
     'capabilities': {
       'plainTextOnly': true,
+      'htmlSource': true,
       'paragraphBoundaries': false,
       'offsetUnit': 'utf16',
       'sourceSelection': false,
       'sourceAnchorsOnCorrectedParagraphs': false,
       'continuousReading': true,
       'pageShape': false,
-      'splitView': false,
+      'splitView': true,
       'maxChanges': PluginCorrectionSessionService.maxChanges,
       'maxTextLength': PluginCorrectionSessionService.maxTextLength,
       'maxChangesBytes': PluginCorrectionSessionService.maxChangesBytes,

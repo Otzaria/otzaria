@@ -101,4 +101,39 @@ void main() {
     // ניקוי מצב המקלדת של סביבת הטסט (ה-widget כבר לא בפוקוס)
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
   });
+
+  testWidgets('חץ בשדה טקסט שבתוך הרשימה מזיז את הסמן ואינו גולל', (
+    tester,
+  ) async {
+    offsetController = _RecordingScrollOffsetController();
+    final controller = TextEditingController(text: 'שורה ראשונה\nשורה שנייה');
+    final fieldFocus = FocusNode();
+    addTearDown(controller.dispose);
+    addTearDown(fieldFocus.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProgressiveScroll(
+            scrollController: offsetController,
+            itemScrollController: _AttachedItemScrollController(),
+            child: TextField(
+              controller: controller,
+              focusNode: fieldFocus,
+              maxLines: null,
+            ),
+          ),
+        ),
+      ),
+    );
+    fieldFocus.requestFocus();
+    await tester.pump();
+    controller.selection = const TextSelection.collapsed(offset: 0);
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(offsetController.offsets, isEmpty);
+    expect(controller.selection.baseOffset, greaterThan(0));
+  });
 }

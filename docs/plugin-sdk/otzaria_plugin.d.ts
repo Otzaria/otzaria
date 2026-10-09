@@ -815,7 +815,7 @@ export interface CityInfo {
   inIsrael: boolean;
 }
 
-/** Since 0.9.100. Source and editable text are identical for supported paragraphs. */
+/** Since 0.9.99. Raw HTML source is retained; editable text uses the host's stripHtml. */
 export interface CorrectionChange {
   sectionIndex: number;
   originalSourceText: string;
@@ -832,13 +832,14 @@ export interface CorrectionSessionSnapshot {
   changes: CorrectionChange[];
   capabilities: {
     plainTextOnly: true;
+    htmlSource: true;
     paragraphBoundaries: false;
     offsetUnit: 'utf16';
     sourceSelection: false;
     sourceAnchorsOnCorrectedParagraphs: false;
     continuousReading: true;
     pageShape: false;
-    splitView: false;
+    splitView: true;
     maxChanges: 500;
     maxTextLength: 20000;
     maxChangesBytes: 1048576;
@@ -871,8 +872,10 @@ export interface CorrectionSessionEndedEvent {
 }
 
 export interface ReaderState {
-  /** Since 0.9.100: text-tab identity, stable until closure; never persisted. */
+  /** Since 0.9.99: text-tab identity, stable until closure; never persisted. */
   currentTabId: string | null;
+  /** Since 0.9.99: existing session owned by the caller; never creates a session. */
+  currentCorrectionSessionId: string | null;
   currentBook: string | null;
   currentBookId: string | null;
   /** מזהה ספר יציב של הטאב הפעיל (`null` לטאב שאינו ספר / אין טאב). ראה `BookMeta.bookUid`. */
@@ -884,8 +887,10 @@ export interface ReaderState {
   currentIndex: number;
   currentRef: string | null;
   openTabs: Array<{
-    /** Since 0.9.100: text-tab identity; null for other tabs. */
+    /** Since 0.9.99: text-tab identity; null for other tabs. */
     tabId: string | null;
+    /** Existing correction session owned by the caller; null for other owners or tabs. */
+    correctionSessionId: string | null;
     /** Canonical book id (`null` for a non-book tab such as search or a tool). */
     id: number | null;
     /** מזהה הכלי או התוסף (`builtin.*` / `pluginId`); `null` לכרטיסייה שאינה כלי. */
@@ -932,7 +937,7 @@ export interface ReaderSelection {
   selectionId?: string;
   bookId?: string;
   bookTitle?: string;
-  /** Since 0.9.100: exact tab identity in reader-book; absent in detached previews. */
+  /** Since 0.9.99: exact tab identity in reader-book; absent in detached previews. */
   tabId?: string;
   sectionIndex?: number;
   sectionId?: string;
@@ -1278,11 +1283,6 @@ export interface ContextMenuShowWhen {
 export interface UpdateContextMenuItemArgs {
   id: string;
   patch: Partial<Omit<ContextMenuItem, 'id'>>;
-}
-
-/** reader-book context: identifies the clicked tab even for duplicate book tabs. */
-export interface ReaderBookSelection extends ReaderSelection {
-  tabId?: string;
 }
 
 export interface ContextMenuItemClickedEvent {

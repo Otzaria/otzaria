@@ -42,7 +42,12 @@ void main() {
   });
 
   group('תיקוני תוסף מקומיים בקורא המשולב', () {
-    for (final mode in [(false, false), (true, false), (false, true), (true, true)]) {
+    for (final mode in [
+      (false, false),
+      (true, false),
+      (false, true),
+      (true, true),
+    ]) {
       final continuous = mode.$1;
       final splitView = mode.$2;
       testWidgets(
@@ -51,7 +56,7 @@ void main() {
           final registry = PluginCorrectionSessionService.instance;
           addTearDown(() => registry.removeOwner('widget-correction'));
           final source = [
-            'שורה א',
+            '<b>שורה א</b>',
             'שורה ב',
             for (var index = 2; index < 40; index++) 'שורת מקור מספר $index',
           ];
@@ -191,7 +196,7 @@ void main() {
               {
                 'sectionIndex': 0,
                 'originalSourceText': source.first,
-                'originalText': source.first,
+                'originalText': 'שורה א',
                 'proposedText': 'נוסח מתוקן ארוך 😀',
               },
             ],
@@ -202,6 +207,19 @@ void main() {
           expect(displayed(1).join(' '), contains('שורה א'));
           final firstEditor = editorFinder.first;
           final editor = tester.widget<RtlTextField>(firstEditor);
+          expect(editor.controller!.text, 'נוסח מתוקן ארוך 😀');
+          await tester.tap(firstEditor, kind: PointerDeviceKind.mouse);
+          await tester.pump(const Duration(milliseconds: 500));
+          expect(editor.focusNode!.hasFocus, isTrue);
+          expect(editor.controller!.selection.isCollapsed, isTrue);
+          final editable = find.descendant(
+            of: firstEditor,
+            matching: find.byType(EditableText),
+          );
+          expect(
+            tester.state<EditableTextState>(editable).renderEditable.hasFocus,
+            isTrue,
+          );
           await tester.enterText(firstEditor, 'עריכה ישירה אחרונה 😀');
           final latest = registry.get(
             'widget-correction',
@@ -333,6 +351,98 @@ void main() {
         },
       );
     }
+
+    testWidgets(
+      'סיום סשן מחזיר מיקוד לקורא רק מהשדה שלו ולא גונב מיקוד חיצוני',
+      (
+        tester,
+      ) async {
+        final registry = PluginCorrectionSessionService.instance;
+        addTearDown(() => registry.removeOwner('focus-correction'));
+        const source = ['שורה א', 'שורה ב'];
+        final book = TextBook(id: 7, title: 'ספר בדיקה');
+        final bloc = _RecordingTextBookBloc(
+          _loadedState().copyWith(
+            book: book,
+            content: source,
+            visibleIndices: const [0, 1],
+          ),
+        );
+        final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+        final settings = _TestSettingsBloc(SettingsState.initial());
+        final notes = _TestPersonalNotesBloc(
+          const PersonalNotesState.initial(),
+        );
+        final external = FocusNode();
+        addTearDown(settings.close);
+        addTearDown(notes.close);
+        addTearDown(tab.dispose);
+        addTearDown(external.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  Focus(focusNode: external, child: const SizedBox(height: 1)),
+                  Expanded(
+                    child: MultiBlocProvider(
+                      providers: [
+                        BlocProvider<TextBookBloc>.value(value: bloc),
+                        BlocProvider<SettingsBloc>.value(value: settings),
+                        BlocProvider<PersonalNotesBloc>.value(value: notes),
+                      ],
+                      child: CombinedView(
+                        data: source,
+                        tab: tab,
+                        openBookCallback: (_) {},
+                        openLeftPaneTab: (_, {searchText}) {},
+                        textSize: 18,
+                        showCommentaryAsExpansionTiles: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        Future<String> begin() async {
+          final session = registry.begin(
+            owner: 'focus-correction',
+            tabId: PluginCorrectionSessionService.tabIdFor(tab),
+            bookId: book.title,
+            bookUid: 'id:7',
+            libraryVersion: '1',
+            loadSource: (index) async => source[index],
+          );
+          await tester.pumpAndSettle();
+          return session['sessionId'] as String;
+        }
+
+        var id = await begin();
+        external.requestFocus();
+        await tester.pump();
+        registry.end('focus-correction', id, 0);
+        await tester.pumpAndSettle();
+        expect(external.hasFocus, isTrue);
+
+        id = await begin();
+        await tester.tap(find.byType(RtlTextField).first);
+        await tester.pump();
+        registry.end('focus-correction', id, 0);
+        await tester.pumpAndSettle();
+        expect(external.hasFocus, isFalse);
+        expect(find.byType(RtlTextField), findsNothing);
+        expect(
+          FocusManager.instance.primaryFocus?.context
+              ?.findAncestorWidgetOfExactType<CombinedView>(),
+          isNotNull,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 1));
+      },
+    );
   });
 
   group('shouldOpenPreviewLinkInBook', () {

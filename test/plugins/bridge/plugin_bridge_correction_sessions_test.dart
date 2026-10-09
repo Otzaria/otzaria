@@ -11,6 +11,7 @@ import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
@@ -344,13 +345,85 @@ void main() {
     );
   });
 
+  test('מצב הקורא חושף רק סשן קיים של בעליו גם למופע חדש', () async {
+    final initial = await call('getCurrentState', {});
+    expect(initial['currentCorrectionSessionId'], isNull);
+    expect(
+      (initial['openTabs'] as List).map((tab) => tab['correctionSessionId']),
+      everyElement(isNull),
+    );
+    final session = await begin();
+    final foreground = buildAdapter();
+    final owned = await call('getCurrentState', {}, target: foreground);
+    expect(owned['currentCorrectionSessionId'], session['sessionId']);
+    expect(
+      (owned['openTabs'] as List)[0]['correctionSessionId'],
+      session['sessionId'],
+    );
+    expect((owned['openTabs'] as List)[1]['correctionSessionId'], isNull);
+    expect(
+      await call('getCorrectionSession', {
+        'sessionId': owned['currentCorrectionSessionId'],
+      }, target: foreground),
+      session,
+    );
+    final foreign = buildAdapter(owner: 'foreign');
+    final hidden = await call('getCurrentState', {}, target: foreign);
+    expect(hidden['currentCorrectionSessionId'], isNull);
+    expect(
+      (hidden['openTabs'] as List).map((tab) => tab['correctionSessionId']),
+      everyElement(isNull),
+    );
+    tabs.current = TabsState(tabs: readers, currentTabIndex: 1);
+    expect(
+      (await call('getCurrentState', {}))['currentCorrectionSessionId'],
+      isNull,
+    );
+    await call('endCorrectionSession', {
+      'sessionId': session['sessionId'],
+      'expectedRevision': 0,
+    });
+    final ended = await call('getCurrentState', {});
+    expect(
+      (ended['openTabs'] as List).map((tab) => tab['correctionSessionId']),
+      everyElement(isNull),
+    );
+    tabs.current = const TabsState(tabs: [], currentTabIndex: 0);
+    expect(
+      (await call('getCurrentState', {}))['currentCorrectionSessionId'],
+      isNull,
+    );
+  });
+
+  test('לשונית שנפתחה לפי כותרת משתמשת ב-id שנפתר ב-state של הקורא', () async {
+    final titled = TextBookTab(
+      book: TextBook(title: 'בראשית'),
+      index: 0,
+      blocOverride: _Reader(TextBook(id: 1, title: 'בראשית')),
+    );
+    addTearDown(titled.bloc.close);
+    tabs.current = TabsState(tabs: [titled], currentTabIndex: 0);
+    final session = await call('beginCorrectionSession', {
+      'tabId': PluginCorrectionSessionService.tabIdFor(titled),
+    });
+    expect(
+      session['bookUid'],
+      PluginBookIdentity.uidOf((titled.bloc.state as TextBookLoaded).book),
+    );
+    final restored = await call('restoreCorrectionDraft', draft(session));
+    expect((restored['changes'] as List).single['proposedText'], 'תיקון 😀');
+  });
+
   test('מפרשים בצד מאפשרים סשן ותיקון בטקסט הראשי בלבד', () async {
     (readers.first.bloc as _Reader).showCommentaryAtSide();
     final session = await begin();
     expect((session['capabilities'] as Map)['splitView'], isTrue);
     final restored = await call('restoreCorrectionDraft', draft(session));
     expect((restored['changes'] as List).single['proposedText'], 'תיקון 😀');
-    expect((readers.first.bloc.state as TextBookLoaded).content.first, 'בראשית א');
+    expect(
+      (readers.first.bloc.state as TextBookLoaded).content.first,
+      'בראשית א',
+    );
     expect(
       PluginCorrectionSessionService.instance.hasSessionForTab(
         PluginCorrectionSessionService.tabIdFor(readers[1]),

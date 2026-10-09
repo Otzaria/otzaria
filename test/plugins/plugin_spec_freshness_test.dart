@@ -26,7 +26,7 @@ void main() {
       ]) {
         expect(spec['apiMethods'], contains(method));
         expect((spec['methodPermissions'] as Map)[method], 'reader.local_edit');
-        expect((spec['methodMinVersions'] as Map)[method], '0.9.100');
+        expect((spec['methodMinVersions'] as Map)[method], '0.9.99');
       }
       for (final topic in const [
         'reader.correctionSessionChanged',

@@ -377,7 +377,7 @@ class _ParagraphStateKey extends GlobalKey {
 }
 
 class _CombinedViewState extends State<CombinedView> {
-  int _localCorrectionRevision = -1;
+  bool _localCorrectionActive = false;
   bool _anchorHandledCurrentTap = false;
   final ParagraphCommentatorsCache _paragraphCommentatorsCache =
       ParagraphCommentatorsCache();
@@ -801,7 +801,7 @@ class _CombinedViewState extends State<CombinedView> {
     _isSelectionPointerDown = false;
     _selectionLineCache.clear();
     if (_pendingSelectionClear) _clearSelectionState();
-    if (takeFocus) _focusNode.requestFocus();
+    if (takeFocus && !_hasLocalCorrections) _focusNode.requestFocus();
     _flushDeferredSelectionAreaRefresh();
   }
 
@@ -866,10 +866,7 @@ class _CombinedViewState extends State<CombinedView> {
   @override
   void initState() {
     super.initState();
-    _localCorrectionRevision = PluginCorrectionSessionService.instance
-        .revisionForTab(
-          (PluginCorrectionSessionService.knownTabIdFor(widget.tab) ?? ''),
-        );
+    _localCorrectionActive = _hasLocalCorrections;
     PluginCorrectionSessionService.instance.addListener(
       _onLocalCorrectionChanged,
     );
@@ -2577,12 +2574,14 @@ class _CombinedViewState extends State<CombinedView> {
             child: EnhancedGestureDetector(
               behavior: HitTestBehavior.translucent,
               onDragSelectionStart: () {
+                if (_hasLocalCorrections) return;
                 // כניסה למצב בחירה בגלל drag
                 if (!_selectionManager.isInSelectionMode) {
                   _selectionManager.setAnchor(actionLineIndex());
                 }
               },
               onSingleTap: () {
+                if (_hasLocalCorrections) return;
                 if (_anchorHandledCurrentTap) {
                   _anchorHandledCurrentTap = false;
                   return;
@@ -2669,15 +2668,12 @@ class _CombinedViewState extends State<CombinedView> {
                 }
               },
               onDoubleTap: () {
-                // Double-click → בחירת פסקה שלמה
-                // הערה: SelectionArea של Flutter לא תומך בבחירה פרוגרמטית,
-                // לכן הפיצ'ר הזה לא מומש במלואו. SelectionArea יבצע את פעולת
-                // ברירת המחדל שלו (בחירת מילה). לבחירת פסקה, המשתמש יכול
-                // להשתמש ב-Shift+Click או Drag.
+                if (_hasLocalCorrections) return;
                 _focusNode.requestFocus();
                 _selectionManager.enterDoubleClickMode(actionLineIndex());
               },
               onShiftClick: () {
+                if (_hasLocalCorrections) return;
                 // Shift+Click → בחירת טווח
                 _focusNode.requestFocus();
                 if (!_selectionManager.hasAnchor()) {
@@ -2688,7 +2684,7 @@ class _CombinedViewState extends State<CombinedView> {
               },
               onCtrlClick: () {
                 // Ctrl+Click → הוספה/הסרה של הקטע מבחירה מרובה (ללא גלילה אוטומטית)
-                if (isContinuousParagraph) {
+                if (_hasLocalCorrections || isContinuousParagraph) {
                   return;
                 }
                 _focusNode.requestFocus();
@@ -2928,11 +2924,7 @@ class _CombinedViewState extends State<CombinedView> {
                           final displayedText = widget.isPreviewMode
                               ? textWidget
                               : PluginCorrectionParagraph(
-                                  tabId:
-                                      (PluginCorrectionSessionService.knownTabIdFor(
-                                        widget.tab,
-                                      ) ??
-                                      ''),
+                                  tabId: _correctionTabId,
                                   sectionIndex: primaryLineIndex,
                                   sourceText: widget.data[primaryLineIndex],
                                   settings: RenderSettings.fromProfile(
@@ -3096,7 +3088,6 @@ class _CombinedViewState extends State<CombinedView> {
     return ListenableBuilder(
       listenable: Listenable.merge([
         PluginHighlightRegistry.instance,
-        PluginCorrectionSessionService.instance,
         PluginHighlightRevealService.instance,
       ]),
       builder: (context, _) {
@@ -3178,7 +3169,7 @@ class _CombinedViewState extends State<CombinedView> {
         );
         if (widget.isPreviewMode ||
             !PluginCorrectionSessionService.instance.hasSessionForTab(
-              (PluginCorrectionSessionService.knownTabIdFor(widget.tab) ?? ''),
+              _correctionTabId,
             )) {
           return buildParagraph(paragraphLines);
         }
@@ -3188,9 +3179,7 @@ class _CombinedViewState extends State<CombinedView> {
             for (final line in paragraphLines)
               PluginCorrectionParagraph(
                 key: ValueKey('correction-${line.lineIndex}'),
-                tabId:
-                    (PluginCorrectionSessionService.knownTabIdFor(widget.tab) ??
-                    ''),
+                tabId: _correctionTabId,
                 sectionIndex: line.lineIndex,
                 sourceText: widget.data[line.lineIndex],
                 settings: RenderSettings.fromProfile(
@@ -3265,28 +3254,6 @@ class _CombinedViewState extends State<CombinedView> {
     required SettingsState settingsState,
     required List<PersonalNote> notesForLine,
   }) {
-    final proposed = widget.isPreviewMode
-        ? rawText
-        : PluginCorrectionSessionService.instance.displayText(
-            (PluginCorrectionSessionService.knownTabIdFor(widget.tab) ?? ''),
-            lineIndex,
-            rawText,
-          );
-    if (proposed != rawText) {
-      return (
-        html: TextRendererService.processText(
-          proposed,
-          RenderSettings.fromProfile(
-            state.bodyDisplayProfile,
-            fontSize: widget.textSize,
-            fontFamily: settingsState.fontFamily,
-            fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-            lineHeight: settingsState.lineHeight,
-          ),
-        ),
-        ranges: const <PluginHighlightRenderedRange>[],
-      );
-    }
     final linksForLine =
         settingsState.enableHtmlLinks && state.book.versionTitle == null
         ? (state.linksByLine[lineIndex + 1] ?? const <Link>[])
@@ -3399,23 +3366,23 @@ class _CombinedViewState extends State<CombinedView> {
     return buildKeyboardListener();
   }
 
+  String get _correctionTabId =>
+      PluginCorrectionSessionService.knownTabIdFor(widget.tab) ?? '';
+
   bool get _hasLocalCorrections =>
       !widget.isPreviewMode &&
       PluginCorrectionSessionService.instance.hasSessionForTab(
-        (PluginCorrectionSessionService.knownTabIdFor(widget.tab) ?? ''),
+        _correctionTabId,
       );
 
+  /// הבחירה חסומה כל עוד הסשן פעיל, ולכן מנקים אותה רק בפתיחה ובסיום.
   void _onLocalCorrectionChanged() {
-    if (!mounted || _disposed || widget.isPreviewMode) return;
-    final revision = PluginCorrectionSessionService.instance.revisionForTab(
-      (PluginCorrectionSessionService.knownTabIdFor(widget.tab) ?? ''),
-    );
-    if (revision == _localCorrectionRevision) return;
-    if (revision == -1 || _localCorrectionRevision == -1) {
-      setState(() {});
-    }
-    _localCorrectionRevision = revision;
-    if (revision == -1) _focusNode.requestFocus();
+    if (!mounted || _disposed) return;
+    final active = _hasLocalCorrections;
+    if (active == _localCorrectionActive) return;
+    _localCorrectionActive = active;
+    setState(() {});
+    if (!active && _focusNode.hasFocus) _focusNode.requestFocus();
     _sourceSelection = null;
     _savedSelectedIndex.value = null;
     _currentSelectedIndex.value = null;

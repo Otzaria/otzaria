@@ -56,7 +56,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   bool _syncText() {
-    final text = _registry.displayText(
+    if (!_registry.hasSessionForTab(widget.tabId)) return false;
+    final text = _registry.editableText(
       widget.tabId,
       widget.sectionIndex,
       widget.sourceText,
