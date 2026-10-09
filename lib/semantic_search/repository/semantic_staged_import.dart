@@ -41,12 +41,18 @@ class SemanticStagedImport {
   static String directoryOf(SemanticPaths paths) =>
       p.join(paths.root, kSemanticImportFolderName);
 
-  /// האם יש בכלל נתונים מוכנים.
+  /// האם נשארו קבצים מוכנים שלא הועברו; המניפסט נשאר גם אחרי ההתקנה.
   Future<bool> hasData() async {
     final dir = Directory(directoryOf(await _paths()));
     try {
       return await dir.exists() &&
-          await dir.list(recursive: true).any((entity) => entity is File);
+          await dir
+              .list(recursive: true)
+              .any(
+                (entity) =>
+                    entity is File &&
+                    !entity.path.endsWith(kSemanticVectorsManifestSuffix),
+              );
     } on FileSystemException {
       return false;
     }
@@ -55,10 +61,12 @@ class SemanticStagedImport {
   /// [download] שמעדיף קובץ מוכן תואם; בלעדיו, במצב לא מקוון — [SemanticFailureKind.offline].
   ///
   /// [onChecking] מסמן את תחילת בדיקת ה-hash של קובץ מוכן ואת סופה.
+  /// [onSource] מדווח אם הקובץ הנוכחי מגיע מהנתונים המוכנים או מהרשת.
   SemanticFileDownloader wrap(
     SemanticFileDownloader download, {
     required bool Function() isOffline,
     void Function(bool checking)? onChecking,
+    void Function(bool staged)? onSource,
   }) =>
       ({
         required String url,
@@ -80,6 +88,7 @@ class SemanticStagedImport {
               onChecking,
               isCancelled,
             )) {
+          onSource?.call(true);
           onProgress?.call(expectedSize, expectedSize);
           return;
         }
@@ -87,6 +96,7 @@ class SemanticStagedImport {
         if (isOffline()) {
           throw const SemanticFailure(SemanticFailureKind.offline);
         }
+        onSource?.call(false);
         await download(
           url: url,
           destPath: destPath,

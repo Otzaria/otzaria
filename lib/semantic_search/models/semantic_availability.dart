@@ -69,6 +69,9 @@ class SemanticDownloadProgress extends Equatable {
   /// בודק קובץ שהוכן מראש בשלב [item] (hash ארוך בלי מדידה).
   final bool checking;
 
+  /// העבודה מתקינה נתונים שהוכנו מראש, לא מורידה אותם.
+  final bool staged;
+
   const SemanticDownloadProgress({
     required this.item,
     required this.receivedBytes,
@@ -76,6 +79,7 @@ class SemanticDownloadProgress extends Equatable {
     this.step = 1,
     this.stepCount = 1,
     this.checking = false,
+    this.staged = false,
   });
 
   /// אותה התקדמות, בבדיקת קובץ מוכן או אחריה.
@@ -86,6 +90,7 @@ class SemanticDownloadProgress extends Equatable {
     step: step,
     stepCount: stepCount,
     checking: value,
+    staged: staged,
   );
 
   /// בין 0 ל-1, או `null` כשהגודל אינו ידוע או בבדיקה.
@@ -103,6 +108,7 @@ class SemanticDownloadProgress extends Equatable {
     step,
     stepCount,
     checking,
+    staged,
   ];
 }
 
@@ -126,6 +132,9 @@ class SemanticAvailability extends Equatable {
   /// חלון משני: מציגים מצב, אבל הורדה ומחיקה רק מהחלון הראשי.
   final bool isSecondaryWindow;
 
+  /// ב-[SemanticAvailabilityPhase.needsDownload]: נמצאו נתונים שהוכנו מראש.
+  final bool stagedDataFound;
+
   const SemanticAvailability({
     required this.phase,
     required this.consentGranted,
@@ -135,6 +144,7 @@ class SemanticAvailability extends Equatable {
     this.unpublishedLibraryVersion,
     this.pausedByUser = false,
     this.isSecondaryWindow = false,
+    this.stagedDataFound = false,
   });
 
   /// לפני הבדיקה הראשונה.
@@ -173,5 +183,6 @@ class SemanticAvailability extends Equatable {
     unpublishedLibraryVersion,
     pausedByUser,
     isSecondaryWindow,
+    stagedDataFound,
   ];
 }
