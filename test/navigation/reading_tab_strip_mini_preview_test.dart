@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/tab_drag_preview.dart';
@@ -102,7 +103,10 @@ void main() {
     int frames = 3,
   }) async {
     final start = tester.getCenter(find.text(from));
-    final gesture = await tester.startGesture(start);
+    final gesture = await tester.startGesture(
+      start,
+      kind: PointerDeviceKind.mouse,
+    );
     await tester.pump(const Duration(milliseconds: 20));
     await gesture.moveTo(start + const Offset(tabWidth * 1.5, 0));
     for (var i = 0; i < frames; i++) {
