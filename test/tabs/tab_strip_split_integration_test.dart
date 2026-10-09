@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -141,6 +142,7 @@ void main() {
   ) async {
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('טאב $title')),
+      kind: PointerDeviceKind.mouse,
     );
     await tester.pump(const Duration(milliseconds: 20));
     await gesture.moveTo(target);
