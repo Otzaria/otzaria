@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/smart_text/selection_fill_text.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 
@@ -153,7 +154,6 @@ class RaisedMarkers {
     caseSensitive: false,
   );
   static final RegExp _htmlTagRegex = RegExp(r'<[^>]+>');
-  static final RegExp _whitespaceRegex = RegExp(r'\s+');
 
   /// מחלץ את רשימת הסימונים המורמים מ-HTML מעובד של קטע.
   ///
@@ -296,7 +296,7 @@ class RaisedMarkers {
     final decoded = withoutTags.contains('&')
         ? html_parser.parseFragment(withoutTags).text ?? withoutTags
         : withoutTags;
-    return decoded.replaceAll(_whitespaceRegex, ' ');
+    return collapseWhitespace(decoded);
   }
 
   /// ספירת מופעים לא-חופפת — חייבת להישאר זהה ללולאת האיתור שבשכבת הציור.
