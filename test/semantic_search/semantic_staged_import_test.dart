@@ -328,6 +328,38 @@ void main() {
     expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
   });
 
+  test(
+    'נתונים מוכנים מזוהים לפני הלחיצה, והתקנתם אינה מוצגת כהורדה (issue #2298)',
+    () async {
+      stageAll();
+      final repository = buildRepository(
+        root: root,
+        backend: FakeBackend(),
+        locator: _UnreachableLocator(),
+        download: (FakeDownloads()..error = const SocketException('none')).call,
+        modelReleases: _smallModel,
+      );
+
+      final before = await repository.refresh();
+      expect(before.phase, SemanticAvailabilityPhase.needsDownload);
+      expect(before.stagedDataFound, isTrue);
+
+      final labels = <String>{};
+      final subscription = repository.availabilityChanges.listen((a) {
+        final progress = a.progress;
+        if (progress != null) {
+          labels.add(SemanticSearchMessages.progressAction(progress));
+        }
+      });
+      await repository.enableAndDownload();
+      await subscription.cancel();
+
+      expect(labels, isNot(contains(SemanticSearchMessages.downloadingData)));
+      expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
+      expect(repository.availability.stagedDataFound, isFalse);
+    },
+  );
+
   test('במצב לא מקוון — מותקן מהנתונים המוכנים בלי לפנות לרשת', () async {
     stageAll();
     final backend = FakeBackend();
