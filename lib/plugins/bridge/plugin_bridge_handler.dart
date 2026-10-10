@@ -366,6 +366,10 @@ class PluginBridgeHandler {
     'search.fullText': 'search.fulltext.read',
     'search.query': 'search.fulltext.read',
     'search.getOptions': 'search.fulltext.read',
+    // סשן נפתח רק בלחיצת משתמש; השירות דוחה סשן זר, שהסתיים או לא קיים.
+    'search.setFieldText': pluginSearchFieldActionsPermission,
+    'search.setFieldActionState': pluginSearchFieldActionsPermission,
+    'search.endFieldSession': pluginSearchFieldActionsPermission,
     'reader.openBook': 'reader.open',
     'reader.openBookAtRef': 'reader.open',
     'reader.printRange': 'reader.open',

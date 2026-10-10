@@ -18,6 +18,9 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 abstract class _ST {
@@ -261,6 +264,9 @@ class OtzariaSearchField extends StatefulWidget {
   /// ניווט כשללשונית הנבחרת אין פעולת חיפוש.
   final bool enabled;
 
+  /// שדה שתוספים רשאים להוסיף בו כפתור (`searchFieldActions`); null = אין.
+  final PluginSearchField? pluginActionsField;
+
   const OtzariaSearchField({
     super.key,
     required this.controller,
@@ -279,6 +285,7 @@ class OtzariaSearchField extends StatefulWidget {
     this.onExpand,
     this.selectAllOnFocus = true,
     this.enabled = true,
+    this.pluginActionsField,
   });
 
   @override
@@ -301,6 +308,9 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     _hasFocus = _effectiveFocusNode.hasFocus;
     _effectiveFocusNode.addListener(_onFocusChange);
     widget.controller.addListener(_onTextChange);
+    PluginSearchFieldActionsRegistry.instance.addListener(
+      _onPluginActionsChanged,
+    );
   }
 
   @override
@@ -324,6 +334,9 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
     _effectiveFocusNode.removeListener(_onFocusChange);
     if (widget.focusNode == null) _effectiveFocusNode.dispose();
     widget.controller.removeListener(_onTextChange);
+    PluginSearchFieldActionsRegistry.instance.removeListener(
+      _onPluginActionsChanged,
+    );
     super.dispose();
   }
 
@@ -346,6 +359,10 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
 
   void _onTextChange() {
     if (mounted) setState(() {});
+  }
+
+  void _onPluginActionsChanged() {
+    if (widget.pluginActionsField != null && mounted) setState(() {});
   }
 
   // ── מצב compact (אייקון עגול) ────────────────────────────────────────────
@@ -408,6 +425,21 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
 
     // Suffix
     final List<Widget> suffixChildren = [];
+    final pluginField = widget.pluginActionsField;
+    if (pluginField != null &&
+        widget.enabled &&
+        PluginSearchFieldActionsRegistry.instance.hasActionsFor(pluginField)) {
+      suffixChildren.add(
+        PluginSearchFieldActions(
+          field: pluginField,
+          controller: widget.controller,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          buttonSize: isSlim ? 26 : 32,
+          iconSize: isSlim ? 16 : 20,
+        ),
+      );
+    }
     if (widget.trailingActions != null) {
       suffixChildren.addAll(widget.trailingActions!);
     }

@@ -56,6 +56,7 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
 import 'package:otzaria/plugins/services/plugin_external_search_service.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/models/plugin_library_book_provider.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/services/plugin_reader_actions.dart';
@@ -664,6 +665,7 @@ class PluginBridgeAdapter {
   final NotificationService _notificationService;
   final PluginDatabaseService _databaseService;
   final PluginHighlightRegistry _highlightRegistry;
+  final PluginSearchFieldSessionService _searchFieldSessions;
 
   PluginBridgeAdapter(
     this.plugin, {
@@ -681,6 +683,7 @@ class PluginBridgeAdapter {
     PluginHighlightRegistry? highlightRegistry,
     PluginReportService? reportService,
     PluginBookCorrectionService? bookCorrectionService,
+    PluginSearchFieldSessionService? searchFieldSessions,
   }) : _pluginRepo = pluginRepository ?? PluginRegistryRepository(),
        _pluginReportService = reportService,
        _pluginBookCorrectionService = bookCorrectionService,
@@ -690,7 +693,9 @@ class PluginBridgeAdapter {
            highlightRegistry ?? PluginHighlightRegistry.instance,
        _pluginFsService = fsService,
        _pluginShortcutService = shortcutService,
-       _fileServer = fileServer ?? PluginFileServer.instance {
+       _fileServer = fileServer ?? PluginFileServer.instance,
+       _searchFieldSessions =
+           searchFieldSessions ?? PluginSearchFieldSessionService.instance {
     _stopFolderRevocationListener = PluginUserFolderGrants.onRevoke(
       plugin.pluginId,
       _removeTemporaryFolderGrant,
@@ -2218,6 +2223,10 @@ class PluginBridgeAdapter {
             .toList();
       case 'getOptions':
         return PluginSearchApi.describeOptions();
+      case 'setFieldText':
+      case 'setFieldActionState':
+      case 'endFieldSession':
+        return _handleSearchFieldSession(action, args);
       case 'query':
         if (args[_cancelStreamIdKey] case final String streamId) {
           return _cancelPluginSearch(streamId);
@@ -2228,6 +2237,48 @@ class PluginBridgeAdapter {
           "error.unknown_method: Unknown action in search: $action",
         );
     }
+  }
+
+  /// `search.setFieldText` / `setFieldActionState` / `endFieldSession`.
+  bool _handleSearchFieldSession(String action, Map<String, dynamic> args) {
+    final sessionId = args['sessionId'];
+    if (sessionId is! String || sessionId.isEmpty) {
+      throw Exception('error.invalid_params: sessionId required');
+    }
+    final sessions = _searchFieldSessions;
+    try {
+      switch (action) {
+        case 'setFieldText':
+          sessions.setFieldText(
+            plugin.pluginId,
+            sessionId,
+            args['text'],
+            instanceId: instanceId,
+          );
+        case 'setFieldActionState':
+          sessions.setActionState(
+            plugin.pluginId,
+            sessionId,
+            args['state'],
+            tooltip: args['tooltip'],
+            instanceId: instanceId,
+          );
+        default:
+          final submit = args['submit'];
+          if (submit != null && submit is! bool) {
+            throw Exception('error.invalid_params: submit must be boolean');
+          }
+          sessions.endSession(
+            plugin.pluginId,
+            sessionId,
+            submit: submit == true,
+            instanceId: instanceId,
+          );
+      }
+    } on PluginSearchFieldSessionException catch (error) {
+      throw Exception(error.toString());
+    }
+    return true;
   }
 
   /// מזרים את `search.query` באותו מסלול chunks של מסך החיפוש.

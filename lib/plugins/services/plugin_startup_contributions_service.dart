@@ -13,6 +13,8 @@ import 'package:otzaria/plugins/services/plugin_external_editions_registry.dart'
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_registry.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
@@ -32,6 +34,8 @@ class PluginStartupContributionsService {
       _contextMenu = ContextMenuRegistry.instance,
       _shortcuts = PluginShortcutRegistry.instance,
       _searchDialog = PluginSearchDialogRegistry.instance,
+      _searchFieldActions = PluginSearchFieldActionsRegistry.instance,
+      _searchFieldSessions = PluginSearchFieldSessionService.instance,
       _externalEditions = PluginExternalEditionsRegistry.instance,
       _libraryBooks = PluginLibraryBooksRegistry.instance,
       _lazyActivation = PluginLazyActivationService.instance,
@@ -44,6 +48,8 @@ class PluginStartupContributionsService {
     required PluginLazyActivationService activationService,
     PluginShortcutRegistry? shortcutRegistry,
     PluginSearchDialogRegistry? searchDialogRegistry,
+    PluginSearchFieldActionsRegistry? searchFieldActionsRegistry,
+    PluginSearchFieldSessionService? searchFieldSessions,
     PluginExternalEditionsRegistry? externalEditionsRegistry,
     PluginLibraryBooksRegistry? libraryBooksRegistry,
     PluginConditionEvaluator? conditionEvaluator,
@@ -53,6 +59,11 @@ class PluginStartupContributionsService {
        _shortcuts = shortcutRegistry ?? PluginShortcutRegistry.instance,
        _searchDialog =
            searchDialogRegistry ?? PluginSearchDialogRegistry.instance,
+       _searchFieldActions =
+           searchFieldActionsRegistry ??
+           PluginSearchFieldActionsRegistry.instance,
+       _searchFieldSessions =
+           searchFieldSessions ?? PluginSearchFieldSessionService.instance,
        _externalEditions =
            externalEditionsRegistry ?? PluginExternalEditionsRegistry.instance,
        _libraryBooks =
@@ -63,6 +74,8 @@ class PluginStartupContributionsService {
   final ContextMenuRegistry _contextMenu;
   final PluginShortcutRegistry _shortcuts;
   final PluginSearchDialogRegistry _searchDialog;
+  final PluginSearchFieldActionsRegistry _searchFieldActions;
+  final PluginSearchFieldSessionService _searchFieldSessions;
   final PluginExternalEditionsRegistry _externalEditions;
   final PluginLibraryBooksRegistry _libraryBooks;
   final PluginLazyActivationService _lazyActivation;
@@ -81,6 +94,7 @@ class PluginStartupContributionsService {
   final Map<String, List<Map<String, dynamic>>> _appliedContextMenu = {};
   final Map<String, List<Map<String, dynamic>>> _appliedShortcuts = {};
   final Map<String, List<Map<String, dynamic>>> _appliedSearchDialog = {};
+  final Map<String, List<Map<String, dynamic>>> _appliedSearchFieldActions = {};
   final Map<String, List<Map<String, dynamic>>> _appliedExternalEditions = {};
   final Map<String, List<Map<String, dynamic>>> _appliedLibraryBooks = {};
 
@@ -206,6 +220,19 @@ class PluginStartupContributionsService {
           _appliedSearchDialog,
           _searchDialog.remove,
         );
+      }
+
+      if (startup.searchFieldActions.isNotEmpty &&
+          granted.contains(pluginSearchFieldActionsPermission)) {
+        _applyItems(
+          plugin.pluginId,
+          startup.searchFieldActions,
+          applied: _appliedSearchFieldActions,
+          register: _searchFieldActions.registerPayload,
+          removeItem: _removeSearchFieldAction,
+        );
+      } else {
+        _removeSearchFieldActions(plugin.pluginId);
       }
 
       // תרומת מהדורות חיצוניות משתמשת ב-DB של התוסף ובפתרון ספרים —
@@ -336,6 +363,24 @@ class PluginStartupContributionsService {
         (id, i) => _searchDialog.registerPayload(id, i),
       );
     }
+    for (final item in _appliedSearchFieldActions[pluginId] ?? const []) {
+      _tryRegister(pluginId, item, _searchFieldActions.registerPayload);
+    }
+  }
+
+  void _removeSearchFieldAction(String pluginId, String actionId) {
+    _searchFieldActions.remove(pluginId, actionId);
+    _searchFieldSessions.removeAction(pluginId, actionId);
+  }
+
+  /// כפתור שנעלם סוגר גם את הסשן שלו — אחרת התוסף היה ממשיך לכתוב לשדה.
+  void _removeSearchFieldActions(String pluginId) {
+    _removeApplied(
+      pluginId,
+      _appliedSearchFieldActions,
+      _removeSearchFieldAction,
+    );
+    _searchFieldSessions.removePlugin(pluginId);
   }
 
   /// מפתחות ה-KV שתנאי ה-`when` של התרומות קוראים. תנאי פגום מדולג כאן —
@@ -579,6 +624,7 @@ class PluginStartupContributionsService {
     _removeApplied(pluginId, _appliedContextMenu, _contextMenu.remove);
     _removeApplied(pluginId, _appliedShortcuts, _shortcuts.remove);
     _removeApplied(pluginId, _appliedSearchDialog, _searchDialog.remove);
+    _removeSearchFieldActions(pluginId);
     _removeApplied(
       pluginId,
       _appliedExternalEditions,

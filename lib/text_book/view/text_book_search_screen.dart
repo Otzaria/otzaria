@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/search/view/in_book_snippet_style.dart';
 import 'package:otzaria/search/in_book_search_settings.dart';
 import 'dart:convert';
@@ -896,6 +897,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     return SearchPaneBase(
       searchController: searchTextController,
+      pluginActionsField: PluginSearchField.inBook,
       focusNode: widget.focusNode,
       progressWidget: _isSearching
           ? const LinearProgressIndicator(minHeight: 4)

@@ -10,6 +10,7 @@ import 'package:otzaria/plugins/models/plugin_library_book_provider.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_network_allowlist.dart';
 import 'package:otzaria/plugins/models/plugin_search_dialog_item.dart';
+import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/models/plugin_startup_contributions.dart';
 import 'package:otzaria/plugins/models/plugin_toolbar_item.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
@@ -18,6 +19,7 @@ import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_settings_access_policy.dart';
 import 'package:otzaria/plugins/services/plugin_external_editions_registry.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
+import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
 import 'package:otzaria/plugins/utils/plugin_version_utils.dart';
 import 'package:path/path.dart' as p;
 
@@ -88,6 +90,9 @@ const Set<String> _knownApiMethods = {
   'search.fullText',
   'search.query',
   'search.getOptions',
+  'search.setFieldText',
+  'search.setFieldActionState',
+  'search.endFieldSession',
   'reader.openBook',
   'reader.openBookAtRef',
   'reader.printRange',
@@ -254,6 +259,11 @@ const Set<String> _knownEvents = {
   // אירוע ממוקד מ-PluginLibraryBooksRegistry: המשתמש בחר ספר של הספק
   // במסך הספרייה, והתוסף הוא שפותח אותו.
   'library.providerBook.openRequested',
+  // אירועים ממוקדים מ-PluginSearchFieldSessionService: לחיצה על כפתור
+  // התוסף בשדה חיפוש, בקשת עצירה, וסיום הסשן.
+  'search.fieldAction.invoked',
+  'search.fieldAction.stopRequested',
+  'search.fieldAction.ended',
 };
 
 /// מיפוי `method -> permission` נדרשת (תואם METHOD_REQUIRED_PERMISSION ב-JS).
@@ -293,6 +303,9 @@ const Map<String, String> _methodRequiredPermission = {
   'search.fullText': 'search.fulltext.read',
   'search.query': 'search.fulltext.read',
   'search.getOptions': 'search.fulltext.read',
+  'search.setFieldText': pluginSearchFieldActionsPermission,
+  'search.setFieldActionState': pluginSearchFieldActionsPermission,
+  'search.endFieldSession': pluginSearchFieldActionsPermission,
   'reader.openBook': 'reader.open',
   'reader.openBookAtRef': 'reader.open',
   'reader.printRange': 'reader.open',
@@ -585,6 +598,10 @@ const Map<String, String> _methodMinVersion = {
   'fs.openFolderFile': '0.9.98',
   'fs.revokeFolder': '0.9.98',
   'library.openBookFile': '0.9.98',
+  // 0.9.99
+  'search.setFieldText': '0.9.99',
+  'search.setFieldActionState': '0.9.99',
+  'search.endFieldSession': '0.9.99',
 };
 
 /// שדות שמורים שאינם API methods (כדי שלא ייתפסו ב-shorthand scanner).
@@ -817,6 +834,7 @@ class PluginExtendedValidator {
   static const String _storageReferenceMinVersion = '0.9.98';
   static const String _whenConditionMinVersion = '0.9.97';
   static const String _headlessMinVersion = '0.9.98';
+  static const String _searchFieldActionsMinVersion = '0.9.99';
 
   /// תוסף ללא ממשק רץ רק כשמנוע הרקע מתעורר, ואין לו דף שאפשר לפתוח במקומו.
   /// לכן תוסף שאין לו דרך להתעורר, או שמפנה לדף שלו, נחסם כבר בהתקנה.
@@ -953,6 +971,65 @@ class PluginExtendedValidator {
       }
     } on PluginVersionFormatException {
       // minAppVersion נבדק ב-PluginManifestValidator.
+    }
+  }
+
+  static void _validateSearchFieldActions(
+    PluginManifest manifest,
+    PluginStartupContributions startup,
+    Set<String> declaredPermissions,
+    List<String> errors,
+    List<String> warnings,
+  ) {
+    const field = 'contributes.startup.searchFieldActions';
+    if (!declaredPermissions.contains(pluginSearchFieldActionsPermission)) {
+      errors.add(
+        '$field דורש את ההרשאה "$pluginSearchFieldActionsPermission" '
+        'ב-manifest',
+      );
+    }
+    if (startup.searchFieldActions.length >
+        PluginSearchFieldAction.maxActionsPerPlugin) {
+      errors.add(
+        '$field מוגבל ל-${PluginSearchFieldAction.maxActionsPerPlugin} כפתורים',
+      );
+    }
+    try {
+      if (PluginVersionUtils.compareCoreVersions(
+            _searchFieldActionsMinVersion,
+            manifest.minAppVersion,
+          ) >
+          0) {
+        errors.add(
+          '$field נתמך החל מגרסה $_searchFieldActionsMinVersion, אך '
+          'minAppVersion שהוצהר הוא ${manifest.minAppVersion}',
+        );
+      }
+    } on PluginVersionFormatException {
+      // minAppVersion נבדק ב-PluginManifestValidator.
+    }
+    final ids = <String>{};
+    for (final item in startup.searchFieldActions) {
+      try {
+        final parsed = PluginSearchFieldAction.fromPayload(item);
+        if (!ids.add(parsed.id)) errors.add('$field מכיל מזהה כפול');
+        for (final name in PluginSearchFieldAction.unknownFieldNames(item)) {
+          warnings.add('$field: שדה החיפוש "$name" אינו מוכר ולא יוצג');
+        }
+        for (final icon in [parsed.icon, parsed.activeIcon].nonNulls) {
+          if (pluginIconFromName(icon) == null) {
+            warnings.add('$field: האייקון "$icon" אינו מוכר');
+          }
+        }
+      } on PluginSearchFieldActionException catch (error) {
+        errors.add('$field לא תקין: $error');
+      }
+    }
+    if (!declaredPermissions.contains(pluginRunOnStartupPermission)) {
+      warnings.add(
+        '$field בלי ההרשאה "$pluginRunOnStartupPermission": לחיצה על הכפתור '
+        'תפתח את דף התוסף במקום להעיר את מנוע הרקע',
+      );
     }
   }
 
@@ -1150,6 +1227,7 @@ class PluginExtendedValidator {
     checkListField('publishedData', (e) => e is Map, 'אובייקט');
     checkListField('programs', (e) => e is Map, 'אובייקט');
     checkListField('searchDialogItems', (e) => e is Map, 'אובייקט');
+    checkListField('searchFieldActions', (e) => e is Map, 'אובייקט');
     checkListField('externalEditions', (e) => e is Map, 'אובייקט');
     checkListField('libraryBooks', (e) => e is Map, 'אובייקט');
     checkListField(
@@ -1347,6 +1425,16 @@ class PluginExtendedValidator {
           errors.add('contributes.startup.searchDialogItems לא תקין: $error');
         }
       }
+    }
+
+    if (startup.searchFieldActions.isNotEmpty) {
+      _validateSearchFieldActions(
+        manifest,
+        startup,
+        declaredPermissions,
+        errors,
+        warnings,
+      );
     }
 
     if (startup.externalEditions.isNotEmpty) {

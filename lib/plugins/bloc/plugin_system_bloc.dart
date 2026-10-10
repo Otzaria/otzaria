@@ -24,6 +24,8 @@ import 'package:otzaria/plugins/services/plugin_download_service.dart';
 import 'package:otzaria/plugins/services/plugin_external_search_service.dart';
 import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_external_editions_registry.dart';
 import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
@@ -745,6 +747,8 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     PluginLibraryBooksRegistry.instance.removePlugin(pluginId);
     PluginNewTabPageRegistry.instance.remove(pluginId);
     PluginSearchDialogRegistry.instance.removeAll(pluginId);
+    PluginSearchFieldActionsRegistry.instance.removeAll(pluginId);
+    PluginSearchFieldSessionService.instance.removePlugin(pluginId);
     PluginExternalEditionsRegistry.instance.removePlugin(pluginId);
     PluginLazyActivationService.instance.removePlugin(pluginId);
     PluginConditionEvaluator.instance.removePlugin(pluginId);
@@ -779,6 +783,10 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         }
         if (event.permission == 'app.shortcuts') {
           PluginShortcutRegistry.instance.removeAll(event.pluginId);
+        }
+        if (event.permission == pluginSearchFieldActionsPermission) {
+          PluginSearchFieldActionsRegistry.instance.removeAll(event.pluginId);
+          PluginSearchFieldSessionService.instance.removePlugin(event.pluginId);
         }
         if (event.permission == 'reader.highlight') {
           PluginHighlightRegistry.instance.removePlugin(event.pluginId);

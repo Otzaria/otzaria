@@ -167,6 +167,9 @@ if (response.success) {
 | `search.fullText` | 0.9.89 |
 | `search.query` | 0.9.97 |
 | `search.getOptions` | 0.9.97 |
+| `search.setFieldText` | 0.9.99 |
+| `search.setFieldActionState` | 0.9.99 |
+| `search.endFieldSession` | 0.9.99 |
 | `reader.openBook` | 0.9.89 |
 | `reader.openBookAtRef` | 0.9.89 |
 | `reader.printRange` | 0.9.99 |
@@ -1522,6 +1525,55 @@ const { data } = await Otzaria.call('search.getOptions', {});
 > `wordMatchMode` וכל פרמטרי ה-`negative*` דורשים `mode: 'advanced'`; המצב
 > `'fuzzy'` אינו מקבל אפשרויות מילה כלל; המצב `'exact'` מקבל רק את
 > `wordOptions.exact` שלמעלה.
+
+### `search.setFieldText`
+**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
+
+כותב טקסט לשדה חיפוש בתוך סשן שהמשתמש פתח בלחיצה על כפתור התוסף בשדה
+(ראו [כפתורים בשדות החיפוש](#כפתורים-בשדות-החיפוש-searchfieldactions)).
+
+```javascript
+await Otzaria.call('search.setFieldText', { sessionId, text: 'ברכות דף ב' });
+```
+
+- התוסף שולח **תמיד את כל הטקסט שלו** בסשן, לא תוספות. כל קריאה מחליפה את
+  הקריאה הקודמת.
+- אוצריא שומרת את הטקסט שהיה בשדה מחוץ לבחירה ברגע הלחיצה (`before` ו-`after`),
+  ומרכיבה `before + text + after`. כשאין רווח בגבול, נוסף רווח מפריד. הסמן
+  ממוקם בסוף הטקסט של התוסף.
+- עד 1000 תווים בקריאה. תווי בקרה (כמו שבירת שורה) מוחלפים ברווח. טקסט
+  שמכיל `://` נדחה (`error.invalid_params`): Enter בחלק מהשדות פותח קישורי
+  `otzaria://`, ותוסף אינו רשאי להפעיל אותם בדרך זו.
+- השדה מגיב כמו להקלדה: חיפוש תוך כדי הקלדה (בספרייה, בתוך ספר, באיתור מקור)
+  מתעדכן. החיפוש בטקסט המלא רץ רק ב-`submit`.
+- סשן שאינו קיים, שהסתיים, או של תוסף אחר: `error.not_found`.
+
+### `search.setFieldActionState`
+**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
+
+משנה את מראה הכפתור בזמן הסשן.
+
+```javascript
+await Otzaria.call('search.setFieldActionState', {
+  sessionId,
+  state: 'active',          // 'idle' | 'active' | 'busy'
+  tooltip: 'מקשיב... לחץ לעצירה',
+});
+```
+
+- `active` מציג את `activeIcon`, `busy` מציג חיווי התקדמות, `idle` את האייקון הרגיל.
+  כל עוד הסשן פתוח הכפתור מודגש.
+- `tooltip` (לא חובה, עד 120 תווים בשורה אחת) מחליף את הכותרת בזמן הסשן.
+
+### `search.endFieldSession`
+**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
+
+```javascript
+await Otzaria.call('search.endFieldSession', { sessionId, submit: true });
+```
+
+מסיים את הסשן. `submit: true` מריץ את החיפוש כאילו המשתמש לחץ Enter. גם כאן
+התוסף מקבל `search.fieldAction.ended` עם `reason: 'plugin'`.
 
 ---
 
@@ -4332,6 +4384,7 @@ Otzaria.on('event.name', (data) => {
 - `workspace.changed` - שינוי סביבת העבודה (הרשאה: `events.subscribe:workspace.changed`)
 - `settings.changed` - שינוי הגדרה (הרשאה: `events.subscribe:settings.changed`)
 - `plugin.permissions_changed` - שינוי הרשאות (מחזיר `{ permissions: string[] }` - רשימת כל ההרשאות המאושרות) (הרשאה: `events.subscribe:plugin.permissions_changed`)
+- `search.fieldAction.invoked` / `search.fieldAction.stopRequested` / `search.fieldAction.ended` - סשן של כפתור התוסף בשדה חיפוש. נשלחים רק לתוסף הבעלים, ללא הרשאת subscribe (מגרסה 0.9.99; ראו [כפתורים בשדות החיפוש](#כפתורים-בשדות-החיפוש-searchfieldactions))
 
 ### הבדלים חשובים בין אירועי הקורא:
 
@@ -4538,6 +4591,7 @@ async function scheduleReminder(title, body, dateTime) {
 | `publishedData` | `{type, key, payload, scope?}` | `published_data.write` |
 | `programs` | תכניות חישוב Host מוולדות | הרשאות הפקודות שבתכנית |
 | `searchDialogItems` | שורות checkbox סטטיות בדיאלוג החיפוש | `search.dialog` |
+| `searchFieldActions` | כפתורי פעולה בתוך שדות החיפוש | `search.field_actions` |
 | `externalEditions` | קונפיגורציית מהדורות מקבילות חיצוניות (טבלת מיפוי במקור DB מוכרז) | `database.read` וגם `library.books.read` |
 | `libraryBooks` | ספקי ספרים שמתווספים לאיתור הספרים במסך הספרייה | `library.books.provide` |
 | `activationEvents` | שמות אירועים או `app.startup`; אפשר גם `{topic, when}` | הרשאת ה-subscribe של כל נושא |
@@ -4873,6 +4927,94 @@ async function scheduleReminder(title, body, dateTime) {
 | `word.aramaic-translation` | תרגום ארמי |
 | `word.acronyms` | ראשי תיבות |
 | `word.nikud` / `word.taamim` | ניקוד / טעמים |
+
+### כפתורים בשדות החיפוש (searchFieldActions)
+
+מגרסה 0.9.99, `startup.searchFieldActions` מוסיף כפתור לתוך שדות החיפוש של
+אוצריא. התוסף יכול לכתוב טקסט לשדה, אבל רק אחרי שהמשתמש לחץ על הכפתור.
+השימוש העיקרי הוא הקלדה בדיבור: מנוע הזיהוי רץ מחוץ לאוצריא, והתוסף מעביר
+לשדה את מה שזוהה. אותו מנגנון מתאים גם לתעתיק, למקלדת וירטואלית ועוד.
+
+הכפתור נבנה מהמניפסט בלבד: הצגתו אינה מפעילה את התוסף. לחיצה מעירה את מנוע
+הרקע בעצלנות, כמו פקד בשורת העיון (`headless` הוא המבנה המתאים). בלי
+`app.run_on_startup`, לחיצה פותחת את דף התוסף ומוסרת אליו את האירוע.
+
+```json
+{
+  "minAppVersion": "0.9.99",
+  "headless": true,
+  "permissions": [
+    "app.startup_contributions",
+    "app.run_on_startup",
+    "search.field_actions"
+  ],
+  "contributes": {
+    "startup": {
+      "searchFieldActions": [
+        {
+          "id": "dictate",
+          "title": "חיפוש בדיבור",
+          "icon": "mic_24_regular",
+          "activeIcon": "mic_24_filled",
+          "fields": ["fullText", "library", "inBook", "findRef"]
+        }
+      ]
+    }
+  }
+}
+```
+
+| שדה | חובה | תיאור |
+|---|---:|---|
+| `id` | כן | מזהה ייחודי בתוסף (עד 64 תווים); אותיות ASCII, מספרים, `.`, `_`, `-`. |
+| `title` | כן | כותרת הכפתור (tooltip), עד 120 תווים. |
+| `icon` | לא | שם אייקון, כמו ב-`toolbarItems` (ראו ICONS.md). |
+| `activeIcon` | לא | האייקון כשהתוסף מדווח `state: 'active'`. |
+| `fields` | לא | באילו שדות להציג. בלי השדה: בכל השדות הנתמכים. ערך לא מוכר מדולג. |
+
+עד 2 כפתורים לתוסף, ועד 3 כפתורים של תוספים בשדה אחד.
+
+השדות הנתמכים:
+
+| ערך | השדה |
+|---|---|
+| `fullText` | החיפוש בטקסט המלא של הספרייה |
+| `library` | איתור ספר או מחבר במסך הספרייה |
+| `inBook` | חיפוש בתוך ספר פתוח (טקסט או PDF) |
+| `findRef` | איתור מקור |
+
+**סשן.** לחיצה על הכפתור פותחת סשן ושולחת לתוסף (בלי הרשאת subscribe, רק
+לתוסף הבעלים):
+
+```javascript
+Otzaria.on('search.fieldAction.invoked', async ({ actionId, sessionId, field,
+                                                 text, selectionStart, selectionEnd }) => {
+  await Otzaria.call('search.setFieldActionState', { sessionId, state: 'active' });
+  // ... לאחר זיהוי:
+  await Otzaria.call('search.setFieldText', { sessionId, text: recognized });
+});
+Otzaria.on('search.fieldAction.stopRequested', ({ sessionId }) => { /* עצירה */ });
+Otzaria.on('search.fieldAction.ended', ({ sessionId, reason }) => { /* ניקוי */ });
+```
+
+- `text`, `selectionStart` ו-`selectionEnd` מתארים את השדה ברגע הלחיצה. הטקסט
+  המסומן הוא מה שהתוסף יחליף.
+- לחיצה נוספת על הכפתור בזמן סשן פתוח שולחת `search.fieldAction.stopRequested`
+  ואינה סוגרת את הסשן; התוסף מחליט מתי לסיים (`search.endFieldSession`).
+- `search.fieldAction.ended` נשלח בכל סיום, עם `reason`:
+  `"plugin"` (התוסף סיים), `"edited"` (המשתמש שינה את הטקסט בשדה),
+  `"closed"` (השדה או הכרטיסייה נסגרו, או שהתוסף הושבת), `"replaced"` (נפתח
+  סשן חדש באותו שדה, או סשן אחר של אותו תוסף).
+- סשן אחד לכל שדה ולכל תוסף בכל רגע.
+
+**אבטחה.** סשן נוצר רק מלחיצת משתמש על כפתור של התוסף בשדה מסוים. הקריאות
+`search.setFieldText` / `setFieldActionState` / `endFieldSession` נכשלות
+ב-`error.not_found` עבור סשן שאינו קיים, שהסתיים או ששייך לתוסף אחר. המופע
+של התוסף שקרא ראשון בסשן "נועל" אותו, וקריאות ממופע אחר נדחות. עריכה של
+המשתמש בשדה סוגרת את הסשן מיד, כך שהתוסף אינו יכול לדרוס את מה שהמשתמש הקליד.
+
+**זיהוי תמיכה.** בגרסה ללא התכונה הכפתור לא יוצג, ו-`search.setFieldText` מחזיר
+`error.unknown_method`. מומלץ להצהיר `minAppVersion: "0.9.99"`.
 
 ### מהדורות מקבילות חיצוניות (externalEditions)
 
@@ -5312,6 +5454,7 @@ Otzaria.on('plugin.boot', async (payload) => {
     "library.refresh",
     "library.books.provide",
     "search.fulltext.read",
+    "search.field_actions",
     "reader.open",
     "navigation.write",
     "notes.read",

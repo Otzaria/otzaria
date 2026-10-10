@@ -5,7 +5,7 @@ import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 /// נקראות ומופעלות ע"י Flutter בלי להרים מנוע JS. דורשות את ההרשאה
 /// `app.startup_contributions`, וכל קטגוריה כפופה גם להרשאת התחום שלה
 /// (`reader.toolbar` / `reader.context_menu` / `search.dialog` /
-/// `published_data.write` / `library.books.provide`).
+/// `search.field_actions` / `published_data.write` / `library.books.provide`).
 class PluginStartupContributions {
   /// נושא הפעלה מדומה ב-[activationEvents]: מרים את מופע הרקע של התוסף
   /// זמן קצר אחרי שעליית התוכנה הסתיימה (ולא כחלק ממנה).
@@ -31,6 +31,9 @@ class PluginStartupContributions {
 
   /// שורות סטטיות שמוצגות בתחתית דיאלוג החיפוש.
   final List<Map<String, dynamic>> searchDialogItems;
+
+  /// כפתורי פעולה בתוך שדות חיפוש (ראו PluginSearchFieldAction).
+  final List<Map<String, dynamic>> searchFieldActions;
 
   /// קונפיגורציות מהדורות מקבילות חיצוניות — טבלת מיפוי של מקור נתונים
   /// מוכרז שמקשרת מזהי ספק חיצוני לספרי אוצריא (ראו
@@ -59,6 +62,7 @@ class PluginStartupContributions {
     this.publishedData = const [],
     this.programs = const [],
     this.searchDialogItems = const [],
+    this.searchFieldActions = const [],
     this.externalEditions = const [],
     this.libraryBooks = const [],
     this.activationEvents = const [],
@@ -73,6 +77,7 @@ class PluginStartupContributions {
       publishedData.isEmpty &&
       programs.isEmpty &&
       searchDialogItems.isEmpty &&
+      searchFieldActions.isEmpty &&
       externalEditions.isEmpty &&
       libraryBooks.isEmpty &&
       activationEvents.isEmpty;
@@ -86,6 +91,7 @@ class PluginStartupContributions {
   /// אחרי שהתוסף כבר רץ ושלח אותם, ולכן אינם יכולים להפעיל אותו לראשונה.
   bool get hasInitialActivationTrigger =>
       activationEvents.isNotEmpty ||
+      searchFieldActions.isNotEmpty ||
       toolbarItems.any(_toolbarItemActivatesBackground) ||
       contextMenuItems.any(_contextMenuItemActivatesBackground);
 
@@ -175,6 +181,7 @@ class PluginStartupContributions {
       publishedData: mapList('publishedData'),
       programs: mapList('programs'),
       searchDialogItems: mapList('searchDialogItems'),
+      searchFieldActions: mapList('searchFieldActions'),
       externalEditions: mapList('externalEditions'),
       libraryBooks: mapList('libraryBooks'),
       activationEvents: topics,
@@ -190,6 +197,7 @@ class PluginStartupContributions {
     if (publishedData.isNotEmpty) 'publishedData': publishedData,
     if (programs.isNotEmpty) 'programs': programs,
     if (searchDialogItems.isNotEmpty) 'searchDialogItems': searchDialogItems,
+    if (searchFieldActions.isNotEmpty) 'searchFieldActions': searchFieldActions,
     if (externalEditions.isNotEmpty) 'externalEditions': externalEditions,
     if (libraryBooks.isNotEmpty) 'libraryBooks': libraryBooks,
     if (activationEvents.isNotEmpty)

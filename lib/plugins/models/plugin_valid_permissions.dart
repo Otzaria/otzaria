@@ -26,6 +26,11 @@ const Map<String, String> apiCallToPermissionHint = {
   'library.getLinkTargetsSummary': pluginLinksReadPermission,
   'library.refreshUserBooks': pluginLibraryRefreshPermission,
 
+  // search.* — סשן של כפתור בשדה חיפוש
+  'search.setFieldText': pluginSearchFieldActionsPermission,
+  'search.setFieldActionState': pluginSearchFieldActionsPermission,
+  'search.endFieldSession': pluginSearchFieldActionsPermission,
+
   // reader.* — בחירת קורא חלופי דורשת גם הרשאות ספרייה בפועל.
   'reader.getDefaultTextReader': 'reader.open',
   'reader.setDefaultTextReader': 'reader.open',
@@ -189,6 +194,10 @@ const pluginLibraryRefreshPermission = 'library.refresh';
 /// (`contributes.startup.libraryBooks`). לחיצה על ספר כזה נמסרת לתוסף.
 const pluginLibraryBooksProvidePermission = 'library.books.provide';
 
+/// כפתורי תוסף בתוך שדות חיפוש (`contributes.startup.searchFieldActions`)
+/// וכתיבת טקסט לשדה בסשן שהמשתמש פתח בלחיצה.
+const pluginSearchFieldActionsPermission = 'search.field_actions';
+
 /// הרשאה לפתיחת דף של תוסף **אחר** (`plugin.openOther`). נפרדת מ-navigation.write
 /// כי היא מפעילה את ה-WebView של תוסף שלישי, ולא רק מזיזה את המשתמש בין מסכים.
 const pluginOpenOtherPermission = 'plugin.open_other';
@@ -314,6 +323,9 @@ const pluginValidPermissions = <String>[
 
   /// הוספת שורות סטטיות לדיאלוג החיפוש.
   'search.dialog',
+
+  /// כפתורי תוסף בתוך שדות חיפוש.
+  pluginSearchFieldActionsPermission,
 
   // ===== קורא =====
   /// פתיחת ספרים במצב קריאה
