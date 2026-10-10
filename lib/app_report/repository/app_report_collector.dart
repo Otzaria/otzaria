@@ -14,6 +14,7 @@ import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/info/app_info_service.dart';
 import 'package:otzaria/core/info/error_log_reader.dart';
 import 'package:otzaria/core/info/info_topic.dart';
+import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -185,9 +186,10 @@ class AppReportCollector {
     return info;
   }
 
-  static String osVersion() {
+  /// [raw] ו-[isWindows] נועדו לבדיקות.
+  static String osVersion({String? raw, bool? isWindows}) {
     try {
-      return Platform.operatingSystemVersion;
+      return displayOsVersion(raw: raw, isWindows: isWindows);
     } catch (_) {
       return '';
     }
