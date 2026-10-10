@@ -34,6 +34,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   bool _editable = false;
   final _controller = TextEditingController();
   final _focus = FocusNode();
+  String? _lastRejection;
+  DateTime _lastRejectionAt = DateTime.fromMillisecondsSinceEpoch(0);
   PluginCorrectionSessionService get _registry =>
       widget.service ?? PluginCorrectionSessionService.instance;
 
@@ -87,6 +89,18 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     setState(() {});
   }
 
+  /// מקש שנדחה שוב ושוב (למשל בגבול הגודל) לא מציף הודעה ורטט בכל הקשה.
+  void _showRejection(PluginCorrectionException error) {
+    final now = DateTime.now();
+    if (_lastRejection == error.message &&
+        now.difference(_lastRejectionAt) < const Duration(seconds: 3)) {
+      return;
+    }
+    _lastRejection = error.message;
+    _lastRejectionAt = now;
+    UiSnack.showError(PluginMessages.correctionEditRejected(error.message));
+  }
+
   TextEditingValue _validate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
@@ -100,7 +114,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       );
       return newValue;
     } on PluginCorrectionException catch (error) {
-      UiSnack.showError(PluginMessages.correctionEditRejected(error.message));
+      _showRejection(error);
       return oldValue;
     }
   }
@@ -114,7 +128,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         text,
       );
     } on PluginCorrectionException catch (error) {
-      UiSnack.showError(PluginMessages.correctionEditRejected(error.message));
+      _showRejection(error);
       _syncText();
     }
   }

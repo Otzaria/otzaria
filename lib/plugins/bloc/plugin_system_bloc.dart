@@ -852,6 +852,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     Emitter<PluginSystemState> emit,
   ) async {
     try {
+      PluginCorrectionSessionService.instance.removeOwner(event.pluginId);
       _removeDeclarative(event.pluginId);
       ContextMenuRegistry.instance.removeAll(event.pluginId);
       PluginToolbarRegistry.instance.removeAll(event.pluginId);

@@ -29,6 +29,10 @@ class PluginCorrectionSessionService extends ChangeNotifier {
   );
 
   final Map<String, _Session> _sessions = {};
+  final Map<String, int> _ownerEpochs = {};
+
+  /// גדל בכל הסרת בעלים; מי שהתחיל לפני ההסרה לא יוצר אחריה סשן.
+  int ownerEpoch(String owner) => _ownerEpochs[owner] ?? 0;
 
   Map<String, dynamic> begin({
     required String owner,
@@ -39,7 +43,11 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     required Future<String> Function(int) loadSource,
     Future<void> Function()? validateSource,
     void Function(String topic, Map<String, dynamic> payload)? onEvent,
+    int? ownerEpoch,
   }) {
+    if (ownerEpoch != null && ownerEpoch != this.ownerEpoch(owner)) {
+      _fail('error.permission_denied', 'התוסף הושבת או שהרשאתו בוטלה.');
+    }
     for (final session in _sessions.values) {
       if (session.tabId != tabId) continue;
       if (session.owner != owner) {
@@ -105,11 +113,8 @@ class PluginCorrectionSessionService extends ChangeNotifier {
       final raw = value['originalSourceText'] as String;
       final original = value['originalText'] as String;
       final proposed = value['proposedText'] as String;
-      final plain = _sourceText(raw);
+      _rawSource(raw);
       _plainText(proposed);
-      if (plain != original) {
-        _fail('error.invalid_params', 'הטקסט העריך אינו תואם למקור.');
-      }
       final change = <String, dynamic>{
         'sectionIndex': index,
         'originalSourceText': raw,
@@ -125,9 +130,11 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     await session.validateSource?.call();
     for (final change in prepared.values) {
       final raw = await session.loadSource(change['sectionIndex'] as int);
-      _sourceText(raw);
       if (raw != change['originalSourceText']) {
         _fail('error.source_changed', 'פסקת המקור השתנתה.');
+      }
+      if (_sourceText(raw) != change['originalText']) {
+        _fail('error.invalid_params', 'הטקסט העריך אינו תואם למקור.');
       }
     }
     await session.validateSource?.call();
@@ -198,6 +205,7 @@ class PluginCorrectionSessionService extends ChangeNotifier {
   }
 
   void removeOwner(String owner) {
+    _ownerEpochs[owner] = ownerEpoch(owner) + 1;
     final before = _sessions.length;
     _removeWhere((session) => session.owner == owner, 'plugin_unavailable');
     if (before != _sessions.length) notifyListeners();
@@ -329,12 +337,15 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     return null;
   }
 
-  bool hasSessionForBook(String bookId, String? bookUid) =>
-      _sessions.values.any(
-        (session) => (bookUid == null
-            ? session.bookId == bookId
-            : session.bookUid == bookUid),
-      );
+  /// הטעינה מקצצת רווחים מ-bookUid, ולכן גם ההשוואה כאן, אחרת הם עוקפים את החסם.
+  bool hasSessionForBook(String bookId, String? bookUid) {
+    final uid = bookUid?.trim();
+    return _sessions.values.any(
+      (session) => uid == null || uid.isEmpty
+          ? session.bookId == bookId
+          : session.bookUid == uid,
+    );
+  }
 
   _Session _owned(String owner, String id) {
     final session = _sessions[id];
@@ -351,13 +362,24 @@ class PluginCorrectionSessionService extends ChangeNotifier {
     }
   }
 
-  String _sourceText(String text) {
+  /// בדיקות זולות בלבד: ניתוח HTML של קלט לא מהימן ריבועי ומקפיא את הממשק.
+  void _rawSource(String text) {
+    if (text.isEmpty) {
+      _fail(
+        'error.unsupported_context',
+        'פסקת מקור ריקה אינה נתמכת בעריכה מקומית.',
+      );
+    }
     if (text.length > maxTextLength) {
       _fail('error.limit_exceeded', 'טקסט פסקת המקור גדול מדי.');
     }
     if (!_validUtf16(text)) {
       _fail('error.invalid_params', 'מקור הספר מכיל תו פגום.');
     }
+  }
+
+  String _sourceText(String text) {
+    _rawSource(text);
     final plain = TextRendererService.stripHtml(text);
     if (plain.isEmpty) {
       _fail(

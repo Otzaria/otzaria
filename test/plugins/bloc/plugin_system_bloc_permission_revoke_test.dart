@@ -11,6 +11,7 @@ import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_external_search_service.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
+import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_registry.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
@@ -34,6 +35,9 @@ class _FakeRepo implements PluginRegistryRepository {
 
   @override
   Future<List<InstalledPlugin>> getDevelopmentPlugins() async => [];
+
+  @override
+  Future<void> detachDevelopmentPlugin(String id) async {}
 
   @override
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
@@ -117,6 +121,8 @@ void main() {
   const menuItem = PluginContextMenuItem(id: 'item', label: 'Item');
 
   tearDown(() {
+    PluginCorrectionSessionService.instance.removeOwner('p1');
+    PluginCorrectionSessionService.instance.removeOwner('p2');
     PluginToolbarRegistry.instance.removeAll('p1');
     ContextMenuRegistry.instance.removeAll('p1');
     PluginShortcutRegistry.instance.removeAll('p1');
@@ -184,6 +190,77 @@ void main() {
       ),
       isEmpty,
     );
+  });
+
+  group('סשני תיקון מקומיים', () {
+    final events = <(String, Map<String, dynamic>)>[];
+
+    void beginFor(String owner, String tab) =>
+        PluginCorrectionSessionService.instance.begin(
+          owner: owner,
+          tabId: tab,
+          bookId: 'ספר',
+          bookUid: 'id:1',
+          libraryVersion: '1',
+          loadSource: (_) async => 'מקור',
+          onEvent: (topic, payload) => events.add((topic, payload)),
+        );
+
+    setUp(events.clear);
+
+    test(
+      'שלילת reader.local_edit מסיימת את הסשן עם plugin_unavailable',
+      () async {
+        beginFor('p1', 'tab-1');
+
+        await revoke('reader.local_edit');
+
+        expect(
+          PluginCorrectionSessionService.instance.hasSessionForTab('tab-1'),
+          isFalse,
+        );
+        expect(events.single.$1, 'reader.correctionSessionEnded');
+        expect(events.single.$2['reason'], 'plugin_unavailable');
+      },
+    );
+
+    test('ניתוק תוסף פיתוח מסיים את הסשן שלו', () async {
+      beginFor('p1', 'tab-1');
+      final bloc = PluginSystemBloc(repository: _FakeRepo());
+      addTearDown(bloc.close);
+
+      bloc.add(const DetachDevelopmentPluginRequested('p1'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        PluginCorrectionSessionService.instance.hasSessionForTab('tab-1'),
+        isFalse,
+      );
+      expect(events.single.$2['reason'], 'plugin_unavailable');
+    });
+
+    test('שלילת הרשאה אחרת משאירה את הסשן', () async {
+      beginFor('p1', 'tab-1');
+
+      await revoke('reader.open');
+
+      expect(
+        PluginCorrectionSessionService.instance.hasSessionForTab('tab-1'),
+        isTrue,
+      );
+      expect(events, isEmpty);
+    });
+
+    test('שלילת הרשאה של תוסף אחד אינה מסיימת סשן של תוסף אחר', () async {
+      beginFor('p2', 'tab-2');
+
+      await revoke('reader.local_edit');
+
+      expect(
+        PluginCorrectionSessionService.instance.hasSessionForTab('tab-2'),
+        isTrue,
+      );
+    });
   });
 
   test('revoking an unrelated permission keeps the registrations', () async {

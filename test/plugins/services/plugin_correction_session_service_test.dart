@@ -406,4 +406,203 @@ void main() {
     expect(service.canEditParagraph('tab', 'מקור 0'), isTrue);
     expect(service.canEditParagraph('tab', ''), isFalse);
   });
+
+  test('begin שהתחיל לפני הסרת הבעלים נדחה ואינו יוצר סשן יתום', () {
+    final epoch = service.ownerEpoch('late-owner');
+    service.removeOwner('late-owner');
+    expect(
+      () => service.begin(
+        owner: 'late-owner',
+        tabId: 'late-tab',
+        bookId: 'ספר',
+        bookUid: 'id:42',
+        libraryVersion: 'v1',
+        loadSource: (index) async => 'מקור',
+        ownerEpoch: epoch,
+      ),
+      error('error.permission_denied'),
+    );
+    expect(service.hasSessionForTab('late-tab'), isFalse);
+    service.begin(
+      owner: 'late-owner',
+      tabId: 'late-tab',
+      bookId: 'ספר',
+      bookUid: 'id:42',
+      libraryVersion: 'v1',
+      loadSource: (index) async => 'מקור',
+      ownerEpoch: service.ownerEpoch('late-owner'),
+    );
+    expect(service.hasSessionForTab('late-tab'), isTrue);
+  });
+
+  group('חוזה אירועי הסיום והסרה', () {
+    late List<(String, Map<String, dynamic>)> events;
+
+    setUp(() {
+      events = [];
+      service.end('owner', session['sessionId'], 0);
+      session = service.begin(
+        owner: 'owner',
+        tabId: 'tab',
+        bookId: 'ספר',
+        bookUid: 'id:42',
+        libraryVersion: 'v1',
+        loadSource: (index) async => source[index]!,
+        onEvent: (topic, payload) => events.add((topic, payload)),
+      );
+    });
+
+    for (final (name, reason, remove)
+        in <
+          (
+            String,
+            String,
+            void Function(PluginCorrectionSessionService),
+          )
+        >[
+          (
+            'סיום מפורש',
+            'explicit',
+            (s) => s.end(
+              'owner',
+              session['sessionId'],
+              s.get('owner', session['sessionId'])['revision'] as int,
+            ),
+          ),
+          ('הסרת התוסף', 'plugin_unavailable', (s) => s.removeOwner('owner')),
+          ('סגירת לשונית', 'tab_closed', (s) => s.removeTab('tab')),
+        ]) {
+      test('$name שולח correctionSessionEnded עם סיבה ותמונה אחרונה', () {
+        service.editParagraph('tab', 0, 'מקור 0', 'הקלדה אחרונה');
+        events.clear();
+        remove(service);
+        expect(service.hasSessionForTab('tab'), isFalse);
+        final ended = events.where(
+          (event) => event.$1 == 'reader.correctionSessionEnded',
+        );
+        expect(ended, hasLength(1));
+        expect(ended.single.$2['reason'], reason);
+        expect(ended.single.$2['sessionId'], session['sessionId']);
+        final snapshot = ended.single.$2['snapshot'] as Map;
+        expect(
+          (snapshot['changes'] as List).single['proposedText'],
+          'הקלדה אחרונה',
+        );
+      });
+    }
+
+    test('הסרת בעלים או לשונית אחרים משאירה את הסשן חי', () {
+      service.removeOwner('other-owner');
+      service.removeTab('other-tab');
+      expect(service.hasSessionForTab('tab'), isTrue);
+      expect(events, isEmpty);
+    });
+
+    test('reset של פסקה ללא תיקון או אינדקס שלילי אינו משנה revision', () {
+      expect(service.reset('owner', session['sessionId'], 1, 0)['revision'], 0);
+      expect(events, isEmpty);
+      expect(
+        () => service.reset('owner', session['sessionId'], -1, 0),
+        error('error.invalid_params'),
+      );
+    });
+  });
+
+  group('הקלדה מקומית מאומתת מול המקור', () {
+    test('ללא סשן, אינדקס שלילי ומקור שהשתנה נדחים', () {
+      expect(
+        () => service.editParagraph('no-tab', 0, 'מקור 0', 'א'),
+        error('error.not_found'),
+      );
+      expect(
+        () => service.editParagraph('tab', -1, 'מקור 0', 'א'),
+        error('error.source_changed'),
+      );
+      service.editParagraph('tab', 0, 'מקור 0', 'א');
+      expect(
+        () => service.editParagraph('tab', 0, 'מקור אחר', 'ב'),
+        error('error.source_changed'),
+      );
+    });
+
+    test('מגבלת מספר הפסקאות נאכפת גם בהקלדה', () {
+      for (var i = 0; i < PluginCorrectionSessionService.maxChanges; i++) {
+        service.editParagraph('tab', i, 'מקור $i', 'תיקון $i');
+      }
+      expect(
+        () => service.editParagraph('tab', 9999, 'מקור 9999', 'תיקון'),
+        error('error.limit_exceeded'),
+      );
+      service.editParagraph('tab', 0, 'מקור 0', 'עדכון פסקה קיימת');
+    });
+
+    test('מגבלת הבתים המצטברת נאכפת גם בהקלדה', () {
+      final big = 'א' * 15000;
+      var accepted = 0;
+      expect(() {
+        for (var i = 0; i < 100; i++) {
+          service.editParagraph('tab', i, 'מקור $i', big);
+          accepted++;
+        }
+      }, error('error.limit_exceeded'));
+      expect(accepted, greaterThan(0));
+      expect(accepted, lessThan(100));
+    });
+  });
+
+  group('שחזור מאמת כל שינוי בנפרד', () {
+    test('מקור תוקפני מהתוסף אינו נסרק ברגקס לפני אימות מול המסד', () async {
+      final hostile = '<' * PluginCorrectionSessionService.maxTextLength;
+      final timer = Stopwatch()..start();
+      await expectLater(
+        restore([
+          for (var i = 0; i < 40; i++)
+            {
+              'sectionIndex': i,
+              'originalSourceText': hostile,
+              'originalText': '',
+              'proposedText': 'תיקון',
+            },
+        ]),
+        throwsA(isA<PluginCorrectionException>()),
+      );
+      expect(
+        timer.elapsed,
+        lessThan(const Duration(seconds: 2)),
+        reason: 'ניתוח HTML ריבועי על קלט לא מהימן מקפיא את הממשק',
+      );
+    });
+
+    for (final (name, mutate)
+        in <
+          (
+            String,
+            Map<String, dynamic> Function(Map<String, dynamic>),
+          )
+        >[
+          ('מפתח נוסף', (c) => {...c, 'extra': 1}),
+          ('אינדקס שלילי', (c) => {...c, 'sectionIndex': -1}),
+          ('אינדקס שאינו מספר', (c) => {...c, 'sectionIndex': '0'}),
+          ('הצעה שאינה מחרוזת', (c) => {...c, 'proposedText': 1}),
+        ]) {
+      test(name, () async {
+        await expectLater(
+          restore([mutate(change(0, 'תיקון'))]),
+          error('error.invalid_params'),
+        );
+        expect(service.get('owner', session['sessionId'])['revision'], 0);
+      });
+    }
+
+    test('מקור ריק או surrogate פגום שנטענו מהמסד נדחים', () async {
+      for (final bad in ['', 'א\uD800']) {
+        source[0] = bad;
+        await expectLater(
+          restore([change(0, 'תיקון')]),
+          throwsA(isA<PluginCorrectionException>()),
+        );
+        expect(service.get('owner', session['sessionId'])['changes'], isEmpty);
+      }
+    });
+  });
 }

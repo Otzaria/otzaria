@@ -66,6 +66,18 @@ class _Grants extends PluginRegistryRepository {
       permissions;
 }
 
+class _HookedGrants extends _Grants {
+  _HookedGrants(super.permissions, this.onRead);
+  final void Function(int call) onRead;
+  int calls = 0;
+
+  @override
+  Future<List<String>> getGrantedPermissionNames(String pluginId) async {
+    onRead(++calls);
+    return permissions;
+  }
+}
+
 class _Reader extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _Reader(TextBook book)
@@ -79,6 +91,8 @@ class _Reader extends Bloc<TextBookEvent, TextBookState>
       );
   void showCommentaryAtSide() =>
       emit((state as TextBookLoaded).copyWith(showSplitView: true));
+  void showPageShape(bool value) =>
+      emit((state as TextBookLoaded).copyWith(showPageShapeView: value));
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -130,11 +144,13 @@ void main() {
   late List<TextBookTab> readers;
   late PluginBridgeAdapter adapter;
   final events = <String>[];
+  final payloads = <Map<String, dynamic>>[];
   const permissions = ['reader.open', 'reader.local_edit'];
 
   PluginBridgeAdapter buildAdapter({
     String owner = 'owner',
     List<String> grants = permissions,
+    PluginRegistryRepository? repository,
   }) => PluginBridgeAdapter(
     _plugin(owner, grants),
     dependencies: PluginBridgeDependencies(
@@ -152,9 +168,10 @@ void main() {
           ({required title, required content, required subtitle}) async => true,
       dispatchEventToPlugin: (pluginId, topic, payload, {instanceId}) async {
         events.add(topic);
+        payloads.add(Map<String, dynamic>.from(payload));
       },
     ),
-    pluginRepository: _Grants(grants),
+    pluginRepository: repository ?? _Grants(grants),
   );
 
   Future<Map<String, dynamic>> call(
@@ -218,6 +235,7 @@ void main() {
     );
     tabs.current = TabsState(tabs: readers, currentTabIndex: 0);
     events.clear();
+    payloads.clear();
     adapter = buildAdapter();
   });
 
@@ -395,6 +413,28 @@ void main() {
     );
   });
 
+  test('הסרת הבעלים באמצע begin אינה משאירה סשן יתום', () async {
+    final racing = buildAdapter(
+      repository: _HookedGrants(permissions, (call) {
+        if (call == 2) {
+          PluginCorrectionSessionService.instance.removeOwner('owner');
+        }
+      }),
+    );
+    await expectLater(
+      call('beginCorrectionSession', {
+        'tabId': PluginCorrectionSessionService.tabIdFor(readers.first),
+      }, target: racing),
+      _error('error.permission_denied'),
+    );
+    expect(
+      PluginCorrectionSessionService.instance.hasSessionForTab(
+        PluginCorrectionSessionService.tabIdFor(readers.first),
+      ),
+      isFalse,
+    );
+  });
+
   test('לשונית שנפתחה לפי כותרת משתמשת ב-id שנפתר ב-state של הקורא', () async {
     final titled = TextBookTab(
       book: TextBook(title: 'בראשית'),
@@ -412,6 +452,47 @@ void main() {
     );
     final restored = await call('restoreCorrectionDraft', draft(session));
     expect((restored['changes'] as List).single['proposedText'], 'תיקון 😀');
+  });
+
+  test('צורת הדף משאירה את הסשן, חוסמת שינוי ומאפשרת קריאה וסיום', () async {
+    final session = await begin();
+    final restored = await call('restoreCorrectionDraft', draft(session));
+    (readers.first.bloc as _Reader).showPageShape(true);
+    await expectLater(
+      call('restoreCorrectionDraft', draft(restored, proposed: 'אחר')),
+      _error('error.unsupported_context'),
+    );
+    await expectLater(
+      call('resetCorrection', {
+        'sessionId': session['sessionId'],
+        'expectedRevision': restored['revision'],
+        'sectionIndex': 0,
+      }),
+      _error('error.unsupported_context'),
+    );
+    expect(
+      await call('getCorrectionSession', {'sessionId': session['sessionId']}),
+      restored,
+    );
+    try {
+      await call('getSelection', {});
+    } on Object catch (error) {
+      expect(
+        error.toString(),
+        isNot(contains('בחירה בנוסח מתוקן')),
+        reason: 'בצורת הדף מוצג הנוסח הרשמי, ולכן הבחירה אינה חסומה',
+      );
+    }
+    (readers.first.bloc as _Reader).showPageShape(false);
+    await expectLater(
+      call('getSelection', {}),
+      _error('error.unsupported_context'),
+    );
+    final ended = await call('endCorrectionSession', {
+      'sessionId': session['sessionId'],
+      'expectedRevision': restored['revision'],
+    });
+    expect(ended, restored);
   });
 
   test('מפרשים בצד מאפשרים סשן ותיקון בטקסט הראשי בלבד', () async {
@@ -585,5 +666,185 @@ void main() {
       restored,
     );
     expect(events, isEmpty);
+  });
+
+  group('חסמי קריאה על נוסח מתוקן', () {
+    Map<String, dynamic> section(String layer, {bool withUid = true}) => {
+      'bookId': 'בראשית',
+      if (withUid) 'bookUid': 'id:1',
+      'sectionIndex': 0,
+      'layer': layer,
+    };
+
+    test(
+      'findTextOccurrences בשכבת rendered חסום, ושכבת המקור פתוחה',
+      () async {
+        final session = await begin();
+        Map<String, dynamic> find(String layer) => {
+          'bookId': 'בראשית',
+          'bookUid': session['bookUid'],
+          'sectionIndex': 0,
+          'query': 'בראשית',
+          'layer': layer,
+        };
+        await expectLater(
+          call('findTextOccurrences', find('rendered')),
+          _error('error.unsupported_context'),
+        );
+        final source = await call('findTextOccurrences', find('source'));
+        expect(source, isNotEmpty);
+      },
+    );
+
+    test('מפת מקור חסומה גם בשכבת source וגם בלי bookUid', () async {
+      await begin();
+      await expectLater(
+        call('getSectionTextMap', {
+          ...section('source'),
+          'includeSourceMap': true,
+        }),
+        _error('error.unsupported_context'),
+      );
+      await expectLater(
+        call('getSectionTextMap', section('rendered', withUid: false)),
+        _error('error.unsupported_context'),
+      );
+    });
+
+    test('רווחים סביב bookUid אינם עוקפים את החסם', () async {
+      final session = await begin();
+      await expectLater(
+        call('getSectionTextMap', {
+          ...section('rendered'),
+          'bookUid': '  ${session['bookUid']}	',
+        }),
+        _error('error.unsupported_context'),
+      );
+    });
+
+    test('ספר אחר שאין עליו סשן אינו נחסם', () async {
+      await begin();
+      final other = await call('getSectionTextMap', {
+        'bookId': 'ספר אחר',
+        'sectionIndex': 0,
+        'layer': 'source',
+      }).then<Object?>((value) => value, onError: (Object error) => error);
+      expect(
+        other.toString(),
+        isNot(contains('מפת הנוסח המתוקן')),
+        reason: 'החסם חל רק על ספר שיש עליו סשן',
+      );
+    });
+  });
+
+  group('ולידציית פרמטרים בכל הפעולות', () {
+    test('מפתחות נוספים או חסרים נדחים לפני כל גישה לסשן', () async {
+      final session = await begin();
+      final id = session['sessionId'];
+      final bad = <(String, Map<String, dynamic>)>[
+        ('getCorrectionSession', {'sessionId': id, 'extra': 1}),
+        ('getCorrectionSession', {'sessionId': 5}),
+        ('getCorrectionSession', {}),
+        ('endCorrectionSession', {'sessionId': id}),
+        ('endCorrectionSession', {'sessionId': id, 'expectedRevision': '0'}),
+        (
+          'endCorrectionSession',
+          {
+            'sessionId': id,
+            'expectedRevision': 0,
+            'extra': 1,
+          },
+        ),
+        ('resetCorrection', {'sessionId': id, 'expectedRevision': 0}),
+        (
+          'resetCorrection',
+          {
+            'sessionId': id,
+            'expectedRevision': 0,
+            'sectionIndex': '0',
+          },
+        ),
+        (
+          'resetCorrection',
+          {
+            'sessionId': id,
+            'expectedRevision': 0,
+            'sectionIndex': -1,
+          },
+        ),
+        (
+          'restoreCorrectionDraft',
+          {
+            ...draft(session),
+            'bookUid': 7,
+          },
+        ),
+        (
+          'restoreCorrectionDraft',
+          {
+            ...draft(session),
+            'libraryVersion': null,
+          },
+        ),
+        (
+          'restoreCorrectionDraft',
+          {
+            'sessionId': id,
+            'expectedRevision': 0,
+            'bookUid': session['bookUid'],
+            'libraryVersion': session['libraryVersion'],
+          },
+        ),
+      ];
+      for (final (action, args) in bad) {
+        await expectLater(
+          call(action, args),
+          _error('error.invalid_params'),
+          reason: '$action $args',
+        );
+      }
+      expect(
+        (await call('getCorrectionSession', {'sessionId': id}))['revision'],
+        0,
+      );
+    });
+  });
+
+  group('תוכן האירועים', () {
+    test(
+      'שינוי, איפוס וסיום נושאים sessionId, revision, סיבה ותמונה',
+      () async {
+        final session = await begin();
+        final restored = await call('restoreCorrectionDraft', draft(session));
+        await call('resetCorrection', {
+          'sessionId': session['sessionId'],
+          'expectedRevision': restored['revision'],
+          'sectionIndex': 0,
+        });
+        await call('endCorrectionSession', {
+          'sessionId': session['sessionId'],
+          'expectedRevision': 2,
+        });
+        expect(payloads, hasLength(3));
+        expect(payloads[0], {'sessionId': session['sessionId'], 'revision': 1});
+        expect(payloads[1], {
+          'sessionId': session['sessionId'],
+          'revision': 2,
+          'sectionIndex': 0,
+        });
+        expect(payloads[2]['reason'], 'explicit');
+        expect(payloads[2]['snapshot'], isA<Map>());
+      },
+    );
+
+    test(
+      'ביטול הרשאת התיקון המקומי מסיים את הסשן עם plugin_unavailable',
+      () async {
+        await begin();
+        payloads.clear();
+        PluginCorrectionSessionService.instance.removeOwner('owner');
+        expect(payloads.single['reason'], 'plugin_unavailable');
+      },
+    );
   });
 }
