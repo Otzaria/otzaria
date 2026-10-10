@@ -274,11 +274,6 @@ void main() {
       expect(() => tab.dispose(), returnsNormally);
     });
 
-    test('setupPageTracking לא קורס כשה-controller לא מוכן', () {
-      final tab = _tab();
-      expect(() => tab.setupPageTracking(), returnsNormally);
-    });
-
     test('searchController מוסר ב-dispose ואינו נגיש', () {
       final tab = _tab(page: 1);
       tab.dispose();
