@@ -591,22 +591,6 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     return bookProgress.values.any((progress) => !progress.isEmpty);
   }
 
-  /// Get number of completed cycles (columns) by book ID
-  int getNumberOfCompletedCyclesById(int bookId, BookDetails bookDetails) {
-    final bookProgress = _progressById[bookId];
-    final totalTargetItems = bookDetails.totalLearnableItems;
-    if (totalTargetItems == 0 || bookProgress == null) return 0;
-
-    int cycles = 0;
-    for (final columnId in _columnIdsForBook(bookId)) {
-      if (ProgressService.getColumnCompletedCount(bookProgress, columnId) >=
-          totalTargetItems) {
-        cycles++;
-      }
-    }
-    return cycles;
-  }
-
   /// Get book progress summary by ID (synchronous)
   BookProgressSummary getBookProgressSummarySyncById(
     int bookId,
