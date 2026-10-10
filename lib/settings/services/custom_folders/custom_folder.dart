@@ -142,11 +142,6 @@ class CustomFoldersManager {
     }
   }
 
-  /// האם קיימות תיקיות מותאמות אישית פעילות
-  static bool hasFolders(String? jsonString) {
-    return loadFolders(jsonString).isNotEmpty;
-  }
-
   /// שמירת רשימת התיקיות להגדרות
   static String saveFolders(List<CustomFolder> folders) {
     return jsonEncode(folders.map((f) => f.toJson()).toList());
