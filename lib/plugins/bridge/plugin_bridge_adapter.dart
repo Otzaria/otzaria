@@ -6807,7 +6807,7 @@ class PluginBridgeAdapter {
         if (enabled == false) {
           PluginNewTabPageRegistry.instance.remove(plugin.pluginId);
         } else {
-          PluginNewTabPageRegistry.instance.register(plugin.pluginId);
+          return PluginNewTabPageRegistry.instance.register(plugin.pluginId);
         }
         return true;
       case 'openSelf':
