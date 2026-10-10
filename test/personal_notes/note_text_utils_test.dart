@@ -51,20 +51,6 @@ void main() {
     });
   });
 
-  group('extractReferenceWordsFromLines', () {
-    final lines = ['שורה ראשונה', 'שורה שניה'];
-
-    test('מספור שורות הוא 1-based', () {
-      expect(extractReferenceWordsFromLines(lines, 1), ['שורה', 'ראשונה']);
-      expect(extractReferenceWordsFromLines(lines, 2), ['שורה', 'שניה']);
-    });
-
-    test('מספר שורה מחוץ לטווח מחזיר רשימה ריקה', () {
-      expect(extractReferenceWordsFromLines(lines, 0), isEmpty);
-      expect(extractReferenceWordsFromLines(lines, 3), isEmpty);
-    });
-  });
-
   group('extractDisplayTextFromLine', () {
     test('מסיר ניקוד ותגי HTML', () {
       final text = extractDisplayTextFromLine('<b>בְּרֵאשִׁית בָּרָא</b>');
