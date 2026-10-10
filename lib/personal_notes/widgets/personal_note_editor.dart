@@ -192,8 +192,9 @@ class _PersonalNoteEditorBodyState extends State<PersonalNoteEditorBody> {
       if (ctx == null) return;
       // keepVisibleAtEnd גולל רק אם תחתית אזור הכתיבה מוסתרת מתחת לתצוגה —
       // אם הוא כבר גלוי לא מתבצעת גלילה, כך שאין קפיצות מיותרות.
-      Scrollable.ensureVisible(
-        ctx,
+      // רק הרשימה העוטפת — לא ה-PageView של כרטיסייה מוסתרת.
+      Scrollable.maybeOf(ctx)?.position.ensureVisible(
+        ctx.findRenderObject()!,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
         alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
@@ -610,12 +611,4 @@ class _PersonalNoteToolbar extends StatelessWidget {
       ],
     );
   }
-}
-
-PersonalNoteEditorResult buildPlainTextResult(String text) {
-  return PersonalNoteEditorResult(
-    content: text.trimRight(),
-    contentPlain: text.trimRight(),
-    contentFormat: PersonalNoteContentFormat.plain,
-  );
 }

@@ -6,7 +6,6 @@ abstract class PdfMessages {
   static const String perBookSettingsReset = 'ההגדרות הפר-ספריות אופסו בהצלחה';
   static const String textLocationNotFoundOpeningAtStart =
       'לא נמצא מיקום תואם בטקסט — הספר נפתח מתחילתו';
-  static const String searchError = 'שגיאה בחיפוש';
   static const String noTextLayer =
       'ספר זה הוא סריקה בלבד ואינו מכיל טקסט, ולכן לא ניתן לחפש בתוכו';
   static const String advancedSearchUnavailableInTalmudPdf =

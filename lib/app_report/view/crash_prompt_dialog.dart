@@ -72,6 +72,7 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
                 initialType: AppReportType.crash,
                 initialTitle: CrashReportDecision.titleFor(widget.candidate),
                 signature: widget.candidate.signature,
+                minidumpFile: widget.candidate.minidump,
               ))
           ..add(const AppReportAttachmentsRequested());
   }
@@ -215,6 +216,10 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
             errorLog: state.errorLog,
             includeDiagnostics: state.includeDiagnostics,
             includeErrorLog: state.includeErrorLog,
+            minidump: state.minidump,
+            includeMinidump: state.includeMinidump,
+            onMinidumpChanged: (include) =>
+                bloc.add(AppReportMinidumpToggled(include)),
             enabled: enabled,
             onDiagnosticsChanged: (include) =>
                 bloc.add(AppReportDiagnosticsToggled(include)),

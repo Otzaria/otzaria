@@ -9,6 +9,8 @@ import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -17,6 +19,7 @@ import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/external_search_status.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
+import 'package:otzaria/search/view/search_navigation_tree.dart';
 import 'package:otzaria/search/view/tantivy_full_text_search.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -51,6 +54,8 @@ class _SearchBloc extends SearchBloc {
     emit(state);
   }
 
+  void publish(SearchState state) => emit(state);
+
   @override
   void add(SearchEvent event) {
     if (event is! LoadMoreResults) super.add(event);
@@ -63,7 +68,7 @@ Future<void> main() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  Future<void> pumpSearch(
+  Future<_SearchBloc> pumpSearch(
     WidgetTester tester, {
     required double width,
     SearchState state = const SearchState(
@@ -71,6 +76,8 @@ Future<void> main() async {
       totalResults: 12,
     ),
     bool externalProvider = true,
+    LibraryState libraryState = const LibraryState(),
+    bool showFacetPane = false,
   }) async {
     final searchBloc = _SearchBloc(state);
     final settingsBloc = _MockSettingsBloc();
@@ -81,7 +88,7 @@ Future<void> main() async {
     final tab = SearchingTab('חיפוש', '', searchBloc: searchBloc);
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = Size(width, 700);
-    tab.isLeftPaneOpen.value = false;
+    tab.isLeftPaneOpen.value = showFacetPane;
     tab.externalSearchStatus.value = externalProvider
         ? const ExternalSearchStatus(
             sourceTitle: 'היברובוקס',
@@ -118,7 +125,7 @@ Future<void> main() async {
     whenListen(
       libraryBloc,
       const Stream<LibraryState>.empty(),
-      initialState: const LibraryState(),
+      initialState: libraryState,
     );
 
     addTearDown(() async {
@@ -145,14 +152,59 @@ Future<void> main() async {
             BlocProvider<IndexingBloc>.value(value: indexingBloc),
             BlocProvider<LibraryBloc>.value(value: libraryBloc),
           ],
-          child: Scaffold(
-            body: TantivyFullTextSearch(tab: tab),
-          ),
+          child: Scaffold(body: TantivyFullTextSearch(tab: tab)),
         ),
       ),
     );
     await tester.pump();
+    return searchBloc;
   }
+
+  testWidgets('פעימות מונים במסך האמיתי אינן בונות שוב את עץ הסינון', (
+    tester,
+  ) async {
+    if (!engineReady) {
+      markTestSkipped(searchEngineSkipReason);
+      return;
+    }
+    final category = Category(
+      title: 'תנ"ך',
+      description: '',
+      shortDescription: '',
+      order: 1,
+      subCategories: const [],
+      books: [TextBook(id: 7, title: 'תהילים', categoryPath: '/תנ"ך')],
+      parent: null,
+    );
+    final library = Library(categories: [category]);
+    category.parent = library;
+    final searchBloc = await pumpSearch(
+      tester,
+      width: 1200,
+      externalProvider: false,
+      showFacetPane: true,
+      libraryState: LibraryState(library: library, isLoading: false),
+      state: const SearchState(
+        searchQuery: 'בדיקה',
+        facetCounts: {'/': 5, '/תנ"ך': 5, '/תנ"ך/id:7': 5},
+      ),
+    );
+    final treeFinder = find.byType(SearchNavigationTree);
+    final tree = tester.widget<SearchNavigationTree>(treeFinder);
+
+    searchBloc.publish(searchBloc.state.copyWith(totalResults: 123));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('0/123'), findsOneWidget);
+    expect(identical(tester.widget(treeFinder), tree), isTrue);
+
+    final counts = {'/': 2, '/תנ"ך': 2, '/תנ"ך/id:7': 2};
+    searchBloc.publish(searchBloc.state.copyWith(facetCounts: counts));
+    await tester.pump();
+    await tester.pump();
+    expect(tester.widget<SearchNavigationTree>(treeFinder).facetCounts, counts);
+    expect(identical(tester.widget(treeFinder), tree), isFalse);
+  });
 
   testWidgets('הסרגל הרחב שומר ספירות ומיקום של תוצאות חיצוניות', (
     tester,
@@ -177,9 +229,7 @@ Future<void> main() async {
     expect(find.text('תוצאות מהיברובוקס מאוחרות'), findsOneWidget);
   });
 
-  testWidgets('הסרגל המכווץ שומר על הפקד החיצוני במצב קומפקטי', (
-    tester,
-  ) async {
+  testWidgets('הסרגל המכווץ שומר על הפקד החיצוני במצב קומפקטי', (tester) async {
     if (!engineReady) {
       markTestSkipped(searchEngineSkipReason);
       return;
@@ -293,10 +343,7 @@ Future<void> main() async {
       tester,
       width: 411,
       externalProvider: false,
-      state: const SearchState(
-        searchQuery: 'ברכת המזון',
-        totalResults: 5957,
-      ),
+      state: const SearchState(searchQuery: 'ברכת המזון', totalResults: 5957),
     );
 
     expect(tester.takeException(), isNull);

@@ -6,7 +6,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/misc/app_menu_icon.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -1046,7 +1046,7 @@ Widget buildAppMenuRowContent(
         : MainAxisSize.min,
     children: [
       if (icon != null) ...[
-        RtlIcon(icon, size: metrics.iconSize, color: foregroundColor),
+        AppMenuIcon(icon, size: metrics.iconSize, color: foregroundColor),
         const SizedBox(width: 8),
       ],
       DefaultTextStyle.merge(

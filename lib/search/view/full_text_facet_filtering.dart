@@ -36,6 +36,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
   bool get wantKeepAlive => true;
   final TextEditingController _filterQuery = TextEditingController();
   final Map<String, bool> _expansionState = {};
+  String _treeFilterQuery = '';
 
   @override
   void dispose() {
@@ -106,16 +107,27 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       return;
     }
 
-    // כשפעילים facets ממדיים (/base, /era/, /author/) עוקפים את AddFacet/
-    // RemoveFacet: המסלול הממוזער בצד-לקוח שלהם מסנן לפי נתיבי קטגוריה
-    // בלבד ואינו מכיר את סמנטיקת ה-AND של הממדים במנוע.
+    // סינון מקומי לפי קטגוריות אינו מכיר את סמנטיקת ה-AND של הממדים;
+    // לכן בחירה ממדית נשלחת למנוע.
     final categories = FacetHelper.categoryFacetsOf(state.currentFacets);
-    if (categories.contains(facet)) {
-      categories.remove(facet);
+    final selectedFacets = SearchBloc.intersectFacetWithScope(
+      facet,
+      FacetHelper.categoryFacetsOf(state.searchScopeFacets),
+    );
+    if (selectedFacets.every(categories.contains)) {
+      categories.removeWhere(selectedFacets.contains);
     } else {
-      categories.add(facet);
+      categories.addAll(selectedFacets.where((f) => !categories.contains(f)));
     }
-    _dispatchCategoriesWithDimensions(searchBloc, categories, dimensionFacets);
+    if (categories.isEmpty) {
+      categories.addAll(FacetHelper.categoryFacetsOf(state.searchScopeFacets));
+    }
+    _dispatchCategoriesWithDimensions(
+      searchBloc,
+      categories,
+      dimensionFacets,
+      keepScope: true,
+    );
   }
 
   void _setFacet(BuildContext context, String facet) {
@@ -143,40 +155,36 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
       return;
     }
 
-    // שחזור סמנטיקת SetFacet('/') — "כל הספרים בתוך ההיקף" — תוך שימור
-    // ה-facets הממדיים שרוכבים על אותה רשימה.
-    final categories = facet == '/'
-        ? FacetHelper.categoryFacetsOf(state.searchScopeFacets)
-        : <String>[facet];
+    // גם בחירת אב של ספר נשארת בתוך ההיקף שעליו מחושבים מנייני העץ.
+    final categories = SearchBloc.intersectFacetWithScope(
+      facet,
+      FacetHelper.categoryFacetsOf(state.searchScopeFacets),
+    );
     _dispatchCategoriesWithDimensions(
       searchBloc,
       categories,
       dimensionFacets,
+      keepScope: true,
     );
   }
 
-  /// שולח בחירת קטגוריות חדשה יחד עם ה-facets הממדיים הפעילים, ומריץ את
-  /// החיפוש מחדש דרך המנוע (הממדים חייבים להגיע למנוע — סינון מקומי לפי
-  /// קטגוריות היה מתעלם מהם).
+  /// שולח קטגוריות יחד עם הממדים הפעילים ומריץ מחדש דרך המנוע: סינון מקומי
+  /// לפי קטגוריות היה מתעלם מהממדים.
   void _dispatchCategoriesWithDimensions(
     SearchBloc searchBloc,
     List<String> categories,
-    List<String> dimensionFacets,
-  ) {
+    List<String> dimensionFacets, {
+    bool keepScope = false,
+  }) {
     final effectiveCategories = categories.isEmpty ? const ['/'] : categories;
     searchBloc.add(
-      SetFacetsWithoutSearch([...effectiveCategories, ...dimensionFacets]),
+      SetFacetsWithoutSearch([
+        ...effectiveCategories,
+        ...dimensionFacets,
+      ], keepScope: keepScope),
     );
     searchBloc.add(const RerunSearch());
   }
-
-  /// התקופות המוצעות לסינון. 'שאר מפרשים' לעולם לא מוטבעת, ו'תורה שבכתב'
-  /// אינה תקופת פרשנות רלוונטית לסינון.
-  static final List<String> _eraNames = [
-    for (final era in CommentaryEra.values)
-      if (era != CommentaryEra.other && era != CommentaryEra.torahShebichtav)
-        era.hebrewName,
-  ];
 
   /// מוסיף/מסיר facet ממדי (ספרי יסוד/תקופה), שומר בהעדפות ומריץ חיפוש מחדש
   /// דרך המנוע יחד עם הקטגוריות הפעילות.
@@ -220,61 +228,13 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     onClear: _clearFilter,
   );
 
-  /// כפתור סינון בכותרת השורש — תפריט שטוח של מאפייני הספר (ספרי יסוד
-  /// ותקופות). סימון מרובה נשמר פתוח (closeOnActivate: false).
   Widget _buildDimensionFilterButton() {
     return BlocBuilder<SearchBloc, SearchState>(
       buildWhen: (p, c) => p.currentFacets != c.currentFacets,
-      builder: (context, state) {
-        final cs = Theme.of(context).colorScheme;
-        final dims = FacetHelper.dimensionFacetsOf(state.currentFacets).toSet();
-        final activeCount = dims.length;
-
-        Widget checkItem(String label, String facet) {
-          final selected = dims.contains(facet);
-          return MenuItemButton(
-            closeOnActivate: false,
-            leadingIcon: Icon(
-              selected
-                  ? FluentIcons.checkbox_checked_24_filled
-                  : FluentIcons.checkbox_unchecked_24_regular,
-              size: 18,
-              color: selected ? cs.primary : cs.onSurfaceVariant,
-            ),
-            onPressed: () => _toggleDimension(context, facet),
-            child: Text(label),
-          );
-        }
-
-        return MenuAnchor(
-          menuChildren: [
-            checkItem('ספרי יסוד', FacetHelper.baseDimensionFacet),
-            for (final era in _eraNames)
-              checkItem(era, FacetHelper.buildEraFacet(era)),
-          ],
-          builder: (context, controller, child) => SizedBox(
-            width: 32,
-            height: 32,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-              tooltip: 'סינון לפי מאפיין',
-              color: activeCount > 0 ? cs.primary : cs.onSurfaceVariant,
-              icon: activeCount > 0
-                  ? Badge(
-                      label: Text('$activeCount'),
-                      child: const Icon(
-                        FluentIcons.filter_24_regular,
-                        size: 20,
-                      ),
-                    )
-                  : const Icon(FluentIcons.filter_24_regular, size: 20),
-              onPressed: () =>
-                  controller.isOpen ? controller.close() : controller.open(),
-            ),
-          ),
-        );
-      },
+      builder: (context, state) => SearchDimensionFilterButton(
+        selectedFacets: state.currentFacets,
+        onToggle: (facet) => _toggleDimension(context, facet),
+      ),
     );
   }
 
@@ -319,7 +279,16 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
         }
 
         return BlocBuilder<SearchBloc, SearchState>(
+          // רק השדות שהעץ מציג; העץ קורא את isLoading רק יחד עם "אין תוצאות".
+          // טקסט האיתור נקרא מה-controller — filterQuery מתאפס בכל copyWith.
+          buildWhen: (p, c) =>
+              p.facetCounts != c.facetCounts ||
+              p.currentFacets != c.currentFacets ||
+              (p.isLoading && p.results.isEmpty) !=
+                  (c.isLoading && c.results.isEmpty) ||
+              _filterQuery.text != _treeFilterQuery,
           builder: (context, searchState) {
+            _treeFilterQuery = _filterQuery.text;
             final library = libraryState.library;
             if (library == null) {
               return const Center(child: Text('No library data available'));
@@ -398,6 +367,76 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
     return NavPanelCollapsibleSearch(
       delegate: delegate,
       child: _buildFacetTree(),
+    );
+  }
+}
+
+/// כפתור סינון בכותרת השורש — תפריט שטוח של מאפייני הספר (ספרי יסוד
+/// ותקופות). סימון מרובה נשמר פתוח (closeOnActivate: false).
+class SearchDimensionFilterButton extends StatelessWidget {
+  const SearchDimensionFilterButton({
+    super.key,
+    required this.selectedFacets,
+    required this.onToggle,
+  });
+
+  final Iterable<String> selectedFacets;
+  final ValueChanged<String> onToggle;
+
+  /// התקופות המוצעות לסינון. 'שאר מפרשים' לעולם לא מוטבעת, ו'תורה שבכתב'
+  /// אינה תקופת פרשנות רלוונטית לסינון.
+  static final List<String> _eraNames = [
+    for (final era in CommentaryEra.values)
+      if (era != CommentaryEra.other && era != CommentaryEra.torahShebichtav)
+        era.hebrewName,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dims = FacetHelper.dimensionFacetsOf(selectedFacets).toSet();
+    final activeCount = dims.length;
+
+    Widget checkItem(String label, String facet) {
+      final selected = dims.contains(facet);
+      return MenuItemButton(
+        closeOnActivate: false,
+        leadingIcon: Icon(
+          selected
+              ? FluentIcons.checkbox_checked_24_filled
+              : FluentIcons.checkbox_unchecked_24_regular,
+          size: 18,
+          color: selected ? cs.primary : cs.onSurfaceVariant,
+        ),
+        onPressed: () => onToggle(facet),
+        child: Text(label),
+      );
+    }
+
+    return MenuAnchor(
+      menuChildren: [
+        checkItem('ספרי יסוד', FacetHelper.baseDimensionFacet),
+        for (final era in _eraNames)
+          checkItem(era, FacetHelper.buildEraFacet(era)),
+      ],
+      builder: (context, controller, child) => SizedBox(
+        width: 32,
+        height: 32,
+        child: IconButton(
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          tooltip: 'סינון לפי מאפיין',
+          color: activeCount > 0 ? cs.primary : cs.onSurfaceVariant,
+          icon: activeCount > 0
+              ? Badge(
+                  label: Text('$activeCount'),
+                  child: const Icon(FluentIcons.filter_24_regular, size: 20),
+                )
+              : const Icon(FluentIcons.filter_24_regular, size: 20),
+          onPressed: () =>
+              controller.isOpen ? controller.close() : controller.open(),
+        ),
+      ),
     );
   }
 }

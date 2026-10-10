@@ -1697,7 +1697,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
     return _buildCenteredState(
       icon: isDeepLink
-          ? OtzariaIcons.links_24_regular
+          ? OtzariaIcons.link_24_regular
           : FluentIcons.document_search_24_regular,
       iconColor: colorScheme.onSurfaceVariant,
       title: isDeepLink
@@ -1715,7 +1715,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
           ? ActionButton.recommended(
               text: context.settingsText('פתיחת קישור'),
               onPressed: () => _tryHandleDeepLink(query),
-              icon: OtzariaIcons.links_24_regular,
+              icon: OtzariaIcons.link_24_regular,
             )
           : ActionButton.recommended(
               text: context.settingsText('פתח חיפוש טקסט'),

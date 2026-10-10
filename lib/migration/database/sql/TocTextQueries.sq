@@ -26,6 +26,3 @@ DELETE FROM tocText WHERE id = ?;
 
 countAll:
 SELECT COUNT(*) FROM tocText;
-
-lastInsertRowId:
-SELECT last_insert_rowid();

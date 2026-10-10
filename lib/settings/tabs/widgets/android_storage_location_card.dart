@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/empty_library/services/android_storage_service.dart';
+import 'package:otzaria/empty_library/services/library_space_estimate.dart';
 import 'package:otzaria/settings/dialogs/change_location_dialog.dart';
 import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
@@ -42,6 +43,7 @@ class _AndroidStorageLocationCardState
       options: options,
       internalRoot: internalRoot,
       currentRoot: currentRoot,
+      largestFileBytes: await installedDatabaseBytes(libraryPath),
     );
   }
 
@@ -134,7 +136,11 @@ class _AndroidStorageLocationCardState
             },
           )
         : null;
-    final subtitle = option.supportsLargeFiles
+    final canHold = volumeCanHoldLibrary(
+      supportsLargeFiles: option.supportsLargeFiles,
+      largestFileBytes: view.largestFileBytes,
+    );
+    final subtitle = canHold
         ? freeText
         : context.settingsText(
             'לא נתמך — הכרטיס מפורמט ב-FAT32 (מגבלת 4GB לקובץ)',
@@ -146,7 +152,7 @@ class _AndroidStorageLocationCardState
         context.settingsText('בשימוש'),
         style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
       );
-    } else if (option.supportsLargeFiles) {
+    } else if (canHold) {
       trailing = ActionButton.recommended(
         text: context.settingsText('העבר לכאן'),
         onPressed: () => _changeLocation(option, view),
@@ -154,7 +160,7 @@ class _AndroidStorageLocationCardState
     }
 
     return ListTile(
-      enabled: option.supportsLargeFiles,
+      enabled: canHold,
       hoverColor: Colors.transparent,
       leading: Icon(
         option.isRemovable
@@ -179,10 +185,12 @@ class _StorageView {
   final List<AndroidStorageOption> options;
   final String internalRoot;
   final String currentRoot;
+  final int largestFileBytes;
 
   const _StorageView({
     required this.options,
     required this.internalRoot,
     required this.currentRoot,
+    required this.largestFileBytes,
   });
 }

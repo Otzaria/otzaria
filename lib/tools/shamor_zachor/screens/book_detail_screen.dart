@@ -747,40 +747,36 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     BookDetails bookDetails,
     ShamorZachorProgressProvider progressProvider,
   ) {
-    final sections = bookDetails.sections ?? const [];
+    // רשימה שטוחה של השורות הגלויות, כדי שה-SliverList יבנה רק את מה שעל המסך.
+    final rows = <(BookSection, int)>[];
+    void addRow(BookSection section, int level) {
+      rows.add((section, level));
+      if (_expandedSections[section.id] ?? true) {
+        for (final child in section.children) {
+          addRow(child, level + 1);
+        }
+      }
+    }
+
+    for (final section in bookDetails.sections ?? const <BookSection>[]) {
+      // כותרת זהה לשם הספר (שכבר מופיע למעלה) — מציגים ישירות את ילדיה.
+      final skip =
+          section.title == widget.bookName && section.children.isNotEmpty;
+      for (final top in skip ? section.children : [section]) {
+        addRow(top, 0);
+      }
+    }
 
     return SliverList(
       delegate: SliverChildBuilderDelegate(
-        (ctx, index) {
-          final section = sections[index];
-
-          // אם כותרת הסקציה זהה לשם הספר (שכבר מופיע למעלה), נדלג עליה
-          // ונציג ישירות את הילדים שלה אם קיימים.
-          if (section.title == widget.bookName && section.children.isNotEmpty) {
-            return Column(
-              children: section.children
-                  .map(
-                    (child) => _buildSectionExpansionTile(
-                      context,
-                      child,
-                      0,
-                      bookDetails,
-                      progressProvider,
-                    ),
-                  )
-                  .toList(),
-            );
-          }
-
-          return _buildSectionExpansionTile(
-            context,
-            section,
-            0,
-            bookDetails,
-            progressProvider,
-          );
-        },
-        childCount: sections.length,
+        (ctx, index) => _buildSectionExpansionTile(
+          context,
+          rows[index].$1,
+          rows[index].$2,
+          bookDetails,
+          progressProvider,
+        ),
+        childCount: rows.length,
       ),
     );
   }
@@ -802,9 +798,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           bookDetails.sectionLeafIndexMap[section.id] ?? const [];
       if (leafIndices.isEmpty) return const SizedBox.shrink();
 
-      final learnable = bookDetails.learnableItems.firstWhere(
-        (item) => item.absoluteIndex == leafIndices.first,
-      );
+      final learnable = bookDetails.learnableItems[leafIndices.first];
       final pageProgress = _getProgress(
         progressProvider,
         leafIndices.first,
@@ -844,6 +838,9 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                       message: col.label,
                       child: Checkbox(
                         visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: level > 0
+                            ? MaterialTapTargetSize.shrinkWrap
+                            : null,
                         value: pageProgress.getProperty(columnName),
                         onChanged: (val) => _updateProgress(
                           progressProvider,
@@ -976,18 +973,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             ],
           ),
         ),
-        // אין Padding חיצוני; ההזחה מבוקרת רק בכותרת ובעמודת ה־V
-        children: section.children
-            .map(
-              (child) => _buildSectionExpansionTile(
-                context,
-                child,
-                level + 1,
-                bookDetails,
-                progressProvider,
-              ),
-            )
-            .toList(),
+        // הילדים נבנים כשורות נפרדות ברשימה השטוחה.
+        children: const [],
       ),
     );
   }

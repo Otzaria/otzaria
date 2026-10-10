@@ -91,9 +91,6 @@ final class AltTocFlatIndex {
 
   int levelOf(int i) => _levels[i];
 
-  /// `line.id` של השורה המקושרת, או 0.
-  int lineIdOf(int i) => _lineIds[i];
-
   /// [altTocTokenMask] של [refTokensOf] לכל ערך — לקריאה בלבד; סריקה ישירה
   /// של המערך זולה מקריאה לכל ערך.
   Int64List get refMasks => _refMasks;

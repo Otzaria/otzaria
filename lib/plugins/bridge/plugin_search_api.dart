@@ -334,6 +334,7 @@ class PluginSearchApi {
       'reference': result.reference,
       'text': result.text,
       'textStatus': result.textStatus.name,
+      'continuesToNextLine': result.continuesToNextLine,
       'index': result.segment.toInt(),
       'mergedCount': result.mergedCount,
       if (result.merged.isNotEmpty)

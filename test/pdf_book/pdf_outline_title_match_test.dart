@@ -1,8 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/view/pdf_outlines_screen.dart';
+import 'package:pdfrx/pdfrx.dart';
+
+bool pdfOutlineTitleMatchesQuery(String title, String query) {
+  final node = PdfOutlineNode(title: title, dest: null, children: const []);
+  return filterPdfOutline(flattenPdfOutlineForSearch([node]), query).isNotEmpty;
+}
 
 void main() {
-  group('pdfOutlineTitleMatchesQuery', () {
+  group('filterPdfOutline', () {
     test('כותרת ברמה העליונה נמצאת גם בלי היררכיה', () {
       // רגרסיה: בעבר סוננו כל הכותרות ברמה 0 והרשימה התרוקנה בחיפוש.
       expect(pdfOutlineTitleMatchesQuery('זבחים דף קו', 'זבחים'), isTrue);

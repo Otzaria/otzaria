@@ -25,8 +25,6 @@ class ReadingLineRange {
     required this.start,
     required this.end,
   });
-
-  bool containsOffset(int offset) => offset >= start && offset < end;
 }
 
 class ReadingSegment {
@@ -149,14 +147,33 @@ int _firstIndexAtOrAbove(List<double> boundaries, double value) {
   return low;
 }
 
-bool isReadingHeaderLine(String line) {
-  final headerPattern = RegExp(r'^\s*<h[1-6]', caseSensitive: false);
-  return headerPattern.hasMatch(line);
+/// מספר הרצות תבניות הכותרת/היישור; נספר רק במצב debug.
+int debugReadingTagPatternChecks = 0;
+
+/// מתחת ל-U+1680, `\s` של RegExp ב-Dart תופס רק תווים עד 0x20 ואת U+00A0.
+bool _mayBeRegExpSpace(int c) => c <= 0x20 || c == 0xA0 || c >= 0x1680;
+
+/// שתי התבניות דורשות `<` אחרי רווח מוביל, ולכן שורה שמתחילה באות נפסלת בלי RegExp.
+bool _matchesLeadingTag(RegExp pattern, String line) {
+  if (line.isEmpty) return false;
+  final c = line.codeUnitAt(0);
+  if (c != 0x3C && !_mayBeRegExpSpace(c)) return false;
+  assert(() {
+    debugReadingTagPatternChecks++;
+    return true;
+  }());
+  return pattern.hasMatch(line);
 }
+
+bool isReadingHeaderLine(String line) =>
+    _matchesLeadingTag(_headerPattern, line);
+
+final RegExp _headerPattern = RegExp(r'^\s*<h[1-6]', caseSensitive: false);
 
 /// שורה מיושרת במפורש (`text-align` / `<center>`) היא בלוק: בתוך פסקה רציפה
 /// היישור אובד. עוגנים ריקים ו-`<br>` בתחילתה אינם משנים זאת.
-bool isAlignedBlockLine(String line) => _alignedBlockPattern.hasMatch(line);
+bool isAlignedBlockLine(String line) =>
+    _matchesLeadingTag(_alignedBlockPattern, line);
 
 final RegExp _alignedBlockPattern = RegExp(
   r'^\s*(?:(?:<a\b[^>]*>\s*</a>|<br\s*/?>)\s*)*'

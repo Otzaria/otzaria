@@ -13,9 +13,6 @@ final RegExp _urlPattern = RegExp(
 /// תווי פיסוק שמסיימים משפט ולא שייכים לכתובת עצמה.
 const String _trailingPunctuation = '.,;:!?)]}\'"';
 
-/// הסכמות שהאפליקציה יודעת לטפל בהן בלחיצה על קישור בהערה.
-const List<String> noteLinkSchemes = ['otzaria', 'zayit', 'http', 'https'];
-
 /// מחזיר את הכתובת ללא פיסוק נגרר (למשל נקודה בסוף משפט).
 String _stripTrailingPunctuation(String url) {
   var end = url.length;

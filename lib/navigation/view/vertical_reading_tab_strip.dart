@@ -1,20 +1,15 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/windowing/cross_window_tab_drag.dart';
-import 'package:otzaria/core/windowing/drag_preview_colors.dart';
-import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/navigation/view/reading_tab_strip.dart';
 import 'package:otzaria/navigation/view/tab_context_menu.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
-import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
@@ -64,13 +59,6 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
     super.dispose();
   }
 
-  bool get _isMultiSelectModifierPressed {
-    final keyboard = HardwareKeyboard.instance;
-    return defaultTargetPlatform == TargetPlatform.macOS
-        ? keyboard.isMetaPressed
-        : keyboard.isControlPressed;
-  }
-
   void _closeTab(OpenedTab tab) {
     final selectedTabs = context.read<TabsBloc>().state.selectedTabs;
     if (selectedTabs.length > 1 && selectedTabs.contains(tab)) {
@@ -93,53 +81,14 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
 
         if (!state.hasOpenTabs) return const SizedBox.shrink();
 
-        final platform = Theme.of(context).platform;
-        final isDesktop =
-            platform == TargetPlatform.windows ||
-            platform == TargetPlatform.linux ||
-            platform == TargetPlatform.macOS;
-
-        return ReadingTabStrip(
-          stripColor: AppSurfaces.readerBackground(context),
+        return buildTabsReadingTabStrip(
+          context,
+          state: state,
+          crossWindowDrag: _crossWindowDrag,
           axis: Axis.vertical,
           scrollable: true,
           crossExtent: widget.width,
-          tabs: state.tabs,
           widths: [for (final _ in state.tabs) kVerticalTabHeight],
-          requireLongPressToDrag: !isDesktop,
-          onReorder: (tab, newIndex) =>
-              context.read<TabsBloc>().add(MoveTab(tab, newIndex)),
-          // חלונית של טאב מפוצל שנגררת לעמודה חוזרת לכרטיסייה עצמאית.
-          acceptsExternal: (tab) => context.read<TabsBloc>().state.tabs.any(
-            (t) => t is CombinedTab && t.sibling(tab) != null,
-          ),
-          onExternalDrop: (tab, insertIndex) => context.read<TabsBloc>().add(
-            DetachPane(tab, insertIndex: insertIndex),
-          ),
-          onDragStarted: (draggedTab, cancelDrag) => _crossWindowDrag.begin(
-            draggedTab,
-            DragPreviewColors.of(context),
-            tabsBloc: context.read<TabsBloc>(),
-            cancelDrag: cancelDrag,
-          ),
-          onTabSnapshot: (_, snapshot, generation) =>
-              _crossWindowDrag.applySnapshot(snapshot, generation),
-          onDragFinishedAnywhere: _crossWindowDrag.end,
-          onDragLeftStrip: _crossWindowDrag.notePointerLeftStrip,
-          onDroppedOutside: MultiWindowService.canDragTabsOut
-              ? (tab) => _crossWindowDrag.handleDroppedOutside(
-                  tab,
-                  context.read<TabsBloc>(),
-                )
-              : null,
-          onSpringOpen: (tab) {
-            // ה-state שנתפס ב-build עלול להיות מיושן באמצע גרירה.
-            final bloc = context.read<TabsBloc>();
-            final index = bloc.state.tabs.indexOf(tab);
-            if (index != -1 && index != bloc.state.currentTabIndex) {
-              bloc.add(SetCurrentTab(index));
-            }
-          },
           tabBuilder: (tab, index, extent) => SizedBox(
             height: extent,
             child: _buildTab(context, tab, index, state),
@@ -211,21 +160,11 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
           return;
         }
         if (event.buttons != 1) return;
-        if (_isMultiSelectModifierPressed) {
-          context.read<TabsBloc>().add(ToggleTabSelection(tab));
-          return;
-        }
-        if (HardwareKeyboard.instance.isShiftPressed) {
-          context.read<TabsBloc>().add(SelectTabRange(tab));
-          return;
-        }
-        if (state.selectedTabs.isNotEmpty) {
-          context.read<TabsBloc>().add(const ClearTabSelection());
-        }
+        applyTabSelectionClick(context, tab, state);
       },
       child: GestureDetector(
         onTap: () {
-          if (_isMultiSelectModifierPressed ||
+          if (isMultiSelectModifierPressed ||
               HardwareKeyboard.instance.isShiftPressed) {
             return;
           }

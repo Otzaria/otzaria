@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:collection/collection.dart';
 import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/utils/http_redirect_download.dart';
 
 /// מידע על ה-release האחרון של מילון המורפולוגיה (`lexical.db`).
@@ -46,9 +48,6 @@ class MagicDictionaryDownloader {
   static const String latestReleaseApi =
       'https://api.github.com/repos/Otzaria/SeforimMagicIndexer/releases/latest';
 
-  /// מזהים את נכס המילון לפי סיומת ה-URL.
-  static const String _assetSuffix = '/lexical.db';
-
   static const int _maxRedirects = 5;
   static final RegExp _sha256DigestPattern = RegExp(
     r'^sha256:[0-9a-fA-F]{64}$',
@@ -58,6 +57,9 @@ class MagicDictionaryDownloader {
   final bool _ownsClient;
   final Future<String> Function() _destinationProvider;
 
+  /// עוטף את החלפת הקובץ: המנוע משחרר את המילון לפניה וטוען אותו אחריה.
+  final Future<void> Function(Future<void> Function() replace)? _aroundReplace;
+
   /// משך מרבי ללא התקדמות לפני קטיעה ([TimeoutException]). מתאפס עם כל בייט,
   /// כך שהורדה איטית של קובץ גדול (~57MB) נמשכת כל עוד יש זרימה.
   final Duration _stallTimeout;
@@ -66,6 +68,7 @@ class MagicDictionaryDownloader {
     http.Client? client,
     Future<String> Function()? destinationProvider,
     this._stallTimeout = const Duration(seconds: 60),
+    this._aroundReplace,
   }) : _client = client ?? http.Client(),
        _ownsClient = client == null,
        _destinationProvider =
@@ -106,11 +109,19 @@ class MagicDictionaryDownloader {
         }
       }
       if (upToDate) {
+        await _discardStaged(dest);
         onProgress?.call(1.0);
         return true;
       }
-      await _download(release, dest, onProgress);
-      await writeVersionMarker(dest, release.sha256 ?? release.tag);
+      // עותק מאומת שהחלפתו נכשלה קודם (קובץ נעול) מותקן בלי הורדה חוזרת.
+      final version = release.sha256 ?? release.tag;
+      if (force || !await _hasStagedVersion(dest, version, release.sizeBytes)) {
+        await _download(release, dest, onProgress);
+      }
+      final aroundReplace = _aroundReplace;
+      Future<void> install() => _installStaged(dest);
+      await (aroundReplace == null ? install() : aroundReplace(install));
+      onProgress?.call(1.0);
       return true;
     } catch (_) {
       // אם נכשלנו אבל כבר יש קובץ שמיש מהורדה קודמת — עדיין שמיש.
@@ -134,13 +145,13 @@ class MagicDictionaryDownloader {
     final tag = (json['tag_name'] as String?)?.trim();
     final assets = (json['assets'] as List?) ?? const [];
     Map<String, dynamic>? asset;
-    for (final a in assets) {
-      final url =
-          (a as Map<String, dynamic>)['browser_download_url'] as String?;
-      if (url != null && url.endsWith(_assetSuffix)) {
-        asset = a;
-        break;
-      }
+    // נכסי המילון לפי סדר העדפה, מזוהים לפי סיומת ה-URL.
+    for (final name in DatabaseConstants.lexicalReleaseAssetFileNames) {
+      asset = assets.cast<Map<String, dynamic>>().firstWhereOrNull(
+        (a) =>
+            (a['browser_download_url'] as String?)?.endsWith('/$name') ?? false,
+      );
+      if (asset != null) break;
     }
     if (tag == null || tag.isEmpty || asset == null) {
       throw Exception('לא נמצא נכס lexical.db ב-release האחרון');
@@ -169,8 +180,8 @@ class MagicDictionaryDownloader {
 
   // ── פנימי ──────────────────────────────────────────────────────────────
 
-  /// מוריד את הנכס אל קובץ `.part` זמני ואז משנה שם אטומית ליעד — כדי שלא
-  /// יישאר קובץ חלקי שייראה תקין אם ההורדה נקטעה.
+  /// מוריד את הנכס אל קובץ `.part` זמני, ואחרי אימות מעביר אותו לעותק
+  /// הממתין (`.next`) עם סימון הגרסה שלו — כדי שלא יישאר קובץ חלקי שנראה תקין.
   Future<void> _download(
     MagicDictionaryRelease release,
     String dest,
@@ -226,7 +237,10 @@ class MagicDictionaryDownloader {
         throw Exception('ה-sha256 של המילון שהורד אינו תואם ל-release');
       }
 
-      await replaceDownloadedFile(outFile, dest);
+      final stagedMarker = File(_versionPath(_stagedPath(dest)));
+      if (await stagedMarker.exists()) await stagedMarker.delete();
+      await outFile.rename(_stagedPath(dest));
+      await stagedMarker.writeAsString(release.sha256 ?? release.tag);
     } catch (_) {
       closeDigest();
       try {
@@ -235,11 +249,51 @@ class MagicDictionaryDownloader {
       if (await outFile.exists()) await outFile.delete();
       rethrow;
     }
-    onProgress?.call(1.0);
+  }
+
+  static String _stagedPath(String dest) => '$dest.next';
+
+  Future<bool> _hasStagedVersion(
+    String dest,
+    String version,
+    int? sizeBytes,
+  ) async {
+    try {
+      final staged = File(_stagedPath(dest));
+      final marker = File(_versionPath(staged.path));
+      return await staged.exists() &&
+          await marker.exists() &&
+          (await marker.readAsString()).trim() == version &&
+          (sizeBytes == null || await staged.length() == sizeBytes);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// מחליף את המילון בעותק הממתין וכותב את סימון הגרסה שלו. זורק כשההחלפה
+  /// נכשלה — העותק נשאר במקומו לניסיון הבא.
+  static Future<void> _installStaged(String dest) async {
+    final staged = File(_stagedPath(dest));
+    final stagedMarker = File(_versionPath(staged.path));
+    if (!await staged.exists() || !await stagedMarker.exists()) return;
+    final version = (await stagedMarker.readAsString()).trim();
+    if (version.isEmpty) return;
+    await replaceDownloadedFile(staged, dest);
+    await writeVersionMarker(dest, version);
+  }
+
+  /// מתקין עותק ממתין לפני שהמנוע פותח את המילון, כשהקובץ עוד אינו נעול.
+  /// זול (rename בלבד, בלי רשת); כשל נבלע והעותק נשאר לניסיון הבא.
+  static Future<void> installStagedBeforeAttach(String dest) async {
+    try {
+      await _installStaged(dest);
+    } catch (e) {
+      debugPrint('⚠️ התקנת המילון הממתין נכשלה: $e');
+    }
   }
 
   /// ה-sha256 של [path] בזרימה — בלי לטעון 57MB לזיכרון. `null` בכשל קריאה.
-  Future<String?> _fileSha256(String path) async {
+  static Future<String?> _fileSha256(String path) async {
     try {
       return (await sha256.bind(File(path).openRead()).first).toString();
     } catch (_) {
@@ -257,7 +311,7 @@ class MagicDictionaryDownloader {
   }
 
   @visibleForTesting
-  Future<void> replaceDownloadedFile(File source, String dest) async {
+  static Future<void> replaceDownloadedFile(File source, String dest) async {
     final destFile = File(dest);
     if (!Platform.isWindows) {
       await source.rename(dest);
@@ -300,16 +354,34 @@ class MagicDictionaryDownloader {
 
   static String _versionPath(String dest) => '$dest.version';
 
-  /// כותב את סימון הגרסה של מילון שהותקן ב-[dest] — משמש גם את מסלול
-  /// ההתקנה הראשונית. best-effort: כישלון בו לא אמור להפיל את ההתקנה.
+  /// מסמן מילון שהותקן בהצלחה ב-[dest] ומבטל עותק ממתין מהתקנה קודמת.
+  /// best-effort: כשל בסימון אינו מכשיל את ההתקנה.
   static Future<void> writeVersionMarker(String dest, String tag) async {
     try {
       await File(_versionPath(dest)).writeAsString(tag);
     } catch (_) {}
+    await _discardStaged(dest);
+  }
+
+  static Future<void> _discardStaged(String dest) async {
+    try {
+      // מבטלים את הסימון תחילה, כדי שכשל במחיקת הקובץ לא יאפשר התקנה שלו.
+      for (final path in [_versionPath(_stagedPath(dest)), _stagedPath(dest)]) {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      }
+    } catch (_) {}
+  }
+
+  /// כותב סימון מה-sha256 של מילון שהותקן ממקור מקומי, כמו מתקין FULL —
+  /// כך מילון עדכני שיובא אינו מורד שוב.
+  static Future<void> writeFileDigestMarker(String dest) async {
+    final digest = await _fileSha256(dest);
+    if (digest != null) await writeVersionMarker(dest, digest);
   }
 
   /// השוואת תוכן מלאה בקריאת chunks — בלי לטעון 57MB לזיכרון.
-  Future<bool> _filesIdentical(File a, File b) async {
+  static Future<bool> _filesIdentical(File a, File b) async {
     final length = await a.length();
     if (length != await b.length()) return false;
     final ra = await a.open();

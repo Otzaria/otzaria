@@ -362,6 +362,8 @@ class DictionaryLookupRepository {
   Map<String, String> _originalAcronymByKey = <String, String>{};
   List<AramaicDictionaryEntry> _aramaicEntries = <AramaicDictionaryEntry>[];
   Set<String> _aramaicTerms = <String>{};
+  // מקביל ל-_aramaicEntries: הנרמול נעשה פעם אחת בטעינה ולא בכל תפריט הקשר.
+  List<({String normalized, List<String> words})> _aramaicIndex = const [];
   List<LaazDictionaryEntry> _laazEntries = <LaazDictionaryEntry>[];
 
   /// כותרת ספר-רש"י -> אינדקס-שורה (1-based) -> ערכי הלעז המקושרים לאותה שורה.
@@ -524,13 +526,10 @@ class DictionaryLookupRepository {
   }
 
   /// בודק אם הטקסט נראה כמו ראשי תיבות.
-  bool isLikelyAcronym(String raw) {
-    final trimmed = raw.trim();
-    return trimmed.contains('"') ||
-        trimmed.contains('״') ||
-        trimmed.contains("'") ||
-        trimmed.contains('׳');
-  }
+  bool isLikelyAcronym(String raw) => _acronymMarks.hasMatch(raw);
+
+  // אותם סימנים ש-_normalizeAcronym ממיר.
+  static final _acronymMarks = RegExp('["״\'׳’‘“”]');
 
   /// מחזיר את כל הפירושים לראשי תיבות אם קיימים.
   AcronymDictionaryEntry? findAcronym(String raw) {
@@ -596,16 +595,15 @@ class DictionaryLookupRepository {
     final exact = <AramaicDictionaryEntry>[];
     final containsAsWord = <AramaicDictionaryEntry>[];
 
-    for (final entry in _aramaicEntries) {
-      final normalizedEntry = _normalizeAramaic(entry.aramaic);
-      if (normalizedEntry == normalizedWord) {
-        exact.add(entry);
+    for (var i = 0; i < _aramaicEntries.length; i++) {
+      final indexed = _aramaicIndex[i];
+      if (indexed.normalized == normalizedWord) {
+        exact.add(_aramaicEntries[i]);
         continue;
       }
 
-      final words = _splitAramaicWords(normalizedEntry);
-      if (words.contains(normalizedWord)) {
-        containsAsWord.add(entry);
+      if (indexed.words.contains(normalizedWord)) {
+        containsAsWord.add(_aramaicEntries[i]);
       }
     }
 
@@ -653,19 +651,26 @@ class DictionaryLookupRepository {
   Future<void> _loadAramaicInternal() async {
     final aramaicEntries = await _loadAramaicEntries();
     final aramaicTerms = <String>{};
+    final aramaicIndex = <({String normalized, List<String> words})>[];
 
     for (final entry in aramaicEntries) {
       final normalizedEntry = _normalizeAramaic(entry.aramaic);
+      final words = _splitAramaicWords(normalizedEntry);
+      aramaicIndex.add((
+        normalized: normalizedEntry,
+        words: List.unmodifiable(words),
+      ));
       if (normalizedEntry.isEmpty) {
         continue;
       }
 
       aramaicTerms.add(normalizedEntry);
-      aramaicTerms.addAll(_splitAramaicWords(normalizedEntry));
+      aramaicTerms.addAll(words);
     }
 
     _aramaicEntries = List<AramaicDictionaryEntry>.unmodifiable(aramaicEntries);
     _aramaicTerms = Set<String>.unmodifiable(aramaicTerms);
+    _aramaicIndex = List.unmodifiable(aramaicIndex);
   }
 
   Future<void> _loadLaazInternal() async {
@@ -835,6 +840,7 @@ class DictionaryLookupRepository {
   void _resetAramaicCache() {
     _aramaicEntries = <AramaicDictionaryEntry>[];
     _aramaicTerms = <String>{};
+    _aramaicIndex = const [];
     _areAramaicLoaded = false;
   }
 

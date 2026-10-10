@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/misc/app_menu_icon.dart';
 
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
@@ -1692,7 +1693,12 @@ class _IconRowButton extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(action.icon, size: metrics.iconSize, color: color),
+          AppMenuIcon(
+            action.icon,
+            size: metrics.iconSize,
+            color: color,
+            mirrorForRtl: false,
+          ),
           const SizedBox(height: 2),
           Row(
             mainAxisSize: MainAxisSize.min,

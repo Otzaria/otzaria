@@ -289,21 +289,12 @@ class TikkunData {
       })
       .toList(growable: false);
 
-  static TanachBook? tanachBookByName(String name) {
-    for (final b in [...neviim, ...ketuvim]) {
-      if (b.name == name) return b;
-    }
-    return null;
-  }
-
   // --- מילות פתיחה של פרשות ---
   static Map<String, List<String>>? _openings;
 
   static Map<String, List<String>> get parashaOpenings => _openings ??= {
     for (final e in kParashaOpenings.entries) e.key: _strings(e.value),
   };
-
-  static List<String> get allParashotOrder => kAllParashotOrder;
 
   static String normalizeParashaName(String uiName) =>
       kParashaNameMapping[uiName] ?? uiName;

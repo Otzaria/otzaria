@@ -78,19 +78,20 @@ public final class ReleaseLoader {
         fetch(Endpoints.releaseApiURL(latest: true), json: true) { latestResult in
             var latestRelease: [String: Any]?
             var latestTag: String?
-            var latestError = ""
+            var latestError: AssistantError?
             switch latestResult {
             case .success(let data):
                 latestRelease = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
                 latestTag = latestRelease?["tag_name"] as? String
             case .failure(let error):
-                latestError = error.technical
+                latestError = error
             }
             // /releases/latest שאינו זמין אינו כישלון: נשאר התג המוטבע.
             guard let tag = ReleaseTagChoice.choose(embedded: embeddedTag, latest: latestTag) else {
                 done(.failure(AssistantError(
                     AssistantError.cannotConnect,
-                    technical: latestError.isEmpty ? "release has no tag_name" : latestError
+                    technical: latestError?.technical ?? "release has no tag_name",
+                    offline: latestError?.offline ?? false
                 )))
                 return
             }
@@ -126,7 +127,9 @@ public final class ReleaseLoader {
         fetch(url, json: false) { result in
             switch result {
             case .failure(let error):
-                completion(.failure(AssistantError(AssistantError.cannotReadList, technical: error.technical)))
+                completion(.failure(AssistantError(
+                    AssistantError.cannotReadList, technical: error.technical, offline: error.offline
+                )))
             case .success(let data):
                 do {
                     completion(.success(LoadedRelease(tag: tag, manifest: try ReleaseManifest.parse(data))))
@@ -153,7 +156,10 @@ public final class ReleaseLoader {
         }
         let task = session.dataTask(with: request) { data, response, error in
             if let error = error {
-                completion(.failure(AssistantError(AssistantError.cannotConnect, technical: "\(url): \(error.localizedDescription)")))
+                completion(.failure(AssistantError(
+                    AssistantError.cannotConnect, technical: "\(url): \(error.localizedDescription)",
+                    offline: AssistantError.isOfflineError(error)
+                )))
                 return
             }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0

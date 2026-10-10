@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 
 /// State for the WorkspaceBloc.
@@ -38,13 +39,10 @@ class WorkspaceState extends Equatable {
     }
   }
 
-  /// Returns the index of the active workspace in the list, or null if not found.
-  /// Useful for UI components that need index-based operations.
-  int? get activeWorkspaceIndex {
-    if (activeWorkspaceId == null) return null;
-    final index = workspaces.indexWhere((w) => w.id == activeWorkspaceId);
-    return index >= 0 ? index : null;
-  }
+  /// הכרטיסיות של [workspace] כפי שהן כעת. בשולחן הפעיל הן חיות ב-TabsBloc
+  /// ונשמרות לשולחן רק ביציאה ממנו, ולכן [liveTabs] גובר על העותק השמור.
+  List<OpenedTab> tabsOf(Workspace workspace, List<OpenedTab> liveTabs) =>
+      workspace.id == activeWorkspaceId ? liveTabs : workspace.tabs;
 
   /// ⚠️ [clearError] ו-[clearActiveWorkspaceId] הם הדרך היחידה לאפס שדה:
   /// `null` בפרמטר פירושו "אל תיגע", ובלעדיהם כל `emit` מחק את השגיאה.

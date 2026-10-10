@@ -503,6 +503,7 @@ Future<void> main() async {
       mergedCount: 1,
       merged: const [],
       textStatus: engine.TextStatus.ok,
+      continuesToNextLine: false,
     );
 
     test('תוצאה עם ספר מזוהה נושאת זהות מלאה', () {
@@ -549,6 +550,7 @@ Future<void> main() async {
           ),
         ],
         textStatus: engine.TextStatus.ok,
+        continuesToNextLine: false,
       );
 
       final json = PluginSearchApi.resultToJson(
@@ -605,6 +607,7 @@ Future<void> main() async {
           ),
         ],
         textStatus: engine.TextStatus.ok,
+        continuesToNextLine: false,
       );
 
       final json = PluginSearchApi.resultToJson(
@@ -634,6 +637,7 @@ Future<void> main() async {
           mergedCount: 1,
           merged: const [],
           textStatus: status,
+          continuesToNextLine: false,
         );
         final json = PluginSearchApi.resultToJson(result, null);
         expect(json['textStatus'], status.name);

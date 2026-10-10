@@ -374,6 +374,7 @@ class DirectErrorReport extends Equatable {
     String? sourceFolder,
     String? libraryVersion,
     DirectErrorReportQueueType? queueType,
+    TextCorrection? correction,
     bool? serverAcceptedCorrection,
     String? rejectionReason,
   }) {
@@ -391,6 +392,7 @@ class DirectErrorReport extends Equatable {
       sourceFolder: sourceFolder ?? this.sourceFolder,
       libraryVersion: libraryVersion ?? this.libraryVersion,
       queueType: queueType ?? this.queueType,
+      correction: correction ?? this.correction,
       serverAcceptedCorrection:
           serverAcceptedCorrection ?? this.serverAcceptedCorrection,
       rejectionReason: rejectionReason ?? this.rejectionReason,
@@ -412,6 +414,7 @@ class DirectErrorReport extends Equatable {
     sourceFolder: sourceFolder,
     libraryVersion: libraryVersion,
     queueType: queueType,
+    correction: correction,
     serverAcceptedCorrection: serverAcceptedCorrection,
     rejectionReason: rejectionReason,
   );
@@ -430,6 +433,7 @@ class DirectErrorReport extends Equatable {
     required String sourceFolder,
     required String libraryVersion,
     required DirectErrorReportQueueType queueType,
+    required TextCorrection? correction,
     required bool? serverAcceptedCorrection,
     required String? rejectionReason,
   }) {

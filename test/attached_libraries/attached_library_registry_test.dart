@@ -196,8 +196,14 @@ void main() {
 
     test('בדיקת פתיחה שלא הסתיימה בזמן — אין מאגר', () async {
       final previous = AttachedLibraryRegistry.openTimeout;
+      final previousCheck = AttachedLibraryRegistry.openCheck;
       AttachedLibraryRegistry.openTimeout = Duration.zero;
-      addTearDown(() => AttachedLibraryRegistry.openTimeout = previous);
+      // בדיקה אמיתית ב-isolate עלולה להסתיים לפני טיימר האפס כשהמעבד עמוס.
+      AttachedLibraryRegistry.openCheck = (_, _) => Completer<bool>().future;
+      addTearDown(() {
+        AttachedLibraryRegistry.openTimeout = previous;
+        AttachedLibraryRegistry.openCheck = previousCheck;
+      });
       final registry = AttachedLibraryRegistry(idleTimeout: null)
         ..update([_library('a', pathA)]);
       expect(await registry.repositoryFor('a'), isNull);

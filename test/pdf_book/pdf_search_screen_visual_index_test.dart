@@ -178,6 +178,7 @@ Widget _buildTile({
             mergedCount: 1,
             merged: const [],
             textStatus: TextStatus.ok,
+            continuesToNextLine: false,
           ),
           onTap: () {},
           height: 50,

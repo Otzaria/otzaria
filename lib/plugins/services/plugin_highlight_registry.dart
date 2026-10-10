@@ -394,61 +394,60 @@ class PluginHighlightRegistry extends ChangeNotifier {
     final changed = <PluginHighlight>[];
     final timestamp = (now ?? DateTime.now()).toUtc();
     final uid = (bookUid != null && bookUid.isNotEmpty) ? bookUid : null;
-    for (final ownerEntry in _recordsByOwner.entries.toList(growable: false)) {
-      final records = ownerEntry.value;
-      for (final entry in records.entries.toList(growable: false)) {
-        final existing = entry.value;
-        // הדגשה של ספר אחר בעל אותה כותרת נפסלת לפי ה-uid, אחרת היא הייתה
-        // מעוגנת מחדש מול טקסט זר ומסומנת ככושלת.
-        final bookMatches =
-            (existing.bookId == bookId ||
-                (uid != null && existing.bookUid == uid)) &&
-            !(uid != null &&
-                existing.bookUid != null &&
-                existing.bookUid != uid);
-        if (!bookMatches ||
-            existing.sectionIndex != sectionIndex ||
-            existing.range.exactText.isEmpty) {
-          continue;
-        }
-        PluginHighlightAnchorResult result;
-        try {
-          result = _anchorService.resolve(
-            anchor: existing.range,
-            sourceText: sourceText,
-          );
-        } on FormatException {
-          result = const PluginHighlightAnchorResult(
-            status: 'failed_to_anchor',
-            range: null,
-            strategy: 'invalid-normalization-profile',
-            confidence: 0,
-          );
-        }
-        final nextRange = result.range ?? existing.range;
-        if (existing.status == result.status &&
-            jsonEncode(existing.range.toJson()) ==
-                jsonEncode(nextRange.toJson())) {
-          continue;
-        }
-        final updated = PluginHighlight(
-          highlightId: existing.highlightId,
-          ownerPluginId: existing.ownerPluginId,
-          bookId: existing.bookId,
-          bookUid: existing.bookUid,
-          sectionIndex: existing.sectionIndex,
-          currentRef: existing.currentRef,
-          range: nextRange,
-          style: existing.style,
-          metadata: existing.metadata,
-          status: result.status,
-          version: existing.version + 1,
-          createdAt: existing.createdAt,
-          updatedAt: timestamp,
+    // עותק ולא תצוגה: _store משנה את מפת הקטעים תוך כדי הלולאה.
+    final candidates = <_PluginHighlightRecordKey, PluginHighlight>{
+      for (final key in <String>{bookId, ?uid})
+        ...?_recordsBySection[(bookId: key, sectionIndex: sectionIndex)],
+    };
+    for (final entry in candidates.entries) {
+      final existing = entry.value;
+      // הדגשה של ספר אחר בעל אותה כותרת נפסלת לפי ה-uid, אחרת היא הייתה
+      // מעוגנת מחדש מול טקסט זר ומסומנת ככושלת.
+      final bookMatches =
+          (existing.bookId == bookId ||
+              (uid != null && existing.bookUid == uid)) &&
+          !(uid != null && existing.bookUid != null && existing.bookUid != uid);
+      if (!bookMatches || existing.range.exactText.isEmpty) continue;
+      PluginHighlightAnchorResult result;
+      try {
+        result = _anchorService.resolve(
+          anchor: existing.range,
+          sourceText: sourceText,
         );
-        _store(ownerEntry.key, updated);
-        changed.add(updated);
+      } on FormatException {
+        result = const PluginHighlightAnchorResult(
+          status: 'failed_to_anchor',
+          range: null,
+          strategy: 'invalid-normalization-profile',
+          confidence: 0,
+        );
       }
+      final nextRange = result.range ?? existing.range;
+      if (existing.status == result.status &&
+          jsonEncode(existing.range.toJson()) ==
+              jsonEncode(nextRange.toJson())) {
+        continue;
+      }
+      final updated = PluginHighlight(
+        highlightId: existing.highlightId,
+        ownerPluginId: existing.ownerPluginId,
+        bookId: existing.bookId,
+        bookUid: existing.bookUid,
+        sectionIndex: existing.sectionIndex,
+        currentRef: existing.currentRef,
+        range: nextRange,
+        style: existing.style,
+        metadata: existing.metadata,
+        status: result.status,
+        version: existing.version + 1,
+        createdAt: existing.createdAt,
+        updatedAt: timestamp,
+      );
+      _store((
+        pluginId: entry.key.ownerPluginId,
+        instanceId: entry.key.ownerInstanceId,
+      ), updated);
+      changed.add(updated);
     }
     if (changed.isNotEmpty) notifyListeners();
     return List.unmodifiable(changed);

@@ -809,6 +809,8 @@ popover.addEventListener('click', function(e) {
 
 כולם מקבלים שם משתי ספריות — **אוצריא** ו-**FluentUI System Icons** — לפי כלל ההכרעה שב-[ICONS.md](ICONS.md).
 
+> **מומלץ להצהיר על אייקונים בשם, דרך אוצריא, ולא לצרף אייקון משלכם.** כך האייקון נצבע לפי ה-theme, מוצג בגודל הנכון ושומר על אותו קו עיצובי כמו שאר התוכנה. [הנימוקים, טבלת המקומות ודוגמאות לשימוש באוצריא, בפלואנט ובשתיהן ביחד — ב-ICONS.md](ICONS.md#המלצה-הצהירו-על-אייקונים-דרך-אוצריא).
+
 ---
 
 ### 1. אייקון בשורת הטאבים (מסך כלים)
@@ -836,7 +838,7 @@ popover.addEventListener('click', function(e) {
 
 #### כיצד בוחרים `iconName`?
 
-עומדות לרשותכם שתי ספריות: [אוצריא](https://github.com/Otzaria/otzaria_icons) (135 אייקונים לעולם התוכן היהודי) ו-[FluentUI System Icons](https://github.com/microsoft/fluentui-system-icons) (כללי). אין צורך להצהיר על ספרייה — כתבו שם, והוא ייפתר. כלל השמות:
+עומדות לרשותכם שתי ספריות: [אוצריא](https://github.com/Otzaria/otzaria_icons) (אייקונים לעולם התוכן היהודי) ו-[FluentUI System Icons](https://github.com/microsoft/fluentui-system-icons) (כללי). אין צורך להצהיר על ספרייה — כתבו שם, והוא ייפתר. כלל השמות:
 - `<base>_24_regular` — גרסה רגילה (קווים)
 - `<base>_24_filled` — גרסה מלאה
 

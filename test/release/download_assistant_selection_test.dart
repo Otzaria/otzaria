@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 
 import '../../tool/download_assistant/fixtures/generate_fixtures.dart';
 import '../../tool/release/download_assistant_selection.dart';
@@ -61,6 +62,49 @@ void main() {
             'run: dart run tool/download_assistant/fixtures/generate_fixtures.dart',
       );
     });
+
+    test(
+      'בבחירה האישית החיפוש החכם הוא אפשרות אחת בגודל של שני חלקיו (issue #1869)',
+      () {
+        Map<String, Object?> read(String name) =>
+            jsonDecode(File('$kFixtureDir/$name').readAsStringSync())
+                as Map<String, Object?>;
+        final manifest = read('release-manifest.json');
+        final byId = {
+          for (final c
+              in (manifest['components'] as List).cast<Map<String, Object?>>())
+            c['id']: c,
+        };
+        final targets = (read('expected-selections.json')['targets'] as List)
+            .cast<Map<String, Object?>>();
+        for (final platform in const ['windows', 'linux', 'macos']) {
+          final model = byId['semantic-model-$platform']!;
+          final vectors = byId['semantic-vectors-$platform']!;
+          for (final entry in targets.where(
+            (t) => (t['target'] as Map)['platform'] == platform,
+          )) {
+            final label = '${entry['target']}';
+            final choices = (entry['customChoices'] as List?)
+                ?.cast<Map<String, Object?>>();
+            expect(choices, isNotNull, reason: label);
+            final semantic = choices!
+                .where((c) => (c['id'] as String).startsWith('semantic-'))
+                .toList();
+            expect(semantic, hasLength(1), reason: label);
+            expect(
+              byId[semantic.single['id']]!['name'],
+              kSemanticSearchModeLabel,
+              reason: label,
+            );
+            expect(
+              semantic.single['downloadSize'],
+              (model['downloadSize'] as int) + (vectors['downloadSize'] as int),
+              reason: label,
+            );
+          }
+        }
+      },
+    );
   });
 
   group('כל הצעה ניתנת להתקנה', () {
@@ -119,7 +163,7 @@ void main() {
                 reason: '$label: $id בלי המתקין שלו',
               );
             }
-            if (preset.id == 'full') {
+            if (preset.id == 'full' || preset.id == 'full-indexed') {
               expect(
                 preset.members.any(
                   (id) =>
@@ -128,6 +172,22 @@ void main() {
                 ),
                 isTrue,
                 reason: '$label: "מלאה" בלי ספרייה',
+              );
+            }
+            if (preset.id == 'basic' || preset.id == 'update') {
+              expect(
+                preset.members.where(
+                  (id) => kOfflineDataTypes.contains(byId[id]!['type']),
+                ),
+                isEmpty,
+                reason: '$label: נתוני החיפוש החכם רק בהצעות המלאות',
+              );
+            }
+            if (preset.id == 'full-indexed') {
+              expect(
+                preset.members.any((id) => byId[id]!['type'] == 'library'),
+                isTrue,
+                reason: '$label: "מלאה + אינדקס" בלי הספרייה המאונדקסת',
               );
             }
           }
@@ -305,6 +365,23 @@ void main() {
     const x64 = AssistantTarget(platform: 'windows', architecture: 'x64');
     const arm64 = AssistantTarget(platform: 'windows', architecture: 'arm64');
 
+    List<String> fullOf(List<AssistantPreset> presets) =>
+        presets.singleWhere((p) => p.id == 'full').members;
+
+    Map<String, List<String>> byId(List<AssistantPreset> presets) => {
+      for (final preset in presets) preset.id: preset.members,
+    };
+
+    List<Map<String, Object?>> semanticData() => [
+      component('model', 'semantic-model', platform: 'windows'),
+      component(
+        'vectors',
+        'semantic-vectors',
+        platform: 'windows',
+        dependsOn: ['model'],
+      ),
+    ];
+
     List<Map<String, Object?>> windowsWithLibrary({int fullSize = 90}) => [
       component(
         'app-arm',
@@ -393,12 +470,15 @@ void main() {
       );
       final full = (m['components'] as List).cast<Map<String, Object?>>()[2];
       expect(componentIsOffered(m, full, x64), isFalse);
-      expect(buildPresets(m, x64).first.members, ['indexed', 'lib']);
+      // "מלאה" זהה ל"מלאה + אינדקס", ונשאר השם המפורט.
+      final presets = buildPresets(m, x64);
+      expect(presets.map((p) => p.id), ['basic', 'full-indexed']);
+      expect(byId(presets)['full-indexed'], ['indexed', 'lib']);
 
       final runnable = manifest(
         windowsWithLibrary(fullSize: kMaxSingleOutputFileSize - 1),
       );
-      expect(buildPresets(runnable, x64).first.members, ['full']);
+      expect(fullOf(buildPresets(runnable, x64)), ['full']);
     });
 
     test('החבילה הגדולה ביותר נבחרת להצעה המלאה', () {
@@ -412,6 +492,127 @@ void main() {
       expect(presets.single.members, ['big']);
     });
 
+    test('"מלאה + אינדקס": החבילה המאונדקסת, הספרייה שלה והחיפוש החכם', () {
+      final presets = buildPresets(
+        manifest([...windowsWithLibrary(), ...semanticData()]),
+        x64,
+      );
+      expect(presets.map((p) => p.id), ['basic', 'full-indexed', 'full']);
+      expect(byId(presets)['full-indexed'], [
+        'indexed',
+        'lib',
+        'model',
+        'vectors',
+      ]);
+      expect(byId(presets)['full'], ['full', 'model', 'vectors']);
+      expect(byId(presets)['basic'], ['app-x64']);
+    });
+
+    test('החבילה המאונדקסת היא הגדולה בסך הכול, עם הספרייה', () {
+      final presets = byId(
+        buildPresets(
+          manifest([
+            component('idx-a', 'application-bundle', size: 10),
+            component('lib-a', 'library', size: 1, installedBy: ['idx-a']),
+            component('idx-b', 'application-bundle', size: 5),
+            component('lib-b', 'library', size: 50, installedBy: ['idx-b']),
+          ]),
+          x64,
+        ),
+      );
+      expect(presets['full-indexed'], ['idx-b', 'lib-b']);
+      expect(presets['full'], ['idx-a', 'lib-a'], reason: 'לפי גודל החבילה');
+    });
+
+    test('בלי חבילה שמתקינה ספרייה אין "מלאה + אינדקס", חוץ מ-Android', () {
+      final fixture = buildFixtureManifest();
+      for (final target in kFixtureTargets) {
+        if (target.platform == 'android') continue;
+        final ids = buildPresets(fixture, target).map((p) => p.id);
+        expect(
+          ids.contains('full-indexed'),
+          false,
+          reason: '${target.toJson()}',
+        );
+      }
+    });
+
+    test('Android: ה-APK עם חבילת הספרייה והאינדקס, כמו חבילת ה-FULL', () {
+      final presets = byId(
+        buildPresets(
+          buildFixtureManifest(),
+          const AssistantTarget(platform: 'android'),
+        ),
+      );
+      expect(presets['basic'], ['otzaria-android']);
+      expect(presets['full-indexed'], [
+        'otzaria-android',
+        'library-full',
+        'library-index',
+      ]);
+      expect(presets['full'], ['otzaria-android', 'library-full']);
+    });
+
+    test('"מלאה" כוללת את החיפוש החכם כמו קודם', () {
+      final presets = byId(
+        buildPresets(
+          manifest([
+            component('app', 'application', platform: 'windows'),
+            component('lib', 'library', platform: 'windows'),
+            ...semanticData(),
+          ]),
+          x64,
+        ),
+      );
+      expect(presets['full'], ['app', 'lib', 'model', 'vectors']);
+      expect(presets['basic'], ['app']);
+      expect(presets.keys, isNot(contains('full-indexed')));
+    });
+
+    test('סדר ההצגה: בסיסית, מלאה + אינדקס, מלאה, עדכון', () {
+      final presets = buildPresets(
+        manifest([
+          component('app', 'application', platform: 'windows'),
+          component(
+            'runtime',
+            'dependency',
+            platform: 'windows',
+            required: true,
+          ),
+          ...windowsWithLibrary().where((c) => c['type'] != 'application'),
+        ]),
+        x64,
+      );
+      expect(presets.map((p) => p.id), kPresetDisplayOrder);
+      expect(kPresetDisplayOrder, ['basic', 'full-indexed', 'full', 'update']);
+      expect(byId(presets)['update'], ['app']);
+    });
+
+    test('המסומנת מראש: בסיסית, אחריה מלאה, אחרת הראשונה', () {
+      expect(kDefaultPresetId, 'basic');
+      final fixture = buildFixtureManifest();
+      expect(defaultPresetIdFor(buildPresets(fixture, x64)), 'basic');
+      const portable = AssistantTarget(
+        platform: 'linux',
+        architecture: 'x64',
+        packageFormat: kPortablePackageFormat,
+      );
+      expect(defaultPresetIdFor(buildPresets(fixture, portable)), 'full');
+
+      AssistantPreset only(String id) =>
+          AssistantPreset(id: id, caption: '', description: '', members: []);
+      expect(
+        defaultPresetIdFor([only('full-indexed'), only('full')]),
+        'full',
+        reason: 'לא הגדולה',
+      );
+      expect(
+        defaultPresetIdFor([only('full-indexed'), only('update')]),
+        'full-indexed',
+      );
+      expect(defaultPresetIdFor(const []), isNull);
+    });
+
     test('יעד בלי רכיבים — אין הצעות, ורק "בחירה אישית" תוצג', () {
       expect(
         buildPresets(
@@ -420,6 +621,152 @@ void main() {
         ),
         isEmpty,
       );
+    });
+  });
+
+  group('הטקסט באנגלית', () {
+    test('componentText: השדה האנגלי, ובהיעדרו העברי', () {
+      const both = {'name': 'אוצריא', 'nameEn': 'Otzaria'};
+      expect(componentText(both, 'name', english: true), 'Otzaria');
+      expect(componentText(both, 'name', english: false), 'אוצריא');
+      expect(
+        componentText(const {'name': 'אוצריא'}, 'name', english: true),
+        'אוצריא',
+        reason: 'release ישן בלי nameEn',
+      );
+    });
+
+    test('השדות באנגלית אינם משנים שום בחירה', () {
+      final manifest = buildFixtureManifest();
+      final stripped = jsonDecode(jsonEncode(manifest)) as Map<String, Object?>;
+      for (final component
+          in (stripped['components'] as List).cast<Map<String, Object?>>()) {
+        component
+          ..remove('nameEn')
+          ..remove('descriptionEn')
+          ..remove('outputNoteEn');
+      }
+      expect(jsonEncode(stripped), isNot(jsonEncode(manifest)));
+      expect(
+        encodeFixture(buildExpectedSelections(stripped)),
+        encodeFixture(buildExpectedSelections(manifest)),
+      );
+    });
+  });
+
+  group('הבחירה האישית', () {
+    final manifest = buildFixtureManifest();
+    final large = buildLargeFullFixtureManifest();
+    final components = (manifest['components'] as List)
+        .cast<Map<String, Object?>>();
+    String typeOf(String id) =>
+        components.firstWhere((c) => c['id'] == id)['type'] as String;
+    String describe(CustomChoice c) =>
+        '${c.id}${c.locked ? ':locked' : ''}'
+        '${c.group.isEmpty ? '' : ':${c.group}'}';
+
+    test('גרסה ניידת אינה מוצגת בשום יעד', () {
+      for (final target in [...kFixtureTargets, ...kLargeFullTargets]) {
+        for (final m in [manifest, large]) {
+          expect(
+            customChoices(m, target).map((c) => typeOf(c.id)),
+            isNot(contains('application-portable')),
+            reason: '${target.toJson()}',
+          );
+        }
+      }
+    });
+
+    test('Windows: מתקין נעול, ספרייה, אינדקס וחיפוש חכם — בלי FULL', () {
+      for (final (target, installer) in [
+        (kFixtureTargets[0], 'otzaria-windows-x64'),
+        (kFixtureTargets[1], 'otzaria-windows-arm64'),
+      ]) {
+        for (final m in [manifest, large]) {
+          expect(customChoices(m, target).map(describe), [
+            '$installer:locked',
+            'library-full',
+            'library-index',
+            'semantic-vectors-windows',
+          ], reason: '${target.toJson()}');
+        }
+      }
+    });
+
+    test('Linux ו-macOS: המתקין והחבילה המלאה הם בחירה אחת', () {
+      final expected = {
+        3: ['otzaria-linux-deb-x64', 'otzaria-linux-full-x64'],
+        4: ['otzaria-linux-rpm-x64', 'otzaria-linux-full-x64'],
+        6: ['otzaria-linux-deb-arm64', 'otzaria-linux-full-arm64'],
+        2: ['otzaria-macos', 'otzaria-macos-full'],
+      };
+      for (final MapEntry(key: index, value: ids) in expected.entries) {
+        final choices = customChoices(manifest, kFixtureTargets[index]);
+        expect(
+          choices.where((c) => c.group.isNotEmpty).map((c) => c.id),
+          ids,
+          reason: '${kFixtureTargets[index].toJson()}',
+        );
+        expect(choices.any((c) => c.locked), isFalse);
+        expect(
+          choices.map((c) => typeOf(c.id)),
+          isNot(anyOf(contains('library'), contains('library-index'))),
+        );
+      }
+    });
+
+    test('Linux בלי מנהל חבילות: החבילה המלאה לבדה, נעולה', () {
+      expect(customChoices(manifest, kFixtureTargets[5]).map(describe), [
+        'otzaria-linux-full-x64:locked',
+        'semantic-vectors-linux',
+      ]);
+    });
+
+    test('האינדקס גורר את הספרייה ואת המתקין', () {
+      for (final target in kLargeFullTargets) {
+        expect(withDependencies(manifest, ['library-index'], target), [
+          target.architecture == 'x64'
+              ? 'otzaria-windows-x64'
+              : 'otzaria-windows-arm64',
+          'library-full',
+          'library-index',
+        ]);
+      }
+    });
+
+    test('"מלאה" לעולם אינה כוללת את האינדקס', () {
+      for (final (m, targets) in [
+        (manifest, kFixtureTargets),
+        (large, kLargeFullTargets),
+      ]) {
+        for (final target in targets) {
+          for (final preset in buildPresets(m, target)) {
+            if (preset.id == 'full-indexed') continue;
+            expect(
+              preset.members,
+              isNot(contains('library-index')),
+              reason: '${target.toJson()} ${preset.id}',
+            );
+          }
+        }
+      }
+    });
+
+    test('FULL של 4 GiB: "מלאה" היא המתקין הרגיל והספרייה בלבד', () {
+      for (final target in kLargeFullTargets) {
+        final installer = target.architecture == 'x64'
+            ? 'otzaria-windows-x64'
+            : 'otzaria-windows-arm64';
+        expect(
+          buildPresets(large, target).firstWhere((p) => p.id == 'full').members,
+          [
+            installer,
+            'library-full',
+            'semantic-model-windows',
+            'semantic-vectors-windows',
+          ],
+        );
+      }
     });
   });
 

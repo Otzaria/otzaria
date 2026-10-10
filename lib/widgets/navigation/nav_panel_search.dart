@@ -216,6 +216,7 @@ class NavPanelSearchSlot extends InheritedWidget {
 
 /// חיפוש משני של לשונית: השדה מוסתר עד שלוחצים על [NavPanelSearchToggle]
 /// (שיושב בכותרת הרשימה), ונפתח מעל התוכן עם כפתור סגירה שגם מנקה אותו.
+/// כשהכותרת נגללה מחוץ לתחום, אייקון זהה צף בפינה העליונה (issue #1725).
 class NavPanelCollapsibleSearch extends StatefulWidget {
   final NavPanelSearchDelegate delegate;
   final Widget child;
@@ -233,7 +234,63 @@ class NavPanelCollapsibleSearch extends StatefulWidget {
 
 class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
   late bool _isOpen = widget.delegate.controller.text.isNotEmpty;
-  bool _focusOnOpen = false;
+  FocusNode? _ownFocusNode;
+  FocusNode get _focusNode =>
+      widget.delegate.focusNode ?? (_ownFocusNode ??= FocusNode());
+
+  final _contentKey = GlobalKey();
+  final _toggles = <BuildContext>{};
+  bool _hadToggle = false;
+  bool _toggleOffscreen = false;
+  bool _checkScheduled = false;
+
+  void _registerToggle(BuildContext toggle) {
+    _toggles.add(toggle);
+    _hadToggle = true;
+    _scheduleToggleCheck();
+  }
+
+  void _unregisterToggle(BuildContext toggle) {
+    _toggles.remove(toggle);
+    _scheduleToggleCheck();
+  }
+
+  void _scheduleToggleCheck() {
+    if (_checkScheduled) return;
+    _checkScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkScheduled = false;
+      if (!mounted) return;
+      final offscreen = _hadToggle && !_isAnyToggleVisible();
+      if (offscreen != _toggleOffscreen) {
+        setState(() => _toggleOffscreen = offscreen);
+      }
+    });
+  }
+
+  // רשימה עצלה פורקת כותרת רחוקה, ורשימה רגילה מציירת אותה מחוץ לתחום.
+  bool _isAnyToggleVisible() {
+    final area = _contentKey.currentContext?.findRenderObject();
+    if (area is! RenderBox || !area.hasSize) return true;
+    for (final toggle in _toggles) {
+      final box = toggle.findRenderObject();
+      if (box is! RenderBox || !box.attached || !box.hasSize) continue;
+      final center = box.localToGlobal(
+        box.size.center(Offset.zero),
+        ancestor: area,
+      );
+      if (center.dy >= 0 && center.dy <= area.size.height) return true;
+    }
+    return false;
+  }
+
+  bool _onContentNotification(Notification notification) {
+    if (notification is ScrollNotification ||
+        notification is ScrollMetricsNotification) {
+      _scheduleToggleCheck();
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -254,29 +311,26 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
   @override
   void dispose() {
     widget.delegate.controller.removeListener(_onTextChanged);
+    _ownFocusNode?.dispose();
     super.dispose();
   }
 
   // סינון שהוחל מבחוץ (שחזור טאב) חייב שדה גלוי — אחרת הרשימה מסוננת בלי הסבר.
   void _onTextChanged() {
     if (!_isOpen && widget.delegate.controller.text.isNotEmpty) {
-      setState(() {
-        _isOpen = true;
-        _focusOnOpen = false;
-      });
+      setState(() => _isOpen = true);
     }
   }
 
+  // autofocus מוותר כשיש פוקוס אחר (טקסט הספר) — לכן מבקשים במפורש.
   void _open() {
-    setState(() {
-      _isOpen = true;
-      _focusOnOpen = true;
-    });
+    setState(() => _isOpen = true);
+    _focusNode.requestFocus();
   }
 
   void _close() {
     final delegate = widget.delegate;
-    final hadFocus = delegate.focusNode?.hasFocus ?? false;
+    final hadFocus = _focusNode.hasFocus;
     if (delegate.controller.text.isNotEmpty) {
       delegate.controller.clear();
       delegate.onClear?.call();
@@ -311,9 +365,7 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
               onKeyEvent: _handleKey,
               child: OtzariaSearchField(
                 controller: delegate.controller,
-                focusNode: delegate.focusNode,
-                // autofocus נקרא רק בהרכבת השדה — שדה ששוחזר פתוח אינו חוטף פוקוס.
-                autofocus: _focusOnOpen,
+                focusNode: _focusNode,
                 hintText: delegate.hintText,
                 onChanged: delegate.onChanged,
                 onSubmitted: delegate.onSubmitted,
@@ -337,6 +389,7 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
   @override
   Widget build(BuildContext context) {
     return _NavPanelSearchToggleScope(
+      owner: this,
       isOpen: _isOpen,
       onOpen: _open,
       hintText: widget.delegate.hintText,
@@ -352,7 +405,35 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                   : const SizedBox(width: double.infinity),
             ),
           ),
-          Expanded(child: widget.child),
+          Expanded(
+            child: Stack(
+              key: _contentKey,
+              children: [
+                NotificationListener<Notification>(
+                  onNotification: _onContentNotification,
+                  child: widget.child,
+                ),
+                PositionedDirectional(
+                  top: kNavTreeListPadding.top + AppTokens.spaceXS,
+                  end: kNavTreeSideInset + 12,
+                  child: AnimatedSwitcher(
+                    duration: AppTokens.animFast,
+                    child: _toggleOffscreen && !_isOpen
+                        ? Material(
+                            color: AppSurfaces.navPanelBackground(context),
+                            shape: AppTokens.roundedShape,
+                            elevation: 1,
+                            child: _SearchToggleButton(
+                              hintText: widget.delegate.hintText,
+                              onPressed: _open,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -360,11 +441,13 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
 }
 
 class _NavPanelSearchToggleScope extends InheritedWidget {
+  final _NavPanelCollapsibleSearchState owner;
   final bool isOpen;
   final VoidCallback onOpen;
   final String hintText;
 
   const _NavPanelSearchToggleScope({
+    required this.owner,
     required this.isOpen,
     required this.onOpen,
     required this.hintText,
@@ -373,24 +456,65 @@ class _NavPanelSearchToggleScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(_NavPanelSearchToggleScope oldWidget) =>
-      oldWidget.isOpen != isOpen || oldWidget.hintText != hintText;
+      oldWidget.owner != owner ||
+      oldWidget.isOpen != isOpen ||
+      oldWidget.hintText != hintText;
 }
 
 /// אייקון שפותח את השדה של [NavPanelCollapsibleSearch] שמעליו. מיועד ל-trailing
 /// של הכותרת הראשית ברשימה; נעלם כשהשדה פתוח או כשאין חיפוש מעליו.
-class NavPanelSearchToggle extends StatelessWidget {
+class NavPanelSearchToggle extends StatefulWidget {
   const NavPanelSearchToggle({super.key});
+
+  @override
+  State<NavPanelSearchToggle> createState() => _NavPanelSearchToggleState();
+}
+
+class _NavPanelSearchToggleState extends State<NavPanelSearchToggle> {
+  _NavPanelCollapsibleSearchState? _owner;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final owner = context
+        .dependOnInheritedWidgetOfExactType<_NavPanelSearchToggleScope>()
+        ?.owner;
+    if (owner == _owner) return;
+    _owner?._unregisterToggle(context);
+    _owner = owner?.._registerToggle(context);
+  }
+
+  @override
+  void dispose() {
+    _owner?._unregisterToggle(context);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final scope = context
         .dependOnInheritedWidgetOfExactType<_NavPanelSearchToggleScope>();
     if (scope == null || scope.isOpen) return const SizedBox.shrink();
+    return _SearchToggleButton(
+      hintText: scope.hintText,
+      onPressed: scope.onOpen,
+    );
+  }
+}
+
+class _SearchToggleButton extends StatelessWidget {
+  final String hintText;
+  final VoidCallback onPressed;
+
+  const _SearchToggleButton({required this.hintText, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: 28,
       child: IconButton(
-        tooltip: scope.hintText,
-        onPressed: scope.onOpen,
+        tooltip: hintText,
+        onPressed: onPressed,
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
         icon: const Icon(FluentIcons.search_24_regular, size: 18),

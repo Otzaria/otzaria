@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/core/external_uri_router.dart';
@@ -1844,6 +1846,25 @@ void main() {
           isNull,
         );
       });
+    });
+
+    test('כל קישור פנימי קבוע ב-lib מזוהה בנתב (issue #2029)', () {
+      final literal = RegExp(r"handleInternalDeepLink\(\s*'([^'$]+)'");
+      final uris = [
+        for (final file in Directory('lib').listSync(recursive: true))
+          if (file is File && file.path.endsWith('.dart'))
+            for (final match in literal.allMatches(file.readAsStringSync()))
+              match.group(1)!,
+      ];
+
+      expect(uris, isNotEmpty);
+      for (final uri in uris) {
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse(uri)),
+          isNotNull,
+          reason: uri,
+        );
+      }
     });
   });
 }

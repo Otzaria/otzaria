@@ -13,8 +13,8 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// אייקון הניקוד של הכפתור לפי המצב הנוכחי.
 IconData textDisplayBarIcon(bool removeNikud) => removeNikud
-    ? OtzariaIcons.alef_with_score_24_regular
-    : OtzariaIcons.alef_deletion_24_regular;
+    ? OtzariaIcons.alef_niqqud_24_filled
+    : OtzariaIcons.alef_delete_24_filled;
 
 String textDisplayBarTooltip(bool removeNikud) =>
     removeNikud ? 'הצג ניקוד' : 'הסתר ניקוד';

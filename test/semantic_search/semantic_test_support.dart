@@ -104,6 +104,10 @@ class FakeBackend implements SemanticEngineBackend {
   final List<SemanticOpenRequest> openRequests = [];
   final List<SemanticInstallRequest> installRequests = [];
   final List<SemanticCancelHandle> searchHandles = [];
+  final List<SemanticSearchRequest> searchRequests = [];
+
+  /// התשובה לחיפוש; `null` = [emptyResponse].
+  SemanticSearchResponse? response;
 
   @override
   Future<SemanticBackendStatus> status() async => statusValue;
@@ -190,6 +194,7 @@ class FakeBackend implements SemanticEngineBackend {
   }) async {
     calls.add('search:${request.query}');
     searchHandles.add(cancel);
+    searchRequests.add(request);
     final gate = request.query == kSemanticWarmUpQuery
         ? warmUpGate
         : searchGate;
@@ -197,7 +202,33 @@ class FakeBackend implements SemanticEngineBackend {
     if (cancel.isCancelled) {
       throw const SemanticFailure(SemanticFailureKind.cancelled);
     }
-    return SemanticSearchOutcome(response: emptyResponse());
+    return SemanticSearchOutcome(response: response ?? emptyResponse());
+  }
+
+  final List<SemanticCancelHandle> highlightHandles = [];
+
+  @override
+  Future<List<SemanticPassageHighlight>> passageHighlights(
+    String query,
+    List<SemanticHighlightTarget> targets, {
+    required SemanticCancelHandle cancel,
+  }) async {
+    calls.add('highlight:$query:${targets.length}');
+    highlightHandles.add(cancel);
+    final gate = searchGate;
+    if (gate != null) await gate.future;
+    if (cancel.isCancelled) {
+      throw const SemanticFailure(SemanticFailureKind.cancelled);
+    }
+    return [
+      for (final target in targets)
+        SemanticPassageHighlight(
+          filePath: target.filePath,
+          id: target.id,
+          snippetHtml: '<mark>$query</mark>',
+          isHighlighted: true,
+        ),
+    ];
   }
 }
 
@@ -261,7 +292,9 @@ class FakeDownloads {
     if (isCancelled?.call() ?? false) throw const PatchDownloadCancelled();
     final failure = error;
     if (failure != null) throw failure;
-    onProgress?.call(1, 1);
+    final size = expectedSize ?? 1;
+    onProgress?.call(size ~/ 2, size);
+    onProgress?.call(size, size);
     await File(destPath).create(recursive: true);
     await File(destPath).writeAsString('x');
   }
@@ -278,6 +311,7 @@ SemanticSearchRepository buildRepository({
   int? libraryVersion = 30,
   bool platformSupported = true,
   int freeBytes = -1,
+  Future<DiskSpaceInfo> Function(String path)? diskSpace,
   Map<SemanticQuantization, SemanticModelRelease?>? modelReleases,
   bool secondaryWindow = false,
   Duration busyRetryDelay = const Duration(milliseconds: 20),
@@ -293,7 +327,9 @@ SemanticSearchRepository buildRepository({
     libraryVersion: () async => libraryVersion,
     onnxRuntimePath: () => '/app/onnxruntime/onnxruntime.dll',
     isPlatformSupported: () => platformSupported,
-    diskSpace: (_) async => DiskSpaceInfo(volumeId: 'C', freeBytes: freeBytes),
+    diskSpace:
+        diskSpace ??
+        (_) async => DiskSpaceInfo(volumeId: 'C', freeBytes: freeBytes),
     modelReleases: modelReleases ?? testModelReleases,
     isSecondaryWindow: () => secondaryWindow,
     busyRetryDelay: busyRetryDelay,

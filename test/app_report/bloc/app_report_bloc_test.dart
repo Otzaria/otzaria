@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -42,6 +43,7 @@ void main() {
     CrashSignature? signature,
     AppReportType initialType = AppReportType.bug,
     String initialTitle = '',
+    File? minidumpFile,
   }) => AppReportBloc(
     trigger: trigger,
     service: service ?? FakeAppReportService(),
@@ -51,6 +53,7 @@ void main() {
     signature: signature,
     initialType: initialType,
     initialTitle: initialTitle,
+    minidumpFile: minidumpFile,
     appVersion: '0.9.98',
     clock: () => DateTime.utc(2026, 9, 17),
   );
@@ -277,5 +280,46 @@ void main() {
             .having((s) => s.result?.rejectedField, 'field', 'title'),
       ],
     );
+  });
+
+  group('minidump בהצעה שאחרי קריסה (issue #1978)', () {
+    late Directory tmp;
+    late File dumpFile;
+    setUp(() {
+      tmp = Directory.systemTemp.createTempSync('otzaria_bloc_dump_');
+      dumpFile = File('${tmp.path}${Platform.pathSeparator}c.dmp')
+        ..writeAsBytesSync([0x4D, 0x44, 0x4D, 0x50, 1, 2, 3]);
+    });
+    tearDown(() => tmp.deleteSync(recursive: true));
+
+    Future<AppReportEditing> collected(AppReportBloc bloc) async {
+      bloc.add(const AppReportAttachmentsRequested());
+      return await bloc.stream.firstWhere((s) => s is AppReportEditing)
+          as AppReportEditing;
+    }
+
+    test('ה-dump נטען ומצורף כברירת מחדל; החרגה מסירה אותו', () async {
+      final bloc = build(
+        trigger: AppReportTrigger.crashPrompt,
+        minidumpFile: dumpFile,
+      );
+      final form = await collected(bloc);
+      expect(form.minidump, isNotNull);
+      expect(form.includeMinidump, isTrue);
+      expect(bloc.buildReport(form).minidump!.fileName, 'c.dmp');
+      expect(
+        bloc.buildReport(form.copyWith(includeMinidump: false)).minidump,
+        isNull,
+      );
+      await bloc.close();
+    });
+
+    test('בלי קובץ — אין dump בטופס ובדיווח', () async {
+      final bloc = build(trigger: AppReportTrigger.crashPrompt);
+      final form = await collected(bloc);
+      expect(form.minidump, isNull);
+      expect(bloc.buildReport(form).minidump, isNull);
+      await bloc.close();
+    });
   });
 }

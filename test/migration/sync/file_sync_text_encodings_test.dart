@@ -9,18 +9,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/utils/file/text_encoding.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../tool/generate_text_encoding_fixtures.dart';
-import '../../test_helpers/memory_cache_provider.dart';
 
 /// גוף הספר: אותיות עבריות ו-ASCII בלבד, כדי שכל הקידודים — כולל CP862
 /// ו-ISO-8859-8 — יוכלו לייצג אותו, וכך אפשר להשוות ביניהם.
@@ -53,6 +50,8 @@ void main() {
   late Directory booksDir;
   late MyDatabase database;
   late SeforimRepository repository;
+  late String libraryPath;
+  late List<CustomFolder> folders;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('otzaria-encodings-sync-');
@@ -62,27 +61,20 @@ void main() {
       path.join(tempDir.path, 'library', 'אוצריא'),
     ).createSync(recursive: true);
 
-    await Settings.init(cacheProvider: MemoryCacheProvider());
     FileSyncService.resetSingletonForTesting();
     database = MyDatabase.withPath(path.join(tempDir.path, 'test.db'));
     repository = SeforimRepository(database);
     await repository.ensureInitialized();
 
-    await Settings.setValue<String>(
-      SettingsRepository.keyLibraryPath,
-      path.join(tempDir.path, 'library'),
-    );
-    await Settings.setValue<String>(
-      SettingsRepository.keyCustomFolders,
-      CustomFoldersManager.saveFolders([
-        CustomFolder(
-          path: booksDir.path,
-          // עותק עצמאי: התוכן נכנס ל-SQLite — זה המסלול שהבדיקה בודקת.
-          addToDatabase: true,
-          addedAt: DateTime(2026, 8, 18),
-        ),
-      ]),
-    );
+    libraryPath = path.join(tempDir.path, 'library');
+    folders = [
+      CustomFolder(
+        path: booksDir.path,
+        // עותק עצמאי: התוכן נכנס ל-SQLite — זה המסלול שהבדיקה בודקת.
+        addToDatabase: true,
+        addedAt: DateTime(2026, 8, 18),
+      ),
+    ];
   });
 
   tearDown(() async {
@@ -100,7 +92,10 @@ void main() {
       repository,
       userBooksRepository: repository,
     );
-    return service!.syncFiles();
+    return service!.syncCustomFoldersWithInputs(
+      libraryPath: libraryPath,
+      customFolders: folders,
+    );
   }
 
   /// כותב ספר בשם [title] בקידוד [encoding] ומחזיר את השורות שנכתבו.

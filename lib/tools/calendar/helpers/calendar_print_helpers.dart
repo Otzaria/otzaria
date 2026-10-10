@@ -297,7 +297,7 @@ List<(String, String)> calendarPrintedZmanim(CalendarState state) {
 CalendarState _getStateForDayOffset(CalendarState state, int offset) {
   if (offset == 0) return state;
 
-  final newDate = state.selectedGregorianDate.add(Duration(days: offset));
+  final newDate = addCalendarDays(state.selectedGregorianDate, offset);
   final newJewishDate = JewishDate.fromDateTime(newDate);
   return state.copyWith(
     selectedGregorianDate: newDate,
@@ -355,10 +355,11 @@ CalendarState _getStateForMonthOffset(CalendarState state, int offset) {
 }
 
 CalendarState _getStateForWeekOffset(CalendarState state, int offset) {
-  final weekStart = state.selectedGregorianDate.subtract(
-    Duration(days: state.selectedGregorianDate.weekday % 7),
+  final weekStart = addCalendarDays(
+    state.selectedGregorianDate,
+    -(state.selectedGregorianDate.weekday % 7),
   );
-  final newDate = weekStart.add(Duration(days: offset * 7));
+  final newDate = addCalendarDays(weekStart, offset * 7);
   final newJewishDate = JewishDate.fromDateTime(newDate);
   return state.copyWith(
     selectedGregorianDate: newDate,
@@ -380,10 +381,11 @@ String _getMonthYearText(CalendarState state) {
 }
 
 String _getWeekRangeText(CalendarState state) {
-  final startDate = state.selectedGregorianDate.subtract(
-    Duration(days: state.selectedGregorianDate.weekday % 7),
+  final startDate = addCalendarDays(
+    state.selectedGregorianDate,
+    -(state.selectedGregorianDate.weekday % 7),
   );
-  final endDate = startDate.add(const Duration(days: 6));
+  final endDate = addCalendarDays(startDate, 6);
   final startJewish = JewishDate.fromDateTime(startDate);
   final endJewish = JewishDate.fromDateTime(endDate);
 
@@ -566,10 +568,11 @@ pw.Widget _buildDayCellPdf(
 }
 
 pw.Widget _buildWeekGrid(CalendarState state, _CalendarText font) {
-  final startDate = state.selectedGregorianDate.subtract(
-    Duration(days: state.selectedGregorianDate.weekday % 7),
+  final startDate = addCalendarDays(
+    state.selectedGregorianDate,
+    -(state.selectedGregorianDate.weekday % 7),
   );
-  final days = List.generate(7, (i) => startDate.add(Duration(days: i)));
+  final days = List.generate(7, (i) => addCalendarDays(startDate, i));
 
   return pw.Row(
     crossAxisAlignment: pw.CrossAxisAlignment.start,

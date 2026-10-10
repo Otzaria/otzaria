@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/widgets/lists/jump_aware_item_scroll_controller.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -71,6 +72,9 @@ ItemPosition? _findPosition(ItemPositionsListener listener, int segmentIndex) {
 ///
 /// הנחיתה נמדדת ומתוקנת גם ליעד ללא דיוק תוך-שורתי (ניווט מכותרות/TOC):
 /// רה-פריסה תוך כדי האנימציה (טעינה הדרגתית) מסיטה את היעד, ובלי תיקון נשארים במקום.
+///
+/// [latestSegments] פותר מחדש את היעד כשטעינת רקע מחליפה את הסגמנטים;
+/// בלעדיו משתמשים ב-[segments] לאורך כל הגלילה.
 Future<void> scrollToSourceLine({
   required ItemScrollController scrollController,
   required ScrollOffsetController? scrollOffsetController,
@@ -82,24 +86,49 @@ Future<void> scrollToSourceLine({
   double intraLineFraction = 0,
   Duration duration = const Duration(milliseconds: 250),
   Curve curve = Curves.ease,
+  List<ReadingSegment> Function()? latestSegments,
 }) async {
   if (segments.isEmpty || !scrollController.isAttached) {
     return;
   }
 
-  final safeLineIndex = lineIndex
-      .clamp(
-        segments.first.startLineIndex,
-        segments.last.sourceLineIndices.last,
-      )
-      .toInt();
-  final segmentIndex = segmentIndexForLine(segments, safeLineIndex);
-  final segment = segments[segmentIndex];
-  final fraction = lineFractionWithinSegment(
-    segment,
-    safeLineIndex,
-    intraLineFraction: intraLineFraction,
-  );
+  if (scrollController is JumpAwareItemScrollController) {
+    scrollController.beginNavigation();
+  }
+  var segmentIndex = -1;
+  var fraction = 0.0;
+  var safeLineIndex = lineIndex;
+  // היעד נפתר מול הרשימה העדכנית כי טעינת רקע משנה את מספור הסגמנטים.
+  bool resolveTarget() {
+    final current = latestSegments?.call() ?? segments;
+    if (current.isEmpty) return false;
+    safeLineIndex = lineIndex
+        .clamp(
+          current.first.startLineIndex,
+          current.last.sourceLineIndices.last,
+        )
+        .toInt();
+    segmentIndex = segmentIndexForLine(current, safeLineIndex);
+    fraction = lineFractionWithinSegment(
+      current[segmentIndex],
+      safeLineIndex,
+      intraLineFraction: intraLineFraction,
+    );
+    return true;
+  }
+
+  if (!resolveTarget()) return;
+  if (scrollController is JumpAwareItemScrollController &&
+      scrollController.externalScroll != null) {
+    await scrollController.scrollTo(
+      index: segmentIndex,
+      sourceLineIndex: safeLineIndex,
+      alignment: alignment,
+      duration: duration,
+      curve: curve,
+    );
+    return;
+  }
 
   Future<void> scrollToSegment() async {
     if (duration == Duration.zero) {
@@ -140,13 +169,30 @@ Future<void> scrollToSourceLine({
   var stepDuration = fineDuration;
   var previousDistance = double.infinity;
   var confirming = false;
+  // קפיצה אחת אחרי שהרשימה הוחלפה: היעד נפתר מחדש, אך הפריט החדש טרם נבנה.
+  var rejumped = false;
   for (var attempt = 0; attempt < 5; attempt++) {
     // הרשימה יורדת מהעץ באמצע האנימציה (מעבר כרטיסיה, סגירתה, העברתה לחלון
-    // אחר), ו-positionsListener שומר מדידה ישנה — רק isAttached מעיד שהיא חיה.
-    if (!scrollController.isAttached) return;
+    // אחר), או מוחלפת בקורא חיצוני — מדידות ישנות אינן מעידות שהרשימה חיה.
+    if (!scrollController.isAttached ||
+        (scrollController is JumpAwareItemScrollController &&
+            !scrollController.isNativeAttached)) {
+      return;
+    }
+    final previousIndex = segmentIndex;
+    if (!resolveTarget()) return;
+    if (segmentIndex != previousIndex) {
+      // המרחק שנמדד מול הסגמנט הישן אינו רלוונטי אחרי החלפת הרשימה.
+      previousDistance = double.infinity;
+      confirming = false;
+    }
     final measured = _findPosition(positionsListener, segmentIndex);
     if (measured == null) {
-      return;
+      if (rejumped) return;
+      rejumped = true;
+      scrollController.jumpTo(index: segmentIndex, alignment: alignment);
+      await WidgetsBinding.instance.endOfFrame;
+      continue;
     }
     final extent =
         (measured.itemTrailingEdge - measured.itemLeadingEdge) * viewportExtent;

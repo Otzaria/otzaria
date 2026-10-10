@@ -45,6 +45,13 @@ abstract interface class DeclarativePluginHost {
     Map<String, dynamic> selectionPayload,
   );
 
+  /// `libraryBooks[].openAction` — לחיצה על ספר של ספק במסך הספרייה.
+  Future<void> dispatchLibraryBookAction(
+    String pluginId,
+    Map<String, dynamic> actionTemplate,
+    Map<String, dynamic> bookPayload,
+  );
+
   void dispose();
 }
 
@@ -55,6 +62,7 @@ class DeclarativePluginHostService implements DeclarativePluginHost {
   final DeclarativeProgramRepository programRepository;
   final DeclarativeToolbarBindingService toolbarBinding;
   final DeclarativeHostActionExecutor _actionExecutor;
+  final DeclarativeStorageReader _storageReader;
 
   factory DeclarativePluginHostService({
     required DeclarativePluginLoader loadPlugin,
@@ -65,9 +73,12 @@ class DeclarativePluginHostService implements DeclarativePluginHost {
     PluginDatabaseService? databaseService,
     DeclarativeParallelEditionsFinder? parallelEditionsFinder,
     DeclarativeStorageWriter? storageWriter,
+    DeclarativeStorageReader? storageReader,
     DeclarativeReaderScroller? readerScroller,
     DeclarativeSearchOpener? searchOpener,
     DeclarativeSnackPresenter snackPresenter = const UiSnackPresenter(),
+    DeclarativeLocalServiceClient? localServiceClient,
+    DeclarativeNetworkGate? networkGate,
     ValueListenable<int>? settingsRevision,
     DeclarativeHostErrorHandler? onError,
   }) {
@@ -97,7 +108,10 @@ class DeclarativePluginHostService implements DeclarativePluginHost {
         readerScroller: readerScroller,
         searchOpener: searchOpener,
         snackPresenter: snackPresenter,
+        localServiceClient: localServiceClient,
+        networkGate: networkGate,
       ),
+      storageReader: storageReader ?? PluginKvStorageReader(),
       settingsRevision:
           settingsRevision ??
           PluginConditionEvaluator.instance.settingsRevision,
@@ -111,6 +125,7 @@ class DeclarativePluginHostService implements DeclarativePluginHost {
     required this.programRepository,
     required this.toolbarBinding,
     required this._actionExecutor,
+    required this._storageReader,
     required this._settingsRevision,
     required this.onError,
   }) {
@@ -285,16 +300,44 @@ class DeclarativePluginHostService implements DeclarativePluginHost {
     }
   }
 
-  /// חתימה מלאכותית לפעולת סימון: הפתרון והביצוע אטומיים בזמן הלחיצה,
+  /// חתימה מלאכותית לפעולת לחיצה: הפתרון והביצוע אטומיים בזמן הלחיצה,
   /// כך שמגן ה-stale_action של ה-executor מסופק תמיד ובצדק.
   static const String _selectionSignature = 'reader.selection';
+  static const String _libraryBookSignature = 'library.book';
 
   @override
   Future<void> dispatchSelectionAction(
     String pluginId,
     Map<String, dynamic> actionTemplate,
     Map<String, dynamic> selectionPayload,
-  ) async {
+  ) => _dispatchClickAction(
+    pluginId,
+    actionTemplate,
+    selectionPayload,
+    source: DeclarativeClickSource.selection,
+    signature: _selectionSignature,
+  );
+
+  @override
+  Future<void> dispatchLibraryBookAction(
+    String pluginId,
+    Map<String, dynamic> actionTemplate,
+    Map<String, dynamic> bookPayload,
+  ) => _dispatchClickAction(
+    pluginId,
+    actionTemplate,
+    bookPayload,
+    source: DeclarativeClickSource.libraryBook,
+    signature: _libraryBookSignature,
+  );
+
+  Future<void> _dispatchClickAction(
+    String pluginId,
+    Map<String, dynamic> actionTemplate,
+    Map<String, dynamic> payload, {
+    required DeclarativeClickSource source,
+    required String signature,
+  }) async {
     try {
       final plugin = await _loadPlugin(pluginId);
       if (plugin == null) {
@@ -307,24 +350,38 @@ class DeclarativePluginHostService implements DeclarativePluginHost {
       DeclarativeSelectionAction.validateTemplate(
         actionTemplate,
         declaredPermissions: declaredPermissions,
+        source: source,
       );
+      final keys = DeclarativeSelectionAction.storageKeys(actionTemplate);
+      if (keys.isNotEmpty &&
+          !(await _loadPermissions(pluginId)).contains('plugin.storage.read')) {
+        throw const DeclarativeProgramException(
+          'declarative.permission_denied',
+          r'$storage requires granted permission "plugin.storage.read"',
+        );
+      }
+      final storage = <String, Object?>{
+        for (final key in keys) key: await _storageReader.get(pluginId, key),
+      };
       final action =
           DeclarativeActionCompiler(
             declaredPermissions: declaredPermissions,
           ).compileResolved(
             DeclarativeSelectionAction.resolve(
               actionTemplate,
-              selectionPayload,
+              payload,
+              storage: storage,
             ),
-            contextSignature: _selectionSignature,
+            contextSignature: signature,
             programGeneration: 1,
+            allowMissingPort: true,
           );
       final permissions = await _loadPermissions(pluginId);
       await _actionExecutor.execute(
         action: action,
         plugin: plugin,
         grantedPermissions: permissions,
-        currentContextSignature: _selectionSignature,
+        currentContextSignature: signature,
         currentProgramGeneration: 1,
       );
     } catch (error, stackTrace) {

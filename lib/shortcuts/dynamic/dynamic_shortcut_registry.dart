@@ -36,11 +36,6 @@ class DynamicShortcutRegistry extends ChangeNotifier {
     return null;
   }
 
-  DynamicShortcut? bySettingKey(String settingKey) =>
-      settingKey.startsWith(DynamicShortcut.settingKeyPrefix)
-      ? byId(settingKey.substring(DynamicShortcut.settingKeyPrefix.length))
-      : null;
-
   /// מוסיף או מחליף (לפי id).
   void put(DynamicShortcut shortcut) {
     _ensureLoaded();

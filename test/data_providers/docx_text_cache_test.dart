@@ -101,13 +101,6 @@ void main() {
       },
     );
 
-    test('מחיקת רשומה מסירה אותה מהמטמון', () async {
-      await repository.upsertDocxTextCacheEntry(entry());
-      await repository.deleteDocxTextCacheEntry('/lib/ספר.docx');
-      final got = await repository.getDocxTextCacheEntry('/lib/ספר.docx');
-      expect(got, isNull);
-    });
-
     test(
       'שדרוג גרסת-ממיר דורס תוכן, ו-createdAt נשמר מהיצירה הראשונה',
       () async {

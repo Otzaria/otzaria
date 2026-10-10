@@ -96,12 +96,16 @@ List<String> _extractNames(String content) {
 
   return _normalize(
     const LineSplitter().convert(trimmed).map((line) {
+      // שדה מצוטט (כמו ששומר Excel) יכול להכיל פסיק, ו-"" בתוכו הוא גרש אחד.
+      final quoted = _quotedCsvCell.firstMatch(line);
+      if (quoted != null) return quoted[1]!.replaceAll('""', '"');
       final cell = line.split(',').first;
-      // גרשיים עוטפים הם תחביר CSV, לא חלק מהשם.
       return cell.trim().replaceAll(RegExp(r'^"|"$'), '');
     }),
   );
 }
+
+final _quotedCsvCell = RegExp(r'^\s*"((?:[^"]|"")*)"\s*(?:,|$)');
 
 /// מנקה רווחים, זורק ריקים, ושומר על סדר בלי כפילויות.
 List<String> _normalize(Iterable<String> raw) {

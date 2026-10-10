@@ -24,16 +24,9 @@ class LibrarySuspensionMarker {
   static final List<SendPort> _waiters = [];
   static final Set<SendPort> _exitObservers = {};
 
-  /// האם ה-isolate הזה מחזיק את הסימון.
-  static bool get isHeldHere => _port != null;
-
   /// האם isolate כלשהו בתהליך (כולל זה) מחזיק את הסימון.
   static bool get isRegistered =>
       IsolateNameServer.lookupPortByName(_name) != null;
-
-  /// האם isolate אחר בתהליך השעה את הספרייה.
-  static bool get isSuspendedElsewhere =>
-      _port == null && IsolateNameServer.lookupPortByName(_name) != null;
 
   /// מבקש מה-VM לשלוח [notice] ל-[observers] כשה-isolate הזה מסתיים.
   ///

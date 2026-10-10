@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_headings_builder.dart';
@@ -187,5 +189,57 @@ void main() {
       expect(built.structures.map((s) => s.key), ['Simanim', 'Topic']);
       expect(built.structures.map((s) => s.heTitle), ['סימנים', 'נושאים']);
     });
+
+    test('כותרות לפי מספר שורה בלבד אינן קוראות את תוכן שורות הספר', () {
+      final lines = _CountingLines(List.generate(1000, (i) => 'שורה $i'));
+      final built = UserHeadingsBuilder.build([
+        heading('סימן א', line: 1),
+        heading('סימן ב', line: 500),
+        heading('חורגת', line: 2000, row: 4),
+      ], lines);
+
+      expect(built.structures.single.entries.map((e) => e.lineIndex), [0, 499]);
+      expect(built.errors.single, contains('(1000 שורות)'));
+      expect(lines.reads, 0);
+    });
+
+    test('עוגן במבנה אחד ומספר שורה במבנה אחר נפתרים יחד', () {
+      final built = UserHeadingsBuilder.build(
+        [
+          heading('סימן א', line: 2, structure: 'סימנים'),
+          heading('פרק', anchor: 'בראשית ברא', structure: 'נושאים'),
+        ],
+        ['הקדמה', '<b>בְּרֵאשִׁית בָּרָא</b> אלהים'],
+      );
+
+      expect(built.errors, isEmpty);
+      expect(
+        built.structures.map((s) => s.entries.single.lineIndex),
+        [1, 1],
+      );
+    });
   });
+}
+
+class _CountingLines extends ListBase<String> {
+  _CountingLines(this._lines);
+
+  final List<String> _lines;
+  int reads = 0;
+
+  @override
+  int get length => _lines.length;
+
+  @override
+  set length(int value) => throw UnsupportedError('read-only');
+
+  @override
+  String operator [](int index) {
+    reads++;
+    return _lines[index];
+  }
+
+  @override
+  void operator []=(int index, String value) =>
+      throw UnsupportedError('read-only');
 }

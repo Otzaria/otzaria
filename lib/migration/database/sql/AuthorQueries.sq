@@ -1,40 +1,15 @@
 -- Queries for authors
 
-selectAll:
-SELECT * FROM author ORDER BY name;
-
-selectById:
-SELECT * FROM author WHERE id = ?;
-
 selectByName:
 SELECT * FROM author WHERE name = ? LIMIT 1;
-
-selectByBookId:
-SELECT a.* FROM author a
-JOIN book_author ba ON a.id = ba.authorId
-WHERE ba.bookId = ?
-ORDER BY a.name;
 
 insert:
 INSERT INTO author (name)
 VALUES (?)
 ON CONFLICT (name) DO NOTHING;
 
-insertAndGetId:
-INSERT OR IGNORE INTO author (name)
-VALUES (?);
-
 selectIdByName:
 SELECT id FROM author WHERE name = ? LIMIT 1;
-
-delete:
-DELETE FROM author WHERE id = ?;
-
-countAll:
-SELECT COUNT(*) FROM author;
-
-lastInsertRowId:
-SELECT last_insert_rowid();
 
 -- Queries for the book_author junction table
 

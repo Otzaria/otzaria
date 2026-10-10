@@ -2,11 +2,13 @@
 // יחסי הזמנים נכונים, וזמנים תלויי-יום (תענית) מופיעים רק כשרלוונטי.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kosher_dart/kosher_dart.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/models/calendar_location.dart';
+import 'package:otzaria/tools/calendar/models/zman_definition.dart';
 
 void main() {
   setUpAll(() {
@@ -18,6 +20,63 @@ void main() {
   // שעות), ולכן קצה טוב להבחנה בין שיטות החישוב.
   final summerDate = DateTime(2026, 6, 15);
   const city = 'ירושלים';
+
+  group('מנחה קטנה 90 במעלות', () {
+    final definition = kZmanimRegistry.singleWhere(
+      (definition) => definition.id == 'minchaKetana90Degrees',
+    );
+
+    test('מחושבת לפי 9.5 שעות זמניות בין קצוות 19.8 מעלות', () {
+      final date = DateTime(2026, 10, 9);
+      final context = buildZmanimCalendarContext(date, city)!;
+      final cal = context.zmanimCalendar;
+      final dawn = cal.getAlos19Point8Degrees()!;
+      final dusk = cal.getTzais19Point8Degrees()!;
+      final expected = dawn.add(
+        Duration(
+          milliseconds: (dusk.difference(dawn).inMilliseconds / 12 * 9.5)
+              .toInt(),
+        ),
+      );
+      final computed = definition.compute(
+        ZmanComputeContext(
+          cal: cal,
+          jewishCalendar: JewishCalendar.fromDateTime(date),
+          city: city,
+          date: date,
+        ),
+      );
+
+      expect(computed, expected);
+      expect(computed, isNot(cal.getMinchaKetana16Point1Degrees()));
+      expect(
+        calculateDailyTimes(date, city)[definition.id],
+        formatZmanTime(expected, context.tzLocation),
+      );
+      expect(definition.defaultEnabled, isFalse);
+      expect(
+        kZmanimRegistry
+            .singleWhere((d) => d.id == 'minchaKetana16point1')
+            .subtitle,
+        '72 דק׳ (מעלות)',
+      );
+    });
+
+    for (final date in [DateTime(2026, 5, 21), DateTime(2026, 6, 21)]) {
+      test('מושמט בלונדון כשאין צאת 19.8 מעלות ב-$date', () {
+        final context = buildZmanimCalendarContext(date, 'לונדון')!;
+        expect(context.zmanimCalendar.getTzais19Point8Degrees(), isNull);
+
+        final times = calculateDailyTimes(date, 'לונדון');
+        expect(times['minchaKetanaGRA'], isNotNull);
+        expect(times, isNot(contains(definition.id)));
+        expect(
+          calculateDailyTimes(date, 'לונדון', only: {definition.id}),
+          isEmpty,
+        );
+      });
+    }
+  });
 
   group('הדלקת נרות — דקות לפי עיר', () {
     test('קורא את מספר הדקות מטבלת הערים המקומית', () {
@@ -373,6 +432,42 @@ void main() {
             'חצות לילה בקיץ בין 00:00 ל-02:00 '
             '(התקבל: ${times['chatzosLayla']})',
       );
+    });
+  });
+  group('calculateDailyTimes — חישוב חלקי (only)', () {
+    // ערב שבת, יום בספירת העומר ויום רגיל — מכסים isRelevant ואת זמן העומר.
+    final dates = [
+      DateTime(2026, 5, 1),
+      DateTime(2026, 4, 20),
+      summerDate,
+      DateTime(2026, 12, 21),
+    ];
+
+    test('מחשב רק את הזמנים שהתבקשו', () {
+      for (final date in dates) {
+        final times = calculateDailyTimes(
+          date,
+          city,
+          only: const {'sunrise', 'sunset'},
+        );
+        expect(times.keys.toSet(), {'sunrise', 'sunset'}, reason: '$date');
+      }
+    });
+
+    test('הערכים זהים לחישוב המלא', () {
+      for (final date in dates) {
+        final full = calculateDailyTimes(date, city);
+        for (final only in const [
+          {'sunrise', 'sunset'},
+          {'omerCounting', 'candleLighting', 'sunset'},
+        ]) {
+          final partial = calculateDailyTimes(date, city, only: only);
+          expect(partial, {
+            for (final id in only)
+              if (full[id] != null) id: full[id],
+          }, reason: '$date $only');
+        }
+      }
     });
   });
 }

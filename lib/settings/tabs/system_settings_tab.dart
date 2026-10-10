@@ -1,6 +1,5 @@
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,9 +12,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:otzaria/core/app_paths.dart';
-import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/app_runtime_reset.dart';
 import 'package:otzaria/core/update_check_frequency.dart';
@@ -27,41 +24,27 @@ import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/dialogs/settings_dialogs_exports.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
-import 'package:otzaria/settings/services/offline_send_target.dart';
-import 'package:otzaria/settings/panels/app_reports_panel.dart';
+import 'package:otzaria/settings/panels/reports_card.dart';
 import 'package:otzaria/settings/panels/search_feedback_panel.dart';
 import 'package:otzaria/settings/panels/semantic_data_panel.dart';
-import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_maintenance.dart';
 import 'package:otzaria/settings/services/backup/backup_rotation.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
-import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
-import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
-import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
-import 'package:otzaria/models/direct_error_report.dart';
-import 'package:otzaria/plugins/models/plugin_report_record.dart';
-import 'package:otzaria/plugins/services/plugin_report_service.dart';
-import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
-import 'package:otzaria/widgets/dialogs/error_report_sender_email_dialog.dart';
-import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
-import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
-import 'package:otzaria/utils/canonical_json.dart';
+import 'package:otzaria/utils/file/open_in_file_manager.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/widgets/misc/restart_widget.dart';
@@ -129,6 +112,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'דואר אלקטרוני לזיהוי בדיווחי טעויות',
       tab: SettingsTab.system,
       cardId: 'system.reports',
+      expandSection: 'books',
       keywords: ['מייל', 'דיווח', 'דואר אלקטרוני', 'email'],
     ),
     SettingsSearchEntry(
@@ -137,6 +121,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'תור אוטומטי לדיווחים במצב אופליין',
       tab: SettingsTab.system,
       cardId: 'system.reports',
+      expandSection: 'books',
       keywords: ['דיווח', 'אופליין', 'תור', 'מופעל', 'לא מופעל'],
     ),
     SettingsSearchEntry(
@@ -145,6 +130,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'צפיה ושליחה של דיווחים שעדיין לא נשלחו',
       tab: SettingsTab.system,
       cardId: 'system.reports',
+      expandSection: 'manage',
       keywords: ['דיווח', 'תור', 'שליחה'],
     ),
     SettingsSearchEntry(
@@ -153,6 +139,7 @@ class SystemSettingsTab extends StatefulWidget {
       subtitle: 'היסטוריית דיווחים שנשלחו',
       tab: SettingsTab.system,
       cardId: 'system.reports',
+      expandSection: 'books',
       keywords: ['דיווח', 'היסטוריה'],
     ),
     SettingsSearchEntry(
@@ -160,7 +147,7 @@ class SystemSettingsTab extends StatefulWidget {
       title: 'דווח על תקלה בתוכנה',
       subtitle: 'תקלה, קריסה, בעיית ביצועים או הצעה לשיפור',
       tab: SettingsTab.system,
-      cardId: 'system.appReports',
+      cardId: 'system.reports',
       keywords: ['דיווח', 'באג', 'תקלה', 'קריסה', 'github'],
     ),
     SettingsSearchEntry(
@@ -168,7 +155,8 @@ class SystemSettingsTab extends StatefulWidget {
       title: 'דיווח אחרי סגירה לא צפויה',
       subtitle: 'מה לעשות כשהתוכנה מזהה שנסגרה בלי סגירה מסודרת',
       tab: SettingsTab.system,
-      cardId: 'system.appReports',
+      cardId: 'system.reports',
+      expandSection: 'app',
       keywords: ['קריסה', 'דיווח', 'אוטומטי', 'שאל'],
     ),
     SettingsSearchEntry(
@@ -357,7 +345,6 @@ class SystemSettingsTab extends StatefulWidget {
 
 class _SystemSettingsTabState extends State<SystemSettingsTab> {
   final GlobalKey _networkModeTileKey = GlobalKey();
-  final EmptyLibraryBloc _librarySelectionBloc = EmptyLibraryBloc();
 
   // ── מפתחות גיבוי ──────────────────────────────────────────────────────────
   static const _keyBackupSettings = 'key-backup-settings';
@@ -382,22 +369,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   String? _appVersion;
   String? _libraryVersion;
   int? _bookCount;
-  bool _isFlushingPendingReports = false;
-  bool _isClearingPendingReports = false;
-  bool _isExportingPendingReports = false;
-  bool _isClearingSentReports = false;
-  bool _isPendingReportsExpanded = false;
   static const _backupFolderName = 'תיקיית גיבוי';
 
-  bool _isSentReportsExpanded = false;
-  String? _sendingPendingReportId;
-  bool _isFlushingPluginReports = false;
-  bool _isClearingPluginPendingReports = false;
-  bool _isExportingPluginReports = false;
-  bool _isClearingPluginSentReports = false;
-  bool _isPluginPendingReportsExpanded = false;
-  bool _isPluginSentReportsExpanded = false;
-  String? _sendingPluginReportId;
   String _resolvedBackupPath = '';
   String _defaultBackupPath = '';
 
@@ -416,12 +389,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     AppPaths.getBackupPath().then((path) {
       if (mounted) setState(() => _resolvedBackupPath = path);
     });
-  }
-
-  @override
-  void dispose() {
-    _librarySelectionBloc.close();
-    super.dispose();
   }
 
   /// התרגום נעשה כאן ולא בטעינה: `context.settingsText` בגוף הסינכרוני של
@@ -565,339 +532,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       _selectedBackupMode == _BackupMode.all ||
       (Settings.getValue<bool>(key) ?? true);
 
-  Future<void> _editSenderEmail() async {
-    final reportService = DirectErrorReportService();
-    final email = await showErrorReportSenderEmailDialog(
-      context: context,
-      initialValue: reportService.senderEmail,
-      validator: (value) => DirectErrorReportService.isValidSenderEmail(value)
-          ? null
-          : context.settingsText('יש להזין כתובת דוא"ל תקינה.'),
-    );
-
-    if (email == null) {
-      return;
-    }
-
-    await reportService.saveSenderEmail(email);
-    if (!mounted) return;
-    setState(() {});
-    UiSnack.showSuccess(ReportMessages.senderEmailSaved);
-  }
-
-  Future<void> _clearSenderEmail() async {
-    await DirectErrorReportService().clearSenderEmail();
-    if (!mounted) return;
-    setState(() {});
-    UiSnack.show(ReportMessages.senderEmailCleared);
-  }
-
-  Future<void> _flushPendingReports() async {
-    setState(() {
-      _isFlushingPendingReports = true;
-    });
-
-    final reportService = DirectErrorReportService();
-    final pendingBefore = await reportService.getPendingReportsCount();
-    final sentCount = await reportService.flushPendingReports();
-    final pendingAfter = await reportService.getPendingReportsCount();
-
-    if (!mounted) return;
-    setState(() {
-      _isFlushingPendingReports = false;
-    });
-
-    if (sentCount > 0) {
-      UiSnack.showSuccess(ReportMessages.pendingFlushed(sentCount));
-    } else if (pendingBefore == 0) {
-      UiSnack.show(ReportMessages.noPendingToSend);
-    } else {
-      UiSnack.show(ReportMessages.pendingFlushFailed(pendingAfter));
-    }
-  }
-
-  Future<void> _sendPendingReport(DirectErrorReport report) async {
-    setState(() {
-      _sendingPendingReportId = report.id;
-    });
-
-    DirectReportDeliveryResult? result;
-    try {
-      result = await DirectErrorReportService().submitPendingReport(report);
-    } catch (e) {
-      debugPrint('Failed to send pending direct report: $e');
-      if (mounted) {
-        UiSnack.showError(ReportMessages.sendError(e));
-      }
-      return;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _sendingPendingReportId = null;
-        });
-      }
-    }
-
-    if (!mounted) return;
-    if (result.isSent) {
-      if (result.isDuplicate || result.correctionNotSupported) {
-        UiSnack.show(result.message);
-      } else {
-        await ErrorReportHelper.showDirectReportDetailsDialog(
-          context,
-          title: ReportMessages.sentSuccessTitle,
-          report: report,
-        );
-      }
-      if (!mounted) return;
-      setState(() {});
-    } else if (result.isQueued) {
-      UiSnack.show(result.message);
-    } else {
-      UiSnack.showError(result.message);
-    }
-  }
-
-  Future<void> _markPendingReportAsSent(DirectErrorReport report) async {
-    final confirmed = await showTwoActionsDialog(
-      context: context,
-      title: context.settingsText('לסמן כנשלח?'),
-      content: context.settingsText(
-        'הדיווח יעבור להיסטוריית הדיווחים שנשלחו ויוסר מהתור, ללא שליחה לשרת. '
-        'השתמשו בכך אם כבר שלחתם את הדיווח בדרך אחרת.',
-      ),
-      cancelText: context.settingsText('ביטול'),
-      confirmText: context.settingsText('סמן כנשלח'),
-    );
-    if (confirmed != true) {
-      return;
-    }
-
-    await DirectErrorReportService().markPendingReportAsSent(report);
-    if (!mounted) return;
-    setState(() {});
-    UiSnack.show(ReportMessages.markedAsSent);
-  }
-
-  Future<void> _editPendingReport(DirectErrorReport report) async {
-    var editValues = _PendingReportEditValues(
-      selectedText: report.selectedText,
-      errorDetails: report.errorDetails,
-      contextText: report.contextText,
-    );
-
-    final confirmed = await showTwoActionsDialog(
-      context: context,
-      title: context.settingsText('עריכת דיווח שמור'),
-      content: '',
-      cancelText: context.settingsText('ביטול'),
-      confirmText: context.settingsText('שמור'),
-      handleEnterKey: false,
-      customContent: SizedBox(
-        width: 560,
-        child: _PendingReportEditFields(
-          initialValues: editValues,
-          onChanged: (values) => editValues = values,
-        ),
-      ),
-    );
-
-    if (confirmed == true) {
-      await DirectErrorReportService().updatePendingReport(
-        report.copyWith(
-          selectedText: replaceLoneSurrogates(editValues.selectedText.trim()),
-          errorDetails: replaceLoneSurrogates(editValues.errorDetails.trim()),
-          contextText: replaceLoneSurrogates(editValues.contextText.trim()),
-        ),
-      );
-      if (!mounted) return;
-      setState(() {});
-      UiSnack.showSuccess(ReportMessages.reportUpdated);
-    }
-  }
-
-  Future<void> _showReportDetails(
-    DirectErrorReport report, {
-    required bool sent,
-  }) async {
-    await ErrorReportHelper.showDirectReportDetailsDialog(
-      context,
-      title: context.settingsText(
-        sent ? 'פרטי דיווח שנשלח' : 'פרטי דיווח שמור',
-      ),
-      report: report,
-    );
-  }
-
-  Future<void> _deletePendingReport(DirectErrorReport report) async {
-    await DirectErrorReportService().deletePendingReport(report.id);
-    if (!mounted) return;
-    setState(() {});
-    UiSnack.show(ReportMessages.removedFromQueue);
-  }
-
-  Future<void> _deleteSentReport(DirectErrorReport report) async {
-    await DirectErrorReportService().deleteSentReport(report.id);
-    if (!mounted) return;
-    setState(() {});
-    UiSnack.show(ReportMessages.deletedFromHistory);
-  }
-
-  Future<void> _clearSentReports() async {
-    final confirmed = await showWarningDialog(
-      context: context,
-      title: context.settingsText('לנקות את היסטוריית הדיווחים?'),
-      content: context.settingsText(
-        'כל הדיווחים שנשלחו יימחקו מההיסטוריה המקומית.',
-      ),
-      subtitle: context.settingsText(
-        'הפעולה לא מוחקת דיווחים שכבר נשלחו לצוות.',
-      ),
-      cancelText: context.settingsText('ביטול'),
-      confirmText: context.settingsText('נקה'),
-    );
-    if (confirmed != true) {
-      return;
-    }
-
-    setState(() {
-      _isClearingSentReports = true;
-    });
-
-    await DirectErrorReportService().clearSentReports();
-
-    if (!mounted) return;
-    setState(() {
-      _isClearingSentReports = false;
-    });
-    UiSnack.show(ReportMessages.historyCleared);
-  }
-
-  Future<void> _clearPendingReports() async {
-    final confirmed = await showWarningDialog(
-      context: context,
-      title: context.settingsText('למחוק דיווחים שמורים?'),
-      content: context.settingsText('כל הדיווחים השמורים בתור יימחקו מהמחשב.'),
-      subtitle: context.settingsText('לא ניתן לשחזר דיווחים שנמחקו.'),
-      cancelText: context.settingsText('ביטול'),
-      confirmText: context.settingsText('מחק'),
-    );
-    if (confirmed != true) {
-      return;
-    }
-
-    setState(() {
-      _isClearingPendingReports = true;
-    });
-
-    await DirectErrorReportService().clearPendingReports();
-
-    if (!mounted) return;
-    setState(() {
-      _isClearingPendingReports = false;
-    });
-    UiSnack.show(ReportMessages.pendingCleared);
-  }
-
-  /// קובע לאיזו מערכת הפעלה יותאם סקריפט השליחה. בוינדוס מחזיר מיד Windows;
-  /// ב-Linux/macOS שואל את המשתמש; בשאר (נייד) מחזיר Windows אחרי הבהרה
-  /// שהקובץ מיועד למחשב Windows מחובר. מחזיר null אם המשתמש ביטל.
-  Future<OfflineSendScriptTarget?> _resolveOfflineSendTarget() =>
-      resolveOfflineSendTarget(context);
-
-  Future<void> _exportPendingReportsScript() async {
-    final verified = await verifySaferModePassword(context);
-    if (!verified) {
-      return;
-    }
-
-    final reportService = DirectErrorReportService();
-    final reports = await reportService.getPendingReports();
-    if (reports.isEmpty) {
-      if (!mounted) return;
-      UiSnack.show(ReportMessages.noPendingToExport);
-      return;
-    }
-
-    final target = await _resolveOfflineSendTarget();
-    if (target == null || !mounted) {
-      return;
-    }
-
-    final script = reportService.buildOfflineSendScript(
-      reports,
-      target: target,
-    );
-
-    final saveDialogTitle = context.settingsText(
-      'בחר מיקום לשמירת סקריפט השליחה',
-    );
-    final downloadsDirectory = await getDownloadsDirectory();
-    final path = await saveFileWithExtension(
-      dialogTitle: saveDialogTitle,
-      fileName: script.fileName,
-      initialDirectory: downloadsDirectory?.path,
-      extension: target == OfflineSendScriptTarget.windows ? 'bat' : 'sh',
-      bytes: Uint8List.fromList(utf8.encode(script.content)),
-    );
-    if (path == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _isExportingPendingReports = true;
-    });
-
-    try {
-      // קובץ .sh נשמר ללא הרשאת הרצה; מוסיפים אותה כדי שאפשר יהיה להפעילו ישירות.
-      if (target == OfflineSendScriptTarget.unix &&
-          (Platform.isLinux || Platform.isMacOS)) {
-        await Process.run('chmod', ['+x', path]);
-      }
-
-      if (!mounted) return;
-      UiSnack.showSuccess(
-        target == OfflineSendScriptTarget.unix
-            ? ReportMessages.scriptSavedUnix(script.fileName)
-            : ReportMessages.scriptSavedWindows,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      UiSnack.showError(ReportMessages.scriptSaveError(e));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isExportingPendingReports = false;
-        });
-      }
-    }
-  }
-
-  AppCrashReportMode get _crashReportMode => AppCrashReportMode.parse(
-    Settings.getValue<String>(SettingsRepository.keyAppCrashReportMode),
-  );
-
-  Future<void> _setCrashReportMode(AppCrashReportMode mode) async {
-    await Settings.setValue(
-      SettingsRepository.keyAppCrashReportMode,
-      mode.wireName,
-    );
-    if (mounted) setState(() {});
-  }
-
-  Widget _buildManagedActionButton({
-    required bool enabled,
-    required Widget child,
-  }) {
-    return IgnorePointer(
-      ignoring: !enabled,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.45,
-        child: child,
-      ),
-    );
-  }
-
   // ════════════════════════════════════════════════════════════════════════════
   //  BUILD
   // ════════════════════════════════════════════════════════════════════════════
@@ -911,71 +545,30 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           // כרטיס "מערכת" ממשיך להציג גרסת ספרייה ישנה (issue #895).
           listenWhen: LibraryState.reloadCompleted,
           listener: (context, libraryState) => _loadVersionInfo(),
-          child: BlocListener<EmptyLibraryBloc, EmptyLibraryState>(
-            bloc: _librarySelectionBloc,
-            listener: (context, librarySelectionState) async {
-              if (librarySelectionState is EmptyLibraryDirectorySelected) {
-                await context.read<NavigationBloc>().refreshLibrary();
-                if (!context.mounted) {
-                  return;
-                }
-                context.read<LibraryBloc>().add(RefreshLibrary());
-                UiSnack.showSuccess(SettingsMessages.libraryLoaded);
-              }
+          child: SettingsTabScrollView(
+            child: ToolPanelWrapper(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. גרסאות + נתיב ספרייה
+                  _buildVersionAndPathSection(context, state),
 
-              if (librarySelectionState is EmptyLibraryError &&
-                  librarySelectionState.errorMessage != null) {
-                UiSnack.showError(librarySelectionState.errorMessage!);
-              }
+                  // 2. עדכוני מערכת (רשת + עדכון מפתחים)
+                  _buildSystemUpdatesSection(context, state),
 
-              // [בדיקת אנדרואיד] דיאלוג ה-SAF להעתקת seforim.db לאחסון פנימי.
-              // אינו ניתן-להתנעה כרגע (שום דבר לא משגר PickDirectoryRequested
-              // ל-bloc זה) — לאמת על מכשיר לפני חיבור מחדש או מחיקה.
-              if (librarySelectionState is EmptyLibraryAskingDbCopy) {
-                if (librarySelectionState.errorMessage != null) {
-                  UiSnack.showError(librarySelectionState.errorMessage!);
-                }
-                if (!context.mounted) {
-                  return;
-                }
-                _showLibraryDbCopyDialog(context, librarySelectionState);
-              }
-            },
-            child: SettingsTabScrollView(
-              child: ToolPanelWrapper(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 1. גרסאות + נתיב ספרייה
-                    _buildVersionAndPathSection(context, state),
+                  // 3. דיווחים (טעויות בספרים, תוכנה ותוספים)
+                  const ReportsCard(),
 
-                    // 2. עדכוני מערכת (רשת + עדכון מפתחים)
-                    _buildSystemUpdatesSection(context, state),
+                  const SearchFeedbackPanel(),
 
-                    // 3. דיווחי טעויות
-                    _buildErrorReportsSection(context, state),
+                  const SemanticDataPanel(),
 
-                    // 3ב. דיווחים על תוספים
-                    _buildPluginReportsSection(context, state),
+                  // 4. מתקדם (גיבוי + מצב סייפר)
+                  _buildAdvancedSection(context, state),
 
-                    // 3ג. דיווחים על התוכנה
-                    AppReportsPanel(
-                      isOfflineMode: state.isOfflineMode,
-                      crashReportMode: _crashReportMode,
-                      onCrashReportModeChanged: _setCrashReportMode,
-                    ),
-
-                    const SearchFeedbackPanel(),
-
-                    const SemanticDataPanel(),
-
-                    // 4. מתקדם (גיבוי + מצב סייפר)
-                    _buildAdvancedSection(context, state),
-
-                    // 6. איפוס
-                    _buildResetSection(context),
-                  ],
-                ),
+                  // 6. איפוס
+                  _buildResetSection(context),
+                ],
               ),
             ),
           ),
@@ -1122,920 +715,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     );
   }
 
-  Widget _buildErrorReportsSection(BuildContext context, SettingsState state) {
-    final reportService = DirectErrorReportService();
-    final senderEmail = reportService.senderEmail;
-    final queueWhenOffline = reportService.queueWhenOfflineEnabled;
-
-    return SettingsCard(
-      cardId: 'system.reports',
-      title: context.settingsText('דיווחי טעויות'),
-      subtitle: context.settingsText(
-        'שליחה ישירה לצוות אוצריא, כולל תור אוטומטי במצב אופליין.',
-      ),
-      children: [
-        SettingsActionTile.text(
-          icon: FluentIcons.mail_24_regular,
-          title: context.settingsText('כתובת דואר אלקטרוני לזיהוי'),
-          subtitle: senderEmail.isEmpty
-              ? context.settingsText('עדיין לא הוגדרה כתובת זיהוי')
-              : senderEmail,
-          subtitleLtr: senderEmail.isNotEmpty,
-          actions: [
-            if (senderEmail.isNotEmpty)
-              ActionButton.neutral(
-                text: context.settingsText('נקה'),
-                onPressed: _clearSenderEmail,
-              ),
-            ActionButton.recommended(
-              text: context.settingsText(
-                senderEmail.isEmpty ? 'הגדר' : 'ערוך',
-              ),
-              onPressed: _editSenderEmail,
-            ),
-          ],
-        ),
-        SettingsActionTile.switchTile(
-          icon: FluentIcons.cloud_arrow_up_24_regular,
-          title: context.settingsText('שמירת דיווחים אוטומטית כשאין חיבור'),
-          subtitle: queueWhenOffline
-              ? context.settingsText(
-                  'דיווחים שלא נשלחו יישמרו ויישלחו אוטומטית בהמשך',
-                )
-              : context.settingsText(
-                  'במצב אופליין לא יתבצע תור אוטומטי לדיווחים ישירים',
-                ),
-          value: queueWhenOffline,
-          onChanged: (value) async {
-            await reportService.setQueueWhenOfflineEnabled(value);
-            if (!mounted) return;
-            setState(() {});
-          },
-        ),
-        FutureBuilder<List<DirectErrorReport>>(
-          future: reportService.getPendingReports(),
-          builder: (context, snapshot) {
-            final pendingReports = snapshot.data ?? const <DirectErrorReport>[];
-            final pendingCount = pendingReports.length;
-            final hasReports = pendingCount > 0;
-
-            return ExpandableSection(
-              icon: OtzariaIcons.task_list_24_regular,
-              title: context.settingsText('ניהול דיווחים שמורים'),
-              subtitle: pendingCount == 0
-                  ? context.settingsText('אין כרגע דיווחים שמורים בתור')
-                  : context.settingsText(
-                      'יש כרגע {count} דיווחים שמורים בתור',
-                      args: {'count': pendingCount},
-                    ),
-              hasContent: hasReports,
-              onTap: () => setState(
-                () => _isPendingReportsExpanded = !_isPendingReportsExpanded,
-              ),
-              isExpanded: _isPendingReportsExpanded,
-              children: [
-                if (hasReports)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      right: 16,
-                      left: 16,
-                      top: 8,
-                      bottom: 16,
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isNarrow =
-                            constraints.maxWidth < LayoutBreakpoints.compact;
-                        final sendButton = _buildManagedActionButton(
-                          enabled: !state.isOfflineMode,
-                          child: ActionButton.recommended(
-                            text: context.settingsText('שלח עכשיו'),
-                            icon: FluentIcons.arrow_sync_24_regular,
-                            onPressed: _flushPendingReports,
-                            isLoading: _isFlushingPendingReports,
-                          ),
-                        );
-                        final clearButton = _buildManagedActionButton(
-                          enabled: hasReports,
-                          child: ActionButton.neutral(
-                            text: context.settingsText('נקה דיווחים'),
-                            icon: FluentIcons.delete_24_regular,
-                            onPressed: _clearPendingReports,
-                            isLoading: _isClearingPendingReports,
-                          ),
-                        );
-                        final exportButton = _buildManagedActionButton(
-                          enabled: hasReports,
-                          child: ActionButton.neutral(
-                            text: context.settingsText(
-                              'הורד לשליחה במחשב מחובר',
-                            ),
-                            icon: FluentIcons.arrow_download_24_regular,
-                            onPressed: _exportPendingReportsScript,
-                            isLoading: _isExportingPendingReports,
-                          ),
-                        );
-
-                        if (isNarrow) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              sendButton,
-                              const SizedBox(height: 8),
-                              clearButton,
-                              const SizedBox(height: 8),
-                              exportButton,
-                            ],
-                          );
-                        }
-
-                        return Row(
-                          children: [
-                            Expanded(child: sendButton),
-                            const SizedBox(width: 12),
-                            Expanded(child: clearButton),
-                            const SizedBox(width: 12),
-                            Expanded(child: exportButton),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                if (state.isOfflineMode)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      right: 16,
-                      left: 16,
-                      bottom: 16,
-                    ),
-                    child: Text(
-                      context.settingsText(
-                        'במצב מנותק אי אפשר לשלוח כעת, אך ניתן להוריד סקריפט לשליחה ממחשב מחובר.',
-                      ),
-                      style: kSettingsSubtitleStyle,
-                    ),
-                  ),
-                if (pendingReports.isNotEmpty)
-                  ...pendingReports.map(
-                    (report) => _buildPendingReportTile(
-                      context,
-                      report,
-                      canSend: !state.isOfflineMode,
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-        FutureBuilder<(List<DirectErrorReport>, int)>(
-          future: (
-            reportService.getSentReports(),
-            reportService.getSentReportsTotal(),
-          ).wait,
-          builder: (context, snapshot) {
-            final sentReports =
-                snapshot.data?.$1 ?? const <DirectErrorReport>[];
-
-            return ExpandableSection(
-              icon: FluentIcons.checkmark_circle_24_regular,
-              title: context.settingsText('דיווחים שנשלחו'),
-              hasContent: sentReports.isNotEmpty,
-              subtitle: _sentReportsSubtitle(
-                context,
-                shown: sentReports.length,
-                total: snapshot.data?.$2 ?? 0,
-              ),
-              onTap: () => setState(
-                () => _isSentReportsExpanded = !_isSentReportsExpanded,
-              ),
-              isExpanded: _isSentReportsExpanded,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(
-                    right: 16,
-                    left: 16,
-                    bottom: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildManagedActionButton(
-                          enabled: sentReports.isNotEmpty,
-                          child: ActionButton.neutral(
-                            text: context.settingsText(
-                              'נקה את כל ההיסטוריה',
-                            ),
-                            icon: FluentIcons.delete_24_regular,
-                            onPressed: _clearSentReports,
-                            isLoading: _isClearingSentReports,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (sentReports.isNotEmpty)
-                  ...sentReports.map(
-                    (report) => _buildSentReportTile(context, report),
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPendingReportTile(
-    BuildContext context,
-    DirectErrorReport report, {
-    required bool canSend,
-  }) {
-    final isSending = _sendingPendingReportId == report.id;
-    final noDetails = context.settingsText('ללא פירוט');
-    return Column(
-      children: [
-        ListTile(
-          leading: const Icon(OtzariaIcons.document_bullet_list_24_regular),
-          title: Text(
-            report.bookTitle,
-            style: kSettingsTitleStyle,
-          ),
-          subtitle: Text(
-            '${report.currentRef} · '
-            '${report.errorDetails.isEmpty ? noDetails : report.errorDetails}',
-            style: kSettingsSubtitleStyle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        _buildReportActions(
-          children: [
-            ActionButton.neutral(
-              text: context.settingsText('צפה'),
-              icon: FluentIcons.eye_24_regular,
-              onPressed: () => _showReportDetails(report, sent: false),
-            ),
-            ActionButton.neutral(
-              text: context.settingsText('ערוך'),
-              icon: FluentIcons.edit_24_regular,
-              onPressed: () => _editPendingReport(report),
-            ),
-            ActionButton.neutral(
-              text: context.settingsText('מחק'),
-              icon: FluentIcons.delete_24_regular,
-              onPressed: () => _deletePendingReport(report),
-            ),
-            ActionButton.neutral(
-              text: context.settingsText('סמן כנשלח'),
-              icon: FluentIcons.checkmark_24_regular,
-              onPressed: () => _markPendingReportAsSent(report),
-            ),
-            _buildManagedActionButton(
-              enabled: canSend,
-              child: ActionButton.recommended(
-                text: context.settingsText('שלח'),
-                icon: FluentIcons.send_24_regular,
-                isLoading: isSending,
-                onPressed: () => _sendPendingReport(report),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSentReportTile(BuildContext context, DirectErrorReport report) {
-    final noDetails = context.settingsText('ללא פירוט');
-    return Column(
-      children: [
-        ListTile(
-          leading: Icon(
-            report.rejectionReason == null
-                ? FluentIcons.checkmark_24_regular
-                : FluentIcons.error_circle_24_regular,
-          ),
-          title: Text(
-            report.bookTitle,
-            style: kSettingsTitleStyle,
-          ),
-          subtitle: Text(
-            '${report.currentRef} · '
-            '${report.errorDetails.isEmpty ? noDetails : report.errorDetails}',
-            style: kSettingsSubtitleStyle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        _buildReportActions(
-          children: [
-            ActionButton.neutral(
-              text: context.settingsText('צפה'),
-              icon: FluentIcons.eye_24_regular,
-              onPressed: () => _showReportDetails(report, sent: true),
-            ),
-            ActionButton.neutral(
-              text: context.settingsText('מחק'),
-              icon: FluentIcons.delete_24_regular,
-              onPressed: () => _deleteSentReport(report),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildReportActions({
-    required List<Widget> children,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 56, left: 16, bottom: 12),
-      child: Align(
-        alignment: AlignmentDirectional.centerEnd,
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.end,
-          children: children,
-        ),
-      ),
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════════════════
-  //  דיווחים על תוספים
-  // ════════════════════════════════════════════════════════════════════════════
-
-  /// ההיסטוריה שמורה עד תקרה קבועה, ולכן הספירה הכוללת מוצגת בנפרד.
-  String _sentReportsSubtitle(
-    BuildContext context, {
-    required int shown,
-    required int total,
-  }) {
-    if (shown == 0) {
-      return context.settingsText('עדיין אין דיווחים שנשלחו דרך המערכת');
-    }
-    if (total > shown) {
-      return context.settingsText(
-        'נשלחו {total} דיווחים, מוצגים {shown} האחרונים',
-        args: {'total': total, 'shown': shown},
-      );
-    }
-    return context.settingsText(
-      'נשמרו {count} דיווחים שנשלחו',
-      args: {'count': shown},
-    );
-  }
-
-  String _pluginReportTypeLabel(BuildContext context, String reportType) {
-    switch (reportType) {
-      case 'bug':
-        return context.settingsText('תקלה');
-      case 'crash':
-        return context.settingsText('קריסה');
-      case 'content':
-        return context.settingsText('תוכן לא תקין');
-      default:
-        return context.settingsText('אחר');
-    }
-  }
-
-  String _formatPluginReportDate(DateTime date) {
-    return '${date.day}.${date.month}.${date.year}';
-  }
-
-  Future<void> _flushPluginReports() async {
-    setState(() {
-      _isFlushingPluginReports = true;
-    });
-
-    final reportService = PluginReportService();
-    final pendingBefore = await reportService.getPendingReportsCount();
-    final sentCount = await reportService.flushPendingReports();
-    final pendingAfter = await reportService.getPendingReportsCount();
-
-    if (!mounted) return;
-    setState(() {
-      _isFlushingPluginReports = false;
-    });
-
-    if (sentCount > 0) {
-      UiSnack.showSuccess(ReportMessages.pendingFlushed(sentCount));
-    } else if (pendingBefore == 0) {
-      UiSnack.show(ReportMessages.noPendingToSend);
-    } else {
-      UiSnack.show(ReportMessages.pendingFlushFailed(pendingAfter));
-    }
-  }
-
-  Future<void> _sendPendingPluginReport(PluginReportRecord record) async {
-    setState(() {
-      _sendingPluginReportId = record.reportId;
-    });
-
-    PluginReportDeliveryStatus? status;
-    try {
-      status = await PluginReportService().submitPendingReport(record);
-    } catch (e) {
-      debugPrint('Failed to send pending plugin report: $e');
-      if (mounted) {
-        UiSnack.showError(ReportMessages.sendError(e));
-      }
-      return;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _sendingPluginReportId = null;
-        });
-      }
-    }
-
-    if (!mounted) return;
-    if (status == PluginReportDeliveryStatus.sent) {
-      setState(() {});
-      UiSnack.showSuccess(ReportMessages.sentToOtzaria);
-    } else {
-      UiSnack.show(ReportMessages.queuedAfterFailure('אוצריא'));
-    }
-  }
-
-  Future<void> _editPendingPluginReport(PluginReportRecord record) async {
-    var reportType = record.reportType;
-    var details = record.details;
-
-    final confirmed = await showTwoActionsDialog(
-      context: context,
-      title: context.settingsText('עריכת דיווח שמור'),
-      content: '',
-      cancelText: context.settingsText('ביטול'),
-      confirmText: context.settingsText('שמור'),
-      handleEnterKey: false,
-      customContent: SizedBox(
-        width: 560,
-        child: _PluginReportEditFields(
-          initialType: record.reportType,
-          initialDetails: record.details,
-          typeLabel: (type) => _pluginReportTypeLabel(context, type),
-          onChanged: (type, text) {
-            reportType = type;
-            details = text;
-          },
-        ),
-      ),
-    );
-    if (confirmed != true) return;
-    if (details.trim().isEmpty) {
-      UiSnack.showError(ReportMessages.detailsRequired);
-      return;
-    }
-
-    await PluginReportService().updatePendingReport(
-      record.reportId,
-      reportType: reportType,
-      details: details,
-    );
-    if (!mounted) return;
-    setState(() {});
-    UiSnack.showSuccess(ReportMessages.reportUpdated);
-  }
-
-  Future<void> _deletePendingPluginReport(PluginReportRecord record) async {
-    await PluginReportService().deletePendingReport(record.reportId);
-    if (!mounted) return;
-    setState(() {});
-    UiSnack.show(ReportMessages.removedFromQueue);
-  }
-
-  Future<void> _deleteSentPluginReport(PluginReportRecord record) async {
-    await PluginReportService().deleteSentReport(record.reportId);
-    if (!mounted) return;
-    setState(() {});
-    UiSnack.show(ReportMessages.deletedFromHistory);
-  }
-
-  Future<void> _clearPluginPendingReports() async {
-    final confirmed = await showWarningDialog(
-      context: context,
-      title: context.settingsText('למחוק דיווחים שמורים?'),
-      content: context.settingsText('כל הדיווחים השמורים בתור יימחקו מהמחשב.'),
-      subtitle: context.settingsText('לא ניתן לשחזר דיווחים שנמחקו.'),
-      cancelText: context.settingsText('ביטול'),
-      confirmText: context.settingsText('מחק'),
-    );
-    if (confirmed != true) {
-      return;
-    }
-
-    setState(() {
-      _isClearingPluginPendingReports = true;
-    });
-
-    await PluginReportService().clearPendingReports();
-
-    if (!mounted) return;
-    setState(() {
-      _isClearingPluginPendingReports = false;
-    });
-    UiSnack.show(ReportMessages.pendingCleared);
-  }
-
-  Future<void> _clearPluginSentReports() async {
-    final confirmed = await showWarningDialog(
-      context: context,
-      title: context.settingsText('לנקות את היסטוריית הדיווחים?'),
-      content: context.settingsText(
-        'כל הדיווחים שנשלחו יימחקו מההיסטוריה המקומית.',
-      ),
-      subtitle: context.settingsText(
-        'הפעולה לא מוחקת דיווחים שכבר נשלחו למפתחים.',
-      ),
-      cancelText: context.settingsText('ביטול'),
-      confirmText: context.settingsText('נקה'),
-    );
-    if (confirmed != true) {
-      return;
-    }
-
-    setState(() {
-      _isClearingPluginSentReports = true;
-    });
-
-    await PluginReportService().clearSentReports();
-
-    if (!mounted) return;
-    setState(() {
-      _isClearingPluginSentReports = false;
-    });
-    UiSnack.show(ReportMessages.historyCleared);
-  }
-
-  Future<void> _exportPluginReportsScript() async {
-    final verified = await verifySaferModePassword(context);
-    if (!verified) {
-      return;
-    }
-
-    final reportService = PluginReportService();
-    final records = await reportService.getPendingReports();
-    if (records.isEmpty) {
-      if (!mounted) return;
-      UiSnack.show(ReportMessages.noPendingToExport);
-      return;
-    }
-
-    final target = await _resolveOfflineSendTarget();
-    if (target == null || !mounted) {
-      return;
-    }
-
-    final script = reportService.buildOfflineSendScript(
-      records,
-      target: target,
-    );
-
-    final saveDialogTitle = context.settingsText(
-      'בחר מיקום לשמירת סקריפט השליחה',
-    );
-    final downloadsDirectory = await getDownloadsDirectory();
-    final path = await saveFileWithExtension(
-      dialogTitle: saveDialogTitle,
-      fileName: script.fileName,
-      initialDirectory: downloadsDirectory?.path,
-      extension: target == OfflineSendScriptTarget.windows ? 'bat' : 'sh',
-      bytes: Uint8List.fromList(utf8.encode(script.content)),
-    );
-    if (path == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _isExportingPluginReports = true;
-    });
-
-    try {
-      // קובץ .sh נשמר ללא הרשאת הרצה; מוסיפים אותה כדי שאפשר יהיה להפעילו ישירות.
-      if (target == OfflineSendScriptTarget.unix &&
-          (Platform.isLinux || Platform.isMacOS)) {
-        await Process.run('chmod', ['+x', path]);
-      }
-
-      if (!mounted) return;
-      UiSnack.showSuccess(
-        target == OfflineSendScriptTarget.unix
-            ? ReportMessages.scriptSavedUnix(script.fileName)
-            : ReportMessages.scriptSavedWindows,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      UiSnack.showError(ReportMessages.scriptSaveError(e));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isExportingPluginReports = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _showPluginReportDetails(
-    PluginReportRecord record, {
-    required bool sent,
-  }) async {
-    final typeLabel = _pluginReportTypeLabel(context, record.reportType);
-    final date = _formatPluginReportDate(record.createdAt);
-    await showSingleActionDialog(
-      context: context,
-      title: context.settingsText(
-        sent ? 'פרטי דיווח שנשלח' : 'פרטי דיווח שמור',
-      ),
-      content:
-          '${record.pluginName} (${record.pluginVersion})\n'
-          '$typeLabel · $date\n\n${record.details}',
-      confirmText: context.settingsText('סגור'),
-    );
-  }
-
-  Widget _buildPluginReportsSection(
-    BuildContext context,
-    SettingsState state,
-  ) {
-    final reportService = PluginReportService();
-
-    return SettingsCard(
-      cardId: 'system.pluginReports',
-      title: context.settingsText('דיווחים על תוספים'),
-      subtitle: context.settingsText(
-        'דיווחים ששלחתם למפתחי תוספים דרך אתר אוצריא, כולל תור אוטומטי במצב אופליין.',
-      ),
-      children: [
-        FutureBuilder<List<PluginReportRecord>>(
-          future: reportService.getPendingReports(),
-          builder: (context, snapshot) {
-            final pendingRecords =
-                snapshot.data ?? const <PluginReportRecord>[];
-            final pendingCount = pendingRecords.length;
-            final hasReports = pendingCount > 0;
-
-            return ExpandableSection(
-              icon: OtzariaIcons.task_list_24_regular,
-              title: context.settingsText('ניהול דיווחים שמורים'),
-              subtitle: pendingCount == 0
-                  ? context.settingsText('אין כרגע דיווחים שמורים בתור')
-                  : context.settingsText(
-                      'יש כרגע {count} דיווחים שמורים בתור',
-                      args: {'count': pendingCount},
-                    ),
-              hasContent: hasReports,
-              onTap: () => setState(
-                () => _isPluginPendingReportsExpanded =
-                    !_isPluginPendingReportsExpanded,
-              ),
-              isExpanded: _isPluginPendingReportsExpanded,
-              children: [
-                if (hasReports)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      right: 16,
-                      left: 16,
-                      top: 8,
-                      bottom: 16,
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isNarrow =
-                            constraints.maxWidth < LayoutBreakpoints.compact;
-                        final sendButton = _buildManagedActionButton(
-                          enabled: !state.isOfflineMode,
-                          child: ActionButton.recommended(
-                            text: context.settingsText('שלח עכשיו'),
-                            icon: FluentIcons.arrow_sync_24_regular,
-                            onPressed: _flushPluginReports,
-                            isLoading: _isFlushingPluginReports,
-                          ),
-                        );
-                        final clearButton = _buildManagedActionButton(
-                          enabled: hasReports,
-                          child: ActionButton.neutral(
-                            text: context.settingsText('נקה דיווחים'),
-                            icon: FluentIcons.delete_24_regular,
-                            onPressed: _clearPluginPendingReports,
-                            isLoading: _isClearingPluginPendingReports,
-                          ),
-                        );
-                        final exportButton = _buildManagedActionButton(
-                          enabled: hasReports,
-                          child: ActionButton.neutral(
-                            text: context.settingsText(
-                              'הורד לשליחה במחשב מחובר',
-                            ),
-                            icon: FluentIcons.arrow_download_24_regular,
-                            onPressed: _exportPluginReportsScript,
-                            isLoading: _isExportingPluginReports,
-                          ),
-                        );
-
-                        if (isNarrow) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              sendButton,
-                              const SizedBox(height: 8),
-                              clearButton,
-                              const SizedBox(height: 8),
-                              exportButton,
-                            ],
-                          );
-                        }
-
-                        return Row(
-                          children: [
-                            Expanded(child: sendButton),
-                            const SizedBox(width: 12),
-                            Expanded(child: clearButton),
-                            const SizedBox(width: 12),
-                            Expanded(child: exportButton),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                if (state.isOfflineMode && hasReports)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      right: 16,
-                      left: 16,
-                      bottom: 16,
-                    ),
-                    child: Text(
-                      context.settingsText(
-                        'במצב מנותק אי אפשר לשלוח כעת, אך ניתן להוריד סקריפט לשליחה ממחשב מחובר.',
-                      ),
-                      style: kSettingsSubtitleStyle,
-                    ),
-                  ),
-                ...pendingRecords.map(
-                  (record) => _buildPluginPendingReportTile(
-                    context,
-                    record,
-                    canSend: !state.isOfflineMode,
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-        FutureBuilder<(List<PluginReportRecord>, int)>(
-          future: (
-            reportService.getSentReports(),
-            reportService.getSentReportsTotal(),
-          ).wait,
-          builder: (context, snapshot) {
-            final sentRecords =
-                snapshot.data?.$1 ?? const <PluginReportRecord>[];
-
-            return ExpandableSection(
-              icon: FluentIcons.checkmark_circle_24_regular,
-              title: context.settingsText('דיווחים שנשלחו'),
-              hasContent: sentRecords.isNotEmpty,
-              subtitle: _sentReportsSubtitle(
-                context,
-                shown: sentRecords.length,
-                total: snapshot.data?.$2 ?? 0,
-              ),
-              onTap: () => setState(
-                () => _isPluginSentReportsExpanded =
-                    !_isPluginSentReportsExpanded,
-              ),
-              isExpanded: _isPluginSentReportsExpanded,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(
-                    right: 16,
-                    left: 16,
-                    bottom: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildManagedActionButton(
-                          enabled: sentRecords.isNotEmpty,
-                          child: ActionButton.neutral(
-                            text: context.settingsText(
-                              'נקה את כל ההיסטוריה',
-                            ),
-                            icon: FluentIcons.delete_24_regular,
-                            onPressed: _clearPluginSentReports,
-                            isLoading: _isClearingPluginSentReports,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ...sentRecords.map(
-                  (record) => _buildPluginSentReportTile(context, record),
-                ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPluginPendingReportTile(
-    BuildContext context,
-    PluginReportRecord record, {
-    required bool canSend,
-  }) {
-    final isSending = _sendingPluginReportId == record.reportId;
-    return Column(
-      children: [
-        ListTile(
-          leading: const Icon(FluentIcons.puzzle_piece_24_regular),
-          title: Text(
-            record.pluginName,
-            style: kSettingsTitleStyle,
-          ),
-          subtitle: Text(
-            '${_pluginReportTypeLabel(context, record.reportType)} · '
-            '${record.details}',
-            style: kSettingsSubtitleStyle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        _buildReportActions(
-          children: [
-            ActionButton.neutral(
-              text: context.settingsText('צפה'),
-              icon: FluentIcons.eye_24_regular,
-              onPressed: () => _showPluginReportDetails(record, sent: false),
-            ),
-            ActionButton.neutral(
-              text: context.settingsText('ערוך'),
-              icon: FluentIcons.edit_24_regular,
-              onPressed: () => _editPendingPluginReport(record),
-            ),
-            ActionButton.neutral(
-              text: context.settingsText('מחק'),
-              icon: FluentIcons.delete_24_regular,
-              onPressed: () => _deletePendingPluginReport(record),
-            ),
-            _buildManagedActionButton(
-              enabled: canSend,
-              child: ActionButton.recommended(
-                text: context.settingsText('שלח'),
-                icon: FluentIcons.send_24_regular,
-                isLoading: isSending,
-                onPressed: () => _sendPendingPluginReport(record),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPluginSentReportTile(
-    BuildContext context,
-    PluginReportRecord record,
-  ) {
-    return Column(
-      children: [
-        ListTile(
-          leading: const Icon(FluentIcons.checkmark_24_regular),
-          title: Text(
-            record.pluginName,
-            style: kSettingsTitleStyle,
-          ),
-          subtitle: Text(
-            '${_pluginReportTypeLabel(context, record.reportType)} · '
-            '${record.details}',
-            style: kSettingsSubtitleStyle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        _buildReportActions(
-          children: [
-            ActionButton.neutral(
-              text: context.settingsText('צפה'),
-              icon: FluentIcons.eye_24_regular,
-              onPressed: () => _showPluginReportDetails(record, sent: true),
-            ),
-            ActionButton.neutral(
-              text: context.settingsText('מחק'),
-              icon: FluentIcons.delete_24_regular,
-              onPressed: () => _deleteSentPluginReport(record),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   // ════════════════════════════════════════════════════════════════════════════
   //  2. גרסאות + נתיב ספרייה
   // ════════════════════════════════════════════════════════════════════════════
@@ -2109,33 +788,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     );
   }
 
-  void _showLibraryDbCopyDialog(
-    BuildContext context,
-    EmptyLibraryAskingDbCopy state,
-  ) async {
-    final sizeText = state.dbSizeBytes > 0
-        ? '${(state.dbSizeBytes / 1024 / 1024).toStringAsFixed(1)} MB'
-        : context.settingsText('לא ידוע');
-
-    final shouldMove = await showDbCopyRequiredDialog(
-      context: context,
-      sizeText: sizeText,
-    );
-
-    if (shouldMove == null) {
-      return;
-    }
-
-    _librarySelectionBloc.add(
-      PickDbFileRequested(
-        libraryPath: state.libraryPath,
-        internalDbPath: state.internalDbPath,
-        externalDbPath: state.externalDbPath,
-        shouldMove: shouldMove,
-      ),
-    );
-  }
-
   Future<void> _createBackup() async {
     try {
       final result = await BackupService.createBackup(
@@ -2177,14 +829,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               await _exportBackupFile(file);
               return;
             }
-            final dir = file.parent;
-            if (Platform.isWindows) {
-              await Process.run('explorer', [dir.path]);
-            } else if (Platform.isMacOS) {
-              await Process.run('open', [dir.path]);
-            } else if (Platform.isLinux) {
-              await Process.run('xdg-open', [dir.path]);
-            }
+            await openInFileManager(file.parent.path);
           },
           icon: FluentIcons.checkmark_circle_24_regular,
         );
@@ -2501,24 +1146,16 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
   Future<void> _handleToggleProtectedMode(
     BuildContext context,
-    SettingsRepository repository,
     bool newValue,
   ) async {
-    final verified = await showDialog<bool>(
-      context: context,
-      builder: settingsDialogBuilder(
-        context,
-        (ctx) => SaferModePasswordDialog(
-          title: ctx.settingsText('אמת סיסמה'),
-          hint: newValue
-              ? ctx.settingsText('הזן את הסיסמה כדי להפעיל את המצב המוגן')
-              : ctx.settingsText('הזן את הסיסמה כדי להשבית את המצב המוגן'),
-          onVerify: (password) async =>
-              repository.verifyProtectedModePassword(password),
-        ),
-      ),
+    final verified = await showSaferModePasswordDialog(
+      context,
+      title: 'אמת סיסמה',
+      hint: newValue
+          ? 'הזן את הסיסמה כדי להפעיל את המצב המוגן'
+          : 'הזן את הסיסמה כדי להשבית את המצב המוגן',
     );
-    if (verified != true) return;
+    if (!verified) return;
     if (context.mounted) {
       context.read<SettingsBloc>().add(UpdateProtectedModeEnabled(newValue));
       UiSnack.show(
@@ -2531,24 +1168,16 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
   Future<void> _handleSetPassword(
     BuildContext context,
-    SettingsRepository repository,
     bool hasExistingPassword,
     bool isSaferModeEnabled,
   ) async {
-    if (hasExistingPassword) {
-      final verified = await showDialog<bool>(
-        context: context,
-        builder: settingsDialogBuilder(
+    if (hasExistingPassword &&
+        !await showSaferModePasswordDialog(
           context,
-          (ctx) => SaferModePasswordDialog(
-            title: ctx.settingsText('אמת סיסמה נוכחית'),
-            hint: ctx.settingsText('הזן את הסיסמה הנוכחית כדי לשנות אותה'),
-            onVerify: (password) async =>
-                repository.verifyProtectedModePassword(password),
-          ),
-        ),
-      );
-      if (verified != true) return;
+          title: 'אמת סיסמה נוכחית',
+          hint: 'הזן את הסיסמה הנוכחית כדי לשנות אותה',
+        )) {
+      return;
     }
     if (!context.mounted) return;
     final settingsBloc = context.read<SettingsBloc>();
@@ -2598,7 +1227,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final retentionProfile = RetentionProfile.fromName(
       Settings.getValue<String>(BackupMaintenance.keyRetentionProfile),
     );
-    final repository = RepositoryProvider.of<SettingsRepository>(context);
     final hasPassword = state.protectedModePasswordSet;
 
     return SettingsCard(
@@ -2780,17 +1408,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                       ? _defaultBackupPath
                       : null,
                 ),
-                onOpenFolder: () {
-                  final path = _resolvedBackupPath;
-                  if (path.isEmpty) return;
-                  if (Platform.isWindows) {
-                    unawaited(Process.run('explorer', [path]));
-                  } else if (Platform.isMacOS) {
-                    unawaited(Process.run('open', [path]));
-                  } else if (Platform.isLinux) {
-                    unawaited(Process.run('xdg-open', [path]));
-                  }
-                },
+                onOpenFolder: () =>
+                    unawaited(openInFileManager(_resolvedBackupPath)),
                 onClearPath: () {
                   Settings.setValue<String>(
                     SettingsRepository.keyBackupPath,
@@ -2936,8 +1555,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                   : 'נעילת ההגדרות וסייר הקבצים מושבתת',
             ),
             value: state.protectedModeEnabled,
-            onChanged: (value) =>
-                _handleToggleProtectedMode(context, repository, value),
+            onChanged: (value) => _handleToggleProtectedMode(context, value),
           )
         else
           SettingsActionTile.text(
@@ -2952,7 +1570,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 text: context.settingsText('בחר סיסמה'),
                 onPressed: () => _handleSetPassword(
                   context,
-                  repository,
                   hasPassword,
                   state.protectedModeEnabled,
                 ),
@@ -2972,7 +1589,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 text: context.settingsText('אפשרויות'),
                 onPressed: () => _handleSetPassword(
                   context,
-                  repository,
                   hasPassword,
                   state.protectedModeEnabled,
                 ),
@@ -3071,215 +1687,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  כרטיסי זיכרון — עיצוב נקי ורספונסיבי למסכים, תואם M3
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _PendingReportEditValues {
-  final String selectedText;
-  final String errorDetails;
-  final String contextText;
-
-  const _PendingReportEditValues({
-    required this.selectedText,
-    required this.errorDetails,
-    required this.contextText,
-  });
-
-  _PendingReportEditValues copyWith({
-    String? selectedText,
-    String? errorDetails,
-    String? contextText,
-  }) {
-    return _PendingReportEditValues(
-      selectedText: selectedText ?? this.selectedText,
-      errorDetails: errorDetails ?? this.errorDetails,
-      contextText: contextText ?? this.contextText,
-    );
-  }
-}
-
-class _PendingReportEditFields extends StatefulWidget {
-  final _PendingReportEditValues initialValues;
-  final ValueChanged<_PendingReportEditValues> onChanged;
-
-  const _PendingReportEditFields({
-    required this.initialValues,
-    required this.onChanged,
-  });
-
-  @override
-  State<_PendingReportEditFields> createState() =>
-      _PendingReportEditFieldsState();
-}
-
-class _PendingReportEditFieldsState extends State<_PendingReportEditFields> {
-  late final TextEditingController _selectedTextController;
-  late final TextEditingController _detailsController;
-  late final TextEditingController _contextController;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedTextController = TextEditingController(
-      text: widget.initialValues.selectedText,
-    );
-    _detailsController = TextEditingController(
-      text: widget.initialValues.errorDetails,
-    );
-    _contextController = TextEditingController(
-      text: widget.initialValues.contextText,
-    );
-  }
-
-  @override
-  void dispose() {
-    _selectedTextController.dispose();
-    _detailsController.dispose();
-    _contextController.dispose();
-    super.dispose();
-  }
-
-  void _notifyChanged() {
-    widget.onChanged(
-      _PendingReportEditValues(
-        selectedText: _selectedTextController.text,
-        errorDetails: _detailsController.text,
-        contextText: _contextController.text,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        RtlTextField(
-          controller: _selectedTextController,
-          keyboardType: TextInputType.multiline,
-          textInputAction: TextInputAction.newline,
-          minLines: 1,
-          maxLines: 5,
-          onChanged: (_) => _notifyChanged(),
-          decoration: InputDecoration(
-            labelText: context.settingsText('הטקסט שנבחר'),
-            isDense: true,
-            contentPadding: EdgeInsets.only(
-              top: 12,
-              bottom: 12,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        RtlTextField(
-          controller: _detailsController,
-          keyboardType: TextInputType.multiline,
-          textInputAction: TextInputAction.newline,
-          minLines: 1,
-          maxLines: 6,
-          onChanged: (_) => _notifyChanged(),
-          decoration: InputDecoration(
-            labelText: context.settingsText('פירוט הטעות'),
-            isDense: true,
-            contentPadding: EdgeInsets.only(
-              top: 12,
-              bottom: 12,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        RtlTextField(
-          controller: _contextController,
-          keyboardType: TextInputType.multiline,
-          textInputAction: TextInputAction.newline,
-          minLines: 1,
-          maxLines: 6,
-          onChanged: (_) => _notifyChanged(),
-          decoration: InputDecoration(
-            labelText: context.settingsText('הקשר'),
-            isDense: true,
-            contentPadding: EdgeInsets.only(
-              top: 12,
-              bottom: 12,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PluginReportEditFields extends StatefulWidget {
-  final String initialType;
-  final String initialDetails;
-  final String Function(String type) typeLabel;
-  final void Function(String type, String details) onChanged;
-
-  const _PluginReportEditFields({
-    required this.initialType,
-    required this.initialDetails,
-    required this.typeLabel,
-    required this.onChanged,
-  });
-
-  @override
-  State<_PluginReportEditFields> createState() =>
-      _PluginReportEditFieldsState();
-}
-
-class _PluginReportEditFieldsState extends State<_PluginReportEditFields> {
-  late String _type = PluginReportService.normalizeReportType(
-    widget.initialType,
-  );
-  late final TextEditingController _detailsController = TextEditingController(
-    text: widget.initialDetails,
-  );
-
-  @override
-  void dispose() {
-    _detailsController.dispose();
-    super.dispose();
-  }
-
-  void _notifyChanged() => widget.onChanged(_type, _detailsController.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AppSegmentedControl<String>(
-          expandToFillWidth: true,
-          options: [
-            for (final type in PluginReportService.reportTypes)
-              SegmentOption(value: type, label: widget.typeLabel(type)),
-          ],
-          currentValue: _type,
-          onChanged: (type) {
-            setState(() => _type = type);
-            _notifyChanged();
-          },
-        ),
-        const SizedBox(height: 12),
-        RtlTextField(
-          controller: _detailsController,
-          keyboardType: TextInputType.multiline,
-          textInputAction: TextInputAction.newline,
-          minLines: 3,
-          maxLines: 8,
-          onChanged: (_) => _notifyChanged(),
-          decoration: InputDecoration(
-            labelText: context.settingsText('פירוט'),
-            isDense: true,
-            contentPadding: const EdgeInsets.only(top: 12, bottom: 12),
-          ),
-        ),
-      ],
     );
   }
 }

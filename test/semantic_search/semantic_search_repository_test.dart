@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:otzaria/library_update/services/companion_assets_service.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
+import 'package:otzaria/semantic_search/bloc/semantic_search_bloc.dart';
 import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
@@ -151,7 +152,11 @@ void main() {
       final first = repository.search(
         const SemanticSearchRequest(query: 'ראשון', facets: ['/']),
       );
-      await pumpEventQueue();
+      // השני חייב להגיע כשהראשון כבר במנוע; בעומס ensureOpen מתעכב והראשון
+      // היה מבוטל לפני שהגיע אליו.
+      while (backend.searchHandles.length < 2) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
       final second = repository.search(
         const SemanticSearchRequest(query: 'שני', facets: ['/']),
       );
@@ -781,6 +786,86 @@ void main() {
       await repository.pendingJob;
 
       expect(locator.tags, ['v30-20260930165019']);
+    });
+  });
+
+  group('התקדמות כוללת', () {
+    Future<List<SemanticDownloadProgress>> runJob(
+      SemanticSearchRepository repository,
+    ) async {
+      final seen = <SemanticDownloadProgress>[];
+      final sub = repository.availabilityChanges.listen((availability) {
+        final progress = availability.progress;
+        if (progress != null) seen.add(progress);
+      });
+      await repository.enableAndDownload();
+      await sub.cancel();
+      return seen;
+    }
+
+    test('אחוז אחד שאינו מתאפס בין רכיב החיפוש, הנתונים וההתקנה', () async {
+      final repository = buildRepository(
+        root: root,
+        locator: FakeLocator(releaseV30()),
+      );
+
+      final seen = await runJob(repository);
+
+      final fractions = seen.map((p) => p.fraction!).toList();
+      for (var i = 1; i < fractions.length; i++) {
+        expect(fractions[i], greaterThanOrEqualTo(fractions[i - 1]));
+      }
+      expect(fractions.last, 1.0);
+      final steps = {for (final p in seen) p.item: (p.step, p.stepCount)};
+      expect(steps, {
+        SemanticDownloadItem.model: (1, 3),
+        SemanticDownloadItem.vectors: (2, 3),
+        SemanticDownloadItem.install: (3, 3),
+      });
+      final model = testModelReleases[SemanticQuantization.int8]!;
+      expect(seen.first.totalBytes, model.downloadSize + 1);
+      expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
+    });
+
+    test('רכיב חיפוש שכבר הורד אינו נספר כשלב', () async {
+      installModelFiles(root);
+      final repository = buildRepository(
+        root: root,
+        locator: FakeLocator(releaseV30()),
+      );
+
+      final seen = await runJob(repository);
+
+      expect(
+        seen.map((p) => p.item),
+        isNot(contains(SemanticDownloadItem.model)),
+      );
+      final steps = {for (final p in seen) p.item: (p.step, p.stepCount)};
+      expect(steps, {
+        SemanticDownloadItem.vectors: (1, 2),
+        SemanticDownloadItem.install: (2, 2),
+      });
+      expect(seen.first.totalBytes, 1);
+    });
+
+    test('סגירת ה-bloc (סגירת הדיאלוג) אינה מבטלת את ההורדה', () async {
+      final repository = buildRepository(
+        root: root,
+        locator: FakeLocator(releaseV30()),
+      );
+      final bloc = SemanticSearchBloc(repository: repository);
+
+      bloc.add(const SemanticDownloadRequested());
+      await waitFor(
+        () =>
+            repository.availability.phase ==
+            SemanticAvailabilityPhase.downloading,
+      );
+      await bloc.close();
+      await repository.pendingJob;
+
+      expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
+      expect(repository.availability.pausedByUser, isFalse);
     });
   });
 }

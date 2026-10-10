@@ -1,8 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/view/search_navigation_tree.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 
 void main() {
@@ -58,9 +62,12 @@ void main() {
     VoidCallback? onClearAll,
     List<SearchTreeExtraCategory> extraRootCategories = const [],
     bool extraCategoriesFirst = false,
+    SettingsLanguage language = SettingsLanguage.hebrew,
   }) {
     return tester.pumpWidget(
       MaterialApp(
+        builder: (_, child) =>
+            SettingsTextScope(language: language, child: child!),
         home: Scaffold(
           body: SizedBox(
             width: 320,
@@ -391,6 +398,33 @@ void main() {
       expect(facet, '/תנ"ך/id:1');
     });
 
+    testWidgets('גרשיים בשאילתה מוצאים כותרת עם ״ (issue #2031)', (
+      tester,
+    ) async {
+      await pumpTree(
+        tester,
+        library: makeLibraryFrom([
+          makeCategory(
+            'תנ"ך',
+            books: [
+              makeBook(1, 'רשב״א על ברכות', '/תנ"ך'),
+              makeBook(2, 'רשב"א על בבא קמא', '/תנ"ך'),
+            ],
+          ),
+        ]),
+        facetCounts: const {
+          '/': 4,
+          '/תנ"ך': 4,
+          '/תנ"ך/id:1': 2,
+          '/תנ"ך/id:2': 2,
+        },
+        filterQuery: 'רשב"א',
+      );
+
+      expect(find.text('רשב״א על ברכות'), findsOneWidget);
+      expect(find.text('רשב"א על בבא קמא'), findsOneWidget);
+    });
+
     testWidgets('בטעינה ראשונית ללא תוצאות מוצג ספינר ולא ההודעה', (
       tester,
     ) async {
@@ -405,6 +439,83 @@ void main() {
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text('לא נמצאו ספרים עם תוצאות'), findsNothing);
+    });
+
+    testWidgets('הסינון זהה לנרמול הכותרת בכל הקשה (perf)', (tester) async {
+      const alphabet = [
+        'א',
+        'ב',
+        'ש',
+        '"',
+        '״',
+        "'",
+        '׳',
+        '<',
+        '>',
+        ' ',
+        '	',
+        'A',
+        'a',
+      ];
+      final random = Random(5);
+      String randomText(int maxLength) => [
+        for (var i = random.nextInt(maxLength) + 1; i > 0; i--)
+          alphabet[random.nextInt(alphabet.length)],
+      ].join();
+      final books = [
+        for (var id = 1; id <= 150; id++) makeBook(id, randomText(8), '/תנ"ך'),
+      ];
+      final library = makeLibraryFrom([makeCategory('תנ"ך', books: books)]);
+      final counts = <String, int>{
+        for (final book in books)
+          FacetHelper.buildBookFacet(
+            FacetHelper.resolveCategoryPath(book),
+            book,
+          ): book.id! % 5,
+      };
+      String oracle(String text) => normalizeBookTitle(text).toLowerCase();
+
+      for (var i = 0; i < 80; i++) {
+        final query = randomText(3) + alphabet[random.nextInt(3)];
+        final expected = [
+          for (final book in books)
+            if (book.id! % 5 != 0 && oracle(book.title).contains(oracle(query)))
+              book.title,
+        ]..sort();
+        // פעמיים: הראשונה ממלאת את המטמון והשנייה קוראת ממנו.
+        for (var pass = 0; pass < 2; pass++) {
+          await tester.pumpWidget(
+            MaterialApp(
+              // גובה שבו כל הספרים המסוננים נבנים, ולא רק הנראים במסך.
+              home: OverflowBox(
+                maxHeight: 100000,
+                alignment: Alignment.topCenter,
+                child: SearchNavigationTree(
+                  library: library,
+                  facetCounts: counts,
+                  selectedFacets: const {},
+                  expansion: const {},
+                  filterQuery: query,
+                  isLoading: false,
+                  hasResults: true,
+                  onSetFacet: (_) {},
+                  onToggleFacet: (_) {},
+                  onToggleExpand: (_, _) {},
+                  isMultiSelectPressed: () => false,
+                  onClearAll: () {},
+                ),
+              ),
+            ),
+          );
+          final shown = [
+            for (final tile in tester.widgetList<NavTreeTile>(
+              find.byType(NavTreeTile),
+            ))
+              tile.title,
+          ]..sort();
+          expect(shown, expected, reason: 'query "$query" pass $pass');
+        }
+      }
     });
   });
 
@@ -605,6 +716,58 @@ void main() {
       );
 
       expect(find.text('נקה סינון'), findsOneWidget);
+    });
+
+    testWidgets('כשאין ענף פתוח אין כפתור "כווץ הכל"', (tester) async {
+      await pumpTree(
+        tester,
+        library: nestedLibrary(),
+        facetCounts: nestedCounts,
+      );
+
+      expect(find.byTooltip('כווץ הכל'), findsNothing);
+    });
+
+    for (final (language, tooltip) in [
+      (SettingsLanguage.hebrew, 'כווץ הכל'),
+      (SettingsLanguage.english, 'Collapse all'),
+    ]) {
+      testWidgets('תיאור כפתור הכיווץ בשפת הממשק: ${language.code}', (
+        tester,
+      ) async {
+        await pumpTree(
+          tester,
+          library: nestedLibrary(),
+          facetCounts: nestedCounts,
+          expansion: const {'/תנ"ך': true},
+          language: language,
+        );
+
+        expect(find.byTooltip(tooltip), findsOneWidget);
+      });
+    }
+
+    testWidgets('"כווץ הכל" סוגר גם ענפים שנפתחו אוטומטית וגם מוסתרים', (
+      tester,
+    ) async {
+      final toggles = <(String, bool)>[];
+      await pumpTree(
+        tester,
+        library: nestedLibrary(),
+        facetCounts: nestedCounts,
+        selectedFacets: {'/תנ"ך/כתובים/id:7'},
+        expansion: const {'/משנה': true},
+        onToggleExpand: (path, isExpanded) => toggles.add((path, isExpanded)),
+      );
+
+      await tester.tap(find.byTooltip('כווץ הכל'));
+      await tester.pump();
+
+      expect(toggles.toSet(), {
+        ('/תנ"ך', true),
+        ('/תנ"ך/כתובים', true),
+        ('/משנה', true),
+      });
     });
   });
 

@@ -8,6 +8,11 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
+import 'package:otzaria/data/data_providers/book_composite_key.dart';
+import 'package:otzaria/data/data_providers/library_provider_manager.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show getTitleFromPath;
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
@@ -25,6 +30,8 @@ import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
@@ -1838,6 +1845,90 @@ void main() {
     );
 
     test(
+      'getLinkContent של קישור מוטמע בטקסט ("<כותרת>.txt" בלי תיקייה) מוצא את '
+      'הספר הרשמי (issue #1997)',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'otzaria_inline_link_content',
+        );
+        final dbPath = path.join(
+          tempDir.path,
+          DatabaseConstants.databaseFileName,
+        );
+        final database = MyDatabase.withPath(dbPath);
+        final repository = SeforimRepository(database);
+        final provider = DatabaseLibraryProvider.instance;
+        final previousLibraryPath = Settings.getValue<String>(
+          SettingsRepository.keyLibraryPath,
+        );
+        final previousEffectiveDbPath = Settings.getValue<String>(
+          SettingsRepository.keyDbEffectivePath,
+        );
+
+        try {
+          await provider.sqliteProvider.dispose();
+          provider.clearCache();
+          await repository.ensureInitialized();
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            tempDir.path,
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryFolderName,
+            '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            '',
+          );
+          final sourceId = await repository.insertSource('local', -10);
+          final catId = await repository.insertCategory(
+            const migration_models.Category(
+              title: 'כללי',
+              parentId: null,
+              level: 0,
+            ),
+          );
+          await provider.initialize();
+
+          final db = await database.database;
+          db.execute(
+            "INSERT INTO book (id, categoryId, sourceId, title, orderIndex, totalLines) VALUES (1, $catId, $sourceId, 'שמירת שבת כהלכתה - א', 1, 2)",
+          );
+          db.execute(
+            "INSERT INTO line (id, bookId, lineIndex, content) VALUES (10, 1, 0, 'סעיף א'), (11, 1, 1, 'סעיף ב')",
+          );
+
+          final manager = LibraryProviderManager.instance;
+          addTearDown(manager.resetForTesting);
+          manager.seedMappingsForTesting(mapping: {}, providers: [provider]);
+          for (final suffix in ['.txt', '.text', '.TXT']) {
+            final link = inlineLinkFromPreviewUrl(
+              'otzaria://inline-link?path='
+              '${Uri.encodeComponent('שמירת שבת כהלכתה - א$suffix')}&index=2',
+            )!;
+            final before = DbReadWorker.sentMessageCount;
+            expect(await manager.getLinkContent(link), 'סעיף ב');
+            expect(DbReadWorker.sentMessageCount, greaterThan(before));
+          }
+        } finally {
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            previousLibraryPath ?? '',
+          );
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            previousEffectiveDbPath ?? '',
+          );
+          await provider.sqliteProvider.dispose();
+          provider.clearCache();
+          database.close();
+          await tempDir.delete(recursive: true);
+        }
+      },
+    );
+
+    test(
       'buildLibraryCatalog ממזג ספרים אישיים קיימים מול user_books',
       () async {
         final tempDir = await Directory.systemTemp.createTemp(
@@ -2101,6 +2192,21 @@ void main() {
         // יוצר את סכימת ה-DB הרשמי ונסגר מיד — provider.initialize פותח את
         // אותו קובץ, וחיבור פתוח מקביל גורם ל-"database is locked".
         await repository.ensureInitialized();
+        final officialDb = await database.database;
+        officialDb.execute(
+          "INSERT INTO source (id, name) VALUES (1, 'official-test')",
+        );
+        officialDb.execute(
+          "INSERT INTO category (id, title, level) VALUES (1, 'כללי', 0)",
+        );
+        officialDb.execute(
+          "INSERT INTO book (id, categoryId, sourceId, title, totalLines) "
+          "VALUES (1, 1, 1, 'הערות לבדיקה', 2)",
+        );
+        officialDb.execute(
+          "INSERT INTO line (id, bookId, lineIndex, content) "
+          "VALUES (1, 1, 0, 'כותרת רשמית'), (2, 1, 1, 'תוכן רשמי')",
+        );
         database.close();
 
         await Settings.setValue<String>(
@@ -2170,6 +2276,67 @@ void main() {
 
         await provider.initialize();
 
+        final manager = LibraryProviderManager.instance;
+        addTearDown(manager.resetForTesting);
+        for (final suffix in ['.txt', '.text']) {
+          final titleFile = File(
+            path.join(tempDir.path, 'הערות לבדיקה$suffix.txt'),
+          );
+          await titleFile.writeAsString('כותרת מקורית\nתוכן של $suffix');
+          final title = getTitleFromPath(titleFile.path);
+          expect(title, 'הערות לבדיקה$suffix');
+          await userBooksRepository.insertBook(
+            migration_models.Book(
+              categoryId: userCategoryId,
+              sourceId: userSourceId,
+              title: title,
+              filePath: titleFile.path,
+              fileType: 'txt',
+            ),
+          );
+          final key = BookCompositeKey.create(
+            title: title,
+            categoryId: userCategoryId,
+            fileType: 'txt',
+            source: BookSource.user,
+          );
+          // גם כששם מנורמל ממופה לספק, ה-Link המקורי קובע את הכותרת.
+          for (final mapping in [
+            <BookCompositeKey, DatabaseLibraryProvider>{},
+            {key: provider},
+            {
+              key: provider,
+              BookCompositeKey.create(
+                title: 'הערות לבדיקה',
+                categoryId: userCategoryId,
+                source: BookSource.user,
+              ): provider,
+            },
+          ]) {
+            manager.seedMappingsForTesting(
+              mapping: mapping,
+              providers: [provider],
+            );
+            for (final source in [BookSource.user, BookSource.official]) {
+              expect(
+                await manager.getLinkContent(
+                  Link(
+                    heRef: title,
+                    index1: 1,
+                    path2: title,
+                    index2: 2,
+                    connectionType: 'commentary',
+                    targetSource: source,
+                    targetCategoryId: userCategoryId,
+                    targetFileType: 'txt',
+                  ),
+                ),
+                source.isUser ? 'תוכן של $suffix' : 'תוכן רשמי',
+              );
+            }
+          }
+        }
+
         final single = await provider.getLinkContent(
           Link(
             heRef: 'הערות',
@@ -2181,6 +2348,20 @@ void main() {
           ),
         );
         expect(single, 'שורה שנייה');
+
+        expect(
+          await provider.getLinkContent(
+            Link(
+              heRef: 'הערות',
+              index1: 1,
+              path2: 'הערות לבדיקה.txt',
+              index2: 3,
+              connectionType: 'commentary',
+              targetSource: BookSource.user,
+            ),
+          ),
+          'שגיאה: אינדקס מחוץ לטווח',
+        );
 
         final range = await provider.getLinkContent(
           Link(
@@ -2542,6 +2723,158 @@ void main() {
           personalCategories.single.subCategories,
           isEmpty,
           reason: 'התיקיות עצמן ממוזגות — רק הספר הבודד נשאר כאן',
+        );
+      },
+    );
+
+    test(
+      'PDF בבלי של שקלים ועדיות מוצב בסדר שלו אחרי המסכת שלפניו',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'otzaria_talmud_pdf_seder',
+        );
+        final libraryPath = path.join(tempDir.path, 'library');
+        final dataRootPath = path.join(tempDir.path, 'data_root');
+        final dbPath = path.join(
+          libraryPath,
+          DatabaseConstants.databaseFileName,
+        );
+        final database = MyDatabase.withPath(dbPath);
+        final repository = SeforimRepository(database);
+        final provider = DatabaseLibraryProvider.instance;
+        final previousLibraryPath = Settings.getValue<String>(
+          SettingsRepository.keyLibraryPath,
+        );
+        final previousFolderName = Settings.getValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+        );
+        final previousEffectiveDbPath = Settings.getValue<String>(
+          SettingsRepository.keyDbEffectivePath,
+        );
+        final previousDataRootPath = AppPaths.cachedDataRootPath;
+
+        addTearDown(() => tempDir.delete(recursive: true));
+        addTearDown(() => database.close());
+        addTearDown(() => provider.clearCache());
+        addTearDown(() => provider.sqliteProvider.dispose());
+        addTearDown(
+          () => AppPaths.debugOverrideDataRootPath(previousDataRootPath),
+        );
+        addTearDown(() => UserBooksDatabaseHolder.instance.close());
+        addTearDown(() async {
+          await Settings.setValue<String>(
+            SettingsRepository.keyDbEffectivePath,
+            previousEffectiveDbPath ?? '',
+          );
+        });
+        addTearDown(() async {
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryFolderName,
+            previousFolderName ?? '',
+          );
+        });
+        addTearDown(() async {
+          await Settings.setValue<String>(
+            SettingsRepository.keyLibraryPath,
+            previousLibraryPath ?? '',
+          );
+        });
+
+        final talmudDir = Directory(
+          path.join(libraryPath, DatabaseConstants.talmudBavliFolderName),
+        );
+        await talmudDir.create(recursive: true);
+        for (final title in [
+          'פסחים',
+          'שקלים',
+          'יומא',
+          'שבועות',
+          'עדיות',
+          'עבודה זרה',
+        ]) {
+          await File(path.join(talmudDir.path, '$title.pdf')).writeAsString('');
+        }
+        await provider.sqliteProvider.dispose();
+        provider.clearCache();
+        await UserBooksDatabaseHolder.instance.close();
+        AppPaths.debugOverrideDataRootPath(dataRootPath);
+        await repository.ensureInitialized();
+
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryPath,
+          libraryPath,
+        );
+        await Settings.setValue<String>(
+          SettingsRepository.keyLibraryFolderName,
+          '',
+        );
+        await Settings.setValue<String>(
+          SettingsRepository.keyDbEffectivePath,
+          '',
+        );
+
+        final sourceId = await repository.insertSource('local-test', -10);
+        final talmudCategoryId = await repository.insertCategory(
+          const migration_models.Category(
+            title: DatabaseConstants.talmudBavliFolderName,
+            parentId: null,
+            level: 0,
+            orderIndex: 1,
+          ),
+        );
+        var bookId = 1;
+        for (final (seder, sederOrder, tractates) in [
+          ('סדר מועד', 10, ['פסחים', 'יומא']),
+          ('סדר נזיקין', 20, ['שבועות', 'עבודה זרה']),
+          ('סדר טהרות', 30, <String>[]),
+        ]) {
+          final sederId = await repository.insertCategory(
+            migration_models.Category(
+              title: seder,
+              parentId: talmudCategoryId,
+              level: 1,
+              orderIndex: sederOrder,
+            ),
+          );
+          for (final (i, title) in tractates.indexed) {
+            await repository.insertBook(
+              migration_models.Book(
+                id: bookId++,
+                categoryId: sederId,
+                sourceId: sourceId,
+                title: title,
+                order: (sederOrder + i).toDouble(),
+                filePath: path.join(tempDir.path, '$title.txt'),
+                fileType: 'txt',
+              ),
+            );
+          }
+        }
+
+        await provider.initialize();
+        final library = await provider.buildLibraryCatalog({}, libraryPath);
+        final talmud = library.subCategories.singleWhere(
+          (c) => c.title == DatabaseConstants.talmudBavliFolderName,
+        );
+        List<String> visibleTitles(String seder) {
+          final textTitles = talmudBavliTextTitles(library);
+          final books =
+              talmud.subCategories
+                  .singleWhere((c) => c.title == seder)
+                  .books
+                  .where(
+                    (b) => !isTalmudBavliPdfLibraryDuplicate(b, textTitles),
+                  )
+                  .toList()
+                ..sort((a, b) => a.order.compareTo(b.order));
+          return books.map((b) => b.title).toList();
+        }
+
+        expect(visibleTitles('סדר מועד'), ['פסחים', 'שקלים', 'יומא']);
+        expect(visibleTitles('סדר נזיקין'), ['שבועות', 'עדיות', 'עבודה זרה']);
+        expect(
+          talmud.subCategories.where((c) => c.title == 'מסכתות נוספות'),
+          isEmpty,
         );
       },
     );

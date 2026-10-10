@@ -6,7 +6,7 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:html/dom.dart' as dom;
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/utils/inline_section_markers.dart';
-import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
@@ -210,7 +210,7 @@ class SmartTextWidget extends StatelessWidget {
     );
     final textStyle = TextStyle(
       fontSize: settings.fontSize,
-      fontFamily: fontFamily,
+      fontFamily: AppFonts.renderFontFamily(fontFamily),
       fontWeight: settings.fontWeight,
       fontVariations: AppFonts.boldFontVariations(
         fontFamily,
@@ -218,6 +218,10 @@ class SmartTextWidget extends StatelessWidget {
       ),
       height: settings.lineHeight,
     );
+
+    // הציור המורם נמדד בסגנון השורה — בכותרת זה סגנון הכותרת, כמו הגליף שבה.
+    final lineStyle =
+        SimpleInlineHtml.headingStyle(processedHtml, textStyle) ?? textStyle;
 
     // מסלול מהיר: רוב השורות הן טקסט פשוט (או עם תגי עיצוב בסיסיים) —
     // רינדור ישיר ב-Text.rich חוסך את מלוא עלות הפרסור של HtmlWidget.
@@ -228,7 +232,6 @@ class SmartTextWidget extends StatelessWidget {
         processedHtml,
         textStyle,
       );
-      final lineStyle = heading?.style ?? textStyle;
       final simpleSpan =
           heading?.span ?? SimpleInlineHtml.tryParse(processedHtml, textStyle);
       if (simpleSpan != null) {
@@ -242,7 +245,7 @@ class SmartTextWidget extends StatelessWidget {
           _withRaisedMarkers(
             context,
             raisedMarkers,
-            textStyle,
+            lineStyle,
             SizedBox(
               key: widgetKey,
               width: double.infinity,
@@ -275,7 +278,7 @@ class SmartTextWidget extends StatelessWidget {
       _withRaisedMarkers(
         context,
         raisedMarkers,
-        textStyle,
+        lineStyle,
         _SmartTextCallbacks(
           onAnchorHover: onAnchorHover,
           onAnchorHoverExit: onAnchorHoverExit,
@@ -384,16 +387,9 @@ class SmartTextWidget extends StatelessWidget {
                 return {
                   ...headingCss,
                   'color': toCssHex(colorScheme.onSurfaceVariant),
-                  // הכותרת צמודה לתוכן שהיא פותחת — באותה שורה.
+                  // הכותרת צמודה לשורה שהיא פותחת, שמוצגת מיד מתחתיה.
                   'margin-bottom': '0',
                 };
-              }
-              // כותרת הסימן שמתחת לכותרת נושא — צמודה אליה, בלי השוליים העליונים.
-              if (element.previousElementSibling?.classes.contains(
-                    kSectionHeadingClass,
-                  ) ??
-                  false) {
-                return {...headingCss, 'margin-top': '0'};
               }
               if (!hasMarkdownBlock) {
                 return headingCss.isEmpty ? null : headingCss;

@@ -46,6 +46,13 @@ class AppSeedColors {
     (color: darkBrown, name: 'חום זהבהב'),
   ];
 
+  /// צבע העיגול בבורר: הזרע עצמו, חוץ מזרעים שאינם נראים כמו הערכה שנוצרת מהם.
+  static Color swatchOf(Color seed) => switch (seed) {
+    darkBrown => const Color(0xFF805610),
+    parchment => const Color(0xFFDCC7A1),
+    _ => seed,
+  };
+
   /// מחזיר את השם העברי של צבע, או null אם לא נמצא ברשימה.
   static String? nameOf(Color color) {
     for (final entry in options) {

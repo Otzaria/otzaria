@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "otz_common.h"
+#include "texts.h"
 #include "ui.h"
 
 static gboolean self_test = FALSE;
@@ -12,6 +13,7 @@ static char *dev_manifest = NULL;
 static char *dev_auto_preset = NULL;
 static char *dev_platform = NULL;
 static char *dev_output = NULL;
+static char *dev_screenshot = NULL;
 
 static GOptionEntry entries[] = {
     {"self-test", 0, 0, G_OPTION_ARG_NONE, &self_test,
@@ -23,31 +25,23 @@ static GOptionEntry entries[] = {
      "DEV ONLY: read the release manifest from a local file", "FILE"},
     {"dev-auto-preset", 0, 0, G_OPTION_ARG_STRING, &dev_auto_preset,
      "DEV ONLY: walk the pages with their defaults, pick this preset "
-     "(full/basic/update), print a report and exit",
+     "(basic/full-indexed/full/update), print a report and exit",
      "ID"},
     {"dev-platform", 0, 0, G_OPTION_ARG_STRING, &dev_platform,
      "DEV ONLY: preselect this target platform", "PLATFORM"},
     {"dev-output", 0, 0, G_OPTION_ARG_FILENAME, &dev_output,
      "DEV ONLY: output folder", "DIR"},
+    {"dev-screenshot", 0, 0, G_OPTION_ARG_FILENAME, &dev_screenshot,
+     "DEV ONLY: render every screen in Hebrew and English to PNG files in DIR "
+     "(needs --dev-manifest) and exit",
+     "DIR"},
     {NULL},
 };
 
-static void show_missing_tls(void) {
-  GtkWidget *dialog = gtk_message_dialog_new(
-      NULL, 0, GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, "%s",
-      "לא ניתן להתחבר באופן מאובטח לאתר ההורדות, כי במחשב הזה חסר רכיב מערכת.");
-  gtk_message_dialog_format_secondary_text(
-      GTK_MESSAGE_DIALOG(dialog),
-      "יש להתקין את החבילה glib-networking (למשל: sudo apt install "
-      "glib-networking) ולהפעיל את המסייע מחדש.");
-  gtk_dialog_add_button(GTK_DIALOG(dialog), "סגור", GTK_RESPONSE_CLOSE);
-  gtk_window_set_title(GTK_WINDOW(dialog), "מסייע הורדה לאוצריא");
-  gtk_dialog_run(GTK_DIALOG(dialog));
-  gtk_widget_destroy(dialog);
-}
-
 int main(int argc, char **argv) {
   setlocale(LC_ALL, "");
+  /* Light only: GTK_THEME=Adwaita:dark would win over the forced setting. */
+  g_unsetenv("GTK_THEME");
   g_autoptr(GOptionContext) context =
       g_option_context_new("- Otzaria Download Assistant");
   g_option_context_add_main_entries(context, entries, NULL);
@@ -58,24 +52,23 @@ int main(int argc, char **argv) {
     return 2;
   }
   if (dev_owner != NULL) otz_set_allowed_owner(dev_owner);
+  otz_set_english(otz_detect_english());
 
-  gtk_widget_set_default_direction(GTK_TEXT_DIR_RTL);
   gboolean tls = g_tls_backend_supports_tls(g_tls_backend_get_default());
   if (self_test) {
-    printf("self-test: tls=%s tag=%s\n", tls ? "yes" : "no",
-           otz_embedded_release_tag());
+    printf("self-test: tls=%s tag=%s lang=%s\n", tls ? "yes" : "no",
+           otz_embedded_release_tag(), otz_english() ? "en" : "he");
     fflush(stdout);
-  } else if (!tls) {
-    show_missing_tls();
-    return 1;
   }
 
   OtzUiOptions options = {
       .self_test = self_test,
+      .tls_ok = tls,
       .dev_manifest = dev_manifest,
       .dev_auto_preset = dev_auto_preset,
       .dev_platform = dev_platform,
       .dev_output = dev_output,
+      .dev_screenshot = dev_screenshot,
   };
   int code = otz_ui_run(&options);
   if (self_test && code == 0) printf("self-test: ok\n");

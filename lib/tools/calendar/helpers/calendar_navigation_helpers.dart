@@ -80,22 +80,3 @@ DateTime shiftGregorianMonthPreservingDay(
   final targetDay = min(current.day, targetDaysInMonth);
   return DateTime(targetYear, targetMonth, targetDay);
 }
-
-/// מזיזה תאריך עברי לחודש הבא או הקודם תוך שמירה על אותו יום אם אפשר.
-///
-/// אם היום המבוקש לא קיים בחודש היעד, מחזיר את היום האחרון הזמין.
-JewishDate shiftJewishMonthPreservingDay(
-  JewishDate current, {
-  required bool forward,
-}) {
-  final target = forward
-      ? computeNextJewishMonth(current)
-      : computePreviousJewishMonth(current);
-  final targetYear = target.getJewishYear();
-  final targetMonth = target.getJewishMonth();
-  final targetDate = JewishDate()..setJewishDate(targetYear, targetMonth, 1);
-  final targetDaysInMonth = targetDate.getDaysInJewishMonth();
-  final targetDay = min(current.getJewishDayOfMonth(), targetDaysInMonth);
-  target.setJewishDate(targetYear, targetMonth, targetDay);
-  return target;
-}

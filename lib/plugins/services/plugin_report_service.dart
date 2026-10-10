@@ -12,6 +12,7 @@ import 'package:otzaria/plugins/models/plugin_report_record.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 /// תוצאת מסירה של דיווח תוסף: נשלח עכשיו או נשמר בתור לשליחה מאוחרת.
@@ -123,7 +124,7 @@ class PluginReportService {
 
     String? appVersion;
     try {
-      appVersion = (await PackageInfo.fromPlatform()).version;
+      appVersion = canonicalAppVersion(await PackageInfo.fromPlatform());
     } catch (_) {}
 
     final email = reporterEmail?.trim() ?? '';
@@ -253,13 +254,8 @@ class PluginReportService {
   static PluginReportRecord _decode(PendingReport row) =>
       PluginReportRecord.fromJson(row.payload);
 
-  Future<List<int>> _rowIdsOf(String kind, String reportId) async {
-    final rows = await _reports.listByKind(kind);
-    return rows
-        .where((row) => row.payload['reportId'] == reportId)
-        .map((row) => row.id)
-        .toList();
-  }
+  Future<List<int>> _rowIdsOf(String kind, String reportId) =>
+      _reports.idsWhere(kind, 'reportId', reportId);
 
   /// מנסה לשלוח את הדיווחים השמורים; עוצר בכשל זמני ראשון, ומסיר מהתור
   /// דיווחים שנדחו סופית. מחזיר את מספר הדיווחים שנשלחו.

@@ -93,6 +93,24 @@ void main() {
     await Settings.init(cacheProvider: MemorySettingsCache());
   });
 
+  test('תוכן הלעז להעתקה שומר רק את החלקים המוצגים ואת המפרידים', () {
+    final entry = _entry(sourceLineIndex: 1, english: 'hidden');
+    expect(
+      laazCommentaryEntrySpan(entry: entry).toPlainText(),
+      'כרתי — פילטרי"ש לבדים',
+    );
+    expect(
+      laazCommentaryEntrySpan(
+        entry: _entry(
+          sourceLineIndex: 2,
+          laazHebrew: '',
+          meaning: '',
+        ),
+      ).toPlainText(),
+      'כרתי',
+    );
+  });
+
   testWidgets('מציג מילת-ערך + שם-לעז + פירוש תחת קישור רש"י', (tester) async {
     final repository = await _repositoryWith(
       entries: [
@@ -120,6 +138,14 @@ void main() {
 
     final text = _renderedText(tester);
     // מוצג: מילת הערך מרש"י (העוגן — issue #884), שם הלעז והפירוש העברי.
+    expect(
+      text,
+      contains(
+        laazCommentaryEntrySpan(
+          entry: _entry(sourceLineIndex: 1),
+        ).toPlainText(),
+      ),
+    );
     expect(text, contains('כרתי'));
     expect(text, contains('פילטרי"ש'));
     expect(text, contains('לבדים'));

@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/models/app_report.dart';
 import 'package:otzaria/app_report/models/app_report_image.dart';
+import 'package:otzaria/app_report/models/app_report_minidump.dart';
 import 'package:otzaria/app_report/models/crash_signature.dart';
 import 'package:otzaria/app_report/repository/app_report_redactor.dart';
 
@@ -256,6 +258,71 @@ void main() {
       final name = long.toJson()['fileName'] as String;
       expect(name.length, AppReportImage.maxFileNameLength);
       expect(name.endsWith('.png'), isTrue);
+    });
+  });
+
+  group('minidump (issue #1978)', () {
+    late Directory tmp;
+    setUp(() => tmp = Directory.systemTemp.createTempSync('otzaria_dump_'));
+    tearDown(() => tmp.deleteSync(recursive: true));
+
+    File write(String name, List<int> bytes) =>
+        File('${tmp.path}${Platform.pathSeparator}$name')
+          ..writeAsBytesSync(bytes);
+
+    test('fromFile דוחס ב-gzip ושומר את שם הקובץ בלי נתיב', () async {
+      final raw = [...ascii.encode('MDMP'), ...List.filled(5000, 7)];
+      final dump = await AppReportMinidump.fromFile(write('e1f2.dmp', raw));
+      expect(dump!.fileName, 'e1f2.dmp');
+      expect(gzip.decode(dump.gzipBytes), raw);
+      expect(dump.gzipBytes.length, lessThan(raw.length));
+    });
+
+    test('fromFile: קובץ שאינו minidump או חסר — null', () async {
+      expect(
+        await AppReportMinidump.fromFile(write('x.dmp', ascii.encode('PNG!'))),
+        isNull,
+      );
+      expect(
+        await AppReportMinidump.fromFile(write('empty.dmp', const [])),
+        isNull,
+      );
+      expect(
+        await AppReportMinidump.fromFile(File('${tmp.path}/none.dmp')),
+        isNull,
+      );
+    });
+
+    final dump = AppReportMinidump(
+      gzipBytes: Uint8List.fromList(gzip.encode(ascii.encode('MDMP1234'))),
+      fileName: 'a.dmp',
+    );
+
+    test('נכנס לגוף הבקשה מחוץ לתקציב הטקסט, ונשמר בתור', () {
+      final report = _report(errorLog: 'x' * 1000).copyWith(minidump: dump);
+      final attachments = report.toApiPayload()['attachments'] as Map;
+      expect(attachments['minidump'], {
+        'fileName': 'a.dmp',
+        'data': base64Encode(dump.gzipBytes),
+      });
+      expect(attachments['errorLog'], isNotNull);
+      final restored = AppReport.fromJson(report.toJson());
+      expect(restored.minidump!.gzipBytes, dump.gzipBytes);
+      expect(restored.minidump!.fileName, 'a.dmp');
+      expect(
+        AppReport.maxRequestBytes,
+        greaterThan(
+          AppReport.maxBodyBytes +
+              AppReportImage.maxPayloadBytes +
+              (AppReportMinidump.maxRawBytes ~/ 3) * 4,
+        ),
+      );
+    });
+
+    test('withoutAttachments מסיר אותו; בלי dump אין שדה', () {
+      final report = _report().copyWith(minidump: dump);
+      expect(report.withoutAttachments().minidump, isNull);
+      expect(_report().toApiPayload()['attachments'], isNull);
     });
   });
 }

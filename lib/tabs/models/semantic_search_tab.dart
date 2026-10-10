@@ -52,6 +52,11 @@ class SemanticSearchTab extends SearchingTab {
     resultsBloc.add(SemanticSearchSubmitted(options));
   }
 
+  /// מצמצם את התוצאות ל-[facets] בתוך ההיקף, בלי לשנות את ההיקף השמור.
+  void narrow(List<String> facets) => resultsBloc.add(
+    SemanticSearchSubmitted(_options.copyWith(facets: facets)),
+  );
+
   static SemanticResultsBloc _defaultResultsBloc(SemanticSearchTab tab) =>
       SemanticResultsBloc(
         isUserBook: (item) async {

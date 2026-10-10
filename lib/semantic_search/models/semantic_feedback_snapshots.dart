@@ -69,14 +69,15 @@ SemanticResultSnapshot buildSemanticResultSnapshot(
 }
 
 /// הפרמטרים שנשלחו לחיפוש, כפי שהם נרשמים בטלמטריה.
+/// הבקשה ולא מה שבוצע: ביטוי במירכאות נשלח כ-fuzzy והמנוע מריץ אותו כ-exact.
 SemanticSearchParamsSnapshot buildSemanticParamsSnapshot(
   SemanticQueryOptions options, {
   required int pageSize,
   SemanticRankingConfig? ranking,
 }) => SemanticSearchParamsSnapshot(
   retrievalMode: options.includeLexical ? 'hybrid' : 'semanticOnly',
-  lexicalMode: 'exact',
-  fuzzyMaxDistance: 0,
+  lexicalMode: kSmartSearchLexicalMode.name,
+  fuzzyMaxDistance: kSmartSearchFuzzyMaxDistance,
   grouping: options.groupIdenticalText ? 'identicalText' : null,
   matchNikud: false,
   matchTaamim: false,

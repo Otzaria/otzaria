@@ -30,16 +30,9 @@ String prependSectionMarker(String html, String? label) {
 /// מחלקת ה-CSS של כותרת נושא מוזרקת (מבנה `Topic`), לעיצובה ברנדרר.
 const String kSectionHeadingClass = 'section-heading';
 
-/// מקדים לשורה את כותרות הנושא שנפתחות בה, כל אחת כבלוק `<h3>`.
-String prependSectionHeadings(String html, List<String>? headings) {
-  if (headings == null || headings.isEmpty || html.isEmpty) {
-    return html;
-  }
-  final prefix = headings
-      .map((h) => '<h3 class="$kSectionHeadingClass">$h</h3>')
-      .join();
-  return '$prefix$html';
-}
+/// כותרות הנושא שנפתחות בשורה, כל אחת כבלוק `<h3>`.
+String sectionHeadingsHtml(List<String> headings) =>
+    headings.map((h) => '<h3 class="$kSectionHeadingClass">$h</h3>').join();
 
 final RegExp _bracketPrefix = RegExp(r'^\s*\[[^\]]*\]\s*');
 

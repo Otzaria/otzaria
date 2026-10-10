@@ -1,1 +1,1 @@
-List<String> installedFontPaths() => const [];
+List<String> installedFontPaths(String? family) => const [];

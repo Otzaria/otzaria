@@ -14,6 +14,25 @@ import '../support/tikkun_fixtures.dart';
 
 const _methods = ['ramah', 'ramach', 'rambamRosh'];
 
+// עיבוד התורה כולה יקר; הטסטים רק קוראים מהתוצאה, ולכן היא משותפת לכל שיטה.
+final _sourceCache = <String, String>{};
+final _uniformTorahCache = <String, ProcessedTorah>{};
+
+Map<String, String> _torahSources() => {
+  for (final id in TikkunData.booksOrder)
+    id: _sourceCache.putIfAbsent(id, () => readFixture(id)),
+};
+
+ProcessedTorah _uniformTorah(String methodId) => _uniformTorahCache.putIfAbsent(
+  methodId,
+  () => processTorah(
+    _torahSources(),
+    const StamWidthModel.uniform(),
+    tradition: TikkunTradition.forMethod(methodId),
+    methodId: methodId,
+  ),
+);
+
 List<TikkunToken> _torahTokens(
   TikkunTradition tradition,
   TikkunDecalogueTaam taam,
@@ -25,7 +44,7 @@ List<TikkunToken> _torahTokens(
     }
     tokens.addAll(
       tokenizeBook(
-        readFixture(id),
+        _torahSources()[id]!,
         TikkunData.torahBooks[id]!.name,
         tradition: tradition,
         decalogueTaam: taam,
@@ -263,12 +282,7 @@ void main() {
 
     for (final methodId in _methods) {
       test('$methodId — רק דפי השירה רחבים, וכל שורותיהם', () {
-        final torah = processTorah(
-          {for (final id in TikkunData.booksOrder) id: readFixture(id)},
-          const StamWidthModel.uniform(),
-          tradition: TikkunTradition.forMethod(methodId),
-          methodId: methodId,
-        );
+        final torah = _uniformTorah(methodId);
         final pages = buildPages(torah, methodId);
         bool isShira(TikkunLine line) {
           for (var i = line.startTokenIdx; i >= 0; i--) {
@@ -300,12 +314,7 @@ void main() {
 
     for (final methodId in ['ramah', 'ramach']) {
       test('$methodId — כל דף שירה יוצא במניין השורות של השיטה', () {
-        final torah = processTorah(
-          {for (final id in TikkunData.booksOrder) id: readFixture(id)},
-          const StamWidthModel.uniform(),
-          tradition: TikkunTradition.forMethod(methodId),
-          methodId: methodId,
-        );
+        final torah = _uniformTorah(methodId);
         final target = TikkunData.torahLayouts[methodId]!.linesPerPage;
         final pages = buildPages(torah, methodId);
         final wide = [
@@ -337,12 +346,7 @@ void main() {
   group('מניין השורות הקבוע', () {
     for (final methodId in _methods) {
       test('$methodId — כל דף במניין, ורק מיעוט הדפים צפוף מרוחב הטור', () {
-        final torah = processTorah(
-          {for (final id in TikkunData.booksOrder) id: readFixture(id)},
-          const StamWidthModel.uniform(),
-          tradition: TikkunTradition.forMethod(methodId),
-          methodId: methodId,
-        );
+        final torah = _uniformTorah(methodId);
         final target = TikkunData.torahLayouts[methodId]!.linesPerPage;
         final pages = buildPages(torah, methodId);
         final off = [
@@ -369,7 +373,7 @@ void main() {
 
   test('התורה המעובדת לפי שיטה נושאת את מיקומי העוגנים', () {
     final torah = processTorah(
-      {for (final id in TikkunData.booksOrder) id: readFixture(id)},
+      _torahSources(),
       const StamWidthModel.uniform(),
       methodId: 'ramah',
     );
@@ -387,12 +391,7 @@ void main() {
     for (final methodId in _methods) {
       test('$methodId — העמוד האחרון מלא, והספר נגמר באמצע שיטתו האחרונה', () {
         const widths = StamWidthModel.uniform();
-        final torah = processTorah(
-          {for (final id in TikkunData.booksOrder) id: readFixture(id)},
-          widths,
-          tradition: TikkunTradition.forMethod(methodId),
-          methodId: methodId,
-        );
+        final torah = _uniformTorah(methodId);
         final last = buildPages(torah, methodId).last.lines;
         expect(
           last,
@@ -418,12 +417,7 @@ void main() {
     for (final methodId in _methods) {
       test('$methodId — כל חצי שיטה בהאזינו נכנס, בדחיסה קלה לכל היותר', () {
         const widths = StamWidthModel.uniform();
-        final torah = processTorah(
-          {for (final id in TikkunData.booksOrder) id: readFixture(id)},
-          widths,
-          tradition: TikkunTradition.forMethod(methodId),
-          methodId: methodId,
-        );
+        final torah = _uniformTorah(methodId);
         final rows = [
           for (final line in torah.allLines)
             if (line.cssClasses.contains('justify-cells') &&
@@ -452,12 +446,7 @@ void main() {
     for (final methodId in _methods) {
       test('$methodId — אריחי שירת הים נכנסים, והדף צר מרוחב הפתיחה', () {
         const widths = StamWidthModel.uniform();
-        final torah = processTorah(
-          {for (final id in TikkunData.booksOrder) id: readFixture(id)},
-          widths,
-          tradition: TikkunTradition.forMethod(methodId),
-          methodId: methodId,
-        );
+        final torah = _uniformTorah(methodId);
         final rows = [
           for (final line in torah.allLines)
             if (line.manualCells != null &&
@@ -477,13 +466,7 @@ void main() {
     }
 
     test('rambamRosh — אין שיטה פנויה לפני האזינו', () {
-      const widths = StamWidthModel.uniform();
-      final torah = processTorah(
-        {for (final id in TikkunData.booksOrder) id: readFixture(id)},
-        widths,
-        tradition: TikkunTradition.forMethod('rambamRosh'),
-        methodId: 'rambamRosh',
-      );
+      final torah = _uniformTorah('rambamRosh');
       final lines = torah.allLines;
       final first = lines.indexWhere(
         (l) => l.cssClasses.contains('justify-cells'),

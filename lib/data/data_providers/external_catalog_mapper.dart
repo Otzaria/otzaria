@@ -47,31 +47,6 @@ class ExternalCatalogMapper {
     return null;
   }
 
-  /// מנסה לחלץ מזהה מספרי מתוך מזהה חיצוני או קישור.
-  static int? extractExternalId({
-    String? externalLibraryId,
-    String? link,
-  }) {
-    final raw = externalLibraryId?.trim();
-    if (raw != null && raw.isNotEmpty) {
-      final digitsOnly = RegExp(r'\d+').firstMatch(raw)?.group(0);
-      if (digitsOnly != null) {
-        return int.tryParse(digitsOnly);
-      }
-    }
-
-    final url = link?.trim();
-    if (url == null || url.isEmpty) return null;
-
-    // Fallback: first numeric segment in URL
-    final fallback = RegExp(r'(\d+)').firstMatch(url);
-    if (fallback != null) {
-      return int.tryParse(fallback.group(1)!);
-    }
-
-    return null;
-  }
-
   /// מחזיר קישור מתאים מתוך filePath או externalLibraryId אם הם URL.
   static String? resolveLink({
     String? filePath,

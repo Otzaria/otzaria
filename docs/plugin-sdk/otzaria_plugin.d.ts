@@ -259,6 +259,8 @@ export interface SearchResult {
   text: string;
   /** ראה `SearchTextStatus`. */
   textStatus?: SearchTextStatus;
+  /** הביטוי נמשך מסוף השורה `index` אל השורה הבאה; `text` מחבר את שתיהן ב-`<br>`. */
+  continuesToNextLine?: boolean;
   index: number;
 }
 
@@ -282,6 +284,14 @@ export interface BookIdentity {
   type?: BookType | null;
   source?: 'library' | 'user' | 'external' | 'attached' | null;
   external?: { provider: 'hebrewbooks' | 'otzar'; id: number | string };
+}
+
+/** Initial print range; the user can change the range and commentators in the dialog. */
+export interface ReaderPrintRangeArgs extends BookIdentity {
+  startIndex: number;
+  endIndex?: number;
+  /** Omitted: active reader selection for this book, otherwise linked commentators. []: none. */
+  commentators?: string[];
 }
 
 /** One book in `library.setProviderBooks`. */
@@ -355,6 +365,8 @@ export interface SearchQueryHit extends BookIdentity {
   text: string;
   /** ראה `SearchTextStatus`. */
   textStatus?: SearchTextStatus;
+  /** הביטוי נמשך מסוף השורה `index` אל השורה הבאה; `text` מחבר את שתיהן ב-`<br>`. */
+  continuesToNextLine?: boolean;
   index: number;
   mergedCount: number;
   merged?: Array<
@@ -1145,6 +1157,7 @@ export interface ReaderSectionContentChangedEvent {
 }
 
 export type ContextMenuContext =
+  | 'reader-book'
   | 'reader-selection'
   | 'reader-page-shape-selection'
   /** Right-click on a plugin highlight, with or without an active selection.
@@ -1896,6 +1909,31 @@ export interface ListInstalledFontsResult {
   platform: string;
 }
 
+export interface SubmitBookCorrectionParams {
+  reportId: string;
+  bookId: string;
+  bookUid?: string;
+  sectionIndex: number;
+  endSectionIndex?: number;
+  snapshots: Array<{ index: number; text: string }>;
+  original: string;
+  proposed: string;
+  sourceStart?: number;
+  sourceEnd?: number;
+  details?: string;
+  allowQueue?: boolean;
+  forceFreeText?: boolean;
+}
+
+export interface SubmitBookCorrectionResult {
+  status: 'sent' | 'queued';
+  reportId: string;
+  nativeReportId: string;
+  message: string;
+  duplicate: boolean;
+  correctionSupported: boolean | null;
+}
+
 export type OtzariaMethod =
   | 'app.getInfo'
   | 'app.getTheme'
@@ -1936,6 +1974,7 @@ export type OtzariaMethod =
   | 'search.getOptions'
   | 'reader.openBook'
   | 'reader.openBookAtRef'
+  | 'reader.printRange'
   | 'reader.registerInBookSearchProvider'
   | 'reader.respondInBookSearch'
   | 'reader.openSearchTab'
@@ -2001,6 +2040,7 @@ export type OtzariaMethod =
   | 'publishedData.remove'
   | 'publishedData.listOwn'
   | 'feedback.sendEmail'
+  | 'feedback.submitBookCorrection'
   | 'feedback.report'
   | 'feedback.hasReporterEmail'
   | 'history.list'
@@ -2077,6 +2117,12 @@ export interface OtzariaGlobal {
     payload: NetworkFetchParams
   ): AsyncIterable<NetworkFetchStreamChunk>;
 
+  /** Waits for the print dialog to finish, without the generic 30-second RPC timeout. */
+  call(
+    method: 'reader.printRange',
+    payload: ReaderPrintRangeArgs
+  ): Promise<OtzariaResponse<{ printed: boolean }>>;
+
   /** פותח כרטיסיית חיפוש מובנית עם השאילתה וההגדרות. */
   call(
     method: 'reader.openSearchTab',
@@ -2144,6 +2190,11 @@ export interface OtzariaGlobal {
     method: 'plugin.listInstalled',
     payload?: Record<string, unknown>
   ): Promise<OtzariaResponse<InstalledPlugin[]>>;
+
+  call(
+    method: 'feedback.submitBookCorrection',
+    payload: SubmitBookCorrectionParams
+  ): Promise<OtzariaResponse<SubmitBookCorrectionResult>>;
 
   /**
    * Call a Host API method.

@@ -32,6 +32,16 @@ const String _namespace = 'otzaria.test.crosswindowdrag';
 
 /// מסלול הגרירה בין חלונות נבדק עד כה **ידנית בלבד**, וזה הפער שהדוח סימן.
 /// כאן נבדקת ההחלטה עצמה: מה קורה לכרטיסיה בכל אחת מארבע התוצאות.
+/// [atLeast] לפחות, ועוד עד ש-[done] מתקיים: בעומס הטיימר התקופתי של
+/// המסירה מתעכב, והמתנה קבועה בלבד נכשלת.
+Future<void> _waitAtLeastUntil(Duration atLeast, bool Function() done) async {
+  await Future<void>.delayed(atLeast);
+  final deadline = DateTime.now().add(const Duration(seconds: 10));
+  while (!done() && DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -238,6 +248,9 @@ void main() {
     // מודדות את ההמתנה לו במקום את המסירה.
     const settle = Duration(milliseconds: 620);
 
+    Future<void> settleUntil(bool Function() done) =>
+        _waitAtLeastUntil(settle, done);
+
     const colors = DragPreviewColors(
       tab: Color(0xFF202020),
       border: Color(0xFF404040),
@@ -263,7 +276,7 @@ void main() {
       runner.cursorTarget = (slot: null, isSelf: false, isShellTray: false);
 
       final cancelled = startDrag(firstTab());
-      await Future<void>.delayed(settle);
+      await settleUntil(() => runner.systemDragCalls == 1 && cancelled());
 
       expect(runner.systemDragCalls, 1);
       expect(cancelled(), isTrue);
@@ -278,7 +291,7 @@ void main() {
       runner.systemDragGate = gate;
 
       startDrag(firstTab());
-      await Future<void>.delayed(settle);
+      await settleUntil(() => runner.systemDragCalls == 1);
 
       expect(runner.systemDragCalls, 1, reason: 'הגרירה נמסרה');
       expect(
@@ -290,7 +303,11 @@ void main() {
 
       // המשתמש שחרר.
       gate.complete();
-      await Future<void>.delayed(settle);
+      await settleUntil(
+        () =>
+            runner.openWindowCalls == 1 &&
+            tabsBloc.events.whereType<RemoveTab>().length == 1,
+      );
 
       expect(runner.openWindowCalls, 1);
       expect(tabsBloc.events.whereType<RemoveTab>(), hasLength(1));
@@ -309,7 +326,7 @@ void main() {
       );
 
       startDrag(firstTab());
-      await Future<void>.delayed(settle);
+      await settleUntil(() => runner.openWindowCalls == 1);
 
       expect(runner.openWindowCalls, 1);
       final bounds = runner.lastOpenArgs?['bounds'] as Map<Object?, Object?>?;
@@ -343,7 +360,7 @@ void main() {
       );
 
       startDrag(firstTab());
-      await Future<void>.delayed(settle);
+      await settleUntil(() => runner.lastOpenArgs != null);
 
       expect(runner.lastOpenArgs?['bounds'], isNull);
       expect(
@@ -364,7 +381,11 @@ void main() {
       runner.systemDragTarget = (slot: 2, isSelf: false, isShellTray: false);
 
       startDrag(firstTab());
-      await Future<void>.delayed(settle);
+      await settleUntil(
+        () =>
+            peer.receivedTabs == 1 &&
+            tabsBloc.events.whereType<RemoveTab>().length == 1,
+      );
 
       expect(peer.receivedTabs, 1);
       expect(runner.openWindowCalls, 0);
@@ -390,7 +411,11 @@ void main() {
       );
 
       startDrag(firstTab());
-      await Future<void>.delayed(settle);
+      await settleUntil(
+        () =>
+            runner.openWindowCalls == 1 &&
+            tabsBloc.events.whereType<RemoveTab>().length == 1,
+      );
 
       expect(runner.openWindowCalls, 1);
       expect(tabsBloc.events.whereType<RemoveTab>(), hasLength(1));
@@ -412,7 +437,7 @@ void main() {
       );
 
       startDrag(firstTab());
-      await Future<void>.delayed(settle);
+      await settleUntil(() => runner.openWindowCalls == 1);
 
       expect(peer.receivedTabs, 0);
       expect(runner.openWindowCalls, 1);
@@ -423,7 +448,7 @@ void main() {
       runner.systemDragTarget = (slot: 1, isSelf: true, isShellTray: false);
 
       startDrag(firstTab());
-      await Future<void>.delayed(settle);
+      await settleUntil(() => runner.endCalls == 1);
 
       expect(runner.openWindowCalls, 0);
       expect(tabsBloc.events, isEmpty);
@@ -446,7 +471,7 @@ void main() {
       runner.cursorTarget = (slot: null, isSelf: false, isShellTray: false);
 
       startDrag(firstTab());
-      await Future<void>.delayed(settle);
+      await settleUntil(() => runner.openWindowCalls == 1);
 
       expect(runner.openWindowCalls, 1);
     });
@@ -615,7 +640,10 @@ void main() {
         runner.systemDragGate = gate;
 
         drag.begin(firstTab(), colors, tabsBloc: tabsBloc, cancelDrag: () {});
-        await Future<void>.delayed(const Duration(milliseconds: 620));
+        await _waitAtLeastUntil(
+          const Duration(milliseconds: 620),
+          () => runner.systemDragCalls == 1,
+        );
 
         expect(runner.setImageCalls, 0);
         expect(runner.systemDragCalls, 1);
@@ -644,7 +672,10 @@ void main() {
       expect(runner.setImageCalls, 1);
       expect(runner.systemDragCalls, 0);
 
-      await Future<void>.delayed(const Duration(milliseconds: 470));
+      await _waitAtLeastUntil(
+        const Duration(milliseconds: 470),
+        () => runner.systemDragCalls == 1,
+      );
       expect(runner.systemDragCalls, 1);
       gate.complete();
       await Future<void>.delayed(const Duration(milliseconds: 60));

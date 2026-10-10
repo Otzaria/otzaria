@@ -57,7 +57,8 @@ void main() {
     test('סוג התוכן לפי הסיומת', () {
       expect(AppReportImage.mimeTypeForPath(r'C:\a\b.PNG'), 'image/png');
       expect(AppReportImage.mimeTypeForPath('x.jpeg'), 'image/jpeg');
-      expect(AppReportImage.mimeTypeForPath('x.gif'), isNull);
+      expect(AppReportImage.mimeTypeForPath('x.GIF'), 'image/gif');
+      expect(AppReportImage.mimeTypeForPath('x.webp'), isNull);
       expect(AppReportImage.mimeTypeForPath('noext'), isNull);
     });
   });

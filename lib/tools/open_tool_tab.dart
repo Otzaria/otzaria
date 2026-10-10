@@ -11,6 +11,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
@@ -139,6 +140,35 @@ void closeUninstalledPluginTabs(BuildContext context) {
   for (final tab in orphaned) {
     tabsBloc.add(RemoveTab(tab));
   }
+}
+
+/// טאבי תוסף שעדיין נושאים את כותרת הגיבוי, ממופים לשם האמיתי של התוסף.
+/// טאב שנפתח בזמן שרישום התוספים נטען מקבל "כלי" ונשמר כך עם סביבת העבודה.
+Map<ToolTab, String> pluginTabsWithFallbackTitle(
+  List<OpenedTab> tabs,
+  PluginSystemState pluginState,
+) {
+  if (pluginState is! PluginSystemLoaded) return const {};
+  final titles = {
+    for (final plugin in pluginState.plugins)
+      plugin.pluginId: ToolCatalogEntry.fromPlugin(plugin).label,
+  };
+  return {
+    for (final tab in tabs.expand(leafPanes).whereType<ToolTab>())
+      if (tab.isPlugin &&
+          tab.title == ToolTab.fallbackTitleFor(tab.toolId) &&
+          titles[tab.toolId] != null)
+        tab: titles[tab.toolId]!,
+  };
+}
+
+/// מחליף את כותרת הגיבוי של טאבי תוסף בשם התוסף.
+void retitleFallbackPluginTabs(BuildContext context) {
+  final tabsBloc = context.read<TabsBloc>();
+  pluginTabsWithFallbackTitle(
+    tabsBloc.state.tabs,
+    context.read<PluginSystemBloc>().state,
+  ).forEach((tab, title) => tabsBloc.add(RenameTab(tab, title)));
 }
 
 /// הודעת השגיאה המתאימה לסיבת אי-הזמינות.

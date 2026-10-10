@@ -20,3 +20,8 @@ DynamicLibrary openZstandardLib() {
   }
   throw UnsupportedError('Platform not supported: ${Platform.operatingSystem}');
 }
+
+/// windowLogMax לפענוח: ארכיונים נדחסים עם `--long`/`--patch-from` וחלונם
+/// גדול מברירת המחדל. ב-32 ביט zstd דוחה 31 — התקרה שם היא 30.
+int zstdWindowLogMax([int? pointerSize]) =>
+    (pointerSize ?? sizeOf<IntPtr>()) == 4 ? 30 : 31;

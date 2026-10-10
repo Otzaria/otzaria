@@ -9,7 +9,20 @@ on:
     branches:
       - main
       - dev
+    # מפתח ה-cache נגזר מגרסת Flutter ומ-pubspec.lock; push אחר מוצא hit ולא שומר.
+    paths:
+      - '**/pubspec.lock'
+      - '**/pubspec.yaml'
+      - .github/workflows/warm_flutter_cache.yml
+      - .github/workflows/flutter_tests.yml
+  # משחזר cache שנמחק (פינוי לפי מקום) גם בלי שינוי בתלויות.
+  schedule:
+    - cron: '0 3 * * 0'
   workflow_dispatch:
+
+concurrency:
+  group: warm-flutter-cache-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   warm:

@@ -24,6 +24,12 @@ class _MemoryNotesDb implements PersonalNotesDatabase {
   }
 
   @override
+  Future<PersonalNote?> getNote(String id) async => notes[id];
+
+  @override
+  Future<void> updateNote(PersonalNote note) async => notes[note.id] = note;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -122,4 +128,51 @@ void main() {
     )).single;
     expect(stillMissing.status, PersonalNoteStatus.missing);
   });
+
+  test(
+    'הערה שאיבדה את מיקומה נשמרת ללא שורה, ומיקום מחדש מנקה את השורה הקודמת',
+    () async {
+      final database = _MemoryNotesDb();
+      final service = PersonalNotesService(
+        database: database,
+        random: Random(1),
+      );
+      const book = 'שורה ראשונה בספר\nשורה שנייה עם רבי יוחנן';
+      final note = (await service.addNote(
+        bookId: 'ספר',
+        bookContent: book,
+        lineNumber: 2,
+        content: 'הערה',
+        contentPlain: 'הערה',
+        contentFormat: PersonalNoteContentFormat.plain,
+      )).single;
+
+      final missing = (await service.loadNotes(
+        bookId: 'ספר',
+        bookContent: 'טקסט אחר לגמרי',
+      )).single;
+      expect(missing.status, PersonalNoteStatus.missing);
+      expect(missing.lineNumber, isNull);
+      expect(missing.lastKnownLineNumber, 2);
+      expect(database.notes[note.id]!.lineNumber, isNull);
+
+      database.notes[note.id] = note;
+      final replaced = (await service.loadNotes(
+        bookId: 'ספר',
+        bookContent: 'שורה ראשונה בספר\nמשהו אחר לגמרי',
+      )).single;
+      expect(replaced.status, PersonalNoteStatus.missing);
+      expect(replaced.lineNumber, isNull);
+      expect(replaced.lastKnownLineNumber, 2);
+
+      final moved = (await service.repositionNote(
+        bookId: 'ספר',
+        noteId: note.id,
+        bookContent: book,
+        lineNumber: 1,
+      )).single;
+      expect(moved.lineNumber, 1);
+      expect(moved.lastKnownLineNumber, isNull);
+    },
+  );
 }

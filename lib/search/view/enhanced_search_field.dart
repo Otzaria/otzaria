@@ -67,7 +67,6 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   final GlobalKey _searchOptionsOverlayKey = GlobalKey();
   OverlayEntry? _searchOptionsOverlay;
   double _searchOptionsOverlayHeight = 0;
-  late final FocusNode _keyboardListenerFocusNode;
   late final FocusNode _textFieldKeyboardListenerFocusNode;
 
   static const double _kSearchFieldMinWidth = 300;
@@ -76,11 +75,6 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   @override
   void initState() {
     super.initState();
-    _keyboardListenerFocusNode = FocusNode(
-      debugLabel: 'enhanced_search_field_keyboard_listener',
-      skipTraversal: true,
-      canRequestFocus: false,
-    );
     _textFieldKeyboardListenerFocusNode = FocusNode(
       debugLabel: 'enhanced_search_field_textfield_listener',
       skipTraversal: true,
@@ -118,7 +112,6 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
   void dispose() {
     _hideSearchOptionsOverlay();
     _detachTabListeners(widget.tab);
-    _keyboardListenerFocusNode.dispose();
     _textFieldKeyboardListenerFocusNode.dispose();
     // בכוונה לא מנקים כאן את אפשרויות הטאב: הטאב שייך לבעליו (דיאלוג
     // החיפוש או טאב תוצאות חי), וה-dispose של השדה רץ לפני זה של הדיאלוג
@@ -436,23 +429,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
         query = utils.removeVolwels(query);
       }
 
-      final searchMode = widget.tab.searchBloc.state.configuration.searchMode;
-      final normalizedParameters =
-          SearchQueryBuilder.normalizeParametersForMode(
-            searchMode,
-            customSpacing: widget.tab.spacingValues,
-            alternativeWords: widget.tab.alternativeWords,
-            searchOptions: widget.tab.effectiveSearchOptions(query: query),
-          );
-      final normalizedNegativeParameters =
-          SearchQueryBuilder.normalizeParametersForMode(
-            searchMode,
-            customSpacing: widget.tab.negativeSpacingValues,
-            alternativeWords: widget.tab.negativeAlternativeWords,
-            searchOptions: widget.tab.effectiveNegativeSearchOptions(
-              query: widget.tab.negativeQueryController.text,
-            ),
-          );
+      final searchEvent = searchQueryEventForTab(widget.tab, query);
 
       widget.tab.updateTitleFromAppliedQuery(query);
       // תחביר `@קטגוריה`/`@ספר` גובר על scope הקיים של הטאב. מעבירים את
@@ -470,19 +447,7 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
           SetFacetsWithoutSearch(parsedCategory.facets!),
         );
       }
-      context.read<SearchBloc>().add(
-        UpdateSearchQuery(
-          query,
-          negativeQuery: widget.tab.negativeQueryController.text,
-          customSpacing: normalizedParameters.customSpacing,
-          alternativeWords: normalizedParameters.alternativeWords,
-          searchOptions: normalizedParameters.searchOptions,
-          negativeCustomSpacing: normalizedNegativeParameters.customSpacing,
-          negativeAlternativeWords:
-              normalizedNegativeParameters.alternativeWords,
-          negativeSearchOptions: normalizedNegativeParameters.searchOptions,
-        ),
-      );
+      context.read<SearchBloc>().add(searchEvent);
       widget.tab.isLeftPaneOpen.value = false;
     }
   }
@@ -502,146 +467,135 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
           },
         ),
       ],
-      child: KeyboardListener(
-        focusNode: _keyboardListenerFocusNode,
-        onKeyEvent: (KeyEvent event) {
-          // טיפול ב-Enter גם כשהפוקוס לא בתיבת החיפוש
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.enter &&
-              !widget.tab.searchFieldFocusNode.hasFocus) {
-            _performSearch();
-          }
-        },
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minWidth: _kSearchFieldMinWidth,
-                        minHeight: _kControlHeight,
-                      ),
-                      child: KeyboardListener(
-                        focusNode: _textFieldKeyboardListenerFocusNode,
-                        onKeyEvent: (KeyEvent event) {
-                          // עדכון המגירה כשמשתמשים בחצים במקלדת
-                          if (event is KeyDownEvent) {
-                            final isArrowKey =
-                                event.logicalKey.keyLabel == 'Arrow Left' ||
-                                event.logicalKey.keyLabel == 'Arrow Right' ||
-                                event.logicalKey.keyLabel == 'Arrow Up' ||
-                                event.logicalKey.keyLabel == 'Arrow Down';
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: _kSearchFieldMinWidth,
+                      minHeight: _kControlHeight,
+                    ),
+                    child: KeyboardListener(
+                      focusNode: _textFieldKeyboardListenerFocusNode,
+                      onKeyEvent: (KeyEvent event) {
+                        // עדכון המגירה כשמשתמשים בחצים במקלדת
+                        if (event is KeyDownEvent) {
+                          final isArrowKey =
+                              event.logicalKey.keyLabel == 'Arrow Left' ||
+                              event.logicalKey.keyLabel == 'Arrow Right' ||
+                              event.logicalKey.keyLabel == 'Arrow Up' ||
+                              event.logicalKey.keyLabel == 'Arrow Down';
 
-                            if (isArrowKey) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (_searchOptionsOverlay != null) {
-                                  _updateSearchOptionsOverlay();
-                                }
-                              });
-                            }
+                          if (isArrowKey) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (_searchOptionsOverlay != null) {
+                                _updateSearchOptionsOverlay();
+                              }
+                            });
                           }
-                        },
-                        child: Tooltip(
-                          message: context.settingsText(
-                            'הקלד מילות חיפוש ולחץ Enter או על סמל החיפוש כדי לבצע חיפוש.',
-                          ),
-                          child: RtlTextField(
-                            focusNode: widget.tab.searchFieldFocusNode,
-                            controller: widget.tab.queryController,
-                            onChanged: (text) {
-                              // עדכון המגירה כשהטקסט משתנה
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (_searchOptionsOverlay != null) {
-                                  _updateSearchOptionsOverlay();
-                                }
-                              });
-                            },
-                            onSubmitted: (e) {
-                              _performSearch();
-                            },
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: colorScheme.surfaceContainerHigh,
-                              border: const OutlineInputBorder(),
-                              hintText: context.settingsText(
-                                'הקלד מילות חיפוש',
-                              ),
-                              labelText: context.settingsText('חיפוש'),
-                              prefixIcon: widget.showInlineSearchButton
-                                  ? IconButton(
-                                      onPressed: _performSearch,
-                                      icon: const Icon(
-                                        OtzariaIcons.search_24_regular,
-                                      ),
-                                    )
-                                  : const Icon(OtzariaIcons.search_24_regular),
-                              suffixIcon: widget.trailingAction != null
-                                  ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        widget.trailingAction!,
-                                        IconButton(
-                                          icon: const Icon(
-                                            FluentIcons.dismiss_24_regular,
-                                          ),
-                                          onPressed: () {
-                                            widget.tab.queryController.clear();
-                                            widget.tab.searchOptions.clear();
-                                            widget.tab.globalSearchOptions
-                                                .clear();
-                                            context.read<SearchBloc>().add(
-                                              UpdateSearchQuery(''),
-                                            );
-                                            context.read<SearchBloc>().add(
-                                              UpdateFacetCounts({}),
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                    )
-                                  : IconButton(
-                                      icon: const Icon(
-                                        FluentIcons.dismiss_24_regular,
-                                      ),
-                                      onPressed: () {
-                                        widget.tab.queryController.clear();
-                                        widget.tab.searchOptions.clear();
-                                        widget.tab.globalSearchOptions.clear();
-                                        context.read<SearchBloc>().add(
-                                          UpdateSearchQuery(''),
-                                        );
-                                        context.read<SearchBloc>().add(
-                                          UpdateFacetCounts({}),
-                                        );
-                                      },
-                                    ),
+                        }
+                      },
+                      child: Tooltip(
+                        message: context.settingsText(
+                          'הקלד מילות חיפוש ולחץ Enter או על סמל החיפוש כדי לבצע חיפוש.',
+                        ),
+                        child: RtlTextField(
+                          focusNode: widget.tab.searchFieldFocusNode,
+                          controller: widget.tab.queryController,
+                          onChanged: (text) {
+                            // עדכון המגירה כשהטקסט משתנה
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (_searchOptionsOverlay != null) {
+                                _updateSearchOptionsOverlay();
+                              }
+                            });
+                          },
+                          onSubmitted: (e) {
+                            _performSearch();
+                          },
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: colorScheme.surfaceContainerHigh,
+                            border: const OutlineInputBorder(),
+                            hintText: context.settingsText(
+                              'הקלד מילות חיפוש',
                             ),
+                            labelText: context.settingsText('חיפוש'),
+                            prefixIcon: widget.showInlineSearchButton
+                                ? IconButton(
+                                    onPressed: _performSearch,
+                                    icon: const Icon(
+                                      OtzariaIcons.search_24_regular,
+                                    ),
+                                  )
+                                : const Icon(OtzariaIcons.search_24_regular),
+                            suffixIcon: widget.trailingAction != null
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      widget.trailingAction!,
+                                      IconButton(
+                                        icon: const Icon(
+                                          FluentIcons.dismiss_24_regular,
+                                        ),
+                                        onPressed: () {
+                                          widget.tab.queryController.clear();
+                                          widget.tab.searchOptions.clear();
+                                          widget.tab.globalSearchOptions
+                                              .clear();
+                                          context.read<SearchBloc>().add(
+                                            UpdateSearchQuery(''),
+                                          );
+                                          context.read<SearchBloc>().add(
+                                            UpdateFacetCounts({}),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  )
+                                : IconButton(
+                                    icon: const Icon(
+                                      FluentIcons.dismiss_24_regular,
+                                    ),
+                                    onPressed: () {
+                                      widget.tab.queryController.clear();
+                                      widget.tab.searchOptions.clear();
+                                      widget.tab.globalSearchOptions.clear();
+                                      context.read<SearchBloc>().add(
+                                        UpdateSearchQuery(''),
+                                      );
+                                      context.read<SearchBloc>().add(
+                                        UpdateFacetCounts({}),
+                                      );
+                                    },
+                                  ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                  // הצעת תיקון-מקלדת חיה תוך כדי הקלדה (issue #975):
-                  // מוצגת רק כשהטקסט נראה כהקלדה עברית במצב אנגלי,
-                  // ולחיצה מחליפה את תוכן השדה בלבד — החיפוש לא רץ מעצמו.
-                  TypingLayoutFixSuggestion(
-                    controller: widget.tab.queryController,
-                    fieldFocusNode: widget.tab.searchFieldFocusNode,
-                    hint: 'לחיצה תחליף את הטקסט שהוקלד',
-                  ),
-                ],
-              ),
+                ),
+                // הצעת תיקון-מקלדת חיה תוך כדי הקלדה (issue #975):
+                // מוצגת רק כשהטקסט נראה כהקלדה עברית במצב אנגלי,
+                // ולחיצה מחליפה את תוכן השדה בלבד — החיפוש לא רץ מעצמו.
+                TypingLayoutFixSuggestion(
+                  controller: widget.tab.queryController,
+                  fieldFocusNode: widget.tab.searchFieldFocusNode,
+                  hint: 'לחיצה תחליף את הטקסט שהוקלד',
+                ),
+              ],
             ),
-            // אזורי ריחוף הוסרו - לא נחוצים יותר
-            // כפתורי ה+ וכפתורי המרווח הוסרו - עכשיו משתמשים בבקרים בדיאלוג
-          ],
-        ),
+          ),
+          // אזורי ריחוף הוסרו - לא נחוצים יותר
+          // כפתורי ה+ וכפתורי המרווח הוסרו - עכשיו משתמשים בבקרים בדיאלוג
+        ],
       ),
     );
   }

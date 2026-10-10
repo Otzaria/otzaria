@@ -24,19 +24,17 @@ class SettingsSearchNavigationRequest {
 /// - כל SettingsAnchor מרשם את ה-GlobalKey שלו במפה לפי cardId.
 /// - תוצאות חיפוש שולחות navigateToEntry → מתעדכן _pendingRequest.
 /// - מסך ההגדרות מאזין ומעביר ל-tab המתאים, ואז קורא scrollAndHighlight.
-/// - SettingsAnchor מאזין ל-_highlightedCardId ומפעיל אנימציית הבזק כשמותאם.
+/// - SettingsAnchor מאזין ל-notifier של הכרטיס ומפעיל אנימציית הבזק.
 class SettingsSearchRegistry extends ChangeNotifier {
   SettingsSearchRegistry._();
   static final SettingsSearchRegistry instance = SettingsSearchRegistry._();
 
   final Map<String, GlobalKey> _anchors = {};
   final Map<String, ValueNotifier<bool>> _flashNotifiers = {};
+  final Map<String, ValueChanged<String>> _sectionOpeners = {};
 
   SettingsSearchNavigationRequest? _pendingRequest;
   SettingsSearchNavigationRequest? get pendingRequest => _pendingRequest;
-
-  String? _highlightedCardId;
-  String? get highlightedCardId => _highlightedCardId;
 
   /// רישום אנכור על ידי SettingsAnchor (קריאה מ-initState).
   void registerAnchor(String cardId, GlobalKey key) {
@@ -49,6 +47,16 @@ class SettingsSearchRegistry extends ChangeNotifier {
     if (_anchors[cardId] == key) {
       _anchors.remove(cardId);
     }
+  }
+
+  /// Lets the card [cardId] open the part of it that a result's
+  /// `expandSection` names, when that part is not on the page itself.
+  void registerSectionOpener(String cardId, ValueChanged<String> open) {
+    _sectionOpeners[cardId] = open;
+  }
+
+  void unregisterSectionOpener(String cardId, ValueChanged<String> open) {
+    if (_sectionOpeners[cardId] == open) _sectionOpeners.remove(cardId);
   }
 
   /// מציין שזה הזמן להבזיק על cardId נתון (מאזינים ב-SettingsAnchor).
@@ -81,7 +89,7 @@ class SettingsSearchRegistry extends ChangeNotifier {
   /// כשהטאב עוד לא נבנה, ה-context לא זמין מיד — לכן ננסה כמה פעמים
   /// (עד ~720ms) לפני ויתור, כדי לכסות build איטי או anchors שעוד
   /// לא נכנסו לעץ.
-  Future<void> scrollAndHighlight(String cardId) async {
+  Future<void> scrollAndHighlight(String cardId, {String? section}) async {
     BuildContext? ctx;
     for (var attempt = 0; attempt < 12; attempt++) {
       ctx = _anchors[cardId]?.currentContext;
@@ -97,13 +105,17 @@ class SettingsSearchRegistry extends ChangeNotifier {
       alignment: 0.05,
     );
 
-    _highlightedCardId = cardId;
+    final openSection = _sectionOpeners[cardId];
+    if (section != null && openSection != null) {
+      openSection(section);
+      return;
+    }
+
     final notifier = _flashNotifiers[cardId];
     if (notifier != null) {
       notifier.value = true;
       await Future.delayed(const Duration(milliseconds: 1400));
       notifier.value = false;
     }
-    _highlightedCardId = null;
   }
 }

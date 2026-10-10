@@ -65,26 +65,52 @@ void main() {
   group('הסקריפט משקף את מימוש הייחוס', () {
     test('BuildPresets: אותם סוגים, אותו סדר ואותו כלל חבילה', () {
       final body = _routine(_script(), 'procedure BuildPresets();');
+      final bundle = _routine(_script(), 'function FullPresetBundle(');
+      final indexed = _routine(_script(), 'function IndexedPresetBundle(');
 
+      expect(body, contains('Bundle := FullPresetBundle();'));
+      expect(body, contains('Bundle := IndexedPresetBundle();'));
+      for (final routine in [bundle, indexed]) {
+        expect(
+          routine,
+          contains("(CompType[I] = 'application-bundle')"),
+          reason: 'החבילות הן מסוג application-bundle',
+        );
+        expect(routine, contains('ComponentIsOffered(I)'));
+      }
       expect(
-        body,
-        contains("(CompType[I] = 'application-bundle')"),
-        reason: '"מלאה" היא החבילה הגדולה ביותר מסוג application-bundle',
+        bundle,
+        contains('(CompDownloadSize[I] > CompDownloadSize[Result])'),
+        reason: '"מלאה": החבילה הגדולה ביותר, כמו ב-buildPresets',
       );
       expect(
-        body,
+        indexed.replaceAll(RegExp(r'\s+'), ' '),
+        allOf(
+          contains('InstallsLibrary(I)'),
+          contains(
+            '(MembersSize(WithInstalled(I)) > MembersSize(WithInstalled(Result)))',
+          ),
+        ),
+        reason:
+            '"מלאה + אינדקס": מתקינה ספרייה, הגדולה ביותר עם מה שהיא מתקינה',
+      );
+      expect(
+        _routine(_script(), 'function InstallsLibrary('),
+        allOf(
+          contains("(CompType[I] = 'library')"),
+          contains('MembersContain(CompInstalledBy[I], CompId[Bundle])'),
+          contains('ComponentIsOffered(I)'),
+        ),
+      );
+      expect(
+        _routine(_script(), 'function WithInstalled('),
         contains('MembersContain(CompInstalledBy[I], CompId[Bundle])'),
         reason: 'החבילה מגיעה עם מה שהיא מתקינה, כמו ב-buildPresets',
       );
       expect(
-        body,
+        body + bundle + indexed,
         isNot(contains('ComponentFitsTarget(')),
         reason: 'ההצעות בנויות רק ממה שמוצע ביעד (ComponentIsOffered)',
-      );
-      expect(
-        body,
-        contains('(CompDownloadSize[I] > CompDownloadSize[Bundle])'),
-        reason: 'החבילה הגדולה ביותר נבחרת, כמו ב-buildPresets',
       );
       final calls = RegExp(
         r"CollectByTypes\('([^']*)',\s*(False|True)\)",
@@ -92,6 +118,9 @@ void main() {
       expect(
         calls,
         [
+          'library,|False',
+          'application,library,dependency,|False',
+          'library-index,|False',
           'application,library,dependency,|False',
           'library,|False',
           'application,|False',
@@ -99,12 +128,54 @@ void main() {
           'application,|False',
         ],
         reason:
-            'הרשימות חייבות להתאים ל-buildPresets — מלאה (ורק עם ספרייה), בסיסית, עדכון',
+            'הרשימות חייבות להתאים ל-buildPresets — מלאה + אינדקס ב-Android, '
+            'מלאה (ורק עם ספרייה), בסיסית, עדכון',
       );
+      expect(
+        body.replaceAll(RegExp(r'\s+'), ' '),
+        contains(
+          "else if (TargetPlatform = 'android') and (FullPresetBundle() < 0)",
+        ),
+        reason: 'בלי חבילה, "מלאה + אינדקס" רק ב-Android',
+      );
+      // סדר ההוספה הוא סדר ההערכה של buildPresets: הוא קובע איזו כפולה מושמטת.
       final ids = RegExp(
-        r"AddPreset\('([a-z]+)'",
+        r"AddPreset\('([a-z-]+)'",
       ).allMatches(body).map((m) => m.group(1)).toList();
-      expect(ids, ['full', 'basic', 'update']);
+      expect(ids, ['full-indexed', 'full-indexed', 'full', 'basic', 'update']);
+
+      // נתוני החיפוש החכם בשתי ההצעות המלאות, בכל הענפים.
+      expect(
+        body,
+        contains('Offline := CollectByTypes(OfflineDataTypes, False);'),
+      );
+      expect('+ Offline'.allMatches(body), hasLength(4));
+      final declared = RegExp(
+        r"OfflineDataTypes = '([^']*)';",
+      ).firstMatch(_script())!.group(1)!;
+      expect(
+        declared.split(',').where((t) => t.isNotEmpty).toSet(),
+        kOfflineDataTypes,
+      );
+    });
+
+    test('ההצעות נשמרות בסדר ההצגה של מימוש הייחוס', () {
+      final declared = RegExp(
+        r"PresetDisplayOrder = '([^']*)';",
+      ).firstMatch(_script())!.group(1)!;
+      expect(
+        declared.split(',').where((t) => t.isNotEmpty).toList(),
+        kPresetDisplayOrder,
+      );
+      expect(
+        _routine(_script(), 'procedure AddPreset('),
+        contains('DisplayRank(PresetId[I - 1]) > DisplayRank(Id)'),
+        reason: 'כל הצעה נכנסת למקומה בסדר ההצגה, ו"בחירה אישית" אחריהן',
+      );
+      expect(
+        _routine(_script(), 'procedure BuildPresets();'),
+        contains('CustomPresetIndex := GetArrayLength(PresetLabel);'),
+      );
     });
 
     test('שלושת המסייעים: אותם טקסטים ואותה הצעה מסומנת מראש', () {
@@ -119,7 +190,8 @@ void main() {
           'tool/download_assistant/macos/Sources/AssistantCore/Selection.swift',
           'tool/download_assistant/linux/selection.c',
         ])
-          path: File(path).readAsStringSync(),
+          // רווח קשיח במסייע אחד הוא תיקון תצוגה, לא נוסח אחר.
+          path: File(path).readAsStringSync().replaceAll('\u00A0', ' '),
       };
       for (final MapEntry(key: path, value: source) in sources.entries) {
         for (final preset in presets) {
@@ -127,10 +199,13 @@ void main() {
           expect(source, contains(preset.description), reason: path);
         }
       }
+      // בלי "בסיסית" — "מלאה", כמו defaultPresetIdFor; בלי שתיהן — הראשונה.
+      final refresh = _routine(_script(), 'procedure RefreshPresetPage(');
       expect(
-        _routine(_script(), 'procedure RefreshPresetPage('),
-        contains("DefaultIndex(PresetId, '$kDefaultPresetId')"),
+        refresh,
+        contains("I := ListIndex(PresetId, '$kDefaultPresetId');"),
       );
+      expect(refresh, contains("I := DefaultIndex(PresetId, 'full');"));
       expect(
         sources.values.elementAt(1),
         contains('defaultPresetId = "$kDefaultPresetId"'),
@@ -166,16 +241,64 @@ void main() {
         _routine(_script(), 'function ComponentIsRunnable('),
         contains('(AssetSize[A] >= MaxSingleOutputFileSize)'),
       );
-      for (final routine in const [
-        'function CollectByTypes(',
-        'procedure RefreshCustomPage();',
-      ]) {
-        expect(
-          _routine(_script(), routine),
-          contains('ComponentIsOffered(I)'),
-          reason: routine,
-        );
-      }
+      expect(
+        _routine(_script(), 'function CollectByTypes('),
+        contains('ComponentIsOffered(I)'),
+      );
+      expect(
+        _routine(_script(), 'function IsCustomChoice('),
+        contains('ComponentIsOffered(Index)'),
+      );
+    });
+
+    test('בבחירה האישית חלק (partOf) הוא חלק מהשורה של השלם (issue #1869)', () {
+      expect(
+        _routine(_script(), 'function IsCustomChoice('),
+        contains("(CompPartOf[Index] = '')"),
+      );
+      expect(
+        _routine(_script(), 'function CustomChoiceSize('),
+        contains('(CompPartOf[J] = CompId[Index]) and ComponentIsOffered(J)'),
+      );
+      final page = _routine(_script(), 'procedure RefreshCustomPage();');
+      expect(page, contains('if not IsCustomChoice(I, TakesLibrary) then'));
+      expect(page, contains('HumanSize(CustomChoiceSize(I))'));
+      final ui = File(
+        'installer/download_assistant_ui.iss',
+      ).readAsStringSync().replaceAll('\r\n', '\n');
+      expect(
+        _routine(ui, 'procedure UiBuildCards('),
+        contains('Card.Side := HumanSize(CustomChoiceSize(C));'),
+        reason: 'הכרטיסים מציגים את גודל השורה, לא של השלם לבדו',
+      );
+    });
+
+    test('הבחירה האישית: אותן שורות, נעילה ורדיו כמו customChoices', () {
+      final choice = _routine(_script(), 'function IsCustomChoice(');
+      expect(choice, contains("(CompType[Index] <> 'application-portable')"));
+      expect(
+        choice,
+        contains(
+          "not (TakesLibrary and (CompType[Index] = 'application-bundle'))",
+        ),
+      );
+      expect(
+        _routine(_script(), 'function InstallerTakesLibrary('),
+        contains("(CompType[Idx] = 'application')"),
+      );
+      expect(
+        _routine(_script(), 'function CustomInstallersAreRadio('),
+        contains('Result := N > 1;'),
+      );
+      final page = _routine(_script(), 'procedure RefreshCustomPage();');
+      expect(page, contains('IsCustomChoice(I, TakesLibrary)'));
+      expect(page, contains('CheckListBox.AddRadioButton('));
+      expect(page, contains('Locked, not Locked, False, False, nil)'));
+      expect(
+        _routine(_script(), 'procedure CustomChoiceClicked('),
+        contains('MembersContain(CompDependsOn[CustomIndex[Row]]'),
+      );
+      expect(kApplicationChoiceGroup, 'application');
     });
 
     test('בחירה אישית נסגרת כמו ההצעות', () {
@@ -244,14 +367,14 @@ void main() {
       expect(arm64['basic'], contains('otzaria-windows-arm64'));
     });
 
-    test('בלי מתקין מלא ל-ARM64 — אין "מלאה", ולא מתקין x64', () {
+    test('בלי מתקין מלא ל-ARM64 — "מלאה" היא המתקין הרגיל עם הספרייה', () {
       final arm64 = _presets(
         kKnownComponents
             .where((s) => s.id != 'otzaria-windows-full-arm64')
             .toList(),
         _windowsTargets[1],
       );
-      expect(arm64.keys, ['basic']);
+      expect(arm64['full'], ['otzaria-windows-arm64', 'library-full']);
       expect(arm64['basic'], ['otzaria-windows-arm64']);
     });
 
@@ -284,6 +407,94 @@ void main() {
           }
         }
       }
+    });
+  });
+
+  group('"מלאה + אינדקס חיפוש" במניפסט ישן', () {
+    const legacyIndexed = [
+      ComponentSpec(
+        id: 'otzaria-windows-full-indexed',
+        name: 'מתקין',
+        description: 'מתקין.',
+        type: 'application-bundle',
+        required: false,
+        platform: 'windows',
+        architecture: 'x64',
+        installOrder: 1,
+        assets: [],
+      ),
+      ComponentSpec(
+        id: 'library-full-indexed',
+        name: 'ספרייה',
+        description: 'ספרייה.',
+        type: 'library',
+        required: false,
+        platform: 'any',
+        installOrder: 30,
+        installedBy: ['otzaria-windows-full-indexed'],
+        assets: [],
+      ),
+    ];
+    const model = ComponentSpec(
+      id: 'semantic-model-windows',
+      name: 'מודל',
+      description: 'מודל.',
+      type: 'semantic-model',
+      required: false,
+      installOrder: 90,
+      platform: 'windows',
+      assets: [AssetSpec(pattern: r'^model\.bin$')],
+    );
+    const vectors = ComponentSpec(
+      id: 'semantic-vectors-windows',
+      name: 'נתונים',
+      description: 'נתונים.',
+      type: 'semantic-vectors',
+      required: false,
+      installOrder: 91,
+      platform: 'windows',
+      dependsOn: ['semantic-model-windows'],
+      assets: [AssetSpec(pattern: r'^vectors\.bin$')],
+    );
+
+    test('ב-x64: החבילה המאונדקסת עם הספרייה שלה, מעל "מלאה"', () {
+      final x64 = _presets([
+        ...kKnownComponents,
+        ...legacyIndexed,
+      ], _windowsTargets[0]);
+      expect(x64.keys, ['basic', 'full-indexed', 'full']);
+      expect(x64['full-indexed'], [
+        'otzaria-windows-full-indexed',
+        'library-full-indexed',
+      ]);
+      expect(x64['full'], isNot(contains('library-full-indexed')));
+    });
+
+    test('נתוני החיפוש החכם בשתי ההצעות המלאות בלבד', () {
+      final x64 = _presets([
+        ...kKnownComponents,
+        ...legacyIndexed,
+        model,
+        vectors,
+      ], _windowsTargets[0]);
+      for (final id in const ['full-indexed', 'full']) {
+        expect(
+          x64[id],
+          containsAll(['semantic-model-windows', 'semantic-vectors-windows']),
+          reason: id,
+        );
+      }
+      expect(x64['basic'], isNot(contains('semantic-model-windows')));
+    });
+
+    test('בלי ספרייה מאונדקסת ליעד (ARM64) אין "מלאה + אינדקס"', () {
+      expect(
+        _presets([
+          ...kKnownComponents,
+          ...legacyIndexed,
+        ], _windowsTargets[1]).keys,
+        isNot(contains('full-indexed')),
+      );
     });
   });
 

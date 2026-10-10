@@ -9,6 +9,7 @@ import 'package:otzaria/plugins/models/plugin_toolbar_item.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_external_search_service.dart';
+import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_registry.dart';
@@ -64,8 +65,48 @@ class _FakeDeclarativeHost implements DeclarativePluginHost {
   ) async {}
 
   @override
+  Future<void> dispatchLibraryBookAction(
+    String pluginId,
+    Map<String, dynamic> actionTemplate,
+    Map<String, dynamic> bookPayload,
+  ) async {}
+
+  @override
   void dispose() {}
 }
+
+Map<String, dynamic> _highlightPayload() => {
+  'highlightId': 'h1',
+  'bookId': 'book',
+  'sectionIndex': 1,
+  'range': {
+    'type': 'text-range-v1',
+    'schemaVersion': 1,
+    'layer': 'source',
+    'sourceTextHash':
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'start': {'grapheme': 2, 'codePoint': 2, 'utf16': 2},
+    'end': {'grapheme': 6, 'codePoint': 6, 'utf16': 6},
+    'exactText': 'טקסט',
+    'beforeText': {
+      'raw': 'לפני',
+      'normalized': 'לפני',
+      'maxGraphemes': 30,
+      'actualGraphemes': 4,
+      'truncatedAtBoundary': true,
+    },
+    'afterText': {
+      'raw': 'אחרי',
+      'normalized': 'אחרי',
+      'maxGraphemes': 30,
+      'actualGraphemes': 4,
+      'truncatedAtBoundary': true,
+    },
+    'occurrenceIndexInSection': 0,
+    'occurrenceCountInSection': 1,
+  },
+  'style': {'backgroundColor': '#FFE066', 'opacity': 0.7, 'priority': 3},
+};
 
 void main() {
   const toolbarItem = PluginToolbarItem(
@@ -79,6 +120,7 @@ void main() {
     PluginToolbarRegistry.instance.removeAll('p1');
     ContextMenuRegistry.instance.removeAll('p1');
     PluginShortcutRegistry.instance.removeAll('p1');
+    PluginHighlightRegistry.instance.removePlugin('p1');
     PluginLazyActivationService.instance.removePlugin('p1');
     PluginExternalSearchService.instance.removePlugin('p1');
     PluginInBookSearchService.instance.removePlugin('p1');
@@ -125,6 +167,23 @@ void main() {
     await revoke('app.shortcuts');
 
     expect(PluginShortcutRegistry.instance.getAll(), isEmpty);
+  });
+
+  test('revoking reader.highlight removes the plugin highlights', () async {
+    PluginHighlightRegistry.instance.setHighlight(
+      ownerPluginId: 'p1',
+      payload: _highlightPayload(),
+    );
+
+    await revoke('reader.highlight');
+
+    expect(
+      PluginHighlightRegistry.instance.getAllHighlights(
+        bookId: 'book',
+        sectionIndex: 1,
+      ),
+      isEmpty,
+    );
   });
 
   test('revoking an unrelated permission keeps the registrations', () async {

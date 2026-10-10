@@ -1120,11 +1120,13 @@ class _FakeIndexingRepository extends IndexingRepository {
   @override
   Future<IndexingRunResult> reconcileIndexWithLibrary(
     Library library, {
+    List<Book>? onlyBooks,
     void Function(int processed, int total)? onScanProgress,
     void Function()? onActualIndexingStarted,
     required void Function(int processed, int total) onProgress,
     Future<String?> Function(TextBook book)? loadText,
     Future<BigInt> Function(TextBook book, String text)? fingerprintOf,
+    String? fingerprintLibraryPath,
   }) {
     reconcileCalls++;
     for (final (processed, total) in scanProgressReports) {

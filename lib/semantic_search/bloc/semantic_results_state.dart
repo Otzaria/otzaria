@@ -22,8 +22,8 @@ class SemanticResultsState extends Equatable {
   final SemanticQueryOptions? options;
   final List<SemanticResultItem> items;
 
-  /// כמה פריטים אפשר לדפדף אליהם בסך הכול.
-  final int pageableTotal;
+  /// האם המקור דיווח על עמוד נוסף.
+  final bool morePages;
   final bool isLoadingMore;
 
   /// תבנית הודעת הכשל (עם `{name}`; מפתח תרגום) — מוצגת דרך settingsText.
@@ -36,42 +36,48 @@ class SemanticResultsState extends Equatable {
   /// מזהה החיפוש, לאיפוס הגלילה בחיפוש חדש.
   final int searchId;
 
+  /// קטע מסומן לפי עניין, לפי מיקום ברשימה — לתצוגה בלבד. נשמר בנפרד מ-[items]
+  /// כדי שהטלמטריה תיבנה תמיד מהקטע המקורי של המנוע.
+  final Map<int, String> passageHighlights;
+
   const SemanticResultsState({
     this.status = SemanticResultsStatus.initial,
     this.options,
     this.items = const [],
-    this.pageableTotal = 0,
+    this.morePages = false,
     this.isLoadingMore = false,
     this.message,
     this.isDebugPreview = false,
     this.votes = const {},
     this.searchId = 0,
+    this.passageHighlights = const {},
   });
 
-  bool get hasMore =>
-      status == SemanticResultsStatus.loaded && items.length < pageableTotal;
+  bool get hasMore => status == SemanticResultsStatus.loaded && morePages;
 
   SemanticResultsState copyWith({
     SemanticResultsStatus? status,
     SemanticQueryOptions? options,
     List<SemanticResultItem>? items,
-    int? pageableTotal,
+    bool? morePages,
     bool? isLoadingMore,
     String? message,
     bool clearMessage = false,
     bool? isDebugPreview,
     Map<int, SearchFeedbackVote>? votes,
     int? searchId,
+    Map<int, String>? passageHighlights,
   }) => SemanticResultsState(
     status: status ?? this.status,
     options: options ?? this.options,
     items: items ?? this.items,
-    pageableTotal: pageableTotal ?? this.pageableTotal,
+    morePages: morePages ?? this.morePages,
     isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     message: clearMessage ? null : message ?? this.message,
     isDebugPreview: isDebugPreview ?? this.isDebugPreview,
     votes: votes ?? this.votes,
     searchId: searchId ?? this.searchId,
+    passageHighlights: passageHighlights ?? this.passageHighlights,
   );
 
   @override
@@ -79,11 +85,12 @@ class SemanticResultsState extends Equatable {
     status,
     options,
     items,
-    pageableTotal,
+    morePages,
     isLoadingMore,
     message,
     isDebugPreview,
     votes,
     searchId,
+    passageHighlights,
   ];
 }

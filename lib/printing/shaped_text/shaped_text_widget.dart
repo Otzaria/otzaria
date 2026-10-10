@@ -59,9 +59,6 @@ class ShapedText extends pw.Widget with pw.SpanningWidget {
     heightFactor: heightFactor,
   );
 
-  /// The height this text needs at `maxWidth`, without laying it into a page.
-  double measureHeight(double maxWidth) => _blockFor(maxWidth).height;
-
   /// A spanning widget is laid out once per page it reaches; without this the
   /// whole text would be broken into lines again on every one of them.
   ShapedTextBlock _blockFor(double maxWidth) {

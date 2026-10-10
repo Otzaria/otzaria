@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/models/books.dart';
 import "package:flutter_bloc/flutter_bloc.dart";
@@ -56,11 +55,4 @@ void openPreparedTab(
     navigationBloc: context.read<NavigationBloc>(),
   );
   coordinator.openTab(tab, insertAdjacent: insertAdjacent);
-}
-
-/// "פתח בכרטיסייה חדשה": הטאב נכנס סמוך לנוכחי והמשתמש נשאר במקומו.
-void openTabInBackground(BuildContext context, OpenedTab tab) {
-  context.read<TabsBloc>().add(
-    AddTab(tab, insertAdjacent: true, inBackground: true),
-  );
 }

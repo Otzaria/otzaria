@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
-import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
@@ -81,12 +81,16 @@ class _CommentarySearchResultsListState
       query: widget.query,
       defaultStyle: TextStyle(
         fontSize: 14,
-        fontFamily: settingsState.commentatorsFontFamily,
+        fontFamily: AppFonts.renderFontFamily(
+          settingsState.commentatorsFontFamily,
+        ),
         color: colorScheme.onSurface,
         height: 1.5,
       ),
       highlightStyle: TextStyle(
-        fontFamily: settingsState.commentatorsFontFamily,
+        fontFamily: AppFonts.renderFontFamily(
+          settingsState.commentatorsFontFamily,
+        ),
         fontWeight: FontWeight.bold,
         fontVariations: AppFonts.boldFontVariations(
           settingsState.commentatorsFontFamily,

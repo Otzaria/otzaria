@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
@@ -5,20 +6,12 @@ import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
 
 /// יחסי הגדלים של fwfh ל-`<small>`/`<sup>` ול-`<big>`.
-///
-/// שלושת מסלולי הרינדור — המסלול המהיר כאן, HtmlWidget, והקריאה הרציפה —
-/// חייבים להתלכד עליהם: כל טקסט בסוגריים נעטף ב-`<small>`, ולכן פער ביחס
-/// משנה את גודל הסוגריים לפי המסלול שבו השורה במקרה עברה.
+/// זהים בשלושת מסלולי הרינדור כדי ששורות שכנות לא ישנו את גודל הסוגריים.
 const double kHtmlSmallerFontScale = 5 / 6;
 const double kHtmlLargerFontScale = 6 / 5;
 
-/// ממיר HTML פשוט (טקסט + תגי עיצוב בסיסיים בלבד) ל-[TextSpan] ישירות,
-/// כדי לעקוף את עלות הפרסור ובניית העץ של HtmlWidget עבור רוב שורות הספרים.
-///
-/// כל markup שאינו ברשימה הלבנה (תגים עם attributes, קישורים, spans, כותרות
-/// בתוך שורה, entities) מחזיר null — והקורא נופל חזרה ל-HtmlWidget המלא.
-/// יוצאי הדופן: תגי הסימונים המורמים (ראו raised_markers.dart) ותגי הדגשת
-/// החיפוש, שמזוהים במדויק — כך שורות עם סימונים או התאמות נשארות במסלול המהיר.
+/// ממיר תגי עיצוב פשוטים, סימונים מורמים והדגשות חיפוש ל-[TextSpan].
+/// markup שאינו נתמך מחזיר null כדי שהקורא ישתמש ב-HtmlWidget.
 class SimpleInlineHtml {
   SimpleInlineHtml._();
 
@@ -55,21 +48,67 @@ class SimpleInlineHtml {
   static final Map<String, _Highlight> _searchHighlightOpens = {
     '<span style="color: red">': _Highlight(_red, null),
     '<span style="color: red; ">': _Highlight(_red, null),
-    '<span style="color: blue; background-color: yellow;">': _Highlight(
-      const Color(0xFF0000FF),
-      _yellowPaint,
-    ),
-    '<span style="background-color: yellow; color: black">': _Highlight(
-      const Color(0xFF000000),
-      _yellowPaint,
-    ),
+    '<span style="color: blue; background-color: rgba(255, 255, 0, 0.8);">':
+        _Highlight(
+          const Color(0xFF0000FF),
+          _yellowPaint,
+        ),
+    '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">':
+        _Highlight(
+          const Color(0xFF000000),
+          _yellowPaint,
+        ),
   };
   static const Color _red = Color(0xFFFF0000);
   // background ולא backgroundColor — כמו ש-fwfh מצייר background-color.
-  static final Paint _yellowPaint = Paint()..color = const Color(0xFFFFFF00);
+  // 80% שומר ניגודיות לכחול גם בכהה, ומותיר את הבחירה שמתחת לטקסט נראית.
+  static final Paint _yellowPaint = Paint()..color = const Color(0xCCFFFF00);
 
   /// מנסה להמיר את [html]. מחזיר null אם נדרש HtmlWidget.
+  ///
+  /// התוצאה (גם null) נשמרת ב-LRU; קלט ריק או תוצאה חריגה אינם נשמרים.
   static TextSpan? tryParse(String html, TextStyle baseStyle) {
+    if (html.isEmpty || html.length > _cacheMaxChars) {
+      return _tryParseUncached(html, baseStyle);
+    }
+    // גופן מערכת משתנה מזוהה ברקע ומשנה את fontVariations של הבולד.
+    final key = (
+      html,
+      baseStyle,
+      AppFonts.boldFontVariations(baseStyle.fontFamily) != null,
+    );
+    final cached = _cache.remove(key);
+    if (cached != null) {
+      _cache[key] = cached;
+      return cached.$1;
+    }
+    final result = _tryParseUncached(html, baseStyle);
+    // אומדן לעץ שטוח: כל ילד מחויב כספאן וסגנון, גם אם אין לו סגנון משלו.
+    final nodes = 1 + 2 * (result?.children?.length ?? 0);
+    if (nodes > _cacheMaxNodes) return result;
+    _cache[key] = (result, nodes);
+    _cacheChars += html.length;
+    _cacheNodes += nodes;
+    while (_cacheChars > _cacheMaxChars ||
+        _cacheNodes > _cacheMaxNodes ||
+        _cache.length > _cacheMaxEntries) {
+      final oldestKey = _cache.keys.first;
+      final removed = _cache.remove(oldestKey)!;
+      _cacheChars -= oldestKey.$1.length;
+      _cacheNodes -= removed.$2;
+    }
+    return result;
+  }
+
+  static final LinkedHashMap<(String, TextStyle, bool), (TextSpan?, int)>
+  _cache = LinkedHashMap();
+  static int _cacheChars = 0;
+  static int _cacheNodes = 0;
+  static const int _cacheMaxChars = 2 * 1024 * 1024;
+  static const int _cacheMaxEntries = 4096;
+  static const int _cacheMaxNodes = 32 * 1024;
+
+  static TextSpan? _tryParseUncached(String html, TextStyle baseStyle) {
     if (html.contains('&')) {
       html = html
           .replaceAll('&nbsp;', '\u00A0')
@@ -228,6 +267,8 @@ class SimpleInlineHtml {
     dotAll: true,
   );
 
+  static final RegExp _headingTagRegex = RegExp(r'</?h[1-6]\b');
+
   /// גודל ברירת המחדל של fwfh לכל רמת כותרת, ביחס לגופן הסובב.
   static const Map<String, double> _defaultHeadingScale = {
     'h1': 2,
@@ -241,9 +282,29 @@ class SimpleInlineHtml {
   /// כותרת שהיא כל השורה (`<hN>` בלי attributes): fwfh מציג אותה כבלוק יחיד
   /// שהשוליים שלו נחתכים בקצות הגוף, ולכן היא טקסט אחד בסגנון [SimpleHeading.style].
   static SimpleHeading? tryParseHeading(String html, TextStyle baseStyle) {
+    final style = headingStyle(html, baseStyle);
+    if (style == null) return null;
+    final match = _wholeLineHeadingRegex.firstMatch(html)!;
+    final span = tryParse(match[2]!, style);
+    if (span == null || span.toPlainText().isEmpty) return null;
+    return SimpleHeading(style, span);
+  }
+
+  /// הסגנון שבו fwfh מציג שורה שכולה כותרת, או null כשהשורה אינה כותרת.
+  static TextStyle? headingStyle(String html, TextStyle baseStyle) {
     if (!html.contains('<h')) return null;
     final match = _wholeLineHeadingRegex.firstMatch(html);
     if (match == null) return null;
+    final content = match[2]!;
+    for (
+      var tagStart = content.indexOf('<');
+      tagStart != -1;
+      tagStart = content.indexOf('<', tagStart + 1)
+    ) {
+      if (_headingTagRegex.matchAsPrefix(content, tagStart) != null) {
+        return null;
+      }
+    }
     final tag = 'h${match[1]}';
     final fontFamily = baseStyle.fontFamily;
     final sizeOverride = AppFonts.headingFontSizeOverride(tag, fontFamily);
@@ -258,16 +319,13 @@ class SimpleInlineHtml {
             (w) => w.value == int.tryParse(weightOverride),
             orElse: () => FontWeight.bold,
           );
-    final style = baseStyle.copyWith(
+    return baseStyle.copyWith(
       fontSize: (baseStyle.fontSize ?? 14.0) * scale,
       fontWeight: weight,
       fontVariations:
           baseStyle.fontVariations ??
           AppFonts.boldFontVariations(fontFamily, weight),
     );
-    final span = tryParse(match[2]!, style);
-    if (span == null || span.toPlainText().isEmpty) return null;
-    return SimpleHeading(style, span);
   }
 
   static String _trim(String text) => text

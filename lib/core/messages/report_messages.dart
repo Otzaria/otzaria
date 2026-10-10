@@ -58,8 +58,6 @@ abstract class ReportMessages {
 
   // ── דיאלוג הדיווח (error_report_dialog) ────────────────────────────────
 
-  static const String phoneSentThanks =
-      'הדיווח נשלח בהצלחה לצוות אוצריא. תודה על הדיווח!';
   static const String selectTextToReport =
       'יש לסמן טקסט או לבחור קטע לפני דיווח על טעות.';
   static const String cannotOpenMailApp = 'לא ניתן לפתוח את תוכנת הדואר';
@@ -73,7 +71,8 @@ abstract class ReportMessages {
   static String reportSubject(String bookTitle) => 'דיווח על טעות: $bookTitle';
 
   static const String proposalIdentical =
-      'ההצעה זהה למקור. יש לשנות את הטקסט, לבחור "מחיקת הקטע" או "ללא הצעה".';
+      'ההצעה זהה למקור. יש לשנות את הטקסט או לבחור "מחיקת הקטע". '
+      'אם אין הצעה — יש לבחור "דיווח חופשי".';
 
   static String proposalTooLong(int maxLength) =>
       'ההצעה ארוכה מדי (מעל $maxLength תווים). יש לקצר אותה — היא לא תיחתך.';

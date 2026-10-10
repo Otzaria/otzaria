@@ -140,4 +140,33 @@ void main() {
       });
     });
   });
+
+  group('SimpleInlineHtml.tryParse — מטמון', () {
+    const html = '<b>דיבור המתחיל</b> ביאור <small>(א)</small>';
+
+    test('אותו קלט מחזיר את אותו span בלי לפרסר מחדש', () {
+      final first = SimpleInlineHtml.tryParse(html, baseStyle);
+      final second = SimpleInlineHtml.tryParse(html, baseStyle);
+      expect(first, isNotNull);
+      expect(identical(first, second), isTrue);
+    });
+
+    test('סגנון בסיס אחר מקבל תוצאה משלו', () {
+      final small = SimpleInlineHtml.tryParse(html, baseStyle)!;
+      final large = SimpleInlineHtml.tryParse(
+        html,
+        const TextStyle(fontSize: 30),
+      )!;
+      final smallChild = small.children!.cast<TextSpan>().last;
+      final largeChild = large.children!.cast<TextSpan>().last;
+      expect(smallChild.style?.fontSize, closeTo(20 * 5 / 6, 1e-9));
+      expect(largeChild.style?.fontSize, closeTo(30 * 5 / 6, 1e-9));
+    });
+
+    test('שורה שנופלת ל-HtmlWidget נשארת null גם בקריאה חוזרת', () {
+      const fallback = '<a href="x">קישור</a>';
+      expect(SimpleInlineHtml.tryParse(fallback, baseStyle), isNull);
+      expect(SimpleInlineHtml.tryParse(fallback, baseStyle), isNull);
+    });
+  });
 }

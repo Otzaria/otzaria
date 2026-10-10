@@ -1,7 +1,11 @@
+import 'dart:collection';
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
 
 Link _link({
   required String heRef,
@@ -37,6 +41,26 @@ Future<List<String>> _orderedLabels(
     typesToShow: typesToShow,
   );
   return result.map((l) => l.heRef.split(',').last.trim()).toList();
+}
+
+class _CountingCommentators extends ListBase<String> {
+  int reads = 0;
+
+  @override
+  int get length => 1000;
+
+  @override
+  set length(int value) => throw UnsupportedError('read-only');
+
+  @override
+  String operator [](int index) {
+    reads++;
+    return 'מפרש $index';
+  }
+
+  @override
+  void operator []=(int index, String value) =>
+      throw UnsupportedError('read-only');
 }
 
 void main() {
@@ -122,6 +146,85 @@ void main() {
     expect(result, hasLength(2));
     expect(result.first.path2, 'רש"י על בראשית');
     expect(result.first.index2, 5);
+  });
+
+  test('מיון לפי דרגה מחושבת מראש זהה למיון עם indexOf בכל השוואה', () {
+    final rnd = Random(7);
+    // שם כפול ברשימה: indexOf מחזיר את המופע הראשון.
+    final commentators = [
+      for (var i = 0; i < 40; i++) 'מפרש $i',
+      'מפרש 3',
+    ];
+    final links = [
+      for (var i = 0; i < 500; i++)
+        _link(
+          heRef: 'קישור $i',
+          path2: 'ספרים/מפרשים/${commentators[rnd.nextInt(41)]}.txt',
+          // טווח צר של index2 יוצר הרבה שוויונות, כדי לבדוק את סדר השווים.
+          index2: 1 + rnd.nextInt(5),
+        ),
+    ];
+    final expected = List.of(links)
+      ..sort((a, b) {
+        final byCommentator = commentators
+            .indexOf(getTitleFromPath(a.path2))
+            .compareTo(commentators.indexOf(getTitleFromPath(b.path2)));
+        if (byCommentator != 0) return byCommentator;
+        return a.index2.compareTo(b.index2);
+      });
+
+    final actual = sortLinksByCommentatorOrder(links, commentators);
+
+    expect(actual.length, expected.length);
+    for (var i = 0; i < expected.length; i++) {
+      expect(identical(actual[i], expected[i]), isTrue, reason: 'מיקום $i');
+    }
+  });
+
+  test('מיון אפס או קישור יחיד אינו סורק מפרשים ושומר עותק גמיש', () {
+    final link = _link(heRef: 'מפרש א', index2: 1);
+    for (final input in [
+      const <Link>[],
+      List<Link>.unmodifiable([link]),
+    ]) {
+      final commentators = _CountingCommentators();
+      final result = sortLinksByCommentatorOrder(input, commentators);
+
+      expect(commentators.reads, 0);
+      expect(identical(result, input), isFalse);
+      expect(result.length, input.length);
+      if (input.isNotEmpty) expect(identical(result.single, link), isTrue);
+      result.add(link);
+      result.removeLast();
+      expect(input.length, result.length);
+    }
+  });
+
+  test('סינון לקישור יחיד שומר את הקלט ומחזיר עותק גמיש', () async {
+    final kept = _link(
+      heRef: 'מפרש א',
+      path2: r'ספרים\מפרש 0.txt',
+      index2: 2,
+    );
+    final input = List<Link>.unmodifiable([
+      kept,
+      _link(heRef: 'שורה אחרת', index1: 2, index2: 1),
+    ]);
+    final commentators = _CountingCommentators();
+    final result = await getLinksforIndexs(
+      indexes: const [0],
+      links: input,
+      commentatorsToShow: commentators,
+    );
+
+    expect(commentators.reads, commentators.length);
+
+    expect(result, [same(kept)]);
+    expect(identical(result, input), isFalse);
+    result.add(kept);
+    expect(input, hasLength(2));
+    result.clear();
+    expect(input.first, same(kept));
   });
 
   group('מיון בתוך אותו מפרש — ס"ק כרכיב האחרון ב-heRef', () {

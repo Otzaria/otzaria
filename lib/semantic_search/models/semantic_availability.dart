@@ -16,7 +16,7 @@ enum SemanticAvailabilityPhase {
   /// סט הוקטורים של גרסת הספרייה המותקנת עוד לא פורסם.
   vectorsNotPublished,
 
-  /// מוריד את המודל או את הוקטורים (ראו [SemanticAvailability.progress]).
+  /// מוריד את הנתונים (ראו [SemanticAvailability.progress]).
   downloading,
 
   /// מתקין את הוקטורים שהורדו.
@@ -38,32 +38,72 @@ enum SemanticHiddenReason {
   engineNotInBuild,
 }
 
-/// מה מורידים כרגע.
-enum SemanticDownloadItem { model, vectors }
+/// שלב בעבודת ההורדה וההתקנה.
+enum SemanticDownloadItem {
+  /// הורדת רכיב החיפוש (המודל).
+  model,
 
-/// התקדמות ההורדה.
+  /// הורדת נתוני החיפוש (הוקטורים).
+  vectors,
+
+  /// התקנת הנתונים שהורדו.
+  install,
+}
+
+/// התקדמות כוללת של עבודה אחת: הבתים נספרים על פני כל השלבים יחד, כך
+/// שהאחוז אינו מתאפס במעבר משלב לשלב.
 class SemanticDownloadProgress extends Equatable {
+  /// השלב הנוכחי.
   final SemanticDownloadItem item;
+
+  /// בתים שהורדו בכל העבודה עד עכשיו.
   final int receivedBytes;
 
-  /// `null` כשהגודל אינו ידוע.
+  /// סך הבתים של כל העבודה; `null` כשאינו ידוע.
   final int? totalBytes;
+
+  /// מספר השלב (מ-1) מתוך [stepCount]; שלבים שדולגו אינם נספרים.
+  final int step;
+  final int stepCount;
+
+  /// בודק קובץ שהוכן מראש בשלב [item] (hash ארוך בלי מדידה).
+  final bool checking;
 
   const SemanticDownloadProgress({
     required this.item,
     required this.receivedBytes,
     this.totalBytes,
+    this.step = 1,
+    this.stepCount = 1,
+    this.checking = false,
   });
 
-  /// בין 0 ל-1, או `null` כשהגודל אינו ידוע.
+  /// אותה התקדמות, בבדיקת קובץ מוכן או אחריה.
+  SemanticDownloadProgress withChecking(bool value) => SemanticDownloadProgress(
+    item: item,
+    receivedBytes: receivedBytes,
+    totalBytes: totalBytes,
+    step: step,
+    stepCount: stepCount,
+    checking: value,
+  );
+
+  /// בין 0 ל-1, או `null` כשהגודל אינו ידוע או בבדיקה.
   double? get fraction {
     final total = totalBytes;
-    if (total == null || total <= 0) return null;
+    if (checking || total == null || total <= 0) return null;
     return (receivedBytes / total).clamp(0.0, 1.0);
   }
 
   @override
-  List<Object?> get props => [item, receivedBytes, totalBytes];
+  List<Object?> get props => [
+    item,
+    receivedBytes,
+    totalBytes,
+    step,
+    stepCount,
+    checking,
+  ];
 }
 
 /// מצב הזמינות של החיפוש הסמנטי, כפי שהממשק צריך אותו.

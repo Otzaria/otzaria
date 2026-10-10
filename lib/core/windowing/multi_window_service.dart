@@ -606,11 +606,15 @@ class MultiWindowService {
   /// בקשה לחלון להיסגר במסלול הסגירה הרגיל שלו.
   static const String requestCloseWindow = 'closeWindow';
 
+  /// סגירה לעדכון בחלון הזה; מנוקה בתום הניסיון, גם בביטול.
+  static bool closingAll = false;
+
   /// מבקש משאר החלונות להיסגר — למשל כשמעדכן חיצוני ממתין להחלפת קבצים.
   ///
   /// ⚠️ שידור בלי תשובה, במכוון: החלון היעד עובר במסלול הסגירה הרגיל ורשאי
   /// לסרב (שינויים שלא נשמרו), וסירוב אינו כשל שהקורא יכול או צריך לטפל בו.
   static void closePeers() {
+    closingAll = true;
     if (!canOpenWindows) return;
     WindowBus.instance.broadcast({'type': requestCloseWindow});
   }

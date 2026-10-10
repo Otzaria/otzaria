@@ -107,7 +107,56 @@ void main() {
         'conceptual': 0.3,
         'unknown': 0.5,
       });
-      expect(sanitized['fusionStrategy'], 'weighted');
+      expect(sanitized['fusionStrategy'], 'rrf');
+    });
+
+    test('ברירות המחדל של הדירוג הן של המנוע, וכולן נרשמות בטלמטריה', () {
+      const config = SemanticRankingConfig();
+      expect(config.fusion, SemanticFusion.rrf);
+      expect(config.semanticThreshold, 0.55);
+      expect(config.foundationalBonus, 0.002);
+      expect(config.foundationalCandidateShare, 0.5);
+
+      final sanitized = SearchFeedbackEventBuilder.sanitizeRanking(
+        config.toSnapshotMap(),
+      )!;
+      expect(sanitized['fusionStrategy'], 'rrf');
+      expect(sanitized['semanticThreshold'], 0.55);
+      expect(sanitized['foundationalBonus'], 0.002);
+      expect(sanitized['foundationalCandidateShare'], 0.5);
+      // כל מפתח עובר את בדיקת השרת, ואף אחד לא נשמט בניקוי.
+      final keyPattern = RegExp(r'^[A-Za-z][A-Za-z0-9_]{0,63}$');
+      expect(sanitized.keys, config.toSnapshotMap().keys);
+      expect(sanitized.length, lessThanOrEqualTo(40));
+      for (final entry in sanitized.entries) {
+        expect(keyPattern.hasMatch(entry.key), isTrue, reason: entry.key);
+        if (entry.value is Map) {
+          for (final nested in (entry.value as Map).entries) {
+            expect(keyPattern.hasMatch(nested.key as String), isTrue);
+            expect(nested.value, isA<num>());
+          }
+        } else {
+          expect(
+            entry.value == null ||
+                entry.value is num ||
+                entry.value is bool ||
+                entry.value is String,
+            isTrue,
+            reason: entry.key,
+          );
+        }
+      }
+    });
+
+    test('שינוי בשדה חדש של הדירוג משנה את השוויון', () {
+      expect(
+        const SemanticRankingConfig(foundationalBonus: 0),
+        isNot(const SemanticRankingConfig()),
+      );
+      expect(
+        const SemanticRankingConfig(foundationalCandidateShare: 0),
+        isNot(const SemanticRankingConfig()),
+      );
     });
 
     test('מחיקה רק של תיקייה שלנו', () async {

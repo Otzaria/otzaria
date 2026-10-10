@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,15 +16,19 @@ import 'package:otzaria/search/models/search_preview_target.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/search_result_opener.dart';
 import 'package:otzaria/search/utils/snippet_builder.dart';
-import 'package:otzaria/search/view/search_scope_menu.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/search/view/search_dialog.dart';
+import 'package:otzaria/search/view/search_results_layout.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
+import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_mode_gate.dart';
 import 'package:otzaria/semantic_search/repository/semantic_platform_support.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/services/semantic_dwell_binding.dart';
 import 'package:otzaria/semantic_search/view/semantic_mode_panel.dart';
+import 'package:otzaria/semantic_search/view/widgets/semantic_facet_filtering.dart';
 import 'package:otzaria/semantic_search/view/widgets/semantic_result_card.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -31,15 +36,28 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/text/copy_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
-import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show MergedSibling;
+    show MergedSibling, SemanticLexicalMode;
+
+/// האם לבנות מחדש את מסגרת המסך (סרגל, מסננים, תצוגה מקדימה). סימון קטע
+/// והצבעה משנים רק כרטיסים, והרשימה הפנימית מאזינה ל-bloc בעצמה.
+@visibleForTesting
+bool semanticLayoutNeedsRebuild(
+  SemanticResultsState previous,
+  SemanticResultsState current,
+) =>
+    previous.copyWith(
+      votes: current.votes,
+      passageHighlights: current.passageHighlights,
+    ) !=
+    current;
 
 /// מסך כרטיסיית התוצאות של החיפוש הסמנטי.
 class SemanticSearchResultsScreen extends StatefulWidget {
@@ -65,10 +83,10 @@ class _SemanticSearchResultsScreenState
 
   final ScrollController _scrollController = ScrollController();
   final Map<String, List<InlineSpan>> _snippetCache = {};
-  late Set<String> _scope;
-  late bool _includeLexical;
-  late bool _groupIdentical;
   double? _previewPaneWidthOverride;
+
+  Map<String, int> _facetCountsCache = const {};
+  List<SemanticResultItem>? _facetCountsItems;
   int _previewRequestId = 0;
 
   /// התוצאה שבתצוגה המקדימה; קובע אם להדגיש מילים בספר.
@@ -86,13 +104,9 @@ class _SemanticSearchResultsScreenState
   void initState() {
     super.initState();
     final options = widget.tab.options;
-    _scope = options.facets.toSet();
-    _includeLexical = options.includeLexical;
-    _groupIdentical = options.groupIdenticalText;
     _scrollController.addListener(_handleScroll);
     if (widget.tab.runOnFirstShow &&
         _platformSupported &&
-        _scopeSupported &&
         _bloc.state.status == SemanticResultsStatus.initial &&
         options.query.trim().isNotEmpty) {
       _bloc.add(SemanticSearchSubmitted(options));
@@ -116,35 +130,71 @@ class _SemanticSearchResultsScreenState
     }
   }
 
-  void _submit() {
-    if (!_scopeSupported) return;
-    final query = widget.tab.queryController.text;
-    if (query.trim().isEmpty) {
+  /// מריץ שוב את החיפוש האחרון (כולל צמצום פעיל).
+  void _rerun() {
+    final options = _bloc.state.options ?? widget.tab.options;
+    if (options.query.trim().isEmpty) {
       UiSnack.show(LibraryMessages.emptySearchQuery);
       return;
     }
     _clearPreview();
-    widget.tab.submit(
-      SemanticQueryOptions(
-        query: query,
-        facets: semanticScopeFacets(
-          _scope,
-          isOfficialCategory: officialCategoryFilter(
-            context.read<LibraryBloc>().state.library,
-          ),
-        ),
-        includeLexical: _includeLexical,
-        groupIdenticalText: _groupIdentical,
-      ),
+    _bloc.add(SemanticSearchSubmitted(options));
+  }
+
+  void _openEditDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => SearchDialog(editTab: widget.tab),
     );
   }
 
-  bool get _scopeSupported => semanticScopeIsSupported(
-    _scope,
-    isOfficialCategory: officialCategoryFilter(
-      context.read<LibraryBloc>().state.library,
-    ),
-  );
+  List<String> get _currentFacets =>
+      _bloc.state.options?.facets ?? widget.tab.options.facets;
+
+  void _narrow(List<String> categories, List<String> dimensions) {
+    final scope = FacetHelper.categoryFacetsOf(widget.tab.options.facets);
+    final facets = semanticScopeFacets(
+      [...(categories.isEmpty ? scope : categories), ...dimensions],
+      isOfficialCategory: officialCategoryFilter(
+        context.read<LibraryBloc>().state.library,
+      ),
+    );
+    _clearPreview();
+    widget.tab.narrow(facets);
+  }
+
+  void _setFacet(String facet) {
+    final dimensions = FacetHelper.dimensionFacetsOf(_currentFacets);
+    _narrow(facet == '/' ? const [] : [facet], dimensions);
+  }
+
+  void _toggleFacet(String facet) {
+    final categories = FacetHelper.categoryFacetsOf(_currentFacets)
+      ..remove('/');
+    if (!categories.remove(facet)) categories.add(facet);
+    _narrow(categories, FacetHelper.dimensionFacetsOf(_currentFacets));
+  }
+
+  void _toggleDimension(String facet) {
+    final dimensions = FacetHelper.dimensionFacetsOf(_currentFacets);
+    if (!dimensions.remove(facet)) dimensions.add(facet);
+    _narrow(
+      FacetHelper.categoryFacetsOf(_currentFacets),
+      dimensions..sort(),
+    );
+  }
+
+  /// ספירה לפי קטגוריה של התוצאות שמוצגות כעת.
+  Map<String, int> _facetCounts(SemanticResultsState state) {
+    if (identical(state.items, _facetCountsItems)) return _facetCountsCache;
+    final library = context.read<LibraryBloc>().state.library;
+    if (library == null) return const {};
+    _facetCountsItems = state.items;
+    return _facetCountsCache = FacetHelper.buildFacetCountsFromResults(
+      state.items,
+      widget.tab.searchBloc.booksByIndexedFilePath(library),
+    );
+  }
 
   void _clearPreview() {
     _previewRequestId++;
@@ -152,11 +202,17 @@ class _SemanticSearchResultsScreenState
     widget.tab.previewTarget.value = null;
   }
 
+  /// החיפוש בספר רץ באותו מצב שבו הצד המילולי מצא את התוצאה — מילים בכל
+  /// סדר ובצורותיהן; חיפוש מדויק היה מחפש רצף ליטרלי ולא מוצא.
   InBookSearchParameters get _inBookParameters =>
       InBookSearchRouting.resolveForReadingTab(
-        searchMode: SearchMode.exact,
-        distance: 0,
+        searchMode: switch (kSmartSearchLexicalMode) {
+          SemanticLexicalMode.exact => SearchMode.exact,
+          SemanticLexicalMode.fuzzy => SearchMode.fuzzy,
+        },
+        distance: kSmartSearchFuzzyMaxDistance,
         searchOptions: const {},
+        matchPolicy: SearchMatchPolicy.smart,
       );
 
   /// מילים להדגשה בספר; תוצאה לפי עניין בלבד נפתחת בלי הדגשת מילים.
@@ -336,8 +392,13 @@ class _SemanticSearchResultsScreenState
     );
   }
 
-  void _copy(SemanticResultItem item, SettingsState settings, String ref) {
-    final plainText = utils.stripHtmlIfNeeded(item.snippetHtml);
+  void _copy(
+    SemanticResultItem item,
+    String snippetHtml,
+    SettingsState settings,
+    String ref,
+  ) {
+    final plainText = utils.stripHtmlIfNeeded(snippetHtml);
     final bookName = settings.replaceHolyNames
         ? utils.replaceHolyNames(item.title, style: settings.holyNameStyle)
         : item.title;
@@ -370,132 +431,83 @@ class _SemanticSearchResultsScreenState
       );
     }
     return Scaffold(
-      body: BlocProvider.value(
-        value: _bloc,
-        child: BlocListener<SemanticResultsBloc, SemanticResultsState>(
+      body: MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: _bloc),
+          // מילות החיפוש בסרגל (SearchTermsDisplay) נקראות מ-SearchBloc.
+          BlocProvider.value(value: widget.tab.searchBloc),
+        ],
+        child: BlocConsumer<SemanticResultsBloc, SemanticResultsState>(
           listenWhen: (previous, current) =>
               previous.searchId != current.searchId,
           listener: (context, state) {
             _clearPreview();
             if (_scrollController.hasClients) _scrollController.jumpTo(0);
           },
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final results = Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildHeader(context),
-                  const Divider(height: 1),
-                  Expanded(child: _buildBody(constraints)),
-                ],
-              );
-              if (constraints.maxWidth < _previewMinWidth) return results;
-              return _wrapWithPreviewPane(results, constraints);
-            },
-          ),
+          buildWhen: semanticLayoutNeedsRebuild,
+          builder: (context, state) {
+            final loading = state.status == SemanticResultsStatus.loading;
+            return SearchResultsLayout(
+              tab: widget.tab,
+              label: context.settingsText(kSemanticSearchModeLabel),
+              hasQuery: widget.tab.options.query.trim().isNotEmpty,
+              query: widget.tab.options.query.trim(),
+              onEditSearch: _openEditDialog,
+              countsBuilder: (context, collapsed) =>
+                  _buildResultCounts(context, state, collapsed: collapsed),
+              banners: [
+                if (state.isDebugPreview) const SemanticDebugPreviewBanner(),
+                if (isWholeLibraryScope(_currentFacets))
+                  const _NarrowScopeBanner(),
+              ],
+              resultsBuilder: (showPreviewPane) => LayoutBuilder(
+                builder: (context, constraints) {
+                  final body = _buildBody(constraints);
+                  if (!showPreviewPane ||
+                      constraints.maxWidth < _previewMinWidth) {
+                    return body;
+                  }
+                  return _wrapWithPreviewPane(body, constraints);
+                },
+              ),
+              facetPane: SemanticFacetFiltering(
+                facetCounts: _facetCounts(state),
+                selectedFacets: _currentFacets,
+                isLoading: loading,
+                hasResults: state.items.isNotEmpty,
+                onSetFacet: _setFacet,
+                onToggleFacet: _toggleFacet,
+                onClearAll: () => _narrow(const [], const []),
+                onToggleDimension: _toggleDimension,
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: BlocBuilder<SemanticResultsBloc, SemanticResultsState>(
-        buildWhen: (p, c) =>
-            p.status != c.status ||
-            p.isLoadingMore != c.isLoadingMore ||
-            p.isDebugPreview != c.isDebugPreview,
-        builder: (context, state) {
-          final loading =
-              state.status == SemanticResultsStatus.loading ||
-              state.isLoadingMore;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: RtlTextField(
-                      key: const ValueKey('semantic-results-query'),
-                      controller: widget.tab.queryController,
-                      decoration: InputDecoration(
-                        isDense: true,
-                        border: const OutlineInputBorder(),
-                        labelText: context.settingsText(
-                          kSemanticSearchModeName,
-                        ),
-                        prefixIcon: const Icon(
-                          OtzariaIcons.search_in_the_library_24_regular,
-                        ),
-                      ),
-                      onSubmitted: (_) => _submit(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (loading)
-                    ActionButton.neutral(
-                      key: const ValueKey('semantic-results-cancel'),
-                      text: context.settingsText('עצור'),
-                      icon: FluentIcons.dismiss_24_regular,
-                      onPressed: () =>
-                          _bloc.add(const SemanticSearchCancelRequested()),
-                    )
-                  else
-                    ActionButton.recommended(
-                      key: const ValueKey('semantic-results-search'),
-                      text: context.settingsText('חפש'),
-                      icon: FluentIcons.search_24_regular,
-                      onPressed: _scopeSupported ? _submit : null,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  SearchScopeMenuButton(
-                    selected: _scope,
-                    width: 240,
-                    showChips: false,
-                    onChanged: (selection) =>
-                        setState(() => _scope = selection),
-                  ),
-                  FilterChip(
-                    label: Text(context.settingsText('שלב גם התאמה מילולית')),
-                    visualDensity: VisualDensity.compact,
-                    selected: _includeLexical,
-                    onSelected: (value) =>
-                        setState(() => _includeLexical = value),
-                  ),
-                  FilterChip(
-                    label: Text(context.settingsText('איחוד טקסטים זהים')),
-                    visualDensity: VisualDensity.compact,
-                    selected: _groupIdentical,
-                    onSelected: (value) =>
-                        setState(() => _groupIdentical = value),
-                  ),
-                ],
-              ),
-              if (!_scopeSupported) ...[
-                const SizedBox(height: 8),
-                Text(
-                  context.settingsText(
-                    'במצב זה החיפוש מוגבל לקטגוריות של הספרייה; ספרים בודדים וספרים אישיים אינם נכללים.',
-                  ),
-                ),
-              ],
-              if (state.isDebugPreview) ...[
-                const SizedBox(height: 8),
-                const SemanticDebugPreviewBanner(),
-              ],
-            ],
-          );
-        },
+  Widget _buildResultCounts(
+    BuildContext context,
+    SemanticResultsState state, {
+    required bool collapsed,
+  }) {
+    final count = state.items.length;
+    final line = context.settingsText(
+      'מוצגות כעת {count} תוצאות',
+      args: {'count': '$count'},
+    );
+    final text = Text(
+      collapsed ? '$count' : line,
+      key: const ValueKey('semantic-results-count'),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 14,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
+    return collapsed ? Tooltip(message: line, child: text) : text;
   }
 
   /// הודעת הכשל של המצב, מתורגמת ועם שם המצב.
@@ -527,7 +539,7 @@ class _SemanticSearchResultsScreenState
           case SemanticResultsStatus.initial:
             if (widget.tab.options.query.trim().isNotEmpty) {
               return _emptyState(
-                icon: OtzariaIcons.search_in_the_library_24_regular,
+                icon: OtzariaIcons.search_in_library_24_regular,
                 title: context.settingsText('החיפוש לא הורץ מחדש'),
                 message: context.settingsText(
                   'כרטיסייה ששוחזרה או שוכפלה אינה מחפשת מעצמה. לחצו כדי לחפש שוב.',
@@ -536,19 +548,34 @@ class _SemanticSearchResultsScreenState
                   key: const ValueKey('semantic-results-rerun'),
                   text: context.settingsText('לחץ לחיפוש מחדש'),
                   icon: FluentIcons.search_24_regular,
-                  onPressed: _submit,
+                  onPressed: _rerun,
                 ),
               );
             }
             return _emptyState(
-              icon: OtzariaIcons.search_in_the_library_24_regular,
+              icon: OtzariaIcons.search_in_library_24_regular,
               title: context.settingsText('לא בוצע חיפוש'),
               message: context.settingsText(
                 'תארו את העניין שאתם מחפשים ולחצו על "חפש".',
               ),
             );
           case SemanticResultsStatus.loading:
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  ActionButton.neutral(
+                    key: const ValueKey('semantic-results-cancel'),
+                    text: context.settingsText('עצור'),
+                    icon: FluentIcons.dismiss_24_regular,
+                    onPressed: () =>
+                        _bloc.add(const SemanticSearchCancelRequested()),
+                  ),
+                ],
+              ),
+            );
           case SemanticResultsStatus.cancelled:
             return _emptyState(
               icon: FluentIcons.dismiss_circle_24_regular,
@@ -556,7 +583,7 @@ class _SemanticSearchResultsScreenState
               action: ActionButton.recommended(
                 text: context.settingsText('חפש שוב'),
                 icon: FluentIcons.arrow_clockwise_24_regular,
-                onPressed: _submit,
+                onPressed: _rerun,
               ),
             );
           case SemanticResultsStatus.failed:
@@ -567,7 +594,7 @@ class _SemanticSearchResultsScreenState
               action: ActionButton.recommended(
                 text: context.settingsText('נסה שוב'),
                 icon: FluentIcons.arrow_clockwise_24_regular,
-                onPressed: _submit,
+                onPressed: _rerun,
               ),
             );
           case SemanticResultsStatus.unavailable:
@@ -668,7 +695,8 @@ class _SemanticSearchResultsScreenState
     final item = state.items[index];
     final colorScheme = Theme.of(context).colorScheme;
     var reference = item.reference;
-    var html = item.snippetHtml;
+    final shownHtml = state.passageHighlights[index] ?? item.snippetHtml;
+    var html = shownHtml;
     if (settings.replaceHolyNames) {
       reference = utils.replaceHolyNames(
         reference,
@@ -686,19 +714,23 @@ class _SemanticSearchResultsScreenState
     ].join('|');
     final spans = _snippetCache.putIfAbsent(cacheKey, () {
       if (_snippetCache.length > 300) _snippetCache.clear();
+      final defaultStyle = TextStyle(
+        fontSize: settings.fontSize,
+        fontFamily: AppFonts.renderFontFamily(settings.fontFamily),
+        color: colorScheme.onSurface,
+        height: 1.5,
+      );
       return SnippetBuilder.fromHighlightedHtml(
         html: html,
-        defaultStyle: TextStyle(
-          fontSize: settings.fontSize,
-          fontFamily: settings.fontFamily,
-          color: colorScheme.onSurface,
-          height: 1.5,
-        ),
+        defaultStyle: defaultStyle,
         highlightStyle: TextStyle(
           fontWeight: FontWeight.bold,
           fontSize: settings.fontSize + 2,
-          fontFamily: settings.fontFamily,
+          fontFamily: AppFonts.renderFontFamily(settings.fontFamily),
           color: colorScheme.error,
+        ),
+        markStyle: defaultStyle.copyWith(
+          backgroundColor: AppSurfaces.semanticPassageHighlight(colorScheme),
         ),
       );
     });
@@ -732,7 +764,7 @@ class _SemanticSearchResultsScreenState
         inBackground: true,
       ),
       onVote: (vote) => _bloc.add(SemanticVoteToggled(index, vote)),
-      onCopy: () => _copy(item, settings, reference),
+      onCopy: () => _copy(item, shownHtml, settings, reference),
       onOpenSibling: (sibling) =>
           _openItem(index, SearchFeedbackOpenVia.click, sibling: sibling),
       onOpenSiblingInBackground: (sibling) => _openItem(
@@ -814,6 +846,32 @@ class _SemanticSearchResultsScreenState
           },
         );
       },
+    );
+  }
+}
+
+/// המלצה לצמצם את ההיקף, כשהחיפוש רץ על כל הספרייה.
+class _NarrowScopeBanner extends StatelessWidget {
+  const _NarrowScopeBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: cs.primaryContainer.withValues(alpha: 0.4),
+      child: Row(
+        children: [
+          Icon(FluentIcons.info_24_regular, size: 16, color: cs.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SemanticNarrowScopeHint(
+              style: TextStyle(fontSize: 13, color: cs.primary),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

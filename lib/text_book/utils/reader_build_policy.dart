@@ -19,6 +19,10 @@ bool shouldRebuildReader(TextBookState previous, TextBookState current) {
   if (!listEquals(previous.content, current.content)) return true;
   return previous.copyWith(
         visibleIndices: current.visibleIndices,
+        // נגזר מהגלילה לחלונית הקישורים, שנבנית בעצמה; הקורא נגזר מ-linksByLine.
+        visibleLinks: identical(previous.linksByLine, current.linksByLine)
+            ? current.visibleLinks
+            : null,
         clearSelectedText: true,
       ) !=
       current.copyWith(clearSelectedText: true);

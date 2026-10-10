@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -12,7 +11,10 @@ import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:path/path.dart' as path;
+
+import 'library_release_test_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -241,6 +243,9 @@ void main() {
       final tempDir = await Directory.systemTemp.createTemp(
         'otzaria-empty-library-test-',
       );
+      final lexicalPath = path.join(tempDir.path, 'lexical.db');
+      await File('$lexicalPath.next').writeAsString('staged-old');
+      await File('$lexicalPath.next.version').writeAsString('old-digest');
       addTearDown(() async {
         if (await tempDir.exists()) {
           await tempDir.delete(recursive: true);
@@ -259,7 +264,33 @@ void main() {
       final talmudDigest = sha256.convert(talmudBytes).toString();
       final catalogBytes = utf8.encode('compressed-catalog');
       final lexicalBytes = utf8.encode('lexical-dictionary');
+      final lexicalDigest = sha256.convert(lexicalBytes).toString();
       final client = MockClient((request) async {
+        // ה-API של המילון: הנכס המועדף lexical-v2.db עם ה-digest שלו.
+        if (request.url.path.contains(
+          '/repos/Otzaria/SeforimMagicIndexer/releases/latest',
+        )) {
+          const base =
+              'https://github.com/Otzaria/SeforimMagicIndexer/releases/download/v0.3.1';
+          return http.Response(
+            jsonEncode({
+              'tag_name': 'v0.3.1',
+              'assets': [
+                {
+                  'browser_download_url': '$base/lexical.db',
+                  'digest': 'sha256:${'0' * 64}',
+                },
+                {
+                  'browser_download_url': '$base/lexical-v2.db',
+                  'digest': 'sha256:$lexicalDigest',
+                  'size': lexicalBytes.length,
+                },
+              ],
+            }),
+            200,
+          );
+        }
+
         // ה-API של otzaria-library — איתור release התלמוד (כולל digest).
         if (request.url.path.contains(
           '/repos/Otzaria/otzaria-library/releases/latest',
@@ -320,19 +351,19 @@ void main() {
         // כמו GitHub: releases/latest/download מפנה לנתיב עם תג ה-release.
         if (request.url.host == 'github.com' &&
             request.url.path.contains('/releases/latest/download/') &&
-            request.url.path.endsWith('/lexical.db')) {
+            request.url.path.endsWith('/lexical-v2.db')) {
           return http.Response(
             '',
             302,
             headers: const {
               'location':
-                  'https://github.com/Otzaria/SeforimMagicIndexer/releases/download/v0.3.0/lexical.db',
+                  'https://github.com/Otzaria/SeforimMagicIndexer/releases/download/v0.3.0/lexical-v2.db',
             },
           );
         }
 
         if (request.url.host == 'github.com' &&
-            request.url.path.endsWith('/lexical.db')) {
+            request.url.path.endsWith('/lexical-v2.db')) {
           return http.Response.bytes(lexicalBytes, 200);
         }
 
@@ -410,13 +441,20 @@ void main() {
         ).existsSync(),
         isFalse,
       );
+      await MagicDictionaryDownloader.installStagedBeforeAttach(lexicalPath);
+      expect(File('$lexicalPath.next').existsSync(), isFalse);
+      expect(File('$lexicalPath.next.version').existsSync(), isFalse);
       // מילון החיפוש המקורב (לא דחוס) הועתק לתיקיית הספרייה ליד seforim.db.
       expect(File(path.join(tempDir.path, 'lexical.db')).existsSync(), isTrue);
-      // סימון הגרסה נכתב מהתג שבשרשרת ה-redirect — בלעדיו בדיקת העדכון
-      // הבאה תוריד את המילון מחדש בכל הפעלה.
+      // סימון הגרסה הוא ה-digest של lexical-v2.db — בלעדיו בדיקת העדכון
+      // הבאה תוריד את המילון מחדש.
+      expect(
+        File(path.join(tempDir.path, 'lexical.db')).readAsBytesSync(),
+        lexicalBytes,
+      );
       expect(
         File(path.join(tempDir.path, 'lexical.db.version')).readAsStringSync(),
-        'v0.3.0',
+        lexicalDigest,
       );
       // גם לתלמוד נכתב סימון גרסה — digest של הנכס מה-API, כדי שבדיקות עדכון
       // ישוו תוכן ולא תג (תגי otzaria-library מתחלפים כמעט יומית).
@@ -692,7 +730,7 @@ void main() {
           return http.Response.bytes(catalogBytes, 200);
         }
         if (request.url.host == 'github.com' &&
-            request.url.path.endsWith('/lexical.db')) {
+            request.url.path.endsWith('/lexical-v2.db')) {
           return http.Response.bytes(lexicalBytes, 200);
         }
         return http.Response('not found', 404);
@@ -806,7 +844,7 @@ void main() {
             return http.Response.bytes(catalogBytes, 200);
           }
           if (request.url.host == 'github.com' &&
-              request.url.path.endsWith('/lexical.db')) {
+              request.url.path.endsWith('/lexical-v2.db')) {
             return request.method == 'HEAD'
                 ? http.Response.bytes(List.filled(10, 0), 200)
                 : http.Response.bytes(List.filled(5, 1), 200);
@@ -1222,6 +1260,74 @@ void main() {
         ], reason: 'הורדה מחדש מ-0 — בלי Range כי ה-temp נמחק');
       },
     );
+
+    test('כשל הרשאה בכתיבה ליעד אינו מוחק את ה-temp שהורד (#2097)', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'otzaria-target-denied-',
+      );
+      addTearDown(() async {
+        if (await tempDir.exists()) await tempDir.delete(recursive: true);
+      });
+      await _cleanDownloadTemps();
+      addTearDown(_cleanDownloadTemps);
+      await Settings.init(cacheProvider: _MemoryCacheProvider());
+      await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
+
+      const seforimUrl = 'https://example.com/releases/seforim.db.zst';
+      final seforimTemp = File(
+        path.join(Directory.systemTemp.path, 'otzaria_seforim.db.zst'),
+      );
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/releases/latest')) {
+          return http.Response(
+            jsonEncode({
+              'assets': [
+                {'name': 'seforim.db.zst', 'browser_download_url': seforimUrl},
+              ],
+            }),
+            200,
+            headers: const {'content-type': 'application/json'},
+          );
+        }
+        if (request.url.toString() == seforimUrl) {
+          return http.Response.bytes(
+            List.filled(100, 4),
+            200,
+            headers: const {'etag': 'seforim-v1'},
+          );
+        }
+        if (request.url.host == 'github.com') {
+          return http.Response.bytes(List.filled(10, 7), 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final bloc = EmptyLibraryBloc(
+        httpClient: client,
+        defaultLibraryPathOverride: tempDir.path,
+        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
+          if (path.basename(archivePath) == 'otzaria_seforim.db.zst') {
+            throw PathAccessException(
+              outputPath,
+              const OSError('Operation not permitted', 1),
+              'Cannot open file',
+            );
+          }
+          await File(outputPath).writeAsBytes(const [1], flush: true);
+        },
+        extractTarArchive: (archivePath, outputDir, onProgress) async {},
+      );
+      addTearDown(bloc.close);
+      final failed = bloc.stream.where((s) => s is EmptyLibraryError).first;
+      bloc.add(DownloadLibraryRequested());
+      await failed.timeout(const Duration(seconds: 5));
+      expect(
+        seforimTemp.existsSync(),
+        isTrue,
+        reason:
+            'היעד אינו כתיב, הארכיון תקין — ניסיון חוזר לא צריך להוריד מחדש',
+      );
+    });
 
     test(
       '206 עם Content-Range מ-offset לא צפוי → בקשה שנייה בלי Range, קובץ תקין מ-0',
@@ -1846,23 +1952,17 @@ void main() {
     );
 
     test(
-      'UpdateLibraryRequested (ייבוא) מעתיק DB חדש ומוחק את הגיבוי בהצלחה',
+      'UpdateLibraryRequested מוריד DB חדש ומוחק את הגיבוי בהצלחה',
       () async {
         final libDir = await Directory.systemTemp.createTemp(
           'otzaria-update-lib-',
         );
-        final srcDir = await Directory.systemTemp.createTemp(
-          'otzaria-update-src-',
-        );
         addTearDown(() async {
-          for (final d in [libDir, srcDir]) {
-            if (await d.exists()) await d.delete(recursive: true);
-          }
+          if (await libDir.exists()) await libDir.delete(recursive: true);
         });
 
         final dbName = DatabaseConstants.databaseFileName;
         await File(path.join(libDir.path, dbName)).writeAsString('old-db');
-        await File(path.join(srcDir.path, dbName)).writeAsString('new-db');
 
         await Settings.init(cacheProvider: _MemoryCacheProvider());
         await Settings.setValue<String>(
@@ -1870,7 +1970,7 @@ void main() {
           libDir.path,
         );
 
-        final bloc = EmptyLibraryBloc();
+        final bloc = _updateBloc(() => 'new-db');
         addTearDown(bloc.close);
 
         final selectedFuture = bloc.stream
@@ -1880,8 +1980,6 @@ void main() {
 
         bloc.add(
           UpdateLibraryRequested(
-            isDownload: false,
-            sourceFolder: srcDir.path,
             targetPath: libDir.path,
             existingLibraryPath: libDir.path,
           ),
@@ -1899,94 +1997,6 @@ void main() {
         );
       },
     );
-
-    test('כתיבת ה-DB אטומית: הריגה באמצע משאירה .new ולא seforim.db', () async {
-      final targetDir = await Directory.systemTemp.createTemp(
-        'otzaria-atomic-',
-      );
-      addTearDown(() => targetDir.delete(recursive: true));
-      final dbName = DatabaseConstants.databaseFileName;
-      final archivePath = path.join(targetDir.path, 'lib.zst');
-      await File(archivePath).writeAsBytes([1, 2, 3]);
-
-      String? writtenTo;
-      var finalExistedMidWrite = true;
-      await Settings.init(cacheProvider: _MemoryCacheProvider());
-      final bloc = EmptyLibraryBloc(
-        extractCompressedDatabase: (archive, output, onProgress) async {
-          // התמונה בדיוק ברגע ההריגה: חצי DB על הדיסק, לפני סיום הכתיבה.
-          writtenTo = output;
-          await File(output).writeAsString('partial');
-          finalExistedMidWrite = File(
-            path.join(targetDir.path, dbName),
-          ).existsSync();
-          throw Exception('killed');
-        },
-      );
-      addTearDown(bloc.close);
-
-      final errorFuture = bloc.stream
-          .where((s) => s is EmptyLibraryError)
-          .first;
-      bloc.add(
-        ImportLibraryArchiveRequested(
-          archivePath: archivePath,
-          targetPath: targetDir.path,
-        ),
-      );
-      await errorFuture.timeout(const Duration(seconds: 5));
-
-      expect(writtenTo, path.join(targetDir.path, '$dbName.new'));
-      expect(finalExistedMidWrite, isFalse);
-      expect(File(path.join(targetDir.path, dbName)).existsSync(), isFalse);
-    });
-
-    test('ייבוא ZIP אטומי: הריגה באמצע החילוץ לא נוגעת ב-DB שביעד', () async {
-      final targetDir = await Directory.systemTemp.createTemp(
-        'otzaria-zip-atomic-',
-      );
-      addTearDown(() => targetDir.delete(recursive: true));
-      final dbName = DatabaseConstants.databaseFileName;
-      await File(
-        path.join(targetDir.path, dbName),
-      ).writeAsString('existing-db');
-      final archivePath = path.join(targetDir.path, 'lib.zip');
-      await File(archivePath).writeAsBytes([1, 2, 3]);
-
-      String? extractedInto;
-      await Settings.init(cacheProvider: _MemoryCacheProvider());
-      final bloc = EmptyLibraryBloc(
-        extractZipArchive: (archive, outputDir) async {
-          // התמונה ברגע ההריגה: רשומות חלקיות על הדיסק, לפני סוף החילוץ.
-          extractedInto = outputDir;
-          await Directory(outputDir).create(recursive: true);
-          await File(path.join(outputDir, dbName)).writeAsString('partial');
-          throw Exception('killed');
-        },
-      );
-      addTearDown(bloc.close);
-
-      final errorFuture = bloc.stream
-          .where((s) => s is EmptyLibraryError)
-          .first;
-      bloc.add(
-        ImportLibraryArchiveRequested(
-          archivePath: archivePath,
-          targetPath: targetDir.path,
-        ),
-      );
-      await errorFuture.timeout(const Duration(seconds: 5));
-
-      expect(extractedInto, EmptyLibraryBloc.stagingDirFor(targetDir.path));
-      expect(
-        await File(path.join(targetDir.path, dbName)).readAsString(),
-        'existing-db',
-      );
-      expect(
-        Directory(EmptyLibraryBloc.stagingDirFor(targetDir.path)).existsSync(),
-        isFalse,
-      );
-    });
 
     group('promoteStagedImport', () {
       final dbName = DatabaseConstants.databaseFileName;
@@ -2049,6 +2059,57 @@ void main() {
           expect(staging.listSync(), isEmpty);
         },
       );
+
+      test('מילון חדש ב-ZIP מבטל עותק ממתין ישן לפני פתיחה ללא רשת', () async {
+        final dest = path.join(target.path, 'lexical.db');
+        await File(path.join(staging.path, 'lexical.db')).writeAsString('new');
+        await File(dest).writeAsString('old');
+        await File('$dest.next').writeAsString('staged-old');
+        await File('$dest.next.version').writeAsString('old-digest');
+
+        await EmptyLibraryBloc.promoteStagedImport(staging.path, target.path);
+        await MagicDictionaryDownloader.installStagedBeforeAttach(dest);
+
+        expect(await File(dest).readAsString(), 'new');
+        expect(
+          await File('$dest.version').readAsString(),
+          sha256.convert(utf8.encode('new')).toString(),
+        );
+        expect(File('$dest.next').existsSync(), isFalse);
+        expect(File('$dest.next.version').existsSync(), isFalse);
+      });
+
+      test('ZIP בלי מילון אינו מבטל עותק ממתין תקין', () async {
+        final dest = path.join(target.path, 'lexical.db');
+        await File(path.join(staging.path, dbName)).writeAsString('new-db');
+        await File(dest).writeAsString('old');
+        await File('$dest.next').writeAsString('staged-new');
+        await File('$dest.next.version').writeAsString('new-digest');
+
+        await EmptyLibraryBloc.promoteStagedImport(staging.path, target.path);
+
+        expect(await File('$dest.next').readAsString(), 'staged-new');
+        expect(await File('$dest.next.version').readAsString(), 'new-digest');
+        await MagicDictionaryDownloader.installStagedBeforeAttach(dest);
+        expect(await File(dest).readAsString(), 'staged-new');
+      });
+
+      test('כשל בייבוא ZIP לפני העברת קבצים אינו מבטל עותק ממתין', () async {
+        final dest = path.join(target.path, 'lexical.db');
+        await File(dest).writeAsString('old');
+        await File('$dest.next').writeAsString('staged-new');
+        await File('$dest.next.version').writeAsString('new-digest');
+        await staging.delete();
+
+        await expectLater(
+          EmptyLibraryBloc.promoteStagedImport(staging.path, target.path),
+          throwsA(isA<FileSystemException>()),
+        );
+
+        expect(await File(dest).readAsString(), 'old');
+        expect(await File('$dest.next').readAsString(), 'staged-new');
+        expect(await File('$dest.next.version').readAsString(), 'new-digest');
+      });
 
       test('בלי seforim.db בביניים — שאר הפריטים עוברים והיעד נשמר', () async {
         await File(path.join(staging.path, 'lexical.db')).writeAsString('new');
@@ -2244,7 +2305,7 @@ void main() {
         },
       );
 
-      test('בעלייה: תיקיית `.import` יתומה מייבוא ZIP שנקטע נמחקת', () async {
+      test('בעלייה: תיקיית `.import` יתומה מייבוא שנקטע נמחקת', () async {
         final libDir = await Directory.systemTemp.createTemp('otzaria-orphan-');
         addTearDown(() => libDir.delete(recursive: true));
         await File(path.join(libDir.path, dbName)).writeAsString('good-db');
@@ -2290,23 +2351,19 @@ void main() {
           final libDir = await Directory.systemTemp.createTemp(
             'otzaria-orphan-',
           );
-          final srcDir = await Directory.systemTemp.createTemp(
-            'otzaria-orphan-src-',
-          );
           addTearDown(() async {
-            for (final d in [libDir, srcDir]) {
-              if (await d.exists()) await d.delete(recursive: true);
-            }
+            if (await libDir.exists()) await libDir.delete(recursive: true);
           });
           // הריצה הקודמת נהרגה אחרי ההזזה: הספרייה ריקה, ה-DB בגיבוי.
           await createOrphan('old-db');
-          // srcDir ריק — ההעתקה תיכשל והגיבוי (שהוא ה-DB היתום) חייב לחזור.
+          // ההורדה תיכשל, והגיבוי (שהוא ה-DB היתום) חייב לחזור.
+          String? served;
           await Settings.init(cacheProvider: _MemoryCacheProvider());
           await Settings.setValue<String>(
             SettingsRepository.keyLibraryPath,
             libDir.path,
           );
-          final bloc = EmptyLibraryBloc();
+          final bloc = _updateBloc(() => served);
           addTearDown(bloc.close);
           final errorFuture = bloc.stream
               .where((s) => s is EmptyLibraryError)
@@ -2314,8 +2371,6 @@ void main() {
 
           bloc.add(
             UpdateLibraryRequested(
-              isDownload: false,
-              sourceFolder: srcDir.path,
               targetPath: libDir.path,
               existingLibraryPath: libDir.path,
             ),
@@ -2331,14 +2386,12 @@ void main() {
           // ריצה שנייה שנהרגה שוב (יתום לצד DB תקין) ואחריה עדכון מוצלח —
           // לא נשארת אף תיקיית גיבוי, לא ישנה ולא חדשה.
           await createOrphan('stale-db');
-          await File(path.join(srcDir.path, dbName)).writeAsString('new-db');
+          served = 'new-db';
           final selectedFuture = bloc.stream
               .where((s) => s is EmptyLibraryDirectorySelected)
               .first;
           bloc.add(
             UpdateLibraryRequested(
-              isDownload: false,
-              sourceFolder: srcDir.path,
               targetPath: libDir.path,
               existingLibraryPath: libDir.path,
             ),
@@ -2355,23 +2408,17 @@ void main() {
     });
 
     test(
-      'UpdateLibraryRequested (ייבוא) משחזר את הגיבוי כשהמקור חסר seforim.db',
+      'UpdateLibraryRequested משחזר את הגיבוי כשההורדה נכשלת',
       () async {
         final libDir = await Directory.systemTemp.createTemp(
           'otzaria-update-lib2-',
         );
-        final srcDir = await Directory.systemTemp.createTemp(
-          'otzaria-update-src2-',
-        );
         addTearDown(() async {
-          for (final d in [libDir, srcDir]) {
-            if (await d.exists()) await d.delete(recursive: true);
-          }
+          if (await libDir.exists()) await libDir.delete(recursive: true);
         });
 
         final dbName = DatabaseConstants.databaseFileName;
         await File(path.join(libDir.path, dbName)).writeAsString('old-db');
-        // srcDir ריק — אין seforim.db, לכן ההעתקה תיכשל.
 
         await Settings.init(cacheProvider: _MemoryCacheProvider());
         await Settings.setValue<String>(
@@ -2379,7 +2426,7 @@ void main() {
           libDir.path,
         );
 
-        final bloc = EmptyLibraryBloc();
+        final bloc = _updateBloc(() => null);
         addTearDown(bloc.close);
 
         final errorFuture = bloc.stream
@@ -2389,8 +2436,6 @@ void main() {
 
         bloc.add(
           UpdateLibraryRequested(
-            isDownload: false,
-            sourceFolder: srcDir.path,
             targetPath: libDir.path,
             existingLibraryPath: libDir.path,
           ),
@@ -2409,405 +2454,6 @@ void main() {
         );
       },
     );
-
-    test(
-      'ImportLibraryFolderRequested מזהה ומעתיק נכסי ספרייה רגילים מתיקייה',
-      () async {
-        final srcDir = await Directory.systemTemp.createTemp(
-          'otzaria-import-folder-src-',
-        );
-        final targetDir = await Directory.systemTemp.createTemp(
-          'otzaria-import-folder-dst-',
-        );
-        addTearDown(() async {
-          for (final d in [srcDir, targetDir]) {
-            if (await d.exists()) await d.delete(recursive: true);
-          }
-        });
-
-        await File(
-          path.join(srcDir.path, DatabaseConstants.databaseFileName),
-        ).writeAsString('db');
-        await File(
-          path.join(srcDir.path, DatabaseConstants.lexicalDatabaseFileName),
-        ).writeAsString('lex');
-        await File(
-          path.join(
-            srcDir.path,
-            DatabaseConstants.externalCatalogDatabaseFileName,
-          ),
-        ).writeAsString('cat');
-
-        await Settings.init(cacheProvider: _MemoryCacheProvider());
-        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
-
-        final bloc = EmptyLibraryBloc();
-        addTearDown(bloc.close);
-
-        final selectedFuture = bloc.stream
-            .where((s) => s is EmptyLibraryDirectorySelected)
-            .cast<EmptyLibraryDirectorySelected>()
-            .first;
-
-        bloc.add(
-          ImportLibraryFolderRequested(
-            sourceFolder: srcDir.path,
-            targetPath: targetDir.path,
-          ),
-        );
-
-        await selectedFuture.timeout(const Duration(seconds: 5));
-
-        expect(
-          await File(
-            path.join(targetDir.path, DatabaseConstants.databaseFileName),
-          ).exists(),
-          isTrue,
-        );
-        expect(
-          await File(
-            path.join(
-              targetDir.path,
-              DatabaseConstants.lexicalDatabaseFileName,
-            ),
-          ).exists(),
-          isTrue,
-        );
-        expect(
-          await File(
-            path.join(
-              targetDir.path,
-              DatabaseConstants.externalCatalogDatabaseFileName,
-            ),
-          ).exists(),
-          isTrue,
-        );
-        expect(
-          Settings.getValue<String>(SettingsRepository.keyLibraryPath),
-          targetDir.path,
-        );
-      },
-    );
-
-    test(
-      'ImportLibraryFolderRequested מחלץ seforim.db.zst דחוס אם אין גרסה רגילה',
-      () async {
-        final srcDir = await Directory.systemTemp.createTemp(
-          'otzaria-import-folder-zst-src-',
-        );
-        final targetDir = await Directory.systemTemp.createTemp(
-          'otzaria-import-folder-zst-dst-',
-        );
-        addTearDown(() async {
-          for (final d in [srcDir, targetDir]) {
-            if (await d.exists()) await d.delete(recursive: true);
-          }
-        });
-
-        await File(
-          path.join(srcDir.path, DatabaseConstants.databaseArchiveFileName),
-        ).writeAsString('fake-zst');
-
-        await Settings.init(cacheProvider: _MemoryCacheProvider());
-        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
-
-        String? extractedTo;
-        final bloc = EmptyLibraryBloc(
-          extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
-                extractedTo = outputPath;
-                await File(outputPath).writeAsString('db');
-              },
-        );
-        addTearDown(bloc.close);
-
-        final selectedFuture = bloc.stream
-            .where((s) => s is EmptyLibraryDirectorySelected)
-            .cast<EmptyLibraryDirectorySelected>()
-            .first;
-
-        bloc.add(
-          ImportLibraryFolderRequested(
-            sourceFolder: srcDir.path,
-            targetPath: targetDir.path,
-          ),
-        );
-
-        await selectedFuture.timeout(const Duration(seconds: 5));
-
-        // נכתב לשם זמני, והועבר לשם הסופי רק בסיום מוצלח.
-        expect(
-          extractedTo,
-          path.join(
-            targetDir.path,
-            '${DatabaseConstants.databaseFileName}.new',
-          ),
-        );
-        expect(
-          File(
-            path.join(targetDir.path, DatabaseConstants.databaseFileName),
-          ).readAsStringSync(),
-          'db',
-        );
-      },
-    );
-
-    test(
-      'ImportLibraryFolderRequested מחבר DB מפוצל, מאמת ומחלץ את השלם',
-      () async {
-        final srcDir = await Directory.systemTemp.createTemp(
-          'otzaria-import-folder-split-src-',
-        );
-        final targetDir = await Directory.systemTemp.createTemp(
-          'otzaria-import-folder-split-dst-',
-        );
-        addTearDown(() async {
-          for (final d in [srcDir, targetDir]) {
-            if (await d.exists()) await d.delete(recursive: true);
-          }
-        });
-
-        final archive = utf8.encode('whole-compressed-library');
-        final parts = [archive.sublist(0, 10), archive.sublist(10)];
-        const name = 'seforim-schema6.db.zst';
-        for (var i = 0; i < parts.length; i++) {
-          await File(
-            path.join(srcDir.path, '$name.part-00$i'),
-          ).writeAsBytes(parts[i]);
-        }
-        await File(path.join(srcDir.path, '$name.manifest.json')).writeAsString(
-          jsonEncode({
-            'schemaVersion': 1,
-            'archive': name,
-            'size': archive.length,
-            'sha256': sha256.convert(archive).toString(),
-            'parts': [
-              for (var i = 0; i < parts.length; i++)
-                {
-                  'name': '$name.part-00$i',
-                  'size': parts[i].length,
-                  'sha256': sha256.convert(parts[i]).toString(),
-                },
-            ],
-          }),
-        );
-
-        await Settings.init(cacheProvider: _MemoryCacheProvider());
-        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
-
-        List<int>? extractedFrom;
-        final bloc = EmptyLibraryBloc(
-          extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
-                extractedFrom = await File(archivePath).readAsBytes();
-                await File(outputPath).writeAsString('db');
-              },
-        );
-        addTearDown(bloc.close);
-
-        final selectedFuture = bloc.stream
-            .where((s) => s is EmptyLibraryDirectorySelected)
-            .cast<EmptyLibraryDirectorySelected>()
-            .first;
-        bloc.add(
-          ImportLibraryFolderRequested(
-            sourceFolder: srcDir.path,
-            targetPath: targetDir.path,
-          ),
-        );
-        await selectedFuture.timeout(const Duration(seconds: 5));
-
-        expect(extractedFrom, archive);
-        expect(
-          File(
-            path.join(targetDir.path, DatabaseConstants.databaseFileName),
-          ).readAsStringSync(),
-          'db',
-        );
-        // הארכיון המחובר זמני ואינו נשאר ביעד.
-        expect(
-          targetDir.listSync().map((e) => path.basename(e.path)),
-          isNot(contains(endsWith('.joining.zst'))),
-        );
-      },
-    );
-
-    test(
-      'ייבוא schema6 מפוצל גובר על legacy יחיד',
-      () async {
-        final srcDir = await Directory.systemTemp.createTemp(
-          'otzaria-import-folder-split-src-',
-        );
-        final targetDir = await Directory.systemTemp.createTemp(
-          'otzaria-import-folder-split-dst-',
-        );
-        addTearDown(() async {
-          for (final d in [srcDir, targetDir]) {
-            if (await d.exists()) await d.delete(recursive: true);
-          }
-        });
-
-        await File(
-          path.join(srcDir.path, 'seforim.db.zst'),
-        ).writeAsString('old-schema5');
-        final archive = utf8.encode('whole-compressed-library');
-        final parts = [archive.sublist(0, 10), archive.sublist(10)];
-        const name = 'seforim-schema6.db.zst';
-        for (var i = 0; i < parts.length; i++) {
-          await File(
-            path.join(srcDir.path, '$name.part-00$i'),
-          ).writeAsBytes(parts[i]);
-        }
-        await File(path.join(srcDir.path, '$name.manifest.json')).writeAsString(
-          jsonEncode({
-            'schemaVersion': 1,
-            'archive': name,
-            'size': archive.length,
-            'sha256': sha256.convert(archive).toString(),
-            'parts': [
-              for (var i = 0; i < parts.length; i++)
-                {
-                  'name': '$name.part-00$i',
-                  'size': parts[i].length,
-                  'sha256': sha256.convert(parts[i]).toString(),
-                },
-            ],
-          }),
-        );
-
-        await Settings.init(cacheProvider: _MemoryCacheProvider());
-        await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
-
-        List<int>? extractedFrom;
-        final bloc = EmptyLibraryBloc(
-          extractCompressedDatabase:
-              (archivePath, outputPath, onProgress) async {
-                extractedFrom = await File(archivePath).readAsBytes();
-                await File(outputPath).writeAsString('db');
-              },
-        );
-        addTearDown(bloc.close);
-
-        final selectedFuture = bloc.stream
-            .where((s) => s is EmptyLibraryDirectorySelected)
-            .cast<EmptyLibraryDirectorySelected>()
-            .first;
-        bloc.add(
-          ImportLibraryFolderRequested(
-            sourceFolder: srcDir.path,
-            targetPath: targetDir.path,
-          ),
-        );
-        await selectedFuture.timeout(const Duration(seconds: 5));
-
-        expect(extractedFrom, archive);
-        expect(
-          File(
-            path.join(targetDir.path, DatabaseConstants.databaseFileName),
-          ).readAsStringSync(),
-          'db',
-        );
-        // הארכיון המחובר זמני ואינו נשאר ביעד.
-        expect(
-          targetDir.listSync().map((e) => path.basename(e.path)),
-          isNot(contains(endsWith('.joining.zst'))),
-        );
-      },
-    );
-
-    test('ImportLibraryArchiveRequested מחלץ ZIP ושומר את הספרייה', () async {
-      final archiveDir = await Directory.systemTemp.createTemp(
-        'otzaria-import-archive-src-',
-      );
-      final targetDir = await Directory.systemTemp.createTemp(
-        'otzaria-import-archive-dst-',
-      );
-      addTearDown(() async {
-        for (final dir in [archiveDir, targetDir]) {
-          if (await dir.exists()) await dir.delete(recursive: true);
-        }
-      });
-      final dbBytes = utf8.encode('db-from-archive');
-      final zip = ZipEncoder().encode(
-        Archive()..addFile(
-          ArchiveFile(
-            DatabaseConstants.databaseFileName,
-            dbBytes.length,
-            dbBytes,
-          ),
-        ),
-      );
-      final archivePath = path.join(archiveDir.path, 'library.zip');
-      await File(archivePath).writeAsBytes(zip);
-
-      await Settings.init(cacheProvider: _MemoryCacheProvider());
-      await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
-      final bloc = EmptyLibraryBloc();
-      addTearDown(bloc.close);
-      final selectedFuture = bloc.stream
-          .where((state) => state is EmptyLibraryDirectorySelected)
-          .cast<EmptyLibraryDirectorySelected>()
-          .first;
-
-      bloc.add(
-        ImportLibraryArchiveRequested(
-          archivePath: archivePath,
-          targetPath: targetDir.path,
-        ),
-      );
-
-      await selectedFuture.timeout(const Duration(seconds: 5));
-      expect(
-        await File(
-          path.join(targetDir.path, DatabaseConstants.databaseFileName),
-        ).readAsString(),
-        'db-from-archive',
-      );
-    });
-
-    test('ImportLibraryArchiveRequested מחלץ ZST ושומר את הספרייה', () async {
-      final archiveDir = await Directory.systemTemp.createTemp(
-        'otzaria-import-zst-src-',
-      );
-      final targetDir = await Directory.systemTemp.createTemp(
-        'otzaria-import-zst-dst-',
-      );
-      addTearDown(() async {
-        for (final dir in [archiveDir, targetDir]) {
-          if (await dir.exists()) await dir.delete(recursive: true);
-        }
-      });
-      final archivePath = path.join(archiveDir.path, 'library.zst');
-      await File(archivePath).writeAsString('compressed-db');
-
-      await Settings.init(cacheProvider: _MemoryCacheProvider());
-      await Settings.setValue<String>(SettingsRepository.keyLibraryPath, '');
-      final bloc = EmptyLibraryBloc(
-        extractCompressedDatabase: (archivePath, outputPath, onProgress) async {
-          await File(outputPath).writeAsString('db-from-zst');
-        },
-      );
-      addTearDown(bloc.close);
-      final selectedFuture = bloc.stream
-          .where((state) => state is EmptyLibraryDirectorySelected)
-          .cast<EmptyLibraryDirectorySelected>()
-          .first;
-
-      bloc.add(
-        ImportLibraryArchiveRequested(
-          archivePath: archivePath,
-          targetPath: targetDir.path,
-        ),
-      );
-
-      await selectedFuture.timeout(const Duration(seconds: 5));
-      expect(
-        await File(
-          path.join(targetDir.path, DatabaseConstants.databaseFileName),
-        ).readAsString(),
-        'db-from-zst',
-      );
-    });
 
     test(
       'StorageLocationSelected שומר את שורש הספרייה ומרענן מצב התחלה',
@@ -2844,6 +2490,9 @@ void main() {
         final tempDir = await Directory.systemTemp.createTemp(
           'otzaria-exact-urls-',
         );
+        final lexicalPath = path.join(tempDir.path, 'lexical.db');
+        await File('$lexicalPath.next').writeAsString('staged-old');
+        await File('$lexicalPath.next.version').writeAsString('old-digest');
         addTearDown(() async {
           if (await tempDir.exists()) await tempDir.delete(recursive: true);
         });
@@ -2862,7 +2511,7 @@ void main() {
         const catalogUrl =
             'https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst';
         const lexicalUrl =
-            'https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db';
+            'https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical-v2.db';
         final requestedUrls = <String>[];
 
         final client = MockClient((request) async {
@@ -2917,6 +2566,14 @@ void main() {
         ]).timeout(const Duration(seconds: 5));
 
         expect(result, 'success');
+        await MagicDictionaryDownloader.installStagedBeforeAttach(lexicalPath);
+        expect(await File(lexicalPath).readAsString(), 'ok');
+        expect(
+          await File('$lexicalPath.version').readAsString(),
+          sha256.convert(utf8.encode('ok')).toString(),
+        );
+        expect(File('$lexicalPath.next').existsSync(), isFalse);
+        expect(File('$lexicalPath.next.version').existsSync(), isFalse);
         expect(
           requestedUrls,
           containsAll([seforimUrl, talmudUrl, catalogUrl, lexicalUrl]),
@@ -2954,6 +2611,13 @@ Future<void> _eventually(bool Function() condition) async {
     await Future<void>.delayed(const Duration(milliseconds: 10));
   }
 }
+
+/// bloc לעדכון ספרייה בהורדה; [db] null — ההורדה נכשלת.
+EmptyLibraryBloc _updateBloc(String? Function() db) => EmptyLibraryBloc(
+  httpClient: fakeLibraryReleaseClient(db),
+  extractCompressedDatabase: copyAsExtracted,
+  extractTarArchive: ignoreTarArchive,
+);
 
 final class _IsolatedTempOverrides extends IOOverrides {
   _IsolatedTempOverrides(this.root);

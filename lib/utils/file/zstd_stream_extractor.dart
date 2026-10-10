@@ -23,6 +23,14 @@ class ZstdStreamExtractor {
     onProgress: onProgress,
     maxOutputBytes: maxOutputBytes,
   );
+
+  /// פורס את ה-tar.zst [archivePath] אל [outputDir] ב-isolate נפרד, בלי קובץ
+  /// tar ביניים. נתיב שבורח מהיעד נדחה; [onProgress] מקבל 0.0–1.0.
+  static Future<void> extractTarToDir(
+    String archivePath,
+    String outputDir, {
+    void Function(double progress)? onProgress,
+  }) => impl.extractTarToDir(archivePath, outputDir, onProgress: onProgress);
 }
 
 /// הפלט הפרוס חרג מהתקרה שנקבעה — הארכיון אינו מה שהוצהר עליו.

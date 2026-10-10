@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/utils/visible_index.dart';
+import 'package:otzaria/utils/file/page_map_builder.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 ItemPosition _pos(int index) =>
@@ -223,6 +224,24 @@ void main() {
         resolveItemIndexForSourceLine(lineIndex: 0, readingSegments: segments),
         0,
       );
+    });
+  });
+
+  group('displayedSourceLine (#1974)', () {
+    // עירובין: "דף י." בשורה 275 = עמוד 17 ב-PDF, "דף י:" בשורה 293 = עמוד 18.
+    final eruvin = PageMap([17, 18], [275, 293]);
+
+    test('מעבר ל-PDF יוצא מהשורה שבכותרת ולא משארית הקטע הקודם', () {
+      // בראש החלון נשארה פסקת "דף י." (רצף: מתחילה ב-276), הכותרת "דף י:".
+      const remnantTopLine = 276;
+      final line = displayedSourceLine(const [293, 294], remnantTopLine);
+
+      expect(eruvin.textToPdf(remnantTopLine), 17);
+      expect(eruvin.textToPdf(line), 18);
+    });
+
+    test('בלי שורות נראות מסוננות — השורה העליונה', () {
+      expect(displayedSourceLine(const [], 276), 276);
     });
   });
 }

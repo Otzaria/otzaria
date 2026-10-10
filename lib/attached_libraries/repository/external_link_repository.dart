@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ffi';
 import 'dart:isolate';
 
+import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
@@ -10,10 +12,22 @@ import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
+import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
+
+/// התקדמות בניית האינדקס של מסד אחד: [done] שורות נסרקו מתוך [total] שורות
+/// `external_link` במסד המקור.
+class ExternalLinkBuildProgress {
+  const ExternalLinkBuildProgress({required this.done, required this.total});
+
+  final int done;
+  final int total;
+
+  double get fraction => total <= 0 ? 0 : (done / total).clamp(0.0, 1.0);
+}
 
 /// קישורים חוצי-מסדים מטבלת `external_link` של מסד מצורף.
 ///
@@ -343,7 +357,7 @@ class ExternalLinkRepository {
     ].join(';');
     final cached = _indexedTargetsCache;
     if (cached != null && cached.key == key) return cached.titles;
-    final titles = _inIsolate(_queryIndexedTargets, (path, served));
+    final titles = _inIsolate(_queryIndexedTargets, path);
     _indexedTargetsCache = (key: key, titles: titles);
     titles.then<void>(
       (_) {},
@@ -446,15 +460,26 @@ class ExternalLinkRepository {
   /// בונה מחדש את אינדקס הכיוון ההפוך לכל מסד שהשתנה (או שמסד יעד שלו
   /// השתנה), ומוחק את שורותיו של מסד שהוסר. מסד לא נגיש נשמר כמות שהוא.
   /// מחזיר את ה-slugs שנבנו מחדש.
-  Future<Set<String>> sync() {
-    final result = _tail.then((_) => _sync());
+  Future<Set<String>> sync({bool autoResume = false}) =>
+      _enqueue(() => _sync(autoResume: autoResume));
+
+  Future<T> _enqueue<T>(Future<T> Function() task) {
+    final result = _tail.then((_) => task());
     _tail = result.then<void>((_) {}, onError: (_) {});
     return result;
   }
 
-  Future<Set<String>> _sync() async {
+  /// אחרי כשל, [incompleteSlugs] ו-[tooLargeSlugs] נשארים עם ערכם הקודם.
+  Future<Set<String>> _sync({
+    String? resumeSlug,
+    bool autoResume = false,
+  }) async {
+    if (WindowRole.isSecondary) return const {};
     final libraries = _registry.libraries;
-    if (libraries.isEmpty) tooLargeSlugs.value = const {};
+    if (libraries.isEmpty) {
+      tooLargeSlugs.value = const {};
+      incompleteSlugs.value = const {};
+    }
     // בלי מסדים מצורפים — ניקוי בלבד, ורק אם נבנה אי-פעם אינדקס.
     if (libraries.isEmpty && _indexKnownAbsent) return const {};
     final path = await _cacheDbPath();
@@ -484,22 +509,127 @@ class ExternalLinkRepository {
     final targets = jobs.any((job) => job.status == _SyncStatus.build)
         ? await _targets()
         : const <ExternalTargetDb>[];
+    // מילת בקרה בזיכרון משותף: ה-isolate של הבנייה סינכרוני, ולכן קורא אותה
+    // בין מנות במקום להאזין להודעות.
+    final control = calloc<Int32>();
+    _control = control;
     try {
-      final result = await _inIsolate(_syncIndexEntry, (
-        path,
-        jobs,
-        targets,
-        maxIndexRows,
-        insertBatchSize,
-      ));
+      final result = await _syncInIsolate((
+        path: path,
+        jobs: jobs,
+        targets: targets,
+        maxRows: maxIndexRows,
+        batchSize: insertBatchSize,
+        progressIntervalMs: progressInterval.inMilliseconds,
+        batchPauseMs: batchPause.inMilliseconds,
+        resumeSlug: resumeSlug,
+        autoResume: autoResume,
+        control: control.address,
+      ), _onSyncMessage);
       _indexKnownAbsent = jobs.isEmpty && result.hadIndex == false;
       tooLargeSlugs.value = result.tooLarge;
+      incompleteSlugs.value = result.incomplete;
       if (result.rebuilt.isNotEmpty) _invalidateIndexCaches();
       return result.rebuilt;
     } catch (_) {
       _invalidateIndexCaches();
       rethrow;
+    } finally {
+      _control = null;
+      calloc.free(control);
+      buildProgress.value = const {};
+      buildingSlugs.value = const {};
+      buildPaused.value = false;
+      buildEconomy.value = false;
     }
+  }
+
+  /// הודעה מה-isolate של הסנכרון: רשימת ה-slugs שייבנו (בתחילתו), או
+  /// התקדמות של מסד אחד.
+  void _onSyncMessage(Object? message) {
+    switch (message) {
+      case List<Object?> pending:
+        buildProgress.value = {
+          for (final slug in pending)
+            slug as String: const ExternalLinkBuildProgress(done: 0, total: 0),
+        };
+        buildingSlugs.value = buildProgress.value.keys.toSet();
+      case (String slug, int done, int total):
+        buildProgress.value = {
+          ...buildProgress.value,
+          slug: ExternalLinkBuildProgress(done: done, total: total),
+        };
+    }
+  }
+
+  Pointer<Int32>? _control;
+
+  void _setControlBit(int bit, bool on) {
+    final control = _control;
+    if (control == null) return;
+    control.value = on ? control.value | bit : control.value & ~bit;
+  }
+
+  /// משהה את הבנייה בין מנות. ההשהיה מחזיקה את שרשרת הסנכרונים: [sync] ו-
+  /// [rebuild] אחרים ממתינים עד [resumeBuild] או [cancelBuild]. אין השפעה כשאין
+  /// בנייה.
+  void pauseBuild() {
+    if (_control == null) return;
+    _setControlBit(_ctlPaused, true);
+    buildPaused.value = true;
+  }
+
+  void resumeBuild() {
+    if (_control == null) return;
+    _setControlBit(_ctlPaused, false);
+    buildPaused.value = false;
+  }
+
+  /// עוצר את הבנייה אחרי המנה הנוכחית ושומר את ההתקדמות. הסימון `!building`
+  /// נשאר, והמסד נחשב לא שלם ([incompleteSlugs]) עד [requestResume] (המשך) או
+  /// [requestRebuild] (מאפס).
+  void cancelBuild() => _setControlBit(_ctlCancel, true);
+
+  /// מצב חסכוני: מנות קטנות יותר והשהיה קצרה ביניהן.
+  void setBuildEconomy(bool on) {
+    if (_control == null) return;
+    _setControlBit(_ctlEconomy, on);
+    buildEconomy.value = on;
+  }
+
+  /// בונה מחדש את אינדקס הקישורים של [slug] מאפס. רץ באותה שרשרת של [sync],
+  /// כך שמחיקת ה-meta אינה מקדימה סנכרון שכותב. הממשק משתמש ב-[requestRebuild].
+  @visibleForTesting
+  Future<void> rebuild(String slug) => _enqueue(() async {
+    if (WindowRole.isSecondary) return;
+    await _inIsolate(_forgetIndexMeta, (await _cacheDbPath(), slug));
+    await _sync();
+  });
+
+  /// ממשיך בנייה שנקטעה ([cancelBuild], קריסה) מהנקודה השמורה: שורות האינדקס
+  /// שכבר נכתבו נשמרות. תקף רק לאותו קובץ ואותם מסדי יעד, אחרת המסד נבנה מאפס.
+  /// המשך אוטומטי בהפעלה מתבצע ב-`sync(autoResume: true)`.
+  void requestResume(String slug) =>
+      _request(slug, () => _enqueue(() => _sync(resumeSlug: slug)));
+
+  /// בנייה מאפס מהממשק: מוחק את הסימון והשורות של [slug].
+  void requestRebuild(String slug) => _request(slug, () => rebuild(slug));
+
+  final Set<String> _requestedSlugs = {};
+
+  /// בקשת משתמש לגבי [slug] שכבר מתבצעת (לחיצה כפולה) אינה מתחילה שוב. כשל
+  /// נרשם ואינו הופך לשגיאה אסינכרונית לא נתפסת.
+  void _request(String slug, Future<Object?> Function() task) {
+    if (!_requestedSlugs.add(slug)) return;
+    unawaited(
+      task()
+          .then<void>(
+            (_) {},
+            onError: (Object e) =>
+                debugPrint('[ExternalLinks] request "$slug" failed: $e'),
+          )
+          .whenComplete(() => _requestedSlugs.remove(slug)),
+    );
   }
 
   /// תקרת השורות למסד אחד בבניית האינדקס — עוברת ל-isolate כארגומנט.
@@ -509,8 +639,35 @@ class ExternalLinkRepository {
   @visibleForTesting
   static int insertBatchSize = kExternalLinkInsertBatchSize;
 
+  /// קצב מרבי של דיווחי ההתקדמות מה-isolate.
+  @visibleForTesting
+  static Duration progressInterval = const Duration(milliseconds: 200);
+
+  /// השהיה קבועה אחרי כל מנה — לבדיקות שצריכות לתפוס בנייה באמצע.
+  @visibleForTesting
+  static Duration batchPause = Duration.zero;
+
+  /// התקדמות הבנייה לכל מסד שנבנה כעת (המפתחות זהים ל-[buildingSlugs]):
+  /// `done` שורות נסרקו מתוך `total` שורות `external_link` במקור.
+  final ValueNotifier<Map<String, ExternalLinkBuildProgress>> buildProgress =
+      ValueNotifier(const {});
+
+  /// הבנייה מושהית ([pauseBuild]); מתאפס בסיום הסנכרון.
+  final ValueNotifier<bool> buildPaused = ValueNotifier(false);
+
+  /// מצב חסכוני ([setBuildEconomy]); מתאפס בסיום הסנכרון.
+  final ValueNotifier<bool> buildEconomy = ValueNotifier(false);
+
   /// ה-slugs של מסדים שקישוריהם החיצוניים לא נטענו כי עברו את תקרת השורות.
   final ValueNotifier<Set<String>> tooLargeSlugs = ValueNotifier(const {});
+
+  /// ה-slugs של מסדים שאינדקס הקישורים שלהם נבנה כעת. עד הסיום המפרשים שלהם
+  /// אינם מוצגים על ספרים רשמיים.
+  final ValueNotifier<Set<String>> buildingSlugs = ValueNotifier(const {});
+
+  /// ה-slugs של מסדים שהבנייה שלהם נקטעה (הסימון `!building` נשאר). האינדקס
+  /// חלקי ואינו מוגש, והבנייה אינה מנוסה שוב עד ש-[rebuild] מוחק את הסימון.
+  final ValueNotifier<Set<String>> incompleteSlugs = ValueNotifier(const {});
 
   /// אחרי סנכרון שמצא cache.db בלי אינדקס ובלי מסדים — אין מה לנקות עוד.
   bool _indexKnownAbsent = false;
@@ -520,6 +677,20 @@ class ExternalLinkRepository {
 /// שלא ילכוד את ההקשר שלה (Future וכד') שאינו עובר את גבול ה-isolate.
 Future<R> _inIsolate<A, R>(R Function(A) computation, A argument) =>
     Isolate.run(() => computation(argument));
+
+/// מריץ את סנכרון האינדקס ב-isolate אחד; הודעות ההתקדמות שלו מגיעות ל-
+/// [onMessage] בזמן הריצה.
+Future<_SyncResult> _syncInIsolate(
+  _SyncArgs args,
+  void Function(Object? message) onMessage,
+) {
+  final port = ReceivePort();
+  port.listen(onMessage);
+  final sendPort = port.sendPort;
+  return Isolate.run(
+    () => _syncIndex(args, sendPort),
+  ).whenComplete(port.close);
+}
 
 /// ספר שעבר את התקרה מחזיר ריק (ולא זורק), כדי שהתוצאה תישמר במטמון ולא
 /// תיקרא מחדש בכל גלילה.
@@ -539,29 +710,16 @@ List<ResolvedExternalLink> _forwardRows(
   }
 }
 
-/// כל היעדים (wireKey + כותרת) שיש אליהם שורות מוגשות באינדקס ההפוך.
-Set<String> _queryIndexedTargets((String, Map<String, String>) args) {
-  final (path, served) = args;
+/// קבוצת-על של היעדים המוגשים, מתוך אינדקס מכסה; [_queryReverseRows]
+/// מסנן את שורות הקישורים לפי המקורות המוגשים וגרסאותיהם.
+Set<String> _queryIndexedTargets(String path) {
   if (!File(path).existsSync()) return const {};
   final db = _openCacheDb(path);
   try {
-    if (!_hasTable(db, _indexTable) || !_hasTable(db, _metaTable)) {
-      return const {};
-    }
-    final pairs = served.entries.toList();
-    final pairPlaceholders = List.filled(pairs.length, '(?, ?)').join(', ');
+    if (!_hasTable(db, _indexTable)) return const {};
     return {
       for (final row in db.select(
-        '''
-        WITH served(slug, fingerprint) AS (VALUES $pairPlaceholders)
-        SELECT DISTINCT i.targetSource, i.targetTitle
-        FROM $_indexTable i
-        JOIN $_metaTable m ON m.sourceSlug = i.sourceSlug
-        JOIN served s ON s.slug = m.sourceSlug AND s.fingerprint = m.fingerprint
-        ''',
-        [
-          for (final pair in pairs) ...[pair.key, pair.value],
-        ],
+        'SELECT DISTINCT targetSource, targetTitle FROM $_indexTable',
       ))
         ExternalLinkRepository._targetKey(
           row['targetSource'] as String,
@@ -573,15 +731,41 @@ Set<String> _queryIndexedTargets((String, Map<String, String>) args) {
   }
 }
 
-_SyncResult _syncIndexEntry(
-  (String, List<_SyncJob>, List<ExternalTargetDb>, int, int) args,
-) => _syncIndex(
-  args.$1,
-  args.$2,
-  args.$3,
-  maxRows: args.$4,
-  batchSize: args.$5,
-);
+typedef _SyncArgs = ({
+  String path,
+  List<_SyncJob> jobs,
+  List<ExternalTargetDb> targets,
+  int maxRows,
+  int batchSize,
+  int progressIntervalMs,
+  int batchPauseMs,
+  String? resumeSlug,
+  bool autoResume,
+  int control,
+});
+
+const _ctlPaused = 1;
+const _ctlCancel = 2;
+const _ctlEconomy = 4;
+
+/// נזרק בין מנות כשהבנייה בוטלה; הסימון `!building` נשאר.
+class _BuildCancelled implements Exception {
+  const _BuildCancelled();
+}
+
+/// נקודת בקרה בין מנות: ממתין בזמן השהיה (בלי לצרוך CPU), זורק בעצירה, ובמצב
+/// חסכוני נח בין המנות.
+void _controlPoint(Pointer<Int32> control, int batchPauseMs) {
+  while (true) {
+    final state = control.value;
+    if (state & _ctlCancel != 0) throw const _BuildCancelled();
+    if (state & _ctlPaused == 0) break;
+    sleep(const Duration(milliseconds: 50));
+  }
+  final economyMs = control.value & _ctlEconomy != 0 ? 100 : 0;
+  final pauseMs = batchPauseMs + economyMs;
+  if (pauseMs > 0) sleep(Duration(milliseconds: pauseMs));
+}
 
 enum _SyncStatus { build, clear, keep }
 
@@ -759,6 +943,7 @@ typedef _SyncResult = ({
   Set<String> rebuilt,
   bool hadIndex,
   Set<String> tooLarge,
+  Set<String> incomplete,
 });
 
 /// גודל מנת הכנסה — טרנזקציה קצרה, כדי שכותבים אחרים ל-cache.db לא יקבלו BUSY.
@@ -766,25 +951,120 @@ const kExternalLinkInsertBatchSize = 5000;
 
 /// סימון שנכתב ל-meta לפני הבנייה: אם הוא נשאר (קריסה, מסד גדול מדי), הבנייה
 /// לא תנוסה שוב עד שהקובץ או מסדי היעד ישתנו.
-String _buildingMarker(String signature) => '!building:$signature';
+///
+/// אחרי ה-signature יכולה לבוא סיומת, בלי שינוי סכמה: `\u0001stop` - עצירה
+/// ידנית (אין המשך אוטומטי בהפעלה), או `\u0001auto=N` - המשך אוטומטי שהתחיל
+/// כש-N שורות היו באינדקס (אין המשך אוטומטי נוסף בלי התקדמות מעבר ל-N).
+String _buildingMarker(String signature, {String suffix = ''}) =>
+    '!building:$signature$suffix';
+
+const _stoppedSuffix = '\u0001stop';
+String _autoSuffix(int rows) => '\u0001auto=$rows';
+
+/// מצב סימון `!building` של [signature] ב-[value], או null כשאינו כזה.
+({int? autoRows, bool stopped})? _buildingState(
+  String value,
+  String signature,
+) {
+  final base = _buildingMarker(signature);
+  if (!value.startsWith(base)) return null;
+  final rest = value.substring(base.length);
+  if (rest.isEmpty) return (autoRows: null, stopped: false);
+  if (rest == _stoppedSuffix) return (autoRows: null, stopped: true);
+  const autoPrefix = '\u0001auto=';
+  if (!rest.startsWith(autoPrefix)) return null;
+  final rows = int.tryParse(rest.substring(autoPrefix.length));
+  return rows == null ? null : (autoRows: rows, stopped: false);
+}
 
 /// סימון מסד שעבר את תקרת השורות — קישוריו לא נטענו, והכרטיס שלו מציג זאת.
 const _tooLargePrefix = '!toolarge:';
 String _tooLargeMarker(String signature) => '$_tooLargePrefix$signature';
 
-_SyncResult _syncIndex(
-  String path,
-  List<_SyncJob> jobs,
-  List<ExternalTargetDb> targets, {
-  int maxRows = kMaxExternalLinkRows,
-  int batchSize = kExternalLinkInsertBatchSize,
-}) {
+/// חתימת מסדי היעד שהאינדקס של [wireKey] נבנה מולם (בלי המסד עצמו).
+String _signatureFor(String wireKey, List<ExternalTargetDb> targets) => [
+  for (final t in targets)
+    if (t.wireKey != wireKey) '${t.wireKey}=${t.version}',
+].join(';');
+
+/// האם ה-meta הקיים מכסה את [fingerprint] וה-[signature]: אינדקס שנבנה, או
+/// סימון שמונע ניסיון חוזר (`!building` אחרי הפסקה, `!toolarge`).
+bool _isCurrentOrMarked(
+  (String, String)? previous,
+  String fingerprint,
+  String signature,
+) =>
+    previous != null &&
+    previous.$1 == fingerprint &&
+    (previous.$2 == signature ||
+        _buildingState(previous.$2, signature) != null ||
+        previous.$2 == _tooLargeMarker(signature));
+
+/// מספר שורות `external_link` במסד המקור — היעד של דיווח ההתקדמות — ומספר
+/// השורות שמתחת ל-[resumeFrom], שכבר נסרקו בבנייה שנקטעה.
+({int total, int before}) _countExternalLinks(
+  ReadOnlyDbTarget source,
+  (int, int)? resumeFrom,
+) {
+  final db = openReadOnlyTarget(source);
+  try {
+    if (!DbCapabilities.probe(db).hasExternalLinks) {
+      return (total: 0, before: 0);
+    }
+    final row = db.select(
+      'SELECT COUNT(*) AS total, '
+      '${resumeFrom == null ? '0' : 'COALESCE(SUM((sourceBookId, sourceLineIndex) < (?, ?)), 0)'} '
+      'AS before FROM external_link',
+      [?resumeFrom?.$1, ?resumeFrom?.$2],
+    ).first;
+    return (total: row['total'] as int, before: row['before'] as int);
+  } finally {
+    db.close();
+  }
+}
+
+/// מוחק את ה-meta של [slug], כך שהסנכרון הבא יבנה לו אינדקס מחדש.
+void _forgetIndexMeta((String, String) args) {
+  final (path, slug) = args;
+  if (!File(path).existsSync()) return;
+  final db = _openCacheDb(path);
+  try {
+    if (!_hasTable(db, _metaTable)) return;
+    db.execute('DELETE FROM $_metaTable WHERE sourceSlug = ?', [slug]);
+  } finally {
+    db.close();
+  }
+}
+
+_SyncResult _syncIndex(_SyncArgs args, SendPort progress) {
+  final (
+    :path,
+    :jobs,
+    :targets,
+    :maxRows,
+    :batchSize,
+    :progressIntervalMs,
+    :batchPauseMs,
+    :resumeSlug,
+    :autoResume,
+    control: controlAddress,
+  ) = args;
+  final control = Pointer<Int32>.fromAddress(controlAddress);
+  // מצב חסכוני: חצי ממנת ההכנסה הרגילה.
+  int currentBatchSize() => control.value & _ctlEconomy != 0
+      ? (batchSize ~/ 2).clamp(1, batchSize)
+      : batchSize;
   final db = _openCacheDb(path);
   try {
     final hadIndex = _hasTable(db, _metaTable);
     // בלי מסדים מצורפים לא יוצרים טבלאות ב-cache.db של משתמש שלא צירף מעולם.
     if (jobs.isEmpty && !hadIndex) {
-      return (rebuilt: const {}, hadIndex: false, tooLarge: const {});
+      return (
+        rebuilt: const {},
+        hadIndex: false,
+        tooLarge: const {},
+        incomplete: const {},
+      );
     }
     _ensureSchema(db);
     final known = {for (final job in jobs) job.slug};
@@ -815,7 +1095,50 @@ _SyncResult _syncIndex(
       if (!known.contains(slug)) _transaction(db, () => clear(slug));
     }
 
+    int indexRowCount(String slug) =>
+        db.select(
+              'SELECT COUNT(*) AS c FROM $_indexTable WHERE sourceSlug = ?',
+              [slug],
+            ).first['c']
+            as int;
+
+    // המשך תקף רק לאותו מקור ויעדים; המשך אוטומטי דורש התקדמות מאז הניסיון
+    // הקודם ולא אחרי עצירה ידנית, כדי למנוע לולאת קריסות.
+    ({bool resume, int? autoRows}) resumeDecision(
+      _SyncJob job,
+      (String, String)? previous,
+      String signature,
+    ) {
+      final state = previous == null || previous.$1 != job.fingerprint
+          ? null
+          : _buildingState(previous.$2, signature);
+      if (state == null) return (resume: false, autoRows: null);
+      if (job.slug == resumeSlug) return (resume: true, autoRows: null);
+      if (!autoResume || state.stopped) return (resume: false, autoRows: null);
+      final rows = indexRowCount(job.slug);
+      final progressed = state.autoRows == null || rows > state.autoRows!;
+      return rows > 0 && progressed
+          ? (resume: true, autoRows: rows)
+          : (resume: false, autoRows: null);
+    }
+
+    final pending = [
+      for (final job in jobs)
+        if (job.status == _SyncStatus.build)
+          if (_signatureFor(BookSource.attached(job.slug).wireKey, targets)
+              case final signature)
+            if (resumeDecision(job, stored[job.slug], signature).resume ||
+                !_isCurrentOrMarked(
+                  stored[job.slug],
+                  job.fingerprint,
+                  signature,
+                ))
+              job.slug,
+    ];
+    if (pending.isNotEmpty) progress.send(pending);
+
     final rebuilt = <String>{};
+    jobsLoop:
     for (final job in jobs) {
       switch (job.status) {
         case _SyncStatus.keep:
@@ -833,53 +1156,113 @@ _SyncResult _syncIndex(
         for (final t in targets)
           if (t.wireKey != wireKey) t,
       ];
-      final signature = [
-        for (final t in jobTargets) '${t.wireKey}=${t.version}',
-      ].join(';');
+      final signature = _signatureFor(wireKey, targets);
       final previous = stored[job.slug];
-      if (previous != null &&
-          previous.$1 == job.fingerprint &&
-          (previous.$2 == signature ||
-              previous.$2 == _buildingMarker(signature) ||
-              previous.$2 == _tooLargeMarker(signature))) {
+      final decision = resumeDecision(job, previous, signature);
+      final resuming = decision.resume;
+      if (!resuming &&
+          _isCurrentOrMarked(previous, job.fingerprint, signature)) {
         continue;
       }
-      _transaction(
-        db,
-        () => writeMeta(job.slug, job.fingerprint, _buildingMarker(signature)),
-      );
-      // שורות בלי שורת יעד ב-_targetTable אינן מוגשות, ולכן הכתיבה במנות תוך
-      // כדי הקריאה אינה חושפת אינדקס חלקי.
-      var started = false;
+      // הסימון ומחיקת האינדקס הישן אטומיים. שורות בלי יעד ב-_targetTable
+      // אינן מוגשות, ולכן כתיבה במנות אינה חושפת אינדקס חלקי.
+      _transaction(db, () {
+        writeMeta(
+          job.slug,
+          job.fingerprint,
+          _buildingMarker(
+            signature,
+            suffix: decision.autoRows == null
+                ? ''
+                : _autoSuffix(decision.autoRows!),
+          ),
+        );
+        if (!resuming) {
+          db.execute('DELETE FROM $_indexTable WHERE sourceSlug = ?', [
+            job.slug,
+          ]);
+          db.execute('DELETE FROM $_targetTable WHERE sourceSlug = ?', [
+            job.slug,
+          ]);
+        }
+      });
+      var scanned = 0;
+      var total = 0;
+      (int, int)? resumeFrom;
+      if (resuming) {
+        final last = db.select(
+          'SELECT sourceBookId, sourceLineIndex FROM $_indexTable '
+          'WHERE sourceSlug = ? '
+          'ORDER BY sourceBookId DESC, sourceLineIndex DESC LIMIT 1',
+          [job.slug],
+        );
+        if (last.isNotEmpty) {
+          final from = (
+            last.first['sourceBookId'] as int,
+            last.first['sourceLineIndex'] as int,
+          );
+          resumeFrom = from;
+          // מנה יכולה להיחתך באמצע קישורי אותה שורה — קוראים אותה כולה מחדש.
+          _transaction(db, () {
+            db.execute(
+              'DELETE FROM $_indexTable WHERE sourceSlug = ? '
+              'AND sourceBookId = ? AND sourceLineIndex = ?',
+              [job.slug, from.$1, from.$2],
+            );
+          });
+        }
+      }
+      final clock = Stopwatch()..start();
+      var lastReportMs = -progressIntervalMs;
+      void report({bool force = false}) {
+        final now = clock.elapsedMilliseconds;
+        if (!force && now - lastReportMs < progressIntervalMs) return;
+        lastReportMs = now;
+        progress.send((job.slug, force ? total : scanned, total));
+      }
+
       final batch = <ResolvedExternalLink>[];
+      var scannedInBatch = 0;
       void flush() {
-        _transaction(db, () {
-          if (!started) {
-            db.execute('DELETE FROM $_indexTable WHERE sourceSlug = ?', [
-              job.slug,
-            ]);
-            db.execute('DELETE FROM $_targetTable WHERE sourceSlug = ?', [
-              job.slug,
-            ]);
-            started = true;
-          }
-          _insertRows(db, job.slug, batch);
-        });
+        if (batch.isNotEmpty) {
+          _transaction(db, () => _insertRows(db, job.slug, batch));
+        }
         batch.clear();
+        scannedInBatch = 0;
+        report();
+        _controlPoint(control, batchPauseMs);
       }
 
       try {
+        final counts = _countExternalLinks(job.source, resumeFrom);
+        total = counts.total;
+        scanned = counts.before;
+        report();
         readResolvedExternalLinks(
           source: job.source,
           sourceWireKey: wireKey,
           targets: jobTargets,
-          maxRows: maxRows,
-          onRow: (row) {
-            batch.add(row);
-            if (batch.length >= batchSize) flush();
+          maxRows: maxRows - counts.before,
+          resumeFrom: resumeFrom,
+          onScanned: () {
+            scanned++;
+            if (++scannedInBatch >= currentBatchSize()) flush();
           },
+          onRow: batch.add,
         );
-        flush();
+        if (scannedInBatch > 0) flush();
+        report(force: true);
+      } on _BuildCancelled {
+        // השורות שנכתבו נשארות — המשך מהנקודה השמורה, רק לבקשת המשתמש.
+        _transaction(
+          db,
+          () => writeMeta(
+            job.slug,
+            job.fingerprint,
+            _buildingMarker(signature, suffix: _stoppedSuffix),
+          ),
+        );
+        break jobsLoop;
       } on ExternalLinksTooLargeException {
         // הסימון נשאר — לא ננסה שוב עד שהקובץ ישתנה.
         _transaction(db, () {
@@ -887,19 +1270,14 @@ _SyncResult _syncIndex(
           writeMeta(job.slug, job.fingerprint, _tooLargeMarker(signature));
         });
         continue;
-      } catch (_) {
-        // מסד שלא נקרא כעת — ננסה בסנכרון הבא. השורות הקודמות נשמרות רק אם
-        // הכתיבה טרם החלה.
-        _transaction(db, () {
-          if (started) clear(job.slug);
-          if (previous == null || started) {
-            db.execute('DELETE FROM $_metaTable WHERE sourceSlug = ?', [
-              job.slug,
-            ]);
-          } else {
-            writeMeta(job.slug, previous.$1, previous.$2);
-          }
-        });
+      } catch (e) {
+        // כשל בהמשך משאיר את ההתקדמות השמורה ואת הסימון כמות שהם.
+        if (resuming && resumeFrom != null) {
+          debugPrint('[ExternalLinks] resume of "${job.slug}" failed: $e');
+          continue;
+        }
+        // מסד שלא נקרא כעת — ננסה בסנכרון הבא, מאפס.
+        _transaction(db, () => clear(job.slug));
         continue;
       }
       _transaction(db, () {
@@ -921,7 +1299,19 @@ _SyncResult _syncIndex(
       ))
         row['sourceSlug'] as String,
     };
-    return (rebuilt: rebuilt, hadIndex: true, tooLarge: tooLarge);
+    final incomplete = {
+      for (final row in db.select(
+        'SELECT sourceSlug FROM $_metaTable WHERE targetsSignature LIKE ?',
+        ['!building:%'],
+      ))
+        row['sourceSlug'] as String,
+    };
+    return (
+      rebuilt: rebuilt,
+      hadIndex: true,
+      tooLarge: tooLarge,
+      incomplete: incomplete,
+    );
   } finally {
     db.close();
   }

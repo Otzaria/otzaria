@@ -41,3 +41,16 @@ class SemanticVoteToggled extends SemanticResultsEvent {
   @override
   List<Object?> get props => [index, vote];
 }
+
+/// סימון הקטע הקרוב לשאילתה בתוצאות [start]..[end] של החיפוש [searchId],
+/// ברקע ואחרי שהעמוד כבר מוצג.
+class SemanticHighlightsRequested extends SemanticResultsEvent {
+  final int searchId;
+  final int start;
+  final int end;
+
+  const SemanticHighlightsRequested(this.searchId, this.start, this.end);
+
+  @override
+  List<Object?> get props => [searchId, start, end];
+}

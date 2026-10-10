@@ -309,11 +309,6 @@ class PluginFsService {
   Future<int> workspaceEntryCount(String root) async =>
       (await _usageOf(root)).entries;
 
-  /// שורשים שאינם בשימוש עוד — הנתונים נמחקו או שהתוסף הוסר.
-  static void forgetWorkspace(String root) {
-    _usageCache.remove(canonicalizeNearestExisting(root) ?? root);
-  }
-
   static final Map<String, _WorkspaceUsage> _usageCache = {};
   static final Map<String, Future<void>> _locks = {};
 

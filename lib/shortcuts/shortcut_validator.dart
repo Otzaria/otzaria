@@ -72,6 +72,10 @@ class ShortcutValidator {
   ];
 
   /// קיצורי הזום — משותפים לספר טקסט (גודל הגופן) ול-PDF (זום התצוגה).
+  static const String printKey = 'key-shortcut-print';
+  static const String addBookmarkKey = 'key-shortcut-add-bookmark';
+  static const String addNoteKey = 'key-shortcut-add-note';
+  static const String togglePdfViewKey = 'key-shortcut-toggle-pdf-view';
   static const String zoomInKey = 'key-shortcut-zoom-in';
   static const String zoomOutKey = 'key-shortcut-zoom-out';
   static const String zoomResetKey = 'key-shortcut-zoom-reset';
@@ -163,8 +167,6 @@ class ShortcutValidator {
     _dynamicShortcuts = Map.unmodifiable(shortcuts);
   }
 
-  static Iterable<String> get dynamicShortcutKeys => _dynamicShortcuts.keys;
-
   /// המפתחות של קיצורי המקלדת שהתוספים הצהירו עליהם כעת.
   static Iterable<String> get declaredPluginShortcutKeys =>
       _pluginShortcuts.keys;
@@ -192,14 +194,14 @@ class ShortcutValidator {
     'key-shortcut-open-more',
     'key-shortcut-open-bookmarks',
     'key-shortcut-open-history',
-    'key-shortcut-add-bookmark',
+    addBookmarkKey,
     // שמירת סימניה מרוכזת — אופציונלי, ללא ברירת מחדל.
     'key-shortcut-save-group-bookmark',
-    'key-shortcut-add-note',
+    addNoteKey,
     'key-shortcut-switch-workspace',
     openNewWindowKey,
-    'key-shortcut-print',
-    'key-shortcut-toggle-pdf-view',
+    printKey,
+    togglePdfViewKey,
     zoomInKey,
     zoomOutKey,
     zoomResetKey,
@@ -267,13 +269,13 @@ class ShortcutValidator {
     'key-shortcut-open-more': 'ctrl+m',
     'key-shortcut-open-bookmarks': 'ctrl+shift+b',
     'key-shortcut-open-history': 'ctrl+h',
-    'key-shortcut-add-bookmark': 'ctrl+b',
+    addBookmarkKey: 'ctrl+b',
     'key-shortcut-save-group-bookmark': '',
-    'key-shortcut-add-note': 'ctrl+n',
+    addNoteKey: 'ctrl+n',
     'key-shortcut-switch-workspace': 'ctrl+k',
     openNewWindowKey: 'ctrl+alt+n',
-    'key-shortcut-print': 'ctrl+p',
-    'key-shortcut-toggle-pdf-view': 'ctrl+shift+p',
+    printKey: 'ctrl+p',
+    togglePdfViewKey: 'ctrl+shift+p',
     zoomInKey: 'ctrl+equal',
     zoomOutKey: 'ctrl+minus',
     zoomResetKey: 'ctrl+0',
@@ -331,13 +333,13 @@ class ShortcutValidator {
     'key-shortcut-open-more': 'כלים',
     'key-shortcut-open-bookmarks': 'סימניות',
     'key-shortcut-open-history': 'היסטוריה',
-    'key-shortcut-add-bookmark': 'הוסף סימניה',
+    addBookmarkKey: 'הוסף סימניה',
     'key-shortcut-save-group-bookmark': 'שמור סימניה לכל הספרים הפתוחים',
-    'key-shortcut-add-note': 'הוספת הערה',
+    addNoteKey: 'הוספת הערה',
     'key-shortcut-switch-workspace': 'החלף שולחן עבודה',
     openNewWindowKey: 'חלון חדש',
-    'key-shortcut-print': 'הדפסה',
-    'key-shortcut-toggle-pdf-view': 'החלף מצב תצוגה (PDF/טקסט)',
+    printKey: 'הדפסה',
+    togglePdfViewKey: 'החלף מצב תצוגה (PDF/טקסט)',
     zoomInKey: 'הגדלת הטקסט / התצוגה',
     zoomOutKey: 'הקטנת הטקסט / התצוגה',
     zoomResetKey: 'איפוס גודל הטקסט / התצוגה',
@@ -394,31 +396,6 @@ class ShortcutValidator {
     }
 
     return conflicts;
-  }
-
-  /// Get a human-readable description of conflicts
-  static String getConflictsDescription() {
-    final conflicts = checkConflicts();
-
-    if (conflicts.isEmpty) {
-      return 'אין קונפליקטים בקיצורי המקשים';
-    }
-
-    final buffer = StringBuffer('נמצאו קונפליקטים בקיצורי המקשים:\n\n');
-
-    for (final entry in conflicts.entries) {
-      final shortcut = entry.key;
-      final keys = entry.value;
-
-      buffer.writeln('$shortcut משמש עבור:');
-      for (final key in keys) {
-        final name = shortcutNames[key] ?? key;
-        buffer.writeln('  • $name');
-      }
-      buffer.writeln();
-    }
-
-    return buffer.toString();
   }
 
   /// Check if a specific shortcut has conflicts

@@ -283,9 +283,13 @@ final class StaleHashGateTests: XCTestCase {
 
 final class FormattingTests: XCTestCase {
     func testHumanSizeMatchesTheWindowsAssistant() {
-        XCTAssertEqual(humanSize(500), "1 קילו")
-        XCTAssertEqual(humanSize(5 * 1_048_576), "5 מגה")
-        XCTAssertEqual(humanSize(2_012_390_081), "1.8 ג׳יגה")
+        XCTAssertEqual(humanSize(500, english: true), "1\u{00A0}KB")
+        XCTAssertEqual(humanSize(5 * 1_048_576, english: true), "5\u{00A0}MB")
+        XCTAssertEqual(humanSize(2_012_390_081, english: true), "1.8\u{00A0}GB")
+        // בעברית אותו ערך, עטוף כדי שלא יתהפך בתוך משפט.
+        XCTAssertEqual(humanSize(5 * 1_048_576), "\u{202A}5\u{00A0}MB\u{202C}")
+        XCTAssertEqual(humanSpeed(1_500_000, english: true), "1.4 MB/s")
+        XCTAssertEqual(humanSpeed(10_240, english: true), "10 KB/s")
     }
 
     func testSpeedIsAMovingAverage() {
@@ -305,9 +309,13 @@ final class FormattingTests: XCTestCase {
 
     func testRemainingText() {
         XCTAssertEqual(humanRemaining(30), "פחות מדקה")
-        XCTAssertEqual(humanRemaining(61), "כ-2 דקות")
-        XCTAssertEqual(humanRemaining(3600), "כשעה")
-        XCTAssertEqual(humanRemaining(2 * 3600 + 300), "כ-2 שעות ו-5 דקות")
+        XCTAssertEqual(humanRemaining(61), "דקה")
+        XCTAssertEqual(humanRemaining(44 * 60 + 10), "44 דקות")
+        XCTAssertEqual(humanRemaining(3600), "שעה")
+        XCTAssertEqual(humanRemaining(2 * 3600 + 300), "שעתיים ו-5 דקות")
+        XCTAssertEqual(humanRemaining(3 * 3600 + 3590), "4 שעות")
+        XCTAssertEqual(humanRemaining(30, english: true), "less than a minute")
+        XCTAssertEqual(humanRemaining(2 * 3600 + 300, english: true), "2 hours 5 minutes")
     }
 }
 

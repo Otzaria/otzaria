@@ -8,6 +8,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/utils/refresh_indexing_plan.dart';
 
@@ -71,6 +72,50 @@ void main() {
       expect((events.last as ReindexChangedBooks).books, [changedPdf]);
     });
 
+    test('ספרי מסד מצורף שהשתנה — השוואת טביעת אצבע רק להם, אחרים כרגיל', () {
+      final attached = TextBook(
+        id: 1,
+        title: 'ספר ממסד',
+        source: BookSource.attached('lib-a'),
+      );
+      final regular = TextBook(title: 'ספר רגיל');
+      final events = buildRefreshIndexingPlan(
+        library: library,
+        newBooks: const [],
+        changedBooks: [attached, regular],
+        indexWholeLibrary: false,
+        reconcile: false,
+        autoUpdateIndex: true,
+      );
+
+      expect(events.map((event) => event.runtimeType), [
+        ReconcileIndex,
+        ReindexChangedBooks,
+      ]);
+      expect((events[0] as ReconcileIndex).books, [attached]);
+      expect((events[1] as ReindexChangedBooks).books, [regular]);
+    });
+
+    test('PDF ממסד מצורף שהשתנה — אינדוקס מחדש מלא, בלי טביעת אצבע', () {
+      final attachedPdf = PdfBook(
+        id: 2,
+        title: 'סרוק ממסד',
+        path: '/tmp/attached.pdf',
+        source: BookSource.attached('lib-a'),
+      );
+      final events = buildRefreshIndexingPlan(
+        library: library,
+        newBooks: const [],
+        changedBooks: [attachedPdf],
+        indexWholeLibrary: false,
+        reconcile: false,
+        autoUpdateIndex: true,
+      );
+
+      expect(events.map((event) => event.runtimeType), [ReindexChangedBooks]);
+      expect((events.single as ReindexChangedBooks).books, [attachedPdf]);
+    });
+
     test('עדכון דלתא בלי reconcile — ReindexChangedBooks כן רץ', () {
       final events = plan(indexWholeLibrary: true);
 
@@ -92,7 +137,7 @@ void main() {
       expect(events[0], isA<IndexSpecificBooks>());
       expect((events[0] as IndexSpecificBooks).books, same(newBooks));
       expect(events[1], isA<ReindexChangedBooks>());
-      expect((events[1] as ReindexChangedBooks).books, same(changedBooks));
+      expect((events[1] as ReindexChangedBooks).books, changedBooks);
       expect(events.whereType<StartIndexing>(), isEmpty);
     });
 

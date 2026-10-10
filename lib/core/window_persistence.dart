@@ -96,10 +96,6 @@ class WindowPersistence {
 
   static bool get isRestoring => _isRestoring;
 
-  /// האם החלון הראשי אמור להיפתח ממוקסם (לפי המצב השמור). נקרא אחרי
-  /// [restoreIfAny] כדי להחליט אם למקסם כבר את חלון ה-splash השקוף.
-  static bool get willMaximize => _pendingMaximize;
-
   static Future<void> restoreIfAny() async {
     if (_restored) return;
     _restored = true;

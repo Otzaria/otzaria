@@ -985,13 +985,6 @@ class SettingsRepository {
     await _settings.setValue(keyCalendarNotificationSound, value);
   }
 
-  String getCalendarZmanAlertsJson() {
-    return _settings.getValue<String>(
-      keyCalendarZmanAlerts,
-      defaultValue: '{}',
-    );
-  }
-
   Future<void> updateCalendarZmanAlertsJson(String json) async {
     await _settings.setValue(keyCalendarZmanAlerts, json);
   }
@@ -1019,34 +1012,12 @@ class SettingsRepository {
     );
   }
 
-  String getGoogleCalendarClientId() {
-    return _settings.getValue<String>(
-      keyGoogleCalendarClientId,
-      defaultValue: '',
-    );
-  }
-
-  String getGoogleCalendarClientSecret() {
-    return _settings.getValue<String>(
-      keyGoogleCalendarClientSecret,
-      defaultValue: '',
-    );
-  }
-
   Future<void> updateGoogleCalendarEnabled(bool value) async {
     await _settings.setValue(keyGoogleCalendarEnabled, value);
   }
 
   Future<void> updateGoogleCalendarSelectedIds(List<String> value) async {
     await _settings.setValue(keyGoogleCalendarSelectedIds, value.join(','));
-  }
-
-  Future<void> updateGoogleCalendarClientId(String value) async {
-    await _settings.setValue(keyGoogleCalendarClientId, value);
-  }
-
-  Future<void> updateGoogleCalendarClientSecret(String value) async {
-    await _settings.setValue(keyGoogleCalendarClientSecret, value);
   }
 
   Future<void> updateGoogleCalendarCredentialsJson(String value) async {

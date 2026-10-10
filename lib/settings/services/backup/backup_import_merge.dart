@@ -156,14 +156,7 @@ class BackupImportMerge {
       if (!ids.add(workspace.id)) continue;
       final name = _availableName(workspace.name, names);
       names.add(name);
-      toAdd.add(
-        Workspace(
-          id: workspace.id,
-          name: name,
-          tabs: workspace.tabs,
-          activeTabIndex: workspace.activeTabIndex,
-        ),
-      );
+      toAdd.add(workspace.copyWith(name: name));
     }
     return toAdd;
   }

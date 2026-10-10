@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/book_common/view/commentators_tab_top_bar.dart';
+import 'package:otzaria/book_common/view/commentary_search_pane.dart';
+import 'package:otzaria/book_common/view/commentators_side_pane.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -6,16 +9,14 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
-import 'package:otzaria/text_book/utils/category_settings_utils.dart';
-import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
-import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
+import 'package:otzaria/book_common/utils/category_settings_utils.dart';
+import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
+import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/toc_unit_label.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
-import 'package:otzaria/bookmarks/view/bookmark_screen.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -26,14 +27,12 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
-import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 // מיוצא כדי שטסטי הכרטיסייה יייבאו אותו מנקודה אחת.
 export 'package:otzaria/widgets/commentary/commentary_search_results_list.dart'
     show resolveSelectedSnippetGlobalIndex;
 import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/text_display/view/text_display_bar_button.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -44,10 +43,7 @@ import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
-import 'package:otzaria/widgets/navigation/search_pane_base.dart';
-import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
-import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 const _kAllChapter = -1;
@@ -304,6 +300,15 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       // ניווט רגיל מאפס את ריבוי-הבחירה (לחיצת chevron מעבירה clearMulti: false).
       if (clearMulti) _extraIndexes.clear();
     });
+    final state = widget.tab.bloc.state;
+    if (state is TextBookLoaded) {
+      widget.tab.navigatedIndex = _computeIndexes(
+        _getChapters(state.tableOfContents),
+        next.selectedChapter,
+        next.selectedVerseIdx,
+        state.content.length,
+      )?.first;
+    }
   }
 
   /// האינדקסים האפקטיביים להצגת מפרשים: איחוד הבחירה הראשית עם ריבוי-הבחירה
@@ -627,14 +632,6 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     });
   }
 
-  void _zoomIn(BuildContext context) {
-    context.read<SettingsBloc>().add(const AdjustCommentatorsFontSize(2));
-  }
-
-  void _zoomOut(BuildContext context) {
-    context.read<SettingsBloc>().add(const AdjustCommentatorsFontSize(-2));
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context); // נדרש ע"י AutomaticKeepAliveClientMixin
@@ -907,7 +904,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   /// מטפל בקיצורי ההדפסה והחיפוש המוגדרים — פעילים רק בכרטיסיית המפרשים.
   KeyEventResult _handleTabShortcuts(FocusNode node, KeyEvent event) {
     final printShortcut =
-        Settings.getValue<String>('key-shortcut-print') ?? 'ctrl+p';
+        ShortcutValidator.getShortcutValue(ShortcutValidator.printKey) ?? '';
     if (ShortcutHelper.matchesShortcut(event, printShortcut)) {
       _commentaryKey.currentState?.printDisplayedCommentaries();
       return KeyEventResult.handled;
@@ -953,13 +950,6 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     );
   }
 
-  void _showBookmarksForCurrentBook(BuildContext context, Book book) {
-    showDialog(
-      context: context,
-      builder: (_) => BookmarksDialog(bookFilter: book),
-    );
-  }
-
   // ── AppBar ─────────────────────────────────────────────────────────────────
 
   Widget _buildAppBar(
@@ -967,200 +957,54 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     TextBookLoaded state,
     List<TocEntry> chapters,
   ) {
-    return AppTopBar(
-      minCenterWidth: ReaderNavCenter.minTitleWidth,
-      leadingItems: [
-        AppTopBarItem(
-          widget: NavPanelToggleButton(
-            isOpen: _navPaneOpen,
-            onToggle: () {
-              setState(() => _navPaneOpen = !_navPaneOpen);
-              if (_navPaneOpen && _navTabController.index == 0) {
-                _scrollNavToSelectedChapter();
-              }
-            },
-          ),
-        ),
-        if (_navPaneOpen || _pinLeftPane)
-          AppTopBarItem(
-            widget: NavPanelPinButton(
-              isPinned: _pinLeftPane,
-              onToggle: () => setState(() => _pinLeftPane = !_pinLeftPane),
-            ),
-          ),
-      ],
-      center: ReaderNavCenter(
-        title: Text(
-          'מפרשים על ${state.book.title}',
-          style: AppTopBar.titleStyle(context),
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-        ),
-        prevMajorTooltip: 'הפרק הקודם',
-        prevMinorTooltip: 'הקטע הקודם',
-        nextMinorTooltip: 'הקטע הבא',
-        nextMajorTooltip: 'הפרק הבא',
-        onPrevMajor: () => _navigateToPrevChapter(chapters),
-        onPrevMinor: () => _navigateToPrevVerse(chapters),
-        onNextMinor: () => _navigateToNextVerse(chapters),
-        onNextMajor: () => _navigateToNextChapter(chapters),
+    final isCompact = context.read<SettingsBloc>().state.compactMenuMode;
+    void addBookmark() => _addBookmark(
+      context,
+      state,
+      _computeIndexes(
+        chapters,
+        _selectedChapter,
+        _selectedVerseIdx,
+        state.content.length,
       ),
-      trailingItems: [
-        AppTopBarItem(
-          flexible: true,
-          widget: ResponsiveActionBar(
-            overflowMenuOffset: const Offset(0, 8),
-            actions: [
-              // תצוגת הטקסט של המפרשים: לחיצה מחליפה ניקוד, החץ פותח את הפרופיל
-              ActionButtonData(
-                widget: TextBookDisplayBarButton(
-                  state: state,
-                  compact: context.read<SettingsBloc>().state.compactMenuMode,
-                  targets: const [TextTarget.commentary],
-                ),
-                icon: textDisplayBarIcon(state.commentaryRemoveNikud),
-                tooltip: textDisplayBarTooltip(state.commentaryRemoveNikud),
-                actionId: ToolbarActionId.textDisplay,
-                toolbarWidth: BarSplitButton.toolbarWidth(
-                  context.read<SettingsBloc>().state.compactMenuMode,
-                ),
-                onPressed: () =>
-                    toggleTextBookNikud(context, state, TextTarget.commentary),
-              ),
-              // הדפסת המפרשים המוצגים
-              ActionButtonData(
-                widget: BarButton.icon(
-                  icon: FluentIcons.print_24_regular,
-                  tooltip: 'הדפסה',
-                  compact: context.read<SettingsBloc>().state.compactMenuMode,
-                  onPressed: () =>
-                      _commentaryKey.currentState?.printDisplayedCommentaries(),
-                ),
-                icon: FluentIcons.print_24_regular,
-                tooltip: 'הדפסה',
-                actionId: ToolbarActionId.print,
-                onPressed: () =>
-                    _commentaryKey.currentState?.printDisplayedCommentaries(),
-              ),
-              // חיפוש
-              ActionButtonData(
-                widget: BarButton.icon(
-                  tooltip: 'חיפוש',
-                  icon: OtzariaIcons.search_24_regular,
-                  compact: context.read<SettingsBloc>().state.compactMenuMode,
-                  onPressed: _openSearchPane,
-                ),
-                icon: OtzariaIcons.search_24_regular,
-                tooltip: 'חיפוש',
-                actionId: ToolbarActionId.search,
-                onPressed: _openSearchPane,
-              ),
-              // כיווץ/הרחבת כל המפרשים — שולט במצב הגלובלי בתוך CommentaryListBase
-              ActionButtonData(
-                widget: ValueListenableBuilder<bool>(
-                  valueListenable: _allExpandedInChild,
-                  builder: (context, allExpanded, _) {
-                    return BarButton.icon(
-                      tooltip: allExpanded
-                          ? 'כווץ את כל המפרשים'
-                          : 'הרחב את כל המפרשים',
-                      icon: allExpanded
-                          ? FluentIcons.arrow_collapse_all_24_regular
-                          : FluentIcons.arrow_expand_all_24_regular,
-                      compact: context
-                          .read<SettingsBloc>()
-                          .state
-                          .compactMenuMode,
-                      onPressed: () =>
-                          _commentaryKey.currentState?.toggleAllExpanded(),
-                    );
-                  },
-                ),
-                icon: _allExpandedInChild.value
-                    ? FluentIcons.arrow_collapse_all_24_regular
-                    : FluentIcons.arrow_expand_all_24_regular,
-                tooltip: _allExpandedInChild.value
-                    ? 'כווץ את כל המפרשים'
-                    : 'הרחב את כל המפרשים',
-                actionId: ToolbarActionId.expandAll,
-                onPressed: () =>
-                    _commentaryKey.currentState?.toggleAllExpanded(),
-              ),
-              ActionButtonData(
-                widget: BarButton.icon(
-                  tooltip: 'הוסף סימניה',
-                  icon: FluentIcons.bookmark_add_24_regular,
-                  compact: context.read<SettingsBloc>().state.compactMenuMode,
-                  onPressed: () => _addBookmark(
-                    context,
-                    state,
-                    _computeIndexes(
-                      chapters,
-                      _selectedChapter,
-                      _selectedVerseIdx,
-                      state.content.length,
-                    ),
-                  ),
-                ),
-                icon: FluentIcons.bookmark_add_24_regular,
-                tooltip: 'הוסף סימניה',
-                actionId: ToolbarActionId.bookmarkAdd,
-                onPressed: () => _addBookmark(
-                  context,
-                  state,
-                  _computeIndexes(
-                    chapters,
-                    _selectedChapter,
-                    _selectedVerseIdx,
-                    state.content.length,
-                  ),
-                ),
-              ),
-              // הגדל טקסט
-              ActionButtonData(
-                widget: BarButton.icon(
-                  tooltip: 'הגדל את גודל הטקסט',
-                  icon: FluentIcons.zoom_in_24_regular,
-                  compact: context.read<SettingsBloc>().state.compactMenuMode,
-                  onPressed: () => _zoomIn(context),
-                ),
-                icon: FluentIcons.zoom_in_24_regular,
-                tooltip: 'הגדל את גודל הטקסט',
-                actionId: ToolbarActionId.zoomIn,
-                onPressed: () => _zoomIn(context),
-              ),
-              // הקטן טקסט
-              ActionButtonData(
-                widget: BarButton.icon(
-                  tooltip: 'הקטן את גודל הטקסט',
-                  icon: FluentIcons.zoom_out_24_regular,
-                  compact: context.read<SettingsBloc>().state.compactMenuMode,
-                  onPressed: () => _zoomOut(context),
-                ),
-                icon: FluentIcons.zoom_out_24_regular,
-                tooltip: 'הקטן את גודל הטקסט',
-                actionId: ToolbarActionId.zoomOut,
-                onPressed: () => _zoomOut(context),
-              ),
-            ],
-            alwaysInMenu: [
-              ActionButtonData(
-                widget: BarButton.icon(
-                  tooltip: 'סימניות בספר זה',
-                  icon: FluentIcons.bookmark_multiple_24_regular,
-                  compact: context.read<SettingsBloc>().state.compactMenuMode,
-                  onPressed: () =>
-                      _showBookmarksForCurrentBook(context, state.book),
-                ),
-                icon: FluentIcons.bookmark_multiple_24_regular,
-                tooltip: 'סימניות בספר זה',
-                onPressed: () =>
-                    _showBookmarksForCurrentBook(context, state.book),
-              ),
-            ],
-          ),
+    );
+    return CommentatorsTabTopBar(
+      title: 'מפרשים על ${state.book.title}',
+      prevMajorTooltip: 'הפרק הקודם',
+      nextMajorTooltip: 'הפרק הבא',
+      navPaneOpen: _navPaneOpen,
+      navPanePinned: _pinLeftPane,
+      onToggleNavPane: () {
+        setState(() => _navPaneOpen = !_navPaneOpen);
+        if (_navPaneOpen && _navTabController.index == 0) {
+          _scrollNavToSelectedChapter();
+        }
+      },
+      onTogglePin: () => setState(() => _pinLeftPane = !_pinLeftPane),
+      onPrevMajor: () => _navigateToPrevChapter(chapters),
+      onPrevMinor: () => _navigateToPrevVerse(chapters),
+      onNextMinor: () => _navigateToNextVerse(chapters),
+      onNextMajor: () => _navigateToNextChapter(chapters),
+      textDisplayAction: ActionButtonData(
+        widget: TextBookDisplayBarButton(
+          state: state,
+          compact: isCompact,
+          targets: const [TextTarget.commentary],
         ),
-      ],
+        icon: textDisplayBarIcon(state.commentaryRemoveNikud),
+        tooltip: textDisplayBarTooltip(state.commentaryRemoveNikud),
+        actionId: ToolbarActionId.textDisplay,
+        toolbarWidth: BarSplitButton.toolbarWidth(isCompact),
+        onPressed: () =>
+            toggleTextBookNikud(context, state, TextTarget.commentary),
+      ),
+      onPrint: () => _commentaryKey.currentState?.printDisplayedCommentaries(),
+      onSearch: _openSearchPane,
+      allExpanded: _allExpandedInChild,
+      onToggleAllExpanded: () =>
+          _commentaryKey.currentState?.toggleAllExpanded(),
+      onAddBookmark: addBookmark,
+      book: state.book,
     );
   }
 
@@ -1171,54 +1015,16 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
     required TextBookLoaded state,
     required List<TocEntry> chapters,
   }) {
-    return Column(
-      children: [
-        NavPanelTabHeader(
-          controller: _navTabController,
-          tabs: const [
-            (
-              icon: OtzariaIcons.list_24_regular,
-              iconFilled: OtzariaIcons.list_24_filled,
-              label: 'ניווט',
-            ),
-            (
-              icon: OtzariaIcons.apps_list_24_regular,
-              iconFilled: OtzariaIcons.apps_list_24_filled,
-              label: 'מפרשים',
-            ),
-            (
-              icon: OtzariaIcons.search_24_regular,
-              iconFilled: OtzariaIcons.search_24_filled,
-              label: 'חיפוש',
-            ),
-          ],
-        ),
-        // ─── תוכן TabBarView ──────────────────────────────────────────
-        Expanded(
-          child: TabBarView(
-            controller: _navTabController,
-            children: [
-              NavPanelSearchSlot(
-                index: 0,
-                child: _buildTocList(
-                  context,
-                  chapters: chapters,
-                  content: state.content,
-                  title: state.book.title,
-                ),
-              ),
-              NavPanelSearchSlot(
-                index: 1,
-                child: _buildCommentatorsSelectionPanel(context, state),
-              ),
-              NavPanelSearchSlot(
-                index: 2,
-                child: _buildCommentarySearchPanel(context),
-              ),
-            ],
-          ),
-        ),
-      ],
+    return CommentatorsSidePane(
+      controller: _navTabController,
+      navigation: _buildTocList(
+        context,
+        chapters: chapters,
+        content: state.content,
+        title: state.book.title,
+      ),
+      selection: _buildCommentatorsSelectionPanel(context, state),
+      search: _buildCommentarySearchPanel(context),
     );
   }
 
@@ -1288,73 +1094,15 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
   // ── פאנל חיפוש ────────────────────────────────────────────────────────────
 
   Widget _buildCommentarySearchPanel(BuildContext context) {
-    return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: _commentarySearchController,
-      builder: (_, val, _) {
-        final hasQuery = val.text.isNotEmpty;
-        return ValueListenableBuilder<int>(
-          valueListenable: _externalTotalResults,
-          builder: (_, total, _) => ValueListenableBuilder<int>(
-            valueListenable: _externalCurrentIndex,
-            builder: (_, current, _) =>
-                ValueListenableBuilder<List<CommentarySearchSnippet>>(
-                  valueListenable: _externalSearchSnippets,
-                  builder: (context, snippets, _) {
-                    return SearchPaneBase(
-                      searchController: _commentarySearchController,
-                      focusNode: _searchFocusNode,
-                      hintText: 'חפש בתוך המפרשים המוצגים...',
-                      isNoResults: hasQuery && total == 0,
-                      resetSearchCallback: _commentarySearchController.clear,
-                      resultCountString: hasQuery && total > 0
-                          ? 'תוצאה ${current + 1} מתוך $total'
-                          : null,
-                      resultToolbar: hasQuery && total > 0
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                OtzariaSearchAction.prevResult(
-                                  onPressed: current > 0
-                                      ? () => _commentaryKey.currentState
-                                            ?.navigateSearchPrev()
-                                      : null,
-                                ),
-                                OtzariaSearchAction.nextResult(
-                                  onPressed: current < total - 1
-                                      ? () => _commentaryKey.currentState
-                                            ?.navigateSearchNext()
-                                      : null,
-                                ),
-                              ],
-                            )
-                          : null,
-                      resultsWidget: _buildSearchResultsList(
-                        context,
-                        query: val.text,
-                        snippets: snippets,
-                        total: total,
-                        currentIdx: current,
-                      ),
-                    );
-                  },
-                ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSearchResultsList(
-    BuildContext context, {
-    required String query,
-    required List<CommentarySearchSnippet> snippets,
-    required int total,
-    required int currentIdx,
-  }) {
-    return CommentarySearchResultsList(
-      query: query,
-      snippets: snippets,
-      currentIdx: currentIdx,
+    return CommentarySearchPane(
+      controller: _commentarySearchController,
+      focusNode: _searchFocusNode,
+      hintText: 'חפש בתוך המפרשים המוצגים...',
+      totalResults: _externalTotalResults,
+      currentResult: _externalCurrentIndex,
+      snippets: _externalSearchSnippets,
+      onPrevious: () => _commentaryKey.currentState?.navigateSearchPrev(),
+      onNext: () => _commentaryKey.currentState?.navigateSearchNext(),
       onSnippetTap: (globalIndex) =>
           _commentaryKey.currentState?.navigateToGlobalIndex(globalIndex),
     );

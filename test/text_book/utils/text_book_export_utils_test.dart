@@ -51,19 +51,6 @@ void main() {
       );
     });
 
-    test('applyTextBookExportTextTransforms מנקה HTML וניקוד לייצוא טקסט', () {
-      expect(
-        applyTextBookExportTextTransforms(
-          '<b>בְּרֵאשִׁית</b>',
-          removeNikud: true,
-          removeTaamim: true,
-          shouldReplaceHolyNames: false,
-          stripHtml: true,
-        ),
-        'בראשית',
-      );
-    });
-
     test('applyTextBookExportProfile מחיל פרופיל ייצוא ומנקה HTML', () {
       const profile = TextDisplayProfile(
         nikud: MarkVisibility.hide,

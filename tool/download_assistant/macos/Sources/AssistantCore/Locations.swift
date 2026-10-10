@@ -2,6 +2,8 @@ import Foundation
 
 public enum OutputLocation {
     public static let fallbackFolderName = "אוצריא-להתקנה"
+    /// בממשק באנגלית, כמו ב-Windows.
+    public static let englishFallbackFolderName = "Otzaria setup"
 
     /// macOS מריץ אפליקציה שהורדה מהרשת מנתיב אקראי לקריאה בלבד (App Translocation).
     public static func isTranslocated(_ bundlePath: String) -> Bool {
@@ -22,10 +24,12 @@ public enum OutputLocation {
         }
     }
 
-    public static func fallbackBase() -> URL {
+    public static func fallbackBase(english: Bool = false) -> URL {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
-        return documents.appendingPathComponent(fallbackFolderName, isDirectory: true)
+        return documents.appendingPathComponent(
+            english ? englishFallbackFolderName : fallbackFolderName, isDirectory: true
+        )
     }
 
     /// התיקייה שמכילה את ה-.app; כשאי אפשר לכתוב בה — `~/Documents/אוצריא-להתקנה`.

@@ -3,6 +3,7 @@ package org.otzaria.otzaria
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
@@ -12,7 +13,10 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * ייבוא תיקייה שלמה דרך SAF: ל-dart:io אין גישה לתיקייה חיצונית באנדרואיד 11+,
@@ -21,6 +25,11 @@ import java.util.concurrent.Executors
 class FolderImportChannel(private val activity: Activity, messenger: BinaryMessenger) {
     private val channel = MethodChannel(messenger, CHANNEL)
     private val executor = Executors.newSingleThreadExecutor()
+
+    // קריאת קבצים בנתחים (ייבוא ספרייה) — בנפרד, כדי שהעתקה ארוכה לא תחסום אותה.
+    private val streamExecutor = Executors.newSingleThreadExecutor()
+    private val openStreams = ConcurrentHashMap<Int, InputStream>()
+    private val nextHandle = AtomicInteger(0)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingPick: MethodChannel.Result? = null
 
@@ -36,6 +45,9 @@ class FolderImportChannel(private val activity: Activity, messenger: BinaryMesse
         pendingPick?.success(null)
         pendingPick = null
         executor.shutdown()
+        openStreams.values.forEach { runCatching { it.close() } }
+        openStreams.clear()
+        streamExecutor.shutdown()
     }
 
     /** מחזיר true כשהתוצאה שייכת לבורר התיקיות. */
@@ -48,8 +60,29 @@ class FolderImportChannel(private val activity: Activity, messenger: BinaryMesse
             result.success(null)
             return true
         }
-        result.success(mapOf("uri" to treeUri.toString(), "name" to treeDisplayName(treeUri)))
+        result.success(
+            mapOf(
+                "uri" to treeUri.toString(),
+                "name" to treeDisplayName(treeUri),
+                "path" to treePath(treeUri),
+            ),
+        )
         return true
+    }
+
+    /** הנתיב שמאחורי עץ של ExternalStorageProvider (`primary:Download/x`), או null. */
+    private fun treePath(treeUri: Uri): String? {
+        if (treeUri.authority != "com.android.externalstorage.documents") return null
+        val docId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }
+            .getOrNull() ?: return null
+        val volume = docId.substringBefore(':')
+        val relative = docId.substringAfter(':', "")
+        val base = if (volume == "primary") {
+            Environment.getExternalStorageDirectory().path
+        } else {
+            "/storage/$volume"
+        }
+        return if (relative.isEmpty()) base else "$base/$relative"
     }
 
     private fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -58,6 +91,39 @@ class FolderImportChannel(private val activity: Activity, messenger: BinaryMesse
             "scanTree" -> runInBackground(result) {
                 val files = listBookFiles(treeUriOf(call), extensionsOf(call))
                 mapOf("fileCount" to files.size, "totalBytes" to files.sumOf { it.size })
+            }
+            "listFiles" -> runInBackground(result) {
+                listTopFiles(treeUriOf(call), call.argument<String>("parentId"))
+            }
+            "listFolders" -> runInBackground(result) {
+                listChildFolders(treeUriOf(call), call.argument<String>("parentId"))
+            }
+            "childFolder" -> runInBackground(result) {
+                childFolderId(
+                    treeUriOf(call),
+                    call.argument<String>("parentId"),
+                    call.argument<String>("name")!!,
+                )
+            }
+            "openDocument" -> runInBackground(result, streamExecutor) {
+                val uri = DocumentsContract.buildDocumentUriUsingTree(
+                    treeUriOf(call),
+                    call.argument<String>("id")!!,
+                )
+                val stream = activity.contentResolver.openInputStream(uri)
+                    ?: throw IOException("Cannot open $uri")
+                val handle = nextHandle.incrementAndGet()
+                openStreams[handle] = stream
+                handle
+            }
+            "readDocument" -> runInBackground(result, streamExecutor) {
+                val stream = openStreams[call.argument<Int>("handle")!!]
+                    ?: throw IOException("Stream is closed")
+                readChunk(stream, call.argument<Int>("max")!!)
+            }
+            "closeDocument" -> runInBackground(result, streamExecutor) {
+                openStreams.remove(call.argument<Int>("handle")!!)?.close()
+                true
             }
             "cancelCopy" -> {
                 cancelRequested = true
@@ -138,6 +204,75 @@ class FolderImportChannel(private val activity: Activity, messenger: BinaryMesse
         return files
     }
 
+    /** הקבצים שישירות תחת [parentId] (שורש העץ כשהוא null), עם המזהה ל-openDocument. */
+    private fun listTopFiles(treeUri: Uri, parentId: String?): List<Map<String, Any>> {
+        val files = mutableListOf<Map<String, Any>>()
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            treeUri,
+            parentId ?: DocumentsContract.getTreeDocumentId(treeUri),
+        )
+        activity.contentResolver.query(childrenUri, CHILD_COLUMNS, null, null, null)
+            ?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(1)
+                    if (name == null || !isSafeName(name)) continue
+                    if (cursor.getString(2) == Document.MIME_TYPE_DIR) continue
+                    val size = if (cursor.isNull(3)) 0L else cursor.getLong(3)
+                    files.add(mapOf("id" to cursor.getString(0), "name" to name, "size" to size))
+                }
+            }
+        return files
+    }
+
+    /** שמות תתי-התיקיות שישירות תחת [parentId] (שורש העץ כשהוא null). */
+    private fun listChildFolders(treeUri: Uri, parentId: String?): List<String> {
+        val names = mutableListOf<String>()
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            treeUri,
+            parentId ?: DocumentsContract.getTreeDocumentId(treeUri),
+        )
+        activity.contentResolver.query(childrenUri, CHILD_COLUMNS, null, null, null)
+            ?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(1)
+                    if (name == null || !isSafeName(name)) continue
+                    if (cursor.getString(2) == Document.MIME_TYPE_DIR) names.add(name)
+                }
+            }
+        return names
+    }
+
+    /** מזהה תת-התיקייה [name] שתחת [parentId] (שורש העץ כשהוא null), או null. */
+    private fun childFolderId(treeUri: Uri, parentId: String?, name: String): String? {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            treeUri,
+            parentId ?: DocumentsContract.getTreeDocumentId(treeUri),
+        )
+        activity.contentResolver.query(childrenUri, CHILD_COLUMNS, null, null, null)
+            ?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(1) == name &&
+                        cursor.getString(2) == Document.MIME_TYPE_DIR
+                    ) {
+                        return cursor.getString(0)
+                    }
+                }
+            }
+        return null
+    }
+
+    /** ממלא עד [max] בתים; מערך קצר יותר רק בסוף הקובץ, וריק אחריו. */
+    private fun readChunk(stream: InputStream, max: Int): ByteArray {
+        val buffer = ByteArray(max)
+        var filled = 0
+        while (filled < max) {
+            val read = stream.read(buffer, filled, max - filled)
+            if (read < 0) break
+            filled += read
+        }
+        return if (filled == max) buffer else buffer.copyOf(filled)
+    }
+
     // שם עם '/' או '..' היה כותב מחוץ לתיקיית היעד.
     private fun isSafeName(name: String): Boolean =
         name.isNotEmpty() && !name.contains('/') && name != "." && name != ".."
@@ -177,8 +312,12 @@ class FolderImportChannel(private val activity: Activity, messenger: BinaryMesse
     private fun extensionsOf(call: MethodCall): Set<String> =
         call.argument<List<String>>("extensions")!!.map { it.lowercase() }.toSet()
 
-    private fun runInBackground(result: MethodChannel.Result, work: () -> Any) {
-        executor.execute {
+    private fun runInBackground(
+        result: MethodChannel.Result,
+        on: java.util.concurrent.Executor = executor,
+        work: () -> Any?,
+    ) {
+        on.execute {
             try {
                 val value = work()
                 mainHandler.post { result.success(value) }

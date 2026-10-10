@@ -46,7 +46,7 @@ void main() {
       );
       expect(
         indexOfStep('Build differential updater helper (ARM64)'),
-        lessThan(indexOfStep('Build Inno Setup installer (ARM64)')),
+        lessThan(indexOfStep('Build regular installer (ARM64)')),
       );
     });
 

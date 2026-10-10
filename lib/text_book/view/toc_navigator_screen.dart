@@ -216,7 +216,8 @@ class _TocViewerState extends State<TocViewer>
         changed = true;
       }
     }
-    if (changed) _expandedRevision++;
+    // שורות הענפים שנפתחו צריכות להיבנות לפני שהגלילה מחפשת אותן.
+    if (changed) setState(() => _expandedRevision++);
   }
 
   List<TocEntry> _findPath(List<TocEntry> entries, int targetIndex) {
@@ -233,43 +234,42 @@ class _TocViewerState extends State<TocViewer>
     return [];
   }
 
+  /// הכותרת של השורה הנבחרת, ובהיעדרה של השורה הגלויה הראשונה.
+  int? _activeTocIndex(TextBookLoaded state) {
+    final line = state.selectedIndex ?? state.visibleIndices.firstOrNull;
+    return line == null
+        ? null
+        : closestTocEntryIndex(state.tableOfContents, line);
+  }
+
   void _scrollToActiveItem(TextBookLoaded state) {
     if (_isManuallyScrolling) return;
     // כשהפאנל סגור הגלילה נכשלת (רוחב 0) אך משבשת את _lastScrolledTocIndex
     // ואז חוסמת את הגלילה האמיתית בפתיחה הבאה.
     if (!state.showLeftPane) return;
 
-    final int? activeIndex =
-        state.selectedIndex ??
-        (state.visibleIndices.isNotEmpty
-            ? closestTocEntryIndex(
-                state.tableOfContents,
-                state.visibleIndices.first,
-              )
-            : null);
+    final int? activeIndex = _activeTocIndex(state);
 
     if (activeIndex == null || activeIndex == _lastScrolledTocIndex) return;
 
     _ensureParentsOpen(state.tableOfContents, activeIndex);
 
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _isManuallyScrolling) return;
-        // ההחלטה וירטואלי/רקורסיבי נלקחת כאן ולא בזמן התזמון: שני frames
-        // עברו, וניקוי חיפוש בינתיים מחליף מסלול ומנתק את בקר הגלילה.
-        final display = _displayDataFor(state.tableOfContents);
-        final bool useFlat = display.totalCount > _kTocFlattenThreshold;
-        if (_scrollEntryIntoView(
-          activeIndex,
-          display: display,
-          useFlat: useFlat,
-        )) {
-          _lastScrolledTocIndex = activeIndex;
-        }
-      });
+      if (!mounted || _isManuallyScrolling) return;
+      // ההחלטה וירטואלי/רקורסיבי נלקחת כאן ולא בזמן התזמון: ניקוי חיפוש
+      // בינתיים מחליף מסלול ומנתק את בקר הגלילה.
+      final display = _displayDataFor(state.tableOfContents);
+      final bool useFlat = display.totalCount > _kTocFlattenThreshold;
+      if (_scrollEntryIntoView(
+        activeIndex,
+        display: display,
+        useFlat: useFlat,
+      )) {
+        _lastScrolledTocIndex = activeIndex;
+      }
     });
+    // addPostFrameCallback אינו מבקש frame; בלעדיו הגלילה ממתינה עד שמשהו אחר יצייר.
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
   /// גולל את הערך אל תוך אזור התצוגה אם אינו גלוי במלואו.
@@ -632,16 +632,8 @@ class _TocViewerState extends State<TocViewer>
         },
         builder: (context, state) {
           if (state is! TextBookLoaded) return const Center();
-          // חישוב יחיד של ה"ערך הפעיל" - מועבר כפרמטר ל-_buildTocItem
-          // במקום שכל פריט יחשב בעצמו (שזה מה שיצר את ה-O(n²)).
-          final int? activeIndex =
-              state.selectedIndex ??
-              (state.visibleIndices.isNotEmpty
-                  ? closestTocEntryIndex(
-                      state.tableOfContents,
-                      state.visibleIndices.first,
-                    )
-                  : null);
+          // מחושב פעם אחת ומועבר לכל הפריטים, כדי שהבנייה לא תהיה O(n²).
+          final int? activeIndex = _activeTocIndex(state);
 
           // גם חיפוש עשוי להציג עשרות אלפי ערכים, ולכן הסף נגזר מהפלט.
           final display = _displayDataFor(

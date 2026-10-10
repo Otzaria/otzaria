@@ -74,7 +74,7 @@ class _NotesSearchHeaderState extends State<NotesSearchHeader> {
                   Expanded(
                     child: OtzariaSearchField(
                       controller: _searchController,
-                      icon: OtzariaIcons.search_in_the_document_24_regular,
+                      icon: OtzariaIcons.search_in_document_24_regular,
                       hintText: 'חפש בהערות...',
                       onChanged: (value) {
                         context.read<PersonalNotesBloc>().add(

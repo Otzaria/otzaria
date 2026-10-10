@@ -379,9 +379,12 @@ class _ScopeAndMatchMenu extends StatelessWidget {
 }
 
 class SearchTermsDisplay extends StatefulWidget {
-  const SearchTermsDisplay({super.key, required this.tab});
+  const SearchTermsDisplay({super.key, required this.tab, this.query});
 
   final SearchingTab tab;
+
+  /// השאילתה להצגה; בלי ערך — השאילתה שהורצה ב-SearchBloc.
+  final String? query;
 
   @override
   State<SearchTermsDisplay> createState() => _SearchTermsDisplayState();
@@ -686,7 +689,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
     return BlocBuilder<SearchBloc, SearchState>(
       builder: (context, state) {
         // נציג את הטקסט מה-state של החיפוש (לא מה-controller שמשתנה)
-        final displayText = state.searchQuery;
+        final displayText = widget.query ?? state.searchQuery;
 
         if (displayText.isEmpty) {
           return const SizedBox.shrink();

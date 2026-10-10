@@ -85,6 +85,8 @@ class AppSegmentedControl<T> extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             icon: hasIcons ? _buildOptionIcon(o) : null,
+            // תווית ארוכה נחתכת ב-ellipsis; הטולטיפ מציג אותה במלואה.
+            tooltip: o.label,
           ),
         )
         .toList();

@@ -27,7 +27,7 @@ class AppReportImage extends Equatable {
   static const int maxFileNameLength = 200;
 
   /// סיומות הקבצים שנקלטים מגרירה ומבחירת קובץ.
-  static const List<String> supportedExtensions = ['png', 'jpg', 'jpeg'];
+  static const List<String> supportedExtensions = ['png', 'jpg', 'jpeg', 'gif'];
 
   final Uint8List bytes;
   final String fileName;
@@ -40,6 +40,7 @@ class AppReportImage extends Equatable {
     return switch (path.substring(dot + 1).toLowerCase()) {
       'png' => 'image/png',
       'jpg' || 'jpeg' => 'image/jpeg',
+      'gif' => 'image/gif',
       _ => null,
     };
   }

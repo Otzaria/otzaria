@@ -10,6 +10,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/utils/result_text_status.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
@@ -257,6 +258,71 @@ Future<void> main() async {
     },
   );
 
+  group('ברירת המחדל השמורה חלה על חיפוש חדש בספר (issue #1937)', () {
+    tearDown(() {
+      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveExactDefaults(const {});
+    });
+
+    testWidgets('בלי ברירת מחדל שמורה ההקלדה נשארת חיפוש מקומי', (
+      tester,
+    ) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      var simpleRunnerCalls = 0;
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        simpleSearchRunner: (content, query) async {
+          simpleRunnerCalls++;
+          return const [];
+        },
+      );
+
+      await harness.type('תדע זרעך');
+      await harness.settle();
+
+      expect(simpleRunnerCalls, greaterThan(0));
+      expect(repository.requests, isEmpty);
+    });
+
+    testWidgets('מרווח שנקבע כברירת מחדל חל על הקלדה בספר', (tester) async {
+      SearchDefaults.saveDistanceDefault(3);
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+      );
+
+      await harness.type('תדע זרעך');
+      await harness.settle();
+
+      expect(repository.requests, isNotEmpty);
+      expect(repository.requests.last.distance, 3);
+    });
+
+    testWidgets(
+      'אפשרויות שנקבעו כברירת מחדל חלות על כל מילה בשאילתה שהוקלדה',
+      (tester) async {
+        SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
+        final repository = _RecordingSearchRepository(results: const []);
+        final harness = await pumpSearchView(
+          tester,
+          searchRepository: repository,
+        );
+
+        await harness.type('תדע זרעך');
+        await harness.settle();
+
+        expect(repository.requests, isNotEmpty);
+        expect(repository.requests.last.searchOptions, {
+          'תדע_0': {'קידומות דקדוקיות': true},
+          'זרעך_1': {'קידומות דקדוקיות': true},
+        });
+      },
+      skip: !engineReady,
+    );
+  });
+
   testWidgets(
     'חיפוש מנוע ממתין לזיהוי הספר במקום להציג "אין תוצאות"',
     (tester) async {
@@ -408,6 +474,59 @@ Future<void> main() async {
   );
 
   testWidgets(
+    'תוצאת מנוע שנמשכת לשורה הבאה נספרת פעם אחת ומסמנת את שתי השורות',
+    (tester) async {
+      final repository = _RecordingSearchRepository(
+        results: [
+          _result(
+            title: 'בראשית',
+            reference: 'פרק טו',
+            segment: 0,
+            text: 'ידע <font color=red>תדע</font><br>כי־גר יהיה',
+            continuesToNextLine: true,
+          ),
+        ],
+      );
+
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'תדע כי',
+        searchDistance: 1,
+        bookTitle: 'בראשית',
+        content: const ['ויאמר לאברם ידע תדע', 'כי־גר יהיה זרעך'],
+      );
+
+      await harness.settle();
+
+      expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      expect(harness.bloc.reportedResultLines.last, {0, 1});
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
+    'חיפוש מקומי מוצא ביטוי שנמשך לשורה הבאה ומסמן את שתי השורות',
+    (tester) async {
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: _RecordingSearchRepository(results: const []),
+        initialQuery: 'ובין המים ויאמר',
+        content: const [
+          'ויבדל בין המים אשר מתחת לרקיע ובין המים',
+          '(ג) ויאמר אלהים יקוו המים',
+        ],
+      );
+
+      await harness.settle();
+
+      expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+      expect(harness.bloc.reportedResultLines.last, {0, 1});
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
     'כשל בזיהוי הספר מציג שגיאה, ואינו משאיר את החלונית במצב "מחפש"',
     (tester) async {
       // הספר עדיין נטען (ה-state אינו TextBookLoaded) ולכן אין ממה לבנות את
@@ -484,6 +603,7 @@ SearchResult _result({
   String text =
       'ידע <font color=red>תדע</font> כי־גר יהיה <font color=red>זרעך</font>',
   TextStatus textStatus = TextStatus.ok,
+  bool continuesToNextLine = false,
 }) {
   return SearchResult(
     id: BigInt.from(segment + 1),
@@ -496,6 +616,7 @@ SearchResult _result({
     mergedCount: 1,
     merged: const [],
     textStatus: textStatus,
+    continuesToNextLine: continuesToNextLine,
   );
 }
 
@@ -510,6 +631,7 @@ class _SearchRequest {
     required this.scope,
     required this.wordMatchMode,
     required this.wordMatchCount,
+    this.searchOptions,
   });
 
   final String query;
@@ -520,6 +642,7 @@ class _SearchRequest {
   final SearchScope scope;
   final WordMatchMode wordMatchMode;
   final int? wordMatchCount;
+  final Map<String, Map<String, bool>>? searchOptions;
 }
 
 class _RecordingSearchRepository extends SearchRepository {
@@ -529,41 +652,18 @@ class _RecordingSearchRepository extends SearchRepository {
   final List<_SearchRequest> requests = [];
 
   @override
-  Future<List<SearchResult>> searchTexts(
-    String query,
-    List<String> facets,
-    int limit, {
-    int offset = 0,
-    ResultsOrder order = ResultsOrder.relevance,
-    bool fuzzy = false,
-    int distance = 0,
-    String negativeQuery = '',
-    int? negativeDistance,
-    SearchScope scope = SearchScope.wordDistance,
-    SearchScope? negativeScope,
-    SearchMode searchMode = SearchMode.exact,
-    Map<String, String>? customSpacing,
-    Map<String, String>? negativeCustomSpacing,
-    Map<int, List<String>>? alternativeWords,
-    Map<int, List<String>>? negativeAlternativeWords,
-    Map<String, Map<String, bool>>? searchOptions,
-    Map<String, Map<String, bool>>? negativeSearchOptions,
-    bool matchNikud = false,
-    bool matchTaamim = false,
-    ResultGrouping? grouping,
-    WordMatchMode wordMatchMode = WordMatchMode.all,
-    int? wordMatchCount,
-  }) async {
+  Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async {
     requests.add(
       _SearchRequest(
-        query: query,
-        facets: facets,
-        distance: distance,
-        searchMode: searchMode,
-        fuzzy: fuzzy,
-        scope: scope,
-        wordMatchMode: wordMatchMode,
-        wordMatchCount: wordMatchCount,
+        query: request.query,
+        facets: request.facets,
+        distance: request.distance,
+        searchMode: request.searchMode,
+        fuzzy: request.searchMode == SearchMode.fuzzy,
+        scope: request.scope,
+        wordMatchMode: request.wordMatchMode,
+        wordMatchCount: request.wordMatchCount,
+        searchOptions: request.searchOptions,
       ),
     );
     return results;

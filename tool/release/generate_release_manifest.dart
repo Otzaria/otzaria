@@ -32,7 +32,6 @@ class AssetSpec {
     required this.pattern,
     this.repository = kOtzariaRepository,
     this.split = false,
-    this.volumes = false,
   });
 
   /// תבנית (ביטוי רגולרי) לשם הקובץ בתיקיית ה-release. עבור נכס מפוצל
@@ -40,10 +39,6 @@ class AssetSpec {
   final String pattern;
   final String repository;
   final bool split;
-
-  /// התבנית מתארת כרכים עצמאיים (`…-part1.zip`, `…-part2.zip`): כל קובץ תואם
-  /// הוא נכס יחיד, לפי סדר מספר הכרך.
-  final bool volumes;
 }
 
 /// רכיב ידוע — השורה הדקלרטיבית היחידה שצריך להוסיף כדי שרכיב חדש
@@ -57,6 +52,8 @@ class ComponentSpec {
     required this.required,
     required this.installOrder,
     required this.assets,
+    this.nameEn,
+    this.descriptionEn,
     this.platform,
     this.architecture,
     this.packageFormat,
@@ -65,11 +62,17 @@ class ComponentSpec {
     this.origin = 'built',
     this.installedSize,
     this.compatibilityFromLibraryIndexProvenance = false,
+    this.outputNote,
+    this.outputNoteEn,
   });
 
   final String id;
   final String name;
   final String description;
+
+  /// הטקסט למסייע שרץ באנגלית. חסר = הצרכן מציג את [name] / [description].
+  final String? nameEn;
+  final String? descriptionEn;
   final String type;
   final bool required;
   final int installOrder;
@@ -90,6 +93,10 @@ class ComponentSpec {
   final String origin;
   final int? installedSize;
   final bool compatibilityFromLibraryIndexProvenance;
+
+  /// משפט שעמוד הסיום של המסייע מוסיף כשהרכיב הוכן.
+  final String? outputNote;
+  final String? outputNoteEn;
 }
 
 /// טבלת הרכיבים הידועים. הוספת רכיב = הוספת שורה כאן בלבד.
@@ -98,6 +105,10 @@ const List<ComponentSpec> kKnownComponents = [
     id: 'otzaria-windows-x64',
     name: 'אוצריא ל-Windows',
     description: 'התוכנה עצמה, ללא ספרייה. מתקין רגיל למעבדי x64.',
+    nameEn: 'Otzaria for Windows',
+    descriptionEn:
+        'Otzaria itself, without the library. A standard installer for x64 '
+        'processors.',
     type: 'application',
     required: true,
     platform: 'windows',
@@ -109,6 +120,8 @@ const List<ComponentSpec> kKnownComponents = [
     id: 'otzaria-windows-arm64',
     name: 'אוצריא ל-Windows (ARM64)',
     description: 'התוכנה עצמה למחשבי ARM64, ללא ספרייה.',
+    nameEn: 'Otzaria for Windows (ARM64)',
+    descriptionEn: 'Otzaria itself for ARM64 computers, without the library.',
     type: 'application',
     required: false,
     platform: 'windows',
@@ -120,6 +133,9 @@ const List<ComponentSpec> kKnownComponents = [
     id: 'otzaria-windows-portable-x64',
     name: 'אוצריא ל-Windows — גרסה ניידת',
     description: 'ארכיון ZIP שאינו דורש התקנה, למעבדי x64.',
+    nameEn: 'Otzaria for Windows — Portable Version',
+    descriptionEn:
+        'A ZIP archive that needs no installation, for x64 processors.',
     // צורה חלופית של אותה תוכנה ולא רכיב נוסף — סוג משלה מונע מההצעות
     // לצרף אותה יחד עם המתקין.
     type: 'application-portable',
@@ -133,6 +149,9 @@ const List<ComponentSpec> kKnownComponents = [
     id: 'otzaria-windows-portable-arm64',
     name: 'אוצריא ל-Windows — גרסה ניידת (ARM64)',
     description: 'ארכיון ZIP שאינו דורש התקנה, למחשבי ARM64.',
+    nameEn: 'Otzaria for Windows — Portable Version (ARM64)',
+    descriptionEn:
+        'A ZIP archive that needs no installation, for ARM64 computers.',
     type: 'application-portable',
     required: false,
     platform: 'windows',
@@ -145,6 +164,10 @@ const List<ComponentSpec> kKnownComponents = [
     name: 'אוצריא ל-Windows עם ספרייה מלאה',
     description:
         'מתקין הכולל את התוכנה ואת הספרייה המלאה, בלי אינדקס חיפוש בנוי מראש.',
+    nameEn: 'Otzaria for Windows with the Full Library',
+    descriptionEn:
+        'An installer with Otzaria and the full library, without a prebuilt '
+        'search index.',
     type: 'application-bundle',
     required: false,
     platform: 'windows',
@@ -165,6 +188,10 @@ const List<ComponentSpec> kKnownComponents = [
     description:
         'מתקין הכולל את התוכנה ואת הספרייה המלאה, למחשבי ARM64, בלי אינדקס '
         'חיפוש בנוי מראש.',
+    nameEn: 'Otzaria for Windows with the Full Library (ARM64)',
+    descriptionEn:
+        'An installer with Otzaria and the full library for ARM64 computers, '
+        'without a prebuilt search index.',
     type: 'application-bundle',
     required: false,
     platform: 'windows',
@@ -179,22 +206,14 @@ const List<ComponentSpec> kKnownComponents = [
     ],
   ),
   ComponentSpec(
-    id: 'otzaria-windows-full-indexed',
-    name: 'אוצריא ל-Windows עם ספרייה מאונדקסת',
-    description:
-        'מתקין קטן שמוריד בעת ההתקנה את הספרייה המלאה עם אינדקס החיפוש הבנוי מראש.',
-    type: 'application-bundle',
-    required: false,
-    platform: 'windows',
-    architecture: 'x64',
-    installOrder: 20,
-    assets: [AssetSpec(pattern: r'^otzaria-.+-windows-full-indexed\.exe$')],
-  ),
-  ComponentSpec(
     id: 'otzaria-linux-deb-x64',
     name: 'אוצריא ל-Linux (DEB)',
     description:
         'חבילת התקנה ל-Ubuntu, Debian, Mint והפצות דומות, למעבדי x64. ללא ספרייה.',
+    nameEn: 'Otzaria for Linux (DEB)',
+    descriptionEn:
+        'An installation package for Ubuntu, Debian, Mint and similar '
+        'distributions, for x64 processors. Library not included.',
     type: 'application',
     required: false,
     platform: 'linux',
@@ -208,6 +227,10 @@ const List<ComponentSpec> kKnownComponents = [
     name: 'אוצריא ל-Linux (DEB, ARM64)',
     description:
         'חבילת התקנה ל-Ubuntu, Debian, Mint והפצות דומות, למחשבי ARM64. ללא ספרייה.',
+    nameEn: 'Otzaria for Linux (DEB, ARM64)',
+    descriptionEn:
+        'An installation package for Ubuntu, Debian, Mint and similar '
+        'distributions, for ARM64 computers. Library not included.',
     type: 'application',
     required: false,
     platform: 'linux',
@@ -221,6 +244,10 @@ const List<ComponentSpec> kKnownComponents = [
     name: 'אוצריא ל-Linux (RPM)',
     description:
         'חבילת התקנה ל-Fedora, openSUSE והפצות דומות, למעבדי x64. ללא ספרייה.',
+    nameEn: 'Otzaria for Linux (RPM)',
+    descriptionEn:
+        'An installation package for Fedora, openSUSE and similar '
+        'distributions, for x64 processors. Library not included.',
     type: 'application',
     required: false,
     platform: 'linux',
@@ -234,6 +261,10 @@ const List<ComponentSpec> kKnownComponents = [
     name: 'אוצריא ל-Linux (RPM, ARM64)',
     description:
         'חבילת התקנה ל-Fedora, openSUSE והפצות דומות, למחשבי ARM64. ללא ספרייה.',
+    nameEn: 'Otzaria for Linux (RPM, ARM64)',
+    descriptionEn:
+        'An installation package for Fedora, openSUSE and similar '
+        'distributions, for ARM64 computers. Library not included.',
     type: 'application',
     required: false,
     platform: 'linux',
@@ -247,6 +278,10 @@ const List<ComponentSpec> kKnownComponents = [
     id: 'otzaria-linux-portable-x64',
     name: 'אוצריא ל-Linux — גרסה ניידת',
     description: 'ארכיון ZIP שאינו דורש התקנה, למעבדי x64. ללא ספרייה.',
+    nameEn: 'Otzaria for Linux — Portable Version',
+    descriptionEn:
+        'A ZIP archive that needs no installation, for x64 processors. '
+        'Library not included.',
     type: 'application-portable',
     required: false,
     platform: 'linux',
@@ -258,6 +293,10 @@ const List<ComponentSpec> kKnownComponents = [
     id: 'otzaria-linux-portable-arm64',
     name: 'אוצריא ל-Linux — גרסה ניידת (ARM64)',
     description: 'ארכיון ZIP שאינו דורש התקנה, למחשבי ARM64. ללא ספרייה.',
+    nameEn: 'Otzaria for Linux — Portable Version (ARM64)',
+    descriptionEn:
+        'A ZIP archive that needs no installation, for ARM64 computers. '
+        'Library not included.',
     type: 'application-portable',
     required: false,
     platform: 'linux',
@@ -271,6 +310,10 @@ const List<ComponentSpec> kKnownComponents = [
     description:
         'ארכיון tar.zst ובו התוכנה והספרייה המלאה, למעבדי x64. פורסים אותו '
         'ומפעילים ללא התקנה.',
+    nameEn: 'Otzaria for Linux with the Full Library',
+    descriptionEn:
+        'A tar.zst archive with Otzaria and the full library, for x64 '
+        'processors. Extract it and run Otzaria, no installation needed.',
     type: 'application-bundle',
     required: false,
     platform: 'linux',
@@ -290,6 +333,10 @@ const List<ComponentSpec> kKnownComponents = [
     description:
         'ארכיון tar.zst ובו התוכנה והספרייה המלאה, למחשבי ARM64. פורסים אותו '
         'ומפעילים ללא התקנה.',
+    nameEn: 'Otzaria for Linux with the Full Library (ARM64)',
+    descriptionEn:
+        'A tar.zst archive with Otzaria and the full library, for ARM64 '
+        'computers. Extract it and run Otzaria, no installation needed.',
     type: 'application-bundle',
     required: false,
     platform: 'linux',
@@ -310,6 +357,10 @@ const List<ComponentSpec> kKnownComponents = [
     name: 'אוצריא ל-macOS',
     description:
         'קובץ DMG: גוררים ממנו את אוצריא לתיקיית היישומים. ללא ספרייה.',
+    nameEn: 'Otzaria for macOS',
+    descriptionEn:
+        'A DMG file: drag Otzaria from it into the Applications folder. '
+        'Library not included.',
     type: 'application',
     required: false,
     platform: 'macos',
@@ -322,6 +373,10 @@ const List<ComponentSpec> kKnownComponents = [
     description:
         'ארכיון tar.zst ובו התוכנה והספרייה המלאה. פורסים אותו ומפעילים ללא '
         'התקנה.',
+    nameEn: 'Otzaria for macOS with the Full Library',
+    descriptionEn:
+        'A tar.zst archive with Otzaria and the full library. Extract it and '
+        'run Otzaria, no installation needed.',
     type: 'application-bundle',
     required: false,
     platform: 'macos',
@@ -339,48 +394,98 @@ const List<ComponentSpec> kKnownComponents = [
     id: 'otzaria-android',
     name: 'אוצריא ל-Android',
     description: 'קובץ התקנה (APK) לטלפון או לטאבלט. ללא ספרייה.',
+    nameEn: 'Otzaria for Android',
+    descriptionEn:
+        'An installation file (APK) for a phone or tablet. Library not '
+        'included.',
     type: 'application',
     required: false,
     platform: 'android',
     installOrder: 10,
     assets: [AssetSpec(pattern: r'^[^\\/]+\.apk$')],
   ),
+  // המתקינים הרגילים של Windows פורסים את החלקים שלצדם (installer/otzaria.iss),
+  // ובאנדרואיד "ייבוא מתיקיית קובצי הספרייה" באפליקציה (lib/empty_library/services/library_package).
   ComponentSpec(
-    id: 'otzaria-android-full',
-    name: 'אוצריא ל-Android עם ספרייה מלאה',
+    id: 'library-full',
+    name: 'ספרייה מלאה',
     description:
-        'ארכיון ZIP (או כמה כרכי ZIP שמחלצים לאותה תיקייה) ובו קובץ ה-APK '
-        'והספרייה המלאה, להעתקה אל המכשיר.',
-    type: 'application-bundle',
-    required: false,
-    platform: 'android',
-    installOrder: 20,
-    assets: [
-      // מעל המגבלה — כרכי ZIP עצמאיים ולא חלקים גולמיים: בטלפון אין מי שיחבר.
-      AssetSpec(pattern: r'^otzaria-android-full\.zip$'),
-      AssetSpec(pattern: r'^otzaria-android-full-part\d+\.zip$', volumes: true),
-    ],
-  ),
-  ComponentSpec(
-    id: 'library-full-indexed',
-    name: 'ספרייה מלאה עם אינדקס חיפוש',
-    description:
-        'מסד הספרים המלא יחד עם אינדקס החיפוש הבנוי מראש, לצירוף למחשב מנותק.',
+        'כל ספריית הספרים, למחשב שאין בו אינטרנט. המתקין פורס אותה בעצמו, '
+        'ואת אינדקס החיפוש התוכנה בונה אחרי ההתקנה.',
+    nameEn: 'Full Library',
+    descriptionEn:
+        'The complete library for an offline computer. The installer extracts '
+        'it, and the app builds the search index after installation.',
     type: 'library',
     required: false,
     platform: 'any',
     installOrder: 30,
-    // רק המתקין המאונדקס קורא את החלקים לצדו; ל-ARM64 אין צרכן.
-    installedBy: ['otzaria-windows-full-indexed'],
+    installedBy: [
+      'otzaria-windows-x64',
+      'otzaria-windows-arm64',
+      'otzaria-android',
+    ],
     compatibilityFromLibraryIndexProvenance: true,
+    outputNote:
+        'אוצריא פורסת את הספרייה מהקבצים שבתיקייה בלי אינטרנט: ב-Windows '
+        'המתקין עושה זאת בזמן ההתקנה, וב-Android בוחרים "ייבוא מתיקיית קובצי '
+        'הספרייה" באוצריא אחרי התקנת ה-APK.',
+    outputNoteEn:
+        'Otzaria extracts the library from the files in this folder without '
+        'an internet connection: on Windows the installer does it during '
+        'installation; on Android, install the APK and choose "Import from the '
+        'Library Files Folder" in Otzaria.',
     assets: [
       AssetSpec(
-        pattern: r'^otzaria-.+-library-full-indexed\.tar\.zst\.manifest\.json$',
+        pattern: r'^otzaria-.+-library\.tar\.zst\.manifest\.json$',
+        split: true,
+      ),
+    ],
+  ),
+  // סוג משלו, ולא library: "מלאה" אוספת ספריות, והאינדקס אינו חלק ממנה.
+  ComponentSpec(
+    id: 'library-index',
+    name: 'אינדקס חיפוש מוכן (למחשבים חלשים)',
+    description:
+        'בדרך כלל אין בו צורך: התוכנה בונה את אינדקס החיפוש בעצמה אחרי '
+        'ההתקנה. מומלץ רק למחשב חלש, שבו בניית האינדקס איטית מאוד. מגיע '
+        'יחד עם הספרייה המלאה.',
+    nameEn: 'Prebuilt Search Index (for Slower Computers)',
+    descriptionEn:
+        'Usually unnecessary: the app builds its search index after '
+        'installation. Recommended only for a slow computer where indexing '
+        'takes a long time. Includes the full library.',
+    type: kLibraryIndexType,
+    required: false,
+    platform: 'any',
+    installOrder: 31,
+    dependsOn: ['library-full'],
+    installedBy: [
+      'otzaria-windows-x64',
+      'otzaria-windows-arm64',
+      'otzaria-android',
+    ],
+    compatibilityFromLibraryIndexProvenance: true,
+    outputNote:
+        'אינדקס החיפוש המוכן נפרס יחד עם הספרייה, ולכן התוכנה אינה בונה אותו '
+        'אחרי ההתקנה.',
+    outputNoteEn:
+        'The prebuilt search index is extracted with the library, so the app '
+        'does not need to build it after installation.',
+    assets: [
+      AssetSpec(
+        pattern: r'^otzaria-.+-library-index\.tar\.zst\.manifest\.json$',
         split: true,
       ),
     ],
   ),
 ];
+
+/// סוג רכיב האינדקס הבנוי מראש.
+const String kLibraryIndexType = 'library-index';
+
+/// סוגים שאינם מותקנים בעצמם, ולכן חייבים לשאת `installedBy`.
+const Set<String> kInstalledByRequiredTypes = {'library', kLibraryIndexType};
 
 /// בונה את מניפסט ה-release מתוך [directory] — תיקיית קבצי ה-release של CI.
 ///
@@ -420,19 +525,6 @@ Map<String, Object?> buildReleaseManifest({
       final pattern = RegExp(assetSpec.pattern);
       final matches = files.keys.where(pattern.hasMatch).toList()..sort();
       if (matches.isEmpty) continue;
-      if (assetSpec.volumes) {
-        matches.sort(_compareVolumeNames);
-        for (final name in matches) {
-          assets.add(
-            _singleAsset(
-              file: files[name]!,
-              repository: assetSpec.repository,
-              releaseTag: releaseTag,
-            ),
-          );
-        }
-        continue;
-      }
       if (matches.length > 1) {
         throw ReleaseManifestException(
           'component ${spec.id}: ${matches.length} files match '
@@ -465,7 +557,9 @@ Map<String, Object?> buildReleaseManifest({
     components.add({
       'id': spec.id,
       'name': spec.name,
+      if (spec.nameEn != null) 'nameEn': spec.nameEn,
       'description': spec.description,
+      if (spec.descriptionEn != null) 'descriptionEn': spec.descriptionEn,
       'type': spec.type,
       'required': spec.required,
       'origin': spec.origin,
@@ -479,13 +573,19 @@ Map<String, Object?> buildReleaseManifest({
       if (spec.installedSize != null) 'installedSize': spec.installedSize,
       if (spec.compatibilityFromLibraryIndexProvenance && provenance != null)
         'compatibility': provenance,
+      if (spec.outputNote != null) 'outputNote': spec.outputNote,
+      if (spec.outputNoteEn != null) 'outputNoteEn': spec.outputNoteEn,
       'assets': assets,
     });
   }
 
-  // רכיב שאף מתקין שלו לא נבנה אינו שמיש — מושמט כמו רכיב שנכסיו חסרים.
+  // רכיב שאף מתקין שלו, או אחת מתלויותיו, לא נבנו אינו שמיש — מושמט כמו רכיב
+  // שנכסיו חסרים. אינדקס בלי ספרייה, למשל.
   final built = {for (final c in components) c['id']};
   components.removeWhere((component) {
+    if (!(component['dependsOn'] as List<String>).every(built.contains)) {
+      return true;
+    }
     final installers = component['installedBy'] as List<String>?;
     if (installers == null) return false;
     final present = installers.where(built.contains).toList();
@@ -520,14 +620,6 @@ Map<String, Object?> buildReleaseManifest({
     );
   }
   return manifest;
-}
-
-/// סדר כרכים לפי המספר האחרון בשם, כך ש-part10 בא אחרי part9.
-int _compareVolumeNames(String a, String b) {
-  int number(String name) =>
-      int.parse(RegExp(r'(\d+)(?!.*\d)').firstMatch(name)?.group(1) ?? '0');
-  final order = number(a).compareTo(number(b));
-  return order != 0 ? order : a.compareTo(b);
 }
 
 int _downloadSizeOf(Map<String, Object?> asset) {
@@ -806,11 +898,30 @@ List<String> validateReleaseManifest(Object? manifest) {
         'component $label: installedBy must be a non-empty list of ids',
       );
     }
-    if (component['type'] == 'library' && installedBy is! List) {
+    if (kInstalledByRequiredTypes.contains(component['type']) &&
+        installedBy is! List) {
       errors.add(
         'component $label: a library must name the components that install '
         'it (installedBy)',
       );
+    }
+    final outputFolder = component['outputFolder'];
+    if (outputFolder != null &&
+        (outputFolder is! String || !isSafeOutputFolder(outputFolder))) {
+      errors.add(
+        'component $label: outputFolder must be a relative path of safe names',
+      );
+    }
+    for (final key in const [
+      'outputNote',
+      'nameEn',
+      'descriptionEn',
+      'outputNoteEn',
+    ]) {
+      final value = component[key];
+      if (value != null && (value is! String || value.trim().isEmpty)) {
+        errors.add('component $label: $key must be a non-empty string');
+      }
     }
     final compatibility = component['compatibility'];
     if (compatibility != null && compatibility is! Map) {
@@ -843,6 +954,20 @@ List<String> validateReleaseManifest(Object? manifest) {
         }
       }
     }
+    final partOf = component['partOf'];
+    if (partOf != null) {
+      final whole = byId[partOf];
+      final wholeDepends = whole?['dependsOn'];
+      // המסייעים אינם מציגים חלק לבדו — הוא מגיע רק דרך dependsOn של השלם.
+      if (partOf is! String ||
+          wholeDepends is! List ||
+          !wholeDepends.contains(component['id'])) {
+        errors.add(
+          'component ${component['id']}: partOf must name a component that '
+          'dependsOn it',
+        );
+      }
+    }
     final installedBy = component['installedBy'];
     if (installedBy is! List) continue;
     for (final installer in installedBy.whereType<String>()) {
@@ -864,6 +989,18 @@ List<String> validateReleaseManifest(Object? manifest) {
   }
   return errors;
 }
+
+final RegExp _outputFolderSegment = RegExp(r'^[A-Za-z0-9._-]+$');
+
+/// תיקייה יחסית בתיקיית הפלט של המסייעים: שמות בטוחים מופרדים ב-`/`, בלי
+/// מקטע של נקודות בלבד — המסייעים בונים ממנה נתיב כתיבה.
+bool isSafeOutputFolder(String folder) => folder
+    .split('/')
+    .every(
+      (segment) =>
+          _outputFolderSegment.hasMatch(segment) &&
+          segment.replaceAll('.', '').isNotEmpty,
+    );
 
 List<String> _validateAsset(Object? asset, String componentLabel) {
   final errors = <String>[];

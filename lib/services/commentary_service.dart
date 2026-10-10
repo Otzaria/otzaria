@@ -300,19 +300,6 @@ class CommentaryService {
     return CommentaryEra.other;
   }
 
-  /// ממיין קבוצות מפרשים לפי סדר הדורות
-  ///
-  /// [groups] - רשימת הקבוצות למיון
-  ///
-  /// מחזיר רשימה ממוינת לפי: תורה שבכתב -> חז"ל -> ראשונים -> אחרונים -> מחברי זמננו -> שאר מפרשים
-  /// בתוך כל דור, המיון הוא אלפביתי לפי שם הספר
-  static Future<List<LinkGroup>> sortGroupsByEra(List<LinkGroup> groups) async {
-    if (groups.length <= 1) return groups;
-
-    await preloadEras(groups.map((group) => group.bookTitle));
-    return sortGroupsByEraSync(groups);
-  }
-
   /// ממיין קבוצות מפרשים לפי דורות מתוך המטמון בלבד (סינכרוני)
   ///
   /// יש לקרוא ל-[preloadEras] מראש; ספר שאינו במטמון ימוין כ"שאר מפרשים".
@@ -466,46 +453,5 @@ class CommentaryService {
   static Future<List<LinkGroup>> groupAndSortLinks(List<Link> links) async {
     final groups = await groupConsecutiveLinksAsync(links);
     return sortGroupsByEraSync(groups);
-  }
-
-  /// בודק אם יש מפרשים זמינים לאינדקסים מסוימים
-  ///
-  /// [indexes] - אינדקסים לבדיקה
-  /// [links] - כל הקישורים
-  /// [activeCommentators] - רשימת המפרשים הפעילים
-  static bool hasCommentaries({
-    required List<int> indexes,
-    required List<Link> links,
-    required List<String> activeCommentators,
-  }) {
-    if (activeCommentators.isEmpty || indexes.isEmpty) return false;
-
-    final sortedIndexes = indexes.map((i) => i + 1).toSet().toList()..sort();
-    final commentatorsSet = activeCommentators.toSet();
-    String? lastPath;
-    String? lastTitle;
-
-    return links.any((link) {
-      var low = 0;
-      var high = sortedIndexes.length;
-      while (low < high) {
-        final middle = (low + high) ~/ 2;
-        if (sortedIndexes[middle] < link.index1) {
-          low = middle + 1;
-        } else {
-          high = middle;
-        }
-      }
-      if (low == sortedIndexes.length ||
-          !link.overlapsSourceLines(sortedIndexes[low], sortedIndexes[low])) {
-        return false;
-      }
-      if (!LinkTypes.isDependentTextLink(link.connectionType)) return false;
-      if (link.path2 != lastPath) {
-        lastPath = link.path2;
-        lastTitle = utils.getTitleFromPath(link.path2);
-      }
-      return commentatorsSet.contains(lastTitle);
-    });
   }
 }

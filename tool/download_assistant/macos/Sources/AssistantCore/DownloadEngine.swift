@@ -328,7 +328,7 @@ public final class DownloadEngine: NSObject, URLSessionDataDelegate {
             return
         } catch {
             transfer.fatal = AssistantError(
-                "לא ניתן היה לשמור את הקבצים. ייתכן שאין מספיק מקום פנוי.", technical: "\(error)"
+                AssistantError.saveFailed, technical: "\(error)"
             )
             dataTask.cancel()
             return
@@ -395,7 +395,7 @@ public final class DownloadEngine: NSObject, URLSessionDataDelegate {
             return
         }
         fail(AssistantError(
-            "אחד הקבצים שהורדו נמצא פגום ולא נשמר.",
+            AssistantError.downloadDamaged,
             technical: "\(item.name): size or sha256 mismatch"
         ))
     }

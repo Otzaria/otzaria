@@ -336,7 +336,6 @@ void main() {
         final byIndex = await repository.getLineByIndex(_bookId, 0);
         expect(byIndex!.content, '<h1>טור</h1>');
         expect(byIndex.heRef, isNull);
-        expect((await repository.getLine(13))!.content, 'נוסח ממוזג ג');
 
         final contents = await repository.getLineContents(_bookId);
         expect(contents, [for (final (_, _, content, _) in _lines) content]);

@@ -2,42 +2,29 @@
 ; שדרוג מגרסה 0.9.88 ומעלה מזוהה אוטומטית ומותקן ללא שאלות, עם חלון התקדמות.
 ; ההגדרות וקיצורי הדרך נשמרים, והספרייה מוחלפת בחבילה
 ; החדשה בנתיב הספרים הקיים של המשתמש. התקנה חדשה או שדרוג מגרסה ישנה
-; מקבלים את האשף המלא (בחירת רכיבים, תיקיית ספרים וכו').
-; עמוד "סוג ההתקנה" מציע: למשתמש הנוכחי (ברירת מחדל, ללא UAC), לכל
-; המשתמשים (שיגור-מחדש מורם עם /ALLUSERS), והתקנה ניידת. בהתקנה ניידת
+; מקבלים את האשף המלא בשכבת התצוגה של אוצריא (otzaria_ui_installer.iss).
+; עמוד "איך להתקין" מציע: רק בשבילי (ברירת מחדל, ללא UAC), לכל
+; המשתמשים (שיגור-מחדש מורם עם /ALLUSERS), וגרסה ניידת. בהתקנה ניידת
 ; נכתב portable.marker ליד ה-EXE, הספרייה מחולצת ל-otzaria_data\books
 ; בתוך תיקיית ההתקנה (הנתיב שהאפליקציה גוזרת בעצמה במצב נייד — אין צורך
 ; בכתיבת הגדרות), ואין שום רישום במערכת. הפרמטר /PORTABLE פותח את האשף
 ; במצב נייד גם כשמותקנת גרסה מודרנית (שאחרת הייתה משודרגת בשקט).
 
 #define MyAppName "אוצריא"
-#define MyAppVersion "0.9.97"
+#define MyAppVersion "0.9.98"
 #define MyAppPublisher "sivan22"
 #define MyAppURL "https://github.com/otzaria/otzaria"
 #define MyAppExeName "otzaria.exe"
 ; חייב להתאים ל-AppPaths.bundledPluginsFolderName.
 #define BundledPluginsDirName "bundled_plugins"
-
-#ifdef IndexedSplitFull
-  ; דרך משתנה סביבה: ‎/D‎ עם מרכאות מ-pwsh הגיע ל-ISPP עטוף בלוכסנים
-  ; (נמדד: ‎\0.10.0+139\‎), והכתובת שנבנתה ממנו הייתה שבורה.
-  #ifndef IndexedReleaseTag
-    #define IndexedReleaseTag GetEnv("OTZARIA_INDEXED_RELEASE_TAG")
-  #endif
-  #if IndexedReleaseTag == ""
-    #define IndexedReleaseTag MyAppVersion
-  #endif
-  #define IndexedArchiveName "otzaria-" + MyAppVersion + "-library-full-indexed.tar.zst"
-  #define IndexedEmbeddedManifestName "indexed_library.manifest.json"
-  #define IndexedReleaseBaseUrl "https://github.com/Otzaria/otzaria/releases/download/" + IndexedReleaseTag
-#endif
+; חנות התוספים — מועתקת רק כשיש רשת (bundled_plugins_network_check.iss).
+#define NetworkGatedPlugin "otzaria.plugins_directory.otzplugin"
+; החלקים של שכבת התצוגה שקיימים רק במתקין המלא (עמוד הספרים, WebView2, החילוץ).
+#define InstallerFull
 
 ; ארכיטקטורת היעד כמו ב-otzaria.iss: "x64" (ברירת מחדל) או ‎ISCC /DAppArch=arm64‎.
 #ifndef AppArch
   #define AppArch "x64"
-#endif
-#if defined(IndexedSplitFull) && AppArch == "arm64"
-  #error IndexedSplitFull is built for x64 only
 #endif
 
 [Setup]
@@ -67,25 +54,26 @@ DefaultDirName={code:GetDefaultInstallDir}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=.
-#ifdef IndexedSplitFull
-OutputBaseFilename=otzaria-{#MyAppVersion}-windows-full-indexed
-#elif AppArch == "arm64"
+#if AppArch == "arm64"
 ; "full" בשם מונע מהעדכון שבתוך התוכנה לבחור בו כמתקין עדכון.
 OutputBaseFilename=otzaria-{#MyAppVersion}-windows_arm64-full
 #else
 OutputBaseFilename=otzaria-{#MyAppVersion}-windows-full
 #endif
 SetupIconFile=white_sketch128x128.ico
-; תמונת האשף בעמודי "ברוכים הבאים" ו"סיום" (אנכית, 164x314 + רזולוציות @2x/@3x ל-HiDPI)
-WizardImageFile=wizard_large.bmp,wizard_large@2x.bmp,wizard_large@3x.bmp
-; תמונה קטנה בפינת כל עמוד אחר (55x58 + רזולוציות גבוהות)
+; האשף מצויר כולו בשכבת התצוגה. התמונה הקטנה נשארת בשביל חלון ההסרה, שאין לו את העיצוב.
+WizardImageFile=
 WizardSmallImageFile=wizard_small.bmp,wizard_small@2x.bmp,wizard_small@3x.bmp
+; עמוד הפתיחה הוא מסך הפתיחה המונפש של שכבת התצוגה.
+DisableWelcomePage=no
 Compression=lzma
 SolidCompression=yes
 ; Disable compression for DLL files to prevent corruption
 CompressionThreads=1
 WizardStyle=modern
 DisableDirPage=no
+; השאלה על תיקייה קיימת נשאלת בדו-שיח המעוצב (DirExistsDifferentFromPrevious).
+DirExistsWarning=no
 ; התקנה ניידת אינה נרשמת במערכת — בלי uninstaller ובלי רשומה ב"הוספה או
 ; הסרה של תוכניות"; להסרה מוחקים את התיקייה.
 Uninstallable=not IsPortableInstall
@@ -98,6 +86,10 @@ SetupLogging=yes
 ; בלי זה בחירת המשימות נשמרת ברישום — "איפוס הגדרות" שסומן פעם היה
 ; רץ שוב בכל שדרוג שקט ומוחק את נתוני המשתמש (issue #941).
 UsePreviousTasks=no
+; עברית כשממשק Windows בעברית, ואנגלית בכל שפה אחרת: english ראשונה ולכן היא הנסיגה.
+; בשדרוג Inno שומר את שפת ההתקנה הקודמת (UsePreviousLanguage).
+LanguageDetectionMethod=uilanguage
+ShowLanguageDialog=no
 
 [InstallDelete]
 ; ניקוי מסד הנתונים הישן של Isar שהוחלף על ידי hive_ce — מחיקה מכוונת בעת שדרוג.
@@ -111,8 +103,8 @@ Type: files; Name: "{app}\portable.marker"; Check: not IsPortableInstall
 ; ניקוי ארכיוני תוספים של הגרסה הקודמת — הרשימה יכולה להשתנות בין גרסאות,
 ; והארכיונים כבר נרשמו ואינם נדרשים.
 Type: filesandordirs; Name: "{app}\{#BundledPluginsDirName}"
-; אין כאן מחיקה של תיקיית הספרים: בשני מצבי הבנייה הספרייה מוחלפת רק אחרי
-; חילוץ מלא ומוצלח ל-staging — מחיקה מוקדמת השאירה משדרגים בלי ספרייה (issue #867).
+; אין כאן מחיקה של תיקיית הספרים: הספרייה מוחלפת רק אחרי חילוץ מלא ומוצלח
+; ל-staging — מחיקה מוקדמת השאירה משדרגים בלי ספרייה (issue #867).
 
 [Dirs]
 ; במצב נייד הנתונים יושבים ב-otzaria_data ליד ה-EXE — האפליקציה יוצרת אותה בעצמה.
@@ -121,7 +113,9 @@ Name: "{code:GetDataDir}\books"; Permissions: users-modify; Check: not IsPortabl
 Name: "{code:GetDataDir}\index"; Permissions: users-modify; Check: not IsPortableInstall
 
 [Registry]
-Root: HKA; Subkey: "Software\Classes\otzaria"; ValueType: string; ValueName: ""; ValueData: "URL:Otzaria Protocol"; Flags: uninsdeletekeyifempty; Check: not IsPortableInstall
+; uninsdeletekey ולא ifempty: ערכי ברירת המחדל שכאן אינם נמחקים בהסרה, ולכן
+; המפתח אינו מתרוקן לעולם ונשאר מצביע על EXE שהוסר.
+Root: HKA; Subkey: "Software\Classes\otzaria"; ValueType: string; ValueName: ""; ValueData: "URL:Otzaria Protocol"; Flags: uninsdeletekey; Check: not IsPortableInstall
 Root: HKA; Subkey: "Software\Classes\otzaria"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletevalue; Check: not IsPortableInstall
 Root: HKA; Subkey: "Software\Classes\otzaria\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekeyifempty; Check: not IsPortableInstall
 Root: HKA; Subkey: "Software\Classes\otzaria\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekeyifempty; Check: not IsPortableInstall
@@ -141,15 +135,20 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Flags: preservestringtype; Check: ShouldAddToUserPath
 
 [Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
 
+; העיצוב של שכבת התצוגה ראשון ב-[Files]: עם SolidCompression הפתיחה אינה ממתינה לפריסת
+; האפליקציה והספרייה. הליבה לפני כל הקוד: היא מגדירה את EnglishUi ואת UiTell/UiAsk.
+#define OtzariaUiProduct "installer"
+#include "otzaria_ui_art.iss"
+#include "otzaria_ui_core.iss"
+
 [Code]
+#include "bundled_plugins_network_check.iss"
+#include "install_dir_length_check.iss"
 
 const
-  // קבועי פריסה לדף "תכונות עיקריות" - Inno Setup לא תומך ב-const מקומי בתוך פרוצדורה.
-  FEATURES_GAP_X = 14;
-  FEATURES_GAP_Y = 8;
-  FEATURES_LABEL_H = 18;
   UninstallRegKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{EEC4F712-CD05-4D15-A753-509E840A51A5}_is1';
   SystemEnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
   UserEnvironmentKey = 'Environment';
@@ -157,18 +156,18 @@ const
   LibraryPathRecordFileName = 'library_path.txt';
 
 var
-  CompPage: TWizardPage;
+  // מודל הנתונים של כרטיס WebView2 בעמוד האפשרויות.
   WV2Check: TCheckBox;
-  WV2Label: TLabel;
+  WebView2Missing: Boolean;
   InstallWV2: Boolean;
 
   BooksPage: TWizardPage;
   BooksPathEdit: TEdit;
-  BooksPathBrowseBtn: TButton;
+  BooksPathBrowseBtn: TNewButton;
   BooksWarnLabel: TLabel;
   SelectedBooksPath: String;
 
-  ModePage: TWizardPage;
+  // מודל הנתונים של כרטיסי "איך להתקין" בעמוד wpSelectDir.
   CurrentUserModeRadio: TNewRadioButton;
   AllUsersModeRadio: TNewRadioButton;
   PortableModeRadio: TNewRadioButton;
@@ -180,12 +179,8 @@ var
   PortableInstallDirDefault: String;
   // המשתמש בחר לדלג על חילוץ הספרייה בהתקנה ניידת — קיימת ספרייה במחשב.
   PortableSkipLibrary: Boolean;
-
-  FeaturesPage: TWizardPage;
-  SlideshowImage: TBitmapImage;
-  SlideshowTimerId: LongWord;
-  SlideshowTimerCallback: LongWord;
-  SlideshowIndex: Integer;
+  // הספרייה הקודמת כבר הוזזה לגיבוי: מכאן כישלון כבר אינו מבטיח שהיא נשארה כפי שהייתה.
+  LibrarySwapStarted: Boolean;
 
   // אם המשתמש בחר במהלך ההסרה למחוק גם את כל הנתונים והספרים, לא רק את
   // קבצי האפליקציה. ברירת המחדל False — נשמר כדי לא לאבד נתונים בעדכון
@@ -194,28 +189,11 @@ var
   // נתיב ספרייה מותאם מה-prefs; איפוס הגדרות מדלג עליו כדי לא למחוק ספרים.
   ProtectedLibraryPath: String;
 
-#ifdef IndexedSplitFull
-  IndexedDownloadPage: TDownloadWizardPage;
-  IndexedManifestPath: String;
-  IndexedPartsDir: String;
-  IndexedPreparedArchivePath: String;
-  IndexedArchiveName: String;
-  IndexedArchiveHash: String;
-  IndexedPartNames: TArrayOfString;
-  IndexedPartHashes: TArrayOfString;
-#endif
-
 // משמש גם את Uninstallable/CreateUninstallRegKey וגם רשומות Check.
 function IsPortableInstall(): Boolean;
 begin
   Result := PortableMode;
 end;
-
-// TTimer לא זמין ב-Pascal Script של Inno Setup; נשתמש ב-Windows API.
-function SetTimer(hWnd, nIDEvent, uElapse, lpTimerFunc: LongWord): LongWord;
-  external 'SetTimer@user32.dll stdcall';
-function KillTimer(hWnd, nIDEvent: LongWord): LongWord;
-  external 'KillTimer@user32.dll stdcall';
 
 function TryGetInstallDirFromRegistry(RootKey: Integer; const SubKey: String; var InstallDir: String): Boolean;
 begin
@@ -268,6 +246,8 @@ begin
       exit;
     end;
 end;
+
+#include "otzaria_ui_installer.iss"
 
 // Exec/ShellExec המובנות מסרבות להריץ את קובץ ה-Setup עצמו לפני תחילת ההתקנה;
 // ייבוא ישיר של ה-API עוקף זאת, וכך ה-UAC מציג את מתקין אוצריא ולא את cmd.exe.
@@ -382,6 +362,13 @@ begin
     Result := SelectedBooksPath
   else
     Result := GetDataDir('') + '\books';
+end;
+
+// נתוני החיפוש החכם שמסייע ההורדה הכין: ההורה של תיקיית הספרייה הוא
+// SemanticPaths.root באפליקציה, ושם היא מחפשת את semantic-import.
+function GetSemanticImportDir(Param: String): String;
+begin
+  Result := ExtractFileDir(GetSelectedBooksPath('')) + '\semantic-import';
 end;
 
 // חותך רכיב מספרי מתחילת S ומקדם אותה הלאה. תו שאינו ספרה או '.'
@@ -652,17 +639,12 @@ begin
   SaveStringToFile(PrefsFile, JsonContent, False);
 end;
 
-// כותב את נתיב הספרייה, ובמתקין המאונדקס גם את האינדקס הצמוד שהותקן איתה.
 procedure WriteLibraryPathToPrefs(const LibraryPath: String);
 begin
   WriteStringPreferenceToPrefs('key-library-path', LibraryPath);
   // ערך stale בשם תת-התיקייה מפנה את האפליקציה ל-<books>\<folder>\seforim.db
   // שאינו קיים בפריסה החדשה — והספרייה שהותקנה זה עתה "נעלמת" (issue #871).
   WriteStringPreferenceToPrefs('key-library-folder-name', '');
-#ifdef IndexedSplitFull
-  WriteStringPreferenceToPrefs('key-index-path',
-    ExtractFileDir(LibraryPath) + '\index');
-#endif
 end;
 
 // מחזיר את נתיב תיקיית הספרים שהמשתמש בחר (אם שונה מברירת המחדל),
@@ -792,14 +774,9 @@ begin
   ExistingPath := FindExistingLibraryPath();
   if ExistingPath = '' then
     exit;
-  PortableSkipLibrary := MsgBox(
-    'נמצאה ספרייה קיימת במחשב זה:' + #13#10 +
-    ExistingPath + #13#10#13#10 +
-    'האם לחלץ עותק ספרייה נוסף לתיקייה הניידת?' + #13#10 +
-    'עותק נוסף תופס כמה גיגה-בייטים בדיסק.' + #13#10#13#10 +
-    'בחירה ב"לא" תדלג על החילוץ, ובפתיחת אוצריא הניידת ניתן יהיה ' +
-    'להצביע על הספרייה הקיימת דרך "שימוש בספרייה קיימת במקומה".',
-    mbConfirmation, MB_YESNO) = IDNO;
+  // "כן" (Enter) נשאר חילוץ: דילוג רק בבחירה מפורשת ב"לא" (Esc אינו עונה).
+  PortableSkipLibrary := not InstAskYesNo(CustomMessage('PortableLibraryTitle'),
+    Msg1('PortableLibraryFound', UiDialogPath(ExistingPath)), mbConfirmation, MB_YESNO);
 end;
 
 function InitializeSetup(): Boolean;
@@ -863,12 +840,8 @@ begin
       // אם גם השיגור המורם נכשל, המשתמש דחה את ה-UAC (ERROR_CANCELLED)
       // או שהייתה שגיאת מערכת. לא נופלים ל-/CURRENTUSER, כי ההתקנה
       // הייתה נכשלת בכתיבה לנתיב המוגן.
-      MsgBox(
-        'אוצריא הותקנה בעבר בנתיב הדורש הרשאות מנהל:' + #13#10 +
-        PreviousDir + #13#10 + #13#10 +
-        'כדי לשדרג, יש להפעיל את המתקין כמנהל' + #13#10 +
-        '(קליק ימני על קובץ ההתקנה ↦ "Run as administrator").',
-        mbError, MB_OK);
+      InstTell(CustomMessage('AdminNeededTitle'),
+        Msg1('ProtectedPreviousInstall', UiDialogPath(PreviousDir)), mbError);
       Result := False;
       exit;
     end
@@ -900,16 +873,14 @@ begin
   OldPath := 'C:\אוצריא';
   if DirExists(OldPath) then
   begin
-    if MsgBox('נמצאה התקנה ישנה ב-' + OldPath + #13#10 +
-              'ספריית הספרים עוברת לנתיב חדש: ' + DataPath + #13#10#13#10 +
-              'האם להעביר את הנתונים למיקום החדש?',
-              mbConfirmation, MB_YESNO) = IDYES then
-    begin
-      MsgBox('לאחר ההתקנה, תוכל להעביר את הנתונים מ-' + OldPath + ' ל-' + DataPath, mbInformation, MB_OK);
-    end;
+    if InstAskYesNo(CustomMessage('LegacyFoundTitle'),
+      FmtMessage(CustomMessage('LegacyFound'), [UiDialogPath(OldPath), UiDialogPath(DataPath)]), mbConfirmation,
+      MB_YESNO) then
+      InstTell(CustomMessage('LegacyFoundTitle'),
+        FmtMessage(CustomMessage('LegacyMoveLater'), [UiDialogPath(OldPath), UiDialogPath(DataPath)]), mbInformation);
   end;
 
-  // הבחירה בין משתמש-נוכחי / כל-המשתמשים / ניידת נעשית בעמוד "סוג ההתקנה"
+  // הבחירה בין משתמש-נוכחי / כל-המשתמשים / ניידת נעשית בעמוד "איך להתקין"
   // (כשהתהליך מורם העמוד מסומן מראש על כל-המשתמשים והשיגור-מחדש משם עובר
   // ללא UAC).
   if (not IsAdmin) and RequiresAdmin then
@@ -922,157 +893,71 @@ begin
       exit;
     end;
 
-    MsgBox(
-      'אוצריא הותקנה בעבר בנתיב הדורש הרשאות מנהל:' + #13#10 +
-      PreviousDir + #13#10 + #13#10 +
-      'כדי לשדרג, יש להפעיל את המתקין כמנהל' + #13#10 +
-      '(קליק ימני על קובץ ההתקנה ↦ "Run as administrator").',
-      mbError, MB_OK);
+    InstTell(CustomMessage('AdminNeededTitle'),
+      Msg1('ProtectedPreviousInstall', UiDialogPath(PreviousDir)), mbError);
     Result := False;
   end;
 end;
 
-// ─── עמוד סוג ההתקנה ───────────────────────────────────────────────────────
+// ─── "איך להתקין" ו-WebView2 ────────────────────────────────────────────────
 
-procedure CreateModePage();
+// הרדיו מחוץ לחלון בקבוצה משלהם: חצים מסמנים, ו-OnClick מסנכרן את הכרטיסים.
+procedure CreateInstallModeChoice();
 var
-  CurrentUserDesc, AllUsersDesc, PortableDesc: TNewStaticText;
+  Group: TPanel;
 begin
-  ModePage := CreateCustomPage(FeaturesPage.ID,
-    'סוג ההתקנה',
-    'בחר עבור מי ואיך להתקין את אוצריא');
-
-  CurrentUserModeRadio := TNewRadioButton.Create(ModePage);
-  CurrentUserModeRadio.Parent := ModePage.Surface;
-  CurrentUserModeRadio.Left := 0;
-  CurrentUserModeRadio.Top := ScaleY(4);
-  CurrentUserModeRadio.Width := ModePage.SurfaceWidth;
-  CurrentUserModeRadio.Caption := 'התקנה למשתמש הנוכחי (מומלץ)';
+  // חצים עוברים רק בין הילדים של אותו הורה.
+  Group := TPanel.Create(WizardForm);
+  Group.Parent := WizardForm.SelectDirPage;
+  Group.SetBounds(-ScaleX(4000), 0, ScaleX(200), ScaleY(80));
+  CurrentUserModeRadio := TNewRadioButton.Create(WizardForm);
+  CurrentUserModeRadio.Parent := Group;
+  CurrentUserModeRadio.Caption := CustomMessage('ModeMeTitle');
+  CurrentUserModeRadio.SetBounds(0, 0, ScaleX(200), ScaleY(20));
   CurrentUserModeRadio.Checked := True;
-
-  CurrentUserDesc := TNewStaticText.Create(ModePage);
-  CurrentUserDesc.Parent := ModePage.Surface;
-  CurrentUserDesc.Left := ScaleX(18);
-  CurrentUserDesc.Top := CurrentUserModeRadio.Top + ScaleY(20);
-  CurrentUserDesc.Width := ModePage.SurfaceWidth - ScaleX(18);
-  CurrentUserDesc.AutoSize := False;
-  CurrentUserDesc.WordWrap := True;
-  CurrentUserDesc.Height := ScaleY(28);
-  CurrentUserDesc.Caption :=
-    'מותקנת בפרופיל המשתמש המחובר, ללא צורך בהרשאות מנהל.';
-
-  AllUsersModeRadio := TNewRadioButton.Create(ModePage);
-  AllUsersModeRadio.Parent := ModePage.Surface;
-  AllUsersModeRadio.Left := 0;
-  AllUsersModeRadio.Top := CurrentUserDesc.Top + CurrentUserDesc.Height + ScaleY(10);
-  AllUsersModeRadio.Width := ModePage.SurfaceWidth;
-  AllUsersModeRadio.Caption := 'התקנה לכל המשתמשים במחשב';
-
-  AllUsersDesc := TNewStaticText.Create(ModePage);
-  AllUsersDesc.Parent := ModePage.Surface;
-  AllUsersDesc.Left := ScaleX(18);
-  AllUsersDesc.Top := AllUsersModeRadio.Top + ScaleY(20);
-  AllUsersDesc.Width := ModePage.SurfaceWidth - ScaleX(18);
-  AllUsersDesc.AutoSize := False;
-  AllUsersDesc.WordWrap := True;
-  AllUsersDesc.Height := ScaleY(28);
-  AllUsersDesc.Caption :=
-    'מותקנת ב-Program Files וזמינה לכל חשבונות המשתמש (יידרש אישור מנהל).';
-
-  PortableModeRadio := TNewRadioButton.Create(ModePage);
-  PortableModeRadio.Parent := ModePage.Surface;
-  PortableModeRadio.Left := 0;
-  PortableModeRadio.Top := AllUsersDesc.Top + AllUsersDesc.Height + ScaleY(10);
-  PortableModeRadio.Width := ModePage.SurfaceWidth;
-  PortableModeRadio.Caption := 'התקנה ניידת';
-
-  PortableDesc := TNewStaticText.Create(ModePage);
-  PortableDesc.Parent := ModePage.Surface;
-  PortableDesc.Left := ScaleX(18);
-  PortableDesc.Top := PortableModeRadio.Top + ScaleY(20);
-  PortableDesc.Width := ModePage.SurfaceWidth - ScaleX(18);
-  PortableDesc.AutoSize := False;
-  PortableDesc.WordWrap := True;
-  PortableDesc.Height := ScaleY(58);
-  PortableDesc.Caption :=
-    'מתאימה לכונן חיצוני או דיסק-און-קי: בוחרים תיקייה, והתוכנה, הספרייה ' +
-    'המצורפת וכל הנתונים (הגדרות, הערות) נשמרים בתוכה — אוצריא נודדת יחד ' +
-    'עם הכונן. ללא קיצורי דרך ורישום במערכת; להסרה פשוט מוחקים את התיקייה.';
+  CurrentUserModeRadio.OnClick := @UiModeRadioClick;
+  AllUsersModeRadio := TNewRadioButton.Create(WizardForm);
+  AllUsersModeRadio.Parent := Group;
+  AllUsersModeRadio.Caption := CustomMessage('ModeAllTitle');
+  AllUsersModeRadio.SetBounds(0, ScaleY(24), ScaleX(200), ScaleY(20));
+  AllUsersModeRadio.OnClick := @UiModeRadioClick;
+  PortableModeRadio := TNewRadioButton.Create(WizardForm);
+  PortableModeRadio.Parent := Group;
+  PortableModeRadio.Caption := CustomMessage('ModePortableTitle');
+  PortableModeRadio.SetBounds(0, ScaleY(48), ScaleX(200), ScaleY(20));
+  PortableModeRadio.OnClick := @UiModeRadioClick;
 end;
 
-// ─── בניית עמוד בחירת רכיבים ───────────────────────────────────────────────
-
-procedure CreateComponentsPage;
-var
-  WV2Version: String;
-  WV2Status: String;
-  WV2Color: TColor;
-  TopY: Integer;
-  HeaderLabel: TLabel;
+// בחירה בכרטיס: המצב הנייד נקבע מיד, ותיקיית היעד מתחלפת לברירת המחדל של המצב
+// בלי לדרוס נתיב שהמשתמש הקליד בעצמו.
+procedure ApplyInstallModeChoice();
 begin
-  CompPage := CreateCustomPage(wpSelectDir,
-    'בחירת רכיבי מערכת להתקנה',
-    'בדיקת הרכיבים הנדרשים לאפליקציה');
+  PortableMode := PortableModeRadio.Checked;
+  if PortableMode and (WizardForm.DirEdit.Text = RegularInstallDirDefault) then
+    WizardForm.DirEdit.Text := PortableInstallDirDefault
+  else if (not PortableMode) and (WizardForm.DirEdit.Text = PortableInstallDirDefault) then
+    WizardForm.DirEdit.Text := RegularInstallDirDefault;
+end;
 
-  WV2Version := GetWebView2Version;
+// מצב ההתקנה של Inno נקבע בעליית התהליך: מעבר בין משתמש-נוכחי לכל-המשתמשים
+// מחייב שיגור-מחדש. התקנה ניידת אדישה למצב.
+function ModeChangeNeedsRelaunch(): Boolean;
+begin
+  Result := (AllUsersModeRadio.Checked and (not IsAdminInstallMode)) or
+    (CurrentUserModeRadio.Checked and IsAdminInstallMode);
+end;
 
-  // כותרת הסבר
-  HeaderLabel := TLabel.Create(CompPage);
-  HeaderLabel.Parent := CompPage.Surface;
-  HeaderLabel.Left   := 0;
-  HeaderLabel.Top    := 0;
-  HeaderLabel.Width  := CompPage.SurfaceWidth;
-  HeaderLabel.AutoSize := False;
-  HeaderLabel.WordWrap := True;
-  HeaderLabel.Caption :=
-    'בדיקת רכיבי Microsoft הנדרשים לאוצריא.' + #13#10 +
-    'בכתום: חסר — מומלץ להתקין.' + #13#10 +
-    'בירוק: קיים — אין צורך בפעולה.';
-  HeaderLabel.Height := ScaleY(60);  // 3 שורות קצרות, בלי עודף ריפוד
-
-  TopY := HeaderLabel.Height + ScaleY(6);
-
-  // ─── WebView2 Runtime ─────────────────────────────────────────────────────
-  // הערה: Visual C++ Runtime כבר לא מותקן ע"י המתקין — ה-DLLs נארזים
-  // app-local ליד otzaria.exe (ראה .github/workflows/build-and-announce.yml
-  // והשלב "Bundle latest VC++ Redistributable runtime DLLs"), כך שאין
-  // צורך לבדוק / להתקין אותו בזמן ההתקנה. המתקין FULL מציג עכשיו רק
-  // את ה-WebView2 בדף בחירת רכיבי המערכת.
-  WV2Check := TCheckBox.Create(CompPage);
-  WV2Check.Parent  := CompPage.Surface;
-  WV2Check.Left    := 0;
-  WV2Check.Top     := TopY;
-  WV2Check.Width   := CompPage.SurfaceWidth;
-  WV2Check.Height  := ScaleY(20);
-  WV2Check.Caption := 'Microsoft WebView2 Runtime';
-
-  // WebView2 אינו חובה — משמש רק למערכת הפלאגינים (לא לקריאה/חיפוש/סימניות)
-  if WV2Version = '' then
-  begin
-    WV2Status := '⚠ חסר — מומלץ להתקין. ללא רכיב זה מערכת הפלאגינים לא תפעל,' +
-                 ' אך שאר האפליקציה תעבוד כרגיל.';
-    WV2Color  := $007FFF;  // כתום — אזהרה, לא שגיאה ($BBGGRR: B=00, G=7F, R=FF)
-    WV2Check.Checked := True;
-    WV2Check.Enabled := True;  // אופציונלי — ניתן לבטל
-  end
-  else
-  begin
-    WV2Status := '✓ קיים (גרסה: ' + WV2Version + ') — לא נדרשת פעולה.';
-    WV2Color  := $006400;
-    WV2Check.Checked := False;
-    WV2Check.Enabled := False;  // קיים — נעול כדי למנוע התקנה מיותרת
-  end;
-
-  WV2Label := TLabel.Create(CompPage);
-  WV2Label.Parent   := CompPage.Surface;
-  WV2Label.Left     := ScaleX(20);
-  WV2Label.Top      := TopY + ScaleY(18);
-  WV2Label.Width    := CompPage.SurfaceWidth - ScaleX(20);
-  WV2Label.AutoSize := False;
-  WV2Label.WordWrap := True;
-  WV2Label.Caption  := WV2Status;
-  WV2Label.Font.Color := WV2Color;
-  WV2Label.Height   := ScaleY(34);
+// WebView2 משמש רק את התוספים. חסר — מסומן ואפשר לבטל; קיים — נעול ולא מותקן שוב.
+// Visual C++ Runtime נארז app-local ליד otzaria.exe ואינו מותקן כאן.
+procedure CreateWebView2Choice();
+begin
+  WebView2Missing := WebView2NeedsInstall;
+  WV2Check := TCheckBox.Create(WizardForm);
+  WV2Check.Parent := WizardForm.SelectTasksPage;
+  WV2Check.Caption := CustomMessage('WebView2Title');
+  WV2Check.Left := -ScaleX(4000);
+  WV2Check.Checked := WebView2Missing;
+  WV2Check.Enabled := WebView2Missing;
 end;
 
 // ─── דף בחירת תיקיית הספרים ─────────────────────────────────────────────────
@@ -1081,11 +966,15 @@ procedure UpdateBooksWarning(const Path: String);
 begin
   if BooksWarnLabel = nil then exit;
   if DirExists(Path) then
-    BooksWarnLabel.Caption :=
-      '⚠ שים לב: תיקייה קיימת כבר בנתיב זה.' + #13#10 +
-      'התקנה זו תמחק את תוכנה ותחליף בספרים החדשים שבחבילה.'
+    BooksWarnLabel.Caption := CustomMessage('BooksExists')
   else
     BooksWarnLabel.Caption := '';
+  UiInstBooksWarningChanged();
+end;
+
+procedure BooksPathChanged(Sender: TObject);
+begin
+  UpdateBooksWarning(BooksPathEdit.Text);
 end;
 
 procedure BrowseBooksFolder(Sender: TObject);
@@ -1093,7 +982,7 @@ var
   Dir: String;
 begin
   Dir := BooksPathEdit.Text;
-  if BrowseForFolder('בחר תיקיית ספרים:', Dir, False) then
+  if BrowseForFolder(CustomMessage('BooksBrowse'), Dir, False) then
   begin
     BooksPathEdit.Text := Dir;
     UpdateBooksWarning(Dir);
@@ -1103,11 +992,9 @@ end;
 procedure CreateBooksPage;
 var
   DefaultPath, CustomPath: String;
-  DescLabel, PathLabel: TLabel;
 begin
-  BooksPage := CreateCustomPage(CompPage.ID,
-    'תיקיית הספרים',
-    'בחר היכן יישמרו ספרי הספרייה');
+  BooksPage := CreateCustomPage(wpSelectDir, CustomMessage('BooksTitle'),
+    CustomMessage('BooksDesc'));
 
   // ספרייה קיימת מנצחת את ברירת המחדל (כמו ב-InitializeSilentDefaults): אחרת
   // מעבר בין מנהל למשתמש מזיז את מיקום החילוץ בעוד האפליקציה קוראת מהישן.
@@ -1117,173 +1004,33 @@ begin
     DefaultPath := CustomPath;
   SelectedBooksPath := DefaultPath;
 
-  DescLabel := TLabel.Create(BooksPage);
-  DescLabel.Parent   := BooksPage.Surface;
-  DescLabel.Left     := 0;
-  DescLabel.Top      := 0;
-  DescLabel.Width    := BooksPage.SurfaceWidth;
-  DescLabel.AutoSize := False;
-  DescLabel.WordWrap := True;
-  DescLabel.Caption  :=
-    'כאן יישמרו קבצי הספרים שמגיעים עם ההתקנה וכל ספר שתוסיף בעתיד.' + #13#10 +
-    'הנתיב שתבחר יוגדר אוטומטית בהגדרות התוכנה.';
-  DescLabel.Height := ScaleY(42);  // 2 שורות צמודות יותר
-
-  PathLabel := TLabel.Create(BooksPage);
-  PathLabel.Parent   := BooksPage.Surface;
-  PathLabel.Left     := 0;
-  PathLabel.Top      := DescLabel.Height + ScaleY(2);
-  PathLabel.Width    := BooksPage.SurfaceWidth;
-  PathLabel.AutoSize := False;
-  PathLabel.Caption  := 'נתיב תיקיית הספרים:';
-  PathLabel.Height   := ScaleY(20);
-
+  // שכבת התצוגה ממקמת את השדה והכפתור ומציגה את האזהרה.
   BooksPathEdit := TEdit.Create(BooksPage);
   BooksPathEdit.Parent := BooksPage.Surface;
-  BooksPathEdit.Left   := 0;
-  BooksPathEdit.Top    := PathLabel.Top + ScaleY(26);
-  BooksPathEdit.Width  := BooksPage.SurfaceWidth - ScaleX(84);
-  BooksPathEdit.Height := ScaleY(22);
-  BooksPathEdit.Text   := DefaultPath;
+  BooksPathEdit.Text := DefaultPath;
+  BooksPathEdit.OnChange := @BooksPathChanged;
 
-  BooksPathBrowseBtn := TButton.Create(BooksPage);
-  BooksPathBrowseBtn.Parent  := BooksPage.Surface;
-  BooksPathBrowseBtn.Left    := BooksPage.SurfaceWidth - ScaleX(78);
-  BooksPathBrowseBtn.Top     := BooksPathEdit.Top - ScaleY(1);
-  BooksPathBrowseBtn.Width   := ScaleX(78);
-  BooksPathBrowseBtn.Height  := ScaleY(23);
-  BooksPathBrowseBtn.Caption := 'עיון...';
+  BooksPathBrowseBtn := TNewButton.Create(BooksPage);
+  BooksPathBrowseBtn.Parent := BooksPage.Surface;
   BooksPathBrowseBtn.OnClick := @BrowseBooksFolder;
 
   BooksWarnLabel := TLabel.Create(BooksPage);
-  BooksWarnLabel.Parent     := BooksPage.Surface;
-  BooksWarnLabel.Left       := 0;
-  BooksWarnLabel.Top        := BooksPathEdit.Top + BooksPathEdit.Height + ScaleY(8);
-  BooksWarnLabel.Width      := BooksPage.SurfaceWidth;
-  BooksWarnLabel.AutoSize   := False;
-  BooksWarnLabel.WordWrap   := True;
-  BooksWarnLabel.Height     := ScaleY(42);
-  BooksWarnLabel.Font.Color := clRed;
+  BooksWarnLabel.Parent := BooksPage.Surface;
+  BooksWarnLabel.Visible := False;
 
   UpdateBooksWarning(DefaultPath);
 end;
 
-procedure CreateFeaturesPage();
-var
-  i, col, row: Integer;
-  thumbW, thumbH, cellH, x, y, totalH, startY: Integer;
-  img: TBitmapImage;
-  lbl: TNewStaticText;
-  files: array[0..3] of String;
-  captions: array[0..3] of String;
-begin
-  FeaturesPage := CreateCustomPage(wpWelcome,
-    'תכונות עיקריות באוצריא',
-    'הצצה למה שמחכה לכם בתוכנה');
-
-  files[0] := 'feature1.bmp';  captions[0] := 'ספר עם מפרשים';
-  files[1] := 'feature2.bmp';  captions[1] := 'לוח שנה';
-  files[2] := 'feature3.bmp';  captions[2] := 'ספרי PDF';
-  files[3] := 'feature4.bmp';  captions[3] := 'חיפוש מתקדם';
-
-  // יחס תמונה 210/400. גודל דינמי לפי שטח העמוד.
-  thumbW := (FeaturesPage.SurfaceWidth - FEATURES_GAP_X) div 2;
-  thumbH := (thumbW * 210) div 400;
-  cellH := thumbH + FEATURES_LABEL_H;
-  totalH := 2 * cellH + FEATURES_GAP_Y;
-  startY := (FeaturesPage.SurfaceHeight - totalH) div 2;
-  if startY < 0 then startY := 0;
-
-  for i := 0 to 3 do
-  begin
-    col := i mod 2;
-    row := i div 2;
-    x := col * (thumbW + FEATURES_GAP_X);
-    y := startY + row * (cellH + FEATURES_GAP_Y);
-
-    ExtractTemporaryFile(files[i]);
-    img := TBitmapImage.Create(FeaturesPage);
-    img.Parent := FeaturesPage.Surface;
-    img.Stretch := True;
-    img.Left := x;
-    img.Top := y;
-    img.Width := thumbW;
-    img.Height := thumbH;
-    img.Bitmap.LoadFromFile(ExpandConstant('{tmp}\' + files[i]));
-
-    lbl := TNewStaticText.Create(FeaturesPage);
-    lbl.Parent := FeaturesPage.Surface;
-    lbl.Left := x;
-    lbl.Top := y + thumbH + 2;
-    lbl.Width := thumbW;
-    lbl.Height := FEATURES_LABEL_H;
-    lbl.Alignment := taCenter;
-    lbl.Caption := captions[i];
-  end;
-end;
-
-procedure OnSlideshowTimer(H: LongWord; Msg: LongWord; IdEvent: LongWord; Time: LongWord);
-var
-  NextFile: String;
-begin
-  if SlideshowImage = nil then
-    exit;
-  SlideshowIndex := (SlideshowIndex + 1) mod 4;
-  case SlideshowIndex of
-    0: NextFile := 'feature1.bmp';
-    1: NextFile := 'feature2.bmp';
-    2: NextFile := 'feature3.bmp';
-    3: NextFile := 'feature4.bmp';
-  end;
-  SlideshowImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\') + NextFile);
-end;
-
-procedure InitializeSlideshow;
-var
-  GaugeBottom, AvailH, ImgH: Integer;
-begin
-  if WizardForm = nil then
-    exit;
-  SlideshowIndex := 0;
-  ExtractTemporaryFile('feature1.bmp');
-  ExtractTemporaryFile('feature2.bmp');
-  ExtractTemporaryFile('feature3.bmp');
-  ExtractTemporaryFile('feature4.bmp');
-  GaugeBottom := WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height;
-  AvailH := WizardForm.InstallingPage.Height - GaugeBottom;
-  if AvailH < ScaleY(60) then
-    exit;
-  ImgH := AvailH - ScaleY(10);
-
-  SlideshowImage := TBitmapImage.Create(WizardForm.InstallingPage);
-  SlideshowImage.Parent := WizardForm.InstallingPage;
-  SlideshowImage.Stretch := True;
-  SlideshowImage.Left := 0;
-  SlideshowImage.Top := GaugeBottom + ScaleY(8);
-  SlideshowImage.Width := WizardForm.InstallingPage.Width;
-  SlideshowImage.Height := ImgH;
-  SlideshowImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\feature1.bmp'));
-
-  SlideshowTimerCallback := CreateCallback(@OnSlideshowTimer);
-end;
-
 procedure InitializeWizard;
 begin
-#ifdef IndexedSplitFull
-  IndexedDownloadPage := CreateDownloadPage(
-    'מוריד ספרייה מלאה עם אינדקס מוכן',
-    'הקבצים החסרים יורדו ויאומתו לפני תחילת ההתקנה', nil);
-  IndexedDownloadPage.ShowBaseNameInsteadOfUrl := True;
-#endif
   if WizardSilent then
     // אין דפי אשף בהתקנה שקטה — רק ברירות המחדל (נקבעות גם ב-InitializeSetup).
     InitializeSilentDefaults()
   else
   begin
     InstallWV2 := WebView2NeedsInstall;
-    CreateFeaturesPage;
-    CreateModePage;
-    CreateComponentsPage;
+    CreateInstallModeChoice();
+    CreateWebView2Choice();
     CreateBooksPage;
 
     RegularInstallDirDefault := WizardForm.DirEdit.Text;
@@ -1294,7 +1041,7 @@ begin
       PortableInstallDirDefault := ExpandConstant('{sd}\OtzariaPortable');
     end;
 
-    // בחירה מוקדמת בעמוד סוג ההתקנה: ‎/PORTABLE — מצב נייד; ריצה במצב מנהל
+    // בחירה מוקדמת בעמוד "איך להתקין": ‎/PORTABLE — מצב נייד; ריצה במצב מנהל
     // (שיגור-מחדש עם /ALLUSERS) או תהליך מורם — לכל המשתמשים.
     // ‎/CURRENTUSER = שיגור-מחדש מתהליך מורם שבחר במפורש התקנת משתמש.
     if CmdLineParamExists('/PORTABLE') then
@@ -1302,45 +1049,35 @@ begin
     else if IsAdminInstallMode or
       (IsAdmin and not CmdLineParamExists('/CURRENTUSER')) then
       AllUsersModeRadio.Checked := True;
+    ApplyInstallModeChoice();
   end;
-  InitializeSlideshow;
+  UiInstallerInitializeWizard();
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  // שיגור-מחדש עם מצב מפורש (מעמוד "סוג ההתקנה") — עמודי הפתיחה והמצב כבר
-  // נענו בריצה הקודמת; ממשיכים ישר לעמוד המיקום.
+  // שיגור-מחדש עם מצב מפורש (מעמוד "איך להתקין") — הפתיחה כבר הוצגה בריצה
+  // הקודמת; ממשיכים ישר ל"איך להתקין", שבו הבחירה מסומנת ונבחרת התיקייה.
   Result :=
     (CmdLineParamExists('/ALLUSERS') or CmdLineParamExists('/CURRENTUSER')) and
-    (((FeaturesPage <> nil) and (PageID = FeaturesPage.ID)) or
-     ((ModePage <> nil) and (PageID = ModePage.ID)));
+    (PageID = wpWelcome);
   if Result or (not PortableMode) then
     exit;
-  // במצב נייד: אין קיצורי דרך/איפוס (עמוד המשימות), והספרייה תמיד בתוך
-  // התיקייה הניידת (עמוד בחירת תיקיית הספרים).
-  Result := (PageID = wpSelectTasks) or
+  // במצב נייד: אין קיצורי דרך/איפוס (בעמוד האפשרויות נשאר רק WebView2, כשהוא
+  // חסר), והספרייה תמיד בתוך התיקייה הניידת (עמוד תיקיית הספרים).
+  Result := ((PageID = wpSelectTasks) and not WebView2Missing) or
     ((BooksPage <> nil) and (PageID = BooksPage.ID));
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
 begin
-  if SlideshowTimerCallback = 0 then
-    exit;
-  if CurPageID = wpInstalling then
-  begin
-    if SlideshowTimerId = 0 then
-      SlideshowTimerId := SetTimer(0, 0, 1500, SlideshowTimerCallback);
-  end
-  else if SlideshowTimerId <> 0 then
-  begin
-    KillTimer(0, SlideshowTimerId);
-    SlideshowTimerId := 0;
-  end;
+  UiCurPageChanged(CurPageID);
 end;
 
-#ifdef IndexedSplitFull
-function PrepareIndexedLibrary(): Boolean; forward;
-#endif
+procedure DeinitializeSetup();
+begin
+  UiDeinitializeSetup();
+end;
 
 function IsPathUnder(Target: String; Root: String): Boolean;
 begin
@@ -1361,17 +1098,23 @@ begin
             IsPathUnder(Target, ExpandConstant('{commonappdata}'));
 end;
 
-procedure WarnPortableProtectedDir();
+// כמו DirExistsWarning=auto של Inno: תיקייה קיימת שאינה תיקיית ההתקנה הקודמת.
+function DirExistsDifferentFromPrevious(): Boolean;
 begin
-  MsgBox('התקנה ניידת שומרת את כל הנתונים בתיקיית התוכנה, ולתיקייה ' +
-         'שנבחרה אין הרשאת כתיבה למשתמש רגיל.' + #13#10 +
-         'בחר תיקייה אחרת — למשל בתיקיית המסמכים או בכונן נייד — ' +
-         'או חזור ובחר התקנה רגילה.', mbError, MB_OK);
+  Result := DirExists(WizardForm.DirEdit.Text) and
+    (CompareText(RemoveBackslash(WizardForm.DirEdit.Text),
+      RemoveBackslash(WizardForm.PrevAppDir)) <> 0);
 end;
 
-// שמירת בחירות בלחיצת "הבא". בעמוד סוג ההתקנה: קיבוע המצב, התאמת ברירת
-// המחדל של תיקיית היעד, ובמעבר בין משתמש-נוכחי לכל-המשתמשים — שיגור-מחדש
-// במצב ההתקנה המתאים (מצב ההתקנה של Inno נקבע בעליית התהליך).
+procedure WarnPortableProtectedDir();
+begin
+  InstTell(CustomMessage('PortableProtectedTitle'), CustomMessage('PortableProtected'),
+    mbError);
+end;
+
+// שמירת בחירות בלחיצת "הבא". ב"איך להתקין" (wpSelectDir, אחרי הבדיקות של Inno
+// לתיקייה): במעבר בין משתמש-נוכחי לכל-המשתמשים — שיגור-מחדש במצב ההתקנה המתאים
+// (מצב ההתקנה של Inno נקבע בעליית התהליך).
 // בהתקנה שקטה Inno "מדפדף" בין העמודים ומפעיל גם את הפונקציה הזו — שם
 // אסור לגעת בכלום: המצב כבר נקבע ב-InitializeSetup ו-/DIR חייב להישמר.
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -1380,12 +1123,22 @@ var
   Launched: Boolean;
 begin
   Result := True;
-  if WizardSilent then
+  // גם בהתקנה שקטה עם /DIR: False עוצר כאן, לפני שנכתב קובץ כלשהו.
+  if (CurPageID = wpSelectDir) and InstallDirTooLong() then
   begin
-#ifdef IndexedSplitFull
-    if CurPageID = wpReady then
-      Result := PrepareIndexedLibrary();
-#endif
+    Result := False;
+    exit;
+  end;
+  if WizardSilent then
+    exit;
+
+  if (CurPageID = wpSelectDir) and DirExistsDifferentFromPrevious() and
+     not ModeChangeNeedsRelaunch() and
+     not InstAskYesNo(SetupMessage(msgDirExistsTitle),
+       FmtMessage(SetupMessage(msgDirExists), [UiDialogPath(WizardForm.DirEdit.Text)]),
+       mbConfirmation, MB_YESNO) then
+  begin
+    Result := False;
     exit;
   end;
 
@@ -1397,79 +1150,51 @@ begin
     exit;
   end;
 
-  if (ModePage <> nil) and (CurPageID = ModePage.ID) then
+  if (CurPageID = wpSelectDir) and ModeChangeNeedsRelaunch() then
   begin
-    PortableMode := PortableModeRadio.Checked;
-
-    // התאמת ברירת המחדל של תיקיית היעד בלי לדרוס נתיב שהמשתמש הקליד בעצמו.
-    if PortableMode and (WizardForm.DirEdit.Text = RegularInstallDirDefault) then
-      WizardForm.DirEdit.Text := PortableInstallDirDefault
-    else if (not PortableMode) and (WizardForm.DirEdit.Text = PortableInstallDirDefault) then
-      WizardForm.DirEdit.Text := RegularInstallDirDefault;
-
-    // התקנה ניידת אדישה למצב ההתקנה — כל מה שתלוי-מצב ממילא מנוטרל בה.
-    if PortableMode then
-      exit;
-
-    if AllUsersModeRadio.Checked and (not IsAdminInstallMode) then
+    if AllUsersModeRadio.Checked then
     begin
       if IsAdmin then
         // התהליך כבר מורם אבל במצב משתמש — שיגור-מחדש עם /ALLUSERS, בלי UAC.
         Launched := RelaunchSetup('open', '/ALLUSERS', SW_SHOWNORMAL, ResultCode)
       else
         Launched := RelaunchSetupElevated('/ALLUSERS', SW_SHOWNORMAL, ResultCode);
-
-      if Launched then
-      begin
-        RelaunchingForModeChange := True;
-        WizardForm.Close;
-      end
-      else
-        MsgBox('להתקנה לכל המשתמשים נדרש אישור הרשאות מנהל.' + #13#10 +
-               'ניתן לבחור "התקנה למשתמש הנוכחי" ולהמשיך ללא הרשאות.',
-               mbError, MB_OK);
-      Result := False;
-      exit;
-    end;
-
-    if CurrentUserModeRadio.Checked and IsAdminInstallMode then
+      if not Launched then
+        InstTell(CustomMessage('AdminNeededTitle'), CustomMessage('AllUsersRelaunchFailed'),
+          mbError);
+    end
+    else
     begin
       // התהליך כבר במצב מנהל — חזרה להתקנת משתמש דורשת שיגור-מחדש.
       Launched := RelaunchSetup('open', '/CURRENTUSER', SW_SHOWNORMAL, ResultCode);
-      if Launched then
-      begin
-        RelaunchingForModeChange := True;
-        WizardForm.Close;
-      end
-      else
-        MsgBox('לא ניתן היה לעבור להתקנה למשתמש הנוכחי.', mbError, MB_OK);
-      Result := False;
+      if not Launched then
+        InstTell(CustomMessage('ModeChangeFailedTitle'),
+          CustomMessage('CurrentUserRelaunchFailed'), mbError);
     end;
+    if Launched then
+    begin
+      // UiClosing: הסגירה אינה שואלת "לצאת?" גם בשכבת התצוגה.
+      RelaunchingForModeChange := True;
+      UiClosing := True;
+      WizardForm.Close;
+    end;
+    Result := False;
     exit;
   end;
 
-  if (CompPage <> nil) and (CurPageID = CompPage.ID) then
-  begin
+  if CurPageID = wpSelectTasks then
     InstallWV2 := WV2Check.Checked;
-  end;
   if (BooksPage <> nil) and (CurPageID = BooksPage.ID) then
   begin
     SelectedBooksPath := BooksPathEdit.Text;
     if SelectedBooksPath = '' then
     begin
-      MsgBox('יש לבחור נתיב לתיקיית הספרים.', mbError, MB_OK);
+      InstTell(CustomMessage('BooksRequiredTitle'), CustomMessage('BooksRequired'), mbError);
       Result := False;
     end;
   end;
   if (CurPageID = wpReady) and Result then
-  begin
     AskPortableLibraryChoice();
-#ifdef IndexedSplitFull
-    // בדילוג על הספרייה אין צורך להוריד את חבילת הספרייה המאונדקסת.
-    if not PortableSkipLibrary then
-      Result := PrepareIndexedLibrary();
-#endif
-  end;
 end;
 
 procedure CancelButtonClick(CurPageID: Integer; var Cancel, Confirm: Boolean);
@@ -1502,200 +1227,7 @@ begin
       CapturedOutput := CapturedOutput + Output.StdOut[I] + #13#10;
 end;
 
-#ifdef IndexedSplitFull
-function ParseIndexedManifestLine(const Line, ExpectedKind: String;
-  var FileName, FileHash: String): Boolean;
-var
-  FirstSeparator, SecondSeparator: Integer;
-begin
-  Result := False;
-  FirstSeparator := Pos('|', Line);
-  if FirstSeparator = 0 then
-    exit;
-  SecondSeparator := Pos('|', Copy(Line, FirstSeparator + 1, Length(Line)));
-  if SecondSeparator = 0 then
-    exit;
-  SecondSeparator := SecondSeparator + FirstSeparator;
-
-  if Copy(Line, 1, FirstSeparator - 1) <> ExpectedKind then
-    exit;
-  FileName := Copy(Line, FirstSeparator + 1,
-    SecondSeparator - FirstSeparator - 1);
-  FileHash := Copy(Line, SecondSeparator + 1, Length(Line));
-  Result := (FileName <> '') and (Length(FileHash) = 64);
-end;
-
-function ReadIndexedManifest(const ManifestPath: String): Boolean;
-var
-  PowerShellPath, ParserPath, OutputPath, Params, CapturedOutput: String;
-  Lines: TArrayOfString;
-  ResultCode, I: Integer;
-begin
-  Result := False;
-  ExtractTemporaryFile('read_indexed_library_manifest.ps1');
-  PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  ParserPath := ExpandConstant('{tmp}\read_indexed_library_manifest.ps1');
-  OutputPath := ExpandConstant('{tmp}\indexed-library-manifest.txt');
-  DeleteFile(OutputPath);
-  Params := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
-    ParserPath + '" -ManifestPath "' + ManifestPath + '" -OutputPath "' +
-    OutputPath + '"';
-
-  if (not RunAndCaptureErrors(PowerShellPath, Params, ResultCode,
-      CapturedOutput)) or (ResultCode <> 0) then
-  begin
-    Log('Indexed manifest parsing failed: ' + CapturedOutput);
-    exit;
-  end;
-  if (not LoadStringsFromFile(OutputPath, Lines)) or
-    (GetArrayLength(Lines) < 2) then
-  begin
-    Log('Indexed manifest parser returned no parts');
-    exit;
-  end;
-  if not ParseIndexedManifestLine(Lines[0], 'archive', IndexedArchiveName,
-      IndexedArchiveHash) then
-    exit;
-  if CompareText(IndexedArchiveName, '{#IndexedArchiveName}') <> 0 then
-  begin
-    Log('Unexpected indexed archive name: ' + IndexedArchiveName);
-    exit;
-  end;
-
-  SetArrayLength(IndexedPartNames, GetArrayLength(Lines) - 1);
-  SetArrayLength(IndexedPartHashes, GetArrayLength(Lines) - 1);
-  for I := 1 to GetArrayLength(Lines) - 1 do
-    if not ParseIndexedManifestLine(Lines[I], 'part',
-      IndexedPartNames[I - 1], IndexedPartHashes[I - 1]) then
-      exit;
-  Result := True;
-end;
-
-function LocalIndexedPartsAreComplete(const PartsDir: String): Boolean;
-var
-  I: Integer;
-  PartPath: String;
-begin
-  Result := False;
-  for I := 0 to GetArrayLength(IndexedPartNames) - 1 do
-  begin
-    PartPath := AddBackslash(PartsDir) + IndexedPartNames[I];
-    if not FileExists(PartPath) then
-    begin
-      Log('Local indexed part is missing: ' + PartPath);
-      exit;
-    end;
-  end;
-  Result := True;
-end;
-
-function DownloadIndexedParts(): Boolean;
-var
-  I: Integer;
-  ErrorMessage: String;
-begin
-  Result := False;
-  IndexedDownloadPage.Clear;
-  for I := 0 to GetArrayLength(IndexedPartNames) - 1 do
-    IndexedDownloadPage.Add(
-      '{#IndexedReleaseBaseUrl}/' + IndexedPartNames[I],
-      IndexedPartNames[I], IndexedPartHashes[I]);
-
-  IndexedDownloadPage.Show;
-  try
-    try
-      IndexedDownloadPage.Download;
-      IndexedPartsDir := ExpandConstant('{tmp}');
-      Result := True;
-    except
-      if IndexedDownloadPage.AbortedByUser then
-        ErrorMessage := 'ההורדה בוטלה.'
-      else
-        ErrorMessage := GetExceptionMessage;
-      Log('Indexed library download failed: ' + ErrorMessage);
-      // ‏# בתחילת שורה נקרא כדירקטיבת preprocessor — קבועי תווים חייבים להמשיך שורה קיימת.
-      SuppressibleMsgBox('הורדת הספרייה המלאה נכשלה.' + #13#10#13#10 +
-        ErrorMessage, mbCriticalError, MB_OK, IDOK);
-    end;
-  finally
-    IndexedDownloadPage.Hide;
-  end;
-end;
-
-function AssembleIndexedArchive(): Boolean;
-var
-  PowerShellPath, AssemblerPath, Params, CapturedOutput: String;
-  ResultCode: Integer;
-begin
-  Result := False;
-  ExtractTemporaryFile('assemble_split_asset.ps1');
-  PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  AssemblerPath := ExpandConstant('{tmp}\assemble_split_asset.ps1');
-  IndexedPreparedArchivePath := ExpandConstant('{tmp}\') + IndexedArchiveName;
-  DeleteFile(IndexedPreparedArchivePath);
-  Params := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
-    AssemblerPath + '" "' + IndexedManifestPath + '" "' +
-    IndexedPreparedArchivePath + '" "' + IndexedPartsDir + '"';
-
-  WizardForm.StatusLabel.Caption := 'מרכיב ומאמת את ארכיון הספרייה...';
-  if (not RunAndCaptureErrors(PowerShellPath, Params, ResultCode,
-      CapturedOutput)) or (ResultCode <> 0) then
-  begin
-    Log('Indexed archive assembly failed: ' + CapturedOutput);
-    DeleteFile(IndexedPreparedArchivePath);
-    exit;
-  end;
-  Result := True;
-end;
-
-function PrepareIndexedLibrary(): Boolean;
-var
-  SourceDir: String;
-  UsingLocalParts: Boolean;
-begin
-  Result := False;
-  if (IndexedPreparedArchivePath <> '') and
-    FileExists(IndexedPreparedArchivePath) then
-  begin
-    Result := True;
-    exit;
-  end;
-
-  SourceDir := ExtractFileDir(ExpandConstant('{srcexe}'));
-  ExtractTemporaryFile('{#IndexedEmbeddedManifestName}');
-  IndexedManifestPath := ExpandConstant(
-    '{tmp}\{#IndexedEmbeddedManifestName}');
-
-  if not ReadIndexedManifest(IndexedManifestPath) then
-  begin
-    SuppressibleMsgBox('קובץ רשימת חלקי הספרייה אינו תקין.',
-      mbCriticalError, MB_OK, IDOK);
-    exit;
-  end;
-
-  UsingLocalParts := LocalIndexedPartsAreComplete(SourceDir);
-  if UsingLocalParts then
-  begin
-    IndexedPartsDir := SourceDir;
-    Log('Using verified indexed library parts next to the installer');
-  end
-  else
-  begin
-    if not DownloadIndexedParts() then
-      exit;
-  end;
-
-  if not AssembleIndexedArchive() then
-  begin
-    SuppressibleMsgBox('אימות והרכבת ארכיון הספרייה נכשלו.',
-      mbCriticalError, MB_OK, IDOK);
-    exit;
-  end;
-  Result := True;
-end;
-#endif
-
-// ממפה מחרוזות שגיאה נפוצות מ-zstd/7za (תמיד באנגלית) להסבר קצר בעברית.
+// ממפה מחרוזות שגיאה נפוצות מ-zstd/7za (תמיד באנגלית) להסבר קצר בשפת המתקין.
 // מחזיר מחרוזת ריקה אם לא זוהה דפוס מוכר - אז מוצג רק הפלט הגולמי.
 function FriendlyErrorHint(const ErrOutput: String): String;
 var
@@ -1704,11 +1236,11 @@ begin
   LowerOutput := Lowercase(ErrOutput);
   Result := '';
   if Pos('no space left on device', LowerOutput) > 0 then
-    Result := 'אין מספיק מקום פנוי בכונן. פנה מקום ונסה להתקין שוב.'
+    Result := CustomMessage('HintNoSpace')
   else if Pos('permission denied', LowerOutput) > 0 then
-    Result := 'אין הרשאה לכתוב לנתיב היעד. נסה להריץ את ההתקנה כמנהל או לבחור מיקום התקנה אחר.'
+    Result := CustomMessage('HintPermission')
   else if Pos('sharing violation', LowerOutput) > 0 then
-    Result := 'קובץ היעד נעול על ידי תהליך אחר. סגור את אוצריא ותוכנות אחרות שעשויות להשתמש בקבצים ונסה שוב.';
+    Result := CustomMessage('HintSharing');
 end;
 
 procedure ExtractBundledDatabase(const ArchiveName, DatabaseName, TargetRoot: String);
@@ -1722,9 +1254,7 @@ begin
   if not FileExists(ArchivePath) then
   begin
     Log('Bundled database archive not found: ' + ArchivePath);
-    MsgBox('קובץ הספרייה ' + ArchiveName + ' חסר בקבצי ההתקנה הזמניים.'
-      + #13#10 + 'ייתכן שתוכנת ניקוי דיסק מחקה אותו או שאין מספיק מקום פנוי. פנה מקום ונסה להתקין שוב.',
-      mbCriticalError, MB_OK);
+    InstReportFailure(Msg1('DbArchiveMissing', ArchiveName), '', False);
     Abort;
   end;
 
@@ -1738,12 +1268,11 @@ begin
 
   if (not RunAndCaptureErrors(ZstdPath, Params, ResultCode, ErrOutput)) or (ResultCode <> 0) then
   begin
-    // בהתקנה שקטה MsgBox מדוכא (/SUPPRESSMSGBOXES) — ה-Log הוא הפידבק היחיד.
     Log('zstd database extraction failed (' + IntToStr(ResultCode) + '): ' + ErrOutput);
     Hint := FriendlyErrorHint(ErrOutput);
     if Hint <> '' then Hint := #13#10#13#10 + Hint;
-    MsgBox('חילוץ מסד הנתונים נכשל. קוד יציאה: ' + IntToStr(ResultCode)
-      + Hint + #13#10#13#10 + ErrOutput, mbCriticalError, MB_OK);
+    InstReportFailure(CustomMessage('DbExtractFailed') + Hint,
+      Msg1('ExitCode', IntToStr(ResultCode)) + #13#10 + ErrOutput, True);
     Abort;
   end;
 
@@ -1759,9 +1288,7 @@ begin
   if not FileExists(ArchivePath) then
   begin
     Log('Bundled archive not found: ' + ArchivePath);
-    MsgBox('ארכיון ' + ArchiveName + ' חסר בקבצי ההתקנה הזמניים.'
-      + #13#10 + 'ייתכן שתוכנת ניקוי דיסק מחקה אותו או שאין מספיק מקום פנוי. פנה מקום ונסה להתקין שוב.',
-      mbCriticalError, MB_OK);
+    InstReportFailure(Msg1('ArchiveMissing', ArchiveName), '', False);
     Abort;
   end;
 
@@ -1784,8 +1311,8 @@ begin
     Log('zstd PDF archive extraction failed (' + IntToStr(ResultCode) + '): ' + ErrOutput);
     Hint := FriendlyErrorHint(ErrOutput);
     if Hint <> '' then Hint := #13#10#13#10 + Hint;
-    MsgBox('חילוץ ארכיון ה-PDF נכשל. קוד יציאה: ' + IntToStr(ResultCode)
-      + Hint + #13#10#13#10 + ErrOutput, mbCriticalError, MB_OK);
+    InstReportFailure(CustomMessage('PdfExtractFailed') + Hint,
+      Msg1('ExitCode', IntToStr(ResultCode)) + #13#10 + ErrOutput, True);
     Abort;
   end;
 
@@ -1796,8 +1323,8 @@ begin
     Log('7za PDF archive extraction failed (' + IntToStr(ResultCode) + '): ' + ErrOutput);
     Hint := FriendlyErrorHint(ErrOutput);
     if Hint <> '' then Hint := #13#10#13#10 + Hint;
-    MsgBox('פתיחת ארכיון ה-PDF נכשלה. קוד יציאה: ' + IntToStr(ResultCode)
-      + Hint + #13#10#13#10 + ErrOutput, mbCriticalError, MB_OK);
+    InstReportFailure(CustomMessage('PdfOpenFailed') + Hint,
+      Msg1('ExitCode', IntToStr(ResultCode)) + #13#10 + ErrOutput, True);
     Abort;
   end;
 
@@ -1814,7 +1341,6 @@ begin
   DeleteFile(ArchivePath);
 end;
 
-#ifndef IndexedSplitFull
 // מחלץ את כל רכיבי הספרייה המשובצים לתיקיית staging, ומחליף את הספרייה
 // הקיימת רק אחרי שהכל הצליח — כשל באמצע משאיר את הספרייה הישנה שלמה (issue #867).
 procedure ExtractEmbeddedLibraryArchives();
@@ -1830,21 +1356,21 @@ begin
   DelTree(StagingBooks, True, True, True);
   ForceDirectories(StagingBooks);
 
-  WizardForm.StatusLabel.Caption := 'מחלץ מסד הנתונים seforim.db...';
+  WizardForm.StatusLabel.Caption := CustomMessage('StatusSeforim');
   WizardForm.StatusLabel.Update;
   ExtractBundledDatabase('seforim.db.zst', 'seforim.db', StagingBooks);
 
-  WizardForm.StatusLabel.Caption := 'מחלץ קטלוג אוצר החכמה...';
+  WizardForm.StatusLabel.Caption := CustomMessage('StatusCatalog');
   WizardForm.StatusLabel.Update;
   ExtractBundledDatabase('otzar-HB_catalog.db.zst', 'otzar-HB_catalog.db',
     StagingBooks);
 
-  WizardForm.StatusLabel.Caption := 'מחלץ ספרי תלמוד בבלי...';
+  WizardForm.StatusLabel.Caption := CustomMessage('StatusTalmud');
   WizardForm.StatusLabel.Update;
   ExtractBundledTarArchive('talmud_bavli_latest.tar.zst', 'תלמוד בבלי',
     StagingBooks);
 
-  WizardForm.StatusLabel.Caption := 'מחלץ מילון לחיפוש המקורב...';
+  WizardForm.StatusLabel.Caption := CustomMessage('StatusLexical');
   WizardForm.StatusLabel.Update;
   ExtractBundledDatabase('lexical.db.zst', 'lexical.db', StagingBooks);
   // בלי קובץ הגרסה בדיקת העדכון הראשונה מורידה את המילון (~57MB) מחדש;
@@ -1859,17 +1385,16 @@ begin
     end;
   end;
 
-  // אימות אחרון לפני ההחלפה — כמו במסלול המאונדקס; ספרייה בלי seforim.db
-  // אסור שתחליף ספרייה קיימת ותוצג כהתקנה מוצלחת (issue #862).
+  // אימות אחרון לפני ההחלפה: ספרייה בלי seforim.db אסור שתחליף ספרייה
+  // קיימת ותוצג כהתקנה מוצלחת (issue #862).
   if not FileExists(StagingBooks + '\seforim.db') then
   begin
     Log('Staging library is missing seforim.db - aborting swap');
-    MsgBox('חילוץ הספרייה לא הושלם — מסד הנתונים seforim.db חסר.',
-      mbCriticalError, MB_OK);
+    InstReportFailure(CustomMessage('SeforimMissing'), '', False);
     Abort;
   end;
 
-  WizardForm.StatusLabel.Caption := 'מחליף את הספרייה הקודמת...';
+  WizardForm.StatusLabel.Caption := CustomMessage('StatusSwap');
   WizardForm.StatusLabel.Update;
   DelTree(BooksBackup, True, True, True);
   BooksBackedUp := (not DirExists(SelectedBooksPath)) or
@@ -1877,122 +1402,20 @@ begin
   if not BooksBackedUp then
   begin
     DelTree(StagingBooks, True, True, True);
-    MsgBox('לא ניתן להחליף את תיקיית הספרים הקיימת. ודא שאוצריא סגורה.',
-      mbCriticalError, MB_OK);
+    InstReportFailure(CustomMessage('BooksSwapFailed'), '', False);
     Abort;
   end;
+  LibrarySwapStarted := True;
   if not RenameFile(StagingBooks, SelectedBooksPath) then
   begin
     if DirExists(BooksBackup) then
       RenameFile(BooksBackup, SelectedBooksPath);
     DelTree(StagingBooks, True, True, True);
-    MsgBox('העברת הספרייה למיקום שנבחר נכשלה.', mbCriticalError, MB_OK);
+    InstReportFailure(CustomMessage('BooksMoveFailed'), '', False);
     Abort;
   end;
   DelTree(BooksBackup, True, True, True);
 end;
-#endif
-
-#ifdef IndexedSplitFull
-procedure ExtractIndexedLibraryArchive();
-var
-  TarPath, LibraryRoot, StagingRoot, PackageRoot: String;
-  SourceBooks, SourceIndex, TargetIndex, BooksBackup, IndexBackup: String;
-  ZstdPath, SevenZipPath, Params, ErrOutput, Hint: String;
-  ResultCode: Integer;
-  BooksBackedUp, IndexBackedUp, NewBooksMoved: Boolean;
-begin
-  TarPath := ExpandConstant('{tmp}\otzaria-indexed-library.tar');
-  LibraryRoot := ExtractFileDir(SelectedBooksPath);
-  StagingRoot := LibraryRoot + '\.otzaria-indexed-install';
-  PackageRoot := StagingRoot + '\otzaria-library-full-indexed';
-  SourceBooks := PackageRoot + '\books';
-  SourceIndex := PackageRoot + '\index';
-  TargetIndex := LibraryRoot + '\index';
-  BooksBackup := LibraryRoot + '\.otzaria-books-backup';
-  IndexBackup := LibraryRoot + '\.otzaria-index-backup';
-  ZstdPath := ExpandConstant('{tmp}\zstd.exe');
-  SevenZipPath := ExpandConstant('{tmp}\7za.exe');
-
-  ForceDirectories(LibraryRoot);
-  DelTree(StagingRoot, True, True, True);
-  DeleteFile(TarPath);
-  ForceDirectories(StagingRoot);
-
-  Params := '-d -f -T0 "' + IndexedPreparedArchivePath + '" -o "' +
-    TarPath + '"';
-  if (not RunAndCaptureErrors(ZstdPath, Params, ResultCode, ErrOutput)) or
-    (ResultCode <> 0) then
-  begin
-    Hint := FriendlyErrorHint(ErrOutput);
-    if Hint <> '' then Hint := #13#10#13#10 + Hint;
-    MsgBox('פתיחת ארכיון הספרייה נכשלה.' + Hint + #13#10#13#10 +
-      ErrOutput, mbCriticalError, MB_OK);
-    Abort;
-  end;
-
-  Params := 'x -y "' + TarPath + '" "-o' + StagingRoot + '"';
-  if (not RunAndCaptureErrors(SevenZipPath, Params, ResultCode, ErrOutput)) or
-    (ResultCode <> 0) then
-  begin
-    Hint := FriendlyErrorHint(ErrOutput);
-    if Hint <> '' then Hint := #13#10#13#10 + Hint;
-    MsgBox('חילוץ הספרייה והאינדקס נכשל.' + Hint + #13#10#13#10 +
-      ErrOutput, mbCriticalError, MB_OK);
-    Abort;
-  end;
-
-  if (not FileExists(SourceBooks + '\seforim.db')) or
-    (not FileExists(SourceIndex + '\.otzaria_prebuilt_index')) then
-  begin
-    Log('Indexed package is missing its database or index marker');
-    MsgBox('מבנה חבילת הספרייה אינו תקין.', mbCriticalError, MB_OK);
-    Abort;
-  end;
-
-  DelTree(BooksBackup, True, True, True);
-  DelTree(IndexBackup, True, True, True);
-  BooksBackedUp := (not DirExists(SelectedBooksPath)) or
-    RenameFile(SelectedBooksPath, BooksBackup);
-  if not BooksBackedUp then
-  begin
-    MsgBox('לא ניתן להחליף את תיקיית הספרים הקיימת. ודא שאוצריא סגורה.',
-      mbCriticalError, MB_OK);
-    Abort;
-  end;
-  IndexBackedUp := (not DirExists(TargetIndex)) or
-    RenameFile(TargetIndex, IndexBackup);
-  if not IndexBackedUp then
-  begin
-    if DirExists(BooksBackup) then
-      RenameFile(BooksBackup, SelectedBooksPath);
-    MsgBox('לא ניתן להחליף את תיקיית האינדקס הקיימת. ודא שאוצריא סגורה.',
-      mbCriticalError, MB_OK);
-    Abort;
-  end;
-
-  NewBooksMoved := RenameFile(SourceBooks, SelectedBooksPath);
-  if (not NewBooksMoved) or (not RenameFile(SourceIndex, TargetIndex)) then
-  begin
-    if NewBooksMoved then
-      DelTree(SelectedBooksPath, True, True, True);
-    if DirExists(TargetIndex) then
-      DelTree(TargetIndex, True, True, True);
-    if DirExists(BooksBackup) then
-      RenameFile(BooksBackup, SelectedBooksPath);
-    if DirExists(IndexBackup) then
-      RenameFile(IndexBackup, TargetIndex);
-    MsgBox('העברת הספרייה למיקום שנבחר נכשלה.', mbCriticalError, MB_OK);
-    Abort;
-  end;
-
-  DelTree(BooksBackup, True, True, True);
-  DelTree(IndexBackup, True, True, True);
-  DelTree(StagingRoot, True, True, True);
-  DeleteFile(TarPath);
-  DeleteFile(IndexedPreparedArchivePath);
-end;
-#endif
 
 // ─── ניהול PATH ─────────────────────────────────────────────────────────────
 
@@ -2125,28 +1548,21 @@ begin
 
   CustomPath := GetCustomLibraryPath();
 
-  Msg := 'האם למחוק גם את הספרים וכל הנתונים של אוצריא?' + #13#10 + #13#10 +
-         'בכל מקרה תוסר התוכנה. בחירה ב"כן" תמחק בנוסף:' + #13#10;
+  Msg := CustomMessage('UninstallDeleteIntro');
 
   // אם יש נתיב ספרים מותאם והוא מזוהה כתיקיית אוצריא — נציג אותו במפורש.
   // אחרת לא מציינים נתיב חיצוני; תיקיית הספרים שתחת AppData ממילא נמחקת
   // כחלק מ-{userappdata}\otzaria / {commonappdata}\otzaria.
   if IsOtzariaBooksFolder(CustomPath) then
-    Msg := Msg + '• תיקיית הספרים:' + #13#10 +
-                 '   ' + CustomPath + #13#10
+    Msg := Msg + Msg1('UninstallDeleteBooksAt', CustomPath)
   else
-    Msg := Msg + '• תיקיית הספרים שתחת תיקיית הנתונים' + #13#10;
+    Msg := Msg + CustomMessage('UninstallDeleteBooksDefault');
 
-  Msg := Msg +
-         '• מסדי הנתונים, אינדקס החיפוש, הגדרות,' + #13#10 +
-         '   סימניות, היסטוריה והערות אישיות' + #13#10 + #13#10 +
-         'בחר "לא" כדי לשמור את הנתונים לקראת התקנה עתידית.';
+  Msg := Msg + CustomMessage('UninstallDeleteRest');
 
   if MsgBox(Msg, mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
   begin
-    if MsgBox(
-         'שים לב: לא ניתן יהיה לשחזר את הנתונים לאחר המחיקה.' + #13#10 + #13#10 +
-         'האם אתה בטוח שברצונך למחוק את כל הספרים והנתונים?',
+    if MsgBox(CustomMessage('UninstallConfirmDelete'),
          mbCriticalError, MB_YESNO or MB_DEFBUTTON2) = IDYES then
       DeleteUserDataOnUninstall := True;
   end;
@@ -2235,6 +1651,17 @@ begin
   end;
 end;
 
+// אוצריא רושמת את otzaria:// גם ב-HKCU בכל הפעלה; בהתקנת מנהל המפתח הזה אינו
+// של המתקין, ולכן נמחק רק כשהוא מצביע על {app} ולא על התקנה אחרת שנשארת.
+procedure RemoveUserProtocolKeyIfOurs();
+var
+  ExePath: String;
+begin
+  if RegQueryStringValue(HKCU, 'Software\Classes\otzaria\DefaultIcon', '', ExePath) and
+     SameInstallDir(ExtractFileDir(ExePath), ExpandConstant('{app}')) then
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\otzaria');
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
@@ -2244,6 +1671,7 @@ begin
     RemoveAppFromPathValue(HKCU, UserEnvironmentKey, ExpandConstant('{app}'));
     if IsAdminInstallMode then
       RemoveAppFromPathValue(HKLM, SystemEnvironmentKey, ExpandConstant('{app}'));
+    RemoveUserProtocolKeyIfOurs();
     if DeleteUserDataOnUninstall then
       DeleteAllUserData();
     // הסרה בהיקף אחד מסירה גם התקנה שנשארה בהיקף הנגדי (issue #1020).
@@ -2268,6 +1696,8 @@ begin
       Lowercase(ExpandConstant('{param:TASKS|}') + ' ' +
                 ExpandConstant('{param:MERGETASKS|}'))) > 0;
 end;
+
+#include "installer_message_fallback.iss"
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -2346,26 +1776,20 @@ begin
   if not FileExists(ZstdPath) then
   begin
     Log('zstd.exe not found - cannot extract bundled library');
-    MsgBox('קובץ החילוץ zstd.exe לא נמצא. ההתקנה לא יכולה לחלץ את קבצי הספרייה המצורפים.', mbCriticalError, MB_OK);
+    InstReportFailure(CustomMessage('ZstdMissing'), '', False);
     Abort;
   end;
 
   if not FileExists(SevenZipPath) then
   begin
     Log('7za.exe not found - cannot extract bundled PDF archive');
-    MsgBox('קובץ החילוץ 7za.exe לא נמצא. ההתקנה לא יכולה לחלץ את קבצי ה-PDF המצורפים.', mbCriticalError, MB_OK);
+    InstReportFailure(CustomMessage('SevenZipMissing'), '', False);
     Abort;
   end;
 
   WizardForm.ProgressGauge.Style := npbstMarquee;
 
-#ifdef IndexedSplitFull
-  WizardForm.StatusLabel.Caption := 'מחלץ ספרייה מלאה ואינדקס מוכן...';
-  WizardForm.StatusLabel.Update;
-  ExtractIndexedLibraryArchive();
-#else
   ExtractEmbeddedLibraryArchives();
-#endif
 
   WizardForm.ProgressGauge.Style := npbstNormal;
   WizardForm.ProgressGauge.Position := WizardForm.ProgressGauge.Max;
@@ -2400,13 +1824,14 @@ end;
 ; נארזים app-local ליד otzaria.exe (ראה .github/workflows/build-and-announce.yml,
 ; השלב "Bundle latest VC++ Redistributable runtime DLLs"). זה פותר גם משתמשים
 ; שתקועים עם MSVCP140.dll 14.36.32532.0 הפגום, בלי הרצת installer נוסף.
-Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "מתקין Microsoft WebView2 Runtime..."; Flags: waituntilterminated; Check: ShouldInstallWV2
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "{cm:InstallingWebView2}"; Flags: waituntilterminated; Check: ShouldInstallWV2
 ; בהתקנה שקטה ההשקה מתבצעת בקוד בסוף ssPostInstall (ראה CurStepChanged).
 ; runasoriginaluser: בלעדיו ההשקה מדף הסיום רצה מורמת ויוצרת את תיקיות הנתונים
 ; עם ACL של מנהל — WebView2 של התוספים נכשל אז בכתיבה (issue #1031).
-Filename: "{app}\{#MyAppExeName}"; Description: "הפעל את {#MyAppName}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchApp}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [Icons]
+; שמות הקיצורים אינם מתורגמים: שדרוג בממשק אנגלי חייב לדרוס את אותם קבצים, לא ליצור כפולים.
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "Otzaria.Otzaria"; Check: not IsPortableInstall
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; AppUserModelID: "Otzaria.Otzaria"; Check: not IsPortableInstall
 ; קיצור דרך ישיר ללוח השנה — מעביר ל-otzaria.exe deep link כפרמטר; אוצריא מזהה
@@ -2416,8 +1841,12 @@ Name: "{autodesktop}\לוח שנה - {#MyAppName}"; Filename: "{app}\{#MyAppExeN
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "calendaricon"; Description: "צור קיצור דרך ישירות ללוח שנה"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "resetsettings"; Description: "איפוס הגדרות משתמש — אזהרה: ימחק הערות אישיות, סימניות, היסטוריה ונתוני תוספים! (תיקיית הגיבויים נשמרת והספרייה מותקנת מחדש. נדרש רק בשדרוג מגרסה ישנה מ-0.9.80 או לפתרון תקלות)"; Flags: unchecked
+Name: "calendaricon"; Description: "{cm:CalendarIconTask}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "resetsettings"; Description: "{cm:ResetSettingsTask}"; Flags: unchecked
+
+[CustomMessages]
+english.ResetSettingsTask=Reset user settings — warning: deletes personal notes, bookmarks, history and plugin data! (The backups folder is kept and the library is installed again. Needed only when upgrading from a version older than 0.9.80, or to fix problems)
+hebrew.ResetSettingsTask=איפוס הגדרות משתמש — אזהרה: ימחק הערות אישיות, סימניות, היסטוריה ונתוני תוספים! (תיקיית הגיבויים נשמרת והספרייה מותקנת מחדש. נדרש רק בשדרוג מגרסה שקודמת ל-0.9.80, או לפתרון תקלות)
 
 [Files]
 ; Copy DLL files without compression to prevent corruption
@@ -2430,34 +1859,26 @@ Source: "..\build\windows\{#AppArch}\runner\Release\*"; \
     DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; ארכיוני התוספים שנארזו במתקין (ראה docs/bundled_plugins.md). התיקייה נוצרת
 ; ע"י ה-workflow ואינה קיימת בבנייה מקומית — skipifsourcedoesntexist.
-Source: "bundled_plugins\*"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "bundled_plugins\*"; Excludes: "{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "bundled_plugins\{#NetworkGatedPlugin}"; DestDir: "{app}\{#BundledPluginsDirName}"; Flags: ignoreversion skipifsourcedoesntexist; Check: OtzariaSiteReachable
 
 ; Compressed library assets + extraction tools staged in the setup temp dir —
 ; {tmp} is always writable by the installer process (unlike {app} under Program Files)
 ; and is auto-deleted when setup exits, even on abort
-#ifndef IndexedSplitFull
 Source: "library_db\seforim.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
 Source: "library_db\otzar-HB_catalog.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
 Source: "library_db\talmud_bavli_latest.tar.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
 Source: "library_db\lexical.db.zst"; DestDir: "{tmp}"; Flags: deleteafterinstall nocompression
-#endif
 Source: "zstd.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 Source: "7za.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
-#ifdef IndexedSplitFull
-Source: "read_indexed_library_manifest.ps1"; Flags: dontcopy
-Source: "..\tool\release\assemble_split_asset.ps1"; Flags: dontcopy
-Source: "indexed_library.manifest.json"; Flags: dontcopy
-#endif
+; התיקייה שמסייע ההורדה מכין לצד המתקין (semantic-import), ליד תיקיית הספרייה.
+; האפליקציה מעבירה ממנה את הקבצים כשהחיפוש החכם מופעל, אחרי ההסכמה.
+Source: "{src}\semantic-import\*"; DestDir: "{code:GetSemanticImportDir}"; \
+  Flags: external recursesubdirs createallsubdirs skipifsourcedoesntexist ignoreversion uninsneveruninstall
 
 ; MicrosoftEdgeWebview2Setup.exe — bootstrapper קטן (~2MB) שמוריד ומתקין WebView2
 ; נדרש על ידי flutter_inappwebview_windows; ב-Win10/11 עם Edge עדכני — כבר קיים
 Source: "MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: ShouldInstallWV2
-
-; קבצי הצגה לדף "תכונות עיקריות" - dontcopy = נארזים בתוך המתקין אבל לא מותקנים אצל המשתמש
-Source: "feature1.bmp"; Flags: dontcopy
-Source: "feature2.bmp"; Flags: dontcopy
-Source: "feature3.bmp"; Flags: dontcopy
-Source: "feature4.bmp"; Flags: dontcopy
 
 [INI]
 Filename: "{app}\system_install.marker"; Section: "Install"; Key: "Mode"; String: "Admin"; Check: IsAdminInstallMode and not IsPortableInstall

@@ -24,13 +24,14 @@ gboolean otz_dir_is_writable(const char *dir) {
   return ok;
 }
 
-char *otz_fallback_output_dir(void) {
+char *otz_fallback_output_dir(gboolean english) {
   const char *documents = g_get_user_special_dir(G_USER_DIRECTORY_DOCUMENTS);
   if (documents == NULL) documents = g_get_home_dir();
-  return g_build_filename(documents, "אוצריא-להתקנה", NULL);
+  return g_build_filename(documents, english ? "Otzaria setup" : "אוצריא-להתקנה",
+                          NULL);
 }
 
-char *otz_default_output_dir(gboolean *fell_back) {
+char *otz_default_output_dir(gboolean english, gboolean *fell_back) {
   char *dir = otz_executable_dir();
   if (otz_dir_is_writable(dir)) {
     *fell_back = FALSE;
@@ -38,7 +39,7 @@ char *otz_default_output_dir(gboolean *fell_back) {
   }
   g_free(dir);
   *fell_back = TRUE;
-  return otz_fallback_output_dir();
+  return otz_fallback_output_dir(english);
 }
 
 gint64 otz_free_space(const char *path) {

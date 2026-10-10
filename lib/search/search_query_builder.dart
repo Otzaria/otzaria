@@ -128,13 +128,6 @@ class SearchQueryBuilder {
   static bool isPluginControllableOptionId(String id) =>
       pluginOptionIdByWordOptionKey.containsValue(id);
 
-  static String? wordOptionKeyForPluginOptionId(String id) {
-    for (final entry in pluginOptionIdByWordOptionKey.entries) {
-      if (entry.value == id) return entry.key;
-    }
-    return null;
-  }
-
   /// האם אפשרויות פר-מילה מבקשות חיפוש מנוקד (מפתח ניקוד/טעמים דלוק
   /// באחת המילים). קובע אם מותר למחוק ניקוד מהשאילתה לפני החיפוש.
   static bool optionsRequestVocalized(Map<String, Map<String, bool>> options) {
@@ -211,10 +204,6 @@ class SearchQueryBuilder {
       }
     }
     return true;
-  }
-
-  static bool usesAdvancedParameters(SearchMode searchMode) {
-    return searchMode == SearchMode.advanced;
   }
 
   /// בונה מפת אפשרויות חיפוש אפקטיבית מתוך הגדרות גלובליות.

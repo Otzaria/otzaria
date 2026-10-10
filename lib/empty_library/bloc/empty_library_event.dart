@@ -1,11 +1,11 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/empty_library/services/library_package/library_package.dart';
+import 'package:otzaria/empty_library/services/library_package/library_source.dart';
 
 abstract class EmptyLibraryEvent extends Equatable {
   @override
   List<Object?> get props => [];
 }
-
-class PickDirectoryRequested extends EmptyLibraryEvent {}
 
 /// שימוש בספרייה קיימת במקומה: [folderPath] נשמר כנתיב הספרייה כמות שהוא,
 /// ללא העתקה או חילוץ. חוסך שכפול של קובץ ה-DB כשהוא כבר יושב במקום מתאים.
@@ -28,67 +28,59 @@ class DownloadLibraryRequested extends EmptyLibraryEvent {
   List<Object?> get props => [targetPath];
 }
 
-/// עדכון ספרייה קיימת (מההגדרות) עם גיבוי בטוח של ה-DB הישן.
-/// ה-DB הישן ב-[existingLibraryPath] מגובה, ונמחק לצמיתות רק בהצלחה (ומשוחזר
-/// בכישלון). [isDownload] → הורדה מחדש; אחרת [sourceFolder] הוא תיקייה עם
-/// seforim.db.
+/// עדכון ספרייה קיימת (מההגדרות) בהורדה מחדש, עם גיבוי בטוח של ה-DB הישן
+/// ב-[existingLibraryPath]: נמחק לצמיתות רק בהצלחה, ומשוחזר בכישלון.
 class UpdateLibraryRequested extends EmptyLibraryEvent {
-  final bool isDownload;
-  final String? sourceFolder;
   final String targetPath;
   final String existingLibraryPath;
 
   UpdateLibraryRequested({
-    required this.isDownload,
-    this.sourceFolder,
     required this.targetPath,
     required this.existingLibraryPath,
   });
 
   @override
-  List<Object?> get props => [
-    isDownload,
-    sourceFolder,
-    targetPath,
-    existingLibraryPath,
-  ];
+  List<Object?> get props => [targetPath, existingLibraryPath];
 }
 
-/// ייבוא ספרייה מתיקייה שנבחרה: מזהה אוטומטית את נכסי הספרייה שבתוכה (seforim.db,
-/// קטלוג, מילון, תלמוד בבלי) בגרסה דחוסה או רגילה, ומחלץ/מעתיק כל אחד אל היעד.
+/// ייבוא נכסי הספרייה הגולמיים שזוהו בתיקייה (seforim.db, קטלוג, מילון,
+/// תלמוד בבלי — דחוסים, מפוצלים או רגילים) אל [targetPath].
 /// [backupExistingPath] — כשמסופק (עדכון במקום), ה-DB הישן בנתיב זה מגובה
 /// ומשוחזר בכישלון.
 class ImportLibraryFolderRequested extends EmptyLibraryEvent {
-  final String sourceFolder;
+  final RawLibraryScan assets;
   final String targetPath;
   final String? backupExistingPath;
 
   ImportLibraryFolderRequested({
-    required this.sourceFolder,
+    required this.assets,
     required this.targetPath,
     this.backupExistingPath,
   });
 
   @override
-  List<Object?> get props => [sourceFolder, targetPath, backupExistingPath];
+  List<Object?> get props => [assets, targetPath, backupExistingPath];
 }
 
-/// ייבוא ספרייה מארכיון ZIP או ZST אל תיקיית היעד. [backupExistingPath]
-/// משמש להחזרת ה-DB הישן אם החילוץ או אימות הארכיון נכשלים.
-class ImportLibraryArchiveRequested extends EmptyLibraryEvent {
-  final String archivePath;
+/// ייבוא קובצי הספרייה שמסייע ההורדה הכין (חלקי tar.zst, ואופציונלית
+/// אינדקס מוכן) אל [targetPath]. [backupExistingPath] — כמו בייבוא תיקייה.
+class ImportLibraryPackageRequested extends EmptyLibraryEvent {
+  final LibraryPackageSet packages;
   final String targetPath;
   final String? backupExistingPath;
 
-  ImportLibraryArchiveRequested({
-    required this.archivePath,
+  ImportLibraryPackageRequested({
+    required this.packages,
     required this.targetPath,
     this.backupExistingPath,
   });
 
   @override
-  List<Object?> get props => [archivePath, targetPath, backupExistingPath];
+  List<Object?> get props => [packages, targetPath, backupExistingPath];
 }
+
+/// עוצר פריסה של ייבוא תיקייה או חבילה לפני שהספרייה מוחלפת.
+class CancelLibraryImportRequested extends EmptyLibraryEvent {}
 
 /// בודק מקום פנוי בהתקנה וקובע אם כפתור ההורדה זמין.
 /// נשלח בעת טעינת המסך.
@@ -104,35 +96,4 @@ class StorageLocationSelected extends EmptyLibraryEvent {
 
   @override
   List<Object?> get props => [libraryRoot];
-}
-
-/// בחירת קובץ seforim.db ישירות דרך file picker (SAF-aware).
-/// משמש כאשר הגישה לנתיב הפיזי נכשלת ב-Android Scoped Storage.
-class PickDbFileRequested extends EmptyLibraryEvent {
-  /// תיקיית הספרייה שנבחרה (תישמר ב-keyLibraryPath)
-  final String libraryPath;
-
-  /// הנתיב הפנימי שאליו יועתק הקובץ
-  final String internalDbPath;
-
-  /// הנתיב החיצוני המקורי של seforim.db (למחיקה אם shouldMove == true)
-  final String externalDbPath;
-
-  /// אם true — ינסה למחוק את הקובץ החיצוני המקורי לאחר ההעתקה.
-  final bool shouldMove;
-
-  PickDbFileRequested({
-    required this.libraryPath,
-    required this.internalDbPath,
-    required this.externalDbPath,
-    this.shouldMove = false,
-  });
-
-  @override
-  List<Object?> get props => [
-    libraryPath,
-    internalDbPath,
-    externalDbPath,
-    shouldMove,
-  ];
 }

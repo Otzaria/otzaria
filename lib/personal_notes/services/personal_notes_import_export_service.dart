@@ -41,18 +41,8 @@ class PersonalNotesImportExportService {
       'version': '2.0',
       'exportedAt': DateTime.now().toIso8601String(),
       'description': ?description,
-      'notes': notes.map(_noteToJson).toList(),
+      'notes': notes.map((note) => note.toJson()).toList(),
     };
-  }
-
-  Future<void> exportToFile({
-    required String path,
-    required List<PersonalNote> notes,
-    String? description,
-  }) async {
-    final payload = buildExport(notes: notes, description: description);
-    final file = File(path);
-    await file.writeAsString(jsonEncode(payload));
   }
 
   /// בונה ייצוא טקסט קריא למשתמש (להבדיל מהגיבוי שהוא JSON גולמי).
@@ -270,17 +260,6 @@ class PersonalNotesImportExportService {
         .replaceAll('>', '&gt;');
   }
 
-  /// מייצא את ההערות לקובץ טקסט קריא (.txt).
-  Future<void> exportToTextFile({
-    required String path,
-    required List<PersonalNote> notes,
-    String? description,
-  }) async {
-    final text = buildPlainTextExport(notes: notes, description: description);
-    final file = File(path);
-    await file.writeAsString(text);
-  }
-
   String _formatDate(DateTime date) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(date.day)}/${two(date.month)}/${date.year}';
@@ -306,7 +285,7 @@ class PersonalNotesImportExportService {
 
     for (final item in notesJson) {
       if (item is! Map<String, dynamic>) continue;
-      final note = _noteFromJson(item);
+      final note = PersonalNote.fromJson(item);
       final existing = await _database.getNote(note.id);
 
       if (existing == null) {
@@ -373,52 +352,6 @@ class PersonalNotesImportExportService {
       updated: updated,
       skipped: skipped,
       duplicated: duplicated,
-    );
-  }
-
-  Map<String, dynamic> _noteToJson(PersonalNote note) {
-    return {
-      'id': note.id,
-      'bookId': note.bookId,
-      'lineNumber': note.lineNumber,
-      'displayTitle': note.displayTitle,
-      'anchorText': note.anchorText,
-      'anchorPrefix': note.anchorPrefix,
-      'anchorSuffix': note.anchorSuffix,
-      'anchorStart': note.anchorStart,
-      'anchorEnd': note.anchorEnd,
-      'lastKnownLineNumber': note.lastKnownLineNumber,
-      'status': note.status.name,
-      'content': note.content,
-      'contentPlain': note.contentPlain,
-      'contentFormat': note.contentFormat.name,
-      'createdAt': note.createdAt.toIso8601String(),
-      'updatedAt': note.updatedAt.toIso8601String(),
-    };
-  }
-
-  PersonalNote _noteFromJson(Map<String, dynamic> json) {
-    return PersonalNote(
-      id: json['id'] as String,
-      bookId: json['bookId'] as String,
-      lineNumber: json['lineNumber'] as int?,
-      displayTitle: json['displayTitle'] as String?,
-      anchorText: json['anchorText'] as String?,
-      anchorPrefix: json['anchorPrefix'] as String?,
-      anchorSuffix: json['anchorSuffix'] as String?,
-      anchorStart: json['anchorStart'] as int?,
-      anchorEnd: json['anchorEnd'] as int?,
-      lastKnownLineNumber: json['lastKnownLineNumber'] as int?,
-      status: PersonalNoteStatus.values.byName(json['status'] as String),
-      content: json['content'] as String,
-      contentPlain:
-          (json['contentPlain'] as String?) ?? (json['content'] as String),
-      contentFormat: PersonalNoteContentFormat.values.byName(
-        json['contentFormat'] as String? ??
-            PersonalNoteContentFormat.plain.name,
-      ),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
 

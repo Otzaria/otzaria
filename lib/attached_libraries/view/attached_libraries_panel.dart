@@ -11,8 +11,10 @@ import 'package:otzaria/attached_libraries/models/attached_library_update_status
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/view/attached_library_update_view.dart';
+import 'package:otzaria/attached_libraries/view/external_link_index_tile.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -43,12 +45,16 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
     context.read<AttachedLibrariesBloc>().add(const LoadAttachedLibraries());
     _repository.loadingPaths.addListener(_rebuild);
     _links.tooLargeSlugs.addListener(_rebuild);
+    _links.buildingSlugs.addListener(_rebuild);
+    _links.incompleteSlugs.addListener(_rebuild);
   }
 
   @override
   void dispose() {
     _repository.loadingPaths.removeListener(_rebuild);
     _links.tooLargeSlugs.removeListener(_rebuild);
+    _links.buildingSlugs.removeListener(_rebuild);
+    _links.incompleteSlugs.removeListener(_rebuild);
     super.dispose();
   }
 
@@ -276,6 +282,17 @@ class _AttachedLibrariesPanelState extends State<AttachedLibrariesPanel> {
                 linksTooLarge: _links.tooLargeSlugs.value.contains(
                   libraries[i].slug,
                 ),
+                linksBuilding: _links.buildingSlugs.value.contains(
+                  libraries[i].slug,
+                ),
+                linksIncomplete: _links.incompleteSlugs.value.contains(
+                  libraries[i].slug,
+                ),
+                onRebuildLinks: () async {
+                  if (await confirmLinkIndexRebuild(context)) {
+                    _links.requestRebuild(libraries[i].slug);
+                  }
+                },
                 enabled: !state.isBusy,
                 update: state.updateOf(libraries[i]),
                 onCheckUpdate: () => context.read<AttachedLibrariesBloc>().add(
@@ -355,6 +372,9 @@ class _AttachedLibraryTile extends StatelessWidget {
     required this.library,
     required this.isLoading,
     required this.linksTooLarge,
+    required this.linksBuilding,
+    required this.linksIncomplete,
+    required this.onRebuildLinks,
     required this.enabled,
     required this.update,
     required this.onCheckUpdate,
@@ -367,6 +387,13 @@ class _AttachedLibraryTile extends StatelessWidget {
   final AttachedLibrary library;
   final bool isLoading;
   final bool linksTooLarge;
+
+  /// אינדקס הקישורים נבנה כעת; עד הסיום המפרשים של המסד אינם מוצגים.
+  final bool linksBuilding;
+
+  /// הבנייה הקודמת נקטעה, והאינדקס החלקי אינו מוגש עד שבונים מחדש.
+  final bool linksIncomplete;
+  final VoidCallback onRebuildLinks;
   final bool enabled;
   final AttachedUpdateStatus update;
   final VoidCallback onCheckUpdate;
@@ -420,8 +447,30 @@ class _AttachedLibraryTile extends StatelessWidget {
                   background: cs.errorContainer,
                   foreground: cs.onErrorContainer,
                 ),
+              if (linksBuilding)
+                AttachedInfoChip(
+                  label: context.settingsText(
+                    'בונה אינדקס קישורים — המפרשים של המסד יופיעו בסיום',
+                  ),
+                ),
+              if (library.isOk && linksIncomplete && !linksBuilding)
+                AttachedInfoChip(
+                  label: context.settingsText(
+                    'אינדקס הקישורים לא הושלם — המפרשים של המסד אינם מוצגים',
+                  ),
+                  background: cs.errorContainer,
+                  foreground: cs.onErrorContainer,
+                ),
             ],
           ),
+          if (library.isOk &&
+              linksIncomplete &&
+              !linksBuilding &&
+              !WindowRole.isSecondary)
+            ActionButton.neutral(
+              onPressed: enabled ? onRebuildLinks : null,
+              text: context.settingsText('בנה אינדקס מחדש'),
+            ),
           if (library.isOk &&
               library.updateSource != null &&
               !library.updateSourceMismatch) ...[

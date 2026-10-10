@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/app_report/models/app_report_image.dart';
+import 'package:otzaria/app_report/models/app_report_minidump.dart';
 import 'package:otzaria/app_report/models/crash_signature.dart';
 import 'package:otzaria/app_report/repository/app_report_redactor.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
@@ -61,6 +62,7 @@ class AppReport {
     this.diagnostics,
     this.errorLog,
     this.images = const [],
+    this.minidump,
     this.issueNumber,
     this.issueUrl,
     this.merged = false,
@@ -83,9 +85,11 @@ class AppReport {
   static const int maxErrorLogBytes = 250 * 1000;
   static const int maxBodyBytes = 700 * 1000;
 
-  /// גבול הבקשה כולה: הטקסט והצרופות, ועוד צילומי המסך בנפרד.
+  /// גבול הבקשה כולה: הטקסט והצרופות, ועוד צילומי המסך וה-minidump בנפרד.
   static const int maxRequestBytes =
-      maxBodyBytes + AppReportImage.maxPayloadBytes;
+      maxBodyBytes +
+      AppReportImage.maxPayloadBytes +
+      AppReportMinidump.maxPayloadBytes;
 
   static const Set<String> platforms = {
     'windows',
@@ -114,6 +118,9 @@ class AppReport {
 
   /// צילומי המסך. לא עוברים הסתרת מידע ונשמרים באתר בלבד, לא ב-GitHub.
   final List<AppReportImage> images;
+
+  /// minidump של קריסה נייטיבית. נשמר באתר בלבד, לא ב-GitHub.
+  final AppReportMinidump? minidump;
 
   // ── שדות הרשומה המקומית, אחרי שליחה ──
   final int? issueNumber;
@@ -186,7 +193,7 @@ class AppReport {
     return payload;
   }
 
-  /// התמונות מתווספות אחרי הקיצוץ: יש להן תקציב משלהן ב-[maxRequestBytes].
+  /// התמונות וה-dump מתווספים אחרי הקיצוץ: יש להם תקציב משלהם ב-[maxRequestBytes].
   Map<String, dynamic> _addImages(Map<String, dynamic> payload) {
     final attachments =
         (payload['attachments'] as Map<String, dynamic>?) ??
@@ -194,6 +201,8 @@ class AppReport {
     if (images.isNotEmpty) {
       attachments['images'] = [for (final image in images) image.toJson()];
     }
+    final dump = minidump;
+    if (dump != null) attachments['minidump'] = dump.toJson();
     if (attachments.isEmpty) {
       payload.remove('attachments');
     } else {
@@ -260,6 +269,7 @@ class AppReport {
     if (errorLog != null) 'errorLog': errorLog,
     if (images.isNotEmpty)
       'images': [for (final image in images) image.toJson()],
+    if (minidump != null) 'minidump': minidump!.toJson(),
     if (issueNumber != null) 'issueNumber': issueNumber,
     if (issueUrl != null) 'issueUrl': issueUrl,
     'merged': merged,
@@ -295,6 +305,7 @@ class AppReport {
         if (json['images'] case final List<dynamic> images)
           for (final image in images.map(AppReportImage.fromJson)) ?image,
       ],
+      minidump: AppReportMinidump.fromJson(json['minidump']),
       issueNumber: json['issueNumber'] is int
           ? json['issueNumber'] as int
           : null,
@@ -319,6 +330,7 @@ class AppReport {
     Object? diagnostics = _unset,
     Object? errorLog = _unset,
     List<AppReportImage>? images,
+    Object? minidump = _unset,
     Object? issueNumber = _unset,
     Object? issueUrl = _unset,
     bool? merged,
@@ -350,6 +362,9 @@ class AppReport {
           ? this.errorLog
           : errorLog as String?,
       images: images ?? this.images,
+      minidump: identical(minidump, _unset)
+          ? this.minidump
+          : minidump as AppReportMinidump?,
       issueNumber: identical(issueNumber, _unset)
           ? this.issueNumber
           : issueNumber as int?,
@@ -364,8 +379,12 @@ class AppReport {
   }
 
   /// רשומת היסטוריה: בלי הצרופות הכבדות, כדי שמאה דיווחים לא ינפחו את המסד.
-  AppReport withoutAttachments() =>
-      copyWith(diagnostics: null, errorLog: null, images: const []);
+  AppReport withoutAttachments() => copyWith(
+    diagnostics: null,
+    errorLog: null,
+    images: const [],
+    minidump: null,
+  );
 
   /// מסתיר מידע אישי בכל הטקסטים שנשלחים, מלבד שדה המייל של המדווח.
   AppReport redactedWith(AppReportRedactor redactor) {

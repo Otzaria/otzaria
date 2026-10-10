@@ -362,8 +362,7 @@ class ShamorZachorDataProvider with ChangeNotifier {
     try {
       final repository = _sqliteDataProvider!.repository!;
       final isolate = await FindRefDbIsolate.instance();
-      final tocRows = await isolate.getBookTocRows(bookId);
-      final tocEntries = tocRows.map(db_models.TocEntry.fromMap).toList();
+      final tocEntries = await isolate.getBookTocEntries(bookId);
 
       if (tocEntries.isEmpty) {
         _tocCache[bookId] = [];
@@ -744,50 +743,6 @@ class ShamorZachorDataProvider with ChangeNotifier {
       _logger.warning("Failed to remove book from Shamor Zachor tracking", e);
       rethrow;
     }
-  }
-
-  /// Get all custom (personal) books that are not base books
-  /// These are books that were added by the user to Shamor Zachor
-  List<Map<String, dynamic>> getCustomBooks() {
-    final results = <Map<String, dynamic>>[];
-
-    void scan(BookCategory cat, String topLevel) {
-      cat.books.forEach((name, details) {
-        // Check if book is in tracked list and is not a base book
-        if (details.id != null &&
-            _trackedBookIds.contains(details.id) &&
-            details.isCustom) {
-          // isCustom means "not a base book"
-          results.add({
-            'categoryName': cat.name,
-            'bookName': name,
-            'bookDetails': details,
-            'topLevelCategoryKey': topLevel,
-          });
-        }
-      });
-      cat.subcategories?.forEach((sub) => scan(sub, topLevel));
-    }
-
-    _allBookData.forEach((topLevelName, cat) {
-      scan(cat, topLevelName);
-    });
-
-    return results;
-  }
-
-  bool isBookTracked(String categoryName, String bookName) {
-    // This refers to TrackingProvider usually?
-    // Or simply "does it exist"?
-    return getBookDetails(categoryName, bookName) != null;
-  }
-
-  bool hasCategory(String categoryName) =>
-      _allBookData.containsKey(categoryName);
-
-  /// Clear TOC cache to free memory
-  void clearTocCache() {
-    _tocCache.clear();
   }
 
   /// Load tracked books list from Hive

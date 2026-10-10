@@ -16,6 +16,9 @@ class SearchPreviewTarget {
   /// המסלול הרגיל מאמת את הנתיב מול האינדקס, ושם אין רשומה כזו.
   final VoidCallback? openInReader;
 
+  /// הביטוי נמשך מסוף השורה אל השורה הבאה — גם היא שורת תוצאה.
+  final bool continuesToNextLine;
+
   const SearchPreviewTarget({
     required this.book,
     required this.title,
@@ -24,6 +27,7 @@ class SearchPreviewTarget {
     required this.isPdf,
     required this.filePath,
     this.openInReader,
+    this.continuesToNextLine = false,
   });
 
   /// זהות תוצאה: המפתח היציב של האינדקס + המקטע. משמשת ל"לחיצה חוזרת על

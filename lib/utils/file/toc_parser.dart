@@ -13,6 +13,8 @@ bool isTocExcludedHeadingLine(String lowerLine) {
   return tagEnd > 0 && lowerLine.substring(0, tagEnd).contains(kTocExcludeAttr);
 }
 
+final RegExp _markdownHeading = RegExp(r'^(#{1,6})\s+(.+?)\s*$');
+
 class TocParser {
   /// Parse TOC entries (hierarchical) from the full book content.
   static List<TocEntry> parseEntriesFromContent(String content) {
@@ -31,7 +33,9 @@ class TocParser {
 
       // Markdown headings: # .. ######
       // We require a space after the hashes to reduce false positives.
-      final md = RegExp(r'^(#{1,6})\s+(.+?)\s*$').firstMatch(line);
+      final md = line.startsWith('#')
+          ? _markdownHeading.firstMatch(line)
+          : null;
       if (md != null) {
         final level = md.group(1)!.length;
         final text = md.group(2)!.trim();
@@ -42,8 +46,10 @@ class TocParser {
       }
 
       // Match <h1>..</h1> up to <h6>
+      // הורדת אותיות רק לשורה שנפתחת ב-<h — שורות הטקסט ארוכות ורובן כאלה.
+      if (!line.startsWith('<h') && !line.startsWith('<H')) continue;
       final lower = line.toLowerCase();
-      if (lower.startsWith('<h') && lower.length > 3) {
+      if (lower.length > 3) {
         final c = lower[2];
         final code = c.codeUnitAt(0);
         if (code >= '1'.codeUnitAt(0) && code <= '6'.codeUnitAt(0)) {

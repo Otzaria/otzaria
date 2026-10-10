@@ -268,7 +268,6 @@ class BookDetails {
 
   List<LearnableItem>? _learnableItemsCache;
   Map<String, List<int>>? _sectionLeafIndexMapCache;
-  Map<String, List<String>>? _sectionPathCache;
 
   BookDetails({
     required this.contentType,
@@ -340,19 +339,6 @@ class BookDetails {
     );
   }
 
-  /// Get the page count for display purposes
-  num get pageCountForDisplay {
-    if (originalPageCount != null) {
-      return originalPageCount!;
-    }
-    if (parts.isEmpty) return 0;
-
-    // Fallback for older data structures
-    return parts
-        .map((p) => p.endPage - p.startPage + 1)
-        .reduce((a, b) => a + b);
-  }
-
   /// Check if this book uses "daf" (page) format
   bool get isDafType => contentType == "דף";
 
@@ -420,7 +406,6 @@ class BookDetails {
   void clearCache() {
     _learnableItemsCache = null;
     _sectionLeafIndexMapCache = null;
-    _sectionPathCache = null;
   }
 
   Map<String, dynamic> toJson() => {
@@ -449,22 +434,9 @@ class BookDetails {
     return _sectionLeafIndexMapCache ?? {};
   }
 
-  Map<String, List<String>> get sectionPathMap {
-    if (_sectionPathCache != null) {
-      return _sectionPathCache!;
-    }
-    if (sections == null || sections!.isEmpty) {
-      _sectionPathCache = {};
-      return _sectionPathCache!;
-    }
-    _learnableItemsCache ??= _buildLearnableItemsFromSections();
-    return _sectionPathCache ?? {};
-  }
-
   List<LearnableItem> _buildLearnableItemsFromSections() {
     final List<LearnableItem> items = [];
     final Map<String, List<int>> leafMap = {};
-    final Map<String, List<String>> pathMap = {};
     int currentIndex = 0;
 
     void traverse(BookSection section, List<String> path) {
@@ -481,7 +453,6 @@ class BookDetails {
         );
         items.add(learnable);
         leafMap[section.id] = [currentIndex];
-        pathMap[section.id] = currentPath;
         currentIndex++;
       } else {
         final List<int> descendantIndices = [];
@@ -491,7 +462,6 @@ class BookDetails {
         }
         if (descendantIndices.isNotEmpty) {
           leafMap[section.id] = descendantIndices;
-          pathMap[section.id] = currentPath;
         }
       }
     }
@@ -501,7 +471,6 @@ class BookDetails {
     }
 
     _sectionLeafIndexMapCache = leafMap;
-    _sectionPathCache = pathMap;
     return items;
   }
 }

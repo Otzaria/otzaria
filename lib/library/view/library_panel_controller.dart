@@ -86,8 +86,3 @@ class LibraryPanelController {
     return true;
   }
 }
-
-/// פותחת את פאנל הגדרות הספרייה דרך בקר הפאנלים.
-void showLibrarySettingsDialog(BuildContext context) {
-  LibraryPanelController.toggleSettingsPanel();
-}

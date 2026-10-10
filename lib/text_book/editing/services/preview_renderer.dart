@@ -48,7 +48,7 @@ class PreviewRenderer {
               html,
               factoryBuilder: OtzariaWidgetFactory.new,
               textStyle: textStyle.copyWith(
-                fontFamily: fontFamily,
+                fontFamily: AppFonts.renderFontFamily(fontFamily),
                 height: 1.5,
               ),
               customStylesBuilder: (element) {

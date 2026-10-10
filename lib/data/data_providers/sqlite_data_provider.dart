@@ -390,12 +390,13 @@ class SqliteDataProvider {
     }
   }
 
-  /// Retrieves the full text content of a book from the database
+  /// טקסט הספר מהמסד; [emptyWhenNoLines] מבדיל ספר קיים שהתרוקן מכשל קריאה.
   Future<String?> getBookTextFromDb(
     String title, [
     int? categoryId,
     String? fileType,
     BookSource preferSource = BookSource.official,
+    bool emptyWhenNoLines = false,
   ]) async {
     if (!_isInitialized) {
       await initialize();
@@ -410,10 +411,17 @@ class SqliteDataProvider {
         preferSource: preferSource,
       );
       if (resolvedBook == null) return null;
-      return await BookTextReader.text(
+      final text = await BookTextReader.text(
         resolvedBook.repository,
         resolvedBook.book,
       );
+      // מסד חסר אינו ספר שהתרוקן, גם כשקיים ספר בשם זהה במקור אחר.
+      if (emptyWhenNoLines &&
+          resolvedBook.source != preferSource &&
+          (text == null || text.isEmpty)) {
+        return null;
+      }
+      return text ?? (emptyWhenNoLines ? '' : null);
     } catch (e, st) {
       debugPrint(
         '[SqliteDataProvider] getBookTextFromDb failed for '
@@ -499,8 +507,7 @@ class SqliteDataProvider {
         );
       } else {
         final isolate = await FindRefDbIsolate.instance();
-        final tocRows = await isolate.getBookTocRows(book.id);
-        migrationTocEntries = tocRows.map(db_models.TocEntry.fromMap).toList();
+        migrationTocEntries = await isolate.getBookTocEntries(book.id);
       }
 
       // Convert migration TOC entries to otzaria TOC entries
@@ -574,82 +581,6 @@ class SqliteDataProvider {
   Future<bool> databaseExists() async {
     final dbFile = File(_dbPath);
     return await dbFile.exists();
-  }
-
-  /// Exports the database to a specified path
-  Future<void> exportDatabase(String destinationPath) async {
-    if (!_isInitialized) {
-      await initialize();
-    }
-
-    final dbFile = File(_dbPath);
-    if (!await dbFile.exists()) {
-      throw Exception('Database file does not exist');
-    }
-
-    await dbFile.copy(destinationPath);
-  }
-
-  /// Imports a database from a specified path
-  Future<void> importDatabase(String sourcePath) async {
-    final sourceFile = File(sourcePath);
-    if (!await sourceFile.exists()) {
-      throw Exception('Source database file does not exist');
-    }
-
-    // Close existing connection if open
-    if (_isInitialized) {
-      _repository.database.close();
-      _isInitialized = false;
-    }
-
-    // Copy the file
-    await sourceFile.copy(_dbPath);
-
-    // Reinitialize
-    await initialize();
-  }
-
-  /// Performs a health check on the database
-  Future<Map<String, dynamic>> performHealthCheck() async {
-    final results = <String, dynamic>{
-      'healthy': true,
-      'issues': <String>[],
-      'warnings': <String>[],
-    };
-
-    try {
-      if (!_isInitialized) {
-        await initialize();
-      }
-
-      if (!_isInitialized) {
-        results['healthy'] = false;
-        (results['issues'] as List).add('Database not initialized');
-        return results;
-      }
-
-      // Check if database file exists
-      if (!await databaseExists()) {
-        results['healthy'] = false;
-        (results['issues'] as List).add('Database file does not exist');
-        return results;
-      }
-
-      // Check if we can query the database
-      try {
-        await _repository.countAllBooks();
-      } catch (e) {
-        results['healthy'] = false;
-        (results['issues'] as List).add('Cannot query database: $e');
-        return results;
-      }
-    } catch (e) {
-      results['healthy'] = false;
-      (results['issues'] as List).add('Health check failed: $e');
-    }
-
-    return results;
   }
 
   /// השורות [start]..[end] כטקסט אחד; seforim.db מפוענח ב-[DbReadWorker].

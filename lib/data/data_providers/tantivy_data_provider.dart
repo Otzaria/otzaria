@@ -38,7 +38,6 @@ class TantivyDataProvider {
 
   /// Track if index is being reopened to prevent concurrent reopens
   final ReopenGate _reopenGate = ReopenGate();
-  Future<bool>? _magicDictionaryDownload;
 
   static final TantivyDataProvider _singleton = TantivyDataProvider._internal();
   static TantivyDataProvider instance = _singleton;
@@ -246,6 +245,25 @@ class TantivyDataProvider {
     }
   }
 
+  /// מריץ את [replace] כשהמנוע אינו מחזיק את המילון — Windows חוסם החלפת
+  /// קובץ פתוח — ואחריו טוען אותו מחדש, כדי שגם ב-POSIX ייקרא הקובץ החדש.
+  Future<void> replaceMagicDictionaryDetached(
+    Future<void> Function() replace,
+  ) async {
+    // אינדוקס נועל את המנוע לכתיבה והקריאה הסינכרונית הייתה מקפיאה את הממשק;
+    // ב-Windows ההחלפה תיכשל אז, והעותק הממתין יותקן בפתיחת המנוע הבאה.
+    if (isIndexing.value) return replace();
+    final searchEngine = await engine;
+    final dictPath = await AppPaths.getMagicDictionaryPath();
+    // פתיחת נתיב שאינו קיים נכשלת, והמנוע משחרר את המילון הקודם.
+    searchEngine.setMagicDictionaryPath(path: '$dictPath.detached');
+    try {
+      await replace();
+    } finally {
+      await _attachMagicDictionary(searchEngine);
+    }
+  }
+
   /// האם החיפוש המקורב משתמש כרגע בהרחבה מורפולוגית (מילון טעון).
   Future<bool> get hasMagicDictionary async =>
       (await engine).hasMagicDictionary();
@@ -321,49 +339,6 @@ class TantivyDataProvider {
       if (a[i] != b[i]) return false;
     }
     return true;
-  }
-
-  /// מוריד את מילון המורפולוגיה האחרון (אם חסר/ישן) וטוען אותו אל המנוע
-  /// החי, כך שהחיפוש המקורב יתחיל להשתמש בו מיד — בלי הפעלה מחדש.
-  ///
-  /// מחזיר `true` אם בסיום קיים מילון טעון. best-effort: כשל הורדה אינו
-  /// משפיע על שאר המנוע.
-  Future<bool> downloadMagicDictionary({
-    void Function(double progress)? onProgress,
-    bool force = false,
-  }) async {
-    final currentDownload = _magicDictionaryDownload;
-    if (currentDownload != null) return currentDownload;
-
-    final download = _downloadMagicDictionary(
-      onProgress: onProgress,
-      force: force,
-    );
-    _magicDictionaryDownload = download;
-    try {
-      return await download;
-    } finally {
-      if (identical(_magicDictionaryDownload, download)) {
-        _magicDictionaryDownload = null;
-      }
-    }
-  }
-
-  Future<bool> _downloadMagicDictionary({
-    void Function(double progress)? onProgress,
-    required bool force,
-  }) async {
-    final downloader = MagicDictionaryDownloader();
-    try {
-      final ok = await downloader.ensureLatest(
-        onProgress: onProgress,
-        force: force,
-      );
-      if (!ok) return false;
-      return await _attachMagicDictionary(await engine);
-    } finally {
-      downloader.dispose();
-    }
   }
 
   /// מספר ניסיונות הפתיחה שנכשלו לפי תוכן קובץ הסנטינל. תוכן לא-מספרי
@@ -455,7 +430,11 @@ class TantivyDataProvider {
         ),
       );
 
-      // טעינת מילון מורפולוגי לחיפוש המקורב (best-effort, לא חוסם).
+      // טעינת מילון מורפולוגי לחיפוש המקורב (best-effort, לא חוסם). עותק
+      // ממתין מותקן לפני הטעינה, כשהקובץ עוד אינו פתוח.
+      await MagicDictionaryDownloader.installStagedBeforeAttach(
+        await AppPaths.getMagicDictionaryPath(),
+      );
       await _attachMagicDictionary(engine);
 
       // מילוני החיפוש המתקדם: תרגום ארמי + ראשי-תיבות (best-effort).
@@ -716,32 +695,6 @@ class TantivyDataProvider {
     );
 
     return Map<String, int>.from(results);
-  }
-
-  /// Performs an asynchronous stream-based search operation across indexed texts.
-  ///
-  /// [query] The search query string
-  /// [books] List of book identifiers to search within
-  /// [limit] Maximum number of results to return
-  /// [fuzzy] Whether to perform fuzzy matching
-  ///
-  /// Returns a Stream of search results that can be listened to for real-time updates
-  Stream<List<SearchResult>> searchTextsStream(
-    String query,
-    List<String> facets,
-    int limit,
-    bool fuzzy,
-  ) async* {
-    yield* _searchGateway.searchStream(
-      RustSearchEngineOperations(await engine),
-      SearchEngineRequest(
-        query: query,
-        facets: facets,
-        limit: limit,
-        searchMode: fuzzy ? SearchMode.fuzzy : SearchMode.exact,
-      ),
-      chunkSize: 50,
-    );
   }
 
   /// ספירה מקבצת של תוצאות עבור מספר facets בבת אחת - לשיפור ביצועים.

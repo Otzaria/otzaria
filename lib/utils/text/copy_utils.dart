@@ -88,24 +88,25 @@ class CopyUtils {
   static String extractBookName(TextBook book) => book.title.trim();
 
   /// מחלץ את הנתיב ההיררכי הנוכחי:
-  /// 1) ניסיון קפדני מתוך התוכן עצמו: רק תגיות <h1>..<h6>
-  /// 2) נפילה ל-TOC: לוקחים את הכותרת האחרונה לכל רמה (1..6) עד currentIndex
+  /// סורק תגיות כותרת בתוכן; כשחסרות שורות טעונות, משלים הורים מה-TOC.
   static Future<String> extractCurrentPath(
     TextBook book,
     int currentIndex, {
     List<String>? bookContent,
+    bool Function(int)? isLineLoaded,
   }) async {
+    var knownPath = '';
     try {
-      // --- שלב 1: ניסיון קפדני מתוך התוכן ---
       final fromContent = _extractPathFromContentStrict(
         bookContent,
         currentIndex,
+        isLineLoaded,
       );
-      if (fromContent.isNotEmpty) return fromContent;
+      knownPath = fromContent.path;
+      if (fromContent.complete && knownPath.isNotEmpty) return knownPath;
 
-      // --- שלב 2: נפילה ל-TOC בלבד ---
       final toc = await book.tableOfContents;
-      if (toc.isEmpty) return '';
+      if (toc.isEmpty) return knownPath;
 
       // בעץ עם דילוג ברמות (h4 אחרי h2) סדר ה-pre-order אינו לפי שורה.
       final entries = flattenToc(toc)
@@ -114,30 +115,37 @@ class CopyUtils {
               ? a.index.compareTo(b.index)
               : a.level.compareTo(b.level),
         );
-      final Map<int, String> lastByLevel = {};
+      final lastByLevel = <int, ({String text, int index})>{};
+      var hasKnownHeading = fromContent.firstHeaderIndex == null;
       for (final entry in entries) {
         if (entry.index <= currentIndex) {
-          lastByLevel.removeWhere((level, _) => level > entry.level);
-          if (isBookTitleRoot(entry)) {
-            continue; // שם הספר, כבר מכוסה ע"י bookName
+          if (entry.index == fromContent.firstHeaderIndex) {
+            hasKnownHeading = true;
           }
+          lastByLevel.removeWhere((level, _) => level > entry.level);
+          if (isBookTitleRoot(entry)) continue;
           final clean = _cleanHtml(entry.text);
           if (clean.isNotEmpty) {
-            lastByLevel[entry.level] = clean;
+            lastByLevel[entry.level] = (text: clean, index: entry.index);
           }
         } else {
           break;
         }
       }
 
-      if (lastByLevel.isEmpty) return '';
-
+      if (!hasKnownHeading) return knownPath;
       final levels = lastByLevel.keys.toList()..sort();
       final parts = <String>[];
-      for (final lvl in levels) {
-        final txt = lastByLevel[lvl];
-        if (txt != null && txt.trim().isNotEmpty) parts.add(txt.trim());
+      for (final level in levels) {
+        final header = lastByLevel[level]!;
+        // כותרות טעונות נשמרות מהתוכן: ה-TOC עשוי לאחד כמה כותרות באותה שורה.
+        if (fromContent.firstHeaderIndex != null &&
+            header.index >= fromContent.firstHeaderIndex!) {
+          continue;
+        }
+        parts.add(header.text);
       }
+      if (knownPath.isNotEmpty) parts.add(knownPath);
       final result = parts.join(', ');
 
       if (kDebugMode) {
@@ -148,7 +156,7 @@ class CopyUtils {
       if (kDebugMode) {
         debugPrint('CopyUtils: ERROR in extractCurrentPath: $e\n$st');
       }
-      return '';
+      return knownPath;
     }
   }
 
@@ -317,12 +325,20 @@ class CopyUtils {
 
   /// סורקים אחורה מהמיקום הנוכחי ואוספים את שרשרת הכותרות שמעליו,
   /// הקרובה ביותר מכל רמה.
-  static String _extractPathFromContentStrict(
+  static ({String path, bool complete, int? firstHeaderIndex})
+  _extractPathFromContentStrict(
     List<String>? content,
     int currentIndex,
+    bool Function(int)? isLineLoaded,
   ) {
-    if (content == null || content.isEmpty) return '';
-    if (currentIndex < 0 || currentIndex >= content.length) return '';
+    if (content == null ||
+        content.isEmpty ||
+        currentIndex < 0 ||
+        currentIndex >= content.length) {
+      return (path: '', complete: false, firstHeaderIndex: null);
+    }
+    var complete = true;
+    int? firstHeaderIndex;
 
     final Map<int, String> lastHeaderByLevel = {};
     final hTag = RegExp(r'<h([1-6])[^>]*>(.*?)</h\1>', dotAll: true);
@@ -333,6 +349,10 @@ class CopyUtils {
       if (lastHeaderByLevel.containsKey(2)) break;
 
       final line = content[i];
+      if (line.isEmpty && isLineLoaded?.call(i) == false) {
+        complete = false;
+        break;
+      }
       for (final match in hTag.allMatches(line).toList().reversed) {
         try {
           final level = int.parse(match.group(1)!);
@@ -343,6 +363,7 @@ class CopyUtils {
           final isAncestor = lastHeaderByLevel.keys.every((l) => level < l);
           if (isAncestor && text.isNotEmpty) {
             lastHeaderByLevel[level] = text;
+            firstHeaderIndex = i;
           }
         } catch (_) {
           // התעלם אם תגית ה-h אינה תקינה
@@ -350,7 +371,9 @@ class CopyUtils {
       }
     }
 
-    if (lastHeaderByLevel.isEmpty) return '';
+    if (lastHeaderByLevel.isEmpty) {
+      return (path: '', complete: complete, firstHeaderIndex: null);
+    }
 
     // הרכבת הנתיב לפי סדר הרמות (1, 2, 3...)
     final sortedLevels = lastHeaderByLevel.keys.toList()..sort();
@@ -367,7 +390,11 @@ class CopyUtils {
         );
       }
     }
-    return result;
+    return (
+      path: result,
+      complete: complete,
+      firstHeaderIndex: firstHeaderIndex,
+    );
   }
 
   /// ניקוי תגיות HTML

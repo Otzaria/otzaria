@@ -121,6 +121,7 @@ SearchResult _result(String text) => SearchResult(
   mergedCount: 1,
   merged: const [],
   textStatus: TextStatus.ok,
+  continuesToNextLine: false,
 );
 
 class _ControlledSearchRepository extends SearchRepository {
@@ -129,58 +130,12 @@ class _ControlledSearchRepository extends SearchRepository {
 
   @override
   Stream<SearchStreamUpdate> searchTextsStreamWithCounts(
-    String query,
-    List<String> facets,
-    int limit, {
-    int offset = 0,
+    SearchEngineRequest request, {
     int chunkSize = 50,
-    ResultsOrder order = ResultsOrder.relevance,
-    bool fuzzy = false,
-    int distance = 0,
-    String negativeQuery = '',
-    int? negativeDistance,
-    SearchScope scope = SearchScope.wordDistance,
-    SearchScope? negativeScope,
-    SearchMode searchMode = SearchMode.exact,
-    Map<String, String>? customSpacing,
-    Map<String, String>? negativeCustomSpacing,
-    Map<int, List<String>>? alternativeWords,
-    Map<int, List<String>>? negativeAlternativeWords,
-    Map<String, Map<String, bool>>? searchOptions,
-    Map<String, Map<String, bool>>? negativeSearchOptions,
-    bool matchNikud = false,
-    bool matchTaamim = false,
-    ResultGrouping? grouping,
-    WordMatchMode wordMatchMode = WordMatchMode.all,
-    int? wordMatchCount,
   }) => stream.stream;
 
   @override
-  Future<List<SearchResult>> searchTexts(
-    String query,
-    List<String> facets,
-    int limit, {
-    int offset = 0,
-    ResultsOrder order = ResultsOrder.relevance,
-    bool fuzzy = false,
-    int distance = 0,
-    String negativeQuery = '',
-    int? negativeDistance,
-    SearchScope scope = SearchScope.wordDistance,
-    SearchScope? negativeScope,
-    SearchMode searchMode = SearchMode.exact,
-    bool matchNikud = false,
-    bool matchTaamim = false,
-    Map<String, String>? customSpacing,
-    Map<String, String>? negativeCustomSpacing,
-    Map<int, List<String>>? alternativeWords,
-    Map<int, List<String>>? negativeAlternativeWords,
-    Map<String, Map<String, bool>>? searchOptions,
-    Map<String, Map<String, bool>>? negativeSearchOptions,
-    ResultGrouping? grouping,
-    WordMatchMode wordMatchMode = WordMatchMode.all,
-    int? wordMatchCount,
-  }) {
+  Future<List<SearchResult>> searchTexts(SearchEngineRequest request) {
     loadMore = Completer<List<SearchResult>>();
     return loadMore!.future;
   }

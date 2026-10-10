@@ -137,7 +137,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byIcon(OtzariaIcons.text_continuous_24_filled),
+      find.byIcon(OtzariaIcons.text_continuous_ltr_24_filled),
       findsOneWidget,
     );
     expect(find.byTooltip('הסתר ניווט'), findsOneWidget);
@@ -146,7 +146,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byIcon(OtzariaIcons.text_continuous_24_regular),
+      find.byIcon(OtzariaIcons.text_continuous_rtl_24_regular),
       findsOneWidget,
     );
     expect(find.byTooltip('הצג ניווט'), findsOneWidget);

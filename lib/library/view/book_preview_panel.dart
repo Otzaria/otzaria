@@ -14,6 +14,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/utils/cross_line_result.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -24,6 +25,7 @@ import 'package:otzaria/settings/settings_exports.dart' hide UpdateFontSize;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
+import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/dialogs/password_dialog.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart'
@@ -45,6 +47,9 @@ class BookPreviewPanel extends StatefulWidget {
   /// כשמסופק, גם מסכת בבלי מוצגת כטקסט (ולא במהדורת ה-PDF הנלווית), כדי
   /// שהתצוגה תראה את הקטע שנמצא.
   final int? initialTextIndex;
+
+  /// הביטוי שבתוצאה נמשך מ-[initialTextIndex] אל השורה הבאה.
+  final bool initialTextContinuesToNextLine;
 
   /// עמוד פתיחה בספר PDF (1-based) — לתצוגה מקדימה של תוצאת חיפוש.
   final int? initialPdfPage;
@@ -69,6 +74,7 @@ class BookPreviewPanel extends StatefulWidget {
     this.book,
     this.onOpenInReader,
     this.initialTextIndex,
+    this.initialTextContinuesToNextLine = false,
     this.initialPdfPage,
     this.searchText,
     this.searchOptions = const {},
@@ -110,6 +116,7 @@ bool previewSearchParametersChanged(
 TextBookTab buildPreviewTextTab({
   required TextBook book,
   required int? targetIndex,
+  bool continuesToNextLine = false,
   String? searchText,
   Map<String, Map<String, bool>> searchOptions = const {},
   Map<int, List<String>> alternativeWords = const {},
@@ -129,7 +136,12 @@ TextBookTab buildPreviewTextTab({
     searchMode: hasTarget ? searchMode : SearchMode.exact,
     searchDistance: hasTarget ? searchDistance : 0,
     matchPolicy: hasTarget ? matchPolicy : SearchMatchPolicy.standard,
-    initialSearchResultLines: hasTarget ? {targetIndex} : null,
+    initialSearchResultLines: hasTarget
+        ? searchResultLinesFor(
+            targetIndex,
+            continuesToNextLine: continuesToNextLine,
+          )
+        : null,
     openLeftPane: false,
     splitedView: Settings.getValue<bool>('key-splited-view') ?? true,
   );
@@ -175,7 +187,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
 
     // אותו ספר, מיקום יעד אחר (מעבר בין תוצאות חיפוש) — גלילה בלבד,
     // בלי לבנות את הספר מחדש.
-    if (widget.initialTextIndex != oldWidget.initialTextIndex &&
+    if ((widget.initialTextIndex != oldWidget.initialTextIndex ||
+            widget.initialTextContinuesToNextLine !=
+                oldWidget.initialTextContinuesToNextLine) &&
         widget.initialTextIndex != null) {
       if (_currentTextTab != null) {
         _scrollPreviewToIndex(widget.initialTextIndex!);
@@ -203,7 +217,14 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
       return;
     }
     tab.index = index;
-    tab.bloc.add(UpdateSearchResultLines({index}));
+    tab.bloc.add(
+      UpdateSearchResultLines(
+        searchResultLinesFor(
+          index,
+          continuesToNextLine: widget.initialTextContinuesToNextLine,
+        ),
+      ),
+    );
     final targetIndex = state.readingSegments.isNotEmpty
         ? segmentIndexForLine(state.readingSegments, index)
         : index;
@@ -286,6 +307,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
       _currentTextTab = buildPreviewTextTab(
         book: textBook,
         targetIndex: widget.initialTextIndex,
+        continuesToNextLine: widget.initialTextContinuesToNextLine,
         searchText: widget.searchText,
         searchOptions: widget.searchOptions,
         alternativeWords: widget.alternativeWords,
@@ -430,7 +452,7 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              OtzariaIcons.otzaria_icon_2_page_line_24_regular,
+              OtzariaIcons.otzaria_icon_2_page_lines_24_regular,
               size: 64,
               color: Theme.of(
                 context,
@@ -575,7 +597,8 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                         key: ObjectKey(_currentTextTab),
                         data: state.content,
                         textSize: _fontSize,
-                        openBookCallback: (tab) {},
+                        openBookCallback: (tab) =>
+                            openPreparedTab(context, tab),
                         openLeftPaneTab: (index, {String? searchText}) {},
                         showCommentaryAsExpansionTiles: false,
                         tab: _currentTextTab!,

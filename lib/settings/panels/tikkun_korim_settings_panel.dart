@@ -69,9 +69,7 @@ class _TikkunKorimSettingsTabState extends State<TikkunKorimSettingsTab> {
         defaults.startupMode;
     nusach =
         Settings.getValue<String>(TikkunSettingsKeys.nusach) ?? defaults.nusach;
-    nusachLand =
-        Settings.getValue<String>(TikkunSettingsKeys.nusachLand) ??
-        defaults.nusachLand;
+    nusachLand = const TikkunSettingsStore().load().nusachLand;
     hideDivineName =
         Settings.getValue<bool>(TikkunSettingsKeys.hideDivineName) ??
         defaults.hideDivineName;

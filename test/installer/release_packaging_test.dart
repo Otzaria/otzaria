@@ -53,7 +53,7 @@ void main() {
       '-NoLogo',
       '-NoProfile',
       '-File',
-      'installer/read_indexed_library_manifest.ps1',
+      'installer/read_split_manifest.ps1',
       '-ManifestPath',
       manifestFile.path,
       '-OutputPath',
@@ -75,7 +75,7 @@ void main() {
       p.join(temp.path, 'embedded-manifest'),
     )..createSync();
     final embeddedManifest = File(
-      p.join(embeddedManifestDirectory.path, 'indexed_library.manifest.json'),
+      p.join(embeddedManifestDirectory.path, 'library.manifest.json'),
     );
     manifestFile.copySync(embeddedManifest.path);
     final powerShellOutput = p.join(temp.path, 'reassembled-pwsh.tar.zst');
@@ -125,19 +125,21 @@ void main() {
     expect(workflow, isNot(contains('build-release-index')));
     expect(workflow, contains('tool/release/fetch_prebuilt_library_index.sh'));
     expect(workflow, contains('otzaria-index-inputs'));
-    expect(workflow, contains('otzaria-library-full-indexed'));
+    expect(workflow, contains('otzaria-library-parts'));
+    expect(workflow, isNot(contains('library-full-indexed')));
     expect(workflow, contains('1992294400'));
     expect(workflow, contains('split_release_asset.sh'));
     expect(workflow, contains('compression-level: 0'));
-    expect(workflow, contains('/DIndexedSplitFull=1'));
-    expect(workflow, contains('otzaria-windows-installer-full-indexed'));
-    expect(workflow, contains('התקנה לא־מקוונת בווינדוס'));
-    expect(workflow, contains('indexed_library.manifest.json'));
+    // המתקין הרגיל מטמיע את המניפסט; אין יותר מתקין מאונדקס נפרד.
+    expect(workflow, isNot(contains('IndexedSplitFull')));
+    expect(workflow, isNot(contains('windows-full-indexed')));
+    expect(workflow, contains(r'installer\library.manifest.json'));
+    expect(workflow, contains(r'installer\library_index.manifest.json'));
     expect(
       workflow,
       contains(
         'cp -al "\$GITHUB_WORKSPACE/\$BUNDLE_ROOT/אוצריא" '
-        '"\$INDEXED_LIBRARY_ROOT/books"',
+        '"\$LIBRARY_ROOT/books"',
       ),
     );
   });
@@ -197,10 +199,11 @@ void main() {
     );
     expect(packedTalmud.exitCode, 0, reason: '${packedTalmud.stderr}');
 
-    // בדיוק הצינור ששני הצדדים מריצים על אותו ארכיון.
+    // השמות כבתים גולמיים, כמו שהצד הבונה מאמת מול הדיסק — לא דרך tar, שבלי
+    // locale של UTF-8 מחזיר שמות עבריים כ-escapes אוקטליים.
     final volumesDigest = await sh(
-      'zstd -d -c "${talmud.path}" | tar -tf - | sed "s#.*/##" '
-      r"| grep -i '\.pdf$' | LC_ALL=C sort -u | sha256sum | awk '{print $1}'",
+      'find "${talmudSource.path}" -maxdepth 1 -name "*.pdf" -printf "%f\\n" '
+      r"| LC_ALL=C sort -u | sha256sum | awk '{print $1}'",
     );
     expect(volumesDigest.exitCode, 0, reason: '${volumesDigest.stderr}');
     final talmudVolumesDigest = (volumesDigest.stdout as String).trim();
@@ -219,17 +222,18 @@ packages:
       p.join(temp.path, 'engine', 'rust', 'src', 'api', 'search_engine.rs'),
     )..createSync(recursive: true);
     Directory(p.join(temp.path, '.dart_tool')).createSync();
-    File(p.join(temp.path, '.dart_tool', 'package_config.json'))
-        .writeAsStringSync(
-          jsonEncode({
-            'packages': [
-              {
-                'name': 'otzaria_search_engine',
-                'rootUri': 'file://${p.join(temp.path, 'engine')}',
-              },
-            ],
-          }),
-        );
+    File(
+      p.join(temp.path, '.dart_tool', 'package_config.json'),
+    ).writeAsStringSync(
+      jsonEncode({
+        'packages': [
+          {
+            'name': 'otzaria_search_engine',
+            'rootUri': 'file://${p.join(temp.path, 'engine')}',
+          },
+        ],
+      }),
+    );
     final rebuildTagFile = File(p.join(temp.path, 'rebuild-tag'));
 
     Future<ProcessResult> fetch({
@@ -243,32 +247,39 @@ packages:
         'const INDEX_FORMAT: &str = "otzaria-search-index";\n'
         'pub(crate) const INDEX_SCHEMA_VERSION: u32 = $requiredSchema;\n',
       );
-      File(p.join(dist.path, 'otzaria-library-index.provenance.json'))
-          .writeAsStringSync(
-            jsonEncode({
-              'schemaVersion': 1,
-              'libraryReleaseTag': 'v28-20260910220310',
-              'seforimDbZstSha256': databaseSha256,
-              'indexArchive': 'otzaria-library-index.tar.zst',
-              'indexArchiveSha256': await sha256Of(archive),
-              'catalogueBooks': 7,
-              'talmudBavliSha256': await sha256Of(talmud.path),
-              'talmudVolumesDigest': volumesDigest ?? talmudVolumesDigest,
-              'talmudVolumes': 3,
-              'includesPdfBooks': false,
-              'searchEngineVersion': engineVersion,
-            }),
-          );
-      return Process.run('bash', [
-        'tool/release/fetch_prebuilt_library_index.sh',
-        indexDirectory,
-        database.path,
-        talmud.path,
-        lock.path,
-      ], environment: {
-        'PREBUILT_LIBRARY_INDEX_BASE_URL': 'file://${dist.path}',
-        'PREBUILT_INDEX_REBUILD_TAG_FILE': rebuildTagFile.path,
-      });
+      File(
+        p.join(dist.path, 'otzaria-library-index.provenance.json'),
+      ).writeAsStringSync(
+        jsonEncode({
+          'schemaVersion': 1,
+          'libraryReleaseTag': 'v28-20260910220310',
+          'seforimDbZstSha256': databaseSha256,
+          'indexArchive': 'otzaria-library-index.tar.zst',
+          'indexArchiveSha256': await sha256Of(archive),
+          'catalogueBooks': 7,
+          'talmudBavliSha256': await sha256Of(talmud.path),
+          'talmudVolumesDigest': volumesDigest ?? talmudVolumesDigest,
+          'talmudVolumes': 3,
+          'includesPdfBooks': false,
+          'searchEngineVersion': engineVersion,
+        }),
+      );
+      return Process.run(
+        'bash',
+        [
+          'tool/release/fetch_prebuilt_library_index.sh',
+          indexDirectory,
+          database.path,
+          talmud.path,
+          lock.path,
+        ],
+        environment: {
+          'PREBUILT_LIBRARY_INDEX_BASE_URL': 'file://${dist.path}',
+          'PREBUILT_INDEX_REBUILD_TAG_FILE': rebuildTagFile.path,
+          // כמו קונטיינר debian:bookworm-slim של ה-job, שאין בו locale.
+          'LC_ALL': 'C',
+        },
+      );
     }
 
     final installed = p.join(temp.path, 'installed', 'index');
@@ -298,7 +309,8 @@ packages:
     expect(
       otherEngineSameSchema.exitCode,
       0,
-      reason: '${otherEngineSameSchema.stdout}\n${otherEngineSameSchema.stderr}',
+      reason:
+          '${otherEngineSameSchema.stdout}\n${otherEngineSameSchema.stderr}',
     );
 
     // סכמה אחרת: האפליקציה הייתה דוחה את האינדקס ובונה אותו מחדש אצל המשתמש.
@@ -454,7 +466,8 @@ packages:
                 'full_installer/library_db/seforim.db.zst'
             .allMatches(workflow)
             .length,
-        3,
+        2,
+        reason: 'Windows ו-Linux; Android אורז את חלקי חבילת הספרייה',
       );
       expect(
         workflow,
@@ -726,41 +739,74 @@ packages:
 
     Map<String, String> volumeEnv(int threshold) => {
       'SPLIT_THRESHOLD': '$threshold',
-      'SPLIT_PART_SIZE': '64',
       'ZIP_OVERHEAD_MARGIN': '0',
     };
 
-    test('Android מתחת לסף: ZIP אחד כמו היום', () async {
-      androidBundle({'otzaria-android.apk': 50, 'README.txt': 10});
+    Future<ProcessResult> pack(Directory out, int threshold) =>
+        run('tool/release/pack_android_full.sh', [
+          p.join(temp.path, 'bundle'),
+          'otzaria-android-full',
+          out.path,
+        ], env: volumeEnv(threshold));
+
+    /// שם → שיטת הדחיסה, מתוך `unzip -Zv`.
+    Future<Map<String, String>> entriesOf(File zip) async {
+      final r = await Process.run('unzip', ['-Zv', zip.path]);
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      final entries = <String, String>{};
+      String? name;
+      for (final line in (r.stdout as String).split('\n')) {
+        final header = RegExp(r'^Central directory entry #\d+:').hasMatch(line);
+        if (header) name = null;
+        final trimmed = line.trim();
+        if (name == null &&
+            trimmed.startsWith('otzaria-android-full/') &&
+            !trimmed.endsWith('/')) {
+          name = trimmed;
+        }
+        final method = RegExp(r'compression method:\s+(\S+)').firstMatch(line);
+        if (method != null && name != null) entries[name] = method.group(1)!;
+      }
+      return entries;
+    }
+
+    // חלקים ומניפסטים בשמות שהייבוא באוצריא מזהה, בגודל מוקטן.
+    const library = 'otzaria-1.2.3-library.tar.zst';
+    const index = 'otzaria-1.2.3-library-index.tar.zst';
+    final packageFiles = {
+      'otzaria-android.apk': 30,
+      'README.txt': 10,
+      '$library.manifest.json': 5,
+      '$library.part-000': 120,
+      '$library.part-001': 40,
+      '$index.manifest.json': 5,
+      '$index.part-000': 90,
+    };
+
+    test('Android מתחת לסף: ZIP אחד ללא דחיסה, הכול בשורש', () async {
+      androidBundle(packageFiles);
       final out = Directory(p.join(temp.path, 'out'))..createSync();
-      final result = await run('tool/release/pack_android_full.sh', [
-        p.join(temp.path, 'bundle'),
-        'otzaria-android-full',
-        out.path,
-      ], env: volumeEnv(1000));
+      final result = await pack(out, 1000);
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       expect(namesIn(out), ['otzaria-android-full.zip']);
+      final entries = await entriesOf(
+        File(p.join(out.path, 'otzaria-android-full.zip')),
+      );
+      expect(entries.keys.toSet(), {
+        for (final name in packageFiles.keys) 'otzaria-android-full/$name',
+      });
+      expect(entries.values.toSet(), {'none'}, reason: 'stored');
     });
 
-    test('Android מעל הסף: כרכי ZIP עצמאיים שמשחזרים את החבילה', () async {
-      final root = androidBundle({
-        'otzaria-android.apk': 30,
-        'README.txt': 10,
-        'library_db/seforim.db.zst': 120,
-        'library_db/talmud_bavli_latest.tar.zst': 90,
-        'library_db/lexical.db': 40,
-      });
+    test('Android מעל הסף: כרכים ללא דחיסה, כל חלק שלם בכרך אחד', () async {
+      final root = androidBundle(packageFiles);
       final original = {
         for (final f in root.listSync(recursive: true).whereType<File>())
           p.relative(f.path, from: root.path).replaceAll(r'\', '/'): f
               .readAsBytesSync(),
       };
       final out = Directory(p.join(temp.path, 'out'))..createSync();
-      final result = await run('tool/release/pack_android_full.sh', [
-        p.join(temp.path, 'bundle'),
-        'otzaria-android-full',
-        out.path,
-      ], env: volumeEnv(150));
+      final result = await pack(out, 150);
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       final volumes = namesIn(out);
       expect(volumes, [
@@ -768,52 +814,40 @@ packages:
         'otzaria-android-full-part2.zip',
       ]);
 
-      // כל כרך נפתח לבדו, ה-APK והוראות השימוש בכרך הראשון.
-      final first = await Process.run('unzip', [
-        '-Z1',
-        p.join(out.path, volumes.first),
-      ]);
-      expect(
-        first.stdout,
-        contains('otzaria-android-full/otzaria-android.apk'),
-      );
-      for (final volume in volumes) {
-        final listing = await Process.run('unzip', [
-          '-Z1',
-          p.join(out.path, volume),
-        ]);
-        expect(listing.stdout, contains('otzaria-android-full/README.txt'));
+      final seen = <String, int>{};
+      for (final (i, volume) in volumes.indexed) {
+        final entries = await entriesOf(File(p.join(out.path, volume)));
+        expect(entries.values.toSet(), {'none'}, reason: '$volume stored');
+        expect(entries.keys, contains('otzaria-android-full/README.txt'));
+        if (i == 0) {
+          expect(
+            entries.keys,
+            contains('otzaria-android-full/otzaria-android.apk'),
+          );
+        }
+        for (final name in entries.keys) {
+          if (name.endsWith('README.txt')) continue;
+          seen.update(name, (n) => n + 1, ifAbsent: () => 1);
+        }
       }
+      expect(seen.keys.toSet(), {
+        for (final name in packageFiles.keys)
+          if (name != 'README.txt') 'otzaria-android-full/$name',
+      });
+      expect(seen.values.toSet(), {1}, reason: 'כל קובץ בכרך אחד בדיוק');
       final extracted = await extractAll(
         volumes.map((v) => File(p.join(out.path, v))).toList(),
       );
-      expect(extracted, original);
+      expect(extracted, original, reason: 'החלקים שלמים, בלי פיצול נוסף');
     });
 
-    test('Android: קובץ שגדול מכרך נשמר כחלקים גולמיים עם מניפסט', () async {
-      androidBundle({
-        'otzaria-android.apk': 20,
-        'library_db/seforim.db.zst': 200,
-      });
+    test('Android: קובץ שאינו נכנס בכרך מפיל את האריזה', () async {
+      androidBundle({'otzaria-android.apk': 20, '$library.part-000': 200});
       final out = Directory(p.join(temp.path, 'out'))..createSync();
-      final result = await run('tool/release/pack_android_full.sh', [
-        p.join(temp.path, 'bundle'),
-        'otzaria-android-full',
-        out.path,
-      ], env: volumeEnv(150));
-      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
-      final extracted = await extractAll(
-        namesIn(out).map((v) => File(p.join(out.path, v))).toList(),
-      );
-      expect(
-        extracted.keys,
-        containsAll([
-          'library_db/seforim.db.zst.manifest.json',
-          'library_db/seforim.db.zst.part-000',
-          'library_db/seforim.db.zst.part-003',
-        ]),
-      );
-      expect(extracted.keys, isNot(contains('library_db/seforim.db.zst')));
+      final result = await pack(out, 150);
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('does not fit in one volume'));
+      expect(namesIn(out), isEmpty);
     });
 
     group('download_library_db.sh', () {

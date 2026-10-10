@@ -1,6 +1,5 @@
-import 'dart:collection';
-
 import 'package:otzaria/plugins/declarative/commands/declarative_command_registry.dart';
+import 'package:otzaria/plugins/declarative/compiler/declarative_value_checks.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 
 class DeclarativeActionCompiler {
@@ -9,18 +8,35 @@ class DeclarativeActionCompiler {
   static const int maxQueryLength = 500;
   static const int maxSnackLength = 200;
 
+  /// תקרות לערכי JSON חופשיים (`storage.set.value`, `localService.post.body`)
+  /// ולמפתחות אחסון.
+  static const int maxJsonStringLength = 4096;
+  static const int maxStorageKeyLength = 128;
+
+  /// `localService.post`: נתיב קבוע (בלי query), גוף JSON קטן וזמן המתנה
+  /// בגבולות של `network.fetchStream` (`PluginNetworkFetchService.maxTimeout`).
+  static const int maxLocalServicePathLength = 256;
+  static const int minLocalServiceTimeoutMs = 1000;
+  static const int maxLocalServiceTimeoutMs = 120000;
+  static final RegExp localServicePathPattern = RegExp(
+    r'^/[A-Za-z0-9._~\-/]*$',
+  );
+
   static const Set<String> snackSeverities = {'info', 'success', 'error'};
 
   final Set<String> declaredPermissions;
 
   const DeclarativeActionCompiler({required this.declaredPermissions});
 
+  /// [allowMissingPort] — פעולת לחיצה, שבה `port` ריק (`$storage` שעוד לא
+  /// נשמר) פירושו שהשירות לא עלה. בפקדים ובתכניות הוא נשאר שגיאה.
   CompiledDeclarativeAction compileResolved(
     Map<String, dynamic> json, {
     required String contextSignature,
     required int programGeneration,
+    bool allowMissingPort = false,
   }) {
-    _assertOnlyKeys(json, const {'type', 'args'}, 'action');
+    assertOnlyKeys(json, const {'type', 'args'}, 'action');
     if (contextSignature.isEmpty) {
       throw const DeclarativeProgramException(
         'declarative.invalid_action',
@@ -50,7 +66,7 @@ class DeclarativeActionCompiler {
       );
     }
     final args = _requiredMap(json['args'], 'action.args');
-    _assertOnlyKeys(
+    assertOnlyKeys(
       args,
       {...definition.requiredArgs, ...definition.optionalArgs},
       'action.args',
@@ -85,6 +101,8 @@ class DeclarativeActionCompiler {
           maxQueryLength,
         );
         _optionalBool(args['autoSearch'], 'search.open.autoSearch');
+      case 'localService.post':
+        validateLocalServiceArgs(args, allowMissingPort: allowMissingPort);
       case 'ui.showSnack':
         _requiredShortString(
           args['message'],
@@ -106,7 +124,7 @@ class DeclarativeActionCompiler {
     }
     return CompiledDeclarativeAction(
       type: type,
-      args: _freezeMap(args),
+      args: deepFreeze(args),
       requiredPermission: permission,
       contextSignature: contextSignature,
       programGeneration: programGeneration,
@@ -115,7 +133,7 @@ class DeclarativeActionCompiler {
 
   void _validateOpenBookArgs(Map<String, dynamic> args) {
     final identity = _requiredMap(args['identity'], 'action.args.identity');
-    _assertOnlyKeys(
+    assertOnlyKeys(
       identity,
       const {'id', 'bookId', 'type', 'source', 'external'},
       'action.args.identity',
@@ -124,7 +142,7 @@ class DeclarativeActionCompiler {
     Map<String, dynamic>? external;
     if (externalValue != null) {
       external = _requiredMap(externalValue, 'action.args.identity.external');
-      _assertOnlyKeys(
+      assertOnlyKeys(
         external,
         const {'provider', 'id'},
         'action.args.identity.external',
@@ -187,7 +205,84 @@ class DeclarativeActionCompiler {
     }
   }
 
-  void _requiredShortString(Object? value, String context, int maxLength) {
+  /// היעד תמיד `http://127.0.0.1:<port><path>`: התוסף בוחר רק פורט ונתיב,
+  /// ולכן אין דרך לבנות מכאן כתובת חיצונית. [allowMissingPort] — `port` ריק
+  /// בפעולת לחיצה: המבצע מציג אז שהשירות אינו זמין.
+  ///
+  /// [template] — תבנית לחיצה שעוד לא נפתרה, בוולידציית ההתקנה: הפניה
+  /// (`{"$storage": ...}` וכדומה) נבדקת רק בזמן הלחיצה, וכל ערך מילולי כבר
+  /// עכשיו, כדי שהגדרה שגויה לא תיכשל בשקט בכל לחיצה.
+  static void validateLocalServiceArgs(
+    Map<String, dynamic> args, {
+    bool template = false,
+    bool allowMissingPort = false,
+  }) {
+    bool deferred(Object? value) => template && value is Map;
+
+    final port = args['port'];
+    if (!deferred(port) &&
+        !(port == null && allowMissingPort && !template) &&
+        (port is! int || port < 1 || port > 65535)) {
+      throw const DeclarativeProgramException(
+        'declarative.invalid_args',
+        'localService.post.port must be an integer between 1 and 65535',
+      );
+    }
+    final path = args['path'];
+    if (!deferred(path) &&
+        (path is! String ||
+            path.length > maxLocalServicePathLength ||
+            !localServicePathPattern.hasMatch(path) ||
+            path.contains('//') ||
+            path
+                .split('/')
+                .any((segment) => segment == '.' || segment == '..'))) {
+      throw const DeclarativeProgramException(
+        'declarative.invalid_args',
+        'localService.post.path must be an absolute path such as '
+            '"/text/search", without a query or dot segments',
+      );
+    }
+    final body = args['body'];
+    if (body != null) {
+      if (body is! Map) {
+        throw const DeclarativeProgramException(
+          'declarative.invalid_args',
+          'localService.post.body must be an object',
+        );
+      }
+      // בתבנית, ערכי הגוף כבר נבדקו (DeclarativeSelectionAction); כאן אחרי
+      // הפתרון.
+      if (!template) _validateJsonValue(body, 'localService.post.body');
+    }
+    for (final field in const ['pendingMessage', 'unavailableMessage']) {
+      if (args[field] != null && !deferred(args[field])) {
+        _requiredShortString(
+          args[field],
+          'localService.post.$field',
+          maxSnackLength,
+        );
+      }
+    }
+    final timeoutMs = args['timeoutMs'];
+    if (timeoutMs != null &&
+        !deferred(timeoutMs) &&
+        (timeoutMs is! int ||
+            timeoutMs < minLocalServiceTimeoutMs ||
+            timeoutMs > maxLocalServiceTimeoutMs)) {
+      throw DeclarativeProgramException(
+        'declarative.invalid_args',
+        'localService.post.timeoutMs must be an integer between '
+            '$minLocalServiceTimeoutMs and $maxLocalServiceTimeoutMs',
+      );
+    }
+  }
+
+  static void _requiredShortString(
+    Object? value,
+    String context,
+    int maxLength,
+  ) {
     if (value is! String ||
         value.trim().isEmpty ||
         value.length > maxLength ||
@@ -215,11 +310,12 @@ class DeclarativeActionCompiler {
     final key = args['key'];
     if (key is! String ||
         key.isEmpty ||
-        key.length > 128 ||
+        key.length > maxStorageKeyLength ||
         _hasControlChars(key)) {
       throw const DeclarativeProgramException(
         'declarative.invalid_args',
-        'storage key must be a non-empty string of up to 128 characters',
+        'storage key must be a non-empty string of up to '
+            '$maxStorageKeyLength characters',
       );
     }
     if (!requiresValue) return;
@@ -229,25 +325,25 @@ class DeclarativeActionCompiler {
         'storage.set.value must not be null',
       );
     }
-    _validateStorageValue(args['value']);
+    _validateJsonValue(args['value'], 'storage.set.value');
   }
 
-  void _validateStorageValue(Object? value) {
+  static void _validateJsonValue(Object? value, String context) {
     var nodes = 0;
     void visit(Object? current, int depth) {
       nodes++;
       if (nodes > 256 || depth > 10) {
-        throw const DeclarativeProgramException(
+        throw DeclarativeProgramException(
           'declarative.value_too_large',
-          'storage.set.value is limited in size and nesting depth',
+          '$context is limited in size and nesting depth',
         );
       }
       if (current is Map) {
         for (final entry in current.entries) {
           if (entry.key is! String) {
-            throw const DeclarativeProgramException(
+            throw DeclarativeProgramException(
               'declarative.invalid_args',
-              'storage.set.value object keys must be strings',
+              '$context object keys must be strings',
             );
           }
           visit(entry.value, depth + 1);
@@ -262,42 +358,28 @@ class DeclarativeActionCompiler {
       }
       if (current == null || current is num || current is bool) return;
       if (current is String &&
-          current.length <= 4096 &&
+          current.length <= maxJsonStringLength &&
           !_hasControlChars(current)) {
         return;
       }
-      throw const DeclarativeProgramException(
+      throw DeclarativeProgramException(
         'declarative.invalid_args',
-        'storage.set.value must contain small JSON values only',
+        '$context must contain small JSON values only',
       );
     }
 
     visit(value, 0);
   }
 
-  bool _hasControlChars(String value) {
+  static bool _hasControlChars(String value) {
     for (final unit in value.codeUnits) {
       if (unit < 0x20 || unit == 0x7F) return true;
     }
     return false;
   }
 
-  Map<String, dynamic> _requiredMap(Object? value, String context) {
-    if (value is! Map) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_action',
-        '$context must be an object',
-      );
-    }
-    try {
-      return Map<String, dynamic>.from(value);
-    } on TypeError {
-      throw DeclarativeProgramException(
-        'declarative.invalid_action',
-        '$context keys must be strings',
-      );
-    }
-  }
+  Map<String, dynamic> _requiredMap(Object? value, String context) =>
+      requiredMap(value, context, code: 'declarative.invalid_action');
 
   String _requiredString(Object? value, String context) {
     if (value is! String ||
@@ -322,31 +404,5 @@ class DeclarativeActionCompiler {
       'declarative.invalid_action',
       '$context must be an integer or a non-empty string',
     );
-  }
-
-  void _assertOnlyKeys(
-    Map<String, dynamic> value,
-    Set<String> allowed,
-    String context,
-  ) {
-    final unknown = value.keys.where((key) => !allowed.contains(key)).toList();
-    if (unknown.isNotEmpty) {
-      throw DeclarativeProgramException(
-        'declarative.unknown_field',
-        '$context contains unsupported fields: ${unknown.join(', ')}',
-      );
-    }
-  }
-
-  Map<String, dynamic> _freezeMap(Map<String, dynamic> value) {
-    return UnmodifiableMapView({
-      for (final entry in value.entries) entry.key: _freeze(entry.value),
-    });
-  }
-
-  Object? _freeze(Object? value) {
-    if (value is Map) return _freezeMap(Map<String, dynamic>.from(value));
-    if (value is List) return List.unmodifiable(value.map(_freeze));
-    return value;
   }
 }

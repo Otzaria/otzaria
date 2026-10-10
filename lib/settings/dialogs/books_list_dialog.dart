@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
@@ -63,7 +64,7 @@ class _BooksListDialogState extends State<_BooksListDialog> {
   }
 
   void _onSearchChanged() {
-    final query = _searchController.text.trim();
+    final query = _searchController.text.trim().toLowerCase();
     setState(() {
       _visibleRows = query.isEmpty
           ? _rows
@@ -101,98 +102,67 @@ class _BooksListDialogState extends State<_BooksListDialog> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final media = MediaQuery.of(context);
-    final maxWidth = media.size.width * 0.9;
-    final maxHeight = media.size.height * 0.85;
 
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: maxWidth > 720 ? 720 : maxWidth,
-          maxHeight: maxHeight,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Icon(OtzariaIcons.book_24_regular, color: cs.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      context.settingsText('רשימת הספרים'),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ),
-                  Text(
-                    '${_visibleRows.length} / ${_rows.length}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              RtlTextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(OtzariaIcons.search_24_regular),
-                  hintText: context.settingsText(
-                    'חיפוש לפי שם, מחבר או קטגוריה',
-                  ),
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: _visibleRows.isEmpty
-                    ? Center(
-                        child: Text(
-                          context.settingsText('לא נמצאו ספרים'),
-                          style: TextStyle(color: cs.onSurfaceVariant),
-                        ),
-                      )
-                    : Scrollbar(
-                        controller: _scrollController,
-                        thumbVisibility: true,
-                        child: ListView.separated(
-                          controller: _scrollController,
-                          itemCount: _visibleRows.length,
-                          separatorBuilder: (_, _) => Divider(
-                            height: 1,
-                            color: cs.surfaceContainerHighest,
-                          ),
-                          itemBuilder: (_, i) => _BookListRow(
-                            row: _visibleRows[i],
-                          ),
-                        ),
-                      ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  ActionButton.recommended(
-                    text: context.settingsText('ייצוא ל-CSV'),
-                    icon: FluentIcons.arrow_download_24_regular,
-                    isLoading: _isExporting,
-                    onPressed: _exportToCsv,
-                  ),
-                  const Spacer(),
-                  ActionButton.neutral(
-                    text: context.settingsText('סגור'),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ],
+    return ListDialogFrame(
+      icon: OtzariaIcons.book_24_regular,
+      title: context.settingsText('רשימת הספרים'),
+      counter: '${_visibleRows.length} / ${_rows.length}',
+      children: [
+        const SizedBox(height: 12),
+        RtlTextField(
+          controller: _searchController,
+          autofocus: true,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(OtzariaIcons.search_24_regular),
+            hintText: context.settingsText(
+              'חיפוש לפי שם, מחבר או קטגוריה',
+            ),
+            border: const OutlineInputBorder(),
+            isDense: true,
           ),
         ),
-      ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: _visibleRows.isEmpty
+              ? Center(
+                  child: Text(
+                    context.settingsText('לא נמצאו ספרים'),
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
+                )
+              : Scrollbar(
+                  controller: _scrollController,
+                  thumbVisibility: true,
+                  child: ListView.separated(
+                    controller: _scrollController,
+                    itemCount: _visibleRows.length,
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      color: cs.surfaceContainerHighest,
+                    ),
+                    itemBuilder: (_, i) => _BookListRow(
+                      row: _visibleRows[i],
+                    ),
+                  ),
+                ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            ActionButton.recommended(
+              text: context.settingsText('ייצוא ל-CSV'),
+              icon: FluentIcons.arrow_download_24_regular,
+              isLoading: _isExporting,
+              onPressed: _exportToCsv,
+            ),
+            const Spacer(),
+            ActionButton.neutral(
+              text: context.settingsText('סגור'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -241,7 +211,7 @@ class _BookRow {
   final String category;
   final String fileType;
 
-  const _BookRow({
+  _BookRow({
     required this.title,
     required this.author,
     required this.category,
@@ -259,13 +229,16 @@ class _BookRow {
     );
   }
 
-  bool matches(String query) {
-    final q = query.toLowerCase();
-    return title.toLowerCase().contains(q) ||
-        author.toLowerCase().contains(q) ||
-        category.toLowerCase().contains(q) ||
-        fileType.toLowerCase().contains(q);
-  }
+  // השדות באותיות קטנות מחושבים פעם אחת ולא בכל הקשה.
+  late final _lowerFields = [
+    title,
+    author,
+    category,
+    fileType,
+  ].map((field) => field.toLowerCase()).toList();
+
+  bool matches(String lowerQuery) =>
+      _lowerFields.any((field) => field.contains(lowerQuery));
 }
 
 String _buildCsv(List<_BookRow> rows) {

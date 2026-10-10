@@ -1,0 +1,91 @@
+name: "צילומי מסך — מסייע ההורדה ל-Linux"
+
+# בונה, בודק ומצלם כל מסך של מסייע ההורדה ל-Linux בעברית ובאנגלית, לביקורת עיצוב.
+# job שני בונה בקונטיינר של build_linux (debian:bookworm) — רצפת הגרסאות.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-assistant-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tool/download_assistant/linux
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Install build and render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev xvfb xauth fonts-noto-core adwaita-icon-theme
+
+      - name: Build
+        run: |
+          make
+          make check-needed
+          xvfb-run -a ./build/Otzaria-Download-Assistant --self-test
+
+      - name: Test
+        run: make test
+
+      # הצילומים נוצרים גם כשבדיקה נכשלת — הם עוזרים להבין את הכישלון.
+      - name: Render every screen
+        if: ${{ !cancelled() }}
+        env:
+          GDK_SCALE: "2"
+        run: |
+          mkdir -p "$HOME/.config/gtk-3.0"
+          printf '[Settings]\ngtk-font-name=Noto Sans 10\n' > "$HOME/.config/gtk-3.0/settings.ini"
+          fc-match "Noto Sans:weight=180"; fc-match "Noto Sans Hebrew:weight=180"
+          xvfb-run -a -s "-screen 0 1920x1600x24" ./build/Otzaria-Download-Assistant \
+            --dev-manifest ../fixtures/release-manifest.json \
+            --dev-screenshot "$RUNNER_TEMP/shots" 2>&1 | tee "$RUNNER_TEMP/render.log"
+          # כל אזהרה של GTK (CSS שלא נקרא, ווידג'ט שגוי) היא באג בממשק.
+          if grep -E "Gtk-(WARNING|CRITICAL)|GLib-GObject-(WARNING|CRITICAL)|theme parsing error" "$RUNNER_TEMP/render.log"; then
+            exit 1
+          fi
+
+      # ארכיון אחד ולא קובצי PNG: מסנני תוכן חוסמים לפעמים הורדה של zip עם תמונות.
+      - name: Pack screenshots
+        if: always()
+        run: tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/linux-assistant-screenshots.tar" shots
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: linux-assistant-screenshots
+          path: ${{ runner.temp }}/linux-assistant-screenshots.tar
+          if-no-files-found: warn
+
+  bookworm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: debian:bookworm-slim
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential pkg-config \
+            libgtk-3-dev ca-certificates curl unzip git
+
+      - name: Clone repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Test and build on the oldest target
+        working-directory: tool/download_assistant/linux
+        run: |
+          make test
+          make
+          make check-needed

@@ -1,18 +1,7 @@
 -- Queries for publication places
 
-selectAll:
-SELECT * FROM pub_place ORDER BY name;
-
-selectById:
-SELECT * FROM pub_place WHERE id = ?;
-
 selectByName:
 SELECT * FROM pub_place WHERE name = ? LIMIT 1;
-
-selectByBookId:
-SELECT p.* FROM pub_place p
-JOIN book_pub_place bp ON p.id = bp.pubPlaceId
-WHERE bp.bookId = ?;
 
 insert:
 INSERT INTO pub_place (name)
@@ -23,12 +12,3 @@ linkBookPubPlace:
 INSERT INTO book_pub_place (bookId, pubPlaceId)
 VALUES (?, ?)
 ON CONFLICT (bookId, pubPlaceId) DO NOTHING;
-
-delete:
-DELETE FROM pub_place WHERE id = ?;
-
-countAll:
-SELECT COUNT(*) FROM pub_place;
-
-lastInsertRowId:
-SELECT last_insert_rowid();

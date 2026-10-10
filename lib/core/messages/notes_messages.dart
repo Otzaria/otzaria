@@ -71,4 +71,9 @@ abstract class NotesMessages {
       'החלפת שולחן העבודה נכשלה. הכרטיסיות הפתוחות נשארו כפי שהיו.';
 
   static const String workspaceSaveFailed = 'שמירת שולחנות העבודה נכשלה';
+  static const String workspacePinned =
+      'שולחן העבודה קובע. בכל כניסה אליו ייפתחו הספרים שנשמרו בו';
+  static const String workspaceUnpinned = 'קיבוע שולחן העבודה בוטל';
+  static const String workspaceSnapshotSaved =
+      'הספרים הפתוחים נשמרו בשולחן העבודה המקובע';
 }

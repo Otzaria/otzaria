@@ -15,10 +15,10 @@ import 'package:otzaria/utils/ui/context_menu_utils.dart';
 import 'package:otzaria/widgets/misc/middle_click_open.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
-import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
-import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/note_inline_render.dart';
-import 'package:otzaria/text_book/view/selection/selected_text_restore.dart';
+import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
@@ -114,11 +114,8 @@ class _CommentaryContentState extends State<CommentaryContent>
     super.dispose();
   }
 
-  Future<void> _openAnchorTarget(Link link) async {
-    final tab = await buildLinkTargetTab(link);
-    if (!mounted) return;
-    widget.openBookCallback(tab);
-  }
+  Future<void> _openAnchorTarget(Link link) =>
+      openLinkTarget(link, (tab) => widget.openBookCallback(tab));
 
   void _loadContent() {
     // Validate link before loading content
@@ -260,14 +257,14 @@ class _CommentaryContentState extends State<CommentaryContent>
                       SmartTextWidget(
                         text: displayData,
                         settings: renderSettings,
-                        onAnchorTap: anchorLinks.isEmpty
+                        onAnchorTap: !hasPanelLinks
                             ? null
                             : (url) {
                                 cancelAnchorHover();
                                 final link = anchorLinkFromUrl(url);
                                 if (link != null) _openAnchorTarget(link);
                               },
-                        onAnchorHover: anchorLinks.isEmpty
+                        onAnchorHover: !hasPanelLinks
                             ? null
                             : (url, position) => handleAnchorHover(
                                 url,
@@ -275,7 +272,7 @@ class _CommentaryContentState extends State<CommentaryContent>
                                 onOpen: _openAnchorTarget,
                                 displayProfile: widget.displayProfile,
                               ),
-                        onAnchorHoverExit: anchorLinks.isEmpty
+                        onAnchorHoverExit: !hasPanelLinks
                             ? null
                             : handleAnchorHoverExit,
                         onNoteTap: notesForLine.isEmpty

@@ -68,28 +68,15 @@ class _SaferModeGuardState extends State<SaferModeGuard> {
   Future<void> _showPasswordDialog() async {
     if (!mounted) return;
 
-    final repository = context.read<SettingsRepository>();
-
-    final verified = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: settingsDialogBuilder(
-        context,
-        (dialogContext) => SaferModePasswordDialog(
-          title: dialogContext.settingsText('הזן סיסמה'),
-          hint: dialogContext.settingsText(
-            'הנך במצב סייפר.\nהזן את הסיסמה כדי לגשת להגדרות',
-          ),
-          onVerify: (password) async {
-            return repository.verifyProtectedModePassword(password);
-          },
-        ),
-      ),
+    final verified = await showSaferModePasswordDialog(
+      context,
+      title: 'הזן סיסמה',
+      hint: 'הנך במצב סייפר.\nהזן את הסיסמה כדי לגשת להגדרות',
     );
 
     if (!mounted) return;
 
-    if (verified == true) {
+    if (verified) {
       setState(() {
         _isVerified = true;
       });
@@ -243,23 +230,32 @@ Future<bool> verifySaferModePassword(BuildContext context) async {
     return true; // אין הגנה - מאושר
   }
 
-  final repository = context.read<SettingsRepository>();
+  return showSaferModePasswordDialog(
+    context,
+    title: 'אמת סיסמה',
+    hint: 'הנך במצב סייפר.\nהזן את הסיסמה כדי לבצע פעולה זו',
+  );
+}
 
+/// מציג את חלון אימות הסיסמה ומחזיר true רק כשהסיסמה אומתה.
+/// [title] ו-[hint] הם מפתחות settingsText, ומתורגמים בשפת הדיאלוג.
+Future<bool> showSaferModePasswordDialog(
+  BuildContext context, {
+  required String title,
+  required String hint,
+}) async {
+  final repository = context.read<SettingsRepository>();
   final verified = await showDialog<bool>(
     context: context,
     builder: settingsDialogBuilder(
       context,
       (ctx) => SaferModePasswordDialog(
-        title: ctx.settingsText('אמת סיסמה'),
-        hint: ctx.settingsText(
-          'הנך במצב סייפר.\nהזן את הסיסמה כדי לבצע פעולה זו',
-        ),
-        onVerify: (password) async {
-          return repository.verifyProtectedModePassword(password);
-        },
+        title: ctx.settingsText(title),
+        hint: ctx.settingsText(hint),
+        onVerify: (password) async =>
+            repository.verifyProtectedModePassword(password),
       ),
     ),
   );
-
   return verified == true;
 }

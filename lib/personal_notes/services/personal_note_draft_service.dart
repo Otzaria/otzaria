@@ -63,16 +63,24 @@ class PersonalNoteDraftService {
     String? noteId,
   }) {
     assert((lineNumber == null) != (noteId == null));
-    final bookSegment = categoryId != null ? '$bookId@$categoryId' : bookId;
-    if (noteId != null) {
-      return '$keyPrefix$bookSegment:note:$noteId';
-    }
-    return '$keyPrefix$bookSegment:$lineNumber';
+    final prefix = _bookPrefix(bookId, categoryId: categoryId);
+    return noteId != null ? '${prefix}note:$noteId' : '$prefix$lineNumber';
   }
 
   String _bookPrefix(String bookId, {int? categoryId}) {
     final bookSegment = categoryId != null ? '$bookId@$categoryId' : bookId;
     return '$keyPrefix$bookSegment:';
+  }
+
+  PersonalNoteDraft? _readDraft(String key) {
+    final raw = Settings.getValue<String>(key);
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return PersonalNoteDraft.fromJson(decoded);
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<PersonalNoteDraft?> loadDraft({
@@ -87,14 +95,7 @@ class PersonalNoteDraftService {
       lineNumber: lineNumber,
       noteId: noteId,
     );
-    final raw = Settings.getValue<String>(key);
-    if (raw == null) return null;
-    try {
-      final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      return PersonalNoteDraft.fromJson(decoded);
-    } catch (e) {
-      return null;
-    }
+    return _readDraft(key);
   }
 
   Future<void> saveDraft({
@@ -155,19 +156,11 @@ class PersonalNoteDraftService {
     for (final key in matchingKeys) {
       if (key.contains(':note:')) continue;
 
-      final raw = Settings.getValue<String>(key);
-      if (raw == null) continue;
-
-      try {
-        final decoded = jsonDecode(raw) as Map<String, dynamic>;
-        final draft = PersonalNoteDraft.fromJson(decoded);
-        if (draft.lineNumber == null) continue;
-        if (latestDraft == null ||
-            draft.updatedAt.isAfter(latestDraft.updatedAt)) {
-          latestDraft = draft;
-        }
-      } catch (_) {
-        continue;
+      final draft = _readDraft(key);
+      if (draft == null || draft.lineNumber == null) continue;
+      if (latestDraft == null ||
+          draft.updatedAt.isAfter(latestDraft.updatedAt)) {
+        latestDraft = draft;
       }
     }
 

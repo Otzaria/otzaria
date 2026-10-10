@@ -123,7 +123,7 @@ public final class TransferSink {
         }
         guard written + Int64(data.count) <= expectedSize else {
             throw AssistantError(
-                "אחד הקבצים שהורדו נמצא פגום ולא נשמר.",
+                AssistantError.downloadDamaged,
                 technical: "\(url.lastPathComponent): more bytes than the expected \(expectedSize)"
             )
         }

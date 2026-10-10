@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/services/plugin_update_check_service.dart';
+import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 /// מצב עדכוני התוספים הזמינים: מפה `pluginId -> עדכון`, אחרי סינון תוספים
@@ -47,7 +48,7 @@ class PluginUpdatesCubit extends Cubit<PluginUpdatesState> {
        super(const PluginUpdatesState({}));
 
   static Future<String> _loadAppVersion() async =>
-      (await PackageInfo.fromPlatform()).version;
+      canonicalAppVersion(await PackageInfo.fromPlatform());
 
   /// מפעילה בדיקת עדכונים אם עבר ה-TTL. בטוחה לקריאה בכל פתיחת טאב תוסף:
   /// בדיקות מקבילות מתלכדות, ובתוך חלון ה-TTL הקריאה היא no-op.

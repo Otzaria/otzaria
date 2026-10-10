@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:otzaria/data/data_providers/external_catalog_mapper.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/plugins/declarative/compiler/declarative_selection_action.dart';
+import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 
@@ -33,6 +35,10 @@ class PluginLibraryBookProvider {
   final String? iconName;
   final PluginWhenCondition? when;
 
+  /// פעולת host שמבצעים בלחיצה על ספר, בלי להעיר את מנוע התוסף. בלעדיה
+  /// הלחיצה נמסרת לתוסף באירוע `library.providerBook.openRequested`.
+  final Map<String, dynamic>? openAction;
+
   const PluginLibraryBookProvider({
     required this.pluginId,
     required this.id,
@@ -40,6 +46,7 @@ class PluginLibraryBookProvider {
     required this.title,
     this.iconName,
     this.when,
+    this.openAction,
   });
 
   /// משמש גם את הוולידציה בעת אריזה, ולכן אינו תלוי במצב התוכנה.
@@ -48,7 +55,7 @@ class PluginLibraryBookProvider {
     Map<String, dynamic> item, {
     String? fallbackIconName,
   }) {
-    const allowed = {'id', 'provider', 'title', 'icon', 'when'};
+    const allowed = {'id', 'provider', 'title', 'icon', 'when', 'openAction'};
     final unknown = item.keys.where((key) => !allowed.contains(key));
     if (unknown.isNotEmpty) {
       throw PluginLibraryBooksException(
@@ -93,6 +100,26 @@ class PluginLibraryBookProvider {
         throw PluginLibraryBooksException('libraryBooks.when לא תקין: $error');
       }
     }
+    // מבנה בלבד: הצהרת ההרשאה נבדקת בוולידטור ההתקנה ושוב בזמן הלחיצה.
+    Map<String, dynamic>? openAction;
+    if (item['openAction'] case final rawAction?) {
+      if (rawAction is! Map) {
+        throw const PluginLibraryBooksException(
+          'libraryBooks.openAction חייב להיות אובייקט',
+        );
+      }
+      try {
+        openAction = Map<String, dynamic>.from(rawAction);
+        DeclarativeSelectionAction.validateTemplate(
+          openAction,
+          source: DeclarativeClickSource.libraryBook,
+        );
+      } on DeclarativeProgramException catch (error) {
+        throw PluginLibraryBooksException(
+          'libraryBooks.openAction לא תקין: $error',
+        );
+      }
+    }
     return PluginLibraryBookProvider(
       pluginId: pluginId,
       id: id,
@@ -100,6 +127,7 @@ class PluginLibraryBookProvider {
       title: title.trim(),
       iconName: icon as String? ?? fallbackIconName,
       when: when,
+      openAction: openAction,
     );
   }
 
@@ -110,7 +138,8 @@ class PluginLibraryBookProvider {
       provider == other.provider &&
       title == other.title &&
       iconName == other.iconName &&
-      jsonEncode(when?.toJson()) == jsonEncode(other.when?.toJson());
+      jsonEncode(when?.toJson()) == jsonEncode(other.when?.toJson()) &&
+      jsonEncode(openAction) == jsonEncode(other.openAction);
 
   /// שם שהמזהה שלו (`<provider>:<id>`) נקרא כספק מובנה אסור: חלק מהמסכים
   /// מזהים את הספקים המובנים לפי מחרוזת חלקית (`hb:`, `otzar` וכו'), וכך

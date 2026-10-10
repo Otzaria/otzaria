@@ -14,6 +14,7 @@ import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_registry.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:otzaria/plugins/services/plugin_new_tab_page_registry.dart';
+import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_startup_contributions_service.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
@@ -42,6 +43,7 @@ import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
+import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
@@ -172,6 +174,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         return;
       }
       devWatchService.syncWatchers(await repository.getDevelopmentPlugins());
+      await PluginTextReaderRegistry.instance.sync(plugins, repository);
       _registerPluginShortcuts(plugins);
       await PluginStartupContributionsService.instance.sync(
         plugins,
@@ -416,6 +419,11 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
           isUserInitiated: event.isUserInitiated,
         ),
       );
+    } on PluginNewerVersionInstalledException catch (e) {
+      UiSnack.show(
+        PluginMessages.newerVersionInstalled(e.pluginName, e.installedVersion),
+      );
+      add(LoadPlugins());
     } catch (e) {
       UiSnack.showError(PluginMessages.installPluginError(e));
       add(LoadPlugins()); // Reset state
@@ -438,7 +446,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     try {
       String? appVersion;
       try {
-        appVersion = (await PackageInfo.fromPlatform()).version;
+        appVersion = canonicalAppVersion(await PackageInfo.fromPlatform());
       } catch (_) {}
 
       archivePath = await _downloadService.downloadPluginArchive(
@@ -616,6 +624,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       // מיד, ולא בסנכרון שאחרי: רשימה שבאמצע שמירה הייתה נכתבת שוב ל-DB.
       PluginLibraryBooksRegistry.instance.removePlugin(event.pluginId);
       PluginNewTabPageRegistry.instance.remove(event.pluginId);
+      await _cancelPluginNotifications(event.pluginId);
       await _installerService.uninstallPlugin(event.pluginId);
       add(LoadPlugins());
     } catch (e) {
@@ -660,11 +669,8 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     );
     if (raw == null) return;
     final notifications = NotificationService();
-    if (!notifications.isInitialized) return;
     final ids = (jsonDecode(raw) as List).whereType<int>();
-    for (final id in ids) {
-      await notifications.cancelNotification(id);
-    }
+    await notifications.cancelNotifications(ids);
   }
 
   Future<void> _onEnablePluginRequested(
@@ -728,6 +734,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   }
 
   void _clearPluginRegistrations(String pluginId) {
+    PluginTextReaderRegistry.instance.remove(pluginId);
     _removeDeclarative(pluginId);
     ContextMenuRegistry.instance.removeAll(pluginId);
     PluginToolbarRegistry.instance.removeAll(pluginId);
@@ -772,6 +779,9 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         }
         if (event.permission == 'app.shortcuts') {
           PluginShortcutRegistry.instance.removeAll(event.pluginId);
+        }
+        if (event.permission == 'reader.highlight') {
+          PluginHighlightRegistry.instance.removePlugin(event.pluginId);
         }
         if (event.permission == pluginRunOnStartupPermission ||
             event.permission == pluginStartupContributionsPermission) {

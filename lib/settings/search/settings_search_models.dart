@@ -64,14 +64,28 @@ class SettingsSearchEntry {
           : entry.value,
   };
 
+  // הפריטים קבועים והקטלוגים קבועים, לכן המטמון חסום במספר הפריטים כפול השפות.
+  static final _searchTextsCache =
+      <(SettingsSearchEntry, SettingsLanguage), SettingsSearchTexts>{};
+
+  /// טקסטי הפריט בשפה [language], מנורמלים לחיפוש ומחושבים פעם אחת.
+  SettingsSearchTexts searchTextsIn(SettingsLanguage language) =>
+      _searchTextsCache.putIfAbsent(
+        (this, language),
+        () => SettingsSearchTexts._(
+          normalize(titleIn(language)),
+          normalize(subtitleIn(language)),
+          [
+            for (final keyword in keywords)
+              normalize(resolveSettingsText(keyword, language: language)),
+          ],
+        ),
+      );
+
   /// מחשב ציון התאמה (גבוה יותר = רלוונטי יותר) לשאילתת חיפוש מנורמלת.
   /// 0 = לא מתאים. שאילתה ריקה תחזיר 0.
-  int matchScore(String normalizedQuery) => _scoreFor(
-    normalizedQuery,
-    titleIn(SettingsLanguage.source),
-    subtitleIn(SettingsLanguage.source),
-    keywords,
-  );
+  int matchScore(String normalizedQuery) =>
+      _scoreFor(normalizedQuery, searchTextsIn(SettingsLanguage.source));
 
   /// ציון התאמה בשפת התצוגה [language].
   ///
@@ -81,27 +95,16 @@ class SettingsSearchEntry {
     final hebrewScore = matchScore(normalizedQuery);
     if (language == SettingsLanguage.source) return hebrewScore;
 
-    String translate(String text) =>
-        resolveSettingsText(text, language: language);
     final translatedScore = _scoreFor(
       normalizedQuery,
-      titleIn(language),
-      subtitleIn(language),
-      keywords.map(translate).toList(),
+      searchTextsIn(language),
     );
     return hebrewScore > translatedScore ? hebrewScore : translatedScore;
   }
 
-  static int _scoreFor(
-    String normalizedQuery,
-    String title,
-    String subtitle,
-    List<String> keywords,
-  ) {
+  static int _scoreFor(String normalizedQuery, SettingsSearchTexts texts) {
     if (normalizedQuery.isEmpty) return 0;
-    final normalizedTitle = normalize(title);
-    final normalizedSubtitle = normalize(subtitle);
-    final normalizedKeywords = keywords.map(normalize).toList();
+    final normalizedTitle = texts.title;
 
     var score = 0;
     if (normalizedTitle == normalizedQuery) {
@@ -111,10 +114,10 @@ class SettingsSearchEntry {
     } else if (normalizedTitle.contains(normalizedQuery)) {
       score += 40;
     }
-    if (normalizedSubtitle.contains(normalizedQuery)) {
+    if (texts.subtitle.contains(normalizedQuery)) {
       score += 15;
     }
-    for (final kw in normalizedKeywords) {
+    for (final kw in texts.keywords) {
       if (kw.contains(normalizedQuery)) {
         score += 10;
         break;
@@ -136,10 +139,13 @@ class SettingsSearchEntry {
     }
     return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
   }
+}
 
-  /// טקסט החיפוש המנורמל לאותה הגדרה (משמש להשוואה).
-  String get normalizedSearchText =>
-      '${normalize(titleIn(SettingsLanguage.source))} '
-      '${normalize(subtitleIn(SettingsLanguage.source))} '
-      '${keywords.map(normalize).join(' ')}';
+/// טקסטי פריט חיפוש בשפה אחת, אחרי [SettingsSearchEntry.normalize].
+class SettingsSearchTexts {
+  final String title;
+  final String subtitle;
+  final List<String> keywords;
+
+  const SettingsSearchTexts._(this.title, this.subtitle, this.keywords);
 }

@@ -5,15 +5,45 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 
-/// מחזירה האם כותרת סימנייה תואמת לשאילתת החיפוש, עם נורמליזציה כמו באיתור
-/// (הסרת ניקוד וגרשיים) כך שכותרות עבריות יימצאו גם ללא תווים אלו.
-bool pdfOutlineTitleMatchesQuery(String title, String rawQuery) {
+typedef PdfOutlineSearchEntry = ({
+  PdfOutlineNode node,
+  int level,
+  String normalizedTitle,
+});
+
+/// כל צמתי העץ בסדר התצוגה, עם הכותרת מנורמלת כמו באיתור (בלי ניקוד וגרשיים).
+@visibleForTesting
+List<PdfOutlineSearchEntry> flattenPdfOutlineForSearch(
+  List<PdfOutlineNode> outline,
+) {
+  final entries = <PdfOutlineSearchEntry>[];
+  void walk(List<PdfOutlineNode> nodes, int level) {
+    for (final node in nodes) {
+      final title = normalizeFindText(node.title);
+      entries.add((node: node, level: level, normalizedTitle: title));
+      walk(node.children, level + 1);
+    }
+  }
+
+  walk(outline, 0);
+  return entries;
+}
+
+@visibleForTesting
+List<PdfOutlineSearchEntry> filterPdfOutline(
+  List<PdfOutlineSearchEntry> entries,
+  String rawQuery,
+) {
   final normalizedQuery = normalizeFindText(rawQuery);
-  if (normalizedQuery.isEmpty) return true;
-  return findNormalizedTextMatches(
-    normalizedQuery: normalizedQuery,
-    normalizedPrimaryText: normalizeFindText(title),
-  );
+  if (normalizedQuery.isEmpty) return entries;
+  return entries
+      .where(
+        (e) => findNormalizedTextMatches(
+          normalizedQuery: normalizedQuery,
+          normalizedPrimaryText: e.normalizedTitle,
+        ),
+      )
+      .toList();
 }
 
 class OutlineView extends StatefulWidget {
@@ -68,8 +98,15 @@ class _OutlineViewState extends State<OutlineView>
 
   /// הסעיף שהעמוד הנוכחי נמצא בו — גם כשהעמוד אינו תחילת סעיף.
   PdfOutlineNode? _activeNode;
+
+  // מעבר עמוד מחליף רק את הסימון; דגל לכל צומת בונה מחדש שתי שורות ולא את כל העץ.
+  final Map<PdfOutlineNode, ValueNotifier<bool>> _selected = {};
   final Map<PdfOutlineNode, bool> _expanded = {};
   final Map<PdfOutlineNode, ExpansibleController> _controllers = {};
+
+  // הסינון רץ בכל הקשה ובכל מעבר עמוד, ולכן הכותרות מנורמלות פעם אחת לעץ.
+  List<PdfOutlineNode>? _searchEntriesSource;
+  List<PdfOutlineSearchEntry> _searchEntries = const [];
 
   @override
   bool get wantKeepAlive => true;
@@ -104,6 +141,9 @@ class _OutlineViewState extends State<OutlineView>
   @override
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
+    for (final notifier in _selected.values) {
+      notifier.dispose();
+    }
     _tocScrollController.dispose();
     searchController.dispose();
     super.dispose();
@@ -113,6 +153,13 @@ class _OutlineViewState extends State<OutlineView>
     if (mounted) {
       _scrollToActiveItem();
     }
+  }
+
+  void _setActiveNode(PdfOutlineNode? node) {
+    if (identical(node, _activeNode)) return;
+    _selected[_activeNode]?.value = false;
+    _activeNode = node;
+    _selected[node]?.value = true;
   }
 
   void _ensureParentsOpen(
@@ -129,7 +176,7 @@ class _OutlineViewState extends State<OutlineView>
     if (targetLevel >= 2) {
       for (final node in path) {
         if (node.children.isNotEmpty && _expanded[node] != true) {
-          _expanded[node] = true;
+          setState(() => _expanded[node] = true);
           _controllers[node]?.expand();
         }
       }
@@ -188,9 +235,7 @@ class _OutlineViewState extends State<OutlineView>
 
     // בגלילה ידנית רק ההדגשה מתעדכנת; הגלילה האוטומטית תחכה לסיומה.
     if (_isManuallyScrolling) {
-      if (!identical(activeNode, _activeNode) && mounted) {
-        setState(() => _activeNode = activeNode);
-      }
+      _setActiveNode(activeNode);
       return;
     }
 
@@ -199,7 +244,9 @@ class _OutlineViewState extends State<OutlineView>
     if (activeNode != null && outline != null) {
       _ensureParentsOpen(outline, activeNode);
     }
-    if (mounted) setState(() => _activeNode = activeNode);
+    _setActiveNode(activeNode);
+    // בלי setState ייתכן שאין פריים מתוזמן, והגלילה שלמטה הייתה ממתינה לו.
+    SchedulerBinding.instance.ensureVisualUpdate();
     if (activeNode == null) return;
 
     // נחכה פריים אחד כדי שה-setState יסיים וה-UI יתעדכן
@@ -318,26 +365,15 @@ class _OutlineViewState extends State<OutlineView>
     );
   }
 
-  Widget _buildFilteredOutlineList(List<PdfOutlineNode>? outline) {
-    List<({PdfOutlineNode node, int level})> allNodes = [];
-    void getAllNodes(List<PdfOutlineNode>? outline, int level) {
-      if (outline == null) return;
-      for (var node in outline) {
-        allNodes.add((node: node, level: level));
-        getAllNodes(node.children, level + 1);
-      }
+  Widget _buildFilteredOutlineList(List<PdfOutlineNode> outline) {
+    if (!identical(_searchEntriesSource, outline)) {
+      _searchEntriesSource = outline;
+      _searchEntries = flattenPdfOutlineForSearch(outline);
     }
-
-    getAllNodes(widget.outline, 0);
-
-    final filteredNodes = allNodes
-        .where(
-          (item) => pdfOutlineTitleMatchesQuery(
-            item.node.title,
-            searchController.text,
-          ),
-        )
-        .toList();
+    final filteredNodes = filterPdfOutline(
+      _searchEntries,
+      searchController.text,
+    );
 
     return NavTreeFocusGroup(
       child: SingleChildScrollView(
@@ -393,23 +429,28 @@ class _OutlineViewState extends State<OutlineView>
       await widget.controller.goToPage(pageNumber: targetPage);
     }
 
-    final bool selected = identical(node, _activeNode);
-
+    final selected = _selected.putIfAbsent(
+      node,
+      () => ValueNotifier(identical(node, _activeNode)),
+    );
     final hasChildren = node.children.isNotEmpty;
     final bool isExpanded = _expanded[node] ?? (level == 0 || isFirstChild);
 
-    final tile = NavTreeTile.heading(
-      title: node.title,
-      level: level,
-      isSelected: selected,
-      isExpanded: isExpanded,
-      hasChildren: hasChildren,
-      onTap: navigateToEntry,
-      onToggleExpand: hasChildren
-          ? () => setState(() {
-              _expanded[node] = !isExpanded;
-            })
-          : null,
+    final tile = ValueListenableBuilder<bool>(
+      valueListenable: selected,
+      builder: (context, isSelected, _) => NavTreeTile.heading(
+        title: node.title,
+        level: level,
+        isSelected: isSelected,
+        isExpanded: isExpanded,
+        hasChildren: hasChildren,
+        onTap: navigateToEntry,
+        onToggleExpand: hasChildren
+            ? () => setState(() {
+                _expanded[node] = !isExpanded;
+              })
+            : null,
+      ),
     );
 
     if (!hasChildren) {

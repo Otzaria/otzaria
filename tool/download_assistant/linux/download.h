@@ -39,10 +39,12 @@ typedef struct {
 
 typedef struct OtzJob OtzJob;
 
-/* selected_ids must already include the dependsOn closure. */
+/* selected_ids must already include the dependsOn closure. subfolder_name
+ * replaces the contract's name for a multi-file result (NULL keeps it). */
 OtzJob *otz_job_new(const OtzManifest *manifest, GPtrArray *selected_ids,
                     const OtzTarget *target, const char *cache_dir,
-                    const char *base_dir, GError **error);
+                    const char *base_dir, const char *subfolder_name,
+                    GError **error);
 void otz_job_free(OtzJob *job);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(OtzJob, otz_job_free)
 
@@ -69,6 +71,8 @@ OtzFailure otz_job_failure(OtzJob *job);
 const char *otz_job_output_dir(OtzJob *job);
 /* Names of the files produced in the output dir, manifest order. */
 GPtrArray *otz_job_output_files(OtzJob *job);
+/* outputNote texts of the selection, for the finish page. */
+GPtrArray *otz_job_output_notes(OtzJob *job);
 /* Split assets left as parts for a non-Windows target (4 GiB and up). */
 GPtrArray *otz_job_unjoined_assets(OtzJob *job);
 /* Bytes this run fed into SHA-256 and bytes it downloaded — equal when every

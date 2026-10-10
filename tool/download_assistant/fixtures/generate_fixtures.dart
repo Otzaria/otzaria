@@ -9,9 +9,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 
 import '../../release/download_assistant_selection.dart';
 import '../../release/generate_release_manifest.dart';
+import '../../release/semantic_release_components.dart';
 
 const String kFixtureTag = '0.10.3+143';
 const String kFixtureVersion = '0.10.3';
@@ -24,7 +27,6 @@ const Map<String, int> _singleFiles = {
   'otzaria-0.10.3-windows_arm64.exe': 38,
   'otzaria-windows.zip': 45,
   'otzaria-windows_arm64.zip': 44,
-  'otzaria-0.10.3-windows-full-indexed.exe': 60,
   'otzaria-0.10.3-windows_arm64-full.exe': 1990,
   'otzaria-0.10.3+143-linux.deb': 96,
   'otzaria-0.10.3+143-linux-arm64.deb': 87,
@@ -35,8 +37,8 @@ const Map<String, int> _singleFiles = {
   'otzaria-macos.zip': 86,
   'otzaria-macos-full.tar.zst': 1853,
   'app-release.apk': 96,
-  'otzaria-android-full.zip': 1925,
   // אינם רכיבים — חייבים להיעדר מהמניפסט.
+  'otzaria-android-full.zip': 1925,
   'Otzaria-Download-Assistant-windows.exe': 5,
   'Otzaria-Download-Assistant-macos.zip': 5,
   'Otzaria-Download-Assistant-linux-x64.tar.gz': 5,
@@ -49,7 +51,8 @@ const Map<String, int> _singleFiles = {
 const Map<String, List<int>> _splitFiles = {
   'otzaria-0.10.3-windows-full.exe': [1500, 519],
   'otzaria-linux-full.tar.zst': [1500, 427],
-  'otzaria-0.10.3-library-full-indexed.tar.zst': [1500, 1500, 215],
+  'otzaria-0.10.3-library.tar.zst': [1500, 1500, 15],
+  'otzaria-0.10.3-library-index.tar.zst': [600],
 };
 
 /// מחשבי היעד שעליהם נבדק החוזה.
@@ -143,6 +146,48 @@ void writeFixtureRelease(Directory dir) {
   });
 }
 
+String _fakeSha(String name) => sha256.convert(utf8.encode(name)).toString();
+
+SemanticModelFile _fakeModelFile(String name, int size) =>
+    SemanticModelFile(name: name, size: size, sha256: _fakeSha(name));
+
+/// רכיבי החיפוש הסמנטי, בקנה המידה המוקטן של שאר הקבצים — כפי ש-
+/// semantic_release_components.dart בונה אותם ב-CI.
+List<Map<String, Object?>> buildFixtureSemanticComponents() {
+  const segment = 'otzaria-vectors-0c3f95be-v30-base.oxv.zst';
+  const manifest = '{"kind":"base"}';
+  return buildSemanticComponents(
+    model: SemanticModelRelease(
+      baseUrl:
+          'https://github.com/Otzaria/otzaria-semantic-search/releases/download/model-meivin-round2-int8-v1',
+      graph: _fakeModelFile('seforim-embed-round2-int8.onnx', 42),
+      tokenizer: _fakeModelFile('tokenizer.json', 2),
+      identity: _fakeModelFile('model.json', 1),
+      license: _fakeModelFile('LICENSE', 1),
+    ),
+    modelFamilyId: 'ArieLLL123/judaic-semantic-round2-onnx-zayit@1ec8dc68',
+    vectors: SemanticVectorsRelease(
+      libraryTag: 'v30-20260930165019',
+      releaseTag: 'vectors-v30-20260930165019',
+      toLibraryVersion: 30,
+      kind: 'base',
+      manifestJson: manifest,
+      publishedManifestSha256: _fakeSha(manifest),
+      files: [
+        SemanticVectorsFile(
+          name: segment,
+          downloadUrl: '',
+          size: 1642,
+          sha256: _fakeSha(segment),
+          assetId: '1',
+        ),
+      ],
+      segmentUncompressedSize: 1779,
+    ),
+    vectorsManifestName: 'otzaria-vectors-0c3f95be-v30-base.manifest.json',
+  );
+}
+
 Map<String, Object?> buildFixtureManifest() {
   final dir = Directory.systemTemp.createTempSync('otzaria-assistant-fixture');
   try {
@@ -151,6 +196,7 @@ Map<String, Object?> buildFixtureManifest() {
       releaseTag: kFixtureTag,
       releaseVersion: kFixtureVersion,
       directory: dir,
+      externalComponents: buildFixtureSemanticComponents(),
     );
   } finally {
     dir.deleteSync(recursive: true);
@@ -227,6 +273,10 @@ Map<String, Object?> buildExpectedSelections(
               if (componentIsOffered(manifest, component, target))
                 component['id'],
           ],
+          'customChoices': [
+            for (final choice in customChoices(manifest, target))
+              customChoiceToJson(choice),
+          ],
           'presets': [
             for (final preset in buildPresets(manifest, target))
               () {
@@ -238,6 +288,7 @@ Map<String, Object?> buildExpectedSelections(
                 return {
                   ...preset.toJson(),
                   'outputFiles': files,
+                  'outputNotes': plannedOutputNotes(manifest, preset.members),
                   'outputSubfolder': plannedOutputSubfolder(
                     files,
                     target.platform,

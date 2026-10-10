@@ -45,7 +45,9 @@ std::shared_ptr<const ModuleSnapshot> g_modules =
     std::make_shared<const ModuleSnapshot>();
 
 void CALLBACK HeartbeatProc(HWND, UINT, UINT_PTR, DWORD) {
-  g_last_beat.store(::GetTickCount64(), std::memory_order_relaxed);
+  const ULONGLONG now = ::GetTickCount64();
+  g_last_beat.store(now, std::memory_order_relaxed);
+  if (now - g_start_tick > kMaxLifetimeMs) return RequestStop();
 }
 
 std::string NarrowPathTail(const std::wstring& path) {
@@ -100,6 +102,24 @@ std::string DescribeAddress(ULONG_PTR address) {
       snprintf(buffer, sizeof(buffer), "%s+0x%llx", range.name.c_str(),
                static_cast<unsigned long long>(address - range.base));
       return buffer;
+    }
+  }
+  // מיפוי לפי כתובת מזהה DLL מאוחר בלי לגשת לרשימת ה-loader.
+  // נקרא רק בעת דיווח, אחרי חידוש ה-thread הראשי.
+  MEMORY_BASIC_INFORMATION info = {};
+  if (::VirtualQuery(reinterpret_cast<LPCVOID>(address), &info, sizeof(info)) != 0 &&
+      info.Type == MEM_IMAGE) {
+    wchar_t path[MAX_PATH] = {0};
+    const DWORD length = ::GetMappedFileNameW(
+        ::GetCurrentProcess(), reinterpret_cast<LPVOID>(address), path, MAX_PATH);
+    if (length > 0 && length < MAX_PATH) {
+      const std::string name = NarrowPathTail(path);
+      if (!name.empty()) {
+        snprintf(buffer, sizeof(buffer), "%s+0x%llx", name.c_str(),
+                 static_cast<unsigned long long>(
+                     address - reinterpret_cast<ULONG_PTR>(info.AllocationBase)));
+        return buffer;
+      }
     }
   }
   snprintf(buffer, sizeof(buffer), "0x%llx",

@@ -1,4 +1,5 @@
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/models/calendar_location.dart';
 import 'package:otzaria/tools/calendar/models/zman_definition.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -66,7 +67,12 @@ ZmanimCalendarContext buildZmanimCalendarContextForCoordinates(
 /// מחשב את כל הזמנים ההלכתיים הרלוונטיים ליום נתון ועיר נתונה, לפי
 /// ה-[kZmanimRegistry]. הרישום הוא מקור-האמת היחיד — כל זמן מחושב פעם
 /// אחת מתוך פונקציית החישוב שלו, ונשמר תחת מזהה ההגדרה.
-Map<String, String> calculateDailyTimes(DateTime date, String city) {
+/// [only] מגביל את החישוב למזהים אלה בלבד (כ-100 זמנים בחישוב מלא).
+Map<String, String> calculateDailyTimes(
+  DateTime date,
+  String city, {
+  Set<String>? only,
+}) {
   final context = buildZmanimCalendarContext(date, city);
   if (context == null) return {};
   return _computeDailyTimes(
@@ -74,6 +80,7 @@ Map<String, String> calculateDailyTimes(DateTime date, String city) {
     date: date,
     city: city,
     inIsrael: isCityInIsrael(city),
+    only: only,
   );
 }
 
@@ -109,6 +116,7 @@ Map<String, String> _computeDailyTimes({
   required DateTime date,
   required String city,
   required bool inIsrael,
+  Set<String>? only,
 }) {
   final zmanimCalendar = context.zmanimCalendar;
   final tzLocation = context.tzLocation;
@@ -125,6 +133,7 @@ Map<String, String> _computeDailyTimes({
 
   final Map<String, String> times = {};
   for (final def in kZmanimRegistry) {
+    if (only != null && !only.contains(def.id)) continue;
     if (def.isRelevant != null && !def.isRelevant!(jewishCalendar)) continue;
     DateTime? dt;
     try {
@@ -147,7 +156,8 @@ Map<String, String> _computeDailyTimes({
   }
 
   // ספירת העומר מוצגת ככפתור ייעודי (לא ככרטיס זמן), ולכן מחושבת בנפרד.
-  if (jewishCalendar.getDayOfOmer() != -1) {
+  if ((only == null || only.contains('omerCounting')) &&
+      jewishCalendar.getDayOfOmer() != -1) {
     final omer = zmanimCalendar.getTzais();
     if (omer != null) {
       times['omerCounting'] = formatZmanTime(omer, tzLocation);
@@ -312,7 +322,7 @@ DateTime? calculateSolarMidnight(
   }
 
   final tomorrowContext = buildZmanimCalendarContext(
-    date.add(const Duration(days: 1)),
+    addCalendarDays(date, 1),
     city,
   );
   final sunriseTomorrow = tomorrowContext?.zmanimCalendar.getSunrise();
@@ -683,8 +693,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     id: 'chatzosFixedLocal',
     title: 'חצות מקומי קבוע',
     category: 'חצות',
-    explanation: '''חצות היום הקבוע לפי קו האורך הגיאוגרפי (ללא תלות בזריחה '
-        'ובשקיעה).''',
+    explanation:
+        '''חצות היום הקבוע לפי קו האורך הגיאוגרפי (ללא תלות בזריחה ובשקיעה).''',
     compute: (c) => c.cal.getFixedLocalChatzos(),
   ),
   ZmanDefinition(
@@ -702,8 +712,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'מנחה גדולה',
     subtitle: 'המאוחר',
     category: 'מנחה',
-    explanation: '''המאוחר מבין חצי שעה זמנית אחרי חצות לבין 30 דקות קבועות '
-        'אחרי חצות.''',
+    explanation:
+        '''המאוחר מבין חצי שעה זמנית אחרי חצות לבין 30 דקות קבועות אחרי חצות.''',
     defaultEnabled: true,
     compute: (c) => c.cal.getMinchaGedolaGreaterThan30(),
   ),
@@ -743,15 +753,29 @@ final List<ZmanDefinition> kZmanimRegistry = [
   ZmanDefinition(
     id: 'minchaKetana16point1',
     title: 'מנחה קטנה',
-    subtitle: '90 דק׳',
+    subtitle: '72 דק׳ (מעלות)',
+    category: 'מנחה',
+    explanation: '''9.5 שעות זמניות מעה"ש לצאה"כ 72 דק' במעלות''',
+    compute: (c) => c.cal.getMinchaKetana16Point1Degrees(),
+  ),
+  ZmanDefinition(
+    id: 'minchaKetana90Degrees',
+    title: 'מנחה קטנה',
+    subtitle: '90 דק׳ (מעלות)',
     category: 'מנחה',
     explanation: '''9.5 שעות זמניות מעה"ש לצאה"כ 90 דק' במעלות''',
-    compute: (c) => c.cal.getMinchaKetana16Point1Degrees(),
+    compute: (c) {
+      final dawn = c.cal.getAlos19Point8Degrees();
+      final dusk = c.cal.getTzais19Point8Degrees();
+      // getMinchaKetana עובר לחישוב הגר״א כשחסר אחד מקצוות היום.
+      if (dawn == null || dusk == null) return null;
+      return c.cal.getMinchaKetana(dawn, dusk);
+    },
   ),
   ZmanDefinition(
     id: 'minchaKetana72',
     title: 'מנחה קטנה',
-    subtitle: '72 דק׳',
+    subtitle: '72 דק׳ (שוות)',
     category: 'מנחה',
     explanation: '''9.5 שעות זמניות מעה"ש לצאה"כ 72 דק' שוות''',
     compute: (c) => c.cal.getMinchaKetana72Minutes(),
@@ -772,8 +796,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'פלג המנחה',
     subtitle: '72 דק׳ (שוות)',
     category: 'פלג המנחה',
-    explanation: '''פלג המנחה כשהיום מ-72 דקות קבועות לפני הזריחה עד 72 אחרי '
-        'השקיעה.''',
+    explanation:
+        '''פלג המנחה כשהיום מ-72 דקות קבועות לפני הזריחה עד 72 אחרי השקיעה.''',
     compute: (c) => c.cal.getPlagHamincha72Minutes(),
   ),
   ZmanDefinition(
@@ -781,8 +805,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'פלג המנחה',
     subtitle: '90 דק׳ (שוות)',
     category: 'פלג המנחה',
-    explanation: '''פלג המנחה כשהיום מ-90 דקות קבועות לפני הזריחה עד 90 אחרי '
-        'השקיעה.''',
+    explanation:
+        '''פלג המנחה כשהיום מ-90 דקות קבועות לפני הזריחה עד 90 אחרי השקיעה.''',
     compute: (c) => c.cal.getPlagHamincha90Minutes(),
   ),
   ZmanDefinition(
@@ -790,8 +814,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'פלג המנחה',
     subtitle: '120 דק׳ (שוות)',
     category: 'פלג המנחה',
-    explanation: '''פלג המנחה כשהיום מ-120 דקות קבועות לפני הזריחה עד 120 אחרי '
-        'השקיעה.''',
+    explanation:
+        '''פלג המנחה כשהיום מ-120 דקות קבועות לפני הזריחה עד 120 אחרי השקיעה.''',
     compute: (c) => c.cal.getPlagHamincha120Minutes(),
   ),
   ZmanDefinition(
@@ -799,8 +823,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'פלג המנחה',
     subtitle: '72 דק׳ (זמניות)',
     category: 'פלג המנחה',
-    explanation: '''פלג המנחה כשהיום מ-72 דקות זמניות לפני הזריחה עד 72 אחרי '
-        'השקיעה.''',
+    explanation:
+        '''פלג המנחה כשהיום מ-72 דקות זמניות לפני הזריחה עד 72 אחרי השקיעה.''',
     compute: (c) => c.cal.getPlagHamincha72MinutesZmanis(),
   ),
   ZmanDefinition(
@@ -808,8 +832,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'פלג המנחה',
     subtitle: '90 דק׳ (זמניות)',
     category: 'פלג המנחה',
-    explanation: '''פלג המנחה כשהיום מ-90 דקות זמניות לפני הזריחה עד 90 אחרי '
-        'השקיעה.''',
+    explanation:
+        '''פלג המנחה כשהיום מ-90 דקות זמניות לפני הזריחה עד 90 אחרי השקיעה.''',
     compute: (c) => c.cal.getPlagHamincha90MinutesZmanis(),
   ),
   ZmanDefinition(
@@ -817,8 +841,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'פלג המנחה',
     subtitle: '120 דק׳ (זמניות)',
     category: 'פלג המנחה',
-    explanation: '''פלג המנחה כשהיום מ-120 דקות זמניות לפני הזריחה עד 120 אחרי '
-        'השקיעה.''',
+    explanation:
+        '''פלג המנחה כשהיום מ-120 דקות זמניות לפני הזריחה עד 120 אחרי השקיעה.''',
     compute: (c) => c.cal.getPlagHamincha120MinutesZmanis(),
   ),
   ZmanDefinition(
@@ -903,8 +927,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'בין השמשות',
     subtitle: 'ר"ת 13.5 דק׳',
     category: 'בין השמשות',
-    explanation: '''תחילת בין השמשות לרבנו תם — 13.5 דקות לפני צאת הגאונים '
-        '7.083°.''',
+    explanation:
+        '''תחילת בין השמשות לרבנו תם — 13.5 דקות לפני צאת הגאונים 7.083°.''',
     compute: (c) =>
         c.cal.getBainHasmashosRT13Point5MinutesBefore7Point083Degrees(),
   ),
@@ -1006,8 +1030,8 @@ final List<ZmanDefinition> kZmanimRegistry = [
     title: 'צאת הכוכבים',
     subtitle: 'חזו"א (9.3°)',
     category: 'צאת הכוכבים',
-    explanation: '''צאת הכוכבים לפי חזון איש — 9.3° מתחת לאופק (כך מחשב לוח '
-        'עיתים לבינה, 9.28°).''',
+    explanation:
+        '''צאת הכוכבים לפי חזון איש — 9.3° מתחת לאופק (כך מחשב לוח עיתים לבינה, 9.28°).''',
     compute: (c) => c.cal.getTzaisGeonim9Point3Degrees(),
   ),
 
@@ -1077,7 +1101,7 @@ final List<ZmanDefinition> kZmanimRegistry = [
     subtitle: '120 דק׳ (זמניות)',
     category: 'רבנו תם',
     explanation:
-        '''ה' מיל של 24 דק' בימות השיויון, שמינית מאורך היום שמהנץ לשקיעה''',
+        '''ה' מיל של 24 דק' בימות השיויון, שישית מאורך היום שמהנץ לשקיעה''',
     compute: (c) => c.cal.getTzais120Zmanis(),
   ),
   ZmanDefinition(

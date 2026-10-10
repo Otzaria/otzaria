@@ -23,6 +23,12 @@ import '../test_helpers/memory_cache_provider.dart';
 /// ה-provider פותח את seforim.db read-only וממיר WAL→DELETE בעצמו. המרה בזמן
 /// קריאה מתחרה בקובץ ה--wal ומחזירה עמודים ישנים תחת עומס, ולכן כל טסט כאן
 /// מייצב את הקובץ ב-[_settleForReadOnly] לפני שה-provider נוגע בו.
+/// טוען את הדורות ואז ממיין, כמו הקוראים החיים.
+Future<List<LinkGroup>> _sortByEra(List<LinkGroup> groups) async {
+  await CommentaryService.preloadEras(groups.map((g) => g.bookTitle));
+  return CommentaryService.sortGroupsByEraSync(groups);
+}
+
 Future<void> _settleForReadOnly(MyDatabase db) async {
   final raw = await db.database;
   raw.execute('PRAGMA wal_checkpoint(TRUNCATE)');
@@ -155,7 +161,7 @@ void main() {
     });
   });
 
-  group('sortGroupsByEra — מטמון חם אינו נדרש ל-DB', () {
+  group('sortGroupsByEraSync — מטמון חם אינו נדרש ל-DB', () {
     setUp(CommentaryService.clearEraCache);
     tearDown(CommentaryService.clearEraCache);
 
@@ -165,7 +171,7 @@ void main() {
         'אבן עזרא': CommentaryEra.acharonim,
       });
 
-      final sorted = await CommentaryService.sortGroupsByEra([
+      final sorted = CommentaryService.sortGroupsByEraSync([
         _group('אבן עזרא'),
         _group('תוספות'),
       ]);
@@ -179,11 +185,11 @@ void main() {
 
     test('קבוצה בודדת מוחזרת כמו שהיא', () async {
       final single = [_group('רש"י')];
-      expect(await CommentaryService.sortGroupsByEra(single), same(single));
+      expect(CommentaryService.sortGroupsByEraSync(single), same(single));
     });
   });
 
-  group('sortGroupsByEra מול DB אמיתי', () {
+  group('preloadEras + sortGroupsByEraSync מול DB אמיתי', () {
     late Directory tempDir;
     late String dbPath;
 
@@ -258,7 +264,7 @@ void main() {
     });
 
     test('הדור נקרא מה-DB: ראשונים לפני אחרונים', () async {
-      final sorted = await CommentaryService.sortGroupsByEra([
+      final sorted = await _sortByEra([
         _group('חתם סופר'),
         _group('רמב"ם'),
       ]);
@@ -272,7 +278,7 @@ void main() {
         "SELECT id, 1 FROM book WHERE title = 'חתם סופר'",
       );
 
-      final sorted = await CommentaryService.sortGroupsByEra([
+      final sorted = await _sortByEra([
         _group('רמב"ם'),
         _group('חתם סופר'),
       ]);
@@ -285,7 +291,7 @@ void main() {
     });
 
     test('שינוי ב-DB אינו נקרא מחדש לכל קבוצה', () async {
-      await CommentaryService.sortGroupsByEra([
+      await _sortByEra([
         _group('חתם סופר'),
         _group('רמב"ם'),
       ]);
@@ -295,7 +301,7 @@ void main() {
         '(SELECT id FROM book WHERE title = \'רמב"ם\')',
       );
 
-      final sorted = await CommentaryService.sortGroupsByEra([
+      final sorted = await _sortByEra([
         _group('חתם סופר'),
         _group('רמב"ם'),
       ]);
@@ -308,7 +314,7 @@ void main() {
     });
 
     test('clearEraCache מנקה גם את מטמון המקור, ולכן הסדר מתרענן', () async {
-      await CommentaryService.sortGroupsByEra([
+      await _sortByEra([
         _group('חתם סופר'),
         _group('רמב"ם'),
       ]);
@@ -319,7 +325,7 @@ void main() {
       );
       CommentaryService.clearEraCache();
 
-      final sorted = await CommentaryService.sortGroupsByEra([
+      final sorted = await _sortByEra([
         _group('חתם סופר'),
         _group('רמב"ם'),
       ]);
@@ -472,7 +478,7 @@ void main() {
     });
 
     test('מפרש-משתמש ממוין לפי דורו ולא נדחק ל"שאר מפרשים"', () async {
-      final sorted = await CommentaryService.sortGroupsByEra([
+      final sorted = await _sortByEra([
         _group('רמב"ם'),
         _group('תוספות אישיים'),
       ]);

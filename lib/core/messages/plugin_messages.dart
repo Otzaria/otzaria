@@ -1,5 +1,7 @@
 /// ריכוז הודעות המערכת (UiSnack) של מערכת התוספים.
 abstract class PluginMessages {
+  static const String nativeTextReader = 'קורא רגיל';
+  static const String textReaderSettings = 'הגדרות קורא התוסף';
   static const String externalBookNotFound = 'הספר לא נמצא בקטלוג החיצוני';
 
   // ===== התקנה והסרה =====
@@ -108,6 +110,18 @@ abstract class PluginMessages {
   /// בלעדיו הודעת תוסף נראית כהודעת מערכת של אוצריא.
   static String declarativeSnack(String message, String pluginName) =>
       pluginName.trim().isEmpty ? message : '$message · מאת $pluginName';
+
+  /// `localService.post` — השירות המקומי לא ענה, ולתוסף אין הודעה משלו.
+  static const String localServiceUnavailable =
+      'השירות המקומי של התוסף אינו זמין';
+
+  /// `localService.post` — השירות ענה בשגיאה בלי הודעה, או בתשובה פגומה.
+  static const String localServiceFailed =
+      'השירות המקומי של התוסף לא השלים את הבקשה';
+
+  /// `localService.post` — הגישה לשירות חסומה בהגדרות הרשת של התוסף.
+  static const String localServiceBlocked =
+      'הגישה של התוסף לשירות המקומי חסומה בהגדרות הרשת';
 
   // ===== WebView2 =====
   static const String downloadLinkOpenFailed = 'לא ניתן לפתוח את קישור ההורדה';

@@ -14,6 +14,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/services/data_collection_service.dart';
+import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 /// דוח המידע שמוחזר לקישור `otzaria://info/...`.
@@ -118,7 +119,7 @@ class AppInfoService {
     return {
       'name': packageInfo.appName,
       'packageName': packageInfo.packageName,
-      'version': packageInfo.version,
+      'version': canonicalAppVersion(packageInfo),
       'buildNumber': packageInfo.buildNumber,
       // באותו פורמט של previousVersion, כדי שהשוואה מכונתית תהיה אפשרית.
       'fullVersion': _fullVersion(packageInfo),
@@ -137,7 +138,7 @@ class AppInfoService {
 
   /// `version+buildNumber`, זהה לפורמט שנרשם ב-[AppInstallTimelineStore].
   static String _fullVersion(PackageInfo packageInfo) {
-    final version = packageInfo.version.trim();
+    final version = canonicalAppVersion(packageInfo);
     final build = packageInfo.buildNumber.trim();
     if (version.isEmpty) return build.isEmpty ? 'unknown' : build;
     if (build.isEmpty || version.endsWith('+$build')) return version;

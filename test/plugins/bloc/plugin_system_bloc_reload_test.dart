@@ -87,6 +87,13 @@ class _CountingHost implements DeclarativePluginHost {
   ) async {}
 
   @override
+  Future<void> dispatchLibraryBookAction(
+    String pluginId,
+    Map<String, dynamic> actionTemplate,
+    Map<String, dynamic> bookPayload,
+  ) async {}
+
+  @override
   void dispose() {}
 }
 

@@ -127,7 +127,10 @@ class SetFacet extends SearchEvent {
 /// הגדרת מספר facets בבת אחת ללא הפעלת חיפוש
 class SetFacetsWithoutSearch extends SearchEvent {
   final List<String> facets;
-  const SetFacetsWithoutSearch(this.facets);
+
+  /// בחירה מתוך עץ התוצאות: ההיקף נשאר, כדי שהשורש יחזיר אליו.
+  final bool keepScope;
+  const SetFacetsWithoutSearch(this.facets, {this.keepScope = false});
 }
 
 class UpdateSortOrder extends SearchEvent {

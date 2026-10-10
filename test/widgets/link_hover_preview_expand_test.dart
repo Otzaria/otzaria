@@ -122,10 +122,14 @@ void main() {
   });
 
   /// מרימה את תוכן החלונית לקישור שמחזיר [content] כמות שהוא.
+  /// [maxFontSize] — גודל הטקסט שעליו נפתחה החלונית. [letterSpacing] — מרווח
+  /// אותיות בסגנון ברירת המחדל שהתוכן יורש.
   Future<void> pumpPreviewWithContent(
     WidgetTester tester,
     String content, {
     required String path2,
+    double? maxFontSize,
+    double? letterSpacing,
   }) async {
     LibraryProviderManager.instance.seedMappingsForTesting(
       mapping: const {},
@@ -139,17 +143,21 @@ void main() {
             body: Center(
               child: SizedBox(
                 width: 240,
-                child: LinkHoverPreviewContent(
-                  link: Link(
-                    heRef: '$path2, א',
-                    index1: 1,
-                    path2: path2,
-                    index2: 1,
-                    connectionType: 'commentary',
+                child: DefaultTextStyle.merge(
+                  style: TextStyle(letterSpacing: letterSpacing),
+                  child: LinkHoverPreviewContent(
+                    link: Link(
+                      heRef: '$path2, א',
+                      index1: 1,
+                      path2: path2,
+                      index2: 1,
+                      connectionType: 'commentary',
+                    ),
+                    maxContentLines: 4,
+                    compact: true,
+                    displayProfile: TextDisplayProfile.defaults,
+                    maxFontSize: maxFontSize,
                   ),
-                  maxContentLines: 4,
-                  compact: true,
-                  displayProfile: TextDisplayProfile.defaults,
                 ),
               ),
             ),
@@ -164,6 +172,48 @@ void main() {
     await pumpPreviewWithContent(tester, 'שורה קצרה', path2: 'מפרש ב');
 
     expect(find.text('…'), findsNothing);
+  });
+
+  group('מפרש של ארבע שורות בדיוק (issue #1719)', () {
+    // ב-15×1.5 גובה השורה (22.5) מעוגל בפריסה ל-23 פיקסלים; ברוחב 240 נכנסות
+    // 3 מילים בשורה. התוכן נשבר בגלישה, כי ברינדור "\n" מתכווץ לרווח.
+    testWidgets('ארבע שורות בגודל כתב שגובה שורתו אינו שלם — בלי "…"', (
+      tester,
+    ) async {
+      await pumpPreviewWithContent(
+        tester,
+        List.filled(12, 'מילה').join(' '),
+        path2: 'מפרש ה',
+        maxFontSize: 15,
+      );
+
+      expect(find.text('…'), findsNothing);
+    });
+
+    testWidgets('חמש שורות באותו גודל כתב — מוצג "…"', (tester) async {
+      await pumpPreviewWithContent(
+        tester,
+        List.filled(13, 'מילה').join(' '),
+        path2: 'מפרש ו',
+        maxFontSize: 15,
+      );
+
+      expect(find.text('…'), findsOneWidget);
+    });
+
+    // מילה של 10 אותיות ב-22 פיקסלים נכנסת ב-240 בלי מרווח, ונשברת עם מרווח 3.
+    testWidgets('מרווח אותיות שהתוכן יורש נכלל במדידה — מוצג "…"', (
+      tester,
+    ) async {
+      await pumpPreviewWithContent(
+        tester,
+        List.filled(4, 'אבגדהוזחטי').join(' '),
+        path2: 'מפרש ז',
+        letterSpacing: 3,
+      );
+
+      expect(find.text('…'), findsOneWidget);
+    });
   });
 
   testWidgets('גוף הערה מוטמעת אינו מופיע בתצוגה המקדימה, כמו בגוף הספר', (

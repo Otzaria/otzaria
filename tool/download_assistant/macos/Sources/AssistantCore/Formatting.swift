@@ -1,36 +1,61 @@
 import Foundation
 
-/// גודל בעברית קריאה — אותו ניסוח של המסייע ל-Windows.
-public func humanSize(_ bytes: Int64) -> String {
+/// אותן יחידות כמו במסייע ל-Windows ובתוכנה עצמה: GB, MB, KB, עם רווח קשיח.
+/// בעברית הערך עטוף ב-LRE…PDF, אחרת "37 MB" בתוך משפט עברי מוצג הפוך.
+public func humanSize(_ bytes: Int64, english: Bool = false) -> String {
+    let text: String
     if bytes >= 1_073_741_824 {
         let tenths = bytes * 10 / 1_073_741_824
-        return "\(tenths / 10).\(tenths % 10) ג׳יגה"
+        text = "\(tenths / 10).\(tenths % 10)\u{00A0}GB"
+    } else if bytes >= 1_048_576 {
+        text = "\(bytes / 1_048_576)\u{00A0}MB"
+    } else {
+        text = "\((bytes + 1023) / 1024)\u{00A0}KB"
     }
-    if bytes >= 1_048_576 {
-        return "\(bytes / 1_048_576) מגה"
-    }
-    return "\((bytes + 1023) / 1024) קילו"
+    return ltrUnit(text, english: english)
 }
 
-public func humanSpeed(_ bytesPerSecond: Double) -> String {
+public func humanSpeed(_ bytesPerSecond: Double, english: Bool = false) -> String {
     let perSecond = Int64(max(0, bytesPerSecond))
+    let text: String
     if perSecond >= 1_048_576 {
         let tenths = perSecond * 10 / 1_048_576
-        return "\(tenths / 10).\(tenths % 10) מגה בשנייה"
+        text = "\(tenths / 10).\(tenths % 10) MB/s"
+    } else {
+        text = "\(perSecond / 1024) KB/s"
     }
-    return "\((perSecond + 1023) / 1024) קילו בשנייה"
+    return ltrUnit(text, english: english)
 }
 
-public func humanRemaining(_ seconds: TimeInterval) -> String {
-    if seconds < 60 { return "פחות מדקה" }
-    let minutes = Int((seconds / 60).rounded(.up))
-    if minutes < 60 {
-        return minutes == 1 ? "כדקה" : "כ-\(minutes) דקות"
+/// כמו HumanDuration של Windows: שעות שלמות ודקות מעוגלות.
+public func humanRemaining(_ seconds: TimeInterval, english: Bool = false) -> String {
+    if seconds < 60 { return english ? "less than a minute" : "פחות מדקה" }
+    let whole = Int64(seconds)
+    var hours = whole / 3600
+    var minutes = (whole % 3600 + 30) / 60
+    if minutes == 60 {
+        hours += 1
+        minutes = 0
     }
-    let hours = minutes / 60
-    let rest = minutes % 60
-    let hoursText = hours == 1 ? "כשעה" : "כ-\(hours) שעות"
-    return rest == 0 ? hoursText : "\(hoursText) ו-\(rest) דקות"
+    var text = ""
+    if hours == 1 {
+        text = english ? "1 hour" : "שעה"
+    } else if hours == 2 {
+        text = english ? "2 hours" : "שעתיים"
+    } else if hours > 2 {
+        text = english ? "\(hours) hours" : "\(hours) שעות"
+    }
+    if minutes == 0 { return text }
+    let minutesText = minutes == 1
+        ? (english ? "1 minute" : "דקה")
+        : (english ? "\(minutes) minutes" : "\(minutes) דקות")
+    if text.isEmpty { return minutesText }
+    return english ? "\(text) \(minutesText)" : "\(text) ו-\(minutesText)"
+}
+
+/// ערך משמאל לימין (גודל, נתיב, גרסה) בתוך משפט עברי.
+public func ltrUnit(_ text: String, english: Bool) -> String {
+    english ? text : "\u{202A}" + text + "\u{202C}"
 }
 
 /// מהירות כממוצע נע על ~5 שניות, וזמן משוער לסיום.

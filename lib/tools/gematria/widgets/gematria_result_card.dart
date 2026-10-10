@@ -123,7 +123,9 @@ class GematriaResultCard extends StatelessWidget {
                                     TextSpan(
                                       style: TextStyle(
                                         fontSize: state.fontSize - 1,
-                                        fontFamily: state.fontFamily,
+                                        fontFamily: AppFonts.renderFontFamily(
+                                          state.fontFamily,
+                                        ),
                                         color: cs.onSurface,
                                         height: isNarrow ? 1.28 : 1.22,
                                       ),

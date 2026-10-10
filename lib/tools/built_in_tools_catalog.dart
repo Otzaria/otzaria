@@ -47,7 +47,7 @@ const List<BuiltInToolMeta> kBuiltInToolsCatalog = [
     toolId: 'builtin.shamor_zachor',
     label: 'שמור וזכור',
     order: 20,
-    imageIcon: 'assets/icon/שמור וזכור שחור ריק.png',
+    imageIcon: 'assets/icon/shamor_zachor.png',
   ),
   BuiltInToolMeta(
     toolId: 'builtin.measurements',
@@ -84,8 +84,8 @@ const List<BuiltInToolMeta> kBuiltInToolsCatalog = [
     toolId: 'builtin.aramaic_dictionary',
     label: 'מילון ארמי-עברי',
     order: 60,
-    icon: OtzariaIcons.alef_near_alef_stam_24_regular,
-    iconFilled: OtzariaIcons.alef_near_alef_stam_24_regular,
+    icon: OtzariaIcons.alef_near_alef_stam_24_filled,
+    iconFilled: OtzariaIcons.alef_near_alef_stam_24_filled,
   ),
   BuiltInToolMeta(
     toolId: 'builtin.acronyms_dictionary',

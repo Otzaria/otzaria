@@ -40,6 +40,11 @@ int resolveTopmostSourceLine({
   return readingSegments[topmost].startLineIndex;
 }
 
+/// השורה שהכותרת מציגה: [visibleIndices] (שורות מקור) כבר מסוננים משארית
+/// הקטע הקודם בראש החלון, שאחרת מעבירה ל-PDF עמוד אחד אחורה (#1974).
+int displayedSourceLine(List<int> visibleIndices, int topmostSourceLine) =>
+    visibleIndices.isNotEmpty ? visibleIndices.first : topmostSourceLine;
+
 /// ממיר שורת מקור ל-itemIndex של ה-`ScrollablePositionedList`.
 /// במצב הרגיל זה זהות; במצב רצף זה segmentIndex של הפסקה שמכילה את השורה.
 int resolveItemIndexForSourceLine({

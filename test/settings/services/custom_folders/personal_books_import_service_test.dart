@@ -102,6 +102,164 @@ void main() {
       expect(result.errors, hasLength(1));
       expect(result.errors.single, contains('לא-קיים.txt'));
     });
+
+    test('העתקה שנכשלה אינה משאירה קובץ בתיקיית הייבוא', () async {
+      final missing = p.join(sourceDir.path, 'ספר.pdf');
+
+      final result = await service.copyFiles([missing]);
+
+      expect(result.errors, hasLength(1));
+      expect(Directory(importPath).listSync(), isEmpty);
+    });
+
+    test('העתקה שנכשלה אינה פוגעת בגרסה הקודמת של הספר', () async {
+      final existing = File(p.join(importPath, 'ספר.pdf'));
+      await existing.create(recursive: true);
+      await existing.writeAsString('גרסה קודמת');
+      final missing = p.join(sourceDir.path, 'ספר.pdf');
+
+      final result = await service.copyFiles([missing]);
+
+      expect(result.errors, hasLength(1));
+      expect(existing.readAsStringSync(), 'גרסה קודמת');
+    });
+
+    test('שם קובץ חוקי באורך המרבי עדיין מיובא', () async {
+      final name = '${'a' * 251}.txt';
+      final source = await createSourceFile(name, 'ספר');
+      final result = await service.copyFiles([source]);
+
+      expect(result.copied, 1, reason: result.errors.join('\n'));
+      expect(File(p.join(importPath, name)).readAsStringSync(), 'ספר');
+    }, skip: Platform.isWindows);
+
+    test('קובץ part קודם אינו נכתב או נמחק בייבוא', () async {
+      await Directory(importPath).create();
+      final previousPartial = File(p.join(importPath, 'ספר.txt.part'));
+      await previousPartial.writeAsString('שארית קודמת');
+      final source = await createSourceFile('ספר.txt', 'ספר חדש');
+
+      final result = await service.copyFiles([source]);
+
+      expect(result.copied, 1);
+      expect(previousPartial.readAsStringSync(), 'שארית קודמת');
+      expect(Directory(importPath).listSync(), hasLength(2));
+      expect(
+        (await service.listImportedFiles()).single.path,
+        p.join(importPath, 'ספר.txt'),
+      );
+    });
+
+    test('ייבואים מקבילים באותו שם אינם משתפים את הקובץ הזמני', () async {
+      final first = await createSourceFile('ספר.txt', 'a' * (1024 * 1024));
+      final second = File(p.join(sourceDir.path, 'other', 'ספר.txt'));
+      await second.create(recursive: true);
+      await second.writeAsString('b' * (1024 * 1024));
+
+      final results = await Future.wait([
+        service.copyFiles([first]),
+        service.copyFiles([second.path]),
+      ]);
+
+      expect(results.map((r) => r.copied), [1, 1]);
+      expect(results.expand((r) => r.errors), isEmpty);
+      final text = File(p.join(importPath, 'ספר.txt')).readAsStringSync();
+      expect(
+        text == 'a' * (1024 * 1024) || text == 'b' * (1024 * 1024),
+        isTrue,
+      );
+      expect(Directory(importPath).listSync(), hasLength(1));
+    });
+
+    for (final denyCleanup in [false, true]) {
+      test(
+        'כשל באמצע הקריאה שומר את הספר וממשיך בייבוא (ניקוי חסום: $denyCleanup)',
+        () async {
+          await Directory(importPath).create();
+          final existing = File(p.join(importPath, 'ספר.txt'));
+          await existing.writeAsString('גרסה קודמת');
+          final source = await createSourceFile('ספר.txt', 'ספר חדש');
+          final second = await createSourceFile('שני.txt', 'ספר שני');
+          final overrides = _InterruptedReadOverrides(
+            source,
+            beforeError: denyCleanup
+                ? () async {
+                    for (final dir in Directory(
+                      importPath,
+                    ).listSync().whereType<Directory>()) {
+                      await Process.run('chmod', ['555', dir.path]);
+                    }
+                  }
+                : null,
+          );
+          addTearDown(() async {
+            if (denyCleanup) {
+              for (final dir in Directory(
+                importPath,
+              ).listSync().whereType<Directory>()) {
+                await Process.run('chmod', ['755', dir.path]);
+              }
+            }
+          });
+
+          final result = await IOOverrides.runZoned(
+            () => service.copyFiles([source, second]),
+            createFile: overrides.createFile,
+          );
+
+          expect(result.copied, 1);
+          expect(result.errors, hasLength(1));
+          expect(result.errors.single, contains('source interrupted'));
+          expect(existing.readAsStringSync(), 'גרסה קודמת');
+          expect(
+            File(p.join(importPath, 'שני.txt')).readAsStringSync(),
+            'ספר שני',
+          );
+          expect(await service.listImportedFiles(), hasLength(2));
+          if (!denyCleanup) {
+            expect(Directory(importPath).listSync(), hasLength(2));
+          }
+        },
+        skip: denyCleanup && Platform.isWindows,
+      );
+    }
+
+    test(
+      'תיקיית יעד ללא הרשאת כתיבה מדווחת כל קובץ ושומרת part קודם',
+      () async {
+        await Directory(importPath).create();
+        final previousPartial = File(p.join(importPath, 'ספר.txt.part'));
+        await previousPartial.writeAsString('שארית');
+        final first = await createSourceFile('ספר.txt', 'ראשון');
+        final second = await createSourceFile('שני.txt', 'שני');
+        addTearDown(() async => Process.run('chmod', ['755', importPath]));
+        await Process.run('chmod', ['555', importPath]);
+
+        final result = await service.copyFiles([first, second]);
+
+        expect(result.copied, 0);
+        expect(result.errors, hasLength(2));
+        expect(previousPartial.readAsStringSync(), 'שארית');
+      },
+      skip: Platform.isWindows,
+    );
+
+    test('כשל החלפה אינו מוחק תיקיית יעד ומנקה רק את ההעתקה שלו', () async {
+      final target = await Directory(
+        p.join(importPath, 'ספר.txt'),
+      ).create(recursive: true);
+      final sentinel = File(p.join(target.path, 'שמור.txt'));
+      await sentinel.writeAsString('שמור');
+      final first = await createSourceFile('ספר.txt', 'חדש');
+      final second = await createSourceFile('שני.txt', 'שני');
+
+      final result = await service.copyFiles([first, second]);
+
+      expect(result.copied, 1);
+      expect(result.errors, hasLength(1));
+      expect(sentinel.readAsStringSync(), 'שמור');
+      expect(Directory(importPath).listSync(), hasLength(2));
+    });
   });
 
   group('listImportedFiles', () {
@@ -184,4 +342,32 @@ void main() {
       expect(File(outside).existsSync(), isTrue);
     });
   });
+}
+
+final class _InterruptedReadOverrides extends IOOverrides {
+  _InterruptedReadOverrides(this.sourcePath, {this.beforeError});
+  final String sourcePath;
+  final Future<void> Function()? beforeError;
+
+  @override
+  File createFile(String path) => path == sourcePath
+      ? _InterruptedReadFile(path, beforeError)
+      : super.createFile(path);
+}
+
+class _InterruptedReadFile implements File {
+  _InterruptedReadFile(this.path, this.beforeError);
+  @override
+  final String path;
+  final Future<void> Function()? beforeError;
+
+  @override
+  Stream<List<int>> openRead([int? start, int? end]) async* {
+    yield [110, 101, 119];
+    await beforeError?.call();
+    throw FileSystemException('source interrupted', path);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

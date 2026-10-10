@@ -151,13 +151,6 @@ class ToolTabScreenState extends State<ToolTabScreen>
     });
   }
 
-  /// מאפס את לוח השנה לתאריך של היום.
-  void resetToToday() {
-    if (widget.tab.toolId != 'builtin.calendar') return;
-    if (mounted) context.read<CalendarCubit>().jumpToToday();
-    _requestCalendarFocus();
-  }
-
   void closeTransientPanels() {
     if (widget.tab.toolId == 'builtin.calendar') {
       _calendarKey.currentState?.closeTransientPanels();

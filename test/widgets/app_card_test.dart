@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 void main() {
@@ -70,6 +72,106 @@ void main() {
     );
     await tester.tap(find.text('tap me'));
     expect(tapped, isTrue);
+  });
+
+  testWidgets('AppCard requests focus only after an accepted tap', (
+    tester,
+  ) async {
+    final externalFocus = FocusNode();
+    addTearDown(externalFocus.dispose);
+    for (final focusNode in [null, externalFocus]) {
+      var focused = false;
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: [
+                AppCard(
+                  focusNode: focusNode,
+                  requestFocusOnTap: true,
+                  onFocusChange: (value) => focused = value,
+                  onTap: () => taps++,
+                  child: const SizedBox(height: 200, child: Text('כרטיס')),
+                ),
+                const SizedBox(height: 1000),
+              ],
+            ),
+          ),
+        ),
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('כרטיס')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(focused, isFalse);
+      await gesture.moveBy(const Offset(0, -140));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(focused, isFalse);
+      expect(taps, 0);
+
+      await tester.tap(find.byType(AppCard));
+      await tester.pumpAndSettle();
+      expect(focused, isTrue);
+      expect(taps, 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
+  testWidgets('AppCard child actions do not focus or select the card', (
+    tester,
+  ) async {
+    var selected = false;
+    var parentTaps = 0;
+    var childTaps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => AppCard(
+              requestFocusOnTap: true,
+              selected: selected,
+              onFocusChange: (focused) {
+                if (focused) setState(() => selected = true);
+              },
+              onTap: () => parentTaps++,
+              child: Row(
+                children: [
+                  const Expanded(child: Text('כרטיס')),
+                  IconButton(
+                    onPressed: () => childTaps++,
+                    icon: const Icon(FluentIcons.info_24_regular),
+                  ),
+                  AppPopupMenuButton<String>(
+                    entries: const [
+                      AppMenuEntry<String>(value: 'action', label: 'פעולה'),
+                    ],
+                    onSelected: (_) => childTaps++,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    for (final button in [
+      find.byType(IconButton).first,
+      find.byType(AppPopupMenuButton<String>),
+    ]) {
+      final gesture = await tester.startGesture(tester.getCenter(button));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(selected, isFalse);
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('פעולה'), findsOneWidget);
+    await tester.tap(find.text('פעולה'));
+    await tester.pumpAndSettle();
+    expect(childTaps, 2);
+    expect(parentTaps, 0);
+    expect(selected, isFalse);
   });
 
   testWidgets('AppCard with selected adds ColoredBox overlay', (tester) async {

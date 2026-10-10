@@ -1,0 +1,75 @@
+# העלאה ל-App Store ושליחה לבדיקה. מופעל מ-.github/workflows/deploy-app-store.yml
+# אחרי `flutter build ios --release --no-codesign`, שמכין את Generated.xcconfig.
+#
+# חתימה ידנית: תעודת Apple Distribution ופרופיל App Store מגיעים מ-secrets,
+# כך שמפתח ה-API מסתפק בהרשאת App Manager (בלי גישה לתעודות ולמשתמשים).
+# התעודה בתוקף לשנה - בחידושה מעדכנים את IOS_DIST_CERT_P12_BASE64 ואת הפרופיל.
+
+default_platform(:ios)
+
+platform :ios do
+  lane :release do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: ENV.fetch("ASC_KEY_PATH")
+    )
+
+    setup_ci
+
+    import_certificate(
+      certificate_path: ENV.fetch("IOS_CERT_PATH"),
+      certificate_password: ENV.fetch("IOS_CERT_PASSWORD"),
+      keychain_name: "fastlane_tmp_keychain",
+      keychain_password: ""
+    )
+
+    profile_path = ENV.fetch("IOS_PROFILE_PATH")
+    install_provisioning_profile(path: profile_path)
+    profile = FastlaneCore::ProvisioningProfile.parse(profile_path)
+    bundle_id = profile["Entitlements"]["application-identifier"].split(".", 2)[1]
+    team_id = profile["TeamIdentifier"].first
+
+    update_code_signing_settings(
+      path: "Runner.xcodeproj",
+      targets: ["Runner"],
+      build_configurations: ["Release"],
+      use_automatic_signing: false,
+      team_id: team_id,
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile["Name"]
+    )
+
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: { bundle_id => profile["Name"] }
+      },
+      output_directory: "build",
+      output_name: "otzaria.ipa",
+      clean: false
+    )
+
+    locale = ENV.fetch("APP_STORE_LOCALE", "he")
+    notes = File.read(ENV.fetch("WHATS_NEW_FILE"))
+
+    upload_to_app_store(
+      api_key: api_key,
+      ipa: "build/otzaria.ipa",
+      skip_screenshots: true,
+      release_notes: { locale => notes },
+      submit_for_review: true,
+      automatic_release: true,
+      force: true,
+      run_precheck_before_submit: false,
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        export_compliance_uses_encryption: false
+      }
+    )
+  end
+end

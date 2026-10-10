@@ -9,10 +9,10 @@ char *otz_cache_dir(void);
 char *otz_executable_dir(void);
 /* Real write test (otzaria_write_test.tmp), creating the directory if needed. */
 gboolean otz_dir_is_writable(const char *dir);
-/* <Documents or $HOME>/אוצריא-להתקנה */
-char *otz_fallback_output_dir(void);
+/* <Documents or $HOME>/אוצריא-להתקנה ("Otzaria setup" in English) */
+char *otz_fallback_output_dir(gboolean english);
 /* Next to the executable when writable, else the fallback. */
-char *otz_default_output_dir(gboolean *fell_back);
+char *otz_default_output_dir(gboolean english, gboolean *fell_back);
 /* Free bytes on the filesystem holding path (or its nearest existing parent),
  * -1 when unknown. */
 gint64 otz_free_space(const char *path);

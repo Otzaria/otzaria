@@ -352,27 +352,6 @@ Future<void> main() async {
       ]);
     });
 
-    test('searchStream מפנה לפי מצב החיפוש', () async {
-      final engine = _RecordingSearchEngineOperations();
-      const gateway = SearchEngineGateway();
-
-      await gateway
-          .searchStream(engine, _request(SearchMode.exact), chunkSize: 10)
-          .drain<void>();
-      await gateway
-          .searchStream(engine, _request(SearchMode.advanced), chunkSize: 10)
-          .drain<void>();
-      await gateway
-          .searchStream(engine, _request(SearchMode.fuzzy), chunkSize: 10)
-          .drain<void>();
-
-      expect(engine.calls, [
-        _EngineCall.searchExactStream,
-        _EngineCall.searchAdvancedStream,
-        _EngineCall.searchFuzzyStream,
-      ]);
-    });
-
     test('searchAndCount מפנה לפי מצב החיפוש', () async {
       final engine = _RecordingSearchEngineOperations();
       const gateway = SearchEngineGateway();

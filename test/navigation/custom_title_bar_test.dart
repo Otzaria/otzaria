@@ -425,6 +425,93 @@ void main() {
     );
   });
 
+  group('שינוי הגדרות', () {
+    late _TestSettingsBloc settingsBloc;
+
+    Future<void> pumpBar(WidgetTester tester) async {
+      final tabs = [for (var i = 0; i < 5; i++) _makeTextTab('ספר $i')];
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> emitSettings(WidgetTester tester, SettingsState state) async {
+      settingsBloc.emitState(state);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    ReadingTabStrip strip(WidgetTester tester) =>
+        tester.widget<ReadingTabStrip>(find.byType(ReadingTabStrip));
+
+    testWidgets('הגדרה שהכותרת אינה מציגה אינה בונה מחדש את הרצועה', (
+      tester,
+    ) async {
+      await pumpBar(tester);
+      final before = strip(tester);
+
+      await emitSettings(tester, settingsBloc.state.copyWith(fontSize: 30));
+
+      expect(identical(strip(tester), before), isTrue);
+    });
+
+    testWidgets('מיקום, מסך מלא וקיצורים עדיין מתעדכנים בכותרת', (
+      tester,
+    ) async {
+      ShortcutHelper.isMacForTesting = false;
+      addTearDown(() => ShortcutHelper.isMacForTesting = null);
+      await pumpBar(tester);
+      await emitSettings(
+        tester,
+        settingsBloc.state.copyWith(
+          readingTabsPlacement: SettingsRepository.readingTabsPlacementSide,
+        ),
+      );
+      expect(find.byType(ReadingTabStrip), findsNothing);
+      await emitSettings(
+        tester,
+        settingsBloc.state.copyWith(
+          readingTabsPlacement: SettingsRepository.readingTabsPlacementTop,
+        ),
+      );
+      expect(find.byType(ReadingTabStrip), findsOneWidget);
+      expect(find.byTooltip('מסך מלא'), findsOneWidget);
+
+      await emitSettings(
+        tester,
+        settingsBloc.state.copyWith(isFullscreen: true),
+      );
+      expect(find.byTooltip('צא ממסך מלא'), findsOneWidget);
+
+      await Settings.setValue<String>('key-shortcut-open-history', 'ctrl+j');
+      await emitSettings(
+        tester,
+        settingsBloc.state.copyWith(
+          shortcuts: const {'key-shortcut-open-history': 'ctrl+j'},
+        ),
+      );
+      expect(find.byTooltip('הצג היסטוריה (CTRL + J)'), findsOneWidget);
+    });
+  });
+
   testWidgets('כרטיסיות מקבלות רוחב קבוע שווה, חסום בתקרה (~140px)', (
     tester,
   ) async {
@@ -560,7 +647,7 @@ void main() {
     expect(tester.takeException(), isNull);
     // רק טאב-PDF מקבל אייקון-סוג; בטאב מפרשים אין אייקון מוביל.
     expect(find.byIcon(OtzariaIcons.book_24_regular), findsNothing);
-    expect(find.byIcon(OtzariaIcons.book_pdf_24_regular), findsNothing);
+    expect(find.byIcon(OtzariaIcons.document_pdf_24_regular), findsNothing);
   });
 
   testWidgets('טאב PDF רחב מציג אייקון PDF ליד שם הספר', (tester) async {
@@ -588,7 +675,7 @@ void main() {
       settingsBloc: settingsBloc,
     );
 
-    expect(find.byIcon(OtzariaIcons.book_pdf_24_regular), findsOneWidget);
+    expect(find.byIcon(OtzariaIcons.document_pdf_24_regular), findsOneWidget);
   });
 
   testWidgets('טאב PDF צר (רוחב < 100) מסתיר את אייקון ה-PDF', (tester) async {
@@ -619,7 +706,7 @@ void main() {
       settingsBloc: settingsBloc,
     );
 
-    expect(find.byIcon(OtzariaIcons.book_pdf_24_regular), findsNothing);
+    expect(find.byIcon(OtzariaIcons.document_pdf_24_regular), findsNothing);
   });
 
   testWidgets('CombinedTab מציג את התחלת שני הספרים, כל אחד בחצי', (
@@ -1925,6 +2012,58 @@ void main() {
         reason: 'הטאב שנסגר הוא הטאב שעל ה-X שלו נלחץ',
       );
     });
+
+    testWidgets('קיצור הסגירה מוצג רק ב-tooltip של ה-X בטאב הפעיל '
+        '(issue #2000)', (tester) async {
+      final first = _makeTextTab('ספר א');
+      final second = _makeTextTab('ספר ב');
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [first, second], currentTabIndex: 0),
+      );
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+      addTearDown(() async {
+        first.dispose();
+        second.dispose();
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+
+      String closeTooltipOf(String title) => tester
+          .widget<IconButton>(
+            find.ancestor(
+              of: find.descendant(
+                of: find.ancestor(
+                  of: find.text(title),
+                  matching: find.byType(Tab),
+                ),
+                matching: find.byIcon(FluentIcons.dismiss_24_regular),
+              ),
+              matching: find.byType(IconButton),
+            ),
+          )
+          .tooltip!;
+
+      final shortcut = ShortcutHelper.formatShortcutForDisplay('ctrl+w');
+      expect(closeTooltipOf('ספר א'), 'סגור כרטיסיה ($shortcut)');
+      expect(
+        closeTooltipOf('ספר ב'),
+        'סגור כרטיסיה',
+        reason: 'הקיצור סוגר רק את הטאב הפעיל',
+      );
+    });
   });
 
   testWidgets('סגירת טאב כשהעכבר בשורה שומרת על רוחב הטאבים (לא מתרחבים)', (
@@ -2624,6 +2763,8 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   _TestSettingsBloc(super.initialState) {
     on<SettingsEvent>((event, emit) {});
   }
+
+  void emitState(SettingsState state) => emit(state);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

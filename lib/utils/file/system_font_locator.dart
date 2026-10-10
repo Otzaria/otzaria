@@ -10,5 +10,16 @@ import 'system_font_locator_stub.dart'
 class SystemFontLocator {
   SystemFontLocator._();
 
-  static List<String> installedFontPaths() => impl.installedFontPaths();
+  /// עם [family]: רק קבצים ששמם או שם הרישום שלהם מזכירים את המשפחה.
+  static List<String> installedFontPaths([String? family]) =>
+      impl.installedFontPaths(family);
+
+  /// בלי רישיות, רווחים וסימנים: "FrankRuehlCLM-Bold" מזכיר את "Frank Ruehl CLM".
+  static bool nameMentionsFamily(String name, String family) {
+    final key = _compact(family);
+    return key.isNotEmpty && _compact(name).contains(key);
+  }
+
+  static String _compact(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^\p{L}\p{N}]', unicode: true), '');
 }

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -62,5 +64,51 @@ void main() {
     await tester.pump();
 
     expect(controller.offset, 200);
+  });
+
+  testWidgets('הסינון זהה להשוואה נאיבית של כל שדה באותיות קטנות', (
+    tester,
+  ) async {
+    const letters = ['א', 'ב', 'A', 'b', 'Ä', 'ß', 'İ', ' ', '/'];
+    final random = Random(3);
+    String word() => [
+      for (var k = random.nextInt(5); k > 0; k--)
+        letters[random.nextInt(letters.length)],
+    ].join();
+    final books = [
+      for (var i = 0; i < 300; i++)
+        TextBook(
+          title: word(),
+          author: random.nextBool() ? word() : null,
+          categoryPath: random.nextBool() ? '/${word()}' : null,
+        ),
+    ];
+    await openDialog(tester, books);
+    final field = find.byType(TextField);
+    for (var n = 0; n < 60; n++) {
+      final query = word();
+      await tester.enterText(field, query);
+      await tester.pump();
+      final q = query.trim().toLowerCase();
+      final expected = q.isEmpty
+          ? books.length
+          : books.where((b) {
+              final category = (b.categoryPath ?? '').replaceFirst(
+                RegExp(r'^/+'),
+                '',
+              );
+              return [
+                b.title,
+                b.author ?? '',
+                category,
+                b.fileType ?? '',
+              ].any((f) => f.toLowerCase().contains(q));
+            }).length;
+      expect(
+        find.text('$expected / ${books.length}'),
+        findsOneWidget,
+        reason: query,
+      );
+    }
   });
 }

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:kosher_dart/kosher_dart.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 
 enum RecurrenceType {
   none,
@@ -110,7 +111,7 @@ class CustomEvent extends Equatable {
     if (current.isBefore(start)) return false;
     // מחפשים תחילת מופע שהתאריך הנוכחי בתוך טווח הימים שלו.
     for (var back = 0; back <= durationDays; back++) {
-      final day = current.subtract(Duration(days: back));
+      final day = addCalendarDays(current, -back);
       if (day.isBefore(start)) break;
       if (_isOccurrenceStart(day) && _occurrenceInEffect(day)) return true;
     }

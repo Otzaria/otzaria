@@ -69,6 +69,40 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('מיקום החיצים אינו תלוי באורך הכותרת (#1863)', (tester) async {
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(settingsBloc.close);
+
+      Future<Offset> prevMinorFor(String title) async {
+        await tester.pumpWidget(
+          _buildHarness(
+            settingsBloc: settingsBloc,
+            child: SizedBox(
+              width: 800,
+              child: Center(
+                child: ReaderNavCenter(
+                  title: Text(title, textAlign: TextAlign.center),
+                  prevMajorTooltip: 'פרק קודם',
+                  prevMinorTooltip: 'קטע קודם',
+                  nextMinorTooltip: 'קטע הבא',
+                  nextMajorTooltip: 'פרק הבא',
+                  onPrevMajor: () {},
+                  onPrevMinor: () {},
+                  onNextMinor: () {},
+                  onNextMajor: () {},
+                ),
+              ),
+            ),
+          ),
+        );
+        return tester.getCenter(find.byTooltip('קטע קודם'));
+      }
+
+      final short = await prevMinorFor('הלכות גדולות');
+      final long = await prevMinorFor('הלכות גדולות, הקדמה, סימן א');
+      expect(long, short);
+    });
+
     testWidgets('afterTitle בגודל טבעי כשיש מקום ומתכווץ במרכז צר בלי לגלוש', (
       tester,
     ) async {

@@ -43,9 +43,6 @@ class PluginDatabaseRegistry {
   /// קבלת מקור לפי ID, או null אם לא קיים
   PluginDatabaseSource? getSource(String sourceId) => _sources[sourceId];
 
-  /// רשימת כל המקורות הרשומים
-  List<PluginDatabaseSource> getAllSources() => _sources.values.toList();
-
   /// בדיקה אם מקור רשום
   bool hasSource(String sourceId) => _sources.containsKey(sourceId);
 }

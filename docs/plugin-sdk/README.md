@@ -170,13 +170,13 @@ my-plugin/
 | `contributes.startup.programs` | `[]` | תכניות חישוב Host מוולדות, ללא JavaScript; ראו `API_REFERENCE.md` §תכניות Host ללא WebView. |
 | `contributes.startup.searchDialogItems` | `[]` | שורות checkbox סטטיות; `openPluginOnSubmit` יכול לנתב את אישור החיפוש לתוסף. |
 | `contributes.startup.externalEditions` | `[]` | קונפיגורציית מהדורות מקבילות של ספק חיצוני (טבלת מיפוי במקור DB מוכרז); ראו `API_REFERENCE.md` §מהדורות מקבילות חיצוניות. |
-| `contributes.startup.libraryBooks` | `[]` | ספק ספרים שמצטרף לאיתור הספרים במסך הספרייה, ולחיצה על ספריו נמסרת לתוסף. מגרסה 0.9.98; ראו `API_REFERENCE.md` §ספרים בחיפוש הספרייה. |
+| `contributes.startup.libraryBooks` | `[]` | ספק ספרים שמצטרף לאיתור הספרים במסך הספרייה. לחיצה על ספריו נמסרת לתוסף, או מבצעת `openAction` בלי להעיר את המנוע. מגרסה 0.9.98; ראו `API_REFERENCE.md` §ספרים בחיפוש הספרייה. |
 | `contributes.startup.activationEvents` | `[]` | אירועים שמעירים את מנוע הרקע בעצלנות; כל נושא דורש גם הרשאת subscribe מתאימה. |
 | `contributes.startup.keepAlive` | `false` | בקשה למנוע כיבוי אוטומטי; דורשת אישור נפרד של `app.background_keep_alive`. |
 
 `homepage` הוא שדה אופציונלי, אבל מומלץ מאוד כשמעלים תוסף לחנות. זה המקום לשים קישור לעמוד ה־GitHub של התוסף, לתיעוד, לאתר הפרויקט, או לכל דף רשמי אחר שמסביר על התוסף ונותן למשתמש מקום לקבל מידע נוסף.
 
-`iconName` חייב להיות שם תקני של אייקון בגודל 24px, המסתיים ב-`_24_regular` או `_24_filled`, משתי הספריות שאוצריא מציגה: [ספריית אוצריא](https://github.com/Otzaria/otzaria_icons) (135 אייקונים לעולם התוכן היהודי) ו-[FluentUI System Icons](https://github.com/microsoft/fluentui-system-icons). השם נפתר ל-`IconData` קבוע באמצעות מפות סטטיות — כך ש-Flutter רואה כל אייקון אפשרי כקבוע בזמן בנייה ואינו זקוק ל-codepoint דינמי. שמות שאינם נמצאים באף אחת מהספריות יוצגו כאייקון פאזל ברירת מחדל.
+`iconName` חייב להיות שם תקני של אייקון בגודל 24px, המסתיים ב-`_24_regular` או `_24_filled`, משתי הספריות שאוצריא מציגה: [ספריית אוצריא](https://github.com/Otzaria/otzaria_icons) (אייקונים לעולם התוכן היהודי) ו-[FluentUI System Icons](https://github.com/microsoft/fluentui-system-icons). השם נפתר ל-`IconData` קבוע באמצעות מפות סטטיות — כך ש-Flutter רואה כל אייקון אפשרי כקבוע בזמן בנייה ואינו זקוק ל-codepoint דינמי. שמות שאינם נמצאים באף אחת מהספריות יוצגו כאייקון פאזל ברירת מחדל.
 
 שם שקיים בשתי הספריות נפתר לגרסת אוצריא; תחילית `fluent:` או `otzaria:` כופה ספרייה אחת. הרשימה המלאה וכלל ההכרעה: **[ICONS.md](ICONS.md)**.
 
@@ -354,6 +354,7 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 |--------|-------|----------|-------|
 | `reader.openBook` | `reader.open` | `{ bookId, index?, searchQuery? }` | `boolean` |
 | `reader.openBookAtRef` | `reader.open` | `{ bookId, ref, index?, highlight? }` | `boolean` |
+| `reader.printRange` | `reader.open` | `{ bookUid \| id \| bookId, startIndex, endIndex?, commentators? }` | `{ printed }` |
 | `reader.getCurrentState` | `reader.open` | — | `ReaderState` |
 
 ### navigation.*

@@ -62,6 +62,8 @@ class TabsState extends Equatable {
     return const TabsState(tabs: [], currentTabIndex: 0, updateCounter: 0);
   }
 
+  /// [forceUpdate] רק לטאב ששונה במקום: הוא בונה מחדש את תוכן כל הכרטיסיות
+  /// הפתוחות. טאב חדש ברשימה נבנה ממילא.
   TabsState copyWith({
     List<OpenedTab>? tabs,
     int? currentTabIndex,

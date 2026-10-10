@@ -87,68 +87,6 @@ class LibraryProviderManager {
     );
   }
 
-  /// Loads all books from all providers.
-  ///
-  /// Returns a map of category name -> list of books.
-  /// Books from higher priority providers take precedence.
-  Future<Map<String, List<Book>>> loadAllBooks(
-    Map<String, Map<String, dynamic>> metadata,
-  ) async {
-    if (!_isInitialized) await initialize();
-
-    final Map<String, List<Book>> allBooksByCategory = {};
-    final Set<BookCompositeKey> loadedKeys = {};
-    _bookToProvider.clear();
-
-    // Load from each provider in priority order
-    for (final provider in _providers) {
-      if (!provider.isInitialized) continue;
-
-      try {
-        final books = await provider.loadBooks(metadata);
-
-        for (final entry in books.entries) {
-          final categoryName = entry.key;
-          final categoryBooks = entry.value;
-
-          allBooksByCategory.putIfAbsent(categoryName, () => []);
-
-          for (final book in categoryBooks) {
-            // Add all books to the category list, allowing duplicates
-            allBooksByCategory[categoryName]!.add(book);
-
-            final key = BookCompositeKey.fromBook(book);
-            if (key == null) {
-              debugPrint(
-                '⚠️ Book "${book.title}" has no categoryId, skipping provider map',
-              );
-              continue;
-            }
-
-            // Only map the first occurrence (highest priority) for key-based lookups
-            if (!loadedKeys.contains(key)) {
-              loadedKeys.add(key);
-              _bookToProvider[key] = provider;
-            } else {
-              debugPrint(
-                'ℹ️ Duplicate book "${book.title}" from ${provider.displayName} - keeping primary mapping to ${_bookToProvider[key]?.displayName}',
-              );
-            }
-          }
-        }
-
-        debugPrint(
-          '📚 Loaded ${books.values.expand((b) => b).length} books from ${provider.displayName}',
-        );
-      } catch (e) {
-        debugPrint('⚠️ Error loading books from ${provider.displayName}: $e');
-      }
-    }
-
-    debugPrint('📚 Total: ${loadedKeys.length} unique books loaded');
-    return allBooksByCategory;
-  }
-
   BookCompositeKey? _resolveBookKey(
     String title, {
     int? categoryId,

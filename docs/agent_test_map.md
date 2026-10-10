@@ -26,14 +26,15 @@
 | תפריט הקשר בצורת הדף (מפרשים / קטע היעד) | `test/text_book/view/page_shape/simple_text_viewer_context_menu_test.dart` |
 | תת-תפריט "מפרשים" המשותף + מדיניות הצגה | `test/text_book/utils/commentators_context_menu_test.dart` |
 | SimpleTextViewer | `test/text_book/view/page_shape/simple_text_viewer_test.dart` |
-| Selected text copy/restore | `test/text_book/view/selection/selected_text_copy_test.dart`, `…selected_text_restore_test.dart` |
+| Selected text copy/restore | `test/text_book/view/selection/selected_text_copy_test.dart`, `test/book_common/selection/selected_text_restore_test.dart` |
 | SelectionSyncController | `test/text_book/view/selection/selection_sync_controller_test.dart` |
 | בחירה כלפי מעלה מעבר לנקודת העיגון של הרשימה (sliver הפוך) | `test/text_book/view/selection/selection_upward_across_anchor_test.dart` |
 | Commentary open-filter request | `test/text_book/view/commentary_list_base_open_filter_test.dart` |
 | Commentary search focus | `test/text_book/view/commentary_search_focus_test.dart` |
 | Commentary grouping | `test/text_book/commentary_grouping_test.dart` |
 | הסתרת כותרת מקור מיותרת במקטע מפרש | `test/text_book/view/commentary_item_title_visibility_test.dart` |
-| Book source dialog | `test/text_book/view/book_source_dialog_test.dart` |
+| Book source dialog | `test/book_common/view/book_source_dialog_test.dart` |
+| Commentator name matching | `test/book_common/utils/commentator_name_matching_test.dart`, `test/text_book/view/page_shape/page_shape_category_commentator_matching_test.dart` |
 | Error report dialog | `test/text_book/view/error_report_dialog_test.dart` |
 | הצעת תיקון בדיאלוג הדיווח (עורך, diff, מחיקה מול ללא-הצעה, מיפוי בחירה לשורה הגולמית) | `test/text_book/view/text_correction_editor_test.dart` |
 
@@ -168,6 +169,7 @@
 | הדגשת חיפוש כששם הוי"ה מוחלף (הדגשה לפני ההחלפה, issue #1248) | `test/widgets/smart_text/text_renderer_holy_name_highlight_test.dart` |
 | Smart text ↔ plugin section sync gate | `test/widgets/smart_text/smart_text_section_sync_gate_test.dart` |
 | קיבוע מדויק של גובה השורה (סימוני הערות, `<big>`) בשלושת מסלולי הרינדור | `test/widgets/smart_text/exact_line_height_test.dart` |
+| אותיות העוגן של המפרשים — חוזה התצוגה מקצה לקצה, בדיקה לכל רגרסיה (issue #2075) | `test/widgets/smart_text/anchor_marker_display_contract_test.dart` |
 | Work/indexing status overlays | `test/widgets/work_status_overlay_test.dart`, `…indexing_status_overlay_test.dart` |
 | App dropdown/search menu | `test/widgets/app_dropdown_field_test.dart`, `…app_search_menu_test.dart` |
 | Search pane base | `test/widgets/search_pane_base_test.dart` |
@@ -247,7 +249,6 @@
 | Laaz Rashi commentary sub-block widget | `test/tools/dictionary/laaz_commentary_subblock_test.dart` |
 | Laaz Rashi commentary wiring (surfaces) | `test/tools/dictionary/laaz_commentary_wiring_test.dart` |
 | Commentary reverse links | `test/text_book/commentary_reverse_links_test.dart` |
-| Inline links | `test/models/inline_links_test.dart` |
 | Dialog navigation | `test/widgets/dialogs/dialog_navigation_test.dart` |
 | Focus restore | `test/core/focus_restore_test.dart` |
 | Models (books, links) | `test/models/books_test.dart`, `…links_test.dart`, `…phone_report_data_test.dart` |
@@ -257,20 +258,20 @@
 | חיתוך HTML לפי טווח הבחירה (שימור עיצוב בהעתקה חלקית) | `test/utils/text/html_slice_test.dart` |
 | גודל פענוח תמונות (cacheWidth על נכסים כבדים) | `test/utils/ui/image_decode_size_test.dart` |
 | Hebrew text utils (migration) | `test/migration/hebrew_text_utils_test.dart` |
-| Text book searcher (in-book search) | `test/text_book/models/text_book_searcher_test.dart` |
 | Note text utils | `test/personal_notes/note_text_utils_test.dart` |
 | Shortcut validator | `test/shortcuts/shortcut_validator_test.dart` |
 | Core (activation queue/channel, error log) | `test/core/` |
 | כל הודעה ל-`UiSnack` מגיעה מקטלוג `lib/core/messages/` (issue #1473) | `test/core/messages/uisnack_literal_scan_test.dart` |
 | תעודות ה-CA של נטפרי שנטענות בהפעלה (שלושת הבאנדלים ב-`assets/ca/`) | `test/core/netfree_ca_assets_test.dart` |
 | Error logging | `test/core/main_error_logging_test.dart`, `test/services/direct_error_report_service_test.dart` |
-| דיווח על התוכנה — מודל (חוזה, גבולות, חיתוך גוף, JSON) | `test/app_report/app_report_model_test.dart` |
+| דיווח על התוכנה — מודל (חוזה, גבולות, חיתוך גוף, JSON, צירוף minidump) | `test/app_report/app_report_model_test.dart` |
 | דיווח על התוכנה — חתימת קריסה (נרמול פריימים, hash) | `test/app_report/crash_signature_test.dart` |
 | דיווח על התוכנה — הסתרת מידע אישי (פרופיל, שם משתמש, מייל) | `test/app_report/app_report_redactor_test.dart` |
 | דיווח על התוכנה — איסוף אבחון ולוג (מקטע שנכשל, חלון 7 ימים, ארכיטקטורה) | `test/app_report/app_report_collector_test.dart` |
-| דיווח על התוכנה — שירות השליחה (תור, 409/422/429, היסטוריה, סקריפט אופליין) | `test/app_report/app_report_service_test.dart` |
+| דיווח על התוכנה — שירות השליחה (תור, 409/422/429, היסטוריה, סקריפט אופליין, dump שנדחה נשלח בלעדיו) | `test/app_report/app_report_service_test.dart` |
 | זיהוי יציאה לא נקייה (נעילת הפעלה, ראיות, מגבלת דיווח אוטומטי) | `test/app_report/unclean_exit_detector_test.dart` |
-| טופס הדיווח (BLoC: איסוף, ולידציה לפי מקור, החרגת צרופות, שמירת מייל) | `test/app_report/bloc/app_report_bloc_test.dart` |
+| חתימת קריסה נייטיבית מ-minidump (קוד חריגה, מודול+היסט, קובץ פגום) | `test/app_report/minidump_signature_test.dart` |
+| טופס הדיווח (BLoC: איסוף, ולידציה לפי מקור, החרגת צרופות כולל minidump, שמירת מייל) | `test/app_report/bloc/app_report_bloc_test.dart` |
 | דיאלוג הדיווח הידני (מייל חובה, תצוגה מקדימה, הודעות סיום) | `test/app_report/view/app_report_dialog_test.dart` |
 | הצעת דיווח אחרי קריסה (בלי מייל, בחירת "תמיד"/"אל תשאל") | `test/app_report/view/crash_prompt_dialog_test.dart` |
 | צירוף צילומי מסך לדיווח (הדבקה מכל הטופס, בחירה, הסרה, מכסה וגודל) | `test/app_report/view/app_report_images_section_test.dart` |

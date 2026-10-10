@@ -52,7 +52,8 @@ class TextRendererService {
     return result;
   }
 
-  static String _processTextUncached(String rawText, RenderSettings settings) {
+  /// שלבי העיבוד שלפני הדגשת החיפוש — גם לשורה סמוכה שהדגשה עוברת אליה.
+  static String _beforeHighlight(String rawText, RenderSettings settings) {
     String processed = rawText;
 
     // 0. תיקון סדר סימוני הערות (<sup>) ב-RTL
@@ -76,9 +77,17 @@ class TextRendererService {
       processed = utils.removePunctuation(processed);
     }
 
+    return processed;
+  }
+
+  static String _processTextUncached(String rawText, RenderSettings settings) {
+    String processed = _beforeHighlight(rawText, settings);
+
     // 3. הדגשת טקסט חיפוש (אם יש) — לפני החלפת שם הוי"ה: תבנית ההדגשה
     // מכירה את הכתיב שבשאילתה, ואחרי ההחלפה "יהוה" כבר לא נמצא בטקסט.
     if (settings.searchText.isNotEmpty) {
+      String? neighbour(String? text) =>
+          text == null ? null : _beforeHighlight(text, settings);
       processed = utils.highLight(
         processed,
         settings.searchText,
@@ -92,6 +101,8 @@ class TextRendererService {
         isSearchResultLine: settings.isSearchResultLine,
         yellowBackground: settings.highlightYellowBackground,
         partialWordMatch: settings.partialWordHighlight,
+        previousLine: neighbour(settings.previousLineText),
+        nextLine: neighbour(settings.nextLineText),
       );
     }
 
@@ -289,6 +300,8 @@ class TextRendererService {
       formatParentheses: settings.formatParentheses,
       highlightYellowBackground: settings.highlightYellowBackground,
       partialWordHighlight: settings.partialWordHighlight,
+      previousLineText: settings.previousLineText,
+      nextLineText: settings.nextLineText,
     );
   }
 

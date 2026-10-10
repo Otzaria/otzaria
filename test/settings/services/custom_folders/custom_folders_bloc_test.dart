@@ -186,6 +186,45 @@ void main() {
       await bloc.close();
     });
 
+    for (final failure in [false, true]) {
+      test(
+        failure
+            ? 'RemoveCustomFolder משלים בכשל שמירת ההגדרות בלי למחוק ספרים'
+            : 'RemoveCustomFolder משלים רק לאחר המחיקה ושליחת הרענון',
+        () async {
+          final folder = _folder('C:/folder-to-remove');
+          await _saveFolders([folder]);
+          final recordedEvents = <LibraryEvent>[];
+          var deleted = false;
+          final bloc = CustomFoldersBloc(
+            addLibraryEvent: recordedEvents.add,
+            saveFolders: failure
+                ? (_) async => throw StateError('save-failed')
+                : null,
+            deleteFolderFromDb: (_) async => deleted = true,
+          )..add(const LoadCustomFolders());
+          await bloc.stream.firstWhere((state) => state.folders.isNotEmpty);
+          final done = Completer<String?>();
+          bloc.add(
+            RemoveCustomFolder(folder, deleteFromDb: true, completer: done),
+          );
+          final error = await done.future;
+          if (failure) {
+            expect(error, contains('save-failed'));
+            expect(bloc.state.error, error);
+            expect(bloc.state.folders, [folder]);
+            expect(deleted, isFalse);
+            expect(recordedEvents, isEmpty);
+          } else {
+            expect(error, isNull);
+            expect(deleted, isTrue);
+            expect(recordedEvents.whereType<RefreshLibrary>(), hasLength(1));
+          }
+          await bloc.close();
+        },
+      );
+    }
+
     // מסלול `library.refreshUserBooks` של תוסף: הקורא אינו UI ולכן
     // הודעות הטקסט לא מספיקות לו — הוא ממתין ל-completedScan של הבקשה שלו.
     test('RescanCustomFolders עם requestId מדווח את תוצאת הסריקה', () async {

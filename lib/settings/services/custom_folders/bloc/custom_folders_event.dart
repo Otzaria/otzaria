@@ -18,9 +18,16 @@ class AddCustomFolder extends CustomFoldersEvent {
 }
 
 class RemoveCustomFolder extends CustomFoldersEvent {
-  const RemoveCustomFolder(this.folder, {required this.deleteFromDb});
+  const RemoveCustomFolder(
+    this.folder, {
+    required this.deleteFromDb,
+    this.completer,
+  });
   final CustomFolder folder;
   final bool deleteFromDb;
+
+  /// תוצאת ההסרה הזו בלבד: null בהצלחה, הודעת שגיאה בכישלון.
+  final Completer<String?>? completer;
   @override
   List<Object> get props => [folder, deleteFromDb];
 }

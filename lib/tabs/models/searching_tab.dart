@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
-import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/external_search_status.dart';
 import 'package:otzaria/search/models/external_search_summary.dart';
 import 'package:otzaria/search/models/search_preview_target.dart';
@@ -81,7 +80,6 @@ class SearchingTab extends OpenedTab {
   final ValueNotifier<int> negativeSpacingValuesChanged = ValueNotifier(0);
 
   // מטמון של בקשות ספירה פעילות כדי למנוע קריאות כפולות
-  final Map<String, Future<int>> _inflight = {};
 
   static String titleForQuery(String query) {
     final trimmedQuery = query.trim();
@@ -191,39 +189,6 @@ class SearchingTab extends OpenedTab {
   String _normalizeFacet(String s) =>
       s.trim().replaceAll(RegExp(r'/+'), '/'); // אחידות סלאשים + רווחים
 
-  String _optionsHash() {
-    String normMap(Map m) => Map.fromEntries(
-      m.entries.toList()
-        ..sort((a, b) => a.key.toString().compareTo(b.key.toString())),
-    ).toString();
-    return [
-      normMap(searchOptions),
-      normMap(globalSearchOptions),
-      useGlobalSearchOptions.value.toString(),
-      normMap(spacingValues),
-      negativeQueryController.text.trim(),
-      normMap(negativeSearchOptions),
-      normMap(negativeGlobalSearchOptions),
-      useGlobalNegativeSearchOptions.value.toString(),
-      normMap(negativeSpacingValues),
-      Map.fromEntries(
-        negativeAlternativeWords.entries.toList()
-          ..sort((a, b) => a.key.compareTo(b.key)),
-      ).toString(),
-      Map.fromEntries(
-        alternativeWords.entries.toList()
-          ..sort((a, b) => a.key.compareTo(b.key)),
-      ).toString(),
-    ].join('|');
-  }
-
-  String _cacheKey(String facet) {
-    final f = _normalizeFacet(facet);
-    final q = (searchBloc.state.searchQuery).trim();
-    final bVer = searchBloc.state.booksToSearch.length.toString(); // מספר ספרים
-    return '$f|q=$q|o=${_optionsHash()}|b=$bVer';
-  }
-
   /// מחזיר את אפשרויות החיפוש האפקטיביות לפי המצב הנוכחי (גלובלי/פר-מילה).
   /// במצב גלובלי - מרחיב את ההגדרות הגלובליות לכל מילה בשאילתה.
   /// במצב פר-מילה - מחזיר את ההגדרות הפר-מיליות הקיימות.
@@ -244,34 +209,6 @@ class SearchingTab extends OpenedTab {
       useGlobalOptions: useGlobalNegativeSearchOptions.value,
       globalOptions: negativeGlobalSearchOptions,
       perWordOptions: negativeSearchOptions,
-    );
-  }
-
-  Future<int> countForFacet(String facet) {
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchBloc.state.configuration.searchMode,
-      customSpacing: spacingValues,
-      alternativeWords: alternativeWords,
-      searchOptions: effectiveSearchOptions(
-        query: searchBloc.state.searchQuery,
-      ),
-    );
-    final negativeParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchBloc.state.configuration.searchMode,
-      customSpacing: negativeSpacingValues,
-      alternativeWords: negativeAlternativeWords,
-      searchOptions: effectiveNegativeSearchOptions(
-        query: searchBloc.state.negativeQuery,
-      ),
-    );
-    return searchBloc.countForFacet(
-      facet,
-      customSpacing: normalizedParameters.customSpacing,
-      alternativeWords: normalizedParameters.alternativeWords,
-      searchOptions: normalizedParameters.searchOptions,
-      negativeCustomSpacing: negativeParameters.customSpacing,
-      negativeAlternativeWords: negativeParameters.alternativeWords,
-      negativeSearchOptions: negativeParameters.searchOptions,
     );
   }
 
@@ -302,48 +239,6 @@ class SearchingTab extends OpenedTab {
       negativeAlternativeWords: negativeParameters.alternativeWords,
       negativeSearchOptions: negativeParameters.searchOptions,
     );
-  }
-
-  /// ספירה חכמה - מחזירה תוצאות מהירות מה-state או מבצעת ספירה
-  Future<int> countForFacetCached(String facet) async {
-    final f = _normalizeFacet(facet);
-
-    // 0) אם יש ב-state (כולל 0) — החזר מיד
-    if (searchBloc.state.facetCounts.containsKey(f)) {
-      final v = searchBloc.getFacetCountFromState(f);
-      debugPrint('💾 Cache hit for $f: $v');
-      return v;
-    }
-
-    // 1) מפתח קאש כולל query/אפשרויות/גרסת ספרים
-    final key = _cacheKey(facet);
-
-    // 2) אם ספירה פעילה — הצמד אליה
-    final existing = _inflight[key];
-    if (existing != null) {
-      debugPrint('⏳ Count in progress for [$key], waiting...');
-      return existing;
-    }
-
-    debugPrint('🔄 Cache miss for $key, direct count...');
-    final sw = Stopwatch()..start();
-
-    final fut = countForFacet(f)
-        .then((result) {
-          sw.stop();
-          debugPrint(
-            '⏱️ Direct count for $key took ${sw.elapsedMilliseconds}ms: $result',
-          );
-          searchBloc.add(UpdateFacetCounts({f: result}));
-          return result;
-        })
-        .whenComplete(() {
-          // תמיד מנקים, גם בשגיאה
-          _inflight.remove(key);
-        });
-
-    _inflight[key] = fut;
-    return fut;
   }
 
   /// מחזיר ספירה סינכרונית מה-state (אם קיימת)

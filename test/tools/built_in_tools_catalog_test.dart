@@ -111,10 +111,10 @@ void main() {
         (tool) => tool.toolId == 'builtin.aramaic_dictionary',
       );
 
-      expect(dictionary.icon, OtzariaIcons.alef_near_alef_stam_24_regular);
+      expect(dictionary.icon, OtzariaIcons.alef_near_alef_stam_24_filled);
       expect(
         dictionary.iconFilled,
-        OtzariaIcons.alef_near_alef_stam_24_regular,
+        OtzariaIcons.alef_near_alef_stam_24_filled,
       );
     });
   });

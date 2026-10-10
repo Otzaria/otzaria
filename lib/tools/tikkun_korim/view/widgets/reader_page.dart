@@ -251,27 +251,31 @@ class _ReaderPageState extends State<ReaderPage> {
   Widget _buildList(TikkunRenderMetrics metrics, double width) {
     final horizontal = metrics.em(kTikkunRowPaddingEm);
     final gaps = _gapsFor(math.max(0.0, width - horizontal * 2), metrics);
-    return ScrollablePositionedList.builder(
-      physics: _zoomModifier ? const NeverScrollableScrollPhysics() : null,
-      itemScrollController: widget.scrollController,
-      itemPositionsListener: widget.positionsListener,
-      itemCount: widget.lines.length,
-      padding: EdgeInsets.symmetric(vertical: metrics.em(1)),
-      // הרשימה תופסת את כל הרוחב כדי שפס הגלילה יישב בקצה החלונית;
-      // מירכוז העמוד נעשה בכל שורה בנפרד.
-      itemBuilder: (context, index) => Center(
-        child: SizedBox(
-          width: width,
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: horizontal),
-            child: buildTikkunLineWidget(
-              line: widget.lines[index],
-              markers: _markers[index],
-              metrics: metrics,
-              settings: widget.settings,
-              hideStam: widget.hideStam,
-              hideNikud: widget.hideNikud,
-              gaps: gaps,
+    // הפריסה נמדדת ב-TextPainter בלי גודל הטקסט של המערכת, והזום מחליף אותו;
+    // בלי זה המילים מצוירות רחבות מהמדוד וגולשות מהטור.
+    return MediaQuery.withNoTextScaling(
+      child: ScrollablePositionedList.builder(
+        physics: _zoomModifier ? const NeverScrollableScrollPhysics() : null,
+        itemScrollController: widget.scrollController,
+        itemPositionsListener: widget.positionsListener,
+        itemCount: widget.lines.length,
+        padding: EdgeInsets.symmetric(vertical: metrics.em(1)),
+        // הרשימה תופסת את כל הרוחב כדי שפס הגלילה יישב בקצה החלונית;
+        // מירכוז העמוד נעשה בכל שורה בנפרד.
+        itemBuilder: (context, index) => Center(
+          child: SizedBox(
+            width: width,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontal),
+              child: buildTikkunLineWidget(
+                line: widget.lines[index],
+                markers: _markers[index],
+                metrics: metrics,
+                settings: widget.settings,
+                hideStam: widget.hideStam,
+                hideNikud: widget.hideNikud,
+                gaps: gaps,
+              ),
             ),
           ),
         ),

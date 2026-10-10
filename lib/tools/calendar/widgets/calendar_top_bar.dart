@@ -160,8 +160,8 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
   String _formatWeekHebrewRange(CalendarState state) {
     final selected = state.selectedGregorianDate;
-    final weekStart = selected.subtract(Duration(days: selected.weekday % 7));
-    final weekEnd = weekStart.add(const Duration(days: 6));
+    final weekStart = addCalendarDays(selected, -(selected.weekday % 7));
+    final weekEnd = addCalendarDays(weekStart, 6);
     final startJewish = JewishDate.fromDateTime(weekStart);
     final endJewish = JewishDate.fromDateTime(weekEnd);
 
@@ -184,8 +184,8 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
   String _formatWeekGregorianRange(CalendarState state) {
     final selected = state.selectedGregorianDate;
-    final weekStart = selected.subtract(Duration(days: selected.weekday % 7));
-    final weekEnd = weekStart.add(const Duration(days: 6));
+    final weekStart = addCalendarDays(selected, -(selected.weekday % 7));
+    final weekEnd = addCalendarDays(weekStart, 6);
 
     final sameGregorianMonth =
         weekStart.month == weekEnd.month && weekStart.year == weekEnd.year;
@@ -316,7 +316,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
   void _movePendingDateByDays(int days) {
     setState(() {
       _pendingJumpDate = clampJumpToDate(
-        _pendingJumpDate.add(Duration(days: days)),
+        addCalendarDays(_pendingJumpDate, days),
       );
       _jumpDateController.text = _formatInputDate(_pendingJumpDate);
     });
@@ -548,7 +548,7 @@ class _CalendarTopBarState extends State<CalendarTopBar>
 
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 4),
-      child: Tooltip(
+      child: ContainedTooltip(
         message: tooltip,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

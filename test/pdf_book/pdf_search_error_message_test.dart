@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/core/messages/pdf_messages.dart';
+import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -62,31 +62,7 @@ class _ThrowingSearchRepository extends SearchRepository {
   int calls = 0;
 
   @override
-  Future<List<SearchResult>> searchTexts(
-    String query,
-    List<String> facets,
-    int limit, {
-    int offset = 0,
-    ResultsOrder order = ResultsOrder.relevance,
-    bool fuzzy = false,
-    int distance = 0,
-    String negativeQuery = '',
-    int? negativeDistance,
-    SearchScope scope = SearchScope.wordDistance,
-    SearchScope? negativeScope,
-    SearchMode searchMode = SearchMode.exact,
-    Map<String, String>? customSpacing,
-    Map<String, String>? negativeCustomSpacing,
-    Map<int, List<String>>? alternativeWords,
-    Map<int, List<String>>? negativeAlternativeWords,
-    Map<String, Map<String, bool>>? searchOptions,
-    Map<String, Map<String, bool>>? negativeSearchOptions,
-    bool matchNikud = false,
-    bool matchTaamim = false,
-    ResultGrouping? grouping,
-    WordMatchMode wordMatchMode = WordMatchMode.all,
-    int? wordMatchCount,
-  }) async {
+  Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async {
     calls++;
     throw Exception('כשל מנוע החיפוש');
   }
@@ -162,7 +138,7 @@ Future<void> main() async {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(
-      find.text(PdfMessages.searchError),
+      find.text(LibraryMessages.searchError),
       findsOneWidget,
       reason: 'כשל חיפוש מתקדם אמור להציג הודעת שגיאה',
     );
@@ -186,7 +162,7 @@ Future<void> main() async {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(
-      find.text(PdfMessages.searchError),
+      find.text(LibraryMessages.searchError),
       findsNothing,
       reason: 'השגיאה מהחיפוש המתקדם לא אמורה להישאר במסלול הפשוט',
     );

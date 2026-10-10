@@ -1,3 +1,4 @@
+import 'package:otzaria/plugins/models/plugin_registry_item.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 
 class PluginContextMenuColor {
@@ -24,7 +25,8 @@ class PluginContextMenuColor {
   };
 }
 
-class PluginContextMenuItem {
+class PluginContextMenuItem implements PluginRegistryItem {
+  @override
   final String id;
   final String type;
   final String? title;
@@ -32,6 +34,7 @@ class PluginContextMenuItem {
   final List<String> contexts;
   final String? onClickEvent;
   final String? onColorClickEvent;
+  @override
   final List<PluginContextMenuItem> children;
   final List<PluginContextMenuColor> colors;
 
@@ -46,6 +49,7 @@ class PluginContextMenuItem {
   final List<String> showWhenContainsAny;
 
   /// תנאי הצגה על ערכי הגדרות/אחסון — מצטבר עם [showWhenContainsAny] (AND).
+  @override
   final PluginWhenCondition? when;
 
   /// תבנית פעולת host דקלרטיבית — הלחיצה מבוצעת ע"י התוכנה בלי להעיר את
@@ -78,6 +82,7 @@ class PluginContextMenuItem {
 
   String get label => title ?? '';
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'type': type,

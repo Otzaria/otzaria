@@ -41,6 +41,14 @@ void main() {
       expect(entry!.meanings, contains('וכולי, וכן הלאה'));
     });
 
+    test('מזהה ראשי תיבות עם גרשיים טיפוגרפיים', () {
+      expect(repository.isLikelyAcronym('רש”י'), isTrue);
+      expect(repository.isLikelyAcronym('רש“י'), isTrue);
+      expect(repository.isLikelyAcronym('וכו’'), isTrue);
+      expect(repository.isLikelyAcronym('וכו‘'), isTrue);
+      expect(repository.isLikelyAcronym('רשי'), isFalse);
+    });
+
     test('מחזיר הרחבות לראשי תיבות חלקיים עם גרש בודד', () async {
       repository = DictionaryLookupRepository(
         loadAcronyms: () async => <String, List<String>>{
@@ -418,4 +426,67 @@ void main() {
       expect(entries, hasLength(1));
     });
   });
+
+  group('findAramaicMatches (perf)', () {
+    test('חיפוש אינו מנרמל מחדש את ערכי המילון בכל קריאה', () async {
+      final entries = [
+        for (var i = 0; i < 200; i++) _CountingAramaicEntry('צירוף $i אבא'),
+        _CountingAramaicEntry('אבא'),
+      ];
+      final repo = DictionaryLookupRepository(
+        loadAramaicEntries: () async => entries,
+      );
+      await repo.ensureAramaicLoaded();
+      for (final entry in entries) {
+        entry.reads = 0;
+      }
+
+      for (var i = 0; i < 5; i++) {
+        expect(repo.findAramaicMatches('אבא'), hasLength(201));
+      }
+
+      expect(entries.fold<int>(0, (sum, e) => sum + e.reads), 0);
+    });
+
+    test(
+      'מנרמל ניקוד, מקף וגרשיים כמו קודם ומחזיר התאמה מדויקת ראשונה',
+      () async {
+        final repo = DictionaryLookupRepository(
+          loadAramaicEntries: () async => const <AramaicDictionaryEntry>[
+            AramaicDictionaryEntry(aramaic: 'בַּר־אַבָּא', hebrew: 'בן היער'),
+            AramaicDictionaryEntry(aramaic: 'אבא-מרי', hebrew: 'אבי'),
+            AramaicDictionaryEntry(aramaic: '  אַבָּא. ', hebrew: 'יער'),
+            AramaicDictionaryEntry(aramaic: 'אבאי', hebrew: 'שם'),
+            AramaicDictionaryEntry(aramaic: '', hebrew: 'ריק'),
+          ],
+        );
+        await repo.ensureAramaicLoaded();
+
+        expect(repo.findAramaicMatches('אַבָּא').map((e) => e.hebrew), <String>[
+          'יער',
+          'בן היער',
+          'אבי',
+        ]);
+        expect(repo.findAramaicMatches('מרי').map((e) => e.hebrew), <String>[
+          'אבי',
+        ]);
+      },
+    );
+  });
+}
+
+class _CountingAramaicEntry implements AramaicDictionaryEntry {
+  _CountingAramaicEntry(this._aramaic);
+
+  final String _aramaic;
+  int reads = 0;
+
+  @override
+  String get aramaic {
+    reads++;
+    return _aramaic;
+  }
+
+  @override
+  String get hebrew => '';
 }

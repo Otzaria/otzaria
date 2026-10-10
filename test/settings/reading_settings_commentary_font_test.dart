@@ -67,31 +67,31 @@ void main() {
       expect(find.text('גופן מפרשים'), findsOneWidget);
       // כל אחת מארבע ההגדרות מקבלת אייקון משלה: גודל/גופן × טקסט/מפרשים.
       expect(
-        find.byIcon(OtzariaIcons.alef_near_alef_24_regular),
+        find.byIcon(OtzariaIcons.alef_near_alef_24_filled),
         findsOneWidget,
       );
-      expect(find.byIcon(OtzariaIcons.alef_alef_24_regular), findsOneWidget);
+      expect(find.byIcon(OtzariaIcons.alef_alef_24_filled), findsOneWidget);
       expect(
-        find.byIcon(OtzariaIcons.beit_near_alef_24_regular),
-        findsOneWidget,
-      );
-      expect(
-        find.byIcon(OtzariaIcons.beit_behind_alef_24_regular),
+        find.byIcon(OtzariaIcons.beit_near_alef_24_filled),
         findsOneWidget,
       );
       expect(
-        find.byIcon(OtzariaIcons.alef_with_score_24_regular),
+        find.byIcon(OtzariaIcons.beit_behind_alef_24_filled),
         findsOneWidget,
       );
       expect(
-        find.byIcon(OtzariaIcons.alef_with_punctuation_24_regular),
+        find.byIcon(OtzariaIcons.alef_niqqud_24_filled),
+        findsOneWidget,
+      );
+      expect(
+        find.byIcon(OtzariaIcons.alef_punctuation_24_filled),
         findsOneWidget,
       );
 
       await tester.tap(find.byType(AppDropdownField<String>).first);
       await tester.pumpAndSettle();
       expect(
-        find.byIcon(OtzariaIcons.alef_behind_alef_24_regular),
+        find.byIcon(OtzariaIcons.alef_behind_alef_24_filled),
         findsWidgets,
       );
     });

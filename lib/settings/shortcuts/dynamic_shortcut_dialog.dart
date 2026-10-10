@@ -182,7 +182,7 @@ class _DynamicShortcutForm extends StatelessWidget {
             ),
             const Divider(),
             SettingsActionTile.segmentedTile<DynamicMarkChange?>(
-              icon: OtzariaIcons.alef_with_score_24_regular,
+              icon: OtzariaIcons.alef_niqqud_24_filled,
               title: t('ניקוד'),
               options: markOptions,
               currentValue: change.nikud,
@@ -190,7 +190,7 @@ class _DynamicShortcutForm extends StatelessWidget {
                   onChanged(value.copyWith(change: change.copyWith(nikud: v))),
             ),
             SettingsActionTile.segmentedTile<DynamicTeamimChange?>(
-              icon: OtzariaIcons.alef_with_flavors_24_regular,
+              icon: OtzariaIcons.alef_niqqud_taamim_24_filled,
               title: t('טעמי המקרא'),
               options: [
                 SegmentOption(value: null, label: t('ללא שינוי')),
@@ -210,7 +210,7 @@ class _DynamicShortcutForm extends StatelessWidget {
               ),
             ),
             SettingsActionTile.segmentedTile<DynamicMarkChange?>(
-              icon: OtzariaIcons.alef_with_punctuation_24_regular,
+              icon: OtzariaIcons.alef_punctuation_24_filled,
               title: t('סימני פיסוק'),
               options: markOptions,
               currentValue: change.punctuation,
@@ -219,7 +219,7 @@ class _DynamicShortcutForm extends StatelessWidget {
               ),
             ),
             SettingsActionTile.segmentedTile<HolyNameDisplay?>(
-              icon: OtzariaIcons.alef_lock_24_regular,
+              icon: OtzariaIcons.alef_lock_24_filled,
               title: t('שם הוי"ה'),
               options: [
                 SegmentOption(value: null, label: t('ללא שינוי')),
@@ -237,7 +237,7 @@ class _DynamicShortcutForm extends StatelessWidget {
             ),
             if (value.target == TextTarget.body && isDisplay)
               SettingsActionTile.segmentedTile<DynamicMarkChange?>(
-                icon: OtzariaIcons.alef_1_24_regular,
+                icon: OtzariaIcons.alef_1_24_filled,
                 title: t('ציוני המפרשים'),
                 options: markOptions,
                 currentValue: change.anchorMarkers,

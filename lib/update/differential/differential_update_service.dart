@@ -78,21 +78,6 @@ Future<List<UpdatePackageAsset>> fetchUpdatePackageAssets(
   }
 }
 
-/// גודל הורדה בעברית פשוטה, לקריאה על מסך רגיל ("8 מגה-בייט").
-String formatDownloadSizeHebrew(int bytes) {
-  if (bytes < 1024 * 1024) {
-    final kilobytes = (bytes / 1024).ceil();
-    return '$kilobytes קילו-בייט';
-  }
-  final megabytes = bytes / (1024 * 1024);
-  if (megabytes >= 10) return '${megabytes.round()} מגה-בייט';
-  final rounded = (megabytes * 10).round() / 10;
-  final text = rounded == rounded.roundToDouble()
-      ? '${rounded.round()}'
-      : rounded.toStringAsFixed(1);
-  return '$text מגה-בייט';
-}
-
 /// האם כדאי לנסות את המסלול הדיפרנציאלי. למעדכן העצמאי אין הסלמת הרשאות,
 /// ולכן התקנת מנהל ([installRootWritable]=false) נשארת על המתקין המלא.
 bool differentialUpdateSupported({

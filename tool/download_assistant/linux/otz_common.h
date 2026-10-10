@@ -27,11 +27,14 @@ void otz_set_allowed_owner(const char *owner);
 /* Release tag baked in at build time ("" for a local build). */
 const char *otz_embedded_release_tag(void);
 
-/* Size in readable Hebrew, same wording as the Windows assistant. */
+/* "1.8 GB", "40 MB", "1 KB" with a no-break space — the units of the app and
+ * the other assistants. */
 char *otz_human_size(gint64 bytes);
 
 /* Network errors and 5xx replies are retried; anything else fails at once. */
 gboolean otz_error_is_retryable(const GError *error);
+/* The request never reached a server: no network, no DNS, refused, timed out. */
+gboolean otz_error_is_offline(const GError *error);
 
 /* Wraps a path in Unicode LTR isolation marks for display in RTL text. */
 char *otz_ltr_isolate(const char *text);

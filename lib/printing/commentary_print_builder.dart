@@ -7,21 +7,12 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 /// פותר את תוכן הקישור (טקסט המפרש). ניתן להזרקה בבדיקות.
 typedef CommentaryContentResolver = Future<String> Function(Link link);
 
-/// בונה רשימת בלוקי הדפסה ([PrintBlock]) מתוך קבוצות המפרשים המוצגות
-/// בכרטיסיית המפרשים (זהה גם לטקסט וגם ל-PDF).
-///
-/// לכל קבוצה ([LinkGroup]) נוצרת כותרת ([PrintBlockKind.commentaryGroupTitle])
-/// ומתחתיה בלוק תוכן ([PrintBlockKind.commentary]) לכל קטע פירוש.
-/// התוכן עובר ניקוי HTML בלבד — הסרת ניקוד/טעמים והחלפת שמות קודש מתבצעות
-/// בשלב יצירת ה-PDF לפי בחירת המשתמש במסך ההדפסה.
-///
-/// [groups] - קבוצות המפרשים בסדר התצוגה.
-/// [contentResolver] - פותר תוכן חלופי (לבדיקות); ברירת מחדל היא [Link.content].
-///
-/// מחזירה [Future<List<PrintBlock>>] - בלוקים מוכנים להדפסה (ריק אם אין תוכן).
+/// בונה בלוקי מפרשים להדפסה; [keepHtml] משמר את התגיות כדי להחיל את פרופיל
+/// הייצוא לפני ניקוי HTML. ברירת המחדל מחזירה טקסט פשוט.
 Future<List<PrintBlock>> buildCommentaryPrintBlocks(
   List<LinkGroup> groups, {
   CommentaryContentResolver? contentResolver,
+  bool keepHtml = false,
 }) async {
   final resolve = contentResolver ?? (Link link) => link.content;
   final blocks = <PrintBlock>[];
@@ -31,7 +22,10 @@ Future<List<PrintBlock>> buildCommentaryPrintBlocks(
     for (final link in group.links) {
       String text;
       try {
-        text = stripHtmlIfNeeded(await resolve(link)).trim();
+        final content = await resolve(link);
+        final plainText = stripHtmlIfNeeded(content).trim();
+        if (plainText.isEmpty) continue;
+        text = keepHtml ? content.trim() : plainText;
       } catch (e) {
         // הקטע יושמט מהפלט המודפס — לוג כדי שהחוסר יהיה ניתן לאבחון
         debugPrint(
@@ -40,7 +34,6 @@ Future<List<PrintBlock>> buildCommentaryPrintBlocks(
         );
         continue;
       }
-      if (text.isEmpty) continue;
       groupBlocks.add(PrintBlock(kind: PrintBlockKind.commentary, text: text));
     }
 

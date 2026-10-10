@@ -253,12 +253,17 @@ void main() {
     final haftarah = TikkunData.haftarot.firstWhere(
       (h) => h.id == 'p:Bereshit',
     );
-    final haftarahLines = buildHaftarahLines(haftarah, 'ashkenaz', {
-      fixtureBookNames['yeshayahu']!: tokenizeBook(
-        raw['yeshayahu']!,
-        fixtureBookNames['yeshayahu']!,
-      ),
-    }, widths);
+    final haftarahLines = await buildVersePartLines(
+      const TikkunEngineImpl(),
+      haftarahParts(haftarah, 'ashkenaz'),
+      {
+        fixtureBookNames['yeshayahu']!: tokenizeBook(
+          raw['yeshayahu']!,
+          fixtureBookNames['yeshayahu']!,
+        ),
+      },
+      widths,
+    );
     final torahBigGap = torah.allLines.indexWhere(
       (l) => l.words.any((w) => w.isBigGap),
     );

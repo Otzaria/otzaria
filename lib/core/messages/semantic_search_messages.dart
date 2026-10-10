@@ -1,4 +1,5 @@
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
+import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 
 /// ריכוז הודעות החיפוש הסמנטי: כשלים ומצבי הורדה.
@@ -37,6 +38,10 @@ abstract class SemanticSearchMessages {
       'לא ניתן לקבוע את גרסת הספרייה המותקנת.';
   static const String notReady = 'נתוני {name} עוד לא הותקנו.';
   static const String internal = 'אירעה שגיאה ב{name}.';
+  static const String unsupportedScope =
+      'הצמצום המבוקש אינו נתמך במלואו בחיפוש החכם. בחרו צמצום אחר או עברו לחיפוש רגיל.';
+  static const String resultsRefreshed =
+      'תוצאות החיפוש רועננו. מוצג העמוד הראשון.';
   static const String vectorsBusy =
       'נתוני {name} מתעדכנים כרגע. הניסיון יחזור מעצמו בעוד כמה דקות.';
   static const String unsupportedRelease =
@@ -45,6 +50,33 @@ abstract class SemanticSearchMessages {
       'את נתוני {name} אפשר להוריד ולמחוק רק מהחלון הראשי של התוכנה.';
   static const String libraryMoving =
       'מיקום הספרייה מועבר כעת. נסו שוב בסיום ההעברה.';
+
+  // ── מצבי ההורדה (גם מפתחות התרגום) ──
+  static const String downloadingData = 'מוריד את נתוני החיפוש';
+  static const String installingData = 'מתקין את נתוני החיפוש';
+  static const String checkingStagedFiles = 'בודק את הקבצים שהוכנו מראש';
+  static const String percentTemplate = '{label} ({percent}%)';
+
+  /// הפעולה של שלב [item]; למשתמש זו הורדה אחת, בלי פירוט הרכיבים.
+  static String stepAction(SemanticDownloadItem item) => switch (item) {
+    SemanticDownloadItem.model ||
+    SemanticDownloadItem.vectors => downloadingData,
+    SemanticDownloadItem.install => installingData,
+  };
+
+  /// הפעולה המוצגת: בדיקת קובץ מוכן, או הפעולה של השלב.
+  static String progressAction(SemanticDownloadProgress progress) =>
+      progress.checking ? checkingStagedFiles : stepAction(progress.item);
+
+  /// האחוז הכולל להצגה, או `null` בהתקנה ובגודל לא ידוע.
+  static String? progressPercent(SemanticDownloadProgress progress) {
+    final fraction = progress.fraction;
+    if (fraction == null || progress.item == SemanticDownloadItem.install) {
+      return null;
+    }
+    // כלפי מטה, כמו בכרטיס חיווי העבודה: אחרת יוצג 100% לפני הסיום.
+    return '${(fraction * 100).floor()}';
+  }
 
   /// כל ההודעות של [failure] — לבדיקות הכיסוי של התרגום.
   static const List<String> allFailureMessages = [

@@ -74,7 +74,7 @@ Timer watchForUpdaterGiveUp(
     try {
       marker.deleteSync();
     } on FileSystemException {
-      // שיגור חוזר מוחק אותו בכל מקרה (writeSwapPlan).
+      // שיגור חוזר מוחק אותו בכל מקרה (writeSwapPlanFile).
     }
     onGaveUp();
   });

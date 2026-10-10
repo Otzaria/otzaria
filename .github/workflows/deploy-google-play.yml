@@ -219,6 +219,10 @@ jobs:
       - name: Generate settings translation catalog
         run: dart run tool/generate_settings_l10n.dart
 
+      # לפני הבנייה: יומן שינויים בלי סעיף לגרסה הזו נכשל מיד ולא אחרי הבנייה הארוכה
+      - name: Prepare What's new from the changelog
+        run: python3 tool/version/play_whats_new.py distribution/whatsnew
+
       - name: Build Android App Bundle
         env:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/app/keystore/otzaria-keystore.jks
@@ -235,3 +239,4 @@ jobs:
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           tracks: production
           status: completed
+          whatsNewDirectory: distribution/whatsnew

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/http_client_registry.dart';
+import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 /// הקשר דיווח של התקנה ישירה מהחנות: טוקן חד-פעמי + כתובת callback,
@@ -81,7 +82,7 @@ class PluginInstallReportService {
     try {
       String? appVersion;
       try {
-        appVersion = (await PackageInfo.fromPlatform()).version;
+        appVersion = canonicalAppVersion(await PackageInfo.fromPlatform());
       } catch (_) {}
 
       final response = await _client

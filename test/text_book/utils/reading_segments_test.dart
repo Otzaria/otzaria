@@ -59,6 +59,59 @@ void main() {
     });
   });
 
+  group('דילוג על RegExp לשורת טקסט', () {
+    test('שורות שמתחילות באות אינן מריצות את תבניות הכותרת והיישור', () {
+      final lines = [
+        '<h2>פרק א</h2>',
+        for (var i = 0; i < 500; i++) 'בראשית ברא אלהים $i',
+        '<center>הדרן</center>',
+      ];
+      for (final continuous in [false, true]) {
+        debugReadingTagPatternChecks = 0;
+        buildReadingSegments(
+          lines,
+          continuous: continuous,
+          loadedLineFlags: List<bool>.filled(lines.length, true),
+        );
+        expect(debugReadingTagPatternChecks, inInclusiveRange(2, 6));
+      }
+    });
+
+    test('התוצאה זהה ל-RegExp המלא לכל תו ראשון אפשרי', () {
+      final header = RegExp(r'^\s*<h[1-6]', caseSensitive: false);
+      final aligned = RegExp(
+        r'^\s*(?:(?:<a\b[^>]*>\s*</a>|<br\s*/?>)\s*)*'
+        r'<(?:center\b|div\b[^>]*\btext-align\s*:)',
+        caseSensitive: false,
+      );
+      final prefixes = [
+        '',
+        for (var c = 0; c <= 0xFFFF; c++) String.fromCharCode(c),
+      ];
+      const bodies = [
+        '<h3>כותרת</h3>',
+        '<center>x</center>',
+        '<br><div style="text-align:center">x</div>',
+        'טקסט',
+      ];
+      for (final prefix in prefixes) {
+        for (final body in bodies) {
+          final line = '$prefix$body';
+          expect(
+            isReadingHeaderLine(line),
+            header.hasMatch(line),
+            reason: line,
+          );
+          expect(
+            isAlignedBlockLine(line),
+            aligned.hasMatch(line),
+            reason: line,
+          );
+        }
+      }
+    });
+  });
+
   group('buildReadingSegments — non-continuous', () {
     test('שורה אחת לכל סגמנט במצב הרגיל', () {
       final lines = ['<h1>פתיחה</h1>', 'שורה א', 'שורה ב', 'שורה ג'];

@@ -67,6 +67,13 @@ void main() {
         final noYear = parseCalendarDate('טו תמוז', currentJewishYear: 5786);
         expect(noYear, equals(withYear));
       });
+      test('שנה שמסתיימת באות סופית', () {
+        expect(hebrewYearToInt('תש"ף'), 5780);
+        expect(hebrewYearToInt('התש"ם'), 5740);
+        expect(hebrewYearToInt('תש"ך'), 5720);
+        final date = parseCalendarDate('א ניסן תש"ף', currentJewishYear: 5786)!;
+        expect((date.year, date.month, date.day), (2020, 3, 26));
+      });
     });
 
     testWidgets('invalid gregorian date is rejected', (tester) async {

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +9,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/alt_toc_sidebar_view.dart';
+import 'package:otzaria/text_book/utils/dibburim_structure.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -108,6 +112,83 @@ List<TocEntry> _toc() => [
 ];
 
 void main() {
+  testWidgets('שורשי דיבורים מהמסד נשארים מכווצים עד לחיצה', (tester) async {
+    final fixture =
+        jsonDecode(
+              File(
+                'test/fixtures/toc/maadanei_yom_tov_berakhot_dibburim.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final toc = (fixture['toc'] as List)
+        .map(
+          (row) => TocEntry(
+            text: row[4] as String,
+            index: row[3] as int,
+            level: row[2] as int,
+          ),
+        )
+        .toList();
+    final dibburim = {
+      for (final row in fixture['dh'] as List) row[0] as int: row[1] as String,
+    };
+    final entries = buildDibburimEntries(toc, dibburim);
+    expect(entries, hasLength(983));
+    expect(
+      entries.every((entry) => entry.parentId == null && !entry.hasChildren),
+      isTrue,
+    );
+
+    await _pumpSidebar(
+      tester,
+      toc: toc,
+      dibburim: dibburim,
+      visibleIndices: [dibburim.keys.first],
+    );
+
+    expect(_tile(tester, 'דיבורי המתחיל').isExpanded, isFalse);
+    expect(find.byType(NavTreeTile), findsOneWidget);
+
+    await _expand(tester, 'דיבורי המתחיל');
+
+    expect(find.byType(NavTreeTile), findsNWidgets(984));
+    expect(
+      tester
+          .widgetList<NavTreeTile>(find.byType(NavTreeTile))
+          .where((tile) => tile.isSelected)
+          .single
+          .title,
+      entries.first.text,
+    );
+  });
+
+  testWidgets('שורשי כותרות לצד דיבור ישיר אינם חושפים דיבורים אוטומטית', (
+    tester,
+  ) async {
+    final bookHeading = TocEntry(text: 'שם הספר', index: 0, level: 0);
+    bookHeading.children.add(
+      TocEntry(text: 'פרק ראשון', index: 5, level: 1, parent: bookHeading),
+    );
+    await _pumpSidebar(
+      tester,
+      toc: [bookHeading],
+      dibburim: {2: 'דיבור לפני הפרק', 6: 'דיבור בפרק'},
+      visibleIndices: const [6],
+    );
+
+    expect(_tile(tester, 'דיבורי המתחיל').isExpanded, isFalse);
+    expect(find.byType(NavTreeTile), findsOneWidget);
+
+    await _expand(tester, 'דיבורי המתחיל');
+
+    expect(find.text('דיבור לפני הפרק'), findsOneWidget);
+    expect(find.text('פרק ראשון'), findsOneWidget);
+    expect(find.text('דיבור בפרק'), findsNothing);
+    expect(_tile(tester, 'פרק ראשון').isSelected, isTrue);
+    await _expand(tester, 'פרק ראשון');
+    expect(_tile(tester, 'דיבור בפרק').isSelected, isTrue);
+  });
+
   testWidgets('מבנה "דיבורי המתחיל" נפתח לבדו ומציג את הדיבורים תחת הדפים', (
     tester,
   ) async {
@@ -119,11 +200,7 @@ void main() {
     );
 
     expect(find.text('דיבורי המתחיל'), findsOneWidget);
-    // המבנה מכווץ עד לחיצה, גם כשהוא היחיד.
-    expect(find.text('דף ב.'), findsNothing);
-
-    await _expand(tester, 'דיבורי המתחיל');
-    // הדפים גלויים ומכווצים.
+    // מבנה יחיד נפתח מעצמו, והדפים שבו גלויים ומכווצים.
     expect(find.text('דף ב.'), findsOneWidget);
     expect(find.text('דף ב:'), findsOneWidget);
     // "דף ג." אין תחתיו דיבור ולכן אינו במבנה.
@@ -160,10 +237,6 @@ void main() {
       visibleIndices: const [10],
     );
 
-    // מבנה מכווץ: דבר לא נפתח בגלל המיקום.
-    expect(find.text('דף ב:'), findsNothing);
-
-    await _expand(tester, 'דיבורי המתחיל');
     // הדף של המיקום מסומן; הדיבור שבו קוראים עדיין מוסתר.
     expect(_tile(tester, 'דף ב:').isSelected, isTrue);
     expect(find.text('אמר ליה'), findsNothing);

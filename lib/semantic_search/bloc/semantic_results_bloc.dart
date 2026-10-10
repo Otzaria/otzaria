@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/semantic_search_messages.dart';
@@ -8,12 +10,13 @@ import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/search_feedback/search_feedback_service.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_event.dart';
 import 'package:otzaria/semantic_search/bloc/semantic_results_state.dart';
+import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_feedback_snapshots.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_results_source.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show MergedSibling;
+    show MergedSibling, SemanticPassageHighlight;
 
 export 'semantic_results_event.dart';
 export 'semantic_results_state.dart';
@@ -74,7 +77,14 @@ class SemanticResultsBloc
     on<SemanticMoreResultsRequested>(_onMoreRequested);
     on<SemanticSearchCancelRequested>(_onCancelRequested);
     on<SemanticVoteToggled>(_onVoteToggled);
+    on<SemanticHighlightsRequested>(
+      _onHighlightsRequested,
+      transformer: sequential(),
+    );
   }
+
+  /// כמה תוצאות בכל קריאה לסימון — כך חיפוש חדש לא ממתין לרשימה ארוכה.
+  static const int highlightBatchSize = 6;
 
   final int pageSize;
   final SemanticSourceResolver _resolveSource;
@@ -87,6 +97,7 @@ class SemanticResultsBloc
   SemanticSearchContext? _context;
   final List<bool> _userBookFlags = [];
   int _generation = 0;
+  SemanticCancelHandle? _highlightCancel;
 
   /// ההקשר של החיפוש האחרון שהוצג; `null` לפני חיפוש.
   SemanticSearchContext? get searchContext => _context;
@@ -107,10 +118,13 @@ class SemanticResultsBloc
 
   Future<void> _onSubmitted(
     SemanticSearchSubmitted event,
-    Emitter<SemanticResultsState> emit,
-  ) async {
+    Emitter<SemanticResultsState> emit, {
+    String? message,
+  }) async {
     final generation = ++_generation;
     _source?.cancel();
+    _highlightCancel?.cancel();
+    _highlightCancel = SemanticCancelHandle();
     _context = null;
     _userBookFlags.clear();
     final options = event.options;
@@ -171,10 +185,12 @@ class SemanticResultsBloc
       state.copyWith(
         status: SemanticResultsStatus.loaded,
         items: page.items,
-        pageableTotal: page.pageableTotal,
+        morePages: page.hasMore,
         isDebugPreview: source.isDebugPreview,
+        message: message,
       ),
     );
+    add(SemanticHighlightsRequested(generation, 0, page.items.length));
     if (_isCollecting) {
       _feedback.recorder.recordSearch(context);
       _recordShown(context, 0, page.items);
@@ -194,12 +210,25 @@ class SemanticResultsBloc
       return;
     }
     final generation = _generation;
+    final searchId = state.searchId;
     final offset = state.items.length;
     emit(state.copyWith(isLoadingMore: true, clearMessage: true));
     final page = await _fetch(source, options, offset, generation, emit);
     if (generation != _generation) return;
     if (page == null) {
       emit(state.copyWith(isLoadingMore: false));
+      return;
+    }
+    // אין לצרף עמוד מסדר חדש לרשימה הישנה. חיפוש מחדש מאפס גם הצבעות,
+    // סימונים והקשר משוב, ומבטל תשובות שעדיין מגיעות מהחיפוש הקודם.
+    if (page.sessionRestarted ||
+        (_context != null &&
+            page.executedMode != _context!.response.executedMode)) {
+      await _onSubmitted(
+        SemanticSearchSubmitted(options),
+        emit,
+        message: SemanticSearchMessages.resultsRefreshed,
+      );
       return;
     }
     final flags = await _userFlags(page.items);
@@ -210,15 +239,69 @@ class SemanticResultsBloc
         isLoadingMore: false,
         clearMessage: true,
         items: [...state.items, ...page.items],
-        // עמוד ריק אומר שאין עוד, גם כשהספירה מקורבת.
-        pageableTotal: page.items.isEmpty
-            ? state.items.length
-            : page.pageableTotal,
+        // עמוד ריק אומר שאין עוד, גם כשהמקור דיווח אחרת.
+        morePages: page.items.isNotEmpty && page.hasMore,
       ),
+    );
+    add(
+      SemanticHighlightsRequested(searchId, offset, offset + page.items.length),
     );
     final context = _context;
     if (context != null && _isCollecting && page.items.isNotEmpty) {
       _recordShown(context, offset, page.items);
+    }
+  }
+
+  /// מסמן ברקע, לפי סדר התצוגה, את התוצאות שנמצאו לפי עניין בלבד. כשל משאיר
+  /// את הקטע המקורי; תשובה של חיפוש קודם נזרקת.
+  Future<void> _onHighlightsRequested(
+    SemanticHighlightsRequested event,
+    Emitter<SemanticResultsState> emit,
+  ) async {
+    final source = _source;
+    final cancel = _highlightCancel;
+    final query = state.options?.query;
+    if (source == null || cancel == null || query == null) return;
+    bool isCurrent() =>
+        !cancel.isCancelled &&
+        event.searchId == state.searchId &&
+        state.status == SemanticResultsStatus.loaded;
+    if (!isCurrent()) return;
+    final end = math.min(event.end, state.items.length);
+    final pending = [
+      for (var i = event.start; i < end; i++)
+        if (state.items[i].wantsPassageHighlight &&
+            !state.passageHighlights.containsKey(i))
+          i,
+    ];
+    for (var from = 0; from < pending.length; from += highlightBatchSize) {
+      final indices = pending.sublist(
+        from,
+        math.min(from + highlightBatchSize, pending.length),
+      );
+      final items = [for (final i in indices) state.items[i]];
+      final List<SemanticPassageHighlight> marked;
+      try {
+        marked = await source.passageHighlights(query, items, cancel);
+      } catch (error) {
+        if (!cancel.isCancelled) debugPrint('[SemanticResults] mark: $error');
+        return;
+      }
+      if (!isCurrent()) return;
+      final highlights = Map<int, String>.of(state.passageHighlights);
+      for (var k = 0; k < indices.length && k < marked.length; k++) {
+        final highlight = marked[k];
+        final item = items[k];
+        if (highlight.isHighlighted &&
+            highlight.snippetHtml.isNotEmpty &&
+            highlight.filePath == item.filePath &&
+            highlight.id == item.id) {
+          highlights[indices[k]] = highlight.snippetHtml;
+        }
+      }
+      if (highlights.length != state.passageHighlights.length) {
+        emit(state.copyWith(passageHighlights: highlights));
+      }
     }
   }
 
@@ -400,6 +483,7 @@ class SemanticResultsBloc
   Future<void> close() {
     _generation++;
     _source?.cancel();
+    _highlightCancel?.cancel();
     return super.close();
   }
 }

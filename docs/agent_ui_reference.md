@@ -25,7 +25,7 @@ RtlIcon(FluentIcons.arrow_left_24_regular)        // in _fluentMirrorMap — aut
 
 1. An icon that **breaks when mirrored** for RTL — a geometric flip mangles it.
 2. An icon that is **always shown in an RTL context**, so it should simply be drawn that way.
-3. An icon **Fluent does not have** (`stander`, `torah_scroll`, `yoma_deilula`, the `alef_*`/`beit_*`/`tet_*` families).
+3. An icon **Fluent does not have** (`lectern`, `torah_scroll`, `calendar_yahrzeit`, the `alef_*`/`beit_*`/`tet_*` families).
 4. An icon Fluent has but whose form is **less suitable** for a seforim library (`book_pdf` over a generic document).
 
 Anything outside those four — generic UI chrome like `dismiss`, `delete`, `copy`, `folder`, `settings`, `add`, `edit` — stays on Fluent. Redrawing chrome buys nothing and costs consistency.
@@ -38,7 +38,7 @@ Anything outside those four — generic UI chrome like `dismiss`, `delete`, `cop
 | No | `fluentui_system_icons`, per the `RtlIcon` rule below |
 | Neither, but Material does | Draw it in `otzaria_icons` — **never** import Material |
 
-`otzaria_icons` is purpose-built for a Hebrew seforim library, so prefer it even when Fluent has *something* close: `book_pdf` for a PDF book rather than a generic document, `search_in_the_book` / `search_in_the_library` / `search_in_the_settings` for scoped search, the `alef_*` / `beit_*` / `tet_*` families for nikud, punctuation and font settings, `stander` / `torah_scroll` / `yoma_deilula` where nothing in Fluent applies.
+`otzaria_icons` is purpose-built for a Hebrew seforim library, so prefer it even when Fluent has *something* close: `book_pdf` for a PDF book rather than a generic document, `search_in_book` / `search_in_library` / `search_in_settings` for scoped search, the `alef_*` / `beit_*` / `tet_*` families for nikud, punctuation and font settings, `lectern` / `torah_scroll` / `calendar_yahrzeit` where nothing in Fluent applies.
 
 **Deliberate exceptions — these stay on Fluent:**
 
@@ -56,11 +56,11 @@ Anything outside those four — generic UI chrome like `dismiss`, `delete`, `cop
 
 | Where | Icon |
 |---|---|
-| Library screen search, `סינון מפרשים`, `חפש בתוך המפרשים המוצגים`, שמור וזכור search | `search_in_the_library_24_regular` |
-| Notes search, calendar `חפש גם בתיאור` | `search_in_the_document_24_regular` |
-| Calendar `חפש רק בכותרת` | `search_in_the_text_24_regular` |
-| `הוסף ספרים למעקב` dialog | `search_in_the_book_24_regular` |
-| Settings search | `search_in_the_settings_24_regular` |
+| Library screen search, `סינון מפרשים`, `חפש בתוך המפרשים המוצגים`, שמור וזכור search | `search_in_library_24_regular` |
+| Notes search, calendar `חפש גם בתיאור` | `search_in_document_24_regular` |
+| Calendar `חפש רק בכותרת` | `search_in_text_24_regular` |
+| `הוסף ספרים למעקב` dialog | `search_in_book_24_regular` |
+| Settings search | `search_in_settings_24_regular` |
 | `איתור כותרת` boxes (TOC, alt-TOC), bookmarks search, `חפש בתוך הקישורים המוצגים` | `search_in_titles_24_regular` |
 | Gematria search | `search_in_numbered_list_24_regular` |
 

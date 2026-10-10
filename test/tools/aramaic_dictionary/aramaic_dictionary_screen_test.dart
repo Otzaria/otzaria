@@ -22,6 +22,7 @@ DictionaryLookupRepository _repository() {
     loadAramaicEntries: () async => const [
       AramaicDictionaryEntry(aramaic: 'איתא', hebrew: 'יש'),
       AramaicDictionaryEntry(aramaic: 'גברא', hebrew: 'איש'),
+      AramaicDictionaryEntry(aramaic: 'מַאי חָזֵית', hebrew: 'מה ראית'),
     ],
   );
 }
@@ -71,5 +72,13 @@ void main() {
     expect(find.text('חפש מילה בעברית...'), findsOneWidget);
     // בכיוון עברי-ארמי "איתא" אינה מילה עברית — אין תוצאות, אך הטקסט נשמר.
     expect(find.text('לא נמצאו תוצאות'), findsOneWidget);
+  });
+
+  testWidgets('חיפוש בלי ניקוד מוצא ערך מנוקד', (tester) async {
+    await pumpScreen(tester);
+
+    await tester.enterText(find.byType(TextField), 'מאי חזית');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('מה ראית'), findsWidgets);
   });
 }

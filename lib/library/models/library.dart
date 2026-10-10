@@ -2,6 +2,7 @@
 contain other categories and books */
 
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
 /// Represents a category in the library.
@@ -71,6 +72,29 @@ class Category {
     return false;
   }
 
+  /// מקור התיקייה כשאין בה (גם בתתי-התיקיות) אף ספר רשמי: מסד מצורף כשכל
+  /// ספריה ממסדים מצורפים, אחרת [BookSource.user]. null לתיקייה רשמית,
+  /// מעורבת או ריקה.
+  BookSource? get personalSource {
+    var hasUser = false;
+    BookSource? attached;
+    bool onlyPersonal(Category category) {
+      for (final book in category.books) {
+        final source = book.source;
+        if (source.isOfficial) return false;
+        if (source.isAttached) {
+          attached ??= source;
+        } else {
+          hasUser = true;
+        }
+      }
+      return category.subCategories.every(onlyPersonal);
+    }
+
+    if (!onlyPersonal(this)) return null;
+    return hasUser ? BookSource.user : attached;
+  }
+
   List<Category> getAllCategories() {
     List<Category> categories = [];
     categories.addAll(subCategories);
@@ -78,13 +102,6 @@ class Category {
       categories.addAll(category.getAllCategories());
     }
     return categories;
-  }
-
-  List<dynamic> getAllBooksAndCategories() {
-    List<dynamic> booksAndCategories = [];
-    booksAndCategories.addAll(getAllBooks());
-    booksAndCategories.addAll(getAllCategories());
-    return booksAndCategories;
   }
 
   /// Initialize a new [Category] instance.
@@ -132,27 +149,6 @@ class Library extends Category {
 
   /// כל הספרים שנכנסים לאינדקס החיפוש: ספרי העץ ואחריהם [offTreeBooks].
   List<Book> getIndexableBooks() => [...getAllBooks(), ...offTreeBooks];
-
-  /// מחפש TextBook לפי כותרת ו-categoryId.
-  ///
-  /// מחפש התאמה מדויקת לפי categoryId (אם סופק), עם fallback לפי שם בלבד.
-  /// שימושי כשצריך למצוא TextBook שמתאים לספר PDF עם אותו שם.
-  TextBook? findTextBookByTitleAndCategory(
-    String title, {
-    int? categoryId,
-  }) {
-    TextBook? result;
-    for (final candidate in getAllBooks()) {
-      if (candidate is! TextBook) continue;
-      if (candidate.title != title) continue;
-      if (categoryId != null && candidate.categoryId != categoryId) {
-        continue;
-      }
-      result = candidate;
-      break;
-    }
-    return result ?? findBookByTitle(title, TextBook) as TextBook?;
-  }
 
   /// Finds a book by its title in the library.
   ///
@@ -246,61 +242,6 @@ class Library extends Category {
       DatabaseConstants.isBundledLibrarySource(book.externalLibraryId)
       ? null
       : book.externalLibraryId;
-
-  /// מחפש ספר לפי כותרת עם חיפוש גמיש יותר.
-  ///
-  /// אם לא נמצא התאמה מדויקת, מנסה למצוא ספר עם כותרת דומה:
-  /// - מסיר רווחים מיותרים
-  /// - מתעלם מהבדלי גרשיים וסימני פיסוק
-  /// - מחפש התאמה חלקית
-  ///
-  /// [title] - כותרת הספר לחיפוש
-  /// [type] - סוג הספר (למשל PdfBook, TextBook)
-  /// מחזיר את הספר הראשון שנמצא או null
-  Book? findBookByTitleFlexible(String title, Type? type) {
-    List<Book> allBooks = getAllBooks();
-
-    // ניסיון ראשון: חיפוש מדויק
-    try {
-      if (type == null) {
-        return allBooks.firstWhere((book) => book.title == title);
-      }
-      return allBooks.firstWhere(
-        (book) => book.title == title && book.runtimeType == type,
-      );
-    } catch (e) {
-      // לא נמצא - ממשיכים לחיפוש גמיש
-    }
-
-    // נרמול הכותרת לחיפוש
-    String normalizedTitle = _normalizeTitle(title);
-
-    // חיפוש עם נרמול
-    List<Book> candidates = allBooks.where((book) {
-      if (type != null && book.runtimeType != type) return false;
-      return _normalizeTitle(book.title) == normalizedTitle;
-    }).toList();
-
-    if (candidates.isNotEmpty) {
-      return candidates.first;
-    }
-
-    // חיפוש חלקי - הכלה כמילה שלמה בלבד (מונע "רות" בתוך "טהרות")
-    candidates = allBooks.where((book) {
-      if (type != null && book.runtimeType != type) return false;
-      String bookNormalized = _normalizeTitle(book.title);
-      return _containsAsWholeWord(bookNormalized, normalizedTitle) ||
-          _containsAsWholeWord(normalizedTitle, bookNormalized);
-    }).toList();
-
-    return candidates.isNotEmpty ? candidates.first : null;
-  }
-
-  /// בודק אם [needle] מוכל ב-[haystack] כרצף מילים שלם (גבול מילה ברווחים).
-  bool _containsAsWholeWord(String haystack, String needle) {
-    if (needle.isEmpty) return false;
-    return ' $haystack '.contains(' $needle ');
-  }
 
   String _normalizeTitle(String title) => normalizeBookTitle(title);
 }

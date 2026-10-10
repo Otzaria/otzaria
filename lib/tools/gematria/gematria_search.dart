@@ -150,26 +150,30 @@ class GimatriaSearch {
     dotAll: true,
   );
 
+  static const int _alef = 0x05D0;
+
+  // טבלה לפי קוד האות: נקראת על כל מילה בסריקה, בלי הקצאת מחרוזת לכל תו.
+  static List<int> _tableOf(Map<String, int> values) {
+    final table = List<int>.filled(0x05EA - _alef + 1, 0);
+    values.forEach((ch, v) => table[ch.codeUnitAt(0) - _alef] = v);
+    return table;
+  }
+
+  static final List<int> _regularTable = _tableOf(_regularValues);
+  static final List<int> _smallTable = _tableOf(_smallValues);
+  static final List<int> _finalLettersTable = _tableOf(_finalLettersValues);
+
   static int gimatria(String text, {String method = 'regular'}) {
-    Map<String, int> values;
-    switch (method) {
-      case 'small':
-        values = _smallValues;
-        break;
-      case 'finalLetters':
-        values = _finalLettersValues;
-        break;
-      case 'regular':
-      default:
-        values = _regularValues;
-        break;
-    }
+    final table = switch (method) {
+      'small' => _smallTable,
+      'finalLetters' => _finalLettersTable,
+      _ => _regularTable,
+    };
 
     var sum = 0;
-    for (final r in text.runes) {
-      final ch = String.fromCharCode(r);
-      final v = values[ch];
-      if (v != null) sum += v;
+    for (var i = 0; i < text.length; i++) {
+      final index = text.codeUnitAt(i) - _alef;
+      if (index >= 0 && index < table.length) sum += table[index];
     }
     return sum;
   }

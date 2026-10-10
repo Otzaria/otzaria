@@ -67,6 +67,23 @@ void main() {
   group('טבלת ההרשאות של הגשר', () {
     const table = PluginBridgeHandler.methodPermissions;
 
+    test('דיווח תיקון ספר דורש הרשאת שליחה בלי הרשאת רשת או DB', () {
+      expect(table['feedback.submitBookCorrection'], 'feedback.send_email');
+      expect(
+        apiCallToPermissionHint['feedback.submitBookCorrection'],
+        'feedback.send_email',
+      );
+      expect(
+        PluginBridgeHandler.hasOwnTimeout('feedback.submitBookCorrection'),
+        isTrue,
+      );
+      expect(
+        PluginExtendedValidator
+            .methodMinVersions['feedback.submitBookCorrection'],
+        '0.9.99',
+      );
+    });
+
     test('לכל method מוכר יש רישום מפורש בטבלה', () {
       final missing =
           PluginExtendedValidator.knownApiMethods

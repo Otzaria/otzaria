@@ -1,6 +1,6 @@
 // issue #1399: קריסת התוכנה ב-Windows בעקבות עץ נגישות שנשבר.
 //
-// ה-X של כרטיסיה נושא tooltip ("CTRL + W") ויושב בתוך הכרטיסיה, שגם לה יש
+// ה-X של כרטיסיה נושא tooltip ("סגור כרטיסיה") ויושב בתוך הכרטיסיה, שגם לה יש
 // tooltip (הכותרת המלאה). Tooltip חיצוני אינו יוצר צומת סמנטיקה משלו — הודעתו
 // ועוגן ה-OverlayPortal של הבלון מתמזגים לצומת הקרוב, כאן צומת הכרטיסיה, ולצומת
 // יש מקום לעוגן אחד בלבד. עוגן ה-X נשמט, ובריחוף עליו הבלון נשלח למערכת
@@ -62,7 +62,8 @@ void main() {
     'ריחוף על ה-X של כרטיסיה בעלת tooltip כותרת אינו שולח צומת נגישות יתום '
     '(issue #1399)',
     (tester) async {
-      final closeTooltip = ShortcutHelper.formatShortcutForDisplay('ctrl+w');
+      final closeTooltip =
+          'סגור כרטיסיה (${ShortcutHelper.formatShortcutForDisplay('ctrl+w')})';
       final tab = _makeTextTab('ספר א', currentTitle: 'פרק א');
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),

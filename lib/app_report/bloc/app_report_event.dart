@@ -80,6 +80,16 @@ class AppReportErrorLogToggled extends AppReportEvent {
   List<Object?> get props => [include];
 }
 
+/// הכללה או החרגה של ה-minidump מהדיווח.
+class AppReportMinidumpToggled extends AppReportEvent {
+  const AppReportMinidumpToggled(this.include);
+
+  final bool include;
+
+  @override
+  List<Object?> get props => [include];
+}
+
 /// החלפת רשימת התמונות המצורפות (הוספה או הסרה).
 class AppReportImagesChanged extends AppReportEvent {
   const AppReportImagesChanged(this.images);

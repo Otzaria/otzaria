@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -51,6 +53,36 @@ void main() {
       advance: (d) => now = now.add(d),
     );
   }
+
+  test(
+    'iOS default loader sends canonical app version to the plugin store',
+    () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      PackageInfo.setMockInitialValues(
+        appName: 'Otzaria',
+        packageName: 'otzaria',
+        version: '0.9.9801',
+        buildNumber: '99801',
+        buildSignature: '',
+      );
+      final requests = <http.Request>[];
+      final cubit = PluginUpdatesCubit(
+        service: PluginUpdateCheckService(
+          client: MockClient((request) async {
+            requests.add(request);
+            return http.Response(updateBody(), 200);
+          }),
+          updatesAllowedReader: () => true,
+        ),
+      );
+      addTearDown(cubit.close);
+      await cubit.ensureChecked(plugins);
+      expect(requests.single.url.queryParameters['appVersion'], '0.9.98');
+      expect(cubit.state.updateFor('org.a'), isNotNull);
+    },
+  );
 
   test('בדיקה מוצלחת ממלאת את המצב', () async {
     final h = build();

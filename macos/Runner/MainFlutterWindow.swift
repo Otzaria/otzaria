@@ -1,5 +1,24 @@
 import Cocoa
 import FlutterMacOS
+import Metal
+
+/// Impeller (ברירת המחדל מ-Flutter 3.47) רק על GPU של Apple Silicon. על Intel, ובמיוחד
+/// על GPU ישן תחת OCLP, העלייה נתקעת (#1898), ולכן שם Skia. `OTZARIA_RENDERER` עוקף לבדיקה.
+final class OtzariaDartProject: FlutterDartProject {
+  // דורס getter פנימי (FlutterDartProject_Internal.h); זו נקודת ההחלטה היחידה של המנוע.
+  @objc var enableImpeller: Bool { OtzariaDartProject.useImpeller }
+
+  static let useImpeller: Bool = {
+    assert(
+      class_getInstanceMethod(FlutterDartProject.self, NSSelectorFromString("enableImpeller"))
+        != nil, "FlutterDartProject.enableImpeller was renamed; the renderer override is dead")
+    switch ProcessInfo.processInfo.environment["OTZARIA_RENDERER"] {
+    case "impeller": return true
+    case "skia": return false
+    default: return MTLCreateSystemDefaultDevice()?.supportsFamily(.apple7) ?? false
+    }
+  }()
+}
 
 /// רק Flutter מחליט אם גרירה מזיזה את החלון: התוכן מצויר מתחת לשורת הכותרת
 /// השקופה, ולכן החלון נעול קבוע ורק `startDragging` → `performDrag` משחרר.
@@ -45,7 +64,7 @@ class MainFlutterWindow: OtzariaWindow {
   private let minDisplaySeconds: TimeInterval = 0.8
 
   override func awakeFromNib() {
-    let flutterViewController = FlutterViewController()
+    let flutterViewController = FlutterViewController(project: OtzariaDartProject())
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
@@ -407,7 +426,7 @@ final class OtzariaWindowManager {
   }
 
   private func createSecondaryWindow(payload: String, width: Int, height: Int) -> Bool {
-    let project = FlutterDartProject()
+    let project = OtzariaDartProject()
     // ⚠️ המטען עובר כארגומנט לנקודת הכניסה ולא בערוץ: החלון עוד לא קיים
     // בזמן הקריאה, ו-`secondaryWindowMain` קורא אותו לפני `runApp`.
     project.dartEntrypointArguments = [payload]

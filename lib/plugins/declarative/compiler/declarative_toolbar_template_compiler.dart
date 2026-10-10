@@ -1,6 +1,5 @@
-import 'dart:collection';
-
 import 'package:otzaria/plugins/declarative/commands/declarative_command_registry.dart';
+import 'package:otzaria/plugins/declarative/compiler/declarative_value_checks.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_toolbar_template.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
@@ -43,7 +42,7 @@ class DeclarativeToolbarTemplateCompiler {
     int index,
   ) {
     _assertValueBudget(json);
-    _assertOnlyKeys(json, const {
+    assertOnlyKeys(json, const {
       'id',
       'type',
       'title',
@@ -88,7 +87,7 @@ class DeclarativeToolbarTemplateCompiler {
       json['binding'],
       'toolbarItems[$index].binding',
     );
-    _assertOnlyKeys(
+    assertOnlyKeys(
       binding,
       const {'program', 'visibleOutput'},
       'toolbarItems[$index].binding',
@@ -127,7 +126,7 @@ class DeclarativeToolbarTemplateCompiler {
         baseItem: baseItem,
         programId: programId,
         visibleOutput: visibleOutput,
-        actionTemplate: _freezeMap(action),
+        actionTemplate: deepFreeze(action),
         childrenBinding: type == 'split'
             ? _compileChildrenBinding(json, program, index)
             : null,
@@ -158,7 +157,7 @@ class DeclarativeToolbarTemplateCompiler {
       json['childrenBinding'],
       'toolbarItems[$index].childrenBinding',
     );
-    _assertOnlyKeys(
+    assertOnlyKeys(
       children,
       const {'itemsOutput', 'itemTemplate', 'maxItems'},
       'toolbarItems[$index].childrenBinding',
@@ -179,7 +178,7 @@ class DeclarativeToolbarTemplateCompiler {
       children['itemTemplate'],
       'childrenBinding.itemTemplate',
     );
-    _assertOnlyKeys(
+    assertOnlyKeys(
       itemTemplate,
       const {'id', 'title', 'icon', 'action'},
       'childrenBinding.itemTemplate',
@@ -204,7 +203,7 @@ class DeclarativeToolbarTemplateCompiler {
     );
     return CompiledDeclarativeChildrenBinding(
       itemsOutput: itemsOutput,
-      itemTemplate: _freezeMap(itemTemplate),
+      itemTemplate: deepFreeze(itemTemplate),
       maxItems: maxItems,
     );
   }
@@ -214,7 +213,7 @@ class DeclarativeToolbarTemplateCompiler {
     CompiledDeclarativeProgram program, {
     required String referenceKey,
   }) {
-    _assertOnlyKeys(action, const {'type', 'args'}, 'action');
+    assertOnlyKeys(action, const {'type', 'args'}, 'action');
     final type = _requiredString(action['type'], 'action.type');
     final definition = DeclarativeCommandRegistry.require(type);
     if (definition.phase != DeclarativeCommandPhase.action ||
@@ -232,7 +231,7 @@ class DeclarativeToolbarTemplateCompiler {
       );
     }
     final args = _requiredMap(action['args'], 'action.args');
-    _assertOnlyKeys(
+    assertOnlyKeys(
       args,
       {...definition.requiredArgs, ...definition.optionalArgs},
       'action.args',
@@ -448,22 +447,8 @@ class DeclarativeToolbarTemplateCompiler {
     visit(value, 0);
   }
 
-  Map<String, dynamic> _requiredMap(Object? value, String context) {
-    if (value is! Map) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_toolbar_item',
-        '$context must be an object',
-      );
-    }
-    try {
-      return Map<String, dynamic>.from(value);
-    } on TypeError {
-      throw DeclarativeProgramException(
-        'declarative.invalid_toolbar_item',
-        '$context keys must be strings',
-      );
-    }
-  }
+  Map<String, dynamic> _requiredMap(Object? value, String context) =>
+      requiredMap(value, context, code: 'declarative.invalid_toolbar_item');
 
   List<dynamic> _requiredList(Object? value, String context) {
     if (value is! List) {
@@ -482,32 +467,6 @@ class DeclarativeToolbarTemplateCompiler {
         '$context must be a non-empty string',
       );
     }
-    return value;
-  }
-
-  void _assertOnlyKeys(
-    Map<String, dynamic> value,
-    Set<String> allowed,
-    String context,
-  ) {
-    final unknown = value.keys.where((key) => !allowed.contains(key)).toList();
-    if (unknown.isNotEmpty) {
-      throw DeclarativeProgramException(
-        'declarative.unknown_field',
-        '$context contains unsupported fields: ${unknown.join(', ')}',
-      );
-    }
-  }
-
-  Map<String, dynamic> _freezeMap(Map<String, dynamic> value) {
-    return UnmodifiableMapView({
-      for (final entry in value.entries) entry.key: _freeze(entry.value),
-    });
-  }
-
-  Object? _freeze(Object? value) {
-    if (value is Map) return _freezeMap(Map<String, dynamic>.from(value));
-    if (value is List) return List.unmodifiable(value.map(_freeze));
     return value;
   }
 }

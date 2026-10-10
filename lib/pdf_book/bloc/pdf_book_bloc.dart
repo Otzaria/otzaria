@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' show Offset, Rect;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -19,6 +20,18 @@ import 'package:pdfrx/pdfrx.dart';
 
 /// סוג לפונקציית אתחול pdfrx — ניתן להחלפה בטסטים.
 typedef PdfrxInitializer = Future<void> Function();
+
+/// מרכז הזום שמשאיר את ראש [visible] (במרחב המסמך) במקומו. זום סביב המרכז
+/// אחרי הקפיצה לעמוד היעד חושף את תחתית העמוד הקודם (#1974).
+@visibleForTesting
+Offset pdfZoomCenterKeepingTop(
+  Rect visible, {
+  required double fromZoom,
+  required double toZoom,
+}) => Offset(
+  visible.center.dx,
+  visible.top + visible.height * fromZoom / toZoom / 2,
+);
 
 /// Bloc for managing PDF book state
 ///
@@ -931,7 +944,11 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       for (int attempt = 0; attempt < maxAttempts; attempt++) {
         if (pdfController.isReady) {
           pdfController.setZoom(
-            pdfController.centerPosition,
+            pdfZoomCenterKeepingTop(
+              pdfController.visibleRect,
+              fromZoom: pdfController.currentZoom,
+              toZoom: zoomToApply,
+            ),
             zoomToApply,
             duration: Duration.zero,
           );

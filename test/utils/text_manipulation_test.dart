@@ -53,7 +53,10 @@ Future<void> main() async {
           'תורה מצוות',
           yellowBackground: true,
         );
-        expect(highlighted, contains('background-color: yellow'));
+        expect(
+          highlighted,
+          contains('background-color: rgba(255, 255, 0, 0.8)'),
+        );
         expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
       });
 
@@ -254,7 +257,7 @@ Future<void> main() async {
         expect(
           result,
           contains(
-            '<span style="background-color: yellow; color: black">רבי יוחנן משום</span>',
+            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">רבי יוחנן משום</span>',
           ),
         );
       });
@@ -270,7 +273,7 @@ Future<void> main() async {
         expect(
           result,
           contains(
-            '<span style="background-color: yellow; color: black">רבי יוחנן: הוא</span>',
+            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">רבי יוחנן: הוא</span>',
           ),
         );
       });
@@ -286,7 +289,9 @@ Future<void> main() async {
 
         expect(
           result,
-          contains('<span style="background-color: yellow; color: black">'),
+          contains(
+            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">',
+          ),
         );
         expect(result, contains('שֶׁנָּדַרְתָּ'));
       });
@@ -302,9 +307,9 @@ Future<void> main() async {
         expect(
           result,
           equals(
-            '<span style="background-color: yellow; color: black">אמר </span>'
-            '<b><span style="background-color: yellow; color: black">רבי</span></b>'
-            '<span style="background-color: yellow; color: black"> יוחנן</span>',
+            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">אמר </span>'
+            '<b><span style="background-color: rgba(255, 255, 0, 0.8); color: black">רבי</span></b>'
+            '<span style="background-color: rgba(255, 255, 0, 0.8); color: black"> יוחנן</span>',
           ),
         );
       });

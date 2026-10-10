@@ -2,11 +2,14 @@ import 'package:flutter/services.dart';
 
 /// תיקייה שנבחרה בבורר התיקיות של המערכת.
 class PickedFolder {
-  const PickedFolder({required this.uri, required this.name});
+  const PickedFolder({required this.uri, required this.name, this.path});
 
   /// ה-URI של העץ (`content://…/tree/…`) — משמש רק בקריאות לערוץ.
   final String uri;
   final String name;
+
+  /// הנתיב במערכת הקבצים, כשאפשר לגזור אותו מה-URI. ייתכן שאינו קריא ל-dart:io.
+  final String? path;
 }
 
 /// ספירת קבצי הספרים בתיקייה, לפני העתקה.
@@ -54,6 +57,7 @@ class AndroidFolderImportChannel {
     return PickedFolder(
       uri: result['uri']! as String,
       name: (result['name'] as String?) ?? '',
+      path: result['path'] as String?,
     );
   }
 

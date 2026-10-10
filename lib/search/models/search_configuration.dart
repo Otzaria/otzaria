@@ -305,9 +305,6 @@ class SearchConfiguration {
     );
   }
 
-  /// בדיקה אם החיפוש במצב רגקס
-  bool get isRegexMode => regexEnabled;
-
   /// קבלת דגלי רגקס כמחרוזת (לשימוש עתידי)
   String get regexFlags {
     String flags = '';

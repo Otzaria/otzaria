@@ -1,3 +1,10 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:otzaria/attached_libraries/models/attached_library.dart';
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/utils/ui/book_format_icon.dart';
+import '../../helpers/seforim_fixture_db.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -8,12 +15,14 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/text_book/utils/book_versions_action.dart';
 
 class _FakeFileSystemData extends FileSystemData {
   _FakeFileSystemData({this.canDelete = false});
 
   /// האם מחיקה מהספרייה מותרת (מדמה ספר "עותק עצמאי" כשהוא true).
-  final bool canDelete;
+  bool canDelete;
+  int canDeleteCalls = 0;
 
   @override
   Future<bool> canDeleteUserBookFromLibrary({
@@ -22,6 +31,7 @@ class _FakeFileSystemData extends FileSystemData {
     String fileType = 'txt',
     required BookSource source,
   }) async {
+    canDeleteCalls++;
     return canDelete;
   }
 }
@@ -693,6 +703,404 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsNothing);
+    });
+
+    group('שאילתות הפעולות', () {
+      late _FakeFileSystemData fake;
+      late List<Book> probedBooks;
+      late Book book;
+      late StateSetter rebuild;
+
+      setUp(() {
+        fake = _FakeFileSystemData(canDelete: false);
+        FileSystemData.instance = fake;
+        probedBooks = [];
+        bookVersionsProbeForTesting = (probed) async {
+          probedBooks.add(probed);
+          return probed.title == 'עם גרסאות';
+        };
+      });
+
+      tearDown(() => bookVersionsProbeForTesting = null);
+
+      Widget buildRebuildable(Book initial) {
+        book = initial;
+        return MaterialApp(
+          home: Material(
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                rebuild = setState;
+                return BookActionsMenuButton(book: book, onBookDeleted: () {});
+              },
+            ),
+          ),
+        );
+      }
+
+      testWidgets('תוצאות חיוביות נשמרות בבנייה מחדש של ההורה', (
+        tester,
+      ) async {
+        fake.canDelete = true;
+        await tester.pumpWidget(
+          buildRebuildable(TextBook(title: 'עם גרסאות', categoryId: 1)),
+        );
+        await tester.pumpAndSettle();
+        for (var i = 0; i < 10; i++) {
+          rebuild(() {});
+          await tester.pump();
+        }
+        await tester.pumpAndSettle();
+
+        expect(fake.canDeleteCalls, 1);
+        expect(probedBooks, hasLength(1));
+        expect(
+          find.byIcon(FluentIcons.more_vertical_24_regular),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('גרסאות ואייקון מתאוששים לאחר כשל מסד באותו ספר', (
+        tester,
+      ) async {
+        bookVersionsProbeForTesting = null;
+        final originalRegistry = AttachedLibraryRegistry.instance;
+        final directory = Directory.systemTemp.createTempSync(
+          'book-actions-recovery',
+        );
+        final dbPath = SeforimFixtureDb.create(
+          directory,
+          SeforimFixtureVariant.full,
+        );
+        final registry = AttachedLibraryRegistry(idleTimeout: null);
+        registry.update([
+          AttachedLibrary(
+            slug: 'recovery',
+            displayName: 'בדיקה',
+            path: dbPath,
+            addedAt: DateTime.now(),
+          ),
+        ]);
+        AttachedLibraryRegistry.instance = registry;
+        final provider = DatabaseLibraryProvider.instance;
+        provider.clearCache();
+        addTearDown(() async {
+          AttachedLibraryRegistry.instance = originalRegistry;
+          provider.clearCache();
+          await registry.closeAll();
+          directory.deleteSync(recursive: true);
+        });
+        book = TextBook(
+          title: 'בראשית',
+          categoryId: SeforimFixtureIds.torahCategoryId,
+          source: BookSource.attached('recovery'),
+        );
+        expect(
+          await tester.runAsync(() => hasBookVersionsToOpen(book)),
+          isTrue,
+        );
+        provider.clearCache();
+        final saved = File(dbPath).renameSync('$dbPath.saved');
+        await tester.runAsync(() async {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Material(
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    rebuild = setState;
+                    return Row(
+                      children: [
+                        BookFormatIcon(book: book),
+                        BookActionsMenuButton(book: book, onBookDeleted: () {}),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          );
+          expect(await hasBookVersionsToOpen(book), isFalse);
+        });
+        await tester.pumpAndSettle();
+        expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsNothing);
+        expect(
+          find.byIcon(FluentIcons.document_multiple_24_regular),
+          findsNothing,
+        );
+        saved.renameSync(dbPath);
+        rebuild(() {});
+        await tester.runAsync(() async {
+          await tester.pump();
+          expect(await hasBookVersionsToOpen(book), isTrue);
+        });
+        await tester.pumpAndSettle();
+        expect(
+          find.byIcon(FluentIcons.document_multiple_24_regular),
+          findsOneWidget,
+        );
+        await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+        await tester.pumpAndSettle();
+        expect(find.text('גרסאות'), findsOneWidget);
+      });
+
+      testWidgets('מחיקה שלילית נבדקת שוב גם כשגרסאות כבר זמינות', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          buildRebuildable(
+            TextBook(
+              title: 'עם גרסאות',
+              categoryId: 1,
+              source: BookSource.user,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        fake.canDelete = true;
+        rebuild(() {});
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+        await tester.pumpAndSettle();
+        expect(find.text('מחק מהספרייה'), findsOneWidget);
+        expect(probedBooks, hasLength(1));
+      });
+
+      testWidgets('גרסאות שליליות נבדקות שוב גם כשמחיקה כבר זמינה', (
+        tester,
+      ) async {
+        fake.canDelete = true;
+        var available = false;
+        bookVersionsProbeForTesting = (_) async => available;
+        await tester.pumpWidget(
+          buildRebuildable(
+            TextBook(title: 'ספר', categoryId: 1, source: BookSource.user),
+          ),
+        );
+        await tester.pumpAndSettle();
+        available = true;
+        rebuild(() {});
+        await tester.pumpAndSettle();
+        expect(fake.canDeleteCalls, 1);
+        await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+        await tester.pumpAndSettle();
+        expect(find.text('גרסאות'), findsOneWidget);
+      });
+
+      testWidgets('בניות בזמן שאילתה פעילה אינן יוצרות ניסיונות נוספים', (
+        tester,
+      ) async {
+        final pending = Completer<bool>();
+        bookVersionsProbeForTesting = (probed) {
+          probedBooks.add(probed);
+          return pending.future;
+        };
+        await tester.pumpWidget(
+          buildRebuildable(TextBook(title: 'ספר', categoryId: 1)),
+        );
+        for (var i = 0; i < 10; i++) {
+          rebuild(() {});
+          await tester.pump();
+        }
+        expect(fake.canDeleteCalls, 1);
+        expect(probedBooks, hasLength(1));
+        pending.complete(true);
+        await tester.pumpAndSettle();
+        expect(probedBooks, hasLength(1));
+        expect(
+          find.byIcon(FluentIcons.more_vertical_24_regular),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('פעולה זמינה נשארת מוצגת בזמן ניסיון חוזר', (tester) async {
+        fake.canDelete = true;
+        await tester.pumpWidget(
+          buildRebuildable(TextBook(title: 'בלי גרסאות', categoryId: 1)),
+        );
+        await tester.pumpAndSettle();
+        final pending = Completer<bool>();
+        bookVersionsProbeForTesting = (_) => pending.future;
+        rebuild(() {});
+        await tester.pump();
+        expect(
+          find.byIcon(FluentIcons.more_vertical_24_regular),
+          findsOneWidget,
+        );
+        for (var i = 0; i < 5; i++) {
+          rebuild(() {});
+          await tester.pump();
+        }
+        expect(fake.canDeleteCalls, 1);
+        pending.complete(true);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(FluentIcons.more_vertical_24_regular));
+        await tester.pumpAndSettle();
+        expect(find.text('גרסאות'), findsOneWidget);
+      });
+
+      testWidgets('תוצאת ספר ישן אינה מוצגת או נשמרת לספר החדש', (
+        tester,
+      ) async {
+        final oldResult = Completer<bool>();
+        final newResult = Completer<bool>();
+        bookVersionsProbeForTesting = (probed) {
+          probedBooks.add(probed);
+          return probed.title == 'ישן' ? oldResult.future : newResult.future;
+        };
+        book = TextBook(title: 'ישן', categoryId: 1);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) {
+                rebuild = setState;
+                return Row(
+                  children: [
+                    BookFormatIcon(book: book),
+                    BookActionsMenuButton(book: book, onBookDeleted: () {}),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+        rebuild(() => book = TextBook(title: 'חדש', categoryId: 2));
+        await tester.pump();
+        oldResult.complete(true);
+        await tester.pump();
+        expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsNothing);
+        expect(
+          find.byIcon(FluentIcons.document_multiple_24_regular),
+          findsNothing,
+        );
+        newResult.complete(false);
+        await tester.pumpAndSettle();
+        rebuild(() {});
+        await tester.pumpAndSettle();
+        expect(probedBooks.map((b) => b.title), [
+          'ישן',
+          'ישן',
+          'חדש',
+          'חדש',
+          'חדש',
+          'חדש',
+        ]);
+        expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsNothing);
+        expect(
+          find.byIcon(FluentIcons.document_multiple_24_regular),
+          findsNothing,
+        );
+      });
+
+      testWidgets('ספר חדש אינו יורש פעולה זמינה בזמן טעינה', (tester) async {
+        await tester.pumpWidget(
+          buildRebuildable(TextBook(title: 'עם גרסאות', categoryId: 1)),
+        );
+        await tester.pumpAndSettle();
+        final pending = Completer<bool>();
+        bookVersionsProbeForTesting = (_) => pending.future;
+        rebuild(() => book = TextBook(title: 'חדש', categoryId: 2));
+        await tester.pump();
+        expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsNothing);
+        pending.complete(false);
+        await tester.pumpAndSettle();
+      });
+
+      testWidgets('האייקון שומר הצלחה אך מתרענן כשהמקור מתחלף', (tester) async {
+        book = TextBook(title: 'עם גרסאות', categoryId: 1);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, setState) {
+                rebuild = setState;
+                return BookFormatIcon(book: book);
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        for (var i = 0; i < 5; i++) {
+          rebuild(() {});
+          await tester.pump();
+        }
+        expect(probedBooks, hasLength(1));
+        expect(
+          find.byIcon(FluentIcons.document_multiple_24_regular),
+          findsOneWidget,
+        );
+        final pending = Completer<bool>();
+        bookVersionsProbeForTesting = (probed) {
+          probedBooks.add(probed);
+          return pending.future;
+        };
+        rebuild(
+          () => book = TextBook(
+            title: 'עם גרסאות',
+            categoryId: 1,
+            source: BookSource.attached('other'),
+          ),
+        );
+        await tester.pump();
+        expect(probedBooks, hasLength(2));
+        expect(
+          find.byIcon(FluentIcons.document_multiple_24_regular),
+          findsNothing,
+        );
+        for (var i = 0; i < 5; i++) {
+          rebuild(() {});
+          await tester.pump();
+        }
+        expect(probedBooks, hasLength(2));
+        pending.complete(false);
+        await tester.pumpAndSettle();
+        bookVersionsProbeForTesting = (probed) async {
+          probedBooks.add(probed);
+          return true;
+        };
+        rebuild(() {});
+        await tester.pumpAndSettle();
+        expect(probedBooks, hasLength(3));
+        expect(
+          find.byIcon(FluentIcons.document_multiple_24_regular),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('ספר אחר באותו מקום מריץ את השאילתות מחדש', (tester) async {
+        await tester.pumpWidget(
+          buildRebuildable(TextBook(title: 'עם גרסאות', categoryId: 1)),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byIcon(FluentIcons.more_vertical_24_regular),
+          findsOneWidget,
+        );
+
+        rebuild(() => book = TextBook(title: 'בלי גרסאות', categoryId: 2));
+        await tester.pumpAndSettle();
+
+        expect(fake.canDeleteCalls, 2);
+        expect(probedBooks.map((b) => b.title), ['עם גרסאות', 'בלי גרסאות']);
+        expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsNothing);
+      });
+
+      testWidgets('מופע ספר חדש עם אותם שדות מריץ את השאילתות מחדש', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          buildRebuildable(TextBook(title: 'בלי גרסאות', categoryId: 1)),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byIcon(FluentIcons.more_vertical_24_regular), findsNothing);
+
+        fake.canDelete = true;
+        rebuild(() => book = TextBook(title: 'בלי גרסאות', categoryId: 1));
+        await tester.pumpAndSettle();
+
+        expect(fake.canDeleteCalls, 2);
+        expect(
+          find.byIcon(FluentIcons.more_vertical_24_regular),
+          findsOneWidget,
+        );
+      });
     });
   });
 }

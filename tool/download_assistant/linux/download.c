@@ -28,6 +28,7 @@ typedef struct {
 
 typedef struct {
   gboolean assemble;
+  char *dir; /* output_dir, or its outputFolder for this component */
   char *name;
   char *sha256;
   gint64 size;
@@ -44,6 +45,7 @@ struct OtzJob {
   GHashTable *items_by_name;
   GPtrArray *outputs;
   GPtrArray *output_files;
+  GPtrArray *output_notes;
   GPtrArray *unjoined;
 
   GMutex lock;
@@ -71,6 +73,7 @@ static void free_item(gpointer data) {
 
 static void free_output(gpointer data) {
   Output *output = data;
+  g_free(output->dir);
   g_free(output->name);
   g_free(output->sha256);
   g_free(output->partial_path);
@@ -91,6 +94,7 @@ void otz_job_free(OtzJob *job) {
   g_ptr_array_unref(job->items);
   g_hash_table_unref(job->items_by_name);
   g_ptr_array_unref(job->output_files);
+  g_ptr_array_unref(job->output_notes);
   g_ptr_array_unref(job->unjoined);
   g_clear_pointer(&job->queue, g_ptr_array_unref);
   g_clear_error(&job->worker_error);
@@ -188,9 +192,10 @@ static Item *get_item(OtzJob *job, const OtzAsset *asset, const char *name,
   return item;
 }
 
-static Output *add_output(OtzJob *job, gboolean assemble, const char *name,
-                          gint64 size) {
+static Output *add_output(OtzJob *job, const char *dir, gboolean assemble,
+                          const char *name, gint64 size) {
   Output *output = g_new0(Output, 1);
+  output->dir = g_strdup(dir);
   output->assemble = assemble;
   output->name = g_strdup(name);
   output->size = size;
@@ -199,12 +204,14 @@ static Output *add_output(OtzJob *job, gboolean assemble, const char *name,
   return output;
 }
 
-static gboolean plan_asset(OtzJob *job, const OtzAsset *asset, GError **error) {
+static gboolean plan_asset(OtzJob *job, const char *dir, const OtzAsset *asset,
+                           GError **error) {
   gboolean split = strcmp(asset->kind, "split") == 0;
   if (!split) {
     Item *item = get_item(job, asset, asset->name, asset->size, asset->sha256, error);
     if (item == NULL) return FALSE;
-    g_ptr_array_add(add_output(job, FALSE, asset->name, asset->size)->items, item);
+    g_ptr_array_add(add_output(job, dir, FALSE, asset->name, asset->size)->items,
+                    item);
     return TRUE;
   }
 
@@ -213,14 +220,15 @@ static gboolean plan_asset(OtzJob *job, const OtzAsset *asset, GError **error) {
       const OtzPart *part = g_ptr_array_index(asset->parts, p);
       Item *item = get_item(job, asset, part->name, part->size, part->sha256, error);
       if (item == NULL) return FALSE;
-      g_ptr_array_add(add_output(job, FALSE, part->name, part->size)->items, item);
+      g_ptr_array_add(add_output(job, dir, FALSE, part->name, part->size)->items,
+                      item);
     }
     if (strcmp(job->platform, "windows") != 0)
       g_ptr_array_add(job->unjoined, g_strdup(asset->name));
     return TRUE;
   }
 
-  Output *output = add_output(job, TRUE, asset->name, asset->size);
+  Output *output = add_output(job, dir, TRUE, asset->name, asset->size);
   output->sha256 = g_strdup(asset->sha256);
   g_autofree gint64 *sizes = g_new(gint64, asset->parts->len);
   for (guint p = 0; p < asset->parts->len; p++) {
@@ -231,7 +239,7 @@ static gboolean plan_asset(OtzJob *job, const OtzAsset *asset, GError **error) {
     sizes[p] = part->size;
   }
   /* A previous run may have joined some parts already and deleted them. */
-  g_autofree char *dest = g_build_filename(job->output_dir, asset->name, NULL);
+  g_autofree char *dest = g_build_filename(dir, asset->name, NULL);
   output->partial_path = versioned_path(dest, asset->sha256, ".partial");
   struct stat st;
   if (stat(output->partial_path, &st) == 0) {
@@ -246,7 +254,8 @@ static gboolean plan_asset(OtzJob *job, const OtzAsset *asset, GError **error) {
 
 OtzJob *otz_job_new(const OtzManifest *manifest, GPtrArray *selected_ids,
                     const OtzTarget *target, const char *cache_dir,
-                    const char *base_dir, GError **error) {
+                    const char *base_dir, const char *subfolder_name,
+                    GError **error) {
   OtzJob *job = g_new0(OtzJob, 1);
   g_mutex_init(&job->lock);
   job->platform = g_strdup(target->platform);
@@ -256,8 +265,13 @@ OtzJob *otz_job_new(const OtzManifest *manifest, GPtrArray *selected_ids,
   job->outputs = g_ptr_array_new_with_free_func(free_output);
   job->unjoined = g_ptr_array_new_with_free_func(g_free);
   job->output_files = otz_planned_output_files(manifest, selected_ids, target);
+  job->output_notes = otz_planned_output_notes(manifest, selected_ids);
   g_autofree char *subfolder =
       otz_planned_output_subfolder(job->output_files, target->platform);
+  if (*subfolder != '\0' && subfolder_name != NULL) {
+    g_free(subfolder);
+    subfolder = g_strdup(subfolder_name);
+  }
   job->output_dir = *subfolder != '\0'
                         ? g_build_filename(base_dir, subfolder, NULL)
                         : g_strdup(base_dir);
@@ -265,8 +279,10 @@ OtzJob *otz_job_new(const OtzManifest *manifest, GPtrArray *selected_ids,
   for (guint i = 0; i < manifest->components->len; i++) {
     const OtzComponent *component = g_ptr_array_index(manifest->components, i);
     if (!otz_string_array_contains(selected_ids, component->id)) continue;
+    g_autofree char *dir =
+        g_build_filename(job->output_dir, component->output_folder, NULL);
     for (guint a = 0; a < component->assets->len; a++) {
-      if (!plan_asset(job, g_ptr_array_index(component->assets, a), error)) {
+      if (!plan_asset(job, dir, g_ptr_array_index(component->assets, a), error)) {
         otz_job_free(job);
         return NULL;
       }
@@ -748,7 +764,13 @@ static gboolean produce_outputs(OtzJob *job, GError **error) {
   }
   for (guint i = 0; i < job->outputs->len; i++) {
     Output *output = g_ptr_array_index(job->outputs, i);
-    g_autofree char *dest = g_build_filename(job->output_dir, output->name, NULL);
+    if (g_mkdir_with_parents(output->dir, 0755) != 0) {
+      job->failure = OTZ_FAILURE_PLACE;
+      g_set_error(error, OTZ_ERROR, OTZ_ERROR_IO, "cannot create %s: %s",
+                  output->dir, g_strerror(errno));
+      return FALSE;
+    }
+    g_autofree char *dest = g_build_filename(output->dir, output->name, NULL);
     if (!output->assemble) {
       Item *item = g_ptr_array_index(output->items, 0);
       set_phase(job, OTZ_PHASE_PLACE, output->name, output->size);
@@ -897,6 +919,7 @@ gboolean otz_space_is_enough(gint64 cache_bytes, gint64 output_bytes,
 OtzFailure otz_job_failure(OtzJob *job) { return job->failure; }
 const char *otz_job_output_dir(OtzJob *job) { return job->output_dir; }
 GPtrArray *otz_job_output_files(OtzJob *job) { return job->output_files; }
+GPtrArray *otz_job_output_notes(OtzJob *job) { return job->output_notes; }
 GPtrArray *otz_job_unjoined_assets(OtzJob *job) { return job->unjoined; }
 
 gint64 otz_job_hashed_bytes(OtzJob *job) {

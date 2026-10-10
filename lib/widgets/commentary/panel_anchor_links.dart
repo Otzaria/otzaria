@@ -5,20 +5,20 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
-import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 
-/// קישורים פנימיים (ציטוטי הלינקר) בתוך קטע שמוצג בחלונית — מפרש או קישור.
-///
-/// בגוף הספר הסימון מוזרק מ-`state.linksByLine`, שממופתח לשורות ספר הבסיס
-/// בלבד. בחלונית הקטע שייך לספר אחר, ולכן הקישורים מגיעים מ-
-/// [TargetLineLinksService] — אותה טעינה שכבר משרתת את תפריט ההקשר.
+/// קישורים פנימיים בקטע בחלונית, שספרו שונה מספר הבסיס.
+/// נטענים דרך [TargetLineLinksService], כמו בתפריט ההקשר.
 mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   StreamSubscription<void>? _anchorSubscription;
   List<Link> _anchorLinks = const [];
+  List<Link> _noteLinks = const [];
+  int _anchorHoverGeneration = 0;
 
   /// הקישור שהקטע שלו מוצג — [Link.path2]/[Link.index2] הם הספר והשורה.
   Link get anchorSourceLink;
@@ -30,6 +30,8 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   /// המיקום ברשימה הזו, ולכן [anchorLinkFromUrl] חייב לקרוא את אותה רשימה.
   List<Link> get anchorLinks => _anchorLinks;
 
+  bool get hasPanelLinks => _anchorLinks.isNotEmpty || _noteLinks.isNotEmpty;
+
   void startAnchorLinks() {
     _anchorSubscription = TargetLineLinksService.instance.refreshStream.listen(
       (_) => _syncAnchorLinks(),
@@ -38,18 +40,24 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   }
 
   void restartAnchorLinks() {
-    _anchorHoverTimer?.cancel();
+    _cancelAnchorHoverTimer();
     _anchorLinks = const [];
+    _noteLinks = const [];
     _requestAnchorLinks();
   }
 
   void stopAnchorLinks() {
     _anchorSubscription?.cancel();
     _anchorSubscription = null;
-    _anchorHoverTimer?.cancel();
+    _cancelAnchorHoverTimer();
   }
 
   Timer? _anchorHoverTimer;
+
+  void _cancelAnchorHoverTimer() {
+    _anchorHoverTimer?.cancel();
+    _anchorHoverGeneration++;
+  }
 
   /// ריחוף על ציטוט — תצוגה מקדימה אחרי השהיה, כמו בגוף הספר (ההשהיה מונעת
   /// הבהובים כשהסמן רק חולף). [onOpen] — לחיצה על כותרת החלונית.
@@ -60,12 +68,16 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
     TextDisplayProfile? displayProfile,
   }) {
     LinkPreviewOverlay.cancelScheduledHide();
-    _anchorHoverTimer?.cancel();
-    final link = anchorLinkFromUrl(url);
-    if (link == null) return;
-    prefetchLinkPreview(link);
-    _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () {
-      if (!mounted) return;
+    _cancelAnchorHoverTimer();
+    final generation = _anchorHoverGeneration;
+    final isNoteMarker = url.startsWith('otzaria://note-marker');
+    final anchorLink = isNoteMarker ? null : anchorLinkFromUrl(url);
+    if (!isNoteMarker && anchorLink == null) return;
+    if (anchorLink != null) prefetchLinkPreview(anchorLink);
+    _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () async {
+      final link = anchorLink ?? await numberedNoteLinkFromUrl(url, _noteLinks);
+      if (!mounted || link == null) return;
+      if (generation != _anchorHoverGeneration) return;
       LinkPreviewOverlay.show(
         context,
         link: link,
@@ -81,13 +93,13 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   }
 
   void handleAnchorHoverExit(String url) {
-    _anchorHoverTimer?.cancel();
+    _cancelAnchorHoverTimer();
     LinkPreviewOverlay.scheduleHide();
   }
 
   /// לחיצה על הציטוט מנווטת — ריחוף ממתין היה פותח חלונית אחרי הניווט.
   void cancelAnchorHover() {
-    _anchorHoverTimer?.cancel();
+    _cancelAnchorHoverTimer();
     LinkPreviewOverlay.dismiss();
   }
 
@@ -99,21 +111,27 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
 
   void _syncAnchorLinks() {
     if (!mounted || !anchorLinksEnabled) return;
-    final next = _anchoredLinksOfDisplayedLine();
-    // הזרם משותף לכל הפריטים; בלי ההשוואה כל טעינה של פריט אחד הייתה בונה
-    // מחדש את כולם.
-    if (identical(next, _anchorLinks) || _sameLinks(next, _anchorLinks)) return;
-    setState(() => _anchorLinks = next);
-  }
-
-  List<Link> _anchoredLinksOfDisplayedLine() {
-    final cached = TargetLineLinksService.instance.cached(anchorSourceLink);
-    if (cached == null || cached.anchored.isEmpty) return const [];
+    final cached =
+        TargetLineLinksService.instance.cached(anchorSourceLink) ??
+        TargetLineLinks.empty;
     final line = anchorSourceLink.index2;
-    return [
+    final next = [
       for (final link in cached.anchored)
         if (link.index1 == line && _hasRangeSpan(link)) link,
     ];
+    final nextNotes = numberedNoteLinks([
+      for (final link in cached.commentaries)
+        if (link.index1 == line) link,
+    ]);
+    // הזרם משותף לכל הפריטים; בלי ההשוואה כל טעינה של פריט אחד הייתה בונה
+    // מחדש את כולם.
+    if (_sameLinks(next, _anchorLinks) && _sameLinks(nextNotes, _noteLinks)) {
+      return;
+    }
+    setState(() {
+      _anchorLinks = next;
+      _noteLinks = nextNotes;
+    });
   }
 
   static bool _hasRangeSpan(Link link) {
@@ -135,14 +153,24 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   /// מזריק את הסימון לשורה הגולמית — חייב לרוץ *לפני* כל עיבוד שמוסיף תוכן
   /// גלוי (סימוני הערות), כי אופסטי העוגן נמדדים על הטקסט כפי שנשמר.
   String injectAnchorLinks(String rawLine) {
-    if (_anchorLinks.isEmpty) return rawLine;
-    return injectLinkAnchorMarkers(
-      rawLine: rawLine,
-      anchorLinks: _anchorLinks,
-      styleIndexByCommentator: const {},
-      lineIndex: anchorSourceLink.index2 - 1,
-      rangesOnly: true,
-    );
+    final lineIndex = anchorSourceLink.index2 - 1;
+    final html = _anchorLinks.isEmpty
+        ? rawLine
+        : injectLinkAnchorMarkers(
+            rawLine: rawLine,
+            anchorLinks: _anchorLinks,
+            styleIndexByCommentator: const {},
+            lineIndex: lineIndex,
+            rangesOnly: true,
+          );
+    // אחרי הציטוטים: אופסטי קישור-משתמש נמדדים על השורה הגולמית.
+    // HTML של טווח אינו שומר גבולות שורות מקור; מספר הערה יכול לחזור.
+    if (_noteLinks.isEmpty ||
+        (anchorSourceLink.index2End ?? anchorSourceLink.index2) >
+            anchorSourceLink.index2) {
+      return html;
+    }
+    return addNumberedNoteMarkerLinks(html, lineIndex: lineIndex);
   }
 
   /// פענוח `otzaria://anchor?ref=<line>_<i>` לקישור שממנו נוצר הסימון.
@@ -214,29 +242,26 @@ class _PanelAnchoredTextState extends State<PanelAnchoredText>
   }
 
   // בלי onAnchorActivated: הלחיצה על כותרת החלונית אינה הקשה על הפריט שמתחת.
-  Future<void> _navigateTo(Link link) async {
-    final tab = await buildLinkTargetTab(link);
-    if (!mounted) return;
-    widget.openBookCallback(tab);
-  }
+  Future<void> _navigateTo(Link link) =>
+      openLinkTarget(link, (tab) => widget.openBookCallback(tab));
 
   @override
   Widget build(BuildContext context) {
     return SmartTextWidget(
       text: injectAnchorLinks(widget.html),
       settings: widget.settings,
-      onAnchorTap: anchorLinks.isEmpty
+      onAnchorTap: !hasPanelLinks
           ? null
           : (url) {
               cancelAnchorHover();
               final link = anchorLinkFromUrl(url);
               if (link != null) _openAnchorTarget(link);
             },
-      onAnchorHover: anchorLinks.isEmpty
+      onAnchorHover: !hasPanelLinks
           ? null
           : (url, position) =>
                 handleAnchorHover(url, position, onOpen: _navigateTo),
-      onAnchorHoverExit: anchorLinks.isEmpty ? null : handleAnchorHoverExit,
+      onAnchorHoverExit: !hasPanelLinks ? null : handleAnchorHoverExit,
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:otzaria/tabs/utils/touch_tab_swipe_recognizer.dart';
+import 'package:otzaria/tabs/utils/tab_content_vertical_drag_recognizer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -20,6 +21,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -134,7 +136,7 @@ void main() {
 
     // ה"בולען" האנכי — המתחרה שמונע מהאופקי לזכות מיד כחבר יחיד בזירה
     // מעל תוכן ללא Scrollable (WebView של תוסף).
-    final verticalFactory = detector.gestures[VerticalDragGestureRecognizer];
+    final verticalFactory = detector.gestures[TabContentVerticalDragRecognizer];
     expect(verticalFactory, isNotNull);
     final vertical =
         verticalFactory!.constructor() as VerticalDragGestureRecognizer;
@@ -143,6 +145,47 @@ void main() {
       PointerDeviceKind.trackpad,
       PointerDeviceKind.touch,
     });
+  });
+
+  testWidgets('הבולען האנכי לא גובר על גלילת ה-PDF במגע (#1982)', (
+    tester,
+  ) async {
+    final tabs = [_tab('א')];
+    addTearDown(tabs.single.dispose);
+    await pumpReadingScreen(tester, tabs);
+    final detector = tester.widget<RawGestureDetector>(
+      find.byWidgetPredicate(
+        (widget) => widget is RawGestureDetector && widget.child is PageView,
+      ),
+    );
+
+    var contentPanUpdates = 0;
+    await tester.pumpWidget(
+      RawGestureDetector(
+        gestures: {
+          TabContentVerticalDragRecognizer:
+              detector.gestures[TabContentVerticalDragRecognizer]!,
+        },
+        // מדמה את ה-InteractiveViewer של pdfrx (ScaleGestureRecognizer).
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onScaleUpdate: (_) => contentPanUpdates++,
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+
+    final gesture = await tester.startGesture(
+      const Offset(300, 300),
+      kind: PointerDeviceKind.touch,
+    );
+    for (var i = 0; i < 10; i++) {
+      await gesture.moveBy(const Offset(0, -10));
+    }
+    await gesture.up();
+    await tester.pump();
+
+    expect(contentPanUpdates, greaterThan(0));
   });
 
   testWidgets('גלילה אנכית ב-trackpad אינה גוררת את ה-PageView', (
@@ -181,6 +224,60 @@ void main() {
 
     final pageView = tester.widget<PageView>(find.byType(PageView));
     expect(pageView.controller!.page, 1);
+    expect(bloc.state.currentTabIndex, 1);
+  });
+
+  testWidgets('גלילה אלכסונית בעיקר אנכית ב-WebView אינה מעבירה טאב', (
+    tester,
+  ) async {
+    final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
+    addTearDown(() {
+      for (final tab in tabs) {
+        tab.dispose();
+      }
+    });
+    final bloc = await pumpReadingScreen(tester, tabs, currentTabIndex: 1);
+    final detector = tester.widget<RawGestureDetector>(
+      find.byWidgetPredicate(
+        (widget) => widget is RawGestureDetector && widget.child is PageView,
+      ),
+    );
+    // WebView נייטיבי לא מוסיף מזהה גלילה לזירת המחוות של Flutter.
+    final overlay = Overlay.of(tester.element(find.byType(PageView)));
+    final entry = OverlayEntry(
+      builder: (_) => Positioned.fill(
+        child: RawGestureDetector(
+          gestures: detector.gestures,
+          child: const ColoredBox(color: Colors.white),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    addTearDown(() {
+      entry.remove();
+      entry.dispose();
+    });
+    await tester.pump();
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.trackpad,
+    );
+    const center = Offset(400, 400);
+    await gesture.panZoomStart(center);
+    const pans = [Offset(5, -20), Offset(20, -60), Offset(35, -110)];
+    for (var i = 0; i < pans.length; i++) {
+      await gesture.panZoomUpdate(
+        center,
+        pan: pans[i],
+        timeStamp: Duration(milliseconds: 10 * (i + 1)),
+      );
+      await tester.pump();
+      expect(
+        tester.widget<PageView>(find.byType(PageView)).controller!.page,
+        1,
+      );
+    }
+    await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 40));
+    await tester.pumpAndSettle();
     expect(bloc.state.currentTabIndex, 1);
   });
 
@@ -412,6 +509,107 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(identical(tabScreenWidget(tester, 'ב'), before), isFalse);
+    });
+
+    testWidgets('replacing a tab does not rebuild the other tabs', (
+      tester,
+    ) async {
+      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
+      final replacement = _tab('ד');
+      addTearDown(() {
+        for (final t in [tabs[0], tabs[1], replacement]) {
+          t.dispose();
+        }
+      });
+      final bloc = await pumpReadingScreen(tester, tabs);
+      await visitAllTabs(tester, bloc, 0);
+
+      final before = {
+        for (final t in ['א', 'ב']) t: tabScreenWidget(tester, t),
+      };
+      bloc.add(ReplaceTab(oldTab: tabs[2], newTab: replacement));
+      await tester.pumpAndSettle();
+      // ההחלפה משחררת את הטאב הישן בהשהיה.
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(_titles(bloc), ['א', 'ב', 'ד']);
+      for (final t in ['א', 'ב']) {
+        expect(
+          identical(tabScreenWidget(tester, t), before[t]),
+          isTrue,
+          reason: 'only the replaced tab changed; "$t" must not be rebuilt',
+        );
+      }
+    });
+
+    testWidgets('splitting and unsplitting do not rebuild unrelated tabs', (
+      tester,
+    ) async {
+      final tabs = [_tab('א'), _tab('ב'), _tab('ג')];
+      addTearDown(() {
+        for (final t in tabs) {
+          t.dispose();
+        }
+      });
+      final bloc = await pumpReadingScreen(tester, tabs);
+      await visitAllTabs(tester, bloc, 1);
+
+      final before = tabScreenWidget(tester, 'א');
+      Future<void> expectUnrelatedTabKept(TabsEvent event) async {
+        bloc.add(event);
+        await tester.pumpAndSettle();
+        expect(
+          identical(tabScreenWidget(tester, 'א'), before),
+          isTrue,
+          reason: '${event.runtimeType} must not rebuild an unrelated tab',
+        );
+      }
+
+      await expectUnrelatedTabKept(
+        CreateCombinedTab(rightTab: tabs[1], leftTab: tabs[2]),
+      );
+      await expectUnrelatedTabKept(const SwapSideBySideTabs());
+      await expectUnrelatedTabKept(const ExpandCombinedTab(1));
+      await expectUnrelatedTabKept(
+        CreateCombinedTab(rightTab: tabs[1], leftTab: tabs[2]),
+      );
+      await expectUnrelatedTabKept(DetachPane(tabs[2], insertIndex: 2));
+      final extra = _tab('ה');
+      await expectUnrelatedTabKept(OpenTabInSidePane(extra));
+      // הבלוק משחרר את החלונית שנסגרה בהשהיה.
+      await expectUnrelatedTabKept(ClosePane(extra));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_titles(bloc), ['א', 'ב', 'ג']);
+    });
+
+    testWidgets('committing a split ratio does not rebuild any tab content', (
+      tester,
+    ) async {
+      final background = [_tab('א'), _tab('ב'), _tab('ג')];
+      final split = CombinedTab(rightTab: _tab('ד'), leftTab: _tab('ה'));
+      final tabs = <OpenedTab>[...background, split];
+      addTearDown(() {
+        for (final t in [...background, split.rightTab, split.leftTab]) {
+          t.dispose();
+        }
+      });
+      final bloc = await pumpReadingScreen(tester, tabs);
+      await visitAllTabs(tester, bloc, 3);
+
+      const titles = ['א', 'ב', 'ג', 'ד', 'ה'];
+      final before = {for (final t in titles) t: tabScreenWidget(tester, t)};
+      split.splitRatio = 0.7;
+      bloc.add(const UpdateSplitRatio(0.7));
+      await tester.pumpAndSettle();
+
+      expect(split.splitRatio, 0.7);
+      for (final t in titles) {
+        expect(
+          identical(tabScreenWidget(tester, t), before[t]),
+          isTrue,
+          reason: 'the ratio is already on screen; "$t" must not be rebuilt',
+        );
+      }
     });
   });
 

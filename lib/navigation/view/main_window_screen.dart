@@ -24,6 +24,8 @@ import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
+import 'package:otzaria/attached_libraries/external_link_work_status.dart';
+import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/indexing/indexing_work_status.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/core/windowing/window_title_sync.dart';
@@ -45,6 +47,8 @@ import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
+import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
+import 'package:otzaria/semantic_search/semantic_work_status.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
@@ -135,6 +139,7 @@ import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/utils/navigation/external_action_dispatcher.dart';
 import 'package:otzaria/utils/navigation/external_book_link_resolver.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
+import 'package:otzaria/utils/file/open_in_file_manager.dart';
 import 'package:kosher_dart/kosher_dart.dart' show Daf;
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart'
     show getDafYomi, formatAmud;
@@ -624,10 +629,40 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool get _skipsEagerLibraryLoad =>
       WindowRole.isSecondary && WindowRole.openedWithTab;
 
+  StreamSubscription<Object?>? _semanticWorkStatusSub;
+  SemanticWorkStatusReporter? _semanticWorkStatus;
+  ExternalLinkWorkStatusReporter? _externalLinkWorkStatus;
+
+  SemanticWorkStatusReporter _createSemanticWorkStatus() {
+    final cubit = context.read<WorkStatusCubit>();
+    return SemanticWorkStatusReporter(
+      upsert: cubit.upsert,
+      remove: cubit.remove,
+      onCancel: () =>
+          unawaited(SemanticSearchRepository.instance.cancelDownload()),
+      onRetry: () =>
+          unawaited(SemanticSearchRepository.instance.enableAndDownload()),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     StartupTimeline.instance.markOnce('mainScreenInit');
+    // מאזין לזרם סטטי בלבד: המאגר הסמנטי לא נוצר עד שמשתמשים בו.
+    _semanticWorkStatusSub = SemanticSearchRepository.sharedAvailabilityChanges
+        .listen((availability) {
+          if (!mounted) return;
+          (_semanticWorkStatus ??= _createSemanticWorkStatus()).update(
+            availability,
+          );
+        });
+    final workStatus = context.read<WorkStatusCubit>();
+    _externalLinkWorkStatus = ExternalLinkWorkStatusReporter(
+      repository: ExternalLinkRepository.instance,
+      upsert: workStatus.upsert,
+      remove: workStatus.remove,
+    );
     _calendarCubit = CalendarCubit();
     _settingsScreenController = SettingsScreenController();
     _tourCubit = TourCubit();
@@ -745,10 +780,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     });
   }
 
-  /// מתזמן את חשיפת החלון המלא, תוך מתן עדיפות לטעינת הספר הפעיל: אם נפתח ספר
-  /// טקסט שעדיין נטען — ממתינים שה-[TextBookBloc] שלו יגיע ל-[TextBookLoaded]/
-  /// [TextBookError] (או ייסגר) לפני שחושפים. בכל מקרה אחר (מסך שאינו קריאה /
-  /// PDF / ספר שכבר נטען) — חושפים מיד. אין timeout שרירותי בנתיב הזה.
+  /// ספר מצורף נטען אחרי החשיפה כדי לא לפתוח SQLite סינכרוני לפני הציור.
+  /// בספרי טקסט אחרים ממתינים לטעינה או לשגיאה לפני החשיפה.
   void _scheduleSplashReveal() {
     // _revealStarted (ולא _initialContentReady) כשומר: במסך שאינו קריאה
     // התוכן כבר נצבע מהפריים הראשון (_initialContentReady=true מ-initState),
@@ -775,6 +808,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final shouldWaitForBook =
         navigationState.currentScreen == Screen.reading &&
         pendingPane is TextBookTab &&
+        !pendingPane.book.source.isAttached &&
         pendingPane.bloc.state is! TextBookLoaded &&
         pendingPane.bloc.state is! TextBookError;
 
@@ -1794,6 +1828,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
     _removeTourOverlay();
     _tourCubit.close();
     _readerLocationTracker?.dispose();
+    _semanticWorkStatusSub?.cancel();
+    _externalLinkWorkStatus?.dispose();
     pageController.dispose();
     super.dispose();
   }
@@ -3397,7 +3433,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
           // מסכים, ולכן מגיבים לרשימה המעודכנת ולא לאירוע ההסרה עצמו.
           BlocListener<PluginSystemBloc, PluginSystemState>(
             listenWhen: (_, current) => current is PluginSystemLoaded,
-            listener: (context, _) => closeUninstalledPluginTabs(context),
+            listener: (context, _) {
+              closeUninstalledPluginTabs(context);
+              retitleFallbackPluginTabs(context);
+            },
           ),
           // אותו ניקוי בכיוון ההפוך: כרטיסיה של תוסף שהוסר יכולה להגיע
           // מסביבת עבודה שלא הייתה פעילה בזמן המחיקה, או משחזור הכרטיסיות
@@ -3405,7 +3444,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
           BlocListener<TabsBloc, TabsState>(
             listenWhen: (previous, current) =>
                 !listEquals(previous.tabs, current.tabs),
-            listener: (context, _) => closeUninstalledPluginTabs(context),
+            listener: (context, _) {
+              closeUninstalledPluginTabs(context);
+              retitleFallbackPluginTabs(context);
+            },
           ),
           BlocListener<PluginSystemBloc, PluginSystemState>(
             listenWhen: (_, current) => current is PluginSystemLoaded,
@@ -3959,14 +4001,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   Future<void> _openErrorLogFile() async {
     if (!await verifySaferModePassword(context)) return;
     ErrorLogFile.ensureExists();
-    final path = ErrorLogFile.resolvePath();
-    if (Platform.isWindows) {
-      unawaited(Process.run('explorer', [path]));
-    } else if (Platform.isMacOS) {
-      unawaited(Process.run('open', [path]));
-    } else if (Platform.isLinux) {
-      unawaited(Process.run('xdg-open', [path]));
-    }
+    unawaited(openInFileManager(ErrorLogFile.resolvePath()));
   }
 
   int? _pageIndexForScreen(Screen screen) {

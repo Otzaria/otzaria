@@ -189,7 +189,10 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
     if (cardId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await Future.delayed(const Duration(milliseconds: 80));
-        await SettingsSearchRegistry.instance.scrollAndHighlight(cardId);
+        await SettingsSearchRegistry.instance.scrollAndHighlight(
+          cardId,
+          section: request.expandSection,
+        );
       });
     }
   }

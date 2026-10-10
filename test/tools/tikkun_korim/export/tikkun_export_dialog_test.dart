@@ -13,6 +13,7 @@ void main() {
     Map<int, int>? verseDomain,
     String? parashaName,
     ({int from, int to})? parashaRange,
+    bool isTorah = false,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1000, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -35,6 +36,7 @@ void main() {
                     verseDomain: verseDomain,
                     parashaName: parashaName,
                     parashaRange: parashaRange,
+                    isTorah: isTorah,
                   );
                   result.completed = true;
                 },
@@ -187,6 +189,49 @@ void main() {
     final options = result.value!;
     expect(options.scope, TikkunExportScope.parasha);
     expect((options.parashaFromColumn, options.parashaToColumn), (1, 3));
+  });
+
+  testWidgets('תורה בעמוד אחד ארוך — אפשר לבחור "כל התורה"', (tester) async {
+    final result = await openDialog(
+      tester,
+      columnCount: 1,
+      currentColumn: 0,
+      allowOriginalPages: false,
+      verseDomain: {1: 31, 2: 25},
+      parashaName: 'נח',
+      parashaRange: (from: 0, to: 0),
+      isTorah: true,
+    );
+
+    expect(find.text('החומש'), findsOneWidget);
+    expect(find.text('הכל'), findsNothing);
+    await tester.tap(find.text('כל התורה'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('המשך'));
+    await tester.pumpAndSettle();
+
+    expect(result.value!.scope, TikkunExportScope.wholeTorah);
+  });
+
+  testWidgets('תורה בעמודי שיטה — כל אפשרויות ההיקף נכנסות', (tester) async {
+    await openDialog(
+      tester,
+      verseDomain: {1: 31, 2: 25},
+      parashaName: 'נח',
+      parashaRange: (from: 1, to: 3),
+      isTorah: true,
+    );
+
+    for (final label in [
+      'העמוד הנוכחי',
+      'הפרשה',
+      'החומש',
+      'כל התורה',
+      'טווח עמודים',
+      'טווח פסוקים',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
   });
 }
 

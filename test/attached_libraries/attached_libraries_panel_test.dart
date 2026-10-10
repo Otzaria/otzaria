@@ -10,6 +10,7 @@ import 'package:otzaria/attached_libraries/repository/attached_libraries_reposit
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
 
 import '../helpers/memory_settings_cache.dart';
 
@@ -169,6 +170,74 @@ void main() {
       ExternalLinkRepository.instance.tooLargeSlugs.value = {'dbB'};
       await tester.pump();
       expect(find.text(message), findsOneWidget);
+    });
+
+    testWidgets('חלון משני אינו מציע לבנות מחדש את אינדקס המסד', (
+      tester,
+    ) async {
+      final previousRole = WindowRole.isSecondary;
+      final links = ExternalLinkRepository.instance;
+      addTearDown(() {
+        WindowRole.isSecondary = previousRole;
+        links.incompleteSlugs.value = const {};
+      });
+      WindowRole.isSecondary = true;
+      links.incompleteSlugs.value = {'dbA'};
+      final repository = _FakeRepository([_library('dbA')]);
+      AttachedLibrariesRepository.instance = repository;
+      await pumpPanel(tester, repository);
+      expect(find.text('בנה אינדקס מחדש'), findsNothing);
+    });
+
+    testWidgets('אינדקס קישורים בבנייה או שנקטע מציג הודעה בשורת המסד', (
+      tester,
+    ) async {
+      final repository = _FakeRepository([_library('dbA'), _library('dbB')]);
+      AttachedLibrariesRepository.instance = repository;
+      await pumpPanel(tester, repository);
+      final links = ExternalLinkRepository.instance;
+      addTearDown(() {
+        links.buildingSlugs.value = const {};
+        links.incompleteSlugs.value = const {};
+      });
+      const building = 'בונה אינדקס קישורים — המפרשים של המסד יופיעו בסיום';
+      const incomplete =
+          'אינדקס הקישורים לא הושלם — המפרשים של המסד אינם מוצגים';
+      const retry = 'בנה אינדקס מחדש';
+      expect(find.text(building), findsNothing);
+      expect(find.text(incomplete), findsNothing);
+
+      links.incompleteSlugs.value = {'dbB'};
+      await tester.pump();
+      expect(find.text(incomplete), findsOneWidget);
+      expect(find.text(retry), findsOneWidget);
+
+      // בנייה פעילה גוברת: ההודעה הראשונה בלבד, בלי כפתור ניסיון חוזר.
+      links.buildingSlugs.value = {'dbB'};
+      await tester.pump();
+      expect(find.text(building), findsOneWidget);
+      expect(find.text(incomplete), findsNothing);
+      expect(find.text(retry), findsNothing);
+    });
+
+    testWidgets('מסד שאינו תקין אינו מציג צ׳יפ וכפתור של אינדקס לא שלם', (
+      tester,
+    ) async {
+      final repository = _FakeRepository([
+        _library('dbA', status: AttachedLibraryStatus.invalid),
+      ]);
+      AttachedLibrariesRepository.instance = repository;
+      await pumpPanel(tester, repository);
+      final links = ExternalLinkRepository.instance;
+      addTearDown(() => links.incompleteSlugs.value = const {});
+
+      links.incompleteSlugs.value = {'dbA'};
+      await tester.pump();
+      expect(
+        find.text('אינדקס הקישורים לא הושלם — המפרשים של המסד אינם מוצגים'),
+        findsNothing,
+      );
+      expect(find.text('בנה אינדקס מחדש'), findsNothing);
     });
   });
 

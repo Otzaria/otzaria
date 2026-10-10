@@ -20,6 +20,8 @@ const aboutDevelopers = <Map<String, String>>[
   {'name': 'zevisvei', 'url': 'https://github.com/zevisvei'},
   {'name': 'evel-avalim', 'url': 'https://github.com/evel-avalim'},
   {'name': 'userbot', 'url': 'https://github.com/userbot000'},
+  {'name': 'abaye', 'url': 'https://github.com/abaye123'},
+  {'name': 'יעקב מ. פינס', 'url': 'https://github.com/YMP112'},
   {'name': 'shlomo', 'url': 'https://github.com/DeveShlomo'},
   {'name': 'mosh-dvd', 'url': 'https://github.com/mosh-dvd'},
   {
@@ -250,5 +252,9 @@ const aboutAdditionalSources = <Map<String, String>>[
     'url': 'https://github.com/torahtyh/yam-HaHachma',
     'logo': 'assets/logo_books/yam_hahachma_logo.png',
     'logoOriginalColor': 'true',
+  },
+  {
+    'name': 'מכון בית אהרן וישראל',
+    'url': 'https://machon.co.il/',
   },
 ];

@@ -56,8 +56,6 @@ class LibrarySuspension {
 
   /// המשבצות שאישרו שחרור.
   Set<int> get releasedSlots => Set.unmodifiable(_acked);
-
-  bool get isResumed => _resumed;
 }
 
 /// מאפשר ל-[LibraryAccessGate.runExclusive] לדעת אם המסד הוחלף.

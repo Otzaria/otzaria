@@ -7,6 +7,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
+import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -19,6 +20,8 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
+import 'package:otzaria/text_book/utils/reading_segments.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -37,6 +40,8 @@ void main() {
     _RecordingTabsBloc? tabsBloc,
     List<String> activeCommentators = const [],
     _TestTextBookBloc? textBookBlocOverride,
+    Widget? notesFooter,
+    String? notesBookIdOverride,
   }) {
     final textBookBloc =
         textBookBlocOverride ??
@@ -65,11 +70,47 @@ void main() {
             onTabChanged: onTabChanged,
             showSplitView: showSplitView,
             tab: tab,
+            notesFooter: notesFooter,
+            notesBookIdOverride: notesBookIdOverride,
           ),
         ),
       ),
     );
   }
+
+  testWidgets('ה-footer נשמר בספר הראשי ומוסתר בהערות מפרש שנפתח', (
+    tester,
+  ) async {
+    const footer = Text('הערות המפרשים');
+    await tester.pumpWidget(
+      buildPanel(
+        initialTabIndex: kNotesTabIndex,
+        notesFooter: footer,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<PersonalNotesSidebar>(find.byType(PersonalNotesSidebar))
+          .footer,
+      same(footer),
+    );
+
+    await tester.pumpWidget(
+      buildPanel(
+        initialTabIndex: kNotesTabIndex,
+        notesFooter: footer,
+        notesBookIdOverride: 'רש"י',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<PersonalNotesSidebar>(find.byType(PersonalNotesSidebar))
+          .footer,
+      isNull,
+    );
+  });
 
   testWidgets('סימון טקסט בטקסט הראשי אינו בונה מחדש את חלונית המפרשים', (
     tester,
@@ -122,6 +163,16 @@ void main() {
     expect(find.text('מפרשים'), findsOneWidget);
     expect(find.text('קישורים'), findsOneWidget);
     expect(find.text('הערות'), findsOneWidget);
+  });
+
+  testWidgets('לשונית סינון המפרשים מציגה את אייקון כרטיסיית המפרשים', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildPanel(showSplitView: false));
+    await tester.pump();
+
+    expect(find.text('סינון מפרשים'), findsOneWidget);
+    expect(find.byIcon(OtzariaIcons.apps_list_24_regular), findsOneWidget);
   });
 
   testWidgets('onTabChanged נקרא עם האינדקס הנכון כשהמשתמש מחליף טאב', (
@@ -263,6 +314,43 @@ void main() {
     expect((event as AddTab).tab, isA<CommentatorsTab>());
     expect((event.tab as CommentatorsTab).sourceTab, same(sourceTab));
   });
+  testWidgets('note navigation maps one based source to paragraph', (
+    tester,
+  ) async {
+    final scroll = _RecordingScrollController();
+    const content = [
+      '<h2>א</h2>',
+      '1',
+      '2',
+      '3',
+      '<h2>ב</h2>',
+      '5',
+      '6',
+      '7',
+      '8',
+    ];
+    final bloc = _TestTextBookBloc(
+      _loadedState().copyWith(
+        content: content,
+        continuousReadingMode: true,
+        supportsContinuousReadingMode: true,
+        readingSegments: buildReadingSegments(content, continuous: true),
+        scrollController: scroll,
+      ),
+    );
+    addTearDown(bloc.close);
+    await tester.pumpWidget(
+      buildPanel(initialTabIndex: kNotesTabIndex, textBookBlocOverride: bloc),
+    );
+    await tester.pumpAndSettle();
+    tester
+        .widget<PersonalNotesSidebar>(find.byType(PersonalNotesSidebar))
+        .onNavigateToLine(8);
+    await tester.pumpAndSettle();
+    expect(scroll.indices, [3]);
+    expect(bloc.recordedEvents.whereType<UpdateSelectedIndex>().last.index, 7);
+    expect(bloc.recordedEvents.whereType<HighlightLine>().last.lineIndex, 7);
+  });
 }
 
 // ===== Wrapper widget לבדיקת דינמיקת initialTabIndex =====
@@ -352,8 +440,11 @@ TextBookLoaded _loadedState({
 
 class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
+  final List<TextBookEvent> recordedEvents = [];
   _TestTextBookBloc(super.initialState) {
-    on<TextBookEvent>((event, emit) {});
+    on<TextBookEvent>((event, emit) {
+      recordedEvents.add(event);
+    });
   }
 
   void emitState(TextBookState next) => emit(next);
@@ -395,4 +486,20 @@ class _RecordingTabsBloc extends Bloc<TabsEvent, TabsState>
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _RecordingScrollController extends ItemScrollController {
+  final List<int> indices = [];
+  @override
+  bool get isAttached => true;
+  @override
+  Future<void> scrollTo({
+    required int index,
+    double alignment = 0,
+    required Duration duration,
+    Curve curve = Curves.linear,
+    List<double> opacityAnimationWeights = const [40, 20, 40],
+  }) async {
+    indices.add(index);
+  }
 }

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -44,6 +42,9 @@ class PersonalNotesSidebar extends StatefulWidget {
   /// מועבר כ-listenable כי ה-outline עשוי להיטען אחרי בניית הפאנל.
   final ValueListenable<List<PdfOutlineNode>?>? pdfOutline;
 
+  /// מוצג בסוף הרשימה, אחרי הערות הספר (למשל הערות המפרשים בצורת הדף).
+  final Widget? footer;
+
   const PersonalNotesSidebar({
     super.key,
     required this.bookId,
@@ -53,6 +54,7 @@ class PersonalNotesSidebar extends StatefulWidget {
     this.visibleLineIndices,
     this.focusLineNumber,
     this.pdfOutline,
+    this.footer,
   });
 
   @override
@@ -397,6 +399,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       showOnlyVisible: state.showOnlyVisible,
       visibleLineIndices: visibleLineIndices,
     );
+    // רשימה משותפת לכל הכרטיסים: העתקה לכל כרטיס ריבועית במספר ההערות.
+    final linkableNotes = [...state.locatedNotes, ...state.missingNotes];
     final items = <Widget>[];
 
     // עורך הערה חדשה — מוצג רק אם הטיוטה שייכת לספר של ה-sidebar הזה.
@@ -428,10 +432,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
                 : null,
             bookId: widget.bookId,
             categoryId: widget.categoryId,
-            linkableNotes: [
-              ...state.locatedNotes,
-              ...state.missingNotes,
-            ],
+            linkableNotes: linkableNotes,
             extraAction: IconButton(
               tooltip: 'שנה שיוך לשורה נבחרת',
               icon: const Icon(FluentIcons.pin_24_regular, size: 18),
@@ -475,10 +476,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
             onLinkTap: (url) => _handleNoteLinkTap(context, url),
             defaultExpanded: defaultExpanded,
             bookId: widget.bookId,
-            linkableNotes: [
-              ...state.locatedNotes,
-              ...state.missingNotes,
-            ],
+            linkableNotes: linkableNotes,
             backgroundColor: Theme.of(
               context,
             ).colorScheme.surfaceTint.withValues(alpha: 0.05),
@@ -525,6 +523,8 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       );
     }
 
+    if (widget.footer case final footer?) items.add(footer);
+
     if (state.isLoading) {
       items.add(
         const Padding(
@@ -550,73 +550,33 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
   }
 
   Widget _buildNewNoteEditor(BuildContext context, PersonalNotesState state) {
-    return Container(
-      margin: const EdgeInsets.all(8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppSurfaces.noteEditorBackground(context),
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary,
-          width: 2,
+    return InlineNoteEditorCard(
+      icon: FluentIcons.note_add_24_regular,
+      title: state.newNoteReferenceText != null
+          ? 'הערה חדשה - ${state.newNoteReferenceText}'
+          : 'הערה חדשה - שורה ${state.newNoteLineNumber}',
+      // דרך העורך, כדי שישאל על שינויים שלא נשמרו (issue #1303).
+      onCancelPressed: () => _newNoteCancelRequest.value++,
+      editor: InlineNoteEditor(
+        key: ValueKey(
+          'new-note-${state.newNoteLineNumber}-'
+          '${state.newNoteInitialFormat?.name}-'
+          '${state.newNoteInitialContent.hashCode}',
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(
-                FluentIcons.note_add_24_regular,
-                color: Theme.of(context).colorScheme.primary,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  state.newNoteReferenceText != null
-                      ? 'הערה חדשה - ${state.newNoteReferenceText}'
-                      : 'הערה חדשה - שורה ${state.newNoteLineNumber}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              IconButton(
-                tooltip: 'ביטול',
-                icon: const Icon(FluentIcons.dismiss_24_regular),
-                // דרך העורך, כדי שישאל על שינויים שלא נשמרו (issue #1303).
-                onPressed: () => _newNoteCancelRequest.value++,
-                iconSize: 20,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          InlineNoteEditor(
-            key: ValueKey(
-              'new-note-${state.newNoteLineNumber}-'
-              '${state.newNoteInitialFormat?.name}-'
-              '${state.newNoteInitialContent.hashCode}',
-            ),
-            referenceText: state.newNoteReferenceText,
-            bookId: widget.bookId,
-            categoryId: widget.categoryId,
-            initialContent: state.newNoteInitialContent ?? '',
-            initialFormat:
-                state.newNoteInitialFormat ?? PersonalNoteContentFormat.plain,
-            draftLineNumber: state.newNoteLineNumber,
-            linkableNotes: [
-              ...state.locatedNotes,
-              ...state.missingNotes,
-            ],
-            cancelRequest: _newNoteCancelRequest,
-            onSave: _saveNewNote,
-            onCancel: _cancelNewNote,
-          ),
+        referenceText: state.newNoteReferenceText,
+        bookId: widget.bookId,
+        categoryId: widget.categoryId,
+        initialContent: state.newNoteInitialContent ?? '',
+        initialFormat:
+            state.newNoteInitialFormat ?? PersonalNoteContentFormat.plain,
+        draftLineNumber: state.newNoteLineNumber,
+        linkableNotes: [
+          ...state.locatedNotes,
+          ...state.missingNotes,
         ],
+        cancelRequest: _newNoteCancelRequest,
+        onSave: _saveNewNote,
+        onCancel: _cancelNewNote,
       ),
     );
   }

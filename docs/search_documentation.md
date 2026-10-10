@@ -134,7 +134,7 @@
 1. **"חפש בכל הקטגוריות"** (ברירת מחדל) — חיפוש על פני כל הספרייה.
 2. **בחירה ידנית** — עץ קטגוריות שממנו המשתמש בוחר תתי-קטגוריות או ספרים ספציפיים.
 
-**קובץ:** `lib/search/view/category_tree_selector.dart` — `SearchScopeSelector`  
+**קובץ:** `lib/search/view/search_scope_menu.dart` — `SearchScopeMenuButton`  
 **קובץ נתונים:** `lib/search/search_scope_preferences.dart`  
 **שמירה:** נשמר בין הפעלות (`'key-search-all-categories-enabled'`, `'key-search-manual-category-facets'`)
 
@@ -482,7 +482,7 @@
    • במצב fuzzy: גם כתיב מלא/חסר אוטומטי
         ↓
 3. ה-query נשלח דרך אותו מסלול חיפוש רגיל
-   • searchTexts / searchTextsStream
+   • searchTexts / searchTextsStreamWithCounts
    • עם facets, streaming ו-pagination רגילים
 ```
 

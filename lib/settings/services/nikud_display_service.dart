@@ -1,4 +1,3 @@
-import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 
 /// מחזיר האם יש להסיר ניקוד עבור ספר נתון.
@@ -57,29 +56,4 @@ bool shouldReloadForPunctuationSettingsChange({
   required SettingsState current,
 }) {
   return previous.defaultRemovePunctuation != current.defaultRemovePunctuation;
-}
-
-/// פותר האם להסיר ניקוד עבור ספר יעד, לפי הגדרות הניקוד והסיווג שלו.
-Future<bool> resolveRemoveNikudForBook({
-  required String title,
-  required bool defaultRemoveNikud,
-  required bool removeNikudFromTanach,
-  int? categoryId,
-  String? fileType,
-}) async {
-  if (!defaultRemoveNikud) {
-    return false;
-  }
-
-  final isTanach = await FileSystemData.instance.isTanachBook(
-    title,
-    categoryId: categoryId,
-    fileType: fileType,
-  );
-
-  return shouldRemoveNikudForBook(
-    defaultRemoveNikud: defaultRemoveNikud,
-    removeNikudFromTanach: removeNikudFromTanach,
-    isTanach: isTanach,
-  );
 }

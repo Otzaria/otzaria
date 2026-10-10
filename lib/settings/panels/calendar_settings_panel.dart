@@ -18,6 +18,7 @@ import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/tools/calendar/models/calendar_location.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/repository/google_calendar_repository.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -383,40 +384,12 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                   final calendars = await cubit
                                       .getAvailableCalendars();
                                   if (!context.mounted) return;
-                                  final selected =
-                                      await _showCalendarMultiSelectionDialog<
-                                        String
-                                      >(
-                                        context: context,
-                                        title: context.settingsText(
-                                          'בחר לוחות שנה',
-                                        ),
-                                        items: calendars
-                                            .map(
-                                              (cal) =>
-                                                  _CalendarMultiSelectionItem<
-                                                    String
-                                                  >(
-                                                    label: cal.name,
-                                                    value: cal.id,
-                                                    subtitle: cal.isPrimary
-                                                        ? context.settingsText(
-                                                            'לוח שנה ראשי',
-                                                          )
-                                                        : null,
-                                                  ),
-                                            )
-                                            .toList(),
-                                        initialSelectedValues:
-                                            state.googleCalendarSelectedIds,
-                                        searchHint: context.settingsText(
-                                          'חפש לוח שנה...',
-                                        ),
-                                        emptyMessage: context.settingsText(
-                                          'לא נמצאו לוחות שנה',
-                                        ),
-                                      );
-                                  if (selected != null && selected.isNotEmpty) {
+                                  final selected = await _pickGoogleCalendars(
+                                    context,
+                                    calendars,
+                                    state.googleCalendarSelectedIds,
+                                  );
+                                  if (selected != null) {
                                     cubit.updateGoogleCalendarSelectedIds(
                                       selected,
                                     );
@@ -451,41 +424,12 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                                       );
                                       return;
                                     }
-                                    final selected =
-                                        await _showCalendarMultiSelectionDialog<
-                                          String
-                                        >(
-                                          context: context,
-                                          title: context.settingsText(
-                                            'בחר לוחות שנה',
-                                          ),
-                                          items: calendars
-                                              .map(
-                                                (cal) =>
-                                                    _CalendarMultiSelectionItem<
-                                                      String
-                                                    >(
-                                                      label: cal.name,
-                                                      value: cal.id,
-                                                      subtitle: cal.isPrimary
-                                                          ? context.settingsText(
-                                                              'לוח שנה ראשי',
-                                                            )
-                                                          : null,
-                                                    ),
-                                              )
-                                              .toList(),
-                                          initialSelectedValues:
-                                              state.googleCalendarSelectedIds,
-                                          searchHint: context.settingsText(
-                                            'חפש לוח שנה...',
-                                          ),
-                                          emptyMessage: context.settingsText(
-                                            'לא נמצאו לוחות שנה',
-                                          ),
-                                        );
-                                    if (selected != null &&
-                                        selected.isNotEmpty) {
+                                    final selected = await _pickGoogleCalendars(
+                                      context,
+                                      calendars,
+                                      state.googleCalendarSelectedIds,
+                                    );
+                                    if (selected != null) {
                                       cubit.updateGoogleCalendarSelectedIds(
                                         selected,
                                       );
@@ -769,6 +713,30 @@ class _IcsSubscriptionDialogState extends State<_IcsSubscriptionDialog> {
       ],
     );
   }
+}
+
+/// בחירת לוחות Google מתוך [calendars]; null כשלא נבחר אף לוח.
+Future<List<String>?> _pickGoogleCalendars(
+  BuildContext context,
+  List<GoogleCalendarInfo> calendars,
+  List<String> selectedIds,
+) async {
+  final selected = await _showCalendarMultiSelectionDialog<String>(
+    context: context,
+    title: context.settingsText('בחר לוחות שנה'),
+    items: [
+      for (final cal in calendars)
+        _CalendarMultiSelectionItem<String>(
+          label: cal.name,
+          value: cal.id,
+          subtitle: cal.isPrimary ? context.settingsText('לוח שנה ראשי') : null,
+        ),
+    ],
+    initialSelectedValues: selectedIds,
+    searchHint: context.settingsText('חפש לוח שנה...'),
+    emptyMessage: context.settingsText('לא נמצאו לוחות שנה'),
+  );
+  return selected != null && selected.isNotEmpty ? selected : null;
 }
 
 Future<List<T>?> _showCalendarMultiSelectionDialog<T>({

@@ -295,17 +295,6 @@ void main() {
       });
     }
 
-    for (final methodId in ['ramah', 'ramach', 'rambamRosh']) {
-      test('$methodId — כיסוי `lastWord`: כמה עמודים נסגרים במילה שבטבלה', () {
-        final layout = TikkunData.torahLayouts[methodId]!;
-        final pages = buildPages(processedFor(methodId), methodId);
-        final unmatched = countUnmatchedOfficialPages(pages, layout.pages);
-        // ignore: avoid_print
-        print('$methodId lastWord unmatched: $unmatched/${pages.length}');
-        expect(unmatched, lessThan(pages.length));
-      });
-    }
-
     test('single_page — עמוד אחד שמכיל את כל השורות', () {
       final pages = buildPages(torah, 'single_page');
       expect(pages.length, 1);
@@ -346,14 +335,19 @@ void main() {
     });
   });
 
-  test('הפטרה מתחילה ומסתיימת בדיוק בטווח הפסוקים שלה', () {
+  test('הפטרה מתחילה ומסתיימת בדיוק בטווח הפסוקים שלה', () async {
     final haftarah = TikkunData.haftarot.firstWhere(
       (h) => h.id == 'p:Bereshit',
     );
     final segments = getHaftarahSegments(haftarah, 'ashkenaz');
-    final lines = buildHaftarahLines(haftarah, 'ashkenaz', {
-      fixtureBookNames['yeshayahu']!: tokensById['yeshayahu']!,
-    }, _widths);
+    final lines = await buildVersePartLines(
+      const TikkunEngineImpl(),
+      haftarahParts(haftarah, 'ashkenaz'),
+      {
+        fixtureBookNames['yeshayahu']!: tokensById['yeshayahu']!,
+      },
+      _widths,
+    );
 
     expect(lines, isNotEmpty);
     expect(lines.first.firstChapterNum, segments.first.fromCh);
@@ -365,14 +359,19 @@ void main() {
     expect(lastChapter.firstChapterNum, segments.last.toCh);
   });
 
-  test('קריאת מועד — עליות רצופות מתאחדות, וכל עליה מסומנת פעם אחת', () {
+  test('קריאת מועד — עליות רצופות מתאחדות, וכל עליה מסומנת פעם אחת', () async {
     final reading = TikkunData.torahReadings.firstWhere(
       (r) => r.id == 'tr:Pesach I',
     );
-    final lines = buildTorahReadingLines(reading, {
-      for (final id in TikkunData.booksOrder)
-        fixtureBookNames[id]!: tokensById[id]!,
-    }, _widths);
+    final lines = await buildVersePartLines(
+      const TikkunEngineImpl(),
+      readingParts(reading),
+      {
+        for (final id in TikkunData.booksOrder)
+          fixtureBookNames[id]!: tokensById[id]!,
+      },
+      _widths,
+    );
 
     expect(
       lines.where((l) => l.aliyaName != null || l.maftirName != null).length,

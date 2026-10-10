@@ -31,6 +31,30 @@ void main() {
       expect(shouldRebuildReader(before, after), isFalse);
     });
 
+    test('קישורי החלון שחושבו מחדש בגלילה אינם מצדיקים בנייה', () {
+      // עם חלונית צד פתוחה כל צעד גלילה מחשב visibleLinks מחדש; הקורא נגזר
+      // מ-linksByLine, וחלונית הקישורים נבנית מ-BlocBuilder משלה.
+      final before = _loaded();
+      final after = before.copyWith(
+        visibleIndices: const [7, 8, 9],
+        visibleLinks: [_link(1, 1), _link(1, 2)],
+      );
+
+      expect(shouldRebuildReader(before, after), isFalse);
+    });
+
+    test('קישורים שנטענו מחדש מצדיקים בנייה גם כשמספרם זהה', () {
+      final before = _loaded();
+      final after = before.copyWith(
+        linksByLine: {
+          1: [_link(1, 2)],
+        },
+        visibleLinks: [_link(1, 2), _link(1, 3)],
+      );
+
+      expect(shouldRebuildReader(before, after), isTrue);
+    });
+
     test('כותרת שהשתנתה עם הגלילה כן מצדיקה בנייה מחדש', () {
       // currentTitle נגזר מהשורה הגלויה ומוצג בפס הכותרת; אילו נחסם יחד עם
       // visibleIndices הוא היה קופא על הכותרת הראשונה.
@@ -199,6 +223,38 @@ void main() {
       await cubit.close();
     });
 
+    testWidgets('גלילה עם חלונית קישורים פתוחה אינה בונה את העלה', (
+      tester,
+    ) async {
+      final cubit = _StateCubit(_loaded());
+      var leafBuilds = 0;
+
+      await tester.pumpWidget(
+        _tree(
+          cubit,
+          guardRoot: true,
+          onLeaf: (_) {
+            leafBuilds++;
+          },
+        ),
+      );
+
+      final baseline = leafBuilds;
+      for (var i = 0; i < 5; i++) {
+        cubit.scrollWithLinks(
+          [i, i + 1],
+          [
+            for (var k = 0; k <= i; k++) _link(1, k),
+          ],
+        );
+        await tester.pump();
+      }
+
+      expect(leafBuilds, baseline);
+
+      await cubit.close();
+    });
+
     testWidgets('שינוי שאינו גלילה עובר את השער ובונה מחדש', (tester) async {
       final cubit = _StateCubit(_loaded());
       var leafBuilds = 0;
@@ -355,6 +411,15 @@ class _StateCubit extends Cubit<TextBookState> {
 
   void scrollTo(List<int> visibleIndices) {
     emit((state as TextBookLoaded).copyWith(visibleIndices: visibleIndices));
+  }
+
+  void scrollWithLinks(List<int> visibleIndices, List<Link> visibleLinks) {
+    emit(
+      (state as TextBookLoaded).copyWith(
+        visibleIndices: visibleIndices,
+        visibleLinks: visibleLinks,
+      ),
+    );
   }
 
   void retitle(String title) {

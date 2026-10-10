@@ -107,12 +107,6 @@ class TocDao {
     return db.lastInsertRowId;
   }
 
-  Future<int> updateLineId(int tocId, int lineId) async {
-    final db = await database;
-    db.execute(_queries['updateLineId']!, [lineId, tocId]);
-    return db.updatedRows;
-  }
-
   Future<int> updateIsLastChild(int tocId, bool isLastChild) async {
     final db = await database;
     db.execute(_queries['updateIsLastChild']!, [isLastChild ? 1 : 0, tocId]);

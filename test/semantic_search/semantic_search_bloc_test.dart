@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -44,6 +45,38 @@ void main() {
       () => bloc.state.availability.phase == SemanticAvailabilityPhase.ready,
     );
     expect(bloc.state.availability.phase, SemanticAvailabilityPhase.ready);
+  });
+
+  test('סגירת הדיאלוג אינה עוצרת הורדה, ופתיחה מחדש מציגה את מצבה', () async {
+    installModelFiles(root);
+    final gate = Completer<void>();
+    final downloads = FakeDownloads()..gate = gate;
+    final repository = buildRepository(
+      root: root,
+      download: downloads.call,
+      locator: FakeLocator(releaseV30()),
+    );
+    final first = SemanticSearchBloc(repository: repository)
+      ..add(const SemanticSearchStarted());
+    first.add(const SemanticDownloadRequested());
+    await waitFor(() => downloads.lastIsCancelled != null);
+    await first.close();
+    expect(downloads.lastIsCancelled!(), isFalse);
+
+    final reopened = SemanticSearchBloc(repository: repository)
+      ..add(const SemanticSearchStarted());
+    addTearDown(reopened.close);
+    await waitFor(() => reopened.state.availability.progress != null);
+    expect(
+      reopened.state.availability.phase,
+      SemanticAvailabilityPhase.downloading,
+    );
+
+    gate.complete();
+    await waitFor(
+      () =>
+          reopened.state.availability.phase == SemanticAvailabilityPhase.ready,
+    );
   });
 
   group('SemanticDataPanel', () {

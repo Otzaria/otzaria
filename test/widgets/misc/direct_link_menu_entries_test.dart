@@ -133,4 +133,24 @@ void main() {
       }
     });
   });
+
+  group('buildCopyDirectLinkEntry', () {
+    test('opens the direct links as its submenu', () {
+      final entry = buildCopyDirectLinkEntry(
+        bookId: 7,
+        index: 3,
+        selectedText: 'שלום',
+      );
+
+      expect(entry.label, 'העתק קישור ישיר');
+      expect(
+        entry.childrenBuilder!().map((e) => e.label),
+        buildDirectLinkContextMenuEntries(
+          bookId: 7,
+          index: 3,
+          selectedText: 'שלום',
+        ).map((e) => e.label),
+      );
+    });
+  });
 }

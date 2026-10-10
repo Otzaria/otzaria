@@ -8,6 +8,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/utils/reader_build_policy.dart';
+import 'package:otzaria/text_book/utils/visible_index.dart';
 import 'package:otzaria/text_book/view/selected_line_links_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_notes_sidebar.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
@@ -59,6 +60,7 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final String? notesBookIdOverride;
   final int? notesCategoryIdOverride;
   final int? notesFocusLineNumber;
+  final Widget? notesFooter;
 
   /// בקשות גלילה לקטע מפרש מלחיצה על עוגן-אות בטקסט הראשי. מועבר כמות שהוא
   /// לרשימת המפרשים; רלוונטי רק במצב המפוצל, שבו היא בכלל מוצגת כאן.
@@ -84,6 +86,7 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.notesBookIdOverride,
     this.notesCategoryIdOverride,
     this.notesFocusLineNumber,
+    this.notesFooter,
     this.commentaryScrollTarget,
   });
 
@@ -96,11 +99,6 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
   late TabController _tabController;
 
   // פונקציה ציבורית לעבור לכרטיסיית הקישורים
-  void switchToLinksTab() {
-    if (_tabController.index != kLinksTabIndex) {
-      _tabController.animateTo(kLinksTabIndex);
-    }
-  }
 
   @override
   void initState() {
@@ -159,7 +157,7 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                 final isCompact = constraints.maxWidth < 270;
                 final firstTabIconData = widget.showSplitView
                     ? OtzariaIcons.book_24_regular
-                    : FluentIcons.settings_24_regular;
+                    : OtzariaIcons.apps_list_24_regular;
                 return PanelTabHeader(
                   controller: _tabController,
                   onClose: widget.onClosePane,
@@ -228,6 +226,8 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                         openBookCallback: widget.openBookCallback,
                         fontSize: settingsState.commentatorsFontSize,
                         showSearch: widget.showSearch,
+                        // ב-shrinkWrap כיווץ מפרש מעלים מהציור את המפרש שמעליו
+                        shrinkWrap: false,
                         selectionSyncController: widget.selectionSyncController,
                         openFilterRequest: widget.openFilterRequest,
                         highlightQueryListenable:
@@ -278,6 +278,9 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                         ? state.book.categoryId
                         : widget.notesCategoryIdOverride,
                     focusLineNumber: widget.notesFocusLineNumber,
+                    footer: widget.notesBookIdOverride == null
+                        ? widget.notesFooter
+                        : null,
                     onNavigateToLine:
                         widget.onNavigateToLine ??
                         (line) => _handleNoteNavigation(context, state, line),
@@ -303,7 +306,10 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
     final targetIndex = (lineNumber - 1).clamp(0, state.content.length - 1);
 
     await state.scrollController.scrollTo(
-      index: targetIndex,
+      index: resolveItemIndexForSourceLine(
+        lineIndex: targetIndex,
+        readingSegments: state.readingSegments,
+      ),
       alignment: 0.05,
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOut,

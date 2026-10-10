@@ -202,7 +202,14 @@ void main() {
         entryOf(entries, 'העבר לחלון קיים').children!.single.onTap!();
         // ⚠️ המסירה עוברת ב-ReceivePort אמיתי, ש-FakeAsync של pumpAndSettle
         // אינו מקדם — ההמתנה חייבת להיות בזמן אמת.
-        for (var i = 0; i < 200 && peer.receivedTabs == 0; i++) {
+        // RemoveTab נשלח רק אחרי אישור המסירה, כלומר אחרי שהיעד כבר קיבל.
+        for (
+          var i = 0;
+          i < 200 &&
+              (peer.receivedTabs == 0 ||
+                  tabsBloc.addedEvents.whereType<RemoveTab>().isEmpty);
+          i++
+        ) {
           await Future<void>.delayed(const Duration(milliseconds: 10));
         }
       });

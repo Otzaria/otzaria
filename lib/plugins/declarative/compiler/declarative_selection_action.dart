@@ -1,9 +1,16 @@
 import 'package:otzaria/plugins/declarative/commands/declarative_command_registry.dart';
+import 'package:otzaria/plugins/declarative/compiler/declarative_action_compiler.dart';
+import 'package:otzaria/plugins/declarative/compiler/declarative_value_checks.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 
-/// תבנית פעולת host על פריט תפריט הקשר: נפתרת בזמן הלחיצה מנתוני הסימון,
-/// בלי מנוע JS ובלי תכנית. ההפניה היחידה היא `$selection` (לצד `$literal`
-/// ו-`$concat`), כי המידע הדינמי היחיד בלחיצה הוא הסימון עצמו.
+/// מה נלחץ: פריט בתפריט הקשר (`$selection`) או ספר של ספק בחיפוש הספרייה
+/// (`$book`). כל מקור חושף רק את נתוני הלחיצה שלו.
+enum DeclarativeClickSource { selection, libraryBook }
+
+/// תבנית פעולת host על לחיצה: פריט תפריט הקשר, או ספר ספק במסך הספרייה.
+/// נפתרת בזמן הלחיצה, בלי מנוע JS ובלי תכנית. ההפניות הן נתוני הלחיצה
+/// (`$selection` או `$book`, לפי המקור) ו-`$storage` — ערך מאחסון התוסף,
+/// לצד `$literal` ו-`$concat`.
 class DeclarativeSelectionAction {
   static const int maxNodes = 128;
   static const int maxDepth = 10;
@@ -20,13 +27,22 @@ class DeclarativeSelectionAction {
     'source',
   };
 
+  /// הנתיבים המותרים ב-`$book` — הספר שנבחר בחיפוש הספרייה.
+  static const Set<String> allowedBookPaths = {
+    'id',
+    'title',
+    'author',
+    'provider',
+  };
+
   /// ולידציה מבנית של התבנית. עם [declaredPermissions] נבדקת גם הצהרת
   /// ההרשאה של הפעולה — בלעדיה (רישום בגשר) הבדיקה נדחית לזמן הלחיצה.
   static void validateTemplate(
     Map<String, dynamic> json, {
     Set<String>? declaredPermissions,
+    DeclarativeClickSource source = DeclarativeClickSource.selection,
   }) {
-    _assertOnlyKeys(json, const {'type', 'args'}, 'action');
+    assertOnlyKeys(json, const {'type', 'args'}, 'action');
     final type = json['type'];
     if (type is! String || type.isEmpty) {
       throw const DeclarativeProgramException(
@@ -51,7 +67,7 @@ class DeclarativeSelectionAction {
       );
     }
     final args = _requiredMap(json['args'], 'action.args');
-    _assertOnlyKeys(
+    assertOnlyKeys(
       args,
       {...definition.requiredArgs, ...definition.optionalArgs},
       'action.args',
@@ -66,43 +82,99 @@ class DeclarativeSelectionAction {
       );
     }
     final budget = _Budget();
-    _validateExpression(args, budget, depth: 0);
+    _validateExpression(args, budget, source: source, depth: 0);
+    if (declaredPermissions != null &&
+        storageKeys(json).isNotEmpty &&
+        !declaredPermissions.contains('plugin.storage.read')) {
+      throw const DeclarativeProgramException(
+        'declarative.permission_not_declared',
+        r'$storage requires permission "plugin.storage.read"',
+      );
+    }
+    if (type == 'localService.post') {
+      DeclarativeActionCompiler.validateLocalServiceArgs(args, template: true);
+    }
   }
 
-  /// פותר את הפניות התבנית מול [payload] של הלחיצה. הערכים המוחזרים עדיין
-  /// עוברים את הולידציה המלאה של DeclarativeActionCompiler.
+  /// מפתחות האחסון שהתבנית קוראת (`$storage`), כדי שהמבצע יקרא אותם לפני
+  /// [resolve]. התבנית כבר עברה [validateTemplate].
+  static Set<String> storageKeys(Map<String, dynamic> template) {
+    final keys = <String>{};
+    void visit(Object? value) {
+      if (value is Map) {
+        if (value.length == 1 && value.containsKey(r'$literal')) return;
+        if (value.length == 1 && value[r'$storage'] is String) {
+          keys.add(value[r'$storage'] as String);
+          return;
+        }
+        value.values.forEach(visit);
+      } else if (value is List) {
+        value.forEach(visit);
+      }
+    }
+
+    visit(template['args']);
+    return keys;
+  }
+
+  /// פותר את הפניות התבנית מול [payload] של הלחיצה ומול ערכי [storage]
+  /// (מפתח שאינו קיים ← `null`). הערכים המוחזרים עדיין עוברים את הולידציה
+  /// המלאה של DeclarativeActionCompiler.
   static Map<String, dynamic> resolve(
     Map<String, dynamic> template,
-    Map<String, dynamic> payload,
-  ) {
+    Map<String, dynamic> payload, {
+    Map<String, Object?> storage = const {},
+  }) {
     return {
       'type': template['type'],
-      'args': _resolveValue(template['args'], payload),
+      'args': _resolveValue(template['args'], payload, storage),
     };
   }
 
-  static Object? _resolveValue(Object? value, Map<String, dynamic> payload) {
+  static final RegExp _controlCharRuns = RegExp(r'[\u0000-\u001F\u007F]+');
+
+  /// מסיר תווי בקרה ומגביל טקסט בלי לפצל זוג surrogate,
+  /// כדי שסימון של כמה שורות יתאים לארגומנטים של הפעולה.
+  static String _clickText(String text) {
+    final flat = text.replaceAll(_controlCharRuns, ' ');
+    const max = DeclarativeActionCompiler.maxJsonStringLength;
+    if (flat.length <= max) return flat;
+    final end = flat.codeUnitAt(max - 1) & 0xFC00 == 0xD800 ? max - 1 : max;
+    return flat.substring(0, end);
+  }
+
+  static Object? _resolveValue(
+    Object? value,
+    Map<String, dynamic> payload,
+    Map<String, Object?> storage,
+  ) {
     if (value is Map) {
       final map = Map<String, dynamic>.from(value);
       if (map.length == 1) {
         if (map.containsKey(r'$literal')) return _copy(map[r'$literal']);
-        if (map.containsKey(r'$selection')) {
-          return payload[map[r'$selection'] as String];
+        for (final root in const [r'$selection', r'$book']) {
+          if (map.containsKey(root)) {
+            final data = payload[map[root] as String];
+            return data is String ? _clickText(data) : data;
+          }
+        }
+        if (map.containsKey(r'$storage')) {
+          return _copy(storage[map[r'$storage'] as String]);
         }
         if (map.containsKey(r'$concat')) {
           return (map[r'$concat'] as List<dynamic>)
-              .map((part) => _resolveValue(part, payload))
+              .map((part) => _resolveValue(part, payload, storage))
               .map((part) => part?.toString() ?? '')
               .join();
         }
       }
       return {
         for (final entry in map.entries)
-          entry.key: _resolveValue(entry.value, payload),
+          entry.key: _resolveValue(entry.value, payload, storage),
       };
     }
     if (value is List) {
-      return [for (final item in value) _resolveValue(item, payload)];
+      return [for (final item in value) _resolveValue(item, payload, storage)];
     }
     return value;
   }
@@ -110,6 +182,7 @@ class DeclarativeSelectionAction {
   static void _validateExpression(
     Object? value,
     _Budget budget, {
+    required DeclarativeClickSource source,
     required int depth,
   }) {
     budget.visit(depth);
@@ -126,12 +199,33 @@ class DeclarativeSelectionAction {
         switch (special.single) {
           case r'$literal':
             _validateLiteral(map[r'$literal'], budget, depth: depth + 1);
-          case r'$selection':
+          case r'$selection' when source == DeclarativeClickSource.selection:
             final path = map[r'$selection'];
             if (path is! String || !allowedSelectionPaths.contains(path)) {
               throw DeclarativeProgramException(
                 'declarative.invalid_reference',
                 'Selection path "$path" is not allowed',
+              );
+            }
+          case r'$book' when source == DeclarativeClickSource.libraryBook:
+            final path = map[r'$book'];
+            if (path is! String || !allowedBookPaths.contains(path)) {
+              throw DeclarativeProgramException(
+                'declarative.invalid_reference',
+                'Book path "$path" is not allowed',
+              );
+            }
+          case r'$storage':
+            final key = map[r'$storage'];
+            if (key is! String ||
+                key.isEmpty ||
+                key.length > DeclarativeActionCompiler.maxStorageKeyLength ||
+                _hasControlChars(key)) {
+              throw const DeclarativeProgramException(
+                'declarative.invalid_reference',
+                r'$storage must be a storage key of up to '
+                    '${DeclarativeActionCompiler.maxStorageKeyLength} '
+                    'characters',
               );
             }
           case r'$concat':
@@ -143,7 +237,12 @@ class DeclarativeSelectionAction {
               );
             }
             for (final part in parts) {
-              _validateExpression(part, budget, depth: depth + 1);
+              _validateExpression(
+                part,
+                budget,
+                source: source,
+                depth: depth + 1,
+              );
             }
           default:
             throw DeclarativeProgramException(
@@ -154,7 +253,12 @@ class DeclarativeSelectionAction {
         return;
       }
       for (final entry in map.entries) {
-        _validateExpression(entry.value, budget, depth: depth + 1);
+        _validateExpression(
+          entry.value,
+          budget,
+          source: source,
+          depth: depth + 1,
+        );
       }
       return;
     }
@@ -166,7 +270,7 @@ class DeclarativeSelectionAction {
         );
       }
       for (final item in value) {
-        _validateExpression(item, budget, depth: depth + 1);
+        _validateExpression(item, budget, source: source, depth: depth + 1);
       }
       return;
     }
@@ -222,36 +326,8 @@ class DeclarativeSelectionAction {
     return value;
   }
 
-  static Map<String, dynamic> _requiredMap(Object? value, String context) {
-    if (value is! Map) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_action',
-        '$context must be an object',
-      );
-    }
-    try {
-      return Map<String, dynamic>.from(value);
-    } on TypeError {
-      throw DeclarativeProgramException(
-        'declarative.invalid_action',
-        '$context keys must be strings',
-      );
-    }
-  }
-
-  static void _assertOnlyKeys(
-    Map<String, dynamic> value,
-    Set<String> allowed,
-    String context,
-  ) {
-    final unknown = value.keys.where((key) => !allowed.contains(key)).toList();
-    if (unknown.isNotEmpty) {
-      throw DeclarativeProgramException(
-        'declarative.unknown_field',
-        '$context contains unsupported fields: ${unknown.join(', ')}',
-      );
-    }
-  }
+  static Map<String, dynamic> _requiredMap(Object? value, String context) =>
+      requiredMap(value, context, code: 'declarative.invalid_action');
 }
 
 class _Budget {

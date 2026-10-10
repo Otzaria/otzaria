@@ -5,6 +5,20 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_commentators_tab.dart';
 import 'package:otzaria/utils/file/hive_utils.dart';
 
+/// שם "שולחן עבודה N" שאינו תפוס עדיין ב-[existingWorkspaces].
+String uniqueWorkspaceName(List<Workspace> existingWorkspaces) {
+  final existingNames = existingWorkspaces.map((w) => w.name).toSet();
+  int counter = existingWorkspaces.length + 1;
+
+  while (true) {
+    final candidateName = "שולחן עבודה $counter";
+    if (!existingNames.contains(candidateName)) {
+      return candidateName;
+    }
+    counter++;
+  }
+}
+
 /// Represents a workspace in the application.
 ///
 /// A `Workspace` object has a unique [id], a [name],
@@ -26,12 +40,17 @@ class Workspace extends Equatable {
   /// בדיוק כמו [activeTabIndex].
   final String? activePane;
 
+  /// שולחן מקובע: מעבר לשולחן אחר אינו דורס את הכרטיסיות השמורות בו, והן
+  /// מתעדכנות רק בשמירה מפורשת.
+  final bool isPinned;
+
   Workspace({
     String? id,
     required this.name,
     required this.tabs,
     this.activeTabIndex = 0,
     this.activePane,
+    this.isPinned = false,
   }) : id = id ?? _generateId();
 
   static int _idCounter = 0;
@@ -51,6 +70,7 @@ class Workspace extends Equatable {
     String? name,
     List<OpenedTab>? tabs,
     int? activeTabIndex,
+    bool? isPinned,
   }) {
     return Workspace(
       id: id, // ID remains the same
@@ -58,6 +78,7 @@ class Workspace extends Equatable {
       tabs: tabs ?? this.tabs,
       activeTabIndex: activeTabIndex ?? this.activeTabIndex,
       activePane: activePane,
+      isPinned: isPinned ?? this.isPinned,
     );
   }
 
@@ -75,6 +96,7 @@ class Workspace extends Equatable {
       tabs: tabs,
       activeTabIndex: activeTabIndex,
       activePane: activePane,
+      isPinned: isPinned,
     );
   }
 
@@ -100,18 +122,22 @@ class Workspace extends Equatable {
       }
     }
 
-    final decoded =
-        (json['tabs'] as List?)
-            ?.map((raw) => decodeTab(castMap(raw)))
-            .whereType<OpenedTab>()
-            .toList() ??
-        <OpenedTab>[];
+    final rawTabs = json['tabs'] as List? ?? const [];
+    final savedIndex = json['currentTab'] as int? ?? 0;
+    final decoded = <OpenedTab>[];
+    var currentIndex = 0;
+    for (var i = 0; i < rawTabs.length; i++) {
+      final tab = decodeTab(castMap(rawTabs[i]));
+      if (tab == null) continue;
+      if (i <= savedIndex) currentIndex = decoded.length;
+      decoded.add(tab);
+    }
 
     // הגיזום אחרי הנירמול: בפיצול מקונן ששוחזר מגרסה קודמת חלונית מפרשי
     // PDF יכולה לשבת בעומק שאליו הגיזום אינו יורד.
     final restored = flattenRestoredSplits(
       decoded,
-      currentIndex: json['currentTab'] as int? ?? 0,
+      currentIndex: currentIndex,
     );
     final tabs = restored.tabs
         .map(_withoutPdfCommentators)
@@ -133,6 +159,7 @@ class Workspace extends Equatable {
           ? 0
           : restored.currentIndex.clamp(0, tabs.length - 1),
       activePane: side,
+      isPinned: json['isPinned'] == true,
     );
   }
 
@@ -161,9 +188,17 @@ class Workspace extends Equatable {
       'tabs': persistedTabs.map((tab) => tab.toJson()).toList(),
       'currentTab': safeIndex,
       'activePane': ?persistedSide,
+      if (isPinned) 'isPinned': true,
     };
   }
 
   @override
-  List<Object?> get props => [id, name, tabs, activeTabIndex, activePane];
+  List<Object?> get props => [
+    id,
+    name,
+    tabs,
+    activeTabIndex,
+    activePane,
+    isPinned,
+  ];
 }

@@ -42,7 +42,6 @@ class FocusRepository {
   final TextEditingController findRefSearchController = TextEditingController();
 
   FocusNode? _currentBookContentFocusNode;
-  VoidCallback? _moreScreenFocusRequester;
   VoidCallback? _settingsFocusRequester;
 
   // שכבת מסך — owner יחיד, מוחלף בכל ניווט למסך
@@ -220,21 +219,6 @@ class FocusRepository {
       },
       canRestore: () => _currentBookContentFocusNode?.canRequestFocus ?? false,
     );
-  }
-
-  void registerMoreScreenFocusRequester(VoidCallback requester) {
-    _moreScreenFocusRequester = requester;
-  }
-
-  void unregisterMoreScreenFocusRequester(VoidCallback requester) {
-    if (_moreScreenFocusRequester == requester) {
-      _moreScreenFocusRequester = null;
-    }
-  }
-
-  void requestMoreScreenFocus() {
-    // setScreenRestorer מטופל בתוך requestActiveTabFocus ← _registerMoreRestorer
-    _moreScreenFocusRequester?.call();
   }
 
   void registerSettingsFocusRequester(VoidCallback requester) {

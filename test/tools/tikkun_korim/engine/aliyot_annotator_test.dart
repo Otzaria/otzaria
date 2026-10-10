@@ -157,14 +157,15 @@ void main() {
       };
     });
 
-    List<TikkunLine> linesOf(String id) => buildTorahReadingLines(
-      TikkunData.torahReadings.firstWhere((r) => r.id == id),
+    Future<List<TikkunLine>> linesOf(String id) => buildVersePartLines(
+      const TikkunEngineImpl(),
+      readingParts(TikkunData.torahReadings.firstWhere((r) => r.id == id)),
       tokensByBook,
       _widths,
     );
 
-    test('מפטיר מחומש אחר מסומן כספר תורה שני', () {
-      final lines = linesOf('tr:Shabbat Shekalim (on Rosh Chodesh)');
+    test('מפטיר מחומש אחר מסומן כספר תורה שני', () async {
+      final lines = await linesOf('tr:Shabbat Shekalim (on Rosh Chodesh)');
       final labels = [
         for (final l in lines)
           if (l.torahScrollLabel != null) l.torahScrollLabel!,
@@ -180,8 +181,8 @@ void main() {
       );
     });
 
-    test('דילוג פנימי באותו חומש אינו החלפת ספר', () {
-      final lines = linesOf('tr:Fast Day (Morning)');
+    test('דילוג פנימי באותו חומש אינו החלפת ספר', () async {
+      final lines = await linesOf('tr:Fast Day (Morning)');
       expect(lines.every((l) => l.torahScrollLabel == null), isTrue);
     });
   });

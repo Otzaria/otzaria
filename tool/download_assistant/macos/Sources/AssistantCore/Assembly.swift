@@ -20,7 +20,7 @@ public func appendPart(
     let end = try output.offset()
     guard copied == expectedSize, Int64(end - start) == expectedSize else {
         throw AssistantError(
-            "לא ניתן היה לכתוב את הקובץ המאוחד. ייתכן שאין מספיק מקום פנוי.",
+            AssistantError.writeJoinedFailed,
             technical: "\(part.lastPathComponent): appended \(copied) of \(expectedSize) bytes"
         )
     }
@@ -41,7 +41,7 @@ public func assembleSplitAsset(
     if !fileManager.fileExists(atPath: working.path) {
         guard fileManager.createFile(atPath: working.path, contents: nil) else {
             throw AssistantError(
-                "לא ניתן היה להעתיק את הקבצים לתיקייה שנבחרה.",
+                AssistantError.copyFailed,
                 technical: "cannot create \(working.path)"
             )
         }
@@ -67,7 +67,7 @@ public func assembleSplitAsset(
 
     guard fileSize(working) == size else {
         throw AssistantError(
-            "הקובץ המאוחד נמצא פגום ולכן לא נשמר.",
+            AssistantError.joinedDamaged,
             technical: "\(name): assembled \(fileSize(working) ?? -1) bytes, expected \(size)"
         )
     }
@@ -77,7 +77,7 @@ public func assembleSplitAsset(
     ).finalize()) != sha256 {
         try? fileManager.removeItem(at: working)
         throw AssistantError(
-            "הקובץ המאוחד נמצא פגום ולכן לא נשמר.",
+            AssistantError.joinedDamaged,
             technical: "\(name): assembled sha256 mismatch"
         )
     }
@@ -102,7 +102,7 @@ public func placeFile(
     }
     guard fileManager.createFile(atPath: destination.path, contents: nil) else {
         throw AssistantError(
-            "לא ניתן היה להעתיק את הקבצים לתיקייה שנבחרה.", technical: "cannot create \(destination.path)"
+            AssistantError.copyFailed, technical: "cannot create \(destination.path)"
         )
     }
     do {

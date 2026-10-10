@@ -4,6 +4,7 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -151,252 +152,217 @@ class _HiddenBooksPickerDialogState extends State<_HiddenBooksPickerDialog> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final media = MediaQuery.of(context);
-    final maxWidth = media.size.width * 0.9;
 
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: maxWidth > 720 ? 720 : maxWidth,
-          maxHeight: media.size.height * 0.85,
+    return ListDialogFrame(
+      icon: OtzariaIcons.book_24_regular,
+      title: context.settingsText('בחירת ספרים וקטגוריות להסתרה'),
+      counter: context.settingsText(
+        'בחירות ישירות: {count}',
+        args: {
+          'count': _showCategories
+              ? _selectedCategories.length
+              : _selectedBooks.length,
+        },
+      ),
+      children: [
+        const SizedBox(height: 12),
+        SegmentedButton<bool>(
+          segments: [
+            ButtonSegment(
+              value: false,
+              label: Text(context.settingsText('ספרים')),
+            ),
+            ButtonSegment(
+              value: true,
+              label: Text(context.settingsText('קטגוריות')),
+            ),
+          ],
+          selected: {_showCategories},
+          showSelectedIcon: false,
+          onSelectionChanged: (selection) {
+            setState(() => _showCategories = selection.single);
+            _search.clear();
+            if (_scroll.hasClients) _scroll.jumpTo(0);
+          },
         ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Icon(OtzariaIcons.book_24_regular, color: cs.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      context.settingsText('בחירת ספרים וקטגוריות להסתרה'),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ),
-                  Text(
-                    context.settingsText(
-                      'בחירות ישירות: {count}',
-                      args: {
-                        'count': _showCategories
-                            ? _selectedCategories.length
-                            : _selectedBooks.length,
-                      },
-                    ),
-                    style:
-                        Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
-                  ),
-                ],
+        if (_showCategories)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              context.settingsText(
+                'הסתרת קטגוריה כוללת את תתי־הקטגוריות וכל הספרים שבתוכה',
               ),
-              const SizedBox(height: 12),
-              SegmentedButton<bool>(
-                segments: [
-                  ButtonSegment(
-                    value: false,
-                    label: Text(context.settingsText('ספרים')),
-                  ),
-                  ButtonSegment(
-                    value: true,
-                    label: Text(context.settingsText('קטגוריות')),
-                  ),
-                ],
-                selected: {_showCategories},
-                showSelectedIcon: false,
-                onSelectionChanged: (selection) {
-                  setState(() => _showCategories = selection.single);
-                  _search.clear();
-                  if (_scroll.hasClients) _scroll.jumpTo(0);
-                },
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
               ),
-              if (_showCategories)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    context.settingsText(
-                      'הסתרת קטגוריה כוללת את תתי־הקטגוריות וכל הספרים שבתוכה',
-                    ),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 12),
-              RtlTextField(
-                controller: _search,
-                autofocus: true,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(OtzariaIcons.search_24_regular),
-                  hintText: _showCategories
-                      ? context.settingsText('חיפוש קטגוריה לפי שם או נתיב')
-                      : context.settingsText('חיפוש לפי שם, מחבר או קטגוריה'),
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: TextButton.icon(
-                  icon: Icon(
-                    _hiddenOnly
-                        ? FluentIcons.eye_off_24_regular
-                        : FluentIcons.eye_24_regular,
-                    size: 18,
-                  ),
-                  label: Text(
-                    _hiddenOnly
-                        ? _showCategories
-                              ? context.settingsText('הצג את כל הקטגוריות')
-                              : context.settingsText('הצג את כל הספרים')
-                        : context.settingsText('הצג רק מוסתרים'),
-                  ),
-                  onPressed: () {
-                    _hiddenOnly = !_hiddenOnly;
-                    _applyFilter();
-                  },
-                ),
-              ),
-              const SizedBox(height: 4),
-              Expanded(
-                child:
-                    (_showCategories
-                        ? _visibleCategories.isEmpty
-                        : _visible.isEmpty)
-                    ? Center(
-                        child: Text(
-                          _showCategories
-                              ? context.settingsText('לא נמצאו קטגוריות')
-                              : context.settingsText('לא נמצאו ספרים'),
-                          style: TextStyle(color: cs.onSurfaceVariant),
-                        ),
-                      )
-                    : Scrollbar(
-                        controller: _scroll,
-                        thumbVisibility: true,
-                        child: ListView.separated(
-                          controller: _scroll,
-                          itemCount: _showCategories
-                              ? _visibleCategories.length
-                              : _visible.length,
-                          separatorBuilder: (_, _) => Divider(
-                            height: 1,
-                            color: cs.surfaceContainerHighest,
-                          ),
-                          itemBuilder: (_, i) {
-                            if (_showCategories) {
-                              final row = _visibleCategories[i];
-                              final inherited = _hidingCategory(
-                                row.path,
-                                includeSelf: false,
-                              );
-                              return CheckboxListTile(
-                                value:
-                                    inherited != null ||
-                                    _selectedCategories.contains(row.path),
-                                title: Padding(
-                                  padding: EdgeInsetsDirectional.only(
-                                    start: row.depth * 12.0,
-                                  ),
-                                  child: Text(row.title),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(row.path),
-                                    if (inherited != null)
-                                      Text(
-                                        context.settingsText(
-                                          'מוסתר דרך {category}',
-                                          args: {'category': inherited},
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                secondary: const Icon(
-                                  FluentIcons.folder_24_regular,
-                                ),
-                                onChanged: inherited != null
-                                    ? null
-                                    : (checked) {
-                                        setState(() {
-                                          if (checked == true) {
-                                            _selectedCategories.add(row.path);
-                                          } else {
-                                            _selectedCategories.remove(
-                                              row.path,
-                                            );
-                                          }
-                                        });
-                                        if (_hiddenOnly) _applyFilter();
-                                      },
-                              );
-                            }
-                            final row = _visible[i];
-                            final inherited = _hidingCategory(row.categoryPath);
-                            return CheckboxListTile(
-                              value:
-                                  inherited != null ||
-                                  _selectedBooks.contains(row.key),
-                              title: Text(row.title),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(row.details),
-                                  if (inherited != null)
-                                    Text(
-                                      context.settingsText(
-                                        'מוסתר דרך {category}',
-                                        args: {'category': inherited},
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              onChanged: inherited != null
-                                  ? null
-                                  : (checked) {
-                                      setState(() {
-                                        if (checked == true) {
-                                          _selectedBooks.add(row.key);
-                                        } else {
-                                          _selectedBooks.remove(row.key);
-                                        }
-                                      });
-                                      if (_hiddenOnly) _applyFilter();
-                                    },
-                            );
-                          },
-                        ),
-                      ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  ActionButton.recommended(
-                    text: context.settingsText('שמור'),
-                    onPressed: () => Navigator.of(context).pop(
-                      HiddenLibrarySelection(
-                        bookKeys: _selectedBooks,
-                        categoryPaths: _selectedCategories,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  ActionButton.ghost(
-                    text: context.settingsText('ביטול'),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ],
+            ),
+          ),
+        const SizedBox(height: 12),
+        RtlTextField(
+          controller: _search,
+          autofocus: true,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(OtzariaIcons.search_24_regular),
+            hintText: _showCategories
+                ? context.settingsText('חיפוש קטגוריה לפי שם או נתיב')
+                : context.settingsText('חיפוש לפי שם, מחבר או קטגוריה'),
+            border: const OutlineInputBorder(),
+            isDense: true,
           ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton.icon(
+            icon: Icon(
+              _hiddenOnly
+                  ? FluentIcons.eye_off_24_regular
+                  : FluentIcons.eye_24_regular,
+              size: 18,
+            ),
+            label: Text(
+              _hiddenOnly
+                  ? _showCategories
+                        ? context.settingsText('הצג את כל הקטגוריות')
+                        : context.settingsText('הצג את כל הספרים')
+                  : context.settingsText('הצג רק מוסתרים'),
+            ),
+            onPressed: () {
+              _hiddenOnly = !_hiddenOnly;
+              _applyFilter();
+            },
+          ),
+        ),
+        const SizedBox(height: 4),
+        Expanded(
+          child:
+              (_showCategories ? _visibleCategories.isEmpty : _visible.isEmpty)
+              ? Center(
+                  child: Text(
+                    _showCategories
+                        ? context.settingsText('לא נמצאו קטגוריות')
+                        : context.settingsText('לא נמצאו ספרים'),
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
+                )
+              : Scrollbar(
+                  controller: _scroll,
+                  thumbVisibility: true,
+                  child: ListView.separated(
+                    controller: _scroll,
+                    itemCount: _showCategories
+                        ? _visibleCategories.length
+                        : _visible.length,
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      color: cs.surfaceContainerHighest,
+                    ),
+                    itemBuilder: (_, i) {
+                      if (_showCategories) {
+                        final row = _visibleCategories[i];
+                        final inherited = _hidingCategory(
+                          row.path,
+                          includeSelf: false,
+                        );
+                        return CheckboxListTile(
+                          value:
+                              inherited != null ||
+                              _selectedCategories.contains(row.path),
+                          title: Padding(
+                            padding: EdgeInsetsDirectional.only(
+                              start: row.depth * 12.0,
+                            ),
+                            child: Text(row.title),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(row.path),
+                              if (inherited != null)
+                                Text(
+                                  context.settingsText(
+                                    'מוסתר דרך {category}',
+                                    args: {'category': inherited},
+                                  ),
+                                ),
+                            ],
+                          ),
+                          secondary: const Icon(
+                            FluentIcons.folder_24_regular,
+                          ),
+                          onChanged: inherited != null
+                              ? null
+                              : (checked) {
+                                  setState(() {
+                                    if (checked == true) {
+                                      _selectedCategories.add(row.path);
+                                    } else {
+                                      _selectedCategories.remove(
+                                        row.path,
+                                      );
+                                    }
+                                  });
+                                  if (_hiddenOnly) _applyFilter();
+                                },
+                        );
+                      }
+                      final row = _visible[i];
+                      final inherited = _hidingCategory(row.categoryPath);
+                      return CheckboxListTile(
+                        value:
+                            inherited != null ||
+                            _selectedBooks.contains(row.key),
+                        title: Text(row.title),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(row.details),
+                            if (inherited != null)
+                              Text(
+                                context.settingsText(
+                                  'מוסתר דרך {category}',
+                                  args: {'category': inherited},
+                                ),
+                              ),
+                          ],
+                        ),
+                        onChanged: inherited != null
+                            ? null
+                            : (checked) {
+                                setState(() {
+                                  if (checked == true) {
+                                    _selectedBooks.add(row.key);
+                                  } else {
+                                    _selectedBooks.remove(row.key);
+                                  }
+                                });
+                                if (_hiddenOnly) _applyFilter();
+                              },
+                      );
+                    },
+                  ),
+                ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            ActionButton.recommended(
+              text: context.settingsText('שמור'),
+              onPressed: () => Navigator.of(context).pop(
+                HiddenLibrarySelection(
+                  bookKeys: _selectedBooks,
+                  categoryPaths: _selectedCategories,
+                ),
+              ),
+            ),
+            const Spacer(),
+            ActionButton.ghost(
+              text: context.settingsText('ביטול'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

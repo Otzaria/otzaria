@@ -298,7 +298,7 @@ class _AppReportDialogState extends State<AppReportDialog> {
         const SizedBox(height: AppTokens.spaceMD),
         _fieldLabel(
           context,
-          OtzariaIcons.alef_with_exclamation_24_regular,
+          OtzariaIcons.alef_exclamation_24_filled,
           'מה קרה?',
         ),
         RtlTextField(

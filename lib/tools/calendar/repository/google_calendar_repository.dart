@@ -196,19 +196,6 @@ class GoogleCalendarRepository {
   }
 
   @visibleForTesting
-  List<CustomEvent> mergeGoogleEvents(
-    List<CustomEvent> existing,
-    List<cal.Event> googleEvents, {
-    int? inheritedColorIndex,
-  }) {
-    return mergeGoogleEventPages(
-      existing,
-      [googleEvents],
-      inheritedColorIndex: inheritedColorIndex,
-    );
-  }
-
-  @visibleForTesting
   List<CustomEvent> mergeGoogleEventPages(
     List<CustomEvent> existing,
     Iterable<List<cal.Event>> pages, {

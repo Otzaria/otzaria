@@ -103,27 +103,10 @@ class CategoryDao {
     return db.lastInsertRowId;
   }
 
-  Future<int> updateCategory(int id, String title, {int? orderIndex}) async {
-    final db = await database;
-    db.execute(_queries['update']!, [title, orderIndex ?? 999, id]);
-    return db.updatedRows;
-  }
-
-  Future<int> updateCategoryOrderIndex(int id, int orderIndex) async {
-    final db = await database;
-    db.execute(_queries['updateOrderIndex']!, [orderIndex, id]);
-    return db.updatedRows;
-  }
-
   Future<int> deleteCategory(int id) async {
     final db = await database;
     db.execute(_queries['delete']!, [id]);
     return db.updatedRows;
-  }
-
-  Future<int> countAllCategories() async {
-    final db = await database;
-    return firstIntValue(db.select(_queries['countAll']!)) ?? 0;
   }
 
   /// Gets a category by its title.

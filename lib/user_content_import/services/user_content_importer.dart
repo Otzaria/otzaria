@@ -30,13 +30,6 @@ class UserImportResult {
     this.versionsApplied = 0,
     this.errors = const [],
   });
-
-  bool get hasAny =>
-      generationsApplied > 0 ||
-      linksApplied > 0 ||
-      headingsApplied > 0 ||
-      versionsApplied > 0 ||
-      errors.isNotEmpty;
 }
 
 /// קולט קבצי CSV/JSON שהמשתמש בחר ידנית, וכותב את הדורות והקישורים

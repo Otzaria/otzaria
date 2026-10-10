@@ -78,6 +78,23 @@ void main() {
       expect(blocks[1].text, 'יש');
     });
 
+    for (final keepHtml in [false, true]) {
+      test('משמיט קבוצה עם תגיות ריקות, keepHtml=$keepHtml', () async {
+        final blocks = await buildCommentaryPrintBlocks(
+          [
+            _group('ריק', [_link('a/ריק.txt', 1)]),
+            _group('מלא', [_link('a/מלא.txt', 1)]),
+          ],
+          keepHtml: keepHtml,
+          contentResolver: (link) async =>
+              link.path2.contains('ריק') ? '<p><b> </b></p>' : '<b>יש תוכן</b>',
+        );
+        expect(blocks, hasLength(2));
+        expect(blocks.first.text, 'מלא');
+        expect(blocks.last.text, keepHtml ? '<b>יש תוכן</b>' : 'יש תוכן');
+      });
+    }
+
     test('שגיאה בטעינת תוכן לא מפילה את הבנייה', () async {
       final groups = [
         _group('רש"י', [_link('a/רשי.txt', 1), _link('a/רשי.txt', 2)]),

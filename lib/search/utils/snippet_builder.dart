@@ -27,17 +27,36 @@ class SnippetBuilder {
 
   static final RegExp _whitespace = RegExp(r'\s+');
 
+  static final RegExp _lineBreakTag = RegExp(
+    r'<br\s*/?>',
+    caseSensitive: false,
+  );
+
+  /// תו פרטי שמחליף `<br>` עד אחרי כיווץ הרווחים — רק מעבר שורה שהמנוע
+  /// סימן נשמר, ושאר הרווחים (כולל `\n` בתוך טקסט) מתכווצים כרגיל.
+  static const String _lineBreakMark = '\uE000';
+
+  static String _withLineBreakMarks(String html) =>
+      html.replaceAll(_lineBreakTag, _lineBreakMark);
+
+  /// מכווץ רווחים ומחזיר את סימוני המעבר כמעבר שורה אמיתי, בלי רווח סביבו.
+  static String _collapseWhitespace(String text) => text
+      .replaceAll(_whitespace, ' ')
+      .replaceAll(RegExp(' ?$_lineBreakMark ?'), '\n');
+
   /// ממיר HTML מודגש שמגיע ממנוע החיפוש לרשימת [InlineSpan].
   ///
   /// טקסט שעטוף בתג הדגשה ([_highlightTags]) מקבל את [highlightStyle];
   /// שאר הטקסט מקבל את [defaultStyle]. תגי HTML אחרים מנוקים ומוצג רק
-  /// תוכן הטקסט שלהם.
+  /// תוכן הטקסט שלהם. [markStyle], כשניתן, מחליף את [highlightStyle] בתג
+  /// `mark` בלבד — שבו המנוע מסמן קטע לפי עניין.
   static List<InlineSpan> fromHighlightedHtml({
     required String html,
     required TextStyle defaultStyle,
     required TextStyle highlightStyle,
+    TextStyle? markStyle,
   }) {
-    final body = html_parser.parse(html).body;
+    final body = html_parser.parse(_withLineBreakMarks(html)).body;
     if (body == null) {
       return [TextSpan(text: '', style: defaultStyle)];
     }
@@ -45,10 +64,10 @@ class SnippetBuilder {
     final spans = <InlineSpan>[];
     _appendHtmlSpans(
       body,
-      highlighted: false,
+      style: defaultStyle,
       spans: spans,
-      defaultStyle: defaultStyle,
       highlightStyle: highlightStyle,
+      markStyle: markStyle ?? highlightStyle,
     );
 
     if (spans.isEmpty) {
@@ -57,32 +76,34 @@ class SnippetBuilder {
     return spans;
   }
 
+  /// [style] הוא הסגנון שהורש; הדגשה חיצונית קובעת גם לתגים שבתוכה.
   static void _appendHtmlSpans(
     dom.Node node, {
-    required bool highlighted,
+    required TextStyle style,
     required List<InlineSpan> spans,
-    required TextStyle defaultStyle,
     required TextStyle highlightStyle,
+    required TextStyle markStyle,
+    bool highlighted = false,
   }) {
     for (final child in node.nodes) {
       if (child is dom.Text) {
-        final text = child.text.replaceAll(_whitespace, ' ');
+        final text = _collapseWhitespace(child.text);
         if (text.isEmpty) continue;
-        spans.add(
-          TextSpan(
-            text: text,
-            style: highlighted ? highlightStyle : defaultStyle,
-          ),
-        );
+        spans.add(TextSpan(text: text, style: style));
       } else if (child is dom.Element) {
-        final isHighlight =
-            highlighted || _highlightTags.contains(child.localName);
+        final tag = child.localName;
+        final opens = !highlighted && _highlightTags.contains(tag);
         _appendHtmlSpans(
           child,
-          highlighted: isHighlight,
+          style: !opens
+              ? style
+              : tag == 'mark'
+              ? markStyle
+              : highlightStyle,
           spans: spans,
-          defaultStyle: defaultStyle,
           highlightStyle: highlightStyle,
+          markStyle: markStyle,
+          highlighted: highlighted || opens,
         );
       }
     }
@@ -121,8 +142,8 @@ class SnippetBuilder {
   /// מחלץ טקסט גולמי מ-HTML של המנוע (מסיר תגים ומנרמל רווחים), לצורך
   /// הדגשה-מחדש בצד האפליקציה בעקביות עם פאנל הקריאה.
   static String htmlToPlainText(String html) {
-    final body = html_parser.parse(html).body;
-    return (body?.text ?? '').replaceAll(_whitespace, ' ').trim();
+    final body = html_parser.parse(_withLineBreakMarks(html)).body;
+    return _collapseWhitespace(body?.text ?? '').trim();
   }
 
   /// בונה [InlineSpan] מטקסט גולמי [plainText] וטווחי הדגשה [ranges]
@@ -233,7 +254,12 @@ class SnippetBuilder {
     bool wholeWord = true,
     int? Function(String text)? anchorOf,
   }) {
-    final text = fullText.replaceAll(_whitespace, ' ').trim();
+    final text = fullText
+        .replaceAllMapped(
+          _whitespace,
+          (match) => match[0]!.contains('\n') ? '\n' : ' ',
+        )
+        .trim();
     if (text.length <= maxChars) return text;
 
     int findWordEnd(int fromIndex) {

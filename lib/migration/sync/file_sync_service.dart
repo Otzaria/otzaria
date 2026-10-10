@@ -2,14 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 
 import '../database/repository/seforim_repository.dart';
 import '../database/database_compaction.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
-import '../../settings/engine/settings_repository.dart';
 import '../generator/generator.dart';
 import '../models/book.dart';
 import '../models/category.dart';
@@ -920,42 +918,6 @@ class FileSyncService {
     );
 
     _log.info('Sync completed: $result');
-    return result;
-  }
-
-  /// Legacy wrapper — reads Settings and delegates to [syncCustomFoldersWithInputs].
-  /// Prefer calling [syncCustomFoldersWithInputs] via a worker isolate instead.
-  Future<FileSyncResult> syncFiles({
-    void Function(double progress, String message)? onProgress,
-  }) async {
-    if (_isSyncing) {
-      _log.warning('Sync already in progress, skipping');
-      return const FileSyncResult(errors: ['Sync already in progress']);
-    }
-
-    final libraryPath = Settings.getValue<String>(
-      SettingsRepository.keyLibraryPath,
-    );
-    if (libraryPath == null || libraryPath.isEmpty) {
-      _log.warning('Library path not set, skipping sync');
-      return const FileSyncResult(errors: ['Library path not set']);
-    }
-
-    final customFoldersJson = Settings.getValue<String>(
-      SettingsRepository.keyCustomFolders,
-    );
-    final customFolders = CustomFoldersManager.loadFolders(customFoldersJson);
-
-    final libraryFolderName =
-        Settings.getValue<String>(SettingsRepository.keyLibraryFolderName) ??
-        '';
-    final result = await syncCustomFoldersWithInputs(
-      libraryPath: libraryPath,
-      customFolders: customFolders,
-      folderName: libraryFolderName,
-      onProgress: onProgress,
-    );
-
     return result;
   }
 

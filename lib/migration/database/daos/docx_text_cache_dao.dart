@@ -44,11 +44,6 @@ class DocxTextCacheDao {
     db.execute(_queries['updateAccessedAt']!, [accessedAt, filePath]);
   }
 
-  Future<void> deleteByFilePath(String filePath) async {
-    final db = await database;
-    db.execute(_queries['deleteByFilePath']!, [filePath]);
-  }
-
   Future<void> deleteAccessedBefore(int cutoffMillis) async {
     final db = await database;
     db.execute(_queries['deleteAccessedBefore']!, [cutoffMillis]);

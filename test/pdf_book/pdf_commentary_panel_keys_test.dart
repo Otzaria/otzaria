@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
 
 Link _link({
@@ -159,4 +160,22 @@ void main() {
       expect(key(extra: const {}), key(extra: null));
     });
   });
+  test(
+    'same commentary coordinates in two attached databases have distinct keys',
+    () {
+      Link attached(String slug) => Link(
+        heRef: 'זהה',
+        index1: 1,
+        path2: 'מפרש',
+        index2: 2,
+        connectionType: 'COMMENTARY',
+        targetBookId: 5,
+        targetSource: BookSource.attached(slug),
+      );
+      expect(
+        pdfCommentaryItemKey(attached('a')),
+        isNot(pdfCommentaryItemKey(attached('b'))),
+      );
+    },
+  );
 }

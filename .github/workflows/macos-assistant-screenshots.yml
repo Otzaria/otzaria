@@ -1,0 +1,59 @@
+name: "צילומי מסך — מסייע ההורדה ל-macOS"
+
+# בונה את מסייע ההורדה ל-macOS, מריץ את הבדיקות שלו ומצלם כל מסך בעברית ובאנגלית
+# (AssistantSnapshots), כולל רצף הפתיחה. הצילומים עולים כארטיפקט לביקורת עיצוב.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-assistant-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: tool/download_assistant/macos
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Test
+        run: swift test
+
+      # הצילומים נוצרים גם כשבדיקה נכשלת — הם עוזרים להבין את הכישלון.
+      - name: Fetch the pinned assistant art
+        if: ${{ !cancelled() }}
+        run: bash fetch_art.sh build/art
+
+      - name: Render every screen
+        if: ${{ !cancelled() }}
+        env:
+          OTZARIA_ASSISTANT_ART: ${{ github.workspace }}/tool/download_assistant/macos/build/art
+        run: |
+          swift build --product AssistantSnapshots
+          "$(swift build --show-bin-path)/AssistantSnapshots" ../fixtures/release-manifest.json "$RUNNER_TEMP/shots" --hero
+
+      - name: Build the app bundle
+        run: bash build_app.sh "$RUNNER_TEMP/app"
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: macos-assistant-screenshots
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: warn
+
+      - name: Upload app
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: macos-assistant-app
+          path: ${{ runner.temp }}/app/Otzaria-Download-Assistant-macos.zip
+          if-no-files-found: warn

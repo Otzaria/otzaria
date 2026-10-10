@@ -467,6 +467,111 @@ void main() {
     expect(editorHeight(), lessThan(220));
     expect(editorHeight(), greaterThanOrEqualTo(120));
   });
+
+  group('גלילת העורך לתצוגה בכרטיסיית ההערות (issue #2003)', () {
+    Future<({FocusNode focusNode, TabController tabs, ScrollController list})>
+    pumpInNotesTab(WidgetTester tester) async {
+      final focusNode = FocusNode();
+      final listController = ScrollController();
+      final tabs = TabController(
+        length: 3,
+        vsync: const TestVSync(),
+        initialIndex: 2,
+      );
+      addTearDown(() {
+        focusNode.dispose();
+        listController.dispose();
+        tabs.dispose();
+      });
+      final controller = buildPersonalNoteEditorController(
+        initialContent: '',
+        initialFormat: PersonalNoteContentFormat.plain,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              height: 500,
+              child: TabBarView(
+                controller: tabs,
+                children: [
+                  const Text('מפרשים'),
+                  const Text('קישורים'),
+                  _KeepAlivePage(
+                    child: ListView(
+                      controller: listController,
+                      children: [
+                        const SizedBox(height: 400),
+                        PersonalNoteEditorBody(
+                          controller: controller,
+                          focusNode: focusNode,
+                          scrollController: ScrollController(),
+                          autofocus: false,
+                          linkableNotes: const [],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return (focusNode: focusNode, tabs: tabs, list: listController);
+    }
+
+    testWidgets('פוקוס בעורך גולל את רשימת ההערות כדי שהעורך ייראה', (
+      tester,
+    ) async {
+      final harness = await pumpInNotesTab(tester);
+      expect(harness.list.offset, 0);
+
+      harness.focusNode.requestFocus();
+      await tester.pumpAndSettle(const Duration(milliseconds: 50));
+
+      expect(harness.list.offset, greaterThan(0));
+      expect(harness.tabs.index, 2);
+    });
+
+    testWidgets('חזרה לחלון כשהעורך בכרטיסייה מוסתרת אינה מפילה', (
+      tester,
+    ) async {
+      final harness = await pumpInNotesTab(tester);
+      harness.focusNode.requestFocus();
+      await tester.pumpAndSettle(const Duration(milliseconds: 50));
+
+      // לחיצה על כרטיסייה אינה לוקחת פוקוס — הוא נשאר בעורך המוסתר.
+      harness.tabs.animateTo(0);
+      await tester.pumpAndSettle(const Duration(milliseconds: 50));
+      expect(harness.focusNode.hasFocus, isTrue);
+
+      // כמו חזרה לחלון בדסקטופ, שמחזירה את הפוקוס לעורך.
+      harness.focusNode.unfocus();
+      await tester.pump();
+      harness.focusNode.requestFocus();
+      await tester.pumpAndSettle(const Duration(milliseconds: 50));
+
+      expect(tester.takeException(), isNull);
+      expect(harness.focusNode.hasFocus, isTrue);
+      expect(harness.tabs.index, 0);
+    });
+
+    testWidgets('מעבר כרטיסייה מיד אחרי הפוקוס נשאר בכרטיסייה שנבחרה', (
+      tester,
+    ) async {
+      final harness = await pumpInNotesTab(tester);
+
+      harness.focusNode.requestFocus();
+      await tester.pump();
+      harness.tabs.animateTo(0);
+      await tester.pumpAndSettle(const Duration(milliseconds: 50));
+
+      expect(tester.takeException(), isNull);
+      expect(harness.tabs.index, 0);
+      expect(find.text('מפרשים'), findsOneWidget);
+    });
+  });
 }
 
 double? _deltaSizeValue(PersonalNoteEditorController controller) {
@@ -506,4 +611,25 @@ bool _deltaHasAttribute(
   }
 
   return false;
+}
+
+class _KeepAlivePage extends StatefulWidget {
+  const _KeepAlivePage({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
 }

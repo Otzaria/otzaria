@@ -8,16 +8,56 @@ import 'package:otzaria/core/windowing/settings_sync.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 
-/// שמירה וטעינה של רשימת ההסתרות (issue #1448).
-///
-/// יושב ב-`app_preferences`, ולכן מגובה אוטומטית: `BackupService` סורק את כל
-/// מפתחות ההגדרות. אין כאן box חדש ואין קובץ נפרד.
+/// שמירה וטעינה של ההסתרות ב-`app_preferences`, הנכלל בגיבוי ההגדרות.
 class HiddenLibraryStore {
   static final StreamController<HiddenLibrarySelection> _changes =
       StreamController<HiddenLibrarySelection>.broadcast(sync: true);
 
   /// בחירה שנשמרה בחלון הנוכחי, אחרי ששני המפתחות נכתבו.
   Stream<HiddenLibrarySelection> get changes => _changes.stream;
+
+  static final Stream<void> _visibilityChanges = createVisibilityChanges(
+    _changes.stream,
+    SettingsSync.instance.changes,
+  );
+
+  /// שינויים בהסתרות בחלון הנוכחי ובחלונות האחרים, עם האזנה משותפת למקורות.
+  Stream<void> get visibilityChanges => _visibilityChanges;
+
+  @visibleForTesting
+  static Stream<void> createVisibilityChanges(
+    Stream<HiddenLibrarySelection> localChanges,
+    Stream<String> remoteChanges,
+  ) {
+    var subscriptions = <StreamSubscription<Object?>>[];
+    late final StreamController<void> controller;
+    controller = StreamController<void>.broadcast(
+      sync: true,
+      onListen: () {
+        // החלפת המאזין היחיד בתוך callback עשויה להפעיל onListen לפני onCancel.
+        if (subscriptions.isNotEmpty) return;
+        subscriptions = [
+          localChanges.listen((_) => controller.add(null)),
+          remoteChanges
+              .where(
+                (key) =>
+                    key.isEmpty ||
+                    key == bookKeysSetting ||
+                    key == categoryPathsSetting,
+              )
+              .listen((_) => controller.add(null)),
+        ];
+      },
+      onCancel: () {
+        final cancelling = subscriptions;
+        subscriptions = [];
+        for (final subscription in cancelling) {
+          unawaited(subscription.cancel());
+        }
+      },
+    );
+    return controller.stream;
+  }
 
   /// המפתחות מוצהרים ב-[SettingsRepository] ונמצאים ב-`allKeys`, כדי
   /// שהגיבוי יתפוס אותם גם במסלול הנסיגה שבו Hive אינו פתוח ונאספת רשימת

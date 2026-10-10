@@ -93,6 +93,53 @@ class PersonalNote extends Equatable {
     required this.updatedAt,
   });
 
+  /// פורמט ה-JSON המשותף לייצוא הערות ולגיבוי.
+  factory PersonalNote.fromJson(Map<String, dynamic> json) {
+    return PersonalNote(
+      id: json['id'] as String,
+      bookId: json['bookId'] as String,
+      lineNumber: json['lineNumber'] as int?,
+      displayTitle: json['displayTitle'] as String?,
+      anchorText: json['anchorText'] as String?,
+      anchorPrefix: json['anchorPrefix'] as String?,
+      anchorSuffix: json['anchorSuffix'] as String?,
+      anchorStart: json['anchorStart'] as int?,
+      anchorEnd: json['anchorEnd'] as int?,
+      lastKnownLineNumber: json['lastKnownLineNumber'] as int?,
+      status: PersonalNoteStatus.values.byName(json['status'] as String),
+      content: json['content'] as String,
+      contentPlain:
+          (json['contentPlain'] as String?) ?? (json['content'] as String),
+      contentFormat: PersonalNoteContentFormat.values.byName(
+        json['contentFormat'] as String? ??
+            PersonalNoteContentFormat.plain.name,
+      ),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'bookId': bookId,
+      'lineNumber': lineNumber,
+      'displayTitle': displayTitle,
+      'anchorText': anchorText,
+      'anchorPrefix': anchorPrefix,
+      'anchorSuffix': anchorSuffix,
+      'anchorStart': anchorStart,
+      'anchorEnd': anchorEnd,
+      'lastKnownLineNumber': lastKnownLineNumber,
+      'status': status.name,
+      'content': content,
+      'contentPlain': contentPlain,
+      'contentFormat': contentFormat.name,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
   /// `true` כאשר ההערה מעוגנת למילים ספציפיות בשורה (ולא לשורה כולה).
   bool get isWordAnchored => anchorText != null && anchorText!.isNotEmpty;
 
@@ -104,6 +151,7 @@ class PersonalNote extends Equatable {
 
   PersonalNote copyWith({
     int? lineNumber,
+    bool clearLineNumber = false,
     String? displayTitle,
     bool clearDisplayTitle = false,
     String? anchorText,
@@ -113,6 +161,7 @@ class PersonalNote extends Equatable {
     int? anchorEnd,
     bool clearAnchor = false,
     int? lastKnownLineNumber,
+    bool clearLastKnownLineNumber = false,
     PersonalNoteStatus? status,
     String? content,
     String? contentPlain,
@@ -123,7 +172,7 @@ class PersonalNote extends Equatable {
     return PersonalNote(
       id: id,
       bookId: bookId,
-      lineNumber: lineNumber ?? this.lineNumber,
+      lineNumber: clearLineNumber ? null : (lineNumber ?? this.lineNumber),
       displayTitle: clearDisplayTitle
           ? null
           : (displayTitle ?? this.displayTitle),
@@ -132,7 +181,9 @@ class PersonalNote extends Equatable {
       anchorSuffix: clearAnchor ? null : (anchorSuffix ?? this.anchorSuffix),
       anchorStart: clearAnchor ? null : (anchorStart ?? this.anchorStart),
       anchorEnd: clearAnchor ? null : (anchorEnd ?? this.anchorEnd),
-      lastKnownLineNumber: lastKnownLineNumber ?? this.lastKnownLineNumber,
+      lastKnownLineNumber: clearLastKnownLineNumber
+          ? null
+          : (lastKnownLineNumber ?? this.lastKnownLineNumber),
       status: status ?? this.status,
       content: content ?? this.content,
       contentPlain: contentPlain ?? this.contentPlain,

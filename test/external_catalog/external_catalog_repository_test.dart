@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
+import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
@@ -86,25 +89,16 @@ void main() {
     });
 
     test('getCurrentDatabaseVersion קורא את db_meta.version', () async {
-      await _createCatalogDatabase(
-        repository.databasePath,
-        version: 3,
-      );
+      await _createCatalogDatabase(repository.databasePath, version: 3);
 
       expect(await repository.getCurrentDatabaseVersion(), 3);
     });
 
     test('updateDatabaseIfNeeded מוריד DB חדש רק כשיש גרסה חדשה', () async {
-      await _createCatalogDatabase(
-        repository.databasePath,
-        version: 3,
-      );
+      await _createCatalogDatabase(repository.databasePath, version: 3);
 
       final remoteDbPath = path.join(tempDir.path, 'remote_catalog.db');
-      await _createCatalogDatabase(
-        remoteDbPath,
-        version: 4,
-      );
+      await _createCatalogDatabase(remoteDbPath, version: 4);
       final remoteDbBytes = await File(remoteDbPath).readAsBytes();
 
       repository = ExternalCatalogRepository(
@@ -146,10 +140,7 @@ void main() {
         'ולא מוריד שוב בקריאה הבאה', () async {
       // רגרסיה: DB שהורד בלי מפתח version ב-db_meta השאיר את הגרסה
       // המקומית null, מה שגרם להורדה מחדש של הקטלוג בכל עליית אפליקציה.
-      await _createCatalogDatabase(
-        repository.databasePath,
-        version: 3,
-      );
+      await _createCatalogDatabase(repository.databasePath, version: 3);
 
       // DB "מרוחק" בלי טבלת db_meta בכלל.
       final remoteDbPath = path.join(tempDir.path, 'remote_no_version.db');
@@ -262,16 +253,10 @@ void main() {
           return;
         }
 
-        await _createCatalogDatabase(
-          repository.databasePath,
-          version: 4,
-        );
+        await _createCatalogDatabase(repository.databasePath, version: 4);
 
         final remoteDbPath = path.join(tempDir.path, 'remote_catalog_busy.db');
-        await _createCatalogDatabase(
-          remoteDbPath,
-          version: 5,
-        );
+        await _createCatalogDatabase(remoteDbPath, version: 5);
         final remoteDbBytes = await File(remoteDbPath).readAsBytes();
 
         repository = ExternalCatalogRepository(
@@ -321,9 +306,11 @@ void main() {
       },
     );
 
-    test('getOtzarBooks ו-getHebrewBooks מחזירים ספרים מה-DB החיצוני', () async {
-      final db = sqlite3.open(repository.databasePath);
-      db.execute('''
+    test(
+      'getOtzarBooks ו-getHebrewBooks מחזירים ספרים מה-DB החיצוני',
+      () async {
+        final db = sqlite3.open(repository.databasePath);
+        db.execute('''
             CREATE TABLE otzar_hahochma (
               book_id INTEGER PRIMARY KEY,
               title TEXT,
@@ -336,7 +323,7 @@ void main() {
               pages INTEGER
             )
           ''');
-      db.execute('''
+        db.execute('''
             CREATE TABLE hebrew_books (
               id_book INTEGER PRIMARY KEY,
               title TEXT,
@@ -348,62 +335,60 @@ void main() {
               tags TEXT
             )
           ''');
-      db.execute(
-        'INSERT INTO otzar_hahochma (book_id, title, authors, from_year, to_year, places, subjects, pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          42,
-          'ספר אוצר',
-          '["מחבר א","מחבר ב"]',
-          'תש"ס',
-          'תשס"א',
-          'ירושלים',
-          'הלכה, מוסר',
-          200,
-        ],
-      );
-      db.execute(
-        'INSERT INTO hebrew_books (id_book, title, author, printing_place, printing_year, pub_date, pages, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          77,
-          'ספר היברו',
-          'מחבר ג',
-          'ורשה',
-          'תרצ"ד',
-          1934,
-          120,
-          '["שו\\"ת","הלכה"]',
-        ],
-      );
-      db.close();
+        db.execute(
+          'INSERT INTO otzar_hahochma (book_id, title, authors, from_year, to_year, places, subjects, pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [
+            42,
+            'ספר אוצר',
+            '["מחבר א","מחבר ב"]',
+            'תש"ס',
+            'תשס"א',
+            'ירושלים',
+            'הלכה, מוסר',
+            200,
+          ],
+        );
+        db.execute(
+          'INSERT INTO hebrew_books (id_book, title, author, printing_place, printing_year, pub_date, pages, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [
+            77,
+            'ספר היברו',
+            'מחבר ג',
+            'ורשה',
+            'תרצ"ד',
+            1934,
+            120,
+            '["שו\\"ת","הלכה"]',
+          ],
+        );
+        db.close();
 
-      final otzarBooks = await repository.getOtzarBooks();
-      final hebrewBooks = await repository.getHebrewBooks();
+        final otzarBooks = await repository.getOtzarBooks();
+        final hebrewBooks = await repository.getHebrewBooks();
 
-      expect(otzarBooks, hasLength(1));
-      expect(otzarBooks.first.title, 'ספר אוצר');
-      expect(otzarBooks.first.author, 'מחבר א, מחבר ב');
-      expect(otzarBooks.first.pubDate, 'תש"ס-תשס"א');
-      expect(otzarBooks.first.pubPlace, 'ירושלים');
-      expect(otzarBooks.first.topics, 'הלכה, מוסר');
-      expect(
-        otzarBooks.first.link,
-        'https://tablet.otzar.org/book/book.php?book=42',
-      );
-      expect(otzarBooks.first.externalLibraryId, 'oh:42');
+        expect(otzarBooks, hasLength(1));
+        expect(otzarBooks.first.title, 'ספר אוצר');
+        expect(otzarBooks.first.author, 'מחבר א, מחבר ב');
+        expect(otzarBooks.first.pubDate, 'תש"ס-תשס"א');
+        expect(otzarBooks.first.pubPlace, 'ירושלים');
+        expect(otzarBooks.first.topics, 'הלכה, מוסר');
+        expect(
+          otzarBooks.first.link,
+          'https://tablet.otzar.org/book/book.php?book=42',
+        );
+        expect(otzarBooks.first.externalLibraryId, 'oh:42');
 
-      expect(hebrewBooks, hasLength(1));
-      final hebrewBook = hebrewBooks.first;
-      expect(hebrewBook.title, 'ספר היברו');
-      expect(hebrewBook.author, 'מחבר ג');
-      expect(hebrewBook.pubDate, 'תרצ"ד');
-      expect(hebrewBook.pubPlace, 'ורשה');
-      expect(hebrewBook.topics, 'שו"ת, הלכה');
-      expect(
-        (hebrewBook as dynamic).link,
-        'https://hebrewbooks.org/77',
-      );
-      expect(hebrewBook.externalLibraryId, 'hb:77');
-    });
+        expect(hebrewBooks, hasLength(1));
+        final hebrewBook = hebrewBooks.first;
+        expect(hebrewBook.title, 'ספר היברו');
+        expect(hebrewBook.author, 'מחבר ג');
+        expect(hebrewBook.pubDate, 'תרצ"ד');
+        expect(hebrewBook.pubPlace, 'ורשה');
+        expect(hebrewBook.topics, 'שו"ת, הלכה');
+        expect((hebrewBook as dynamic).link, 'https://hebrewbooks.org/77');
+        expect(hebrewBook.externalLibraryId, 'hb:77');
+      },
+    );
 
     test('getHebrewBooksByIds מחזיר רק את המזהים המבוקשים', () async {
       final db = sqlite3.open(repository.databasePath);
@@ -430,10 +415,7 @@ void main() {
       final books = await repository.getHebrewBooksByIds([1, 3]);
 
       expect(books, hasLength(2));
-      expect(
-        books.map((b) => b.id).toSet(),
-        {1, 3},
-      );
+      expect(books.map((b) => b.id).toSet(), {1, 3});
       expect(books.map((b) => b.externalLibraryId).toSet(), {'hb:1', 'hb:3'});
     });
 
@@ -454,6 +436,177 @@ void main() {
       db.close();
 
       expect(await repository.getHebrewBooksByIds(const []), isEmpty);
+    });
+
+    test('טעינת קטלוג גדול לא חוסמת את ה-isolate הראשי (perf)', () async {
+      const rowCount = 80000;
+      final db = sqlite3.open(repository.databasePath);
+      db.execute(
+        'CREATE TABLE otzar_hahochma (book_id INTEGER PRIMARY KEY, title TEXT, '
+        'authors TEXT, from_year TEXT, to_year TEXT, places TEXT, subjects TEXT)',
+      );
+      db.execute('BEGIN');
+      final insert = db.prepare(
+        'INSERT INTO otzar_hahochma VALUES (?, ?, ?, ?, ?, ?, ?)',
+      );
+      for (var i = 0; i < rowCount; i++) {
+        insert.execute([
+          i,
+          'ספר $i',
+          '["מחבר $i","מחבר ב"]',
+          'תש"ס',
+          'תשס"א',
+          'ירושלים',
+          'הלכה, מוסר',
+        ]);
+      }
+      insert.close();
+      db.execute('COMMIT');
+      db.close();
+
+      var maxGap = Duration.zero;
+      final gapWatch = Stopwatch()..start();
+      final ticker = Timer.periodic(const Duration(milliseconds: 2), (_) {
+        if (gapWatch.elapsed > maxGap) maxGap = gapWatch.elapsed;
+        gapWatch.reset();
+      });
+      final total = Stopwatch()..start();
+      final books = await repository.getOtzarBooks();
+      total.stop();
+      ticker.cancel();
+      if (gapWatch.elapsed > maxGap) maxGap = gapWatch.elapsed;
+
+      expect(books, hasLength(rowCount));
+      expect(
+        maxGap.inMicroseconds,
+        lessThan(total.elapsedMicroseconds ~/ 2),
+        reason: 'max gap $maxGap of total ${total.elapsed}',
+      );
+    });
+
+    test('טעינת הקטלוג שומרת על מיפוי, סדר ומקור זהים', () async {
+      final db = sqlite3.open(repository.databasePath);
+      db.execute(
+        'CREATE TABLE otzar_hahochma (book_id INTEGER PRIMARY KEY, title TEXT, '
+        'authors TEXT, from_year TEXT, to_year TEXT, places TEXT, subjects TEXT)',
+      );
+      db.execute(
+        'CREATE TABLE hebrew_books (id_book INTEGER PRIMARY KEY, title TEXT, '
+        'author TEXT, printing_place TEXT, printing_year TEXT, '
+        'pub_date INTEGER, tags TEXT)',
+      );
+      final otzarRows = [
+        [3, 'beta', 'א, ב', 'תש"ס', 'תש"ס', ' ', null],
+        [1, 'Alpha', null, null, 'תר"ן', 'ורשה', '["x"," ","y"]'],
+        [2, 'גמרא', '["ג"]', 'תק"ע', 'תק"פ', null, 'z'],
+      ];
+      for (final row in otzarRows) {
+        db.execute(
+          'INSERT INTO otzar_hahochma VALUES (?, ?, ?, ?, ?, ?, ?)',
+          row,
+        );
+      }
+      final hebrewRows = [
+        [9, 'b', ' מחבר ', null, null, 1900, 'שו"ת, הלכה'],
+        [8, 'A', null, 'וילנא', 'תרל"ה', 1875, '[bad json'],
+      ];
+      for (final row in hebrewRows) {
+        db.execute(
+          'INSERT INTO hebrew_books VALUES (?, ?, ?, ?, ?, ?, ?)',
+          row,
+        );
+      }
+      db.close();
+
+      List<Map<String, dynamic>> dump(List<Book> books) => [
+        for (final book in books) (book as ExternalLibraryBook).toJson(),
+      ];
+      Map<String, dynamic> expected(
+        int id,
+        String title,
+        String? author,
+        String? place,
+        String? date,
+        String topics,
+        String link,
+        String externalId,
+      ) => {
+        'title': title,
+        'type': 'ExternalLibraryBook',
+        'otzarId': id,
+        'author': author,
+        'pubPlace': place,
+        'pubDate': date,
+        'topics': topics,
+        'link': link,
+        'filePath': null,
+        'categoryPath': null,
+        'fileType': 'link',
+        'heCategories': null,
+        'source': 'o',
+        'isUserBook': false,
+        'externalLibraryId': externalId,
+      };
+      const otzarLink = 'https://tablet.otzar.org/book/book.php?book=';
+
+      final otzar = await repository.getOtzarBooks();
+      final hebrew = await repository.getHebrewBooks();
+      final byIds = await repository.getHebrewBooksByIds([9, 8]);
+
+      expect(
+        otzar.every((b) => identical(b.source, BookSource.official)),
+        isTrue,
+      );
+      expect(dump(otzar), [
+        expected(
+          1,
+          'Alpha',
+          null,
+          'ורשה',
+          'תר"ן',
+          'x, y',
+          '${otzarLink}1',
+          'oh:1',
+        ),
+        expected(3, 'beta', 'א, ב', null, 'תש"ס', '', '${otzarLink}3', 'oh:3'),
+        expected(
+          2,
+          'גמרא',
+          'ג',
+          null,
+          'תק"ע-תק"פ',
+          'z',
+          '${otzarLink}2',
+          'oh:2',
+        ),
+      ]);
+      final hebrewA = expected(
+        8,
+        'A',
+        null,
+        'וילנא',
+        'תרל"ה',
+        '[bad json',
+        'https://hebrewbooks.org/8',
+        'hb:8',
+      );
+      final hebrewB = expected(
+        9,
+        'b',
+        'מחבר',
+        null,
+        '1900',
+        'שו"ת, הלכה',
+        'https://hebrewbooks.org/9',
+        'hb:9',
+      );
+      expect(dump(hebrew), [hebrewA, hebrewB]);
+      expect(
+        dump(
+          byIds,
+        )..sort((a, b) => (a['otzarId'] as int).compareTo(b['otzarId'] as int)),
+        [hebrewA, hebrewB],
+      );
     });
 
     test('getOtzarBooks מחזיר רשימה ריקה כשה-DB לא קיים', () async {
@@ -487,10 +640,10 @@ Future<void> _createCatalogDatabase(
           title TEXT
         )
       ''');
-  db.execute(
-    'INSERT INTO db_meta (key, value) VALUES (?, ?)',
-    ['version', version.toString()],
-  );
+  db.execute('INSERT INTO db_meta (key, value) VALUES (?, ?)', [
+    'version',
+    version.toString(),
+  ]);
   db.close();
 }
 

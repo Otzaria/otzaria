@@ -20,12 +20,29 @@ const char *otz_embedded_release_tag(void) { return OTZ_EMBEDDED_RELEASE_TAG; }
 char *otz_human_size(gint64 bytes) {
   if (bytes >= G_GINT64_CONSTANT(1073741824)) {
     gint64 tenths = (bytes * 10) / G_GINT64_CONSTANT(1073741824);
-    return g_strdup_printf("%" G_GINT64_FORMAT ".%" G_GINT64_FORMAT " ג׳יגה",
+    return g_strdup_printf("%" G_GINT64_FORMAT ".%" G_GINT64_FORMAT "\xC2\xA0GB",
                            tenths / 10, tenths % 10);
   }
   if (bytes >= 1048576)
-    return g_strdup_printf("%" G_GINT64_FORMAT " מגה", bytes / 1048576);
-  return g_strdup_printf("%" G_GINT64_FORMAT " קילו", (bytes + 1023) / 1024);
+    return g_strdup_printf("%" G_GINT64_FORMAT "\xC2\xA0MB", bytes / 1048576);
+  return g_strdup_printf("%" G_GINT64_FORMAT "\xC2\xA0KB", (bytes + 1023) / 1024);
+}
+
+/* Like the WinHTTP and URLSession codes the other assistants treat as offline. */
+gboolean otz_error_is_offline(const GError *error) {
+  if (error == NULL) return FALSE;
+  if (error->domain == G_RESOLVER_ERROR) return TRUE;
+  if (error->domain != G_IO_ERROR) return FALSE;
+  switch (error->code) {
+    case G_IO_ERROR_NETWORK_UNREACHABLE:
+    case G_IO_ERROR_HOST_UNREACHABLE:
+    case G_IO_ERROR_CONNECTION_REFUSED:
+    case G_IO_ERROR_TIMED_OUT:
+    case G_IO_ERROR_HOST_NOT_FOUND:
+      return TRUE;
+    default:
+      return FALSE;
+  }
 }
 
 gboolean otz_error_is_retryable(const GError *error) {

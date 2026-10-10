@@ -8,11 +8,14 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
+import 'package:otzaria/empty_library/services/library_package/library_source.dart';
+import 'package:otzaria/empty_library/services/library_package/package_folder.dart';
 import 'package:otzaria/library_update/services/library_access_gate.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 
 import '../test_helpers/memory_cache_provider.dart';
+import 'library_release_test_support.dart';
 
 /// מתעד את קריאות ההשעיה; בלי חלונות אחרים ההשעיה עצמה אמיתית.
 class _RecordingGate extends LibraryAccessGate {
@@ -65,6 +68,8 @@ void main() {
 
   setUp(() async {
     temp = await Directory.systemTemp.createTemp('otzaria-gate-bloc-');
+    // ההורדה כותבת לשמות קבועים ב-temp; בידוד מריצות מקבילות.
+    IOOverrides.global = _TempOverrides(temp);
     EmptyLibraryBloc.tempRootOverride = temp.path;
     libDir = await Directory(path.join(temp.path, 'lib')).create();
     srcDir = await Directory(path.join(temp.path, 'src')).create();
@@ -78,21 +83,28 @@ void main() {
 
   tearDown(() async {
     EmptyLibraryBloc.tempRootOverride = null;
+    IOOverrides.global = null;
     LibrarySuspensionMarker.resetForTesting();
     if (await temp.exists()) await temp.delete(recursive: true);
   });
 
   UpdateLibraryRequested update() => UpdateLibraryRequested(
-    isDownload: false,
-    sourceFolder: srcDir.path,
     targetPath: libDir.path,
     existingLibraryPath: libDir.path,
   );
 
+  /// [db] null — ההורדה נכשלת.
+  EmptyLibraryBloc updateBloc(_RecordingGate gate, String? db) =>
+      EmptyLibraryBloc(
+        accessGate: gate,
+        httpClient: fakeLibraryReleaseClient(() => db),
+        extractCompressedDatabase: copyAsExtracted,
+        extractTarArchive: ignoreTarArchive,
+      );
+
   test('עדכון מוצלח משעה את כל החלונות ומחדש עם דגל החלפה', () async {
-    await File(path.join(srcDir.path, dbName)).writeAsString('new-db');
     final gate = _RecordingGate();
-    final bloc = EmptyLibraryBloc(accessGate: gate);
+    final bloc = updateBloc(gate, 'new-db');
     addTearDown(bloc.close);
 
     bloc.add(update());
@@ -109,7 +121,7 @@ void main() {
 
   test('עדכון שנכשל מחדש את החלונות בלי דגל החלפה', () async {
     final gate = _RecordingGate();
-    final bloc = EmptyLibraryBloc(accessGate: gate);
+    final bloc = updateBloc(gate, null);
     addTearDown(bloc.close);
 
     bloc.add(update());
@@ -124,9 +136,8 @@ void main() {
   });
 
   test('חלון שלא שחרר: המסד לא זז והמשתמש מקבל שגיאה', () async {
-    await File(path.join(srcDir.path, dbName)).writeAsString('new-db');
     final gate = _RecordingGate(failSuspend: true);
-    final bloc = EmptyLibraryBloc(accessGate: gate);
+    final bloc = updateBloc(gate, 'new-db');
     addTearDown(bloc.close);
 
     final error = bloc.stream
@@ -153,7 +164,7 @@ void main() {
 
     bloc.add(
       ImportLibraryFolderRequested(
-        sourceFolder: srcDir.path,
+        assets: await scanRawLibraryAssets(DirectoryPackageFolder(srcDir.path)),
         targetPath: libDir.path,
         backupExistingPath: libDir.path,
       ),
@@ -162,4 +173,13 @@ void main() {
 
     expect(gate.calls, ['suspend', 'verify:$dbName', 'resume:true']);
   });
+}
+
+final class _TempOverrides extends IOOverrides {
+  _TempOverrides(this.root);
+
+  final Directory root;
+
+  @override
+  Directory getSystemTempDirectory() => root;
 }

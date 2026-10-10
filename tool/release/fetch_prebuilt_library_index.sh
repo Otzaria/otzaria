@@ -98,7 +98,8 @@ required_schema=$(engine_const INDEX_SCHEMA_VERSION)
 # וממקם אותה ליד ספר הטקסט בעל אותה כותרת. סריקה מחודשת של אותן מסכתות באיכות
 # אחרת משנה כל בית בארכיון ואינה משנה דבר בסדר — ולכן אסור לה להפיל בנייה.
 volume_names() { # volume_names <talmud tar.zst>  — חייב להיות זהה לצד הבונה
-  zstd -d -c "$1" | tar -tf - | sed 's#.*/##' | grep -i '\.pdf$' | LC_ALL=C sort -u
+  # literal: בלי locale של UTF-8 (קונטיינר ה-job) tar מחזיר שמות עבריים כ-escapes.
+  zstd -d -c "$1" | tar --quoting-style=literal -tf - | sed 's#.*/##' | grep -i '\.pdf$' | LC_ALL=C sort -u
 }
 expected_volumes_digest=$(read_provenance '.talmudVolumesDigest')
 actual_volumes_digest=$(volume_names "$talmud_archive" | hash_stdin)

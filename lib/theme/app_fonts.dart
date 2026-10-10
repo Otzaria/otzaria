@@ -57,6 +57,7 @@ class AppFonts {
     FontWeight weight = FontWeight.bold,
   ]) {
     if (fontFamily == null) return null;
+    fontFamily = _selectedFontFamily(fontFamily);
     final isVariable =
         variableWeightFonts.contains(fontFamily) ||
         _variableSystemFonts.contains(fontFamily);
@@ -81,8 +82,8 @@ class AppFonts {
   /// גופן משתנה מחזיר false — הבולד שלו הוא אותו ציור אות על ציר wght.
   static bool hasSeparateBoldFace(String? fontFamily) =>
       fontFamily != null &&
-      (_separateBoldFaceFonts.contains(fontFamily) ||
-          _separateBoldSystemFonts.contains(fontFamily));
+      (_separateBoldFaceFonts.contains(_selectedFontFamily(fontFamily)) ||
+          _separateBoldSystemFonts.contains(_selectedFontFamily(fontFamily)));
 
   static const Set<String> headingTags = {'h1', 'h2', 'h3', 'h4', 'h5', 'h6'};
 
@@ -177,6 +178,33 @@ class AppFonts {
   static Map<String, SystemFontFamilyFaces>? _pluginSystemFamiliesCache;
   static Map<String, String>? _systemFontAliasCache;
   static Future<void>? _warmUpFuture;
+  static final Map<String, SystemFontFamilyFaces> _earlySystemFamilies = {};
+
+  static const String _systemRenderPrefix = 'OtzariaSystem:';
+  static final Map<String, String> _systemRenderFamilies = {};
+
+  /// שם רינדור מבודד: גופן מערכת נבחר רק מתוך הקבצים שאומתו ונטענו באפליקציה.
+  static String? renderFontFamily(String? selectedFamily) {
+    if (selectedFamily == null ||
+        selectedFamily.isEmpty ||
+        fontPaths.containsKey(selectedFamily) ||
+        selectedFamily == ashuritFont ||
+        selectedFamily == ashuritNikudFont ||
+        selectedFamily == 'AshkenaziStam' ||
+        selectedFamily == 'SefardiStam' ||
+        selectedFamily.startsWith(_systemRenderPrefix)) {
+      return selectedFamily;
+    }
+    return _systemRenderFamilies.putIfAbsent(
+      selectedFamily,
+      () => '$_systemRenderPrefix$selectedFamily',
+    );
+  }
+
+  static String _selectedFontFamily(String family) =>
+      family.startsWith(_systemRenderPrefix)
+      ? family.substring(_systemRenderPrefix.length)
+      : family;
 
   /// רשימת כל הגופנים הזמינים לבחירה ב-UI.
   /// בדסקטופ: מתווספים גם גופנים שמותקנים במערכת (באמצעות system_fonts).
@@ -203,6 +231,8 @@ class AppFonts {
     final map = <String, bool>{
       for (final font in _bundledFonts)
         font.value.toLowerCase(): font.supportsTaamim,
+      for (final family in _earlySystemFamilies.values)
+        family.family.toLowerCase(): family.supportsTaamim,
     };
     final system = _systemFontsHebrewCache;
     if (system == null) return map;
@@ -216,7 +246,8 @@ class AppFonts {
   /// לא הסתיימה) מוחזר כתומך — אזהרה שגויה גרועה מהחמצה.
   static bool familySupportsTaamim(String? fontFamily) {
     if (fontFamily == null || fontFamily.isEmpty) return true;
-    return _taamimSupportMap()[fontFamily.toLowerCase()] ?? true;
+    return _taamimSupportMap()[_selectedFontFamily(fontFamily).toLowerCase()] ??
+        true;
   }
 
   /// הגופן שבו יוצג [text]: הגופן שנבחר, או [defaultFont] כשהטקסט מכיל טעמים
@@ -231,7 +262,9 @@ class AppFonts {
 
   /// [style] אחרי החלת [taamimSafeFontFamily] על הגופן שבו.
   static TextStyle taamimSafeStyle(TextStyle style, String text) {
-    final family = taamimSafeFontFamily(style.fontFamily, text);
+    final family = renderFontFamily(
+      taamimSafeFontFamily(style.fontFamily, text),
+    );
     return family == style.fontFamily
         ? style
         : style.copyWith(fontFamily: family);
@@ -242,34 +275,42 @@ class AppFonts {
   /// שבו `availableFonts` נקרא ומריץ סריקת בינארי על מאות קבצי גופן.
   /// בטוח לקריאה מרובה — אם הקאש כבר חם או שכבר רצה משימת חימום, חוזר מיידית.
   static Future<void> warmUpSystemFontsCache() {
-    if (_systemFontsHebrewCache != null) return Future.value();
+    if (_systemFontsHebrewCache != null) {
+      return _warmUpFuture ?? Future.value();
+    }
     if (!_supportsSystemFonts) return Future.value();
     return _warmUpFuture ??= _runWarmUp();
   }
 
   static Future<void> _runWarmUp() async {
     try {
-      final result = await compute(_computeSystemFontScan, 0);
-      _storeScan(result);
+      final result = await compute(_scanSystemFonts, null);
+      await Future.wait(_storeScan(result));
     } catch (_) {
-      // אם החימום ב-isolate נכשל מסיבה כלשהי - לא מאתחלים את הקאש,
-      // והנתיב הסינכרוני ב-_getSystemFontsHebrewOnly ירוץ בפעם הראשונה.
+      // בלי תוצאת סריקה, availableFonts ינסה שוב במסלול הסינכרוני.
     }
   }
 
-  /// פונקציה שרצה ב-isolate נפרד דרך `compute`.
-  /// חייבת להיות סטטית/top-level וללא תלות במצב של isolate הראשי.
-  static SystemFontScanResult _computeSystemFontScan(int _) {
-    return _scanSystemFonts();
-  }
-
-  static void _storeScan(SystemFontScanResult scan) {
-    if (_systemFontsHebrewCache != null) return;
+  static List<Future<void>> _storeScan(SystemFontScanResult scan) {
+    if (_systemFontsHebrewCache != null) return const [];
     _systemFontsHebrewCache = scan.fonts;
     _taamimSupportByFamily = null;
     _systemFamiliesCache = scan.families;
     _pluginSystemFamiliesCache = scan.allFamilies;
     _systemFontAliasCache = scan.aliases;
+    final completions = <Future<void>>[];
+    for (final name in _earlySystemFamilies.keys) {
+      final family = scan.families[name];
+      if (family == null) continue;
+      final completion = _loadingSystemFonts[name]!.then((_) {
+        _loadingSystemFonts.remove(name);
+        return ensureFontLoaded(name);
+      });
+      _loadingSystemFonts[name] = completion;
+      completions.add(completion);
+    }
+    _earlySystemFamilies.clear();
+    return completions;
   }
 
   static List<FontInfo> _getSystemFontsHebrewOnly() {
@@ -281,9 +322,10 @@ class AppFonts {
     return _systemFontsHebrewCache!;
   }
 
-  static SystemFontScanResult _scanSystemFonts() {
+  /// רץ גם ב-isolate נפרד דרך `compute`. עם [family]: רק הקבצים שמזכירים אותה.
+  static SystemFontScanResult _scanSystemFonts([String? family]) {
     try {
-      return _buildScan(_installedFacesLazily());
+      return _buildScan(_installedFacesLazily(family));
     } catch (_) {
       // אם אין גישה לגופני מערכת מסיבה כלשהי, נחזיר תוצאה ריקה.
       return const SystemFontScanResult.empty();
@@ -292,8 +334,10 @@ class AppFonts {
 
   /// עצל בכוונה: הבייטים של כל גופן משתחררים לפני קריאת הבא, במקום להחזיק
   /// את כל הגופנים המותקנים בזיכרון בבת אחת (מאות MB במחשב עם Office).
-  static Iterable<MapEntry<String, Uint8List>> _installedFacesLazily() sync* {
-    for (final path in SystemFontLocator.installedFontPaths()) {
+  static Iterable<MapEntry<String, Uint8List>> _installedFacesLazily(
+    String? family,
+  ) sync* {
+    for (final path in SystemFontLocator.installedFontPaths(family)) {
       final bytes = SfntMetadataReader.readSync(path);
       if (bytes == null) continue;
       yield MapEntry(path, bytes);
@@ -326,7 +370,7 @@ class AppFonts {
         category: FontCategory.unknown,
         supportsTaamim: false,
       );
-      if (!_sfntSupportsHebrew(bytes)) continue;
+      if (!_sfntSupportsHebrew(bytes) || !_sfntMapsSpace(bytes)) continue;
       final acc = builders.putIfAbsent(
         family.toLowerCase(),
         () => _FamilyAccumulator(family),
@@ -398,6 +442,14 @@ class AppFonts {
     (start, end) => end >= start && end >= 0x0591 && start <= 0x05AF,
   );
 
+  /// גליף רווח חסר עלול לשבור פריסה של סמני הערות בלתי נראים.
+  static bool _sfntMapsSpace(Uint8List data) => _sfntCoversAny(
+    data,
+    (start, end) => start <= 0x20 && end >= 0x20,
+    0,
+    0x20,
+  );
+
   /// האם ה-cmap של הגופן מכסה טווח שעליו [overlaps] מחזיר true.
   /// [base] = היסט תחילת ה-Offset Table של הגופן. ב-TTC ה-offsets בטבלאות
   /// מוחלטים (יחסית לקובץ), לכן נשמר על כל ה-data ומקדמים רק את ה-base.
@@ -405,6 +457,7 @@ class AppFonts {
     Uint8List data,
     bool Function(int start, int end) overlaps, [
     int base = 0,
+    int? codePoint,
   ]) {
     // TTC (TrueType Collection): magic "ttcf" at offset 0.
     // numFonts at offset 8; font offsets start at offset 12.
@@ -416,7 +469,10 @@ class AppFonts {
         data[3] == 0x66) {
       final numFonts =
           (data[8] << 24) | (data[9] << 16) | (data[10] << 8) | data[11];
-      for (int i = 0; i < numFonts; i++) {
+      if (numFonts <= 0) return false;
+      // FontLoader טוען את ה-face הראשון; רווח ב-face אחר אינו מגן עליו.
+      final facesToCheck = codePoint == null ? numFonts : 1;
+      for (int i = 0; i < facesToCheck; i++) {
         final offsetPos = 12 + i * 4;
         if (offsetPos + 4 > data.length) break;
         final fontOffset =
@@ -425,7 +481,7 @@ class AppFonts {
             (data[offsetPos + 2] << 8) |
             data[offsetPos + 3];
         if (fontOffset <= 0 || fontOffset >= data.length) continue;
-        if (_sfntCoversAny(data, overlaps, fontOffset)) {
+        if (_sfntCoversAny(data, overlaps, fontOffset, codePoint)) {
           return true;
         }
       }
@@ -475,6 +531,8 @@ class AppFonts {
     if (cmapOffset < 0 || cmapLength <= 0) return false;
     if (cmapOffset + cmapLength > data.length) return false;
 
+    final cmapEnd = cmapOffset + cmapLength;
+
     // cmap header
     if (cmapOffset + 4 > data.length) return false;
     final cmapNumTables = u16(cmapOffset + 2);
@@ -486,7 +544,7 @@ class AppFonts {
     final encodingRecordSize = 8;
     final encDirSize =
         encodingRecordsOffset + cmapNumTables * encodingRecordSize;
-    if (encDirSize > data.length) return false;
+    if (encDirSize > cmapEnd) return false;
 
     int? bestSubtableOffset;
     int bestRank = 999;
@@ -497,7 +555,7 @@ class AppFonts {
       final subOffset = u32(rec + 4);
       if (subOffset < 0) continue;
       final abs = cmapOffset + subOffset;
-      if (abs < 0 || abs + 2 > data.length) continue;
+      if (abs < cmapOffset || abs + 2 > cmapEnd) continue;
 
       int rank = 999;
       if (platformId == 0) {
@@ -521,8 +579,9 @@ class AppFonts {
     if (format == 4) {
       // Format 4 (BMP)
       final length = u16(bestSubtableOffset + 2);
-      if (length <= 0) return false;
-      if (bestSubtableOffset + length > data.length) return false;
+      if (length < 16) return false;
+      final subtableEnd = bestSubtableOffset + length;
+      if (subtableEnd > cmapEnd) return false;
 
       final segCountX2 = u16(bestSubtableOffset + 6);
       if (segCountX2 <= 0 || (segCountX2 % 2) != 0) return false;
@@ -533,7 +592,7 @@ class AppFonts {
       final startCodesOffset = reservedPadOffset + 2;
       final idDeltasOffset = startCodesOffset + segCount * 2;
       final idRangeOffsetOffset = idDeltasOffset + segCount * 2;
-      if (idRangeOffsetOffset + segCount * 2 > data.length) return false;
+      if (idRangeOffsetOffset + segCount * 2 > subtableEnd) return false;
 
       for (int i = 0; i < segCount; i++) {
         final endCode = u16(endCodesOffset + i * 2);
@@ -542,7 +601,20 @@ class AppFonts {
 
         // End sentinel often uses 0xFFFF.
         if (endCode == 0xFFFF && startCode == 0xFFFF) continue;
-        if (overlaps(startCode, endCode)) return true;
+        if (!overlaps(startCode, endCode)) continue;
+        if (codePoint == null) return true;
+        final delta = u16(idDeltasOffset + i * 2);
+        final rangePosition = idRangeOffsetOffset + i * 2;
+        final rangeOffset = u16(rangePosition);
+        if (rangeOffset == 0) return ((codePoint + delta) & 0xffff) != 0;
+        final glyphPosition =
+            rangePosition + rangeOffset + (codePoint - startCode) * 2;
+        if (glyphPosition < idRangeOffsetOffset + segCount * 2 ||
+            glyphPosition + 2 > subtableEnd) {
+          return false;
+        }
+        final glyph = u16(glyphPosition);
+        return glyph != 0 && ((glyph + delta) & 0xffff) != 0;
       }
       return false;
     }
@@ -551,21 +623,24 @@ class AppFonts {
       // Format 12 (full Unicode)
       // u16 format, u16 reserved, u32 length, u32 language, u32 nGroups
       final length = u32(bestSubtableOffset + 4);
-      if (length <= 0) return false;
-      if (bestSubtableOffset + length > data.length) return false;
+      if (length < 16) return false;
+      final subtableEnd = bestSubtableOffset + length;
+      if (subtableEnd > cmapEnd) return false;
 
       final nGroups = u32(bestSubtableOffset + 12);
       if (nGroups <= 0) return false;
       final groupsOffset = bestSubtableOffset + 16;
       const groupSize = 12;
-      if (groupsOffset + nGroups * groupSize > data.length) return false;
+      if (groupsOffset + nGroups * groupSize > subtableEnd) return false;
 
       for (int i = 0; i < nGroups; i++) {
         final off = groupsOffset + i * groupSize;
         final startChar = u32(off);
         final endChar = u32(off + 4);
         if (startChar < 0 || endChar < 0) continue;
-        if (overlaps(startChar, endChar)) return true;
+        if (!overlaps(startChar, endChar)) continue;
+        if (codePoint == null) return true;
+        return u32(off + 8) + codePoint - startChar != 0;
       }
       return false;
     }
@@ -723,49 +798,6 @@ class AppFonts {
   /// בייטים של קובץ גופן מהדיסק, או null כשאינו קריא.
   static Uint8List? readFontBytes(String path) => _readFontBytesSync(path);
 
-  /// מיפוי גופנים לשמות בעברית (לשימוש בהדפסה)
-  /// מחושב אוטומטית מ-availableFonts, רק עבור גופנים עם קבצים
-  static Map<String, String> get fontLabels => {
-    for (final font in availableFonts)
-      if (fontPaths.containsKey(font.value)) font.value: font.label,
-  };
-
-  /// יצירת רשימת DropdownMenuItem לבחירת גופן
-  static List<DropdownMenuItem<String>> buildDropdownItems({
-    String? selectedValue,
-    TextStyle? itemTextStyle,
-  }) {
-    final fonts = [...availableFonts];
-    final hasSelectedValue =
-        selectedValue == null ||
-        selectedValue.isEmpty ||
-        fonts.any((font) => font.value == selectedValue);
-
-    if (!hasSelectedValue) {
-      final legacyName = legacySystemFontDisplayName(selectedValue);
-      fonts.insert(
-        0,
-        FontInfo(
-          value: selectedValue,
-          label: legacyName ?? '$selectedValue (לא זמין במחשב זה)',
-        ),
-      );
-    }
-
-    return fonts.map((font) {
-      final previewStyle = fontPaths.containsKey(font.value)
-          ? TextStyle(fontFamily: font.value)
-          : const TextStyle();
-      return DropdownMenuItem<String>(
-        value: font.value,
-        child: Text(
-          font.label,
-          style: previewStyle.merge(itemTextStyle),
-        ),
-      );
-    }).toList();
-  }
-
   /// גופני מערכת שכבר נטענו (או בתהליך טעינה) — מונע טעינה כפולה ברשימה גדולה.
   static final Map<String, Future<void>> _loadingSystemFonts = {};
 
@@ -779,17 +811,41 @@ class AppFonts {
 
     return _loadingSystemFonts.putIfAbsent(fontFamily, () async {
       try {
-        if (_systemFamiliesCache == null) await warmUpSystemFontsCache();
-        final family = _systemFamiliesCache?[fontFamily];
+        var family = _systemFamiliesCache?[fontFamily];
+        if (_systemFontsHebrewCache == null) {
+          final targeted =
+              await (debugScanFamily?.call(fontFamily) ??
+                  compute(_scanSystemFonts, fontFamily));
+          family = _systemFamiliesCache?[fontFamily];
+          if (_systemFontsHebrewCache == null) {
+            final candidate = targeted.families[fontFamily];
+            // רק regular במשקל 400 בטוח להצגה לפני איתור שאר המשפחה.
+            if (candidate != null && candidate.regularWeight == 400) {
+              family = candidate;
+              _earlySystemFamilies[fontFamily] = candidate;
+            }
+          }
+        }
+        if (family == null) {
+          await warmUpSystemFontsCache();
+          family = _systemFamiliesCache?[fontFamily];
+        }
         if (family != null) {
           await _loadFamilyFaces(fontFamily, family);
           return;
         }
-        // תאימות לאחור: ערך שמור מגרסה קודמת הוא שם קובץ במפת system_fonts.
-        await SystemFonts().loadFont(fontFamily);
+        // תאימות לאחור: ערך שמור מגרסה קודמת הוא שם קובץ במפת system_fonts —
+        // נטען רק אם הסריקה קיבלה את הקובץ.
+        if (_systemFontAliasCache?.containsKey(fontFamily.toLowerCase()) !=
+            true) {
+          return;
+        }
+        final alias = _systemFontAliasCache![fontFamily.toLowerCase()]!;
+        await _loadFamilyFaces(fontFamily, _systemFamiliesCache![alias]!);
       } catch (_) {
         // אם הטעינה נכשלה, מסירים מהקאש כדי לאפשר ניסיון חוזר בעתיד.
         _loadingSystemFonts.remove(fontFamily);
+        _earlySystemFamilies.remove(fontFamily);
         return;
       }
       await _augmentSystemFontWeights(fontFamily);
@@ -803,15 +859,18 @@ class AppFonts {
     SystemFontFamilyFaces family,
   ) async {
     final regular = _readFontBytesSync(family.regularPath);
-    if (regular == null) {
-      throw StateError('font file unreadable: ${family.regularPath}');
+    if (regular == null || !_sfntMapsSpace(regular)) {
+      throw StateError(
+        'font file unreadable or missing space: ${family.regularPath}',
+      );
     }
-    final loader = FontLoader(name)
+    final loader = FontLoader(renderFontFamily(name)!)
       ..addFont(Future.value(ByteData.sublistView(regular)));
     Uint8List? bold;
     final boldPath = family.boldPath;
     if (boldPath != null) {
       bold = _readFontBytesSync(boldPath);
+      if (bold != null && !_sfntMapsSpace(bold)) bold = null;
       if (bold != null) {
         loader.addFont(Future.value(ByteData.sublistView(bold)));
       }
@@ -847,9 +906,13 @@ class AppFonts {
         final bytes = _readFontBytesSync(entry.value);
         if (bytes == null) continue;
         final info = _sfntFaceInfo(bytes);
-        if (info == null || !_isBoldSibling(selfInfo, info)) continue;
+        if (info == null ||
+            !_isBoldSibling(selfInfo, info) ||
+            !_sfntMapsSpace(bytes)) {
+          continue;
+        }
         await (FontLoader(
-          fontFamily,
+          renderFontFamily(fontFamily)!,
         )..addFont(Future.value(ByteData.sublistView(bytes)))).load();
         _separateBoldSystemFonts.add(fontFamily);
         return;
@@ -1052,7 +1115,13 @@ class AppFonts {
   }
 
   @visibleForTesting
+  static Future<SystemFontScanResult> Function(String)? debugScanFamily;
+
+  @visibleForTesting
   static Future<void>? get debugWarmUpFuture => _warmUpFuture;
+
+  @visibleForTesting
+  static set debugWarmUpFuture(Future<void>? future) => _warmUpFuture = future;
 
   /// מדמה גופן מערכת שנטען לו קובץ בולד אחי, בלי תלות בגופנים מותקנים.
   @visibleForTesting
@@ -1068,6 +1137,9 @@ class AppFonts {
     _pluginSystemFamiliesCache = null;
     _systemFontAliasCache = null;
     _warmUpFuture = null;
+    _earlySystemFamilies.clear();
+    _loadingSystemFonts.clear();
+    debugScanFamily = null;
     _variableSystemFonts.clear();
     _separateBoldSystemFonts.clear();
   }
@@ -1080,7 +1152,9 @@ class AppFonts {
 
   /// מאחסן תוצאת סריקה כאילו הגיעה מחימום הקאש (לבדיקת מסלולי התצוגה).
   @visibleForTesting
-  static void debugStoreScan(SystemFontScanResult scan) => _storeScan(scan);
+  static Future<void> debugStoreScan(SystemFontScanResult scan) async {
+    await Future.wait(_storeScan(scan));
+  }
 
   @visibleForTesting
   static int debugFontWeightClass(Uint8List data) =>
@@ -1162,6 +1236,7 @@ class SystemFontScanResult {
 class SystemFontFamilyFaces {
   final String family;
   final String regularPath;
+  final int regularWeight;
   final String? boldPath;
   final bool hasWeightAxis;
   final FontCategory category;
@@ -1170,6 +1245,7 @@ class SystemFontFamilyFaces {
   const SystemFontFamilyFaces({
     required this.family,
     required this.regularPath,
+    this.regularWeight = 0,
     this.boldPath,
     this.hasWeightAxis = false,
     this.category = FontCategory.unknown,
@@ -1183,6 +1259,7 @@ class _FamilyAccumulator {
   bool _supportsTaamim = false;
   String? _regularPath;
   int _regularDistance = 1 << 30;
+  int _regularWeight = 0;
   bool _regularHasWeightAxis = false;
   String? _boldPath;
   int _boldDistance = 1 << 30;
@@ -1209,6 +1286,7 @@ class _FamilyAccumulator {
       if (distance < _regularDistance) {
         _regularDistance = distance;
         _regularPath = path;
+        _regularWeight = info.weightClass;
         _regularHasWeightAxis = info.hasWeightAxis;
       }
     }
@@ -1223,6 +1301,7 @@ class _FamilyAccumulator {
     return SystemFontFamilyFaces(
       family: family,
       regularPath: regular,
+      regularWeight: _regularWeight,
       boldPath: useBoldFace ? _boldPath : null,
       hasWeightAxis: _regularHasWeightAxis,
       category: _category,

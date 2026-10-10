@@ -65,7 +65,7 @@ Future<bool> showResetPluginDataDialog(
 }
 
 /// פונקציה משותפת לפתיחת דיאלוג הגדרות תוסף — קוראת מ-tools_management_panel
-/// ומ-plugin_side_panel.
+/// ומ-tools_launcher_panel.
 Future<bool?> showPluginSettingsDialog(
   BuildContext context,
   InstalledPlugin plugin,

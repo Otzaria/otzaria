@@ -57,9 +57,14 @@ void main() {
       SettingsRepository.keyBackupPath,
       p.join(tempDir.path, 'backups'),
     );
+    await Settings.setValue<String>(
+      SettingsRepository.keyDatabasesPath,
+      p.join(tempDir.path, 'databases'),
+    );
   });
 
   tearDown(() async {
+    await PersonalNotesDatabase.instance.close();
     await Hive.close();
     // סוגר את חיבורי ה-DB כדי שמחיקת התיקייה תצליח (Windows נועל קבצים
     // פתוחים), ומאפס את ה-override של נתיב הנתונים.

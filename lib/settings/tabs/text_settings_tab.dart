@@ -250,7 +250,7 @@ class TextSettingsTab extends StatelessWidget {
           child: AdaptiveRow(
             children: [
               _FontSizeSlider(
-                icon: OtzariaIcons.alef_near_alef_24_regular,
+                icon: OtzariaIcons.alef_near_alef_24_filled,
                 label: context.settingsText('גודל גופן הספר'),
                 value: state.fontSize.clamp(15, 60),
                 min: 15,
@@ -260,7 +260,7 @@ class TextSettingsTab extends StatelessWidget {
                 },
               ),
               _FontDropdown(
-                icon: OtzariaIcons.alef_alef_24_regular,
+                icon: OtzariaIcons.alef_alef_24_filled,
                 label: context.settingsText('גופן טקסט'),
                 value: state.fontFamily,
                 onChanged: (value) {
@@ -284,7 +284,7 @@ class TextSettingsTab extends StatelessWidget {
             children: [
               if (!hideCommentaryFontSize)
                 _FontSizeSlider(
-                  icon: OtzariaIcons.beit_near_alef_24_regular,
+                  icon: OtzariaIcons.beit_near_alef_24_filled,
                   label: context.settingsText('גודל גופן מפרשים'),
                   value: state.commentatorsFontSize.clamp(10, 40),
                   min: 10,
@@ -296,7 +296,7 @@ class TextSettingsTab extends StatelessWidget {
                   },
                 ),
               _FontDropdown(
-                icon: OtzariaIcons.beit_behind_alef_24_regular,
+                icon: OtzariaIcons.beit_behind_alef_24_filled,
                 label: context.settingsText('גופן מפרשים'),
                 value: state.commentatorsFontFamily,
                 onChanged: (value) {

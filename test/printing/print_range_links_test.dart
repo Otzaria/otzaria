@@ -4,7 +4,8 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
-import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:otzaria/printing/printing_helpers.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
 
 class _StubRepository extends Mock implements TextBookRepository {
   List<Link> links = const [];
@@ -81,4 +82,28 @@ void main() {
 
     expect(links, same(fallback));
   });
+  test(
+    'printed commentary cache separates same target id/title in attached databases',
+    () {
+      Link attached(String slug, {int? end}) => Link(
+        heRef: 'זהה',
+        index1: 1,
+        path2: 'מפרש',
+        index2: 2,
+        index2End: end,
+        connectionType: 'COMMENTARY',
+        targetBookId: 5,
+        targetSource: BookSource.attached(slug),
+      );
+      String key(Link link) => printCommentaryContentCacheKey(
+        link,
+        removeNikud: false,
+        removeTaamim: false,
+        replaceHolyNames: false,
+        keepHtml: false,
+      );
+      expect(key(attached('a')), isNot(key(attached('b'))));
+      expect(key(attached('a')), isNot(key(attached('a', end: 3))));
+    },
+  );
 }

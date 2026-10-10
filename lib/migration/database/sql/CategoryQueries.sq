@@ -18,30 +18,9 @@ SELECT * FROM category WHERE title = ? LIMIT 1;
 selectByTitleAndParent:
 SELECT * FROM category WHERE title = ? AND (parentId = ? OR (parentId IS NULL AND ? IS NULL)) LIMIT 1;
 
-selectByTitleLike:
-SELECT * FROM category WHERE title LIKE ? ORDER BY level ASC, orderIndex, title LIMIT 1;
-
-selectManyByTitleLike:
-SELECT * FROM category WHERE title LIKE ? ORDER BY level ASC, orderIndex, title LIMIT ?;
-
 insert:
 INSERT INTO category (parentId, title, level, orderIndex)
 VALUES (?, ?, ?, ?);
 
-update:
-UPDATE category SET
-    title = ?,
-    orderIndex = ?
-WHERE id = ?;
-
-updateOrderIndex:
-UPDATE category SET orderIndex = ? WHERE id = ?;
-
 delete:
 DELETE FROM category WHERE id = ?;
-
-countAll:
-SELECT COUNT(*) FROM category;
-
-lastInsertRowId:
-SELECT last_insert_rowid();

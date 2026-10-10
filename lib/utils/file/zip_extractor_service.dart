@@ -141,12 +141,6 @@ class ZipExtractorService {
     }
   }
 
-  /// בודק אם קובץ הוא קובץ ZIP
-  static bool isZipFile(String filePath) {
-    final extension = path.extension(filePath).toLowerCase();
-    return extension == '.zip';
-  }
-
   /// המסלול החלופי במלואו — קריאה, פענוח ופרישה — ב-isolate נפרד. פענוח
   /// ה-ZIP ופרישת הקבצים סינכרוניים, ועל isolate שיש בו UI הם מקפיאים אותו.
   @visibleForTesting
@@ -304,7 +298,4 @@ class ZipExtractionResult {
 
   /// האם הפעולה הצליחה והקובץ חולץ
   bool get successfullyExtracted => success && wasExtracted;
-
-  /// האם הפעולה הצליחה אבל לא היה צורך בחילוץ
-  bool get noExtractionNeeded => success && !wasExtracted;
 }

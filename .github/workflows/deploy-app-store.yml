@@ -1,0 +1,137 @@
+name: Deploy iOS to App Store
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: הקומיט לבנייה (ברירת מחדל - ה-ref שממנו הופעל)
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-store-production-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy_app_store:
+    name: Build and submit to App Store review
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      RUSTUP_HOME: ${{ github.workspace }}/.rustup
+      CARGO_HOME: ${{ github.workspace }}/.cargo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Verify App Store secrets
+        run: |
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 \
+              IOS_DIST_CERT_P12_BASE64 IOS_DIST_CERT_PASSWORD IOS_PROVISIONING_PROFILE_BASE64; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name is missing"
+              exit 1
+            fi
+          done
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+
+      # לפני הבנייה: יומן שינויים בלי סעיף לגרסה הזו נכשל מיד ולא אחרי הבנייה הארוכה
+      - name: Prepare What's New from the changelog
+        run: python3 tool/version/app_store_whats_new.py "$RUNNER_TEMP/whats_new.txt"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.2
+          # ב-macOS ה-cache (~2.5GB) כמעט לא נמצא בין ריצות, ושמירתו איטית מהתקנה.
+          cache: false
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Add cargo to PATH & verify toolchain
+        run: |
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          rustc -Vv
+          cargo -V
+          rustup show
+
+      - name: Create Google Calendar Credentials
+        shell: bash
+        run: |
+          CLIENT_ID='${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}'
+          CLIENT_SECRET='${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}'
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "::error::Google Calendar secrets are missing. Please set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET."
+            exit 1
+          fi
+          mkdir -p lib/tools/calendar/services
+          cat > lib/tools/calendar/services/google_calendar_credentials.dart << EOF
+          class GoogleCalendarCredentials {
+            static const String clientId = '$CLIENT_ID';
+            static const String clientSecret = '$CLIENT_SECRET';
+          }
+          EOF
+          echo "Google Calendar credentials file created"
+
+      - name: Fetch biographies data
+        uses: ./.github/actions/fetch-biographies
+
+      - name: Install Flutter dependencies
+        run: |
+          flutter pub get --enforce-lockfile
+          dart run tool/generate_search_index.dart
+          dart run tool/generate_settings_l10n.dart
+
+      # מכין את Generated.xcconfig (גרסה, מספר בנייה, dart-defines); החתימה נעשית ב-fastlane
+      - name: Build Flutter iOS (unsigned)
+        run: |
+          IOS_BUILD_NAME=$(python3 tool/version/app_store_build_name.py pubspec.yaml tool/version/version.json)
+          flutter build ios --release --no-codesign --build-name="$IOS_BUILD_NAME" --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }}
+
+      # שלב "Remove synced zstd" של zstandard_ios מוחק את המקורות בסוף הבנייה הראשונה
+      - name: Restore zstd sources for archive
+        run: bash "$(cd ios/.symlinks/plugins/zstandard_ios && pwd -P)/scripts/sync_zstd.sh"
+
+      - name: Write App Store Connect API key and signing files
+        run: |
+          echo "${{ secrets.ASC_KEY_P8_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/asc_key.p8"
+          echo "${{ secrets.IOS_DIST_CERT_P12_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/dist_cert.p12"
+          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/app_store.mobileprovision"
+          chmod 600 "$RUNNER_TEMP/asc_key.p8" "$RUNNER_TEMP/dist_cert.p12" "$RUNNER_TEMP/app_store.mobileprovision"
+
+      - name: Install fastlane
+        run: brew install fastlane
+
+      - name: Archive, upload and submit for review
+        working-directory: ios
+        env:
+          ASC_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          IOS_CERT_PATH: ${{ runner.temp }}/dist_cert.p12
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          IOS_PROFILE_PATH: ${{ runner.temp }}/app_store.mobileprovision
+          WHATS_NEW_FILE: ${{ runner.temp }}/whats_new.txt
+          APP_STORE_LOCALE: ${{ vars.APP_STORE_LOCALE || 'he' }}
+        run: fastlane release
+
+      - name: Remove API key and signing files
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc_key.p8" "$RUNNER_TEMP/dist_cert.p12" "$RUNNER_TEMP/app_store.mobileprovision"

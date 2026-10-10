@@ -97,10 +97,8 @@ ParsedCategoryQuery parseCategoryQuery(String rawQuery, Library? library) {
 
 /// נתיבי ה-facet של כל הקטגוריות והספרים שכותרתם תואמת ל-[name].
 ///
-/// ההתאמה בשכבות, כמו הדירוג בחיפוש הספרייה ובאיתור מקורות: כותרת מדויקת →
-/// כינוי/ראשי-תיבות מדויקים → הכלה בכותרת/בכינוי → התאמה סלחנית לשגיאות כתיב.
-/// מוחזרת השכבה הטובה ביותר שאינה ריקה, כדי ששם חלקי לא ירחיב את הצמצום
-/// לכל התאמה רופפת כשקיימת התאמה מדויקת.
+/// כותרת ספר מדויקת כוללת גם קטגוריות בשם זהה. אחרת מחפשים מילים שלמות,
+/// הכלה חלקית ולבסוף שגיאות כתיב; מוחזרת השכבה הטובה ביותר שאינה ריקה.
 List<String> _facetsForName(String name, Library? library) {
   final normalizedName = normalizeFindText(name);
   if (library == null || normalizedName.isEmpty) {
@@ -110,14 +108,15 @@ List<String> _facetsForName(String name, Library? library) {
   final nameWords = normalizedName.split(' ');
   final tiers = [<String>[], <String>[], <String>[], <String>[]];
 
-  int? tierOf(String normalizedTitle, List<String> acronyms) {
-    if (normalizedTitle == normalizedName) return 0;
-    if (acronyms.contains(normalizedName)) return 1;
-    if (normalizedTitle.contains(normalizedName) ||
-        acronyms.any((a) => a.contains(normalizedName))) {
-      return 2;
-    }
-    final searchText = [normalizedTitle, ...acronyms].join(' ');
+  // אות שימוש אחת לפני השם ("הרמב"ן", "מקמאי") עדיין נחשבת מילה שלמה.
+  final asWords = RegExp(
+    '(?:^| )[הובכלמ]?${RegExp.escape(normalizedName)}(?: |\$)',
+  );
+  // הכינויים במסד חלקיים — כינוי זהה לא יכול לגבור על השם שבכותרת.
+  int? tierOf(List<String> texts) {
+    if (texts.any(asWords.hasMatch)) return 1;
+    if (texts.any((text) => text.contains(normalizedName))) return 2;
+    final searchText = texts.join(' ');
     if (nameWords.every(
       (word) => bookSearchWordMatchesFuzzy(word, searchText),
     )) {
@@ -126,17 +125,14 @@ List<String> _facetsForName(String name, Library? library) {
     return null;
   }
 
-  for (final category in library.getAllCategories()) {
-    final tier = tierOf(normalizeFindText(category.title), const []);
-    if (tier != null) tiers[tier].add(category.path);
-  }
   for (final book in library.getAllBooks()) {
     final id = book.id;
     final acronyms = id == null
         ? const <String>[]
         : AcronymsCache.instance.acronymsFor(book.source, id) ??
               const <String>[];
-    final tier = tierOf(normalizeFindText(book.title), acronyms);
+    final title = normalizeFindText(book.title);
+    final tier = title == normalizedName ? 0 : tierOf([title, ...acronyms]);
     if (tier != null) {
       tiers[tier].add(
         FacetHelper.buildBookFacet(
@@ -145,6 +141,13 @@ List<String> _facetsForName(String name, Library? library) {
         ),
       );
     }
+  }
+  for (final category in library.getAllCategories()) {
+    final title = normalizeFindText(category.title);
+    final tier = tiers[0].isNotEmpty && title == normalizedName
+        ? 0
+        : tierOf([title]);
+    if (tier != null) tiers[tier].add(category.path);
   }
 
   for (final tier in tiers) {

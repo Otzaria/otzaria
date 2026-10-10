@@ -82,12 +82,49 @@ final RegExp _whitespaceRun = RegExp(r'\s+');
 /// ניקוי שורה לחיפוש: הסרת הערות/HTML/ניקוד ואז כיווץ רצפי רווח לרווח יחיד.
 /// הכיווץ חיוני — הסרת תגים ("x </b> y") והמרת מקף/פסק לרווח ב-removeVolwels
 /// מייצרות רווח כפול, והחיפוש הליטרלי לא מוצא שאילתה עם רווח בודד.
-String cleanLineForSearch(String rawLine) => utils
-    .removeVolwels(
-      utils.stripHtmlIfNeeded(notes.stripInlineNotesForSearch(rawLine)),
-    )
-    .replaceAll(_whitespaceRun, ' ')
-    .trim();
+String cleanLineForSearch(String rawLine) => _collapseWhitespace(
+  utils.removeVolwels(
+    utils.stripHtmlIfNeeded(notes.stripInlineNotesForSearch(rawLine)),
+  ),
+).trim();
+
+/// כמו `replaceAll(_whitespaceRun, ' ')` בלי regex, ובלי העתקה כשאין מה
+/// לכווץ — רץ על כל שורות הספר בחיפוש הראשון.
+String _collapseWhitespace(String s) {
+  StringBuffer? out;
+  var copied = 0;
+  for (var i = 0; i < s.length; i++) {
+    if (!_isRegExpSpace(s.codeUnitAt(i))) continue;
+    var end = i + 1;
+    while (end < s.length && _isRegExpSpace(s.codeUnitAt(end))) {
+      end++;
+    }
+    if (end - i > 1 || s.codeUnitAt(i) != 0x20) {
+      (out ??= StringBuffer())
+        ..write(s.substring(copied, i))
+        ..write(' ');
+      copied = end;
+    }
+    i = end - 1;
+  }
+  if (out == null) return s;
+  out.write(s.substring(copied));
+  return out.toString();
+}
+
+/// התווים ש-`\s` של RegExp מתאים להם.
+bool _isRegExpSpace(int c) => c <= 0x20
+    ? c == 0x20 || (c >= 0x09 && c <= 0x0D)
+    : c == 0xA0 ||
+          (c >= 0x1680 &&
+              (c == 0x1680 ||
+                  (c >= 0x2000 && c <= 0x200A) ||
+                  c == 0x2028 ||
+                  c == 0x2029 ||
+                  c == 0x202F ||
+                  c == 0x205F ||
+                  c == 0x3000 ||
+                  c == 0xFEFF));
 
 String _normalizeQueryWhitespace(String query) =>
     query.replaceAll(_whitespaceRun, ' ').trim();
@@ -106,6 +143,46 @@ void _updateAddress(List<String> address, String line) {
     address.removeRange(index, address.length);
   }
   address.add(line);
+}
+
+bool _isHeadingLine(String rawLine) => rawLine.trimLeft().startsWith('<h');
+
+/// התאמה של [pattern] שמתחילה בסוף השורה הנקייה [line] ונמשכת בתחילת
+/// [nextLine], בלי סימון ממוספר בקצוות — אותו כלל כמו במנוע. כותרת או שורה
+/// ריקה עוצרות ביטוי. מחזירה את ההיסט בשורה ואת קטע שתי השורות.
+@visibleForTesting
+({int offset, String snippet})? crossLineMatch(
+  RegExp pattern, {
+  required String rawLine,
+  required String rawNextLine,
+  required String line,
+  required String nextLine,
+}) {
+  if (line.isEmpty ||
+      nextLine.isEmpty ||
+      _isHeadingLine(rawLine) ||
+      _isHeadingLine(rawNextLine)) {
+    return null;
+  }
+  final lineEnd = utils.crossLineContentRange(line).end;
+  final nextStart = utils.crossLineContentRange(nextLine).start;
+  final joined =
+      '${line.substring(0, lineEnd)}\n${nextLine.substring(nextStart)}';
+  for (final match in pattern.allMatches(joined)) {
+    if (match.start >= lineEnd) break;
+    if (match.end <= lineEnd + 1) continue;
+    var start = match.start - _snippetContextChars;
+    var end = match.end + _snippetContextChars;
+    start = start <= 0 ? 0 : joined.lastIndexOf(' ', start) + 1;
+    if (end >= joined.length) {
+      end = joined.length;
+    } else {
+      final space = joined.indexOf(' ', end);
+      end = space == -1 ? joined.length : space;
+    }
+    return (offset: match.start, snippet: joined.substring(start, end).trim());
+  }
+  return null;
 }
 
 /// מיקום יחסי (0..1) של ההתאמה ל-[query] בשורת המקור [rawLine], לאחר ניקוי
@@ -323,6 +400,8 @@ class _SearchWorkerHost {
                   query: raw['query'] as String,
                   matchOffset: raw['matchOffset'] as int?,
                   lineLength: raw['lineLength'] as int?,
+                  continuesToNextLine:
+                      raw['continuesToNextLine'] as bool? ?? false,
                 ),
               )
               .toList(growable: false),
@@ -532,6 +611,32 @@ class SectionSearchWorkerRuntime {
             if (results.length >= _maxSearchResults) {
               if (truncated) break;
               continue;
+            }
+
+            // ביטוי שנמשך לשורה הבאה נספר פעם אחת, בשורה שבה הוא מתחיל.
+            if (i + 1 < rangeEnd) {
+              final crossing = crossLineMatch(
+                pattern,
+                rawLine: rawLine,
+                rawNextLine: sourceLines[i + 1],
+                line: cleanLines[i],
+                nextLine: cleanLines[i + 1],
+              );
+              if (crossing != null) {
+                cleanAddress ??= utils.removeVolwels(
+                  utils.stripHtmlIfNeeded(address.join(', ')),
+                );
+                results.add({
+                  'index': i,
+                  'snippet': crossing.snippet,
+                  'address': cleanAddress,
+                  'query': query,
+                  'matchOffset': crossing.offset,
+                  'lineLength': cleanLines[i].length,
+                  'continuesToNextLine': true,
+                });
+                if (results.length >= _maxSearchResults) continue;
+              }
             }
 
             if ((i + 1) % _searchChunkSize == 0) {

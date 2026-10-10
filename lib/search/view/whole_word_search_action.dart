@@ -13,7 +13,7 @@ Widget wholeWordSearchAction({
     // אל"ף שלמה = מילה שלמה; אל"ף שחציה מלא = התאמה גם בתוך מילה.
     iconData: wholeWord
         ? OtzariaIcons.alef_24_regular
-        : OtzariaIcons.alef_half_filled_24_regular,
+        : OtzariaIcons.alef_mix_24_regular,
     onPressed: onToggle,
     tooltip: wholeWord
         ? 'מחפש מילים שלמות בלבד'

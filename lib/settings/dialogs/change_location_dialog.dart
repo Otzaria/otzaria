@@ -833,6 +833,11 @@ class TargetFolderSection extends StatelessWidget {
   final VoidCallback onPickFolder;
   final VoidCallback onUseDefault;
 
+  /// כשמוגדר (אנדרואיד) — מוצגים רק היעדים האלה, בלי בורר תיקיות חופשי:
+  /// מחוץ לתיקיות האפליקציה Scoped Storage חוסם כתיבה של קובצי ה-DB.
+  final List<({bool isRemovable, String root})>? storageChoices;
+  final ValueChanged<String>? onSelectStorage;
+
   const TargetFolderSection({
     super.key,
     required this.folderName,
@@ -842,7 +847,40 @@ class TargetFolderSection extends StatelessWidget {
     required this.isAtDefault,
     required this.onPickFolder,
     required this.onUseDefault,
+    this.storageChoices,
+    this.onSelectStorage,
   });
+
+  Widget _storageChoiceTile(
+    BuildContext context,
+    ({bool isRemovable, String root}) choice,
+  ) {
+    final cs = Theme.of(context).colorScheme;
+    final selected = choice.root == selectedPath;
+    return SettingsActionTile.path(
+      icon: choice.isRemovable
+          ? FluentIcons.storage_24_regular
+          : FluentIcons.phone_24_regular,
+      iconColor: selected ? cs.primary : null,
+      title: choice.isRemovable
+          ? context.settingsText('כרטיס SD')
+          : context.settingsText('אחסון פנימי'),
+      path: choice.root,
+      placeholder: '',
+      actions: [
+        if (selected)
+          Text(
+            context.settingsText('נבחר'),
+            style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
+          )
+        else
+          ActionButton.recommended(
+            text: context.settingsText('השתמש במיקום זה'),
+            onPressed: () => onSelectStorage?.call(choice.root),
+          ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -853,11 +891,19 @@ class TargetFolderSection extends StatelessWidget {
               args: {'folder': folderName},
             )
           : context.settingsText('מיקום חדש'),
-      subtitle: context.settingsText(
-        'בחר מיקום מותאם אישית, או השתמש במיקום ברירת המחדל של האפליקציה',
-      ),
+      subtitle: storageChoices != null
+          ? context.settingsText(
+              'בחר אם לשמור את הספרייה באחסון הפנימי או על כרטיס SD',
+            )
+          : context.settingsText(
+              'בחר מיקום מותאם אישית, או השתמש במיקום ברירת המחדל של האפליקציה',
+            ),
       children: [
-        if (defaultPath != null && defaultPath!.isNotEmpty)
+        for (final choice in storageChoices ?? const [])
+          _storageChoiceTile(context, choice),
+        if (storageChoices == null &&
+            defaultPath != null &&
+            defaultPath!.isNotEmpty)
           SettingsActionTile.path(
             icon: FluentIcons.home_24_regular,
             title: context.settingsText('מיקום ברירת מחדל'),
@@ -871,21 +917,22 @@ class TargetFolderSection extends StatelessWidget {
               ),
             ],
           ),
-        SettingsActionTile.path(
-          icon: FluentIcons.folder_open_24_regular,
-          title: context.settingsText('בחירת מיקום'),
-          path: selectedPath,
-          placeholder: context.settingsText('טרם נבחר מיקום'),
-          actions: [
-            ActionButton.recommended(
-              text: context.settingsText(
-                selectedPath == null ? 'בחר תיקייה' : 'שנה מיקום',
+        if (storageChoices == null)
+          SettingsActionTile.path(
+            icon: FluentIcons.folder_open_24_regular,
+            title: context.settingsText('בחירת מיקום'),
+            path: selectedPath,
+            placeholder: context.settingsText('טרם נבחר מיקום'),
+            actions: [
+              ActionButton.recommended(
+                text: context.settingsText(
+                  selectedPath == null ? 'בחר תיקייה' : 'שנה מיקום',
+                ),
+                onPressed: onPickFolder,
+                icon: FluentIcons.folder_open_24_regular,
               ),
-              onPressed: onPickFolder,
-              icon: FluentIcons.folder_open_24_regular,
-            ),
-          ],
-        ),
+            ],
+          ),
       ],
     );
   }

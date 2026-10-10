@@ -35,6 +35,14 @@ class DatabaseConstants {
   /// The morphology dictionary used by fuzzy search.
   static const String lexicalDatabaseFileName = 'lexical.db';
 
+  /// שמות נכס המילון ב-release לפי סדר העדפה. `lexical.db` קפוא לגרסאות ישנות
+  /// שאינן מחליפות קובץ פתוח; תוכן חדש מתפרסם רק בשם הראשון. מקומית תמיד
+  /// [lexicalDatabaseFileName].
+  static const List<String> lexicalReleaseAssetFileNames = [
+    'lexical-v2.db',
+    lexicalDatabaseFileName,
+  ];
+
   /// The name of the external catalogs database file
   static const String externalCatalogDatabaseFileName = 'otzar-HB_catalog.db';
 
@@ -87,6 +95,10 @@ class DatabaseConstants {
     '$databaseFileName-wal',
     '$databaseFileName-shm',
     lexicalDatabaseFileName,
+    // בלי הסימון והעותק הממתין המילון היה מורד שוב אחרי העברה.
+    '$lexicalDatabaseFileName.version',
+    '$lexicalDatabaseFileName.next',
+    '$lexicalDatabaseFileName.next.version',
     externalCatalogDatabaseFileName,
     '$externalCatalogDatabaseFileName-wal',
     '$externalCatalogDatabaseFileName-shm',
@@ -134,14 +146,6 @@ class DatabaseConstants {
     return path.join(
       getDatabaseDirectoryPath(),
       externalCatalogDatabaseFileName,
-    );
-  }
-
-  /// Gets the full path for the compressed external catalogs archive.
-  static String getExternalCatalogArchivePath() {
-    return path.join(
-      getDatabaseDirectoryPath(),
-      externalCatalogArchiveFileName,
     );
   }
 

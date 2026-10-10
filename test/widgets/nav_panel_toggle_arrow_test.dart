@@ -1,20 +1,33 @@
 // issue #1417: כפתור "הצג ניווט"/"הסתר ניווט" הציג את אותו חץ בשני המצבים —
 // גליף ה-text_continuous מצויר עם חץ קבוע, ולכן כשהחלונית פתוחה החץ המשיך
 // להצביע לכיוון הפתיחה. החץ צריך להצביע לכיוון שאליו החלונית תזוז בלחיצה:
-// ב-RTL (החלונית מימין) סגורה → שמאלה, פתוחה → ימינה; ב-LTR להפך.
+// ב-RTL (החלונית מימין) סגורה → שמאלה (text_continuous_rtl), פתוחה → ימינה
+// (text_continuous_ltr); ב-LTR להפך.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
-/// האם האייקון שבתוך כפתור המעבר משוקף אופקית (x → -x).
+/// האם כפתור המעבר מציג את גליף ה-ltr (חץ ימינה) ולא את ה-rtl (חץ שמאלה).
 bool _iconMirrored(WidgetTester tester) {
-  final transform = tester.widget<Transform>(
+  final icon = tester.widget<Icon>(
     find.descendant(
       of: find.byType(NavPanelToggleButton),
-      matching: find.byType(Transform),
+      matching: find.byType(Icon),
     ),
   );
-  return transform.transform.storage[0] < 0;
+  final data = icon.icon;
+  if (data == OtzariaIcons.text_continuous_ltr_24_regular ||
+      data == OtzariaIcons.text_continuous_ltr_24_filled) {
+    return true;
+  }
+  expect(
+    data == OtzariaIcons.text_continuous_rtl_24_regular ||
+        data == OtzariaIcons.text_continuous_rtl_24_filled,
+    isTrue,
+    reason: 'הכפתור חייב להציג אחד מגלִיפֵי text_continuous',
+  );
+  return false;
 }
 
 Widget _host(bool isOpen, TextDirection direction) => MaterialApp(
@@ -61,30 +74,30 @@ void main() {
       expect(_iconMirrored(tester), isFalse, reason: 'פתוחה: נסגרת שמאלה');
     });
 
-    test('shouldMirror — טבלת האמת של ארבעת המצבים', () {
+    test('useLtrGlyph — טבלת האמת של ארבעת המצבים', () {
       expect(
-        NavPanelToggleButton.shouldMirror(
+        NavPanelToggleButton.useLtrGlyph(
           isOpen: false,
           textDirection: TextDirection.rtl,
         ),
         isFalse,
       );
       expect(
-        NavPanelToggleButton.shouldMirror(
+        NavPanelToggleButton.useLtrGlyph(
           isOpen: true,
           textDirection: TextDirection.rtl,
         ),
         isTrue,
       );
       expect(
-        NavPanelToggleButton.shouldMirror(
+        NavPanelToggleButton.useLtrGlyph(
           isOpen: false,
           textDirection: TextDirection.ltr,
         ),
         isTrue,
       );
       expect(
-        NavPanelToggleButton.shouldMirror(
+        NavPanelToggleButton.useLtrGlyph(
           isOpen: true,
           textDirection: TextDirection.ltr,
         ),

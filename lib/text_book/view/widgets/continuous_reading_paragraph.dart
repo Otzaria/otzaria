@@ -5,7 +5,7 @@ import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
-import 'package:otzaria/text_book/utils/link_anchor_variants.dart';
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
@@ -487,6 +487,9 @@ TextStyle _styleForElement(
 }) {
   var style = parentStyle;
   final localName = element.localName;
+  // נקראים פעם אחת: `classes` מפרק את המחרוזת מחדש בכל גישה.
+  final classes = element.classes.toSet();
+  final inlineStyle = element.attributes['style'] ?? '';
 
   if (localName == 'small') {
     style = style.copyWith(
@@ -498,7 +501,7 @@ TextStyle _styleForElement(
       fontSize: (style.fontSize ?? 18) * kHtmlLargerFontScale,
     );
   }
-  final inlineFontSize = _inlineFontSize(element, style.fontSize ?? 18);
+  final inlineFontSize = _inlineFontSize(inlineStyle, style.fontSize ?? 18);
   if (inlineFontSize != null) {
     style = style.copyWith(fontSize: inlineFontSize);
   }
@@ -506,24 +509,24 @@ TextStyle _styleForElement(
   // מוקטנים ונוטים לפי ה-CSS שהוגדר להם ב-SmartTextWidget.
   // `processText` ממיר כל sup לא-מספרי ל-span (ראו raised_markers.dart), ולכן
   // בפועל מגיע לכאן `raised-sup`; תג sup חשוף נשאר נתמך לקלט שלא עבר עיבוד.
-  if (localName == 'sup' || element.classes.contains(kRaisedSupClass)) {
+  if (localName == 'sup' || classes.contains(kRaisedSupClass)) {
     style = style.copyWith(
       fontSize: (style.fontSize ?? 18) * kHtmlSmallerFontScale,
     );
     // הגליף עצמו שקוף — RaisedMarkerOverlay מצייר אותו מורם. תג sup חשוף
     // (קלט שלא עבר processText) נשאר גלוי, שם אין סימון לשכבה לצייר.
-    if (hideRaisedMarkers && element.classes.contains(kRaisedSupClass)) {
+    if (hideRaisedMarkers && classes.contains(kRaisedSupClass)) {
       style = style.copyWith(color: const Color(0x00000000));
     }
   }
   // טקסט תחתי שהומר ל-span (ראו TextRendererService._fixSubscripts) — מוקטן.
-  if (element.classes.contains('subscript-text')) {
+  if (classes.contains('subscript-text')) {
     style = style.copyWith(
       fontSize: (style.fontSize ?? 18) * kHtmlSmallerFontScale,
     );
   }
-  if (element.classes.contains(kFootnoteMarkerClass) ||
-      element.classes.contains('book-note-marker')) {
+  if (classes.contains(kFootnoteMarkerClass) ||
+      classes.contains('book-note-marker')) {
     style = style.copyWith(
       fontSize: (style.fontSize ?? 18) * kFootnoteMarkerScale,
       fontStyle: FontStyle.italic,
@@ -536,9 +539,9 @@ TextStyle _styleForElement(
   }
   // סמן-אות של מפרש: מוקטן, והטיפוגרפיה נקבעת אך ורק בווריאנט שהוקצה למפרש.
   // נטייה כפויה כאן הייתה מוחקת את ההבחנה בין המפרשים.
-  if (element.classes.contains('link-anchor')) {
+  if (classes.contains('link-anchor')) {
     style = applyLinkAnchorVariant(
-      linkAnchorVariantFromClasses(element.classes),
+      linkAnchorVariantFromClasses(classes),
       style.copyWith(
         fontSize: (style.fontSize ?? 18) * kLinkAnchorMarkerScale,
       ),
@@ -550,7 +553,7 @@ TextStyle _styleForElement(
   }
   if (localName == 'i' ||
       localName == 'em' ||
-      _hasFontStyle(element, 'italic')) {
+      _italicRe.hasMatch(inlineStyle)) {
     style = style.copyWith(fontStyle: FontStyle.italic);
   }
   if (localName == 'b' || localName == 'strong') {
@@ -560,65 +563,66 @@ TextStyle _styleForElement(
     );
   }
 
-  // הדגשת תוצאות חיפוש מגיעות כ-`<span style="color: red">` או
-  // `<span style="color: blue; background-color: yellow">` (התוצאה הנוכחית).
-  // המפרסר חייב לכבד את ה-styles האלה אחרת תוצאות חיפוש לא יסומנו במצב רציף.
-  final inlineColor = _inlineColor(element);
+  // הדגשות החיפוש מגיעות כ-color/background-color ב-style; בלי פרסורן הן לא
+  // יסומנו במצב רציף.
+  final inlineColor = _inlineCssColor(_colorRe, inlineStyle);
   if (inlineColor != null) {
     style = style.copyWith(color: inlineColor);
   }
-  final inlineBackground = _inlineBackgroundColor(element);
+  final inlineBackground = _inlineCssColor(_backgroundColorRe, inlineStyle);
   if (inlineBackground != null) {
     style = style.copyWith(backgroundColor: inlineBackground);
   }
-  if (_hasTextDecoration(element, 'underline')) {
+  if (_underlineRe.hasMatch(inlineStyle)) {
     style = style.copyWith(
       decoration: TextDecoration.underline,
-      decorationColor: _inlineDecorationColor(element),
-      decorationThickness: _inlineDecorationThickness(element),
+      decorationColor: _inlineCssColor(_decorationColorRe, inlineStyle),
+      decorationThickness: _inlineDecorationThickness(inlineStyle),
     );
   }
 
   return style;
 }
 
-Color? _inlineColor(dom.Element element) {
-  final inlineStyle = element.attributes['style'] ?? '';
-  // לוכד `color: <value>` אך לא `background-color:` (שלפניו `-`).
-  final match = RegExp(
-    r'(?:^|[\s;])color\s*:\s*([^;]+)',
-    caseSensitive: false,
-  ).firstMatch(inlineStyle);
+// הביטויים נבנים פעם אחת ולא בכל אלמנט בכל build.
+// לוכד `color: <value>` אך לא `background-color:` (שלפניו `-`).
+final _colorRe = RegExp(
+  r'(?:^|[\s;])color\s*:\s*([^;]+)',
+  caseSensitive: false,
+);
+final _backgroundColorRe = RegExp(
+  r'background-color\s*:\s*([^;]+)',
+  caseSensitive: false,
+);
+final _decorationColorRe = RegExp(
+  r'text-decoration-color\s*:\s*([^;]+)',
+  caseSensitive: false,
+);
+final _decorationThicknessRe = RegExp(
+  r'text-decoration-thickness\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(px|%)',
+  caseSensitive: false,
+);
+final _fontSizeRe = RegExp(
+  r'font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(em|rem|px|%)?',
+  caseSensitive: false,
+);
+final _italicRe = RegExp(r'font-style\s*:\s*italic', caseSensitive: false);
+final _underlineRe = RegExp(
+  r'text-decoration\s*:\s*[^;]*\bunderline\b',
+  caseSensitive: false,
+);
+final _rgbaRe = RegExp(
+  r'^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0(?:\.\d+)?|\.\d+|1(?:\.0+)?)\s*\)$',
+);
+
+Color? _inlineCssColor(RegExp property, String inlineStyle) {
+  final match = property.firstMatch(inlineStyle);
   if (match == null) return null;
   return _parseCssColor(match.group(1)!.trim());
 }
 
-Color? _inlineBackgroundColor(dom.Element element) {
-  final inlineStyle = element.attributes['style'] ?? '';
-  final match = RegExp(
-    r'background-color\s*:\s*([^;]+)',
-    caseSensitive: false,
-  ).firstMatch(inlineStyle);
-  if (match == null) return null;
-  return _parseCssColor(match.group(1)!.trim());
-}
-
-Color? _inlineDecorationColor(dom.Element element) {
-  final inlineStyle = element.attributes['style'] ?? '';
-  final match = RegExp(
-    r'text-decoration-color\s*:\s*([^;]+)',
-    caseSensitive: false,
-  ).firstMatch(inlineStyle);
-  if (match == null) return null;
-  return _parseCssColor(match.group(1)!.trim());
-}
-
-double? _inlineDecorationThickness(dom.Element element) {
-  final inlineStyle = element.attributes['style'] ?? '';
-  final match = RegExp(
-    r'text-decoration-thickness\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(px|%)',
-    caseSensitive: false,
-  ).firstMatch(inlineStyle);
+double? _inlineDecorationThickness(String inlineStyle) {
+  final match = _decorationThicknessRe.firstMatch(inlineStyle);
   if (match == null) return null;
   final value = double.tryParse(match.group(1)!);
   if (value == null) return null;
@@ -627,9 +631,7 @@ double? _inlineDecorationThickness(dom.Element element) {
 
 Color? _parseCssColor(String value) {
   final v = value.toLowerCase().trim();
-  final rgba = RegExp(
-    r'^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0(?:\.\d+)?|\.\d+|1(?:\.0+)?)\s*\)$',
-  ).firstMatch(v);
+  final rgba = _rgbaRe.firstMatch(v);
   if (rgba != null) {
     final red = int.parse(rgba.group(1)!).clamp(0, 255).toInt();
     final green = int.parse(rgba.group(2)!).clamp(0, 255).toInt();
@@ -674,12 +676,8 @@ Color? _parseCssColor(String value) {
   return null;
 }
 
-double? _inlineFontSize(dom.Element element, double parentFontSize) {
-  final inlineStyle = element.attributes['style'] ?? '';
-  final match = RegExp(
-    r'font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(em|rem|px|%)?',
-    caseSensitive: false,
-  ).firstMatch(inlineStyle);
+double? _inlineFontSize(String inlineStyle, double parentFontSize) {
+  final match = _fontSizeRe.firstMatch(inlineStyle);
   if (match == null) return null;
 
   final value = double.tryParse(match.group(1) ?? '');
@@ -692,22 +690,6 @@ double? _inlineFontSize(dom.Element element, double parentFontSize) {
     '%' => parentFontSize * value / 100,
     _ => value,
   };
-}
-
-bool _hasFontStyle(dom.Element element, String value) {
-  final inlineStyle = element.attributes['style'] ?? '';
-  return RegExp(
-    'font-style\\s*:\\s*$value',
-    caseSensitive: false,
-  ).hasMatch(inlineStyle);
-}
-
-bool _hasTextDecoration(dom.Element element, String value) {
-  final inlineStyle = element.attributes['style'] ?? '';
-  return RegExp(
-    'text-decoration\\s*:\\s*[^;]*\\b$value\\b',
-    caseSensitive: false,
-  ).hasMatch(inlineStyle);
 }
 
 InlineSpan _withRecognizer(

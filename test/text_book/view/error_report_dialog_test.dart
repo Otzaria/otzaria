@@ -188,6 +188,10 @@ void main() {
         'otzaria.200@gmail.com,WikiJewishBooks@gmail.com',
       );
       expect(
+        ErrorReportHelper.emailRecipientsFor('DictaToOtzaria'),
+        'otzaria.200@gmail.com,jewishoffice@gmail.com',
+      );
+      expect(
         ErrorReportHelper.emailRecipientsFor('yam-HaHachmaToOtzaria'),
         'otzaria.200@gmail.com,y025837086@gmail.com',
       );
@@ -661,18 +665,21 @@ void main() {
       expect(result.usedLineFallback, isFalse);
     });
 
-    test('should handle three occurrences in same line by returning full line context', () {
-      final content = ['אמר שלום ואז שלום ושוב שלום'];
+    test(
+      'should handle three occurrences in same line by returning full line context',
+      () {
+        final content = ['אמר שלום ואז שלום ושוב שלום'];
 
-      final result = ErrorReportHelper.resolveSelectionContext(
-        content: content,
-        selectedText: 'שלום',
-        preferredLineNumber: 0,
-      );
+        final result = ErrorReportHelper.resolveSelectionContext(
+          content: content,
+          selectedText: 'שלום',
+          preferredLineNumber: 0,
+        );
 
-      expect(result.usedLineFallback, isTrue);
-      expect(result.contextText, contains('שלום ואז שלום ושוב שלום'));
-    });
+        expect(result.usedLineFallback, isTrue);
+        expect(result.contextText, contains('שלום ואז שלום ושוב שלום'));
+      },
+    );
 
     test('should handle empty selected text gracefully', () {
       final content = ['שורה ראשונה', 'שורה שנייה'];
@@ -1157,6 +1164,37 @@ void main() {
     expect(report.errorDetails, 'פירוט �');
     expect(report.contextText, 'הקשר�');
     expect(report.contentDigest, hasLength(64));
+  });
+
+  test('הצעת תיקון בלי הצעה (null) נשלחת כדיווח חופשי', () {
+    const line = 'א ב ג';
+    final report = ErrorReportHelper.buildDirectReport(
+      senderEmail: 'user@example.com',
+      reportData: ReportedErrorData(
+        selectedText: 'ב',
+        errorDetails: 'יש כאן טעות',
+        correction: TextCorrection.wholeLine(
+          originalLine: line,
+          proposedText: null,
+        ),
+      ),
+      bookTitle: 'ספר',
+      currentRef: 'א',
+      bookDetails: const {},
+      lineNumber: 1,
+      contextText: line,
+      libraryVersion: '27',
+      source: ReportSourceSnapshot(
+        bookId: 1,
+        lineIndex: 0,
+        heRef: null,
+        originalLine: line,
+      ),
+    );
+
+    expect(report.reportKind, DirectErrorReportKind.freeText);
+    expect(report.correction, isNull);
+    expect(report.toApiPayload()['report_kind'], 'free_text');
   });
 
   test('created_at של דיווח חדש נשלח ב-UTC עם Z', () {

@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show SemanticSearchResponse;
+    show SemanticLexicalMode, SemanticSearchResponse;
 
 import 'semantic_failure.dart';
 
@@ -245,6 +245,11 @@ class SemanticOpenRequest extends Equatable {
   ];
 }
 
+/// הצד המילולי של החיפוש החכם: המילה וצורותיה מהמילון, בלי מרחק עריכה.
+/// מרחק 0 במצב fuzzy הוא מה שמבקש זאת מהמנוע — לא ערך enum חדש.
+const SemanticLexicalMode kSmartSearchLexicalMode = SemanticLexicalMode.fuzzy;
+const int kSmartSearchFuzzyMaxDistance = 0;
+
 /// אסטרטגיית האיחוד של הדירוג ההיברידי.
 enum SemanticFusion { weighted, rrf, adaptive }
 
@@ -272,8 +277,14 @@ class SemanticRankingConfig extends Equatable {
   final bool metadataRankingEnabled;
   final double candidateWindowMultiplier;
 
+  /// תוספת לציון של תוצאה מספרי היסוד (`/base`).
+  final double foundationalBonus;
+
+  /// חלק המועמדים הסמנטיים שנאספים מספרי היסוד בנפרד; 0 = כבוי.
+  final double foundationalCandidateShare;
+
   const SemanticRankingConfig({
-    this.fusion = SemanticFusion.weighted,
+    this.fusion = SemanticFusion.rrf,
     this.rrfK = 60,
     this.alphaOverride,
     this.alphaQuotedPhrase = 1.0,
@@ -283,7 +294,7 @@ class SemanticRankingConfig extends Equatable {
     this.alphaConceptual = 0.3,
     this.alphaUnknown = 0.5,
     this.bm25SaturationK = 10.0,
-    this.semanticThreshold = 0.0,
+    this.semanticThreshold = 0.55,
     this.agreementBonus = 0.1,
     this.phraseMatchBonus = 0.0,
     this.rareTermBonus = 0.0,
@@ -291,6 +302,8 @@ class SemanticRankingConfig extends Equatable {
     this.duplicatePenalty = 0.0,
     this.metadataRankingEnabled = false,
     this.candidateWindowMultiplier = 2.0,
+    this.foundationalBonus = 0.002,
+    this.foundationalCandidateShare = 0.5,
   });
 
   /// השדה `ranking` של הטלמטריה: שטוח, ו-`alphaByQueryType` כמפה מקוננת אחת.
@@ -315,6 +328,8 @@ class SemanticRankingConfig extends Equatable {
     'duplicatePenalty': duplicatePenalty,
     'metadataRankingEnabled': metadataRankingEnabled,
     'candidateWindowMultiplier': candidateWindowMultiplier,
+    'foundationalBonus': foundationalBonus,
+    'foundationalCandidateShare': foundationalCandidateShare,
   };
 
   @override

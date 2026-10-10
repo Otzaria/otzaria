@@ -48,20 +48,38 @@
         "otzaria-windows-portable-x64",
         "otzaria-windows-x64",
         "otzaria-windows-full",
-        "otzaria-windows-full-indexed",
-        "library-full-indexed"
+        "library-full",
+        "library-index",
+        "semantic-model-windows",
+        "semantic-vectors-windows"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-windows-x64",
+          "downloadSize": 39,
+          "locked": true,
+          "group": ""
+        },
+        {
+          "id": "library-full",
+          "downloadSize": 3015,
+          "locked": false,
+          "group": ""
+        },
+        {
+          "id": "library-index",
+          "downloadSize": 600,
+          "locked": false,
+          "group": ""
+        },
+        {
+          "id": "semantic-vectors-windows",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
-        {
-          "id": "full",
-          "members": [
-            "otzaria-windows-full"
-          ],
-          "outputFiles": [
-            "otzaria-0.10.3-windows-full.exe"
-          ],
-          "outputSubfolder": ""
-        },
         {
           "id": "basic",
           "members": [
@@ -70,7 +88,29 @@
           "outputFiles": [
             "otzaria-0.10.3-windows.exe"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-windows-full",
+            "semantic-model-windows",
+            "semantic-vectors-windows"
+          ],
+          "outputFiles": [
+            "otzaria-0.10.3-windows-full.exe",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
+          ],
+          "outputNotes": [
+            "מתקין אוצריא שבתיקייה הזאת (הרגיל או המלא) מעתיק בעצמו את התיקייה semantic-import אל ליד תיקיית הספרייה. כשתפעיל את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה. בהתקנה מקובץ ה-ZIP הנייד — העתק אותה ידנית אל התיקייה שמכילה את תיקיית הספרייה של אוצריא."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Windows"
         }
       ]
     },
@@ -83,19 +123,39 @@
       "offeredComponents": [
         "otzaria-windows-arm64",
         "otzaria-windows-portable-arm64",
-        "otzaria-windows-full-arm64"
+        "otzaria-windows-full-arm64",
+        "library-full",
+        "library-index",
+        "semantic-model-windows",
+        "semantic-vectors-windows"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-windows-arm64",
+          "downloadSize": 38,
+          "locked": true,
+          "group": ""
+        },
+        {
+          "id": "library-full",
+          "downloadSize": 3015,
+          "locked": false,
+          "group": ""
+        },
+        {
+          "id": "library-index",
+          "downloadSize": 600,
+          "locked": false,
+          "group": ""
+        },
+        {
+          "id": "semantic-vectors-windows",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
-        {
-          "id": "full",
-          "members": [
-            "otzaria-windows-full-arm64"
-          ],
-          "outputFiles": [
-            "otzaria-0.10.3-windows_arm64-full.exe"
-          ],
-          "outputSubfolder": ""
-        },
         {
           "id": "basic",
           "members": [
@@ -104,7 +164,29 @@
           "outputFiles": [
             "otzaria-0.10.3-windows_arm64.exe"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-windows-full-arm64",
+            "semantic-model-windows",
+            "semantic-vectors-windows"
+          ],
+          "outputFiles": [
+            "otzaria-0.10.3-windows_arm64-full.exe",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
+          ],
+          "outputNotes": [
+            "מתקין אוצריא שבתיקייה הזאת (הרגיל או המלא) מעתיק בעצמו את התיקייה semantic-import אל ליד תיקיית הספרייה. כשתפעיל את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה. בהתקנה מקובץ ה-ZIP הנייד — העתק אותה ידנית אל התיקייה שמכילה את תיקיית הספרייה של אוצריא."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Windows"
         }
       ]
     },
@@ -116,19 +198,31 @@
       },
       "offeredComponents": [
         "otzaria-macos",
-        "otzaria-macos-full"
+        "otzaria-macos-full",
+        "semantic-model-macos",
+        "semantic-vectors-macos"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-macos",
+          "downloadSize": 86,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "otzaria-macos-full",
+          "downloadSize": 1853,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "semantic-vectors-macos",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
-        {
-          "id": "full",
-          "members": [
-            "otzaria-macos-full"
-          ],
-          "outputFiles": [
-            "otzaria-macos-full.tar.zst"
-          ],
-          "outputSubfolder": ""
-        },
         {
           "id": "basic",
           "members": [
@@ -137,7 +231,29 @@
           "outputFiles": [
             "otzaria-macos.dmg"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-macos-full",
+            "semantic-model-macos",
+            "semantic-vectors-macos"
+          ],
+          "outputFiles": [
+            "otzaria-macos-full.tar.zst",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
+          ],
+          "outputNotes": [
+            "במחשב היעד העתק את התיקייה semantic-import אל התיקייה שמכילה את תיקיית הספרייה של אוצריא. כשתפעיל שם את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-macOS"
         }
       ]
     },
@@ -149,19 +265,31 @@
       },
       "offeredComponents": [
         "otzaria-linux-deb-x64",
-        "otzaria-linux-full-x64"
+        "otzaria-linux-full-x64",
+        "semantic-model-linux",
+        "semantic-vectors-linux"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-linux-deb-x64",
+          "downloadSize": 96,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "otzaria-linux-full-x64",
+          "downloadSize": 1927,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "semantic-vectors-linux",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
-        {
-          "id": "full",
-          "members": [
-            "otzaria-linux-full-x64"
-          ],
-          "outputFiles": [
-            "otzaria-linux-full.tar.zst"
-          ],
-          "outputSubfolder": ""
-        },
         {
           "id": "basic",
           "members": [
@@ -170,7 +298,29 @@
           "outputFiles": [
             "otzaria-0.10.3+143-linux.deb"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-linux-full-x64",
+            "semantic-model-linux",
+            "semantic-vectors-linux"
+          ],
+          "outputFiles": [
+            "otzaria-linux-full.tar.zst",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
+          ],
+          "outputNotes": [
+            "במחשב היעד העתק את התיקייה semantic-import אל התיקייה שמכילה את תיקיית הספרייה של אוצריא. כשתפעיל שם את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Linux"
         }
       ]
     },
@@ -182,19 +332,31 @@
       },
       "offeredComponents": [
         "otzaria-linux-rpm-x64",
-        "otzaria-linux-full-x64"
+        "otzaria-linux-full-x64",
+        "semantic-model-linux",
+        "semantic-vectors-linux"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-linux-rpm-x64",
+          "downloadSize": 132,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "otzaria-linux-full-x64",
+          "downloadSize": 1927,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "semantic-vectors-linux",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
-        {
-          "id": "full",
-          "members": [
-            "otzaria-linux-full-x64"
-          ],
-          "outputFiles": [
-            "otzaria-linux-full.tar.zst"
-          ],
-          "outputSubfolder": ""
-        },
         {
           "id": "basic",
           "members": [
@@ -203,7 +365,29 @@
           "outputFiles": [
             "otzaria-0.10.3+143-143.x86_64.rpm"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-linux-full-x64",
+            "semantic-model-linux",
+            "semantic-vectors-linux"
+          ],
+          "outputFiles": [
+            "otzaria-linux-full.tar.zst",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
+          ],
+          "outputNotes": [
+            "במחשב היעד העתק את התיקייה semantic-import אל התיקייה שמכילה את תיקיית הספרייה של אוצריא. כשתפעיל שם את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Linux"
         }
       ]
     },
@@ -214,18 +398,45 @@
         "packageFormat": "portable"
       },
       "offeredComponents": [
-        "otzaria-linux-full-x64"
+        "otzaria-linux-full-x64",
+        "semantic-model-linux",
+        "semantic-vectors-linux"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-linux-full-x64",
+          "downloadSize": 1927,
+          "locked": true,
+          "group": ""
+        },
+        {
+          "id": "semantic-vectors-linux",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
         {
           "id": "full",
           "members": [
-            "otzaria-linux-full-x64"
+            "otzaria-linux-full-x64",
+            "semantic-model-linux",
+            "semantic-vectors-linux"
           ],
           "outputFiles": [
-            "otzaria-linux-full.tar.zst"
+            "otzaria-linux-full.tar.zst",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
-          "outputSubfolder": ""
+          "outputNotes": [
+            "במחשב היעד העתק את התיקייה semantic-import אל התיקייה שמכילה את תיקיית הספרייה של אוצריא. כשתפעיל שם את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Linux"
         }
       ]
     },
@@ -237,19 +448,31 @@
       },
       "offeredComponents": [
         "otzaria-linux-deb-arm64",
-        "otzaria-linux-full-arm64"
+        "otzaria-linux-full-arm64",
+        "semantic-model-linux",
+        "semantic-vectors-linux"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-linux-deb-arm64",
+          "downloadSize": 87,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "otzaria-linux-full-arm64",
+          "downloadSize": 1900,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "semantic-vectors-linux",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
-        {
-          "id": "full",
-          "members": [
-            "otzaria-linux-full-arm64"
-          ],
-          "outputFiles": [
-            "otzaria-linux-full-arm64.tar.zst"
-          ],
-          "outputSubfolder": ""
-        },
         {
           "id": "basic",
           "members": [
@@ -258,7 +481,29 @@
           "outputFiles": [
             "otzaria-0.10.3+143-linux-arm64.deb"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-linux-full-arm64",
+            "semantic-model-linux",
+            "semantic-vectors-linux"
+          ],
+          "outputFiles": [
+            "otzaria-linux-full-arm64.tar.zst",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
+          ],
+          "outputNotes": [
+            "במחשב היעד העתק את התיקייה semantic-import אל התיקייה שמכילה את תיקיית הספרייה של אוצריא. כשתפעיל שם את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Linux"
         }
       ]
     },
@@ -270,19 +515,31 @@
       },
       "offeredComponents": [
         "otzaria-linux-rpm-arm64",
-        "otzaria-linux-full-arm64"
+        "otzaria-linux-full-arm64",
+        "semantic-model-linux",
+        "semantic-vectors-linux"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-linux-rpm-arm64",
+          "downloadSize": 127,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "otzaria-linux-full-arm64",
+          "downloadSize": 1900,
+          "locked": false,
+          "group": "application"
+        },
+        {
+          "id": "semantic-vectors-linux",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
-        {
-          "id": "full",
-          "members": [
-            "otzaria-linux-full-arm64"
-          ],
-          "outputFiles": [
-            "otzaria-linux-full-arm64.tar.zst"
-          ],
-          "outputSubfolder": ""
-        },
         {
           "id": "basic",
           "members": [
@@ -291,7 +548,29 @@
           "outputFiles": [
             "otzaria-0.10.3+143-143.aarch64.rpm"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-linux-full-arm64",
+            "semantic-model-linux",
+            "semantic-vectors-linux"
+          ],
+          "outputFiles": [
+            "otzaria-linux-full-arm64.tar.zst",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
+          ],
+          "outputNotes": [
+            "במחשב היעד העתק את התיקייה semantic-import אל התיקייה שמכילה את תיקיית הספרייה של אוצריא. כשתפעיל שם את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Linux"
         }
       ]
     },
@@ -302,18 +581,45 @@
         "packageFormat": "portable"
       },
       "offeredComponents": [
-        "otzaria-linux-full-arm64"
+        "otzaria-linux-full-arm64",
+        "semantic-model-linux",
+        "semantic-vectors-linux"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-linux-full-arm64",
+          "downloadSize": 1900,
+          "locked": true,
+          "group": ""
+        },
+        {
+          "id": "semantic-vectors-linux",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
         {
           "id": "full",
           "members": [
-            "otzaria-linux-full-arm64"
+            "otzaria-linux-full-arm64",
+            "semantic-model-linux",
+            "semantic-vectors-linux"
           ],
           "outputFiles": [
-            "otzaria-linux-full-arm64.tar.zst"
+            "otzaria-linux-full-arm64.tar.zst",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
-          "outputSubfolder": ""
+          "outputNotes": [
+            "במחשב היעד העתק את התיקייה semantic-import אל התיקייה שמכילה את תיקיית הספרייה של אוצריא. כשתפעיל שם את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Linux"
         }
       ]
     },
@@ -325,19 +631,30 @@
       },
       "offeredComponents": [
         "otzaria-android",
-        "otzaria-android-full"
+        "library-full",
+        "library-index"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-android",
+          "downloadSize": 96,
+          "locked": true,
+          "group": ""
+        },
+        {
+          "id": "library-full",
+          "downloadSize": 3015,
+          "locked": false,
+          "group": ""
+        },
+        {
+          "id": "library-index",
+          "downloadSize": 600,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
-        {
-          "id": "full",
-          "members": [
-            "otzaria-android-full"
-          ],
-          "outputFiles": [
-            "otzaria-android-full.zip"
-          ],
-          "outputSubfolder": ""
-        },
         {
           "id": "basic",
           "members": [
@@ -346,7 +663,41 @@
           "outputFiles": [
             "app-release.apk"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full-indexed",
+          "members": [
+            "otzaria-android",
+            "library-full",
+            "library-index"
+          ],
+          "outputFiles": [
+            "app-release.apk",
+            "otzaria-0.10.3-library.tar.zst",
+            "otzaria-0.10.3-library-index.tar.zst"
+          ],
+          "outputNotes": [
+            "אוצריא פורסת את הספרייה מהקבצים שבתיקייה בלי אינטרנט: ב-Windows המתקין עושה זאת בזמן ההתקנה, וב-Android בוחרים \"ייבוא מתיקיית קובצי הספרייה\" באוצריא אחרי התקנת ה-APK.",
+            "אינדקס החיפוש המוכן נפרס יחד עם הספרייה, ולכן התוכנה אינה בונה אותו אחרי ההתקנה."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Android"
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-android",
+            "library-full"
+          ],
+          "outputFiles": [
+            "app-release.apk",
+            "otzaria-0.10.3-library.tar.zst"
+          ],
+          "outputNotes": [
+            "אוצריא פורסת את הספרייה מהקבצים שבתיקייה בלי אינטרנט: ב-Windows המתקין עושה זאת בזמן ההתקנה, וב-Android בוחרים \"ייבוא מתיקיית קובצי הספרייה\" באוצריא אחרי התקנת ה-APK."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Android"
         }
       ]
     }

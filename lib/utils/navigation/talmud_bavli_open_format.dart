@@ -193,6 +193,14 @@ Future<OpenedTab> buildLinkTargetTab(Link link) async {
   );
 }
 
+/// פותח את יעד הקישור ב-[open], אם הווידג'ט עדיין מוצג כשהטאב מוכן.
+extension OpenLinkTarget on State {
+  Future<void> openLinkTarget(Link link, void Function(OpenedTab) open) async {
+    final tab = await buildLinkTargetTab(link);
+    if (mounted) open(tab);
+  }
+}
+
 /// כותרות מנורמלות של מהדורות הטקסט הרשמיות של מסכתות הבבלי — הקלט של
 /// [isTalmudBavliPdfLibraryDuplicate]; ספר אישי אינו מייצג את ה-PDF המובנה.
 Set<String> talmudBavliTextTitles(Category library) => {

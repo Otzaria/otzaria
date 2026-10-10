@@ -155,12 +155,33 @@ void main() {
     );
     await expectLater(
       fetcher.fetchBytes(Uri.parse(s.url('/missing')), maxBytes: 10),
-      throwsA(isA<AttachedUpdateNetworkException>()),
+      throwsA(
+        isA<AttachedUpdateHttpException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          HttpStatus.notFound,
+        ),
+      ),
     );
     s.files['/big'] = _data(100, 1);
     await expectLater(
       fetcher.fetchBytes(Uri.parse(s.url('/big')), maxBytes: 99),
       throwsA(isA<AttachedUpdateNetworkException>()),
+    );
+  });
+
+  test('missing download part retains the HTTP status', () async {
+    await expectLater(
+      fetcher.downloadParts([
+        _part(s, '/missing', [1]),
+      ], p.join(temp.path, 'missing')),
+      throwsA(
+        isA<AttachedUpdateHttpException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          HttpStatus.notFound,
+        ),
+      ),
     );
   });
 

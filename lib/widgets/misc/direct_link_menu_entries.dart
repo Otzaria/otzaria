@@ -66,3 +66,21 @@ List<AppContextMenuEntry> buildDirectLinkContextMenuEntries({
           ),
         )
         .toList();
+
+/// The "העתק קישור ישיר" entry, with the links of
+/// [buildDirectLinkContextMenuEntries] as its submenu.
+AppContextMenuEntry buildCopyDirectLinkEntry({
+  required int bookId,
+  BookSource source = BookSource.official,
+  required int index,
+  required String? selectedText,
+}) => AppContextMenuEntry(
+  label: 'העתק קישור ישיר',
+  icon: OtzariaIcons.link_24_regular,
+  childrenBuilder: () => buildDirectLinkContextMenuEntries(
+    bookId: bookId,
+    source: source,
+    index: index,
+    selectedText: selectedText,
+  ),
+);

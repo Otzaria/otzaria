@@ -9,6 +9,9 @@ zstd-win64.zip
 
 # Ignore generated DB bundle for full installer
 library_db/
+# מניפסטי חלקי הספרייה והאינדקס שה-workflow מניח למתקין הרגיל
+library.manifest.json
+library_index.manifest.json
 7zip_tmp/
 zstd_tmp/
 
@@ -16,6 +19,9 @@ zstd_tmp/
 otzaria-*.exe
 # שם קבוע באות גדולה — על מערכת קבצים רגישת-רישיות הכלל שמעל אינו תופס אותו
 Otzaria-Download-Assistant-windows.exe
+
+# עיצוב מסייע ההורדה: מקורו בריפו נפרד, ונמשך בגרסה נעוצה לפני הבנייה
+assistant_art/
 
 # Ignore Inno Setup output directory if it exists
 Output/

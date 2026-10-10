@@ -1,14 +1,41 @@
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/text_book/utils/reader_menu_entries.dart';
+import 'package:otzaria/book_common/utils/commentators_menu.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/printing/printing_helpers.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 
 import '../helpers/memory_settings_cache.dart';
+
+// The PDF page menu decides its pane entries by the shared rules, called
+// with these arguments; the tests below pin that combination.
+bool shouldShowOpenPdfCommentaryPaneEntry({
+  required bool hasSelectedCommentators,
+  required bool isCommentatorsTabActive,
+}) => shouldShowOpenCommentatorsPaneEntry(
+  hasSelectedCommentators: hasSelectedCommentators,
+  showCommentaryAsExpansionTiles: false,
+  isCommentatorsTabActive: isCommentatorsTabActive,
+);
+
+bool shouldShowSelectPdfCommentatorsEntry({
+  required bool isCommentatorsTabActive,
+}) => shouldShowSelectCommentatorsEntry(
+  hasOpenCommentatorsPaneWithFilterCallback: true,
+  isCommentatorsTabActive: isCommentatorsTabActive,
+);
+
+bool shouldShowOpenPdfLinksPaneEntry({
+  required bool hasRelevantLinks,
+  required bool isLinksTabActive,
+}) => shouldShowOpenLinksPaneEntry(
+  hasLinks: hasRelevantLinks,
+  isLinksTabActive: isLinksTabActive,
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -172,18 +199,14 @@ void main() {
   group('shouldShowSelectPdfCommentatorsEntry', () {
     test('מחזירה true כשטאב המפרשים אינו פעיל', () {
       expect(
-        shouldShowSelectPdfCommentatorsEntry(
-          isCommentatorsTabActive: false,
-        ),
+        shouldShowSelectPdfCommentatorsEntry(isCommentatorsTabActive: false),
         isTrue,
       );
     });
 
     test('מחזירה false כשטאב המפרשים פעיל', () {
       expect(
-        shouldShowSelectPdfCommentatorsEntry(
-          isCommentatorsTabActive: true,
-        ),
+        shouldShowSelectPdfCommentatorsEntry(isCommentatorsTabActive: true),
         isFalse,
       );
     });
@@ -201,9 +224,7 @@ void main() {
           isFalse,
         );
         expect(
-          shouldShowSelectPdfCommentatorsEntry(
-            isCommentatorsTabActive: false,
-          ),
+          shouldShowSelectPdfCommentatorsEntry(isCommentatorsTabActive: false),
           isTrue,
         );
       },
@@ -421,150 +442,6 @@ void main() {
     });
   });
 
-  group('buildGroupedCommentatorEntries', () {
-    final groups = [
-      const CommentatorGroup(title: 'ראשונים', commentators: ['רש"י', 'רמב"ן']),
-      const CommentatorGroup(
-        title: 'אחרונים',
-        commentators: ['מצודת דוד', 'מלבי"ם'],
-      ),
-      const CommentatorGroup(title: 'שאר מפרשים', commentators: ['מפרש פלוני']),
-    ];
-
-    test('מוסיף פריט "הצג את כל <תקופה>" לכל קבוצה לא-ריקה', () {
-      final entries = buildGroupedCommentatorEntries(
-        relevantCommentators: const ['רש"י', 'רמב"ן', 'מצודת דוד', 'מלבי"ם'],
-        commentatorGroups: groups,
-        activeCommentators: const <String>{},
-        onCommentatorsChanged: (_) {},
-        onToggleAll: (_) {},
-      );
-
-      final labels = entries.map((e) => e.label).toList();
-      expect(labels, contains('הצג את כל ראשונים'));
-      expect(labels, contains('הצג את כל אחרונים'));
-      // הכותרת מופיעה לפני המפרשים הבודדים של אותה קבוצה
-      expect(
-        labels.indexOf('הצג את כל ראשונים'),
-        lessThan(labels.indexOf('רש"י')),
-      );
-    });
-
-    test('פריט הקבוצה מסומן כשכל מפרשי הקבוצה הרלוונטיים פעילים', () {
-      final entries = buildGroupedCommentatorEntries(
-        relevantCommentators: const ['רש"י', 'רמב"ן', 'מצודת דוד'],
-        commentatorGroups: groups,
-        activeCommentators: const {'רש"י', 'רמב"ן'},
-        onCommentatorsChanged: (_) {},
-        onToggleAll: (_) {},
-      );
-
-      final rishonim = entries.firstWhere(
-        (e) => e.label == 'הצג את כל ראשונים',
-      );
-      final acharonim = entries.firstWhere(
-        (e) => e.label == 'הצג את כל אחרונים',
-      );
-      expect(rishonim.isSelected, isTrue);
-      expect(acharonim.isSelected, isFalse);
-    });
-
-    test('לחיצה על "הצג את כל <תקופה>" מעבירה את מפרשי הקבוצה הרלוונטיים', () {
-      List<String>? toggled;
-      final entries = buildGroupedCommentatorEntries(
-        // רק רש"י רלוונטי לדף מתוך הראשונים
-        relevantCommentators: const ['רש"י', 'מצודת דוד'],
-        commentatorGroups: groups,
-        activeCommentators: const <String>{},
-        onCommentatorsChanged: (_) {},
-        onToggleAll: (list) => toggled = list,
-      );
-
-      entries.firstWhere((e) => e.label == 'הצג את כל ראשונים').onTap!();
-
-      // רק המפרשים הרלוונטיים לדף, לא כל הקבוצה
-      expect(toggled, ['רש"י']);
-    });
-
-    test('קבוצה בלי מפרשים רלוונטיים אינה יוצרת פריט כותרת', () {
-      final entries = buildGroupedCommentatorEntries(
-        relevantCommentators: const ['רש"י'], // אין אחרונים רלוונטיים
-        commentatorGroups: groups,
-        activeCommentators: const <String>{},
-        onCommentatorsChanged: (_) {},
-        onToggleAll: (_) {},
-      );
-
-      final labels = entries.map((e) => e.label).toList();
-      expect(labels, contains('הצג את כל ראשונים'));
-      expect(labels, isNot(contains('הצג את כל אחרונים')));
-    });
-
-    test('מפרשים שאינם משויכים לאף קבוצה מוצגים ללא כותרת', () {
-      final entries = buildGroupedCommentatorEntries(
-        relevantCommentators: const ['רש"י', 'מפרש לא ידוע'],
-        commentatorGroups: groups,
-        activeCommentators: const <String>{},
-        onCommentatorsChanged: (_) {},
-        onToggleAll: (_) {},
-      );
-
-      final labels = entries.map((e) => e.label).toList();
-      expect(labels, contains('מפרש לא ידוע'));
-      // אין כותרת "הצג את כל" עבור מפרש שלא קוטלג
-      expect(
-        labels.any(
-          (l) => l != null && l.contains('מפרש לא ידוע') && l.startsWith('הצג'),
-        ),
-        isFalse,
-      );
-    });
-
-    test('בלי קבוצות — מציג את המפרשים בלבד ללא כותרות', () {
-      final entries = buildGroupedCommentatorEntries(
-        relevantCommentators: const ['רש"י', 'רמב"ן'],
-        commentatorGroups: const [],
-        activeCommentators: const <String>{},
-        onCommentatorsChanged: (_) {},
-        onToggleAll: (_) {},
-      );
-
-      final labels = entries.map((e) => e.label).toList();
-      expect(labels, ['רש"י', 'רמב"ן']);
-      expect(
-        labels.any((l) => l != null && l.startsWith('הצג את כל')),
-        isFalse,
-      );
-    });
-
-    Set<String>? tapCommentator(Set<String> active, String commentator) {
-      Set<String>? updated;
-      final entries = buildGroupedCommentatorEntries(
-        relevantCommentators: const ['רש"י', 'רמב"ן'],
-        commentatorGroups: const [],
-        activeCommentators: active,
-        onCommentatorsChanged: (value) => updated = value,
-        onToggleAll: (_) {},
-      );
-      entries.firstWhere((e) => e.label == commentator).onTap!();
-      return updated;
-    }
-
-    test('לחיצה על מפרש שאינו פעיל מוסיפה אותו', () {
-      expect(tapCommentator({'רמב"ן'}, 'רש"י'), {'רמב"ן', 'רש"י'});
-    });
-
-    test('לחיצה על מפרש פעיל אינה מסירה אותו (issue #904)', () {
-      expect(tapCommentator({'רש"י', 'רמב"ן'}, 'רש"י'), {'רש"י', 'רמב"ן'});
-    });
-
-    test('הלחיצה אינה משנה את הקבוצה שהתקבלה', () {
-      final active = {'רמב"ן'};
-      tapCommentator(active, 'רש"י');
-      expect(active, {'רמב"ן'});
-    });
-  });
-
   group('shouldRecomputeLineRangeOnLayoutModeChange', () {
     // רגרסיה: טווח השורות (currentTextLineNumber/End) שמזין את רשימת המפרשים
     // תלוי במצב התצוגה — בתצוגת ספר הוא מכסה ספירייד של שני עמודים, וברגילה
@@ -630,20 +507,14 @@ void main() {
   group('resolveReadyPdfPageNumber', () {
     test('מחזירה את מספר העמוד כש-ה-controller מוכן', () {
       expect(
-        resolveReadyPdfPageNumber(
-          isReady: true,
-          readPageNumber: () => 7,
-        ),
+        resolveReadyPdfPageNumber(isReady: true, readPageNumber: () => 7),
         7,
       );
     });
 
     test('מחזירה null כשהעמוד הנוכחי עדיין לא ידוע למרות שמוכן', () {
       expect(
-        resolveReadyPdfPageNumber(
-          isReady: true,
-          readPageNumber: () => null,
-        ),
+        resolveReadyPdfPageNumber(isReady: true, readPageNumber: () => null),
         isNull,
       );
     });
@@ -670,8 +541,10 @@ void main() {
     // בלעדיו אין בדסקטופ שום מסלול עכבר להעתקה מתוך PDF.
     List<AppContextMenuEntry> buildMenu({
       required bool hasTextSelection,
+      String? selectedText,
       bool? canCopySelection,
       VoidCallback? onCopySelection,
+      VoidCallback? onSearchAllBooks,
     }) {
       return buildPdfContextMenuEntries(
         commentatorChildren: const [],
@@ -684,9 +557,12 @@ void main() {
           onOpenLink: (_) {},
         ),
         hasTextSelection: hasTextSelection,
+        selection: selectedText == null
+            ? null
+            : ReaderMenuSelection(selectedText),
         canCopySelection: canCopySelection ?? hasTextSelection,
-        onSearch: () {},
-        onSearchParallels: () {},
+        onSearchInBook: () {},
+        onSearchAllBooks: onSearchAllBooks ?? () {},
         onCopySelection: onCopySelection ?? () {},
         onAddBookmark: () {},
         onAddNote: () {},
@@ -721,6 +597,60 @@ void main() {
       );
     });
 
+    test('"חיפוש" בשורת האייקונים מחפש בכל הספרים, כמו בתצוגת הטקסט', () {
+      final menu = buildMenu(hasTextSelection: true);
+      final search = menu
+          .firstWhere((entry) => entry.iconRowActions != null)
+          .iconRowActions!
+          .first;
+
+      expect(search.label, 'חיפוש');
+      expect(search.tooltip, 'חיפוש בכל הספרים');
+      expect(
+        buildMenu(hasTextSelection: true, selectedText: 'בראשית\nברא')
+            .firstWhere((entry) => entry.iconRowActions != null)
+            .iconRowActions!
+            .first
+            .tooltip,
+        'חיפוש "בראשית ברא" בכל הספרים',
+        reason: 'כשהטקסט המסומן כבר טעון, הרמז מצטט אותו כמו בתצוגת הטקסט',
+      );
+      expect(
+        menu.where((entry) => entry.label == 'חיפוש בספר'),
+        hasLength(1),
+        reason: 'החיפוש בתוך הספר נבדל בשמו מהחיפוש בכל הספרים',
+      );
+    });
+
+    test('חיפוש זמין בזמן טעינת הבחירה ומנוטרל בלי טקסט לחיפוש', () {
+      AppContextMenuIconAction search({
+        required bool hasSelection,
+        String? selectedText,
+      }) => buildMenu(
+        hasTextSelection: hasSelection,
+        selectedText: selectedText,
+      ).first.iconRowActions!.first;
+
+      expect(search(hasSelection: false).enabled, isFalse);
+      expect(search(hasSelection: true).enabled, isTrue);
+      expect(
+        search(hasSelection: true, selectedText: '  \n ').enabled,
+        isFalse,
+      );
+      expect(search(hasSelection: true, selectedText: 'שלום').enabled, isTrue);
+    });
+
+    test('לחיצה על חיפוש בכל הספרים מפעילה את הפעולה המתאימה', () {
+      var searched = false;
+      final menu = buildMenu(
+        hasTextSelection: true,
+        selectedText: 'בראשית',
+        onSearchAllBooks: () => searched = true,
+      );
+      menu.first.iconRowActions!.first.onTap!();
+      expect(searched, isTrue);
+    });
+
     test('לחיצה על "העתקה" מפעילה את העתקת הבחירה', () {
       var copied = false;
       final menu = buildMenu(
@@ -734,13 +664,12 @@ void main() {
     });
 
     test('"הוסף הערה אישית" נשאר זמין — עבר לשורת האייקונים', () {
-      // שמירה על הפונקציונליות: הפריט לא נמחק מהתפריט, רק שינה מיקום.
       final menu = buildMenu(hasTextSelection: false);
       final iconRow = menu.firstWhere((entry) => entry.iconRowActions != null);
 
       expect(
         iconRow.iconRowActions!.map((action) => action.label),
-        containsAll(<String>['העתקה', 'מקבילות', 'הערה']),
+        containsAll(<String>['חיפוש', 'העתקה', 'הערה']),
       );
       expect(
         menu.any((entry) => entry.label == 'הוסף הערה אישית'),

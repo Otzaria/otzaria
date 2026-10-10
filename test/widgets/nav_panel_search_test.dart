@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/view/split_pane_view.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
@@ -14,12 +15,14 @@ class _Host extends StatefulWidget {
   final VoidCallback? onArrowDown;
   final VoidCallback? onArrowUp;
   final VoidCallback? onClear;
+  final int rowCount;
 
   const _Host({
     this.initialText = '',
     this.onArrowDown,
     this.onArrowUp,
     this.onClear,
+    this.rowCount = 3,
   });
 
   @override
@@ -59,10 +62,10 @@ class _HostState extends State<_Host> {
                 title: 'בראשית',
                 trailing: NavPanelSearchToggle(),
               ),
-              for (var i = 0; i < 3; i++)
+              for (var i = 0; i < widget.rowCount; i++)
                 NavTreeGroupCard(
                   isGroupStart: i == 0,
-                  isGroupEnd: i == 2,
+                  isGroupEnd: i == widget.rowCount - 1,
                   child: NavTreeTile.category(
                     title: 'שורה $i',
                     level: 0,
@@ -81,9 +84,7 @@ class _HostState extends State<_Host> {
 Widget wrap(Widget child) => MaterialApp(
   home: Directionality(
     textDirection: TextDirection.rtl,
-    child: Scaffold(
-      body: SizedBox(width: 400, height: 700, child: child),
-    ),
+    child: Scaffold(body: SizedBox(width: 400, height: 700, child: child)),
   ),
 );
 
@@ -183,6 +184,95 @@ void main() {
     });
   });
 
+  // issue #1725 — האייקון נגלל עם הכותרת; במקומו מופיע אייקון צף.
+  group('אייקון צף כשהכותרת נגללה', () {
+    Finder searchIcon() => find.byIcon(FluentIcons.search_24_regular);
+    Finder listScrollable() => find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(Scrollable),
+    );
+
+    Future<void> scrollBy(WidgetTester tester, double dy) async {
+      await tester.drag(find.byType(ListView), Offset(0, dy));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('מופיע רק אחרי שהכותרת יצאה מהתחום ונעלם כשהיא חוזרת', (
+      tester,
+    ) async {
+      await tester.pumpWidget(wrap(const _Host(rowCount: 80)));
+      await tester.pumpAndSettle();
+      expect(searchIcon(), findsOneWidget);
+
+      await scrollBy(tester, -20);
+      expect(searchIcon(), findsOneWidget, reason: 'הכותרת עדיין בתחום');
+
+      await scrollBy(tester, -1500);
+      expect(find.byType(NavTreeHeader), findsNothing);
+      expect(searchIcon().hitTestable(), findsOneWidget);
+
+      await scrollBy(tester, 3000);
+      expect(searchIcon(), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(NavTreeHeader), matching: searchIcon()),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('לחיצה עליו פותחת שדה ממוקד בלי לגלול', (tester) async {
+      await tester.pumpWidget(wrap(const _Host(rowCount: 80)));
+      await tester.pumpAndSettle();
+      await scrollBy(tester, -1500);
+      final offset = tester
+          .state<ScrollableState>(listScrollable())
+          .position
+          .pixels;
+
+      await tester.tap(searchIcon());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OtzariaSearchField), findsOneWidget);
+      expect(_fieldHasFocus(tester), isTrue);
+      expect(searchIcon(), findsNothing);
+      expect(
+        tester.state<ScrollableState>(listScrollable()).position.pixels,
+        offset,
+      );
+    });
+
+    // issue #1942 — רקע צף עגול חרג מריבוע הריחוף של ה-IconButton.
+    testWidgets('הרקע הצף בצורת IconButton של ערכת הנושא', (tester) async {
+      final theme = AppThemeData.light(
+        ColorScheme.fromSeed(seedColor: Colors.brown),
+        compactMenuMode: false,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 700,
+              child: const _Host(rowCount: 80),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await scrollBy(tester, -1500);
+
+      final background = tester
+          .widgetList<Material>(
+            find.ancestor(of: searchIcon(), matching: find.byType(Material)),
+          )
+          .firstWhere((m) => m.elevation > 0);
+      expect(
+        background.shape,
+        theme.iconButtonTheme.style!.shape!.resolve(const {}),
+      );
+    });
+  });
+
   group('מקלדת בשדה החיפוש', () {
     testWidgets('חץ למטה מעביר פוקוס לשורה המסומנת', (tester) async {
       await tester.pumpWidget(wrap(const _Host()));
@@ -249,6 +339,46 @@ void main() {
 
   // issue #1268 — בתצוגה מפוצלת החלון רחב אך החלונית צרה; החלטות רוחב
   // (מיקוד יזום של שדה) חייבות להימדד לפי החלונית.
+  testWidgets('השדה ממוקד גם כשהפוקוס בטקסט הספר (issue #1994)', (
+    tester,
+  ) async {
+    final bookFocus = FocusNode();
+    addTearDown(bookFocus.dispose);
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      wrap(
+        Column(
+          children: [
+            Focus(focusNode: bookFocus, child: const SizedBox(height: 10)),
+            Expanded(
+              child: NavPanelCollapsibleSearch(
+                delegate: NavPanelSearchDelegate(
+                  controller: controller,
+                  hintText: 'סינון מפרשים...',
+                ),
+                child: ListView(
+                  children: const [
+                    NavTreeHeader(
+                      title: 'מפרשים',
+                      trailing: NavPanelSearchToggle(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    bookFocus.requestFocus();
+    await tester.pumpAndSettle();
+
+    await _openField(tester);
+
+    expect(_fieldHasFocus(tester), isTrue);
+  });
+
   group('רוחב לפי החלונית ולא לפי החלון (issue #1268)', () {
     testWidgets('חלונית צרה בתוך חלון רחב — אינה רחבה', (tester) async {
       tester.view.physicalSize = const Size(1200, 800);

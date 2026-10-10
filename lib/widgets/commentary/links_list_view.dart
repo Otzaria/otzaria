@@ -12,8 +12,8 @@ import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/tab.dart';
-import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
-import 'package:otzaria/text_book/utils/link_anchor_markers.dart';
+import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/widgets/feedback/app_future_builder.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
@@ -28,7 +28,7 @@ import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
 import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart';
-import 'package:otzaria/text_book/view/selection/selection_hit_test.dart';
+import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -560,11 +560,8 @@ class _LinksListViewState extends State<LinksListView> {
   }
 
   /// פותח את יעד הקישור בכרטיסייה חדשה (טקסט או PDF, לפי תבנית הפתיחה).
-  Future<void> _navigateToLink(Link link) async {
-    final tab = await buildLinkTargetTab(link);
-    if (!mounted) return;
-    widget.openBookCallback(tab);
-  }
+  Future<void> _navigateToLink(Link link) =>
+      openLinkTarget(link, (tab) => widget.openBookCallback(tab));
 
   Widget _buildLinksList(
     List<Link> links,
@@ -756,7 +753,9 @@ class _LinksListViewState extends State<LinksListView> {
               fontVariations: AppFonts.boldFontVariations(
                 settingsState.commentatorsFontFamily,
               ),
-              fontFamily: settingsState.commentatorsFontFamily,
+              fontFamily: AppFonts.renderFontFamily(
+                settingsState.commentatorsFontFamily,
+              ),
             ),
           );
         },
@@ -782,7 +781,9 @@ class _LinksListViewState extends State<LinksListView> {
               style: TextStyle(
                 fontSize: settingsState.commentatorsFontSize - 4,
                 fontWeight: FontWeight.normal,
-                fontFamily: settingsState.commentatorsFontFamily,
+                fontFamily: AppFonts.renderFontFamily(
+                  settingsState.commentatorsFontFamily,
+                ),
                 color: Theme.of(context).colorScheme.onSurface.withAlpha(128),
               ),
             );
@@ -805,7 +806,9 @@ class _LinksListViewState extends State<LinksListView> {
                 style: TextStyle(
                   fontSize: settingsState.commentatorsFontSize - 4,
                   fontWeight: FontWeight.normal,
-                  fontFamily: settingsState.commentatorsFontFamily,
+                  fontFamily: AppFonts.renderFontFamily(
+                    settingsState.commentatorsFontFamily,
+                  ),
                   color: Theme.of(context).colorScheme.onSurface.withAlpha(128),
                 ),
               );

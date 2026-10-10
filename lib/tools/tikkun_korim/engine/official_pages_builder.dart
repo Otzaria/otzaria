@@ -51,28 +51,6 @@ class LineIndexLookup {
   }
 }
 
-/// מספר העמודים שמילתם האחרונה אינה `lastWord` שבטבלת השיטה — מדד הכיסוי
-/// של גבולות העמודים, שרובם נקבעים בהתאמת `firstWord` או באינטרפולציה.
-int countUnmatchedOfficialPages(
-  List<TikkunPage> pages,
-  List<PageDefinition> pageDefs,
-) {
-  var unmatched = 0;
-  for (var pi = 0; pi < pages.length && pi < pageDefs.length; pi++) {
-    final expected = pageDefs[pi].lastWord;
-    if (expected == null) continue;
-    String? actual;
-    for (final line in pages[pi].lines) {
-      for (final word in line.words) {
-        if (word.isGap || word.isBigGap || word.stam.isEmpty) continue;
-        actual = word.stam;
-      }
-    }
-    if (actual != expected) unmatched++;
-  }
-  return unmatched;
-}
-
 /// מפעיל את [visit] על כל מילה בתורה עם הפניתה. החומש מתקדם בכל `bookBreak`;
 /// מילה שריקה בסת"ם (פסק בודד) אינה נספרת.
 void forEachTorahWord(

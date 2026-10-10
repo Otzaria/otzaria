@@ -20,8 +20,8 @@ import 'package:hive_ce/hive.dart';
 import 'package:otzaria/plugins/view/safe_mode_controls.dart';
 import 'package:otzaria/plugins/services/startup_crash_counter.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
-import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
@@ -103,7 +103,6 @@ import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/window_listener.dart';
 import 'package:otzaria/core/window_persistence.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
-import 'package:otzaria/core/user_state/hive_to_user_state_migration.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
 import 'package:otzaria/core/user_state/window_bounds.dart';
 import 'package:otzaria/core/user_state/window_session_store.dart';
@@ -127,6 +126,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/plugins/database/plugin_database_bootstrap.dart';
 import 'package:logging/logging.dart';
+import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/misc/app_cursors.dart';
@@ -143,7 +143,7 @@ import 'package:otzaria/core/sentry_event_filter.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 // Updated automatically by version update scripts - do not edit manually
-const int _latestReleasedBuildNumber = 99702;
+const int _latestReleasedBuildNumber = 99800;
 
 /// החלון של ה-isolate הזה. מקור אמת אחד לכל מי שצריך אותו כאן: ה-listener,
 /// [WindowPersistence] ו-[AppWindowScope] מקבלים את אותו מופע.
@@ -228,7 +228,7 @@ Map<String, String?> _flutterErrorDetailsForLog(FlutterErrorDetails details) {
 }
 
 String _formatAppVersion(PackageInfo packageInfo) {
-  final version = packageInfo.version.trim();
+  final version = canonicalAppVersion(packageInfo);
   final buildNumber = packageInfo.buildNumber.trim();
 
   if (version.isEmpty) {
@@ -345,9 +345,9 @@ void main(List<String> args) async {
     return;
   }
   StartupTimeline.instance.start();
-  AttachedLibraryRegistry.startupGate = () => _mainWindowRevealedCompleter
-      .future
-      .timeout(const Duration(seconds: 20), onTimeout: () {});
+  // SQLite סינכרוני יכול לחסום גם טיימרים: אין לעקוף את החשיפה עם timeout.
+  AttachedLibraryRegistry.startupGate = () =>
+      _mainWindowRevealedCompleter.future;
 
   PluginDevToolsMode.initFromArgs(args);
   PluginSafeMode.initFromArgs(args);
@@ -486,7 +486,8 @@ Future<void> _initializeSentry() async {
           defaultValue:
               'https://79d3003f822fa62bce0c928656308121@o4510914530902016.ingest.us.sentry.io/4510914532868096',
         );
-        options.release = '${info.appName}@${info.version}+${info.buildNumber}';
+        options.release =
+            '${info.appName}@${canonicalAppVersion(info)}+${info.buildNumber}';
         // Privacy: Do not collect IP addresses and request headers
         options.sendDefaultPii = false;
         // Sentry משמש לדיווח שגיאות בלבד; עסקאות ביצועים אינן נשלחות.
@@ -1205,7 +1206,9 @@ Future<void> _runDeferredAttachedLibraries() async {
       stackTrace,
     );
   }
-  await _syncExternalLinkIndex();
+  // ללא await: בנייה ארוכה (או מושהית) אינה חוסמת את עדכוני המסדים וההאזנה.
+  // המשך אוטומטי של בנייה שנקטעה — רק כאן, בהפעלה, ולא באירועי שינוי.
+  unawaited(_syncExternalLinkIndex(autoResume: true));
   unawaited(_runDeferredAttachedLibraryUpdates());
   AttachedLibrariesRepository.instance.changes.listen(
     (_) => unawaited(_syncExternalLinkIndex()),
@@ -1236,9 +1239,9 @@ Future<void> _runDeferredAttachedLibraryUpdates() async {
 }
 
 /// אינדקס הקישורים ההפוכים של מסדים מצורפים (cache.db) — נבנה רק למסד שהשתנה.
-Future<void> _syncExternalLinkIndex() async {
+Future<void> _syncExternalLinkIndex({bool autoResume = false}) async {
   try {
-    await ExternalLinkRepository.instance.sync();
+    await ExternalLinkRepository.instance.sync(autoResume: autoResume);
   } catch (error, stackTrace) {
     _logNonFatalInitializationError('External link index', error, stackTrace);
   }
@@ -1859,31 +1862,19 @@ PluginSystemBloc _createPluginSystemBloc(BuildContext context) {
 }
 
 Future<void> initHive() async {
-  // ⚠️ החלון הראשון, וכל עוד אין חלון נוסף חי. שורש Hive פרטי שנשאר תחת
-  // `<dataRoot>/windows` הוא שארית מהפעלה קודמת ואף אחד לא ימחק אותו
-  // אחרת — נמדדו 69 תיקיות ו-33MB. תנאי `hasOtherWindows` מגן על המסלול
-  // של `RestartWidget`, שמריץ את האתחול מחדש בזמן שחלון משני חי ופתח שם
-  // קבצים.
+  // שורשי חלונות ישנים נמחקים רק כשאין חלון משני חי שמשתמש בקבצים,
+  // גם באתחול מחדש דרך RestartWidget.
   if (!WindowRole.isSecondary && !WindowBus.instance.hasOtherWindows) {
     await deleteStaleWindowRoots();
   }
-  // ⚠️ `hiveRootPath` ולא `getDataRootPath`: בחלון משני box ההגדרות יושב
-  // בתיקייה נפרדת, אבל שאר שורש הנתונים נשאר משותף. ראו
-  // `configureHiveRootForWindow`.
+  // בחלון משני הגדרות Hive יושבות בשורש פרטי; שאר הנתונים משותפים.
   final hiveRoot = await hiveRootPath();
   Hive.init(hiveRoot);
   // המסד נפתח כאן ולא בעצלות: `TabsRepository.loadTabs` קורא אותו
   // סינכרונית מבנאי של bloc.
   await UserStateDatabase.instance.database;
-  // פר-תהליך: המיגרציה משנה שמות של קבצים בשורש המשותף, ולחלון משני אין
-  // שם מה להעביר.
-  if (!WindowRole.isSecondary) {
-    await HiveToUserStateMigration(hiveRoot: hiveRoot).run();
-  }
-  // ⚠️ כאן ולא ב-`TabsBloc`. שני קוראים שונים טוענים את הכרטיסיות
-  // (`TabsBloc` דרך `LoadTabs`, ו-`NavigationBloc` בקונסטרוקטור שלו), והסדר
-  // ביניהם תלוי בתזמון של תור האירועים. איחוד שמוחק סשנים חייב לרוץ פעם
-  // אחת, לפני שניהם.
+  // סידור הסשנים חייב לרוץ פעם אחת לפני TabsBloc ו-NavigationBloc,
+  // כי שניהם טוענים כרטיסיות וסדר הטעינה ביניהם תלוי בתזמון.
   if (_restoresAllWindows) {
     _windowSlotsToRestore = await TabsRepository.compactWindowSessions();
   } else {

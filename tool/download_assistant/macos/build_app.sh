@@ -39,8 +39,12 @@ if [[ "$TAG" == *+* && "$RUN" =~ ^[0-9]+$ ]]; then
   BUILD_NUMBER="$VERSION.$RUN"
 fi
 
+# העיצוב הנעוץ (סמלים, תגים, פריימי הספר) — בלעדיו אין בנייה, כמו במסייע ל-Windows.
+ART_DIR="$HERE/build/art"
+bash "$HERE/fetch_art.sh" "$ART_DIR"
+
 cd "$HERE"
-swift build -c release --arch arm64 --arch x86_64
+swift build -c release --arch arm64 --arch x86_64 --product "$EXECUTABLE"
 BIN_DIR="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
 BINARY="$BIN_DIR/$EXECUTABLE"
 [ -x "$BINARY" ] || { echo "::error::built binary not found at $BINARY" >&2; exit 1; }
@@ -59,6 +63,19 @@ APP="$OUT_DIR/$APP_NAME.app"
 rm -rf "$APP" "$OUT_DIR/$ZIP_NAME" "$OUT_DIR/AppIcon.iconset"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BINARY" "$APP/Contents/MacOS/$EXECUTABLE"
+mkdir -p "$APP/Contents/Resources/Art"
+cp "$ART_DIR"/*.png "$APP/Contents/Resources/Art/"
+
+# שם האפליקציה ב-Finder וב-Dock בשפת המערכת; הממשק עצמו בוחר שפה לבד (UILanguage.detect).
+mkdir -p "$APP/Contents/Resources/he.lproj" "$APP/Contents/Resources/en.lproj"
+cat > "$APP/Contents/Resources/he.lproj/InfoPlist.strings" <<'EOF'
+"CFBundleDisplayName" = "מסייע הורדה לאוצריא";
+"CFBundleName" = "מסייע אוצריא";
+EOF
+cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<'EOF'
+"CFBundleDisplayName" = "Otzaria Download Assistant";
+"CFBundleName" = "Otzaria Assistant";
+EOF
 
 # אייקון מאותו מקור של אוצריא. כישלון כאן קוסמטי — המסייע נבנה גם בלעדיו.
 make_icon() {
@@ -91,6 +108,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
   <key>CFBundleLocalizations</key>
   <array>
     <string>he</string>
+    <string>en</string>
   </array>
   <key>CFBundleDisplayName</key>
   <string>מסייע הורדה לאוצריא</string>

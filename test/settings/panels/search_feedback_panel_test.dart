@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
+import 'package:otzaria/search_feedback/search_feedback_service.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/settings/panels/search_feedback_panel.dart';
 
@@ -72,5 +73,40 @@ void main() {
     expect(find.text('שיפור המנגנון'), findsNothing);
     expect(find.text(semanticSearchConsentText), findsNothing);
     expect(store.calls, isEmpty);
+  });
+
+  testWidgets('the blocked-network line shows only while blocked', (
+    tester,
+  ) async {
+    final block = ValueNotifier<SearchFeedbackNetworkBlock?>(null);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SearchFeedbackPanel(
+              store: _FakeStore(),
+              platformSupported: true,
+              networkBlock: block,
+            ),
+          ),
+        ),
+      ),
+    );
+    final line = find.byKey(const ValueKey('search-feedback-network-block'));
+    expect(line, findsNothing);
+
+    final seen = DateTime.utc(2026, 10, 4);
+    block.value = SearchFeedbackNetworkBlock(
+      firstSeen: seen,
+      lastSeen: seen,
+      retryAt: seen.add(const Duration(hours: 6)),
+    );
+    await tester.pump();
+    expect(line, findsOneWidget);
+    expect(find.textContaining('הנתונים נשמרים במחשב'), findsOneWidget);
+
+    block.value = null;
+    await tester.pump();
+    expect(line, findsNothing);
   });
 }

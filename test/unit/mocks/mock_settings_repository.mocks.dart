@@ -684,30 +684,6 @@ class MockSettingsRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  String getCalendarZmanAlertsJson() =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #getCalendarZmanAlertsJson,
-              [],
-            ),
-            returnValue: _i5.dummyValue<String>(
-              this,
-              Invocation.method(
-                #getCalendarZmanAlertsJson,
-                [],
-              ),
-            ),
-            returnValueForMissingStub: _i5.dummyValue<String>(
-              this,
-              Invocation.method(
-                #getCalendarZmanAlertsJson,
-                [],
-              ),
-            ),
-          )
-          as String);
-
-  @override
   _i3.Future<void> updateCalendarZmanAlertsJson(String? json) =>
       (super.noSuchMethod(
             Invocation.method(
@@ -792,54 +768,6 @@ class MockSettingsRepository extends _i1.Mock
           as String);
 
   @override
-  String getGoogleCalendarClientId() =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #getGoogleCalendarClientId,
-              [],
-            ),
-            returnValue: _i5.dummyValue<String>(
-              this,
-              Invocation.method(
-                #getGoogleCalendarClientId,
-                [],
-              ),
-            ),
-            returnValueForMissingStub: _i5.dummyValue<String>(
-              this,
-              Invocation.method(
-                #getGoogleCalendarClientId,
-                [],
-              ),
-            ),
-          )
-          as String);
-
-  @override
-  String getGoogleCalendarClientSecret() =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #getGoogleCalendarClientSecret,
-              [],
-            ),
-            returnValue: _i5.dummyValue<String>(
-              this,
-              Invocation.method(
-                #getGoogleCalendarClientSecret,
-                [],
-              ),
-            ),
-            returnValueForMissingStub: _i5.dummyValue<String>(
-              this,
-              Invocation.method(
-                #getGoogleCalendarClientSecret,
-                [],
-              ),
-            ),
-          )
-          as String);
-
-  @override
   _i3.Future<void> updateGoogleCalendarEnabled(bool? value) =>
       (super.noSuchMethod(
             Invocation.method(
@@ -856,30 +784,6 @@ class MockSettingsRepository extends _i1.Mock
       (super.noSuchMethod(
             Invocation.method(
               #updateGoogleCalendarSelectedIds,
-              [value],
-            ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
-          )
-          as _i3.Future<void>);
-
-  @override
-  _i3.Future<void> updateGoogleCalendarClientId(String? value) =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #updateGoogleCalendarClientId,
-              [value],
-            ),
-            returnValue: _i3.Future<void>.value(),
-            returnValueForMissingStub: _i3.Future<void>.value(),
-          )
-          as _i3.Future<void>);
-
-  @override
-  _i3.Future<void> updateGoogleCalendarClientSecret(String? value) =>
-      (super.noSuchMethod(
-            Invocation.method(
-              #updateGoogleCalendarClientSecret,
               [value],
             ),
             returnValue: _i3.Future<void>.value(),

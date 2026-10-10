@@ -137,26 +137,21 @@ void main() {
     );
 
     test('closeAll רץ במקביל — לא סדרתי', () async {
-      // אם closers רצים סדרתית, זמן closeAll הוא סכום הזמנים שלהם.
-      // אם במקביל, הוא כזמן של הארוך ביותר.
-      const closerDelay = Duration(milliseconds: 60);
-
+      // כל closer ממתין עד שכולם התחילו: בהרצה סדרתית הראשון נתקע עד ה-timeout.
+      var started = 0;
+      final allStarted = Completer<void>();
       for (var i = 0; i < 4; i++) {
-        HttpClientRegistry.register(
-          () async => await Future<void>.delayed(closerDelay),
-        );
+        HttpClientRegistry.register(() async {
+          if (++started == 4) allStarted.complete();
+          await allStarted.future;
+        });
       }
 
-      final sw = Stopwatch()..start();
-      await HttpClientRegistry.closeAll(
-        timeout: const Duration(milliseconds: 800),
-      );
-      sw.stop();
+      await HttpClientRegistry.closeAll(timeout: const Duration(seconds: 1));
 
-      // סדרתי = 240ms+, מקביל = 60ms+. נדרוש <150ms כדי להבטיח מקביל.
       expect(
-        sw.elapsedMilliseconds,
-        lessThan(150),
+        started,
+        4,
         reason:
             'closeAll חייב להריץ closers במקביל — סדרתי יבטל את ההנחה '
             'שסגירה כוללת תיגמר בתוך budget קצר',

@@ -23,14 +23,19 @@ const Haftarah _beshalach = Haftarah(
 void main() {
   late List<TikkunLine> lines;
 
-  setUpAll(() {
+  setUpAll(() async {
     final tokens = markSpecialSections(
       tokenizeText(cleanRawText(readFixture('shoftim'))),
       'שופטים',
     );
-    lines = buildHaftarahLines(_beshalach, 'ashkenaz', {
-      'שופטים': tokens,
-    }, _widths);
+    lines = await buildVersePartLines(
+      const TikkunEngineImpl(),
+      haftarahParts(_beshalach, 'ashkenaz'),
+      {
+        'שופטים': tokens,
+      },
+      _widths,
+    );
   });
 
   test('השורה האחרונה נשארת שורת שירה ואינה מסומנת כפתוחה', () {

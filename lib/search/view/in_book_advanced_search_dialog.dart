@@ -14,6 +14,7 @@ SearchingTab createInBookSearchDialogTab({
   required Map<String, Map<String, bool>> searchOptions,
   required Map<int, List<String>> alternativeWords,
   required Map<String, String> spacingValues,
+  Map<String, bool>? optionsForEveryWord,
 }) {
   final tab = SearchingTab(
     'חיפוש',
@@ -40,11 +41,12 @@ SearchingTab createInBookSearchDialogTab({
           globalOptions,
         ).keys;
   tab.useGlobalSearchOptions.value =
-      globalOptions != null &&
-      globalWordKeys.length == searchOptions.length &&
-      globalWordKeys.every(searchOptions.containsKey);
+      optionsForEveryWord != null ||
+      (globalOptions != null &&
+          globalWordKeys.length == searchOptions.length &&
+          globalWordKeys.every(searchOptions.containsKey));
   if (tab.useGlobalSearchOptions.value) {
-    tab.globalSearchOptions.addAll(globalOptions!);
+    tab.globalSearchOptions.addAll(optionsForEveryWord ?? globalOptions!);
   }
   return tab;
 }
@@ -60,6 +62,7 @@ Future<SearchDialogResult?> showInBookAdvancedSearchDialog(
   required Map<String, Map<String, bool>> searchOptions,
   required Map<int, List<String>> alternativeWords,
   required Map<String, String> spacingValues,
+  Map<String, bool>? optionsForEveryWord,
 }) async {
   final tab = createInBookSearchDialogTab(
     query: query,
@@ -69,6 +72,7 @@ Future<SearchDialogResult?> showInBookAdvancedSearchDialog(
     searchOptions: searchOptions,
     alternativeWords: alternativeWords,
     spacingValues: spacingValues,
+    optionsForEveryWord: optionsForEveryWord,
   );
 
   final result = await showDialog<SearchDialogResult>(

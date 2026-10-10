@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
@@ -65,6 +66,50 @@ class SettingsSearchFeedbackConsentPersistence
   }
 }
 
+/// חסימת השליחה על ידי ספק או מסנן ברשת: מתי נראתה לראשונה ולאחרונה,
+/// ומתי מותר לנסות שוב. נשמרת בדיסק ומתאפסת בשליחה המוצלחת הראשונה.
+@immutable
+class SearchFeedbackNetworkBlock {
+  const SearchFeedbackNetworkBlock({
+    required this.firstSeen,
+    required this.lastSeen,
+    required this.retryAt,
+  });
+
+  final DateTime firstSeen;
+  final DateTime lastSeen;
+  final DateTime retryAt;
+
+  Map<String, Object?> toJson() => {
+    'firstSeen': firstSeen.toUtc().toIso8601String(),
+    'lastSeen': lastSeen.toUtc().toIso8601String(),
+    'retryAt': retryAt.toUtc().toIso8601String(),
+  };
+
+  static SearchFeedbackNetworkBlock? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final firstSeen = DateTime.tryParse('${json['firstSeen']}');
+    final lastSeen = DateTime.tryParse('${json['lastSeen']}');
+    final retryAt = DateTime.tryParse('${json['retryAt']}');
+    if (firstSeen == null || lastSeen == null || retryAt == null) return null;
+    return SearchFeedbackNetworkBlock(
+      firstSeen: firstSeen,
+      lastSeen: lastSeen,
+      retryAt: retryAt,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is SearchFeedbackNetworkBlock &&
+      other.firstSeen == firstSeen &&
+      other.lastSeen == lastSeen &&
+      other.retryAt == retryAt;
+
+  @override
+  int get hashCode => Object.hash(firstSeen, lastSeen, retryAt);
+}
+
 /// ערוץ המשוב האנונימי של החיפוש הסמנטי: הסכמה, תור מתמשך ושליחה חתומה.
 /// הבנאי אינו מבצע I/O; הכול נטען בשימוש הראשון ולא בעליית התוכנה.
 class SearchFeedbackService
@@ -110,6 +155,7 @@ class SearchFeedbackService
        _isSecondaryWindow = isSecondaryWindow ?? (() => WindowRole.isSecondary),
        _baseUrl = baseUrl ?? resolveBaseUrl(_baseUrlOverride) {
     final directory = storageDirectory ?? _defaultStorageDirectory;
+    _directory = directory;
     _identityStore = SearchFeedbackIdentityStore(directory);
     _queue = SearchFeedbackQueue(
       directory,
@@ -157,8 +203,11 @@ class SearchFeedbackService
     return valid ? uri : defaultBaseUrl;
   }
 
-  /// אחרי כמה תשובות לא-פרוטוקוליות (דף חסימה של מסנן) מוותרים על אצווה.
-  static const int maxUnrecognizedStrikes = 5;
+  /// השהיה אחרי דף חסימה של ספק/מסנן: מכפילה את עצמה מ-6 עד 24 שעות.
+  static const Duration filteredBackoffStart = Duration(hours: 6);
+  static const Duration filteredBackoffMax = Duration(hours: 24);
+  static const String networkBlockFileName = 'network_block.json';
+  static const Duration _networkBlockRefresh = Duration(minutes: 1);
 
   /// 5xx רצופים לאותה אצווה: מוותרים רק אחרי מספר ניסיונות וגם פרק זמן.
   static const int maxServerErrorStrikes = 5;
@@ -190,6 +239,7 @@ class SearchFeedbackService
   /// שליחה לשרת הייצור (בלי `SEARCH_FEEDBACK_BASE_URL`).
   bool get _targetsProduction => _baseUrl == defaultBaseUrl;
 
+  late final Future<Directory> Function() _directory;
   late final SearchFeedbackIdentityStore _identityStore;
   late final SearchFeedbackQueue _queue;
   late final SearchFeedbackSender _sender;
@@ -209,6 +259,9 @@ class SearchFeedbackService
   DateTime? _backoffUntil;
   int _backoffStep = 0;
   Future<void> _lastEnqueue = Future.value();
+  final ValueNotifier<SearchFeedbackNetworkBlock?> _networkBlock =
+      ValueNotifier(null);
+  DateTime? _networkBlockLoadedAt;
 
   /// מתחלף בכל ביטול הסכמה; פעולה שהחלה לפניו אינה כותבת לדיסק אחריו.
   int _epoch = 0;
@@ -221,6 +274,20 @@ class SearchFeedbackService
 
   @visibleForTesting
   DateTime? get backoffUntil => _backoffUntil;
+
+  /// חסימה פעילה ברשת (ספק/מסנן), או null. נטען מהדיסק בגישה הראשונה.
+  ValueListenable<SearchFeedbackNetworkBlock?> get networkBlock {
+    final loadedAt = _networkBlockLoadedAt;
+    if (loadedAt == null ||
+        DateTime.now().difference(loadedAt) > _networkBlockRefresh) {
+      _networkBlockLoadedAt = DateTime.now();
+      unawaited(_reloadNetworkBlock());
+    }
+    return _networkBlock;
+  }
+
+  /// המצב כפי שנטען לאחרונה (בשליחה או דרך [networkBlock]); ללא קריאה מהדיסק.
+  SearchFeedbackNetworkBlock? get networkBlockStatus => _networkBlock.value;
 
   /// מסתיים כשהאירוע האחרון שנרשם נכתב לתור.
   Future<void> whenQueued() => _lastEnqueue;
@@ -291,6 +358,7 @@ class SearchFeedbackService
     await _lastEnqueue;
     await _flushing;
     await _queue.purge();
+    await _clearNetworkBlock();
     _backoffUntil = null;
     _backoffStep = 0;
   }
@@ -436,6 +504,14 @@ class SearchFeedbackService
       await _reloadIdentity();
       if (_blocked || epoch != _epoch || !isCollecting) return;
       if (!_buildAllowsSending || !_sendingAllowed()) return;
+      final block = await _reloadNetworkBlock();
+      if (block != null && _clock().isBefore(block.retryAt)) {
+        final until = _backoffUntil;
+        if (until == null || until.isBefore(block.retryAt)) {
+          _backoffUntil = block.retryAt;
+        }
+        return;
+      }
       final until = _backoffUntil;
       if (until != null && _clock().isBefore(until)) return;
 
@@ -510,6 +586,7 @@ class SearchFeedbackService
           );
         }
         await _queue.remove(name);
+        await _clearNetworkBlock();
         _backoffStep = 0;
         _backoffUntil = null;
         return true;
@@ -524,6 +601,10 @@ class SearchFeedbackService
         return false;
       case SearchFeedbackOutcomeKind.unknownKey:
       case SearchFeedbackOutcomeKind.retryLater:
+        if (outcome.strike == SearchFeedbackStrike.filtered) {
+          await _holdForNetworkBlock(outcome.retryAfter);
+          return false;
+        }
         if (await _strikeOut(name, outcome.strike)) {
           await _queue.remove(name);
         }
@@ -534,17 +615,80 @@ class SearchFeedbackService
 
   /// true = האצווה נכשלה מספיק פעמים כדי לוותר עליה.
   Future<bool> _strikeOut(String name, SearchFeedbackStrike strike) async {
-    if (strike == SearchFeedbackStrike.none) return false;
+    if (strike != SearchFeedbackStrike.serverError) return false;
     final now = _clock();
     final record = await _queue.addStrike(name, strike.name, now);
-    return switch (strike) {
-      SearchFeedbackStrike.filtered => record.count >= maxUnrecognizedStrikes,
-      SearchFeedbackStrike.serverError =>
-        record.count >= maxServerErrorStrikes &&
-            now.difference(record.firstAt) >= serverErrorGiveUpAfter,
-      SearchFeedbackStrike.none => false,
-    };
+    return record.count >= maxServerErrorStrikes &&
+        now.difference(record.firstAt) >= serverErrorGiveUpAfter;
   }
+
+  /// דף חסימה של ספק/מסנן: שומרים הכול ומשהים — ניסיון אחד לכל תקופת השהיה.
+  Future<void> _holdForNetworkBlock(Duration? retryAfter) async {
+    final now = _clock();
+    final previous = _networkBlock.value;
+    var delay = filteredBackoffStart;
+    if (retryAfter != null) {
+      delay = retryAfter;
+    } else if (previous != null) {
+      delay = previous.retryAt.difference(previous.lastSeen) * 2;
+      if (delay < filteredBackoffStart) delay = filteredBackoffStart;
+    }
+    if (delay > filteredBackoffMax) delay = filteredBackoffMax;
+    final block = SearchFeedbackNetworkBlock(
+      firstSeen: previous?.firstSeen ?? now,
+      lastSeen: now,
+      retryAt: now.add(delay),
+    );
+    _networkBlock.value = block;
+    _backoffUntil = block.retryAt;
+    try {
+      final file = await _networkBlockFile();
+      await file.parent.create(recursive: true);
+      final temp = File('${file.path}.tmp');
+      await temp.writeAsString(jsonEncode(block.toJson()), flush: true);
+      await temp.rename(file.path);
+    } catch (error, stackTrace) {
+      _log('network block save', error, stackTrace);
+    }
+  }
+
+  Future<void> _clearNetworkBlock() async {
+    _networkBlock.value = null;
+    try {
+      final file = await _networkBlockFile();
+      if (await file.exists()) await file.delete();
+    } catch (error, stackTrace) {
+      _log('network block clear', error, stackTrace);
+    }
+  }
+
+  /// קורא את הסטטוס מהדיסק; ניסיון חוזר רחוק מ-24 שעות (שעון שזז) נחתך.
+  Future<SearchFeedbackNetworkBlock?> _reloadNetworkBlock() async {
+    SearchFeedbackNetworkBlock? block;
+    try {
+      final file = await _networkBlockFile();
+      if (await file.exists()) {
+        block = SearchFeedbackNetworkBlock.fromJson(
+          jsonDecode(await file.readAsString()),
+        );
+      }
+    } catch (error, stackTrace) {
+      _log('network block load', error, stackTrace);
+    }
+    final latest = _clock().add(filteredBackoffMax);
+    if (block != null && block.retryAt.isAfter(latest)) {
+      block = SearchFeedbackNetworkBlock(
+        firstSeen: block.firstSeen,
+        lastSeen: block.lastSeen,
+        retryAt: latest,
+      );
+    }
+    _networkBlock.value = block;
+    return block;
+  }
+
+  Future<File> _networkBlockFile() async =>
+      File(p.join((await _directory()).path, networkBlockFileName));
 
   Future<SearchFeedbackOutcome> _postBatch(
     SearchFeedbackStoredBatch batch,
@@ -612,12 +756,17 @@ class SearchFeedbackService
         await _identityOp(() async {
           if (epoch == _epoch) await _identityStore.save(identity);
         });
+        await _clearNetworkBlock();
         return true;
       case SearchFeedbackOutcomeKind.keyBlocked:
         await _block(identity, epoch);
         return false;
       default:
-        _applyBackoff(outcome.retryAfter);
+        if (outcome.strike == SearchFeedbackStrike.filtered) {
+          await _holdForNetworkBlock(outcome.retryAfter);
+        } else {
+          _applyBackoff(outcome.retryAfter);
+        }
         return false;
     }
   }

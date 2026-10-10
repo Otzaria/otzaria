@@ -26,6 +26,7 @@ import 'package:otzaria/plugins/services/plugin_search_selection_preferences.dar
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
+import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -53,6 +54,13 @@ class MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
 class MockTabsBloc extends MockBloc<TabsEvent, TabsState> implements TabsBloc {}
 
 class _FakeTabsEvent extends Fake implements TabsEvent {}
+
+class _PopCounter extends NavigatorObserver {
+  int pops = 0;
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) => pops++;
+}
 
 /// LibraryBloc מדומה עם ספרייה ריקה — מספיק ל-parseCategoryQuery בדיאלוג.
 MockLibraryBloc _stubLibraryBloc() {
@@ -1495,4 +1503,136 @@ Future<void> main() async {
     },
     skip: !engineReady,
   );
+
+  group('Enter על פקד בתוך שדה החיפוש של עריכת החיפוש (issue #1910)', () {
+    late SearchingTab editedTab;
+    late _PopCounter popCounter;
+
+    /// דף "בית" ומעליו דיאלוג "עריכת חיפוש" במצב מתקדם, כמו במסך התוצאות.
+    Future<void> openEditDialog(WidgetTester tester) async {
+      final historyBloc = MockHistoryBloc();
+      final indexingBloc = MockIndexingBloc();
+      final navigationBloc = MockNavigationBloc();
+      final tabsBloc = MockTabsBloc();
+      whenListen(
+        historyBloc,
+        const Stream<HistoryState>.empty(),
+        initialState: HistoryLoaded([]),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        navigationBloc,
+        const Stream<NavigationState>.empty(),
+        initialState: const NavigationState(currentScreen: Screen.search),
+      );
+      whenListen(
+        tabsBloc,
+        const Stream<TabsState>.empty(),
+        initialState: const TabsState(tabs: [], currentTabIndex: 0),
+      );
+      editedTab = SearchingTab('חיפוש', 'חכמה');
+      editedTab.searchBloc.add(SetSearchMode(SearchMode.advanced));
+      popCounter = _PopCounter();
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+        editedTab.dispose();
+        await historyBloc.close();
+        await indexingBloc.close();
+        await navigationBloc.close();
+        await tabsBloc.close();
+      });
+
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<IndexingBloc>.value(value: indexingBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+          ],
+          child: MaterialApp(
+            navigatorObservers: [popCounter],
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => SearchDialog(editTab: editedTab),
+                    ),
+                    child: const Text('דף הבית'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('דף הבית'));
+      await tester.pumpAndSettle();
+    }
+
+    final queryField = find.descendant(
+      of: find.byType(EnhancedSearchField),
+      matching: find.byType(TextField),
+    );
+
+    testWidgets(
+      'Tab להצעת המקלדת ו-Enter מחילים אותה — הדיאלוג והדף שמתחתיו נשארים',
+      (WidgetTester tester) async {
+        await openEditDialog(tester);
+        // "דוד" הוקלד במקלדת אנגלית.
+        await tester.enterText(queryField, 'SUS');
+        await tester.pumpAndSettle();
+        expect(find.textContaining('האם התכוונת'), findsOneWidget);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(
+          FocusManager.instance.primaryFocus?.debugLabel,
+          'layout-fix-suggestion',
+        );
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(popCounter.pops, 0, reason: 'Enter על ההצעה אינו מגיש חיפוש');
+        expect(find.text('דף הבית'), findsOneWidget);
+        expect(find.byType(SearchDialog), findsOneWidget);
+        expect(tester.widget<TextField>(queryField).controller!.text, 'דוד');
+        expect(tester.takeException(), isNull);
+      },
+      skip: !engineReady,
+    );
+
+    testWidgets(
+      'Enter על כפתור בתוך השדה מגיש פעם אחת — הדף שמתחת לדיאלוג נשאר',
+      (WidgetTester tester) async {
+        await openEditDialog(tester);
+        await tester.enterText(queryField, 'חכמה בינה');
+        await tester.pumpAndSettle();
+
+        final clearButton = find.descendant(
+          of: find.byType(EnhancedSearchField),
+          matching: find.byIcon(FluentIcons.dismiss_24_regular),
+        );
+        Focus.of(tester.element(clearButton)).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(popCounter.pops, 1, reason: 'רק הדיאלוג נסגר');
+        expect(find.byType(SearchDialog), findsNothing);
+        expect(find.text('דף הבית'), findsOneWidget);
+        expect(editedTab.queryController.text, 'חכמה בינה');
+      },
+      skip: !engineReady,
+    );
+  });
 }

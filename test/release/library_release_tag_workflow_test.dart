@@ -35,8 +35,7 @@ void main() {
       ('build_windows', 'build_windows_arm64'),
       ('build_windows_arm64', 'build_linux'),
       ('build_linux', 'build_android'),
-      ('build_android', 'build_macos'),
-      ('build_macos', 'build_windows_indexed_full'),
+      ('build_macos', 'build_windows_installer'),
     ]) {
       final body = job(name, next);
       expect(
@@ -46,7 +45,17 @@ void main() {
       );
       expect(body, contains('needs: [bump_version]'), reason: name);
     }
-    expect('LIBRARY_DB_RELEASE_TAG: $tagOutput'.allMatches(workflow).length, 5);
+    expect('LIBRARY_DB_RELEASE_TAG: $tagOutput'.allMatches(workflow).length, 4);
+  });
+
+  test('חבילת Android המלאה לוקחת את הספרייה המוצמדת מ-build_linux', () {
+    expect(
+      job('build_android', 'build_android_full'),
+      isNot(contains('LIBRARY')),
+    );
+    final full = job('build_android_full', 'build_macos');
+    expect(full, contains('needs: [bump_version, build_android, build_linux]'));
+    expect(full, contains('name: otzaria-library-parts'));
   });
 
   test('אף הורדה של המסד אינה נשענת על latest', () {
@@ -56,8 +65,7 @@ void main() {
     ], reason: 'רק שלב הפתרון ב-bump_version קורא את latest');
     for (final (name, next) in const [
       ('build_linux', 'build_android'),
-      ('build_android', 'build_macos'),
-      ('build_macos', 'build_windows_indexed_full'),
+      ('build_macos', 'build_windows_installer'),
     ]) {
       expect(job(name, next), contains('SEFORIM_LIBRARY_TAG: $tagOutput'));
       expect(
@@ -65,7 +73,7 @@ void main() {
         contains('bash tool/release/download_library_db.sh'),
       );
     }
-    expect('SEFORIM_LIBRARY_TAG: $tagOutput'.allMatches(workflow).length, 3);
+    expect('SEFORIM_LIBRARY_TAG: $tagOutput'.allMatches(workflow).length, 2);
     final downloader = read('tool/release/download_library_db.sh');
     expect(downloader, contains(r'tag=${SEFORIM_LIBRARY_TAG:-}'));
     expect(downloader, contains(r'download="$base/download/$tag"'));
@@ -81,9 +89,9 @@ void main() {
     );
   });
 
-  test('תג הספרייה נמצא ב-env של שלושת שלבי ההורדה ב-YAML תקין', () {
+  test('תג הספרייה נמצא ב-env של שני שלבי ההורדה ב-YAML תקין', () {
     final jobs = (loadYaml(workflow) as YamlMap)['jobs'] as YamlMap;
-    for (final name in ['build_linux', 'build_android', 'build_macos']) {
+    for (final name in ['build_linux', 'build_macos']) {
       final steps = (jobs[name] as YamlMap)['steps'] as YamlList;
       final download = steps.cast<YamlMap>().singleWhere(
         (step) => (step['run'] as String? ?? '').contains(

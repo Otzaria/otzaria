@@ -64,12 +64,6 @@ class ReaderNavCenter extends StatelessWidget {
           0.0,
           340.0,
         );
-        // כשהמרחב קטן מ-minTitleWidth, מאפשרים לכותרת להתכווץ עוד יותר.
-        final effectiveMinTitle = remainingForTitle.clamp(
-          0.0,
-          ReaderNavCenter.minTitleWidth,
-        );
-
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -91,10 +85,8 @@ class ReaderNavCenter extends StatelessWidget {
             ],
             Flexible(
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minWidth: effectiveMinTitle,
-                  maxWidth: remainingForTitle,
-                ),
+                // רוחב קבוע, כדי שהחיצים לא יזוזו לפי אורך הכותרת.
+                constraints: BoxConstraints.tightFor(width: remainingForTitle),
                 child: title,
               ),
             ),

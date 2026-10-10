@@ -12,6 +12,9 @@ class TextSearchResult {
   /// גם כשתוכן הספר שוחרר מהזיכרון ואינו זמין לחישוב.
   final int? lineLength;
 
+  /// ההתאמה מתחילה בסוף השורה [index] ונמשכת בתחילת השורה הבאה.
+  final bool continuesToNextLine;
+
   TextSearchResult({
     required this.snippet,
     required this.index,
@@ -19,5 +22,6 @@ class TextSearchResult {
     required this.address,
     this.matchOffset,
     this.lineLength,
+    this.continuesToNextLine = false,
   });
 }

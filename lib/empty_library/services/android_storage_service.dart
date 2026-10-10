@@ -15,8 +15,8 @@ class AndroidStorageOption {
   final int freeBytes;
   final bool isRemovable;
 
-  /// false = הכרך מפורמט ב-FAT32 (מגבלת 4GB לקובץ) ולא יכול להכיל את
-  /// seforim.db; ה-UI מציג את המיקום כלא-נתמך.
+  /// false = הכרך מפורמט ב-FAT32 (מגבלת 4GiB-1 לקובץ); נחסם רק כשקובץ
+  /// בספרייה חורג (ראה `volumeCanHoldLibrary`).
   final bool supportsLargeFiles;
 
   const AndroidStorageOption({
@@ -78,7 +78,7 @@ class AndroidStorageService {
       .where((volumePath) => volumePath != primaryPath)
       .toList(growable: false);
 
-  /// האם הכרך שעליו יושב [dirPath] תומך בקבצים מעל 4GB (seforim.db גדול מכך).
+  /// האם הכרך שעליו יושב [dirPath] תומך בקבצים מעל 4GiB-1 (FAT32 אינו תומך).
   /// fail-open: כשלא ניתן לקבוע מחזיר true — הכשל האמיתי יעלה בכתיבה עצמה.
   static Future<bool> volumeSupportsLargeFiles(String dirPath) async {
     if (!Platform.isAndroid) return true;

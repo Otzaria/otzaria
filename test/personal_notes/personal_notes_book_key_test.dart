@@ -63,4 +63,87 @@ void main() {
     expect(findBookForPersonalNotesKey(library, key), same(pdf));
     expect(findTextBookForPersonalNotesKey(library, key), isNull);
   });
+
+  test('category keys cover nested books as a set for O(1) lookup', () {
+    final attached = TextBook(id: 3, title: 'deep', source: attachedSource);
+    final child = Category(
+      title: 'child',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [],
+      books: [
+        attached,
+        TextBook(id: 4, title: 'shared'),
+      ],
+      parent: null,
+    );
+    final root = Category(
+      title: 'root',
+      description: '',
+      shortDescription: '',
+      order: 0,
+      subCategories: [child],
+      books: [
+        TextBook(id: 5, title: 'top'),
+        PdfBook(title: 'shared', path: '/s.pdf'),
+      ],
+      parent: null,
+    );
+
+    final keys = personalNotesBookKeysInCategory(root);
+
+    expect(keys, isA<Set<String>>());
+    expect(keys, {'top', 'shared', personalNotesBookKey(attached)});
+  });
+
+  group('personalNotesCategoryCounts', () {
+    Category cat(String title, List<Category> subs, List<Book> books) =>
+        Category(
+          title: title,
+          description: '',
+          shortDescription: '',
+          order: 0,
+          subCategories: subs,
+          books: books,
+          parent: null,
+        );
+
+    test('counts each category once, deduping books within a category', () {
+      final leaf = cat('leaf', [], [
+        TextBook(title: 'a'),
+        PdfBook(title: 'a', path: '/a.pdf'),
+        TextBook(title: 'b'),
+      ]);
+      final mid = cat('mid', [leaf], [TextBook(title: 'a')]);
+      final empty = cat('empty', [], [TextBook(title: 'none')]);
+      final root = cat('root', [mid, empty], [TextBook(title: 'c')]);
+      final perBook = {'a': 2, 'b': 1, 'c': 4};
+
+      final counts = personalNotesCategoryCounts(
+        root,
+        (key) => perBook[key] ?? 0,
+      );
+
+      expect(counts[leaf], 3);
+      expect(counts[mid], 5);
+      expect(counts[empty], 0);
+      expect(counts[root], 9);
+    });
+
+    test('looks up each category book once regardless of depth', () {
+      final deep = cat('d', [], [TextBook(title: 'x')]);
+      final c = cat('c', [deep], [TextBook(title: 'y')]);
+      final b = cat('b', [c], []);
+      final root = cat('root', [b], []);
+      final lookups = <String>[];
+
+      personalNotesCategoryCounts(root, (key) {
+        lookups.add(key);
+        return 1;
+      });
+
+      expect(lookups..sort(), ['x', 'y']);
+    });
+  });
 }

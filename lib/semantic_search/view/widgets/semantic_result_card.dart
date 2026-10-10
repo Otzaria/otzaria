@@ -69,7 +69,9 @@ class SemanticResultCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         border: Border.all(
-          color: isPreviewed ? colorScheme.primary : colorScheme.outlineVariant,
+          color: isPreviewed
+              ? colorScheme.primary
+              : colorScheme.outline.withValues(alpha: 0.3),
           width: isPreviewed ? 1.5 : 1,
         ),
         borderRadius: AppTokens.borderRadiusAll,

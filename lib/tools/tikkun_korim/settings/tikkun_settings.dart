@@ -5,7 +5,9 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/tools/calendar/models/calendar_location.dart';
 import 'package:otzaria/tools/tikkun_korim/models/tikkun_models.dart';
 import 'package:otzaria/tools/tikkun_korim/repository/tikkun_contracts.dart';
 import 'package:otzaria/tools/tikkun_korim/settings/tikkun_stam_fonts.dart';
@@ -89,8 +91,11 @@ class TikkunSettings extends Equatable {
   /// 'ashkenaz' | 'sephard'
   final String nusach;
 
-  /// 'israel' | 'diaspora'
-  final String nusachLand;
+  final String? _nusachLandOverride;
+  final String _defaultNusachLand;
+
+  /// 'israel' | 'diaspora'; בחירה מפורשת גוברת על העיר שנטענה.
+  String get nusachLand => _nusachLandOverride ?? _defaultNusachLand;
 
   /// מערכת הטעמים של עשרת הדברות.
   final TikkunDecalogueTaam decalogueTaam;
@@ -110,10 +115,12 @@ class TikkunSettings extends Equatable {
     this.centerSingleColumn = false,
     this.startupMode = 'parasha',
     this.nusach = 'ashkenaz',
-    this.nusachLand = 'israel',
+    String? nusachLand,
+    String calendarLand = 'israel',
     this.decalogueTaam = TikkunDecalogueTaam.merged,
     this.zoom = 1.0,
-  });
+  }) : _nusachLandOverride = nusachLand,
+       _defaultNusachLand = calendarLand;
 
   /// בדיוק אחד מהטורים מוסתר — רק אז ההחלפה המהירה והמירכוז רלוונטיים.
   bool get isSingleColumn => hideStam != hideNikud;
@@ -165,7 +172,8 @@ class TikkunSettings extends Equatable {
     centerSingleColumn: centerSingleColumn ?? this.centerSingleColumn,
     startupMode: startupMode ?? this.startupMode,
     nusach: nusach ?? this.nusach,
-    nusachLand: nusachLand ?? this.nusachLand,
+    nusachLand: nusachLand ?? _nusachLandOverride,
+    calendarLand: _defaultNusachLand,
     decalogueTaam: decalogueTaam ?? this.decalogueTaam,
     zoom: zoom ?? this.zoom,
   );
@@ -184,6 +192,7 @@ class TikkunSettings extends Equatable {
     startupMode,
     nusach,
     nusachLand,
+    _nusachLandOverride,
     decalogueTaam,
     zoom,
   ];
@@ -224,9 +233,8 @@ class TikkunSettingsStore {
           Settings.getValue<String>(TikkunSettingsKeys.startupMode) ??
           d.startupMode,
       nusach: Settings.getValue<String>(TikkunSettingsKeys.nusach) ?? d.nusach,
-      nusachLand:
-          Settings.getValue<String>(TikkunSettingsKeys.nusachLand) ??
-          d.nusachLand,
+      nusachLand: Settings.getValue<String>(TikkunSettingsKeys.nusachLand),
+      calendarLand: _calendarLand() ?? d.nusachLand,
       decalogueTaam: TikkunDecalogueTaam.byId(
         Settings.getValue<String>(TikkunSettingsKeys.decalogueTaam),
       ),
@@ -266,14 +274,23 @@ class TikkunSettingsStore {
       s.startupMode,
     );
     await Settings.setValue<String>(TikkunSettingsKeys.nusach, s.nusach);
-    await Settings.setValue<String>(
-      TikkunSettingsKeys.nusachLand,
-      s.nusachLand,
-    );
+    if (s._nusachLandOverride != null) {
+      await Settings.setValue<String>(
+        TikkunSettingsKeys.nusachLand,
+        s._nusachLandOverride,
+      );
+    }
     await Settings.setValue<String>(
       TikkunSettingsKeys.decalogueTaam,
       s.decalogueTaam.id,
     );
+  }
+
+  /// מנהג הקריאות לפי העיר שנבחרה בלוח השנה, אם נבחרה.
+  static String? _calendarLand() {
+    final city = Settings.getValue<String>(SettingsRepository.keySelectedCity);
+    if (city == null) return null;
+    return isCityInIsrael(city) ? 'israel' : 'diaspora';
   }
 
   TikkunNavState loadNavState() {

@@ -1,5 +1,7 @@
 import 'dart:collection';
 
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,9 +13,8 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reader_build_policy.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/commentary_anchor_links.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
@@ -47,15 +48,14 @@ import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/book_locator.dart';
 import 'package:otzaria/library/hidden/hidden_titles.dart';
-import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
-import 'package:otzaria/core/windowing/settings_sync.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
@@ -127,8 +127,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   String? _bottomRightCommentator;
   bool _isLoadingConfig = true;
   int _loadConfigurationGeneration = 0;
-  StreamSubscription<HiddenLibrarySelection>? _hiddenSelectionSubscription;
-  StreamSubscription<String>? _settingsSyncSubscription;
+  StreamSubscription<void>? _hiddenSelectionSubscription;
   bool _applyTextMaxWidth = PageShapeSettingsManager.getApplyTextMaxWidth();
   bool _isLeftSidebarOpen = false;
   int _leftSidebarTabIndex = 0;
@@ -442,7 +441,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
             state.book,
             state.availableCommentators,
           ) ??
-          DefaultCommentators.getPageShapeDefaults(
+          PageShapeDefaultCommentators.getPageShapeDefaults(
             state.book,
             availableCommentators: state.availableCommentators,
           );
@@ -492,7 +491,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
         );
         if (resolved != null &&
             !availableCommentators.contains(resolved) &&
-            findMatchingPageShapeCommentator(
+            findMatchingCommentator(
                   entry.value ?? resolved,
                   hiddenList,
                   commentedBookTitle: bookTitle,
@@ -529,6 +528,19 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
       commentedBookTitle: state.book.title,
     );
   }
+
+  List<String> _displayedCommentators(TextBookLoaded state) => [
+    for (final (column, commentator) in [
+      ('left', _leftCommentator),
+      ('bottom', _bottomCommentator),
+      ('bottomRight', _bottomRightCommentator),
+    ])
+      if (commentator != null && _isCommentatorVisible(column, commentator))
+        commentator,
+    ..._selectedRightPaneCommentators(
+      state,
+    ).where((commentator) => _isCommentatorVisible('right', commentator)),
+  ];
 
   bool _isCommentatorVisible(String column, String? commentator) {
     if (commentator == null) return _columnVisibility[column] == true;
@@ -1032,16 +1044,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   @override
   void initState() {
     super.initState();
-    _hiddenSelectionSubscription = const HiddenLibraryStore().changes.listen(
-      (_) => unawaited(_loadConfiguration()),
-    );
-    _settingsSyncSubscription = SettingsSync.instance.changes.listen((key) {
-      if (key.isEmpty ||
-          key == HiddenLibraryStore.bookKeysSetting ||
-          key == HiddenLibraryStore.categoryPathsSetting) {
-        unawaited(_loadConfiguration());
-      }
-    });
+    _hiddenSelectionSubscription = const HiddenLibraryStore().visibilityChanges
+        .listen((_) => unawaited(_loadConfiguration()));
     widget.sidebarTabNotifier?.addListener(_handleSidebarTabRequest);
     widget.openSettingsNotifier?.addListener(_handleOpenSettingsRequest);
     widget.tab?.toggleCommentatorsPaneNotifier.addListener(
@@ -1078,7 +1082,6 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   @override
   void dispose() {
     unawaited(_hiddenSelectionSubscription?.cancel() ?? Future.value());
-    unawaited(_settingsSyncSubscription?.cancel() ?? Future.value());
     widget.sidebarTabNotifier?.removeListener(_handleSidebarTabRequest);
     widget.openSettingsNotifier?.removeListener(_handleOpenSettingsRequest);
     widget.tab?.toggleCommentatorsPaneNotifier.removeListener(
@@ -1201,6 +1204,15 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                           notesBookIdOverride: _notesBookIdOverride,
                           notesCategoryIdOverride: _notesCategoryIdOverride,
                           notesFocusLineNumber: _notesFocusLineNumber,
+                          notesFooter: CommentaryNotesSection(
+                            bookIds: _displayedCommentators(state),
+                            onOpenNote: (bookId, lineNumber) =>
+                                _openCommentaryPersonalNote(
+                                  bookId,
+                                  null,
+                                  lineNumber,
+                                ),
+                          ),
                           onNavigateToLine: (lineNumber) =>
                               _navigateToLine(state, lineNumber),
                           onClosePane: _toggleLeftSidebar,
@@ -1351,6 +1363,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                           _isLeftSidebarOpen &&
                                                           _leftSidebarTabIndex ==
                                                               kCommentaryTabIndex,
+                                                      isLinksTabActive:
+                                                          _isLeftSidebarOpen &&
+                                                          _leftSidebarTabIndex ==
+                                                              kLinksTabIndex,
                                                       onOpenCommentatorsPane:
                                                           _openCommentatorsPane,
                                                       onOpenCommentatorsPaneWithFilter:

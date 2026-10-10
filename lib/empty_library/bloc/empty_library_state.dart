@@ -1,10 +1,10 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/empty_library/services/library_package/library_source.dart';
 
 abstract class EmptyLibraryState extends Equatable {
   final bool isLoading;
   final String? selectedPath;
   final String? errorMessage;
-  final List<String>? zipFiles;
   // non-null = כפתור ההורדה מושבת + הסיבה מוצגת למשתמש
   final String? downloadDisabledReason;
 
@@ -12,7 +12,6 @@ abstract class EmptyLibraryState extends Equatable {
     this.isLoading = false,
     this.selectedPath,
     this.errorMessage,
-    this.zipFiles,
     this.downloadDisabledReason,
   });
 
@@ -21,7 +20,6 @@ abstract class EmptyLibraryState extends Equatable {
     isLoading,
     selectedPath,
     errorMessage,
-    zipFiles,
     downloadDisabledReason,
   ];
 }
@@ -37,43 +35,38 @@ class EmptyLibraryLoading extends EmptyLibraryState {
 }
 
 class EmptyLibraryDirectorySelected extends EmptyLibraryState {
+  /// בייבוא — מה הותקן ומה חסר בספרייה; null בבחירת ספרייה קיימת.
+  final LibraryImportReport? importReport;
+
   const EmptyLibraryDirectorySelected({
     required String selectedPath,
+    this.importReport,
   }) : super(selectedPath: selectedPath);
+
+  @override
+  List<Object?> get props => [...super.props, importReport];
 }
 
 class EmptyLibraryError extends EmptyLibraryState {
   const EmptyLibraryError({
     super.errorMessage,
     super.selectedPath,
-    super.zipFiles,
     super.downloadDisabledReason,
   });
-}
-
-class EmptyLibraryZipExtracted extends EmptyLibraryState {
-  final String extractedFileName;
-
-  const EmptyLibraryZipExtracted({
-    required String selectedPath,
-    required this.extractedFileName,
-  }) : super(selectedPath: selectedPath);
-
-  @override
-  List<Object?> get props => [
-    ...super.props,
-    extractedFileName,
-  ];
 }
 
 class EmptyLibraryExtracting extends EmptyLibraryState {
   final double progress;
   final String message;
 
+  /// הפעולה ניתנת לעצירה ([CancelLibraryImportRequested]) בשלב הזה.
+  final bool cancellable;
+
   const EmptyLibraryExtracting({
     required String selectedPath,
     required this.progress,
     required this.message,
+    this.cancellable = false,
   }) : super(selectedPath: selectedPath, isLoading: true);
 
   @override
@@ -81,6 +74,7 @@ class EmptyLibraryExtracting extends EmptyLibraryState {
     ...super.props,
     progress,
     message,
+    cancellable,
   ];
 }
 
@@ -98,44 +92,5 @@ class EmptyLibraryDownloading extends EmptyLibraryState {
     ...super.props,
     progress,
     message,
-  ];
-}
-
-/// Android בלבד: שואל את המשתמש אם להעתיק או להעביר את seforim.db
-/// מאחסון חיצוני (לא נגיש ל-sqlite3 native) לאחסון פנימי.
-class EmptyLibraryAskingDbCopy extends EmptyLibraryState {
-  /// הנתיב החיצוני של seforim.db (שנבחר ע"י המשתמש)
-  final String externalDbPath;
-
-  /// תיקיית הספרייה שנבחרה (תישמר ב-keyLibraryPath ללא שינוי)
-  final String libraryPath;
-
-  /// הנתיב הפנימי המוצע שאליו יועתק/יועבר seforim.db
-  final String internalDbPath;
-
-  /// גודל seforim.db בבייטים
-  final int dbSizeBytes;
-
-  /// מקום פנוי באחסון הפנימי בבייטים
-  final int freeSpaceBytes;
-
-  const EmptyLibraryAskingDbCopy({
-    required this.externalDbPath,
-    required this.libraryPath,
-    required this.internalDbPath,
-    required this.dbSizeBytes,
-    required this.freeSpaceBytes,
-    // errorMessage מוגדר ב-EmptyLibraryState — מועבר דרך super
-    super.errorMessage,
-  });
-
-  @override
-  List<Object?> get props => [
-    externalDbPath,
-    libraryPath,
-    internalDbPath,
-    dbSizeBytes,
-    freeSpaceBytes,
-    errorMessage,
   ];
 }

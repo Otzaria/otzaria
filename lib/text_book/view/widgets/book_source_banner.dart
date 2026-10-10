@@ -4,11 +4,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/text_book/view/book_source_dialog.dart';
+import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// המקורות שעבורם מוצג באנר קרדיט מעל תחילת הספר.
-enum BookSourceBannerKind { nationalLibrary, wikiJewishBooks }
+enum BookSourceBannerKind {
+  nationalLibrary,
+  wikiJewishBooks,
+  beitAharonVeYisrael,
+}
 
 /// הטקסט המוצג בראש ספרי "יד הרמב"ם" (הספרייה הלאומית).
 const String kNationalLibraryBannerText =
@@ -18,6 +22,11 @@ const String kNationalLibraryBannerText =
 /// הטקסט המוצג בראש ספרי "אוצר הספרים היהודי השיתופי".
 const String kWikiJewishBooksBannerText =
     'באדיבות \'אוצר הספרים היהודי השיתופי\'';
+
+/// הטקסט המוצג בראש ספרי "מכון בית אהרן וישראל", בנוסח שקבע המכון.
+const String kBeitAharonVeYisraelBannerText =
+    'כל הזכויות שמורות למכון בית אהרן וישראל שע"י מרכז סטאלין קארלין.\n'
+    'אין להעתיק ולשכפל בכל צורה שהיא ללא אישור מפורש בכתב מהמו"ל';
 
 const String _wikiJewishBooksPageBaseUrl =
     'https://wiki.jewishbooks.org.il/mediawiki/wiki/';
@@ -53,6 +62,9 @@ Future<BookSourceBannerKind?> resolveBookSourceBannerKind(
   }
   if (isWikiJewishBooksSource(sourceName)) {
     return BookSourceBannerKind.wikiJewishBooks;
+  }
+  if (isBeitAharonVeYisraelSource(sourceName)) {
+    return BookSourceBannerKind.beitAharonVeYisrael;
   }
   return null;
 }
@@ -141,9 +153,15 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
     ColorScheme cs,
     TextStyle textStyle,
   ) {
-    if (widget.kind == BookSourceBannerKind.nationalLibrary) {
+    final fixedText = switch (widget.kind) {
+      BookSourceBannerKind.nationalLibrary => kNationalLibraryBannerText,
+      BookSourceBannerKind.beitAharonVeYisrael =>
+        kBeitAharonVeYisraelBannerText,
+      BookSourceBannerKind.wikiJewishBooks => null,
+    };
+    if (fixedText != null) {
       return Text(
-        kNationalLibraryBannerText,
+        fixedText,
         textAlign: TextAlign.center,
         style: textStyle,
       );

@@ -139,6 +139,25 @@ void main() {
         {..._provider(), 'title': ''},
         {..._provider(), 'title': 'א' * 41},
         {..._provider(), 'when': 'yes'},
+        {..._provider(), 'openAction': 'open'},
+        {
+          ..._provider(),
+          'openAction': {
+            'type': 'storage.get',
+            'args': {'key': 'k'},
+          },
+        },
+        // נתוני הסימון אינם קיימים בלחיצה על ספר.
+        {
+          ..._provider(),
+          'openAction': {
+            'type': 'storage.set',
+            'args': {
+              'key': 'k',
+              'value': {r'$selection': 'selectedText'},
+            },
+          },
+        },
       ]) {
         expect(
           () => registry.registerPayload('p1', item),
@@ -603,6 +622,73 @@ void main() {
         'title': 'אבני נזר',
         'author': 'רבי אברהם',
       });
+    });
+
+    test('openAction מבוצע בלי לשלוח אירוע לתוסף', () async {
+      final action = {
+        'type': 'localService.post',
+        'args': {
+          'port': {r'$storage': 'servicePort'},
+          'path': '/book/open',
+          'body': {
+            'id': {r'$book': 'id'},
+          },
+        },
+      };
+      registry.registerPayload('p1', {..._provider(), 'openAction': action});
+      final runs = <(String, Map<String, dynamic>, Map<String, dynamic>)>[];
+
+      expect(
+        registry.open(
+          book,
+          actionDispatcher: (pluginId, template, payload) async =>
+              runs.add((pluginId, template, payload)),
+        ),
+        isTrue,
+      );
+
+      expect(dispatched, isEmpty);
+      expect(runs.single.$1, 'p1');
+      expect(runs.single.$2, action);
+      expect(runs.single.$3, {
+        'provider': 'mylib',
+        'id': 7008,
+        'title': 'אבני נזר',
+        'author': 'רבי אברהם',
+      });
+    });
+
+    test('openAction בלי מבצע (עץ בלי מערכת התוספים): נשלח האירוע', () {
+      registry.registerPayload('p1', {
+        ..._provider(),
+        'openAction': {
+          'type': 'ui.showSnack',
+          'args': {'message': 'פתיחה'},
+        },
+      });
+
+      expect(registry.open(book), isTrue);
+
+      expect(
+        dispatched.single.topic,
+        PluginLibraryBooksRegistry.openRequestedTopic,
+      );
+    });
+
+    test('שינוי openAction בלבד הוא שינוי ברישום', () {
+      registry.registerPayload('p1', _provider());
+      var notified = 0;
+      registry.addListener(() => notified++);
+
+      registry.registerPayload('p1', {
+        ..._provider(),
+        'openAction': {
+          'type': 'ui.showSnack',
+          'args': {'message': 'פתיחה'},
+        },
+      });
+
+      expect(notified, 1);
     });
 
     test('ספר מובנה או ספר של ספק שהוסר אינו נפתח דרך התוסף', () {

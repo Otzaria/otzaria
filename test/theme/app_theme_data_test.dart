@@ -83,14 +83,6 @@ void main() {
       expect(cs.surface, isNot(Colors.white));
     });
 
-    test('פרגמנט נשאר FFF8F6 — הרקע של "לבן" שונה ממנו', () {
-      final cs = AppThemeData.createColorScheme(
-        AppSeedColors.parchment,
-        Brightness.light,
-      );
-      expect(cs.surface, const Color(0xFFFFF8F6));
-    });
-
     test('שאר צבעי הבסיס אינם מקבלים surface לבן', () {
       for (final option in AppSeedColors.options) {
         if (option.color.toARGB32() == AppSeedColors.white.toARGB32()) {
@@ -162,5 +154,31 @@ void main() {
         }
       }
     });
+  });
+
+  test('"פרגמנט" ו"חום זהבהב" נראים כשמם — בעיגול ובערכה (issue #2056)', () {
+    double hue(Color c) => HSLColor.fromColor(c).hue;
+    final golden = AppThemeData.createColorScheme(
+      AppSeedColors.darkBrown,
+      Brightness.light,
+    );
+    expect(AppSeedColors.swatchOf(AppSeedColors.darkBrown), golden.primary);
+
+    final parchment = AppThemeData.createColorScheme(
+      AppSeedColors.parchment,
+      Brightness.light,
+    );
+    final brown = AppThemeData.createColorScheme(
+      AppSeedColors.brown,
+      Brightness.light,
+    );
+    expect(parchment.surface, isNot(brown.surface));
+    for (final c in [
+      parchment.surface,
+      AppSeedColors.swatchOf(AppSeedColors.parchment),
+    ]) {
+      expect(hue(c), inInclusiveRange(30, 50), reason: '$c');
+      expect(HSLColor.fromColor(c).saturation, greaterThan(0.3), reason: '$c');
+    }
   });
 }

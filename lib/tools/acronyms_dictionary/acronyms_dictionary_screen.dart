@@ -179,7 +179,7 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
             center: OtzariaSearchField(
               controller: _searchController,
               focusNode: _searchFocusNode,
-              icon: OtzariaIcons.search_in_the_quote_24_regular,
+              icon: OtzariaIcons.search_in_quote_24_regular,
               hintText: 'חפש ראשי תיבות...',
               autofocus: true,
               onChanged: _performSearch,

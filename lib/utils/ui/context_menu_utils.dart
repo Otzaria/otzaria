@@ -28,7 +28,6 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
-import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// תווית פריט תפריט ההקשר לפתיחה ברקע — משותפת לתוצאות חיפוש ולמפרשים.
 const kOpenInNewTabLabel = 'פתח בכרטיסייה חדשה';
@@ -110,7 +109,6 @@ class ContextMenuUtils {
     required VoidCallback onCopySelected,
     VoidCallback? onCopySelectedWithoutNikud,
     void Function(Link link)? onNavigateToLink,
-    VoidCallback? onNoteSaved,
   }) {
     final profile =
         displayProfile ??
@@ -129,7 +127,6 @@ class ContextMenuUtils {
           context: context,
           link: link,
           savedSelectedText: savedSelectedText,
-          onNoteSaved: onNoteSaved,
         ),
       ),
       if (link.targetSource.isOfficial)
@@ -207,15 +204,11 @@ class ContextMenuUtils {
     if (targetBookId != null) {
       entries.add(const AppContextMenuEntry.divider());
       entries.add(
-        AppContextMenuEntry(
-          label: 'העתק קישור ישיר',
-          icon: OtzariaIcons.link_24_regular,
-          childrenBuilder: () => buildDirectLinkContextMenuEntries(
-            bookId: targetBookId,
-            source: link.targetSource,
-            index: link.index2 - 1,
-            selectedText: savedSelectedText,
-          ),
+        buildCopyDirectLinkEntry(
+          bookId: targetBookId,
+          source: link.targetSource,
+          index: link.index2 - 1,
+          selectedText: savedSelectedText,
         ),
       );
     }
@@ -259,7 +252,6 @@ class ContextMenuUtils {
     required BuildContext context,
     required Link link,
     String? savedSelectedText,
-    VoidCallback? onNoteSaved,
   }) async {
     final bookTitle = utils.getTitleFromPath(link.path2);
     final selectedText = savedSelectedText?.trim();
@@ -304,7 +296,6 @@ class ContextMenuUtils {
         selectedText: selectedText,
         categoryId: link.targetCategoryId,
       );
-      onNoteSaved?.call();
       if (context.mounted) UiSnack.showSuccess(TextBookMessages.noteSaved);
     } catch (e) {
       if (context.mounted) {

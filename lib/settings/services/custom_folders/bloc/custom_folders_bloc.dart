@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -162,17 +164,17 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     RemoveCustomFolder event,
     Emitter<CustomFoldersState> emit,
   ) async {
-    final currentFolders = _loadFolders();
-    final newFolders = CustomFoldersManager.removeFolder(
-      currentFolders,
-      event.folder.path,
-    );
-    await _saveFolders(newFolders);
-    emit(state.copyWith(folders: newFolders, message: null, error: null));
+    try {
+      final currentFolders = _loadFolders();
+      final newFolders = CustomFoldersManager.removeFolder(
+        currentFolders,
+        event.folder.path,
+      );
+      await _saveFolders(newFolders);
+      emit(state.copyWith(folders: newFolders, message: null, error: null));
 
-    if (event.deleteFromDb) {
-      emit(state.copyWith(isSyncing: true, message: null, error: null));
-      try {
+      if (event.deleteFromDb) {
+        emit(state.copyWith(isSyncing: true, message: null, error: null));
         await _deleteFolderFromDb(event.folder);
         emit(
           state.copyWith(
@@ -180,23 +182,20 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
             message: 'התיקייה והספרים הוסרו מהתוכנה.',
           ),
         );
-      } catch (e) {
+      } else {
         emit(
           state.copyWith(
-            isSyncing: false,
-            error: 'שגיאה בהסרת הספרים מהתוכנה: $e',
+            message: 'התיקייה הוסרה. הספרים נשארו בתוכנה.',
           ),
         );
-        return;
       }
-    } else {
-      emit(
-        state.copyWith(
-          message: 'התיקייה הוסרה. הספרים נשארו בתוכנה.',
-        ),
-      );
+      _addLibraryEvent(RefreshLibrary());
+      event.completer?.complete(null);
+    } catch (e) {
+      final error = 'שגיאה בהסרת הספרים מהתוכנה: $e';
+      emit(state.copyWith(isSyncing: false, error: error));
+      event.completer?.complete(error);
     }
-    _addLibraryEvent(RefreshLibrary());
   }
 
   /// שינוי מיקום התיקייה בעץ בלבד — הספרים כבר ב-DB, לכן רק בונים מחדש

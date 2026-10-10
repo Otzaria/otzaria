@@ -1,20 +1,16 @@
 import 'dart:async';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/text/rtl_hard_break_workaround.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 
-/// TextField מותאם אישית עם תמיכה מלאה ב-RTL
-///
-/// מתקן בעיות ידועות ב-Flutter Desktop עם RTL:
-/// 1. מקשי החיצים פועלים הפוך (כולל Shift+חיצים)
-/// 2. Collapse של Selection בכיוון הנכון
-/// 3. נראות מיידית של הסמן בניווט
-/// 4. תפריט ההקשר המובנה לא מתאים
-/// 5. בעיית autofocus באנדרואיד (המקלדת קופצת ונעלמת)
+/// שדה קלט עם ניווט, בחירה ותפריט הקשר מותאמים ל-RTL.
 class RtlTextField extends StatefulWidget {
   final TextEditingController? controller;
   final FocusNode? focusNode;
@@ -75,6 +71,21 @@ class _RtlTextFieldState extends State<RtlTextField> {
   late TextEditingController _effectiveController;
   late FocusNode _effectiveFocusNode;
 
+  // שדה רב-שורתי: ה-TextField מקבל עותק עם \r\n (rtl_hard_break_workaround),
+  // ו-_effectiveController נשאר עם \n בלבד — זה מה שהאפליקציה רואה.
+  TextEditingController? _rawController;
+  final _expandMapper = HardBreakValueMapper(expand: true);
+  final _collapseMapper = HardBreakValueMapper(expand: false);
+  int _rawSyncDepth = 0;
+  late String _lastChangedText;
+
+  bool get _hardBreakWorkaroundActive => _rawController != null;
+
+  /// ה-controller שבאמת מוזן ל-TextField (ושאליו מתייחסים ניווט/בחירה
+  /// פנימיים) — הגולמי כשהעוקף פעיל, אחרת ה-controller הרגיל.
+  TextEditingController get _boundController =>
+      _rawController ?? _effectiveController;
+
   Timer? _blinkTimer;
   int _blinkTicks = 0;
   bool _cursorVisible = true;
@@ -87,7 +98,8 @@ class _RtlTextFieldState extends State<RtlTextField> {
     // FocusNode פנימי דרוש לניהול ההבהוב לפי מצב הפוקוס
     _effectiveFocusNode = widget.focusNode ?? FocusNode();
 
-    _effectiveController.addListener(_restartCursorBlink);
+    _setUpHardBreakWorkaround();
+    _boundController.addListener(_restartCursorBlink);
     _effectiveFocusNode.addListener(_handleFocusChange);
 
     // תיקון לבעיית autofocus באנדרואיד
@@ -104,11 +116,20 @@ class _RtlTextFieldState extends State<RtlTextField> {
   @override
   void didUpdateWidget(RtlTextField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // עדכון controller אם השתנה
-    if (widget.controller != oldWidget.controller) {
-      _effectiveController.removeListener(_restartCursorBlink);
-      _effectiveController = widget.controller ?? TextEditingController();
-      _effectiveController.addListener(_restartCursorBlink);
+    // עדכון controller ו/או מעבר חד-שורתי↔רב-שורתי: בונים מחדש את העוקף
+    // (הגולמי תלוי ב-controller הנוכחי וב-maxLines).
+    final controllerChanged = widget.controller != oldWidget.controller;
+    final multilineChanged =
+        (widget.maxLines != 1) != (oldWidget.maxLines != 1);
+    if (controllerChanged || multilineChanged) {
+      _boundController.removeListener(_restartCursorBlink);
+      _tearDownHardBreakWorkaround();
+      if (controllerChanged) {
+        if (oldWidget.controller == null) _effectiveController.dispose();
+        _effectiveController = widget.controller ?? TextEditingController();
+      }
+      _setUpHardBreakWorkaround();
+      _boundController.addListener(_restartCursorBlink);
     }
     // עדכון focusNode אם השתנה
     if (widget.focusNode != oldWidget.focusNode) {
@@ -124,7 +145,8 @@ class _RtlTextFieldState extends State<RtlTextField> {
   @override
   void dispose() {
     _blinkTimer?.cancel();
-    _effectiveController.removeListener(_restartCursorBlink);
+    _boundController.removeListener(_restartCursorBlink);
+    _tearDownHardBreakWorkaround();
     _effectiveFocusNode.removeListener(_handleFocusChange);
     // נקה controller/focusNode רק אם יצרנו אותם
     if (widget.controller == null) {
@@ -134,6 +156,127 @@ class _RtlTextFieldState extends State<RtlTextField> {
       _effectiveFocusNode.dispose();
     }
     super.dispose();
+  }
+
+  void _setUpHardBreakWorkaround() {
+    _lastChangedText = _effectiveController.text;
+    if (widget.maxLines == 1) return;
+    // לא משנים כאן את ה-controller של הקורא: זה רץ בזמן build, ומאזינים שלו
+    // היו מופעלים באמצע הבנייה. \r שכבר היה בטקסט ינוקה בפעולה הראשונה בשדה.
+    _rawController = TextEditingController.fromValue(
+      _expandMapper.map(_effectiveController.value),
+    );
+    _rawController!.addListener(_syncCleanFromRawLive);
+    _effectiveController.addListener(_syncRawFromCleanExternally);
+  }
+
+  /// מסיר את עוקף באג-הסמן ומשחרר את ה-controller הגולמי.
+  void _tearDownHardBreakWorkaround() {
+    if (!_hardBreakWorkaroundActive) return;
+    _rawController!.removeListener(_syncCleanFromRawLive);
+    _effectiveController.removeListener(_syncRawFromCleanExternally);
+    _rawController!.dispose();
+    _rawController = null;
+  }
+
+  /// מסנכרן גם תזוזת סמן בלבד: קוראים כמו כפתורי העיצוב בעורך הספרים קוראים
+  /// את controller.selection ישירות. onChanged מופעל רק כשהטקסט השתנה.
+  void _syncCleanFromRawLive() {
+    final clean = _collapseMapper.map(
+      _rawController!.value,
+      matchingText: _effectiveController.text,
+    );
+    _rawSyncDepth++;
+    try {
+      if (_effectiveController.value != clean) {
+        _effectiveController.value = clean;
+      }
+    } finally {
+      _rawSyncDepth--;
+    }
+  }
+
+  void _handleRawOnChanged(String rawText) {
+    final text = _effectiveController.text;
+    if (text == _lastChangedText) return;
+    _lastChangedText = text;
+    widget.onChanged?.call(text);
+  }
+
+  void _handleRawOnSubmitted(String rawText) {
+    widget.onSubmitted?.call(_effectiveController.text);
+  }
+
+  void _syncRawFromCleanExternally() {
+    // השוואת הערכים מאפשרת למאזין חיצוני לתקן עריכה בלי לאבד את התיקון.
+    if (_effectiveController.value ==
+        _collapseMapper.map(
+          _rawController!.value,
+          matchingText: _effectiveController.text,
+        )) {
+      return;
+    }
+    final clean = _effectiveController.value;
+    // כתיבה חיצונית משנה את נקודת הייחוס של onChanged, אך תיקון מאזין
+    // במהלך קלט משתמש עדיין חייב להימסר פעם אחת עם הטקסט הסופי.
+    if (_rawSyncDepth == 0) _lastChangedText = clean.text;
+    final raw = clean.composing.isValid && !clean.composing.isCollapsed
+        ? clean
+        : _expandMapper.map(clean, matchingText: _rawController!.text);
+    if (_rawController!.value != raw) _rawController!.value = raw;
+  }
+
+  void _copySelection(
+    CopySelectionTextIntent intent, {
+    bool fromToolbar = false,
+  }) {
+    final value = _effectiveController.value;
+    final selection = value.selection;
+    if (!widget.enabled ||
+        widget.obscureText ||
+        !selection.isValid ||
+        selection.isCollapsed) {
+      return;
+    }
+    unawaited(
+      Clipboard.setData(
+        ClipboardData(text: selection.textInside(value.text)),
+      ).catchError((Object error, StackTrace stackTrace) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            context: ErrorDescription('בעת העתקת טקסט'),
+          ),
+        );
+      }),
+    );
+    final editable = _effectiveFocusNode.context
+        ?.findAncestorStateOfType<EditableTextState>();
+    if (editable == null) return;
+    final raw = _boundController.value;
+    if (intent.collapseSelection) {
+      editable.userUpdateTextEditingValue(
+        raw.replaced(raw.selection, ''),
+        intent.cause,
+      );
+    } else if (fromToolbar) {
+      editable.bringIntoView(raw.selection.extent);
+      if (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.fuchsia) {
+        editable.userUpdateTextEditingValue(
+          raw.copyWith(
+            selection: TextSelection.collapsed(offset: raw.selection.end),
+            composing: TextRange.empty,
+          ),
+          SelectionChangedCause.toolbar,
+        );
+      }
+    }
+    if (fromToolbar || intent.cause == SelectionChangedCause.toolbar) {
+      editable.hideToolbar(false);
+    }
+    editable.clipboardStatus.update();
   }
 
   // ניהול הבהוב הסמן: ההבהוב המובנה מנוטרל (debugDeterministicCursor, ראו
@@ -187,7 +330,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
         widget.autofocus && (widget.focusNode == null || !Platform.isAndroid);
 
     Widget textField = TextField(
-      controller: _effectiveController,
+      controller: _boundController,
       scrollController: widget.scrollController,
       expands: widget.expands,
       focusNode: _effectiveFocusNode,
@@ -205,7 +348,6 @@ class _RtlTextFieldState extends State<RtlTextField> {
             _showContextMenu(
               this.context,
               editableTextState.contextMenuAnchors.primaryAnchor,
-              _effectiveController,
               // תפריט שלוקח פוקוס מוחק את ידיות הבחירה, והמקלדת נסגרת ונפתחת.
               requestFocus: false,
             );
@@ -213,8 +355,14 @@ class _RtlTextFieldState extends State<RtlTextField> {
         }
         return const SizedBox.shrink();
       },
-      onChanged: widget.onChanged,
-      onSubmitted: widget.onSubmitted,
+      // ה-callbacks של TextField מקבלים טקסט עם \r\n; בשדה רב-שורתי
+      // onChanged מקבל את הטקסט הנקי אחרי סנכרון ה-controller.
+      onChanged: _hardBreakWorkaroundActive
+          ? _handleRawOnChanged
+          : widget.onChanged,
+      onSubmitted: _hardBreakWorkaroundActive
+          ? _handleRawOnSubmitted
+          : widget.onSubmitted,
       autofocus: shouldUseAutofocus,
       keyboardType: widget.keyboardType,
       textInputAction: widget.textInputAction,
@@ -224,11 +372,17 @@ class _RtlTextFieldState extends State<RtlTextField> {
       style: widget.style,
       textAlign: widget.textAlign,
       textAlignVertical: widget.textAlignVertical,
-      inputFormatters: widget.inputFormatters,
+      inputFormatters: _hardBreakWorkaroundActive
+          ? ((widget.inputFormatters?.isNotEmpty ?? false)
+                ? [CleanSpaceFormatterAdapter(widget.inputFormatters!)]
+                : const [HardBreakInputFormatter()])
+          : widget.inputFormatters,
       obscureText: widget.obscureText,
       cursorWidth: 1.0, // דק יותר מברירת המחדל (2.0)
       // שקוף בשלב ה"כבוי" של ההבהוב ולאחר שנעצר (ראו ניהול ההבהוב למעלה)
       cursorColor: _cursorVisible ? widget.cursorColor : Colors.transparent,
+      // ברירת המחדל max מציירת בטקסט RTL רב-שורתי כל בחירה עד הקצה השמאלי.
+      selectionWidthStyle: ui.BoxWidthStyle.tight,
     );
 
     // עטיפה בתיקון חיצים אם RTL
@@ -303,12 +457,61 @@ class _RtlTextFieldState extends State<RtlTextField> {
       );
     }
 
+    if (_hardBreakWorkaroundActive) {
+      textField = Actions(
+        actions: {
+          CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
+            onInvoke: (intent) {
+              _copySelection(intent);
+              return null;
+            },
+          ),
+        },
+        child: textField,
+      );
+    }
+
+    if (_hardBreakWorkaroundActive) {
+      // נגישות מפעילה copySelection ישירות; המיזוג נותן קדימות לפעולות הנקיות.
+      textField = AnimatedBuilder(
+        animation: Listenable.merge([_boundController, _effectiveFocusNode]),
+        child: textField,
+        builder: (context, child) {
+          final value = _boundController.value;
+          final canCopy =
+              _effectiveFocusNode.hasFocus &&
+              widget.enabled &&
+              !widget.obscureText &&
+              value.selection.isValid &&
+              !value.selection.isCollapsed;
+          return MergeSemantics(
+            child: Semantics(
+              onCopy: canCopy
+                  ? () => _copySelection(
+                      CopySelectionTextIntent.copy,
+                      fromToolbar: true,
+                    )
+                  : null,
+              onCut: canCopy
+                  ? () => _copySelection(
+                      const CopySelectionTextIntent.cut(
+                        SelectionChangedCause.toolbar,
+                      ),
+                    )
+                  : null,
+              child: child,
+            ),
+          );
+        },
+      );
+    }
+
     // עטיפה בטיפול בתפריט הקשר
     return Listener(
       onPointerDown: (event) {
         _lastPointerKind = event.kind;
         if (event.buttons == 2) {
-          _showContextMenu(context, event.position, _effectiveController);
+          _showContextMenu(context, event.position);
         }
       },
       child: textField,
@@ -325,7 +528,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
     final focusContext = FocusManager.instance.primaryFocus?.context;
     if (focusContext == null) return;
 
-    final selection = _effectiveController.selection;
+    final selection = _boundController.selection;
     final forward = _isRtlAtCaret(focusContext, selection)
         ? !isVisualRight
         : isVisualRight;
@@ -350,7 +553,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
   }
 
   bool _isRtlAtCaret(BuildContext context, TextSelection selection) {
-    final length = _effectiveController.text.length;
+    final length = _boundController.text.length;
     if (!selection.isValid || length == 0) return true;
     final index =
         (selection.affinity == TextAffinity.downstream
@@ -369,10 +572,10 @@ class _RtlTextFieldState extends State<RtlTextField> {
 
   void _showContextMenu(
     BuildContext context,
-    Offset position,
-    TextEditingController controller, {
+    Offset position, {
     bool requestFocus = true,
   }) {
+    final controller = _effectiveController;
     final selection = controller.selection;
     final textAtMenuOpen = controller.text;
     final hasSelection = selection.isValid && !selection.isCollapsed;
@@ -442,6 +645,7 @@ class _RtlTextFieldState extends State<RtlTextField> {
             currentSelection.end,
           );
           await Clipboard.setData(ClipboardData(text: selectedText));
+          if (!mounted || controller != _effectiveController) return;
           final textAfterCut =
               currentText.substring(0, currentSelection.start) +
               currentText.substring(currentSelection.end);
@@ -462,14 +666,20 @@ class _RtlTextFieldState extends State<RtlTextField> {
           break;
         case 'paste':
           final data = await Clipboard.getData('text/plain');
+          if (!mounted || controller != _effectiveController) return;
           if (data?.text != null) {
+            // טקסט שהועתק מ-Notepad/Word מגיע עם \r\n אמיתי; מנקים לפני
+            // שהוא נכנס ל-controller ה"נקי" (ראו rtl_hard_break_workaround.dart).
+            final pasted = _hardBreakWorkaroundActive
+                ? collapseHardBreaks(data!.text!)
+                : data!.text!;
             final newText =
                 currentText.substring(0, currentSelection.start) +
-                data!.text! +
+                pasted +
                 currentText.substring(currentSelection.end);
             controller.text = newText;
             controller.selection = TextSelection.collapsed(
-              offset: currentSelection.start + data.text!.length,
+              offset: currentSelection.start + pasted.length,
             );
             // עדכון ידני: הקצאה ישירה ל-controller.text לא מפעילה את onChanged
             // של TextField (זה מגיע רק מנתיב הקלט הפנימי של EditableText).
@@ -504,7 +714,6 @@ class _RtlTextFieldState extends State<RtlTextField> {
           Text(
             label,
             style: const TextStyle(fontSize: 14),
-            textDirection: TextDirection.rtl,
           ),
         ],
       ),

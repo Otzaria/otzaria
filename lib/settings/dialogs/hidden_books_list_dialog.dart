@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -68,8 +69,6 @@ class _HiddenBooksListDialogState extends State<_HiddenBooksListDialog> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final media = MediaQuery.of(context);
-    final maxWidth = media.size.width * 0.9;
 
     final entries = [
       for (final path in _categoryPaths.toList()..sort())
@@ -86,104 +85,75 @@ class _HiddenBooksListDialogState extends State<_HiddenBooksListDialog> {
         ),
     ];
 
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: maxWidth > 640 ? 640 : maxWidth,
-          maxHeight: media.size.height * 0.8,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Icon(FluentIcons.eye_off_24_regular, color: cs.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      context.settingsText('בחירות הסתרה ישירות'),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ),
-                  Text(
-                    '${entries.length}',
-                    style:
-                        Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                context.settingsText(
-                  'הרשימה מציגה בחירות ישירות. להסרת הסתרה בירושה, בטלו את הסתרת קטגוריית האב.',
-                ),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Flexible(
-                child: entries.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 32),
-                        child: Text(
-                          context.settingsText('אין בחירות הסתרה'),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: cs.onSurfaceVariant),
-                        ),
-                      )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: entries.length,
-                        separatorBuilder: (_, _) => Divider(
-                          height: 1,
-                          color: cs.surfaceContainerHighest,
-                        ),
-                        itemBuilder: (_, i) {
-                          final entry = entries[i];
-                          return ListTile(
-                            leading: Icon(entry.icon, size: 20),
-                            title: Text(entry.label),
-                            trailing: ActionButton.ghost(
-                              text: context.settingsText('בטל הסתרה'),
-                              onPressed: entry.remove,
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  ActionButton.recommended(
-                    text: context.settingsText('שמור'),
-                    onPressed: () =>
-                        Navigator.of(context).pop(_changed ? _selection : null),
-                  ),
-                  const SizedBox(width: 8),
-                  if (entries.isNotEmpty)
-                    ActionButton.warning(
-                      text: context.settingsText('בטל הכול'),
-                      onPressed: _clearAll,
-                    ),
-                  const Spacer(),
-                  ActionButton.ghost(
-                    text: context.settingsText('סגור'),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ],
+    return ListDialogFrame(
+      icon: FluentIcons.eye_off_24_regular,
+      title: context.settingsText('בחירות הסתרה ישירות'),
+      counter: '${entries.length}',
+      maxWidth: 640,
+      heightFactor: 0.8,
+      children: [
+        const SizedBox(height: 8),
+        Text(
+          context.settingsText(
+            'הרשימה מציגה בחירות ישירות. להסרת הסתרה בירושה, בטלו את הסתרת קטגוריית האב.',
+          ),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: cs.onSurfaceVariant,
           ),
         ),
-      ),
+        const SizedBox(height: 12),
+        Flexible(
+          child: entries.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Text(
+                    context.settingsText('אין בחירות הסתרה'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
+                )
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: entries.length,
+                  separatorBuilder: (_, _) => Divider(
+                    height: 1,
+                    color: cs.surfaceContainerHighest,
+                  ),
+                  itemBuilder: (_, i) {
+                    final entry = entries[i];
+                    return ListTile(
+                      leading: Icon(entry.icon, size: 20),
+                      title: Text(entry.label),
+                      trailing: ActionButton.ghost(
+                        text: context.settingsText('בטל הסתרה'),
+                        onPressed: entry.remove,
+                      ),
+                    );
+                  },
+                ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            ActionButton.recommended(
+              text: context.settingsText('שמור'),
+              onPressed: () =>
+                  Navigator.of(context).pop(_changed ? _selection : null),
+            ),
+            const SizedBox(width: 8),
+            if (entries.isNotEmpty)
+              ActionButton.warning(
+                text: context.settingsText('בטל הכול'),
+                onPressed: _clearAll,
+              ),
+            const Spacer(),
+            ActionButton.ghost(
+              text: context.settingsText('סגור'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

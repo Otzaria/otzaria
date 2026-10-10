@@ -59,11 +59,15 @@ class SwitchToWorkspace extends WorkspaceEvent {
   /// צד החלונית הפעילה לשמירה — ראו [Workspace.activePane].
   final String? currentActivePaneToSave;
 
+  /// נקרא בסיום: האם נפתחו כרטיסיות, או null אם המעבר לא הצליח.
+  final void Function(bool? hasTabs)? onCompleted;
+
   const SwitchToWorkspace({
     required this.targetWorkspaceId,
     required this.currentTabsToSave,
     required this.currentTabIndexToSave,
     this.currentActivePaneToSave,
+    this.onCompleted,
   });
 
   @override
@@ -72,6 +76,7 @@ class SwitchToWorkspace extends WorkspaceEvent {
     currentTabsToSave,
     currentTabIndexToSave,
     currentActivePaneToSave,
+    onCompleted,
   ];
 }
 
@@ -151,5 +156,33 @@ class MoveTabToWorkspace extends WorkspaceEvent {
     currentTabs,
     currentTabIndex,
     currentActivePane,
+  ];
+}
+
+/// מקבע או משחרר שולחן עבודה — ראו [Workspace.isPinned].
+///
+/// בקיבוע השולחן הפעיל, [tabsToSave] הם הכרטיסיות החיות שיהפכו לתמונה הקבועה.
+class SetWorkspacePinned extends WorkspaceEvent {
+  final String workspaceId;
+  final bool isPinned;
+  final List<OpenedTab>? tabsToSave;
+  final int tabIndexToSave;
+  final String? activePaneToSave;
+
+  const SetWorkspacePinned({
+    required this.workspaceId,
+    required this.isPinned,
+    this.tabsToSave,
+    this.tabIndexToSave = 0,
+    this.activePaneToSave,
+  });
+
+  @override
+  List<Object?> get props => [
+    workspaceId,
+    isPinned,
+    tabsToSave,
+    tabIndexToSave,
+    activePaneToSave,
   ];
 }

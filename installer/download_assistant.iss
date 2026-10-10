@@ -26,7 +26,7 @@
 
 [Setup]
 AppId={{9A6B5F2E-7C31-4E18-9D44-1F0B8C3A5D72}
-AppName=אוצריא — מסייע הורדה
+AppName={cm:AppTitle}
 ; גרסת הכלי עצמו. היא אינה גרסת אוצריא: תג אוצריא מוטבע ב-AssistantReleaseTag
 ; בזמן הבנייה, ולכן tool/version/update_version אינו נוגע בקובץ הזה.
 AppVersion=1.0
@@ -36,7 +36,8 @@ AppPublisherURL=https://github.com/otzaria/otzaria
 CreateAppDir=no
 Uninstallable=no
 CreateUninstallRegKey=no
-DisableWelcomePage=yes
+; עמוד הפתיחה הוא מסך הפתיחה המונפש של שכבת התצוגה (otzaria_ui_core.iss).
+DisableWelcomePage=no
 DisableProgramGroupPage=yes
 DisableReadyPage=no
 PrivilegesRequired=lowest
@@ -44,53 +45,339 @@ OutputDir=.\
 ; שם הנכס חייב להישאר ASCII: GitHub מוחק תווים שאינם ‎[A-Za-z0-9._-]‎ משם נכס
 ; שמועלה. הזיהוי העברי מגיע ממאפייני הקובץ שלמטה.
 OutputBaseFilename=Otzaria-Download-Assistant-windows
-VersionInfoProductName=מסייע הורדה לאוצריא
-VersionInfoDescription=מוריד את קובצי אוצריא ומכין מהם התקנה. אינו מתקין את אוצריא.
+; מאפייני הקובץ אחידים לכל שפה, ולכן בשתיהן; Inno קוטע כל ערך אחרי 60 תווים.
+VersionInfoProductName=Otzaria Download Assistant · מסייע הורדה לאוצריא
+VersionInfoDescription=Downloads, does not install · מוריד ומכין, אינו מתקין
 VersionInfoCompany=sivan22
 #if TagVersionPart != ""
 VersionInfoProductTextVersion={#TagVersionPart}
 #endif
 SetupIconFile=white_sketch128x128.ico
-WizardImageFile=wizard_large.bmp,wizard_large@2x.bmp,wizard_large@3x.bmp
-; Inno טוען BMP בלי אלפא: אייקון שקוף שנשמר כך מקבל רקע שחור. הקבצים האלה
-; נשטחו מראש על לבן, ולכן הם נפרדים מאלה של המתקינים.
-WizardSmallImageFile=wizard_small_white.bmp,wizard_small_white@2x.bmp,wizard_small_white@3x.bmp
+; החלון כולו מצויר בשכבת התצוגה; תמונות האשף של Inno אינן מוצגות.
+WizardImageFile=
+WizardSmallImageFile=
 WizardStyle=modern
 Compression=lzma
 SolidCompression=yes
 SetupLogging=yes
 ; ההרכבה קוראת וכותבת קבצים של גיגה-בתים — אין טעם לאפשר 32-bit בלבד.
 ArchitecturesAllowed=x64compatible or arm64
+; עברית כשממשק Windows בעברית, ואנגלית בכל שפה אחרת: english ראשונה ולכן היא הנסיגה.
+LanguageDetectionMethod=uilanguage
+ShowLanguageDialog=no
 
 [Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "hebrew"; MessagesFile: "compiler:Languages\Hebrew.isl"
 
 ; ברירות המחדל של Inno מנוסחות כמתקין ("מתקין את...", "תוכנת ההתקנה"), והכלי
-; הזה אינו מתקין דבר. כל מחרוזת כזאת שמופיעה במסך כלשהו מוחלפת כאן.
+; הזה אינו מתקין דבר. כל מחרוזת כזאת שמופיעה במסך כלשהו מוחלפת כאן, בשתי השפות.
 [Messages]
-SetupAppTitle=אוצריא — מסייע הורדה
-SetupWindowTitle=אוצריא — מסייע הורדה
-SetupLdrStartupMessage=הכלי יוריד את קובצי אוצריא ויכין מהם התקנה. להמשיך?
-ButtonInstall=&התחל
-WizardReady=הכול מוכן
-ReadyLabel1=הכול מוכן להורדה.
-ReadyLabel2a=לחץ "התחל" כדי להוריד את הקבצים ולהכין מהם התקנה, או "הקודם" כדי לשנות את הבחירה.
-ReadyLabel2b=לחץ "התחל" כדי להוריד את הקבצים ולהכין מהם התקנה.
-WizardPreparing=רגע לפני ההתחלה
-PreparingDesc=המסייע נערך להורדה.
-WizardInstalling=הורדה והכנה
-InstallingLabel=הקבצים יורדים מאתר אוצריא ונבדקים. אפשר לעצור בכל רגע.
-StatusCreateDirs=מכין את התיקייה...
-StatusExtractFiles=מעתיק קבצים...
-StatusSavingUninstall=שומר נתונים...
-StatusRunProgram=מסיים...
-FinishedHeadingLabel=הפעולה הסתיימה
-FinishedLabel=הפעולה הסתיימה.
-FinishedLabelNoIcons=הפעולה הסתיימה.
-ClickFinish=לחץ "סיים" לסגירת המסייע.
-SetupAborted=הפעולה לא הושלמה.%n%nאפשר להפעיל את המסייע שוב; מה שכבר ירד יישמר.
-ExitSetupTitle=יציאה מהמסייע
-ExitSetupMessage=ההורדה לא הושלמה. קבצים שכבר ירדו יישמרו, והפעלה חוזרת תמשיך מהמקום שבו הפסקת.%n%nלצאת עכשיו?
+english.SetupAppTitle=Otzaria Download Assistant
+english.SetupWindowTitle=Otzaria Download Assistant
+english.SetupLdrStartupMessage=This tool will download the Otzaria files and prepare an installation from them. Continue?
+english.WelcomeLabel1=Otzaria Download Assistant
+english.WelcomeLabel2=This tool doesn't install anything — it downloads the Otzaria files and prepares an installation from them, even for a computer without internet.
+english.ButtonNext=&Continue
+english.ButtonBack=&Back
+english.ButtonFinish=&Finish
+english.ButtonInstall=&Start
+english.ButtonStopDownload=&Stop Download
+english.WizardReady=Ready to start
+english.ReadyLabel1=Everything is ready to download.
+english.ReadyLabel2a=Click "Start" to download the files and prepare an installation from them, or "Back" to change your choice.
+english.ReadyLabel2b=Click "Start" to download the files and prepare an installation from them.
+english.WizardPreparing=Getting ready
+english.PreparingDesc=The assistant is getting ready to download.
+english.WizardInstalling=Downloading and preparing
+english.InstallingLabel=The files are downloading from the Otzaria website and being checked. You can stop at any time.
+english.StatusCreateDirs=Preparing the folder...
+english.StatusExtractFiles=Copying files...
+english.StatusSavingUninstall=Saving data...
+english.StatusRunProgram=Finishing...
+english.FinishedHeadingLabel=Everything's ready
+english.FinishedLabel=All done.
+english.FinishedLabelNoIcons=All done.
+english.ClickFinish=Click "Finish" to close the assistant.
+english.SetupAborted=The operation was not completed.%n%nYou can run the assistant again; whatever was already downloaded is kept.
+english.ExitSetupTitle=Exit the assistant
+english.ExitSetupMessage=The download isn't finished. Files that were already downloaded are kept, and running the assistant again continues from where you stopped.%n%nExit now?
+
+hebrew.SetupAppTitle=אוצריא — מסייע הורדה
+hebrew.SetupWindowTitle=אוצריא — מסייע הורדה
+hebrew.SetupLdrStartupMessage=הכלי יוריד את קובצי אוצריא ויכין מהם התקנה. להמשיך?
+hebrew.WelcomeLabel1=מסייע ההורדות של אוצריא
+hebrew.WelcomeLabel2=הכלי אינו מתקין דבר — הוא מוריד את קובצי אוצריא ומכין מהם התקנה, גם למחשב בלי אינטרנט.
+hebrew.ButtonNext=&המשך
+hebrew.ButtonBack=&חזרה
+hebrew.ButtonFinish=&סיום
+hebrew.ButtonInstall=&התחל
+hebrew.ButtonStopDownload=&עצור הורדה
+hebrew.WizardReady=מוכנים להתחיל
+hebrew.ReadyLabel1=הכול מוכן להורדה.
+hebrew.ReadyLabel2a=לחץ "התחל" כדי להוריד את הקבצים ולהכין מהם התקנה, או "חזרה" כדי לשנות את הבחירה.
+hebrew.ReadyLabel2b=לחץ "התחל" כדי להוריד את הקבצים ולהכין מהם התקנה.
+hebrew.WizardPreparing=רגע לפני ההתחלה
+hebrew.PreparingDesc=המסייע נערך להורדה.
+hebrew.WizardInstalling=הורדה והכנה
+hebrew.InstallingLabel=הקבצים יורדים מאתר אוצריא ונבדקים. אפשר לעצור בכל רגע.
+hebrew.StatusCreateDirs=מכין את התיקייה...
+hebrew.StatusExtractFiles=מעתיק קבצים...
+hebrew.StatusSavingUninstall=שומר נתונים...
+hebrew.StatusRunProgram=מסיים...
+hebrew.FinishedHeadingLabel=הכול מוכן
+hebrew.FinishedLabel=הפעולה הסתיימה.
+hebrew.FinishedLabelNoIcons=הפעולה הסתיימה.
+hebrew.ClickFinish=לחץ "סיום" לסגירת המסייע.
+hebrew.SetupAborted=הפעולה לא הושלמה.%n%nאפשר להפעיל את המסייע שוב; מה שכבר ירד יישמר.
+hebrew.ExitSetupTitle=יציאה מהמסייע
+hebrew.ExitSetupMessage=ההורדה לא הושלמה. קבצים שכבר ירדו יישמרו, והפעלה חוזרת תמשיך מהמקום שבו הפסקת.%n%nלצאת עכשיו?
+
+; כל טקסט שהלוגיקה מציגה. ‎%1‎ נמלא ב-FmtMessage, ו-‎%n‎ הוא מעבר שורה.
+[CustomMessages]
+; ב"כולל חיפוש חכם" / "Smart Search included" הרווחים קשיחים (U+00A0), כדי שהצירוף לא יישבר.
+; שם תת-התיקייה בחוזה המשותף לשלושת המסייעים (expected-selections), זהה בכל שפה.
+ContractSubfolder=אוצריא להתקנה ל-%1
+
+english.AppTitle=Otzaria Download Assistant
+english.OtzariaVersion=Otzaria %1
+english.ErrorReadList=Can't read the list of Otzaria files.
+english.ErrorConnect=Can't connect to the Otzaria downloads site.
+english.PlatformWindows=Windows
+english.PlatformMacos=macOS
+english.PlatformLinux=Linux
+english.PlatformAndroid=Android
+english.FormatDeb=Ubuntu, Debian, Mint and similar distributions (DEB)
+english.FormatRpm=Fedora, openSUSE and similar distributions (RPM)
+english.FormatPortable=Another distribution — no installation needed
+english.TargetArm=%1 · ARM processor
+english.HintMac=Mac computers
+english.HintAndroid=A phone or tablet
+english.HintArm=For example, computers with a Snapdragon processor
+english.HintX64=Intel or AMD processor — almost every computer
+english.PresetFullIndexed=Full installation + search index
+english.PresetFullIndexedDesc=For a computer without internet — search works right away. Smart Search included.
+english.PresetFull=Full installation
+english.PresetFullDesc=For a computer without internet — Otzaria builds the search index first. Smart Search included.
+english.PresetBasic=Basic installation (recommended)
+english.PresetBasicDesc=For a computer with internet — the library downloads from within Otzaria.
+english.PresetUpdate=Update Otzaria only
+english.PresetUpdateDesc=The installer of the new version, to update an existing installation.
+english.PresetCustom=Custom selection
+english.PresetCustomDesc=I want to choose what to download myself.
+english.RequiredTag=(required)
+english.OutputSubfolder=Otzaria setup for %1
+english.FallbackFolder=Otzaria setup
+english.DurationUnderMinute=less than a minute
+english.DurationHour=1 hour
+english.DurationTwoHours=2 hours
+english.DurationHours=%1 hours
+english.DurationMinute=1 minute
+english.DurationMinutes=%1 minutes
+english.DurationJoin=%1 %2
+english.DownloadedOf=%1 of %2 downloaded
+english.TimeLeft=%1 left
+english.CheckingDownloadedFile=Checking the downloaded file
+english.DownloadingItem=Downloading: %1 (%2 of %3)
+english.DownloadingItemAgain=The download was interrupted, downloading again: %1 (try %2 of %3)
+english.ErrorStopped=The download was stopped.
+english.ErrorFileUnavailable=Can't prepare the installation because one of the required files isn't available.
+english.ErrorDownloadDamaged=One of the downloaded files was damaged, so it wasn't saved.
+english.ErrorDownloadIncomplete=The download of one of the files was interrupted before it finished.
+english.JoiningFiles=Joining the files: %1
+english.SizeOf=%1 of %2
+english.ErrorWriteJoined=Couldn't write the joined file. There may not be enough free space.
+english.ErrorJoinedDamaged=The joined file was damaged, so it wasn't saved.
+english.CheckingJoined=Checking the joined file: %1
+english.VerifyingJoined=Verifying the file against the release details
+english.OpenHintExe=There, run it — no internet connection or other software is needed.
+english.OpenHintDmg=There, double-click it and drag Otzaria to the Applications folder.
+english.OpenHintPackage=There, double-click it to install Otzaria.
+english.OpenHintApk=There, move it to the phone or tablet and open it to install Otzaria.
+english.OpenHintArchive=There, extract it and run Otzaria from the folder that was created.
+english.CopyingTo=Copying to the chosen folder: %1
+english.ErrorCopy=Couldn't copy the files to the chosen folder.
+english.ResultFileReady=The file is ready:
+english.ResultFileIn=It's in the folder:
+english.ResultFolderReady=The installation is ready in the folder:
+english.GuideThisFile=You can install from it now, or copy it to another computer of the same kind and install there.
+english.GuideOtherFile=Copy this file to a USB drive, and from there to the offline computer (%1).
+english.GuideThisFolder=You can install from it now, or copy the whole folder to another computer of the same kind. The files must stay together in the same folder.
+english.GuideOtherFolder=Copy this whole folder to a USB drive, and from there to the offline computer (%1). The files must stay together in the same folder.
+english.GuideRunExe=On the offline computer, run %1 from it — no internet connection or other software is needed.
+english.GuideJoin=Some files are too large to be a single file, so they were left in parts. On the target computer, join them in a terminal window, from inside the folder, with this command:
+english.PreparedFiles=Prepared files:
+english.LoadFailedBody=You can try again, or open the Otzaria downloads page in your browser and download manually from there (a limited option: the assistant won't be able to check the files or join them).
+english.OfflineTitle=No internet connection
+english.OfflineBody=Check your internet connection and try again. You can also open the Otzaria downloads page in your browser and download manually from there (a limited option: the assistant won't be able to check the files or join them).
+english.StoppedBody=Files that were already downloaded are saved, and "Continue" picks up from the same point.
+english.RunFailedBody=Files that were already downloaded are saved, and "Try Again" continues from where it stopped.
+english.VersionToDownload=Version to download: %1
+english.DownloadingVersion=Downloading %1…
+english.RevealFile=Show the prepared file
+english.RevealFolder=Show the prepared folder
+english.NoTargetTitle=No computer selected
+english.NoTargetText=Choose the kind of computer Otzaria will be installed on.
+english.NothingTitle=Nothing selected
+english.NothingText=Choose at least one item to download.
+english.FolderBadTitle=Can't save in this folder
+english.FolderBadFallback=The chosen folder can't be used for saving. This folder is suggested instead:%n%1%n%nYou can continue with it or choose another folder.
+english.FolderBadText=The chosen folder can't be used for saving. Try another folder.
+english.SpaceTitle=Not enough free space
+english.SpaceText=There doesn't seem to be enough free space. About %1 is needed.%n%nContinue anyway?
+english.SpaceYes=Continue
+english.Cancel=Cancel
+english.ErrorPrepare=Can't prepare the installation.
+english.ModeTitle=Which computer is this for?
+english.ModeDesc=The assistant downloads the installation files and saves them in a folder. It doesn't install anything itself.
+english.ModeThis=Windows — like this computer
+english.ModeOther=A different kind of computer
+english.ModeThisArmDesc=For this computer and any Windows computer with an ARM processor, like Snapdragon. When the download finishes, you can install with one click.
+english.ModeThisX64Desc=For this computer and any regular Windows computer with an Intel or AMD processor. When the download finishes, you can install with one click.
+english.ModeOtherDesc=For %1. The files are saved in a folder, to copy to a USB drive.
+english.OtherWindows=other Windows computers
+english.ListOr=%1 or %2
+english.OtherTitle=Which kind of computer?
+english.OtherDesc=Choose the kind of computer Otzaria will be installed on.
+english.OtherHint=On Linux, if you're not sure which distribution is installed, choose DEB — it fits most computers.
+english.PresetTitle=What to download
+english.PresetDesc=Choose how much to download.
+english.PresetHint=You can change this later.
+english.CustomDesc=Check the items you want to download.
+english.CustomHint=Each item shows its download size.
+english.FolderFallbackNote=The assistant can't save in the folder it was started from (for example, a read-only USB drive), so a different folder is suggested here.
+english.FolderTitle=Where to save
+english.FolderDesc=By default, the files are saved next to the assistant itself.
+english.FolderHint=You can choose a different folder. You install from this folder — on this computer, or after copying it to a USB drive, also on a computer without internet.
+english.ConnectTitle=Connecting to the Otzaria website
+english.ConnectDesc=Getting the list of files for the latest version.
+english.DownloadTitle=Downloading the files
+english.DownloadDesc=The files are downloading from the Otzaria website. You can stop at any time — whatever was already downloaded is kept.
+english.WorkTitle=Preparing the installation
+english.WorkDesc=One moment, preparing the files.
+english.CheckingCached=Checking files that were already downloaded
+
+hebrew.AppTitle=אוצריא — מסייע הורדה
+hebrew.OtzariaVersion=אוצריא %1
+hebrew.ErrorReadList=לא ניתן לקרוא את רשימת הקבצים של אוצריא.
+hebrew.ErrorConnect=לא ניתן להתחבר לאתר ההורדות של אוצריא.
+hebrew.PlatformWindows=Windows
+hebrew.PlatformMacos=macOS
+hebrew.PlatformLinux=Linux
+hebrew.PlatformAndroid=Android
+hebrew.FormatDeb=Ubuntu, Debian, Mint והפצות דומות (DEB)
+hebrew.FormatRpm=Fedora, openSUSE והפצות דומות (RPM)
+hebrew.FormatPortable=הפצה אחרת — ללא התקנה
+hebrew.TargetArm=%1 · מעבד ARM
+hebrew.HintMac=מחשבי Mac
+hebrew.HintAndroid=טלפון או טאבלט
+hebrew.HintArm=למשל מחשבים עם מעבד Snapdragon
+hebrew.HintX64=מעבד Intel או AMD — כמעט כל המחשבים
+hebrew.PresetFullIndexed=התקנה מלאה + אינדקס חיפוש
+hebrew.PresetFullIndexedDesc=למחשב שאין בו אינטרנט — אינדקס החיפוש מוכן, והחיפוש עובד מיד. כולל חיפוש חכם.
+hebrew.PresetFull=התקנה מלאה
+hebrew.PresetFullDesc=למחשב שאין בו אינטרנט — אינדקס החיפוש ייבנה בתוכנה, וזה לוקח זמן. כולל חיפוש חכם.
+hebrew.PresetBasic=התקנה בסיסית (מומלצת)
+hebrew.PresetBasicDesc=למחשב שיש בו אינטרנט — הספרייה תרד מתוך התוכנה.
+hebrew.PresetUpdate=עדכון התוכנה בלבד
+hebrew.PresetUpdateDesc=קובץ ההתקנה של הגרסה החדשה, לעדכון התקנה קיימת.
+hebrew.PresetCustom=בחירה אישית
+hebrew.PresetCustomDesc=אני רוצה לבחור בעצמי מה להוריד.
+hebrew.RequiredTag=(נדרש)
+hebrew.OutputSubfolder=אוצריא להתקנה ל-%1
+hebrew.FallbackFolder=אוצריא-להתקנה
+hebrew.DurationUnderMinute=פחות מדקה
+hebrew.DurationHour=שעה
+hebrew.DurationTwoHours=שעתיים
+hebrew.DurationHours=%1 שעות
+hebrew.DurationMinute=דקה
+hebrew.DurationMinutes=%1 דקות
+hebrew.DurationJoin=%1 ו-%2
+hebrew.DownloadedOf=ירדו %1 מתוך %2
+hebrew.TimeLeft=נותרו %1
+hebrew.CheckingDownloadedFile=בודק את הקובץ שירד
+hebrew.DownloadingItem=מוריד: %1 (%2 מתוך %3)
+hebrew.DownloadingItemAgain=ההורדה נקטעה, מוריד שוב: %1 (ניסיון %2 מתוך %3)
+hebrew.ErrorStopped=ההורדה הופסקה.
+hebrew.ErrorFileUnavailable=לא ניתן להכין את ההתקנה משום שאחד הקבצים הדרושים אינו זמין.
+hebrew.ErrorDownloadDamaged=אחד הקבצים שהורדו נמצא פגום ולא נשמר.
+hebrew.ErrorDownloadIncomplete=ההורדה של אחד הקבצים נקטעה לפני שהסתיימה.
+hebrew.JoiningFiles=מחבר את הקבצים: %1
+hebrew.SizeOf=%1 מתוך %2
+hebrew.ErrorWriteJoined=לא ניתן היה לכתוב את הקובץ המאוחד. ייתכן שאין מספיק מקום פנוי.
+hebrew.ErrorJoinedDamaged=הקובץ המאוחד נמצא פגום ולכן לא נשמר.
+hebrew.CheckingJoined=בודק את הקובץ המאוחד: %1
+hebrew.VerifyingJoined=מאמת את תוכן הקובץ מול המניפסט
+hebrew.OpenHintExe=שם הפעל אותו — אין צורך בחיבור לאינטרנט ואין צורך בתוכנות נוספות.
+hebrew.OpenHintDmg=שם פתח אותו בלחיצה כפולה וגרור את אוצריא לתיקיית היישומים.
+hebrew.OpenHintPackage=שם פתח אותו בלחיצה כפולה כדי להתקין את אוצריא.
+hebrew.OpenHintApk=שם העבר אותו לטלפון או לטאבלט ופתח אותו כדי להתקין את אוצריא.
+hebrew.OpenHintArchive=שם חלץ אותו והפעל את אוצריא מתוך התיקייה שנוצרה.
+hebrew.CopyingTo=מעתיק לתיקייה שנבחרה: %1
+hebrew.ErrorCopy=לא ניתן היה להעתיק את הקבצים לתיקייה שנבחרה.
+hebrew.ResultFileReady=הקובץ מוכן:
+hebrew.ResultFileIn=הוא נמצא בתיקייה:
+hebrew.ResultFolderReady=ההתקנה מוכנה בתיקייה:
+hebrew.GuideThisFile=אפשר להתקין ממנו עכשיו, או להעתיק אותו למחשב אחר מאותו סוג ולהתקין שם.
+hebrew.GuideOtherFile=העתק את הקובץ הזה לדיסק-און-קי ומשם למחשב המנותק (%1).
+hebrew.GuideThisFolder=אפשר להתקין ממנה עכשיו, או להעתיק את כל התיקייה למחשב אחר מאותו סוג. הקבצים חייבים להישאר יחד באותה תיקייה.
+hebrew.GuideOtherFolder=העתק את כל התיקייה הזאת לדיסק-און-קי ומשם למחשב המנותק (%1). הקבצים חייבים להישאר יחד באותה תיקייה.
+hebrew.GuideRunExe=במחשב המנותק הפעל מתוכה את %1 — אין צורך בחיבור לאינטרנט ואין צורך בתוכנות נוספות.
+hebrew.GuideJoin=חלק מהקבצים גדולים מדי לקובץ אחד ולכן נשארו מחולקים. במחשב היעד מחברים אותם בחלון מסוף (טרמינל), מתוך התיקייה, בפקודה:
+hebrew.PreparedFiles=הקבצים שהוכנו:
+hebrew.LoadFailedBody=אפשר לנסות שוב, או לפתוח את עמוד ההורדות של אוצריא בדפדפן ולהוריד משם ידנית (אפשרות מוגבלת: המסייע לא יוכל לבדוק את הקבצים או לחבר אותם).
+hebrew.OfflineTitle=אין חיבור לאינטרנט
+hebrew.OfflineBody=בדוק את החיבור לאינטרנט ונסה שוב. אפשר גם לפתוח את עמוד ההורדות של אוצריא בדפדפן ולהוריד משם ידנית (אפשרות מוגבלת: המסייע לא יוכל לבדוק את הקבצים או לחבר אותם).
+hebrew.StoppedBody=קבצים שכבר ירדו נשמרו, ו"המשך" ימשיך מאותו מקום.
+hebrew.RunFailedBody=קבצים שכבר ירדו נשמרו, ו"נסה שוב" ימשיך מהמקום שבו נעצרה הפעולה.
+hebrew.VersionToDownload=הגרסה שתורד: %1
+hebrew.DownloadingVersion=מוריד את %1…
+hebrew.RevealFile=הצג את הקובץ שהוכן
+hebrew.RevealFolder=הצג את התיקייה שהוכנה
+hebrew.NoTargetTitle=לא נבחר מחשב
+hebrew.NoTargetText=יש לבחור את סוג המחשב שבו תותקן אוצריא.
+hebrew.NothingTitle=לא נבחר רכיב
+hebrew.NothingText=יש לבחור לפחות רכיב אחד להורדה.
+hebrew.FolderBadTitle=אי אפשר לשמור בתיקייה הזאת
+hebrew.FolderBadFallback=לא ניתן לשמור בתיקייה שנבחרה. במקומה מוצעת התיקייה:%n%1%n%nאפשר להמשיך איתה או לבחור תיקייה אחרת.
+hebrew.FolderBadText=לא ניתן לשמור בתיקייה שנבחרה. נסה תיקייה אחרת.
+hebrew.SpaceTitle=אין מספיק מקום פנוי
+hebrew.SpaceText=נראה שאין מספיק מקום פנוי. דרושים בערך %1.%n%nלהמשיך בכל זאת?
+hebrew.SpaceYes=להמשיך
+hebrew.Cancel=ביטול
+hebrew.ErrorPrepare=לא ניתן להכין את ההתקנה.
+hebrew.ModeTitle=לאיזה מחשב מכינים את ההתקנה?
+hebrew.ModeDesc=המסייע מוריד את קובצי ההתקנה ושומר אותם בתיקייה. הוא עצמו אינו מתקין דבר.
+hebrew.ModeThis=Windows — כמו המחשב הזה
+hebrew.ModeOther=סוג מחשב אחר
+hebrew.ModeThisArmDesc=מתאים למחשב הזה ולכל מחשב Windows עם מעבד ARM, כמו Snapdragon. בסוף ההורדה אפשר להתקין בלחיצה.
+hebrew.ModeThisX64Desc=מתאים למחשב הזה ולכל מחשב Windows רגיל, עם מעבד Intel או AMD. בסוף ההורדה אפשר להתקין בלחיצה.
+hebrew.ModeOtherDesc=מתאים ל-%1. הקבצים נשמרים בתיקייה, להעתקה בדיסק-און-קי.
+hebrew.OtherWindows=Windows מסוג אחר
+hebrew.ListOr=%1 או %2
+hebrew.OtherTitle=לאיזה סוג מחשב?
+hebrew.OtherDesc=בחר את סוג המחשב שבו תותקן אוצריא.
+hebrew.OtherHint=ב-Linux, אם אינך יודע איזו הפצה מותקנת, בחר DEB — היא מתאימה לרוב המחשבים.
+hebrew.PresetTitle=מה להוריד
+hebrew.PresetDesc=בחר את היקף ההורדה.
+hebrew.PresetHint=אפשר לשנות את הבחירה בהמשך.
+hebrew.CustomDesc=סמן את הרכיבים שברצונך להוריד.
+hebrew.CustomHint=ליד כל רכיב מופיע גודל ההורדה שלו.
+hebrew.FolderFallbackNote=אי אפשר לשמור בתיקייה שממנה הופעל המסייע (למשל דיסק-און-קי לקריאה בלבד), ולכן הוצעה כאן תיקייה אחרת.
+hebrew.FolderTitle=לאן לשמור
+hebrew.FolderDesc=כברירת מחדל הקבצים נשמרים ליד המסייע עצמו.
+hebrew.FolderHint=אפשר לבחור תיקייה אחרת. מהתיקייה הזאת מתקינים — במחשב הזה, או אחרי העתקה לדיסק-און-קי גם במחשב בלי אינטרנט.
+hebrew.ConnectTitle=מתחבר לאתר אוצריא
+hebrew.ConnectDesc=מוריד את רשימת הקבצים של הגרסה העדכנית.
+hebrew.DownloadTitle=הורדת הקבצים
+hebrew.DownloadDesc=הקבצים יורדים מאתר אוצריא. אפשר לעצור בכל רגע — מה שכבר ירד יישמר.
+hebrew.WorkTitle=הכנת ההתקנה
+hebrew.WorkDesc=רגע, מכינים את הקבצים.
+hebrew.CheckingCached=בודק קבצים שכבר הורדו
+
+; שכבת התצוגה המשותפת לאוצריא: העיצוב ([Files]) והליבה, לפני כל הקוד שמשתמש בהם.
+#include "otzaria_ui_art.iss"
+#include "otzaria_ui_core.iss"
 
 [Code]
 type
@@ -122,15 +409,26 @@ const
   AppendSliceSize = 67108864;
   ManifestSchemaVersion = 1;
   SpeedWindowMs = 5000;
+  { Inno אינו ממשיך הורדה מאמצע: חיבור שנקטע מחייב להוריד את הקובץ כולו שוב. }
+  DownloadAttempts = 3;
 
   ModeThisComputer = 0;
   ModeOtherComputer = 1;
+
+  FailureLoad = 1;
+  FailureRun = 2;
+  { עצירה של המשתמש אינה תקלה: מוצגת ברוגע, ו"המשך" ממשיך מאותו מקום. }
+  RunStopped = 3;
 
   KnownPlatforms = 'windows,macos,linux,android';
   PortableFormat = 'portable';
   { השם שה-workflow כותב (--out). משמש לתג המוטבע בלי API: מגבלת הקצב של
     api.github.com (403/429) משותפת לכל מי שיוצא מאותה כתובת, למשל בנטפרי. }
   ReleaseManifestAsset = 'otzaria-release-manifest.json';
+  { נתונים שהתוכנה המותקנת קוראת מתיקיית הפלט, ולכן חלק מ"מלאה" ומ"מלאה + אינדקס". }
+  OfflineDataTypes = 'semantic-model,semantic-vectors,';
+  { סדר ההצגה. סדר ההוספה ב-BuildPresets הוא שקובע איזו כפולה מושמטת. }
+  PresetDisplayOrder = 'basic,full-indexed,full,update,';
 
 type
   TInt64Array = array of Int64;
@@ -140,43 +438,49 @@ var
   PinnedTag: String;
   ReleaseVersion: String;
   ManifestLoaded: Boolean;
-  LoadErrorHeb: String;
+  LoadErrorMsg: String;
   LoadErrorTech: String;
+  LoadAttempts, LoadNetworkFailures: Integer;
+  LoadOffline: Boolean;
 
   CompId, CompName, CompDesc, CompType, CompPlatform, CompArch, CompFormat,
-    CompDependsOn, CompInstalledBy: TArrayOfString;
+    CompDependsOn, CompInstalledBy, CompPartOf, CompOutputFolder,
+    CompOutputNote, CompOutputNoteEn: TArrayOfString;
   CompRequired, CompSelected: array of Boolean;
   CompDownloadSize: TInt64Array;
   CompAssetStart, CompAssetCount: array of Integer;
 
   AssetKind, AssetRepo, AssetTag, AssetName, AssetSha: TArrayOfString;
   AssetSize: TInt64Array;
-  AssetPartStart, AssetPartCount: array of Integer;
+  AssetPartStart, AssetPartCount, AssetComp: array of Integer;
 
   PartName, PartSha: TArrayOfString;
   PartSize: TInt64Array;
 
   { --- מחשב היעד: נקבע מהעמודים ב-UpdateTarget ונקרא רק מכאן --- }
   TargetPlatform, TargetArchitecture, TargetFormat: String;
-  PlatformList, ArchList, FormatList: TArrayOfString;
-  ArchListFor, FormatListFor: String;
+  { שורות העמוד "סוג מחשב אחר", באותו סדר. }
+  OtherPlatform, OtherArch, OtherFormat: TArrayOfString;
 
   { --- הצעות מוכנות, נגזרות מהמניפסט --- }
-  PresetId, PresetLabel, PresetDesc, PresetMembers: TArrayOfString;
+  PresetId, PresetLabel, PresetDesc, PresetSize, PresetMembers: TArrayOfString;
 
   { --- מצב האשף --- }
   ModePage: TInputOptionWizardPage;
-  PlatformPage: TInputOptionWizardPage;
-  ArchPage: TInputOptionWizardPage;
-  FormatPage: TInputOptionWizardPage;
+  OtherPage: TInputOptionWizardPage;
   PresetPage: TInputOptionWizardPage;
   CustomPage: TInputOptionWizardPage;
   FolderPage: TInputDirWizardPage;
+  ConnectPage: TDownloadWizardPage;
   DownloadPage: TDownloadWizardPage;
   WorkPage: TOutputProgressWizardPage;
+  { עצירה שאושרה בחלון המעוצב; Inno עוצר רק כשפונקציית ההתקדמות מחזירה False. }
+  StopRequested: Boolean;
   CustomIndex: array of Integer;
   CustomPresetIndex: Integer;
   ResultText: String;
+  { חלקי ResultText לעמוד הסיום המצויר: הקובץ (כשנוצר אחד), התיקייה וההנחיה. }
+  ResultFile, ResultFolder, ResultGuide: String;
   RunAfterExe: String;
   RevealPath: String;
   RevealIsFile: Boolean;
@@ -184,6 +488,10 @@ var
 
   { --- תור ההורדה של הריצה הנוכחית --- }
   QueueUrl, QueueFile, QueueSha, QueueLabel: TArrayOfString;
+  { שורת "ירדו X מתוך Y" האחרונה: Inno כותב לאותה תווית גם את שם הקובץ. }
+  DownloadStatus: String;
+  { פקודות החיבור שבהנחיית הסיום, כדי שהתצוגה תבדיל אותן מטקסט רגיל. }
+  ResultCommands: TArrayOfString;
   QueueSize: TInt64Array;
   ProgressCaption: String;
   ProgressDone, ProgressTotal: Int64;
@@ -199,7 +507,16 @@ begin
       Lowercase(Suffix));
 end;
 
-{ גודל בעברית קריאה. אין "בתים" ואין קיצורים לועזיים בעמודים הרגילים. }
+{ "אוצריא 0.9.98" לפי releaseVersion של המניפסט — לא התג, שיש בו ‎+build. ריק כשאין. }
+function OtzariaVersionLabel(): String;
+begin
+  Result := '';
+  if ReleaseVersion <> '' then
+    Result := Msg1('OtzariaVersion', LtrUnit(ReleaseVersion));
+end;
+
+{ אותן יחידות כמו בתוכנה עצמה: GB, MB, KB. רווח קשיח, כדי ששבירת שורה לא
+  תפריד בין המספר ליחידה. }
 function HumanSize(Bytes: Int64): String;
 var
   Tenths: Int64;
@@ -207,13 +524,28 @@ begin
   if Bytes >= Int64(1073741824) then
   begin
     Tenths := (Bytes * 10) div Int64(1073741824);
-    Result := IntToStr(Tenths div 10) + '.' + IntToStr(Tenths mod 10) +
-      ' ג׳יגה';
+    Result := LtrUnit(IntToStr(Tenths div 10) + '.' +
+      IntToStr(Tenths mod 10) + #$00A0 + 'GB');
   end
   else if Bytes >= 1048576 then
-    Result := IntToStr(Bytes div 1048576) + ' מגה'
+    Result := LtrUnit(IntToStr(Bytes div 1048576) + #$00A0 + 'MB')
   else
-    Result := IntToStr((Bytes + 1023) div 1024) + ' קילו';
+    Result := LtrUnit(IntToStr((Bytes + 1023) div 1024) + #$00A0 + 'KB');
+end;
+
+{ נתיב לתצוגה בתוך עברית (LRE/PDF: פקדי Win32 אינם מכירים בידוד). לא לנתיב של
+  פעולת קבצים ולא לפקודה להעתקה — התווים הסמויים מועתקים ושוברים אותה בטרמינל. }
+function DisplayLtr(const Text: String): String;
+begin
+  Result := #$202A + Text + #$202C;
+end;
+
+{ שורת השם ומתחתיה התיאור: ה-SubItem של הרשימה הוא שורה אחת שאינה נשברת. }
+function OptionCaption(const Title, Desc: String): String;
+begin
+  Result := Title;
+  if Desc <> '' then
+    Result := Result + #13#10 + Desc;
 end;
 
 function IsExecutableName(const Name: String): Boolean;
@@ -485,6 +817,23 @@ begin
   Result := not OnlyDots;
 end;
 
+{ outputFolder: שמות ‎[A-Za-z0-9._-]‎ מופרדים ב-'/', בלי מקטע ריק או של
+  נקודות בלבד — הוא הופך לנתיב כתיבה בתוך תיקיית הפלט. }
+function IsSafeOutputFolder(const Folder: String): Boolean;
+var
+  Parts: TArrayOfString;
+  I: Integer;
+begin
+  Result := False;
+  if (Folder = '') or (Pos('+', Folder) > 0) then
+    exit;
+  Parts := StringSplitEx(Folder, ['/'], #0, stAll);
+  for I := 0 to GetArrayLength(Parts) - 1 do
+    if not IsSafeName(Parts[I]) then
+      exit;
+  Result := True;
+end;
+
 function AssetUrl(const Repository, Tag, Name: String): String;
 begin
   Result := '';
@@ -577,7 +926,7 @@ end;
 
 function FallbackOutputBase(): String;
 begin
-  Result := ExpandConstant('{userdocs}\אוצריא-להתקנה');
+  Result := ExpandConstant('{userdocs}\') + CustomMessage('FallbackFolder');
 end;
 
 { כתיבה ממשית ולא ניחוש מהנתיב: דיסק-און-קי לקריאה בלבד, שיתוף רשת ותיקייה
@@ -752,6 +1101,26 @@ begin
   end;
 end;
 
+{ פענוח המניפסט לוקח כמה שניות; עמוד החיבור מעבד בינתיים הודעות, כדי שהחלון
+  לא ייראה תקוע. בלי אשף (DevSelectionDump) אין מה לעבד. }
+procedure PumpMessages();
+begin
+  if Assigned(ConnectPage) then
+    ConnectPage.SetProgress(0, 0);
+end;
+
+{ טקסט רכיב למשתמש, כמו componentText במימוש הייחוס: באנגלית `<Key>En`, ובהיעדרו
+  (release ישן) — העברי. }
+function ComponentText(const Raw: AnsiString; ObjPos: Integer; const Key: String;
+  English: Boolean): String;
+begin
+  Result := '';
+  if English then
+    Result := JStr(Raw, ObjPos, Key + 'En');
+  if Result = '' then
+    Result := JStr(Raw, ObjPos, Key);
+end;
+
 function ParseManifest(const Raw: AnsiString): Boolean;
 var
   CompPos, AssetPos, PartPos, ArrPos: Integer;
@@ -795,15 +1164,20 @@ begin
     SetArrayLength(CompFormat, NC + 1);
     SetArrayLength(CompDependsOn, NC + 1);
     SetArrayLength(CompInstalledBy, NC + 1);
+    SetArrayLength(CompPartOf, NC + 1);
+    SetArrayLength(CompOutputFolder, NC + 1);
+    SetArrayLength(CompOutputNote, NC + 1);
+    SetArrayLength(CompOutputNoteEn, NC + 1);
     SetArrayLength(CompRequired, NC + 1);
     SetArrayLength(CompSelected, NC + 1);
     SetArrayLength(CompDownloadSize, NC + 1);
     SetArrayLength(CompAssetStart, NC + 1);
     SetArrayLength(CompAssetCount, NC + 1);
 
+    PumpMessages();
     CompId[NC] := JStr(Raw, CompPos, 'id');
-    CompName[NC] := JStr(Raw, CompPos, 'name');
-    CompDesc[NC] := JStr(Raw, CompPos, 'description');
+    CompName[NC] := ComponentText(Raw, CompPos, 'name', EnglishUi());
+    CompDesc[NC] := ComponentText(Raw, CompPos, 'description', EnglishUi());
     CompType[NC] := JStr(Raw, CompPos, 'type');
     CompPlatform[NC] := JStr(Raw, CompPos, 'platform');
     CompArch[NC] := JStr(Raw, CompPos, 'architecture');
@@ -814,6 +1188,16 @@ begin
 
     CompDependsOn[NC] := JIdList(Raw, CompPos, 'dependsOn');
     CompInstalledBy[NC] := JIdList(Raw, CompPos, 'installedBy');
+    CompPartOf[NC] := JStr(Raw, CompPos, 'partOf');
+    CompOutputFolder[NC] := JStr(Raw, CompPos, 'outputFolder');
+    CompOutputNote[NC] := JStr(Raw, CompPos, 'outputNote');
+    CompOutputNoteEn[NC] := JStr(Raw, CompPos, 'outputNoteEn');
+    if (CompOutputFolder[NC] <> '') and
+       not IsSafeOutputFolder(CompOutputFolder[NC]) then
+    begin
+      LoadErrorTech := 'bad outputFolder in component ' + CompId[NC];
+      exit;
+    end;
 
     CompAssetStart[NC] := NA;
     AssetPos := JArrFirst(Raw, JFind(Raw, CompPos, 'assets'));
@@ -827,6 +1211,7 @@ begin
       SetArrayLength(AssetSize, NA + 1);
       SetArrayLength(AssetPartStart, NA + 1);
       SetArrayLength(AssetPartCount, NA + 1);
+      SetArrayLength(AssetComp, NA + 1);
 
       AssetKind[NA] := JStr(Raw, AssetPos, 'kind');
       AssetRepo[NA] := JStr(Raw, AssetPos, 'repository');
@@ -835,6 +1220,7 @@ begin
       AssetSha[NA] := JStr(Raw, AssetPos, 'sha256');
       AssetSize[NA] := JInt(Raw, AssetPos, 'size');
       AssetPartStart[NA] := NP;
+      AssetComp[NA] := NC;
 
       PartPos := JArrFirst(Raw, JFind(Raw, AssetPos, 'parts'));
       while PartPos > 0 do
@@ -874,7 +1260,8 @@ begin
     end;
     CompAssetCount[NC] := NA - CompAssetStart[NC];
 
-    if (CompId[NC] = '') or (CompName[NC] = '') or (CompAssetCount[NC] = 0) then
+    if (CompId[NC] = '') or (JStr(Raw, CompPos, 'name') = '') or
+       (CompAssetCount[NC] = 0) then
     begin
       LoadErrorTech := 'component without id/name/assets';
       exit;
@@ -889,6 +1276,37 @@ begin
     LoadErrorTech := 'manifest has no components';
 end;
 
+{ WinHTTP: פג הזמן, השם לא נפתר, אין חיבור לשרת, החיבור נותק, החיבור אופס. }
+function IsNetworkError(const Message: String): Boolean;
+begin
+  Result := (Pos('12002', Message) > 0) or (Pos('12007', Message) > 0) or
+    (Pos('12029', Message) > 0) or (Pos('12030', Message) > 0) or
+    (Pos('12031', Message) > 0);
+end;
+
+{ כל בקשה בלי hash עוברת כאן — רשימת ה-release והמניפסט בלבד — בעמוד שמעבד הודעות
+  (בלי אשף: ישירות). כישלון רשת נספר, כדי להבחין בין "אין חיבור" למניפסט פגום. }
+procedure FetchToTemp(const Url, FileName: String);
+begin
+  if StopRequested then
+    RaiseException('stopped by user');
+  LoadAttempts := LoadAttempts + 1;
+  try
+    if Assigned(ConnectPage) then
+    begin
+      ConnectPage.Clear;
+      ConnectPage.Add(Url, FileName, '');
+      ConnectPage.Download;
+    end
+    else
+      DownloadTemporaryFile(Url, FileName, '', nil);
+  except
+    if IsNetworkError(GetExceptionMessage) then
+      LoadNetworkFailures := LoadNetworkFailures + 1;
+    RaiseException(GetExceptionMessage);
+  end;
+end;
+
 { JSON של release, או '' בכישלון הורדה/קריאה. }
 function FetchReleaseJson(const Url, FileName: String): AnsiString;
 var
@@ -896,7 +1314,7 @@ var
 begin
   Result := '';
   try
-    DownloadTemporaryFile(Url, FileName, '', nil);
+    FetchToTemp(Url, FileName);
   except
     LoadErrorTech := GetExceptionMessage;
     exit;
@@ -918,7 +1336,7 @@ var
   Name: String;
 begin
   Result := False;
-  LoadErrorHeb := 'לא ניתן לקרוא את רשימת הקבצים של אוצריא.';
+  LoadErrorMsg := CustomMessage('ErrorReadList');
 
 #ifdef DevManifestFile
   { פיתוח בלבד (/DDevManifestFile=<path>): ה-CI לעולם אינו מגדיר את זה. }
@@ -949,7 +1367,7 @@ begin
     ' pinned=' + PinnedTag);
   if PinnedTag = '' then
   begin
-    LoadErrorHeb := 'לא ניתן להתחבר לאתר ההורדות של אוצריא.';
+    LoadErrorMsg := CustomMessage('ErrorConnect');
     if LoadErrorTech = '' then
       LoadErrorTech := 'release has no tag_name';
     exit;
@@ -985,7 +1403,7 @@ begin
 
   Url := AssetUrl('Otzaria/otzaria', PinnedTag, ManifestAsset);
   try
-    DownloadTemporaryFile(Url, 'manifest.json', '', nil);
+    FetchToTemp(Url, 'manifest.json');
   except
     LoadErrorTech := GetExceptionMessage;
     exit;
@@ -997,6 +1415,42 @@ begin
     exit;
   end;
   Result := ParseManifest(ManifestRaw);
+end;
+
+{ הנסיגה היחידה כשאין מניפסט: עמוד ההורדות בדפדפן. המסייע לא יוריד דבר בלי hash. }
+procedure OpenDownloadsPage();
+var
+  ErrorCode: Integer;
+begin
+  ShellExecAsOriginalUser('open',
+    'https://github.com/Otzaria/otzaria/releases/latest', '', '',
+    SW_SHOWNORMAL, ewNoWait, ErrorCode);
+end;
+
+{ "התקן עכשיו" בעמוד הסיום: המסייע רק מפעיל את המתקין שהכין, ואינו מחכה לו. }
+function RunInstaller(): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  Result := ShellExec('', RunAfterExe, '', ExtractFileDir(RunAfterExe),
+    SW_SHOWNORMAL, ewNoWait, ErrorCode);
+  if not Result then
+    Log('DownloadAssistant: cannot run ' + RunAfterExe + ': ' + IntToStr(ErrorCode));
+end;
+
+{ קובץ בודד מסומן בתוך התיקייה שלו; תיקייה נפתחת. }
+procedure OpenOutputFolder();
+var
+  Params: String;
+  ErrorCode: Integer;
+begin
+  if RevealIsFile then
+    Params := '/select,"' + RevealPath + '"'
+  else
+    Params := '"' + RevealPath + '"';
+  if not ExecAsOriginalUser(ExpandConstant('{win}\explorer.exe'), Params, '',
+    SW_SHOWNORMAL, ewNoWait, ErrorCode) then
+    Log('DownloadAssistant: explorer failed: ' + IntToStr(ErrorCode));
 end;
 
 { ====================== מחשב היעד ====================== }
@@ -1054,35 +1508,25 @@ end;
 function PlatformDisplayName(const Platform: String): String;
 begin
   if Platform = 'windows' then
-    Result := 'Windows'
+    Result := CustomMessage('PlatformWindows')
   else if Platform = 'macos' then
-    Result := 'macOS'
+    Result := CustomMessage('PlatformMacos')
   else if Platform = 'linux' then
-    Result := 'Linux'
+    Result := CustomMessage('PlatformLinux')
   else if Platform = 'android' then
-    Result := 'Android'
+    Result := CustomMessage('PlatformAndroid')
   else
     Result := Platform;
-end;
-
-function ArchitectureDisplayName(const Architecture: String): String;
-begin
-  if Architecture = 'x64' then
-    Result := 'מחשב רגיל'
-  else if Architecture = 'arm64' then
-    Result := 'מחשב עם מעבד מסוג ARM'
-  else
-    Result := Architecture;
 end;
 
 function FormatDisplayName(const Format: String): String;
 begin
   if Format = 'deb' then
-    Result := 'Ubuntu, Debian, Mint והפצות דומות (DEB)'
+    Result := CustomMessage('FormatDeb')
   else if Format = 'rpm' then
-    Result := 'Fedora, openSUSE והפצות דומות (RPM)'
+    Result := CustomMessage('FormatRpm')
   else if Format = PortableFormat then
-    Result := 'הפצה אחרת — ללא התקנה'
+    Result := CustomMessage('FormatPortable')
   else
     Result := Format;
 end;
@@ -1144,7 +1588,6 @@ begin
     ListAdd(Result, PortableFormat);
 end;
 
-{ מחוץ ל-Linux אין os-release, ולכן ברירת המחדל היא deb — רוב המשתמשים. }
 function DefaultIndex(const List: TArrayOfString; const Preferred: String): Integer;
 begin
   Result := ListIndex(List, Preferred);
@@ -1162,41 +1605,15 @@ end;
 
 function IsThisComputerMode(): Boolean;
 begin
-  Result := ModePage.SelectedValueIndex = ModeThisComputer;
+  Result := False;
+  if Assigned(ModePage) then
+    Result := ModePage.SelectedValueIndex = ModeThisComputer;
 end;
 
-procedure FillOptions(Page: TInputOptionWizardPage; const Values: TArrayOfString;
-  const Kind: String; Selected: Integer);
-var
-  I: Integer;
-begin
-  Page.CheckListBox.Items.Clear;
-  for I := 0 to GetArrayLength(Values) - 1 do
-    if Kind = 'arch' then
-      Page.Add(ArchitectureDisplayName(Values[I]))
-    else
-      Page.Add(FormatDisplayName(Values[I]));
-  if GetArrayLength(Values) > 0 then
-    Page.SelectedValueIndex := Selected;
-end;
-
-function SelectedFrom(Page: TInputOptionWizardPage;
-  const List: TArrayOfString): String;
-var
-  I: Integer;
-begin
-  Result := '';
-  if GetArrayLength(List) = 0 then
-    exit;
-  I := Page.SelectedValueIndex;
-  if (I < 0) or (I >= GetArrayLength(List)) then
-    I := 0;
-  Result := List[I];
-end;
-
-{ קובע את היעד מהעמודים. רשימות הארכיטקטורה והפורמט נבנות מחדש רק כשהבחירה
-  שמעליהן השתנתה, כדי שחזרה אחורה לא תמחק את בחירת המשתמש. }
+{ "המחשב הזה" הוא Windows במעבד שעליו המסייע רץ; כל יעד אחר נבחר מהרשימה. }
 procedure UpdateTarget();
+var
+  I: Integer;
 begin
   if IsThisComputerMode() then
   begin
@@ -1205,28 +1622,39 @@ begin
     TargetFormat := '';
     exit;
   end;
+  TargetPlatform := '';
+  TargetArchitecture := '';
+  TargetFormat := '';
+  I := OtherPage.SelectedValueIndex;
+  if (I < 0) or (I >= GetArrayLength(OtherPlatform)) then
+    exit;
+  TargetPlatform := OtherPlatform[I];
+  TargetArchitecture := OtherArch[I];
+  TargetFormat := OtherFormat[I];
+end;
 
-  TargetPlatform := SelectedFrom(PlatformPage, PlatformList);
+{ המעבד נזכר רק כשהוא ARM: Intel ו-AMD הם כמעט כל המחשבים. }
+function TargetTitle(const Platform, Architecture: String): String;
+begin
+  Result := PlatformDisplayName(Platform);
+  if Architecture = 'arm64' then
+    Result := Msg1('TargetArm', Result);
+end;
 
-  if ArchListFor <> TargetPlatform then
-  begin
-    ArchList := ArchitectureChoices(TargetPlatform);
-    if TargetPlatform = 'windows' then
-      FillOptions(ArchPage, ArchList, 'arch',
-        DefaultIndex(ArchList, RunningArchitecture()))
-    else
-      FillOptions(ArchPage, ArchList, 'arch', DefaultIndex(ArchList, 'x64'));
-    ArchListFor := TargetPlatform;
-  end;
-  TargetArchitecture := SelectedFrom(ArchPage, ArchList);
-
-  if FormatListFor <> TargetPlatform + '/' + TargetArchitecture then
-  begin
-    FormatList := PackageFormatChoices(TargetPlatform, TargetArchitecture);
-    FillOptions(FormatPage, FormatList, 'format', DefaultIndex(FormatList, 'deb'));
-    FormatListFor := TargetPlatform + '/' + TargetArchitecture;
-  end;
-  TargetFormat := SelectedFrom(FormatPage, FormatList);
+function TargetHint(const Platform, Architecture, Format: String): String;
+begin
+  if Format <> '' then
+    Result := FormatDisplayName(Format)
+  else if Platform = 'macos' then
+    Result := CustomMessage('HintMac')
+  else if Platform = 'android' then
+    Result := CustomMessage('HintAndroid')
+  else if Architecture = 'arm64' then
+    Result := CustomMessage('HintArm')
+  else if Architecture = 'x64' then
+    Result := CustomMessage('HintX64')
+  else
+    Result := '';
 end;
 
 { ====================== הצעות מוכנות מהמניפסט ====================== }
@@ -1297,6 +1725,17 @@ function ComponentIsOffered(Index: Integer): Boolean;
 begin
   Result := ComponentFitsTarget(Index) and ComponentIsRunnable(Index) and
     ((CompInstalledBy[Index] = '') or (InstallerFor(Index) >= 0));
+end;
+
+{ גודל השורה של רכיב בבחירה האישית: הוא והחלקים המוצעים שלו (partOf). }
+function CustomChoiceSize(Index: Integer): Int64;
+var
+  J: Integer;
+begin
+  Result := CompDownloadSize[Index];
+  for J := 0 to GetArrayLength(CompId) - 1 do
+    if (CompPartOf[J] = CompId[Index]) and ComponentIsOffered(J) then
+      Result := Result + CompDownloadSize[J];
 end;
 
 function AnyMember(const Members, Ids: String): Boolean;
@@ -1375,6 +1814,11 @@ begin
       Result := Result + CompId[I] + ',';
 end;
 
+function DisplayRank(const Id: String): Integer;
+begin
+  Result := Pos(',' + Id + ',', ',' + PresetDisplayOrder);
+end;
+
 procedure AddPreset(const Id, Caption, Description, Members: String);
 var
   N, I: Integer;
@@ -1392,11 +1836,24 @@ begin
   SetArrayLength(PresetId, N + 1);
   SetArrayLength(PresetLabel, N + 1);
   SetArrayLength(PresetDesc, N + 1);
+  SetArrayLength(PresetSize, N + 1);
   SetArrayLength(PresetMembers, N + 1);
-  PresetId[N] := Id;
-  PresetLabel[N] := Caption + ' — ' + HumanSize(MembersSize(Closed));
-  PresetDesc[N] := Description;
-  PresetMembers[N] := Closed;
+  { נכנסת למקומה בסדר ההצגה. }
+  I := N;
+  while (I > 0) and (DisplayRank(PresetId[I - 1]) > DisplayRank(Id)) do
+  begin
+    PresetId[I] := PresetId[I - 1];
+    PresetLabel[I] := PresetLabel[I - 1];
+    PresetDesc[I] := PresetDesc[I - 1];
+    PresetSize[I] := PresetSize[I - 1];
+    PresetMembers[I] := PresetMembers[I - 1];
+    I := I - 1;
+  end;
+  PresetId[I] := Id;
+  PresetLabel[I] := Caption;
+  PresetSize[I] := HumanSize(MembersSize(Closed));
+  PresetDesc[I] := Description;
+  PresetMembers[I] := Closed;
 end;
 
 function CollectByTypes(const Types: String; RequiredOnly: Boolean): String;
@@ -1416,46 +1873,99 @@ begin
   end;
 end;
 
+{ החבילה וכל רכיב מוצע שהיא ב-installedBy שלו. }
+function WithInstalled(Bundle: Integer): String;
+var
+  I: Integer;
+begin
+  Result := CompId[Bundle] + ',';
+  for I := 0 to GetArrayLength(CompId) - 1 do
+    if MembersContain(CompInstalledBy[I], CompId[Bundle]) and ComponentIsOffered(I) then
+      Result := Result + CompId[I] + ',';
+end;
+
+{ החבילה של "מלאה": הגדולה ביותר שמוצעת ליעד, או -1. }
+function FullPresetBundle(): Integer;
+var
+  I: Integer;
+begin
+  Result := -1;
+  for I := 0 to GetArrayLength(CompId) - 1 do
+    if ComponentIsOffered(I) and (CompType[I] = 'application-bundle') and
+       ((Result < 0) or (CompDownloadSize[I] > CompDownloadSize[Result])) then
+      Result := I;
+end;
+
+{ חבילה מאונדקסת: ספרייה מוצעת מותקנת על ידה. }
+function InstallsLibrary(Bundle: Integer): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 0 to GetArrayLength(CompId) - 1 do
+    if (CompType[I] = 'library') and
+       MembersContain(CompInstalledBy[I], CompId[Bundle]) and ComponentIsOffered(I) then
+      Result := True;
+end;
+
+{ החבילה של "מלאה + אינדקס": המאונדקסת הגדולה ביותר עם מה שהיא מתקינה, או -1. }
+function IndexedPresetBundle(): Integer;
+var
+  I: Integer;
+begin
+  Result := -1;
+  for I := 0 to GetArrayLength(CompId) - 1 do
+    if ComponentIsOffered(I) and (CompType[I] = 'application-bundle') and
+       InstallsLibrary(I) and ((Result < 0) or
+       (MembersSize(WithInstalled(I)) > MembersSize(WithInstalled(Result)))) then
+      Result := I;
+end;
+
 procedure BuildPresets();
 var
-  Bundle, I: Integer;
-  Members: String;
+  Bundle: Integer;
+  Members, Offline: String;
 begin
   SetArrayLength(PresetId, 0);
   SetArrayLength(PresetLabel, 0);
   SetArrayLength(PresetDesc, 0);
+  SetArrayLength(PresetSize, 0);
   SetArrayLength(PresetMembers, 0);
+  Offline := CollectByTypes(OfflineDataTypes, False);
+
+  { סדר ההוספה קובע איזו כפולה מושמטת: השם המפורט יותר נשאר. ב-Android, בלי
+    חבילה — התוכנה עם הספרייה והאינדקס: בטלפון בניית האינדקס איטית מאוד. }
+  Bundle := IndexedPresetBundle();
+  if Bundle >= 0 then
+    AddPreset('full-indexed', CustomMessage('PresetFullIndexed'),
+      CustomMessage('PresetFullIndexedDesc'), WithInstalled(Bundle) + Offline)
+  else if (TargetPlatform = 'android') and (FullPresetBundle() < 0) and
+     (CollectByTypes('library,', False) <> '') then
+    AddPreset('full-indexed', CustomMessage('PresetFullIndexed'),
+      CustomMessage('PresetFullIndexedDesc'),
+      CollectByTypes('application,library,dependency,', False) +
+      CollectByTypes('library-index,', False) + Offline);
 
   { מלאה: החבילה הגדולה ביותר עם מה שהיא מתקינה, אחרת התוכנה עם הספרייה —
     ובלי ספרייה אין "מלאה". }
-  Bundle := -1;
-  for I := 0 to GetArrayLength(CompId) - 1 do
-    if ComponentIsOffered(I) and (CompType[I] = 'application-bundle') and
-       ((Bundle < 0) or (CompDownloadSize[I] > CompDownloadSize[Bundle])) then
-      Bundle := I;
+  Bundle := FullPresetBundle();
   if Bundle >= 0 then
-  begin
-    Members := CompId[Bundle] + ',';
-    for I := 0 to GetArrayLength(CompId) - 1 do
-      if MembersContain(CompInstalledBy[I], CompId[Bundle]) and
-         ComponentIsOffered(I) then
-        Members := Members + CompId[I] + ',';
-  end
+    Members := WithInstalled(Bundle) + Offline
   else
   begin
     Members := CollectByTypes('application,library,dependency,', False);
     if CollectByTypes('library,', False) = '' then
-      Members := '';
+      Members := ''
+    else
+      Members := Members + Offline;
   end;
-  AddPreset('full', 'התקנה מלאה (למחשב בלי אינטרנט)',
-    'התוכנה יחד עם כל ספריית הספרים — למחשב שאין בו אינטרנט.', Members);
+  AddPreset('full', CustomMessage('PresetFull'), CustomMessage('PresetFullDesc'),
+    Members);
 
-  AddPreset('basic', 'התקנה בסיסית (מומלצת)',
-    'מומלץ כשבמחשב שבו תותקן אוצריא יש אינטרנט — הספרייה תרד מתוך התוכנה.',
+  AddPreset('basic', CustomMessage('PresetBasic'), CustomMessage('PresetBasicDesc'),
     CollectByTypes('application,', False) + CollectByTypes('', True));
 
-  AddPreset('update', 'עדכון התוכנה בלבד',
-    'קובץ ההתקנה של הגרסה החדשה, לעדכון התקנה קיימת.',
+  AddPreset('update', CustomMessage('PresetUpdate'), CustomMessage('PresetUpdateDesc'),
     CollectByTypes('application,', False));
 
   { "בחירה אישית" אינה נגזרת מהמניפסט והיא תמיד האפשרות האחרונה. }
@@ -1469,6 +1979,50 @@ begin
   for I := 0 to GetArrayLength(CompId) - 1 do
     CompSelected[I] := (Index >= 0) and (Index < GetArrayLength(PresetMembers)) and
       MembersContain(PresetMembers[Index], CompId[I]);
+end;
+
+{ ===================== הבחירה האישית (customChoices) ===================== }
+
+function IsInstallerType(const CompTypeValue: String): Boolean;
+begin
+  Result := (CompTypeValue = 'application') or
+    (CompTypeValue = 'application-bundle');
+end;
+
+{ המתקין הרגיל פורס ביעד ספרייה שלצדו — ואז החבילה המלאה מיותרת. }
+function InstallerTakesLibrary(): Boolean;
+var
+  I, Idx: Integer;
+begin
+  Result := False;
+  for I := 0 to GetArrayLength(CompId) - 1 do
+    if ComponentIsOffered(I) then
+    begin
+      Idx := InstallerFor(I);
+      if (Idx >= 0) and (CompType[Idx] = 'application') then
+        Result := True;
+    end;
+end;
+
+{ שורה בבחירה האישית: מוצע, לא גרסה ניידת, ולא חבילה מלאה כשהמתקין הרגיל
+  פורס ספרייה. }
+function IsCustomChoice(Index: Integer; TakesLibrary: Boolean): Boolean;
+begin
+  Result := ComponentIsOffered(Index) and (CompPartOf[Index] = '') and
+    (CompType[Index] <> 'application-portable') and
+    not (TakesLibrary and (CompType[Index] = 'application-bundle'));
+end;
+
+{ יותר מדרך אחת להתקין את התוכנה: בחירה אחת-מתוך, כדי שלא יורדו שתיהן. }
+function CustomInstallersAreRadio(TakesLibrary: Boolean): Boolean;
+var
+  I, N: Integer;
+begin
+  N := 0;
+  for I := 0 to GetArrayLength(CompId) - 1 do
+    if IsCustomChoice(I, TakesLibrary) and IsInstallerType(CompType[I]) then
+      N := N + 1;
+  Result := N > 1;
 end;
 
 { ========================= צורת הפלט ========================= }
@@ -1486,16 +2040,19 @@ begin
     Result := True;
 end;
 
-{ הפלטפורמה בשם, כדי שהכנה לשני יעדים באותו דיסק-און-קי לא תערבב קבצים. }
+{ הפלטפורמה בשם, כדי שהכנה לשני יעדים באותו דיסק-און-קי לא תערבב קבצים. באנגלית
+  השם באנגלית; ContractSubfolder הוא השם של החוזה המשותף. }
 function OutputSubFolderName(): String;
 begin
-  Result := 'אוצריא להתקנה ל-' + PlatformDisplayName(TargetPlatform);
+  Result := Msg1('OutputSubfolder', PlatformDisplayName(TargetPlatform));
 end;
 
-{ הקבצים שייווצרו ביעד, בסדר המניפסט — לפי אותם כללים שמריץ PrepareOutput. }
+{ הקבצים שייווצרו ביעד, בסדר המניפסט — לפי אותם כללים שמריץ PrepareOutput.
+  קובץ של רכיב עם outputFolder נקרא '<folder>/<name>', כמו במימוש הייחוס. }
 function PlannedOutputNames(): TArrayOfString;
 var
   C, A, P, N: Integer;
+  Prefix: String;
 begin
   SetArrayLength(Result, 0);
   N := 0;
@@ -1503,6 +2060,9 @@ begin
   begin
     if not CompSelected[C] then
       Continue;
+    Prefix := '';
+    if CompOutputFolder[C] <> '' then
+      Prefix := CompOutputFolder[C] + '/';
     for A := CompAssetStart[C] to CompAssetStart[C] + CompAssetCount[C] - 1 do
     begin
       if (AssetKind[A] = 'split') and not ShouldAssembleSingleFile(A) then
@@ -1510,14 +2070,14 @@ begin
         for P := AssetPartStart[A] to AssetPartStart[A] + AssetPartCount[A] - 1 do
         begin
           SetArrayLength(Result, N + 1);
-          Result[N] := PartName[P];
+          Result[N] := Prefix + PartName[P];
           N := N + 1;
         end;
       end
       else
       begin
         SetArrayLength(Result, N + 1);
-        Result[N] := AssetName[A];
+        Result[N] := Prefix + AssetName[A];
         N := N + 1;
       end;
     end;
@@ -1529,6 +2089,29 @@ begin
   Result := GetArrayLength(PlannedOutputNames());
 end;
 
+{ ההסברים (outputNote) של הרכיבים שנבחרו, בסדר המניפסט ובלי כפולים — לפי הטקסט
+  שמוצג, כמו plannedOutputNotes במימוש הייחוס. }
+function PlannedOutputNotes(English: Boolean): TArrayOfString;
+var
+  C, N: Integer;
+  Note: String;
+begin
+  SetArrayLength(Result, 0);
+  N := 0;
+  for C := 0 to GetArrayLength(CompId) - 1 do
+  begin
+    Note := CompOutputNote[C];
+    if English and (CompOutputNoteEn[C] <> '') then
+      Note := CompOutputNoteEn[C];
+    if CompSelected[C] and (Note <> '') and (ListIndex(Result, Note) < 0) then
+    begin
+      SetArrayLength(Result, N + 1);
+      Result[N] := Note;
+      N := N + 1;
+    end;
+  end;
+end;
+
 #ifdef DevSelectionDump
 { פיתוח בלבד (/DDevSelectionDump=<path>): מריץ את כללי הבחירה על כל יעד
   ושומר אותם להשוואה מול expected-selections.json. ה-CI לעולם אינו מגדיר. }
@@ -1537,6 +2120,7 @@ var
   Platforms, Archs, Formats, Names: TArrayOfString;
   P, A, F, I, J: Integer;
   Text, Line: String;
+  TakesLibrary, Radio: Boolean;
 begin
   Text := '';
   Platforms := PlatformChoices();
@@ -1575,6 +2159,22 @@ begin
             Line := Line + CompId[I] + ',';
         Text := Text + 'target ' + TargetPlatform + '/' + TargetArchitecture +
           '/' + TargetFormat + ' offered=' + Line + #10;
+        { id:size:locked:group — כמו customChoices ב-expected-selections.json. }
+        TakesLibrary := InstallerTakesLibrary();
+        Radio := CustomInstallersAreRadio(TakesLibrary);
+        Line := '';
+        for I := 0 to GetArrayLength(CompId) - 1 do
+          if IsCustomChoice(I, TakesLibrary) then
+          begin
+            Line := Line + CompId[I] + ':' + IntToStr(CustomChoiceSize(I)) + ':';
+            if IsInstallerType(CompType[I]) and not Radio then
+              Line := Line + 'locked';
+            Line := Line + ':';
+            if IsInstallerType(CompType[I]) and Radio then
+              Line := Line + 'application';
+            Line := Line + ',';
+          end;
+        Text := Text + 'custom ' + Line + #10;
         BuildPresets();
         for I := 0 to GetArrayLength(PresetId) - 1 do
         begin
@@ -1586,8 +2186,13 @@ begin
           Text := Text + 'preset ' + PresetId[I] + ' members=' +
             PresetMembers[I] + ' files=' + Line + ' subfolder=';
           if GetArrayLength(Names) > 1 then
-            Text := Text + OutputSubFolderName();
-          Text := Text + #10;
+            Text := Text + Msg1('ContractSubfolder',
+              PlatformDisplayName(TargetPlatform));
+          Names := PlannedOutputNotes(False);
+          Line := '';
+          for J := 0 to GetArrayLength(Names) - 1 do
+            Line := Line + Names[J] + '|';
+          Text := Text + ' notes=' + Line + #10;
         end;
       end;
     end;
@@ -1606,49 +2211,95 @@ begin
   PresetPage.CheckListBox.Items.Clear;
   for I := 0 to GetArrayLength(PresetLabel) - 1 do
   begin
-    PresetPage.Add(PresetLabel[I]);
-    PresetPage.CheckListBox.ItemSubItem[I] := PresetDesc[I];
+    PresetPage.Add(OptionCaption(PresetLabel[I], PresetDesc[I]));
+    PresetPage.CheckListBox.ItemSubItem[I] := PresetSize[I];
   end;
-  PresetPage.Add('בחירה אישית');
-  PresetPage.CheckListBox.ItemSubItem[CustomPresetIndex] :=
-    'אני רוצה לבחור בעצמי מה להוריד.';
+  PresetPage.Add(OptionCaption(CustomMessage('PresetCustom'),
+    CustomMessage('PresetCustomDesc')));
   if PresetPage.SelectedValueIndex < 0 then
-    PresetPage.SelectedValueIndex := DefaultIndex(PresetId, 'basic');
+  begin
+    { בלי "בסיסית" — "מלאה", ולא "מלאה + אינדקס" הגדולה ממנה. }
+    I := ListIndex(PresetId, 'basic');
+    if I < 0 then
+      I := DefaultIndex(PresetId, 'full');
+    PresetPage.SelectedValueIndex := I;
+  end;
 end;
 
+{ המתקין נעול כשאין לו חלופה; עם חלופה (חבילה מלאה) — כפתורי רדיו. }
 procedure RefreshCustomPage();
 var
-  I, N: Integer;
-  Extra: String;
+  I, N, PickRow: Integer;
+  TakesLibrary, Radio, Locked: Boolean;
+  Caption: String;
 begin
   CustomPage.CheckListBox.Items.Clear;
   SetArrayLength(CustomIndex, 0);
+  TakesLibrary := InstallerTakesLibrary();
+  Radio := CustomInstallersAreRadio(TakesLibrary);
+  PickRow := -1;
   N := 0;
   for I := 0 to GetArrayLength(CompId) - 1 do
   begin
-    if not ComponentIsOffered(I) then
+    if not IsCustomChoice(I, TakesLibrary) then
       Continue;
-    if CompRequired[I] then
-      Extra := ' (נדרש)'
+    Locked := IsInstallerType(CompType[I]) and not Radio;
+    Caption := CompName[I];
+    if Locked or (CompRequired[I] and not IsInstallerType(CompType[I])) then
+      Caption := Caption + ' ' + CustomMessage('RequiredTag');
+    if IsInstallerType(CompType[I]) and Radio then
+    begin
+      { הבחירה נקבעת בסוף: הוספת רדיו ראשון מסמנת אותו מעצמה. }
+      CustomPage.CheckListBox.AddRadioButton(OptionCaption(Caption, CompDesc[I]),
+        HumanSize(CustomChoiceSize(I)), 0, False, True, nil);
+      if PickRow < 0 then
+        PickRow := N
+      else if not CompSelected[CustomIndex[PickRow]] and (CompSelected[I] or
+         ((CompType[CustomIndex[PickRow]] <> 'application') and
+         (CompType[I] = 'application'))) then
+        PickRow := N;
+    end
     else
-      Extra := '';
-    CustomPage.Add(CompName[I] + ' — ' + HumanSize(CompDownloadSize[I]) + Extra);
-    CustomPage.CheckListBox.ItemSubItem[N] := CompDesc[I];
-    CustomPage.Values[N] := CompSelected[I] or CompRequired[I];
+      CustomPage.CheckListBox.AddCheckBox(OptionCaption(Caption, CompDesc[I]),
+        HumanSize(CustomChoiceSize(I)), 0,
+        CompSelected[I] or CompRequired[I] or Locked, not Locked, False, False, nil);
     SetArrayLength(CustomIndex, N + 1);
     CustomIndex[N] := I;
     N := N + 1;
   end;
+  if PickRow >= 0 then
+    CustomPage.Values[PickRow] := True;
+end;
+
+{ רכיב שסומן מסמן את תלויותיו, ורכיב שבוטל מבטל את מי שתלוי בו (אינדקס←ספרייה). }
+procedure CustomChoiceClicked(Sender: TObject);
+var
+  Row, J: Integer;
+begin
+  Row := CustomPage.CheckListBox.ItemIndex;
+  if (Row < 0) or (Row >= GetArrayLength(CustomIndex)) then
+    exit;
+  for J := 0 to GetArrayLength(CustomIndex) - 1 do
+    if J <> Row then
+    begin
+      if CustomPage.Values[Row] and MembersContain(CompDependsOn[CustomIndex[Row]],
+         CompId[CustomIndex[J]]) then
+        CustomPage.Values[J] := True
+      else if not CustomPage.Values[Row] and
+         MembersContain(CompDependsOn[CustomIndex[J]], CompId[CustomIndex[Row]]) then
+        CustomPage.Values[J] := False;
+    end;
 end;
 
 { "3 דקות", "שעה ו-10 דקות" — בלי שניות מדויקות, שממילא אינן יציבות. }
 function HumanDuration(Seconds: Int64): String;
 var
   Hours, Minutes: Int64;
+  MinutesText: String;
 begin
   if Seconds < 60 then
   begin
-    Result := 'פחות מדקה';
+    Result := CustomMessage('DurationUnderMinute');
     exit;
   end;
   Hours := Seconds div 3600;
@@ -1661,19 +2312,21 @@ begin
   if Hours = 0 then
     Result := ''
   else if Hours = 1 then
-    Result := 'שעה'
+    Result := CustomMessage('DurationHour')
   else if Hours = 2 then
-    Result := 'שעתיים'
+    Result := CustomMessage('DurationTwoHours')
   else
-    Result := IntToStr(Hours) + ' שעות';
+    Result := Msg1('DurationHours', IntToStr(Hours));
   if Minutes = 0 then
     exit;
-  if Result <> '' then
-    Result := Result + ' ו-';
   if Minutes = 1 then
-    Result := Result + 'דקה'
+    MinutesText := CustomMessage('DurationMinute')
   else
-    Result := Result + IntToStr(Minutes) + ' דקות';
+    MinutesText := Msg1('DurationMinutes', IntToStr(Minutes));
+  if Result = '' then
+    Result := MinutesText
+  else
+    Result := FmtMessage(CustomMessage('DurationJoin'), [Result, MinutesText]);
 end;
 
 function HumanRate(BytesPerSecond: Int64): String;
@@ -1683,11 +2336,11 @@ begin
   if BytesPerSecond >= 1048576 then
   begin
     Tenths := (BytesPerSecond * 10) div 1048576;
-    Result := IntToStr(Tenths div 10) + '.' + IntToStr(Tenths mod 10) +
-      ' מגה בשנייה';
+    Result := LtrUnit(IntToStr(Tenths div 10) + '.' + IntToStr(Tenths mod 10) +
+      ' MB/s');
   end
   else
-    Result := IntToStr(BytesPerSecond div 1024) + ' קילו בשנייה';
+    Result := LtrUnit(IntToStr(BytesPerSecond div 1024) + ' KB/s');
 end;
 
 procedure ResetSpeed();
@@ -1755,11 +2408,13 @@ var
 begin
   Done := ProgressDone + Progress;
   AddSpeedSample(Done);
-  Status := 'ירדו ' + HumanSize(Done) + ' מתוך ' + HumanSize(ProgressTotal);
+  Status := FmtMessage(CustomMessage('DownloadedOf'), [HumanSize(Done),
+    HumanSize(ProgressTotal)]);
   Speed := CurrentSpeed();
   if Speed > 0 then
-    Status := Status + ' · ' + HumanRate(Speed) + ' · נותרו ' +
-      HumanDuration((ProgressTotal - Done) div Speed);
+    Status := Status + ' · ' + HumanRate(Speed) + ' · ' +
+      Msg1('TimeLeft', HumanDuration((ProgressTotal - Done) div Speed));
+  DownloadStatus := Status;
   { Inno מחשב את ה-hash אחרי הבית האחרון בלי לדווח התקדמות — הכותרת מסבירה
     למה הפס עומד. }
   if (ProgressMax > 0) and (Progress >= ProgressMax) then
@@ -1769,112 +2424,160 @@ begin
       VerifyStartTick := NowMs();
       Log('DownloadAssistant: ' + FileName + ' received, download page verifies');
     end;
-    DownloadPage.SetText('בודק את הקובץ שירד', Status);
+    DownloadPage.SetText(CustomMessage('CheckingDownloadedFile'), Status);
   end
   else
     DownloadPage.SetText(ProgressCaption, Status);
-  Result := True;
+  Result := not StopRequested;
+end;
+
+{ בעמוד החיבור אין מה להציג; Inno עוצר כשהפונקציה מחזירה False. }
+function OnConnectProgress(const Url, FileName: String;
+  const Progress, ProgressMax: Int64): Boolean;
+begin
+  Result := not StopRequested;
+end;
+
+{ המתאם של שכבת התצוגה: קורא את העמודים שלמטה וכותב אליהם, ואינו משנה כלל. }
+#include "download_assistant_ui.iss"
+
+{ "macOS, Linux, Android או Windows מסוג אחר" — מתוך הרשימה עצמה. }
+function OtherSummary(): String;
+var
+  Names: TArrayOfString;
+  I, N: Integer;
+begin
+  SetArrayLength(Names, 0);
+  for I := 0 to GetArrayLength(OtherPlatform) - 1 do
+    if OtherPlatform[I] <> 'windows' then
+      ListAdd(Names, PlatformDisplayName(OtherPlatform[I]));
+  if ListIndex(OtherPlatform, 'windows') >= 0 then
+    ListAdd(Names, CustomMessage('OtherWindows'));
+  Result := '';
+  N := GetArrayLength(Names);
+  for I := 0 to N - 1 do
+    if I = 0 then
+      Result := Names[I]
+    else if I = N - 1 then
+      Result := FmtMessage(CustomMessage('ListOr'), [Result, Names[I]])
+    else
+      Result := Result + ', ' + Names[I];
+end;
+
+{ כל יעד שהמניפסט מציע בו משהו, חוץ מהמחשב הזה, בסדר שבו DumpSelections עובר
+  עליהם. נבנה רק אחרי שהמניפסט נטען. }
+procedure FillOtherPage();
+var
+  Platforms, Archs, Formats: TArrayOfString;
+  P, A, F, I, N: Integer;
+  Offered: Boolean;
+begin
+  N := 0;
+  Platforms := PlatformChoices();
+  for P := 0 to GetArrayLength(Platforms) - 1 do
+  begin
+    Archs := ArchitectureChoices(Platforms[P]);
+    if GetArrayLength(Archs) = 0 then
+    begin
+      SetArrayLength(Archs, 1);
+      Archs[0] := '';
+    end;
+    for A := 0 to GetArrayLength(Archs) - 1 do
+    begin
+      if (Platforms[P] = 'windows') and (Archs[A] = RunningArchitecture()) then
+        Continue;
+      Formats := PackageFormatChoices(Platforms[P], Archs[A]);
+      if GetArrayLength(Formats) = 0 then
+      begin
+        SetArrayLength(Formats, 1);
+        Formats[0] := '';
+      end;
+      for F := 0 to GetArrayLength(Formats) - 1 do
+      begin
+        TargetPlatform := Platforms[P];
+        TargetArchitecture := Archs[A];
+        TargetFormat := Formats[F];
+        Offered := False;
+        for I := 0 to GetArrayLength(CompId) - 1 do
+          if ComponentIsOffered(I) then
+            Offered := True;
+        if not Offered then
+          Continue;
+        SetArrayLength(OtherPlatform, N + 1);
+        SetArrayLength(OtherArch, N + 1);
+        SetArrayLength(OtherFormat, N + 1);
+        OtherPlatform[N] := Platforms[P];
+        OtherArch[N] := Archs[A];
+        OtherFormat[N] := Formats[F];
+        OtherPage.Add(TargetTitle(Platforms[P], Archs[A]));
+        OtherPage.CheckListBox.ItemSubItem[N] :=
+          TargetHint(Platforms[P], Archs[A], Formats[F]);
+        Log('DownloadAssistant: other target ' + Platforms[P] + '/' + Archs[A] +
+          '/' + Formats[F]);
+        N := N + 1;
+      end;
+    end;
+  end;
+  ModePage.CheckListBox.ItemSubItem[ModeOtherComputer] :=
+    Msg1('ModeOtherDesc', OtherSummary());
 end;
 
 procedure InitializeWizard();
 var
   DefaultBase, FolderNote: String;
-  I: Integer;
 begin
-  ModePage := CreateInputOptionPage(wpWelcome,
-    'אוצריא — מסייע הורדה',
-    'כלי זה אינו מתקין את אוצריא.',
-    'הכלי מאפשר להוריד את הקבצים הדרושים ולהכין התקנה עבור מחשב זה או עבור ' +
-    'מחשב אחר.' + #13#10#13#10 +
-    'יש אינטרנט במחשב שבו תותקן אוצריא? מספיקה ההתקנה הבסיסית — הספרייה תרד ' +
-    'מתוך התוכנה.' + #13#10#13#10 + 'מה ברצונך לעשות?',
-    True, False);
-  ModePage.Add('הורדה והתקנה במחשב הזה');
-  ModePage.Add('הכנת התקנה למחשב אחר');
-  ModePage.SelectedValueIndex := ModeOtherComputer;
+  ModePage := CreateInputOptionPage(wpWelcome, CustomMessage('ModeTitle'),
+    CustomMessage('ModeDesc'), '', True, False);
+  ModePage.Add(CustomMessage('ModeThis'));
+  ModePage.Add(CustomMessage('ModeOther'));
+  if RunningArchitecture() = 'arm64' then
+    ModePage.CheckListBox.ItemSubItem[ModeThisComputer] :=
+      CustomMessage('ModeThisArmDesc')
+  else
+    ModePage.CheckListBox.ItemSubItem[ModeThisComputer] :=
+      CustomMessage('ModeThisX64Desc');
+  ModePage.SelectedValueIndex := ModeThisComputer;
 
-  PlatformPage := CreateInputOptionPage(ModePage.ID,
-    'המחשב שאליו מכינים',
-    'איזו מערכת הפעלה מותקנת בו?',
-    'אם אינך יודע, בחר Windows — היא מותקנת ברוב המחשבים.',
-    True, False);
-  PlatformList := PlatformChoices();
-  for I := 0 to GetArrayLength(PlatformList) - 1 do
-    PlatformPage.Add(PlatformDisplayName(PlatformList[I]));
-  if GetArrayLength(PlatformList) > 0 then
-    PlatformPage.SelectedValueIndex := DefaultIndex(PlatformList, 'windows');
+  { בלי בחירה מראש: אין יעד "אחר" שמתאים לרוב המשתמשים. }
+  OtherPage := CreateInputOptionPage(ModePage.ID, CustomMessage('OtherTitle'),
+    CustomMessage('OtherDesc'), CustomMessage('OtherHint'), True, False);
 
-  ArchPage := CreateInputOptionPage(PlatformPage.ID,
-    'המחשב שאליו מכינים',
-    'איזה סוג מחשב הוא היעד?',
-    'אם אינך יודע, בחר באפשרות הראשונה — היא מתאימה כמעט לכל המחשבים.',
-    True, False);
-  ArchListFor := #0;
+  PresetPage := CreateInputOptionPage(OtherPage.ID, CustomMessage('PresetTitle'),
+    CustomMessage('PresetDesc'), CustomMessage('PresetHint'), True, False);
 
-  FormatPage := CreateInputOptionPage(ArchPage.ID,
-    'המחשב שאליו מכינים',
-    'איזו גרסה של Linux מותקנת בו?',
-    'אם אינך יודע, השאר את הבחירה המסומנת — היא מתאימה לרוב המחשבים.',
-    True, False);
-  FormatListFor := #0;
-
-  PresetPage := CreateInputOptionPage(FormatPage.ID,
-    'מה להוריד',
-    'בחר את היקף ההורדה.',
-    'אפשר לשנות את הבחירה בהמשך.',
-    True, False);
-
-  CustomPage := CreateInputOptionPage(PresetPage.ID,
-    'בחירה אישית',
-    'סמן את הרכיבים שברצונך להוריד.',
-    'ליד כל רכיב מופיע גודל ההורדה שלו.',
-    False, True);
+  CustomPage := CreateInputOptionPage(PresetPage.ID, CustomMessage('PresetCustom'),
+    CustomMessage('CustomDesc'), CustomMessage('CustomHint'), False, True);
+  CustomPage.CheckListBox.OnClickCheck := @CustomChoiceClicked;
 
   DefaultBase := AssistantDir();
   FolderNote := '';
   if not DirIsWritable(DefaultBase) then
   begin
     DefaultBase := FallbackOutputBase();
-    FolderNote := #13#10#13#10 + 'אי אפשר לשמור בתיקייה שממנה הופעל המסייע ' +
-      '(למשל דיסק-און-קי לקריאה בלבד), ולכן הוצעה כאן תיקייה אחרת.';
+    FolderNote := #13#10#13#10 + CustomMessage('FolderFallbackNote');
   end;
 
-  FolderPage := CreateInputDirPage(CustomPage.ID,
-    'לאן לשמור',
-    'כברירת מחדל התוצאה נשמרת ליד המסייע עצמו.',
-    'אפשר לבחור תיקייה אחרת. בסיום אפשר יהיה להעתיק את התוצאה לדיסק-און-קי ' +
-    'ולהעביר אותה למחשב המנותק.' + FolderNote,
-    False, '');
+  FolderPage := CreateInputDirPage(CustomPage.ID, CustomMessage('FolderTitle'),
+    CustomMessage('FolderDesc'), CustomMessage('FolderHint') + FolderNote, False, '');
   FolderPage.Add('');
   FolderPage.Values[0] := DefaultBase;
 
-  DownloadPage := CreateDownloadPage('הורדת הקבצים',
-    'הקבצים יורדים מאתר אוצריא. אפשר לעצור בכל רגע — מה שכבר ירד יישמר.',
-    @OnDownloadProgress);
-  WorkPage := CreateOutputProgressPage('הכנת ההתקנה',
-    'רגע, מכינים את הקבצים.');
+  ConnectPage := CreateDownloadPage(CustomMessage('ConnectTitle'),
+    CustomMessage('ConnectDesc'), @OnConnectProgress);
+  DownloadPage := CreateDownloadPage(CustomMessage('DownloadTitle'),
+    CustomMessage('DownloadDesc'), @OnDownloadProgress);
+  WorkPage := CreateOutputProgressPage(CustomMessage('WorkTitle'),
+    CustomMessage('WorkDesc'));
+  UiAssistantInitializeWizard();
 end;
 
-{ עמוד שיש בו אפשרות אחת בלבד אינו מוצג. }
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  if PageID = PlatformPage.ID then
-    Result := IsThisComputerMode() or (GetArrayLength(PlatformList) <= 1)
-  else if PageID = ArchPage.ID then
-  begin
-    UpdateTarget();
-    Result := IsThisComputerMode() or (GetArrayLength(ArchList) <= 1);
-  end
-  else if PageID = FormatPage.ID then
-  begin
-    UpdateTarget();
-    Result := IsThisComputerMode() or (GetArrayLength(FormatList) <= 1);
-  end
+  if PageID = OtherPage.ID then
+    Result := IsThisComputerMode()
   else if PageID = CustomPage.ID then
-    Result := PresetPage.SelectedValueIndex <> CustomPresetIndex
-  else if PageID = FolderPage.ID then
-    Result := IsThisComputerMode();
+    Result := PresetPage.SelectedValueIndex <> CustomPresetIndex;
 end;
 
 { ====================== בניית תור ההורדה ====================== }
@@ -1898,10 +2601,7 @@ end;
 
 function OutputBaseDir(): String;
 begin
-  if IsThisComputerMode() then
-    Result := CacheDir()
-  else
-    Result := RemoveBackslashUnlessRoot(FolderPage.Values[0]);
+  Result := RemoveBackslashUnlessRoot(FolderPage.Values[0]);
 end;
 
 { קובץ בודד יושב ישירות בתיקייה שנבחרה; כמה קבצים שחייבים להישאר יחד מקבלים
@@ -1909,20 +2609,34 @@ end;
 function OutputDir(): String;
 begin
   Result := OutputBaseDir();
-  if not IsThisComputerMode() and (ProducedFileCount() > 1) then
+  if ProducedFileCount() > 1 then
     Result := Result + '\' + OutputSubFolderName();
+end;
+
+{ התיקייה של קובצי הרכיב: OutputDir, ובתוכה outputFolder כשיש. }
+function AssetOutputDir(AssetIndex: Integer): String;
+var
+  Folder: String;
+begin
+  Result := OutputDir();
+  Folder := CompOutputFolder[AssetComp[AssetIndex]];
+  if Folder <> '' then
+  begin
+    StringChangeEx(Folder, '/', '\', True);
+    Result := Result + '\' + Folder;
+  end;
 end;
 
 { הקובץ שכבר מורכב ביעד: גודל תואם וחותם מהמטמון שנכתב אחרי ההרכבה. }
 function AssembledIsReady(AssetIndex: Integer): Boolean;
 begin
-  Result := FileMatchesMarker(OutputDir() + '\' + AssetName[AssetIndex],
+  Result := FileMatchesMarker(AssetOutputDir(AssetIndex) + '\' + AssetName[AssetIndex],
     AssetName[AssetIndex], AssetSize[AssetIndex], AssetSha[AssetIndex]);
 end;
 
 function AssemblyTmpPath(AssetIndex: Integer): String;
 begin
-  Result := OutputDir() + '\' + AssetName[AssetIndex] + '.tmp';
+  Result := AssetOutputDir(AssetIndex) + '\' + AssetName[AssetIndex] + '.tmp';
 end;
 
 { `<name>.tmp.sha256` נכתב לפני הבית הראשון. שם הנכס חוזר בין בניות של אותה
@@ -1982,7 +2696,7 @@ begin
   SetArrayLength(QueueSize, 0);
   Result := True;
 
-  WorkPage.SetText('בודק קבצים שכבר הורדו', '');
+  WorkPage.SetText(CustomMessage('CheckingCached'), '');
   WorkPage.Show;
   try
     for C := 0 to GetArrayLength(CompId) - 1 do
@@ -1991,7 +2705,7 @@ begin
         Continue;
       for A := CompAssetStart[C] to CompAssetStart[C] + CompAssetCount[C] - 1 do
       begin
-        WorkPage.SetText('בודק קבצים שכבר הורדו', CompName[C]);
+        WorkPage.SetText(CustomMessage('CheckingCached'), CompName[C]);
         if AssetKind[A] = 'split' then
         begin
           if ShouldAssembleSingleFile(A) and AssembledIsReady(A) then
@@ -2039,8 +2753,9 @@ end;
 
 function RunDownloads(): Boolean;
 var
-  I: Integer;
+  I, Attempt: Integer;
   Started: Int64;
+  Failure: String;
 begin
   Result := True;
   if GetArrayLength(QueueUrl) = 0 then
@@ -2052,29 +2767,50 @@ begin
     ProgressTotal := ProgressTotal + QueueSize[I];
 
   DownloadPage.ShowBaseNameInsteadOfUrl := True;
+  DownloadStatus := '';
   DownloadPage.Show;
   try
     for I := 0 to GetArrayLength(QueueUrl) - 1 do
     begin
-      ProgressCaption := 'מוריד: ' + QueueLabel[I] + ' (' + IntToStr(I + 1) +
-        ' מתוך ' + IntToStr(GetArrayLength(QueueUrl)) + ')';
-      DownloadPage.SetText(ProgressCaption, '');
-      DownloadPage.Clear;
-      ResetSpeed();
-      VerifyStartTick := 0;
-      Started := NowMs();
-      { ה-hash מהמניפסט מועבר תמיד — קובץ שאינו תואם נדחה כאן ולא נשמר. }
-      DownloadPage.Add(QueueUrl[I], QueueFile[I], QueueSha[I]);
-      try
-        DownloadPage.Download;
-      except
-        if DownloadPage.AbortedByUser then
-          LoadErrorHeb := 'ההורדה הופסקה.'
+      Attempt := 1;
+      repeat
+        if Attempt = 1 then
+          ProgressCaption := FmtMessage(CustomMessage('DownloadingItem'), [QueueLabel[I],
+            IntToStr(I + 1), IntToStr(GetArrayLength(QueueUrl))])
+        else
+          ProgressCaption := FmtMessage(CustomMessage('DownloadingItemAgain'), [QueueLabel[I],
+            IntToStr(Attempt), IntToStr(DownloadAttempts)]);
+        DownloadPage.SetText(ProgressCaption, '');
+        DownloadPage.Clear;
+        ResetSpeed();
+        VerifyStartTick := 0;
+        Started := NowMs();
+        { ה-hash מהמניפסט מועבר תמיד — קובץ שאינו תואם נדחה כאן ולא נשמר. }
+        DownloadPage.Add(QueueUrl[I], QueueFile[I], QueueSha[I]);
+        try
+          DownloadPage.Download;
+          Failure := '';
+        except
+          if DownloadPage.AbortedByUser then
+            StopRequested := True;
+          Failure := GetExceptionMessage;
+          Log('DownloadAssistant: ' + QueueFile[I] + ' attempt ' +
+            IntToStr(Attempt) + ' failed: ' + Failure);
+        end;
+        Attempt := Attempt + 1;
+      until (Failure = '') or StopRequested or (Attempt > DownloadAttempts);
+      if Failure <> '' then
+      begin
+        if StopRequested then
+          LoadErrorMsg := CustomMessage('ErrorStopped')
         else
         begin
-          LoadErrorHeb := 'לא ניתן להכין את ההתקנה משום שאחד הקבצים הדרושים ' +
-            'אינו זמין.';
-          LoadErrorTech := QueueFile[I] + ': ' + GetExceptionMessage;
+          { כשה-hash מועבר Inno אינו משווה גודל, ולכן הורדה קטועה נכשלת כ-hash שגוי. }
+          if Pos(SetupMessage(msgVerificationFileHashIncorrect), Failure) > 0 then
+            LoadErrorMsg := CustomMessage('ErrorDownloadIncomplete')
+          else
+            LoadErrorMsg := CustomMessage('ErrorFileUnavailable');
+          LoadErrorTech := QueueFile[I] + ': ' + Failure;
         end;
         Result := False;
         exit;
@@ -2090,7 +2826,7 @@ begin
       if not PromoteToCache(ExpandConstant('{tmp}\') + QueueFile[I],
         QueueFile[I], QueueSize[I], QueueSha[I]) then
       begin
-        LoadErrorHeb := 'אחד הקבצים שהורדו נמצא פגום ולא נשמר.';
+        LoadErrorMsg := CustomMessage('ErrorDownloadDamaged');
         LoadErrorTech := 'size check failed for ' + QueueFile[I];
         Result := False;
         exit;
@@ -2136,8 +2872,9 @@ begin
           if Got <> Slice then
             Break;
           Copied := Copied + Got;
-          WorkPage.SetText('מחבר את הקבצים: ' + Caption,
-            HumanSize(DoneBefore + Copied) + ' מתוך ' + HumanSize(Total));
+          WorkPage.SetText(Msg1('JoiningFiles', Caption),
+            FmtMessage(CustomMessage('SizeOf'), [HumanSize(DoneBefore + Copied),
+              HumanSize(Total)]));
           WorkPage.SetProgress(MegaBytes(DoneBefore + Copied), MegaBytes(Total));
         end;
       finally
@@ -2183,8 +2920,9 @@ var
   Prefix, Actual, Done: Int64;
 begin
   Result := False;
-  FinalPath := OutputDir() + '\' + AssetName[AssetIndex];
+  FinalPath := AssetOutputDir(AssetIndex) + '\' + AssetName[AssetIndex];
   TmpPath := AssemblyTmpPath(AssetIndex);
+  ForceDirectories(AssetOutputDir(AssetIndex));
   First := AssetPartStart[AssetIndex];
   Consumed := ConsumedPartCount(AssetIndex, Prefix);
   if FileExists(TmpPath) then
@@ -2195,8 +2933,7 @@ begin
   else if not SaveStringToFile(TmpPath + '.sha256',
     Lowercase(AssetSha[AssetIndex]) + #10, False) then
   begin
-    LoadErrorHeb := 'לא ניתן היה לכתוב את הקובץ המאוחד. ייתכן שאין מספיק ' +
-      'מקום פנוי.';
+    LoadErrorMsg := CustomMessage('ErrorWriteJoined');
     LoadErrorTech := 'cannot write ' + TmpPath + '.sha256';
     exit;
   end;
@@ -2208,16 +2945,14 @@ begin
     if not CachedFileIsGood(PartName[First + I], PartSize[First + I],
       PartSha[First + I]) then
     begin
-      LoadErrorHeb := 'לא ניתן להכין את ההתקנה משום שאחד הקבצים הדרושים ' +
-        'אינו זמין.';
+      LoadErrorMsg := CustomMessage('ErrorFileUnavailable');
       LoadErrorTech := 'part failed verification: ' + PartName[First + I];
       exit;
     end;
     if not AppendFileTo(TmpPath, PartPath, PartSize[First + I], Done,
       AssetSize[AssetIndex], Caption) then
     begin
-      LoadErrorHeb := 'לא ניתן היה לכתוב את הקובץ המאוחד. ייתכן שאין מספיק ' +
-        'מקום פנוי.';
+      LoadErrorMsg := CustomMessage('ErrorWriteJoined');
       exit;
     end;
     DeleteFile(PartPath);
@@ -2227,18 +2962,17 @@ begin
 
   if not FileSize64(TmpPath, Actual) or (Actual <> AssetSize[AssetIndex]) then
   begin
-    LoadErrorHeb := 'הקובץ המאוחד נמצא פגום ולכן לא נשמר.';
+    LoadErrorMsg := CustomMessage('ErrorJoinedDamaged');
     LoadErrorTech := 'assembled size mismatch: ' + AssetName[AssetIndex];
     DeleteFile(TmpPath);
     DeleteFile(TmpPath + '.sha256');
     exit;
   end;
-  WorkPage.SetText('בודק את הקובץ המאוחד: ' + Caption,
-    'מאמת את תוכן הקובץ מול המניפסט');
+  WorkPage.SetText(Msg1('CheckingJoined', Caption), CustomMessage('VerifyingJoined'));
   WorkPage.SetProgress(0, 1);
   if HashFile(TmpPath) <> Lowercase(AssetSha[AssetIndex]) then
   begin
-    LoadErrorHeb := 'הקובץ המאוחד נמצא פגום ולכן לא נשמר.';
+    LoadErrorMsg := CustomMessage('ErrorJoinedDamaged');
     LoadErrorTech := 'assembled sha256 mismatch: ' + AssetName[AssetIndex];
     DeleteFile(TmpPath);
     DeleteFile(TmpPath + '.sha256');
@@ -2257,14 +2991,15 @@ end;
 
 { קישור קשיח חוסך העתקה של גיגה-בתים; נכשל בין כוננים ועל FAT32/exFAT, ואז
   מעתיקים. }
-function CopyToOutput(const Name: String): Boolean;
+function CopyToOutput(const Name, Dir: String): Boolean;
 var
   Dest: String;
 begin
   Result := True;
-  if CompareText(OutputDir(), CacheDir()) = 0 then
+  if CompareText(Dir, CacheDir()) = 0 then
     exit;
-  Dest := OutputDir() + '\' + Name;
+  ForceDirectories(Dir);
+  Dest := Dir + '\' + Name;
   DeleteFile(Dest);
   if CreateHardLink(Dest, CachePath(Name), 0) then
   begin
@@ -2284,15 +3019,16 @@ end;
 function OpenHint(const Name: String): String;
 begin
   if EndsWithText(Name, '.exe') then
-    Result := ' שם הפעל אותו — אין צורך בחיבור לאינטרנט ואין צורך בתוכנות נוספות.'
+    Result := CustomMessage('OpenHintExe')
   else if EndsWithText(Name, '.dmg') then
-    Result := ' שם פתח אותו בלחיצה כפולה וגרור את אוצריא לתיקיית היישומים.'
+    Result := CustomMessage('OpenHintDmg')
   else if EndsWithText(Name, '.deb') or EndsWithText(Name, '.rpm') then
-    Result := ' שם פתח אותו בלחיצה כפולה כדי להתקין את אוצריא.'
+    Result := CustomMessage('OpenHintPackage')
   else if EndsWithText(Name, '.apk') then
-    Result := ' שם העבר אותו לטלפון או לטאבלט ופתח אותו כדי להתקין את אוצריא.'
+    Result := CustomMessage('OpenHintApk')
   else
-    Result := ' שם חלץ אותו והפעל את אוצריא מתוך התיקייה שנוצרה.';
+    Result := CustomMessage('OpenHintArchive');
+  Result := ' ' + Result;
 end;
 
 { חלקים שנשארו בנפרד ביעד שאינו Windows — המשתמש מחבר אותם בעצמו. }
@@ -2321,8 +3057,9 @@ end;
 function PrepareOutput(): Boolean;
 var
   C, A, P, Total: Integer;
-  Notes, PartsNote, SingleName, JoinNote, FirstExe: String;
+  Notes, PartsNote, SingleName, JoinNote, FirstExe, Folder: String;
   Produced: Integer;
+  OutputNotes: TArrayOfString;
 begin
   Result := False;
   ForceDirectories(OutputDir());
@@ -2333,6 +3070,7 @@ begin
   Produced := 0;
   RunAfterExe := '';
   RevealPath := '';
+  SetArrayLength(ResultCommands, 0);
   Total := ProducedFileCount();
 
   WorkPage.Show;
@@ -2341,6 +3079,12 @@ begin
     begin
       if not CompSelected[C] then
         Continue;
+      Folder := '';
+      if CompOutputFolder[C] <> '' then
+      begin
+        Folder := CompOutputFolder[C] + '\';
+        StringChangeEx(Folder, '/', '\', True);
+      end;
       for A := CompAssetStart[C] to CompAssetStart[C] + CompAssetCount[C] - 1 do
       begin
         if AssetKind[A] = 'split' then
@@ -2350,8 +3094,8 @@ begin
             if not AssembledIsReady(A) then
               if not AssembleAsset(A, CompName[C]) then
                 exit;
-            Notes := Notes + '• ' + AssetName[A] + #13#10;
-            SingleName := AssetName[A];
+            Notes := Notes + '• ' + DisplayLtr(Folder + AssetName[A]) + #13#10;
+            SingleName := Folder + AssetName[A];
             Produced := Produced + 1;
           end
           else
@@ -2361,33 +3105,37 @@ begin
             PartsNote := '';
             for P := AssetPartStart[A] to AssetPartStart[A] + AssetPartCount[A] - 1 do
             begin
-              WorkPage.SetText('מעתיק לתיקייה שנבחרה: ' + CompName[C], PartName[P]);
+              WorkPage.SetText(Msg1('CopyingTo', CompName[C]), PartName[P]);
               WorkPage.SetProgress(Produced, Total);
-              if not CopyToOutput(PartName[P]) then
+              if not CopyToOutput(PartName[P], AssetOutputDir(A)) then
               begin
-                LoadErrorHeb := 'לא ניתן היה להעתיק את הקבצים לתיקייה שנבחרה.';
+                LoadErrorMsg := CustomMessage('ErrorCopy');
                 exit;
               end;
-              PartsNote := PartsNote + '• ' + PartName[P] + #13#10;
-              SingleName := PartName[P];
+              PartsNote := PartsNote + '• ' +
+                DisplayLtr(Folder + PartName[P]) + #13#10;
+              SingleName := Folder + PartName[P];
               Produced := Produced + 1;
             end;
             Notes := Notes + PartsNote;
             if TargetPlatform <> 'windows' then
+            begin
               JoinNote := JoinNote + JoinCommand(A) + #13#10;
+              ListAdd(ResultCommands, JoinCommand(A));
+            end;
           end;
         end
         else
         begin
-          WorkPage.SetText('מעתיק לתיקייה שנבחרה: ' + CompName[C], AssetName[A]);
+          WorkPage.SetText(Msg1('CopyingTo', CompName[C]), AssetName[A]);
           WorkPage.SetProgress(Produced, Total);
-          if not CopyToOutput(AssetName[A]) then
+          if not CopyToOutput(AssetName[A], AssetOutputDir(A)) then
           begin
-            LoadErrorHeb := 'לא ניתן היה להעתיק את הקבצים לתיקייה שנבחרה.';
+            LoadErrorMsg := CustomMessage('ErrorCopy');
             exit;
           end;
-          Notes := Notes + '• ' + AssetName[A] + #13#10;
-          SingleName := AssetName[A];
+          Notes := Notes + '• ' + DisplayLtr(Folder + AssetName[A]) + #13#10;
+          SingleName := Folder + AssetName[A];
           Produced := Produced + 1;
         end;
         if IsExecutableName(AssetName[A]) and (FirstExe = '') and
@@ -2395,7 +3143,7 @@ begin
           FirstExe := AssetName[A];
         if IsThisComputerMode() and IsExecutableName(AssetName[A]) and
            (RunAfterExe = '') then
-          RunAfterExe := OutputDir() + '\' + AssetName[A];
+          RunAfterExe := AssetOutputDir(A) + '\' + AssetName[A];
       end;
     end;
   finally
@@ -2403,74 +3151,129 @@ begin
   end;
 
   { הניסוח נגזר ממה שנוצר בפועל, ולא מהרכיב שנבחר. }
-  if IsThisComputerMode() then
-    ResultText := 'הקבצים ירדו ואומתו.' + #13#10#13#10 +
-      'כעת ייפתח מתקין אוצריא. המשך בו כרגיל.'
-  else if Produced = 1 then
+  ResultFile := '';
+  ResultFolder := OutputDir();
+  if Produced = 1 then
   begin
     RevealPath := OutputDir() + '\' + SingleName;
     RevealIsFile := True;
-    ResultText := 'הקובץ מוכן:' + #13#10 + SingleName + #13#10#13#10 +
-      'הוא נמצא בתיקייה:' + #13#10 + OutputDir() + #13#10#13#10 +
-      'העתק את הקובץ הזה לדיסק-און-קי ומשם למחשב המנותק (' +
-      PlatformDisplayName(TargetPlatform) + ').' + OpenHint(SingleName);
+    ResultFile := SingleName;
+    ResultText := CustomMessage('ResultFileReady') + #13#10 + SingleName + #13#10#13#10 +
+      CustomMessage('ResultFileIn') + #13#10 + OutputDir() + #13#10#13#10;
+    if IsThisComputerMode() then
+      ResultGuide := CustomMessage('GuideThisFile')
+    else
+      ResultGuide := Msg1('GuideOtherFile', PlatformDisplayName(TargetPlatform)) +
+        OpenHint(SingleName);
+  end
+  else if IsThisComputerMode() then
+  begin
+    RevealPath := OutputDir();
+    RevealIsFile := False;
+    ResultText := CustomMessage('ResultFolderReady') + #13#10 + OutputDir() + #13#10#13#10;
+    ResultGuide := CustomMessage('GuideThisFolder') + #13#10#13#10 +
+      CustomMessage('PreparedFiles') + #13#10 + Notes;
   end
   else
   begin
     RevealPath := OutputDir();
     RevealIsFile := False;
-    ResultText := 'ההתקנה מוכנה בתיקייה:' + #13#10 + OutputDir() + #13#10#13#10 +
-      'העתק את כל התיקייה הזאת לדיסק-און-קי ומשם למחשב המנותק (' +
-      PlatformDisplayName(TargetPlatform) + '). הקבצים חייבים להישאר יחד ' +
-      'באותה תיקייה.';
+    ResultText := CustomMessage('ResultFolderReady') + #13#10 + OutputDir() + #13#10#13#10;
+    ResultGuide := Msg1('GuideOtherFolder', PlatformDisplayName(TargetPlatform));
     if (TargetPlatform = 'windows') and (FirstExe <> '') then
-      ResultText := ResultText + ' במחשב המנותק הפעל מתוכה את ' + FirstExe +
-        ' — אין צורך בחיבור לאינטרנט ואין צורך בתוכנות נוספות.';
+      ResultGuide := ResultGuide + ' ' + Msg1('GuideRunExe', FirstExe);
     if JoinNote <> '' then
-      ResultText := ResultText + #13#10#13#10 + 'חלק מהקבצים גדולים מדי ' +
-        'לקובץ אחד ולכן נשארו מחולקים. במחשב היעד מחברים אותם בחלון מסוף ' +
-        '(טרמינל), מתוך התיקייה, בפקודה:' + #13#10 + JoinNote;
-    ResultText := ResultText + #13#10#13#10 + 'הקבצים שהוכנו:' + #13#10 + Notes;
+      ResultGuide := ResultGuide + #13#10#13#10 + CustomMessage('GuideJoin') + #13#10 +
+        JoinNote;
+    ResultGuide := ResultGuide + #13#10#13#10 + CustomMessage('PreparedFiles') + #13#10 +
+      Notes;
   end;
+  OutputNotes := PlannedOutputNotes(EnglishUi());
+  for C := 0 to GetArrayLength(OutputNotes) - 1 do
+    ResultGuide := ResultGuide + #13#10 + OutputNotes[C];
+  ResultText := ResultText + ResultGuide;
   Result := True;
 end;
 
 { ============================== זרימה ============================== }
 
-procedure ShowFailure();
+{ כישלון נשאר בעמוד שבו קרה, ומוצג בעמוד שגיאה עם "נסה שוב": בטעינה — טעינה
+  חוזרת; בהורדה — אותו תג ננעל ואותו מטמון, בדיוק כמו לחיצה חוזרת על "התחל". }
+procedure ShowFailure(Stage: Integer);
+var
+  Title, Body: String;
 begin
   if LoadErrorTech <> '' then
     Log('DownloadAssistant: ' + LoadErrorTech);
-  if MsgBox(LoadErrorHeb + #13#10#13#10 + 'להציג פרטים טכניים?',
-    mbError, MB_YESNO) = IDYES then
-    MsgBox(LoadErrorTech, mbInformation, MB_OK);
+  Title := LoadErrorMsg;
+  if Stage = FailureLoad then
+  begin
+    Body := CustomMessage('LoadFailedBody');
+    if LoadOffline then
+    begin
+      Title := CustomMessage('OfflineTitle');
+      Body := CustomMessage('OfflineBody');
+    end;
+  end
+  else if Stage = RunStopped then
+    Body := CustomMessage('StoppedBody')
+  else
+    Body := CustomMessage('RunFailedBody');
+  UiShowFailure(Stage, Title, Body, LoadErrorTech, LoadOffline and (Stage = FailureLoad));
 end;
 
+{ הגרסה ידועה רק מהמניפסט: מעמוד הבחירה הראשון ועד ההורדה. }
+procedure ShowReleaseVersion();
+begin
+  if ReleaseVersion = '' then
+    exit;
+  ModePage.SubCaptionLabel.Caption := Msg1('VersionToDownload', OtzariaVersionLabel());
+  DownloadPage.Caption := Msg1('DownloadingVersion', OtzariaVersionLabel());
+end;
+
+{ אין נתונים מאומתים בלי מניפסט, ולכן כישלון כאן עוצר במסך הפתיחה ואינו מוריד
+  דבר. הטעינה רצה בעמוד שמעבד הודעות, כך שהחלון נשאר חי ואפשר לבטל. }
+function LoadManifestStep(): Boolean;
+begin
+  LoadErrorMsg := '';
+  LoadErrorTech := '';
+  LoadAttempts := 0;
+  LoadNetworkFailures := 0;
+  StopRequested := False;
+  ConnectPage.Show;
+  try
+    ManifestLoaded := LoadReleaseManifest();
+  finally
+    ConnectPage.Hide;
+  end;
+  if ManifestLoaded then
+  begin
+    FillOtherPage();
+    ShowReleaseVersion();
+  end;
+  { "ביטול" בזמן החיבור מחזיר למסך הפתיחה, בלי עמוד שגיאה. }
+  if StopRequested then
+  begin
+    UiCloseIfRequested();
+    Result := False;
+    exit;
+  end;
+  Result := ManifestLoaded;
+  if Result then
+    exit;
+  LoadOffline := (LoadAttempts > 0) and (LoadNetworkFailures = LoadAttempts);
+  ShowFailure(FailureLoad);
+end;
+
+{ לפני הצגת החלון אין כאן שום פנייה לרשת: המניפסט נטען ב"בואו נתחיל". }
 function InitializeSetup(): Boolean;
-var
-  ErrorCode: Integer;
 begin
   Result := True;
-  ManifestLoaded := LoadReleaseManifest();
 #ifdef DevSelectionDump
-  if ManifestLoaded then
+  if LoadReleaseManifest() then
     DumpSelections();
   Result := False;
-  exit;
 #endif
-  if ManifestLoaded then
-    exit;
-  Log('DownloadAssistant: ' + LoadErrorTech);
-  { אין נתונים מאומתים, ולכן לא מורידים כלום. האפשרות היחידה שמוצעת היא
-    לפתוח את עמוד ההורדות ולהוריד ידנית. }
-  if MsgBox(LoadErrorHeb + #13#10#13#10 +
-    'אפשר לפתוח את עמוד ההורדות של אוצריא בדפדפן ולהוריד משם ידנית ' +
-    '(אפשרות מוגבלת: המסייע לא יוכל לבדוק את הקבצים או לחבר אותם).'
-    + #13#10#13#10 + 'לפתוח את עמוד ההורדות?', mbError, MB_YESNO) = IDYES then
-    ShellExecAsOriginalUser('open',
-      'https://github.com/Otzaria/otzaria/releases/latest', '', '',
-      SW_SHOWNORMAL, ewNoWait, ErrorCode);
-  Result := False;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
@@ -2487,33 +3290,23 @@ begin
   end
   else if CurPageID = wpFinished then
   begin
-    { ברירת המחדל של התווית נמוכה מדי — טקסט הסיום ארוך ממשפט אחד. }
-    WizardForm.FinishedLabel.AutoSize := False;
-    WizardForm.FinishedLabel.WordWrap := True;
-    WizardForm.FinishedLabel.Height := WizardForm.FinishedPage.ClientHeight -
-      WizardForm.FinishedLabel.Top;
     WizardForm.FinishedLabel.Caption := ResultText;
-    if RevealPath <> '' then
+    { במחשב הזה עמוד הסיום פותח את התיקייה בכפתור משלו. }
+    if (RevealPath <> '') and not IsThisComputerMode() then
     begin
       if not Assigned(RevealCheck) then
       begin
         RevealCheck := TNewCheckBox.Create(WizardForm);
         RevealCheck.Parent := WizardForm.FinishedPage;
-        RevealCheck.Left := WizardForm.FinishedLabel.Left;
-        RevealCheck.Width := WizardForm.FinishedLabel.Width;
-        RevealCheck.Height := ScaleY(17);
         RevealCheck.Checked := True;
       end;
-      RevealCheck.Top := WizardForm.FinishedPage.ClientHeight -
-        RevealCheck.Height;
-      WizardForm.FinishedLabel.Height := RevealCheck.Top - ScaleY(8) -
-        WizardForm.FinishedLabel.Top;
       if RevealIsFile then
-        RevealCheck.Caption := 'הצג את הקובץ שהוכן'
+        RevealCheck.Caption := CustomMessage('RevealFile')
       else
-        RevealCheck.Caption := 'הצג את התיקייה שהוכנה';
+        RevealCheck.Caption := CustomMessage('RevealFolder');
     end;
   end;
+  UiCurPageChanged(CurPageID);
 end;
 
 { פתיחת הסיירת היא נוחות בלבד: אם היא נכשלת, התוצאה כבר מוכנה ואין מה לומר. }
@@ -2521,6 +3314,7 @@ procedure DeinitializeSetup();
 var
   ErrorCode: Integer;
 begin
+  UiDeinitializeSetup();
   if (RevealPath = '') or not Assigned(RevealCheck) or
      not RevealCheck.Checked then
     exit;
@@ -2537,6 +3331,24 @@ var
   Free, Total, Needed: Int64;
 begin
   Result := True;
+
+  if CurPageID = wpWelcome then
+  begin
+    { התג ננעל בטעינה הראשונה שהצליחה: חזרה למסך הפתיחה אינה טוענת שוב. }
+    if not ManifestLoaded then
+      Result := LoadManifestStep();
+    exit;
+  end;
+
+  if CurPageID = OtherPage.ID then
+  begin
+    if OtherPage.SelectedValueIndex < 0 then
+    begin
+      UiTell(CustomMessage('NoTargetTitle'), CustomMessage('NoTargetText'));
+      Result := False;
+    end;
+    exit;
+  end;
 
   if CurPageID = PresetPage.ID then
   begin
@@ -2560,7 +3372,7 @@ begin
       end;
     if not Selected then
     begin
-      MsgBox('יש לבחור לפחות רכיב אחד להורדה.', mbError, MB_OK);
+      UiTell(CustomMessage('NothingTitle'), CustomMessage('NothingText'));
       Result := False;
       exit;
     end;
@@ -2577,13 +3389,12 @@ begin
       exit;
     if DirIsWritable(FallbackOutputBase()) then
     begin
-      MsgBox('לא ניתן לשמור בתיקייה שנבחרה. במקומה מוצעת התיקייה:' + #13#10 +
-        FallbackOutputBase() + #13#10#13#10 +
-        'אפשר להמשיך איתה או לבחור תיקייה אחרת.', mbInformation, MB_OK);
+      UiTell(CustomMessage('FolderBadTitle'),
+        Msg1('FolderBadFallback', FallbackOutputBase()));
       FolderPage.Values[0] := FallbackOutputBase();
     end
     else
-      MsgBox('לא ניתן לשמור בתיקייה שנבחרה. נסה תיקייה אחרת.', mbError, MB_OK);
+      UiTell(CustomMessage('FolderBadTitle'), CustomMessage('FolderBadText'));
     Result := False;
     exit;
   end;
@@ -2599,28 +3410,24 @@ begin
     if CompSelected[I] then
       Needed := Needed + CompDownloadSize[I] * 2;
   if GetSpaceOnDisk64(OutputBaseDir(), Free, Total) and (Free < Needed) then
-    if MsgBox('נראה שאין מספיק מקום פנוי. דרושים בערך ' + HumanSize(Needed) +
-      '.' + #13#10#13#10 + 'להמשיך בכל זאת?', mbConfirmation, MB_YESNO) = IDNO then
+    if not UiAsk(CustomMessage('SpaceTitle'), Msg1('SpaceText', HumanSize(Needed)),
+      CustomMessage('SpaceYes'), CustomMessage('Cancel'), False) then
     begin
       Result := False;
       exit;
     end;
 
-  LoadErrorHeb := '';
+  LoadErrorMsg := '';
   LoadErrorTech := '';
+  StopRequested := False;
   if not BuildQueue() or not RunDownloads() or not PrepareOutput() then
   begin
-    if LoadErrorHeb = '' then
-      LoadErrorHeb := 'לא ניתן להכין את ההתקנה.';
-    ShowFailure();
+    if LoadErrorMsg = '' then
+      LoadErrorMsg := CustomMessage('ErrorPrepare');
+    if StopRequested then
+      ShowFailure(RunStopped)
+    else
+      ShowFailure(FailureRun);
     Result := False;
-    exit;
   end;
-
-  if RunAfterExe <> '' then
-    if not ShellExec('', RunAfterExe, '', ExtractFileDir(RunAfterExe),
-      SW_SHOWNORMAL, ewNoWait, I) then
-      ResultText := ResultText + #13#10#13#10 +
-        'לא ניתן היה להפעיל את המתקין. אפשר להפעיל אותו ידנית מתוך:'
-        + #13#10 + OutputDir();
 end;

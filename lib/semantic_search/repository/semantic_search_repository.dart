@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:archive/archive.dart' show ZipDecoder;
 import 'package:crypto/crypto.dart';
 
 import 'package:flutter/foundation.dart';
@@ -29,11 +30,15 @@ import 'package:otzaria/semantic_search/repository/semantic_data_ownership.dart'
 import 'package:otzaria/semantic_search/repository/semantic_platform_support.dart';
 import 'package:otzaria/semantic_search/repository/semantic_release_locator.dart';
 import 'package:otzaria/semantic_search/repository/semantic_settings_store.dart';
+import 'package:otzaria/semantic_search/repository/semantic_staged_import.dart';
 import 'package:otzaria/services/data_collection_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/utils/file/disk_free_space.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show SemanticRetrievalMode;
+    show
+        SemanticHighlightTarget,
+        SemanticPassageHighlight,
+        SemanticRetrievalMode;
 import 'package:path/path.dart' as p;
 import 'package:seforim_library_updater/seforim_library_updater.dart'
     show PatchDownloadCancelled, PatchDownloadException, PatchNetworkException;
@@ -102,6 +107,13 @@ class SemanticSearchRepository {
   static SemanticSearchRepository get instance =>
       _instance ??= SemanticSearchRepository();
 
+  static final StreamController<SemanticAvailability> _sharedChanges =
+      StreamController<SemanticAvailability>.broadcast();
+
+  /// שינויי המצב של [instance], בלי ליצור אותו: האזנה כאן אינה עבודה בעלייה.
+  static Stream<SemanticAvailability> get sharedAvailabilityChanges =>
+      _sharedChanges.stream;
+
   final SemanticEngineBackend _backend;
   final SearchFeedbackConsentStore Function() _consentFactory;
   final SemanticSettingsStore _settings;
@@ -122,6 +134,14 @@ class SemanticSearchRepository {
   SemanticAvailability _availability = SemanticAvailability.initial;
 
   late final SearchFeedbackConsentStore _consent = _consentFactory();
+
+  /// נתונים שמסייע ההורדה הכין מחליפים הורדה, רק בתוך עבודה שעברה את ההסכמה.
+  late final SemanticStagedImport _staged = SemanticStagedImport(_paths);
+  late final SemanticFileDownloader _fetch = _staged.wrap(
+    _download,
+    isOffline: () => _settings.isOfflineMode,
+    onChecking: _showChecking,
+  );
   StreamSubscription<SearchFeedbackConsent>? _consentSubscription;
   SemanticModelIdentity? _identity;
   SemanticVectorsSummary? _vectors;
@@ -130,6 +150,11 @@ class SemanticSearchRepository {
   SemanticCancelHandle _jobCancel = SemanticCancelHandle();
   SemanticAvailabilityPhase? _jobPhase;
   SemanticDownloadProgress? _jobProgress;
+
+  /// השלבים שהעבודה הנוכחית תעבור, וסך הבתים שלה — להתקדמות כוללת אחת.
+  List<SemanticDownloadItem> _jobSteps = const [];
+  int _jobTotalBytes = 0;
+  int _jobModelBytes = 0;
   SemanticFailure? _lastFailure;
   int? _unpublishedVersion;
 
@@ -322,6 +347,22 @@ class SemanticSearchRepository {
     }
   }
 
+  /// מסמן בכל יעד את הקטע הקרוב ל-[query]; רק אחרי חיפוש, ולכן אינו פותח.
+  /// [cancel] מבוטל גם כשה-session נסגר. זורק [SemanticFailure] בכשל.
+  Future<List<SemanticPassageHighlight>> passageHighlights(
+    String query,
+    List<SemanticHighlightTarget> targets,
+    SemanticCancelHandle cancel,
+  ) async {
+    if (targets.isEmpty) return const [];
+    _activeSearches.add(cancel);
+    try {
+      return await _backend.passageHighlights(query, targets, cancel: cancel);
+    } finally {
+      _activeSearches.remove(cancel);
+    }
+  }
+
   /// מבטל את החיפוש הרץ של [session] (ברירת המחדל: מי שלא העביר session).
   void cancelSearch({SemanticSearchSession? session}) =>
       (session ?? _defaultSession).cancel();
@@ -480,6 +521,7 @@ class SemanticSearchRepository {
     if (next == _availability) return;
     _availability = next;
     _changes.add(next);
+    if (identical(this, _instance)) _sharedChanges.add(next);
   }
 
   bool _isConsentGranted() {
@@ -655,8 +697,12 @@ class SemanticSearchRepository {
           !_moveInProgress &&
           _isConsentGranted());
     } finally {
+      _staged.clearVerification();
       _jobPhase = null;
       _jobProgress = null;
+      _jobSteps = const [];
+      _jobTotalBytes = 0;
+      _jobModelBytes = 0;
       _reportJobFailures = false;
     }
   }
@@ -680,7 +726,8 @@ class SemanticSearchRepository {
     if (!_isConsentGranted()) {
       return _skipOrThrow(SemanticFailureKind.consentRequired);
     }
-    if (_settings.isOfflineMode) {
+    final offline = _settings.isOfflineMode;
+    if (offline && !await _staged.hasData()) {
       return _skipOrThrow(SemanticFailureKind.offline);
     }
     if (_moveInProgress) return _skipOrThrow(SemanticFailureKind.libraryMoving);
@@ -709,9 +756,13 @@ class SemanticSearchRepository {
         installed.libraryVersion == version &&
         !_needsRepair;
     if (!upToDate) {
-      release = await _locator.findForLibraryVersion(
+      release = await _staged.locate(
         version,
-        libraryTag: _libraryTagHint,
+        offline: offline,
+        online: () => _locator.findForLibraryVersion(
+          version,
+          libraryTag: _libraryTagHint,
+        ),
       );
       if (release == null) {
         _unpublishedVersion = version;
@@ -724,7 +775,17 @@ class SemanticSearchRepository {
     }
     if (release == null && !installed.present) return;
 
-    await _ensureModel(paths, identity, quantization);
+    final model = await _missingModelFiles(paths, quantization);
+    _jobModelBytes = model.missing.fold(0, (sum, t) => sum + t.file.size);
+    _jobTotalBytes = _jobModelBytes + (release?.downloadSize ?? 0);
+    _jobSteps = [
+      if (model.missing.isNotEmpty) SemanticDownloadItem.model,
+      if (release != null) ...[
+        SemanticDownloadItem.vectors,
+        SemanticDownloadItem.install,
+      ],
+    ];
+    await _ensureModel(paths, identity, quantization, model);
     if (_jobCancel.isCancelled || release == null) return;
     await _installRelease(paths, identity, release);
   }
@@ -743,7 +804,10 @@ class SemanticSearchRepository {
     final segment = await _downloadVectors(downloadDir.path, release);
     if (_jobCancel.isCancelled) return;
 
-    _setJob(SemanticAvailabilityPhase.installing, null);
+    _setJob(
+      SemanticAvailabilityPhase.installing,
+      _progressOf(SemanticDownloadItem.install, _jobTotalBytes),
+    );
     final repair = _needsRepair;
     if (repair) {
       // ב-Windows אי אפשר להחליף קובץ ממופה: התיקון מחייב לסגור את ה-session.
@@ -796,9 +860,9 @@ class SemanticSearchRepository {
     );
   }
 
-  Future<void> _ensureModel(
+  /// קבצי רכיב החיפוש שחסרים (או פגומים בתיקון) ל-[quantization].
+  Future<_ModelPlan> _missingModelFiles(
     SemanticPaths paths,
-    SemanticModelIdentity identity,
     SemanticQuantization quantization,
   ) async {
     final release = _modelReleases[quantization];
@@ -808,14 +872,11 @@ class SemanticSearchRepository {
         'no release for ${quantization.name}',
       );
     }
-    await _ensureOwnedOrAbsent(paths.modelDirectory, allowEmpty: true);
-    await markSemanticDirectory(paths.modelDirectory);
-    final identityFile = File(paths.identityFile);
     final targets = [
       (file: release.graph, dest: paths.modelFile(quantization)),
       (file: release.tokenizer, dest: paths.tokenizerFile),
       (file: release.license, dest: paths.licenseFile),
-      if (!await identityFile.exists())
+      if (!await File(paths.identityFile).exists())
         (file: release.identity, dest: paths.identityFile),
     ];
     final missing = <({SemanticModelFile file, String dest})>[];
@@ -830,26 +891,27 @@ class SemanticSearchRepository {
         missing.add(target);
       }
     }
-    final total = missing.fold(0, (sum, target) => sum + target.file.size);
+    return (release: release, missing: missing);
+  }
+
+  Future<void> _ensureModel(
+    SemanticPaths paths,
+    SemanticModelIdentity identity,
+    SemanticQuantization quantization,
+    _ModelPlan model,
+  ) async {
+    final release = model.release;
+    final missing = model.missing;
+    await _ensureOwnedOrAbsent(paths.modelDirectory, allowEmpty: true);
+    await markSemanticDirectory(paths.modelDirectory);
+    final identityFile = File(paths.identityFile);
     var done = 0;
     for (final target in missing) {
       // הורדה לשם זמני: קובץ חלקי בשם הסופי היה נחשב מותקן.
       final partial = '${target.dest}.part';
       final before = done;
-      _reportProgress(SemanticDownloadItem.model, before, total, force: true);
-      await _download(
-        url: release.urlOf(target.file),
-        destPath: partial,
-        resumeIdentity: target.file.sha256,
-        expectedSize: target.file.size,
-        expectedSha256: target.file.sha256,
-        onProgress: (received, _) => _reportProgress(
-          SemanticDownloadItem.model,
-          before + received,
-          total,
-        ),
-        isCancelled: () => _jobCancel.isCancelled,
-      );
+      _reportProgress(SemanticDownloadItem.model, before, force: true);
+      await _fetchModelFile(release, target.file, partial, before);
       done += target.file.size;
       if (target.file == release.identity) {
         await _checkPublishedIdentity(partial, identity);
@@ -866,6 +928,55 @@ class SemanticSearchRepository {
       await identityFile.writeAsString(identity.rawJson, flush: true);
     }
   }
+
+  /// [file] אל [partial]; אם הורדתו נכשלה (לא בביטול) ויש לו zip — ממנו.
+  Future<void> _fetchModelFile(
+    SemanticModelRelease release,
+    SemanticModelFile file,
+    String partial,
+    int before,
+  ) async {
+    void progress(int received, int? _) =>
+        _reportProgress(SemanticDownloadItem.model, before + received);
+    bool cancelled() => _jobCancel.isCancelled;
+    try {
+      await _fetch(
+        url: release.urlOf(file),
+        destPath: partial,
+        resumeIdentity: file.sha256,
+        expectedSize: file.size,
+        expectedSha256: file.sha256,
+        onProgress: progress,
+        isCancelled: cancelled,
+      );
+      return;
+    } catch (error, stackTrace) {
+      final zipped = file.zipped;
+      if (zipped == null || cancelled() || _isCancellation(error)) rethrow;
+      _log('download ${file.name}; trying ${zipped.name}', error, stackTrace);
+    }
+    final zipped = file.zipped!;
+    await CompanionAssetsService.discardDownload(partial);
+    final archive = '${p.withoutExtension(partial)}.zip.part';
+    await _fetch(
+      url: release.urlOf(zipped),
+      destPath: archive,
+      resumeIdentity: zipped.sha256,
+      expectedSize: zipped.size,
+      expectedSha256: zipped.sha256,
+      onProgress: progress,
+      isCancelled: cancelled,
+    );
+    try {
+      await _unzipModelFile(archive, file, partial);
+    } finally {
+      await CompanionAssetsService.discardDownload(archive);
+    }
+  }
+
+  static bool _isCancellation(Object error) =>
+      error is PatchDownloadCancelled ||
+      (error is SemanticFailure && error.kind == SemanticFailureKind.cancelled);
 
   /// ה-model.json שב-release אמור להיות זהה לנכס המצורף; אם לא — הנכס גובר.
   static Future<void> _checkPublishedIdentity(
@@ -885,32 +996,22 @@ class SemanticSearchRepository {
     String downloadDir,
     SemanticVectorsRelease release,
   ) async {
-    final total = release.downloadSize;
-    var done = 0;
+    // הבתים של הוקטורים נספרים אחרי אלה של רכיב החיפוש.
+    var done = _jobModelBytes;
     final parts = <String>[];
-    _setJob(
-      SemanticAvailabilityPhase.downloading,
-      SemanticDownloadProgress(
-        item: SemanticDownloadItem.vectors,
-        receivedBytes: 0,
-        totalBytes: total,
-      ),
-    );
+    _reportProgress(SemanticDownloadItem.vectors, done, force: true);
     for (final file in release.files) {
       final dest = p.join(downloadDir, file.name);
       final before = done;
-      await _download(
+      await _fetch(
         url: file.downloadUrl,
         destPath: dest,
         resumeIdentity:
             '${release.releaseTag}|${file.name}|${file.assetId}|${file.sha256}',
         expectedSize: file.size,
         expectedSha256: file.sha256,
-        onProgress: (received, _) => _reportProgress(
-          SemanticDownloadItem.vectors,
-          before + received,
-          total,
-        ),
+        onProgress: (received, _) =>
+            _reportProgress(SemanticDownloadItem.vectors, before + received),
         isCancelled: () => _jobCancel.isCancelled,
       );
       done += file.size;
@@ -955,8 +1056,25 @@ class SemanticSearchRepository {
   ) async {
     final info = await _diskSpace(downloadDir);
     if (info.freeBytes < 0) return;
+    _reportProgress(SemanticDownloadItem.vectors, _jobModelBytes, force: true);
     var remaining = 0;
     for (final file in release.files) {
+      // קובץ מוכן באותו כונן עובר ב-rename ואינו תופס מקום נוסף.
+      final staged = await _staged.stagedFile(file.name);
+      if (staged != null &&
+          info.volumeId != null &&
+          (await _diskSpace(p.dirname(staged.path))).volumeId ==
+              info.volumeId &&
+          await _staged.verifiedStagedFile(
+                file.name,
+                file.size,
+                file.sha256,
+                onChecking: _showChecking,
+                isCancelled: () => _jobCancel.isCancelled,
+              ) !=
+              null) {
+        continue;
+      }
       final partial = File(p.join(downloadDir, file.name));
       final have = await partial.exists() ? await partial.length() : 0;
       remaining += (file.size - have).clamp(0, file.size);
@@ -986,15 +1104,40 @@ class SemanticSearchRepository {
     );
   }
 
+  /// בדיקת קובץ מוכן: אותו שלב, בלי מדידה.
+  void _showChecking(bool checking) {
+    final progress = _jobProgress;
+    if (progress == null) return;
+    _setJob(
+      SemanticAvailabilityPhase.downloading,
+      progress.withChecking(checking),
+    );
+  }
+
+  /// ההתקדמות הכוללת של העבודה בשלב [item], אחרי [received] בתים.
+  SemanticDownloadProgress _progressOf(
+    SemanticDownloadItem item,
+    int received,
+  ) {
+    final index = _jobSteps.indexOf(item);
+    return SemanticDownloadProgress(
+      item: item,
+      receivedBytes: received,
+      totalBytes: _jobTotalBytes > 0 ? _jobTotalBytes : null,
+      step: index < 0 ? 1 : index + 1,
+      stepCount: _jobSteps.isEmpty ? 1 : _jobSteps.length,
+    );
+  }
+
   /// מעדכן את ההתקדמות בצעדים של חצי אחוז, לא בכל chunk.
   void _reportProgress(
     SemanticDownloadItem item,
-    int received,
-    int? total, {
+    int received, {
     bool force = false,
   }) {
     final previous = _jobProgress;
-    final step = total != null && total > 0 ? total ~/ 200 : 1 << 20;
+    final total = _jobTotalBytes;
+    final step = total > 0 ? total ~/ 200 : 1 << 20;
     if (!force &&
         previous != null &&
         previous.item == item &&
@@ -1002,14 +1145,7 @@ class SemanticSearchRepository {
         received != total) {
       return;
     }
-    _setJob(
-      SemanticAvailabilityPhase.downloading,
-      SemanticDownloadProgress(
-        item: item,
-        receivedBytes: received,
-        totalBytes: total,
-      ),
-    );
+    _setJob(SemanticAvailabilityPhase.downloading, _progressOf(item, received));
   }
 
   // ── עזרים ───────────────────────────────────────────────────────────────
@@ -1066,6 +1202,12 @@ class SemanticSearchRepository {
   }
 }
 
+/// release של רכיב החיפוש והקבצים ממנו שחסרים במכשיר.
+typedef _ModelPlan = ({
+  SemanticModelRelease release,
+  List<({SemanticModelFile file, String dest})> missing,
+});
+
 /// ערוץ חיפוש של צרכן אחד (למשל כרטיסייה): חיפוש חדש מבטל רק את הקודם בו.
 class SemanticSearchSession {
   SemanticCancelHandle? _current;
@@ -1088,3 +1230,37 @@ Future<bool> _verifyModelFile(
   if (!await file.exists() || await file.length() != expectedSize) return false;
   return (await sha256.bind(file.openRead()).first).toString() == expectedSha;
 });
+
+/// [file] מתוך ה-zip [archive] אל [dest]: רשומה יחידה בשמו ובגודלו, ואז ה-SHA-256 שלו.
+Future<void> _unzipModelFile(
+  String archive,
+  SemanticModelFile file,
+  String dest,
+) async {
+  final name = file.name;
+  final size = file.size;
+  final zipBytes = await File(archive).readAsBytes();
+  final bytes = await Isolate.run(() {
+    try {
+      final entries = ZipDecoder().decodeBytes(zipBytes).files;
+      if (entries.length != 1) return null;
+      final entry = entries.single;
+      if (!entry.isFile || entry.name != name || entry.size != size) {
+        return null;
+      }
+      final content = entry.readBytes();
+      return content != null && content.length == size ? content : null;
+    } catch (_) {
+      // zip פגום (גם RangeError של נתונים קטועים) אינו מחזיק את הקובץ.
+      return null;
+    }
+  });
+  if (bytes != null) await File(dest).writeAsBytes(bytes, flush: true);
+  if (bytes == null || !await _verifyModelFile(dest, size, file.sha256)) {
+    await CompanionAssetsService.discardDownload(dest);
+    throw SemanticFailure(
+      SemanticFailureKind.checksumMismatch,
+      '${p.basename(archive)} does not hold the published $name',
+    );
+  }
+}

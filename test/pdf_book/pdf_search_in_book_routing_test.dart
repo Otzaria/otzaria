@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -14,9 +15,11 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
+import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -35,6 +38,7 @@ Future<void> main() async {
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    registerFallbackValue(const UpdateSearchOptions());
   });
 
   Future<_RecordingSearchRepository> pumpPdfSearch(
@@ -48,6 +52,8 @@ Future<void> main() async {
     int? bookId,
     BookSource source = BookSource.official,
     String? externalLibraryId,
+    PdfBookTab? tab,
+    PdfBookBloc? persistenceBloc,
   }) async {
     final settingsBloc = _MockSettingsBloc();
     whenListen(
@@ -58,18 +64,28 @@ Future<void> main() async {
     final pdfBookBloc = _MockPdfBookBloc();
     whenListen(
       pdfBookBloc,
-      const Stream<PdfBookState>.empty(),
-      initialState: _loadedState(),
+      persistenceBloc?.stream ?? const Stream<PdfBookState>.empty(),
+      initialState: persistenceBloc?.state ?? _loadedState(),
     );
 
-    final searchController = TextEditingController(text: query);
+    if (persistenceBloc != null) {
+      when(() => pdfBookBloc.add(any())).thenAnswer((invocation) {
+        persistenceBloc.add(
+          invocation.positionalArguments.single as PdfBookEvent,
+        );
+      });
+    }
+    final searchController =
+        tab?.searchController ?? TextEditingController(text: query);
     final focusNode = FocusNode();
     final textSearcher = PdfTextSearcher(_FakeReadyController());
-    final repository = _RecordingSearchRepository();
+    final repository = _RecordingSearchRepository()
+      ..bloc = pdfBookBloc
+      ..textSearcher = textSearcher;
 
     addTearDown(settingsBloc.close);
     addTearDown(pdfBookBloc.close);
-    addTearDown(searchController.dispose);
+    if (tab == null) addTearDown(searchController.dispose);
     addTearDown(focusNode.dispose);
     addTearDown(textSearcher.dispose);
 
@@ -108,6 +124,139 @@ Future<void> main() async {
     return repository;
   }
 
+  testWidgets(
+    'איפוס במסכת PDF מצורפת משמר חיפוש מקומי עם ברירות מחדל מתקדמות',
+    (tester) async {
+      SearchDefaults.saveModeDefault(SearchMode.advanced);
+      SearchDefaults.saveDistanceDefault(3);
+      SearchDefaults.saveDefaults({'קידומות': true, 'ראשי תיבות': true});
+      addTearDown(() {
+        SearchDefaults.saveModeDefault(SearchMode.exact);
+        SearchDefaults.saveDistanceDefault(0);
+        SearchDefaults.saveDefaults({});
+      });
+      final repository = await pumpPdfSearch(
+        tester,
+        query: 'תדע',
+        searchMode: SearchMode.exact,
+        searchDistance: 0,
+        externalLibraryId: 'talmud-pdf:ברכות',
+      );
+      expect(repository.textSearcher.pattern, isA<RegExp>());
+      expect(
+        find.text(PdfMessages.advancedSearchUnavailableInTalmudPdf),
+        findsNothing,
+      );
+
+      await tester.tap(find.byIcon(FluentIcons.dismiss_24_regular));
+      await tester.pump(const Duration(milliseconds: 800));
+      final reset = verify(
+        () => repository.bloc.add(captureAny(that: isA<UpdateSearchOptions>())),
+      ).captured.cast<UpdateSearchOptions>().last;
+      expect(reset.searchMode, SearchMode.exact);
+      expect(reset.searchDistance, 0);
+      expect(reset.searchOptions, isEmpty);
+      expect(reset.matchPolicy, SearchMatchPolicy.standard);
+
+      await tester.enterText(find.byType(TextField).first, 'זרעך');
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(repository.requests, isEmpty);
+      expect(
+        find.text(PdfMessages.advancedSearchUnavailableInTalmudPdf),
+        findsNothing,
+      );
+      expect(repository.textSearcher.pattern, isA<RegExp>());
+      expect(
+        (repository.textSearcher.pattern as RegExp).hasMatch('זרעך'),
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets('ברירות מחדל ומפות המילים נשמרות בטאב PDF ובחלונית משוחזרת', (
+    tester,
+  ) async {
+    SearchDefaults.saveModeDefault(SearchMode.advanced);
+    SearchDefaults.saveDistanceDefault(3);
+    const wordOptions = {'קידומות': true, 'ראשי תיבות': true};
+    SearchDefaults.saveDefaults(wordOptions);
+    addTearDown(() {
+      SearchDefaults.saveModeDefault(SearchMode.exact);
+      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveDefaults({});
+    });
+    final tab = PdfBookTab(book: _loadedState().book, pageNumber: 1);
+    final persistenceBloc = PdfBookBloc(
+      tab: tab,
+      initialState: PdfBookInitial(book: tab.book, initialPageNumber: 1),
+      pdfrxInit: () async {},
+    );
+    // המצב הטעון מבודד את שמירת החיפוש מטעינת מסמך PDF אמיתי.
+    // ignore: invalid_use_of_visible_for_testing_member
+    persistenceBloc.emit(_loadedState());
+    addTearDown(persistenceBloc.close);
+    addTearDown(tab.dispose);
+    final repository = await pumpPdfSearch(
+      tester,
+      query: '',
+      searchMode: SearchMode.exact,
+      searchDistance: 0,
+      tab: tab,
+      persistenceBloc: persistenceBloc,
+    );
+    expect(tab.searchMode, SearchMode.advanced);
+    expect(tab.searchDistance, 3);
+    expect(repository.requests, isEmpty);
+
+    await tester.enterText(find.byType(TextField).first, 'תדע זרעך');
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(repository.requests, hasLength(1));
+    expect(repository.requests.single.searchMode, SearchMode.advanced);
+    expect(repository.requests.single.distance, 3);
+    expect(repository.requests.single.searchOptions, {
+      'תדע_0': wordOptions,
+      'זרעך_1': wordOptions,
+    });
+    expect(tab.searchOptions, repository.requests.single.searchOptions);
+
+    await tester.enterText(find.byType(TextField).first, 'זרעך אחריך');
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(repository.requests, hasLength(2));
+    const expectedOptions = {'זרעך_0': wordOptions, 'אחריך_1': wordOptions};
+    expect(repository.requests.last.searchOptions, expectedOptions);
+    expect(tab.searchOptions, expectedOptions);
+    final updates = verify(
+      () => repository.bloc.add(captureAny(that: isA<UpdateSearchOptions>())),
+    ).captured.cast<UpdateSearchOptions>();
+    expect(updates, hasLength(3));
+    expect(updates.last.searchOptions, expectedOptions);
+
+    final restored = PdfBookTab.fromJson(tab.toJson());
+    addTearDown(restored.dispose);
+    expect(restored.searchController.text, 'זרעך אחריך');
+    expect(restored.searchMode, SearchMode.advanced);
+    expect(restored.searchDistance, 3);
+    expect(restored.searchOptions, expectedOptions);
+    SearchDefaults.saveModeDefault(SearchMode.exact);
+    SearchDefaults.saveDistanceDefault(0);
+    SearchDefaults.saveDefaults({});
+    await tester.pumpWidget(const SizedBox.shrink());
+    final reopened = await pumpPdfSearch(
+      tester,
+      query: restored.searchController.text,
+      searchMode: restored.searchMode,
+      searchDistance: restored.searchDistance,
+      searchOptions: restored.searchOptions,
+      tab: restored,
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(reopened.requests, hasLength(1));
+    expect(reopened.requests.single.query, 'זרעך אחריך');
+    expect(reopened.requests.single.searchMode, SearchMode.advanced);
+    expect(reopened.requests.single.distance, 3);
+    expect(reopened.requests.single.searchOptions, expectedOptions);
+  }, skip: !engineReady);
+
   testWidgets('מרווח בין מילים במצב מדויק רץ במסלול המנוע', (tester) async {
     final repository = await pumpPdfSearch(
       tester,
@@ -121,6 +270,24 @@ Future<void> main() async {
     expect(repository.requests.last.query, 'תדע זרעך');
 
     await tester.pump(const Duration(milliseconds: 800));
+  }, skip: !engineReady);
+
+  // issue #1937: ברירת מחדל שנשמרה מחלון החיפוש לא חלה על חיפוש בספר.
+  testWidgets('מרווח שנקבע כברירת מחדל חל על הקלדה בספר PDF', (tester) async {
+    SearchDefaults.saveDistanceDefault(3);
+    addTearDown(() => SearchDefaults.saveDistanceDefault(0));
+    final repository = await pumpPdfSearch(
+      tester,
+      query: '',
+      searchMode: SearchMode.exact,
+      searchDistance: 0,
+    );
+
+    await tester.enterText(find.byType(TextField).first, 'תדע זרעך');
+    await tester.pump(const Duration(milliseconds: 800));
+
+    expect(repository.requests, isNotEmpty);
+    expect(repository.requests.last.distance, 3);
   }, skip: !engineReady);
 
   // הרגרסיה של issue #936: החלונית בנתה את ה-facet בלי מזהי הספר בעוד
@@ -195,6 +362,25 @@ Future<void> main() async {
 
     await tester.pump(const Duration(milliseconds: 800));
   });
+
+  testWidgets('תוצאה מחיפוש חכם במסכת מצורפת מחפשת בשכבת הטקסט', (
+    tester,
+  ) async {
+    final repository = await pumpPdfSearch(
+      tester,
+      query: 'מאימתי',
+      searchMode: SearchMode.fuzzy,
+      searchDistance: 0,
+      matchPolicy: SearchMatchPolicy.smart,
+      externalLibraryId: 'talmud-pdf:ברכות',
+    );
+    expect(repository.requests, isEmpty);
+    expect(
+      find.text(PdfMessages.advancedSearchUnavailableInTalmudPdf),
+      findsNothing,
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+  }, skip: !engineReady);
 
   testWidgets('שאילתה בלי תוספות אינה פונה למנוע', (tester) async {
     final repository = await pumpPdfSearch(
@@ -353,6 +539,8 @@ class _SearchRequest {
     required this.scope,
     required this.wordMatchMode,
     required this.facets,
+    required this.searchMode,
+    required this.searchOptions,
   });
 
   final String query;
@@ -360,44 +548,26 @@ class _SearchRequest {
   final SearchScope scope;
   final WordMatchMode wordMatchMode;
   final List<String> facets;
+  final SearchMode searchMode;
+  final Map<String, Map<String, bool>>? searchOptions;
 }
 
 class _RecordingSearchRepository extends SearchRepository {
   final List<_SearchRequest> requests = [];
+  late PdfBookBloc bloc;
+  late PdfTextSearcher textSearcher;
 
   @override
-  Future<List<SearchResult>> searchTexts(
-    String query,
-    List<String> facets,
-    int limit, {
-    int offset = 0,
-    ResultsOrder order = ResultsOrder.relevance,
-    bool fuzzy = false,
-    int distance = 0,
-    String negativeQuery = '',
-    int? negativeDistance,
-    SearchScope scope = SearchScope.wordDistance,
-    SearchScope? negativeScope,
-    SearchMode searchMode = SearchMode.exact,
-    Map<String, String>? customSpacing,
-    Map<String, String>? negativeCustomSpacing,
-    Map<int, List<String>>? alternativeWords,
-    Map<int, List<String>>? negativeAlternativeWords,
-    Map<String, Map<String, bool>>? searchOptions,
-    Map<String, Map<String, bool>>? negativeSearchOptions,
-    bool matchNikud = false,
-    bool matchTaamim = false,
-    ResultGrouping? grouping,
-    WordMatchMode wordMatchMode = WordMatchMode.all,
-    int? wordMatchCount,
-  }) async {
+  Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async {
     requests.add(
       _SearchRequest(
-        query: query,
-        distance: distance,
-        scope: scope,
-        wordMatchMode: wordMatchMode,
-        facets: facets,
+        query: request.query,
+        distance: request.distance,
+        scope: request.scope,
+        wordMatchMode: request.wordMatchMode,
+        facets: request.facets,
+        searchMode: request.searchMode,
+        searchOptions: request.searchOptions,
       ),
     );
     return const [];

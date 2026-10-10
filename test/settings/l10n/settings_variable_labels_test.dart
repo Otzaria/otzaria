@@ -11,6 +11,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchScope, WordMatchMode;
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
+import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/tabs/about_settings_data.dart';
@@ -46,6 +47,7 @@ void main() {
 
     test('שם מצב החיפוש הסמנטי ונוסח ההסכמה', () {
       expect(catalog, contains(kSemanticSearchModeName));
+      expect(catalog, contains(kSemanticSearchModeLabel));
       expect(catalog, contains(kSemanticSearchConsentTemplate));
     });
 
@@ -54,6 +56,14 @@ void main() {
         final message = SemanticSearchMessages.failure(kind);
         expect(catalog, contains(message), reason: kind.name);
       }
+    });
+
+    test('תוויות שלבי ההורדה של החיפוש הסמנטי', () {
+      for (final item in SemanticDownloadItem.values) {
+        final action = SemanticSearchMessages.stepAction(item);
+        expect(catalog, contains(action), reason: item.name);
+      }
+      expect(catalog, contains(SemanticSearchMessages.percentTemplate));
     });
 
     test('שמות צבעי הבסיס', () {

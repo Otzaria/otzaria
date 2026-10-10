@@ -11,7 +11,12 @@ import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show ResultGrouping, SemanticGroupingMode, SemanticRetrievalMode;
+    show
+        ResultGrouping,
+        SemanticGroupingMode,
+        SemanticHighlightTarget,
+        SemanticPassageHighlight,
+        SemanticRetrievalMode;
 
 /// מקור עמודי התוצאות של מסך החיפוש הסמנטי.
 abstract interface class SemanticResultsSource {
@@ -29,6 +34,13 @@ abstract interface class SemanticResultsSource {
   });
 
   void cancel();
+
+  /// הקטע הקרוב ל-[query] בשורה של כל אחד מ-[items], בסדרם; זורק בכשל.
+  Future<List<SemanticPassageHighlight>> passageHighlights(
+    String query,
+    List<SemanticResultItem> items,
+    SemanticCancelHandle cancel,
+  );
 
   Future<SemanticEngineSnapshot> engineSnapshot();
 }
@@ -77,6 +89,8 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
         facets: options.facets,
         limit: limit,
         offset: offset,
+        lexicalMode: kSmartSearchLexicalMode,
+        fuzzyMaxDistance: kSmartSearchFuzzyMaxDistance,
         retrievalMode: options.includeLexical
             ? SemanticRetrievalMode.hybrid
             : SemanticRetrievalMode.semanticOnly,
@@ -94,7 +108,8 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
         for (final result in response.results)
           SemanticResultItem.fromEngine(result),
       ],
-      pageableTotal: response.groupCount ?? response.totalCount,
+      hasMore: response.hasMore,
+      sessionRestarted: response.sessionRestarted,
       executedMode: response.executedMode.name,
       semanticAvailable: response.semanticAvailable,
       fallbackReason: response.fallbackReason,
@@ -111,6 +126,16 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
 
   @override
   void cancel() => _repository.cancelSearch(session: _session);
+
+  @override
+  Future<List<SemanticPassageHighlight>> passageHighlights(
+    String query,
+    List<SemanticResultItem> items,
+    SemanticCancelHandle cancel,
+  ) => _repository.passageHighlights(query, [
+    for (final item in items)
+      SemanticHighlightTarget(filePath: item.filePath, id: item.id),
+  ], cancel);
 
   @override
   Future<SemanticEngineSnapshot> engineSnapshot() =>
@@ -143,13 +168,15 @@ class DebugLexicalPreviewSource implements SemanticResultsSource {
     final generation = ++_generation;
     final stopwatch = Stopwatch()..start();
     final page = await _searchRepository.searchTextsAndCount(
-      SearchQueryBuilder.sanitizeQuery(options.query),
-      options.facets,
-      limit,
-      offset: offset,
-      grouping: options.groupIdenticalText
-          ? ResultGrouping.identicalText
-          : null,
+      SearchEngineRequest(
+        query: SearchQueryBuilder.sanitizeQuery(options.query),
+        facets: options.facets,
+        limit: limit,
+        offset: offset,
+        grouping: options.groupIdenticalText
+            ? ResultGrouping.identicalText
+            : null,
+      ),
     );
     if (generation != _generation) return null;
     return SemanticResultsPage(
@@ -157,7 +184,8 @@ class DebugLexicalPreviewSource implements SemanticResultsSource {
         for (var i = 0; i < page.results.length; i++)
           SemanticResultItem.debugFromLexical(page.results[i], offset + i + 1),
       ],
-      pageableTotal: page.groupCount ?? page.totalCount,
+      hasMore:
+          offset + page.results.length < (page.groupCount ?? page.totalCount),
       executedMode: 'lexicalOnly',
       semanticAvailable: false,
       fallbackReason: kSemanticDebugPreviewFallbackReason,
@@ -173,6 +201,14 @@ class DebugLexicalPreviewSource implements SemanticResultsSource {
 
   @override
   void cancel() => _generation++;
+
+  /// בתצוגה המקדימה אין מודל, ולכן אין מה לסמן.
+  @override
+  Future<List<SemanticPassageHighlight>> passageHighlights(
+    String query,
+    List<SemanticResultItem> items,
+    SemanticCancelHandle cancel,
+  ) async => const [];
 
   @override
   Future<SemanticEngineSnapshot> engineSnapshot() => _engineSnapshot();

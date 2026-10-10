@@ -32,8 +32,7 @@ class AttachedLibraryRegistry {
   /// ניתן להחלפה בבדיקות.
   static AttachedLibraryRegistry instance = AttachedLibraryRegistry();
 
-  /// הפתיחה הראשונה ממתינה לו — main.dart מציב כאן את הצגת החלון, כך שכרטיסיה
-  /// משוחזרת של ספר מצורף אינה פותחת קובץ (אולי בכונן רשת) לפני ההצגה.
+  /// מונע פתיחת SQLite סינכרונית לפני חשיפת החלון הראשי.
   static Future<void> Function() startupGate = _noGate;
   static Future<void> _noGate() async {}
 
@@ -142,9 +141,23 @@ class AttachedLibraryRegistry {
 
   static Future<bool> _preflight(AttachedLibrary library) async {
     final path = library.path;
-    final immutable = library.immutable;
     try {
-      return await Isolate.run(() {
+      return await openCheck(
+        path,
+        library.immutable,
+      ).timeout(openTimeout, onTimeout: () => false);
+    } catch (e) {
+      debugPrint('[AttachedLibraryRegistry] preflight $path failed: $e');
+      return false;
+    }
+  }
+
+  @visibleForTesting
+  static Future<bool> Function(String path, bool immutable) openCheck =
+      _openCheckInIsolate;
+
+  static Future<bool> _openCheckInIsolate(String path, bool immutable) =>
+      Isolate.run(() {
         if (!File(path).existsSync()) return false;
         final db = openUntrustedReadOnlyDatabase(path, immutable: immutable);
         try {
@@ -153,12 +166,7 @@ class AttachedLibraryRegistry {
         } finally {
           db.close();
         }
-      }).timeout(openTimeout, onTimeout: () => false);
-    } catch (e) {
-      debugPrint('[AttachedLibraryRegistry] preflight $path failed: $e');
-      return false;
-    }
-  }
+      });
 
   void _scheduleIdleCheck() {
     final timeout = idleTimeout;

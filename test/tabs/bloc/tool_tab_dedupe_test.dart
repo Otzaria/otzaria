@@ -208,4 +208,19 @@ void main() {
       expect(existing.queryInbox.take()?.text, '26');
     });
   });
+  test('RenameTab מעדכן כותרת של חלונית בטאב מפוצל ופולט מצב', () async {
+    final pane = ToolTab(toolId: 'a.plugin', title: 'כלי');
+    final opened = bloc.stream.firstWhere((state) => state.tabs.length == 1);
+    bloc.add(
+      AddTab(CombinedTab(rightTab: pane, leftTab: book('בראשית'))),
+    );
+    await opened;
+
+    final renamed = bloc.stream.first;
+    bloc.add(RenameTab(pane, 'קידוש החודש'));
+    await renamed;
+
+    expect(pane.title, 'קידוש החודש');
+    expect(bloc.state.tabs.single, isA<CombinedTab>());
+  });
 }

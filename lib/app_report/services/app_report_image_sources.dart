@@ -23,7 +23,9 @@ class AppReportImageSources {
     // ב-Windows צילום של כלי החיתוך (DIB) ממומש כ-PNG, וקובץ שהועתק
     // בסייר מופיע גם הוא בפורמט התמונה שלו.
     for (final item in reader.items) {
+      // GIF ראשון: פריט שמציע גם PNG מאבד בו את ההנפשה.
       for (final (format, mimeType, extension) in const [
+        (Formats.gif, 'image/gif', 'gif'),
         (Formats.png, 'image/png', 'png'),
         (Formats.jpeg, 'image/jpeg', 'jpg'),
       ]) {

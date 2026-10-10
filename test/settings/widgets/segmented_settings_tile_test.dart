@@ -214,4 +214,58 @@ void main() {
       );
     },
   );
+
+  // issue #1920: in a wide row the control sat in the ListTile trailing,
+  // which does not grow, so a wrapped label was cut at the row's bottom.
+  testWidgets('a long label in a wide row stays inside the row', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1333, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const labels = ['Show', 'Hide', 'Follow Nekudos'];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              SettingsActionTile.segmentedTile<String>(
+                rtlIcon: FluentIcons.panel_left_24_regular,
+                title: 'Taamim',
+                options: [
+                  for (final label in labels)
+                    SegmentOption(value: label, label: label),
+                ],
+                currentValue: labels.last,
+                onChanged: (_) {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    final row = tester.getRect(
+      find
+          .ancestor(
+            of: find.byType(AppSegmentedControl<String>),
+            matching: find.byType(LayoutBuilder),
+          )
+          .first,
+    );
+    final control = tester.getRect(find.byType(AppSegmentedControl<String>));
+    expect(control.bottom, lessThanOrEqualTo(row.bottom));
+    for (final label in labels) {
+      final paragraph = tester.renderObject<RenderParagraph>(find.text(label));
+      expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+      expect(
+        tester.getRect(find.text(label)).bottom,
+        lessThanOrEqualTo(row.bottom),
+        reason: label,
+      );
+    }
+  });
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/bookmarks/models/bookmark.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/workspaces/workspace.dart';
 
 void main() {
@@ -226,6 +227,25 @@ void main() {
         'לימוד (ממכשיר אחר)',
         'לימוד (ממכשיר אחר 2)',
       ]);
+    });
+
+    test('שולחן מקובע נשאר מקובע, וצד החלונית הפעילה נשמר', () {
+      final pinned = Workspace(
+        id: 'b',
+        name: 'לימוד',
+        tabs: const [],
+        activePane: kLeftPaneSide,
+        isPinned: true,
+      );
+
+      final toAdd = BackupImportMerge.workspacesToAdd(
+        [workspace('a', 'לימוד')],
+        [pinned],
+      );
+
+      expect(toAdd.single.isPinned, isTrue);
+      expect(toAdd.single.activePane, kLeftPaneSide);
+      expect(toAdd.single.name, 'לימוד (ממכשיר אחר)');
     });
   });
 }

@@ -24,7 +24,7 @@ import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
-import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchScope, WordMatchMode;
 import 'package:path/path.dart' as p;
@@ -39,7 +39,7 @@ void main() {
     });
 
     test('מיזוג לתצוגה מפוצלת משמר את אותן חלוניות ואינו משחרר אותן', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final rightTab = _createTextTab('ספר ימין', categoryId: 1);
       final leftTab = _createTextTab('ספר שמאל', categoryId: 2);
 
@@ -63,7 +63,7 @@ void main() {
       expect(combinedTab.leftTab, same(leftTab));
 
       // המתנה מעבר לחלון השחרור הדחוי, שבו הקוד הישן היה הורג את הטאבים.
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _afterDeferredDispose();
       expect(rightTab.bloc.isClosed, isFalse);
       expect(leftTab.bloc.isClosed, isFalse);
 
@@ -71,7 +71,7 @@ void main() {
     });
 
     test('פירוק תצוגה מפוצלת מחזיר את אותן חלוניות לרשימה', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final rightTab = _createTextTab('ספר א', categoryId: 1);
       final leftTab = _createTextTab('ספר ב', categoryId: 2);
 
@@ -91,7 +91,7 @@ void main() {
       expect(bloc.state.tabs[1], same(leftTab));
 
       // שחרור הצומת העוטף היה הורג רקורסיבית את שתי החלוניות ששבו לרשימה.
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _afterDeferredDispose();
       expect(rightTab.bloc.isClosed, isFalse);
       expect(leftTab.bloc.isClosed, isFalse);
 
@@ -99,7 +99,7 @@ void main() {
     });
 
     test('פירוק מחזיר את החלוניות במקום הטאב המפוצל ולא בסופו', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final before = _createTextTab('לפני', categoryId: 1);
       final right = _createTextTab('ימין', categoryId: 2);
       final left = _createTextTab('שמאל', categoryId: 3);
@@ -123,7 +123,7 @@ void main() {
     });
 
     test('ממקד טאב טקסט קיים כשאותו ספר פתוח באותה כותרת', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final firstTab = _createTextTab('ספר א', index: 0, categoryId: 1)
         ..currentTitle.value = 'פרק א';
       final secondTab = _createTextTab('ספר ב', index: 0, categoryId: 2);
@@ -149,7 +149,7 @@ void main() {
     test('פוקוס על טאב טקסט קיים מעביר אליו את החיפוש ותוספותיו', () async {
       // פתיחת תוצאה מהחיפוש הגלובלי בספר שכבר פתוח: בלי ההעברה הטאב הנכנס
       // עובר dispose והשאילתה נעלמת — החלונית מציגה "אין תוצאות".
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final recorder = _RecordingTextBookBloc(loaded: true);
       final existingTab = TextBookTab(
         book: TextBook(title: 'ספר א', categoryId: 1),
@@ -205,7 +205,7 @@ void main() {
     test('טאב טקסט שטרם נטען מקבל את החיפוש רק כשהוא מגיע ל-Loaded', () async {
       // טאב ששוחזר ולא נצפה עדיין נשאר ב-TextBookInitial, ושם UpdateSearchText
       // נזרק בשקט — כל התצורה הייתה נעלמת.
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final recorder = _RecordingTextBookBloc();
       final existingTab = TextBookTab(
         book: TextBook(title: 'ספר א', categoryId: 1),
@@ -247,7 +247,7 @@ void main() {
     });
 
     test('פוקוס על טאב קיים בלי חיפוש אינו משדר UpdateSearchText', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final recorder = _RecordingTextBookBloc();
       final existingTab = TextBookTab(
         book: TextBook(title: 'ספר א', categoryId: 1),
@@ -275,7 +275,7 @@ void main() {
     });
 
     test('פותח טאב חדש כשאותו ספר נפתח בכותרת אחרת', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final existingTab = _createTextTab('ספר א', index: 0, categoryId: 1)
         ..currentTitle.value = 'פרק א';
 
@@ -300,7 +300,7 @@ void main() {
         () => TabsBloc.locationTitleResolveTimeout = previousTimeout,
       );
 
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final tab = TextBookTab(
         book: _HangingTocBook(title: 'ספר תקוע', categoryId: 1),
         index: 3,
@@ -321,7 +321,7 @@ void main() {
     test(
       'navigateToPositionIfReused ממקד טאב קיים של אותו ספר גם בכותרת אחרת',
       () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        final bloc = _newBloc(_FakeTabsRepository());
         final existingTab = _createTextTab('ספר א', index: 0, categoryId: 1)
           ..currentTitle.value = 'פרק א';
 
@@ -348,7 +348,7 @@ void main() {
     );
 
     test('ממקד טאב PDF קיים לפי כותרת גם אם העמוד שונה', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final existingTab = PdfBookTab(
         book: PdfBook(title: 'ספר PDF', path: 'a.pdf'),
         pageNumber: 10,
@@ -373,7 +373,7 @@ void main() {
     });
 
     test('ממקד CombinedTab כשאחת החלוניות תואמת', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final combinedTab = CombinedTab(
         rightTab: _createTextTab('ספר ימין', index: 0, categoryId: 1)
           ..currentTitle.value = 'פרק א',
@@ -397,7 +397,7 @@ void main() {
     });
 
     test('פתיחה חוזרת של ספר טקסט בחלונית השנייה ממקדת אותה', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final targetPane = _createTextTab('ספר שמאל', index: 0, categoryId: 2)
         ..currentTitle.value = 'פרק ג';
       final combinedTab = CombinedTab(
@@ -426,7 +426,7 @@ void main() {
     });
 
     test('ניווט לספר PDF בחלונית השנייה ממקד ומעדכן אותה', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final targetPane = PdfBookTab(
         book: PdfBook(title: 'ספר PDF שמאל', path: 'left.pdf'),
         pageNumber: 10,
@@ -463,7 +463,7 @@ void main() {
     });
 
     test('ממקד טאב טקסט קיים גם בלי targetTitle לפי אינדקס', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final existingTab = _createTextTab('ספר א', index: 12, categoryId: 1);
 
       bloc.add(AddTab(existingTab));
@@ -481,7 +481,7 @@ void main() {
     });
 
     test('לא ממקד ספר טקסט אחר כשיש רק התאמת כותרת ללא מזהה יציב', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final existingTab = TextBookTab(
         book: TextBook(title: 'ספר זהה', categoryId: 1),
         index: 12,
@@ -505,7 +505,7 @@ void main() {
     });
 
     test('לא ממקד ספר אחר רק כי הוא באותה קטגוריה', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final existingTab = TextBookTab(
         book: TextBook(
           id: 101,
@@ -537,7 +537,7 @@ void main() {
     });
 
     test('ספר אישי עם id של ספר רשמי נפתח בטאב נפרד', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final existingTab = TextBookTab(
         book: TextBook(id: 101, title: 'משנה ברכות', categoryId: 7),
         index: 0,
@@ -564,7 +564,7 @@ void main() {
     });
 
     test('ספר אישי שכבר פתוח ממוקד ולא נפתח שוב', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       TextBookTab userTab() => TextBookTab(
         book: TextBook(id: 101, title: 'משנה ברכות', source: BookSource.user),
         index: 0,
@@ -583,7 +583,7 @@ void main() {
     });
 
     test('ממקד טאב PDF קיים גם כשהכותרת עוד לא נטענה לפי מספר עמוד', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final existingTab = PdfBookTab(
         book: PdfBook(title: 'ספר PDF', path: 'a.pdf'),
         pageNumber: 10,
@@ -607,7 +607,7 @@ void main() {
     });
 
     test('ממקד טאב חיפוש קיים לפי dedupeKey גם בלי מזהה ספר יציב', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final existingTab = TextBookTab(
         book: TextBook(title: 'ספר זהה'),
         index: 12,
@@ -644,7 +644,7 @@ void main() {
       final repository = _CountingTabsRepository(
         writeDelay: const Duration(milliseconds: 5),
       );
-      final bloc = TabsBloc(repository: repository);
+      final bloc = _newBloc(repository);
 
       const tabCount = 60;
       for (var i = 0; i < tabCount; i++) {
@@ -657,12 +657,12 @@ void main() {
       expect(repository.saveCount, lessThan(5));
       expect(repository.lastSavedTabCount, tabCount);
 
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _afterDeferredDispose();
     });
 
     test('סגירת ה-bloc ממתינה לכתיבת המצב האחרון', () async {
       final repository = _CountingTabsRepository();
-      final bloc = TabsBloc(repository: repository);
+      final bloc = _newBloc(repository);
 
       bloc.add(AddTab(_createTextTab('ספר א', categoryId: 1)));
       bloc.add(AddTab(_createTextTab('ספר ב', categoryId: 2)));
@@ -671,7 +671,7 @@ void main() {
 
       expect(repository.lastSavedTabCount, 2);
 
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _afterDeferredDispose();
     });
   });
 
@@ -683,7 +683,7 @@ void main() {
     test(
       'AddTab בברירת מחדל מוסיף לסוף הרשימה גם כשהטאב הנוכחי באמצע',
       () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        final bloc = _newBloc(_FakeTabsRepository());
         final first = _createTextTab('ספר א', categoryId: 1);
         final second = _createTextTab('ספר ב', categoryId: 2);
         final third = _createTextTab('ספר ג', categoryId: 3);
@@ -711,7 +711,7 @@ void main() {
     );
 
     test('AddTab עם insertAdjacent: true מכניס סמוך לטאב הנוכחי', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
       final third = _createTextTab('ספר ג', categoryId: 3);
@@ -739,7 +739,7 @@ void main() {
     test(
       'OpenOrFocusTab מעביר את insertAdjacent ל-AddTab כשהטאב חדש',
       () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        final bloc = _newBloc(_FakeTabsRepository());
         final first = _createTextTab('ספר א', categoryId: 1);
         final second = _createTextTab('ספר ב', categoryId: 2);
         final third = _createTextTab('ספר ג', categoryId: 3);
@@ -787,7 +787,7 @@ void main() {
     test(
       'פתיחת בראשית לסיור לא סוגרת טאבי טקסט פתוחים ומוסיפה אותו בסוף',
       () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        final bloc = _newBloc(_FakeTabsRepository());
         final first = _createTextTab('ספר א', categoryId: 1);
         final second = _createTextTab('ספר ב', categoryId: 2);
 
@@ -819,7 +819,7 @@ void main() {
     );
 
     test('פתיחת בראשית כשהוא כבר פתוח ממקדת אותו בלי לסגור או לשכפל', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final other = _createTextTab('ספר א', categoryId: 1);
       final genesis = _createTextTab('בראשית', index: 0, categoryId: 99);
 
@@ -853,7 +853,7 @@ void main() {
     });
 
     test('סגירת טאב דוחה את dispose עד אחרי עדכון ה-state', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final searchTab = SearchingTab('חיפוש', 'בדיקה');
 
       bloc.add(AddTab(searchTab));
@@ -869,7 +869,7 @@ void main() {
       );
       searchTab.titleNotifier.removeListener(titleListener);
 
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _afterDeferredDispose();
 
       expect(
         () => searchTab.titleNotifier.addListener(() {}),
@@ -882,7 +882,7 @@ void main() {
     test(
       'ReplaceAllTabs לא משחרר את הטאבים הישנים לפני שה-UI מספיק להתנתק',
       () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        final bloc = _newBloc(_FakeTabsRepository());
         final oldTab = SearchingTab('חיפוש ישן', 'ישן');
         final newTab = SearchingTab('חיפוש חדש', 'חדש');
 
@@ -901,7 +901,7 @@ void main() {
         );
         oldTab.titleNotifier.removeListener(titleListener);
 
-        await Future<void>.delayed(const Duration(milliseconds: 400));
+        await _afterDeferredDispose();
 
         expect(
           () => oldTab.titleNotifier.addListener(() {}),
@@ -919,7 +919,7 @@ void main() {
     });
 
     test('RemapBookPaths ממפה נתיב PDF פתוח בזיכרון', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final pdf = PdfBookTab(
         book: PdfBook(title: 'ברכות', path: p.join('/lib', 'old', 'ברכות.pdf')),
         pageNumber: 1,
@@ -944,7 +944,7 @@ void main() {
     test(
       'remapBookPathsAwaitable ממתין לסיום המיפוי (זיכרון + שמירה)',
       () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        final bloc = _newBloc(_FakeTabsRepository());
         final pdf = PdfBookTab(
           book: PdfBook(
             title: 'ברכות',
@@ -973,7 +973,7 @@ void main() {
 
     test('remapBookPathsAwaitable נכשל אם שמירת הטאבים נכשלה', () async {
       final repo = _ThrowingSaveTabsRepository();
-      final bloc = TabsBloc(repository: repo);
+      final bloc = _newBloc(repo);
       final pdf = PdfBookTab(
         book: PdfBook(title: 'ברכות', path: p.join('/lib', 'old', 'ברכות.pdf')),
         pageNumber: 1,
@@ -995,7 +995,7 @@ void main() {
     });
 
     test('RemapBookPaths לא משנה state כשאין נתיב תואם', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final pdf = PdfBookTab(
         book: PdfBook(title: 'אחר', path: p.join('/other', 'book.pdf')),
         pageNumber: 1,
@@ -1021,7 +1021,7 @@ void main() {
     });
 
     test('סגירת הטאב הפעיל באמצע מעבירה לטאב הבא', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
       final third = _createTextTab('ספר ג', categoryId: 3);
@@ -1045,7 +1045,7 @@ void main() {
     });
 
     test('סגירת הטאב הפעיל האחרון מעבירה לטאב שלפניו', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
 
@@ -1070,7 +1070,7 @@ void main() {
     });
 
     test('RemoveTabs סוגר קבוצה ומשאיר את הטאב הפעיל ששרד', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
       final third = _createTextTab('ספר ג', categoryId: 3);
@@ -1095,7 +1095,7 @@ void main() {
     });
 
     test('RemoveTabs שכולל את הטאב הפעיל מעביר לטאב הסמוך ששרד', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
       final third = _createTextTab('ספר ג', categoryId: 3);
@@ -1118,7 +1118,7 @@ void main() {
     });
 
     test('RemoveTabs של כל הטאבים מרוקן את הרשימה בלי לקרוס', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
 
@@ -1135,7 +1135,7 @@ void main() {
     });
 
     test('RemoveTabs מתעלם מטאבים שכבר אינם ברשימה', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
       final ghost = _createTextTab('רפאים', categoryId: 9);
@@ -1154,7 +1154,7 @@ void main() {
     });
 
     test('שחזור אחרי RemoveTabs מחזיר את הטאבים שנסגרו', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
       final third = _createTextTab('ספר ג', categoryId: 3);
@@ -1187,7 +1187,7 @@ void main() {
     });
 
     Future<(TabsBloc, List<TextBookTab>)> openFour() async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final tabs = [
         for (final (i, title) in ['א', 'ב', 'ג', 'ד'].indexed)
           _createTextTab(title, categoryId: i + 1),
@@ -1245,7 +1245,7 @@ void main() {
     });
 
     Future<TabsBloc> createBlocWithTabs(List<TextBookTab> tabs) async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       for (final tab in tabs) {
         bloc.add(AddTab(tab));
       }
@@ -1479,7 +1479,7 @@ void main() {
     test(
       'משחזר את הטאב האחרון שנסגר לאינדקס המקורי ומעביר אליו פוקוס',
       () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        final bloc = _newBloc(_FakeTabsRepository());
         final first = _createTextTab('ספר א', categoryId: 1);
         final second = _createTextTab('ספר ב', index: 14, categoryId: 2);
         final third = _createTextTab('ספר ג', categoryId: 3);
@@ -1510,7 +1510,7 @@ void main() {
     );
 
     test('שחזור סדרתי פותח קודם את האחרון שנסגר ואז את זה שלפניו', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
       final third = _createTextTab('ספר ג', categoryId: 3);
@@ -1561,7 +1561,7 @@ void main() {
     test(
       'ReplaceTab מחליף את הטאב באותו מיקום ושומר את האינדקס הנוכחי',
       () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        final bloc = _newBloc(_FakeTabsRepository());
         final first = _createTextTab('ספר א', categoryId: 1);
         final placeholder = ResolvingTab(
           fallbackTab: _createTextTab('ברכות', categoryId: 2),
@@ -1594,7 +1594,7 @@ void main() {
     );
 
     test('ReplaceTab על טאב שכבר נסגר לא מוסיף את הטאב החדש', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final placeholder = ResolvingTab(
         fallbackTab: _createTextTab('ברכות', categoryId: 2),
@@ -1812,7 +1812,7 @@ void main() {
     test(
       'מחיל ApplyMarkHighlight על ה-bloc של הטאב הקיים במקום לפתוח טאב חדש',
       () async {
-        final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
+        final tabsBloc = _newBloc(_FakeTabsRepository());
 
         final existingBloc = _createLoadedTextBookBloc(
           book: TextBook(id: 42, title: 'בראשית'),
@@ -1864,7 +1864,7 @@ void main() {
     test(
       'מחיל ApplyMarkHighlight כש‑bloc הקיים עדיין ב‑Initial וטוען רק אחרי כן',
       () async {
-        final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
+        final tabsBloc = _newBloc(_FakeTabsRepository());
 
         // bloc חדש שעדיין לא טען — נשאר ב‑TextBookInitial עד שנוסיף LoadContent.
         final repository = _PinpointFakeTextBookRepository();
@@ -1932,7 +1932,7 @@ void main() {
     test(
       'pinpointHighlight על טאב קיים — מוחל באמצעות pinpointHighlightSectionIndex',
       () async {
-        final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
+        final tabsBloc = _newBloc(_FakeTabsRepository());
 
         final existingBloc = _createLoadedTextBookBloc(
           book: TextBook(id: 77, title: 'ויקרא'),
@@ -1976,7 +1976,7 @@ void main() {
     test(
       'pinpointHighlight בלי sectionIndex — נופל ל-incomingTab.index',
       () async {
-        final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
+        final tabsBloc = _newBloc(_FakeTabsRepository());
 
         final existingBloc = _createLoadedTextBookBloc(
           book: TextBook(id: 88, title: 'במדבר'),
@@ -2020,7 +2020,7 @@ void main() {
     );
 
     test('pinpointHighlight גובר על highlightText כששניהם קיימים', () async {
-      final tabsBloc = TabsBloc(repository: _FakeTabsRepository());
+      final tabsBloc = _newBloc(_FakeTabsRepository());
 
       final existingBloc = _createLoadedTextBookBloc(
         book: TextBook(id: 55, title: 'דברים'),
@@ -2075,7 +2075,7 @@ void main() {
     });
 
     test('recentlyClosedTabs מחזיר מהאחרונה שנסגרה ואילך', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
 
@@ -2097,7 +2097,7 @@ void main() {
     });
 
     test('RestoreClosedTab משחזר כרטיסיה שאינה האחרונה שנסגרה', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
 
@@ -2128,7 +2128,7 @@ void main() {
     test(
       'ClearRecentlyClosedTabs מרוקן את הרשימה ומשחרר אותה (issue #1414)',
       () async {
-        final bloc = TabsBloc(repository: _FakeTabsRepository());
+        final bloc = _newBloc(_FakeTabsRepository());
         final first = _createTextTab('ספר א', categoryId: 1);
         final second = _createTextTab('ספר ב', categoryId: 2);
 
@@ -2160,7 +2160,7 @@ void main() {
     );
 
     test('אין מה לשחזר אחרי ניקוי הרשימה (issue #1414)', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       bloc.add(AddTab(_createTextTab('ספר א', categoryId: 1)));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
       bloc.add(RemoveTab(bloc.state.tabs.single));
@@ -2179,7 +2179,7 @@ void main() {
     });
 
     test('רשימת הנסגרות מוגבלת ל-10 והישנות ביותר נושרות', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       for (var i = 0; i < 12; i++) {
         bloc.add(AddTab(_createTextTab('ספר $i', categoryId: i)));
       }
@@ -2206,7 +2206,7 @@ void main() {
 
     test('סגירת התוכנה שומרת מיקום קריאה שהשתנה בתוך הטאב', () async {
       final repository = _FakeTabsRepository();
-      final bloc = TabsBloc(repository: repository);
+      final bloc = _newBloc(repository);
       final pdf = PdfBookTab(
         book: PdfBook(title: 'שבת', path: p.join('/lib', 'שבת.pdf')),
         pageNumber: 1,
@@ -2234,7 +2234,7 @@ void main() {
     });
 
     test('AddTab ברקע מוסיף אחרי הנוכחי ומשאיר את המיקוד עליו', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
       bloc.add(AddTab(first));
@@ -2255,7 +2255,7 @@ void main() {
     });
 
     test('AddTab ברקע כשאין טאבים פתוחים ממקד את הטאב החדש', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final tab = _createTextTab('ספר יחיד', categoryId: 1);
       bloc.add(AddTab(tab, inBackground: true));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
@@ -2266,7 +2266,7 @@ void main() {
     });
 
     test('OpenOrFocusTab ברקע פותח טאב חדש גם כשאותו ספר כבר פתוח', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final existing = _createTextTab('ספר א', categoryId: 1);
       bloc.add(AddTab(existing));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
@@ -2291,7 +2291,7 @@ void main() {
     });
 
     test('אינדקס שחורג מהרשימה מהודק במקום לזרוק', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final first = _createTextTab('ספר א', categoryId: 1);
       final second = _createTextTab('ספר ב', categoryId: 2);
       bloc.add(AddTab(first));
@@ -2309,7 +2309,7 @@ void main() {
     });
 
     test('MoveTab על כרטיסיה שאינה ברשימה אינו מחדיר אותה', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final kept = _createTextTab('ספר א', categoryId: 1);
       final removed = _createTextTab('ספר ב', categoryId: 2);
       bloc.add(AddTab(kept));
@@ -2336,7 +2336,7 @@ void main() {
     });
 
     test('סגירת טאב הספר אינה משחררת אותו מתחת לכרטיסיית המפרשים', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final book = _createTextTab('ספר א', categoryId: 1);
       final commentators = CommentatorsTab(sourceTab: book);
 
@@ -2346,7 +2346,7 @@ void main() {
 
       bloc.add(RemoveTab(book));
       await bloc.stream.firstWhere((s) => s.tabs.length == 1);
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _afterDeferredDispose();
 
       // רצועת הכרטיסיות קוראת את `sourceTab.currentTitle` דרך
       // `LiveTabTitleBuilder` — notifier משוחרר שם הוא מסך אדום.
@@ -2362,7 +2362,7 @@ void main() {
     });
 
     test('טאב הספר נשאר חי עד סגירת כרטיסיית המפרשים האחרונה', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final book = _createTextTab('ספר א', categoryId: 1);
       final first = CommentatorsTab(sourceTab: book);
       final second = CommentatorsTab(sourceTab: book);
@@ -2375,7 +2375,7 @@ void main() {
 
       bloc.add(RemoveTab(book));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _afterDeferredDispose();
 
       first.dispose();
       expect(book.bloc.isClosed, isFalse);
@@ -2389,7 +2389,7 @@ void main() {
     });
 
     test('סגירת טאב PDF אינה משחררת אותו מתחת לכרטיסיית מפרשי PDF', () async {
-      final bloc = TabsBloc(repository: _FakeTabsRepository());
+      final bloc = _newBloc(_FakeTabsRepository());
       final book = _TrackedPdfBookTab(
         book: PdfBook(title: 'ספר PDF', path: 'a.pdf'),
         pageNumber: 1,
@@ -2405,7 +2405,7 @@ void main() {
 
       bloc.add(RemoveTab(book));
       await bloc.stream.firstWhere((s) => s.tabs.length == 2);
-      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await _afterDeferredDispose();
 
       expect(() => book.currentTitle.value, returnsNormally);
       first.dispose();
@@ -2546,10 +2546,17 @@ TextBookTab _createTextTab(String title, {int index = 0, int? categoryId}) {
   );
 }
 
-/// Closes the bloc and waits for deferred tab disposal (350 ms timers) to settle.
+/// Disposes closed tabs without the production delay; see [_afterDeferredDispose].
+TabsBloc _newBloc(TabsRepository repository) =>
+    TabsBloc(repository: repository, disposeDelay: Duration.zero);
+
+/// Timers with equal deadlines fire in creation order, so one zero-delay timer
+/// runs after every disposal that is already pending.
+Future<void> _afterDeferredDispose() => Future<void>.delayed(Duration.zero);
+
 Future<void> _closeBlocAndAllowDeferredDispose(TabsBloc bloc) async {
   await bloc.close();
-  await Future<void>.delayed(const Duration(milliseconds: 400));
+  await _afterDeferredDispose();
 }
 
 class _FakeTabsRepository extends TabsRepository {

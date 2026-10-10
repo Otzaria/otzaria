@@ -20,6 +20,12 @@ public let portablePackageFormat = "portable"
 /// ההצעה המסומנת מראש: במחשב עם אינטרנט הספרייה יורדת מתוך התוכנה.
 public let defaultPresetId = "basic"
 
+/// סדר ההצגה. אינו סדר ההערכה ב-buildPresets, שקובע איזו כפולה מושמטת.
+public let presetDisplayOrder = ["basic", "full-indexed", "full", "update"]
+
+/// נתוני החיפוש החכם, שהתוכנה קוראת מתיקיית הפלט: חלק מ"full" ומ"full-indexed" בלבד.
+public let offlineDataTypes: Set<String> = ["semantic-model", "semantic-vectors"]
+
 /// מחשב היעד. ארכיטקטורה ריקה כשלפלטפורמה אין רכיבים תלויי ארכיטקטורה; פורמט ריק מחוץ ל-Linux.
 public struct AssistantTarget: Equatable {
     public var platform: String
@@ -82,6 +88,48 @@ public func componentIsOffered(
 ) -> Bool {
     guard componentFitsTarget(component, target), componentIsRunnable(component) else { return false }
     return component.installedBy.isEmpty || installerFor(manifest, component, target) != nil
+}
+
+/// קבוצת הבחירה-אחת-מתוך בבחירה האישית: הדרכים החלופיות להתקין את התוכנה.
+public let applicationChoiceGroup = "application"
+
+/// שורה בבחירה האישית. `locked` — מסומנת תמיד; `group` — שורות עם אותה קבוצה הן
+/// בחירה אחת-מתוך (רדיו), '' — תיבת סימון.
+public struct CustomChoice: Equatable {
+    public let component: ManifestComponent
+    public let locked: Bool
+    public let group: String
+}
+
+private func isInstallerType(_ component: ManifestComponent) -> Bool {
+    component.type == "application" || component.type == "application-bundle"
+}
+
+/// השורות בבחירה האישית, בסדר המניפסט. גרסה ניידת אינה מוצגת; כשהמתקין הרגיל
+/// פורס ספרייה שלצדו אין חבילה מלאה והמתקין נעול, ואחרת שניהם בחירה אחת-מתוך.
+public func customChoices(_ manifest: ReleaseManifest, _ target: AssistantTarget) -> [CustomChoice] {
+    let offered = manifest.components.filter {
+        componentIsOffered(manifest, $0, target) && $0.type != "application-portable"
+    }
+    let takesLibrary = offered.contains { installerFor(manifest, $0, target)?.type == "application" }
+    let rows = offered.filter { $0.partOf.isEmpty && !(takesLibrary && $0.type == "application-bundle") }
+    let radio = rows.filter(isInstallerType).count > 1
+    return rows.map { component in
+        let installer = isInstallerType(component)
+        return CustomChoice(
+            component: component,
+            locked: installer && !radio,
+            group: installer && radio ? applicationChoiceGroup : "")
+    }
+}
+
+/// גודל השורה: הרכיב יחד עם החלקים המוצעים שלו.
+public func customChoiceSize(
+    _ manifest: ReleaseManifest, _ component: ManifestComponent, _ target: AssistantTarget
+) -> Int64 {
+    manifest.components
+        .filter { $0.partOf == component.id && componentIsOffered(manifest, $0, target) }
+        .reduce(component.downloadSize) { $0 + $1.downloadSize }
 }
 
 /// הפלטפורמות שיש להן לפחות רכיב ייעודי אחד (רכיב `any` לבדו אינו מספיק).
@@ -206,41 +254,72 @@ public func withDependencies(
     return manifest.components.filter { closed.contains($0.id) }.map { $0.id }
 }
 
-/// ההצעות לפי סדר ההצגה. הצעה ריקה, או זהה להצעה קודמת, מושמטת. "בחירה אישית" אינה כאן.
+/// ההצעות ב-presetDisplayOrder. הצעה ריקה, או זהה להצעה שהוערכה לפניה (מלאה + אינדקס,
+/// מלאה, בסיסית, עדכון — השם המפורט נשאר), מושמטת. "בחירה אישית" אינה כאן.
 public func buildPresets(_ manifest: ReleaseManifest, _ target: AssistantTarget) -> [AssistantPreset] {
     let components = manifest.components
+    let offline = collect(manifest, target, types: offlineDataTypes)
+
+    // חבילה יחד עם כל רכיב מוצע שהיא ב-`installedBy` שלו.
+    func withInstalled(_ bundle: ManifestComponent) -> [String] {
+        [bundle.id] + components.filter {
+            $0.installedBy.contains(bundle.id) && componentIsOffered(manifest, $0, target)
+        }.map { $0.id }
+    }
+    func sizeOf(_ ids: [String]) -> Int64 {
+        components.filter { ids.contains($0.id) }.reduce(Int64(0)) { $0 + $1.downloadSize }
+    }
 
     var bundle: ManifestComponent?
+    var indexed: ManifestComponent?
     for component in components
     where componentIsOffered(manifest, component, target) && component.type == "application-bundle" {
         if bundle == nil || component.downloadSize > bundle!.downloadSize {
             bundle = component
         }
+        // החבילה המאונדקסת: ספרייה מוצעת מותקנת על ידה.
+        let installsLibrary = components.contains {
+            $0.type == "library" && $0.installedBy.contains(component.id)
+                && componentIsOffered(manifest, $0, target)
+        }
+        if installsLibrary
+            && (indexed == nil || sizeOf(withInstalled(component)) > sizeOf(withInstalled(indexed!))) {
+            indexed = component
+        }
     }
 
-    // בלי חבילה, "מלאה" היא התוכנה עם ספרייה — ובלי ספרייה אין "מלאה".
+    // בלי חבילה, "מלאה" היא התוכנה עם ספרייה — ובלי ספרייה אין "מלאה". ב-Android
+    // גם "מלאה + אינדקס": בטלפון בניית האינדקס איטית מאוד.
     let full: [String]
+    var fullIndexed = indexed.map { withInstalled($0) + offline } ?? []
     if let bundle = bundle {
-        full = [bundle.id] + components.filter {
-            $0.installedBy.contains(bundle.id) && componentIsOffered(manifest, $0, target)
-        }.map { $0.id }
+        full = withInstalled(bundle) + offline
     } else {
         let collected = collect(manifest, target, types: ["application", "library", "dependency"])
         let hasLibrary = components.contains { collected.contains($0.id) && $0.type == "library" }
-        full = hasLibrary ? collected : []
+        full = hasLibrary ? collected + offline : []
+        if hasLibrary && target.platform == "android" {
+            fullIndexed = collected + collect(manifest, target, types: ["library-index"]) + offline
+        }
     }
 
     let candidates: [(id: String, caption: String, description: String, members: [String])] = [
         (
+            "full-indexed",
+            "התקנה מלאה + אינדקס חיפוש",
+            "למחשב שאין בו אינטרנט — אינדקס החיפוש מוכן, והחיפוש עובד מיד. כולל חיפוש חכם.",
+            fullIndexed
+        ),
+        (
             "full",
-            "התקנה מלאה (למחשב בלי אינטרנט)",
-            "התוכנה יחד עם כל ספריית הספרים — למחשב שאין בו אינטרנט.",
+            "התקנה מלאה",
+            "למחשב שאין בו אינטרנט — אינדקס החיפוש ייבנה בתוכנה, וזה לוקח זמן. כולל חיפוש חכם.",
             full
         ),
         (
             "basic",
             "התקנה בסיסית (מומלצת)",
-            "מומלץ כשבמחשב שבו תותקן אוצריא יש אינטרנט — הספרייה תרד מתוך התוכנה.",
+            "למחשב שיש בו אינטרנט — הספרייה תרד מתוך התוכנה.",
             collect(manifest, target, types: ["application"])
                 + collect(manifest, target, requiredOnly: true)
         ),
@@ -264,7 +343,16 @@ public func buildPresets(_ manifest: ReleaseManifest, _ target: AssistantTarget)
             members: closed
         ))
     }
-    return presets
+    return presetDisplayOrder.compactMap { id in presets.first { $0.id == id } }
+}
+
+/// מזהה ההצעה המסומנת מראש: defaultPresetId, ובלעדיה "full" — לא "full-indexed" הגדולה ממנה;
+/// בלי שתיהן — הראשונה. nil כשאין הצעות.
+public func defaultPresetIdFor(_ presets: [AssistantPreset]) -> String? {
+    for id in [defaultPresetId, "full"] where presets.contains(where: { $0.id == id }) {
+        return id
+    }
+    return presets.first?.id
 }
 
 /// ל-Windows: רק exe מתחת ל-4 GiB (ארכיון נשאר חלקים — המתקין קורא אותם).
@@ -281,22 +369,36 @@ public func outputSubfolderName(_ targetPlatform: String) -> String {
     "אוצריא להתקנה ל-\(platformDisplayNames[targetPlatform] ?? targetPlatform)"
 }
 
-/// הקבצים שייווצרו בתיקיית היעד, בסדר המניפסט.
+/// הקבצים שייווצרו בתיקיית היעד, בסדר המניפסט; קובץ של רכיב עם outputFolder — '<folder>/<name>'.
 public func plannedOutputFiles(
     _ manifest: ReleaseManifest, _ selectedIds: [String], _ target: AssistantTarget
 ) -> [String] {
     let selected = Set(selectedIds)
     var files: [String] = []
     for component in manifest.components where selected.contains(component.id) {
+        let prefix = component.outputFolder.isEmpty ? "" : component.outputFolder + "/"
         for asset in component.assets {
             if asset.isSplit && !shouldAssembleSplitAsset(asset, target.platform) {
-                files.append(contentsOf: asset.parts.map { $0.name })
+                files.append(contentsOf: asset.parts.map { prefix + $0.name })
             } else {
-                files.append(asset.name)
+                files.append(prefix + asset.name)
             }
         }
     }
     return files
+}
+
+/// ה-outputNote של הרכיבים שנבחרו, בסדר המניפסט ובלי כפולים.
+public func plannedOutputNotes(
+    _ manifest: ReleaseManifest, _ selectedIds: [String], english: Bool = false
+) -> [String] {
+    let selected = Set(selectedIds)
+    var notes: [String] = []
+    for component in manifest.components where selected.contains(component.id) {
+        let note = component.displayOutputNote(english: english)
+        if !note.isEmpty && !notes.contains(note) { notes.append(note) }
+    }
+    return notes
 }
 
 /// '' לקובץ יחיד, אחרת תת-התיקייה.

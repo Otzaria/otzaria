@@ -22,6 +22,7 @@ import 'package:otzaria/widgets/dialogs/zip_extraction_progress_dialog.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/utils/file/document_format.dart';
+import 'package:otzaria/utils/file/open_in_file_manager.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
 /// סיווג הרכב הקבצים בתיקייה מותאמת אישית — קובע אילו אפשרויות אחסון
@@ -227,18 +228,6 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     bloc.add(ToggleAddToDatabase(folder, toDatabase));
   }
 
-  /// פותח נתיב במנהל הקבצים של מערכת ההפעלה.
-  void _openInFileManager(String path) {
-    if (path.isEmpty) return;
-    if (Platform.isWindows) {
-      unawaited(Process.run('explorer', [path]));
-    } else if (Platform.isMacOS) {
-      unawaited(Process.run('open', [path]));
-    } else if (Platform.isLinux) {
-      unawaited(Process.run('xdg-open', [path]));
-    }
-  }
-
   /// קובע אם התיקייה תמוזג לעץ הספרייה. `null` = לפי ההגדרה הגלובלית.
   void _setMergeMode(CustomFolder folder, bool? value) {
     if (folder.mergeIntoLibrary == value) return;
@@ -346,7 +335,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
           SetFolderHidden(folder, !folder.hidden),
         );
       case _FolderMenuAction.openFolder:
-        _openInFileManager(folder.path);
+        unawaited(openInFileManager(folder.path));
       case _FolderMenuAction.copyPath:
         await Clipboard.setData(ClipboardData(text: folder.path));
         UiSnack.showSuccess(SettingsMessages.pathCopied);
@@ -703,7 +692,9 @@ class UserContentImportTile extends StatelessWidget {
             'בחר קובצי "דורות.csv", "כותרות.csv", "גרסאות.csv", '
             '"<שם הספר>.links.csv" או קובצי קישורים של אוצריא '
             '("<שם הספר>_links.json") והם יכנסו לספרייה. '
-            'ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים.',
+            'ייבוא חוזר מעדכן ערכים קיימים ומוסיף חדשים. עמודות "כותרות.csv": '
+            'ספר, מבנה, רמה, כותרת, שורה או טקסט; "רמה" 2 ומעלה יוצרת '
+            'כותרות משנה.',
           ),
           actions: [
             ActionButton.warning(

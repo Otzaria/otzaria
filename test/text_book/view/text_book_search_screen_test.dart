@@ -134,12 +134,12 @@ Future<void> main() async {
 
     // ההעדפה כבויה — המתג מתחיל במצב "חצאי מילים".
     expect(
-      find.byIcon(OtzariaIcons.alef_half_filled_24_regular),
+      find.byIcon(OtzariaIcons.alef_mix_24_regular),
       findsOneWidget,
     );
     final runsBeforeToggle = searchRuns;
 
-    await tester.tap(find.byIcon(OtzariaIcons.alef_half_filled_24_regular));
+    await tester.tap(find.byIcon(OtzariaIcons.alef_mix_24_regular));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(OtzariaIcons.alef_24_regular), findsOneWidget);

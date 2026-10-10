@@ -35,14 +35,14 @@ class TextDisplayProfileEditor extends StatelessWidget {
     ];
     return [
       SettingsActionTile.segmentedTile<MarkVisibility>(
-        icon: OtzariaIcons.alef_with_score_24_regular,
+        icon: OtzariaIcons.alef_niqqud_24_filled,
         title: t('ניקוד'),
         options: showHide,
         currentValue: profile.nikud,
         onChanged: (v) => onChanged(profile.copyWith(nikud: v)),
       ),
       SettingsActionTile.segmentedTile<TeamimVisibility>(
-        icon: OtzariaIcons.alef_with_flavors_24_regular,
+        icon: OtzariaIcons.alef_niqqud_taamim_24_filled,
         title: t('טעמי המקרא'),
         options: [
           SegmentOption(value: TeamimVisibility.show, label: t('הצג')),
@@ -56,14 +56,14 @@ class TextDisplayProfileEditor extends StatelessWidget {
         onChanged: (v) => onChanged(profile.copyWith(teamim: v)),
       ),
       SettingsActionTile.segmentedTile<MarkVisibility>(
-        icon: OtzariaIcons.alef_with_punctuation_24_regular,
+        icon: OtzariaIcons.alef_punctuation_24_filled,
         title: t('סימני פיסוק'),
         options: showHide,
         currentValue: profile.punctuation,
         onChanged: (v) => onChanged(profile.copyWith(punctuation: v)),
       ),
       SettingsActionTile.segmentedTile<HolyNameDisplay>(
-        icon: OtzariaIcons.alef_lock_24_regular,
+        icon: OtzariaIcons.alef_lock_24_filled,
         title: t('שם הוי"ה'),
         options: [
           SegmentOption(value: HolyNameDisplay.asIs, label: t('ככתבו')),
@@ -75,7 +75,7 @@ class TextDisplayProfileEditor extends StatelessWidget {
       ),
       if (showAnchorMarkers)
         SettingsActionTile.segmentedTile<MarkVisibility>(
-          icon: OtzariaIcons.alef_1_24_regular,
+          icon: OtzariaIcons.alef_1_24_filled,
           title: t('ציוני המפרשים'),
           subtitle: t('אותיות הציון שבגוף הטקסט, למשל (א)'),
           options: showHide,

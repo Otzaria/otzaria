@@ -125,6 +125,59 @@ void main() {
     });
   });
 
+  group('DayExtras — מספור חול המועד לפי inIsrael', () {
+    DateTime hebrew(int month, int day) =>
+        (JewishDate()..setJewishDate(5787, month, day)).getGregorianCalendar();
+
+    Future<void> expectLabel(
+      WidgetTester tester,
+      DateTime date, {
+      required bool inIsrael,
+      required String label,
+    }) async {
+      await tester.pumpWidget(
+        wrapExtras([extrasFor(date, inIsrael: inIsrael)]),
+      );
+      expect(find.text(label), findsOneWidget);
+    }
+
+    testWidgets('בחו"ל חול המועד מתחיל בי"ז', (tester) async {
+      await expectLabel(
+        tester,
+        hebrew(JewishDate.TISHREI, 17),
+        inIsrael: false,
+        label: 'א דחוה"מ סוכות',
+      );
+      await expectLabel(
+        tester,
+        hebrew(JewishDate.NISSAN, 18),
+        inIsrael: false,
+        label: 'ב דחוה"מ פסח',
+      );
+      await expectLabel(
+        tester,
+        hebrew(JewishDate.TISHREI, 21),
+        inIsrael: false,
+        label: "ה' דחוה\"מ",
+      );
+    });
+
+    testWidgets('בארץ חול המועד מתחיל בט"ז', (tester) async {
+      await expectLabel(
+        tester,
+        hebrew(JewishDate.TISHREI, 17),
+        inIsrael: true,
+        label: 'ב דחוה"מ סוכות',
+      );
+      await expectLabel(
+        tester,
+        hebrew(JewishDate.TISHREI, 21),
+        inIsrael: true,
+        label: "ו' דחוה\"מ",
+      );
+    });
+  });
+
   group('buildDayCell — בונה את ה-JewishCalendar המשותף מ-state', () {
     Widget cellFor(bool inIsrael) => MaterialApp(
       home: BlocProvider.value(

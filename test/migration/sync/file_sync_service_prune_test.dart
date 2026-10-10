@@ -1,13 +1,11 @@
 import 'dart:io';
 
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/migration/models/book.dart';
 import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:path/path.dart' as path;
 
@@ -28,7 +26,6 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp(
       'otzaria-file-sync-prune-test-',
     );
-    await Settings.init(cacheProvider: _MemoryCacheProvider());
     // מאפסים את הסינגלטון של FileSyncService כדי שלא יחזיק repository
     // מ-tempDir של טסט קודם (שכבר נסגר).
     FileSyncService.resetSingletonForTesting();
@@ -47,7 +44,7 @@ void main() {
     }
   });
 
-  test('syncFiles לא מוחק תיקייה מותאמת חדשה עם ספר ברמת השורש', () async {
+  test('סנכרון לא מוחק תיקייה מותאמת חדשה עם ספר ברמת השורש', () async {
     final libraryPath = path.join(tempDir.path, 'library');
     final customFolderPath = path.join(tempDir.path, 'היברו');
     await Directory(libraryPath).create(recursive: true);
@@ -57,26 +54,22 @@ void main() {
       path.join(customFolderPath, 'ספר חדש.txt'),
     ).writeAsString('תוכן');
 
-    await Settings.setValue<String>(
-      SettingsRepository.keyLibraryPath,
-      libraryPath,
-    );
-    await Settings.setValue<String>(
-      SettingsRepository.keyCustomFolders,
-      CustomFoldersManager.saveFolders([
-        CustomFolder(
-          path: customFolderPath,
-          addToDatabase: true,
-          addedAt: DateTime(2026, 4, 13),
-        ),
-      ]),
-    );
+    final folders = [
+      CustomFolder(
+        path: customFolderPath,
+        addToDatabase: true,
+        addedAt: DateTime(2026, 4, 13),
+      ),
+    ];
 
     final service = await FileSyncService.getInstance(
       repository,
       userBooksRepository: repository,
     );
-    final result = await service!.syncFiles();
+    final result = await service!.syncCustomFoldersWithInputs(
+      libraryPath: libraryPath,
+      customFolders: folders,
+    );
 
     final personalCategory = (await repository.getRootCategories())
         .where((category) => category.title == 'ספרים אישיים')
@@ -110,25 +103,18 @@ void main() {
       await fileBackedFile.writeAsString('תוכן מקובץ');
       await inDbFile.writeAsString('תוכן עצמאי');
 
-      await Settings.setValue<String>(
-        SettingsRepository.keyLibraryPath,
-        libraryPath,
-      );
-      await Settings.setValue<String>(
-        SettingsRepository.keyCustomFolders,
-        CustomFoldersManager.saveFolders([
-          CustomFolder(
-            path: fileBackedDir,
-            addToDatabase: false, // קריאה מהקבצים — תלוי בקובץ
-            addedAt: DateTime(2026, 4, 13),
-          ),
-          CustomFolder(
-            path: inDbDir,
-            addToDatabase: true, // עותק עצמאי — שורד מחיקת קובץ
-            addedAt: DateTime(2026, 4, 13),
-          ),
-        ]),
-      );
+      final folders = [
+        CustomFolder(
+          path: fileBackedDir,
+          addToDatabase: false, // קריאה מהקבצים — תלוי בקובץ
+          addedAt: DateTime(2026, 4, 13),
+        ),
+        CustomFolder(
+          path: inDbDir,
+          addToDatabase: true, // עותק עצמאי — שורד מחיקת קובץ
+          addedAt: DateTime(2026, 4, 13),
+        ),
+      ];
 
       final service = await FileSyncService.getInstance(
         repository,
@@ -136,7 +122,10 @@ void main() {
       );
 
       // סריקה ראשונה — שני הספרים נכנסים ל-DB.
-      await service!.syncFiles();
+      await service!.syncCustomFoldersWithInputs(
+        libraryPath: libraryPath,
+        customFolders: folders,
+      );
 
       final personalCategory = (await repository.getRootCategories())
           .where((category) => category.title == 'ספרים אישיים')
@@ -158,7 +147,10 @@ void main() {
       // מוחקים את שני הקבצים מהדיסק וסורקים מחדש.
       await fileBackedFile.delete();
       await inDbFile.delete();
-      await service.syncFiles();
+      await service.syncCustomFoldersWithInputs(
+        libraryPath: libraryPath,
+        customFolders: folders,
+      );
 
       expect(
         await repository.getBooksByCategory(fileBackedCat.id),
@@ -191,32 +183,28 @@ void main() {
         path.join(betaShared, 'ספר בטא.txt'),
       ).writeAsString('תוכן בטא');
 
-      await Settings.setValue<String>(
-        SettingsRepository.keyLibraryPath,
-        libraryPath,
-      );
-      await Settings.setValue<String>(
-        SettingsRepository.keyCustomFolders,
-        CustomFoldersManager.saveFolders([
-          // file-backed (קריאה מהקבצים) — כדי שמחיקת הקובץ תפעיל prune.
-          CustomFolder(
-            path: alphaShared,
-            addToDatabase: false,
-            addedAt: DateTime(2026, 4, 13),
-          ),
-          CustomFolder(
-            path: betaShared,
-            addToDatabase: false,
-            addedAt: DateTime(2026, 4, 13),
-          ),
-        ]),
-      );
+      final folders = [
+        // file-backed (קריאה מהקבצים) — כדי שמחיקת הקובץ תפעיל prune.
+        CustomFolder(
+          path: alphaShared,
+          addToDatabase: false,
+          addedAt: DateTime(2026, 4, 13),
+        ),
+        CustomFolder(
+          path: betaShared,
+          addToDatabase: false,
+          addedAt: DateTime(2026, 4, 13),
+        ),
+      ];
 
       final service = await FileSyncService.getInstance(
         repository,
         userBooksRepository: repository,
       );
-      await service!.syncFiles();
+      await service!.syncCustomFoldersWithInputs(
+        libraryPath: libraryPath,
+        customFolders: folders,
+      );
 
       final personalCategory = (await repository.getRootCategories())
           .where((category) => category.title == 'ספרים אישיים')
@@ -231,7 +219,10 @@ void main() {
 
       // מוחקים את הקובץ של alpha בלבד וסורקים מחדש.
       await alphaFile.delete();
-      await service.syncFiles();
+      await service.syncCustomFoldersWithInputs(
+        libraryPath: libraryPath,
+        customFolders: folders,
+      );
 
       books = await repository.getBooksByCategory(sharedCategory.id);
       expect(
@@ -268,26 +259,24 @@ void main() {
         addedAt: DateTime(2026, 4, 13),
       ),
     ];
-    await Settings.setValue<String>(
-      SettingsRepository.keyLibraryPath,
-      libraryPath,
-    );
-    await Settings.setValue<String>(
-      SettingsRepository.keyCustomFolders,
-      CustomFoldersManager.saveFolders(folders),
-    );
 
     final service = await FileSyncService.getInstance(
       repository,
       userBooksRepository: repository,
     );
-    await service!.syncFiles();
+    await service!.syncCustomFoldersWithInputs(
+      libraryPath: libraryPath,
+      customFolders: folders,
+    );
 
     // בסריקה הראשונה הרשומה המשותפת שויכה לתיקייה השנייה. לאחר שקובץ beta
     // נעלם, סריקת alpha משייכת אותה מחדש ל-alpha; ה-prune של beta חייב לקרוא
     // את ה-source העדכני ולא למחוק לפי ה-snapshot שנבנה בתחילת הסריקה.
     await betaFile.delete();
-    await service.syncFiles();
+    await service.syncCustomFoldersWithInputs(
+      libraryPath: libraryPath,
+      customFolders: folders,
+    );
 
     final personalCategory = (await repository.getRootCategories())
         .where((category) => category.title == 'ספרים אישיים')
@@ -468,20 +457,13 @@ void main() {
       // התיקייה עדיין קיימת, אבל הקובץ נמחק — בדיוק כמו בדיווח.
       await Directory(folderPath).create(recursive: true);
 
-      await Settings.setValue<String>(
-        SettingsRepository.keyLibraryPath,
-        libraryPath,
-      );
-      await Settings.setValue<String>(
-        SettingsRepository.keyCustomFolders,
-        CustomFoldersManager.saveFolders([
-          CustomFolder(
-            path: folderPath,
-            addToDatabase: false,
-            addedAt: DateTime(2026, 4, 13),
-          ),
-        ]),
-      );
+      final folders = [
+        CustomFolder(
+          path: folderPath,
+          addToDatabase: false,
+          addedAt: DateTime(2026, 4, 13),
+        ),
+      ];
 
       // מדמה את מסלול ההוספה (scanAndAddExternalBooksFromFolder): ספר
       // file-backed המתויג בקטגוריה 'ספרים אישיים' > <שם התיקייה>, עם
@@ -514,7 +496,10 @@ void main() {
         repository,
         userBooksRepository: repository,
       );
-      await service!.syncFiles();
+      await service!.syncCustomFoldersWithInputs(
+        libraryPath: libraryPath,
+        customFolders: folders,
+      );
 
       expect(
         await repository.getBooksByCategory(folderCategoryId),
@@ -715,77 +700,4 @@ void main() {
       expect(await repository.getCategory(ambiguousCategoryId), isNull);
     },
   );
-}
-
-class _MemoryCacheProvider extends CacheProvider {
-  final Map<String, Object?> _values = {};
-
-  @override
-  Future<void> init() async {}
-
-  @override
-  bool containsKey(String key) => _values.containsKey(key);
-
-  @override
-  Set getKeys() => _values.keys.toSet();
-
-  @override
-  bool? getBool(String key, {bool? defaultValue}) =>
-      _values[key] as bool? ?? defaultValue;
-
-  @override
-  double? getDouble(String key, {double? defaultValue}) =>
-      _values[key] as double? ?? defaultValue;
-
-  @override
-  int? getInt(String key, {int? defaultValue}) =>
-      _values[key] as int? ?? defaultValue;
-
-  @override
-  String? getString(String key, {String? defaultValue}) =>
-      _values[key] as String? ?? defaultValue;
-
-  @override
-  T? getValue<T>(String key, {T? defaultValue}) {
-    final value = _values[key];
-    if (value is T) {
-      return value;
-    }
-    return defaultValue;
-  }
-
-  @override
-  Future<void> remove(String key) async {
-    _values.remove(key);
-  }
-
-  @override
-  Future<void> removeAll() async {
-    _values.clear();
-  }
-
-  @override
-  Future<void> setBool(String key, bool? value) async {
-    _values[key] = value;
-  }
-
-  @override
-  Future<void> setDouble(String key, double? value) async {
-    _values[key] = value;
-  }
-
-  @override
-  Future<void> setInt(String key, int? value) async {
-    _values[key] = value;
-  }
-
-  @override
-  Future<void> setObject<T>(String key, T? value) async {
-    _values[key] = value;
-  }
-
-  @override
-  Future<void> setString(String key, String? value) async {
-    _values[key] = value;
-  }
 }

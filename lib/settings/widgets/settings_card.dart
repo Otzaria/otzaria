@@ -160,6 +160,42 @@ double _segGroupWidth(List<SegmentOption<dynamic>> options) {
   );
 }
 
+/// Space a segment takes besides its label: the button padding on both
+/// sides and the borders.
+const _kSegLabelInset = 26.0;
+
+/// An option icon and the gap after it.
+const _kSegIconInset = 26.0;
+
+/// Whether a label would wrap inside its segment when the group is
+/// [groupWidth] wide. A wrapped label makes the control taller than a
+/// ListTile row, which does not grow with its trailing (issue #1920).
+bool _segLabelsWrap(
+  List<SegmentOption<dynamic>> options,
+  double groupWidth,
+  TextStyle labelStyle,
+  TextDirection textDirection,
+  TextScaler textScaler,
+) {
+  final hasIcons = options.any((o) => o.icon != null || o.rtlIcon != null);
+  final labelWidth =
+      groupWidth / options.length -
+      _kSegLabelInset -
+      (hasIcons ? _kSegIconInset : 0);
+  for (final option in options) {
+    final painter = TextPainter(
+      text: TextSpan(text: option.label, style: labelStyle),
+      textDirection: textDirection,
+      textScaler: textScaler,
+      maxLines: 1,
+    )..layout(maxWidth: labelWidth);
+    final wraps = painter.didExceedMaxLines;
+    painter.dispose();
+    if (wraps) return true;
+  }
+  return false;
+}
+
 // ── SettingsActionTile ────────────────────────────────────────────────────────
 
 /// עיגול בחירה (radio) לא-אינטראקטיבי — הבחירה מתבצעת בהקשה על השורה כולה.
@@ -850,7 +886,21 @@ class __SegmentedTileState<T> extends State<_SegmentedTile<T>> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < LayoutBreakpoints.compact;
+        final groupWidth = _segGroupWidth(widget.options);
+        // A label that wraps beside the title would be cut, so the control
+        // moves below the title, where the row grows with it.
+        final isNarrow =
+            constraints.maxWidth < LayoutBreakpoints.compact ||
+            _segLabelsWrap(
+              widget.options,
+              groupWidth,
+              // A segment label is the button's text style with the setting
+              // title style over it.
+              (Theme.of(context).textTheme.labelLarge ?? const TextStyle())
+                  .merge(AppTextStyles.settingTitle),
+              Directionality.of(context),
+              MediaQuery.textScalerOf(context),
+            );
 
         final control = Focus(
           focusNode: _focusNode,
@@ -877,10 +927,7 @@ class __SegmentedTileState<T> extends State<_SegmentedTile<T>> {
               title: widget.title,
               subtitle: _resolvedSubtitle,
               actions: [
-                SizedBox(
-                  width: _segGroupWidth(widget.options),
-                  child: control,
-                ),
+                SizedBox(width: groupWidth, child: control),
               ],
             ),
           );

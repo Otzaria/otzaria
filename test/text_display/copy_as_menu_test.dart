@@ -36,7 +36,35 @@ void main() {
       final survivor = entries.firstWhere(
         (entry) => entry.label == 'בלי ניקוד וטעמים',
       );
-      expect(survivor.icon, OtzariaIcons.alef_deletion_24_regular);
+      expect(survivor.icon, OtzariaIcons.alef_delete_24_filled);
+    });
+  });
+
+  group('buildCopyAsMenuEntry', () {
+    test('is disabled without a selection', () {
+      for (final text in [null, '', '  ']) {
+        final entry = buildCopyAsMenuEntry(
+          base: const TextDisplayProfile(),
+          selectedText: text,
+          onCopy: (_) {},
+        );
+        expect(entry.label, 'העתק כ...');
+        expect(entry.enabled, isFalse);
+        expect(entry.children!.every((child) => !child.enabled), isTrue);
+      }
+    });
+
+    test('copies the selection with the chosen variant', () {
+      final copied = <TextDisplayProfile>[];
+      final entry = buildCopyAsMenuEntry(
+        base: const TextDisplayProfile(),
+        selectedText: 'שלום',
+        onCopy: copied.add,
+      );
+
+      expect(entry.enabled, isTrue);
+      entry.children!.first.onTap!();
+      expect(copied, [const TextDisplayProfile()]);
     });
   });
 }

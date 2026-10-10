@@ -50,19 +50,11 @@ class DatabaseGenerator {
   int _totalBooksToProcess = 0;
   int _processedBooksCount = 0;
 
-  /// Getter for total books to process (for subclasses)
-  int get totalBooksToProcess => _totalBooksToProcess;
-
   /// Book contents cache: maps library-relative key -> list of lines
   final Map<String, List<String>> _bookContentCache = {};
 
   DatabaseGenerator(this.sourceDirectory, this.repository, {this.onProgress})
     : _libraryRoot = sourceDirectory;
-
-  /// Sets the total books to process for progress reporting.
-  void setTotalBooksToProcess(int total) {
-    _totalBooksToProcess = total;
-  }
 
   Future<void> _restoreDurability() async {
     await repository.setSynchronous('NORMAL');
@@ -848,23 +840,6 @@ class DatabaseGenerator {
   /// Re-enables foreign key constraints
   Future<void> _enableForeignKeys() async {
     await repository.executeRawQuery('PRAGMA foreign_keys = ON');
-  }
-
-  /// Sanitizes an acronym term by removing diacritics, maqaf, gershayim and geresh.
-  ///
-  /// [raw] The raw acronym term to sanitize.
-  /// Returns the sanitized term.
-  static String sanitizeAcronymTerm(String raw) {
-    var s = raw.trim();
-    if (s.isEmpty) return '';
-
-    s = hebrew_text_utils.removeAllDiacritics(s);
-    s = hebrew_text_utils.replaceMaqaf(s, replacement: ' ');
-    s = s.replaceAll('\u05F4', ''); // remove Hebrew gershayim (״)
-    s = s.replaceAll('\u05F3', ''); // remove Hebrew geresh (׳)
-    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
-
-    return s;
   }
 }
 

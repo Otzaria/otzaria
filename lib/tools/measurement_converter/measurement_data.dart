@@ -174,15 +174,6 @@ const Map<String, Map<String, double>> areaConversionFactors = {
   },
 };
 
-const Map<String, double> areaInSquareAmot = {
-  'בית רובע': 104 + 1 / 6,
-  'בית קב': 416 + 2 / 3,
-  'בית סאה': 2500,
-  'בית סאתיים': 5000,
-  'בית לתך': 37500,
-  'בית כור': 75000,
-};
-
 const Map<String, Map<String, double>> modernAreaFactors = {
   'רמב"ם': {
     'בית רובע': 21 + 2 / 3, // m^2

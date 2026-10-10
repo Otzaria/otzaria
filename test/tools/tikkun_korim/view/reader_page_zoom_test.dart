@@ -28,9 +28,14 @@ Future<void> _pump(
   void Function(double)? onZoomChanged,
   double width = 1200,
   int lineCount = 6,
+  TextScaler systemTextScaler = TextScaler.noScaling,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: systemTextScaler),
+        child: child!,
+      ),
       home: Directionality(
         textDirection: TextDirection.rtl,
         child: Scaffold(
@@ -207,5 +212,21 @@ void main() {
 
     expect(changes, isEmpty);
     expect(vertical.pixels, greaterThan(before), reason: 'אצבע אחת גוללת');
+  });
+
+  testWidgets('גודל הטקסט של המערכת אינו מגדיל את השורות מעבר למדוד', (
+    tester,
+  ) async {
+    // #1921: המילים נמדדות בלי גודל הטקסט של המערכת; ציור מוגדל גולש מהטור.
+    await _pump(
+      tester,
+      const TikkunSettings(),
+      systemTextScaler: const TextScaler.linear(1.5),
+    );
+    final texts = tester.widgetList<RichText>(find.byType(RichText)).toList();
+    expect(texts, isNotEmpty);
+    for (final text in texts) {
+      expect(text.textScaler.scale(10), 10);
+    }
   });
 }

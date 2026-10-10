@@ -4,81 +4,15 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 
-class _FakeResult {
-  final String title;
-  final int marker;
-
-  const _FakeResult(this.title, this.marker);
-}
-
 void main() {
   group('SearchCatalogueOrderHelper', () {
-    test('sortByLibraryOrder ממיין מסכתות לפי הסדר הקטלוגי של הספרייה', () {
-      final library = _buildLibrary();
-      final results = [
-        const _FakeResult('חגיגה', 0),
-        const _FakeResult('שבת', 1),
-      ];
-
-      final sorted = SearchCatalogueOrderHelper.sortByLibraryOrder(
-        results,
-        library,
-        titleOf: (result) => result.title,
+    test('הסדר הקטלוגי: קטגוריות עליונות לפי הסדר הקבוע, ספרים לפי order', () {
+      final ordered = SearchCatalogueOrderHelper.buildOrderedKeys<String>(
+        _buildLibrary(),
+        keyOf: (book) => book.title as String,
       );
 
-      expect(sorted.map((result) => result.title).toList(), ['שבת', 'חגיגה']);
-    });
-
-    test('sortByLibraryOrder שומר על override של קטגוריות עליונות', () {
-      final library = _buildLibrary();
-      final results = [
-        const _FakeResult('משנה תורה, הלכות שבת', 0),
-        const _FakeResult('שבת', 1),
-      ];
-
-      final sorted = SearchCatalogueOrderHelper.sortByLibraryOrder(
-        results,
-        library,
-        titleOf: (result) => result.title,
-      );
-
-      expect(
-        sorted.map((result) => result.title).toList(),
-        ['שבת', 'משנה תורה, הלכות שבת'],
-      );
-    });
-
-    test('sortByLibraryOrder מציב תנ"ך לפני תלמוד בבלי', () {
-      final library = _buildLibrary();
-      final results = [
-        const _FakeResult('שבת', 0),
-        const _FakeResult('בראשית', 1),
-      ];
-
-      final sorted = SearchCatalogueOrderHelper.sortByLibraryOrder(
-        results,
-        library,
-        titleOf: (result) => result.title,
-      );
-
-      expect(sorted.map((result) => result.title).toList(), ['בראשית', 'שבת']);
-    });
-
-    test('sortByLibraryOrder שומר על הסדר המקורי בתוך אותו ספר', () {
-      final library = _buildLibrary();
-      final results = [
-        const _FakeResult('שבת', 10),
-        const _FakeResult('שבת', 20),
-        const _FakeResult('חגיגה', 30),
-      ];
-
-      final sorted = SearchCatalogueOrderHelper.sortByLibraryOrder(
-        results,
-        library,
-        titleOf: (result) => result.title,
-      );
-
-      expect(sorted.map((result) => result.marker).toList(), [10, 20, 30]);
+      expect(ordered, ['בראשית', 'שבת', 'חגיגה', 'משנה תורה, הלכות שבת']);
     });
 
     test('ספרי הקטגוריה קודמים למפרשים שבתת-קטגוריה (issue #649)', () {
@@ -95,29 +29,6 @@ void main() {
         'ראבד על ספרא',
         'בראשית רבה',
         'שמות רבה',
-        'מתנות כהונה',
-      ]);
-    });
-
-    test('sortByLibraryOrder מציב את המדרש לפני מפרשיו (issue #649)', () {
-      final library = _buildMidrashLibrary();
-      final results = [
-        const _FakeResult('מתנות כהונה', 0),
-        const _FakeResult('ראבד על ספרא', 1),
-        const _FakeResult('בראשית רבה', 2),
-        const _FakeResult('ספרא', 3),
-      ];
-
-      final sorted = SearchCatalogueOrderHelper.sortByLibraryOrder(
-        results,
-        library,
-        titleOf: (result) => result.title,
-      );
-
-      expect(sorted.map((result) => result.title).toList(), [
-        'ספרא',
-        'ראבד על ספרא',
-        'בראשית רבה',
         'מתנות כהונה',
       ]);
     });

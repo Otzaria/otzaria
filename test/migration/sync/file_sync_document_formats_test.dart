@@ -10,12 +10,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/custom_folders/custom_folder.dart';
 import 'package:otzaria/utils/file/document_converter.dart';
 import 'package:path/path.dart' as path;
@@ -29,6 +27,8 @@ void main() {
   late Directory booksDir;
   late MyDatabase database;
   late SeforimRepository repository;
+  late String libraryPath;
+  late List<CustomFolder> folders;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('otzaria-doc-formats-');
@@ -38,26 +38,19 @@ void main() {
       path.join(tempDir.path, 'library', 'אוצריא'),
     ).createSync(recursive: true);
 
-    await Settings.init(cacheProvider: _MemoryCacheProvider());
     FileSyncService.resetSingletonForTesting();
     database = MyDatabase.withPath(path.join(tempDir.path, 'test.db'));
     repository = SeforimRepository(database);
     await repository.ensureInitialized();
 
-    await Settings.setValue<String>(
-      SettingsRepository.keyLibraryPath,
-      path.join(tempDir.path, 'library'),
-    );
-    await Settings.setValue<String>(
-      SettingsRepository.keyCustomFolders,
-      CustomFoldersManager.saveFolders([
-        CustomFolder(
-          path: booksDir.path,
-          addToDatabase: false, // קריאה מהקבצים — הנתיב הרלוונטי לפורמטים
-          addedAt: DateTime(2026, 8, 9),
-        ),
-      ]),
-    );
+    libraryPath = path.join(tempDir.path, 'library');
+    folders = [
+      CustomFolder(
+        path: booksDir.path,
+        addToDatabase: false, // קריאה מהקבצים — הנתיב הרלוונטי לפורמטים
+        addedAt: DateTime(2026, 8, 9),
+      ),
+    ];
   });
 
   tearDown(() async {
@@ -75,7 +68,10 @@ void main() {
       repository,
       userBooksRepository: repository,
     );
-    return service!.syncFiles();
+    return service!.syncCustomFoldersWithInputs(
+      libraryPath: libraryPath,
+      customFolders: folders,
+    );
   }
 
   /// כותב DOCX מינימלי עם הפסקה הנתונה.
@@ -289,60 +285,4 @@ List<int> _odtBytes(String paragraph) {
     ..addFile(ArchiveFile('mimetype', mimetype.length, mimetype))
     ..addFile(ArchiveFile('content.xml', content.length, content));
   return ZipEncoder().encode(archive);
-}
-
-class _MemoryCacheProvider extends CacheProvider {
-  final Map<String, Object?> _values = {};
-
-  @override
-  Future<void> init() async {}
-
-  @override
-  bool containsKey(String key) => _values.containsKey(key);
-
-  @override
-  Set getKeys() => _values.keys.toSet();
-
-  @override
-  bool? getBool(String key, {bool? defaultValue}) =>
-      _values[key] as bool? ?? defaultValue;
-
-  @override
-  double? getDouble(String key, {double? defaultValue}) =>
-      _values[key] as double? ?? defaultValue;
-
-  @override
-  int? getInt(String key, {int? defaultValue}) =>
-      _values[key] as int? ?? defaultValue;
-
-  @override
-  String? getString(String key, {String? defaultValue}) =>
-      _values[key] as String? ?? defaultValue;
-
-  @override
-  T? getValue<T>(String key, {T? defaultValue}) =>
-      _values[key] as T? ?? defaultValue;
-
-  @override
-  Future<void> remove(String key) async => _values.remove(key);
-
-  @override
-  Future<void> removeAll() async => _values.clear();
-
-  @override
-  Future<void> setBool(String key, bool? value) async => _values[key] = value;
-
-  @override
-  Future<void> setDouble(String key, double? value) async =>
-      _values[key] = value;
-
-  @override
-  Future<void> setInt(String key, int? value) async => _values[key] = value;
-
-  @override
-  Future<void> setObject<T>(String key, T? value) async => _values[key] = value;
-
-  @override
-  Future<void> setString(String key, String? value) async =>
-      _values[key] = value;
 }

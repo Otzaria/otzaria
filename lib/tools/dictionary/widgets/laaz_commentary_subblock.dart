@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -163,7 +164,7 @@ class _LaazEntryLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final baseStyle = TextStyle(
-      fontFamily: fontFamily,
+      fontFamily: AppFonts.renderFontFamily(fontFamily),
       fontSize: fontSize,
       height: 1.4,
       color: colorScheme.onSurface,
@@ -172,27 +173,38 @@ class _LaazEntryLine extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: entry.lemma,
-              style: baseStyle.copyWith(fontWeight: FontWeight.bold),
-            ),
-            if (entry.laazHebrew.isNotEmpty) ...[
-              TextSpan(text: ' — ', style: baseStyle),
-              TextSpan(
-                text: entry.laazHebrew,
-                style: baseStyle.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-            if (entry.meaning.isNotEmpty)
-              TextSpan(text: ' ${entry.meaning}', style: baseStyle),
-          ],
+        laazCommentaryEntrySpan(
+          entry: entry,
+          baseStyle: baseStyle,
+          laazColor: colorScheme.primary,
         ),
       ),
     );
   }
 }
+
+/// תוכן שורת לעז משותף לתצוגה ולהעתקת מפרשים שטרם נבנו.
+TextSpan laazCommentaryEntrySpan({
+  required LaazDictionaryEntry entry,
+  TextStyle baseStyle = const TextStyle(),
+  Color? laazColor,
+}) => TextSpan(
+  children: [
+    TextSpan(
+      text: entry.lemma,
+      style: baseStyle.copyWith(fontWeight: FontWeight.bold),
+    ),
+    if (entry.laazHebrew.isNotEmpty) ...[
+      TextSpan(text: ' — ', style: baseStyle),
+      TextSpan(
+        text: entry.laazHebrew,
+        style: baseStyle.copyWith(
+          color: laazColor,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ],
+    if (entry.meaning.isNotEmpty)
+      TextSpan(text: ' ${entry.meaning}', style: baseStyle),
+  ],
+);

@@ -251,6 +251,17 @@ class RemapBookPaths extends TabsEvent {
   List<Object?> get props => [fromDir, toDir];
 }
 
+/// שינוי כותרת של טאב פתוח (גם חלונית בתוך טאב מפוצל) בלי להחליף אותו.
+class RenameTab extends TabsEvent {
+  final OpenedTab tab;
+  final String title;
+
+  const RenameTab(this.tab, this.title);
+
+  @override
+  List<Object?> get props => [tab, title];
+}
+
 class TogglePinTab extends TabsEvent {
   final OpenedTab tab;
 

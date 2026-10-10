@@ -57,6 +57,9 @@ class DbReferenceResult {
   /// ("פרק א" עבור "א ב") — מדורג אחרי כל התאמה מלאה באותו ספר.
   final bool isPartialTocMatch;
 
+  /// true = הספר הוחזר כי זנב השאילתה הוא שם התיקייה שלו ("רמבם זמנים").
+  final bool isCategoryMatch;
+
   const DbReferenceResult({
     required this.title,
     required this.reference,
@@ -72,6 +75,7 @@ class DbReferenceResult {
     this.source = BookSource.official,
     this.isSourceLine = false,
     this.isPartialTocMatch = false,
+    this.isCategoryMatch = false,
   });
 
   DbReferenceResult copyWith({
@@ -89,6 +93,7 @@ class DbReferenceResult {
     BookSource? source,
     bool? isSourceLine,
     bool? isPartialTocMatch,
+    bool? isCategoryMatch,
   }) {
     return DbReferenceResult(
       title: title ?? this.title,
@@ -105,6 +110,7 @@ class DbReferenceResult {
       source: source ?? this.source,
       isSourceLine: isSourceLine ?? this.isSourceLine,
       isPartialTocMatch: isPartialTocMatch ?? this.isPartialTocMatch,
+      isCategoryMatch: isCategoryMatch ?? this.isCategoryMatch,
     );
   }
 

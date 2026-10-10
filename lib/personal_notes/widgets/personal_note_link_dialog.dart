@@ -51,14 +51,27 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
     return ExternalUriRouter.parseUri(uri) != null;
   }
 
+  /// טקסט הקישור שהוקלד, או [fallback] כשהשדה ריק.
+  String _labelOr(String fallback) {
+    final label = _labelController.text.trim();
+    return label.isEmpty ? fallback : label;
+  }
+
+  Widget _buildLabelField() => RtlTextField(
+    controller: _labelController,
+    decoration: const InputDecoration(
+      labelText: 'טקסט לקישור (אופציונלי)',
+      border: OutlineInputBorder(),
+      isDense: true,
+    ),
+  );
+
   void _submit() {
     if (_selectedTab == 0) {
       final lineNumber = int.tryParse(_lineController.text.trim());
       if (lineNumber == null || lineNumber <= 0) return;
       final bookId = widget.bookId ?? '';
-      final label = _labelController.text.trim().isEmpty
-          ? 'שורה $lineNumber'
-          : _labelController.text.trim();
+      final label = _labelOr('שורה $lineNumber');
       final url = 'otzaria://book?bookId=$bookId&line=$lineNumber';
       Navigator.of(context).pop(
         PersonalNoteLinkTarget(label: label, url: url),
@@ -73,20 +86,18 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
         setState(() => _urlError = 'קישור לא תקין או לא נתמך');
         return;
       }
-      final label = _labelController.text.trim().isEmpty
-          ? url
-          : _labelController.text.trim();
+      final label = _labelOr(url);
       Navigator.of(context).pop(PersonalNoteLinkTarget(label: label, url: url));
       return;
     }
 
     final note = _selectedNote;
     if (note == null) return;
-    final label = _labelController.text.trim().isEmpty
-        ? (note.displayTitle?.trim().isNotEmpty == true
-              ? note.displayTitle!.trim()
-              : 'הערה')
-        : _labelController.text.trim();
+    final label = _labelOr(
+      note.displayTitle?.trim().isNotEmpty == true
+          ? note.displayTitle!.trim()
+          : 'הערה',
+    );
     final url = 'otzaria://note?id=${note.id}';
     Navigator.of(context).pop(PersonalNoteLinkTarget(label: label, url: url));
   }
@@ -122,19 +133,16 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
                 });
               },
               borderRadius: AppTokens.borderRadiusAll,
-              children: const [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('קישור לספר'),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('קישור להערה'),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('הדבקת קישור'),
-                ),
+              children: [
+                for (final label in const [
+                  'קישור לספר',
+                  'קישור להערה',
+                  'הדבקת קישור',
+                ])
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(label),
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -158,14 +166,7 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
                     onSubmitted: (_) => _submit(),
                   ),
                   const SizedBox(height: 12),
-                  RtlTextField(
-                    controller: _labelController,
-                    decoration: const InputDecoration(
-                      labelText: 'טקסט לקישור (אופציונלי)',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
+                  _buildLabelField(),
                 ],
               )
             else if (_selectedTab == 0)
@@ -181,14 +182,7 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  RtlTextField(
-                    controller: _labelController,
-                    decoration: const InputDecoration(
-                      labelText: 'טקסט לקישור (אופציונלי)',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
+                  _buildLabelField(),
                 ],
               )
             else
@@ -231,14 +225,7 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  RtlTextField(
-                    controller: _labelController,
-                    decoration: const InputDecoration(
-                      labelText: 'טקסט לקישור (אופציונלי)',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                  ),
+                  _buildLabelField(),
                 ],
               ),
           ],

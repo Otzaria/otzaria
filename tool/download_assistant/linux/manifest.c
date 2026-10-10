@@ -33,6 +33,12 @@ static void free_component(gpointer data) {
   g_free(component->package_format);
   g_ptr_array_unref(component->depends_on);
   g_ptr_array_unref(component->installed_by);
+  g_free(component->part_of);
+  g_free(component->output_folder);
+  g_free(component->output_note);
+  g_free(component->name_en);
+  g_free(component->description_en);
+  g_free(component->output_note_en);
   g_ptr_array_unref(component->assets);
   g_free(component);
 }
@@ -52,6 +58,17 @@ gboolean otz_is_safe_token(const char *text) {
     if (!g_ascii_isalnum(*p) && *p != '.' && *p != '_' && *p != '+' &&
         *p != '-')
       return FALSE;
+  }
+  return TRUE;
+}
+
+gboolean otz_is_safe_output_folder(const char *folder) {
+  if (folder == NULL || *folder == '\0' || strchr(folder, '+') != NULL)
+    return FALSE;
+  g_auto(GStrv) segments = g_strsplit(folder, "/", -1);
+  for (char **segment = segments; *segment != NULL; segment++) {
+    if (!otz_is_safe_token(*segment)) return FALSE;
+    if (strspn(*segment, ".") == strlen(*segment)) return FALSE;
   }
   return TRUE;
 }
@@ -78,6 +95,24 @@ static gboolean is_sha256(const char *text) {
     if (!g_ascii_isxdigit(*p)) return FALSE;
   }
   return TRUE;
+}
+
+static const char *pick(const char *hebrew, const char *english, gboolean want) {
+  return want && *english != '\0' ? english : hebrew;
+}
+
+const char *otz_component_name(const OtzComponent *component, gboolean english) {
+  return pick(component->name, component->name_en, english);
+}
+
+const char *otz_component_description(const OtzComponent *component,
+                                      gboolean english) {
+  return pick(component->description, component->description_en, english);
+}
+
+const char *otz_component_output_note(const OtzComponent *component,
+                                      gboolean english) {
+  return pick(component->output_note, component->output_note_en, english);
 }
 
 char *otz_asset_url(const OtzAsset *asset, const char *file_name) {
@@ -161,6 +196,12 @@ static gboolean parse_component(const OtzJson *json, OtzComponent **out,
   component->platform = dup_optional(json, "platform");
   component->architecture = dup_optional(json, "architecture");
   component->package_format = dup_optional(json, "packageFormat");
+  component->part_of = dup_optional(json, "partOf");
+  component->output_folder = dup_optional(json, "outputFolder");
+  component->output_note = dup_optional(json, "outputNote");
+  component->name_en = dup_optional(json, "nameEn");
+  component->description_en = dup_optional(json, "descriptionEn");
+  component->output_note_en = dup_optional(json, "outputNoteEn");
   const OtzJson *required = otz_json_get(json, "required");
   component->required =
       required != NULL && required->type == OTZ_JSON_BOOL && required->boolean;
@@ -168,6 +209,9 @@ static gboolean parse_component(const OtzJson *json, OtzComponent **out,
     component->download_size = 0;
   if (*component->id == '\0' || *component->name == '\0')
     return invalid(error, component->id, "missing id or name");
+  if (*component->output_folder != '\0' &&
+      !otz_is_safe_output_folder(component->output_folder))
+    return invalid(error, component->id, "unsafe outputFolder");
 
   const OtzJson *depends = otz_json_get(json, "dependsOn");
   for (guint i = 0; i < otz_json_array_length(depends); i++) {

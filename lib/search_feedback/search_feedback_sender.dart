@@ -27,8 +27,7 @@ enum SearchFeedbackOutcomeKind {
   retryLater,
 }
 
-/// תוצאת בקשה אחת לשרת.
-/// סוג כשל שנספר לאורך ניסיונות, כדי שאצווה תקועה לא תחסום את התור לנצח.
+/// סוג הכשל של ניסיון שליחה, לצורך השהיה או ויתור על אצווה.
 enum SearchFeedbackStrike {
   /// אין מה לספור (הצלחה, שגיאת רשת, שבת/השבתה, הגבלת קצב).
   none,
@@ -36,10 +35,11 @@ enum SearchFeedbackStrike {
   /// 5xx מהשרת שאינו שבת/השבתה.
   serverError,
 
-  /// 4xx בלי קוד פרוטוקול — כנראה דף חסימה של מסנן.
+  /// תשובה שאינה של הפרוטוקול (דף חסימה של ספק/מסנן) — משהים, לא מוותרים.
   filtered,
 }
 
+/// תוצאת בקשה אחת לשרת.
 class SearchFeedbackOutcome {
   const SearchFeedbackOutcome(
     this.kind, {
@@ -181,32 +181,42 @@ class SearchFeedbackSender {
         strike: strike,
       );
     }
-    if (status >= 200 && status < 300) {
-      final keyId = json?['keyId'];
-      final rejected = json?['rejected'];
+    final isProtocolSuccess =
+        json != null &&
+        (json.containsKey('accepted') || json.containsKey('keyId'));
+    if (status >= 200 && status < 300 && isProtocolSuccess) {
+      final keyId = json['keyId'];
+      final rejected = json['rejected'];
       return SearchFeedbackOutcome(
         SearchFeedbackOutcomeKind.accepted,
         keyId: keyId is String ? keyId : null,
         rejected: rejected is int ? rejected : 0,
       );
     }
-    final kind = switch (status) {
-      400 || 401 || 422 => SearchFeedbackOutcomeKind.drop,
-      413 => SearchFeedbackOutcomeKind.tooLarge,
-      _ => SearchFeedbackOutcomeKind.retryLater,
-    };
-    final filtered =
-        error is! String &&
-        kind == SearchFeedbackOutcomeKind.retryLater &&
-        status >= 400 &&
-        status < 500 &&
-        status != 408 &&
-        status != 429;
-    // 403 בלי קוד אינו חסימת מפתח — מסנני רשת מחזירים 403/418 משלהם.
+    if (error is String) {
+      return SearchFeedbackOutcome(
+        switch (status) {
+          400 || 401 || 422 => SearchFeedbackOutcomeKind.drop,
+          413 => SearchFeedbackOutcomeKind.tooLarge,
+          _ => SearchFeedbackOutcomeKind.retryLater,
+        },
+        retryAfter: retryAfter,
+        strike: strike,
+      );
+    }
+    if (status == 413) {
+      return SearchFeedbackOutcome(
+        SearchFeedbackOutcomeKind.tooLarge,
+        retryAfter: retryAfter,
+        strike: strike,
+      );
+    }
+    // בלי קוד פרוטוקול (גם 200 של דף HTML): ספק או מסנן חוסם — אסור למחוק נתונים.
+    final transient = status >= 500 || status == 408 || status == 429;
     return SearchFeedbackOutcome(
-      kind,
+      SearchFeedbackOutcomeKind.retryLater,
       retryAfter: retryAfter,
-      strike: filtered ? SearchFeedbackStrike.filtered : strike,
+      strike: transient ? strike : SearchFeedbackStrike.filtered,
     );
   }
 

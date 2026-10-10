@@ -9,7 +9,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
-import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/migration/models/category.dart';
 import 'package:otzaria/migration/models/line.dart';
 import 'package:otzaria/migration/models/toc_entry.dart';
@@ -363,44 +362,6 @@ void main() {
         'בראשית',
       );
       expect(after, isEmpty, reason: 'clearBookContent → TOC ריק, אין ערכים');
-    });
-
-    test('updateTocEntryLineId מבטל את הקאש — segment חדש מופיע מיד', () async {
-      final catId = await createCategory();
-      final bookId = await createBook(catId, 'ספר');
-      await insertLines(bookId, ['l0', 'l1']);
-      final tocId = await insertToc(
-        bookId: bookId,
-        lineIndex: 0,
-        text: 'פרק א',
-        level: 1,
-      );
-      await repository.updateTocEntryLineIdsByLineIndex(bookId);
-
-      // קריאה ראשונה — segment=0 (מתאים ל-lineIndex=0).
-      final before = await repository.getTocEntriesForReference(bookId, 'ספר');
-      expect(before.first['segment'], equals(0));
-
-      // מוטציה: מעדכנים את ה-lineId של ערך ה-TOC לשורה אחרת (lineIndex=1).
-      final db = await database.database;
-      final line1Id =
-          db
-                  .select(
-                    'SELECT id FROM line WHERE bookId=? AND lineIndex=1',
-                    [bookId],
-                  )
-                  .toMapList()
-                  .first['id']
-              as int;
-      await repository.updateTocEntryLineId(tocId, line1Id);
-
-      // קריאה שנייה — segment חייב להתעדכן.
-      final after = await repository.getTocEntriesForReference(bookId, 'ספר');
-      expect(
-        after.first['segment'],
-        equals(1),
-        reason: 'segment חייב לשקף את ה-lineId המעודכן',
-      );
     });
 
     test('updateTocEntryLineIdsByLineIndex מבטל את הקאש של הספר', () async {
@@ -916,10 +877,10 @@ void main() {
       ]);
 
       expect(await refsFor(bookId, title, 'דף ב:'), {
-        '$title $title פרק א דף ב ע"ב',
+        '$title פרק א דף ב ע"ב',
       });
       expect(await refsFor(bookId, title, 'דף ג.'), {
-        '$title $title פרק א דף ג ע"א',
+        '$title פרק א דף ג ע"א',
       });
     });
 
@@ -933,11 +894,11 @@ void main() {
       ], parent: 'פסחים');
 
       expect(await refsFor(bookId, title, 'דף ב.'), {
-        '$title $title פסחים ב.',
+        '$title פסחים ב.',
       });
       expect(await refsFor(bookId, title, 'דף ב'), {
-        '$title $title פסחים ב.',
-        '$title $title פסחים ב:',
+        '$title פסחים ב.',
+        '$title פסחים ב:',
       });
     });
 

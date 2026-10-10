@@ -8,6 +8,7 @@ import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
+import 'package:otzaria/semantic_search/view/semantic_progress_text.dart';
 import 'package:otzaria/semantic_search/repository/semantic_platform_support.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
@@ -134,9 +135,7 @@ class _SemanticDataCard extends StatelessWidget {
     BuildContext context,
     SemanticAvailability availability,
   ) {
-    final fraction = availability.progress?.fraction;
-    final percent = {'percent': ((fraction ?? 0) * 100).toStringAsFixed(0)};
-    final isModel = availability.progress?.item == SemanticDownloadItem.model;
+    final progress = availability.progress;
     return switch (availability.phase) {
       SemanticAvailabilityPhase.hidden => '',
       SemanticAvailabilityPhase.consentRequired => context.settingsText(
@@ -159,22 +158,14 @@ class _SemanticDataCard extends StatelessWidget {
         'הנתונים לגרסת הספרייה {version} עוד לא פורסמו. הם יורדו כשיתפרסמו.',
         args: {'version': '${availability.unpublishedLibraryVersion ?? ''}'},
       ),
-      SemanticAvailabilityPhase.downloading when fraction == null =>
-        isModel
-            ? context.settingsText('מוריד את רכיב החיפוש')
-            : context.settingsText('מוריד את נתוני החיפוש'),
-      SemanticAvailabilityPhase.downloading =>
-        isModel
-            ? context.settingsText(
-                'מוריד את רכיב החיפוש ({percent}%)',
-                args: percent,
-              )
-            : context.settingsText(
-                'מוריד את נתוני החיפוש ({percent}%)',
-                args: percent,
-              ),
+      SemanticAvailabilityPhase.downloading ||
+      SemanticAvailabilityPhase.installing when progress != null =>
+        semanticProgressText(context, progress),
+      SemanticAvailabilityPhase.downloading => context.settingsText(
+        SemanticSearchMessages.downloadingData,
+      ),
       SemanticAvailabilityPhase.installing => context.settingsText(
-        'מתקין את נתוני החיפוש',
+        SemanticSearchMessages.installingData,
       ),
       SemanticAvailabilityPhase.ready => context.settingsText(
         'הנתונים מותקנים ומוכנים',
@@ -226,7 +217,7 @@ class _SemanticDataCard extends StatelessWidget {
         SemanticAvailabilityPhase.vectorsNotPublished ||
         SemanticAvailabilityPhase.installing => true,
         SemanticAvailabilityPhase.downloading =>
-          availability.progress?.item == SemanticDownloadItem.vectors,
+          availability.progress?.item != SemanticDownloadItem.model,
         _ => false,
       };
 

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -195,7 +196,9 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                   style: TextStyle(
                     fontSize: compact ? 11 : fontSize - 2,
                     fontWeight: FontWeight.bold,
-                    fontFamily: settingsState.commentatorsFontFamily,
+                    fontFamily: AppFonts.renderFontFamily(
+                      settingsState.commentatorsFontFamily,
+                    ),
                     color: colorScheme.primary,
                   ),
                 );
@@ -288,7 +291,6 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                   );
                 }
                 final lineHeight = settingsState.lineHeight;
-                final maxHeight = fontSize * lineHeight * maxContentLines!;
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     // מדידה על הטקסט כפי שירונדר (בלי ניקוד אם צריך) כדי
@@ -297,14 +299,21 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                       cleanContent,
                       profile,
                     );
-                    final measureStyle = TextStyle(
-                      fontSize: fontSize,
-                      fontFamily: settingsState.commentatorsFontFamily,
-                      height: lineHeight,
-                      fontWeight: settingsState.commentatorsFontBold
-                          ? FontWeight.bold
-                          : null,
-                    );
+                    // התוכן יורש את סגנון ברירת המחדל (למשל letterSpacing)
+                    // — גם המדידה, אחרת היא שוברת שורות אחרת ממנו.
+                    final measureStyle = DefaultTextStyle.of(context).style
+                        .merge(
+                          TextStyle(
+                            fontSize: fontSize,
+                            fontFamily: AppFonts.renderFontFamily(
+                              settingsState.commentatorsFontFamily,
+                            ),
+                            height: lineHeight,
+                            fontWeight: settingsState.commentatorsFontBold
+                                ? FontWeight.bold
+                                : null,
+                          ),
+                        );
                     final measureSpan = TextSpan(
                       text: measureText,
                       style: measureStyle,
@@ -316,9 +325,14 @@ class _LinkHoverPreviewContentState extends State<LinkHoverPreviewContent> {
                         measureSpan,
                       ),
                       textDirection: TextDirection.rtl,
-                      maxLines: null,
+                      textScaler: MediaQuery.textScalerOf(context),
+                      maxLines: maxContentLines,
                     )..layout(maxWidth: constraints.maxWidth);
-                    final truncated = painter.height > maxHeight + 1;
+                    // הפריסה מעגלת כל שורה לפיקסל שלם, ולכן הגובה והחיתוך
+                    // נמדדים בשורות הפרוסות ולא ב-fontSize×height.
+                    final truncated = painter.didExceedMaxLines;
+                    final maxHeight =
+                        painter.preferredLineHeight * maxContentLines!;
                     painter.dispose();
 
                     final clipped = ClipRect(
@@ -383,7 +397,7 @@ class _ExpandContentButton extends StatelessWidget {
               '…',
               style: TextStyle(
                 fontSize: fontSize,
-                fontFamily: fontFamily,
+                fontFamily: AppFonts.renderFontFamily(fontFamily),
                 height: lineHeight,
                 fontWeight: FontWeight.bold,
                 color: colorScheme.primary,

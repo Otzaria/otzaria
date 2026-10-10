@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
-import 'package:otzaria/text_book/utils/commentary_search_utils.dart';
+import 'package:otzaria/book_common/utils/commentary_search_utils.dart';
 import 'package:otzaria/widgets/commentary/commentary_search_results_list.dart';
 
 import '../../helpers/memory_settings_cache.dart';
@@ -199,16 +199,21 @@ Future<void> main() async {
   group('מבנה — שני משטחי המפרשים צורכים את אותה רשימה', () {
     String read(String path) => File(path).readAsStringSync();
 
-    test('כרטיסיית הטקסט וכרטיסיית ה-PDF מייבאות את הרשימה המשותפת', () {
-      const importRef =
-          'widgets/commentary/commentary_search_results_list.dart';
+    test('כרטיסיית הטקסט וכרטיסיית ה-PDF מציגות את הרשימה המשותפת', () {
+      // Both tabs show their search results through CommentarySearchPane,
+      // which builds the shared results list.
+      const paneRef = 'book_common/view/commentary_search_pane.dart';
       expect(
         read('lib/text_book/view/commentators_tab_screen.dart'),
-        contains(importRef),
+        contains(paneRef),
       );
       expect(
         read('lib/pdf_book/view/pdf_commentators_tab_screen.dart'),
-        contains(importRef),
+        contains(paneRef),
+      );
+      expect(
+        read('lib/book_common/view/commentary_search_pane.dart'),
+        contains('widgets/commentary/commentary_search_results_list.dart'),
       );
     });
 

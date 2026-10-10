@@ -1,8 +1,8 @@
-import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/plugins/database/plugin_database_service.dart';
+import 'package:otzaria/plugins/declarative/compiler/declarative_value_checks.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
@@ -91,7 +91,7 @@ class DeclarativeProgramExecutor {
     }
     return DeclarativeProgramResult(
       programId: program.id,
-      outputs: _freezeMap(outputs),
+      outputs: deepFreeze(outputs),
     );
   }
 
@@ -423,18 +423,6 @@ class DeclarativeProgramExecutor {
       }
     }
     return current;
-  }
-
-  Map<String, dynamic> _freezeMap(Map<String, dynamic> value) {
-    return UnmodifiableMapView({
-      for (final entry in value.entries) entry.key: _freeze(entry.value),
-    });
-  }
-
-  Object? _freeze(Object? value) {
-    if (value is Map) return _freezeMap(Map<String, dynamic>.from(value));
-    if (value is List) return List.unmodifiable(value.map(_freeze));
-    return value;
   }
 
   Object? _copy(Object? value) {

@@ -1,179 +1,49 @@
-import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
-import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart';
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/core/connectivity_status_service.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/services/plugin_manifest_validator.dart';
-import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:collection';
 import 'package:path/path.dart' as p;
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
-import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_unsaved_changes_registry.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
-import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
-import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/search/search_repository.dart';
-import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
-import 'package:otzaria/history/bloc/history_bloc.dart';
-import 'package:otzaria/library/bloc/library_bloc.dart';
-import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
-import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
-import 'package:otzaria/find_ref/repository/find_ref_factory.dart';
-import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
-import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
-import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
-import 'package:otzaria/plugins/bridge/plugin_save_target.dart';
-import 'package:otzaria/settings/services/safer_mode_guard.dart';
-import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/middle_click_autoscroll.dart';
 import 'package:otzaria/plugins/view/plugin_dev_error_view.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
-import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
 import 'package:otzaria/plugins/services/plugin_deep_link_policy.dart';
 import 'package:otzaria/plugins/services/plugin_host_shortcuts.dart';
 import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
-import 'package:otzaria/plugins/services/plugin_network_gate.dart';
 import 'package:otzaria/plugins/view/plugin_crashed_view.dart';
 import 'package:otzaria/plugins/view/plugin_data_folder_unwritable_view.dart';
 import 'package:otzaria/plugins/view/plugin_webview2_missing_view.dart';
 import 'package:otzaria/plugins/view/plugin_webview_failed_view.dart';
 import 'package:otzaria/plugins/services/windows_arch_info.dart';
 import 'package:otzaria/plugins/view/plugin_drop_guard_script.dart';
+import 'package:otzaria/plugins/view/plugin_sdk_scripts.dart';
+import 'package:otzaria/plugins/view/plugin_webview_host.dart';
 import 'package:otzaria/plugins/view/plugin_linkify_script.dart';
 import 'package:otzaria/plugins/view/widgets/plugin_webview_focus_restorer.dart';
-import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_download_handler.dart';
 import 'package:otzaria/plugins/services/plugin_webview_permission_gate.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
-
-// ---------------------------------------------------------------------------
-// Stub SDK — injected at AT_DOCUMENT_START before any page JS runs.
-// Queues all Otzaria.on() calls so they survive the async boot gap.
-// ---------------------------------------------------------------------------
-const String _sdkStub = r'''
-(function () {
-  var _queue = [];
-  var _realSdk = null;
-  var _notReadyStream = function () {
-    return {
-      next: function () {
-        return Promise.reject(new Error('Otzaria SDK not ready yet'));
-      },
-      [Symbol.asyncIterator]: function () { return this; }
-    };
-  };
-
-  window.Otzaria = {
-    call: function (method, payload) {
-      if (_realSdk) return _realSdk.call(method, payload);
-      if (method === 'search.query' || method === 'network.fetchStream') {
-        return _notReadyStream();
-      }
-      return Promise.reject(new Error('Otzaria SDK not ready yet'));
-    },
-    on: function (event, cb) {
-      if (_realSdk) { _realSdk.on(event, cb); }
-      else { _queue.push({ event: event, cb: cb }); }
-    },
-    off: function (event, cb) {
-      if (_realSdk) _realSdk.off(event, cb);
-    },
-    /* Called by Flutter once the real SDK + boot payload are ready */
-    _boot: function (sdk, payload) {
-      _realSdk = sdk;
-      // סמן חיוּת לדיספצ'ר: קיים רק ב-context שבו התוסף באמת רץ. context
-      // טרי שנוצר אחרי השמדת ה-platform view מקבל את ה-stub מחדש אך לא את
-      // ה-boot — והיעדר הדגל מזוהה בפינג ומפעיל reload.
-      window.Otzaria._booted = true;
-      // Re-register all listeners that were queued before boot
-      _queue.forEach(function (item) { sdk.on(item.event, item.cb); });
-      _queue = [];
-      window.dispatchEvent(new CustomEvent('plugin.boot', { detail: payload }));
-      window.dispatchEvent(new CustomEvent('plugin.ready', { detail: null }));
-    }
-  };
-
-  // Block window.open for security
-  window.open = function () {
-    console.error('window.open is locked for security.');
-    return null;
-  };
-
-  // מקשי מקלדת נבלעים ב-WebView ולא מגיעים ל-Flutter — מעבירים ESC (יציאה
-  // ממסך מלא) ואת קיצורי הניווט של התוכנה (הרשימה מוזרקת מ-Flutter).
-  window.__otzariaHostShortcuts = [];
-  window.__otzariaSetHostShortcuts = function (list) {
-    window.__otzariaHostShortcuts = Array.isArray(list) ? list : [];
-  };
-  window.__otzariaMatchHostShortcut = function (e, list) {
-    for (var i = 0; i < list.length; i++) {
-      var s = list[i];
-      if (s.codes.indexOf(e.code) !== -1 &&
-          !!e.ctrlKey === !!s.ctrl && !!e.shiftKey === !!s.shift &&
-          !!e.altKey === !!s.alt && !!e.metaKey === !!s.meta) {
-        return s;
-      }
-    }
-    return null;
-  };
-  var _nonTextInputTypes = ['button', 'checkbox', 'radio', 'submit', 'reset',
-    'range', 'color', 'file', 'image'];
-  window.__otzariaIsEditableTarget = function (e) {
-    var t = e.composedPath ? e.composedPath()[0] : e.target;
-    if (!t) return false;
-    if (t.isContentEditable) return true;
-    if (t.tagName === 'TEXTAREA') return true;
-    return t.tagName === 'INPUT' &&
-        _nonTextInputTypes.indexOf(String(t.type).toLowerCase()) === -1;
-  };
-  window.addEventListener('keydown', function (e) {
-    if (!window.flutter_inappwebview) return;
-    if (e.key === 'Escape') {
-      window.flutter_inappwebview.callHandler('otzaria_escape_pressed');
-    }
-  }, true);
-  // שלב bubble: קיצור שהתוסף טיפל בו (preventDefault) נשאר שלו. בשדה עריכה
-  // מועברים רק הקיצורים הקבועים, כדי לא לגנוב קיצורי עריכה (Ctrl+K, Ctrl+H).
-  window.addEventListener('keydown', function (e) {
-    if (!window.flutter_inappwebview || e.key === 'Escape') return;
-    if (e.repeat || e.defaultPrevented) return;
-    var match = window.__otzariaMatchHostShortcut(e, window.__otzariaHostShortcuts);
-    if (!match) return;
-    if (match.id.indexOf('fixed:') !== 0 && window.__otzariaIsEditableTarget(e)) {
-      return;
-    }
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    window.flutter_inappwebview.callHandler('otzaria_host_shortcut', match.id);
-  });
-})();
-''';
-
-/// הסקריפט המוזרק לתוסף לפני הטעינה — חשוף לבדיקות של תפיסת הקיצורים.
-@visibleForTesting
-String get pluginSdkStubScript => _sdkStub;
+import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
 
 /// קוד JS שמעדכן בתוסף את רשימת קיצורי התוכנה שהוא מעביר חזרה.
 @visibleForTesting
@@ -234,6 +104,7 @@ Set<Factory<OneSequenceGestureRecognizer>>? pluginTabWebViewGestureRecognizers({
 
 class PluginTabPage extends StatefulWidget {
   final InstalledPlugin plugin;
+  final TextBookTab? readerTab;
 
   /// מזהה המופע של הטאב (ToolTab.instanceId) — מזהה את הרישום של הדף הזה
   /// אצל PluginRuntimeDispatcher, לצד מופעים נוספים של אותו תוסף.
@@ -243,6 +114,7 @@ class PluginTabPage extends StatefulWidget {
     super.key,
     required this.plugin,
     required this.instanceId,
+    this.readerTab,
   });
 
   @override
@@ -262,13 +134,21 @@ enum _WebViewPrereqStatus {
   dataFolderNotWritable,
 }
 
-class _PluginTabPageState extends State<PluginTabPage> {
+class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
   // future של בדיקת התנאים המוקדמים. שמור ברמת המופע (לא static) כדי
   // שכפתור "בדוק שוב" יוכל לאפסו (setState(() => _prereqFuture = null))
   // ולהריץ בדיקה מחדש לאחר שהמשתמש התקין את WebView2.
   Future<_WebViewPrereqStatus>? _prereqFuture;
 
-  InAppWebViewController? webViewController;
+  @override
+  InstalledPlugin get plugin => widget.plugin;
+  @override
+  String get instanceId => widget.instanceId;
+  @override
+  String get logTag => 'Plugin';
+  @override
+  BuildContext? get dialogContext => mounted ? context : null;
+
   late String localHtmlPath;
 
   /// נבדק פעם אחת ולא בכל build: existsSync בכל פריים resize הוא I/O סינכרוני,
@@ -281,14 +161,8 @@ class _PluginTabPageState extends State<PluginTabPage> {
 
   /// GlobalKey ל-InAppWebView — שורד החלפת הורה באותו פריים בלי טעינה מחדש.
   final GlobalKey _webViewKey = GlobalKey();
-  late final PluginBridgeHandler _bridge;
-  late final PluginBridgeAdapter _adapter;
-  late final PluginRegistryRepository _pluginRegistryRepository;
-  late final PluginSystemBloc _pluginSystemBloc;
-  late final FindRefRepository _findRefRepository;
   bool _hasError = false;
   String? _devErrorMessage;
-  DateTime? _lastFileServerDenialLogAt;
 
   // כשל יצירה native לא מפעיל אף callback ב-Dart — נשאר רק מסך ריק.
   // השעון נדרך בבניית ה-WebView ומבוטל ב-onWebViewCreated, כדי לרשום ללוג.
@@ -302,14 +176,9 @@ class _PluginTabPageState extends State<PluginTabPage> {
   Map<String, PluginHostShortcut> _hostShortcuts = const {};
   String? _creationFailure;
 
-  // Cache PackageInfo so the async gap in onLoadStop never crosses a dispose
-  static PackageInfo? _cachedPackageInfo;
-  static const _fileServerDenialLogInterval = Duration(minutes: 1);
-
   @override
   void initState() {
     super.initState();
-    _pluginSystemBloc = context.read<PluginSystemBloc>();
     _settingsSub = context.read<SettingsBloc>().stream.listen((state) {
       final controller = webViewController;
       if (controller != null && !mapEquals(state.shortcuts, _lastShortcuts)) {
@@ -323,176 +192,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
         : '${widget.plugin.resolvedRootPath}/${widget.plugin.entrypointPath}';
     _entrypointMissing =
         !widget.plugin.isLocalhostDev && !File(localHtmlPath).existsSync();
-    final historyBloc = context.read<HistoryBloc>();
-    final tabsBloc = context.read<TabsBloc>();
-    final navigationBloc = context.read<NavigationBloc>();
-    final calendarCubit = context.read<CalendarCubit>();
-    final workspaceBloc = context.read<WorkspaceBloc>();
-    final bookmarkBloc = context.read<BookmarkBloc>();
-    final customFoldersBloc = context.read<CustomFoldersBloc>();
-    final libraryBloc = context.read<LibraryBloc>();
-    final searchRepository = SearchRepository();
-    final personalNotesRepository = PersonalNotesRepository();
-    final pluginRegistryRepository = PluginRegistryRepository();
-    _findRefRepository = buildFindRefRepository(respectHiddenLibrary: false);
-    final findRefRepository = _findRefRepository;
-
-    final dependencies = PluginBridgeDependencies(
-      historyBloc: historyBloc,
-      tabsBloc: tabsBloc,
-      navigationBloc: navigationBloc,
-      calendarCubit: calendarCubit,
-      workspaceBloc: workspaceBloc,
-      bookmarkBloc: bookmarkBloc,
-      customFoldersBloc: customFoldersBloc,
-      waitForLibraryRefresh: (requestId) async {
-        final state = await libraryBloc.stream.firstWhere(
-          (state) =>
-              state.completedRefreshRequestIds?.contains(requestId) == true ||
-              (!state.isLoading && state.error != null),
-        );
-        if (state.completedRefreshRequestIds?.contains(requestId) != true) {
-          throw StateError(state.error!);
-        }
-      },
-      searchRepository: searchRepository,
-      personalNotesRepository: personalNotesRepository,
-      bookOpenCoordinator: BookOpenCoordinator(
-        tabsBloc: tabsBloc,
-        historyBloc: historyBloc,
-        navigationBloc: navigationBloc,
-      ),
-      resolveReference: buildPluginReferenceResolver(findRefRepository),
-      resolveRefToLine: (book, ref) =>
-          PluginRefLineResolver().resolve(book: book, ref: ref),
-      themePayloadBuilder: () {
-        if (!mounted) {
-          return {
-            'mode': 'light',
-            'colorScheme': <String, dynamic>{},
-            'typography': <String, dynamic>{},
-          };
-        }
-        return buildThemePayload(context);
-      },
-      showConfirmDialog:
-          ({
-            required String title,
-            required String content,
-          }) async {
-            if (!mounted) return false;
-            return await showTwoActionsDialog(
-                  context: context,
-                  title: title,
-                  content: content,
-                  cancelText: 'ביטול',
-                  confirmText: 'אישור',
-                ) ==
-                true;
-          },
-      showWarningDialog:
-          ({
-            required String title,
-            required String content,
-            required String subtitle,
-          }) async {
-            if (!mounted) return false;
-            return await showWarningDialog(
-                  context: context,
-                  title: title,
-                  content: content,
-                  subtitle: subtitle,
-                  cancelText: 'ביטול',
-                  confirmText: 'המשך',
-                ) ==
-                true;
-          },
-      requestPluginInstall: (downloadUrl, {reportContext}) {
-        _pluginSystemBloc.add(
-          InstallRemotePluginRequested(
-            downloadUrl,
-            reportContext: reportContext,
-            storeOnly: true,
-          ),
-        );
-      },
-      pickFolder: ({String? title}) async {
-        if (!mounted) return null;
-        if (!await verifySaferModePassword(context)) return null;
-        if (!mounted) return null;
-        return FilePicker.getDirectoryPath(
-          windowsOptions: kModalWindowsOptions,
-          linuxOptions: kModalLinuxOptions,
-          dialogTitle: title,
-        );
-      },
-      pickFile: ({List<String>? allowedExtensions, String? title}) async {
-        if (!mounted) return null;
-        if (!await verifySaferModePassword(context)) return null;
-        if (!mounted) return null;
-        final hasExtensions =
-            allowedExtensions != null && allowedExtensions.isNotEmpty;
-        final result = await FilePicker.pickFile(
-          dialogTitle: title,
-          windowsOptions: kModalWindowsOptions,
-          linuxOptions: kModalLinuxOptions,
-          type: hasExtensions ? FileType.custom : FileType.any,
-          allowedExtensions: hasExtensions ? allowedExtensions : null,
-        );
-        return result?.path;
-      },
-      pickSaveLocation:
-          ({
-            required String suggestedName,
-            List<String>? allowedExtensions,
-            String? title,
-          }) async {
-            if (!mounted) return null;
-            if (!await verifySaferModePassword(context)) return null;
-            if (!mounted) return null;
-            final folder = await FilePicker.getDirectoryPath(
-              dialogTitle: pluginSaveFolderDialogTitle(title),
-              windowsOptions: kModalWindowsOptions,
-              linuxOptions: kModalLinuxOptions,
-            );
-            if (folder == null || !mounted) return null;
-            final typed = await showInputDialog(
-              context: context,
-              title: title ?? 'שמירת קובץ',
-              labelText: 'שם הקובץ',
-              initialValue: suggestedName,
-              confirmText: 'שמור',
-            );
-            if (typed == null) return null;
-            final fileName = pluginSaveFileName(
-              typed,
-              allowedExtensions?.firstOrNull,
-            );
-            return pluginSaveTargetPath(folder: folder, fileName: fileName);
-          },
-    );
-
-    _pluginRegistryRepository = pluginRegistryRepository;
-    _adapter = PluginBridgeAdapter(
-      widget.plugin,
-      dependencies: dependencies,
-      instanceId: widget.instanceId,
-      pluginRepository: pluginRegistryRepository,
-    );
-    _bridge = PluginBridgeHandler(
-      widget.plugin,
-      adapter: _adapter,
-      registry: pluginRegistryRepository,
-    );
-    // Pre-fetch so onLoadStop has no async gap
-    _ensurePackageInfo();
-
-    PluginRuntimeDispatcher.instance.registerReloadCallback(
-      widget.plugin.pluginId,
-      _reloadFromDisk,
-      instanceId: widget.instanceId,
-      token: this,
-    );
+    initPluginHost(onReload: _reloadFromDisk, readerTab: widget.readerTab);
   }
 
   Future<void> _reloadFromDisk() async {
@@ -523,7 +223,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
     }
 
     try {
-      await _ensurePackageInfo();
+      await ensurePackageInfo();
       final manifestFile = File(
         p.join(widget.plugin.resolvedRootPath, 'manifest.json'),
       );
@@ -621,24 +321,11 @@ class _PluginTabPageState extends State<PluginTabPage> {
     setState(() => _creationFailure = failure.error.toString());
   }
 
-  /// ה-URI של נקודת הכניסה — `file://` ברוב הפלטפורמות, ובמק דרך
-  /// [pluginAssetScheme] (ראה [pluginAssetSchemeEnabled]).
-  WebUri get _entrypointUri => widget.plugin.isLocalhostDev
-      ? WebUri(localHtmlPath)
-      : pluginAssetSchemeEnabled
-      ? pluginAssetUri(
-          pluginId: widget.plugin.pluginId,
-          rootPath: widget.plugin.resolvedRootPath,
-          filePath: localHtmlPath,
-        )
-      : WebUri.uri(Uri.file(localHtmlPath));
+  WebUri get _entrypointUri =>
+      pluginEntrypointUri(localHtmlPath, assetScheme: pluginAssetSchemeEnabled);
 
   /// ה-URL שהטאב הזה ביקש ליצור — מפתח ההתאמה מול אירוע כשל.
   String _expectedCreationUrl() => _entrypointUri.toString();
-
-  Future<void> _ensurePackageInfo() async {
-    _cachedPackageInfo ??= await PackageInfo.fromPlatform();
-  }
 
   Map<String, String>? _lastShortcuts;
 
@@ -659,7 +346,6 @@ class _PluginTabPageState extends State<PluginTabPage> {
 
   @override
   void dispose() {
-    _findRefRepository.dispose();
     // dispose = unmount רגיל (סגירת טאב) בזמן שהתהליך חי — לא קריסה, מנקים
     // את ה-canary. סגירת האפליקציה לא מריצה dispose; אותה מכסה
     // PluginCrashGuard.markCleanShutdownSync ב-onWindowClose.
@@ -672,34 +358,12 @@ class _PluginTabPageState extends State<PluginTabPage> {
     unawaited(_settingsSub?.cancel());
     final pluginId = widget.plugin.pluginId;
     final instanceId = widget.instanceId;
-    final controller = webViewController;
-    // העץ נעול בזמן dispose וניקוי הרישומים מודיע ל-ListenableBuilders
-    // (הדגשות, סרגל כלים) — לכן נדחה למיקרוטסק, אחרי שחרור הנעילה.
-    scheduleMicrotask(() {
-      _adapter.dispose();
-      // ביטול הרישום רק אם הדף הזה עדיין הבעלים. עדכון תוסף משנה את ה-key,
-      // ו-initState של הדף החדש רץ *לפני* ה-dispose של הישן — בלי הבדיקה
-      // הישן היה מוחק את הרישום של החדש ומשתיק אותו.
-      if (PluginRuntimeDispatcher.instance.ownsController(
-        pluginId,
-        controller,
-        instanceId: instanceId,
-      )) {
-        PluginPageLauncher.instance.markPageClosed(
-          pluginId,
-          instanceId: instanceId,
-        );
-        PluginRuntimeDispatcher.instance.unregisterController(
-          pluginId,
-          instanceId: instanceId,
-        );
-      }
-      PluginRuntimeDispatcher.instance.unregisterReloadCallback(
+    disposePluginHost(
+      onOwnerClosed: () => PluginPageLauncher.instance.markPageClosed(
         pluginId,
         instanceId: instanceId,
-        token: this,
-      );
-    });
+      ),
+    );
     super.dispose();
   }
 
@@ -773,7 +437,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
                 if (!mounted) return;
                 // מרעננים גם את מערכת התוספים: אם WebView2 הותקן בינתיים,
                 // הסנכרון מחדש מאפשר למופעי הרקע העצלים לקום בלי הפעלה מחדש.
-                _pluginSystemBloc.add(RefreshPlugins());
+                pluginSystemBloc.add(RefreshPlugins());
                 setState(() => _prereqFuture = null);
               },
             );
@@ -784,23 +448,6 @@ class _PluginTabPageState extends State<PluginTabPage> {
     }
 
     return _buildWebView();
-  }
-
-  // Allows only the exact dev server origin (host + scheme + port) to prevent
-  // unintended access to other localhost services running on different ports.
-  bool _isDevServerUri(Uri uri) {
-    final devUri = Uri.tryParse(widget.plugin.devRootPath ?? '');
-    if (devUri == null) return false;
-    final reqHost = uri.host.toLowerCase();
-    final devHost = devUri.host.toLowerCase();
-    const localhosts = {'localhost', '127.0.0.1', '::1'};
-    if (!localhosts.contains(reqHost) || reqHost != devHost) return false;
-    if (uri.scheme != devUri.scheme) return false;
-    final devPort = devUri.hasPort
-        ? devUri.port
-        : (devUri.scheme == 'https' ? 443 : 80);
-    final reqPort = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
-    return reqPort == devPort;
   }
 
   /// משגר קישור `otzaria://` שנלחץ בדף התוסף — רק בלחיצת משתמש אמיתית.
@@ -815,44 +462,6 @@ class _PluginTabPageState extends State<PluginTabPage> {
     if (target == null) return;
     await mainWindowScreenKey.currentState?.handleInternalDeepLink(
       target.toString(),
-    );
-  }
-
-  Future<bool> _isNetworkUriAllowed(Uri uri) => isPluginNetworkAccessAllowed(
-    uri: uri,
-    pluginId: widget.plugin.pluginId,
-    manifest: widget.plugin.manifest,
-    registry: _pluginRegistryRepository,
-  );
-
-  /// מאפשרת רק קבצים והעלאה פעילה של התוסף עצמו.
-  bool _isOwnFileServerRequest(Uri uri) =>
-      PluginFileServer.isUriForPlugin(uri, widget.plugin.pluginId) ||
-      PluginFileServer.instance.isUploadUriForPlugin(
-        uri,
-        widget.plugin.pluginId,
-      );
-
-  void _logFileServerDenial(Uri uri) {
-    final now = DateTime.now();
-    final lastLogAt = _lastFileServerDenialLogAt;
-    if (lastLogAt != null &&
-        now.difference(lastLogAt) < _fileServerDenialLogInterval) {
-      return;
-    }
-    _lastFileServerDenialLogAt = now;
-    final kind = uri.pathSegments.isEmpty
-        ? uri.path
-        : '/${uri.pathSegments.first}/…';
-    final message = 'בקשת התוסף לשרת הקבצים נחסמה בשער ה-WebView: $kind';
-    debugPrint('Plugin [${widget.plugin.pluginId}]: $message');
-    // fire-and-forget, כמו כל כתיבה ללוג הריצה.
-    unawaited(
-      PluginSystemDatabase.instance.writeLog(
-        widget.plugin.pluginId,
-        'warn',
-        message,
-      ),
     );
   }
 
@@ -884,7 +493,9 @@ class _PluginTabPageState extends State<PluginTabPage> {
     final webView = InAppWebView(
       key: _webViewKey,
       webViewEnvironment: WebViewEnvironmentHolder.environment,
-      initialUrlRequest: URLRequest(url: _entrypointUri),
+      initialUrlRequest: widget.plugin.isLocalhostDev
+          ? null
+          : URLRequest(url: _entrypointUri),
       onLoadResourceWithCustomScheme: (controller, request) => servePluginAsset(
         url: request.url,
         pluginId: widget.plugin.pluginId,
@@ -899,28 +510,13 @@ class _PluginTabPageState extends State<PluginTabPage> {
       // Stub SDK — injected BEFORE any page JS runs
       initialUserScripts: UnmodifiableListView<UserScript>([
         UserScript(
-          source: _sdkStub,
+          source: pluginSdkStubScript,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
         ),
         buildPluginDropGuardScript(),
         buildPluginLinkifyScript(auto: widget.plugin.manifest.autoLinkify),
       ]),
-      onShowFileChooser: (controller, showFileChooserRequest) async {
-        if (!mounted) {
-          return ShowFileChooserResponse(
-            handledByClient: true,
-            filePaths: null,
-          );
-        }
-        final verified = await verifySaferModePassword(context);
-        if (!verified) {
-          return ShowFileChooserResponse(
-            handledByClient: true,
-            filePaths: null,
-          );
-        }
-        return null;
-      },
+      onShowFileChooser: verifyPluginFileChooser,
       onWebViewCreated: (controller) {
         _creationWatchdog?.cancel();
         unawaited(_creationFailureSub?.cancel());
@@ -935,14 +531,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
           widget.plugin.pluginId,
           owner: widget.instanceId,
         );
-        try {
-          webViewController = controller;
-          PluginRuntimeDispatcher.instance.registerController(
-            widget.plugin.pluginId,
-            controller,
-            instanceId: widget.instanceId,
-          );
-          _bridge.register(controller);
+        final attached = attachPluginController(controller, _entrypointUri, () {
           controller.addJavaScriptHandler(
             handlerName: 'otzaria_escape_pressed',
             callback: (_) {
@@ -960,21 +549,15 @@ class _PluginTabPageState extends State<PluginTabPage> {
               if (shortcut != null) PluginHostShortcuts.dispatch(shortcut);
             },
           );
-        } catch (e) {
+        });
+        if (!attached) {
           // bridge.register נכשל — התהליך חי, לא קריסה native. מנקים גם את
-          // ה-registration הלא שלם וגם את ה-canary של ה-crash guard.
-          PluginRuntimeDispatcher.instance.unregisterController(
-            widget.plugin.pluginId,
-            instanceId: widget.instanceId,
-          );
+          // ה-canary של ה-crash guard.
           unawaited(
             PluginCrashGuard.markLoadSuccess(
               widget.plugin.pluginId,
               owner: widget.instanceId,
             ),
-          );
-          debugPrint(
-            'Plugin [${widget.plugin.pluginId}] WebView init error: $e',
           );
           if (mounted) setState(() => _hasError = true);
         }
@@ -984,130 +567,20 @@ class _PluginTabPageState extends State<PluginTabPage> {
           PluginWebViewPermissionGate.respond(
             plugin: widget.plugin,
             request: request,
-            registry: _pluginRegistryRepository,
+            registry: pluginRegistryRepository,
           ),
       // WebView2 מריץ otzaria:// דרך מטפל הפרוטוקול של המערכת אם האירוע אינו
       // מבוטל — עקיפה של המדיניות כאן. הביטול הוא רשת ביטחון בלבד: ההחלטה
       // מתקבלת ב-shouldOverrideUrlLoading, שנורה לפניו.
       onLaunchingExternalUriScheme: (controller, request) async =>
           LaunchingExternalUriSchemeResponse(cancel: true),
-      shouldOverrideUrlLoading: (controller, navigationAction) async {
-        try {
-          final uri = navigationAction.request.url;
-          if (uri == null) return NavigationActionPolicy.CANCEL;
-
-          if (uri.scheme == 'otzaria') {
-            await _dispatchPluginDeepLink(uri, navigationAction);
-            return NavigationActionPolicy.CANCEL;
-          }
-
-          if (uri.scheme == pluginAssetScheme) {
-            return NavigationActionPolicy.ALLOW;
-          }
-
-          if (uri.scheme == 'file') {
-            final normalizedUri = p.normalize(uri.toFilePath());
-            final normalizedInstall = p.normalize(
-              widget.plugin.resolvedRootPath,
-            );
-            if (p.isWithin(normalizedInstall, normalizedUri) ||
-                normalizedUri == normalizedInstall) {
-              return NavigationActionPolicy.ALLOW;
-            }
-          } else if (uri.scheme == 'data' ||
-              uri.scheme == 'blob' ||
-              uri.scheme == 'about') {
-            return NavigationActionPolicy.ALLOW;
-          }
-
-          if ((uri.scheme == 'http' || uri.scheme == 'https') &&
-              widget.plugin.isLocalhostDev &&
-              _isDevServerUri(uri)) {
-            return NavigationActionPolicy.ALLOW;
-          }
-
-          // שרת הקבצים הפנימי (loopback). זו נקודת האכיפה היחידה של בידוד בין
-          // תוספים — השרת אינו יכול לזהות מי הפונה.
-          if (uri.scheme == 'http' &&
-              PluginFileServer.instance.isServerUri(uri)) {
-            // גם נתיבי קבצים (/f/) וגם נתיב ההעלאה (/w/) של התוסף הזה.
-            if (_isOwnFileServerRequest(uri)) {
-              return NavigationActionPolicy.ALLOW;
-            }
-            _logFileServerDenial(uri);
-            return NavigationActionPolicy.CANCEL;
-          }
-
-          if (uri.scheme == 'http' || uri.scheme == 'https') {
-            if (await _isNetworkUriAllowed(uri)) {
-              return NavigationActionPolicy.ALLOW;
-            }
-          }
-
-          return NavigationActionPolicy.CANCEL;
-        } catch (e) {
-          debugPrint(
-            'Plugin [${widget.plugin.pluginId}] URL override error: $e',
-          );
-          return NavigationActionPolicy.CANCEL;
-        }
-      },
-      shouldInterceptRequest: (controller, request) async {
-        try {
-          final uri = request.url;
-          if (uri.scheme == 'file') {
-            final normalizedUri = p.normalize(uri.toFilePath());
-            final normalizedInstall = p.normalize(
-              widget.plugin.resolvedRootPath,
-            );
-            if (!p.isWithin(normalizedInstall, normalizedUri) &&
-                normalizedUri != normalizedInstall) {
-              return WebResourceResponse(
-                statusCode: 403,
-                reasonPhrase: 'Forbidden',
-              );
-            }
-          }
-          if ((uri.scheme == 'http' || uri.scheme == 'https') &&
-              widget.plugin.isLocalhostDev &&
-              _isDevServerUri(uri)) {
-            return null; // allow all localhost requests for localhost_dev
-          }
-          // שרת הקבצים הפנימי (loopback). זו נקודת האכיפה היחידה של בידוד בין
-          // תוספים — השרת אינו יכול לזהות מי הפונה.
-          if (uri.scheme == 'http' &&
-              PluginFileServer.instance.isServerUri(uri)) {
-            // גם נתיבי קבצים (/f/) וגם נתיב ההעלאה (/w/) של התוסף הזה: בלי
-            // ההחרגה השנייה ה-PUT של fs.beginBinaryWrite נחסם כאן, וכל
-            // שמירה בינארית נופלת ב-"Failed to fetch" (נמדד בווינדוס, שבו
-            // ה-fork של אוצריא כן מפעיל shouldInterceptRequest).
-            if (_isOwnFileServerRequest(uri)) return null;
-            _logFileServerDenial(uri);
-            return WebResourceResponse(
-              statusCode: 403,
-              reasonPhrase: 'Forbidden',
-            );
-          }
-          if (uri.scheme == 'http' || uri.scheme == 'https') {
-            if (await _isNetworkUriAllowed(uri)) {
-              return null;
-            }
-            return WebResourceResponse(
-              statusCode: 403,
-              reasonPhrase: 'Forbidden',
-            );
-          }
-          return null;
-        } catch (e) {
-          debugPrint(
-            'Plugin [${widget.plugin.pluginId}] intercept request error: $e',
-          );
-          return WebResourceResponse(
-            statusCode: 403,
-            reasonPhrase: 'Forbidden',
-          );
-        }
-      },
+      shouldOverrideUrlLoading: (controller, navigationAction) =>
+          pluginNavigationPolicy(
+            navigationAction,
+            onDeepLink: _dispatchPluginDeepLink,
+          ),
+      shouldInterceptRequest: (controller, request) =>
+          interceptPluginRequest(request),
       onLoadStop: (controller, url) async {
         // טעינה מחדש של הדף מאפסת את מצב ה-JS, ואיתו את הדגל שהוא הרים.
         PluginUnsavedChangesRegistry.instance.removeInstance((
@@ -1126,192 +599,26 @@ class _PluginTabPageState extends State<PluginTabPage> {
 
           // Use cached PackageInfo — avoids async gap crossing a dispose
           final packageInfo =
-              _cachedPackageInfo ?? await PackageInfo.fromPlatform();
+              PluginWebViewHost.cachedPackageInfo ??
+              await PackageInfo.fromPlatform();
           if (!mounted) return;
-          final permissions = await _pluginRegistryRepository
-              .getGrantedPermissionNames(
-                widget.plugin.pluginId,
-              );
+          final permissions = await pluginRegistryRepository
+              .getGrantedPermissionNames(widget.plugin.pluginId);
           if (!mounted) return;
-          final bootPayload = {
-            'plugin': {
-              'id': widget.plugin.pluginId,
-              'version': widget.plugin.version,
-            },
-            'app': {
-              'version': packageInfo.version,
-              'platform': Platform.operatingSystem,
-              // שפת הממשק הפעילה (he-IL לתאימות; 'language' — קוד השפה)
-              ...pluginLocalePayload(
-                code: Settings.getValue<String>(
-                  SettingsRepository.keySettingsLanguage,
-                ),
-              ),
-              // חושף לתוסף אם הוא נטען כתוסף פיתוח (sourceType=development).
-              // בתוסף ארוז זה false — מאפשר לתוסף לדלג על שערים פיתוחיים
-              // (כמו שער סיסמה) רק במצב פיתוח ולא בפרודקשן.
-              'devMode': widget.plugin.isDevelopment,
-              'runMode': 'foreground',
-            },
-            'connectivity': ConnectivityStatusService.instance.bootPayload(),
-            'theme': theme,
-            'permissions': permissions,
-          };
-
-          final jsonPayload = jsonEncode(bootPayload);
-          final nonceJson = jsonEncode(_bridge.bridgeNonce);
-          final fontFaceJson = jsonEncode(fontFaceCss);
-
           // Real SDK — injected after load, calls _boot() which re-plays queued
           // Otzaria.on() calls and then fires plugin.boot
           await controller.evaluateJavascript(
-            source:
-                '''
-(function () {
-  try {
-    var __css = $fontFaceJson;
-    if (__css) {
-      var __style = document.createElement('style');
-      __style.setAttribute('data-otzaria-fonts', '1');
-      __style.appendChild(document.createTextNode(__css));
-      (document.head || document.documentElement).appendChild(__style);
-    }
-  } catch (e) { console.error('font-face inject failed', e); }
-  var _ls = {};
-  var _searchStreams = {};
-  var _searchSequence = 0;
-  var _searchEvent = '__otzaria.search.query.chunk';
-  var _networkStreams = {};
-  var _networkSequence = 0;
-  var _networkEvent = '__otzaria.network.fetchStream.chunk';
-  var rpc = function (method, payload) {
-    return window.flutter_inappwebview.callHandler('otzaria_rpc', {
-      method: method,
-      payload: payload || {},
-      nonce: $nonceJson
-    });
-  };
-  window.addEventListener(_searchEvent, function (event) {
-    var detail = event.detail || {};
-    var stream = _searchStreams[detail.streamId];
-    if (stream) stream.push(detail.chunk);
-  });
-  window.addEventListener(_networkEvent, function (event) {
-    var detail = event.detail || {};
-    var stream = _networkStreams[detail.streamId];
-    if (stream) stream.push(detail.chunk);
-  });
-  var createRpcStream = function (method, payload, streams, streamId) {
-    var maxQueuedChunks = 256;
-    var queue = [];
-    var waiters = [];
-    var ended = false;
-    var failure = null;
-    var flush = function () {
-      while (waiters.length && queue.length) {
-        waiters.shift().resolve({ value: queue.shift(), done: false });
-      }
-      if (queue.length || !ended) return;
-      while (waiters.length) {
-        var waiter = waiters.shift();
-        if (failure) waiter.reject(failure);
-        else waiter.resolve({ value: undefined, done: true });
-      }
-    };
-    var session = {
-      push: function (chunk) {
-        if (ended) return;
-        if (queue.length >= maxQueuedChunks) {
-          session.fail(new Error('Stream consumer is too slow'));
-          void rpc(method, { __cancelStreamId: streamId });
-          return;
-        }
-        queue.push(chunk);
-        flush();
-      },
-      finish: function () {
-        if (ended) return;
-        ended = true;
-        delete streams[streamId];
-        flush();
-      },
-      fail: function (error) {
-        if (ended) return;
-        failure = error instanceof Error ? error : new Error(String(error));
-        ended = true;
-        delete streams[streamId];
-        flush();
-      }
-    };
-    streams[streamId] = session;
-    var request = Object.assign({}, payload || {}, { __streamId: streamId });
-    rpc(method, request).then(function (response) {
-      if (!response || response.success !== true) {
-        var message = response && response.error && response.error.message;
-        session.fail(new Error(message || 'Stream failed'));
-        return;
-      }
-      session.finish();
-    }, session.fail);
-    return {
-      next: function () {
-        if (queue.length) return Promise.resolve({ value: queue.shift(), done: false });
-        if (ended) {
-          return failure
-            ? Promise.reject(failure)
-            : Promise.resolve({ value: undefined, done: true });
-        }
-        return new Promise(function (resolve, reject) {
-          waiters.push({ resolve: resolve, reject: reject });
-        });
-      },
-      return: function () {
-        if (!ended) {
-          ended = true;
-          delete streams[streamId];
-          flush();
-          void rpc(method, { __cancelStreamId: streamId });
-        }
-        return Promise.resolve({ value: undefined, done: true });
-      },
-      [Symbol.asyncIterator]: function () { return this; }
-    };
-  };
-  var createSearchStream = function (payload) {
-    var id = 'search_' + Date.now().toString(36) + '_' + (++_searchSequence).toString(36);
-    return createRpcStream('search.query', payload, _searchStreams, id);
-  };
-  var createNetworkFetchStream = function (payload) {
-    var id = 'network_' + Date.now().toString(36) + '_' + (++_networkSequence).toString(36);
-    return createRpcStream('network.fetchStream', payload, _networkStreams, id);
-  };
-  var realSdk = {
-    call: function (method, payload) {
-      if (method === 'search.query') return createSearchStream(payload);
-      if (method === 'network.fetchStream') return createNetworkFetchStream(payload);
-      return rpc(method, payload);
-    },
-    on: function (event, cb) {
-      if (!_ls[event]) _ls[event] = [];
-      var w = function (e) { cb(e.detail); };
-      _ls[event].push({ orig: cb, wrap: w });
-      window.addEventListener(event, w);
-    },
-    off: function (event, cb) {
-      var list = _ls[event];
-      if (!list) return;
-      for (var i = 0; i < list.length; i++) {
-        if (list[i].orig === cb) {
-          window.removeEventListener(event, list[i].wrap);
-          list.splice(i, 1);
-          break;
-        }
-      }
-    }
-  };
-  window.Otzaria._boot(realSdk, $jsonPayload);
-})();
-''',
+            source: pluginBootScript(
+              runMode: 'foreground',
+              packageInfo: packageInfo,
+              permissions: permissions,
+              theme: theme,
+              reader: switch (widget.readerTab) {
+                final tab? => PluginTextReaderRegistry.bookPayload(tab),
+                null => null,
+              },
+              fontFaceCss: fontFaceCss,
+            ),
           );
           await _pushHostShortcuts(controller);
           // הטעינה הצליחה עד הסוף (גם ה-stub וגם ה-boot payload הוזרקו).
@@ -1360,16 +667,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
       },
       onProcessFailed: (controller, detail) {
         // תהליך WebView2 (renderer/browser/GPU) מת — התוכן נעלם בלי חריגה.
-        logPluginWebViewFailure(
-          'Plugin WebView2 process failed',
-          detail.kind,
-          details: {
-            'Plugin': widget.plugin.pluginId,
-            'Reason': detail.reason?.toString(),
-            'ExitCode': detail.exitCode?.toString(),
-            'Process': detail.processDescription,
-          },
-        );
+        logPluginProcessFailed(detail);
       },
       onReceivedError: (controller, request, error) {
         // only fail the view for the entrypoint file load itself
@@ -1390,7 +688,7 @@ class _PluginTabPageState extends State<PluginTabPage> {
         // מסך מותאם במקום דף השגיאה של הדפדפן (ERR_CONNECTION_REFUSED).
         if (widget.plugin.isLocalhostDev &&
             request.isForMainFrame == true &&
-            _isDevServerUri(request.url)) {
+            isPluginDevServerUri(request.url, widget.plugin.devRootPath)) {
           unawaited(
             PluginCrashGuard.markLoadSuccess(
               widget.plugin.pluginId,
@@ -1406,25 +704,8 @@ class _PluginTabPageState extends State<PluginTabPage> {
           }
         }
       },
-      onConsoleMessage: (controller, consoleMessage) {
-        try {
-          if (consoleMessage.messageLevel == ConsoleMessageLevel.ERROR ||
-              consoleMessage.messageLevel == ConsoleMessageLevel.WARNING) {
-            PluginSystemDatabase.instance.writeLog(
-              widget.plugin.pluginId,
-              consoleMessage.messageLevel.toString(),
-              consoleMessage.message,
-            );
-          }
-          debugPrint(
-            'Plugin [${widget.plugin.pluginId}]: ${consoleMessage.message}',
-          );
-        } catch (e) {
-          debugPrint(
-            'Plugin [${widget.plugin.pluginId}] console log error: $e',
-          );
-        }
-      },
+      onConsoleMessage: (controller, consoleMessage) =>
+          logPluginConsole(consoleMessage),
     );
 
     // ה-WebView מגיב ללחצן האמצעי בעצמו (Chromium מפעיל שם גלילה אוטומטית

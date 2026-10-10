@@ -3,7 +3,6 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
-import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
@@ -17,24 +16,14 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
-import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/search/view/layout_fix_suggestion_banner.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
-import 'package:otzaria/widgets/controls/bar_button.dart';
-import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
-import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
-import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
-import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/search/view/search_results_layout.dart';
 import 'package:otzaria/widgets/feedback/indexing_warning.dart';
-
-/// רוחב הסרגל שמתחתיו בוררי המיון והאיחוד מתכווצים לכפתורי אייקון.
-/// הבדיקה היא על רוחב הסרגל עצמו (ולא על גודל החלון), כדי שהכיווץ יקרה
-/// בדיוק כשאין מקום לשני ה-dropdown ברוחב מלא.
-const double _kMenusCollapseWidth = 900;
 
 class TantivyFullTextSearch extends StatefulWidget {
   final SearchingTab tab;
@@ -70,6 +59,35 @@ bool shouldShowFacetFilterBanner({
   return normalizedScope.isNotEmpty;
 }
 
+/// אירוע הרצת [query] בטאב עם הגדרות החיפוש השמורות בו (חיוביות ושליליות),
+/// מנורמלות למצב החיפוש הנוכחי של הטאב.
+UpdateSearchQuery searchQueryEventForTab(SearchingTab tab, String query) {
+  final searchMode = tab.searchBloc.state.configuration.searchMode;
+  final negativeQuery = tab.negativeQueryController.text;
+  final positive = SearchQueryBuilder.normalizeParametersForMode(
+    searchMode,
+    customSpacing: tab.spacingValues,
+    alternativeWords: tab.alternativeWords,
+    searchOptions: tab.effectiveSearchOptions(query: query),
+  );
+  final negative = SearchQueryBuilder.normalizeParametersForMode(
+    searchMode,
+    customSpacing: tab.negativeSpacingValues,
+    alternativeWords: tab.negativeAlternativeWords,
+    searchOptions: tab.effectiveNegativeSearchOptions(query: negativeQuery),
+  );
+  return UpdateSearchQuery(
+    query,
+    negativeQuery: negativeQuery,
+    customSpacing: positive.customSpacing,
+    alternativeWords: positive.alternativeWords,
+    searchOptions: positive.searchOptions,
+    negativeCustomSpacing: negative.customSpacing,
+    negativeAlternativeWords: negative.alternativeWords,
+    negativeSearchOptions: negative.searchOptions,
+  );
+}
+
 class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     with AutomaticKeepAliveClientMixin {
   static const _externalCountLineMaxWidth = 240.0;
@@ -80,17 +98,6 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   // חיווי הגבלת ה-scope ניתן להסתרה ידנית. ההסתרה היא ויזואלית בלבד (אינה
   // משנה את החיפוש) ומתאפסת בחיפוש חדש או בשינוי הטווח — ראה ה-listener ב-build.
   bool _facetBannerDismissed = false;
-  // במסך צר עץ הקטגוריות תופס את כל הרוחב ומסתיר את התוצאות. לכן בכניסה
-  // הראשונה לכל טאב במסך צר סוגרים את העץ אוטומטית; המשתמש עדיין יכול
-  // לפתוח אותו ידנית, וזה לא משפיע על מסכים רחבים שבהם השניים מוצגים זה
-  // לצד זה.
-  bool _appliedNarrowLeftPaneDefault = false;
-  // רוחב חי של פאנל הסינון בזמן גרירה; נשמר להגדרות ב-onPaneResizeEnd.
-  double? _facetPaneWidthOverride;
-
-  /// פעולת החיפוש של חלונית הסינון — מוזנת לסרגל שבסרגל העליון.
-  final NavPanelSearchHost _searchHost = NavPanelSearchHost();
-
   final FocusNode _contentFocusNode = FocusNode(
     debugLabel: 'search_tab_content',
     skipTraversal: true,
@@ -98,7 +105,6 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
 
   @override
   void dispose() {
-    _searchHost.dispose();
     _contentFocusNode.dispose();
     super.dispose();
   }
@@ -118,35 +124,7 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     widget.tab.updateTitleFromAppliedQuery(suggestion);
     context.read<HistoryBloc>().add(AddHistory(widget.tab));
 
-    final searchMode = widget.tab.searchBloc.state.configuration.searchMode;
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      searchMode,
-      customSpacing: widget.tab.spacingValues,
-      alternativeWords: widget.tab.alternativeWords,
-      searchOptions: widget.tab.effectiveSearchOptions(query: suggestion),
-    );
-    final negativeQuery = widget.tab.negativeQueryController.text;
-    final normalizedNegativeParameters =
-        SearchQueryBuilder.normalizeParametersForMode(
-          searchMode,
-          customSpacing: widget.tab.negativeSpacingValues,
-          alternativeWords: widget.tab.negativeAlternativeWords,
-          searchOptions: widget.tab.effectiveNegativeSearchOptions(
-            query: negativeQuery,
-          ),
-        );
-    widget.tab.searchBloc.add(
-      UpdateSearchQuery(
-        suggestion,
-        negativeQuery: negativeQuery,
-        customSpacing: normalizedParameters.customSpacing,
-        alternativeWords: normalizedParameters.alternativeWords,
-        searchOptions: normalizedParameters.searchOptions,
-        negativeCustomSpacing: normalizedNegativeParameters.customSpacing,
-        negativeAlternativeWords: normalizedNegativeParameters.alternativeWords,
-        negativeSearchOptions: normalizedNegativeParameters.searchOptions,
-      ),
-    );
+    widget.tab.searchBloc.add(searchQueryEventForTab(widget.tab, suggestion));
   }
 
   void _openEditDialog() {
@@ -197,38 +175,8 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     if (widget.tab.autoRunInitialSearch &&
         pendingQuery.isNotEmpty &&
         widget.tab.searchBloc.state.searchQuery.isEmpty) {
-      final searchMode = widget.tab.searchBloc.state.configuration.searchMode;
-      final normalizedParameters =
-          SearchQueryBuilder.normalizeParametersForMode(
-            searchMode,
-            customSpacing: widget.tab.spacingValues,
-            alternativeWords: widget.tab.alternativeWords,
-            searchOptions: widget.tab.effectiveSearchOptions(
-              query: pendingQuery,
-            ),
-          );
-      final negativeQuery = widget.tab.negativeQueryController.text;
-      final normalizedNegativeParameters =
-          SearchQueryBuilder.normalizeParametersForMode(
-            searchMode,
-            customSpacing: widget.tab.negativeSpacingValues,
-            alternativeWords: widget.tab.negativeAlternativeWords,
-            searchOptions: widget.tab.effectiveNegativeSearchOptions(
-              query: negativeQuery,
-            ),
-          );
       widget.tab.searchBloc.add(
-        UpdateSearchQuery(
-          pendingQuery,
-          negativeQuery: negativeQuery,
-          customSpacing: normalizedParameters.customSpacing,
-          alternativeWords: normalizedParameters.alternativeWords,
-          searchOptions: normalizedParameters.searchOptions,
-          negativeCustomSpacing: normalizedNegativeParameters.customSpacing,
-          negativeAlternativeWords:
-              normalizedNegativeParameters.alternativeWords,
-          negativeSearchOptions: normalizedNegativeParameters.searchOptions,
-        ),
+        searchQueryEventForTab(widget.tab, pendingQuery),
       );
     }
   }
@@ -286,6 +234,8 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    // אותו child מונע מפעימות ההורה לעקוף את buildWhen של עץ הסינון.
+    final facetPane = SearchFacetFiltering(tab: widget.tab);
     return BlocListener<NavigationBloc, NavigationState>(
       listener: (context, state) => _onNavigationChanged(state),
       child: BlocListener<SearchBloc, SearchState>(
@@ -304,174 +254,41 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
         child: Focus(
           focusNode: _contentFocusNode,
           child: Scaffold(
-            body: LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 800;
-                // במסך צר, בכניסה הראשונה של הטאב, סוגרים את עץ הקטגוריות
-                // כדי שהתוצאות יוצגו ולא יוסתרו ע"י העץ ברוחב מלא.
-                if (isNarrow &&
-                    !_appliedNarrowLeftPaneDefault &&
-                    widget.tab.isLeftPaneOpen.value) {
-                  _appliedNarrowLeftPaneDefault = true;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) widget.tab.isLeftPaneOpen.value = false;
-                  });
-                }
-                final collapseMenus =
-                    constraints.maxWidth < _kMenusCollapseWidth;
-                if (isNarrow) return _buildForSmallScreens(collapseMenus);
-                return _buildForWideScreens(collapseMenus);
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildForSmallScreens(bool collapseMenus) {
-    return BlocBuilder<SearchBloc, SearchState>(
-      builder: (context, state) {
-        return Container(
-          clipBehavior: Clip.hardEdge,
-          decoration: const BoxDecoration(),
-          child: Column(
-            children: [
-              _buildIndexingWarning(),
-              _buildSearchTopBar(state, collapseMenus: collapseMenus),
-              // חיווי סינון קטגוריות
-              if (_shouldShowFacetFilterBanner(state))
-                _buildFacetFilterBanner(context, state),
-              // הצעת תיקון להקלדה עברית במצב מקלדת אנגלי (issue #975).
-              // הטקסט הגולמי מהשדה ולא state.searchQuery — הנרמול מוחק
-              // פסיק/נקודה שהם המקשים של ת/ץ, וההצעה הייתה יוצאת חסרה.
-              if (state.searchQuery.isNotEmpty)
-                LayoutFixSuggestionBanner(
-                  query: widget.tab.queryController.text,
-                  hint: 'לחיצה תריץ את החיפוש המוצע',
-                  onAccept: _acceptLayoutFixSuggestion,
-                ),
-              Expanded(
-                child: Stack(
-                  children: [
-                    // כל מצבי אזור התוצאות (ריק/טעינה/שגיאה/תוצאות) מרונדרים
-                    // בתוך TantivySearchResults — רשימה מאוחדת אחת שמכילה גם
-                    // את תוצאות הספק החיצוני כשהוא פעיל.
-                    Container(
-                      clipBehavior: Clip.hardEdge,
-                      decoration: const BoxDecoration(),
-                      child: TantivySearchResults(
-                        tab: widget.tab,
-                        onEditSearch: _openEditDialog,
-                      ),
-                    ),
-                    ValueListenableBuilder(
-                      valueListenable: widget.tab.isLeftPaneOpen,
-                      builder: (context, value, child) => AnimatedSize(
-                        duration: const Duration(milliseconds: 300),
-                        child: SizedBox(
-                          width: value ? 500 : 0,
-                          child: Container(
-                            color: Theme.of(context).colorScheme.surface,
-                            child: Column(
-                              children: [
-                                Expanded(
-                                  child: SearchFacetFiltering(tab: widget.tab),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildForWideScreens(bool collapseMenus) {
-    return Column(
-      children: [
-        _buildIndexingWarning(),
-        Expanded(
-          child: BlocBuilder<SearchBloc, SearchState>(
-            builder: (context, state) {
-              return Column(
-                children: [
-                  _buildSearchTopBar(
-                    state,
-                    collapseMenus: collapseMenus,
-                    isWideLayout: true,
-                  ),
+            body: BlocBuilder<SearchBloc, SearchState>(
+              builder: (context, state) => SearchResultsLayout(
+                tab: widget.tab,
+                hasQuery: state.searchQuery.isNotEmpty,
+                onEditSearch: _openEditDialog,
+                header: _buildIndexingWarning(),
+                countsBuilder: (context, collapsed) =>
+                    _buildResultCounts(context, state, collapsed: collapsed),
+                extraTrailingItems: _buildTrailingControls,
+                banners: [
                   if (_shouldShowFacetFilterBanner(state))
                     _buildFacetFilterBanner(context, state),
-                  // הצעת תיקון להקלדה עברית במצב מקלדת אנגלי (975#).
-                  // הטקסט הגולמי מהשדה — ראו הערה בפריסה הצרה.
+                  // הצעת תיקון להקלדה עברית במצב מקלדת אנגלי (issue #975).
+                  // הטקסט הגולמי מהשדה ולא state.searchQuery — הנרמול מוחק
+                  // פסיק/נקודה שהם המקשים של ת/ץ, וההצעה הייתה יוצאת חסרה.
                   if (state.searchQuery.isNotEmpty)
                     LayoutFixSuggestionBanner(
                       query: widget.tab.queryController.text,
                       hint: 'לחיצה תריץ את החיפוש המוצע',
                       onAccept: _acceptLayoutFixSuggestion,
                     ),
-                  Expanded(
-                    child: ValueListenableBuilder<bool>(
-                      valueListenable: widget.tab.isLeftPaneOpen,
-                      builder: (context, isOpen, _) {
-                        return BlocBuilder<SettingsBloc, SettingsState>(
-                          buildWhen: (p, c) =>
-                              p.facetFilteringWidth != c.facetFilteringWidth,
-                          builder: (context, settingsState) {
-                            final paneWidth =
-                                (_facetPaneWidthOverride ??
-                                        settingsState.facetFilteringWidth)
-                                    .clamp(220.0, 600.0);
-                            return NavSidePanel(
-                              isOpen: isOpen,
-                              alignment: AlignmentDirectional.centerEnd,
-                              mainContent: _buildResultsContent(context),
-                              paneContent: NavPanelSearchScope(
-                                host: _searchHost,
-                                child: NavPanelSearchSlot(
-                                  index: 0,
-                                  child: SearchFacetFiltering(
-                                    tab: widget.tab,
-                                  ),
-                                ),
-                              ),
-                              paneWidth: paneWidth,
-                              minMainContentWidth: 300,
-                              onClose: () => _setLeftPaneOpen(false),
-                              isResizable: true,
-                              minPaneWidth: 220,
-                              maxPaneWidth: 600,
-                              autoHandleResponsiveVisibility: false,
-                              onPaneWidthChanged: (w) =>
-                                  _facetPaneWidthOverride = w,
-                              onPaneResizeEnd: () {
-                                final w = _facetPaneWidthOverride;
-                                if (w != null) {
-                                  context.read<SettingsBloc>().add(
-                                    UpdateFacetFilteringWidth(w),
-                                  );
-                                }
-                              },
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
                 ],
-              );
-            },
+                // כל מצבי אזור התוצאות (ריק/טעינה/שגיאה/תוצאות) מרונדרים בתוך
+                // TantivySearchResults, כולל תוצאות הספק החיצוני כשהוא פעיל.
+                resultsBuilder: (showPreviewPane) => TantivySearchResults(
+                  tab: widget.tab,
+                  onEditSearch: _openEditDialog,
+                  showPreviewPane: showPreviewPane,
+                ),
+                facetPane: facetPane,
+              ),
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -576,23 +393,6 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     );
   }
 
-  /// תוכן אזור התוצאות — רשימה מאוחדת אחת ([TantivySearchResults]) שמכילה
-  /// את כל מצבי המנוע (loader / ריק / שגיאה / תוצאות) וגם את תוצאות הספק
-  /// החיצוני של תוסף כשהוא פעיל (sliver שמכווץ את עצמו לכלום אחרת).
-  Widget _buildResultsContent(BuildContext context) {
-    return Container(
-      clipBehavior: Clip.hardEdge,
-      decoration: const BoxDecoration(),
-      child: TantivySearchResults(
-        tab: widget.tab,
-        onEditSearch: _openEditDialog,
-        // חלונית התצוגה המקדימה מוצגת רק בפריסה הרחבה; במסך צר לחיצה
-        // אחת ממשיכה לפתוח את התוצאה בעיון.
-        showPreviewPane: true,
-      ),
-    );
-  }
-
   /// באנר שמראה שהחיפוש הוגבל מראש לקטגוריות מסוימות (scope).
   /// מוצג רק כשהוגדר טווח מראש; כפתור ה-X מסתיר אותו ויזואלית בלבד.
   Widget _buildFacetFilterBanner(BuildContext context, SearchState state) {
@@ -682,166 +482,32 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
     );
   }
 
-  /// שינוי מצב עץ התוצאות ביוזמת המשתמש — נשמר גם כברירת מחדל גלובלית.
-  /// סגירות אוטומטיות (מסך צר, הרצת חיפוש) אינן עוברות כאן בכוונה.
-  void _setLeftPaneOpen(bool isOpen) {
-    widget.tab.isLeftPaneOpen.value = isOpen;
-    SearchDefaults.saveResultsTreeOpenDefault(isOpen);
-  }
-
-  /// הסרגל העליון של מסך החיפוש — זהה בכל רוחבי המסך.
-  /// [collapseMenus] מכווץ את בוררי המיון והאיחוד לכפתורי אייקון.
-  /// [isWideLayout] — הפריסה הרחבה, שבה חלונית הסינון היא [NavSidePanel].
-  Widget _buildSearchTopBar(
-    SearchState state, {
-    required bool collapseMenus,
-    bool isWideLayout = false,
-  }) {
-    final hasQuery = state.searchQuery.isNotEmpty;
-    return AppTopBar(
-      minCenterWidth: ReaderNavCenter.minTitleWidth,
-      leadingItems: [
-        AppTopBarItem(
-          widget: ValueListenableBuilder<bool>(
-            valueListenable: widget.tab.isLeftPaneOpen,
-            builder: (context, isOpen, _) => NavPanelToggleButton(
-              isOpen: isOpen,
-              onToggle: () => _setLeftPaneOpen(!isOpen),
-            ),
-          ),
+  /// בוררי המיון, האיחוד ומיקום התוצאות החיצוניות שבסוף הסרגל.
+  List<AppTopBarItem> _buildTrailingControls(bool collapseMenus) => [
+    AppTopBarItem(
+      dividerBefore: true,
+      widget: SearchResultsLayout.animatedBarControl(
+        collapsed: collapseMenus,
+        child: OrderOfResults(
+          widget: TantivySearchResults(tab: widget.tab),
+          iconOnly: collapseMenus,
         ),
-      ],
-      center: hasQuery
-          ? _buildQueryDisplay(context, showLabel: isWideLayout)
-          : const SizedBox.shrink(),
-      trailingItems: hasQuery
-          ? [
-              AppTopBarItem(
-                // בלוק המונים מצטמצם עם ellipsis כשאין מקום לשאר הפקדים,
-                // במקום לדחוף אותם אל מחוץ לסרגל.
-                flexible: true,
-                widget: _buildResultCounts(
-                  context,
-                  state,
-                  collapsed: collapseMenus,
-                ),
-              ),
-              // לחצן העין קיים רק בפריסה הרחבה — שם יש חלונית תצוגה מקדימה.
-              if (isWideLayout)
-                AppTopBarItem(
-                  dividerBefore: true,
-                  widget: _buildPreviewToggleButton(),
-                ),
-              AppTopBarItem(
-                dividerBefore: true,
-                widget: _animatedBarControl(
-                  collapsed: collapseMenus,
-                  child: OrderOfResults(
-                    widget: TantivySearchResults(tab: widget.tab),
-                    iconOnly: collapseMenus,
-                  ),
-                ),
-              ),
-              AppTopBarItem(
-                widget: _animatedBarControl(
-                  collapsed: collapseMenus,
-                  child: GroupingOfResults(iconOnly: collapseMenus),
-                ),
-              ),
-              AppTopBarItem(
-                widget: _animatedBarControl(
-                  collapsed: collapseMenus,
-                  child: ExternalResultsPositionControl(
-                    tab: widget.tab,
-                    compact: collapseMenus,
-                  ),
-                ),
-              ),
-            ]
-          : const [],
-    );
-  }
-
-  /// לחצן עין לכיבוי/הפעלה קבועים של התצוגה המקדימה של תוצאות — כמו בספרייה.
-  Widget _buildPreviewToggleButton() {
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      buildWhen: (p, c) =>
-          p.searchShowPreview != c.searchShowPreview ||
-          p.compactMenuMode != c.compactMenuMode,
-      builder: (context, settingsState) {
-        final showPreview = settingsState.searchShowPreview;
-        return BarButton.icon(
-          compact: settingsState.compactMenuMode,
-          tooltip: showPreview ? 'הסתר תצוגה מקדימה' : 'הצג תצוגה מקדימה',
-          icon: showPreview
-              ? FluentIcons.eye_24_filled
-              : FluentIcons.eye_24_regular,
-          selected: showPreview,
-          onPressed: () {
-            final next = !showPreview;
-            context.read<SettingsBloc>().add(UpdateSearchShowPreview(next));
-            if (!next) {
-              widget.tab.previewTarget.value = null;
-            }
-          },
-        );
-      },
-    );
-  }
-
-  /// מילות החיפוש בתוך סרגל בעיצוב שדה החיפוש; לחיצה עליו פותחת את דיאלוג
-  /// העריכה. בפריסה הצרה התווית 'חיפוש' מושמטת — היא משכפלת את שם הכרטיסייה
-  /// ובולעת כמחצית מהמרחב שנשמר למילות החיפוש.
-  Widget _buildQueryDisplay(BuildContext context, {required bool showLabel}) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (showLabel) ...[
-          Text(
-            'חיפוש',
-            style: TextStyle(
-              fontSize: AppTokens.fontMD,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(width: AppTokens.spaceSM),
-        ],
-        Flexible(
-          child: OtzariaSearchDisplayBar(
-            icon: FluentIcons.edit_24_regular,
-            tooltip: 'ערוך חיפוש',
-            onTap: _openEditDialog,
-            child: ScrollConfiguration(
-              behavior: ScrollConfiguration.of(
-                context,
-              ).copyWith(scrollbars: false),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SearchTermsDisplay(tab: widget.tab),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// מעבר מונפש בין ה-dropdown המלא לכפתור האייקון המכווץ.
-  Widget _animatedBarControl({
-    required bool collapsed,
-    required Widget child,
-  }) {
-    return AnimatedSize(
-      duration: AppTokens.animNormal,
-      curve: Curves.easeInOut,
-      child: AnimatedSwitcher(
-        duration: AppTokens.animNormal,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(scale: animation, child: child),
-        ),
-        child: KeyedSubtree(key: ValueKey(collapsed), child: child),
       ),
-    );
-  }
+    ),
+    AppTopBarItem(
+      widget: SearchResultsLayout.animatedBarControl(
+        collapsed: collapseMenus,
+        child: GroupingOfResults(iconOnly: collapseMenus),
+      ),
+    ),
+    AppTopBarItem(
+      widget: SearchResultsLayout.animatedBarControl(
+        collapsed: collapseMenus,
+        child: ExternalResultsPositionControl(
+          tab: widget.tab,
+          compact: collapseMenus,
+        ),
+      ),
+    ),
+  ];
 }

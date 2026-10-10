@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -69,39 +71,130 @@ Future<String?> heRefFromDbLine(TextBook book, int index) async {
 /// הגרסה הסינכרונית של [refFromIndex]: מחשבת את הכתובת ההיררכית עבור שורה
 /// [index] מתוך רשימת תוכן עניינים שכבר נטענה לזיכרון. נחוצה למקומות שצריכים
 /// חישוב מיידי בלי `await` (למשל תווית יעד ברחיפה מעל פס הגלילה), והחישוב
-/// עצמו הוא רקורסיה זולה על העץ עם עצירה מוקדמת.
-String refFromTocList(int index, List<TocEntry> toc) {
-  List<String> texts = [];
+/// עצמו נעשה במבנה עזר שנבנה פעם אחת לכל עץ, כי היא נקראת בכל גלילה.
+String refFromTocList(int index, List<TocEntry> toc) =>
+    (_tocRefLookups[toc] ??= _TocRefLookup(toc)).refAt(index);
 
-  void searchToc(List<TocEntry> entries, int index) {
-    for (final TocEntry entry in entries) {
-      if (entry.index > index) {
-        return;
-      }
-      // Guard against invalid level values, but still search children
-      if (entry.level <= 0) {
-        searchToc(entry.children, index);
-        continue;
-      }
-      // ממקמים כל כותרת לפי הרמה האמיתית שלה (level-1). אם חסרות רמות-על
-      // (למשל ספר שמתחיל ברמה 2 בלי כותרת-חלק ברמה 1), ממלאים את המקומות
-      // החסרים במחרוזות ריקות במקום לדחוף את הכותרת לאינדקס 0 — אחרת
-      // הכותרת הראשונה הייתה "נתקעת" באינדקס 0 ומזהמת כל כתובת אחריה.
-      final targetIndex = entry.level - 1;
-      while (texts.length <= targetIndex) {
-        texts.add('');
-      }
-      texts[targetIndex] = entry.text;
-      texts = texts.getRange(0, entry.level).toList();
+final _tocRefLookups = Expando<_TocRefLookup>();
 
-      searchToc(entry.children, index);
+/// הכתובת היא שרשרת הכותרות שנסרקו, כל אחת הקודמת שרמתה נמוכה מזו שאחריה.
+/// כותרת נסרקת כשהמפתח שלה (מקסימום האינדקסים של אחיה הקודמים ואבותיה) <= השורה.
+class _TocRefLookup {
+  final _entries = <TocEntry>[];
+  final _ranks = <int>[];
+  final _sortedKeys = <int>[];
+  final _roots = <int>[];
+  final _left = <int>[0];
+  final _right = <int>[0];
+  final _lastPos = <int>[-1];
+  late final int _levelCount;
+
+  _TocRefLookup(List<TocEntry> toc) {
+    final keys = <int>[];
+    final pending = <({Iterator<TocEntry> entries, int? key})>[
+      (entries: toc.iterator, key: null),
+    ];
+    while (pending.isNotEmpty) {
+      final frame = pending.removeLast();
+      if (!frame.entries.moveNext()) continue;
+      final entry = frame.entries.current;
+      final key = frame.key == null
+          ? entry.index
+          : max(frame.key!, entry.index);
+      pending.add((entries: frame.entries, key: key));
+      if (entry.level > 0) {
+        _entries.add(entry);
+        keys.add(key);
+      }
+      if (entry.children.isNotEmpty) {
+        pending.add((entries: entry.children.iterator, key: key));
+      }
+    }
+
+    final levels = _entries.map((entry) => entry.level).toSet().toList()
+      ..sort();
+    _levelCount = levels.length;
+    final ranks = {for (var i = 0; i < levels.length; i++) levels[i]: i};
+    _ranks.addAll(_entries.map((entry) => ranks[entry.level]!));
+    final positions = List.generate(_entries.length, (i) => i)
+      ..sort((a, b) => keys[a].compareTo(keys[b]));
+    var root = 0, firstNewNode = 1;
+    for (final pos in positions) {
+      if (_sortedKeys.isEmpty || _sortedKeys.last != keys[pos]) {
+        firstNewNode = _lastPos.length;
+      }
+      root = _insert(root, 0, _levelCount, _ranks[pos], pos, firstNewNode);
+      if (_sortedKeys.isNotEmpty && _sortedKeys.last == keys[pos]) {
+        _roots[_roots.length - 1] = root;
+      } else {
+        _sortedKeys.add(keys[pos]);
+        _roots.add(root);
+      }
     }
   }
 
-  searchToc(toc, index);
+  // כל גרסה שומרת את הכותרת האחרונה בכל רמה עבור סף שורה אחד.
+  int _insert(int node, int lo, int hi, int rank, int pos, int firstNewNode) {
+    if (hi - lo == 1 && _lastPos[node] >= pos) return node;
+    var left = _left[node], right = _right[node];
+    if (hi - lo > 1) {
+      final mid = (lo + hi) >> 1;
+      if (rank < mid) {
+        left = _insert(left, lo, mid, rank, pos, firstNewNode);
+      } else {
+        right = _insert(right, mid, hi, rank, pos, firstNewNode);
+      }
+      if (left == _left[node] &&
+          right == _right[node] &&
+          _lastPos[node] == max(_lastPos[left], _lastPos[right])) {
+        return node;
+      }
+    }
+    final lastPos = hi - lo == 1 ? pos : max(_lastPos[left], _lastPos[right]);
+    // עד לפרסום גרסה חדשה אפשר לעדכן את צמתיה בלי להעתיק שוב את אותו מסלול.
+    if (node >= firstNewNode) {
+      _left[node] = left;
+      _right[node] = right;
+      _lastPos[node] = lastPos;
+      return node;
+    }
+    _left.add(left);
+    _right.add(right);
+    _lastPos.add(lastPos);
+    return _lastPos.length - 1;
+  }
 
-  texts = texts.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-  return texts.join(', ');
+  int _lastBelow(int node, int lo, int hi, int bound) {
+    if (node == 0 || lo >= bound) return -1;
+    if (hi <= bound) return _lastPos[node];
+    final mid = (lo + hi) >> 1;
+    return max(
+      _lastBelow(_left[node], lo, mid, bound),
+      _lastBelow(_right[node], mid, hi, bound),
+    );
+  }
+
+  String refAt(int index) {
+    final lo = _countAtMost(_sortedKeys, index);
+    if (lo == 0) return '';
+    final root = _roots[lo - 1];
+    final parts = <String>[];
+    var pos = _lastPos[root];
+    while (pos >= 0) {
+      parts.add(_entries[pos].text.trim());
+      pos = _lastBelow(root, 0, _levelCount, _ranks[pos]);
+    }
+    return parts.reversed.where((part) => part.isNotEmpty).join(', ');
+  }
+}
+
+int _countAtMost(List<int> sorted, int value) {
+  var lo = 0, hi = sorted.length;
+  while (lo < hi) {
+    final mid = (lo + hi) >> 1;
+    sorted[mid] <= value ? lo = mid + 1 : hi = mid;
+  }
+  return lo;
 }
 
 /// מחזירה כתובת תצוגה מלאה ואחידה עבור ספר יעד.
@@ -287,17 +380,8 @@ String addBookTitleToRef(String ref, String bookTitle) {
   return '$bookTitle, $ref';
 }
 
-Future<String> refFromPageNumber(
-  int pageNumber,
-  List<PdfOutlineNode>? outline, [
-  String? bookTitle,
-]) async {
-  return referenceFromPageNumber(pageNumber, outline, bookTitle);
-}
-
-/// הגרסה הסינכרונית של [refFromPageNumber]: מחשבת את הכתובת ההיררכית עבור
-/// עמוד [pageNumber] מתוך ה-outline שכבר טעון לזיכרון. נחוצה לחישוב מיידי
-/// בלי `await` (תווית יעד ברחיפה מעל פס הגלילה של ה-PDF).
+/// הכתובת ההיררכית של עמוד [pageNumber] מתוך ה-outline שבזיכרון.
+/// סינכרונית וזולה — אין צורך לדחות אותה ל-debounce או ל-isolate.
 String referenceFromPageNumber(
   int pageNumber,
   List<PdfOutlineNode>? outline, [
@@ -309,10 +393,9 @@ String referenceFromPageNumber(
 
   void searchOutline(List<PdfOutlineNode> entries, {int level = 0}) {
     for (final entry in entries) {
-      if (entry.dest?.pageNumber == null ||
-          entry.dest!.pageNumber > pageNumber) {
-        return;
-      }
+      final entryPage = entry.dest?.pageNumber;
+      if (entryPage == null) continue;
+      if (entryPage > pageNumber) return;
       if (level + 1 > texts.length) {
         texts.add(entry.title);
       } else {
@@ -335,24 +418,35 @@ String referenceFromPageNumber(
   return texts.join(', ');
 }
 
-/// Returns the index of the last [TocEntry] whose [index] is less than or equal
-/// to [targetIndex]. If no such entry exists, returns `null`.
+/// האינדקס הגדול ביותר מבין הכותרות שהאינדקס שלהן ושל כל אבותיהן <=
+/// [targetIndex], או null. נקראת בכל גלילה, ולכן במבנה עזר שנבנה פעם אחת לכל עץ.
 int? closestTocEntryIndex(List<TocEntry> entries, int targetIndex) {
-  TocEntry? closest;
+  final (:keys, :best) = _closestTocLookups[entries] ??= _closestTocLookup(
+    entries,
+  );
+  final count = _countAtMost(keys, targetIndex);
+  return count == 0 ? null : best[count - 1];
+}
 
-  void search(List<TocEntry> toc) {
-    for (final entry in toc) {
-      if (entry.index <= targetIndex) {
-        if (closest == null || entry.index > closest!.index) {
-          closest = entry;
-        }
-        search(entry.children);
-      }
+final _closestTocLookups = Expando<({List<int> keys, List<int> best})>();
+
+/// מפתח כותרת = מקסימום האינדקסים שלה ושל אבותיה; ממוין, עם מקסימום מצטבר.
+({List<int> keys, List<int> best}) _closestTocLookup(List<TocEntry> toc) {
+  final pairs = <(int, int)>[];
+  final pending = [for (final entry in toc) (entry, entry.index)];
+  while (pending.isNotEmpty) {
+    final (entry, key) = pending.removeLast();
+    pairs.add((key, entry.index));
+    for (final child in entry.children) {
+      pending.add((child, max(key, child.index)));
     }
   }
-
-  search(entries);
-  return closest?.index;
+  pairs.sort((a, b) => a.$1.compareTo(b.$1));
+  final best = <int>[];
+  for (final (_, index) in pairs) {
+    best.add(max(index, best.lastOrNull ?? index));
+  }
+  return (keys: [for (final (key, _) in pairs) key], best: best);
 }
 
 /// הקטע שתחת הכותרת הקרובה ל-[line] (מעליה או בה): מהכותרת ועד הכותרת הבאה

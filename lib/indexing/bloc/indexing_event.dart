@@ -52,13 +52,15 @@ class ReindexChangedBooks extends IndexingWorkEvent {
 
 /// השוואת טביעות-האצבע שבאינדקס מול תוכן הספרייה, ואינדוקס מחדש של
 /// הספרים שנמצאו שונים — למסלולים בהם איש לא דיווח מה השתנה (הורדה מלאה).
+/// עם [books] הסריקה מוגבלת לספרים אלה (למשל ספרי מסד מצורף שהקובץ שלו השתנה).
 class ReconcileIndex extends IndexingWorkEvent {
   final Library library;
+  final List<Book>? books;
 
-  const ReconcileIndex(this.library);
+  const ReconcileIndex(this.library, {this.books});
 
   @override
-  List<Object?> get props => [library];
+  List<Object?> get props => [library, books];
 }
 
 /// ניקוי רשומות יתומות מהאינדקס — ספרים שכבר אינם בספרייה (ספר אישי

@@ -56,6 +56,7 @@ class AcronymsCache {
   int _generation = 0;
 
   final Map<int, List<String>> _acronymsByBookId = <int, List<String>>{};
+  final Map<int, Set<String>> _quotedWordsByBookId = <int, Set<String>>{};
 
   /// אינדקס ביגרמים: לכל צמד תווים סמוכים שמופיע במונח כלשהו — מזהי הספרים
   /// שלהם יש מונח כזה, ממוינים. המפתח הוא `(תו ראשון << 16) | תו שני`.
@@ -75,6 +76,10 @@ class AcronymsCache {
   /// Returns all normalized acronyms for a given book ID.
   /// כל ערך כבר עבר [normalizeForFindRefMatch] בעת הטעינה.
   List<String>? getAcronymsForBook(int bookId) => _acronymsByBookId[bookId];
+
+  /// ראו [AcronymCacheData.quotedWordsByBookId]. רק לקטלוג הרשמי.
+  Set<String> quotedWordsForBook(int bookId) =>
+      _quotedWordsByBookId[bookId] ?? const <String>{};
 
   /// הכינויים של ספר [bookId] במסד של [source]. לספר אישי אין כינויים.
   List<String>? acronymsFor(BookSource source, int bookId) => switch (source) {
@@ -219,6 +224,7 @@ class AcronymsCache {
       if (myGen == _generation) {
         _acronymsByBookId.clear();
         _bookIdsByBigram.clear();
+        _quotedWordsByBookId.clear();
         _isLoaded = false;
       }
       return;
@@ -235,6 +241,9 @@ class AcronymsCache {
       _bookIdsByBigram
         ..clear()
         ..addAll(data.bookIdsByBigram);
+      _quotedWordsByBookId
+        ..clear()
+        ..addAll(data.quotedWordsByBookId);
       _isLoaded = true;
       debugPrint(
         '[AcronymsCache] Loaded ${data.rowCount} acronyms for ${_acronymsByBookId.length} books',
@@ -246,6 +255,7 @@ class AcronymsCache {
       if (myGen == _generation) {
         _acronymsByBookId.clear();
         _bookIdsByBigram.clear();
+        _quotedWordsByBookId.clear();
       }
     }
   }
@@ -258,6 +268,7 @@ class AcronymsCache {
     _attachedLoading = null;
     _acronymsByBookId.clear();
     _bookIdsByBigram.clear();
+    _quotedWordsByBookId.clear();
     _isLoaded = false;
     _loadingFuture = null;
   }
@@ -289,6 +300,9 @@ class AcronymsCache {
     _bookIdsByBigram
       ..clear()
       ..addAll(data.bookIdsByBigram);
+    _quotedWordsByBookId
+      ..clear()
+      ..addAll(data.quotedWordsByBookId);
     _isLoaded = true;
   }
 }

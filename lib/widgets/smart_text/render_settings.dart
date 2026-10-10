@@ -167,6 +167,11 @@ class RenderSettings {
   /// האם לאפשר הדגשת חלקי מילים (ללא דרישת גבולות אסימון)
   final bool partialWordHighlight;
 
+  /// השורות הסמוכות כשגם הן שורות תוצאה: ביטוי שהמנוע מצא במעבר בין השורות
+  /// מודגש גם בחלקו שבשורה הזו.
+  final String? previousLineText;
+  final String? nextLineText;
+
   const RenderSettings({
     this.removeNikud = false,
     this.removePunctuation = false,
@@ -192,6 +197,8 @@ class RenderSettings {
     this.justifyText = true,
     this.highlightYellowBackground = false,
     this.partialWordHighlight = false,
+    this.previousLineText,
+    this.nextLineText,
   });
 
   /// הגדרות רינדור מפרופיל תצוגה פתור — המסלול המועדף לכל צרכן חדש.
@@ -217,6 +224,8 @@ class RenderSettings {
     bool justifyText = true,
     bool highlightYellowBackground = false,
     bool partialWordHighlight = false,
+    String? previousLineText,
+    String? nextLineText,
   }) {
     return RenderSettings(
       removeNikud: profile.removeNikud,
@@ -243,6 +252,8 @@ class RenderSettings {
       justifyText: justifyText,
       highlightYellowBackground: highlightYellowBackground,
       partialWordHighlight: partialWordHighlight,
+      previousLineText: previousLineText,
+      nextLineText: nextLineText,
     );
   }
 
@@ -292,6 +303,8 @@ class RenderSettings {
     bool? justifyText,
     bool? highlightYellowBackground,
     bool? partialWordHighlight,
+    String? previousLineText,
+    String? nextLineText,
   }) {
     return RenderSettings(
       removeNikud: removeNikud ?? this.removeNikud,
@@ -319,6 +332,8 @@ class RenderSettings {
       highlightYellowBackground:
           highlightYellowBackground ?? this.highlightYellowBackground,
       partialWordHighlight: partialWordHighlight ?? this.partialWordHighlight,
+      previousLineText: previousLineText ?? this.previousLineText,
+      nextLineText: nextLineText ?? this.nextLineText,
     );
   }
 
@@ -349,7 +364,9 @@ class RenderSettings {
         formatParentheses == other.formatParentheses &&
         justifyText == other.justifyText &&
         highlightYellowBackground == other.highlightYellowBackground &&
-        partialWordHighlight == other.partialWordHighlight;
+        partialWordHighlight == other.partialWordHighlight &&
+        previousLineText == other.previousLineText &&
+        nextLineText == other.nextLineText;
   }
 
   @override
@@ -379,6 +396,8 @@ class RenderSettings {
       justifyText,
       highlightYellowBackground,
       partialWordHighlight,
+      previousLineText,
+      nextLineText,
     ]);
   }
 }

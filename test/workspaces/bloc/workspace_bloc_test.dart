@@ -177,6 +177,98 @@ void main() {
       liveTab.dispose();
     });
 
+    test('שולחן מקובע שומר את התמונה הקבועה כשעוזבים אותו (#1619)', () async {
+      final pinnedTab = _createTextTab('ספר קבוע');
+      final pinned = Workspace(
+        name: 'כולל',
+        tabs: [pinnedTab],
+        isPinned: true,
+      );
+      final other = Workspace(name: 'ב', tabs: const []);
+      final repository = _FakeWorkspaceRepository(
+        workspaces: [pinned, other],
+        activeWorkspaceId: pinned.id,
+      );
+      final bloc = WorkspaceBloc(repository: repository)..add(LoadWorkspaces());
+      await bloc.stream.firstWhere((s) => !s.isLoading);
+
+      final extraTab = _createTextTab('ספר שנפתח בדרך אגב');
+      bloc.add(
+        SwitchToWorkspace(
+          targetWorkspaceId: other.id,
+          currentTabsToSave: [pinnedTab, extraTab],
+          currentTabIndexToSave: 1,
+        ),
+      );
+      await bloc.stream.firstWhere((s) => s.activeWorkspaceId == other.id);
+
+      List<OpenedTab>? restored;
+      final reopen = WorkspaceBloc(
+        repository: repository,
+        onWorkspaceTabsChanged: (tabs, _, _) => restored = tabs,
+      )..add(LoadWorkspaces());
+      await reopen.stream.firstWhere((s) => !s.isLoading);
+      reopen.add(
+        SwitchToWorkspace(
+          targetWorkspaceId: pinned.id,
+          currentTabsToSave: const [],
+          currentTabIndexToSave: 0,
+        ),
+      );
+      await reopen.stream.firstWhere((s) => s.activeWorkspaceId == pinned.id);
+
+      expect(restored!.map((t) => t.title), ['ספר קבוע']);
+
+      await bloc.close();
+      await reopen.close();
+      pinnedTab.dispose();
+      extraTab.dispose();
+    });
+
+    test('קיבוע השולחן הפעיל שומר את הכרטיסיות החיות כתמונה הקבועה', () async {
+      final workspace = Workspace(name: 'א', tabs: const []);
+      final repository = _FakeWorkspaceRepository(
+        workspaces: [workspace],
+        activeWorkspaceId: workspace.id,
+      );
+      final bloc = WorkspaceBloc(repository: repository)..add(LoadWorkspaces());
+      await bloc.stream.firstWhere((s) => !s.isLoading);
+
+      final liveTab = _createTextTab('ספר חי');
+      bloc.add(
+        SetWorkspacePinned(
+          workspaceId: workspace.id,
+          isPinned: true,
+          tabsToSave: [liveTab],
+        ),
+      );
+      final pinned = await bloc.stream
+          .map((s) => s.workspaces.single)
+          .firstWhere((w) => w.isPinned);
+
+      expect(pinned.tabs.map((t) => t.title), ['ספר חי']);
+
+      bloc.add(
+        SetWorkspacePinned(workspaceId: workspace.id, isPinned: false),
+      );
+      final unpinned = await bloc.stream
+          .map((s) => s.workspaces.single)
+          .firstWhere((w) => !w.isPinned);
+      expect(unpinned.tabs, hasLength(1));
+
+      await bloc.close();
+      liveTab.dispose();
+    });
+
+    test('isPinned נשמר ב-JSON ונעדר ממנו כשהשולחן אינו מקובע', () {
+      final plain = Workspace(name: 'א', tabs: const []);
+      final pinned = plain.copyWith(isPinned: true);
+
+      expect(plain.toJson().containsKey('isPinned'), isFalse);
+      expect(Workspace.fromJson(plain.toJson()).isPinned, isFalse);
+      expect(Workspace.fromJson(pinned.toJson()).isPinned, isTrue);
+    });
+
     test('שגיאה אינה נמחקת ב-emit הבא, ו-clearError מאפס אותה', () {
       final state = WorkspaceState(workspaces: const [], error: 'boom');
 

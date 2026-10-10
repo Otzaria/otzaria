@@ -6,6 +6,7 @@ import 'package:otzaria/search_feedback/semantic_search_strings.dart';
 import 'package:otzaria/semantic_search/models/semantic_availability.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_mode_gate.dart';
+import 'package:otzaria/semantic_search/view/semantic_progress_text.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -20,8 +21,8 @@ class SemanticModePanel extends StatelessWidget {
     required this.availability,
     required this.queryController,
     required this.queryFocusNode,
+    this.queryTrailingAction,
     required this.scopeSelection,
-    this.scopeSupported = true,
     required this.onScopeChanged,
     required this.includeLexical,
     required this.onIncludeLexicalChanged,
@@ -38,8 +39,10 @@ class SemanticModePanel extends StatelessWidget {
   final SemanticAvailability availability;
   final TextEditingController queryController;
   final FocusNode queryFocusNode;
+
+  /// פעולה בסוף שדה השאילתה (היסטוריית החיפושים).
+  final Widget? queryTrailingAction;
   final Set<String> scopeSelection;
-  final bool scopeSupported;
   final ValueChanged<Set<String>> onScopeChanged;
   final bool includeLexical;
   final ValueChanged<bool> onIncludeLexicalChanged;
@@ -119,7 +122,7 @@ class SemanticModePanel extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _modeName(context),
+                  context.settingsText(kSemanticSearchModeLabel),
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.primary,
@@ -132,7 +135,6 @@ class SemanticModePanel extends StatelessWidget {
           Text(
             context.settingsText(
               kSemanticSearchConsentTemplate,
-              args: {'name': _modeName(context)},
             ),
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
           ),
@@ -160,7 +162,8 @@ class SemanticModePanel extends StatelessWidget {
 
   Widget _buildStatusCard(BuildContext context) {
     final theme = Theme.of(context);
-    final fraction = availability.progress?.fraction;
+    final progress = availability.progress;
+    final fraction = progress?.fraction;
     final name = {'name': _modeName(context)};
     final String text = switch (availability.phase) {
       SemanticAvailabilityPhase.needsDownload => context.settingsText(
@@ -171,11 +174,9 @@ class SemanticModePanel extends StatelessWidget {
         'נתוני החיפוש לגרסת הספרייה {version} עוד לא פורסמו. הם יורדו כשיתפרסמו.',
         args: {'version': '${availability.unpublishedLibraryVersion ?? ''}'},
       ),
-      SemanticAvailabilityPhase.downloading when fraction != null =>
-        context.settingsText(
-          'מוריד את הנתונים ({percent}%)',
-          args: {'percent': (fraction * 100).toStringAsFixed(0)},
-        ),
+      SemanticAvailabilityPhase.downloading ||
+      SemanticAvailabilityPhase.installing when progress != null =>
+        semanticProgressText(context, progress),
       SemanticAvailabilityPhase.downloading => context.settingsText(
         'מוריד את הנתונים',
       ),
@@ -262,8 +263,6 @@ class SemanticModePanel extends StatelessWidget {
 
   Widget _buildSearchForm(BuildContext context) {
     final theme = Theme.of(context);
-    final droppedScope =
-        !scopeSupported || !semanticScopeIsSupported(scopeSelection);
     return Column(
       key: const ValueKey('semantic-search-form'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -277,12 +276,32 @@ class SemanticModePanel extends StatelessWidget {
             filled: true,
             fillColor: theme.colorScheme.surfaceContainerHigh,
             border: const OutlineInputBorder(),
-            labelText: _modeName(context),
+            labelText: context.settingsText(kSemanticSearchModeLabel),
             hintText: context.settingsText(
               'תארו במילים שלכם את העניין שאתם מחפשים',
             ),
             prefixIcon: const Icon(
-              OtzariaIcons.search_in_the_library_24_regular,
+              OtzariaIcons.search_in_library_24_regular,
+            ),
+            suffixIcon: Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: queryController,
+                    builder: (context, value, _) => value.text.isEmpty
+                        ? const SizedBox.shrink()
+                        : IconButton(
+                            key: const ValueKey('semantic-query-clear'),
+                            icon: const Icon(FluentIcons.dismiss_24_regular),
+                            tooltip: context.settingsText('נקה'),
+                            onPressed: queryController.clear,
+                          ),
+                  ),
+                  ?queryTrailingAction,
+                ],
+              ),
             ),
           ),
           onSubmitted: (_) => onSubmit(),
@@ -297,6 +316,7 @@ class SemanticModePanel extends StatelessWidget {
             children: [
               SearchScopeMenuButton(
                 selected: scopeSelection,
+                officialBooksOnly: true,
                 onChanged: onScopeChanged,
               ),
               FilterChip(
@@ -316,18 +336,33 @@ class SemanticModePanel extends StatelessWidget {
             ],
           ),
         ),
-        if (droppedScope) ...[
+        if (isWholeLibraryScope(scopeSelection)) ...[
           const SizedBox(height: 8),
-          Text(
-            context.settingsText(
-              'במצב זה החיפוש מוגבל לקטגוריות של הספרייה; ספרים בודדים וספרים אישיים אינם נכללים.',
-            ),
+          SemanticNarrowScopeHint(
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],
       ],
+    );
+  }
+}
+
+/// המלצה לצמצם את ההיקף, כשהחיפוש רץ על כל הספרייה.
+class SemanticNarrowScopeHint extends StatelessWidget {
+  const SemanticNarrowScopeHint({super.key, this.style});
+
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      context.settingsText(
+        'החיפוש מדויק יותר כשמצמצמים אותו לספרים או לקטגוריות מסוימות.',
+      ),
+      key: const ValueKey('semantic-narrow-scope-hint'),
+      style: style,
     );
   }
 }

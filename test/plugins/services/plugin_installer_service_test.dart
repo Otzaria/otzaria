@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -100,6 +101,59 @@ void main() {
         tempDir.deleteSync(recursive: true);
       }
     });
+
+    test(
+      'iOS store version preserves minimum and maximum plugin requirements',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+        addTearDown(() {
+          debugDefaultTargetPlatformOverride = null;
+          PackageInfo.setMockInitialValues(
+            appName: 'Otzaria',
+            packageName: 'com.otzaria.app',
+            version: '1.0.0',
+            buildNumber: '1',
+            buildSignature: '',
+          );
+        });
+        PackageInfo.setMockInitialValues(
+          appName: 'Otzaria',
+          packageName: 'com.otzaria.app',
+          version: '0.9.9801',
+          buildNumber: '99801',
+          buildSignature: '',
+        );
+        for (final requirement in [
+          ('0.9.99', null, false),
+          ('0.9.98', '0.9.98', true),
+          ('0.9.97', '0.9.97', false),
+        ]) {
+          final (minimum, maximum, compatible) = requirement;
+          final archivePath = _writeArchive(tempDir, 'version.zip', {
+            'schemaVersion': 1,
+            'id': 'test.ios.version',
+            'version': '1.0.0',
+            'name': 'iOS Version',
+            'entrypoint': 'index.html',
+            'minAppVersion': minimum,
+            'maxAppVersion': ?maximum,
+          });
+          if (compatible) {
+            final prepared = await installer.prepareInstall(archivePath);
+            await Directory(prepared.tempDirPath).delete(recursive: true);
+          } else {
+            await expectLater(
+              installer.prepareInstall(archivePath),
+              throwsA(
+                predicate(
+                  (error) => error.toString().contains('אך מותקנת 0.9.98'),
+                ),
+              ),
+            );
+          }
+        }
+      },
+    );
 
     test('prepareInstall accepts app.user_email.read permission', () async {
       final archivePath = p.join(tempDir.path, 'plugin.zip');

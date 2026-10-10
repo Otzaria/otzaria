@@ -153,6 +153,19 @@ class DeclarativeCommandRegistry {
       requiredArgs: {'key'},
       outputKind: DeclarativeValueKind.any,
     ),
+    'localService.post': DeclarativeCommandDefinition(
+      type: 'localService.post',
+      phase: DeclarativeCommandPhase.action,
+      requiredPermission: 'network.localhost',
+      requiredArgs: {'port', 'path'},
+      optionalArgs: {
+        'body',
+        'pendingMessage',
+        'unavailableMessage',
+        'timeoutMs',
+      },
+      outputKind: DeclarativeValueKind.any,
+    ),
   };
 
   static DeclarativeCommandDefinition require(String type) {

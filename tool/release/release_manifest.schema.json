@@ -35,10 +35,20 @@
         "id": { "type": "string", "minLength": 1 },
         "name": { "type": "string", "minLength": 1 },
         "description": { "type": "string", "minLength": 1 },
+        "nameEn": {
+          "type": "string",
+          "minLength": 1,
+          "description": "השם באנגלית, למסייע שרץ באנגלית. חסר = הצרכן מציג את name."
+        },
+        "descriptionEn": {
+          "type": "string",
+          "minLength": 1,
+          "description": "התיאור באנגלית. חסר = הצרכן מציג את description."
+        },
         "type": {
           "type": "string",
           "minLength": 1,
-          "description": "טקסט חופשי בכוונה (application / library / search-index / dependency / semantic-model ...). סוג לא מוכר אינו שגיאה."
+          "description": "טקסט חופשי בכוונה (application / library / library-index / dependency / semantic-model / semantic-vectors ...). סוג לא מוכר אינו שגיאה."
         },
         "required": { "type": "boolean" },
         "origin": {
@@ -66,7 +76,27 @@
           "type": "array",
           "minItems": 1,
           "items": { "type": "string" },
-          "description": "מזהי הרכיבים שמתקינים את הרכיב הזה (מתקין שקורא אותו מהתיקייה שלצדו). המסייע מציע אותו רק ליעד שבו אחד מהם מוצע, ומוריד אותו יחד איתו. רכיב מסוג library חייב לשאת אותו; מתקין שמופיע כאן אינו נושא installedBy בעצמו."
+          "description": "מזהי הרכיבים שמתקינים את הרכיב הזה (מתקין שקורא אותו מהתיקייה שלצדו). המסייע מציע אותו רק ליעד שבו אחד מהם מוצע, ומוריד אותו יחד איתו. רכיב מסוג library או library-index חייב לשאת אותו; מתקין שמופיע כאן אינו נושא installedBy בעצמו."
+        },
+        "partOf": {
+          "type": "string",
+          "minLength": 1,
+          "description": "מזהה רכיב שהרכיב הזה הוא חלק ממנו, וחייב להופיע ב-dependsOn שלו. בבחירה האישית אין לרכיב שורה משלו: הוא מגיע עם השלם, וגודלו נוסף לשורה של השלם."
+        },
+        "outputFolder": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$",
+          "description": "תיקייה יחסית בתוך תיקיית הפלט של המסייע שבה נכתבים קובצי הרכיב (למשל semantic-import/vectors); מקטע של נקודות בלבד אסור. חסר = ישירות בתיקיית הפלט."
+        },
+        "outputNote": {
+          "type": "string",
+          "minLength": 1,
+          "description": "משפט בעברית שהמסייע מוסיף לעמוד הסיום כשהרכיב הוכן — מה עושים בקבצים שלו במחשב היעד."
+        },
+        "outputNoteEn": {
+          "type": "string",
+          "minLength": 1,
+          "description": "outputNote באנגלית. חסר = הצרכן מציג את outputNote."
         },
         "downloadSize": { "type": "integer", "exclusiveMinimum": 0 },
         "installedSize": { "type": "integer", "exclusiveMinimum": 0 },
@@ -80,7 +110,7 @@
           "items": { "$ref": "#/$defs/asset" }
         }
       },
-      "if": { "properties": { "type": { "const": "library" } } },
+      "if": { "properties": { "type": { "enum": ["library", "library-index"] } } },
       "then": { "required": ["installedBy"] }
     },
     "asset": {

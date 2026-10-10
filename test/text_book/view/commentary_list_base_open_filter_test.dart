@@ -16,7 +16,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../test_helpers/memory_cache_provider.dart';
@@ -144,6 +144,78 @@ void main() {
 
       expect(find.text('בחירת מפרשים'), findsNothing);
       // אין notifier — אין מה לטריגר. הטסט עובר כל עוד לא נזרקה חריגה.
+    });
+  });
+
+  group('CommentaryListBase - links future', () {
+    Future<List<Link>> currentFuture(WidgetTester tester) => tester
+        .widget<FutureBuilder<List<Link>>>(
+          find.byType(FutureBuilder<List<Link>>),
+        )
+        .future!;
+
+    testWidgets('rebuild בלי שינוי בקלטים שומר על אותו future', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        textBookBloc: textBookBloc,
+        settingsBloc: settingsBloc,
+      );
+      final before = currentFuture(tester);
+
+      final state = textBookBloc.state as TextBookLoaded;
+      textBookBloc.emit(state.copyWith(fontSize: 20));
+      await tester.pumpAndSettle();
+
+      expect(identical(currentFuture(tester), before), isTrue);
+    });
+
+    testWidgets('שינוי בקישורים או בשורות יוצר future עם התוצאה החדשה', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        textBookBloc: textBookBloc,
+        settingsBloc: settingsBloc,
+      );
+      final first = currentFuture(tester);
+      final state = textBookBloc.state as TextBookLoaded;
+      final secondLine = Link(
+        heRef: 'בראשית ב',
+        index1: 2,
+        path2: 'מפרש בדיקה.txt',
+        index2: 2,
+        connectionType: 'COMMENTARY',
+        targetCategoryId: 1,
+        targetFileType: 'txt',
+      );
+
+      textBookBloc.emit(
+        state.copyWith(
+          content: const ['שורה א', 'שורה ב'],
+          links: [...state.links, secondLine],
+          linksByLine: {
+            ...state.linksByLine,
+            2: [secondLine],
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      final withNewLinks = currentFuture(tester);
+      expect(identical(withNewLinks, first), isFalse);
+      expect((await withNewLinks).map((l) => l.index1), [1]);
+
+      textBookBloc.emit(
+        (textBookBloc.state as TextBookLoaded).copyWith(
+          visibleIndices: const [1],
+          selectedIndex: 1,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final withNewIndexes = currentFuture(tester);
+      expect(identical(withNewIndexes, withNewLinks), isFalse);
+      expect((await withNewIndexes).map((l) => l.index1), [2]);
     });
   });
 

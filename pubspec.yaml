@@ -64,7 +64,7 @@ dependencies:
   otzaria_icons:
     git:
       url: https://github.com/Otzaria/otzaria_icons
-      ref: 5a614a7046c17e4321af31066cd9f0feae7c2e47
+      ref: 5225cd36c59097fe1f24a39fb60f9c2c0e15e47c
   file_picker: 12.3.0
   provider: ^6.1.5+1
   multi_split_view: ^3.6.2
@@ -100,7 +100,7 @@ dependencies:
   googleapis_auth: ^2.3.4
   characters: ^1.4.1
   collection: ^1.19.1
-  otzaria_search_engine: ^2.0.0
+  otzaria_search_engine: ^3.1.0
   seforim_library_updater:
     git:
       url: https://github.com/Otzaria/otzaria_library_updater
@@ -131,18 +131,18 @@ dependencies:
   wakelock_plus: ^1.8.0
 
 dependency_overrides:
-  # TODO: להחזיר ל-pub.dev רק אחרי שכל ה-PR ימוזגו וישוחררו: espresso3389/pdfrx#724,
-  # #729, #730, #731 ו-#732. עד אז שתי החבילות מוצמדות לאותו קומיט בפורק;
+  # TODO: לחזור ל-pub.dev אחרי שחרור espresso3389/pdfrx#724, #729–#733 ושילוב
+  # תיקון שימור הבחירה מ-palmoni5/pdfrx#1. שתי החבילות מוצמדות לאותו קומיט.
   # pdfrx_engine נדרש עבור Pdfrx.normalizeHebrewText.
   pdfrx:
     git:
-      url: https://github.com/palmoni5/pdfrx
-      ref: 75089f96d3f9dbcb4dcfc73ebbb0b07dc98df3ac
+      url: https://github.com/Y-PLONI/pdfrx
+      ref: d9320ba9a402b50acfee119ab58541b0896d3118
       path: packages/pdfrx
   pdfrx_engine:
     git:
-      url: https://github.com/palmoni5/pdfrx
-      ref: 75089f96d3f9dbcb4dcfc73ebbb0b07dc98df3ac
+      url: https://github.com/Y-PLONI/pdfrx
+      ref: d9320ba9a402b50acfee119ab58541b0896d3118
       path: packages/pdfrx_engine
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
   # (קריאות WinRT ב-thread ייעודי). עד אז הפורק Otzaria, מוצמד לקומיט.
@@ -253,8 +253,7 @@ flutter:
     - assets/bio/
     - assets/logos/
     - assets/ca/
-    - assets/icon/שמור וזכור מקור.png
-    - assets/icon/שמור וזכור שחור ריק.png
+    - assets/icon/shamor_zachor.png
     - assets/icon/shamor_zachor_with_v.png
     - assets/icon/iconnew.png
     - assets/icon/iconnew_256.png

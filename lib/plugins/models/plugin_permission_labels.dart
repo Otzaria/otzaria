@@ -241,7 +241,7 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
   // ===== חיפוש =====
   'search.fulltext.read': PluginPermissionInfo(
     label: 'חיפוש טקסט מלא',
-    icon: OtzariaIcons.search_in_the_library_24_regular,
+    icon: OtzariaIcons.search_in_library_24_regular,
     description: 'ביצוע חיפושי טקסט ברחבי כל הספרייה',
   ),
   'search.dialog': PluginPermissionInfo(
@@ -532,7 +532,7 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
   ),
   'events.subscribe:reader.sectionContentChanged': PluginPermissionInfo(
     label: 'אירועי שינוי תוכן בקורא',
-    icon: OtzariaIcons.text_continuous_24_regular,
+    icon: OtzariaIcons.text_continuous_rtl_24_regular,
     description: 'קבלת עדכון כאשר נוסח של סעיף או אופן ההצגה שלו משתנים בקורא',
   ),
   'events.subscribe:reader.selection_changed': PluginPermissionInfo(

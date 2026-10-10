@@ -1,4 +1,5 @@
 import "dart:async";
+
 import "package:flutter/services.dart";
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
@@ -10,17 +11,23 @@ import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/library/view/book_preview_panel.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
+import 'package:otzaria/semantic_search/bloc/semantic_results_bloc.dart';
+import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/view/widgets/semantic_result_card.dart';
-import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/semantic_search/services/semantic_dwell_binding.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/view/full_text_settings_widgets.dart';
+import 'package:otzaria/search/view/search_results_layout.dart';
 import 'package:otzaria/semantic_search/view/semantic_search_results_screen.dart';
+import 'package:otzaria/semantic_search/view/widgets/semantic_facet_filtering.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -29,8 +36,9 @@ import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show SemanticResultSource;
+    show SemanticResultSource, MergedSibling;
 
 import '../test_helpers/memory_cache_provider.dart';
 import 'semantic_ui_test_support.dart';
@@ -85,6 +93,7 @@ void main() {
   >
   pumpScreen(
     WidgetTester tester, {
+    String query = 'כבוד אב',
     bool runOnFirstShow = true,
     bool preview = false,
     FakeResultsSource? injectedSource,
@@ -101,7 +110,7 @@ void main() {
     final source = injectedSource ?? FakeResultsSource(items: items);
     final tab = SemanticSearchTab(
       runOnFirstShow: runOnFirstShow,
-      options: const SemanticQueryOptions(query: 'כבוד אב'),
+      options: SemanticQueryOptions(query: query),
       createResultsBloc: (_) => buildResultsBloc(
         source: source,
         recorder: recorder,
@@ -164,12 +173,176 @@ void main() {
     return (recorder: recorder, tabs: tabs, tab: tab, source: source);
   }
 
+  testWidgets('restart replaces the list and returns its scroll to zero', (
+    tester,
+  ) async {
+    final source = FakeResultsSource(total: 100);
+    final setup = await pumpScreen(tester, injectedSource: source);
+    final list = find.byType(ListView);
+    await tester.drag(list, const Offset(0, -2000));
+    await settle(tester);
+    final scroll = tester.state<ScrollableState>(
+      find.descendant(of: list, matching: find.byType(Scrollable)).first,
+    );
+    expect(scroll.position.pixels, greaterThan(0));
+    source.restartContinuation = true;
+    final oldSearchId = setup.tab.resultsBloc.state.searchId;
+    setup.tab.resultsBloc.add(const SemanticMoreResultsRequested());
+    await settle(tester);
+    expect(setup.tab.resultsBloc.state.searchId, greaterThan(oldSearchId));
+    expect(setup.tab.resultsBloc.state.items, hasLength(30));
+    expect(scroll.position.pixels, 0);
+  });
+
   testWidgets('הכרטיסים מציגים את תווית המקור', (tester) async {
     await pumpScreen(tester);
 
     expect(find.text(kSemanticSourceBothLabel), findsWidgets);
     expect(find.text(kSemanticSourceSemanticLabel), findsOneWidget);
     expect(find.text(kSemanticSourceLexicalLabel), findsOneWidget);
+  });
+
+  testWidgets('קטע לפי עניין מסומן ברקע בהיר, בלי הדגשה מודגשת', (
+    tester,
+  ) async {
+    final items = [
+      resultItem(1),
+      resultItem(2, source: SemanticResultSource.semantic, html: 'בלי סימון'),
+    ];
+    final source = FakeResultsSource(items: items)
+      ..highlighter = (items, _) async => markAll(items);
+    await pumpScreen(tester, injectedSource: source);
+
+    final card = tester.widget<SemanticResultCard>(
+      find.byKey(const ValueKey('semantic-result-1')),
+    );
+    final spans = card.snippetSpans.whereType<TextSpan>().toList();
+    final mark = spans.singleWhere((s) => s.text == 'הקטע הקרוב 2');
+    final plain = spans.singleWhere((s) => s.text == 'לפני ');
+    final context = tester.element(find.byType(SemanticResultCard).first);
+    expect(
+      mark.style?.backgroundColor,
+      AppSurfaces.semanticPassageHighlight(Theme.of(context).colorScheme),
+    );
+    expect(mark.style?.fontWeight, plain.style?.fontWeight);
+    expect(mark.style?.fontSize, plain.style?.fontSize);
+    expect(mark.style?.color, plain.style?.color);
+    // התאמה מילולית אינה מסומנת לפי עניין.
+    expect(source.highlightCalls.single.items, [items[1]]);
+  });
+
+  testWidgets('סימון והצבעה בונים רק את הכרטיסים, לא את מסגרת המסך', (
+    tester,
+  ) async {
+    final gate = Completer<void>();
+    final items = [
+      resultItem(1),
+      resultItem(2, source: SemanticResultSource.semantic, html: 'בלי סימון'),
+    ];
+    final source = FakeResultsSource(items: items)
+      ..highlighter = (items, _) async {
+        await gate.future;
+        return markAll(items);
+      };
+    await pumpScreen(tester, injectedSource: source);
+    final layout = tester.widget(find.byType(SearchResultsLayout));
+
+    gate.complete();
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('semantic-like-1')));
+    await settle(tester);
+
+    expect(
+      identical(tester.widget(find.byType(SearchResultsLayout)), layout),
+      isTrue,
+    );
+    final card = tester.widget<SemanticResultCard>(
+      find.byKey(const ValueKey('semantic-result-1')),
+    );
+    expect(
+      card.snippetSpans.whereType<TextSpan>().map((s) => s.text),
+      contains('הקטע הקרוב 2'),
+    );
+    expect(
+      tester
+          .widget<SemanticResultCard>(
+            find.byKey(const ValueKey('semantic-result-0')),
+          )
+          .vote,
+      SearchFeedbackVote.like,
+    );
+  });
+
+  test('מסגרת המסך נבנית מחדש על כל שינוי אחר', () {
+    final base = SemanticResultsState(
+      status: SemanticResultsStatus.loaded,
+      items: [resultItem(1)],
+    );
+    expect(
+      semanticLayoutNeedsRebuild(
+        base,
+        base.copyWith(
+          passageHighlights: {0: '<mark>א</mark>'},
+          votes: {0: SearchFeedbackVote.like},
+        ),
+      ),
+      isFalse,
+    );
+    expect(
+      semanticLayoutNeedsRebuild(
+        base,
+        base.copyWith(items: [resultItem(1), resultItem(2)]),
+      ),
+      isTrue,
+    );
+    expect(
+      semanticLayoutNeedsRebuild(base, base.copyWith(isDebugPreview: true)),
+      isTrue,
+    );
+    expect(
+      semanticLayoutNeedsRebuild(
+        base,
+        base.copyWith(status: SemanticResultsStatus.loading),
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('העתקה מעתיקה את הקטע המוצג, גם כשהוא מסומן', (tester) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    final items = [
+      resultItem(1),
+      resultItem(2, source: SemanticResultSource.semantic, html: 'בלי סימון'),
+    ];
+    final source = FakeResultsSource(items: items)
+      ..highlighter = (items, _) async => markAll(items);
+    await pumpScreen(tester, injectedSource: source);
+
+    tester
+        .widget<SemanticResultCard>(
+          find.byKey(const ValueKey('semantic-result-1')),
+        )
+        .onCopy();
+    await settle(tester);
+
+    expect(copied, contains('לפני הקטע הקרוב 2 אחרי'));
+    expect(copied, isNot(contains('בלי סימון')));
+    await tester.pump(const Duration(seconds: 7));
   });
 
   testWidgets('אהבתי, לחיצה חוזרת מבטלת; לא אהבתי', (tester) async {
@@ -207,6 +380,76 @@ void main() {
       SearchFeedbackOpenVia.click,
       SearchFeedbackOpenVia.click,
     ]);
+    SemanticDwellBinding.resetForTesting();
+  });
+
+  testWidgets('פתיחה: תוצאה מילולית מחפשת בספר במצב שבו נמצאה (issue #1874)', (
+    tester,
+  ) async {
+    final harness = await pumpScreen(tester);
+
+    await tester.tap(find.text('ספר 3, א'));
+    await settle(tester);
+
+    final opened = harness.tabs.opened.single.tab as TextBookTab;
+    expect(opened.searchMode, SearchMode.fuzzy);
+    expect(opened.searchDistance, kSmartSearchFuzzyMaxDistance);
+    expect(opened.matchPolicy, SearchMatchPolicy.smart);
+    SemanticDwellBinding.resetForTesting();
+  });
+
+  testWidgets('פתיחה ברקע ובאחים מעבירה את כוונת הציטוט', (tester) async {
+    const query = '"ברא אלהים" ארץ';
+    final harness = await pumpScreen(tester, query: query);
+    final card = tester.widget<SemanticResultCard>(
+      find.byKey(const ValueKey('semantic-result-2')),
+    );
+    card.onOpenInBackground();
+    card.onOpenSiblingInBackground(
+      MergedSibling(
+        title: 'ספר 3',
+        reference: 'ספר 3, א',
+        id: BigInt.from(3),
+        segment: BigInt.from(3),
+        isPdf: false,
+        filePath: 'id:3',
+      ),
+    );
+    await settle(tester);
+    expect(harness.tabs.opened, hasLength(2));
+    for (final event in harness.tabs.opened) {
+      final tab = event.tab as TextBookTab;
+      expect(tab.searchText, query);
+      expect(tab.matchPolicy, SearchMatchPolicy.smart);
+      expect(event.inBackground, isTrue);
+    }
+    SemanticDwellBinding.resetForTesting();
+  });
+
+  testWidgets('התצוגה המקדימה ופתיחה ממנה שומרות כוונת ציטוט', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const query = '"ברא אלהים" ארץ';
+    final harness = await pumpScreen(tester, query: query, preview: true);
+    tester
+        .widget<SemanticResultCard>(
+          find.byKey(const ValueKey('semantic-result-2')),
+        )
+        .onTap();
+    await settle(tester);
+    final panel = tester.widget<BookPreviewPanel>(
+      find.byType(BookPreviewPanel),
+    );
+    expect(panel.searchText, query);
+    expect(panel.matchPolicy, SearchMatchPolicy.smart);
+    panel.onOpenInReader!(0);
+    await settle(tester);
+    expect(
+      (harness.tabs.opened.single.tab as TextBookTab).matchPolicy,
+      SearchMatchPolicy.smart,
+    );
     SemanticDwellBinding.resetForTesting();
   });
 
@@ -257,11 +500,7 @@ void main() {
     await tester.tap(find.text('ספר 1, א'));
     await tester.pump(const Duration(milliseconds: 350));
     oldItems[0] = resultItem(3);
-    await tester.enterText(
-      find.byKey(const ValueKey('semantic-results-query')),
-      'שאילתה חדשה',
-    );
-    await tester.tap(find.byKey(const ValueKey('semantic-results-search')));
+    harness.tab.submit(const SemanticQueryOptions(query: 'שאילתה חדשה'));
     await settle(tester);
     expect(harness.tab.resultsBloc.state.options!.query, 'שאילתה חדשה');
     expect(harness.tab.previewTarget.value, isNull);
@@ -292,11 +531,7 @@ void main() {
     await tester.tap(find.text('ספר 1, א'));
     await tester.pump();
     items[0] = resultItem(3);
-    await tester.enterText(
-      find.byKey(const ValueKey('semantic-results-query')),
-      'שאילתה חדשה',
-    );
-    await tester.tap(find.byKey(const ValueKey('semantic-results-search')));
+    harness.tab.submit(const SemanticQueryOptions(query: 'שאילתה חדשה'));
     await settle(tester);
     expect(harness.tab.resultsBloc.state.items.first.id, BigInt.from(3));
     final library = Library(categories: const []);
@@ -375,47 +610,50 @@ void main() {
     },
   );
 
-  testWidgets('היקף לא נתמך במסך התוצאות חסום בלי לשנות את הבחירה', (
+  testWidgets('הסרגל מציג את מספר התוצאות שמוצגות כעת', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await pumpScreen(tester);
+    expect(find.text('מוצגות כעת 30 תוצאות'), findsOneWidget);
+    expect(
+      tester.widget<SearchTermsDisplay>(find.byType(SearchTermsDisplay)).query,
+      'כבוד אב',
+    );
+    expect(
+      find.textContaining('כבוד', findRichText: true),
+      findsWidgets,
+    );
+    expect(find.byKey(const ValueKey('semantic-results-query')), findsNothing);
+  });
+
+  testWidgets('צמצום מהעץ מחפש בקטגוריה בלי לשנות את ההיקף השמור', (
     tester,
   ) async {
     final harness = await pumpScreen(tester);
-    tester
-        .widget<SearchScopeMenuButton>(find.byType(SearchScopeMenuButton))
-        .onChanged({'/הלכה/id:1'});
+    SemanticFacetFiltering tree() =>
+        tester.widget(find.byType(SemanticFacetFiltering, skipOffstage: false));
+
+    tree().onSetFacet('/הלכה/id:1');
     await settle(tester);
-    expect(
-      find.text(
-        'במצב זה החיפוש מוגבל לקטגוריות של הספרייה; ספרים בודדים וספרים אישיים אינם נכללים.',
-      ),
-      findsOneWidget,
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('semantic-results-query')),
-      'בדיקה',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    expect(harness.tab.resultsBloc.state.options!.facets, ['/הלכה/id:1']);
+    expect(harness.tab.options.facets, ['/']);
+    expect(tree().selectedFacets, ['/הלכה/id:1']);
+
+    tree().onToggleDimension('/era/ראשונים');
     await settle(tester);
-    expect(harness.source.fetches, hasLength(1));
-    expect(
-      tester
-          .widget<SearchScopeMenuButton>(find.byType(SearchScopeMenuButton))
-          .selected,
-      {'/הלכה/id:1'},
-    );
-    tester
-        .widget<SearchScopeMenuButton>(find.byType(SearchScopeMenuButton))
-        .onChanged({'/'});
-    await tester.pump();
-    const rawQuery = '  כָּבוֹד אב  ';
-    await tester.enterText(
-      find.byKey(const ValueKey('semantic-results-query')),
-      rawQuery,
-    );
-    await tester.tap(find.byKey(const ValueKey('semantic-results-search')));
+    expect(harness.tab.resultsBloc.state.options!.facets, [
+      '/era/ראשונים',
+      '/הלכה/id:1',
+    ]);
+
+    tree().onClearAll();
     await settle(tester);
-    expect(harness.tab.options.query, rawQuery);
-    expect(harness.recorder.searches.last.query, rawQuery);
+    expect(harness.tab.resultsBloc.state.options!.facets, ['/']);
+    expect(harness.recorder.searches.last.query, 'כבוד אב');
   });
+
   testWidgets('כרטיסיית מחשב ששוחזרה במכשיר לא נתמך אינה מריצה חיפוש', (
     tester,
   ) async {

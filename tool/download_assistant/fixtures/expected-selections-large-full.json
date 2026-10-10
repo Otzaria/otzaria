@@ -47,24 +47,38 @@
       "offeredComponents": [
         "otzaria-windows-portable-x64",
         "otzaria-windows-x64",
-        "otzaria-windows-full-indexed",
-        "library-full-indexed"
+        "library-full",
+        "library-index",
+        "semantic-model-windows",
+        "semantic-vectors-windows"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-windows-x64",
+          "downloadSize": 39,
+          "locked": true,
+          "group": ""
+        },
+        {
+          "id": "library-full",
+          "downloadSize": 3015,
+          "locked": false,
+          "group": ""
+        },
+        {
+          "id": "library-index",
+          "downloadSize": 600,
+          "locked": false,
+          "group": ""
+        },
+        {
+          "id": "semantic-vectors-windows",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
-        {
-          "id": "full",
-          "members": [
-            "otzaria-windows-full-indexed",
-            "library-full-indexed"
-          ],
-          "outputFiles": [
-            "otzaria-0.10.3-windows-full-indexed.exe",
-            "otzaria-0.10.3-library-full-indexed.tar.zst.part-000",
-            "otzaria-0.10.3-library-full-indexed.tar.zst.part-001",
-            "otzaria-0.10.3-library-full-indexed.tar.zst.part-002"
-          ],
-          "outputSubfolder": "אוצריא להתקנה ל-Windows"
-        },
         {
           "id": "basic",
           "members": [
@@ -73,7 +87,34 @@
           "outputFiles": [
             "otzaria-0.10.3-windows.exe"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-windows-x64",
+            "library-full",
+            "semantic-model-windows",
+            "semantic-vectors-windows"
+          ],
+          "outputFiles": [
+            "otzaria-0.10.3-windows.exe",
+            "otzaria-0.10.3-library.tar.zst.part-000",
+            "otzaria-0.10.3-library.tar.zst.part-001",
+            "otzaria-0.10.3-library.tar.zst.part-002",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
+          ],
+          "outputNotes": [
+            "אוצריא פורסת את הספרייה מהקבצים שבתיקייה בלי אינטרנט: ב-Windows המתקין עושה זאת בזמן ההתקנה, וב-Android בוחרים \"ייבוא מתיקיית קובצי הספרייה\" באוצריא אחרי התקנת ה-APK.",
+            "מתקין אוצריא שבתיקייה הזאת (הרגיל או המלא) מעתיק בעצמו את התיקייה semantic-import אל ליד תיקיית הספרייה. כשתפעיל את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה. בהתקנה מקובץ ה-ZIP הנייד — העתק אותה ידנית אל התיקייה שמכילה את תיקיית הספרייה של אוצריא."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Windows"
         }
       ]
     },
@@ -85,7 +126,37 @@
       },
       "offeredComponents": [
         "otzaria-windows-arm64",
-        "otzaria-windows-portable-arm64"
+        "otzaria-windows-portable-arm64",
+        "library-full",
+        "library-index",
+        "semantic-model-windows",
+        "semantic-vectors-windows"
+      ],
+      "customChoices": [
+        {
+          "id": "otzaria-windows-arm64",
+          "downloadSize": 38,
+          "locked": true,
+          "group": ""
+        },
+        {
+          "id": "library-full",
+          "downloadSize": 3015,
+          "locked": false,
+          "group": ""
+        },
+        {
+          "id": "library-index",
+          "downloadSize": 600,
+          "locked": false,
+          "group": ""
+        },
+        {
+          "id": "semantic-vectors-windows",
+          "downloadSize": 1703,
+          "locked": false,
+          "group": ""
+        }
       ],
       "presets": [
         {
@@ -96,7 +167,34 @@
           "outputFiles": [
             "otzaria-0.10.3-windows_arm64.exe"
           ],
+          "outputNotes": [],
           "outputSubfolder": ""
+        },
+        {
+          "id": "full",
+          "members": [
+            "otzaria-windows-arm64",
+            "library-full",
+            "semantic-model-windows",
+            "semantic-vectors-windows"
+          ],
+          "outputFiles": [
+            "otzaria-0.10.3-windows_arm64.exe",
+            "otzaria-0.10.3-library.tar.zst.part-000",
+            "otzaria-0.10.3-library.tar.zst.part-001",
+            "otzaria-0.10.3-library.tar.zst.part-002",
+            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
+            "semantic-import/meivin-round2-onnx/tokenizer.json",
+            "semantic-import/meivin-round2-onnx/model.json",
+            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
+            "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
+          ],
+          "outputNotes": [
+            "אוצריא פורסת את הספרייה מהקבצים שבתיקייה בלי אינטרנט: ב-Windows המתקין עושה זאת בזמן ההתקנה, וב-Android בוחרים \"ייבוא מתיקיית קובצי הספרייה\" באוצריא אחרי התקנת ה-APK.",
+            "מתקין אוצריא שבתיקייה הזאת (הרגיל או המלא) מעתיק בעצמו את התיקייה semantic-import אל ליד תיקיית הספרייה. כשתפעיל את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה. בהתקנה מקובץ ה-ZIP הנייד — העתק אותה ידנית אל התיקייה שמכילה את תיקיית הספרייה של אוצריא."
+          ],
+          "outputSubfolder": "אוצריא להתקנה ל-Windows"
         }
       ]
     }

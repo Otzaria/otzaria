@@ -1,7 +1,11 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/book_source.dart';
+import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
 
 Link makeLink({
   String heRef = 'בראשית א',
@@ -131,6 +135,34 @@ void main() {
       expect(map[5], hasLength(1));
       expect(map[2], isNull);
     });
+
+    test('תוצאה זהה לחיפוש נאיבי גם בשאילתה חוזרת לאותה שורה', () {
+      final random = Random(7);
+      final links = [
+        for (var i = 0; i < 2000; i++)
+          makeLink(
+            index1: random.nextInt(300),
+            index1End: random.nextInt(4) == 0 ? 300 + random.nextInt(50) : null,
+            index2: i,
+          ),
+      ];
+      List<Link>? naive(int line) {
+        final found = [
+          for (final link in links)
+            if (link.index1 == line ||
+                (link.index1 < line && (link.index1End ?? 0) >= line))
+              link,
+        ];
+        return found.isEmpty ? null : found;
+      }
+
+      final map = buildLinksByLineMap(links);
+      for (var pass = 0; pass < 2; pass++) {
+        for (var line = -1; line <= 360; line++) {
+          expect(map[line], naive(line), reason: 'line $line pass $pass');
+        }
+      }
+    });
   });
 
   group('computeVisibleLinks', () {
@@ -228,6 +260,57 @@ void main() {
         'דרך/אאא.txt',
         'דרך/בבב.txt',
       ]);
+    });
+
+    test('מיון לפי כותרות מחושבות מראש זהה למיון עם חיפוש במפה (perf)', () {
+      final rnd = Random(7);
+      const types = ['reference', 'commentary', 'targum', 'other'];
+      final links = [
+        for (var i = 0; i < 2000; i++)
+          makeLink(
+            index1: 1 + rnd.nextInt(60),
+            index1End: rnd.nextInt(5) == 0 ? 61 + rnd.nextInt(5) : null,
+            // מעט שמות — הרבה כותרות שוות, כדי לבדוק גם את סדר השווים.
+            path2:
+                'ספרים/${rnd.nextBool() ? 'א' : 'ב'}/ספר ${rnd.nextInt(30)}.txt',
+            index2: i,
+            connectionType: types[rnd.nextInt(types.length)],
+            start: rnd.nextInt(8) == 0 ? 0 : null,
+          ),
+      ];
+      final linksByLine = buildLinksByLineMap(links);
+      for (final selected in [
+        <int>{},
+        {3, 1, 40},
+      ]) {
+        final visibleIndices = [for (var i = 0; i < 70; i += 2) i];
+        final expected = <Link>[];
+        final seen = <Link>{};
+        for (final index in selected.isNotEmpty ? selected : visibleIndices) {
+          for (final link in linksByLine[index + 1] ?? const <Link>[]) {
+            if (!LinkTypes.isDependentTextLink(link.connectionType) &&
+                link.start == null &&
+                link.end == null &&
+                seen.add(link)) {
+              expected.add(link);
+            }
+          }
+        }
+        final titles = {for (final l in expected) l: getTitleFromPath(l.path2)};
+        expected.sort((a, b) => titles[a]!.compareTo(titles[b]!));
+
+        final actual = computeVisibleLinks(
+          links: links,
+          visibleIndices: visibleIndices,
+          selectedIndices: selected,
+          linksByLine: linksByLine,
+        );
+
+        expect(actual.length, expected.length);
+        for (var i = 0; i < expected.length; i++) {
+          expect(identical(actual[i], expected[i]), isTrue, reason: 'מיקום $i');
+        }
+      }
     });
   });
 

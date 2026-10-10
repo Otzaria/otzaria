@@ -88,6 +88,7 @@ class TabsRepository {
     int originalTabsCount,
   ) {
     if (persistedIndexByOriginalIndex.isEmpty) return 0;
+    currentTabIndex = currentTabIndex.clamp(0, originalTabsCount - 1);
 
     final directMatch = persistedIndexByOriginalIndex[currentTabIndex];
     if (directMatch != null) return directMatch;
@@ -186,19 +187,28 @@ class TabsRepository {
   ///
   /// ⚠️ סינכרוני — נקרא מבנאי של bloc. מחייב שהמסד כבר נפתח באתחול.
   List<OpenedTab> loadTabs() {
+    _restoredCurrentIndex = null;
     final slot = _sessionSlot;
     if (slot == null) return const [];
     try {
       final session = _store.loadOpened(slot);
       if (session == null) return const [];
       final tabs = <OpenedTab>[];
-      for (final e in _decodeTabs(session.tabsJson)) {
+      final indexByOriginal = <int, int>{};
+      final rawTabs = _decodeTabs(session.tabsJson);
+      for (var i = 0; i < rawTabs.length; i++) {
         try {
-          tabs.add(OpenedTab.fromJson(castMap(e)));
+          tabs.add(OpenedTab.fromJson(castMap(rawTabs[i])));
+          indexByOriginal[i] = tabs.length - 1;
         } catch (tabError) {
           debugPrint('⚠️ Skipping tab that failed to restore: $tabError');
         }
       }
+      _restoredCurrentIndex = _resolvePersistedCurrentTabIndex(
+        indexByOriginal,
+        session.currentIndex,
+        rawTabs.length,
+      );
       return tabs;
     } catch (e) {
       debugPrint('⚠️ Error loading tabs from disk: $e');
@@ -206,7 +216,13 @@ class TabsRepository {
     }
   }
 
+  /// האינדקס הפעיל ממופה לטאבים ש-[loadTabs] האחרון החזיר; נצרך פעם אחת.
+  int? _restoredCurrentIndex;
+
   int loadCurrentTabIndex() {
+    final restored = _restoredCurrentIndex;
+    _restoredCurrentIndex = null;
+    if (restored != null) return restored;
     final slot = _sessionSlot;
     if (slot == null) return 0;
     try {

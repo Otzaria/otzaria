@@ -16,12 +16,8 @@ ItemPosition? reanchorTargetPosition(Iterable<ItemPosition> positions) {
   return best;
 }
 
-/// מעגן מחדש `ScrollablePositionedList` על הפריט שבראש התצוגה בכל פעם
-/// שהגלילה נחה.
-///
-/// החבילה שומרת מיקום כ"פריט עוגן + היסט בפיקסלים", והעוגן מתעדכן רק בקפיצה
-/// תכנותית. בלי העיגון הזה שינוי רוחב (חלונית שנפתחת, שינוי גודל החלון) שופך
-/// את הטקסט מחדש, וההיסט הישן נוחת במקום אחר לגמרי.
+/// מעגן מחדש את הרשימה ברגיעה כדי ששינוי רוחב לא יסחוף את מקום הקריאה.
+/// החבילה שומרת היסט מעוגן שמתעדכן רק בקפיצה תכנותית.
 class ScrollPositionReanchor extends StatefulWidget {
   const ScrollPositionReanchor({
     super.key,
@@ -55,6 +51,10 @@ class _ScrollPositionReanchorState extends State<ScrollPositionReanchor> {
   double? _lastAlignment;
   double? _lastWidth;
   double? _selectedEdge;
+
+  /// החוב שייך למקור הגלילה המקוננת; ניווט שמפרק אותו משנה גם את העוגן.
+  ({double pixels, BuildContext? context})? _owedAt;
+  double _pixels = 0;
 
   @override
   void initState() {
@@ -99,17 +99,26 @@ class _ScrollPositionReanchorState extends State<ScrollPositionReanchor> {
   void _onWidth(double width) {
     final previous = _lastWidth;
     _lastWidth = width;
-    final index = widget.preferredIndex;
-    final edge = _selectedEdge;
+    var index = widget.preferredIndex;
+    var edge = _selectedEdge;
     if (previous == null || previous == width || !widget.enabled) return;
-    if (index == null || edge == null) return;
+    if (index == null || edge == null) {
+      final owed = _owedAt != null
+          ? reanchorTargetPosition(widget.positionsListener.itemPositions.value)
+          : null;
+      if (owed == null) return;
+      index = owed.index;
+      edge = owed.itemLeadingEdge;
+    }
     // קפיצה לפני שהגלילה נחה מפילה את layout cycles של החבילה.
     if (_idleTimer?.isActive ?? false) return;
+    _owedAt = null;
+    final (targetIndex, alignment) = (index, edge);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !widget.scrollController.isAttached) return;
-      _lastIndex = index;
-      _lastAlignment = edge;
-      widget.scrollController.jumpTo(index: index, alignment: edge);
+      _lastIndex = targetIndex;
+      _lastAlignment = alignment;
+      widget.scrollController.jumpTo(index: targetIndex, alignment: alignment);
     });
   }
 
@@ -127,7 +136,23 @@ class _ScrollPositionReanchorState extends State<ScrollPositionReanchor> {
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (!widget.enabled) return false;
+        // גלילה ברשימה מקוננת (כרטיס המפרשים): קפיצה הייתה בונה את הפריט מחדש
+        // ומאפסת אותה — ולכן גם עיגון שכבר תוזמן מגלילה חיצונית מתבטל.
+        if (notification.depth != 0) {
+          if (_idleTimer?.isActive ?? false) {
+            _owedAt = (pixels: _pixels, context: notification.context);
+          }
+          _idleTimer?.cancel();
+          return false;
+        }
         final metrics = notification.metrics;
+        _pixels = metrics.pixels;
+        final owedAt = _owedAt;
+        // רשימה מקוננת אינה גבוהה מהמסך, ולכן שני מסכים ממנה היא כבר מחוצה לו.
+        if (owedAt != null &&
+            (_pixels - owedAt.pixels).abs() >= 2 * metrics.viewportDimension) {
+          _owedAt = null;
+        }
         // `pixels` הוא ההיסט מהעוגן, והוא מתאפס בכל עיגון. כל עוד לא
         // התרחקנו ממנו מסך שלם, שינוי רוחב יזיז את הטקסט פחות ממסך —
         // ועיגון כאן היה בונה מחדש את כל טווח המטמון על כל נקישת גלגלת.
@@ -141,6 +166,9 @@ class _ScrollPositionReanchorState extends State<ScrollPositionReanchor> {
   }
 
   void _reanchor() {
+    final owedAt = _owedAt;
+    if (owedAt != null && owedAt.context?.mounted != false) return;
+    _owedAt = null;
     if (!mounted || !widget.enabled || !widget.scrollController.isAttached) {
       return;
     }

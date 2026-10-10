@@ -4,22 +4,6 @@ import 'package:kosher_dart/kosher_dart.dart';
 class HebrewUtils {
   HebrewUtils._();
 
-  /// Month names according to the Hebrew calendar (non-leap year order).
-  static const List<String> hebrewMonths = [
-    'ניסן',
-    'אייר',
-    'סיון',
-    'תמוז',
-    'אב',
-    'אלול',
-    'תשרי',
-    'חשוון',
-    'כסלו',
-    'טבת',
-    'שבט',
-    'אדר',
-  ];
-
   /// Convert integer to Hebrew gematria with the standard geresh/gershayim marks.
   static String intToGematria(int number) {
     final base = intToHebrewWithoutQuotes(number);
@@ -139,47 +123,6 @@ class HebrewUtils {
     }
 
     return remainderWithMarks;
-  }
-
-  /// Format an ISO date string or DateTime into a readable Hebrew date.
-  static String formatHebrewDate(dynamic dateInput) {
-    DateTime? date;
-    if (dateInput is DateTime) {
-      date = dateInput;
-    } else if (dateInput is String && dateInput.isNotEmpty) {
-      date = DateTime.tryParse(dateInput);
-    }
-
-    if (date == null) {
-      if (dateInput is String) {
-        return dateInput;
-      }
-      return '';
-    }
-
-    try {
-      final jewishDate = JewishDate.fromDateTime(date);
-      final isLeapYear = jewishDate.isJewishLeapYear();
-      final jewishMonth = jewishDate.getJewishMonth();
-
-      String monthName;
-      if (isLeapYear && jewishMonth == 12) {
-        monthName = 'אדר א׳';
-      } else if (isLeapYear && jewishMonth == 13) {
-        monthName = 'אדר ב׳';
-      } else {
-        final index = jewishMonth - 1;
-        final safeIndex = index.clamp(0, hebrewMonths.length - 1).toInt();
-        monthName = hebrewMonths[safeIndex];
-      }
-
-      final day = intToHebrewWithoutQuotes(jewishDate.getJewishDayOfMonth());
-      final year = formatHebrewYear(jewishDate.getJewishYear());
-
-      return '$day $monthName, $year';
-    } catch (_) {
-      return dateInput is String ? dateInput : date.toIso8601String();
-    }
   }
 
   static String _addGershayim(String value) {

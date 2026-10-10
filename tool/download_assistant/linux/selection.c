@@ -105,6 +105,63 @@ gboolean otz_component_is_offered(const OtzManifest *manifest,
          otz_installer_for(manifest, component, target) != NULL;
 }
 
+static gboolean is_installer_type(const char *type) {
+  return strcmp(type, "application") == 0 ||
+         strcmp(type, "application-bundle") == 0;
+}
+
+GPtrArray *otz_custom_choices(const OtzManifest *manifest,
+                              const OtzTarget *target) {
+  gboolean takes_library = FALSE;
+  for (guint i = 0; i < manifest->components->len; i++) {
+    const OtzComponent *component = g_ptr_array_index(manifest->components, i);
+    if (!otz_component_is_offered(manifest, component, target)) continue;
+    const OtzComponent *installer =
+        otz_installer_for(manifest, component, target);
+    if (installer != NULL && strcmp(installer->type, "application") == 0)
+      takes_library = TRUE;
+  }
+  GPtrArray *rows = g_ptr_array_new();
+  guint installers = 0;
+  for (guint i = 0; i < manifest->components->len; i++) {
+    const OtzComponent *component = g_ptr_array_index(manifest->components, i);
+    if (!otz_component_is_offered(manifest, component, target) ||
+        strcmp(component->type, "application-portable") == 0 ||
+        *component->part_of != '\0' ||
+        (takes_library &&
+         strcmp(component->type, "application-bundle") == 0))
+      continue;
+    g_ptr_array_add(rows, (gpointer)component);
+    if (is_installer_type(component->type)) installers++;
+  }
+  GPtrArray *choices = g_ptr_array_new_with_free_func(g_free);
+  for (guint i = 0; i < rows->len; i++) {
+    const OtzComponent *component = g_ptr_array_index(rows, i);
+    OtzCustomChoice *choice = g_new0(OtzCustomChoice, 1);
+    gboolean installer = is_installer_type(component->type);
+    choice->component = component;
+    choice->locked = installer && installers <= 1;
+    choice->group =
+        installer && installers > 1 ? OTZ_APPLICATION_CHOICE_GROUP : "";
+    g_ptr_array_add(choices, choice);
+  }
+  g_ptr_array_unref(rows);
+  return choices;
+}
+
+gint64 otz_custom_choice_size(const OtzManifest *manifest,
+                              const OtzComponent *component,
+                              const OtzTarget *target) {
+  gint64 total = component->download_size;
+  for (guint i = 0; i < manifest->components->len; i++) {
+    const OtzComponent *part = g_ptr_array_index(manifest->components, i);
+    if (strcmp(part->part_of, component->id) == 0 &&
+        otz_component_is_offered(manifest, part, target))
+      total += part->download_size;
+  }
+  return total;
+}
+
 GPtrArray *otz_platform_choices(const OtzManifest *manifest) {
   GPtrArray *choices = new_strings();
   for (gsize p = 0; otz_assistant_platforms[p] != NULL; p++) {
@@ -285,58 +342,118 @@ static gboolean same_list(GPtrArray *a, GPtrArray *b) {
   return TRUE;
 }
 
+/* The bundle and every offered component that lists it in installedBy. */
+static void add_with_installed(GPtrArray *out, const OtzManifest *manifest,
+                               const OtzComponent *bundle,
+                               const OtzTarget *target) {
+  g_ptr_array_add(out, g_strdup(bundle->id));
+  for (guint i = 0; i < manifest->components->len; i++) {
+    const OtzComponent *component = g_ptr_array_index(manifest->components, i);
+    if (otz_string_array_contains(component->installed_by, bundle->id) &&
+        otz_component_is_offered(manifest, component, target))
+      g_ptr_array_add(out, g_strdup(component->id));
+  }
+}
+
+static gint64 installed_size(const OtzManifest *manifest,
+                             const OtzComponent *bundle,
+                             const OtzTarget *target) {
+  g_autoptr(GPtrArray) members = new_strings();
+  add_with_installed(members, manifest, bundle, target);
+  return otz_members_download_size(manifest, members);
+}
+
+/* The indexed bundle: an offered library lists it in installedBy. */
+static gboolean installs_library(const OtzManifest *manifest,
+                                 const OtzComponent *bundle,
+                                 const OtzTarget *target) {
+  for (guint i = 0; i < manifest->components->len; i++) {
+    const OtzComponent *component = g_ptr_array_index(manifest->components, i);
+    if (strcmp(component->type, "library") == 0 &&
+        otz_string_array_contains(component->installed_by, bundle->id) &&
+        otz_component_is_offered(manifest, component, target))
+      return TRUE;
+  }
+  return FALSE;
+}
+
 GPtrArray *otz_build_presets(const OtzManifest *manifest,
                              const OtzTarget *target) {
   static const char *const full_types[] = {"application", "library",
                                            "dependency", NULL};
   static const char *const application_types[] = {"application", NULL};
   static const char *const library_types[] = {"library", NULL};
+  static const char *const index_types[] = {"library-index", NULL};
+  /* Smart-search data, read by the installed app from the output folder: part
+   * of "full" and "full-indexed" only. */
+  static const char *const offline_data_types[] = {"semantic-model",
+                                                   "semantic-vectors", NULL};
+  static const char *const display_order[] = {"basic", "full-indexed", "full",
+                                              "update", NULL};
 
   const OtzComponent *bundle = NULL;
+  const OtzComponent *indexed = NULL;
   for (guint i = 0; i < manifest->components->len; i++) {
     const OtzComponent *component = g_ptr_array_index(manifest->components, i);
     if (!otz_component_is_offered(manifest, component, target)) continue;
     if (strcmp(component->type, "application-bundle") != 0) continue;
     if (bundle == NULL || component->download_size > bundle->download_size)
       bundle = component;
+    if (installs_library(manifest, component, target) &&
+        (indexed == NULL || installed_size(manifest, component, target) >
+                                installed_size(manifest, indexed, target)))
+      indexed = component;
   }
 
+  /* Evaluation order: a duplicate of an earlier candidate is dropped. */
   struct {
     const char *id;
     const char *caption;
     const char *description;
     GPtrArray *members;
-  } candidates[3] = {
-      {"full", "התקנה מלאה (למחשב בלי אינטרנט)",
-       "התוכנה יחד עם כל ספריית הספרים — למחשב שאין בו אינטרנט.",
+  } candidates[4] = {
+      {"full-indexed", "התקנה מלאה + אינדקס חיפוש",
+       "למחשב שאין בו אינטרנט — אינדקס החיפוש מוכן, והחיפוש עובד מיד. כולל חיפוש חכם.",
+       new_strings()},
+      {"full", "התקנה מלאה",
+       "למחשב שאין בו אינטרנט — אינדקס החיפוש ייבנה בתוכנה, וזה לוקח זמן. כולל חיפוש חכם.",
        new_strings()},
       {"basic", "התקנה בסיסית (מומלצת)",
-       "מומלץ כשבמחשב שבו תותקן אוצריא יש אינטרנט — הספרייה תרד מתוך התוכנה.", new_strings()},
+       "למחשב שיש בו אינטרנט — הספרייה תרד מתוך התוכנה.", new_strings()},
       {"update", "עדכון התוכנה בלבד",
        "קובץ ההתקנה של הגרסה החדשה, לעדכון התקנה קיימת.", new_strings()},
   };
+  if (indexed != NULL) {
+    add_with_installed(candidates[0].members, manifest, indexed, target);
+    collect(candidates[0].members, manifest, target, offline_data_types, FALSE);
+  }
   if (bundle != NULL) {
     /* The bundle comes with whatever it installs from the folder beside it. */
-    g_ptr_array_add(candidates[0].members, g_strdup(bundle->id));
-    for (guint i = 0; i < manifest->components->len; i++) {
-      const OtzComponent *component = g_ptr_array_index(manifest->components, i);
-      if (otz_string_array_contains(component->installed_by, bundle->id) &&
-          otz_component_is_offered(manifest, component, target))
-        g_ptr_array_add(candidates[0].members, g_strdup(component->id));
-    }
+    add_with_installed(candidates[1].members, manifest, bundle, target);
+    collect(candidates[1].members, manifest, target, offline_data_types, FALSE);
   } else {
     g_autoptr(GPtrArray) libraries = new_strings();
     collect(libraries, manifest, target, library_types, FALSE);
     /* Without a library there is no "full" install. */
-    if (libraries->len > 0)
+    if (libraries->len > 0) {
+      collect(candidates[1].members, manifest, target, full_types, FALSE);
+      collect(candidates[1].members, manifest, target, offline_data_types,
+              FALSE);
+    }
+    /* On Android also "full-indexed": building the index on a phone is very
+     * slow. */
+    if (libraries->len > 0 && strcmp(target->platform, "android") == 0) {
       collect(candidates[0].members, manifest, target, full_types, FALSE);
+      collect(candidates[0].members, manifest, target, index_types, FALSE);
+      collect(candidates[0].members, manifest, target, offline_data_types,
+              FALSE);
+    }
   }
-  collect(candidates[1].members, manifest, target, application_types, FALSE);
-  collect(candidates[1].members, manifest, target, NULL, TRUE);
   collect(candidates[2].members, manifest, target, application_types, FALSE);
+  collect(candidates[2].members, manifest, target, NULL, TRUE);
+  collect(candidates[3].members, manifest, target, application_types, FALSE);
 
-  GPtrArray *presets =
-      g_ptr_array_new_with_free_func((GDestroyNotify)otz_preset_free);
+  OtzPreset *chosen[G_N_ELEMENTS(candidates)] = {NULL};
   for (gsize c = 0; c < G_N_ELEMENTS(candidates); c++) {
     GPtrArray *members = candidates[c].members;
     GPtrArray *closed = members->len == 0
@@ -345,9 +462,8 @@ GPtrArray *otz_build_presets(const OtzManifest *manifest,
     g_ptr_array_unref(members);
     if (closed == NULL) continue;
     gboolean duplicate = closed->len == 0;
-    for (guint p = 0; !duplicate && p < presets->len; p++) {
-      const OtzPreset *earlier = g_ptr_array_index(presets, p);
-      duplicate = same_list(earlier->members, closed);
+    for (gsize p = 0; !duplicate && p < c; p++) {
+      if (chosen[p] != NULL) duplicate = same_list(chosen[p]->members, closed);
     }
     if (duplicate) {
       g_ptr_array_unref(closed);
@@ -358,9 +474,29 @@ GPtrArray *otz_build_presets(const OtzManifest *manifest,
     preset->caption = candidates[c].caption;
     preset->description = candidates[c].description;
     preset->members = closed;
-    g_ptr_array_add(presets, preset);
+    chosen[c] = preset;
+  }
+
+  GPtrArray *presets =
+      g_ptr_array_new_with_free_func((GDestroyNotify)otz_preset_free);
+  for (gsize d = 0; display_order[d] != NULL; d++) {
+    for (gsize c = 0; c < G_N_ELEMENTS(candidates); c++) {
+      if (chosen[c] != NULL && strcmp(chosen[c]->id, display_order[d]) == 0)
+        g_ptr_array_add(presets, chosen[c]);
+    }
   }
   return presets;
+}
+
+int otz_default_preset_index(GPtrArray *presets) {
+  static const char *const preferred[] = {OTZ_DEFAULT_PRESET_ID, "full", NULL};
+  for (gsize p = 0; preferred[p] != NULL; p++) {
+    for (guint i = 0; i < presets->len; i++) {
+      const OtzPreset *preset = g_ptr_array_index(presets, i);
+      if (strcmp(preset->id, preferred[p]) == 0) return (int)i;
+    }
+  }
+  return presets->len > 0 ? 0 : -1;
 }
 
 gboolean otz_should_assemble_split_asset(const OtzAsset *asset,
@@ -385,20 +521,36 @@ GPtrArray *otz_planned_output_files(const OtzManifest *manifest,
   for (guint i = 0; i < manifest->components->len; i++) {
     const OtzComponent *component = g_ptr_array_index(manifest->components, i);
     if (!otz_string_array_contains(selected_ids, component->id)) continue;
+    const char *folder = component->output_folder;
+    const char *slash = *folder != '\0' ? "/" : "";
     for (guint a = 0; a < component->assets->len; a++) {
       const OtzAsset *asset = g_ptr_array_index(component->assets, a);
       if (strcmp(asset->kind, "split") == 0 &&
           !otz_should_assemble_split_asset(asset, target->platform)) {
         for (guint p = 0; p < asset->parts->len; p++) {
           const OtzPart *part = g_ptr_array_index(asset->parts, p);
-          g_ptr_array_add(files, g_strdup(part->name));
+          g_ptr_array_add(files, g_strconcat(folder, slash, part->name, NULL));
         }
       } else {
-        g_ptr_array_add(files, g_strdup(asset->name));
+        g_ptr_array_add(files, g_strconcat(folder, slash, asset->name, NULL));
       }
     }
   }
   return files;
+}
+
+GPtrArray *otz_planned_output_notes(const OtzManifest *manifest,
+                                    GPtrArray *selected_ids) {
+  GPtrArray *notes = new_strings();
+  for (guint i = 0; i < manifest->components->len; i++) {
+    const OtzComponent *component = g_ptr_array_index(manifest->components, i);
+    if (!otz_string_array_contains(selected_ids, component->id)) continue;
+    if (*component->output_note == '\0' ||
+        otz_string_array_contains(notes, component->output_note))
+      continue;
+    g_ptr_array_add(notes, g_strdup(component->output_note));
+  }
+  return notes;
 }
 
 char *otz_planned_output_subfolder(GPtrArray *files,

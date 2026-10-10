@@ -195,7 +195,7 @@ void main() {
     });
 
     test(
-      'sortGroupsByEra: קבוצת "הערות על XX" ממוינת מיד אחרי קבוצת XX',
+      'sortGroupsByEraSync: קבוצת "הערות על XX" ממוינת מיד אחרי קבוצת XX',
       () async {
         // אין DB => כל הספרים בדור "שאר מפרשים", כך שהמיון נקבע לפי העיגון
         // בלבד. באלפבית "הערות" (ה) קודם ל"חברותא" (ח) — כאן זה מתהפך.
@@ -212,7 +212,7 @@ void main() {
           ],
         );
 
-        final sorted = await CommentaryService.sortGroupsByEra([
+        final sorted = CommentaryService.sortGroupsByEraSync([
           groupFor('הערות על חברותא על ברכות'),
           groupFor('אבן עזרא'),
           groupFor('חברותא על ברכות'),
@@ -227,7 +227,7 @@ void main() {
     );
 
     test(
-      'sortGroupsByEra: קבוצת-הערות שבסיסה נעדר ממוינת לפי שמה-שלה',
+      'sortGroupsByEraSync: קבוצת-הערות שבסיסה נעדר ממוינת לפי שמה-שלה',
       () async {
         LinkGroup groupFor(String title) => LinkGroup(
           bookTitle: title,
@@ -243,7 +243,7 @@ void main() {
         );
 
         // "חברותא על ברכות" נעדר => ההערות נופלות חזרה למיון א"ב (ה' לפני ט').
-        final sorted = await CommentaryService.sortGroupsByEra([
+        final sorted = CommentaryService.sortGroupsByEraSync([
           groupFor('טור'),
           groupFor('הערות על חברותא על ברכות'),
         ]);

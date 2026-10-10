@@ -577,6 +577,7 @@ SearchResult _searchResult({required int id, required String text}) {
     mergedCount: 1,
     merged: const [],
     textStatus: TextStatus.ok,
+    continuesToNextLine: false,
   );
 }
 
@@ -603,43 +604,19 @@ class _FakeSearchRepository extends SearchRepository {
   Map<String, Map<String, bool>>? lastSearchOptions;
 
   @override
-  Future<List<SearchResult>> searchTexts(
-    String query,
-    List<String> facets,
-    int limit, {
-    int offset = 0,
-    ResultsOrder order = ResultsOrder.relevance,
-    bool fuzzy = false,
-    int distance = 0,
-    String negativeQuery = '',
-    int? negativeDistance,
-    SearchScope scope = SearchScope.wordDistance,
-    SearchScope? negativeScope,
-    SearchMode searchMode = SearchMode.exact,
-    bool matchNikud = false,
-    bool matchTaamim = false,
-    Map<String, String>? customSpacing,
-    Map<String, String>? negativeCustomSpacing,
-    Map<int, List<String>>? alternativeWords,
-    Map<int, List<String>>? negativeAlternativeWords,
-    Map<String, Map<String, bool>>? searchOptions,
-    Map<String, Map<String, bool>>? negativeSearchOptions,
-    ResultGrouping? grouping,
-    WordMatchMode wordMatchMode = WordMatchMode.all,
-    int? wordMatchCount,
-  }) async {
+  Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async {
     searchCalls++;
-    lastQuery = query;
-    lastFacets = List<String>.from(facets);
-    lastLimit = limit;
-    lastOffset = offset;
-    lastOrder = order;
-    lastFuzzy = fuzzy;
-    lastDistance = distance;
-    lastSearchMode = searchMode;
-    lastCustomSpacing = customSpacing;
-    lastAlternativeWords = alternativeWords;
-    lastSearchOptions = searchOptions;
+    lastQuery = request.query;
+    lastFacets = List<String>.from(request.facets);
+    lastLimit = request.limit;
+    lastOffset = request.offset;
+    lastOrder = request.order;
+    lastFuzzy = request.searchMode == SearchMode.fuzzy;
+    lastDistance = request.distance;
+    lastSearchMode = request.searchMode;
+    lastCustomSpacing = request.customSpacing;
+    lastAlternativeWords = request.alternativeWords;
+    lastSearchOptions = request.searchOptions;
 
     if (throwOnSearch) {
       throw StateError('search failed');

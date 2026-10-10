@@ -1,8 +1,5 @@
-import 'package:otzaria/bookmarks/bloc/bookmark_bloc.dart';
-import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'dart:async';
 import 'dart:collection';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -12,114 +9,21 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/core/connectivity_status_service.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/history/bloc/history_bloc.dart';
-import 'package:otzaria/library/bloc/library_bloc.dart';
-import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
-import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
-import 'package:otzaria/settings/engine/settings_repository.dart';
-import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
-import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
-import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
-import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
-import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_download_handler.dart';
 import 'package:otzaria/plugins/services/plugin_webview_permission_gate.dart';
-import 'package:otzaria/plugins/services/plugin_file_server.dart';
 import 'package:otzaria/plugins/services/plugin_headless_shell.dart';
-import 'package:otzaria/plugins/services/plugin_ref_line_resolver.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
-import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/view/plugin_drop_guard_script.dart';
-import 'package:otzaria/plugins/bridge/plugin_save_target.dart';
-import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
-import 'package:otzaria/plugins/services/plugin_network_gate.dart';
+import 'package:otzaria/plugins/view/plugin_sdk_scripts.dart';
+import 'package:otzaria/plugins/view/plugin_webview_host.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
-import 'package:otzaria/search/search_repository.dart';
-import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
-import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
-import 'package:otzaria/find_ref/repository/find_ref_factory.dart';
-import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
-import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
-import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
-import 'package:otzaria/settings/services/safer_mode_guard.dart';
-import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
-import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
-
-// Restricts localhost access to the exact dev server origin (host + scheme + port).
-bool _isDevServerUri(Uri uri, String? devRootPath) {
-  if (devRootPath == null) return false;
-  final devUri = Uri.tryParse(devRootPath);
-  if (devUri == null) return false;
-  final reqHost = uri.host.toLowerCase();
-  final devHost = devUri.host.toLowerCase();
-  const localhosts = {'localhost', '127.0.0.1', '::1'};
-  if (!localhosts.contains(reqHost) || reqHost != devHost) return false;
-  if (uri.scheme != devUri.scheme) return false;
-  final devPort = devUri.hasPort
-      ? devUri.port
-      : (devUri.scheme == 'https' ? 443 : 80);
-  final reqPort = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
-  return reqPort == devPort;
-}
-
-/// Stub SDK זהה ל-plugin_tab_page — מבטיח שכל קריאת `Otzaria.on()` שמופעלת
-/// לפני שה-SDK האמיתי מוזרק נשמרת בתור עד ל-_boot.
-const String _sdkStub = r'''
-(function () {
-  var _queue = [];
-  var _realSdk = null;
-  var _notReadyStream = function () {
-    return {
-      next: function () {
-        return Promise.reject(new Error('Otzaria SDK not ready yet'));
-      },
-      [Symbol.asyncIterator]: function () { return this; }
-    };
-  };
-
-  window.Otzaria = {
-    call: function (method, payload) {
-      if (_realSdk) return _realSdk.call(method, payload);
-      if (method === 'search.query' || method === 'network.fetchStream') {
-        return _notReadyStream();
-      }
-      return Promise.reject(new Error('Otzaria SDK not ready yet'));
-    },
-    on: function (event, cb) {
-      if (_realSdk) { _realSdk.on(event, cb); }
-      else { _queue.push({ event: event, cb: cb }); }
-    },
-    off: function (event, cb) {
-      if (_realSdk) _realSdk.off(event, cb);
-    },
-    _boot: function (sdk, payload) {
-      _realSdk = sdk;
-      // סמן חיוּת לדיספצ'ר — ראו plugin_tab_page.dart.
-      window.Otzaria._booted = true;
-      _queue.forEach(function (item) { sdk.on(item.event, item.cb); });
-      _queue = [];
-      window.dispatchEvent(new CustomEvent('plugin.boot', { detail: payload }));
-      window.dispatchEvent(new CustomEvent('plugin.ready', { detail: null }));
-    }
-  };
-
-  window.open = function () {
-    console.error('window.open is locked for security.');
-    return null;
-  };
-})();
-''';
 
 /// תקרה רכה למופעי רקע לפי-דרישה: מעליה מפונה הוותיק שאינו keepAlive,
 /// אינו באמצע boot ואינו עסוק ב-RPC. כשאין מועמד כזה הסט גדל מעל התקרה.
@@ -404,66 +308,25 @@ class _BackgroundPluginRunner extends StatefulWidget {
       _BackgroundPluginRunnerState();
 }
 
-class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
-  static PackageInfo? _cachedPackageInfo;
-  static const _fileServerDenialLogInterval = Duration(minutes: 1);
-
-  InAppWebViewController? _controller;
-  late final PluginBridgeHandler _bridge;
-  late final PluginBridgeAdapter _adapter;
-  late final PluginRegistryRepository _pluginRegistryRepository;
-  late final PluginSystemBloc _pluginSystemBloc;
-  late final FindRefRepository _findRefRepository;
+class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner>
+    with PluginWebViewHost {
   late String _localHtmlPath;
-  DateTime? _lastFileServerDenialLogAt;
 
-  /// נתיב שרת הקבצים הוא `/f/<pluginId>/<token>` — תוסף רקע מורשה רק בשלו.
-  bool _isOwnFileServerPath(Uri uri) =>
-      uri.pathSegments.length == 3 &&
-      uri.pathSegments[1] == widget.plugin.pluginId;
+  @override
+  InstalledPlugin get plugin => widget.plugin;
+  @override
+  String get instanceId => PluginInstanceIds.background;
+  @override
+  String get logTag => 'Background plugin';
 
-  /// מאפשרת רק קבצים והעלאה פעילה של התוסף עצמו.
-  bool _isOwnFileServerRequest(Uri uri) =>
-      _isOwnFileServerPath(uri) ||
-      PluginFileServer.instance.isUploadUriForPlugin(
-        uri,
-        widget.plugin.pluginId,
-      );
-
-  void _logFileServerDenial(Uri uri) {
-    final now = DateTime.now();
-    final lastLogAt = _lastFileServerDenialLogAt;
-    if (lastLogAt != null &&
-        now.difference(lastLogAt) < _fileServerDenialLogInterval) {
-      return;
-    }
-    _lastFileServerDenialLogAt = now;
-    final kind = uri.pathSegments.isEmpty
-        ? uri.path
-        : '/${uri.pathSegments.first}/…';
-    final message = 'בקשת התוסף לשרת הקבצים נחסמה בשער ה-WebView: $kind';
-    debugPrint('Background plugin [${widget.plugin.pluginId}]: $message');
-    // fire-and-forget, כמו כל כתיבה ללוג הריצה.
-    unawaited(
-      PluginSystemDatabase.instance.writeLog(
-        widget.plugin.pluginId,
-        'warn',
-        message,
-      ),
-    );
-  }
-
-  Future<bool> _isNetworkUriAllowed(Uri uri) => isPluginNetworkAccessAllowed(
-    uri: uri,
-    pluginId: widget.plugin.pluginId,
-    manifest: widget.plugin.manifest,
-    registry: _pluginRegistryRepository,
-  );
+  // דיאלוגים מתוך תוסף-רקע מנותבים דרך ה-navigatorKey הגלובלי
+  // כדי שלא יהיו תלויים ב-context של widget מוסתר.
+  @override
+  BuildContext? get dialogContext => navigatorKey.currentContext;
 
   @override
   void initState() {
     super.initState();
-    _pluginSystemBloc = context.read<PluginSystemBloc>();
     // ברקע טוענים את קובץ הרקע הקליל (אם הוצהר) במקום דף הכלים המלא —
     // אין UI גלוי, רק רישומים והאזנה לאירועים. ב-localhost dev השרת מגיש
     // את האפליקציה כולה, ולכן נשארים עם ה-root.
@@ -472,216 +335,31 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
         : _isHeadless
         ? pluginHeadlessShellPath(widget.plugin.resolvedRootPath)
         : '${widget.plugin.resolvedRootPath}/${widget.plugin.backgroundEntrypointPath}';
-
-    final historyBloc = context.read<HistoryBloc>();
-    final tabsBloc = context.read<TabsBloc>();
-    final navigationBloc = context.read<NavigationBloc>();
-    final calendarCubit = context.read<CalendarCubit>();
-    final workspaceBloc = context.read<WorkspaceBloc>();
-    final bookmarkBloc = context.read<BookmarkBloc>();
-    final customFoldersBloc = context.read<CustomFoldersBloc>();
-    final libraryBloc = context.read<LibraryBloc>();
-    final searchRepository = SearchRepository();
-    final personalNotesRepository = PersonalNotesRepository();
-    final pluginRegistryRepository = PluginRegistryRepository();
-    _findRefRepository = buildFindRefRepository(respectHiddenLibrary: false);
-    final findRefRepository = _findRefRepository;
-
-    final dependencies = PluginBridgeDependencies(
-      historyBloc: historyBloc,
-      tabsBloc: tabsBloc,
-      navigationBloc: navigationBloc,
-      calendarCubit: calendarCubit,
-      workspaceBloc: workspaceBloc,
-      bookmarkBloc: bookmarkBloc,
-      customFoldersBloc: customFoldersBloc,
-      waitForLibraryRefresh: (requestId) async {
-        final state = await libraryBloc.stream.firstWhere(
-          (state) =>
-              state.completedRefreshRequestIds?.contains(requestId) == true ||
-              (!state.isLoading && state.error != null),
-        );
-        if (state.completedRefreshRequestIds?.contains(requestId) != true) {
-          throw StateError(state.error!);
-        }
-      },
-      searchRepository: searchRepository,
-      personalNotesRepository: personalNotesRepository,
-      bookOpenCoordinator: BookOpenCoordinator(
-        tabsBloc: tabsBloc,
-        historyBloc: historyBloc,
-        navigationBloc: navigationBloc,
-      ),
-      resolveReference: buildPluginReferenceResolver(findRefRepository),
-      resolveRefToLine: (book, ref) =>
-          PluginRefLineResolver().resolve(book: book, ref: ref),
-      themePayloadBuilder: () {
-        if (!mounted) {
-          return {
-            'mode': 'light',
-            'colorScheme': <String, dynamic>{},
-            'typography': <String, dynamic>{},
-          };
-        }
-        return buildThemePayload(context);
-      },
-      // דיאלוגים מתוך תוסף-רקע מנותבים דרך ה-navigatorKey הגלובלי
-      // כדי שלא יהיו תלויים ב-context של widget מוסתר.
-      showConfirmDialog:
-          ({
-            required String title,
-            required String content,
-          }) async {
-            final ctx = navigatorKey.currentContext;
-            if (ctx == null) return false;
-            return await showTwoActionsDialog(
-                  context: ctx,
-                  title: title,
-                  content: content,
-                  cancelText: 'ביטול',
-                  confirmText: 'אישור',
-                ) ==
-                true;
-          },
-      showWarningDialog:
-          ({
-            required String title,
-            required String content,
-            required String subtitle,
-          }) async {
-            final ctx = navigatorKey.currentContext;
-            if (ctx == null) return false;
-            return await showWarningDialog(
-                  context: ctx,
-                  title: title,
-                  content: content,
-                  subtitle: subtitle,
-                  cancelText: 'ביטול',
-                  confirmText: 'המשך',
-                ) ==
-                true;
-          },
-      requestPluginInstall: (downloadUrl, {reportContext}) {
-        _pluginSystemBloc.add(
-          InstallRemotePluginRequested(
-            downloadUrl,
-            reportContext: reportContext,
-            storeOnly: true,
-          ),
-        );
-      },
-      pickFolder: ({String? title}) async {
-        final ctx = navigatorKey.currentContext;
-        if (ctx == null) return null;
-        if (!await verifySaferModePassword(ctx)) return null;
-        return FilePicker.getDirectoryPath(
-          windowsOptions: kModalWindowsOptions,
-          linuxOptions: kModalLinuxOptions,
-          dialogTitle: title,
-        );
-      },
-      onBackgroundInstanceDone: () => PluginLazyActivationService.instance
-          .requestImmediateTeardown(widget.plugin.pluginId),
-      pickFile: ({List<String>? allowedExtensions, String? title}) async {
-        final ctx = navigatorKey.currentContext;
-        if (ctx == null) return null;
-        if (!await verifySaferModePassword(ctx)) return null;
-        final hasExtensions =
-            allowedExtensions != null && allowedExtensions.isNotEmpty;
-        final result = await FilePicker.pickFile(
-          dialogTitle: title,
-          windowsOptions: kModalWindowsOptions,
-          linuxOptions: kModalLinuxOptions,
-          type: hasExtensions ? FileType.custom : FileType.any,
-          allowedExtensions: hasExtensions ? allowedExtensions : null,
-        );
-        return result?.path;
-      },
-      pickSaveLocation:
-          ({
-            required String suggestedName,
-            List<String>? allowedExtensions,
-            String? title,
-          }) async {
-            final ctx = navigatorKey.currentContext;
-            if (ctx == null) return null;
-            if (!await verifySaferModePassword(ctx)) return null;
-            final folder = await FilePicker.getDirectoryPath(
-              dialogTitle: pluginSaveFolderDialogTitle(title),
-              windowsOptions: kModalWindowsOptions,
-              linuxOptions: kModalLinuxOptions,
-            );
-            if (folder == null || !ctx.mounted) return null;
-            final typed = await showInputDialog(
-              context: ctx,
-              title: title ?? 'שמירת קובץ',
-              labelText: 'שם הקובץ',
-              initialValue: suggestedName,
-              confirmText: 'שמור',
-            );
-            if (typed == null) return null;
-            final fileName = pluginSaveFileName(
-              typed,
-              allowedExtensions?.firstOrNull,
-            );
-            return pluginSaveTargetPath(folder: folder, fileName: fileName);
-          },
+    final lazy = PluginLazyActivationService.instance;
+    final pluginId = widget.plugin.pluginId;
+    initPluginHost(
+      onReload: _reloadFromDisk,
+      onBackgroundInstanceDone: () => lazy.requestImmediateTeardown(pluginId),
+      onWorkStarted: () => lazy.beginWork(pluginId),
+      onWorkEnded: () => lazy.endWork(pluginId),
     );
-
-    _pluginRegistryRepository = pluginRegistryRepository;
-    _adapter = PluginBridgeAdapter(
-      widget.plugin,
-      dependencies: dependencies,
-      instanceId: PluginInstanceIds.background,
-      pluginRepository: pluginRegistryRepository,
-    );
-    _bridge = PluginBridgeHandler(
-      widget.plugin,
-      adapter: _adapter,
-      registry: pluginRegistryRepository,
-      onWorkStarted: () => PluginLazyActivationService.instance.beginWork(
-        widget.plugin.pluginId,
-      ),
-      onWorkEnded: () => PluginLazyActivationService.instance.endWork(
-        widget.plugin.pluginId,
-      ),
-    );
-    _ensurePackageInfo();
-
-    PluginRuntimeDispatcher.instance.registerReloadCallback(
-      widget.plugin.pluginId,
-      _reloadFromDisk,
-      instanceId: PluginInstanceIds.background,
-      token: this,
-    );
-  }
-
-  Future<void> _ensurePackageInfo() async {
-    _cachedPackageInfo ??= await PackageInfo.fromPlatform();
   }
 
   bool get _usesAssetScheme => pluginUsesAssetScheme(headless: _isHeadless);
 
-  /// ה-URI של נקודת הכניסה — `file://` ברוב הפלטפורמות, ובמק דרך
-  /// [pluginAssetScheme] (ראה [pluginUsesAssetScheme]).
-  WebUri get _entrypointUri => widget.plugin.isLocalhostDev
-      ? WebUri(_localHtmlPath)
-      : _usesAssetScheme
-      ? pluginAssetUri(
-          pluginId: widget.plugin.pluginId,
-          rootPath: widget.plugin.resolvedRootPath,
-          filePath: _localHtmlPath,
-        )
-      : WebUri.uri(Uri.file(_localHtmlPath));
+  WebUri get _entrypointUri =>
+      pluginEntrypointUri(_localHtmlPath, assetScheme: _usesAssetScheme);
 
   Future<void> _reloadFromDisk() async {
     if (!mounted) return;
     try {
       if (widget.plugin.isLocalhostDev) {
         await InAppWebViewController.clearAllCache();
-        await _controller?.reload();
+        await webViewController?.reload();
       } else {
-        await _controller?.loadUrl(urlRequest: URLRequest(url: _entrypointUri));
+        await webViewController?.loadUrl(
+          urlRequest: URLRequest(url: _entrypointUri),
+        );
       }
     } catch (e) {
       debugPrint(
@@ -690,36 +368,20 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
     }
   }
 
+  void _onInstanceFailed() =>
+      PluginLazyActivationService.instance.onBackgroundInstanceFailed(
+        widget.plugin.pluginId,
+        generation: widget.activationGeneration,
+      );
+
   @override
   void dispose() {
-    _findRefRepository.dispose();
     final pluginId = widget.plugin.pluginId;
     final generation = widget.activationGeneration;
-    final controller = _controller;
-    // העץ נעול בזמן dispose וניקוי הרישומים מודיע ל-ListenableBuilders
-    // (הדגשות, סרגל כלים) — לכן נדחה למיקרוטסק, אחרי שחרור הנעילה.
-    scheduleMicrotask(() {
-      _adapter.dispose();
-      PluginLazyActivationService.instance.onBackgroundInstanceClosed(
-        pluginId,
-        generation: generation,
-      );
-      if (PluginRuntimeDispatcher.instance.ownsController(
-        pluginId,
-        controller,
-        instanceId: PluginInstanceIds.background,
-      )) {
-        PluginRuntimeDispatcher.instance.unregisterController(
-          pluginId,
-          instanceId: PluginInstanceIds.background,
-        );
-      }
-      PluginRuntimeDispatcher.instance.unregisterReloadCallback(
-        pluginId,
-        instanceId: PluginInstanceIds.background,
-        token: this,
-      );
-    });
+    disposePluginHost(
+      afterAdapter: () => PluginLazyActivationService.instance
+          .onBackgroundInstanceClosed(pluginId, generation: generation),
+    );
     super.dispose();
   }
 
@@ -741,7 +403,9 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
 
     return InAppWebView(
       webViewEnvironment: WebViewEnvironmentHolder.environment,
-      initialUrlRequest: URLRequest(url: _entrypointUri),
+      initialUrlRequest: widget.plugin.isLocalhostDev
+          ? null
+          : URLRequest(url: _entrypointUri),
       onLoadResourceWithCustomScheme: (controller, request) => servePluginAsset(
         url: request.url,
         pluginId: widget.plugin.pluginId,
@@ -765,388 +429,62 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
       ),
       initialUserScripts: UnmodifiableListView<UserScript>([
         UserScript(
-          source: _sdkStub,
+          source: pluginBackgroundSdkStubScript,
           injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
         ),
         buildPluginDropGuardScript(),
       ]),
-      onShowFileChooser: (controller, showFileChooserRequest) async {
-        final ctx = navigatorKey.currentContext;
-        if (ctx == null) {
-          return ShowFileChooserResponse(
-            handledByClient: true,
-            filePaths: null,
-          );
-        }
-        final verified = await verifySaferModePassword(ctx);
-        if (!verified) {
-          return ShowFileChooserResponse(
-            handledByClient: true,
-            filePaths: null,
-          );
-        }
-        return null;
-      },
+      onShowFileChooser: verifyPluginFileChooser,
       onDownloadStarting: PluginDownloadHandler.onDownloadStarting,
       onPermissionRequest: (controller, request) =>
           PluginWebViewPermissionGate.respond(
             plugin: widget.plugin,
             request: request,
-            registry: _pluginRegistryRepository,
+            registry: pluginRegistryRepository,
           ),
       onWebViewCreated: (controller) {
-        try {
-          _controller = controller;
-          PluginRuntimeDispatcher.instance.registerController(
-            widget.plugin.pluginId,
-            controller,
-            instanceId: PluginInstanceIds.background,
-          );
-          _bridge.register(controller);
-        } catch (e) {
-          PluginRuntimeDispatcher.instance.unregisterController(
-            widget.plugin.pluginId,
-            instanceId: PluginInstanceIds.background,
-          );
-          debugPrint(
-            'Background plugin [${widget.plugin.pluginId}] init error: $e',
-          );
-          PluginLazyActivationService.instance.onBackgroundInstanceFailed(
-            widget.plugin.pluginId,
-            generation: widget.activationGeneration,
-          );
+        if (!attachPluginController(controller, _entrypointUri)) {
+          _onInstanceFailed();
         }
       },
       onProcessFailed: (controller, detail) {
         // תוסף רקע מוסתר — בלי הרישום אין לכשל הזה שום עדות נראית.
-        logPluginWebViewFailure(
-          'Background plugin WebView2 process failed',
-          detail.kind,
-          details: {
-            'Plugin': widget.plugin.pluginId,
-            'Reason': detail.reason?.toString(),
-            'ExitCode': detail.exitCode?.toString(),
-            'Process': detail.processDescription,
-          },
-        );
-        PluginLazyActivationService.instance.onBackgroundInstanceFailed(
-          widget.plugin.pluginId,
-          generation: widget.activationGeneration,
-        );
+        logPluginProcessFailed(detail);
+        _onInstanceFailed();
       },
       // מופע רקע אינו מציג ממשק ואין בו לחיצת משתמש — otzaria:// לעולם אינו
       // מגיע למטפל הפרוטוקול של המערכת.
       onLaunchingExternalUriScheme: (controller, request) async =>
           LaunchingExternalUriSchemeResponse(cancel: true),
-      shouldOverrideUrlLoading: (controller, navigationAction) async {
+      shouldOverrideUrlLoading: (controller, navigationAction) {
         // רשת דפדפנית ישירה (fetch רגיל) אינה עוברת ב-Bridge — נספרת
         // כפעילות כאן, כדי שהכיבוי העצל לא יקטע בקשה ארוכה.
         PluginLazyActivationService.instance.notifyActivity(
           widget.plugin.pluginId,
         );
-        try {
-          final uri = navigationAction.request.url;
-          if (uri == null) return NavigationActionPolicy.CANCEL;
-          if (uri.scheme == pluginAssetScheme) {
-            return NavigationActionPolicy.ALLOW;
-          }
-          if (uri.scheme == 'file') {
-            final normalizedUri = p.normalize(uri.toFilePath());
-            final normalizedInstall = p.normalize(
-              widget.plugin.resolvedRootPath,
-            );
-            if (p.isWithin(normalizedInstall, normalizedUri) ||
-                normalizedUri == normalizedInstall) {
-              return NavigationActionPolicy.ALLOW;
-            }
-          } else if (uri.scheme == 'data' ||
-              uri.scheme == 'blob' ||
-              uri.scheme == 'about') {
-            return NavigationActionPolicy.ALLOW;
-          }
-          if ((uri.scheme == 'http' || uri.scheme == 'https') &&
-              widget.plugin.isLocalhostDev &&
-              _isDevServerUri(uri, widget.plugin.devRootPath)) {
-            return NavigationActionPolicy.ALLOW;
-          }
-          // שרת הקבצים הפנימי (loopback) — הפורט אקראי ולכן אינו ניתן
-          // להצהרה ב-allowlist; מאשרים רק נתיב של התוסף עצמו.
-          if (uri.scheme == 'http' &&
-              PluginFileServer.instance.isServerUri(uri)) {
-            if (_isOwnFileServerRequest(uri)) {
-              return NavigationActionPolicy.ALLOW;
-            }
-            _logFileServerDenial(uri);
-            return NavigationActionPolicy.CANCEL;
-          }
-          if (uri.scheme == 'http' || uri.scheme == 'https') {
-            if (await _isNetworkUriAllowed(uri)) {
-              return NavigationActionPolicy.ALLOW;
-            }
-          }
-          return NavigationActionPolicy.CANCEL;
-        } catch (e) {
-          debugPrint(
-            'Background plugin [${widget.plugin.pluginId}] URL override error: $e',
-          );
-          return NavigationActionPolicy.CANCEL;
-        }
+        return pluginNavigationPolicy(navigationAction);
       },
-      shouldInterceptRequest: (controller, request) async {
+      shouldInterceptRequest: (controller, request) {
         PluginLazyActivationService.instance.notifyActivity(
           widget.plugin.pluginId,
         );
-        try {
-          final uri = request.url;
-          if (_isHeadless &&
-              uri.scheme == 'file' &&
-              isPluginHeadlessShellPath(
-                uri.toFilePath(),
-                widget.plugin.resolvedRootPath,
-              )) {
-            return WebResourceResponse(
-              contentType: 'text/html',
-              contentEncoding: 'utf-8',
-              statusCode: 200,
-              reasonPhrase: 'OK',
-              data: utf8.encode(
-                pluginHeadlessShellHtml(
-                  widget.plugin.entrypointPath,
-                  module: false,
-                ),
-              ),
-            );
-          }
-          if (uri.scheme == 'file') {
-            final normalizedUri = p.normalize(uri.toFilePath());
-            final normalizedInstall = p.normalize(
-              widget.plugin.resolvedRootPath,
-            );
-            if (!p.isWithin(normalizedInstall, normalizedUri) &&
-                normalizedUri != normalizedInstall) {
-              return WebResourceResponse(
-                statusCode: 403,
-                reasonPhrase: 'Forbidden',
-              );
-            }
-          }
-          if ((uri.scheme == 'http' || uri.scheme == 'https') &&
-              widget.plugin.isLocalhostDev &&
-              _isDevServerUri(uri, widget.plugin.devRootPath)) {
-            return null; // allow dev server + HMR requests
-          }
-          // שרת הקבצים הפנימי (loopback): נתיב קובץ של התוסף, או נתיב ההעלאה
-          // (/w/) של העלאה פתוחה שלו — ראו [_isOwnFileServerRequest].
-          if (uri.scheme == 'http' &&
-              PluginFileServer.instance.isServerUri(uri)) {
-            if (_isOwnFileServerRequest(uri)) return null;
-            _logFileServerDenial(uri);
-            return WebResourceResponse(
-              statusCode: 403,
-              reasonPhrase: 'Forbidden',
-            );
-          }
-          if (uri.scheme == 'http' || uri.scheme == 'https') {
-            if (await _isNetworkUriAllowed(uri)) {
-              return null;
-            }
-            return WebResourceResponse(
-              statusCode: 403,
-              reasonPhrase: 'Forbidden',
-            );
-          }
-          return null;
-        } catch (e) {
-          debugPrint(
-            'Background plugin [${widget.plugin.pluginId}] intercept request error: $e',
-          );
-          return WebResourceResponse(
-            statusCode: 403,
-            reasonPhrase: 'Forbidden',
-          );
-        }
+        return interceptPluginRequest(request, headless: _isHeadless);
       },
       onLoadStop: (controller, url) async {
         try {
-          final theme = mounted
-              ? buildThemePayload(context)
-              : <String, dynamic>{
-                  'mode': 'light',
-                  'colorScheme': <String, dynamic>{},
-                  'typography': <String, dynamic>{},
-                };
+          final theme = currentThemePayload();
           final packageInfo =
-              _cachedPackageInfo ?? await PackageInfo.fromPlatform();
-          final permissions = await _pluginRegistryRepository
-              .getGrantedPermissionNames(
-                widget.plugin.pluginId,
-              );
-          final bootPayload = {
-            'plugin': {
-              'id': widget.plugin.pluginId,
-              'version': widget.plugin.version,
-            },
-            'app': {
-              'version': packageInfo.version,
-              'platform': Platform.operatingSystem,
-              // שפת הממשק הפעילה (he-IL לתאימות; 'language' — קוד השפה)
-              ...pluginLocalePayload(
-                code: Settings.getValue<String>(
-                  SettingsRepository.keySettingsLanguage,
-                ),
-              ),
-              // סימון לתוסף שהוא רץ ברקע — מאפשר לקוד התוסף להתנהג אחרת
-              // (למשל לא לבצע ניווט יזום) כשאין UI גלוי.
-              'runMode': 'background',
-              // חושף לתוסף אם הוא נטען כתוסף פיתוח (sourceType=development).
-              // בתוסף ארוז זה false.
-              'devMode': widget.plugin.isDevelopment,
-            },
-            'connectivity': ConnectivityStatusService.instance.bootPayload(),
-            'theme': theme,
-            'permissions': permissions,
-          };
-          final jsonPayload = jsonEncode(bootPayload);
-          final nonceJson = jsonEncode(_bridge.bridgeNonce);
+              PluginWebViewHost.cachedPackageInfo ??
+              await PackageInfo.fromPlatform();
+          final permissions = await pluginRegistryRepository
+              .getGrantedPermissionNames(widget.plugin.pluginId);
           await controller.evaluateJavascript(
-            source:
-                '''
-(function () {
-  var _ls = {};
-  var _searchStreams = {};
-  var _searchSequence = 0;
-  var _searchEvent = '__otzaria.search.query.chunk';
-  var _networkStreams = {};
-  var _networkSequence = 0;
-  var _networkEvent = '__otzaria.network.fetchStream.chunk';
-  var rpc = function (method, payload) {
-    return window.flutter_inappwebview.callHandler('otzaria_rpc', {
-      method: method,
-      payload: payload || {},
-      nonce: $nonceJson
-    });
-  };
-  window.addEventListener(_searchEvent, function (event) {
-    var detail = event.detail || {};
-    var stream = _searchStreams[detail.streamId];
-    if (stream) stream.push(detail.chunk);
-  });
-  window.addEventListener(_networkEvent, function (event) {
-    var detail = event.detail || {};
-    var stream = _networkStreams[detail.streamId];
-    if (stream) stream.push(detail.chunk);
-  });
-  var createRpcStream = function (method, payload, streams, streamId) {
-    var maxQueuedChunks = 256;
-    var queue = [];
-    var waiters = [];
-    var ended = false;
-    var failure = null;
-    var flush = function () {
-      while (waiters.length && queue.length) {
-        waiters.shift().resolve({ value: queue.shift(), done: false });
-      }
-      if (queue.length || !ended) return;
-      while (waiters.length) {
-        var waiter = waiters.shift();
-        if (failure) waiter.reject(failure);
-        else waiter.resolve({ value: undefined, done: true });
-      }
-    };
-    var session = {
-      push: function (chunk) {
-        if (ended) return;
-        if (queue.length >= maxQueuedChunks) {
-          session.fail(new Error('Stream consumer is too slow'));
-          void rpc(method, { __cancelStreamId: streamId });
-          return;
-        }
-        queue.push(chunk);
-        flush();
-      },
-      finish: function () {
-        if (ended) return;
-        ended = true;
-        delete streams[streamId];
-        flush();
-      },
-      fail: function (error) {
-        if (ended) return;
-        failure = error instanceof Error ? error : new Error(String(error));
-        ended = true;
-        delete streams[streamId];
-        flush();
-      }
-    };
-    streams[streamId] = session;
-    var request = Object.assign({}, payload || {}, { __streamId: streamId });
-    rpc(method, request).then(function (response) {
-      if (!response || response.success !== true) {
-        var message = response && response.error && response.error.message;
-        session.fail(new Error(message || 'Stream failed'));
-        return;
-      }
-      session.finish();
-    }, session.fail);
-    return {
-      next: function () {
-        if (queue.length) return Promise.resolve({ value: queue.shift(), done: false });
-        if (ended) {
-          return failure
-            ? Promise.reject(failure)
-            : Promise.resolve({ value: undefined, done: true });
-        }
-        return new Promise(function (resolve, reject) {
-          waiters.push({ resolve: resolve, reject: reject });
-        });
-      },
-      return: function () {
-        if (!ended) {
-          ended = true;
-          delete streams[streamId];
-          flush();
-          void rpc(method, { __cancelStreamId: streamId });
-        }
-        return Promise.resolve({ value: undefined, done: true });
-      },
-      [Symbol.asyncIterator]: function () { return this; }
-    };
-  };
-  var createSearchStream = function (payload) {
-    var id = 'search_' + Date.now().toString(36) + '_' + (++_searchSequence).toString(36);
-    return createRpcStream('search.query', payload, _searchStreams, id);
-  };
-  var createNetworkFetchStream = function (payload) {
-    var id = 'network_' + Date.now().toString(36) + '_' + (++_networkSequence).toString(36);
-    return createRpcStream('network.fetchStream', payload, _networkStreams, id);
-  };
-  var realSdk = {
-    call: function (method, payload) {
-      if (method === 'search.query') return createSearchStream(payload);
-      if (method === 'network.fetchStream') return createNetworkFetchStream(payload);
-      return rpc(method, payload);
-    },
-    on: function (event, cb) {
-      if (!_ls[event]) _ls[event] = [];
-      var w = function (e) { cb(e.detail); };
-      _ls[event].push({ orig: cb, wrap: w });
-      window.addEventListener(event, w);
-    },
-    off: function (event, cb) {
-      var list = _ls[event];
-      if (!list) return;
-      for (var i = 0; i < list.length; i++) {
-        if (list[i].orig === cb) {
-          window.removeEventListener(event, list[i].wrap);
-          list.splice(i, 1);
-          break;
-        }
-      }
-    }
-  };
-  window.Otzaria._boot(realSdk, $jsonPayload);
-})();
-''',
+            source: pluginBootScript(
+              runMode: 'background',
+              packageInfo: packageInfo,
+              permissions: permissions,
+              theme: theme,
+            ),
           );
           // המופע מוכן — מוסר אירועים שהמתינו להפעלה עצלה (contributes.startup).
           unawaited(
@@ -1164,27 +502,11 @@ class _BackgroundPluginRunnerState extends State<_BackgroundPluginRunner> {
             'ERROR',
             'Background boot failed: $e',
           );
-          PluginLazyActivationService.instance.onBackgroundInstanceFailed(
-            widget.plugin.pluginId,
-            generation: widget.activationGeneration,
-          );
+          _onInstanceFailed();
         }
       },
-      onConsoleMessage: (controller, consoleMessage) {
-        try {
-          if (consoleMessage.messageLevel == ConsoleMessageLevel.ERROR ||
-              consoleMessage.messageLevel == ConsoleMessageLevel.WARNING) {
-            PluginSystemDatabase.instance.writeLog(
-              widget.plugin.pluginId,
-              consoleMessage.messageLevel.toString(),
-              '[background] ${consoleMessage.message}',
-            );
-          }
-          debugPrint(
-            'Background plugin [${widget.plugin.pluginId}]: ${consoleMessage.message}',
-          );
-        } catch (_) {}
-      },
+      onConsoleMessage: (controller, consoleMessage) =>
+          logPluginConsole(consoleMessage, prefix: '[background] '),
     );
   }
 }

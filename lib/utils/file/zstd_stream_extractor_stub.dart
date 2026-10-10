@@ -5,3 +5,10 @@ Future<void> extractToFile(
   void Function(double progress)? onProgress,
   int? maxOutputBytes,
 }) => throw UnsupportedError('חילוץ zst אינו נתמך בפלטפורמה זו');
+
+/// פורס tar.zst לתיקייה. אינו נתמך ללא dart:ffi.
+Future<void> extractTarToDir(
+  String archivePath,
+  String outputDir, {
+  void Function(double progress)? onProgress,
+}) => throw UnsupportedError('חילוץ zst אינו נתמך בפלטפורמה זו');

@@ -87,10 +87,6 @@ void main() {
           await repo.searchAuthorNames('רש'),
           expectAuthors ? isNotEmpty : isEmpty,
         );
-        expect(
-          await repo.searchBooksByAuthor('רש'),
-          expectAuthors ? isNotEmpty : isEmpty,
-        );
       });
 
       test('תוכן עניינים ומבנים חלופיים', () async {
@@ -134,12 +130,11 @@ void main() {
         );
         final generation = await repo.getBookGenerationInfo(_Ids.rashiId);
         expect(generation?.generationName, minimal ? isNull : 'ראשונים');
-
-        final found = await repo.searchBooksForReference('רשי');
         expect(
-          found.any((r) => r['matchType'] == 'acronym'),
+          (await repo.database.capabilities).hasAcronyms,
           expectAcronyms,
         );
+
         expect(
           await repo.resolveRefKeyInBooks([_Ids.bereshitId], 'בראשית א א'),
           isEmpty,

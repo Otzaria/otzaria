@@ -196,6 +196,46 @@ void main() {
     expect(selectedText(tester), expected);
   }
 
+  testWidgets('בחירת מקלדת אינה משאירה שורות במטמון', (tester) async {
+    await pumpView(tester);
+    final dynamic state = tester.state(find.byType(CombinedView));
+    final region = tester.state<SelectableRegionState>(
+      find.descendant(
+        of: find.byType(SelectionArea),
+        matching: find.byType(SelectableRegion),
+      ),
+    );
+    region.selectAll();
+    await tester.pump();
+    expect(selectedText(tester), isNotEmpty);
+    expect(state.debugSelectionCachedLineCount, 0);
+    region.clearSelection();
+    await tester.pump();
+    expect(selectedText(tester), isEmpty);
+    expect(state.debugSelectionCachedLineCount, 0);
+  });
+
+  for (final cancel in [false, true]) {
+    testWidgets('מטמון גרירה מתנקה בשחרור סמן, cancel=$cancel', (tester) async {
+      await pumpView(tester);
+      final dynamic state = tester.state(find.byType(CombinedView));
+      final line = lineRect(tester, 8);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.down(Offset(line.right - 20, line.center.dy));
+      await gesture.moveBy(const Offset(-70, 0));
+      await tester.pump();
+      expect(selectedText(tester), isNotEmpty);
+      expect(state.debugSelectionCachedLineCount, greaterThan(0));
+      if (cancel) {
+        await gesture.cancel();
+      } else {
+        await gesture.up();
+      }
+      await tester.pump();
+      expect(state.debugSelectionCachedLineCount, 0);
+    });
+  }
+
   for (final scrolledBy in [0.0, 150.0]) {
     testWidgets('jumpTo אחרי גלילה של $scrolledBy', (tester) async {
       await selectThenMove(

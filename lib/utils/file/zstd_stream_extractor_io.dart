@@ -1,18 +1,18 @@
-/// מחלץ קבצי `.zst` בזרימה (streaming) דרך ZSTD FFI — מעבד נתחים של ~128KB
-/// ישירות לדיסק, כך שצריכת ה-RAM נשארת בכמה מאות KB גם לקבצים בגודל ג'יגות.
-///
-/// טעינת הקובץ כולו ל-RAM (`Zstandard().decompress`) קרסה על מכשירים עם
-/// 8GB RAM (DB של ~6.5GB פרוס). שיטה זו אינה חורגת מכמה מאות KB.
+/// מחלץ קבצי `.zst` בזרימה (streaming) דרך [ZstdStreamDecoder] — נתחים
+/// קטנים ישירות לדיסק, כך שצריכת ה-RAM נשארת בכמה מאות KB גם לקבצי ג'יגות.
 library;
 
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
-import 'package:ffi/ffi.dart';
+import 'package:otzaria/utils/file/tar_stream_extractor.dart';
 import 'package:otzaria/utils/file/zstd_library.dart';
+import 'package:otzaria/utils/file/zstd_stream_decoder.dart';
 import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
-import 'package:zstandard_native/zstandard_native_bindings.dart';
+
+const _readChunkSize = 256 * 1024;
 
 /// מחלץ את [archivePath] (קובץ `.zst`) אל [outputPath]. רץ ב-isolate נפרד
 /// כדי לא לחסום את ה-UI. [onProgress] מקבל ערך 0.0–1.0.
@@ -31,6 +31,25 @@ Future<void> extractToFile(
         openZstandardLib(),
         port,
         maxOutputBytes,
+      ),
+    ),
+  );
+}
+
+/// פורס tar.zst אל [outputDir] ב-isolate נפרד, בלי קובץ tar ביניים.
+Future<void> extractTarToDir(
+  String archivePath,
+  String outputDir, {
+  void Function(double progress)? onProgress,
+}) {
+  return _runWithProgress(
+    onProgress,
+    (port) => Isolate.run(
+      () => _extractTarWithLib(
+        archivePath,
+        outputDir,
+        openZstandardLib(),
+        port,
       ),
     ),
   );
@@ -66,8 +85,15 @@ void decompressSyncForTest(
   int? maxOutputBytes,
 }) => _decompressWithLib(archivePath, outputPath, lib, null, maxOutputBytes);
 
-/// חילוץ ZST streaming דרך ZSTD FFI. בכשל מוחק את קובץ הפלט החלקי, אחרת
-/// קובץ חתוך נשאר ומפיל את פתיחת ה-DB בעלייה הבאה.
+/// נקודת כניסה לבדיקות בלבד, כמו [decompressSyncForTest] עבור tar.zst.
+void extractTarSyncForTest(
+  String archivePath,
+  String outputDir,
+  DynamicLibrary lib,
+) => _extractTarWithLib(archivePath, outputDir, lib, null);
+
+/// בכשל מוחק את קובץ הפלט החלקי, אחרת קובץ חתוך נשאר ומפיל את פתיחת ה-DB
+/// בעלייה הבאה.
 void _decompressWithLib(
   String archivePath,
   String outputPath,
@@ -75,158 +101,80 @@ void _decompressWithLib(
   SendPort? progressPort,
   int? maxOutputBytes,
 ) {
+  final outFile = File(outputPath);
   try {
-    _decompressCore(
-      archivePath,
-      outputPath,
-      dylib,
-      progressPort,
-      maxOutputBytes,
-    );
+    if (outFile.existsSync()) outFile.deleteSync();
+    final outputRaf = outFile.openSync(mode: FileMode.writeOnly);
+    try {
+      var totalWritten = 0;
+      _decodeFile(archivePath, dylib, progressPort, (output) {
+        totalWritten += output.length;
+        if (maxOutputBytes != null && totalWritten > maxOutputBytes) {
+          throw ZstdOutputLimitExceeded(maxOutputBytes);
+        }
+        outputRaf.writeFromSync(output);
+      });
+      // flush מפורש כדי לתפוס דיסק מלא (ENOSPC) שנבלע ב-page cache.
+      outputRaf.flushSync();
+    } finally {
+      outputRaf.closeSync();
+    }
   } catch (_) {
     try {
-      final partial = File(outputPath);
-      if (partial.existsSync()) partial.deleteSync();
+      if (outFile.existsSync()) outFile.deleteSync();
     } catch (_) {}
     rethrow;
   }
 }
 
-void _decompressCore(
+/// פריסה חלקית שנשארת אחרי כשל היא באחריות הקורא, כמו בכל חילוץ לתיקייה.
+void _extractTarWithLib(
   String archivePath,
-  String outputPath,
+  String outputDir,
   DynamicLibrary dylib,
   SendPort? progressPort,
-  int? maxOutputBytes,
 ) {
-  final bindings = ZstandardNativeBindings(dylib);
-
-  final inBufSize = bindings.ZSTD_DStreamInSize();
-  final outBufSize = bindings.ZSTD_DStreamOutSize();
-
-  final dStream = bindings.ZSTD_createDStream();
-  if (dStream == nullptr) throw Exception('ZSTD_createDStream נכשל');
-
-  String zstdError(int code) =>
-      bindings.ZSTD_getErrorName(code).cast<Utf8>().toDartString();
-
+  final tar = TarStreamExtractor(outputDir, rootFolder: null);
   try {
-    final initRet = bindings.ZSTD_initDStream(dStream);
-    if (bindings.ZSTD_isError(initRet) != 0) {
-      throw Exception('ZSTD_initDStream נכשל: ${zstdError(initRet)}');
-    }
-
-    // ברירת המחדל מגבילה את חלון הדחיסה ל-128MB (windowLog=27). seforim.db.zst
-    // נדחס עם `--long` ולכן נכשל עם windowTooLarge (קוד 16). 31 = חלון עד 2GB.
-    final paramRet = bindings.ZSTD_DCtx_setParameter(
-      dStream,
-      ZSTD_dParameter.ZSTD_d_windowLogMax,
-      31,
-    );
-    if (bindings.ZSTD_isError(paramRet) != 0) {
-      throw Exception(
-        'ZSTD_DCtx_setParameter(windowLogMax) נכשל: ${zstdError(paramRet)}',
-      );
-    }
-
-    final inNative = malloc.allocate<Uint8>(inBufSize);
-    final outNative = malloc.allocate<Uint8>(outBufSize);
-    final inBuf = malloc<ZSTD_inBuffer_s>();
-    final outBuf = malloc<ZSTD_outBuffer_s>();
-
-    try {
-      final inputRaf = File(archivePath).openSync();
-      final outFile = File(outputPath);
-      if (outFile.existsSync()) outFile.deleteSync();
-      final outputRaf = outFile.openSync(mode: FileMode.writeOnly);
-
-      final totalBytes = inputRaf.lengthSync();
-      var totalRead = 0;
-      var lastReported = 0.0;
-
-      try {
-        final inView = inNative.asTypedList(inBufSize);
-
-        int lastRet = 0;
-        int expectedSize = -1;
-        int totalWritten = 0;
-        var headerParsed = false;
-
-        while (true) {
-          final bytesRead = inputRaf.readIntoSync(inView);
-          if (bytesRead == 0) break;
-          totalRead += bytesRead;
-
-          if (!headerParsed) {
-            expectedSize = bindings.ZSTD_getFrameContentSize(
-              inNative.cast(),
-              bytesRead,
-            );
-            headerParsed = true;
-          }
-
-          inBuf.ref.src = inNative.cast();
-          inBuf.ref.size = bytesRead;
-          inBuf.ref.pos = 0;
-
-          while (inBuf.ref.pos < inBuf.ref.size) {
-            outBuf.ref.dst = outNative.cast();
-            outBuf.ref.size = outBufSize;
-            outBuf.ref.pos = 0;
-
-            lastRet = bindings.ZSTD_decompressStream(dStream, outBuf, inBuf);
-
-            if (bindings.ZSTD_isError(lastRet) != 0) {
-              throw Exception(
-                'שגיאת ZSTD בחילוץ: ${zstdError(lastRet)} (קוד: $lastRet)',
-              );
-            }
-
-            if (maxOutputBytes != null &&
-                totalWritten + outBuf.ref.pos > maxOutputBytes) {
-              throw ZstdOutputLimitExceeded(maxOutputBytes);
-            }
-            if (outBuf.ref.pos > 0) {
-              outputRaf.writeFromSync(outNative.asTypedList(outBuf.ref.pos));
-              totalWritten += outBuf.ref.pos;
-            }
-          }
-
-          if (progressPort != null && totalBytes > 0) {
-            final progress = totalRead / totalBytes;
-            if (progress - lastReported >= 0.01) {
-              lastReported = progress;
-              progressPort.send(progress);
-            }
-          }
-        }
-
-        if (lastRet != 0) {
-          throw Exception(
-            'קובץ ה-ZST קטוע או פגום: ה-frame לא הושלם (נותרו $lastRet bytes)',
-          );
-        }
-
-        // flush מפורש כדי לתפוס דיסק מלא (ENOSPC) שנבלע ב-page cache.
-        outputRaf.flushSync();
-
-        if (expectedSize >= 0 && totalWritten != expectedSize) {
-          throw Exception(
-            'החילוץ לא הושלם: נכתבו $totalWritten מתוך $expectedSize bytes. '
-            'ככל הנראה אזל מקום האחסון.',
-          );
-        }
-      } finally {
-        inputRaf.closeSync();
-        outputRaf.closeSync();
-      }
-    } finally {
-      malloc.free(inNative);
-      malloc.free(outNative);
-      malloc.free(inBuf);
-      malloc.free(outBuf);
-    }
+    _decodeFile(archivePath, dylib, progressPort, tar.add);
+    tar.close();
   } finally {
-    bindings.ZSTD_freeDStream(dStream);
+    tar.abort();
+  }
+}
+
+/// קורא את [archivePath] בנתחים ומעביר את הפלט הפרוס ל-[onOutput]; זורק
+/// אם הקובץ נגמר באמצע frame.
+void _decodeFile(
+  String archivePath,
+  DynamicLibrary dylib,
+  SendPort? progressPort,
+  void Function(Uint8List output) onOutput,
+) {
+  final decoder = ZstdStreamDecoder(dylib);
+  RandomAccessFile? inputRaf;
+  try {
+    inputRaf = File(archivePath).openSync();
+    final totalBytes = inputRaf.lengthSync();
+    final buffer = Uint8List(_readChunkSize);
+    var totalRead = 0;
+    var lastReported = 0.0;
+    while (true) {
+      final bytesRead = inputRaf.readIntoSync(buffer);
+      if (bytesRead == 0) break;
+      totalRead += bytesRead;
+      decoder.add(Uint8List.sublistView(buffer, 0, bytesRead), onOutput);
+      if (progressPort != null && totalBytes > 0) {
+        final progress = totalRead / totalBytes;
+        if (progress - lastReported >= 0.01) {
+          lastReported = progress;
+          progressPort.send(progress);
+        }
+      }
+    }
+    decoder.close();
+  } finally {
+    decoder.dispose();
+    inputRaf?.closeSync();
   }
 }

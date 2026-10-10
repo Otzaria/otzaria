@@ -98,18 +98,6 @@ class PhoneReportService {
     }
   }
 
-  /// Test connection to the reporting endpoint
-  Future<bool> testConnection() async {
-    try {
-      final response = await http
-          .head(Uri.parse(_endpoint))
-          .timeout(const Duration(seconds: 5));
-      return response.statusCode < 500;
-    } catch (e) {
-      debugPrint('Connection test failed: $e');
-      return false;
-    }
-  }
 }
 
 /// Result of a phone report submission

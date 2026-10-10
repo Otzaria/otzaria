@@ -80,11 +80,12 @@ void main() {
     expect(books.first['fileType'], 'txt');
     expect(books.first['orderIndex'], 3);
 
-    final toc = (await isolate.getBookTocRows(
-      1,
-    )).map(TocEntry.fromMap).toList();
+    // ה-worker מחזיר אובייקטים ולא Map: העתקת Map בין isolates יקרה פי 10.
+    final List<TocEntry> toc = await isolate.getBookTocEntries(1);
+    expect(toc.map((e) => e.id), [10, 11]);
     expect(toc.map((e) => e.text), ['פרק א', 'פרק ב']);
     expect(toc.map((e) => e.lineIndex), [0, 7]);
+    expect(toc.map((e) => e.level), [0, 1]);
     expect(toc.last.parentId, 10);
   });
 
@@ -160,7 +161,7 @@ void main() {
       throwsA(isA<StateError>()),
     );
     await expectLater(
-      isolate.getBookTocRows(1),
+      isolate.getBookTocEntries(1),
       throwsA(isA<StateError>()),
     );
   });

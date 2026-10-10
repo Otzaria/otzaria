@@ -88,7 +88,7 @@ void main() {
       expect(stage, lessThan(indexOfStep('Zip Windows ARM64 build')));
       expect(
         stage,
-        lessThan(indexOfStep('Build Inno Setup installer (ARM64)')),
+        lessThan(indexOfStep('Build regular installer (ARM64)')),
       );
       expect(
         stage,
@@ -126,7 +126,7 @@ void main() {
 
       final arm = indexOfStep('Stamp installed release (ARM64)');
       expect(arm, lessThan(indexOfStep('Zip Windows ARM64 build')));
-      expect(arm, lessThan(indexOfStep('Build Inno Setup installer (ARM64)')));
+      expect(arm, lessThan(indexOfStep('Build regular installer (ARM64)')));
       expect(
         arm,
         lessThan(indexOfStep('Generate application file manifest (ARM64)')),

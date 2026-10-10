@@ -50,7 +50,7 @@ class _SettingsSearchFieldState extends State<SettingsSearchField> {
       onChanged: widget.onChanged,
       slim: true,
       hintText: context.settingsText('חיפוש בהגדרות'),
-      icon: OtzariaIcons.search_in_the_settings_24_regular,
+      icon: OtzariaIcons.search_in_settings_24_regular,
       trailingActions: [
         if (hasText)
           OtzariaSearchAction.icon(

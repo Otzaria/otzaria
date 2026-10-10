@@ -312,11 +312,6 @@ class BookDao {
     ]);
   }
 
-  Future<List<Book>> getBooksByAuthor(String authorName) async {
-    if (!(await _capabilities).hasAuthors) return const [];
-    return _selectMany(_queries['selectByAuthor']!, ['%$authorName%']);
-  }
-
   Future<int> insertBook(
     int categoryId,
     int sourceId,
@@ -479,45 +474,11 @@ class BookDao {
     return db.updatedRows;
   }
 
-  /// Gets all external content books.
-  Future<List<Book>> getExternalContentBooks() async {
-    final db = await database;
-    return db
-        .select(_queries['selectExternalContent']!)
-        .toMapList()
-        .map((row) => bookFromRow(row))
-        .toList();
-  }
-
-  /// Gets all personal books.
-  Future<List<Book>> getPersonalBooks() async {
-    final db = await database;
-    return db
-        .select(_queries['selectPersonal']!)
-        .toMapList()
-        .map((row) => bookFromRow(row))
-        .toList();
-  }
-
   /// Gets an external book by its file path.
   Future<Book?> getBookByFilePath(String filePath) async {
     final db = await database;
     final result = db.select(_queries['selectByFilePath']!, [
       filePath,
-    ]).toMapList();
-    if (result.isEmpty) return null;
-    return bookFromRow(result.first);
-  }
-
-  /// Gets an external book by its file path and file type.
-  Future<Book?> getBookByFilePathAndType(
-    String filePath,
-    String fileType,
-  ) async {
-    final db = await database;
-    final result = db.select(_queries['selectByFilePathAndType']!, [
-      filePath,
-      fileType,
     ]).toMapList();
     if (result.isEmpty) return null;
     return bookFromRow(result.first);
@@ -570,22 +531,9 @@ class BookDao {
     return db.updatedRows;
   }
 
-  Future<int> countBooksByCategory(int categoryId) async {
-    final db = await database;
-    return firstIntValue(
-          db.select(_queries['countByCategoryId']!, [categoryId]),
-        ) ??
-        0;
-  }
-
   Future<int> countAllBooks() async {
     final db = await database;
     return firstIntValue(db.select(_queries['countAll']!)) ?? 0;
-  }
-
-  Future<int?> getMaxBookId() async {
-    final db = await database;
-    return firstIntValue(db.select(_queries['getMaxId']!));
   }
 
   // Search functionality - kept inline due to dynamic LIKE pattern

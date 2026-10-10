@@ -130,12 +130,13 @@ void _decodeCore(
 
   try {
     check(bindings.ZSTD_initDStream(dctx), 'ZSTD_initDStream');
-    // 31 = חלון עד 2GB; `--patch-from` מייצר frame שהחלון שלו הוא הקובץ הישן.
+    // `--patch-from` מייצר frame שחלונו הוא הקובץ הישן; ב-32 ביט frame
+    // שדורש חלון מעל 1GB נדחה על ידי zstd עם windowTooLarge.
     check(
       bindings.ZSTD_DCtx_setParameter(
         dctx,
         ZSTD_dParameter.ZSTD_d_windowLogMax,
-        31,
+        zstdWindowLogMax(),
       ),
       'ZSTD_DCtx_setParameter(windowLogMax)',
     );

@@ -41,6 +41,7 @@ SearchResult _result(int i) => SearchResult(
   mergedCount: 1,
   merged: const [],
   textStatus: TextStatus.ok,
+  continuesToNextLine: false,
 );
 
 Future<void> _pumpResults(

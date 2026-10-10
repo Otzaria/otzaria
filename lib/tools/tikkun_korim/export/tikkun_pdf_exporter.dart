@@ -43,8 +43,11 @@ enum TikkunExportScope {
   /// הטור המוצג כרגע.
   currentColumn,
 
-  /// כל הטורים של הקריאה הנוכחית (פרשה / הפטרה / פרק).
+  /// כל הטורים של הקריאה הנוכחית (פרשה / הפטרה / פרק); בתורה — החומש.
   all,
+
+  /// כל חמשת החומשים.
+  wholeTorah,
 
   /// טווח טורים שנבחר.
   range,
@@ -136,7 +139,7 @@ List<List<TikkunLine>> selectTikkunExportColumns(
   if (columns.isEmpty) return const [];
   final last = columns.length - 1;
   return switch (options.scope) {
-    TikkunExportScope.all => columns,
+    TikkunExportScope.all || TikkunExportScope.wholeTorah => columns,
     TikkunExportScope.currentColumn => [columns[currentColumn.clamp(0, last)]],
     TikkunExportScope.range => _columnSpan(
       columns,

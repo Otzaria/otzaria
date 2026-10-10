@@ -71,29 +71,31 @@ void main() {
     if (await dir.exists()) await dir.delete(recursive: true);
   });
 
-  SearchFeedbackService makeService() => SearchFeedbackService(
-    client: MockClient((request) async {
-      requests.add(request);
-      return request.url.path.endsWith('/register')
-          ? registerHandler(request)
-          : eventsHandler(request);
-    }),
-    baseUrl: Uri.parse('https://example.test'),
-    clock: () => now,
-    storageDirectory: () async => dir,
-    consentPersistence: consent,
-    sendingAllowed: () => online,
-    buildAllowsSending: buildAllowsSending,
-    appVersion: () => '1.2.3+456',
-    platform: () => 'windows',
-    osVersion: () => '10.0.26200',
-    locale: () => 'he',
-    timerFactory: (duration, callback) {
-      final timer = _FakeTimer(duration);
-      timers.add(timer);
-      return timer;
-    },
-  );
+  SearchFeedbackService makeService({int maxQueuedEvents = 5000}) =>
+      SearchFeedbackService(
+        maxQueuedEvents: maxQueuedEvents,
+        client: MockClient((request) async {
+          requests.add(request);
+          return request.url.path.endsWith('/register')
+              ? registerHandler(request)
+              : eventsHandler(request);
+        }),
+        baseUrl: Uri.parse('https://example.test'),
+        clock: () => now,
+        storageDirectory: () async => dir,
+        consentPersistence: consent,
+        sendingAllowed: () => online,
+        buildAllowsSending: buildAllowsSending,
+        appVersion: () => '1.2.3+456',
+        platform: () => 'windows',
+        osVersion: () => '10.0.26200',
+        locale: () => 'he',
+        timerFactory: (duration, callback) {
+          final timer = _FakeTimer(duration);
+          timers.add(timer);
+          return timer;
+        },
+      );
 
   Future<SearchFeedbackService> grantedService() async {
     final service = makeService();
@@ -380,11 +382,11 @@ void main() {
       });
     }
 
-    test('too_large splits the batch and sends the halves', () async {
+    test('plain 413 splits the batch and sends the halves', () async {
       final service = await grantedService();
       var calls = 0;
       eventsHandler = (request) => calls++ == 0
-          ? json(413, {'error': 'too_large'})
+          ? http.Response('<html>request too large</html>', 413)
           : json(200, {'accepted': 1, 'duplicates': 0});
       online = false;
       for (var i = 0; i < 4; i++) {
@@ -393,6 +395,7 @@ void main() {
       online = true;
       await service.flush();
       expect(service.queue.eventCount, 4);
+      expect(service.networkBlockStatus, isNull);
       await service.flush();
       expect(service.queue.isEmpty, isTrue);
       final sizes = eventRequests()
@@ -400,16 +403,160 @@ void main() {
           .toList();
       expect(sizes, [4, 2, 2]);
     });
+  });
 
-    test('a filter page answering repeatedly drops the batch', () async {
-      final service = await grantedService();
-      eventsHandler = (request) => http.Response('<html>418</html>', 418);
-      await recordOne(service);
-      for (var i = 0; i < SearchFeedbackService.maxUnrecognizedStrikes; i++) {
-        now = service.backoffUntil ?? now;
+  group('network or filter block', () {
+    http.Response filterPage(http.Request request) =>
+        http.Response('<html>blocked</html>', 418);
+
+    Future<void> recordInSegment(
+      SearchFeedbackService service,
+      String tag,
+    ) async {
+      service.recordSearch(
+        searchContext(engine: SemanticEngineSnapshot(state: tag)),
+      );
+      await service.settle();
+    }
+
+    File statusFile() =>
+        File('${dir.path}/${SearchFeedbackService.networkBlockFileName}');
+
+    test(
+      'repeated filter pages never drop data and back off 6h to 24h',
+      () async {
+        final service = await grantedService();
+        eventsHandler = filterPage;
+        await recordInSegment(service, 'a');
+        await recordInSegment(service, 'b');
+        final firstSeen = now;
+
         await service.flush();
+        expect(
+          eventRequests(),
+          hasLength(1),
+          reason: 'one probe, not one per batch',
+        );
+        expect(
+          service.backoffUntil!.difference(now),
+          SearchFeedbackService.filteredBackoffStart,
+        );
+        expect(service.networkBlockStatus?.firstSeen, firstSeen);
+        expect(statusFile().existsSync(), isTrue);
+
+        await service.flush();
+        expect(
+          eventRequests(),
+          hasLength(1),
+          reason: 'no probe inside the period',
+        );
+
+        final delays = <Duration>[];
+        for (var i = 0; i < 6; i++) {
+          now = service.backoffUntil!;
+          await service.flush();
+          delays.add(service.backoffUntil!.difference(now));
+        }
+        expect(eventRequests(), hasLength(7));
+        expect(delays.take(2), [
+          const Duration(hours: 12),
+          SearchFeedbackService.filteredBackoffMax,
+        ]);
+        expect(
+          delays.skip(2),
+          everyElement(SearchFeedbackService.filteredBackoffMax),
+        );
+        expect(service.queue.eventCount, 2);
+        expect(service.networkBlockStatus?.firstSeen, firstSeen);
+        expect(service.networkBlockStatus?.lastSeen, now);
+      },
+    );
+
+    test('Retry-After on a filter page is honored', () async {
+      final service = await grantedService();
+      eventsHandler = (request) => http.Response(
+        'blocked',
+        403,
+        headers: {'retry-after': '3600'},
+      );
+      await recordOne(service);
+      await service.flush();
+      expect(service.backoffUntil!.difference(now), const Duration(hours: 1));
+      expect(service.queue.eventCount, 1);
+    });
+
+    test('non-protocol answers never delete a batch', () async {
+      for (final status in [200, 400, 422]) {
+        final service = await grantedService();
+        await service.revoke();
+        await service.grant();
+        eventsHandler = (request) =>
+            http.Response('<html>portal</html>', status);
+        await recordOne(service);
+        await service.flush();
+        expect(service.queue.eventCount, 1, reason: 'status $status');
+        expect(service.networkBlockStatus, isNotNull, reason: 'status $status');
       }
-      expect(service.queue.isEmpty, isTrue);
+    });
+
+    test('a later 200 sends everything and clears the status', () async {
+      final service = await grantedService();
+      eventsHandler = filterPage;
+      await recordInSegment(service, 'a');
+      await recordInSegment(service, 'b');
+      await service.flush();
+      final retryAt = service.backoffUntil!;
+
+      // A restart must still honor the persisted pause.
+      final restarted = makeService();
+      final before = requests.length;
+      await restarted.flush();
+      expect(requests.length, before);
+      expect(restarted.networkBlockStatus, isNotNull);
+
+      now = retryAt;
+      eventsHandler = (request) => json(200, {'accepted': 1, 'duplicates': 0});
+      await restarted.flush();
+      expect(restarted.queue.isEmpty, isTrue);
+      expect(eventRequests(), hasLength(3));
+      expect(restarted.networkBlockStatus, isNull);
+      expect(statusFile().existsSync(), isFalse);
+    });
+
+    test('queue caps still apply while blocked', () async {
+      final service = makeService(maxQueuedEvents: 10);
+      await service.grant();
+      eventsHandler = filterPage;
+      await recordInSegment(service, 'first');
+      await service.flush();
+      for (var i = 0; i < 15; i++) {
+        await recordInSegment(service, 'tag$i');
+      }
+      expect(service.queue.eventCount, lessThanOrEqualTo(10));
+      expect(service.networkBlockStatus, isNotNull);
+    });
+
+    test('socket errors back off as before and set no block status', () async {
+      final service = await grantedService();
+      eventsHandler = (request) => throw http.ClientException('socket');
+      await recordOne(service);
+      await service.flush();
+      expect(
+        service.backoffUntil!.difference(now),
+        const Duration(seconds: 30),
+      );
+      expect(service.networkBlockStatus, isNull);
+      expect(service.queue.eventCount, 1);
+    });
+
+    test('revoke clears the block status', () async {
+      final service = await grantedService();
+      eventsHandler = filterPage;
+      await recordOne(service);
+      await service.flush();
+      await service.revoke();
+      expect(service.networkBlockStatus, isNull);
+      expect(statusFile().existsSync(), isFalse);
     });
   });
 

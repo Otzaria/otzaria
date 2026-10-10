@@ -1,6 +1,6 @@
 # תוספים מצורפים לחבילות ההתקנה
 
-מנגנון שמאפשר לחבילות ההתקנה — מתקיני Windows (רגיל, FULL, indexed-FULL,
+מנגנון שמאפשר לחבילות ההתקנה — מתקיני Windows (רגיל, FULL,
 ARM64), חבילות לינוקס (deb, rpm, raw, FULL), חבילות מק (DMG, zip עדכון,
 FULL) וה-APK של אנדרואיד — להגיע עם תוספים מהחנות הרשמית מותקנים מראש.
 בדסקטופ הארכיונים יושבים ליד ה-executable; במובייל אין "ליד ה-executable"
@@ -55,6 +55,10 @@ const bundledPlugins = <String, String>{
    - **Windows** — המתקין מעתיק ל-`{app}\bundled_plugins` (עם
      `skipifsourcedoesntexist`, כך שבנייה מקומית בלי התוספים עובדת כרגיל).
      שדרוג מוחק קודם את התיקייה הישנה (`[InstallDelete]`).
+     חנות התוספים (`NetworkGatedPlugin` בשני קובצי ה-iss) מועתקת רק אם
+     בקשה ל-`https://otzaria.org/` מחזירה 200
+     (`installer/bundled_plugins_network_check.iss`). בלי רשת היא לא מותקנת,
+     והבדיקה חוזרת בשדרוג הבא.
    - **לינוקס** — ה-workflow מעתיק אל שורש ה-bundle (ליד הבינארי) בכל ארבע
      החבילות: לעץ ה-deb וה-rpm לפני ה-repack, ול-bundle הראשי שממנו נגזרות
      raw ו-FULL.
@@ -76,6 +80,10 @@ const bundledPlugins = <String, String>{
    - מזהה המניפסט נמצא ב-`bundledPlugins` המקומפל לתוך האפליקציה,
      בפלטפורמות שהרשומה שלו מתירה;
    - המזהה שהמניפסט מצהיר זהה לשם הקובץ;
+   - תוסף שב-`networkGatedBundledPluginIds` (חנות התוספים) — מחוץ ל-Windows,
+     שם אין מתקין שבודק — נרשם רק אם `https://otzaria.org/` עונה 200; אחרת
+     אינו מסומן וינוסה שוב בעלייה הבאה. הבדיקה מדולגת במצב "ללא גישה
+     לאינטרנט" ובחלון משני, ורצה אחרי חשיפת החלון (`PluginSafeMode.ready`);
    - התוסף לא נרשם בעבר מהמנגנון הזה (`key-seeded-bundled-plugins`)
      ואינו מותקן כבר.
 

@@ -3,7 +3,9 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
+import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// תצוגה מקדימה של תיקייה בספרייה: שם, נתיב, תיאור (אם קיים), מונים ורשימת
@@ -40,19 +42,112 @@ class CategoryPreviewPanel extends StatelessWidget {
       books: books.length,
     );
 
+    final itemCount = subCategories.length + books.length;
+    const headerInset = EdgeInsets.symmetric(
+      horizontal: kNavTreeSideInset,
+    );
+
     return GestureDetector(
       onDoubleTap: onOpen,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+        padding: const EdgeInsets.fromLTRB(
+          24 - kNavTreeSideInset,
+          20,
+          24 - kNavTreeSideInset,
+          12,
+        ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: headerInset,
+              child: _header(theme, cs),
+            ),
+            if (description != null) ...[
+              const SizedBox(height: 16),
+              Padding(
+                padding: headerInset,
+                child: Text(description, style: theme.textTheme.bodyMedium),
+              ),
+            ],
+            if (counts != null) ...[
+              const SizedBox(height: 16),
+              Padding(
+                padding: headerInset,
+                child: Text(
+                  counts,
+                  style: AppTextStyles.settingTitle.copyWith(
+                    fontSize: AppTokens.fontMD,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView.builder(
+                itemCount: itemCount,
+                itemBuilder: (context, index) => NavTreeGroupCard(
+                  isGroupStart: index == 0,
+                  isGroupEnd: index == itemCount - 1,
+                  child: _contentRow(index),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _contentRow(int index) {
+    if (index < subCategories.length) {
+      return NavTreeTile(
+        title: subCategories[index].title,
+        level: 0,
+        fontWeight: FontWeight.w600,
+      );
+    }
+    final book = books[index - subCategories.length];
+    return NavTreeTile(
+      title: book.title,
+      subtitle: book.author?.trim(),
+      level: 0,
+      icon: bookFormatIcon(book),
+      useFolderIcon: false,
+      fontWeight: FontWeight.w500,
+    );
+  }
+
+  Widget _header(ThemeData theme, ColorScheme cs) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackAction =
+            constraints.maxWidth < MediaQuery.textScalerOf(context).scale(300);
+        final action = onOpen == null
+            ? null
+            : ActionButton.recommended(
+                text: 'פתח תיקייה',
+                icon: FluentIcons.folder_open_24_regular,
+                onPressed: onOpen,
+              );
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
-                Icon(
-                  FluentIcons.folder_24_regular,
-                  size: 32,
-                  color: cs.onSecondaryContainer,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: cs.secondaryContainer,
+                    borderRadius: AppTokens.borderRadiusAll,
+                  ),
+                  child: Icon(
+                    FluentIcons.folder_24_regular,
+                    size: 24,
+                    color: cs.onSecondaryContainer,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -75,52 +170,22 @@ class CategoryPreviewPanel extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (onOpen case final open?) ...[
+                if (action != null && !stackAction) ...[
                   const SizedBox(width: 12),
-                  ActionButton.recommended(
-                    text: 'פתח תיקייה',
-                    icon: FluentIcons.folder_open_24_regular,
-                    onPressed: open,
-                  ),
+                  action,
                 ],
               ],
             ),
-            if (description != null) ...[
-              const SizedBox(height: 16),
-              Text(description, style: theme.textTheme.bodyMedium),
-            ],
-            if (counts != null) ...[
-              const SizedBox(height: 16),
-              Text(
-                counts,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
+            if (action != null && stackAction) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: action,
               ),
             ],
-            const SizedBox(height: 8),
-            Expanded(
-              child: ListView.builder(
-                itemCount: subCategories.length + books.length,
-                itemBuilder: (context, index) {
-                  if (index < subCategories.length) {
-                    return _ContentRow(
-                      icon: FluentIcons.folder_24_regular,
-                      title: subCategories[index].title,
-                    );
-                  }
-                  final book = books[index - subCategories.length];
-                  return _ContentRow(
-                    icon: bookFormatIcon(book),
-                    title: book.title,
-                    subtitle: book.author,
-                  );
-                },
-              ),
-            ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -138,45 +203,4 @@ String? categoryContentCountsText({
     if (books > 1) '$books ספרים',
   ];
   return parts.isEmpty ? null : parts.join(' · ');
-}
-
-class _ContentRow extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-
-  const _ContentRow({required this.icon, required this.title, this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final author = subtitle?.trim() ?? '';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: cs.onSurfaceVariant),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                text: title,
-                children: [
-                  if (author.isNotEmpty)
-                    TextSpan(
-                      text: '  $author',
-                      style: TextStyle(color: cs.onSurfaceVariant),
-                    ),
-                ],
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

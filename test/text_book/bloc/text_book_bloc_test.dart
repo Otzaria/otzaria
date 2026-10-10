@@ -15,7 +15,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
-import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -86,6 +86,49 @@ void main() {
         expect(state.searchWholeWord, isTrue);
       });
     });
+
+    test(
+      'קורא מובנה שנוצר אחרי קריאה בתוסף מתחיל במיקום הכרטיסייה המעודכן',
+      () async {
+        final bloc = _createBloc(
+          repository: _FakeTextBookRepository(),
+          showPageShapeView: false,
+          initialIndex: 0,
+        );
+        addTearDown(bloc.close);
+        bloc.add(
+          const LoadContent(
+            startIndex: 25,
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
+        await _waitFor(
+          () => bloc.state is TextBookLoaded,
+          description: 'TextBookLoaded',
+        );
+        expect((bloc.state as TextBookLoaded).visibleIndices.first, 25);
+        bloc.add(
+          const LoadContent(
+            startIndex: 2,
+            preserveState: true,
+            fontSize: 22,
+            showSplitView: false,
+            removeNikud: false,
+            loadCommentators: false,
+          ),
+        );
+        await _waitFor(
+          () =>
+              bloc.state is TextBookLoaded &&
+              (bloc.state as TextBookLoaded).fontSize == 22,
+          description: 'font reload',
+        );
+        expect((bloc.state as TextBookLoaded).visibleIndices.first, 25);
+      },
+    );
 
     test('במפרשים למטה טוען קישורים מיד עבור הטווח הגלוי', () async {
       final repository = _FakeTextBookRepository();

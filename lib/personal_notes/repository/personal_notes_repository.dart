@@ -46,6 +46,10 @@ class PersonalNotesRepository {
     return _service.loadNotes(bookId: bookId, bookContent: content);
   }
 
+  /// ההערות כפי שנשמרו, בלי לקרוא את תוכן הספר ובלי ליישב מחדש את מיקומן.
+  Future<List<PersonalNote>> loadStoredNotes(String bookId) =>
+      _database.loadNotes(bookId);
+
   Future<List<PersonalNote>> addNote({
     required String bookId,
     required int lineNumber,

@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:otzaria/indexing/utils/indexing_crash_canary.dart';
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:ui' as ui show IsolateNameServer;
@@ -44,6 +46,7 @@ void main() {
     ui.IsolateNameServer.removePortNameMapping('$_namespace.owner');
     WindowBus.namespace = 'otzaria.window';
     MultiWindowService.debugSupportedOverride = null;
+    MultiWindowService.closingAll = false;
     WindowRole.isSecondary = false;
   });
 
@@ -142,12 +145,41 @@ void main() {
     expect(peer.lastBody!['pluginSafeMode'], isFalse);
   });
 
+  testWidgets('כיבוי תהליך מחלון אחר מסיים מעקב אינדוקס בראשי מוסתר', (
+    tester,
+  ) async {
+    final temp = Directory.systemTemp.createTempSync('canary_owner_');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    IndexingCrashCanary.start('${temp.path}/index');
+    final canary = IndexingCrashCanary.current!;
+    addTearDown(canary.finish);
+    canary.begin('id:active');
+    final window = _RecordingWindow(visible: false);
+    await tester.pumpWidget(
+      AppWindowScope(
+        controller: window,
+        geometry: window,
+        child: const WindowBusHost(child: SizedBox()),
+      ),
+    );
+    expect(
+      await WindowBus.instance.onRequest!({
+        'type': IndexingCrashCanary.finishRequest,
+      }),
+      isTrue,
+    );
+    expect(IndexingCrashCanary.current, isNull);
+    expect(File('${temp.path}/index.in_flight.json').readAsStringSync(), '{}');
+    expect(window.closeCalls, 0);
+  });
+
   testWidgets('בקשת סגירה נכנסת עוברת במסלול הסגירה הרגיל', (tester) async {
     final window = _RecordingWindow();
     final handled = await deliverCloseRequest(tester, window);
 
     expect(handled, isTrue);
     expect(window.closeCalls, 1, reason: 'close() הוא בדיוק המסלול של X');
+    expect(MultiWindowService.closingAll, isTrue, reason: 'הסשן נשמר');
     expect(
       window.quitCalls,
       0,

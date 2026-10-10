@@ -3,7 +3,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -204,6 +204,26 @@ class TextBookLoaded extends TextBookState {
   /// אל ה-state הלוגי — selectedIndex/highlightedLine/searchText נשארים
   /// ברמת שורות מקור.
   final List<ReadingSegment> readingSegments;
+
+  /// האם שורת המקור נטענה, גם כשהיא חלק מפסקה רציפה.
+  /// בלי מידע על השורה, משמר את סריקת התוכן הרגילה.
+  bool isContentLineLoaded(int lineIndex) {
+    var low = 0;
+    var high = readingSegments.length - 1;
+    while (low <= high) {
+      final middle = (low + high) >> 1;
+      final segment = readingSegments[middle];
+      if (lineIndex < segment.startLineIndex) {
+        high = middle - 1;
+      } else if (lineIndex > segment.endLineIndex) {
+        low = middle + 1;
+      } else {
+        return segment.isLoaded;
+      }
+    }
+    return true;
+  }
+
   final List<int> visibleIndices;
 
   /// העוגן הראשי של הבחירה — מניע גלילה, highlight, ניווט TOC ודיווח טעות.
@@ -400,6 +420,19 @@ class TextBookLoaded extends TextBookState {
   /// רק שורה שהמנוע החזיר משתתפת בהדגשה במדיניות שאינה סטנדרטית.
   bool lineParticipatesInSearchHighlight(int lineIndex) =>
       searchResultLines?.contains(lineIndex) ?? false;
+
+  /// השורה הסמוכה כשגם היא וגם [lineIndex] שורות תוצאה — ביטוי שנמשך משורה
+  /// לשורה מודגש בשתיהן. [next]: השורה הבאה, אחרת הקודמת.
+  String? searchResultNeighbour(int lineIndex, {required bool next}) {
+    final neighbour = next ? lineIndex + 1 : lineIndex - 1;
+    if (neighbour < 0 ||
+        neighbour >= content.length ||
+        !lineParticipatesInSearchHighlight(lineIndex) ||
+        !lineParticipatesInSearchHighlight(neighbour)) {
+      return null;
+    }
+    return content[neighbour];
+  }
 
   /// מצב התצוגה הפעיל — קובע מאיזה חריץ נפתרות ההגדרות.
   TextView get activeView =>
@@ -704,13 +737,6 @@ class TextBookLoaded extends TextBookState {
   /// האם השורה [index] מודגשת ברקע צהוב (highlightText + permanentHighlightLine).
   bool isHighlightYellowBackground(int index) =>
       highlightText.isNotEmpty && permanentHighlightLine == index;
-
-  /// מחרוזת החיפוש האפקטיבית לשורה [index]:
-  /// אם יש highlightText ממוקד לשורה זו — מחזיר אותו, אחרת את searchText הרגיל.
-  String getEffectiveSearchText(int index) =>
-      (highlightText.isNotEmpty && permanentHighlightLine == index)
-      ? highlightText
-      : searchText;
 
   @override
   List<Object?> get props => [

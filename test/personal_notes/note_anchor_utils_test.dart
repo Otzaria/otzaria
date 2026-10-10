@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
@@ -191,5 +193,173 @@ void main() {
       ]);
       expect(result, '<a><b>אב</b> גד</a>');
     });
+
+    test('עיטוף בקפיצות ל-< זהה לסריקה תו-תו (perf)', () {
+      const pieces = [
+        'א',
+        'בג ',
+        '<b>',
+        '</b>',
+        '<a href="x">',
+        '</a>',
+        '<br/>',
+        '<i data-c></i>',
+        '<a title="x>y">',
+        '&lt;',
+        '\u{1F600}',
+        '<',
+        '>',
+        '/',
+        'ד',
+      ];
+      final rnd = Random(7);
+      for (var n = 0; n < 2000; n++) {
+        final text = [
+          for (var k = rnd.nextInt(12); k >= 0; k--)
+            pieces[rnd.nextInt(pieces.length)],
+        ].join();
+        final start = rnd.nextInt(text.length);
+        final end = start + 1 + rnd.nextInt(text.length - start);
+        final expected =
+            text.substring(0, start) +
+            _oldAppendWrapped(text, start, end, '<m>', '</m>') +
+            text.substring(end);
+        expect(
+          wrapHtmlRanges(text, [
+            HtmlWrapRange(
+              start: start,
+              end: end,
+              openTag: '<m>',
+              closeTag: '</m>',
+            ),
+          ]),
+          expected,
+          reason: '$text [$start,$end)',
+        );
+      }
+    });
+
+    test('גבולות הטווח בתוך תגיות וישויות זהים לסריקה תו-תו', () {
+      const lines = [
+        'אב<b>גד</b>הו',
+        'אב<a title="x>y">גד</a>הו',
+        'אב<i data-c></i><br/>גד',
+        'אב<b גד<',
+        'אב</b>גד<b>הו',
+        'אב&lt;😀גד\uD800\uDC00',
+      ];
+      for (final text in lines) {
+        for (var start = 0; start < text.length; start++) {
+          for (var end = start + 1; end <= text.length; end++) {
+            expect(
+              wrapHtmlRanges(text, [
+                HtmlWrapRange(
+                  start: start,
+                  end: end,
+                  openTag: '<m>',
+                  closeTag: '</m>',
+                ),
+              ]),
+              text.substring(0, start) +
+                  _oldAppendWrapped(text, start, end, '<m>', '</m>') +
+                  text.substring(end),
+              reason: '$text [$start,$end)',
+            );
+          }
+        }
+      }
+    });
+
+    test('טווחים קצרים בשורה ארוכה נשמרים גם כשהתגיות מחוץ לטווח', () {
+      final body = List.filled(400000, 'א').join();
+      for (final suffix in ['', '<b>סוף</b>', '<']) {
+        final text = body + suffix;
+        final ranges = [
+          for (var i = 0; i < 43; i++)
+            HtmlWrapRange(
+              start: i * 9000 + 1,
+              end: i * 9000 + 11,
+              openTag: '<m>',
+              closeTag: '</m>',
+            ),
+        ];
+        final expected = StringBuffer();
+        var cursor = 0;
+        for (final range in ranges) {
+          expected
+            ..write(text.substring(cursor, range.start))
+            ..write('<m>')
+            ..write(text.substring(range.start, range.end))
+            ..write('</m>');
+          cursor = range.end;
+        }
+        expected.write(text.substring(cursor));
+        expect(wrapHtmlRanges(text, ranges), expected.toString());
+      }
+    });
   });
+}
+
+/// אורקל עצמאי לשקילות: סריקה תו-תו בלי חיתוך הטווח לפני עיטופו.
+String _oldAppendWrapped(
+  String text,
+  int start,
+  int end,
+  String openTag,
+  String closeTag,
+) {
+  final buffer = StringBuffer();
+  final boundaries = <int>{};
+  final openStack = <int>[];
+  var i = start;
+  while (i < end) {
+    if (text[i] != '<') {
+      i++;
+      continue;
+    }
+    final gt = text.indexOf('>', i);
+    final tagEnd = (gt < 0 || gt >= end) ? end - 1 : gt;
+    final isClose = i + 1 < end && text[i + 1] == '/';
+    final isSelfClose = tagEnd > i && text[tagEnd - 1] == '/';
+    if (isClose) {
+      if (openStack.isNotEmpty) {
+        openStack.removeLast();
+      } else {
+        boundaries.add(i);
+      }
+    } else if (!isSelfClose) {
+      openStack.add(i);
+    }
+    i = tagEnd + 1;
+  }
+  boundaries.addAll(openStack);
+  var wrapOpen = false;
+  i = start;
+  while (i < end) {
+    if (text[i] == '<') {
+      final gt = text.indexOf('>', i);
+      final tagEnd = (gt < 0 || gt >= end) ? end - 1 : gt;
+      final isBoundary = boundaries.contains(i);
+      final isOpening =
+          i + 1 < end && text[i + 1] != '/' && text[tagEnd - 1] != '/';
+      if (isBoundary && wrapOpen) {
+        buffer.write(closeTag);
+        wrapOpen = false;
+      } else if (!isBoundary && isOpening && !wrapOpen) {
+        buffer.write(openTag);
+        wrapOpen = true;
+      }
+      buffer.write(text.substring(i, tagEnd + 1));
+      i = tagEnd + 1;
+    } else {
+      if (!wrapOpen) {
+        buffer.write(openTag);
+        wrapOpen = true;
+      }
+      buffer.write(text[i]);
+      i++;
+    }
+  }
+  if (wrapOpen) buffer.write(closeTag);
+  return buffer.toString();
 }

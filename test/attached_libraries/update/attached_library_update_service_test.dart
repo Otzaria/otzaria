@@ -16,6 +16,7 @@ import 'package:otzaria/attached_libraries/repository/update/attached_library_up
 import 'package:otzaria/attached_libraries/repository/update/attached_update_artifact_builder.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_downloader.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_fetcher.dart';
+import 'package:otzaria/attached_libraries/repository/update/attached_update_host_policy.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_file_swap.dart';
 import 'package:otzaria/attached_libraries/repository/update/attached_update_signature.dart';
 import 'package:otzaria/plugins/services/plugin_settings_access_policy.dart';
@@ -33,6 +34,7 @@ class _FakeFetcher extends AttachedUpdateFetcher {
   Uint8List manifest = Uint8List(0);
   Uint8List signature = Uint8List(0);
   int calls = 0;
+  Object? failure;
 
   @override
   Future<({Uint8List manifest, Uint8List signature})> fetchSignedManifest(
@@ -40,6 +42,7 @@ class _FakeFetcher extends AttachedUpdateFetcher {
     AttachedUpdateCancelToken? cancel,
   }) async {
     calls++;
+    if (failure != null) throw failure!;
     return (manifest: manifest, signature: signature);
   }
 }
@@ -53,6 +56,8 @@ class _FakeDownloader extends AttachedUpdateDownloader {
   final artifacts = <AttachedUpdateArtifact>[];
   final basePaths = <String?>[];
   bool failDelta = false;
+  Object? fullFailure;
+  void Function()? onDeltaFailure;
   bool ignoreCancel = false;
   Object deltaFailure = const AttachedUpdateArtifactMismatch(
     'patch does not apply',
@@ -70,9 +75,14 @@ class _FakeDownloader extends AttachedUpdateDownloader {
     calls++;
     artifacts.add(artifact);
     basePaths.add(basePath);
+    if (artifact.compression != AttachedUpdateCompression.zstdPatch &&
+        fullFailure != null) {
+      throw fullFailure!;
+    }
     if (artifact.compression == AttachedUpdateCompression.zstdPatch &&
         failDelta) {
       await File(combinedPath).writeAsBytes([9, 9, 9]);
+      onDeltaFailure?.call();
       throw deltaFailure;
     }
     onProgress?.call(1, 2);
@@ -335,6 +345,16 @@ void main() {
       );
       expect(fetcher.calls, 0);
     });
+  });
+
+  test('a missing manifest remains a network failure', () async {
+    final library = await attach(database());
+    fetcher.failure = const AttachedUpdateHttpException(HttpStatus.notFound);
+    expect(
+      await service().check(library),
+      const AttachedUpdateFailed(AttachedUpdateError.network),
+    );
+    expect(downloader.calls, 0);
   });
 
   group('install', () {
@@ -738,6 +758,91 @@ void main() {
             ? Directory(p.join(temp.path, 'work')).listSync()
             : const [],
         isEmpty,
+      );
+    });
+
+    test('a missing delta falls back to the full artifact', () async {
+      final (svc, library) = await offered();
+      downloader.failDelta = true;
+      downloader.deltaFailure = const AttachedUpdateHttpException(
+        HttpStatus.notFound,
+      );
+      await svc.install(library);
+      expect(svc.statusOf(library), const AttachedUpdateInstalled(2));
+      expect(downloader.calls, 2);
+      expect(
+        downloader.artifacts.last.compression,
+        AttachedUpdateCompression.none,
+      );
+      expect(Directory(p.join(temp.path, 'work')).listSync(), isEmpty);
+    });
+
+    for (final failure in [
+      const AttachedUpdateHttpException(HttpStatus.unauthorized),
+      const AttachedUpdateHttpException(HttpStatus.forbidden),
+      const AttachedUpdateHttpException(HttpStatus.internalServerError),
+      const AttachedUpdateHostRejected('private address'),
+    ]) {
+      test('delta failure $failure does not fall back to full', () async {
+        final (svc, library) = await offered();
+        downloader.failDelta = true;
+        downloader.deltaFailure = failure;
+        await svc.install(library);
+        expect(
+          svc.statusOf(library),
+          isA<AttachedUpdateFailed>().having(
+            (s) => s.error,
+            'error',
+            failure is AttachedUpdateHostRejected
+                ? AttachedUpdateError.hostRejected
+                : AttachedUpdateError.network,
+          ),
+        );
+        expect(downloader.calls, 1);
+      });
+    }
+
+    test('a missing full artifact remains a network failure', () async {
+      final library = await attach(database());
+      publish(database(version: '2'));
+      final svc = service();
+      await svc.check(library);
+      downloader.fullFailure = const AttachedUpdateHttpException(
+        HttpStatus.notFound,
+      );
+      await svc.install(library);
+      expect(
+        svc.statusOf(library),
+        isA<AttachedUpdateFailed>().having(
+          (s) => s.error,
+          'error',
+          AttachedUpdateError.network,
+        ),
+      );
+      expect(downloader.calls, 1);
+      expect(
+        downloader.artifacts.single.compression,
+        AttachedUpdateCompression.none,
+      );
+    });
+
+    test('cancellation takes precedence over a missing delta', () async {
+      final (svc, library) = await offered();
+      downloader.failDelta = true;
+      downloader.deltaFailure = const AttachedUpdateHttpException(
+        HttpStatus.notFound,
+      );
+      downloader.onDeltaFailure = () => svc.cancel(library);
+      await svc.install(library);
+      expect(downloader.calls, 1);
+      expect(
+        downloader.artifacts.single.compression,
+        AttachedUpdateCompression.zstdPatch,
+      );
+      expect(repository.libraries.single.fingerprint!.dbVersion, '1');
+      expect(
+        File(AttachedUpdateFileSwap.stagedPathFor(library.path)).existsSync(),
+        isFalse,
       );
     });
 

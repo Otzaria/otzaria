@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/settings_exports.dart';
+import 'package:otzaria/semantic_search/models/semantic_paths.dart';
+import 'package:otzaria/semantic_search/models/semantic_import_layout.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -16,12 +18,14 @@ void main() {
     AppPaths.debugOverrideDataRootPath(null);
     AppPaths.debugOverrideResolvedExecutable(null);
     AppPaths.debugOverrideDocumentsRootPath(null);
+    AppPaths.debugSystemWideLibraryRootPath = null;
   });
 
   tearDown(() async {
     AppPaths.debugOverrideDataRootPath(null);
     AppPaths.debugOverrideResolvedExecutable(null);
     AppPaths.debugOverrideDocumentsRootPath(null);
+    AppPaths.debugSystemWideLibraryRootPath = null;
     Settings.clearCache();
   });
 
@@ -38,8 +42,16 @@ void main() {
         final library = p.join(dataRoot.path, 'ספרים');
         await Directory(library).create(recursive: true);
         await Settings.setValue(SettingsRepository.keyLibraryPath, library);
+        await Settings.setValue(
+          SettingsRepository.keyLibraryFolderName,
+          'אוצריא',
+        );
 
-        await AppPaths.recordLibraryPathForUninstaller();
+        await AppPaths.writeLibraryPathRecords(
+          dataRoot: dataRoot.path,
+          libraryPath: library,
+          databaseDirectory: DatabaseConstants.getDatabaseDirectoryPath(),
+        );
 
         final record = File(
           p.join(dataRoot.path, AppPaths.libraryPathRecordFileName),
@@ -52,9 +64,73 @@ void main() {
           reason: 'בלי BOM, LoadStringsFromFile קורא ANSI ושובר נתיב בעברית',
         );
         expect(utf8.decode(bytes.skip(3).toList()), library);
+        final databaseRecord = File(
+          p.join(dataRoot.path, AppPaths.libraryDatabasePathRecordFileName),
+        );
+        expect(
+          await databaseRecord.readAsBytes(),
+          utf8.encode('\ufeff${p.join(library, 'אוצריא')}'),
+        );
+        await Settings.setValue(SettingsRepository.keyLibraryFolderName, '');
+        await AppPaths.writeLibraryPathRecords(
+          dataRoot: dataRoot.path,
+          libraryPath: library,
+          databaseDirectory: DatabaseConstants.getDatabaseDirectoryPath(),
+        );
+        expect(
+          await databaseRecord.readAsBytes(),
+          utf8.encode('\ufeff$library'),
+        );
+        expect(await record.readAsBytes(), bytes);
+        final sharedRoot = Directory(
+          p.join(dataRoot.path, 'ProgramData', 'otzaria'),
+        );
+        await sharedRoot.create(recursive: true);
+        final movedLibrary = p.join(dataRoot.path, 'כונן אחר', 'ספרייה');
+        await AppPaths.writeLibraryPathRecords(
+          dataRoot: sharedRoot.path,
+          libraryPath: movedLibrary,
+          databaseDirectory: p.join(movedLibrary, 'Otzaria'),
+        );
+        expect(
+          await File(
+            p.join(sharedRoot.path, AppPaths.libraryPathRecordFileName),
+          ).readAsBytes(),
+          utf8.encode('\ufeff$movedLibrary'),
+        );
+        expect(
+          await File(
+            p.join(sharedRoot.path, AppPaths.libraryDatabasePathRecordFileName),
+          ).readAsBytes(),
+          utf8.encode('\ufeff${p.join(movedLibrary, 'Otzaria')}'),
+        );
+        await AppPaths.writeLibraryPathRecords(
+          dataRoot: dataRoot.path,
+          libraryPath: movedLibrary,
+          databaseDirectory: p.join(movedLibrary, 'Other'),
+        );
+        expect(await record.readAsBytes(), utf8.encode('\ufeff$movedLibrary'));
+        expect(
+          await databaseRecord.readAsBytes(),
+          utf8.encode('\ufeff${p.join(movedLibrary, 'Other')}'),
+        );
       },
-      skip: !Platform.isWindows,
     );
+  });
+
+  test('רישום רגיל מחוץ ל-Windows אינו יוצר קובצי מתקין', () async {
+    if (Platform.isWindows) return;
+    final dataRoot = await Directory.systemTemp.createTemp(
+      'otzaria_no_record_',
+    );
+    addTearDown(() => dataRoot.delete(recursive: true));
+    AppPaths.debugOverrideDataRootPath(dataRoot.path);
+    await Settings.setValue(
+      SettingsRepository.keyLibraryPath,
+      p.join(dataRoot.path, 'books'),
+    );
+    await AppPaths.recordLibraryPathForUninstaller();
+    expect(await dataRoot.list().toList(), isEmpty);
   });
 
   group('AppPaths backup paths', () {
@@ -391,6 +467,64 @@ void main() {
 
       expect(await AppPaths.getIndexPath(), adjacentIndex.path);
     });
+
+    for (final folderName in ['', 'Otzaria', 'אוצריא', 'custom-books']) {
+      test(
+        'ספרייה עם folderName=$folderName משמרת index, model ו-import',
+        () async {
+          final fixture = await Directory.systemTemp.createTemp(
+            'otzaria_nested_',
+          );
+          addTearDown(() => fixture.delete(recursive: true));
+          final dataRoot = p.join(fixture.path, 'data');
+          final libraryRoot = p.join(fixture.path, 'custom-root');
+          final dbDirectory = folderName.isEmpty
+              ? libraryRoot
+              : p.join(libraryRoot, folderName);
+          await Directory(dataRoot).create();
+          await Directory(dbDirectory).create(recursive: true);
+          await File(p.join(dbDirectory, 'seforim.db')).writeAsString('db');
+          final index = Directory(p.join(fixture.path, 'index'));
+          await index.create();
+          await File(
+            p.join(index.path, AppPaths.prebuiltIndexMarkerFileName),
+          ).writeAsString('');
+          AppPaths.debugOverrideDataRootPath(dataRoot);
+          AppPaths.debugOverrideResolvedExecutable(
+            p.join(fixture.path, 'app.exe'),
+          );
+          await Settings.setValue(
+            SettingsRepository.keyLibraryPath,
+            libraryRoot,
+          );
+          await Settings.setValue(
+            SettingsRepository.keyLibraryFolderName,
+            folderName,
+          );
+
+          expect(await AppPaths.getLibraryPath(), libraryRoot);
+          expect(DatabaseConstants.getDatabaseDirectoryPath(), dbDirectory);
+          expect(await AppPaths.getIndexPath(), index.path);
+          final semantic = SemanticPaths(
+            DatabaseConstants.getDatabaseDirectoryPath(),
+          );
+          expect(
+            semantic.modelDirectory,
+            p.join(dbDirectory, kSemanticModelFolderName),
+          );
+          expect(
+            p.join(semantic.root, kSemanticImportFolderName),
+            p.join(p.dirname(dbDirectory), 'semantic-import'),
+          );
+          expect(
+            await File(
+              p.join(index.path, AppPaths.prebuiltIndexMarkerFileName),
+            ).exists(),
+            isTrue,
+          );
+        },
+      );
+    }
 
     test('getDatabasesPath מעדיף נתיב שמור מפורש', () async {
       final dataRoot = await Directory.systemTemp.createTemp('otzaria_data_');
@@ -1134,6 +1268,93 @@ void main() {
         );
       },
     );
+  });
+
+  group('אינדקס בהתקנה מערכתית עם ספרייה מותאמת', () {
+    late Directory root;
+    late String sharedIndex;
+    late String adjacentIndex;
+
+    setUp(() async {
+      root = await Directory.systemTemp.createTemp('otzaria_system_index_');
+      final systemRoot = p.join(root.path, 'ProgramData', 'otzaria');
+      sharedIndex = p.join(systemRoot, 'index');
+      adjacentIndex = p.join(root.path, 'custom', 'index');
+      AppPaths.debugSystemWideLibraryRootPath = systemRoot;
+      AppPaths.debugOverrideDataRootPath(p.join(root.path, 'user'));
+      await Settings.setValue(SettingsRepository.keyIndexPath, '');
+      await Settings.setValue(
+        SettingsRepository.keyLibraryPath,
+        p.join(root.path, 'custom', 'books'),
+      );
+      await Directory(adjacentIndex).create(recursive: true);
+      await File(
+        p.join(adjacentIndex, AppPaths.prebuiltIndexMarkerFileName),
+      ).writeAsString('');
+    });
+
+    tearDown(() async {
+      await root.delete(recursive: true);
+    });
+
+    Future<void> stageExistingSharedIndex() async {
+      await Directory(sharedIndex).create(recursive: true);
+      await File(p.join(sharedIndex, 'meta.json')).writeAsString('{}');
+    }
+
+    test('אינדקס מערכת קיים גובר על prebuilt צמוד ישן', () async {
+      await stageExistingSharedIndex();
+      expect(await AppPaths.getIndexPath(), sharedIndex);
+    });
+
+    test('התקנה חדשה בלי אינדקס מערכת משתמשת ב-prebuilt הצמוד', () async {
+      expect(await AppPaths.getIndexPath(), adjacentIndex);
+    });
+
+    test('תיקיית מערכת ריקה מהמתקין אינה גוברת על prebuilt', () async {
+      await Directory(sharedIndex).create(recursive: true);
+      expect(await AppPaths.getIndexPath(), adjacentIndex);
+    });
+
+    test('ללא מסמן prebuilt נשמרת ברירת המחדל המערכתית', () async {
+      await File(
+        p.join(adjacentIndex, AppPaths.prebuiltIndexMarkerFileName),
+      ).delete();
+      expect(await AppPaths.getIndexPath(), sharedIndex);
+    });
+
+    test('נתיב אינדקס שמור גובר על שני האינדקסים', () async {
+      await stageExistingSharedIndex();
+      final savedIndex = p.join(root.path, 'selected', 'index');
+      await Settings.setValue(SettingsRepository.keyIndexPath, savedIndex);
+      expect(await AppPaths.getIndexPath(), savedIndex);
+    });
+
+    test('איפוס כולל גם את האינדקס הצמוד הישן ואינו מאמץ אותו מחדש', () async {
+      await stageExistingSharedIndex();
+      final paths = {
+        await AppPaths.getIndexPath(),
+        ...await AppPaths.getStaleDefaultIndexPaths(),
+      };
+      expect(paths, containsAll([sharedIndex, adjacentIndex]));
+      for (final path in paths) {
+        final dir = Directory(path);
+        if (await dir.exists()) await dir.delete(recursive: true);
+      }
+      expect(await AppPaths.getIndexPath(), sharedIndex);
+    });
+
+    test('portable אינו מאמץ אינדקס מערכת קיים', () async {
+      await stageExistingSharedIndex();
+      final exe = File(p.join(root.path, 'app', 'otzaria.exe'));
+      await exe.parent.create();
+      await exe.writeAsString('');
+      await File(
+        p.join(exe.parent.path, AppPaths.portableMarkerFileName),
+      ).writeAsString('');
+      AppPaths.debugOverrideResolvedExecutable(exe.path);
+      expect(await AppPaths.getIndexPath(), adjacentIndex);
+    });
   });
 
   group('AppPaths זיהוי מצב התקנה — Windows', () {

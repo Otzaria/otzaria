@@ -631,23 +631,6 @@ class FileSystemData {
     }
   }
 
-  /// Returns a list of all book paths in the library directory.
-  ///
-  /// This operation is performed in an isolate to prevent blocking the main thread.
-  static Future<List<String>> getAllBooksPathsFromDirecctory(
-    String path,
-  ) async {
-    return Isolate.run(() async {
-      List<String> paths = [];
-      await for (final file in Directory(path).list(recursive: true)) {
-        if (file is File && !file.path.toLowerCase().endsWith('.pdf')) {
-          paths.add(file.path);
-        }
-      }
-      return paths;
-    });
-  }
-
   /// Retrieves the table of contents for a book.
   ///
   /// Uses LibraryProviderManager to get TOC from the appropriate provider.

@@ -95,8 +95,9 @@ class CalendarMainPanel extends StatelessWidget {
 
   Key _buildGridKey(CalendarState state) {
     if (state.calendarView == CalendarView.week) {
-      final weekStart = state.selectedGregorianDate.subtract(
-        Duration(days: state.selectedGregorianDate.weekday % 7),
+      final weekStart = addCalendarDays(
+        state.selectedGregorianDate,
+        -(state.selectedGregorianDate.weekday % 7),
       );
       return ValueKey(
         'week-${weekStart.year}-${weekStart.month}-${weekStart.day}',
@@ -171,11 +172,11 @@ class CalendarMainPanel extends StatelessWidget {
   Widget _buildWeekView(BuildContext context, CalendarState state) {
     final selected = state.selectedGregorianDate;
     // תחילת השבוע: ראשון (weekday % 7 → 0=ראשון, 1=שני, ..., 6=שבת)
-    final weekStart = selected.subtract(Duration(days: selected.weekday % 7));
+    final weekStart = addCalendarDays(selected, -(selected.weekday % 7));
 
     final cells = <_CellData>[];
     for (int i = 0; i < 7; i++) {
-      final d = weekStart.add(Duration(days: i));
+      final d = addCalendarDays(weekStart, i);
       cells.add(_CellData(d, JewishDate.fromDateTime(d)));
     }
 

@@ -42,6 +42,10 @@ class AppPaths {
   /// שם הקובץ שבו נרשם נתיב הספרייה הפעיל עבור ה-uninstaller.
   static const String libraryPathRecordFileName = 'library_path.txt';
 
+  /// תיקיית ה-DB האפקטיבית עבור המתקין, כולל folderName.
+  static const String libraryDatabasePathRecordFileName =
+      'library_database_path.txt';
+
   /// שם תיקיית ארכיוני התוספים שהמתקין מניח ליד ה-executable — ובמק
   /// ב-`Contents/Resources`.
   static const String bundledPluginsFolderName = 'bundled_plugins';
@@ -69,9 +73,18 @@ class AppPaths {
     _cachedDataRootPath = path;
   }
 
+  /// מחליף את תיקיית הפרופיל (APPDATA וכו') כשאין דריסה: בלעדיו בדיקה
+  /// שמאפסת את הדריסה כותבת לנתוני המשתמש האמיתיים.
+  @visibleForTesting
+  static String? debugProfileDataRootPath;
+
   /// דורס את זיהוי Android לצורכי בדיקה של כללי מיקום האינדקס.
   @visibleForTesting
   static bool? debugIsAndroidOverride;
+
+  /// שורש מערכת זמני, כדי לבדוק בחירת אינדקס בלי לגעת בנתונים משותפים.
+  @visibleForTesting
+  static String? debugSystemWideLibraryRootPath;
 
   static bool get _isAndroid => debugIsAndroidOverride ?? Platform.isAndroid;
 
@@ -130,6 +143,8 @@ class AppPaths {
         p.dirname(_resolvedExecutable),
         _portableDataFolderName,
       );
+    } else if (debugProfileDataRootPath != null) {
+      rootPath = debugProfileDataRootPath!;
     } else if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'] ?? '';
       rootPath = p.join(appData, 'otzaria');
@@ -146,7 +161,8 @@ class AppPaths {
     return _cachedDataRootPath!;
   }
 
-  static String? get cachedDataRootPath => _cachedDataRootPath;
+  static String? get cachedDataRootPath =>
+      _cachedDataRootPath ?? debugProfileDataRootPath;
 
   /// שורש הספרייה שבחר המשתמש ב-Android (כרטיס SD), אם קיים ונגיש כרגע.
   /// משפיע רק על מיקום הספרייה (ספרים/אינדקס/מסדי נתונים) — לא על שורש הנתונים
@@ -355,6 +371,10 @@ class AppPaths {
       return null;
     }
 
+    if (debugSystemWideLibraryRootPath != null && !isPortable) {
+      return debugSystemWideLibraryRootPath;
+    }
+
     final mode = await detectInstallMode();
     if (mode != InstallMode.systemWide) {
       return null;
@@ -375,13 +395,20 @@ class AppPaths {
   }
 
   static Future<String> _getDefaultIndexPath() async {
-    final systemWideRoot = await _getSystemWideLibraryRootIfNeeded();
-    if (systemWideRoot != null) {
-      return p.join(systemWideRoot, 'index');
-    }
     // ספרייה על כרטיס SD אינה מושכת אחריה את האינדקס (ראה androidInternalIndexPath).
     if (_isAndroid) return androidInternalIndexPath();
 
+    final systemWideRoot = await _getSystemWideLibraryRootIfNeeded();
+    final systemIndexPath = systemWideRoot == null
+        ? null
+        : p.join(systemWideRoot, 'index');
+    // תיקייה ריקה מהמתקין אינה אינדקס; אינדקס קיים עשוי להיות עדכני מה-prebuilt.
+    if (systemIndexPath != null &&
+        await File(p.join(systemIndexPath, 'meta.json')).exists()) {
+      return systemIndexPath;
+    }
+
+    // המתקין פורס אינדקס מוכן ליד הספרייה גם כשהיא מחוץ ל-ProgramData.
     final libraryPath = await getLibraryPath();
     final adjacentPath = p.join(p.dirname(libraryPath), 'index');
     final prebuiltMarker = File(
@@ -389,6 +416,10 @@ class AppPaths {
     );
     if (await prebuiltMarker.exists()) {
       return adjacentPath;
+    }
+
+    if (systemIndexPath != null) {
+      return systemIndexPath;
     }
 
     // תאימות אחורה: בעבר האינדקס תמיד נוצר תחת dataRoot (APPDATA וכדומה).
@@ -411,14 +442,32 @@ class AppPaths {
     try {
       final path = await getLibraryPath();
       if (path.isEmpty) return;
-      // BOM: בלעדיו LoadStringsFromFile של Inno קורא את הקובץ כ-ANSI ושובר
-      // נתיב בעברית.
-      await File(
-        p.join(await getDataRootPath(), libraryPathRecordFileName),
-      ).writeAsString('\ufeff$path');
+      final databaseDirectory = DatabaseConstants.getDatabaseDirectoryPath();
+      final dataRoot = await getDataRootPath();
+      await writeLibraryPathRecords(
+        dataRoot: dataRoot,
+        libraryPath: path,
+        databaseDirectory: databaseDirectory,
+      );
     } catch (e) {
       debugPrint('Failed to record library path for uninstaller: $e');
     }
+  }
+
+  /// כתיבת רשומות המתקין מופרדת מזיהוי Windows כדי לבדוק תאימות נתיבים.
+  @visibleForTesting
+  static Future<void> writeLibraryPathRecords({
+    required String dataRoot,
+    required String libraryPath,
+    required String databaseDirectory,
+  }) async {
+    // BOM מאפשר ל-LoadStringsFromFile של Inno לקרוא נתיבים בעברית.
+    await File(
+      p.join(dataRoot, libraryPathRecordFileName),
+    ).writeAsString('\ufeff$libraryPath');
+    await File(
+      p.join(dataRoot, libraryDatabasePathRecordFileName),
+    ).writeAsString('\ufeff$databaseDirectory');
   }
 
   /// Gets the main library path from settings, or gracefully falls back to default paths.
@@ -868,12 +917,6 @@ class AppPaths {
     final saved = Settings.getValue<String>(SettingsRepository.keyBackupPath);
     if (saved != null && saved.isNotEmpty) return saved;
     return getDefaultBackupPath();
-  }
-
-  /// Gets the manifest file path (library_path/files_manifest.json)
-  static Future<String> getManifestPath() async {
-    final libraryPath = await getLibraryPath();
-    return p.join(libraryPath, 'files_manifest.json');
   }
 
   /// מסדי הנתונים האישיים שעוברים יחד בנפילה לאחסון הפנימי. `cache.db`

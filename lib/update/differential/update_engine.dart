@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
+import 'managed_paths.dart';
 import 'swap_plan.dart';
 import 'tree_fs.dart';
 import 'update_package.dart';
@@ -49,10 +51,6 @@ class UpdatePlan {
 
   Iterable<UpdateStep> get work =>
       steps.where((step) => step.action != UpdateFileAction.alreadyUpToDate);
-
-  /// כמה בתים יש לפרוס בפועל. ערך שכבר מעודכן אינו נספר.
-  int get payloadBytes =>
-      work.fold(0, (sum, step) => sum + step.entry.entrySize);
 }
 
 /// עדכון שנבנה במלואו ב-staging ואומת מול המניפסט. ההתקנה החיה עדיין
@@ -81,8 +79,6 @@ class StagedUpdate {
   final List<SwapFile> files;
   final List<SwapRemoval> removals;
 
-  File get swapPlanFile => File(p.join(workRoot.path, kSwapPlanFileName));
-
   /// כותב את תוכנית ההחלפה שהמעדכן העצמאי מקבל כארגומנט.
   Future<File> writeSwapPlan({
     String? relaunchExecutable,
@@ -103,13 +99,7 @@ class StagedUpdate {
       waitForPid: waitForPid,
       waitTimeout: waitTimeout,
     );
-    final file = swapPlanFile;
-    await file.parent.create(recursive: true);
-    // סימן מוויתור קודם היה מחזיר את הממשק ל"מוכן" מיד עם השיגור החדש.
-    final gaveUp = File(p.join(workRoot.path, kSwapGaveUpFileName));
-    if (await gaveUp.exists()) await gaveUp.delete();
-    await file.writeAsString(plan.encode());
-    return file;
+    return writeSwapPlanFile(plan, workRoot);
   }
 
   /// מוחק את כל תוצרי ההכנה. בטוח לקרוא גם אחרי החלפה מוצלחת.
@@ -119,6 +109,73 @@ class StagedUpdate {
       await stagingRoot.delete(recursive: true);
     }
   }
+}
+
+/// כותב את תוכנית ההחלפה לשורש תיקיית העבודה, שם המעדכן והשחזור בעלייה
+/// מחפשים אותה.
+Future<File> writeSwapPlanFile(SwapPlan plan, Directory workRoot) async {
+  final file = File(p.join(workRoot.path, kSwapPlanFileName));
+  await file.parent.create(recursive: true);
+  // סימן מוויתור קודם היה מחזיר את הממשק ל"מוכן" מיד עם השיגור החדש.
+  final gaveUp = File(p.join(workRoot.path, kSwapGaveUpFileName));
+  if (await gaveUp.exists()) await gaveUp.delete();
+  await file.writeAsString(plan.encode());
+  return file;
+}
+
+/// תוכנית החלפה מחבילה מלאה שחולצה ל-[stagingRoot]: כל קובץ שהשתנה נכתב
+/// על ההתקנה חוץ מנתוני משתמש, ושום קובץ אינו נמחק.
+Future<SwapPlan> fullPackageSwapPlan({
+  required Directory installRoot,
+  required Directory stagingRoot,
+  required Directory backupRoot,
+  required String platform,
+  required String architecture,
+  required String fromReleaseTag,
+  required String toReleaseTag,
+  String? relaunchExecutable,
+  int? waitForPid,
+}) async {
+  final install = installRoot.path;
+  final staging = stagingRoot.path;
+  // מאות מגה-בתים: הגיבוב מחוץ ל-isolate הראשי כדי שהממשק לא ייתקע.
+  final files = await Isolate.run(() => _changedFiles(install, staging));
+  return SwapPlan(
+    platform: platform,
+    architecture: architecture,
+    fromReleaseTag: fromReleaseTag,
+    toReleaseTag: toReleaseTag,
+    installRoot: installRoot.absolute.path,
+    stagingRoot: stagingRoot.absolute.path,
+    backupRoot: backupRoot.absolute.path,
+    files: files,
+    removals: const [],
+    relaunchExecutable: relaunchExecutable,
+    waitForPid: waitForPid,
+  );
+}
+
+Future<List<SwapFile>> _changedFiles(
+  String installRoot,
+  String stagingRoot,
+) async {
+  final listing = await const LocalTreeFileSystem().list(stagingRoot);
+  final files = <SwapFile>[];
+  for (final path in listing.files.keys.toList()..sort()) {
+    if (isUserDataPath(path)) continue;
+    final file = File(p.join(stagingRoot, path));
+    final size = await file.length();
+    final hash = await sha256OfFile(file);
+    // קובץ זהה נשאר בחוץ: crashpad_handler.exe עלול עוד לרוץ ולחסום את ההחלפה.
+    final installed = File(p.join(installRoot, path));
+    if (await installed.exists() &&
+        await installed.length() == size &&
+        await sha256OfFile(installed) == hash) {
+      continue;
+    }
+    files.add(SwapFile(path: path, sha256: hash, size: size));
+  }
+  return files;
 }
 
 /// מחשב את sha256 של קובץ בזרימה, בלי להחזיק אותו בזיכרון.

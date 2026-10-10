@@ -333,15 +333,39 @@ void main() {
   });
 
   group('UpdateSplitRatio', () {
-    test('היחס משתנה במקום, בלי להחליף את אובייקט הטאב', () async {
-      final combined = CombinedTab(rightTab: leaf('א'), leftTab: leaf('ב'));
-      final bloc = await blocWith([combined]);
+    test('יחס שנשמר אחרי מעבר לטאב מפוצל אחר אינו נכתב אליו', () async {
+      final dragged = CombinedTab(rightTab: leaf('א'), leftTab: leaf('ב'));
+      final current = CombinedTab(rightTab: leaf('ג'), leftTab: leaf('ד'));
+      final bloc = await blocWith([dragged, current], current: 1);
 
+      // כמו SplitPaneView: היחס נכתב ל-node שנגרר, והאירוע מגיע באיחור.
+      dragged.splitRatio = 0.75;
       bloc.add(const UpdateSplitRatio(0.75));
-      await bloc.stream.first;
+      await settle();
 
-      expect(combined.splitRatio, 0.75);
-      expect(bloc.state.currentTab, same(combined));
+      expect(dragged.splitRatio, 0.75);
+      expect(current.splitRatio, 0.5);
+      expect(bloc.state.tabs, [same(dragged), same(current)]);
+
+      await bloc.close();
+    });
+
+    test('היחס נשמר לדיסק בלי לפרסם state חדש', () async {
+      final combined = CombinedTab(rightTab: leaf('א'), leftTab: leaf('ב'));
+      final repository = _FakeTabsRepository();
+      final bloc = TabsBloc(repository: repository);
+      bloc.add(ReplaceAllTabs([combined], 0));
+      await bloc.stream.first;
+      await settle();
+      final stateBefore = bloc.state;
+      repository.savedRatios.clear();
+
+      combined.splitRatio = 0.75;
+      bloc.add(const UpdateSplitRatio(0.75));
+      await settle();
+
+      expect(bloc.state, same(stateBefore));
+      expect(repository.savedRatios, [0.75]);
 
       await bloc.close();
     });
@@ -617,8 +641,14 @@ class _FakeTabsRepository extends TabsRepository {
   @override
   int loadCurrentTabIndex() => 0;
 
+  /// יחס הפיצול של הטאב הראשון בכל שמירה מלאה.
+  final List<double> savedRatios = [];
+
   @override
-  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {}
+  Future<void> saveTabs(List<OpenedTab> tabs, int currentTabIndex) async {
+    final first = tabs.isEmpty ? null : tabs.first;
+    if (first is CombinedTab) savedRatios.add(first.splitRatio);
+  }
 
   @override
   Future<void> saveCurrentTabIndex(

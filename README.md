@@ -293,6 +293,8 @@ flutter build windows
 <br>
 ובזכות עמותת דיקטה, שבאמצעותה נוספו ספרים חשובים רבים.
 <br>
+תודה ל[מכון בית אהרן וישראל](https://machon.co.il/) שע"י מרכז סטאלין קארלין, על האישור להכניס את ספריו לספרייה. כל הזכויות על ספרים אלו שמורות למכון.
+<br>
 <br>
 <a href="https://www.sefaria.org/texts" title="ספריא" target="_blank"><img src="images/safria logo.png" alt="ספריא" width="154" height="80"/></a>
 <a href="https://github.com/Dicta-Israel-Center-for-Text-Analysis/Dicta-Library-Download" title="דיקטה" target="_blank"><img src="images/dicta_logo.jpg" alt="דיקטה" width="154" height="80"/></a>

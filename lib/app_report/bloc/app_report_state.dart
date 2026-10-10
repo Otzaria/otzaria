@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:otzaria/app_report/models/app_report.dart';
 import 'package:otzaria/app_report/models/app_report_image.dart';
+import 'package:otzaria/app_report/models/app_report_minidump.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 
 /// שלב השליחה של הטופס.
@@ -30,6 +31,8 @@ class AppReportEditing extends AppReportState {
     this.errorLog,
     this.includeDiagnostics = true,
     this.includeErrorLog = true,
+    this.minidump,
+    this.includeMinidump = true,
     this.images = const [],
     this.submission = AppReportSubmission.idle,
     this.result,
@@ -48,6 +51,10 @@ class AppReportEditing extends AppReportState {
 
   final bool includeDiagnostics;
   final bool includeErrorLog;
+
+  /// minidump של הקריסה (בהצעה שאחרי קריסה נייטיבית בלבד). `null` כשאין.
+  final AppReportMinidump? minidump;
+  final bool includeMinidump;
 
   /// צילומי המסך שצורפו לדיווח.
   final List<AppReportImage> images;
@@ -70,6 +77,7 @@ class AppReportEditing extends AppReportState {
     String? errorLog,
     bool? includeDiagnostics,
     bool? includeErrorLog,
+    bool? includeMinidump,
     List<AppReportImage>? images,
     AppReportSubmission? submission,
     AppReportDeliveryResult? result,
@@ -86,6 +94,8 @@ class AppReportEditing extends AppReportState {
       errorLog: errorLog ?? this.errorLog,
       includeDiagnostics: includeDiagnostics ?? this.includeDiagnostics,
       includeErrorLog: includeErrorLog ?? this.includeErrorLog,
+      minidump: minidump,
+      includeMinidump: includeMinidump ?? this.includeMinidump,
       images: images ?? this.images,
       submission: submission ?? this.submission,
       result: result ?? this.result,
@@ -106,6 +116,8 @@ class AppReportEditing extends AppReportState {
     errorLog,
     includeDiagnostics,
     includeErrorLog,
+    minidump,
+    includeMinidump,
     images,
     submission,
     result,

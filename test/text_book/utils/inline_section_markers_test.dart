@@ -37,18 +37,13 @@ void main() {
     });
   });
 
-  group('prependSectionHeadings', () {
+  group('sectionHeadingsHtml', () {
     test('כל כותרת נכנסת כבלוק h3 עם מחלקת העיצוב, לפי הסדר', () {
       expect(
-        prependSectionHeadings('טקסט', ['הלכות תפילין', 'דיני הנחה']),
+        sectionHeadingsHtml(['הלכות תפילין', 'דיני הנחה']),
         '<h3 class="$kSectionHeadingClass">הלכות תפילין</h3>'
-        '<h3 class="$kSectionHeadingClass">דיני הנחה</h3>טקסט',
+        '<h3 class="$kSectionHeadingClass">דיני הנחה</h3>',
       );
-    });
-
-    test('בלי כותרות — השורה חוזרת כמות שהיא', () {
-      expect(prependSectionHeadings('טקסט', null), 'טקסט');
-      expect(prependSectionHeadings('טקסט', const []), 'טקסט');
     });
   });
 

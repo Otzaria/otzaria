@@ -1,4 +1,5 @@
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
+import 'package:otzaria/plugins/models/plugin_registry_item.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 
 /// פריט שתוסף רושם בשורת הפקדים של מסך העיון.
@@ -6,13 +7,15 @@ import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 /// `type == 'button'` — לחצן בודד; `type == 'menu'` — תפריט נפתח שילדיו
 /// הם לחצנים ([children]); `type == 'split'` — לחצן מפוצל שפעולתו הראשית היא
 /// הפריט עצמו, ולצידה חץ שפותח את [children].
-class PluginToolbarItem {
+class PluginToolbarItem implements PluginRegistryItem {
+  @override
   final String id;
   final String type;
   final String title;
   final String? icon;
   final List<String> contexts;
   final String? onClickEvent;
+  @override
   final List<PluginToolbarItem> children;
 
   /// לחיצה על הפריט תפתח את דף התוסף, ואירוע הלחיצה יימסר לו לאחר הטעינה.
@@ -37,6 +40,7 @@ class PluginToolbarItem {
   static const int defaultOrder = 1000;
 
   /// תנאי הצגה על ערכי הגדרות/אחסון — null = מוצג תמיד.
+  @override
   final PluginWhenCondition? when;
 
   const PluginToolbarItem({
@@ -55,6 +59,7 @@ class PluginToolbarItem {
     this.when,
   });
 
+  @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'type': type,

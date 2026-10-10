@@ -34,13 +34,12 @@ Future<EnrichedBookData> enrichHeCategories(TextBook book) async {
   return (resolvedId: null, heCategories: null, author: null, heEra: null);
 }
 
-Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
-  final sqliteProvider = SqliteDataProvider.instance;
-  if (book.source.isOfficial && !await sqliteProvider.databaseExists()) {
-    return null;
-  }
+Future<bool> _officialDatabaseMissing(TextBook book) async =>
+    book.source.isOfficial &&
+    !await SqliteDataProvider.instance.databaseExists();
 
-  final resolvedBook = await BookDatabaseResolver.resolveBook(
+Future<ResolvedDbBookRecord?> _resolveInDatabase(TextBook book) {
+  return BookDatabaseResolver.resolveBook(
     title: book.title,
     categoryId: book.categoryId,
     fileType: book.fileType,
@@ -50,6 +49,19 @@ Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
       categoryPath: book.categoryPath,
     ),
   );
+}
+
+/// המחבר מהמסד, רק כשלספר עצמו אין מחבר.
+String? _missingAuthor(TextBook book, ResolvedDbBookRecord resolvedBook) {
+  final dbAuthors = resolvedBook.book.authors;
+  return book.author == null && dbAuthors.isNotEmpty
+      ? dbAuthors.first.name
+      : null;
+}
+
+Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
+  if (await _officialDatabaseMissing(book)) return null;
+  final resolvedBook = await _resolveInDatabase(book);
   if (resolvedBook == null) return null;
 
   // ספר מצורף: הנתיב בעץ הממוזג (למשל תחת 'תנ"ך' הרשמי), לא הנתיב הפנימי של
@@ -62,13 +74,10 @@ Future<EnrichedBookData?> _tryLoadFromDatabase(TextBook book) async {
           resolvedBook.repository,
           resolvedBook.book.categoryId,
         );
-  final dbAuthors = resolvedBook.book.authors;
   return (
     resolvedId: resolvedBook.book.id,
     heCategories: heCategories,
-    author: book.author == null && dbAuthors.isNotEmpty
-        ? dbAuthors.first.name
-        : null,
+    author: _missingAuthor(book, resolvedBook),
     heEra: null,
   );
 }
@@ -82,29 +91,14 @@ Future<EnrichedBookData> _tryGetIdAndAuthorFromDatabase(TextBook book) async {
     heEra: null,
   );
   if (book.id != null && book.author != null) return empty;
-  final sqliteProvider = SqliteDataProvider.instance;
-  if (book.source.isOfficial && !await sqliteProvider.databaseExists()) {
-    return empty;
-  }
+  if (await _officialDatabaseMissing(book)) return empty;
   try {
-    final resolvedBook = await BookDatabaseResolver.resolveBook(
-      title: book.title,
-      categoryId: book.categoryId,
-      fileType: book.fileType,
-      filePath: book.filePath,
-      preferSource: BookDatabaseResolver.likelySource(
-        source: book.source,
-        categoryPath: book.categoryPath,
-      ),
-    );
+    final resolvedBook = await _resolveInDatabase(book);
     if (resolvedBook == null) return empty;
-    final dbAuthors = resolvedBook.book.authors;
     return (
       resolvedId: book.id == null ? resolvedBook.book.id : null,
       heCategories: null,
-      author: book.author == null && dbAuthors.isNotEmpty
-          ? dbAuthors.first.name
-          : null,
+      author: _missingAuthor(book, resolvedBook),
       heEra: null,
     );
   } catch (e) {

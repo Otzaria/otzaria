@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/app_report/bloc/app_report_event.dart';
 import 'package:otzaria/app_report/bloc/app_report_state.dart';
 import 'package:otzaria/app_report/models/app_report.dart';
+import 'package:otzaria/app_report/models/app_report_minidump.dart';
 import 'package:otzaria/app_report/models/crash_signature.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/repository/app_report_redactor.dart';
@@ -22,6 +25,7 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
     this.initialTitle = '',
     String? initialEmail,
     this.signature,
+    this.minidumpFile,
     this.appVersion,
     DateTime Function()? clock,
   }) : _service = service ?? AppReportService(),
@@ -38,12 +42,16 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
     on<AppReportEmailChanged>(_onFieldChanged);
     on<AppReportDiagnosticsToggled>(_onFieldChanged);
     on<AppReportErrorLogToggled>(_onFieldChanged);
+    on<AppReportMinidumpToggled>(_onFieldChanged);
     on<AppReportImagesChanged>(_onFieldChanged);
     on<AppReportSubmitted>(_onSubmitted);
   }
 
   final AppReportTrigger trigger;
   final CrashSignature? signature;
+
+  /// ה-dump של הקריסה, כשההצעה נפתחה אחרי קריסה נייטיבית.
+  final File? minidumpFile;
   final String? appVersion;
 
   final AppReportService _service;
@@ -74,6 +82,10 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
     } catch (error, stackTrace) {
       debugPrint('App report collection failed: $error\n$stackTrace');
     }
+    final dumpFile = minidumpFile;
+    final minidump = dumpFile == null
+        ? null
+        : await AppReportMinidump.fromFile(dumpFile);
     emit(
       AppReportEditing(
         type: initialType,
@@ -83,6 +95,7 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
         email: _initialEmail,
         diagnostics: attachments?.diagnostics,
         errorLog: attachments?.errorLog,
+        minidump: minidump,
       ),
     );
   }
@@ -110,6 +123,9 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
       ),
       AppReportErrorLogToggled(:final include) => current.copyWith(
         includeErrorLog: include,
+      ),
+      AppReportMinidumpToggled(:final include) => current.copyWith(
+        includeMinidump: include,
       ),
       AppReportImagesChanged(:final images) => current.copyWith(
         images: List.unmodifiable(images),
@@ -163,6 +179,7 @@ class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {
       diagnostics: form.includeDiagnostics ? form.diagnostics : null,
       errorLog: form.includeErrorLog ? form.errorLog : null,
       images: form.images,
+      minidump: form.includeMinidump ? form.minidump : null,
     ).redactedWith(_redactor);
   }
 

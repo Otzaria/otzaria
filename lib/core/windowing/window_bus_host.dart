@@ -14,6 +14,7 @@ import 'package:otzaria/core/windowing/settings_sync.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
+import 'package:otzaria/indexing/utils/indexing_crash_canary.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
@@ -186,6 +187,9 @@ class _WindowBusHostState extends State<WindowBusHost> {
 
   Future<Object?> _handleRequest(Map<String, dynamic> request) async {
     switch (request['type']) {
+      case IndexingCrashCanary.finishRequest:
+        IndexingCrashCanary.current?.finish();
+        return true;
       case PluginSafeMode.readyRequest:
         await PluginSafeMode.ready;
         return PluginSafeMode.isActive;
@@ -264,6 +268,7 @@ class _WindowBusHostState extends State<WindowBusHost> {
     if (!mounted) return false;
     final window = AppWindowScope.controllerOf(context);
     if (!await window.isVisible()) return false;
+    MultiWindowService.closingAll = true;
     await window.close();
     return true;
   }

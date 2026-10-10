@@ -22,9 +22,7 @@ class NotificationService {
 
   /// מאתחל את מסד אזורי הזמן וקובע את אזור הזמן המקומי.
   ///
-  /// ⚠️ נפרד מ-[init] כדי שחלון משני יוכל לקרוא לו לבדו: הוא צריך את
-  /// `tz.local` (לוח השנה, זמני היום) אבל אסור לו לרשום התראות מערכת —
-  /// הן היו נשלחות פעמיים. מקור אחד לשניהם, כולל אזור הזמן.
+  /// חלון משני צריך אזור זמן אך אסור לו לאתחל התראות מערכת.
   static void initializeTimeZones() {
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Jerusalem'));
@@ -75,14 +73,7 @@ class NotificationService {
 
   bool get isInitialized => _isInitialized;
 
-  /// Request notification permissions (Android 13+ and iOS)
-  ///
-  /// This function handles the Android permission request issue where requesting
-  /// both notification and exact alarm permissions simultaneously could cause
-  /// the permission dialog to freeze. The fix includes:
-  /// 1. Checking existing permissions before requesting
-  /// 2. Adding delay between permission requests
-  /// 3. Better error handling for each permission type
+  /// בקשות הרשאות התראות ושעון מעורר באנדרואיד חייבות להישלח בנפרד.
   Future<bool> requestPermissions() async {
     if (Platform.isAndroid) {
       final androidPlugin = flutterLocalNotificationsPlugin
@@ -408,11 +399,6 @@ class NotificationService {
     }
   }
 
-  Future<void> cancelAllNotifications() async {
-    if (!_isInitialized) return;
-    await flutterLocalNotificationsPlugin.cancelAll();
-  }
-
   Future<void> cancelNotification(int id) async {
     if (!_isInitialized) return;
     try {
@@ -421,6 +407,20 @@ class NotificationService {
       if (kDebugMode) {
         debugPrint('Failed to cancel notification $id: $e');
       }
+    }
+  }
+
+  /// ביטול לפני מחיקת מזהים שמורים: הכשל חייב להגיע למי שמוחק אותם.
+  Future<void> cancelNotifications(Iterable<int> ids) async {
+    final notificationIds = ids.toList();
+    if (notificationIds.isEmpty) return;
+    if (!_isInitialized &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux)) {
+      await init();
+    }
+    for (final id in notificationIds) {
+      await flutterLocalNotificationsPlugin.cancel(id: id);
     }
   }
 

@@ -32,7 +32,6 @@ class TextDisplaySlot {
     channel: TextChannel.display,
   );
 
-  static const TextDisplaySlot bodyDisplay = root;
   static const TextDisplaySlot commentaryDisplay = TextDisplaySlot(
     target: TextTarget.commentary,
     view: TextView.regular,

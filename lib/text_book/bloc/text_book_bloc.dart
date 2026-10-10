@@ -1,7 +1,6 @@
-import 'package:otzaria/library/hidden/hidden_library_selection.dart';
+import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/hidden/hidden_titles.dart';
-import 'package:otzaria/core/windowing/settings_sync.dart';
 import 'dart:async';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
@@ -15,12 +14,11 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
-import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
-import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
@@ -31,17 +29,18 @@ import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
-import 'package:otzaria/text_book/view/page_shape/utils/default_commentators.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/text_book/utils/he_categories_enricher.dart';
-import 'package:otzaria/text_book/utils/commentator_group_builder.dart';
+import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
+import 'package:otzaria/text_book/utils/visible_index.dart';
 import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:otzaria/utils/file/markdown_to_otzaria.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -142,8 +141,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   /// על סריקות עתידיות גם אם 'הערות' לא נוסף ל-availableCommentators.
   bool _inlineNotesFullScanDone = false;
   Set<String> _hiddenCommentatorTitlesCache = const {};
-  StreamSubscription<HiddenLibrarySelection>? _hiddenSelectionSubscription;
-  StreamSubscription<String>? _settingsSyncSubscription;
+  StreamSubscription<void>? _hiddenSelectionSubscription;
   int _commentatorsLoadGeneration = 0;
   int _visibilityRefreshGeneration = 0;
 
@@ -222,16 +220,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<RefreshLinksForCurrentWindow>(_onRefreshLinksForCurrentWindow);
     on<LoadAllLinksForIndices>(_onLoadAllLinksForIndices);
     on<SetTabVisibility>(_onSetTabVisibility);
-    _hiddenSelectionSubscription = const HiddenLibraryStore().changes.listen(
-      (_) => add(const RefreshCommentatorVisibility()),
-    );
-    _settingsSyncSubscription = SettingsSync.instance.changes.listen((key) {
-      if (key.isEmpty ||
-          key == HiddenLibraryStore.bookKeysSetting ||
-          key == HiddenLibraryStore.categoryPathsSetting) {
-        add(const RefreshCommentatorVisibility());
-      }
-    });
+    _hiddenSelectionSubscription = const HiddenLibraryStore().visibilityChanges
+        .listen((_) => add(const RefreshCommentatorVisibility()));
   }
 
   void _onSetTabVisibility(
@@ -706,7 +696,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       searchResultLines = initial.initialSearchResultLines;
       showLeftPane = initial.showLeftPane;
       commentators = initial.commentators;
-      visibleIndices = [initial.index < 0 ? 0 : initial.index];
+      final startIndex = event.startIndex ?? initial.index;
+      visibleIndices = [startIndex < 0 ? 0 : startIndex];
       initialShowPageShapeView = initial.showPageShapeView;
       pinpointHighlightIndex = initial.pinpointHighlightIndex;
       pinpointHighlightText = initial.pinpointHighlightText;
@@ -714,7 +705,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       emit(
         TextBookLoading(
           book,
-          initial.index,
+          visibleIndices.first,
           initial.showLeftPane,
           initial.commentators,
         ),
@@ -1273,9 +1264,20 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
 
       if (!event.show && currentState.selectedIndex != null) {
         Future.delayed(const Duration(milliseconds: 100), () {
+          final latestState = state;
+          if (isClosed ||
+              latestState is! TextBookLoaded ||
+              latestState.book != currentState.book ||
+              latestState.showPageShapeView ||
+              latestState.showTzuratHadafView) {
+            return;
+          }
           if (scrollController.isAttached) {
             scrollController.scrollTo(
-              index: currentState.selectedIndex!,
+              index: resolveItemIndexForSourceLine(
+                lineIndex: currentState.selectedIndex!,
+                readingSegments: latestState.readingSegments,
+              ),
               duration: const Duration(milliseconds: 300),
             );
           }
@@ -1679,7 +1681,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (storedConfiguration != null) {
       configuration = storedConfiguration;
     } else {
-      final defaults = await DefaultCommentators.getPageShapeDefaults(
+      final defaults = await PageShapeDefaultCommentators.getPageShapeDefaults(
         state.book,
         availableCommentators: candidateCommentators,
       );
@@ -1981,7 +1983,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       // גלילה לסעיף המבוקש כדי שההדגשה תהיה גלויה
       if (scrollIndex != null && scrollController.isAttached) {
         scrollController.scrollTo(
-          index: scrollIndex,
+          index: resolveItemIndexForSourceLine(
+            lineIndex: scrollIndex,
+            readingSegments: currentState.readingSegments,
+          ),
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
@@ -2395,7 +2400,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _debounceTimer?.cancel();
     _highlightTimer?.cancel();
     final hiddenSelectionCancellation = _hiddenSelectionSubscription?.cancel();
-    final settingsSyncCancellation = _settingsSyncSubscription?.cancel();
 
     if (_positionListenerCallback != null) {
       positionsListener.itemPositions.removeListener(
@@ -2406,7 +2410,6 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     final blocClosure = super.close();
     await Future.wait<void>([
       ?hiddenSelectionCancellation,
-      ?settingsSyncCancellation,
       blocClosure,
     ]);
   }
@@ -2969,9 +2972,9 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     _activeLinksTargetBookTitlesSignature =
         event.targetBookTitlesSignature ?? _allTargetBookTitlesSignature;
 
-    // טעינת דורות הספרים מראש למטמון, כדי שתפריט ההקשר יוכל למיין
-    // את הקישורים לפי סדר הדורות באופן סינכרוני.
-    _preloadLinkEras(processedLinks.links);
+    // טעינת דורות הספרים מראש למטמון, כדי שתפריט ההקשר יוכל למיין סינכרונית.
+    // רק החלון החדש: הקישורים שנצברו נטענו באירועים קודמים.
+    _preloadLinkEras(event.links.cast<Link>());
   }
 
   /// טוען מראש את דורות ספרי היעד של הקישורים הרגילים (לא מפרשים)
@@ -3129,14 +3132,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         book,
       );
 
-      final eras = await utils.splitByEra(
+      final groups = await groupCommentatorsByEra(
         availableCommentators,
         source: book.source,
         sourceByTitle: await repository.getExternalCommentatorSources(book),
-      );
-      final groups = buildCommentatorGroups(
-        eras,
-        availableCommentators,
         baseCommentators: baseCommentators,
       );
 

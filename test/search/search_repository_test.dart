@@ -11,20 +11,22 @@ void main() {
       final repository = SearchRepository(engineProvider: () async => engine);
 
       final results = await repository.searchTexts(
-        'שלום עולם',
-        const ['/תורה'],
-        25,
-        offset: 10,
-        order: ResultsOrder.catalogue,
-        searchMode: SearchMode.advanced,
-        distance: 4,
-        customSpacing: const {'0-1': '3'},
-        alternativeWords: const {
-          1: ['בריאה'],
-        },
-        searchOptions: const {
-          'שלום_0': {'קידומות': true},
-        },
+        const SearchEngineRequest(
+          query: 'שלום עולם',
+          facets: ['/תורה'],
+          limit: 25,
+          offset: 10,
+          order: ResultsOrder.catalogue,
+          searchMode: SearchMode.advanced,
+          distance: 4,
+          customSpacing: {'0-1': '3'},
+          alternativeWords: {
+            1: ['בריאה'],
+          },
+          searchOptions: {
+            'שלום_0': {'קידומות': true},
+          },
+        ),
       );
 
       expect(results.single.text, 'advanced result');
@@ -54,22 +56,26 @@ void main() {
         final repository = SearchRepository(engineProvider: () async => engine);
 
         await repository.searchTexts(
-          'שלום עולם',
-          const ['/'],
-          10,
-          searchMode: SearchMode.advanced,
+          const SearchEngineRequest(
+            query: 'שלום עולם',
+            facets: ['/'],
+            limit: 10,
+            searchMode: SearchMode.advanced,
+          ),
         );
         expect(engine.lastRequest!.wordMatchMode, WordMatchMode.all);
         expect(engine.lastRequest!.wordMatchCount, isNull);
 
         await repository
             .searchTextsStreamWithCounts(
-              'שלום עולם',
-              const ['/'],
-              10,
-              searchMode: SearchMode.advanced,
-              wordMatchMode: WordMatchMode.atLeast,
-              wordMatchCount: 3,
+              const SearchEngineRequest(
+                query: 'שלום עולם',
+                facets: ['/'],
+                limit: 10,
+                searchMode: SearchMode.advanced,
+                wordMatchMode: WordMatchMode.atLeast,
+                wordMatchCount: 3,
+              ),
             )
             .toList();
         expect(engine.lastRequest!.wordMatchMode, WordMatchMode.atLeast);
@@ -77,34 +83,17 @@ void main() {
       },
     );
 
-    test('fuzzy=true גובר על searchMode ומנתב לחיפוש מקורב', () async {
-      final engine = _RecordingSearchEngineOperations();
-      final repository = SearchRepository(engineProvider: () async => engine);
-
-      await repository.searchTexts(
-        'שלום',
-        const ['/'],
-        10,
-        fuzzy: true,
-        searchMode: SearchMode.advanced,
-        distance: 7,
-      );
-
-      expect(engine.calls, [_EngineCall.searchFuzzy]);
-      expect(engine.lastRequest!.searchMode, SearchMode.fuzzy);
-      expect(engine.lastRequest!.distance, 7);
-    });
-
     test('searchTextsAndCount מחזיר תוצאות וספירה מאותו request', () async {
       final engine = _RecordingSearchEngineOperations();
       final repository = SearchRepository(engineProvider: () async => engine);
 
       final result = await repository.searchTextsAndCount(
-        'בראשית',
-        const ['/מקרא'],
-        5,
-        searchMode: SearchMode.exact,
-        offset: 2,
+        const SearchEngineRequest(
+          query: 'בראשית',
+          facets: ['/מקרא'],
+          limit: 5,
+          offset: 2,
+        ),
       );
 
       expect(engine.calls, [_EngineCall.searchAndCountExact]);
@@ -114,39 +103,6 @@ void main() {
       expect(engine.lastRequest!.facets, ['/מקרא']);
       expect(engine.lastRequest!.limit, 5);
       expect(engine.lastRequest!.offset, 2);
-    });
-
-    test('searchTextsStream מעביר chunkSize ומחזיר chunks מהמנוע', () async {
-      final first = _result(id: 1, text: 'ראשון');
-      final second = _result(id: 2, text: 'שני');
-      final engine = _RecordingSearchEngineOperations(
-        streamChunks: [
-          [first],
-          [second],
-        ],
-      );
-      final repository = SearchRepository(engineProvider: () async => engine);
-
-      final chunks = await repository
-          .searchTextsStream(
-            'חכמה',
-            const ['/ספרים'],
-            100,
-            chunkSize: 7,
-            searchMode: SearchMode.fuzzy,
-            distance: 2,
-            order: ResultsOrder.catalogue,
-          )
-          .toList();
-
-      expect(engine.calls, [_EngineCall.searchFuzzyStream]);
-      expect(engine.lastChunkSize, 7);
-      expect(engine.lastRequest!.limit, 100);
-      expect(engine.lastRequest!.order, ResultsOrder.catalogue);
-      expect(chunks, [
-        [first],
-        [second],
-      ]);
     });
   });
 }
@@ -175,14 +131,8 @@ enum _EngineCall {
 // extends (ולא implements) כדי לרשת את מימושי ברירת המחדל של הממשק —
 // למשל searchStreamWithCounts, שמורכב מהמתודות שה-fake כבר מממש.
 class _RecordingSearchEngineOperations extends SearchEngineOperations {
-  _RecordingSearchEngineOperations({
-    List<List<SearchResult>>? streamChunks,
-  }) : streamChunks = streamChunks ?? const [];
-
   final List<_EngineCall> calls = [];
-  final List<List<SearchResult>> streamChunks;
   SearchEngineRequest? lastRequest;
-  int? lastChunkSize;
 
   void _record(_EngineCall call, SearchEngineRequest request) {
     calls.add(call);
@@ -243,10 +193,6 @@ class _RecordingSearchEngineOperations extends SearchEngineOperations {
     required int chunkSize,
   }) async* {
     _record(_EngineCall.searchExactStream, request);
-    lastChunkSize = chunkSize;
-    for (final chunk in streamChunks) {
-      yield chunk;
-    }
   }
 
   @override
@@ -255,10 +201,6 @@ class _RecordingSearchEngineOperations extends SearchEngineOperations {
     required int chunkSize,
   }) async* {
     _record(_EngineCall.searchAdvancedStream, request);
-    lastChunkSize = chunkSize;
-    for (final chunk in streamChunks) {
-      yield chunk;
-    }
   }
 
   @override
@@ -267,10 +209,6 @@ class _RecordingSearchEngineOperations extends SearchEngineOperations {
     required int chunkSize,
   }) async* {
     _record(_EngineCall.searchFuzzyStream, request);
-    lastChunkSize = chunkSize;
-    for (final chunk in streamChunks) {
-      yield chunk;
-    }
   }
 
   @override
@@ -358,5 +296,6 @@ SearchResult _result({required int id, required String text}) {
     mergedCount: 1,
     merged: const [],
     textStatus: TextStatus.ok,
+    continuesToNextLine: false,
   );
 }

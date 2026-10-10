@@ -14,6 +14,8 @@ Library _library() {
     books: [
       TextBook(title: 'בראשית', categoryId: 10),
       TextBook(title: 'שמות', categoryId: 10),
+      TextBook(title: 'שו"ת רעק"א', categoryId: 10),
+      TextBook(title: 'משנה תורה, הלכות שבת', categoryId: 10),
     ],
     parent: null,
   );
@@ -107,5 +109,28 @@ void main() {
     final result = parseHiddenBooksImport('[בראשית', _library());
 
     expect(result.unmatchedNames, ['[בראשית']);
+  });
+
+  test('CSV — גרשיים כפולים בשדה מצוטט מתפענחים לגרשיים (#2242)', () {
+    final result = parseHiddenBooksImport('"שו""ת רעק""א"\n', _library());
+
+    expect(result.matchedBookKeys, {_key('שו"ת רעק"א')});
+    expect(result.unmatchedNames, isEmpty);
+  });
+
+  test('CSV — פסיק בתוך שדה מצוטט אינו מפצל את השם (#2242)', () {
+    final result = parseHiddenBooksImport(
+      '"משנה תורה, הלכות שבת",רמב"ם\n',
+      _library(),
+    );
+
+    expect(result.matchedBookKeys, {_key('משנה תורה, הלכות שבת')});
+    expect(result.unmatchedNames, isEmpty);
+  });
+
+  test('שם לא מצוטט עם גרשיים נשאר כמות שהוא (#2242)', () {
+    final result = parseHiddenBooksImport('שו"ת רעק"א\n', _library());
+
+    expect(result.matchedBookKeys, {_key('שו"ת רעק"א')});
   });
 }

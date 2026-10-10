@@ -13,6 +13,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/utils/pdf_viewer_activity.dart';
+import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
@@ -33,6 +34,12 @@ class _ReadyPdfViewerController extends PdfViewerController {
 
   @override
   Offset get centerPosition => Offset.zero;
+
+  @override
+  Rect get visibleRect => const Rect.fromLTWH(0, 1000, 400, 600);
+
+  @override
+  double get currentZoom => 2.05;
 
   @override
   Future<void> setZoom(
@@ -64,6 +71,14 @@ PdfBookBloc _makeBloc(PdfBookTab tab, {Duration? loadTimeout}) => PdfBookBloc(
   // בטסטים: מדלגים על אתחול pdfrx (שדורש platform channels)
   pdfrxInit: () async {},
 );
+
+// הטיפול באירוע בודק קיום קובץ בדיסק לפני ה-emit, ו-blocTest סוגר את ה-bloc
+// אחרי סבב אחד בלבד; בעומס הבדיקה מסתיימת אחרי הסגירה וה-emit נבלע.
+Future<void> _addAndAwaitState(PdfBookBloc bloc, PdfBookEvent event) async {
+  final next = bloc.stream.first;
+  bloc.add(event);
+  await next;
+}
 
 PdfBookLoaded _loaded({
   PdfBook? book,
@@ -134,14 +149,14 @@ void main() {
     blocTest<PdfBookBloc, PdfBookState>(
       'קובץ שלא קיים → PdfBookError',
       build: () => _makeBloc(_tab()),
-      act: (b) => b.add(const LoadPdfDocument()),
+      act: (b) => _addAndAwaitState(b, const LoadPdfDocument()),
       expect: () => [isA<PdfBookError>()],
     );
 
     blocTest<PdfBookBloc, PdfBookState>(
       'שגיאת "ספר איננו קיים" כשהקובץ לא נמצא',
       build: () => _makeBloc(_tab()),
-      act: (b) => b.add(const LoadPdfDocument()),
+      act: (b) => _addAndAwaitState(b, const LoadPdfDocument()),
       verify: (b) {
         final s = b.state as PdfBookError;
         expect(s.message, 'הספר איננו קיים');
@@ -1156,6 +1171,51 @@ void main() {
       expect: () => [isA<PdfBookLoaded>()],
     );
 
+    test(
+      'פתיחה איטית מעבר לכפתור — הצפיין נשאר פתוח כדי שההצלחה תגיע (#1930)',
+      () async {
+        final bloc = _makeBloc(
+          _tab(path: existingPdfPath),
+          loadTimeout: const Duration(milliseconds: 30),
+        );
+        addTearDown(bloc.close);
+        bloc.add(const LoadPdfDocument());
+        final error =
+            await bloc.stream.firstWhere((s) => s is PdfBookError)
+                as PdfBookError;
+        expect(error.autoRetry, isFalse);
+        expect(pdfViewerStaysMountedFor(error), isTrue);
+
+        bloc.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 5));
+        await bloc.stream.firstWhere((s) => s is PdfBookLoaded);
+      },
+    );
+
+    test('זום שמור לספר נשאר מעוגן לראש העמוד שאליו קפצו (#1974)', () {
+      const visible = Rect.fromLTWH(0, 1000, 400, 600);
+      final center = pdfZoomCenterKeepingTop(
+        visible,
+        fromZoom: 2.05,
+        toZoom: 1.76,
+      );
+      final newVisibleHeight = visible.height * 2.05 / 1.76;
+      expect(center.dx, visible.center.dx);
+      expect(center.dy - newVisibleHeight / 2, closeTo(visible.top, 1e-9));
+    });
+
+    test('retry אוטומטי בונה את הצפיין מחדש', () {
+      expect(
+        pdfViewerStaysMountedFor(
+          PdfBookError(
+            book: _book(path: existingPdfPath),
+            message: 'הטעינה ארכה זמן רב מדי',
+            autoRetry: true,
+          ),
+        ),
+        isFalse,
+      );
+    });
+
     blocTest<PdfBookBloc, PdfBookState>(
       'אחרי שני timeouts (auto-retry + show-button) → PdfBookError עם autoRetry=false',
       build: () => _makeBloc(
@@ -1328,7 +1388,7 @@ void main() {
         book: _book(path: existingPdfPath),
         message: 'הטעינה ארכה זמן רב מדי',
       ),
-      act: (b) => b.add(const RetryLoad()),
+      act: (b) => _addAndAwaitState(b, const RetryLoad()),
       expect: () => [isA<PdfBookLoading>()],
     );
 
@@ -1347,7 +1407,7 @@ void main() {
         book: _book(path: '/totally/missing/file.pdf'),
         message: 'שגיאה קודמת',
       ),
-      act: (b) => b.add(const RetryLoad()),
+      act: (b) => _addAndAwaitState(b, const RetryLoad()),
       expect: () => [isA<PdfBookError>()],
       verify: (b) {
         expect((b.state as PdfBookError).message, 'הספר איננו קיים');

@@ -417,7 +417,7 @@ class _PersonalNotesManagerScreenState
           center: OtzariaSearchField(
             controller: _searchController,
             focusNode: _searchFocusNode,
-            icon: OtzariaIcons.search_in_the_document_24_regular,
+            icon: OtzariaIcons.search_in_document_24_regular,
             hintText: 'חפש בהערות...',
             onSubmitted: (_) => requestKeyboardFocus(),
             onChanged: (value) {
@@ -514,21 +514,52 @@ class _PersonalNotesManagerScreenState
     return allNotes;
   }
 
-  Future<void> _exportNotes() async {
+  /// זרימת ייצוא משותפת: סיסמת מצב בטוח, בחירת הערות, בניית הקובץ ושמירתו.
+  Future<void> _exportSelected({
+    required String title,
+    required String confirmText,
+    required String dialogTitle,
+    required String fileName,
+    required String extension,
+    required String successMessage,
+    required Future<Uint8List?> Function(NotesExportSelection selection)
+    buildBytes,
+  }) async {
     if (!await verifySaferModePassword(context)) return;
     if (!mounted) return;
     final selection = await showDialog<NotesExportSelection>(
       context: context,
       builder: (context) => PersonalNotesExportDialog(
         allNotes: _collectAllNotes(),
-        title: 'גיבוי הערות',
-        confirmText: 'גבה',
+        title: title,
+        confirmText: confirmText,
       ),
     );
     if (!mounted) return;
     if (selection == null || selection.notes.isEmpty) return;
 
-    final bytes = Uint8List.fromList(
+    final bytes = await buildBytes(selection);
+    if (bytes == null) return;
+    final path = await saveFileWithExtension(
+      dialogTitle: dialogTitle,
+      fileName: fileName,
+      extension: extension,
+      bytes: bytes,
+    );
+    if (!mounted) return;
+    if (path == null) return;
+
+    UiSnack.show(successMessage);
+  }
+
+  Future<void> _exportNotes() => _exportSelected(
+    title: 'גיבוי הערות',
+    confirmText: 'גבה',
+    dialogTitle: 'בחר מיקום לשמירת קובץ הגיבוי',
+    fileName: 'otzaria_notes_backup.json',
+    extension: 'json',
+    successMessage: NotesMessages.backupCompleted,
+    buildBytes: (selection) async => Uint8List.fromList(
       utf8.encode(
         jsonEncode(
           _importExportService.buildExport(
@@ -537,69 +568,37 @@ class _PersonalNotesManagerScreenState
           ),
         ),
       ),
-    );
-    final path = await saveFileWithExtension(
-      dialogTitle: 'בחר מיקום לשמירת קובץ הגיבוי',
-      fileName: 'otzaria_notes_backup.json',
-      extension: 'json',
-      bytes: bytes,
-    );
-    if (!mounted) return;
-    if (path == null) return;
+    ),
+  );
 
-    if (!mounted) return;
-    UiSnack.show(NotesMessages.backupCompleted);
-  }
-
-  Future<void> _exportNotesToText() async {
-    if (!await verifySaferModePassword(context)) return;
-    if (!mounted) return;
-    final selection = await showDialog<NotesExportSelection>(
-      context: context,
-      builder: (context) => PersonalNotesExportDialog(
-        allNotes: _collectAllNotes(),
-        title: 'ייצוא לטקסט',
-        confirmText: 'ייצא',
-      ),
-    );
-    if (!mounted) return;
-    if (selection == null || selection.notes.isEmpty) return;
-
-    final bytes = Uint8List.fromList(
+  Future<void> _exportNotesToText() => _exportSelected(
+    title: 'ייצוא לטקסט',
+    confirmText: 'ייצא',
+    dialogTitle: 'בחר מיקום לשמירת קובץ הטקסט',
+    fileName: 'otzaria_notes.txt',
+    extension: 'txt',
+    successMessage: NotesMessages.textExportCompleted,
+    buildBytes: (selection) async => Uint8List.fromList(
       utf8.encode(
         _importExportService.buildPlainTextExport(
           notes: selection.notes,
           description: selection.description,
         ),
       ),
-    );
-    final path = await saveFileWithExtension(
-      dialogTitle: 'בחר מיקום לשמירת קובץ הטקסט',
-      fileName: 'otzaria_notes.txt',
-      extension: 'txt',
-      bytes: bytes,
-    );
-    if (!mounted) return;
-    if (path == null) return;
+    ),
+  );
 
-    if (!mounted) return;
-    UiSnack.show(NotesMessages.textExportCompleted);
-  }
+  Future<void> _exportNotesToWord() => _exportSelected(
+    title: 'ייצוא לוורד',
+    confirmText: 'ייצא',
+    dialogTitle: 'בחר מיקום לשמירת קובץ הוורד',
+    fileName: 'otzaria_notes.docx',
+    extension: 'docx',
+    successMessage: NotesMessages.wordExportCompleted,
+    buildBytes: _buildWordExport,
+  );
 
-  Future<void> _exportNotesToWord() async {
-    if (!await verifySaferModePassword(context)) return;
-    if (!mounted) return;
-    final selection = await showDialog<NotesExportSelection>(
-      context: context,
-      builder: (context) => PersonalNotesExportDialog(
-        allNotes: _collectAllNotes(),
-        title: 'ייצוא לוורד',
-        confirmText: 'ייצא',
-      ),
-    );
-    if (!mounted) return;
-    if (selection == null || selection.notes.isEmpty) return;
-
+  Future<Uint8List?> _buildWordExport(NotesExportSelection selection) async {
     final fontFamily = context.read<SettingsBloc>().state.fontFamily;
 
     // כתובת המיקום (פרק/דף) לכל הערה נגזרת מתוכן העניינים של ספרה.
@@ -620,13 +619,13 @@ class _PersonalNotesManagerScreenState
         );
       }
     }
-    if (!mounted) return;
+    if (!mounted) return null;
 
     final blocks = _importExportService.buildWordExportBlocks(
       notes: selection.notes,
       locationRef: (note) => refByNoteId[note.id],
     );
-    final bytes = WordExportService.createWordDocument(
+    return WordExportService.createWordDocument(
       title: 'הערות אישיות',
       blocks: blocks,
       format: PdfPageFormat.a4,
@@ -634,16 +633,6 @@ class _PersonalNotesManagerScreenState
       pageMargin: 20,
       fontFamily: fontFamily,
     );
-    final path = await saveFileWithExtension(
-      dialogTitle: 'בחר מיקום לשמירת קובץ הוורד',
-      fileName: 'otzaria_notes.docx',
-      extension: 'docx',
-      bytes: bytes,
-    );
-    if (!mounted) return;
-    if (path == null) return;
-
-    UiSnack.show(NotesMessages.wordExportCompleted);
   }
 
   Future<void> _importNotes() async {
@@ -726,13 +715,17 @@ class _PersonalNotesManagerScreenState
         }
 
         final rootCategory = libraryState.library!;
+        final categoryCounts = personalNotesCategoryCounts(
+          rootCategory,
+          _getNotesCountForBook,
+        );
         final totalNotesCount =
-            _getNotesCountForCategory(rootCategory) + _getMissingNotesCount();
+            categoryCounts[rootCategory]! + _getMissingNotesCount();
 
         // שיטוח לרשימת שורות + ListView.builder (בנייה עצלה) — ספריית ההערות
         // דינמית ועלולה להיות ארוכה; בנייה מוקדמת של כל העץ הכבידה.
         final rows = <_NotesNavRow>[_NotesNavRow.root(totalNotesCount)];
-        _flattenNotes(rootCategory, 0, rows);
+        _flattenNotes(rootCategory, 0, rows, categoryCounts);
         rows.add(_NotesNavRow.missing());
         // כל הקטגוריות/הספרים הם כרטיס אחד רציף (מעוגל בקצוות, מפריד בין
         // כל השורות). השורש וה"הערות ללא מיקום" נשארים מחוץ לכרטיס.
@@ -762,14 +755,19 @@ class _PersonalNotesManagerScreenState
     );
   }
 
-  void _flattenNotes(Category category, int level, List<_NotesNavRow> rows) {
+  void _flattenNotes(
+    Category category,
+    int level,
+    List<_NotesNavRow> rows,
+    Map<Category, int> categoryCounts,
+  ) {
     for (final sub in category.subCategories) {
-      final count = _getNotesCountForCategory(sub);
+      final count = categoryCounts[sub]!;
       if (count <= 0) continue;
       final childLevel = level + 1;
       final isExpanded = _expansionState[sub.path] ?? childLevel <= 1;
       rows.add(_NotesNavRow.category(sub, childLevel, count, isExpanded));
-      if (isExpanded) _flattenNotes(sub, childLevel, rows);
+      if (isExpanded) _flattenNotes(sub, childLevel, rows, categoryCounts);
     }
 
     // איחוד ספרים כפולים לפי כותרת (טקסט + PDF של אותו ספר).
@@ -857,26 +855,6 @@ class _PersonalNotesManagerScreenState
     return 0;
   }
 
-  int _getNotesCountForCategory(Category category) {
-    int count = 0;
-
-    // Deduplicate books by title to avoid counting notes twice
-    // when the same book exists in both PDF and text formats
-    final seenTitles = <String>{};
-    for (final book in category.books) {
-      final key = personalNotesBookKey(book);
-      if (!seenTitles.contains(key)) {
-        count += _getNotesCountForBook(key);
-        seenTitles.add(key);
-      }
-    }
-
-    for (final subCat in category.subCategories) {
-      count += _getNotesCountForCategory(subCat);
-    }
-    return count;
-  }
-
   Widget _buildMissingNotesTile() {
     final count = _getMissingNotesCount();
     if (count == 0) return const SizedBox.shrink();
@@ -954,22 +932,6 @@ class _PersonalNotesManagerScreenState
     );
   }
 
-  List<String> _getBooksInCategory(Category category) {
-    final List<String> bookTitles = [];
-
-    void collectBooks(Category cat) {
-      for (final book in cat.books) {
-        bookTitles.add(personalNotesBookKey(book));
-      }
-      for (final subCat in cat.subCategories) {
-        collectBooks(subCat);
-      }
-    }
-
-    collectBooks(category);
-    return bookTitles;
-  }
-
   Widget _buildAllNotesList() {
     final allNotes = <_NoteWithBook>[];
 
@@ -1032,7 +994,9 @@ class _PersonalNotesManagerScreenState
 
         final category = findCategory(libraryState.library!, _selectedFilter!);
         if (category != null) {
-          final booksInCategory = _getBooksInCategory(category);
+          final booksInCategory = personalNotesBookKeysInCategory(
+            category,
+          );
           filteredNotes = allNotes
               .where((n) => booksInCategory.contains(n.bookId))
               .toList();
@@ -1063,7 +1027,7 @@ class _PersonalNotesManagerScreenState
 
     if (displayNotes.isEmpty) {
       return const ToolEmptyState(
-        icon: OtzariaIcons.icon_x_24_regular,
+        icon: OtzariaIcons.cross_24_filled,
         message: 'אין הערות להצגה',
       );
     }
@@ -1092,17 +1056,33 @@ class _PersonalNotesManagerScreenState
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16.0),
-      itemCount: groupedNotes.length,
-      itemBuilder: (context, groupIndex) {
-        final group = groupedNotes[groupIndex];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const minCardWidth = 280.0;
+        const maxCardsPerRow = 3;
+        const spacing = 12.0;
+        final availableWidth = constraints.maxWidth - 32;
+        int crossAxisCount =
+            ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
+        crossAxisCount = crossAxisCount.clamp(1, maxCardsPerRow);
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (group.bookId != 'all')
-              Padding(
+        // שורה שטוחה לכל כותרת ולכל שורת כרטיסים, כדי שגם הקבוצות וגם הכרטיסים
+        // ייבנו בעצלות. start == null היא כותרת הספר.
+        final rows = <({_NotesGroup group, int? start})>[
+          for (final group in groupedNotes) ...[
+            if (group.bookId != 'all') (group: group, start: null),
+            for (var i = 0; i < group.notes.length; i += crossAxisCount)
+              (group: group, start: i),
+          ],
+        ];
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16.0),
+          itemCount: rows.length,
+          itemBuilder: (context, index) {
+            final (:group, :start) = rows[index];
+            if (start == null) {
+              return Padding(
                 padding: const EdgeInsets.only(top: 16, bottom: 16),
                 child: Row(
                   children: [
@@ -1123,46 +1103,36 @@ class _PersonalNotesManagerScreenState
                     ),
                   ],
                 ),
-              ),
-            FutureBuilder<List<TocEntry>?>(
+              );
+            }
+            return FutureBuilder<List<TocEntry>?>(
+              key: ValueKey((group.bookId, start)),
               future: _tocFor(group.bookId),
-              builder: (context, tocSnapshot) {
-                final toc = tocSnapshot.data;
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    const minCardWidth = 280.0;
-                    const maxCardsPerRow = 3;
-                    const spacing = 12.0;
-                    final availableWidth = constraints.maxWidth;
-                    int crossAxisCount =
-                        ((availableWidth + spacing) / (minCardWidth + spacing))
-                            .floor();
-                    crossAxisCount = crossAxisCount.clamp(1, maxCardsPerRow);
-
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: spacing,
-                        mainAxisSpacing: spacing,
-                        mainAxisExtent: 170,
-                      ),
-                      itemCount: group.notes.length,
-                      itemBuilder: (context, noteIndex) {
-                        final item = group.notes[noteIndex];
-                        return _buildNoteCard(
-                          item.note,
-                          item.isMissing,
-                          tableOfContents: toc,
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ],
+              builder: (context, tocSnapshot) => Padding(
+                padding: EdgeInsets.only(top: start == 0 ? 0 : spacing),
+                child: SizedBox(
+                  height: 170,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var c = 0; c < crossAxisCount; c++) ...[
+                        if (c > 0) const SizedBox(width: spacing),
+                        Expanded(
+                          child: start + c < group.notes.length
+                              ? _buildNoteCard(
+                                  group.notes[start + c].note,
+                                  group.notes[start + c].isMissing,
+                                  tableOfContents: tocSnapshot.data,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -1259,13 +1229,8 @@ class _PersonalNotesManagerScreenState
             ),
           ],
           const SizedBox(height: 8),
-          // תצוגה מקדימה מעוצבת: מרנדרים את ה-Quill Delta במקום טקסט פשוט,
-          // כך שהעיצוב (מודגש/נטוי/קו תחתי/קו חוצה וכו') יופיע גם בכרטיס.
-          // maxPreviewChars מקצר הערות ארוכות כדי שלא נרנדר אלפי מילים
-          // בכל כרטיס (QuillEditor הלא-נגלל מחשב layout לכל הטקסט).
-          // הכרטיס בגובה קבוע (mainAxisExtent: 170), לכן עוטפים ב-Expanded +
-          // ClipRect + OverflowBox כדי לחתוך את העודף הוויזואלי. maxHeight
-          // מוגבל כהגנה כפולה מעל הקיצור התוכני.
+          // QuillEditor לא נגלל מחשב פריסה לכל הטקסט, לכן מקצרים את התוכן
+          // ומגבילים את גובה התצוגה המקדימה בתוך הכרטיס.
           Expanded(
             child: ClipRect(
               child: OverflowBox(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 // ── ActionButton ──────────────────────────────────────────────────────────────
@@ -28,10 +29,9 @@ class ActionButton extends StatelessWidget {
   final FocusNode? focusNode;
   final bool autofocus;
 
-  /// הודעת tooltip לכפתור. עדיף על עטיפה חיצונית ב-[Tooltip]: הכפתור מקבל
-  /// את הבלון בצומת סמנטיקה משלו (ראו [build]), ולכן אפשר להציבו בתוך עוגן
-  /// overlay אחר — למשל `MenuAnchor.builder` — בלי שהעוגנים יתמזגו לצומת
-  /// אחד ובלון יישאר בלי אב (issue #1399).
+  /// הודעת tooltip לכפתור. עדיף על עטיפה חיצונית ב-[Tooltip]: הבלון מקבל
+  /// צומת סמנטיקה משלו ([ContainedTooltip]), ולכן אפשר להציב את הכפתור בתוך
+  /// עוגן overlay אחר — למשל `MenuAnchor.builder`.
   final String? tooltip;
 
   const ActionButton.recommended({
@@ -154,18 +154,7 @@ class ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final button = _buildButton(context);
-    final tooltip = this.tooltip;
-    if (tooltip == null || tooltip.isEmpty) return button;
-    // Tooltip אינו יוצר צומת סמנטיקה משלו: ההודעה ועוגן ה-OverlayPortal של
-    // הבלון מתמזגים לצומת הסמנטיקה הקרוב מעליו. כשהכפתור יושב בתוך עוגן
-    // overlay אחר (MenuAnchor וכדומה), שני העוגנים נוחתים באותו צומת, ולצומת
-    // יש מקום לעוגן אחד בלבד — הבלון שנפתח נשלח למערכת ההפעלה בלי אב, Windows
-    // דוחה את עדכון עץ הנגישות והעץ קופא עד קריסה (issue #1399). המכולה נותנת
-    // ל-tooltip צומת משלו, כפי ש-IconButton עושה עם ה-tooltip הפנימי שלו.
-    return Semantics(
-      container: true,
-      child: Tooltip(message: tooltip, child: button),
-    );
+    return ContainedTooltip(message: tooltip ?? '', child: button);
   }
 
   Widget _buildButton(BuildContext context) {
@@ -393,18 +382,16 @@ class SecondaryIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: tooltip,
-      child: IconButton(
-        icon: RtlIcon(icon, size: 20),
-        onPressed: onPressed,
-        style: IconButton.styleFrom(
-          backgroundColor: cs.secondaryContainer,
-          foregroundColor: cs.onSecondaryContainer,
-          minimumSize: const Size(36, 36),
-          padding: EdgeInsets.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
+    return IconButton(
+      icon: RtlIcon(icon, size: 20),
+      onPressed: onPressed,
+      tooltip: tooltip,
+      style: IconButton.styleFrom(
+        backgroundColor: cs.secondaryContainer,
+        foregroundColor: cs.onSecondaryContainer,
+        minimumSize: const Size(36, 36),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }
@@ -425,18 +412,16 @@ class PrimaryIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: tooltip,
-      child: IconButton(
-        icon: RtlIcon(icon, size: 20),
-        onPressed: onPressed,
-        style: IconButton.styleFrom(
-          backgroundColor: cs.primary,
-          foregroundColor: cs.onPrimary,
-          minimumSize: const Size(36, 36),
-          padding: EdgeInsets.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
+    return IconButton(
+      icon: RtlIcon(icon, size: 20),
+      onPressed: onPressed,
+      tooltip: tooltip,
+      style: IconButton.styleFrom(
+        backgroundColor: cs.primary,
+        foregroundColor: cs.onPrimary,
+        minimumSize: const Size(36, 36),
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }

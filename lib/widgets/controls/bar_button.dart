@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 enum _Variant { icon, text }
@@ -161,10 +162,13 @@ class BarButton extends StatelessWidget {
           child: Text(label!),
         ),
       );
+      // ל-FilledButton.icon אין פרמטר tooltip.
+      button = ContainedTooltip(message: tooltip, child: button);
     } else {
       button = IconButton(
         onPressed: onPressed,
         icon: iconEl,
+        tooltip: tooltip,
         padding: const EdgeInsets.all(8.0),
         constraints: BoxConstraints(minWidth: minSize, minHeight: minSize),
         style: IconButton.styleFrom(
@@ -180,18 +184,15 @@ class BarButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
         horizontal: outerHorizontalPadding,
       ),
-      child: Tooltip(
-        message: tooltip,
-        child: AnimatedContainer(
-          duration: AppTokens.animFast,
-          curve: Curves.easeInOut,
-          decoration: BoxDecoration(
-            color: bg,
-            shape: label != null ? BoxShape.rectangle : BoxShape.circle,
-            borderRadius: label != null ? BorderRadius.circular(100) : null,
-          ),
-          child: button,
+      child: AnimatedContainer(
+        duration: AppTokens.animFast,
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          color: bg,
+          shape: label != null ? BoxShape.rectangle : BoxShape.circle,
+          borderRadius: label != null ? BorderRadius.circular(100) : null,
         ),
+        child: button,
       ),
     );
   }

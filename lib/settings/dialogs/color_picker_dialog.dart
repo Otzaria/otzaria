@@ -104,7 +104,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 width: 22,
                 height: 22,
                 decoration: BoxDecoration(
-                  color: _selected,
+                  color: AppSeedColors.swatchOf(_selected),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -165,7 +165,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: entry.color,
+                          color: AppSeedColors.swatchOf(entry.color),
                           shape: BoxShape.circle,
                           border: isSelected
                               ? Border.all(color: cs.onSurface, width: 3)

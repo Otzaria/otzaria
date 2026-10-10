@@ -117,6 +117,7 @@ class CrashReportFlow {
       createdAt: _clock(),
       diagnostics: attachments?.diagnostics,
       errorLog: attachments?.errorLog,
+      // בלי minidump: הוא מכיל זיכרון של התהליך ונשלח רק בהסכמה בטופס.
     ).redactedWith(_redactor);
     await _service.send(report);
   }

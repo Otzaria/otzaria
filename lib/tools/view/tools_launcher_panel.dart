@@ -793,7 +793,7 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
               : context.settingsText('לא נמצאו כלים זמינים'));
     return OtzariaEmptyState(
       icon: hasQuery
-          ? OtzariaIcons.search_in_the_library_24_regular
+          ? OtzariaIcons.search_in_library_24_regular
           : FluentIcons.toolbox_24_regular,
       title: message,
       message: hasQuery ? context.settingsText('נסה לחפש מילים אחרות') : null,

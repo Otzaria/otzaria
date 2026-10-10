@@ -23,6 +23,45 @@ void main() {
     expect(source, contains('std::atomic_load_explicit(&g_modules'));
   });
 
+  test('ה-heartbeat אינו סורק מודולים במסלול העלייה', () {
+    final start = source.indexOf('void CALLBACK HeartbeatProc(');
+    final end = source.indexOf('\n}', start);
+    expect(start, greaterThanOrEqualTo(0));
+    final heartbeat = source.substring(start, end);
+    expect(heartbeat, isNot(contains('RefreshModules')));
+    expect(heartbeat, isNot(contains('GetMappedFileName')));
+    expect(heartbeat, isNot(contains('VirtualQuery')));
+    expect(heartbeat, contains('RequestStop()'));
+  });
+
+  test('DLL מאוחר מזוהה ממיפוי רק אחרי חידוש ה-thread הראשי', () {
+    final start = source.indexOf('std::string DescribeAddress(');
+    final end = source.indexOf('\n}', start);
+    final describe = source.substring(start, end);
+    expect(describe, contains('::VirtualQuery('));
+    expect(describe, contains('info.Type == MEM_IMAGE'));
+    expect(describe, contains('::GetMappedFileNameW('));
+    expect(describe, contains('length > 0 && length < MAX_PATH'));
+    expect(describe, contains('info.AllocationBase'));
+    expect(describe, isNot(contains('::GetModuleFileNameW(')));
+    expect(describe, isNot(contains('::GetModuleHandle')));
+
+    final captureStart = source.indexOf('bool CaptureMainThreadStack(');
+    final captureEnd = source.indexOf('\n}', captureStart);
+    final capture = source.substring(captureStart, captureEnd);
+    expect(capture, contains('::ResumeThread(g_main_thread);'));
+    expect(capture, isNot(contains('DescribeAddress(')));
+    expect(capture, isNot(contains('GetMappedFileName')));
+    expect(capture, isNot(contains('VirtualQuery')));
+
+    final watcher = source.substring(source.indexOf('void WatcherLoop()'));
+    expect(
+      watcher.indexOf('ReportStall('),
+      greaterThan(watcher.indexOf('CaptureMainThreadStack(&frames);')),
+    );
+    expect(RegExp(r'\bDescribeAddress\(').allMatches(source), hasLength(2));
+  });
+
   test('כשל timer אינו מפעיל watcher', () {
     final timer = source.indexOf('g_timer = ::SetTimer');
     final failed = source.indexOf('if (g_timer == 0)', timer);

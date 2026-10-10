@@ -6,10 +6,6 @@ FROM docx_text_cache
 WHERE filePath = ?
 LIMIT 1;
 
-selectAllFilePaths:
-SELECT filePath
-FROM docx_text_cache;
-
 upsert:
 INSERT INTO docx_text_cache (
   filePath,
@@ -31,10 +27,6 @@ ON CONFLICT(filePath) DO UPDATE SET
 updateAccessedAt:
 UPDATE docx_text_cache
 SET accessedAt = ?
-WHERE filePath = ?;
-
-deleteByFilePath:
-DELETE FROM docx_text_cache
 WHERE filePath = ?;
 
 deleteAccessedBefore:

@@ -1,11 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-/// Enum representing different types of reporting actions
-enum ReportAction {
-  regular,
-  phone,
-}
-
 /// Represents an error type with ID and Hebrew label for phone reporting
 class ErrorType extends Equatable {
   final int id;

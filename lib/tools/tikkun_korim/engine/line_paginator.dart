@@ -19,29 +19,6 @@ RegExpMatch? _kqMatch(String word) =>
 String _stamOf(String word) => _stamCache[word] ??= stripNikud(word);
 final Map<String, String> _stamCache = {};
 
-/// תקציב רוחב מותאם לסגמנט, כדי שהשורה האחרונה לא תישאר ריקה למחצה.
-double computeBalancedLineWidthEm(
-  List<TikkunToken> tokens,
-  StamWidthModel widths, [
-  double? maxWidthEm,
-]) {
-  final baseWidthEm = maxWidthEm ?? widths.lineWidthEm;
-  var total = 0.0;
-  for (final tok in tokens) {
-    if (tok.type == TikkunTokenType.word) {
-      total += widths.wordWidthEm(stripNikud(tok.value!)) + widths.wordGapEm;
-    } else if (tok.type == TikkunTokenType.setuma) {
-      total += widths.setumaGapEm;
-    }
-  }
-  if (total <= baseWidthEm) return baseWidthEm;
-
-  final linesAtBase = (total / baseWidthEm).ceil();
-  final lastLineSize = total - (linesAtBase - 1) * baseWidthEm;
-  if (lastLineSize < baseWidthEm * 0.5) return total / linesAtBase;
-  return baseWidthEm;
-}
-
 /// רוחב אסימון מילה בשורה, לפי אותם כללים של העימוד;
 /// `null` למילה שריקה בסת"ם ונדבקת לקודמת.
 double? _tokenWidthEm(TikkunToken token, StamWidthModel widths) {

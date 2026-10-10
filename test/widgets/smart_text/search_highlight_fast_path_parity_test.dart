@@ -12,8 +12,8 @@ const _needle = 'ברכה';
 const _opens = [
   '<span style="color: red">',
   '<span style="color: red; ">',
-  '<span style="color: blue; background-color: yellow;">',
-  '<span style="background-color: yellow; color: black">',
+  '<span style="color: blue; background-color: rgba(255, 255, 0, 0.8);">',
+  '<span style="background-color: rgba(255, 255, 0, 0.8); color: black">',
 ];
 
 class _Rendered {

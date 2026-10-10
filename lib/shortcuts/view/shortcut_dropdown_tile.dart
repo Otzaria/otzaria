@@ -18,6 +18,10 @@ class ShortcutDropDownTile extends StatefulWidget {
   final Widget? leading;
   final Map<String, String> allShortcuts;
 
+  /// ערכי כל הקיצורים כשההורה קרא אותם פעם אחת לכל האריחים; בלעדיהם כל
+  /// אריח קורא את כל ההגדרות, ובמסך עם עשרות אריחים זה ריבועי.
+  final Map<String, String?>? currentValues;
+
   const ShortcutDropDownTile({
     super.key,
     required this.settingKey,
@@ -26,7 +30,13 @@ class ShortcutDropDownTile extends StatefulWidget {
     required this.selected,
     required this.allShortcuts,
     this.leading,
+    this.currentValues,
   });
+
+  static Map<String, String?> readCurrentValues() => {
+    for (final key in ShortcutValidator.shortcutKeys)
+      key: ShortcutValidator.getShortcutValue(key),
+  };
 
   @override
   State<ShortcutDropDownTile> createState() => _ShortcutDropDownTileState();
@@ -51,11 +61,11 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
 
     // Get all shortcuts that are in use by OTHER settings
     final usedShortcuts = <String>{};
-    for (final key in ShortcutValidator.shortcutKeys) {
+    final values =
+        widget.currentValues ?? ShortcutDropDownTile.readCurrentValues();
+    for (final MapEntry(:key, :value) in values.entries) {
       if (key != widget.settingKey &&
           !ShortcutValidator.canShareShortcut(widget.settingKey, key)) {
-        // Don't include current setting
-        final value = ShortcutValidator.getShortcutValue(key);
         if (value != null && value.isNotEmpty) {
           usedShortcuts.add(value);
         }

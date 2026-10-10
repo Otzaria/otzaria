@@ -46,8 +46,6 @@ enum TextEncoding {
   bool get isLegacyHebrew =>
       this == windows1255 || this == iso88598 || this == cp862;
 
-  bool get isUtf16 => this == utf16LE || this == utf16BE;
-
   bool get isUtf32 => this == utf32LE || this == utf32BE;
 }
 

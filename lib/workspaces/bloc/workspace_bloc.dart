@@ -14,17 +14,7 @@ import 'package:otzaria/workspaces/workspace.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 
-/// Bloc for managing workspaces.
-///
-/// **Key architectural change:** This Bloc no longer holds a reference to TabsBloc.
-/// Instead, the UI acts as a coordinator:
-/// - When switching workspaces, the UI passes current tab data via events
-/// - The UI listens to state changes and updates TabsBloc accordingly
-///
-/// This decoupling enables:
-/// - Unit testing in isolation
-/// - Clear data flow
-/// - No circular dependencies
+/// מנהל שולחנות עבודה; ה-UI מוסר את הכרטיסיות החיות ומחליף אותן בעת מעבר.
 class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
   final WorkspaceRepository _repository;
 
@@ -68,6 +58,7 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
       transformer: sequential(),
     );
     on<MoveTabToWorkspace>(_onMoveTabToWorkspace, transformer: sequential());
+    on<SetWorkspacePinned>(_onSetWorkspacePinned, transformer: sequential());
   }
 
   /// שולחן שחלון אחר עומד עליו: שני חלונות דורסים זה לזה את ה-stash, ולכן
@@ -197,29 +188,40 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
   ) async {
     // 1. Save current tabs to the currently active workspace
     final currentId = state.activeWorkspaceId;
-    List<Workspace> stash(List<Workspace> current) => current.map((w) {
-      if (w.id == currentId) {
-        return w.withTabs(
-          tabs: _cloneTabs(event.currentTabsToSave),
-          activeTabIndex: event.currentTabIndexToSave,
-          activePane: event.currentActivePaneToSave,
-        );
+    List<Workspace> stash(List<Workspace> current) {
+      // חלון בלי שולחן פעיל: הכרטיסיות נשמרות בשולחן חדש, אחרת ההחלפה מוחקת אותן.
+      if (currentId == null) {
+        if (event.currentTabsToSave.isEmpty ||
+            !current.any((w) => w.id == event.targetWorkspaceId)) {
+          return current;
+        }
+        return [
+          ...current,
+          Workspace(
+            name: uniqueWorkspaceName(current),
+            tabs: _cloneTabs(event.currentTabsToSave),
+            activeTabIndex: event.currentTabIndexToSave,
+            activePane: event.currentActivePaneToSave,
+          ),
+        ];
       }
-      return w;
-    }).toList();
-
-    // ⚠️ **השמירה קודמת לחשיפה.** החלפת הכרטיסיות החיות משחררת את הכרטיסיות
-    // של השולחן הנעזב, ולכן כשל שמירה אחריה מוחק אותן לצמיתות.
-    final List<Workspace> saved;
-    try {
-      saved = await _repository.mutateWorkspaces(stash);
-    } catch (e) {
-      UiSnack.showError(NotesMessages.workspaceSwitchFailed);
-      emit(state.copyWith(error: 'Failed to switch workspace: $e'));
-      return;
+      return current.map((w) {
+        if (w.id == currentId && !w.isPinned) {
+          return w.withTabs(
+            tabs: _cloneTabs(event.currentTabsToSave),
+            activeTabIndex: event.currentTabIndexToSave,
+            activePane: event.currentActivePaneToSave,
+          );
+        }
+        return w;
+      }).toList();
     }
 
+    // החלפת הכרטיסיות משחררת את הקודמות; כשל שמירה חייב להקדים אותה.
+    List<Workspace>? saved;
+    bool? hasTabs;
     try {
+      saved = await _repository.mutateWorkspaces(stash);
       // 2. Get the target workspace, from the authoritative list.
       //
       // ⚠️ `firstWhereOrNull`: השולחן יכול להיעלם בין בניית התפריט
@@ -262,6 +264,7 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
         ),
       );
       _warnIfOpenElsewhere(event.targetWorkspaceId);
+      hasTabs = targetWorkspace.tabs.isNotEmpty;
     } catch (e) {
       UiSnack.showError(NotesMessages.workspaceSwitchFailed);
       emit(
@@ -270,6 +273,8 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
           error: 'Failed to switch workspace: $e',
         ),
       );
+    } finally {
+      event.onCompleted?.call(hasTabs);
     }
   }
 
@@ -353,20 +358,45 @@ class WorkspaceBloc extends Bloc<WorkspaceEvent, WorkspaceState> {
     }
   }
 
+  Future<void> _onSetWorkspacePinned(
+    SetWorkspacePinned event,
+    Emitter<WorkspaceState> emit,
+  ) async {
+    try {
+      final saved = await _repository.mutateWorkspaces(
+        (current) => current.map((w) {
+          if (w.id != event.workspaceId) return w;
+          final tabs = event.tabsToSave;
+          final updated = tabs == null
+              ? w
+              : w.withTabs(
+                  tabs: _cloneTabs(tabs),
+                  activeTabIndex: event.tabIndexToSave,
+                  activePane: event.activePaneToSave,
+                );
+          return updated.copyWith(isPinned: event.isPinned);
+        }).toList(),
+      );
+      emit(state.copyWith(workspaces: saved, clearError: true));
+    } catch (e) {
+      UiSnack.showError(NotesMessages.workspaceSaveFailed);
+      emit(state.copyWith(error: 'Failed to pin workspace: $e'));
+    }
+  }
+
   Future<void> _onMoveTabToWorkspace(
     MoveTabToWorkspace event,
     Emitter<WorkspaceState> emit,
   ) async {
     try {
       final currentId = state.activeWorkspaceId;
-      if (currentId == null) return;
 
       // מעדכן את שני שולחנות העבודה:
       // 1. מסיר את הטאב משולחן העבודה הנוכחי
       // 2. מוסיף את הטאב לשולחן העבודה היעד
       final saved = await _repository.mutateWorkspaces(
         (current) => current.map((w) {
-          if (w.id == currentId) {
+          if (w.id == currentId && !w.isPinned) {
             // מסיר את הטאב משולחן העבודה הנוכחי
             return w.withTabs(
               tabs: _cloneTabs(event.currentTabs),

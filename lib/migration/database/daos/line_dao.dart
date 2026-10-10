@@ -21,13 +21,6 @@ class LineDao {
       ? _queries['${name}Split']!
       : _queries[name]!;
 
-  Future<Line?> getLineById(int id) async {
-    final db = await database;
-    final result = db.select(await _forShape('selectById'), [id]).toMapList();
-    if (result.isEmpty) return null;
-    return _mapToLine(result.first, LineContentCodec.of(db));
-  }
-
   Future<List<Line>> selectByBookId(int bookId) async {
     final db = await database;
     return db

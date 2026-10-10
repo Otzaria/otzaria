@@ -200,7 +200,11 @@ class NavPanelPinButton extends StatelessWidget {
     final effectivePinned = isPinned || globalPin;
     return AnimatedPinButton(
       isPinned: effectivePinned,
-      tooltip: effectivePinned ? 'בטל נעיצה' : 'נעץ את החלונית',
+      tooltip: globalPin
+          ? 'החלונית נעוצה לפי ההגדרות'
+          : effectivePinned
+          ? 'בטל נעיצה'
+          : 'נעץ את החלונית',
       onPressed: globalPin ? null : onToggle,
     );
   }
@@ -217,21 +221,21 @@ class NavPanelToggleButton extends StatelessWidget {
     required this.onToggle,
   });
 
-  /// האם לשקף את הגליף אופקית, כך שהחץ שבו יצביע לכיוון שאליו החלונית תזוז
-  /// בלחיצה (issue #1417).
+  /// האם להציג את הגליף שחץ שלו פונה ימינה (`text_continuous_ltr`), במקום
+  /// זה שחץ שלו פונה שמאלה (`text_continuous_rtl`), כך שהחץ יצביע לכיוון
+  /// שאליו החלונית תזוז בלחיצה (issue #1417).
   ///
-  /// הגליף מצויר עם חץ שמאלה: חלונית סגורה בצד הסוף של ממשק RTL (ימין)
-  /// נפתחת שמאלה, ולכן שם הוא מוצג כפי שהוא. חלונית פתוחה נסגרת לכיוון
-  /// ההפוך — החץ מתהפך; ובממשק LTR, שבו צד הסוף הוא שמאל, שני המצבים
-  /// מתהפכים.
-  static bool shouldMirror({
+  /// חלונית סגורה בצד הסוף של ממשק RTL (ימין) נפתחת שמאלה, ולכן שם מוצג
+  /// ה-rtl. חלונית פתוחה נסגרת לכיוון ההפוך — ה-ltr; ובממשק LTR, שבו צד
+  /// הסוף הוא שמאל, שני המצבים מתהפכים.
+  static bool useLtrGlyph({
     required bool isOpen,
     required TextDirection textDirection,
   }) => isOpen == (textDirection == TextDirection.rtl);
 
   @override
   Widget build(BuildContext context) {
-    final mirror = shouldMirror(
+    final ltrGlyph = useLtrGlyph(
       isOpen: isOpen,
       textDirection: Directionality.of(context),
     );
@@ -243,17 +247,23 @@ class NavPanelToggleButton extends StatelessWidget {
       color: Theme.of(context).colorScheme.onSecondaryContainer,
       icon: AnimatedSwitcher(
         duration: AppTokens.animFast,
-        child: Transform.flip(
+        child: Icon(
           key: ValueKey(isOpen),
-          flipX: mirror,
-          child: Icon(
-            isOpen
-                ? OtzariaIcons.text_continuous_24_filled
-                : OtzariaIcons.text_continuous_24_regular,
-            size: 24,
-          ),
+          _glyph(isOpen: isOpen, ltr: ltrGlyph),
+          size: 24,
         ),
       ),
     );
+  }
+
+  static IconData _glyph({required bool isOpen, required bool ltr}) {
+    if (ltr) {
+      return isOpen
+          ? OtzariaIcons.text_continuous_ltr_24_filled
+          : OtzariaIcons.text_continuous_ltr_24_regular;
+    }
+    return isOpen
+        ? OtzariaIcons.text_continuous_rtl_24_filled
+        : OtzariaIcons.text_continuous_rtl_24_regular;
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -843,7 +844,9 @@ class _ExternalSearchResultsSectionState
                               query: state.searchQuery.trim(),
                               defaultStyle: TextStyle(
                                 fontSize: settings.fontSize,
-                                fontFamily: settings.fontFamily,
+                                fontFamily: AppFonts.renderFontFamily(
+                                  settings.fontFamily,
+                                ),
                                 color: cs.onSurface,
                                 height: 1.5,
                               ),
@@ -851,7 +854,9 @@ class _ExternalSearchResultsSectionState
                               // אדומה ומודגשת, ולא צביעת רקע.
                               highlightStyle: TextStyle(
                                 fontSize: settings.fontSize + 2,
-                                fontFamily: settings.fontFamily,
+                                fontFamily: AppFonts.renderFontFamily(
+                                  settings.fontFamily,
+                                ),
                                 height: 1.5,
                                 fontWeight: FontWeight.bold,
                                 color: cs.error,

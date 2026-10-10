@@ -42,12 +42,16 @@ class SearchScopeMenuButton extends StatefulWidget {
   /// מועבר `false` (ה-chips היו מזיזים את העץ), ובמקומם מונה קומפקטי בשדה.
   final bool showChips;
 
+  /// מציג רק ספרים מהספרייה הרשמית (בחיפוש החכם — רק להם יש וקטורים).
+  final bool officialBooksOnly;
+
   const SearchScopeMenuButton({
     super.key,
     required this.selected,
     required this.onChanged,
     this.width = 300,
     this.showChips = true,
+    this.officialBooksOnly = false,
   });
 
   @override
@@ -73,6 +77,9 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   Future<void>? _baseBookNodesFuture;
   int _baseBookGeneration = 0;
 
+  ScopeTree _visibleTree(ScopeTree tree) =>
+      widget.officialBooksOnly ? tree.officialOnly() : tree;
+
   Future<ScopeTree?> _ensureTree() async {
     final library = _library;
     if (library == null) return null;
@@ -82,14 +89,15 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
     final pending = _treeFuture;
     if (pending != null) {
       final tree = await pending;
-      return identical(library, _library) ? tree : null;
+      return identical(library, _library) ? _visibleTree(tree) : null;
     }
 
     final future = ScopeTree.fromLibraryAsync(library);
     _treeFuture = future;
     try {
-      final tree = await future;
+      final fullTree = await future;
       if (!mounted || !identical(library, _library)) return null;
+      final tree = _visibleTree(fullTree);
       setState(() => _treeCache = tree);
       return tree;
     } finally {

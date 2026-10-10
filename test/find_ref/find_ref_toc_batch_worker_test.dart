@@ -206,7 +206,7 @@ void main() {
     await Future<void>.delayed(perBook * 1.5);
 
     final stopwatch = Stopwatch()..start();
-    expect(await isolate.getBookTocRows(1), isNotEmpty);
+    expect(await isolate.getBookTocEntries(1), isNotEmpty);
     expect(
       stopwatch.elapsed,
       lessThan(perBook * 3),

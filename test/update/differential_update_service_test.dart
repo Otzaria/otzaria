@@ -235,13 +235,6 @@ void main() {
         'x64',
       );
     });
-
-    test('גודל ההורדה מוצג בעברית פשוטה', () {
-      expect(formatDownloadSizeHebrew(8 * 1024 * 1024), '8 מגה-בייט');
-      expect(formatDownloadSizeHebrew(39 * 1024 * 1024), '39 מגה-בייט');
-      expect(formatDownloadSizeHebrew(1536 * 1024), '1.5 מגה-בייט');
-      expect(formatDownloadSizeHebrew(2048), '2 קילו-בייט');
-    });
   });
 
   group('המסלול מקצה לקצה', () {

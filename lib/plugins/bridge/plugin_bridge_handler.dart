@@ -151,7 +151,9 @@ class PluginBridgeHandler {
       // דיאלוג ההדפסה של המערכת ממתין לבחירת מדפסת ללא הגבלת זמן.
       method == 'ui.print' ||
       method == 'ui.exportPdf' ||
-      method == 'feedback.report';
+      method == 'reader.printRange' ||
+      method == 'feedback.report' ||
+      method == 'feedback.submitBookCorrection';
 
   Future<dynamic> _handleRpc(
     List<dynamic> args, {
@@ -366,8 +368,13 @@ class PluginBridgeHandler {
     'search.getOptions': 'search.fulltext.read',
     'reader.openBook': 'reader.open',
     'reader.openBookAtRef': 'reader.open',
+    'reader.printRange': 'reader.open',
     'reader.openSearchTab': 'reader.open',
     'reader.getCurrentState': 'reader.open',
+    'reader.getDefaultTextReader': 'reader.open',
+    'reader.setDefaultTextReader': 'reader.open',
+    'reader.reportTextReaderLocation': 'reader.open',
+    'reader.setTextReaderFontSize': 'reader.open',
     'reader.getCurrentRef': 'reader.open',
     'reader.closeTab': 'reader.open',
     'reader.activateTab': 'reader.open',
@@ -435,6 +442,7 @@ class PluginBridgeHandler {
     'publishedData.remove': 'published_data.write',
     'publishedData.listOwn': 'published_data.write',
     'feedback.sendEmail': 'feedback.send_email',
+    'feedback.submitBookCorrection': 'feedback.send_email',
     // report נשלח רק אחרי אישור המשתמש בדיאלוג, וההסכמה שם היא גבול האבטחה;
     // hasReporterEmail מחזירה ביט קיום בלבד, בלי הכתובת עצמה.
     'feedback.report': noManifestPermission,

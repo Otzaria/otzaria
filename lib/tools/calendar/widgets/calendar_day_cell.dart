@@ -338,7 +338,8 @@ class DayExtras extends StatelessWidget {
     if (yomTovIndex == JewishCalendar.CHOL_HAMOED_SUCCOS ||
         yomTovIndex == JewishCalendar.CHOL_HAMOED_PESACH) {
       l.removeWhere((e) => e.contains('חול המועד'));
-      final dayOfCholHamoed = jc.getJewishDayOfMonth() - 15;
+      final dayOfCholHamoed =
+          jc.getJewishDayOfMonth() - (jc.inIsrael ? 15 : 16);
       final cholHamoedName = yomTovIndex == JewishCalendar.CHOL_HAMOED_PESACH
           ? 'פסח'
           : 'סוכות';
@@ -361,7 +362,9 @@ class DayExtras extends StatelessWidget {
       }
     }
 
-    if (yomTovIndex == JewishCalendar.HOSHANA_RABBA) l.add("ו' דחוה\"מ");
+    if (yomTovIndex == JewishCalendar.HOSHANA_RABBA) {
+      l.add("${jc.inIsrael ? 'ו' : 'ה'}' דחוה\"מ");
+    }
 
     if (jc.getJewishMonth() == 7) {
       if (jc.getJewishDayOfMonth() == 22) {

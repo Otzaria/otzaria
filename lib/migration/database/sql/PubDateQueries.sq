@@ -1,18 +1,7 @@
 -- Queries for publication dates
 
-selectAll:
-SELECT * FROM pub_date ORDER BY date;
-
-selectById:
-SELECT * FROM pub_date WHERE id = ?;
-
 selectByDate:
 SELECT * FROM pub_date WHERE date = ? LIMIT 1;
-
-selectByBookId:
-SELECT p.* FROM pub_date p
-JOIN book_pub_date bp ON p.id = bp.pubDateId
-WHERE bp.bookId = ?;
 
 insert:
 INSERT INTO pub_date (date)
@@ -23,12 +12,3 @@ linkBookPubDate:
 INSERT INTO book_pub_date (bookId, pubDateId)
 VALUES (?, ?)
 ON CONFLICT (bookId, pubDateId) DO NOTHING;
-
-delete:
-DELETE FROM pub_date WHERE id = ?;
-
-countAll:
-SELECT COUNT(*) FROM pub_date;
-
-lastInsertRowId:
-SELECT last_insert_rowid();

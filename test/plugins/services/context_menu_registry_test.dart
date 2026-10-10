@@ -58,6 +58,28 @@ void main() {
       expect(item.contexts, ['reader-highlight']);
     });
 
+    test('מקבל reader-book ומוריש אותו לפריטי משנה ללא שינוי ברירת המחדל', () {
+      final item = registry.registerPayload('corrections', {
+        'id': 'book-menu',
+        'title': 'פעולות בספר',
+        'type': 'submenu',
+        'contexts': ['reader-book'],
+        'children': [
+          {'id': 'correct-book', 'title': 'העבר את הספר לתיקון'},
+        ],
+      });
+      expect(item.contexts, ['reader-book']);
+      expect(item.children.single.contexts, ['reader-book']);
+      final legacy = registry.registerPayload('legacy', {
+        'id': 'selection',
+        'title': 'פעולה על סימון',
+      });
+      expect(legacy.contexts, [
+        'reader-selection',
+        'reader-page-shape-selection',
+      ]);
+    });
+
     group('action — פעולת host דקלרטיבית', () {
       Map<String, dynamic> actionItem({
         Map<String, dynamic> extra = const {},
@@ -133,6 +155,42 @@ void main() {
             'action': {
               'type': 'storage.get',
               'args': {'key': 'k'},
+            },
+          }),
+          throwsA(isA<PluginContextMenuException>()),
+        );
+      });
+
+      test(r'localService.post עם $storage נרשם; $book אינו זמין כאן', () {
+        registry.registerPayload('marker', {
+          'id': 'search',
+          'title': 'חיפוש בשירות',
+          'action': {
+            'type': 'localService.post',
+            'args': {
+              'port': {r'$storage': 'servicePort'},
+              'path': '/text/search',
+              'body': {
+                'text': {r'$selection': 'selectedText'},
+              },
+            },
+          },
+        });
+        expect(registry.findItem('marker', 'search')?.action, isNotNull);
+
+        expect(
+          () => registry.registerPayload('marker', {
+            'id': 'book',
+            'title': 'ספר',
+            'action': {
+              'type': 'localService.post',
+              'args': {
+                'port': 39700,
+                'path': '/x',
+                'body': {
+                  'id': {r'$book': 'id'},
+                },
+              },
             },
           }),
           throwsA(isA<PluginContextMenuException>()),

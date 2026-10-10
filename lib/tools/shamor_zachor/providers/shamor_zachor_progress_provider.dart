@@ -50,18 +50,6 @@ class ShamorZachorProgressProvider with ChangeNotifier {
   /// מספר העמודות המרבי שניתן להגדיר לספר
   static const int maxColumns = 8;
 
-  // Column names for progress tracking
-  static const String learnColumn = 'learn';
-  static const String review1Column = 'review1';
-  static const String review2Column = 'review2';
-  static const String review3Column = 'review3';
-  static const List<String> allColumnNames = [
-    learnColumn,
-    review1Column,
-    review2Column,
-    review3Column,
-  ];
-
   /// העמודות המוגדרות לספר; אם אין הגדרה מותאמת - עמודות ברירת המחדל
   List<ProgressColumn> getColumnsForBook(int bookId) =>
       _columnsByBookId[bookId] ?? kDefaultProgressColumns;

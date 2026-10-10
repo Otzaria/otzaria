@@ -1,6 +1,9 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:win32_registry/win32_registry.dart';
+
+import 'system_font_locator.dart';
 
 List<String> _fontDirectories() {
   if (Platform.isWindows) {
@@ -31,11 +34,18 @@ bool _isFontFile(String path) {
   return lower.endsWith('.ttf') || lower.endsWith('.otf');
 }
 
-List<String> installedFontPaths() {
+List<String> installedFontPaths(String? family) {
   final seen = <String>{};
   final result = <String>[];
-  void add(String path) {
+  void add(String path, [String? name]) {
     if (!_isFontFile(path)) return;
+    if (family != null &&
+        !SystemFontLocator.nameMentionsFamily(
+          name ?? p.windows.basenameWithoutExtension(path),
+          family,
+        )) {
+      return;
+    }
     if (seen.add(path.toLowerCase())) result.add(path);
   }
 
@@ -51,7 +61,9 @@ List<String> installedFontPaths() {
 
   if (Platform.isWindows) {
     try {
-      _registryFontPaths().forEach(add);
+      for (final font in _registryFonts()) {
+        add(font.path, font.name);
+      }
     } catch (_) {
       // כשל בקריאת ה-registry אינו מונע את גופני התיקיות.
     }
@@ -63,10 +75,10 @@ List<String> installedFontPaths() {
 const _fontsSubKey = r'SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts';
 
 /// הגופנים כפי שווינדוס רושם אותם; ערך ללא נתיב = קובץ בתיקיית המערכת.
-List<String> _registryFontPaths() {
+List<({String name, String path})> _registryFonts() {
   final windowsFontsDir =
       '${Platform.environment['windir'] ?? r'C:\Windows'}\\Fonts';
-  final result = <String>[];
+  final result = <({String name, String path})>[];
   for (final hive in [LOCAL_MACHINE, CURRENT_USER]) {
     final RegistryKey key;
     try {
@@ -80,7 +92,10 @@ List<String> _registryFontPaths() {
         if (value is! StringValue) continue;
         final path = value.value.trim();
         if (path.isEmpty) continue;
-        result.add(path.contains('\\') ? path : '$windowsFontsDir\\$path');
+        result.add((
+          name: entry.name,
+          path: path.contains('\\') ? path : '$windowsFontsDir\\$path',
+        ));
       }
     } finally {
       key.close();

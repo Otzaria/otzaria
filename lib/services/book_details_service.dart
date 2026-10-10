@@ -115,7 +115,13 @@ class BookDetailsService {
     final databaseBook = resolvedBook?.book;
     final source = await _tryGetDbSourceName(resolvedBook);
     final generation = await _tryGetGeneration(resolvedBook);
-    final fileDetails = _buildFileDetails(book, databaseBook, source);
+    final categoryPath = await _tryGetCategoryPath(book, resolvedBook);
+    final fileDetails = _buildFileDetails(
+      book,
+      databaseBook,
+      source,
+      categoryPath,
+    );
 
     return BookInformation(
       book: book,
@@ -138,6 +144,7 @@ class BookDetailsService {
     Book book,
     migration_models.Book? databaseBook,
     String? source,
+    String? categoryPath,
   ) {
     final details = <String, String>{
       'שם הקובץ': bookNotFoundText,
@@ -156,7 +163,7 @@ class BookDetailsService {
       rawPath: databaseBook?.filePath ?? book.filePath,
       fileType: fileType,
       inferredFileName: inferredName,
-      categoryPath: book.categoryPath,
+      categoryPath: categoryPath,
     );
 
     if (inferredName != null && inferredName.isNotEmpty) {
@@ -205,6 +212,27 @@ class BookDetailsService {
         return sourceName.substring(_customFolderSourcePrefix.length);
       }
       return sourceName;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// נתיב הקטגוריה של הספר. ספר שנפתח מקישור/חיפוש/פרשן מגיע לעיתים בלי
+  /// [Book.categoryPath]; אז הנתיב נבנה מקטגוריית הספר במסד — אחרת הדיווח
+  /// יוצא עם שם הקובץ בלבד ואתר התיקונים לא מאתר את המקור.
+  Future<String?> _tryGetCategoryPath(
+    Book book,
+    ResolvedDbBookRecord? resolvedBook,
+  ) async {
+    final known = book.categoryPath?.trim();
+    if (known != null && known.isNotEmpty) return known;
+    if (resolvedBook == null) return null;
+    try {
+      final built = await BookDatabaseResolver.buildCategoryPath(
+        resolvedBook.repository,
+        resolvedBook.book.categoryId,
+      );
+      return built.trim().isEmpty ? null : built;
     } catch (_) {
       return null;
     }

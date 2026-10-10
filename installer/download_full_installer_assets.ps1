@@ -151,14 +151,22 @@ try {
   Remove-Item -Path "installer\zstd_tmp" -Recurse -Force
   Remove-Item -Path "installer\7zip-extra.7z" -Force
   Remove-Item -Path "installer\7zip_tmp" -Recurse -Force
-  Remove-Item -Path "installer\7zr.exe" -Force
   Write-Host "zstd.exe and 7za.exe prepared successfully"
 
   # מילון המורפולוגיה (lexical.db) של החיפוש המקורב. ב-release הוא אינו
   # דחוס, לכן דוחסים כאן עם zstd שכבר הוכן, כדי שה-installer יחלץ אותו
   # כמו שאר מסדי הנתונים.
-  Write-Host "Downloading morphology dictionary (lexical.db) from Otzaria/SeforimMagicIndexer..."
-  Invoke-WebRequest -Uri "https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db" -OutFile "installer\library_db\lexical.db" -UseBasicParsing
+  # lexical-v2.db הוא המילון המתוקן; lexical.db קפוא לגרסאות ישנות של התוכנה.
+  # מקומית הוא נשמר תמיד כ-lexical.db.
+  Write-Host "Downloading morphology dictionary (lexical-v2.db) from Otzaria/SeforimMagicIndexer..."
+  $lexicalBase = "https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download"
+  try {
+    Invoke-WebRequest -Uri "$lexicalBase/lexical-v2.db" -OutFile "installer\library_db\lexical.db" -UseBasicParsing
+  }
+  catch {
+    Write-Host "lexical-v2.db unavailable, falling back to lexical.db"
+    Invoke-WebRequest -Uri "$lexicalBase/lexical.db" -OutFile "installer\library_db\lexical.db" -UseBasicParsing
+  }
   & "installer\zstd.exe" -19 --long=31 -T0 -f "installer\library_db\lexical.db" -o "installer\library_db\lexical.db.zst"
   if ($LASTEXITCODE -ne 0) {
     Write-Host "::error::Failed to compress lexical.db"

@@ -163,7 +163,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
   /// עם תצוגה מקדימה, הדפסה או שמירה ל-PDF.
   Future<void> _print(BuildContext context, TikkunKorimState state) async {
     final allColumns = [for (final page in state.pages) page.lines];
-    // בתורה העמודים מכסים את כל החומשים — "הכל" וטווח הפסוקים מוגבלים
+    // בתורה העמודים מכסים את כל החומשים — "החומש" וטווח הפסוקים מוגבלים
     // לחומש הנוכחי, כמו בתוסף.
     final bookColumns = _currentBookColumns(state, allColumns);
     // "עמודים מקוריים" קיים רק כשהטורים הם עמודי שיטה בני 42/51 שורות.
@@ -184,6 +184,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
       allowOriginalPages: hasOriginalPages,
       verseDomain: hasVerseRange ? tikkunVerseDomain(bookColumns) : null,
       parashaName: parasha,
+      isTorah: state.nav.section == TikkunSection.torah,
       parashaRange: parasha == null
           ? null
           : tikkunParashaColumnRange(allColumns, parasha),
@@ -264,6 +265,8 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     var title = (state.headerTitle ?? _currentBookTitle(state)).trim();
     if (options.scope == TikkunExportScope.parasha) {
       title = 'תיקון קוראים פרשת ${state.nav.parashaName}';
+    } else if (options.scope == TikkunExportScope.wholeTorah) {
+      title = 'תיקון קוראים חמשה חומשי תורה';
     } else if (options.scope == TikkunExportScope.verseRange) {
       title +=
           ' ${toHebrewNumeral(options.fromChapter)},'

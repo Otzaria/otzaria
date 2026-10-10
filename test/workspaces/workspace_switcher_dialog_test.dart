@@ -9,6 +9,7 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
@@ -160,6 +161,102 @@ void main() {
       expect(renameEvents.single.newName, 'שם חדש');
     });
   });
+
+  group('תצוגת הכרטיסיות של שולחן העבודה הפעיל', () {
+    testWidgets(
+      'שולחן חדש ופעיל מציג את הכרטיסיות הפתוחות בו לפני שעוזבים אותו '
+      '(issue #1984)',
+      (tester) async {
+        final other = Workspace(name: 'שולחן ישן', tabs: [_PreviewTab('ישן')]);
+        // השמירה של השולחן הפעיל ריקה: הכרטיסיות נשמרות אליו רק ביציאה.
+        final fresh = Workspace(name: 'שולחן חדש', tabs: const []);
+        final workspaceBloc = _TestWorkspaceBloc(
+          WorkspaceState(
+            workspaces: [other, fresh],
+            isLoading: false,
+            activeWorkspaceId: fresh.id,
+          ),
+        );
+        final tabsBloc = _TestTabsBloc(
+          TabsState(
+            tabs: [_PreviewTab('ברכות'), _PreviewTab('שבת')],
+            currentTabIndex: 0,
+          ),
+        );
+        final navigationBloc = _TestNavigationBloc(
+          const NavigationState(currentScreen: Screen.reading),
+        );
+
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await workspaceBloc.close();
+          await tabsBloc.close();
+          await navigationBloc.close();
+        });
+
+        tester.view.physicalSize = const Size(1200, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          MultiBlocProvider(
+            providers: [
+              BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
+              BlocProvider<TabsBloc>.value(value: tabsBloc),
+              BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            ],
+            child: const MaterialApp(
+              locale: Locale('he', 'IL'),
+              home: Scaffold(body: WorkspaceSwitcherDialog()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        Iterable<String> previewTitles(String workspaceName) => tester
+            .widgetList<Tooltip>(
+              find.descendant(
+                of: find.ancestor(
+                  of: find.text(workspaceName),
+                  matching: find.byType(Card),
+                ),
+                matching: find.byType(Tooltip),
+              ),
+            )
+            // ריבועי התצוגה; טולטיפים של כפתורי הכרטיס אינם כרטיסיות.
+            .where((t) => t.child is Container)
+            .map((t) => t.message ?? '');
+
+        expect(previewTitles('שולחן חדש'), ['ברכות', 'שבת']);
+        expect(previewTitles('שולחן ישן'), ['ישן']);
+
+        // כרטיסייה שנפתחת כשהרשימה פתוחה מתווספת מיד.
+        tabsBloc.emit(
+          TabsState(
+            tabs: [
+              _PreviewTab('ברכות'),
+              _PreviewTab('שבת'),
+              _PreviewTab('עירובין'),
+            ],
+            currentTabIndex: 0,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(previewTitles('שולחן חדש'), ['ברכות', 'שבת', 'עירובין']);
+      },
+    );
+  });
+}
+
+class _PreviewTab extends OpenedTab {
+  _PreviewTab(super.title);
+
+  @override
+  OpenedTab clone() => this;
+
+  @override
+  Map<String, dynamic> toJson() => {'title': title};
 }
 
 class _TestWorkspaceBloc extends Cubit<WorkspaceState>

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/panels/tikkun_korim_settings_panel.dart';
+import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tools/tikkun_korim/settings/tikkun_settings.dart';
 
 import '../../helpers/memory_settings_cache.dart';
@@ -53,4 +54,46 @@ void main() {
     expect(loaded.nusachLand, 'diaspora');
     expect(loaded.hideDivineName, isTrue);
   });
+
+  for (final override in [null, 'israel']) {
+    testWidgets(
+      override == null
+          ? 'הכרטיס מציג מנהג נגזר מהעיר בלי לשמור אותו'
+          : 'הכרטיס מציג בחירה מפורשת הגוברת על העיר',
+      (tester) async {
+        await Settings.setValue<String>(
+          SettingsRepository.keySelectedCity,
+          'לונדון',
+        );
+        if (override != null) {
+          await Settings.setValue<String>(
+            TikkunSettingsKeys.nusachLand,
+            override,
+          );
+        }
+        await _pump(tester);
+        final selector = tester
+            .widgetList<SegmentedButton<String>>(
+              find.byType(SegmentedButton<String>),
+            )
+            .singleWhere(
+              (button) =>
+                  button.segments.any((segment) => segment.value == 'diaspora'),
+            );
+        expect(selector.selected, {override ?? 'diaspora'});
+        expect(
+          Settings.getValue<String>(TikkunSettingsKeys.nusachLand),
+          override,
+        );
+        await tester.tap(
+          find.text(override == null ? 'ארץ ישראל' : 'חוץ לארץ'),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          const TikkunSettingsStore().load().nusachLand,
+          override == null ? 'israel' : 'diaspora',
+        );
+      },
+    );
+  }
 }

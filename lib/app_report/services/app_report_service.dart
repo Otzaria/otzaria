@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -93,7 +94,7 @@ class AppReportService {
   static const int maxSentReportsToKeep = 100;
   static const Duration timeout = Duration(seconds: 10);
 
-  /// צילומי מסך הם עד מגה-בתים רבים; בחיבור איטי 10 שניות לא מספיקות להעלאה.
+  /// צילומי מסך ו-minidump הם מגה-בתים רבים; בחיבור איטי 10 שניות לא מספיקות.
   static const Duration timeoutWithImages = Duration(minutes: 2);
   static const Duration _flushInterval = Duration(minutes: 5);
   static const int _maxQueuedFlushPerRun = 20;
@@ -101,6 +102,7 @@ class AppReportService {
   static Timer? _flushTimer;
   static bool _isFlushing = false;
   static Completer<void>? _flushInFlight;
+  static final Map<String, Future<void>> _reportOperationTails = {};
 
   static final http.Client _shared = _createClient();
 
@@ -132,7 +134,18 @@ class AppReportService {
       Settings.getValue<bool>(SettingsRepository.keyOfflineMode) ?? false;
 
   /// שולח דיווח; בכשל זמני או במצב לא-מקוון שומר אותו בתור.
-  Future<AppReportDeliveryResult> send(AppReport report) async {
+  Future<AppReportDeliveryResult> send(AppReport report) =>
+      _withReportLock(report.reportId, () => _send(report));
+
+  Future<AppReportDeliveryResult> _send(AppReport report) async {
+    final alreadySent = await _sentReport(report.reportId);
+    if (alreadySent != null) {
+      await _deletePendingReport(report.reportId);
+      return AppReportDeliveryResult(
+        status: AppReportDeliveryStatus.sent,
+        report: alreadySent,
+      );
+    }
     if (_isOfflineMode) {
       if (!_queueWhenOfflineEnabled) {
         return AppReportDeliveryResult(
@@ -148,12 +161,12 @@ class AppReportService {
       );
     }
 
-    var current = report;
-    var attempt = await _trySend(current);
+    var (current, attempt) = await _trySendDroppingRejectedMinidump(report);
     // 409: התוכן הזה לא נקלט תחת המזהה — הגשה חדשה במזהה חדש.
     if (attempt.kind == _AttemptKind.idConflict) {
-      current = current.copyWith(reportId: AppReport.generateReportId());
-      attempt = await _trySend(current);
+      (current, attempt) = await _trySendDroppingRejectedMinidump(
+        current.copyWith(reportId: AppReport.generateReportId()),
+      );
     }
 
     switch (attempt.kind) {
@@ -188,13 +201,24 @@ class AppReportService {
   }
 
   /// שולח דיווח מהתור. הרשומה מוסרת לפני השליחה, וכשל זמני מחזיר אותה.
-  Future<AppReportDeliveryResult> submitPendingReport(AppReport report) async {
-    await deletePendingReport(report.reportId);
-    return send(report);
-  }
+  Future<AppReportDeliveryResult> submitPendingReport(AppReport report) =>
+      _withReportLock(report.reportId, () async {
+        await _deletePendingReport(report.reportId);
+        return _send(report);
+      });
+
+  /// מעביר דיווח מהתור להיסטוריה בלי לשלוח — כשנשלח בדרך אחרת (סקריפט).
+  Future<void> markPendingReportAsSent(AppReport report) =>
+      _withReportLock(report.reportId, () async {
+        await _saveSentReport(
+          report.withoutAttachments().copyWith(sentAt: _clock()),
+        );
+        await _deletePendingReport(report.reportId);
+      });
 
   /// שומר דיווח בתור בלי לנסות לשלוח.
-  Future<void> queueReport(AppReport report) => _enqueueIfNeeded(report);
+  Future<void> queueReport(AppReport report) =>
+      _withReportLock(report.reportId, () => _enqueueIfNeeded(report));
 
   Future<int> getPendingReportsCount() => _reports.countByKind(pendingKind);
 
@@ -212,11 +236,16 @@ class AppReportService {
     return total > kept ? total : kept;
   }
 
-  Future<void> deletePendingReport(String reportId) async =>
+  Future<void> deletePendingReport(String reportId) =>
+      _withReportLock(reportId, () => _deletePendingReport(reportId));
+
+  Future<void> _deletePendingReport(String reportId) async =>
       _reports.deleteIds(await _rowIdsOf(pendingKind, reportId));
 
-  Future<void> deleteSentReport(String reportId) async =>
-      _reports.deleteIds(await _rowIdsOf(sentKind, reportId));
+  Future<void> deleteSentReport(String reportId) => _withReportLock(
+    reportId,
+    () async => _reports.deleteIds(await _rowIdsOf(sentKind, reportId)),
+  );
 
   Future<void> clearPendingReports() => _reports.deleteAllOfKind(pendingKind);
 
@@ -227,7 +256,10 @@ class AppReportService {
 
   /// מעדכן דיווח בתור לפי [AppReport.reportId]. תוכן ששונה מקבל מזהה חדש,
   /// כי ייתכן שהגרסה הקודמת כבר נקלטה והשרת היה דוחה אותה ב-409.
-  Future<AppReport?> updatePendingReport(AppReport report) async {
+  Future<AppReport?> updatePendingReport(AppReport report) =>
+      _withReportLock(report.reportId, () => _updatePendingReport(report));
+
+  Future<AppReport?> _updatePendingReport(AppReport report) async {
     final row = (await _reports.listByKind(
       pendingKind,
     )).where((r) => r.payload['reportId'] == report.reportId).firstOrNull;
@@ -253,24 +285,46 @@ class AppReportService {
       final rows = await _reports.listByKind(pendingKind);
       var sentCount = 0;
       for (final row in rows.take(_maxQueuedFlushPerRun)) {
-        final report = _decode(row);
-        final attempt = await _trySend(report);
-        switch (attempt.kind) {
-          case _AttemptKind.success:
-            await _reports.deleteIds([row.id]);
-            await _saveSentReport(_sentRecord(report, attempt));
-            sentCount++;
-          case _AttemptKind.idConflict:
-            await _reports.updatePayload(
-              row.id,
-              report.copyWith(reportId: AppReport.generateReportId()).toJson(),
-            );
-          case _AttemptKind.permanent:
-            debugPrint('App report rejected, removed: ${report.reportId}');
-            await _reports.deleteIds([row.id]);
-          case _AttemptKind.transient:
-            return sentCount;
-        }
+        final reportId = _decode(row).reportId;
+        final shouldStop = await _withReportLock(reportId, () async {
+          final currentRow = (await _reports.listByKind(
+            pendingKind,
+          )).where((candidate) => candidate.id == row.id).firstOrNull;
+          if (currentRow == null) return false;
+          final queued = _decode(currentRow);
+          if (await _sentReport(queued.reportId) != null) {
+            await _reports.deleteIds([currentRow.id]);
+            return false;
+          }
+          final (report, attempt) = await _trySendDroppingRejectedMinidump(
+            queued,
+          );
+          switch (attempt.kind) {
+            case _AttemptKind.success:
+              await _reports.deleteIds([currentRow.id]);
+              await _saveSentReport(_sentRecord(report, attempt));
+              sentCount++;
+              return false;
+            case _AttemptKind.idConflict:
+              await _reports.updatePayload(
+                currentRow.id,
+                report
+                    .copyWith(reportId: AppReport.generateReportId())
+                    .toJson(),
+              );
+              return false;
+            case _AttemptKind.permanent:
+              debugPrint('App report rejected, removed: ${report.reportId}');
+              await _reports.deleteIds([currentRow.id]);
+              return false;
+            case _AttemptKind.transient:
+              if (queued.minidump != null && report.minidump == null) {
+                await _reports.updatePayload(currentRow.id, report.toJson());
+              }
+              return true;
+          }
+        });
+        if (shouldStop) return sentCount;
       }
       return sentCount;
     } finally {
@@ -297,7 +351,10 @@ class AppReportService {
     return buildOfflineReportScript(
       target: target,
       endpoint: endpoint.toString(),
-      payloads: reports.map((r) => r.toApiPayload()).toList(),
+      // ה-dump הוא מגה-בתים של base64 — הסקריפט נשלח בלעדיו.
+      payloads: reports
+          .map((r) => r.copyWith(minidump: null).toApiPayload())
+          .toList(),
       ids: reports.map((r) => r.reportId).toList(),
       idField: 'reportId',
       baseFileName: 'otzaria_send_app_reports',
@@ -314,17 +371,39 @@ class AppReportService {
     return payload;
   }
 
-  Future<List<int>> _rowIdsOf(String kind, String reportId) async {
-    final rows = await _reports.listByKind(kind);
-    return rows
-        .where((row) => row.payload['reportId'] == reportId)
-        .map((row) => row.id)
-        .toList();
-  }
+  Future<List<int>> _rowIdsOf(String kind, String reportId) =>
+      _reports.idsWhere(kind, 'reportId', reportId);
 
   Future<void> _enqueueIfNeeded(AppReport report) async {
+    if ((await _rowIdsOf(sentKind, report.reportId)).isNotEmpty) return;
     if ((await _rowIdsOf(pendingKind, report.reportId)).isNotEmpty) return;
     await _reports.add(pendingKind, report.toJson());
+  }
+
+  Future<AppReport?> _sentReport(String reportId) async {
+    final row = (await _reports.listByKind(sentKind))
+        .where((candidate) => candidate.payload['reportId'] == reportId)
+        .firstOrNull;
+    return row == null ? null : _decode(row);
+  }
+
+  static Future<T> _withReportLock<T>(
+    String reportId,
+    Future<T> Function() action,
+  ) async {
+    final previous = _reportOperationTails[reportId];
+    final release = Completer<void>();
+    final tail = release.future;
+    _reportOperationTails[reportId] = tail;
+    await previous;
+    try {
+      return await action();
+    } finally {
+      if (identical(_reportOperationTails[reportId], tail)) {
+        _reportOperationTails.remove(reportId);
+      }
+      release.complete();
+    }
   }
 
   AppReport _sentRecord(AppReport report, _Attempt attempt) {
@@ -352,15 +431,30 @@ class AppReportService {
     }
   }
 
+  /// dump שהשרת דחה (422 על השדה, או 413 מגוף גדול מדי) לא יפיל את הדיווח
+  /// כולו: שולחים שוב בלעדיו. מחזיר את הדיווח שנשלח בפועל.
+  Future<(AppReport, _Attempt)> _trySendDroppingRejectedMinidump(
+    AppReport report,
+  ) async {
+    final attempt = await _trySend(report);
+    final dumpRejected =
+        attempt.kind == _AttemptKind.permanent &&
+        (attempt.rejectedField == 'attachments.minidump' ||
+            attempt.httpStatus == HttpStatus.requestEntityTooLarge);
+    if (report.minidump == null || !dumpRejected) return (report, attempt);
+    final withoutDump = report.copyWith(minidump: null);
+    return (withoutDump, await _trySend(withoutDump));
+  }
+
   Future<_Attempt> _trySend(AppReport report) async {
-    final String body;
+    final Uint8List body;
     try {
-      body = jsonEncode(report.toApiPayload());
+      body = await _encodeBody(report);
     } catch (e) {
       debugPrint('App report payload invalid: $e');
       return const _Attempt(_AttemptKind.permanent);
     }
-    if (utf8.encode(body).length > AppReport.maxRequestBytes) {
+    if (body.length > AppReport.maxRequestBytes) {
       return const _Attempt(
         _AttemptKind.permanent,
         httpStatus: HttpStatus.requestEntityTooLarge,
@@ -368,16 +462,21 @@ class AppReportService {
     }
 
     try {
+      // לא דרך post(): הוא עוטף רשימה ב-cast ומעתיק את הגוף בית-בית.
+      final request = http.Request('POST', endpoint)
+        ..headers.addAll(const {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Accept': 'application/json',
+        })
+        ..bodyBytes = body;
       final response = await _client
-          .post(
-            endpoint,
-            headers: const {
-              'Content-Type': 'application/json; charset=utf-8',
-              'Accept': 'application/json',
-            },
-            body: utf8.encode(body),
-          )
-          .timeout(report.images.isEmpty ? timeout : timeoutWithImages);
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(
+            report.images.isEmpty && report.minidump == null
+                ? timeout
+                : timeoutWithImages,
+          );
       final status = response.statusCode;
       final decoded = _decodeBody(response.bodyBytes);
 
@@ -416,6 +515,10 @@ class AppReportService {
       return const _Attempt(_AttemptKind.transient);
     }
   }
+
+  // צילומי מסך מקפיאים את החלון בקידוד; סטטית כדי שהסגירה לא תלכוד את `this`.
+  static Future<Uint8List> _encodeBody(AppReport report) =>
+      Isolate.run(() => utf8.encode(jsonEncode(report.toApiPayload())));
 
   static Map<String, dynamic>? _decodeBody(List<int> bytes) {
     try {

@@ -4,7 +4,7 @@ import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
-import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -157,9 +157,14 @@ class CommentatorsTab extends OpenedTab {
     super.dispose();
   }
 
+  /// השורה הראשונה של הבחירה בניווט הכרטיסיה. ה-bloc שלה אינו גולל,
+  /// ולכן `visibleIndices` נשאר על מיקום הפתיחה.
+  int? navigatedIndex;
+
   /// המיקום שהכרטיסיה מוצגת בו כרגע. נופל ל-[startIndex] כל עוד ה-bloc
   /// לא נטען — ולא ל-`sourceTab.index`, שהוא המיקום של הספר ולא שלה.
   int get currentIndex {
+    if (navigatedIndex != null) return navigatedIndex!;
     final s = bloc.state;
     if (s is TextBookLoaded && s.visibleIndices.isNotEmpty) {
       return s.visibleIndices.first;

@@ -7,6 +7,9 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -798,6 +801,73 @@ void main() {
         expect(
           bloc.state.readingTabsPlacement,
           SettingsRepository.readingTabsPlacementSide,
+        );
+      });
+
+      testWidgets('גופן שמור נשמר בהעדפות אך אינו נמסר למנוע לפני האימות', (
+        tester,
+      ) async {
+        AppFonts.debugResetSystemFontsCache();
+        addTearDown(AppFonts.debugResetSystemFontsCache);
+        await Settings.init(cacheProvider: MemorySettingsCache());
+        const unsafe = 'SavedPFT_Vilna';
+        await Settings.setValue(
+          SettingsRepository.keyPageShapeBottomFont,
+          unsafe,
+        );
+        final saved = {
+          ...mockSettings,
+          'fontFamily': unsafe,
+          'commentatorsFontFamily': unsafe,
+          'pageShapeBottomFont': unsafe,
+        };
+        when(mockRepository.hasProtectedModePassword()).thenReturn(false);
+        when(mockRepository.loadSettings()).thenAnswer((_) async => saved);
+        final fontsLoaded = Completer<void>();
+        final requested = <String>[];
+        final bloc = SettingsBloc(
+          repository: mockRepository,
+          initialSettings: saved,
+          ensureFontLoaded: (family) {
+            requested.add(family);
+            return fontsLoaded.future;
+          },
+        );
+        addTearDown(bloc.close);
+        for (final family in [
+          bloc.state.fontFamily,
+          bloc.state.commentatorsFontFamily,
+          Settings.getValue<String>(SettingsRepository.keyPageShapeBottomFont)!,
+        ]) {
+          expect(family, unsafe);
+          await tester.pumpWidget(
+            MaterialApp(
+              home: SmartTextWidget(
+                text: 'א\u2066[1]\u2069',
+                settings: RenderSettings(fontFamily: family),
+              ),
+            ),
+          );
+          final styles = tester
+              .widgetList<RichText>(find.byType(RichText))
+              .map((widget) => widget.text.style?.fontFamily)
+              .whereType<String>();
+          expect(styles, contains(AppFonts.renderFontFamily(unsafe)));
+          expect(styles, isNot(contains(unsafe)));
+        }
+        bloc.add(LoadSettings());
+        await tester.pump();
+        expect(requested, [unsafe]);
+        expect(bloc.state.fontFamily, unsafe);
+        expect(bloc.state.commentatorsFontFamily, unsafe);
+        expect(fontsLoaded.isCompleted, isFalse);
+        fontsLoaded.complete();
+        await tester.pump();
+        await tester.pump();
+        expect(requested, [unsafe, unsafe, unsafe]);
+        expect(
+          Settings.getValue<String>(SettingsRepository.keyPageShapeBottomFont),
+          unsafe,
         );
       });
 

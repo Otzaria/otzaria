@@ -6,6 +6,8 @@ import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_event.dart';
 import 'package:otzaria/empty_library/bloc/empty_library_state.dart';
+import 'package:otzaria/empty_library/services/library_package/library_source.dart';
+import 'package:otzaria/empty_library/services/library_package/package_folder.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:path/path.dart' as path;
 
@@ -46,7 +48,7 @@ void main() {
 
     bloc.add(
       ImportLibraryFolderRequested(
-        sourceFolder: srcDir.path,
+        assets: await scanRawLibraryAssets(DirectoryPackageFolder(srcDir.path)),
         targetPath: targetDir.path,
       ),
     );

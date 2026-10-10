@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/external_catalog/repository/external_catalog_repository.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
@@ -90,7 +91,12 @@ class CompanionAssetsService {
   }) : _clientFactory = clientFactory ?? http.Client.new,
        _catalogRepository =
            catalogRepository ?? (() => ExternalCatalogRepository.instance),
-       _dictionaryFactory = dictionaryFactory ?? MagicDictionaryDownloader.new,
+       _dictionaryFactory =
+           dictionaryFactory ??
+           (() => MagicDictionaryDownloader(
+             aroundReplace:
+                 TantivyDataProvider.instance.replaceMagicDictionaryDetached,
+           )),
        _biographiesFactory = biographiesFactory ?? BiographiesDownloader.new,
        _extractTarArchive =
            extractTarArchive ??

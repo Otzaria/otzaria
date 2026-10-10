@@ -143,6 +143,20 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
     );
   });
 
+  @override
+  Future<List<SemanticPassageHighlight>> passageHighlights(
+    String query,
+    List<SemanticHighlightTarget> targets, {
+    required SemanticCancelHandle cancel,
+  }) => _withToken(
+    cancel,
+    (token) async => (await _engine()).semanticPassageHighlights(
+      query: query,
+      targets: targets,
+      cancellation: token,
+    ),
+  );
+
   /// ממפה את מצב המנוע; מצב שאינו מוכר לאפליקציה הוא [SemanticBackendState.other].
   static SemanticBackendStatus mapStatus(SemanticStatus status) {
     final errorKind = status.errorKind;
@@ -213,6 +227,8 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
       duplicatePenalty: config.duplicatePenalty,
       metadataRankingEnabled: config.metadataRankingEnabled,
       candidateWindowMultiplier: config.candidateWindowMultiplier,
+      foundationalBonus: config.foundationalBonus,
+      foundationalCandidateShare: config.foundationalCandidateShare,
     );
   }
 

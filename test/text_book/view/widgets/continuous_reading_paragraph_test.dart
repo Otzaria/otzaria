@@ -1,13 +1,20 @@
+import 'dart:math';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
+import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/plugins/models/plugin_highlight.dart';
 import 'package:otzaria/plugins/models/plugin_reader_selection.dart';
 import 'package:otzaria/plugins/models/text_source_map.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
+import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/widgets/smart_text/raised_markers.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 
 /// טסטים לפיצ'ר ההצגה הרציפה. עיקר הסיכון הוא ב-`_styleForElement` החדש —
@@ -744,6 +751,84 @@ void main() {
     expect(colored?.style?.backgroundColor, const Color(0x80FF0000));
   });
 
+  test(
+    'סגנון עם ביטויים קבועים ומחלקות שנקראות פעם אחת זהה למימוש הקודם (perf)',
+    () {
+      const tags = ['span', 'b', 'strong', 'i', 'em', 'small', 'big', 'sup'];
+      const classes = [
+        '',
+        kRaisedSupClass,
+        'subscript-text',
+        kFootnoteMarkerClass,
+        'book-note-marker',
+        'link-anchor',
+        'link-anchor link-anchor-1',
+        'x link-anchor-2 link-anchor',
+        ' link-anchor\tlink-anchor-1  link-anchor ',
+      ];
+      const styles = [
+        'color: red',
+        'COLOR:#abc',
+        'background-color: yellow',
+        'color: rgba(1, 2, 300, 0.5)',
+        'font-size: 1.2em',
+        'font-size:80%',
+        'font-size: 14px',
+        'font-size: 2rem',
+        'font-style: italic',
+        'text-decoration: underline',
+        'text-decoration: line-through',
+        'text-decoration-color: #ff000080',
+        'text-decoration-thickness: 2px',
+        'text-decoration-thickness: 50%',
+        'color: notacolor',
+      ];
+      final rnd = Random(7);
+      String element(int depth) {
+        final tag = tags[rnd.nextInt(tags.length)];
+        final cls = classes[rnd.nextInt(classes.length)];
+        final style = [
+          for (var i = rnd.nextInt(4); i > 0; i--)
+            styles[rnd.nextInt(styles.length)],
+        ].join('; ');
+        final inner = depth < 3 && rnd.nextBool() ? element(depth + 1) : 'א';
+        return '<$tag${cls.isEmpty ? '' : ' class="$cls"'}'
+            '${style.isEmpty ? '' : ' style="$style"'}>$inner ב</$tag>';
+      }
+
+      for (var i = 0; i < 2000; i++) {
+        final html = element(0);
+        final hide = rnd.nextBool();
+        const base = TextStyle(fontSize: 20, color: Color(0xFF111111));
+        final expected = <(String, TextStyle)>[];
+        void walk(dom.Node node, TextStyle style) {
+          if (node is dom.Text) {
+            if (node.text.isNotEmpty) expected.add((node.text, style));
+          } else if (node is dom.Element) {
+            final child = _oldStyleForElement(node, style, hide);
+            for (final n in node.nodes) {
+              walk(n, child);
+            }
+          }
+        }
+
+        for (final n in html_parser.parseFragment(html).nodes) {
+          walk(n, base);
+        }
+        final actual = buildInlineHtmlSpans(
+          html,
+          base,
+          hideRaisedMarkers: hide,
+        ).cast<TextSpan>();
+        expect(
+          [for (final s in actual) (s.text!, s.style!)],
+          expected,
+          reason: html,
+        );
+      }
+    },
+  );
+
   // פירוק ה-HTML הוא עיקר עלות ה-rebuild בגלילה, והקלט זהה בין פריימים.
   // המלכוד: הסגנון מוחל *אחרי* הפירוק ולכן אסור לו להיתפס במטמון.
   group('מטמון פירוק ה-HTML', () {
@@ -1126,4 +1211,128 @@ String _flattenText(List<InlineSpan> spans) {
 
   spans.forEach(visit);
   return buffer.toString();
+}
+
+/// המימוש הקודם של `_styleForElement`, כאורקל לבדיקת השקילות.
+TextStyle _oldStyleForElement(dom.Element e, TextStyle style, bool hide) {
+  final name = e.localName;
+  final css = e.attributes['style'] ?? '';
+  RegExpMatch? match(String re) =>
+      RegExp(re, caseSensitive: false).firstMatch(css);
+  Color? color(String re) {
+    final m = match(re);
+    return m == null ? null : _oldParseCssColor(m.group(1)!.trim());
+  }
+
+  double scaled(double scale) => (style.fontSize ?? 18) * scale;
+  const transparent = Color(0x00000000);
+  if (name == 'small') {
+    style = style.copyWith(fontSize: scaled(kHtmlSmallerFontScale));
+  }
+  if (name == 'big') {
+    style = style.copyWith(fontSize: scaled(kHtmlLargerFontScale));
+  }
+  final size = match(
+    r'font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(em|rem|px|%)?',
+  );
+  final sizeValue = double.tryParse(size?.group(1) ?? '');
+  if (sizeValue != null) {
+    final parent = style.fontSize ?? 18;
+    style = style.copyWith(
+      fontSize: switch ((size!.group(2) ?? 'px').toLowerCase()) {
+        'em' || 'rem' => parent * sizeValue,
+        '%' => parent * sizeValue / 100,
+        _ => sizeValue,
+      },
+    );
+  }
+  if (name == 'sup' || e.classes.contains(kRaisedSupClass)) {
+    style = style.copyWith(fontSize: scaled(kHtmlSmallerFontScale));
+    if (hide && e.classes.contains(kRaisedSupClass)) {
+      style = style.copyWith(color: transparent);
+    }
+  }
+  if (e.classes.contains('subscript-text')) {
+    style = style.copyWith(fontSize: scaled(kHtmlSmallerFontScale));
+  }
+  if (e.classes.contains(kFootnoteMarkerClass) ||
+      e.classes.contains('book-note-marker')) {
+    style = style.copyWith(
+      fontSize: scaled(kFootnoteMarkerScale),
+      fontStyle: FontStyle.italic,
+    );
+    if (hide) style = style.copyWith(color: transparent);
+  }
+  if (e.classes.contains('link-anchor')) {
+    style = applyLinkAnchorVariant(
+      linkAnchorVariantFromClasses(e.classes),
+      style.copyWith(fontSize: scaled(kLinkAnchorMarkerScale)),
+    );
+    if (hide) style = style.copyWith(color: transparent);
+  }
+  if (name == 'i' ||
+      name == 'em' ||
+      match(r'font-style\s*:\s*italic') != null) {
+    style = style.copyWith(fontStyle: FontStyle.italic);
+  }
+  if (name == 'b' || name == 'strong') {
+    style = style.copyWith(
+      fontWeight: FontWeight.bold,
+      fontVariations: AppFonts.boldFontVariations(style.fontFamily),
+    );
+  }
+  final inlineColor = color(r'(?:^|[\s;])color\s*:\s*([^;]+)');
+  if (inlineColor != null) style = style.copyWith(color: inlineColor);
+  final background = color(r'background-color\s*:\s*([^;]+)');
+  if (background != null) style = style.copyWith(backgroundColor: background);
+  if (match(r'text-decoration\s*:\s*[^;]*\bunderline\b') != null) {
+    final thickness = match(
+      r'text-decoration-thickness\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(px|%)',
+    );
+    final value = double.tryParse(thickness?.group(1) ?? '');
+    style = style.copyWith(
+      decoration: TextDecoration.underline,
+      decorationColor: color(r'text-decoration-color\s*:\s*([^;]+)'),
+      decorationThickness: value == null
+          ? null
+          : thickness!.group(2) == '%'
+          ? value / 100
+          : value,
+    );
+  }
+  return style;
+}
+
+Color? _oldParseCssColor(String value) {
+  final v = value.toLowerCase().trim();
+  final rgba = RegExp(
+    r'^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0(?:\.\d+)?|\.\d+|1(?:\.0+)?)\s*\)$',
+  ).firstMatch(v);
+  if (rgba != null) {
+    int channel(int i) => int.parse(rgba.group(i)!).clamp(0, 255).toInt();
+    final alpha = (double.parse(rgba.group(4)!) * 255).round().clamp(0, 255);
+    return Color.fromARGB(alpha.toInt(), channel(1), channel(2), channel(3));
+  }
+  const named = {
+    'red': Color(0xFFFF0000),
+    'blue': Color(0xFF0000FF),
+    'yellow': Color(0xFFFFFF00),
+    'green': Color(0xFF008000),
+    'black': Color(0xFF000000),
+    'white': Color(0xFFFFFFFF),
+  };
+  if (named.containsKey(v)) return named[v];
+  if (!v.startsWith('#')) return null;
+  var hex = v.substring(1);
+  if (hex.length == 3) hex = hex.split('').map((c) => '$c$c').join();
+  if (hex.length == 6) {
+    final n = int.tryParse(hex, radix: 16);
+    if (n != null) return Color(0xFF000000 | n);
+  }
+  if (hex.length == 8) {
+    final rgb = int.tryParse(hex.substring(0, 6), radix: 16);
+    final alpha = int.tryParse(hex.substring(6, 8), radix: 16);
+    if (rgb != null && alpha != null) return Color((alpha << 24) | rgb);
+  }
+  return null;
 }

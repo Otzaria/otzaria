@@ -2,6 +2,8 @@
 /// התאמות ה-AltToc הגלובלי ב-worker (isolate-safe).
 library;
 
+import 'package:otzaria/find_ref/book_name_match.dart';
+
 /// תקרת-ביטחון מוחלטת על מספר תוצאות האיתור.
 const int findRefMaxResultCap = 100;
 
@@ -90,23 +92,31 @@ typedef FindRefBookRank = ({int? foundationalTier, int eraOrder});
 class FindRefRankQuery {
   FindRefRankQuery(this.tokens)
     : text = tokens.join(' '),
+      matchTokens = tokens.map(bookNameMatchToken).toList(growable: false),
       isDafCitation = queryLooksDafCitation(tokens);
 
   final List<String> tokens;
   final String text;
+
+  /// [tokens] ב-[bookNameMatchToken], להשוואה מול כותרות.
+  final List<String> matchTokens;
   final bool isDafCitation;
 
   bool get needsTokenWiseRanking => tokens.length >= 2;
 
   /// מפתחות ההתאמה של כותרת מנורמלת לשאילתה — תלויים בספר בלבד.
   ({bool exactMatch, bool startsWithMatch, List<String> titleTokens})
-  titleMatch(String normTitle) => (
-    exactMatch: normTitle == text,
-    startsWithMatch: normTitle.startsWith(text),
-    titleTokens: needsTokenWiseRanking
-        ? normTitle.split(' ').where((t) => t.isNotEmpty).toList()
-        : const <String>[],
-  );
+  titleMatch(String normTitle) {
+    final title = bookNameMatchForm(normTitle);
+    final query = matchTokens.join(' ');
+    return (
+      exactMatch: title == query,
+      startsWithMatch: title.startsWith(query),
+      titleTokens: needsTokenWiseRanking
+          ? title.split(' ').where((t) => t.isNotEmpty).toList()
+          : const <String>[],
+    );
+  }
 }
 
 /// מפתחות המיון של תוצאה אחת (decorate-sort-undecorate), כך שההשוואה זולה.
@@ -126,6 +136,8 @@ class FindRefRankKey<T> {
     required this.reference,
     required this.segment,
     required this.bookId,
+    this.categoryTokens = const {},
+    this.punctuationAgrees = true,
   });
 
   final T item;
@@ -148,6 +160,12 @@ class FindRefRankKey<T> {
 
   /// אינו מפתח דירוג; מכריע בין שורות שקולות כשבוחרים חלק מהרשימה.
   final int bookId;
+
+  /// מילות שם התיקייה, לתוצאה שנמצאה לפיו (ריק לכל השאר).
+  final Set<String> categoryTokens;
+
+  /// הספר כותב בגרשיים את מילות השאילתה שנכתבו בגרשיים ("רמב"ם" ולא "רמבם").
+  final bool punctuationAgrees;
 
   /// התאמת תת-מחרוזת בשם הספר, שהזנב של שאילתת מילה-אחת שומר לה מקום.
   bool isSubstringMatch(String query) =>
@@ -180,10 +198,15 @@ int compareFindRefRelevance(
     for (int i = 1; i < queryTokens.length; i++) {
       final queryToken = queryTokens[i];
       if (queryToken.length == 1) continue;
+      final matchToken = query.matchTokens[i];
+      // התאמת תיקייה מספקת את המילה גם ללא כותרת; המפתח חייב להיות עצמאי
+      // לכל תוצאה, אחרת שילוב עם התאמות TOC יוצר מעגל בהשוואה.
       final aHasMatch =
-          i < a.titleTokens.length && a.titleTokens[i].startsWith(queryToken);
+          a.categoryTokens.contains(queryToken) ||
+          (i < a.titleTokens.length && a.titleTokens[i].startsWith(matchToken));
       final bHasMatch =
-          i < b.titleTokens.length && b.titleTokens[i].startsWith(queryToken);
+          b.categoryTokens.contains(queryToken) ||
+          (i < b.titleTokens.length && b.titleTokens[i].startsWith(matchToken));
       if (aHasMatch != bHasMatch) return aHasMatch ? -1 : 1;
     }
   }
@@ -208,6 +231,10 @@ int compareFindRefRelevance(
 
   // orderIndex של מסדים שונים אינו בר-השוואה.
   if (a.isOfficial != b.isOfficial) return a.isOfficial ? -1 : 1;
+  // הנרמול מוחק גרשיים; בשוויון קודם ספר שכתוב כמו השאילתה.
+  if (a.punctuationAgrees != b.punctuationAgrees) {
+    return a.punctuationAgrees ? -1 : 1;
+  }
 
   // 7. סדר ספר בספרייה
   final orderCmp = a.orderIndex.compareTo(b.orderIndex);

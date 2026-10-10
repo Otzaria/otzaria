@@ -134,7 +134,7 @@ void main() {
       end: 3,
     );
 
-    test('[T3] מחיקה = "" וללא הצעה = null', () {
+    test('[T3] מחיקה = ""', () {
       expect(
         evaluateCorrectionDraft(
           original: original,
@@ -142,14 +142,6 @@ void main() {
           editedText: 'x',
         ).correction.proposedText,
         '',
-      );
-      expect(
-        evaluateCorrectionDraft(
-          original: original,
-          mode: ProposalMode.none,
-          editedText: 'x',
-        ).correction.proposedText,
-        isNull,
       );
     });
 
@@ -283,7 +275,7 @@ void main() {
       expect(find.text('שלח ישירות לאוצריא'), findsNothing);
     });
 
-    testWidgets('[T3] "מחיקת הקטע" שולח "" ו"ללא הצעה" שולח null', (
+    testWidgets('[T3] "מחיקת הקטע" שולח ""; אין אפשרות "ללא הצעה"', (
       tester,
     ) async {
       final submissions = await pumpTab(tester);
@@ -296,22 +288,8 @@ void main() {
         '',
       );
 
-      await tester.tap(find.text('ללא הצעה'));
-      await tester.pumpAndSettle();
-      // בלי הצעה חובה לפרט.
-      expect(find.text('שמור לשליחה מאוחרת'), findsNothing);
-      await tester.enterText(
-        find.descendant(
-          of: find.byKey(const ValueKey('report-details-field')),
-          matching: find.byType(TextField),
-        ),
-        'יש כאן טעות',
-      );
-      await tester.pumpAndSettle();
-      final none = await saveForLater(tester, submissions);
-      expect(none.correction, isNotNull);
-      expect(none.correction!.proposedText, isNull);
-      expect(none.errorDetails, 'יש כאן טעות');
+      // הצעת תיקון בלי הצעה היא דיווח חופשי — אין לה מצב נפרד.
+      expect(find.text('ללא הצעה'), findsNothing);
     });
 
     testWidgets('חריגה מהתקרה מציגה הודעה וחוסמת, בלי לחתוך', (tester) async {
@@ -387,6 +365,65 @@ void main() {
         tester.widget<TextField>(proposalField()).controller!.text,
         'אֱלֹקִ֑ים',
       );
+    });
+  });
+
+  group('TextCorrectionEditor — עריכת דיווח שמור (#1767)', () {
+    Future<List<TextCorrectionDraft>> pumpRestored(
+      WidgetTester tester,
+      String? proposedText,
+    ) async {
+      final drafts = <TextCorrectionDraft>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: TextCorrectionEditor(
+                original: buildCorrectionTemplate(
+                  _line,
+                  'אֱלֹהִ֑ים',
+                ).withProposedText(proposedText),
+                restoreProposal: true,
+                fontSize: 18,
+                onChanged: drafts.add,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return drafts;
+    }
+
+    Finder proposalField() => find.descendant(
+      of: find.byKey(const ValueKey('correction-proposal-field')),
+      matching: find.byType(TextField),
+    );
+
+    testWidgets('נטען מההצעה השמורה ומציג את ה-diff', (tester) async {
+      final drafts = await pumpRestored(tester, 'אֱלֹקִ֑ים');
+
+      expect(
+        tester.widget<TextField>(proposalField()).controller!.text,
+        'אֱלֹקִ֑ים',
+      );
+      expect(find.byKey(const ValueKey('correction-diff')), findsOneWidget);
+      expect(drafts.last.correction.proposedText, 'אֱלֹקִ֑ים');
+    });
+
+    testWidgets('מחיקה שמורה נפתחת במצב מחיקה', (tester) async {
+      final drafts = await pumpRestored(tester, '');
+
+      expect(proposalField(), findsNothing);
+      expect(drafts.last.correction.proposedText, '');
+    });
+
+    testWidgets('"ללא הצעה" שמור מגרסה קודמת נפתח בעריכת טקסט', (tester) async {
+      final drafts = await pumpRestored(tester, null);
+
+      expect(proposalField(), findsOneWidget);
+      expect(drafts.last.hasProposal, isTrue);
+      expect(drafts.last.isValid, isFalse, reason: 'זהה למקור עד שמשנים');
     });
   });
 }

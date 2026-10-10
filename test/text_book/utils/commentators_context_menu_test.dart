@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:otzaria/book_common/utils/commentators_menu.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -8,8 +9,8 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/text_book/models/commentator_group.dart';
-import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:otzaria/book_common/models/commentator_group.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/utils/commentators_context_menu.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
@@ -50,7 +51,7 @@ void main() {
     void Function()? onOpenPane,
     void Function()? onSelectMultiple,
   }) => buildCommentatorsContextMenuChildren(
-    activeCommentators: active,
+    getActiveCommentators: () => active,
     availableCommentators: availableCommentators,
     commentatorGroups: groups,
     onCommentatorsChanged: onChange ?? (_, {required isAdding}) {},
@@ -60,6 +61,59 @@ void main() {
   );
 
   group('buildCommentatorsContextMenuChildren', () {
+    test('uses the given label for showing all commentators', () {
+      final entries = buildCommentatorsContextMenuChildren(
+        getActiveCommentators: () => const [],
+        availableCommentators: available,
+        commentatorGroups: groups,
+        onCommentatorsChanged: (_, {required isAdding}) {},
+        showAllLabel: 'הצג את כל המפרשים',
+      );
+      expect(labelsOf(entries).first, 'הצג את כל המפרשים');
+    });
+
+    test('can keep the pane entries when there are no commentators', () {
+      List<AppContextMenuEntry> withoutCommentators({required bool keep}) =>
+          buildCommentatorsContextMenuChildren(
+            getActiveCommentators: () => const [],
+            availableCommentators: const [],
+            commentatorGroups: groups,
+            onCommentatorsChanged: (_, {required isAdding}) {},
+            onOpenPane: () {},
+            onSelectMultiple: () {},
+            keepPaneEntriesWithoutCommentators: keep,
+          );
+      expect(withoutCommentators(keep: false), isEmpty);
+      expect(labelsOf(withoutCommentators(keep: true)), [
+        'פתח את חלונית המפרשים',
+        'בחר מפרשים מרובים',
+      ]);
+    });
+
+    test('lists commentators outside every group at the end', () {
+      final entries = buildCommentatorsContextMenuChildren(
+        getActiveCommentators: () => const [],
+        availableCommentators: const ['רש"י', 'פירוש חדש'],
+        commentatorGroups: groups,
+        onCommentatorsChanged: (_, {required isAdding}) {},
+      );
+      expect(labelsOf(entries).last, 'פירוש חדש');
+      expect(entries[entries.length - 2].isDivider, isTrue);
+    });
+
+    test('lists all commentators while the groups are not loaded', () {
+      final entries = buildCommentatorsContextMenuChildren(
+        getActiveCommentators: () => const [],
+        availableCommentators: available,
+        commentatorGroups: const [],
+        onCommentatorsChanged: (_, {required isAdding}) {},
+      );
+      expect(labelsOf(entries), [
+        'הצג את כל המפרשים על פסקה זו',
+        ...available,
+      ]);
+    });
+
     test('מציג את כל הקבוצות והמפרשים בסדר הדורות', () {
       expect(labelsOf(build()), [
         'הצג את כל המפרשים על פסקה זו',
@@ -110,6 +164,38 @@ void main() {
       expect(showAll.isSelected, isTrue);
       showAll.onTap!();
       expect(updated, isEmpty);
+      expect(adding, isFalse);
+    });
+
+    test('"הצג את כל המפרשים" מוסיף את מפרשי הפסקה ושומר את השאר', () {
+      List<String>? updated;
+      bool? adding;
+      final entries = build(
+        active: const ['אבן עזרא', 'רש"י'],
+        onChange: (commentators, {required isAdding}) {
+          updated = commentators;
+          adding = isAdding;
+        },
+      );
+
+      entryNamed(entries, 'הצג את כל המפרשים על פסקה זו').onTap!();
+      expect(updated, ['אבן עזרא', 'רש"י', 'רמב"ן', 'מלבי"ם']);
+      expect(adding, isTrue);
+    });
+
+    test('ביטול "הצג את כל המפרשים" מסיר רק את מפרשי הפסקה', () {
+      List<String>? updated;
+      bool? adding;
+      final entries = build(
+        active: const ['אבן עזרא', ...available],
+        onChange: (commentators, {required isAdding}) {
+          updated = commentators;
+          adding = isAdding;
+        },
+      );
+
+      entryNamed(entries, 'הצג את כל המפרשים על פסקה זו').onTap!();
+      expect(updated, ['אבן עזרא']);
       expect(adding, isFalse);
     });
 
@@ -164,15 +250,17 @@ void main() {
       expect(adding, isFalse);
     });
 
-    test('קבוצה ריקה אינה יוצרת פריטים או מפריד', () {
+    test('קבוצה ריקה אינה יוצרת כותרת קבוצה', () {
       final entries = buildCommentatorsContextMenuChildren(
-        activeCommentators: const [],
+        getActiveCommentators: () => const [],
         availableCommentators: const ['רש"י'],
-        commentatorGroups: const [],
+        commentatorGroups: const [
+          CommentatorGroup(title: 'אחרונים', commentators: ['מלבי"ם']),
+        ],
         onCommentatorsChanged: (_, {required isAdding}) {},
       );
-      expect(labelsOf(entries), ['הצג את כל המפרשים על פסקה זו']);
-      expect(entries.where((e) => e.isDivider), isEmpty);
+      expect(labelsOf(entries), ['הצג את כל המפרשים על פסקה זו', 'רש"י']);
+      expect(entries.where((e) => e.isDivider), hasLength(1));
     });
 
     test('הקבוצות מסוננות למפרשי הפסקה בלבד, וקבוצה שהתרוקנה נעלמת', () {

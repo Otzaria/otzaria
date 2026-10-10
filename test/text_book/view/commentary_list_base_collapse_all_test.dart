@@ -16,6 +16,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
+import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -106,9 +107,109 @@ void main() {
     expect(find.textContaining('זהו פירוש לבדיקה'), findsNothing);
     expect(find.byTooltip('הרחב את כל המפרשים'), findsOneWidget);
   });
+
+  testWidgets(
+    'כיווץ שני מפרשים סמוכים בחלונית הצד משאיר את שניהם גלויים (issue #1976)',
+    (tester) async {
+      textBookBloc.emitStateForTest(_twoGroupsState());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: const Scaffold(
+              body: TabbedCommentaryPanel(
+                openBookCallback: _noopOpenBook,
+                fontSize: 18,
+                showSearch: true,
+                showSplitView: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final title in ['מפרש בדיקה', 'מפרש בדיקה ב']) {
+        await tester.tap(find.text(title));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.text('מפרש בדיקה').hitTestable(), findsOneWidget);
+      expect(find.text('מפרש בדיקה ב').hitTestable(), findsOneWidget);
+    },
+  );
+
+  testWidgets('בנייה מחדש עם אותם קישורים לא מחזירה את שלד הטעינה (perf)', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: const Scaffold(
+            body: CommentaryListBase(
+              openBookCallback: _noopOpenBook,
+              fontSize: 18,
+              showSearch: true,
+              shrinkWrap: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // הכיווץ בונה מחדש עם אותה רשימת קישורים; future קיבוץ חדש היה מציג
+    // שלד טעינה בפריים הבא במקום הכותרת.
+    await tester.tap(find.text('מפרש בדיקה'));
+    await tester.pump();
+    expect(find.text('מפרש בדיקה'), findsOneWidget);
+  });
 }
 
 void _noopOpenBook(dynamic _) {}
+
+TextBookLoaded _twoGroupsState() {
+  final links = [
+    for (final title in ['מפרש בדיקה', 'מפרש בדיקה ב'])
+      Link(
+        heRef: 'בראשית א',
+        index1: 1,
+        path2: '$title.txt',
+        index2: 1,
+        connectionType: 'COMMENTARY',
+        targetCategoryId: 1,
+        targetFileType: 'txt',
+      ),
+  ];
+  return TextBookLoaded(
+    book: TextBook(title: 'ספר בדיקה'),
+    showLeftPane: false,
+    content: const ['שורה א'],
+    fontSize: 18,
+    showSplitView: true,
+    activeCommentators: const ['מפרש בדיקה', 'מפרש בדיקה ב'],
+    commentatorGroups: const [],
+    availableCommentators: const ['מפרש בדיקה', 'מפרש בדיקה ב'],
+    links: links,
+    visibleLinks: const [],
+    linksByLine: {1: links},
+    tableOfContents: const [],
+    removeNikud: false,
+    visibleIndices: const [0],
+    selectedIndex: 0,
+    pinLeftPane: false,
+    searchText: '',
+    scrollController: ItemScrollController(),
+    positionsListener: ItemPositionsListener.create(),
+  );
+}
 
 TextBookLoaded _loadedStateA() {
   final link = Link(

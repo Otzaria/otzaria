@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/open_tool_tab.dart';
 
@@ -99,6 +100,52 @@ void main() {
       );
 
       expect(orphaned, [removed]);
+    });
+  });
+  group('pluginTabsWithFallbackTitle', () {
+    test('טאב שנפתח בזמן טעינת הרישום מקבל את שם התוסף', () {
+      final tab = ToolTab(
+        toolId: 'kidush.plugin',
+        title: ToolTab.fallbackTitleFor('kidush.plugin'),
+      );
+
+      expect(
+        pluginTabsWithFallbackTitle([
+          tab,
+        ], PluginSystemLoaded([_plugin('kidush.plugin')])),
+        {tab: 'kidush.plugin'},
+      );
+    });
+
+    test('גם חלונית בתוך טאב מפוצל', () {
+      final pane = ToolTab(toolId: 'a.plugin', title: 'כלי');
+      final combined = CombinedTab(
+        rightTab: pane,
+        leftTab: ToolTab(toolId: 'b.plugin', title: 'שם'),
+      );
+
+      expect(
+        pluginTabsWithFallbackTitle(
+          [combined],
+          PluginSystemLoaded([_plugin('a.plugin'), _plugin('b.plugin')]),
+        ),
+        {pane: 'a.plugin'},
+      );
+    });
+
+    test('כותרת אמיתית, רישום בטעינה או תוסף לא מותקן — ללא שינוי', () {
+      final named = ToolTab(toolId: 'a.plugin', title: 'שם');
+      final fallback = ToolTab(toolId: 'missing.plugin', title: 'כלי');
+      final loaded = PluginSystemLoaded([_plugin('a.plugin')]);
+
+      expect(pluginTabsWithFallbackTitle([named, fallback], loaded), isEmpty);
+      expect(
+        pluginTabsWithFallbackTitle(
+          [ToolTab(toolId: 'a.plugin', title: 'כלי')],
+          PluginSystemLoading(),
+        ),
+        isEmpty,
+      );
     });
   });
 }

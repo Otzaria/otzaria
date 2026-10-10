@@ -10,6 +10,7 @@ import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/utils/cross_line_result.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -45,6 +46,7 @@ void main() {
     WidgetTester tester, {
     required SearchConfiguration configuration,
     String? typedAfterSearch,
+    bool continuesToNextLine = false,
   }) async {
     final searchBloc = _StaticSearchBloc(
       SearchState(
@@ -63,6 +65,7 @@ void main() {
             mergedCount: 1,
             merged: const [],
             textStatus: TextStatus.ok,
+            continuesToNextLine: continuesToNextLine,
           ),
         ],
       ),
@@ -219,6 +222,20 @@ void main() {
     final initial = initialState as TextBookInitial;
     expect(initial.matchPolicy.proximityScope, SearchScope.sameSection);
     expect(initial.initialSearchResultLines, {389});
+  });
+
+  testWidgets('ביטוי שנמשך לשורה הבאה מסמן גם אותה כשורת תוצאה', (
+    tester,
+  ) async {
+    final tab = await openFirstResult(
+      tester,
+      configuration: const SearchConfiguration(searchMode: SearchMode.exact),
+      continuesToNextLine: true,
+    );
+
+    expect(find.text(crossLineResultNote), findsOneWidget);
+    final initial = tab.bloc.state as TextBookInitial;
+    expect(initial.initialSearchResultLines, {389, 390});
   });
 
   testWidgets('הקלדה אחרי החיפוש אינה מחליפה את השאילתה שבוצעה', (

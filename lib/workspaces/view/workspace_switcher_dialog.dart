@@ -11,6 +11,7 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
+import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -27,6 +28,7 @@ class WorkspaceSwitcherDialog extends StatefulWidget {
 
 class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   final TextEditingController _textFieldController = TextEditingController();
+  bool _switchPending = false;
 
   @override
   void initState() {
@@ -39,19 +41,6 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   void dispose() {
     _textFieldController.dispose();
     super.dispose();
-  }
-
-  String _generateUniqueWorkspaceName(List<Workspace> existingWorkspaces) {
-    final existingNames = existingWorkspaces.map((w) => w.name).toSet();
-    int counter = existingWorkspaces.length + 1;
-
-    while (true) {
-      final candidateName = "שולחן עבודה $counter";
-      if (!existingNames.contains(candidateName)) {
-        return candidateName;
-      }
-      counter++;
-    }
   }
 
   @override
@@ -97,6 +86,9 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                     );
                   }
 
+                  final liveTabs = context.select(
+                    (TabsBloc bloc) => bloc.state.tabs,
+                  );
                   return LayoutBuilder(
                     builder: (context, constraints) {
                       // מספר עמודות לפי הרוחב הזמין; במסך צר יורד ל-1-2 עמודות
@@ -123,6 +115,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                             return _buildWorkspaceTile(
                               context,
                               workspace,
+                              state.tabsOf(workspace, liveTabs),
                               isActive,
                             );
                           }
@@ -146,7 +139,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
           child: InkWell(
             onTap: () {
               final workspaceBloc = context.read<WorkspaceBloc>();
-              final newWorkspaceName = _generateUniqueWorkspaceName(
+              final newWorkspaceName = uniqueWorkspaceName(
                 workspaceBloc.state.workspaces,
               );
               workspaceBloc.add(
@@ -191,6 +184,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   Widget _buildWorkspaceTile(
     BuildContext context,
     Workspace workspace,
+    List<OpenedTab> tabs,
     bool isActive,
   ) {
     return Card(
@@ -198,12 +192,20 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
         children: [
           InkWell(
             onTap: () async {
+              if (_switchPending) return;
+              _switchPending = true;
               // הכרטיסיות נשמרות לשולחן, אך מצב ה-JS של תוסף אינו נשמר איתן.
-              final tabsState = context.read<TabsBloc>().state;
+              final tabsBloc = context.read<TabsBloc>();
               final workspaceBloc = context.read<WorkspaceBloc>();
               final navigationBloc = context.read<NavigationBloc>();
               final navigator = Navigator.of(context);
-              if (!await confirmCloseTabs(context, tabsState.tabs)) return;
+              final route = ModalRoute.of(context);
+              if (!await confirmCloseTabs(context, tabsBloc.state.tabs)) {
+                _switchPending = false;
+                return;
+              }
+              if (!context.mounted || route?.isCurrent != true) return;
+              final tabsState = tabsBloc.state;
               workspaceBloc.add(
                 SwitchToWorkspace(
                   targetWorkspaceId: workspace.id,
@@ -212,16 +214,22 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                   // החלונית הפעילה נשמרת כצד: שולחן עבודה משכפל את
                   // הטאבים, וזהות האובייקט אובדת ממילא.
                   currentActivePaneToSave: tabsState.activePaneSide,
+                  onCompleted: (hasTabs) {
+                    _switchPending = false;
+                    if (hasTabs == null ||
+                        !context.mounted ||
+                        route?.isCurrent != true) {
+                      return;
+                    }
+                    navigationBloc.add(
+                      NavigateToScreen(
+                        hasTabs ? Screen.reading : Screen.library,
+                      ),
+                    );
+                    navigator.pop();
+                  },
                 ),
               );
-              // כמו בעליית התוכנה: שולחן עם ספרים נפתח בעיון, ריק — בספרייה.
-              final hasBooks = isActive
-                  ? tabsState.tabs.isNotEmpty
-                  : workspace.tabs.isNotEmpty;
-              navigationBloc.add(
-                NavigateToScreen(hasBooks ? Screen.reading : Screen.library),
-              );
-              navigator.pop();
             },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -239,7 +247,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
                             ).colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: AppTokens.borderRadiusAll,
                     ),
-                    child: _buildWorkspacePreview(workspace),
+                    child: _buildWorkspacePreview(tabs),
                   ),
                 ),
                 Padding(
@@ -267,18 +275,74 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
               },
             ),
           ),
+          Positioned(
+            top: 4,
+            left: 4,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isActive && workspace.isPinned)
+                  IconButton(
+                    tooltip: 'שמור את הספרים הפתוחים כעת בשולחן המקובע',
+                    icon: const Icon(FluentIcons.save_24_regular, size: 16),
+                    onPressed: () => _saveSnapshot(context),
+                  ),
+                IconButton(
+                  tooltip: workspace.isPinned
+                      ? 'בטל קיבוע'
+                      : 'קבע: בכל כניסה ייפתחו רק הספרים שנשמרו',
+                  isSelected: workspace.isPinned,
+                  icon: const Icon(FluentIcons.pin_24_regular, size: 16),
+                  selectedIcon: const Icon(
+                    FluentIcons.pin_24_filled,
+                    size: 16,
+                  ),
+                  onPressed: () => _togglePinned(context, workspace, isActive),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildWorkspacePreview(Workspace workspace) {
-    // Simple representation of tabs in the workspace
+  void _togglePinned(BuildContext context, Workspace workspace, bool isActive) {
+    final pin = !workspace.isPinned;
+    // בקיבוע השולחן הפעיל, התמונה הקבועה היא מה שפתוח כעת ולא השמירה הקודמת.
+    final tabsState = pin && isActive ? context.read<TabsBloc>().state : null;
+    context.read<WorkspaceBloc>().add(
+      SetWorkspacePinned(
+        workspaceId: workspace.id,
+        isPinned: pin,
+        tabsToSave: tabsState?.tabs,
+        tabIndexToSave: tabsState?.currentTabIndex ?? 0,
+        activePaneToSave: tabsState?.activePaneSide,
+      ),
+    );
+    UiSnack.show(
+      pin ? NotesMessages.workspacePinned : NotesMessages.workspaceUnpinned,
+    );
+  }
+
+  void _saveSnapshot(BuildContext context) {
+    final tabsState = context.read<TabsBloc>().state;
+    context.read<WorkspaceBloc>().add(
+      UpdateCurrentWorkspaceTabs(
+        tabs: tabsState.tabs,
+        activeTabIndex: tabsState.currentTabIndex,
+        activePane: tabsState.activePaneSide,
+      ),
+    );
+    UiSnack.show(NotesMessages.workspaceSnapshotSaved);
+  }
+
+  Widget _buildWorkspacePreview(List<OpenedTab> tabs) {
     return Center(
       child: Wrap(
         spacing: 4,
         runSpacing: 4,
-        children: workspace.tabs.map((tab) {
+        children: tabs.map((tab) {
           return Tooltip(
             message: tab.title,
             child: Container(
@@ -296,9 +360,7 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
   }
 }
 
-/// שורת שם השולחן עם מצב עריכה. המצב מוחזק ב-State (ולא במשתני closure בתוך
-/// Builder) כדי שלא יתאפס ב-rebuild שגורמת פתיחת המקלדת — איפוס כזה היה מסיר
-/// את שדה הקלט וסוגר את המקלדת מיד אחרי שנפתחה.
+/// מצב העריכה נשמר ב-State כדי שפתיחת המקלדת לא תסגור את שדה הקלט.
 class _WorkspaceNameField extends StatefulWidget {
   const _WorkspaceNameField({required this.workspace});
 

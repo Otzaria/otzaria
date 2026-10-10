@@ -1,5 +1,4 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/utils/book_versions_action.dart';
@@ -45,8 +44,8 @@ IconData _plainTextIcon(Book book) => book.isUserBook
 /// `document_multiple` במקום אייקון הפורמט — אותה בדיקה בדיוק שמציגה לו את
 /// פריט "גרסאות" בתפריט השורה, כך שהאייקון והתפריט לעולם אינם סותרים.
 ///
-/// הבדיקה היא שאילתת DB, ולכן היא מורצת פעם אחת לכל ספר ונשמרת ב-state:
-/// [FutureBuilder] שנבנה מחדש בכל `build` היה מריץ אותה בכל גלילה.
+/// תוצאה חיובית נשמרת לכל מופע ספר; שלילית נבדקת שוב בבנייה מחדש,
+/// כי גם כשל זמני במסד מחזיר false.
 class BookFormatIcon extends StatefulWidget {
   const BookFormatIcon({
     super.key,
@@ -64,40 +63,31 @@ class BookFormatIcon extends StatefulWidget {
 }
 
 class _BookFormatIconState extends State<BookFormatIcon> {
-  late Future<bool> _hasVersions;
+  bool? _loadedVersions;
+  late Future<bool> _hasVersions = _loadVersions();
 
-  @override
-  void initState() {
-    super.initState();
-    _hasVersions = hasBookVersionsToOpen(widget.book);
+  Future<bool> _loadVersions() {
+    _loadedVersions = null;
+    late final Future<bool> future;
+    future = hasBookVersionsToOpen(widget.book).then((hasVersions) {
+      if (identical(_hasVersions, future)) _loadedVersions = hasVersions;
+      return hasVersions;
+    });
+    return future;
   }
-
-  /// הזהות שעליה נשענת השאילתה. שורת רשימה ממוחזרת נקשרת לספר אחר בלי
-  /// שה-state נבנה מחדש, ולכן ההשוואה חייבת לכסות *כל* שדה ש-
-  /// [hasBookVersionsToOpen] קורא — ולא רק את המזהה והשם. בספרייה
-  /// מבוססת-קבצים `id` הוא null בכל הספרים ושם זהה חוזר בשתי קטגוריות,
-  /// וספר רשמי וספר אישי יכולים לחלוק שם ומזהה — בכל אחד מהמקרים האלה
-  /// הושארה הדגל של הספר הקודם.
-  static List<Object?> _versionsKey(Book book) => [
-    book.id,
-    book.title,
-    book.isUserBook,
-    book.categoryId,
-    book is TextBook ? book.versionTitle : null,
-    book.runtimeType,
-  ];
 
   @override
   void didUpdateWidget(BookFormatIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!listEquals(_versionsKey(oldWidget.book), _versionsKey(widget.book))) {
-      _hasVersions = hasBookVersionsToOpen(widget.book);
+    if (!identical(oldWidget.book, widget.book) || _loadedVersions == false) {
+      _hasVersions = _loadVersions();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<bool>(
+      key: ObjectKey(widget.book),
       future: _hasVersions,
       builder: (context, snapshot) {
         final icon = snapshot.data == true

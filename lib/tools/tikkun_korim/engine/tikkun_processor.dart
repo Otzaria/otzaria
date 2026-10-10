@@ -528,104 +528,58 @@ ProcessedBook processBook(
   );
 }
 
-/// שמות הספרים שיש לטעון כדי להציג את [haftarah] בנוסח [nusach].
-List<String> haftarahBooks(Haftarah haftarah, String nusach) => [
-  for (final seg in getHaftarahSegments(haftarah, nusach)) seg.book,
+/// מקטע ברצף הקריאה; [aliya] ריק בהפטרה, ו-[label] מסומן בשורת פתיחתו.
+typedef VersePart = ({VerseRange range, String? label, String? aliya});
+
+List<VersePart> haftarahParts(Haftarah haftarah, String nusach) => [
+  for (final r in haftarah.forNusach(nusach))
+    (range: r, label: null, aliya: null),
 ];
 
-/// שמות הספרים שיש לטעון כדי להציג את [reading].
-List<String> readingBooks(TorahReading reading) => [
-  for (final a in reading.aliyot) a.range.book,
+List<VersePart> readingParts(TorahReading reading) => [
+  for (final a in reading.aliyot)
+    (range: a.range, label: a.aliyaLabel, aliya: a.aliya),
 ];
 
-/// שורות ההפטרה: כל מקטע נחתך מהספר שלו, עם הפסק בין המקטעים.
-/// [tokensByBook] — אסימוני הספרים לפי שמם העברי (ראה [tokenizeBook]).
-List<TikkunLine> buildHaftarahLines(
-  Haftarah haftarah,
-  String nusach,
+/// שורות ההפטרה או קריאת המועד: כל מקטע נחתך מהספר שלו ב-[tokensByBook].
+/// [paginate] מאפשר להריץ את העימוד הכבד מחוץ לתהליכון הראשי.
+Future<List<TikkunLine>> buildVersePartLines(
+  TikkunEngine engine,
+  List<VersePart> parts,
   Map<String, List<TikkunToken>> tokensByBook,
-  StamWidthModel widths,
-) {
-  final segs = getHaftarahSegments(haftarah, nusach);
-  final combined = <TikkunToken>[];
-
-  for (var i = 0; i < segs.length; i++) {
-    final seg = segs[i];
-    final tokens = tokensByBook[seg.book];
-    if (tokens == null) continue;
-    final slice = sliceTokensByVerseRange(
-      tokens,
-      seg.fromCh,
-      seg.fromVs,
-      seg.toCh,
-      seg.toVs,
-    );
-    final afterSetuma = precededBySetuma(tokens, seg.fromCh, seg.fromVs);
-    if (i == 0) {
-      if (afterSetuma) {
-        combined.add(const TikkunToken(type: TikkunTokenType.leadingSetuma));
-      }
-    } else {
-      combined.add(
-        TikkunToken(
-          type: afterSetuma
-              ? TikkunTokenType.leadingSetuma
-              : TikkunTokenType.petucha,
-        ),
-      );
-    }
-    combined.addAll(slice);
-  }
-
-  final lines = paginateAllTokens(combined, widths);
-  // שורת קטע מיוחד מחזיקה את תוכנה בתאים ולא ב-`words`; סימונה כפתוחה
-  // היה מחזיר אותה למסלול השורה הרגילה, והיא הייתה מתרוקנת.
-  if (lines.isNotEmpty && !lines.last.isSpecial) {
-    lines.last.layout = LineLayout.petucha;
-  }
-  return lines;
-}
-
-/// שורות קריאת המועד, כולל סימון שם העליה בשורה שבה היא מתחילה.
-List<TikkunLine> buildTorahReadingLines(
-  TorahReading reading,
-  Map<String, List<TikkunToken>> tokensByBook,
-  StamWidthModel widths,
-) {
+  StamWidthModel widths, {
+  Future<List<TikkunLine>> Function(List<TikkunToken> tokens)? paginate,
+}) async {
   final combined = <TikkunToken>[];
   final markers = <({int tokenIdx, String label, String? scrollLabel})>[];
   String? lastAliyaKey;
-  ({String book, int ch, int vs})? lastTo;
+  VerseRange? last;
   var scrollIdx = 0;
 
-  for (var i = 0; i < reading.aliyot.length; i++) {
-    final aliya = reading.aliyot[i];
-    final range = aliya.range;
-    final tokens = tokensByBook[range.book];
-    if (tokens == null) continue;
-    final slice = sliceTokensByVerseRange(
+  for (final part in parts) {
+    final range = part.range;
+    final tokens = tokensByBook[range.book]!;
+    final afterSetuma = engine.precededBySetuma(
       tokens,
       range.fromCh,
       range.fromVs,
-      range.toCh,
-      range.toVs,
     );
-    final afterSetuma = precededBySetuma(tokens, range.fromCh, range.fromVs);
-    if (i == 0 && afterSetuma) {
-      combined.add(const TikkunToken(type: TikkunTokenType.leadingSetuma));
-    }
-
-    final isNewAliya = aliya.aliya != lastAliyaKey;
+    final isNewAliya = part.aliya == null || part.aliya != lastAliyaKey;
     String? scrollLabel;
-    if (isNewAliya && lastTo != null) {
-      final sameBook = range.book == lastTo.book;
+    if (last == null) {
+      if (afterSetuma) {
+        combined.add(const TikkunToken(type: TikkunTokenType.leadingSetuma));
+      }
+    } else if (isNewAliya) {
+      // הפסק מוסף רק במעבר לא רציף במקור (למשל מפטיר ממקום אחר).
+      final sameBook = range.book == last.book;
       final isAdjacent =
           sameBook &&
-          ((range.fromCh == lastTo.ch && range.fromVs == lastTo.vs + 1) ||
-              (range.fromCh == lastTo.ch + 1 && range.fromVs == 1));
+          ((range.fromCh == last.toCh && range.fromVs == last.toVs + 1) ||
+              (range.fromCh == last.toCh + 1 && range.fromVs == 1));
       final isOverlap =
           sameBook &&
-          compareVerse(range.fromCh, range.fromVs, lastTo.ch, lastTo.vs) <= 0;
+          compareVerse(range.fromCh, range.fromVs, last.toCh, last.toVs) <= 0;
       if (!isAdjacent && !isOverlap) {
         combined.add(
           TikkunToken(
@@ -636,52 +590,44 @@ List<TikkunLine> buildTorahReadingLines(
         );
         // מעבר לספר אחר = ספר תורה נוסף; באותו חומש רק אחרי שכבר הוחלף
         // ספר, שאם לא כן דילוג פנימי (תענית ציבור) ייחשב בטעות כהחלפה.
-        if (!sameBook || scrollIdx > 0) {
+        if (part.aliya != null && (!sameBook || scrollIdx > 0)) {
           scrollIdx++;
           scrollLabel = torahScrollLabel(scrollIdx);
         }
       }
     }
-    if (isNewAliya) {
+    if (part.label != null && isNewAliya) {
       markers.add((
         tokenIdx: combined.length,
-        label: aliya.aliyaLabel,
+        label: part.label!,
         scrollLabel: scrollLabel,
       ));
     }
-    combined.addAll(slice);
-    lastAliyaKey = aliya.aliya;
-    lastTo = (book: range.book, ch: range.toCh, vs: range.toVs);
+    combined.addAll(
+      engine.sliceTokensByVerseRange(
+        tokens,
+        range.fromCh,
+        range.fromVs,
+        range.toCh,
+        range.toVs,
+      ),
+    );
+    lastAliyaKey = part.aliya;
+    last = range;
   }
 
-  final lines = paginateAllTokens(combined, widths);
-  annotateReadingAliyaMarkers(lines, combined, markers);
-  if (lines.isNotEmpty && !lines.last.isSpecial) {
-    lines.last.layout = LineLayout.petucha;
-  }
-  return lines;
-}
-
-/// מסמן את שם העליה בשורה שמכילה את מילתה הראשונה — גם כשהמילה נכנסה
-/// לסוף שורה של העליה הקודמת.
-void annotateReadingAliyaMarkers(
-  List<TikkunLine> lines,
-  List<TikkunToken> tokens,
-  List<({int tokenIdx, String label, String? scrollLabel})> markers,
-) {
+  final lines = paginate == null
+      ? engine.paginateAllTokens(combined, widths)
+      : await paginate(combined);
+  // שם העליה מסומן בשורה שמכילה את מילתה הראשונה — גם כשהמילה נכנסה לסוף
+  // שורה של העליה הקודמת.
   for (final marker in markers) {
-    var firstWordIdx = -1;
-    for (var j = marker.tokenIdx; j < tokens.length; j++) {
-      if (tokens[j].isWord) {
-        firstWordIdx = j;
-        break;
-      }
-    }
+    final firstWordIdx = combined.indexWhere((t) => t.isWord, marker.tokenIdx);
     if (firstWordIdx < 0) continue;
     for (var i = 0; i < lines.length; i++) {
       final nextStart = i + 1 < lines.length
           ? lines[i + 1].startTokenIdx
-          : 0x7fffffff;
+          : 1 << 30;
       if (lines[i].startTokenIdx >= 0 &&
           lines[i].startTokenIdx <= firstWordIdx &&
           firstWordIdx < nextStart) {
@@ -695,4 +641,10 @@ void annotateReadingAliyaMarkers(
       }
     }
   }
+  // שורת קטע מיוחד מחזיקה את תוכנה בתאים ולא ב-`words`; סימונה כפתוחה
+  // היה מחזיר אותה למסלול השורה הרגילה, והיא הייתה מתרוקנת.
+  if (lines.isNotEmpty && !lines.last.isSpecial) {
+    lines.last.layout = LineLayout.petucha;
+  }
+  return lines;
 }

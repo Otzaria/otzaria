@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 /// בונה TocEntry עם ילדים. עוזר לקיצור הטסטים של closestTocEntryIndex.
 TocEntry _entry(String text, int index, int level, {List<TocEntry>? children}) {
@@ -12,6 +13,12 @@ TocEntry _entry(String text, int index, int level, {List<TocEntry>? children}) {
   }
   return e;
 }
+
+PdfOutlineNode _pdfNode(String title, int? page) => PdfOutlineNode(
+  title: title,
+  dest: page == null ? null : PdfDest(page, PdfDestCommand.fit, null),
+  children: const [],
+);
 
 void main() {
   group('closestTocEntryIndex', () {
@@ -495,6 +502,19 @@ void main() {
         addBookTitleToRef('חלק ראשון', 'ימי מוהרנת חלק ראשון'),
         'ימי מוהרנת חלק ראשון, חלק ראשון',
       );
+    });
+  });
+
+  group('referenceFromPageNumber', () {
+    test('סעיף בלי יעד לא עוצר את הסריקה של אחיו', () {
+      final outline = [
+        _pdfNode('פרק א', 1),
+        _pdfNode('כותרת בלי יעד', null),
+        _pdfNode('פרק ב', 10),
+        _pdfNode('פרק ג', 20),
+      ];
+      expect(referenceFromPageNumber(12, outline), 'פרק ב');
+      expect(referenceFromPageNumber(5, outline), 'פרק א');
     });
   });
 }

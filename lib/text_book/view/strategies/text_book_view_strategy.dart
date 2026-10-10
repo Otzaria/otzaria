@@ -48,12 +48,6 @@ abstract class TextBookViewStrategy {
 
   /// Builds the widget tree for this view mode
   Widget buildView(BuildContext context, TextBookViewConfig config);
-
-  /// Called when the strategy is selected (optional cleanup/setup)
-  void onActivate() {}
-
-  /// Called when switching away from this strategy (optional cleanup)
-  void onDeactivate() {}
 }
 
 /// Enum representing available view modes

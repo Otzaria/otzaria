@@ -105,8 +105,8 @@ build/
 fonts/
 external/
 # Generated Windows installers
-installer/otzaria-0.9.97-windows.exe
-installer/otzaria-0.9.97-windows-full.exe
+installer/otzaria-0.9.98-windows.exe
+installer/otzaria-0.9.98-windows-full.exe
 # End generated Windows installers
 
 flutter/

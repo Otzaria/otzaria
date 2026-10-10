@@ -6,8 +6,6 @@ import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart
 import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
-import 'package:otzaria/theme/app_surfaces.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 
 class NoteTile extends StatefulWidget {
   final PersonalNote note;
@@ -132,62 +130,22 @@ class _NoteTileState extends State<NoteTile> {
               ? 'עריכת הערה - שורה ${widget.note.lineNumber}'
               : 'עריכת הערה');
 
-      return Container(
-        margin: const EdgeInsets.all(8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppSurfaces.noteEditorBackground(context),
-          borderRadius: AppTokens.borderRadiusAll,
-          border: Border.all(
-            color: Theme.of(context).colorScheme.primary,
-            width: 2,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  FluentIcons.note_edit_24_regular,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    titleText,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'ביטול',
-                  icon: const Icon(FluentIcons.dismiss_24_regular),
-                  onPressed: _requestInlineEditCancellation,
-                  iconSize: 20,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            InlineNoteEditor(
-              note: widget.note,
-              referenceText: widget.note.displayTitle,
-              bookId: widget.bookId,
-              categoryId: widget.categoryId,
-              initialContent: _draftContent ?? widget.note.content,
-              initialFormat: _draftFormat ?? widget.note.contentFormat,
-              draftNoteId: widget.note.id,
-              linkableNotes: widget.linkableNotes,
-              onSave: _handleSave,
-              onCancel: _cancelInlineEdit,
-              cancelRequest: _cancelRequest,
-            ),
-          ],
+      return InlineNoteEditorCard(
+        icon: FluentIcons.note_edit_24_regular,
+        title: titleText,
+        onCancelPressed: _requestInlineEditCancellation,
+        editor: InlineNoteEditor(
+          note: widget.note,
+          referenceText: widget.note.displayTitle,
+          bookId: widget.bookId,
+          categoryId: widget.categoryId,
+          initialContent: _draftContent ?? widget.note.content,
+          initialFormat: _draftFormat ?? widget.note.contentFormat,
+          draftNoteId: widget.note.id,
+          linkableNotes: widget.linkableNotes,
+          onSave: _handleSave,
+          onCancel: _cancelInlineEdit,
+          cancelRequest: _cancelRequest,
         ),
       );
     }

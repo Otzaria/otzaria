@@ -1,4 +1,10 @@
+import 'dart:io';
+import 'dart:math';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -80,11 +86,46 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// כמה פיקסלים הדיו של [word] בולט משמאל לתיבת המילה, כלומר אחרי סופה.
+Future<double> _inkPastWordEnd(WidgetTester tester, String word) async {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: word,
+      style: const TextStyle(
+        fontFamily: 'FrankRuhlCLM',
+        fontSize: 60,
+        color: Color(0xFF000000),
+      ),
+    ),
+    textDirection: TextDirection.rtl,
+  )..layout();
+  const origin = 100, width = 600, height = 160;
+  var minX = width;
+  await tester.runAsync(() async {
+    final recorder = ui.PictureRecorder();
+    painter.paint(Canvas(recorder), const Offset(origin + 0.0, 20));
+    final image = await recorder.endRecording().toImage(width, height);
+    final bytes = (await image.toByteData())!;
+    image.dispose();
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < minX; x++) {
+        if (bytes.getUint8((y * width + x) * 4 + 3) > 0) minX = x;
+      }
+    }
+  });
+  painter.dispose();
+  return (origin - minX).toDouble();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() async {
     await Settings.init(cacheProvider: MemoryCacheProvider());
+    final font = File('fonts/FrankRuehlCLM-Medium.ttf').readAsBytesSync();
+    final loader = FontLoader('FrankRuhlCLM')
+      ..addFont(Future.value(ByteData.sublistView(font)));
+    await loader.load();
   });
 
   Future<void> pumpView(
@@ -140,11 +181,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
   }
 
-  /// השוליים של השורה הראשונה משני צדי אזור הרשימה.
-  ({double start, double end}) lineInsets(WidgetTester tester) {
+  /// השוליים של השורה הראשונה משני צדי אזור התוכן של הרשימה. בתצוגה הרגילה
+  /// המרווח שממרכז את הטקסט מול המסילה יושב בתוך הרשימה, בקצה הסוף.
+  ({double start, double end}) lineInsets(
+    WidgetTester tester, {
+    double listEndPadding = ScrollablePositionedListScrollbar.trackWidth,
+  }) {
     final list = tester.getRect(find.byType(ScrollablePositionedList));
     final line = tester.getRect(find.byType(SmartTextWidget).first);
-    return (start: list.right - line.right, end: line.left - list.left);
+    return (
+      start: list.right - line.right,
+      end: line.left - list.left - listEndPadding,
+    );
   }
 
   /// השוליים של השורה הראשונה משני צדי אזור הקריאה כולו — כולל המסילה.
@@ -191,9 +239,30 @@ void main() {
         textMaxWidth: -11,
         size: const Size(420, 700),
       );
-      final insets = lineInsets(tester);
+      final insets = lineInsets(tester, listEndPadding: 0);
       expect(insets.start, 0.0);
       expect(insets.end, 0.0);
+    });
+
+    testWidgets('טעם שבולט אחרי המילה האחרונה בשורה אינו נחתך (issue #1791)', (
+      tester,
+    ) async {
+      // סגול וזרקא (מלכים ב כג, יג) בגודל הגופן המרבי.
+      var overhang = 0.0;
+      for (final word in ['הַמַּשְׁחִית֒', 'הַמַּשְׁחִית֮']) {
+        overhang = max(overhang, await _inkPastWordEnd(tester, word));
+      }
+      expect(overhang, greaterThan(0), reason: 'בלי בליטה אין מה להוכיח');
+
+      await pumpView(tester, isPreviewMode: false, textMaxWidth: 0);
+      final line = tester.renderObject<RenderBox>(
+        find.byType(SmartTextWidget).first,
+      );
+      final clip = RenderAbstractViewport.of(line) as RenderBox;
+      final room =
+          line.localToGlobal(Offset.zero).dx -
+          clip.localToGlobal(Offset.zero).dx;
+      expect(room, greaterThanOrEqualTo(overhang));
     });
   });
 }

@@ -33,6 +33,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   final HiddenLibraryStore hiddenStore;
 
   int _searchGeneration = 0;
+  SearchBooks? _lastSearch;
 
   /// העץ שהממשק מציג — בלי מה שהמשתמש הסתיר (issue #1448).
   ///
@@ -142,6 +143,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   ) async {
     if (state.library == null) return;
     final library = await _visibleLibrary();
+    final hadResults = _showsSearch;
     // כל קטגוריה מיוצגת באובייקט אחר בעץ החדש. מי שמחזיק הפניה לישן ימשיך
     // להציג את הספירה הישנה — לכן גם הקטגוריה הנוכחית וגם זו שבתצוגה
     // המקדימה נפתרות מחדש לפי הנתיב.
@@ -158,6 +160,15 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         clearPreviewBook: preview == null && state.previewCategory != null,
       ),
     );
+    _repeatSearch(hadResults);
+  }
+
+  bool get _showsSearch => state.searchResults != null || state.isSearching;
+
+  // עץ חדש מאפס את התוצאות; איתור שהוצג לפניו רץ שוב עליו.
+  void _repeatSearch(bool hadResults) {
+    final last = _lastSearch;
+    if (hadResults && last != null) add(last);
   }
 
   /// מאתר בעץ [library] את הקטגוריה שנתיבה [path]. `null` כשהיא הוסתרה.
@@ -234,30 +245,33 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     ];
   }
 
+  /// נתיב הקטגוריה שהאינדוקס צורב ב-facet של הספר.
+  static String _indexedCategoryPath(Book book) =>
+      book.category?.path ?? book.categoryPath ?? '';
+
   Future<void> _runRefresh(
     RefreshLibrary event,
     Emitter<LibraryState> emit,
   ) async {
-    emit(state.copyWith(isLoading: true));
+    emit(
+      state.copyWith(
+        isLoading: true,
+        searchResults: state.searchResults,
+        searchCategoryResults: state.searchCategoryResults,
+      ),
+    );
     try {
       // רק רענון כללי עלול לנבוע מתיקייה אישית שנמחקה — האחרים מדלגים על prune.
       if (event.source == RefreshSource.general) {
         await _pruneRemovedCustomFoldersIfNeeded();
       }
 
-      // שמירת המיקום הנוכחי בספרייה
-      final currentCategoryPath = _getCurrentCategoryPath(
-        state.currentCategory,
-      );
-
-      // צלם את מפתחות הספרים לפני הרענון לצורך זיהוי ספרים חדשים
+      // צלם את מפתחות הספרים ונתיביהם לפני הרענון לזיהוי ספרים חדשים ומוזזים
       final previousLibrary = await _repository.librarySnapshotForRefresh();
-      final keysBeforeRefresh = previousLibrary == null
-          ? <String>{}
-          : previousLibrary
-                .getIndexableBooks()
-                .map((b) => IndexingRepository.catalogueOrderKey(b))
-                .toSet();
+      final pathsBeforeRefresh = <String, String>{
+        for (final b in previousLibrary?.getIndexableBooks() ?? const <Book>[])
+          IndexingRepository.catalogueOrderKey(b): _indexedCategoryPath(b),
+      };
 
       final libraryPath = Settings.getValue<String>(
         SettingsRepository.keyLibraryPath,
@@ -285,25 +299,51 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         );
       }
 
-      // זיהוי ספרים חדשים שנוספו ברענון
-      final newBooksToIndex = fullLibrary
-          .getIndexableBooks()
-          .where(
-            (b) => !keysBeforeRefresh.contains(
-              IndexingRepository.catalogueOrderKey(b),
-            ),
-          )
-          .toList();
+      final indexableBooks = fullLibrary.getIndexableBooks();
+      final newBooksToIndex = <Book>[];
+      final movedBookKeys = <String>{};
+      for (final b in indexableBooks) {
+        final key = IndexingRepository.catalogueOrderKey(b);
+        final before = pathsBeforeRefresh[key];
+        if (before == null) {
+          newBooksToIndex.add(b);
+        } else if (before != _indexedCategoryPath(b)) {
+          // הנתיב נצרב ב-facet באינדקס: ספר שעבר קטגוריה (למשל במיזוג ספרים
+          // אישיים לעץ) לא יימצא בסינון לפי קטגוריה עד שיאונדקס מחדש.
+          movedBookKeys.add(key);
+        }
+      }
+
+      if (movedBookKeys.isNotEmpty && previousLibrary != null) {
+        final previousOrder = IndexingRepository.buildCatalogueOrderResolver(
+          previousLibrary,
+        );
+        final currentOrder = IndexingRepository.buildCatalogueOrderResolver(
+          fullLibrary,
+        );
+        // מזהי השורות מקודדים מיקום קטלוגי: גם שכני הספר המוזז חייבים
+        // לעבור יחד לסדר החדש, אחרת מזהי שורות מספרים שונים יתנגשו.
+        for (final book in indexableBooks) {
+          final key = IndexingRepository.catalogueOrderKey(book);
+          if (pathsBeforeRefresh.containsKey(key) &&
+              previousOrder.orderFor(key) != currentOrder.orderFor(key)) {
+            movedBookKeys.add(key);
+          }
+        }
+      }
 
       // מיפוי מפתחות הספרים שהשתנו (שדווחו ע"י הקורא) לספרים מהקטלוג הטרי
       final changedBooksToIndex = booksToReindex(
-        fullLibrary.getIndexableBooks(),
-        changedBookKeys: event.changedBookKeys,
+        indexableBooks,
+        changedBookKeys: {...event.changedBookKeys, ...movedBookKeys},
         changedAttachedSlugs: event.changedAttachedSlugs,
       );
 
-      // חזרה לאותה תיקייה שהיתה פתוחה קודם
-      final targetCategory = _findCategoryByPath(library, currentCategoryPath);
+      final hadResults = _showsSearch;
+      final targetCategory = _findCategoryByPath(
+        library,
+        _getCurrentCategoryPath(state.currentCategory),
+      );
 
       emit(
         state.copyWith(
@@ -320,6 +360,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
               : null,
         ),
       );
+      _repeatSearch(hadResults);
     } catch (e) {
       emit(
         state.copyWith(
@@ -414,34 +455,40 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     return current;
   }
 
+  /// בדיקה וחילוץ קובץ ZIP אם קיים; false כשהחילוץ נכשל (השגיאה כבר במצב).
+  Future<bool> _extractZipIfNeeded(
+    String path,
+    Emitter<LibraryState> emit,
+  ) async {
+    final extractionResult =
+        await ZipExtractorService.checkAndExtractZipIfNeeded(path);
+    if (!extractionResult.success) {
+      emit(
+        state.copyWith(
+          error: extractionResult.errorMessage ?? 'שגיאה בחילוץ קובץ דחוס',
+          isLoading: false,
+        ),
+      );
+      return false;
+    }
+    // אם חולץ קובץ, נמתין רגע
+    if (extractionResult.successfullyExtracted) {
+      developer.log(
+        'ZIP file extracted: ${extractionResult.extractedFileName}',
+        name: 'LibraryBloc',
+      );
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+    return true;
+  }
+
   Future<void> _onUpdateLibraryPath(
     UpdateLibraryPath event,
     Emitter<LibraryState> emit,
   ) async {
     emit(state.copyWith(isLoading: true));
     try {
-      // בדיקה וחילוץ קובץ ZIP אם קיים
-      final extractionResult =
-          await ZipExtractorService.checkAndExtractZipIfNeeded(event.path);
-
-      if (!extractionResult.success) {
-        emit(
-          state.copyWith(
-            error: extractionResult.errorMessage ?? 'שגיאה בחילוץ קובץ דחוס',
-            isLoading: false,
-          ),
-        );
-        return;
-      }
-
-      // אם חולץ קובץ, נמתין רגע
-      if (extractionResult.successfullyExtracted) {
-        developer.log(
-          'ZIP file extracted: ${extractionResult.extractedFileName}',
-          name: 'LibraryBloc',
-        );
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
+      if (!await _extractZipIfNeeded(event.path, emit)) return;
 
       await Settings.setValue<String>(
         SettingsRepository.keyLibraryPath,
@@ -506,28 +553,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
   ) async {
     emit(state.copyWith(isLoading: true));
     try {
-      // בדיקה וחילוץ קובץ ZIP אם קיים
-      final extractionResult =
-          await ZipExtractorService.checkAndExtractZipIfNeeded(event.path);
-
-      if (!extractionResult.success) {
-        emit(
-          state.copyWith(
-            error: extractionResult.errorMessage ?? 'שגיאה בחילוץ קובץ דחוס',
-            isLoading: false,
-          ),
-        );
-        return;
-      }
-
-      // אם חולץ קובץ, נמתין רגע
-      if (extractionResult.successfullyExtracted) {
-        developer.log(
-          'ZIP file extracted: ${extractionResult.extractedFileName}',
-          name: 'LibraryBloc',
-        );
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
+      if (!await _extractZipIfNeeded(event.path, emit)) return;
 
       await Settings.setValue<String>(
         SettingsRepository.keyHebrewBooksPath,
@@ -610,12 +636,14 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     NavigateToCategory event,
     Emitter<LibraryState> emit,
   ) {
+    _searchGeneration++;
     final isCategoryChange = !identical(event.category, state.currentCategory);
     emit(
       state.copyWith(
         currentCategory: event.category,
         searchQuery: null,
         searchResults: null,
+        isSearching: false,
         selectedTopics: null,
         previewCategory: isCategoryChange ? event.category : null,
       ),
@@ -629,12 +657,14 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     final currentCategory = state.currentCategory;
     final parent = currentCategory?.parent;
     if (parent == null || identical(parent, currentCategory)) return;
+    _searchGeneration++;
 
     emit(
       state.copyWith(
         currentCategory: parent,
         searchQuery: null,
         searchResults: null,
+        isSearching: false,
         selectedTopics: null,
         previewCategory: parent,
       ),
@@ -658,6 +688,8 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     SearchBooks event,
     Emitter<LibraryState> emit,
   ) async {
+    _lastSearch = event;
+    final searchGeneration = ++_searchGeneration;
     if (state.searchQuery == null || state.searchQuery!.length < 3) {
       emit(
         state.copyWith(
@@ -669,7 +701,6 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
     }
 
     try {
-      final searchGeneration = ++_searchGeneration;
       final query = state.searchQuery!;
       final category = state.currentCategory;
       final includeOtzar = event.showOtzarHachochma ?? false;

@@ -817,43 +817,145 @@ void main() {
       );
     });
   });
+
+  group('reanchorSection — היקף הסריקה', () {
+    test('מעגן רק את הקטע המבוקש, בכל המופעים ובשני מפתחות הספר', () {
+      for (final owner in ['plugin.a', 'plugin.b']) {
+        registry.setHighlight(
+          ownerPluginId: owner,
+          payload: _reanchorPayload(id: 'by-title'),
+        );
+      }
+      registry.setHighlight(
+        ownerPluginId: 'plugin.a',
+        ownerInstanceId: 'bg',
+        payload: _reanchorPayload(id: 'by-title'),
+      );
+      registry.setHighlight(
+        ownerPluginId: 'plugin.a',
+        payload: _reanchorPayload(
+          id: 'by-uid',
+          bookId: 'כותרת אחרת',
+          bookUid: 'id:10',
+        ),
+      );
+      registry.setHighlight(
+        ownerPluginId: 'plugin.a',
+        payload: _reanchorPayload(id: 'other-section', sectionIndex: 2),
+      );
+      registry.setHighlight(
+        ownerPluginId: 'plugin.a',
+        payload: _reanchorPayload(id: 'other-book', bookId: 'ספר אחר'),
+      );
+
+      final changed = registry.reanchorSection(
+        bookId: 'book',
+        sectionIndex: 1,
+        sourceText: 'prefix before target after',
+        bookUid: 'id:10',
+      );
+
+      expect(
+        changed.map((r) => '${r.ownerPluginId}/${r.highlightId}').toList()
+          ..sort(),
+        [
+          'plugin.a/by-title',
+          'plugin.a/by-title',
+          'plugin.a/by-uid',
+          'plugin.b/by-title',
+        ],
+      );
+      expect(
+        registry
+            .getHighlights(ownerPluginId: 'plugin.a', ownerInstanceId: 'bg')
+            .single
+            .version,
+        2,
+      );
+      final untouched = registry
+          .getHighlights(ownerPluginId: 'plugin.a')
+          .where((r) => r.highlightId.startsWith('other-'));
+      expect(untouched.map((r) => r.version), [1, 1]);
+    });
+
+    test('עלות קטע ללא הדגשות אינה תלויה במספר ההדגשות בשאר הספרים', () {
+      PluginHighlightRegistry filled(int count) {
+        final target = PluginHighlightRegistry.forTesting();
+        for (var i = 0; i < count; i++) {
+          target.setHighlight(
+            ownerPluginId: 'plugin.a',
+            payload: _reanchorPayload(
+              id: 'h$i',
+              bookId: 'book${i % 50}',
+              sectionIndex: i,
+            ),
+          );
+        }
+        return target;
+      }
+
+      int elapsedMs(PluginHighlightRegistry target) {
+        final stopwatch = Stopwatch()..start();
+        for (var i = 0; i < 4000; i++) {
+          target.reanchorSection(
+            bookId: 'book${i % 50}',
+            sectionIndex: 100000 + i,
+            sourceText: 'x',
+          );
+        }
+        return stopwatch.elapsedMilliseconds;
+      }
+
+      final small = filled(50);
+      final large = filled(20000);
+      elapsedMs(small);
+      final baseline = elapsedMs(small);
+
+      // יחסי לבסיס כדי שמכונה איטית לא תכשיל; סריקה של כל ההדגשות איטית פי מאות.
+      expect(elapsedMs(large), lessThan(baseline * 10 + 50));
+    });
+  });
 }
 
-Map<String, dynamic> _reanchorPayload({required String id, String? bookUid}) =>
-    {
-      'highlightId': id,
-      'bookId': 'book',
-      'bookUid': ?bookUid,
-      'sectionIndex': 1,
-      'range': {
-        'type': 'text-range-v1',
-        'schemaVersion': 1,
-        'layer': 'source',
-        'sourceTextHash':
-            '0000000000000000000000000000000000000000000000000000000000000000',
-        'start': {'grapheme': 7, 'codePoint': 7, 'utf16': 7},
-        'end': {'grapheme': 13, 'codePoint': 13, 'utf16': 13},
-        'exactText': 'target',
-        'beforeText': {
-          'raw': 'before ',
-          'normalized': 'before ',
-          'maxGraphemes': 30,
-          'actualGraphemes': 7,
-          'truncatedAtBoundary': true,
-        },
-        'afterText': {
-          'raw': ' after',
-          'normalized': ' after',
-          'maxGraphemes': 30,
-          'actualGraphemes': 6,
-          'truncatedAtBoundary': true,
-        },
-        'occurrenceIndexInSection': 0,
-        'occurrenceCountInSection': 1,
-        'normalizationProfile': 'strict',
-      },
-      'style': {'backgroundColor': '#FFE066'},
-    };
+Map<String, dynamic> _reanchorPayload({
+  required String id,
+  String bookId = 'book',
+  String? bookUid,
+  int sectionIndex = 1,
+}) => {
+  'highlightId': id,
+  'bookId': bookId,
+  'bookUid': ?bookUid,
+  'sectionIndex': sectionIndex,
+  'range': {
+    'type': 'text-range-v1',
+    'schemaVersion': 1,
+    'layer': 'source',
+    'sourceTextHash':
+        '0000000000000000000000000000000000000000000000000000000000000000',
+    'start': {'grapheme': 7, 'codePoint': 7, 'utf16': 7},
+    'end': {'grapheme': 13, 'codePoint': 13, 'utf16': 13},
+    'exactText': 'target',
+    'beforeText': {
+      'raw': 'before ',
+      'normalized': 'before ',
+      'maxGraphemes': 30,
+      'actualGraphemes': 7,
+      'truncatedAtBoundary': true,
+    },
+    'afterText': {
+      'raw': ' after',
+      'normalized': ' after',
+      'maxGraphemes': 30,
+      'actualGraphemes': 6,
+      'truncatedAtBoundary': true,
+    },
+    'occurrenceIndexInSection': 0,
+    'occurrenceCountInSection': 1,
+    'normalizationProfile': 'strict',
+  },
+  'style': {'backgroundColor': '#FFE066'},
+};
 
 Map<String, dynamic> _payload({
   String? id,

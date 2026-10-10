@@ -17,6 +17,15 @@ typedef PluginLibraryBooksDispatch =
       Map<String, dynamic> payload,
     );
 
+/// ביצוע `openAction` של ספק — מסופק ע"י DeclarativePluginHost, בלי להעיר את
+/// מנוע התוסף.
+typedef PluginLibraryBookActionDispatcher =
+    Future<void> Function(
+      String pluginId,
+      Map<String, dynamic> actionTemplate,
+      Map<String, dynamic> bookPayload,
+    );
+
 /// ספרים שתוספים מוסיפים לאיתור הספרים במסך הספרייה. הרשימה נשמרת ב-DB
 /// ונטענת בסנכרון התוספים, כדי שתופיע גם לפני שמנוע התוסף עולה.
 class PluginLibraryBooksRegistry extends ChangeNotifier {
@@ -112,17 +121,24 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
   }
 
   /// `false` כשהספר אינו של תוסף — אז הפתיחה נשארת בידי המסלול הקיים.
-  bool open(Book book) {
+  /// ספק עם `openAction` מבוצע ב-[actionDispatcher], בלי להעיר את המנוע;
+  /// בלעדיו (עץ בלי מערכת התוספים) נשלח האירוע, כמו לספק בלי פעולה.
+  bool open(Book book, {PluginLibraryBookActionDispatcher? actionDispatcher}) {
     final owner = providerOf(book);
     if (owner == null) return false;
+    final payload = {
+      'provider': owner.provider,
+      'id': book.id!,
+      'title': book.title,
+      if (book.author case final author? when author.isNotEmpty)
+        'author': author,
+    };
+    final action = owner.openAction;
+    final Future<void> opening = action != null && actionDispatcher != null
+        ? actionDispatcher(owner.pluginId, action, payload)
+        : _dispatch(owner.pluginId, openRequestedTopic, payload);
     unawaited(
-      _dispatch(owner.pluginId, openRequestedTopic, {
-        'provider': owner.provider,
-        'id': book.id!,
-        'title': book.title,
-        if (book.author case final author? when author.isNotEmpty)
-          'author': author,
-      }).catchError((Object error) {
+      opening.catchError((Object error) {
         debugPrint('PluginLibraryBooksRegistry: open dispatch failed: $error');
       }),
     );

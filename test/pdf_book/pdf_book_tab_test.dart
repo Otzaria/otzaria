@@ -1,8 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
+
 import '../helpers/memory_settings_cache.dart';
+
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 
@@ -228,6 +234,36 @@ void main() {
       expect(restored.pageNumber, 99);
       expect(restored.showLeftPane.value, isTrue);
       expect(restored.savedLayoutMode, PdfLayoutMode.regularView);
+    });
+
+    test('טאב משוחזר מוצא טיוטת הערה שנשמרה לפני ההפעלה מחדש', () async {
+      final original = PdfBookTab(
+        book: PdfBook(title: 'ספר', path: '/a/sefer.pdf', categoryId: 42),
+        pageNumber: 1,
+      );
+      final drafts = PersonalNoteDraftService();
+      await drafts.saveDraft(
+        bookId: 'ספר',
+        categoryId: original.book.categoryId,
+        lineNumber: 3,
+        draft: PersonalNoteDraft(
+          content: 'טיוטה',
+          contentPlain: 'טיוטה',
+          contentFormat: PersonalNoteContentFormat.plain,
+          updatedAt: DateTime(2026),
+        ),
+      );
+
+      final restored = PdfBookTab.fromJson(
+        jsonDecode(jsonEncode(original.toJson())) as Map<String, dynamic>,
+      );
+      final draft = await drafts.loadDraft(
+        bookId: 'ספר',
+        categoryId: restored.book.categoryId,
+        lineNumber: 3,
+      );
+
+      expect(draft?.content, 'טיוטה');
     });
   });
 

@@ -651,6 +651,25 @@ void main() {
       );
     });
 
+    test(
+      'unterminated regex literal with many `[...]` scans quickly',
+      timeout: const Timeout(Duration(seconds: 10)),
+      () {
+        // Minified libraries (marked.min.js) made the scan take minutes.
+        final report = _runOn(
+          tempDir,
+          files: {
+            'index.html': '<html lang="he" dir="rtl"></html>',
+            'app.js': 'const r = /${'[a]' * 30}; Otzaria.library.findBooks();',
+          },
+        );
+        expect(
+          report.warnings.any((w) => w.contains('library.books.read')),
+          isTrue,
+        );
+      },
+    );
+
     test('division operators are NOT mistaken for regex literals', () {
       // `a / b` הוא חלוקה. אם המסיר חושב שזה תחילת regex, הוא ימשיך
       // עד ה-`/` הבא ויבלע קוד. כאן אין `/` נוסף בשורה, אבל יש בשורה

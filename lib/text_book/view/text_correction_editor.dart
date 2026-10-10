@@ -158,8 +158,11 @@ List<TextDiffSegment> _lcsDiff(List<String> a, List<String> b) {
   return result;
 }
 
-/// אופן ההצעה: טקסט חלופי, מחיקה מכוונת (""), או ללא הצעה (null).
-enum ProposalMode { replace, delete, none }
+/// אופן ההצעה: טקסט חלופי או מחיקה מכוונת ("").
+///
+/// אין מצב "ללא הצעה": הצעת תיקון בלי הצעה היא בעצם דיווח חופשי, ולכן מי שאין לו
+/// הצעה בוחר "דיווח חופשי" (לבקשת "יום חדש מתחיל").
+enum ProposalMode { replace, delete }
 
 /// מצב העורך: ההצעה הנוכחית ושגיאה שחוסמת שליחה (null = תקין).
 class TextCorrectionDraft {
@@ -183,18 +186,16 @@ TextCorrectionDraft evaluateCorrectionDraft({
   final proposed = switch (mode) {
     ProposalMode.replace => editedText,
     ProposalMode.delete => '',
-    ProposalMode.none => null,
   };
   final correction = original.withProposedText(proposed);
   String? error;
-  if (hasLoneSurrogate(original.originalLine) ||
-      (proposed != null && hasLoneSurrogate(proposed))) {
+  if (hasLoneSurrogate(original.originalLine) || hasLoneSurrogate(proposed)) {
     error = ReportMessages.invalidCharacters;
   } else if (original.originalLine.length > max) {
     error = ReportMessages.originalTooLong(max);
-  } else if (proposed != null && proposed.length > max) {
+  } else if (proposed.length > max) {
     error = ReportMessages.proposalTooLong(max);
-  } else if (proposed != null && proposed == original.target) {
+  } else if (proposed == original.target) {
     error = ReportMessages.proposalIdentical;
   }
   return TextCorrectionDraft(correction: correction, error: error);
@@ -207,11 +208,15 @@ class TextCorrectionEditor extends StatefulWidget {
   final double fontSize;
   final ValueChanged<TextCorrectionDraft> onChanged;
 
+  /// נטען מההצעה שב-[original] (עריכת דיווח שמור) במקום מהטקסט המקורי.
+  final bool restoreProposal;
+
   const TextCorrectionEditor({
     super.key,
     required this.original,
     required this.fontSize,
     required this.onChanged,
+    this.restoreProposal = false,
   });
 
   @override
@@ -220,9 +225,20 @@ class TextCorrectionEditor extends StatefulWidget {
 
 class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
   late final TextEditingController _controller = TextEditingController(
-    text: widget.original.target,
+    text: _restoredText ?? widget.original.target,
   );
-  ProposalMode _mode = ProposalMode.replace;
+  // דיווח שמור מגרסה קודמת עם "ללא הצעה" (null) נפתח בעריכת טקסט.
+  late ProposalMode _mode =
+      widget.restoreProposal && widget.original.proposedText == ''
+      ? ProposalMode.delete
+      : ProposalMode.replace;
+
+  String? get _restoredText {
+    final proposed = widget.original.proposedText;
+    return widget.restoreProposal && proposed != null && proposed.isNotEmpty
+        ? proposed
+        : null;
+  }
 
   TextCorrectionDraft get _draft => evaluateCorrectionDraft(
     original: widget.original,
@@ -260,9 +276,10 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
   TextStyle _textStyle(BuildContext context) =>
       (Theme.of(context).textTheme.bodyLarge ?? const TextStyle()).copyWith(
         fontSize: widget.fontSize,
-        fontFamily:
-            Settings.getValue<String>(SettingsRepository.keyFontFamily) ??
-            AppFonts.defaultFont,
+        fontFamily: AppFonts.renderFontFamily(
+          Settings.getValue<String>(SettingsRepository.keyFontFamily) ??
+              AppFonts.defaultFont,
+        ),
       );
 
   @override
@@ -333,11 +350,6 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
               value: ProposalMode.delete,
               label: 'מחיקת הקטע',
               icon: FluentIcons.delete_24_regular,
-            ),
-            SegmentOption(
-              value: ProposalMode.none,
-              label: 'ללא הצעה',
-              icon: FluentIcons.dismiss_circle_24_regular,
             ),
           ],
           currentValue: _mode,

@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:crypto/crypto.dart';
 import 'package:otzaria/attached_libraries/models/attached_update_manifest.dart';
+import 'package:otzaria/utils/file/native_sha256.dart';
 import 'package:otzaria/utils/file/zstd_stream_extractor.dart';
 
 /// הקובץ שנבנה אינו תואם לגודל או ל-sha256 שבמניפסט. הפלט נמחק.
@@ -79,8 +79,7 @@ class AttachedUpdateArtifactBuilder {
     await _deleteIfExists(combinedPath);
   }
 
-  static Future<String> sha256OfFile(String path) async =>
-      (await sha256.bind(File(path).openRead()).first).toString();
+  static Future<String> sha256OfFile(String path) => sha256OfFileFast(path);
 
   static Future<void> _deleteIfExists(String path) async {
     final file = File(path);

@@ -13,33 +13,6 @@ String applyTextBookExportProfile(
   return stripHtml ? stripHtmlIfNeeded(text) : text;
 }
 
-/// מחיל על שורת ספר את אותן טרנספורמציות טקסט שנדרשות לפני ייצוא.
-String applyTextBookExportTextTransforms(
-  String input, {
-  required bool removeNikud,
-  required bool removeTaamim,
-  required bool shouldReplaceHolyNames,
-  HolyNameStyle holyNameStyle = HolyNameStyle.kufKuf,
-  required bool stripHtml,
-}) {
-  var text = input;
-  if (removeNikud && removeTaamim) {
-    text = removeVolwels(text);
-  } else if (removeNikud && !removeTaamim) {
-    text = text
-        .replaceAll('־', ' ')
-        .replaceAll('׀', ' ')
-        .replaceAll('|', ' ')
-        .replaceAll(RegExp(r'[\u05B0-\u05C7]'), '');
-  } else if (!removeNikud && removeTaamim) {
-    text = removeTeamim(text);
-  }
-  if (shouldReplaceHolyNames) {
-    text = replaceHolyNames(text, style: holyNameStyle);
-  }
-  return stripHtml ? stripHtmlIfNeeded(text) : text;
-}
-
 /// מנקה שם ספר כך שיהיה תקין כשם קובץ במערכות הקבצים הנתמכות.
 String sanitizeTextBookExportFileName(String value) {
   final sanitized = value.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();

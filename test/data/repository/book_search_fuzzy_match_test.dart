@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -622,6 +624,77 @@ void main() {
       expect(entry.source, BookSource.user);
     });
 
+    test(
+      'ספר היברובוקס עם id מתנגש לא יורש דור וכינוי של ספר רשמי (issue #2087)',
+      () {
+        final entry = buildBookSearchEntry(
+          0,
+          ExternalLibraryBook(title: 'אבני נזר - חלק ז', id: 7, link: ''),
+          acronymsFor: acronymsFor,
+          eraOrderForId: eraOrderForId,
+        );
+        expect(entry.acronyms, isEmpty);
+        expect(entry.eraOrder, 5);
+      },
+    );
+
+    test('PDF היברובוקס מקומי אינו יורש מטא נתונים רשמיים', () {
+      final local = FileSystemData.mapHebrewBooksToLocal(
+        [
+          ExternalLibraryBook(
+            title: 'אשר לשלמה',
+            id: 7,
+            link: '',
+            externalLibraryId: 'hb:7',
+          ),
+        ],
+        {'7.pdf': '/tmp/7.pdf'},
+      ).single;
+      expect(local, isA<PdfBook>());
+      final entry = buildBookSearchEntry(
+        0,
+        local,
+        acronymsFor: acronymsFor,
+        eraOrderForId: eraOrderForId,
+      );
+      expect(entry.acronyms, isEmpty);
+      expect(entry.eraOrder, 5);
+    });
+
+    test('PDF בבלי מצורף שומר את המטא נתונים הרשמיים', () {
+      final entry = buildBookSearchEntry(
+        0,
+        PdfBook(
+          id: 7,
+          title: 'קידושין',
+          path: '/tmp/kiddushin.pdf',
+          externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+            'קידושין',
+          ),
+        ),
+        acronymsFor: acronymsFor,
+        eraOrderForId: eraOrderForId,
+      );
+      expect(entry.acronyms, ['רמבם']);
+      expect(entry.eraOrder, 2);
+    });
+
+    test('כינויים ודור נשמרים במסד מצורף גם עם מזהה חיצוני', () {
+      final entry = buildBookSearchEntry(
+        0,
+        TextBook(
+          id: 7,
+          title: 'Book A',
+          source: attached,
+          externalLibraryId: 'source-ref',
+        ),
+        acronymsFor: acronymsFor,
+        eraOrderForId: eraOrderForId,
+      );
+      expect(entry.acronyms, ['zzz']);
+      expect(entry.eraOrder, 3);
+    });
+
     test('ספר רשמי עם אותו id כן מקבל את הכינוי והדור מהמאגר', () {
       final officialBook = TextBook(id: 7, title: 'משנה תורה');
       final entry = buildBookSearchEntry(
@@ -670,6 +743,101 @@ void main() {
         normalizedQuery: 'book a',
       );
       expect(order, [2, 1, 0]);
+    });
+  });
+  group('קטלוג חיצוני אחרי ספרי המסדים (issue #2087)', () {
+    final remote = ExternalLibraryBook(
+      id: 22,
+      title: 'באר מים חיים',
+      link: '',
+      externalLibraryId: 'hb:22',
+    );
+    final local = FileSystemData.mapHebrewBooksToLocal(
+      [remote],
+      {'22.pdf': '/tmp/22.pdf'},
+    ).single;
+    final plugin = ExternalLibraryBook(
+      id: 22,
+      title: 'באר מים חיים',
+      link: '',
+      externalLibraryId: 'plugin:22',
+    );
+    final otzar = ExternalLibraryBook(
+      id: 22,
+      title: 'באר מים חיים',
+      link: '',
+      externalLibraryId: 'oh:22',
+    );
+    final official = TextBook(id: 7264, title: 'באר מים חיים (נוסינזון)');
+    BookSearchEntry entry(int i, Book book) => buildBookSearchEntry(
+      i,
+      book,
+      acronymsFor: (_, _) => null,
+      eraOrderForId: (_, _) => 5,
+    );
+    List<int> search(
+      List<Book> books, {
+      bool sorted = true,
+      String query = 'באר מים חיים',
+    }) => filterBookSearchEntries(
+      entries: [for (final (i, book) in books.indexed) entry(i, book)],
+      queryWords: query.split(' '),
+      topics: [],
+      sortByRatio: sorted,
+      normalizedQuery: query,
+    );
+
+    for (final (name, external) in [
+      ('מקוון', remote),
+      ('מקומי', local),
+      ('תוסף', plugin),
+      ('אוצר החכמה', otzar),
+    ]) {
+      test('אוצריא ללא דור קודמת להתאמה מדויקת מהקטלוג $name', () {
+        expect(search([external, official]), [1, 0]);
+        expect(search([external, official], query: 'באר'), [1, 0]);
+      });
+    }
+    test('הדירוג בתוך כל קבוצת קטלוג נשמר', () {
+      final longerExternal = ExternalLibraryBook(
+        id: 23,
+        title: 'באר מים חיים פירוש',
+        link: '',
+      );
+      final exactOfficial = TextBook(title: 'באר מים חיים');
+      expect(search([longerExternal, official, remote, exactOfficial]), [
+        3,
+        1,
+        2,
+        0,
+      ]);
+    });
+    test('ללא דירוג נשמר סדר הקלט', () {
+      expect(search([remote, official, local], sorted: false), [0, 1, 2]);
+    });
+    test('ספר אישי ומסד מצורף שומרים את הדירוג ביניהם ולפני קטלוג', () {
+      final user = TextBook(
+        id: 22,
+        title: official.title,
+        source: BookSource.user,
+      );
+      final attached = TextBook(
+        id: 22,
+        title: official.title,
+        source: BookSource.attached('review'),
+      );
+      expect(search([remote, attached, user, official]), [3, 2, 1, 0]);
+    });
+    test('PDF בבלי מצורף מדורג עם הספרים הרשמיים', () {
+      final bundled = PdfBook(
+        id: 7,
+        title: 'באר מים חיים',
+        path: '/tmp/bavli.pdf',
+        externalLibraryId: DatabaseConstants.talmudBavliPdfExternalLibraryId(
+          'קידושין',
+        ),
+      );
+      expect(search([remote, official, bundled]), [2, 1, 0]);
     });
   });
 }

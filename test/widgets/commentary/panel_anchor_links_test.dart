@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
@@ -44,11 +46,22 @@ Link _anchored({
   anchorLabel: label,
 );
 
+Link _footnote({int index1 = 3}) => Link(
+  heRef: 'הערות על חברותא על ברכות',
+  index1: index1,
+  path2: 'הערות על חברותא על ברכות',
+  index2: 1572,
+  connectionType: LinkTypes.footnotes,
+  targetCategoryId: 7,
+);
+
 Future<void> _pumpPanel(
   WidgetTester tester, {
   required List<Link> loaded,
   bool enabled = true,
+  String html = 'אבגדהוזחטיכלמנ',
   void Function(OpenedTab)? onOpen,
+  Link? displayed,
 }) async {
   TargetLineLinksService.instance = TargetLineLinksService(
     loader: (_, _, _) async => loaded,
@@ -58,8 +71,8 @@ Future<void> _pumpPanel(
       value: _TestSettingsBloc(SettingsState.initial()),
       child: MaterialApp(
         home: PanelAnchoredText(
-          link: _displayed(),
-          html: 'אבגדהוזחטיכלמנ',
+          link: displayed ?? _displayed(),
+          html: html,
           settings: const RenderSettings(),
           enabled: enabled,
           openBookCallback: onOpen ?? (_) {},
@@ -68,6 +81,21 @@ Future<void> _pumpPanel(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+Offset _centerOfText(WidgetTester tester, String needle) {
+  for (final element in find.byType(RichText).evaluate()) {
+    final paragraph = element.renderObject! as RenderParagraph;
+    final index = paragraph.text.toPlainText().indexOf(needle);
+    if (index < 0) continue;
+    final box = paragraph
+        .getBoxesForSelection(
+          TextSelection(baseOffset: index, extentOffset: index + needle.length),
+        )
+        .first;
+    return paragraph.localToGlobal(box.toRect().center);
+  }
+  throw StateError('"$needle" not rendered');
 }
 
 String _renderedHtml(WidgetTester tester) =>
@@ -249,6 +277,184 @@ void main() {
     await tester.pump(const Duration(milliseconds: 280));
     expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
   });
+
+  testWidgets('סמן-מספר של הערה בקטע שבחלונית פעיל לריחוף (issue #2002)', (
+    tester,
+  ) async {
+    await _pumpPanel(
+      tester,
+      loaded: [_footnote()],
+      html: 'לדרשא! <small>(26)</small>',
+    );
+
+    final smartText = tester.widget<SmartTextWidget>(
+      find.byType(SmartTextWidget),
+    );
+    expect(smartText.text, contains('otzaria://note-marker?line=2&num=26'));
+    expect(smartText.onAnchorHover, isNotNull);
+  });
+
+  testWidgets('סמן-מספר אינו מזיז ציטוט באופסטים גולמיים (issue #2002)', (
+    tester,
+  ) async {
+    await _pumpPanel(
+      tester,
+      loaded: [
+        Link(
+          heRef: 'בראשית א, א',
+          index1: 3,
+          path2: 'בראשית',
+          index2: 1,
+          connectionType: LinkTypes.linker,
+          targetCategoryId: 7,
+          anchorStart: 20,
+          anchorEnd: 25,
+          anchorOffsetsAreRaw: true,
+        ),
+        _footnote(),
+      ],
+      html: '<small>(26)</small> אבגדה',
+    );
+
+    final html = _renderedHtml(tester);
+    expect(html, contains('ref=2_0&range=1">אבגדה</a>'));
+    expect(html, contains('note-marker?line=2&num=26">(26)</a>'));
+  });
+
+  for (final end in <int?>[null, 3]) {
+    testWidgets('סמני הערות בשורה אחת עם br פנימי נשארים פעילים ($end)', (
+      tester,
+    ) async {
+      await _pumpPanel(
+        tester,
+        displayed: Link(
+          heRef: 'שורה עם מעבר פנימי',
+          index1: 1,
+          path2: 'חברותא על ברכות',
+          index2: 3,
+          index2End: end,
+          connectionType: LinkTypes.commentary,
+        ),
+        loaded: [_footnote()],
+        html: 'לפני <small>(26)</small><br>אחרי <small>(27)</small>',
+      );
+
+      expect(_renderedHtml(tester), contains('note-marker?line=2&num=26'));
+      expect(_renderedHtml(tester), contains('note-marker?line=2&num=27'));
+    });
+  }
+
+  for (final type in [LinkTypes.commentary, LinkTypes.footnotes]) {
+    testWidgets('מספר הערה חוזר בטווח אינו משויך לשורה הראשונה ($type)', (
+      tester,
+    ) async {
+      final html = [
+        'שנינו במשנה: <b>רבי טרפון אומר</b>: מברך לפני <small>(2)</small> '
+            'שתיית מים <b>בורא נפשות רבות וחסרונן.</b>',
+        '<b>אמר ליה רבא בר רב חנן לאביי, ואמרי לה, לרב יוסף: הלכתא</b> - '
+            '<b>מאי?</b> האם הלכה כתנא קמא הסובר שיש לברך עליהם בתחלה שהכל, '
+            'או כרבי טרפון הסובר שיש לברך עליהם בתחלה בורא נפשות?',
+        '<b>אמר ליה: פוק חזי מאי עמא דבר!</b> צא וראה היאך נוהגים כולם, '
+            'וכבר נהגו לברך בתחלה שהכל, ולבסוף בורא נפשות רבות.',
+        '<br><center><big><b>הדרן עלך פרק כיצד מברכין</b></big></center>',
+        '<h2>פרק שביעי - שלשה שאכלו</h2>',
+        '<big><b>מתניתין:</b></big>',
+        '<b>שלשה שאכלו</b> פת, והיו יושבין בסעודה <b>כאחת</b> [יחד] '
+            '<small>(1)</small>, <b>חייבין</b> <small>(2)</small> <b>לזמן</b> - '
+            'להזדמן ולהצטרף יחד, כדי לברך "ברכת הזימון" בלשון רבים '
+            '<small>(3)</small>.',
+      ].join('<br>');
+      await _pumpPanel(
+        tester,
+        displayed: Link(
+          heRef: 'חברותא על ברכות, מח ב–נ א',
+          index1: 1,
+          path2: 'חברותא על ברכות',
+          index2: 4227,
+          index2End: 4233,
+          connectionType: type,
+        ),
+        loaded: [
+          for (final (source, target) in [(4227, 2318), (4233, 2320)])
+            Link(
+              heRef: 'הערות על חברותא על ברכות',
+              index1: source,
+              path2: 'הערות על חברותא על ברכות',
+              index2: target,
+              connectionType: LinkTypes.footnotes,
+              targetCategoryId: 1488,
+            ),
+          _anchored(index1: 4227, charStart: 0, charEnd: 5),
+        ],
+        html: html,
+      );
+
+      expect(_renderedHtml(tester), isNot(contains('note-marker')));
+      expect(_renderedHtml(tester), contains('anchor?ref=4226_0&range=1'));
+      expect(
+        _renderedHtml(tester).split('<small>(2)</small>').length,
+        3,
+      );
+    });
+  }
+
+  testWidgets('ריחוף על סמן-מספר במפרש מציג את ההערה (issue #2002)', (
+    tester,
+  ) async {
+    LibraryProviderManager.instance.seedMappingsForTesting(
+      mapping: const {},
+      providers: [
+        _TestLibraryProvider(
+          contentByPath: const {
+            'חברותא על ברכות': 'לדרשא! <small>(26)</small>',
+            'הערות על חברותא על ברכות': '<b>(26)</b> בביאור הלכה הוכיח מכאן',
+          },
+        ),
+      ],
+    );
+    TargetLineLinksService.instance = TargetLineLinksService(
+      loader: (_, _, _) async => [_footnote(index1: 2500)],
+    );
+    final settings = _TestSettingsBloc(SettingsState.initial());
+    addTearDown(settings.close);
+    addTearDown(LinkPreviewOverlay.dismiss);
+
+    await tester.pumpWidget(
+      BlocProvider<SettingsBloc>.value(
+        value: settings,
+        child: MaterialApp(
+          home: CommentaryContent(
+            link: Link(
+              heRef: 'חברותא על ברכות כח',
+              index1: 1,
+              path2: 'חברותא על ברכות',
+              index2: 2500,
+              connectionType: LinkTypes.commentary,
+              targetCategoryId: 7,
+            ),
+            fontSize: 18,
+            openBookCallback: (_) {},
+            displayProfile: TextDisplayProfile.defaults,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final smartText = tester.widget<SmartTextWidget>(
+      find.byType(SmartTextWidget).first,
+    );
+    expect(smartText.text, contains('otzaria://note-marker?line=2499&num=26'));
+    expect(smartText.onAnchorHover, isNotNull);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(_centerOfText(tester, '(26)'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+  });
 }
 
 class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
@@ -262,6 +468,11 @@ class _TestSettingsBloc extends Bloc<SettingsEvent, SettingsState>
 }
 
 class _TestLibraryProvider extends Fake implements LibraryProvider {
+  _TestLibraryProvider({this.contentByPath = const {}});
+
+  final Map<String, String> contentByPath;
+
   @override
-  Future<String> getLinkContent(Link link) async => 'תוכן בדיקה';
+  Future<String> getLinkContent(Link link) async =>
+      contentByPath[link.path2] ?? 'תוכן בדיקה';
 }

@@ -42,6 +42,7 @@ enum _SnackVariant { standard, error, warning }
 // ─────────────────────────────────────────────────────────────────────────────
 class UiSnack {
   static OverlayEntry? _currentOverlay;
+  static Object? _currentOwner;
   static Timer? _dismissTimer;
 
   static void show(
@@ -121,7 +122,8 @@ class UiSnack {
   );
 
   /// בדיקה - חיצים מסתובבים, נשאר עד שמסתירים
-  static void showChecking(String message) => _showOverlay(
+  static void showChecking(String message, {Object? owner}) => _showOverlay(
+    owner: owner,
     message: message,
     variant: _SnackVariant.standard,
     duration: const Duration(days: 365), // לא נסגר אוטומטית
@@ -130,21 +132,16 @@ class UiSnack {
     showCloseButton: true,
   );
 
-  /// הורדה - אייקון הורדה, נשאר עד שמסתירים
-  static void showDownloading(String message) => _showOverlay(
-    message: message,
-    variant: _SnackVariant.standard,
-    duration: const Duration(days: 365), // לא נסגר אוטומטית
-    icon: FluentIcons.arrow_download_24_regular,
-    enableHaptic: false,
-    showCloseButton: true,
-  );
-
-  /// הסתרת ההודעה הנוכחית
-  static void hide() => _removeCurrentOverlay();
+  /// מסתיר את ההודעה הנוכחית, או רק הודעה ששייכת ל-[owner].
+  static void hide({Object? owner}) {
+    if (owner == null || identical(owner, _currentOwner)) {
+      _removeCurrentOverlay();
+    }
+  }
   // ── Internal ────────────────────────────────────────────────────────────────
 
   static void _showOverlay({
+    Object? owner,
     required String message,
     required _SnackVariant variant,
     required Duration duration,
@@ -156,6 +153,7 @@ class UiSnack {
     VoidCallback? onTap,
   }) {
     _removeCurrentOverlay();
+    final notificationOwner = _currentOwner = owner ?? Object();
 
     final context = navigatorKey.currentContext;
     if (context == null) {
@@ -164,6 +162,7 @@ class UiSnack {
     }
 
     void tryShow() {
+      if (!identical(notificationOwner, _currentOwner)) return;
       OverlayState? overlay = navigatorKey.currentState?.overlay;
       if (overlay == null && context.mounted) {
         overlay = Overlay.maybeOf(context, rootOverlay: true);
@@ -171,6 +170,7 @@ class UiSnack {
 
       if (overlay == null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!identical(notificationOwner, _currentOwner)) return;
           OverlayState? retry = navigatorKey.currentState?.overlay;
           if (retry == null && context.mounted) {
             retry = Overlay.maybeOf(context, rootOverlay: true);
@@ -227,6 +227,7 @@ class UiSnack {
   }) {
     if (enableHaptic) HapticFeedback.lightImpact();
 
+    final owner = _currentOwner;
     _currentOverlay = OverlayEntry(
       builder: (ctx) => _SnackToast(
         message: message,
@@ -236,7 +237,7 @@ class UiSnack {
         actionLabel: actionLabel,
         onAction: onAction,
         showCloseButton: showCloseButton,
-        onDismiss: _removeCurrentOverlay,
+        onDismiss: () => hide(owner: owner),
         onTap: onTap,
       ),
     );
@@ -245,7 +246,7 @@ class UiSnack {
 
     _dismissTimer = Timer(
       duration + const Duration(milliseconds: 400),
-      _removeCurrentOverlay,
+      () => hide(owner: owner),
     );
   }
 
@@ -254,6 +255,7 @@ class UiSnack {
     _dismissTimer = null;
     _currentOverlay?.remove();
     _currentOverlay = null;
+    _currentOwner = null;
   }
 
   // ── קבועי טקסט — הערכים מרוכזים ב-CommonMessages ────────────────────────────
@@ -377,7 +379,6 @@ class _SnackToastState extends State<_SnackToast>
     final bgColor = c.bg.withValues(alpha: _ToastTokens.bgAlpha);
 
     return Positioned(
-      // מיקום מקורי — מרחף מעל תחתית המסך
       bottom: 64,
       left: 20,
       right: 20,

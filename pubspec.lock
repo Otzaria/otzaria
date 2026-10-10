@@ -1225,19 +1225,19 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "5a614a7046c17e4321af31066cd9f0feae7c2e47"
-      resolved-ref: "5a614a7046c17e4321af31066cd9f0feae7c2e47"
+      ref: "5225cd36c59097fe1f24a39fb60f9c2c0e15e47c"
+      resolved-ref: "5225cd36c59097fe1f24a39fb60f9c2c0e15e47c"
       url: "https://github.com/Otzaria/otzaria_icons"
     source: git
-    version: "0.5.0"
+    version: "0.6.0"
   otzaria_search_engine:
     dependency: "direct main"
     description:
       name: otzaria_search_engine
-      sha256: "796235a831f7fa4cf991ffceebfb1970b530d7dd5a89494f6090d1d9bf00c6ef"
+      sha256: e7be185d01492383ffa31189637ac0fa5adf1f360c76271c4d1fa981f3abfa96
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.0"
+    version: "3.1.0"
   package_config:
     dependency: transitive
     description:
@@ -1362,18 +1362,18 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/pdfrx"
-      ref: "75089f96d3f9dbcb4dcfc73ebbb0b07dc98df3ac"
-      resolved-ref: "75089f96d3f9dbcb4dcfc73ebbb0b07dc98df3ac"
-      url: "https://github.com/palmoni5/pdfrx"
+      ref: d9320ba9a402b50acfee119ab58541b0896d3118
+      resolved-ref: d9320ba9a402b50acfee119ab58541b0896d3118
+      url: "https://github.com/Y-PLONI/pdfrx"
     source: git
     version: "2.6.5"
   pdfrx_engine:
     dependency: "direct overridden"
     description:
       path: "packages/pdfrx_engine"
-      ref: "75089f96d3f9dbcb4dcfc73ebbb0b07dc98df3ac"
-      resolved-ref: "75089f96d3f9dbcb4dcfc73ebbb0b07dc98df3ac"
-      url: "https://github.com/palmoni5/pdfrx"
+      ref: d9320ba9a402b50acfee119ab58541b0896d3118
+      resolved-ref: d9320ba9a402b50acfee119ab58541b0896d3118
+      url: "https://github.com/Y-PLONI/pdfrx"
     source: git
     version: "0.6.1"
   petitparser:

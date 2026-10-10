@@ -49,6 +49,60 @@ void main() {
   });
 
   group('PendingReportStore', () {
+    test('שליפה לפי מזהה מחזירה רק את הרשומה הראשונה מהסוג הנכון', () async {
+      final store = PendingReportStore(database: db);
+      await store.add('plugins/pending', {'id': 'same', 'text': 'סוג אחר'});
+      await store.add('errors/pending', {'id': 'Same', 'text': 'אות גדולה'});
+      await store.add('errors/pending', {'id': 1});
+      await store.add('errors/pending', {'text': 'ללא מזהה'});
+      final first = await store.add('errors/pending', {
+        'id': 'same',
+        'text': 'ראשון',
+      });
+      await store.add('errors/pending', {'id': 'same', 'text': 'שני'});
+      await store.add('errors/pending', {
+        'id': {'x': 1},
+      });
+      await store.add('errors/pending', {
+        'id': [1, 2],
+      });
+
+      final found = (await store.findByPayloadId('errors/pending', 'same'))!;
+      expect(found.id, first);
+      expect(found.kind, 'errors/pending');
+      expect(found.payload, {'id': 'same', 'text': 'ראשון'});
+      expect(
+        found.createdAt,
+        (await store.listByKind('errors/pending'))[3].createdAt,
+      );
+      expect(await store.findByPayloadId('errors/pending', 'missing'), isNull);
+      expect(await store.findByPayloadId('errors/pending', '1'), isNull);
+      expect(await store.findByPayloadId('errors/pending', '{"x":1}'), isNull);
+      expect(await store.findByPayloadId('errors/pending', '[1,2]'), isNull);
+      expect(await store.findByPayloadId('missing/kind', 'same'), isNull);
+    });
+
+    test('הכנסה לפי מזהה שומרת תוכן ראשון ומפרידה בין סוגי דיווחים', () async {
+      final first = PendingReportStore(database: db);
+      final secondDb = UserStateDatabase.openAt(
+        '${tmp.path}${Platform.pathSeparator}user_state.db',
+      );
+      addTearDown(secondDb.close);
+      final second = PendingReportStore(database: secondDb);
+      final results = await Future.wait([
+        first.addIfAbsent('errors/pending', {'id': 'same', 'text': 'ראשון'}),
+        second.addIfAbsent('errors/pending', {'id': 'same', 'text': 'שני'}),
+      ]);
+      expect(results[0], results[1]);
+      expect(await first.countByKind('errors/pending'), 1);
+      final separate = await second.addIfAbsent('plugins/pending', {
+        'id': 'same',
+        'text': 'נפרד',
+      });
+      expect(separate['text'], 'נפרד');
+      expect(await first.countByKind('plugins/pending'), 1);
+    });
+
     test('הוספה פר-שורה, רשימה לפי סוג, מחיקה לפי מזהה, קיצוץ', () async {
       final store = PendingReportStore(database: db);
       final first = await store.add('errors/pending', {'m': 1});

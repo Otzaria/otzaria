@@ -1,8 +1,5 @@
 -- Queries for lines
 
-selectById:
-SELECT * FROM line WHERE id = ?;
-
 selectByBookId:
 SELECT * FROM line WHERE bookId = ? ORDER BY lineIndex;
 
@@ -27,11 +24,6 @@ SELECT * FROM line WHERE heRef = ? LIMIT 1;
 
 -- סכמה 6 (DbCapabilities.hasSplitLineContent): התוכן ב-line_content לפי אותו id.
 -- LEFT JOIN — שורה בלי תוכן תוצג ריקה ולא תיעלם מהטווח.
-selectByIdSplit:
-SELECT l.*, COALESCE(lc.content, '') AS content
-FROM line l LEFT JOIN line_content lc ON lc.id = l.id
-WHERE l.id = ?;
-
 selectByBookIdSplit:
 SELECT l.*, COALESCE(lc.content, '') AS content
 FROM line l LEFT JOIN line_content lc ON lc.id = l.id
@@ -84,6 +76,3 @@ DELETE FROM line WHERE bookId = ?;
 
 countByBookId:
 SELECT COUNT(*) FROM line WHERE bookId = ?;
-
-lastInsertRowId:
-SELECT last_insert_rowid();

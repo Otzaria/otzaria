@@ -43,6 +43,13 @@ class AttachedUpdateNetworkException implements Exception {
   String toString() => 'AttachedUpdateNetworkException: $message';
 }
 
+/// תגובת HTTP שנכשלה, עם קוד זמין להבחנה בין קובץ חסר לניתוק.
+class AttachedUpdateHttpException extends AttachedUpdateNetworkException {
+  final int statusCode;
+  const AttachedUpdateHttpException(this.statusCode)
+    : super('HTTP $statusCode');
+}
+
 /// חלק שהורד אינו תואם ל-sha256 שבמניפסט. הבתים שלו נמחקו מהקובץ.
 class AttachedUpdatePartMismatch implements Exception {
   final int partIndex;
@@ -108,7 +115,7 @@ class AttachedUpdateFetcher {
   }) => _withClient(cancel, (client) async {
     final response = await _open(client, uri, cancel: cancel);
     if (response.statusCode != HttpStatus.ok) {
-      throw AttachedUpdateNetworkException('HTTP ${response.statusCode}');
+      throw AttachedUpdateHttpException(response.statusCode);
     }
     if (response.contentLength > maxBytes) {
       throw const AttachedUpdateNetworkException('response too large');
@@ -235,7 +242,7 @@ class AttachedUpdateFetcher {
     } else if (response.statusCode == HttpStatus.ok) {
       if (have > 0) throw const _RestartPart();
     } else {
-      throw AttachedUpdateNetworkException('HTTP ${response.statusCode}');
+      throw AttachedUpdateHttpException(response.statusCode);
     }
     await for (final chunk in _body(response, cancel)) {
       if (written + chunk.length > part.size) {

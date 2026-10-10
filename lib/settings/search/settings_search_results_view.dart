@@ -62,7 +62,7 @@ class SettingsSearchResultsView extends StatelessWidget {
           hasScrollBody: false,
           child: OtzariaEmptyState(
             scrollable: false,
-            icon: OtzariaIcons.search_in_the_settings_24_regular,
+            icon: OtzariaIcons.search_in_settings_24_regular,
             title: context.settingsText('לא נמצאו הגדרות תואמות'),
             message: context.settingsText('נסה לחפש מילים אחרות'),
           ),

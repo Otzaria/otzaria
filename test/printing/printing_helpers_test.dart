@@ -408,4 +408,75 @@ void main() {
       expect(entries.map((e) => e.index), [0, 0, 40, 90]);
     });
   });
+
+  group('matchHeaderRange — טווח מתוסף מוצג כבחירת כותרות', () {
+    // ספר: כותרת ספר (רמה 1), פרקים (רמה 2), ובפרק א גם כותרות פסוקים (רמה 3)
+    final h = [
+      TocEntry(text: 'תהילים', index: 0, level: 1),
+      TocEntry(text: 'פרק א', index: 1, level: 2),
+      TocEntry(text: '{א}', index: 2, level: 3),
+      TocEntry(text: '{ב}', index: 4, level: 3),
+      TocEntry(text: 'פרק ב', index: 7, level: 2),
+      TocEntry(text: 'פרק ג', index: 12, level: 2),
+    ];
+
+    test('טווח של פרקים שלמים — מפרק עד פרק', () {
+      final m = matchHeaderRange(h, 1, 12, 20);
+      expect(m.start, 1);
+      expect(m.end, 4); // פרק ב
+    });
+
+    test('פרק אחד — אותה כותרת בהתחלה ובסוף, ולא כותרת פסוק', () {
+      final m = matchHeaderRange(h, 1, 7, 20);
+      expect(m.start, 1);
+      expect(m.end, 1);
+    });
+
+    test('הפרק האחרון מסתיים בסוף הספר', () {
+      final m = matchHeaderRange(h, 12, 20, 20);
+      expect(m.start, 5);
+      expect(m.end, 5);
+    });
+
+    test('גבולות שאינם כותרות — null, והמסך נשאר בעוגני שורות', () {
+      final m = matchHeaderRange(h, 3, 9, 20);
+      expect(m.start, isNull);
+      expect(m.end, isNull);
+    });
+
+    test('בלי כותרות — null', () {
+      final m = matchHeaderRange(const [], 0, 5, 10);
+      expect(m.start, isNull);
+      expect(m.end, isNull);
+    });
+  });
+
+  group('LineCountCache', () {
+    test('זהה ל-split(newline).length', () {
+      final cache = LineCountCache();
+      for (final text in ['', 'א', 'א\nב', '\n', 'א\n\nב\n', '\r\nא']) {
+        expect(cache.of(text), text.split('\n').length, reason: text);
+      }
+    });
+
+    test('מחשב מחדש כשהטקסט מתחלף', () {
+      final cache = LineCountCache();
+      expect(cache.of('א\nב'), 2);
+      expect(cache.of('א\nב\nג'), 3);
+      expect(cache.of('א'), 1);
+    });
+
+    test('קריאה חוזרת על אותו טקסט אינה מפצלת אותו שוב', () {
+      var computations = 0;
+      final cache = LineCountCache((text) {
+        computations++;
+        return text.split('\n').length;
+      });
+      final text = List.filled(1000, 'בראשית ברא אלהים').join('\n');
+      for (var i = 0; i < 100; i++) {
+        expect(cache.of(text), 1000);
+      }
+      expect(computations, 1);
+    });
+  });
 }

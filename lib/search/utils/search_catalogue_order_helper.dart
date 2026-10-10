@@ -24,32 +24,6 @@ class SearchCatalogueOrderHelper {
     'בית שני',
   ];
 
-  static List<T> sortByLibraryOrder<T>(
-    List<T> results,
-    Library library, {
-    required String Function(T result) titleOf,
-  }) {
-    if (results.length < 2) {
-      return results;
-    }
-
-    final titleOrder = buildTitleOrderMap(library);
-    final indexedResults = results.asMap().entries.toList();
-
-    indexedResults.sort((a, b) {
-      final orderA = titleOrder[titleOf(a.value)] ?? 1 << 30;
-      final orderB = titleOrder[titleOf(b.value)] ?? 1 << 30;
-
-      if (orderA != orderB) {
-        return orderA.compareTo(orderB);
-      }
-
-      return a.key.compareTo(b.key);
-    });
-
-    return indexedResults.map((entry) => entry.value).toList(growable: false);
-  }
-
   static List<T> buildOrderedKeys<T>(
     Library library, {
     required T Function(dynamic book) keyOf,
@@ -104,13 +78,6 @@ class SearchCatalogueOrderHelper {
       keyOrder.putIfAbsent(orderedKeys[index], () => index);
     }
     return keyOrder;
-  }
-
-  static Map<String, int> buildTitleOrderMap(Library library) {
-    return buildKeyOrderMap(
-      library,
-      keyOf: (book) => book.title as String,
-    );
   }
 
   static int topCategoryOrder(Category cat) {

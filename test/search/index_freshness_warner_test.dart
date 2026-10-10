@@ -352,12 +352,18 @@ Future<void> main() async {
       // ישן כתב revision ישן והציג אזהרה שכבר אינה נכונה לתוכן הנוכחי.
       final book = TextBook(id: 1, title: 'ספר', filePath: sourceFile.path);
       final gate = Completer<bool>();
+      final verifying = Completer<void>();
       final notifications = <String>[];
-      warner.debugBookVerifier = (_, _) => gate.future;
+      warner.debugBookVerifier = (_, _) {
+        verifying.complete();
+        return gate.future;
+      };
       warner.debugNotifier = notifications.add;
 
       final pending = warner.warnIfContentDrifted(book);
-      await Future<void>.delayed(Duration.zero);
+      // ה-revision נלכד ב-stat אסינכרוני; כתיבה לפני שהאימות התחיל הייתה
+      // נלכדת כ-revision ה"ישן" והבדיקה לא הייתה בודקת דבר.
+      await verifying.future;
       sourceFile.writeAsStringSync('תוכן חדש שנכתב באמצע האימות');
       gate.complete(false);
       await pending;

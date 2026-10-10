@@ -7,6 +7,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
+import 'package:otzaria/update/app_release_version.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_manifest_validator.dart';
@@ -109,7 +110,7 @@ class PluginInstallerService {
       await PluginManifestValidator.validateManifest(
         manifest: manifest,
         directoryPath: tempDir.path,
-        currentAppVersion: packageInfo.version,
+        currentAppVersion: canonicalAppVersion(packageInfo),
       );
       final extendedReport = await Isolate.run(
         () => PluginExtendedValidator.validate(

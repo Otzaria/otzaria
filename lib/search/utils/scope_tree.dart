@@ -5,8 +5,8 @@ import 'package:otzaria/search/utils/find_match_utils.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 
 /// עץ הבחירה של היקף החיפוש (קטגוריות → תת-קטגוריות → ספרים) ואלגוריתמי
-/// הבחירה שמעליו. לוגיקה טהורה ללא ווידג'טים, משותפת ל-[CategoryTreeSelector]
-/// ולתפריט הסינון המאוחד. כל הפעולות מקבלות ומחזירות סט של facets
+/// הבחירה שמעליו, לתפריט הסינון המאוחד. לוגיקה טהורה ללא ווידג'טים.
+/// כל הפעולות מקבלות ומחזירות סט של facets
 /// קטגוריאליים בלבד (בלי facets ממדיים — אלה מטופלים בנפרד).
 class ScopeTree {
   final List<ScopeNode> rootNodes;
@@ -59,47 +59,15 @@ class ScopeTree {
     final nodesByFacet = <String, ScopeNode>{};
 
     ScopeNode buildCategoryNode(Category category) {
-      final sortedCategories = category.subCategories.toList()
-        ..sort(
-          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
-            a.order,
-          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
-        );
-      final sortedBooks = category.books.toList()
-        ..sort(
-          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
-            a.order,
-          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
-        );
-
-      final children = <ScopeNode>[
-        for (final subCategory in sortedCategories)
-          buildCategoryNode(subCategory),
-        for (final book in sortedBooks)
-          BookScopeNode(
-            book: book,
-            categoryPath: FacetHelper.resolveCategoryPath(book) ?? '',
-          ),
-      ];
-
-      final node = CategoryScopeNode(category: category, children: children);
-      nodesByFacet[node.facet] = node;
-      for (final child in children) {
-        nodesByFacet[child.facet] = child;
-      }
-      return node;
+      final (categories, books) = _sortedContents(category);
+      return _categoryNode(category, nodesByFacet, [
+        for (final subCategory in categories) buildCategoryNode(subCategory),
+        for (final book in books) _bookNode(book),
+      ]);
     }
 
-    // התיקיות העליונות בסדר מסך הספרייה (topCategoryOrder), בדיוק כמו
-    // library_browser; הרמות הפנימיות ממויינות לפי normalizeOrder.
-    final sortedTop = library.subCategories.toList()
-      ..sort(
-        (a, b) => SearchCatalogueOrderHelper.topCategoryOrder(
-          a,
-        ).compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)),
-      );
     final rootNodes = [
-      for (final category in sortedTop) buildCategoryNode(category),
+      for (final category in _sortedTop(library)) buildCategoryNode(category),
     ];
     return ScopeTree._(rootNodes, nodesByFacet);
   }
@@ -108,61 +76,97 @@ class ScopeTree {
     assert(batchSize > 0);
     final nodesByFacet = <String, ScopeNode>{};
     var processedNodes = 0;
+    bool batchDone() => ++processedNodes % batchSize == 0;
 
     Future<ScopeNode> buildCategoryNode(Category category) async {
-      final sortedCategories = category.subCategories.toList()
-        ..sort(
-          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
-            a.order,
-          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
-        );
-      final sortedBooks = category.books.toList()
-        ..sort(
-          (a, b) => SearchCatalogueOrderHelper.normalizeOrder(
-            a.order,
-          ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b.order)),
-        );
-
+      final (categories, books) = _sortedContents(category);
       final children = <ScopeNode>[];
-      for (final subCategory in sortedCategories) {
+      for (final subCategory in categories) {
         children.add(await buildCategoryNode(subCategory));
       }
-      for (final book in sortedBooks) {
-        children.add(
-          BookScopeNode(
-            book: book,
-            categoryPath: FacetHelper.resolveCategoryPath(book) ?? '',
-          ),
-        );
-        processedNodes++;
-        if (processedNodes % batchSize == 0) {
-          await Future<void>.delayed(Duration.zero);
-        }
+      for (final book in books) {
+        children.add(_bookNode(book));
+        if (batchDone()) await Future<void>.delayed(Duration.zero);
       }
-
-      final node = CategoryScopeNode(category: category, children: children);
-      nodesByFacet[node.facet] = node;
-      for (final child in children) {
-        nodesByFacet[child.facet] = child;
-      }
-      processedNodes++;
-      if (processedNodes % batchSize == 0) {
-        await Future<void>.delayed(Duration.zero);
-      }
+      final node = _categoryNode(category, nodesByFacet, children);
+      if (batchDone()) await Future<void>.delayed(Duration.zero);
       return node;
     }
 
-    final sortedTop = library.subCategories.toList()
-      ..sort(
+    final rootNodes = <ScopeNode>[];
+    for (final category in _sortedTop(library)) {
+      rootNodes.add(await buildCategoryNode(category));
+    }
+    return ScopeTree._(rootNodes, nodesByFacet);
+  }
+
+  // התיקיות העליונות בסדר מסך הספרייה (topCategoryOrder), בדיוק כמו
+  // library_browser; הרמות הפנימיות ממויינות לפי normalizeOrder.
+  static List<Category> _sortedTop(Library library) =>
+      library.subCategories.toList()..sort(
         (a, b) => SearchCatalogueOrderHelper.topCategoryOrder(
           a,
         ).compareTo(SearchCatalogueOrderHelper.topCategoryOrder(b)),
       );
-    final rootNodes = <ScopeNode>[];
-    for (final category in sortedTop) {
-      rootNodes.add(await buildCategoryNode(category));
+
+  static int _byOrder(int a, int b) =>
+      SearchCatalogueOrderHelper.normalizeOrder(
+        a,
+      ).compareTo(SearchCatalogueOrderHelper.normalizeOrder(b));
+
+  /// תת-הקטגוריות והספרים של [category], כל אחד בסדר הקטלוג.
+  static (List<Category>, List<Book>) _sortedContents(Category category) => (
+    category.subCategories.toList()..sort((a, b) => _byOrder(a.order, b.order)),
+    category.books.toList()..sort((a, b) => _byOrder(a.order, b.order)),
+  );
+
+  static BookScopeNode _bookNode(Book book) => BookScopeNode(
+    book: book,
+    categoryPath: FacetHelper.resolveCategoryPath(book) ?? '',
+  );
+
+  /// צומת הקטגוריה, רשום ב-[nodesByFacet] יחד עם ילדיו.
+  static ScopeNode _categoryNode(
+    Category category,
+    Map<String, ScopeNode> nodesByFacet,
+    List<ScopeNode> children,
+  ) {
+    final node = CategoryScopeNode(category: category, children: children);
+    nodesByFacet[node.facet] = node;
+    for (final child in children) {
+      nodesByFacet[child.facet] = child;
     }
-    return ScopeTree._(rootNodes, nodesByFacet);
+    return node;
+  }
+
+  static final Expando<ScopeTree> _officialOnlyCache = Expando<ScopeTree>(
+    'officialOnlyScopeTree',
+  );
+
+  /// העץ בלי ספרים אישיים ומצורפים, ובלי קטגוריות שנותרו ריקות.
+  ScopeTree officialOnly() {
+    return _officialOnlyCache[this] ??= () {
+      final nodesByFacet = <String, ScopeNode>{};
+      ScopeNode? prune(ScopeNode node) {
+        if (node is BookScopeNode) {
+          return node.book.source.isOfficial ? node : null;
+        }
+        final children = [
+          for (final child in node.children) ?prune(child),
+        ];
+        if (children.isEmpty) return null;
+        final pruned = CategoryScopeNode._pruned(node, children);
+        nodesByFacet[pruned.facet] = pruned;
+        for (final child in children) {
+          nodesByFacet[child.facet] = child;
+        }
+        return pruned;
+      }
+
+      return ScopeTree._([
+        for (final node in rootNodes) ?prune(node),
+      ], nodesByFacet);
+    }();
   }
 
   // --- שאילתות מצב ---
@@ -364,8 +368,8 @@ class ScopeTree {
     final results = <ScopeSearchResultItem>[];
 
     void visit(ScopeNode node) {
-      final normalizedTitle = normalizeFindText(node.title);
-      final normalizedSubtitle = normalizeFindText(node.subtitle);
+      final normalizedTitle = node.normalizedTitle;
+      final normalizedSubtitle = node.normalizedSubtitle;
       final matches = findNormalizedTextMatches(
         normalizedQuery: normalizedQuery,
         normalizedPrimaryText: normalizedTitle,
@@ -490,12 +494,16 @@ abstract class ScopeNode {
   final String subtitle;
   final List<ScopeNode> children;
 
-  const ScopeNode({
+  ScopeNode({
     required this.facet,
     required this.title,
     required this.subtitle,
     required this.children,
   });
+
+  // העץ ממוטמן לספרייה, ו-search עובר על כל הצמתים בכל הקשה — מנרמלים פעם אחת.
+  late final String normalizedTitle = normalizeFindText(title);
+  late final String normalizedSubtitle = normalizeFindText(subtitle);
 
   bool get isBook;
 }
@@ -506,6 +514,14 @@ class CategoryScopeNode extends ScopeNode {
         facet: category.path,
         title: category.title,
         subtitle: category.path == '/' ? '' : category.path.substring(1),
+      );
+
+  CategoryScopeNode._pruned(ScopeNode source, List<ScopeNode> children)
+    : super(
+        facet: source.facet,
+        title: source.title,
+        subtitle: source.subtitle,
+        children: children,
       );
 
   @override

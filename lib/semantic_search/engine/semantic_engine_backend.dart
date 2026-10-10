@@ -4,6 +4,8 @@ import 'package:otzaria/search/search_engine_gateway.dart'
     show SemanticSearchRequest;
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart'
+    show SemanticHighlightTarget, SemanticPassageHighlight;
 
 /// החוזה של שכבת החיפוש הסמנטי מול המנוע.
 ///
@@ -52,6 +54,14 @@ abstract interface class SemanticEngineBackend {
     SemanticSearchRequest request, {
     required SemanticCancelHandle cancel,
     SemanticRankingConfig? ranking,
+  });
+
+  /// מסמן בשורה של כל יעד את הקטע הקרוב ל-[query]; תשובה אחת לכל יעד,
+  /// בסדרם. יעד שלא סומן חוזר עם `isHighlighted == false`.
+  Future<List<SemanticPassageHighlight>> passageHighlights(
+    String query,
+    List<SemanticHighlightTarget> targets, {
+    required SemanticCancelHandle cancel,
   });
 }
 
@@ -109,6 +119,13 @@ class UnavailableSemanticEngineBackend implements SemanticEngineBackend {
     SemanticSearchRequest request, {
     required SemanticCancelHandle cancel,
     SemanticRankingConfig? ranking,
+  }) => Future.error(_unavailable);
+
+  @override
+  Future<List<SemanticPassageHighlight>> passageHighlights(
+    String query,
+    List<SemanticHighlightTarget> targets, {
+    required SemanticCancelHandle cancel,
   }) => Future.error(_unavailable);
 }
 

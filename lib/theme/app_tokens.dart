@@ -24,7 +24,6 @@ class AppTokens {
   static const double fontXL = 18;
 
   // ── Elevation ——————————————————————————————
-  static const double elevation0 = 0;
   static const double elevation1 = 1;
   static const double elevation2 = 3;
 
@@ -33,7 +32,6 @@ class AppTokens {
   static const Duration animNormal = Duration(milliseconds: 250);
   static const Duration animPanelOpacity = Duration(milliseconds: 200);
   static const Duration animPanelSlide = Duration(milliseconds: 300);
-  static const Duration animSlow = Duration(milliseconds: 400);
 
   // ── Drag Handle ——————————————————————————————
   static const double dragHandleCompactHitSize = 18;

@@ -46,6 +46,56 @@ Future<void> main() async {
       expect(_highlighted(spans), 'עולם');
     });
 
+    test('markStyle חל על mark בלבד; font נשאר בהדגשה הרגילה', () {
+      const markStyle = TextStyle(backgroundColor: Color(0x1F000000));
+      final spans = SnippetBuilder.fromHighlightedHtml(
+        html:
+            'א <font color=red>ב</font> <mark>ג <b>ד</b></mark> '
+            '<font color=red><mark>ה</mark></font>',
+        defaultStyle: _defaultStyle,
+        highlightStyle: _highlightStyle,
+        markStyle: markStyle,
+      );
+      String styled(TextStyle style) => spans
+          .whereType<TextSpan>()
+          .where((span) => identical(span.style, style))
+          .map((span) => span.text)
+          .join();
+
+      expect(styled(markStyle), 'ג ד');
+      // הדגשה חיצונית קובעת גם לתג שבתוכה.
+      expect(styled(_highlightStyle), 'בה');
+      expect(_allText(spans), 'א ב ג ד ה');
+    });
+
+    test('קינון font ו-mark: התג החיצוני קובע בשני הכיוונים', () {
+      const markStyle = TextStyle(backgroundColor: Color(0x1F000000));
+      final spans = SnippetBuilder.fromHighlightedHtml(
+        html:
+            '<mark>א <font color=red>ב</font></mark> '
+            '<font color=red>ג <mark>ד</mark></font>',
+        defaultStyle: _defaultStyle,
+        highlightStyle: _highlightStyle,
+        markStyle: markStyle,
+      );
+      List<String?> textsWith(TextStyle style) => [
+        for (final span in spans.whereType<TextSpan>())
+          if (identical(span.style, style)) span.text,
+      ];
+
+      expect(textsWith(markStyle), ['א ', 'ב']);
+      expect(textsWith(_highlightStyle), ['ג ', 'ד']);
+      expect(textsWith(_defaultStyle), [' ']);
+
+      // בלי markStyle שני התגים מקבלים את ההדגשה הרגילה, כמו קודם.
+      final plain = SnippetBuilder.fromHighlightedHtml(
+        html: '<mark>א <font color=red>ב</font></mark>',
+        defaultStyle: _defaultStyle,
+        highlightStyle: _highlightStyle,
+      );
+      expect(_highlighted(plain), 'א ב');
+    });
+
     test('תגי עיצוב של תוכן הספר (b) אינם נחשבים הדגשת חיפוש', () {
       final spans = SnippetBuilder.fromHighlightedHtml(
         html: '<b>כותרת</b> טקסט רגיל',
@@ -56,6 +106,28 @@ Future<void> main() async {
       expect(_highlighted(spans), isEmpty);
       expect(_allText(spans), contains('כותרת'));
       expect(_allText(spans), contains('טקסט רגיל'));
+    });
+
+    test('<br> של ביטוי שנמשך לשורה הבאה הופך למעבר שורה אמיתי', () {
+      final spans = SnippetBuilder.fromHighlightedHtml(
+        html:
+            'ובין <font color=red>המים</font><br><font color=red>ויאמר</font> אלהים',
+        defaultStyle: _defaultStyle,
+        highlightStyle: _highlightStyle,
+      );
+
+      expect(_allText(spans), 'ובין המים\nויאמר אלהים');
+      expect(_highlighted(spans), 'המיםויאמר');
+    });
+
+    test('מעבר שורה בתוך הטקסט עצמו עדיין מתכווץ לרווח', () {
+      final spans = SnippetBuilder.fromHighlightedHtml(
+        html: 'שורה\nאחת',
+        defaultStyle: _defaultStyle,
+        highlightStyle: _highlightStyle,
+      );
+
+      expect(_allText(spans), 'שורה אחת');
     });
   });
 
@@ -170,6 +242,17 @@ Future<void> main() async {
   );
 
   group('buildExcerptText', () {
+    test('קטע של שתי שורות שומר את מעבר השורה', () {
+      expect(
+        SnippetBuilder.buildExcerptText(
+          fullText: 'סוף השורה  \nתחילת הבאה',
+          query: 'השורה',
+          maxChars: 220,
+        ),
+        'סוף השורה\nתחילת הבאה',
+      );
+    });
+
     test('טקסט קצר מהמגבלה מוחזר כמות שהוא', () {
       expect(
         SnippetBuilder.buildExcerptText(
@@ -221,6 +304,13 @@ Future<void> main() async {
         'בראשית <font color="red">ברא</font>   אלהים',
       );
       expect(plain, 'בראשית ברא אלהים');
+    });
+
+    test('שומר את מעבר השורה של קטע חוצה-שורות', () {
+      final plain = SnippetBuilder.htmlToPlainText(
+        'תהו <font color=red>ובהו</font><br> ויאמר אלהים',
+      );
+      expect(plain, 'תהו ובהו\nויאמר אלהים');
     });
   });
 

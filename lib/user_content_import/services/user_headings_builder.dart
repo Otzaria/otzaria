@@ -46,7 +46,10 @@ class UserHeadingsBuilder {
       (byStructure[row.structure] ??= []).add(row);
     }
 
-    final normalizedLines = [for (final line in lines) _normalize(line)];
+    // נרמול כל שורות הספר יקר, ונדרש רק לאיתור כותרת לפי טקסט.
+    final normalizedLines = rows.any((row) => row.anchorText != null)
+        ? [for (final line in lines) _normalize(line)]
+        : lines;
     final structures = <UserAltTocStructureData>[];
     for (final MapEntry(key: name, value: structureRows)
         in byStructure.entries) {

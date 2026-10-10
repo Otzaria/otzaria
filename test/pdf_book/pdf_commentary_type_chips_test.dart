@@ -14,8 +14,10 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
-import 'package:otzaria/text_book/utils/commentary_type_filter.dart';
+import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
+import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
+import 'package:otzaria/widgets/misc/commentators_filter_button.dart';
 
 import '../helpers/memory_settings_cache.dart';
 
@@ -290,6 +292,50 @@ void main() {
         typeSelection: CommentaryTypeSelection()..value = {LinkTypes.midrash},
       );
       expect(find.byType(CommentaryContent), findsOneWidget);
+    });
+  });
+
+  group('PdfCommentaryPanel — קישורים גלויים בדפדוף', () {
+    final links = [
+      _link(path2: 'אונקלוס', connectionType: LinkTypes.targum),
+      _link(path2: 'מדרש', connectionType: LinkTypes.midrash, index1: 35),
+    ];
+
+    Future<Map<String, Set<String>>> byTypeAfterPageTurn(
+      WidgetTester tester,
+      PdfBookTab tab,
+    ) async {
+      await _pump(tester, tab);
+      tab.currentTextLineNumber = 30;
+      tab.currentTextLineNumberEnd = 40;
+      await _pump(tester, tab);
+      await tester.tap(find.byType(CommentatorsFilterButton));
+      await tester.pump();
+      return tester
+          .widget<CommentatorsSelectionPanel>(
+            find.byType(CommentatorsSelectionPanel),
+          )
+          .commentatorsByType;
+    }
+
+    testWidgets('דפדוף אינו מעתיק את הקישורים ומחשב מחדש את מיפוי הסוגים', (
+      tester,
+    ) async {
+      final tab = _tab(links, {'אונקלוס', 'מדרש'});
+      final byType = await byTypeAfterPageTurn(tester, tab);
+      expect(
+        identical(byType, CommentaryTypeFilter.commentatorsByType(tab.links)),
+        isTrue,
+      );
+    });
+
+    testWidgets('מיפוי הסוגים אחרי דפדוף זהה לתוכן הקישורים', (tester) async {
+      final tab = _tab(links, {'אונקלוס', 'מדרש'});
+      final byType = await byTypeAfterPageTurn(tester, tab);
+      expect(byType, {
+        LinkTypes.targum: {'אונקלוס'},
+        LinkTypes.midrash: {'מדרש'},
+      });
     });
   });
 }

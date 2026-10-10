@@ -90,6 +90,22 @@ void main() {
       expect(find.text('כאן'), findsNothing);
     });
 
+    testWidgets('shows the Beit Aharon VeYisrael copyright text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const BookSourceBanner(
+            kind: BookSourceBannerKind.beitAharonVeYisrael,
+            bookTitle: 'ספר',
+          ),
+        ),
+      );
+
+      expect(find.text(kBeitAharonVeYisraelBannerText), findsOneWidget);
+      expect(find.text('כאן'), findsNothing);
+    });
+
     testWidgets('shows the wiki jewish books link when online', (
       tester,
     ) async {

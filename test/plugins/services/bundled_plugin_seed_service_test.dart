@@ -225,6 +225,61 @@ void main() {
     );
   });
 
+  group('תוסף שתלוי ברשת — נרשם רק כש-otzaria.org עונה 200', () {
+    BundledPluginSeedService buildGatedService({
+      Future<bool> Function()? isSiteReachable,
+    }) {
+      return BundledPluginSeedService(
+        repository: repository,
+        allowedIds: {'test.bundled'},
+        bundleDirPath: bundleDir.path,
+        networkGatedIds: {'test.bundled'},
+        isSiteReachable: isSiteReachable,
+      );
+    }
+
+    setUp(() {
+      writePluginArchive(
+        p.join(bundleDir.path, 'test.bundled.otzplugin'),
+        'test.bundled',
+      );
+    });
+
+    test('בלי תשובת 200 אינו מותקן ואינו מסומן — ינוסה שוב', () async {
+      final registered = await buildGatedService(
+        isSiteReachable: () async => false,
+      ).seedPending();
+
+      expect(registered, isFalse);
+      expect(repository.savedIds, isEmpty);
+      expect(
+        Settings.getValue<String>(
+          SettingsRepository.keySeededBundledPlugins,
+          defaultValue: '',
+        ),
+        '',
+      );
+    });
+
+    test('עם תשובת 200 מותקן ומסומן כמטופל', () async {
+      final registered = await buildGatedService(
+        isSiteReachable: () async => true,
+      ).seedPending();
+
+      expect(registered, isTrue);
+      expect(repository.savedIds, ['test.bundled']);
+    });
+
+    test('במצב "ללא גישה לאינטרנט" אינו מותקן, בלי בקשת רשת', () async {
+      await Settings.setValue<bool>(SettingsRepository.keyOfflineMode, true);
+
+      final registered = await buildGatedService().seedPending();
+
+      expect(registered, isFalse);
+      expect(repository.savedIds, isEmpty);
+    });
+  });
+
   group('מובייל — ארכיונים מ-assets (אין תיקייה ליד ה-executable)', () {
     BundledPluginSeedService buildAssetService(
       Set<String> allowedIds,

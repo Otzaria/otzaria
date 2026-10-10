@@ -47,7 +47,7 @@ List<AppContextMenuEntry> buildDictionaryContextMenuEntries({
       entries.add(
         AppContextMenuEntry(
           label: 'מילון ארמי-עברי',
-          icon: OtzariaIcons.alef_near_alef_stam_24_regular,
+          icon: OtzariaIcons.alef_near_alef_stam_24_filled,
           children: aramaicMatches
               .map<AppContextMenuEntry>(
                 (entry) => AppContextMenuEntry(

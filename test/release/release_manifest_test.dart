@@ -28,39 +28,37 @@ void main() {
 
   String hex(int seed) => seed.toRadixString(16).padLeft(2, '0') * 32;
 
+  /// נכס מפוצל: החלקים ומניפסט הפיצול, בצורה של split_release_asset.sh.
+  void writeSplit(String archive, int seed, List<int> sizes) {
+    final parts = <Map<String, Object>>[];
+    for (var i = 0; i < sizes.length; i++) {
+      final name = '$archive.part-${i.toString().padLeft(3, '0')}';
+      writeFile(name, String.fromCharCode(0x61 + i) * sizes[i]);
+      parts.add({'name': name, 'size': sizes[i], 'sha256': hex(seed + i + 1)});
+    }
+    writeJson('$archive.manifest.json', {
+      'schemaVersion': 1,
+      'archive': archive,
+      'size': sizes.fold(0, (a, b) => a + b),
+      'sha256': hex(seed),
+      'partSizeLimit': 1992294400,
+      'githubAssetLimit': 2147483648,
+      'parts': parts,
+    });
+  }
+
   /// קבצי release ריאליסטיים בנוסח 0.9.97 (בגודל מוקטן).
   void writeRealisticRelease({bool withFullInstaller = true}) {
     writeFile('otzaria-0.9.97-windows.exe', 'installer');
     writeFile('otzaria-0.9.97-windows_arm64.exe', 'installer-arm');
     writeFile('otzaria-windows.zip', 'portable');
     writeFile('otzaria-windows_arm64.zip', 'portable-arm');
-    writeFile('otzaria-0.9.97-windows-full-indexed.exe', 'full-indexed');
     if (withFullInstaller) {
       writeFile('otzaria-0.9.97-windows-full.exe', 'full');
     }
 
-    writeFile('otzaria-0.9.97-library-full-indexed.tar.zst.part-000', 'x' * 30);
-    writeFile('otzaria-0.9.97-library-full-indexed.tar.zst.part-001', 'y' * 12);
-    writeJson('otzaria-0.9.97-library-full-indexed.tar.zst.manifest.json', {
-      'schemaVersion': 1,
-      'archive': 'otzaria-0.9.97-library-full-indexed.tar.zst',
-      'size': 42,
-      'sha256': hex(0xab),
-      'partSizeLimit': 1992294400,
-      'githubAssetLimit': 2147483648,
-      'parts': [
-        {
-          'name': 'otzaria-0.9.97-library-full-indexed.tar.zst.part-000',
-          'size': 30,
-          'sha256': hex(0x1a),
-        },
-        {
-          'name': 'otzaria-0.9.97-library-full-indexed.tar.zst.part-001',
-          'size': 12,
-          'sha256': hex(0x2b),
-        },
-      ],
-    });
+    writeSplit('otzaria-0.9.97-library.tar.zst', 0xab, const [30, 12]);
+    writeSplit('otzaria-0.9.97-library-index.tar.zst', 0xcd, const [20]);
   }
 
   Map<String, Object?> build({
@@ -103,8 +101,8 @@ void main() {
           'otzaria-windows-portable-x64',
           'otzaria-windows-portable-arm64',
           'otzaria-windows-full',
-          'otzaria-windows-full-indexed',
-          'library-full-indexed',
+          'library-full',
+          'library-index',
         ]),
       );
 
@@ -307,15 +305,11 @@ void main() {
         type: 'application',
         platform: 'android',
       );
-      expectComponent(
-        'otzaria-android-full',
-        'otzaria-android-full.zip',
-        type: 'application-bundle',
-        platform: 'android',
-      );
 
-      // ה-zip של macOS הוא ערוץ העדכון הפנימי, לא רכיב להורדה.
+      // ה-zip של macOS הוא ערוץ העדכון הפנימי, לא רכיב להורדה; כרכי ה-ZIP של
+      // Android להתקנה ידנית — במסייע ה-APK מגיע עם חלקי הספרייה עצמם.
       expect(jsonEncode(manifest), isNot(contains('"otzaria-macos.zip"')));
+      expect(jsonEncode(manifest), isNot(contains('otzaria-android-full')));
     });
 
     test('a full bundle of any platform survives being split', () {
@@ -355,25 +349,6 @@ void main() {
       );
     });
 
-    test('Android FULL volumes are standalone ZIP assets in volume order', () {
-      writeRealisticRelease();
-      writeFile('otzaria-android-full-part10.zip', 'j' * 3);
-      writeFile('otzaria-android-full-part2.zip', 'b' * 5);
-      writeFile('otzaria-android-full-part1.zip', 'a' * 7);
-
-      final manifest = build();
-      expect(validateReleaseManifest(manifest), isEmpty);
-      final full = componentById(manifest, 'otzaria-android-full');
-      final assets = (full['assets'] as List).cast<Map<String, Object?>>();
-      expect(assets.map((a) => a['name']), [
-        'otzaria-android-full-part1.zip',
-        'otzaria-android-full-part2.zip',
-        'otzaria-android-full-part10.zip',
-      ]);
-      expect(assets.map((a) => a['kind']).toSet(), {'single'});
-      expect(full['downloadSize'], 15);
-    });
-
     test('a split SeforimLibrary DB passes as an external component', () {
       writeRealisticRelease();
       final manifest = buildReleaseManifest(
@@ -391,7 +366,7 @@ void main() {
             'platform': 'any',
             'installOrder': 30,
             'dependsOn': <String>[],
-            'installedBy': ['otzaria-windows-full-indexed'],
+            'installedBy': ['otzaria-windows-x64'],
             'downloadSize': 25,
             'assets': [
               {
@@ -435,7 +410,7 @@ void main() {
           .map((c) => c['id'])
           .toList();
       expect(ids, isNot(contains('otzaria-windows-full')));
-      expect(ids, contains('otzaria-windows-full-indexed'));
+      expect(ids, containsAll(['library-full', 'library-index']));
       expect(jsonEncode(manifest), isNot(contains('otzaria-windows-full"')));
     });
 
@@ -443,29 +418,42 @@ void main() {
       writeRealisticRelease();
       final manifest = build();
 
-      final library = componentById(manifest, 'library-full-indexed');
+      final library = componentById(manifest, 'library-full');
       expect(library['type'], 'library');
-      // המתקין המאונדקס הוא היחיד שקורא את החלקים לצדו; המתקין הרגיל לא.
-      expect(library['installedBy'], ['otzaria-windows-full-indexed']);
+      // המתקינים הרגילים של Windows הם שקוראים את החלקים לצדם.
+      expect(library['installedBy'], [
+        'otzaria-windows-x64',
+        'otzaria-windows-arm64',
+      ]);
       expect(library['dependsOn'], isEmpty);
       // גודל ההורדה הוא סכום החלקים, לא גודל הארכיון בלבד.
       expect(library['downloadSize'], 42);
 
       final asset = (library['assets'] as List).single as Map<String, Object?>;
       expect(asset['kind'], 'split');
-      expect(asset['name'], 'otzaria-0.9.97-library-full-indexed.tar.zst');
+      expect(asset['name'], 'otzaria-0.9.97-library.tar.zst');
       expect(asset['size'], 42);
       expect(asset['sha256'], hex(0xab));
       expect(
         asset['manifestAsset'],
-        'otzaria-0.9.97-library-full-indexed.tar.zst.manifest.json',
+        'otzaria-0.9.97-library.tar.zst.manifest.json',
       );
       final parts = (asset['parts'] as List).cast<Map<String, Object?>>();
       expect(parts.map((p) => p['name']), [
-        'otzaria-0.9.97-library-full-indexed.tar.zst.part-000',
-        'otzaria-0.9.97-library-full-indexed.tar.zst.part-001',
+        'otzaria-0.9.97-library.tar.zst.part-000',
+        'otzaria-0.9.97-library.tar.zst.part-001',
       ]);
       expect(parts.map((p) => p['size']), [30, 12]);
+
+      // האינדקס: סוג משלו, כדי ש"מלאה" לא תאסוף אותו, ותלוי בספרייה.
+      final index = componentById(manifest, 'library-index');
+      expect(index['type'], 'library-index');
+      expect(index['dependsOn'], ['library-full']);
+      expect(index['installedBy'], library['installedBy']);
+      expect(
+        ((index['assets'] as List).single as Map)['name'],
+        'otzaria-0.9.97-library-index.tar.zst',
+      );
 
       // אף חלק אינו רכיב בפני עצמו.
       final ids = (manifest['components'] as List)
@@ -485,7 +473,7 @@ void main() {
         'catalogueBooks': 1234,
       });
 
-      final library = componentById(build(), 'library-full-indexed');
+      final library = componentById(build(), 'library-index');
       expect(library['compatibility'], {
         'libraryReleaseTag': 'v27',
         'seforimDbZstSha256': hex(0x3c),
@@ -497,10 +485,7 @@ void main() {
     test('no provenance file means no compatibility key at all', () {
       writeRealisticRelease();
       expect(
-        componentById(
-          build(),
-          'library-full-indexed',
-        ).containsKey('compatibility'),
+        componentById(build(), 'library-index').containsKey('compatibility'),
         isFalse,
       );
     });
@@ -532,6 +517,9 @@ void main() {
       expect(model['type'], 'semantic-model');
       expect(model['origin'], 'imported');
       expect(model['installOrder'], 40);
+      // בלי טקסט באנגלית אין מפתח ריק — הצרכן נופל לעברית.
+      expect(model.containsKey('nameEn'), isFalse);
+      expect(model.containsKey('descriptionEn'), isFalse);
       // נספח אחרון בסדר ההתקנה.
       expect((decoded['components'] as List).last['id'], 'semantic-model');
     });
@@ -549,7 +537,7 @@ void main() {
             'origin': 'built',
             'installOrder': 35,
             'dependsOn': const <String>[],
-            'installedBy': const ['otzaria-windows-full-indexed'],
+            'installedBy': const ['otzaria-windows-x64'],
             'downloadSize': 100,
             'assets': [
               {
@@ -573,13 +561,35 @@ void main() {
   });
 
   group('who installs a library (installedBy)', () {
-    test('a library whose installer was not built is left out', () {
+    test('a library whose installers were not built is left out', () {
       writeRealisticRelease();
-      File('${dir.path}/otzaria-0.9.97-windows-full-indexed.exe').deleteSync();
+      File('${dir.path}/otzaria-0.9.97-windows.exe').deleteSync();
       final manifest = build();
       expect(validateReleaseManifest(manifest), isEmpty);
       final ids = (manifest['components'] as List).map((c) => (c as Map)['id']);
-      expect(ids, isNot(contains('library-full-indexed')));
+      expect(ids, containsAll(['library-full', 'library-index']));
+
+      File('${dir.path}/otzaria-0.9.97-windows_arm64.exe').deleteSync();
+      final none = build();
+      expect(validateReleaseManifest(none), isEmpty);
+      final left = (none['components'] as List).map((c) => (c as Map)['id']);
+      expect(left, isNot(contains('library-full')));
+      expect(left, isNot(contains('library-index')));
+    });
+
+    test('an index without the library is left out', () {
+      writeRealisticRelease();
+      for (final name in [
+        'otzaria-0.9.97-library.tar.zst.manifest.json',
+        'otzaria-0.9.97-library.tar.zst.part-000',
+        'otzaria-0.9.97-library.tar.zst.part-001',
+      ]) {
+        File('${dir.path}/$name').deleteSync();
+      }
+      final manifest = build();
+      expect(validateReleaseManifest(manifest), isEmpty);
+      final ids = (manifest['components'] as List).map((c) => (c as Map)['id']);
+      expect(ids, isNot(contains('library-index')));
     });
 
     test('the ARM64 FULL installer is its own component', () {
@@ -644,6 +654,7 @@ void main() {
 
     test('a library must name who installs it', () {
       expect(errorsOf([component('lib', type: 'library')]), isNotEmpty);
+      expect(errorsOf([component('idx', type: 'library-index')]), isNotEmpty);
       expect(
         errorsOf([
           component('setup'),
@@ -687,9 +698,9 @@ void main() {
   group('malformed input is rejected', () {
     test('a split manifest of an unknown schema version', () {
       writeRealisticRelease();
-      writeJson('otzaria-0.9.97-library-full-indexed.tar.zst.manifest.json', {
+      writeJson('otzaria-0.9.97-library.tar.zst.manifest.json', {
         'schemaVersion': 2,
-        'archive': 'otzaria-0.9.97-library-full-indexed.tar.zst',
+        'archive': 'otzaria-0.9.97-library.tar.zst',
         'size': 42,
         'sha256': hex(0xab),
         'parts': [
@@ -702,7 +713,7 @@ void main() {
     test('a part listed in the split manifest but missing from the dir', () {
       writeRealisticRelease();
       File(
-        '${dir.path}/otzaria-0.9.97-library-full-indexed.tar.zst.part-001',
+        '${dir.path}/otzaria-0.9.97-library.tar.zst.part-001',
       ).deleteSync();
       expect(build, throwsA(isA<ReleaseManifestException>()));
     });
@@ -710,7 +721,7 @@ void main() {
     test('a part whose size on disk differs from the manifest', () {
       writeRealisticRelease();
       writeFile(
-        'otzaria-0.9.97-library-full-indexed.tar.zst.part-001',
+        'otzaria-0.9.97-library.tar.zst.part-001',
         'short',
       );
       expect(build, throwsA(isA<ReleaseManifestException>()));
@@ -718,9 +729,9 @@ void main() {
 
     test('a malformed hash in the split manifest', () {
       writeRealisticRelease();
-      writeJson('otzaria-0.9.97-library-full-indexed.tar.zst.manifest.json', {
+      writeJson('otzaria-0.9.97-library.tar.zst.manifest.json', {
         'schemaVersion': 1,
-        'archive': 'otzaria-0.9.97-library-full-indexed.tar.zst',
+        'archive': 'otzaria-0.9.97-library.tar.zst',
         'size': 42,
         'sha256': 'not-a-hash',
         'parts': [
@@ -732,9 +743,9 @@ void main() {
 
     test('an unsafe part name never becomes a path', () {
       writeRealisticRelease();
-      writeJson('otzaria-0.9.97-library-full-indexed.tar.zst.manifest.json', {
+      writeJson('otzaria-0.9.97-library.tar.zst.manifest.json', {
         'schemaVersion': 1,
-        'archive': 'otzaria-0.9.97-library-full-indexed.tar.zst',
+        'archive': 'otzaria-0.9.97-library.tar.zst',
         'size': 42,
         'sha256': hex(0xab),
         'parts': [
@@ -980,10 +991,77 @@ void main() {
         nameOf('otzaria-windows-full'),
         'אוצריא ל-Windows עם ספרייה מלאה',
       );
-      expect(
-        nameOf('otzaria-windows-full-indexed'),
-        'אוצריא ל-Windows עם ספרייה מאונדקסת',
-      );
+    });
+  });
+
+  group('הטקסט באנגלית (nameEn, descriptionEn, outputNoteEn)', () {
+    final hebrew = RegExp(r'[֐-׿]');
+
+    // מסייע באנגלית מציג כל רכיב בנוי באנגלית; בלי השדה היה נופל לעברית.
+    test('לכל רכיב ידוע שם ותיאור באנגלית, בלי אותיות עבריות', () {
+      const displayNames = {
+        'windows': 'Windows',
+        'linux': 'Linux',
+        'macos': 'macOS',
+        'android': 'Android',
+      };
+      for (final spec in kKnownComponents) {
+        for (final text in [spec.nameEn, spec.descriptionEn]) {
+          expect(text?.trim(), isNotEmpty, reason: spec.id);
+          expect(text, isNot(contains(hebrew)), reason: spec.id);
+        }
+        final displayName = displayNames[spec.platform];
+        if (displayName != null) {
+          expect(spec.nameEn, contains(displayName), reason: spec.id);
+        }
+      }
+    });
+
+    test('הגנרטור כותב אותם לצד העברית, והם שורדים JSON', () {
+      writeRealisticRelease();
+      final decoded = jsonDecode(jsonEncode(build())) as Map<String, Object?>;
+      expect(validateReleaseManifest(decoded), isEmpty);
+      final app = componentById(decoded, 'otzaria-windows-x64');
+      expect(app['name'], 'אוצריא ל-Windows');
+      expect(app['nameEn'], 'Otzaria for Windows');
+      expect(app['description'], startsWith('התוכנה עצמה'));
+      expect(app['descriptionEn'], startsWith('Otzaria itself'));
+      final library = componentById(decoded, 'library-full');
+      expect(library['nameEn'], 'Full Library');
+      expect(library['outputNoteEn'], contains('extracts the library'));
+      final index = componentById(decoded, 'library-index');
+      expect(index['nameEn'], 'Prebuilt Search Index (for Slower Computers)');
+      expect(index['outputNoteEn'], contains('prebuilt search index'));
+    });
+
+    test('מניפסט ישן בלי השדות עדיין תקין', () {
+      writeRealisticRelease();
+      final manifest = build();
+      for (final component
+          in (manifest['components'] as List).cast<Map<String, Object?>>()) {
+        component
+          ..remove('nameEn')
+          ..remove('descriptionEn')
+          ..remove('outputNoteEn');
+      }
+      expect(validateReleaseManifest(manifest), isEmpty);
+    });
+
+    test('אופציונליים, אבל אם קיימים — מחרוזת לא ריקה', () {
+      for (final MapEntry(key: key, value: bad) in const {
+        'nameEn': '',
+        'descriptionEn': 42,
+        'outputNoteEn': '   ',
+      }.entries) {
+        writeRealisticRelease();
+        final manifest = build();
+        componentById(manifest, 'otzaria-windows-x64')[key] = bad;
+        expect(
+          validateReleaseManifest(manifest),
+          [contains('$key must be a non-empty string')],
+          reason: key,
+        );
+      }
     });
   });
 }

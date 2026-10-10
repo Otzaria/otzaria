@@ -207,7 +207,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
       autofocus: true,
       // מחפש בספרייה כולה, לא מסנן את הרשימה שעל המסך — ולכן העדשה
       // הממוקדת, אותה אחת שנושא שדה החיפוש של מסך הספרייה.
-      icon: OtzariaIcons.search_in_the_library_24_regular,
+      icon: OtzariaIcons.search_in_library_24_regular,
       hintText: 'חיפוש ספר...',
       onChanged: (_) => setState(() {}),
       onClear: () => setState(() {}),

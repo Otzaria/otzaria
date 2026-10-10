@@ -16,6 +16,7 @@ import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/history/history_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
+import 'package:otzaria/personal_notes/services/personal_notes_service.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
@@ -271,6 +272,36 @@ void main() {
     expect((await db.getNote('note-2'))?.content, 'הערה שרק בגיבוי');
     expect(added?.notes, 1);
     expect(added?.notesUpdated, 0);
+  });
+
+  test('יישוב מיקום בטעינת ספר אינו גובר על עריכה ממכשיר אחר', () async {
+    final db = PersonalNotesDatabase.instance;
+    final editedElsewhere = DateTime.now().subtract(const Duration(days: 1));
+    await db.insertNote(
+      buildNote(
+        id: 'note-1',
+        content: 'נערך במכשיר אחר',
+        updatedAt: editedElsewhere,
+      ),
+    );
+    final path = await createFullBackup();
+
+    await db.insertNote(
+      buildNote(
+        id: 'note-1',
+        content: 'ישן',
+        updatedAt: DateTime.parse('2026-01-01T10:00:00.000'),
+      ),
+    );
+    await PersonalNotesService(database: db).loadNotes(
+      bookId: 'ספר-הערות',
+      bookContent: 'א\nב\nג\nד\nשורה שנוספה\nשורה לדוגמה',
+    );
+    expect((await db.getNote('note-1'))?.lineNumber, 6);
+
+    await importMerge(path);
+
+    expect((await db.getNote('note-1'))?.content, 'נערך במכשיר אחר');
   });
 
   test('ייבוא חוזר של אותו קובץ אינו מוסיף דבר', () async {

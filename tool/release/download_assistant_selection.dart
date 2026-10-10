@@ -50,8 +50,20 @@ class AssistantTarget {
 }
 
 /// ההצעה המסומנת מראש: במחשב עם אינטרנט הספרייה יורדת מתוך התוכנה.
-/// "מלאה" נשארת ראשונה ברשימה כי סדר ההצעות קובע איזו כפולה מושמטת.
 const String kDefaultPresetId = 'basic';
+
+/// סדר ההצגה של ההצעות. הוא אינו סדר ההערכה ב-[buildPresets], שקובע איזו
+/// כפולה מושמטת.
+const List<String> kPresetDisplayOrder = [
+  'basic',
+  'full-indexed',
+  'full',
+  'update',
+];
+
+/// נתוני החיפוש החכם, שהתוכנה המותקנת קוראת מתיקיית הפלט (`outputFolder`).
+/// הם חלק מ"מלאה" ומ"מלאה + אינדקס" — למחשב בלי אינטרנט — ואינם בשאר ההצעות.
+const Set<String> kOfflineDataTypes = {'semantic-model', 'semantic-vectors'};
 
 /// הצעה מוכנה: מזהה יציב, הטקסט למשתמש, והרכיבים בסדר המניפסט.
 class AssistantPreset {
@@ -75,6 +87,17 @@ List<Map<String, Object?>> _components(Map<String, Object?> manifest) =>
 
 String _field(Map<String, Object?> component, String key) =>
     (component[key] as String?) ?? '';
+
+/// טקסט הרכיב למשתמש ([key] = name / description / outputNote). באנגלית
+/// השדה `<key>En`, ובהיעדרו (release ישן) — העברי.
+String componentText(
+  Map<String, Object?> component,
+  String key, {
+  required bool english,
+}) {
+  final translated = english ? _field(component, '${key}En') : '';
+  return translated.isNotEmpty ? translated : _field(component, key);
+}
 
 bool _isWildcard(String value) => value.isEmpty || value == 'any';
 
@@ -133,6 +156,71 @@ bool componentIsOffered(
   if (!_fitsAndRunnable(component, target)) return false;
   if (_ids(component, 'installedBy').isEmpty) return true;
   return installerFor(manifest, component, target) != null;
+}
+
+/// קבוצת הבחירה-אחת-מתוך בבחירה האישית: הדרכים החלופיות להתקין את התוכנה.
+const String kApplicationChoiceGroup = 'application';
+
+/// שורה בבחירה האישית. [locked] — מסומנת תמיד ואי אפשר לבטל אותה; [group] —
+/// שורות עם אותה קבוצה הן בחירה אחת-מתוך (רדיו), '' — תיבת סימון.
+typedef CustomChoice = ({
+  String id,
+  int downloadSize,
+  bool locked,
+  String group,
+});
+
+Map<String, Object> customChoiceToJson(CustomChoice choice) => {
+  'id': choice.id,
+  'downloadSize': choice.downloadSize,
+  'locked': choice.locked,
+  'group': choice.group,
+};
+
+/// השורות בבחירה האישית, בסדר המניפסט: הדרך להתקין את התוכנה ורכיבי הרשות.
+///
+/// גרסה ניידת אינה מוצגת — היא צורה חלופית של אותה תוכנה. כשהמתקין הרגיל
+/// פורס ספרייה שלצדו, החבילה המלאה מיותרת ואינה מוצגת, והמתקין נעול. אחרת
+/// התוכנה והחבילה המלאה הן בחירה אחת-מתוך, כדי שלא יורדו שתיהן.
+List<CustomChoice> customChoices(
+  Map<String, Object?> manifest,
+  AssistantTarget target,
+) {
+  final byId = {for (final c in _components(manifest)) c['id']: c};
+  final offered = [
+    for (final component in _components(manifest))
+      if (componentIsOffered(manifest, component, target) &&
+          _field(component, 'type') != 'application-portable')
+        component,
+  ];
+  final installerTakesLibrary = offered.any((component) {
+    final installer = installerFor(manifest, component, target);
+    return installer != null &&
+        _field(byId[installer]!, 'type') == 'application';
+  });
+  final rows = [
+    for (final component in offered)
+      if (_field(component, 'partOf').isEmpty &&
+          !(installerTakesLibrary &&
+              _field(component, 'type') == 'application-bundle'))
+        component,
+  ];
+  bool isInstaller(Map<String, Object?> c) =>
+      const {'application', 'application-bundle'}.contains(_field(c, 'type'));
+  final radio = rows.where(isInstaller).length > 1;
+  return [
+    for (final component in rows)
+      (
+        id: component['id'] as String,
+        downloadSize: offered
+            .where(
+              (c) => c == component || _field(c, 'partOf') == component['id'],
+            )
+            .fold(0, (sum, c) => sum + (c['downloadSize'] as int)),
+        locked: isInstaller(component) && !radio,
+        group: isInstaller(component) && radio ? kApplicationChoiceGroup : '',
+      ),
+  ];
 }
 
 /// הפלטפורמות שיש להן לפחות רכיב ייעודי אחד (רכיב `any` לבדו אינו מספיק).
@@ -298,15 +386,30 @@ List<String> withDependencies(
   ];
 }
 
-/// ההצעות לפי הסדר שבו הן מוצגות. הצעה ריקה, או זהה להצעה קודמת, מושמטת.
-/// "בחירה אישית" אינה כאן — היא תמיד האפשרות האחרונה ואינה נגזרת.
+/// ההצעות ב-[kPresetDisplayOrder]. הצעה ריקה מושמטת, וכך גם הצעה זהה להצעה
+/// שהוערכה לפניה — בסדר מלאה + אינדקס, מלאה, בסיסית, עדכון, כדי שהשם המפורט
+/// יותר יישאר. "בחירה אישית" אינה כאן — היא תמיד האחרונה ואינה נגזרת.
 List<AssistantPreset> buildPresets(
   Map<String, Object?> manifest,
   AssistantTarget target,
 ) {
   final components = _components(manifest);
+  final offline = _collect(manifest, target, types: kOfflineDataTypes);
+
+  // חבילה יחד עם כל רכיב מוצע שהיא ב-`installedBy` שלו.
+  List<String> withInstalled(Map<String, Object?> bundle) => [
+    bundle['id'] as String,
+    for (final component in components)
+      if (_ids(component, 'installedBy').contains(bundle['id']) &&
+          componentIsOffered(manifest, component, target))
+        component['id'] as String,
+  ];
+  int sizeOf(List<String> ids) => components
+      .where((c) => ids.contains(c['id']))
+      .fold(0, (sum, c) => sum + (c['downloadSize'] as int));
 
   Map<String, Object?>? bundle;
+  Map<String, Object?>? indexed;
   for (final component in components) {
     if (!componentIsOffered(manifest, component, target)) continue;
     if (_field(component, 'type') != 'application-bundle') continue;
@@ -314,18 +417,29 @@ List<AssistantPreset> buildPresets(
         (component['downloadSize'] as int) > (bundle['downloadSize'] as int)) {
       bundle = component;
     }
+    // החבילה המאונדקסת: ספרייה מוצעת מותקנת על ידה.
+    final installsLibrary = components.any(
+      (c) =>
+          _field(c, 'type') == 'library' &&
+          _ids(c, 'installedBy').contains(component['id']) &&
+          componentIsOffered(manifest, c, target),
+    );
+    if (installsLibrary &&
+        (indexed == null ||
+            sizeOf(withInstalled(component)) >
+                sizeOf(withInstalled(indexed)))) {
+      indexed = component;
+    }
   }
 
-  // בלי חבילה, "מלאה" היא התוכנה עם ספרייה — ובלי ספרייה אין "מלאה".
+  // בלי חבילה, "מלאה" היא התוכנה עם ספרייה — ובלי ספרייה אין "מלאה". ב-Android
+  // גם "מלאה + אינדקס": בטלפון בניית האינדקס איטית מאוד.
   final List<String> full;
+  var fullIndexed = indexed == null
+      ? const <String>[]
+      : [...withInstalled(indexed), ...offline];
   if (bundle != null) {
-    full = [
-      bundle['id'] as String,
-      for (final component in components)
-        if (_ids(component, 'installedBy').contains(bundle['id']) &&
-            componentIsOffered(manifest, component, target))
-          component['id'] as String,
-    ];
+    full = [...withInstalled(bundle), ...offline];
   } else {
     final collected = _collect(
       manifest,
@@ -335,21 +449,35 @@ List<AssistantPreset> buildPresets(
     final hasLibrary = components.any(
       (c) => collected.contains(c['id']) && _field(c, 'type') == 'library',
     );
-    full = hasLibrary ? collected : const [];
+    full = hasLibrary ? [...collected, ...offline] : const [];
+    if (hasLibrary && target.platform == 'android') {
+      fullIndexed = [
+        ...collected,
+        ..._collect(manifest, target, types: const {'library-index'}),
+        ...offline,
+      ];
+    }
   }
 
   final candidates = [
     (
+      id: 'full-indexed',
+      caption: 'התקנה מלאה + אינדקס חיפוש',
+      description:
+          'למחשב שאין בו אינטרנט — אינדקס החיפוש מוכן, והחיפוש עובד מיד. כולל חיפוש חכם.',
+      members: fullIndexed,
+    ),
+    (
       id: 'full',
-      caption: 'התקנה מלאה (למחשב בלי אינטרנט)',
-      description: 'התוכנה יחד עם כל ספריית הספרים — למחשב שאין בו אינטרנט.',
+      caption: 'התקנה מלאה',
+      description:
+          'למחשב שאין בו אינטרנט — אינדקס החיפוש ייבנה בתוכנה, וזה לוקח זמן. כולל חיפוש חכם.',
       members: full,
     ),
     (
       id: 'basic',
       caption: 'התקנה בסיסית (מומלצת)',
-      description:
-          'מומלץ כשבמחשב שבו תותקן אוצריא יש אינטרנט — הספרייה תרד מתוך התוכנה.',
+      description: 'למחשב שיש בו אינטרנט — הספרייה תרד מתוך התוכנה.',
       members: [
         ..._collect(manifest, target, types: const {'application'}),
         ..._collect(manifest, target, requiredOnly: true),
@@ -378,7 +506,18 @@ List<AssistantPreset> buildPresets(
       ),
     );
   }
-  return presets;
+  return [
+    for (final id in kPresetDisplayOrder) ...presets.where((p) => p.id == id),
+  ];
+}
+
+/// מזהה ההצעה המסומנת מראש: [kDefaultPresetId], ובלעדיה `full` — לא
+/// `full-indexed` הגדולה ממנה; בלי שתיהן — הראשונה. null כשאין הצעות.
+String? defaultPresetIdFor(List<AssistantPreset> presets) {
+  for (final id in const [kDefaultPresetId, 'full']) {
+    if (presets.any((p) => p.id == id)) return id;
+  }
+  return presets.isEmpty ? null : presets.first.id;
 }
 
 bool _sameList(List<String> a, List<String> b) {
@@ -409,7 +548,8 @@ bool shouldAssembleSplitAsset(
 String outputSubfolderName(String targetPlatform) =>
     'אוצריא להתקנה ל-${kPlatformDisplayNames[targetPlatform] ?? targetPlatform}';
 
-/// הקבצים שייווצרו בתיקיית היעד, בסדר המניפסט.
+/// הקבצים שייווצרו בתיקיית היעד, בסדר המניפסט. קובץ של רכיב עם
+/// `outputFolder` נכתב בתיקייה הזאת, והנתיב היחסי מופרד ב-`/`.
 List<String> plannedOutputFiles(
   Map<String, Object?> manifest,
   Iterable<String> selectedIds,
@@ -419,17 +559,19 @@ List<String> plannedOutputFiles(
   final files = <String>[];
   for (final component in _components(manifest)) {
     if (!selected.contains(component['id'])) continue;
+    final folder = _field(component, 'outputFolder');
+    final prefix = folder.isEmpty ? '' : '$folder/';
     for (final asset
         in (component['assets'] as List).cast<Map<String, Object?>>()) {
       if (asset['kind'] == 'split' &&
           !shouldAssembleSplitAsset(asset, target.platform)) {
         files.addAll(
           (asset['parts'] as List).cast<Map<String, Object?>>().map(
-            (part) => part['name'] as String,
+            (part) => '$prefix${part['name']}',
           ),
         );
       } else {
-        files.add(asset['name'] as String);
+        files.add('$prefix${asset['name']}');
       }
     }
   }
@@ -439,3 +581,19 @@ List<String> plannedOutputFiles(
 /// התיקייה היחסית לתיקיית הבסיס: '' לקובץ יחיד, אחרת תת-התיקייה.
 String plannedOutputSubfolder(List<String> files, String targetPlatform) =>
     files.length > 1 ? outputSubfolderName(targetPlatform) : '';
+
+/// ההסברים (`outputNote`) שעמוד הסיום מוסיף לבחירה, בסדר המניפסט ובלי כפולים.
+List<String> plannedOutputNotes(
+  Map<String, Object?> manifest,
+  Iterable<String> selectedIds, {
+  bool english = false,
+}) {
+  final selected = selectedIds.toSet();
+  final notes = <String>[];
+  for (final component in _components(manifest)) {
+    if (!selected.contains(component['id'])) continue;
+    final note = componentText(component, 'outputNote', english: english);
+    if (note.isNotEmpty && !notes.contains(note)) notes.add(note);
+  }
+  return notes;
+}

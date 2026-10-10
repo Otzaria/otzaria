@@ -2,9 +2,11 @@ import 'dart:convert';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/app_report/models/app_report_minidump.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// תצוגה מקדימה של מה שיישלח: מפת האבחון וקטע יומן השגיאות, כל אחד עם
 /// תיבת סימון להחרגה. הטקסטים טכניים ולכן מוצגים LTR.
@@ -17,6 +19,9 @@ class AppReportPreviewSection extends StatefulWidget {
     required this.includeErrorLog,
     required this.onDiagnosticsChanged,
     required this.onErrorLogChanged,
+    this.minidump,
+    this.includeMinidump = false,
+    this.onMinidumpChanged,
     this.enabled = true,
   });
 
@@ -26,12 +31,21 @@ class AppReportPreviewSection extends StatefulWidget {
   final bool includeErrorLog;
   final ValueChanged<bool> onDiagnosticsChanged;
   final ValueChanged<bool> onErrorLogChanged;
+
+  /// קובץ הקריסה; תיבת הסימון מוצגת רק כשיש כזה.
+  final AppReportMinidump? minidump;
+  final bool includeMinidump;
+  final ValueChanged<bool>? onMinidumpChanged;
   final bool enabled;
 
   static const String privacyNote =
       'הכותרת, התיאור, פרטי הגרסה וצילומי המסך נכנסים למעקב התקלות של '
-      'מפתחי אוצריא ב-GitHub. מידע האבחון, יומן השגיאות וכתובת הדואר '
-      'נשארים אצל צוות אוצריא בלבד.';
+      'מפתחי אוצריא ב-GitHub. מידע האבחון, יומן השגיאות, קובץ הקריסה '
+      'וכתובת הדואר נשארים אצל צוות אוצריא בלבד.';
+
+  static const String minidumpNote =
+      'תמונת זיכרון של התוכנה ברגע הקריסה. עשויה לכלול טקסט שהיה פתוח '
+      'ונתיבי קבצים.';
 
   /// מפת האבחון כטקסט מסודר לתצוגה.
   static String prettyJson(Map<String, dynamic> diagnostics) {
@@ -86,13 +100,29 @@ class _AppReportPreviewSectionState extends State<AppReportPreviewSection> {
               ? (value) => widget.onErrorLogChanged(value ?? false)
               : null,
           title: _AttachmentTitle(
-            icon: FluentIcons.document_bullet_list_24_regular,
+            icon: OtzariaIcons.document_bullet_list_24_filled,
             label: 'לצרף קטע מיומן השגיאות',
           ),
           subtitle: (errorLog?.isEmpty ?? true)
               ? const Text('אין רשומות ביומן השגיאות')
               : null,
         ),
+        if (widget.minidump != null)
+          CheckboxListTile(
+            key: const ValueKey('app-report-include-minidump'),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+            value: widget.includeMinidump,
+            onChanged: widget.enabled && widget.onMinidumpChanged != null
+                ? (value) => widget.onMinidumpChanged!(value ?? false)
+                : null,
+            title: _AttachmentTitle(
+              icon: FluentIcons.bug_24_regular,
+              label: 'לצרף את קובץ הקריסה (minidump)',
+            ),
+            subtitle: const Text(AppReportPreviewSection.minidumpNote),
+          ),
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: ActionButton.ghost(

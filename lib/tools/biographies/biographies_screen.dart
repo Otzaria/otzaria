@@ -121,6 +121,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
               controller: _searchController,
               focusNode: _searchFocusNode,
               hintText: 'חפש רב לפי שם או כינוי...',
+              icon: OtzariaIcons.search_in_person_24_regular,
               autofocus: true,
               onChanged: _performSearch,
               onClear: () => setState(() => _filteredResults = _allBiographies),
@@ -137,14 +138,14 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   Widget _buildResultsList() {
     if (_allBiographies.isEmpty) {
       return const ToolEmptyState(
-        icon: OtzariaIcons.search_in_the_person_24_regular,
+        icon: OtzariaIcons.person_24_regular,
         message: 'נתוני הביוגרפיות אינם זמינים',
       );
     }
 
     if (_filteredResults.isEmpty) {
       return const ToolEmptyState(
-        icon: OtzariaIcons.search_in_the_person_24_regular,
+        icon: OtzariaIcons.person_24_regular,
         message: 'לא נמצאו תוצאות',
       );
     }

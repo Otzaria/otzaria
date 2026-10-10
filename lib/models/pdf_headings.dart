@@ -101,22 +101,6 @@ class PdfHeadings {
     return headingsMap[heading];
   }
 
-  /// מחזיר את הכותרת הקרובה ביותר למספר שורה נתון
-  String? getClosestHeading(int lineNumber) {
-    String? closestHeading;
-    int closestDistance = double.maxFinite.toInt();
-
-    for (final entry in headingsMap.entries) {
-      final distance = (entry.value - lineNumber).abs();
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestHeading = entry.key;
-      }
-    }
-
-    return closestHeading;
-  }
-
   /// מחזיר רשימה של כותרות ממוינות לפי מספר השורה
   List<MapEntry<String, int>> getSortedHeadings() {
     final entries = headingsMap.entries.toList();

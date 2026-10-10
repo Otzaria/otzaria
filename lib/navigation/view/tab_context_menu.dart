@@ -1,15 +1,20 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/window_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/core/windowing/cross_window_tab_drag.dart';
+import 'package:otzaria/core/windowing/drag_preview_colors.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
+import 'package:otzaria/navigation/view/reading_tab_strip.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -22,9 +27,110 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tabs/utils/confirm_close_tabs.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/workspaces/bloc/workspace_event.dart';
+
+/// המקש שמפעיל בחירה מרובה: Ctrl בכל הפלטפורמות, Command במק.
+bool get isMultiSelectModifierPressed {
+  final keyboard = HardwareKeyboard.instance;
+  return defaultTargetPlatform == TargetPlatform.macOS
+      ? keyboard.isMetaPressed
+      : keyboard.isControlPressed;
+}
+
+/// Ctrl/Cmd+לחיצה ו-Shift+לחיצה בונים בחירה מרובה לסגירה קבוצתית (כמו
+/// בדפדפן) בלי להחליף את הכרטיסיה הפעילה; לחיצה רגילה מנקה בחירה קיימת.
+/// מחזיר true כשהלחיצה נוצלה לבחירה.
+bool applyTabSelectionClick(
+  BuildContext context,
+  OpenedTab tab,
+  TabsState state,
+) {
+  if (isMultiSelectModifierPressed) {
+    context.read<TabsBloc>().add(ToggleTabSelection(tab));
+    return true;
+  }
+  if (HardwareKeyboard.instance.isShiftPressed) {
+    context.read<TabsBloc>().add(SelectTabRange(tab));
+    return true;
+  }
+  if (state.selectedTabs.isNotEmpty) {
+    context.read<TabsBloc>().add(const ClearTabSelection());
+  }
+  return false;
+}
+
+/// [ReadingTabStrip] מחוברת ל-[TabsBloc] ולגרירה בין חלונות — אותו חיבור
+/// לשורה האופקית ולעמודה האנכית, כדי ששתיהן יתנהגו בגרירה אותו דבר.
+ReadingTabStrip buildTabsReadingTabStrip(
+  BuildContext context, {
+  required TabsState state,
+  required CrossWindowTabDrag crossWindowDrag,
+  required List<double> widths,
+  required Widget Function(OpenedTab tab, int index, double extent) tabBuilder,
+  VoidCallback? onDragStarted,
+  Axis axis = Axis.horizontal,
+  bool scrollable = false,
+  double? crossExtent,
+}) {
+  // בדסקטופ גרירת-עכבר על טאב מסדרת אותו מיד (כמו כרום); בנייד נדרשת לחיצה
+  // ארוכה כדי שהחלקה/גלילה במגע לא תזיז טאב בטעות.
+  final platform = Theme.of(context).platform;
+  final isDesktop =
+      platform == TargetPlatform.windows ||
+      platform == TargetPlatform.linux ||
+      platform == TargetPlatform.macOS;
+
+  return ReadingTabStrip(
+    stripColor: AppSurfaces.readerBackground(context),
+    axis: axis,
+    scrollable: scrollable,
+    crossExtent: crossExtent,
+    tabs: state.tabs,
+    widths: widths,
+    requireLongPressToDrag: !isDesktop,
+    onReorder: (tab, newIndex) =>
+        context.read<TabsBloc>().add(MoveTab(tab, newIndex)),
+    // חלונית של טאב מפוצל שנגררת לרצועה חוזרת לכרטיסייה עצמאית.
+    acceptsExternal: (tab) => context.read<TabsBloc>().state.tabs.any(
+      (t) => t is CombinedTab && t.sibling(tab) != null,
+    ),
+    onExternalDrop: (tab, insertIndex) => context.read<TabsBloc>().add(
+      DetachPane(tab, insertIndex: insertIndex),
+    ),
+    onDragStarted: (draggedTab, cancelDrag) {
+      onDragStarted?.call();
+      crossWindowDrag.begin(
+        draggedTab,
+        DragPreviewColors.of(context),
+        tabsBloc: context.read<TabsBloc>(),
+        cancelDrag: cancelDrag,
+      );
+    },
+    onTabSnapshot: (_, snapshot, generation) =>
+        crossWindowDrag.applySnapshot(snapshot, generation),
+    onDragFinishedAnywhere: crossWindowDrag.end,
+    onDragLeftStrip: crossWindowDrag.notePointerLeftStrip,
+    onDroppedOutside: MultiWindowService.canDragTabsOut
+        ? (tab) => crossWindowDrag.handleDroppedOutside(
+            tab,
+            context.read<TabsBloc>(),
+          )
+        : null,
+    onSpringOpen: (tab) {
+      // ה-state שנתפס ב-build עלול להיות מיושן באמצע גרירה, ורק קריאה
+      // ישירה מה-bloc משקפת מה מוצג עכשיו.
+      final bloc = context.read<TabsBloc>();
+      final index = bloc.state.tabs.indexOf(tab);
+      if (index != -1 && index != bloc.state.currentTabIndex) {
+        bloc.add(SetCurrentTab(index));
+      }
+    },
+    tabBuilder: tabBuilder,
+  );
+}
 
 /// סוגר כרטיסיה ורושם אותה בהיסטוריה.
 ///

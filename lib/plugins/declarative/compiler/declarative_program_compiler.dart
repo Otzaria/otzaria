@@ -1,6 +1,5 @@
-import 'dart:collection';
-
 import 'package:otzaria/plugins/declarative/commands/declarative_command_registry.dart';
+import 'package:otzaria/plugins/declarative/compiler/declarative_value_checks.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 import 'package:otzaria/plugins/services/plugin_settings_access_policy.dart';
 
@@ -39,7 +38,7 @@ class DeclarativeProgramCompiler {
   });
 
   CompiledDeclarativeProgram compile(Map<String, dynamic> json) {
-    _assertOnlyKeys(
+    assertOnlyKeys(
       json,
       const {'id', 'version', 'triggers', 'when', 'commands', 'outputs'},
       'program',
@@ -90,7 +89,7 @@ class DeclarativeProgramCompiler {
         rawCommands[index],
         'program.commands[$index]',
       );
-      _assertOnlyKeys(
+      assertOnlyKeys(
         commandJson,
         const {'id', 'type', 'args'},
         'program.commands[$index]',
@@ -141,7 +140,7 @@ class DeclarativeProgramCompiler {
         CompiledDeclarativeCommand(
           id: commandId,
           type: type,
-          args: _freezeMap(args),
+          args: deepFreeze(args),
           requiredPermission: permission,
         ),
       );
@@ -170,9 +169,9 @@ class DeclarativeProgramCompiler {
       id: id,
       version: version,
       triggers: List.unmodifiable(triggers),
-      when: _freeze(when),
+      when: deepFreezeValue(when),
       commands: List.unmodifiable(commands),
-      outputs: _freezeMap(rawOutputs),
+      outputs: deepFreeze(rawOutputs),
       requiredPermissions: Set.unmodifiable(requiredPermissions),
     );
   }
@@ -185,7 +184,7 @@ class DeclarativeProgramCompiler {
     required int commandIndex,
   }) {
     final allowed = {...definition.requiredArgs, ...definition.optionalArgs};
-    _assertOnlyKeys(args, allowed, 'program.commands[$commandIndex].args');
+    assertOnlyKeys(args, allowed, 'program.commands[$commandIndex].args');
     final missing = definition.requiredArgs
         .where((field) => !args.containsKey(field))
         .toList();
@@ -388,7 +387,7 @@ class DeclarativeProgramCompiler {
     final where = _requiredMap(value, 'database.select.where');
     final op = _requiredString(where['op'], 'database.select.where.op');
     if (op == 'and' || op == 'or') {
-      _assertOnlyKeys(where, const {
+      assertOnlyKeys(where, const {
         'op',
         'conditions',
       }, 'database.select.where');
@@ -413,7 +412,7 @@ class DeclarativeProgramCompiler {
       }
       return;
     }
-    _assertOnlyKeys(where, const {
+    assertOnlyKeys(where, const {
       'op',
       'left',
       'value',
@@ -436,7 +435,7 @@ class DeclarativeProgramCompiler {
     _ValueBudget budget, {
     required bool allowRow,
   }) {
-    _assertOnlyKeys(
+    assertOnlyKeys(
       identity,
       const {'id', 'bookId', 'type', 'source', 'external'},
       'book identity',
@@ -445,7 +444,7 @@ class DeclarativeProgramCompiler {
     Map<String, dynamic>? externalMap;
     if (external != null) {
       externalMap = _requiredMap(external, 'book identity.external');
-      _assertOnlyKeys(
+      assertOnlyKeys(
         externalMap,
         const {'provider', 'id'},
         'book identity.external',
@@ -492,7 +491,7 @@ class DeclarativeProgramCompiler {
     final op = _requiredString(condition['op'], 'condition.op');
     switch (op) {
       case 'and' || 'or':
-        _assertOnlyKeys(condition, const {'op', 'conditions'}, 'condition');
+        assertOnlyKeys(condition, const {'op', 'conditions'}, 'condition');
         final conditions = _requiredList(
           condition['conditions'],
           'condition.conditions',
@@ -513,7 +512,7 @@ class DeclarativeProgramCompiler {
           );
         }
       case 'not':
-        _assertOnlyKeys(condition, const {'op', 'condition'}, 'condition');
+        assertOnlyKeys(condition, const {'op', 'condition'}, 'condition');
         _validateCondition(
           condition['condition'],
           previousCommands,
@@ -521,7 +520,7 @@ class DeclarativeProgramCompiler {
           depth: depth + 1,
         );
       case 'equals' || 'notEquals':
-        _assertOnlyKeys(condition, const {'op', 'left', 'right'}, 'condition');
+        assertOnlyKeys(condition, const {'op', 'left', 'right'}, 'condition');
         _validateValue(
           condition['left'],
           previousCommands,
@@ -537,7 +536,7 @@ class DeclarativeProgramCompiler {
           allowRow: false,
         );
       case 'exists' || 'notEmpty':
-        _assertOnlyKeys(condition, const {'op', 'value'}, 'condition');
+        assertOnlyKeys(condition, const {'op', 'value'}, 'condition');
         _validateValue(
           condition['value'],
           previousCommands,
@@ -741,22 +740,8 @@ class DeclarativeProgramCompiler {
     return parts;
   }
 
-  Map<String, dynamic> _requiredMap(Object? value, String context) {
-    if (value is! Map) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_program',
-        '$context must be an object',
-      );
-    }
-    try {
-      return Map<String, dynamic>.from(value);
-    } on TypeError {
-      throw DeclarativeProgramException(
-        'declarative.invalid_program',
-        '$context keys must be strings',
-      );
-    }
-  }
+  Map<String, dynamic> _requiredMap(Object? value, String context) =>
+      requiredMap(value, context, code: 'declarative.invalid_program');
 
   List<dynamic> _requiredList(Object? value, String context) {
     if (value is! List) {
@@ -825,32 +810,6 @@ class DeclarativeProgramCompiler {
       'declarative.invalid_value',
       '$context must contain JSON values only',
     );
-  }
-
-  void _assertOnlyKeys(
-    Map<String, dynamic> value,
-    Set<String> allowed,
-    String context,
-  ) {
-    final unknown = value.keys.where((key) => !allowed.contains(key)).toList();
-    if (unknown.isNotEmpty) {
-      throw DeclarativeProgramException(
-        'declarative.unknown_field',
-        '$context contains unsupported fields: ${unknown.join(', ')}',
-      );
-    }
-  }
-
-  Map<String, dynamic> _freezeMap(Map<String, dynamic> value) {
-    return UnmodifiableMapView({
-      for (final entry in value.entries) entry.key: _freeze(entry.value),
-    });
-  }
-
-  Object? _freeze(Object? value) {
-    if (value is Map) return _freezeMap(Map<String, dynamic>.from(value));
-    if (value is List) return List.unmodifiable(value.map(_freeze));
-    return value;
   }
 }
 

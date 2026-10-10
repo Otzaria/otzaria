@@ -85,7 +85,7 @@ void main() {
   });
 
   group('היקף החיפוש', () {
-    test('רק קטגוריות ספרייה — בלי ממדים, ספרים וספרים אישיים', () {
+    test('קטגוריות, ספרים רשמיים וממדים נשמרים; ספרים אישיים ומצורפים לא', () {
       expect(
         semanticScopeFacets({
           '/תנ״ך',
@@ -94,8 +94,9 @@ void main() {
           '/תנ״ך/id:12',
           '/ספרים אישיים/שלי',
           '/uid:4',
+          '/הלכה/db:lib:3',
         }),
-        ['/הלכה/שולחן ערוך', '/תנ״ך'],
+        ['/era/ראשונים', '/הלכה/שולחן ערוך', '/תנ״ך', '/תנ״ך/id:12'],
       );
     });
 
@@ -103,6 +104,11 @@ void main() {
       expect(semanticScopeFacets(const {}), ['/']);
       expect(semanticScopeFacets({'/', '/תנ״ך'}), ['/']);
       expect(semanticScopeFacets({'/uid:4'}), ['/']);
+      expect(semanticScopeFacets({'/', '/era/ראשונים', '/תנ״ך'}), [
+        '/',
+        '/era/ראשונים',
+      ]);
+      expect(semanticScopeFacets({'/era/ראשונים'}), ['/', '/era/ראשונים']);
     });
   });
 
@@ -119,43 +125,6 @@ void main() {
         expect(canRunSemanticSearch(unsupported, debug: debug), isFalse);
       }
     }
-  });
-  test('היקף נתמך חייב לשמר את כל הבחירה, גם בשילוב עם קטגוריה תקינה', () {
-    expect(semanticScopeIsSupported(const {}), isTrue);
-    expect(semanticScopeIsSupported({'/'}), isTrue);
-    expect(semanticScopeIsSupported({'/הלכה', '/תנ״ך'}), isTrue);
-    for (final unsupported in [
-      '/הלכה/id:1',
-      '/uid:2',
-      '/db:user:1',
-      '/author/רש״י',
-      '/era/ראשונים',
-      '/ספרים אישיים/שלי',
-    ]) {
-      expect(
-        semanticScopeIsSupported({unsupported}),
-        isFalse,
-        reason: unsupported,
-      );
-      expect(
-        semanticScopeIsSupported({'/הלכה', unsupported}),
-        isFalse,
-        reason: unsupported,
-      );
-      expect(
-        semanticScopeIsSupported({'/', unsupported}),
-        isFalse,
-        reason: unsupported,
-      );
-    }
-    expect(
-      semanticScopeIsSupported({'/הלכה'}, isOfficialCategory: (_) => false),
-      isFalse,
-    );
-    expect(
-      semanticScopeIsSupported({'/'}, isOfficialCategory: (_) => false),
-      isTrue,
-    );
   });
   group('תמונות הטלמטריה', () {
     test('הדירוג מתחיל ב-1 ונספר על פני כל הרשימה', () {
@@ -182,7 +151,7 @@ void main() {
   group('פרטיות התשובה', () {
     SemanticResultsPage page(String? reason) => SemanticResultsPage(
       items: const [],
-      pageableTotal: 0,
+      hasMore: false,
       executedMode: 'lexicalOnly',
       semanticAvailable: false,
       fallbackReason: reason,

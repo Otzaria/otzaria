@@ -41,6 +41,23 @@ Future<void> main() async {
     expect(tab.spacingValues, spacingValues);
   });
 
+  test('ברירת המחדל השמורה מסומנת בחלון גם לפני שהוקלדה שאילתה', () {
+    final tab = createInBookSearchDialogTab(
+      query: '',
+      searchMode: SearchMode.exact,
+      distance: 0,
+      matchPolicy: SearchMatchPolicy.standard,
+      searchOptions: const {},
+      alternativeWords: const {},
+      spacingValues: const {},
+      optionsForEveryWord: const {'קידומות דקדוקיות': true},
+    );
+    addTearDown(tab.dispose);
+
+    expect(tab.useGlobalSearchOptions.value, isTrue);
+    expect(tab.globalSearchOptions, {'קידומות דקדוקיות': true});
+  });
+
   for (final words in [
     ['שלום', 'עולם'],
     ['שלום', 'שלום'],

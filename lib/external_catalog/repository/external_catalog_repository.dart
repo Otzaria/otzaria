@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -146,12 +147,6 @@ class ExternalCatalogRepository {
     } finally {
       db?.close();
     }
-  }
-
-  /// מחזיר את גרסת הקטלוג העדכנית ביותר שפורסמה ב-GitHub.
-  Future<int> fetchLatestDatabaseVersion() async {
-    final release = await _fetchLatestReleaseInfo();
-    return _fetchReleaseVersion(release);
   }
 
   /// מעדכן את מסד הקטלוגים רק אם קיימת גרסה חדשה יותר.
@@ -312,13 +307,41 @@ class ExternalCatalogRepository {
     if (!await databaseExists()) {
       return <T>[];
     }
+    return _queryBooksInIsolate(
+      databasePath,
+      tableName,
+      mapper,
+      idColumn,
+      ids?.toList(),
+    );
+  }
 
+  /// קריאה ומיפוי של כ-160K שורות חוסמים את ה-UI; ה-isolate פותח את המסד לפי
+  /// נתיב. סטטית כדי שה-closure לא יתפוס את `this`.
+  static Future<List<T>> _queryBooksInIsolate<T extends Book>(
+    String dbPath,
+    String tableName,
+    T Function(Map<String, Object?> row) mapper,
+    String? idColumn,
+    List<int>? idList,
+  ) {
+    return Isolate.run(
+      () => _queryBooks(dbPath, tableName, mapper, idColumn, idList),
+    );
+  }
+
+  static List<T> _queryBooks<T extends Book>(
+    String dbPath,
+    String tableName,
+    T Function(Map<String, Object?> row) mapper,
+    String? idColumn,
+    List<int>? idList,
+  ) {
     sqlite3.Database? db;
     try {
-      db = sqlite3.sqlite3.open(databasePath, mode: sqlite3.OpenMode.readOnly);
+      db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
 
-      if (idColumn != null && ids != null) {
-        final idList = ids.toList();
+      if (idColumn != null && idList != null) {
         if (idList.isEmpty) {
           return <T>[];
         }
@@ -381,7 +404,7 @@ class ExternalCatalogRepository {
 
     final databaseAsset = parseLatestDatabaseAsset(decoded);
     if (databaseAsset == null) {
-      throw Exception('לא נמצא קובץ DB של הקטלוגים ברליס האחרון');
+      throw Exception('לא נמצא קובץ DB של הקטלוגים בשחרור האחרון');
     }
 
     return ExternalCatalogReleaseInfo(
@@ -417,7 +440,7 @@ class ExternalCatalogRepository {
     final versionAsset = release.versionAsset;
     if (versionAsset == null) {
       throw Exception(
-        'לא נמצא ${DatabaseConstants.externalCatalogVersionFileName} ברליס ${release.tagName}',
+        'לא נמצא ${DatabaseConstants.externalCatalogVersionFileName} בשחרור ${release.tagName}',
       );
     }
 
@@ -529,7 +552,7 @@ class ExternalCatalogRepository {
         osMessage.contains('access is denied');
   }
 
-  ExternalLibraryBook _mapOtzarBook(Map<String, Object?> row) {
+  static ExternalLibraryBook _mapOtzarBook(Map<String, Object?> row) {
     final bookId = (row['book_id'] as num).toInt();
     final authors = _decodeStringList(row['authors']);
     final subjects = _decodeStringList(row['subjects']);
@@ -550,7 +573,7 @@ class ExternalCatalogRepository {
     );
   }
 
-  ExternalLibraryBook _mapHebrewBook(Map<String, Object?> row) {
+  static ExternalLibraryBook _mapHebrewBook(Map<String, Object?> row) {
     final bookId = (row['id_book'] as num).toInt();
     final tags = _decodeStringList(row['tags']);
     final author = _normalizeNullableString(row['author']);

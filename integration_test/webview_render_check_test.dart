@@ -5,6 +5,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_inappwebview_windows/flutter_inappwebview_windows.dart'
+    show WindowsWebViewCreationFailures;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:otzaria/core/app_paths.dart';
@@ -42,6 +44,7 @@ void main() {
 
       final version = await WebViewEnvironment.getAvailableVersion();
       expect(version, isNotNull, reason: 'WebView2 Runtime חסר במחשב');
+      debugPrint('[WebView2 smoke] Runtime: $version');
 
       await Future.wait([
         WebViewEnvironmentHolder.initialize(),
@@ -50,7 +53,7 @@ void main() {
       final firstEnvironment = WebViewEnvironmentHolder.environment;
       expect(firstEnvironment, isNotNull);
 
-      await _renderProbe(tester, firstEnvironment!);
+      await _renderProbe(tester, firstEnvironment!, phase: 'first environment');
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
       await WebViewEnvironmentHolder.disposeForAppRestart();
@@ -60,7 +63,7 @@ void main() {
       final secondEnvironment = WebViewEnvironmentHolder.environment;
       expect(secondEnvironment, isNotNull);
       expect(secondEnvironment, isNot(same(firstEnvironment)));
-      await _renderProbe(tester, secondEnvironment!);
+      await _renderProbe(tester, secondEnvironment!, phase: 'reinitialized');
     },
     skip: !Platform.isWindows,
   );
@@ -68,44 +71,76 @@ void main() {
 
 Future<void> _renderProbe(
   WidgetTester tester,
-  WebViewEnvironment environment,
-) async {
+  WebViewEnvironment environment, {
+  required String phase,
+}) async {
   final controllerCompleter = Completer<InAppWebViewController>();
   final loadedCompleter = Completer<void>();
+  final webViewKey = UniqueKey();
+  final events = <String>[];
+  final creationFailures = WindowsWebViewCreationFailures.stream.listen((
+    failure,
+  ) {
+    if (failure.creationKey == webViewKey) {
+      events.add('creation failed: ${failure.error}');
+    }
+  });
 
-  await tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        body: InAppWebView(
-          webViewEnvironment: environment,
-          initialData: InAppWebViewInitialData(data: _probeHtml),
-          onWebViewCreated: controllerCompleter.complete,
-          onLoadStop: (controller, url) {
-            if (!loadedCompleter.isCompleted) loadedCompleter.complete();
-          },
+  try {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: InAppWebView(
+            key: webViewKey,
+            webViewEnvironment: environment,
+            initialData: InAppWebViewInitialData(data: _probeHtml),
+            onWebViewCreated: controllerCompleter.complete,
+            onLoadStart: (controller, url) => events.add('load started: $url'),
+            onLoadStop: (controller, url) {
+              events.add('load stopped: $url');
+              if (!loadedCompleter.isCompleted) loadedCompleter.complete();
+            },
+            onReceivedError: (controller, request, error) => events.add(
+              'navigation failed: ${request.url}, '
+              'mainFrame=${request.isForMainFrame}, '
+              '${error.type}: ${error.description}',
+            ),
+            onReceivedHttpError: (controller, request, response) => events.add(
+              'HTTP failed: ${request.url}, status=${response.statusCode}',
+            ),
+            onProcessFailed: (controller, detail) => events.add(
+              'process failed: ${detail.kind}, reason=${detail.reason}, '
+              'exitCode=${detail.exitCode}',
+            ),
+          ),
         ),
       ),
-    ),
-  );
+    );
 
-  final deadline = DateTime.now().add(const Duration(seconds: 30));
-  while (!loadedCompleter.isCompleted && DateTime.now().isBefore(deadline)) {
-    await tester.pump(const Duration(milliseconds: 100));
-    await Future<void>.delayed(const Duration(milliseconds: 100));
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    while (!loadedCompleter.isCompleted && DateTime.now().isBefore(deadline)) {
+      await tester.pump(const Duration(milliseconds: 100));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    expect(
+      loadedCompleter.isCompleted,
+      isTrue,
+      reason:
+          'הדף לא סיים להיטען תוך 30 שניות — מסך ריק? '
+          'phase=$phase, controllerCreated=${controllerCompleter.isCompleted}, '
+          'events=$events',
+    );
+
+    final controller = await controllerCompleter.future;
+    final probe = await controller.evaluateJavascript(
+      source: 'window.probeValue',
+    );
+    expect(probe, 42, reason: 'JS לא רץ בתוך הדף');
+    final marker = await controller.evaluateJavascript(
+      source: "document.getElementById('marker').textContent",
+    );
+    expect(marker, 'webview-alive', reason: 'ה-DOM לא רונדר');
+  } finally {
+    await creationFailures.cancel();
   }
-  expect(
-    loadedCompleter.isCompleted,
-    isTrue,
-    reason: 'הדף לא סיים להיטען תוך 30 שניות — מסך ריק?',
-  );
-
-  final controller = await controllerCompleter.future;
-  final probe = await controller.evaluateJavascript(
-    source: 'window.probeValue',
-  );
-  expect(probe, 42, reason: 'JS לא רץ בתוך הדף');
-  final marker = await controller.evaluateJavascript(
-    source: "document.getElementById('marker').textContent",
-  );
-  expect(marker, 'webview-alive', reason: 'ה-DOM לא רונדר');
 }

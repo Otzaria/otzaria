@@ -42,11 +42,11 @@ void main() {
     arch == 'aarch64' ? 'arm64' : 'x64',
   );
 
-  test('השלבים יושבים בסוף build_linux, אחרי העלאת מניפסט ה-FULL', () {
+  test('השלבים יושבים בסוף build_linux, אחרי העלאת מניפסטי הספרייה', () {
     final job = workflow.indexOf('\n  build_linux:\n');
     final nextJob = workflow.indexOf('\n  build_android:\n');
     final manifestUpload = indexOfStep(
-      'Upload indexed FULL manifest for installer build',
+      'Upload library manifests for installer build',
     );
     final build = indexOfStep(buildName);
     final upload = indexOfStep(uploadName);

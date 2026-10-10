@@ -7,8 +7,9 @@ import 'dart:isolate';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/tools/tikkun_korim/engine/stam_width_model.dart';
+import 'package:otzaria/tools/tikkun_korim/engine/tikkun_processor.dart';
 import 'package:otzaria/tools/tikkun_korim/models/tikkun_models.dart';
 import 'package:otzaria/tools/tikkun_korim/repository/tikkun_contracts.dart';
 
@@ -177,149 +178,32 @@ class TikkunKorimRepository {
     Haftarah haftarah,
     String nusach,
     StamWidthModel widths,
-  ) => _linesForRanges(
-    haftarah.forNusach(nusach).map((r) => (range: r, label: null)).toList(),
-    widths,
-  );
+  ) => _linesForParts(haftarahParts(haftarah, nusach), widths);
 
   /// שורות קריאת המועד, כולל סימון שמות העליות.
   Future<List<TikkunLine>> readingLines(
     TorahReading reading,
     StamWidthModel widths,
-  ) => _linesForRanges(
-    reading.aliyot.map((a) => (range: a.range, label: a.aliyaLabel)).toList(),
-    widths,
-    aliyaKeys: reading.aliyot.map((a) => a.aliya).toList(),
-  );
+  ) => _linesForParts(readingParts(reading), widths);
 
-  Future<List<TikkunLine>> _linesForRanges(
-    List<({VerseRange range, String? label})> parts,
-    StamWidthModel widths, {
-    List<String>? aliyaKeys,
-  }) async {
-    final combined = <TikkunToken>[];
-    final markers = <({int tokenIdx, String label, String? scrollLabel})>[];
-    String? lastAliyaKey;
-    ({String book, int ch, int vs})? lastTo;
-    var scrollIdx = 0;
-
-    for (var i = 0; i < parts.length; i++) {
-      final part = parts[i];
-      final range = part.range;
-      final processed = await processedBook(range.book, widths);
-      final slice = engine.sliceTokensByVerseRange(
-        processed.tokens,
-        range.fromCh,
-        range.fromVs,
-        range.toCh,
-        range.toVs,
-      );
-
-      final startsAfterSetuma = engine.precededBySetuma(
-        processed.tokens,
-        range.fromCh,
-        range.fromVs,
-      );
-      final isNewAliya = aliyaKeys == null || aliyaKeys[i] != lastAliyaKey;
-      String? scrollLabel;
-
-      if (i == 0) {
-        if (startsAfterSetuma) {
-          combined.add(
-            const TikkunToken(type: TikkunTokenType.leadingSetuma),
-          );
-        }
-      } else if (_needsBreak(range, lastTo, isNewAliya)) {
-        combined.add(
-          TikkunToken(
-            type: startsAfterSetuma
-                ? TikkunTokenType.leadingSetuma
-                : TikkunTokenType.petucha,
-          ),
-        );
-        // מעבר לספר אחר = ספר תורה נוסף; באותו חומש רק אחרי שכבר הוחלף
-        // ספר, שאם לא כן דילוג פנימי (תענית ציבור) ייחשב בטעות כהחלפה.
-        if (aliyaKeys != null &&
-            (range.book != lastTo!.book || scrollIdx > 0)) {
-          scrollIdx++;
-          scrollLabel = torahScrollLabel(scrollIdx);
-        }
-      }
-
-      if (part.label != null && isNewAliya) {
-        markers.add((
-          tokenIdx: combined.length,
-          label: part.label!,
-          scrollLabel: scrollLabel,
-        ));
-      }
-      combined.addAll(slice);
-      if (aliyaKeys != null) lastAliyaKey = aliyaKeys[i];
-      lastTo = (book: range.book, ch: range.toCh, vs: range.toVs);
-    }
-
-    final localEngine = engine;
-    final lines = await _run(
-      () => localEngine.paginateAllTokens(combined, widths),
+  Future<List<TikkunLine>> _linesForParts(
+    List<VersePart> parts,
+    StamWidthModel widths,
+  ) async {
+    final tokensByBook = {
+      for (final p in parts)
+        p.range.book: (await processedBook(p.range.book, widths)).tokens,
+    };
+    // בלי `this` בסגירה — היא נשלחת ל-Isolate.
+    final run = _run, localEngine = engine;
+    return buildVersePartLines(
+      localEngine,
+      parts,
+      tokensByBook,
+      widths,
+      paginate: (tokens) =>
+          run(() => localEngine.paginateAllTokens(tokens, widths)),
     );
-    _annotateAliyaMarkers(lines, combined, markers);
-    if (lines.isNotEmpty && !lines.last.isSpecial) {
-      lines.last.layout = LineLayout.petucha;
-    }
-    return lines;
-  }
-
-  /// הפסק מוסף רק במעבר לא רציף במקור (למשל מפטיר ממקום אחר).
-  bool _needsBreak(
-    VerseRange range,
-    ({String book, int ch, int vs})? lastTo,
-    bool isNewAliya,
-  ) {
-    if (lastTo == null) return false;
-    if (!isNewAliya) return false;
-    final sameBook = range.book == lastTo.book;
-    final adjacent =
-        sameBook &&
-        ((range.fromCh == lastTo.ch && range.fromVs == lastTo.vs + 1) ||
-            (range.fromCh == lastTo.ch + 1 && range.fromVs == 1));
-    final overlap =
-        sameBook &&
-        (range.fromCh < lastTo.ch ||
-            (range.fromCh == lastTo.ch && range.fromVs <= lastTo.vs));
-    return !adjacent && !overlap;
-  }
-
-  void _annotateAliyaMarkers(
-    List<TikkunLine> lines,
-    List<TikkunToken> tokens,
-    List<({int tokenIdx, String label, String? scrollLabel})> markers,
-  ) {
-    for (final marker in markers) {
-      var firstWordIdx = -1;
-      for (var j = marker.tokenIdx; j < tokens.length; j++) {
-        if (tokens[j].isWord) {
-          firstWordIdx = j;
-          break;
-        }
-      }
-      if (firstWordIdx < 0) continue;
-      for (var i = 0; i < lines.length; i++) {
-        final nextStart = i + 1 < lines.length
-            ? lines[i + 1].startTokenIdx
-            : 1 << 30;
-        if (lines[i].startTokenIdx >= 0 &&
-            lines[i].startTokenIdx <= firstWordIdx &&
-            firstWordIdx < nextStart) {
-          if (marker.label == kMaftirAliyaName) {
-            lines[i].maftirName ??= marker.label;
-          } else {
-            lines[i].aliyaName ??= marker.label;
-          }
-          lines[i].torahScrollLabel ??= marker.scrollLabel;
-          break;
-        }
-      }
-    }
   }
 
   void clearCaches() {

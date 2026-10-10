@@ -4,6 +4,7 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/controls/contained_tooltip.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 
 /// לחצן סרגל מפוצל בסגנון [BarButton]: החלק עם האייקון מפעיל את [onPressed],
@@ -128,7 +129,7 @@ class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
       required double width,
       required BorderRadiusDirectional borderRadius,
     }) {
-      return Tooltip(
+      return ContainedTooltip(
         message: tooltip,
         child: InkWell(
           onTap: onTap,

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
@@ -10,6 +11,8 @@ import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/notes_messages.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 class InlineNoteEditor extends StatefulWidget {
   final PersonalNote? note;
@@ -232,6 +235,63 @@ class _InlineNoteEditorState extends State<InlineNoteEditor> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// מסגרת עורך הערה בתוך הרשימה: כותרת עם אייקון וכפתור ביטול מעל [editor].
+class InlineNoteEditorCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onCancelPressed;
+  final InlineNoteEditor editor;
+
+  const InlineNoteEditorCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.onCancelPressed,
+    required this.editor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppSurfaces.noteEditorBackground(context),
+        borderRadius: AppTokens.borderRadiusAll,
+        border: Border.all(color: primary, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: primary, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(fontWeight: FontWeight.bold, color: primary),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                tooltip: 'ביטול',
+                icon: const Icon(FluentIcons.dismiss_24_regular),
+                onPressed: onCancelPressed,
+                iconSize: 20,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          editor,
+        ],
+      ),
     );
   }
 }

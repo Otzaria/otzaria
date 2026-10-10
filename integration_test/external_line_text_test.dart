@@ -340,6 +340,18 @@ void main() {
         expect(withoutHighlight(result.text), expected, reason: query);
         expect(result.text, (await single(stored, query)).text, reason: query);
       }
+      // ביטוי שנמשך משורה לשורה, מעבר לפער ב-lineIndex: שתי השורות נקראות
+      // מהמסד ומחוברות בקטע אחד.
+      const crossingQuery = 'תהו ובהו ויאמר אלהים';
+      final crossing = await single(library, crossingQuery);
+      expect(crossing.continuesToNextLine, isTrue);
+      expect(crossing.textStatus, TextStatus.ok);
+      expect(crossing.segment, BigInt.one);
+      expect(
+        withoutHighlight(crossing.text),
+        'והארץ היתה תהו ובהו<br>ויאמר אלהים יהי אור',
+      );
+      expect(crossing.text, (await single(stored, crossingQuery)).text);
       expect((await lineSourceStatus()).libraryFallbacks, BigInt.zero);
 
       // בזמן השעיה הטקסט אינו באינדקס כלל; הספר שנשמר באינדקס ושורת התמונה,
@@ -358,6 +370,9 @@ void main() {
         expect(result.textStatus, TextStatus.unavailable, reason: query);
         expect(result.text, isEmpty, reason: query);
       }
+      final crossingSuspended = await single(library, crossingQuery);
+      expect(crossingSuspended.textStatus, TextStatus.unavailable);
+      expect(crossingSuspended.continuesToNextLine, isFalse);
       final kept = await single(library, 'כמוך');
       expect(kept.textStatus, TextStatus.ok);
       expect(withoutHighlight(kept.text), 'ואהבת את רעך כמוך');

@@ -53,11 +53,36 @@ GPtrArray *otz_package_format_choices(const OtzManifest *manifest,
 /* os_release is the content of /etc/os-release, or NULL off Linux. */
 char *otz_default_package_format(const char *os_release, GPtrArray *choices);
 
+/* A row of the custom list. locked: always checked, cannot be cleared.
+ * group: rows sharing it are one-of (radio); "" is a checkbox. */
+#define OTZ_APPLICATION_CHOICE_GROUP "application"
+typedef struct {
+  const OtzComponent *component; /* borrowed from the manifest */
+  gboolean locked;
+  const char *group;
+} OtzCustomChoice;
+
+/* OtzCustomChoice* in manifest order: never the portable form; when the
+ * regular installer unpacks a library beside it, no full bundle and the
+ * installer locked; otherwise the installer and the bundle are one-of. */
+GPtrArray *otz_custom_choices(const OtzManifest *manifest,
+                              const OtzTarget *target);
+
+/* A row's size includes its offered parts. */
+gint64 otz_custom_choice_size(const OtzManifest *manifest,
+                              const OtzComponent *component,
+                              const OtzTarget *target);
+
 GPtrArray *otz_with_dependencies(const OtzManifest *manifest,
                                  GPtrArray *members, const OtzTarget *target);
-/* OtzPreset*; empty presets and duplicates of an earlier one are dropped. */
+/* OtzPreset* in display order: basic, full-indexed, full, update. Empty ones,
+ * and duplicates of one evaluated earlier (full-indexed, full, basic, update —
+ * the more specific label stays), are dropped. */
 GPtrArray *otz_build_presets(const OtzManifest *manifest,
                              const OtzTarget *target);
+/* The pre-selected preset: "basic", else "full" (not the larger
+ * "full-indexed"), else the first. -1 when there are no presets. */
+int otz_default_preset_index(GPtrArray *presets);
 
 gboolean otz_should_assemble_split_asset(const OtzAsset *asset,
                                          const char *target_platform);
@@ -65,6 +90,9 @@ char *otz_output_subfolder_name(const char *target_platform);
 GPtrArray *otz_planned_output_files(const OtzManifest *manifest,
                                     GPtrArray *selected_ids,
                                     const OtzTarget *target);
+/* The outputNote of each selected component, manifest order, no repeats. */
+GPtrArray *otz_planned_output_notes(const OtzManifest *manifest,
+                                    GPtrArray *selected_ids);
 /* "" for a single file, otherwise the subfolder name. */
 char *otz_planned_output_subfolder(GPtrArray *files,
                                    const char *target_platform);

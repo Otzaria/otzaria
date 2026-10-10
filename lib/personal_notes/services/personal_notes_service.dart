@@ -187,7 +187,7 @@ class PersonalNotesService {
       displayTitle: newDisplayTitle,
       // מיקום ידני מחדש הופך את ההערה להערת-שורה-שלמה (אין עוד מילים מעוגנות).
       clearAnchor: true,
-      lastKnownLineNumber: null,
+      clearLastKnownLineNumber: true,
       status: PersonalNoteStatus.located,
       updatedAt: now,
     );
@@ -220,7 +220,6 @@ class PersonalNotesService {
         return note.copyWith(
           lineNumber: previousLine,
           status: PersonalNoteStatus.located,
-          updatedAt: DateTime.now(),
         );
       }
       return note;
@@ -232,8 +231,7 @@ class PersonalNotesService {
       return note.copyWith(
         status: PersonalNoteStatus.missing,
         lastKnownLineNumber: note.lineNumber,
-        lineNumber: null,
-        updatedAt: DateTime.now(),
+        clearLineNumber: true,
       );
     }
 
@@ -267,15 +265,13 @@ class PersonalNotesService {
         lineNumber: match.line,
         lastKnownLineNumber: note.lineNumber,
         status: PersonalNoteStatus.located,
-        updatedAt: DateTime.now(),
       );
     }
 
     return note.copyWith(
       status: PersonalNoteStatus.missing,
       lastKnownLineNumber: note.lineNumber,
-      lineNumber: null,
-      updatedAt: DateTime.now(),
+      clearLineNumber: true,
     );
   }
 

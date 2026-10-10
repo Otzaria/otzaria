@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 
@@ -5,6 +8,7 @@ import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart';
+import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
 import 'package:otzaria/personal_notes/utils/note_collection_utils.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_filter.dart';
 
@@ -27,9 +31,75 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
       transformer: restartable(),
     );
     on<ToggleShowOnlyVisible>(_onToggleShowOnlyVisible);
+    on<_StoredNotesChanged>(_onStoredNotesChanged, transformer: restartable());
+    _changesSubscription = PersonalNotesChanges.stream.listen((bookId) {
+      if (bookId == state.bookId) add(_StoredNotesChanged(bookId));
+    });
   }
 
   final PersonalNotesRepository _repository;
+  late final StreamSubscription<String> _changesSubscription;
+
+  /// שינוי שהגיע בזמן טעינה — נבדק שוב כשהיא מסתיימת, כי ייתכן שקדם לקריאתה.
+  bool _storageChangedWhileLoading = false;
+
+  @override
+  void onChange(Change<PersonalNotesState> change) {
+    super.onChange(change);
+    final bookId = change.nextState.bookId;
+    if (_storageChangedWhileLoading &&
+        !change.nextState.isLoading &&
+        bookId != null) {
+      _storageChangedWhileLoading = false;
+      add(_StoredNotesChanged(bookId));
+    }
+  }
+
+  @override
+  Future<void> close() async {
+    await _changesSubscription.cancel();
+    return super.close();
+  }
+
+  /// הערות שנכתבו מחוץ ל-bloc (דיאלוג הערת מפרש, תוסף, חלונית אחרת).
+  /// שינוי שה-bloc עצמו ביצע כבר משתקף ב-state, ולכן אינו נטען שוב.
+  Future<void> _onStoredNotesChanged(
+    _StoredNotesChanged event,
+    Emitter<PersonalNotesState> emit,
+  ) async {
+    try {
+      if (event.bookId != state.bookId || _deferWhileLoading()) return;
+      final stored = await _repository.loadStoredNotes(event.bookId);
+      if (event.bookId != state.bookId || _matchesState(stored)) return;
+      if (_deferWhileLoading()) return;
+      // טעינה כאן ולא LoadPersonalNotes: זו הייתה מבטלת טעינה ממתינה של ספר אחר.
+      final notes = await _repository.loadNotes(
+        event.bookId,
+        categoryId: state.categoryId,
+      );
+      if (event.bookId != state.bookId || _deferWhileLoading()) return;
+      _emitNotes(event.bookId, notes, emit);
+    } catch (error) {
+      // רענון רקע: ההערות המוצגות נשארות, והשגיאה תופיע בטעינה הבאה.
+      debugPrint('PersonalNotesBloc: רענון ההערות נכשל: $error');
+    }
+  }
+
+  /// טעינה שרצה עכשיו עלולה לקרוא את המסד לפני השינוי — בודקים שוב כשהיא נגמרת.
+  bool _deferWhileLoading() {
+    if (!state.isLoading) return false;
+    _storageChangedWhileLoading = true;
+    return true;
+  }
+
+  bool _matchesState(List<PersonalNote> stored) {
+    final current = {
+      for (final note in [...state.locatedNotes, ...state.missingNotes])
+        note.id: note,
+    };
+    return stored.length == current.length &&
+        stored.every((note) => current[note.id] == note);
+  }
 
   Future<void> _onLoadNotes(
     LoadPersonalNotes event,
@@ -301,6 +371,15 @@ class PersonalNotesBloc extends Bloc<PersonalNotesEvent, PersonalNotesState> {
     }
     return _NotesPartition(locatedNotes: located, missingNotes: missing);
   }
+}
+
+class _StoredNotesChanged extends PersonalNotesEvent {
+  final String bookId;
+
+  const _StoredNotesChanged(this.bookId);
+
+  @override
+  List<Object?> get props => [bookId];
 }
 
 class _NotesPartition {

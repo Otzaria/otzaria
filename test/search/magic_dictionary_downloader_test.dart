@@ -14,6 +14,7 @@ void main() {
     bool withAsset = true,
     int assetSize = 57122816,
     String? digest,
+    String? v2Digest,
   }) {
     return jsonEncode({
       'tag_name': tag,
@@ -32,11 +33,19 @@ void main() {
             'size': assetSize,
             'digest': ?digest,
           },
+        if (v2Digest != null)
+          {
+            'name': 'lexical-v2.db',
+            'browser_download_url':
+                'https://github.com/Otzaria/SeforimMagicIndexer/releases/download/$tag/lexical-v2.db',
+            'size': assetSize,
+            'digest': v2Digest,
+          },
       ],
     });
   }
 
-  test('fetchLatestRelease בוחר את נכס lexical.db ומחזיר תג וגודל', () async {
+  test('fetchLatestRelease בלי lexical-v2.db נופל ל-lexical.db', () async {
     final client = MockClient((request) async {
       expect(
         request.url.toString(),
@@ -65,6 +74,25 @@ void main() {
     addTearDown(dl.dispose);
 
     expect((await dl.fetchLatestRelease()).sha256, sha);
+  });
+
+  test('fetchLatestRelease מעדיף את lexical-v2.db על פני lexical.db', () async {
+    final v2 = sha256.convert([2]).toString();
+    final client = MockClient(
+      (request) async => http.Response(
+        latestJson(
+          digest: 'sha256:${sha256.convert([1])}',
+          v2Digest: 'sha256:$v2',
+        ),
+        200,
+      ),
+    );
+    final dl = MagicDictionaryDownloader(client: client);
+    addTearDown(dl.dispose);
+
+    final release = await dl.fetchLatestRelease();
+    expect(release.downloadUrl.path, endsWith('/lexical-v2.db'));
+    expect(release.sha256, v2);
   });
 
   group('ensureLatest עם סימון גרסה קיים', () {
@@ -265,14 +293,12 @@ void main() {
 
   group('replaceDownloadedFile כשהיעד נעול (Windows)', () {
     late Directory dir;
-    late MagicDictionaryDownloader dl;
     late String dest;
     late File source;
     late RandomAccessFile lockHandle;
 
     setUp(() async {
       dir = await Directory.systemTemp.createTemp('magic_dict_lock_test');
-      dl = MagicDictionaryDownloader();
       dest = p.join(dir.path, 'lexical.db');
       source = File('$dest.part');
       // handle פתוח חוסם rename של הקובץ ב-Windows — כמו המנוע באפליקציה.
@@ -282,14 +308,13 @@ void main() {
 
     tearDown(() async {
       await lockHandle.close();
-      dl.dispose();
       await dir.delete(recursive: true);
     });
 
     test('תוכן זהה — נחשב הצלחה וקובץ ה-part נמחק', () async {
       await source.writeAsBytes([1, 2, 3]);
 
-      await dl.replaceDownloadedFile(source, dest);
+      await MagicDictionaryDownloader.replaceDownloadedFile(source, dest);
 
       expect(await source.exists(), isFalse);
       expect(await File(dest).readAsBytes(), [1, 2, 3]);
@@ -299,9 +324,192 @@ void main() {
       await source.writeAsBytes([9, 9, 9]);
 
       expect(
-        () => dl.replaceDownloadedFile(source, dest),
+        () => MagicDictionaryDownloader.replaceDownloadedFile(source, dest),
         throwsA(isA<FileSystemException>()),
       );
     });
   }, skip: !Platform.isWindows);
+
+  group('החלפת מילון שהמנוע מחזיק', () {
+    final oldBody = [1, 1, 1, 1];
+    final newBody = [2, 2, 2, 2, 2, 2, 2, 2];
+    final newSha = sha256.convert(newBody).toString();
+    late Directory temp;
+    late String dest;
+    late int downloads;
+    late MockClient client;
+
+    setUp(() async {
+      temp = await Directory.systemTemp.createTemp('magic-dict-swap-');
+      dest = p.join(temp.path, 'lexical.db');
+      await File(dest).writeAsBytes(oldBody);
+      await File('$dest.version').writeAsString('old-digest');
+      downloads = 0;
+      client = MockClient((request) async {
+        if (request.url.toString() ==
+            MagicDictionaryDownloader.latestReleaseApi) {
+          return http.Response(
+            latestJson(
+              tag: 'v0.3.1',
+              assetSize: newBody.length,
+              digest: 'sha256:${sha256.convert(oldBody)}',
+              v2Digest: 'sha256:$newSha',
+            ),
+            200,
+          );
+        }
+        expect(request.url.path, endsWith('/lexical-v2.db'));
+        downloads++;
+        return http.Response.bytes(newBody, 200);
+      });
+    });
+
+    tearDown(() => temp.delete(recursive: true));
+
+    MagicDictionaryDownloader downloader({
+      Future<void> Function(Future<void> Function() replace)? aroundReplace,
+    }) {
+      final dl = MagicDictionaryDownloader(
+        client: client,
+        destinationProvider: () async => dest,
+        aroundReplace: aroundReplace,
+      );
+      addTearDown(dl.dispose);
+      return dl;
+    }
+
+    test('ההחלפה רצה בתוך ה-hook, והסימון הוא digest הנכס המותקן', () async {
+      final events = <String>[];
+      final dl = downloader(
+        aroundReplace: (replace) async {
+          events.add('detach');
+          expect(await File(dest).readAsBytes(), oldBody);
+          await replace();
+          expect(await File(dest).readAsBytes(), newBody);
+          events.add('attach');
+        },
+      );
+
+      expect(await dl.ensureLatest(), isTrue);
+      expect(events, ['detach', 'attach']);
+      expect(await File('$dest.version').readAsString(), newSha);
+      expect(File('$dest.next').existsSync(), isFalse);
+      expect(File('$dest.next.version').existsSync(), isFalse);
+    });
+
+    test('החלפה שנכשלה משאירה עותק ממתין ואינה מורידה שוב', () async {
+      final failing = downloader(
+        aroundReplace: (_) async =>
+            throw const FileSystemException('locked by engine'),
+      );
+
+      expect(await failing.ensureLatest(), isTrue, reason: 'הישן שמיש');
+      expect(await File(dest).readAsBytes(), oldBody);
+      expect(await File('$dest.version').readAsString(), 'old-digest');
+      expect(await File('$dest.next').readAsBytes(), newBody);
+      expect(await File('$dest.next.version').readAsString(), newSha);
+
+      // בדיקה חוזרת שנכשלת שוב — עדיין בלי הורדה.
+      await failing.ensureLatest();
+      expect(downloads, 1);
+
+      expect(await downloader().ensureLatest(), isTrue);
+      expect(downloads, 1);
+      expect(await File(dest).readAsBytes(), newBody);
+      expect(await File('$dest.version').readAsString(), newSha);
+      expect(File('$dest.next').existsSync(), isFalse);
+    });
+
+    test('עותק ממתין של גרסה אחרת מוחלף בהורדה', () async {
+      await File('$dest.next').writeAsBytes(newBody);
+      await File('$dest.next.version').writeAsString('other-digest');
+
+      expect(await downloader().ensureLatest(), isTrue);
+      expect(downloads, 1);
+      expect(await File('$dest.version').readAsString(), newSha);
+    });
+
+    test('מילון שכבר עדכני מבטל עותק ממתין ישן לפני פתיחה ללא רשת', () async {
+      await File(dest).writeAsBytes(newBody);
+      await File('$dest.version').writeAsString(newSha);
+      await File('$dest.next').writeAsBytes(oldBody);
+      await File('$dest.next.version').writeAsString('old-digest');
+
+      expect(await downloader().ensureLatest(), isTrue);
+      expect(downloads, 0);
+      await MagicDictionaryDownloader.installStagedBeforeAttach(dest);
+
+      expect(await File(dest).readAsBytes(), newBody);
+      expect(await File('$dest.version').readAsString(), newSha);
+      expect(File('$dest.next').existsSync(), isFalse);
+      expect(File('$dest.next.version').existsSync(), isFalse);
+    });
+
+    for (final useFileDigest in [false, true]) {
+      test(
+        'התקנה חדשה מבטלת עותק ממתין גם ללא בדיקת רשת ($useFileDigest)',
+        () async {
+          await File('$dest.next').writeAsBytes(oldBody);
+          await File('$dest.next.version').writeAsString('old-digest');
+          await File(dest).writeAsBytes(newBody);
+          if (useFileDigest) {
+            await MagicDictionaryDownloader.writeFileDigestMarker(dest);
+          } else {
+            await MagicDictionaryDownloader.writeVersionMarker(dest, newSha);
+          }
+
+          await MagicDictionaryDownloader.installStagedBeforeAttach(dest);
+
+          expect(downloads, 0);
+          expect(await File(dest).readAsBytes(), newBody);
+          expect(await File('$dest.version').readAsString(), newSha);
+          expect(File('$dest.next').existsSync(), isFalse);
+          expect(File('$dest.next.version').existsSync(), isFalse);
+        },
+      );
+    }
+
+    test('installStagedBeforeAttach מתקין עותק ממתין בלי רשת', () async {
+      await File('$dest.next').writeAsBytes(newBody);
+      await File('$dest.next.version').writeAsString(newSha);
+
+      await MagicDictionaryDownloader.installStagedBeforeAttach(dest);
+
+      expect(await File(dest).readAsBytes(), newBody);
+      expect(await File('$dest.version').readAsString(), newSha);
+      expect(File('$dest.next').existsSync(), isFalse);
+      expect(File('$dest.next.version').existsSync(), isFalse);
+    });
+
+    test(
+      'installStagedBeforeAttach בלי סימון לעותק אינו נוגע במילון',
+      () async {
+        await File('$dest.next').writeAsBytes(newBody);
+
+        await MagicDictionaryDownloader.installStagedBeforeAttach(dest);
+
+        expect(await File(dest).readAsBytes(), oldBody);
+        expect(await File('$dest.version').readAsString(), 'old-digest');
+      },
+    );
+
+    test('קובץ נעול: מורידים פעם אחת, ומתקינים בפתיחה הבאה', () async {
+      // handle פתוח חוסם rename ב-Windows — כמו מנוע שעוד מחזיק את המילון.
+      final lock = await File(dest).open();
+      try {
+        expect(await downloader().ensureLatest(), isTrue);
+        expect(await downloader().ensureLatest(), isTrue);
+        expect(downloads, 1);
+        expect(await File('$dest.version').readAsString(), 'old-digest');
+        await MagicDictionaryDownloader.installStagedBeforeAttach(dest);
+        expect(await File('$dest.version').readAsString(), 'old-digest');
+      } finally {
+        await lock.close();
+      }
+
+      await MagicDictionaryDownloader.installStagedBeforeAttach(dest);
+      expect(await File(dest).readAsBytes(), newBody);
+      expect(await File('$dest.version').readAsString(), newSha);
+    }, skip: !Platform.isWindows);
+  });
 }

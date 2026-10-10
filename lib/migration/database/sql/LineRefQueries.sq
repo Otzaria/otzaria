@@ -1,14 +1,8 @@
 -- Queries for the canonical line-reference index
 
-selectLineIndexByRefKeyHash:
-SELECT lineIndex FROM line_ref WHERE bookId = ? AND refKeyHash = ?;
-
 insert:
 INSERT OR IGNORE INTO line_ref (bookId, refKeyHash, lineIndex)
 VALUES (?, ?, ?);
 
 deleteByBookId:
 DELETE FROM line_ref WHERE bookId = ?;
-
-countAll:
-SELECT COUNT(*) FROM line_ref;

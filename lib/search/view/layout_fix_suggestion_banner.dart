@@ -45,53 +45,63 @@ class LayoutFixSuggestionBanner extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Material(
       color: cs.tertiaryContainer,
-      child: InkWell(
-        focusNode: focusNode,
-        onTap: () => onAccept(suggestion),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-          child: Row(
-            children: [
-              Icon(
-                FluentIcons.keyboard_24_regular,
-                size: 16,
-                color: cs.primary,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text.rich(
-                  TextSpan(
-                    style: TextStyle(fontSize: 13, color: cs.onSurface),
-                    children: [
-                      const TextSpan(text: 'האם התכוונת לחפש: '),
-                      TextSpan(
-                        text: suggestion,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: cs.primary,
-                          decoration: TextDecoration.underline,
-                          decorationColor: cs.primary,
+      // Enter על ההצעה מפעיל אותה כאן ונעצר: מארח שמגיש ב-Enter (דיאלוג
+      // החיפוש) היה מריץ אחרת את הטקסט השגוי במקום להחיל את ההצעה.
+      child: Shortcuts(
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+        },
+        child: InkWell(
+          focusNode: focusNode,
+          onTap: () => onAccept(suggestion),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12.0,
+              vertical: 6.0,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  FluentIcons.keyboard_24_regular,
+                  size: 16,
+                  color: cs.primary,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text.rich(
+                    TextSpan(
+                      style: TextStyle(fontSize: 13, color: cs.onSurface),
+                      children: [
+                        const TextSpan(text: 'האם התכוונת לחפש: '),
+                        TextSpan(
+                          text: suggestion,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: cs.primary,
+                            decoration: TextDecoration.underline,
+                            decorationColor: cs.primary,
+                          ),
                         ),
-                      ),
-                      const TextSpan(text: '?'),
-                    ],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (hint != null) ...[
-                const SizedBox(width: AppTokens.spaceSM),
-                Text(
-                  hint!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
+                        const TextSpan(text: '?'),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (hint != null) ...[
+                  const SizedBox(width: AppTokens.spaceSM),
+                  Text(
+                    hint!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

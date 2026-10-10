@@ -11,7 +11,7 @@ import 'package:otzaria/migration/models/category.dart' as migration_models;
 import 'package:otzaria/migration/models/line.dart' as migration_models;
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/text_book/text_book_repository.dart';
+import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:path/path.dart' as path;
 import '../test_helpers/memory_cache_provider.dart';
 

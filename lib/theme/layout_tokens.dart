@@ -17,7 +17,4 @@ class LayoutConstraints {
   /// רוחב מקסימלי לתוכן בתוך מסכי לוח (הגדרות, ספריה, כלים)
   /// מאפשר מרכוז תוכן על מסכים רחבים מאוד
   static const double panelContentMaxWidth = 860.0;
-
-  /// רוחב סרגל הצד במסכי לוח בדסקטופ
-  static const double panelSidebarWidth = 210.0;
 }

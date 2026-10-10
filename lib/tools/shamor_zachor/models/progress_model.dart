@@ -207,9 +207,6 @@ class BookProgressSummary {
   /// Check if the book is completed
   bool get isCompleted => completedItems == totalItems && totalItems > 0;
 
-  /// Check if the book has any progress
-  bool get hasProgress => completedItems > 0 || inProgressItems > 0;
-
   /// Get status text for display based on current cycle
   String getStatusText(int currentCycle) {
     if (totalItems <= 0) {

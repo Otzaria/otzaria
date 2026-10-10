@@ -4,9 +4,6 @@ library;
 
 import 'package:otzaria/theme/app_fonts.dart';
 
-/// החלופה לטור הסת"ם כשנבחר גופן אחר — Culmus המוטמע.
-const String kTikkunFallbackFamily = 'AshkenaziStam';
-
 /// גופני הסת"ם של Culmus ממפים את 51 סימני הניקוד והטעמים לגליף, אך רק
 /// לאחד מהם יש מִתאר — ולכן טור מנוקד בהם יוצא בלי ניקוד, במסך וב-PDF.
 const Set<String> kTikkunUnpointedFamilies = {'AshkenaziStam', 'SefardiStam'};

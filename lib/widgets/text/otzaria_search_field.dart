@@ -244,7 +244,7 @@ class OtzariaSearchField extends StatefulWidget {
   final List<Widget>? trailingActions;
 
   /// אייקון החיפוש. עדיף למקד אותו לפי מה שמחפשים בו — למשל
-  /// `search_in_the_library_24_regular` בספרייה — כשהשדה מחפש בגוף תוכן
+  /// `search_in_library_24_regular` בספרייה — כשהשדה מחפש בגוף תוכן
   /// שאינו מוצג על המסך. `leading` דוחה אותו.
   final IconData icon;
 

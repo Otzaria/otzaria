@@ -1,30 +1,10 @@
 -- Queries for book acronyms (alternate names)
 
-selectTermsByBookId:
-SELECT term FROM book_acronym
-WHERE bookId = ?
-ORDER BY term;
-
-selectByBookId:
-SELECT * FROM book_acronym
-WHERE bookId = ?
-ORDER BY term;
-
-selectBookIdsByTerm:
-SELECT bookId FROM book_acronym
-WHERE term = ?
-ORDER BY bookId;
-
 selectBookIdsByTermLike:
 SELECT DISTINCT bookId FROM book_acronym
 WHERE term LIKE ?
 ORDER BY bookId
 LIMIT ?;
-
-insert:
-INSERT INTO book_acronym (bookId, term)
-VALUES (?, ?)
-ON CONFLICT(bookId, term) DO NOTHING;
 
 deleteByBookId:
 DELETE FROM book_acronym WHERE bookId = ?;

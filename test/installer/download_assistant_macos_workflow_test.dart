@@ -42,7 +42,7 @@ void main() {
   group('מסייע ההורדה ל-macOS ב-workflow', () {
     test('השלבים יושבים בסוף build_macos, אחרי העלאת חבילת ה-FULL', () {
       final job = workflow.indexOf('\n  build_macos:\n');
-      final nextJob = workflow.indexOf('\n  build_windows_indexed_full:\n');
+      final nextJob = workflow.indexOf('\n  build_windows_installer:\n');
       final fullUpload = indexOfStep('Upload macOS FULL bundle');
       expect(job, greaterThan(-1));
       expect(fullUpload, greaterThan(job));

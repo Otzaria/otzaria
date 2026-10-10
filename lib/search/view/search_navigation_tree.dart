@@ -1,9 +1,11 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
@@ -106,7 +108,8 @@ class SearchNavigationTree extends StatelessWidget {
       child: ListView.builder(
         padding: kNavTreeListPadding,
         itemCount: rows.length,
-        itemBuilder: (context, index) => _buildFlatRow(context, rows[index]),
+        itemBuilder: (context, index) =>
+            _buildFlatRow(context, rows[index], rows),
       ),
     );
   }
@@ -250,7 +253,11 @@ class SearchNavigationTree extends StatelessWidget {
     return subs;
   }
 
-  Widget _buildFlatRow(BuildContext context, _FlatRow row) {
+  Widget _buildFlatRow(
+    BuildContext context,
+    _FlatRow row,
+    List<_FlatRow> rows,
+  ) {
     switch (row.kind) {
       case _FlatRowKind.rootHeader:
         // השורש — כותרת על רקע החלונית (בלי כרטיס/קופסת-אייקון). כשיש סינון
@@ -262,7 +269,12 @@ class SearchNavigationTree extends StatelessWidget {
           onClearFilter: _anyFilterActive ? onClearAll : null,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
-            children: [const NavPanelSearchToggle(), ?rootHeaderAction],
+            children: [
+              if (rows.any((r) => r.isExpanded))
+                _buildCollapseAllButton(context, rows),
+              const NavPanelSearchToggle(),
+              ?rootHeaderAction,
+            ],
           ),
         );
       case _FlatRowKind.category:
@@ -375,6 +387,33 @@ class SearchNavigationTree extends StatelessWidget {
       ),
       child: Center(child: child),
     );
+  }
+
+  Widget _buildCollapseAllButton(BuildContext context, List<_FlatRow> rows) {
+    return SizedBox.square(
+      dimension: 28,
+      child: IconButton(
+        tooltip: context.settingsText('כווץ הכל'),
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(FluentIcons.arrow_collapse_all_24_regular, size: 18),
+        onPressed: () => _collapseAll(rows),
+      ),
+    );
+  }
+
+  /// גם ענפים פתוחים שמוסתרים תחת הורה סגור נסגרים, כדי שלא ייפתחו שוב
+  /// כשההורה נפתח.
+  void _collapseAll(List<_FlatRow> rows) {
+    final paths = <String>{
+      for (final row in rows)
+        if (row.isExpanded) row.category?.path ?? row.facet!,
+      for (final entry in expansion.entries)
+        if (entry.value) entry.key,
+    };
+    for (final path in paths) {
+      onToggleExpand(path, true);
+    }
   }
 
   // ── קטגוריות ──────────────────────────────────────────────────────────────
@@ -492,12 +531,15 @@ class SearchNavigationTree extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final query = filterQuery.toLowerCase();
+    // רשב"א מול רשב״א — גרשיים אינם חלק מההשוואה.
+    final query = normalizeBookTitle(filterQuery).toLowerCase();
     // ספר ללא תוצאות מוסתר כאן בדיוק כמו בעץ: בחירתו הייתה מרוקנת את
     // התוצאות ומשאירה סינון שלא מיוצג בעץ אחרי ניקוי שדה האיתור.
     final matches = <_FilteredBook>[];
     for (final book in _allBooks(library)) {
-      if (!book.title.toLowerCase().contains(query)) continue;
+      if (!_titleHaystack(book).contains(query)) {
+        continue;
+      }
       final facet = FacetHelper.buildBookFacet(
         FacetHelper.resolveCategoryPath(book),
         book,
@@ -532,6 +574,12 @@ class SearchNavigationTree extends StatelessWidget {
   }
 
   // ── עזרי traversal ──────────────────────────────────────────────────────────
+
+  // כותרת מנורמלת לכל ספר מחושבת פעם אחת ולא בכל הקשה.
+  static final Expando<String> _haystacks = Expando();
+
+  static String _titleHaystack(Book book) =>
+      _haystacks[book] ??= normalizeBookTitle(book.title).toLowerCase();
 
   List<Book> _uniqueBooks(List<Book> books) {
     final unique = <String, Book>{};
