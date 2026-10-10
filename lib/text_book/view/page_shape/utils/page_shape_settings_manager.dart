@@ -580,9 +580,4 @@ class PageShapeSettingsManager {
       null,
     );
   }
-
-  /// איפוס הגדרות קטגוריה
-  static Future<void> resetCategorySettings(String category) async {
-    await _removeConfiguration('$_categoryConfigPrefix$category');
-  }
 }

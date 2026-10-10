@@ -4,46 +4,6 @@ import 'package:otzaria/text_display/text_display_exports.dart';
 
 void main() {
   group('text book export utils', () {
-    test('normalizeTextBookExportPath משאיר סיומת תואמת ללא שינוי', () {
-      expect(
-        normalizeTextBookExportPath(
-          r'C:\exports\book.docx',
-          defaultExtension: 'docx',
-        ),
-        r'C:\exports\book.docx',
-      );
-    });
-
-    test('normalizeTextBookExportPath מחליף סיומת קיימת בסיומת שנבחרה', () {
-      expect(
-        normalizeTextBookExportPath(
-          r'C:\exports\book.txt',
-          defaultExtension: 'docx',
-        ),
-        r'C:\exports\book.docx',
-      );
-    });
-
-    test('normalizeTextBookExportPath מוסיף סיומת כשאין סיומת קיימת', () {
-      expect(
-        normalizeTextBookExportPath(
-          r'C:\exports\book',
-          defaultExtension: 'txt',
-        ),
-        r'C:\exports\book.txt',
-      );
-    });
-
-    test('normalizeTextBookExportPath מתעלם מנקודה בשם התיקייה', () {
-      expect(
-        normalizeTextBookExportPath(
-          r'C:\exports.v2\book',
-          defaultExtension: 'docx',
-        ),
-        r'C:\exports.v2\book.docx',
-      );
-    });
-
     test('sanitizeTextBookExportFileName מחליף תווים אסורים בשם קובץ', () {
       expect(
         sanitizeTextBookExportFileName('ספר: בדיקה/א'),

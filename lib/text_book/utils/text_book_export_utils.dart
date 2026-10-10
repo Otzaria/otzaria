@@ -19,34 +19,6 @@ String sanitizeTextBookExportFileName(String value) {
   return sanitized.isEmpty ? 'ספר' : sanitized;
 }
 
-/// מחזיר נתיב ייצוא עם הסיומת שנבחרה בפועל על ידי המשתמש.
-String normalizeTextBookExportPath(
-  String path, {
-  required String defaultExtension,
-}) {
-  final extension = extensionOfTextBookExportPath(path);
-  if (extension == defaultExtension) {
-    return path;
-  }
-  if (extension.isNotEmpty) {
-    return path.substring(0, path.length - extension.length) + defaultExtension;
-  }
-  return '$path.$defaultExtension';
-}
-
-/// מחלץ סיומת מנתיב ייצוא, באותיות קטנות וללא הנקודה.
-String extensionOfTextBookExportPath(String path) {
-  final lastWindowsSeparator = path.lastIndexOf('\\');
-  final lastPosixSeparator = path.lastIndexOf('/');
-  final fileNameStart = lastWindowsSeparator > lastPosixSeparator
-      ? lastWindowsSeparator + 1
-      : lastPosixSeparator + 1;
-  final fileName = path.substring(fileNameStart);
-  final parts = fileName.split('.');
-  if (parts.length < 2) return '';
-  return parts.last.toLowerCase();
-}
-
 /// מזהה שגיאות Windows נפוצות של קובץ יעד פתוח או נעול.
 bool isLockedTextBookExportFileException(FileSystemException e) {
   final code = e.osError?.errorCode;

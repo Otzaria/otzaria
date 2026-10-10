@@ -29,20 +29,6 @@ class TextDisplayResolver {
     );
   }
 
-  /// הטלאי המפורש האפקטיבי של [slot] בשכבה אחת — מה שהמשתמש ראה בפועל
-  /// כשהגדיר אותו — כולל מה שנורש בתוך אותה שכבה. משמש את עורך ההגדרות
-  /// כדי להציג "כמו X" מול ערך מפורש.
-  static TextDisplayPatch effectivePatch(
-    TextDisplayLayer layer,
-    TextDisplaySlot slot,
-  ) {
-    var result = TextDisplayPatch.empty;
-    for (final candidate in slot.inheritanceChain.reversed) {
-      result = result.merge(layer.patchFor(candidate));
-    }
-    return result;
-  }
-
   static T? _first<T>(
     List<TextDisplayLayer> layers,
     List<TextDisplaySlot> chain,
