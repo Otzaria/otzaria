@@ -815,7 +815,67 @@ export interface CityInfo {
   inIsrael: boolean;
 }
 
+/** Since 0.9.99. Raw HTML source is retained; editable text uses the host's stripHtml. */
+export interface CorrectionChange {
+  sectionIndex: number;
+  originalSourceText: string;
+  originalText: string;
+  proposedText: string;
+}
+export interface CorrectionSessionSnapshot {
+  sessionId: string;
+  tabId: string;
+  bookId: string;
+  bookUid: string;
+  libraryVersion: string;
+  revision: number;
+  changes: CorrectionChange[];
+  capabilities: {
+    plainTextOnly: true;
+    htmlSource: true;
+    paragraphBoundaries: false;
+    offsetUnit: 'utf16';
+    sourceSelection: false;
+    sourceAnchorsOnCorrectedParagraphs: false;
+    continuousReading: true;
+    pageShape: false;
+    splitView: true;
+    maxChanges: 500;
+    maxTextLength: 20000;
+    maxChangesBytes: 1048576;
+  };
+}
+export interface BeginCorrectionSessionArgs { tabId: string; }
+export interface GetCorrectionSessionArgs { sessionId: string; }
+export interface RestoreCorrectionDraftArgs extends GetCorrectionSessionArgs {
+  bookUid: string;
+  libraryVersion: string;
+  expectedRevision: number;
+  changes: CorrectionChange[];
+}
+export interface ResetCorrectionArgs extends GetCorrectionSessionArgs {
+  sectionIndex: number;
+  expectedRevision: number;
+}
+export interface EndCorrectionSessionArgs extends GetCorrectionSessionArgs {
+  expectedRevision: number;
+}
+export interface CorrectionSessionChangedEvent {
+  sessionId: string;
+  revision: number;
+  sectionIndex?: number;
+}
+export interface CorrectionSessionEndedEvent {
+  sessionId: string;
+  reason: 'explicit' | 'tab_closed' | 'plugin_unavailable';
+  snapshot: CorrectionSessionSnapshot;
+}
+
 export interface ReaderState {
+  /** Since 0.9.99: text-tab identity, stable until closure; never persisted. */
+  currentTabId: string | null;
+  /** Since 0.9.99: existing session owned by the caller; never creates a session. */
+  currentCorrectionSessionId: string | null;
   currentBook: string | null;
   currentBookId: string | null;
   /** מזהה ספר יציב של הטאב הפעיל (`null` לטאב שאינו ספר / אין טאב). ראה `BookMeta.bookUid`. */
@@ -827,6 +887,10 @@ export interface ReaderState {
   currentIndex: number;
   currentRef: string | null;
   openTabs: Array<{
+    /** Since 0.9.99: text-tab identity; null for other tabs. */
+    tabId: string | null;
+    /** Existing correction session owned by the caller; null for other owners or tabs. */
+    correctionSessionId: string | null;
     /** Canonical book id (`null` for a non-book tab such as search or a tool). */
     id: number | null;
     /** מזהה הכלי או התוסף (`builtin.*` / `pluginId`); `null` לכרטיסייה שאינה כלי. */
@@ -873,6 +937,7 @@ export interface ReaderSelection {
   selectionId?: string;
   bookId?: string;
   bookTitle?: string;
+  /** Since 0.9.99: exact tab identity in reader-book; absent in detached previews. */
   tabId?: string;
   sectionIndex?: number;
   sectionId?: string;
@@ -1452,6 +1517,8 @@ export interface OtzariaEventMap {
   /** User clicked a plugin-registered toolbar item. Sent only to the registering plugin. */
   'reader.toolbar_item_clicked': ToolbarItemClickedEvent;
   'reader.sectionContentChanged': ReaderSectionContentChangedEvent;
+  'reader.correctionSessionChanged': CorrectionSessionChangedEvent;
+  'reader.correctionSessionEnded': CorrectionSessionEndedEvent;
   /**
    * The user tapped a clickable message shown via `ui.show*` /
    * `notifications.showInApp`. Sent only to the plugin that raised the message,
@@ -1993,6 +2060,11 @@ export type OtzariaMethod =
   | 'reader.getHighlightCapabilities'
   | 'reader.findTextOccurrences'
   | 'reader.getSectionTextMap'
+  | 'reader.beginCorrectionSession'
+  | 'reader.getCorrectionSession'
+  | 'reader.restoreCorrectionDraft'
+  | 'reader.resetCorrection'
+  | 'reader.endCorrectionSession'
   | 'workspace.list'
   | 'workspace.getActive'
   | 'workspace.create'

@@ -356,6 +356,11 @@ Otzaria.on('plugin.suspended', stop);   // עצירת timers / polling / WebSock
 | `reader.openBookAtRef` | `reader.open` | `{ bookId, ref, index?, highlight? }` | `boolean` |
 | `reader.printRange` | `reader.open` | `{ bookUid \| id \| bookId, startIndex, endIndex?, commentators? }` | `{ printed }` |
 | `reader.getCurrentState` | `reader.open` | — | `ReaderState` |
+| `reader.beginCorrectionSession` | `reader.local_edit` | `{ tabId }` | `CorrectionSessionSnapshot` |
+| `reader.getCorrectionSession` | `reader.local_edit` | `{ sessionId }` | `CorrectionSessionSnapshot` |
+| `reader.restoreCorrectionDraft` | `reader.local_edit` | `{ sessionId, bookUid, libraryVersion, expectedRevision, changes }` | `CorrectionSessionSnapshot` |
+| `reader.resetCorrection` | `reader.local_edit` | `{ sessionId, sectionIndex, expectedRevision }` | `CorrectionSessionSnapshot` |
+| `reader.endCorrectionSession` | `reader.local_edit` | `{ sessionId, expectedRevision }` | `CorrectionSessionSnapshot` |
 
 ### navigation.*
 
@@ -589,6 +594,7 @@ const { data: keys } = await Otzaria.call('storage.list');
 | `library.books.provide` | הוספת ספרים מהתוסף לאיתור הספרים במסך הספרייה (`contributes.startup.libraryBooks`); לחיצה על ספר כזה נמסרת לתוסף |
 | `search.fulltext.read` | חיפוש טקסט מלא |
 | `reader.open` | פתיחת ספרים + קריאת מצב הקורא |
+| `reader.local_edit` | שכבת תיקונים זמנית בקורא הטקסט הרשמי, ללא כתיבה למקור; מ־0.9.99 |
 | `navigation.write` | ניווט בין מסכים |
 | `plugin.open_other` | פתיחת דף של תוסף אחר המותקן אצל המשתמש (`plugin.openOther`), כולל הפעלת הקוד שלו |
 | `notes.read` | קריאת הערות אישיות |

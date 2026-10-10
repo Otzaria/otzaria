@@ -13,6 +13,30 @@ void main() {
   final specFile = File('${root.path}/$specRelativePath');
 
   group('spec.json', () {
+    test('תיקונים מקומיים מפורסמים עם הרשאה וגרסת מינימום נפרדות', () {
+      final spec =
+          jsonDecode(specFile.readAsStringSync()) as Map<String, dynamic>;
+      expect(spec['permissions'], contains('reader.local_edit'));
+      for (final method in const [
+        'reader.beginCorrectionSession',
+        'reader.getCorrectionSession',
+        'reader.restoreCorrectionDraft',
+        'reader.resetCorrection',
+        'reader.endCorrectionSession',
+      ]) {
+        expect(spec['apiMethods'], contains(method));
+        expect((spec['methodPermissions'] as Map)[method], 'reader.local_edit');
+        expect((spec['methodMinVersions'] as Map)[method], '0.9.99');
+      }
+      for (final topic in const [
+        'reader.correctionSessionChanged',
+        'reader.correctionSessionEnded',
+      ]) {
+        expect(spec['events'], contains(topic));
+        expect(spec['permissions'], isNot(contains('events.subscribe:$topic')));
+      }
+    });
+
     test('מעודכן מול קבועי האפליקציה', () {
       final result = generatePluginSpec(root, check: true);
       expect(

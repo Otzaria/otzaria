@@ -1,12 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mockito/mockito.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/text_book/utils/reader_plugin_menu_entries.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+
+class _ReaderBloc extends Mock implements TextBookBloc {
+  @override
+  final TextBookLoaded state;
+  _ReaderBloc(this.state);
+}
+
+class _ReaderTab extends Mock implements TextBookTab {
+  @override
+  final TextBookBloc bloc;
+  _ReaderTab(TextBookLoaded state) : bloc = _ReaderBloc(state);
+}
 
 void main() {
   const lines = ['שלום עולם', 'עולם ומלואו', 'שלום לכולם'];
@@ -35,7 +51,12 @@ void main() {
   );
 
   test('זהות ספר ללא סימון כוללת את הפסקה שנלחצה ולא טווח מומצא', () {
-    final payload = buildReaderBookPayload(state: state(), paragraphIndex: 2);
+    final payload = buildReaderBookPayload(
+      state: state(),
+      paragraphIndex: 2,
+      tabId: 'clicked-tab',
+    );
+    expect(payload['tabId'], 'clicked-tab');
     expect(payload['id'], 7);
     expect(payload['bookId'], 'ספר בדיקה');
     expect(payload['currentBookId'], 'ספר בדיקה');
@@ -49,6 +70,28 @@ void main() {
     expect(payload['start'], isNull);
     expect(payload['end'], isNull);
     expect(payload.containsKey('sourceRange'), isFalse);
+  });
+
+  test('מזהה לשונית נבדל באותו ספר ונבחר לפי החלונית המדויקת', () {
+    final firstState = state();
+    final secondState = state();
+    final first = _ReaderTab(firstState);
+    final second = _ReaderTab(secondState);
+    final split = CombinedTab(rightTab: first, leftTab: second);
+    final firstId = readerBookTabId(first, firstState);
+    final secondId = readerBookTabId(second, secondState);
+    expect(firstId, isNotNull);
+    expect(secondId, isNot(firstId));
+    expect(readerBookTabId(split, firstState), firstId);
+    expect(readerBookTabId(split, secondState), secondId);
+    expect(readerBookTabId(split, state()), isNull);
+    expect(readerBookTabId(null, firstState), isNull);
+    final payload = buildReaderBookPayload(
+      state: secondState,
+      paragraphIndex: 1,
+      tabId: readerBookTabId(split, secondState),
+    );
+    expect(payload['tabId'], secondId);
   });
 
   group('buildReaderSelectionPayload', () {
@@ -169,6 +212,7 @@ void main() {
       );
       var settingsCalls = 0;
       final entries = buildReaderPluginMenuEntries(
+        tabId: 'clicked-tab',
         root: null,
         state: state(),
         lines: lines,
@@ -328,6 +372,7 @@ void main() {
       );
       final entries = buildReaderPluginMenuEntries(
         root: tester.renderObject(find.text('שלום עולם')),
+        tabId: 'clicked-tab',
         state: state(),
         lines: lines,
         paragraphIndex: 0,

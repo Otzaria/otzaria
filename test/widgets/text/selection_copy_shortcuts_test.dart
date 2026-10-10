@@ -475,4 +475,61 @@ void main() {
       expect(controller.text, isEmpty);
     });
   });
+
+  group('שדה קלט מקונן תחת SelectionCopyShortcuts', () {
+    for (final cut in [false, true]) {
+      testWidgets('Ctrl+${cut ? 'X' : 'C'} פועל על בחירת השדה ולא על onCopy', (
+        tester,
+      ) async {
+        final clipboardWrites = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              clipboardWrites.add(call.arguments['text'] as String);
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        var copyCount = 0;
+        final controller = TextEditingController(text: 'נוסח מתוקן');
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SelectionCopyShortcuts(
+                onCopy: () => copyCount++,
+                child: SelectionArea(
+                  child: TextField(controller: controller, autofocus: true),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        controller.selection = const TextSelection(
+          baseOffset: 0,
+          extentOffset: 4,
+        );
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(
+          cut ? LogicalKeyboardKey.keyX : LogicalKeyboardKey.keyC,
+        );
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+
+        expect(copyCount, 0);
+        expect(clipboardWrites, ['נוסח']);
+        expect(controller.text, cut ? ' מתוקן' : 'נוסח מתוקן');
+      });
+    }
+  });
 }

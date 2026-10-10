@@ -65,6 +65,8 @@ import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository
 import 'package:otzaria/tools/dictionary/widgets/laaz_commentary_subblock.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
+import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
+import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
@@ -375,6 +377,7 @@ class _ParagraphStateKey extends GlobalKey {
 }
 
 class _CombinedViewState extends State<CombinedView> {
+  bool _localCorrectionActive = false;
   bool _anchorHandledCurrentTap = false;
   final ParagraphCommentatorsCache _paragraphCommentatorsCache =
       ParagraphCommentatorsCache();
@@ -798,7 +801,7 @@ class _CombinedViewState extends State<CombinedView> {
     _isSelectionPointerDown = false;
     _selectionLineCache.clear();
     if (_pendingSelectionClear) _clearSelectionState();
-    if (takeFocus) _focusNode.requestFocus();
+    if (takeFocus && !_hasLocalCorrections) _focusNode.requestFocus();
     _flushDeferredSelectionAreaRefresh();
   }
 
@@ -863,6 +866,10 @@ class _CombinedViewState extends State<CombinedView> {
   @override
   void initState() {
     super.initState();
+    _localCorrectionActive = _hasLocalCorrections;
+    PluginCorrectionSessionService.instance.addListener(
+      _onLocalCorrectionChanged,
+    );
     _focusNode = FocusNode();
     // רישום למיקוד אזור הקריאה במעבר טאב (לא ב-preview שאינו טאב פעיל).
     if (!widget.isPreviewMode) {
@@ -1102,6 +1109,9 @@ class _CombinedViewState extends State<CombinedView> {
 
   @override
   void dispose() {
+    PluginCorrectionSessionService.instance.removeListener(
+      _onLocalCorrectionChanged,
+    );
     unawaited(_textBookSubscription?.cancel());
     widget.tab.dynamicCopyRequestNotifier.removeListener(_onDynamicCopyRequest);
     PluginHighlightRevealService.instance.removeListener(
@@ -1454,7 +1464,7 @@ class _CombinedViewState extends State<CombinedView> {
     Offset tapPosition,
   ) {
     // מצב תצוגה מקדימה — תפריט מינימלי
-    if (widget.isPreviewMode) {
+    if (widget.isPreviewMode || _hasLocalCorrections) {
       return [
         AppContextMenuEntry(
           label: 'העתק',
@@ -1653,6 +1663,7 @@ class _CombinedViewState extends State<CombinedView> {
       ...buildReaderPluginMenuEntries(
         root: context.findRenderObject(),
         state: state,
+        tabId: readerBookTabId(widget.tab, state),
         lines: widget.data,
         paragraphIndex: paragraphIndex,
         hasSelection: menuSelection.hasText,
@@ -2065,6 +2076,12 @@ class _CombinedViewState extends State<CombinedView> {
                         return;
                       }
                       _pendingSelectionClear = false;
+                      if (_hasLocalCorrections) {
+                        _savedSelectedText.value = plain;
+                        _sourceSelection = null;
+                        widget.onSelectedTextChanged?.call(null, null, null);
+                        return;
+                      }
                       widget.selectionSyncController?.activate(_selectionOwner);
                       // כניסה למצב בחירה כשיש טקסט נבחר
                       if (!_selectionManager.isInSelectionMode) {
@@ -2557,12 +2574,14 @@ class _CombinedViewState extends State<CombinedView> {
             child: EnhancedGestureDetector(
               behavior: HitTestBehavior.translucent,
               onDragSelectionStart: () {
+                if (_hasLocalCorrections) return;
                 // כניסה למצב בחירה בגלל drag
                 if (!_selectionManager.isInSelectionMode) {
                   _selectionManager.setAnchor(actionLineIndex());
                 }
               },
               onSingleTap: () {
+                if (_hasLocalCorrections) return;
                 if (_anchorHandledCurrentTap) {
                   _anchorHandledCurrentTap = false;
                   return;
@@ -2649,15 +2668,12 @@ class _CombinedViewState extends State<CombinedView> {
                 }
               },
               onDoubleTap: () {
-                // Double-click → בחירת פסקה שלמה
-                // הערה: SelectionArea של Flutter לא תומך בבחירה פרוגרמטית,
-                // לכן הפיצ'ר הזה לא מומש במלואו. SelectionArea יבצע את פעולת
-                // ברירת המחדל שלו (בחירת מילה). לבחירת פסקה, המשתמש יכול
-                // להשתמש ב-Shift+Click או Drag.
+                if (_hasLocalCorrections) return;
                 _focusNode.requestFocus();
                 _selectionManager.enterDoubleClickMode(actionLineIndex());
               },
               onShiftClick: () {
+                if (_hasLocalCorrections) return;
                 // Shift+Click → בחירת טווח
                 _focusNode.requestFocus();
                 if (!_selectionManager.hasAnchor()) {
@@ -2668,7 +2684,7 @@ class _CombinedViewState extends State<CombinedView> {
               },
               onCtrlClick: () {
                 // Ctrl+Click → הוספה/הסרה של הקטע מבחירה מרובה (ללא גלילה אוטומטית)
-                if (isContinuousParagraph) {
+                if (_hasLocalCorrections || isContinuousParagraph) {
                   return;
                 }
                 _focusNode.requestFocus();
@@ -2905,16 +2921,33 @@ class _CombinedViewState extends State<CombinedView> {
                             onTouchPreview: _handleTouchPreview,
                           );
 
+                          final displayedText = widget.isPreviewMode
+                              ? textWidget
+                              : PluginCorrectionParagraph(
+                                  tabId: _correctionTabId,
+                                  sectionIndex: primaryLineIndex,
+                                  sourceText: widget.data[primaryLineIndex],
+                                  settings: RenderSettings.fromProfile(
+                                    state.bodyDisplayProfile,
+                                    fontSize: widget.textSize,
+                                    fontFamily: settingsState.fontFamily,
+                                    fontWeight: settingsState.fontBold
+                                        ? FontWeight.bold
+                                        : null,
+                                    lineHeight: settingsState.lineHeight,
+                                  ),
+                                  original: textWidget,
+                                );
                           final constrainedText = textMaxWidth > 0
                               ? Center(
                                   child: ConstrainedBox(
                                     constraints: BoxConstraints(
                                       maxWidth: textMaxWidth,
                                     ),
-                                    child: textWidget,
+                                    child: displayedText,
                                   ),
                                 )
-                              : textWidget;
+                              : displayedText;
 
                           return constrainedText;
                         },
@@ -3067,8 +3100,10 @@ class _CombinedViewState extends State<CombinedView> {
           lineIndices: lineIndices,
         );
 
-        return ContinuousReadingParagraph(
-          lines: paragraphLines,
+        Widget buildParagraph(
+          List<ContinuousReadingParagraphLine> lines,
+        ) => ContinuousReadingParagraph(
+          lines: lines,
           baseStyle: baseTextStyle,
           // אותו עיצוב קישורים כמו במצב הרגיל (HtmlWidget): primary + קו תחתון.
           linkStyle: TextStyle(
@@ -3131,6 +3166,32 @@ class _CombinedViewState extends State<CombinedView> {
           onLineSecondaryTap: (lineIndex) {
             _currentSelectedIndex.value = lineIndex;
           },
+        );
+        if (widget.isPreviewMode ||
+            !PluginCorrectionSessionService.instance.hasSessionForTab(
+              _correctionTabId,
+            )) {
+          return buildParagraph(paragraphLines);
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final line in paragraphLines)
+              PluginCorrectionParagraph(
+                key: ValueKey('correction-${line.lineIndex}'),
+                tabId: _correctionTabId,
+                sectionIndex: line.lineIndex,
+                sourceText: widget.data[line.lineIndex],
+                settings: RenderSettings.fromProfile(
+                  state.bodyDisplayProfile,
+                  fontSize: widget.textSize,
+                  fontFamily: settingsState.fontFamily,
+                  fontWeight: settingsState.fontBold ? FontWeight.bold : null,
+                  lineHeight: settingsState.lineHeight,
+                ),
+                original: buildParagraph([line]),
+              ),
+          ],
         );
       },
     );
@@ -3305,13 +3366,30 @@ class _CombinedViewState extends State<CombinedView> {
     return buildKeyboardListener();
   }
 
-  // [EDITING DISABLED]
-  // /// Opens the text editor for a specific paragraph
-  // void _editParagraph(int paragraphIndex) {
-  //   if (paragraphIndex >= 0 && paragraphIndex < widget.data.length) {
-  //     context.read<TextBookBloc>().add(OpenEditor(index: paragraphIndex));
-  //   }
-  // }
+  String get _correctionTabId =>
+      PluginCorrectionSessionService.knownTabIdFor(widget.tab) ?? '';
+
+  bool get _hasLocalCorrections =>
+      !widget.isPreviewMode &&
+      PluginCorrectionSessionService.instance.hasSessionForTab(
+        _correctionTabId,
+      );
+
+  /// הבחירה חסומה כל עוד הסשן פעיל, ולכן מנקים אותה רק בפתיחה ובסיום.
+  void _onLocalCorrectionChanged() {
+    if (!mounted || _disposed) return;
+    final active = _hasLocalCorrections;
+    if (active == _localCorrectionActive) return;
+    _localCorrectionActive = active;
+    setState(() {});
+    if (!active && _focusNode.hasFocus) _focusNode.requestFocus();
+    _sourceSelection = null;
+    _savedSelectedIndex.value = null;
+    _currentSelectedIndex.value = null;
+    _clearSelectionState();
+    _selectionAreaKey.currentState?.selectableRegion.clearSelection();
+    widget.onSelectedTextChanged?.call(null, null, null);
+  }
 }
 
 // ב-Windows אובדן פוקוס החלון מעביר את הפוקוס ל-rootScope כשה-lifecycle עדיין

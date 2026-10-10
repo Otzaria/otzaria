@@ -271,6 +271,12 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     icon: FluentIcons.app_title_24_regular,
     description: 'הוספת לחצנים ותפריטים לשורת הפקדים של מסך העיון',
   ),
+  'reader.local_edit': PluginPermissionInfo(
+    label: 'תיקונים מקומיים בטקסט',
+    icon: FluentIcons.text_edit_style_24_regular,
+    description:
+        'ניהול תיקונים מקומיים לספר הפתוח, ללא כתיבה לספר או למסד הספרייה',
+  ),
   'reader.highlight': PluginPermissionInfo(
     label: 'הדגשות בטקסט',
     icon: FluentIcons.highlight_24_regular,

@@ -624,4 +624,103 @@ async function commentariesForCurrentLine() {
 
 ---
 
+## תיקונים מקומיים: שמירת טיוטה לפני הצגה בקורא
+
+**מגרסה:** `0.9.99`. **הרשאות:** `reader.open`, `reader.local_edit`,
+`plugin.storage.read`, `plugin.storage.write`.
+
+`beginCorrectionSession` מפעילה עורך מובנה בפסקאות פשוטות בקורא הרשמי.
+כל הקלדה שהתקבלה מסנכרנת מיד את הסשן ומפיקה `correctionSessionChanged`.
+התוסף מושך ושומר snapshots באופן שוטף, ושומר טיוטה לפני `restoreCorrectionDraft`.
+הסשן באוצריא זמני; מזהי סשן ולשונית אינם מזהי התאוששות בין הפעלות.
+הדוגמה שומרת בנפרד את כוונת המשתמש ואת ה־snapshot שאוצריא אישרה.
+יש לסדר את הפעולות בתור יחיד בתוסף ולשמור כל snapshot שחוזר מפעולה מוצלחת.
+
+```javascript
+async function rpc(method, payload) {
+  const response = await Otzaria.call(method, payload);
+  if (!response.success) {
+    const error = new Error(response.error?.message ?? method);
+    error.code = response.error?.code;
+    throw error;
+  }
+  return response.data;
+}
+
+async function saveSnapshot(snapshot) {
+  await rpc('storage.set', {
+    key: 'correction.snapshot',
+    value: snapshot,
+  });
+  return snapshot;
+}
+
+async function beginCorrections() {
+  const state = await rpc('reader.getCurrentState');
+  return saveSnapshot(await rpc('reader.beginCorrectionSession', {
+    tabId: state.currentTabId,
+  }));
+}
+
+async function applyDraft(session, changes) {
+  const draft = {
+    bookUid: session.bookUid,
+    libraryVersion: session.libraryVersion,
+    changes,
+  };
+  await rpc('storage.set', { key: 'correction.draft', value: draft });
+  try {
+    return await saveSnapshot(await rpc('reader.restoreCorrectionDraft', {
+      ...draft,
+      sessionId: session.sessionId,
+      expectedRevision: session.revision,
+    }));
+  } catch (error) {
+    if (error.code === 'error.revision_conflict') {
+      await saveSnapshot(await rpc('reader.getCorrectionSession', {
+        sessionId: session.sessionId,
+      }));
+    }
+    throw error;
+  }
+}
+
+async function finishCorrections(session) {
+  const latest = await saveSnapshot(await rpc('reader.getCorrectionSession', {
+    sessionId: session.sessionId,
+  }));
+  return saveSnapshot(await rpc('reader.endCorrectionSession', {
+    sessionId: latest.sessionId,
+    expectedRevision: latest.revision,
+  }));
+}
+
+let snapshotWrites = Promise.resolve();
+Otzaria.on('reader.correctionSessionChanged', ({ sessionId }) => {
+  snapshotWrites = snapshotWrites.then(async () => {
+    const snapshot = await rpc('reader.getCorrectionSession', { sessionId });
+    await saveSnapshot(snapshot);
+  }).catch((error) => {
+    if (error.code !== 'error.not_found') console.error(error);
+  });
+});
+Otzaria.on('reader.correctionSessionEnded', ({ snapshot }) => {
+  snapshotWrites = snapshotWrites.then(() => saveSnapshot(snapshot))
+    .catch(console.error);
+});
+```
+
+לאחר `error.revision_conflict` יש להשוות את הטיוטה השמורה למצב המעודכן ולהציג
+התנגשות למשתמש; אין לנסות שוב עם revision חדש באופן עיוור. `error.source_changed`
+מחייב קריאת מקור מחדש ובדיקת התיקונים לפני שחזור. גם `resetCorrection` מחזירה
+snapshot שיש לשמור. באתחול הבא קוראים את `correction.draft` באמצעות `storage.get`,
+פותחים סשן חדש בספר המתאים ומאמתים שוב את זהות המקור והגרסה לפני restore.
+
+יש לקרוא את הטיוטה ואת ה־snapshot שנשמר לפני פתיחת סשן חדש, ולהחליט איזה מצב
+לשחזר; ההקלדה המובנית נשמרת כאן במפתח `correction.snapshot`.
+אירוע סיום כולל את הטקסט האחרון אך אינו הבטחת שמירה אם התוסף נסגר.
+במהלך כל הסשן `getSelection` אינה זמינה. rendered/both, מפות מקור וחיפוש rendered
+אינם זמינים לספר עם סשן פעיל. `getSectionTextMap` עם `layer: 'source'` וללא מפת
+מקור נשארת קריאת מקור רשמי. אין אחסון התאוששות בצד אוצריא.
+
 > זקוקים ל-API נוסף או לדפוס עיצוב נוסף? כתבו לנו ב-[GitHub Issues](https://github.com/Otzaria/otzaria/issues) עם התג `plugin-sdk`.

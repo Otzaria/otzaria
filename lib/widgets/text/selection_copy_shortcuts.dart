@@ -26,12 +26,7 @@ class SelectionCopyShortcuts extends StatelessWidget {
         // נשלח כש-ה-SelectableRegion הוא ה-primaryFocus (בחירה פעילה).
         CopySelectionTextIntent: FormattedCopyAction(onCopy),
         // נשלח כשהפוקוס במקום אחר בתת-העץ ולא ב-SelectableRegion.
-        _CopyIntent: CallbackAction<_CopyIntent>(
-          onInvoke: (_) {
-            onCopy();
-            return null;
-          },
-        ),
+        _CopyIntent: _CopyAction(onCopy),
       },
       child: Shortcuts(
         shortcuts: const <ShortcutActivator, Intent>{
@@ -47,6 +42,27 @@ class SelectionCopyShortcuts extends StatelessWidget {
 
 class _CopyIntent extends Intent {
   const _CopyIntent();
+}
+
+/// שדה קלט מקונן מעתיק וגוזר את הבחירה שלו, ולא את בחירת הקורא.
+bool _isTextInputFocused() {
+  final focusContext = FocusManager.instance.primaryFocus?.context;
+  return focusContext != null && isTextInputContext(focusContext);
+}
+
+class _CopyAction extends Action<_CopyIntent> {
+  _CopyAction(this.onCopy);
+
+  final VoidCallback onCopy;
+
+  @override
+  bool isEnabled(_CopyIntent intent) => !_isTextInputFocused();
+
+  @override
+  Object? invoke(_CopyIntent intent) {
+    onCopy();
+    return null;
+  }
 }
 
 /// האם [intent] הוא ווריאנט הגזירה (Ctrl+X) על טקסט שאינו ניתן לעריכה.
@@ -68,11 +84,13 @@ class FormattedCopyAction extends Action<CopySelectionTextIntent> {
   final VoidCallback onCopy;
 
   @override
-  bool isEnabled(CopySelectionTextIntent intent) =>
-      !isReadOnlyCutIntent(intent);
+  bool isEnabled(CopySelectionTextIntent intent) => _isTextInputFocused()
+      ? callingAction?.isEnabled(intent) ?? false
+      : !isReadOnlyCutIntent(intent);
 
   @override
   Object? invoke(CopySelectionTextIntent intent) {
+    if (_isTextInputFocused()) return callingAction?.invoke(intent);
     onCopy();
     return null;
   }
