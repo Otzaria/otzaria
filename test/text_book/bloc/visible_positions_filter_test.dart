@@ -171,6 +171,31 @@ void main() {
       expect(filtered.map((p) => p.index), [100]);
     });
 
+    test('קטע ארוך מהמסך נשאר גלוי בתחילתו ובסופו (issue #2327)', () {
+      // קטע בגובה עשרה מסכים: בתחילתו ובסופו הוא תופס חלק גדול מהמסך אבל
+      // פחות מ-15% מגובהו. סינונו הוציא אותו מ-visibleIndices, ובתצוגה
+      // המפוצלת הבחירה בו התאפסה מייד.
+      List<int> visible(List<ItemPosition> positions) =>
+          TextBookBloc.filterBarelyVisiblePositionsForTesting(
+            positions,
+          ).map((p) => p.index).toList();
+
+      expect(
+        visible(const [
+          ItemPosition(index: 9, itemLeadingEdge: -0.1, itemTrailingEdge: 0.3),
+          ItemPosition(index: 10, itemLeadingEdge: 0.3, itemTrailingEdge: 10.3),
+        ]),
+        contains(10),
+      );
+      expect(
+        visible(const [
+          ItemPosition(index: 10, itemLeadingEdge: -9.6, itemTrailingEdge: 0.4),
+          ItemPosition(index: 11, itemLeadingEdge: 0.4, itemTrailingEdge: 1.2),
+        ]),
+        contains(10),
+      );
+    });
+
     test('fallback: אם כל ה-positions מתחת לסף, חוזרים למקור', () {
       // edge case שלא אמור לקרות בפועל - שני positions גלויים פחות מ-15%.
       // כדי לא להחזיר רשימה ריקה (שתשבש visibleIndices לגמרי), חוזרים למקור.
