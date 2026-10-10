@@ -26,11 +26,6 @@ class FakePluginRegistryRepository extends Mock
       nextUserOrderForNewPlugin;
 
   @override
-  Future<void> saveDevelopmentPlugin(InstalledPlugin plugin) async {
-    savedPlugin = plugin;
-  }
-
-  @override
   Future<void> saveDevelopmentPluginWithPermissions(
     InstalledPlugin plugin,
     Map<String, bool> permissions,

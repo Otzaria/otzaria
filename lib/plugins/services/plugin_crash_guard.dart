@@ -228,15 +228,6 @@ class PluginCrashGuard {
     if (removed) await _persist();
   }
 
-  /// המשתמש לחץ "נסה שוב את כולם". מסיר את כל הסימונים.
-  static Future<void> retryAll() async {
-    await ensureInitialized();
-    _loadsInFlight.clear();
-    if (_blocked!.isEmpty) return;
-    _blocked!.clear();
-    await _persist();
-  }
-
   /// משמש לטסטים בלבד — מאפס את כל ה-state ה-static.
   @visibleForTesting
   static void resetForTesting() {

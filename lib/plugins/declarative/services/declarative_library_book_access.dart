@@ -76,13 +76,6 @@ class DeclarativeLibraryBookAccess
     ];
   }
 
-  Future<Map<String, dynamic>?> resolveUnique(
-    Map<String, dynamic> identity,
-  ) async {
-    final book = (await findUniqueBooks([identity])).single;
-    return book == null ? null : PluginBookIdentity.toJson(book);
-  }
-
   @override
   Future<bool> openUnique(
     Map<String, dynamic> identity, {

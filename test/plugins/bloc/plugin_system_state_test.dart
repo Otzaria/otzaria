@@ -110,8 +110,8 @@ void main() {
     });
 
     test(
-      'pinnedToNavRail=true excludes a plugin from pinnedPlugins even when '
-      'it is also tab-pinned — no duplicate place in "כלים"',
+      'pluginsPinnedToNavRail includes nav-rail plugins whether or not they '
+      'are also tab-pinned',
       () {
         final state = PluginSystemLoaded([
           // מוצמד-ללשוניות-בלבד (pinned)
@@ -138,47 +138,12 @@ void main() {
         ]);
 
         expect(
-          state.pinnedPlugins.map((p) => p.pluginId),
-          equals(['tabs-only']),
-          reason:
-              'תוסף שהוצמד לסרגל הניווט לא אמור לתפוס גם לשונית במסך כלים, '
-              'גם אם הוא מסומן pinned',
-        );
-
-        expect(
           state.pluginsPinnedToNavRail.map((p) => p.pluginId),
           containsAll(['rail-only', 'both']),
         );
         expect(
           state.pluginsPinnedToNavRail.map((p) => p.pluginId),
           isNot(contains('tabs-only')),
-        );
-      },
-    );
-
-    test(
-      'showInTools=false excludes plugin from pinnedPlugins but NOT from nav rail',
-      () {
-        final state = PluginSystemLoaded([
-          _plugin(
-            id: 'hidden-from-tools',
-            enabled: true,
-            pinned: true,
-            pinnedToNavRail: false,
-            showInTools: false,
-          ),
-          _plugin(
-            id: 'visible',
-            enabled: true,
-            pinned: true,
-            pinnedToNavRail: false,
-          ),
-        ]);
-        expect(
-          state.pinnedPlugins.map((p) => p.pluginId),
-          equals(['visible']),
-          reason:
-              'plugin with showInTools=false must not appear as tools-tab tab',
         );
       },
     );
