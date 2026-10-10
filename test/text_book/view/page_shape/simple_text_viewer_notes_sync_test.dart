@@ -237,7 +237,9 @@ void main() {
       expect(isMarked(tester), isTrue);
 
       await tester.runAsync(() async {
-        await database.deleteBookNotes('רש"י');
+        for (final note in await database.loadNotes('רש"י')) {
+          await database.deleteNote(note.id);
+        }
         await pumpEventQueue();
       });
       await tester.pumpAndSettle();
