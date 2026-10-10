@@ -87,4 +87,74 @@ void main() {
       expect(root.redactText('/usr/lib'), '/usr/lib');
     });
   });
+
+  group('AppReportRedactor: כתובות מייל', () {
+    String red(String s) => redactor.redactText(s);
+
+    test('משמעות ההסתרה נשמרת', () {
+      expect(red('-a@b.com'), '-<email>');
+      expect(red('a@b@c.com'), 'a@<email>');
+      expect(red('a..b@c.com'), '<email>');
+      expect(red('user+tag@sub.example.org.'), '<email>.');
+      expect(red('שלוםa@b.com!'), 'שלום<email>!');
+      expect(red('a@b.com, c@d.org;e@f.net'), '<email>, <email>;<email>');
+      expect(red('<a@b.com>'), '<<email>>');
+      expect(red('mailto:a@b.com'), 'mailto:<email>');
+      expect(red('a@b.com:443'), '<email>:443');
+      expect(red('שלום a@b.com תודה'), 'שלום <email> תודה');
+      expect(red('a@b.com1'), '<email>1');
+      expect(red('a@b.com..x.org'), '<email>..x.org');
+      expect(red('a@b.co-x.y'), '<email>-x.y');
+      expect(red('a@b.cc.dd.ee'), '<email>');
+      expect(red('a@b.cc.d'), '<email>.d');
+      expect(red('a@b.ccd'), '<email>');
+      expect(red('a@b.cc.ddd1'), '<email>1');
+      expect(red('a.@b.com'), '<email>');
+      expect(red('éa@b.com'), 'é<email>');
+    });
+
+    test('טקסט שאינו מייל נשאר כמות שהוא', () {
+      for (final s in ['a@b', 'a@b.c', '@b.com', 'a@', '-@b.com', 'a@.com']) {
+        expect(red(s), s);
+      }
+    });
+
+    test('הסתרה חוזרת אינה משנה את התוצאה', () {
+      for (final s in [
+        'a@b.com x@y.org',
+        '-a@b.com',
+        'a@b@c.com',
+        '<email>@b.com',
+      ]) {
+        expect(red(red(s)), red(s));
+      }
+    });
+
+    test('קלט ארוך ועוין מסתיים מהר', () {
+      final inputs = <String>[
+        'a' * 200000,
+        r'\' + 'a' * 200000,
+        'a@' * 100000,
+        'a@b.' * 70000,
+        '@' * 200000,
+        ('a' * 64 + '@') * 3000,
+        'a.' * 100000,
+        'a-' * 100000,
+        '${'a' * 200000}@',
+      ];
+      for (final input in inputs) {
+        final watch = Stopwatch()..start();
+        red(input);
+        expect(
+          watch.elapsed,
+          lessThan(const Duration(seconds: 2)),
+          reason: 'קלט באורך ${input.length}',
+        );
+      }
+    });
+
+    test('טוקן ארוך עם מייל בסופו מוסתר במלואו', () {
+      expect(red('${'a' * 200000}@b.com'), '<email>');
+    });
+  });
 }
