@@ -24,7 +24,7 @@ void main() {
       );
       await Settings.setValue<String>(
         SettingsRepository.keyLibraryFolderName,
-        DatabaseConstants.otzariaFolderName,
+        'Otzaria',
       );
       FileSystemLibraryProvider.instance.resetForTesting();
     });

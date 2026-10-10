@@ -83,9 +83,6 @@ class DatabaseConstants {
   /// The name of the external catalogs version file in GitHub releases
   static const String externalCatalogVersionFileName = 'version.txt';
 
-  /// The default name of the Otzaria folder
-  static const String otzariaFolderName = 'Otzaria';
-
   /// שמות הקבצים והתיקיות שהתוכנה מנהלת בתוך תיקיית הספרייה. בהעברת מיקום
   /// הספרייה מעבירים רק אותם — קבצים שהמשתמש הוסיף לתיקייה נשארים במקומם.
   /// כולל קובצי לוואי של SQLite (-wal/-shm) שעשויים להישאר ליד ה-DB.

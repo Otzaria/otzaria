@@ -46,35 +46,4 @@ class ExternalCatalogMapper {
     }
     return null;
   }
-
-  /// מחזיר קישור מתאים מתוך filePath או externalLibraryId אם הם URL.
-  static String? resolveLink({
-    String? filePath,
-    String? externalLibraryId,
-  }) {
-    final fromExternalId = _linkFromExternalLibraryId(externalLibraryId);
-    if (fromExternalId != null) return fromExternalId;
-    return null;
-  }
-
-  static String? _linkFromExternalLibraryId(String? externalLibraryId) {
-    if (externalLibraryId == null) return null;
-    final trimmed = externalLibraryId.trim();
-    if (trimmed.isEmpty) return null;
-
-    final lower = trimmed.toLowerCase();
-    if (lower.startsWith('oh:')) {
-      final id = trimmed.substring(3).trim();
-      if (id.isEmpty) return null;
-      return 'https://tablet.otzar.org/book/book.php?book=$id';
-    }
-
-    if (lower.startsWith('hb:')) {
-      final id = trimmed.substring(3).trim();
-      if (id.isEmpty) return null;
-      return 'https://hebrewbooks.org/$id';
-    }
-
-    return null;
-  }
 }

@@ -191,9 +191,6 @@ class FileSystemData {
     debugPrint('Book cache cleared');
   }
 
-  /// Gets the library provider manager for advanced operations
-  LibraryProviderManager get providerManager => _providerManager;
-
   /// Gets the file system provider
   FileSystemLibraryProvider get fileSystemProvider =>
       _providerManager.fileSystemProvider;
