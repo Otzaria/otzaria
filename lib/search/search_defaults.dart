@@ -111,6 +111,14 @@ class SearchDefaults {
     _sessionExactOptions = Map<String, bool>.from(options);
   }
 
+  /// האפשרויות שאיתן נפתח חיפוש חדש במצב [mode] (במקורב אין אפשרויות מילה).
+  static Map<String, bool> initialOptionsForMode(SearchMode mode) =>
+      switch (mode) {
+        SearchMode.advanced => initialOptionsForNewSearch(),
+        SearchMode.exact => initialExactOptionsForNewSearch(),
+        SearchMode.fuzzy => const {},
+      };
+
   // ── מצב החיפוש ──────────────────────────────────────────────────────
 
   /// מצב החיפוש שבו נפתח חיפוש חדש: מצב הסשן אם קיים (מעבר ידני למצב
