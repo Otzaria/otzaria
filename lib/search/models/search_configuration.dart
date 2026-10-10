@@ -305,16 +305,6 @@ class SearchConfiguration {
     );
   }
 
-  /// קבלת דגלי רגקס כמחרוזת (לשימוש עתידי)
-  String get regexFlags {
-    String flags = '';
-    if (!caseSensitive) flags += 'i';
-    if (multiline) flags += 'm';
-    if (dotAll) flags += 's';
-    if (unicode) flags += 'u';
-    return flags;
-  }
-
   // Getters לתאימות לאחור
   bool get fuzzy => searchMode == SearchMode.fuzzy;
   bool get isAdvancedSearchEnabled => searchMode == SearchMode.advanced;
