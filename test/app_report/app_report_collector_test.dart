@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/repository/app_report_redactor.dart';
 import 'package:otzaria/app_report/repository/error_log_blocks.dart';
+import 'package:otzaria/core/info/os_version.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -126,5 +127,16 @@ void main() {
       'x64',
     );
     expect(AppReportCollector.detectArch(abi: Abi.windowsArm64), 'arm64');
+  });
+
+  test('osVersion: הדיווח והאבחון מתקנים Windows 11 שמדווח כ-Windows 10', () {
+    expect(
+      AppReportCollector.osVersion(
+        raw: '"Windows 10 Pro" 10.0 (Build 26100)',
+        isWindows: true,
+      ),
+      '"Windows 11 Pro" 10.0 (Build 26100)',
+    );
+    expect(AppReportCollector.systemInfo()['osVersion'], displayOsVersion());
   });
 }

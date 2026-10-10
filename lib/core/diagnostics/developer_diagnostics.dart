@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/info/os_version.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:path/path.dart' as p;
 
@@ -245,7 +246,7 @@ class DeveloperDiagnostics {
           ? 'release'
           : (kProfileMode ? 'profile' : 'debug'),
       'os': Platform.operatingSystem,
-      'osVersion': Platform.operatingSystemVersion,
+      'osVersion': displayOsVersion(),
       'cores': Platform.numberOfProcessors,
       'pid': pid,
       'launchMode': _launchMode.name,
