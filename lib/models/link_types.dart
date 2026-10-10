@@ -253,15 +253,6 @@ class LinkTypes {
     return hebrewLabels[normalized] ?? connectionType!.trim();
   }
 
-  /// האם הקישור הוא קשר עיון/הפניה (לא מפרש ולא SOURCE הווירטואלי):
-  /// reference, quotation, mesorat hashas, ein mishpat, mishnah in talmud,
-  /// related, other.
-  static bool isReferenceLikeLink(String? connectionType) {
-    if (connectionType == null) return false;
-    final normalized = normalize(connectionType);
-    return normalized != source && !dependentTextTypes.contains(normalized);
-  }
-
   /// `SOURCE` הוא קשר וירטואלי שנבנה בשאילתת inverse ואינו נשמר כשורת link.
   static bool isVirtualSource(String? connectionType) =>
       connectionType != null && normalize(connectionType) == source;

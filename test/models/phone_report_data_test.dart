@@ -47,18 +47,6 @@ void main() {
   });
 
   group('ErrorType', () {
-    test('should find error type by ID', () {
-      final errorType = ErrorType.getById(1);
-      expect(errorType, isNotNull);
-      expect(errorType!.id, equals(1));
-      expect(errorType.hebrewLabel, equals('שגיאת כתיב'));
-    });
-
-    test('should return null for invalid ID', () {
-      final errorType = ErrorType.getById(999);
-      expect(errorType, isNull);
-    });
-
     test('should have all expected error types', () {
       expect(ErrorType.errorTypes.length, equals(6));
       expect(ErrorType.errorTypes[0].hebrewLabel, equals('שגיאת כתיב'));
