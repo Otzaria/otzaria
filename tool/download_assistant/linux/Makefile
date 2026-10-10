@@ -58,7 +58,11 @@ $(ART)/.pinned-sha256: $(PIN) fetch_art.sh
 	sh fetch_art.sh $(ART)
 	@touch $@
 
-$(BUILD)/art.gresource.xml: $(ART)/.pinned-sha256
+# The window icon is not part of the pinned art: it is shared with the Windows .ico.
+$(ART)/app_icon.png: ../../../installer/download_assistant_icon_256.png $(ART)/.pinned-sha256
+	cp $< $@
+
+$(BUILD)/art.gresource.xml: $(ART)/.pinned-sha256 $(ART)/app_icon.png
 	@{ echo '<?xml version="1.0" encoding="UTF-8"?>'; \
 	  echo '<gresources><gresource prefix="/org/otzaria/assistant">'; \
 	  for f in $(ART)/*.png; do echo "<file>$$(basename $$f)</file>"; done; \

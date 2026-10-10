@@ -295,7 +295,7 @@ cairo_surface_t *otz_book_frame(int index) {
 }
 
 GdkPixbuf *otz_app_icon(void) {
-  cairo_surface_t *logo = otz_art_load("logo_200");
+  cairo_surface_t *logo = otz_art_load("app_icon");
   if (logo == NULL) return NULL;
   return gdk_pixbuf_get_from_surface(logo, 0, 0, cairo_image_surface_get_width(logo),
                                      cairo_image_surface_get_height(logo));

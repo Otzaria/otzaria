@@ -52,7 +52,7 @@ VersionInfoCompany=sivan22
 #if TagVersionPart != ""
 VersionInfoProductTextVersion={#TagVersionPart}
 #endif
-SetupIconFile=white_sketch128x128.ico
+SetupIconFile=download_assistant.ico
 ; החלון כולו מצויר בשכבת התצוגה; תמונות האשף של Inno אינן מוצגות.
 WizardImageFile=
 WizardSmallImageFile=

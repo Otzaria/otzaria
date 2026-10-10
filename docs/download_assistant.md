@@ -1503,7 +1503,7 @@ DownloadAssistant` ל-arm64 ו-x86_64, בדיקת `lipo -archs`, `.app` עם
 `CFBundleDevelopmentRegion=he`, `CFBundleLocalizations` עברית ואנגלית ו-`InfoPlist.strings`
 לכל אחת (השם ב-Finder: "מסייע הורדה לאוצריא" / "Otzaria Download Assistant"),
 `LSMinimumSystemVersion=12.0`, התמונות ב-`Contents/Resources/Art`, אייקון מ-
-`assets/icon/iconnew.png` (`sips`+`iconutil`; כישלון בו קוסמטי), `codesign --sign -`
+`installer/download_assistant_icon.png` (`sips`+`iconutil`; כישלון בו קוסמטי), `codesign --sign -`
 ו-`ditto`.
 
 **ב-CI** — שלושה שלבים בסוף `build_macos`: `swift test`, הבנייה (רק כשהבדיקות עברו —
@@ -1651,8 +1651,8 @@ make dist DIST_ARCH=x64
   כרטיסים, כפתורים, נקודות, פס ההתקדמות, הסימונים וטבעת המוקד מצוירים ב-cairo
   (`widgets.c`); הצבעים והמידות הם של `assistant_art.isi`.
 * **טקסט.** כל הטקסט ב-Pango בגופן הממשק של המערכת (`gtk-font-name`), כולל הכותרת של
-  מסך הפתיחה. מהעיצוב נלקחות רק תמונות: `ico_*_200`, `badge_*_200`, `logo_200` (סמל
-  החלון) ו-`book_*_250`. `fetch_art.sh` מושך אותן מאותה נעיצה של Windows
+  מסך הפתיחה. מהעיצוב נלקחות רק תמונות: `ico_*_200`, `badge_*_200` ו-`book_*_250`;
+  סמל החלון הוא `installer/download_assistant_icon_256.png`, שה-Makefile מעתיק לצידן. `fetch_art.sh` מושך אותן מאותה נעיצה של Windows
   (`installer/assistant_art.pin.json`), מאמת SHA-256 **לפני** הפריסה ואת `AA_ART_VERSION`,
   וכותב חותמת `.pinned-sha256`; ה-Makefile מטמיע אותן ב-GResource
   (`glib-compile-resources --generate-source`), כך שהארכיון נשאר קובץ הרצה אחד. בלי

@@ -42,9 +42,9 @@ unzip -q "$work/art.zip" -d "$work/zip"
 declared="$(tr -d '\r' < "$work/zip/assistant_art.isi" | sed -n 's/^#define AA_ART_VERSION "\(.*\)"/\1/p' | head -n 1)"
 [ "$declared" = "$version" ] || { echo "fetch_art.sh: assistant_art.isi declares '$declared', but the pin is $version" >&2; exit 1; }
 
-# 200% icons, badges and logo (drawn at 40/72/56 px, sharp at scale 2); the book only
-# exists at 250%.
-cp "$work"/zip/ico_*_200.png "$work"/zip/badge_*_200.png "$work"/zip/logo_200.png \
+# 200% icons and badges (drawn at 40/72 px, sharp at scale 2); the book only exists at
+# 250%.
+cp "$work"/zip/ico_*_200.png "$work"/zip/badge_*_200.png \
   "$work"/zip/book_*_250.png "$work/art/"
 printf '%s' "$sha256" > "$work/art/.pinned-sha256"
 

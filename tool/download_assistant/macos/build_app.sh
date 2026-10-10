@@ -77,9 +77,9 @@ cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<'EOF'
 "CFBundleName" = "Otzaria Assistant";
 EOF
 
-# אייקון מאותו מקור של אוצריא. כישלון כאן קוסמטי — המסייע נבנה גם בלעדיו.
+# אייקון המסייע, מאותו מקור כמו ה-.ico של Windows. כישלון כאן קוסמטי — המסייע נבנה גם בלעדיו.
 make_icon() {
-  local source="$REPO_ROOT/assets/icon/iconnew.png" size double
+  local source="$REPO_ROOT/installer/download_assistant_icon.png" size double
   mkdir -p "$ICONSET" || return 1
   for size in 16 32 128 256 512; do
     double=$((size * 2))
