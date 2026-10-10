@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
@@ -536,46 +538,35 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                                     ),
                                   )
                                 : const Icon(OtzariaIcons.search_24_regular),
-                            suffixIcon: widget.trailingAction != null
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      widget.trailingAction!,
-                                      IconButton(
-                                        icon: const Icon(
-                                          FluentIcons.dismiss_24_regular,
-                                        ),
-                                        onPressed: () {
-                                          widget.tab.queryController.clear();
-                                          widget.tab.searchOptions.clear();
-                                          widget.tab.globalSearchOptions
-                                              .clear();
-                                          context.read<SearchBloc>().add(
-                                            UpdateSearchQuery(''),
-                                          );
-                                          context.read<SearchBloc>().add(
-                                            UpdateFacetCounts({}),
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  )
-                                : IconButton(
-                                    icon: const Icon(
-                                      FluentIcons.dismiss_24_regular,
-                                    ),
-                                    onPressed: () {
-                                      widget.tab.queryController.clear();
-                                      widget.tab.searchOptions.clear();
-                                      widget.tab.globalSearchOptions.clear();
-                                      context.read<SearchBloc>().add(
-                                        UpdateSearchQuery(''),
-                                      );
-                                      context.read<SearchBloc>().add(
-                                        UpdateFacetCounts({}),
-                                      );
-                                    },
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                PluginSearchFieldActions(
+                                  field: PluginSearchField.fullText,
+                                  controller: widget.tab.queryController,
+                                  onSubmitted: (_) => _performSearch(),
+                                  buttonSize: 40,
+                                  iconSize: 22,
+                                ),
+                                ?widget.trailingAction,
+                                IconButton(
+                                  icon: const Icon(
+                                    FluentIcons.dismiss_24_regular,
                                   ),
+                                  onPressed: () {
+                                    widget.tab.queryController.clear();
+                                    widget.tab.searchOptions.clear();
+                                    widget.tab.globalSearchOptions.clear();
+                                    context.read<SearchBloc>().add(
+                                      UpdateSearchQuery(''),
+                                    );
+                                    context.read<SearchBloc>().add(
+                                      UpdateFacetCounts({}),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

@@ -12,6 +12,7 @@ import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_startup_contributions_service.dart';
 import 'package:otzaria/plugins/services/plugin_webview_focus.dart';
 
@@ -326,6 +327,11 @@ class PluginRuntimeDispatcher {
       instance.graceTimer = null;
       _removeInstanceIfEmpty(key);
     }
+    PluginSearchFieldSessionService.instance.onInstanceUnregistered(
+      pluginId,
+      instanceId,
+      pluginHasEngine: _hasAnyController(pluginId),
+    );
     // ה-cache והתרומות הם ברמת ה-plugin; ננקה רק כשלא נשאר אף מופע חי.
     if (!_hasAnyController(pluginId)) {
       _enabledCache.remove(pluginId);

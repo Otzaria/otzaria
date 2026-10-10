@@ -13,7 +13,10 @@ import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_external_editions_registry.dart';
 import 'package:otzaria/plugins/services/plugin_lazy_activation_service.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
+import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_shortcut_registry.dart';
 import 'package:otzaria/plugins/services/plugin_startup_contributions_service.dart';
 import 'package:otzaria/plugins/services/plugin_toolbar_registry.dart';
@@ -236,6 +239,81 @@ void main() {
       externalEditionsRegistry: externalEditions,
       libraryBooksRegistry: libraryBooks,
     );
+  });
+
+  group('searchFieldActions', () {
+    late PluginSearchFieldActionsRegistry fieldActions;
+    late PluginSearchFieldSessionService fieldSessions;
+    late List<String> endReasons;
+    late PluginStartupContributionsService fieldService;
+
+    final plugin = _plugin(
+      startup: {
+        'searchFieldActions': [
+          {
+            'id': 'dictate',
+            'title': 'דיבור',
+            'fields': ['library'],
+          },
+        ],
+      },
+    );
+
+    setUp(() {
+      endReasons = [];
+      fieldActions = PluginSearchFieldActionsRegistry.forTesting();
+      fieldSessions = PluginSearchFieldSessionService.forTesting((
+        _,
+        topic,
+        payload, {
+        preferBackground = false,
+        instanceId,
+      }) async {
+        if (payload['reason'] case final String reason) endReasons.add(reason);
+      });
+      fieldService = PluginStartupContributionsService.forTesting(
+        toolbarRegistry: toolbar,
+        contextMenuRegistry: contextMenu,
+        activationService: activation,
+        searchFieldActionsRegistry: fieldActions,
+        searchFieldSessions: fieldSessions,
+      );
+    });
+
+    test('נרשמים רק עם ההרשאה, ושלילתה סוגרת סשן פתוח', () async {
+      repo.grantedByPlugin['p1'] = {'app.startup_contributions'};
+      await fieldService.sync([plugin], repo);
+      expect(fieldActions.hasActionsFor(PluginSearchField.library), isFalse);
+
+      repo.grantedByPlugin['p1'] = {
+        'app.startup_contributions',
+        'search.field_actions',
+        'app.run_on_startup',
+      };
+      await fieldService.sync([plugin], repo);
+      expect(
+        fieldActions.actionsFor(PluginSearchField.library).single.$2.id,
+        'dictate',
+      );
+      expect(
+        activation.queueTargetedEvent('p1', 'search.fieldAction.invoked', {}),
+        isTrue,
+        reason: 'לחיצה על הכפתור מעירה את מנוע הרקע',
+      );
+
+      final field = _StubFieldBinding();
+      await fieldSessions.press(
+        binding: field,
+        pluginId: 'p1',
+        actionId: 'dictate',
+      );
+      repo.grantedByPlugin['p1'] = {'app.startup_contributions'};
+      await fieldService.sync([plugin], repo);
+
+      expect(fieldActions.hasActionsFor(PluginSearchField.library), isFalse);
+      expect(endReasons, ['closed']);
+      expect(fieldSessions.hasSessionsFor(field), isFalse);
+    });
   });
 
   test('registers all contributions when permissions are granted', () async {
@@ -914,4 +992,18 @@ void main() {
       );
     });
   });
+}
+
+class _StubFieldBinding implements PluginSearchFieldBinding {
+  @override
+  PluginSearchField get field => PluginSearchField.library;
+
+  @override
+  TextEditingValue get currentValue => TextEditingValue.empty;
+
+  @override
+  void applyPluginText(TextEditingValue value) {}
+
+  @override
+  void submit() {}
 }

@@ -351,6 +351,57 @@ void main() {
       expect(adapter.executeCalls, 0);
     });
 
+    group('search.setFieldText / setFieldActionState / endFieldSession', () {
+      List<dynamic> request(String method) => [
+        {
+          'method': method,
+          'payload': {'sessionId': 's_1', 'text': 'x', 'state': 'idle'},
+        },
+      ];
+      const methods = [
+        'search.setFieldText',
+        'search.setFieldActionState',
+        'search.endFieldSession',
+      ];
+
+      for (final (label, declared, granted) in [
+        ('לא הוצהרה', const <String>[], true),
+        ('הוצהרה ולא הוענקה', const ['search.field_actions'], false),
+      ]) {
+        test('הרשאת search.field_actions $label → permission_denied', () async {
+          for (final method in methods) {
+            final adapter = _FakeAdapter();
+            final handler = buildHandler(
+              declaredPermissions: declared,
+              granted: granted,
+              adapter: adapter,
+            );
+            final resp =
+                await handler.handleRpcForTesting(request(method))
+                    as Map<String, dynamic>;
+            expect(resp['error']['code'], 'permission_denied', reason: method);
+            expect(adapter.executeCalls, 0, reason: method);
+          }
+        });
+      }
+
+      test('עם ההרשאה — מגיע ל-adapter', () async {
+        for (final method in methods) {
+          final adapter = _FakeAdapter(result: true);
+          final handler = buildHandler(
+            declaredPermissions: const ['search.field_actions'],
+            granted: true,
+            adapter: adapter,
+          );
+          final resp =
+              await handler.handleRpcForTesting(request(method))
+                  as Map<String, dynamic>;
+          expect(resp['success'], isTrue, reason: method);
+          expect(adapter.lastDomain, 'search');
+        }
+      });
+    });
+
     test(
       'plugin.openOther עם navigation.write בלבד → permission_denied',
       () async {

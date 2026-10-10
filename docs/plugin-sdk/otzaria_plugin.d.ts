@@ -1431,6 +1431,27 @@ export interface OtzariaEventMap {
     /** The host consumes `[id, hits, categoryPath, title]` index entries. */
     indexTitles?: boolean;
   };
+  /**
+   * The user clicked this plugin's `searchFieldActions` button in a search
+   * field, opening a session. Sent only to the owning plugin.
+   */
+  'search.fieldAction.invoked': {
+    actionId: string;
+    sessionId: string;
+    field: SearchFieldId;
+    /** Field text at the click; the selected range is what the plugin replaces. */
+    text: string;
+    selectionStart: number;
+    selectionEnd: number;
+  };
+  /** The user clicked the button again while its session is open. */
+  'search.fieldAction.stopRequested': { actionId: string; sessionId: string };
+  /** The session ended; later calls with its `sessionId` fail with `error.not_found`. */
+  'search.fieldAction.ended': {
+    actionId: string;
+    sessionId: string;
+    reason: 'plugin' | 'closed' | 'edited' | 'replaced';
+  };
   /** The user chose a book of a `libraryBooks` provider this plugin owns. */
   'library.providerBook.openRequested': {
     provider: string;
@@ -1460,6 +1481,12 @@ export interface OtzariaEventMap {
    */
   'ui.messageClicked': { payload: unknown };
 }
+
+/** שדות החיפוש שבהם `searchFieldActions` יכול להציג כפתור. */
+export type SearchFieldId = 'fullText' | 'library' | 'inBook' | 'findRef';
+
+/** מראה כפתור `searchFieldActions` בזמן סשן. */
+export type SearchFieldActionState = 'idle' | 'active' | 'busy';
 
 /** 'more' נשמר לתאימות אחורה — פותח את פאנל הכלים. */
 export type NavigationTarget = 'library' | 'reading' | 'more' | 'settings';
@@ -1972,6 +1999,9 @@ export type OtzariaMethod =
   | 'search.fullText'
   | 'search.query'
   | 'search.getOptions'
+  | 'search.setFieldText'
+  | 'search.setFieldActionState'
+  | 'search.endFieldSession'
   | 'reader.openBook'
   | 'reader.openBookAtRef'
   | 'reader.printRange'
@@ -2190,6 +2220,23 @@ export interface OtzariaGlobal {
     method: 'plugin.listInstalled',
     payload?: Record<string, unknown>
   ): Promise<OtzariaResponse<InstalledPlugin[]>>;
+
+  /** Writes `before + text + after` into the field of an open session. */
+  call(
+    method: 'search.setFieldText',
+    payload: { sessionId: string; text: string }
+  ): Promise<OtzariaResponse<boolean>>;
+
+  call(
+    method: 'search.setFieldActionState',
+    payload: { sessionId: string; state: SearchFieldActionState; tooltip?: string }
+  ): Promise<OtzariaResponse<boolean>>;
+
+  /** Ends the session; `submit: true` runs the search as if Enter was pressed. */
+  call(
+    method: 'search.endFieldSession',
+    payload: { sessionId: string; submit?: boolean }
+  ): Promise<OtzariaResponse<boolean>>;
 
   call(
     method: 'feedback.submitBookCorrection',

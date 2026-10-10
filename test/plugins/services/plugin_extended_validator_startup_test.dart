@@ -180,6 +180,119 @@ void main() {
     });
   });
 
+  group('searchFieldActions', () {
+    Map<String, dynamic> actionsManifest({
+      List<String> permissions = const [
+        'app.startup_contributions',
+        'app.run_on_startup',
+        'search.field_actions',
+      ],
+      String minAppVersion = '0.9.99',
+      List<Map<String, dynamic>>? items,
+    }) => _manifest(
+      permissions: permissions,
+      minAppVersion: minAppVersion,
+      startup: {
+        'searchFieldActions':
+            items ??
+            [
+              {
+                'id': 'dictate',
+                'title': 'חיפוש בדיבור',
+                'icon': 'mic_24_regular',
+                'activeIcon': 'mic_24_filled',
+                'fields': ['library', 'inBook'],
+              },
+            ],
+      },
+    );
+
+    test('תרומה תקינה עוברת ללא שגיאות ואזהרות', () {
+      final report = _run(tempDir, actionsManifest());
+      expect(report.errors, isEmpty);
+      expect(
+        report.warnings.where((w) => w.contains('searchFieldActions')),
+        isEmpty,
+      );
+    });
+
+    test('חסרה הרשאת search.field_actions — שגיאה חוסמת', () {
+      final report = _run(
+        tempDir,
+        actionsManifest(
+          permissions: const [
+            'app.startup_contributions',
+            'app.run_on_startup',
+          ],
+        ),
+      );
+      expect(report.errors, contains(contains('"search.field_actions"')));
+    });
+
+    test('minAppVersion ישן מדי — שגיאה חוסמת', () {
+      final report = _run(tempDir, actionsManifest(minAppVersion: '0.9.98'));
+      expect(
+        report.errors,
+        contains(contains('searchFieldActions נתמך החל מגרסה 0.9.99')),
+      );
+    });
+
+    test('יותר מ-2 כפתורים, מזהה כפול ופריט פגום — שגיאות', () {
+      final report = _run(
+        tempDir,
+        actionsManifest(
+          items: [
+            {'id': 'a', 'title': 'א'},
+            {'id': 'a', 'title': 'ב'},
+            {'id': 'c'},
+          ],
+        ),
+      );
+      expect(report.errors, contains(contains('מוגבל ל-2')));
+      expect(report.errors, contains(contains('מזהה כפול')));
+      expect(report.errors, contains(contains('לא תקין')));
+    });
+
+    test('שדה ואייקון לא מוכרים — אזהרה בלבד', () {
+      final report = _run(
+        tempDir,
+        actionsManifest(
+          items: [
+            {
+              'id': 'a',
+              'title': 'א',
+              'icon': 'no_such_icon',
+              'fields': ['library', 'someFutureField'],
+            },
+          ],
+        ),
+      );
+      expect(report.errors, isEmpty);
+      expect(report.warnings, contains(contains('someFutureField')));
+      expect(report.warnings, contains(contains('no_such_icon')));
+    });
+
+    test('קריאה ל-search.setFieldText מחייבת minAppVersion 0.9.99', () {
+      final dir = Directory(p.join(tempDir.path, 'plugin'))..createSync();
+      final json = actionsManifest(minAppVersion: '0.9.98', items: const []);
+      (json['contributes'] as Map).remove('startup');
+      File(p.join(dir.path, 'manifest.json')).writeAsStringSync(
+        jsonEncode(json),
+      );
+      File(p.join(dir.path, 'index.html')).writeAsStringSync(
+        '<!doctype html><html lang="he" dir="rtl"><script>'
+        "Otzaria.call('search.setFieldText', {sessionId: 's', text: 'x'});"
+        '</script><style>body { color: var(--color-text); }</style></html>',
+      );
+      final report = PluginExtendedValidator.validate(
+        manifest: PluginManifest.fromJson(json),
+        manifestJson: json,
+        directoryPath: dir.path,
+      );
+      expect(report.errors, contains(contains('search.setFieldText')));
+    });
+  });
+
   group('libraryBooks', () {
     Map<String, dynamic> booksManifest({
       List<String> permissions = const [

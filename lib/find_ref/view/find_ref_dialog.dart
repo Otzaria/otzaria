@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
@@ -1228,54 +1231,79 @@ class _FindRefDialogState extends State<FindRefDialog> {
           labelText: context.settingsText('מקור'),
           hintText: context.settingsText('לדוגמה: בראשית פרק א'),
           prefixIcon: const Icon(FluentIcons.search_24_regular),
-          suffixIcon: _queryIsEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(FluentIcons.dismiss_24_regular),
-                  tooltip: context.settingsText('נקה'),
-                  onPressed: () {
-                    controller.clear();
-                    // קודם מבטלים חיפוש שעדיין רץ (restartable יקטוף
-                    // את ה-handler הקודם), ורק אחר-כך מחזירים את
-                    // ה-state ל-Initial.
-                    BlocProvider.of<FindRefBloc>(
-                      context,
-                    ).add(const SearchRefRequested(''));
-                    BlocProvider.of<FindRefBloc>(
-                      context,
-                    ).add(ClearSearchRequested());
-                    _selectedIndex.value = 0;
-                    _pendingEnter = false;
-                  },
-                ),
+          suffixIcon: _buildSuffix(controller),
         ),
         // ה-debounce מבוצע בבלוק, כך שכל הקלדה מבטלת מיד גם חיפוש שכבר רץ.
         onChanged: _dispatchSearch,
-        onSubmitted: (value) {
-          // ניסיון לטפל בקישור ישיר — אם זה קישור, ייפתח ישירות
-          if (_isDeepLinkText(value)) {
-            _tryHandleDeepLink(value);
-            return;
-          }
-          // תוצאות של שאילתה קודמת אינן נפתחות: Enter ממתין לתוצאות החדשות.
-          final state = context.read<FindRefBloc>().state;
-          if (!_isCurrentSuccess(state)) {
-            // במצב שגיאה אין תוצאות שבדרך — פתיחה ממתינה הייתה קופצת בניסיון חוזר.
-            _pendingEnter =
-                value.length >= 2 &&
-                (state is FindRefLoading ||
-                    state is FindRefSuccess ||
-                    state is FindRefInitial);
-            return;
-          }
-          final current = (state as FindRefSuccess).refs;
-          if (current.isNotEmpty) {
-            _openRef(
-              current[_selectedIndex.value.clamp(0, current.length - 1)],
-            );
-          }
-        },
+        onSubmitted: _onSubmitted,
       ),
+    );
+  }
+
+  void _onSubmitted(String value) {
+    // ניסיון לטפל בקישור ישיר — אם זה קישור, ייפתח ישירות
+    if (_isDeepLinkText(value)) {
+      _tryHandleDeepLink(value);
+      return;
+    }
+    // תוצאות של שאילתה קודמת אינן נפתחות: Enter ממתין לתוצאות החדשות.
+    final state = context.read<FindRefBloc>().state;
+    if (!_isCurrentSuccess(state)) {
+      // במצב שגיאה אין תוצאות שבדרך — פתיחה ממתינה הייתה קופצת בניסיון חוזר.
+      _pendingEnter =
+          value.length >= 2 &&
+          (state is FindRefLoading ||
+              state is FindRefSuccess ||
+              state is FindRefInitial);
+      return;
+    }
+    final current = (state as FindRefSuccess).refs;
+    if (current.isNotEmpty) {
+      _openRef(
+        current[_selectedIndex.value.clamp(0, current.length - 1)],
+      );
+    }
+  }
+
+  /// כפתורי תוספים (כשיש) ולצידם כפתור הניקוי; null כשאין אף אחד מהם.
+  Widget? _buildSuffix(TextEditingController controller) {
+    final hasPluginActions = PluginSearchFieldActionsRegistry.instance
+        .hasActionsFor(PluginSearchField.findRef);
+    if (_queryIsEmpty && !hasPluginActions) return null;
+    final clear = _queryIsEmpty
+        ? null
+        : IconButton(
+            icon: const Icon(FluentIcons.dismiss_24_regular),
+            tooltip: context.settingsText('נקה'),
+            onPressed: () {
+              controller.clear();
+              // קודם מבטלים חיפוש שעדיין רץ (restartable יקטוף
+              // את ה-handler הקודם), ורק אחר-כך מחזירים את
+              // ה-state ל-Initial.
+              BlocProvider.of<FindRefBloc>(
+                context,
+              ).add(const SearchRefRequested(''));
+              BlocProvider.of<FindRefBloc>(
+                context,
+              ).add(ClearSearchRequested());
+              _selectedIndex.value = 0;
+              _pendingEnter = false;
+            },
+          );
+    if (!hasPluginActions) return clear;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        PluginSearchFieldActions(
+          field: PluginSearchField.findRef,
+          controller: controller,
+          onChanged: _dispatchSearch,
+          onSubmitted: _onSubmitted,
+          buttonSize: 40,
+          iconSize: 22,
+        ),
+        ?clear,
+      ],
     );
   }
 
