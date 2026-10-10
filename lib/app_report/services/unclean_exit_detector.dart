@@ -114,18 +114,7 @@ class UncleanExitDetector {
     await file.writeAsString(jsonEncode(lock.toJson()), flush: true);
   }
 
-  /// מוחק את הנעילה ביציאה מסודרת.
-  Future<void> markCleanExit() async {
-    try {
-      final file = File(lockPath);
-      if (!_ownsLock(file)) return;
-      await file.delete();
-    } on FileSystemException {
-      // אין נעילה — אין מה לסמן.
-    }
-  }
-
-  /// גרסה סינכרונית למסלול סגירה שאינו יכול להמתין.
+  /// מוחק את הנעילה ביציאה מסודרת (סינכרוני — מסלול הסגירה אינו ממתין).
   void markCleanExitSync() {
     try {
       final file = File(lockPath);

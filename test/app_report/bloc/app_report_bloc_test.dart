@@ -276,7 +276,11 @@ void main() {
       skip: 5,
       expect: () => [
         isA<AppReportEditing>()
-            .having((s) => s.result?.isFailed, 'failed', true)
+            .having(
+              (s) => s.result?.status,
+              'status',
+              AppReportDeliveryStatus.failed,
+            )
             .having((s) => s.result?.rejectedField, 'field', 'title'),
       ],
     );

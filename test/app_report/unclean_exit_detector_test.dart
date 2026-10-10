@@ -53,7 +53,7 @@ void main() {
   String entry(String title, DateTime at, {String body = ''}) =>
       '=== $title ${at.toIso8601String()} ===\n$body\n';
 
-  test('startSession ו-markCleanExit כותבים ומוחקים את הנעילה', () async {
+  test('startSession ו-markCleanExitSync כותבים ומוחקים את הנעילה', () async {
     final d = detector();
     await d.startSession(version: '0.9.98');
     final lock = SessionLock.tryParse(File(d.lockPath).readAsStringSync())!;
@@ -61,10 +61,9 @@ void main() {
     expect(lock.version, '0.9.98');
     expect(lock.startedAt, thisStart);
 
-    await d.markCleanExit();
+    d.markCleanExitSync();
     expect(File(d.lockPath).existsSync(), isFalse);
     // מחיקה חוזרת אינה זורקת.
-    await d.markCleanExit();
     d.markCleanExitSync();
   });
 
