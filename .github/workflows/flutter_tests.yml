@@ -470,7 +470,8 @@ jobs:
           # ולכן עם 3.44.0 ה-job הזה נכשל ב-`pub get` ומעולם לא רץ ירוק.
           flutter-version: 3.47.2
           # ה-cache של Windows נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
-          cache: true
+          cache: false
+          pub-cache: true
 
       - name: Install dependencies
         shell: pwsh
