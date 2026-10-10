@@ -2052,13 +2052,18 @@ class _LibraryBrowserState extends State<LibraryBrowser>
       mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.zero,
       hoverDuration: Durations.medium1,
-      onTap: () => setState(() {
-        if (isExpanded) {
-          _expandedCategories.remove(category.path);
-        } else {
-          _expandedCategories.add(category.path);
+      onTap: () {
+        if (_isPreviewPanelVisible(context.read<SettingsBloc>().state)) {
+          context.read<LibraryBloc>().add(SelectCategoryForPreview(category));
         }
-      }),
+        setState(() {
+          if (isExpanded) {
+            _expandedCategories.remove(category.path);
+          } else {
+            _expandedCategories.add(category.path);
+          }
+        });
+      },
       child: Padding(
         padding: EdgeInsets.only(
           right: horizontalPadding + indent,
