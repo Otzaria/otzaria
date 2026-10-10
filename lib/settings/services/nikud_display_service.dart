@@ -13,16 +13,6 @@ bool shouldRemoveNikudForBook({
   return defaultRemoveNikud && (removeNikudFromTanach || !isTanach);
 }
 
-/// מחזיר האם הספר פטור מהסרת ניקוד רק בזכות היותו תנ"ך (הגדרת "הצג ניקוד
-/// בתנ"ך"). פטור כזה אינו חל על המפרשים והקישורים שלו — הם אינם תנ"ך.
-bool isNikudExemptByTanach({
-  required bool defaultRemoveNikud,
-  required bool removeNikudFromTanach,
-  required bool isTanach,
-}) {
-  return defaultRemoveNikud && !removeNikudFromTanach && isTanach;
-}
-
 /// מחזיר האם יש להסיר פיסוק עבור ספר נתון. הסרת פיסוק אינה חלה על תנ"ך
 /// (הכפתור מוסתר שם), ולכן ההחרגה היא חלק מהחוזה ולא מהמסך.
 bool shouldRemovePunctuationForBook({
@@ -30,15 +20,6 @@ bool shouldRemovePunctuationForBook({
   required bool isTanach,
 }) {
   return defaultRemovePunctuation && !isTanach;
-}
-
-/// מחזיר האם הספר פטור מהסרת פיסוק רק בזכות היותו תנ"ך. פטור כזה אינו חל על
-/// המפרשים והקישורים שלו — הם אינם תנ"ך.
-bool isPunctuationExemptByTanach({
-  required bool defaultRemovePunctuation,
-  required bool isTanach,
-}) {
-  return defaultRemovePunctuation && isTanach;
 }
 
 /// מחזיר האם שינוי מצב ההגדרות מחייב טעינה מחדש של ספר פתוח.

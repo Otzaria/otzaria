@@ -178,19 +178,13 @@ TextBookLoaded _load({
       removeNikudFromTanach: removeNikudFromTanach,
       isTanach: isTanach,
     ),
-    nikudExemptByTanach: isNikudExemptByTanach(
-      defaultRemoveNikud: defaultRemoveNikud,
-      removeNikudFromTanach: removeNikudFromTanach,
-      isTanach: isTanach,
-    ),
+    nikudExemptByTanach:
+        defaultRemoveNikud && !removeNikudFromTanach && isTanach,
     removePunctuation: shouldRemovePunctuationForBook(
       defaultRemovePunctuation: removePunctuation,
       isTanach: isTanach,
     ),
-    punctuationExemptByTanach: isPunctuationExemptByTanach(
-      defaultRemovePunctuation: removePunctuation,
-      isTanach: isTanach,
-    ),
+    punctuationExemptByTanach: removePunctuation && isTanach,
     visibleIndices: const [0],
     pinLeftPane: false,
     searchText: '',
