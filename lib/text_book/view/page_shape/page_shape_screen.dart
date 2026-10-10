@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:math' as math;
 
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
 import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
@@ -1229,6 +1230,49 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                             // (טקסט + מפרשים) עם שוליים בצדדים.
                             LayoutBuilder(
                               builder: (context, pageConstraints) {
+                                final pageMaxWidth = _applyTextMaxWidth
+                                    ? textColumnMaxWidthOf(
+                                        context,
+                                        setting: context
+                                            .select<SettingsBloc, double>(
+                                              (bloc) => bloc.state.textMaxWidth,
+                                            ),
+                                        availableWidth:
+                                            pageConstraints.maxWidth,
+                                      )
+                                    : 0.0;
+                                final constrainPage =
+                                    pageMaxWidth > 0 &&
+                                    pageMaxWidth < pageConstraints.maxWidth;
+                                final pageWidth = constrainPage
+                                    ? pageMaxWidth
+                                    : pageConstraints.maxWidth;
+                                // הרוחבים השמורים נמדדו מול החלון; חלוניות צד מצרות את הדף.
+                                final freeWidth =
+                                    pageWidth -
+                                    2 * _kCommentaryLabelAndSpacingWidth;
+                                final sideMax = math.max(80.0, freeWidth * 0.4);
+                                final screenWidth = MediaQuery.of(
+                                  context,
+                                ).size.width;
+                                final leftWidth = math.min(
+                                  _leftWidth ??
+                                      screenWidth * _kCommentaryPaneWidthFactor,
+                                  sideMax,
+                                );
+                                final rightWidth = math.min(
+                                  _rightWidth ??
+                                      screenWidth * _kCommentaryPaneWidthFactor,
+                                  sideMax,
+                                );
+                                final bottomLeftMax = math.max(
+                                  100.0,
+                                  freeWidth * 0.8,
+                                );
+                                final bottomLeftWidth = math.min(
+                                  _bottomLeftWidth ?? screenWidth * 0.5,
+                                  bottomLeftMax,
+                                );
                                 final page = Row(
                                   children: [
                                     Expanded(
@@ -1260,12 +1304,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                     ),
                                                     const SizedBox(width: 4),
                                                     SizedBox(
-                                                      width:
-                                                          _leftWidth ??
-                                                          MediaQuery.of(
-                                                                context,
-                                                              ).size.width *
-                                                              _kCommentaryPaneWidthFactor,
+                                                      width: leftWidth,
                                                       child: _CommentaryPane(
                                                         commentatorName:
                                                             _leftCommentator!,
@@ -1287,12 +1326,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                     ),
                                                   ] else ...[
                                                     SizedBox(
-                                                      width:
-                                                          _leftWidth ??
-                                                          MediaQuery.of(
-                                                                context,
-                                                              ).size.width *
-                                                              _kCommentaryPaneWidthFactor,
+                                                      width: leftWidth,
                                                       child: _buildEmptyColumnContent(
                                                         columnName: 'left',
                                                         onSelectCommentator: () =>
@@ -1317,16 +1351,11 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                             onDragDelta: (delta) {
                                                               setState(() {
                                                                 _leftWidth =
-                                                                    ((_leftWidth ??
-                                                                                MediaQuery.of(context).size.width *
-                                                                                    _kCommentaryPaneWidthFactor) -
+                                                                    (leftWidth -
                                                                             delta)
                                                                         .clamp(
                                                                           80.0,
-                                                                          MediaQuery.of(
-                                                                                context,
-                                                                              ).size.width *
-                                                                              0.4,
+                                                                          sideMax,
                                                                         );
                                                               });
                                                             },
@@ -1405,16 +1434,11 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                             onDragDelta: (delta) {
                                                               setState(() {
                                                                 _rightWidth =
-                                                                    ((_rightWidth ??
-                                                                                MediaQuery.of(context).size.width *
-                                                                                    _kCommentaryPaneWidthFactor) +
+                                                                    (rightWidth +
                                                                             delta)
                                                                         .clamp(
                                                                           80.0,
-                                                                          MediaQuery.of(
-                                                                                context,
-                                                                              ).size.width *
-                                                                              0.4,
+                                                                          sideMax,
                                                                         );
                                                               });
                                                             },
@@ -1429,12 +1453,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                     state,
                                                   ).isNotEmpty) ...[
                                                     SizedBox(
-                                                      width:
-                                                          _rightWidth ??
-                                                          MediaQuery.of(
-                                                                context,
-                                                              ).size.width *
-                                                              _kCommentaryPaneWidthFactor,
+                                                      width: rightWidth,
                                                       child: _buildRightPane(
                                                         state,
                                                       ),
@@ -1465,12 +1484,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                     ],
                                                   ] else ...[
                                                     SizedBox(
-                                                      width:
-                                                          _rightWidth ??
-                                                          MediaQuery.of(
-                                                                context,
-                                                              ).size.width *
-                                                              _kCommentaryPaneWidthFactor,
+                                                      width: rightWidth,
                                                       child: _buildEmptyColumnContent(
                                                         columnName: 'right',
                                                         onSelectCommentator: () =>
@@ -1491,8 +1505,8 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                           if (showBottom ||
                                               showBottomRight) ...[
                                             _HorizontalDragHandle(
-                                              leftWidth: _leftWidth,
-                                              rightWidth: _rightWidth,
+                                              leftWidth: leftWidth,
+                                              rightWidth: rightWidth,
                                               leftCommentator: _leftCommentator,
                                               rightCommentator: _rightPaneLabel(
                                                 state,
@@ -1548,11 +1562,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                                 ),
                                                                 SizedBox(
                                                                   width:
-                                                                      _bottomLeftWidth ??
-                                                                      MediaQuery.of(
-                                                                            context,
-                                                                          ).size.width *
-                                                                          0.5,
+                                                                      bottomLeftWidth,
                                                                   child: _CommentaryPane(
                                                                     commentatorName:
                                                                         _bottomCommentator!,
@@ -1596,18 +1606,11 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                                                 setState(
                                                                                   () {
                                                                                     _bottomLeftWidth =
-                                                                                        ((_bottomLeftWidth ??
-                                                                                                    MediaQuery.of(
-                                                                                                          context,
-                                                                                                        ).size.width *
-                                                                                                        0.5) -
+                                                                                        (bottomLeftWidth -
                                                                                                 delta)
                                                                                             .clamp(
                                                                                               100.0,
-                                                                                              MediaQuery.of(
-                                                                                                    context,
-                                                                                                  ).size.width *
-                                                                                                  0.8,
+                                                                                              bottomLeftMax,
                                                                                             );
                                                                                   },
                                                                                 );
@@ -1724,18 +1727,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                     ),
                                   ],
                                 );
-                                if (!_applyTextMaxWidth) return page;
-                                final pageMaxWidth = textColumnMaxWidthOf(
-                                  context,
-                                  setting: context.select<SettingsBloc, double>(
-                                    (bloc) => bloc.state.textMaxWidth,
-                                  ),
-                                  availableWidth: pageConstraints.maxWidth,
-                                );
-                                if (pageMaxWidth <= 0 ||
-                                    pageMaxWidth >= pageConstraints.maxWidth) {
-                                  return page;
-                                }
+                                if (!constrainPage) return page;
                                 return Center(
                                   child: ConstrainedBox(
                                     constraints: BoxConstraints(
