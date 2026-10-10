@@ -99,7 +99,7 @@ void main() {
   );
 
   for (final size in [const Size(1200, 800), const Size(600, 900)]) {
-    testWidgets('new tab has one button and latest plugin wins at $size', (
+    testWidgets('new tab keeps first plugin as exclusive owner at $size', (
       tester,
     ) async {
       final registry = PluginNewTabPageRegistry.instance;
@@ -135,17 +135,25 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byTooltip('כרטיסייה חדשה'), findsNothing);
-      registry.register('review.first');
-      registry.register('review.second');
+      expect(registry.register('review.first'), isTrue);
+      expect(registry.register('review.second'), isFalse);
       await tester.pumpAndSettle();
       expect(find.byTooltip('כרטיסייה חדשה'), findsOneWidget);
       await tester.tap(find.byTooltip('כרטיסייה חדשה'));
-      expect(opened, ['review.second']);
+      expect(opened, ['review.first']);
       registry.remove('review.second');
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('כרטיסייה חדשה'));
-      expect(opened, ['review.second', 'review.first']);
+      expect(registry.activePluginId, 'review.first');
       registry.remove('review.first');
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('כרטיסייה חדשה'), findsNothing);
+      // A rejected registration cannot silently take over after release.
+      expect(registry.activePluginId, isNull);
+      expect(registry.register('review.second'), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('כרטיסייה חדשה'), findsOneWidget);
+      await tester.tap(find.byTooltip('כרטיסייה חדשה'));
+      expect(opened, ['review.first', 'review.second']);
+      registry.remove('review.second');
       await tester.pumpAndSettle();
       expect(find.byTooltip('כרטיסייה חדשה'), findsNothing);
       expect(tester.takeException(), isNull);

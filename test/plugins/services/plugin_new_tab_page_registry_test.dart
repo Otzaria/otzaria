@@ -19,34 +19,43 @@ void main() {
       expect(registry.activePluginId, isNull);
     });
 
-    test('latest registration wins and removing it restores previous one', () {
-      registry.register(first);
-      expect(registry.hasActiveRegistration, isTrue);
+    test('first registration stays exclusive until explicitly released', () {
+      expect(registry.register(first), isTrue);
       expect(registry.activePluginId, first);
 
-      registry.register(second);
-      expect(registry.activePluginId, second);
+      expect(registry.register(second), isFalse);
+      expect(registry.activePluginId, first);
+      expect(registry.register(first), isTrue);
+      expect(registry.activePluginId, first);
 
       registry.remove(second);
-      expect(registry.hasActiveRegistration, isTrue);
       expect(registry.activePluginId, first);
-
       registry.remove(first);
       expect(registry.hasActiveRegistration, isFalse);
       expect(registry.activePluginId, isNull);
+
+      // A rejected request is not queued to take over after release.
+      expect(registry.hasActiveRegistration, isFalse);
+      expect(registry.register(second), isTrue);
+      expect(registry.activePluginId, second);
     });
 
-    test('notifies listeners only when visibility/registration can change', () {
+    test('notifies only when the button owner actually changes', () {
       var notifications = 0;
       void listener() => notifications++;
       registry.addListener(listener);
       addTearDown(() => registry.removeListener(listener));
 
-      registry.register(first);
-      registry.register(second);
+      expect(registry.register(first), isTrue);
+      expect(registry.register(first), isTrue);
+      expect(registry.register(second), isFalse);
       registry.remove(second);
       registry.remove('test.new-tab.missing');
+      expect(notifications, 1);
 
+      registry.remove(first);
+      expect(notifications, 2);
+      expect(registry.register(second), isTrue);
       expect(notifications, 3);
     });
   });
