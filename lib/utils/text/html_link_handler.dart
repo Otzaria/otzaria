@@ -591,18 +591,6 @@ class HtmlLinkHandler {
     return headingSlug(text) == headingSlug(headerName);
   }
 
-  /// מחפש כותרת בכל עומק תוכן העניינים, כולל עוגני Markdown בסגנון GitHub.
-  @visibleForTesting
-  static int? findHeaderIndexInToc(
-    List<TocEntry> entries,
-    String headerName,
-  ) {
-    for (final entry in flattenToc(entries)) {
-      if (isHeaderMatch(entry.text, headerName)) return entry.index;
-    }
-    return null;
-  }
-
   /// מחפש יעד עוגן מפורש בשורות המוצגות — `id` על כותרת או `name`/`id` על
   /// `<a>`. כך מסמכי Markdown מסמנים יעדי ניווט שאינם ה-slug של הכותרת.
   @visibleForTesting
