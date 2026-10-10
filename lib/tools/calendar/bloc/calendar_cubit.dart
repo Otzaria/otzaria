@@ -571,11 +571,6 @@ class CalendarCubit extends Cubit<CalendarState> {
     _scheduleTodayRefresh();
   }
 
-  /// טעינה מחדש של הגדרות מהאחסון
-  Future<void> reloadSettings() async {
-    await _initializeCalendar();
-  }
-
   @override
   Future<void> close() {
     _todayRefreshTimer?.cancel();
