@@ -141,6 +141,7 @@ class SemanticSearchRepository {
     _download,
     isOffline: () => _settings.isOfflineMode,
     onChecking: _showChecking,
+    onSource: (staged) => _jobFromStaged = staged,
   );
   StreamSubscription<SearchFeedbackConsent>? _consentSubscription;
   SemanticModelIdentity? _identity;
@@ -155,6 +156,7 @@ class SemanticSearchRepository {
   List<SemanticDownloadItem> _jobSteps = const [];
   int _jobTotalBytes = 0;
   int _jobModelBytes = 0;
+  bool _jobFromStaged = false;
   SemanticFailure? _lastFailure;
   int? _unpublishedVersion;
 
@@ -452,6 +454,7 @@ class SemanticSearchRepository {
       SemanticAvailabilityPhase phase, {
       SemanticHiddenReason? hiddenReason,
       SemanticFailure? failure,
+      bool stagedDataFound = false,
     }) => SemanticAvailability(
       phase: phase,
       consentGranted: consentGranted,
@@ -461,6 +464,7 @@ class SemanticSearchRepository {
       unpublishedLibraryVersion: _unpublishedVersion,
       pausedByUser: _settings.downloadPaused,
       isSecondaryWindow: _isSecondaryWindow(),
+      stagedDataFound: stagedDataFound,
     );
 
     if (!_isPlatformSupported()) {
@@ -490,10 +494,12 @@ class SemanticSearchRepository {
       return of(SemanticAvailabilityPhase.failed, failure: found);
     }
     if (installed) return of(SemanticAvailabilityPhase.ready);
+    if (_unpublishedVersion != null) {
+      return of(SemanticAvailabilityPhase.vectorsNotPublished);
+    }
     return of(
-      _unpublishedVersion != null
-          ? SemanticAvailabilityPhase.vectorsNotPublished
-          : SemanticAvailabilityPhase.needsDownload,
+      SemanticAvailabilityPhase.needsDownload,
+      stagedDataFound: await _staged.hasData(),
     );
   }
 
@@ -703,6 +709,7 @@ class SemanticSearchRepository {
       _jobSteps = const [];
       _jobTotalBytes = 0;
       _jobModelBytes = 0;
+      _jobFromStaged = false;
       _reportJobFailures = false;
     }
   }
@@ -727,7 +734,8 @@ class SemanticSearchRepository {
       return _skipOrThrow(SemanticFailureKind.consentRequired);
     }
     final offline = _settings.isOfflineMode;
-    if (offline && !await _staged.hasData()) {
+    _jobFromStaged = await _staged.hasData();
+    if (offline && !_jobFromStaged) {
       return _skipOrThrow(SemanticFailureKind.offline);
     }
     if (_moveInProgress) return _skipOrThrow(SemanticFailureKind.libraryMoving);
@@ -1126,6 +1134,7 @@ class SemanticSearchRepository {
       totalBytes: _jobTotalBytes > 0 ? _jobTotalBytes : null,
       step: index < 0 ? 1 : index + 1,
       stepCount: _jobSteps.isEmpty ? 1 : _jobSteps.length,
+      staged: _jobFromStaged,
     );
   }
 

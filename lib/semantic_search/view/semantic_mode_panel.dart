@@ -165,7 +165,13 @@ class SemanticModePanel extends StatelessWidget {
     final progress = availability.progress;
     final fraction = progress?.fraction;
     final name = {'name': _modeName(context)};
+    final staged = availability.stagedDataFound;
     final String text = switch (availability.phase) {
+      SemanticAvailabilityPhase.needsDownload when staged =>
+        context.settingsText(
+          SemanticSearchMessages.stagedDataFound,
+          args: name,
+        ),
       SemanticAvailabilityPhase.needsDownload => context.settingsText(
         'כדי להשתמש ב{name} יש להוריד תחילה את הנתונים שלו (כ-1.8GB).',
         args: name,
@@ -194,7 +200,9 @@ class SemanticModePanel extends StatelessWidget {
     final Widget? action = switch (availability.phase) {
       SemanticAvailabilityPhase.needsDownload => ActionButton.recommended(
         key: const ValueKey('semantic-status-download'),
-        text: context.settingsText('הורד'),
+        text: context.settingsText(
+          staged ? SemanticSearchMessages.install : 'הורד',
+        ),
         icon: FluentIcons.arrow_download_24_regular,
         onPressed: onDownload,
       ),

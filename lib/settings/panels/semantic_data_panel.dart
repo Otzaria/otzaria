@@ -151,6 +151,12 @@ class _SemanticDataCard extends StatelessWidget {
         ),
       SemanticAvailabilityPhase.needsDownload when availability.pausedByUser =>
         context.settingsText('ההורדה הושהתה. אפשר להמשיך אותה מאותה נקודה.'),
+      SemanticAvailabilityPhase.needsDownload
+          when availability.stagedDataFound =>
+        context.settingsText(
+          SemanticSearchMessages.stagedDataFound,
+          args: _nameArgs(context),
+        ),
       SemanticAvailabilityPhase.needsDownload => context.settingsText(
         'הנתונים עוד לא הורדו',
       ),
@@ -189,7 +195,11 @@ class _SemanticDataCard extends StatelessWidget {
       SemanticAvailabilityPhase.needsDownload => [
         ActionButton.recommended(
           key: const ValueKey('semantic-data-download'),
-          text: context.settingsText('הורד'),
+          text: context.settingsText(
+            availability.stagedDataFound
+                ? SemanticSearchMessages.install
+                : 'הורד',
+          ),
           onPressed: () => bloc.add(const SemanticDownloadRequested()),
         ),
       ],

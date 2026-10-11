@@ -55,6 +55,9 @@ abstract class SemanticSearchMessages {
   static const String downloadingData = 'מוריד את נתוני החיפוש';
   static const String installingData = 'מתקין את נתוני החיפוש';
   static const String checkingStagedFiles = 'בודק את הקבצים שהוכנו מראש';
+  static const String stagedDataFound =
+      'נמצאו נתוני {name} שהוכנו מראש. יש להתקין אותם כדי להשתמש בו.';
+  static const String install = 'התקן';
   static const String percentTemplate = '{label} ({percent}%)';
 
   /// הפעולה של שלב [item]; למשתמש זו הורדה אחת, בלי פירוט הרכיבים.
@@ -66,7 +69,11 @@ abstract class SemanticSearchMessages {
 
   /// הפעולה המוצגת: בדיקת קובץ מוכן, או הפעולה של השלב.
   static String progressAction(SemanticDownloadProgress progress) =>
-      progress.checking ? checkingStagedFiles : stepAction(progress.item);
+      progress.checking
+      ? checkingStagedFiles
+      : progress.staged
+      ? installingData
+      : stepAction(progress.item);
 
   /// האחוז הכולל להצגה, או `null` בהתקנה ובגודל לא ידוע.
   static String? progressPercent(SemanticDownloadProgress progress) {
