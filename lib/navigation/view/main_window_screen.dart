@@ -45,7 +45,6 @@ import 'package:otzaria/find_ref/bloc/find_ref_state.dart';
 import 'package:otzaria/library/models/library.dart' as library_model;
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
-import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:otzaria/semantic_search/semantic_work_status.dart';
@@ -1739,17 +1738,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
   void _runExternalSearch(String query, {SearchMode? mode}) {
     // ה-configuration מועברת בבנייה ולא ב-event — מניעת race עם
     // ה-UpdateSearchQuery ש-TantivyFullTextSearch שולח ב-initState.
-    final tab = SearchingTab(
+    final tab = SearchingTab.newSearch(
       SearchingTab.titleForQuery(query),
       query,
-      initialConfiguration: mode == null
-          ? null
-          : SearchDefaults.withResultPreferences(
-              SearchConfiguration(
-                searchMode: mode,
-                distance: mode == SearchMode.fuzzy ? kMaxFuzzyDistance : 0,
-              ),
-            ),
+      mode: mode,
     );
     context.read<HistoryBloc>().add(AddHistory(tab));
     context.read<TabsBloc>().add(AddTab(tab));

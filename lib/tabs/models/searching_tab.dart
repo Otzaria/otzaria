@@ -117,6 +117,33 @@ class SearchingTab extends OpenedTab {
     }
   }
 
+  /// חיפוש חדש לפי ברירות המחדל של המשתמש — מצב, מרווח ואפשרויות המילה;
+  /// [mode] מפורש (מקיצור או מקישור) גובר על המצב השמור.
+  factory SearchingTab.newSearch(
+    String title,
+    String query, {
+    SearchMode? mode,
+    bool withResultPreferences = true,
+  }) {
+    final searchMode = mode ?? SearchDefaults.initialModeForNewSearch();
+    final config = SearchConfiguration(
+      searchMode: searchMode,
+      distance: searchMode == SearchMode.fuzzy
+          ? kMaxFuzzyDistance
+          : SearchDefaults.initialDistanceForNewSearch(),
+    );
+    return SearchingTab(
+        title,
+        query,
+        initialConfiguration: withResultPreferences
+            ? SearchDefaults.withResultPreferences(config)
+            : config,
+      )
+      ..globalSearchOptions.addAll(
+        SearchDefaults.initialOptionsForMode(searchMode),
+      );
+  }
+
   /// האם להריץ אוטומטית שאילתה ממתינה בפתיחה הראשונה של הטאב.
   final bool autoRunInitialSearch;
 

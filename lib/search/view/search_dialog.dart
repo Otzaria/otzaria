@@ -242,28 +242,14 @@ class _SearchDialogState extends State<SearchDialog> {
       final lastTyping =
           Settings.getValue<String>('key-last-search-typing') ?? '';
 
-      // חיפוש חדש נפתח במצב ברירת המחדל (חיפוש רגיל/מדויק) עם המרווח
-      // השמור; שינוי מצב או מרווח נשמר לסשן הנוכחי בלבד — כמו אפשרויות
-      // החיפוש המתקדם.
-      final searchMode =
-          widget.initialSearchMode ?? SearchDefaults.initialModeForNewSearch();
-
-      _searchTab = SearchingTab(
+      // בלי העדפות תצוגת התוצאות: זה טאב השירות של הדיאלוג, והמיון/האיחוד
+      // שלו נראים רק בבקשת החיפוש שנשלחת לתוספים.
+      _searchTab = SearchingTab.newSearch(
         "חיפוש",
         lastTyping,
-        // בלי העדפות תצוגת התוצאות: זה טאב השירות של הדיאלוג, והמיון/האיחוד
-        // שלו נראים רק בבקשת החיפוש שנשלחת לתוספים.
-        initialConfiguration: SearchConfiguration(
-          searchMode: searchMode,
-          distance: searchMode == SearchMode.fuzzy
-              ? kMaxFuzzyDistance
-              : SearchDefaults.initialDistanceForNewSearch(),
-        ),
+        mode: widget.initialSearchMode,
+        withResultPreferences: false,
       );
-
-      // חיפוש חדש נפתח עם אפשרויות ברירת המחדל של המצב שבו הוא נפתח
-      // (או מצב הסשן הנוכחי) — לכל מצב חיפוש ברירות מחדל משלו
-      _searchTab.globalSearchOptions.addAll(_initialOptionsForMode(searchMode));
     }
     if (widget.existingTab != null) _tabsBloc = context.read<TabsBloc?>();
     if (_supportsSemanticMode) {
@@ -759,16 +745,6 @@ class _SearchDialogState extends State<SearchDialog> {
     if (!open.any((tab) => identical(tab, existing))) existing.dispose();
   }
 
-  /// האפשרויות הגלובליות שאיתן נפתח חיפוש חדש במצב [mode] — לכל מצב
-  /// ברירות מחדל וזיכרון-סשן משלו (במקורב אין אפשרויות מילה).
-  Map<String, bool> _initialOptionsForMode(SearchMode mode) {
-    return switch (mode) {
-      SearchMode.advanced => SearchDefaults.initialOptionsForNewSearch(),
-      SearchMode.exact => SearchDefaults.initialExactOptionsForNewSearch(),
-      SearchMode.fuzzy => const {},
-    };
-  }
-
   /// משמר את האפשרויות הגלובליות הנוכחיות לזיכרון-הסשן של [mode].
   void _rememberSessionOptionsForMode(SearchMode mode) {
     switch (mode) {
@@ -797,7 +773,7 @@ class _SearchDialogState extends State<SearchDialog> {
     setState(() {
       _searchTab.globalSearchOptions
         ..clear()
-        ..addAll(_initialOptionsForMode(newMode));
+        ..addAll(SearchDefaults.initialOptionsForMode(newMode));
       if (newMode == SearchMode.exact) {
         // במצב הרגיל אין עורך פר-מילה — הסימון תמיד גלובלי.
         _searchTab.useGlobalSearchOptions.value = true;
