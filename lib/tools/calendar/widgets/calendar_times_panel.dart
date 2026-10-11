@@ -515,39 +515,6 @@ class _CalendarTimesPanelState extends State<CalendarTimesPanel> {
                 child: _ZmanCard(
                   timeData: timeData,
                   zmanAlerts: widget.state.zmanAlerts,
-                  onAlertPressed: () async {
-                    final timeId = timeData.id;
-                    final timeName = timeData.name;
-                    final timeLabel = timeData.time;
-                    final existingAlert = widget.state.zmanAlerts[timeId];
-                    final hasAlert = existingAlert != null;
-                    final cubit = context.read<CalendarCubit>();
-                    if (timeLabel == '--:--') {
-                      UiSnack.showError(ToolsMessages.zmanAlertUnavailableTime);
-                      return;
-                    }
-                    final result = await showZmanAlertDialog(
-                      context,
-                      zmanName: timeName,
-                      timeLabel: timeLabel,
-                      initialMinutesBefore: existingAlert?.minutesBefore ?? 5,
-                      isEnabled: hasAlert,
-                    );
-                    if (result == null) return;
-                    if (result.cancelAlert) {
-                      _runZmanAlertOp(
-                        cubit.cancelZmanAlertPreference(timeId: timeId),
-                      );
-                      return;
-                    }
-                    _runZmanAlertOp(
-                      cubit.setZmanAlertPreference(
-                        timeId: timeId,
-                        displayName: timeName,
-                        minutesBefore: result.minutesBefore,
-                      ),
-                    );
-                  },
                 ),
               ),
           ],
@@ -712,12 +679,10 @@ String _formatAlertMinutes(int minutes) {
 class _ZmanCard extends StatelessWidget {
   final CalendarTimeEntry timeData;
   final Map<String, ZmanAlertPreference?> zmanAlerts;
-  final VoidCallback onAlertPressed;
 
   const _ZmanCard({
     required this.timeData,
     required this.zmanAlerts,
-    required this.onAlertPressed,
   });
 
   ZmanAlertPreference? get _existingAlert {
@@ -750,8 +715,6 @@ class _ZmanCard extends StatelessWidget {
       tooltip: _tooltipForAlert(existingAlert, 'הפעל התראה'),
       foregroundColor: textColor,
       onPressed: onPressed,
-      menuEntries: const [],
-      onOptionSelected: (_) {},
     );
 
     // הזמן עצמו ממורכז בחצי הכרטיס; שם הזמן (הכותרת) נשאר בקצה החיצוני
@@ -965,19 +928,16 @@ class _ZmanCard extends StatelessWidget {
                       _AlertControl(
                         hasAlert: hasAlert,
                         existingAlert: existingAlert,
-                        tooltip: hasAlert
-                            ? _tooltipForAlert(
-                                existingAlert,
-                                'הפעל התראה לזמן זה',
-                              )
-                            : timeData.alertOptions.isEmpty
-                            ? 'הפעל התראה לזמן זה'
-                            : 'בחר זמן להתראה',
+                        tooltip: _tooltipForAlert(
+                          existingAlert,
+                          'הפעל התראה לזמן זה',
+                        ),
                         foregroundColor: primaryTextColor,
-                        onPressed: onAlertPressed,
-                        menuEntries: timeData.alertOptions,
-                        onOptionSelected: (option) =>
-                            _openAlertDialogForOption(context, option),
+                        // כאן יש תמיד אפשרות אחת — פותחים ישר את חלון ההתראה
+                        onPressed: () => _openAlertDialogForOption(
+                          context,
+                          timeData.alertOptions.single,
+                        ),
                       ),
                     ],
                   ],
@@ -993,6 +953,10 @@ class _ZmanCard extends StatelessWidget {
     BuildContext context,
     CalendarTimeAlertOption option,
   ) async {
+    if (option.time == '--:--') {
+      UiSnack.showError(ToolsMessages.zmanAlertUnavailableTime);
+      return;
+    }
     final cubit = context.read<CalendarCubit>();
     final existingAlert = cubit.state.zmanAlerts[option.id];
     final result = await showZmanAlertDialog(
@@ -1023,16 +987,12 @@ class _AlertControl extends StatelessWidget {
   final String tooltip;
   final Color foregroundColor;
   final VoidCallback onPressed;
-  final List<CalendarTimeAlertOption> menuEntries;
-  final ValueChanged<CalendarTimeAlertOption> onOptionSelected;
   const _AlertControl({
     required this.hasAlert,
     required this.existingAlert,
     required this.tooltip,
     required this.foregroundColor,
     required this.onPressed,
-    required this.menuEntries,
-    required this.onOptionSelected,
   });
 
   @override
@@ -1042,38 +1002,13 @@ class _AlertControl extends StatelessWidget {
         : FluentIcons.alert_24_regular;
     final minutesBefore = existingAlert?.minutesBefore;
 
-    final action = menuEntries.isEmpty
-        ? BarButton.icon(
-            tooltip: tooltip,
-            icon: iconData,
-            onPressed: onPressed,
-            selected: hasAlert,
-            compact: true,
-          )
-        : AppPopupMenuButton<CalendarTimeAlertOption>(
-            tooltip: tooltip,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-            icon: Icon(
-              iconData,
-              size: 20,
-              color: hasAlert
-                  ? Theme.of(context).colorScheme.primary
-                  : foregroundColor,
-            ),
-            entries: [
-              for (final option in menuEntries)
-                AppMenuEntry<CalendarTimeAlertOption>(
-                  value: option,
-                  label: option.name,
-                  trailing: Text(
-                    option.time,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-            ],
-            onSelected: onOptionSelected,
-          );
+    final action = BarButton.icon(
+      tooltip: tooltip,
+      icon: iconData,
+      onPressed: onPressed,
+      selected: hasAlert,
+      compact: true,
+    );
 
     // הטקסט תמיד תופס מקום (Opacity במקום if) — מצב פעיל לא משנה את גובה הווידג'ט
     return Column(

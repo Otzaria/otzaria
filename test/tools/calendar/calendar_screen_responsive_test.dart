@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -13,10 +14,12 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tools/calendar/calendar_screen.dart';
+import 'package:otzaria/tools/calendar/dialogs/calendar_zman_alert_dialog.dart';
 import 'package:otzaria/tools/calendar/services/google_calendar_service.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_main_panel.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_side_panel.dart';
+import 'package:otzaria/tools/calendar/widgets/calendar_times_panel.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -144,6 +147,36 @@ void main() {
       );
     });
   });
+
+  testWidgets(
+    'לחיצה על הפעמון בזמן עם אפשרות יחידה פותחת ישר את חלון ההתראה (issue #2033)',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BlocProvider.value(
+              value: calendarCubit,
+              child: SingleChildScrollView(
+                child: CalendarTimesPanel(
+                  state: calendarCubit.state.copyWith(
+                    enabledZmanim: {'sunset'},
+                    dailyTimes: {'sunset': '19:50'},
+                  ),
+                  onOpenCalendarCalculationPage: (_) async {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(FluentIcons.alert_24_regular));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ZmanAlertDialog), findsOneWidget);
+    },
+  );
 }
 
 class _FakeNotificationService implements NotificationService {
