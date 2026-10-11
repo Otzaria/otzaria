@@ -109,6 +109,44 @@ String stripHtmlPreservingBreaks(String text) {
   return stripHtmlIfNeeded(withBreaks);
 }
 
+/// כמו `replaceAll(RegExp(r'\s+'), ' ')` בלי regex, ובלי העתקה כשאין מה
+/// לכווץ — רץ על כל שורות הספר בחיפוש הראשון ועל כל קטע מוצג.
+String collapseWhitespace(String s) {
+  StringBuffer? out;
+  var copied = 0;
+  for (var i = 0; i < s.length; i++) {
+    if (!_isRegExpSpace(s.codeUnitAt(i))) continue;
+    var end = i + 1;
+    while (end < s.length && _isRegExpSpace(s.codeUnitAt(end))) {
+      end++;
+    }
+    if (end - i > 1 || s.codeUnitAt(i) != 0x20) {
+      (out ??= StringBuffer())
+        ..write(s.substring(copied, i))
+        ..write(' ');
+      copied = end;
+    }
+    i = end - 1;
+  }
+  if (out == null) return s;
+  out.write(s.substring(copied));
+  return out.toString();
+}
+
+/// התווים ש-`\s` של RegExp מתאים להם.
+bool _isRegExpSpace(int c) => c <= 0x20
+    ? c == 0x20 || (c >= 0x09 && c <= 0x0D)
+    : c == 0xA0 ||
+          (c >= 0x1680 &&
+              (c == 0x1680 ||
+                  (c >= 0x2000 && c <= 0x200A) ||
+                  c == 0x2028 ||
+                  c == 0x2029 ||
+                  c == 0x202F ||
+                  c == 0x205F ||
+                  c == 0x3000 ||
+                  c == 0xFEFF));
+
 String truncate(String text, int length) {
   return text.length > length ? '${text.substring(0, length)}...' : text;
 }

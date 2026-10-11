@@ -967,4 +967,32 @@ void main() {
       }
     });
   });
+
+  test(
+    'טקסט הסימון ומספר המופע זהים לכיווץ הרווחים ב-regex על כל תו (perf)',
+    () {
+      // אורקל: הטקסט הגלוי כפי שחושב קודם — הסרת תגים וכיווץ `\s+` ב-regex.
+      final ws = RegExp(r'\s+');
+      for (var c = 0; c <= 0xFFFF; c++) {
+        final ch = String.fromCharCode(c);
+        if (ch == '<' || ch == '>' || ch == '&') continue;
+        final marker = 'א$ch$chב';
+        final html =
+            'א$ch$ch$chב ג<span class="$kRaisedSupClass">$marker</span>'
+            '$ch<span class="$kRaisedSupClass">$marker</span>';
+        final text = marker.replaceAll(ws, ' ');
+        final before = 'א$ch$ch$chב ג'.replaceAll(ws, ' ');
+        final markers = RaisedMarkers.extract(html);
+        if (text.trim().isEmpty) {
+          expect(markers, isEmpty, reason: '$c');
+          continue;
+        }
+        expect(markers.map((m) => m.text), [text, text], reason: '$c');
+        expect(markers.map((m) => m.occurrence), [
+          (before.contains(text) ? 2 : 1),
+          (before.contains(text) ? 3 : 2),
+        ], reason: '$c');
+      }
+    },
+  );
 }
