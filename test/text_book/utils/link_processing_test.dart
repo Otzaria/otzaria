@@ -377,6 +377,79 @@ void main() {
         2,
       );
     });
+
+    test('קישורים מחוץ לשורות החלון הנכנס אינם מועתקים ל-isolate', () async {
+      final existing = [
+        for (var i = 1; i <= 300; i++) makeLink(index1: i, index2: i),
+      ];
+      final result = await processLinksForState(
+        existingLinks: existing,
+        incomingLinks: [
+          for (var i = 290; i <= 400; i++) makeLink(index1: i, index2: i),
+        ],
+        replaceExisting: false,
+        visibleIndices: [0],
+        selectedIndices: const {},
+      );
+
+      expect(result.links, hasLength(400));
+      expect(identical(result.links.first, existing.first), isTrue);
+      expect(identical(result.visibleLinks.single, existing.first), isTrue);
+    });
+
+    test('מסלול isolate זהה למיזוג המלא על חלונות חופפים', () async {
+      final random = Random(7);
+      // index1End נגזר מ-index2: מפתח מיון שווה = זהות שווה, כי המיון אינו יציב.
+      Link randomLink(int line) {
+        final index2 = random.nextInt(50);
+        return makeLink(
+          index1: line,
+          index1End: index2 % 8 == 0 ? line + index2 % 5 : null,
+          path2: 'ספר${random.nextInt(4)}.txt',
+          index2: index2,
+          connectionType: random.nextBool() ? 'reference' : 'commentary',
+          baseProvenance: random.nextInt(3),
+        );
+      }
+
+      var existing = <Link>[];
+      for (var start = 0; start <= 600; start += 120) {
+        final incoming = [
+          for (var line = start + 350; line >= start; line--)
+            for (var k = random.nextInt(3); k >= 0; k--) randomLink(line + 1),
+          ...existing.where((link) => link.index1 > start).take(80),
+        ];
+        final expected = mergeLinksByIdentity(existing, incoming);
+        final result = await processLinksForState(
+          existingLinks: existing,
+          incomingLinks: incoming,
+          replaceExisting: false,
+          visibleIndices: [start + 3, start + 4],
+          selectedIndices: const {},
+        );
+        String describe(Link link) =>
+            '${linkIdentityKey(link)}#${link.baseProvenance}';
+
+        expect(result.links.map(describe), expected.map(describe));
+        final expectedByLine = buildLinksByLineMap(expected);
+        for (var line = 0; line <= start + 360; line++) {
+          expect(
+            result.linksByLine[line]?.map(describe),
+            expectedByLine[line]?.map(describe),
+          );
+        }
+        expect(
+          result.visibleLinks.map(describe),
+          computeVisibleLinks(
+            links: expected,
+            visibleIndices: [start + 3, start + 4],
+            selectedIndices: const {},
+            linksByLine: expectedByLine,
+          ).map(describe),
+        );
+        existing = result.links;
+      }
+    });
   });
 
   group('buildPreviewLines', () {
