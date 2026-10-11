@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
@@ -388,6 +390,49 @@ Future<void> main() async {
       expect(stripHtmlIfNeeded('א<param>ב'), equals('אב'));
       expect(stripHtmlIfNeeded('א<h7>ב'), equals('אב'));
     });
+
+    test(
+      'זהה להסרה בשני ביטויים רגולריים על כל תו ועל צירופים אקראיים (perf)',
+      () {
+        // אורקל: המימוש הקודם.
+        final tags = RegExp(r'<[^>]*>');
+        final breaking = RegExp(
+          r'</?(?:address|article|aside|blockquote|br|caption|center|dd|div|dl'
+          r'|dt|figcaption|figure|footer|h[1-6]|header|hr|li|main|nav|ol|p|pre'
+          r'|section|table|tbody|td|tfoot|th|thead|tr|ul)(?:[^>a-zA-Z0-9][^>]*)?>',
+          caseSensitive: false,
+        );
+        String oracle(String text) => decodeHtmlEntities(
+          text.replaceAll(breaking, ' ').replaceAll(tags, ''),
+        );
+
+        final inputs = <String>[
+          for (var c = 0; c <= 0xFFFF; c++) ...[
+            'א<${String.fromCharCode(c)}>ב',
+            'א<br${String.fromCharCode(c)}>ב',
+            'א</t${String.fromCharCode(c)}>ב<',
+          ],
+        ];
+        const pieces = [
+          '<', '>', '/', '</', 'br', 'BR', 'Br', 'p', 'P', 'h1', 'H6', 'h7', //
+          'th', 'thead', 'tHeAd', 'ul', 'div', 'big', 'b', 'param', ' ', '=', //
+          '"', 'x', '1', 'א', 'שלום', '&amp;', '&lt;', '&nbsp;', '&', ';', //
+          'ſ', '\u212A', '\n', '<b>', '</p>', '<br/>', '<h2 class="x">', //
+        ];
+        final random = Random(5);
+        for (var i = 0; i < 20000; i++) {
+          inputs.add(
+            [
+              for (var j = random.nextInt(14); j > 0; j--)
+                pieces[random.nextInt(pieces.length)],
+            ].join(),
+          );
+        }
+        for (final input in inputs) {
+          expect(stripHtmlIfNeeded(input), oracle(input), reason: input);
+        }
+      },
+    );
   });
 
   group('stripHtmlPreservingBreaks', () {

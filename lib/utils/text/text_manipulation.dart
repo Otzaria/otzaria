@@ -94,9 +94,43 @@ final RegExp _holyName = RegExp(
 /// הפענוח אחרי הסרת התגים — אחרת `&lt;b&gt;` היה הופך ל-`<b>` ונמחק כתגית.
 /// תגי שבירה הופכים לרווח; תגי inline נמחקים נטו (`מי<b>לה` — מילה אחת).
 String stripHtmlIfNeeded(String text) {
-  return decodeHtmlEntities(
-    text.replaceAll(_breakingTagStripper, ' ').replaceAll(_htmlStripper, ''),
-  );
+  if (!text.contains('<')) return decodeHtmlEntities(text);
+  return decodeHtmlEntities(_removeTags(_replaceBreakingTags(text)));
+}
+
+/// כמו `replaceAll(_breakingTagStripper, ' ')`, אך מנסה התאמה רק במקומות `<`.
+String _replaceBreakingTags(String text) {
+  StringBuffer? out;
+  var copied = 0;
+  var i = text.indexOf('<');
+  while (i >= 0) {
+    final tag = _breakingTagStripper.matchAsPrefix(text, i);
+    if (tag == null) {
+      i = text.indexOf('<', i + 1);
+      continue;
+    }
+    (out ??= StringBuffer())
+      ..write(text.substring(copied, i))
+      ..write(' ');
+    copied = tag.end;
+    i = text.indexOf('<', copied);
+  }
+  return out == null ? text : (out..write(text.substring(copied))).toString();
+}
+
+/// כמו `replaceAll(_htmlStripper, '')`: כל `<` נמחק עד ה-`>` הקרוב.
+String _removeTags(String text) {
+  final out = StringBuffer();
+  var copied = 0;
+  var i = text.indexOf('<');
+  while (i >= 0) {
+    final close = text.indexOf('>', i + 1);
+    if (close < 0) break;
+    out.write(text.substring(copied, i));
+    copied = close + 1;
+    i = text.indexOf('<', copied);
+  }
+  return (out..write(text.substring(copied))).toString();
 }
 
 /// כמו [stripHtmlIfNeeded], אך ממיר תגי <br> למעבר שורה אמיתי לפני הסרת התגים,
