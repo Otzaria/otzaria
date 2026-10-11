@@ -1394,7 +1394,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
     return Column(
       children: [
         // במצב fullscreen עם חיפוש חיצוני, מסתיר שורת חיפוש פנימית
-        if (widget.externalSearchController == null) _buildSearchBar(),
+        // הסרגל (והמונה שבו) אינו חלק מהבחירה של המפרשים.
+        if (widget.externalSearchController == null)
+          SelectionContainer.disabled(child: _buildSearchBar()),
         Expanded(child: _buildCommentariesListContent()),
       ],
     );
