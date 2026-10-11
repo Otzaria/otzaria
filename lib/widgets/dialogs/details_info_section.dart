@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 
+/// התיאור המורחב להצגה, או null כשהוא ריק או זהה לתיאור הקצר.
+String? distinctFullDescription(String? short, String? full) {
+  final trimmed = full?.trim() ?? '';
+  return trimmed.isEmpty || trimmed == short?.trim() ? null : full;
+}
+
 /// מקטע תווית־וערך אחיד לדיאלוגי מידע.
 class DetailsInfoSection extends StatelessWidget {
   const DetailsInfoSection({

@@ -204,6 +204,10 @@ Widget _buildBookDetailsContent(
   final bookSource = information.source ?? 'לא נמצא מקור';
   final sourceInfo = getSourceDisplayInfo(bookSource);
   final isTashma = isTashmaSource(bookSource);
+  final fullDescription = distinctFullDescription(
+    information.shortDescription,
+    information.fullDescription,
+  );
 
   return AppSelectionArea(
     child: SingleChildScrollView(
@@ -278,11 +282,11 @@ Widget _buildBookDetailsContent(
               icon: OtzariaIcons.book_information_24_regular,
               value: information.shortDescription!,
             ),
-          if (information.fullDescription != null)
+          if (fullDescription != null)
             DetailsInfoSection(
               title: 'תיאור מורחב:',
               icon: FluentIcons.document_text_24_regular,
-              value: information.fullDescription!,
+              value: fullDescription,
             ),
           const Divider(height: 24),
           Row(
