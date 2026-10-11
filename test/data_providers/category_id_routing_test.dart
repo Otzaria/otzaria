@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/book_locator.dart';
@@ -115,6 +116,14 @@ class _FakeProvider implements LibraryProvider {
   Future<String> getLinkContent(Link link) async {
     return '';
   }
+}
+
+class _ContentProvider extends _FakeProvider {
+  _ContentProvider(String id)
+    : super(providerId: id, displayName: id, sourceIndicator: id);
+
+  @override
+  Future<String> getLinkContent(Link link) async => providerId;
 }
 
 void main() {
@@ -517,4 +526,61 @@ void main() {
     expect(links.length, 1);
     expect(links.first.path2, 'מפרש בדיקה');
   });
+
+  test(
+    'getLinkContent בוחר את הספק של המפתח הראשון עם כותרת היעד כמו סריקת המפתחות (perf)',
+    () async {
+      final providers = [for (var i = 0; i < 4; i++) _ContentProvider('p$i')];
+      const titles = ['רש"י על בראשית', 'תוספות', 'ספר', 'ספר.txt', 'א'];
+      const fileTypes = ['txt', 'pdf', 'docx'];
+      final sources = [
+        BookSource.official,
+        BookSource.user,
+        BookSource.attached('x'),
+      ];
+      final random = Random(7);
+      for (var round = 0; round < 40; round++) {
+        final mapping = <BookCompositeKey, LibraryProvider>{};
+        for (var i = random.nextInt(25); i > 0; i--) {
+          mapping[BookCompositeKey.create(
+                title: titles[random.nextInt(titles.length)],
+                categoryId: random.nextInt(3),
+                fileType: fileTypes[random.nextInt(fileTypes.length)],
+                source: sources[random.nextInt(sources.length)],
+              )] =
+              providers[random.nextInt(providers.length)];
+        }
+        manager.seedMappingsForTesting(mapping: mapping, providers: providers);
+        for (final title in [...titles, 'אין']) {
+          for (final path2 in [title, 'תיקייה/$title.txt', '$title.TEXT']) {
+            final link = Link(
+              heRef: '',
+              index1: 1,
+              path2: path2,
+              index2: 1,
+              connectionType: 'commentary',
+            );
+            // אורקל: המימוש הקודם.
+            final name = path2.split('/').last;
+            final ext = name.contains('.')
+                ? name.substring(name.lastIndexOf('.')).toLowerCase()
+                : '';
+            final target = ext == '.txt' || ext == '.text'
+                ? name.substring(0, name.length - ext.length)
+                : name;
+            final key = mapping.keys
+                .where((k) => k.matchesTitle(target))
+                .firstOrNull;
+            final expected =
+                (key == null ? null : mapping[key]) ?? providers.first;
+            expect(
+              await manager.getLinkContent(link),
+              (expected as _ContentProvider).providerId,
+              reason: '$round $path2',
+            );
+          }
+        }
+      }
+    },
+  );
 }

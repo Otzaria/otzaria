@@ -19,8 +19,22 @@ import 'package:path/path.dart' as p;
 class LibraryProviderManager {
   final List<LibraryProvider> _providers = [];
   final Map<BookCompositeKey, LibraryProvider> _bookToProvider = {};
+
+  /// המפתח הראשון (בסדר ההכנסה) לכל כותרת — לאיתור ספר היעד של קישור.
+  final Map<String, BookCompositeKey> _firstKeyByTitle = {};
+
   bool _isInitialized = false;
   Future<void>? _initializationFuture;
+
+  void _mapBook(BookCompositeKey key, LibraryProvider provider) {
+    _bookToProvider[key] = provider;
+    _firstKeyByTitle.putIfAbsent(key.title, () => key);
+  }
+
+  void _clearBookMapping() {
+    _bookToProvider.clear();
+    _firstKeyByTitle.clear();
+  }
 
   /// Singleton instance
   static LibraryProviderManager? _instance;
@@ -271,7 +285,7 @@ class LibraryProviderManager {
     );
     if (located == null) return 'ק';
 
-    _bookToProvider[located.key] = located.provider;
+    _mapBook(located.key, located.provider);
     return located.provider.sourceIndicator;
   }
 
@@ -332,7 +346,7 @@ class LibraryProviderManager {
       preferSource: preferSource,
     );
     if (text != null) {
-      _bookToProvider[located.key] = located.provider;
+      _mapBook(located.key, located.provider);
     }
     return text;
   }
@@ -378,7 +392,7 @@ class LibraryProviderManager {
       preferSource: preferSource,
     );
     if (toc != null) {
-      _bookToProvider[located.key] = located.provider;
+      _mapBook(located.key, located.provider);
     }
     return toc;
   }
@@ -407,20 +421,20 @@ class LibraryProviderManager {
     );
     if (located == null) return false;
 
-    _bookToProvider[located.key] = located.provider;
+    _mapBook(located.key, located.provider);
     return true;
   }
 
   /// Clears all caches
   void clearCaches() {
-    _bookToProvider.clear();
+    _clearBookMapping();
     databaseProvider.clearCache();
     debugPrint('🔄 All provider caches cleared');
   }
 
   /// Resets provider initialization so the active library can be reloaded.
   void resetRuntimeState() {
-    _bookToProvider.clear();
+    _clearBookMapping();
     _providers.clear();
     databaseProvider.clearCache();
     fileSystemProvider.resetRuntimeState();
@@ -435,9 +449,8 @@ class LibraryProviderManager {
     required List<LibraryProvider> providers,
     bool initialized = true,
   }) {
-    _bookToProvider
-      ..clear()
-      ..addAll(mapping);
+    _clearBookMapping();
+    mapping.forEach(_mapBook);
     _providers
       ..clear()
       ..addAll(providers);
@@ -455,7 +468,7 @@ class LibraryProviderManager {
 
   @visibleForTesting
   void resetForTesting() {
-    _bookToProvider.clear();
+    _clearBookMapping();
     _providers.clear();
     _isInitialized = false;
     _initializationFuture = null;
@@ -470,14 +483,7 @@ class LibraryProviderManager {
         ? targetName.substring(0, targetName.length - targetExtension.length)
         : targetName;
 
-    BookCompositeKey? targetKey;
-    for (final key in _bookToProvider.keys) {
-      if (key.matchesTitle(targetTitle)) {
-        targetKey = key;
-        break;
-      }
-    }
-
+    final targetKey = _firstKeyByTitle[targetTitle];
     final provider = targetKey != null ? _bookToProvider[targetKey] : null;
 
     if (provider != null) {
@@ -547,7 +553,7 @@ class LibraryProviderManager {
   /// - TextBooks that are in the database -> DatabaseLibraryProvider
   /// - PdfBooks and other file-based books -> FileSystemLibraryProvider
   Future<void> _updateBookToProviderMapping(Library library) async {
-    _bookToProvider.clear();
+    _clearBookMapping();
     await _mapBooksRecursive(library);
   }
 
@@ -580,12 +586,12 @@ class LibraryProviderManager {
       // ספר שאינו רשמי חייב את ה-DB provider גם כשהוא קובץ (docx/epub) —
       // ה-FS provider מכיר רק את הספרייה הראשית ומחזיר null.
       if (book is FileBook && book.source.isOfficial) {
-        _bookToProvider[key] = fileSystemProvider;
+        _mapBook(key, fileSystemProvider);
       } else {
         if (dbKeys.contains(key)) {
-          _bookToProvider[key] = databaseProvider;
+          _mapBook(key, databaseProvider);
         } else {
-          _bookToProvider[key] = fileSystemProvider;
+          _mapBook(key, fileSystemProvider);
         }
       }
     }
