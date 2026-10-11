@@ -1032,16 +1032,3 @@ class _PersonalBooksSnapshot {
     required this.sourceNamesById,
   });
 }
-
-/// Result of restoring a folder from DB
-class RestoreFolderResult {
-  final int restoredBooks;
-  final int restoredCategories;
-  final List<String> errors;
-
-  const RestoreFolderResult({
-    this.restoredBooks = 0,
-    this.restoredCategories = 0,
-    this.errors = const [],
-  });
-}

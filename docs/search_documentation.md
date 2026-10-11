@@ -52,7 +52,7 @@
 - `advanced`: מוצא תוצאות שבהן ייתכן מרווח בין מילים, ומאפשר שימוש בכל אפשרויות העריכה המתקדמת.  
 - `fuzzy`: מפעיל בנייה אוטומטית של וריאציות חיפוש לכל מילה, עם ברירת מחדל של מרווח `2`, כתיב מלא/חסר, שגיאות כתיב נפוצות, והחלפת סדר אותיות סמוכות.
 
-**קובץ:** `lib/search/view/full_text_settings_widgets.dart` — `SearchModeToggle`  
+**קובץ:** `lib/search/view/search_dialog.dart` — `SetSearchMode`  
 **שמירה:** `'key-last-search-mode'` (נשמר בין הפעלות)
 
 ---
