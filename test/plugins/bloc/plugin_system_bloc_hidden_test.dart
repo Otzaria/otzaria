@@ -115,7 +115,7 @@ void main() {
     });
 
     test('after the event, the next PluginSystemLoaded reflects showInTools '
-        'in the pinnedPlugins getter', () async {
+        'in the plugins list', () async {
       final repo = _FakeRepo([
         _plugin(id: 'visible'),
         _plugin(id: 'will-hide'),
@@ -144,9 +144,9 @@ void main() {
 
       expect(lastLoaded, isNotNull);
       expect(
-        lastLoaded!.pinnedPlugins.map((p) => p.pluginId),
+        lastLoaded!.plugins.where((p) => p.showInTools).map((p) => p.pluginId),
         equals(['visible']),
-        reason: 'plugin not shown in tools must drop out of pinnedPlugins',
+        reason: 'plugin not shown in tools must be marked showInTools=false',
       );
     });
 

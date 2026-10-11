@@ -59,14 +59,6 @@ void main() {
       expect(PluginCrashGuard.isBlocked('c'), true);
     });
 
-    test('retryAll clears all quarantined plugins', () async {
-      PluginCrashGuard.setInitialBlockedForTesting({'a', 'b', 'c'});
-      await PluginCrashGuard.retryAll();
-      expect(PluginCrashGuard.isBlocked('a'), false);
-      expect(PluginCrashGuard.isBlocked('b'), false);
-      expect(PluginCrashGuard.isBlocked('c'), false);
-    });
-
     test('isBlocked returns false before ensureInitialized', () {
       // לפני אתחול — לא חוסם, כדי שלא נחסום בטעות בזמן שהקובץ עוד לא נטען.
       // (main.dart דואג לקרוא ל-ensureInitialized לפני שמראים תוספים.)

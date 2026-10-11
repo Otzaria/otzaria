@@ -121,17 +121,20 @@ void main() {
     );
   });
 
-  test('איפוס קטגוריה מוחק גם את הטורים המוסתרים שלה', () async {
+  test('איפוס ספר מוחק גם את הטורים המוסתרים שלו', () async {
     await PageShapeSettingsManager.saveConfiguration(
       'בראשית',
       config,
-      saveToCategory: 'תורה',
       columnVisibility: rightHidden,
     );
-    await PageShapeSettingsManager.resetCategorySettings('תורה');
+    expect(
+      Settings.getValue<String>('page_shape_book_בראשית_hidden_columns'),
+      isNotNull,
+    );
+    await PageShapeSettingsManager.resetBookCommentatorConfig('בראשית');
 
     expect(
-      Settings.getValue<String>('page_shape_category_תורה_hidden_columns'),
+      Settings.getValue<String>('page_shape_book_בראשית_hidden_columns'),
       isNull,
     );
   });

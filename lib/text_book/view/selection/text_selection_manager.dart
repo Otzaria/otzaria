@@ -45,16 +45,6 @@ class TextSelectionManager extends ChangeNotifier {
   }
 }
 
-/// Intent לבחירת פסקה (double-click)
-class SelectParagraphIntent extends Intent {
-  const SelectParagraphIntent();
-}
-
-/// Intent לבחירת טווח עם Shift+Click
-class SelectRangeIntent extends Intent {
-  const SelectRangeIntent();
-}
-
 /// Intent לניקוי בחירה
 class ClearSelectionIntent extends Intent {
   const ClearSelectionIntent();

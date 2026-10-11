@@ -22,10 +22,6 @@ class CheckLibrary extends NavigationEvent {
   const CheckLibrary();
 }
 
-class OpenNewSearchTab extends NavigationEvent {
-  const OpenNewSearchTab();
-}
-
 /// החלונית הפעילה בעמוד הטאבים השתנתה; המסך מיושר אליה (חיפוש/עיון).
 /// ההשוואה לפי זהות החלונית — לטאבים אין שוויון ערכי.
 class SyncScreenWithActivePane extends NavigationEvent {

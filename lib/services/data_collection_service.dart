@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/book_database_resolver.dart';
@@ -78,25 +77,6 @@ class DataCollectionService {
     } catch (e) {
       debugPrint('Error reading book ID: $e');
       return null;
-    }
-  }
-
-  /// Get current line number from ItemPosition data
-  /// Returns the first visible item index, or 0 if no positions available
-  int getCurrentLineNumber(List<ItemPosition> positions) {
-    try {
-      if (positions.isEmpty) {
-        return 0;
-      }
-
-      // Sort positions by index and return the first one
-      final sortedPositions = positions.toList()
-        ..sort((a, b) => a.index.compareTo(b.index));
-
-      return sortedPositions.first.index + 1; // Convert to 1-based
-    } catch (e) {
-      debugPrint('Error getting current line number: $e');
-      return 0;
     }
   }
 

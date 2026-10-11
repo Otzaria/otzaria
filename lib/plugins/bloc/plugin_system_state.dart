@@ -22,22 +22,6 @@ class PluginSystemLoaded extends PluginSystemState {
   @override
   List<Object?> get props => [plugins];
 
-  List<InstalledPlugin> get activePlugins =>
-      plugins.where((p) => p.enabled).toList();
-
-  /// תוספים שמקבלים לשונית קבועה במסך "כלים". תוסף שהוצמד לסרגל הניווט
-  /// הראשי (pinnedToNavRail) מקבל שם מקום משלו, ולכן מוחרג כאן כדי שלא
-  /// יתפוס גם לשונית בכלים — הצגה כפולה מיותרת.
-  List<InstalledPlugin> get pinnedPlugins => plugins
-      .where(
-        (p) =>
-            p.pinned &&
-            p.enabled &&
-            p.showInTools &&
-            p.hasToolPage &&
-            !p.pinnedToNavRail,
-      )
-      .toList();
   List<InstalledPlugin> get pluginsPinnedToNavRail => plugins
       .where((p) => p.pinnedToNavRail && p.enabled && p.hasToolPage)
       .toList();

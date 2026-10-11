@@ -48,23 +48,6 @@ String _stripHtmlTags(String htmlText) {
   return htmlText.replaceAll(htmlTagPattern, '').trim();
 }
 
-List<String> extractReferenceWordsFromLines(
-  List<String> lines,
-  int lineNumber, {
-  int limit = kReferenceWordsLimit,
-  String? excludeBookTitle,
-}) {
-  final index = lineNumber - 1;
-  if (index < 0 || index >= lines.length) {
-    return const [];
-  }
-  return extractReferenceWordsFromLine(
-    lines[index],
-    limit: limit,
-    excludeBookTitle: excludeBookTitle,
-  );
-}
-
 /// Extract the beginning of a line as display text (without normalization).
 /// This is used for showing the user a preview of the line content.
 String extractDisplayTextFromLine(

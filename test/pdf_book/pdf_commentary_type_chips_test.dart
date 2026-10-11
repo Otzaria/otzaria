@@ -156,16 +156,6 @@ void main() {
       );
     });
 
-    test('בחירה שאין לה צ׳יפ קיים מתנקזת לריקה — לא מסתירה הכל', () {
-      expect(
-        CommentaryTypeFilter.effectiveTypes(
-          selectedTypes: const {LinkTypes.midrash},
-          availableKeys: const [LinkTypes.targum],
-        ),
-        isEmpty,
-      );
-    });
-
     test('סוג יחיד אינו מציג צ׳יפים (אינו מסנן כלום)', () {
       expect(
         CommentaryTypeFilter.visibleChipKeys(

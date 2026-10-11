@@ -123,7 +123,7 @@ void main() {
       );
 
       expect(
-        HtmlLinkHandler.findHeaderIndexInToc([root], '0-מפה-מהירה'),
+        HtmlLinkHandler.resolveHeaderPath([root], ['0-מפה-מהירה']).index,
         7,
       );
     });

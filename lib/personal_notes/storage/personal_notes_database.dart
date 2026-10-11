@@ -189,13 +189,6 @@ class PersonalNotesDatabase {
     }).toList();
   }
 
-  /// Delete all notes for a specific book
-  Future<void> deleteBookNotes(String bookId) async {
-    final db = await database;
-    db.execute('DELETE FROM $_tableNotes WHERE $_columnBookId = ?', [bookId]);
-    if (db.updatedRows > 0) _notifyChanges([bookId]);
-  }
-
   /// יישוב מיקומים בזמן טעינה אינו מודיע למאזינים, כדי למנוע לולאת טעינות.
   Future<void> batchUpdateNotes(List<PersonalNote> notes) async {
     final db = await database;

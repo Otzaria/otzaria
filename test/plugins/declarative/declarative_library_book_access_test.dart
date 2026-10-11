@@ -13,7 +13,7 @@ void main() {
     );
     final access = _access(library: [], hebrewBooks: [external]);
 
-    final identity = await access.resolveUnique({
+    final identity = await _resolve(access, {
       'external': {'provider': 'hebrewbooks', 'id': 10},
     });
 
@@ -42,7 +42,7 @@ void main() {
       externalLoads: loads,
     );
 
-    await access.resolveUnique({
+    await _resolve(access, {
       'external': {'provider': 'hebrewbooks', 'id': 10},
     });
 
@@ -116,7 +116,7 @@ void main() {
       opened: opened,
     );
 
-    expect(await access.resolveUnique({'bookId': 'כותרת'}), isNull);
+    expect(await _resolve(access, {'bookId': 'כותרת'}), isNull);
     expect(
       await access.openUnique(
         {'bookId': 'כותרת'},
@@ -132,11 +132,11 @@ void main() {
     final access = _access(library: [TextBook(id: 1, title: 'ספר')]);
 
     expect(
-      await access.resolveUnique({'id': 1, 'filePath': '/private/book.txt'}),
+      await _resolve(access, {'id': 1, 'filePath': '/private/book.txt'}),
       isNull,
     );
     expect(
-      await access.resolveUnique({'id': 1, 'url': 'https://example.com'}),
+      await _resolve(access, {'id': 1, 'url': 'https://example.com'}),
       isNull,
     );
   });
@@ -145,7 +145,7 @@ void main() {
     final access = _access(library: [TextBook(id: 1, title: 'ספר')]);
 
     expect(
-      await access.resolveUnique({'id': 'invalid', 'bookId': 'ספר'}),
+      await _resolve(access, {'id': 'invalid', 'bookId': 'ספר'}),
       isNull,
     );
   });
@@ -190,7 +190,7 @@ void main() {
       opened: locallyOpened,
       externallyOpened: externallyOpened,
     );
-    final identity = await access.resolveUnique({
+    final identity = await _resolve(access, {
       'external': {'provider': 'hebrewbooks', 'id': 10},
     });
 
@@ -226,6 +226,11 @@ void main() {
     expect(PluginBookIdentity.externalOf(unknown), isNull);
   });
 }
+
+Future<Map<String, dynamic>?> _resolve(
+  DeclarativeLibraryBookAccess access,
+  Map<String, dynamic> identity,
+) async => (await access.resolveUniqueBatch([identity])).single;
 
 DeclarativeLibraryBookAccess _access({
   required List<Book> library,

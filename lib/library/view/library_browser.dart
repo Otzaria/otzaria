@@ -37,7 +37,6 @@ import 'package:otzaria/library/view/library_empty_state_widget.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
-import 'package:otzaria/library/view/library_panel_controller.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
@@ -406,24 +405,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     );
   }
 
-  void _syncLibraryPanelController() {
-    LibraryPanelController.register(
-      isSettingsPanelOpen: () => _settingsPanelOpen.value,
-      showSettingsPanel: _openSettingsPanel,
-      closeSettingsPanel: _closeSettingsPanel,
-      openPreviewPanel: _showPreviewPanel,
-      closePreviewPanel: _hidePreviewPanel,
-      togglePreviewPanel: _togglePreviewPanel,
-    );
-  }
-
   @override
   void initState() {
     super.initState();
     _secondaryRowVisible = ValueNotifier<bool>(true);
     _topBarTotalHeight = ValueNotifier<double>(0);
     context.read<LibraryBloc>().add(LoadLibrary());
-    _syncLibraryPanelController();
     PluginLibraryBooksRegistry.instance.addListener(_onPluginBooksChanged);
   }
 
@@ -442,7 +429,6 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _secondaryRowVisible.dispose();
     _topBarTotalHeight.dispose();
     _settingsPanelOpen.dispose();
-    LibraryPanelController.unregister();
     super.dispose();
   }
 

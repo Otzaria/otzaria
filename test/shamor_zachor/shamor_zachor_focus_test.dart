@@ -535,15 +535,12 @@ class _FakeShamorZachorProgressProvider extends ShamorZachorProgressProvider {
   }
 
   @override
-  int getNumberOfCompletedCyclesById(int bookId, BookDetails bookDetails) {
-    return isBookCompletedById(bookId, bookDetails) ? 1 : 0;
-  }
-
-  @override
   bool isBookCompletedById(int bookId, BookDetails bookDetails) {
     final progress = _progressByBookId[bookId] ?? const {};
     if (progress.isEmpty) return false;
-    return progress.values.every((item) => item.isComplete);
+    return progress.values.every(
+      (item) => item.isCompleteFor(['learn', 'review1', 'review2', 'review3']),
+    );
   }
 
   @override

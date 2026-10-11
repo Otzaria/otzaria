@@ -104,7 +104,6 @@ book is ConvertibleDocumentBook
 | `UnsupportedDocumentFormatException` | אין מנוע לפורמט |
 | `CorruptedDocumentException` | המכולה נקראה אך מבנה המסמך שבור |
 | `EncryptedDocumentException` | המסמך מוגן בסיסמה |
-| `DocumentConversionFailedException` | כשל שאינו נופל לאף קטגוריה |
 
 שני כללים נגזרים:
 

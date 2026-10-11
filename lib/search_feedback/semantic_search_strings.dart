@@ -14,9 +14,6 @@ const String kSemanticSearchConsentTemplate =
     'מזהה אחר. מומלץ לא לכלול פרטים אישיים בטקסט החיפוש. אפשר לבטל את '
     'ההסכמה בכל עת בהגדרות, והביטול חוסם את מצב החיפוש הזה.';
 
-/// נוסח ההסכמה המלא בעברית.
-String get semanticSearchConsentText => kSemanticSearchConsentTemplate;
-
 /// תוויות מקור ההתאמה בכרטיס תוצאה; מרוכזות כאן כי ישתנו יחד עם השם.
 const String kSemanticSourceLexicalLabel = 'התאמה מילולית';
 const String kSemanticSourceSemanticLabel = 'התאמה לפי עניין';

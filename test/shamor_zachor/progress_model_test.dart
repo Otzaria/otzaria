@@ -9,7 +9,7 @@ void main() {
       expect(progress.getProperty('learn'), isTrue);
       expect(progress.getProperty('review2'), isTrue);
       expect(progress.getProperty('review1'), isFalse);
-      expect(progress.completedCount, 2);
+      expect(progress.toJson(), {'learn': true, 'review2': true});
     });
 
     test('toJson stores only checked columns and round-trips', () {
@@ -28,7 +28,7 @@ void main() {
       final progress = PageProgress.fromJson({'learn': true, 'review1': false});
       expect(progress.getProperty('learn'), isTrue);
       expect(progress.getProperty('review1'), isFalse);
-      expect(progress.completedCount, 1);
+      expect(progress.toJson(), {'learn': true});
     });
 
     test('setProperty false removes the column (kept empty)', () {
@@ -45,7 +45,6 @@ void main() {
 
       expect(progress.isCompleteFor(['learn', 'rashi']), isTrue);
       expect(progress.isCompleteFor(['learn', 'rashi', 'tosafot']), isFalse);
-      expect(progress.completedCountFor(['learn', 'rashi', 'tosafot']), 2);
     });
 
     test('removeColumn drops a single column', () {

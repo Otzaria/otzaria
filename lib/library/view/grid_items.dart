@@ -291,29 +291,6 @@ class LibraryItemTitle extends StatelessWidget {
   }
 }
 
-class HeaderItem extends StatelessWidget {
-  final Category category;
-
-  const HeaderItem({
-    super.key,
-    required this.category,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Text(
-        category.title,
-        style: theme.textTheme.titleMedium?.copyWith(
-          color: theme.colorScheme.secondary,
-        ),
-      ),
-    );
-  }
-}
-
 class CategoryGridItem extends StatelessWidget {
   final Category category;
   final VoidCallback onCategoryClickCallback;

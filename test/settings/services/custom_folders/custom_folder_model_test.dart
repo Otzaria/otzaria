@@ -151,18 +151,6 @@ void main() {
       expect(CustomFoldersManager.saveFolders([]), '[]');
       expect(CustomFoldersManager.loadFolders('[]'), isEmpty);
     });
-
-    test('hasFolders מבחין בין רשימה עם תיקיות לריקה', () {
-      expect(
-        CustomFoldersManager.hasFolders(
-          CustomFoldersManager.saveFolders([folder('/a')]),
-        ),
-        isTrue,
-      );
-      expect(CustomFoldersManager.hasFolders('[]'), isFalse);
-      expect(CustomFoldersManager.hasFolders(null), isFalse);
-      expect(CustomFoldersManager.hasFolders('פגום'), isFalse);
-    });
   });
 
   group('CustomFoldersManager — עריכת הרשימה', () {

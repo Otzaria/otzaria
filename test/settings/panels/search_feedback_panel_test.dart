@@ -53,7 +53,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('שיפור המנגנון'), findsOneWidget);
-    expect(find.text(semanticSearchConsentText), findsOneWidget);
+    expect(find.text(kSemanticSearchConsentTemplate), findsOneWidget);
 
     await tester.tap(find.text('שיפור המנגנון'));
     await tester.pumpAndSettle();
@@ -71,7 +71,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('שיפור המנגנון'), findsNothing);
-    expect(find.text(semanticSearchConsentText), findsNothing);
+    expect(find.text(kSemanticSearchConsentTemplate), findsNothing);
     expect(store.calls, isEmpty);
   });
 

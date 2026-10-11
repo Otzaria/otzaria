@@ -619,7 +619,6 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'חיפוש מדויק מחפש את המילים כפי שהוקלדו, בלי התאמות מקורבות.': 'Exact search matches the words as typed, with no fuzzy matching.',
     'חיפוש מהיר בספרייה': 'Quick Search',
     'חיפוש מערכת הפעלה...': 'Search operating systems...',
-    'חיפוש מקורב': 'Fuzzy search',
     'חיפוש מקורב מרשה התאמות דומות ושיבושי כתיב קלים לפי מרחק החיפוש.': 'Fuzzy search allows similar matches and slight misspellings, by the search distance.',
     'חיפוש מתקדם': 'Advanced Search',
     'חיפוש מתקדם בכל הספרייה': 'Advanced Search Across the Library',

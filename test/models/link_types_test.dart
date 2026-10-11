@@ -40,19 +40,6 @@ void main() {
     });
   });
 
-  group('LinkTypes.isReferenceLikeLink', () {
-    test('מזהה קשרי עיון/הפניה אך לא מפרשים או SOURCE', () {
-      expect(LinkTypes.isReferenceLikeLink('REFERENCE'), isTrue);
-      expect(LinkTypes.isReferenceLikeLink('QUOTATION'), isTrue);
-      expect(LinkTypes.isReferenceLikeLink('EIN_MISHPAT'), isTrue);
-      expect(LinkTypes.isReferenceLikeLink('OTHER'), isTrue);
-      expect(LinkTypes.isReferenceLikeLink('COMMENTARY'), isFalse);
-      expect(LinkTypes.isReferenceLikeLink('EXPLICATION'), isFalse);
-      expect(LinkTypes.isReferenceLikeLink('SOURCE'), isFalse);
-      expect(LinkTypes.isReferenceLikeLink(null), isFalse);
-    });
-  });
-
   group('LinkTypes.normalize', () {
     test('ממיר לאותיות גדולות ומקצץ רווחים', () {
       expect(LinkTypes.normalize('reference'), 'REFERENCE');

@@ -53,7 +53,7 @@ void main() {
 
       expect(result.completed, isTrue);
       expect(result.isClean, isTrue);
-      expect(result.hasRetryableFailures, isFalse);
+      expect(result.retryableFailures, isEmpty);
       expect(result.blockingFailureCount, 0);
     });
 
@@ -69,7 +69,6 @@ void main() {
       expect(result.blockingFailureCount, 2);
       expect(result.warningCount, 1);
       expect(result.retryableFailures, [retryable]);
-      expect(result.permanentFailures, [permanent]);
     });
 
     test('תוצאה מבוטלת אינה completed גם ללא כשלים', () {

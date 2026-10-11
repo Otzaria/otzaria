@@ -176,21 +176,6 @@ class PdfBookTab extends OpenedTab {
     }
   }
 
-  /// מתודה להוספת listener לעדכון מספר העמוד
-  /// צריך לקרוא לזה אחרי שה-controller מוכן
-  void setupPageTracking() {
-    pdfViewerController.addListener(_updatePageNumber);
-  }
-
-  void _updatePageNumber() {
-    if (pdfViewerController.isReady) {
-      final newPage = pdfViewerController.pageNumber;
-      if (newPage != null && newPage != pageNumber) {
-        pageNumber = newPage;
-      }
-    }
-  }
-
   /// Creates a new instance of [PdfBookTab] from a JSON map.
   ///
   /// The JSON map should have 'path' and 'pageNumber' keys.
@@ -246,7 +231,6 @@ class PdfBookTab extends OpenedTab {
   /// Cleanup when the tab is disposed
   @override
   void dispose() {
-    pdfViewerController.removeListener(_updatePageNumber);
     searchController.dispose();
     outline.dispose();
     documentRef.dispose();

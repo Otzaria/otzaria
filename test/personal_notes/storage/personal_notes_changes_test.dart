@@ -90,23 +90,8 @@ void main() {
     expect(await delivered(), isEmpty);
   });
 
-  test('מחיקת כל הערות הספר מודיעה על הספר', () async {
-    await db.insertNote(_note('1', bookId: 'רש"י'));
-    await delivered();
-    changes.clear();
-
-    await db.deleteBookNotes('רש"י');
-
-    expect(await delivered(), ['רש"י']);
-  });
-
   test('עדכון הערה שאינה קיימת אינו מודיע', () async {
     await db.updateNote(_note('missing', bookId: 'רש"י'));
-    expect(await delivered(), isEmpty);
-  });
-
-  test('מחיקת ספר ללא הערות אינה מודיעה', () async {
-    await db.deleteBookNotes('רש"י');
     expect(await delivered(), isEmpty);
   });
 

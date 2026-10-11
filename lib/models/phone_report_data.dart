@@ -22,15 +22,6 @@ class ErrorType extends Equatable {
     ErrorType(id: 5, hebrewLabel: 'שגיאת מקור'),
     ErrorType(id: 6, hebrewLabel: 'אחר'),
   ];
-
-  /// Get error type by ID
-  static ErrorType? getById(int id) {
-    try {
-      return errorTypes.firstWhere((type) => type.id == id);
-    } catch (e) {
-      return null;
-    }
-  }
 }
 
 /// Data model for phone-based error reporting

@@ -85,7 +85,7 @@ void main() {
     test('shouldIncludeBookByPath מסנן ספרי תלמוד בבלי כשהתיקייה חסרה', () {
       final filePath = path.join(
         '/library',
-        DatabaseConstants.otzariaFolderName,
+        'Otzaria',
         DatabaseConstants.talmudBavliFolderName,
         'ברכות א.pdf',
       );
@@ -96,7 +96,7 @@ void main() {
           hasTalmudBavliDirectory: false,
           talmudBavliDirectoryPath: path.join(
             '/library',
-            DatabaseConstants.otzariaFolderName,
+            'Otzaria',
             DatabaseConstants.talmudBavliFolderName,
           ),
         ),
@@ -107,7 +107,7 @@ void main() {
     test('shouldIncludeBookByPath משאיר קבצים אחרים גם כשהתיקייה חסרה', () {
       final otherFilePath = path.join(
         '/library',
-        DatabaseConstants.otzariaFolderName,
+        'Otzaria',
         'משנה',
         'פאה.txt',
       );
@@ -118,7 +118,7 @@ void main() {
           hasTalmudBavliDirectory: false,
           talmudBavliDirectoryPath: path.join(
             '/library',
-            DatabaseConstants.otzariaFolderName,
+            'Otzaria',
             DatabaseConstants.talmudBavliFolderName,
           ),
         ),
@@ -165,7 +165,7 @@ void main() {
         DatabaseConstants.isTalmudBavliFilePath(
           filePath,
           libraryPath: '/library-root',
-          folderName: DatabaseConstants.otzariaFolderName,
+          folderName: 'Otzaria',
         ),
         isTrue,
       );

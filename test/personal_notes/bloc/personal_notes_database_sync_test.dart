@@ -156,7 +156,7 @@ void main() {
       final refreshed = bloc.stream.firstWhere(
         (state) => state.locatedNotes.isEmpty,
       );
-      await database.deleteBookNotes('רש"י');
+      await database.deleteNote('note');
       await refreshed;
     });
     await tester.pumpAndSettle();

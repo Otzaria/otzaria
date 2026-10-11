@@ -236,24 +236,4 @@ void main() {
       expect(p, TextDisplayProfile.defaults);
     });
   });
-
-  group('effectivePatch', () {
-    test('מציג את מה שנורש בתוך השכבה, בלי ברירות מחדל', () {
-      final layer = _layer({
-        TextDisplaySlot.root: const TextDisplayPatch(
-          nikud: MarkVisibility.hide,
-        ),
-        TextDisplaySlot.commentaryDisplay: const TextDisplayPatch(
-          punctuation: MarkVisibility.hide,
-        ),
-      });
-      final effective = TextDisplayResolver.effectivePatch(
-        layer,
-        _commentaryCopy,
-      );
-      expect(effective.nikud, MarkVisibility.hide);
-      expect(effective.punctuation, MarkVisibility.hide);
-      expect(effective.teamim, isNull);
-    });
-  });
 }

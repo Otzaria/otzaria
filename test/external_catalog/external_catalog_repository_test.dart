@@ -27,7 +27,7 @@ void main() {
         'otzaria-external-catalog-test-',
       );
       libraryDir = Directory(
-        path.join(tempDir.path, DatabaseConstants.otzariaFolderName),
+        path.join(tempDir.path, 'Otzaria'),
       );
       await libraryDir.create(recursive: true);
 
@@ -38,7 +38,7 @@ void main() {
       );
       await Settings.setValue<String>(
         SettingsRepository.keyLibraryFolderName,
-        DatabaseConstants.otzariaFolderName,
+        'Otzaria',
       );
 
       repository = ExternalCatalogRepository();

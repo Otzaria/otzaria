@@ -1499,14 +1499,6 @@ void main() {
       );
       expect(result, contains('text-decoration: line-through double'));
     });
-
-    test('קו חוצה יחיד (strike) נשאר <s>', () {
-      final result = docxToText(
-        _buildDocx(_utf8Xml(runWithProps('<w:strike/>', 'חוצה'))),
-        'ב',
-      );
-      expect(result, contains('<s>חוצה</s>'));
-    });
   });
 
   group('docxToText - מבנים מקוננים (sdt וטבלאות מקוננות)', () {

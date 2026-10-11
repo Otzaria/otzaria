@@ -117,16 +117,6 @@ class PluginRegistryRepository {
     return plugins.where((p) => p.isDevelopment).toList();
   }
 
-  Future<void> saveDevelopmentPlugin(InstalledPlugin plugin) async {
-    if (!plugin.isDevelopment) {
-      throw ArgumentError('Cannot save a packaged plugin as development');
-    }
-    if (plugin.devRootPath == null || plugin.devRootPath!.trim().isEmpty) {
-      throw ArgumentError('Development plugin must have a valid devRootPath');
-    }
-    await _db.insertOrUpdatePlugin(await _keepSavedEnabled(plugin));
-  }
-
   Future<void> saveDevelopmentPluginWithPermissions(
     InstalledPlugin plugin,
     Map<String, bool> permissions,

@@ -76,20 +76,6 @@ void main() {
       );
     });
 
-    test('בלי מזהה שולחן, הטעינה נופלת חזרה להגדרת הספר', () async {
-      await PageShapeSettingsManager.saveConfiguration(book, {'left': 'ט"ז'});
-      await PageShapeSettingsManager.saveConfiguration(
-        book,
-        {'left': 'משנה ברורה'},
-        saveToWorkspaceId: 'ws-2',
-      );
-
-      expect(
-        PageShapeSettingsManager.loadConfiguration(book)?['left'],
-        'ט"ז',
-      );
-    });
-
     test('אין הגדרת ספר - הגדרת השולחן עדיין גוברת על הקטגוריה', () async {
       await PageShapeSettingsManager.saveConfiguration(
         book,

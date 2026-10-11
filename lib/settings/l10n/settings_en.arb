@@ -1060,7 +1060,6 @@
   "חיפוש מדויק מחפש את המילים כפי שהוקלדו, בלי התאמות מקורבות.": "Exact search matches the words as typed, with no fuzzy matching.",
   "חיפוש מתקדם מאפשר קידומות, סיומות, מילים חילופיות ומרווחים בין מילים.": "Advanced search allows prefixes, suffixes, alternative words and distances between words.",
   "חיפוש מקורב מרשה התאמות דומות ושיבושי כתיב קלים לפי מרחק החיפוש.": "Fuzzy search allows similar matches and slight misspellings, by the search distance.",
-  "חיפוש מקורב": "Fuzzy search",
   "מרווח בין מילים": "Distance between words",
   "מרווח בין מילים (מושבת)": "Distance between words (disabled)",
   "מרחק חיפוש": "Search distance",

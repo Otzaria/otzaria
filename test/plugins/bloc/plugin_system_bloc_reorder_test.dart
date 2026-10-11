@@ -132,7 +132,7 @@ void main() {
     });
 
     test('after the reorder, PluginSystemLoaded reflects the new order via '
-        'pinnedPlugins', () async {
+        'its plugins list', () async {
       final repo = _FakeRepo([
         _plugin(id: 'a'),
         _plugin(id: 'b'),
@@ -148,7 +148,7 @@ void main() {
           await bloc.stream.firstWhere((s) => s is PluginSystemLoaded)
               as PluginSystemLoaded;
 
-      expect(loaded.pinnedPlugins.map((p) => p.pluginId).toList(), [
+      expect(loaded.plugins.map((p) => p.pluginId).toList(), [
         'c',
         'a',
         'b',

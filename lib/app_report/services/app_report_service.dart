@@ -52,7 +52,6 @@ class AppReportDeliveryResult {
 
   bool get isSent => status == AppReportDeliveryStatus.sent;
   bool get isQueued => status == AppReportDeliveryStatus.queued;
-  bool get isFailed => status == AppReportDeliveryStatus.failed;
 
   int? get issueNumber => report.issueNumber;
   String? get issueUrl => report.issueUrl;

@@ -55,15 +55,3 @@ class EncryptedDocumentException extends DocumentConversionException {
   @override
   String get _label => 'המסמך מוצפן';
 }
-
-/// כשל המרה כללי שאינו נופל לאף קטגוריה אחרת.
-class DocumentConversionFailedException extends DocumentConversionException {
-  const DocumentConversionFailedException({
-    super.path,
-    super.format,
-    super.cause,
-  });
-
-  @override
-  String get _label => 'המרת המסמך נכשלה';
-}

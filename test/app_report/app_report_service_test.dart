@@ -293,7 +293,7 @@ void main() {
         }),
       );
       final result = await service.send(withDump);
-      expect(result.isFailed, isTrue);
+      expect(result.status, AppReportDeliveryStatus.failed);
       expect(calls, 1);
     });
 
@@ -314,7 +314,7 @@ void main() {
       ),
     );
     final result = await service.send(_report());
-    expect(result.isFailed, isTrue);
+    expect(result.status, AppReportDeliveryStatus.failed);
     expect(result.failureReason, AppReportFailureReason.rejected);
     expect(result.rejectedField, 'reporterEmail');
     expect(result.httpStatus, 422);

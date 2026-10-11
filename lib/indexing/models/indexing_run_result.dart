@@ -72,17 +72,11 @@ class IndexingRunResult extends Equatable {
   Iterable<IndexingFailure> get retryableFailures =>
       failures.where((failure) => failure.isRetryable);
 
-  Iterable<IndexingFailure> get permanentFailures => failures.where(
-    (failure) => failure.preventedIndexing && !failure.isRetryable,
-  );
-
   int get blockingFailureCount =>
       failures.where((failure) => failure.preventedIndexing).length;
 
   int get warningCount =>
       failures.where((failure) => !failure.preventedIndexing).length;
-
-  bool get hasRetryableFailures => retryableFailures.isNotEmpty;
 
   @override
   List<Object?> get props => [
