@@ -657,17 +657,6 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             bookDetails.isDafType,
           );
 
-          final pageProgress = _getProgress(
-            progressProvider,
-            absoluteIndex,
-          );
-
-          final rowBackgroundColor =
-              index % (bookDetails.isDafType == true ? 4 : 2) <
-                  (bookDetails.isDafType == true ? 2 : 1)
-              ? Colors.transparent
-              : theme.colorScheme.primaryContainer.withValues(alpha: 0.15);
-
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -692,7 +681,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                   ),
                 ),
               Container(
-                color: rowBackgroundColor,
+                color: _rowColor(theme, bookDetails, absoluteIndex),
                 padding: EdgeInsets.fromLTRB(_gridHPad, 2, _rightInset, 2),
                 child: Row(
                   children: [
@@ -709,26 +698,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                     ),
                     Expanded(
                       flex: 10,
-                      child: Row(
-                        children: _columnsOf(progressProvider).map((col) {
-                          final columnName = col.id;
-                          return Expanded(
-                            child: Tooltip(
-                              message: col.label,
-                              child: Checkbox(
-                                visualDensity: VisualDensity.compact,
-                                value: pageProgress.getProperty(columnName),
-                                onChanged: (val) => _updateProgress(
-                                  progressProvider,
-                                  absoluteIndex,
-                                  columnName,
-                                  val ?? false,
-                                  bookDetails,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                      child: _buildItemCheckboxes(
+                        progressProvider,
+                        bookDetails,
+                        absoluteIndex,
                       ),
                     ),
                   ],
@@ -739,6 +712,47 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         },
         childCount: learnableItems.length,
       ),
+    );
+  }
+
+  /// פסים מתחלפים: בספר דפים — זוג עמודים (עמוד א+ב) לכל פס.
+  Color _rowColor(ThemeData theme, BookDetails bookDetails, int index) {
+    final band = bookDetails.isDafType == true ? 2 : 1;
+    return index % (2 * band) < band
+        ? Colors.transparent
+        : theme.colorScheme.primaryContainer.withValues(alpha: 0.15);
+  }
+
+  Widget _buildItemCheckboxes(
+    ShamorZachorProgressProvider progressProvider,
+    BookDetails bookDetails,
+    int absoluteIndex, {
+    bool shrinkTapTarget = false,
+  }) {
+    final pageProgress = _getProgress(progressProvider, absoluteIndex);
+    return Row(
+      children: _columnsOf(progressProvider).map((col) {
+        final columnName = col.id;
+        return Expanded(
+          child: Tooltip(
+            message: col.label,
+            child: Checkbox(
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: shrinkTapTarget
+                  ? MaterialTapTargetSize.shrinkWrap
+                  : null,
+              value: pageProgress.getProperty(columnName),
+              onChanged: (val) => _updateProgress(
+                progressProvider,
+                absoluteIndex,
+                columnName,
+                val ?? false,
+                bookDetails,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -799,20 +813,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       if (leafIndices.isEmpty) return const SizedBox.shrink();
 
       final learnable = bookDetails.learnableItems[leafIndices.first];
-      final pageProgress = _getProgress(
-        progressProvider,
-        leafIndices.first,
-      );
-
-      final rowBackgroundColor =
-          learnable.absoluteIndex % (bookDetails.isDafType == true ? 4 : 2) <
-              (bookDetails.isDafType == true ? 2 : 1)
-          ? Colors.transparent
-          : theme.colorScheme.primaryContainer.withValues(alpha: 0.15);
 
       // מציגים leaf בפורמט של שורה רגילה (כמו ב-flat), עם RTL
       return Container(
-        color: rowBackgroundColor,
+        color: _rowColor(theme, bookDetails, learnable.absoluteIndex),
         padding: EdgeInsets.fromLTRB(_gridHPad, 2, _rightInset, 2),
         child: Row(
           children: [
@@ -830,29 +834,11 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             ),
             Expanded(
               flex: _gridFlex,
-              child: Row(
-                children: _columnsOf(progressProvider).map((col) {
-                  final columnName = col.id;
-                  return Expanded(
-                    child: Tooltip(
-                      message: col.label,
-                      child: Checkbox(
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: level > 0
-                            ? MaterialTapTargetSize.shrinkWrap
-                            : null,
-                        value: pageProgress.getProperty(columnName),
-                        onChanged: (val) => _updateProgress(
-                          progressProvider,
-                          learnable.absoluteIndex,
-                          columnName,
-                          val ?? false,
-                          bookDetails,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+              child: _buildItemCheckboxes(
+                progressProvider,
+                bookDetails,
+                learnable.absoluteIndex,
+                shrinkTapTarget: level > 0,
               ),
             ),
           ],

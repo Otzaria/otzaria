@@ -229,12 +229,6 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
   Map<String, Object?> payload, {
   void Function()? onProgress,
 }) async {
-  QueryLoader.seedCache(
-    (payload['queryCache'] as Map).cast<String, Map<String, String>>(),
-  );
-
-  final dbPath = payload['dbPath'] as String;
-  final userBooksDbPath = payload['userBooksDbPath'] as String;
   final libraryPath = payload['libraryPath'] as String;
   final folderName = (payload['folderName'] as String?) ?? '';
   final syncFolders = (payload['syncFolders'] as bool?) ?? true;
@@ -243,22 +237,7 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
       .cast<Map<String, dynamic>>();
   final customFolders = rawFolders.map(CustomFolder.fromJson).toList();
 
-  // seforim.db נפתח read-only תמיד — הסנכרון כותב אך ורק ל-user_books.db,
-  // ומ-seforim.db רק קורא (בדיקת dedup). אין קוד שכותב ל-DB הרשמי.
-  final database = MyDatabase.withPath(dbPath, readOnly: true);
-  final repository = SeforimRepository(database);
-  await repository.ensureInitialized();
-
-  final userBooksDatabase = MyDatabase.withPath(userBooksDbPath);
-  final userBooksRepository = SeforimRepository(userBooksDatabase);
-  await userBooksRepository.ensureInitialized();
-
-  final service = FileSyncService.createForWorker(
-    repository,
-    userBooksRepository: userBooksRepository,
-  );
-
-  try {
+  return _withWorkerSyncService(payload, (service) async {
     final result = await service.syncCustomFoldersWithInputs(
       libraryPath: libraryPath,
       customFolders: customFolders,
@@ -276,31 +255,45 @@ Future<Map<String, Object?>> _syncWorkerEntryPoint(
       'durationMs': result.duration.inMilliseconds,
       'updatedBookIds': result.updatedBookIds,
     };
-  } finally {
-    database.close();
-    userBooksDatabase.close();
-  }
+  });
 }
 
 Future<void> _deleteWorkerEntryPoint(Map<String, Object?> payload) async {
-  QueryLoader.seedCache(
-    (payload['queryCache'] as Map).cast<String, Map<String, String>>(),
-  );
-
-  final dbPath = payload['dbPath'] as String;
-  final userBooksDbPath = payload['userBooksDbPath'] as String;
   final folderPath = payload['folderPath'] as String;
   final otherConfiguredFolderPaths =
       ((payload['otherConfiguredFolderPaths'] as List?) ?? const [])
           .cast<String>();
 
-  // מחיקת תיקייה כותבת רק ל-user_books.db; seforim.db נפתח read-only כדי לא
-  // להפוך אותו ל-WAL ולא להריץ עליו DDL (CREATE TABLE) שמזהם את ה-DB הרשמי.
-  final database = MyDatabase.withPath(dbPath, readOnly: true);
+  await _withWorkerSyncService(
+    payload,
+    (service) => service.deleteFolderFromDatabase(
+      folderPath,
+      otherConfiguredFolderPaths: otherConfiguredFolderPaths,
+    ),
+  );
+}
+
+/// פותח ב-worker את שני המסדים, מריץ את [body] וסוגר אותם.
+Future<T> _withWorkerSyncService<T>(
+  Map<String, Object?> payload,
+  Future<T> Function(FileSyncService service) body,
+) async {
+  QueryLoader.seedCache(
+    (payload['queryCache'] as Map).cast<String, Map<String, String>>(),
+  );
+
+  // הכתיבה היא רק ל-user_books.db. seforim.db נפתח read-only כדי לא להפוך
+  // אותו ל-WAL ולא להריץ עליו DDL (CREATE TABLE) שמזהם את ה-DB הרשמי.
+  final database = MyDatabase.withPath(
+    payload['dbPath'] as String,
+    readOnly: true,
+  );
   final repository = SeforimRepository(database);
   await repository.ensureInitialized();
 
-  final userBooksDatabase = MyDatabase.withPath(userBooksDbPath);
+  final userBooksDatabase = MyDatabase.withPath(
+    payload['userBooksDbPath'] as String,
+  );
   final userBooksRepository = SeforimRepository(userBooksDatabase);
   await userBooksRepository.ensureInitialized();
 
@@ -310,10 +303,7 @@ Future<void> _deleteWorkerEntryPoint(Map<String, Object?> payload) async {
   );
 
   try {
-    await service.deleteFolderFromDatabase(
-      folderPath,
-      otherConfiguredFolderPaths: otherConfiguredFolderPaths,
-    );
+    return await body(service);
   } finally {
     database.close();
     userBooksDatabase.close();
