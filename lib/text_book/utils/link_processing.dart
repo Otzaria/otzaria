@@ -212,18 +212,27 @@ processLinksForState({
       replaceExisting ? const [] : existingLinks,
       incomingLinks,
     );
-    final linksByLine = buildLinksByLineMap(links);
-    final visibleLinks = computeVisibleLinks(
-      links: links,
-      visibleIndices: visibleIndices,
-      selectedIndices: selectedIndices,
-      linksByLine: linksByLine,
+    return _linksState(links, visibleIndices, selectedIndices);
+  }
+
+  // הקיימים ממוינים לפי index1 שהוא חלק מהזהות, ולכן רק שורות החלון הנכנס
+  // ממוזגות ב-isolate; שאר הקישורים שנצברו אינם מועתקים אליו.
+  final existing = replaceExisting ? const <Link>[] : existingLinks;
+  var minLine = incomingLinks.isEmpty ? 0 : incomingLinks.first.index1;
+  var maxLine = minLine - 1;
+  for (final link in incomingLinks) {
+    if (link.index1 < minLine) minLine = link.index1;
+    if (link.index1 > maxLine) maxLine = link.index1;
+  }
+  final lo = _firstLinkAtOrAfter(existing, minLine);
+  final hi = _firstLinkAtOrAfter(existing, maxLine + 1);
+  if (lo > 0 || hi < existing.length) {
+    final merged = await _mergeInIsolate(
+      existing.sublist(lo, hi),
+      incomingLinks,
     );
-    return (
-      links: links,
-      linksByLine: linksByLine,
-      visibleLinks: visibleLinks,
-    );
+    final links = [...existing.take(lo), ...merged, ...existing.skip(hi)];
+    return _linksState(links, visibleIndices, selectedIndices);
   }
 
   return Isolate.run(() {
@@ -231,19 +240,45 @@ processLinksForState({
       replaceExisting ? const [] : existingLinks,
       incomingLinks,
     );
-    final linksByLine = buildLinksByLineMap(links);
-    final visibleLinks = computeVisibleLinks(
-      links: links,
-      visibleIndices: visibleIndices,
-      selectedIndices: selectedIndices,
-      linksByLine: linksByLine,
-    );
-    return (
-      links: links,
-      linksByLine: linksByLine,
-      visibleLinks: visibleLinks,
-    );
+    return _linksState(links, visibleIndices, selectedIndices);
   });
+}
+
+({
+  List<Link> links,
+  Map<int, List<Link>> linksByLine,
+  List<Link> visibleLinks,
+})
+_linksState(
+  List<Link> links,
+  List<int> visibleIndices,
+  Set<int> selectedIndices,
+) {
+  final linksByLine = buildLinksByLineMap(links);
+  final visibleLinks = computeVisibleLinks(
+    links: links,
+    visibleIndices: visibleIndices,
+    selectedIndices: selectedIndices,
+    linksByLine: linksByLine,
+  );
+  return (links: links, linksByLine: linksByLine, visibleLinks: visibleLinks);
+}
+
+// פונקציה נפרדת: closure בתוך processLinksForState היה לוכד גם את כל הקיימים.
+Future<List<Link>> _mergeInIsolate(List<Link> existing, List<Link> incoming) =>
+    Isolate.run(() => mergeLinksByIdentity(existing, incoming));
+
+int _firstLinkAtOrAfter(List<Link> links, int line) {
+  var low = 0, high = links.length;
+  while (low < high) {
+    final mid = (low + high) >> 1;
+    if (links[mid].index1 < line) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return low;
 }
 
 List<String> buildPreviewLines(String previewContent, int previewStartLine) {
