@@ -1849,7 +1849,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   /// - קטע שנוכחותו מתחת לקו העוגן זניחה הוא שייר של הסעיף הקודם שאליו הניווט
   ///   מיישר (isRemnantAbovePositionAnchor) - גם אם הוא שורה קצרה הגלויה
   ///   במלואה סביב קו העוגן.
-  /// - קטע שגלוי פחות מ-15% מה-extent שלו (שייר בתחתית ה-viewport).
+  /// - קטע שגלוי פחות מ-15% מה-extent שלו, או מגובה ה-viewport כשהוא ארוך
+  ///   ממנו (שייר בתחתית ה-viewport).
   ///
   /// אם הסינון מותיר רשימה ריקה (לא צפוי בפועל), חוזרים לרשימה המקורית.
   @visibleForTesting
@@ -1871,7 +1872,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       final visibleBottom = p.itemTrailingEdge.clamp(0.0, 1.0);
       final visiblePortion = visibleBottom - visibleTop;
       if (visiblePortion <= 0) return false;
-      return visiblePortion / extent >= 0.15;
+      // קטע ארוך מהמסך נמדד מול המסך, אחרת בתחילתו ובסופו הוא נסנן (#2327).
+      return visiblePortion / extent.clamp(0.0, 1.0) >= 0.15;
     }).toList();
     return filtered.isEmpty ? positions : filtered;
   }
