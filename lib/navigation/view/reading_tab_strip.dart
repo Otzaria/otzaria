@@ -55,7 +55,7 @@ class ReadingTabStrip extends StatefulWidget {
   /// האם הרצועה עצמה נגללת. ברצועה האופקית הרוחבים מחושבים כך שהכל נכנס.
   final bool scrollable;
 
-  /// במגע נדרשת לחיצה ארוכה, כדי שהחלקה או גלילה לא יגררו כרטיסיה בטעות.
+  /// לחיצה ארוכה לגרירה גם בעכבר; בלעדיה היא נדרשת רק במגע ובעט.
   final bool requireLongPressToDrag;
 
   /// רקע הרצועה — הרקע שמאחורי הכרטיסיה במוק החלון שנגרר.
@@ -821,7 +821,7 @@ class _DraggableTabState extends State<_DraggableTab> {
             },
             child: child,
           )
-        : Draggable<OpenedTab>(
+        : _TouchLongPressDraggable(
             data: widget.tab,
             // חובה: ה-offset שמקבלים יעדי ההפלה הוא פינת ה-feedback, ולכן עוגן
             // ברירת המחדל מסיט את אזור ההפלה בכחצי רוחב כרטיסיה.
@@ -841,6 +841,46 @@ class _DraggableTabState extends State<_DraggableTab> {
       onPointerDown: (event) => _pointer = event.pointer,
       child: draggable,
     );
+  }
+}
+
+/// גרירה מיידית בעכבר, ובמגע ובעט (שגוללים ברשימות) רק אחרי לחיצה ארוכה.
+class _TouchLongPressDraggable extends Draggable<OpenedTab> {
+  const _TouchLongPressDraggable({
+    required super.child,
+    required super.feedback,
+    super.data,
+    super.childWhenDragging,
+    super.dragAnchorStrategy,
+    super.onDragStarted,
+    super.onDragEnd,
+    super.onDraggableCanceled,
+  });
+
+  @override
+  MultiDragGestureRecognizer createRecognizer(
+    GestureMultiDragStartCallback onStart,
+  ) => _TouchDelayedDragRecognizer()..onStart = onStart;
+}
+
+class _TouchDelayedDragRecognizer extends ImmediateMultiDragGestureRecognizer {
+  final _touch = DelayedMultiDragGestureRecognizer();
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    if (event.kind == PointerDeviceKind.mouse) {
+      return super.addAllowedPointer(event);
+    }
+    _touch
+      ..onStart = onStart
+      ..gestureSettings = gestureSettings
+      ..addPointer(event);
+  }
+
+  @override
+  void dispose() {
+    _touch.dispose();
+    super.dispose();
   }
 }
 

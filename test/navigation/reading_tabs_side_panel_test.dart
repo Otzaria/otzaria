@@ -629,6 +629,7 @@ void main() {
     final target = tester.getCenter(find.text('ספר ג'));
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('ספר א')),
+      kind: PointerDeviceKind.mouse,
     );
     await tester.pump(const Duration(milliseconds: 20));
     await gesture.moveTo(target);

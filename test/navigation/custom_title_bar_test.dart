@@ -1239,12 +1239,9 @@ void main() {
           settingsBloc: settingsBloc,
         );
 
-        // LongPressDraggable יורש מ-Draggable, לכן בודקים את runtimeType
-        // בדיוק: בדסקטופ הגרירה מיידית, ללא השהיית לחיצה ארוכה.
+        // בדסקטופ הגרירה מיידית בעכבר, ללא LongPressDraggable.
         expect(
-          find.byWidgetPredicate(
-            (w) => w.runtimeType == Draggable<OpenedTab>,
-          ),
+          find.byWidgetPredicate((w) => w is Draggable<OpenedTab>),
           findsOneWidget,
         );
         expect(
