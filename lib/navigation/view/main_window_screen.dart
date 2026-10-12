@@ -91,6 +91,8 @@ import 'package:otzaria/core/update_check_frequency.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/library_update_work_status.dart';
+import 'package:otzaria/library_update/services/external_update_notice.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
@@ -387,6 +389,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   // שנושא בפועל את הספרים שהשתנו.
   int _nextIndexRequestId = 1;
   final Map<int, RefreshIndexRequest> _pendingIndexRequests = {};
+  bool _fullLibraryReindexRequested = false;
   bool _isShowingFullDownloadDialog = false;
   bool _isSearchOpen = false;
   bool _isFindRefOpen = false;
@@ -964,8 +967,57 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (!mounted) return;
     tryStartDeferredStartupWork(
       gate: _startupWorkGate,
-      startBackgroundSync: _initializeBackgroundSync,
+      startBackgroundSync: () {
+        _initializeBackgroundSync();
+        unawaited(_consumeExternalUpdateNotice());
+      },
     );
+  }
+
+  /// מרענן את הקטלוג; ה-listener על completedRefreshRequestIds מחליט על
+  /// האינדוקס כשהרענון שקלט את הבקשה מסתיים.
+  void _requestLibraryIndexRefresh({
+    required bool reconcile,
+    required bool respectAutoUpdateSetting,
+    Set<int> changedBookIds = const {},
+  }) {
+    final requestId = _nextIndexRequestId++;
+    _pendingIndexRequests[requestId] = (
+      reconcile: reconcile,
+      respectAutoUpdateSetting: respectAutoUpdateSetting,
+    );
+    context.read<LibraryBloc>().add(
+      RefreshLibrary(
+        changedBookKeys: {
+          for (final id in changedBookIds)
+            IndexingRepository.officialBookKey(id),
+        },
+        requestIds: {requestId},
+      ),
+    );
+  }
+
+  /// ספרים שהמעדכן הלא-מקוון שינה מבחוץ מאונדקסים מחדש, כמו אחרי עדכון מתוך
+  /// אוצריא. otzaria://library/reindex שכבר התקבל מכסה אותם בהשוואה מלאה.
+  Future<void> _consumeExternalUpdateNotice() async {
+    // ⚠️ פר-תהליך: חלון נוסף היה מאנדקס את אותם ספרים שוב.
+    if (WindowRole.isSecondary) return;
+    try {
+      final notice = await ExternalUpdateNotice.read(
+        DatabaseConstants.getDatabasePath(),
+      );
+      if (notice == null || !mounted) return;
+      if (!_fullLibraryReindexRequested) {
+        _requestLibraryIndexRefresh(
+          reconcile: notice.needsFullReconcile,
+          respectAutoUpdateSetting: true,
+          changedBookIds: notice.booksTouched,
+        );
+      }
+      await notice.delete();
+    } catch (e, stackTrace) {
+      debugPrint('External library update notice failed: $e\n$stackTrace');
+    }
   }
 
   bool _shouldCheckLibraryUpdateAtStartup() {
@@ -1637,13 +1689,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
         // רענון הקטלוג מהדיסק; ה-listener על completedRefreshRequestIds מריץ
         // StartIndexing + ReconcileIndex כשהרענון שקלט את הבקשה מסתיים.
         // מתעלם מהגדרת עדכון האינדקס האוטומטי — זו בקשה מפורשת של המשתמש.
-        final requestId = _nextIndexRequestId++;
-        _pendingIndexRequests[requestId] = (
+        _fullLibraryReindexRequested = true;
+        _requestLibraryIndexRefresh(
           reconcile: true,
           respectAutoUpdateSetting: false,
-        );
-        context.read<LibraryBloc>().add(
-          RefreshLibrary(requestIds: {requestId}),
         );
         return true;
       case OpenDailyPageAction():
