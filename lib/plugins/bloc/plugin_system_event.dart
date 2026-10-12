@@ -21,14 +21,32 @@ class InstallPluginRequested extends PluginSystemEvent {
   final bool forceOverwrite;
   final bool isUserInitiated;
 
+  /// הבקשה הגיעה בקישור install-local, והתוצאה נרשמת ב-plugin_install_results.jsonl.
+  final bool recordsResult;
+
   const InstallPluginRequested(
     this.archivePath, {
     this.forceOverwrite = false,
     this.isUserInitiated = false,
+    this.recordsResult = false,
   });
 
   @override
-  List<Object?> get props => [archivePath, forceOverwrite, isUserInitiated];
+  List<Object?> get props => [
+    archivePath,
+    forceOverwrite,
+    isUserInitiated,
+    recordsResult,
+  ];
+}
+
+/// המשתמש סירב לדרוס תוסף שכבר מותקן באותה גרסה.
+class PluginOverwriteDeclined extends PluginSystemEvent {
+  final String archivePath;
+  const PluginOverwriteDeclined(this.archivePath);
+
+  @override
+  List<Object?> get props => [archivePath];
 }
 
 class InstallRemotePluginRequested extends PluginSystemEvent {

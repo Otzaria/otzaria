@@ -34,6 +34,15 @@ class PluginNewerVersionInstalledException implements Exception {
   );
 }
 
+/// התוסף מצהיר על טווח גרסאות אוצריא שהגרסה המותקנת מחוצה לו.
+class PluginIncompatibleAppVersionException implements Exception {
+  final String message;
+  PluginIncompatibleAppVersionException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class PreparedInstall {
   final PluginManifest manifest;
   final String tempDirPath;
@@ -107,6 +116,15 @@ class PluginInstallerService {
       }
 
       final packageInfo = await PackageInfo.fromPlatform();
+      final appVersionErrors = PluginManifestValidator.appVersionErrors(
+        manifest,
+        canonicalAppVersion(packageInfo),
+      );
+      if (appVersionErrors.isNotEmpty) {
+        throw PluginIncompatibleAppVersionException(
+          appVersionErrors.join('\n'),
+        );
+      }
       await PluginManifestValidator.validateManifest(
         manifest: manifest,
         directoryPath: tempDir.path,

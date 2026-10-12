@@ -32,6 +32,7 @@ import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_in_book_search_service.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
+import 'package:otzaria/plugins/services/plugin_install_results_log.dart';
 import 'package:otzaria/plugins/declarative/services/declarative_plugin_host_service.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
@@ -65,6 +66,15 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   /// ולא פעולות זולות (נעיצה, סידור, showInTools) שגם הן גוררות LoadPlugins.
   String? _lastDeclarativeSyncSignature;
 
+  final PluginInstallResultsLog _installResultsLog;
+
+  /// התקנות מקישור install-local שממתינות להחלטת המשתמש, לפי תיקיית ה-temp.
+  final Map<String, ({String path, String pluginId, String version})>
+  _pendingLocalInstalls = {};
+
+  /// קישורי install-local שממתינים לאישור דריסה, לפי נתיב הארכיון.
+  final Map<String, String> _pendingLocalOverwrites = {};
+
   PluginSystemBloc({
     required this.repository,
     PluginInstallerService? installerService,
@@ -75,7 +85,10 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     this.declarativeHost,
     Stream<TabsState>? readerStates,
     TabsState? initialReaderState,
-  }) : _installerService =
+    PluginInstallResultsLog? installResultsLog,
+  }) : _installResultsLog =
+           installResultsLog ?? PluginInstallResultsLog.instance,
+       _installerService =
            installerService ?? PluginInstallerService(repository: repository),
        _downloadService = downloadService ?? PluginDownloadService(),
        _bundledSeedService =
@@ -90,6 +103,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     on<InstallRemotePluginRequested>(_onInstallRemotePluginRequested);
     on<ConfirmPluginInstall>(_onConfirmPluginInstall);
     on<CancelPluginInstall>(_onCancelPluginInstall);
+    on<PluginOverwriteDeclined>(_onPluginOverwriteDeclined);
     on<UninstallPluginRequested>(_onUninstallPluginRequested);
     on<ResetPluginDataRequested>(_onResetPluginDataRequested);
     on<PinPluginRequested>(_onPinPluginRequested);
@@ -392,16 +406,49 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     );
   }
 
+  void _recordLocalResult(
+    String? path,
+    PluginInstallOutcome outcome, {
+    String? pluginId,
+    String? version,
+    String? message,
+  }) {
+    if (path == null) return;
+    unawaited(
+      _installResultsLog
+          .append(
+            path: path,
+            outcome: outcome,
+            pluginId: pluginId,
+            version: version,
+            message: message,
+          )
+          .catchError(
+            (Object e) => debugPrint('Plugin install result log failed: $e'),
+          ),
+    );
+  }
+
   Future<void> _onInstallPluginRequested(
     InstallPluginRequested event,
     Emitter<PluginSystemState> emit,
   ) async {
+    final localPath = event.recordsResult
+        ? event.archivePath
+        : _pendingLocalOverwrites.remove(event.archivePath);
     try {
       final prepareInfo = await _installerService.prepareInstall(
         event.archivePath,
         forceOverwrite: event.forceOverwrite,
       );
 
+      if (localPath != null) {
+        _pendingLocalInstalls[prepareInfo.tempDirPath] = (
+          path: localPath,
+          pluginId: prepareInfo.manifest.id,
+          version: prepareInfo.manifest.version,
+        );
+      }
       emit(
         PluginSystemInstallRequiresPermissions(
           manifest: prepareInfo.manifest,
@@ -414,6 +461,9 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         ),
       );
     } on PluginOverwriteException catch (e) {
+      if (localPath != null) {
+        _pendingLocalOverwrites[event.archivePath] = localPath;
+      }
       emit(
         PluginSystemOverwriteRequired(
           archivePath: event.archivePath,
@@ -423,14 +473,41 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         ),
       );
     } on PluginNewerVersionInstalledException catch (e) {
-      UiSnack.show(
-        PluginMessages.newerVersionInstalled(e.pluginName, e.installedVersion),
+      final message = PluginMessages.newerVersionInstalled(
+        e.pluginName,
+        e.installedVersion,
+      );
+      UiSnack.show(message);
+      _recordLocalResult(
+        localPath,
+        PluginInstallOutcome.rejectedOlder,
+        version: e.requestedVersion,
+        message: message,
       );
       add(LoadPlugins());
     } catch (e) {
       UiSnack.showError(PluginMessages.installPluginError(e));
+      _recordLocalResult(
+        localPath,
+        e is PluginIncompatibleAppVersionException
+            ? PluginInstallOutcome.rejectedIncompatible
+            : PluginInstallOutcome.failed,
+        message: e.toString(),
+      );
       add(LoadPlugins()); // Reset state
     }
+  }
+
+  void _onPluginOverwriteDeclined(
+    PluginOverwriteDeclined event,
+    Emitter<PluginSystemState> emit,
+  ) {
+    _recordLocalResult(
+      _pendingLocalOverwrites.remove(event.archivePath),
+      PluginInstallOutcome.cancelled,
+      message: 'הדריסה בוטלה על ידי המשתמש',
+    );
+    add(LoadPlugins());
   }
 
   Future<void> _onInstallRemotePluginRequested(
@@ -536,6 +613,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     ConfirmPluginInstall event,
     Emitter<PluginSystemState> emit,
   ) async {
+    var local = _pendingLocalInstalls.remove(event.tempDirPath);
     try {
       await _installerService.finalizeInstall(
         event.tempDirPath,
@@ -559,6 +637,15 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         success: true,
         updated: event.isUpdate,
       );
+      _recordLocalResult(
+        local?.path,
+        event.isUpdate
+            ? PluginInstallOutcome.updated
+            : PluginInstallOutcome.installed,
+        pluginId: event.manifest.id,
+        version: event.manifest.version,
+      );
+      local = null;
       final duplicates = await _findSameNameDuplicates(event.manifest);
       if (duplicates.isNotEmpty) {
         // הממשק מציג דיאלוג ומוסיף בעצמו UninstallPluginRequested / LoadPlugins.
@@ -576,6 +663,13 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     } catch (e) {
       await _installerService.cancelInstall(event.tempDirPath);
       UiSnack.showError(PluginMessages.confirmInstallError(e));
+      _recordLocalResult(
+        local?.path,
+        PluginInstallOutcome.failed,
+        pluginId: event.manifest.id,
+        version: event.manifest.version,
+        message: e.toString(),
+      );
       _reportInstallResult(
         event.reportContext,
         success: false,
@@ -613,6 +707,14 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       event.reportContext,
       success: false,
       errorMessage: 'ההתקנה בוטלה על ידי המשתמש',
+    );
+    final local = _pendingLocalInstalls.remove(event.tempDirPath);
+    _recordLocalResult(
+      local?.path,
+      PluginInstallOutcome.cancelled,
+      pluginId: local?.pluginId,
+      version: local?.version,
+      message: 'ההתקנה בוטלה על ידי המשתמש',
     );
     add(LoadPlugins());
   }

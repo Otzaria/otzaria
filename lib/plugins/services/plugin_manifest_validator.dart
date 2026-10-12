@@ -41,6 +41,34 @@ class PluginManifestValidator {
     }
   }
 
+  /// השגיאות שנובעות מטווח גרסאות האפליקציה שהתוסף מצהיר עליו.
+  static List<String> appVersionErrors(
+    PluginManifest manifest,
+    String currentAppVersion,
+  ) {
+    final errors = <String>[];
+    if (PluginVersionUtils.compareCoreVersions(
+          currentAppVersion,
+          manifest.minAppVersion,
+        ) <
+        0) {
+      errors.add(
+        'התוסף דורש אוצריא בגרסה ${manifest.minAppVersion} לפחות, אך מותקנת $currentAppVersion',
+      );
+    }
+    if (manifest.maxAppVersion != null &&
+        PluginVersionUtils.compareCoreVersions(
+              currentAppVersion,
+              manifest.maxAppVersion!,
+            ) >
+            0) {
+      errors.add(
+        'התוסף מיועד לאוצריא עד גרסה ${manifest.maxAppVersion} בלבד, אך מותקנת $currentAppVersion',
+      );
+    }
+    return errors;
+  }
+
   /// מאמת מניפסט ומחזיר את רשימת כל השגיאות (ריקה = תקין). אינו זורק.
   static Future<List<String>> collectManifestErrors({
     required PluginManifest manifest,
@@ -95,25 +123,7 @@ class PluginManifestValidator {
           'currentAppVersion is required when skipAppVersionValidation is false',
         );
       } else {
-        if (PluginVersionUtils.compareCoreVersions(
-              currentAppVersion,
-              manifest.minAppVersion,
-            ) <
-            0) {
-          errors.add(
-            'התוסף דורש אוצריא בגרסה ${manifest.minAppVersion} לפחות, אך מותקנת $currentAppVersion',
-          );
-        }
-        if (manifest.maxAppVersion != null &&
-            PluginVersionUtils.compareCoreVersions(
-                  currentAppVersion,
-                  manifest.maxAppVersion!,
-                ) >
-                0) {
-          errors.add(
-            'התוסף מיועד לאוצריא עד גרסה ${manifest.maxAppVersion} בלבד, אך מותקנת $currentAppVersion',
-          );
-        }
+        errors.addAll(appVersionErrors(manifest, currentAppVersion));
       }
     }
 
