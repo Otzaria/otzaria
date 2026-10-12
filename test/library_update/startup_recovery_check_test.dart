@@ -167,13 +167,17 @@ void main() {
       expect(File('$dbPath.old').existsSync(), isFalse);
     });
 
-    test('מסד באורך 0 — מוחלף ב-<db>.old', () async {
+    test('מסד באורך 0 — מוחלף ב-<db>.old ושאריותיו נמחקות', () async {
       File(dbPath).writeAsStringSync('');
+      File('$dbPath-wal').writeAsStringSync('stale-wal');
+      File('$dbPath-shm').writeAsStringSync('stale-shm');
       File('$dbPath.old').writeAsStringSync('retired-db');
 
       await runAndVerify(buildCheck(quickCheckResult: true));
 
       expect(File(dbPath).readAsStringSync(), 'retired-db');
+      expect(File('$dbPath-wal').existsSync(), isFalse);
+      expect(File('$dbPath-shm').existsSync(), isFalse);
     });
 
     test('מסד תקין — <db>.old ו-<db>.unverified אינם נוגעים בו', () async {

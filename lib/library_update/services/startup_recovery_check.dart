@@ -76,6 +76,11 @@ class StartupRecoveryCheck {
       if (db.lengthSync() != 0) return;
       db.deleteSync();
     }
+    // שאריות של המסד הריק; SQLite היה מחיל אותן על המסד המשוחזר.
+    for (final suffix in const ['-wal', '-shm', '-journal']) {
+      final sidecar = File('$dbPath$suffix');
+      if (sidecar.existsSync()) sidecar.deleteSync();
+    }
     retired.renameSync(dbPath);
     debugPrint('📦 שוחזר $dbPath מ-.old שהותיר עדכון לא-מקוון שנקטע');
   }
