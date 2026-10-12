@@ -334,11 +334,10 @@ DocumentFormat? resolveDocumentFormat(
   final detected = detectDocumentFormatFromContentSync(bytes);
   if (declared == null) return detected;
   if (detected == null) {
-    // תוכן שאינו מוכר: פורמט שדורש מכולה בינארית שיקר לגבי עצמו, ופורמט
-    // שסיומתו גנרית (.xml, .wbk) לא הוכיח שהוא מסמך בכלל.
-    return declared.isZipPackage ||
-            declared.isLegacyWord ||
-            declared.needsContentSniffing
+    // תוכן שאינו מוכר: חבילת ZIP שיקרה לגבי עצמה, ופורמט שסיומתו גנרית
+    // (.xml, .wbk) לא הוכיח שהוא מסמך בכלל. .doc נשאר doc — מנוע Word
+    // הישן הוא שמדווח עליו "פגום".
+    return declared.isZipPackage || declared.needsContentSniffing
         ? null
         : declared;
   }

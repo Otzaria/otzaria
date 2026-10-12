@@ -36,10 +36,10 @@ String convertDocumentBytesSync(
   bool embedImages = true,
   String? path,
 }) {
-  // WBK הוא גיבוי של Word ויכול להיות OOXML או בינארי ישן. היישוב נעשה כאן
-  // ולא מוטל על הקורא: הבייטים כבר בידינו, וקורא שישכח ליישב יקבל כשל על
-  // כל קובץ .wbk תקין.
-  final resolved = format.needsContentSniffing
+  // WBK הוא גיבוי של Word ויכול להיות OOXML או בינארי ישן, ו-.doc נשמר לעתים
+  // כ-RTF או OOXML. היישוב נעשה כאן ולא מוטל על הקורא: הבייטים כבר בידינו,
+  // וקורא שישכח ליישב יקבל כשל על קובץ תקין.
+  final resolved = format.needsContentSniffing || format.isLegacyWord
       ? (resolveDocumentFormat(format, bytes) ?? format)
       : format;
 
@@ -130,10 +130,10 @@ Future<String> convertDocumentWithCache(
   DocumentFormat format, {
   bool embedImages = true,
 }) async {
-  // WBK הוא גיבוי של Word ויכול להיות OOXML או בינארי ישן — רק התוכן מכריע.
-  // אותו יישוב בדיוק כמו ב-[convertDocumentFileSync]: בלעדיו שני מסלולי
-  // הכניסה מתנהגים הפוך זה מזה על אותו קובץ.
-  final resolved = format.needsContentSniffing
+  // WBK ו-.doc אינם מסגירים את המנוע — רק התוכן מכריע. אותו יישוב בדיוק
+  // כמו ב-[convertDocumentBytesSync]: בלעדיו שני מסלולי הכניסה מתנהגים הפוך
+  // זה מזה על אותו קובץ.
+  final resolved = format.needsContentSniffing || format.isLegacyWord
       ? resolveDocumentFormat(format, await _readSniffWindow(file))
       : format;
   if (resolved == null) {
