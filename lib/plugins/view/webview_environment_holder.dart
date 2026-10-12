@@ -140,8 +140,6 @@ class WebViewEnvironmentHolder {
       }
       // ארגומנטים שעוקפים את גלילת Chromium גורמים לפריימים תקועים בטאצ׳פד.
       // מדידה: integration_test/webview_scroll_smoothness_probe_test.dart.
-      // מונע ממופע אחר לשתף את תהליך הדפדפן שמחזיק בתיקייה; במקרה של
-      // התנגשות WebView2 דוחה את יצירת ה-controller והכשל נרשם בדיאגנוסטיקה.
       _environment = await WebViewEnvironment.create(
         settings: _environmentSettings(webviewDataFolder),
       );
@@ -171,7 +169,8 @@ class WebViewEnvironmentHolder {
     String userDataFolder,
   ) => WebViewEnvironmentSettings(
     userDataFolder: userDataFolder,
-    exclusiveUserDataFolderAccess: true,
+    // בלעדיות מכשילה תהליך נוסף על התיקייה: 0x8007139F/0x8000FFFF (#2458).
+    exclusiveUserDataFolderAccess: false,
     // בלי רישום ה-scheme אינו נטען כלל, ועם treatAsSecure מודולים ו-fetch עובדים בו.
     customSchemeRegistrations: [
       CustomSchemeRegistration(
