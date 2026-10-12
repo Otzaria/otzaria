@@ -467,6 +467,23 @@ void main() {
       expect(text, '<h1>ספר</h1>\nEnglish ועברית');
     });
 
+    test('DOC שתוכנו RTF מנותב לפי התוכן ולא נדחה כפגום (issue #2459)', () async {
+      final bytes = Uint8List.fromList(
+        r'{\rtf1\ansi\par Saved as RTF\par}'.codeUnits,
+      );
+      final file = File(p.join(tempDir.path, 'נשמר-כ-RTF.doc'));
+      await file.writeAsBytes(bytes);
+
+      // סריקת התיקייה ממירה מהבייטים, והקריאה עוברת במטמון — שני מסלולי הכניסה.
+      final scanned = convertDocumentBytesSync(
+        bytes,
+        'ספר',
+        format: DocumentFormat.doc,
+      );
+      expect(scanned, '<h1>ספר</h1>\nSaved as RTF');
+      expect(await readFileBackedBookText(file, 'doc', 'ספר'), scanned);
+    });
+
     test('עריכת הקובץ מייצרת המרה מחדש (תוקף המטמון)', () async {
       final file = File(p.join(tempDir.path, 'נערך.doc'));
       await file.writeAsBytes(buildDoc([WordPiece(para('גרסה ראשונה'))]));
