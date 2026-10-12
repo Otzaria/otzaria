@@ -10,6 +10,7 @@ abstract final class DivineNameKind {
   static const int ehyeh = 6;
   static const int shaddai = 7;
   static const int tzevaot = 8;
+  static const int yah = 9;
 }
 
 /// מופע שם אחד בשורה: [start, end) באופסט תווים גלויים, כמו `link_anchor`.

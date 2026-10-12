@@ -114,13 +114,18 @@ String _applyForm(
   for (var k = form.fromLetter; k < letters.length; k++) {
     final at = letters[k];
     if (inner.codeUnitAt(at) != target) continue;
-    final insert = form.insertAfter;
-    if (insert == null) return _replaceAt(inner, at, form.replacement!);
-    var end = at + 1;
-    while (end < inner.length && isDivineNameMark(inner.codeUnitAt(end))) {
-      end++;
+    switch (form.edit) {
+      case DivineNameEdit.replace:
+        return _replaceAt(inner, at, form.text);
+      case DivineNameEdit.insertBefore:
+        return inner.replaceRange(at, at, form.text);
+      case DivineNameEdit.insertAfter:
+        var end = at + 1;
+        while (end < inner.length && isDivineNameMark(inner.codeUnitAt(end))) {
+          end++;
+        }
+        return inner.replaceRange(end, end, form.text);
     }
-    return inner.replaceRange(end, end, insert);
   }
   return inner;
 }

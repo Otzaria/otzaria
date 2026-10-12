@@ -154,8 +154,29 @@ Future<void> main() async {
         adnut,
         substitute.copyWith(searchText: 'אדני'),
       );
-      expect(out, 'אמר <span style="color: red">אד-ני</span>');
-      expect(stripHtmlIfNeeded(out), 'אמר אד-ני');
+      expect(out, 'אמר <span style="color: red">אד-\u2060ני</span>');
+      expect(stripHtmlIfNeeded(out), 'אמר אד-\u2060ני');
+    });
+
+    test('כל צורות המקף — ההדגשה על הכתיב שבשאילתה, המקף בתוכה', () {
+      for (final form in [
+        (word: 'שדי', kind: DivineNameKind.shaddai, shown: 'ש-\u2060די'),
+        (word: 'אלוה', kind: DivineNameKind.eloah, shown: 'אלו-\u2060ה'),
+        (word: 'אהיה', kind: DivineNameKind.ehyeh, shown: 'אהי-\u2060ה'),
+        (word: 'אדני', kind: DivineNameKind.adnut, shown: 'אד-\u2060ני'),
+      ]) {
+        final marked = wrapDivineNameSpans('אמר ${form.word}', [
+          (start: 4, end: 4 + form.word.length, kind: form.kind),
+        ]);
+        expect(
+          TextRendererService.processText(
+            marked,
+            substitute.copyWith(searchText: form.word),
+          ),
+          'אמר <span style="color: red">${form.shown}</span>',
+          reason: form.word,
+        );
+      }
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
 }

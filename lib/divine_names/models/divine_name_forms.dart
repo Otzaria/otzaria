@@ -1,40 +1,81 @@
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 
-/// צורת התצוגה של שם: האות [letter] הראשונה מאות-השלד [fromLetter] ואילך
-/// מוחלפת ב-[replacement], או — כש-[insertAfter] אינו null — נשארת, ואחריה
-/// ואחרי סימני הניקוד שלה נוסף [insertAfter].
+/// מה נעשה באות היעד של צורת התצוגה.
+enum DivineNameEdit {
+  /// האות מוחלפת (הניקוד שאחריה נשאר).
+  replace,
+
+  /// הטקסט נוסף לפני האות.
+  insertBefore,
+
+  /// הטקסט נוסף אחרי האות והניקוד שלה.
+  insertAfter,
+}
+
+/// צורת התצוגה של שם: האות [letter] הראשונה מאות-השלד [fromLetter] ואילך,
+/// ועליה [edit] עם [text].
 class DivineNameForm {
   const DivineNameForm.replace(
     this.letter, {
     this.fromLetter = 0,
     required String to,
-  }) : replacement = to,
-       insertAfter = null;
+  }) : edit = DivineNameEdit.replace,
+       text = to;
+
+  const DivineNameForm.insertBefore(
+    this.letter, {
+    this.fromLetter = 0,
+    required this.text,
+  }) : edit = DivineNameEdit.insertBefore;
 
   const DivineNameForm.insertAfter(
     this.letter, {
     this.fromLetter = 0,
-    required String text,
-  }) : replacement = null,
-       insertAfter = text;
+    required this.text,
+  }) : edit = DivineNameEdit.insertAfter;
 
   final String letter;
   final int fromLetter;
-  final String? replacement;
-  final String? insertAfter;
+  final DivineNameEdit edit;
+  final String text;
 }
+
+/// מחבר מילים (U+2060) — סמוי, ומונע שבירת שורה אחרי המקף (UAX#14 מתיר
+/// אותה אחרי '-'). U+2011 חסר בגופני התוכנה ומוצג כריבוע בהדפסה.
+const String kDivineNameWordJoiner = '\u2060';
+
+/// המקף של הצורות: ASCII ולא מקף עברי (הסרת הטעמים הופכת אותו לרווח), ואחריו
+/// [kDivineNameWordJoiner] כדי שהמילה לא תיחתך בין שתי שורות.
+const String kDivineNameHyphen = '-$kDivineNameWordJoiner';
+
+/// [text] בלי מחברי המילים של הצורות — לטקסט פשוט שיוצא מהתוכנה (לוח, TXT).
+String withoutDivineNameJoiners(String text) =>
+    text.contains(kDivineNameWordJoiner)
+    ? text.replaceAll(kDivineNameWordJoiner, '')
+    : text;
+
+const String _hyphen = kDivineNameHyphen;
 
 /// צורות התצוגה של השמות (חוץ משם הוי"ה, שצורתו לפי `HolyNameStyle`).
 /// ממתין לאישור רבני — כל שינוי בצורות נעשה כאן בלבד.
 const Map<int, DivineNameForm> kDivineNameForms = {
   DivineNameKind.elohim: DivineNameForm.replace('ה', fromLetter: 2, to: 'ק'),
-  DivineNameKind.eloah: DivineNameForm.replace('ה', fromLetter: 2, to: 'ק'),
+  // ה הסופית: אלוה (אות 3) ואלה בכתיב חסר (אות 2).
+  DivineNameKind.eloah: DivineNameForm.insertBefore(
+    'ה',
+    fromLetter: 2,
+    text: _hyphen,
+  ),
   DivineNameKind.el: DivineNameForm.replace('א', to: 'ק'),
-  DivineNameKind.shaddai: DivineNameForm.replace('ד', to: 'ק'),
+  DivineNameKind.shaddai: DivineNameForm.insertAfter('ש', text: _hyphen),
   DivineNameKind.tzevaot: DivineNameForm.replace('א', to: 'ק'),
-  // מקף ASCII ולא מקף עברי: הסרת הטעמים הופכת מקף עברי לרווח.
-  DivineNameKind.adnut: DivineNameForm.insertAfter('ד', text: '-'),
-  DivineNameKind.ehyeh: DivineNameForm.replace('ה', to: 'ק'),
+  DivineNameKind.adnut: DivineNameForm.insertAfter('ד', text: _hyphen),
+  DivineNameKind.ehyeh: DivineNameForm.insertBefore(
+    'ה',
+    fromLetter: 2,
+    text: _hyphen,
+  ),
+  DivineNameKind.yah: DivineNameForm.replace('י', to: 'ק'),
 };
 
 /// האם שלד האותיות [skeleton] (בלי ניקוד) תואם את סוג השם [kind]. הגנה מפני
@@ -49,6 +90,7 @@ bool divineNameSkeletonMatches(int kind, String skeleton) => switch (kind) {
   DivineNameKind.ehyeh => skeleton == 'אהיה',
   DivineNameKind.shaddai => skeleton == 'שדי',
   DivineNameKind.tzevaot => skeleton == 'צבאות',
+  DivineNameKind.yah => skeleton == 'יה',
   _ => false,
 };
 

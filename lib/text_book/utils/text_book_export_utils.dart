@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
+import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
@@ -54,11 +55,14 @@ List<String> textBookExportLines(
   return lines;
 }
 
-/// תוכן קובץ הטקסט של ייצוא ספר שלם.
+/// תוכן קובץ הטקסט של ייצוא ספר שלם. בקובץ טקסט אין שבירת שורות לשמור מפניה,
+/// ולכן המקף נשאר רגיל; ב-Word מחבר המילים נשאר.
 String createTextBookTextExport(TextBookExportRequest request) =>
     request.rawContent.isEmpty
     ? ''
-    : textBookExportLines(request, stripHtml: true).join('\n');
+    : withoutDivineNameJoiners(
+        textBookExportLines(request, stripHtml: true).join('\n'),
+      );
 
 /// מנקה שם ספר כך שיהיה תקין כשם קובץ במערכות הקבצים הנתמכות.
 String sanitizeTextBookExportFileName(String value) {

@@ -5,6 +5,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 
@@ -268,12 +269,14 @@ class CopyUtils {
     bool plainTextOnly = false,
   }) {
     final item = DataWriterItem();
-    item.add(Formats.plainText(plainText.trimRight()));
+    item.add(
+      Formats.plainText(withoutDivineNameJoiners(plainText).trimRight()),
+    );
     if (!plainTextOnly) {
       item.add(
         Formats.htmlText(
           buildStyledHtml(
-            htmlText: htmlText,
+            htmlText: withoutDivineNameJoiners(htmlText),
             fontFamily: fontFamily,
             fontSize: fontSize,
           ),

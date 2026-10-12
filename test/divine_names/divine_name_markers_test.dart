@@ -65,9 +65,9 @@ void main() {
         ]),
         line,
       );
-      // סוג לא מוכר (יה, שמור) אינו נעטף.
+      // סוג לא מוכר אינו נעטף.
       expect(
-        wrapDivineNameSpans('יה', [(start: 0, end: 2, kind: 9)]),
+        wrapDivineNameSpans('יה', [(start: 0, end: 2, kind: 42)]),
         'יה',
       );
     });
@@ -204,7 +204,7 @@ void main() {
       );
       expect(
         render('אלוה', [(start: 0, end: 4, kind: DivineNameKind.eloah)]),
-        'אלוק',
+        'אלו-\u2060ה',
       );
       expect(
         render('אלי', [(start: 0, end: 3, kind: DivineNameKind.el)]),
@@ -212,7 +212,7 @@ void main() {
       );
       expect(
         render('שדי', [(start: 0, end: 3, kind: DivineNameKind.shaddai)]),
-        'שקי',
+        'ש-\u2060די',
       );
       expect(
         render('צבאות', [(start: 0, end: 5, kind: DivineNameKind.tzevaot)]),
@@ -220,20 +220,81 @@ void main() {
       );
       expect(
         render('אהיה', [(start: 0, end: 4, kind: DivineNameKind.ehyeh)]),
-        'אקיה',
+        'אהי-\u2060ה',
+      );
+    });
+
+    test('צורות המקף ויה — עם ניקוד, במקום הנכון', () {
+      String one(String word, int kind) =>
+          render(word, [(start: 0, end: word.length, kind: kind)]);
+
+      // שַׁדַּי → שַׁ-דַּי: אחרי ה-ש וכל הניקוד שלה (שין ופתח).
+      expect(
+        one('שַׁדַּי', DivineNameKind.shaddai),
+        'שַׁ-\u2060דַּי',
+      );
+      // אֱלוֹהַּ → אֱלוֹ-הַּ; ובכתיב חסר אֱלֹהַּ → אֱלֹ-הַּ.
+      expect(
+        one('אֱלוֹהַּ', DivineNameKind.eloah),
+        'אֱלוֹ-\u2060הַּ',
+      );
+      expect(
+        one('אֱלֹהַּ', DivineNameKind.eloah),
+        'אֱלֹ-\u2060הַּ',
+      );
+      // אֶהְיֶה → אֶהְיֶ-ה: לפני ה-ה הסופית, לא לפני הראשונה.
+      expect(
+        one('אֶהְיֶה', DivineNameKind.ehyeh),
+        'אֶהְיֶ-\u2060ה',
+      );
+      // יָהּ → קָהּ.
+      expect(one('יָהּ', DivineNameKind.yah), 'קָהּ');
+    });
+
+    test('יה — גבול מילה: בְּיָהּ עובר, הללויה מושמט', () {
+      const withPrefix = 'בּיָהּ';
+      expect(
+        render(withPrefix, [(start: 2, end: 5, kind: DivineNameKind.yah)]),
+        'בּקָהּ',
+      );
+      const halleluyah = 'הללויה';
+      expect(
+        wrapDivineNameSpans(halleluyah, [
+          (start: 4, end: 6, kind: DivineNameKind.yah),
+        ]),
+        halleluyah,
+      );
+    });
+
+    test('צורות המקף בתוך הדגשת חיפוש — המקף נכנס בתוך ההדגשה', () {
+      String highlighted(String word, int kind) => resolve(
+        '${divineNameMarkerOpen(kind)}'
+        '<span style="color: red">$word</span></span>',
+      );
+      expect(
+        highlighted('שדי', DivineNameKind.shaddai),
+        '<span style="color: red">ש-\u2060די</span>',
+      );
+      expect(
+        highlighted('אלוה', DivineNameKind.eloah),
+        '<span style="color: red">אלו-\u2060ה</span>',
+      );
+      expect(
+        highlighted('אהיה', DivineNameKind.ehyeh),
+        '<span style="color: red">אהי-\u2060ה</span>',
       );
     });
 
     test('אדנות — מקף ASCII אחרי ה-ד והניקוד שלה', () {
       expect(
         render('אדני', [(start: 0, end: 4, kind: DivineNameKind.adnut)]),
-        'אד-ני',
+        'אד-\u2060ני',
       );
       expect(
         render(adnutNikud, [
           (start: 0, end: adnutNikud.length, kind: DivineNameKind.adnut),
         ]),
-        'אֲדֹ-נָי',
+        'אֲדֹ-\u2060נָי',
       );
     });
 
@@ -258,7 +319,7 @@ void main() {
           '<span style="color: red">$adnutNikud</span></span>';
       expect(
         resolve(adnut),
-        '<span style="color: red">אֲדֹ-נָי</span>',
+        '<span style="color: red">אֲדֹ-\u2060נָי</span>',
       );
     });
 
