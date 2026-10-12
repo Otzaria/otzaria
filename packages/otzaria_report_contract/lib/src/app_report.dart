@@ -8,6 +8,7 @@ import 'app_report_minidump.dart';
 import 'app_report_redactor.dart';
 import 'crash_signature.dart';
 import 'report_id.dart';
+import 'reports_queue_format.dart';
 
 /// סוג דיווח על התוכנה, בערכי החוזה מול השרת.
 enum AppReportType {
@@ -70,6 +71,8 @@ class AppReport {
     this.duplicate = false,
     this.issuePending = false,
     this.sentAt,
+    this.carriedBy,
+    this.carriedAt,
   });
 
   static const int schemaVersion = 1;
@@ -130,6 +133,12 @@ class AppReport {
   final bool duplicate;
   final bool issuePending;
   final DateTime? sentAt;
+
+  /// מי לקח את הדיווח לשליחה במקום אוצריא, ומתי.
+  final String? carriedBy;
+  final DateTime? carriedAt;
+
+  bool get isCarriedByOfflineUpdate => carriedBy == kCarriedByOfflineUpdate;
 
   /// מזהה UUID v4 חדש לדיווח.
   static String generateReportId() => generateReportUuid();
@@ -279,6 +288,8 @@ class AppReport {
     'duplicate': duplicate,
     'issuePending': issuePending,
     if (sentAt != null) 'sentAt': sentAt!.toUtc().toIso8601String(),
+    if (carriedBy != null) 'carriedBy': carriedBy,
+    if (carriedAt != null) 'carriedAt': carriedAt!.toUtc().toIso8601String(),
   };
 
   factory AppReport.fromJson(Map<String, dynamic> json) {
@@ -317,6 +328,11 @@ class AppReport {
       duplicate: json['duplicate'] == true,
       issuePending: json['issuePending'] == true,
       sentAt: DateTime.tryParse(_string(json['sentAt'])),
+      carriedBy: switch (json['carriedBy']) {
+        final String value => value,
+        _ => null,
+      },
+      carriedAt: DateTime.tryParse(_string(json['carriedAt'])),
     );
   }
 
@@ -378,6 +394,8 @@ class AppReport {
       duplicate: duplicate ?? this.duplicate,
       issuePending: issuePending ?? this.issuePending,
       sentAt: identical(sentAt, _unset) ? this.sentAt : sentAt as DateTime?,
+      carriedBy: carriedBy,
+      carriedAt: carriedAt,
     );
   }
 

@@ -214,6 +214,71 @@ void main() {
 
   test('kReportsQueueFormat', () => expect(kReportsQueueFormat, 1));
 
+  group('רשומת היסטוריה שעדכוני אוצריא העבירה (C3)', () {
+    const carried = {
+      'carriedBy': 'offline-update',
+      'carriedAt': '2026-10-12T10:00:00Z',
+    };
+    final at = DateTime.utc(2026, 10, 12, 10);
+
+    test('DirectErrorReport', () {
+      final report = DirectErrorReport.fromJson({
+        'id': 'r',
+        'senderEmail': '',
+        'subject': 's',
+        'bookTitle': 'b',
+        'currentRef': 'c',
+        'lineNumber': 1,
+        'createdAt': '2026-10-01T00:00:00.000Z',
+        ...carried,
+      });
+      expect(report.isCarriedByOfflineUpdate, isTrue);
+      expect(report.carriedAt, at);
+      expect(report.withId('x').copyWith(subject: 't').carriedAt, at);
+      expect(DirectErrorReport.fromJson(report.toJson()), report);
+      expect(report.toApiPayload().containsKey('carriedBy'), isFalse);
+    });
+
+    test('AppReport', () {
+      final report = AppReport.fromJson({
+        'reportId': 'a',
+        'title': 't',
+        'appVersion': '1',
+        'platform': 'windows',
+        'createdAt': '2026-10-01T00:00:00Z',
+        ...carried,
+      });
+      expect(report.isCarriedByOfflineUpdate, isTrue);
+      expect(report.withoutAttachments().carriedAt, at);
+      expect(AppReport.fromJson(report.toJson()).carriedAt, at);
+      expect(report.toApiPayload().containsKey('carriedBy'), isFalse);
+    });
+
+    test('PluginReportRecord', () {
+      final record = PluginReportRecord.fromJson({
+        'reportId': 'p',
+        'pluginUid': 'u',
+        'createdAt': '2026-10-01T00:00:00Z',
+        ...carried,
+      });
+      expect(record.isCarriedByOfflineUpdate, isTrue);
+      expect(record.copyWith(details: 'd').carriedAt, at);
+      expect(record.toJson()['carriedBy'], 'offline-update');
+      expect(record.toApiPayload().containsKey('carriedBy'), isFalse);
+    });
+
+    test('ערך שאינו מחרוזת לא מפיל את הקריאה', () {
+      final record = PluginReportRecord.fromJson({
+        'reportId': 'p',
+        'carriedBy': 1,
+        'carriedAt': false,
+      });
+      expect(record.carriedBy, isNull);
+      expect(record.carriedAt, isNull);
+      expect(record.toJson().containsKey('carriedBy'), isFalse);
+    });
+  });
+
   test('generateReportUuid הוא UUID v4', () {
     expect(
       generateReportUuid(),

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
 import 'canonical_json.dart';
+import 'reports_queue_format.dart';
 
 enum DirectErrorReportQueueType {
   manual,
@@ -328,6 +329,10 @@ class DirectErrorReport extends Equatable {
   /// בהיסטוריה: סיבת כשל קבוע — הדיווח לא נקלט ונשמר כאן כדי שההצעה לא תאבד.
   final String? rejectionReason;
 
+  /// בהיסטוריה: מי לקח את הדיווח לשליחה במקום אוצריא, ומתי.
+  final String? carriedBy;
+  final DateTime? carriedAt;
+
   const DirectErrorReport({
     required this.id,
     required this.senderEmail,
@@ -350,6 +355,8 @@ class DirectErrorReport extends Equatable {
     this.correction,
     this.serverAcceptedCorrection,
     this.rejectionReason,
+    this.carriedBy,
+    this.carriedAt,
   }) : assert(
          (correction == null) == (reportKind == DirectErrorReportKind.freeText),
          'correction must be set exactly for text_correction reports',
@@ -361,6 +368,8 @@ class DirectErrorReport extends Equatable {
 
   bool get isTextCorrection =>
       reportKind == DirectErrorReportKind.textCorrection;
+
+  bool get isCarriedByOfflineUpdate => carriedBy == kCarriedByOfflineUpdate;
 
   DirectErrorReport copyWith({
     String? senderEmail,
@@ -402,6 +411,8 @@ class DirectErrorReport extends Equatable {
       serverAcceptedCorrection:
           serverAcceptedCorrection ?? this.serverAcceptedCorrection,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      carriedBy: carriedBy,
+      carriedAt: carriedAt,
     );
   }
 
@@ -428,6 +439,8 @@ class DirectErrorReport extends Equatable {
     correction: correction,
     serverAcceptedCorrection: serverAcceptedCorrection,
     rejectionReason: rejectionReason,
+    carriedBy: carriedBy,
+    carriedAt: carriedAt,
   );
 
   Map<String, dynamic> toJson() => {
@@ -452,6 +465,8 @@ class DirectErrorReport extends Equatable {
     'correction': correction?.toJson(),
     'serverAcceptedCorrection': serverAcceptedCorrection,
     'rejectionReason': rejectionReason,
+    if (carriedBy != null) 'carriedBy': carriedBy,
+    if (carriedAt != null) 'carriedAt': carriedAt!.toUtc().toIso8601String(),
   };
 
   factory DirectErrorReport.fromJson(Map<String, dynamic> json) {
@@ -491,6 +506,14 @@ class DirectErrorReport extends Equatable {
           : null,
       serverAcceptedCorrection: json['serverAcceptedCorrection'] as bool?,
       rejectionReason: json['rejectionReason'] as String?,
+      carriedBy: switch (json['carriedBy']) {
+        final String value => value,
+        _ => null,
+      },
+      carriedAt: switch (json['carriedAt']) {
+        final String value => DateTime.tryParse(value),
+        _ => null,
+      },
     );
   }
 
@@ -588,5 +611,7 @@ class DirectErrorReport extends Equatable {
     correction,
     serverAcceptedCorrection,
     rejectionReason,
+    carriedBy,
+    carriedAt,
   ];
 }

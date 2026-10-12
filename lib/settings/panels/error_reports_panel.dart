@@ -429,9 +429,12 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
   }) async {
     await ErrorReportHelper.showDirectReportDetailsDialog(
       context,
-      title: context.settingsText(
-        sent ? 'פרטי דיווח שנשלח' : 'פרטי דיווח שמור',
-      ),
+      title: sent
+          ? sentReportDetailsTitle(
+              context,
+              carried: report.isCarriedByOfflineUpdate,
+            )
+          : context.settingsText('פרטי דיווח שמור'),
       report: report,
     );
   }
@@ -503,11 +506,20 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
   Widget _buildSentReportTile(BuildContext context, DirectErrorReport report) =>
       buildSentReportTile(
         context,
-        icon: report.rejectionReason == null
+        icon: report.isCarriedByOfflineUpdate
+            ? carriedReportIcon
+            : report.rejectionReason == null
             ? FluentIcons.checkmark_24_regular
             : FluentIcons.error_circle_24_regular,
         title: report.bookTitle,
-        subtitle: _reportSummary(context, report),
+        subtitle: [
+          ?carriedReportStatus(
+            context,
+            carried: report.isCarriedByOfflineUpdate,
+            carriedAt: report.carriedAt,
+          ),
+          _reportSummary(context, report),
+        ].join(' · '),
         onView: () => _showReportDetails(report, sent: true),
         onDelete: () => _deleteSentReport(report),
       );

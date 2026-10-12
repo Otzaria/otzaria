@@ -64,6 +64,29 @@ String sentReportsSubtitle(
   );
 }
 
+/// The status of a history entry that "Otzaria Updates" took to send, with
+/// its date; null for a report Otzaria sent itself.
+String? carriedReportStatus(
+  BuildContext context, {
+  required bool carried,
+  required DateTime? carriedAt,
+}) {
+  if (!carried) return null;
+  final label = context.settingsText('הועבר לשליחה דרך עדכוני אוצריא');
+  if (carriedAt == null) return label;
+  final local = carriedAt.toLocal();
+  return '$label · ${local.day}.${local.month}.${local.year}';
+}
+
+/// The icon of a history entry that "Otzaria Updates" took to send.
+const IconData carriedReportIcon = FluentIcons.mail_inbox_arrow_up_24_regular;
+
+/// The details dialog title of a history entry.
+String sentReportDetailsTitle(BuildContext context, {required bool carried}) =>
+    carried
+    ? context.settingsText('הועבר לשליחה דרך עדכוני אוצריא')
+    : context.settingsText('פרטי דיווח שנשלח');
+
 /// A report row: an icon, a title, a two-line summary and its actions.
 Widget _buildReportTile({
   required IconData icon,

@@ -321,6 +321,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הוספת ספרים משלך לספרייה — TXT, PDF, Word, EPUB ועוד. בוחרים קבצים או תיקייה שלמה, והם מועתקים לספרייה': 'Add your own seforim to the library — TXT, PDF, Word, EPUB and more. Pick files or a whole folder, and they are copied into the library',
     'הוספת ספרים משלך לספרייה — TXT, PDF, Word, EPUB ועוד. כאן בוחרים קבצים, ולא תיקייה כמו במחשב': 'Add your own seforim to the library — TXT, PDF, Word, EPUB and more. Here you pick files, not a folder as on a computer',
     'הוספת קישור ליומן חיצוני — האירועים מתרעננים אוטומטית בכל הפעלה': 'Add a link to an external calendar — events refresh automatically on every launch',
+    'הועבר לשליחה דרך עדכוני אוצריא': 'Handed over for sending via Otzaria Updates',
     'הורד': 'Download',
     'הורד לשליחה במחשב מחובר': 'Download to Send From an Online Computer',
     'הורד קטלוג': 'Download Catalog',

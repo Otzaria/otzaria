@@ -1,3 +1,5 @@
+import 'reports_queue_format.dart';
+
 /// דיווח משתמש על תוסף, כפי שנשמר בתור המקומי ונשלח לשרת האתר.
 class PluginReportRecord {
   final String reportId;
@@ -11,6 +13,10 @@ class PluginReportRecord {
   final String platform;
   final DateTime createdAt;
 
+  /// בהיסטוריה: מי לקח את הדיווח לשליחה במקום אוצריא, ומתי.
+  final String? carriedBy;
+  final DateTime? carriedAt;
+
   const PluginReportRecord({
     required this.reportId,
     required this.pluginUid,
@@ -22,7 +28,11 @@ class PluginReportRecord {
     this.appVersion,
     required this.platform,
     required this.createdAt,
+    this.carriedBy,
+    this.carriedAt,
   });
+
+  bool get isCarriedByOfflineUpdate => carriedBy == kCarriedByOfflineUpdate;
 
   factory PluginReportRecord.fromJson(Map<String, dynamic> json) {
     return PluginReportRecord(
@@ -38,6 +48,14 @@ class PluginReportRecord {
       createdAt:
           DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
+      carriedBy: switch (json['carriedBy']) {
+        final String value => value,
+        _ => null,
+      },
+      carriedAt: switch (json['carriedAt']) {
+        final String value => DateTime.tryParse(value),
+        _ => null,
+      },
     );
   }
 
@@ -53,6 +71,8 @@ class PluginReportRecord {
       if (appVersion != null) 'appVersion': appVersion,
       'platform': platform,
       'createdAt': createdAt.toIso8601String(),
+      if (carriedBy != null) 'carriedBy': carriedBy,
+      if (carriedAt != null) 'carriedAt': carriedAt!.toUtc().toIso8601String(),
     };
   }
 
@@ -72,6 +92,8 @@ class PluginReportRecord {
       appVersion: appVersion,
       platform: platform,
       createdAt: createdAt,
+      carriedBy: carriedBy,
+      carriedAt: carriedAt,
     );
   }
 

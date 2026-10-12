@@ -260,9 +260,20 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     final issueUrl = report.issueUrl;
     return buildSentReportTile(
       context,
-      icon: FluentIcons.checkmark_24_regular,
+      icon: report.isCarriedByOfflineUpdate
+          ? carriedReportIcon
+          : FluentIcons.checkmark_24_regular,
       title: report.title,
-      subtitle: _summaryLine(context, report),
+      subtitle: report.isCarriedByOfflineUpdate
+          ? [
+              ?carriedReportStatus(
+                context,
+                carried: true,
+                carriedAt: report.carriedAt,
+              ),
+              _summaryLine(context, report, withDate: false),
+            ].join(' · ')
+          : _summaryLine(context, report),
       onView: () => _showDetails(report, sent: true),
       onDelete: () => _deleteSent(report),
       extraAction: issueUrl == null || issueUrl.isEmpty
@@ -281,12 +292,15 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     );
   }
 
-  String _summaryLine(BuildContext context, AppReport report) {
-    final date = report.sentAt ?? report.createdAt;
-    final local = date.toLocal();
+  String _summaryLine(
+    BuildContext context,
+    AppReport report, {
+    bool withDate = true,
+  }) {
+    final local = (report.sentAt ?? report.createdAt).toLocal();
     final parts = [
       _typeLabel(context, report.type),
-      '${local.day}.${local.month}.${local.year}',
+      if (withDate) '${local.day}.${local.month}.${local.year}',
       if (report.issueNumber != null) '#${report.issueNumber}',
       if (report.merged) context.settingsText('צורף לדיווח קיים'),
     ];
@@ -328,9 +342,12 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     }
     await showSingleActionDialog(
       context: context,
-      title: context.settingsText(
-        sent ? 'פרטי דיווח שנשלח' : 'פרטי דיווח שמור',
-      ),
+      title: sent
+          ? sentReportDetailsTitle(
+              context,
+              carried: report.isCarriedByOfflineUpdate,
+            )
+          : context.settingsText('פרטי דיווח שמור'),
       content: buffer.toString().trimRight(),
       confirmText: context.settingsText('סגור'),
     );
