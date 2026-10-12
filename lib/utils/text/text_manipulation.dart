@@ -1738,21 +1738,24 @@ bool _mayBeHolyName(String s, int yod) {
   return true;
 }
 
+final RegExp _nonspacingMark = RegExp(r'[\p{Mn}]', unicode: true);
+
 bool _hasThreeContiguousHebrewLettersBeforeMatch(String text, int matchStart) {
   var contiguousLetters = 0;
 
   for (var index = matchStart - 1; index >= 0; index--) {
-    final char = text[index];
+    final c = text.codeUnitAt(index);
 
-    if (RegExp(r'[\p{Mn}]', unicode: true).hasMatch(char)) {
-      continue;
-    }
-
-    if (RegExp(r'[א-ת]').hasMatch(char)) {
+    if (c >= 0x05D0 && c <= 0x05EA) {
       contiguousLetters++;
       if (contiguousLetters >= 3) {
         return true;
       }
+      continue;
+    }
+
+    // אין Mn מתחת ל-U+0300 — חוסך הקצאת מחרוזת ובדיקת RegExp לרוב התווים.
+    if (c >= 0x0300 && _nonspacingMark.hasMatch(text[index])) {
       continue;
     }
 

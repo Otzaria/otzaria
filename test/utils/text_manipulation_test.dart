@@ -1063,6 +1063,15 @@ Future<void> main() async {
       expect(replaceHolyNames('מגביהוהי'), equals('מגביהוהי'));
     });
 
+    test('שם בתחילת השורה מוחלף', () {
+      expect(replaceHolyNames('יהוה אלהים'), equals('יקוק אלהים'));
+    });
+
+    test('שתי אותיות מנוקדות לפני השם — מוחלף; שלוש — לא', () {
+      expect(replaceHolyNames('וּבַיהוָה'), equals('וּבַיקוָק'));
+      expect(replaceHolyNames('גוּבַיהוָה'), equals('גוּבַיהוָה'));
+    });
+
     group("סגנון ה'", () {
       test('שם הקודש בתוך פסוק מוחלף בה\'', () {
         expect(

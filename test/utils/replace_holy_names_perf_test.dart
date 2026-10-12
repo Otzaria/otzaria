@@ -73,6 +73,21 @@ void main() {
       }
     });
 
+    test('זהה לאורקל לכל יחידת קוד שלפני השם', () {
+      for (var c = 0; c <= 0xFFFF; c++) {
+        final unit = String.fromCharCode(c);
+        for (final input in ['אב$unitיהוה', 'א$unitבגיהוה', '$unitיהוה']) {
+          for (final style in HolyNameStyle.values) {
+            expect(
+              replaceHolyNames(input, style: style),
+              _oracle(input, style),
+              reason: 'U+${c.toRadixString(16)}',
+            );
+          }
+        }
+      }
+    });
+
     test('בשורה ארוכה מהיר לפחות פי 3 מהאורקל', () {
       // כמו בשורות הארוכות בספרייה: מאות אלפי תווים ללא ניקוד, מעט מופעי השם.
       final line = [
