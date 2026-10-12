@@ -68,6 +68,17 @@ void main() {
     expect(file.readAsBytesSync().take(3), isNot([0xEF, 0xBB, 0xBF]));
   });
 
+  test('קובץ קיים שאינו UTF-8 נכתב מחדש', () async {
+    final file = File(p.join(root.path, OtzariaCapabilities.fileName));
+    file.writeAsBytesSync([0x7b, 0xff, 0xfe]);
+
+    expect(
+      await OtzariaCapabilities.writeIfChanged(root.path, content()),
+      true,
+    );
+    expect(jsonDecode(file.readAsStringSync())['formatVersion'], 1);
+  });
+
   test('ארכיטקטורה מזוהה', () {
     expect([
       'x64',

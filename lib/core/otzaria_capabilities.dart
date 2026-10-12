@@ -64,6 +64,8 @@ class OtzariaCapabilities {
         }
       } on FormatException {
         // קובץ פגום נכתב מחדש.
+      } on FileSystemException {
+        // קובץ שאינו קריא (נעול, לא UTF-8) נכתב מחדש.
       }
     }
     await file.parent.create(recursive: true);

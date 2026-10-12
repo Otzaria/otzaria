@@ -64,6 +64,19 @@ void main() {
     expect((await ExternalUpdateNotice.read(dbPath))!.needsFullReconcile, true);
   });
 
+  test(
+    'סימון שאינו UTF-8 — השוואה מלאה, ונמחק כדי לא לחזור בכל עלייה',
+    () async {
+      marker.writeAsBytesSync([0x7b, 0xff, 0xfe, 0x7d]);
+
+      final notice = (await ExternalUpdateNotice.read(dbPath))!;
+      expect(notice.needsFullReconcile, isTrue);
+
+      await notice.delete();
+      expect(marker.existsSync(), isFalse);
+    },
+  );
+
   test('delete מוחק את הסימון שנקרא', () async {
     writeMarker({
       'formatVersion': 1,
