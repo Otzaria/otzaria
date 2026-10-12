@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -78,6 +79,35 @@ void main() {
         ],
       );
       expect(await processingFile.exists(), isFalse);
+    });
+  });
+
+  group('CoalescingDrainRunner', () {
+    test('קריאה באמצע ניקוז מריצה ניקוז נוסף אחריו', () async {
+      final gate = Completer<void>();
+      var runs = 0;
+      final runner = CoalescingDrainRunner(() async {
+        runs++;
+        if (runs == 1) await gate.future;
+      });
+
+      final first = runner.run();
+      final second = runner.run();
+      final third = runner.run();
+      gate.complete();
+      await Future.wait([first, second, third]);
+
+      expect(runs, 2);
+    });
+
+    test('קריאה אחרי סיום מתחילה ריצה חדשה', () async {
+      var runs = 0;
+      final runner = CoalescingDrainRunner(() async => runs++);
+
+      await runner.run();
+      await runner.run();
+
+      expect(runs, 2);
     });
   });
 }

@@ -110,3 +110,33 @@ class ExternalActivationQueue {
     );
   }
 }
+
+/// מריץ ניקוז אחד בכל פעם; קריאה שמגיעה באמצע ריצה גורמת לריצה נוספת
+/// מיד אחריה, ולא נבלעת עד האירוע הבא.
+class CoalescingDrainRunner {
+  CoalescingDrainRunner(this._drain);
+
+  final Future<void> Function() _drain;
+  Future<void>? _active;
+  bool _rerunRequested = false;
+
+  Future<void> run() {
+    final active = _active;
+    if (active != null) {
+      _rerunRequested = true;
+      return active;
+    }
+    return _active = _loop();
+  }
+
+  Future<void> _loop() async {
+    try {
+      do {
+        _rerunRequested = false;
+        await _drain();
+      } while (_rerunRequested);
+    } finally {
+      _active = null;
+    }
+  }
+}
