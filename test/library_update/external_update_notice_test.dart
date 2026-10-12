@@ -39,11 +39,18 @@ void main() {
     expect(notice.needsFullReconcile, isFalse);
   });
 
-  test('מסלול מלא, דלתא ריקה או סימון פגום — השוואה מלאה', () async {
-    writeMarker({'formatVersion': 1, 'route': 'full', 'booksTouched': []});
+  test('דלתא שלא שינתה ספרים — אין אינדוקס', () async {
+    writeMarker({'formatVersion': 1, 'route': 'delta', 'booksTouched': []});
+    final notice = (await ExternalUpdateNotice.read(dbPath))!;
+    expect(notice.needsFullReconcile, isFalse);
+    expect(notice.needsIndexing, isFalse);
+  });
+
+  test('מסלול מלא, רשימה חסרה או סימון פגום — השוואה מלאה', () async {
+    writeMarker({'formatVersion': 1, 'route': 'full', 'fullReconcile': true});
     expect((await ExternalUpdateNotice.read(dbPath))!.needsFullReconcile, true);
 
-    writeMarker({'formatVersion': 1, 'route': 'delta', 'booksTouched': []});
+    writeMarker({'formatVersion': 1, 'route': 'delta'});
     expect((await ExternalUpdateNotice.read(dbPath))!.needsFullReconcile, true);
 
     marker.writeAsStringSync('{not json');

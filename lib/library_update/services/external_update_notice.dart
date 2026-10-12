@@ -12,7 +12,7 @@ class ExternalUpdateNotice {
     this._file,
     this._rawContent,
     this.booksTouched, {
-    required this.isFullRoute,
+    required this.needsFullReconcile,
   });
 
   static const String fileName = '.otzaria-external-update.json';
@@ -24,10 +24,11 @@ class ExternalUpdateNotice {
   /// מזהי `seforim.db` של הספרים שתוכנם השתנה (מסלול דלתא בלבד).
   final Set<int> booksTouched;
 
-  /// הוחלף מסד שלם, או שהסימון אינו קריא — אין רשימת ספרים אמינה.
-  final bool isFullRoute;
+  /// הוחלף מסד שלם, חסרה רשימת ספרים, או שהסימון אינו קריא.
+  final bool needsFullReconcile;
 
-  bool get needsFullReconcile => isFullRoute || booksTouched.isEmpty;
+  /// דלתא שלא שינתה אף ספר אינה דורשת אינדוקס.
+  bool get needsIndexing => needsFullReconcile || booksTouched.isNotEmpty;
 
   static File fileFor(String dbPath) =>
       File(p.join(p.dirname(dbPath), fileName));
@@ -46,13 +47,21 @@ class ExternalUpdateNotice {
           file,
           raw,
           books is List ? books.whereType<int>().toSet() : const {},
-          isFullRoute: json['route'] != 'delta',
+          needsFullReconcile:
+              json['route'] != 'delta' ||
+              json['fullReconcile'] == true ||
+              books is! List,
         );
       }
     } on FormatException {
       // סימון פגום עדיין מעיד על עדכון חיצוני — נופלים להשוואה מלאה.
     }
-    return ExternalUpdateNotice._(file, raw, const {}, isFullRoute: true);
+    return ExternalUpdateNotice._(
+      file,
+      raw,
+      const {},
+      needsFullReconcile: true,
+    );
   }
 
   /// מוחק את הסימון, אלא אם המעדכן כתב בינתיים סימון חדש במקומו.

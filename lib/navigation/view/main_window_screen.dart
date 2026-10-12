@@ -1007,7 +1007,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
         DatabaseConstants.getDatabasePath(),
       );
       if (notice == null || !mounted) return;
-      if (!_fullLibraryReindexRequested) {
+      if (notice.needsIndexing && !_fullLibraryReindexRequested) {
         _requestLibraryIndexRefresh(
           reconcile: notice.needsFullReconcile,
           respectAutoUpdateSetting: true,
