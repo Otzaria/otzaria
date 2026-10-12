@@ -5,6 +5,7 @@ import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
@@ -112,7 +113,9 @@ class AppSelectionAreaState extends State<AppSelectionArea> {
 
   Future<void> _copy(String text) async {
     if (!await _copyAllowed(text)) return;
-    await Clipboard.setData(ClipboardData(text: text));
+    await Clipboard.setData(
+      ClipboardData(text: withoutDivineNameJoiners(text)),
+    );
     UiSnack.show(CommonMessages.textCopiedShort);
   }
 

@@ -66,4 +66,19 @@ void main() {
       'בראשית\nבראשית ברא אלהים\nויאמר יהוה',
     );
   });
+
+  test('צורת מקף: TXT במקף רגיל, Word עם מחבר המילים', () {
+    final adnut = TextBookExportRequest(
+      rawContent: 'אמר אדני',
+      removeNikud: false,
+      removeTaamim: false,
+      shouldReplaceHolyNames: false,
+      divineNames:
+          (DivineNameSpansBuilder()..add(0, 4, 8, DivineNameKind.adnut))
+              .build(),
+      substituteDivineNames: true,
+    );
+    expect(createTextBookTextExport(adnut), 'אמר אד-ני');
+    expect(textBookExportLines(adnut, stripHtml: false).single, 'אמר אד-⁠ני');
+  });
 }

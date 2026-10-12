@@ -18,7 +18,7 @@ import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 /// היחידה שמאריכה את הטקסט (מקף), ולכן נבדקת בכל אחד מהם.
 void main() {
   const adnutNikud = 'אֲדֹנָי';
-  const adnutShown = 'אֲדֹ-נָי';
+  const adnutShown = 'אֲדֹ-\u2060נָי';
   const line = '<b>ויאמר</b> $adnutNikud אלהים';
   final spans =
       (DivineNameSpansBuilder()
@@ -41,6 +41,14 @@ void main() {
 
   group('חיתוך HTML לבחירה', () {
     test('אדנות עם מקף וניקוד — הבחירה נמצאת במקור', () {
+      expect(
+        sliceHtmlBySelection(
+          html: '<b>אמר</b> אדני',
+          selectedText: 'אמר אד-\u2060ני',
+        ),
+        '<b>אמר</b> אד-\u2060ני',
+      );
+      // מקף בלי מחבר המילים (הקלדה ידנית) — גם הוא נמצא.
       expect(
         sliceHtmlBySelection(
           html: '<b>אמר</b> אדני',
@@ -108,7 +116,55 @@ void main() {
       service.renderedBoundaryToSource(map, map.renderedGraphemeLength),
       map.sourceGraphemeLength,
     );
-    expect(map.renderedGraphemeLength, map.sourceGraphemeLength + 1);
+    expect(map.renderedGraphemeLength, map.sourceGraphemeLength + 2);
+  });
+
+  group('כל צורות המקף — חיתוך HTML ומפת המקור', () {
+    const forms = [
+      (word: 'שַׁדַּי', kind: DivineNameKind.shaddai),
+      (word: 'אֱלוֹהַּ', kind: DivineNameKind.eloah),
+      (word: 'אֶהְיֶה', kind: DivineNameKind.ehyeh),
+      (word: adnutNikud, kind: DivineNameKind.adnut),
+    ];
+    for (final form in forms) {
+      test('סוג ${form.kind}', () {
+        final html = '<b>אמר</b> ${form.word}';
+        final names =
+            (DivineNameSpansBuilder()
+                  ..add(0, 4, 4 + form.word.length, form.kind))
+                .build();
+        final processed = TextRendererService.processText(
+          injectDivineNameMarkers(html, names, 0),
+          substitute,
+        );
+        final shownWord = processed.substring(processed.indexOf(' ') + 1);
+        expect(shownWord.length, form.word.length + 2);
+        expect(shownWord, contains('-'));
+
+        expect(
+          sliceHtmlBySelection(html: html, selectedText: 'אמר $shownWord'),
+          '<b>אמר</b> $shownWord',
+        );
+
+        const service = TextSourceMapService();
+        final map = service.buildFromProcessedHtml(
+          bookId: 'book',
+          sectionIndex: 0,
+          rawText: html,
+          processedHtml: processed,
+        );
+        expect(map.renderedGraphemeLength, map.sourceGraphemeLength + 2);
+        expect(
+          map.mappings.map((m) => m.kind),
+          contains(PluginTextSourceMapKind.inserted),
+        );
+        expect(service.sourceBoundaryToRendered(map, 3), 3);
+        expect(
+          service.renderedBoundaryToSource(map, map.renderedGraphemeLength),
+          map.sourceGraphemeLength,
+        );
+      });
+    }
   });
 
   group('הגדרת התצוגה', () {
