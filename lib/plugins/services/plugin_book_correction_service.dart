@@ -1,9 +1,8 @@
 import 'dart:convert';
 
-import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
-import 'package:otzaria/utils/canonical_json.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 class PluginBookReportSource {
   final String rawText;

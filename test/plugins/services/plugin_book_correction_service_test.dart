@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/plugins/services/plugin_book_correction_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 void main() {
   const metadata = PluginBookReportMetadata(

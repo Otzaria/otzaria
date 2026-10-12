@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/utils/canonical_json.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 void main() {
   // מפענחים את ה-JSON ולא משווים בייטים של הקובץ: git עשוי להמיר סיומות שורה.

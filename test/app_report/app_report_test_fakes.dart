@@ -1,6 +1,6 @@
-import 'package:otzaria/app_report/models/app_report.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// שירות מזויף: רושם את הדיווח שנשלח ומחזיר תוצאה קבועה.
 class FakeAppReportService implements AppReportService {

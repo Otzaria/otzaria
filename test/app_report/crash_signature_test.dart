@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/app_report/models/crash_signature.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 void main() {
   group('CrashSignature.normalizeFrame', () {

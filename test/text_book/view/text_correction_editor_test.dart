@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
-import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 

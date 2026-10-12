@@ -7,10 +7,10 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
-import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 export 'package:otzaria/services/offline_report_script_builder.dart'
     show OfflineSendScript, OfflineSendScriptTarget;
@@ -546,25 +546,30 @@ class DirectErrorReportService {
           )
           .timeout(_timeout);
 
-      if (response.statusCode == HttpStatus.ok) {
-        final decoded = _decodeResponse(response.body);
-        return _SendAttemptResult.success(
-          isDuplicate: decoded?['duplicate'] == true,
-          correctionSupported: decoded?['correction_supported'] == true,
-        );
-      }
-
-      if (response.statusCode == HttpStatus.conflict) {
-        return _SendAttemptResult.permanentFailure(
-          ReportMessages.reportIdConflict,
-          isIdConflict: true,
-        );
-      }
-
-      if (_isPermanentHttpFailure(response.statusCode)) {
-        return _SendAttemptResult.permanentFailure(
-          ReportMessages.serverPermanentFailure(response.statusCode),
-        );
+      final reply = ReportServerResponse(
+        response.statusCode,
+        ReportServerResponse.decodeBody(response.bodyBytes),
+      );
+      switch (reply.kind) {
+        // חוזה §2.4: רק 200 הוא קליטה.
+        case ReportResponseKind.accepted
+            when response.statusCode == HttpStatus.ok:
+          return _SendAttemptResult.success(
+            isDuplicate: reply.duplicate,
+            // היעדר correction_supported = אתר ישן שאינו מכיר הצעת תיקון.
+            correctionSupported: reply.body?['correction_supported'] == true,
+          );
+        case ReportResponseKind.idConflict:
+          return _SendAttemptResult.permanentFailure(
+            ReportMessages.reportIdConflict,
+            isIdConflict: true,
+          );
+        case ReportResponseKind.rejected:
+          return _SendAttemptResult.permanentFailure(
+            ReportMessages.serverPermanentFailure(response.statusCode),
+          );
+        default:
+          break;
       }
 
       return _SendAttemptResult.transientFailure(
@@ -583,25 +588,6 @@ class DirectErrorReportService {
       return _SendAttemptResult.transientFailure(
         ReportMessages.unexpectedSendError,
       );
-    }
-  }
-
-  /// חוזה §2.4: 400/409/413/422 קבועים; 408/429/5xx וכל השאר זמניים (תור).
-  bool _isPermanentHttpFailure(int statusCode) {
-    return statusCode == HttpStatus.badRequest ||
-        statusCode == HttpStatus.conflict ||
-        statusCode == HttpStatus.requestEntityTooLarge ||
-        statusCode == 422;
-  }
-
-  /// גוף תשובת 200. `duplicate:true` = תוכן זהה כבר נשלח במייל (הדיווח נקלט);
-  /// היעדר `correction_supported:true` = אתר ישן שאינו מכיר הצעת תיקון.
-  static Map<String, dynamic>? _decodeResponse(String body) {
-    try {
-      final decoded = jsonDecode(body);
-      return decoded is Map<String, dynamic> ? decoded : null;
-    } catch (_) {
-      return null;
     }
   }
 }

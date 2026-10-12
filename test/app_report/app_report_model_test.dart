@@ -3,11 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/app_report/models/app_report.dart';
-import 'package:otzaria/app_report/models/app_report_image.dart';
-import 'package:otzaria/app_report/models/app_report_minidump.dart';
-import 'package:otzaria/app_report/models/crash_signature.dart';
-import 'package:otzaria/app_report/repository/app_report_redactor.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 AppReport _report({
   AppReportTrigger trigger = AppReportTrigger.manual,

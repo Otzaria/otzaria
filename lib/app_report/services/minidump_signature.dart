@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:otzaria/app_report/models/crash_signature.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// חתימת קריסה נייטיבית מ-minidump: קוד החריגה והמודול+היסט של כתובתה.
 /// קורא רק את הכותרת, זרם החריגה ורשימת המודולים — לא את זיכרון התהליך.

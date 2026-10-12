@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-import 'package:otzaria/app_report/models/app_report_image.dart';
-import 'package:otzaria/app_report/models/app_report_minidump.dart';
-import 'package:otzaria/app_report/models/crash_signature.dart';
-import 'package:otzaria/app_report/repository/app_report_redactor.dart';
-import 'package:otzaria/plugins/services/plugin_report_service.dart';
+import 'package:meta/meta.dart';
+
+import 'app_report_image.dart';
+import 'app_report_minidump.dart';
+import 'app_report_redactor.dart';
+import 'crash_signature.dart';
+import 'report_id.dart';
 
 /// סוג דיווח על התוכנה, בערכי החוזה מול השרת.
 enum AppReportType {
@@ -131,14 +132,16 @@ class AppReport {
   final DateTime? sentAt;
 
   /// מזהה UUID v4 חדש לדיווח.
-  static String generateReportId() => PluginReportService.generateReportId();
+  static String generateReportId() => generateReportUuid();
 
   /// שם הפלטפורמה בערכי החוזה (`other` לפלטפורמה לא מוכרת).
   static String currentPlatform() {
-    if (kIsWeb) return 'other';
+    if (_isWeb) return 'other';
     final os = Platform.operatingSystem;
     return platforms.contains(os) ? os : 'other';
   }
+
+  static const bool _isWeb = bool.fromEnvironment('dart.library.js_interop');
 
   static bool isValidEmail(String email) =>
       RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email.trim());

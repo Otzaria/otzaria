@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/app_report/repository/app_report_redactor.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 void main() {
   final redactor = AppReportRedactor(

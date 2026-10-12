@@ -5,10 +5,10 @@ import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
-import 'package:otzaria/app_report/models/crash_signature.dart';
 import 'package:otzaria/app_report/repository/error_log_blocks.dart';
 import 'package:otzaria/app_report/services/minidump_signature.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 import 'package:win32/win32.dart';
 

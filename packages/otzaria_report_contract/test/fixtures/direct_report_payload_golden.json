@@ -1,0 +1,542 @@
+{
+  "source": "Otzaria/otzaria upstream/dev 52678edb395ff04c98b6cb7adf187086bda5f532, lib/models/direct_error_report.dart",
+  "cases": [
+    {
+      "name": "v2-text-correction-selection",
+      "stored": {
+        "id": "r-1",
+        "senderEmail": "user@example.com",
+        "subject": "דיווח על טעות: בראשית",
+        "bookTitle": "בראשית",
+        "currentRef": "בראשית א",
+        "lineNumber": 3,
+        "selectedText": "אלהים",
+        "errorDetails": "שם ה' נכתב במלואו",
+        "contextText": "בראשית ברא אלהים",
+        "filePath": "אוצריא/תנך/תורה/בראשית.txt",
+        "sourceFolder": "ToratEmetToOtzaria",
+        "libraryVersion": "27",
+        "queueType": "automaticRetry",
+        "createdAt": "2026-09-15T10:00:00.000Z",
+        "schemaVersion": 2,
+        "reportKind": "text_correction",
+        "location": {
+          "lineIndex": 2,
+          "bookId": 1,
+          "libraryBuildId": "27",
+          "heRef": "בראשית א"
+        },
+        "client": {
+          "appVersion": "0.9.98",
+          "platform": "windows"
+        },
+        "correction": {
+          "originalLine": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א אֱלֹהִ֑ים‏ \"ציטוט\"  \r\nסוף ",
+          "originalSelection": "אֱלֹהִ֑ים",
+          "selectionStart": 38,
+          "selectionEnd": 47,
+          "proposedText": "אֱלֹקִ֑ים"
+        },
+        "serverAcceptedCorrection": null,
+        "rejectionReason": null
+      },
+      "payload": {
+        "report_id": "r-1",
+        "sender_email": "user@example.com",
+        "subject": "דיווח על טעות: בראשית",
+        "book_title": "בראשית",
+        "current_ref": "בראשית א",
+        "line_number": 3,
+        "selected_text": "אלהים",
+        "error_details": "שם ה' נכתב במלואו\n\n--- הצעת תיקון ---\nמקור: אֱלֹהִ֑ים\nמוצע: אֱלֹקִ֑ים",
+        "context_text": "בראשית ברא אלהים",
+        "file_path": "אוצריא/תנך/תורה/בראשית.txt",
+        "source_folder": "ToratEmetToOtzaria",
+        "library_version": "27",
+        "created_at": "2026-09-15T10:00:00.000Z",
+        "schema_version": 2,
+        "report_kind": "text_correction",
+        "content_digest": "6d46b74040e3ec091cc48b0959471d0983cbb423335f89931fd2501677250079",
+        "location": {
+          "line_index": 2,
+          "book_id": 1,
+          "library_build_id": "27",
+          "he_ref": "בראשית א"
+        },
+        "source_hint": {
+          "source_folder": "ToratEmetToOtzaria",
+          "library_relative_path": "אוצריא/תנך/תורה/בראשית.txt",
+          "repo_path": null
+        },
+        "client": {
+          "app_version": "0.9.98",
+          "platform": "windows"
+        },
+        "correction": {
+          "original_line": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א אֱלֹהִ֑ים‏ \"ציטוט\"  \r\nסוף ",
+          "original_selection": "אֱלֹהִ֑ים",
+          "selection_offset": {
+            "unit": "utf16_code_units",
+            "start": 38,
+            "end": 47
+          },
+          "proposed_text": "אֱלֹקִ֑ים",
+          "context_before": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א ",
+          "context_after": "‏ \"ציטוט\"  \r\nסוף "
+        }
+      },
+      "sendable": true
+    },
+    {
+      "name": "v2-text-correction-deletion",
+      "stored": {
+        "id": "r-1",
+        "senderEmail": "user@example.com",
+        "subject": "דיווח על טעות: בראשית",
+        "bookTitle": "בראשית",
+        "currentRef": "בראשית א",
+        "lineNumber": 3,
+        "selectedText": "אלהים",
+        "errorDetails": "שם ה' נכתב במלואו",
+        "contextText": "בראשית ברא אלהים",
+        "filePath": "אוצריא/תנך/תורה/בראשית.txt",
+        "sourceFolder": "ToratEmetToOtzaria",
+        "libraryVersion": "27",
+        "queueType": "automaticRetry",
+        "createdAt": "2026-09-15T10:00:00.000Z",
+        "schemaVersion": 2,
+        "reportKind": "text_correction",
+        "location": {
+          "lineIndex": 2,
+          "bookId": 1,
+          "libraryBuildId": "27",
+          "heRef": "בראשית א"
+        },
+        "client": {
+          "appVersion": "0.9.98",
+          "platform": "windows"
+        },
+        "correction": {
+          "originalLine": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א אֱלֹהִ֑ים‏ \"ציטוט\"  \r\nסוף ",
+          "originalSelection": "אֱלֹהִ֑ים",
+          "selectionStart": 38,
+          "selectionEnd": 47,
+          "proposedText": ""
+        },
+        "serverAcceptedCorrection": null,
+        "rejectionReason": null
+      },
+      "payload": {
+        "report_id": "r-1",
+        "sender_email": "user@example.com",
+        "subject": "דיווח על טעות: בראשית",
+        "book_title": "בראשית",
+        "current_ref": "בראשית א",
+        "line_number": 3,
+        "selected_text": "אלהים",
+        "error_details": "שם ה' נכתב במלואו\n\n--- הצעת תיקון ---\nמקור: אֱלֹהִ֑ים\nמוצע: (מחיקה)",
+        "context_text": "בראשית ברא אלהים",
+        "file_path": "אוצריא/תנך/תורה/בראשית.txt",
+        "source_folder": "ToratEmetToOtzaria",
+        "library_version": "27",
+        "created_at": "2026-09-15T10:00:00.000Z",
+        "schema_version": 2,
+        "report_kind": "text_correction",
+        "content_digest": "33fbb3b09ee98a5af42658997996a7f492f5efa3cc7c9740c034d66242615f1c",
+        "location": {
+          "line_index": 2,
+          "book_id": 1,
+          "library_build_id": "27",
+          "he_ref": "בראשית א"
+        },
+        "source_hint": {
+          "source_folder": "ToratEmetToOtzaria",
+          "library_relative_path": "אוצריא/תנך/תורה/בראשית.txt",
+          "repo_path": null
+        },
+        "client": {
+          "app_version": "0.9.98",
+          "platform": "windows"
+        },
+        "correction": {
+          "original_line": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א אֱלֹהִ֑ים‏ \"ציטוט\"  \r\nסוף ",
+          "original_selection": "אֱלֹהִ֑ים",
+          "selection_offset": {
+            "unit": "utf16_code_units",
+            "start": 38,
+            "end": 47
+          },
+          "proposed_text": "",
+          "context_before": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א ",
+          "context_after": "‏ \"ציטוט\"  \r\nסוף "
+        }
+      },
+      "sendable": true
+    },
+    {
+      "name": "v2-text-correction-no-proposal",
+      "stored": {
+        "id": "r-1",
+        "senderEmail": "user@example.com",
+        "subject": "דיווח על טעות: בראשית",
+        "bookTitle": "בראשית",
+        "currentRef": "בראשית א",
+        "lineNumber": 3,
+        "selectedText": "אלהים",
+        "errorDetails": "שם ה' נכתב במלואו",
+        "contextText": "בראשית ברא אלהים",
+        "filePath": "אוצריא/תנך/תורה/בראשית.txt",
+        "sourceFolder": "ToratEmetToOtzaria",
+        "libraryVersion": "27",
+        "queueType": "automaticRetry",
+        "createdAt": "2026-09-15T10:00:00.000Z",
+        "schemaVersion": 2,
+        "reportKind": "text_correction",
+        "location": {
+          "lineIndex": 2,
+          "bookId": 1,
+          "libraryBuildId": "27",
+          "heRef": "בראשית א"
+        },
+        "client": {
+          "appVersion": "0.9.98",
+          "platform": "windows"
+        },
+        "correction": {
+          "originalLine": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א אֱלֹהִ֑ים‏ \"ציטוט\"  \r\nסוף ",
+          "originalSelection": "אֱלֹהִ֑ים",
+          "selectionStart": 38,
+          "selectionEnd": 47,
+          "proposedText": null
+        },
+        "serverAcceptedCorrection": null,
+        "rejectionReason": null
+      },
+      "payload": {
+        "report_id": "r-1",
+        "sender_email": "user@example.com",
+        "subject": "דיווח על טעות: בראשית",
+        "book_title": "בראשית",
+        "current_ref": "בראשית א",
+        "line_number": 3,
+        "selected_text": "אלהים",
+        "error_details": "שם ה' נכתב במלואו\n\n--- הצעת תיקון ---\nמקור: אֱלֹהִ֑ים\nמוצע: (ללא הצעה)",
+        "context_text": "בראשית ברא אלהים",
+        "file_path": "אוצריא/תנך/תורה/בראשית.txt",
+        "source_folder": "ToratEmetToOtzaria",
+        "library_version": "27",
+        "created_at": "2026-09-15T10:00:00.000Z",
+        "schema_version": 2,
+        "report_kind": "text_correction",
+        "content_digest": "a2238a8f26e4fee2c943cd37b9228fc3d989ea60e77ca7ec2ac7cccad195b2aa",
+        "location": {
+          "line_index": 2,
+          "book_id": 1,
+          "library_build_id": "27",
+          "he_ref": "בראשית א"
+        },
+        "source_hint": {
+          "source_folder": "ToratEmetToOtzaria",
+          "library_relative_path": "אוצריא/תנך/תורה/בראשית.txt",
+          "repo_path": null
+        },
+        "client": {
+          "app_version": "0.9.98",
+          "platform": "windows"
+        },
+        "correction": {
+          "original_line": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א אֱלֹהִ֑ים‏ \"ציטוט\"  \r\nסוף ",
+          "original_selection": "אֱלֹהִ֑ים",
+          "selection_offset": {
+            "unit": "utf16_code_units",
+            "start": 38,
+            "end": 47
+          },
+          "proposed_text": null,
+          "context_before": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א ",
+          "context_after": "‏ \"ציטוט\"  \r\nסוף "
+        }
+      },
+      "sendable": true
+    },
+    {
+      "name": "v2-whole-line",
+      "stored": {
+        "id": "whole",
+        "senderEmail": "",
+        "subject": "s",
+        "bookTitle": "b",
+        "currentRef": "r",
+        "lineNumber": 1,
+        "selectedText": "",
+        "errorDetails": "",
+        "contextText": "",
+        "filePath": "",
+        "sourceFolder": "",
+        "libraryVersion": "unknown",
+        "queueType": "manual",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "schemaVersion": 2,
+        "reportKind": "text_correction",
+        "location": null,
+        "client": null,
+        "correction": {
+          "originalLine": "שורה שלמה",
+          "originalSelection": null,
+          "selectionStart": null,
+          "selectionEnd": null,
+          "proposedText": "שורה מתוקנת"
+        },
+        "serverAcceptedCorrection": null,
+        "rejectionReason": null
+      },
+      "payload": {
+        "report_id": "whole",
+        "sender_email": "",
+        "subject": "s",
+        "book_title": "b",
+        "current_ref": "r",
+        "line_number": 1,
+        "selected_text": "",
+        "error_details": "--- הצעת תיקון ---\nמקור: שורה שלמה\nמוצע: שורה מתוקנת",
+        "context_text": "",
+        "file_path": "",
+        "source_folder": "",
+        "library_version": "unknown",
+        "created_at": "2026-01-01T00:00:00.000Z",
+        "schema_version": 2,
+        "report_kind": "text_correction",
+        "content_digest": "0519b61bdaa03fe881a8f6d124c160a1e9d3248e3f969c69a13a735695e23cf6",
+        "location": {
+          "line_index": null,
+          "book_id": null,
+          "library_build_id": null,
+          "he_ref": null
+        },
+        "source_hint": {
+          "source_folder": "",
+          "library_relative_path": "",
+          "repo_path": null
+        },
+        "client": null,
+        "correction": {
+          "original_line": "שורה שלמה",
+          "original_selection": null,
+          "selection_offset": null,
+          "proposed_text": "שורה מתוקנת",
+          "context_before": "",
+          "context_after": ""
+        }
+      },
+      "sendable": true
+    },
+    {
+      "name": "v2-free-text-no-location",
+      "stored": {
+        "id": "free-2",
+        "senderEmail": "a@b.co",
+        "subject": "נושא",
+        "bookTitle": "ספר",
+        "currentRef": "פרק ב",
+        "lineNumber": 9,
+        "selectedText": "",
+        "errorDetails": "פירוט חופשי",
+        "contextText": "",
+        "filePath": "",
+        "sourceFolder": "",
+        "libraryVersion": "unknown",
+        "queueType": "manual",
+        "createdAt": "2026-09-01T08:30:00.000",
+        "schemaVersion": 2,
+        "reportKind": "free_text",
+        "location": null,
+        "client": null,
+        "correction": null,
+        "serverAcceptedCorrection": null,
+        "rejectionReason": null
+      },
+      "payload": {
+        "report_id": "free-2",
+        "sender_email": "a@b.co",
+        "subject": "נושא",
+        "book_title": "ספר",
+        "current_ref": "פרק ב",
+        "line_number": 9,
+        "selected_text": "",
+        "error_details": "פירוט חופשי",
+        "context_text": "",
+        "file_path": "",
+        "source_folder": "",
+        "library_version": "unknown",
+        "created_at": "2026-09-01T08:30:00.000",
+        "schema_version": 2,
+        "report_kind": "free_text",
+        "content_digest": "559f996661e99277550991179166a4cb1fea98848c49e164e1f31b041190ae54",
+        "location": {
+          "line_index": null,
+          "book_id": null,
+          "library_build_id": null,
+          "he_ref": null
+        },
+        "source_hint": {
+          "source_folder": "",
+          "library_relative_path": "",
+          "repo_path": null
+        },
+        "client": null
+      },
+      "sendable": true
+    },
+    {
+      "name": "v1-legacy",
+      "stored": {
+        "id": "legacy-1",
+        "senderEmail": "user@example.com",
+        "subject": "דיווח על טעות: ספר",
+        "bookTitle": "ספר",
+        "currentRef": "פרק א",
+        "lineNumber": 4,
+        "selectedText": "טקסט",
+        "errorDetails": "פירוט",
+        "contextText": "הקשר",
+        "filePath": "אוצריא/ספר.txt",
+        "sourceFolder": "MoreBooks",
+        "libraryVersion": "26",
+        "queueType": "automaticRetry",
+        "createdAt": "2026-03-16T10:15:00.123456Z"
+      },
+      "payload": {
+        "report_id": "legacy-1",
+        "sender_email": "user@example.com",
+        "subject": "דיווח על טעות: ספר",
+        "book_title": "ספר",
+        "current_ref": "פרק א",
+        "line_number": 4,
+        "selected_text": "טקסט",
+        "error_details": "פירוט",
+        "context_text": "הקשר",
+        "file_path": "אוצריא/ספר.txt",
+        "source_folder": "MoreBooks",
+        "library_version": "26",
+        "created_at": "2026-03-16T10:15:00.123456Z"
+      },
+      "sendable": true
+    },
+    {
+      "name": "v2-malformed-correction-salvaged",
+      "stored": {
+        "id": "bad-corr",
+        "senderEmail": "user@example.com",
+        "subject": "דיווח על טעות: בראשית",
+        "bookTitle": "בראשית",
+        "currentRef": "בראשית א",
+        "lineNumber": 3,
+        "selectedText": "אלהים",
+        "errorDetails": "שם ה' נכתב במלואו",
+        "contextText": "בראשית ברא אלהים",
+        "filePath": "אוצריא/תנך/תורה/בראשית.txt",
+        "sourceFolder": "ToratEmetToOtzaria",
+        "libraryVersion": "27",
+        "queueType": "automaticRetry",
+        "createdAt": "2026-09-15T10:00:00.000Z",
+        "schemaVersion": 2,
+        "reportKind": "text_correction",
+        "location": {
+          "lineIndex": 2,
+          "bookId": 1,
+          "libraryBuildId": "27",
+          "heRef": "בראשית א"
+        },
+        "client": {
+          "appVersion": "0.9.98",
+          "platform": "windows"
+        },
+        "correction": {
+          "originalLine": "שורה",
+          "originalSelection": "לא בשורה",
+          "selectionStart": 0,
+          "selectionEnd": 2,
+          "proposedText": "תיקון"
+        },
+        "serverAcceptedCorrection": null,
+        "rejectionReason": null
+      },
+      "payload": {
+        "report_id": "bad-corr",
+        "sender_email": "user@example.com",
+        "subject": "דיווח על טעות: בראשית",
+        "book_title": "בראשית",
+        "current_ref": "בראשית א",
+        "line_number": 3,
+        "selected_text": "אלהים",
+        "error_details": "שם ה' נכתב במלואו\n\n--- הצעת תיקון ---\nמקור: לא בשורה\nמוצע: תיקון",
+        "context_text": "בראשית ברא אלהים",
+        "file_path": "אוצריא/תנך/תורה/בראשית.txt",
+        "source_folder": "ToratEmetToOtzaria",
+        "library_version": "27",
+        "created_at": "2026-09-15T10:00:00.000Z",
+        "schema_version": 2,
+        "report_kind": "free_text",
+        "content_digest": "4c5b6adfd41fa85e063553e08e3c0f858f50cdb6e7cbf7dad513591c3f0201cc",
+        "location": {
+          "line_index": 2,
+          "book_id": 1,
+          "library_build_id": "27",
+          "he_ref": "בראשית א"
+        },
+        "source_hint": {
+          "source_folder": "ToratEmetToOtzaria",
+          "library_relative_path": "אוצריא/תנך/תורה/בראשית.txt",
+          "repo_path": null
+        },
+        "client": {
+          "app_version": "0.9.98",
+          "platform": "windows"
+        }
+      },
+      "sendable": true
+    },
+    {
+      "name": "v2-lone-surrogate-not-sendable",
+      "stored": {
+        "id": "surrogate",
+        "senderEmail": "user@example.com",
+        "subject": "דיווח על טעות: בראשית",
+        "bookTitle": "בראשית",
+        "currentRef": "בראשית א",
+        "lineNumber": 3,
+        "selectedText": "אלהים",
+        "errorDetails": "שבור \ud83d",
+        "contextText": "בראשית ברא אלהים",
+        "filePath": "אוצריא/תנך/תורה/בראשית.txt",
+        "sourceFolder": "ToratEmetToOtzaria",
+        "libraryVersion": "27",
+        "queueType": "automaticRetry",
+        "createdAt": "2026-09-15T10:00:00.000Z",
+        "schemaVersion": 2,
+        "reportKind": "text_correction",
+        "location": {
+          "lineIndex": 2,
+          "bookId": 1,
+          "libraryBuildId": "27",
+          "heRef": "בראשית א"
+        },
+        "client": {
+          "appVersion": "0.9.98",
+          "platform": "windows"
+        },
+        "correction": {
+          "originalLine": "  (א) <big>בְּ</big>רֵאשִׁ֖ית\tבָּרָ֣א אֱלֹהִ֑ים‏ \"ציטוט\"  \r\nסוף ",
+          "originalSelection": "אֱלֹהִ֑ים",
+          "selectionStart": 38,
+          "selectionEnd": 47,
+          "proposedText": "אֱלֹקִ֑ים"
+        },
+        "serverAcceptedCorrection": null,
+        "rejectionReason": null
+      },
+      "payload": null,
+      "sendable": false
+    }
+  ]
+}

@@ -6,12 +6,12 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
-import 'package:otzaria/app_report/models/app_report.dart';
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 export 'package:otzaria/services/offline_report_script_builder.dart'
     show OfflineSendScript, OfflineSendScriptTarget;
@@ -476,33 +476,36 @@ class AppReportService {
                 : timeoutWithImages,
           );
       final status = response.statusCode;
-      final decoded = _decodeBody(response.bodyBytes);
+      final reply = ReportServerResponse(
+        status,
+        ReportServerResponse.decodeBody(response.bodyBytes),
+      );
+      final decoded = reply.body;
 
-      if (status >= 200 && status < 300) {
-        final issueNumber = decoded?['issueNumber'];
-        final issueUrl = decoded?['issueUrl'];
-        return _Attempt(
-          _AttemptKind.success,
-          httpStatus: status,
-          issueNumber: issueNumber is int ? issueNumber : null,
-          issueUrl: issueUrl is String ? issueUrl : null,
-          merged: decoded?['merged'] == true,
-          duplicate: decoded?['duplicate'] == true,
-          issuePending: decoded?['issuePending'] == true,
-        );
-      }
-      if (status == HttpStatus.conflict) {
-        return _Attempt(_AttemptKind.idConflict, httpStatus: status);
-      }
-      if (status == HttpStatus.badRequest ||
-          status == HttpStatus.requestEntityTooLarge ||
-          status == 422) {
-        final field = decoded?['field'];
-        return _Attempt(
-          _AttemptKind.permanent,
-          httpStatus: status,
-          rejectedField: field is String ? field : null,
-        );
+      switch (reply.kind) {
+        case ReportResponseKind.accepted:
+          final issueNumber = decoded?['issueNumber'];
+          final issueUrl = decoded?['issueUrl'];
+          return _Attempt(
+            _AttemptKind.success,
+            httpStatus: status,
+            issueNumber: issueNumber is int ? issueNumber : null,
+            issueUrl: issueUrl is String ? issueUrl : null,
+            merged: decoded?['merged'] == true,
+            duplicate: reply.duplicate,
+            issuePending: decoded?['issuePending'] == true,
+          );
+        case ReportResponseKind.idConflict:
+          return _Attempt(_AttemptKind.idConflict, httpStatus: status);
+        case ReportResponseKind.rejected:
+          return _Attempt(
+            _AttemptKind.permanent,
+            httpStatus: status,
+            rejectedField: reply.rejectedField,
+          );
+        case ReportResponseKind.closedForShabbat:
+        case ReportResponseKind.transient:
+          break;
       }
       return _Attempt(_AttemptKind.transient, httpStatus: status);
     } on TimeoutException {
@@ -517,15 +520,6 @@ class AppReportService {
   // צילומי מסך מקפיאים את החלון בקידוד; סטטית כדי שהסגירה לא תלכוד את `this`.
   static Future<Uint8List> _encodeBody(AppReport report) =>
       Isolate.run(() => utf8.encode(jsonEncode(report.toApiPayload())));
-
-  static Map<String, dynamic>? _decodeBody(List<int> bytes) {
-    try {
-      final decoded = jsonDecode(utf8.decode(bytes, allowMalformed: true));
-      return decoded is Map<String, dynamic> ? decoded : null;
-    } catch (_) {
-      return null;
-    }
-  }
 }
 
 enum _AttemptKind { success, transient, permanent, idConflict }

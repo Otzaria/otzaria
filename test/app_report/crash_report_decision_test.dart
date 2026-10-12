@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/app_report/models/crash_signature.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 CrashCandidate _candidate({CrashSignature? signature}) => CrashCandidate(
   previousSession: SessionLock(

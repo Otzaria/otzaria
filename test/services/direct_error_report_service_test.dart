@@ -8,11 +8,11 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
-import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 import '../models/direct_error_report_text_correction_test.dart'
     show buildCorrectionReport, trickyLine;
@@ -856,6 +856,28 @@ void _textCorrectionServiceTests() {
         }
       });
     }
+
+    test('400 עם גוף UTF-8 פגום נשאר כשל קבוע', () async {
+      final repository = _Queue(store, DirectErrorReportService.pendingKind);
+      final service = DirectErrorReportService(
+        client: MockClient(
+          (_) async => http.Response.bytes(
+            [0x7B, 0xFF, 0xFE, 0x7D],
+            400,
+            headers: const {'content-type': 'application/json; charset=utf-8'},
+          ),
+        ),
+        reportStore: store,
+      );
+
+      final result = await service.submitReport(
+        buildCorrectionReport(id: 'perm-malformed'),
+      );
+
+      expect(result.status, DirectReportDeliveryStatus.failed);
+      expect(result.message, ReportMessages.serverPermanentFailure(400));
+      expect(await repository.load(), isEmpty);
+    });
 
     for (final status in [408, 429, 500, 503]) {
       test('[T10] $status הוא כשל זמני — נשמר בתור לניסיון חוזר', () async {

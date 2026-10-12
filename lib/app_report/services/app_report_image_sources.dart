@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:otzaria/app_report/models/app_report_image.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 
 /// מקורות התמונות לטופס הדיווח: הלוח, בחירת קובץ וקבצים שנגררו.

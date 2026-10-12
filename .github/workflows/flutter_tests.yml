@@ -146,6 +146,14 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
+      # חוזה הדיווחים משותף עם "עדכוני אוצריא"; ה-goldens שלו נועלים את גופי הבקשות.
+      - name: Report contract package
+        working-directory: packages/otzaria_report_contract
+        run: |
+          dart pub get
+          dart analyze --fatal-infos
+          dart test
+
   test:
     name: Test (shard ${{ matrix.shard }}/5)
     runs-on: ubuntu-latest

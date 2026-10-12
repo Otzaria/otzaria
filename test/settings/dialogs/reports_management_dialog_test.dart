@@ -5,10 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
-import 'package:otzaria/app_report/models/app_report.dart';
 import 'package:otzaria/app_report/view/app_report_dialog.dart';
-import 'package:otzaria/models/direct_error_report.dart';
-import 'package:otzaria/plugins/models/plugin_report_record.dart';
 import 'package:otzaria/settings/panels/reports_card.dart';
 import 'package:otzaria/settings/search/settings_search_registry.dart';
 import 'package:otzaria/settings/tabs/system_settings_tab.dart';
@@ -21,6 +18,7 @@ import 'package:otzaria/settings/panels/error_reports_panel.dart';
 import 'package:otzaria/settings/panels/plugin_reports_panel.dart';
 import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 class _FakeSettingsBloc extends Bloc<SettingsEvent, SettingsState>
     implements SettingsBloc {

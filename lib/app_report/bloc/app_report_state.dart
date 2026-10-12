@@ -1,8 +1,6 @@
 import 'package:equatable/equatable.dart';
-import 'package:otzaria/app_report/models/app_report.dart';
-import 'package:otzaria/app_report/models/app_report_image.dart';
-import 'package:otzaria/app_report/models/app_report_minidump.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// שלב השליחה של הטופס.
 enum AppReportSubmission { idle, sending, finished }

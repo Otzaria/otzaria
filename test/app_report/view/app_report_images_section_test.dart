@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/app_report/models/app_report_image.dart';
 import 'package:otzaria/app_report/services/app_report_image_sources.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 AppReportImage _image(String name, {int size = 4}) => AppReportImage(
   bytes: Uint8List(size),

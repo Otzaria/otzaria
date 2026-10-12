@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
-import 'package:otzaria/utils/canonical_json.dart';
+
+import 'canonical_json.dart';
 
 enum DirectErrorReportQueueType {
   manual,

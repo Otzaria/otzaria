@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 /// minidump של sentry-native מהקריסה, דחוס ב-gzip. מכיל זיכרון של התהליך,
@@ -36,7 +37,7 @@ class AppReportMinidump extends Equatable {
       }
       return AppReportMinidump(gzipBytes: gzipBytes, fileName: name);
     } catch (error) {
-      debugPrint('AppReportMinidump: unreadable: $error');
+      print('AppReportMinidump: unreadable: $error');
       return null;
     }
   }

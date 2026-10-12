@@ -6,7 +6,6 @@ import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/panels/report_panel_widgets.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -15,7 +14,7 @@ import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
-import 'package:otzaria/utils/canonical_json.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// Direct error reports on books: identification email, offline queueing,
 /// the saved queue and the sent history.

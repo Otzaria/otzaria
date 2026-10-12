@@ -5,14 +5,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/app_report/bloc/app_report_event.dart';
 import 'package:otzaria/app_report/bloc/app_report_state.dart';
-import 'package:otzaria/app_report/models/app_report.dart';
-import 'package:otzaria/app_report/models/app_report_minidump.dart';
-import 'package:otzaria/app_report/models/crash_signature.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
-import 'package:otzaria/app_report/repository/app_report_redactor.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// טופס הדיווח על התוכנה: איסוף הצרופות, עריכה ושליחה.
 class AppReportBloc extends Bloc<AppReportEvent, AppReportState> {

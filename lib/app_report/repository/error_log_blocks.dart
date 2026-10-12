@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:otzaria/app_report/models/crash_signature.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// רשומה אחת מ-errors.txt, כולל הטקסט המלא שלה.
 class ErrorLogBlock {

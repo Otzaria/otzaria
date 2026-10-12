@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/app_report/bloc/app_report_bloc.dart';
 import 'package:otzaria/app_report/bloc/app_report_event.dart';
 import 'package:otzaria/app_report/bloc/app_report_state.dart';
-import 'package:otzaria/app_report/models/app_report.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/view/app_report_result_snack.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
@@ -15,6 +14,7 @@ import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// פותח את טופס הדיווח על התוכנה. מחזיר את תוצאת השליחה, או null בביטול.
 Future<AppReportDeliveryResult?> showAppReportDialog(

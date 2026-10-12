@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/app_report/models/app_report.dart';
 import 'package:otzaria/settings/panels/app_reports_panel.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 void main() {
   AppReport report({AppReportTrigger trigger = AppReportTrigger.manual}) =>

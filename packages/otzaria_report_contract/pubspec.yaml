@@ -1,0 +1,21 @@
+name: otzaria_report_contract
+description: >-
+  The report contract between Otzaria and its servers, pure Dart: canonical
+  JSON (OCJ-1), report payloads and digests, crash signatures, the PII
+  redactor and the server response classification. Shared with the offline
+  update app.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  crypto: ^3.0.7
+  equatable: ^2.1.0
+  meta: ^1.16.0
+  path: ^1.9.1
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.31.0

@@ -5,7 +5,6 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/app_report/bloc/app_report_bloc.dart';
 import 'package:otzaria/app_report/bloc/app_report_event.dart';
 import 'package:otzaria/app_report/bloc/app_report_state.dart';
-import 'package:otzaria/app_report/models/app_report.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
@@ -17,6 +16,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// מציג את ההצעה לדווח על קריסה של ההפעלה הקודמת.
 Future<AppReportDeliveryResult?> showCrashPromptDialog(

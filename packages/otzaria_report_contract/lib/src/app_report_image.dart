@@ -1,7 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 /// תמונה שצורפה לדיווח על התוכנה (צילום מסך מודבק, קובץ שנגרר או נבחר).
 @immutable

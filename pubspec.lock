@@ -1230,6 +1230,13 @@ packages:
       url: "https://github.com/Otzaria/otzaria_icons"
     source: git
     version: "0.6.0"
+  otzaria_report_contract:
+    dependency: "direct main"
+    description:
+      path: "packages/otzaria_report_contract"
+      relative: true
+    source: path
+    version: "0.1.0"
   otzaria_search_engine:
     dependency: "direct main"
     description:

@@ -1,8 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/models/direct_error_report.dart';
-import 'package:otzaria/utils/canonical_json.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// שורה גולמית עם כל מה שאסור לנרמל: HTML, ניקוד, טעמים, רווחים בקצוות,
 /// טאב, NBSP, RLM, CRLF בתוך השדה, מירכאות ולוכסן.

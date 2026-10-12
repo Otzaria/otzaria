@@ -2,11 +2,11 @@ import 'dart:convert';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/app_report/models/app_report_minidump.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// תצוגה מקדימה של מה שיישלח: מפת האבחון וקטע יומן השגיאות, כל אחד עם
 /// תיבת סימון להחרגה. הטקסטים טכניים ולכן מוצגים LTR.

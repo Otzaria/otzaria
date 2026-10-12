@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/direct_error_report_text_correction_test.dart'

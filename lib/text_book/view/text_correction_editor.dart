@@ -3,12 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
-import 'package:otzaria/models/direct_error_report.dart';
 import 'package:otzaria/theme/theme_exports.dart';
-import 'package:otzaria/utils/canonical_json.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// מאתר את [selected] כתת-מחרוזת יחידה ומדויקת של [line]; null כשאין מופע
 /// או שיש יותר מאחד — אסור לנחש איזה מופע סומן.

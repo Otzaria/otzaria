@@ -1,18 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
-import 'package:otzaria/plugins/models/plugin_report_record.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/update/app_release_version.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 /// תוצאת מסירה של דיווח תוסף: נשלח עכשיו או נשמר בתור לשליחה מאוחרת.
@@ -76,7 +75,6 @@ class PluginReportService {
   final SentReportsCounter _sentCounter;
 
   static final http.Client _shared = _createClient();
-  static final Random _random = Random.secure();
 
   static http.Client _createClient() {
     final client = http.Client();
@@ -84,15 +82,7 @@ class PluginReportService {
     return client;
   }
 
-  /// מזהה דיווח בפורמט UUID v4 — מאפשר לשרת לזהות שליחה כפולה בניסיון חוזר.
-  static String generateReportId() {
-    final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
-        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
-  }
+  static String generateReportId() => generateReportUuid();
 
   static String normalizeReportType(String? raw) {
     final value = raw?.trim().toLowerCase() ?? '';
@@ -364,15 +354,17 @@ class PluginReportService {
           )
           .timeout(_timeout);
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return const _SendAttemptResult.success();
-      }
-
-      if (response.statusCode == HttpStatus.badRequest ||
-          response.statusCode == 422) {
-        return _SendAttemptResult.permanentFailure(
-          'report rejected: HTTP ${response.statusCode}',
-        );
+      switch (ReportServerResponse(response.statusCode, null).kind) {
+        case ReportResponseKind.accepted:
+          return const _SendAttemptResult.success();
+        // תור התוספים מנסה שוב גם על 409 ו-413.
+        case ReportResponseKind.rejected
+            when response.statusCode != HttpStatus.requestEntityTooLarge:
+          return _SendAttemptResult.permanentFailure(
+            'report rejected: HTTP ${response.statusCode}',
+          );
+        default:
+          break;
       }
 
       return _SendAttemptResult.transientFailure(

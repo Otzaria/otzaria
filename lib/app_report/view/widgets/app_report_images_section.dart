@@ -5,12 +5,12 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:otzaria/app_report/models/app_report_image.dart';
 import 'package:otzaria/app_report/services/app_report_image_sources.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/services/plugin_file_drop_service.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// אזור צירוף צילומי מסך לדיווח: הדבקה (מכל מקום בטופס), שחרור קובץ
 /// או לחיצה לבחירת קובץ, ומתחתיו התמונות שצורפו.
