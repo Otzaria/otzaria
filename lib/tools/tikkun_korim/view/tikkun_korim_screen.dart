@@ -98,6 +98,10 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
   int _lastReportedLine = -1;
   Timer? _syncTimer;
 
+  /// מפתח הרשימה המוצגת ושורת הפתיחה שלה.
+  Key? _pageKey;
+  int _openingLine = 0;
+
   /// בניות ה-PDF שמסך ההדפסה ביקש ועדיין רצות.
   final Set<TikkunPdfExporter> _activeExports = {};
 
@@ -136,13 +140,14 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
   }
 
   void _handleScrollRequest(TikkunKorimState state) {
-    if (!mounted || state.scrollRequestId == _handledScrollRequest) return;
+    // קריאה ממצב ישן יכולה להגיע אחרי שרשימה חדשה כבר בלעה בקשה חדשה ממנה.
+    if (!mounted || state.scrollRequestId <= _handledScrollRequest) return;
     final line = state.scrollToLine;
     _handledScrollRequest = state.scrollRequestId;
     if (line == null || !_scrollController.isAttached) return;
     _syncTimer?.cancel();
     _lastReportedLine = line;
-    // רשימה חדשה כבר בראש; רשימה קיימת חייבת לגלול גם אל הפרק הראשון.
+    // כבר בראש הרשימה — אין לאן לגלול; רשימה שנגללה חוזרת גם אל הפרק הראשון.
     if (line == 0 &&
         _positions.itemPositions.value.any(
           (p) => p.index == 0 && p.itemLeadingEdge >= 0,
@@ -154,6 +159,19 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
+  }
+
+  /// רשימה חדשה נפתחת ישר בשורת היעד ובולעת את בקשת הגלילה: ל-scrollTo עליה
+  /// אין עדיין מיקומים, והחבילה עוברת למעבר-דהייה שמראה שורות רחוקות.
+  int _consumeOpeningLine(TikkunKorimState state) {
+    final line = state.scrollToLine;
+    if (state.scrollRequestId <= _handledScrollRequest || line == null) {
+      return 0;
+    }
+    _handledScrollRequest = state.scrollRequestId;
+    _syncTimer?.cancel();
+    _lastReportedLine = line.clamp(0, state.currentLines.length - 1);
+    return _lastReportedLine;
   }
 
   // ── הדפסה ─────────────────────────────────────────────────────────────
@@ -853,6 +871,8 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     TikkunKorimState state,
     _TikkunColumns columns,
   ) {
+    final lines = state.currentLines;
+    if (state.error != null || lines.isEmpty) _pageKey = null;
     if (state.error != null) {
       return ToolEmptyState(
         icon: FluentIcons.error_circle_24_regular,
@@ -862,7 +882,6 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
     if (state.isLoading && state.pages.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    final lines = state.currentLines;
     if (lines.isEmpty) {
       // ה-BLoC מנסח הודעה מדויקת (למשל "אין הפטרה במנהג זה"); בלעדיה נופלים
       // להודעה הגנרית.
@@ -871,11 +890,15 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
         message: state.headerSubtitle ?? ToolsMessages.tikkunNoData,
       );
     }
+    final pageKey = ValueKey(
+      'tikkun-page-${state.nav.currentColumnIndex}-${identityHashCode(lines)}',
+    );
+    if (pageKey != _pageKey) {
+      _pageKey = pageKey;
+      _openingLine = _consumeOpeningLine(state);
+    }
     return ReaderPage(
-      key: ValueKey(
-        'tikkun-page-${state.nav.currentColumnIndex}-'
-        '${identityHashCode(lines)}',
-      ),
+      key: pageKey,
       lines: lines,
       settings: columns.settings,
       lineWidthEm: state.lineWidthEm,
@@ -885,6 +908,7 @@ class _TikkunKorimViewState extends State<TikkunKorimView> {
       headerSubtitle: state.headerSubtitle,
       scrollController: _scrollController,
       positionsListener: _positions,
+      initialLine: _openingLine,
       onZoomChanged: _setZoom,
     );
   }

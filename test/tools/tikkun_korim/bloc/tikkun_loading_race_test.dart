@@ -105,6 +105,50 @@ void main() {
     expect(bloc.state.nav.tanachBookId, 'ester');
   });
 
+  test(
+    'דיווח שורה על העמודים הישנים במהלך טעינה אינו משנה את הניווט',
+    () async {
+      var roofs = Completer<void>()..complete();
+      final store = FakeTikkunSettingsStore(
+        settings: const TikkunSettings(startupMode: 'lastPosition'),
+      );
+      final data = FakeTikkunDataSource();
+      final bloc = TikkunKorimBloc(
+        repository: TikkunKorimRepository(
+          engine: FakeTikkunEngine(),
+          data: data,
+          textLoader: FakeTikkunTextLoader(),
+          computeRunner: syncComputeRunner,
+        ),
+        data: data,
+        settingsStore: store,
+        widthModelOf: (_) => fakeWidths,
+        measureRoofs: (_) => roofs.future,
+      );
+      addTearDown(bloc.close);
+      final ready = bloc.stream.firstWhere((s) => !s.isLoading);
+      bloc.add(const TikkunStarted());
+      await ready;
+      expect(bloc.state.nav.parashaName, 'בראשית');
+
+      roofs = Completer<void>();
+      bloc.add(const TikkunParashaChanged('נח'));
+      await Future<void>.delayed(Duration.zero);
+      final saved = store.navState;
+      // שורה 0 של העמוד המוצג עדיין שייכת לבראשית.
+      bloc.add(const TikkunVisibleLineChanged(0));
+      await Future<void>.delayed(Duration.zero);
+      expect(bloc.state.nav.parashaName, 'נח');
+      expect(store.navState, saved);
+
+      final loaded = bloc.stream.firstWhere((s) => !s.isLoading);
+      roofs.complete();
+      await loaded;
+      expect(bloc.state.nav.parashaName, 'נח');
+      expect(bloc.state.nav.currentColumnIndex, 1);
+    },
+  );
+
   test('טעינה שהחלה לפני ניקוי המטמון אינה מאכלסת אותו מחדש', () async {
     final loader = _DeferredLoader();
     final repo = TikkunKorimRepository(

@@ -105,14 +105,19 @@ void main() {
   });
 
   testWidgets('עמוד רחב מהחלון נגלל לרוחב', (tester) async {
+    ScrollController horizontal() => tester
+        .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+        .controller!;
+
     await _pump(tester, const TikkunSettings(), width: 1200);
-    expect(find.byType(Scrollbar), findsNothing);
+    expect(horizontal().position.maxScrollExtent, 0);
 
     await _pump(tester, const TikkunSettings(zoom: 2), width: 1200);
     final scroll = tester.widget<SingleChildScrollView>(
       find.byType(SingleChildScrollView),
     );
     expect(scroll.scrollDirection, Axis.horizontal);
+    expect(horizontal().position.maxScrollExtent, greaterThan(0));
   });
 
   testWidgets('גרירה בעכבר גוללת את העמוד בשני הצירים', (tester) async {

@@ -396,6 +396,29 @@ void main() {
     );
 
     blocTest<TikkunKorimBloc, TikkunKorimState>(
+      'טעינה מחדש בשינוי הגדרה שומרת את מקום הקריאה',
+      build: buildBloc,
+      act: (bloc) async {
+        bloc.add(const TikkunStarted());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const TikkunColumnSelected(2));
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(
+          TikkunSettingsUpdated(
+            bloc.state.settings.copyWith(
+              decalogueTaam: TikkunDecalogueTaam.elyon,
+            ),
+          ),
+        );
+      },
+      wait: const Duration(milliseconds: 30),
+      verify: (bloc) {
+        expect(engine.lastDecalogueTaam, TikkunDecalogueTaam.elyon);
+        expect(bloc.state.nav.currentColumnIndex, 2);
+      },
+    );
+
+    blocTest<TikkunKorimBloc, TikkunKorimState>(
       'הצצה מחליפה את הטור המוסתר בפועל',
       build: () {
         store = FakeTikkunSettingsStore(
