@@ -16,7 +16,7 @@
 #define MyAppPublisher "sivan22"
 #define MyAppURL "https://github.com/otzaria/otzaria"
 #define MyAppExeName "otzaria.exe"
-; שם ה-mutex של windows/runner/main.cpp — החוזה הציבורי "אוצריא רצה".
+; שם ה-mutex של windows/runner/main.cpp. נבדק בקוד ולא ב-AppMutex, שמבטל בשקט עדכון שקט.
 #define AppMutexName "OtzariaAppSingleInstance"
 ; חייב להתאים ל-AppPaths.bundledPluginsFolderName.
 #define BundledPluginsDirName "bundled_plugins"
@@ -104,7 +104,6 @@ SetupLogging=yes
 ; בלי זה בחירת המשימות נשמרת ברישום — "איפוס הגדרות" שסומן פעם היה
 ; רץ שוב בכל שדרוג שקט ומוחק את נתוני המשתמש (issue #941).
 UsePreviousTasks=no
-AppMutex={#AppMutexName}
 ; עברית כשממשק Windows בעברית, ואנגלית בכל שפה אחרת: english ראשונה ולכן היא הנסיגה.
 ; בשדרוג Inno שומר את שפת ההתקנה הקודמת (UsePreviousLanguage).
 LanguageDetectionMethod=uilanguage
@@ -135,6 +134,16 @@ Name: "calendaricon"; Description: "{cm:CalendarIconTask}"; GroupDescription: "{
 Name: "resetsettings"; Description: "{cm:ResetSettingsTask}"; Flags: unchecked
 
 [CustomMessages]
+english.AppRunningTitle=Otzaria is open
+hebrew.AppRunningTitle=אוצריא פתוחה
+english.AppRunningText=Close Otzaria (all of its windows) and then choose Retry.
+hebrew.AppRunningText=יש לסגור את אוצריא (את כל החלונות שלה) ואז לבחור "נסה שוב".
+english.AppRunningRetry=Retry
+hebrew.AppRunningRetry=נסה שוב
+english.AppRunningCancel=Cancel
+hebrew.AppRunningCancel=ביטול
+english.AppStillRunning=Otzaria is still running; the update was not installed.
+hebrew.AppStillRunning=אוצריא עדיין פתוחה; העדכון לא הותקן.
 english.ResetSettingsTask=Reset user settings — warning: deletes personal notes, bookmarks, history and plugin data! (The books and backups folders are kept. Needed only when upgrading from a version older than 0.9.80, or to fix problems)
 hebrew.ResetSettingsTask=איפוס הגדרות משתמש — אזהרה: ימחק הערות אישיות, סימניות, היסטוריה ונתוני תוספים! (תיקיות הספרים והגיבויים נשמרות. נדרש רק בשדרוג מגרסה שקודמת ל-0.9.80, או לפתרון תקלות)
 
@@ -436,9 +445,10 @@ begin
   Value := ExpandConstant('{param:DIR|}');
   if Value <> '' then
     Result := Result + ' /DIR=' + AddQuotes(Value);
+  // לוג נפרד: התהליך הנוכחי מחזיק את שלו פתוח עד שהוא יוצא.
   Value := ExpandConstant('{param:LOG|}');
   if Value <> '' then
-    Result := Result + ' /LOG=' + AddQuotes(Value)
+    Result := Result + ' /LOG=' + AddQuotes(Value + '.relaunch.log')
   else if CmdLineParamExists('/LOG') then
     Result := Result + ' /LOG';
 end;
@@ -1020,7 +1030,8 @@ begin
     Confirm := False;
 end;
 
-procedure WaitForAppExit(TimeoutMs: Integer);
+// True כשאוצריא המותקנת אינה רצה (עד TimeoutMs).
+function WaitForAppExit(TimeoutMs: Integer): Boolean;
 var
   Waited: Integer;
 begin
@@ -1029,6 +1040,33 @@ begin
   begin
     Sleep(250);
     Waited := Waited + 250;
+  end;
+  Result := not CheckForMutexes('{#AppMutexName}');
+end;
+
+// לפני השיגור השקט: המשתמש עוד רואה חלון, ולכן כאן מבקשים לסגור את אוצריא.
+function ConfirmAppClosed(): Boolean;
+begin
+  Result := True;
+  while CheckForMutexes('{#AppMutexName}') do
+    if not UiAsk(CustomMessage('AppRunningTitle'), CustomMessage('AppRunningText'),
+      CustomMessage('AppRunningRetry'), CustomMessage('AppRunningCancel'), False) then
+    begin
+      Result := False;
+      exit;
+    end;
+end;
+
+// בהרצה שקטה אין את מי לשאול: ממתינים, ואם אוצריא עדיין רצה Setup יוצא בקוד 7.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if (not WizardSilent) or PortableMode then
+    exit;
+  if not WaitForAppExit(30000) then
+  begin
+    Log('Otzaria is still running (mutex {#AppMutexName}); aborting silent install.');
+    Result := CustomMessage('AppStillRunning');
   end;
 end;
 
@@ -1045,9 +1083,6 @@ begin
 
   if WizardSilent then
   begin
-    // העדכון מתוך אוצריא משגר את המתקין לפני שהיא סיימה לצאת; בלי ההמתנה
-    // בדיקת AppMutex בהרצה שקטה מבטלת את ההתקנה.
-    WaitForAppExit(30000);
     // התקנה ניידת שקטה (/VERYSILENT /PORTABLE /DIR=...): המצב נקבע כאן כי
     // NextButtonClick לא רץ בהתקנה שקטה. /DIR חובה — בלעדיו ברירת המחדל היא
     // תיקיית ההתקנה הרגילה הקיימת, וה-marker היה הופך אותה לניידת.
@@ -1067,6 +1102,11 @@ begin
 
   if IsUpgradeFromModernVersion() then
   begin
+    if not ConfirmAppClosed() then
+    begin
+      Result := False;
+      exit;
+    end;
     // /SILENT מדלג על האשף אך משאיר חלון התקדמות; בריצה השנייה
     // WizardSilent יהיה True והקוד הזה לא ירוץ שוב.
     if IsAdmin then
