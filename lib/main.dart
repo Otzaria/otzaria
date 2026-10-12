@@ -87,6 +87,7 @@ import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/otzaria_capabilities.dart';
 import 'package:otzaria/core/data_root_writability_warning.dart';
 import 'package:otzaria/core/cli_command.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -921,6 +922,7 @@ Future<void> _initializeRestartableRuntime() async {
   unawaited(_runDeferredDataRootWritabilityWarning());
   unawaited(_runDeferredCrashCheck());
   unawaited(_runDeferredAttachedLibraries());
+  unawaited(_runDeferredCapabilitiesWrite());
 }
 
 /// כשקונטיינמנט ה-Job Object לא הוקם, תהליכי msedgewebview2.exe שורדים את
@@ -1208,6 +1210,23 @@ Future<void> _runDeferredAttachedLibraries() async {
   AttachedLibrariesRepository.instance.changes.listen(
     (_) => unawaited(_syncExternalLinkIndex()),
   );
+}
+
+Future<void> _runDeferredCapabilitiesWrite() async {
+  // פר-תהליך: קובץ אחד לשורש הנתונים, וחלון משני היה כותב אותו שוב.
+  if (WindowRole.isSecondary) return;
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+    );
+  } on TimeoutException {
+    // ממשיכים בכל זאת — אחרת המעדכן הלא-מקוון לא יראה את היכולות.
+  }
+  try {
+    await OtzariaCapabilities.writeForCurrentProcess();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Capabilities file', error, stackTrace);
+  }
 }
 
 /// Runs after the attached-library scan so every pinned source is known. The

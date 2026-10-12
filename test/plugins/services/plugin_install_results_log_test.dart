@@ -49,7 +49,7 @@ void main() {
 
   test('מעל 500 שורות — נשארות 200 האחרונות', () async {
     file.writeAsStringSync(
-      List.generate(500, (i) => jsonEncode({'path': '$i'})).join('\n') + '\n',
+      '${List.generate(500, (i) => jsonEncode({'path': '$i'})).join('\n')}\n',
     );
 
     await log.append(path: 'new', outcome: PluginInstallOutcome.installed);
