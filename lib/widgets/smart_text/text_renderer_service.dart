@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
+import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/widgets/smart_text/raised_markers.dart';
@@ -106,7 +107,19 @@ class TextRendererService {
       );
     }
 
-    // 4. החלפת שמות קדושים (אם נדרש)
+    // 4. סמני השמות שבמסד — אחרי ההדגשה (כמו שם הוי"ה) ולפני ה-regex, כדי
+    // ששם שכבר הוחלף בסמן לא יוחלף שוב.
+    if (processed.contains(kDivineNameMarkerPrefix)) {
+      processed = resolveDivineNameMarkers(
+        processed,
+        substituteOtherNames: settings.substituteDivineNames,
+        holyNameStyle: settings.replaceHolyNames
+            ? settings.holyNameStyle
+            : null,
+      );
+    }
+
+    // 4a. החלפת שם הוי"ה בכל מקום (אם נדרש)
     if (settings.replaceHolyNames) {
       processed = utils.replaceHolyNames(
         processed,
@@ -182,11 +195,15 @@ class TextRendererService {
 
       final wrappedInner = _wrapWithBidiIsolate(innerHtml);
       final isFootnoteMarker = _footnoteMarkerClassRegex.hasMatch(attrs);
+      // סמן שם אינו עיצוב — אחרת הוא לבדו מעביר את ה-sup לנתיב ה-HTML.
+      final styledInner = innerHtml.contains(kDivineNameMarkerPrefix)
+          ? resolveDivineNameMarkers(innerHtml, substituteOtherNames: false)
+          : innerHtml;
 
       // sup סמנטי או מעוצב נשאר בנתיב ה-HTML כדי לא לאבד attributes וסגנונות
       // מקוננים שהציור המורם אינו יכול לשחזר מ-TextStyle הבסיסי בלבד.
       if (!isFootnoteMarker &&
-          (attrs.trim().isNotEmpty || _htmlTagRegex.hasMatch(innerHtml))) {
+          (attrs.trim().isNotEmpty || _htmlTagRegex.hasMatch(styledInner))) {
         return '<sup$attrs>$wrappedInner</sup>';
       }
 
@@ -288,6 +305,7 @@ class TextRendererService {
       removeTeamim: settings.removeTeamim,
       replaceHolyNames: settings.replaceHolyNames,
       holyNameStyle: settings.holyNameStyle,
+      substituteDivineNames: settings.substituteDivineNames,
       searchText: settings.searchText,
       currentSearchIndex: settings.currentSearchIndex,
       searchOptions: settings.searchOptions,

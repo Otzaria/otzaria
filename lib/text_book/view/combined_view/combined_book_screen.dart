@@ -2799,9 +2799,13 @@ class _CombinedViewState extends State<CombinedView> {
                           }
 
                           // קישורי inline ראשונים — האופסטים שלהם גולמיים.
-                          String data = injectInlineLinks(
-                            widget.data[primaryLineIndex],
-                            linksForLine,
+                          String data = injectDivineNameMarkers(
+                            injectInlineLinks(
+                              widget.data[primaryLineIndex],
+                              linksForLine,
+                            ),
+                            state.divineNames,
+                            primaryLineIndex,
                           );
                           data = inline_notes.addInlineNotePreviewLinks(
                             data,
@@ -3201,7 +3205,11 @@ class _CombinedViewState extends State<CombinedView> {
               .toList()
         : const <Link>[];
     // קישורי inline ראשונים — האופסטים שלהם גולמיים.
-    var textWithLinks = injectInlineLinks(rawText, linksForLine);
+    var textWithLinks = injectDivineNameMarkers(
+      injectInlineLinks(rawText, linksForLine),
+      state.divineNames,
+      lineIndex,
+    );
     textWithLinks = inline_notes.addInlineNotePreviewLinks(
       textWithLinks,
       lineIndex: lineIndex,

@@ -3024,9 +3024,14 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 final hasOwnAnchors = widget.anchorLinksByLine != null;
                 var data = widget.content[primaryLineIndex];
                 if (widget.isMainText) {
-                  // קישורי inline ראשונים — האופסטים שלהם גולמיים.
+                  // קישורי inline ראשונים — האופסטים שלהם גולמיים; אחריהם
+                  // השמות, לפני כל הזרקה שמוסיפה תוכן גלוי.
                   data = _injectPreviewMarkers(
-                    injectInlineLinks(data, inlineLinks),
+                    injectDivineNameMarkers(
+                      injectInlineLinks(data, inlineLinks),
+                      state.divineNames,
+                      primaryLineIndex,
+                    ),
                     primaryLineIndex,
                     state,
                   );
@@ -3357,7 +3362,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     // קישורי inline ראשונים — האופסטים שלהם גולמיים.
     var textWithLinks = widget.isMainText
         ? _injectPreviewMarkers(
-            injectInlineLinks(rawText, inlineLinks),
+            injectDivineNameMarkers(
+              injectInlineLinks(rawText, inlineLinks),
+              state.divineNames,
+              lineIndex,
+            ),
             lineIndex,
             state,
           )

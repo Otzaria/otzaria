@@ -3,6 +3,7 @@ import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/hidden/hidden_titles.dart';
 import 'dart:async';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/scheduler.dart';
@@ -194,6 +195,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
        super(initialState) {
     on<LoadContent>(_onLoadContent);
     on<UpdateResolvedBookId>(_onUpdateResolvedBookId);
+    on<UpdateDivineNames>(_onUpdateDivineNames);
     on<UpdateFontSize>(_onUpdateFontSize);
     on<ToggleLeftPane>(_onToggleLeftPane);
     on<ToggleSplitView>(_onToggleSplitView);
@@ -1118,6 +1120,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       }
 
       _enrichHeCategoriesInBackground(book);
+      _loadDivineNamesInBackground(book);
     } catch (e, st) {
       debugPrint('Error loading textbook: $e\n$st');
       if (state is TextBookInitial) {
@@ -3224,6 +3227,38 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     } catch (e) {
       debugPrint('⚠️ Failed to save active commentators per book: $e');
     }
+  }
+
+  Future<void> _loadDivineNamesInBackground(TextBook book) async {
+    final spans = await DivineNamesRepository.instance.spansFor(
+      book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      fileType: book.fileType,
+      versionTitle: book.versionTitle,
+    );
+    if (isClosed || spans.isEmpty) return;
+    add(
+      UpdateDivineNames(
+        bookTitle: book.title,
+        versionTitle: book.versionTitle,
+        spans: spans,
+      ),
+    );
+  }
+
+  void _onUpdateDivineNames(
+    UpdateDivineNames event,
+    Emitter<TextBookState> emit,
+  ) {
+    final current = state;
+    if (current is! TextBookLoaded) return;
+    // מעבר מהיר בין ספרים — המופעים שייכים לספר הקודם.
+    if (current.book.title != event.bookTitle ||
+        current.book.versionTitle != event.versionTitle) {
+      return;
+    }
+    emit(current.copyWith(divineNames: event.spans));
   }
 
   Future<void> _enrichHeCategoriesInBackground(TextBook book) async {

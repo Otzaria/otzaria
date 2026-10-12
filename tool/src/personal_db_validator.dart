@@ -55,6 +55,7 @@ const Set<String> kValidatorKnownTables = {
   'external_link',
   'book_banner',
   'book_protection',
+  'line_divine_name',
 };
 
 /// עותקים של `kMaxExternalLinkRows` / `kMaxExternalTextLength`.
@@ -167,6 +168,12 @@ class _Caps {
       'hasBookVersions': books && has('book_version') && has('version_line'),
       'hasLineRef': lines && has('line_ref'),
       'hasLineDhDisplay': books && col('line_dh', 'dhDisplay'),
+      'hasDivineNames':
+          lines &&
+          col('line_divine_name', 'lineId') &&
+          col('line_divine_name', 'charStart') &&
+          col('line_divine_name', 'charEnd') &&
+          col('line_divine_name', 'kind'),
       'hasLineBookIndex': indexes.contains('idx_line_book_index'),
       'hasAuthors': books && has('author') && has('book_author'),
       'hasTopics': books && has('topic') && has('book_topic'),

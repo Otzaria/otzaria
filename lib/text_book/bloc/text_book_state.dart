@@ -5,6 +5,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -259,6 +260,9 @@ class TextBookLoaded extends TextBookState {
   // Caches
   final Map<int, List<Link>> linksByLine;
 
+  /// מופעי שמות הקודש שסומנו במסד, נטענים ברקע; ריק במסד ישן.
+  final DivineNameSpans divineNames;
+
   // Controllers
   final ItemScrollController scrollController;
   final ItemPositionsListener positionsListener;
@@ -288,6 +292,7 @@ class TextBookLoaded extends TextBookState {
     this.visibleLinks = const [],
     this.selectedLinkTypes = const {},
     required this.linksByLine,
+    DivineNameSpans? divineNames,
     required this.tableOfContents,
     bool? removeNikud,
     bool removePunctuation = false,
@@ -336,7 +341,8 @@ class TextBookLoaded extends TextBookState {
     this.hasLinksFile = false,
     this.highlightText = '',
     this.permanentHighlightLine,
-  }) : displayOverrides =
+  }) : divineNames = divineNames ?? DivineNameSpans.empty,
+       displayOverrides =
            displayOverrides ??
            legacyDisplayOverrides(
              view: showPageShapeView ? TextView.pageShape : TextView.regular,
@@ -503,6 +509,7 @@ class TextBookLoaded extends TextBookState {
     List<Link>? visibleLinks,
     Set<String>? selectedLinkTypes,
     Map<int, List<Link>>? linksByLine,
+    DivineNameSpans? divineNames,
     List<TocEntry>? tableOfContents,
     bool? removeNikud,
     bool? removePunctuation,
@@ -645,6 +652,7 @@ class TextBookLoaded extends TextBookState {
       visibleLinks: visibleLinks ?? this.visibleLinks,
       selectedLinkTypes: selectedLinkTypes ?? this.selectedLinkTypes,
       linksByLine: linksByLine ?? this.linksByLine,
+      divineNames: divineNames ?? this.divineNames,
       tableOfContents: tableOfContents ?? this.tableOfContents,
       isTanach: isTanach ?? this.isTanach,
       protection: protection ?? this.protection,
@@ -745,6 +753,7 @@ class TextBookLoaded extends TextBookState {
     // נבלעת ע"י השוואת ה-state והבחירה לא מתעדכנת.
     activeCommentators,
     commentatorGroups,
+    divineNames,
     availableCommentators.length,
     rareCommentators,
     links.length,

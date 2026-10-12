@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
@@ -39,6 +41,63 @@ String applyTextBookExportTextTransforms(
   }
   return stripHtml ? stripHtmlIfNeeded(text) : text;
 }
+
+/// בקשת ייצוא של ספר שלם. עוברת ל-isolate, ולכן מופעי השמות מגיעים כנתונים
+/// ([divineNames]) ולא נשלפים מהמסד שם.
+class TextBookExportRequest {
+  final String rawContent;
+  final bool removeNikud;
+  final bool removeTaamim;
+  final bool shouldReplaceHolyNames;
+  final HolyNameStyle holyNameStyle;
+  final DivineNameSpans divineNames;
+  final bool substituteDivineNames;
+
+  TextBookExportRequest({
+    required this.rawContent,
+    required this.removeNikud,
+    required this.removeTaamim,
+    required this.shouldReplaceHolyNames,
+    this.holyNameStyle = HolyNameStyle.kufKuf,
+    DivineNameSpans? divineNames,
+    this.substituteDivineNames = false,
+  }) : divineNames = divineNames ?? DivineNameSpans.empty;
+}
+
+/// שורות הספר לייצוא: מופעי השמות לפי `lineIndex` על השורה הגולמית, ואחריהם
+/// ניקוד/טעמים ושם הוי"ה (ה-regex, כמו בתצוגה).
+List<String> textBookExportLines(
+  TextBookExportRequest request, {
+  required bool stripHtml,
+}) {
+  final content = applyDivineNamesToText(
+    request.rawContent,
+    request.divineNames,
+    substituteOtherNames: request.substituteDivineNames,
+    holyNameStyle: request.shouldReplaceHolyNames
+        ? request.holyNameStyle
+        : null,
+  );
+  return content
+      .split('\n')
+      .map(
+        (line) => applyTextBookExportTextTransforms(
+          line,
+          removeNikud: request.removeNikud,
+          removeTaamim: request.removeTaamim,
+          shouldReplaceHolyNames: request.shouldReplaceHolyNames,
+          holyNameStyle: request.holyNameStyle,
+          stripHtml: stripHtml,
+        ),
+      )
+      .toList(growable: false);
+}
+
+/// תוכן קובץ הטקסט של ייצוא ספר שלם.
+String createTextBookTextExport(TextBookExportRequest request) =>
+    request.rawContent.isEmpty
+    ? ''
+    : textBookExportLines(request, stripHtml: true).join('\n');
 
 /// מנקה שם ספר כך שיהיה תקין כשם קובץ במערכות הקבצים הנתמכות.
 String sanitizeTextBookExportFileName(String value) {

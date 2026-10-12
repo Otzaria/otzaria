@@ -2,6 +2,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/pdf_book/utils/pdf_spread_layout.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 import 'package:pdfrx/pdfrx.dart';
 
 /// בונה מיפוי מ-מספר עמוד ל-תווית מה-outline של ה-PDF.
@@ -196,8 +197,11 @@ String printCommentaryContentCacheKey(
   required bool removeTaamim,
   required bool replaceHolyNames,
   required bool keepHtml,
+  HolyNameStyle holyNameStyle = HolyNameStyle.kufKuf,
+  bool substituteDivineNames = false,
 }) =>
-    '$removeNikud|$removeTaamim|$replaceHolyNames'
+    '$removeNikud|$removeTaamim|$replaceHolyNames|${holyNameStyle.storageKey}'
+    '|$substituteDivineNames'
     '::${link.contentIdentityKey}::${link.heRef}::$keepHtml';
 
 /// מספר השורות של טקסט הספר, שמור לפי זהות המחרוזת: מסך ההדפסה שואל עליו

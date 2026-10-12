@@ -91,6 +91,7 @@ void main() {
         'hasBookVersions': caps.hasBookVersions,
         'hasLineRef': caps.hasLineRef,
         'hasLineDhDisplay': caps.hasLineDhDisplay,
+        'hasDivineNames': caps.hasDivineNames,
         'hasLineBookIndex': caps.hasLineBookIndex,
         'hasAuthors': caps.hasAuthors,
         'hasTopics': caps.hasTopics,

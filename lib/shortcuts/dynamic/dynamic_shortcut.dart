@@ -62,6 +62,7 @@ class DynamicDisplayChange {
   final DynamicMarkChange? punctuation;
   final HolyNameDisplay? holyName;
   final DynamicMarkChange? anchorMarkers;
+  final DivineNamesDisplay? divineNames;
 
   const DynamicDisplayChange({
     this.nikud,
@@ -69,6 +70,7 @@ class DynamicDisplayChange {
     this.punctuation,
     this.holyName,
     this.anchorMarkers,
+    this.divineNames,
   });
 
   bool get isEmpty =>
@@ -76,7 +78,8 @@ class DynamicDisplayChange {
       teamim == null &&
       punctuation == null &&
       holyName == null &&
-      anchorMarkers == null;
+      anchorMarkers == null &&
+      divineNames == null;
 
   /// הטלאי שנוצר מהחלת השינוי על הפרופיל הפתור כעת.
   TextDisplayPatch patchFor(TextDisplayProfile current) => TextDisplayPatch(
@@ -85,6 +88,7 @@ class DynamicDisplayChange {
     punctuation: punctuation?.apply(current.punctuation),
     holyName: holyName,
     anchorMarkers: anchorMarkers?.apply(current.anchorMarkers),
+    divineNames: divineNames,
   );
 
   DynamicDisplayChange copyWith({
@@ -93,6 +97,7 @@ class DynamicDisplayChange {
     Object? punctuation = _keep,
     Object? holyName = _keep,
     Object? anchorMarkers = _keep,
+    Object? divineNames = _keep,
   }) => DynamicDisplayChange(
     nikud: nikud == _keep ? this.nikud : nikud as DynamicMarkChange?,
     teamim: teamim == _keep ? this.teamim : teamim as DynamicTeamimChange?,
@@ -103,6 +108,9 @@ class DynamicDisplayChange {
     anchorMarkers: anchorMarkers == _keep
         ? this.anchorMarkers
         : anchorMarkers as DynamicMarkChange?,
+    divineNames: divineNames == _keep
+        ? this.divineNames
+        : divineNames as DivineNamesDisplay?,
   );
 
   static const Object _keep = Object();
@@ -113,6 +121,7 @@ class DynamicDisplayChange {
     if (punctuation != null) 'punctuation': punctuation!.name,
     if (holyName != null) 'holyName': holyName!.name,
     if (anchorMarkers != null) 'anchorMarkers': anchorMarkers!.name,
+    if (divineNames != null) 'divineNames': divineNames!.name,
   };
 
   factory DynamicDisplayChange.fromJson(Map<String, dynamic> json) =>
@@ -122,6 +131,7 @@ class DynamicDisplayChange {
         punctuation: DynamicMarkChange.fromJson(json['punctuation']),
         holyName: HolyNameDisplay.fromJson(json['holyName']),
         anchorMarkers: DynamicMarkChange.fromJson(json['anchorMarkers']),
+        divineNames: DivineNamesDisplay.fromJson(json['divineNames']),
       );
 
   @override
@@ -131,11 +141,18 @@ class DynamicDisplayChange {
       teamim == other.teamim &&
       punctuation == other.punctuation &&
       holyName == other.holyName &&
-      anchorMarkers == other.anchorMarkers;
+      anchorMarkers == other.anchorMarkers &&
+      divineNames == other.divineNames;
 
   @override
-  int get hashCode =>
-      Object.hash(nikud, teamim, punctuation, holyName, anchorMarkers);
+  int get hashCode => Object.hash(
+    nikud,
+    teamim,
+    punctuation,
+    holyName,
+    anchorMarkers,
+    divineNames,
+  );
 }
 
 /// קיצור מקלדת לפעולה דינמית: המשתמש בוחר את הפעולה ואת הפרמטרים שלה
@@ -242,6 +259,11 @@ class DynamicShortcut {
         },
       if (change.anchorMarkers != null)
         '${_mark(change.anchorMarkers!)} ציוני מפרשים',
+      if (change.divineNames != null)
+        switch (change.divineNames!) {
+          DivineNamesDisplay.asIs => 'שאר שמות הקודש ככתבם',
+          DivineNamesDisplay.substitute => 'שאר שמות הקודש בכינוי',
+        },
     ];
     if (isCopy && plainTextOnly) parts.add('ללא עיצוב');
     final what = parts.isEmpty ? 'ללא שינוי' : parts.join(', ');

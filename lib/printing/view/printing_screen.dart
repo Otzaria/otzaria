@@ -5,7 +5,7 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show mapEquals;
+import 'package:flutter/foundation.dart' show mapEquals, visibleForTesting;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
@@ -26,7 +26,10 @@ import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/printing/commentary_print_limit.dart';
 import 'package:otzaria/printing/safer_print_service.dart';
@@ -129,6 +132,11 @@ class PrintingScreen extends StatefulWidget {
     this.documentTitle,
     this.protection,
   });
+
+  /// בבדיקות: מקבל את בלוקי הטקסט שנבנו לטווח ההדפסה.
+  @visibleForTesting
+  static void Function(List<Map<String, String>> blocks)? debugOnPrintBlocks;
+
   @override
   State<PrintingScreen> createState() => _PrintingScreenState();
 }
@@ -221,6 +229,14 @@ class _PrintingScreenState extends State<PrintingScreen> {
   // הגדרות ניקוד וטעמים - ברירת מחדל לפי תצוגת הספר
   late bool _removeNikud;
   late bool _removeTaamim;
+
+  // שמות הקודש להדפסה הזו בלבד — ברירת המחדל מפרופיל ערוץ הייצוא.
+  late HolyNameDisplay _holyName;
+  late DivineNamesDisplay _divineNamesDisplay;
+  DivineNameSpans _divineNames = DivineNameSpans.empty;
+
+  // הפלט נבנה רק אחרי הטעינה — אחרת הדפסה מהירה יוצאת בלי ההחלפה.
+  late final Future<void> _divineNamesReady;
 
   // יעד ההדפסה הנבחר (הדפסה/PDF/Word) — נשמר כעדיפות לפעמים הבאות.
   static const _destinationKey = 'key-print-destination';
@@ -333,6 +349,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final profile = widget.displayProfile;
     _removeNikud = profile?.removeNikud ?? widget.removeNikud;
     _removeTaamim = profile?.removeTeamim ?? widget.removeTaamim;
+    final exportProfile = _exportProfile;
+    _holyName = exportProfile.holyName;
+    _divineNamesDisplay = exportProfile.divineNames;
+    _divineNamesReady = _loadDivineNames();
 
     // במצב PDF חיצוני (כמו "צורת הדף") אין טווח שורות/כותרות.
     if (widget.createPdfOverride != null) {
@@ -836,6 +856,8 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _removeTaamim,
       holyNames,
       _holyNameStyle.storageKey,
+      _divineNamesDisplay.name,
+      identityHashCode(_divineNames),
       startLine,
       endLine,
       _includeCommentaries,
@@ -847,6 +869,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   }
 
   Future<Uint8List> _createBasePdf(PdfPageFormat format) async {
+    await _divineNamesReady;
     final key = _baseCacheKey(format);
     final cached = _cachedBasePdf;
     if (cached != null && _cachedBaseKey == key) {
@@ -969,7 +992,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final pageMargin = this.pageMargin;
     final fontSize = this.fontSize;
 
-    String bookName = allLines.isNotEmpty ? stripHtmlIfNeeded(allLines[0]) : '';
+    String bookName = allLines.isNotEmpty
+        ? stripHtmlIfNeeded(_withDivineNames(allLines[0], 0))
+        : '';
     bookName = _applyTextTransforms(bookName, shouldReplaceHolyNames);
     final selectedStart = startLine.clamp(0, allLines.length);
     final selectedEnd = _limitPrintEnd(
@@ -1023,9 +1048,61 @@ class _PrintingScreenState extends State<PrintingScreen> {
         ),
       );
 
-  HolyNameStyle get _holyNameStyle => _exportProfile.holyNameStyle;
+  HolyNameStyle get _holyNameStyle => _holyName.style ?? HolyNameStyle.kufKuf;
 
-  bool get _shouldReplaceHolyNames => _exportProfile.replaceHolyNames;
+  bool get _shouldReplaceHolyNames => _holyName != HolyNameDisplay.asIs;
+
+  bool get _substituteDivineNames =>
+      _divineNamesDisplay == DivineNamesDisplay.substitute;
+
+  /// מופעי השמות של הספר (מהמסד), לבורר "שאר שמות הקודש".
+  Future<void> _loadDivineNames() async {
+    final book = widget.book;
+    if (book == null || widget.createPdfOverride != null) return;
+    final spans = await DivineNamesRepository.instance.spansFor(
+      book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      fileType: book.fileType,
+      versionTitle: book.versionTitle,
+    );
+    if (!mounted || spans.isEmpty) return;
+    setState(() => _divineNames = spans);
+  }
+
+  /// שורה [lineIndex] הגולמית של הספר עם מופעי השמות — לפני כל טרנספורמציה,
+  /// כי האופסטים נמדדו על השורה כפי שנשמרה.
+  String _withDivineNames(String rawLine, int lineIndex) =>
+      applyDivineNamesToLine(
+        rawLine,
+        _divineNames,
+        lineIndex,
+        substituteOtherNames: _substituteDivineNames,
+        holyNameStyle: _shouldReplaceHolyNames ? _holyNameStyle : null,
+      );
+
+  /// כמו [_withDivineNames] לקטע מפרש, לפי מופעי ספר המפרש.
+  Future<String> _withCommentaryDivineNames(Link link, String rawText) async {
+    final holyNameStyle = _shouldReplaceHolyNames ? _holyNameStyle : null;
+    if (!_substituteDivineNames && holyNameStyle == null) return rawText;
+    // קטע שמשתרע על כמה שורות — אין שורה אחת שהאופסטים שלה מתאימים לו.
+    if (link.index2End != null && link.index2End != link.index2) {
+      return rawText;
+    }
+    final spans = await DivineNamesRepository.instance.spansFor(
+      getTitleFromPath(link.path2),
+      categoryId: link.targetCategoryId,
+      source: link.targetSource,
+      fileType: link.targetFileType,
+    );
+    return applyDivineNamesToLine(
+      rawText,
+      spans,
+      link.index2 - 1,
+      substituteOtherNames: _substituteDivineNames,
+      holyNameStyle: holyNameStyle,
+    );
+  }
 
   /// מסיר ניקוד/טעמים ומחליף שמות קודש לפי בחירת המשתמש.
   String _applyTextTransforms(String input, bool shouldReplaceHolyNames) {
@@ -1299,6 +1376,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     required bool shouldReplaceHolyNames,
     required List<PersonalNote> personalNotes,
     bool keepHtml = false,
+    bool applyDivineNames = true,
   }) async {
     final blocks = <Map<String, String>>[];
 
@@ -1323,7 +1401,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
       // הסרת HTML + ניקוד/טעמים + שמות קודש מוחלת כאן, על שורות הטווח הנבחר
       // בלבד (הועברה לכאן מהטרנספורמציה על כל הספר ב-createPdf).
       final lineText = _applyTextTransforms(
-        stripHtmlIfNeeded(allLines[i]),
+        stripHtmlIfNeeded(
+          applyDivineNames ? _withDivineNames(allLines[i], i) : allLines[i],
+        ),
         shouldReplaceHolyNames,
       );
       blocks.add({'kind': 'text', 'text': lineText});
@@ -1390,10 +1470,12 @@ class _PrintingScreenState extends State<PrintingScreen> {
       }
     }
 
+    PrintingScreen.debugOnPrintBlocks?.call(blocks);
     return blocks;
   }
 
   Future<PreparedPrintDocument> _prepareWordDocument() async {
+    await _divineNamesReady;
     if (widget.prebuiltBlocks != null) {
       final shouldReplaceHolyNames = _shouldReplaceHolyNames;
       final blocks = widget.prebuiltBlocks!
@@ -1425,6 +1507,12 @@ class _PrintingScreenState extends State<PrintingScreen> {
     String dataString = await _dataFuture;
 
     final shouldReplaceHolyNames = _shouldReplaceHolyNames;
+    dataString = applyDivineNamesToText(
+      dataString,
+      _divineNames,
+      substituteOtherNames: _substituteDivineNames,
+      holyNameStyle: shouldReplaceHolyNames ? _holyNameStyle : null,
+    );
     dataString = _applyTextTransforms(dataString, shouldReplaceHolyNames);
 
     // שומרים את תגיות ה-HTML — WordExportService ממיר אותן לעיצוב במסמך
@@ -1453,6 +1541,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
         shouldReplaceHolyNames: shouldReplaceHolyNames,
         personalNotes: personalNotes,
         keepHtml: true,
+        applyDivineNames: false,
       ),
     );
 
@@ -1692,11 +1781,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
       removeTaamim: _removeTaamim,
       replaceHolyNames: shouldReplaceHolyNames,
       keepHtml: keepHtml,
+      holyNameStyle: _holyNameStyle,
+      substituteDivineNames: _substituteDivineNames,
     );
     final cached = _commentaryContentCache[key];
     if (cached != null) return cached;
 
-    var text = await link.content;
+    var text = await _withCommentaryDivineNames(link, await link.content);
     if (!keepHtml) {
       text = stripHtmlIfNeeded(text);
     }
@@ -2221,6 +2312,53 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                               });
                                             },
                                           ),
+                                          PrintingDropdownRow(
+                                            label: 'שם הוי"ה',
+                                            child:
+                                                AppDropdownField<
+                                                  HolyNameDisplay
+                                                >(
+                                                  value: _holyName,
+                                                  entries: [
+                                                    AppMenuEntry(
+                                                      value:
+                                                          HolyNameDisplay.asIs,
+                                                      label: 'ככתבו',
+                                                    ),
+                                                    AppMenuEntry(
+                                                      value: HolyNameDisplay
+                                                          .kufKuf,
+                                                      label: 'יקוק',
+                                                    ),
+                                                    AppMenuEntry(
+                                                      value: HolyNameDisplay
+                                                          .hehApostrophe,
+                                                      label: "ה'",
+                                                    ),
+                                                  ],
+                                                  onSelected: (value) {
+                                                    if (value == null) return;
+                                                    setState(() {
+                                                      _holyName = value;
+                                                      _refreshPreview();
+                                                    });
+                                                  },
+                                                ),
+                                          ),
+                                          if (!_divineNames.isEmpty)
+                                            PrintingSwitchRow(
+                                              label: 'שאר שמות הקודש בכינוי',
+                                              value: _substituteDivineNames,
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  _divineNamesDisplay = value
+                                                      ? DivineNamesDisplay
+                                                            .substitute
+                                                      : DivineNamesDisplay.asIs;
+                                                  _refreshPreview();
+                                                });
+                                              },
+                                            ),
                                         ],
                                       ),
 

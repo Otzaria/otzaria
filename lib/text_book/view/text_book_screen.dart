@@ -38,6 +38,8 @@ import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
 import 'package:otzaria/text_display/view/text_display_bar_button.dart';
 import 'package:otzaria/text_book/utils/reader_build_policy.dart';
 import 'package:otzaria/text_book/utils/text_book_export_utils.dart';
+import 'package:otzaria/text_book/view/text_book_export_dialog.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/text_book/utils/visible_index.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -70,7 +72,6 @@ import 'package:otzaria/data/book_locator.dart';
 import 'package:otzaria/utils/file/page_converter.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
 import 'package:otzaria/utils/text/ref_helper.dart';
-import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 // [EDITING DISABLED] import 'package:otzaria/text_book/editing/widgets/text_section_editor_dialog.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
@@ -120,68 +121,23 @@ const String _viewModePage = 'page';
 // פעולה (לא מצב תצוגה): פתיחת כרטיסיית מפרשים נפרדת
 const String _actionOpenCommentatorsTab = 'open_commentators_tab';
 
-enum _TextBookExportFormat {
-  word('docx'),
-  text('txt');
-
-  final String extension;
-  const _TextBookExportFormat(this.extension);
-}
-
 class _WordExportRequest {
   final String title;
-  final String rawContent;
-  final bool removeNikud;
-  final bool removeTaamim;
-  final bool shouldReplaceHolyNames;
-  final HolyNameStyle holyNameStyle;
+  final TextBookExportRequest text;
   final String? fontFamily;
   final double fontSize;
 
   const _WordExportRequest({
     required this.title,
-    required this.rawContent,
-    required this.removeNikud,
-    required this.removeTaamim,
-    required this.shouldReplaceHolyNames,
-    required this.holyNameStyle,
+    required this.text,
     required this.fontFamily,
     required this.fontSize,
   });
 }
 
-class _TextExportRequest {
-  final String rawContent;
-  final bool removeNikud;
-  final bool removeTaamim;
-  final bool shouldReplaceHolyNames;
-  final HolyNameStyle holyNameStyle;
-
-  const _TextExportRequest({
-    required this.rawContent,
-    required this.removeNikud,
-    required this.removeTaamim,
-    required this.shouldReplaceHolyNames,
-    required this.holyNameStyle,
-  });
-}
-
 Uint8List _createTextBookWordExport(_WordExportRequest request) {
-  final blocks = request.rawContent
-      .split('\n')
-      .map(
-        (line) => PrintBlock(
-          kind: PrintBlockKind.text,
-          text: applyTextBookExportTextTransforms(
-            line,
-            removeNikud: request.removeNikud,
-            removeTaamim: request.removeTaamim,
-            shouldReplaceHolyNames: request.shouldReplaceHolyNames,
-            holyNameStyle: request.holyNameStyle,
-            stripHtml: false,
-          ),
-        ),
-      )
+  final blocks = textBookExportLines(request.text, stripHtml: false)
+      .map((line) => PrintBlock(kind: PrintBlockKind.text, text: line))
       .toList(growable: false);
 
   return WordExportService.createWordDocument(
@@ -193,26 +149,6 @@ Uint8List _createTextBookWordExport(_WordExportRequest request) {
     fontFamily: request.fontFamily,
     fontSize: request.fontSize,
   );
-}
-
-String _createTextBookTextExport(_TextExportRequest request) {
-  if (request.rawContent.isEmpty) {
-    return '';
-  }
-
-  return request.rawContent
-      .split('\n')
-      .map(
-        (line) => applyTextBookExportTextTransforms(
-          line,
-          removeNikud: request.removeNikud,
-          removeTaamim: request.removeTaamim,
-          shouldReplaceHolyNames: request.shouldReplaceHolyNames,
-          holyNameStyle: request.holyNameStyle,
-          stripHtml: true,
-        ),
-      )
-      .join('\n');
 }
 
 /// פרופיל ערוץ הייצוא של גוף הספר — משותף להדפסה ולייצוא.
@@ -707,49 +643,59 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     if (!mounted) return;
 
     try {
-      final selectedFormat = await _pickTextBookExportFormat();
-      if (selectedFormat == null) return;
+      // לא state.divineNames: הטעינה ברקע עשויה שלא להסתיים עד הייצוא.
+      final book = state.book;
+      final divineNames = await DivineNamesRepository.instance.spansFor(
+        book.title,
+        categoryId: book.categoryId,
+        source: book.source,
+        fileType: book.fileType,
+        versionTitle: book.versionTitle,
+      );
+      if (!mounted) return;
+      final choice = await showTextBookExportDialog(
+        context,
+        profile: _exportProfile(state),
+        hasDivineNames: !divineNames.isEmpty,
+      );
+      if (choice == null) return;
       if (!mounted) return;
 
+      final selectedFormat = choice.format;
       final extension = selectedFormat.extension;
       final settingsState = context.read<SettingsBloc>().state;
-      final profile = state.displayProfile(
-        target: TextTarget.body,
-        channel: TextChannel.export,
-      );
+      final profile = _exportProfile(
+        state,
+      ).copyWith(holyName: choice.holyName, divineNames: choice.divineNames);
       final fullContent = await context
           .read<TextBookBloc>()
           .repository
           .getBookContent(state.book);
 
+      final exportRequest = TextBookExportRequest(
+        rawContent: fullContent,
+        removeNikud: profile.removeNikud,
+        removeTaamim: profile.removeTeamim,
+        shouldReplaceHolyNames: profile.replaceHolyNames,
+        holyNameStyle: profile.holyNameStyle,
+        divineNames: divineNames,
+        substituteDivineNames: profile.substituteDivineNames,
+      );
       final Uint8List bytes;
       final String successMessage;
-      if (selectedFormat == _TextBookExportFormat.word) {
+      if (selectedFormat == TextBookExportFormat.word) {
         bytes = await compute(
           _createTextBookWordExport,
           _WordExportRequest(
             title: state.book.title,
-            rawContent: fullContent,
-            removeNikud: profile.removeNikud,
-            removeTaamim: profile.removeTeamim,
-            shouldReplaceHolyNames: profile.replaceHolyNames,
-            holyNameStyle: profile.holyNameStyle,
+            text: exportRequest,
             fontFamily: settingsState.fontFamily,
             fontSize: state.fontSize,
           ),
         );
         successMessage = TextBookMessages.wordFileSaved;
       } else {
-        final text = await compute(
-          _createTextBookTextExport,
-          _TextExportRequest(
-            rawContent: fullContent,
-            removeNikud: profile.removeNikud,
-            removeTaamim: profile.removeTeamim,
-            shouldReplaceHolyNames: profile.replaceHolyNames,
-            holyNameStyle: profile.holyNameStyle,
-          ),
-        );
+        final text = await compute(createTextBookTextExport, exportRequest);
         bytes = Uint8List.fromList(utf8.encode(text));
         successMessage = TextBookMessages.textFileSaved;
       }
@@ -773,20 +719,6 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     } catch (e) {
       UiSnack.showError(TextBookMessages.exportFailed(e));
     }
-  }
-
-  Future<_TextBookExportFormat?> _pickTextBookExportFormat() async {
-    final result = await showTwoActionsDialog(
-      context: context,
-      title: 'בחירת סוג קובץ',
-      content: 'בחר פורמט לייצוא',
-      cancelText: 'טקסט',
-      confirmText: 'Word',
-      barrierDismissible: true,
-    );
-
-    if (result == null) return null;
-    return result ? _TextBookExportFormat.word : _TextBookExportFormat.text;
   }
 
   @override
