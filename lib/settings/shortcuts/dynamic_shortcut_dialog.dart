@@ -235,6 +235,27 @@ class _DynamicShortcutForm extends StatelessWidget {
                 value.copyWith(change: change.copyWith(holyName: v)),
               ),
             ),
+            // ההעתקה לוקחת את הטקסט כפי שהוא מוצג, ולכן רק בשינוי תצוגה.
+            if (isDisplay)
+              SettingsActionTile.segmentedTile<DivineNamesDisplay?>(
+                icon: OtzariaIcons.alef_crown_24_filled,
+                title: t('שאר שמות הקודש'),
+                options: [
+                  SegmentOption(value: null, label: t('ללא שינוי')),
+                  SegmentOption(
+                    value: DivineNamesDisplay.asIs,
+                    label: t('ככתבם'),
+                  ),
+                  SegmentOption(
+                    value: DivineNamesDisplay.substitute,
+                    label: t('בכינוי'),
+                  ),
+                ],
+                currentValue: change.divineNames,
+                onChanged: (v) => onChanged(
+                  value.copyWith(change: change.copyWith(divineNames: v)),
+                ),
+              ),
             if (value.target == TextTarget.body && isDisplay)
               SettingsActionTile.segmentedTile<DynamicMarkChange?>(
                 icon: OtzariaIcons.alef_1_24_filled,

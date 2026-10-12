@@ -1,10 +1,14 @@
 import 'dart:typed_data';
 
+import 'package:otzaria/divine_names/models/divine_name_forms.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
+import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
-import 'package:otzaria/utils/text/text_manipulation.dart' show isHeadingLine;
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show HolyNameStyle, isHeadingLine;
 
 /// סמני עוגן-מילה (טבלת link_anchor שבמסד): הזרקת אות סימון קטנה, למשל (א),
 /// בנקודה המדויקת בשורת המקור שבה יושבת הערת המפרש.
@@ -244,6 +248,89 @@ String wrapVisibleRange({
 }
 
 const _lt = 0x3C, _amp = 0x26;
+
+/// עוטף את מופעי השמות [spans] של שורה בסמן שהרינדור ממיר לצורת התצוגה.
+/// האופסטים גלויים, ולכן מותר להזריק קודם רק תגים (קישורי inline), לא תוכן.
+/// מופע ששלדו אינו תואם את סוגו, או שחוצה תג, מושמט.
+String wrapDivineNameSpans(String rawLine, List<DivineNameSpan> spans) {
+  if (spans.isEmpty || rawLine.isEmpty) return rawLine;
+  final visibleLength = _visibleOffsetAtRaw(rawLine, rawLine.length);
+  final ranges = <HtmlWrapRange>[];
+  for (final span in spans) {
+    // מופע שחורג מסוף השורה מעיד על אופסטים שזזו.
+    if (span.end > visibleLength) continue;
+    final rawStart = _rawStartOfVisible(rawLine, span.start);
+    final rawEnd = _rawEndOfVisible(rawLine, span.end);
+    if (rawStart >= rawEnd) continue;
+    final skeleton = divineNameSkeleton(rawLine.substring(rawStart, rawEnd));
+    if (skeleton == null ||
+        !divineNameSkeletonMatches(span.kind, skeleton) ||
+        !divineNameHasWordBoundaries(rawLine, rawStart, rawEnd)) {
+      continue;
+    }
+    ranges.add(
+      HtmlWrapRange(
+        start: rawStart,
+        end: rawEnd,
+        openTag: divineNameMarkerOpen(span.kind),
+        closeTag: '</span>',
+      ),
+    );
+  }
+  return ranges.isEmpty ? rawLine : wrapHtmlRanges(rawLine, ranges);
+}
+
+/// [wrapDivineNameSpans] לשורה [lineIndex] (0-based) של ספר שמופעיו [names].
+String injectDivineNameMarkers(
+  String line,
+  DivineNameSpans names,
+  int lineIndex,
+) => names.isEmpty ? line : wrapDivineNameSpans(line, names.spansAt(lineIndex));
+
+/// מחיל על שורה [lineIndex] את מופעי השמות [names] ומחזיר אותה בלי סמנים —
+/// למסלולי ההדפסה והייצוא, שאינם עוברים ב-`TextRendererService`.
+/// [holyNameStyle] null משאיר את שם הוי"ה מהטבלה ככתבו (ה-regex רץ בנפרד).
+String applyDivineNamesToLine(
+  String line,
+  DivineNameSpans names,
+  int lineIndex, {
+  required bool substituteOtherNames,
+  HolyNameStyle? holyNameStyle,
+}) {
+  if (names.isEmpty || (!substituteOtherNames && holyNameStyle == null)) {
+    return line;
+  }
+  final marked = injectDivineNameMarkers(line, names, lineIndex);
+  if (identical(marked, line)) return line;
+  return resolveDivineNameMarkers(
+    marked,
+    substituteOtherNames: substituteOtherNames,
+    holyNameStyle: holyNameStyle,
+  );
+}
+
+/// [applyDivineNamesToLine] על תוכן ספר שלם — שורה לכל `lineIndex`.
+String applyDivineNamesToText(
+  String text,
+  DivineNameSpans names, {
+  required bool substituteOtherNames,
+  HolyNameStyle? holyNameStyle,
+}) {
+  if (names.isEmpty || (!substituteOtherNames && holyNameStyle == null)) {
+    return text;
+  }
+  final lines = text.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    lines[i] = applyDivineNamesToLine(
+      lines[i],
+      names,
+      i,
+      substituteOtherNames: substituteOtherNames,
+      holyNameStyle: holyNameStyle,
+    );
+  }
+  return lines.join('\n');
+}
 
 /// אינדקס גולמי של תחילת התו הגלוי מספר [visibleOffset] (אחרי תגים קודמים);
 /// אורך המחרוזת כשהאופסט מעבר לסוף.

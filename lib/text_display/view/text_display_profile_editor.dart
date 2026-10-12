@@ -5,7 +5,7 @@ import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
-/// עורך פרופיל תצוגה מלא — חמש שורות, אחת לכל שדה. משמש את מסך ההגדרות ואת
+/// עורך פרופיל תצוגה מלא — שורה לכל שדה. משמש את מסך ההגדרות ואת
 /// הפופאפ בסרגל הספר, כדי שהמשתמש יראה את אותם פקדים בכל מקום.
 class TextDisplayProfileEditor extends StatelessWidget {
   final TextDisplayProfile profile;
@@ -67,6 +67,20 @@ class TextDisplayProfileEditor extends StatelessWidget {
         ],
         currentValue: profile.holyName,
         onChanged: (v) => onChanged(profile.copyWith(holyName: v)),
+      ),
+      SettingsActionTile.segmentedTile<DivineNamesDisplay>(
+        icon: OtzariaIcons.alef_crown_24_filled,
+        title: t('שאר שמות הקודש'),
+        subtitle: t('אלהים, שדי, צבאות ועוד — בספרים שבהם השמות מסומנים'),
+        options: [
+          SegmentOption(value: DivineNamesDisplay.asIs, label: t('ככתבם')),
+          SegmentOption(
+            value: DivineNamesDisplay.substitute,
+            label: t('בכינוי'),
+          ),
+        ],
+        currentValue: profile.divineNames,
+        onChanged: (v) => onChanged(profile.copyWith(divineNames: v)),
       ),
       SettingsActionTile.segmentedTile<MarkVisibility>(
         icon: OtzariaIcons.alef_1_24_filled,

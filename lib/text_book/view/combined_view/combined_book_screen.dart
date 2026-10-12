@@ -2697,7 +2697,11 @@ class _CombinedViewState extends State<CombinedView> {
               .toList()
         : const <Link>[];
     // קישורי inline ראשונים — האופסטים שלהם גולמיים.
-    var data = injectInlineLinks(rawText, linksForLine);
+    var data = injectDivineNameMarkers(
+      injectInlineLinks(rawText, linksForLine),
+      state.divineNames,
+      lineIndex,
+    );
     data = inline_notes.addInlineNotePreviewLinks(data, lineIndex: lineIndex);
     data = _injectNumberedNoteMarkers(data, lineIndex, state);
     // סמני עוגן-מילה — לפני כל עיבוד שמוסיף תוכן גלוי.

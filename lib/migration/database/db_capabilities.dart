@@ -48,6 +48,7 @@ const Set<String> kKnownSeforimTables = {
   // TODO: בסכמה 7 להעביר אותן לחוזה הסכמה ולוותר על ערוץ הצד.
   'book_banner',
   'book_protection',
+  'line_divine_name',
 };
 
 /// אילו מהטבלאות המוכרות קיימות במסד בפורמט seforim.db, ובאילו עמודות.
@@ -149,6 +150,14 @@ class DbCapabilities {
       hasBooks && has('book_version') && has('version_line');
   bool get hasLineRef => hasLines && has('line_ref');
   bool get hasLineDhDisplay => hasBooks && hasColumn('line_dh', 'dhDisplay');
+
+  /// מופעי שמות הקודש לפי שורה; במסד בלי הטבלה התכונה כבויה בשקט.
+  bool get hasDivineNames =>
+      hasLines &&
+      hasColumn('line_divine_name', 'lineId') &&
+      hasColumn('line_divine_name', 'charStart') &&
+      hasColumn('line_divine_name', 'charEnd') &&
+      hasColumn('line_divine_name', 'kind');
   bool get hasLineBookIndex => hasIndex('idx_line_book_index');
   bool get hasAuthors => hasBooks && has('author') && has('book_author');
   bool get hasTopics => hasBooks && has('topic') && has('book_topic');

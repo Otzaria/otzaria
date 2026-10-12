@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
+import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -12,10 +15,13 @@ import 'package:otzaria/utils/text/html_slice.dart';
 /// בוחר את תוכן ה-HTML המתאים ביותר לטקסט שנבחר: השורה המקורית כשהיא
 /// נבחרה במלואה, אחרת חיתוך שלה לטווח הבחירה — כדי שגם בחירה חלקית
 /// תישמר מעוצבת. נופל לטקסט פשוט רק כשהבחירה אינה נמצאת בשורה.
+/// [divineNames] — מופעי השמות של [sourceContent] כשהם מוצגים מוחלפים, כדי
+/// שהשורה תושווה לבחירה כפי שהיא על המסך.
 String resolveHtmlTextForSelection({
   required String plainText,
   required int? selectedIndex,
   required List<String> sourceContent,
+  DivineNameSpans? divineNames,
 }) {
   if (selectedIndex == null ||
       selectedIndex < 0 ||
@@ -23,7 +29,13 @@ String resolveHtmlTextForSelection({
     return plainText;
   }
 
-  final originalData = sourceContent[selectedIndex];
+  var originalData = sourceContent[selectedIndex];
+  if (divineNames != null && !divineNames.isEmpty) {
+    originalData = resolveDivineNameMarkers(
+      injectDivineNameMarkers(originalData, divineNames, selectedIndex),
+      substituteOtherNames: true,
+    );
+  }
   final plainTextCleaned = plainText.replaceAll(RegExp(r'\s+'), ' ').trim();
   final originalCleaned = originalData
       .replaceAll(RegExp(r'<[^>]*>'), '')
@@ -141,10 +153,15 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
     if (plainText.trim().isEmpty) return null;
   }
 
+  final showsSubstitutedNames =
+      textBookState != null &&
+      identical(sourceContent, textBookState.content) &&
+      textBookState.bodyDisplayProfile.substituteDivineNames;
   var htmlContentToUse = resolveHtmlTextForSelection(
     plainText: plainText,
     selectedIndex: selectedIndex,
     sourceContent: sourceContent,
+    divineNames: showsSubstitutedNames ? textBookState.divineNames : null,
   );
 
   var finalPlainText = plainText;
