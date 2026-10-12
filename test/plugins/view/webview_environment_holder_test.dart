@@ -40,13 +40,16 @@ void main() {
       expect(settings.userDataFolder, r'C:\app-data\webview2');
     });
 
-    test('requires exclusive access to the user data folder', () {
-      final settings = WebViewEnvironmentHolder.debugEnvironmentSettings(
-        r'C:\app-data\webview2',
-      );
+    test(
+      'lets another process share the user data folder (issue #2458)',
+      () {
+        final settings = WebViewEnvironmentHolder.debugEnvironmentSettings(
+          r'C:\app-data\webview2',
+        );
 
-      expect(settings.exclusiveUserDataFolderAccess, isTrue);
-    });
+        expect(settings.exclusiveUserDataFolderAccess, isFalse);
+      },
+    );
 
     test('registers the plugin asset scheme as a secure origin', () {
       final settings = WebViewEnvironmentHolder.debugEnvironmentSettings(
