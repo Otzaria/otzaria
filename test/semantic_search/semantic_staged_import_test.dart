@@ -12,6 +12,7 @@ import 'package:otzaria/semantic_search/models/semantic_import_layout.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 import 'package:otzaria/semantic_search/repository/semantic_release_locator.dart';
 import 'package:otzaria/semantic_search/repository/semantic_staged_import.dart';
@@ -72,6 +73,7 @@ class _UnreachableLocator extends SemanticVectorsReleaseLocator {
   Future<SemanticVectorsRelease?> findForLibraryVersion(
     int libraryVersion, {
     String? libraryTag,
+    required List<SemanticVectorsCandidate> candidates,
   }) async {
     lookups++;
     throw const SocketException('no network');

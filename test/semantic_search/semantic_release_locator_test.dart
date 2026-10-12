@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/repository/semantic_release_locator.dart';
 
 const _api = 'https://api.github.test/repos/Otzaria/SeforimLibrary';
@@ -13,22 +14,44 @@ const _manifestName = 'otzaria-vectors-0c3f95be-v30-base.manifest.json';
 const _segmentName = 'otzaria-vectors-0c3f95be-v30-base.oxv.zst';
 const _manifestUrl = 'https://github.test/download/$_manifestName';
 const _segmentUrl = 'https://github.test/download/$_segmentName';
+const _windowsManifestName = 'otzaria-vectors-5d1e7a20-v30-base.manifest.json';
+const _windowsSegmentName = 'otzaria-vectors-5d1e7a20-v30-base.oxv.zst';
+const _windowsSegmentUrl = 'https://github.test/download/$_windowsSegmentName';
+
+const _anchorChunking = 2685558872390372738;
+const _windowsChunking = 320260894818558297;
+const _anchor = (
+  family: SemanticVectorsFamily.anchor,
+  chunkingIdentity: _anchorChunking,
+);
+const _windows = (
+  family: SemanticVectorsFamily.windows,
+  chunkingIdentity: _windowsChunking,
+);
+const _anchorOnly = [_anchor];
+const _windowsFirst = [_windows, _anchor];
 
 String _manifestFor({
   String kind = 'base',
   int to = 30,
   String tag = 'v30-20260930165019',
+  int chunking = _anchorChunking,
+  String segmentName = _segmentName,
 }) => jsonEncode({
   'format': 'otzaria-vectors-release',
   'formatVersion': 1,
   'kind': kind,
+  'identity': {
+    'model': {'chunking_identity': chunking},
+  },
+  'identityDigest': '$chunking'.padLeft(64, '0'),
   'fromLibraryVersion': 0,
   'toLibraryVersion': to,
   'libraryReleaseTag': tag,
   'segment': {'sha256': 'cd' * 32, 'size': 1779752972},
   'files': [
     {
-      'file': _segmentName,
+      'file': segmentName,
       'compression': 'zstd',
       'sha256': 'AB' * 32,
       'size': 1642517351,
@@ -51,6 +74,9 @@ class _Server {
   String? assetDigest;
   bool noAssetDigest = false;
   String manifest = _manifest;
+
+  /// מניפסט `vectors-windows-<תג>`; `null` = לא פורסם.
+  String? windowsManifest;
 
   static http.Response _json(Object? body, [int status = 200]) =>
       http.Response.bytes(utf8.encode(jsonEncode(body)), status);
@@ -96,6 +122,32 @@ class _Server {
     if (url == _manifestUrl) {
       return http.Response.bytes(utf8.encode(manifest), 200);
     }
+    final windows = windowsManifest;
+    if (url == '$_api/releases/tags/vectors-windows-v30-20260930165019') {
+      if (windows == null) return http.Response('{}', 404);
+      return _json({
+        'tag_name': 'vectors-windows-v30-20260930165019',
+        'body': 'Manifest: `$_windowsManifestName`',
+        'assets': [
+          {
+            'id': 17,
+            'name': _windowsManifestName,
+            'browser_download_url':
+                'https://github.test/download/$_windowsManifestName',
+            'digest': 'sha256:${_shaOf(windows)}',
+          },
+          {
+            'id': 18,
+            'name': _windowsSegmentName,
+            'browser_download_url': _windowsSegmentUrl,
+          },
+        ],
+      });
+    }
+    if (windows != null &&
+        url == 'https://github.test/download/$_windowsManifestName') {
+      return http.Response.bytes(utf8.encode(windows), 200);
+    }
     return http.Response('not found', 404);
   });
 }
@@ -108,7 +160,10 @@ void main() {
       apiBase: _api,
     );
 
-    final release = await locator.findForLibraryVersion(30);
+    final release = await locator.findForLibraryVersion(
+      30,
+      candidates: _anchorOnly,
+    );
 
     expect(release, isNotNull);
     expect(release!.libraryTag, 'v30-20260930165019');
@@ -138,6 +193,7 @@ void main() {
     await locator.findForLibraryVersion(
       30,
       libraryTag: 'v30-20260930165019',
+      candidates: _anchorOnly,
     );
 
     expect(server.requested.where((u) => u.contains('per_page')), isEmpty);
@@ -150,8 +206,14 @@ void main() {
       apiBase: _api,
     );
 
-    expect(await locator.findForLibraryVersion(30), isNull);
-    expect(await locator.findForLibraryVersion(31), isNull);
+    expect(
+      await locator.findForLibraryVersion(30, candidates: _anchorOnly),
+      isNull,
+    );
+    expect(
+      await locator.findForLibraryVersion(31, candidates: _anchorOnly),
+      isNull,
+    );
   });
 
   test('מניפסט שאינו תואם ל-digest שפורסם נדחה לפני ההורדה הגדולה', () async {
@@ -162,7 +224,7 @@ void main() {
     );
 
     await expectLater(
-      locator.findForLibraryVersion(30),
+      locator.findForLibraryVersion(30, candidates: _anchorOnly),
       throwsA(
         isA<SemanticFailure>().having(
           (f) => f.kind,
@@ -181,7 +243,10 @@ void main() {
       apiBase: _api,
     );
 
-    final release = await locator.findForLibraryVersion(30);
+    final release = await locator.findForLibraryVersion(
+      30,
+      candidates: _anchorOnly,
+    );
     expect(release!.publishedManifestSha256, _manifestSha);
   });
 
@@ -195,7 +260,7 @@ void main() {
     );
 
     await expectLater(
-      locator.findForLibraryVersion(30),
+      locator.findForLibraryVersion(30, candidates: _anchorOnly),
       throwsA(
         isA<SemanticFailure>().having(
           (f) => f.kind,
@@ -214,7 +279,7 @@ void main() {
     );
 
     await expectLater(
-      locator.findForLibraryVersion(30),
+      locator.findForLibraryVersion(30, candidates: _anchorOnly),
       throwsA(
         isA<SemanticFailure>().having(
           (f) => f.kind,
@@ -236,7 +301,7 @@ void main() {
         apiBase: _api,
       );
       await expectLater(
-        locator.findForLibraryVersion(30),
+        locator.findForLibraryVersion(30, candidates: _anchorOnly),
         throwsA(
           isA<SemanticFailure>().having(
             (f) => f.kind,
@@ -258,6 +323,7 @@ void main() {
     final release = await locator.findForLibraryVersion(
       30,
       libraryTag: 'v29-20260927072953',
+      candidates: _anchorOnly,
     );
 
     expect(release!.libraryTag, 'v30-20260930165019');
@@ -277,9 +343,90 @@ void main() {
     );
 
     await expectLater(
-      locator.findForLibraryVersion(30),
+      locator.findForLibraryVersion(30, candidates: _anchorOnly),
       throwsA(isA<GithubRateLimitException>()),
     );
+  });
+
+  group('משפחת החלונות', () {
+    SemanticVectorsReleaseLocator locatorOf(_Server server) =>
+        SemanticVectorsReleaseLocator(
+          clientFactory: server.client,
+          apiBase: _api,
+        );
+
+    test('vectors-windows-<תג> קודם, עם הזהות שבמניפסט', () async {
+      final server = _Server()
+        ..windowsManifest = _manifestFor(
+          chunking: _windowsChunking,
+          segmentName: _windowsSegmentName,
+        );
+
+      final release = await locatorOf(
+        server,
+      ).findForLibraryVersion(30, candidates: _windowsFirst);
+
+      expect(release!.releaseTag, 'vectors-windows-v30-20260930165019');
+      expect(release.chunkingIdentity, _windowsChunking);
+      expect(release.identityDigest, '$_windowsChunking'.padLeft(64, '0'));
+      expect(release.files.single.downloadUrl, _windowsSegmentUrl);
+      expect(
+        server.requested,
+        isNot(contains('$_api/releases/tags/vectors-v30-20260930165019')),
+      );
+    });
+
+    test('בלי vectors-windows-<תג> נופלים ל-vectors-<תג>', () async {
+      final server = _Server();
+
+      final release = await locatorOf(
+        server,
+      ).findForLibraryVersion(30, candidates: _windowsFirst);
+
+      expect(release!.releaseTag, 'vectors-v30-20260930165019');
+      expect(release.chunkingIdentity, _anchorChunking);
+    });
+
+    test('מנוע בלי חלונות אינו מבקש את vectors-windows-<תג>', () async {
+      final server = _Server()
+        ..windowsManifest = _manifestFor(
+          chunking: _windowsChunking,
+          segmentName: _windowsSegmentName,
+        );
+
+      final release = await locatorOf(
+        server,
+      ).findForLibraryVersion(30, candidates: _anchorOnly);
+
+      expect(release!.releaseTag, 'vectors-v30-20260930165019');
+      expect(server.requested.where((u) => u.contains('windows')), isEmpty);
+    });
+
+    test('chunking שאינו של המשפחה: הבאה בתור, ובלעדיה נדחה', () async {
+      final server = _Server()
+        ..windowsManifest = _manifestFor(segmentName: _windowsSegmentName);
+
+      final fallback = await locatorOf(
+        server,
+      ).findForLibraryVersion(30, candidates: _windowsFirst);
+      expect(fallback!.releaseTag, 'vectors-v30-20260930165019');
+
+      await expectLater(
+        locatorOf(
+          server,
+        ).findForLibraryVersion(30, candidates: const [_windows]),
+        throwsA(
+          isA<SemanticFailure>()
+              .having(
+                (f) => f.kind,
+                'kind',
+                SemanticFailureKind.artifactIncompatible,
+              )
+              .having((f) => f.field, 'field', 'model.chunking_identity'),
+        ),
+      );
+      expect(server.requested, isNot(contains(_windowsSegmentUrl)));
+    });
   });
 
   group('parsePublishedManifestSha256', () {

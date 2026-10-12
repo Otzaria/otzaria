@@ -13,6 +13,7 @@ import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:path/path.dart' as p;
 
@@ -786,6 +787,164 @@ void main() {
       await repository.pendingJob;
 
       expect(locator.tags, ['v30-20260930165019']);
+    });
+  });
+
+  group('משפחת החלונות', () {
+    const anchorDigest =
+        '0c3f95be734d4a5d80abafe1bd5be0a9dccfab82c86a5961e84ad71a83a62c6a';
+    final windowsDigest = 'ab' * 32;
+    final installedAnchorV30 = SemanticVectorsSummary(
+      present: true,
+      identityDigest: anchorDigest,
+      libraryVersion: 30,
+      libraryReleaseTag: installedV30.libraryReleaseTag,
+      segments: installedV30.segments,
+    );
+
+    Future<int> chunkingOf(SemanticVectorsFamily family) async =>
+        SemanticModelIdentity.parse(bundledModelJson(family)).chunkingIdentity;
+
+    test('מנוע בלי חלונות מבקש ומתקין רק את המשפחה הישנה', () async {
+      installModelFiles(root);
+      final locator = FakeLocator(releaseV30());
+      final backend = FakeBackend()..vectors = installedAnchorV30;
+      final repository = buildRepository(
+        root: root,
+        backend: backend,
+        settings: FakeSettingsStore()..dataEnabled = true,
+        locator: locator,
+        libraryVersion: 31,
+      );
+
+      repository.scheduleVectorsUpdate();
+      await repository.pendingJob;
+
+      expect(locator.candidates.single, [
+        (
+          family: SemanticVectorsFamily.anchor,
+          chunkingIdentity: await chunkingOf(SemanticVectorsFamily.anchor),
+        ),
+      ]);
+      expect(
+        backend.installRequests.single.modelIdentityJson,
+        bundledModelJson(),
+      );
+    });
+
+    test('סט ישן באותה גרסה מוחלף בסט החלונות, שנפתח עם הזהות שלו', () async {
+      installModelFiles(root);
+      final windowsChunking = await chunkingOf(SemanticVectorsFamily.windows);
+      final locator = FakeLocator(
+        releaseV30(
+          family: SemanticVectorsFamily.windows,
+          identityDigest: windowsDigest,
+          chunkingIdentity: windowsChunking,
+        ),
+      );
+      final settings = FakeSettingsStore()..dataEnabled = true;
+      final backend = FakeBackend()
+        ..supportsLongLineWindows = true
+        ..vectors = installedAnchorV30
+        ..installedIdentityDigest = windowsDigest;
+      final repository = buildRepository(
+        root: root,
+        backend: backend,
+        settings: settings,
+        locator: locator,
+      );
+
+      repository.scheduleVectorsUpdate();
+      await repository.pendingJob;
+
+      expect(locator.candidates.single.map((c) => c.family), [
+        SemanticVectorsFamily.windows,
+        SemanticVectorsFamily.anchor,
+      ]);
+      expect(
+        backend.installRequests.single.modelIdentityJson,
+        bundledModelJson(SemanticVectorsFamily.windows),
+      );
+      expect(settings.windowsVectorsDigest, windowsDigest);
+
+      repository.scheduleVectorsUpdate();
+      await repository.pendingJob;
+      expect(locator.lookups, hasLength(1));
+
+      await repository.ensureOpen();
+      expect(
+        backend.openRequests.single.modelIdentityJson,
+        bundledModelJson(SemanticVectorsFamily.windows),
+      );
+      expect(
+        (await repository.engineSnapshot()).vectorsReleaseTag,
+        'vectors-windows-v30-20260930165019',
+      );
+    });
+
+    test('סט חלונות שלא פורסם: הסט הישן באותה גרסה נשאר בלי הורדה', () async {
+      installModelFiles(root);
+      final downloads = FakeDownloads();
+      final settings = FakeSettingsStore()..dataEnabled = true;
+      final backend = FakeBackend()
+        ..supportsLongLineWindows = true
+        ..vectors = installedAnchorV30;
+      final repository = buildRepository(
+        root: root,
+        backend: backend,
+        settings: settings,
+        download: downloads.call,
+        locator: FakeLocator(
+          releaseV30(
+            identityDigest: anchorDigest,
+            chunkingIdentity: await chunkingOf(SemanticVectorsFamily.anchor),
+          ),
+        ),
+      );
+
+      repository.scheduleVectorsUpdate();
+      await repository.pendingJob;
+
+      expect(downloads.urls, isEmpty);
+      expect(backend.installRequests, isEmpty);
+      expect(settings.windowsVectorsDigest, isNull);
+      await repository.ensureOpen();
+      expect(
+        backend.openRequests.single.modelIdentityJson,
+        bundledModelJson(),
+      );
+    });
+
+    test('chunking שהמנוע דוחה בהתקנה — נרשם ולא מורד שוב', () async {
+      installModelFiles(root);
+      final downloads = FakeDownloads();
+      final settings = FakeSettingsStore()..dataEnabled = true;
+      final backend = FakeBackend()
+        ..vectors = installedAnchorV30
+        ..installFailures.add(
+          const SemanticFailure(
+            SemanticFailureKind.artifactIncompatible,
+            'this build resolves lines under another chunking',
+            'model.chunking_identity',
+          ),
+        );
+      final repository = buildRepository(
+        root: root,
+        backend: backend,
+        settings: settings,
+        download: downloads.call,
+        locator: FakeLocator(releaseV30()),
+        libraryVersion: 31,
+      );
+
+      repository.scheduleVectorsUpdate();
+      await repository.pendingJob;
+      expect(settings.skippedVectorsRelease, 'vectors-v30-20260930165019');
+      final before = downloads.urls.length;
+
+      repository.scheduleVectorsUpdate();
+      await repository.pendingJob;
+      expect(downloads.urls.length, before);
     });
   });
 

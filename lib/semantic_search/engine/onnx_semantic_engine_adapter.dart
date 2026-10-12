@@ -18,6 +18,10 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
   final Future<SearchEngine> Function() _engine;
   final SemanticCancellationToken Function() _newToken;
 
+  // מנוע 3.1.0 אינו קורא את מספר החלון של hit, ולכן אינו פותח סט חלונות.
+  @override
+  bool get supportsLongLineWindows => false;
+
   @override
   Future<SemanticBackendStatus> status() async =>
       mapStatus(await (await _engine()).semanticStatus());

@@ -20,6 +20,11 @@ abstract interface class SemanticSettingsStore {
   String? get skippedVectorsRelease;
   Future<void> setSkippedVectorsRelease(String? value);
 
+  /// ה-identity digest של סט ממשפחת החלונות שהותקן; סט בכל digest אחר הוא
+  /// מהמשפחה הישנה.
+  String? get windowsVectorsDigest;
+  Future<void> setWindowsVectorsDigest(String? value);
+
   /// מצב לא מקוון: אין שום פנייה לרשת.
   bool get isOfflineMode;
 }
@@ -72,6 +77,21 @@ class SettingsSemanticSettingsStore implements SemanticSettingsStore {
   Future<void> setSkippedVectorsRelease(String? value) =>
       Settings.setValue<String>(
         SettingsRepository.keySemanticSkippedVectorsRelease,
+        value ?? '',
+      );
+
+  @override
+  String? get windowsVectorsDigest {
+    final value = Settings.getValue<String>(
+      SettingsRepository.keySemanticWindowsVectorsDigest,
+    );
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  @override
+  Future<void> setWindowsVectorsDigest(String? value) =>
+      Settings.setValue<String>(
+        SettingsRepository.keySemanticWindowsVectorsDigest,
         value ?? '',
       );
 

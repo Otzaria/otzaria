@@ -269,6 +269,7 @@ flutter:
     - assets/export_restricted_books.json
     # זהות המודל הסמנטי (model.json מ-otzaria-semantic-search)
     - assets/semantic/meivin-round2-onnx/
+    - assets/semantic/meivin-round2-windows-onnx/
 
   fonts:
     # החבילה מספקת את הגופן אך אינה מצהירה עליו, ולכן שני אייקוני ה-light

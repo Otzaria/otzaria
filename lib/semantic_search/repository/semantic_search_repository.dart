@@ -24,6 +24,7 @@ import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 import 'package:otzaria/semantic_search/onnx_runtime_locator.dart';
 import 'package:otzaria/semantic_search/repository/semantic_data_ownership.dart';
@@ -42,10 +43,6 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
 import 'package:path/path.dart' as p;
 import 'package:seforim_library_updater/seforim_library_updater.dart'
     show PatchDownloadCancelled, PatchDownloadException, PatchNetworkException;
-
-/// נתיב הנכס של `model.json` באפליקציה.
-const String kSemanticModelIdentityAsset =
-    'assets/semantic/meivin-round2-onnx/model.json';
 
 /// חיפוש החימום שאחרי הפתיחה: החיפוש המסונן הראשון בתהליך אורך כשנייה.
 const String kSemanticWarmUpQuery = 'בריאת העולם';
@@ -75,7 +72,7 @@ class SemanticSearchRepository {
     SearchFeedbackConsentStore Function()? consent,
     SemanticSettingsStore? settings,
     Future<SemanticPaths> Function()? paths,
-    Future<String> Function()? identityLoader,
+    Future<String> Function(SemanticVectorsFamily family)? identityLoader,
     SemanticVectorsReleaseLocator? locator,
     SemanticFileDownloader? download,
     Future<int?> Function()? libraryVersion,
@@ -92,7 +89,7 @@ class SemanticSearchRepository {
        _paths = paths ?? _defaultPaths,
        _identityLoader =
            identityLoader ??
-           (() => rootBundle.loadString(kSemanticModelIdentityAsset)),
+           ((family) => rootBundle.loadString(family.identityAsset)),
        _locator = locator ?? SemanticVectorsReleaseLocator(),
        _download = download ?? CompanionAssetsService().downloadVerifiedFile,
        _libraryVersion = libraryVersion ?? _defaultLibraryVersion,
@@ -118,7 +115,7 @@ class SemanticSearchRepository {
   final SearchFeedbackConsentStore Function() _consentFactory;
   final SemanticSettingsStore _settings;
   final Future<SemanticPaths> Function() _paths;
-  final Future<String> Function() _identityLoader;
+  final Future<String> Function(SemanticVectorsFamily family) _identityLoader;
   final SemanticVectorsReleaseLocator _locator;
   final SemanticFileDownloader _download;
   final Future<int?> Function() _libraryVersion;
@@ -144,7 +141,7 @@ class SemanticSearchRepository {
     onSource: _showSource,
   );
   StreamSubscription<SearchFeedbackConsent>? _consentSubscription;
-  SemanticModelIdentity? _identity;
+  final Map<SemanticVectorsFamily, SemanticModelIdentity> _identities = {};
   SemanticVectorsSummary? _vectors;
 
   Future<void>? _job;
@@ -416,12 +413,6 @@ class SemanticSearchRepository {
   /// תמונת המנוע לטלמטריה: מצב, זהות המודל, החבילה והוקטורים המותקנים.
   Future<SemanticEngineSnapshot> engineSnapshot() async {
     final status = await _safeStatus();
-    SemanticModelIdentity? identity;
-    try {
-      identity = await _loadIdentity();
-    } catch (error, stackTrace) {
-      _log('engineSnapshot', error, stackTrace);
-    }
     var vectors = _vectors;
     if (vectors == null) {
       try {
@@ -431,6 +422,13 @@ class SemanticSearchRepository {
       }
     }
     final installed = vectors != null && vectors.present ? vectors : null;
+    final family = _installedFamily(installed);
+    SemanticModelIdentity? identity;
+    try {
+      identity = await _loadIdentity(family);
+    } catch (error, stackTrace) {
+      _log('engineSnapshot', error, stackTrace);
+    }
     final quantization = this.quantization;
     return SemanticEngineSnapshot(
       state: status.rawState,
@@ -441,7 +439,7 @@ class SemanticSearchRepository {
       vectorsReleaseTag:
           installed == null || installed.libraryReleaseTag.isEmpty
           ? null
-          : 'vectors-${installed.libraryReleaseTag}',
+          : '${family.releaseTagPrefix}${installed.libraryReleaseTag}',
       vectorsLibraryVersion: installed?.libraryVersion,
       vectorSegments: installed?.segments.length,
     );
@@ -575,7 +573,7 @@ class SemanticSearchRepository {
     if (_openQuantization == quantization) return;
     await _closeSession(waitForOpening: false, invalidateOpening: false);
     final paths = await _paths();
-    final identity = await _loadIdentity();
+    final identity = await _loadIdentity(_installedFamily(_vectors));
     if (epoch != _lifecycleEpoch || !_isConsentGranted() || _moveInProgress) {
       throw const SemanticFailure(SemanticFailureKind.cancelled);
     }
@@ -742,7 +740,7 @@ class SemanticSearchRepository {
     if ((await _safeStatus()).state == SemanticBackendState.notInBuild) return;
 
     final paths = await _paths();
-    final identity = await _loadIdentity();
+    final modelIdentity = await _loadIdentity(SemanticVectorsFamily.anchor);
     final version = await _libraryVersion();
     if (version == null) {
       throw const SemanticFailure(SemanticFailureKind.libraryVersionUnknown);
@@ -762,14 +760,16 @@ class SemanticSearchRepository {
     final upToDate =
         installed.present &&
         installed.libraryVersion == version &&
+        _installedFamily(installed) == _preferredFamily &&
         !_needsRepair;
     if (!upToDate) {
       release = await _staged.locate(
         version,
         offline: offline,
-        online: () => _locator.findForLibraryVersion(
+        online: () async => _locator.findForLibraryVersion(
           version,
           libraryTag: _libraryTagHint,
+          candidates: await _vectorsCandidates(),
         ),
       );
       if (release == null) {
@@ -777,6 +777,10 @@ class SemanticSearchRepository {
       } else {
         _unpublishedVersion = null;
         if (release.releaseTag == _settings.skippedVectorsRelease) {
+          release = null;
+        } else if (_isInstalledRelease(installed, release)) {
+          // המשפחה המועדפת לא פורסמה, או שהסט שלה מותקן ולא נרשם.
+          await _rememberFamily(await _familyOf(release), installed);
           release = null;
         }
       }
@@ -793,16 +797,17 @@ class SemanticSearchRepository {
         SemanticDownloadItem.install,
       ],
     ];
-    await _ensureModel(paths, identity, quantization, model);
+    await _ensureModel(paths, modelIdentity, quantization, model);
     if (_jobCancel.isCancelled || release == null) return;
-    await _installRelease(paths, identity, release);
+    await _installRelease(paths, release);
   }
 
   Future<void> _installRelease(
     SemanticPaths paths,
-    SemanticModelIdentity identity,
     SemanticVectorsRelease release,
   ) async {
+    final family = await _familyOf(release);
+    final identity = await _loadIdentity(family);
     await _ensureOwnedOrAbsent(paths.vectorsDirectory, allowEmpty: true);
     await _ensureOwnedOrAbsent(paths.vectorsDownloadDirectory);
     await markSemanticDirectory(paths.vectorsDownloadDirectory);
@@ -817,8 +822,10 @@ class SemanticSearchRepository {
       _progressOf(SemanticDownloadItem.install, _jobTotalBytes),
     );
     final repair = _needsRepair;
-    if (repair) {
-      // ב-Windows אי אפשר להחליף קובץ ממופה: התיקון מחייב לסגור את ה-session.
+    // ב-Windows אי אפשר להחליף קובץ ממופה, ומשפחה אחרת נפתחת עם model.json אחר.
+    final familyChanges =
+        _vectors?.present == true && family != _installedFamily(_vectors);
+    if (repair || familyChanges) {
       _cancelAllSearches();
       await _closeSession();
     }
@@ -834,9 +841,12 @@ class SemanticSearchRepository {
         cancel: _jobCancel,
       );
     } on SemanticFailure catch (failure) {
-      // פרסום חוזר בבתים אחרים של גרסה מותקנת: הסט תקין, ולא מורידים שוב.
+      // פרסום חוזר של גרסה מותקנת, או chunking שהמנוע לא פותר: לא מורידים שוב.
       if (failure.kind != SemanticFailureKind.artifactIncompatible ||
-          failure.field != 'segment_id') {
+          !const {
+            'segment_id',
+            'model.chunking_identity',
+          }.contains(failure.field)) {
         rethrow;
       }
       _log('install', failure, StackTrace.current);
@@ -844,7 +854,12 @@ class SemanticSearchRepository {
     }
     _needsRepair = false;
     if (repair) _lastFailure = null;
-    _vectors = await _backend.vectorsInfo(paths.vectorsDirectory);
+    final vectors = _vectors = await _backend.vectorsInfo(
+      paths.vectorsDirectory,
+    );
+    if (vectors.identityDigest == release.identityDigest) {
+      await _rememberFamily(family, vectors);
+    }
     try {
       await deleteSemanticOwnedDirectory(downloadDir.path);
     } on FileSystemException catch (error, stackTrace) {
@@ -1180,8 +1195,63 @@ class SemanticSearchRepository {
     }
   }
 
-  Future<SemanticModelIdentity> _loadIdentity() async =>
-      _identity ??= SemanticModelIdentity.parse(await _identityLoader());
+  Future<SemanticModelIdentity> _loadIdentity(
+    SemanticVectorsFamily family,
+  ) async => _identities[family] ??= SemanticModelIdentity.parse(
+    await _identityLoader(family),
+  );
+
+  SemanticVectorsFamily get _preferredFamily => _backend.supportsLongLineWindows
+      ? SemanticVectorsFamily.windows
+      : SemanticVectorsFamily.anchor;
+
+  /// המשפחות שמחפשים להן release, המועדפת ראשונה.
+  Future<List<SemanticVectorsCandidate>> _vectorsCandidates() async => [
+    for (final family in {_preferredFamily, SemanticVectorsFamily.anchor})
+      (
+        family: family,
+        chunkingIdentity: (await _loadIdentity(family)).chunkingIdentity,
+      ),
+  ];
+
+  /// משפחת הסט המותקן; סט שלא נרשם כסט חלונות הוא מהמשפחה הישנה.
+  SemanticVectorsFamily _installedFamily(SemanticVectorsSummary? vectors) =>
+      vectors != null &&
+          vectors.identityDigest.isNotEmpty &&
+          vectors.identityDigest == _settings.windowsVectorsDigest
+      ? SemanticVectorsFamily.windows
+      : SemanticVectorsFamily.anchor;
+
+  /// המשפחה שה-chunking של [release] שייך לה.
+  Future<SemanticVectorsFamily> _familyOf(
+    SemanticVectorsRelease release,
+  ) async =>
+      release.chunkingIdentity ==
+          (await _loadIdentity(SemanticVectorsFamily.windows)).chunkingIdentity
+      ? SemanticVectorsFamily.windows
+      : SemanticVectorsFamily.anchor;
+
+  /// [installed] הוא כבר הסט של [release]: אותה גרסה ואותה זהות.
+  bool _isInstalledRelease(
+    SemanticVectorsSummary installed,
+    SemanticVectorsRelease release,
+  ) =>
+      !_needsRepair &&
+      installed.present &&
+      installed.libraryVersion == release.toLibraryVersion &&
+      installed.identityDigest.isNotEmpty &&
+      installed.identityDigest == release.identityDigest;
+
+  Future<void> _rememberFamily(
+    SemanticVectorsFamily family,
+    SemanticVectorsSummary vectors,
+  ) async {
+    if (family == SemanticVectorsFamily.windows &&
+        vectors.identityDigest.isNotEmpty &&
+        vectors.identityDigest != _settings.windowsVectorsDigest) {
+      await _settings.setWindowsVectorsDigest(vectors.identityDigest);
+    }
+  }
 
   static SemanticFailure _failureOf(Object error) => switch (error) {
     final SemanticFailure failure => failure,

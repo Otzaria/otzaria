@@ -34,6 +34,7 @@ String _vectorsManifest({String? familyId}) {
       'model': {
         'family_id': familyId ?? identity.familyId,
         'tokenizer_checksum': identity.tokenizerChecksum,
+        'chunking_identity': identity.chunkingIdentity,
       },
     },
     'fromLibraryVersion': 0,

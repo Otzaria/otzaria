@@ -108,6 +108,10 @@ class SettingsRepository {
   /// תג release וקטורים שהמנוע זיהה כפרסום חוזר של גרסה מותקנת; לא מורידים שוב.
   static const String keySemanticSkippedVectorsRelease =
       'key-semantic-skipped-vectors-release';
+
+  /// ה-identity digest של סט וקטורים ממשפחת החלונות שהותקן במכשיר.
+  static const String keySemanticWindowsVectorsDigest =
+      'key-semantic-windows-vectors-digest';
   static const String keyLibraryPath = 'key-library-path';
   static const String keyIndexPath = 'key-index-path';
   static const String keyDatabasesPath = 'key-databases-path';
@@ -293,6 +297,7 @@ class SettingsRepository {
     keySemanticDataEnabled,
     keySemanticDownloadPaused,
     keySemanticSkippedVectorsRelease,
+    keySemanticWindowsVectorsDigest,
     keyLibraryPath,
     keyIndexPath,
     keyDatabasesPath,

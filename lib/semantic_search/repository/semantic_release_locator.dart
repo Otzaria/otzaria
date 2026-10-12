@@ -4,12 +4,13 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 
 /// מאתר ב-SeforimLibrary את release הוקטורים של גרסת ספרייה.
 ///
-/// ה-release נקרא `vectors-<תג הספרייה>` ואינו מסומן latest, ולכן הוא נמצא
-/// לפי התג בלבד. GitHub שחסם מכסה זורק [GithubRateLimitException].
+/// ה-release נקרא בתחילית המשפחה ואחריה תג הספרייה, ואינו מסומן latest, ולכן
+/// הוא נמצא לפי התג בלבד. GitHub שחסם מכסה זורק [GithubRateLimitException].
 class SemanticVectorsReleaseLocator {
   static const String defaultApiBase =
       'https://api.github.com/repos/Otzaria/SeforimLibrary';
@@ -29,14 +30,16 @@ class SemanticVectorsReleaseLocator {
     this._apiBase = defaultApiBase,
   }) : _clientFactory = clientFactory ?? http.Client.new;
 
-  /// ה-release של גרסת הספרייה [libraryVersion], או `null` כשהוא עוד לא
-  /// פורסם. [libraryTag] חוסך את סריקת ה-releases כשהתג ידוע.
+  /// ה-release של גרסת הספרייה [libraryVersion] מהמועמד הראשון ב-[candidates]
+  /// שפורסם, או `null` כשאף אחד לא פורסם. [libraryTag] חוסך את סריקת
+  /// ה-releases כשהתג ידוע.
   ///
-  /// זורק [SemanticFailure] על release פגום או מניפסט שאינו תואם ל-digest
-  /// שפורסם, ו-[http.ClientException] על כשל רשת.
+  /// זורק [SemanticFailure] על release פגום, מניפסט שאינו תואם ל-digest
+  /// שפורסם או ל-chunking של המועמד, ו-[http.ClientException] על כשל רשת.
   Future<SemanticVectorsRelease?> findForLibraryVersion(
     int libraryVersion, {
     String? libraryTag,
+    required List<SemanticVectorsCandidate> candidates,
   }) async {
     final client = GithubRateLimitAwareClient(_clientFactory());
     try {
@@ -46,25 +49,40 @@ class SemanticVectorsReleaseLocator {
           : null;
       final tag = hint ?? await _findLibraryTag(client, libraryVersion);
       if (tag == null) return null;
-      final releaseTag = 'vectors-$tag';
-      final release = await _getJson(
-        client,
-        '$_apiBase/releases/tags/${Uri.encodeComponent(releaseTag)}',
-      );
-      if (release == null) return null;
-      if (release is! Map<String, dynamic>) {
-        throw const SemanticFailure(
-          SemanticFailureKind.releaseMalformed,
-          'release JSON is not an object',
+      SemanticFailure? mismatch;
+      for (final candidate in candidates) {
+        final releaseTag = '${candidate.family.releaseTagPrefix}$tag';
+        final release = await _getJson(
+          client,
+          '$_apiBase/releases/tags/${Uri.encodeComponent(releaseTag)}',
+        );
+        if (release == null) continue;
+        if (release is! Map<String, dynamic>) {
+          throw const SemanticFailure(
+            SemanticFailureKind.releaseMalformed,
+            'release JSON is not an object',
+          );
+        }
+        final parsed = await _parseRelease(
+          client,
+          release,
+          tag,
+          releaseTag,
+          libraryVersion,
+        );
+        // נבדק לפני הורדת ה-segment: סט של chunking אחר לא היה מותקן.
+        if (parsed.chunkingIdentity == candidate.chunkingIdentity) {
+          return parsed;
+        }
+        mismatch = SemanticFailure(
+          SemanticFailureKind.artifactIncompatible,
+          '$releaseTag is chunking ${parsed.chunkingIdentity}, '
+              'expected ${candidate.chunkingIdentity}',
+          'model.chunking_identity',
         );
       }
-      return await _parseRelease(
-        client,
-        release,
-        tag,
-        releaseTag,
-        libraryVersion,
-      );
+      if (mismatch != null) throw mismatch;
+      return null;
     } finally {
       client.close();
     }
@@ -186,6 +204,7 @@ class SemanticVectorsReleaseLocator {
       );
     }
 
+    final identity = SemanticVectorsRelease.identityOf(manifest);
     return SemanticVectorsRelease(
       libraryTag: libraryTag,
       releaseTag: releaseTag,
@@ -200,6 +219,8 @@ class SemanticVectorsReleaseLocator {
         (manifest['segment'] as Map<String, dynamic>?)?['size'],
         'segment.size',
       ),
+      identityDigest: identity.identityDigest,
+      chunkingIdentity: identity.chunkingIdentity,
     );
   }
 

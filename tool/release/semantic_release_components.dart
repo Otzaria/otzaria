@@ -18,6 +18,7 @@ import 'package:otzaria/semantic_search/models/semantic_import_layout.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_release.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 import 'package:otzaria/semantic_search/repository/semantic_release_locator.dart';
 
@@ -256,10 +257,22 @@ Future<List<Map<String, Object?>>> resolveSemanticComponents({
   if (version == null) {
     throw SemanticComponentsOmitted('library tag $libraryTag has no version');
   }
-  final vectors = await SemanticVectorsReleaseLocator(
-    clientFactory: clientFactory,
-    apiBase: '$apiBase/$kSemanticVectorsRepository',
-  ).findForLibraryVersion(version, libraryTag: libraryTag);
+  final identity = SemanticModelIdentity.parse(modelIdentityJson);
+  // המסייע אורז את המשפחה הישנה: כל גרסת מנוע פותחת אותה.
+  final vectors =
+      await SemanticVectorsReleaseLocator(
+        clientFactory: clientFactory,
+        apiBase: '$apiBase/$kSemanticVectorsRepository',
+      ).findForLibraryVersion(
+        version,
+        libraryTag: libraryTag,
+        candidates: [
+          (
+            family: SemanticVectorsFamily.anchor,
+            chunkingIdentity: identity.chunkingIdentity,
+          ),
+        ],
+      );
   if (vectors == null) {
     throw SemanticComponentsOmitted(
       '$kSemanticVectorsRepository has no release vectors-$libraryTag',
@@ -289,7 +302,6 @@ Future<List<Map<String, Object?>>> resolveSemanticComponents({
       vectors.publishedManifestSha256!,
     );
 
-    final identity = SemanticModelIdentity.parse(modelIdentityJson);
     final built = (jsonDecode(vectors.manifestJson) as Map)['identity'];
     final builtModel = built is Map ? built['model'] : null;
     if (builtModel is! Map ||

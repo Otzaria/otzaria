@@ -92,7 +92,7 @@ void main() {
         consent: () => consent,
         settings: settings,
         paths: () async => SemanticPaths(p.join(root.path, 'otzaria')),
-        identityLoader: () async => bundledModelJson(),
+        identityLoader: (family) async => bundledModelJson(family),
         locator: locator,
         download: downloads.call,
         libraryVersion: () async => version,

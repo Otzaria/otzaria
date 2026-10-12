@@ -186,6 +186,7 @@ class SemanticStagedImport {
     if (files is! List || files.isEmpty || segmentSize is! int) {
       throw const FormatException('manifest files/segment missing');
     }
+    final identity = SemanticVectorsRelease.identityOf(manifest);
     return SemanticVectorsRelease(
       libraryTag: tag,
       releaseTag: 'vectors-$tag',
@@ -211,6 +212,8 @@ class SemanticStagedImport {
             throw const FormatException('manifest file entry'),
       ],
       segmentUncompressedSize: segmentSize,
+      identityDigest: identity.identityDigest,
+      chunkingIdentity: identity.chunkingIdentity,
     );
   }
 

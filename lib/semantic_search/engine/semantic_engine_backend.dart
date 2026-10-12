@@ -4,6 +4,7 @@ import 'package:otzaria/search/search_engine_gateway.dart'
     show SemanticSearchRequest;
 import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SemanticHighlightTarget, SemanticPassageHighlight;
 
@@ -12,6 +13,10 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
 /// כל מתודה זורקת [SemanticFailure] בכשל. [SemanticCancelHandle] שבוטל
 /// מסיים את הפעולה ב-[SemanticFailureKind.cancelled], שאינו כשל.
 abstract interface class SemanticEngineBackend {
+  /// האם המנוע פותר חלונות נוספים של שורות ארוכות; בלי זה סט של
+  /// [SemanticVectorsFamily.windows] לא נפתח, ולכן גם לא מורד.
+  bool get supportsLongLineWindows;
+
   /// מצב ה-session; לעולם אינו זורק על "אין session".
   Future<SemanticBackendStatus> status();
 
@@ -73,6 +78,9 @@ class UnavailableSemanticEngineBackend implements SemanticEngineBackend {
     SemanticFailureKind.featureNotInBuild,
     'Semantic search is not supported on this platform',
   );
+
+  @override
+  bool get supportsLongLineWindows => false;
 
   @override
   Future<SemanticBackendStatus> status() async =>

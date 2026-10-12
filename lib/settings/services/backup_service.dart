@@ -293,6 +293,7 @@ class BackupService {
     SettingsRepository.keySemanticDataEnabled,
     SettingsRepository.keySemanticDownloadPaused,
     SettingsRepository.keySemanticSkippedVectorsRelease,
+    SettingsRepository.keySemanticWindowsVectorsDigest,
     // דגל פנימי שמסמן שברירות המחדל נכתבו לדיסק.
     'settings_initialized',
   };

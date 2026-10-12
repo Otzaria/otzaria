@@ -46,6 +46,9 @@ class SemanticModelIdentity extends Equatable {
   /// SHA-256 של `tokenizer.json` (`tokenizer_checksum`).
   final String tokenizerChecksum;
 
+  /// תצורת החלוקה לקטעים שאיתה נבנו הוקטורים (`chunking_identity`).
+  final int chunkingIdentity;
+
   /// החבילות שמותר לשאול איתן (`query_packages`).
   final List<SemanticQueryPackage> queryPackages;
 
@@ -56,6 +59,7 @@ class SemanticModelIdentity extends Equatable {
     required this.familyId,
     required this.embeddingDim,
     required this.tokenizerChecksum,
+    required this.chunkingIdentity,
     required this.queryPackages,
     required this.rawJson,
   });
@@ -76,6 +80,7 @@ class SemanticModelIdentity extends Equatable {
       familyId: _string(decoded, 'family_id'),
       embeddingDim: _int(decoded, 'embedding_dim'),
       tokenizerChecksum: _string(decoded, 'tokenizer_checksum'),
+      chunkingIdentity: _int(decoded, 'chunking_identity'),
       queryPackages: [
         for (final package in packages)
           if (package is Map<String, dynamic>)
@@ -113,6 +118,7 @@ class SemanticModelIdentity extends Equatable {
     familyId,
     embeddingDim,
     tokenizerChecksum,
+    chunkingIdentity,
     queryPackages,
     rawJson,
   ];
