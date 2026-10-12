@@ -34,9 +34,77 @@ static const wchar_t* kMainWindowTitle = L"אוצריא";
 // עד אז זה החוזה, והכותרת נשארת עזר נפילה-לאחור בלבד.
 static const wchar_t* kMainWindowPropName = L"OtzariaMainWindow";
 
+static std::wstring ExeDir() {
+  wchar_t exe_path[MAX_PATH * 4] = {0};
+  const DWORD len = ::GetModuleFileNameW(
+      nullptr, exe_path, sizeof(exe_path) / sizeof(exe_path[0]));
+  if (len == 0 || len >= sizeof(exe_path) / sizeof(exe_path[0])) {
+    return std::wstring();
+  }
+  std::wstring exe_dir(exe_path, len);
+  return exe_dir.substr(0, exe_dir.find_last_of(L"\\/"));
+}
+
+// Mirrors AppPaths.isPortable: a `portable.marker` *file* next to the exe.
+static bool IsPortable(const std::wstring& exe_dir) {
+  if (exe_dir.empty()) return false;
+  const DWORD attrs =
+      ::GetFileAttributesW((exe_dir + L"\\portable.marker").c_str());
+  return attrs != INVALID_FILE_ATTRIBUTES &&
+         !(attrs & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+// Mirrors AppPaths.getDataRootPath() on Windows: `<exeDir>\otzaria_data` when
+// portable, otherwise %APPDATA%\otzaria.
+static std::wstring DataRootForExeDir(const std::wstring& exe_dir) {
+  if (IsPortable(exe_dir)) return exe_dir + L"\\otzaria_data";
+
+  wchar_t app_data_env[MAX_PATH * 4] = {0};
+  const DWORD env_len = ::GetEnvironmentVariableW(
+      L"APPDATA", app_data_env, sizeof(app_data_env) / sizeof(app_data_env[0]));
+  if (env_len > 0 && env_len < sizeof(app_data_env) / sizeof(app_data_env[0])) {
+    return std::wstring(app_data_env, env_len) + L"\\otzaria";
+  }
+  wchar_t* app_data_raw = nullptr;
+  if (FAILED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT,
+                                   nullptr, &app_data_raw))) {
+    return std::wstring();
+  }
+  std::wstring app_data(app_data_raw);
+  CoTaskMemFree(app_data_raw);
+  return app_data + L"\\otzaria";
+}
+
+static std::wstring DataRootPath() { return DataRootForExeDir(ExeDir()); }
+
+// The data root of the process that owns |hwnd|, or empty when unknown.
+static std::wstring DataRootOfWindowProcess(HWND hwnd) {
+  DWORD pid = 0;
+  ::GetWindowThreadProcessId(hwnd, &pid);
+  HANDLE process =
+      ::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (process == nullptr) return std::wstring();
+  wchar_t image[MAX_PATH * 4] = {0};
+  DWORD size = sizeof(image) / sizeof(image[0]);
+  const BOOL ok = ::QueryFullProcessImageNameW(process, 0, image, &size);
+  ::CloseHandle(process);
+  if (!ok) return std::wstring();
+  std::wstring dir(image, size);
+  return DataRootForExeDir(dir.substr(0, dir.find_last_of(L"\\/")));
+}
+
+static bool SameDataRoot(const std::wstring& a, const std::wstring& b) {
+  return !a.empty() &&
+         ::CompareStringOrdinal(a.c_str(), static_cast<int>(a.size()),
+                                b.c_str(), static_cast<int>(b.size()),
+                                TRUE) == CSTR_EQUAL;
+}
+
 namespace {
 
 struct MainWindowSearch {
+  // רק חלונות של מופע עם אותו שורש נתונים — עותק נייד ומותקן אינם מעלים זה את זה.
+  std::wstring data_root;
   // חלון אוצריא **גלוי**, אם נמצא — היעד המועדף.
   HWND visible = nullptr;
   // חלון אוצריא כלשהו, כנפילה-לאחור.
@@ -49,6 +117,9 @@ BOOL CALLBACK FindMainWindowProc(HWND hwnd, LPARAM param) {
                   sizeof(class_name) / sizeof(class_name[0]));
   if (::wcscmp(class_name, kFlutterWindowClassName) != 0) return TRUE;
   auto* search = reinterpret_cast<MainWindowSearch*>(param);
+  if (!SameDataRoot(DataRootOfWindowProcess(hwnd), search->data_root)) {
+    return TRUE;
+  }
 
   // ⚠️ **גלוי** קודם לכול, וזה לא ניואנס. חלון שהמשתמש סגר מוסתר ולא
   // נהרס, והמאפיין נשאר עליו — כלומר הסריקה החזירה חלון בלתי-נראה, ומופע
@@ -75,10 +146,16 @@ BOOL CALLBACK FindMainWindowProc(HWND hwnd, LPARAM param) {
 // והתנהגות ההעלאה שלו צריכה להישאר כשהייתה.
 HWND FindRunningMainWindow() {
   MainWindowSearch search;
+  search.data_root = DataRootPath();
   ::EnumWindows(FindMainWindowProc, reinterpret_cast<LPARAM>(&search));
   if (search.visible) return search.visible;
   if (search.any) return search.any;
-  return ::FindWindowW(kFlutterWindowClassName, kMainWindowTitle);
+  const HWND fallback = ::FindWindowW(kFlutterWindowClassName, kMainWindowTitle);
+  return fallback != nullptr &&
+                 SameDataRoot(DataRootOfWindowProcess(fallback),
+                              search.data_root)
+             ? fallback
+             : nullptr;
 }
 
 }  // namespace
@@ -180,50 +257,8 @@ static bool EndsWithIgnoreCase(const std::string& s, const std::string& suffix) 
   return true;
 }
 
-static std::wstring ExeDir() {
-  wchar_t exe_path[MAX_PATH * 4] = {0};
-  const DWORD len = ::GetModuleFileNameW(
-      nullptr, exe_path, sizeof(exe_path) / sizeof(exe_path[0]));
-  if (len == 0 || len >= sizeof(exe_path) / sizeof(exe_path[0])) {
-    return std::wstring();
-  }
-  std::wstring exe_dir(exe_path, len);
-  return exe_dir.substr(0, exe_dir.find_last_of(L"\\/"));
-}
-
-// Mirrors AppPaths.isPortable: a `portable.marker` *file* next to the exe.
-static bool IsPortable(const std::wstring& exe_dir) {
-  if (exe_dir.empty()) return false;
-  const DWORD attrs =
-      ::GetFileAttributesW((exe_dir + L"\\portable.marker").c_str());
-  return attrs != INVALID_FILE_ATTRIBUTES &&
-         !(attrs & FILE_ATTRIBUTE_DIRECTORY);
-}
-
-// Mirrors AppPaths.getDataRootPath() on Windows: `<exeDir>\otzaria_data` when
-// portable, otherwise %APPDATA%\otzaria.
-static std::wstring DataRootPath() {
-  const std::wstring exe_dir = ExeDir();
-  if (IsPortable(exe_dir)) return exe_dir + L"\\otzaria_data";
-
-  wchar_t app_data_env[MAX_PATH * 4] = {0};
-  const DWORD env_len = ::GetEnvironmentVariableW(
-      L"APPDATA", app_data_env, sizeof(app_data_env) / sizeof(app_data_env[0]));
-  if (env_len > 0 && env_len < sizeof(app_data_env) / sizeof(app_data_env[0])) {
-    return std::wstring(app_data_env, env_len) + L"\\otzaria";
-  }
-  wchar_t* app_data_raw = nullptr;
-  if (FAILED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT,
-                                   nullptr, &app_data_raw))) {
-    return std::wstring();
-  }
-  std::wstring app_data(app_data_raw);
-  CoTaskMemFree(app_data_raw);
-  return app_data + L"\\otzaria";
-}
-
 // The single instance is per data root, like the activation queue it feeds.
-// The installed copy keeps the public name (installer AppMutex, offline updater).
+// The installed copy keeps the public name (installer, offline updater).
 static std::wstring SingleInstanceMutexName() {
   const std::wstring exe_dir = ExeDir();
   if (!IsPortable(exe_dir)) return kSingleInstanceMutexName;
