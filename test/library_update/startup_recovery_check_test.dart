@@ -155,4 +155,37 @@ void main() {
     expect(File('$dbPath.backup').existsSync(), isFalse);
     expect(File(dbPath).readAsStringSync(), 'fake-db');
   });
+
+  group('שאריות של המעדכן הלא-מקוון', () {
+    test('מסד חסר — <db>.old חוזר לשמו', () async {
+      File(dbPath).deleteSync();
+      File('$dbPath.old').writeAsStringSync('retired-db');
+
+      await runAndVerify(buildCheck(quickCheckResult: true));
+
+      expect(File(dbPath).readAsStringSync(), 'retired-db');
+      expect(File('$dbPath.old').existsSync(), isFalse);
+    });
+
+    test('מסד באורך 0 — מוחלף ב-<db>.old', () async {
+      File(dbPath).writeAsStringSync('');
+      File('$dbPath.old').writeAsStringSync('retired-db');
+
+      await runAndVerify(buildCheck(quickCheckResult: true));
+
+      expect(File(dbPath).readAsStringSync(), 'retired-db');
+    });
+
+    test('מסד תקין — <db>.old ו-<db>.unverified אינם נוגעים בו', () async {
+      File('$dbPath.old').writeAsStringSync('retired-db');
+      File('$dbPath.unverified').writeAsStringSync('{"version":7}');
+
+      await runAndVerify(buildCheck(quickCheckResult: true));
+
+      expect(File(dbPath).readAsStringSync(), 'fake-db');
+      expect(File('$dbPath.old').existsSync(), isTrue);
+      expect(File('$dbPath.unverified').existsSync(), isTrue);
+      expect(quickCheckRuns, 0);
+    });
+  });
 }

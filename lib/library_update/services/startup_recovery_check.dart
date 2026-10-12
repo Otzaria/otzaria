@@ -46,6 +46,11 @@ class StartupRecoveryCheck {
 
   Future<void> run(String dbPath) async {
     try {
+      _restoreOfflineRetiredDb(dbPath);
+    } catch (e) {
+      debugPrint('offline update retired DB restore failed: $e');
+    }
+    try {
       final result = await recovery.recoverIfNeeded(dbPath);
       switch (result.action) {
         case RecoveryAction.restored:
@@ -59,6 +64,20 @@ class StartupRecoveryCheck {
     } catch (e) {
       debugPrint('library update recovery failed: $e');
     }
+  }
+
+  /// `<db>.old` של המעדכן הלא-מקוון: מוות בין שני ה-rename שלו משאיר שם את המסד השלם.
+  /// `<db>.unverified` שלו אינו דורש דבר — כל apply של אוצריא מאמת hash אחריו.
+  static void _restoreOfflineRetiredDb(String dbPath) {
+    final retired = File('$dbPath.old');
+    if (!retired.existsSync() || retired.lengthSync() == 0) return;
+    final db = File(dbPath);
+    if (db.existsSync()) {
+      if (db.lengthSync() != 0) return;
+      db.deleteSync();
+    }
+    retired.renameSync(dbPath);
+    debugPrint('📦 שוחזר $dbPath מ-.old שהותיר עדכון לא-מקוון שנקטע');
   }
 
   /// מריץ את האימות שנדחה ב-[run], אם יש. בטוח לקריאה גם כשאין.
