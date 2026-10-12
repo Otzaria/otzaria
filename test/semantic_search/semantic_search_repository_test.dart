@@ -14,6 +14,7 @@ import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_model_identity.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
 import 'package:path/path.dart' as p;
 
@@ -805,7 +806,17 @@ void main() {
     Future<int> chunkingOf(SemanticVectorsFamily family) async =>
         SemanticModelIdentity.parse(bundledModelJson(family)).chunkingIdentity;
 
-    test('מנוע בלי חלונות מבקש ומתקין רק את המשפחה הישנה', () async {
+    File windowsMarker() => File(
+      p.join(paths().vectorsDirectory, kSemanticWindowsIdentityFileName),
+    );
+
+    SemanticVectorsRelease windowsRelease(int chunking) => releaseV30(
+      family: SemanticVectorsFamily.windows,
+      identityDigest: windowsDigest,
+      chunkingIdentity: chunking,
+    );
+
+    test('מנוע בלי חלונות מתקין את הישנה בלי לקרוא את נכס החלונות', () async {
       installModelFiles(root);
       final locator = FakeLocator(releaseV30());
       final backend = FakeBackend()..vectors = installedAnchorV30;
@@ -815,6 +826,9 @@ void main() {
         settings: FakeSettingsStore()..dataEnabled = true,
         locator: locator,
         libraryVersion: 31,
+        identityLoader: (family) async => family == SemanticVectorsFamily.anchor
+            ? bundledModelJson()
+            : throw StateError('windows identity read'),
       );
 
       repository.scheduleVectorsUpdate();
@@ -830,28 +844,128 @@ void main() {
         backend.installRequests.single.modelIdentityJson,
         bundledModelJson(),
       );
+      expect(windowsMarker().existsSync(), isFalse);
     });
 
-    test('סט ישן באותה גרסה מוחלף בסט החלונות, שנפתח עם הזהות שלו', () async {
+    test(
+      'סט ישן מוחלף בסט החלונות: ה-session נסגר, והפתיחה בזהות החדשה',
+      () async {
+        installModelFiles(root);
+        final locator = FakeLocator(
+          windowsRelease(await chunkingOf(SemanticVectorsFamily.windows)),
+        );
+        final backend = FakeBackend()
+          ..supportsLongLineWindows = true
+          ..vectors = installedAnchorV30
+          ..installedIdentityDigest = windowsDigest;
+        final repository = buildRepository(
+          root: root,
+          backend: backend,
+          settings: FakeSettingsStore()..dataEnabled = true,
+          locator: locator,
+        );
+        await repository.ensureOpen();
+        expect(
+          backend.openRequests.single.modelIdentityJson,
+          bundledModelJson(),
+        );
+
+        repository.scheduleVectorsUpdate();
+        await repository.pendingJob;
+
+        expect(locator.candidates.single.map((c) => c.family), [
+          SemanticVectorsFamily.windows,
+          SemanticVectorsFamily.anchor,
+        ]);
+        expect(
+          backend.installRequests.single.modelIdentityJson,
+          bundledModelJson(SemanticVectorsFamily.windows),
+        );
+        final disable = backend.calls.lastIndexOf('disable');
+        expect(disable, isNonNegative);
+        expect(disable, lessThan(backend.calls.indexOf('install')));
+        expect(windowsMarker().readAsStringSync(), windowsDigest);
+
+        repository.scheduleVectorsUpdate();
+        await repository.pendingJob;
+        expect(locator.lookups, hasLength(1));
+
+        await repository.ensureOpen();
+        expect(
+          backend.openRequests.last.modelIdentityJson,
+          bundledModelJson(SemanticVectorsFamily.windows),
+        );
+        expect(
+          (await repository.engineSnapshot()).vectorsReleaseTag,
+          'vectors-windows-v30-20260930165019',
+        );
+      },
+    );
+
+    test('הסימון נכתב לפני ההתקנה: קריסה אחריה פותחת בזהות החלונות', () async {
       installModelFiles(root);
-      final windowsChunking = await chunkingOf(SemanticVectorsFamily.windows);
-      final locator = FakeLocator(
-        releaseV30(
-          family: SemanticVectorsFamily.windows,
-          identityDigest: windowsDigest,
-          chunkingIdentity: windowsChunking,
-        ),
-      );
-      final settings = FakeSettingsStore()..dataEnabled = true;
       final backend = FakeBackend()
         ..supportsLongLineWindows = true
-        ..vectors = installedAnchorV30
-        ..installedIdentityDigest = windowsDigest;
+        ..installFailures.add(
+          const SemanticFailure(SemanticFailureKind.internal, 'crashed'),
+        );
       final repository = buildRepository(
         root: root,
         backend: backend,
-        settings: settings,
+        locator: FakeLocator(
+          windowsRelease(await chunkingOf(SemanticVectorsFamily.windows)),
+        ),
+      );
+      await repository.enableAndDownload();
+      expect(
+        repository.availability.failure?.kind,
+        SemanticFailureKind.internal,
+      );
+
+      // ההתקנה עצמה הושלמה, והתהליך נפל לפני שהמאגר המשיך.
+      final reopened = FakeBackend()
+        ..supportsLongLineWindows = true
+        ..vectors = SemanticVectorsSummary(
+          present: true,
+          identityDigest: windowsDigest,
+          libraryVersion: 30,
+          libraryReleaseTag: installedV30.libraryReleaseTag,
+          segments: installedV30.segments,
+        );
+      await buildRepository(
+        root: root,
+        backend: reopened,
+        settings: FakeSettingsStore(),
+      ).ensureOpen();
+      expect(
+        reopened.openRequests.single.modelIdentityJson,
+        bundledModelJson(SemanticVectorsFamily.windows),
+      );
+    });
+
+    test('סט חלונות קיים אינו מוחלף בסט הישן של גרסה חדשה', () async {
+      installModelFiles(root);
+      windowsMarker()
+        ..createSync(recursive: true)
+        ..writeAsStringSync(windowsDigest);
+      final downloads = FakeDownloads();
+      final locator = FakeLocator(releaseV30());
+      final backend = FakeBackend()
+        ..supportsLongLineWindows = true
+        ..vectors = SemanticVectorsSummary(
+          present: true,
+          identityDigest: windowsDigest,
+          libraryVersion: 30,
+          libraryReleaseTag: installedV30.libraryReleaseTag,
+          segments: installedV30.segments,
+        );
+      final repository = buildRepository(
+        root: root,
+        backend: backend,
+        settings: FakeSettingsStore()..dataEnabled = true,
+        download: downloads.call,
         locator: locator,
+        libraryVersion: 31,
       );
 
       repository.scheduleVectorsUpdate();
@@ -859,40 +973,22 @@ void main() {
 
       expect(locator.candidates.single.map((c) => c.family), [
         SemanticVectorsFamily.windows,
-        SemanticVectorsFamily.anchor,
       ]);
-      expect(
-        backend.installRequests.single.modelIdentityJson,
-        bundledModelJson(SemanticVectorsFamily.windows),
-      );
-      expect(settings.windowsVectorsDigest, windowsDigest);
-
-      repository.scheduleVectorsUpdate();
-      await repository.pendingJob;
-      expect(locator.lookups, hasLength(1));
-
-      await repository.ensureOpen();
-      expect(
-        backend.openRequests.single.modelIdentityJson,
-        bundledModelJson(SemanticVectorsFamily.windows),
-      );
-      expect(
-        (await repository.engineSnapshot()).vectorsReleaseTag,
-        'vectors-windows-v30-20260930165019',
-      );
+      expect(downloads.urls, isEmpty);
+      expect(backend.installRequests, isEmpty);
+      expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
     });
 
     test('סט חלונות שלא פורסם: הסט הישן באותה גרסה נשאר בלי הורדה', () async {
       installModelFiles(root);
       final downloads = FakeDownloads();
-      final settings = FakeSettingsStore()..dataEnabled = true;
       final backend = FakeBackend()
         ..supportsLongLineWindows = true
         ..vectors = installedAnchorV30;
       final repository = buildRepository(
         root: root,
         backend: backend,
-        settings: settings,
+        settings: FakeSettingsStore()..dataEnabled = true,
         download: downloads.call,
         locator: FakeLocator(
           releaseV30(
@@ -907,7 +1003,6 @@ void main() {
 
       expect(downloads.urls, isEmpty);
       expect(backend.installRequests, isEmpty);
-      expect(settings.windowsVectorsDigest, isNull);
       await repository.ensureOpen();
       expect(
         backend.openRequests.single.modelIdentityJson,

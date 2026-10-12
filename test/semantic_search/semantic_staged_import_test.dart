@@ -48,23 +48,47 @@ final Map<SemanticQuantization, SemanticModelRelease?> _smallModel = {
   SemanticQuantization.fp32: null,
 };
 
+int _chunkingOf(SemanticVectorsFamily family) =>
+    SemanticModelIdentity.parse(bundledModelJson(family)).chunkingIdentity;
+
+final List<SemanticVectorsCandidate> _anchorOnly = [
+  (
+    family: SemanticVectorsFamily.anchor,
+    chunkingIdentity: _chunkingOf(SemanticVectorsFamily.anchor),
+  ),
+];
+
+final List<SemanticVectorsCandidate> _windowsFirst = [
+  (
+    family: SemanticVectorsFamily.windows,
+    chunkingIdentity: _chunkingOf(SemanticVectorsFamily.windows),
+  ),
+  ..._anchorOnly,
+];
+
 /// מניפסט וקטורים בצורה שמתפרסמת ב-SeforimLibrary.
-String _manifest({String segment = 'segment', int version = 30}) =>
-    const JsonEncoder.withIndent('  ').convert({
-      'format': 'otzaria-vectors-release',
-      'kind': 'base',
-      'fromLibraryVersion': 0,
-      'toLibraryVersion': version,
-      'libraryReleaseTag': 'v$version-20260930165019',
-      'segment': {'sha256': 'cd' * 32, 'size': 99},
-      'files': [
-        {
-          'file': _segmentName,
-          'sha256': _sha(utf8.encode(segment)),
-          'size': utf8.encode(segment).length,
-        },
-      ],
-    });
+String _manifest({
+  String segment = 'segment',
+  int version = 30,
+  SemanticVectorsFamily family = SemanticVectorsFamily.anchor,
+}) => const JsonEncoder.withIndent('  ').convert({
+  'format': 'otzaria-vectors-release',
+  'kind': 'base',
+  'identity': {
+    'model': {'chunking_identity': _chunkingOf(family)},
+  },
+  'fromLibraryVersion': 0,
+  'toLibraryVersion': version,
+  'libraryReleaseTag': 'v$version-20260930165019',
+  'segment': {'sha256': 'cd' * 32, 'size': 99},
+  'files': [
+    {
+      'file': _segmentName,
+      'sha256': _sha(utf8.encode(segment)),
+      'size': utf8.encode(segment).length,
+    },
+  ],
+});
 
 class _UnreachableLocator extends SemanticVectorsReleaseLocator {
   int lookups = 0;
@@ -389,6 +413,7 @@ void main() {
     final release = SemanticStagedImport.parseStagedManifest(
       utf8.encode(_manifest()),
       30,
+      _anchorOnly,
     )!;
     final backend = FakeBackend();
     final downloads = FakeDownloads();
@@ -591,6 +616,7 @@ void main() {
       SemanticStagedImport.parseStagedManifest(
         utf8.encode(_manifest(version: 29)),
         30,
+        _anchorOnly,
       ),
       isNull,
     );
@@ -602,9 +628,84 @@ void main() {
           '"size":1,"sha256":"aa"}],"segment":{"size":1}}',
         ),
         30,
+        _anchorOnly,
       ),
       throwsFormatException,
     );
+  });
+
+  test('מניפסט מוכן נושא את משפחת ה-chunking שלו, ושל משפחה זרה אינו משמש', () {
+    final bytes = utf8.encode(
+      _manifest(family: SemanticVectorsFamily.windows),
+    );
+    final release = SemanticStagedImport.parseStagedManifest(
+      bytes,
+      30,
+      _windowsFirst,
+    )!;
+    expect(release.family, SemanticVectorsFamily.windows);
+    expect(release.releaseTag, 'vectors-windows-$_tag');
+    expect(
+      release.files.single.downloadUrl,
+      semanticVectorsAssetUrl(
+        _tag,
+        _segmentName,
+        releaseTagPrefix: 'vectors-windows-',
+      ),
+    );
+    expect(
+      SemanticStagedImport.parseStagedManifest(bytes, 30, _anchorOnly),
+      isNull,
+    );
+  });
+
+  test('מנוע עם חלונות: נתונים מוכנים של הסט הישן גוברים על הרשת', () async {
+    final manifest = stageAll();
+    final backend = FakeBackend()..supportsLongLineWindows = true;
+    final downloads = FakeDownloads();
+    final locator = FakeLocator(
+      releaseV30(
+        family: SemanticVectorsFamily.windows,
+        chunkingIdentity: _chunkingOf(SemanticVectorsFamily.windows),
+      ),
+    );
+    final repository = buildRepository(
+      root: root,
+      backend: backend,
+      locator: locator,
+      download: downloads.call,
+      modelReleases: _smallModel,
+    );
+
+    await repository.enableAndDownload();
+
+    expect(locator.lookups, isEmpty);
+    expect(downloads.urls, isEmpty);
+    final install = backend.installRequests.single;
+    expect(install.manifestJson, manifest);
+    expect(install.modelIdentityJson, bundledModelJson());
+  });
+
+  test('מנוע בלי חלונות: הרשת נבדקת קודם, כמו תמיד', () async {
+    stageAll();
+    final locator = FakeLocator(
+      SemanticStagedImport.parseStagedManifest(
+        utf8.encode(_manifest()),
+        30,
+        _anchorOnly,
+      ),
+    );
+    final repository = buildRepository(
+      root: root,
+      backend: FakeBackend(),
+      locator: locator,
+      download: FakeDownloads().call,
+      modelReleases: _smallModel,
+    );
+
+    await repository.enableAndDownload();
+
+    expect(locator.lookups, [30]);
   });
 
   test('בלי רשת ובלי נתונים מוכנים — הכשל המקורי נשאר', () async {

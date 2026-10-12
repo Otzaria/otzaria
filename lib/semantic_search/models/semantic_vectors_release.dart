@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 
 /// קובץ להורדה מתוך release הוקטורים, כפי שהמניפסט מתאר אותו.
 class SemanticVectorsFile extends Equatable {
@@ -57,6 +58,9 @@ class SemanticVectorsRelease extends Equatable {
   /// `identity.model.chunking_identity` מהמניפסט; `null` כשאינו.
   final int? chunkingIdentity;
 
+  /// המשפחה שה-release נמצא בה; לפיה ה-model.json שבהתקנה.
+  final SemanticVectorsFamily family;
+
   const SemanticVectorsRelease({
     required this.libraryTag,
     required this.releaseTag,
@@ -68,6 +72,7 @@ class SemanticVectorsRelease extends Equatable {
     required this.segmentUncompressedSize,
     this.identityDigest = '',
     this.chunkingIdentity,
+    this.family = SemanticVectorsFamily.anchor,
   });
 
   /// [identityDigest] ו-[chunkingIdentity] כפי שהם במניפסט [manifest].
@@ -104,5 +109,6 @@ class SemanticVectorsRelease extends Equatable {
     segmentUncompressedSize,
     identityDigest,
     chunkingIdentity,
+    family,
   ];
 }

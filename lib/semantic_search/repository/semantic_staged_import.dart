@@ -11,6 +11,7 @@ import 'package:otzaria/library_update/services/github_rate_limit.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_import_layout.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
+import 'package:otzaria/semantic_search/models/semantic_vectors_family.dart';
 import 'package:otzaria/semantic_search/models/semantic_vectors_release.dart';
 import 'package:otzaria/semantic_search/repository/semantic_release_locator.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart'
@@ -109,23 +110,28 @@ class SemanticStagedImport {
       };
 
   /// ה-release של [libraryVersion]: מהרשת, ובהיעדר רשת — מהנתונים המוכנים.
+  /// נתונים מוכנים של מועמד אחר מהראשון ב-[candidates] גוברים על הרשת, שהייתה
+  /// מורידה במקומם את סט המועמד הראשון.
   Future<SemanticVectorsRelease?> locate(
     int libraryVersion, {
     required bool offline,
+    required List<SemanticVectorsCandidate> candidates,
     required Future<SemanticVectorsRelease?> Function() online,
   }) async {
+    final staged = await stagedRelease(libraryVersion, candidates);
     if (offline) {
-      final staged = await stagedRelease(libraryVersion);
       if (staged == null) {
         throw const SemanticFailure(SemanticFailureKind.offline);
       }
       return staged;
     }
+    if (staged != null && staged.family != candidates.first.family) {
+      return staged;
+    }
     try {
-      return await online() ?? await stagedRelease(libraryVersion);
+      return await online() ?? staged;
     } catch (error) {
       if (!_isUnreachable(error)) rethrow;
-      final staged = await stagedRelease(libraryVersion);
       if (staged == null) rethrow;
       debugPrint(
         '[SemanticSearch] release lookup failed ($error); '
@@ -135,8 +141,12 @@ class SemanticStagedImport {
     }
   }
 
-  /// סט הוקטורים המוכן לגרסת הספרייה [libraryVersion], או `null`.
-  Future<SemanticVectorsRelease?> stagedRelease(int libraryVersion) async {
+  /// סט הוקטורים המוכן לגרסת הספרייה [libraryVersion] מאחד מ-[candidates],
+  /// או `null`.
+  Future<SemanticVectorsRelease?> stagedRelease(
+    int libraryVersion,
+    List<SemanticVectorsCandidate> candidates,
+  ) async {
     final dir = Directory(
       p.join(directoryOf(await _paths()), kSemanticImportVectorsFolderName),
     );
@@ -152,6 +162,7 @@ class SemanticStagedImport {
         final release = parseStagedManifest(
           await entity.readAsBytes(),
           libraryVersion,
+          candidates,
         );
         if (release != null) return release;
       } on FormatException catch (error) {
@@ -161,13 +172,15 @@ class SemanticStagedImport {
     return null;
   }
 
-  /// מפענח מניפסט וקטורים מוכן. `null` כשהוא של גרסת ספרייה אחרת.
+  /// מפענח מניפסט וקטורים מוכן. `null` כשהוא של גרסת ספרייה אחרת, או
+  /// כשה-chunking שלו אינו של אף מועמד ב-[candidates].
   ///
   /// ה-digest שנמסר למנוע הוא ה-SHA-256 של הבתים עצמם: המסייע אימת אותם מול
   /// מניפסט ה-release, וה-CI אימת אותו מול ה-digest שפורסם בהערות.
   static SemanticVectorsRelease? parseStagedManifest(
     List<int> bytes,
     int libraryVersion,
+    List<SemanticVectorsCandidate> candidates,
   ) {
     final text = utf8.decode(bytes);
     final manifest = jsonDecode(text);
@@ -187,33 +200,47 @@ class SemanticStagedImport {
       throw const FormatException('manifest files/segment missing');
     }
     final identity = SemanticVectorsRelease.identityOf(manifest);
+    final parsedFiles = [
+      for (final entry in files)
+        if (entry case {
+          'file': final String name,
+          'size': final int size,
+          'sha256': final String sha,
+        } when _isPlainName(name))
+          (name: name, size: size, sha: sha.toLowerCase())
+        else
+          throw const FormatException('manifest file entry'),
+    ];
+    final family = candidates
+        .where((c) => c.chunkingIdentity == identity.chunkingIdentity)
+        .firstOrNull
+        ?.family;
+    if (family == null) return null;
     return SemanticVectorsRelease(
       libraryTag: tag,
-      releaseTag: 'vectors-$tag',
+      releaseTag: '${family.releaseTagPrefix}$tag',
       toLibraryVersion: libraryVersion,
       kind: 'base',
       manifestJson: text,
       publishedManifestSha256: sha256.convert(bytes).toString(),
       files: [
-        for (final entry in files)
-          if (entry case {
-            'file': final String name,
-            'size': final int size,
-            'sha256': final String sha,
-          } when _isPlainName(name))
-            SemanticVectorsFile(
-              name: name,
-              downloadUrl: semanticVectorsAssetUrl(tag, name),
-              size: size,
-              sha256: sha.toLowerCase(),
-              assetId: '',
-            )
-          else
-            throw const FormatException('manifest file entry'),
+        for (final file in parsedFiles)
+          SemanticVectorsFile(
+            name: file.name,
+            downloadUrl: semanticVectorsAssetUrl(
+              tag,
+              file.name,
+              releaseTagPrefix: family.releaseTagPrefix,
+            ),
+            size: file.size,
+            sha256: file.sha,
+            assetId: '',
+          ),
       ],
       segmentUncompressedSize: segmentSize,
       identityDigest: identity.identityDigest,
       chunkingIdentity: identity.chunkingIdentity,
+      family: family,
     );
   }
 

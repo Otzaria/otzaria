@@ -31,11 +31,12 @@ class SemanticVectorsReleaseLocator {
   }) : _clientFactory = clientFactory ?? http.Client.new;
 
   /// ה-release של גרסת הספרייה [libraryVersion] מהמועמד הראשון ב-[candidates]
-  /// שפורסם, או `null` כשאף אחד לא פורסם. [libraryTag] חוסך את סריקת
+  /// שנמצא תקין, או `null` כשאף אחד לא פורסם. [libraryTag] חוסך את סריקת
   /// ה-releases כשהתג ידוע.
   ///
-  /// זורק [SemanticFailure] על release פגום, מניפסט שאינו תואם ל-digest
-  /// שפורסם או ל-chunking של המועמד, ו-[http.ClientException] על כשל רשת.
+  /// כשל במועמד (רשת, release פגום, digest או chunking שאינם תואמים) עובר
+  /// למועמד הבא. כשאף מועמד לא נמצא תקין נזרק הכשל האחרון: של המועמד הרחב
+  /// ביותר, או של קודמו כשהרחב לא פורסם — אז release קיים ולא הושג.
   Future<SemanticVectorsRelease?> findForLibraryVersion(
     int libraryVersion, {
     String? libraryTag,
@@ -49,43 +50,65 @@ class SemanticVectorsReleaseLocator {
           : null;
       final tag = hint ?? await _findLibraryTag(client, libraryVersion);
       if (tag == null) return null;
-      SemanticFailure? mismatch;
+      (Object, StackTrace)? failure;
       for (final candidate in candidates) {
-        final releaseTag = '${candidate.family.releaseTagPrefix}$tag';
-        final release = await _getJson(
-          client,
-          '$_apiBase/releases/tags/${Uri.encodeComponent(releaseTag)}',
-        );
-        if (release == null) continue;
-        if (release is! Map<String, dynamic>) {
-          throw const SemanticFailure(
-            SemanticFailureKind.releaseMalformed,
-            'release JSON is not an object',
+        try {
+          final release = await _findCandidate(
+            client,
+            candidate,
+            tag,
+            libraryVersion,
           );
+          if (release != null) return release;
+        } catch (error, stackTrace) {
+          if (error is Error) rethrow;
+          failure = (error, stackTrace);
         }
-        final parsed = await _parseRelease(
-          client,
-          release,
-          tag,
-          releaseTag,
-          libraryVersion,
-        );
-        // נבדק לפני הורדת ה-segment: סט של chunking אחר לא היה מותקן.
-        if (parsed.chunkingIdentity == candidate.chunkingIdentity) {
-          return parsed;
-        }
-        mismatch = SemanticFailure(
-          SemanticFailureKind.artifactIncompatible,
-          '$releaseTag is chunking ${parsed.chunkingIdentity}, '
-              'expected ${candidate.chunkingIdentity}',
-          'model.chunking_identity',
-        );
       }
-      if (mismatch != null) throw mismatch;
+      if (failure != null) Error.throwWithStackTrace(failure.$1, failure.$2);
       return null;
     } finally {
       client.close();
     }
+  }
+
+  /// ה-release של [candidate]; `null` כשלא פורסם.
+  Future<SemanticVectorsRelease?> _findCandidate(
+    http.Client client,
+    SemanticVectorsCandidate candidate,
+    String tag,
+    int libraryVersion,
+  ) async {
+    final releaseTag = '${candidate.family.releaseTagPrefix}$tag';
+    final release = await _getJson(
+      client,
+      '$_apiBase/releases/tags/${Uri.encodeComponent(releaseTag)}',
+    );
+    if (release == null) return null;
+    if (release is! Map<String, dynamic>) {
+      throw const SemanticFailure(
+        SemanticFailureKind.releaseMalformed,
+        'release JSON is not an object',
+      );
+    }
+    final parsed = await _parseRelease(
+      client,
+      release,
+      tag,
+      releaseTag,
+      libraryVersion,
+      candidate.family,
+    );
+    // נבדק לפני הורדת ה-segment: סט של chunking אחר לא היה מותקן.
+    if (parsed.chunkingIdentity != candidate.chunkingIdentity) {
+      throw SemanticFailure(
+        SemanticFailureKind.artifactIncompatible,
+        '$releaseTag is chunking ${parsed.chunkingIdentity}, '
+            'expected ${candidate.chunkingIdentity}',
+        'model.chunking_identity',
+      );
+    }
+    return parsed;
   }
 
   /// גרסת הספרייה של תג כמו `v30-20260930165019`, או `null`.
@@ -137,6 +160,7 @@ class SemanticVectorsReleaseLocator {
     String libraryTag,
     String releaseTag,
     int libraryVersion,
+    SemanticVectorsFamily family,
   ) async {
     final assets = <String, Map<String, dynamic>>{
       for (final asset in (release['assets'] as List?) ?? const [])
@@ -221,6 +245,7 @@ class SemanticVectorsReleaseLocator {
       ),
       identityDigest: identity.identityDigest,
       chunkingIdentity: identity.chunkingIdentity,
+      family: family,
     );
   }
 

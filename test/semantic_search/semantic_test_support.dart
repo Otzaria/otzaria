@@ -71,12 +71,6 @@ class FakeSettingsStore implements SemanticSettingsStore {
   bool downloadPaused = false;
   @override
   String? skippedVectorsRelease;
-  @override
-  String? windowsVectorsDigest;
-
-  @override
-  Future<void> setWindowsVectorsDigest(String? value) async =>
-      windowsVectorsDigest = value;
 
   @override
   Future<void> setDownloadPaused(bool value) async => downloadPaused = value;
@@ -258,7 +252,8 @@ SemanticSearchResponse emptyResponse() => SemanticSearchResponse(
   truncated: false,
 );
 
-/// מאתר מזויף: מחזיר [release] (או `null` = לא פורסם) ורושם את הגרסאות.
+/// מאתר מזויף: מחזיר [release] כשהמשפחה שלו בין המועמדים (אחרת `null` = לא
+/// פורסם), ורושם את הגרסאות.
 class FakeLocator extends SemanticVectorsReleaseLocator {
   FakeLocator([this.release]);
 
@@ -276,7 +271,10 @@ class FakeLocator extends SemanticVectorsReleaseLocator {
     lookups.add(libraryVersion);
     tags.add(libraryTag);
     this.candidates.add(candidates);
-    return release;
+    final found = release;
+    return found != null && candidates.any((c) => c.family == found.family)
+        ? found
+        : null;
   }
 }
 
@@ -331,13 +329,15 @@ SemanticSearchRepository buildRepository({
   Map<SemanticQuantization, SemanticModelRelease?>? modelReleases,
   bool secondaryWindow = false,
   Duration busyRetryDelay = const Duration(milliseconds: 20),
+  Future<String> Function(SemanticVectorsFamily family)? identityLoader,
 }) {
   return SemanticSearchRepository(
     backend: backend ?? FakeBackend(),
     consent: () => consent ?? FakeConsentStore(),
     settings: settings ?? FakeSettingsStore(),
     paths: () async => SemanticPaths(p.join(root.path, 'otzaria')),
-    identityLoader: (family) async => bundledModelJson(family),
+    identityLoader:
+        identityLoader ?? ((family) async => bundledModelJson(family)),
     locator: locator ?? FakeLocator(),
     download: download ?? FakeDownloads().call,
     libraryVersion: () async => libraryVersion,
@@ -420,4 +420,5 @@ SemanticVectorsRelease releaseV30({
   segmentUncompressedSize: 10,
   identityDigest: identityDigest,
   chunkingIdentity: chunkingIdentity,
+  family: family,
 );

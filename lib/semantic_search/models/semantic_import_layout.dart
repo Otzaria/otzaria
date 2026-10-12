@@ -22,7 +22,12 @@ const String kSemanticVectorsRepository = 'Otzaria/SeforimLibrary';
 const String kSemanticVectorsManifestPrefix = 'otzaria-vectors-';
 const String kSemanticVectorsManifestSuffix = '.manifest.json';
 
-/// כתובת ההורדה של נכס ב-release הוקטורים של [libraryTag].
-String semanticVectorsAssetUrl(String libraryTag, String name) =>
+/// כתובת ההורדה של נכס ב-release הוקטורים של [libraryTag]; [releaseTagPrefix]
+/// היא תחילית המשפחה.
+String semanticVectorsAssetUrl(
+  String libraryTag,
+  String name, {
+  String releaseTagPrefix = 'vectors-',
+}) =>
     'https://github.com/$kSemanticVectorsRepository/releases/download/'
-    'vectors-$libraryTag/$name';
+    '$releaseTagPrefix$libraryTag/$name';

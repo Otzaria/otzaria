@@ -78,6 +78,12 @@ class _Server {
   /// מניפסט `vectors-windows-<תג>`; `null` = לא פורסם.
   String? windowsManifest;
 
+  /// קוד שגיאה שה-API מחזיר על `vectors-windows-<תג>`.
+  int? windowsStatus;
+
+  /// digest אחר מהמניפסט לנכס המניפסט של `vectors-windows-<תג>`.
+  String? windowsAssetDigest;
+
   static http.Response _json(Object? body, [int status = 200]) =>
       http.Response.bytes(utf8.encode(jsonEncode(body)), status);
 
@@ -124,6 +130,8 @@ class _Server {
     }
     final windows = windowsManifest;
     if (url == '$_api/releases/tags/vectors-windows-v30-20260930165019') {
+      final status = windowsStatus;
+      if (status != null) return http.Response('blocked', status);
       if (windows == null) return http.Response('{}', 404);
       return _json({
         'tag_name': 'vectors-windows-v30-20260930165019',
@@ -134,7 +142,7 @@ class _Server {
             'name': _windowsManifestName,
             'browser_download_url':
                 'https://github.test/download/$_windowsManifestName',
-            'digest': 'sha256:${_shaOf(windows)}',
+            'digest': windowsAssetDigest ?? 'sha256:${_shaOf(windows)}',
           },
           {
             'id': 18,
@@ -368,6 +376,7 @@ void main() {
 
       expect(release!.releaseTag, 'vectors-windows-v30-20260930165019');
       expect(release.chunkingIdentity, _windowsChunking);
+      expect(release.family, SemanticVectorsFamily.windows);
       expect(release.identityDigest, '$_windowsChunking'.padLeft(64, '0'));
       expect(release.files.single.downloadUrl, _windowsSegmentUrl);
       expect(
@@ -426,6 +435,70 @@ void main() {
         ),
       );
       expect(server.requested, isNot(contains(_windowsSegmentUrl)));
+    });
+  });
+
+  group('כשל במשפחת החלונות', () {
+    SemanticVectorsReleaseLocator locatorOf(_Server server) =>
+        SemanticVectorsReleaseLocator(
+          clientFactory: server.client,
+          apiBase: _api,
+        );
+
+    for (final status in [500, 418, 403]) {
+      test('תשובה $status על vectors-windows-<תג> נופלת לסט הישן', () async {
+        final server = _Server()..windowsStatus = status;
+
+        final release = await locatorOf(
+          server,
+        ).findForLibraryVersion(30, candidates: _windowsFirst);
+
+        expect(release!.releaseTag, 'vectors-v30-20260930165019');
+      });
+    }
+
+    test('מניפסט חלונות שאינו תואם ל-digest נופל לסט הישן', () async {
+      final server = _Server()
+        ..windowsManifest = _manifestFor(
+          chunking: _windowsChunking,
+          segmentName: _windowsSegmentName,
+        )
+        ..windowsAssetDigest = 'sha256:${'ee' * 32}';
+
+      final release = await locatorOf(
+        server,
+      ).findForLibraryVersion(30, candidates: _windowsFirst);
+
+      expect(release!.releaseTag, 'vectors-v30-20260930165019');
+      expect(server.requested, isNot(contains(_windowsSegmentUrl)));
+    });
+
+    test('כשהסט הישן לא פורסם, כשל החלונות נזרק ולא null', () async {
+      final server = _Server()
+        ..windowsStatus = 500
+        ..vectorsPublished = false;
+
+      await expectLater(
+        locatorOf(server).findForLibraryVersion(30, candidates: _windowsFirst),
+        throwsA(isA<http.ClientException>()),
+      );
+    });
+
+    test('כששני המועמדים נכשלים — נזרק הכשל של האחרון', () async {
+      final server = _Server()
+        ..windowsStatus = 500
+        ..body = 'SHA-256 `${'ee' * 32}`';
+
+      await expectLater(
+        locatorOf(server).findForLibraryVersion(30, candidates: _windowsFirst),
+        throwsA(
+          isA<SemanticFailure>().having(
+            (f) => f.kind,
+            'kind',
+            SemanticFailureKind.artifactNotPublished,
+          ),
+        ),
+      );
     });
   });
 
