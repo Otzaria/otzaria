@@ -1146,6 +1146,33 @@ void main() {
       expect(AppPaths.isPortable, isFalse);
     });
 
+    test('מפתח המופע היחיד נפרד לכל עותק נייד ושם ה-EXE בעותק מותקן', () async {
+      Future<String> exeIn({required bool portable}) async {
+        final root = await Directory.systemTemp.createTemp('otzaria_exe_');
+        addTearDown(() => root.delete(recursive: true));
+        final exePath = p.join(root.path, 'otzaria.exe');
+        await File(exePath).writeAsString('fake exe');
+        if (portable) {
+          await File(
+            p.join(root.path, AppPaths.portableMarkerFileName),
+          ).writeAsString('');
+        }
+        return exePath;
+      }
+
+      AppPaths.debugOverrideResolvedExecutable(await exeIn(portable: false));
+      expect(AppPaths.singleInstanceKey(), 'otzaria');
+
+      AppPaths.debugOverrideResolvedExecutable(await exeIn(portable: true));
+      final first = AppPaths.singleInstanceKey();
+      AppPaths.debugOverrideResolvedExecutable(await exeIn(portable: true));
+      final second = AppPaths.singleInstanceKey();
+
+      expect(first, startsWith('otzaria-'));
+      expect(second, startsWith('otzaria-'));
+      expect(first, isNot(second));
+    });
+
     test('מצב נייד — marker גובר על system_install.marker', () async {
       if (!Platform.isWindows) {
         return;

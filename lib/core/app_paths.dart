@@ -126,6 +126,20 @@ class AppPaths {
     return result;
   }
 
+  /// מפתח המופע היחיד: לכל שורש נתונים מופע משלו, כמו תור ההפעלות שהוא מזין.
+  /// עותק נייד מקבל סיומת לפי תיקייתו; העותק המותקן שומר את השם הישן.
+  static String singleInstanceKey() {
+    final exeName = p
+        .basename(_resolvedExecutable)
+        .replaceAll(RegExp(r'\.exe$', caseSensitive: false), '');
+    if (!isPortable) return exeName;
+    var hash = 0xcbf29ce484222325;
+    for (final unit in p.dirname(_resolvedExecutable).toLowerCase().codeUnits) {
+      hash = (hash ^ unit) * 0x100000001b3;
+    }
+    return '$exeName-${hash.toUnsigned(64).toRadixString(16)}';
+  }
+
   /// Returns the default writable root for user-scoped app data.
   ///
   /// במצב נייד ([isPortable]) — תיקיית [_portableDataFolderName] ליד

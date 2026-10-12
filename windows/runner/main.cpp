@@ -180,21 +180,70 @@ static bool EndsWithIgnoreCase(const std::string& s, const std::string& suffix) 
   return true;
 }
 
-// Appends a URI string to the external-activation queue file so the already-
-// running instance can pick it up.
-// Path mirrors AppPaths.getDataRootPath() on Windows: %APPDATA%\otzaria
-static void EnqueueUri(const std::string& uri_utf8) {
-  // Use SHGetKnownFolderPath (Vista+) instead of the deprecated
-  // SHGetFolderPathW / CSIDL_APPDATA.
+static std::wstring ExeDir() {
+  wchar_t exe_path[MAX_PATH * 4] = {0};
+  const DWORD len = ::GetModuleFileNameW(
+      nullptr, exe_path, sizeof(exe_path) / sizeof(exe_path[0]));
+  if (len == 0 || len >= sizeof(exe_path) / sizeof(exe_path[0])) {
+    return std::wstring();
+  }
+  std::wstring exe_dir(exe_path, len);
+  return exe_dir.substr(0, exe_dir.find_last_of(L"\\/"));
+}
+
+// Mirrors AppPaths.isPortable: a `portable.marker` *file* next to the exe.
+static bool IsPortable(const std::wstring& exe_dir) {
+  if (exe_dir.empty()) return false;
+  const DWORD attrs =
+      ::GetFileAttributesW((exe_dir + L"\\portable.marker").c_str());
+  return attrs != INVALID_FILE_ATTRIBUTES &&
+         !(attrs & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+// Mirrors AppPaths.getDataRootPath() on Windows: `<exeDir>\otzaria_data` when
+// portable, otherwise %APPDATA%\otzaria.
+static std::wstring DataRootPath() {
+  const std::wstring exe_dir = ExeDir();
+  if (IsPortable(exe_dir)) return exe_dir + L"\\otzaria_data";
+
+  wchar_t app_data_env[MAX_PATH * 4] = {0};
+  const DWORD env_len = ::GetEnvironmentVariableW(
+      L"APPDATA", app_data_env, sizeof(app_data_env) / sizeof(app_data_env[0]));
+  if (env_len > 0 && env_len < sizeof(app_data_env) / sizeof(app_data_env[0])) {
+    return std::wstring(app_data_env, env_len) + L"\\otzaria";
+  }
   wchar_t* app_data_raw = nullptr;
   if (FAILED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT,
                                    nullptr, &app_data_raw))) {
-    return;
+    return std::wstring();
   }
   std::wstring app_data(app_data_raw);
   CoTaskMemFree(app_data_raw);
+  return app_data + L"\\otzaria";
+}
 
-  std::wstring dir = app_data + L"\\otzaria";
+// The single instance is per data root, like the activation queue it feeds.
+// The installed copy keeps the public name (installer AppMutex, offline updater).
+static std::wstring SingleInstanceMutexName() {
+  const std::wstring exe_dir = ExeDir();
+  if (!IsPortable(exe_dir)) return kSingleInstanceMutexName;
+  std::wstring root = DataRootPath();
+  ::CharLowerBuffW(root.data(), static_cast<DWORD>(root.size()));
+  unsigned long long hash = 14695981039346656037ULL;  // FNV-1a 64
+  for (wchar_t c : root) {
+    hash ^= static_cast<unsigned long long>(c);
+    hash *= 1099511628211ULL;
+  }
+  wchar_t suffix[24] = {0};
+  swprintf_s(suffix, L"-%016llx", hash);
+  return std::wstring(kSingleInstanceMutexName) + suffix;
+}
+
+// Appends a URI string to the external-activation queue file so the already-
+// running instance can pick it up.
+static void EnqueueUri(const std::string& uri_utf8) {
+  const std::wstring dir = DataRootPath();
+  if (dir.empty()) return;
   std::wstring queue_path =
       dir + L"\\pending_external_activations.jsonl";
 
@@ -283,7 +332,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // can still start rather than being permanently blocked.
   HANDLE mutex = is_cli_invocation
                      ? nullptr
-                     : CreateMutexW(nullptr, FALSE, kSingleInstanceMutexName);
+                     : CreateMutexW(nullptr, FALSE,
+                                    SingleInstanceMutexName().c_str());
   bool is_second_instance =
       (mutex != nullptr && GetLastError() == ERROR_ALREADY_EXISTS);
 
