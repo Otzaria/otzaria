@@ -16,6 +16,8 @@
 #define MyAppPublisher "sivan22"
 #define MyAppURL "https://github.com/otzaria/otzaria"
 #define MyAppExeName "otzaria.exe"
+; שם ה-mutex של windows/runner/main.cpp — החוזה הציבורי "אוצריא רצה".
+#define AppMutexName "OtzariaAppSingleInstance"
 ; חייב להתאים ל-AppPaths.bundledPluginsFolderName.
 #define BundledPluginsDirName "bundled_plugins"
 ; חנות התוספים — מועתקת רק כשיש רשת (bundled_plugins_network_check.iss).
@@ -102,6 +104,7 @@ SetupLogging=yes
 ; בלי זה בחירת המשימות נשמרת ברישום — "איפוס הגדרות" שסומן פעם היה
 ; רץ שוב בכל שדרוג שקט ומוחק את נתוני המשתמש (issue #941).
 UsePreviousTasks=no
+AppMutex={#AppMutexName}
 ; עברית כשממשק Windows בעברית, ואנגלית בכל שפה אחרת: english ראשונה ולכן היא הנסיגה.
 ; בשדרוג Inno שומר את שפת ההתקנה הקודמת (UsePreviousLanguage).
 LanguageDetectionMethod=uilanguage
@@ -138,7 +141,7 @@ hebrew.ResetSettingsTask=איפוס הגדרות משתמש — אזהרה: ימ
 [Icons]
 ; שמות הקיצורים אינם מתורגמים: שדרוג בממשק אנגלי חייב לדרוס את אותם קבצים, לא ליצור כפולים.
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "Otzaria.Otzaria"; Check: not IsPortableInstall
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; AppUserModelID: "Otzaria.Otzaria"; Check: not IsPortableInstall
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; AppUserModelID: "Otzaria.Otzaria"; Check: (not IsPortableInstall) and KeepsDesktopIconChoice
 ; קיצור דרך ישיר ללוח השנה — מעביר ל-otzaria.exe deep link כפרמטר; אוצריא מזהה
 ; ארגומנט שמתחיל ב-"otzaria:" וממסרת לראוטר הפנימי (ראה docs/deep_links.md לזרימה המלאה).
 ; AppUserModelID זהה לסמל הראשי כדי שהקיצור יתאחד עם הכפתור המוצמד בשורת המשימות.
@@ -226,6 +229,8 @@ var
   AllUsersModeRadio: TNewRadioButton;
   PortableModeRadio: TNewRadioButton;
   PortableMode: Boolean;
+  // נקבע בתחילת ההתקנה: רשומת ההסרה נכתבת מחדש במהלכה.
+  WasInstalledBefore: Boolean;
   // מסמן שהאשף נסגר לטובת שיגור-מחדש במצב התקנה אחר — הסגירה שקטה,
   // בלי שאלת האישור של ביטול התקנה.
   RelaunchingForModeChange: Boolean;
@@ -419,14 +424,23 @@ begin
 #endif
 end;
 
-// פרמטרים שיש להעביר הלאה כשהמתקין משגר את עצמו מחדש ב-InitializeSetup,
-// כדי ש-/NOLAUNCH=1 לא יאבד במעבר לריצה השקטה/המורמת. /PORTABLE בכוונה
-// לא מועבר — כל מסלולי ה-/PORTABLE יוצאים לאשף לפני שיגור-מחדש כלשהו.
+// פרמטרים שיש להעביר הלאה כשהמתקין משגר את עצמו מחדש ב-InitializeSetup.
+// /PORTABLE בכוונה לא מועבר — כל מסלולי ה-/PORTABLE יוצאים לאשף לפני כן.
 function PropagatedParams(): String;
+var
+  Value: String;
 begin
   Result := '';
   if ExpandConstant('{param:NOLAUNCH|0}') = '1' then
     Result := ' /NOLAUNCH=1';
+  Value := ExpandConstant('{param:DIR|}');
+  if Value <> '' then
+    Result := Result + ' /DIR=' + AddQuotes(Value);
+  Value := ExpandConstant('{param:LOG|}');
+  if Value <> '' then
+    Result := Result + ' /LOG=' + AddQuotes(Value)
+  else if CmdLineParamExists('/LOG') then
+    Result := Result + ' /LOG';
 end;
 
 // Exec/ShellExec המובנות מסרבות להריץ את קובץ ה-Setup עצמו לפני תחילת ההתקנה;
@@ -591,6 +605,14 @@ var
 begin
   PreviousVersion := GetPreviousDisplayVersion();
   Result := (PreviousVersion <> '') and VersionAtLeast(PreviousVersion, '0.9.88');
+end;
+
+// שדרוג שקט אינו יוצר מחדש קיצור שהמשתמש מחק: מעדכן חיצוני מעביר תמיד
+// /MERGETASKS=desktopicon, ובלי UsePreviousTasks אין לנו את הבחירה הקודמת.
+function KeepsDesktopIconChoice(): Boolean;
+begin
+  Result := (not WizardSilent) or (not WasInstalledBefore) or
+    FileExists(ExpandConstant('{autodesktop}\{#MyAppName}.lnk'));
 end;
 
 function IsPathUnder(Target: String; Root: String): Boolean;
@@ -998,6 +1020,18 @@ begin
     Confirm := False;
 end;
 
+procedure WaitForAppExit(TimeoutMs: Integer);
+var
+  Waited: Integer;
+begin
+  Waited := 0;
+  while CheckForMutexes('{#AppMutexName}') and (Waited < TimeoutMs) do
+  begin
+    Sleep(250);
+    Waited := Waited + 250;
+  end;
+end;
+
 function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
@@ -1007,9 +1041,13 @@ var
   PreviousDir: String;
 begin
   Result := True;
+  WasInstalledBefore := GetPreviousDisplayVersion() <> '';
 
   if WizardSilent then
   begin
+    // העדכון מתוך אוצריא משגר את המתקין לפני שהיא סיימה לצאת; בלי ההמתנה
+    // בדיקת AppMutex בהרצה שקטה מבטלת את ההתקנה.
+    WaitForAppExit(30000);
     // התקנה ניידת שקטה (/VERYSILENT /PORTABLE /DIR=...): המצב נקבע כאן כי
     // NextButtonClick לא רץ בהתקנה שקטה. /DIR חובה — בלעדיו ברירת המחדל היא
     // תיקיית ההתקנה הרגילה הקיימת, וה-marker היה הופך אותה לניידת.
@@ -1845,10 +1883,24 @@ end;
 
 #include "installer_message_fallback.iss"
 
+// errors.txt שורד עדכונים לטובת אבחון; רק קובץ גדול מועבר הצידה כדי שלא יגדל בלי גבול.
+procedure RotateLargeErrorLog(const Path: String);
+var
+  Size: Integer;
+  PreviousPath: String;
+begin
+  if not FileSize(Path, Size) then
+    exit;
+  if Size < 5 * 1024 * 1024 then
+    exit;
+  PreviousPath := ChangeFileExt(Path, '.previous.txt');
+  DeleteFile(PreviousPath);
+  RenameFile(Path, PreviousPath);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   AppDataPath: string;
-  ErrorLogPath: string;
 begin
   if CurStep = ssPostInstall then
   begin
@@ -1870,13 +1922,8 @@ begin
   if PortableMode then
     exit;
 
-  // מחק את לוג השגיאות הישן בכל התקנה/עדכון
-  ErrorLogPath := ExpandConstant('{userappdata}\otzaria\logs\errors.txt');
-  if FileExists(ErrorLogPath) then
-    DeleteFile(ErrorLogPath);
-  ErrorLogPath := ExpandConstant('{commonappdata}\otzaria\logs\errors.txt');
-  if FileExists(ErrorLogPath) then
-    DeleteFile(ErrorLogPath);
+  RotateLargeErrorLog(ExpandConstant('{userappdata}\otzaria\logs\errors.txt'));
+  RotateLargeErrorLog(ExpandConstant('{commonappdata}\otzaria\logs\errors.txt'));
 
   if ShouldResetSettings() then
   begin
