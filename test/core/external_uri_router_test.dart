@@ -1155,6 +1155,32 @@ void main() {
         );
       });
 
+      test('נתיב שנדחה מדווח עם הנתיב שהתקבל והסיבה', () {
+        final unc = r'\\attacker\share\evil.otzplugin';
+        final rejected = ExternalUriRouter.rejectedLocalInstall(
+          Uri.parse(
+            'otzaria://plugin/install-local?path='
+            '${Uri.encodeQueryComponent(unc)}',
+          ),
+        );
+        expect(rejected?.path, unc);
+        expect(rejected?.reason, isNotEmpty);
+
+        final valid = Uri.encodeQueryComponent(r'C:\plugins\ok.otzplugin');
+        expect(
+          ExternalUriRouter.rejectedLocalInstall(
+            Uri.parse('otzaria://plugin/install-local?path=$valid'),
+          ),
+          isNull,
+        );
+        expect(
+          ExternalUriRouter.rejectedLocalInstall(
+            Uri.parse('otzaria://plugin/install-local'),
+          ),
+          isNull,
+        );
+      });
+
       test('דוחה נתיב התקן (\\\\.\\ ו-\\\\?\\)', () {
         final device = Uri.encodeQueryComponent(r'\\.\C:\evil.otzplugin');
         final extended = Uri.encodeQueryComponent(

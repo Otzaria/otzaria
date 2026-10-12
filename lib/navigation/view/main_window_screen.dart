@@ -92,6 +92,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
 import 'package:otzaria/library_update/library_update_work_status.dart';
 import 'package:otzaria/library_update/services/external_update_notice.dart';
+import 'package:otzaria/plugins/services/plugin_install_results_log.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
@@ -1458,7 +1459,18 @@ class MainWindowScreenState extends State<MainWindowScreen>
       if (uri == null) return false;
 
       final action = ExternalUriRouter.parseUri(uri);
-      if (action == null) return false;
+      if (action == null) {
+        // מי שמסר את התוסף (המעדכן הלא-מקוון) ממתין לתוצאה גם כשהנתיב נדחה.
+        final rejected = ExternalUriRouter.rejectedLocalInstall(uri);
+        if (rejected != null) {
+          await PluginInstallResultsLog.instance.append(
+            path: rejected.path,
+            outcome: PluginInstallOutcome.failed,
+            message: rejected.reason,
+          );
+        }
+        return false;
+      }
 
       // "חלון חדש" לא ביקש חלון קיים — הרמת חלון שרירותי (אולי מוסתר) מפתיעה.
       if (action is! OpenNewWindowAction) await _bringWindowToFront();

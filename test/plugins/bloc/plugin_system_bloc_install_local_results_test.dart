@@ -80,8 +80,12 @@ void main() {
 
   test('גרסה ישנה יותר — rejected_older', () async {
     final bloc = buildBloc(
-      (_) async =>
-          throw PluginNewerVersionInstalledException('תוסף', '1.0.0', '2.0.0'),
+      (_) async => throw PluginNewerVersionInstalledException(
+        'תוסף',
+        '1.0.0',
+        '2.0.0',
+        pluginId: 'test.plugin',
+      ),
     );
 
     bloc.add(const InstallPluginRequested(_path, recordsResult: true));
@@ -89,6 +93,7 @@ void main() {
 
     expect(log.entries.single.outcome, PluginInstallOutcome.rejectedOlder);
     expect(log.entries.single.path, _path);
+    expect(log.entries.single.id, 'test.plugin');
   });
 
   test('גרסת אוצריא מחוץ לטווח — rejected_incompatible', () async {

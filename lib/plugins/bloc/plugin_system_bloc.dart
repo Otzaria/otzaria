@@ -481,6 +481,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
       _recordLocalResult(
         localPath,
         PluginInstallOutcome.rejectedOlder,
+        pluginId: e.pluginId,
         version: e.requestedVersion,
         message: message,
       );

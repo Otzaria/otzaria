@@ -258,7 +258,7 @@ class ShowInfoAction extends ExternalUriAction {
 ///     (ה-callback חייב להיות באותו origin של כתובת ההורדה)
 /// * `otzaria://plugin/install-local?path=<abs-path>` – התקנת תוסף מקובץ מקומי
 ///   (משמש לשיוך קובץ `.otzplugin` במערכת ההפעלה). הנתיב חייב להיות מוחלט,
-///   להסתיים ב-`.otzplugin`, ואינו נתיב UNC/התקן (ראה `_isSafeLocalPluginPath`).
+///   להסתיים ב-`.otzplugin`, ואינו נתיב UNC/התקן (ראה `_localPluginPathRejection`).
 /// * `otzaria://window/new`                – פתיחת חלון אוצריא חדש וריק
 /// * `otzaria://library/reindex`            – רענון הספרייה מהדיסק ועדכון האינדקס
 ///   (מיועד לתוכנה חיצונית שמעדכנת את קבצי הספרייה)
@@ -486,6 +486,18 @@ class ExternalUriRouter {
   }
 
   static String? _parseLocalInstall(Uri uri) {
+    final rawPath = _rawLocalInstallPath(uri);
+    if (rawPath == null || _localPluginPathRejection(rawPath) != null) {
+      return null;
+    }
+    return rawPath;
+  }
+
+  static String? _rawLocalInstallPath(Uri uri) {
+    if (uri.scheme.toLowerCase() != 'otzaria' ||
+        uri.host.toLowerCase() != 'plugin') {
+      return null;
+    }
     final segments = uri.pathSegments
         .where((segment) => segment.isNotEmpty)
         .map((segment) => segment.toLowerCase())
@@ -495,10 +507,15 @@ class ExternalUriRouter {
     if (!isLocalInstall) return null;
 
     final rawPath = _queryParametersOf(uri)['path']?.trim();
-    if (rawPath == null || rawPath.isEmpty) return null;
-    if (!_isSafeLocalPluginPath(rawPath)) return null;
+    return rawPath == null || rawPath.isEmpty ? null : rawPath;
+  }
 
-    return rawPath;
+  /// קישור install-local שהנתיב בו נדחה: הנתיב שהתקבל והסיבה, או `null`.
+  static ({String path, String reason})? rejectedLocalInstall(Uri uri) {
+    final rawPath = _rawLocalInstallPath(uri);
+    if (rawPath == null) return null;
+    final reason = _localPluginPathRejection(rawPath);
+    return reason == null ? null : (path: rawPath, reason: reason);
   }
 
   /// הקשר הנתיבים לאימות `install-local` — סמנטיקת הפלטפורמה הנוכחית.
@@ -506,23 +523,27 @@ class ExternalUriRouter {
   @visibleForTesting
   static p.Context pathContext = p.context;
 
-  /// בודקת שנתיב מקומי בטוח להתקנת תוסף. קישור `otzaria://` ניתן להפעלה
+  /// הסיבה לדחיית נתיב מקומי להתקנת תוסף, או `null` כשהוא בטוח. קישור `otzaria://` ניתן להפעלה
   /// מדף אינטרנט, ולכן הנתיב אינו מהימן:
   /// - נתיב UNC/התקן (`\\server\share`, `\\.\`, `\\?\`, `//host`) נדחה —
   ///   עצם קריאתו גורמת ל-Windows לפתוח חיבור SMB ולדלוף אישורי NTLM לתוקף.
   /// - חובה נתיב מוחלט בסמנטיקת הפלטפורמה הנוכחית (החוזה הוא `<abs-path>`);
   ///   נתיב יחסי נפתר מול תיקיית העבודה ולכן אינו מהימן מקישור חיצוני.
   /// - חובה סיומת `.otzplugin` כדי לא לקרוא קובץ שרירותי מהדיסק.
-  static bool _isSafeLocalPluginPath(String path) {
-    if (path.startsWith(r'\\') || path.startsWith('//')) return false;
-    if (!pathContext.isAbsolute(path)) return false;
+  static String? _localPluginPathRejection(String path) {
+    if (path.startsWith(r'\\') || path.startsWith('//')) {
+      return 'UNC or device paths are not allowed';
+    }
+    if (!pathContext.isAbsolute(path)) return 'path is not absolute';
     // ב-Windows נתיב כמו `\foo` נחשב rooted אך יחסי-לכונן הנוכחי — נדרש
     // כונן מפורש כדי שהנתיב יהיה מוחלט באמת.
     if (pathContext.style == p.Style.windows &&
         !RegExp(r'^[A-Za-z]:').hasMatch(path)) {
-      return false;
+      return 'path has no drive letter';
     }
-    return path.toLowerCase().endsWith('.otzplugin');
+    return path.toLowerCase().endsWith('.otzplugin')
+        ? null
+        : 'not a .otzplugin file';
   }
 
   static ExternalUriAction? _parseOpen(Uri uri) {

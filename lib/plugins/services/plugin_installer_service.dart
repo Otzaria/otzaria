@@ -26,12 +26,14 @@ class PluginNewerVersionInstalledException implements Exception {
   final String pluginName;
   final String requestedVersion;
   final String installedVersion;
+  final String? pluginId;
 
   PluginNewerVersionInstalledException(
     this.pluginName,
     this.requestedVersion,
-    this.installedVersion,
-  );
+    this.installedVersion, {
+    this.pluginId,
+  });
 }
 
 /// התוסף מצהיר על טווח גרסאות אוצריא שהגרסה המותקנת מחוצה לו.
@@ -108,6 +110,7 @@ class PluginInstallerService {
             manifest.name,
             manifest.version,
             existingPlugin.version,
+            pluginId: manifest.id,
           );
         } else if (diff == 0 && !forceOverwrite) {
           throw PluginOverwriteException(manifest.name, manifest.version);
