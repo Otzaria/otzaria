@@ -131,6 +131,28 @@ Future<void> main() async {
     });
   });
 
+  group('TextRendererService - כיוון שורה (issue #2498)', () {
+    test('שורה שנפתחת באנגלית עטופה ב-LTR מיושר לימין', () {
+      final html = TextRendererService.wrapWithRtlDiv(
+        '<span class="x">Question:</span> minhag ספרד, meaning&nbsp;13.',
+      );
+      expect(
+        html,
+        startsWith('<div style="text-align: right; direction: ltr;">'),
+      );
+    });
+
+    test('תגים וישויות אינם קובעים כיוון', () {
+      final html = TextRendererService.wrapWithRtlDiv(
+        '<b class="big">&nbsp;1) הגר"י</b> (halachically speaking)',
+      );
+      expect(
+        html,
+        startsWith('<div style="text-align: justify; direction: rtl;">'),
+      );
+    });
+  });
+
   group('TextRendererService - טקסט תחתי (issue #842)', () {
     const settings = RenderSettings();
 

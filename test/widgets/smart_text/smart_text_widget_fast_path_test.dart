@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:otzaria/theme/app_fonts.dart';
@@ -249,6 +250,42 @@ Future<void> main() async {
         return true;
       });
       expect(foundBold, isTrue);
+    });
+  });
+
+  group('SmartTextWidget — כיוון שורה באנגלית (issue #2498)', () {
+    testWidgets('שורה שנפתחת באנגלית היא LTR ומיושרת לימין', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          const SmartTextWidget(
+            text: 'Answer: <b>ספרד</b>, done.',
+            settings: RenderSettings(fontSize: 20),
+          ),
+        ),
+      );
+
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.byType(RichText),
+      );
+      expect(paragraph.textDirection, TextDirection.ltr);
+      expect(paragraph.textAlign, TextAlign.right);
+    });
+
+    testWidgets('שורה עברית עם ציטוט באנגלית נשארת RTL', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          const SmartTextWidget(
+            text: 'א) הגר"י בלסקי (halachically speaking שנה ב)',
+            settings: RenderSettings(fontSize: 20),
+          ),
+        ),
+      );
+
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.byType(RichText),
+      );
+      expect(paragraph.textDirection, TextDirection.rtl);
+      expect(paragraph.textAlign, TextAlign.justify);
     });
   });
 }

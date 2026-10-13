@@ -272,10 +272,43 @@ class TextRendererService {
     return '$isolateStart$innerHtml$isolateEnd';
   }
 
-  /// עוטף טקסט ב-div עם כיווניות RTL ו-justify
+  /// עוטף טקסט ב-div מיושר לימין; שורה שנפתחת באנגלית מקבלת כיוון LTR.
   static String wrapWithRtlDiv(String text, {bool justifyText = true}) {
-    final textAlign = justifyText ? 'justify' : 'right';
-    return '<div style="text-align: $textAlign; direction: rtl;">$text</div>';
+    final ltr = startsLeftToRight(text);
+    // ב-LTR יישור לשני הצדדים היה שולח את השורה האחרונה שמאלה.
+    final textAlign = justifyText && !ltr ? 'justify' : 'right';
+    final direction = ltr ? 'ltr' : 'rtl';
+    return '<div style="text-align: $textAlign; direction: $direction;">$text</div>';
+  }
+
+  /// האם האות החזקה הראשונה ב-[html] לטינית (כמו `dir="auto"`), בדילוג על
+  /// תגים וישויות. בלי זה הפיסוק שבקצות שורה אנגלית מוצג בצד הלא נכון.
+  static bool startsLeftToRight(String html) {
+    var i = 0;
+    while (i < html.length) {
+      final c = html.codeUnitAt(i);
+      if (c == 0x3C) {
+        // <
+        final end = html.indexOf('>', i);
+        if (end < 0) return false;
+        i = end + 1;
+        continue;
+      }
+      if (c == 0x26) {
+        // &
+        final end = html.indexOf(';', i);
+        if (end > i && end - i <= 10) {
+          i = end + 1;
+          continue;
+        }
+      }
+      if ((c >= 0x0590 && c <= 0x05FF) || (c >= 0xFB1D && c <= 0xFB4F)) {
+        return false;
+      }
+      if ((c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A)) return true;
+      i++;
+    }
+    return false;
   }
 
   /// מנרמל את ההגדרות לשדות שבאמת משפיעים על [processText] (שדות עיצוב כמו
