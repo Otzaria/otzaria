@@ -572,6 +572,7 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     List<AppContextMenuEntry> entries,
     AppMenuMetrics metrics,
     double maxWidth,
+    VoidCallback rebuildSubmenu,
   ) {
     final submenuContentMaxWidth = maxWidth - metrics.itemPadding.horizontal;
 
@@ -607,6 +608,7 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
         metrics,
         key: entry.key,
         contentMaxWidth: submenuContentMaxWidth,
+        rebuildSubmenu: rebuildSubmenu,
       );
     }).toList();
   }
@@ -672,12 +674,14 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
                 if (ctrl != controller && ctrl.isOpen) ctrl.close();
               }
             },
-      buildChildren: (submenuEntries, submenuMaxWidth) => _buildSubmenuChildren(
-        context,
-        submenuEntries,
-        metrics,
-        submenuMaxWidth,
-      ),
+      buildChildren: (submenuEntries, submenuMaxWidth, rebuildSubmenu) =>
+          _buildSubmenuChildren(
+            context,
+            submenuEntries,
+            metrics,
+            submenuMaxWidth,
+            rebuildSubmenu,
+          ),
     );
   }
 
@@ -687,20 +691,28 @@ class AppContextMenuRegionState extends State<AppContextMenuRegion> {
     AppMenuMetrics metrics, {
     required Key? key,
     required double contentMaxWidth,
+    VoidCallback? rebuildSubmenu,
   }) {
+    final keepOpen = entry.keepOpen && rebuildSubmenu != null;
     return _wrapWithHoverPreview(
       entry,
       metrics,
       MenuItemButton(
         key: key,
         requestFocusOnHover: false,
+        closeOnActivate: !keepOpen,
         style: buildAppSubmenuItemStyle(context, metrics),
-        onPressed: entry.enabled
+        onPressed: !entry.enabled
+            ? null
+            : keepOpen
             ? () {
+                entry.onTap?.call();
+                rebuildSubmenu();
+              }
+            : () {
                 _closeContextMenu();
                 entry.onTap?.call();
-              }
-            : null,
+              },
         child: buildAppMenuRowContent(
           context,
           metrics,
@@ -753,7 +765,12 @@ class _LazyAppSubmenuButton extends StatefulWidget {
   final MenuStyle menuStyle;
   final MenuController? controller;
   final VoidCallback? onOpen;
-  final List<Widget> Function(List<AppContextMenuEntry>, double) buildChildren;
+  final List<Widget> Function(
+    List<AppContextMenuEntry> entries,
+    double maxWidth,
+    VoidCallback rebuildSubmenu,
+  )
+  buildChildren;
 
   const _LazyAppSubmenuButton({
     super.key,
@@ -872,7 +889,7 @@ class _LazyAppSubmenuButtonState extends State<_LazyAppSubmenuButton>
       _hasEnabledChildren = hasEnabledChildren;
       _openToRight = _shouldOpenToRight();
       _menuChildren = hasEnabledChildren
-          ? widget.buildChildren(entries, widget.maxWidth)
+          ? widget.buildChildren(entries, widget.maxWidth, _refreshChildren)
           : const <Widget>[];
     });
   }

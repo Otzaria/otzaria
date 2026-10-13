@@ -2253,4 +2253,115 @@ void main() {
       );
     });
   });
+
+  group('keepOpen בתת-תפריט', () {
+    Future<List<String>> pumpMenu(WidgetTester tester) async {
+      final log = <String>[];
+      var checked = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: AppContextMenuRegion(
+                menuBuilder: (_, _) => [
+                  AppContextMenuEntry(
+                    label: 'אפשרויות',
+                    childrenBuilder: () => [
+                      AppContextMenuEntry(
+                        label: 'תיבה',
+                        isSelected: checked,
+                        keepOpen: true,
+                        onTap: () {
+                          checked = !checked;
+                          log.add('toggle');
+                        },
+                      ),
+                      AppContextMenuEntry(
+                        label: 'פעולה',
+                        onTap: () => log.add('action'),
+                      ),
+                    ],
+                  ),
+                ],
+                child: const SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: ColoredBox(color: Colors.amber),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return log;
+    }
+
+    bool isChecked(WidgetTester tester) => tester.any(
+      find.descendant(
+        of: find.widgetWithText(MenuItemButton, 'תיבה'),
+        matching: find.byIcon(FluentIcons.checkmark_circle_24_filled),
+      ),
+    );
+
+    Future<void> verifyToggleKeepsMenuOpen(
+      WidgetTester tester,
+      List<String> log,
+      Future<void> Function(Finder target) tap,
+    ) async {
+      await tap(find.text('אפשרויות'));
+      expect(find.text('תיבה'), findsOneWidget);
+      expect(isChecked(tester), isFalse);
+
+      await tap(find.text('תיבה'));
+      expect(log, ['toggle']);
+      expect(find.text('תיבה'), findsOneWidget, reason: 'keepOpen לא סוגר');
+      expect(find.text('אפשרויות'), findsOneWidget);
+      expect(isChecked(tester), isTrue, reason: 'הסימון מתעדכן מיד');
+
+      await tap(find.text('תיבה'));
+      expect(isChecked(tester), isFalse);
+
+      await tap(find.text('פעולה'));
+      expect(log, ['toggle', 'toggle', 'action']);
+      expect(find.text('אפשרויות'), findsNothing, reason: 'פריט רגיל סוגר');
+    }
+
+    testWidgets('בעכבר', (tester) async {
+      final log = await pumpMenu(tester);
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      final regionCenter = tester.getCenter(find.byType(AppContextMenuRegion));
+      await gesture.moveTo(regionCenter);
+      await gesture.down(regionCenter);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      await verifyToggleKeepsMenuOpen(tester, log, (target) async {
+        await tester.tap(target);
+        await tester.pumpAndSettle();
+      });
+    });
+
+    testWidgets('במגע (לחיצה ארוכה פותחת)', (tester) async {
+      final log = await pumpMenu(tester);
+      final center = tester.getCenter(find.byType(AppContextMenuRegion));
+      final gesture = await tester.startGesture(
+        center,
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      await verifyToggleKeepsMenuOpen(tester, log, (target) async {
+        await tester.tap(target, kind: PointerDeviceKind.touch);
+        await tester.pumpAndSettle();
+      });
+    });
+  });
 }

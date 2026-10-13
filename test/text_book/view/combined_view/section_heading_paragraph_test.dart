@@ -309,12 +309,15 @@ void main() {
           );
           final copyAs = entries.singleWhere((e) => e.label == 'העתק כ...');
           expect(copyAs.enabled, cross != null);
-          expect(copyAs.children, isNotEmpty);
+          final children = copyAs.childrenBuilder!()
+              .where((e) => !e.isDivider)
+              .toList();
+          expect(children, isNotEmpty);
           expect(
-            copyAs.children!.every((e) => e.enabled == (cross != null)),
+            children.every((e) => e.enabled == (cross != null)),
             isTrue,
           );
-          expect(copyAs.children!.map((e) => e.label), contains('כמו בתצוגה'));
+          expect(children.map((e) => e.label), contains('כמו בתצוגה'));
         },
       );
     }

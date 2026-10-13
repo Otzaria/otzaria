@@ -130,6 +130,10 @@ class AppContextMenuEntry {
   final bool isSelected;
   final bool isHighlighted;
   final VoidCallback? onTap;
+
+  /// בתוך תת-תפריט: הלחיצה לא סוגרת את התפריט, והתת-תפריט נבנה מחדש
+  /// מ-[childrenBuilder] של ההורה כדי ש-[isSelected] יתעדכן מיד.
+  final bool keepOpen;
   final Widget? trailing;
   // תת-פריטים לתפריט משנה
   final List<AppContextMenuEntry>? children;
@@ -155,6 +159,7 @@ class AppContextMenuEntry {
     this.isSelected = false,
     this.isHighlighted = false,
     this.onTap,
+    this.keepOpen = false,
     this.trailing,
     this.children,
     this.childrenBuilder,
@@ -179,6 +184,7 @@ class AppContextMenuEntry {
       isSelected = false,
       isHighlighted = false,
       onTap = null,
+      keepOpen = false,
       trailing = null,
       children = null,
       childrenBuilder = null,
@@ -199,6 +205,7 @@ class AppContextMenuEntry {
       isSelected = false,
       isHighlighted = false,
       onTap = null,
+      keepOpen = false,
       trailing = null,
       children = null,
       childrenBuilder = null,
@@ -216,6 +223,7 @@ class AppContextMenuEntry {
       isSelected = false,
       isHighlighted = false,
       onTap = null,
+      keepOpen = false,
       trailing = null,
       children = null,
       childrenBuilder = null,
