@@ -7,12 +7,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/bloc/app_report_bloc.dart';
 import 'package:otzaria/app_report/bloc/app_report_event.dart';
 import 'package:otzaria/app_report/bloc/app_report_state.dart';
+import 'package:otzaria/app_report/models/app_report_draft.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
 import '../app_report_test_fakes.dart';
+
+/// הטופס מוצג רק אחרי האיסוף; אירועי השדות נשלחים כשהוא פתוח.
+Future<void> _openForm(AppReportBloc bloc) async {
+  bloc.add(const AppReportAttachmentsRequested());
+  await bloc.stream.firstWhere((s) => s is AppReportEditing);
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -75,9 +82,9 @@ void main() {
   blocTest<AppReportBloc, AppReportState>(
     'צירוף תמונות מעדכן את רשימת התמונות בטופס',
     build: build,
-    act: (bloc) => bloc
-      ..add(const AppReportAttachmentsRequested())
-      ..add(
+    act: (bloc) async {
+      await _openForm(bloc);
+      bloc.add(
         AppReportImagesChanged([
           AppReportImage(
             bytes: Uint8List(3),
@@ -85,7 +92,8 @@ void main() {
             mimeType: 'image/png',
           ),
         ]),
-      ),
+      );
+    },
     skip: 1,
     expect: () => [
       isA<AppReportEditing>().having(
@@ -110,11 +118,13 @@ void main() {
   blocTest<AppReportBloc, AppReportState>(
     'דיווח ידני בלי מייל נדחה מקומית עם invalidField=reporterEmail',
     build: build,
-    act: (bloc) => bloc
-      ..add(const AppReportAttachmentsRequested())
-      ..add(const AppReportTitleChanged('כותרת'))
-      ..add(const AppReportDescriptionChanged('תיאור'))
-      ..add(const AppReportSubmitted()),
+    act: (bloc) async {
+      await _openForm(bloc);
+      bloc
+        ..add(const AppReportTitleChanged('כותרת'))
+        ..add(const AppReportDescriptionChanged('תיאור'))
+        ..add(const AppReportSubmitted());
+    },
     skip: 3,
     expect: () => [
       isA<AppReportEditing>()
@@ -151,13 +161,15 @@ void main() {
       'דיווח ידני תקין: sending → finished, המייל נשמר, הטקסטים מוסתרים',
       setUp: () => service = FakeAppReportService(),
       build: () => build(service: service),
-      act: (bloc) => bloc
-        ..add(const AppReportAttachmentsRequested())
-        ..add(const AppReportTitleChanged(r'נפל ב-C:\Users\dani\x'))
-        ..add(const AppReportDescriptionChanged('תיאור'))
-        ..add(const AppReportStepsChanged('שלב'))
-        ..add(const AppReportEmailChanged('me@x.com'))
-        ..add(const AppReportSubmitted()),
+      act: (bloc) async {
+        await _openForm(bloc);
+        bloc
+          ..add(const AppReportTitleChanged(r'נפל ב-C:\Users\dani\x'))
+          ..add(const AppReportDescriptionChanged('תיאור'))
+          ..add(const AppReportStepsChanged('שלב'))
+          ..add(const AppReportEmailChanged('me@x.com'))
+          ..add(const AppReportSubmitted());
+      },
       skip: 5,
       expect: () => [
         isA<AppReportEditing>().having((s) => s.isSending, 'sending', true),
@@ -187,14 +199,16 @@ void main() {
       'החרגת הצרופות משמיטה אותן מהדיווח',
       setUp: () => service = FakeAppReportService(),
       build: () => build(service: service),
-      act: (bloc) => bloc
-        ..add(const AppReportAttachmentsRequested())
-        ..add(const AppReportTitleChanged('כותרת'))
-        ..add(const AppReportDescriptionChanged('תיאור'))
-        ..add(const AppReportEmailChanged('me@x.com'))
-        ..add(const AppReportDiagnosticsToggled(false))
-        ..add(const AppReportErrorLogToggled(false))
-        ..add(const AppReportSubmitted()),
+      act: (bloc) async {
+        await _openForm(bloc);
+        bloc
+          ..add(const AppReportTitleChanged('כותרת'))
+          ..add(const AppReportDescriptionChanged('תיאור'))
+          ..add(const AppReportEmailChanged('me@x.com'))
+          ..add(const AppReportDiagnosticsToggled(false))
+          ..add(const AppReportErrorLogToggled(false))
+          ..add(const AppReportSubmitted());
+      },
       verify: (_) {
         final report = service.sent.single;
         expect(report.diagnostics, isNull);
@@ -215,9 +229,10 @@ void main() {
           frames: ['main.dart'],
         ),
       ),
-      act: (bloc) => bloc
-        ..add(const AppReportAttachmentsRequested())
-        ..add(const AppReportSubmitted()),
+      act: (bloc) async {
+        await _openForm(bloc);
+        bloc.add(const AppReportSubmitted());
+      },
       verify: (_) {
         final report = service.sent.single;
         expect(report.type, AppReportType.crash);
@@ -237,11 +252,13 @@ void main() {
     blocTest<AppReportBloc, AppReportState>(
       'אחרי קריסה: מייל לא תקין נדחה מקומית',
       build: () => build(trigger: AppReportTrigger.crashPrompt),
-      act: (bloc) => bloc
-        ..add(const AppReportAttachmentsRequested())
-        ..add(const AppReportTitleChanged('קריסה'))
-        ..add(const AppReportEmailChanged('לא-מייל'))
-        ..add(const AppReportSubmitted()),
+      act: (bloc) async {
+        await _openForm(bloc);
+        bloc
+          ..add(const AppReportTitleChanged('קריסה'))
+          ..add(const AppReportEmailChanged('לא-מייל'))
+          ..add(const AppReportSubmitted());
+      },
       skip: 3,
       expect: () => [
         isA<AppReportEditing>().having(
@@ -264,12 +281,14 @@ void main() {
           ),
         ),
       ),
-      act: (bloc) => bloc
-        ..add(const AppReportAttachmentsRequested())
-        ..add(const AppReportTitleChanged('כותרת'))
-        ..add(const AppReportDescriptionChanged('תיאור'))
-        ..add(const AppReportEmailChanged('me@x.com'))
-        ..add(const AppReportSubmitted()),
+      act: (bloc) async {
+        await _openForm(bloc);
+        bloc
+          ..add(const AppReportTitleChanged('כותרת'))
+          ..add(const AppReportDescriptionChanged('תיאור'))
+          ..add(const AppReportEmailChanged('me@x.com'))
+          ..add(const AppReportSubmitted());
+      },
       skip: 5,
       expect: () => [
         isA<AppReportEditing>()
@@ -322,5 +341,129 @@ void main() {
       expect(bloc.buildReport(form).minidump, isNull);
       await bloc.close();
     });
+  });
+
+  group('טיוטה', () {
+    late FakeAppReportService service;
+    final image = AppReportImage(
+      bytes: Uint8List(3),
+      fileName: 'shot.png',
+      mimeType: 'image/png',
+    );
+    final draft = AppReportDraft(
+      type: AppReportType.suggestion,
+      title: 'טיוטה',
+      description: 'תיאור הטיוטה',
+      steps: 'שלב',
+      email: 'draft@x.com',
+      includeErrorLog: false,
+      images: [image],
+    );
+
+    blocTest<AppReportBloc, AppReportState>(
+      'טיוטה שמורה ממלאת את הטופס הידני',
+      setUp: () => service = FakeAppReportService(draft: draft),
+      build: () => build(service: service),
+      act: (bloc) => bloc.add(const AppReportAttachmentsRequested()),
+      expect: () => [
+        isA<AppReportEditing>()
+            .having((s) => s.hasDraft, 'hasDraft', true)
+            .having((s) => s.type, 'type', AppReportType.suggestion)
+            .having((s) => s.description, 'description', 'תיאור הטיוטה')
+            .having((s) => s.steps, 'steps', 'שלב')
+            .having((s) => s.email, 'email', 'draft@x.com')
+            .having((s) => s.includeErrorLog, 'includeErrorLog', false)
+            .having((s) => s.images, 'images', [image]),
+      ],
+    );
+
+    blocTest<AppReportBloc, AppReportState>(
+      'דיווח קריסה מתעלם מהטיוטה',
+      setUp: () => service = FakeAppReportService(draft: draft),
+      build: () => build(
+        service: service,
+        trigger: AppReportTrigger.crashPrompt,
+        initialType: AppReportType.crash,
+      ),
+      act: (bloc) => bloc.add(const AppReportAttachmentsRequested()),
+      expect: () => [
+        isA<AppReportEditing>()
+            .having((s) => s.hasDraft, 'hasDraft', false)
+            .having((s) => s.type, 'type', AppReportType.crash),
+      ],
+    );
+
+    blocTest<AppReportBloc, AppReportState>(
+      'שמירת טיוטה שומרת את הטקסט כפי שהוקלד, בלי הסתרה',
+      setUp: () => service = FakeAppReportService(),
+      build: () => build(service: service),
+      act: (bloc) async {
+        await _openForm(bloc);
+        bloc
+          ..add(const AppReportTitleChanged(r'נפל ב-C:\Users\dani\x'))
+          ..add(AppReportImagesChanged([image]))
+          ..add(const AppReportDraftSaved());
+      },
+      skip: 3,
+      expect: () => [
+        isA<AppReportEditing>().having((s) => s.draftSaved, 'saved', true),
+      ],
+      verify: (_) {
+        expect(service.draft?.title, r'נפל ב-C:\Users\dani\x');
+        expect(service.draft?.images, [image]);
+        expect(service.sent, isEmpty);
+      },
+    );
+
+    blocTest<AppReportBloc, AppReportState>(
+      'מחיקת הטיוטה מנקה את הטופס ושומרת את המייל',
+      setUp: () => service = FakeAppReportService(draft: draft),
+      build: () => build(service: service),
+      act: (bloc) async {
+        await _openForm(bloc);
+        bloc.add(const AppReportDraftDiscarded());
+      },
+      skip: 1,
+      expect: () => [
+        isA<AppReportEditing>()
+            .having((s) => s.hasDraft, 'hasDraft', false)
+            .having((s) => s.title, 'title', '')
+            .having((s) => s.images, 'images', isEmpty)
+            .having((s) => s.email, 'email', 'draft@x.com'),
+      ],
+      verify: (_) => expect(service.draft, isNull),
+    );
+
+    blocTest<AppReportBloc, AppReportState>(
+      'שליחה שנקלטה מוחקת את הטיוטה',
+      setUp: () => service = FakeAppReportService(draft: draft),
+      build: () => build(service: service),
+      act: (bloc) async {
+        await _openForm(bloc);
+        bloc.add(const AppReportSubmitted());
+      },
+      verify: (_) {
+        expect(service.sent, hasLength(1));
+        expect(service.draft, isNull);
+      },
+    );
+
+    blocTest<AppReportBloc, AppReportState>(
+      'דיווח שנדחה סופית משאיר את הטיוטה',
+      setUp: () => service = FakeAppReportService(
+        draft: draft,
+        respond: (report) => AppReportDeliveryResult(
+          status: AppReportDeliveryStatus.failed,
+          report: report,
+          failureReason: AppReportFailureReason.rejected,
+        ),
+      ),
+      build: () => build(service: service),
+      act: (bloc) async {
+        await _openForm(bloc);
+        bloc.add(const AppReportSubmitted());
+      },
+      verify: (_) => expect(service.draft, draft),
+    );
   });
 }

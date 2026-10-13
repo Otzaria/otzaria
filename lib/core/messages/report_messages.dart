@@ -155,6 +155,9 @@ abstract class ReportMessages {
       'כתובת הדואר האלקטרוני אינה תקינה.';
   static const String appReportCrashDismissed =
       'הדיווח על הקריסה לא נשלח. ניתן לדווח בכל עת דרך ההגדרות.';
+  static const String appReportDraftSaved =
+      'הטיוטה נשמרה. היא תיפתח שוב בפעם הבאה שתפתחו את טופס הדיווח.';
+  static const String appReportDraftDiscarded = 'הטיוטה נמחקה.';
   static const String appReportCannotOpenIssue =
       'לא ניתן לפתוח את הדיווח בדפדפן.';
   static String appReportImageTooLarge(int maxMegabytes) =>

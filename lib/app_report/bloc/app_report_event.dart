@@ -102,3 +102,13 @@ class AppReportImagesChanged extends AppReportEvent {
 class AppReportSubmitted extends AppReportEvent {
   const AppReportSubmitted();
 }
+
+/// שמירת הטופס כטיוטה, להשלמה ולשליחה בפתיחה הבאה.
+class AppReportDraftSaved extends AppReportEvent {
+  const AppReportDraftSaved();
+}
+
+/// מחיקת הטיוטה השמורה וניקוי הטופס.
+class AppReportDraftDiscarded extends AppReportEvent {
+  const AppReportDraftDiscarded();
+}

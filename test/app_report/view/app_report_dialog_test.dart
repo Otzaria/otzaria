@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/bloc/app_report_bloc.dart';
+import 'package:otzaria/app_report/models/app_report_draft.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
@@ -139,6 +140,49 @@ void main() {
     expect(find.byType(AppReportDialog), findsNothing);
     expect(popped?.issueNumber, 42);
     expect(find.text(ReportMessages.appReportSent(42)), findsOneWidget);
+  });
+
+  testSnack('שמירת טיוטה סוגרת את הטופס בלי לשלוח', (tester) async {
+    await pumpDialog(tester);
+    await fill(tester);
+    await tester.tap(find.byKey(const ValueKey('app-report-save-draft')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(service.sent, isEmpty);
+    expect(service.draft?.title, 'כותרת');
+    expect(service.draft?.description, 'תיאור');
+    expect(find.byType(AppReportDialog), findsNothing);
+    expect(popped, isNull);
+    expect(find.text(ReportMessages.appReportDraftSaved), findsOneWidget);
+  });
+
+  testSnack('טיוטה שמורה ממלאת את השדות, ומחיקתה מנקה אותם', (tester) async {
+    await pumpDialog(
+      tester,
+      withService: FakeAppReportService(
+        draft: const AppReportDraft(
+          type: AppReportType.bug,
+          title: 'כותרת שמורה',
+          description: 'תיאור שמור',
+          steps: 'שלב שמור',
+          email: 'me@x.com',
+        ),
+      ),
+    );
+
+    expect(find.text('הטופס נטען מטיוטה שמורה'), findsOneWidget);
+    expect(find.text('כותרת שמורה'), findsOneWidget);
+    expect(find.text('תיאור שמור'), findsOneWidget);
+    expect(find.text('שלב שמור'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('app-report-discard-draft')));
+    await tester.pump();
+
+    expect(service.draft, isNull);
+    expect(find.text('הטופס נטען מטיוטה שמורה'), findsNothing);
+    expect(find.text('תיאור שמור'), findsNothing);
+    expect(find.text('me@x.com'), findsOneWidget);
   });
 
   testSnack('ביטול תיבות הסימון משמיט את הצרופות מהדיווח', (tester) async {

@@ -8,6 +8,7 @@ import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/view/app_report_result_snack.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
 import 'package:otzaria/app_report/view/widgets/app_report_preview_section.dart';
+import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -88,6 +89,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
   void _syncControllers(AppReportEditing state) {
     if (_email.text != state.email) _email.text = state.email;
     if (_title.text != state.title) _title.text = state.title;
+    if (_description.text != state.description) {
+      _description.text = state.description;
+    }
+    if (_steps.text != state.steps) _steps.text = state.steps;
   }
 
   @override
@@ -103,9 +108,15 @@ class _AppReportDialogState extends State<AppReportDialog> {
             current is AppReportEditing &&
             (previous is! AppReportEditing ||
                 previous.invalidField != current.invalidField ||
-                previous.isFinished != current.isFinished),
+                previous.isFinished != current.isFinished ||
+                previous.draftSaved != current.draftSaved),
         listener: (context, state) {
           if (state is! AppReportEditing) return;
+          if (state.draftSaved) {
+            UiSnack.showSuccess(ReportMessages.appReportDraftSaved);
+            Navigator.of(context).pop();
+            return;
+          }
           if (state.isFinished && state.result != null) {
             showAppReportResultSnack(state.result!);
             Navigator.of(context).pop(state.result);
@@ -264,6 +275,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (state.hasDraft) ...[
+          _buildDraftNotice(context, enabled: enabled),
+          const SizedBox(height: AppTokens.spaceMD),
+        ],
         _fieldLabel(context, FluentIcons.tag_24_regular, 'סוג הדיווח'),
         AppSegmentedControl<AppReportType>(
           options: [
@@ -391,6 +406,34 @@ class _AppReportDialogState extends State<AppReportDialog> {
     );
   }
 
+  Widget _buildDraftNotice(BuildContext context, {required bool enabled}) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(
+          FluentIcons.drafts_24_regular,
+          size: 18,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: AppTokens.spaceSM),
+        Expanded(
+          child: Text(
+            'הטופס נטען מטיוטה שמורה',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        ActionButton.ghost(
+          key: const ValueKey('app-report-discard-draft'),
+          text: 'מחק טיוטה',
+          icon: FluentIcons.delete_24_regular,
+          onPressed: enabled ? _discardDraft : null,
+        ),
+      ],
+    );
+  }
+
   Widget _buildActions(BuildContext context, AppReportState state) {
     final editing = state is AppReportEditing ? state : null;
     final isSending = editing?.isSending ?? false;
@@ -403,6 +446,17 @@ class _AppReportDialogState extends State<AppReportDialog> {
             text: 'ביטול',
             onPressed: isSending ? null : () => Navigator.of(context).pop(),
           ),
+          if (_bloc.supportsDraft) ...[
+            const SizedBox(width: 8),
+            ActionButton.neutral(
+              key: const ValueKey('app-report-save-draft'),
+              text: 'שמור טיוטה',
+              icon: FluentIcons.save_24_regular,
+              onPressed: editing == null || isSending
+                  ? null
+                  : () => _bloc.add(const AppReportDraftSaved()),
+            ),
+          ],
           const SizedBox(width: 8),
           ActionButton.recommended(
             key: const ValueKey('app-report-send'),
@@ -416,5 +470,10 @@ class _AppReportDialogState extends State<AppReportDialog> {
         ],
       ),
     );
+  }
+
+  void _discardDraft() {
+    _bloc.add(const AppReportDraftDiscarded());
+    UiSnack.show(ReportMessages.appReportDraftDiscarded);
   }
 }

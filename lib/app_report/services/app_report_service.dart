@@ -6,6 +6,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:http/http.dart' as http;
+import 'package:otzaria/app_report/models/app_report_draft.dart';
 import 'package:otzaria/core/http_client_registry.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/services/offline_report_script_builder.dart';
@@ -89,6 +90,9 @@ class AppReportService {
   static const String sentReportsKey = 'sent_reports';
   static const String pendingKind = '$queueBoxName/$pendingReportsKey';
   static const String sentKind = '$queueBoxName/$sentReportsKey';
+
+  /// טיוטה אחת של הטופס הידני; לא בתור, ולכן לא נשלחת אוטומטית.
+  static const String draftKind = '$queueBoxName/draft';
   static const int maxSentReportsToKeep = 100;
   static const Duration timeout = Duration(seconds: 10);
 
@@ -233,6 +237,18 @@ class AppReportService {
     final kept = await _reports.countByKind(sentKind);
     return total > kept ? total : kept;
   }
+
+  Future<AppReportDraft?> loadDraft() async {
+    final row = (await _reports.listByKind(draftKind)).lastOrNull;
+    return row == null ? null : AppReportDraft.fromJson(row.payload);
+  }
+
+  Future<void> saveDraft(AppReportDraft draft) async {
+    await _reports.deleteAllOfKind(draftKind);
+    await _reports.add(draftKind, draft.toJson());
+  }
+
+  Future<void> deleteDraft() => _reports.deleteAllOfKind(draftKind);
 
   Future<void> deletePendingReport(String reportId) =>
       _withReportLock(reportId, () => _deletePendingReport(reportId));

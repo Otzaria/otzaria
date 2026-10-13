@@ -8,6 +8,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:otzaria/app_report/models/app_report_draft.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/user_state/user_state_database.dart';
@@ -70,6 +71,48 @@ void main() {
     reportStore: store,
     sentCounter: SentReportsCounter.inMemory(),
   );
+
+  test('טיוטה: נשמרת אחת, נטענת עם התמונות, ולא נכנסת לתור', () async {
+    final service = build(MockClient((_) async => _json(500, {})));
+    final image = AppReportImage(
+      bytes: Uint8List.fromList([1, 2, 3]),
+      fileName: 'shot.png',
+      mimeType: 'image/png',
+    );
+    await service.saveDraft(
+      const AppReportDraft(
+        type: AppReportType.bug,
+        title: 'ראשונה',
+        description: '',
+        steps: '',
+        email: '',
+      ),
+    );
+    final draft = AppReportDraft(
+      type: AppReportType.suggestion,
+      title: 'שנייה',
+      description: 'תיאור',
+      steps: 'שלב',
+      email: 'a@b.com',
+      includeDiagnostics: false,
+      images: [image],
+    );
+    await service.saveDraft(draft);
+
+    final loaded = (await service.loadDraft())!;
+    expect(loaded.title, 'שנייה');
+    expect(loaded.type, AppReportType.suggestion);
+    expect(loaded.steps, 'שלב');
+    expect(loaded.includeDiagnostics, isFalse);
+    expect(loaded.images.single.fileName, 'shot.png');
+    expect(loaded.images.single.bytes, [1, 2, 3]);
+    expect(await store.countByKind(AppReportService.draftKind), 1);
+    expect(await service.getPendingReportsCount(), 0);
+    expect(await service.flushPendingReports(), 0);
+
+    await service.deleteDraft();
+    expect(await service.loadDraft(), isNull);
+  });
 
   test('200: נשלח, שדות ה-issue נשמרים בהיסטוריה בלי צרופות', () async {
     Map<String, dynamic>? sentBody;

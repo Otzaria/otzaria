@@ -35,6 +35,8 @@ class AppReportEditing extends AppReportState {
     this.submission = AppReportSubmission.idle,
     this.result,
     this.invalidField,
+    this.hasDraft = false,
+    this.draftSaved = false,
   });
 
   final AppReportType type;
@@ -62,6 +64,12 @@ class AppReportEditing extends AppReportState {
   /// השדה שנכשל בבדיקת התקינות המקומית (`title`/`description`/`reporterEmail`).
   final String? invalidField;
 
+  /// הטופס נטען מטיוטה שמורה.
+  final bool hasDraft;
+
+  /// הטופס נשמר כטיוטה, וצריך להיסגר.
+  final bool draftSaved;
+
   bool get isSending => submission == AppReportSubmission.sending;
   bool get isFinished => submission == AppReportSubmission.finished;
 
@@ -81,6 +89,8 @@ class AppReportEditing extends AppReportState {
     AppReportDeliveryResult? result,
     String? invalidField,
     bool clearInvalidField = false,
+    bool? hasDraft,
+    bool? draftSaved,
   }) {
     return AppReportEditing(
       type: type ?? this.type,
@@ -100,6 +110,8 @@ class AppReportEditing extends AppReportState {
       invalidField: clearInvalidField
           ? null
           : (invalidField ?? this.invalidField),
+      hasDraft: hasDraft ?? this.hasDraft,
+      draftSaved: draftSaved ?? this.draftSaved,
     );
   }
 
@@ -120,5 +132,7 @@ class AppReportEditing extends AppReportState {
     submission,
     result,
     invalidField,
+    hasDraft,
+    draftSaved,
   ];
 }

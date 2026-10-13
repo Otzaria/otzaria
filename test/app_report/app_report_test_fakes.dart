@@ -1,13 +1,24 @@
+import 'package:otzaria/app_report/models/app_report_draft.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 
 /// שירות מזויף: רושם את הדיווח שנשלח ומחזיר תוצאה קבועה.
 class FakeAppReportService implements AppReportService {
-  FakeAppReportService({this.respond});
+  FakeAppReportService({this.respond, this.draft});
 
   final AppReportDeliveryResult Function(AppReport)? respond;
   final List<AppReport> sent = [];
+  AppReportDraft? draft;
+
+  @override
+  Future<AppReportDraft?> loadDraft() async => draft;
+
+  @override
+  Future<void> saveDraft(AppReportDraft value) async => draft = value;
+
+  @override
+  Future<void> deleteDraft() async => draft = null;
 
   @override
   Future<AppReportDeliveryResult> send(AppReport report) async {

@@ -1,9 +1,11 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/view/app_report_dialog.dart';
 import 'package:otzaria/app_report/view/app_report_result_snack.dart';
+import 'package:otzaria/app_report/view/widgets/app_report_images_section.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
@@ -406,7 +408,8 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
                 value.title != report.title ||
                 value.description != report.description ||
                 value.stepsToReproduce != report.stepsToReproduce ||
-                value.reporterEmail != report.reporterEmail;
+                value.reporterEmail != report.reporterEmail ||
+                !listEquals(value.images, report.images);
           },
         ),
       ),
@@ -522,6 +525,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
     text: widget.report.stepsToReproduce,
   );
   late final _email = TextEditingController(text: widget.report.reporterEmail);
+  late List<AppReportImage> _images = widget.report.images;
 
   @override
   void dispose() {
@@ -539,6 +543,7 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
       description: _description.text,
       stepsToReproduce: _steps.text,
       reporterEmail: _email.text.trim(),
+      images: _images,
     ),
   );
 
@@ -615,6 +620,14 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
               isDense: true,
             ),
           ),
+        ),
+        const SizedBox(height: 12),
+        AppReportImagesSection(
+          images: _images,
+          onChanged: (images) {
+            setState(() => _images = List.unmodifiable(images));
+            _notifyChanged();
+          },
         ),
       ],
     );
