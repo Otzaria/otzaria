@@ -185,7 +185,6 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
           TextDisplaySection(
             title: 'מפרשים',
             profile: current,
-            showAnchorMarkers: false,
             onChanged: (next) => _displayOverride.value = override.merge(
               next.toPatch().pruneAgainst(current),
             ),

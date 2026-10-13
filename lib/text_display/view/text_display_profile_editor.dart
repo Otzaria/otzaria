@@ -11,14 +11,10 @@ class TextDisplayProfileEditor extends StatelessWidget {
   final TextDisplayProfile profile;
   final ValueChanged<TextDisplayProfile> onChanged;
 
-  /// מסתיר את שורת הציונים (למפרשים אין ציונים בגוף הטקסט).
-  final bool showAnchorMarkers;
-
   const TextDisplayProfileEditor({
     super.key,
     required this.profile,
     required this.onChanged,
-    this.showAnchorMarkers = true,
   });
 
   /// השורות כרשימה — לשיבוץ ישיר בתוך [SettingsCard] (שמוסיף מפרידים).
@@ -26,7 +22,6 @@ class TextDisplayProfileEditor extends StatelessWidget {
     BuildContext context, {
     required TextDisplayProfile profile,
     required ValueChanged<TextDisplayProfile> onChanged,
-    bool showAnchorMarkers = true,
   }) {
     final t = context.settingsText;
     final showHide = [
@@ -73,15 +68,14 @@ class TextDisplayProfileEditor extends StatelessWidget {
         currentValue: profile.holyName,
         onChanged: (v) => onChanged(profile.copyWith(holyName: v)),
       ),
-      if (showAnchorMarkers)
-        SettingsActionTile.segmentedTile<MarkVisibility>(
-          icon: OtzariaIcons.alef_1_24_filled,
-          title: t('ציוני המפרשים'),
-          subtitle: t('אותיות הציון שבגוף הטקסט, למשל (א)'),
-          options: showHide,
-          currentValue: profile.anchorMarkers,
-          onChanged: (v) => onChanged(profile.copyWith(anchorMarkers: v)),
-        ),
+      SettingsActionTile.segmentedTile<MarkVisibility>(
+        icon: OtzariaIcons.alef_1_24_filled,
+        title: t('ציוני המפרשים'),
+        subtitle: t('אותיות הציון שבטקסט, למשל (א)'),
+        options: showHide,
+        currentValue: profile.anchorMarkers,
+        onChanged: (v) => onChanged(profile.copyWith(anchorMarkers: v)),
+      ),
     ];
   }
 
@@ -93,7 +87,6 @@ class TextDisplayProfileEditor extends StatelessWidget {
         context,
         profile: profile,
         onChanged: onChanged,
-        showAnchorMarkers: showAnchorMarkers,
       ),
     );
   }

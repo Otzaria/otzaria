@@ -193,7 +193,6 @@ class _TextDisplaySettingsCardState extends State<TextDisplaySettingsCard> {
             profile: resolved,
             onChanged: (profile) =>
                 _update(policy.withSlot(_bookClass, slot, profile.toPatch())),
-            showAnchorMarkers: _target == TextTarget.body,
           ),
         if (hasOverrides) ...[
           AppCard.sectionDivider(context),

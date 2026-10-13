@@ -50,7 +50,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'אותה שורה אחרי (עם סוגריים)': 'Same line, after, in parentheses',
     'אותה שורה לפני (בלי סוגריים)': 'Same line, before, no parentheses',
     'אותה שורה לפני (עם סוגריים)': 'Same line, before, in parentheses',
-    'אותיות הציון שבגוף הטקסט, למשל (א)': 'The marker letters inside the text, e.g. (א)',
+    'אותיות הציון שבטקסט, למשל (א)': 'The marker letters in the text, e.g. (א)',
     'אותיות השימוש (ו, ה, ב, כ, ל, מ, ש, ד וצירופיהן) לפני המילה: תורה ימצא גם והתורה, בתורה.': 'Hebrew prefix letters (ו, ה, ב, כ, ל, מ, ש, ד and their combinations) before the word: תורה also finds והתורה, בתורה.',
     'אותיות סופיות שונות': 'Osos Sofios Count',
     'אחסון פנימי': 'Internal storage',
