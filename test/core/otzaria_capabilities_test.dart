@@ -42,7 +42,9 @@ void main() {
   });
 
   test('נכתב רק כשהתוכן השתנה, באופן אטומי', () async {
-    final file = File(p.join(root.path, OtzariaCapabilities.fileName));
+    final file = File(
+      p.join(root.path, OtzariaCapabilities.capabilitiesFileName),
+    );
 
     expect(
       await OtzariaCapabilities.writeIfChanged(root.path, content()),
@@ -69,7 +71,9 @@ void main() {
   });
 
   test('קובץ קיים שאינו UTF-8 נכתב מחדש', () async {
-    final file = File(p.join(root.path, OtzariaCapabilities.fileName));
+    final file = File(
+      p.join(root.path, OtzariaCapabilities.capabilitiesFileName),
+    );
     file.writeAsBytesSync([0x7b, 0xff, 0xfe]);
 
     expect(

@@ -16,7 +16,7 @@ class ExternalUpdateNotice {
     required this.needsFullReconcile,
   });
 
-  static const String fileName = '.otzaria-external-update.json';
+  static const String markerFileName = '.otzaria-external-update.json';
   static const int _formatVersion = 1;
 
   final File _file;
@@ -32,7 +32,7 @@ class ExternalUpdateNotice {
   bool get needsIndexing => needsFullReconcile || booksTouched.isNotEmpty;
 
   static File fileFor(String dbPath) =>
-      File(p.join(p.dirname(dbPath), fileName));
+      File(p.join(p.dirname(dbPath), markerFileName));
 
   /// `null` כשאין סימון.
   static Future<ExternalUpdateNotice?> read(String dbPath) async {

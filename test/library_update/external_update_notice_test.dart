@@ -13,7 +13,7 @@ void main() {
   setUp(() {
     tmp = Directory.systemTemp.createTempSync('external_update_notice');
     dbPath = p.join(tmp.path, 'seforim.db');
-    marker = File(p.join(tmp.path, ExternalUpdateNotice.fileName));
+    marker = File(p.join(tmp.path, ExternalUpdateNotice.markerFileName));
   });
 
   tearDown(() => tmp.deleteSync(recursive: true));

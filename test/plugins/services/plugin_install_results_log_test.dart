@@ -12,7 +12,7 @@ void main() {
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('plugin_install_results');
-    file = File(p.join(root.path, PluginInstallResultsLog.fileName));
+    file = File(p.join(root.path, PluginInstallResultsLog.resultsFileName));
     log = PluginInstallResultsLog(
       resolveDataRoot: () async => root.path,
       now: () => DateTime.utc(2026, 10, 12, 10),

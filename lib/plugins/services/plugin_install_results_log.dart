@@ -29,7 +29,7 @@ class PluginInstallResultsLog {
 
   static final PluginInstallResultsLog instance = PluginInstallResultsLog();
 
-  static const String fileName = 'plugin_install_results.jsonl';
+  static const String resultsFileName = 'plugin_install_results.jsonl';
 
   /// הערך של `pluginInstallResults` ב-otzaria_capabilities.json.
   static const int formatVersion = 1;
@@ -63,7 +63,7 @@ class PluginInstallResultsLog {
   }
 
   Future<void> _write(String line) async {
-    final file = File(p.join(await _resolveDataRoot(), fileName));
+    final file = File(p.join(await _resolveDataRoot(), resultsFileName));
     await file.parent.create(recursive: true);
     await file.writeAsString('$line\n', mode: FileMode.append, flush: true);
 

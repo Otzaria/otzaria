@@ -13,7 +13,7 @@ import 'package:path/path.dart' as p;
 /// `otzaria_capabilities.json` בשורש הנתונים: מה הגרסה הזו של אוצריא יודעת,
 /// כדי שהמעדכן הלא-מקוון לא ינחש. הקורא נופל להתנהגות הישנה כשהקובץ חסר.
 class OtzariaCapabilities {
-  static const String fileName = 'otzaria_capabilities.json';
+  static const String capabilitiesFileName = 'otzaria_capabilities.json';
   static const int formatVersion = 1;
 
   static Map<String, Object?> build({
@@ -52,7 +52,7 @@ class OtzariaCapabilities {
     Map<String, Object?> content, {
     DateTime? now,
   }) async {
-    final file = File(p.join(dataRoot, fileName));
+    final file = File(p.join(dataRoot, capabilitiesFileName));
     if (await file.exists()) {
       try {
         final existing = jsonDecode(await file.readAsString());

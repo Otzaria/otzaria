@@ -230,6 +230,10 @@ class BackupService {
   static const Map<String, String> unbackedStores = {
     'pending_external_activations.jsonl':
         'תור זמני של בקשות פתיחה מחוץ לתוכנה, מתרוקן בעיבוד',
+    'otzaria_capabilities.json':
+        'הצהרת יכולות הגרסה למעדכן הלא-מקוון; נכתבת מחדש בכל עלייה',
+    'plugin_install_results.jsonl':
+        'יומן תוצאות התקנה למעדכן הלא-מקוון; מקומי ומוגבל בגודל',
     'books': 'תוכן הספרייה, מגיע מההתקנה או מההורדה',
     'הספרים שלי': 'קובצי הספרים; הנתיב נשמר בהגדרות והתיקייה נסרקת מחדש',
     'מסדים אישיים':
