@@ -279,10 +279,12 @@ void main() {
     const config = SemanticRankingConfig(
       foundationalBonus: 0.004,
       foundationalCandidateShare: 0.25,
+      windowPenalty: 0.03,
     );
     final options = OnnxSemanticEngineAdapter.mapRanking(config);
     expect(options.foundationalBonus, 0.004);
     expect(options.foundationalCandidateShare, 0.25);
+    expect(options.windowPenalty, 0.03);
 
     final defaults = OnnxSemanticEngineAdapter.mapRanking(
       const SemanticRankingConfig(),

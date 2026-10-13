@@ -134,7 +134,11 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
     SemanticCancelHandle cancel,
   ) => _repository.passageHighlights(query, [
     for (final item in items)
-      SemanticHighlightTarget(filePath: item.filePath, id: item.id),
+      SemanticHighlightTarget(
+        filePath: item.filePath,
+        id: item.id,
+        window: item.matchedWindow,
+      ),
   ], cancel);
 
   @override

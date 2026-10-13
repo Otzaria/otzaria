@@ -52,23 +52,25 @@ class _LexicalEngine extends Fake implements SearchEngineOperations {
   }
 }
 
-SemanticSearchResult _result(int n) => SemanticSearchResult(
-  title: 'ספר $n',
-  reference: 'ספר $n, א',
-  snippetHtml: 'טקסט $n',
-  isHighlighted: false,
-  id: BigInt.from(n),
-  segment: BigInt.from(n),
-  isPdf: false,
-  filePath: 'id:$n',
-  mergedCount: 1,
-  merged: const [],
-  semanticScore: 0.6,
-  fusedScore: 0.01,
-  source: SemanticResultSource.semantic,
-  needsHydration: false,
-  textStatus: TextStatus.ok,
-);
+SemanticSearchResult _result(int n, {int matchedWindow = 0}) =>
+    SemanticSearchResult(
+      title: 'ספר $n',
+      reference: 'ספר $n, א',
+      snippetHtml: 'טקסט $n',
+      isHighlighted: false,
+      id: BigInt.from(n),
+      segment: BigInt.from(n),
+      isPdf: false,
+      filePath: 'id:$n',
+      mergedCount: 1,
+      merged: const [],
+      semanticScore: 0.6,
+      fusedScore: 0.01,
+      source: SemanticResultSource.semantic,
+      needsHydration: false,
+      textStatus: TextStatus.ok,
+      matchedWindow: matchedWindow,
+    );
 
 SemanticSearchResponse _response({
   required int results,
@@ -178,13 +180,15 @@ Future<void> main() async {
       limit: 30,
     );
     final items = [
-      for (final n in [4, 2]) SemanticResultItem.fromEngine(_result(n)),
+      SemanticResultItem.fromEngine(_result(4, matchedWindow: 3)),
+      SemanticResultItem.fromEngine(_result(2)),
     ];
     final cancel = SemanticCancelHandle();
 
     final marked = await source.passageHighlights('כבוד אב', items, cancel);
 
     expect(backend.calls.last, 'highlight:כבוד אב:2');
+    expect(backend.highlightTargets.map((t) => t.window), [3, 0]);
     expect(identical(backend.highlightHandles.single, cancel), isTrue);
     expect(marked.map((h) => h.id), [BigInt.from(4), BigInt.from(2)]);
     expect(marked.map((h) => h.filePath), ['id:4', 'id:2']);

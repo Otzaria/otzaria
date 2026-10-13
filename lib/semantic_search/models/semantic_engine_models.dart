@@ -283,6 +283,9 @@ class SemanticRankingConfig extends Equatable {
   /// חלק המועמדים הסמנטיים שנאספים מספרי היסוד בנפרד; 0 = כבוי.
   final double foundationalCandidateShare;
 
+  /// מה שיורד מציון ההתאמה של חלון בשורה ארוכה שאינו תחילתה.
+  final double windowPenalty;
+
   const SemanticRankingConfig({
     this.fusion = SemanticFusion.rrf,
     this.rrfK = 60,
@@ -304,6 +307,7 @@ class SemanticRankingConfig extends Equatable {
     this.candidateWindowMultiplier = 2.0,
     this.foundationalBonus = 0.002,
     this.foundationalCandidateShare = 0.5,
+    this.windowPenalty = 0.04,
   });
 
   /// השדה `ranking` של הטלמטריה: שטוח, ו-`alphaByQueryType` כמפה מקוננת אחת.
@@ -330,6 +334,7 @@ class SemanticRankingConfig extends Equatable {
     'candidateWindowMultiplier': candidateWindowMultiplier,
     'foundationalBonus': foundationalBonus,
     'foundationalCandidateShare': foundationalCandidateShare,
+    'windowPenalty': windowPenalty,
   };
 
   @override

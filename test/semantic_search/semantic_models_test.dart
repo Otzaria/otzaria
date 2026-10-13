@@ -157,6 +157,10 @@ void main() {
         const SemanticRankingConfig(foundationalCandidateShare: 0),
         isNot(const SemanticRankingConfig()),
       );
+      expect(
+        const SemanticRankingConfig(windowPenalty: 0),
+        isNot(const SemanticRankingConfig()),
+      );
     });
 
     test('מחיקה רק של תיקייה שלנו', () async {

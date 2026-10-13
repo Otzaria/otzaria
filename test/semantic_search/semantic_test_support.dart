@@ -213,6 +213,7 @@ class FakeBackend implements SemanticEngineBackend {
   }
 
   final List<SemanticCancelHandle> highlightHandles = [];
+  final List<SemanticHighlightTarget> highlightTargets = [];
 
   @override
   Future<List<SemanticPassageHighlight>> passageHighlights(
@@ -221,6 +222,7 @@ class FakeBackend implements SemanticEngineBackend {
     required SemanticCancelHandle cancel,
   }) async {
     calls.add('highlight:$query:${targets.length}');
+    highlightTargets.addAll(targets);
     highlightHandles.add(cancel);
     final gate = searchGate;
     if (gate != null) await gate.future;

@@ -29,6 +29,9 @@ class SemanticResultItem extends Equatable {
   final double fusedScore;
   final SemanticResultSource source;
 
+  /// חלון השורה הארוכה שההתאמה לפי עניין נמצאה בו; 0 הוא תחילת השורה.
+  final int matchedWindow;
+
   const SemanticResultItem({
     required this.title,
     required this.reference,
@@ -44,6 +47,7 @@ class SemanticResultItem extends Equatable {
     this.merged = const [],
     this.lexicalScore,
     this.semanticScore,
+    this.matchedWindow = 0,
   });
 
   /// תוצאה מהמנוע הסמנטי.
@@ -68,6 +72,7 @@ class SemanticResultItem extends Equatable {
         semanticScore: result.semanticScore,
         fusedScore: result.fusedScore,
         source: result.source,
+        matchedWindow: result.matchedWindow,
       );
 
   /// תוצאה מילולית בתצוגה המקדימה; הציון מדומה במכוון (לפי המיקום).
@@ -113,6 +118,7 @@ class SemanticResultItem extends Equatable {
     fusedScore: fusedScore,
     lexicalScore: lexicalScore,
     semanticScore: semanticScore,
+    matchedWindow: matchedWindow,
   );
 
   @override
