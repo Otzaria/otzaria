@@ -7,6 +7,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
@@ -50,7 +51,7 @@ void main() {
       'showOtzarHachochma': true,
       'showHebrewBooks': true,
       'showExternalBooks': true,
-      'autoUpdateIndex': false,
+      'indexUpdateMode': IndexUpdateMode.libraryOnly,
       'defaultContinuousReadingMode': true,
       'defaultSidebarOpen': true,
       'defaultCommentaryOpen': true,
@@ -215,7 +216,7 @@ void main() {
             showOtzarHachochma: mockSettings['showOtzarHachochma'] as bool,
             showHebrewBooks: mockSettings['showHebrewBooks'] as bool,
             showExternalBooks: mockSettings['showExternalBooks'] as bool,
-            autoUpdateIndex: mockSettings['autoUpdateIndex'] as bool,
+            indexUpdateMode: mockSettings['indexUpdateMode'] as IndexUpdateMode,
             defaultContinuousReadingMode:
                 mockSettings['defaultContinuousReadingMode'] as bool,
             defaultSidebarOpen: mockSettings['defaultSidebarOpen'] as bool,
@@ -412,6 +413,25 @@ void main() {
         verify: (_) {
           verify(
             mockRepository.updateDefaultContinuousReadingMode(true),
+          ).called(1);
+        },
+      );
+    });
+
+    group('UpdateIndexUpdateMode', () {
+      blocTest<SettingsBloc, SettingsState>(
+        'emits updated state when UpdateIndexUpdateMode is added',
+        build: () => settingsBloc,
+        act: (bloc) =>
+            bloc.add(const UpdateIndexUpdateMode(IndexUpdateMode.libraryOnly)),
+        expect: () => [
+          settingsBloc.state.copyWith(
+            indexUpdateMode: IndexUpdateMode.libraryOnly,
+          ),
+        ],
+        verify: (_) {
+          verify(
+            mockRepository.updateIndexUpdateMode(IndexUpdateMode.libraryOnly),
           ).called(1);
         },
       );

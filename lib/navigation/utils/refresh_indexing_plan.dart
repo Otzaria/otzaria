@@ -1,4 +1,5 @@
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 
@@ -40,7 +41,8 @@ resolveCompletedIndexRequests({
 /// `StartIndexing` עובר על כל הספרייה במקום על [newBooks] בלבד.
 /// [reconcile] - נדרשת השוואת טביעות-אצבע מול כל הספרייה (הורדה מלאה, או
 /// שינוי בטבלאות שאינן ניתנות למיפוי לספרים מסוימים).
-/// [autoUpdateIndex] - הגדרת המשתמש; כשהיא כבויה לא רצה עבודת אינדוקס.
+/// [indexUpdateMode] - הגדרת המשתמש; כשהיא כבויה לא רצה עבודת אינדוקס, ובמצב
+/// "בלי ספרים אישיים" ספרים אישיים אינם נכנסים לתוכנית.
 ///
 /// מחזיר רשימה ריקה כשאין מה לעשות.
 List<IndexingEvent> buildRefreshIndexingPlan({
@@ -49,14 +51,18 @@ List<IndexingEvent> buildRefreshIndexingPlan({
   required List<Book> changedBooks,
   required bool indexWholeLibrary,
   required bool reconcile,
-  required bool autoUpdateIndex,
+  required IndexUpdateMode indexUpdateMode,
 }) {
-  if (!autoUpdateIndex) {
+  if (!indexUpdateMode.isAutomatic) {
     // ספרים חדשים שלא יאונדקסו משנים את מספר הספרים שאינם באינדקס — רק
     // מרעננים את החיווי. ספרים שהשתנו אינם משנים את המספר הזה.
     return newBooks.isEmpty ? const [] : [CheckIndexStatus(library)];
   }
 
+  if (!indexUpdateMode.indexesPersonalBooks) {
+    newBooks = newBooks.where(indexUpdateMode.admits).toList();
+    changedBooks = changedBooks.where(indexUpdateMode.admits).toList();
+  }
   final events = <IndexingEvent>[];
   if (indexWholeLibrary) {
     // מדלג על ספרים שכבר באינדקס, ולכן מכסה את newBooks בלי מסלול נפרד.
@@ -94,3 +100,24 @@ List<IndexingEvent> buildRefreshIndexingPlan({
   }
   return events;
 }
+
+/// מצב העדכון לתוכנית רענון: בקשה מפורשת ([respectSetting] false) רצה גם
+/// כשהעדכון האוטומטי כבוי, ואז על כל הספרים כמו באינדוקס ידני.
+IndexUpdateMode refreshIndexUpdateMode(
+  IndexUpdateMode setting, {
+  required bool respectSetting,
+}) => respectSetting || setting.isAutomatic ? setting : IndexUpdateMode.all;
+
+/// אירועי האינדוקס כשהמשתמש מחליף את מצב העדכון האוטומטי.
+List<IndexingEvent> indexUpdateModeChangePlan(
+  Library library, {
+  required IndexUpdateMode previous,
+  required IndexUpdateMode current,
+}) => [
+  if (!current.indexesPersonalBooks && previous.indexesPersonalBooks)
+    DropOrphanedIndexEntries(library),
+  if (current.isAutomatic &&
+      (!previous.isAutomatic ||
+          (current.indexesPersonalBooks && !previous.indexesPersonalBooks)))
+    StartIndexing(library),
+];

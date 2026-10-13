@@ -25,6 +25,7 @@ import '../../support/search_engine_test_init.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/models/catalogue_order_resolver.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/indexing/models/indexing_run_result.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/indexing/utils/indexing_crash_canary.dart';
@@ -3479,6 +3480,141 @@ void main() {
 
       expect(completed, isFalse);
       expect(reportedError, isA<StateError>());
+    });
+  });
+
+  group('מצב "בלי ספרים אישיים"', () {
+    IndexingRepository repositoryFor(
+      _RecordingTantivyDataProvider provider,
+      IndexUpdateMode mode,
+    ) => IndexingRepository(provider, indexUpdateMode: () => mode);
+
+    test('ספרים אישיים יוצאים מרשימת האינדוקס', () {
+      final official = TextBook(id: 1, title: 'שבת');
+      final personal = TextBook(id: 1, title: 'אישי', source: BookSource.user);
+      final attached = TextBook(
+        id: 1,
+        title: 'מצורף',
+        source: BookSource.attached('lib'),
+      );
+
+      expect(
+        IndexingRepository.booksForIndexing(
+          [official, personal, attached],
+          includePdfBooks: true,
+          hidden: const HiddenLibrarySelection(),
+          mode: IndexUpdateMode.libraryOnly,
+        ),
+        [official, attached],
+      );
+    });
+
+    test(
+      'ספר אישי שאינו באינדקס אינו נחשב חסר — אין אינדוקס חוזר בכל עלייה',
+      () async {
+        final provider = _RecordingTantivyDataProvider(
+          _RecordingSearchEngine(),
+        );
+        final library = _buildLibrary(bavliBooks: const [('שבת', 1)]);
+        final personal = TextBook(
+          id: 3,
+          title: 'אישי',
+          source: BookSource.user,
+        );
+        library.books.add(personal);
+        provider.indexedFilePaths.addAll(
+          library
+              .getAllBooks()
+              .where((book) => !book.source.isUser)
+              .where(IndexingRepository.isIndexableBook)
+              .map(IndexingRepository.buildIndexedBookFilePath),
+        );
+
+        expect(
+          await repositoryFor(
+            provider,
+            IndexUpdateMode.libraryOnly,
+          ).hasUnindexedBooks(library),
+          isFalse,
+        );
+        expect(
+          await repositoryFor(provider, IndexUpdateMode.all).hasUnindexedBooks(
+            library,
+          ),
+          isTrue,
+          reason: 'חזרה ל"כל הספרים" מזהה את הספר האישי כחסר',
+        );
+      },
+    );
+
+    test('ניקוי היתומים מסיר את רשומות הספרים האישיים בלבד', () async {
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final library = _buildLibrary(bavliBooks: const []);
+      final officialBook = TextBook(id: 7, title: 'רשמי');
+      final personalText = TextBook(
+        id: 1,
+        title: 'אישי',
+        source: BookSource.user,
+      );
+      final root = await io.Directory.systemTemp.createTemp('otzaria-personal');
+      addTearDown(() => root.delete(recursive: true));
+      final pdfFile = io.File(p.join(root.path, 'סרוק.pdf'))
+        ..writeAsStringSync('');
+      final personalPdf = PdfBook(
+        title: 'סרוק',
+        path: pdfFile.path,
+        source: BookSource.user,
+      );
+      final hiddenFolderPdf = p.join(root.path, 'מוסתרת', 'אחר.pdf');
+      library.books.addAll([officialBook, personalText, personalPdf]);
+      provider.indexedFilePaths.addAll({
+        'id:7',
+        'ext:abc',
+        IndexingRepository.buildIndexedBookFilePath(personalText),
+        IndexingRepository.buildIndexedBookFilePath(personalPdf),
+        'uid:99', // ספר מתיקייה מוסתרת — אינו בעץ
+        hiddenFolderPdf,
+      });
+
+      final removed =
+          await repositoryFor(
+            provider,
+            IndexUpdateMode.libraryOnly,
+          ).dropOrphanedIndexEntries(
+            library,
+            customFolders: [
+              CustomFolder(path: root.path, addedAt: DateTime(2026)),
+            ],
+            preservedHiddenUserBookKeys: {'uid:99'},
+            attachedLibraries: const [],
+          );
+
+      expect(removed, 4);
+      expect(engine.commitCount, 1);
+      expect(provider.indexedFilePaths, {'id:7', 'ext:abc'});
+    });
+
+    test('במצב "כל הספרים" הספרים האישיים נשמרים', () async {
+      final engine = _RecordingSearchEngine();
+      final provider = _RecordingTantivyDataProvider(engine);
+      final library = _buildLibrary(bavliBooks: const []);
+      final personal = TextBook(id: 1, title: 'אישי', source: BookSource.user);
+      library.books.add(personal);
+      provider.indexedFilePaths.addAll({'uid:1', 'uid:99'});
+
+      final removed =
+          await repositoryFor(
+            provider,
+            IndexUpdateMode.all,
+          ).dropOrphanedIndexEntries(
+            library,
+            customFolders: const [],
+            preservedHiddenUserBookKeys: {'uid:99'},
+          );
+
+      expect(removed, 0);
+      expect(provider.indexedFilePaths, {'uid:1', 'uid:99'});
     });
   });
 }

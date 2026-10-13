@@ -1,5 +1,6 @@
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -62,9 +63,13 @@ class IndexingRepository {
   /// רשימת ההסתרות. ניתנת להחלפה בבדיקות.
   final HiddenLibraryStore hiddenStore;
 
+  /// מצב העדכון; "בלי ספרים אישיים" מוציא אותם גם מאינדוקס ידני.
+  final IndexUpdateMode Function() indexUpdateMode;
+
   IndexingRepository(
     this._tantivyDataProvider, {
     this.hiddenStore = const HiddenLibraryStore(),
+    this.indexUpdateMode = IndexUpdateMode.readStored,
   });
 
   /// הספרים שייכנסו לאינדוקס מתוך [ordered].
@@ -77,6 +82,7 @@ class IndexingRepository {
     required bool includePdfBooks,
     required HiddenLibrarySelection hidden,
     Library? library,
+    IndexUpdateMode mode = IndexUpdateMode.all,
   }) {
     final categoryHiddenBooks = library == null
         ? const <Book>{}
@@ -86,6 +92,7 @@ class IndexingRepository {
           (book) =>
               isIndexableBook(book) &&
               (includePdfBooks || book is! PdfBook) &&
+              mode.admits(book) &&
               !hidden.excludesFromIndex(
                 book,
                 categoryHiddenBooks: categoryHiddenBooks,
@@ -305,19 +312,13 @@ class IndexingRepository {
   /// הרשימה שנקראה מהאינדקס עצמו - זולה מספיק לרוץ בכל עלייה.
   Future<bool> hasUnindexedBooks(Library library) async {
     await _tantivyDataProvider.engine;
-    final hidden = hiddenStore.load();
-    final categoryHiddenBooks = hidden.booksHiddenByCategory(library);
-    return library
-        .getIndexableBooks()
-        .where(
-          (book) =>
-              isIndexableBook(book) &&
-              !hidden.excludesFromIndex(
-                book,
-                categoryHiddenBooks: categoryHiddenBooks,
-              ),
-        )
-        .any((book) => !isBookIndexed(book));
+    return booksForIndexing(
+      library.getIndexableBooks(),
+      includePdfBooks: true,
+      hidden: hiddenStore.load(),
+      library: library,
+      mode: indexUpdateMode(),
+    ).any((book) => !isBookIndexed(book));
   }
 
   int eligibleBookCount(
@@ -329,6 +330,7 @@ class IndexingRepository {
     includePdfBooks: includePdfBooks,
     hidden: hiddenStore.load(),
     library: library,
+    mode: indexUpdateMode(),
   ).length;
 
   /// Indexes all books in the provided library.
@@ -362,11 +364,13 @@ class IndexingRepository {
 
     // מקור הספרים מ-dev (getIndexableBooks), והסינון דרך booksForIndexing
     // כדי שספר מוסתר לא ייכנס לאינדקס מלכתחילה (issue #1448).
+    final mode = indexUpdateMode();
     final allBooks = IndexingRepository.booksForIndexing(
       orderBooksForIndexing(library.getIndexableBooks()),
       includePdfBooks: includePdfBooks,
       hidden: hiddenStore.load(),
       library: library,
+      mode: mode,
     );
     final totalBooks = allBooks.length;
 
@@ -422,6 +426,7 @@ class IndexingRepository {
                         includePdfBooks: true,
                         hidden: hiddenStore.load(),
                         library: library,
+                        mode: mode,
                       ))
                 .map(buildIndexedBookFilePath),
       );
@@ -1778,6 +1783,7 @@ class IndexingRepository {
       includePdfBooks: true,
       hidden: hidden,
       library: library,
+      mode: indexUpdateMode(),
     );
     if (WindowRole.isSecondary) {
       return IndexingRunResult.cancelled(
@@ -2060,8 +2066,15 @@ class IndexingRepository {
     // מוודא שה-indexedFilePaths כבר נטענו מהאינדקס (חלק מאתחול המנוע).
     await _tantivyDataProvider.engine;
 
+    // "בלי ספרים אישיים": רשומות הספרים האישיים נמחקות כמו יתומים.
+    final mode = indexUpdateMode();
     final libraryKeys = <String>{
-      for (final book in books) buildIndexedBookFilePath(book),
+      for (final book in books)
+        if (mode.admits(book)) buildIndexedBookFilePath(book),
+    };
+    final excludedPersonalKeys = <String>{
+      for (final book in books)
+        if (!mode.admits(book)) buildIndexedBookFilePath(book),
     };
 
     // כונן חיצוני מנותק: השורש אינו קיים, ולכן הקבצים שתחתיו אינם יתומים
@@ -2078,8 +2091,10 @@ class IndexingRepository {
     // תיקייה מוסתרת אינה נכנסת לעץ, אבל הספרים שלה נשארים ב-user_books.db.
     // מפתחות `uid:` של ספר קיים מאותה תיקייה נשמרים; מפתח של ספר שנמחק
     // באמת אינו מופיע במסד ולכן ממשיך להימחק כיתום.
-    final hiddenUserBookKeys =
-        preservedHiddenUserBookKeys ?? await _hiddenUserBookIndexKeys(folders);
+    final hiddenUserBookKeys = !mode.indexesPersonalBooks
+        ? const <String>{}
+        : preservedHiddenUserBookKeys ??
+              await _hiddenUserBookIndexKeys(folders);
 
     final isAttachedOrphan = _attachedOrphanRule(
       books,
@@ -2090,7 +2105,9 @@ class IndexingRepository {
     // snapshot — הלולאה מכילה await ואסור שהסט החי ישתנה תחתיה.
     for (final key in _tantivyDataProvider.indexedFilePaths.toList()) {
       if (libraryKeys.contains(key)) continue;
-      if (key.startsWith('uid:')) {
+      if (excludedPersonalKeys.contains(key)) {
+        orphans.add(key);
+      } else if (key.startsWith('uid:')) {
         // null = כשל בקריאת user_books.db: נשארים שמרניים ולא מוחקים ספרי
         // תיקייה מוסתרת שעלולים לחזור לעץ בלי אינדוקס מחדש.
         if (hiddenUserBookKeys == null || !hiddenUserBookKeys.contains(key)) {
@@ -2098,6 +2115,11 @@ class IndexingRepository {
         }
       } else if (key.startsWith('db:')) {
         if (isAttachedOrphan(key)) orphans.add(key);
+      } else if (p.isAbsolute(key) &&
+          !mode.indexesPersonalBooks &&
+          folders.any((folder) => p.isWithin(folder.path, key))) {
+        // ספר מתיקייה מוסתרת אינו בעץ, ולכן מזוהה לפי שורש התיקייה.
+        orphans.add(key);
       } else if (p.isAbsolute(key) &&
           !unreachableRoots.any((root) => p.isWithin(root, key)) &&
           !await File(key).exists()) {
@@ -2265,6 +2287,7 @@ class IndexingRepository {
       includePdfBooks: true,
       hidden: hidden,
       library: library,
+      mode: indexUpdateMode(),
     );
     if (booksToReindex.isEmpty) {
       return IndexingRunResult.completed(
@@ -2370,11 +2393,13 @@ class IndexingRepository {
     final hidden = hiddenStore.load();
     final categoryHiddenBooks = hidden.booksHiddenByCategory(library);
     final onlyKeys = onlyBooks?.map(catalogueOrderKey).toSet();
+    final mode = indexUpdateMode();
     final candidates = library
         .getIndexableBooks()
         .where(
           (b) =>
               (b is TextBook || b is ConvertibleDocumentBook) &&
+              mode.admits(b) &&
               (onlyKeys == null || onlyKeys.contains(catalogueOrderKey(b))) &&
               !hidden.excludesFromIndex(
                 b,

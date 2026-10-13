@@ -27,6 +27,7 @@ import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/attached_libraries/external_link_work_status.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/indexing/indexing_work_status.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/core/windowing/window_title_sync.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
@@ -407,6 +408,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   late Screen _lastScreen;
   // עוקב אחר מצב ההגדרות הקודם לצורך dispatch ספציפי
   SettingsState? _prevSettingsState;
+  late IndexUpdateMode _indexUpdateMode;
   // עוקב אחר מצב הלוח הקודם לצורך dispatch ספציפי
   CalendarState? _prevCalendarState;
 
@@ -656,6 +658,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   void initState() {
     super.initState();
     StartupTimeline.instance.markOnce('mainScreenInit');
+    _indexUpdateMode = context.read<SettingsBloc>().state.indexUpdateMode;
     // מאזין לזרם סטטי בלבד: המאגר הסמנטי לא נוצר עד שמשתמשים בו.
     _semanticWorkStatusSub = SemanticSearchRepository.sharedAvailabilityChanges
         .listen((availability) {
@@ -1051,7 +1054,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final bloc = context.read<LibraryUpdateBloc>();
     _startupFullReindexPending =
         indexingFollowsUpdate &&
-        context.read<SettingsBloc>().state.autoUpdateIndex &&
+        context.read<SettingsBloc>().state.indexUpdateMode.isAutomatic &&
         await _indexingRepository.requiresManualReindex(library);
     if (!mounted) return;
     final refresh = _startupRefreshWait.begin();
@@ -1229,7 +1232,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
       return;
     }
 
-    final autoUpdateIndex = context.read<SettingsBloc>().state.autoUpdateIndex;
+    final autoUpdateIndex = context
+        .read<SettingsBloc>()
+        .state
+        .indexUpdateMode
+        .isAutomatic;
 
     final requiresManualReindex = await _indexingRepository
         .requiresManualReindex(library);
@@ -1361,13 +1368,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
     } finally {
       _isShowingStartupManualReindexDialog = false;
     }
-  }
-
-  void _startIndexing(BuildContext context) {
-    DataRepository.instance.library.then((library) {
-      if (!mounted || !context.mounted) return;
-      context.read<IndexingBloc>().add(StartIndexing(library));
-    });
   }
 
   Future<void> _processPendingExternalActivations() =>
@@ -3079,9 +3079,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   changedBooks: state.changedBooksToIndex ?? const [],
                   indexWholeLibrary: resolved.indexWholeLibrary,
                   reconcile: resolved.reconcile,
-                  autoUpdateIndex:
-                      !resolved.respectAutoUpdateSetting ||
-                      context.read<SettingsBloc>().state.autoUpdateIndex,
+                  indexUpdateMode: refreshIndexUpdateMode(
+                    context.read<SettingsBloc>().state.indexUpdateMode,
+                    respectSetting: resolved.respectAutoUpdateSetting,
+                  ),
                 );
                 final indexingBloc = context.read<IndexingBloc>();
                 final waitForBatch =
@@ -3209,7 +3210,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   previous.commentatorsFontSize !=
                       current.commentatorsFontSize ||
                   previous.lineHeight != current.lineHeight ||
-                  previous.autoUpdateIndex != current.autoUpdateIndex ||
                   previous.showTeamim != current.showTeamim ||
                   previous.defaultRemoveNikud != current.defaultRemoveNikud ||
                   previous.removeNikudFromTanach !=
@@ -3348,14 +3348,27 @@ class MainWindowScreenState extends State<MainWindowScreen>
                   themePayload,
                 );
               }
-
-              // --- internal app logic ---
-              // הערה: החלטת האינדוקס בעלייה (_checkAndStartIndexing) הועברה
-              // ל-listener של טעינת הספרייה, כדי שתצרוך את הקטלוג הקיים ולא
-              // תפעיל בנייה עצמאית שתתחרה בטעינת הספר הפעיל.
-              if (!previous.autoUpdateIndex && current.autoUpdateIndex) {
-                _startIndexing(context);
-              }
+            },
+          ),
+          // החלטת האינדוקס בעלייה נמצאת ב-listener של טעינת הספרייה; כאן רק
+          // שינוי מצב העדכון אחריה (ה-bloc נוצר כבר עם ההגדרות השמורות).
+          BlocListener<SettingsBloc, SettingsState>(
+            listenWhen: (previous, current) =>
+                previous.indexUpdateMode != current.indexUpdateMode,
+            listener: (context, state) {
+              final previous = _indexUpdateMode;
+              _indexUpdateMode = state.indexUpdateMode;
+              DataRepository.instance.library.then((library) {
+                if (!mounted || !context.mounted) return;
+                final indexingBloc = context.read<IndexingBloc>();
+                for (final event in indexUpdateModeChangePlan(
+                  library,
+                  previous: previous,
+                  current: state.indexUpdateMode,
+                )) {
+                  indexingBloc.add(event);
+                }
+              });
             },
           ),
           BlocListener<TabsBloc, TabsState>(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -44,7 +45,7 @@ class SettingsState extends Equatable {
   bool get removeNikudFromTanach => textDisplayPolicy.removeNikudFromTanach;
   bool get defaultRemovePunctuation =>
       textDisplayPolicy.defaultRemovePunctuation;
-  final bool autoUpdateIndex;
+  final IndexUpdateMode indexUpdateMode;
 
   /// ברירת מחדל להצגת הטקסט ברצף (מצב "קריאה רציפה"). חלה בפתיחת ספר על
   /// ספרים שתומכים בכך בלבד (תנ"ך ותלמוד); בשאר הספרים אין לה השפעה.
@@ -119,7 +120,7 @@ class SettingsState extends Equatable {
     this.showLocalHebrewBooks = true,
     required this.showExternalBooks,
     TextDisplayPolicy? textDisplayPolicy,
-    required this.autoUpdateIndex,
+    required this.indexUpdateMode,
     this.defaultContinuousReadingMode = false,
     required this.defaultSidebarOpen,
     required this.defaultCommentaryOpen,
@@ -173,7 +174,7 @@ class SettingsState extends Equatable {
       showHebrewBooks: false,
       showLocalHebrewBooks: true,
       showExternalBooks: false,
-      autoUpdateIndex: true,
+      indexUpdateMode: IndexUpdateMode.all,
       defaultContinuousReadingMode: false,
       defaultSidebarOpen: false,
       defaultCommentaryOpen: false,
@@ -222,7 +223,7 @@ class SettingsState extends Equatable {
     bool? showTeamim,
     bool? replaceHolyNames,
     HolyNameStyle? holyNameStyle,
-    bool? autoUpdateIndex,
+    IndexUpdateMode? indexUpdateMode,
     bool? defaultRemoveNikud,
     bool? removeNikudFromTanach,
     bool? defaultRemovePunctuation,
@@ -300,7 +301,7 @@ class SettingsState extends Equatable {
       showHebrewBooks: showHebrewBooks ?? this.showHebrewBooks,
       showLocalHebrewBooks: showLocalHebrewBooks ?? this.showLocalHebrewBooks,
       showExternalBooks: showExternalBooks ?? this.showExternalBooks,
-      autoUpdateIndex: autoUpdateIndex ?? this.autoUpdateIndex,
+      indexUpdateMode: indexUpdateMode ?? this.indexUpdateMode,
       defaultContinuousReadingMode:
           defaultContinuousReadingMode ?? this.defaultContinuousReadingMode,
       defaultSidebarOpen: defaultSidebarOpen ?? this.defaultSidebarOpen,
@@ -378,7 +379,7 @@ class SettingsState extends Equatable {
     showLocalHebrewBooks,
     showExternalBooks,
     textDisplayPolicy,
-    autoUpdateIndex,
+    indexUpdateMode,
     defaultContinuousReadingMode,
     defaultSidebarOpen,
     defaultCommentaryOpen,

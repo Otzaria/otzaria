@@ -52,7 +52,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateShowHebrewBooks>(_onUpdateShowHebrewBooks);
     on<UpdateShowLocalHebrewBooks>(_onUpdateShowLocalHebrewBooks);
     on<UpdateShowExternalBooks>(_onUpdateShowExternalBooks);
-    on<UpdateAutoUpdateIndex>(_onUpdateAutoUpdateIndex);
+    on<UpdateIndexUpdateMode>(_onUpdateIndexUpdateMode);
     on<UpdateTextDisplayPolicy>(_onUpdateTextDisplayPolicy);
     on<UpdateDefaultContinuousReadingMode>(
       _onUpdateDefaultContinuousReadingMode,
@@ -144,7 +144,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       showHebrewBooks: settings['showHebrewBooks'],
       showLocalHebrewBooks: settings['showLocalHebrewBooks'] ?? true,
       showExternalBooks: settings['showExternalBooks'],
-      autoUpdateIndex: settings['autoUpdateIndex'],
+      indexUpdateMode: settings['indexUpdateMode'],
       textDisplayPolicy: settings['textDisplayPolicy'] as TextDisplayPolicy?,
       defaultContinuousReadingMode:
           settings['defaultContinuousReadingMode'] ?? false,
@@ -506,12 +506,12 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     emit(state.copyWith(showExternalBooks: event.showExternalBooks));
   }
 
-  Future<void> _onUpdateAutoUpdateIndex(
-    UpdateAutoUpdateIndex event,
+  Future<void> _onUpdateIndexUpdateMode(
+    UpdateIndexUpdateMode event,
     Emitter<SettingsState> emit,
   ) async {
-    await _repository.updateAutoUpdateIndex(event.autoUpdateIndex);
-    emit(state.copyWith(autoUpdateIndex: event.autoUpdateIndex));
+    await _repository.updateIndexUpdateMode(event.indexUpdateMode);
+    emit(state.copyWith(indexUpdateMode: event.indexUpdateMode));
   }
 
   Future<void> _onUpdateDefaultContinuousReadingMode(

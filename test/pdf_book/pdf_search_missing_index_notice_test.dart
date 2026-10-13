@@ -19,6 +19,18 @@ void main() {
       );
     });
 
+    test('ספר אישי שהוחרג במצב "בלי ספרים אישיים" — הודעה שמפנה להגדרה', () {
+      expect(
+        PdfBookSearchView.missingFromIndexNotice(
+          indexedFilePath: path,
+          indexInitialized: true,
+          indexedFilePaths: const {},
+          excludedByIndexMode: true,
+        ),
+        PdfMessages.personalBookNotInSearchIndex,
+      );
+    });
+
     test('לא מחזיר הודעה כשהספר נמצא באינדקס', () {
       expect(
         PdfBookSearchView.missingFromIndexNotice(

@@ -14,6 +14,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
@@ -142,11 +143,14 @@ class PdfBookSearchView extends StatefulWidget {
     required String? indexedFilePath,
     required bool indexInitialized,
     required Set<String> indexedFilePaths,
+    bool excludedByIndexMode = false,
   }) {
     if (indexedFilePath == null || indexedFilePath.isEmpty) return null;
     if (!indexInitialized) return null;
     if (indexedFilePaths.contains(indexedFilePath)) return null;
-    return PdfMessages.bookNotInSearchIndex;
+    return excludedByIndexMode
+        ? PdfMessages.personalBookNotInSearchIndex
+        : PdfMessages.bookNotInSearchIndex;
   }
 
   /// אותיות עבריות ואנגליות — שכבת טקסט עם ספרות ופיסוק בלבד אינה שמישה.
@@ -873,6 +877,9 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
             indexedFilePath: _indexedFilePath,
             indexInitialized: TantivyDataProvider.instance.isInitialized.value,
             indexedFilePaths: TantivyDataProvider.instance.indexedFilePaths,
+            excludedByIndexMode:
+                widget.source.isUser &&
+                !IndexUpdateMode.readStored().indexesPersonalBooks,
           );
         }
       });

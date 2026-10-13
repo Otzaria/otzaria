@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
@@ -32,6 +33,10 @@ class SettingsRepository {
   static const String keyReplaceHolyNames = 'key-replace-holy-names';
   static const String keyHolyNameStyle = 'key-holy-name-style';
   static const String keyAutoUpdateIndex = 'key-auto-index-update';
+
+  /// מבחין בין "כל הספרים" ל"בלי ספרים אישיים"; ההפעלה עצמה נשמרת גם
+  /// ב-[keyAutoUpdateIndex], שגרסאות קודמות קוראות.
+  static const String keyIndexUpdateMode = 'key-index-update-mode';
   static const String keyDefaultNikud = 'key-default-nikud';
   static const String keyRemoveNikudFromTanach = 'key-remove-nikud-tanach';
   static const String keyDefaultRemovePunctuation =
@@ -250,6 +255,7 @@ class SettingsRepository {
     keyReplaceHolyNames,
     keyHolyNameStyle,
     keyAutoUpdateIndex,
+    keyIndexUpdateMode,
     keyDefaultNikud,
     keyRemoveNikudFromTanach,
     keyDefaultRemovePunctuation,
@@ -419,9 +425,15 @@ class SettingsRepository {
         keyShowExternalBooks,
         defaultValue: false,
       ),
-      'autoUpdateIndex': _settings.getValue<bool>(
-        keyAutoUpdateIndex,
-        defaultValue: true,
+      'indexUpdateMode': IndexUpdateMode.resolve(
+        legacyEnabled: _settings.getValue<bool>(
+          keyAutoUpdateIndex,
+          defaultValue: true,
+        ),
+        stored: _settings.getValue<String>(
+          keyIndexUpdateMode,
+          defaultValue: '',
+        ),
       ),
       'textDisplayPolicy': loadTextDisplayPolicy(),
       'defaultContinuousReadingMode': _settings.getValue<bool>(
@@ -712,8 +724,9 @@ class SettingsRepository {
     await _settings.setValue(keyShowExternalBooks, value);
   }
 
-  Future<void> updateAutoUpdateIndex(bool value) async {
-    await _settings.setValue(keyAutoUpdateIndex, value);
+  Future<void> updateIndexUpdateMode(IndexUpdateMode mode) async {
+    await _settings.setValue(keyAutoUpdateIndex, mode.isAutomatic);
+    await _settings.setValue(keyIndexUpdateMode, mode.storageValue);
   }
 
   /// טוען את מדיניות תצוגת הטקסט; בהיעדרה נבנית מהמפתחות הישנים (מיגרציה
@@ -1200,7 +1213,7 @@ class SettingsRepository {
     await _settings.setValue(keyShowLocalHebrewBooks, true);
     await _settings.setValue(keyShowExternalBooks, false);
     await updateTextDisplayPolicy(TextDisplayPolicy.empty);
-    await _settings.setValue(keyAutoUpdateIndex, true);
+    await updateIndexUpdateMode(IndexUpdateMode.all);
     await _settings.setValue(keyContinuousReadingMode, false);
     await _settings.setValue(keyDefaultSidebarOpen, false);
     await _settings.setValue(keyDefaultCommentaryOpen, false);

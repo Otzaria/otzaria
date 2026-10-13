@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 
 abstract class SettingsEvent extends Equatable {
@@ -168,13 +169,13 @@ class UpdateShowExternalBooks extends SettingsEvent {
   List<Object?> get props => [showExternalBooks];
 }
 
-class UpdateAutoUpdateIndex extends SettingsEvent {
-  final bool autoUpdateIndex;
+class UpdateIndexUpdateMode extends SettingsEvent {
+  final IndexUpdateMode indexUpdateMode;
 
-  const UpdateAutoUpdateIndex(this.autoUpdateIndex);
+  const UpdateIndexUpdateMode(this.indexUpdateMode);
 
   @override
-  List<Object?> get props => [autoUpdateIndex];
+  List<Object?> get props => [indexUpdateMode];
 }
 
 /// עדכון מלא של מדיניות תצוגת הטקסט (עורך ההגדרות החדש).

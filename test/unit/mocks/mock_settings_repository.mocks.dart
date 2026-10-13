@@ -10,6 +10,7 @@ import 'package:mockito/mockito.dart' as _i1;
 import 'package:mockito/src/dummies.dart' as _i5;
 import 'package:otzaria/settings/engine/settings_repository.dart' as _i2;
 import 'package:otzaria/text_display/text_display_exports.dart' as _i6;
+import 'package:otzaria/indexing/models/index_update_mode.dart' as _i7;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -228,11 +229,11 @@ class MockSettingsRepository extends _i1.Mock
           as _i3.Future<void>);
 
   @override
-  _i3.Future<void> updateAutoUpdateIndex(bool? value) =>
+  _i3.Future<void> updateIndexUpdateMode(_i7.IndexUpdateMode? mode) =>
       (super.noSuchMethod(
             Invocation.method(
-              #updateAutoUpdateIndex,
-              [value],
+              #updateIndexUpdateMode,
+              [mode],
             ),
             returnValue: _i3.Future<void>.value(),
             returnValueForMissingStub: _i3.Future<void>.value(),

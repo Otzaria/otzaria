@@ -25,6 +25,7 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
 import 'package:otzaria/indexing/bloc/indexing_state.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -60,7 +61,14 @@ class LibrarySettingsTab extends StatefulWidget {
       subtitle: 'אינדקס החיפוש יתעדכן אוטומטית',
       tab: SettingsTab.library,
       cardId: 'library.repository',
-      keywords: ['חיפוש', 'אינדקס', 'אוטומטי', 'מופעל', 'לא מופעל'],
+      keywords: [
+        'חיפוש',
+        'אינדקס',
+        'אוטומטי',
+        'מופעל',
+        'לא מופעל',
+        'ספרים אישיים',
+      ],
     ),
     SettingsSearchEntry(
       id: 'library.search.index_status',
@@ -658,15 +666,31 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
       ).map((library) => library.slug).join(','),
     );
     return [
-      SettingsActionTile.switchTile(
+      SettingsActionTile.segmentedTile<IndexUpdateMode>(
         icon: FluentIcons.arrow_clockwise_24_regular,
         title: context.settingsText('עדכון אינדקס אוטומטי'),
-        subtitle: state.autoUpdateIndex
-            ? context.settingsText('אינדקס החיפוש יתעדכן אוטומטית')
-            : context.settingsText('אינדקס החיפוש לא יתעדכן אוטומטית'),
-        value: state.autoUpdateIndex,
-        onChanged: (value) {
-          context.read<SettingsBloc>().add(UpdateAutoUpdateIndex(value));
+        options: [
+          SegmentOption(
+            value: IndexUpdateMode.all,
+            label: context.settingsText('כל הספרים'),
+            subtitle: context.settingsText('אינדקס החיפוש יתעדכן אוטומטית'),
+          ),
+          SegmentOption(
+            value: IndexUpdateMode.libraryOnly,
+            label: context.settingsText('בלי ספרים אישיים'),
+            subtitle: context.settingsText(
+              'אינדקס החיפוש יתעדכן אוטומטית, בלי ספרים אישיים',
+            ),
+          ),
+          SegmentOption(
+            value: IndexUpdateMode.off,
+            label: context.settingsText('כבוי'),
+            subtitle: context.settingsText('אינדקס החיפוש לא יתעדכן אוטומטית'),
+          ),
+        ],
+        currentValue: state.indexUpdateMode,
+        onChanged: (mode) {
+          context.read<SettingsBloc>().add(UpdateIndexUpdateMode(mode));
         },
       ),
       BlocBuilder<IndexingBloc, IndexingState>(

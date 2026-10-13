@@ -808,6 +808,8 @@
   "עדכון אינדקס אוטומטי": "Update the index automatically",
   "אינדקס החיפוש יתעדכן אוטומטית": "The search index updates automatically",
   "אינדקס החיפוש לא יתעדכן אוטומטית": "The search index does not update automatically",
+  "בלי ספרים אישיים": "Library Only",
+  "אינדקס החיפוש יתעדכן אוטומטית, בלי ספרים אישיים": "The search index updates automatically, without personal seforim",
   "לא קיימת ספרייה לאינדוקס": "There is no library to index",
   "הספרייה ריקה – אין ספרים לאינדוקס": "The library is empty — no seforim to index",
   "בודק אם נדרש איפוס ואינדוקס מחדש": "Checking whether a reset and re-index is needed",

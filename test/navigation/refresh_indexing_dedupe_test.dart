@@ -7,6 +7,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -22,7 +23,7 @@ void main() {
   List<IndexingEvent> plan({
     bool indexWholeLibrary = false,
     bool reconcile = false,
-    bool autoUpdateIndex = true,
+    IndexUpdateMode indexUpdateMode = IndexUpdateMode.all,
     bool withNew = true,
     bool withChanged = true,
   }) => buildRefreshIndexingPlan(
@@ -31,7 +32,7 @@ void main() {
     changedBooks: withChanged ? changedBooks : const [],
     indexWholeLibrary: indexWholeLibrary,
     reconcile: reconcile,
-    autoUpdateIndex: autoUpdateIndex,
+    indexUpdateMode: indexUpdateMode,
   );
 
   group('buildRefreshIndexingPlan', () {
@@ -61,7 +62,7 @@ void main() {
         changedBooks: [changedBooks.single, changedPdf],
         indexWholeLibrary: true,
         reconcile: true,
-        autoUpdateIndex: true,
+        indexUpdateMode: IndexUpdateMode.all,
       );
 
       expect(events.map((event) => event.runtimeType), [
@@ -85,7 +86,7 @@ void main() {
         changedBooks: [attached, regular],
         indexWholeLibrary: false,
         reconcile: false,
-        autoUpdateIndex: true,
+        indexUpdateMode: IndexUpdateMode.all,
       );
 
       expect(events.map((event) => event.runtimeType), [
@@ -109,7 +110,7 @@ void main() {
         changedBooks: [attachedPdf],
         indexWholeLibrary: false,
         reconcile: false,
-        autoUpdateIndex: true,
+        indexUpdateMode: IndexUpdateMode.all,
       );
 
       expect(events.map((event) => event.runtimeType), [ReindexChangedBooks]);
@@ -145,7 +146,7 @@ void main() {
       final events = plan(
         indexWholeLibrary: true,
         reconcile: true,
-        autoUpdateIndex: false,
+        indexUpdateMode: IndexUpdateMode.off,
       );
 
       expect(events.whereType<IndexingWorkEvent>(), isEmpty);
@@ -154,7 +155,10 @@ void main() {
     });
 
     test('אינדוקס אוטומטי כבוי בלי ספרים חדשים — אין אירוע כלל', () {
-      expect(plan(autoUpdateIndex: false, withNew: false), isEmpty);
+      expect(
+        plan(indexUpdateMode: IndexUpdateMode.off, withNew: false),
+        isEmpty,
+      );
     });
 
     test('אין ספרים חדשים או שונים — StartIndexing בלבד', () {
@@ -221,11 +225,14 @@ void main() {
       );
 
       expect(resolved.respectAutoUpdateSetting, isFalse);
-      // כך ה-listener מחשב את autoUpdateIndex שהוא מעביר לתוכנית.
+      // כך ה-listener מחשב את מצב העדכון שהוא מעביר לתוכנית.
       final events = plan(
         indexWholeLibrary: resolved.indexWholeLibrary,
         reconcile: resolved.reconcile,
-        autoUpdateIndex: !resolved.respectAutoUpdateSetting,
+        indexUpdateMode: refreshIndexUpdateMode(
+          IndexUpdateMode.off,
+          respectSetting: resolved.respectAutoUpdateSetting,
+        ),
       );
       expect(events.map((e) => e.runtimeType), [
         StartIndexing,
@@ -266,7 +273,7 @@ void main() {
         changedBooks: const [],
         indexWholeLibrary: resolvedA.indexWholeLibrary,
         reconcile: resolvedA.reconcile,
-        autoUpdateIndex: true,
+        indexUpdateMode: IndexUpdateMode.all,
       );
       expect(
         planA,
@@ -286,7 +293,7 @@ void main() {
         changedBooks: changedBooks,
         indexWholeLibrary: resolvedB.indexWholeLibrary,
         reconcile: resolvedB.reconcile,
-        autoUpdateIndex: true,
+        indexUpdateMode: IndexUpdateMode.all,
       );
 
       expect(planB.map((e) => e.runtimeType), [
@@ -299,6 +306,99 @@ void main() {
         reason: 'זה היה הבאג: ReindexChangedBooks רץ מעל ה-ReconcileIndex',
       );
       expect(pending, isEmpty);
+    });
+  });
+
+  group('מצב "בלי ספרים אישיים"', () {
+    final personalNew = TextBook(
+      title: 'ספר אישי חדש',
+      source: BookSource.user,
+    );
+    final personalChanged = PdfBook(
+      title: 'PDF אישי',
+      path: '/personal/a.pdf',
+      source: BookSource.user,
+    );
+
+    test('ספרים אישיים חדשים ושהשתנו אינם נכנסים לתוכנית', () {
+      final events = buildRefreshIndexingPlan(
+        library: library,
+        newBooks: [personalNew],
+        changedBooks: [personalChanged],
+        indexWholeLibrary: false,
+        reconcile: false,
+        indexUpdateMode: IndexUpdateMode.libraryOnly,
+      );
+
+      expect(events, isEmpty);
+    });
+
+    test('ספרי הספרייה עדיין מאונדקסים', () {
+      final events = buildRefreshIndexingPlan(
+        library: library,
+        newBooks: [...newBooks, personalNew],
+        changedBooks: const [],
+        indexWholeLibrary: false,
+        reconcile: false,
+        indexUpdateMode: IndexUpdateMode.libraryOnly,
+      );
+
+      expect(events, hasLength(1));
+      expect((events.single as IndexSpecificBooks).books, newBooks);
+    });
+
+    test('בקשה מפורשת כשהעדכון כבוי רצה על כל הספרים', () {
+      expect(
+        refreshIndexUpdateMode(IndexUpdateMode.off, respectSetting: false),
+        IndexUpdateMode.all,
+      );
+      expect(
+        refreshIndexUpdateMode(
+          IndexUpdateMode.libraryOnly,
+          respectSetting: false,
+        ),
+        IndexUpdateMode.libraryOnly,
+      );
+      expect(
+        refreshIndexUpdateMode(IndexUpdateMode.off, respectSetting: true),
+        IndexUpdateMode.off,
+      );
+    });
+  });
+
+  group('indexUpdateModeChangePlan', () {
+    List<Type> change(IndexUpdateMode from, IndexUpdateMode to) =>
+        indexUpdateModeChangePlan(
+          library,
+          previous: from,
+          current: to,
+        ).map((e) => e.runtimeType).toList();
+
+    test('מעבר ל"בלי ספרים אישיים" מסיר את הספרים האישיים מהאינדקס', () {
+      expect(change(IndexUpdateMode.all, IndexUpdateMode.libraryOnly), [
+        DropOrphanedIndexEntries,
+      ]);
+    });
+
+    test('הפעלה מכבוי ל"בלי ספרים אישיים" — ניקוי ואינדוקס', () {
+      expect(change(IndexUpdateMode.off, IndexUpdateMode.libraryOnly), [
+        DropOrphanedIndexEntries,
+        StartIndexing,
+      ]);
+    });
+
+    test('חזרה ל"כל הספרים" מאנדקסת את הספרים האישיים', () {
+      expect(change(IndexUpdateMode.libraryOnly, IndexUpdateMode.all), [
+        StartIndexing,
+      ]);
+      expect(change(IndexUpdateMode.off, IndexUpdateMode.all), [
+        StartIndexing,
+      ]);
+    });
+
+    test('כיבוי אינו מריץ עבודה', () {
+      expect(change(IndexUpdateMode.all, IndexUpdateMode.off), isEmpty);
+      expect(change(IndexUpdateMode.libraryOnly, IndexUpdateMode.off), isEmpty);
     });
   });
 }

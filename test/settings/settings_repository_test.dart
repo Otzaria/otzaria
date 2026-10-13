@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -143,7 +144,7 @@ void main() {
         expect(settings['showOtzarHachochma'], false);
         expect(settings['showHebrewBooks'], false);
         expect(settings['showExternalBooks'], false);
-        expect(settings['autoUpdateIndex'], true);
+        expect(settings['indexUpdateMode'], IndexUpdateMode.all);
         expect(
           settings['textDisplayPolicy'],
           isA<TextDisplayPolicy>()
@@ -286,7 +287,7 @@ void main() {
       expect(settings['showOtzarHachochma'], true);
       expect(settings['showHebrewBooks'], true);
       expect(settings['showExternalBooks'], true);
-      expect(settings['autoUpdateIndex'], false);
+      expect(settings['indexUpdateMode'], IndexUpdateMode.off);
       expect(
         settings['textDisplayPolicy'],
         isA<TextDisplayPolicy>()
@@ -551,6 +552,12 @@ void main() {
         mockSettingsWrapper.setValue(
           SettingsRepository.keyAutoUpdateIndex,
           true,
+        ),
+      ).called(1);
+      verify(
+        mockSettingsWrapper.setValue(
+          SettingsRepository.keyIndexUpdateMode,
+          'all',
         ),
       ).called(1);
       verify(
@@ -930,6 +937,95 @@ void main() {
         );
       },
     );
+
+    // ─── מצב עדכון האינדקס ומיגרציה מהמפתח הבוליאני ───────────────────────
+
+    Future<IndexUpdateMode> loadIndexUpdateMode({
+      required bool legacyEnabled,
+      required String stored,
+    }) async {
+      when(
+        mockSettingsWrapper.getValue<bool>(
+          'settings_initialized',
+          defaultValue: false,
+        ),
+      ).thenReturn(true);
+      when(
+        mockSettingsWrapper.getValue<bool>(
+          SettingsRepository.keyAutoUpdateIndex,
+          defaultValue: true,
+        ),
+      ).thenReturn(legacyEnabled);
+      when(
+        mockSettingsWrapper.getValue<String>(
+          SettingsRepository.keyIndexUpdateMode,
+          defaultValue: '',
+        ),
+      ).thenReturn(stored);
+      return (await repository.loadSettings())['indexUpdateMode']
+          as IndexUpdateMode;
+    }
+
+    test('הגדרה בוליאנית ישנה נשמרת: true => כל הספרים', () async {
+      expect(
+        await loadIndexUpdateMode(legacyEnabled: true, stored: ''),
+        IndexUpdateMode.all,
+      );
+    });
+
+    test('הגדרה בוליאנית ישנה נשמרת: false => כבוי', () async {
+      expect(
+        await loadIndexUpdateMode(legacyEnabled: false, stored: ''),
+        IndexUpdateMode.off,
+      );
+    });
+
+    test('"בלי ספרים אישיים" נטען מהמפתח החדש', () async {
+      expect(
+        await loadIndexUpdateMode(legacyEnabled: true, stored: 'library-only'),
+        IndexUpdateMode.libraryOnly,
+      );
+    });
+
+    test('גרסה ישנה שכיבתה את המפתח הבוליאני גוברת על המפתח החדש', () async {
+      expect(
+        await loadIndexUpdateMode(legacyEnabled: false, stored: 'library-only'),
+        IndexUpdateMode.off,
+      );
+    });
+
+    test('גרסה ישנה שהפעילה את המפתח הבוליאני => כל הספרים', () async {
+      expect(
+        await loadIndexUpdateMode(legacyEnabled: true, stored: 'off'),
+        IndexUpdateMode.all,
+      );
+    });
+
+    for (final (mode, legacy) in [
+      (IndexUpdateMode.all, true),
+      (IndexUpdateMode.libraryOnly, true),
+      (IndexUpdateMode.off, false),
+    ]) {
+      test(
+        'updateIndexUpdateMode(${mode.name}) כותב גם את המפתח הישן',
+        () async {
+          await repository.updateIndexUpdateMode(mode);
+
+          verify(
+            mockSettingsWrapper.setValue(
+              SettingsRepository.keyAutoUpdateIndex,
+              legacy,
+            ),
+          ).called(1);
+          verify(
+            mockSettingsWrapper.setValue(
+              SettingsRepository.keyIndexUpdateMode,
+              mode.storageValue,
+            ),
+          ).called(1);
+        },
+      );
+    }
 
     // ─── מצב סייפר — הסרת סיסמה ───────────────────────────────────────────
 
