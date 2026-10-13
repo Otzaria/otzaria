@@ -17,13 +17,17 @@ namespace startup_watchdog {
 
 namespace {
 
-// סף התקיעה, המרווח בין צילומים ומספרם המרבי — הדוח נועד לאבחון עלייה,
-// לא לניטור רציף.
+// בעלייה: סף רגיש וצילומים צפופים. אחרי החשיפה: קצב איטי, סף גבוה יותר
+// ועד שני צילומים לכל קיפאון, כדי שהניטור הרציף כמעט לא יעלה דבר.
 constexpr DWORD kStallThresholdMs = 3000;
 constexpr DWORD kCaptureIntervalMs = 5000;
 constexpr int kMaxCaptures = 6;
 constexpr DWORD kHeartbeatIntervalMs = 250;
 constexpr ULONGLONG kMaxLifetimeMs = 300000;
+constexpr DWORD kRuntimeHeartbeatIntervalMs = 1000;
+constexpr ULONGLONG kFreezeThresholdMs = 5000;
+constexpr ULONGLONG kFreezeSecondCaptureMs = 30000;
+constexpr int kMaxFreezes = 5;
 constexpr int kMaxFrames = 48;
 
 struct ModuleRange {
@@ -35,6 +39,7 @@ struct ModuleRange {
 std::atomic<ULONGLONG> g_last_beat{0};
 std::atomic<bool> g_stop{false};
 std::atomic<bool> g_started{false};
+std::atomic<bool> g_runtime{false};
 HANDLE g_main_thread = nullptr;
 UINT_PTR g_timer = 0;
 ULONGLONG g_start_tick = 0;
@@ -43,11 +48,23 @@ std::thread g_watcher;
 using ModuleSnapshot = std::vector<ModuleRange>;
 std::shared_ptr<const ModuleSnapshot> g_modules =
     std::make_shared<const ModuleSnapshot>();
+std::shared_ptr<const std::string> g_context =
+    std::make_shared<const std::string>();
+
+// לא כולל זמן שינה של המחשב — GetTickCount64 היה רושם כל יציאה משינה כקיפאון.
+ULONGLONG NowMs() {
+  ULONGLONG interrupt_time = 0;
+  ::QueryUnbiasedInterruptTime(&interrupt_time);
+  return interrupt_time / 10000;
+}
 
 void CALLBACK HeartbeatProc(HWND, UINT, UINT_PTR, DWORD) {
-  const ULONGLONG now = ::GetTickCount64();
+  const ULONGLONG now = NowMs();
   g_last_beat.store(now, std::memory_order_relaxed);
-  if (now - g_start_tick > kMaxLifetimeMs) return RequestStop();
+  if (!g_runtime.load(std::memory_order_relaxed) &&
+      now - g_start_tick > kMaxLifetimeMs) {
+    EnterRuntimeMode();
+  }
 }
 
 std::string NarrowPathTail(const std::wstring& path) {
@@ -261,59 +278,121 @@ std::string Timestamp() {
   return buffer;
 }
 
-void ReportStall(int capture_index, ULONGLONG stalled_for_ms,
-                 ULONGLONG since_launch_ms,
-                 const std::vector<ULONG_PTR>& frames) {
+void AppendReport(const char* title, const char* detail,
+                  const std::vector<ULONG_PTR>* frames) {
   std::string report =
-      "\n=== Startup heartbeat delay " + Timestamp() + " ===\n";
+      std::string("\n=== ") + title + " " + Timestamp() + " ===\n";
 #ifdef FLUTTER_VERSION
   report += std::string("Version: ") + FLUTTER_VERSION + "\n";
 #endif
-  char header[192];
-  snprintf(header, sizeof(header),
-           "Message-loop timer delayed for %llums, at %llums after launch "
-           "(the thread may be blocked or WM_TIMER starved) "
-           "(capture %d/%d)\n",
-           static_cast<unsigned long long>(stalled_for_ms),
-           static_cast<unsigned long long>(since_launch_ms), capture_index,
-           kMaxCaptures);
-  report += header;
+  report += detail;
+  const auto context =
+      std::atomic_load_explicit(&g_context, std::memory_order_acquire);
+  if (!context->empty()) report += "Context: " + *context + "\n";
 
-  if (frames.empty()) {
+  if (frames != nullptr && frames->empty()) {
     report += "Stack: unavailable\n";
-  } else {
+  } else if (frames != nullptr) {
     report += "Stack (module+RVA):\n";
-    for (const ULONG_PTR frame : frames) {
+    for (const ULONG_PTR frame : *frames) {
       report += "  " + DescribeAddress(frame) + "\n";
     }
   }
   AppendToLog(report);
 }
 
+void ReportStall(int capture_index, ULONGLONG stalled_for_ms,
+                 ULONGLONG since_launch_ms,
+                 const std::vector<ULONG_PTR>& frames) {
+  char detail[192];
+  snprintf(detail, sizeof(detail),
+           "Message-loop timer delayed for %llums, at %llums after launch "
+           "(the thread may be blocked or WM_TIMER starved) "
+           "(capture %d/%d)\n",
+           static_cast<unsigned long long>(stalled_for_ms),
+           static_cast<unsigned long long>(since_launch_ms), capture_index,
+           kMaxCaptures);
+  AppendReport("Startup heartbeat delay", detail, &frames);
+}
+
+void ReportFreeze(int capture_index, ULONGLONG frozen_for_ms,
+                  ULONGLONG since_launch_ms,
+                  const std::vector<ULONG_PTR>& frames) {
+  char detail[160];
+  snprintf(detail, sizeof(detail),
+           "Main thread unresponsive for %llums, at %llums after launch "
+           "(capture %d/2)\n",
+           static_cast<unsigned long long>(frozen_for_ms),
+           static_cast<unsigned long long>(since_launch_ms), capture_index);
+  AppendReport("UI freeze", detail, &frames);
+}
+
+// קיפאון בלי רשומת סיום נמשך עד שהתהליך נסגר בכוח.
+void ReportFreezeEnded(ULONGLONG lasted_ms) {
+  char detail[96];
+  snprintf(detail, sizeof(detail), "Responsive again after ~%llums\n",
+           static_cast<unsigned long long>(lasted_ms));
+  AppendReport("UI freeze ended", detail, nullptr);
+}
+
+std::vector<ULONG_PTR> CaptureFrames() {
+  // הקצאה מראש: הקצאה בזמן שה-thread הראשי מושהה עלולה להיתקע על נעילת ה-heap.
+  std::vector<ULONG_PTR> frames;
+  frames.reserve(kMaxFrames);
+  CaptureMainThreadStack(&frames);
+  return frames;
+}
+
 void WatcherLoop() {
   int captures = 0;
   ULONGLONG last_capture = 0;
+  int freezes = 0;
+  ULONGLONG freeze_beat = 0;
+  bool freeze_second_captured = false;
+  ULONGLONG last_wake = NowMs();
 
   while (!g_stop.load(std::memory_order_relaxed)) {
-    ::Sleep(kHeartbeatIntervalMs);
-    const ULONGLONG now = ::GetTickCount64();
-    if (now - g_start_tick > kMaxLifetimeMs) return;
-
+    const bool runtime = g_runtime.load(std::memory_order_relaxed);
+    const DWORD interval =
+        runtime ? kRuntimeHeartbeatIntervalMs : kHeartbeatIntervalMs;
+    ::Sleep(interval);
+    const ULONGLONG now = NowMs();
     const ULONGLONG beat = g_last_beat.load(std::memory_order_relaxed);
     const ULONGLONG gap = now > beat ? now - beat : 0;
+    // ה-watcher עצמו התעורר באיחור: התהליך כולו הושהה (Modern Standby, VM),
+    // וה-thread הראשי עוד לא הספיק לפעום.
+    const bool process_paused = now - last_wake > interval + 2000;
+    last_wake = now;
+
+    if (runtime) {
+      if (process_paused && freeze_beat == 0) continue;
+      if (freeze_beat != 0) {
+        if (beat != freeze_beat) {
+          ReportFreezeEnded(beat - freeze_beat);
+          freeze_beat = 0;
+        } else if (!freeze_second_captured && gap >= kFreezeSecondCaptureMs) {
+          freeze_second_captured = true;
+          ReportFreeze(2, gap, now - g_start_tick, CaptureFrames());
+        }
+        continue;
+      }
+      if (gap < kFreezeThresholdMs || freezes >= kMaxFreezes) continue;
+      if (::IsDebuggerPresent()) continue;
+      ++freezes;
+      freeze_beat = beat;
+      freeze_second_captured = false;
+      ReportFreeze(1, gap, now - g_start_tick, CaptureFrames());
+      continue;
+    }
 
     if (gap < kStallThresholdMs) continue;
 
     if (captures >= kMaxCaptures) continue;
     if (last_capture != 0 && now - last_capture < kCaptureIntervalMs) continue;
 
-    // הקצאה מראש: הקצאה בזמן שה-thread הראשי מושהה עלולה להיתקע על נעילת ה-heap.
-    std::vector<ULONG_PTR> frames;
-    frames.reserve(kMaxFrames);
-    CaptureMainThreadStack(&frames);
     last_capture = now;
     ++captures;
-    ReportStall(captures, gap, now - g_start_tick, frames);
+    ReportStall(captures, gap, now - g_start_tick, CaptureFrames());
   }
 }
 
@@ -322,7 +401,8 @@ void WatcherLoop() {
 void Start() {
   if (g_started.exchange(true)) return;
   g_stop.store(false, std::memory_order_relaxed);
-  g_start_tick = ::GetTickCount64();
+  g_runtime.store(false, std::memory_order_relaxed);
+  g_start_tick = NowMs();
   g_last_beat.store(g_start_tick, std::memory_order_relaxed);
 
   if (!::DuplicateHandle(::GetCurrentProcess(), ::GetCurrentThread(),
@@ -351,6 +431,29 @@ void RefreshModules() {
   if (fresh != nullptr) {
     std::atomic_store_explicit(&g_modules, fresh, std::memory_order_release);
   }
+}
+
+void EnterRuntimeMode() {
+  if (!g_started.load(std::memory_order_relaxed) ||
+      g_stop.load(std::memory_order_relaxed) ||
+      g_runtime.exchange(true, std::memory_order_relaxed)) {
+    return;
+  }
+#ifdef _DEBUG
+  // נקודת עצירה ב-Dart חוסמת את ה-thread הראשי ותירשם כקיפאון.
+  RequestStop();
+#else
+  ::KillTimer(nullptr, g_timer);
+  g_last_beat.store(NowMs(), std::memory_order_relaxed);
+  g_timer = ::SetTimer(nullptr, 0, kRuntimeHeartbeatIntervalMs, HeartbeatProc);
+  if (g_timer == 0) RequestStop();
+#endif
+}
+
+void SetContext(const std::string& context) {
+  std::atomic_store_explicit(&g_context,
+                             std::make_shared<const std::string>(context),
+                             std::memory_order_release);
 }
 
 void RequestStop() {

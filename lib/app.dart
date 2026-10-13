@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:otzaria/core/diagnostics/developer_diagnostics.dart';
 import 'package:otzaria/core/diagnostics/frame_stats_overlay.dart';
+import 'package:otzaria/core/diagnostics/freeze_context_reporter.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/core/windowing/dock_progress_listener.dart';
@@ -114,6 +115,10 @@ class App extends StatelessWidget {
 
               content = DockProgressListener(child: content);
               content = MacMenuBar(child: content);
+              content = FreezeContextReporter(
+                describe: () => _diagnosticsContext(context),
+                child: content,
+              );
               content = FrameStatsOverlay(
                 contextProvider: () => _diagnosticsContext(context),
                 child: content,
