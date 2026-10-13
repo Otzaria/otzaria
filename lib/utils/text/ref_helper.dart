@@ -344,6 +344,15 @@ List<String> _significantWordList(String s) {
       .toList();
 }
 
+final _dafLevel = RegExp(r',\s*[א-ת]{1,4}[.:](?=,)');
+
+/// כתובת לפי דף ("עירובין, כו:, יז") עד הדף: הרמות שאחריו הן מספרי קטעים
+/// פנימיים שאינם מופיעים בטקסט. כתובת שאינה לפי דף מוחזרת כמות שהיא.
+String refUpToDaf(String ref) {
+  final match = _dafLevel.firstMatch(ref);
+  return match == null ? ref : ref.substring(0, match.end);
+}
+
 /// מוסיף את שם הספר לכותרת אם הוא לא מופיע
 /// ומטפל במקרים מיוחדים כמו כותרת ריקה או פסיק מיותר
 String addBookTitleToRef(String ref, String bookTitle) {

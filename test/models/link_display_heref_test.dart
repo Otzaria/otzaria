@@ -65,13 +65,13 @@ void main() {
   });
 
   group('הפורמט המופרד (פסיק אחרי שם הספר) נמדד לפי רמות המיקום', () {
-    test('רש"י על הגמרא: אינדקס הפירוש יורד, הדף והקטע נשמרים', () {
+    test('רש"י על הגמרא: מספרי הקטע והפירוש שאחרי הדף יורדים', () {
       expect(
         _link(
           heRef: 'רש"י על חולין, ו., ה, ב',
           path2: 'רש"י על חולין',
         ).fallbackDisplayReference,
-        'רש"י על חולין, ו., ה',
+        'רש"י על חולין, ו.',
       );
     });
 
@@ -99,6 +99,56 @@ void main() {
           path2: 'רש"י על חולין',
         ).fallbackDisplayReference,
         'רש"י על חולין ו., ה, ב',
+      );
+    });
+  });
+
+  group('כתובת לפי דף מוצגת עד הדף, בלי מספר הקטע (issue #2480)', () {
+    test('הגמרא ומפרש דו-רמתי עליה', () {
+      expect(
+        _link(
+          heRef: 'עירובין, כו:, יז',
+          path2: 'עירובין',
+        ).fallbackDisplayReference,
+        'עירובין, כו:',
+      );
+      expect(
+        _link(
+          heRef: 'רש"ש על זבחים, ב:, ב',
+          path2: 'רש"ש על זבחים',
+        ).fallbackDisplayReference,
+        'רש"ש על זבחים, ב:',
+      );
+    });
+
+    test('קישור-טווח באותו דף מוצג כדף אחד', () {
+      expect(
+        _link(
+          heRef: 'כתובות, עט., ג',
+          heRefEnd: 'כתובות, עט., ד',
+          path2: 'כתובות',
+          index2End: 5,
+        ).fallbackDisplayReference,
+        'כתובות, עט.',
+      );
+    });
+
+    test('קישור-טווח בין דפים מציג את שני הדפים בלבד', () {
+      expect(
+        _link(
+          heRef: 'סוטה, יב:, כג',
+          heRefEnd: 'סוטה, יג., א',
+          path2: 'סוטה',
+          index2End: 5,
+        ).fallbackDisplayReference,
+        'סוטה, יב:–יג.',
+      );
+    });
+
+    test('הרמה האחרונה בספר שאינו לפי דף נשמרת', () {
+      expect(
+        _link(heRef: 'יהושע, ב, יג', path2: 'יהושע').fallbackDisplayReference,
+        'יהושע, ב, יג',
       );
     });
   });

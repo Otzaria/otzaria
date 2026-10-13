@@ -220,8 +220,8 @@ class Link {
   static const int _minPartsToDropLastLevel = 4;
 
   String _displayHeRefFor(String targetTitle) {
-    final trimmed = heRef.trim();
-    final end = heRefEnd?.trim();
+    final trimmed = refUpToDaf(heRef.trim());
+    final end = _displayHeRefEnd;
     if (end != null && end.isNotEmpty && end != trimmed) return trimmed;
 
     // כתובת בפורמט המופרד ("<שם הספר>, <רמות>") נמדדת לפי רמות המיקום בלבד:
@@ -243,12 +243,18 @@ class Link {
     return parts.sublist(0, parts.length - 1).join(',').trimRight();
   }
 
+  String? get _displayHeRefEnd {
+    final end = heRefEnd?.trim();
+    return end == null ? null : refUpToDaf(end);
+  }
+
   /// סיומת טווח לכתובת התצוגה: לקישור-טווח מוסיפה "–<קצה>" כשרק הרכיב האחרון
   /// שונה (למשל "יח, י, ב–ג"), או " – <כתובת מלאה>" כשהכתובות שונות לגמרי.
   String get _rangeDisplaySuffix {
-    final end = heRefEnd?.trim();
-    if (end == null || end.isEmpty || end == heRef.trim()) return '';
-    final startSegs = heRef.trim().split(', ');
+    final start = refUpToDaf(heRef.trim());
+    final end = _displayHeRefEnd;
+    if (end == null || end.isEmpty || end == start) return '';
+    final startSegs = start.split(', ');
     final endSegs = end.split(', ');
     var common = 0;
     while (common < startSegs.length - 1 &&

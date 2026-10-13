@@ -20,7 +20,7 @@ Future<String> _lineRef(
       await heRefFromDbLine(book, index) ??
       await refFromDbLine(book, index) ??
       await refFromIndex(index, tableOfContents());
-  return addBookTitleToRef(ref, book.title);
+  return addBookTitleToRef(refUpToDaf(ref), book.title);
 }
 
 /// בונה סימניה מטאב קריאה (טקסט/PDF/מפרשים) במיקומו הנוכחי.
