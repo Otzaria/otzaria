@@ -11,6 +11,7 @@ const Map<String, String> apiCallToPermissionHint = {
   'library.resolveRef': 'library.books.read',
   'library.getBookMetadata': 'library.books.read',
   'library.getBookDetails': 'library.books.read',
+  'library.getBookProtections': 'library.books.read',
   'library.resolveBooks': 'library.books.read',
   'library.listRecentBooks': 'library.books.read',
   'library.getTree': 'library.books.read',

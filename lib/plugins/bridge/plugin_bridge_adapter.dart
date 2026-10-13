@@ -855,20 +855,35 @@ class PluginBridgeAdapter {
   static const _restrictedTextMessage =
       "The publisher restricted access to this book's text";
 
-  /// ספר עם הגבלת מו"ל: הטקסט שלו אינו נמסר לתוספים.
-  Future<bool> _isTextRestricted(Book book) async {
+  /// הגבלת המו"ל של [book].
+  Future<BookProtection> _protectionOf(Book book) async {
     // הקורא המקושר כבר טען את ההגבלה; בלי await, כדי לא לדחות את קריאת מצבו.
     final boundState = readerTab?.bloc.state;
     if (boundState is TextBookLoaded &&
         PluginBookIdentity.uidOf(boundState.book) ==
             PluginBookIdentity.uidOf(book)) {
-      return boundState.protection.isProtected;
+      return boundState.protection;
     }
     final resolver =
         _dependencies.bookProtectionResolver ??
         BookProtectionRepository.instance.forBook;
-    return (await resolver(book)).isProtected;
+    return resolver(book);
   }
+
+  /// ספר עם הגבלת מו"ל: הטקסט שלו אינו נמסר לתוספים.
+  Future<bool> _isTextRestricted(Book book) async =>
+      (await _protectionOf(book)).isProtected;
+
+  /// ההגבלה כפי שנמסרת לתוספים — מה מותר, לא רק הרמה, כדי שתוסף לא יצטרך
+  /// לשכפל את טבלת הרמות של [BookProtection].
+  static Map<String, dynamic> _protectionJson(BookProtection p) => {
+    'level': p.effectiveLevel,
+    'textAvailable': !p.isProtected,
+    'editableExport': p.allowsEditableExport,
+    'pdfExport': p.allowsPdfExport,
+    'copyLimit': p.maxCopySegments,
+    'printLimit': p.maxPrintSegments,
+  };
 
   Future<void> _ensureBookTextAvailable(Book book) async {
     if (await _isTextRestricted(book)) {
@@ -1301,10 +1316,45 @@ class PluginBridgeAdapter {
                     if (sourceDisplay.url.isNotEmpty) 'url': sourceDisplay.url,
                   },
             'reference': info.reference,
+            'protection': _protectionJson(await _protectionOf(book)),
             'lineCount': info.lineCount,
             // רק הנתיב היחסי בספרייה: נתיב מוחלט מסגיר את שם המשתמש.
             'libraryPath': libraryDisplayPath(book.filePath ?? ''),
           };
+        }
+      case 'getBookProtections':
+        // spec: { items } (עד 500) — זהות ספר לכל פריט, כמו getBookMetadata,
+        // או כותרת + categoryId כפי שחוזרים מ-getLinks (מפרש). מחזיר מערך
+        // באותו סדר; ספר שלא נמצא → null.
+        {
+          final raw = args['items'];
+          if (raw is! List || raw.length > 500) {
+            throw Exception(
+              'error.invalid_params: items must be an array with at most 500 entries',
+            );
+          }
+          final out = <Map<String, dynamic>?>[];
+          for (final item in raw) {
+            if (item is! Map) {
+              throw Exception('error.invalid_params: items must be objects');
+            }
+            final itemArgs = Map<String, dynamic>.from(item);
+            final title = (itemArgs['bookId'] ?? itemArgs['title']) as String?;
+            final book =
+                _findPluginBook(library, itemArgs) ??
+                (title == null || title.trim().isEmpty
+                    ? null
+                    : TextBook(
+                        title: title,
+                        categoryId: PluginBookIdentity.parseId(
+                          itemArgs['categoryId'],
+                        ),
+                      ));
+            out.add(
+              book == null ? null : _protectionJson(await _protectionOf(book)),
+            );
+          }
+          return out;
         }
       case 'resolveBooks':
         {

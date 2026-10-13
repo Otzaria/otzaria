@@ -1894,6 +1894,75 @@ Future<void> main() async {
       );
     });
 
+    test('getBookProtections — מה מותר לכל ספר, כולל מפרש לפי כותרת', () async {
+      final protectedAdapter = PluginBridgeAdapter(
+        _buildInstalledPlugin(permissions: const ['library.read']),
+        dependencies: PluginBridgeDependencies(
+          historyBloc: _MockHistoryBloc(),
+          tabsBloc: _StubTabsBloc(),
+          navigationBloc: _MockNavigationBloc(),
+          calendarCubit: _StubCalendarCubit(
+            _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+          ),
+          workspaceBloc: _MockWorkspaceBloc(),
+          searchRepository: _MockSearchRepository(),
+          personalNotesRepository: _MockPersonalNotesRepository(),
+          bookOpenCoordinator: _MockBookOpenCoordinator(),
+          themePayloadBuilder: () => <String, dynamic>{},
+          showConfirmDialog: ({required title, required content}) async => true,
+          showWarningDialog:
+              ({required title, required content, required subtitle}) async =>
+                  true,
+          bookProtectionResolver: (book) async => switch (book.title) {
+            'ספר-txt' => const BookProtection(level: 1),
+            'מפרש מוגן' => const BookProtection(level: 2),
+            _ => BookProtection.none,
+          },
+        ),
+        pluginRepository: _StubPluginRegistryRepository(),
+      );
+      addTearDown(protectedAdapter.dispose);
+
+      final result =
+          await protectedAdapter.execute('library', 'getBookProtections', {
+                'items': [
+                  {'bookId': 'ספר-txt'},
+                  {'bookId': 'ספר-docx'},
+                  {'title': 'מפרש מוגן', 'categoryId': 12},
+                ],
+              })
+              as List;
+
+      expect(result[0], {
+        'level': 1,
+        'textAvailable': false,
+        'editableExport': false,
+        'pdfExport': true,
+        'copyLimit': 40,
+        'printLimit': null,
+      });
+      expect(result[1]['level'], 0);
+      expect(result[1]['editableExport'], isTrue);
+      expect(result[2]['level'], 2);
+      expect(result[2]['pdfExport'], isFalse);
+      expect(result[2]['printLimit'], 40);
+
+      expect(
+        () => protectedAdapter.execute('library', 'getBookProtections', {}),
+        throwsA(
+          predicate((e) => e.toString().contains('error.invalid_params')),
+        ),
+      );
+      expect(
+        () => protectedAdapter.execute('library', 'getBookProtections', {
+          'items': ['לא אובייקט'],
+        }),
+        throwsA(
+          predicate((e) => e.toString().contains('error.invalid_params')),
+        ),
+      );
+    });
+
     test('קורא מקושר לספר מוגן — getBookContent נחסם לפי מצב הקורא', () async {
       final book = TextBook(title: 'מוגן', categoryId: 503, id: 779);
       final tab = TextBookTab(book: book, index: 0);

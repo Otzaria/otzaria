@@ -156,6 +156,7 @@ if (response.success) {
 | `library.resolveRef` | 0.9.97 |
 | `library.getBookMetadata` | 0.9.89 |
 | `library.getBookDetails` | 0.9.98 |
+| `library.getBookProtections` | 0.9.99 |
 | `library.resolveBooks` | 0.9.97 |
 | `library.resolveCategoryPaths` | 0.9.97 |
 | `library.listRecentBooks` | 0.9.89 |
@@ -735,7 +736,9 @@ const { data } = await Otzaria.call('library.getBookDetails', {
 //   publicationDates: ['שס"ו'], publicationPlaces: ['וונציה'],
 //   topics: ['הלכה'], shortDescription: '...', fullDescription: '...',
 //   textSource: { key: 'Sefaria', name: 'ספריא', url: 'https://www.sefaria.org/texts' },
-//   reference: '...', lineCount: 4210, libraryPath: 'הלכה/שולחן ערוך'
+//   reference: '...', lineCount: 4210, libraryPath: 'הלכה/שולחן ערוך',
+//   protection: { level: 0, textAvailable: true, editableExport: true,   // מ-0.9.99
+//                 pdfExport: true, copyLimit: null, printLimit: null }
 // }
 ```
 
@@ -746,6 +749,42 @@ const { data } = await Otzaria.call('library.getBookDetails', {
   עם `name` זהה ל-`key` וללא `url`.
 - `libraryPath` הוא הנתיב היחסי בספרייה בלבד. לספר אישי הוא `null` — נתיב
   הקובץ שלו אינו נחשף לתוספים.
+- `protection` (מגרסה 0.9.99) — הגבלת המו"ל של הספר. ראו
+  [`library.getBookProtections`](#librarygetbookprotections).
+
+### `library.getBookProtections`
+**הרשאה:** `library.books.read` · **מגרסה:** 0.9.99
+
+הגבלת המו"ל (טבלת `book_protection` במסד) של כמה ספרים בקריאה אחת — הספר עצמו
+ומפרשיו. מאפשר לתוסף לדעת **מראש** מה מותר, במקום לגלות זאת מ-`error.forbidden`
+באמצע עבודה, ולהציג את ההגבלה למשתמש כמו הממשק: לא להציע פעולה שאסורה.
+
+```javascript
+const { data } = await Otzaria.call('library.getBookProtections', {
+  items: [
+    { bookUid: 'id:183' },                              // זהות ספר, כמו getBookMetadata
+    { title: 'שער הציון', categoryId: 12 },            // מפרש, כפי שחוזר מ-getLinks
+  ]  // עד 500
+});
+// [
+//   { level: 1, textAvailable: false, editableExport: false, pdfExport: true,
+//     copyLimit: 40, printLimit: null },
+//   null   // ספר שלא נמצא
+// ]
+```
+
+| שדה | משמעות |
+|---|---|
+| `level` | 0 — ללא הגבלה; 1–2 — רמת ההגבלה (רמה לא מוכרת מעל 2 נמסרת כ-2) |
+| `textAvailable` | האם הטקסט נמסר לתוספים (`getBookContent`, `getLinkContent`, חיפוש) |
+| `editableExport` | האם מותר לייצא לפורמט קל לעריכה — Word, טקסט, EPUB, FB2 |
+| `pdfExport` | האם מותרת שמירה כ-PDF |
+| `copyLimit` / `printLimit` | מספר השורות המרבי בהעתקה / בהדפסה; `null` — ללא הגבלה |
+
+**תוסף שמייצא טקסט לקובץ צריך לבדוק את הספר ואת כל המפרשים שהוא כולל**, ולא
+להציע ייצוא כש-`editableExport` הוא `false` — כמו שהממשק מסתיר את "ייצוא הספר".
+ספר אישי אינו מוגבל.
+
 
 ### `library.resolveBooks`
 **הרשאה:** `library.books.read`
