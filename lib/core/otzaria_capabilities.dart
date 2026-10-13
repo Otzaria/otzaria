@@ -6,11 +6,9 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/plugins/services/plugin_install_results_log.dart';
 import 'package:otzaria/update/app_release_version.dart';
+import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
-
-// TODO(offline-reports): להחליף ב-kReportsQueueFormat מ-otzaria_report_contract.
-const int _reportsQueueFormat = 1;
 
 /// `otzaria_capabilities.json` בשורש הנתונים: מה הגרסה הזו של אוצריא יודעת,
 /// כדי שהמעדכן הלא-מקוון לא ינחש. הקורא נופל להתנהגות הישנה כשהקובץ חסר.
@@ -33,7 +31,7 @@ class OtzariaCapabilities {
     'exePath': exePath,
     'readableDbSchemaVersion': DatabaseConstants.readableDbSchemaVersion,
     'libraryDbPath': libraryDbPath,
-    'reportsQueueFormat': _reportsQueueFormat,
+    'reportsQueueFormat': kReportsQueueFormat,
     'pluginInstallResults': PluginInstallResultsLog.formatVersion,
   };
 
