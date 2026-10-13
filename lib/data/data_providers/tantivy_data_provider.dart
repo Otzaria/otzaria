@@ -7,6 +7,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/data/data_providers/catalogue_order_revision.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
@@ -118,6 +119,11 @@ class TantivyDataProvider {
   Future<void> _prepareLibraryLineSource() async {
     await LibraryLineSource.ensureHostSqlite();
     await LibraryLineSource.configure(DatabaseConstants.getDatabasePath());
+    // המסד נפתח לפני שהמנוע נטען — ההגדרה בפתיחתו לא הגיעה אליו.
+    final userBooksDbPath = UserBooksDatabaseHolder.instance.openDbPath;
+    if (userBooksDbPath != null) {
+      await UserBooksDatabaseHolder.configureSearchLineSource(userBooksDbPath);
+    }
   }
 
   /// קורא את תוצאת בדיקת התאימות מהאינדקס עצמו. כשל בבדיקה אינו עוצר את

@@ -179,7 +179,9 @@ void main() {
         IndexingRepository.textStorageFor(
           filePath: filePath,
           libraryDbBookId: read.rowHasNewline ? null : book.id,
+          userBooksDbBookId: null,
           hostApiReady: LibraryLineSource.hostApiReady,
+          userBooksConfigured: false,
         );
     final storedLines = storage == TextStorage.libraryDb
         ? cleaned.dataUriLines

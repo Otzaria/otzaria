@@ -171,11 +171,14 @@ void main() {
   });
 
   group('נפילות לאינדוקס עם טקסט', () {
-    late List<BigInt> logged;
+    late List<(BigInt, BigInt)> logged;
+
+    void record(BigInt library, BigInt userBooks) =>
+        logged.add((library, userBooks));
 
     setUp(() {
       logged = [];
-      LibraryLineSource.fallbacksLog = logged.add;
+      LibraryLineSource.fallbacksLog = record;
     });
 
     test('בלי נפילות אין דיווח', () async {
@@ -188,14 +191,50 @@ void main() {
       await LibraryLineSource.reportLibraryFallbacks();
       engine.libraryFallbacks = BigInt.from(5);
       await LibraryLineSource.reportLibraryFallbacks();
-      expect(logged, [BigInt.from(3)]);
+      expect(logged, [(BigInt.from(3), BigInt.zero)]);
+    });
+
+    test('נפילות של ספרים אישיים בלבד נכתבות עם ספירה משלהן', () async {
+      engine.userBooksFallbacks = BigInt.two;
+      await LibraryLineSource.reportLibraryFallbacks();
+      expect(logged, [(BigInt.zero, BigInt.two)]);
     });
 
     test('מנוע שלא נטען אינו מדווח', () async {
       LibraryLineSource.debugReset(engine: _ThrowingStatusEngine());
-      LibraryLineSource.fallbacksLog = logged.add;
+      LibraryLineSource.fallbacksLog = record;
       await LibraryLineSource.reportLibraryFallbacks();
       expect(logged, isEmpty);
+    });
+  });
+
+  group('מקור הספרים האישיים', () {
+    test(
+      'הגדרה וסגירה מעדכנות את המצב, וחזרה על אותו נתיב אינה נשלחת',
+      () async {
+        expect(LibraryLineSource.userBooksConfigured, isFalse);
+        await LibraryLineSource.configureUserBooks(null);
+        await LibraryLineSource.configureUserBooks('/db/user_books.db');
+        await LibraryLineSource.configureUserBooks('/db/user_books.db');
+        expect(LibraryLineSource.userBooksConfigured, isTrue);
+        await LibraryLineSource.configureUserBooks(null);
+        expect(LibraryLineSource.userBooksConfigured, isFalse);
+        expect(engine.userBooksCalls, ['/db/user_books.db', null]);
+      },
+    );
+
+    test('הגדרה שנכשלה אינה נחשבת מוגדרת', () async {
+      engine.failUserBooksWith = Exception('boom');
+      await LibraryLineSource.configureUserBooks('/db/user_books.db');
+      expect(LibraryLineSource.userBooksConfigured, isFalse);
+    });
+
+    test('השעיית seforim.db אינה נוגעת במקור הספרים האישיים', () async {
+      await LibraryLineSource.configureUserBooks('/db/user_books.db');
+      await LibraryLineSource.holdForExternalWrite();
+      await LibraryLineSource.releaseExternalWriteHold();
+      expect(LibraryLineSource.userBooksConfigured, isTrue);
+      expect(engine.userBooksCalls, ['/db/user_books.db']);
     });
   });
 

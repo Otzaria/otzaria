@@ -14,6 +14,9 @@ abstract interface class LineSourceEngine {
 
   Future<void> configure(String dbPath);
 
+  /// null סוגר את user_books.db במנוע ומבטל את ההגדרה.
+  Future<void> configureUserBooks(String? dbPath);
+
   Future<void> suspend(int ownerPort);
 
   Future<void> resume(int ownerPort);
@@ -23,7 +26,8 @@ abstract interface class LineSourceEngine {
 }
 
 /// המנוע קורא את שורות התוצאה של ספרים שאונדקסו עם [TextStorage.libraryDb]
-/// מ-seforim.db. מצבו גלובלי לתהליך; ההחזקה קשורה ל-port שנסגר גם ביציאת isolate.
+/// מ-seforim.db, ושל ספרים אישיים (`uid:`) מ-user_books.db. מצבו גלובלי
+/// לתהליך; ההחזקה (של seforim.db בלבד) קשורה ל-port שנסגר גם ביציאת isolate.
 abstract final class LibraryLineSource {
   static LineSourceEngine _engine = const _RustLineSourceEngine();
   static bool _hostApiReady = false;
@@ -31,6 +35,7 @@ abstract final class LibraryLineSource {
   static bool _heldForExternalWrite = false;
   static RawReceivePort? _ownerPort;
   static Future<void> _queue = Future.value();
+  static String? _userBooksPath;
 
   /// מחליף את המנוע בטסטים ומאפס את המצב המקומי. [keepProcessMarkers] מדמה
   /// isolate נוסף באותו תהליך.
@@ -46,6 +51,7 @@ abstract final class LibraryLineSource {
     _ownerPort?.close();
     _ownerPort = null;
     _queue = Future.value();
+    _userBooksPath = null;
     _registrationFailureReported = false;
     _fallbacksReported = false;
     registrationFailureLog = _appendRegistrationFailureToErrorLog;
@@ -126,36 +132,44 @@ abstract final class LibraryLineSource {
     registrationFailureLog(error, stackTrace);
   }
 
-  /// כותב את ספירת הנפילות ל-errors.txt; מוחלף בטסטים.
+  /// כותב את ספירות הנפילות ל-errors.txt; מוחלף בטסטים.
   @visibleForTesting
-  static void Function(BigInt count) fallbacksLog = _appendFallbacksToErrorLog;
+  static void Function(BigInt library, BigInt userBooks) fallbacksLog =
+      _appendFallbacksToErrorLog;
 
   static bool _fallbacksReported = false;
 
-  /// מדווח, פעם אחת לתהליך, על ספרים רשמיים שהמנוע אינדקס עם הטקסט שלהם
-  /// כי לא יכול היה לאמת אותם מול המסד. נקרא בסוף ריצת אינדוקס.
+  /// מדווח, פעם אחת לתהליך, על ספרים רשמיים ואישיים שהמנוע אינדקס עם הטקסט
+  /// שלהם כי לא יכול היה לאמת אותם מול המסד. נקרא בסוף ריצת אינדוקס.
   static Future<void> reportLibraryFallbacks() async {
     if (_fallbacksReported) return;
-    final BigInt count;
+    final LineSourceStatus status;
     try {
-      count = (await _engine.status()).libraryFallbacks;
+      status = await _engine.status();
     } catch (error) {
       _logFailure('קריאת מצב מקור השורות', error);
       return;
     }
-    if (count == BigInt.zero) return;
+    final library = status.libraryFallbacks;
+    final userBooks = status.userBooksFallbacks;
+    if (library == BigInt.zero && userBooks == BigInt.zero) return;
     _fallbacksReported = true;
-    debugPrint('⚠️ $count ספרים אונדקסו עם הטקסט שלהם במקום ממסד הספרייה');
+    debugPrint(
+      '⚠️ אונדקסו עם הטקסט שלהם במקום מהמסד: $library ספרים רשמיים, '
+      '$userBooks ספרים אישיים',
+    );
     if (!_claimOncePerProcess(_fallbacksMarker)) return;
-    fallbacksLog(count);
+    fallbacksLog(library, userBooks);
   }
 
-  static void _appendFallbacksToErrorLog(BigInt count) {
+  static void _appendFallbacksToErrorLog(BigInt library, BigInt userBooks) {
     if (kDebugMode) return;
     try {
       ErrorLogFile.append(
         title: 'Indexing Warning',
-        error: 'Library books indexed with their text in the index: $count',
+        error:
+            'Books indexed with their text in the index: '
+            'library $library, personal $userBooks',
         details: const {
           'Phase': 'indexing',
           'Component': 'Search line source (library fallback)',
@@ -195,6 +209,23 @@ abstract final class LibraryLineSource {
       _logFailure('הגדרת מקור השורות', error);
     }
   }
+
+  /// האם המנוע מוגדר לקרוא את user_books.db (ראו [configureUserBooks]).
+  static bool get userBooksConfigured => _userBooksPath != null;
+
+  /// מגדיר למנוע את נתיב user_books.db; null סוגר אותו (ומחכה לקריאה שרצה),
+  /// וחובה לפני שהקובץ מוחלף, מועבר או נמחק.
+  static Future<void> configureUserBooks(String? dbPath) => _serial(() async {
+    if (dbPath == _userBooksPath) return;
+    // מסמנים לפני הסגירה: אינדוקס שמתחיל עכשיו כבר לא ישען על המקור.
+    _userBooksPath = null;
+    try {
+      await _engine.configureUserBooks(dbPath);
+      _userBooksPath = dbPath;
+    } catch (error) {
+      _logFailure('הגדרת מקור השורות של הספרים האישיים', error);
+    }
+  });
 
   /// סוגר את seforim.db במנוע עד [releaseExternalWriteHold]. אידמפוטנטי.
   static Future<void> holdForExternalWrite() => _serial(() async {
@@ -264,6 +295,10 @@ class _RustLineSourceEngine implements LineSourceEngine {
 
   @override
   Future<void> configure(String dbPath) => configureLineSource(dbPath: dbPath);
+
+  @override
+  Future<void> configureUserBooks(String? dbPath) =>
+      configureUserBooksLineSource(dbPath: dbPath);
 
   @override
   Future<void> suspend(int ownerPort) =>

@@ -11,10 +11,16 @@ class FakeLineSourceEngine implements LineSourceEngine {
   int registrations = 0;
   bool hostReady = false;
   BigInt libraryFallbacks = BigInt.zero;
+  BigInt userBooksFallbacks = BigInt.zero;
   bool readyAfterRegistration = true;
   Object? failSuspendWith;
   Object? failRegistrationWith;
   final configuredPaths = <String>[];
+
+  /// כל קריאה ל-[configureUserBooks] לפי הסדר; null = סגירה.
+  final userBooksCalls = <String?>[];
+  String? userBooksPath;
+  Object? failUserBooksWith;
   Completer<void>? suspendGate;
 
   @override
@@ -25,10 +31,22 @@ class FakeLineSourceEngine implements LineSourceEngine {
     hostApiReady: hostReady,
     generation: BigInt.zero,
     libraryFallbacks: libraryFallbacks,
+    userBooksConfigured: userBooksPath != null,
+    userBooksOpen: false,
+    userBooksGeneration: BigInt.zero,
+    userBooksFallbacks: userBooksFallbacks,
   );
 
   @override
   Future<void> configure(String dbPath) async => configuredPaths.add(dbPath);
+
+  @override
+  Future<void> configureUserBooks(String? dbPath) async {
+    userBooksCalls.add(dbPath);
+    final failure = failUserBooksWith;
+    if (failure != null) throw failure;
+    userBooksPath = dbPath;
+  }
 
   @override
   Future<void> suspend(int ownerPort) async {

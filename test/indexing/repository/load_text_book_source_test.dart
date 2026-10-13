@@ -11,6 +11,7 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -89,12 +90,17 @@ void main() {
     }
   });
 
-  TextStorage storageFor(TextBook book, int? libraryDbBookId) =>
-      IndexingRepository.textStorageFor(
-        filePath: IndexingRepository.buildIndexedBookFilePath(book),
-        libraryDbBookId: libraryDbBookId,
-        hostApiReady: true,
-      );
+  TextStorage storageFor(
+    TextBook book,
+    int? libraryDbBookId, {
+    int? userBooksDbBookId,
+  }) => IndexingRepository.textStorageFor(
+    filePath: IndexingRepository.buildIndexedBookFilePath(book),
+    libraryDbBookId: libraryDbBookId,
+    userBooksDbBookId: userBooksDbBookId,
+    hostApiReady: true,
+    userBooksConfigured: true,
+  );
 
   test('שורות נקיות מהמסד — המנוע יקרא אותן משם', () async {
     final book = TextBook(id: 301, title: 'שורות נקיות', categoryId: 7);
@@ -102,6 +108,7 @@ void main() {
 
     expect(source.bytes, utf8.encode('א\nב'));
     expect(source.libraryDbBookId, 301);
+    expect(source.userBooksDbBookId, isNull);
     expect(storageFor(book, source.libraryDbBookId), TextStorage.libraryDb);
     expect(source.dataUriLines, isNull);
   });
@@ -147,6 +154,86 @@ void main() {
     expect(source.libraryDbBookId, isNull);
     expect(storageFor(book, source.libraryDbBookId), TextStorage.inIndex);
     expect(source.dataUriLines, isNull);
+  });
+
+  group('ספרים אישיים מ-user_books.db', () {
+    late File importedFile;
+
+    setUp(() async {
+      await Settings.setValue<String>(
+        SettingsRepository.keyDatabasesPath,
+        path.join(tempDir.path, 'databases'),
+      );
+      importedFile = File(path.join(tempDir.path, 'מקובץ.txt'));
+      await importedFile.writeAsString('מהקובץ');
+      final repo = await UserBooksDatabaseHolder.instance.repository;
+      final db = await repo.database.database;
+      db.execute(
+        "INSERT INTO category (id, title, level) VALUES (50, 'ספרים אישיים', 0)",
+      );
+      db.execute("INSERT OR IGNORE INTO source (id, name) VALUES (1, 'אישי')");
+      for (final (id, title, rows, filePath) in [
+        (7, 'אישי נקי', ['א', 'ב'], null),
+        (8, 'אישי מעבר', ['א\nב', 'ג'], null),
+        (9, 'אישי מקובץ', ['מהסריקה'], importedFile.path),
+        (10, 'אישי מצויר', illustratedRows, null),
+      ]) {
+        db.execute(
+          'INSERT INTO book (id, categoryId, sourceId, title, orderIndex, '
+          'totalLines, filePath) VALUES (?, 50, 1, ?, ?, ?, ?)',
+          [id, title, id, rows.length, filePath],
+        );
+        for (var i = 0; i < rows.length; i++) {
+          db.execute(
+            'INSERT INTO line (bookId, lineIndex, content) VALUES (?, ?, ?)',
+            [id, i, rows[i]],
+          );
+        }
+      }
+    });
+
+    TextBook userBook(int id, String title) =>
+        TextBook(id: id, title: title, categoryId: 50, source: BookSource.user);
+
+    test('שורות נקיות — ה-id של user_books.db ולא של seforim.db', () async {
+      final book = userBook(7, 'אישי נקי');
+      final source = await repository.loadTextBookSource(book);
+
+      expect(source.bytes, utf8.encode('א\nב'));
+      expect(source.libraryDbBookId, isNull);
+      expect(source.userBooksDbBookId, 7);
+      expect(
+        storageFor(book, null, userBooksDbBookId: source.userBooksDbBookId),
+        TextStorage.libraryDb,
+      );
+    });
+
+    test('ספר מצויר — שורות התמונות נמסרות כמו בספר רשמי', () async {
+      final source = await repository.loadTextBookSource(
+        userBook(10, 'אישי מצויר'),
+      );
+
+      expect(source.userBooksDbBookId, 10);
+      expect(source.dataUriLines, [0, 2]);
+    });
+
+    test(r'שורה עם \n פנימי — בלי id', () async {
+      final source = await repository.loadTextBookSource(
+        userBook(8, 'אישי מעבר'),
+      );
+
+      expect(source.bytes, utf8.encode('א\nב\nג'));
+      expect(source.userBooksDbBookId, isNull);
+    });
+
+    test('ספר מקובץ — בלי id גם כשיש לו שורות מהסריקה', () async {
+      final source = await repository.loadTextBookSource(
+        userBook(9, 'אישי מקובץ'),
+      );
+
+      expect(source.userBooksDbBookId, isNull);
+      expect(source.libraryDbBookId, isNull);
+    });
   });
 }
 

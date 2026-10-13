@@ -19,9 +19,11 @@ import 'package:otzaria/core/user_state/user_state_slot.dart';
 import 'package:otzaria/core/user_state/window_session_store.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
+import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
@@ -34,6 +36,7 @@ import 'package:otzaria/workspaces/workspace_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
+import '../../support/fake_line_source_engine.dart';
 import '../../models/direct_error_report_text_correction_test.dart'
     show buildCorrectionReport, trickyLine;
 
@@ -260,6 +263,47 @@ void main() {
       ]);
     },
   );
+
+  test('שחזור user_books.db סוגר אותו במנוע החיפוש לפני ההחלפה, ופתיחה '
+      'מחדש מגדירה אותו שוב', () async {
+    final engine = FakeLineSourceEngine();
+    LibraryLineSource.debugReset(engine: engine);
+    addTearDown(LibraryLineSource.debugReset);
+    addTearDown(UserBooksDatabaseHolder.instance.close);
+    final dbPath = await AppPaths.resolveUserBooksDbPath();
+
+    await UserBooksDatabaseHolder.instance.repository;
+    expect(engine.userBooksCalls, [dbPath]);
+    expect(LibraryLineSource.userBooksConfigured, isTrue);
+
+    final result = await BackupService.createBackup(
+      includeSettings: true,
+      includeBookmarks: false,
+      includeHistory: false,
+      includeNotes: false,
+      includeWorkspaces: false,
+      includeShamorZachor: false,
+      includePlugins: false,
+    );
+    final restored = await BackupService.restoreFromBackup(result.path);
+    expect(restored.skippedSections, isNot(contains('userBooks')));
+    expect(engine.userBooksCalls, [dbPath, null]);
+    expect(LibraryLineSource.userBooksConfigured, isFalse);
+
+    await UserBooksDatabaseHolder.instance.repository;
+    expect(engine.userBooksCalls, [dbPath, null, dbPath]);
+  });
+
+  test('חלון משני אינו מגדיר ואינו סוגר את מקור הספרים האישיים', () async {
+    final engine = FakeLineSourceEngine();
+    LibraryLineSource.debugReset(engine: engine);
+    addTearDown(LibraryLineSource.debugReset);
+    WindowRole.isSecondary = true;
+
+    await UserBooksDatabaseHolder.instance.repository;
+    await UserBooksDatabaseHolder.instance.close();
+    expect(engine.userBooksCalls, isEmpty);
+  });
 
   test('מפתחות ההסתרה מוצהרים ונכנסים גם במסלול הנסיגה (issue #1448)', () {
     // כש-Hive אינו פתוח הגיבוי אוסף את הרשימה המוצהרת בלבד. מפתח שאינו שם

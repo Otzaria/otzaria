@@ -20,6 +20,7 @@ import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import '../../test_helpers/memory_cache_provider.dart';
+import '../../support/fake_line_source_engine.dart';
 import '../../support/search_engine_test_init.dart';
 
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -3382,8 +3383,23 @@ void main() {
         IndexingRepository.textStorageFor(
           filePath: filePath,
           libraryDbBookId: id,
+          userBooksDbBookId: null,
           hostApiReady: ready,
+          userBooksConfigured: true,
         );
+
+    TextStorage decideUser(
+      String filePath,
+      int? id, {
+      bool ready = true,
+      bool configured = true,
+    }) => IndexingRepository.textStorageFor(
+      filePath: filePath,
+      libraryDbBookId: null,
+      userBooksDbBookId: id,
+      hostApiReady: ready,
+      userBooksConfigured: configured,
+    );
 
     test('ספר רשמי שנקרא מ-seforim.db — הטקסט לא נשמר באינדקס', () {
       expect(decide('id:5', 5), TextStorage.libraryDb);
@@ -3391,6 +3407,25 @@ void main() {
 
     test('בלי SQLite משותף למנוע — הטקסט נשמר באינדקס', () {
       expect(decide('id:5', 5, ready: false), TextStorage.inIndex);
+    });
+
+    test('ספר אישי שנקרא משורות user_books.db — הטקסט לא נשמר באינדקס', () {
+      expect(decideUser('uid:5', 5), TextStorage.libraryDb);
+    });
+
+    test('ספר אישי כשמקור הספרים האישיים אינו מוגדר — הטקסט נשמר', () {
+      expect(decideUser('uid:5', 5, configured: false), TextStorage.inIndex);
+    });
+
+    test('ספר אישי בלי SQLite משותף למנוע — הטקסט נשמר באינדקס', () {
+      expect(decideUser('uid:5', 5, ready: false), TextStorage.inIndex);
+    });
+
+    test('id של user_books.db אינו מתאים למפתח אחר', () {
+      expect(decideUser('uid:5', null), TextStorage.inIndex);
+      expect(decideUser('uid:6', 5), TextStorage.inIndex);
+      expect(decideUser('id:5', 5), TextStorage.inIndex);
+      expect(decideUser('ext:abc', 5), TextStorage.inIndex);
     });
 
     test('מקור שאינו seforim.db או מפתח אחר — הטקסט נשמר באינדקס', () {
@@ -3407,20 +3442,32 @@ void main() {
 
       Future<_CancellationRecordingEngine> index({
         required bool hostApiReady,
+        bool userBooksConfigured = false,
       }) async {
+        LibraryLineSource.debugReset(engine: FakeLineSourceEngine());
+        if (userBooksConfigured) {
+          await LibraryLineSource.configureUserBooks('/db/user_books.db');
+        }
         LibraryLineSource.debugHostApiReady = hostApiReady;
         final engine = _CancellationRecordingEngine();
         final provider = _RecordingTantivyDataProvider(engine);
         final repository = _FakeExtractionRepository(provider)
           ..libraryDbBookIdByTitle['מהמסד'] = 301
+          ..userBooksDbBookIdByTitle['אישי'] = 7
           ..dataUriLinesByTitle['מהמסד'] = Uint32List.fromList([0, 2])
+          ..dataUriLinesByTitle['אישי'] = Uint32List.fromList([3])
           ..dataUriLinesByTitle['מקובץ'] = Uint32List.fromList([1]);
         final fromDb = TextBook(id: 301, title: 'מהמסד');
         final fromFile = TextBook(id: 302, title: 'מקובץ');
+        final personal = TextBook(
+          id: 7,
+          title: 'אישי',
+          source: BookSource.user,
+        );
         final library = Library(categories: [])
-          ..books.addAll([fromDb, fromFile]);
+          ..books.addAll([fromDb, fromFile, personal]);
         final result = await repository.indexBooks(
-          [fromDb, fromFile],
+          [fromDb, fromFile, personal],
           library,
           onProgress: (_, _) {},
         );
@@ -3433,12 +3480,24 @@ void main() {
         expect(engine.textStorageByFilePath, {
           'id:301': TextStorage.libraryDb,
           'id:302': TextStorage.inIndex,
+          'uid:7': TextStorage.inIndex,
         });
         // שורות התמונות נשמרות באינדקס רק בספר שטקסטו נקרא מהמסד.
         expect(engine.storedLinesByFilePath, {
           'id:301': [0, 2],
           'id:302': null,
+          'uid:7': null,
         });
+      });
+
+      test('ספר אישי מהמסד מאונדקס בלי טקסט כשהמקור מוגדר', () async {
+        final engine = await index(
+          hostApiReady: true,
+          userBooksConfigured: true,
+        );
+        expect(engine.textStorageByFilePath['uid:7'], TextStorage.libraryDb);
+        expect(engine.storedLinesByFilePath['uid:7'], [3]);
+        expect(engine.textStorageByFilePath['id:302'], TextStorage.inIndex);
       });
 
       test('כשהמנוע לא קיבל SQLite — הכול נשמר באינדקס', () async {
@@ -3446,8 +3505,13 @@ void main() {
         expect(engine.textStorageByFilePath, {
           'id:301': TextStorage.inIndex,
           'id:302': TextStorage.inIndex,
+          'uid:7': TextStorage.inIndex,
         });
-        expect(engine.storedLinesByFilePath, {'id:301': null, 'id:302': null});
+        expect(engine.storedLinesByFilePath, {
+          'id:301': null,
+          'id:302': null,
+          'uid:7': null,
+        });
       });
     });
   });
@@ -3773,6 +3837,7 @@ typedef _TextBookSource = ({
   Uint8List? bytes,
   String? text,
   int? libraryDbBookId,
+  int? userBooksDbBookId,
   Uint32List? dataUriLines,
 });
 
@@ -3793,6 +3858,7 @@ class _CancelDuringLoadRepository extends IndexingRepository {
       bytes: null,
       text: 'תוכן',
       libraryDbBookId: null,
+      userBooksDbBookId: null,
       dataUriLines: null,
     );
   }
@@ -3824,6 +3890,9 @@ class _FakeExtractionRepository extends IndexingRepository {
   /// ה-id ב-seforim.db שממנו "נקרא" ספר הטקסט, לפי כותרת.
   final libraryDbBookIdByTitle = <String, int>{};
 
+  /// ה-id ב-user_books.db שממנו "נקרא" ספר אישי, לפי כותרת.
+  final userBooksDbBookIdByTitle = <String, int>{};
+
   /// שורות התמונות שנוקו מספר הטקסט, לפי כותרת.
   final dataUriLinesByTitle = <String, Uint32List>{};
 
@@ -3835,6 +3904,7 @@ class _FakeExtractionRepository extends IndexingRepository {
       bytes: null,
       text: 'תוכן',
       libraryDbBookId: libraryDbBookIdByTitle[book.title],
+      userBooksDbBookId: userBooksDbBookIdByTitle[book.title],
       dataUriLines: dataUriLinesByTitle[book.title],
     );
   }
