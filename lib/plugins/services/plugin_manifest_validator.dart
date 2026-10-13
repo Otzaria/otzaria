@@ -12,6 +12,16 @@ class PluginManifestValidator {
     'experimental',
   };
 
+  /// ערכי השדה `platforms` — בדיוק מה ש-`Platform.operatingSystem` מחזיר
+  /// בפלטפורמות שאוצריא נבנית להן, ומה שמגיע לתוסף ב-`payload.app.platform`.
+  static const Set<String> validPlatformValues = {
+    'windows',
+    'linux',
+    'macos',
+    'android',
+    'ios',
+  };
+
   /// בודק שמזהה התוסף תקין. המזהה מרכיב נתיבי תיקייה (`getPluginDataPath`),
   /// ולכן `.` ו-`..` — וכל רצף נקודות — נדחים גם כשהתו עצמו מותר.
   static bool isValidPluginId(String id) {
@@ -26,6 +36,7 @@ class PluginManifestValidator {
     required PluginManifest manifest,
     required String directoryPath,
     String? currentAppVersion,
+    String? currentPlatform,
     bool skipAppVersionValidation = false,
     bool skipFileValidation = false,
   }) async {
@@ -33,6 +44,7 @@ class PluginManifestValidator {
       manifest: manifest,
       directoryPath: directoryPath,
       currentAppVersion: currentAppVersion,
+      currentPlatform: currentPlatform,
       skipAppVersionValidation: skipAppVersionValidation,
       skipFileValidation: skipFileValidation,
     );
@@ -42,10 +54,14 @@ class PluginManifestValidator {
   }
 
   /// מאמת מניפסט ומחזיר את רשימת כל השגיאות (ריקה = תקין). אינו זורק.
+  ///
+  /// [currentPlatform] משמש לבדיקת התאימות יחד עם הגרסה (ברירת מחדל:
+  /// `Platform.operatingSystem`); מדולג יחד איתה ב-[skipAppVersionValidation].
   static Future<List<String>> collectManifestErrors({
     required PluginManifest manifest,
     required String directoryPath,
     String? currentAppVersion,
+    String? currentPlatform,
     bool skipAppVersionValidation = false,
     bool skipFileValidation = false,
   }) async {
@@ -76,6 +92,10 @@ class PluginManifestValidator {
         'ערכים מותרים: ${validStabilityValues.join(', ')}',
       );
     }
+
+    // platforms — אופציונלי; אם הוצהר: מערך לא ריק, בלי כפילויות, מערכים מוכרים.
+    // אותן הודעות כמו src/platforms.js ב-otzaria-plugin-validator.
+    errors.addAll(platformsFieldErrors(manifest));
 
     // הכותרת המוצגת בטאב חייבת להיות זהה ל-name (גם כותרת ריקה נחסמת — היא
     // תציג טאב בלי טקסט). title חסר נופל ל-name ב-fromJson ולכן עובר.
@@ -114,6 +134,16 @@ class PluginManifestValidator {
             'התוסף מיועד לאוצריא עד גרסה ${manifest.maxAppVersion} בלבד, אך מותקנת $currentAppVersion',
           );
         }
+      }
+      final platform = currentPlatform ?? Platform.operatingSystem;
+      final declared = manifest.platforms;
+      if (declared != null &&
+          declared.isNotEmpty &&
+          validPlatformValues.contains(platform) &&
+          !declared.contains(platform)) {
+        errors.add(
+          'התוסף אינו תומך ב-$platform. פלטפורמות נתמכות: ${declared.join(', ')}',
+        );
       }
     }
 
@@ -225,6 +255,35 @@ class PluginManifestValidator {
       }
     }
 
+    return errors;
+  }
+
+  /// שגיאות צורה בשדה `platforms` (ריק = תקין או לא הוצהר).
+  static List<String> platformsFieldErrors(PluginManifest manifest) {
+    final values = manifest.platforms;
+    if (values == null) return const [];
+    final allowed = validPlatformValues.join(', ');
+    if (!manifest.platformsIsList) {
+      return ['השדה "platforms" חייב להיות מערך של פלטפורמות ($allowed)'];
+    }
+    if (values.isEmpty) {
+      return [
+        'השדה "platforms" ריק. השמיטו אותו כדי לציין את כל הפלטפורמות, או פרטו לפחות פלטפורמה אחת',
+      ];
+    }
+    final errors = <String>[];
+    final seen = <String>{};
+    for (final value in values) {
+      if (!validPlatformValues.contains(value)) {
+        errors.add(
+          'ערך לא חוקי ב-"platforms": "$value". ערכים מותרים: $allowed',
+        );
+        continue;
+      }
+      if (!seen.add(value)) {
+        errors.add('הפלטפורמה "$value" מופיעה פעמיים ב-"platforms"');
+      }
+    }
     return errors;
   }
 }

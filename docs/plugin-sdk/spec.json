@@ -639,6 +639,13 @@
       "stable",
       "beta",
       "experimental"
+    ],
+    "platforms": [
+      "windows",
+      "linux",
+      "macos",
+      "android",
+      "ios"
     ]
   },
   "versions": {

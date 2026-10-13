@@ -462,6 +462,84 @@ void main() {
       expect(errors, hasLength(1));
       expect(errors.single, contains('הרשאה לא חוקית שנדרשת על ידי התוסף'));
     });
+
+    group('platforms', () {
+      PluginManifest withPlatforms(Object? platforms) =>
+          PluginManifest.fromJson({
+            'id': 'test.validator.platforms',
+            'name': 'Validator',
+            'version': '1.0.0',
+            'entrypoint': 'index.html',
+            'platforms': ?platforms,
+          });
+
+      Future<List<String>> errorsFor(
+        Object? platforms, {
+        String? currentPlatform,
+      }) => PluginManifestValidator.collectManifestErrors(
+        manifest: withPlatforms(platforms),
+        directoryPath: '/',
+        currentAppVersion: '9.9.9',
+        currentPlatform: currentPlatform,
+        skipAppVersionValidation: currentPlatform == null,
+        skipFileValidation: true,
+      );
+
+      test('שדה חסר — תקין, ולא נשמר ב-toJson', () async {
+        expect(await errorsFor(null), isEmpty);
+        expect(withPlatforms(null).platforms, isNull);
+        expect(withPlatforms(null).toJson().containsKey('platforms'), isFalse);
+      });
+
+      test('רשימה תקינה עוברת ונשמרת', () async {
+        expect(await errorsFor(['windows', 'linux', 'macos']), isEmpty);
+        expect(withPlatforms(['android']).toJson()['platforms'], ['android']);
+      });
+
+      test('ערך שאינו מערך נדחה בלי להפיל את הטעינה', () async {
+        final errors = await errorsFor('windows');
+        expect(errors, hasLength(1));
+        expect(errors.single, contains('חייב להיות מערך'));
+      });
+
+      test('מערך ריק נדחה', () async {
+        final errors = await errorsFor(<String>[]);
+        expect(errors.single, contains('ריק'));
+      });
+
+      test('ערך לא מוכר וכפילות נדחים', () async {
+        final errors = await errorsFor(['windows', 'web', 'windows', 3]);
+        expect(errors, hasLength(3));
+        expect(errors.where((e) => e.contains('"web"')), hasLength(1));
+        expect(errors.where((e) => e.contains('"3"')), hasLength(1));
+        expect(errors.where((e) => e.contains('פעמיים')), hasLength(1));
+      });
+
+      test('התקנה נדחית בפלטפורמה שלא הוצהרה', () async {
+        final errors = await errorsFor([
+          'windows',
+          'macos',
+        ], currentPlatform: 'android');
+        expect(errors.single, contains('אינו תומך ב-android'));
+        expect(
+          await errorsFor(['windows', 'macos'], currentPlatform: 'macos'),
+          isEmpty,
+        );
+        // בלי הצהרה — כל פלטפורמה מתקבלת
+        expect(await errorsFor(null, currentPlatform: 'ios'), isEmpty);
+      });
+
+      test('הבדיקה מול הפלטפורמה מדולגת יחד עם בדיקת הגרסה', () async {
+        final errors = await PluginManifestValidator.collectManifestErrors(
+          manifest: withPlatforms(['windows']),
+          directoryPath: '/',
+          currentPlatform: 'android',
+          skipAppVersionValidation: true,
+          skipFileValidation: true,
+        );
+        expect(errors, isEmpty);
+      });
+    });
   });
 }
 
