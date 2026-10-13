@@ -59,6 +59,7 @@ void main() {
     zohar: ['כרך א בראשית דף לו.', 'כרך א בראשית דף לו:'],
   };
   const tocByBook = {
+    zohar: ['בראשית'],
     meturgam: ['פרשת בראשית דף לו ע"א', 'פרשת בראשית דף לו ע"ב'],
   };
 
@@ -127,13 +128,13 @@ void main() {
     );
   });
 
-  test('בלי ציטוט דף המגן חוצה-הספרים נשאר בתוקף', () async {
-    final results = await buildRepo().findRefs('זהר בראשית פרק לו');
+  test('"זהר בראשית" — ספר שנקרא בשמו המדויק יורד לפרשה גם בלי דף', () async {
+    final results = await buildRepo().findRefs('זהר בראשית');
 
     expect(
-      results.where((r) => r.bookId == zohar && r.tocLevel >= 2),
-      isEmpty,
-      reason: '"פרק לו" אינו ציטוט דף — אין להתיר ירידה לכותרות של ספר אחר',
+      results.map((r) => r.reference),
+      contains('ספר הזהר בראשית'),
+      reason: 'issue #2431: "בראשית" היא גם ספר, וזה חסם את הפרשה בזוהר',
     );
   });
 

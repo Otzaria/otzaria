@@ -1131,8 +1131,8 @@ void main() {
     test(
       'כשטוקן הבא הוא ספר עצמאי מדויק — TOC לא נשלף עבור הספר החיצוני',
       () async {
-        // תרחיש: query "תורה אור" → "תורה" הוא ספר, "אור" גם ספר עצמאי (rank=0).
-        // הציפייה: TOC של "תורה" לא מסונן לפי "אור" כדי שלא ניצור פסוקים מזויפים.
+        // "תורה" תחילית של "תורה תמימה" ו"אור" ספר עצמאי — אין לסנן את התוכן
+        // של ספר שלא נקרא בשמו המדויק לפי "אור".
         var tocCalled = false;
 
         final repo = FindRefRepository(
@@ -1144,7 +1144,14 @@ void main() {
               return const <ReferenceBookHit>[]; // אין ספר בשם זה במלואו
             }
             if (query == 'תורה') {
-              return [_hit(bookId: 1, title: 'תורה', orderIndex: 1.0)];
+              return [
+                _hit(
+                  bookId: 1,
+                  title: 'תורה תמימה',
+                  matchRank: 1,
+                  orderIndex: 1.0,
+                ),
+              ];
             }
             if (query == 'אור') {
               // טוקן הבא מתאים בדיוק לספר אחר → matchRank=0

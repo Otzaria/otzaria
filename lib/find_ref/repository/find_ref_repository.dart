@@ -1496,10 +1496,12 @@ class FindRefRepository {
     final requests = <TocBatchRequest>[];
     for (final hit in bookHits) {
       final remainingTokens = remainingByHit[hit]!;
-      // טוקן-ספר עצמאי אחרי השם ("תורה אור") יוצר התאמות חוצות-ספרים — אלא אם
-      // הוא חלק מהכותרת הנוכחית, או שבזנב ציטוט דף ("זהר בראשית דף לו").
+      // טוקן-ספר אחרי השם ("תורה אור") יוצר התאמות חוצות-ספרים — אלא אם הספר נקרא
+      // בשמו המדויק ("זוהר בראשית"), הטוקן בכותרתו, או שבזנב ציטוט דף.
       final suppressTocForCrossBook =
           hasExactNextTokenMatch &&
+          hit.matchRank != 0 &&
+          hit.matchRank != 3 &&
           !hit.titleTokens.contains(nextToken) &&
           !_isSectionThenDafCitation(remainingTokens);
       if (remainingTokens.isEmpty || suppressTocForCrossBook) {
