@@ -37,6 +37,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
+import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
@@ -203,7 +204,19 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
                 ) ==
                 true;
           },
-      requestPluginInstall: (downloadUrl, {reportContext}) {
+      requestPluginInstall: (downloadUrl, {reportContext}) async {
+        if (await _verifiedDialogContext() == null) {
+          if (reportContext != null) {
+            unawaited(
+              PluginInstallReportService.report(
+                reportContext,
+                success: false,
+                errorMessage: 'ההתקנה נחסמה במצב סייפר',
+              ),
+            );
+          }
+          return;
+        }
         pluginSystemBloc.add(
           InstallRemotePluginRequested(
             downloadUrl,
