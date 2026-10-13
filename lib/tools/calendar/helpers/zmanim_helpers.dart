@@ -356,14 +356,12 @@ bool _isErevPesach(JewishCalendar jc) =>
     jc.getYomTovIndex() == JewishCalendar.EREV_PESACH;
 
 // ב-JewishCalendar הימים ממוספרים 1=ראשון..7=שבת, כך שיום שישי = 6.
+// בשבת שלפני יום טוב מדליקים רק במוצאי שבת, ולא לפני השקיעה.
 bool _isErevShabbosOrYomTov(JewishCalendar jc) =>
-    jc.getDayOfWeek() == 6 || jc.isErevYomTov();
+    jc.getDayOfWeek() == 6 || (jc.isErevYomTov() && jc.getDayOfWeek() != 7);
 
-bool _isMotzeiShabbos(JewishCalendar jc) =>
-    jc.isAssurBemelacha() && jc.getDayOfWeek() == 7;
-
-bool _isMotzeiYomTov(JewishCalendar jc) =>
-    jc.isAssurBemelacha() && jc.isYomTov() && jc.getDayOfWeek() != 7;
+bool _isMotzeiShabbosOrYomTov(JewishCalendar jc) =>
+    jc.isAssurBemelacha() && !jc.isTomorrowShabbosOrYomTov();
 
 bool _isTaanisNotYomKippur(JewishCalendar jc) =>
     jc.isTaanis() && jc.getYomTovIndex() != JewishCalendar.YOM_KIPPUR;
@@ -1125,55 +1123,30 @@ final List<ZmanDefinition> kZmanimRegistry = [
     defaultEnabled: true,
     compute: (c) => calculateCandleLightingTime(c.cal, c.city),
   ),
+  // המזהים נשמרים בהגדרות המשתמש; motzeiYomTov* הישנים ממופים אליהם.
   ZmanDefinition(
     id: 'motzeiShabbos',
-    title: 'מוצאי שבת',
+    title: 'מוצאי שבת ויום טוב',
     subtitle: 'רגיל',
     category: 'שבת וחג',
-    explanation: '''צאת השבת — 34 דקות אחרי השקיעה.''',
-    isRelevant: _isMotzeiShabbos,
+    explanation: '''צאת השבת או יום טוב — 34 דקות אחרי השקיעה.''',
+    isRelevant: _isMotzeiShabbosOrYomTov,
     isHolidaySpecial: true,
     defaultEnabled: true,
-    pairId: 'motzeiSh',
+    pairId: 'motzei',
     pairLabel: 'רגיל',
     compute: (c) => c.cal.getSunset()?.add(const Duration(minutes: 34)),
   ),
   ZmanDefinition(
     id: 'motzeiShabbosChazonIsh',
-    title: 'מוצאי שבת',
+    title: 'מוצאי שבת ויום טוב',
     subtitle: 'חזו"א',
     category: 'שבת וחג',
-    explanation: '''צאת השבת לחזון איש — 38 דקות אחרי השקיעה.''',
-    isRelevant: _isMotzeiShabbos,
+    explanation: '''צאת השבת או יום טוב לחזון איש — 38 דקות אחרי השקיעה.''',
+    isRelevant: _isMotzeiShabbosOrYomTov,
     isHolidaySpecial: true,
     defaultEnabled: true,
-    pairId: 'motzeiSh',
-    pairLabel: 'חזו"א',
-    compute: (c) => c.cal.getSunset()?.add(const Duration(minutes: 38)),
-  ),
-  ZmanDefinition(
-    id: 'motzeiYomTov',
-    title: 'מוצאי יום טוב',
-    subtitle: 'רגיל',
-    category: 'שבת וחג',
-    explanation: '''צאת יום טוב — 34 דקות אחרי השקיעה.''',
-    isRelevant: _isMotzeiYomTov,
-    isHolidaySpecial: true,
-    defaultEnabled: true,
-    pairId: 'motzeiYT',
-    pairLabel: 'רגיל',
-    compute: (c) => c.cal.getSunset()?.add(const Duration(minutes: 34)),
-  ),
-  ZmanDefinition(
-    id: 'motzeiYomTovChazonIsh',
-    title: 'מוצאי יום טוב',
-    subtitle: 'חזו"א',
-    category: 'שבת וחג',
-    explanation: '''צאת יום טוב לחזון איש — 38 דקות אחרי השקיעה.''',
-    isRelevant: _isMotzeiYomTov,
-    isHolidaySpecial: true,
-    defaultEnabled: true,
-    pairId: 'motzeiYT',
+    pairId: 'motzei',
     pairLabel: 'חזו"א',
     compute: (c) => c.cal.getSunset()?.add(const Duration(minutes: 38)),
   ),
@@ -1329,6 +1302,12 @@ final List<ZmanDefinition> kZmanimRegistry = [
     compute: (c) => c.jewishCalendar.getSofZmanKidushLevana15Days(),
   ),
 ];
+
+/// מזהי זמנים שאוחדו לזמן אחר → המזהה הנוכחי, להגדרות שנשמרו לפני האיחוד.
+const Map<String, String> kLegacyZmanIds = {
+  'motzeiYomTov': 'motzeiShabbos',
+  'motzeiYomTovChazonIsh': 'motzeiShabbosChazonIsh',
+};
 
 /// סט מזהי הזמנים המוצגים כברירת מחדל (לפני שהמשתמש משנה העדפות).
 Set<String> get kDefaultEnabledZmanim => kZmanimRegistry

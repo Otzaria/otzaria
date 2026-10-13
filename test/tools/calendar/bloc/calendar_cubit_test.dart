@@ -616,6 +616,26 @@ void main() {
 
       await cubit.close();
     });
+
+    test('מזהי מוצאי יום טוב הישנים ממופים לזמן המאוחד', () async {
+      final settings = _InMemorySettingsRepository()
+        ..calendarEnabledZmanim =
+            '["motzeiYomTov","motzeiYomTovChazonIsh","sunset","noSuchZman"]';
+      final cubit = CalendarCubit(
+        settingsRepository: settings,
+        notificationService: _FakeNotificationService(),
+      );
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      expect(cubit.state.enabledZmanim, {
+        'motzeiShabbos',
+        'motzeiShabbosChazonIsh',
+        'sunset',
+        'noSuchZman',
+      });
+
+      await cubit.close();
+    });
   });
 
   group('CustomEvent JSON — תאריך סיום (מרובה-ימים)', () {

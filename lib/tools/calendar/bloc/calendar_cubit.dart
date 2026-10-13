@@ -284,7 +284,10 @@ class CalendarCubit extends Cubit<CalendarState> {
     try {
       final decoded = jsonDecode(jsonStr);
       if (decoded is! List) return zmanim_helpers.kDefaultEnabledZmanim;
-      return decoded.whereType<String>().toSet();
+      return decoded
+          .whereType<String>()
+          .map((id) => zmanim_helpers.kLegacyZmanIds[id] ?? id)
+          .toSet();
     } catch (_) {
       return zmanim_helpers.kDefaultEnabledZmanim;
     }

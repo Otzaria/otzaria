@@ -470,4 +470,112 @@ void main() {
       }
     });
   });
+
+  group('מוצאי שבת ויום טוב — רלוונטיות', () {
+    ZmanDefinition byId(String id) =>
+        kZmanimRegistry.singleWhere((d) => d.id == id);
+    final motzei = byId('motzeiShabbos');
+    final candleLighting = byId('candleLighting');
+
+    JewishCalendar day(
+      int year,
+      int month,
+      int dayOfMonth,
+      int dayOfWeek, {
+      bool inIsrael = true,
+    }) {
+      final jc = JewishCalendar.initDate(year, month, dayOfMonth)
+        ..inIsrael = inIsrael;
+      expect(jc.getDayOfWeek(), dayOfWeek, reason: '$year/$month/$dayOfMonth');
+      return jc;
+    }
+
+    bool isMotzei(JewishCalendar jc) => motzei.isRelevant!(jc);
+    bool hasCandles(JewishCalendar jc) => candleLighting.isRelevant!(jc);
+
+    const nissan = JewishDate.NISSAN;
+    const sivan = JewishDate.SIVAN;
+    const tishrei = JewishDate.TISHREI;
+
+    test('הזוג מאוחד תחת כותרת אחת ותנאי אחד', () {
+      final chazonIsh = byId('motzeiShabbosChazonIsh');
+      expect(motzei.title, 'מוצאי שבת ויום טוב');
+      expect(chazonIsh.title, motzei.title);
+      expect(chazonIsh.pairId, motzei.pairId);
+      expect(chazonIsh.isRelevant, same(motzei.isRelevant));
+      expect(
+        kZmanimRegistry.where((d) => d.id.startsWith('motzeiYomTov')),
+        isEmpty,
+      );
+    });
+
+    test('יום טוב ביום שישי — המוצאי רק במוצאי השבת שאחריו', () {
+      expect(isMotzei(day(5786, sivan, 6, 6)), isFalse);
+      expect(isMotzei(day(5786, sivan, 7, 7)), isTrue);
+    });
+
+    test('ראש השנה — רק ביום השני', () {
+      expect(isMotzei(day(5786, tishrei, 1, 3)), isFalse);
+      expect(isMotzei(day(5786, tishrei, 2, 4)), isTrue);
+      // ראש השנה שחל בשבת
+      expect(isMotzei(day(5787, tishrei, 1, 7)), isFalse);
+      expect(isMotzei(day(5787, tishrei, 2, 1)), isTrue);
+    });
+
+    test('יום טוב ראשון בחו"ל — לא מוצאי', () {
+      expect(isMotzei(day(5786, nissan, 15, 5)), isTrue);
+      expect(isMotzei(day(5786, nissan, 15, 5, inIsrael: false)), isFalse);
+      expect(isMotzei(day(5786, nissan, 16, 6, inIsrael: false)), isFalse);
+      expect(isMotzei(day(5786, nissan, 17, 7, inIsrael: false)), isTrue);
+    });
+
+    test('שבת שאחריה יום טוב — לא מוצאי', () {
+      expect(isMotzei(day(5785, nissan, 14, 7)), isFalse);
+      // שביעי של פסח בשבת: בארץ מוצאי, בחו"ל רק אחרי אחרון של פסח
+      expect(isMotzei(day(5785, nissan, 21, 7)), isTrue);
+      expect(isMotzei(day(5785, nissan, 21, 7, inIsrael: false)), isFalse);
+      expect(isMotzei(day(5785, nissan, 22, 1, inIsrael: false)), isTrue);
+    });
+
+    test('יום כיפור', () {
+      expect(isMotzei(day(5786, tishrei, 10, 5)), isTrue);
+      expect(isMotzei(day(5785, tishrei, 10, 7)), isTrue);
+    });
+
+    test('שמיני עצרת ושמחת תורה', () {
+      expect(isMotzei(day(5786, tishrei, 22, 3)), isTrue);
+      expect(isMotzei(day(5786, tishrei, 22, 3, inIsrael: false)), isFalse);
+      expect(isMotzei(day(5786, tishrei, 23, 4, inIsrael: false)), isTrue);
+      // שמחת תורה בחו"ל ביום שישי
+      expect(isMotzei(day(5785, tishrei, 23, 6, inIsrael: false)), isFalse);
+      expect(isMotzei(day(5785, tishrei, 24, 7, inIsrael: false)), isTrue);
+    });
+
+    test('בשלוש שנים: מוצאי בדיוק כשמחר מותר במלאכה', () {
+      for (final inIsrael in [true, false]) {
+        for (int i = 0; i < 3 * 366; i++) {
+          JewishCalendar at(int offset) =>
+              JewishCalendar.fromDateTime(DateTime(2024, 9, 1 + i + offset))
+                ..inIsrael = inIsrael;
+          final today = at(0);
+          expect(
+            isMotzei(today),
+            today.isAssurBemelacha() && !at(1).isAssurBemelacha(),
+            reason:
+                '${today.getJewishYear()}/${today.getJewishMonth()}/'
+                '${today.getJewishDayOfMonth()} inIsrael=$inIsrael',
+          );
+        }
+      }
+    });
+
+    test('הדלקת נרות — לא לפני השקיעה בשבת שלפני יום טוב', () {
+      expect(hasCandles(day(5786, nissan, 14, 4)), isTrue);
+      expect(hasCandles(day(5785, nissan, 14, 7)), isFalse);
+      // יום טוב ביום שישי: מדליקים לשבת מאש קיימת לפני השקיעה
+      expect(hasCandles(day(5786, sivan, 6, 6)), isTrue);
+      // לפני יום טוב שני מדליקים אחרי צאת הכוכבים, לא בזמן ההדלקה
+      expect(hasCandles(day(5786, tishrei, 1, 3)), isFalse);
+    });
+  });
 }
