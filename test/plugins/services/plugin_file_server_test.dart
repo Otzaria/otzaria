@@ -160,7 +160,7 @@ void main() {
     });
   });
 
-  test('CORS מוחזר ל-origin של file:// בלבד', () async {
+  test('CORS מוחזר רק ל-origin של file:// ושל סכימת התוסף', () async {
     final file = await writeFile('doc.txt', 'x');
     final reg = await server.register(pluginId: 'p1', canonicalPath: file.path);
 
@@ -169,6 +169,17 @@ void main() {
     final allowed = await fileOrigin.close();
     expect(allowed.headers.value('access-control-allow-origin'), 'null');
     await allowed.drain();
+
+    // במק התוסף מוגש מהסכימה otzaria-plugin://, ו-fetch ממנה דורש CORS.
+    const pluginOrigin = 'otzaria-plugin://com.example-plugin';
+    final assetOrigin = await client.getUrl(Uri.parse(reg.url));
+    assetOrigin.headers.set('origin', pluginOrigin);
+    final assetAllowed = await assetOrigin.close();
+    expect(
+      assetAllowed.headers.value('access-control-allow-origin'),
+      pluginOrigin,
+    );
+    await assetAllowed.drain();
 
     final webOrigin = await client.getUrl(Uri.parse(reg.url));
     webOrigin.headers.set('origin', 'https://evil.example.com');

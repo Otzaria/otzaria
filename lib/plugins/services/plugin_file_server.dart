@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:path/path.dart' as p;
 
 /// רשומת קובץ אישי שהמשתמש אישר לתוסף, כפי שהיא מוחזקת בזיכרון השרת.
@@ -421,11 +422,14 @@ class PluginFileServer {
   }
 
   /// `null` הוא ה-origin של דף file:// (ה-WebView הארוז); loopback הוא שרת
-  /// הפיתוח המקומי של תוסף development.
+  /// הפיתוח המקומי של תוסף development; [pluginAssetScheme] הוא ה-origin של
+  /// תוסף שמוגש דרך הסכימה הייעודית (במק) — בלעדיו fetch מהדף נחסם ב-CORS
+  /// ("Load failed") וכל שמירה בינארית נכשלת.
   bool _isAllowedOrigin(String origin) {
     if (origin == 'null') return true;
     final uri = Uri.tryParse(origin);
     if (uri == null) return false;
+    if (uri.scheme == pluginAssetScheme) return true;
     const loopbacks = {'127.0.0.1', 'localhost', '::1'};
     return loopbacks.contains(uri.host.toLowerCase());
   }
