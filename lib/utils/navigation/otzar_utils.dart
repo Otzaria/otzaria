@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -193,6 +194,20 @@ class OtzarUtils {
     } catch (e) {
       throw Exception('Failed to launch Otzar: $e');
     }
+  }
+
+  /// פותח בתוכנת אוצר החכמה כשהיא מותקנת והספר על הכונן, אחרת באתר.
+  static Future<bool> openBook(int? bookId, String link) async {
+    if (bookId != null &&
+        await canLaunchLocally() &&
+        await checkBookExistence(bookId)) {
+      // לא ממתינים: בגרסאות ישנות Process.run חוזר רק כשהתוכנה נסגרת.
+      unawaited(
+        launchOtzarLocal(bookId).catchError((_) => launchOtzarWeb(link)),
+      );
+      return true;
+    }
+    return launchOtzarWeb(link);
   }
 
   static Future<bool> launchOtzarWeb(String url) async {

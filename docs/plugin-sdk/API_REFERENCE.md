@@ -4092,7 +4092,8 @@ const { data } = await Otzaria.call('database.query', {
 });
 ```
 
-פתיחת ספר של אוצר החכמה לפי `book_id` (נפתח בדפדפן, כמו מהספרייה):
+פתיחת ספר של אוצר החכמה לפי `book_id` (בתוכנת אוצר החכמה כשהיא מותקנת והספר
+על הכונן, אחרת בדפדפן):
 
 ```javascript
 await Otzaria.call('reader.openBook', { external: { provider: 'otzar', id: 1234 } });
