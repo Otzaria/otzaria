@@ -174,21 +174,29 @@ class AttachedFindRefWorker {
 
   /// סוגר את ה-worker ואת כל חיבוריו — משחרר את קבצי המסדים (ניתוק, שינוי
   /// ברשימה). קריאות שממתינות נכשלות מיד, בלי להשבית את המסד.
-  void reset() {
+  /// מסתיים כשה-isolate יצא, כדי שמי שמחליף קובץ מסד יוכל להמתין לו.
+  Future<void> reset() {
     _failedUntil.clear();
-    _abandon();
+    return _abandon();
   }
 
-  void _abandon() {
+  Future<void> _abandon() {
     _generation++;
     for (final reply in _pending) {
       reply.close();
     }
     _pending.clear();
     _commandPort = null;
-    _isolate?.kill(priority: Isolate.immediate);
+    final isolate = _isolate;
     _isolate = null;
     _port = null;
+    if (isolate == null) return Future.value();
+    final exited = ReceivePort();
+    isolate.addOnExitListener(exited.sendPort);
+    isolate.kill(priority: Isolate.immediate);
+    return exited.first
+        .timeout(const Duration(seconds: 2), onTimeout: () => null)
+        .whenComplete(exited.close);
   }
 
   Future<SendPort> _spawn() async {

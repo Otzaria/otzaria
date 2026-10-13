@@ -455,5 +455,10 @@ void main() {
       identical(tree, ScopeTree.fromLibrary(library).officialOnly()),
       isTrue,
     );
+
+    final noPersonal = ScopeTree.fromLibrary(library).withoutUserBooks();
+    expect(noPersonal.rootNodes.map((n) => n.title), ['תנ״ך', 'מצורף']);
+    expect(noPersonal.allBookNodes().map((n) => n.title), ['בראשית', 'זר']);
+    expect(noPersonal.nodesByFacet.containsKey('/אישי'), isFalse);
   });
 }

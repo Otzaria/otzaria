@@ -1141,6 +1141,7 @@ class _FakeIndexingRepository extends IndexingRepository {
     List<CustomFolder>? customFolders,
     Set<String>? preservedHiddenUserBookKeys,
     List<AttachedLibrary>? attachedLibraries,
+    String? libraryRoot,
   }) async {
     dropOrphanedCalls++;
     return 0;

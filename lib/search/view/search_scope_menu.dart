@@ -45,6 +45,9 @@ class SearchScopeMenuButton extends StatefulWidget {
   /// מציג רק ספרים מהספרייה הרשמית (בחיפוש החכם — רק להם יש וקטורים).
   final bool officialBooksOnly;
 
+  /// מסתיר ספרים אישיים כשאינם באינדקס ("בלי ספרים אישיים").
+  final bool excludeUserBooks;
+
   const SearchScopeMenuButton({
     super.key,
     required this.selected,
@@ -52,6 +55,7 @@ class SearchScopeMenuButton extends StatefulWidget {
     this.width = 300,
     this.showChips = true,
     this.officialBooksOnly = false,
+    this.excludeUserBooks = false,
   });
 
   @override
@@ -77,8 +81,11 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
   Future<void>? _baseBookNodesFuture;
   int _baseBookGeneration = 0;
 
-  ScopeTree _visibleTree(ScopeTree tree) =>
-      widget.officialBooksOnly ? tree.officialOnly() : tree;
+  ScopeTree _visibleTree(ScopeTree tree) => widget.officialBooksOnly
+      ? tree.officialOnly()
+      : widget.excludeUserBooks
+      ? tree.withoutUserBooks()
+      : tree;
 
   Future<ScopeTree?> _ensureTree() async {
     final library = _library;

@@ -142,31 +142,41 @@ class ScopeTree {
   static final Expando<ScopeTree> _officialOnlyCache = Expando<ScopeTree>(
     'officialOnlyScopeTree',
   );
+  static final Expando<ScopeTree> _withoutUserBooksCache = Expando<ScopeTree>(
+    'withoutUserBooksScopeTree',
+  );
 
   /// העץ בלי ספרים אישיים ומצורפים, ובלי קטגוריות שנותרו ריקות.
-  ScopeTree officialOnly() {
-    return _officialOnlyCache[this] ??= () {
-      final nodesByFacet = <String, ScopeNode>{};
-      ScopeNode? prune(ScopeNode node) {
-        if (node is BookScopeNode) {
-          return node.book.source.isOfficial ? node : null;
-        }
-        final children = [
-          for (final child in node.children) ?prune(child),
-        ];
-        if (children.isEmpty) return null;
-        final pruned = CategoryScopeNode._pruned(node, children);
-        nodesByFacet[pruned.facet] = pruned;
-        for (final child in children) {
-          nodesByFacet[child.facet] = child;
-        }
-        return pruned;
-      }
+  ScopeTree officialOnly() => _officialOnlyCache[this] ??= _pruned(
+    (book) => book.source.isOfficial,
+  );
 
-      return ScopeTree._([
-        for (final node in rootNodes) ?prune(node),
-      ], nodesByFacet);
-    }();
+  /// העץ בלי ספרים אישיים, ובלי קטגוריות שנותרו ריקות.
+  ScopeTree withoutUserBooks() => _withoutUserBooksCache[this] ??= _pruned(
+    (book) => !book.source.isUser,
+  );
+
+  ScopeTree _pruned(bool Function(Book book) keep) {
+    final nodesByFacet = <String, ScopeNode>{};
+    ScopeNode? prune(ScopeNode node) {
+      if (node is BookScopeNode) {
+        return keep(node.book) ? node : null;
+      }
+      final children = [
+        for (final child in node.children) ?prune(child),
+      ];
+      if (children.isEmpty) return null;
+      final pruned = CategoryScopeNode._pruned(node, children);
+      nodesByFacet[pruned.facet] = pruned;
+      for (final child in children) {
+        nodesByFacet[child.facet] = child;
+      }
+      return pruned;
+    }
+
+    return ScopeTree._([
+      for (final node in rootNodes) ?prune(node),
+    ], nodesByFacet);
   }
 
   // --- שאילתות מצב ---

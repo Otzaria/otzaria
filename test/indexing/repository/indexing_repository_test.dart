@@ -3630,7 +3630,15 @@ void main() {
         path: pdfFile.path,
         source: BookSource.user,
       );
-      final hiddenFolderPdf = p.join(root.path, 'מוסתרת', 'אחר.pdf');
+      final hiddenFolder = io.Directory(p.join(root.path, 'מוסתרת'))
+        ..createSync();
+      final hiddenFolderPdf = p.join(hiddenFolder.path, 'אחר.pdf');
+      // ספרייה שנמצאת בתוך תיקייה אישית — הקבצים שלה אינם אישיים.
+      final nestedLibrary = p.join(hiddenFolder.path, 'ספרייה');
+      final nestedLibraryPdf = p.join(nestedLibrary, 'רשמי.pdf');
+      io.File(nestedLibraryPdf)
+        ..createSync(recursive: true)
+        ..writeAsStringSync('');
       library.books.addAll([officialBook, personalText, personalPdf]);
       provider.indexedFilePaths.addAll({
         'id:7',
@@ -3639,6 +3647,7 @@ void main() {
         IndexingRepository.buildIndexedBookFilePath(personalPdf),
         'uid:99', // ספר מתיקייה מוסתרת — אינו בעץ
         hiddenFolderPdf,
+        nestedLibraryPdf,
       });
 
       final removed =
@@ -3649,14 +3658,20 @@ void main() {
             library,
             customFolders: [
               CustomFolder(path: root.path, addedAt: DateTime(2026)),
+              CustomFolder(
+                path: hiddenFolder.path,
+                hidden: true,
+                addedAt: DateTime(2026),
+              ),
             ],
             preservedHiddenUserBookKeys: {'uid:99'},
             attachedLibraries: const [],
+            libraryRoot: nestedLibrary,
           );
 
       expect(removed, 4);
       expect(engine.commitCount, 1);
-      expect(provider.indexedFilePaths, {'id:7', 'ext:abc'});
+      expect(provider.indexedFilePaths, {'id:7', 'ext:abc', nestedLibraryPdf});
     });
 
     test('במצב "כל הספרים" הספרים האישיים נשמרים', () async {

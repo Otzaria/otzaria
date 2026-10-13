@@ -549,6 +549,10 @@ class DatabaseGenerator {
 
     const batchSize = 1000;
     final linesBatch = <Line>[];
+    repository.lineContentWriter?.announceBook(
+      bookId,
+      lines.fold(0, (sum, line) => sum + line.length),
+    );
 
     // heRef נגזר מ-currentReference ומשתנה רק בשורות כותרת — מחשבים פעם אחת
     // לכל שינוי כותרת ומשתמשים מחדש בשאר השורות.

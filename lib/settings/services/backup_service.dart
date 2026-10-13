@@ -34,7 +34,11 @@ import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
+import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
@@ -576,7 +580,18 @@ class BackupService {
   ) async {
     final dbPath = await AppPaths.resolveUserBooksDbPath();
     final source = File(dbPath);
-    if (!await source.exists() || await source.length() == 0) return null;
+    if (!await source.exists()) return null;
+    final sourceBytes = await source.length();
+    if (sourceBytes == 0) return null;
+    final budget = store != null
+        ? maxPluginBytesWithStore
+        : maxPluginBytesInline;
+    // VACUUM INTO מעתיק את כל המסד לדיסק — לא עבור מסד שממילא יידחה.
+    if (sourceBytes > budget) {
+      _logger.warning('Skipping user_books.db backup: $sourceBytes bytes');
+      skippedSections.add('userBooks');
+      return null;
+    }
     final tempDir = await Directory.systemTemp.createTemp(
       'otzaria_user_books_',
     );
@@ -584,9 +599,6 @@ class BackupService {
       final snapshot = p.join(tempDir.path, 'user_books.db');
       await Isolate.run(() => _vacuumInto(dbPath, snapshot));
       final file = File(snapshot);
-      final budget = store != null
-          ? maxPluginBytesWithStore
-          : maxPluginBytesInline;
       if (await file.length() > budget) {
         throw StateError('user_books.db גדול מתקרת הגיבוי');
       }
@@ -612,8 +624,18 @@ class BackupService {
     }
   }
 
-  /// מחליף את user_books.db בעותק מהגיבוי; false כשלא הוחלף.
-  static Future<bool> _restoreUserBooksDb(
+  /// מוחק מהאינדקס את רשומות `uid:` — אחרי החלפת user_books.db אותו מזהה
+  /// עשוי לציין ספר אחר. false כשהמחיקה נכשלה.
+  @visibleForTesting
+  static Future<bool> Function() dropUserBookIndexEntries = () {
+    final repository = IndexingRepository(TantivyDataProvider.instance);
+    // אינדוקס שרץ היה מוסיף שוב רשומות לפי המזהים הישנים.
+    repository.cancelIndexing();
+    return repository.dropUserBookEntries();
+  };
+
+  /// מחליף את user_books.db בעותק מהגיבוי.
+  static Future<_UserBooksRestore> _restoreUserBooksDb(
     String value,
     List<BackupStore> stores,
   ) async {
@@ -631,25 +653,54 @@ class BackupService {
         bytes.length < header.length ||
         String.fromCharCodes(bytes.take(header.length)) != header) {
       _logger.warning('user_books.db in backup is missing or not SQLite');
-      return false;
+      return _UserBooksRestore.missing;
     }
     final dbPath = await AppPaths.resolveUserBooksDbPath();
     final staged = File('$dbPath.restore');
     try {
       await staged.writeAsBytes(bytes, flush: true);
-      await UserBooksDatabaseHolder.instance.close();
-      // WAL של המסד הקודם שנשאר ליד העותק היה מוחל עליו ומשחית אותו.
-      for (final suffix in const ['-wal', '-shm']) {
-        final sidecar = File('$dbPath$suffix');
-        if (await sidecar.exists()) await sidecar.delete();
-      }
-      await staged.rename(dbPath);
-      return true;
     } catch (e) {
-      _logger.warning('Failed to restore user_books.db: $e');
-      if (await staged.exists()) await staged.delete();
-      return false;
+      _logger.warning('Failed to stage user_books.db: $e');
+      return _discardStaged(staged);
     }
+    // התור ממתין לסנכרון תיקיות או לעדכון שרץ, וחוסם חדשים עד סוף ההחלפה.
+    final replaced = await DatabaseLibraryProvider.operationQueue.enqueue(
+      () async {
+        await AttachedFindRefWorker.instance.reset();
+        await UserBooksDatabaseHolder.instance.close();
+        // סינכרוני מכאן: await היה מאפשר לקורא לפתוח שוב את המסד הישן.
+        try {
+          // WAL של המסד הקודם שנשאר ליד העותק היה מוחל עליו ומשחית אותו.
+          for (final suffix in const ['-wal', '-shm']) {
+            final sidecar = File('$dbPath$suffix');
+            if (sidecar.existsSync()) sidecar.deleteSync();
+          }
+          staged.renameSync(dbPath);
+          return true;
+        } catch (e) {
+          _logger.warning('Failed to replace user_books.db: $e');
+          return false;
+        }
+      },
+    );
+    if (!replaced) return _discardStaged(staged);
+    try {
+      if (!await dropUserBookIndexEntries()) {
+        _logger.warning('Failed to drop personal books from the search index');
+      }
+    } catch (e) {
+      _logger.warning(
+        'Failed to drop personal books from the search index: $e',
+      );
+    }
+    return _UserBooksRestore.restored;
+  }
+
+  static Future<_UserBooksRestore> _discardStaged(File staged) async {
+    try {
+      if (await staged.exists()) await staged.delete();
+    } catch (_) {}
+    return _UserBooksRestore.notReplaced;
   }
 
   /// Backup workspaces
@@ -764,6 +815,7 @@ class BackupService {
   /// לפני שהעיגון נכנס לגיבוי), ולכן תסומנה על כל השורה במקום על המילים.
   /// [restoredPlugins] — plugins restored from the file; they come back
   /// disabled until the user enables them.
+  /// [userBooksNotReplaced] — user_books.db בגיבוי, אך הקובץ הנוכחי לא הוחלף.
   /// [added] — מה נוסף בפועל; רק ב-[BackupImportMode.merge], ובשחזור `null`.
   ///
   /// [mode] — `replace` (ברירת מחדל) מחליף את הנתונים הקיימים; `merge` מייבא
@@ -776,6 +828,7 @@ class BackupService {
       bool hasLegacyPartialSettings,
       int notesWithoutAnchor,
       int restoredPlugins,
+      bool userBooksNotReplaced,
       BackupImportCounts? added,
     })
   >
@@ -822,6 +875,7 @@ class BackupService {
     final includes = backupData['includes'] as Map<String, dynamic>;
 
     final runtimeSkipped = <String>[];
+    var userBooksNotReplaced = false;
     final isMerge = mode == BackupImportMode.merge;
     final counts = isMerge ? BackupImportCounts() : null;
 
@@ -851,9 +905,15 @@ class BackupService {
           (backupData['reportQueues'] as Map?)?.cast<String, dynamic>(),
         );
         final userBooks = backupData['userBooks'];
-        if (userBooks is String &&
-            !await _restoreUserBooksDb(userBooks, stores)) {
-          runtimeSkipped.add('userBooks');
+        if (userBooks is String) {
+          switch (await _restoreUserBooksDb(userBooks, stores)) {
+            case _UserBooksRestore.restored:
+              break;
+            case _UserBooksRestore.missing:
+              runtimeSkipped.add('userBooks');
+            case _UserBooksRestore.notReplaced:
+              userBooksNotReplaced = true;
+          }
         }
       }
       final perBookHadFailures = await _restorePerBookSettings(
@@ -958,6 +1018,7 @@ class BackupService {
       hasLegacyPartialSettings: hasLegacyPartialSettings,
       notesWithoutAnchor: notesWithoutAnchor,
       restoredPlugins: restoredPlugins,
+      userBooksNotReplaced: userBooksNotReplaced,
       added: counts,
     );
   }
@@ -1914,3 +1975,5 @@ class BackupService {
     return false;
   }
 }
+
+enum _UserBooksRestore { restored, missing, notReplaced }

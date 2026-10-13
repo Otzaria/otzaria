@@ -44,12 +44,15 @@ final class LineContentEncoder implements Finalizable {
 
   static NativeFinalizer? _freeCDict;
   static NativeFinalizer? _freeCCtx;
+  // ה-worker של הסנכרון נהרג בלי finally, ואז רק ה-finalizer משחרר.
+  static final _freeBuffer = NativeFinalizer(malloc.nativeFree);
 
   late final ZstandardNativeBindings _zstd;
   Pointer<ZSTD_CDict> _cdict = nullptr;
   Pointer<ZSTD_CCtx> _cctx = nullptr;
   final _cdictToken = Object();
   final _cctxToken = Object();
+  final _bufferToken = Object();
   Pointer<Uint8> _buffer = nullptr;
   int _capacity = 0;
 
@@ -85,9 +88,10 @@ final class LineContentEncoder implements Finalizable {
 
   Pointer<Uint8> _reserve(int bytes) {
     if (bytes > _capacity) {
-      if (_buffer != nullptr) malloc.free(_buffer);
+      _freeOwnBuffer();
       _capacity = bytes < 64 * 1024 ? 64 * 1024 : bytes + bytes ~/ 4;
       _buffer = malloc<Uint8>(_capacity);
+      _freeBuffer.attach(this, _buffer.cast(), detach: _bufferToken);
     }
     return _buffer;
   }
@@ -103,11 +107,15 @@ final class LineContentEncoder implements Finalizable {
       _zstd.ZSTD_freeCDict(_cdict);
       _cdict = nullptr;
     }
-    if (_buffer != nullptr) {
-      malloc.free(_buffer);
-      _buffer = nullptr;
-      _capacity = 0;
-    }
+    _freeOwnBuffer();
+  }
+
+  void _freeOwnBuffer() {
+    if (_buffer == nullptr) return;
+    _freeBuffer.detach(_bufferToken);
+    malloc.free(_buffer);
+    _buffer = nullptr;
+    _capacity = 0;
   }
 }
 
@@ -128,23 +136,69 @@ final class LineContentWriter {
   LineContentWriter(
     this._source, {
     this.level = LineContentEncoder.defaultLevel,
+    this.minBookChars = defaultMinBookChars,
   });
+
+  /// כ-3MB של טקסט עברי: מתחת לזה מילון של 2MB אינו מחזיר את עצמו.
+  static const defaultMinBookChars = 1536 * 1024;
 
   final sqlite3.Database _source;
   final int level;
 
+  /// גודל ספר (בתווים) שממנו מעתיקים מילון למסד שעוד אין בו.
+  final int minBookChars;
+
   bool _sourceRead = false;
   ({int id, Uint8List dict})? _dictionary;
   LineContentEncoder? _encoder;
+  int? _encoderRowId;
+  final Map<int, int> _bookChars = {};
+
+  /// גודל הספר [bookId] בתווים, לפני כתיבת שורותיו.
+  void announceBook(int bookId, int chars) => _bookChars[bookId] = chars;
 
   /// המקודד ל-[target], אחרי שהמילון שלו הועתק אליו. נקרא בתוך הטרנזקציה
   /// שכותבת את השורות, כדי שמסגרת לא תישמר בלי המילון שלה.
-  LineContentEncoder? encoderFor(sqlite3.Database target) {
+  LineContentEncoder? encoderFor(
+    sqlite3.Database target, {
+    required int bookId,
+  }) {
+    final installed = _installedEncoder(target);
+    if (installed != null) return installed;
+    if ((_bookChars[bookId] ?? 0) < minBookChars) return null;
     final dictionary = _readSourceDictionary();
     if (dictionary == null) return null;
     // בכל אצווה: טרנזקציה שבוטלה מבטלת גם את העתקת המילון.
     if (!_install(target, dictionary)) return null;
-    return _encoder ??= LineContentEncoder(dictionary.dict, level: level);
+    return _encoderOf(dictionary.id, dictionary.dict);
+  }
+
+  /// מילון שכבר ב-[target] משמש גם לספרים הבאים: מילון חדש מהספרייה היה
+  /// מוסיף עוד 2MB בכל אימון מחדש שם.
+  LineContentEncoder? _installedEncoder(sqlite3.Database target) {
+    final hasTable = target.select(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'zstd_dict'",
+    );
+    if (hasTable.isEmpty) return null;
+    final ids = target.select('SELECT id FROM zstd_dict ORDER BY id DESC');
+    if (ids.isEmpty) return null;
+    final rowId = ids.first.values.first! as int;
+    if (rowId == _encoderRowId) return _encoder;
+    final dict = target
+        .select('SELECT dict FROM zstd_dict WHERE id = ?', [rowId])
+        .first
+        .values
+        .first;
+    if (dict is! Uint8List || zstdDictionaryId(dict) == null) return null;
+    return _encoderOf(rowId, dict);
+  }
+
+  LineContentEncoder _encoderOf(int rowId, Uint8List dict) {
+    if (rowId == _encoderRowId) return _encoder!;
+    _encoder?.dispose();
+    _encoder = LineContentEncoder(dict, level: level);
+    _encoderRowId = rowId;
+    return _encoder!;
   }
 
   ({int id, Uint8List dict})? _readSourceDictionary() {
@@ -213,5 +267,6 @@ final class LineContentWriter {
   void dispose() {
     _encoder?.dispose();
     _encoder = null;
+    _encoderRowId = null;
   }
 }

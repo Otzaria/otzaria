@@ -36,6 +36,7 @@ import 'package:otzaria/search/utils/category_query_parser.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/search/view/advanced_search_controls.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -1570,6 +1571,8 @@ class _SearchDialogState extends State<SearchDialog> {
         ? SearchScopeMenuButton(
             selected: _scopeSelection,
             onChanged: _onScopeChanged,
+            excludeUserBooks:
+                !IndexUpdateMode.readStored().indexesPersonalBooks,
           )
         : null;
 

@@ -132,27 +132,34 @@ void main() {
         .select("SELECT 1 FROM sqlite_master WHERE name = 'zstd_dict'")
         .isNotEmpty;
 
-    test('עם מילון בספרייה: המילון מועתק והשורות הארוכות נדחסות', () async {
+    test(
+      'ספר גדול עם מילון בספרייה: המילון מועתק והשורות הארוכות נדחסות',
+      () async {
+        repository.lineContentWriter = LineContentWriter(
+          librarySource(dictionary),
+          minBookChars: 0,
+        );
+        final bookId = await importBook();
+
+        expect(await storageTypes(bookId), [
+          'text',
+          'blob',
+          'text',
+          'text',
+          'blob',
+        ]);
+        final db = await userBooks.database;
+        final copied = db.select('SELECT id, dict FROM zstd_dict');
+        expect(copied.single.values, [dictionaryId, dictionary]);
+        expect(await userBooks.lineDao.selectContentByBookId(bookId), lines);
+      },
+      skip: skip,
+    );
+
+    test('ספר קטן ומסד בלי מילון: טקסט, בלי zstd_dict', () async {
       repository.lineContentWriter = LineContentWriter(
         librarySource(dictionary),
       );
-      final bookId = await importBook();
-
-      expect(await storageTypes(bookId), [
-        'text',
-        'blob',
-        'text',
-        'text',
-        'blob',
-      ]);
-      final db = await userBooks.database;
-      final copied = db.select('SELECT id, dict FROM zstd_dict');
-      expect(copied.single.values, [dictionaryId, dictionary]);
-      expect(await userBooks.lineDao.selectContentByBookId(bookId), lines);
-    }, skip: skip);
-
-    test('בלי מילון בספרייה: טקסט כמו היום, בלי zstd_dict', () async {
-      repository.lineContentWriter = LineContentWriter(librarySource(null));
       final bookId = await importBook();
 
       expect(await storageTypes(bookId), everyElement('text'));
@@ -160,27 +167,49 @@ void main() {
       expect(await userBooks.lineDao.selectContentByBookId(bookId), lines);
     });
 
-    test('מילון חדש בספרייה נוסף ליד הישן, והשורות הישנות נקראות', () async {
-      final db = await userBooks.database;
-      final oldWriter = LineContentWriter(librarySource(dictionary));
-      final oldFrame = oldWriter.encoderFor(db)!.encode(_longLine)!;
-      oldWriter.dispose();
-
-      final retrained = _withDictionaryId(dictionary, dictionaryId + 1);
+    test('בלי מילון בספרייה: טקסט כמו היום, בלי zstd_dict', () async {
       repository.lineContentWriter = LineContentWriter(
-        librarySource(retrained),
+        librarySource(null),
+        minBookChars: 0,
       );
       final bookId = await importBook();
 
-      expect(
-        db.select('SELECT id FROM zstd_dict ORDER BY id').map((r) => r['id']),
-        [dictionaryId, dictionaryId + 1],
-      );
+      expect(await storageTypes(bookId), everyElement('text'));
+      expect(await hasDictionaryTable(), isFalse);
       expect(await userBooks.lineDao.selectContentByBookId(bookId), lines);
-      expect(LineContentCodec.of(db).text(oldFrame), _longLine);
-    }, skip: skip);
+    });
 
-    test('מזהה תפוס במילון אחר: השורות נשמרות כטקסט', () async {
+    test(
+      'מילון שכבר במסד משמש גם לספר קטן, ומילון חדש בספרייה אינו נוסף',
+      () async {
+        final db = await userBooks.database;
+        final oldWriter = LineContentWriter(
+          librarySource(dictionary),
+          minBookChars: 0,
+        );
+        final oldFrame = oldWriter
+            .encoderFor(db, bookId: 0)!
+            .encode(_longLine)!;
+        oldWriter.dispose();
+
+        final retrained = _withDictionaryId(dictionary, dictionaryId + 1);
+        repository.lineContentWriter = LineContentWriter(
+          librarySource(retrained),
+        );
+        final bookId = await importBook();
+
+        expect(
+          db.select('SELECT id FROM zstd_dict ORDER BY id').map((r) => r['id']),
+          [dictionaryId],
+        );
+        expect(await storageTypes(bookId), contains('blob'));
+        expect(await userBooks.lineDao.selectContentByBookId(bookId), lines);
+        expect(LineContentCodec.of(db).text(oldFrame), _longLine);
+      },
+      skip: skip,
+    );
+
+    test('מילון קיים במסד אינו מוחלף במילון הספרייה בעל אותו מזהה', () async {
       final db = await userBooks.database;
       final collision = Uint8List.fromList(dictionary)
         ..[dictionary.length - 1] ^= 0xFF;
@@ -194,13 +223,14 @@ void main() {
       ]);
       repository.lineContentWriter = LineContentWriter(
         librarySource(dictionary),
+        minBookChars: 0,
       );
       final bookId = await importBook();
 
-      expect(await storageTypes(bookId), everyElement('text'));
       expect(db.select('SELECT dict FROM zstd_dict').single.values, [
         collision,
       ]);
+      expect(await userBooks.lineDao.selectContentByBookId(bookId), lines);
     }, skip: skip);
 
     test(
@@ -213,6 +243,7 @@ void main() {
 
         repository.lineContentWriter = LineContentWriter(
           librarySource(dictionary),
+          minBookChars: 0,
         );
         final bookId = await importBook();
 
@@ -229,14 +260,13 @@ void main() {
 
         // מילון נוסף בחיבור השני: גם מזהה חדש נטען בלי לפתוח מחדש.
         final retrained = _withDictionaryId(dictionary, dictionaryId + 1);
-        final writer = LineContentWriter(librarySource(retrained));
-        addTearDown(writer.dispose);
-        final frame = writer
-            .encoderFor(await userBooks.database)!
-            .encode(
-              _longLine,
-            )!;
-        expect(codec.text(frame), _longLine);
+        (await userBooks.database).execute(
+          'INSERT INTO zstd_dict VALUES (?, ?)',
+          [dictionaryId + 1, retrained],
+        );
+        final encoder = LineContentEncoder(retrained);
+        addTearDown(encoder.dispose);
+        expect(codec.text(encoder.encode(_longLine)!), _longLine);
       },
       skip: skip,
     );

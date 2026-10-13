@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' hide Category;
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/info/personal_folders_info.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/messages/window_messages.dart';
@@ -2059,6 +2060,15 @@ class IndexingRepository {
     return true;
   }
 
+  /// מוחק את כל רשומות הספרים האישיים (`uid:`); false כשהמחיקה נכשלה.
+  Future<bool> dropUserBookEntries() async {
+    await _tantivyDataProvider.engine;
+    return _deleteIndexedFilePaths({
+      for (final key in _tantivyDataProvider.indexedFilePaths)
+        if (key.startsWith('uid:')) key,
+    });
+  }
+
   /// מסיר מהאינדקס רשומות "יתומות" — ספרים שכבר אינם בספרייה (למשל ספר
   /// אישי שנמחק או תיקייה מותאמת שהוסרה). בלעדי זה מסמכי הספר ממשיכים
   /// לעלות בחיפוש, וגרוע מזה: מזהי המסמכים שלהם (המקודדים לפי סדר קטלוגי)
@@ -2076,6 +2086,7 @@ class IndexingRepository {
     @visibleForTesting List<CustomFolder>? customFolders,
     @visibleForTesting Set<String>? preservedHiddenUserBookKeys,
     @visibleForTesting List<AttachedLibrary>? attachedLibraries,
+    @visibleForTesting String? libraryRoot,
   }) async {
     if (WindowRole.isSecondary) return 0;
     final books = library.getIndexableBooks();
@@ -2114,10 +2125,22 @@ class IndexingRepository {
         : preservedHiddenUserBookKeys ??
               await _hiddenUserBookIndexKeys(folders);
 
-    final isAttachedOrphan = _attachedOrphanRule(
-      books,
-      attachedLibraries ?? _registeredAttachedLibraries(),
-    );
+    final attached = attachedLibraries ?? _registeredAttachedLibraries();
+    final isAttachedOrphan = _attachedOrphanRule(books, attached);
+
+    // ספרי תיקייה מוסתרת אינם בעץ ומזוהים לפי שורשה; ספרייה או מסד מצורף
+    // שבתוכה אינם אישיים. null — לא ידוע מה מוגן, ולא מוחקים.
+    final hiddenFolderNames = CustomFoldersManager.hiddenFolderNames(folders);
+    final hiddenPersonalRoots = [
+      for (final folder in folders)
+        if (hiddenFolderNames.contains(folder.name) &&
+            !unreachableRoots.contains(folder.path))
+          folder.path,
+    ];
+    final protectedRoots =
+        mode.indexesPersonalBooks || hiddenPersonalRoots.isEmpty
+        ? null
+        : await _nonPersonalRoots(libraryRoot, attached);
 
     final orphans = <String>{};
     // snapshot — הלולאה מכילה await ואסור שהסט החי ישתנה תחתיה.
@@ -2134,9 +2157,11 @@ class IndexingRepository {
       } else if (key.startsWith('db:')) {
         if (isAttachedOrphan(key)) orphans.add(key);
       } else if (p.isAbsolute(key) &&
-          !mode.indexesPersonalBooks &&
-          folders.any((folder) => p.isWithin(folder.path, key))) {
-        // ספר מתיקייה מוסתרת אינו בעץ, ולכן מזוהה לפי שורש התיקייה.
+          protectedRoots != null &&
+          hiddenPersonalRoots.any((root) => p.isWithin(root, key)) &&
+          !protectedRoots.any(
+            (root) => p.equals(root, key) || p.isWithin(root, key),
+          )) {
         orphans.add(key);
       } else if (p.isAbsolute(key) &&
           !unreachableRoots.any((root) => p.isWithin(root, key)) &&
@@ -2151,6 +2176,23 @@ class IndexingRepository {
     if (!await _deleteIndexedFilePaths(orphans)) return 0;
     debugPrint('🧹 נוקו ${orphans.length} ספרים יתומים מהאינדקס');
     return orphans.length;
+  }
+
+  static Future<List<String>?> _nonPersonalRoots(
+    String? libraryRoot,
+    List<AttachedLibrary>? attached,
+  ) async {
+    if (attached == null) return null;
+    String? root = libraryRoot;
+    if (root == null) {
+      try {
+        root = await AppPaths.getLibraryPath();
+      } catch (error) {
+        debugPrint('⚠️ לא ניתן לקרוא את נתיב הספרייה: $error');
+        return null;
+      }
+    }
+    return [root, for (final library in attached) p.dirname(library.path)];
   }
 
   /// null — הרשימה לא נקראה, ואז אף מפתח `db:` אינו נמחק.

@@ -45,8 +45,14 @@ void main() {
 
   late Directory tempDir;
   late Box<dynamic> box;
+  var userBookIndexDrops = 0;
 
   setUp(() async {
+    userBookIndexDrops = 0;
+    BackupService.dropUserBookIndexEntries = () async {
+      userBookIndexDrops++;
+      return true;
+    };
     tempDir = await Directory.systemTemp.createTemp('backup_service_test_');
     Hive.init(tempDir.path);
     box = await Hive.openBox<dynamic>(HiveCache.keyName);
@@ -255,6 +261,9 @@ void main() {
 
       final restored = await BackupService.restoreFromBackup(result.path);
       expect(restored.skippedSections, isNot(contains('userBooks')));
+      expect(restored.userBooksNotReplaced, isFalse);
+      // אותו `uid:` עשוי לציין עכשיו ספר אחר — רשומות האינדקס נמחקות.
+      expect(userBookIndexDrops, 1);
       expect(File('$dbPath-wal').existsSync(), isFalse);
       final db = sqlite3.sqlite3.open(dbPath);
       addTearDown(db.close);
@@ -262,6 +271,35 @@ void main() {
         'ספר שקובצו נמחק',
       ]);
     },
+  );
+
+  test(
+    'user_books.db נעול: השחזור מדווח שלא הוחלף, ולא כחסר בגיבוי',
+    () async {
+      final dbPath = await AppPaths.resolveUserBooksDbPath();
+      final original = sqlite3.sqlite3.open(dbPath)
+        ..execute('CREATE TABLE line (id INTEGER PRIMARY KEY, content)')
+        ..execute("INSERT INTO line (content) VALUES ('מקורי')");
+      addTearDown(original.close);
+
+      final result = await BackupService.createBackup(
+        includeSettings: true,
+        includeBookmarks: false,
+        includeHistory: false,
+        includeNotes: false,
+        includeWorkspaces: false,
+        includeShamorZachor: false,
+        includePlugins: false,
+      );
+      final restored = await BackupService.restoreFromBackup(result.path);
+
+      expect(restored.userBooksNotReplaced, isTrue);
+      expect(restored.skippedSections, isNot(contains('userBooks')));
+      expect(userBookIndexDrops, 0);
+      expect(File('$dbPath.restore').existsSync(), isFalse);
+    },
+    // רק ב-Windows חיבור פתוח מונע את החלפת הקובץ.
+    skip: !Platform.isWindows,
   );
 
   test('שחזור user_books.db סוגר אותו במנוע החיפוש לפני ההחלפה, ופתיחה '

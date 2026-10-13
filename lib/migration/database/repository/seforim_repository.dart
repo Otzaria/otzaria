@@ -1445,7 +1445,10 @@ class SeforimRepository {
 
     final db = await _database.database;
     withTransaction(db, () {
-      final encoder = lineContentWriter?.encoderFor(db);
+      final encoder = lineContentWriter?.encoderFor(
+        db,
+        bookId: lines.first.bookId,
+      );
       // הכנה חד-פעמית של ה-statement — sqlite3 מכין מחדש בכל db.execute,
       // ובאצווה של 80 אלף שורות זה הצוואר.
       final stmt = db.prepare(
