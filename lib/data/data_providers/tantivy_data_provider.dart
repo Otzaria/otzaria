@@ -13,6 +13,7 @@ import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
 
 /// A singleton class that manages search functionality using Tantivy search engine.
 ///
@@ -109,7 +110,7 @@ class TantivyDataProvider {
       indexStateIsKnown: indexedFilePathsLoaded && !isTempFallback,
     );
     if (indexedFilePathsLoaded && !isTempFallback && !_catalogueOrderStale) {
-      await _migratePersonalOrderRange(engine, indexPath);
+      await migratePersonalOrderRange(engine, indexPath, indexedFilePaths);
     }
 
     // indexedFilePaths כעת משקפת את מצב האינדקס בפועל. צרכנים שמסיקים
@@ -193,11 +194,14 @@ class TantivyDataProvider {
   }
 
   /// אינדקס שנבנה לפני טווח הסדר של הספרים האישיים: רשומות `uid:` נמחקות פעם
-  /// אחת ויאונדקסו מחדש, ושאר הספרים שומרים את הסדר שלהם.
-  Future<void> _migratePersonalOrderRange(
+  /// אחת ויאונדקסו מחדש. כשהעדכון האוטומטי כבוי — נדחה להפעלה שבה יאונדקסו.
+  @visibleForTesting
+  static Future<void> migratePersonalOrderRange(
     SearchEngine engine,
     String indexPath,
-  ) async {
+    Set<String> indexedFilePaths, {
+    IndexUpdateMode Function() mode = IndexUpdateMode.readStored,
+  }) async {
     if (WindowRole.isSecondary ||
         CatalogueOrderRevision.hasPersonalOrderRange(indexPath)) {
       return;
@@ -206,18 +210,20 @@ class TantivyDataProvider {
       for (final key in indexedFilePaths)
         if (key.startsWith('uid:')) key,
     ];
+    if (personalKeys.isNotEmpty && !mode().isAutomatic) return;
+    // החותם קודם: כשל בו אחרי מחיקה היה מוחק ומאנדקס מחדש בכל הפעלה.
+    if (!CatalogueOrderRevision.write(indexPath)) return;
+    if (personalKeys.isEmpty) return;
     try {
-      if (personalKeys.isNotEmpty) {
-        await engine.deleteDocumentsByFilePaths(filePaths: personalKeys);
-        await engine.commit();
-        indexedFilePaths.removeAll(personalKeys);
-      }
-      CatalogueOrderRevision.write(indexPath);
+      await engine.deleteDocumentsByFilePaths(filePaths: personalKeys);
+      await engine.commit();
+      indexedFilePaths.removeAll(personalKeys);
     } catch (e) {
       debugPrint('⚠️ מחיקת הספרים האישיים בסדר הישן נכשלה: $e');
       try {
         await engine.rollback();
       } catch (_) {}
+      CatalogueOrderRevision.write(indexPath, personalOrderRange: false);
     }
   }
 

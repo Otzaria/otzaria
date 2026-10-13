@@ -37,7 +37,6 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
-import 'package:otzaria/find_ref/repository/attached_find_ref_worker.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/core/user_state/pending_report_store.dart';
@@ -627,10 +626,14 @@ class BackupService {
   /// מוחק מהאינדקס את רשומות `uid:` — אחרי החלפת user_books.db אותו מזהה
   /// עשוי לציין ספר אחר. false כשהמחיקה נכשלה.
   @visibleForTesting
-  static Future<bool> Function() dropUserBookIndexEntries = () {
+  static Future<bool> Function() dropUserBookIndexEntries = () async {
     final repository = IndexingRepository(TantivyDataProvider.instance);
     // אינדוקס שרץ היה מוסיף שוב רשומות לפי המזהים הישנים.
     repository.cancelIndexing();
+    await IndexingRepository.whenIdle().timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {},
+    );
     return repository.dropUserBookEntries();
   };
 
@@ -666,7 +669,7 @@ class BackupService {
     // התור ממתין לסנכרון תיקיות או לעדכון שרץ, וחוסם חדשים עד סוף ההחלפה.
     final replaced = await DatabaseLibraryProvider.operationQueue.enqueue(
       () async {
-        await AttachedFindRefWorker.instance.reset();
+        // ממתין גם ל-worker המשני של איתור המקורות (מאזין הסגירה).
         await UserBooksDatabaseHolder.instance.close();
         // סינכרוני מכאן: await היה מאפשר לקורא לפתוח שוב את המסד הישן.
         try {

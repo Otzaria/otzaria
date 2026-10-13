@@ -66,6 +66,10 @@ class BackupMerge {
     final reportQueues = newer['reportQueues'] ?? older['reportQueues'];
     if (reportQueues != null) result['reportQueues'] = reportQueues;
 
+    // user_books.db הוא עותק שלם אחד — החדש מנצח.
+    final userBooks = newer['userBooks'] ?? older['userBooks'];
+    if (userBooks != null) result['userBooks'] = userBooks;
+
     final bookmarks = _mergeItemLists(
       older['bookmarks'],
       newer['bookmarks'],

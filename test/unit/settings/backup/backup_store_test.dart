@@ -80,8 +80,9 @@ void main() {
     });
   });
 
-  test('collectRefs אוסף הפניות מסעיפי files ו-data בלבד', () {
+  test('collectRefs אוסף הפניות מסעיפי files ו-data ומ-user_books.db', () {
     final manifest = {
+      'userBooks': 'sha256:${'u' * 64}',
       'plugins': [
         {
           'files': {'a.js': 'sha256:${'a' * 64}', 'b.js': 'plain-base64=='},
@@ -94,7 +95,7 @@ void main() {
     };
     expect(
       BackupStore.collectRefs(manifest),
-      {'sha256:${'a' * 64}', 'sha256:${'c' * 64}'},
+      {'sha256:${'a' * 64}', 'sha256:${'c' * 64}', 'sha256:${'u' * 64}'},
     );
   });
 

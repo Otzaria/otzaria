@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
@@ -70,18 +72,19 @@ class UserBooksDatabaseHolder {
     return repo;
   }
 
-  final Set<void Function()> _closeListeners = {};
+  final Set<FutureOr<void> Function()> _closeListeners = {};
 
-  /// נקרא ב-[close] — לחיבורים נוספים לקובץ (למשל ב-isolate) שחייבים לשחרר אותו.
-  void addCloseListener(void Function() listener) =>
+  /// נקרא ב-[close] — לחיבורים נוספים לקובץ (למשל ב-isolate) שחייבים לשחרר
+  /// אותו; [close] ממתין להם, כדי שהקובץ ישוחרר כשהוא מסתיים.
+  void addCloseListener(FutureOr<void> Function() listener) =>
       _closeListeners.add(listener);
 
   /// סוגר את ה-DB ומודיע ל-[addCloseListener] כדי שהקובץ ישוחרר.
   Future<void> close() async {
     // המנוע מחזיק את הקובץ פתוח לקריאה; בלי זה החלפתו נכשלת ב-Windows.
     await configureSearchLineSource(null);
-    for (final listener in _closeListeners) {
-      listener();
+    for (final listener in _closeListeners.toList()) {
+      await listener();
     }
     _database?.close();
     _database = null;

@@ -108,24 +108,28 @@ void main() {
       expect(resolver.orderFor('uid:0'), greaterThanOrEqualTo(base));
     });
 
-    test('הטווח נשאר בתוך 24 הסיביות שמיון לפי דור במנוע שומר', () {
-      final maxId = CatalogueOrderResolver.maxSortableOrder - base;
-      final resolver = CatalogueOrderResolver.fromPositions({
-        'uid:$maxId': 0,
-        'uid:${maxId + 1}': 1,
-      });
+    test(
+      'הטווח נשאר בתוך 24 הסיביות שמיון לפי דור במנוע שומר, ומעבר לו המקום ברצף',
+      () {
+        final maxId = CatalogueOrderResolver.maxSortableOrder - base;
+        final resolver = CatalogueOrderResolver.fromPositions({
+          'uid:$maxId': 0,
+          'uid:${maxId + 1}': 1,
+        });
 
-      expect(
-        resolver.orderFor('uid:$maxId'),
-        CatalogueOrderResolver.maxSortableOrder,
-      );
-      expect(() => resolver.orderFor('uid:${maxId + 1}'), throwsRangeError);
-      // (order + 1) << 32 חייב להיכנס ב-56 סיביות.
-      expect(
-        (CatalogueOrderResolver.maxSortableOrder + 1) << 32,
-        lessThan(1 << 56),
-      );
-    });
+        expect(
+          resolver.orderFor('uid:$maxId'),
+          CatalogueOrderResolver.maxSortableOrder,
+        );
+        // id מעבר לטווח חוזר למקומו ברצף במקום להיכשל בכל אינדוקס.
+        expect(resolver.orderFor('uid:${maxId + 1}'), 1);
+        // (order + 1) << 32 חייב להיכנס ב-56 סיביות.
+        expect(
+          (CatalogueOrderResolver.maxSortableOrder + 1) << 32,
+          lessThan(1 << 56),
+        );
+      },
+    );
 
     test('מפתח שאינו `uid:<מספר>` קנוני נשאר במקומו ברצף', () {
       final resolver = CatalogueOrderResolver.fromPositions({

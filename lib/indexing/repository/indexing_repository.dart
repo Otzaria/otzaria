@@ -296,6 +296,22 @@ class IndexingRepository {
   }
 
   /// האם הספר כבר מאונדקס — לפי המסמכים החיים שנקראו מהאינדקס עצמו.
+  static int _activeRuns = 0;
+  static Completer<void>? _idle;
+
+  /// מסתיים כשאין ריצת אינדוקס שכותבת למנוע. ביטול רק מסמן עצירה, וספר
+  /// שבאמצע עוד נכתב ונחתם אחריו.
+  static Future<void> whenIdle() =>
+      _activeRuns == 0 ? Future.value() : (_idle ??= Completer<void>()).future;
+
+  static void _runStarted() => _activeRuns++;
+
+  static void _runEnded() {
+    if (--_activeRuns > 0) return;
+    _idle?.complete();
+    _idle = null;
+  }
+
   bool isBookIndexed(Book book) => _tantivyDataProvider.indexedFilePaths
       .contains(buildIndexedBookFilePath(book));
 
@@ -416,6 +432,7 @@ class IndexingRepository {
     var errors = 0;
     final failures = <IndexingFailure>[];
 
+    _runStarted();
     try {
       IndexingCrashCanary.start(
         _tantivyDataProvider.activeIndexPath,
@@ -723,6 +740,7 @@ class IndexingRepository {
       prefetcher?.dispose();
       IndexingCrashCanary.current?.finish();
       _tantivyDataProvider.isIndexing.value = false;
+      _runEnded();
       await LibraryLineSource.reportLibraryFallbacks();
     }
     return cancelled
@@ -1856,6 +1874,7 @@ class IndexingRepository {
     var didStartActualIndexing = false;
     final failures = <IndexingFailure>[];
 
+    _runStarted();
     try {
       for (final book in books) {
         await _waitWhilePaused();
@@ -1975,6 +1994,7 @@ class IndexingRepository {
     } finally {
       IndexingCrashCanary.current?.finish();
       _tantivyDataProvider.isIndexing.value = false;
+      _runEnded();
       await LibraryLineSource.reportLibraryFallbacks();
     }
     return cancelled

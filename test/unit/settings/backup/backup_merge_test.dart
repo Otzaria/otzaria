@@ -393,6 +393,17 @@ void main() {
       );
     });
 
+    test('user_books.db נלקח מהחדש, ומהישן כשאין חדש', () {
+      final newer = 'sha256:${'b' * 64}';
+      final older = 'sha256:${'a' * 64}';
+      expect(
+        merge({'userBooks': older}, {'userBooks': newer})['userBooks'],
+        newer,
+      );
+      expect(merge({'userBooks': older}, const {})['userBooks'], older);
+      expect(merge(const {}, const {}).containsKey('userBooks'), isFalse);
+    });
+
     test('חתימת מקור ההגדרות נשמרת עם הסעיף שנבחר', () {
       expect(
         merge(

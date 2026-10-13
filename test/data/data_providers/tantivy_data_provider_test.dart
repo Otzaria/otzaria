@@ -2,9 +2,92 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
+import 'package:otzaria/data/data_providers/catalogue_order_revision.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/indexing/models/index_update_mode.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
+  group('TantivyDataProvider.migratePersonalOrderRange', () {
+    late Directory dir;
+    late _MigrationEngine engine;
+    late Set<String> indexed;
+
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('personal_range_');
+      engine = _MigrationEngine();
+      indexed = {'id:1', 'uid:1', 'uid:2'};
+      WindowRole.isSecondary = false;
+    });
+
+    tearDown(() {
+      WindowRole.isSecondary = false;
+      dir.deleteSync(recursive: true);
+    });
+
+    Future<void> migrate({
+      IndexUpdateMode mode = IndexUpdateMode.all,
+      String? indexPath,
+    }) => TantivyDataProvider.migratePersonalOrderRange(
+      engine,
+      indexPath ?? dir.path,
+      indexed,
+      mode: () => mode,
+    );
+
+    test('מוחק פעם אחת את רשומות uid: וחותם', () async {
+      await migrate();
+      expect(engine.deleted, [
+        ['uid:1', 'uid:2'],
+      ]);
+      expect(engine.commits, 1);
+      expect(indexed, {'id:1'});
+      expect(CatalogueOrderRevision.hasPersonalOrderRange(dir.path), isTrue);
+
+      indexed.add('uid:1');
+      await migrate();
+      expect(engine.deleted, hasLength(1));
+    });
+
+    test('חלון משני אינו נוגע באינדקס', () async {
+      WindowRole.isSecondary = true;
+      await migrate();
+      expect(engine.deleted, isEmpty);
+      expect(CatalogueOrderRevision.hasPersonalOrderRange(dir.path), isFalse);
+    });
+
+    test('עדכון אוטומטי כבוי: נדחה בלי מחיקה ובלי חותם', () async {
+      await migrate(mode: IndexUpdateMode.off);
+      expect(engine.deleted, isEmpty);
+      expect(indexed, contains('uid:1'));
+      expect(CatalogueOrderRevision.hasPersonalOrderRange(dir.path), isFalse);
+    });
+
+    test('אינדקס בלי ספרים אישיים נחתם גם כשהעדכון כבוי', () async {
+      indexed = {'id:1'};
+      await migrate(mode: IndexUpdateMode.off);
+      expect(engine.deleted, isEmpty);
+      expect(CatalogueOrderRevision.hasPersonalOrderRange(dir.path), isTrue);
+    });
+
+    test('כשל בכתיבת החותם: אין מחיקה', () async {
+      final blocker = File(p.join(dir.path, 'file'))..writeAsStringSync('');
+      await migrate(indexPath: p.join(blocker.path, 'index'));
+      expect(engine.deleted, isEmpty);
+      expect(indexed, contains('uid:1'));
+    });
+
+    test('כשל במחיקה: rollback, והחותם חוזר לנסות בהפעלה הבאה', () async {
+      engine.failCommit = true;
+      await migrate();
+      expect(engine.rollbacks, 1);
+      expect(indexed, contains('uid:1'));
+      expect(CatalogueOrderRevision.hasPersonalOrderRange(dir.path), isFalse);
+    });
+  });
+
   group('TantivyDataProvider.isRebuildRequiredStatus', () {
     test('מחזיר true כשהאינדקס ישן מדי עבור המנוע (rebuild_required)', () {
       expect(
@@ -327,4 +410,28 @@ void main() {
       expect(slot.current, isNull);
     });
   });
+}
+
+class _MigrationEngine implements SearchEngine {
+  final deleted = <List<String>>[];
+  var commits = 0;
+  var rollbacks = 0;
+  var failCommit = false;
+
+  @override
+  Future<void> deleteDocumentsByFilePaths({
+    required List<String> filePaths,
+  }) async => deleted.add(filePaths);
+
+  @override
+  Future<void> commit() async {
+    if (failCommit) throw StateError('commit');
+    commits++;
+  }
+
+  @override
+  Future<void> rollback() async => rollbacks++;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

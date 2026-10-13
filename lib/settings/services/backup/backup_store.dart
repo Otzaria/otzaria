@@ -121,9 +121,12 @@ class BackupStore {
     return (deleted: deleted, freedBytes: freedBytes);
   }
 
-  /// אוסף את כל הפניות ה-blob ממניפסט גיבוי (סעיפי `files`/`data` בתוספים).
+  /// אוסף את כל הפניות ה-blob ממניפסט גיבוי (סעיפי `files`/`data` בתוספים,
+  /// ו-user_books.db).
   static Set<String> collectRefs(Map<String, dynamic> manifest) {
     final refs = <String>{};
+    final userBooks = manifest['userBooks'];
+    if (userBooks is String && isHashRef(userBooks)) refs.add(userBooks);
     final plugins = manifest['plugins'];
     if (plugins is! List) return refs;
     for (final entry in plugins) {

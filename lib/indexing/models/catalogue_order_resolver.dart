@@ -6,9 +6,8 @@
 class CatalogueOrderResolver {
   CatalogueOrderResolver(this._orderByKey, {this.maxOrder = maxCatalogueOrder});
 
-  /// [positions] — מקום כל ספר ברצף הקטלוג. ספר אישי (`uid:<id>`) מקבל
-  /// [personalOrderBase] + id: ספר אישי שנוסף אינו מקבל מזהים של ספר שכבר
-  /// באינדקס. מקומו ברצף נשאר ריק, כך שסדר שאר הספרים אינו משתנה.
+  /// [positions] — מקום כל ספר ברצף. ספר אישי (`uid:<id>`) מקבל [personalOrderBase]
+  /// + id, ומקומו ברצף נשאר ריק כדי שסדר הספרייה יישאר כמו באינדקס הקיים.
   factory CatalogueOrderResolver.fromPositions(Map<String, int> positions) {
     final orders = <String, int>{};
     positions.forEach((key, position) {
@@ -16,7 +15,10 @@ class CatalogueOrderResolver {
         throw StateError('רצף הקטלוג חורג לטווח הספרים האישיים: $key');
       }
       final personalId = _personalBookId(key);
-      orders[key] = personalId == null
+      // id מעבר לטווח (AUTOINCREMENT אינו חוזר אחורה) נשאר במקומו ברצף.
+      orders[key] =
+          personalId == null ||
+              personalOrderBase + personalId > maxSortableOrder
           ? position
           : personalOrderBase + personalId;
     });

@@ -52,6 +52,7 @@ class CatalogueOrderRevision {
   static bool write(
     String indexPath, {
     int revision = kCatalogueOrderRevision,
+    bool personalOrderRange = true,
   }) {
     try {
       final directory = Directory(indexPath);
@@ -63,7 +64,7 @@ class CatalogueOrderRevision {
       temp.writeAsStringSync(
         jsonEncode({
           'catalogueOrderRevision': revision,
-          'personalOrderRange': true,
+          'personalOrderRange': personalOrderRange,
         }),
         flush: true,
       );

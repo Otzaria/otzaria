@@ -2087,11 +2087,11 @@ class FindRefRepository {
 
   /// סגירת user_books.db: ה-worker משחרר את הקובץ, והספרים האישיים ייטענו
   /// מחדש — גרסת התוכן של החיבור הישן אינה ברת-השוואה לחדש.
-  static void _resetSecondaryWorker() {
-    AttachedFindRefWorker.instance.reset();
+  static Future<void> _resetSecondaryWorker() {
     for (final repo in _liveInstances) {
       repo._dropUserBooks();
     }
+    return AttachedFindRefWorker.instance.reset();
   }
 
   static AttachedDbJob<List<Map<String, dynamic>>> _userBookTocJob(
