@@ -914,7 +914,8 @@ class ReferenceBooksCache {
   ) async {
     PdfDocument? doc;
     try {
-      doc = await PdfDocument.openFile(filePath);
+      // progressive: בלעדיו pdfium מפענח כל עמוד לפני ה-outline (שניות בסריקה).
+      doc = await PdfDocument.openFile(filePath, useProgressiveLoading: true);
       final outline = await doc.loadOutline();
       final entries = <(String, String, int)>[];
       _collectOutlineEntries(outline, entries, maxDepth: 2, currentDepth: 0);

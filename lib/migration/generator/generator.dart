@@ -445,7 +445,11 @@ class DatabaseGenerator {
   Future<void> _processPdfOutline(String bookPath, int bookId) async {
     PdfDocument? document;
     try {
-      document = await PdfDocument.openFile(bookPath);
+      // progressive: בלעדיו pdfium מפענח כל עמוד לפני ה-outline (שניות בסריקה).
+      document = await PdfDocument.openFile(
+        bookPath,
+        useProgressiveLoading: true,
+      );
       final outline = await document.loadOutline();
 
       if (outline.isEmpty) {

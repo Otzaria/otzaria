@@ -126,7 +126,8 @@ Future<List<({int page, String ref})>> _getPdfAnchors(String pdfPath) async {
   } else {
     PdfDocument? doc;
     try {
-      doc = await PdfDocument.openFile(pdfPath);
+      // progressive: בלעדיו pdfium מפענח כל עמוד לפני ה-outline (שניות בסריקה).
+      doc = await PdfDocument.openFile(pdfPath, useProgressiveLoading: true);
       anchors = collectPdfAnchors(await doc.loadOutline());
     } finally {
       // המתנה לשחרור בפועל — הטאב הסופי עשוי לפתוח מיד את אותו PDF, וה-worker

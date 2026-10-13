@@ -198,7 +198,11 @@ Future<PdfOutlineNode?> getDafYomiOutline(PdfBook book, String daf) async {
 Future<List<PdfOutlineNode>> _loadOutlineFromFile(PdfBook book) async {
   PdfDocument? document;
   try {
-    document = await PdfDocument.openFile(book.path);
+    // progressive: בלעדיו pdfium מפענח כל עמוד לפני ה-outline (שניות בסריקה).
+    document = await PdfDocument.openFile(
+      book.path,
+      useProgressiveLoading: true,
+    );
     return await document.loadOutline();
   } finally {
     // המתנה לשחרור בפועל — ה-worker היחיד של pdfrx חייב להשתחרר מהמסמך

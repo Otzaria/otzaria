@@ -3269,7 +3269,11 @@ class DatabaseLibraryProvider implements LibraryProvider {
   Future<List<TocEntry>> _parsePdfOutline(File file) async {
     PdfDocument? document;
     try {
-      document = await PdfDocument.openFile(file.path);
+      // progressive: בלעדיו pdfium מפענח כל עמוד לפני ה-outline (שניות בסריקה).
+      document = await PdfDocument.openFile(
+        file.path,
+        useProgressiveLoading: true,
+      );
       final outline = await document.loadOutline();
 
       if (outline.isEmpty) {
