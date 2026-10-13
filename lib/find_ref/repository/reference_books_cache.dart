@@ -1188,6 +1188,7 @@ class BookTitleIndex {
     int? matchRank;
     String? matchedTerm;
     var tailIsTitleWords = false;
+    var exactAlias = false;
     var mask = 0;
 
     if (parentMask & _titleMay != 0) {
@@ -1202,6 +1203,9 @@ class BookTitleIndex {
     if (matchRank != null) {
       // ענף הכינויים לא נבדק — אין מידע שמותר לפסול בו.
       mask = _mayMatchAll;
+      if (matchRank > 0 && scan.mayHaveAcronymMatch(book.id)) {
+        exactAlias = _hasExactAcronym(book.id, scan.acronymQueries);
+      }
     } else if (parentMask & _acronymMay != 0 &&
         scan.mayHaveAcronymMatch(book.id)) {
       // התאמת ראשי תיבות — המונחים כבר מנורמלים בעת טעינת הקאש.
@@ -1277,10 +1281,17 @@ class BookTitleIndex {
         matchedTerm: matchedTerm,
         orderIndex: book.orderIndex,
         acronymTailIsTitleWords: tailIsTitleWords,
+        isExactAlias: exactAlias,
         titleTokens: _titleTokens[book.id],
       ),
     );
     return mask;
+  }
+
+  bool _hasExactAcronym(int bookId, List<String> queries) {
+    final acronyms = _acronymsOf(bookId);
+    if (acronyms == null) return false;
+    return _matchAcronymsFor(bookId, acronyms).any(queries.contains);
   }
 
   List<String> _matchAcronymsFor(int bookId, List<String> acronyms) {
@@ -1444,6 +1455,12 @@ class ReferenceBookHit {
   /// הוא כותרת פנימית ("טור חושן" ⊂ "טור חושן משפט", ו"משפט" אינה בכותרת "טור").
   final bool acronymTailIsTitleWords;
 
+  /// השאילתה היא גם כינוי מדויק של ספר שהותאם לפי כותרתו ("זהר" ל"ספר הזהר").
+  final bool isExactAlias;
+
+  /// השאילתה היא שמו המדויק של הספר — כותרת מלאה או כינוי.
+  bool get namesBookExactly => matchRank == 0 || matchRank == 3 || isExactAlias;
+
   ReferenceBookHit({
     required this.bookId,
     required this.title,
@@ -1454,6 +1471,7 @@ class ReferenceBookHit {
     required this.orderIndex,
     this.matchedTerm,
     this.acronymTailIsTitleWords = false,
+    this.isExactAlias = false,
     List<String>? titleTokens,
     Set<String>? titleMatchTokens,
   }) : _givenTitleTokens = titleTokens,

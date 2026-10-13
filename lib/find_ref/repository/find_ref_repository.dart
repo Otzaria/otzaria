@@ -1500,8 +1500,7 @@ class FindRefRepository {
       // בשמו המדויק ("זוהר בראשית"), הטוקן בכותרתו, או שבזנב ציטוט דף.
       final suppressTocForCrossBook =
           hasExactNextTokenMatch &&
-          hit.matchRank != 0 &&
-          hit.matchRank != 3 &&
+          !hit.namesBookExactly &&
           !hit.titleTokens.contains(nextToken) &&
           !_isSectionThenDafCitation(remainingTokens);
       if (remainingTokens.isEmpty || suppressTocForCrossBook) {

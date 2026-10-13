@@ -392,4 +392,56 @@ void main() {
       expect(hit.acronymTailIsTitleWords, isTrue);
     });
   });
+
+  group('פרשה ששמה גם שם ספר (issue #2431)', () {
+    const zohar = (
+      id: 3025,
+      title: 'ספר הזהר',
+      acronyms: ['הזהר', 'הזוהר', 'זהר', 'זוהר', 'ספר הזוהר'],
+    );
+    const azharot = (
+      id: 1343,
+      title: 'אזהרות לרבי שלמה אבן גבירול',
+      acronyms: ['אזהרות רש"בג', 'רשבג', 'שלמה אבן גבירול'],
+    );
+    const shemot = (id: 2, title: 'שמות', acronyms: <String>[]);
+
+    Future<List<String>> referencesFor(String query) async {
+      seedLibrary(const [zohar, azharot, shemot]);
+      final repo = buildFindRefRepo(
+        tocEntries: {
+          for (final book in [zohar, azharot])
+            book.id: [
+              {'reference': '${book.title} שמות', 'segment': 5, 'level': 1},
+            ],
+        },
+      );
+      return [for (final r in await repo.findRefs(query)) r.reference];
+    }
+
+    for (final query in ['זהר שמות', 'זוהר שמות']) {
+      test('"$query" יורד לפרשה בספר הזהר', () async {
+        final references = await referencesFor(query);
+
+        expect(references, contains('ספר הזהר שמות'));
+        expect(
+          references,
+          isNot(contains('אזהרות לרבי שלמה אבן גבירול שמות')),
+          reason: '"זהר" מוכל בכותרת אבל אינו כינוי שלה — המגן נשאר',
+        );
+      });
+    }
+
+    test('התאמה לפי כותרת מסמנת כינוי מדויק בלי לשנות את הדירוג', () {
+      seedLibrary(const [zohar, azharot]);
+      final hits = {
+        for (final hit in ReferenceBooksCache.instance.search('זהר'))
+          hit.bookId: hit,
+      };
+
+      expect(hits[zohar.id]!.matchRank, 2);
+      expect(hits[zohar.id]!.isExactAlias, isTrue);
+      expect(hits[azharot.id]!.isExactAlias, isFalse);
+    });
+  });
 }
