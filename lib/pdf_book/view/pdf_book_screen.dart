@@ -3712,6 +3712,9 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       commentatorsSet.toList(),
       source: widget.tab.book.source,
       sourceByTitle: sourceByTitle,
+      baseCommentators: await DefaultCommentators.getBaseCommentators(
+        widget.tab.book,
+      ),
     );
     if (!mounted) return;
     setState(() {

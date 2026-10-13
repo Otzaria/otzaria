@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
+import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 Link _link(String path2, int index1, int index2) => Link(
@@ -76,5 +77,30 @@ void main() {
     for (var i = 1; i < sorted.length; i++) {
       expect(naive(sorted[i - 1], sorted[i]), lessThanOrEqualTo(0));
     }
+  });
+
+  test('קבוצות המפרשים בסדר רשימת הבחירה, ומי שלא ברשימה אחריהן (#2326)', () {
+    LinkGroup group(String title) =>
+        LinkGroup(bookTitle: title, links: [_link(title, 1, 1)]);
+    // הסדר הנכנס הוא א"ב; מפרש שאינו ברשימה (מהרש"א) יורד לסוף.
+    final groups = [
+      group('חברותא על ברכות'),
+      group('מהרש"א על ברכות'),
+      group('רש"י על ברכות'),
+      group('תוספות על ברכות'),
+    ];
+
+    final ordered = orderPdfCommentaryGroups(groups, const [
+      'רש"י על ברכות',
+      'תוספות על ברכות',
+      'חברותא על ברכות',
+    ]);
+
+    expect(ordered.map((g) => g.bookTitle), [
+      'רש"י על ברכות',
+      'תוספות על ברכות',
+      'חברותא על ברכות',
+      'מהרש"א על ברכות',
+    ]);
   });
 }

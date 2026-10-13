@@ -174,7 +174,7 @@ class CommentaryListBase extends StatefulWidget {
   final ValueNotifier<List<CommentarySearchSnippet>>?
   externalSearchSnippetsNotifier;
 
-  /// כשהדגל מופעל, ישתמש ב-availableCommentators (כל מפרשי הספר) ולא ב-activeCommentators
+  /// כשהדגל מופעל, יציג את כל מפרשי הספר (בסדר commentatorGroups) ולא את activeCommentators
   final bool useAvailableCommentators;
 
   /// קולבק לפתיחת המפרשים בכרטיסייה חדשה. כש-null הלחצן לא יוצג.
@@ -387,7 +387,9 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       return widget.selectedCommentatorsOverride!;
     }
     if (widget.useAvailableCommentators) {
-      return state.availableCommentators;
+      // סדר התצוגה נגזר מהרשימה, ולכן בסדר הקבוצות (דורות, בסיסיים ראשונים)
+      // ולא ב-availableCommentators הממוין לפי א"ב.
+      return [for (final g in state.commentatorGroups) ...g.commentators];
     }
     return state.activeCommentators;
   }

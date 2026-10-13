@@ -42,6 +42,7 @@ import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/text_display/models/text_display_slot.dart';
 import 'package:otzaria/book_common/utils/commentary_type_filter.dart';
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
+import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/widgets/lists/commentators_selection_panel.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
@@ -151,6 +152,27 @@ int comparePdfCommentaryLinks(Link a, Link b) {
   final sourceCompare = a.index1.compareTo(b.index1);
   if (sourceCompare != 0) return sourceCompare;
   return a.index2.compareTo(b.index2);
+}
+
+/// מסדר את [groups] לפי סדר [commentatorOrder] (סדר רשימת הבחירה), ומפרש
+/// שאינו ברשימה נשאר אחריהם בסדרו הקיים.
+@visibleForTesting
+List<CommentaryGroup> orderPdfCommentaryGroups(
+  List<CommentaryGroup> groups,
+  List<String> commentatorOrder,
+) {
+  if (groups.length < 2 || commentatorOrder.isEmpty) return groups;
+  final rank = {
+    for (var i = commentatorOrder.length - 1; i >= 0; i--)
+      commentatorOrder[i]: i,
+  };
+  int rankOf(int i) => rank[groups[i].bookTitle] ?? commentatorOrder.length;
+  final indexes = List.generate(groups.length, (i) => i)
+    ..sort((a, b) {
+      final byRank = rankOf(a).compareTo(rankOf(b));
+      return byRank != 0 ? byRank : a.compareTo(b);
+    });
+  return [for (final i in indexes) groups[i]];
 }
 
 /// מפתח מטמון התוכן הנראה. [linksIdentity] חייב להיות זהות רשימת הקישורים
@@ -676,6 +698,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
         for (final link in visibleLinks)
           utils.getTitleFromPath(link.path2): link.targetSource,
       },
+      baseCommentators: await DefaultCommentators.getBaseCommentators(
+        widget.tab.book,
+      ),
     );
     if (!mounted || generation != _visibilityLoadGeneration) return;
     setState(() {
@@ -2155,7 +2180,12 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       // אסינכרוני: קיבוץ סינכרוני על ה-UI thread קפא בדפי גמרא עם מפרשים רבים.
       sortedGroupsFuture:
           (widget.commentaryGroupsLoader ??
-          CommentaryService.groupAndSortLinks)(commentaryLinks),
+                  CommentaryService.groupAndSortLinks)(commentaryLinks)
+              .then(
+                (groups) => orderPdfCommentaryGroups(groups, [
+                  for (final g in _commentatorGroups) ...g.commentators,
+                ]),
+              ),
     );
     _visibleContentCache = cache;
     return cache;
