@@ -1048,6 +1048,9 @@ end;
 function ConfirmAppClosed(): Boolean;
 begin
   Result := True;
+  // בהרצה שקטה PrepareToInstall ממתין במקום לשאול.
+  if WizardSilent then
+    exit;
   while CheckForMutexes('{#AppMutexName}') do
     if not UiAsk(CustomMessage('AppRunningTitle'), CustomMessage('AppRunningText'),
       CustomMessage('AppRunningRetry'), CustomMessage('AppRunningCancel'), False) then
