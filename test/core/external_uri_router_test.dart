@@ -620,6 +620,25 @@ void main() {
         expect(action.mode, SearchMode.advanced);
       });
 
+      test('mode=smart — חיפוש חכם, בלי מצב מילולי', () {
+        final action =
+            ExternalUriRouter.parseUri(
+                  Uri.parse('otzaria://open/search?q=abc&mode=Smart'),
+                )
+                as RunSearchAction;
+
+        expect(action.smart, isTrue);
+        expect(action.mode, isNull);
+        expect(
+          (ExternalUriRouter.parseUri(
+                    Uri.parse('otzaria://open/search?q=abc&mode=fuzzy'),
+                  )
+                  as RunSearchAction)
+              .smart,
+          isFalse,
+        );
+      });
+
       test('mode אינו רגיש לאותיות גדולות/קטנות', () {
         final action =
             ExternalUriRouter.parseUri(

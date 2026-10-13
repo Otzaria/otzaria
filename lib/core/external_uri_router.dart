@@ -138,10 +138,12 @@ class OpenSettingsTabAction extends ExternalUriAction {
 ///
 /// [mode] — מצב החיפוש מהפרמטר `mode=` (מתקדם/מדויק/מקורב). כאשר null
 /// (ללא פרמטר או ערך לא מוכר) החיפוש רץ במצב ברירת המחדל (מתקדם).
+/// [smart] — `mode=smart`: חיפוש חכם בכרטיסייה חכמה במקום חיפוש מילולי.
 class RunSearchAction extends ExternalUriAction {
   final String query;
   final SearchMode? mode;
-  const RunSearchAction(this.query, {this.mode});
+  final bool smart;
+  const RunSearchAction(this.query, {this.mode, this.smart = false});
 }
 
 /// פתיחת דיאלוג איתור מקורות (FindRefDialog) עם טקסט מילוי-מראש.
@@ -222,8 +224,8 @@ class ShowInfoAction extends ExternalUriAction {
 /// * `otzaria://open/library`               – ספרייה
 /// * `otzaria://open/search`                – פותח את מסך החיפוש (ללא הפעלת חיפוש)
 /// * `otzaria://open/search?q=<text>`        – פותח לשונית חיפוש חדשה ומפעיל חיפוש
-///   - `&mode=advanced|exact|fuzzy` מצב החיפוש (מתקדם/מדויק/מקורב); ערך לא
-///     מוכר או חסר — מצב ברירת המחדל (מתקדם)
+///   - `&mode=advanced|exact|fuzzy|smart` מצב החיפוש (מתקדם/מדויק/מקורב/חכם);
+///     ערך לא מוכר או חסר — מצב ברירת המחדל (מתקדם)
 /// * `otzaria://open/settings`              – הגדרות (הלשונית הנוכחית)
 /// * `otzaria://open/settings/design`       – הגדרות › מראה
 /// * `otzaria://open/settings/text`         – הגדרות › כתב
@@ -564,7 +566,11 @@ class ExternalUriRouter {
         final rawQuery = queryParameters['q']?.trim();
         if (rawQuery != null && rawQuery.isNotEmpty) {
           final rawMode = queryParameters['mode']?.trim().toLowerCase();
-          return RunSearchAction(rawQuery, mode: _searchModeAliases[rawMode]);
+          return RunSearchAction(
+            rawQuery,
+            mode: _searchModeAliases[rawMode],
+            smart: rawMode == 'smart',
+          );
         }
       }
 
