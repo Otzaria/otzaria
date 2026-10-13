@@ -12,6 +12,7 @@ import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria/search/search_engine_gateway.dart';
 import 'package:otzaria/search/magic_dictionary_downloader.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
 
 /// A singleton class that manages search functionality using Tantivy search engine.
 ///
@@ -107,6 +108,9 @@ class TantivyDataProvider {
       indexPath,
       indexStateIsKnown: indexedFilePathsLoaded && !isTempFallback,
     );
+    if (indexedFilePathsLoaded && !isTempFallback && !_catalogueOrderStale) {
+      await _migratePersonalOrderRange(engine, indexPath);
+    }
 
     // indexedFilePaths כעת משקפת את מצב האינדקס בפועל. צרכנים שמסיקים
     // "אין אינדקס" מתוך הקבוצה צריכים לחכות לסימן הזה כדי לא להציג שגוי בהפעלה.
@@ -185,6 +189,35 @@ class TantivyDataProvider {
 
     if (_catalogueOrderStale) {
       debugPrint('⚠️ האינדקס נבנה בסדר קטלוגי ישן — נדרשת בנייה מחדש');
+    }
+  }
+
+  /// אינדקס שנבנה לפני טווח הסדר של הספרים האישיים: רשומות `uid:` נמחקות פעם
+  /// אחת ויאונדקסו מחדש, ושאר הספרים שומרים את הסדר שלהם.
+  Future<void> _migratePersonalOrderRange(
+    SearchEngine engine,
+    String indexPath,
+  ) async {
+    if (WindowRole.isSecondary ||
+        CatalogueOrderRevision.hasPersonalOrderRange(indexPath)) {
+      return;
+    }
+    final personalKeys = [
+      for (final key in indexedFilePaths)
+        if (key.startsWith('uid:')) key,
+    ];
+    try {
+      if (personalKeys.isNotEmpty) {
+        await engine.deleteDocumentsByFilePaths(filePaths: personalKeys);
+        await engine.commit();
+        indexedFilePaths.removeAll(personalKeys);
+      }
+      CatalogueOrderRevision.write(indexPath);
+    } catch (e) {
+      debugPrint('⚠️ מחיקת הספרים האישיים בסדר הישן נכשלה: $e');
+      try {
+        await engine.rollback();
+      } catch (_) {}
     }
   }
 

@@ -137,6 +137,26 @@ void main() {
       expect(CatalogueOrderRevision.fileFor(tempDir.path).existsSync(), isTrue);
     });
 
+    test('חותם ישן בלי טווח הספרים האישיים מזוהה, ו-write מוסיף אותו', () {
+      CatalogueOrderRevision.fileFor(tempDir.path).writeAsStringSync(
+        '{"catalogueOrderRevision": $kCatalogueOrderRevision}',
+      );
+      expect(
+        CatalogueOrderRevision.hasPersonalOrderRange(tempDir.path),
+        isFalse,
+      );
+
+      CatalogueOrderRevision.write(tempDir.path);
+      expect(
+        CatalogueOrderRevision.hasPersonalOrderRange(tempDir.path),
+        isTrue,
+      );
+      expect(
+        CatalogueOrderRevision.read(tempDir.path),
+        kCatalogueOrderRevision,
+      );
+    });
+
     test('write אינו מותיר קובץ זמני אחריו', () {
       CatalogueOrderRevision.write(tempDir.path);
 

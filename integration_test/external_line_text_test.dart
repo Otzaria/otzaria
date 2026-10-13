@@ -10,7 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
+import 'package:otzaria/indexing/models/catalogue_order_resolver.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
+import 'package:otzaria/migration/database/line_content_encoder.dart';
 import 'package:otzaria/search/library_line_source.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:path/path.dart' as p;
@@ -389,4 +391,172 @@ void main() {
       expect((await lineSourceStatus()).libraryFallbacks, BigInt.zero);
     });
   }
+
+  test('ספר אישי מ-user_books.db: שורות טקסט ודחוסות נקראות מהמסד, בלי '
+      'ערבוב עם ספר רשמי בעל אותו id', () async {
+    expect(await LibraryLineSource.ensureHostSqlite(), isTrue);
+    final libraryPath = buildLibraryDb(
+      'seforim_with_personal.db',
+      split: false,
+    );
+    await LibraryLineSource.configure(libraryPath);
+
+    // מילון ה-fixture; העותק האמיתי (2MB) מגיע מ-seforim.db בזמן ריצה.
+    final dictionary = File(
+      'test/fixtures/line_content_codec/dict.zdict',
+    ).readAsBytesSync();
+    final encoder = LineContentEncoder(dictionary);
+    addTearDown(encoder.dispose);
+
+    // אותו מספר כמו הספר הרשמי `id:101` (_plainBook).
+    const personalId = 101;
+    const personalTitle = 'ספר אישי';
+    const filler =
+        'אמר רבי יוחנן משום רבי שמעון בן יוחאי מנין שאין הקדוש ברוך הוא '
+        'עושה דבר אלא אם כן נמלך בפמליא של מעלה שנאמר ואמת הדבר וצבא גדול ';
+    final personalLines = [
+      'בראשית ספר אישי בטקסט גלוי',
+      'זרזיר מתניים ${filler * 3}',
+      'חלמיש צור ${filler * 4}',
+    ];
+    final userBooksPath = p.join(tmp.path, 'user_books.db');
+    final userDb = sqlite3.sqlite3.open(userBooksPath);
+    try {
+      userDb.execute('''
+        CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT NOT NULL);
+        CREATE TABLE line (id INTEGER PRIMARY KEY, bookId INTEGER NOT NULL,
+                           lineIndex INTEGER NOT NULL, content);
+        CREATE INDEX idx_line_book_index ON line(bookId, lineIndex);
+        CREATE TABLE zstd_dict (id INTEGER PRIMARY KEY NOT NULL, dict BLOB NOT NULL);
+      ''');
+      userDb.execute('INSERT INTO zstd_dict VALUES (?, ?)', [
+        zstdDictionaryId(dictionary),
+        dictionary,
+      ]);
+      userDb.execute('INSERT INTO book (id, title) VALUES (?, ?)', [
+        personalId,
+        personalTitle,
+      ]);
+      for (final (index, text) in personalLines.indexed) {
+        final frame = index == 0 ? null : encoder.encode(text);
+        expect(frame != null, index > 0, reason: 'שורה $index');
+        userDb.execute(
+          'INSERT INTO line (bookId, lineIndex, content) VALUES (?, ?, ?)',
+          [personalId, index, frame ?? text],
+        );
+      }
+      expect(
+        userDb
+            .select('SELECT typeof(content) FROM line ORDER BY lineIndex')
+            .map((row) => row.values.first),
+        ['text', 'blob', 'blob'],
+      );
+    } finally {
+      userDb.close();
+    }
+    await LibraryLineSource.configureUserBooks(userBooksPath);
+    expect(LibraryLineSource.userBooksConfigured, isTrue);
+
+    final personalKey = IndexingRepository.userBookKey(personalId);
+    final officialKey = IndexingRepository.officialBookKey(personalId);
+    final order = CatalogueOrderResolver.fromPositions({
+      officialKey: 0,
+      personalKey: 1,
+    });
+    expect(order.orderFor(officialKey), isNot(order.orderFor(personalKey)));
+
+    // מסלול האפליקציה: בייטים מפוענחים מהמסד, וההחלטה של textStorageFor.
+    Future<BookContentBytes> readBytes(String dbPath, BookTextKey book) async {
+      final db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readOnly);
+      try {
+        return (await readBookContentBytes(db, book))!;
+      } finally {
+        db.close();
+      }
+    }
+
+    final official = await readBytes(libraryPath, (
+      id: _plainBook.id,
+      title: _plainBook.title,
+    ));
+    final personal = await readBytes(userBooksPath, (
+      id: personalId,
+      title: personalTitle,
+    ));
+    expect(personal.rowHasNewline, isFalse);
+    final storage = IndexingRepository.textStorageFor(
+      filePath: personalKey,
+      libraryDbBookId: null,
+      userBooksDbBookId: personalId,
+      hostApiReady: LibraryLineSource.hostApiReady,
+      userBooksConfigured: LibraryLineSource.userBooksConfigured,
+    );
+    expect(storage, TextStorage.libraryDb);
+
+    final library = await newEngine('personal_library');
+    final stored = await newEngine('personal_stored');
+    for (final (engine, mode) in [
+      (library, storage),
+      (stored, TextStorage.inIndex),
+    ]) {
+      await engine.addTextBookBytes(
+        title: _plainBook.title,
+        topics: '/it',
+        filePath: officialKey,
+        catalogueOrder: order.orderFor(officialKey),
+        generationOrder: 0,
+        text: official.bytes,
+        textStorage: mode,
+      );
+      final added = await engine.addTextBookBytes(
+        title: personalTitle,
+        topics: '/it',
+        filePath: personalKey,
+        catalogueOrder: order.orderFor(personalKey),
+        generationOrder: 0,
+        text: personal.bytes,
+        textStorage: mode,
+      );
+      expect(added, personalLines.length);
+      await engine.commit();
+    }
+
+    final cases = [
+      ('גלוי', 0, personalLines[0]),
+      ('זרזיר מתניים', 1, personalLines[1]),
+      ('חלמיש צור', 2, personalLines[2]),
+    ];
+    for (final (query, ordinal, line) in cases) {
+      final result = await single(library, query);
+      expect(result.filePath, personalKey, reason: query);
+      expect(result.textStatus, TextStatus.ok, reason: query);
+      expect(result.segment, BigInt.from(ordinal), reason: query);
+      expect(result.text, (await single(stored, query)).text, reason: query);
+      final shown = withoutHighlight(result.text);
+      expect(shown, contains(query), reason: query);
+      expect(line, contains(shown), reason: query);
+    }
+
+    // מילה בשני הספרים: כל תוצאה בטקסט של הספר שלה, ובמזהה מסמך משלה.
+    final both = await exact(library, 'בראשית');
+    expect(both.map((r) => r.filePath).toSet(), {officialKey, personalKey});
+    expect(both.map((r) => r.id).toSet(), hasLength(2));
+    for (final result in both) {
+      expect(result.textStatus, TextStatus.ok);
+      expect(
+        withoutHighlight(result.text),
+        result.filePath == personalKey
+            ? personalLines[0]
+            : 'בראשית ברא אלהים את השמים',
+      );
+    }
+    // ביטויים שהיו מחברים שורה רשמית לשורה אישית אילו המזהים חפפו.
+    expect(await exact(library, 'השמים זרזיר'), isEmpty);
+    expect(await exact(library, 'גלוי והארץ'), isEmpty);
+
+    final status = await lineSourceStatus();
+    expect(status.userBooksOpen, isTrue);
+    expect(status.userBooksFallbacks, BigInt.zero);
+    expect(status.libraryFallbacks, BigInt.zero);
+  });
 }

@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/indexing/models/catalogue_order_resolver.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
+import 'package:otzaria/search/utils/search_catalogue_order_helper.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
@@ -81,7 +83,9 @@ void main() {
           reason: key,
         );
       }
+      // ספרים אישיים בטווח נפרד מעל הספרייה והמסדים המצורפים.
       final maxExisting = keysBefore
+          .where((key) => !key.startsWith('uid:'))
           .map(orderAfter.orderFor)
           .reduce((a, b) => a > b ? a : b);
       expect(orderAfter.orderFor('db:$_slug:1'), greaterThan(maxExisting));
@@ -95,6 +99,28 @@ void main() {
       );
       for (final key in ['id:1', 'id:2', 'uid:1', 'uid:9']) {
         expect(reattached.orderFor(key), order.orderFor(key), reason: key);
+      }
+    });
+  });
+
+  group('סדר הקטלוג עם ספרים אישיים', () {
+    test('ספרים רשמיים ומצורפים שומרים את מקומם ברצף, ואישיים בטווח שלהם', () {
+      final library = _library(withAttached: true);
+      final positions = SearchCatalogueOrderHelper.buildKeyOrderMap(
+        library,
+        keyOf: (book) => IndexingRepository.catalogueOrderKey(book as Book),
+      );
+      final order = IndexingRepository.buildCatalogueOrderResolver(library);
+
+      for (final MapEntry(:key, :value) in positions.entries) {
+        expect(
+          order.orderFor(key),
+          key.startsWith('uid:')
+              ? CatalogueOrderResolver.personalOrderBase +
+                    int.parse(key.substring(4))
+              : value,
+          reason: key,
+        );
       }
     });
   });

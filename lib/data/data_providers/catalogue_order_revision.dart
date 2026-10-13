@@ -27,15 +27,20 @@ class CatalogueOrderRevision {
   /// שני המצבים מתמזגים בכוונה: כשל קריאה מוביל לבנייה מחדש אחת שכותבת
   /// חותם תקין, בעוד ההנחה ההפוכה ("כנראה עדכני") הייתה משאירה סדר שגוי
   /// לצמיתות. הכתיבה ב-[write] אטומית כדי שקובץ חצוי לא ייווצר מלכתחילה.
-  static int? read(String indexPath) {
+  static int? read(String indexPath) =>
+      _readStamp(indexPath)?['catalogueOrderRevision'] as int?;
+
+  /// האם האינדקס נחתם אחרי שספרים אישיים (`uid:`) קיבלו טווח סדר משלהם.
+  /// באינדקס ישן הם בסדר שבתוך הרצף, ורשומותיהם נמחקות פעם אחת לאינדוקס מחדש.
+  static bool hasPersonalOrderRange(String indexPath) =>
+      _readStamp(indexPath)?['personalOrderRange'] == true;
+
+  static Map<String, dynamic>? _readStamp(String indexPath) {
     try {
       final file = fileFor(indexPath);
       if (!file.existsSync()) return null;
       final decoded = jsonDecode(file.readAsStringSync());
-      if (decoded is Map<String, dynamic>) {
-        return decoded['catalogueOrderRevision'] as int?;
-      }
-      return null;
+      return decoded is Map<String, dynamic> ? decoded : null;
     } catch (e) {
       debugPrint('⚠️ קריאת גרסת הסדר הקטלוגי נכשלה: $e');
       return null;
@@ -56,7 +61,10 @@ class CatalogueOrderRevision {
       final target = fileFor(indexPath);
       final temp = File('${target.path}.tmp');
       temp.writeAsStringSync(
-        jsonEncode({'catalogueOrderRevision': revision}),
+        jsonEncode({
+          'catalogueOrderRevision': revision,
+          'personalOrderRange': true,
+        }),
         flush: true,
       );
       temp.renameSync(target.path);
