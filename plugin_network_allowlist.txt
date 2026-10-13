@@ -104,3 +104,7 @@ https://overpass.kumi.systems/api/interpreter
 
 # ׳אתר ׳המשיב
 https://hameshiv.com
+# שירות הדיבור של אוצריא (otzaria-voice) — תוכנת ההתקנה, לתוספים "חיפוש בדיבור" ו"הקראה קולית".
+# "latest/download" מפנה לגרסה האחרונה, ו-GitHub מפנה ממנו ל-"download/<גרסה>".
+https://github.com/yakov100/otzaria-voice/releases/latest/download
+https://github.com/yakov100/otzaria-voice/releases/download
