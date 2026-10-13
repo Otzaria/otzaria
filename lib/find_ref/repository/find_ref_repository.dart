@@ -3065,6 +3065,31 @@ class FindRefRepository {
     return '${r.bookId}|${r.source.wireKey}|${r.title}|${r.isPdf}|$filePathKey';
   }
 
+  /// שם שהותאם בקירוב אינו שווה לשאילתה מילולית; משווים מילה מול מילה, כדי
+  /// ש"עירובים" יקדים את "עירובין" ל"משנה עירובין" כמו בכתיב הנכון.
+  static ({bool exactMatch, bool startsWithMatch, List<String> titleTokens})
+  _fuzzyTitleMatch(
+    FindRefRankQuery query,
+    String normTitle,
+    ({bool exactMatch, bool startsWithMatch, List<String> titleTokens}) literal,
+  ) {
+    final titleWords = bookNameMatchForm(
+      normTitle,
+    ).split(' ').where((w) => w.isNotEmpty).toList();
+    final queryWords = query.matchTokens;
+    var startsWith = queryWords.length <= titleWords.length;
+    for (var i = 0; startsWith && i < queryWords.length; i++) {
+      startsWith =
+          queryWords[i] == titleWords[i] ||
+          bookSearchWordPairMatches(queryWords[i], titleWords[i]);
+    }
+    return (
+      exactMatch: startsWith && queryWords.length == titleWords.length,
+      startsWithMatch: startsWith,
+      titleTokens: literal.titleTokens,
+    );
+  }
+
   List<DbReferenceResult> _rankResults(
     List<DbReferenceResult> results,
     List<String> queryTokens, {
@@ -3100,6 +3125,11 @@ class FindRefRepository {
             match,
           })
         >{};
+    final fuzzyTitleKeys =
+        <
+          String,
+          ({bool exactMatch, bool startsWithMatch, List<String> titleTokens})
+        >{};
     final decorated = List<FindRefRankKey<DbReferenceResult>>.generate(
       results.length,
       (i) {
@@ -3108,30 +3138,37 @@ class FindRefRepository {
           final normTitle = _normalizeForMatch(r.title);
           return (normTitle: normTitle, match: query.titleMatch(normTitle));
         });
+        final fuzzyBookMatch =
+            !r.isSourceLine &&
+            !directMatches.contains(r) &&
+            !directSegments.contains((
+              r.bookId,
+              r.source,
+              r.title,
+              r.isPdf,
+              r.segment,
+            )) &&
+            !directReferences.contains((
+              r.bookId,
+              r.source,
+              r.title,
+              r.isPdf,
+              r.reference,
+            )) &&
+            bookMatchRanks[_bookKey(r.source, r.bookId, r.filePath)] ==
+                ReferenceBooksCache.fuzzyMatchRank;
+        final match = fuzzyBookMatch
+            ? fuzzyTitleKeys.putIfAbsent(
+                r.title,
+                () => _fuzzyTitleMatch(query, title.normTitle, title.match),
+              )
+            : title.match;
         return FindRefRankKey(
           item: r,
           normTitle: title.normTitle,
-          fuzzyBookMatch:
-              !r.isSourceLine &&
-              !directMatches.contains(r) &&
-              !directSegments.contains((
-                r.bookId,
-                r.source,
-                r.title,
-                r.isPdf,
-                r.segment,
-              )) &&
-              !directReferences.contains((
-                r.bookId,
-                r.source,
-                r.title,
-                r.isPdf,
-                r.reference,
-              )) &&
-              bookMatchRanks[_bookKey(r.source, r.bookId, r.filePath)] ==
-                  ReferenceBooksCache.fuzzyMatchRank,
-          exactMatch: title.match.exactMatch,
-          startsWithMatch: title.match.startsWithMatch,
+          fuzzyBookMatch: fuzzyBookMatch,
+          exactMatch: match.exactMatch,
+          startsWithMatch: match.startsWithMatch,
           punctuationAgrees:
               quotedWords.isEmpty ||
               punctuationAgrees.putIfAbsent(

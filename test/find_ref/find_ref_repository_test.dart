@@ -172,6 +172,35 @@ void main() {
     expect(results.map((result) => result.bookId), contains(100));
   });
 
+  test(
+    'issue #2136: שם בשגיאת כתיב מקדים את הספר ששמו זהה, כמו בכתיב הנכון',
+    () async {
+      final repo = FindRefRepository(
+        dataRepository: MockDataRepository(),
+        isReferenceBooksCacheLoaded: () => true,
+        warmUpReferenceBooksCache: () async {},
+        searchReferenceBooks: (query, {int limit = 50}) => [
+          _hit(
+            bookId: 1,
+            title: 'משנה עירובין',
+            matchRank: ReferenceBooksCache.fuzzyMatchRank,
+          ),
+          _hit(
+            bookId: 2,
+            title: 'עירובין',
+            matchRank: ReferenceBooksCache.fuzzyMatchRank,
+          ),
+        ],
+        getTocEntriesForReference: (_, _, {queryTokens}) async => const [],
+        getCategoryPathSync: (bookId) =>
+            bookId == 1 ? 'משנה, סדר מועד' : 'תלמוד בבלי, סדר מועד',
+      );
+
+      final results = await repo.findRefs('עירובים');
+      expect(results.first.bookId, 2);
+    },
+  );
+
   test('ספרי PDF מהדיסק נשארים נפרדים בדירוג לפי נתיב הקובץ', () async {
     final repo = FindRefRepository(
       dataRepository: MockDataRepository(),
