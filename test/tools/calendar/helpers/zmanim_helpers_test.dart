@@ -578,4 +578,61 @@ void main() {
       expect(hasCandles(day(5786, tishrei, 1, 3)), isFalse);
     });
   });
+
+  group('הנץ הנראה לפי פרופיל האופק', () {
+    // ערכי ייחוס מחישוב עצמאי (פייתון, רזולוציה 0.1°) על אותם נתוני גובה.
+    const expected = {
+      'ירושלים': '06:40:53',
+      'בני ברק': '06:49:23',
+      'בית שמש': '07:01:06',
+      'אילת': '07:03:30',
+    };
+    final date = DateTime(2026, 10, 14);
+
+    for (final entry in expected.entries) {
+      test('${entry.key} — ${entry.value}', () {
+        final jerusalemTz = tz.getLocation('Asia/Jerusalem');
+        final cal = buildZmanimCalendarContext(date, entry.key)!.zmanimCalendar;
+        final actual = tz.TZDateTime.from(
+          calculateVisibleSunrise(cal, entry.key)!,
+          jerusalemTz,
+        );
+        final parts = entry.value.split(':').map(int.parse).toList();
+        final reference = tz.TZDateTime(
+          jerusalemTz,
+          2026,
+          10,
+          14,
+          parts[0],
+          parts[1],
+          parts[2],
+        );
+        expect(
+          actual.difference(reference).inSeconds.abs(),
+          lessThanOrEqualTo(2),
+        );
+      });
+    }
+
+    test('לכל עיר בארץ ישראל יש פרופיל אופק', () {
+      final israelCities = cityCoordinates['ארץ ישראל']!.keys;
+      expect(
+        israelCities.where(
+          (city) =>
+              calculateVisibleSunrise(
+                buildZmanimCalendarContext(date, city)!.zmanimCalendar,
+                city,
+              ) ==
+              null,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('עיר בלי פרופיל — לא מוצג', () {
+      final times = calculateDailyTimes(date, 'ברוקלין');
+      expect(times['sunriseVisible'], isNull);
+      expect(times['sunrise'], isNotNull);
+    });
+  });
 }

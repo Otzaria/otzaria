@@ -121,7 +121,7 @@ void main() {
       expect(
         kDefaultEnabledZmanim,
         containsAll([
-          'sunrise',
+          'sunriseVisible',
           'sunset',
           'seaLevelSunset',
           'chatzos',

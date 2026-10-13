@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/models/calendar_location.dart';
+import 'package:otzaria/tools/calendar/models/horizon_profiles.dart';
 import 'package:otzaria/tools/calendar/models/zman_definition.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -303,6 +306,123 @@ String _formatHebrewNightLabel(
 // פונקציות חישוב מותאמות (שאינן קריאה ישירה ל-kosher_dart)
 // ===========================================================================
 
+/// הנץ הנראה — הרגע שבו השפה העליונה של השמש נראית מעל ההרים שבאופק
+/// המזרחי, לפי פרופיל האופק של העיר. null לעיר שאין לה פרופיל.
+DateTime? calculateVisibleSunrise(ComplexZmanimCalendar cal, String city) {
+  final profile = kHorizonProfiles[city];
+  final seaLevel = cal.getSeaLevelSunrise();
+  if (profile == null || seaLevel == null) return null;
+  final location = cal.getGeoLocation();
+  final latitude = location.getLatitude();
+  final longitude = location.getLongitude();
+
+  // כמה מעלות השפה העליונה מעל הגובה שבו היא נראית בדיוק על האופק.
+  double margin(int ms) {
+    final sun = _solarPosition(ms, latitude, longitude);
+    final horizon = _horizonAltitude(profile, sun.azimuth);
+    return sun.altitude +
+        _kSolarRadiusDegrees -
+        (horizon - _refractionDegrees(horizon));
+  }
+
+  // השמש עשויה להופיע בפרצה ולהיעלם מאחורי פסגה, ולכן סורקים עד ההופעה
+  // הראשונה ולא מחפשים נקודת שבת.
+  const stepMs = 10000;
+  final start = seaLevel.millisecondsSinceEpoch - 10 * 60000;
+  final end = seaLevel.millisecondsSinceEpoch + 90 * 60000;
+  var low = start;
+  var high = start;
+  while (margin(high) < 0) {
+    low = high;
+    high += stepMs;
+    if (high > end) return null;
+  }
+  while (high - low > 50) {
+    final mid = (low + high) ~/ 2;
+    if (margin(mid) < 0) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  // הזמן הסופי מ-kosher_dart, כדי שאופק שטוח ייתן בדיוק את הנץ המישורי.
+  final sun = _solarPosition(high, latitude, longitude);
+  final horizon = _horizonAltitude(profile, sun.azimuth);
+  return cal.getSunriseOffsetByDegrees(
+    90 + _kSolarRadiusDegrees + _refractionDegrees(horizon) - horizon,
+  );
+}
+
+const double _kSolarRadiusDegrees = 16 / 60;
+
+/// שבירת האור (Bennett) בגובה נראה [apparent], מכוילת ל-34' באופק כמו
+/// הנץ המישורי, כדי שאופק שטוח ייתן בדיוק את הנץ המישורי.
+double _refractionDegrees(double apparent) {
+  final a = max(apparent, -1.5);
+  return 34 / 34.47 / tan((a + 7.31 / (a + 4.4)) * pi / 180) / 60;
+}
+
+double _horizonAltitude(List<int> profile, double azimuth) {
+  final position =
+      ((azimuth - kHorizonProfileStartAzimuth) / kHorizonProfileAzimuthStep)
+          .clamp(0.0, profile.length - 1.0);
+  final index = position.floor();
+  final next = min(index + 1, profile.length - 1);
+  final fraction = position - index;
+  return (profile[index] * (1 - fraction) + profile[next] * fraction) / 1000;
+}
+
+/// גובה השמש האמיתי ואזימוטה (מהצפון), במעלות, לפי נוסחאות NOAA.
+/// NOAACalculator.getSolarAzimuth של kosher_dart משתמש ב-atan ושוגה ברביע.
+({double altitude, double azimuth}) _solarPosition(
+  int utcMs,
+  double latitude,
+  double longitude,
+) {
+  const rad = pi / 180;
+  final julianDay = utcMs / 86400000 + 2440587.5;
+  final t = (julianDay - 2451545) / 36525;
+  final meanLongitude = (280.46646 + t * (36000.76983 + t * 0.0003032)) % 360;
+  final meanAnomaly = (357.52911 + t * (35999.05029 - 0.0001537 * t)) * rad;
+  final eccentricity = 0.016708634 - t * (0.000042037 + 0.0000001267 * t);
+  final center =
+      sin(meanAnomaly) * (1.914602 - t * (0.004817 + 0.000014 * t)) +
+      sin(2 * meanAnomaly) * (0.019993 - 0.000101 * t) +
+      sin(3 * meanAnomaly) * 0.000289;
+  final omega = (125.04 - 1934.136 * t) * rad;
+  final apparentLongitude =
+      (meanLongitude + center - 0.00569 - 0.00478 * sin(omega)) * rad;
+  final obliquity =
+      (23 +
+          (26 + (21.448 - t * (46.815 + t * (0.00059 - t * 0.001813))) / 60) /
+              60 +
+          0.00256 * cos(omega)) *
+      rad;
+  final declination = asin(sin(obliquity) * sin(apparentLongitude));
+  final y = pow(tan(obliquity / 2), 2).toDouble();
+  final l0 = meanLongitude * rad;
+  final equationOfTime =
+      4 /
+      rad *
+      (y * sin(2 * l0) -
+          2 * eccentricity * sin(meanAnomaly) +
+          4 * eccentricity * y * sin(meanAnomaly) * cos(2 * l0) -
+          0.5 * y * y * sin(4 * l0) -
+          1.25 * eccentricity * eccentricity * sin(2 * meanAnomaly));
+  final minutes = (utcMs % 86400000) / 60000;
+  final trueSolarTime = (minutes + equationOfTime + 4 * longitude) % 1440;
+  final hourAngle = (trueSolarTime / 4 - 180) * rad;
+  final lat = latitude * rad;
+  final altitude = asin(
+    sin(lat) * sin(declination) + cos(lat) * cos(declination) * cos(hourAngle),
+  );
+  final azimuth = atan2(
+    sin(hourAngle),
+    cos(hourAngle) * sin(lat) - tan(declination) * cos(lat),
+  );
+  return (altitude: altitude / rad, azimuth: (azimuth / rad + 180) % 360);
+}
+
 /// חצות לילה אסטרונומי — נקודת האמצע בין שקיעת היום לזריחת המחרת.
 /// מחושב ידנית בגלל באג ב-getSolarMidnight של kosher_dart 2.0.20 עם
 /// TZDateTime (מסיג את התאריך ביום).
@@ -520,13 +640,21 @@ final List<ZmanDefinition> kZmanimRegistry = [
     compute: (c) => c.cal.getSunrise(),
   ),
   ZmanDefinition(
-    id: 'sunrise',
+    id: 'sunriseVisible',
     title: 'הנץ הנראה',
     category: 'זריחה',
     explanation:
-        '''זריחת החמה באופק המישורי — הנץ המקובל ברוב הלוחות, וכך נהוג לכנותו.
-אין זה הנץ הנראה במדויק: הזמן שבו השמש נראית בפועל מעל ההרים שבאופק המזרחי עשוי להיות מאוחר בכמה דקות, וחישובו דורש מדידה של פרופיל ההרים באופק של כל מקום (כדרך לוחות "חי-טבלאות" ו"עתים לבינה").''',
+        '''הזמן שבו השפה העליונה של השמש נראית מעל ההרים שבאופק המזרחי, מגובה הקרקע בנקודת העיר.
+מחושב לפי מפת גובה (SRTM) של ההרים עד 200 ק"מ, לערי ארץ ישראל בלבד. בשכונות שונות של אותה עיר הזמן עשוי להשתנות, בעיקר כשרכס קרוב מסתיר את המזרח.''',
     defaultEnabled: true,
+    compute: (c) => calculateVisibleSunrise(c.cal, c.city),
+  ),
+  ZmanDefinition(
+    id: 'sunrise',
+    title: 'נץ החמה המישורי',
+    category: 'זריחה',
+    explanation:
+        '''זריחת החמה כשהמקום והאופק בגובה אחד, ללא הרים מסתירים — הנץ המקובל ברוב הלוחות.''',
     compute: (c) => c.cal.getSeaLevelSunrise(),
   ),
 
