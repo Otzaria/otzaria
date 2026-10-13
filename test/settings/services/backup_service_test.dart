@@ -32,6 +32,7 @@ import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 import '../../models/direct_error_report_text_correction_test.dart'
     show buildCorrectionReport, trickyLine;
@@ -218,6 +219,47 @@ void main() {
       ]),
     );
   });
+
+  test(
+    'user_books.db נכנס לגיבוי כתמונת מצב ומשוחזר ממנו (issue #2189)',
+    () async {
+      final dbPath = await AppPaths.resolveUserBooksDbPath();
+      // חיבור פתוח עם שינויים שעוד ב-WAL — כמו ה-holder בזמן גיבוי אוטומטי.
+      final open = sqlite3.sqlite3.open(dbPath)
+        ..execute('PRAGMA journal_mode = WAL')
+        ..execute('PRAGMA wal_autocheckpoint = 0')
+        ..execute('CREATE TABLE line (id INTEGER PRIMARY KEY, content)')
+        ..execute("INSERT INTO line (content) VALUES ('ספר שקובצו נמחק')");
+
+      final result = await BackupService.createBackup(
+        includeSettings: true,
+        includeBookmarks: false,
+        includeHistory: false,
+        includeNotes: false,
+        includeWorkspaces: false,
+        includeShamorZachor: false,
+        includePlugins: false,
+      );
+      expect(result.skippedSections, isNot(contains('userBooks')));
+      final backup =
+          jsonDecode(await File(result.path).readAsString())
+              as Map<String, dynamic>;
+      expect(backup['userBooks'], isA<String>());
+
+      open
+        ..execute('DELETE FROM line')
+        ..close();
+
+      final restored = await BackupService.restoreFromBackup(result.path);
+      expect(restored.skippedSections, isNot(contains('userBooks')));
+      expect(File('$dbPath-wal').existsSync(), isFalse);
+      final db = sqlite3.sqlite3.open(dbPath);
+      addTearDown(db.close);
+      expect(db.select('SELECT content FROM line').single.values, [
+        'ספר שקובצו נמחק',
+      ]);
+    },
+  );
 
   test('מפתחות ההסתרה מוצהרים ונכנסים גם במסלול הנסיגה (issue #1448)', () {
     // כש-Hive אינו פתוח הגיבוי אוסף את הרשימה המוצהרת בלבד. מפתח שאינו שם

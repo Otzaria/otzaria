@@ -27,6 +27,7 @@ import '../../models/toc_text.dart';
 import '../../models/topic.dart';
 import '../daos/database.dart';
 import '../db_capabilities.dart';
+import '../line_content_encoder.dart';
 import '../sqlite3_utils.dart';
 
 part 'alt_toc_flat_index.dart';
@@ -43,6 +44,9 @@ class SeforimRepository {
   MyDatabase get database => _database;
 
   bool _initialized = false;
+
+  /// דוחס את השורות ש-[insertLinesBatch] כותב; רק ל-user_books.db.
+  LineContentWriter? lineContentWriter;
 
   /// קאש LRU לערכי TOC מעובדים לכל ספר (מפתח: bookId), חסום לפי מספר הערכים
   /// הכולל — ראו [defaultTocCacheMaxEntries]. סדר ההכנסה הוא סדר השימוש.
@@ -1441,6 +1445,7 @@ class SeforimRepository {
 
     final db = await _database.database;
     withTransaction(db, () {
+      final encoder = lineContentWriter?.encoderFor(db);
       // הכנה חד-פעמית של ה-statement — sqlite3 מכין מחדש בכל db.execute,
       // ובאצווה של 80 אלף שורות זה הצוואר.
       final stmt = db.prepare(
@@ -1451,7 +1456,7 @@ class SeforimRepository {
           stmt.execute([
             line.bookId,
             line.lineIndex,
-            line.content,
+            encoder?.encode(line.content) ?? line.content,
             line.heRef,
             null,
           ]);

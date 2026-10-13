@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import '../../data/data_providers/database_library_provider.dart';
 import '../database/daos/database.dart';
+import '../database/line_content_encoder.dart';
 import '../database/repository/seforim_repository.dart';
 import '../database/query_loader.dart';
 import '../../settings/services/custom_folders/custom_folder.dart';
@@ -296,6 +297,9 @@ Future<T> _withWorkerSyncService<T>(
   );
   final userBooksRepository = SeforimRepository(userBooksDatabase);
   await userBooksRepository.ensureInitialized();
+  // השורות החדשות נדחסות במילון של הספרייה, אם יש בה כזה.
+  final lineWriter = LineContentWriter(await database.database);
+  userBooksRepository.lineContentWriter = lineWriter;
 
   final service = FileSyncService.createForWorker(
     repository,
@@ -305,6 +309,7 @@ Future<T> _withWorkerSyncService<T>(
   try {
     return await body(service);
   } finally {
+    lineWriter.dispose();
     database.close();
     userBooksDatabase.close();
   }

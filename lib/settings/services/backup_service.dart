@@ -34,6 +34,8 @@ import 'package:otzaria/plugins/services/plugin_report_service.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/services/sent_reports_counter.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/core/user_state/pending_report_store.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
@@ -137,6 +139,8 @@ class BackupService {
           skippedSections.add('perBookSettings');
         }
         backupData['reportQueues'] = await _backupReportQueues();
+        final userBooks = await _backupUserBooksDb(skippedSections, store);
+        if (userBooks != null) backupData['userBooks'] = userBooks;
       }
 
       // Backup bookmarks
@@ -218,6 +222,7 @@ class BackupService {
     'user_state.db',
     'personal_notes.db',
     'plugins_host.db',
+    'user_books.db',
     'plugins',
     'per_book_settings',
   };
@@ -252,7 +257,6 @@ class BackupService {
     windowRootsDirName:
         'עותקי box ההגדרות של חלונות נוספים; נמחקים בהפעלה קרה '
         '(deleteStaleWindowRoots) ומסונכרנים חי עם ההגדרות של החלון הראשון',
-    'user_books.db': 'קטלוג הספרים האישיים, נבנה מחדש מסריקת התיקיות',
     'cache.db': 'קאש חישובים, נבנה מחדש לפי הצורך',
     'search_feedback':
         'זהות אנונימית של ההתקנה ותור משוב שלא נשלח — אסור שיעברו להתקנה אחרת',
@@ -564,6 +568,90 @@ class BackupService {
     return map;
   }
 
+  /// עותק עקבי של user_books.db: ספר ממסד שקובצו נמחק וקובצי הייבוא אינם
+  /// נבנים מחדש מסריקת התיקיות. null — אין מסד, או שהוא דולג (ומדווח).
+  static Future<String?> _backupUserBooksDb(
+    List<String> skippedSections,
+    BackupStore? store,
+  ) async {
+    final dbPath = await AppPaths.resolveUserBooksDbPath();
+    final source = File(dbPath);
+    if (!await source.exists() || await source.length() == 0) return null;
+    final tempDir = await Directory.systemTemp.createTemp(
+      'otzaria_user_books_',
+    );
+    try {
+      final snapshot = p.join(tempDir.path, 'user_books.db');
+      await Isolate.run(() => _vacuumInto(dbPath, snapshot));
+      final file = File(snapshot);
+      final budget = store != null
+          ? maxPluginBytesWithStore
+          : maxPluginBytesInline;
+      if (await file.length() > budget) {
+        throw StateError('user_books.db גדול מתקרת הגיבוי');
+      }
+      final bytes = await file.readAsBytes();
+      return store != null ? await store.putBytes(bytes) : base64Encode(bytes);
+    } catch (e) {
+      _logger.warning('Skipping user_books.db backup: $e');
+      skippedSections.add('userBooks');
+      return null;
+    } finally {
+      await tempDir.delete(recursive: true).catchError((_) => tempDir);
+    }
+  }
+
+  // VACUUM INTO כותב תמונת מצב עקבית גם כשה-worker כותב למסד במקביל.
+  static void _vacuumInto(String dbPath, String target) {
+    final db = sqlite3.sqlite3.open(dbPath, mode: sqlite3.OpenMode.readWrite);
+    try {
+      db.execute('PRAGMA busy_timeout = 10000');
+      db.execute('VACUUM INTO ?', [target]);
+    } finally {
+      db.close();
+    }
+  }
+
+  /// מחליף את user_books.db בעותק מהגיבוי; false כשלא הוחלף.
+  static Future<bool> _restoreUserBooksDb(
+    String value,
+    List<BackupStore> stores,
+  ) async {
+    List<int>? bytes;
+    if (BackupStore.isHashRef(value)) {
+      for (final store in stores) {
+        bytes = await store.getBytes(value);
+        if (bytes != null) break;
+      }
+    } else {
+      bytes = base64Decode(value);
+    }
+    const header = 'SQLite format 3\u0000';
+    if (bytes == null ||
+        bytes.length < header.length ||
+        String.fromCharCodes(bytes.take(header.length)) != header) {
+      _logger.warning('user_books.db in backup is missing or not SQLite');
+      return false;
+    }
+    final dbPath = await AppPaths.resolveUserBooksDbPath();
+    final staged = File('$dbPath.restore');
+    try {
+      await staged.writeAsBytes(bytes, flush: true);
+      await UserBooksDatabaseHolder.instance.close();
+      // WAL של המסד הקודם שנשאר ליד העותק היה מוחל עליו ומשחית אותו.
+      for (final suffix in const ['-wal', '-shm']) {
+        final sidecar = File('$dbPath$suffix');
+        if (await sidecar.exists()) await sidecar.delete();
+      }
+      await staged.rename(dbPath);
+      return true;
+    } catch (e) {
+      _logger.warning('Failed to restore user_books.db: $e');
+      if (await staged.exists()) await staged.delete();
+      return false;
+    }
+  }
+
   /// Backup workspaces
   static Future<Map<String, dynamic>> _backupWorkspaces() async {
     final repo = WorkspaceRepository();
@@ -762,6 +850,11 @@ class BackupService {
         await _restoreReportQueues(
           (backupData['reportQueues'] as Map?)?.cast<String, dynamic>(),
         );
+        final userBooks = backupData['userBooks'];
+        if (userBooks is String &&
+            !await _restoreUserBooksDb(userBooks, stores)) {
+          runtimeSkipped.add('userBooks');
+        }
       }
       final perBookHadFailures = await _restorePerBookSettings(
         (backupData['perBookSettings'] as Map?)?.cast<String, dynamic>() ??

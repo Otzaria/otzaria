@@ -3,30 +3,34 @@ import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/utils/file/zstd_library.dart';
 import 'package:zstandard_native/zstandard_native_bindings.dart';
 
 /// מפענח טקסט שורה: במסד עם טבלת `zstd_dict` כל `line_content.content`
 /// ו-`version_line.content` שאינו NULL הוא מסגרת zstd של מילון מהטבלה.
-/// ערך TEXT (מסד ישן, user_books.db) מוחזר כמו שהוא.
+/// ערך TEXT (מסד ישן, שורות ישנות ב-user_books.db) מוחזר כמו שהוא.
 ///
 /// אחד לכל חיבור ([of]); אינו בטוח לשימוש מכמה isolates.
 final class LineContentCodec implements Finalizable {
-  LineContentCodec._(this._decoder);
+  LineContentCodec._(this._db, this._dictionaryRows, this._decoder);
 
   static final _byDatabase = Expando<LineContentCodec>();
 
   /// טוען את libzstd; בדיקות מחליפות אותו.
   @visibleForTesting
   static DynamicLibrary Function() openLibrary = openZstandardLib;
-  static final _plain = LineContentCodec._(null);
+
+  /// libzstd של הפענוח, גם לדחיסה ב-[LineContentEncoder].
+  static DynamicLibrary zstdLibrary() => openLibrary();
 
   /// השורה הגדולה בספרייה היום ~1.3MB; מסגרת שמצהירה על יותר — פגומה.
   static const maxLineBytes = 16 * 1024 * 1024;
 
-  final _ZstdDictDecoder? _decoder;
+  final sqlite3.Database _db;
+  List<int>? _dictionaryRows;
+  _ZstdDictDecoder? _decoder;
 
   /// למסד יש `zstd_dict`, כלומר שורותיו (או חלקן) דחוסות.
   bool get isCompressed => _decoder != null;
@@ -36,10 +40,22 @@ final class LineContentCodec implements Finalizable {
       _byDatabase[db] ??= _open(db);
 
   static LineContentCodec _open(sqlite3.Database db) {
+    final rows = _dictionaryRowIds(db);
+    return LineContentCodec._(db, rows, rows == null ? null : _load(db));
+  }
+
+  static List<int>? _dictionaryRowIds(sqlite3.Database db) {
     final hasDictionaries = db.select(
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'zstd_dict'",
     );
-    if (hasDictionaries.isEmpty) return _plain;
+    if (hasDictionaries.isEmpty) return null;
+    return [
+      for (final row in db.select('SELECT id FROM zstd_dict ORDER BY id'))
+        row.values.first! as int,
+    ];
+  }
+
+  static _ZstdDictDecoder _load(sqlite3.Database db) {
     final dictionaries = [
       for (final row in db.select('SELECT dict FROM zstd_dict'))
         switch (row.values.first) {
@@ -47,7 +63,7 @@ final class LineContentCodec implements Finalizable {
           final other => throw FormatException('zstd_dict מכיל $other'),
         },
     ];
-    return LineContentCodec._(_ZstdDictDecoder(dictionaries));
+    return _ZstdDictDecoder(dictionaries);
   }
 
   /// הטקסט של ערך עמודה: null נשאר null.
@@ -60,12 +76,34 @@ final class LineContentCodec implements Finalizable {
 
   /// בייטי ה-UTF-8 של [frame].
   Uint8List bytes(Uint8List frame) {
+    try {
+      return _decompress(frame);
+    } on _MissingDictionary {
+      // חיבור אחר (worker הסנכרון) הוסיף מילון אחרי שה-codec נטען.
+      if (!_reloadIfDictionariesChanged()) rethrow;
+    }
+    return _decompress(frame);
+  }
+
+  Uint8List _decompress(Uint8List frame) {
     final decoder = _decoder;
     if (decoder == null) {
-      throw const FormatException('שורה דחוסה במסד בלי zstd_dict');
+      throw const _MissingDictionary('שורה דחוסה במסד בלי zstd_dict');
     }
     return decoder.decompress(frame);
   }
+
+  bool _reloadIfDictionariesChanged() {
+    final rows = _dictionaryRowIds(_db);
+    if (rows == null || listEquals(rows, _dictionaryRows)) return false;
+    _decoder = _load(_db);
+    _dictionaryRows = rows;
+    return true;
+  }
+}
+
+final class _MissingDictionary extends FormatException {
+  const _MissingDictionary(super.message);
 }
 
 /// תחילית מסגרת zstd (0xFD2FB528, little-endian). טקסט UTF-8 תקין לעולם
@@ -95,7 +133,9 @@ final class _ZstdDictDecoder implements Finalizable {
         final ddict = _zstd.ZSTD_createDDict(native.cast(), dict.length);
         if (ddict == nullptr) throw StateError('ZSTD_createDDict נכשל');
         freeDDict.attach(this, ddict.cast());
-        _ddicts[_zstd.ZSTD_getDictID_fromDDict(ddict)] = ddict;
+        // שני מילונים באותו מזהה: מסגרת לא מעידה לאיזה מהם היא שייכת.
+        final id = _zstd.ZSTD_getDictID_fromDDict(ddict);
+        _ddicts[id] = _ddicts.containsKey(id) ? null : ddict;
       } finally {
         malloc.free(native);
       }
@@ -109,7 +149,7 @@ final class _ZstdDictDecoder implements Finalizable {
   static NativeFinalizer? _freeDCtx;
 
   late final ZstandardNativeBindings _zstd;
-  final Map<int, Pointer<ZSTD_DDict>> _ddicts;
+  final Map<int, Pointer<ZSTD_DDict>?> _ddicts;
   late final Pointer<ZSTD_DCtx> _dctx;
   final _input = _GrowableNativeBuffer();
   final _output = _GrowableNativeBuffer();
@@ -123,9 +163,12 @@ final class _ZstdDictDecoder implements Finalizable {
       throw FormatException('מסגרת zstd לא תקינה (גודל $size)');
     }
     final dictId = _zstd.ZSTD_getDictID_fromFrame(src.cast(), frame.length);
+    if (!_ddicts.containsKey(dictId)) {
+      throw _MissingDictionary('מילון $dictId חסר ב-zstd_dict');
+    }
     final ddict = _ddicts[dictId];
     if (ddict == null) {
-      throw FormatException('מילון $dictId חסר ב-zstd_dict');
+      throw FormatException('מילון $dictId מופיע ב-zstd_dict פעמיים');
     }
     final dst = _output.reserve(size);
     final written = _zstd.ZSTD_decompress_usingDDict(
