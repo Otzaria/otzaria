@@ -25,7 +25,9 @@ import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_selection_preferences.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/search_defaults.dart';
+import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
@@ -33,8 +35,9 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show ResultsOrder;
+    show ResultsOrder, SearchScope, WordMatchMode;
 
 import '../support/search_engine_test_init.dart';
 import '../test_helpers/memory_cache_provider.dart';
@@ -1684,5 +1687,276 @@ Future<void> main() async {
       },
       skip: !engineReady,
     );
+    Future<void> pickWordDistanceMode(
+      WidgetTester tester,
+      WordMatchMode mode,
+    ) async {
+      await tester.tap(find.byIcon(OtzariaIcons.apps_list_24_regular));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(PopupMenuItem<(SearchScope, WordMatchMode)>),
+          matching: find.text(SearchScope.wordDistance.label),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(mode.label).last);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+      'עריכה מחילה על הטאב מצב התאמה חלקית שנבחר בדיאלוג (issue #2006)',
+      (WidgetTester tester) async {
+        await openEditDialog(tester);
+        await pickWordDistanceMode(tester, WordMatchMode.mostWords);
+        expect(editedTab.searchBloc.state.wordMatchMode, WordMatchMode.all);
+
+        await tester.tap(find.byTooltip('חפש'));
+        await tester.pumpAndSettle();
+        expect(
+          editedTab.searchBloc.state.wordMatchMode,
+          WordMatchMode.mostWords,
+        );
+      },
+      skip: !engineReady,
+    );
+
+    testWidgets(
+      'עריכה מחילה על הטאב את סדר המילים (issue #2006)',
+      (WidgetTester tester) async {
+        await openEditDialog(tester);
+        await tester.tap(
+          find.byKey(const ValueKey('search-word-order-checkbox')),
+        );
+        await tester.pumpAndSettle();
+        expect(editedTab.searchBloc.state.anyOrder, isFalse);
+
+        await tester.tap(find.byTooltip('חפש'));
+        await tester.pumpAndSettle();
+        expect(editedTab.searchBloc.state.anyOrder, isTrue);
+      },
+      skip: !engineReady,
+    );
+  });
+
+  group('טווח הקרבה וסדר המילים בדיאלוג (issue #2006)', () {
+    late MockTabsBloc tabsBloc;
+
+    Future<void> openDialog(
+      WidgetTester tester, {
+      SearchMode mode = SearchMode.advanced,
+    }) async {
+      final historyBloc = MockHistoryBloc();
+      final indexingBloc = MockIndexingBloc();
+      final navigationBloc = MockNavigationBloc();
+      tabsBloc = MockTabsBloc();
+      whenListen(
+        historyBloc,
+        const Stream<HistoryState>.empty(),
+        initialState: HistoryLoaded([]),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        navigationBloc,
+        const Stream<NavigationState>.empty(),
+        initialState: const NavigationState(currentScreen: Screen.search),
+      );
+      whenListen(
+        tabsBloc,
+        const Stream<TabsState>.empty(),
+        initialState: const TabsState(tabs: [], currentTabIndex: 0),
+      );
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+        SearchDefaults.saveMatchPolicyDefault(SearchMatchPolicy.standard);
+        SearchDefaults.saveAnyOrderDefault(false);
+        await historyBloc.close();
+        await indexingBloc.close();
+        await navigationBloc.close();
+        await tabsBloc.close();
+      });
+
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<IndexingBloc>.value(value: indexingBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
+            BlocProvider<TabsBloc>.value(value: tabsBloc),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => SearchDialog(initialSearchMode: mode),
+                    ),
+                    child: const Text('פתח'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> openDefaultsMenu(WidgetTester tester) async {
+      await tester.tap(
+        find.byKey(const ValueKey('search-dialog-defaults-menu')),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    SearchBloc dialogBloc(WidgetTester tester) => BlocProvider.of<SearchBloc>(
+      tester.element(find.byType(WordOrderCheckbox)),
+    );
+
+    bool dialogKeepsOrder(WidgetTester tester) => tester
+        .widget<Checkbox>(
+          find.descendant(
+            of: find.byKey(const ValueKey('search-word-order-checkbox')),
+            matching: find.byType(Checkbox),
+          ),
+        )
+        .value!;
+
+    testWidgets('טאב חדש נושא את כל מדיניות ההתאמה שבדיאלוג', (
+      WidgetTester tester,
+    ) async {
+      SearchDefaults.rememberSessionMatchPolicy(
+        const SearchMatchPolicy(
+          wordMatchMode: WordMatchMode.atLeast,
+          wordMatchCount: 3,
+        ),
+      );
+      SearchDefaults.rememberSessionAnyOrder(true);
+      await openDialog(tester);
+      await tester.enterText(find.byType(TextField).first, 'חכמה בינה');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('חפש'));
+      await tester.pumpAndSettle();
+
+      final captured = verify(() => tabsBloc.add(captureAny())).captured;
+      final tab = captured.whereType<AddTab>().single.tab as SearchingTab;
+      addTearDown(tab.dispose);
+      final config = tab.searchBloc.state.configuration;
+      expect(config.wordMatchMode, WordMatchMode.atLeast);
+      expect(config.wordMatchCount, 3);
+      expect(config.anyOrder, isTrue);
+    }, skip: !engineReady);
+
+    testWidgets('בחיפוש רגיל הסדר הוא צ\'יפ תחת "אפשרויות נוספות"', (
+      WidgetTester tester,
+    ) async {
+      SearchDefaults.rememberSessionAnyOrder(false);
+      await openDialog(tester, mode: SearchMode.exact);
+      final chip = find.byKey(const ValueKey('search-word-order-chip'));
+      expect(chip, findsNothing);
+      expect(
+        find.byKey(const ValueKey('search-word-order-checkbox')),
+        findsNothing,
+      );
+
+      await _openMoreOptions(tester);
+      expect(tester.widget<FilterChip>(chip).selected, isTrue);
+      await tester.ensureVisible(chip);
+      await tester.pumpAndSettle();
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(tester.widget<FilterChip>(chip).selected, isFalse);
+
+      await tester.enterText(find.byType(TextField).first, 'חכמה בינה');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('חפש'));
+      await tester.pumpAndSettle();
+      final captured = verify(() => tabsBloc.add(captureAny())).captured;
+      final tab = captured.whereType<AddTab>().single.tab as SearchingTab;
+      addTearDown(tab.dispose);
+      expect(tab.searchBloc.state.configuration.searchMode, SearchMode.exact);
+      expect(tab.searchBloc.state.anyOrder, isTrue);
+    }, skip: !engineReady);
+
+    testWidgets('צ\'יפ "בכל סדר" פעיל פותח את "אפשרויות נוספות" מעצמו', (
+      WidgetTester tester,
+    ) async {
+      SearchDefaults.rememberSessionAnyOrder(true);
+      await openDialog(tester, mode: SearchMode.exact);
+      final chip = find.byKey(const ValueKey('search-word-order-chip'));
+      expect(chip, findsOneWidget);
+      expect(tester.widget<FilterChip>(chip).selected, isFalse);
+    }, skip: !engineReady);
+
+    testWidgets('תפריט ברירות המחדל שומר את הטווח ואת הסדר ומחזיר אותם', (
+      WidgetTester tester,
+    ) async {
+      SearchDefaults.rememberSessionMatchPolicy(
+        const SearchMatchPolicy(proximityScope: SearchScope.sameParagraph),
+      );
+      SearchDefaults.rememberSessionAnyOrder(false);
+      await openDialog(tester);
+      expect(dialogKeepsOrder(tester), isTrue);
+
+      await openDefaultsMenu(tester);
+      await tester.tap(find.text('קביעת ברירת מחדל לחיפוש מתקדם'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('search-dialog-default-proximity')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        SearchDefaults.loadMatchPolicyDefault().proximityScope,
+        SearchScope.sameParagraph,
+      );
+
+      // תיבת ברירת המחדל משקפת את השמור, ושינויה מוחל גם על הדיאלוג.
+      // CheckboxMenuButton מעביר את המפתח גם ל-MenuItemButton הפנימי.
+      final defaultOrder = find.byWidgetPredicate(
+        (widget) =>
+            widget is CheckboxMenuButton &&
+            widget.key == const ValueKey('search-dialog-default-word-order'),
+      );
+      expect(tester.widget<CheckboxMenuButton>(defaultOrder).value, isTrue);
+      await tester.tap(defaultOrder);
+      await tester.pumpAndSettle();
+      expect(SearchDefaults.loadAnyOrderDefault(), isTrue);
+      expect(tester.widget<CheckboxMenuButton>(defaultOrder).value, isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(dialogBloc(tester).state.anyOrder, isTrue);
+      // בטווח פסקה הסדר אינו חל, ולכן התיבה המושבתת מוצגת "שמור".
+      expect(dialogKeepsOrder(tester), isTrue);
+
+      // חזרה לברירת המחדל מחזירה את מה ששמור כעת.
+      Settings.setValue<bool>('key-search-default-any-order', false);
+      Settings.setValue<String>(
+        'key-search-default-proximity-scope',
+        'wordDistance',
+      );
+      await openDefaultsMenu(tester);
+      await tester.tap(find.text('חזרה לברירת מחדל'));
+      await tester.pumpAndSettle();
+      expect(dialogBloc(tester).state.anyOrder, isFalse);
+      expect(
+        dialogBloc(tester).state.proximityScope,
+        SearchScope.wordDistance,
+      );
+      expect(dialogKeepsOrder(tester), isTrue);
+      expect(
+        find.textContaining(SearchScope.sameParagraph.label),
+        findsNothing,
+      );
+    }, skip: !engineReady);
   });
 }

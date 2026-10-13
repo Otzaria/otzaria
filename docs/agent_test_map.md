@@ -108,6 +108,8 @@
 | זיהוי ספר של תוצאת חיפוש לפי מפתח האינדקס היציב | `test/search/search_result_book_resolution_test.dart` |
 | ניתוב חיפוש-בספר: פשוט מול מנוע | `test/search/utils/in_book_search_routing_test.dart` |
 | מדיניות ההתאמה (טווח קרבה + התאמת מילים) | `test/search/search_match_policy_test.dart` |
+| "שמור על סדר המילים המקורי" (BLoC, מנוע אמיתי, צ'קבוקס) | `test/search/search_bloc_word_order_test.dart`, `test/search/any_word_order_engine_test.dart`, `test/search/word_match_mode_menu_test.dart` |
+| ברירת מחדל לטווח הקרבה ולסדר המילים (חיפוש חדש, בספר, דיאלוג) | `test/tabs/models/searching_tab_new_search_test.dart`, `test/search/search_dialog_test.dart` |
 | פתיחת תוצאה: העברת הקונפיגורציה לטאב הקריאה | `test/search/tantivy_search_results_in_book_routing_test.dart` |
 | זיהוי הספר של תוצאה מול הקטלוג (מפתח האינדקס + אימות כותרת) | `test/search/search_result_book_resolution_test.dart` |
 | פתיחת תוצאה מאינדקס שאינו מסונכרן (מסלול הלחיצה) | `test/search/search_result_stale_index_open_test.dart` |

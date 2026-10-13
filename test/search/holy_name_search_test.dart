@@ -95,6 +95,20 @@ Future<void> main() async {
       });
     });
 
+    test('מעבר למתקדם משמר את "בכל סדר"', () async {
+      final engine = RecordingSearchEngine();
+      await gateway.search(
+        engine,
+        const SearchEngineRequest(
+          query: '$_placeholder אלהינו',
+          facets: ['/'],
+          anyOrder: true,
+        ),
+      );
+      expect(engine.lastRequest!.searchMode, SearchMode.advanced);
+      expect(engine.lastRequest!.anyOrder, isTrue);
+    });
+
     test('חיפוש בלי "יקוק" ומקורב אינם משתנים', () async {
       final engine = RecordingSearchEngine();
       const plain = SearchEngineRequest(query: 'שלום עולם', facets: ['/']);

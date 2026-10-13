@@ -432,7 +432,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
       searchOptions: effectiveOptions,
       alternativeWords: widget.tab.alternativeWords,
       spacingValues: widget.tab.spacingValues,
-      matchPolicy: configuration.matchPolicy,
+      matchPolicy: configuration.matchPolicyWithSpacing(
+        widget.tab.spacingValues,
+        query: rawQuery,
+      ),
     );
     await openSearchResultInReader(
       context,
@@ -494,7 +497,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
               searchOptions: previewOptions,
               alternativeWords: widget.tab.alternativeWords,
               spacingValues: widget.tab.spacingValues,
-              matchPolicy: configuration.matchPolicy,
+              matchPolicy: configuration.matchPolicyWithSpacing(
+                widget.tab.spacingValues,
+                query: previewQuery,
+              ),
             );
             final available = constraints.maxWidth;
             final minWidth = available < 280 ? available : 280.0;

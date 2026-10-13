@@ -176,6 +176,25 @@ void main() {
     });
   });
 
+  group('שמירת סדר המילים ב-JSON של הטאב (issue #2006)', () {
+    test('בכל סדר עובר שמירה ושחזור', () {
+      final saved = tabWith(
+        const SearchConfiguration(distance: 2, anyOrder: true),
+      ).toJson();
+      expect(saved['anyOrder'], isTrue);
+      final restored = restore(saved).searchBloc.state;
+      expect(restored.anyOrder, isTrue);
+      expect(restored.distance, 2);
+    });
+
+    test('טאב שנשמר בגרסה קודמת (בלי המפתח) נפתח לפי הסדר', () {
+      final saved = tabWith(
+        const SearchConfiguration(anyOrder: true),
+      ).toJson()..remove('anyOrder');
+      expect(restore(saved).searchBloc.state.anyOrder, isFalse);
+    });
+  });
+
   group('שחזור טאב אינו נחטף על ידי ההעדפה השמורה', () {
     test('טאב שנשמר עם "ללא איחוד" נפתח בלי איחוד גם כשההעדפה מאחדת', () {
       final saved = tabWith(const SearchConfiguration()).toJson();

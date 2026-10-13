@@ -428,6 +428,17 @@ Future<void> main() async {
         expect(bloc.facetRecountSignatureForTesting(event), isNot(afterScope));
       });
 
+      test('שינוי סדר המילים משנה את החתימה', () async {
+        final bloc = SearchBloc();
+        addTearDown(bloc.close);
+
+        final event = UpdateSearchQuery('שלום עולם');
+        final ordered = bloc.facetRecountSignatureForTesting(event);
+        bloc.add(UpdateWordOrderWithoutSearch(true));
+        await Future<void>.delayed(Duration.zero);
+        expect(bloc.facetRecountSignatureForTesting(event), isNot(ordered));
+      });
+
       blocTest<SearchBloc, SearchState>(
         'ReplaceFacetCounts עדכני שומר את החתימה, ו-ResetSearch מנקה אותה',
         build: SearchBloc.new,

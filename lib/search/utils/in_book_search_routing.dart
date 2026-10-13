@@ -1,4 +1,5 @@
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_query_builder.dart';
 
 /// פרמטרי החיפוש שנמסרים לטאב הקריאה (ספר טקסט או PDF) בפתיחת תוצאת חיפוש.
 class InBookSearchParameters {
@@ -68,7 +69,9 @@ class InBookSearchRouting {
     Map<int, List<String>> alternativeWords = const {},
     Map<String, String> spacingValues = const {},
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
+    String? query,
   }) {
+    if (query != null) matchPolicy = matchPolicy.forQuery(query);
     final isSimple = canRunAsSimpleSearch(
       searchMode: searchMode,
       distance: distance,
@@ -99,5 +102,5 @@ class InBookSearchRouting {
       );
 
   static bool hasSpacingValues(Map<String, String> spacingValues) =>
-      spacingValues.values.any((value) => value.trim().isNotEmpty);
+      SearchQueryBuilder.hasCustomSpacing(spacingValues);
 }

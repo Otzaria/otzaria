@@ -32,6 +32,9 @@ abstract class LibraryMessages {
   static String distanceSetAsDefault(int distance) =>
       'מרווח $distance נקבע כברירת מחדל לחיפוש רגיל';
 
+  static String proximitySetAsDefault(String scope, String wordMatch) =>
+      'טווח הקרבה "$scope · $wordMatch" נקבע כברירת מחדל לחיפוש מתקדם';
+
   static String searchModeSetAsDefault(String mode) =>
       'חיפוש חדש ייפתח מעכשיו במצב $mode';
 

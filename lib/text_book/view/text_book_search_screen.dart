@@ -285,7 +285,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         !mapEquals(_spacingValues, widget.initialSpacingValues) ||
         _searchMode != normalizedSearchMode ||
         _searchDistance != widget.initialSearchDistance ||
-        _matchPolicy != widget.initialMatchPolicy;
+        _settings.requestedMatchPolicy != widget.initialMatchPolicy;
 
     if (queryChanged && needsControllerSync) {
       syncSearchControllerQuery(searchTextController, widget.initialQuery);
@@ -1103,7 +1103,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           query: searchTextController.text,
           searchMode: _searchMode,
           distance: _searchDistance,
-          matchPolicy: _matchPolicy,
+          matchPolicy: _settings.requestedMatchPolicy,
           searchOptions: _searchOptions,
           alternativeWords: _alternativeWords,
           spacingValues: _spacingValues,

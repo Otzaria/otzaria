@@ -86,12 +86,15 @@ String externalFilterCategoryOf(String facet) {
   return segments.isEmpty ? '/' : '/${segments.join('/')}';
 }
 
-/// מדיניות ההתאמה שנשלחת לספק — רק במצב המתקדם, כמו במנוע המובנה.
+/// מדיניות ההתאמה שנשלחת לספק — מה שחל בפועל, כמו במנוע המובנה.
 @visibleForTesting
-SearchMatchPolicy externalMatchPolicyOf(SearchState state) =>
-    state.isAdvancedSearchEnabled
-    ? state.configuration.matchPolicy
-    : SearchMatchPolicy.standard;
+SearchMatchPolicy externalMatchPolicyOf(
+  SearchState state, {
+  Map<String, String> customSpacing = const {},
+}) => state.configuration.matchPolicyWithSpacing(
+  customSpacing,
+  query: state.searchQuery,
+);
 
 /// אימות נתיב קטגוריה שהספק צירף לרשומת אינדקס מול עץ הספרייה: נתיב קיים
 /// מתקבל כמות שהוא; אחרת נופלים לקטגוריית-העל שלו אם היא קיימת; אחרת null
@@ -246,6 +249,9 @@ class _ExternalSearchResultsSectionState
   /// המפה הגלובלית של הטאב (במצב "אפשרויות לכל המילים"), מנורמלת למצב.
   /// נשלחת לצד ה-wordOptions: מפתחות פר-מילה תלויים בטוקניזציה של המנוע
   /// (מקף מפצל מילה), וספק שמפרק את השאילתה אחרת נופל למפה הזו.
+  SearchMatchPolicy _matchPolicyOf(SearchState state) =>
+      externalMatchPolicyOf(state, customSpacing: widget.tab.spacingValues);
+
   Map<String, bool> _globalOptionsOf(SearchState state) =>
       widget.tab.useGlobalSearchOptions.value
       ? SearchQueryBuilder.normalizeGlobalOptionsForMode(
@@ -289,7 +295,7 @@ class _ExternalSearchResultsSectionState
         ? ''
         : '${active.$1} $query '
               '${state.configuration.searchMode.name} ${state.distance} '
-              '${jsonEncode(externalMatchPolicyOf(state).toJson())} '
+              '${jsonEncode(_matchPolicyOf(state).toJson())} '
               '${jsonEncode(_globalOptionsOf(state))} '
               '${jsonEncode(_wordOptionsOf(state))}';
     final filterFacets = signature.isEmpty
@@ -429,7 +435,7 @@ class _ExternalSearchResultsSectionState
         query: state.searchQuery.trim(),
         mode: state.configuration.searchMode.name,
         distance: state.distance,
-        matchPolicy: externalMatchPolicyOf(state),
+        matchPolicy: _matchPolicyOf(state),
         offset: offset,
         limit: _pageSize,
         ids: idsSlice,

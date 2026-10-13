@@ -159,6 +159,36 @@ Future<void> main() async {
         );
       });
 
+      test('בכל סדר: מילים הפוכות בשורת תוצאה מודגשות, וללא בין-שורות', () {
+        const reversed = 'זרעך יהיה גר תדע';
+        const anyOrder = SearchMatchPolicy(anyOrder: true);
+        expect(
+          computeHighlightRanges(reversed, 'תדע זרעך', searchDistance: 3),
+          isEmpty,
+        );
+        final ranges = computeHighlightRanges(
+          reversed,
+          'תדע זרעך',
+          searchDistance: 3,
+          matchPolicy: anyOrder,
+          isSearchResultLine: true,
+        );
+        expect(
+          [for (final range in ranges) reversed.substring(range[0], range[1])],
+          ['זרעך', 'תדע'],
+        );
+        // התאמה שחוצה שורות אינה נמשכת: המנוע אינו מחבר שורות בכל סדר.
+        expect(
+          highLight(
+            'שורה שמסתיימת ב תדע',
+            'תדע זרעך',
+            matchPolicy: anyOrder,
+            nextLine: 'זרעך ממשיך',
+          ),
+          'שורה שמסתיימת ב תדע',
+        );
+      });
+
       test('אין הדגשה כשאף מילה מהשאילתה אינה בטקסט', () {
         expect(
           computeHighlightRanges(

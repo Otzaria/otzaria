@@ -565,6 +565,7 @@ class TantivyDataProvider {
     bool matchTaamim = false,
     WordMatchMode wordMatchMode = WordMatchMode.all,
     int? wordMatchCount,
+    bool anyOrder = false,
   }) async {
     final results = await _searchGateway.countByBook(
       RustSearchEngineOperations(await engine),
@@ -587,6 +588,7 @@ class TantivyDataProvider {
         matchTaamim: matchTaamim,
         wordMatchMode: wordMatchMode,
         wordMatchCount: wordMatchCount,
+        anyOrder: anyOrder,
       ),
     );
 
@@ -617,6 +619,7 @@ class TantivyDataProvider {
     bool matchTaamim = false,
     WordMatchMode wordMatchMode = WordMatchMode.all,
     int? wordMatchCount,
+    bool anyOrder = false,
     bool allowEarlyStop = true,
   }) async {
     debugPrint(
@@ -645,6 +648,7 @@ class TantivyDataProvider {
       matchTaamim: matchTaamim,
       wordMatchMode: wordMatchMode,
       wordMatchCount: wordMatchCount,
+      anyOrder: anyOrder,
     );
 
     // קיבוץ facets לפי parent prefix כדי לחסוך קריאות FFI

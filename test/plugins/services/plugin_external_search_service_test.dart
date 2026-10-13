@@ -149,7 +149,17 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(request['proximityScope'], 'wordDistance');
       expect(request['wordMatchMode'], 'all');
+      expect(request.containsKey('anyOrder'), isFalse);
       expect(standard, throwsStateError);
+
+      final anyOrder = service.search(
+        provider: 'hebrewbooks',
+        query: 'ברכת המזון',
+        matchPolicy: const SearchMatchPolicy(anyOrder: true),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(request['anyOrder'], isTrue);
+      expect(anyOrder, throwsStateError);
       service.removePlugin('owner');
     });
 

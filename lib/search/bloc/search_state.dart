@@ -93,6 +93,7 @@ class SearchState {
   SearchScope get proximityScope => configuration.proximityScope;
   WordMatchMode get wordMatchMode => configuration.wordMatchMode;
   int get wordMatchCount => configuration.wordMatchCount;
+  bool get anyOrder => configuration.anyOrder;
   bool get fuzzy => configuration.fuzzy;
   bool get isAdvancedSearchEnabled => configuration.isAdvancedSearchEnabled;
   List<String> get currentFacets => configuration.currentFacets;

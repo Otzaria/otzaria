@@ -1051,7 +1051,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
           query: widget.searchController.text,
           searchMode: _searchMode,
           distance: _searchDistance,
-          matchPolicy: _matchPolicy,
+          matchPolicy: _settings.requestedMatchPolicy,
           searchOptions: _searchOptions,
           alternativeWords: _alternativeWords,
           spacingValues: _spacingValues,

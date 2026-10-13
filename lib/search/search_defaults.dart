@@ -4,7 +4,7 @@ import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
-    show ResultsOrder;
+    show ResultsOrder, SearchScope, WordMatchMode;
 
 /// ברירות מחדל לחיפוש, נפרדות לכל מצב: אפשרויות החיפוש המתקדם (7 תיבות
 /// הסימון + ניקוד/טעמים), אפשרויות החיפוש הרגיל (5 תיבות סימון בלבד)
@@ -194,6 +194,77 @@ class SearchDefaults {
   /// משמר את המרווח להמשך הסשן (נקרא בסגירת דיאלוג החיפוש).
   static void rememberSessionDistance(int distance) {
     _sessionDistance = distance;
+  }
+
+  // ── סדר המילים (חיפוש רגיל/מתקדם) ──────────────────────────────────
+
+  static const _anyOrderKey = 'key-search-default-any-order';
+  static bool? _sessionAnyOrder;
+
+  /// ברירת המחדל השמורה ל"בכל סדר"; בלי שמירה — לפי הסדר המקורי.
+  static bool loadAnyOrderDefault() {
+    if (!Settings.isInitialized) return false;
+    return Settings.getValue<bool>(_anyOrderKey) ?? false;
+  }
+
+  /// שומר את [anyOrder] כברירת המחדל לחיפושים חדשים.
+  static void saveAnyOrderDefault(bool anyOrder) {
+    if (Settings.isInitialized) Settings.setValue<bool>(_anyOrderKey, anyOrder);
+    _sessionAnyOrder = anyOrder;
+  }
+
+  /// "בכל סדר" שאיתו ייפתח חיפוש חדש: מצב הסשן אם קיים, אחרת ברירת המחדל.
+  static bool initialAnyOrderForNewSearch() =>
+      _sessionAnyOrder ?? loadAnyOrderDefault();
+
+  /// משמר את בחירת סדר המילים להמשך הסשן.
+  static void rememberSessionAnyOrder(bool anyOrder) {
+    _sessionAnyOrder = anyOrder;
+  }
+
+  // ── טווח הקרבה ומצב התאמת המילים (חיפוש מתקדם) ─────────────────────
+
+  static const _proximityScopeKey = 'key-search-default-proximity-scope';
+  static const _wordMatchModeKey = 'key-search-default-word-match-mode';
+  static const _wordMatchCountKey = 'key-search-default-word-match-count';
+  static SearchMatchPolicy? _sessionMatchPolicy;
+
+  /// טווח הקרבה ומצב התאמת המילים השמורים; בלי שמירה — מרווח וכל המילים.
+  static SearchMatchPolicy loadMatchPolicyDefault() {
+    if (!Settings.isInitialized) return SearchMatchPolicy.standard;
+    final count = Settings.getValue<int>(_wordMatchCountKey) ?? 2;
+    return SearchMatchPolicy(
+      proximityScope: _loadEnum(
+        _proximityScopeKey,
+        SearchScope.values,
+        SearchScope.wordDistance,
+      ),
+      wordMatchMode: _loadEnum(
+        _wordMatchModeKey,
+        WordMatchMode.values,
+        WordMatchMode.all,
+      ),
+      wordMatchCount: count < 1 ? 2 : count,
+    );
+  }
+
+  /// שומר את טווח הקרבה ומצב ההתאמה של [policy] כברירת המחדל.
+  static void saveMatchPolicyDefault(SearchMatchPolicy policy) {
+    _saveEnum(_proximityScopeKey, policy.proximityScope.name);
+    _saveEnum(_wordMatchModeKey, policy.wordMatchMode.name);
+    if (Settings.isInitialized) {
+      Settings.setValue<int>(_wordMatchCountKey, policy.wordMatchCount);
+    }
+    _sessionMatchPolicy = policy;
+  }
+
+  /// טווח הקרבה ומצב ההתאמה שאיתם ייפתח חיפוש חדש: הסשן, אחרת ברירת המחדל.
+  static SearchMatchPolicy initialMatchPolicyForNewSearch() =>
+      _sessionMatchPolicy ?? loadMatchPolicyDefault();
+
+  /// משמר את טווח הקרבה ומצב ההתאמה להמשך הסשן.
+  static void rememberSessionMatchPolicy(SearchMatchPolicy policy) {
+    _sessionMatchPolicy = policy;
   }
 
   // ── תצוגת התוצאות: מיון ואיחוד ──────────────────────────────────────

@@ -5,7 +5,12 @@ import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
-void main() {
+import '../support/search_engine_test_init.dart';
+
+Future<void> main() async {
+  // ספירת מילות השאילתה מאצילה למנוע ה-Rust.
+  final engineReady = await tryInitSearchEngine();
+
   group('InBookSearchSettings', () {
     test('the default settings run as a simple search', () {
       const settings = InBookSearchSettings();
@@ -48,6 +53,32 @@ void main() {
         isTrue,
       );
     });
+
+    test(
+      'any word order needs the engine only for a multi-word query',
+      () {
+        for (final optionsForEveryWord in [null, const <String, bool>{}]) {
+          final settings = InBookSearchSettings(
+            matchPolicy: const SearchMatchPolicy(anyOrder: true),
+            optionsForEveryWord: optionsForEveryWord,
+          );
+          final multi = settings.forQuery('שלום עולם');
+          expect(multi.matchPolicy.anyOrder, isTrue);
+          expect(multi.requiresEngine, isTrue);
+
+          final single = settings.forQuery('שלום');
+          expect(single.matchPolicy.anyOrder, isFalse);
+          expect(single.isSimpleSearch, isTrue);
+          // הבחירה נשמרת: מילה שנייה מחזירה את "בכל סדר".
+          expect(single.requestedMatchPolicy.anyOrder, isTrue);
+          expect(
+            single.forQuery('שלום עולם').matchPolicy.anyOrder,
+            isTrue,
+          );
+        }
+      },
+      skip: !engineReady,
+    );
 
     test('takes the dialog result with its mode, distance and policy', () {
       final settings = InBookSearchSettings.fromDialogResult(

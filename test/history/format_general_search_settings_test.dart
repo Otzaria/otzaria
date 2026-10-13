@@ -75,7 +75,39 @@ void main() {
           wordMatchMode: WordMatchMode.mostWords,
         ),
       );
-      expect(label, 'מקורב · מרחק 2 · רוב המילים');
+      // מצב ההתאמה חל רק במתקדם, ולכן אינו מוצג בחיפוש מקורב.
+      expect(label, 'מקורב · מרחק 2');
+    });
+
+    test('טווח שמור אינו מוצג בחיפוש רגיל', () {
+      expect(
+        formatGeneralSearchSettings(
+          const SearchConfiguration(
+            searchMode: SearchMode.exact,
+            proximityScope: SearchScope.sameParagraph,
+          ),
+        ),
+        'מדויק',
+      );
+    });
+
+    test('בכל סדר מוצג רק כשהוא חל בפועל', () {
+      expect(
+        formatGeneralSearchSettings(
+          const SearchConfiguration(distance: 3, anyOrder: true),
+        ),
+        'מרחק 3 · בכל סדר',
+      );
+      expect(
+        formatGeneralSearchSettings(
+          const SearchConfiguration(
+            searchMode: SearchMode.fuzzy,
+            distance: 2,
+            anyOrder: true,
+          ),
+        ),
+        'מקורב · מרחק 2',
+      );
     });
   });
 }

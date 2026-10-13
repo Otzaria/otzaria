@@ -5,9 +5,13 @@ import 'package:otzaria/search/view/external_search_results_section.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchScope, WordMatchMode;
 
+import '../support/search_engine_test_init.dart';
+
 /// מדיניות ההתאמה שהמדור החיצוני שולח לספק (issue #1427): במצב המתקדם
 /// היא נמסרת כמות שהיא; במדויק/מקורב אין לה משמעות, והספק מקבל ברירת מחדל.
-void main() {
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
+
   SearchState stateWith(SearchMode mode) => SearchState(
     searchQuery: 'ברכת המזון',
     totalResults: 0,
@@ -33,4 +37,30 @@ void main() {
       );
     }
   });
+
+  test('בכל סדר עובר לספק רק כשהוא חל בפועל', () {
+    SearchState orderFree(SearchMode mode, {String query = 'ברכת המזון'}) =>
+        SearchState(
+          searchQuery: query,
+          configuration: SearchConfiguration(searchMode: mode, anyOrder: true),
+        );
+    expect(externalMatchPolicyOf(orderFree(SearchMode.exact)).anyOrder, isTrue);
+    expect(
+      externalMatchPolicyOf(orderFree(SearchMode.fuzzy)),
+      SearchMatchPolicy.standard,
+    );
+    expect(
+      externalMatchPolicyOf(
+        orderFree(SearchMode.advanced),
+        customSpacing: const {'0-1': '2'},
+      ).anyOrder,
+      isFalse,
+    );
+    expect(
+      externalMatchPolicyOf(
+        orderFree(SearchMode.exact, query: 'ברכת'),
+      ).anyOrder,
+      isFalse,
+    );
+  }, skip: !engineReady);
 }

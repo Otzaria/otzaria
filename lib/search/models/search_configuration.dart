@@ -1,4 +1,5 @@
 import 'package:otzaria/search/models/search_match_policy.dart';
+import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 export 'package:otzaria/search/models/search_match_policy.dart';
@@ -39,7 +40,7 @@ extension SearchScopePresentation on SearchScope {
 
   String get tooltip => switch (this) {
     SearchScope.wordDistance =>
-      'המילים מופיעות לפי הסדר, עם מגבלת מילים ביניהן.',
+      'המילים מופיעות עם מגבלת מילים ביניהן, לפי הסדר — אלא אם בוטל "שמור על סדר המילים המקורי".',
     SearchScope.sameParagraph =>
       'כל מילות החיפוש נמצאות באותה פסקה, בכל סדר ובכל מרחק.',
     SearchScope.sameSection =>
@@ -122,6 +123,9 @@ class SearchConfiguration {
   /// מספר המילים הנדרש כש-[wordMatchMode] הוא atLeast.
   final int wordMatchCount;
 
+  /// "בכל סדר": בחירת המשתמש כפי שנשמרה; החלתה בפועל — [appliesAnyOrder].
+  final bool anyOrder;
+
   /// בחירות של שורות חיפוש סטטיות שתוספים הזריקו לדיאלוג.
   ///
   /// המפתח הוא `${pluginId}/${itemId}` והערך נשמר עם טאב החיפוש כדי שספק
@@ -151,6 +155,7 @@ class SearchConfiguration {
     this.resultGrouping = ResultGroupingMode.none,
     this.wordMatchMode = WordMatchMode.all,
     this.wordMatchCount = 2,
+    this.anyOrder = false,
     this.pluginSearchSelections = const {},
     // ערכי ברירת מחדל לרגקס
     this.regexEnabled = false,
@@ -174,15 +179,47 @@ class SearchConfiguration {
       proximityScope: matchPolicy.proximityScope,
       wordMatchMode: matchPolicy.wordMatchMode,
       wordMatchCount: matchPolicy.wordMatchCount,
+      anyOrder: matchPolicy.anyOrder,
     );
   }
 
   /// מדיניות ההתאמה כיחידה אחת, להעברה אל טאב הקריאה והחיפוש שבתוך הספר.
-  SearchMatchPolicy get matchPolicy => SearchMatchPolicy(
-    proximityScope: proximityScope,
-    wordMatchMode: wordMatchMode,
-    wordMatchCount: wordMatchCount,
-  );
+  SearchMatchPolicy get matchPolicy => matchPolicyWithSpacing(const {});
+
+  /// כמו [matchPolicy], כשידועים המרווחים הידניים ו[query] שהחיפוש רץ איתם.
+  /// טווח הקרבה ומצב ההתאמה חלים רק במצב המתקדם — המנוע מתעלם מהם בשאר.
+  SearchMatchPolicy matchPolicyWithSpacing(
+    Map<String, String> customSpacing, {
+    String? query,
+  }) {
+    final isAdvanced = searchMode == SearchMode.advanced;
+    return SearchMatchPolicy(
+      proximityScope: isAdvanced ? proximityScope : SearchScope.wordDistance,
+      wordMatchMode: isAdvanced ? wordMatchMode : WordMatchMode.all,
+      wordMatchCount: wordMatchCount,
+      anyOrder: appliesAnyOrder(customSpacing: customSpacing, query: query),
+    );
+  }
+
+  /// האם "בכל סדר" חל בפועל: לא במקורב, לא בשאילתה של מילה אחת, ובמתקדם
+  /// רק במרווח בין מילים עם כל המילים ובלי מרווחים ידניים.
+  bool appliesAnyOrder({
+    Map<String, String> customSpacing = const {},
+    String? query,
+  }) {
+    if (!anyOrder) return false;
+    if (query != null && !SearchQueryBuilder.hasMultipleWords(query)) {
+      return false;
+    }
+    return switch (searchMode) {
+      SearchMode.fuzzy => false,
+      SearchMode.exact => true,
+      SearchMode.advanced =>
+        proximityScope == SearchScope.wordDistance &&
+            wordMatchMode == WordMatchMode.all &&
+            !SearchQueryBuilder.hasCustomSpacing(customSpacing),
+    };
+  }
 
   /// יוצר עותק עם שינויים
   SearchConfiguration copyWith({
@@ -196,6 +233,7 @@ class SearchConfiguration {
     ResultGroupingMode? resultGrouping,
     WordMatchMode? wordMatchMode,
     int? wordMatchCount,
+    bool? anyOrder,
     Map<String, bool>? pluginSearchSelections,
     bool? regexEnabled,
     bool? caseSensitive,
@@ -214,6 +252,7 @@ class SearchConfiguration {
       resultGrouping: resultGrouping ?? this.resultGrouping,
       wordMatchMode: wordMatchMode ?? this.wordMatchMode,
       wordMatchCount: wordMatchCount ?? this.wordMatchCount,
+      anyOrder: anyOrder ?? this.anyOrder,
       pluginSearchSelections:
           pluginSearchSelections ?? this.pluginSearchSelections,
       regexEnabled: regexEnabled ?? this.regexEnabled,
@@ -237,6 +276,7 @@ class SearchConfiguration {
       'resultGrouping': resultGrouping.index,
       'wordMatchMode': wordMatchMode.index,
       'wordMatchCount': wordMatchCount,
+      'anyOrder': anyOrder,
       'pluginSearchSelections': pluginSearchSelections,
       'regexEnabled': regexEnabled,
       'caseSensitive': caseSensitive,
@@ -289,6 +329,7 @@ class SearchConfiguration {
         final int count when count >= 1 => count,
         _ => 2,
       },
+      anyOrder: map['anyOrder'] == true,
       pluginSearchSelections: switch (map['pluginSearchSelections']) {
         final Map values => {
           for (final entry in values.entries)
@@ -323,6 +364,7 @@ class SearchConfiguration {
         other.resultGrouping == resultGrouping &&
         other.wordMatchMode == wordMatchMode &&
         other.wordMatchCount == wordMatchCount &&
+        other.anyOrder == anyOrder &&
         other.pluginSearchSelections.toString() ==
             pluginSearchSelections.toString() &&
         other.regexEnabled == regexEnabled &&
@@ -345,6 +387,7 @@ class SearchConfiguration {
       resultGrouping,
       wordMatchMode,
       wordMatchCount,
+      anyOrder,
       pluginSearchSelections.toString(),
       regexEnabled,
       caseSensitive,
@@ -364,6 +407,7 @@ class SearchConfiguration {
         'numResults: $numResults, '
         'facets: $currentFacets, '
         'scope: $searchScopeFacets, '
+        'anyOrder: $anyOrder, '
         'pluginSearchSelections: $pluginSearchSelections, '
         'regex: $regexEnabled, '
         'caseSensitive: $caseSensitive, '

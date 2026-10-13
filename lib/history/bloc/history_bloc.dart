@@ -18,7 +18,7 @@ import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 
 /// חיווי קצר להגדרות החיפוש הכלליות שאינן ברירת מחדל, לתצוגה בפריט
-/// ההיסטוריה (מצב, מרחק, טווח, התאמת מילים, איחוד תוצאות, רגקס). ערכי
+/// ההיסטוריה (מצב, מרחק, טווח, סדר, התאמת מילים, איחוד תוצאות, רגקס). ערכי
 /// ברירת מחדל מושמטים כדי לא להעמיס על חיפושים פשוטים.
 String formatGeneralSearchSettings(SearchConfiguration config) {
   final parts = <String>[];
@@ -26,17 +26,22 @@ String formatGeneralSearchSettings(SearchConfiguration config) {
   if (config.searchMode != SearchMode.advanced) {
     parts.add(config.searchMode.shortLabel);
   }
-  // טווח שאינו "מרווח מילים" מחליף את המרחק; אחרת מציגים מרחק כשהוגדר.
-  if (config.proximityScope != SearchScope.wordDistance) {
-    parts.add(config.proximityScope.label);
+  // הטווח ומצב ההתאמה חלים רק במתקדם; טווח שאינו "מרווח מילים" מחליף
+  // את המרחק, אחרת מציגים מרחק כשהוגדר.
+  final policy = config.matchPolicy;
+  if (policy.proximityScope != SearchScope.wordDistance) {
+    parts.add(policy.proximityScope.label);
   } else if (config.distance > 0) {
     parts.add('מרחק ${config.distance}');
   }
-  if (config.wordMatchMode != WordMatchMode.all) {
+  if (policy.anyOrder) {
+    parts.add('בכל סדר');
+  }
+  if (policy.wordMatchMode != WordMatchMode.all) {
     parts.add(
-      config.wordMatchMode == WordMatchMode.atLeast
-          ? 'לפחות ${config.wordMatchCount} מילים'
-          : config.wordMatchMode.label,
+      policy.wordMatchMode == WordMatchMode.atLeast
+          ? 'לפחות ${policy.wordMatchCount} מילים'
+          : policy.wordMatchMode.label,
     );
   }
   if (config.resultGrouping != ResultGroupingMode.none) {

@@ -733,6 +733,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         customSpacing: spacingValues,
         alternativeWords: alternativeWords,
         searchOptions: searchOptions,
+        anyOrder: matchPolicy.anyOrder,
       );
       unawaited(
         TantivyDataProvider.instance.engine.then(

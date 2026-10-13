@@ -71,6 +71,18 @@ class UpdateWordMatchModeWithoutSearch extends SearchEvent {
   UpdateWordMatchModeWithoutSearch(this.mode, {this.count});
 }
 
+/// "שמור על סדר המילים המקורי": [anyOrder] מתיר את מילות השאילתה בכל סדר
+/// בתוך חלון המרווח.
+class UpdateWordOrder extends SearchEvent {
+  final bool anyOrder;
+  UpdateWordOrder(this.anyOrder);
+}
+
+class UpdateWordOrderWithoutSearch extends SearchEvent {
+  final bool anyOrder;
+  UpdateWordOrderWithoutSearch(this.anyOrder);
+}
+
 class ToggleSearchMode extends SearchEvent {}
 
 class SetSearchMode extends SearchEvent {

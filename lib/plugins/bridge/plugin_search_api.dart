@@ -399,6 +399,9 @@ class PluginSearchRequest {
   final engine.ResultGrouping? grouping;
   final engine.WordMatchMode wordMatchMode;
   final int wordMatchCount;
+
+  /// מילות השאילתה (וגם השלילית) בכל סדר בתוך חלון המרווח.
+  final bool anyOrder;
   final bool includeBookCounts;
 
   /// אפשרויות גלובליות — מורחבות לכל מילה בשאילתה בזמן ההרצה.
@@ -428,6 +431,7 @@ class PluginSearchRequest {
     required this.grouping,
     required this.wordMatchMode,
     required this.wordMatchCount,
+    this.anyOrder = false,
     required this.includeBookCounts,
     required this.globalOptions,
     required this.negativeGlobalOptions,
@@ -468,6 +472,7 @@ class PluginSearchRequest {
     'grouping',
     'wordMatchMode',
     'wordMatchCount',
+    'anyOrder',
     'includeBookCounts',
     'options',
     'negativeOptions',
@@ -546,6 +551,31 @@ class PluginSearchRequest {
     }
   }
 
+  /// "בכל סדר" חל רק על מרווח בין כל המילים; בשאר המקרים הוא היה נבלע בשקט.
+  static void _rejectAnyOrderUnsupported(
+    Map<String, dynamic> args,
+    SearchMode mode,
+    engine.SearchScope scope,
+    engine.WordMatchMode wordMatchMode,
+  ) {
+    if (mode == SearchMode.fuzzy) {
+      PluginSearchApi._invalid('anyOrder is not supported in mode: "fuzzy"');
+    }
+    if (scope != engine.SearchScope.wordDistance) {
+      PluginSearchApi._invalid(
+        'anyOrder requires proximityScope: "wordDistance"',
+      );
+    }
+    if (wordMatchMode != engine.WordMatchMode.all) {
+      PluginSearchApi._invalid('anyOrder requires wordMatchMode: "all"');
+    }
+    if (_isPresent(args['customSpacing'])) {
+      PluginSearchApi._invalid(
+        'anyOrder cannot be combined with customSpacing',
+      );
+    }
+  }
+
   factory PluginSearchRequest.fromArgs(Map<String, dynamic> args) {
     final unknownKeys = args.keys.where((key) => !_allowedKeys.contains(key));
     if (unknownKeys.isNotEmpty) {
@@ -557,7 +587,7 @@ class PluginSearchRequest {
     if (args['negativeQuery'] != null && args['negativeQuery'] is! String) {
       PluginSearchApi._invalid('negativeQuery must be a string');
     }
-    for (final key in ['includeBookCounts', 'baseBooksOnly']) {
+    for (final key in ['includeBookCounts', 'baseBooksOnly', 'anyOrder']) {
       if (args[key] != null && args[key] is! bool) {
         PluginSearchApi._invalid('$key must be a boolean');
       }
@@ -626,6 +656,15 @@ class PluginSearchRequest {
       fallback: 2,
       min: 1,
     );
+    final anyOrder = args['anyOrder'] == true;
+    if (anyOrder) {
+      _rejectAnyOrderUnsupported(
+        args,
+        searchMode,
+        proximityScope,
+        wordMatchMode,
+      );
+    }
 
     return PluginSearchRequest(
       query: query,
@@ -657,6 +696,7 @@ class PluginSearchRequest {
       ).engineGrouping,
       wordMatchMode: wordMatchMode,
       wordMatchCount: wordMatchCount,
+      anyOrder: anyOrder,
       includeBookCounts: args['includeBookCounts'] == true,
       globalOptions: PluginSearchApi._boolMap(args['options'], 'options'),
       negativeGlobalOptions: PluginSearchApi._boolMap(
@@ -800,6 +840,7 @@ class PluginOpenSearchTabSettings {
   final engine.SearchScope proximityScope;
   final engine.WordMatchMode wordMatchMode;
   final int wordMatchCount;
+  final bool anyOrder;
 
   /// אפשרויות פר-מילה אפקטיביות (גלובליות מורחבות לכל מילה + פר-מילה),
   /// מנורמלות למצב — בדיוק מה שמסך החיפוש שולח למנוע.
@@ -811,6 +852,7 @@ class PluginOpenSearchTabSettings {
     required this.proximityScope,
     required this.wordMatchMode,
     required this.wordMatchCount,
+    this.anyOrder = false,
     required this.searchOptions,
   });
 
@@ -821,6 +863,7 @@ class PluginOpenSearchTabSettings {
     'proximityScope',
     'wordMatchMode',
     'wordMatchCount',
+    'anyOrder',
     'options',
     'wordOptions',
   };
@@ -865,6 +908,7 @@ class PluginOpenSearchTabSettings {
       if (args['wordMatchMode'] != null) 'wordMatchMode': args['wordMatchMode'],
       if (args['wordMatchCount'] != null)
         'wordMatchCount': args['wordMatchCount'],
+      if (args['anyOrder'] != null) 'anyOrder': args['anyOrder'],
       if (args['options'] != null) 'options': args['options'],
       if (args['wordOptions'] != null) 'wordOptions': args['wordOptions'],
     };
@@ -876,6 +920,7 @@ class PluginOpenSearchTabSettings {
       proximityScope: request.proximityScope,
       wordMatchMode: request.wordMatchMode,
       wordMatchCount: request.wordMatchCount,
+      anyOrder: request.anyOrder,
       searchOptions: request.effectiveSearchOptions,
     );
   }

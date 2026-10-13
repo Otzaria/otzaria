@@ -4,7 +4,11 @@ import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show SearchScope, WordMatchMode;
 
-void main() {
+import '../../support/search_engine_test_init.dart';
+
+Future<void> main() async {
+  final engineReady = await tryInitSearchEngine();
+
   group('canRunAsSimpleSearch', () {
     test('שאילתה ליטרלית בלי תוספות — מסלול פשוט', () {
       expect(
@@ -156,6 +160,29 @@ void main() {
           reason: 'התאמה $mode אינה התאמת מחרוזת רצופה',
         );
       }
+    });
+
+    test('בכל סדר במילה אחת — המסלול המקומי', () {
+      expect(
+        InBookSearchRouting.resolveForReadingTab(
+          searchMode: SearchMode.exact,
+          distance: 0,
+          matchPolicy: const SearchMatchPolicy(anyOrder: true),
+          query: 'שלום',
+        ),
+        const InBookSearchParameters(searchMode: SearchMode.exact, distance: 0),
+      );
+    }, skip: !engineReady);
+
+    test('בכל סדר — מסלול המנוע', () {
+      expect(
+        InBookSearchRouting.canRunAsSimpleSearch(
+          searchMode: SearchMode.exact,
+          distance: 0,
+          matchPolicy: const SearchMatchPolicy(anyOrder: true),
+        ),
+        isFalse,
+      );
     });
   });
 

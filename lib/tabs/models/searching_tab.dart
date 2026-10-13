@@ -112,7 +112,8 @@ class SearchingTab extends OpenedTab {
     }
   }
 
-  /// חיפוש חדש לפי ברירות המחדל של המשתמש — מצב, מרווח ואפשרויות המילה;
+  /// חיפוש חדש לפי ברירות המחדל של המשתמש — מצב, מרווח, טווח הקרבה, סדר
+  /// המילים ואפשרויות המילה;
   /// [mode] מפורש (מקיצור או מקישור) גובר על המצב השמור.
   factory SearchingTab.newSearch(
     String title,
@@ -121,11 +122,16 @@ class SearchingTab extends OpenedTab {
     bool withResultPreferences = true,
   }) {
     final searchMode = mode ?? SearchDefaults.initialModeForNewSearch();
+    final policy = SearchDefaults.initialMatchPolicyForNewSearch();
     final config = SearchConfiguration(
       searchMode: searchMode,
       distance: searchMode == SearchMode.fuzzy
           ? kMaxFuzzyDistance
           : SearchDefaults.initialDistanceForNewSearch(),
+      proximityScope: policy.proximityScope,
+      wordMatchMode: policy.wordMatchMode,
+      wordMatchCount: policy.wordMatchCount,
+      anyOrder: SearchDefaults.initialAnyOrderForNewSearch(),
     );
     return SearchingTab(
         title,
@@ -348,6 +354,7 @@ class SearchingTab extends OpenedTab {
       searchScopeFacets: initialScopeFacets,
       wordMatchMode: initialWordMatchMode,
       wordMatchCount: initialWordMatchCount,
+      anyOrder: json['anyOrder'] == true,
       pluginSearchSelections: switch (json['pluginSearchSelections']) {
         final Map values => {
           for (final entry in values.entries)
@@ -537,6 +544,7 @@ class SearchingTab extends OpenedTab {
       'searchScopeFacets': config.searchScopeFacets,
       'wordMatchMode': config.wordMatchMode.index,
       'wordMatchCount': config.wordMatchCount,
+      'anyOrder': config.anyOrder,
       'pluginSearchSelections': config.pluginSearchSelections,
       'regexEnabled': config.regexEnabled,
       'caseSensitive': config.caseSensitive,

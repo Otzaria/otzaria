@@ -187,8 +187,11 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
           return SizedBox(width: 140, child: spinBox);
         }
 
-        return Row(
-          mainAxisSize: MainAxisSize.min,
+        // Wrap: בחלון צר "סדר המילים" יורד לשורה הבאה במקום לגלוש.
+        return Wrap(
+          spacing: 4,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _ScopeAndMatchMenu(
               scope: scope,
@@ -209,16 +212,103 @@ class _FuzzyDistanceState extends State<FuzzyDistance> {
                 }
               },
             ),
-            const SizedBox(width: 4),
             SizedBox(
               width: 150,
               child: wordMatchMode == WordMatchMode.atLeast
                   ? countBox
                   : spinBox,
             ),
+            WordOrderCheckbox(
+              tab: widget.tab,
+              triggerSearch: widget.triggerSearch,
+            ),
           ],
         );
       },
+    );
+  }
+}
+
+/// "שמור על סדר המילים המקורי": מסומן — המילים לפי הסדר (ברירת המחדל);
+/// מבוטל — בכל סדר בתוך מגבלת המרווח. מושבת כשהסדר אינו חל.
+class WordOrderCheckbox extends StatelessWidget {
+  const WordOrderCheckbox({
+    super.key,
+    required this.tab,
+    this.triggerSearch = true,
+  });
+
+  final SearchingTab tab;
+  final bool triggerSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: tab.spacingValuesChanged,
+      builder: (context, _, _) => BlocBuilder<SearchBloc, SearchState>(
+        builder: (context, state) => _build(context, state),
+      ),
+    );
+  }
+
+  Widget _build(BuildContext context, SearchState state) {
+    final advanced = state.isAdvancedSearchEnabled;
+    final String? disabledReason;
+    if (advanced && state.wordMatchMode != WordMatchMode.all) {
+      disabledReason = context.settingsText(
+        'סדר המילים חל רק כשכל המילים נדרשות.',
+      );
+    } else if (advanced && state.proximityScope != SearchScope.wordDistance) {
+      disabledReason = context.settingsText(
+        'סדר המילים חל רק בטווח "מרווח בין מילים".',
+      );
+    } else if (advanced &&
+        SearchQueryBuilder.hasCustomSpacing(tab.spacingValues)) {
+      disabledReason = context.settingsText(
+        'סדר המילים אינו חל כשמוגדרים מרווחים ידניים.',
+      );
+    } else {
+      disabledReason = null;
+    }
+    final enabled = disabledReason == null;
+    // כשהסדר אינו חל מוצג "שמור", כדי שתיבה ריקה לא תרמוז ש"בכל סדר" פעיל.
+    final keepOrder = !enabled || !state.anyOrder;
+    void onChanged(bool keep) => context.read<SearchBloc>().add(
+      triggerSearch
+          ? UpdateWordOrder(!keep)
+          : UpdateWordOrderWithoutSearch(!keep),
+    );
+    final colorScheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message:
+          disabledReason ??
+          context.settingsText(
+            'כשמבוטל, מילות החיפוש נמצאות בכל סדר בתוך מגבלת המרווח.',
+          ),
+      child: InkWell(
+        key: const ValueKey('search-word-order-checkbox'),
+        onTap: enabled ? () => onChanged(!keepOrder) : null,
+        borderRadius: AppTokens.borderRadiusAll,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(end: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Checkbox(
+                value: keepOrder,
+                onChanged: enabled ? (value) => onChanged(value ?? true) : null,
+                visualDensity: VisualDensity.compact,
+              ),
+              Text(
+                context.settingsText('שמור על סדר המילים המקורי'),
+                style: TextStyle(
+                  color: enabled ? null : colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

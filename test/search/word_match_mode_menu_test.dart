@@ -100,6 +100,87 @@ void main() {
     });
   });
 
+  group('שמור על סדר המילים המקורי', () {
+    final checkbox = find.byKey(const ValueKey('search-word-order-checkbox'));
+    bool checkboxEnabled(WidgetTester tester) =>
+        tester
+            .widget<Checkbox>(
+              find.descendant(of: checkbox, matching: find.byType(Checkbox)),
+            )
+            .onChanged !=
+        null;
+
+    testWidgets('מסומן כברירת מחדל; ביטול מעדכן את ה-state לבכל סדר', (
+      tester,
+    ) async {
+      final tab = SearchingTab('חיפוש', null);
+      final bloc = tab.searchBloc;
+      addTearDown(bloc.close);
+
+      await tester.pumpWidget(harness(bloc, tab));
+      expect(find.text('שמור על סדר המילים המקורי'), findsOneWidget);
+      expect(checkboxEnabled(tester), isTrue);
+      expect(bloc.state.anyOrder, isFalse);
+
+      await tester.tap(checkbox);
+      await tester.pumpAndSettle();
+      expect(bloc.state.anyOrder, isTrue);
+
+      await tester.tap(checkbox);
+      await tester.pumpAndSettle();
+      expect(bloc.state.anyOrder, isFalse);
+    });
+
+    testWidgets('מושבת בטווח פסקה, בהתאמה חלקית ובמרווחים ידניים', (
+      tester,
+    ) async {
+      final tab = SearchingTab('חיפוש', null);
+      final bloc = tab.searchBloc;
+      addTearDown(bloc.close);
+      await tester.pumpWidget(harness(bloc, tab));
+
+      bloc.add(UpdateWordOrderWithoutSearch(true));
+      bloc.add(UpdateProximityScopeWithoutSearch(SearchScope.sameParagraph));
+      await tester.pumpAndSettle();
+      expect(checkboxEnabled(tester), isFalse);
+      // מושבתת מוצגת מסומנת, כדי שלא תרמוז ש"בכל סדר" פעיל.
+      expect(
+        tester
+            .widget<Checkbox>(
+              find.descendant(of: checkbox, matching: find.byType(Checkbox)),
+            )
+            .value,
+        isTrue,
+      );
+
+      bloc.add(UpdateProximityScopeWithoutSearch(SearchScope.wordDistance));
+      bloc.add(UpdateWordMatchModeWithoutSearch(WordMatchMode.mostWords));
+      await tester.pumpAndSettle();
+      expect(checkboxEnabled(tester), isFalse);
+
+      bloc.add(UpdateWordMatchModeWithoutSearch(WordMatchMode.all));
+      bloc.add(UpdateWordOrderWithoutSearch(false));
+      await tester.pumpAndSettle();
+      expect(checkboxEnabled(tester), isTrue);
+
+      tab.spacingValues['0-1'] = '3';
+      tab.spacingValuesChanged.value++;
+      await tester.pumpAndSettle();
+      expect(checkboxEnabled(tester), isFalse);
+    });
+
+    testWidgets('במקורב אינו מוצג', (tester) async {
+      final tab = SearchingTab('חיפוש', null);
+      final bloc = tab.searchBloc;
+      addTearDown(bloc.close);
+      bloc.add(SetSearchModeWithoutSearch(SearchMode.fuzzy));
+
+      await tester.pumpWidget(harness(bloc, tab));
+      await tester.pumpAndSettle();
+      expect(checkbox, findsNothing);
+    });
+  });
+
   group('SearchConfiguration — wordMatchMode', () {
     test('toMap/fromMap משמרים מצב וספירה', () {
       const config = SearchConfiguration(

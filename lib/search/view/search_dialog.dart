@@ -438,8 +438,9 @@ class _SearchDialogState extends State<SearchDialog> {
   /// (ראה gateway), כך שאין צורך בשינוי מנוע.
   Widget _buildExactOptionsRow(
     Set<String> disabledOptionIds,
-    List<String> keys,
-  ) {
+    List<String> keys, {
+    List<Widget> trailing = const [],
+  }) {
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: Wrap(
@@ -470,7 +471,28 @@ class _SearchDialogState extends State<SearchDialog> {
                       },
               ),
             ),
+          ...trailing,
         ],
+      ),
+    );
+  }
+
+  /// "שמור על סדר המילים המקורי" בחיפוש הרגיל, בסגנון שאר אפשרויות המילה.
+  Widget _buildWordOrderChip(SearchState state) {
+    return Tooltip(
+      message: context.settingsText(
+        'כשמבוטל, מילות החיפוש נמצאות בכל סדר בתוך מגבלת המרווח.',
+      ),
+      child: FilterChip(
+        key: const ValueKey('search-word-order-chip'),
+        label: Text(context.settingsText('שמור על סדר המילים המקורי')),
+        visualDensity: VisualDensity.compact,
+        selected: !state.anyOrder,
+        onSelected: (keepOrder) => _searchTab.searchBloc.add(
+          _usesStagedSubmit
+              ? UpdateWordOrderWithoutSearch(!keepOrder)
+              : UpdateWordOrder(!keepOrder),
+        ),
       ),
     );
   }
@@ -548,11 +570,46 @@ class _SearchDialogState extends State<SearchDialog> {
         if (!isExact) _searchTab.searchOptions.clear();
       });
       _searchTab.searchOptionsChanged.value++;
+      final bloc = _searchTab.searchBloc;
       final savedDistance = SearchDefaults.loadDistanceDefault();
+      final savedPolicy = SearchDefaults.loadMatchPolicyDefault();
+      // הכל בשקט, וחיפוש אחד בסוף — כמו בבורר הטווח.
+      bloc.add(UpdateDistanceWithoutSearch(savedDistance));
+      bloc.add(
+        UpdateWordOrderWithoutSearch(SearchDefaults.loadAnyOrderDefault()),
+      );
+      if (!isExact) {
+        bloc.add(UpdateProximityScopeWithoutSearch(savedPolicy.proximityScope));
+        bloc.add(
+          UpdateWordMatchModeWithoutSearch(
+            savedPolicy.wordMatchMode,
+            count: savedPolicy.wordMatchCount,
+          ),
+        );
+      }
+      if (!_usesStagedSubmit) bloc.add(const RerunSearch());
+    }
+
+    void saveAnyOrderDefault(bool keepOrder) {
+      setState(() => SearchDefaults.saveAnyOrderDefault(!keepOrder));
+      // כמו אפשרויות המילה: ברירת מחדל חדשה מוחלת מיד גם על החלונית הפתוחה.
       _searchTab.searchBloc.add(
         _usesStagedSubmit
-            ? UpdateDistanceWithoutSearch(savedDistance)
-            : UpdateDistance(savedDistance),
+            ? UpdateWordOrderWithoutSearch(!keepOrder)
+            : UpdateWordOrder(!keepOrder),
+      );
+    }
+
+    void saveMatchPolicyDefault() {
+      final policy = state.configuration.matchPolicy;
+      setState(() => SearchDefaults.saveMatchPolicyDefault(policy));
+      UiSnack.show(
+        LibraryMessages.proximitySetAsDefault(
+          policy.proximityScope.label,
+          policy.wordMatchMode == WordMatchMode.atLeast
+              ? 'לפחות ${policy.wordMatchCount} מילים'
+              : policy.wordMatchMode.label,
+        ),
       );
     }
 
@@ -598,6 +655,29 @@ class _SearchDialogState extends State<SearchDialog> {
                   ),
                 ),
               ),
+              CheckboxMenuButton(
+                key: const ValueKey('search-dialog-default-word-order'),
+                value: !SearchDefaults.loadAnyOrderDefault(),
+                closeOnActivate: false,
+                onChanged: (checked) => saveAnyOrderDefault(checked ?? true),
+                child: Text(context.settingsText('שמור על סדר המילים המקורי')),
+              ),
+              if (!isExact)
+                MenuItemButton(
+                  key: const ValueKey('search-dialog-default-proximity'),
+                  closeOnActivate: false,
+                  onPressed: saveMatchPolicyDefault,
+                  child: Text(
+                    context.settingsText(
+                      'קבע את טווח הקרבה הנוכחי ({scope}) כברירת מחדל',
+                      args: {
+                        'scope': _matchPolicyLabel(
+                          state.configuration.matchPolicy,
+                        ),
+                      },
+                    ),
+                  ),
+                ),
             ],
             leadingIcon: const Icon(FluentIcons.options_24_regular),
             child: Text(
@@ -623,6 +703,16 @@ class _SearchDialogState extends State<SearchDialog> {
             controller.isOpen ? controller.close() : controller.open(),
       ),
     );
+  }
+
+  String _matchPolicyLabel(SearchMatchPolicy policy) {
+    final mode = policy.wordMatchMode == WordMatchMode.atLeast
+        ? context.settingsText(
+            'לפחות {count} מילים',
+            args: {'count': policy.wordMatchCount},
+          )
+        : context.settingsText(policy.wordMatchMode.label);
+    return '${context.settingsText(policy.proximityScope.label)} · $mode';
   }
 
   // מציג רק חיפושים מההיסטוריה הכללית.
@@ -725,6 +815,10 @@ class _SearchDialogState extends State<SearchDialog> {
         SearchDefaults.rememberSessionMode(config.searchMode);
         if (config.searchMode != SearchMode.fuzzy) {
           SearchDefaults.rememberSessionDistance(config.distance);
+          SearchDefaults.rememberSessionAnyOrder(config.anyOrder);
+        }
+        if (config.searchMode == SearchMode.advanced) {
+          SearchDefaults.rememberSessionMatchPolicy(config.matchPolicy);
         }
       }
       _searchTab.dispose();
@@ -885,7 +979,10 @@ class _SearchDialogState extends State<SearchDialog> {
           spacingValues: normalizedParameters.customSpacing,
           searchMode: currentMode,
           distance: _searchTab.searchBloc.state.distance,
-          matchPolicy: currentState.configuration.matchPolicy,
+          matchPolicy: currentState.configuration.matchPolicyWithSpacing(
+            normalizedParameters.customSpacing,
+            query: query,
+          ),
           pluginSearchSelections: _allPluginSearchSelections(),
         ),
       );
@@ -927,7 +1024,8 @@ class _SearchDialogState extends State<SearchDialog> {
       ...(FacetHelper.dimensionFacetsOf(_scopeSelection).toList()..sort()),
     ];
     final distance = _searchTab.searchBloc.state.distance;
-    final proximityScope = currentState.configuration.proximityScope;
+    final configuration = currentState.configuration;
+    final proximityScope = configuration.proximityScope;
 
     if (_openSelectedPluginSearchTargets(
       query: query,
@@ -950,7 +1048,7 @@ class _SearchDialogState extends State<SearchDialog> {
         negativeQuery: negativeQuery,
         mode: currentMode,
         distance: distance,
-        proximityScope: proximityScope,
+        configuration: configuration,
         facetsToSearch: facetsToSearch,
         effectiveAlternatives: effectiveAlternatives,
         normalizedParameters: normalizedParameters,
@@ -970,6 +1068,9 @@ class _SearchDialogState extends State<SearchDialog> {
           searchMode: currentMode,
           distance: distance,
           proximityScope: proximityScope,
+          wordMatchMode: configuration.wordMatchMode,
+          wordMatchCount: configuration.wordMatchCount,
+          anyOrder: configuration.anyOrder,
           currentFacets: facetsToSearch,
           searchScopeFacets: facetsToSearch,
           pluginSearchSelections: _allPluginSearchSelections(),
@@ -1196,6 +1297,11 @@ class _SearchDialogState extends State<SearchDialog> {
       'facets': facets,
       if (normalizedParameters.searchOptions.isNotEmpty)
         'wordOptions': normalizedParameters.searchOptions,
+      if (configuration.appliesAnyOrder(
+        customSpacing: normalizedParameters.customSpacing,
+        query: query,
+      ))
+        'anyOrder': true,
       if (mode == SearchMode.advanced) ...{
         if (negativeQuery.isNotEmpty) 'negativeQuery': negativeQuery,
         'proximityScope': proximityScope.name,
@@ -1244,7 +1350,7 @@ class _SearchDialogState extends State<SearchDialog> {
     required String negativeQuery,
     required SearchMode mode,
     required int distance,
-    required SearchScope proximityScope,
+    required SearchConfiguration configuration,
     required List<String> facetsToSearch,
     required Map<int, List<String>> effectiveAlternatives,
     required SearchModeScopedParameters normalizedParameters,
@@ -1302,7 +1408,16 @@ class _SearchDialogState extends State<SearchDialog> {
 
     target.searchBloc.add(SetSearchModeWithoutSearch(mode));
     target.searchBloc.add(UpdateDistanceWithoutSearch(distance));
-    target.searchBloc.add(UpdateProximityScopeWithoutSearch(proximityScope));
+    target.searchBloc.add(
+      UpdateProximityScopeWithoutSearch(configuration.proximityScope),
+    );
+    target.searchBloc.add(
+      UpdateWordMatchModeWithoutSearch(
+        configuration.wordMatchMode,
+        count: configuration.wordMatchCount,
+      ),
+    );
+    target.searchBloc.add(UpdateWordOrderWithoutSearch(configuration.anyOrder));
     target.searchBloc.add(
       UpdatePluginSearchSelectionsWithoutSearch(_allPluginSearchSelections()),
     );
@@ -1313,7 +1428,7 @@ class _SearchDialogState extends State<SearchDialog> {
       AddHistory(
         target,
         scopeFacets: facetsToSearch,
-        proximityScope: proximityScope,
+        proximityScope: configuration.proximityScope,
       ),
     );
     target.searchBloc.add(
@@ -1712,11 +1827,15 @@ class _SearchDialogState extends State<SearchDialog> {
           .where((key) => !_primaryExactOptionKeys.contains(key))
           .toList();
       sections.add(
-        _buildExactOptionsRow(_disabledSearchOptionIds(state), keys),
+        _buildExactOptionsRow(
+          _disabledSearchOptionIds(state),
+          keys,
+          trailing: [_buildWordOrderChip(state)],
+        ),
       );
-      hasActive |= keys.any(
-        (key) => _searchTab.globalSearchOptions[key] ?? false,
-      );
+      hasActive |=
+          keys.any((key) => _searchTab.globalSearchOptions[key] ?? false) ||
+          state.anyOrder;
     }
     if (mode == SearchMode.advanced &&
         widget.onSearch == null &&

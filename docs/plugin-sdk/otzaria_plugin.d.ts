@@ -337,6 +337,9 @@ export interface SearchQueryParams {
   wordMatchMode?: SearchWordMatchMode;
   /** חוקי רק ב-advanced יחד עם wordMatchMode: 'atLeast'. */
   wordMatchCount?: number;
+  /** מגרסה 0.9.99. אותו מרווח כמו לפי הסדר, אבל המילים בכל סדר; נדחה ב-fuzzy,
+   *  בטווח שאינו wordDistance, בהתאמה שאינה all ועם customSpacing. */
+  anyOrder?: boolean;
   /** אפשרויות מילה שחלות על כל מילות השאילתה. */
   options?: Record<string, boolean>;
   /** אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options`. */
@@ -448,6 +451,8 @@ export interface OpenSearchTabSettings {
   wordMatchMode?: SearchWordMatchMode;
   /** חוקי רק עם mode: 'advanced' ו-wordMatchMode: 'atLeast'. */
   wordMatchCount?: number;
+  /** מגרסה 0.9.99. אותו מרווח, אבל המילים בכל סדר; כללים כמו ב-search.query. */
+  anyOrder?: boolean;
   /** אפשרויות מילה שחלות על כל מילות השאילתה (למשל 'קידומות דקדוקיות'). */
   options?: Record<string, boolean>;
   /** אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options`. */
@@ -1421,6 +1426,9 @@ export interface OtzariaEventMap {
     /** Always `'all'` outside `mode: 'advanced'`. Older hosts omit it. */
     wordMatchMode?: SearchWordMatchMode;
     wordMatchCount?: number;
+    /** Since 0.9.99: same distance as ordered search, but the words may
+     *  appear in any order. Sent only when true. */
+    anyOrder?: boolean;
     offset: number;
     limit: number;
     ids?: number[];

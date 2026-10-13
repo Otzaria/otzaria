@@ -1418,6 +1418,7 @@ for await (const chunk of chunks) {
 | `proximityScope` | `'wordDistance'` | `'wordDistance'` מרווח מילים \| `'sameParagraph'` באותה פסקה \| `'sameSection'` תחת אותה כותרת |
 | `wordMatchMode` | `'all'` | `'all'` \| `'anyWord'` \| `'mostWords'` \| `'atLeast'` |
 | `wordMatchCount` | `2` | מספר המילים הנדרש; ניתן לשלוח רק עם `mode: 'advanced'` ו-`wordMatchMode: 'atLeast'` |
+| `anyOrder` (מגרסה 0.9.99) | `false` | `true` = אותו מרווח כמו בחיפוש לפי הסדר (`distance`), אבל המילים יכולות להופיע בכל סדר; חל גם על `negativeQuery` ואינו משפיע על שאילתה של מילה אחת. נדחה במצב `'fuzzy'`, עם `proximityScope` שאינו `'wordDistance'`, עם `wordMatchMode` שאינו `'all'` ועם `customSpacing` |
 | `grouping` | `'none'` | `'none'` \| `'sameSection'` (איחוד לפי סעיף) \| `'identicalText'` (איחוד טקסט זהה) |
 | `options` | `{}` | אפשרויות מילה שחלות על **כל** מילות השאילתה |
 | `wordOptions` | `{}` | אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options` |
@@ -1534,7 +1535,8 @@ const { data } = await Otzaria.call('search.getOptions', {});
 > בשקט: `negativeQuery`, `alternativeWords`, `customSpacing`, `proximityScope`,
 > `wordMatchMode` וכל פרמטרי ה-`negative*` דורשים `mode: 'advanced'`; המצב
 > `'fuzzy'` אינו מקבל אפשרויות מילה כלל; המצב `'exact'` מקבל רק את
-> `wordOptions.exact` שלמעלה.
+> `wordOptions.exact` שלמעלה. `anyOrder: true` נדחה בכל מקום שבו הוא היה
+> נבלע (מקורב, טווח פסקה/כותרת, התאמה חלקית, מרווח ידני).
 
 ### `search.setFieldText`
 **הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
@@ -1692,6 +1694,10 @@ window.addEventListener('reader.inBookSearch.requested', async (event) => {
 `distance` הוא מספר המילים שמותר שיופיעו *בין* מילות השאילתה (0 = צמודות),
 ומנוע שמודד מרחק ביחידה אחרת חייב לתרגם אותו. מארח ותיק אינו שולח את השדות.
 
+מגרסה 0.9.99 האירוע נושא `anyOrder: true` כשהמשתמש ביטל "שמור על סדר המילים
+המקורי" והבחירה חלה (גם במצב `exact`): אותו מרווח כמו בחיפוש לפי הסדר,
+אבל המילים יכולות להופיע בכל סדר. כשהשדה חסר — לפי הסדר.
+
 שם ספק שייך לתוסף הראשון שרשם אותו; ניסיון של תוסף אחר לרשום אותו נדחה
 עם `error.conflict`.
 
@@ -1808,6 +1814,7 @@ await Otzaria.call('reader.openSearchTab', {
 | `proximityScope` | `'wordDistance'` | `'wordDistance'` \| `'sameParagraph'` \| `'sameSection'` |
 | `wordMatchMode` | `'all'` | `'all'` \| `'anyWord'` \| `'mostWords'` \| `'atLeast'` |
 | `wordMatchCount` | `2` | חוקי רק עם `mode: 'advanced'` ו-`wordMatchMode: 'atLeast'` |
+| `anyOrder` (מגרסה 0.9.99) | `false` | אותו מרווח, אבל המילים בכל סדר; אותם כללים כמו ב-`search.query` |
 | `options` | `{}` | אפשרויות מילה שחלות על כל מילות השאילתה (למשל `'קידומות דקדוקיות'`) |
 | `wordOptions` | `{}` | אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options` |
 

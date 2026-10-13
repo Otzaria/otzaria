@@ -202,6 +202,86 @@ Future<void> main() async {
       expect(request.wordMatchCount, 1);
     });
 
+    test('anyOrder: ברירת מחדל לפי הסדר; חוקי במדויק ובמתקדם', () {
+      expect(PluginSearchRequest.fromArgs({'query': 'א ב'}).anyOrder, isFalse);
+      for (final mode in ['exact', 'advanced']) {
+        final request = PluginSearchRequest.fromArgs({
+          'query': 'א ב',
+          'mode': mode,
+          'anyOrder': true,
+        });
+        expect(request.anyOrder, isTrue, reason: mode);
+      }
+      // false מפורש אינו משנה דבר ולכן תמיד חוקי.
+      expect(
+        PluginSearchRequest.fromArgs({
+          'query': 'א ב',
+          'mode': 'fuzzy',
+          'anyOrder': false,
+        }).anyOrder,
+        isFalse,
+      );
+    });
+
+    test('anyOrder נדחה כשאינו חל, ובטיפוס שאינו בוליאני', () {
+      Matcher invalid(String detail) => throwsA(
+        predicate((error) => error.toString().contains(detail)),
+      );
+      expect(
+        () => PluginSearchRequest.fromArgs({
+          'query': 'א ב',
+          'mode': 'fuzzy',
+          'anyOrder': true,
+        }),
+        invalid('mode: "fuzzy"'),
+      );
+      expect(
+        () => PluginSearchRequest.fromArgs({
+          'query': 'א ב',
+          'mode': 'advanced',
+          'proximityScope': 'sameParagraph',
+          'anyOrder': true,
+        }),
+        invalid('proximityScope: "wordDistance"'),
+      );
+      expect(
+        () => PluginSearchRequest.fromArgs({
+          'query': 'א ב',
+          'mode': 'advanced',
+          'wordMatchMode': 'anyWord',
+          'anyOrder': true,
+        }),
+        invalid('wordMatchMode: "all"'),
+      );
+      expect(
+        () => PluginSearchRequest.fromArgs({
+          'query': 'א ב',
+          'mode': 'advanced',
+          'customSpacing': {'0-1': '2'},
+          'anyOrder': true,
+        }),
+        invalid('customSpacing'),
+      );
+      expect(
+        () => PluginSearchRequest.fromArgs({'query': 'א ב', 'anyOrder': 'yes'}),
+        invalid('anyOrder must be a boolean'),
+      );
+    });
+
+    test('הגדרות טאב החיפוש מקבלות anyOrder', () {
+      expect(
+        PluginOpenSearchTabSettings.parse({
+          'mode': 'exact',
+          'anyOrder': true,
+        }, query: 'א ב').anyOrder,
+        isTrue,
+      );
+      expect(
+        PluginOpenSearchTabSettings.parse(null, query: 'א ב').anyOrder,
+        isFalse,
+      );
+    });
+
     test('פרמטר לא מוכר וטיפוסי קלט שגויים נדחים', () {
       for (final args in <Map<String, dynamic>>[
         {'query': 'א', 'limti': 5},

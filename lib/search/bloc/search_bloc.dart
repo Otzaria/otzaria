@@ -32,6 +32,7 @@ typedef _FacetRecountInputs = ({
   SearchScope proximityScope,
   WordMatchMode wordMatchMode,
   int wordMatchCount,
+  bool anyOrder,
 });
 
 typedef IndexedBookResolution = ({Book? book, bool isStale});
@@ -105,6 +106,8 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     on<UpdateProximityScopeWithoutSearch>(_onUpdateProximityScopeWithoutSearch);
     on<UpdateWordMatchMode>(_onUpdateWordMatchMode);
     on<UpdateWordMatchModeWithoutSearch>(_onUpdateWordMatchModeWithoutSearch);
+    on<UpdateWordOrder>(_onUpdateWordOrder);
+    on<UpdateWordOrderWithoutSearch>(_onUpdateWordOrderWithoutSearch);
     on<ToggleSearchMode>(_onToggleSearchMode);
     on<SetSearchMode>(_onSetSearchMode);
     on<SetSearchModeWithoutSearch>(_onSetSearchModeWithoutSearch);
@@ -251,6 +254,10 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           grouping: state.configuration.resultGrouping.engineGrouping,
           wordMatchMode: state.wordMatchMode,
           wordMatchCount: state.wordMatchCount,
+          anyOrder: state.configuration.appliesAnyOrder(
+            customSpacing: event.customSpacing ?? const {},
+            query: state.searchQuery,
+          ),
         ),
         chunkSize: 50, // 50 תוצאות בכל chunk
       );
@@ -389,6 +396,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       proximityScope: state.proximityScope,
       wordMatchMode: state.wordMatchMode,
       wordMatchCount: state.wordMatchCount,
+      anyOrder: state.anyOrder,
     );
   }
 
@@ -409,6 +417,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       inputs.proximityScope.name,
       inputs.wordMatchMode.name,
       inputs.wordMatchCount,
+      inputs.anyOrder,
       jsonEncode(event.customSpacing ?? const <String, String>{}),
       jsonEncode(
         (event.alternativeWords ?? const <int, List<String>>{}).map(
@@ -459,6 +468,16 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         searchMode: inputs.searchMode,
         wordMatchMode: inputs.wordMatchMode,
         wordMatchCount: inputs.wordMatchCount,
+        anyOrder:
+            SearchConfiguration(
+              searchMode: inputs.searchMode,
+              proximityScope: inputs.proximityScope,
+              wordMatchMode: inputs.wordMatchMode,
+              anyOrder: inputs.anyOrder,
+            ).appliesAnyOrder(
+              customSpacing: event.customSpacing ?? const {},
+              query: query,
+            ),
         customSpacing: event.customSpacing,
         alternativeWords: event.alternativeWords,
         searchOptions: event.searchOptions,
@@ -588,6 +607,28 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     }
 
     emit(state.copyWith(configuration: newConfig));
+    return true;
+  }
+
+  void _onUpdateWordOrder(UpdateWordOrder event, Emitter<SearchState> emit) {
+    if (!_updateWordOrderConfiguration(event.anyOrder, emit)) return;
+    _reSearch();
+  }
+
+  void _onUpdateWordOrderWithoutSearch(
+    UpdateWordOrderWithoutSearch event,
+    Emitter<SearchState> emit,
+  ) {
+    _updateWordOrderConfiguration(event.anyOrder, emit);
+  }
+
+  bool _updateWordOrderConfiguration(bool anyOrder, Emitter<SearchState> emit) {
+    if (anyOrder == state.anyOrder) return false;
+    emit(
+      state.copyWith(
+        configuration: state.configuration.copyWith(anyOrder: anyOrder),
+      ),
+    );
     return true;
   }
 
@@ -999,6 +1040,10 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
             searchMode: state.configuration.searchMode,
             wordMatchMode: state.wordMatchMode,
             wordMatchCount: state.wordMatchCount,
+            anyOrder: state.configuration.appliesAnyOrder(
+              customSpacing: customSpacing ?? const {},
+              query: state.searchQuery,
+            ),
             customSpacing: customSpacing,
             alternativeWords: alternativeWords,
             searchOptions: searchOptions,
@@ -1151,6 +1196,10 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           grouping: state.configuration.resultGrouping.engineGrouping,
           wordMatchMode: state.wordMatchMode,
           wordMatchCount: state.wordMatchCount,
+          anyOrder: state.configuration.appliesAnyOrder(
+            customSpacing: event.customSpacing ?? const {},
+            query: state.searchQuery,
+          ),
         ),
       );
       // חיפוש חדש החליף את התוצאות ומנהל את isLoading בעצמו.

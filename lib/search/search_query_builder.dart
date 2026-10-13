@@ -158,6 +158,14 @@ class SearchQueryBuilder {
   static List<String> splitQueryWords(String query) =>
       engine.splitQueryWords(query: query);
 
+  /// האם יש בשאילתה יותר ממילת-מנוע אחת — "בכל סדר" חסר משמעות למילה אחת.
+  static bool hasMultipleWords(String query) =>
+      engine.queryWordSpans(query: query).length > 1;
+
+  /// האם מוגדר מרווח ידני כלשהו בין מילים (ערכים ריקים אינם נחשבים).
+  static bool hasCustomSpacing(Map<String, String> spacing) =>
+      spacing.values.any((value) => value.trim().isNotEmpty);
+
   /// הטוקנייזר ממפה את השאילתה כולה, כולל קרי/כתיב ונרמול משנה-אורך.
   static List<QueryWordSpan> queryWordSpans(String text) {
     final words = engine.queryWordSpans(query: text);
