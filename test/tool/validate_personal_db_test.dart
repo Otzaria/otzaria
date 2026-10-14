@@ -66,6 +66,7 @@ void main() {
         CREATE TABLE author(id INTEGER);
         CREATE TABLE book_version(id INTEGER);
         CREATE TABLE line_dh(bookId INTEGER, dhDisplay TEXT);
+        CREATE TABLE line_note(lineId INTEGER, noteIndex INTEGER, marker TEXT, body TEXT);
         CREATE VIEW connection_type AS SELECT 1 AS id;
         CREATE TABLE external_link(sourceBookId INTEGER, sourceLineIndex INTEGER, targetTitle TEXT);
         CREATE INDEX idx_line_book_index ON line(bookId, lineIndex);
@@ -92,6 +93,7 @@ void main() {
         'hasLineRef': caps.hasLineRef,
         'hasLineDhDisplay': caps.hasLineDhDisplay,
         'hasDivineNames': caps.hasDivineNames,
+        'hasBookNotes': caps.hasBookNotes,
         'hasLineBookIndex': caps.hasLineBookIndex,
         'hasAuthors': caps.hasAuthors,
         'hasTopics': caps.hasTopics,
@@ -104,6 +106,7 @@ void main() {
         'hasCategoryClosure': caps.hasCategoryClosure,
         'hasExternalLinks': caps.hasExternalLinks,
       };
+      expect(caps.hasBookNotes, isTrue);
       expect(report.capabilities, expected);
       expect(report.impostors, {'connection_type'});
     });

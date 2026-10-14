@@ -7,8 +7,8 @@ import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
-/// טעינת מופעי שמות הקודש (`line_divine_name`): טבלה אופציונלית שמזוהה רק
-/// לפי קיומה. מסד בלי הטבלה — אין מופעים, בלי שגיאה.
+/// טעינת מופעי שמות הקודש (`line_divine_name`, סכמה 7): היכולת מזוהה לפי
+/// קיום הטבלה. מסד בלי הטבלה — אין מופעים, בלי שגיאה.
 void main() {
   late Directory tempDir;
   late String dbPath;

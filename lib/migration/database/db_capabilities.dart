@@ -44,11 +44,11 @@ const Set<String> kKnownSeforimTables = {
   'schema_meta',
   'db_meta',
   'external_link',
-  // טבלאות אופציונליות מחוץ לחוזה ה-hash של סכמה 6.
-  // TODO: בסכמה 7 להעביר אותן לחוזה הסכמה ולוותר על ערוץ הצד.
+  // מסכמה 7; מסד בסכמה 6, מצורף או אישי עשוי שלא להכיל אותן.
   'book_banner',
   'book_protection',
   'line_divine_name',
+  'line_note',
 };
 
 /// אילו מהטבלאות המוכרות קיימות במסד בפורמט seforim.db, ובאילו עמודות.
@@ -158,6 +158,14 @@ class DbCapabilities {
       hasColumn('line_divine_name', 'charStart') &&
       hasColumn('line_divine_name', 'charEnd') &&
       hasColumn('line_divine_name', 'kind');
+
+  /// הערות שוליים שהוצאו מתוכן השורה (סכמה 7); בלעדיה הן נשארות בשורה.
+  bool get hasBookNotes =>
+      hasLines &&
+      hasColumn('line_note', 'lineId') &&
+      hasColumn('line_note', 'noteIndex') &&
+      hasColumn('line_note', 'marker') &&
+      hasColumn('line_note', 'body');
   bool get hasLineBookIndex => hasIndex('idx_line_book_index');
   bool get hasAuthors => hasBooks && has('author') && has('book_author');
   bool get hasTopics => hasBooks && has('topic') && has('book_topic');
@@ -171,11 +179,11 @@ class DbCapabilities {
   bool get hasDefaultTargums => hasBooks && has('default_targum');
   bool get hasCategoryClosure => hasCategories && has('category_closure');
 
-  /// באנר קרדיט לספר; טבלה אופציונלית ודלילה.
+  /// באנר קרדיט לספר; טבלה דלילה.
   bool get hasBookBanners =>
       hasColumn('book_banner', 'bookId') && hasColumn('book_banner', 'text');
 
-  /// רמת הגבלת מו"ל לספר; טבלה אופציונלית ודלילה.
+  /// רמת הגבלת מו"ל לספר; טבלה דלילה.
   bool get hasBookProtection =>
       hasColumn('book_protection', 'bookId') &&
       hasColumn('book_protection', 'level');
