@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:otzaria/book_common/view/parallel_editions_action.dart';
@@ -680,10 +681,18 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           .repository
           .getBookContent(state.book);
 
+      final bookNotes = await BookNotesRepository.instance.notesFor(
+        book.title,
+        categoryId: book.categoryId,
+        source: book.source,
+        fileType: book.fileType,
+        versionTitle: book.versionTitle,
+      );
       final exportRequest = TextBookExportRequest(
         rawContent: fullContent,
         profile: profile,
         divineNames: divineNames,
+        bookNotes: bookNotes,
       );
       final Uint8List bytes;
       final String successMessage;

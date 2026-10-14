@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
@@ -16,22 +18,25 @@ String applyTextBookExportProfile(
   return stripHtml ? stripHtmlIfNeeded(text) : text;
 }
 
-/// בקשת ייצוא של ספר שלם. עוברת ל-isolate, ולכן מופעי השמות מגיעים כנתונים
-/// ([divineNames]) ולא נשלפים מהמסד שם.
+/// בקשת ייצוא של ספר שלם. עוברת ל-isolate, ולכן מופעי השמות והערות השוליים
+/// מגיעים כנתונים ([divineNames], [bookNotes]) ולא נשלפים מהמסד שם.
 class TextBookExportRequest {
   final String rawContent;
   final TextDisplayProfile profile;
   final DivineNameSpans divineNames;
+  final BookNotes bookNotes;
 
   TextBookExportRequest({
     required this.rawContent,
     required this.profile,
     DivineNameSpans? divineNames,
-  }) : divineNames = divineNames ?? DivineNameSpans.empty;
+    BookNotes? bookNotes,
+  }) : divineNames = divineNames ?? DivineNameSpans.empty,
+       bookNotes = bookNotes ?? BookNotes.empty;
 }
 
-/// שורות הספר לייצוא: מופעי השמות לפי `lineIndex` על השורה הגולמית, ואחריהם
-/// פרופיל הייצוא (כולל ה-regex של שם הוי"ה, כמו בתצוגה).
+/// שורות הספר לייצוא: מופעי השמות לפי `lineIndex` על השורה הגולמית, הערות
+/// המסד בחזרה בשורה, ואחריהם פרופיל הייצוא (כולל ה-regex של שם הוי"ה).
 List<String> textBookExportLines(
   TextBookExportRequest request, {
   required bool stripHtml,
@@ -47,7 +52,7 @@ List<String> textBookExportLines(
       holyNameStyle: profile.replaceHolyNames ? profile.holyNameStyle : null,
     );
     lines[i] = applyTextBookExportProfile(
-      named,
+      rehydrateInlineNotes(named, request.bookNotes.notesAt(i)),
       profile: profile,
       stripHtml: stripHtml,
     );

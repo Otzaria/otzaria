@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/printing/commentary_print_limit.dart';
 import 'package:otzaria/models/links.dart';
@@ -9,6 +11,20 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 /// פותר את תוכן הקישור (טקסט המפרש). ניתן להזרקה בבדיקות.
 typedef CommentaryContentResolver = Future<String> Function(Link link);
 
+/// תוכן הקישור עם הערות השוליים שהוצאו מהשורה למסד, בחזרה במקומן.
+Future<String> contentWithBookNotes(Link link) async {
+  final content = await link.content;
+  // קטע שמשתרע על כמה שורות — ההערות ממופות לשורה אחת בלבד.
+  if (link.index2End != null && link.index2End != link.index2) return content;
+  final notes = await BookNotesRepository.instance.notesFor(
+    getTitleFromPath(link.path2),
+    categoryId: link.targetCategoryId,
+    source: link.targetSource,
+    fileType: link.targetFileType,
+  );
+  return rehydrateInlineNotes(content, notes.notesAt(link.index2 - 1));
+}
+
 /// בונה בלוקי מפרשים להדפסה; [keepHtml] משמר את התגיות כדי להחיל את פרופיל
 /// הייצוא לפני ניקוי HTML. מפרש עם הגבלת הדפסה של המו"ל נחתך למספר השורות המותר.
 Future<List<PrintBlock>> buildCommentaryPrintBlocks(
@@ -17,7 +33,7 @@ Future<List<PrintBlock>> buildCommentaryPrintBlocks(
   Future<BookProtection> Function(Link link)? protectionResolver,
   bool keepHtml = false,
 }) async {
-  final resolve = contentResolver ?? (Link link) => link.content;
+  final resolve = contentResolver ?? contentWithBookNotes;
   final limit = CommentaryPrintLimit(protectionResolver: protectionResolver);
   final blocks = <PrintBlock>[];
 

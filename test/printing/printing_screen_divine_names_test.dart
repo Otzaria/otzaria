@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/models/books.dart';
@@ -43,12 +45,17 @@ void main() {
         .setMockMethodCallHandler(pathProviderChannel, (_) async => '/tmp');
     DivineNamesRepository.instance.debugLoader =
         (title, {categoryId, required source}) async => spans;
+    BookNotesRepository.instance.debugLoader =
+        (title, {categoryId, required source}) async => BookNotes.empty;
   });
 
   tearDownAll(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pathProviderChannel, null);
     DivineNamesRepository.instance
+      ..debugLoader = null
+      ..clear();
+    BookNotesRepository.instance
       ..debugLoader = null
       ..clear();
     PrintingScreen.debugOnPrintBlocks = null;
@@ -58,6 +65,7 @@ void main() {
   setUp(() {
     printed.clear();
     DivineNamesRepository.instance.clear();
+    BookNotesRepository.instance.clear();
     PrintingScreen.debugOnPrintBlocks = (blocks) => printed
       ..clear()
       ..addAll(blocks.map((b) => b['text'] ?? ''));
@@ -147,6 +155,28 @@ void main() {
     expect(printed, contains('בראשית ברא אלקים'));
     // הפרופיל שהועבר לא השתנה, ושום דבר לא נכתב להגדרות (ה-Fake היה זורק).
     expect(profile.divineNames, DivineNamesDisplay.asIs);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('הערת שוליים מהמסד חוזרת לשורה המודפסת, אחרי החלפת השמות', (
+    tester,
+  ) async {
+    BookNotesRepository.instance.debugLoader =
+        (title, {categoryId, required source}) async =>
+            (BookNotesBuilder()..add(1, 0, null, 'הערה מהמסד')).build();
+    addTearDown(
+      () => BookNotesRepository.instance.debugLoader =
+          (title, {categoryId, required source}) async => BookNotes.empty,
+    );
+
+    await pumpScreen(
+      tester,
+      const TextDisplayProfile(divineNames: DivineNamesDisplay.substitute),
+    );
+    expect(
+      printed,
+      contains(allOf(contains('בראשית ברא אלקים'), contains('הערה מהמסד'))),
+    );
     await tester.pumpWidget(const SizedBox());
   });
 

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/utils/text_book_export_utils.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 
@@ -83,5 +84,26 @@ void main() {
     );
     expect(createTextBookTextExport(adnut), 'אמר אד-ני');
     expect(textBookExportLines(adnut, stripHtml: false).single, 'אמר אד-⁠ני');
+  });
+
+  test('הערות מהמסד חוזרות לשורה, והשמות לפי השורה כפי שנשמרה', () async {
+    final notes = (BookNotesBuilder()..add(1, 0, '*', 'הערה <b>מודגשת</b>'))
+        .build();
+    final withNote = TextBookExportRequest(
+      rawContent:
+          'בראשית\nבראשית ברא <b>אלהים</b><sup class="footnote-marker">*</sup>'
+          '\nויאמר יהוה',
+      profile: const TextDisplayProfile(
+        divineNames: DivineNamesDisplay.substitute,
+      ),
+      divineNames: spans,
+      bookNotes: notes,
+    );
+    final text = await compute(createTextBookTextExport, withNote);
+    expect(text.split('\n')[1], 'בראשית ברא אלקים*הערה מודגשת');
+    expect(
+      textBookExportLines(withNote, stripHtml: false)[1],
+      contains('<i class="footnote">הערה <b>מודגשת</b></i>'),
+    );
   });
 }

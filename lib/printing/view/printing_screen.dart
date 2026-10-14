@@ -9,6 +9,9 @@ import 'package:flutter/foundation.dart' show mapEquals, visibleForTesting;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
@@ -237,8 +240,9 @@ class _PrintingScreenState extends State<PrintingScreen> {
   late HolyNameDisplay _holyName;
   late DivineNamesDisplay _divineNamesDisplay;
   DivineNameSpans _divineNames = DivineNameSpans.empty;
+  BookNotes _bookNotes = BookNotes.empty;
 
-  // הפלט נבנה רק אחרי הטעינה — אחרת הדפסה מהירה יוצאת בלי ההחלפה.
+  // הפלט נבנה רק אחרי הטעינה — אחרת הדפסה מהירה יוצאת בלי ההחלפה וההערות.
   late final Future<void> _divineNamesReady;
 
   // יעד ההדפסה הנבחר (הדפסה/PDF/Word) — נשמר כעדיפות לפעמים הבאות.
@@ -359,7 +363,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final exportProfile = _exportProfile;
     _holyName = exportProfile.holyName;
     _divineNamesDisplay = exportProfile.divineNames;
-    _divineNamesReady = _loadDivineNames();
+    _divineNamesReady = Future.wait([_loadDivineNames(), _loadBookNotes()]);
 
     // במצב PDF חיצוני (כמו "צורת הדף") אין טווח שורות/כותרות.
     if (widget.createPdfOverride != null) {
@@ -865,6 +869,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _holyNameStyle.storageKey,
       _divineNamesDisplay.name,
       identityHashCode(_divineNames),
+      identityHashCode(_bookNotes),
       startLine,
       endLine,
       _includeCommentaries,
@@ -999,7 +1004,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
     final bookName = stripHtmlIfNeeded(
       _applyTextTransforms(
-        _withDivineNames(linesInRange(dataString, 0, 1).first, 0),
+        _withStoredLineData(linesInRange(dataString, 0, 1).first, 0),
       ),
     );
     final selectedStart = startLine.clamp(0, totalLines);
@@ -1082,41 +1087,69 @@ class _PrintingScreenState extends State<PrintingScreen> {
     setState(() => _divineNames = spans);
   }
 
-  /// שורה [lineIndex] הגולמית של הספר עם מופעי השמות — לפני כל טרנספורמציה,
-  /// כי האופסטים נמדדו על השורה כפי שנשמרה.
-  String _withDivineNames(String rawLine, int lineIndex) =>
-      applyDivineNamesToLine(
-        rawLine,
-        _divineNames,
-        lineIndex,
-        substituteOtherNames: _substituteDivineNames,
-        holyNameStyle: _shouldReplaceHolyNames ? _holyNameStyle : null,
+  /// הערות השוליים של הספר מהמסד, שמוחזרות לשורה בהדפסה.
+  Future<void> _loadBookNotes() async {
+    final book = widget.book;
+    if (book == null || widget.createPdfOverride != null) return;
+    final notes = await BookNotesRepository.instance.notesFor(
+      book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      fileType: book.fileType,
+      versionTitle: book.versionTitle,
+    );
+    if (!mounted || notes.isEmpty) return;
+    setState(() => _bookNotes = notes);
+  }
+
+  /// שורה [lineIndex] הגולמית של הספר עם מופעי השמות ועם הערות המסד — לפני
+  /// כל טרנספורמציה, כי אופסטי השמות נמדדו על השורה כפי שנשמרה.
+  String _withStoredLineData(String rawLine, int lineIndex) =>
+      rehydrateInlineNotes(
+        applyDivineNamesToLine(
+          rawLine,
+          _divineNames,
+          lineIndex,
+          substituteOtherNames: _substituteDivineNames,
+          holyNameStyle: _shouldReplaceHolyNames ? _holyNameStyle : null,
+        ),
+        _bookNotes.notesAt(lineIndex),
       );
 
-  /// כמו [_withDivineNames] לקטע מפרש, לפי מופעי ספר המפרש.
-  Future<String> _withCommentaryDivineNames(Link link, String rawText) async {
-    final profile = _screenProfile(commentary: true);
-    final holyNameStyle = profile.replaceHolyNames
-        ? profile.holyNameStyle
-        : null;
-    if (!_substituteDivineNames && holyNameStyle == null) return rawText;
+  /// כמו [_withStoredLineData] לקטע מפרש, לפי נתוני ספר המפרש.
+  Future<String> _withCommentaryStoredData(Link link, String rawText) async {
     // קטע שמשתרע על כמה שורות — אין שורה אחת שהאופסטים שלה מתאימים לו.
     if (link.index2End != null && link.index2End != link.index2) {
       return rawText;
     }
-    final spans = await DivineNamesRepository.instance.spansFor(
-      getTitleFromPath(link.path2),
+    final title = getTitleFromPath(link.path2);
+    final notes = await BookNotesRepository.instance.notesFor(
+      title,
       categoryId: link.targetCategoryId,
       source: link.targetSource,
       fileType: link.targetFileType,
     );
-    return applyDivineNamesToLine(
-      rawText,
-      spans,
-      link.index2 - 1,
-      substituteOtherNames: _substituteDivineNames,
-      holyNameStyle: holyNameStyle,
-    );
+    final profile = _screenProfile(commentary: true);
+    final holyNameStyle = profile.replaceHolyNames
+        ? profile.holyNameStyle
+        : null;
+    var text = rawText;
+    if (_substituteDivineNames || holyNameStyle != null) {
+      final spans = await DivineNamesRepository.instance.spansFor(
+        title,
+        categoryId: link.targetCategoryId,
+        source: link.targetSource,
+        fileType: link.targetFileType,
+      );
+      text = applyDivineNamesToLine(
+        text,
+        spans,
+        link.index2 - 1,
+        substituteOtherNames: _substituteDivineNames,
+        holyNameStyle: holyNameStyle,
+      );
+    }
+    return rehydrateInlineNotes(text, notes.notesAt(link.index2 - 1));
   }
 
   /// מחיל את פרופיל הייצוא; מתגי הניקוד, הטעמים ושם הוי"ה שבמסך גוברים עליו.
@@ -1410,7 +1443,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     for (var i = selectedStart; i < selectedEnd; i++) {
       // הטרנספורמציות מוחלות רק על שורות הטווח; ב-Word ה-HTML נשמר לעיצוב.
       final rawLine = rangeLines[i - selectedStart];
-      final lineText = _applyTextTransforms(_withDivineNames(rawLine, i));
+      final lineText = _applyTextTransforms(_withStoredLineData(rawLine, i));
       blocks.add({
         'kind': 'text',
         'text': keepHtml ? lineText : stripHtmlIfNeeded(lineText),
@@ -1518,7 +1551,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final totalLines = _lineCounts.of(dataString);
     var bookName = stripHtmlIfNeeded(
       _applyTextTransforms(
-        _withDivineNames(linesInRange(dataString, 0, 1).first, 0),
+        _withStoredLineData(linesInRange(dataString, 0, 1).first, 0),
       ),
     );
     if (bookName.trim().isEmpty) {
@@ -1788,7 +1821,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     if (cached != null) return cached;
 
     var text = _applyTextTransforms(
-      await _withCommentaryDivineNames(link, await link.content),
+      await _withCommentaryStoredData(link, await link.content),
       commentary: true,
     );
     if (!keepHtml) {
