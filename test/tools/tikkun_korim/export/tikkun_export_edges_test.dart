@@ -2,6 +2,8 @@
 /// פסקת המשיחה, טור מוסתר נשמט, גבולות השורות נאספים, ונו"ן מנוזרת משתקפת.
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/tikkun_korim/engine/tokenizer.dart';
 import 'package:otzaria/tools/tikkun_korim/export/tikkun_pdf_exporter.dart';
@@ -103,6 +105,29 @@ void main() {
     });
 
     expect(_withText(pages.single, 'אחת'), hasLength(1));
+  });
+
+  testWidgets('טור יחיד ממלא את רוחב הדף גם בלי מרכוז בתצוגה (issue #2535)', (
+    tester,
+  ) async {
+    final exporter = _exporter(columns: TikkunExportColumns.stamOnly);
+    late List<TikkunVectorPage> pages;
+    await tester.runAsync(() async {
+      pages = await exporter.layoutPages([
+        [
+          textLine(
+            ['אבגדהוזחטי', 'כלמנסעפצקרשת', 'אבגדהוזחטי'],
+            chapter: 1,
+            verse: 1,
+          ),
+        ],
+      ]);
+    });
+
+    final page = pages.single;
+    final left = page.texts.map((op) => op.left).reduce(math.min);
+    final right = page.texts.map((op) => op.right).reduce(math.max);
+    expect(right - left, greaterThan(page.width * 0.8));
   });
 
   testWidgets('אפשרויות הייצוא קובעות גם את רוחב פריסת הטורים', (

@@ -369,6 +369,8 @@ class TikkunPdfExporter {
   }) : settings = settings.copyWith(
          hideStam: options.hideStam,
          hideNikud: options.hideNikud,
+         // טור יחיד שלא ממורכז משאיר חצי דף ריק.
+         centerSingleColumn: true,
        );
 
   /// עוצר את הייצוא בהזדמנות הבאה; [export] ייכשל ב-[TikkunExportCancelled].
