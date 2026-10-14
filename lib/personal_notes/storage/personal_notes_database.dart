@@ -29,6 +29,9 @@ class PersonalNotesDatabase {
   static const _columnCreatedAt = 'created_at';
   static const _columnUpdatedAt = 'updated_at';
 
+  // user_version: הערות ישנות של ספרים אישיים שויכו כבר למפתח `|user`.
+  static const _userBookKeysAssignedVersion = 1;
+
   PersonalNotesDatabase._();
 
   static final PersonalNotesDatabase instance = PersonalNotesDatabase._();
@@ -214,6 +217,44 @@ class PersonalNotesDatabase {
     });
   }
 
+  /// האם הערות תחת כותרת בלבד עדיין ממתינות לשיוך לספר אישי.
+  Future<bool> userBookKeysPending() async {
+    final db = await database;
+    final version = db.select('PRAGMA user_version').first.values.first as int;
+    return version < _userBookKeysAssignedVersion;
+  }
+
+  /// [pending] false אחרי השיוך; true אחרי שחזור או ייבוא של הערות ישנות.
+  Future<void> setUserBookKeysPending(bool pending) async {
+    final db = await database;
+    db.execute(
+      'PRAGMA user_version = ${pending ? 0 : _userBookKeysAssignedVersion}',
+    );
+  }
+
+  /// מעביר את ההערות [noteIds] למפתח הספר [bookId].
+  Future<void> moveNotesToBook(Iterable<String> noteIds, String bookId) async {
+    final ids = noteIds.toSet();
+    if (ids.isEmpty) return;
+    final db = await database;
+    final changedBooks = <String>{bookId};
+    withTransaction(db, () {
+      for (final id in ids) {
+        final rows = db.select(
+          'SELECT $_columnBookId FROM $_tableNotes WHERE $_columnId = ?',
+          [id],
+        );
+        if (rows.isEmpty) continue;
+        changedBooks.add(rows.first[_columnBookId] as String);
+        db.execute(
+          'UPDATE $_tableNotes SET $_columnBookId = ? WHERE $_columnId = ?',
+          [bookId, id],
+        );
+      }
+    });
+    _notifyChanges(changedBooks);
+  }
+
   /// Batch insert multiple notes (for bulk restore/import)
   /// Skips notes that already exist (by ID), or overwrites them with [replace]
   Future<int> batchInsertNotes(
@@ -239,6 +280,7 @@ class PersonalNotesDatabase {
         }
       }
     });
+    if (count > 0) await setUserBookKeysPending(true);
     _notifyChanges(changedBooks);
     return count;
   }

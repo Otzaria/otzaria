@@ -57,6 +57,7 @@ import 'package:otzaria/text_book/view/widgets/nav_panel_tour_target.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/personal_notes/services/personal_notes_user_book_keys.dart';
 import 'package:otzaria/pdf_book/view/pdf_book_screen.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/open_tool_tab.dart';
@@ -3022,6 +3023,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
                     // ניקוי יתומים חייב לקבל את העץ המלא, כולל מהדורות מחוץ לעץ.
                     context.read<IndexingBloc>().add(
                       DropOrphanedIndexEntries(library),
+                    );
+                    unawaited(
+                      PersonalNotesUserBookKeys()
+                          .assignPending(library)
+                          .catchError(
+                            (Object e) => debugPrint(
+                              'Personal notes user-book keys failed: $e',
+                            ),
+                          ),
                     );
                   }),
                 );

@@ -347,6 +347,10 @@ class PersonalNotesImportExportService {
       }
     }
 
+    // קובץ מגרסה ישנה מחזיק הערות של ספר אישי תחת הכותרת בלבד.
+    if (inserted + updated + duplicated > 0) {
+      await _database.setUserBookKeysPending(true);
+    }
     return NotesImportSummary(
       inserted: inserted,
       updated: updated,

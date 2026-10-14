@@ -5,6 +5,7 @@ export 'models/personal_note.dart';
 export 'services/personal_notes_service.dart';
 export 'services/personal_note_draft_service.dart';
 export 'services/personal_notes_import_export_service.dart';
+export 'services/personal_notes_user_book_keys.dart';
 export 'repository/personal_notes_repository.dart';
 export 'storage/personal_notes_database.dart';
 export 'utils/note_text_utils.dart';
