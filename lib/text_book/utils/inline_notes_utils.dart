@@ -1,9 +1,8 @@
 /// כלים לטיפול בהערות שוליים inline שמקודדות בתוכן השורה כ-HTML:
 ///   <sup class="footnote-marker">marker</sup><i class="footnote">body</i>
 ///
-/// ספרי המסד מסכמה 7 שומרים את גוף ההערה בטבלת `line_note` ([BookNotes]),
-/// ובשורה נשאר רק ה-<sup>. כל פונקציה מאחדת את שני המקורות; ספרי משתמש
-/// ומהדורות חלופיות ממשיכים להחזיק את הגוף בשורה.
+/// בספרי המסד (סכמה 7) הגוף בטבלת `line_note` ([BookNotes]) ובשורה נשאר רק
+/// ה-<sup>; כל פונקציה מאחדת את שני המקורות.
 library;
 
 import 'package:otzaria/text_book/models/book_notes.dart';
@@ -137,14 +136,8 @@ String stripInlineNotes(String html) {
   return html.replaceAll(_footnoteBodyRegExp, '');
 }
 
-/// מסיר את ההערות inline במלואן — גם אות ההפניה
-/// (<sup class="footnote-marker">marker</sup>) וגם גוף ההערה
-/// (<i class="footnote">body</i>).
-///
-/// בניגוד ל-[stripInlineNotes] שמשאיר את ה-<sup> כעוגן ויזואלי בקורא,
-/// כאן מסירים גם אותו. נחוץ לטקסט שמיועד לחיפוש או לאינדוקס: שם תגי ה-HTML
-/// נמחקים, ולכן אות ההפניה וגוף ההערה היו נשארים כטקסט חשוף ומזהמים את
-/// תוצאות החיפוש.
+/// מסיר גם את אות ההפניה וגם את גוף ההערה — לחיפוש ולאינדוקס, שבהם תגי ה-HTML
+/// נמחקים והשאריות היו נשארות כטקסט חשוף שמזהם את התוצאות.
 String stripInlineNotesForSearch(String html) {
   if (!html.contains('footnote')) return html;
   return html
@@ -163,15 +156,8 @@ bool hasInlineNotes(List<String> content, {BookNotes? dbNotes}) {
   return false;
 }
 
-/// מחלץ את ההערות מסט שורות (לפי האינדקסים שניתנו).
-///
-/// כל ערך ברשימה הוא מחרוזת HTML שמכילה את ה-<sup>marker</sup> שצמוד
-/// לפני ההערה (אם יש) ואחריו את גוף ההערה. אם אין <sup> צמוד - מוחזר
-/// רק גוף ההערה. הערות הטבלה ([dbNotes]) באות אחרי הערות השורה.
-///
-/// משתמש ב-lastIndexOf במקום regex עם $-anchor כדי להבטיח שלכל הערה
-/// מצמידים אך ורק את ה-<sup> שמופיע מיד לפניה (ולא רצף של <sup>-ים
-/// קודמים יחד עם תוכן ביניהם).
+/// ההערות של השורות [indexes]: ה-<sup> הצמוד (אם יש) ואחריו הגוף; הערות הטבלה
+/// ([dbNotes]) באות אחרי הערות השורה.
 List<String> notesForLines(
   List<String> content,
   Iterable<int> indexes, {
@@ -193,6 +179,7 @@ List<String> notesForLines(
   return results;
 }
 
+// lastIndexOf ולא regex עם $: אחרת נצמד רצף של <sup>-ים קודמים עם התוכן שביניהם.
 String _inlineNoteHtml(String line, Match iMatch) {
   final body = iMatch.group(1) ?? '';
   final before = line.substring(0, iMatch.start);
@@ -213,11 +200,10 @@ String _inlineNoteHtml(String line, Match iMatch) {
   return body;
 }
 
-/// מחזיר לשורה את גופי ההערות שהוצאו לטבלה, בצורת ה-inline המקורית: כל הערה
-/// עם marker אחרי ה-<sup> התואם לה, והשאר בסוף השורה. להדפסה, ייצוא וכלים
-/// שקוראים את הגוף מתוך השורה.
+/// מחזיר לשורה את גופי ההערות מהטבלה: הערה עם marker אחרי ה-<sup> שלה, והשאר
+/// בסוף. שורה שכבר יש בה גוף הערה מוחזרת כמו שהיא, כך שהחלה כפולה בטוחה.
 String rehydrateInlineNotes(String line, List<BookNote> notes) {
-  if (notes.isEmpty) return line;
+  if (notes.isEmpty || _footnoteBodyRegExp.hasMatch(line)) return line;
   final anchored = [
     for (final note in notes)
       if (note.marker != null) note,

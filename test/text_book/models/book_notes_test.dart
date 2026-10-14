@@ -6,6 +6,7 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 
 void main() {
   test('הבונה מקבץ לפי שורה, ו-empty ריק', () {
@@ -112,6 +113,19 @@ void main() {
       same(provider),
     );
     expect(manager.getProviderForBook('ספר', categoryId: 1), same(provider));
+  });
+
+  test('rehydrate אידמפוטנטי — החלה שנייה אינה משכפלת את הגוף', () {
+    const stored = 'גוף<sup class="footnote-marker">א</sup> סוף';
+    final notes =
+        (BookNotesBuilder()
+              ..add(0, 0, 'א', 'ראשונה')
+              ..add(0, 1, null, 'נספחת'))
+            .build();
+    final once = rehydrateInlineNotes(stored, notes.notesAt(0));
+    expect(rehydrateInlineNotes(once, notes.notesAt(0)), once);
+    expect(rehydrateInlineNotesInText(once, notes), once);
+    expect('class="footnote"'.allMatches(once).length, 2);
   });
 }
 

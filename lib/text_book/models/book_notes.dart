@@ -23,7 +23,7 @@ class BookNotes {
   /// ההערות של שורה [lineIndex] (0-based), לפי סדר הקריאה.
   List<BookNote> notesAt(int lineIndex) => _byLine[lineIndex] ?? const [];
 
-  /// ההערה בצורה שבה נשלפו הערות inline מהשורה עד היום.
+  /// ההערה בצורת `notesForLines` של הערת inline, כדי שהצרכנים לא יבחינו במקור.
   static String toInlineHtml(BookNote note) {
     final marker = note.marker;
     if (marker == null) return note.body;
