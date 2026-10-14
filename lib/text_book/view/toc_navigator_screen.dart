@@ -131,7 +131,7 @@ class _TocViewerState extends State<TocViewer>
   void _moveHighlight(int delta) {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
-    final display = _displayDataFor(state.tableOfContents);
+    final display = _displayDataFor(state);
     if (!display.isSearching) return;
     final flat = _flatItemsFor(display);
     if (flat.isEmpty) return;
@@ -147,7 +147,7 @@ class _TocViewerState extends State<TocViewer>
     setState(() => _highlightedEntryIndex = targetIndex);
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final current = _displayDataFor(state.tableOfContents);
+      final current = _displayDataFor(state);
       _scrollEntryIntoView(
         targetIndex,
         display: current,
@@ -194,7 +194,7 @@ class _TocViewerState extends State<TocViewer>
   void _openHighlightedEntry() {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
-    final display = _displayDataFor(state.tableOfContents);
+    final display = _displayDataFor(state);
     if (!display.isSearching) return;
     final flat = _flatItemsFor(display);
     if (flat.isEmpty) return;
@@ -258,7 +258,7 @@ class _TocViewerState extends State<TocViewer>
       if (!mounted || _isManuallyScrolling) return;
       // ההחלטה וירטואלי/רקורסיבי נלקחת כאן ולא בזמן התזמון: ניקוי חיפוש
       // בינתיים מחליף מסלול ומנתק את בקר הגלילה.
-      final display = _displayDataFor(state.tableOfContents);
+      final display = _displayDataFor(state);
       final bool useFlat = display.totalCount > _kTocFlattenThreshold;
       if (_scrollEntryIntoView(
         activeIndex,
@@ -365,13 +365,15 @@ class _TocViewerState extends State<TocViewer>
     return true;
   }
 
-  _TocDisplayData _displayDataFor(List<TocEntry> tableOfContents) {
+  _TocDisplayData _displayDataFor(TextBookLoaded state) {
+    final tableOfContents = state.tableOfContents;
     final query = _appliedQuery;
     if (!identical(_displaySource, tableOfContents) || _displayQuery != query) {
       final isSearching = query.isNotEmpty;
+      final roots = tocRootsBelowTitle(tableOfContents, state.book.title);
       final entries = isSearching
-          ? filterTocEntriesForSearch(tableOfContents, query)
-          : tableOfContents;
+          ? filterTocEntriesForSearch(roots, query)
+          : roots;
       _displaySource = tableOfContents;
       _displayQuery = query;
       _displayResult = _TocDisplayData(
@@ -636,9 +638,7 @@ class _TocViewerState extends State<TocViewer>
           final int? activeIndex = _activeTocIndex(state);
 
           // גם חיפוש עשוי להציג עשרות אלפי ערכים, ולכן הסף נגזר מהפלט.
-          final display = _displayDataFor(
-            state.tableOfContents,
-          );
+          final display = _displayDataFor(state);
           final bool useFlat = display.totalCount > _kTocFlattenThreshold;
 
           final delegate = NavPanelSearchDelegate(

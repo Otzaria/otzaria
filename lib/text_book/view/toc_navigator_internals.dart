@@ -1,4 +1,5 @@
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
 
 /// פריט יחיד ברשימה השטוחה של ה-TOC.
 /// משמש כשעוברים למצב וירטואליזציה אמיתית (ספרים עם הרבה ערכי TOC).
@@ -25,6 +26,18 @@ int countAllTocEntries(List<TocEntry> entries) {
     count += countAllTocEntries(e.children);
   }
   return count;
+}
+
+/// שורשי העץ לתצוגה מתחת לכותרת [bookTitle]: שורש יחיד ששמו כשם הספר
+/// מוחלף בילדיו, כדי שהשם לא יופיע פעמיים.
+List<TocEntry> tocRootsBelowTitle(List<TocEntry> entries, String bookTitle) {
+  if (entries.length != 1) return entries;
+  final root = entries.single;
+  if (root.children.isEmpty ||
+      stripHtmlIfNeeded(root.text).trim() != bookTitle.trim()) {
+    return entries;
+  }
+  return root.children;
 }
 
 /// מחזיר את הערכים הגלויים כרגע ברשימה שטוחה (לפי [expanded]).

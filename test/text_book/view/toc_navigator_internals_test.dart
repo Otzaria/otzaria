@@ -504,4 +504,29 @@ void main() {
       expect(flattenVisibleToc(entries, expanded).length, 4);
     });
   });
+
+  group('tocRootsBelowTitle', () {
+    test('שורש יחיד בשם הספר מוחלף בילדיו (issue #2069)', () {
+      final a = _e('סימן א', 1, 2);
+      final b = _e('סימן ב', 2, 2);
+      final entries = [
+        _e('הלכות גדולות', 0, 1, children: [a, b]),
+      ];
+      expect(tocRootsBelowTitle(entries, 'הלכות גדולות'), [a, b]);
+    });
+
+    test('שורש בשם אחר, כמה שורשים או שורש בלי ילדים - ללא שינוי', () {
+      final other = [
+        _e('פתיחה', 0, 1, children: [_e('א', 1, 2)]),
+      ];
+      final several = [
+        _e('סנהדרין', 0, 1, children: [_e('א', 1, 2)]),
+        _e('נספח', 2, 1),
+      ];
+      final leaf = [_e('סנהדרין', 0, 1)];
+      expect(tocRootsBelowTitle(other, 'סנהדרין'), same(other));
+      expect(tocRootsBelowTitle(several, 'סנהדרין'), same(several));
+      expect(tocRootsBelowTitle(leaf, 'סנהדרין'), same(leaf));
+    });
+  });
 }
