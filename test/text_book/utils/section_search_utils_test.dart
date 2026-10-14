@@ -860,6 +860,29 @@ Future<void> main() async {
       );
     });
 
+    test('ספר מהמסד: גוף ההערה בטבלה — המונח נמצא בה בלבד', () {
+      const stored = 'שלום עולם <sup class="footnote-marker">1</sup>';
+      expect(
+        queryMatchesInlineNoteOnly(
+          stored,
+          'דין',
+          dbNotes: const [
+            (noteIndex: 0, marker: '1', body: 'כאן מופיע דין מיוחד'),
+          ],
+          pattern: literalPattern('דין'),
+        ),
+        isTrue,
+      );
+      expect(
+        queryMatchesInlineNoteOnly(
+          stored,
+          'דין',
+          pattern: literalPattern('דין'),
+        ),
+        isFalse,
+      );
+    });
+
     test('מונח שאינו קיים כלל — שקר', () {
       expect(
         queryMatchesInlineNoteOnly(

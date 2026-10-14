@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/search/models/search_match_policy.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
@@ -253,14 +254,18 @@ bool queryMatchesInlineNoteOnly(
   String rawLine,
   String query, {
   bool wholeWord = true,
+  List<BookNote> dbNotes = const [],
   @visibleForTesting RegExp? pattern,
 }) {
-  if (!rawLine.contains('footnote')) return false;
+  if (!rawLine.contains('footnote') && dbNotes.isEmpty) return false;
   final regExp =
       pattern ?? buildLiteralPattern(query, wholeWord: wholeWord)?.regExp;
   if (regExp == null) return false;
 
-  final noteBody = notes.notesForLines([rawLine], const [0]).join(' ');
+  final noteBody = [
+    ...notes.notesForLines([rawLine], const [0]),
+    ...dbNotes.map(BookNotes.toInlineHtml),
+  ].join(' ');
   final cleanNote = utils
       .removeVolwels(utils.stripHtmlIfNeeded(noteBody))
       .replaceAll(_whitespaceRun, ' ');

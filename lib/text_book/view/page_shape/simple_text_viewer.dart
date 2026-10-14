@@ -622,6 +622,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     var result = inline_notes.addInlineNotePreviewLinks(
       rawLine,
       lineIndex: lineIndex,
+      dbNotes: state.bookNotes,
     );
     // סמני-מספר מודפסים, למשל (9), שההערה שלהם בספר "הערות על…" המקושר כמפרש.
     if (numberedNoteLinks(
@@ -765,7 +766,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (state is! TextBookLoaded) return;
 
     if (url.startsWith('otzaria://book-note')) {
-      final note = inline_notes.inlineNoteFromPreviewUrl(state.content, url);
+      final note = inline_notes.inlineNoteFromPreviewUrl(
+        state.content,
+        url,
+        dbNotes: state.bookNotes,
+      );
       if (note == null) return;
       LinkPreviewOverlay.showContent(
         context,
@@ -2106,6 +2111,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       availableCommentators: paragraphCommentators(
         availableCommentators: state.availableCommentators,
         content: widget.content,
+        bookNotes: widget.isMainText ? state.bookNotes : null,
         paragraphIndex: index,
         linksByLine: state.linksByLine,
         queriedCommentators: isLoading

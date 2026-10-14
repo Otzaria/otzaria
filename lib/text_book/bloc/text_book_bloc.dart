@@ -1,3 +1,5 @@
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/hidden/hidden_titles.dart';
@@ -102,6 +104,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   final Object _readerIdentity = Object();
 
   final Future<BookProtection> Function(Book book) _protectionLoader;
+  final Future<BookNotes> Function(TextBook book) _bookNotesLoader;
 
   Timer? _debounceTimer;
   Timer? _highlightTimer;
@@ -185,6 +188,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     })?
     quickPreviewLoader,
     Future<BookProtection> Function(Book book)? protectionLoader,
+    Future<BookNotes> Function(TextBook book)? bookNotesLoader,
     required TextBookInitial initialState,
     this.readingPosition,
   }) : _quickPreviewLoader =
@@ -192,6 +196,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
            SqliteDataProvider.instance.getBookQuickPreview,
        _protectionLoader =
            protectionLoader ?? BookProtectionRepository.instance.forBook,
+       _bookNotesLoader = bookNotesLoader ?? _loadBookNotes,
        super(initialState) {
     on<LoadContent>(_onLoadContent);
     on<UpdateResolvedBookId>(_onUpdateResolvedBookId);
@@ -728,6 +733,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     // במקביל לטעינת התוכן, כדי שה-UI יקבל את ההגבלה כבר במצב ה-Loaded.
     // גם בטעינה-מחדש: הספרייה עשויה להתעדכן בינתיים.
     final protectionFuture = _protectionLoader(book);
+    // ההערות מהמסד קובעות אם 'הערות' זמין כבר ב-emit הראשון.
+    final bookNotesFuture = _bookNotesLoader(book);
 
     // ספר שנפתח עם חיפוש פעיל (מתוצאות חיפוש או טאב משוחזר): מזינים ברקע את
     // תבנית ההדגשה מבוססת-האינדקס, במקביל לטעינת התוכן — כך הרינדור מדגיש
@@ -935,9 +942,11 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         existingCommentatorGroups,
       );
       final protection = await protectionFuture;
+      final bookNotes = await bookNotesFuture;
       TextBookLoaded loadedState = TextBookLoaded(
         book: book,
         protection: protection,
+        bookNotes: bookNotes,
         content: contentLines,
         contentVersion: contentLines.isEmpty ? 0 : 1,
         links: emptyLinks,
@@ -1011,7 +1020,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       // לפני ה-emit הראשון. מסלולי preview/range מקבלים הרחבה הדרגתית
       // דרך ApplyBookContentRange / ApplyFullBookContent (ראה
       // _withInlineNotesCommentator).
-      if (notes.hasInlineNotes(contentLines)) {
+      if (notes.hasInlineNotes(contentLines, dbNotes: bookNotes)) {
         loadedState = _attachInlineNotesCommentator(loadedState);
       }
 
@@ -2157,6 +2166,8 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     if (state.availableCommentators.contains(kNotesCommentatorTitle)) {
       return state;
     }
+    // ספר מהמסד: גוף ההערות אינו בשורות, ולכן הסריקה לא תמצא אותן.
+    if (!state.bookNotes.isEmpty) return _attachInlineNotesCommentator(state);
     if (_inlineNotesFullScanDone) {
       return state;
     }
@@ -3146,6 +3157,15 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       debugPrint('⚠️ Failed to save active commentators per book: $e');
     }
   }
+
+  static Future<BookNotes> _loadBookNotes(TextBook book) =>
+      BookNotesRepository.instance.notesFor(
+        book.title,
+        categoryId: book.categoryId,
+        source: book.source,
+        fileType: book.fileType,
+        versionTitle: book.versionTitle,
+      );
 
   Future<void> _loadDivineNamesInBackground(TextBook book) async {
     final spans = await DivineNamesRepository.instance.spansFor(

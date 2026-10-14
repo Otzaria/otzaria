@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 
 void main() {
@@ -215,6 +216,85 @@ void main() {
     test('מתעלם משורות ללא הערות', () {
       final content = ['שורה רגילה', 'שורה אחרת'];
       expect(notesForLines(content, [0, 1]), isEmpty);
+    });
+  });
+
+  group('הערות מהמסד (line_note) — גוף ההערה אינו בשורה', () {
+    // השורה כפי שנשמרה בסכמה 7: ה-<sup> נשאר, הגוף בטבלה.
+    const stripped =
+        'גוף<sup class="footnote-marker">א</sup> המשך'
+        '<sup class="footnote-marker">ב</sup> סוף';
+    final dbNotes =
+        (BookNotesBuilder()
+              ..add(4, 0, 'א', 'ראשונה')
+              ..add(4, 1, null, 'נספחת')
+              ..add(4, 2, 'ב', 'שנייה'))
+            .build();
+
+    test('notesForLines ו-hasInlineNotes רואים את הערות הטבלה', () {
+      final content = List.filled(6, 'שורה');
+      content[4] = stripped;
+      expect(hasInlineNotes(content), isFalse);
+      expect(hasInlineNotes(content, dbNotes: dbNotes), isTrue);
+      expect(notesForLines(content, [4], dbNotes: dbNotes), [
+        '<sup class="footnote-marker">א</sup> ראשונה',
+        'נספחת',
+        '<sup class="footnote-marker">ב</sup> שנייה',
+      ]);
+    });
+
+    test('ה-<sup> ה-k-י מקושר להערה ה-k-ית שיש לה marker', () {
+      final result = addInlineNotePreviewLinks(
+        stripped,
+        lineIndex: 4,
+        dbNotes: dbNotes,
+      );
+      expect(result, contains('note=0">א</a>'));
+      expect(result, contains('note=2">ב</a>'));
+      expect(result, isNot(contains('<sup')));
+
+      final content = List.filled(6, '');
+      content[4] = stripped;
+      expect(
+        inlineNoteFromPreviewUrl(
+          content,
+          'otzaria://book-note?line=4&note=2',
+          dbNotes: dbNotes,
+        ),
+        '<sup class="footnote-marker">ב</sup> שנייה',
+      );
+    });
+
+    test('בלי הערות מהמסד — השורה ללא שינוי', () {
+      expect(addInlineNotePreviewLinks(stripped, lineIndex: 4), stripped);
+    });
+
+    test('rehydrate מחזיר את הגוף אחרי ה-<sup> שלו, ואת היתר לסוף', () {
+      expect(
+        rehydrateInlineNotes(stripped, dbNotes.notesAt(4)),
+        'גוף<sup class="footnote-marker">א</sup>'
+        '<i class="footnote">ראשונה</i> המשך'
+        '<sup class="footnote-marker">ב</sup>'
+        '<i class="footnote">שנייה</i> סוף'
+        '<i class="footnote">נספחת</i>',
+      );
+      expect(rehydrateInlineNotes(stripped, const []), stripped);
+      expect(
+        rehydrateInlineNotesInText(
+          'א\n\n\n\n$stripped',
+          dbNotes,
+        ).split('\n')[4],
+        rehydrateInlineNotes(stripped, dbNotes.notesAt(4)),
+      );
+    });
+
+    test('rehydrate ואחריו notesForLines — כמו הערה inline מקורית', () {
+      final line = rehydrateInlineNotes(stripped, dbNotes.notesAt(4));
+      expect(notesForLines([line], [0]), [
+        '<sup class="footnote-marker">א</sup> ראשונה',
+        '<sup class="footnote-marker">ב</sup> שנייה',
+        'נספחת',
+      ]);
     });
   });
 }

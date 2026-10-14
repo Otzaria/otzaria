@@ -1,3 +1,4 @@
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/view/widgets/selection_gutter_painter.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut.dart';
 import 'package:otzaria/text_book/utils/reader_paragraph_copy.dart';
@@ -184,9 +185,12 @@ bool hasCommentariesForLine({
   required List<String> content,
   required Map<int, List<Link>> linksByLine,
   required int index,
+  BookNotes? bookNotes,
 }) {
   if (activeCommentators.contains(kNotesCommentatorTitle) &&
-      inline_notes.notesForLines(content, [index]).isNotEmpty) {
+      inline_notes.notesForLines(content, [
+        index,
+      ], dbNotes: bookNotes).isNotEmpty) {
     return true;
   }
 
@@ -642,7 +646,11 @@ class _CombinedViewState extends State<CombinedView> {
     if (state is! TextBookLoaded) return;
 
     if (url.startsWith('otzaria://book-note')) {
-      final note = inline_notes.inlineNoteFromPreviewUrl(state.content, url);
+      final note = inline_notes.inlineNoteFromPreviewUrl(
+        state.content,
+        url,
+        dbNotes: state.bookNotes,
+      );
       if (note == null) return;
       LinkPreviewOverlay.showContent(
         context,
@@ -1266,6 +1274,7 @@ class _CombinedViewState extends State<CombinedView> {
         availableCommentators: paragraphCommentators(
           availableCommentators: state.availableCommentators,
           content: state.content,
+          bookNotes: state.bookNotes,
           paragraphIndex: paragraphIndex,
           linksByLine: state.linksByLine,
           queriedCommentators: isLoading
@@ -2702,7 +2711,11 @@ class _CombinedViewState extends State<CombinedView> {
       state.divineNames,
       lineIndex,
     );
-    data = inline_notes.addInlineNotePreviewLinks(data, lineIndex: lineIndex);
+    data = inline_notes.addInlineNotePreviewLinks(
+      data,
+      lineIndex: lineIndex,
+      dbNotes: state.bookNotes,
+    );
     data = _injectNumberedNoteMarkers(data, lineIndex, state);
     // סמני עוגן-מילה — לפני כל עיבוד שמוסיף תוכן גלוי.
     data = _injectAnchorMarkersForLine(data, lineIndex, state);
@@ -2787,6 +2800,7 @@ class _CombinedViewState extends State<CombinedView> {
       content: state.content,
       linksByLine: state.linksByLine,
       index: index,
+      bookNotes: state.bookNotes,
     );
   }
 

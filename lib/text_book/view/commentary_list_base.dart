@@ -1971,6 +1971,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                 final relevantNotes = inline_notes.notesForLines(
                   state.content,
                   currentIndexes,
+                  dbNotes: state.bookNotes,
                 );
                 if (relevantNotes.isNotEmpty) {
                   notesWidget = _NotesCommentaryWidget(

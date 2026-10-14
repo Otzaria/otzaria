@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/book_common/utils/commentators_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1013,6 +1014,17 @@ void main() {
         expect(result, isFalse);
       },
     );
+
+    test('ספר מהמסד: ההערה בטבלה והשורה בלי גוף — עדיין יש מה להציג', () {
+      final result = hasCommentariesForLine(
+        activeCommentators: const [kNotesCommentatorTitle],
+        content: const ['שורה<sup class="footnote-marker">א</sup>'],
+        linksByLine: const {},
+        index: 0,
+        bookNotes: (BookNotesBuilder()..add(0, 0, 'א', 'גוף ההערה')).build(),
+      );
+      expect(result, isTrue);
+    });
 
     test('מחזירה false כשאין מפרשים פעילים ואין קישורים', () {
       final result = hasCommentariesForLine(
