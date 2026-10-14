@@ -2,8 +2,8 @@ import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 
-/// מפתח הספר של הערות אישיות. ספר רשמי ואישי ממופתחים לפי הכותרת, כמו בהערות
-/// שכבר נשמרו; ספר ממסד מצורף מקבל `title|db:<slug>` כדי לא להתערבב איתם.
+/// מפתח הספר של הערות אישיות. ספר רשמי ממופתח לפי הכותרת, כמו בהערות שכבר
+/// נשמרו; ספר אישי מקבל `title|user` וספר ממסד מצורף `title|db:<slug>`.
 String personalNotesBookKey(Book book) =>
     personalNotesBookKeyFor(book.title, book.source);
 
@@ -50,12 +50,21 @@ Map<Category, int> personalNotesCategoryCounts(
 String personalNotesBookKeyFor(String title, BookSource source) =>
     switch (source) {
       AttachedBookSource(:final slug) => '$title|db:$slug',
-      _ => title,
+      UserBookSource() => '$title$_userKeySuffix',
+      OfficialBookSource() => title,
     };
 
+const _userKeySuffix = '|user';
+
 /// מפרק מפתח שנבנה ב-[personalNotesBookKeyFor] לכותרת ולמקור. מפתח בלי
-/// סיומת מצורף מחזיר מקור null — רשמי או אישי, לפי הכותרת בלבד.
+/// סיומת מחזיר מקור null — ספר רשמי.
 ({String title, BookSource? source}) parsePersonalNotesBookKey(String key) {
+  if (key.length > _userKeySuffix.length && key.endsWith(_userKeySuffix)) {
+    return (
+      title: key.substring(0, key.length - _userKeySuffix.length),
+      source: BookSource.user,
+    );
+  }
   final marker = key.lastIndexOf('|db:');
   if (marker > 0) {
     final slug = key.substring(marker + 4);
@@ -69,8 +78,8 @@ String personalNotesBookKeyFor(String title, BookSource source) =>
   return (title: key, source: null);
 }
 
-/// הספר בקטלוג שאליו שייך מפתח ההערות [key]. מפתח בלי סיומת מצורף אינו
-/// נפתר לעולם לספר ממסד מצורף בכותרת זהה.
+/// הספר בקטלוג שאליו שייך מפתח ההערות [key]. מפתח כותרת בלבד נפתר רק לספר
+/// רשמי, לעולם לא לספר אישי או מצורף בכותרת זהה.
 Book? findBookForPersonalNotesKey(Library library, String key) {
   final text = findTextBookForPersonalNotesKey(library, key);
   if (text != null) return text;
@@ -92,5 +101,5 @@ Iterable<Book> _candidates(Library library, String title, BookSource? source) =>
     library.getAllBooks().where(
       (b) =>
           b.title == title &&
-          (source == null ? !b.source.isAttached : b.source == source),
+          (source == null ? b.source.isOfficial : b.source == source),
     );

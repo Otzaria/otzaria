@@ -50,6 +50,37 @@ void main() {
     );
   });
 
+  test('user book key is separate from the official title key', () {
+    final official = TextBook(id: 1, title: 'ביצה');
+    final user = TextBook(id: 1, title: 'ביצה', source: BookSource.user);
+
+    expect(personalNotesBookKey(official), 'ביצה');
+    expect(personalNotesBookKey(user), 'ביצה|user');
+    final parsed = parsePersonalNotesBookKey(personalNotesBookKey(user));
+    expect(parsed.title, 'ביצה');
+    expect(parsed.source, BookSource.user);
+  });
+
+  test('title key resolves only the official book, user key only the user', () {
+    final user = TextBook(id: 1, title: 'ביצה', source: BookSource.user);
+    final official = TextBook(id: 2, title: 'ביצה');
+    final library = _library([user, official]);
+
+    expect(findBookForPersonalNotesKey(library, 'ביצה'), same(official));
+    expect(findTextBookForPersonalNotesKey(library, 'ביצה'), same(official));
+    expect(findBookForPersonalNotesKey(library, 'ביצה|user'), same(user));
+    expect(findTextBookForPersonalNotesKey(library, 'ביצה|user'), same(user));
+  });
+
+  test('title key never resolves to a user book of the same title', () {
+    final library = _library([
+      TextBook(id: 1, title: 'יומן', source: BookSource.user),
+    ]);
+
+    expect(findBookForPersonalNotesKey(library, 'יומן'), isNull);
+    expect(findTextBookForPersonalNotesKey(library, 'יומן'), isNull);
+  });
+
   test('attached PDF resolves as a book but not as a text book', () {
     final pdf = PdfBook(
       id: 2,

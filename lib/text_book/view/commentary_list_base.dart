@@ -20,6 +20,7 @@ import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_changes.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
@@ -499,11 +500,16 @@ class CommentaryListBaseState extends State<CommentaryListBase>
   }
 
   Future<List<PersonalNote>> _personalNotesForGroup(CommentaryGroup group) {
-    return _personalNotesByGroup.putIfAbsent(group.bookTitle, () {
+    // המפתח כמו בשמירה מתפריט המפרש: לפי מקור ספר היעד.
+    final key = personalNotesBookKeyFor(
+      group.bookTitle,
+      group.links.firstOrNull?.targetSource ?? BookSource.official,
+    );
+    return _personalNotesByGroup.putIfAbsent(key, () {
       final loader = widget.personalNotesLoader;
       if (loader == null) return Future.value(const <PersonalNote>[]);
       return loader(
-        group.bookTitle,
+        key,
         categoryId: group.links.firstOrNull?.targetCategoryId,
       );
     });

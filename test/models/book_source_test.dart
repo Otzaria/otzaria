@@ -196,13 +196,13 @@ void main() {
   });
 
   group('personalNotesBookKey', () {
-    test('רשמי ואישי ממופתחים לפי הכותרת בלבד, כמו הערות קיימות', () {
+    test('רשמי ממופתח לפי הכותרת בלבד, ואישי מקבל סיומת משלו', () {
       expect(personalNotesBookKey(TextBook(title: 'בראשית')), 'בראשית');
       expect(
         personalNotesBookKey(
           TextBook(title: 'בראשית', source: BookSource.user),
         ),
-        'בראשית',
+        'בראשית|user',
       );
     });
 

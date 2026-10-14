@@ -134,6 +134,10 @@ class PersonalNotesRepository {
     );
   }
 
+  /// תוכן הספר של מפתח ההערות [bookId], כפי שההערות מעוגנות אליו.
+  Future<String> loadBookContent(String bookId, {int? categoryId}) =>
+      _loadBookContent(bookId, categoryId: categoryId, refresh: true);
+
   Future<List<BookNotesInfo>> listBooksWithNotes() {
     return _database.listBooksWithNotes();
   }
@@ -143,10 +147,10 @@ class PersonalNotesRepository {
     int? categoryId,
     bool refresh = false,
   }) async {
-    final attached = parsePersonalNotesBookKey(bookId);
-    if (attached.source case final source?) {
+    final parsed = parsePersonalNotesBookKey(bookId);
+    if (parsed.source case final source?) {
       _lastContent = null;
-      return _loadAttachedBookContent(attached.title, source, categoryId);
+      return _loadSourceBookContent(parsed.title, source, categoryId);
     }
     try {
       final location = await BookLocator.locateBook(
@@ -255,8 +259,8 @@ class PersonalNotesRepository {
     }
   }
 
-  /// תוכן ספר ממסד מצורף — רק מאותו מסד, לעולם לא ספר רשמי באותה כותרת.
-  Future<String> _loadAttachedBookContent(
+  /// תוכן ספר אישי או ממסד מצורף — רק מאותו מסד, לעולם לא ספר רשמי באותה כותרת.
+  Future<String> _loadSourceBookContent(
     String title,
     BookSource source,
     int? categoryId,
@@ -288,7 +292,7 @@ class PersonalNotesRepository {
           '';
     } catch (e) {
       debugPrint(
-        '[PersonalNotes] attached content load failed for "$title": $e',
+        '[PersonalNotes] ${source.wireKey} content load failed for "$title": $e',
       );
       return '';
     }
