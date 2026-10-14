@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 
@@ -303,6 +305,26 @@ void main() {
       final previousPicker = FilePickerPlatform.instance;
       FilePickerPlatform.instance = picker;
       addTearDown(() => FilePickerPlatform.instance = previousPicker);
+      // איתור הספק האמיתי מאתחל את הספרייה מהדיסק, ותחת FakeAsync הוא נתקע.
+      Future<bool> notFromDb(
+        String title, {
+        int? categoryId,
+        String? fileType,
+      }) => Future.value(false);
+      DivineNamesRepository.instance
+        ..clear()
+        ..debugIsDatabaseBook = notFromDb;
+      BookNotesRepository.instance
+        ..clear()
+        ..debugIsDatabaseBook = notFromDb;
+      addTearDown(() {
+        DivineNamesRepository.instance
+          ..debugIsDatabaseBook = null
+          ..clear();
+        BookNotesRepository.instance
+          ..debugIsDatabaseBook = null
+          ..clear();
+      });
 
       const verse =
           'בְּרֵאשִׁ֖ית, בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃';
