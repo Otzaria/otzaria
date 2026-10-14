@@ -49,6 +49,7 @@ const Set<String> kKnownSeforimTables = {
   'book_protection',
   'line_divine_name',
   'line_note',
+  'line_note_divine_name',
 };
 
 /// אילו מהטבלאות המוכרות קיימות במסד בפורמט seforim.db, ובאילו עמודות.
@@ -164,8 +165,18 @@ class DbCapabilities {
       hasLines &&
       hasColumn('line_note', 'lineId') &&
       hasColumn('line_note', 'noteIndex') &&
+      hasColumn('line_note', 'charPos') &&
       hasColumn('line_note', 'marker') &&
       hasColumn('line_note', 'body');
+
+  /// מופעי שמות הקודש בגוף הערות השוליים; בלי הטבלה הגוף מוצג ככתבו.
+  bool get hasBookNoteDivineNames =>
+      hasBookNotes &&
+      hasColumn('line_note_divine_name', 'lineId') &&
+      hasColumn('line_note_divine_name', 'noteIndex') &&
+      hasColumn('line_note_divine_name', 'charStart') &&
+      hasColumn('line_note_divine_name', 'charEnd') &&
+      hasColumn('line_note_divine_name', 'kind');
   bool get hasLineBookIndex => hasIndex('idx_line_book_index');
   bool get hasAuthors => hasBooks && has('author') && has('book_author');
   bool get hasTopics => hasBooks && has('topic') && has('book_topic');

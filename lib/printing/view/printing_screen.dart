@@ -29,7 +29,6 @@ import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
-import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
@@ -1105,15 +1104,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
   /// שורה [lineIndex] הגולמית של הספר עם מופעי השמות ועם הערות המסד — לפני
   /// כל טרנספורמציה, כי אופסטי השמות נמדדו על השורה כפי שנשמרה.
   String _withStoredLineData(String rawLine, int lineIndex) =>
-      rehydrateInlineNotes(
-        applyDivineNamesToLine(
-          rawLine,
-          _divineNames,
-          lineIndex,
-          substituteOtherNames: _substituteDivineNames,
-          holyNameStyle: _shouldReplaceHolyNames ? _holyNameStyle : null,
-        ),
-        _bookNotes.notesAt(lineIndex),
+      applyStoredLineData(
+        rawLine,
+        lineIndex,
+        names: _divineNames,
+        notes: _bookNotes,
+        substituteOtherNames: _substituteDivineNames,
+        holyNameStyle: _shouldReplaceHolyNames ? _holyNameStyle : null,
       );
 
   /// כמו [_withStoredLineData] לקטע מפרש, לפי נתוני ספר המפרש.
@@ -1133,23 +1130,22 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final holyNameStyle = profile.replaceHolyNames
         ? profile.holyNameStyle
         : null;
-    var text = rawText;
-    if (_substituteDivineNames || holyNameStyle != null) {
-      final spans = await DivineNamesRepository.instance.spansFor(
-        title,
-        categoryId: link.targetCategoryId,
-        source: link.targetSource,
-        fileType: link.targetFileType,
-      );
-      text = applyDivineNamesToLine(
-        text,
-        spans,
-        link.index2 - 1,
-        substituteOtherNames: _substituteDivineNames,
-        holyNameStyle: holyNameStyle,
-      );
-    }
-    return rehydrateInlineNotes(text, notes.notesAt(link.index2 - 1));
+    final names = _substituteDivineNames || holyNameStyle != null
+        ? await DivineNamesRepository.instance.spansFor(
+            title,
+            categoryId: link.targetCategoryId,
+            source: link.targetSource,
+            fileType: link.targetFileType,
+          )
+        : DivineNameSpans.empty;
+    return applyStoredLineData(
+      rawText,
+      link.index2 - 1,
+      names: names,
+      notes: notes,
+      substituteOtherNames: _substituteDivineNames,
+      holyNameStyle: holyNameStyle,
+    );
   }
 
   /// מחיל את פרופיל הייצוא; מתגי הניקוד, הטעמים ושם הוי"ה שבמסך גוברים עליו.

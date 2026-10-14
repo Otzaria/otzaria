@@ -1377,7 +1377,7 @@ BookNotes _loadBookNotesInIsolate({
     final builder = BookNotesBuilder();
     final rows = db.select(
       'SELECT l.lineIndex AS lineIndex, n.noteIndex AS noteIndex, '
-      'n.marker AS marker, n.body AS body '
+      'n.charPos AS charPos, n.marker AS marker, n.body AS body '
       'FROM line l JOIN line_note n ON n.lineId = l.id '
       'WHERE l.bookId = ? ORDER BY l.lineIndex, n.noteIndex',
       [bookId],
@@ -1385,6 +1385,7 @@ BookNotes _loadBookNotesInIsolate({
     for (final row in rows) {
       final lineIndex = row['lineIndex'];
       final noteIndex = row['noteIndex'];
+      final charPos = row['charPos'];
       final marker = row['marker'];
       final body = row['body'];
       if (lineIndex is int && noteIndex is int && body is String) {
@@ -1393,7 +1394,31 @@ BookNotes _loadBookNotesInIsolate({
           noteIndex,
           marker is String ? marker : null,
           body,
+          charPos: charPos is int ? charPos : -1,
         );
+      }
+    }
+    if (capabilities.hasBookNoteDivineNames) {
+      final names = db.select(
+        'SELECT l.lineIndex AS lineIndex, d.noteIndex AS noteIndex, '
+        'd.charStart AS charStart, d.charEnd AS charEnd, d.kind AS kind '
+        'FROM line l JOIN line_note_divine_name d ON d.lineId = l.id '
+        'WHERE l.bookId = ? ORDER BY l.lineIndex, d.noteIndex, d.charStart',
+        [bookId],
+      );
+      for (final row in names) {
+        final lineIndex = row['lineIndex'];
+        final noteIndex = row['noteIndex'];
+        final start = row['charStart'];
+        final end = row['charEnd'];
+        final kind = row['kind'];
+        if (lineIndex is int &&
+            noteIndex is int &&
+            start is int &&
+            end is int &&
+            kind is int) {
+          builder.addDivineName(lineIndex, noteIndex, start, end, kind);
+        }
       }
     }
     return builder.build();

@@ -127,7 +127,16 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
       note = inlineNoteFromPreviewUrl(const [], url, dbNotes: _targetNotes);
     } else {
       final match = numberedBookNoteFromUrl(url, lineNotes);
-      note = match == null ? null : BookNotes.toInlineHtml(match);
+      note = match == null
+          ? null
+          : BookNotes.toInlineHtml(
+              match,
+              body: bookNoteBodyWithDivineNames(
+                _targetNotes,
+                anchorSourceLink.index2 - 1,
+                match,
+              ),
+            );
     }
     if (note == null) return;
     LinkPreviewOverlay.showContent(

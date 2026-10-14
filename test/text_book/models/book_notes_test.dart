@@ -26,11 +26,21 @@ void main() {
 
   test('toInlineHtml — בצורת notesForLines של הערות inline', () {
     expect(
-      BookNotes.toInlineHtml((noteIndex: 0, marker: 'א', body: 'גוף')),
+      BookNotes.toInlineHtml((
+        noteIndex: 0,
+        charPos: -1,
+        marker: 'א',
+        body: 'גוף',
+      )),
       '<sup class="footnote-marker">א</sup> גוף',
     );
     expect(
-      BookNotes.toInlineHtml((noteIndex: 1, marker: null, body: 'גוף')),
+      BookNotes.toInlineHtml((
+        noteIndex: 1,
+        charPos: -1,
+        marker: null,
+        body: 'גוף',
+      )),
       'גוף',
     );
   });

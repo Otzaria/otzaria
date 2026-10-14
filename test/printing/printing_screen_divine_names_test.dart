@@ -163,7 +163,10 @@ void main() {
   ) async {
     BookNotesRepository.instance.debugLoader =
         (title, {categoryId, required source}) async =>
-            (BookNotesBuilder()..add(1, 0, null, 'הערה מהמסד')).build();
+            (BookNotesBuilder()
+                  ..add(1, 0, null, 'הערה מהמסד אלהים', charPos: 6)
+                  ..addDivineName(1, 0, 11, 16, DivineNameKind.elohim))
+                .build();
     addTearDown(
       () => BookNotesRepository.instance.debugLoader =
           (title, {categoryId, required source}) async => BookNotes.empty,
@@ -175,7 +178,12 @@ void main() {
     );
     expect(
       printed,
-      contains(allOf(contains('בראשית ברא אלקים'), contains('הערה מהמסד'))),
+      contains(
+        allOf(
+          startsWith('בראשיתהערה מהמסד אלקים'),
+          endsWith('ברא אלקים'),
+        ),
+      ),
     );
     await tester.pumpWidget(const SizedBox());
   });

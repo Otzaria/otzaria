@@ -867,7 +867,12 @@ Future<void> main() async {
           stored,
           'דין',
           dbNotes: const [
-            (noteIndex: 0, marker: '1', body: 'כאן מופיע דין מיוחד'),
+            (
+              noteIndex: 0,
+              charPos: -1,
+              marker: '1',
+              body: 'כאן מופיע דין מיוחד',
+            ),
           ],
           pattern: literalPattern('דין'),
         ),

@@ -5,7 +5,11 @@
 /// ה-<sup>; כל פונקציה מאחדת את שני המקורות.
 library;
 
+import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
+import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 
 final RegExp _footnoteBodyRegExp = RegExp(
   r'<i\b[^>]*\bclass\s*=\s*"[^"]*\bfootnote\b[^"]*"[^>]*>(.*?)</i>',
@@ -173,7 +177,12 @@ List<String> notesForLines(
       }
     }
     for (final note in _dbNotesAt(dbNotes, idx)) {
-      results.add(BookNotes.toInlineHtml(note));
+      results.add(
+        BookNotes.toInlineHtml(
+          note,
+          body: bookNoteBodyWithDivineNames(dbNotes!, idx, note),
+        ),
+      );
     }
   }
   return results;
@@ -200,30 +209,79 @@ String _inlineNoteHtml(String line, Match iMatch) {
   return body;
 }
 
-/// מחזיר לשורה את גופי ההערות מהטבלה: הערה עם marker אחרי ה-<sup> שלה, והשאר
-/// בסוף. שורה שכבר יש בה גוף הערה מוחזרת כמו שהיא, כך שהחלה כפולה בטוחה.
-String rehydrateInlineNotes(String line, List<BookNote> notes) {
+/// מחזיר לשורה את גופי ההערות מהטבלה, כל אחד באופסט `charPos` שלו (והערה בלי
+/// מיקום — אחרי ה-<sup> שלה או בסוף). שורה שכבר יש בה גוף הערה לא משתנה.
+/// [bodyOf] — גוף חלופי להערה, למשל עם סמני שמות הקודש.
+String rehydrateInlineNotes(
+  String line,
+  List<BookNote> notes, {
+  String Function(BookNote note)? bodyOf,
+}) {
   if (notes.isEmpty || _footnoteBodyRegExp.hasMatch(line)) return line;
-  final anchored = [
-    for (final note in notes)
-      if (note.marker != null) note,
-  ];
-  final markers = anchored.isEmpty ? const <Match>[] : _strippedMarkers(line);
+  final markers = _strippedMarkers(line);
+  final inserts = <({int at, int order, String html})>[];
+  var anchoredSeen = 0;
+  for (var order = 0; order < notes.length; order++) {
+    final note = notes[order];
+    final int at;
+    if (note.charPos >= 0) {
+      at = _rawInsertionPoint(line, note.charPos);
+    } else if (note.marker != null && anchoredSeen < markers.length) {
+      at = markers[anchoredSeen].end;
+    } else {
+      at = line.length;
+    }
+    if (note.marker != null) anchoredSeen++;
+    inserts.add((
+      at: at,
+      order: order,
+      html: _footnoteHtml(bodyOf?.call(note) ?? note.body),
+    ));
+  }
+  inserts.sort(
+    (a, b) => a.at != b.at ? a.at.compareTo(b.at) : a.order.compareTo(b.order),
+  );
   final out = StringBuffer();
   var last = 0;
-  final used = <BookNote>{};
-  for (var k = 0; k < markers.length && k < anchored.length; k++) {
+  for (final insert in inserts) {
     out
-      ..write(line.substring(last, markers[k].end))
-      ..write(_footnoteHtml(anchored[k].body));
-    used.add(anchored[k]);
-    last = markers[k].end;
+      ..write(line.substring(last, insert.at))
+      ..write(insert.html);
+    last = insert.at;
   }
   out.write(line.substring(last));
-  for (final note in notes) {
-    if (!used.contains(note)) out.write(_footnoteHtml(note.body));
-  }
   return out.toString();
+}
+
+/// האינדקס הגולמי אחרי התו הגלוי ה-[visible] (ישות = תו אחד, כמו
+/// `line.charCount`). תגי סגירה צמודים שייכים לתו שלפניהם, למשל `</sup>`.
+int _rawInsertionPoint(String html, int visible) {
+  var seen = 0;
+  var i = 0;
+  final len = html.length;
+  while (i < len && seen < visible) {
+    final unit = html.codeUnitAt(i);
+    if (unit == 0x3C) {
+      final close = html.indexOf('>', i);
+      if (close < 0) return len;
+      i = close + 1;
+      continue;
+    }
+    if (unit == 0x26) {
+      final end = html.indexOf(';', i + 1);
+      i = end > 0 && end < i + 10 ? end + 1 : i + 1;
+    } else {
+      i++;
+    }
+    seen++;
+  }
+  if (seen < visible) return len;
+  while (i < len && html.startsWith('</', i)) {
+    final close = html.indexOf('>', i);
+    if (close < 0) break;
+    i = close + 1;
+  }
+  return i;
 }
 
 /// [rehydrateInlineNotes] על תוכן ספר שלם — שורה לכל `lineIndex`.
@@ -234,6 +292,44 @@ String rehydrateInlineNotesInText(String text, BookNotes notes) {
     lines[i] = rehydrateInlineNotes(lines[i], notes.notesAt(i));
   }
   return lines.join('\n');
+}
+
+/// גוף ההערה [note] של שורה [lineIndex] עטוף בסמני שמות הקודש שבו — הרינדור
+/// מחיל עליהם את צורת התצוגה, כמו בשורה עצמה.
+String bookNoteBodyWithDivineNames(
+  BookNotes notes,
+  int lineIndex,
+  BookNote note,
+) {
+  final spans = notes.bodyDivineNames(lineIndex, note.noteIndex);
+  return spans.isEmpty ? note.body : wrapDivineNameSpans(note.body, spans);
+}
+
+/// שורה [lineIndex] השמורה עם שמות הקודש של השורה ושל גופי ההערות, וההערות
+/// במקומן — למסלולי ההדפסה והייצוא. האופסטים נמדדים לפני כל שינוי גלוי.
+String applyStoredLineData(
+  String line,
+  int lineIndex, {
+  required DivineNameSpans names,
+  required BookNotes notes,
+  required bool substituteOtherNames,
+  HolyNameStyle? holyNameStyle,
+}) {
+  final lineNotes = notes.notesAt(lineIndex);
+  if (!substituteOtherNames && holyNameStyle == null) {
+    return rehydrateInlineNotes(line, lineNotes);
+  }
+  final marked = rehydrateInlineNotes(
+    injectDivineNameMarkers(line, names, lineIndex),
+    lineNotes,
+    bodyOf: (note) => bookNoteBodyWithDivineNames(notes, lineIndex, note),
+  );
+  if (identical(marked, line)) return line;
+  return resolveDivineNameMarkers(
+    marked,
+    substituteOtherNames: substituteOtherNames,
+    holyNameStyle: holyNameStyle,
+  );
 }
 
 String _footnoteHtml(String body) => '<i class="footnote">$body</i>';

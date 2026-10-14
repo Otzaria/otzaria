@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
-import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -44,15 +43,16 @@ List<String> textBookExportLines(
   final profile = request.profile;
   final lines = request.rawContent.split('\n');
   for (var i = 0; i < lines.length; i++) {
-    final named = applyDivineNamesToLine(
+    final stored = applyStoredLineData(
       lines[i],
-      request.divineNames,
       i,
+      names: request.divineNames,
+      notes: request.bookNotes,
       substituteOtherNames: profile.substituteDivineNames,
       holyNameStyle: profile.replaceHolyNames ? profile.holyNameStyle : null,
     );
     lines[i] = applyTextBookExportProfile(
-      rehydrateInlineNotes(named, request.bookNotes.notesAt(i)),
+      stored,
       profile: profile,
       stripHtml: stripHtml,
     );
