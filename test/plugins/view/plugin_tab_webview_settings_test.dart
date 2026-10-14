@@ -117,6 +117,76 @@ void main() {
       );
     });
   });
+
+  group('buildPluginTabBody — מחוון טעינה מעל ה-WebView', () {
+    setUp(() => _StateProbeState.initCount = 0);
+
+    Future<void> pumpBody(
+      WidgetTester tester, {
+      required GlobalKey key,
+      required bool loading,
+      VoidCallback? onTap,
+    }) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: buildPluginTabBody(
+            webView: _StateProbe(key: key, onTap: onTap),
+            loading: loading,
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('מוצג בזמן טעינה ונעלם בסופה בלי לבנות את ה-WebView מחדש', (
+      tester,
+    ) async {
+      final key = GlobalKey<_StateProbeState>();
+      await pumpBody(tester, key: key, loading: true);
+      final state = key.currentState;
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      await pumpBody(tester, key: key, loading: false);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(key.currentState, same(state));
+      expect(_StateProbeState.initCount, 1);
+      // אין ticker של ספינר מוסתר שממשיך לצייר פריימים.
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('אחרי ההסתרה הלחיצה במרכז מגיעה ל-WebView', (tester) async {
+      var taps = 0;
+      final key = GlobalKey<_StateProbeState>();
+      await pumpBody(tester, key: key, loading: false, onTap: () => taps++);
+      await tester.tapAt(tester.getCenter(find.byKey(key)));
+      expect(taps, 1);
+    });
+  });
+}
+
+/// מחליף את ה-WebView בבדיקה וסופר יצירות State.
+class _StateProbe extends StatefulWidget {
+  const _StateProbe({super.key, this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  State<_StateProbe> createState() => _StateProbeState();
+}
+
+class _StateProbeState extends State<_StateProbe> {
+  static int initCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    initCount++;
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: widget.onTap,
+    child: const SizedBox.expand(),
+  );
 }
 
 class _RecordingPlatformViewController extends PlatformViewController {

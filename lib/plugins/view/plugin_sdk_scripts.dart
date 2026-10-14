@@ -120,6 +120,10 @@ String _fontFaceJs(String fontFaceJson) =>
   } catch (e) { console.error('font-face inject failed', e); }
 ''';
 
+/// מוסיף `@font-face` לדף בלי ה-SDK — לגופנים שמוזרקים אחרי ה-boot.
+String buildPluginFontFaceScript(String fontFaceJson) =>
+    '(function () {\n${_fontFaceJs(fontFaceJson)}})();\n';
+
 /// ה-SDK האמיתי, מוזרק אחרי הטעינה וקורא ל-_boot. [fontFaceJson] מזריק לפניו
 /// את הגופנים של התוכנה.
 String buildPluginBootScript({

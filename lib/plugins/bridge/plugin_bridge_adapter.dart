@@ -378,17 +378,23 @@ void debugClearFontFaceCssCache() => _fontFaceCache.clear();
 @visibleForTesting
 int get debugFontFaceCssCacheSize => _fontFaceCache.length;
 
-/// \u05d1\u05d5\u05e0\u05d4 \u05d1\u05dc\u05d5\u05e7 CSS \u05e2\u05dd `@font-face` \u05dc\u05db\u05dc \u05d4\u05d2\u05d5\u05e4\u05e0\u05d9\u05dd \u05e9\u05ea\u05d5\u05e1\u05e3 \u05d9\u05db\u05d5\u05dc \u05dc\u05e0\u05e7\u05d5\u05d1 \u05d1\u05e9\u05de\u05dd:
-/// \u05d4\u05de\u05d5\u05d1\u05e0\u05d9\u05dd \u05e9\u05dc \u05d0\u05d5\u05e6\u05e8\u05d9\u05d0, \u05d5\u05d1\u05e0\u05d5\u05e1\u05e3 \u05d2\u05d5\u05e4\u05df \u05de\u05e2\u05e8\u05db\u05ea \u05e9\u05e0\u05d1\u05d7\u05e8 \u05d1\u05d4\u05d2\u05d3\u05e8\u05d5\u05ea. \u05de\u05e9\u05e4\u05d7\u05d4
+/// \u05d4\u05de\u05e9\u05e4\u05d7\u05d5\u05ea \u05e9\u05d4-theme payload \u05de\u05d5\u05e1\u05e8 \u05dc\u05ea\u05d5\u05e1\u05e3 (\u05e7\u05e8\u05d9\u05d0\u05d4, \u05de\u05e4\u05e8\u05e9\u05d9\u05dd \u05d5\u05de\u05de\u05e9\u05e7). \u05e8\u05e7 \u05d4\u05df \u05de\u05d5\u05d6\u05e8\u05e7\u05d5\u05ea
+/// \u05dc\u05e4\u05e0\u05d9 `plugin.boot` \u2014 \u05d4\u05d6\u05e8\u05e7\u05ea \u05db\u05dc \u05d4\u05de\u05d5\u05d1\u05e0\u05d9\u05dd (\u05db-2MB) \u05de\u05e2\u05db\u05d1\u05ea \u05d0\u05ea \u05d4-boot \u05d1\u05db-400ms.
+Set<String> pluginThemeFontFamilies() => {
+  Settings.getValue<String>(SettingsRepository.keyFontFamily) ??
+      AppFonts.defaultFont,
+  Settings.getValue<String>(SettingsRepository.keyCommentatorsFontFamily) ??
+      AppFonts.defaultCommentatorsFont,
+  kPluginUiFont,
+};
+
+/// \u05e9\u05d0\u05e8 \u05d4\u05d2\u05d5\u05e4\u05e0\u05d9\u05dd \u05d4\u05de\u05d5\u05d1\u05e0\u05d9\u05dd, \u05e9\u05ea\u05d5\u05e1\u05e3 \u05d9\u05db\u05d5\u05dc \u05dc\u05e0\u05e7\u05d5\u05d1 \u05d1\u05e9\u05de\u05dd; \u05de\u05d5\u05d6\u05e8\u05e7\u05d9\u05dd \u05d0\u05d7\u05e8\u05d9 \u05d4-boot.
+Iterable<String> pluginDeferredFontFamilies(Set<String> injected) =>
+    AppFonts.fontPaths.keys.where((family) => !injected.contains(family));
+
+/// \u05d1\u05d5\u05e0\u05d4 \u05d1\u05dc\u05d5\u05e7 CSS \u05e2\u05dd `@font-face` \u05dc-[families], \u05de\u05d5\u05d1\u05e0\u05d9\u05dd \u05d0\u05d5 \u05d2\u05d5\u05e4\u05e0\u05d9 \u05de\u05e2\u05e8\u05db\u05ea. \u05de\u05e9\u05e4\u05d7\u05d4
 /// \u05e9\u05d0\u05d9\u05e0\u05d4 \u05e0\u05e9\u05dc\u05d7\u05ea \u05e0\u05d5\u05e4\u05dc\u05ea \u05d1-WebView \u05dc-fallback \u05e9\u05dc \u05d4\u05de\u05e2\u05e8\u05db\u05ea \u05d5\u05de\u05d5\u05e6\u05d2\u05ea \u05d1\u05d2\u05d5\u05e4\u05df \u05d0\u05d7\u05e8.
-Future<String> buildPluginFontFaceCss() async {
-  final families = <String>{
-    ...AppFonts.fontPaths.keys,
-    Settings.getValue<String>(SettingsRepository.keyFontFamily) ??
-        AppFonts.defaultFont,
-    Settings.getValue<String>(SettingsRepository.keyCommentatorsFontFamily) ??
-        AppFonts.defaultCommentatorsFont,
-  };
+Future<String> buildPluginFontFaceCss(Iterable<String> families) async {
   final parts = <String>[];
   for (final family in families) {
     final css = await _loadFontFaceCss(family);

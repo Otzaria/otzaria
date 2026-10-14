@@ -122,20 +122,25 @@ class WebViewEnvironmentHolder {
   /// בטוח לקריאה מקבילית: קוראים מקבילים יחלקו את אותו future ויראו את
   /// אותה התוצאה. במקרה של כשל, ה-future מנוקה כך שניסיון הבא יבצע
   /// retry במקום להחזיר את אותה שגיאה שמורה.
-  static Future<void> initialize() {
+  ///
+  /// [dataFolderChecked] — הקורא כבר קיבל `null` מ-[checkDataFolderWritable]
+  /// ממש לפני הקריאה; חוסך כתיבת קובץ בדיקה שנייה (איטית תחת אנטי-וירוס).
+  static Future<void> initialize({bool dataFolderChecked = false}) {
     if (_initializeOverride != null) return _initializeOverride!();
     if (!Platform.isWindows) return Future<void>.value();
     if (_environment != null) return Future<void>.value();
-    return _initializeFuture ??= _runInitialize();
+    return _initializeFuture ??= _runInitialize(
+      checkDataFolder: !dataFolderChecked,
+    );
   }
 
-  static Future<void> _runInitialize() async {
+  static Future<void> _runInitialize({required bool checkDataFolder}) async {
     String? webviewDataFolder;
     try {
       final dataRoot = await AppPaths.getDataRootPath();
       webviewDataFolder = p.join(dataRoot, 'webview2');
       await Directory(webviewDataFolder).create(recursive: true);
-      final blocked = await checkDataFolderWritable();
+      final blocked = checkDataFolder ? await checkDataFolderWritable() : null;
       if (blocked != null) {
         // WebView2 היה מגיב לזה בדיאלוג מערכת של Edge; עצירה כאן משאירה
         // את ההסבר בידי PluginDataFolderUnwritableView.

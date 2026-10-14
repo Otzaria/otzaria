@@ -80,6 +80,28 @@ void main() {
         );
         expect(WebViewEnvironmentHolder.unwritableDataFolder, r'C:\blocked');
       });
+
+      test(
+        'initialize בלי בדיקה מוקדמת (מארח הרקע) עוצר על תיקייה חסומה',
+        () async {
+          WebViewEnvironmentHolder.debugOverrideUnwritableDataFolder(
+            r'C:\blocked',
+          );
+
+          await expectLater(
+            WebViewEnvironmentHolder.initialize(),
+            throwsA(
+              isA<FileSystemException>().having(
+                (e) => e.path,
+                'path',
+                r'C:\blocked',
+              ),
+            ),
+          );
+          expect(WebViewEnvironmentHolder.environment, isNull);
+        },
+        skip: !Platform.isWindows,
+      );
     },
   );
 
