@@ -84,7 +84,7 @@ void main() {
 
       expect(labels, isNot(contains('מפרשים')));
       expect(labels, isNot(contains('קישורים')));
-      expect(labels, contains('העתק'));
+      expect(labels, contains('העתק את כל הפסקה'));
       expect(labels, contains('פתח ועבור לכרטיסיה'));
     });
 
@@ -159,12 +159,13 @@ void main() {
       TargetLineLinksService.resetInstanceForTesting(
         loader: (_, _, _) async => [],
       );
-      final labels = (await buildMenu(
-        tester,
-        onNavigateToLink: (_) {},
-      )).map((e) => e.label);
+      final entries = await buildMenu(tester, onNavigateToLink: (_) {});
+      final labels = entries.map((e) => e.label);
 
-      expect(labels, contains('העתק'));
+      expect(
+        entries.first.iconRowActions!.map((a) => a.label),
+        contains('העתקה'),
+      );
       expect(labels, contains('העתק את כל הפסקה'));
       expect(labels, contains('פתח ועבור לכרטיסיה'));
       expect(labels, contains('דווח על טעות בספר'));

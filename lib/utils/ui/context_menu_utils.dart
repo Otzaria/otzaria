@@ -28,6 +28,9 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/direct_link_menu_entries.dart';
 import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
+import 'package:otzaria/text_book/utils/reader_menu_entries.dart';
+import 'package:otzaria/utils/text/global_search_helper.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// תווית פריט תפריט ההקשר לפתיחה ברקע — משותפת לתוצאות חיפוש ולמפרשים.
 const kOpenInNewTabLabel = 'פתח בכרטיסייה חדשה';
@@ -119,35 +122,42 @@ class ContextMenuUtils {
         );
     final copyProfile = copyDisplayProfile ?? profile;
     final linksService = TargetLineLinksService.instance;
-    final entries = <AppContextMenuEntry>[
-      AppContextMenuEntry(
-        label: 'הוסף הערה אישית',
-        icon: FluentIcons.note_add_24_regular,
-        onTap: () => _createCommentaryNote(
-          context: context,
-          link: link,
-          savedSelectedText: savedSelectedText,
+    final selection = ReaderMenuSelection(savedSelectedText);
+    // קישור עומק דורש מזהה מסד; source=user מבחין בספרי משתמש בעלי ID חופף.
+    final targetBookId = link.targetBookId;
+    return [
+      AppContextMenuEntry.iconRow([
+        buildSearchAllBooksIconAction(
+          selection: selection,
+          onTap: () => openGlobalSearch(context, selection.cleaned),
         ),
-      ),
-      if (link.targetSource.isOfficial)
-        AppContextMenuEntry(
-          label: 'דווח על טעות בספר',
-          icon: FluentIcons.error_circle_24_regular,
-          onTap: () => _reportCommentaryError(
+        AppContextMenuIconAction(
+          label: 'העתקה',
+          icon: FluentIcons.copy_24_regular,
+          enabled: selection.hasText,
+          onTap: onCopySelected,
+        ),
+        AppContextMenuIconAction(
+          label: 'הערה',
+          icon: FluentIcons.note_add_24_regular,
+          onTap: () => _createCommentaryNote(
             context: context,
             link: link,
-            fontSize: fontSize,
             savedSelectedText: savedSelectedText,
           ),
         ),
-      const AppContextMenuEntry.divider(),
-      AppContextMenuEntry(
-        label: 'העתק',
-        icon: FluentIcons.copy_24_regular,
-        enabled:
-            savedSelectedText != null && savedSelectedText.trim().isNotEmpty,
-        onTap: onCopySelected,
-      ),
+        if (targetBookId != null)
+          AppContextMenuIconAction(
+            label: 'קישור',
+            icon: OtzariaIcons.link_copy_24_regular,
+            submenuBuilder: () => buildDirectLinkSubmenuActions(
+              bookId: targetBookId,
+              source: link.targetSource,
+              index: link.index2 - 1,
+              selectedText: savedSelectedText,
+            ),
+          ),
+      ]),
       if (onCopySelectedWithoutNikud != null &&
           showCopyWithoutNikud(savedSelectedText))
         AppContextMenuEntry(
@@ -197,23 +207,20 @@ class ContextMenuUtils {
           icon: FluentIcons.window_new_24_regular,
           onTap: () => _openLinkTargetInNewWindow(link),
         ),
-    ];
-
-    // קישור עומק דורש מזהה מסד; source=user מבחין בספרי משתמש בעלי ID חופף.
-    final targetBookId = link.targetBookId;
-    if (targetBookId != null) {
-      entries.add(const AppContextMenuEntry.divider());
-      entries.add(
-        buildCopyDirectLinkEntry(
-          bookId: targetBookId,
-          source: link.targetSource,
-          index: link.index2 - 1,
-          selectedText: savedSelectedText,
+      if (link.targetSource.isOfficial) ...[
+        const AppContextMenuEntry.divider(),
+        AppContextMenuEntry(
+          label: 'דווח על טעות בספר',
+          icon: FluentIcons.error_circle_24_regular,
+          onTap: () => _reportCommentaryError(
+            context: context,
+            link: link,
+            fontSize: fontSize,
+            savedSelectedText: savedSelectedText,
+          ),
         ),
-      );
-    }
-
-    return entries;
+      ],
+    ];
   }
 
   /// פותח את יעד [link] בכרטיסייה חדשה ברקע (טקסט או PDF, לפי תבנית הפתיחה).
