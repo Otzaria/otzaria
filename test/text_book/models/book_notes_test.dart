@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/data_providers/library_provider.dart';
+import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
@@ -68,5 +72,54 @@ void main() {
       await repository.notesFor('ספר', categoryId: 1);
       expect(loads, 2);
     });
+    test(
+      'טאב משוחזר בעלייה: ההערות מחכות לאיתור הספק ולא נשמרות ריקות',
+      () async {
+        // המיפוי עוד לא נבנה בזמן הקריאה; האיתור מסתיים רק אחריה.
+        final providerReady = Completer<bool>();
+        repository.debugIsDatabaseBook = (title, {categoryId, fileType}) =>
+            providerReady.future;
+        addTearDown(() => repository.debugIsDatabaseBook = null);
+
+        final pending = repository.notesFor('ספר', categoryId: 1);
+        await Future<void>.delayed(Duration.zero);
+        expect(loads, 0);
+        providerReady.complete(true);
+        expect(await pending, same(loaded));
+        expect(await repository.notesFor('ספר', categoryId: 1), same(loaded));
+        expect(loads, 1);
+      },
+    );
+
+    test('ספר שמוגש מקובץ — ריק, בלי טעינה מהמסד', () async {
+      repository.debugIsDatabaseBook = (title, {categoryId, fileType}) async =>
+          false;
+      addTearDown(() => repository.debugIsDatabaseBook = null);
+      expect((await repository.notesFor('ספר', categoryId: 1)).isEmpty, isTrue);
+      expect(loads, 0);
+    });
   });
+
+  test('resolveProviderForBook מאתר ספר שעוד לא מופה, וממפה אותו', () async {
+    final manager = LibraryProviderManager.instance;
+    final provider = _Provider();
+    manager.seedMappingsForTesting(mapping: const {}, providers: [provider]);
+    addTearDown(manager.resetForTesting);
+
+    expect(manager.getProviderForBook('ספר', categoryId: 1), isNull);
+    expect(
+      await manager.resolveProviderForBook('ספר', categoryId: 1),
+      same(provider),
+    );
+    expect(manager.getProviderForBook('ספר', categoryId: 1), same(provider));
+  });
+}
+
+class _Provider extends Fake implements LibraryProvider {
+  @override
+  bool get isInitialized => true;
+
+  @override
+  Future<bool> hasBook(String title, int categoryId, String fileType) async =>
+      title == 'ספר';
 }

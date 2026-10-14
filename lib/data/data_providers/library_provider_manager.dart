@@ -261,6 +261,34 @@ class LibraryProviderManager {
     return _bookToProvider[key];
   }
 
+  /// הספק שמגיש את הספר, גם לפני שמיפוי הקטלוג נבנה — אותו איתור כמו
+  /// בטעינת התוכן ([getBookText]).
+  Future<LibraryProvider?> resolveProviderForBook(
+    String title, {
+    int? categoryId,
+    String? fileType,
+    BookSource preferSource = BookSource.official,
+  }) async {
+    if (!_isInitialized) await initialize();
+    final key = _resolveBookKey(
+      title,
+      categoryId: categoryId,
+      fileType: fileType,
+      preferSource: preferSource,
+    );
+    final mapped = key == null ? null : _bookToProvider[key];
+    if (mapped != null) return mapped;
+    final located = await _locateBookInProviders(
+      title,
+      categoryId: categoryId,
+      fileType: fileType,
+      preferSource: preferSource,
+    );
+    if (located == null) return null;
+    _mapBook(located.key, located.provider);
+    return located.provider;
+  }
+
   /// Gets the data source indicator for a book
   Future<String> getBookDataSource(
     String title, {
