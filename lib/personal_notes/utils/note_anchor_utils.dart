@@ -38,8 +38,8 @@ bool _isPunctuation(int code) => switch (code) {
   _ => false,
 };
 
-String _withoutPunctuation(String? s) =>
-    s == null ? '' : s.replaceAll(_punctuation, '');
+String _comparable(String? s) =>
+    text_utils.replaceHolyNames(s?.replaceAll(_punctuation, '') ?? '');
 
 // בודק אם המקטע rawLine[start..end] (מ-'<' עד '>') הוא תגית <br>.
 bool _isBreakTag(String s, int start, int end) {
@@ -55,6 +55,7 @@ bool _isBreakTag(String s, int start, int end) {
 }
 
 /// מקרין שורה גולמית (HTML+ניקוד) למחרוזת מנורמלת עם מפת אינדקסים חזרה.
+/// שם הוי"ה בה כיקוק, כבתצוגה; ההחלפה שומרת על האורך ולכן המפה תקפה.
 LineProjection projectLine(
   String rawLine, {
   bool keepPunctuation = false,
@@ -137,12 +138,13 @@ LineProjection projectLine(
   // רווח בסוף נשמר במפה (כדי שאורך המפה יהיה עקבי) אך לא נכלל בטקסט —
   // למעשה אנו פשוט מתעלמים ממנו ומסיימים את המפה בסוף השורה.
   rawIndex.add(rawLine.length);
-  return LineProjection(buffer.toString(), rawIndex);
+  return LineProjection(text_utils.replaceHolyNames('$buffer'), rawIndex);
 }
 
-/// מנרמל טקסט שנבחר לצורך חיפוש: הסרת ניקוד ופיסוק, כיווץ רווחים וקיצוץ.
+/// מנרמל טקסט שנבחר לצורך חיפוש: הסרת ניקוד ופיסוק, שם הוי"ה כיקוק,
+/// כיווץ רווחים וקיצוץ.
 String normalizeAnchorText(String text) {
-  final withoutNikud = _withoutPunctuation(removeHebrewDiacritics(text));
+  final withoutNikud = _comparable(removeHebrewDiacritics(text));
   return withoutNikud.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
@@ -300,8 +302,8 @@ NoteAnchorRange? locateAnchor({
     p.normalized,
     occurrences,
     needle.length,
-    _withoutPunctuation(prefix),
-    _withoutPunctuation(suffix),
+    _comparable(prefix),
+    _comparable(suffix),
     normalizedHint,
   );
   final matchEnd = matchStart + needle.length;

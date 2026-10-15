@@ -9,7 +9,7 @@ void main() {
     test('מסיר תגיות HTML וניקוד ומכווץ רווחים', () {
       const raw = '<b>וַיֹּאמֶר</b>   יְהוָה';
       final p = projectLine(raw);
-      expect(p.normalized, 'ויאמר יהוה');
+      expect(p.normalized, 'ויאמר יקוק');
       // אורך המפה תמיד גדול ב-1 מאורך הטקסט המנורמל.
       expect(p.rawIndex.length, p.normalized.length + 1);
     });
