@@ -10,13 +10,14 @@ import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 
 /// בדיקה ידנית מול קטלוג אמיתי (otzaria-library#127): הוספת ה"א הידיעה לכל
-/// כותר שפותח בראשי-תיבות של חכם אינה משנה אילו ספרים נמצאים ובאיזו דרגה.
+/// כותר שפותח בראשי-תיבות של חכם אינה משנה אילו ספרים נמצאים ובאיזו דרגה,
+/// בתנאי שהכינויים עוברים לשם החדש (SeforimLibrary#89; לא נבדק כאן).
 /// `OTZARIA_BENCH_DB=/path/to/seforim.db flutter test <this file>`
 void main() {
   final dbPath = Platform.environment['OTZARIA_BENCH_DB'];
 
   test(
-    'ה"א הידיעה בכותרות אינה משנה את התאמות האיתור',
+    'ה"א הידיעה בכותרות אינה משנה את התאמות האיתור כשהכינויים עוברים',
     skip: dbPath == null ? 'OTZARIA_BENCH_DB not set' : false,
     () {
       final db = sqlite3.sqlite3.open(dbPath!, mode: sqlite3.OpenMode.readOnly);
@@ -45,8 +46,8 @@ void main() {
       final taken = {for (final b in books.values) b.title};
       expect(renamed.values.where(taken.contains), isEmpty);
 
-      // book_renames.csv: SeforimLibrary מעביר לשם החדש את כינויי השם הישן
-      // ומוסיף את השם הישן עצמו ככינוי (carryAcronymsAcrossRenames).
+      // כמו carryAcronymsAcrossRenames ב-SeforimLibrary כשהוא מקבל את שינוי
+      // השם: כינויי השם הישן, ועוד השם הישן עצמו.
       final carriedAcronyms = {
         ...acronyms,
         for (final id in renamed.keys) id: [...?acronyms[id], books[id]!.title],
