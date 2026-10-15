@@ -1536,6 +1536,71 @@ void main() {
     });
   });
 
+  testWidgets('Home/End לבד קופצים לקצות הספר בצורת הדף (issue #2140)', (
+    tester,
+  ) async {
+    final textBookBloc = _RecordingTextBookBloc(_loadedState());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: const [],
+        missingNotes: const [],
+        errorMessage: null,
+        filteredLocatedNotes: const [],
+        filteredMissingNotes: const [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<TextBookBloc>.value(value: textBookBloc),
+            BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+            BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          ],
+          child: Scaffold(
+            body: SimpleTextViewer(
+              content: List.generate(60, (i) => 'שורה $i'),
+              fontSize: 18,
+              openBookCallback: (_) {},
+              isMainText: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('שורה 1', findRichText: true).first);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'PageShapeContentFocus',
+    );
+
+    List<int?> selected() => textBookBloc.events
+        .whereType<UpdateSelectedIndex>()
+        .map((event) => event.index)
+        .toList();
+    textBookBloc.events.clear();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.end);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.home);
+    await tester.pumpAndSettle();
+    expect(selected(), [59, 0]);
+
+    // Alt+End אינו קיצור הניווט.
+    textBookBloc.events.clear();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.end);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+    expect(selected(), isEmpty);
+  });
+
   testWidgets('"העתק" בתפריט ההקשר מנוטרל כשאין טקסט נבחר בעת פתיחת התפריט', (
     tester,
   ) async {
@@ -2553,6 +2618,18 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _RecordingTextBookBloc extends _TestTextBookBloc {
+  _RecordingTextBookBloc(super.initialState);
+
+  final List<TextBookEvent> events = [];
+
+  @override
+  void add(TextBookEvent event) {
+    events.add(event);
+    super.add(event);
+  }
 }
 
 /// שאילתת הפסקה של תפריט ההקשר בלי IO אמיתי (שנתקע תחת FakeAsync).

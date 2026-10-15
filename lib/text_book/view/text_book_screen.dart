@@ -3414,10 +3414,19 @@ bool _handleGlobalKeyEvent(
   // ב-Mac מקבלים גם את Cmd (Meta) כי זו המוסכמה בפלטפורמה.
   final isCtrlOrCmd = ShortcutHelper.isPlainCtrlOrCmdPressed;
 
-  // ניווט עם Ctrl+Home ו-Ctrl+End
-  if (event is KeyDownEvent && isCtrlOrCmd) {
+  // Home/End, לבד או עם Ctrl - קצות הספר. ה-listener עוטף גם את שדות הקלט
+  // של החלונית, ושם המקשים מזיזים את הסמן בלבד.
+  final keyboard = HardwareKeyboard.instance;
+  final isBareKey =
+      !keyboard.isShiftPressed &&
+      !keyboard.isControlPressed &&
+      !keyboard.isMetaPressed &&
+      !ShortcutHelper.isAltModifierPressed;
+  if (event is KeyDownEvent &&
+      (isCtrlOrCmd || isBareKey) &&
+      !isTextInputFocusNode(FocusManager.instance.primaryFocus)) {
     switch (event.logicalKey) {
-      // Ctrl+Home - תחילת הספר
+      // Home - תחילת הספר
       case LogicalKeyboardKey.home:
         state.scrollController.scrollTo(
           index: 0,
@@ -3425,7 +3434,7 @@ bool _handleGlobalKeyEvent(
         );
         return true;
 
-      // Ctrl+End - סוף הספר
+      // End - סוף הספר
       case LogicalKeyboardKey.end:
         state.scrollController.scrollTo(
           index: state.content.length - 1,
