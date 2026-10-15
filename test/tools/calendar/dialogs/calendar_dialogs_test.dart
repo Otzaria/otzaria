@@ -487,5 +487,47 @@ void main() {
       // 'ירוק' הוא אינדקס 3 בפלטת CalendarEventColors
       expect(result!.colorIndex, 3);
     });
+
+    testWidgets('Escape סוגר את בורר הצבע ולא את דיאלוג האירוע (#2528)', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1.0;
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.binding.setSurfaceSize(null);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => showCalendarEventDialog(
+                  context: context,
+                  state: CalendarState.initial(),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('בחר צבע'));
+      await tester.pumpAndSettle();
+      expect(find.text('בחירת צבע'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('בחירת צבע'), findsNothing);
+      expect(find.text('צור'), findsOneWidget, reason: 'הדיאלוג נשאר פתוח');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('צור'), findsNothing);
+    });
   });
 }

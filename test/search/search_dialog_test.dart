@@ -510,7 +510,10 @@ Future<void> main() async {
     await tester.pumpAndSettle();
 
     final historyMenuAnchor = find.byWidgetPredicate(
-      (widget) => widget is MenuAnchor && widget.controller != null,
+      (widget) =>
+          widget is MenuAnchor &&
+          widget.controller != null &&
+          widget.style?.backgroundColor != null,
     );
     final menuAnchor = tester.widget<MenuAnchor>(historyMenuAnchor);
     expect(
@@ -1684,5 +1687,122 @@ Future<void> main() async {
       },
       skip: !engineReady,
     );
+  });
+
+  group('Escape סוגר קודם תפריט פתוח ורק אחר כך את הדיאלוג (#2528)', () {
+    Future<void> openDialog(WidgetTester tester) async {
+      final historyBloc = MockHistoryBloc();
+      final indexingBloc = MockIndexingBloc();
+      final navigationBloc = MockNavigationBloc();
+      whenListen(
+        historyBloc,
+        const Stream<HistoryState>.empty(),
+        initialState: HistoryLoaded([
+          Bookmark(
+            ref: 'משה',
+            book: TextBook(title: 'משה'),
+            index: 0,
+            isSearch: true,
+          ),
+        ]),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        navigationBloc,
+        const Stream<NavigationState>.empty(),
+        initialState: const NavigationState(currentScreen: Screen.search),
+      );
+      addTearDown(() async {
+        await tester.binding.setSurfaceSize(null);
+        await historyBloc.close();
+        await indexingBloc.close();
+        await navigationBloc.close();
+      });
+
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<HistoryBloc>.value(value: historyBloc),
+            BlocProvider<IndexingBloc>.value(value: indexingBloc),
+            BlocProvider<NavigationBloc>.value(value: navigationBloc),
+            BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => const SearchDialog(
+                        initialSearchMode: SearchMode.advanced,
+                      ),
+                    ),
+                    child: const Text('פתח'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+    }
+
+    bool queryFieldHasFocus(WidgetTester tester) => tester
+        .widget<EditableText>(
+          find.descendant(
+            of: find.byType(EnhancedSearchField),
+            matching: find.byType(EditableText),
+          ),
+        )
+        .focusNode
+        .hasFocus;
+
+    Future<void> expectEscapeClosesMenuThenDialog(
+      WidgetTester tester,
+      Finder menuContent,
+    ) async {
+      expect(menuContent, findsOneWidget);
+      expect(queryFieldHasFocus(tester), isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(menuContent, findsNothing);
+      expect(find.byType(SearchDialog), findsOneWidget);
+      expect(queryFieldHasFocus(tester), isTrue, reason: 'ההקלדה נמשכת');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(SearchDialog), findsNothing);
+    }
+
+    testWidgets('תפריט ההיסטוריה', (WidgetTester tester) async {
+      await openDialog(tester);
+      await tester.tap(find.byIcon(FluentIcons.history_24_regular));
+      await tester.pumpAndSettle();
+      await expectEscapeClosesMenuThenDialog(
+        tester,
+        find.byKey(const ValueKey('search-history-menu')),
+      );
+    });
+
+    testWidgets('תפריט ברירות המחדל', (WidgetTester tester) async {
+      await openDialog(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('search-dialog-defaults-menu')),
+      );
+      await tester.pumpAndSettle();
+      await expectEscapeClosesMenuThenDialog(
+        tester,
+        find.byKey(const ValueKey('search-dialog-default-mode')),
+      );
+    });
   });
 }

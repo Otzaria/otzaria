@@ -166,6 +166,7 @@ class _SearchDialogState extends State<SearchDialog> {
   Set<String> _scopeSelection = {'/'};
   final ValueNotifier<bool> _advancedControlsHasFocus = ValueNotifier(false);
   final MenuController _historyMenuController = MenuController();
+  final MenuController _defaultsMenuController = MenuController();
   late final VoidCallback _queryListener;
   late final bool _ownsSearchTab;
   late final PluginSearchDialogRegistry _pluginSearchDialogRegistry;
@@ -558,6 +559,7 @@ class _SearchDialogState extends State<SearchDialog> {
     }
 
     return MenuAnchor(
+      controller: _defaultsMenuController,
       menuChildren: [
         MenuItemButton(
           key: const ValueKey('search-dialog-default-mode'),
@@ -1935,6 +1937,20 @@ class _SearchDialogState extends State<SearchDialog> {
               }
               _performSearch();
               return KeyEventResult.handled;
+            }
+            // התפריטים נפתחים בלי להזיז את הפוקוס מהשדה, ולכן Escape מגיע לכאן
+            // ולא לתפריט — סוגרים קודם תפריט פתוח, ורק אחר כך את הדיאלוג.
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.escape) {
+              for (final menu in [
+                _historyMenuController,
+                _defaultsMenuController,
+              ]) {
+                if (menu.isOpen) {
+                  menu.close();
+                  return KeyEventResult.handled;
+                }
+              }
             }
             return KeyEventResult.ignored;
           },

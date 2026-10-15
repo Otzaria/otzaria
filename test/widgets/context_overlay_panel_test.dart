@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/layout/context_overlay_panel.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
@@ -402,6 +403,133 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('ContextOverlayPanel — ESC סוגר את הפאנל', () {
+    late int closeCount;
+    late int outerEscapeCount;
+    late FocusNode contentFocusNode;
+
+    setUp(() {
+      closeCount = 0;
+      outerEscapeCount = 0;
+      contentFocusNode = FocusNode(debugLabel: 'underlying-content');
+    });
+
+    tearDown(() => contentFocusNode.dispose());
+
+    // ה-Focus החיצוני מדמה את מטפלי ה-ESC של המסך (ניקוי הדגשה, מסך מלא).
+    Widget buildHarness({
+      bool panelVisible = true,
+      Widget panelChild = const TextField(),
+    }) {
+      return MaterialApp(
+        home: Focus(
+          onKeyEvent: (_, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.escape) {
+              outerEscapeCount++;
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Scaffold(
+            body: Stack(
+              children: [
+                Focus(
+                  focusNode: contentFocusNode,
+                  child: const SizedBox.expand(),
+                ),
+                Offstage(
+                  offstage: !panelVisible,
+                  child: ContextOverlayPanel(
+                    isOpen: true,
+                    onClose: () => closeCount++,
+                    child: panelChild,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('פוקוס בתוכן שמתחת — ESC סוגר את הפאנל ונבלע', (tester) async {
+      await tester.pumpWidget(buildHarness());
+      contentFocusNode.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+
+      expect(closeCount, 1);
+      expect(outerEscapeCount, 0);
+    });
+
+    testWidgets('פוקוס בשדה בתוך הפאנל — ESC סוגר פעם אחת', (tester) async {
+      await tester.pumpWidget(buildHarness());
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+
+      expect(closeCount, 1);
+      expect(outerEscapeCount, 0);
+    });
+
+    testWidgets('תוכן שמטפל ב-ESC בעצמו — אין סגירה כפולה', (tester) async {
+      var innerCount = 0;
+      await tester.pumpWidget(
+        buildHarness(
+          panelChild: Focus(
+            autofocus: true,
+            onKeyEvent: (_, event) {
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.escape) {
+                innerCount++;
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: const SizedBox(width: 10, height: 10),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+
+      expect(innerCount, 1);
+      expect(closeCount, 0);
+    });
+
+    testWidgets('דיאלוג מעל הפאנל — ESC סוגר את הדיאלוג בלבד', (tester) async {
+      await tester.pumpWidget(buildHarness());
+      contentFocusNode.requestFocus();
+      await tester.pump();
+      showDialog<void>(
+        context: tester.element(find.byType(TextField)),
+        builder: (_) => const AlertDialog(content: Text('דיאלוג')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.text('דיאלוג'), findsNothing);
+      expect(closeCount, 0);
+    });
+
+    testWidgets('פאנל פתוח שאינו מוצג — ESC אינו נבלע', (tester) async {
+      await tester.pumpWidget(buildHarness(panelVisible: false));
+      contentFocusNode.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+
+      expect(closeCount, 0);
+      expect(outerEscapeCount, 1);
     });
   });
 }

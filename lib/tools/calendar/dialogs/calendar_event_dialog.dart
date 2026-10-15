@@ -1288,13 +1288,24 @@ class _AnchoredMenu extends StatefulWidget {
 class _AnchoredMenuState extends State<_AnchoredMenu> {
   final GlobalKey _buttonKey = GlobalKey();
   final OverlayPortalController _controller = OverlayPortalController();
+  final FocusNode _popupFocus = FocusNode(skipTraversal: true);
+
+  @override
+  void dispose() {
+    _popupFocus.dispose();
+    super.dispose();
+  }
 
   void _open() {
     if (_controller.isShowing) return;
     _controller.show();
     // onOpened נדחה לפוסט-פריים כדי שתוכן ה-overlay (השדה) כבר יהיה בנוי.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) widget.onOpened?.call();
+      if (!mounted) return;
+      // בלי פוקוס בתוך התפריט Escape מגיע לדיאלוג וסוגר אותו כולו;
+      // onOpened רשאי להעביר אותו לשדה פנימי (הבקשה האחרונה גוברת).
+      _popupFocus.requestFocus();
+      widget.onOpened?.call();
     });
   }
 
@@ -1351,7 +1362,10 @@ class _AnchoredMenuState extends State<_AnchoredMenu> {
                 const SingleActivator(LogicalKeyboardKey.enter): _onEnter,
                 const SingleActivator(LogicalKeyboardKey.numpadEnter): _onEnter,
               },
-              child: widget.popupBuilder(ctx, _close),
+              child: Focus(
+                focusNode: _popupFocus,
+                child: widget.popupBuilder(ctx, _close),
+              ),
             ),
           ),
         ),

@@ -407,6 +407,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
   bool _tourOverlayInsertScheduled = false;
   bool _tourOpenedOverflowMenu = false;
   late Screen _lastScreen;
+  Screen _screenBeforeSettings = Screen.library;
   // עוקב אחר מצב ההגדרות הקודם לצורך dispatch ספציפי
   SettingsState? _prevSettingsState;
   late IndexUpdateMode _indexUpdateMode;
@@ -2216,6 +2217,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
         context.read<FocusRepository>().cancelPendingTabContentFocus();
         PluginRuntimeDispatcher.instance.cancelPendingKeyboardFocus();
       }
+      if (state.currentScreen == Screen.settings) {
+        _screenBeforeSettings = _lastScreen;
+      }
       _lastScreen = state.currentScreen;
     }
 
@@ -3636,6 +3640,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
               child: MySettingsScreen(
                 key: _settingsScreenKey,
                 controller: _settingsScreenController,
+                onDesktopBack: () => this.context.read<NavigationBloc>().add(
+                  NavigateToScreen(_screenBeforeSettings),
+                ),
               ),
             );
 

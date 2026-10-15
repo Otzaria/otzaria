@@ -29,11 +29,15 @@
 import 'dart:async';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/gestures.dart' show HitTestResult;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/utils/ui/editable_focus.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
+import 'package:otzaria/widgets/misc/escape_layers.dart';
 
 class ContextOverlayPanel extends StatefulWidget {
   /// האם הפאנל פתוח
@@ -109,6 +113,15 @@ class ContextOverlayPanel extends StatefulWidget {
 }
 
 class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
+  /// פאנלים פתוחים לפי סדר פתיחה; ESC סוגר את האחרון שנראה על המסך.
+  static final List<_ContextOverlayPanelState> _openPanels = [];
+
+  final FocusNode _focusNode = FocusNode(
+    debugLabel: 'context_overlay_panel',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+  final GlobalKey _panelKey = GlobalKey();
   Timer? _disposeChildTimer;
   bool _isDeferredBuildScheduled = false;
   late bool _shouldBuildChild;
@@ -118,6 +131,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
   void initState() {
     super.initState();
     _currentWidth = widget.width;
+    if (widget.isOpen) _registerOpen();
     _shouldBuildChild = widget.isOpen && !widget.deferChildBuildOnOpen;
     if (widget.isOpen && widget.deferChildBuildOnOpen) {
       _scheduleDeferredChildBuild();
@@ -127,6 +141,12 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
   @override
   void didUpdateWidget(covariant ContextOverlayPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.isOpen && !oldWidget.isOpen) _registerOpen();
+    if (!widget.isOpen && oldWidget.isOpen) {
+      _unregisterOpen();
+      // שדה בפאנל שנשאר ממוקד היה ממשיך לקלוט הקלדות כשהפאנל מוסתר.
+      if (_focusNode.hasFocus) FocusManager.instance.primaryFocus?.unfocus();
+    }
 
     if (widget.isOpen) {
       _disposeChildTimer?.cancel();
@@ -164,8 +184,64 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
 
   @override
   void dispose() {
+    _unregisterOpen();
     _disposeChildTimer?.cancel();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  void _registerOpen() {
+    _openPanels.remove(this);
+    _openPanels.add(this);
+    EscapeLayers.add(_handleEarlyKeyEvent, below: true);
+  }
+
+  void _unregisterOpen() {
+    if (!_openPanels.remove(this)) return;
+    if (_openPanels.isEmpty) {
+      EscapeLayers.remove(_handleEarlyKeyEvent);
+    }
+  }
+
+  static bool _isEscapeDown(KeyEvent event) =>
+      event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape;
+
+  /// ESC כשהפוקוס מחוץ לפאנל (למשל בספר שמתחתיו): נבלע לפני עץ הפוקוס, כדי
+  /// שלא ינקה הדגשה או יצא ממסך מלא במקום לסגור את הפאנל.
+  static KeyEventResult _handleEarlyKeyEvent(KeyEvent event) {
+    if (!_isEscapeDown(event)) return KeyEventResult.ignored;
+    for (final panel in _openPanels.reversed.toList()) {
+      if (!panel._isTopmostOnScreen()) continue;
+      // פוקוס בתוך הפאנל: הצאצאים (תפריט פתוח, חיפוש) קודמים, ואז [_onKeyEvent].
+      if (panel._focusNode.hasFocus) return KeyEventResult.ignored;
+      // שדה קלט מחוץ לפאנל (למשל עריכת מספר עמוד) מטפל ב-ESC בעצמו.
+      if (isEditableTextFocusTarget()) {
+        return KeyEventResult.ignored;
+      }
+      panel.widget.onClose();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (!widget.isOpen || !_isEscapeDown(event)) return KeyEventResult.ignored;
+    widget.onClose();
+    return KeyEventResult.handled;
+  }
+
+  /// פאנל בעמוד/טאב שאינו מוצג, או מתחת לדיאלוג, אינו מקבל פגיעה במרכזו.
+  bool _isTopmostOnScreen() {
+    if (!mounted || !(ModalRoute.isCurrentOf(context) ?? true)) return false;
+    final box = _panelKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return false;
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      box.localToGlobal(box.size.center(Offset.zero)),
+      View.of(context).viewId,
+    );
+    return result.path.any((entry) => identical(entry.target, box));
   }
 
   void _scheduleDeferredChildBuild() {
@@ -272,8 +348,12 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) => _buildPanel(context, constraints),
+    return Focus(
+      focusNode: _focusNode,
+      onKeyEvent: _onKeyEvent,
+      child: LayoutBuilder(
+        builder: (context, constraints) => _buildPanel(context, constraints),
+      ),
     );
   }
 
@@ -332,6 +412,7 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
                     ? Offset.zero
                     : (isLeft ? const Offset(-1, 0) : const Offset(1, 0)),
                 child: FloatingPanel(
+                  key: _panelKey,
                   elevation: 8,
                   color: effectiveBackgroundColor,
                   child: SizedBox(

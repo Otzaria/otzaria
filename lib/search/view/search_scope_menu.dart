@@ -279,7 +279,7 @@ class _SearchScopeMenuButtonState extends State<SearchScopeMenuButton> {
         }
         return KeyEventResult.ignored;
       case LogicalKeyboardKey.escape:
-        if (!panel.goBack()) _fieldFocus.unfocus();
+        if (!panel.goBack()) _close();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.backspace:
         if (_searchController.text.isEmpty && panel.goBack()) {

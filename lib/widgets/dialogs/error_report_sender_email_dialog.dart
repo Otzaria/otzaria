@@ -116,6 +116,10 @@ class _EmailFieldWithAutocompleteState extends State<EmailFieldWithAutocomplete>
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    if (event.logicalKey == LogicalKeyboardKey.escape && _overlay != null) {
+      _hideOverlay();
+      return KeyEventResult.handled;
+    }
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       _selectedIndex = (_selectedIndex + 1) % _filteredDomains.length;
       _overlay?.markNeedsBuild();

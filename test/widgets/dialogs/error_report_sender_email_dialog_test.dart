@@ -316,4 +316,38 @@ void main() {
       expect(controller.text, equals('pasted@gmail.com'));
     });
   });
+
+  testWidgets(
+    'Escape מסתיר את ההצעות בלבד, Escape נוסף סוגר את הדיאלוג (#2528)',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () =>
+                    showErrorReportSenderEmailDialog(context: context),
+                child: const Text('פתח'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('פתח'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'someone@');
+      await tester.pumpAndSettle();
+      expect(find.text('@gmail.com'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('@gmail.com'), findsNothing);
+      expect(find.byType(EmailFieldWithAutocomplete), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(EmailFieldWithAutocomplete), findsNothing);
+    },
+  );
 }

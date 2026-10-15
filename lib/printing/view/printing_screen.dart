@@ -1732,7 +1732,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final isCustomPdfMode = widget.createPdfOverride != null;
     final isPrebuiltMode = widget.prebuiltBlocks != null;
 
-    return Dialog(
+    final dialog = Dialog(
       insetPadding: const EdgeInsets.fromLTRB(12, 40, 12, 12),
       clipBehavior: Clip.antiAlias,
       child: Scaffold(
@@ -2185,6 +2185,16 @@ class _PrintingScreenState extends State<PrintingScreen> {
           ],
         ),
       ),
+    );
+    // הקוראים פותחים עם barrierDismissible: false — לחיצה בחוץ לא סוגרת, ESC כן.
+    // ה-Focus מחזיק פוקוס בדיאלוג כדי שה-DismissIntent הגלובלי יגיע לכאן.
+    return Actions(
+      actions: {
+        DismissIntent: CallbackAction<DismissIntent>(
+          onInvoke: (_) => Navigator.of(context).maybePop(),
+        ),
+      },
+      child: Focus(autofocus: true, skipTraversal: true, child: dialog),
     );
   }
 

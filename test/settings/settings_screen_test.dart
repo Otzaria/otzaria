@@ -5,6 +5,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -65,7 +66,7 @@ void main() {
       );
     });
 
-    Widget buildScreen() {
+    Widget buildScreen({VoidCallback? onDesktopBack}) {
       return MaterialApp(
         home: RepositoryProvider<SettingsRepository>.value(
           value: settingsRepository,
@@ -74,11 +75,43 @@ void main() {
               BlocProvider<SettingsBloc>.value(value: settingsBloc),
               BlocProvider<NavigationBloc>.value(value: navigationBloc),
             ],
-            child: const MySettingsScreen(),
+            child: MySettingsScreen(onDesktopBack: onDesktopBack),
           ),
         ),
       );
     }
+
+    testWidgets('דסקטופ: ESC חוזר למסך הקודם', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var backCount = 0;
+      await tester.pumpWidget(buildScreen(onDesktopBack: () => backCount++));
+      await tester.pump();
+      await tester.tap(find.byType(SettingsSearchField));
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+
+      expect(backCount, 1);
+    });
+
+    testWidgets('דסקטופ: ESC עם חיפוש פעיל מנקה אותו ונשאר', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var backCount = 0;
+      await tester.pumpWidget(buildScreen(onDesktopBack: () => backCount++));
+      await tester.pump();
+      await tester.tap(find.byType(SettingsSearchField));
+      await tester.enterText(find.byType(EditableText), 'גופן');
+      await tester.pump();
+      expect(find.text('תוצאות חיפוש'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+
+      expect(find.text('תוצאות חיפוש'), findsNothing);
+      expect(backCount, 0);
+    });
 
     testWidgets(
       'לחיצה על קטגוריה ב-sidebar (desktop) מנקה את שדה החיפוש',

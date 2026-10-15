@@ -397,9 +397,10 @@ class SearchDimensionFilterButton extends StatelessWidget {
     final dims = FacetHelper.dimensionFacetsOf(selectedFacets).toSet();
     final activeCount = dims.length;
 
-    Widget checkItem(String label, String facet) {
+    Widget checkItem(String label, String facet, {bool autofocus = false}) {
       final selected = dims.contains(facet);
       return MenuItemButton(
+        autofocus: autofocus,
         closeOnActivate: false,
         leadingIcon: Icon(
           selected
@@ -415,7 +416,12 @@ class SearchDimensionFilterButton extends StatelessWidget {
 
     return MenuAnchor(
       menuChildren: [
-        checkItem('ספרי יסוד', FacetHelper.baseDimensionFacet),
+        // פוקוס בתפריט כדי ש-Escape יסגור אותו (הלחיצה על הכפתור אינה מזיזה פוקוס).
+        checkItem(
+          'ספרי יסוד',
+          FacetHelper.baseDimensionFacet,
+          autofocus: true,
+        ),
         for (final era in _eraNames)
           checkItem(era, FacetHelper.buildEraFacet(era)),
       ],

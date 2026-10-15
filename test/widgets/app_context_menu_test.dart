@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
@@ -2362,6 +2363,270 @@ void main() {
         await tester.tap(target, kind: PointerDeviceKind.touch);
         await tester.pumpAndSettle();
       });
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Escape (issue #2528): התפריט אינו מחזיק פוקוס, לכן Escape הגיע לווידג'ט
+  // שמתחתיו (ניקוי הדגשה/בחירה, יציאה ממסך מלא) והתפריט נשאר פתוח.
+  // ───────────────────────────────────────────────────────────────────────
+  group('Escape', () {
+    late List<String> underlyingKeys;
+    late int shortcutCalls;
+    late FocusNode underlyingFocus;
+
+    Future<GlobalKey<AppContextMenuRegionState>> pumpRegion(
+      WidgetTester tester, {
+      required List<AppContextMenuEntry> entries,
+    }) async {
+      underlyingKeys = [];
+      shortcutCalls = 0;
+      underlyingFocus = FocusNode(debugLabel: 'UnderlyingContent');
+      addTearDown(underlyingFocus.dispose);
+      final key = GlobalKey<AppContextMenuRegionState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.escape): () =>
+                    shortcutCalls++,
+              },
+              child: Focus(
+                focusNode: underlyingFocus,
+                autofocus: true,
+                onKeyEvent: (_, event) {
+                  if (event is KeyDownEvent) {
+                    underlyingKeys.add(event.logicalKey.keyLabel);
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: AppContextMenuRegion(
+                  key: key,
+                  menuBuilder: (_, _) => entries,
+                  child: const SizedBox(
+                    width: 400,
+                    height: 400,
+                    child: ColoredBox(color: Colors.amber),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return key;
+    }
+
+    Future<void> openMenu(
+      WidgetTester tester,
+      GlobalKey<AppContextMenuRegionState> key,
+    ) async {
+      await key.currentState!.openMenuAt(const Offset(100, 100));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> pressEscape(WidgetTester tester) async {
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+    }
+
+    void expectEscapeNotReachedUnderlying() {
+      expect(underlyingKeys, isEmpty, reason: 'Escape נבלע ע"י התפריט');
+      expect(shortcutCalls, 0, reason: 'קיצור Escape שמתחת לתפריט לא הופעל');
+    }
+
+    void expectEscapeReachedUnderlying() {
+      expect(underlyingKeys, ['Escape']);
+      expect(shortcutCalls, 1);
+    }
+
+    testWidgets('Escape סוגר את התפריט ונבלע, והפוקוס נשאר במקומו', (
+      tester,
+    ) async {
+      final key = await pumpRegion(
+        tester,
+        entries: [AppContextMenuEntry(label: 'העתק', onTap: () {})],
+      );
+      await openMenu(tester, key);
+      expect(find.text('העתק'), findsOneWidget);
+
+      await pressEscape(tester);
+
+      expect(find.text('העתק'), findsNothing);
+      expectEscapeNotReachedUnderlying();
+      expect(underlyingFocus.hasPrimaryFocus, isTrue);
+
+      await pressEscape(tester);
+      expectEscapeReachedUnderlying();
+    });
+
+    testWidgets('אחרי סגירה בבחירת פריט Escape מגיע שוב לתוכן', (tester) async {
+      var tapped = 0;
+      final key = await pumpRegion(
+        tester,
+        entries: [AppContextMenuEntry(label: 'העתק', onTap: () => tapped++)],
+      );
+      await openMenu(tester, key);
+      await tester.tap(find.text('העתק'));
+      await tester.pumpAndSettle();
+      expect(tapped, 1);
+
+      await pressEscape(tester);
+      expectEscapeReachedUnderlying();
+    });
+
+    testWidgets('אחרי סגירה בהקשה מחוץ לתפריט Escape מגיע שוב לתוכן', (
+      tester,
+    ) async {
+      final key = await pumpRegion(
+        tester,
+        entries: [AppContextMenuEntry(label: 'העתק', onTap: () {})],
+      );
+      await openMenu(tester, key);
+      await tester.tapAt(const Offset(700, 500));
+      await tester.pumpAndSettle();
+      expect(find.text('העתק'), findsNothing);
+
+      await pressEscape(tester);
+      expectEscapeReachedUnderlying();
+    });
+
+    testWidgets('פתיחה חוזרת אינה רושמת את הטיפול ב-Escape פעמיים', (
+      tester,
+    ) async {
+      final key = await pumpRegion(
+        tester,
+        entries: [AppContextMenuEntry(label: 'העתק', onTap: () {})],
+      );
+      await openMenu(tester, key);
+      await openMenu(tester, key);
+      expect(find.text('העתק'), findsOneWidget);
+
+      await pressEscape(tester);
+      expect(find.text('העתק'), findsNothing);
+      expectEscapeNotReachedUnderlying();
+
+      await pressEscape(tester);
+      expectEscapeReachedUnderlying();
+    });
+
+    testWidgets('הסרת האזור כשהתפריט פתוח מסירה גם את הטיפול ב-Escape', (
+      tester,
+    ) async {
+      final key = await pumpRegion(
+        tester,
+        entries: [AppContextMenuEntry(label: 'העתק', onTap: () {})],
+      );
+      await openMenu(tester, key);
+
+      final received = <LogicalKeyboardKey>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Focus(
+            autofocus: true,
+            onKeyEvent: (_, event) {
+              if (event is KeyDownEvent) received.add(event.logicalKey);
+              return KeyEventResult.ignored;
+            },
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('העתק'), findsNothing);
+
+      await pressEscape(tester);
+      expect(received, [LogicalKeyboardKey.escape]);
+    });
+
+    testWidgets('Escape ראשון סוגר רק תת-תפריט פתוח, השני את התפריט', (
+      tester,
+    ) async {
+      final key = await pumpRegion(
+        tester,
+        entries: [
+          AppContextMenuEntry(
+            label: 'תת-תפריט',
+            children: [AppContextMenuEntry(label: 'פנימי', onTap: () {})],
+          ),
+        ],
+      );
+      await openMenu(tester, key);
+      await tester.tap(find.text('תת-תפריט'));
+      await tester.pumpAndSettle();
+      expect(find.text('פנימי'), findsOneWidget);
+
+      await pressEscape(tester);
+      expect(find.text('פנימי'), findsNothing);
+      expect(find.text('תת-תפריט'), findsOneWidget);
+      expectEscapeNotReachedUnderlying();
+
+      await pressEscape(tester);
+      expect(find.text('תת-תפריט'), findsNothing);
+      expectEscapeNotReachedUnderlying();
+    });
+
+    testWidgets('Escape ראשון סוגר רק תת-תפריט של שורת האייקונים', (
+      tester,
+    ) async {
+      final key = await pumpRegion(
+        tester,
+        entries: [
+          AppContextMenuEntry.iconRow([
+            AppContextMenuIconAction(
+              icon: FluentIcons.share_24_regular,
+              label: 'שתף',
+              submenuBuilder: () => [
+                AppContextMenuSubAction(label: 'אפשרות', onTap: () {}),
+              ],
+            ),
+          ]),
+          AppContextMenuEntry(label: 'העתק', onTap: () {}),
+        ],
+      );
+      await openMenu(tester, key);
+      await tester.tap(find.text('שתף'));
+      await tester.pumpAndSettle();
+      expect(find.text('אפשרות'), findsOneWidget);
+
+      await pressEscape(tester);
+      expect(find.text('אפשרות'), findsNothing);
+      expect(find.text('העתק'), findsOneWidget);
+      expectEscapeNotReachedUnderlying();
+
+      await pressEscape(tester);
+      expect(find.text('העתק'), findsNothing);
+      expectEscapeNotReachedUnderlying();
+    });
+
+    testWidgets('Escape סוגר גם את חלונית התצוגה המקדימה שליד הפריט', (
+      tester,
+    ) async {
+      final key = await pumpRegion(
+        tester,
+        entries: [
+          AppContextMenuEntry(
+            label: 'קישור א',
+            onTap: () {},
+            hoverPreviewBuilder: (_) => const Text('תצוגה מקדימה'),
+          ),
+        ],
+      );
+      await openMenu(tester, key);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.text('קישור א')));
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.pumpAndSettle();
+      expect(find.text('תצוגה מקדימה'), findsOneWidget);
+
+      await pressEscape(tester);
+      expect(find.text('קישור א'), findsNothing);
+      expect(find.text('תצוגה מקדימה'), findsNothing);
+      expectEscapeNotReachedUnderlying();
     });
   });
 }
