@@ -1523,6 +1523,7 @@ class BackupService {
     final includePlugins =
         Settings.getValue<bool>('key-backup-plugins') ?? true;
 
+    final previous = await getAvailableBackups();
     final result = await createBackup(
       includeSettings: includeSettings,
       includeBookmarks: includeBookmarks,
@@ -1534,6 +1535,24 @@ class BackupService {
       includePlugins: includePlugins,
       isAutoBackup: true,
     );
+
+    // "שחזור מהגיבוי האחרון" בוחר בחדש ביותר; גיבוי של מצב שנמחק לא יסתיר
+    // גיבוי עם נתונים (issue #2610). תוספים לא נבדקים: המובנים מותקנים מחדש.
+    final userData = [
+      if (includeBookmarks) 'bookmarks',
+      if (includeHistory) 'history',
+      if (includeNotes) 'notes',
+    ];
+    if (previous.isNotEmpty &&
+        !await _hasUserData(result.path, userData) &&
+        await _hasUserData(previous.first.path, userData)) {
+      _logger.warning(
+        'Auto-backup discarded: no bookmarks, history or notes, unlike '
+        '${previous.first.path}',
+      );
+      await File(result.path).delete();
+      return;
+    }
 
     if (result.skippedSections.isNotEmpty) {
       _logger.warning(
@@ -1564,6 +1583,17 @@ class BackupService {
     final backupDir = await getBackupDirectory();
     final backups = await BackupMaintenance.listBackups(backupDir);
     return backups.map((b) => File(b.path)).toList();
+  }
+
+  /// גיבוי של כמה MB חוסם את ה-UI עשרות ms, ולכן מפוענח ב-isolate.
+  static Future<Map<String, dynamic>> _readManifest(String path) => Isolate.run(
+    () => json.decode(File(path).readAsStringSync()) as Map<String, dynamic>,
+  );
+
+  /// האם באחד מסעיפי [sections] שבקובץ הגיבוי יש פריטים.
+  static Future<bool> _hasUserData(String path, List<String> sections) async {
+    final m = await _readManifest(path).catchError((_) => <String, dynamic>{});
+    return sections.any((s) => (m[s] as List?)?.isNotEmpty ?? false);
   }
 
   /// נתיב קובץ הארכיון הממוזג, או null אם אינו קיים.
@@ -1598,13 +1628,7 @@ class BackupService {
 
       Map<String, dynamic> backupData;
       try {
-        // גיבוי של כמה MB חוסם את ה-UI עשרות ms בפתיחת לשונית "מערכת".
-        final path = latestFile.path;
-        backupData = await Isolate.run(
-          () =>
-              json.decode(File(path).readAsStringSync())
-                  as Map<String, dynamic>,
-        );
+        backupData = await _readManifest(latestFile.path);
       } catch (_) {
         return BackupStatus(
           lastBackupDate: backupDate,
