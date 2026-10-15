@@ -90,6 +90,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/otzaria_capabilities.dart';
 import 'package:otzaria/core/data_root_writability_warning.dart';
+import 'package:otzaria/core/pending_reboot_delete_warning.dart';
 import 'package:otzaria/core/cli_command.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/sqlite_memory_release.dart';
@@ -1065,8 +1066,8 @@ Future<void> _runDeferredAutoBackup() async {
   }
 }
 
-/// אזהרה על שורש נתונים חסום-לכתיבה. ממתינה לחשיפת החלון — דיאלוג לפניה
-/// אינו מוצג כי עדיין אין Navigator.
+/// אזהרות על נתוני התוכנה: שורש חסום-לכתיבה, ומחיקה שמתוזמנת לאתחול הבא.
+/// ממתינה לחשיפת החלון — דיאלוג לפניה אינו מוצג כי עדיין אין Navigator.
 Future<void> _runDeferredDataRootWritabilityWarning() async {
   try {
     await _mainWindowRevealedCompleter.future.timeout(
@@ -1076,6 +1077,11 @@ Future<void> _runDeferredDataRootWritabilityWarning() async {
     // ממשיכים בכל זאת — אם ה-Navigator עדיין חסר, ההצגה תדולג בשקט.
   }
   await DataRootWritabilityWarning.showIfNeeded();
+  try {
+    await PendingRebootDeleteWarning.showIfNeeded();
+  } catch (error, stackTrace) {
+    _logNonFatalInitializationError('Pending reboot delete', error, stackTrace);
+  }
 }
 
 /// זיהוי קריסה של ההפעלה הקודמת ופתיחת נעילת ההפעלה הנוכחית. הנעילה נכתבת
