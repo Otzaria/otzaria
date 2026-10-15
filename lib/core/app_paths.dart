@@ -1000,6 +1000,21 @@ class AppPaths {
     }
   }
 
+  /// האם המסדים האישיים חסרים אף שכבר נטענה כאן ספרייה, כלומר נמחקו מבחוץ.
+  /// נבדק לפני פתיחתם, שיוצרת אותם מחדש ריקים (issue #2610).
+  static Future<bool> personalDatabasesMissing() async {
+    if (_isAndroid || Platform.isIOS) return false;
+    final root = await getDataRootPath();
+    if (!await File(p.join(root, 'library_loaded.marker')).exists()) {
+      return false;
+    }
+    final dir = await _writableDatabasesDirectory();
+    for (final name in ['user_state.db', ..._personalDatabaseFileNames]) {
+      if (await File(p.join(dir, name)).exists()) return false;
+    }
+    return true;
+  }
+
   /// מחזיר את הנתיב של ה-DB של ספרי המשתמש (תיקיות מותאמות אישית).
   ///
   /// מאוחסן באותה תיקייה כמו DBs אחרים של נתוני משתמש, נפרד מ-`seforim.db`

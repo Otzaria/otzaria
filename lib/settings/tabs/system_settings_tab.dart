@@ -340,6 +340,15 @@ class SystemSettingsTab extends StatefulWidget {
     ),
   ];
 
+  /// שחזור מקובץ גיבוי שהמשתמש בוחר, גם מחוץ למסך ההגדרות.
+  static Future<void> restoreFromPickedFile(
+    BuildContext context, {
+    String? initialDirectory,
+  }) => _SystemSettingsTabState._restoreFromPickedFile(
+    context,
+    initialDirectory: initialDirectory,
+  );
+
   @override
   State<SystemSettingsTab> createState() => _SystemSettingsTabState();
 }
@@ -886,13 +895,17 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
   /// שחזור מקובץ גיבוי שהמשתמש בוחר — הדרך היחידה לשחזר אחרי התקנה מחדש
   /// במובייל, שבו תיקיית הגיבוי הפנימית נמחקת עם האפליקציה.
-  Future<void> _restoreFromPickedFile() async {
+  static Future<void> _restoreFromPickedFile(
+    BuildContext context, {
+    String? initialDirectory,
+  }) async {
     final result = await FilePicker.pickFile(
+      initialDirectory: initialDirectory,
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
     final filePath = result?.path;
-    if (filePath == null || !mounted) return;
+    if (filePath == null || !context.mounted) return;
 
     final confirmed = await showWarningDialog(
       context: context,
@@ -904,9 +917,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שחזר'),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
-    await _performRestore(filePath);
+    await _performRestore(context, filePath);
   }
 
   /// ייבוא ממזג מגיבוי של מכשיר אחר — מוסיף פריטים ואינו מוחק דבר, ולכן
@@ -930,9 +943,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('ייבא'),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
-    await _performRestore(filePath, mode: BackupImportMode.merge);
+    await _performRestore(context, filePath, mode: BackupImportMode.merge);
   }
 
   Future<void> _restoreBackup() async {
@@ -955,9 +968,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שחזר'),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
-    await _performRestore(filePath);
+    await _performRestore(context, filePath);
   }
 
   /// שחזור מהארכיון הממוזג — כולל פריטים שנמחקו בעבר, ולכן אזהרה נפרדת.
@@ -980,13 +993,14 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שחזר הכל'),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
-    await _performRestore(archivePath);
+    await _performRestore(context, archivePath);
   }
 
   /// סיכום הייבוא הממזג — בלי הפירוט המשתמש אינו יודע אם נוסף משהו בכלל.
-  Future<void> _showImportSummary(
+  static Future<void> _showImportSummary(
+    BuildContext context,
     BackupImportCounts added,
     List<String> skipped,
   ) async {
@@ -1056,9 +1070,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       content: content,
       confirmText: context.settingsText('טען מחדש'),
     );
-    if (!mounted) return;
+    if (!context.mounted) return;
     await resetRuntimeStateForAppRestart();
-    if (!mounted) return;
+    if (!context.mounted) return;
     MultiWindowService.restartPeers();
     RestartWidget.restartApp(
       context,
@@ -1066,7 +1080,8 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     );
   }
 
-  Future<void> _performRestore(
+  static Future<void> _performRestore(
+    BuildContext context,
     String filePath, {
     BackupImportMode mode = BackupImportMode.replace,
   }) async {
@@ -1075,10 +1090,10 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         filePath,
         mode: mode,
       );
-      if (!mounted) return;
+      if (!context.mounted) return;
       final added = result.added;
       if (added != null) {
-        await _showImportSummary(added, result.skippedSections);
+        await _showImportSummary(context, added, result.skippedSections);
         return;
       }
       final skipped = result.skippedSections;
@@ -1131,16 +1146,16 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         content: content,
         confirmText: context.settingsText('טען מחדש'),
       );
-      if (!mounted) return;
+      if (!context.mounted) return;
       await resetRuntimeStateForAppRestart();
-      if (!mounted) return;
+      if (!context.mounted) return;
       MultiWindowService.restartPeers();
       RestartWidget.restartApp(
         context,
         afterRestart: WebViewEnvironmentHolder.disposeForAppRestart,
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       UiSnack.showError(SettingsMessages.backupRestoreError(e));
     }
   }
@@ -1342,7 +1357,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 } else if (value == 'archive') {
                   _restoreFromArchive();
                 } else if (value == 'file') {
-                  _restoreFromPickedFile();
+                  _restoreFromPickedFile(context);
                 } else if (value == 'merge') {
                   _importMergeFromPickedFile();
                 }

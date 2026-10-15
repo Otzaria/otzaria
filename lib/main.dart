@@ -90,6 +90,7 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/otzaria_capabilities.dart';
 import 'package:otzaria/core/data_root_writability_warning.dart';
+import 'package:otzaria/settings/dialogs/personal_data_missing_prompt.dart';
 import 'package:otzaria/core/cli_command.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/sqlite_memory_release.dart';
@@ -1065,8 +1066,8 @@ Future<void> _runDeferredAutoBackup() async {
   }
 }
 
-/// אזהרה על שורש נתונים חסום-לכתיבה. ממתינה לחשיפת החלון — דיאלוג לפניה
-/// אינו מוצג כי עדיין אין Navigator.
+/// אזהרות על שורש הנתונים: חסום לכתיבה, או מסדים אישיים שנמחקו. ממתינה
+/// לחשיפת החלון — דיאלוג לפניה אינו מוצג כי עדיין אין Navigator.
 Future<void> _runDeferredDataRootWritabilityWarning() async {
   try {
     await _mainWindowRevealedCompleter.future.timeout(
@@ -1076,6 +1077,7 @@ Future<void> _runDeferredDataRootWritabilityWarning() async {
     // ממשיכים בכל זאת — אם ה-Navigator עדיין חסר, ההצגה תדולג בשקט.
   }
   await DataRootWritabilityWarning.showIfNeeded();
+  await PersonalDataMissingPrompt.showIfNeeded();
 }
 
 /// זיהוי קריסה של ההפעלה הקודמת ופתיחת נעילת ההפעלה הנוכחית. הנעילה נכתבת
@@ -1905,6 +1907,8 @@ Future<void> initHive() async {
   // בחלון משני הגדרות Hive יושבות בשורש פרטי; שאר הנתונים משותפים.
   final hiveRoot = await hiveRootPath();
   Hive.init(hiveRoot);
+  // לפני הפתיחה, שיוצרת מחדש ריקים מסדים שנמחקו.
+  if (!WindowRole.isSecondary) await PersonalDataMissingPrompt.detect();
   // המסד נפתח כאן ולא בעצלות: `TabsRepository.loadTabs` קורא אותו
   // סינכרונית מבנאי של bloc.
   await UserStateDatabase.instance.database;
