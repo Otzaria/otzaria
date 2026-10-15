@@ -65,6 +65,54 @@ void main() {
     expect(reloaded.anchorStart, raw.indexOf('רבי יוחנן'));
   });
 
+  test(
+    'בחירה עם שם הוי"ה שמוצג כיקוק מעוגנת למילים ואינה נעלמת (issue #2588)',
+    () async {
+      final database = _MemoryNotesDb();
+      final service = PersonalNotesService(
+        database: database,
+        random: Random(1),
+      );
+      const raw =
+          'וַיְהִי בְּנֻסָם וַיהוָה הִשְׁלִיךְ עֲלֵיהֶם אֲבָנִים גְּדֹלוֹת';
+      final shown = replaceHolyNames(raw);
+
+      final added = (await service.addNote(
+        bookId: 'ספר',
+        bookContent: raw,
+        lineNumber: 1,
+        content: 'הערה',
+        contentPlain: 'הערה',
+        contentFormat: PersonalNoteContentFormat.plain,
+        selectedText: shown.substring(raw.indexOf('וַיהוָה')),
+      )).single;
+      expect(added.anchorStart, raw.indexOf('וַיהוָה'));
+
+      final reloaded = (await service.loadNotes(
+        bookId: 'ספר',
+        bookContent: raw,
+      )).single;
+      expect(reloaded.status, PersonalNoteStatus.located);
+      expect(reloaded.lineNumber, 1);
+
+      // הערה שהבאג כבר סימן "חסרה" (בלי עוגן) חוזרת לשורתה בטעינה הבאה.
+      await database.updateNote(
+        reloaded.copyWith(
+          clearAnchor: true,
+          clearLineNumber: true,
+          lastKnownLineNumber: 1,
+          status: PersonalNoteStatus.missing,
+        ),
+      );
+      final restored = (await service.loadNotes(
+        bookId: 'ספר',
+        bookContent: raw,
+      )).single;
+      expect(restored.status, PersonalNoteStatus.located);
+      expect(restored.lineNumber, 1);
+    },
+  );
+
   test('רמז המיקום של תצוגה בלי פיסוק עובר דרך שירות ההערות', () async {
     final database = _MemoryNotesDb();
     final service = PersonalNotesService(database: database, random: Random(1));
