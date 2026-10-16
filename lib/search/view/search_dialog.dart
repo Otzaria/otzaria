@@ -24,6 +24,7 @@ import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_query_builder.dart';
@@ -898,10 +899,10 @@ class _SearchDialogState extends State<SearchDialog> {
     }
 
     // תחביר קטגוריה: `מונח@קטגוריה` מצמצם את החיפוש לקטגוריה לפי שם.
-    final parsedCategory = parseCategoryQuery(
-      query,
-      context.read<LibraryBloc>().state.library,
-    );
+    // `@` בתוך `/…/` הוא חלק מהביטוי, לא תחביר צמצום.
+    final parsedCategory = UserRegexQuery.isValid(query)
+        ? ParsedCategoryQuery(query: query)
+        : parseCategoryQuery(query, context.read<LibraryBloc>().state.library);
     if (parsedCategory.hasCategoryToken && !parsedCategory.categoryFound) {
       UiSnack.showError(
         LibraryMessages.categoryOrBookNotFound(parsedCategory.notFoundNames),
@@ -929,13 +930,14 @@ class _SearchDialogState extends State<SearchDialog> {
             : SearchQueryBuilder.optionsRequestVocalized(
                 _searchTab.searchOptions,
               ));
-    if (!vocalizedSearch && utils.hasNikud(query)) {
+    final isUserRegex = UserRegexQuery.isValid(query);
+    if (!isUserRegex && !vocalizedSearch && utils.hasNikud(query)) {
       query = utils.removeVolwels(query);
     }
     if (!vocalizedSearch && utils.hasNikud(negativeQuery)) {
       negativeQuery = utils.removeVolwels(negativeQuery);
     }
-    query = SearchQueryBuilder.sanitizeQuery(query);
+    query = isUserRegex ? query : SearchQueryBuilder.sanitizeQuery(query);
     negativeQuery = SearchQueryBuilder.sanitizeQuery(negativeQuery);
 
     // שמירת מצב החיפוש האחרון

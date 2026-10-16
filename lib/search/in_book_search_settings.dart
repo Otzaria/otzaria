@@ -6,6 +6,7 @@ import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/utils/smart_lexical_in_book_search.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
+import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -147,10 +148,11 @@ class InBookSearchSettings {
       );
 }
 
-/// The query an in-book search runs for [raw]: trimmed and without nikud, or
-/// null when there is nothing to search for.
+/// The query an in-book search runs for [raw]: trimmed and without nikud (a
+/// valid `/…/` as typed), or null when there is nothing to search for.
 String? searchableInBookQuery(String raw) {
   var query = raw.trim();
+  if (UserRegexQuery.isValid(query)) return query;
   if (utils.hasNikud(query)) {
     query = utils.removeVolwels(query);
   }

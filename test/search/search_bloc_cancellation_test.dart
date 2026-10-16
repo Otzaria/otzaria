@@ -1,6 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
+import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/search_query_builder.dart';
@@ -8,8 +12,10 @@ import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../support/search_engine_test_init.dart';
+import '../test_helpers/memory_cache_provider.dart';
 
-/// חיפוש חדש, ניקוי וסגירת טאב מבטלים את החיפוש הקודם במנוע.
+/// חיפוש חדש, איפוס וסגירת הטאב מבטלים במנוע את החיפוש הקודם, ושאילתת
+/// `/…/` מגיעה למנוע כפי שהוקלדה.
 Future<void> main() async {
   final engineReady = await tryInitSearchEngine();
 
@@ -79,13 +85,10 @@ Future<void> main() async {
       expect(bloc.state.errorMessage, isNull);
     });
 
-    test('קלט עטוף בלוכסנים מנוקה כמו טקסט רגיל', () async {
+    test('`/…/` תקין נשלח כפי שהוקלד, פסול מנוקה כטקסט', () async {
       bloc.add(UpdateSearchQuery(' /מש.ה|אהרן/ '));
       await waitForRequests(1);
-      expect(
-        repository.requests.single.query,
-        SearchQueryBuilder.sanitizeQuery(' /מש.ה|אהרן/ '),
-      );
+      expect(repository.requests.single.query, '/מש.ה|אהרן/');
 
       bloc.add(UpdateSearchQuery('/(משה/'));
       await waitForRequests(2);
@@ -95,6 +98,74 @@ Future<void> main() async {
       );
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
+
+  group('תת-בחירה מהעץ: ספירת הטווח המלא', () {
+    late _RecordingRepository repository;
+    late _CountingIndex index;
+    late TantivyDataProvider previousIndex;
+    late SearchBloc bloc;
+
+    setUpAll(() => Settings.init(cacheProvider: MemoryCacheProvider()));
+
+    setUp(() {
+      previousIndex = TantivyDataProvider.instance;
+      TantivyDataProvider.instance = index = _CountingIndex();
+      DataRepository.instance.library = Future.value(Library(categories: []));
+      repository = _RecordingRepository();
+      bloc = SearchBloc(repository: repository);
+    });
+
+    tearDown(() async {
+      await bloc.close();
+      for (final stream in repository.streams) {
+        await stream.close();
+      }
+      TantivyDataProvider.instance = previousIndex;
+    });
+
+    Future<void> searchInSubselection(String query) async {
+      bloc.add(const SetFacetsWithoutSearch(['/תנך'], keepScope: true));
+      bloc.add(UpdateSearchQuery(query));
+      for (var i = 0; i < 100 && repository.requests.isEmpty; i++) {
+        await pumpEventQueue();
+      }
+      expect(repository.requests.single.facets, ['/תנך']);
+      await pumpEventQueue(times: 50);
+    }
+
+    test('רג\'קס חוצה-רווחים: הספירה רצה אחרי הזרם, לא במקביל לו', () async {
+      await searchInSubselection(r'/שמע .* ישראל/');
+      expect(index.countedScopes, isEmpty);
+
+      await repository.streams.single.close();
+      await bloc.stream.firstWhere((s) => !s.isLoading);
+      await pumpEventQueue(times: 50);
+      expect(index.countedScopes, [
+        ['/'],
+      ]);
+    });
+
+    test('שאילתה רגילה: הספירה רצה במקביל לזרם', () async {
+      await searchInSubselection('שלום');
+      expect(index.countedScopes, [
+        ['/'],
+      ]);
+    });
+  }, skip: engineReady ? false : searchEngineSkipReason);
+}
+
+/// סופר בלי מנוע את הקריאות לספירה לפי ספר, ושומר את הטווח של כל אחת.
+class _CountingIndex extends Fake implements TantivyDataProvider {
+  final countedScopes = <List<String>>[];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #countByBook) {
+      countedScopes.add(invocation.positionalArguments[1] as List<String>);
+      return Future.value(<String, int>{});
+    }
+    return super.noSuchMethod(invocation);
+  }
 }
 
 class _RecordingRepository extends SearchRepository {

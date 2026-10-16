@@ -132,7 +132,7 @@ class SearchRepository {
     SearchEngineRequest request,
   ) async => _gateway.searchAndCount(await _engine(), request);
 
-  /// עוצר במנוע את קריאות החיפוש שנשאו את [requestId] (זרם וספירות).
+  /// עוצר במנוע את קריאות החיפוש שנשאו את [requestId] (זרם, ספירות, `/…/`).
   /// לא נוגע במנוע שעוד לא נפתח.
   Future<void> cancelLexicalSearch(int requestId) async {
     final provider = _engineProvider;

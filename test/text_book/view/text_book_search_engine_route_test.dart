@@ -568,6 +568,31 @@ Future<void> main() async {
     },
     skip: !engineReady,
   );
+
+  testWidgets(
+    '`/…/` רץ במתאם של המנוע על שורות הספר, גם כשיש תוספות',
+    (tester) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      var simpleRunnerCalls = 0;
+
+      await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: '/מו?שה/',
+        searchDistance: 3,
+        content: const ['ויאמר משה אל מושה', 'ומשהו אחר'],
+        simpleSearchRunner: (content, query) async {
+          simpleRunnerCalls++;
+          return const [];
+        },
+      ).then((harness) => harness.settle());
+
+      expect(simpleRunnerCalls, 0);
+      expect(repository.requests, isEmpty);
+      expect(find.text('נמצאו 2 תוצאות'), findsOneWidget);
+    },
+    skip: !engineReady,
+  );
 }
 
 class _Harness {

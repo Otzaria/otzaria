@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart' as engine;
 
 class SearchModeScopedParameters {
@@ -366,4 +367,9 @@ class SearchQueryBuilder {
   /// המקף העברי (־) והמקף הלועזי (-) מומרים לרווח; רווחים מרובים מצומצמים.
   static String sanitizeQuery(String query) =>
       engine.sanitizeQuery(query: query);
+
+  /// השאילתה כפי שהיא נשלחת למנוע: `/…/` תקין נשאר כפי שהוקלד (המנוע מסווג
+  /// אותו בעצמו), וכל השאר — כולל רג'קס שהמנוע דחה — מנוקה כטקסט רגיל.
+  static String engineQuery(String query) =>
+      UserRegexQuery.isValid(query) ? query.trim() : sanitizeQuery(query);
 }

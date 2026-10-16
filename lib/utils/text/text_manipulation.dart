@@ -13,8 +13,11 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart'
         HighlightPattern,
         HighlightMatcher,
         HighlightMatch,
+        UserRegexKind,
+        UserRegexMatcher,
         generateHighlightPattern,
         splitQueryWords;
+import 'package:otzaria/search/utils/user_regex_query.dart';
 
 /// רגקס להסרת תגי HTML.
 final RegExp _htmlStripper = RegExp(r'<[^>]*>');
@@ -559,12 +562,20 @@ class _CompiledHighlightPattern {
   final List<RegExp> words;
   final List<bool> boundaryEligible;
 
+  /// שאילתת `/…/`: ההתאמות כולן מהמתאם של המנוע, בלי פרמטרי החיפוש.
+  final UserRegexMatcher? userRegex;
+
+  /// רצף מילים של `/…/` יכול להימשך לשורה הבאה, כמו בחיפוש בספרייה.
+  final bool userRegexCrossesLines;
+
   const _CompiledHighlightPattern(
     this.matcher,
     this.combined,
     this.words,
-    this.boundaryEligible,
-  );
+    this.boundaryEligible, {
+    this.userRegex,
+    this.userRegexCrossesLines = false,
+  });
 }
 
 /// ההדגשה רצה פר-פסקה ברינדור, עם אותם פרמטרי חיפוש — לכן התבנית נבנית
@@ -726,6 +737,18 @@ _CompiledHighlightPattern? _resolveHighlightPattern(
   bool isFuzzy, {
   bool anyOrder = false,
 }) {
+  final userRegex = UserRegexQuery.matcher(searchQuery);
+  if (userRegex != null) {
+    return _CompiledHighlightPattern(
+      null,
+      null,
+      const [],
+      const [],
+      userRegex: userRegex,
+      userRegexCrossesLines:
+          UserRegexQuery.plan(searchQuery)?.kind == UserRegexKind.wordSequence,
+    );
+  }
   if (!isFuzzy) {
     alternativeWords = withHolyNameAlternatives(searchQuery, alternativeWords);
   }
@@ -963,6 +986,13 @@ List<_HighlightMatch> _findHighlightMatches(
   bool isSearchResultLine = false,
   bool isFuzzy = false,
 }) {
+  final userRegex = compiled.userRegex;
+  if (userRegex != null) {
+    return userRegex
+        .findMatches(data: data)
+        .map(_HighlightMatch.fromNative)
+        .toList();
+  }
   if (!matchPolicy.hasStandardWordMatching) {
     if (!isSearchResultLine) return const [];
     return _findPerWordHighlightMatches(
@@ -1145,7 +1175,8 @@ List<_HighlightMatch> _crossLineMatches(
   required List<bool> requireTokenBoundaries,
 }) {
   final matcher = compiled.matcher;
-  if (matcher == null) return const [];
+  final userRegex = compiled.userRegexCrossesLines ? compiled.userRegex : null;
+  if (matcher == null && userRegex == null) return const [];
   final left = lineFirst ? line : neighbour;
   final right = lineFirst ? neighbour : line;
   final leftEnd = crossLineContentRange(left).end;
@@ -1153,10 +1184,13 @@ List<_HighlightMatch> _crossLineMatches(
   final joined = '${left.substring(0, leftEnd)} ${right.substring(rightStart)}';
   final rightOffset = leftEnd + 1 - rightStart;
   final result = <_HighlightMatch>[];
-  for (final match in matcher.findMatches(
-    data: joined,
-    requireTokenBoundaries: requireTokenBoundaries,
-  )) {
+  final found =
+      userRegex?.findMatches(data: joined) ??
+      matcher!.findMatches(
+        data: joined,
+        requireTokenBoundaries: requireTokenBoundaries,
+      );
+  for (final match in found) {
     if (match.start >= leftEnd || match.end <= leftEnd + 1) continue;
     final words = <(int, int)>[
       for (final range in match.wordRanges)
@@ -1242,8 +1276,9 @@ String highLight(
   // מילה בודדת מותאמת בתוך טוקן אחד ולא יכולה לחצות את המעבר בין השורות.
   if (currentIndex == -1 &&
       !yellowBackground &&
-      matchPolicy.hasStandardWordMatching &&
-      compiled.boundaryEligible.length > 1) {
+      (compiled.userRegexCrossesLines ||
+          (matchPolicy.hasStandardWordMatching &&
+              compiled.boundaryEligible.length > 1))) {
     final crossing = [
       if (nextLine != null)
         ..._crossLineMatches(

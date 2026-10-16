@@ -36,6 +36,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/search/utils/search_query_sync.dart';
+import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/utils/text/ref_helper.dart' show tocSectionAt;
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/navigation/search_result_nav_button.dart';
@@ -413,7 +414,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       _searchErrorMessage = null;
     });
 
-    if (_isSimpleSearch) {
+    final userRegex = UserRegexQuery.matcher(query);
+    if (userRegex != null || _isSimpleSearch) {
       List<String> content;
       try {
         content = await _ensureContent();
@@ -430,6 +432,24 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         return;
       }
       if (!mounted || requestId != _activeSearchRequestId) {
+        return;
+      }
+
+      if (userRegex != null) {
+        final found = await searchUserRegexInContent(
+          content: content,
+          query: query,
+          matcher: userRegex,
+          crossesLines:
+              UserRegexQuery.plan(query)?.kind == UserRegexKind.wordSequence,
+          range: section == null
+              ? null
+              : (start: section.start, end: section.end),
+          isCurrent: () => mounted && requestId == _activeSearchRequestId,
+        );
+        if (found != null && mounted && requestId == _activeSearchRequestId) {
+          _applySearchResults(found.results, truncated: found.truncated);
+        }
         return;
       }
 

@@ -19,6 +19,7 @@ import 'package:otzaria/search/search_engine_gateway.dart'
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:flutter/foundation.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
@@ -224,26 +225,32 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       state.searchScopeFacets.toSet(),
     );
 
+    // ספירת-ספרים נפרדת נדרשת רק כשהחיפוש רץ על תת-בחירה מהעץ (אחרת
+    // ה-stream המשולב מספק את הספירות), וגם אז רק אם החתימה השתנתה.
+    void refreshFacetCounts() => unawaited(
+      _refreshFacetCountsForAllBooks(
+        event,
+        requestId,
+        engineRequestId,
+        recountSignature,
+        recountInputs,
+      ),
+    );
+    final recountFacets = !scopeEqualsSearch && !shouldSkipFacetRecount;
+    // רג'קס חוצה-רווחים קורא שורות: ספירת הטווח המלא רצה אחרי הזרם, ולא
+    // כסריקה שנייה במקביל לו.
+    final recountAfterStream =
+        recountFacets &&
+        UserRegexQuery.plan(query)?.kind == UserRegexKind.crossSpace;
+
     try {
-      // ספירת-ספרים נפרדת נדרשת רק כשהחיפוש רץ על תת-בחירה מהעץ (אחרת
-      // ה-stream המשולב מספק את הספירות), וגם אז רק אם החתימה השתנתה.
-      if (!scopeEqualsSearch && !shouldSkipFacetRecount) {
-        unawaited(
-          _refreshFacetCountsForAllBooks(
-            event,
-            requestId,
-            engineRequestId,
-            recountSignature,
-            recountInputs,
-          ),
-        );
-      }
+      if (recountFacets && !recountAfterStream) refreshFacetCounts();
 
       // stream משולב: האירוע הראשון נושא ספירה כוללת + ספירה לפי ספר
       // מאותו מעבר אינדקס, ואחריו chunks של תוצאות.
       final stream = _repository.searchTextsStreamWithCounts(
         SearchEngineRequest(
-          query: SearchQueryBuilder.sanitizeQuery(query),
+          query: SearchQueryBuilder.engineQuery(query),
           facets: requestedFacets,
           limit: state.numResults,
           distance: state.distance,
@@ -327,6 +334,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       if (requestId != _searchRequestId) {
         return;
       }
+      if (recountAfterStream) refreshFacetCounts();
 
       // יישוב הספירה: כשהעמוד הראשון ביקש את כל התוצאות (total <= limit)
       // אך המנוע החזיר פחות ממה שספר (מסמך שנספר אבל נכשל בשליפה מה-store,
@@ -489,7 +497,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     final Map<String, int> bookCounts;
     try {
       bookCounts = await TantivyDataProvider.instance.countByBook(
-        SearchQueryBuilder.sanitizeQuery(query),
+        SearchQueryBuilder.engineQuery(query),
         inputs.scopeFacets,
         fuzzy: inputs.fuzzy,
         distance: inputs.distance,
@@ -1141,7 +1149,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       // מבקשים את כל התוצאות עד עכשיו + עוד numResults תוצאות
       final nextResults = await _repository.searchTexts(
         SearchEngineRequest(
-          query: SearchQueryBuilder.sanitizeQuery(state.searchQuery),
+          query: SearchQueryBuilder.engineQuery(state.searchQuery),
           facets: state.currentFacets,
           limit: state.numResults,
           offset: state.results.length,

@@ -7,6 +7,8 @@ import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
+import 'package:otzaria_search_engine/otzaria_search_engine.dart'
+    show UserRegexMatcher;
 
 const int _maxSearchResults = 1000;
 const int _searchChunkSize = 128;
@@ -19,7 +21,7 @@ const int _snippetContextChars = 90;
 /// (חצי הדרך להופעות השכנות) — כך שכל תוצאה מציגה ומדגישה רק את ההופעה שלה.
 String _snippetAroundMatch(
   String line,
-  Match match, {
+  ({int start, int end}) match, {
   required int lowerBound,
   required int upperBound,
 }) {
@@ -129,6 +131,20 @@ bool _isHeadingLine(String rawLine) => rawLine.trimLeft().startsWith('<h');
   required String rawNextLine,
   required String line,
   required String nextLine,
+}) => _crossLineMatchWith(
+  (joined) => pattern.allMatches(joined).map((m) => (m.start, m.end)),
+  rawLine: rawLine,
+  rawNextLine: rawNextLine,
+  line: line,
+  nextLine: nextLine,
+);
+
+({int offset, String snippet})? _crossLineMatchWith(
+  Iterable<(int, int)> Function(String joined) find, {
+  required String rawLine,
+  required String rawNextLine,
+  required String line,
+  required String nextLine,
 }) {
   if (line.isEmpty ||
       nextLine.isEmpty ||
@@ -140,11 +156,11 @@ bool _isHeadingLine(String rawLine) => rawLine.trimLeft().startsWith('<h');
   final nextStart = utils.crossLineContentRange(nextLine).start;
   final joined =
       '${line.substring(0, lineEnd)}\n${nextLine.substring(nextStart)}';
-  for (final match in pattern.allMatches(joined)) {
-    if (match.start >= lineEnd) break;
-    if (match.end <= lineEnd + 1) continue;
-    var start = match.start - _snippetContextChars;
-    var end = match.end + _snippetContextChars;
+  for (final (matchStart, matchEnd) in find(joined)) {
+    if (matchStart >= lineEnd) break;
+    if (matchEnd <= lineEnd + 1) continue;
+    var start = matchStart - _snippetContextChars;
+    var end = matchEnd + _snippetContextChars;
     start = start <= 0 ? 0 : joined.lastIndexOf(' ', start) + 1;
     if (end >= joined.length) {
       end = joined.length;
@@ -152,7 +168,7 @@ bool _isHeadingLine(String rawLine) => rawLine.trimLeft().startsWith('<h');
       final space = joined.indexOf(' ', end);
       end = space == -1 ? joined.length : space;
     }
-    return (offset: match.start, snippet: joined.substring(start, end).trim());
+    return (offset: matchStart, snippet: joined.substring(start, end).trim());
   }
   return null;
 }
@@ -563,7 +579,7 @@ class SectionSearchWorkerRuntime {
                 'index': i,
                 'snippet': _snippetAroundMatch(
                   cleanLines[i],
-                  match,
+                  (start: match.start, end: match.end),
                   lowerBound: m > 0
                       ? (lineMatches[m - 1].end + match.start) ~/ 2
                       : 0,
@@ -700,6 +716,106 @@ Future<List<TextSearchResult>> searchInContent({
   );
   onTruncated?.call(outcome.truncated);
   return outcome.results;
+}
+
+// לפי תוכן הספר: המטמון משתחרר יחד עם התוכן כשהטאב נסגר.
+final _userRegexCleanLines = Expando<List<String?>>();
+
+/// `/…/` בספר במתאם הנייטיבי של המנוע (ב-isolate הראשי, בהפסקות קצרות);
+/// null כש-[isCurrent] מדווח שהחיפוש הוחלף.
+Future<({List<TextSearchResult> results, bool truncated})?>
+searchUserRegexInContent({
+  required List<String> content,
+  required String query,
+  required UserRegexMatcher matcher,
+  bool crossesLines = false,
+  ({int start, int? end})? range,
+  bool Function()? isCurrent,
+}) async {
+  final cleanLines = _userRegexCleanLines[content] ??= List<String?>.filled(
+    content.length,
+    null,
+  );
+  String clean(int i) => cleanLines[i] ??= cleanLineForSearch(content[i]);
+  List<({int start, int end})> find(String text) => [
+    for (final m in matcher.findMatches(data: text))
+      if (m.end > m.start) (start: m.start, end: m.end),
+  ];
+
+  final results = <TextSearchResult>[];
+  final address = <String>[];
+  var truncated = false;
+  final rangeStart = range?.start ?? 0;
+  final requestedEnd = range?.end;
+  final rangeEnd = requestedEnd == null || requestedEnd > content.length
+      ? content.length
+      : requestedEnd;
+
+  for (var i = 0; i < rangeEnd && !truncated; i++) {
+    if ((i + 1) % _searchChunkSize == 0) {
+      await Future<void>.delayed(Duration.zero);
+      if (isCurrent != null && !isCurrent()) return null;
+    }
+    final rawLine = content[i];
+    if (rawLine.contains('<h') && !rawLine.startsWith('<h1')) {
+      _updateAddress(address, rawLine);
+    }
+    if (i < rangeStart) continue;
+
+    final line = clean(i);
+    final matches = find(line);
+    String cleanAddress() =>
+        utils.removeVolwels(utils.stripHtmlIfNeeded(address.join(', ')));
+    for (var m = 0; m < matches.length; m++) {
+      if (results.length >= _maxSearchResults) {
+        truncated = true;
+        break;
+      }
+      final match = matches[m];
+      results.add(
+        TextSearchResult(
+          index: i,
+          snippet: _snippetAroundMatch(
+            line,
+            match,
+            lowerBound: m > 0 ? (matches[m - 1].end + match.start) ~/ 2 : 0,
+            upperBound: m < matches.length - 1
+                ? (match.end + matches[m + 1].start) ~/ 2
+                : line.length,
+          ),
+          address: cleanAddress(),
+          query: query,
+          matchOffset: match.start,
+          lineLength: line.length,
+        ),
+      );
+    }
+    if (truncated || !crossesLines || i + 1 >= rangeEnd) continue;
+    final crossing = _crossLineMatchWith(
+      (joined) => find(joined).map((m) => (m.start, m.end)),
+      rawLine: rawLine,
+      rawNextLine: content[i + 1],
+      line: line,
+      nextLine: clean(i + 1),
+    );
+    if (crossing == null) continue;
+    if (results.length >= _maxSearchResults) {
+      truncated = true;
+      break;
+    }
+    results.add(
+      TextSearchResult(
+        index: i,
+        snippet: crossing.snippet,
+        address: cleanAddress(),
+        query: query,
+        matchOffset: crossing.offset,
+        lineLength: line.length,
+        continuesToNextLine: true,
+      ),
+    );
+  }
+  return (results: results, truncated: truncated);
 }
 
 @visibleForTesting

@@ -13,6 +13,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/utils/pdf_user_regex_pattern.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
@@ -527,6 +528,38 @@ Future<void> main() async {
       hasLength(requestsBeforeReset),
       reason: 'ללא תוספות אין לפנות למנוע שוב',
     );
+
+    await tester.pump(const Duration(milliseconds: 800));
+  }, skip: !engineReady);
+
+  testWidgets('`/…/` נסרק בשכבת הטקסט במתאם המנוע, גם במצב מתקדם', (
+    tester,
+  ) async {
+    final repository = await pumpPdfSearch(
+      tester,
+      query: r'/שמע \S+ ישראל/',
+      searchMode: SearchMode.advanced,
+      searchDistance: 2,
+    );
+
+    expect(repository.requests, isEmpty);
+    final pattern = repository.textSearcher.pattern;
+    expect(pattern, isA<PdfUserRegexPattern>());
+    expect((pattern as RegExp).hasMatch('והיה שְׁמַע בני ישראל'), isTrue);
+
+    await tester.pump(const Duration(milliseconds: 800));
+  }, skip: !engineReady);
+
+  testWidgets('`/…/` לא תקין מחופש כטקסט רגיל', (tester) async {
+    final repository = await pumpPdfSearch(
+      tester,
+      query: '/(שמע/',
+      searchMode: SearchMode.exact,
+      searchDistance: 0,
+    );
+
+    expect(repository.textSearcher.pattern, isNot(isA<PdfUserRegexPattern>()));
+    expect(repository.textSearcher.pattern, isA<RegExp>());
 
     await tester.pump(const Duration(milliseconds: 800));
   }, skip: !engineReady);
