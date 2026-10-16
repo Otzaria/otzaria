@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
@@ -52,12 +53,15 @@ void main() {
 
     textBookBloc = _TestTextBookBloc(_loadedState());
     settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    // ההעתקה מאתרת את הגבלת המו"ל במסד; IO אמיתי נתקע תחת FakeAsync.
+    BookProtectionRepository.instance.debugRepositoryFor = (_) async => null;
   });
 
   tearDown(() async {
     await textBookBloc.close();
     await settingsBloc.close();
     LibraryProviderManager.instance.resetForTesting();
+    BookProtectionRepository.instance.debugReset();
   });
 
   testWidgets('בעלות חיצונית בלי בחירה משלנו — ה-SelectionArea לא נבנה מחדש', (
