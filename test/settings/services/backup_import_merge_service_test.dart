@@ -295,7 +295,7 @@ void main() {
     );
     await PersonalNotesService(database: db).loadNotes(
       bookId: 'ספר-הערות',
-      bookContent: 'א\nב\nג\nד\nשורה שנוספה\nשורה לדוגמה',
+      bookContent: 'א\nב\nג\nד\nשורה שנוספה\nשורה לדוגמה לפני מילה אחרי',
     );
     expect((await db.getNote('note-1'))?.lineNumber, 6);
 
