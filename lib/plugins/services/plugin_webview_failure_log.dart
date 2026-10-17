@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/plugins/services/webview2_folder_holders.dart';
 
 /// override לבדיקות בלבד: כתיבה לקובץ גם ב-debug (ברירת המחדל שם היא הדפסה).
 @visibleForTesting
@@ -27,4 +28,5 @@ void logPluginWebViewFailure(
       details: details,
     );
   } catch (_) {}
+  WebView2FolderHolders.recordIfFolderConflict(error);
 }
