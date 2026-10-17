@@ -47,10 +47,8 @@ class _VerticalReadingTabStripState extends State<VerticalReadingTabStrip> {
   /// מוחקת את ה-X מתחת לסמן לפני שהלחיצה עליו נורית.
   OpenedTab? _hoveredTab;
 
-  /// ⚠️ אותו מנגנון בדיוק כמו ברצועה האופקית. קודם לכן הוא היה כתוב בתוך
-  /// `custom_title_bar` בלבד, והעמודה האנכית לא חוברה אליו — היא **כן**
-  /// קלטה כרטיסיות מחלונות אחרים, ולכן הפיצ'ר היה חד-כיווני בשקט: משתמש
-  /// שעבד עם כרטיסיות בצד יכול היה לקבל כרטיסיה ולא להוציא אחת.
+  /// אותו מנגנון כמו ברצועה האופקית; בלעדיו העמודה קולטת כרטיסיות מחלונות
+  /// אחרים אבל לא מוציאה אליהם.
   final CrossWindowTabDrag _crossWindowDrag = CrossWindowTabDrag();
 
   @override
@@ -211,7 +209,8 @@ class _VerticalTabRow extends StatelessWidget {
         : Colors.transparent;
 
     final leading = buildTabTypeIcon(context, tab);
-    final showClose = !collapsed && (isSelected || isHovered);
+    // במצב מכווץ ה-X רק בריחוף, כדי לא להעמיס על העמודה הצרה.
+    final showClose = collapsed ? isHovered : (isSelected || isHovered);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -235,11 +234,23 @@ class _VerticalTabRow extends StatelessWidget {
               tab: tab,
               builder: (context, displayTitle, tooltipMessage) => collapsed
                   // במצב מכווץ מוצג אייקון בלבד, ולכן ה-tooltip הוא המקור היחיד לשם.
-                  ? Tooltip(
-                      message: tooltipMessage,
-                      child: Center(
-                        child: leading ?? buildTabFallbackIcon(context),
-                      ),
+                  ? Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Tooltip(
+                            message: tooltipMessage,
+                            child: Center(
+                              child: leading ?? buildTabFallbackIcon(context),
+                            ),
+                          ),
+                        ),
+                        if (showClose)
+                          PositionedDirectional(
+                            top: 0,
+                            end: 0,
+                            child: _buildCloseButton(context, extent: 16),
+                          ),
+                      ],
                     )
                   : Row(
                       children: [
@@ -254,25 +265,7 @@ class _VerticalTabRow extends StatelessWidget {
                             child: buildFadedTabTitle(context, displayTitle),
                           ),
                         ),
-                        if (showClose)
-                          IconButton(
-                            style: IconButton.styleFrom(
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              padding: EdgeInsets.zero,
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 24,
-                              minHeight: 24,
-                              maxWidth: 24,
-                              maxHeight: 24,
-                            ),
-                            tooltip: context.settingsText('סגור כרטיסיה'),
-                            onPressed: onClose,
-                            icon: const Icon(
-                              FluentIcons.dismiss_24_regular,
-                              size: 12,
-                            ),
-                          ),
+                        if (showClose) _buildCloseButton(context, extent: 24),
                         if (tab.isPinned) ...[
                           const SizedBox(width: 4),
                           const Icon(FluentIcons.pin_24_filled, size: 14),
@@ -283,6 +276,19 @@ class _VerticalTabRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCloseButton(BuildContext context, {required double extent}) {
+    return IconButton(
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: EdgeInsets.zero,
+      ),
+      constraints: BoxConstraints.tight(Size.square(extent)),
+      tooltip: context.settingsText('סגור כרטיסיה'),
+      onPressed: onClose,
+      icon: const Icon(FluentIcons.dismiss_24_regular, size: 12),
     );
   }
 }

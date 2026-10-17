@@ -326,6 +326,48 @@ void main() {
     );
   });
 
+  testWidgets('במצב מכווץ ריחוף מציג X בפינה השמאלית והוא סוגר (issue #1938)', (
+    tester,
+  ) async {
+    // בדסקטופ הגרירה מיידית, ולכן זה המסלול שבו לחיצה על ה-X עלולה להיבלע.
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    await pumpPanel(tester, collapsed: true);
+    final closeButton = find.byTooltip('סגור כרטיסיה');
+    expect(closeButton, findsNothing, reason: 'בלי ריחוף אין X');
+
+    final strip = tester.getRect(find.byType(VerticalReadingTabStrip));
+    final secondRow = Rect.fromLTWH(
+      strip.left,
+      strip.top + kVerticalTabHeight,
+      strip.width,
+      kVerticalTabHeight,
+    );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: secondRow.center);
+    await tester.pump();
+
+    final shown = closeButton.evaluate().length;
+    final closeRect = shown == 1 ? tester.getRect(closeButton) : Rect.zero;
+    if (shown == 1) {
+      await mouse.moveTo(closeRect.center);
+      await mouse.down(closeRect.center);
+      await tester.pump(const Duration(milliseconds: 30));
+      await mouse.up();
+      await tester.pumpAndSettle();
+    }
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(shown, 1);
+    expect(closeRect.center.dx, lessThan(secondRow.center.dx));
+    expect(closeRect.center.dy, lessThan(secondRow.center.dy));
+    expect(
+      tabsBloc.addedEvents.whereType<RemoveTab>().single.tab,
+      same(tabs[1]),
+    );
+    expect(tabsBloc.addedEvents.whereType<SetCurrentTab>(), isEmpty);
+  });
+
   testWidgets('כפתור הכיווץ משדר את ההגדרה', (tester) async {
     await pumpPanel(tester);
 
