@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
@@ -57,16 +58,19 @@ class TextDisplayProfileEditor extends StatelessWidget {
         currentValue: profile.punctuation,
         onChanged: (v) => onChanged(profile.copyWith(punctuation: v)),
       ),
-      SettingsActionTile.segmentedTile<HolyNameDisplay>(
+      SettingsActionTile.dropdownTile<HolyNameDisplay>(
         icon: OtzariaIcons.alef_lock_24_filled,
         title: t('שם הוי"ה'),
-        options: [
-          SegmentOption(value: HolyNameDisplay.asIs, label: t('ככתבו')),
-          SegmentOption(value: HolyNameDisplay.kufKuf, label: t('יקוק')),
-          SegmentOption(value: HolyNameDisplay.hehApostrophe, label: t("ה'")),
+        entries: [
+          AppMenuEntry(value: HolyNameDisplay.asIs, label: t('ככתבו')),
+          AppMenuEntry(value: HolyNameDisplay.kufKuf, label: t('יקוק')),
+          AppMenuEntry(value: HolyNameDisplay.hehApostrophe, label: t("ה'")),
+          AppMenuEntry(value: HolyNameDisplay.doubleYod, label: t('יי')),
         ],
-        currentValue: profile.holyName,
-        onChanged: (v) => onChanged(profile.copyWith(holyName: v)),
+        value: profile.holyName,
+        onSelected: (v) {
+          if (v != null) onChanged(profile.copyWith(holyName: v));
+        },
       ),
       SettingsActionTile.segmentedTile<DivineNamesDisplay>(
         icon: OtzariaIcons.alef_crown_24_filled,

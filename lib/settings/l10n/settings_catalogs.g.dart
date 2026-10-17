@@ -701,6 +701,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'יוצגו ספרים מהיברובוקס בתוצאות החיפוש במסך הספרייה': 'Seforim from HebrewBooks will appear in the library search results',
     'יוצגו תאריכים מהלוח העברי והלועזי יחד': 'Show hebrew and civil dates together',
     'יורד אוטומטית בבדיקת העדכונים הבאה כשיש חיבור לאינטרנט, או שניתן להוסיף את {file} לתיקייה ולייבא שוב': 'Downloaded automatically at the next update check when online, or add {file} to the folder and import again',
+    'יי': 'Double Yud (יי)',
     'ייבא': 'Import',
     'ייבא קובץ מסד': 'Import Database File',
     'ייבוא חד פעמי של קובץ יומן שיוצא מ-Google Calendar או מכל תוכנת יומן אחרת': 'One-time import of a calendar file exported from Google Calendar or any other calendar app',

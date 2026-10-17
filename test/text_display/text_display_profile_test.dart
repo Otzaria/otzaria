@@ -50,6 +50,18 @@ void main() {
         ),
         HolyNameDisplay.hehApostrophe,
       );
+      expect(
+        HolyNameDisplay.fromLegacy(
+          replaceHolyNames: true,
+          style: HolyNameStyle.doubleYod,
+        ),
+        HolyNameDisplay.doubleYod,
+      );
+    });
+
+    test('יי נשמר ונטען ב-JSON', () {
+      expect(HolyNameDisplay.fromJson('doubleYod'), HolyNameDisplay.doubleYod);
+      expect(HolyNameDisplay.doubleYod.style, HolyNameStyle.doubleYod);
     });
   });
 

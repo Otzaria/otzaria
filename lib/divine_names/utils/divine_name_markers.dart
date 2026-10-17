@@ -103,9 +103,15 @@ String _applyForm(
   if (!divineNameSkeletonMatches(kind, skeleton)) return inner;
 
   if (isHvyh) {
-    return holyNameStyle == HolyNameStyle.hehApostrophe
-        ? _hehApostrophe(inner, letters.first)
-        : _replaceAt(_replaceAt(inner, letters[3], 'ק'), letters[1], 'ק');
+    return switch (holyNameStyle!) {
+      HolyNameStyle.kufKuf => _replaceAt(
+        _replaceAt(inner, letters[3], 'ק'),
+        letters[1],
+        'ק',
+      ),
+      HolyNameStyle.hehApostrophe => _hehApostrophe(inner, letters.first),
+      HolyNameStyle.doubleYod => _doubleYod(inner, letters),
+    };
   }
 
   final form = kDivineNameForms[kind];
@@ -146,6 +152,29 @@ String _hehApostrophe(String inner, int firstLetter) {
       continue;
     }
     if (i == firstLetter) out.write("ה'");
+    i++;
+  }
+  return out.toString();
+}
+
+/// "יי" במקום השם — כמו `replaceHolyNames`: ה-ה הראשונה נמחקת עם סימניה,
+/// ה-ו הופכת ל-י, ומה-ה האחרונה נשארים רק הסימנים.
+String _doubleYod(String inner, List<int> letters) {
+  final out = StringBuffer();
+  var droppingMarks = false;
+  var i = 0;
+  while (i < inner.length) {
+    final c = inner.codeUnitAt(i);
+    if (c == 0x3C) {
+      final gt = inner.indexOf('>', i);
+      out.write(inner.substring(i, gt + 1));
+      i = gt + 1;
+      continue;
+    }
+    if (isHebrewLetter(c)) droppingMarks = i == letters[1];
+    if (!droppingMarks && i != letters[3]) {
+      out.write(i == letters[2] ? 'י' : inner[i]);
+    }
     i++;
   }
   return out.toString();

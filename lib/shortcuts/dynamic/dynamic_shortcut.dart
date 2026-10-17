@@ -256,6 +256,7 @@ class DynamicShortcut {
           HolyNameDisplay.asIs => 'שם הוי"ה ככתבו',
           HolyNameDisplay.kufKuf => 'שם הוי"ה כיקוק',
           HolyNameDisplay.hehApostrophe => "שם הוי\"ה כה'",
+          HolyNameDisplay.doubleYod => 'שם הוי"ה כיי',
         },
       if (change.anchorMarkers != null)
         '${_mark(change.anchorMarkers!)} ציוני מפרשים',

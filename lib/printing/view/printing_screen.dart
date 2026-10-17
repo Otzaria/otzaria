@@ -2366,6 +2366,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                                           .hehApostrophe,
                                                       label: "ה'",
                                                     ),
+                                                    AppMenuEntry(
+                                                      value: HolyNameDisplay
+                                                          .doubleYod,
+                                                      label: 'יי',
+                                                    ),
                                                   ],
                                                   onSelected: (value) {
                                                     if (value == null) return;

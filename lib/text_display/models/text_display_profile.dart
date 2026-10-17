@@ -31,13 +31,15 @@ enum TeamimVisibility {
 enum HolyNameDisplay {
   asIs,
   kufKuf,
-  hehApostrophe;
+  hehApostrophe,
+  doubleYod;
 
   /// null = הצגה ככתבו (אין החלפה).
   HolyNameStyle? get style => switch (this) {
     HolyNameDisplay.asIs => null,
     HolyNameDisplay.kufKuf => HolyNameStyle.kufKuf,
     HolyNameDisplay.hehApostrophe => HolyNameStyle.hehApostrophe,
+    HolyNameDisplay.doubleYod => HolyNameStyle.doubleYod,
   };
 
   static HolyNameDisplay fromLegacy({
@@ -45,15 +47,18 @@ enum HolyNameDisplay {
     required HolyNameStyle style,
   }) {
     if (!replaceHolyNames) return HolyNameDisplay.asIs;
-    return style == HolyNameStyle.hehApostrophe
-        ? HolyNameDisplay.hehApostrophe
-        : HolyNameDisplay.kufKuf;
+    return switch (style) {
+      HolyNameStyle.kufKuf => HolyNameDisplay.kufKuf,
+      HolyNameStyle.hehApostrophe => HolyNameDisplay.hehApostrophe,
+      HolyNameStyle.doubleYod => HolyNameDisplay.doubleYod,
+    };
   }
 
   static HolyNameDisplay? fromJson(Object? value) => switch (value) {
     'asIs' => HolyNameDisplay.asIs,
     'kufKuf' => HolyNameDisplay.kufKuf,
     'hehApostrophe' => HolyNameDisplay.hehApostrophe,
+    'doubleYod' => HolyNameDisplay.doubleYod,
     _ => null,
   };
 }

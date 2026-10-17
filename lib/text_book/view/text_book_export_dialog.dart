@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
@@ -44,19 +45,19 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
           children: [
             const Text('בחר פורמט לייצוא'),
             const SizedBox(height: 12),
-            SettingsActionTile.segmentedTile<HolyNameDisplay>(
+            SettingsActionTile.dropdownTile<HolyNameDisplay>(
               icon: OtzariaIcons.alef_lock_24_filled,
               title: 'שם הוי"ה',
-              options: const [
-                SegmentOption(value: HolyNameDisplay.asIs, label: 'ככתבו'),
-                SegmentOption(value: HolyNameDisplay.kufKuf, label: 'יקוק'),
-                SegmentOption(
-                  value: HolyNameDisplay.hehApostrophe,
-                  label: "ה'",
-                ),
+              entries: const [
+                AppMenuEntry(value: HolyNameDisplay.asIs, label: 'ככתבו'),
+                AppMenuEntry(value: HolyNameDisplay.kufKuf, label: 'יקוק'),
+                AppMenuEntry(value: HolyNameDisplay.hehApostrophe, label: "ה'"),
+                AppMenuEntry(value: HolyNameDisplay.doubleYod, label: 'יי'),
               ],
-              currentValue: holyName,
-              onChanged: (v) => setDialogState(() => holyName = v),
+              value: holyName,
+              onSelected: (v) {
+                if (v != null) setDialogState(() => holyName = v);
+              },
             ),
             if (hasDivineNames)
               SettingsActionTile.segmentedTile<DivineNamesDisplay>(

@@ -65,13 +65,15 @@ void main() {
       final result = await open(tester, width: width, profile: profile);
 
       await tester.tap(find.text('בכינוי'));
-      await tester.tap(find.text('ככתבו'));
-      await tester.pump();
+      await tester.tap(find.text('יקוק'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('יי').last);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('טקסט'));
       await tester.pumpAndSettle();
       final choice = await result;
       expect(choice?.format, TextBookExportFormat.text);
-      expect(choice?.holyName, HolyNameDisplay.asIs);
+      expect(choice?.holyName, HolyNameDisplay.doubleYod);
       expect(choice?.divineNames, DivineNamesDisplay.substitute);
       expect(profile.divineNames, DivineNamesDisplay.asIs);
       expect(profile.holyName, HolyNameDisplay.kufKuf);

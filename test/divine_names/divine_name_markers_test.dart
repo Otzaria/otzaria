@@ -345,6 +345,24 @@ void main() {
         ),
         "ה'",
       );
+      expect(
+        render(hvyhNikud, spans, holyNameStyle: HolyNameStyle.doubleYod),
+        'יְיָ',
+      );
+    });
+
+    test('שם הוי"ה כיי — הדגשת חיפוש בתוך הסמן נשמרת', () {
+      final html =
+          'ל${divineNameMarkerOpen(DivineNameKind.hvyh)}'
+          '<span style="color: red">יְהֹ</span>וָה</span>';
+      expect(
+        resolveDivineNameMarkers(
+          html,
+          substituteOtherNames: false,
+          holyNameStyle: HolyNameStyle.doubleYod,
+        ),
+        'ל<span style="color: red">יְ</span>יָ',
+      );
     });
 
     test('סמן שתוכנו השתנה ואינו תואם — מוצג ככתבו', () {
