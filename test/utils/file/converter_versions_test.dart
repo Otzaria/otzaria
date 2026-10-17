@@ -35,7 +35,7 @@ const Map<String, ({int version, String fingerprint})> _pinned = {
   'legacy-word': (version: 9, fingerprint: 'e39829bc7e2dd94f'),
   'epub': (version: 16, fingerprint: 'a999c6001cd8c4f4'),
   'markdown': (version: 8, fingerprint: 'e0ac8348b37de4b8'),
-  'html': (version: 2, fingerprint: '022fd0030315b79f'),
+  'html': (version: 3, fingerprint: '022fd0030315b79f'),
 };
 
 /// `sha256` ולא `hashCode` — הטביעה חייבת להיות זהה בין הרצות ובין גרסאות
