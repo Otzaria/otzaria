@@ -171,6 +171,30 @@ class ShortcutHelper {
   static bool isRecognized(String shortcut) =>
       normalizeShortcut(shortcut) != null;
 
+  /// האם [shortcut] הוא מקש תו יחיד ללא modifiers.
+  static bool isUnmodifiedCharacterShortcut(String shortcut) {
+    final normalized = normalizeShortcut(shortcut);
+    if (normalized == null || normalized.isEmpty || normalized.contains('+')) {
+      return false;
+    }
+    return RegExp(r'^[a-z0-9]$').hasMatch(normalized) ||
+        const {
+          'backslash',
+          'backquote',
+          'bracketleft',
+          'bracketright',
+          'comma',
+          'equal',
+          'minus',
+          'period',
+          'plus',
+          'quote',
+          'semicolon',
+          'slash',
+          'space',
+        }.contains(normalized);
+  }
+
   /// מנרמל קיצור לפורמט הקנוני או מחזיר `null` כשהתחביר אינו חד-משמעי.
   ///
   /// בדיוק מקש ראשי אחד מותר, וכל modifier מופיע לכל היותר פעם אחת. כך
