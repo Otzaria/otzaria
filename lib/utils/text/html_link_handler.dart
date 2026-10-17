@@ -7,6 +7,7 @@ import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
@@ -117,6 +118,7 @@ class HtmlLinkHandler {
   /// - book://שם_הספר#כותרת#תת-כותרת#... - נתיב היררכי בעץ תוכן העניינים
   /// - #כותרת (וכן #כותרת#תת-כותרת) - מנווט לכותרת באותו ספר
   /// - otzaria://inline-link?path={path}&index={index}&ref={ref} - קישור מבוסס תווים
+  /// - otzaria://open/book/{id} או otzaria://open/pdf/{id} - קישור ישיר לספר
   ///
   /// דוגמאות:
   /// - <a href="book://ברכות">ברכות</a>
@@ -199,6 +201,13 @@ class HtmlLinkHandler {
           openBookCallback,
         );
         return true;
+      }
+
+      if (isOtzariaBookLink(url)) {
+        return await mainWindowScreenKey.currentState?.handleInternalDeepLink(
+              url.trim(),
+            ) ??
+            false;
       }
 
       final externalUri = externalUriFor(url);

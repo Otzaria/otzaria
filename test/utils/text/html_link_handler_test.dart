@@ -4,6 +4,7 @@ import 'package:otzaria/core/external_uri_router.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
+import 'package:otzaria/utils/text/otzaria_markup.dart';
 import 'package:path/path.dart' as p;
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -212,13 +213,44 @@ void main() {
     });
   });
 
-  // תוכן ספר — כולל ספר ממסד מצורף — יכול רק לנווט: פעולות otzaria:// אינן מופעלות ממנו.
+  // #2516: "העתק קישור ישיר" שהודבק בספר פותח את הספר — וזו הפעולה היחידה.
+  group('otzaria:// book links inside book content', () {
+    test('only open/book and open/pdf count as book links', () {
+      for (final url in const [
+        'otzaria://open/book/7',
+        'otzaria://open/book/7?source=db%3Alib-a&index=12',
+        'otzaria://open/pdf/3?source=user&index=4',
+        ' otzaria://open/book/7 ',
+      ]) {
+        expect(isOtzariaBookLink(url), isTrue, reason: url);
+        expect(HtmlLinkHandler.externalUriFor(url), isNull, reason: url);
+      }
+      for (final url in const [
+        'otzaria://open/book',
+        'otzaria://open/book/',
+        'otzaria://open/settings/about',
+        'otzaria://open/plugin/x',
+        'otzaria://plugin/install?url=https%3A%2F%2Fexample.com%2Fp.otzplugin',
+        'otzaria://info',
+        'otzaria://note@open/book/1?line=0',
+        'otzaria://anchor@open/book/1',
+        'otzaria://inline-link@open/book/1?path=x&index=1',
+        'otzaria://open:80/book/1',
+        'book://ברכות',
+        'https://otzaria.org/open/book/7',
+      ]) {
+        expect(isOtzariaBookLink(url), isFalse, reason: url);
+      }
+    });
+  });
+
+  // שאר פעולות otzaria:// אינן מופעלות מתוכן ספר — גם לא ממסד מצורף.
   group('otzaria:// actions inside book content', () {
     const actionLinks = [
       'otzaria://plugin/install?url=https%3A%2F%2Fexample.com%2Fp.otzplugin',
       'otzaria://plugin/install-local?path=C%3A%2Fp.otzplugin',
       'otzaria://library/reindex',
-      'otzaria://open/book/7?source=db%3Alib-a',
+      'otzaria://open/settings/about',
     ];
 
     test('are real app actions, yet never external or book links', () {

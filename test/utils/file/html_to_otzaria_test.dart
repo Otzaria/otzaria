@@ -223,6 +223,31 @@ void main() {
       expect(output, contains('שניים'));
     });
 
+    test('קישור ישיר לספר (otzaria://open/book|pdf) נשמר — #2516', () {
+      expect(
+        _convert(
+          '<p><a href="otzaria://open/book/12?index=3">ספר</a></p>',
+        ).single,
+        '<a href="otzaria://open/book/12?index=3">ספר</a>',
+      );
+      expect(
+        _convert(
+          '<p><a href="otzaria://open/pdf/5?source=user">PDF</a></p>',
+        ).single,
+        '<a href="otzaria://open/pdf/5?source=user">PDF</a>',
+      );
+    });
+
+    test('שאר פעולות otzaria:// נחסמות גם ב-HTML', () {
+      final output = _joined(
+        '<p><a href="otzaria://plugin/install?url=x">התקנה</a>'
+        '<a href="otzaria://library/reindex">רענון</a></p>',
+      );
+      expect(output, isNot(contains('otzaria://')));
+      expect(output, contains('התקנה'));
+      expect(output, contains('רענון'));
+    });
+
     test('book:// מותרת — היא הדרך המתועדת לקשר בין ספרי אוצריא', () {
       expect(
         _convert('<p><a href="book://ברכות#דף ב:">קישור</a></p>').single,

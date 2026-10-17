@@ -66,18 +66,34 @@ const String otzariaTableCellStyle = 'border: 1px solid #999; padding: 4px 8px';
 const Set<String> kAllowedLinkSchemes = {'http', 'https', 'mailto'};
 
 /// `book://שם הספר#כותרת` — קישור לספר אחר בספרייה. סכימה מתועדת לכותבי
-/// ספרים, והקורא פותח בה ספר בלשונית חדשה. `otzaria://` דווקא **אינה**
-/// כאן: היא שמורה לשימוש הפנימי של התוכנה, ומסמך אינו אמור להפעיל דרכה
-/// פעולות באפליקציה.
+/// ספרים, והקורא פותח בה ספר בלשונית חדשה.
 const String kBookLinkScheme = 'book';
+
+/// האם [href] הוא קישור "העתק קישור ישיר" שפותח ספר (`otzaria://open/book/…`
+/// או `otzaria://open/pdf/…`). שאר פעולות `otzaria://` אינן נגישות מתוכן ספר.
+bool isOtzariaBookLink(String href) {
+  // userInfo נפסל: `otzaria://note@open/…` היה עובר כאן ונתפס בקורא כ-`otzaria://note`.
+  final uri = Uri.tryParse(href.trim());
+  if (uri == null ||
+      uri.scheme != 'otzaria' ||
+      uri.host != 'open' ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasPort) {
+    return false;
+  }
+  final segments = uri.pathSegments;
+  return segments.length == 2 &&
+      (segments.first == 'book' || segments.first == 'pdf') &&
+      segments.last.isNotEmpty;
+}
 
 /// מסנן יעד קישור שהגיע מתוך המסמך, או `null` כשאין לכתוב `<a>` כלל.
 ///
 /// escape של המאפיין מונע שבירה של `href="…"` אבל אינו מונע `javascript:` —
 /// ולכן הסכימה נבדקת בנפרד. קישור שנפסל מוצג כטקסט בלבד, בלי לאבד את תוכנו.
 ///
-/// [allowBookLinks] נדרש רק לפורמט שהמדריך שלו מתעד את `book://` (HTML);
-/// שאר הממירים אינם מייצרים אותה, והתנהגותם אינה משתנה.
+/// [allowBookLinks] מתיר גם קישורים לספרי הספרייה (`book://` ו-
+/// [isOtzariaBookLink]) — רק ל-HTML, שבו משתמשים מדביקים קישורים כאלה.
 String? safeLinkTarget(String href, {bool allowBookLinks = false}) {
   final trimmed = href.trim();
   if (trimmed.isEmpty) return null;
@@ -86,6 +102,9 @@ String? safeLinkTarget(String href, {bool allowBookLinks = false}) {
   final colon = trimmed.indexOf(':');
   if (colon < 0) return trimmed; // נתיב יחסי
   final scheme = trimmed.substring(0, colon).toLowerCase();
-  if (allowBookLinks && scheme == kBookLinkScheme) return trimmed;
+  if (allowBookLinks &&
+      (scheme == kBookLinkScheme || isOtzariaBookLink(trimmed))) {
+    return trimmed;
+  }
   return kAllowedLinkSchemes.contains(scheme) ? trimmed : null;
 }
