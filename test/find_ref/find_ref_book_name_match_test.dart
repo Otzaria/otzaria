@@ -104,6 +104,59 @@ void main() {
         1,
       );
     });
+
+    test('ה"א בכותרת אינה משנה את ההתאמות כשהכינויים עוברים', () {
+      // otzaria-library#127. מניח שהכינויים עוברים לשם החדש — באחריות
+      // SeforimLibrary (#89), לא נבדק כאן.
+      const pilot = [
+        (id: 1004, title: 'גר"א על פרקי אבות', acronyms: ['גרא אבות']),
+        (id: 3127, title: 'גר"א על סדר עולם רבה', acronyms: ['גרא']),
+        (id: 3651, title: 'רא"ש על התורה', acronyms: ['ראש התורה']),
+        (id: 2372, title: 'רא"ה על ברכות', acronyms: <String>[]),
+      ];
+      const others = [
+        (id: 1851, title: 'פרקי אבות', acronyms: ['אבות']),
+        (id: 110, title: 'ראש השנה', acronyms: <String>[]),
+        (id: 103, title: 'ברכות', acronyms: <String>[]),
+      ];
+      const queries = [
+        'ה',
+        'הג',
+        'הר',
+        'הרא',
+        'גר"א',
+        'הגר"א',
+        'גרא אבות',
+        'הגר"א אבות',
+        'גר"א על פרקי אבות',
+        'הגר"א על פרקי אבות',
+        'אבות',
+        'ראש',
+        'הראש',
+        'רא"ש על התורה',
+        'רא"ה ברכות',
+        'הרא"ה ברכות',
+        'ברכות',
+      ];
+      Map<String, Map<int, int>> hits() => {
+        for (final q in queries)
+          q: {
+            for (final h in ReferenceBooksCache.instance.search(q))
+              if (h.matchRank < ReferenceBooksCache.fuzzyMatchRank)
+                h.bookId: h.matchRank,
+          },
+      };
+
+      seedLibrary([...pilot, ...others]);
+      final before = hits();
+      resetSeededLibrary();
+      seedLibrary([
+        for (final b in pilot)
+          (id: b.id, title: 'ה${b.title}', acronyms: [...b.acronyms, b.title]),
+        ...others,
+      ]);
+      expect(hits(), before);
+    });
   });
 
   group('findRefs — העדפת הכתיב שבגרשיים', () {
