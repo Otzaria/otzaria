@@ -19,6 +19,7 @@ import 'package:provider/provider.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/plugins/view/safe_mode_controls.dart';
 import 'package:otzaria/plugins/services/startup_crash_counter.dart';
+import 'package:otzaria/plugins/services/webview2_folder_holders.dart';
 import 'package:otzaria/attached_libraries/bloc/attached_libraries_bloc.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
@@ -350,6 +351,9 @@ void main(List<String> args) async {
   // SQLite סינכרוני יכול לחסום גם טיימרים: אין לעקוף את החשיפה עם timeout.
   AttachedLibraryRegistry.startupGate = () =>
       _mainWindowRevealedCompleter.future;
+  // אבחון שמריץ Process.start (סינכרוני) — רק אחרי החשיפה, בלי timeout.
+  WebView2FolderHolders.startupGate = () => _mainWindowRevealedCompleter.future
+      .then((_) => Future<void>.delayed(const Duration(seconds: 5)));
 
   PluginDevToolsMode.initFromArgs(args);
   PluginSafeMode.initFromArgs(args);
