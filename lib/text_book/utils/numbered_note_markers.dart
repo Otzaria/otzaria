@@ -4,6 +4,7 @@
 /// כאן רק עוטפים אותו בעוגן, כדי שריחוף עליו יציג את ההערה בחלונית התצוגה.
 library;
 
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -148,6 +149,27 @@ Future<Link?> numberedNoteLinkFromUrl(
       utils.stripHtmlIfNeeded(content),
     );
     if (match != null && match.group(1) == number) return candidates[index];
+  }
+  return null;
+}
+
+/// מבין הערות השורה מהמסד ([notes], `line_note`) — זו שנפתחת בסמן שב-[url],
+/// או שאות-ההפניה שלה היא הסמן. null כשאין התאמה.
+BookNote? numberedBookNoteFromUrl(String url, List<BookNote> notes) {
+  final uri = Uri.tryParse(url);
+  if (uri?.scheme != 'otzaria' || uri?.host != 'note-marker') return null;
+  final number = uri!.queryParameters['num'];
+  if (number == null || number.isEmpty) return null;
+  for (final note in notes) {
+    final marker = note.marker;
+    final markerText = marker == null
+        ? null
+        : utils.stripHtmlIfNeeded(marker).trim();
+    if (markerText == number || markerText == '($number)') return note;
+    final match = _noteOpeningMarkerRegExp.firstMatch(
+      utils.stripHtmlIfNeeded(note.body),
+    );
+    if (match != null && match.group(1) == number) return note;
   }
   return null;
 }

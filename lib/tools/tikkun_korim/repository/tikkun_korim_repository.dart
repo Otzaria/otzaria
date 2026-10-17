@@ -4,6 +4,8 @@ library;
 
 import 'dart:isolate';
 
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/books.dart';
@@ -34,9 +36,18 @@ class LibraryTikkunTextLoader implements TikkunTextLoader {
       }
     }
     if (match is TextBook) {
-      return TextBookRepository(
+      final content = await TextBookRepository(
         fileSystem: FileSystemData.instance,
       ).getBookContent(match);
+      // הערות "(אין פרשה ...)" מבדילות בין המסורות; במסד הן בטבלה ולא בשורה.
+      final notes = await BookNotesRepository.instance.notesFor(
+        match.title,
+        categoryId: match.categoryId,
+        source: match.source,
+        fileType: match.fileType,
+        versionTitle: match.versionTitle,
+      );
+      return rehydrateInlineNotesInText(content, notes);
     }
     return DataRepository.instance.getBookText(hebrewBookName);
   }

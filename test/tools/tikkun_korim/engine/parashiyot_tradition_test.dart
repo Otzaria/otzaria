@@ -2,6 +2,8 @@
 /// והמנוע בוחר אותה לפי שיטת החלוקה.
 library;
 
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/tools/tikkun_korim/tikkun_korim.dart';
 import 'package:test/test.dart';
 
@@ -80,6 +82,38 @@ void main() {
     test('בלי סינון — שתי הפתוחות, כנוסח הכתר', () {
       final tokens = tokenizeText(cleanRawText(html));
       expect(_petuchaAfterVerses(tokens, 7), [20, 21]);
+    });
+
+    test('מסד בסכמה 7 — ההערה בטבלת line_note חוזרת לשורה ומסננת כמקודם', () {
+      final lines = html.split('\n');
+      final notes = BookNotesBuilder();
+      for (var i = 0; i < lines.length; i++) {
+        final body = RegExp(r'<i class="footnote">(.*?)</i>').firstMatch(
+          lines[i],
+        );
+        if (body == null) continue;
+        notes.add(i, 0, '*', body[1]!);
+        lines[i] = stripInlineNotes(lines[i]);
+      }
+      final stored = lines.join('\n');
+      expect(stored, isNot(contains('אין פרשה')));
+
+      final rehydrated = rehydrateInlineNotesInText(stored, notes.build());
+      final tokens = tokenizeText(cleanRawText(rehydrated));
+      expect(
+        _petuchaAfterVerses(
+          filterByTradition(tokens, TikkunTradition.ashkenazSephard),
+          7,
+        ),
+        [21],
+      );
+      expect(
+        _petuchaAfterVerses(
+          filterByTradition(tokens, TikkunTradition.yemen),
+          7,
+        ),
+        [20],
+      );
     });
 
     test('השיטה נגזרת מהמזהה', () {

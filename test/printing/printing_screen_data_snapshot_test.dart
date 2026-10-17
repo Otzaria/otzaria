@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:otzaria/printing/export_restriction_service.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -28,7 +27,6 @@ class _FakeSettingsRepository extends Fake implements SettingsRepository {
 void main() {
   setUpAll(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
-    ExportRestrictionService.setRestrictedTitlesForTesting(const []);
   });
 
   testWidgets(

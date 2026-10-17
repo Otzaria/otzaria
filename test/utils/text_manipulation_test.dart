@@ -1098,9 +1098,33 @@ Future<void> main() async {
       });
     });
 
+    group('סגנון יי', () {
+      test('ניקוד ה-ו וה-ה האחרונה עובר ל-י השנייה', () {
+        expect(
+          replaceHolyNames(
+            'ויאמר יְהוָה אל משה',
+            style: HolyNameStyle.doubleYod,
+          ),
+          equals('ויאמר יְיָ אל משה'),
+        );
+        expect(
+          replaceHolyNames('לַֽיהֹוָֽה', style: HolyNameStyle.doubleYod),
+          equals('לַֽייָֽ'),
+        );
+      });
+
+      test('מילה חילונית אינה מוחלפת גם בסגנון יי', () {
+        expect(
+          replaceHolyNames('ויגביהוהו', style: HolyNameStyle.doubleYod),
+          equals('ויגביהוהו'),
+        );
+      });
+    });
+
     group('HolyNameStyle.fromStorage', () {
       test('ממפה מפתחות שמורים ומחזיר יקוק כברירת מחדל', () {
         expect(HolyNameStyle.fromStorage('heh'), HolyNameStyle.hehApostrophe);
+        expect(HolyNameStyle.fromStorage('yy'), HolyNameStyle.doubleYod);
         expect(HolyNameStyle.fromStorage('kuf'), HolyNameStyle.kufKuf);
         expect(HolyNameStyle.fromStorage(null), HolyNameStyle.kufKuf);
         expect(HolyNameStyle.fromStorage('אחר'), HolyNameStyle.kufKuf);

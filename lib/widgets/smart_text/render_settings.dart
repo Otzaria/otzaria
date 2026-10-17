@@ -108,6 +108,9 @@ class RenderSettings {
   /// סגנון החלפת שמות קדושים (יקוק / ה')
   final HolyNameStyle holyNameStyle;
 
+  /// האם להציג את שאר שמות הקודש שסומנו במסד בצורת התצוגה שלהם
+  final bool substituteDivineNames;
+
   /// טקסט לחיפוש והדגשה
   final String searchText;
 
@@ -178,6 +181,7 @@ class RenderSettings {
     this.removeTeamim = false,
     this.replaceHolyNames = false,
     this.holyNameStyle = HolyNameStyle.kufKuf,
+    this.substituteDivineNames = false,
     this.searchText = '',
     this.currentSearchIndex = -1,
     this.searchOptions = const {},
@@ -233,6 +237,7 @@ class RenderSettings {
       removeTeamim: profile.removeTeamim,
       replaceHolyNames: profile.replaceHolyNames,
       holyNameStyle: profile.holyNameStyle,
+      substituteDivineNames: profile.substituteDivineNames,
       searchText: searchText,
       currentSearchIndex: currentSearchIndex,
       searchOptions: searchOptions,
@@ -268,6 +273,7 @@ class RenderSettings {
     removeTeamim: removeTeamim,
     replaceHolyNames: replaceHolyNames,
     holyNameStyle: holyNameStyle,
+    substituteDivineNames: substituteDivineNames,
     fontSize: fontSize,
     fontFamily: fontFamily,
     fontWeight: fontWeight,
@@ -284,6 +290,7 @@ class RenderSettings {
     bool? removeTeamim,
     bool? replaceHolyNames,
     HolyNameStyle? holyNameStyle,
+    bool? substituteDivineNames,
     String? searchText,
     int? currentSearchIndex,
     Map<String, Map<String, bool>>? searchOptions,
@@ -312,6 +319,8 @@ class RenderSettings {
       removeTeamim: removeTeamim ?? this.removeTeamim,
       replaceHolyNames: replaceHolyNames ?? this.replaceHolyNames,
       holyNameStyle: holyNameStyle ?? this.holyNameStyle,
+      substituteDivineNames:
+          substituteDivineNames ?? this.substituteDivineNames,
       searchText: searchText ?? this.searchText,
       currentSearchIndex: currentSearchIndex ?? this.currentSearchIndex,
       searchOptions: searchOptions ?? this.searchOptions,
@@ -346,6 +355,7 @@ class RenderSettings {
         removeTeamim == other.removeTeamim &&
         replaceHolyNames == other.replaceHolyNames &&
         holyNameStyle == other.holyNameStyle &&
+        substituteDivineNames == other.substituteDivineNames &&
         searchText == other.searchText &&
         currentSearchIndex == other.currentSearchIndex &&
         _searchOptionsEquals(searchOptions, other.searchOptions) &&
@@ -377,6 +387,7 @@ class RenderSettings {
       removeTeamim,
       replaceHolyNames,
       holyNameStyle,
+      substituteDivineNames,
       searchText,
       currentSearchIndex,
       _searchOptionsHash(searchOptions),

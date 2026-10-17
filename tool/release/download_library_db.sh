@@ -6,8 +6,8 @@ set -euo pipefail
 out=${1:?usage: download_library_db.sh <out-file>}
 base=${SEFORIM_LIBRARY_DOWNLOAD_BASE:-https://github.com/Otzaria/SeforimLibrary/releases}
 here=$(cd "$(dirname "$0")" && pwd)
-# Schema 6 ships under its own name; seforim.db.zst is reserved for schema 5 and older.
-names=(seforim-schema6.db.zst seforim.db.zst)
+# Schema 6+ ships under its own name, newest first; seforim.db.zst is reserved for schema 5 and older.
+names=(seforim-schema7.db.zst seforim-schema6.db.zst seforim.db.zst)
 
 fetch() { curl -L --fail --retry 3 --silent --show-error -o "$2" "$1"; }
 

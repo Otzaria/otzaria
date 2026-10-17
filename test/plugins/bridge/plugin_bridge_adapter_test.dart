@@ -15,6 +15,7 @@ import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 import 'package:mockito/mockito.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
@@ -1256,6 +1257,55 @@ Future<void> main() async {
       expect(sourceRange['occurrenceCountInSection'], 2);
     });
 
+    test('reader.getSelection בספר מוגן מחזיר רק עד המגבלה', () async {
+      const limit = BookProtection.copySegmentLimit;
+      final lines = [for (var i = 1; i <= limit + 2; i++) 'שורה $i'];
+      final currentTab = TextBookTab(book: TextBook(title: 'מוגן'), index: 0);
+      currentTab.bloc.emit(
+        TextBookLoaded.initial(
+          book: currentTab.book,
+          index: currentTab.index,
+          showLeftPane: false,
+          splitView: false,
+        ).copyWith(
+          protection: const BookProtection(level: 1),
+          content: lines,
+          selectedTextForNote: lines.join('\n'),
+        ),
+      );
+      tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
+
+      final data =
+          await adapter.execute('reader', 'getSelection', {})
+              as Map<String, dynamic>;
+
+      expect(data['text'], lines.take(limit).join('\n'));
+    });
+
+    test('reader.getSectionTextMap בספר מוגן נחסם', () async {
+      final currentTab = TextBookTab(book: TextBook(title: 'מוגן'), index: 0);
+      currentTab.bloc.emit(
+        TextBookLoaded.initial(
+          book: currentTab.book,
+          index: currentTab.index,
+          showLeftPane: false,
+          splitView: false,
+        ).copyWith(
+          protection: const BookProtection(level: 2),
+          content: const ['שורה'],
+        ),
+      );
+      tabsBloc.currentState = TabsState(tabs: [currentTab], currentTabIndex: 0);
+
+      await expectLater(
+        adapter.execute('reader', 'getSectionTextMap', {
+          'bookId': 'מוגן',
+          'sectionIndex': 0,
+        }),
+        throwsA(predicate((e) => e.toString().contains('error.forbidden'))),
+      );
+    });
+
     test('reader.findTextOccurrences searches the loaded section', () async {
       final currentTab = TextBookTab(
         book: TextBook(title: 'ספר בדיקה'),
@@ -1799,6 +1849,143 @@ Future<void> main() async {
 
     tearDown(() {
       LibraryProviderManager.instance.resetForTesting();
+    });
+
+    test('ספר עם הגבלת מו"ל — התוכן אינו נמסר לתוסף', () async {
+      final protectedAdapter = PluginBridgeAdapter(
+        _buildInstalledPlugin(permissions: const ['library.read']),
+        dependencies: PluginBridgeDependencies(
+          historyBloc: _MockHistoryBloc(),
+          tabsBloc: _StubTabsBloc(),
+          navigationBloc: _MockNavigationBloc(),
+          calendarCubit: _StubCalendarCubit(
+            _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+          ),
+          workspaceBloc: _MockWorkspaceBloc(),
+          searchRepository: _MockSearchRepository(),
+          personalNotesRepository: _MockPersonalNotesRepository(),
+          bookOpenCoordinator: _MockBookOpenCoordinator(),
+          themePayloadBuilder: () => <String, dynamic>{},
+          showConfirmDialog: ({required title, required content}) async => true,
+          showWarningDialog:
+              ({required title, required content, required subtitle}) async =>
+                  true,
+          bookProtectionResolver: (book) async => book.title == 'ספר-txt'
+              ? const BookProtection(level: 1)
+              : BookProtection.none,
+        ),
+        pluginRepository: _StubPluginRegistryRepository(),
+      );
+      addTearDown(protectedAdapter.dispose);
+
+      await expectLater(
+        protectedAdapter.execute('library', 'getBookContent', {
+          'bookId': 'ספר-txt',
+        }),
+        throwsA(
+          predicate((e) => e.toString().contains('error.forbidden')),
+        ),
+      );
+      expect(
+        await protectedAdapter.execute('library', 'getBookContent', {
+          'bookId': 'ספר-docx',
+        }),
+        'תוכן docx של הספר - נכון',
+      );
+    });
+
+    test('getBookProtections — מה מותר לכל ספר, כולל מפרש לפי כותרת', () async {
+      final protectedAdapter = PluginBridgeAdapter(
+        _buildInstalledPlugin(permissions: const ['library.read']),
+        dependencies: PluginBridgeDependencies(
+          historyBloc: _MockHistoryBloc(),
+          tabsBloc: _StubTabsBloc(),
+          navigationBloc: _MockNavigationBloc(),
+          calendarCubit: _StubCalendarCubit(
+            _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
+          ),
+          workspaceBloc: _MockWorkspaceBloc(),
+          searchRepository: _MockSearchRepository(),
+          personalNotesRepository: _MockPersonalNotesRepository(),
+          bookOpenCoordinator: _MockBookOpenCoordinator(),
+          themePayloadBuilder: () => <String, dynamic>{},
+          showConfirmDialog: ({required title, required content}) async => true,
+          showWarningDialog:
+              ({required title, required content, required subtitle}) async =>
+                  true,
+          bookProtectionResolver: (book) async => switch (book.title) {
+            'ספר-txt' => const BookProtection(level: 1),
+            'מפרש מוגן' => const BookProtection(level: 2),
+            _ => BookProtection.none,
+          },
+        ),
+        pluginRepository: _StubPluginRegistryRepository(),
+      );
+      addTearDown(protectedAdapter.dispose);
+
+      final result =
+          await protectedAdapter.execute('library', 'getBookProtections', {
+                'items': [
+                  {'bookId': 'ספר-txt'},
+                  {'bookId': 'ספר-docx'},
+                  {'title': 'מפרש מוגן', 'categoryId': 12},
+                ],
+              })
+              as List;
+
+      expect(result[0], {
+        'level': 1,
+        'textAvailable': false,
+        'editableExport': false,
+        'pdfExport': true,
+        'copyLimit': 40,
+        'printLimit': null,
+      });
+      expect(result[1]['level'], 0);
+      expect(result[1]['editableExport'], isTrue);
+      expect(result[2]['level'], 2);
+      expect(result[2]['pdfExport'], isFalse);
+      expect(result[2]['printLimit'], 40);
+
+      expect(
+        () => protectedAdapter.execute('library', 'getBookProtections', {}),
+        throwsA(
+          predicate((e) => e.toString().contains('error.invalid_params')),
+        ),
+      );
+      expect(
+        () => protectedAdapter.execute('library', 'getBookProtections', {
+          'items': ['לא אובייקט'],
+        }),
+        throwsA(
+          predicate((e) => e.toString().contains('error.invalid_params')),
+        ),
+      );
+    });
+
+    test('קורא מקושר לספר מוגן — getBookContent נחסם לפי מצב הקורא', () async {
+      final book = TextBook(title: 'מוגן', categoryId: 503, id: 779);
+      final tab = TextBookTab(book: book, index: 0);
+      addTearDown(tab.dispose);
+      tab.bloc.emit(
+        TextBookLoaded.initial(
+          book: book,
+          index: 0,
+          showLeftPane: false,
+          splitView: false,
+        ).copyWith(protection: const BookProtection(level: 1)),
+      );
+      final boundAdapter = readerAdapter(tab);
+      addTearDown(boundAdapter.dispose);
+
+      await expectLater(
+        boundAdapter.execute('library', 'getBookContent', {
+          ...PluginBookIdentity.toJsonWithUid(book),
+        }),
+        throwsA(
+          predicate((e) => e.toString().contains('error.forbidden')),
+        ),
+      );
     });
 
     test(

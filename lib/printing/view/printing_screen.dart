@@ -5,9 +5,13 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show mapEquals, visibleForTesting;
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/core/messages/pdf_messages.dart';
@@ -25,7 +29,11 @@ import 'package:opentype_shaper/opentype_shaper.dart';
 import 'package:otzaria/printing/shaped_text/pdf_shaped_font.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_layout.dart';
 import 'package:otzaria/printing/shaped_text/shaped_text_widget.dart';
-import 'package:otzaria/printing/export_restriction_service.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/printing/commentary_print_limit.dart';
 import 'package:otzaria/printing/safer_print_service.dart';
 import 'package:otzaria/printing/view/slow_preview_hint.dart';
 import 'package:otzaria/printing/word_export_service.dart';
@@ -74,6 +82,9 @@ class PrintingScreen extends StatefulWidget {
 
   /// כשמסופק, מאפשר בחירת מפרשים במסך בלי לשנות את בחירת הקורא.
   final List<String>? availableCommentators;
+
+  /// כולל את המפרשים מיד כשמסלול צילום מוגבל עובר להדפסת שורות מקור.
+  final bool initialIncludeCommentaries;
   final bool removeNikud;
   final bool removeTaamim;
 
@@ -99,6 +110,9 @@ class PrintingScreen extends StatefulWidget {
 
   /// כותרת המסמך (שם הספר) כשמשתמשים ב-[prebuiltBlocks].
   final String? documentTitle;
+
+  /// הגבלת המו"ל על התוכן. null — נקבעת לפי [book], אם סופק.
+  final BookProtection? protection;
   const PrintingScreen({
     super.key,
     required this.data,
@@ -108,6 +122,7 @@ class PrintingScreen extends StatefulWidget {
     this.links = const [],
     this.activeCommentators = const [],
     this.availableCommentators,
+    this.initialIncludeCommentaries = false,
     this.startLine = 0,
     this.endLine,
     this.removeNikud = false,
@@ -120,7 +135,13 @@ class PrintingScreen extends StatefulWidget {
     this.pdfOutline = const [],
     this.prebuiltBlocks,
     this.documentTitle,
+    this.protection,
   });
+
+  /// בבדיקות: מקבל את בלוקי הטקסט שנבנו לטווח ההדפסה.
+  @visibleForTesting
+  static void Function(List<Map<String, String>> blocks)? debugOnPrintBlocks;
+
   @override
   State<PrintingScreen> createState() => _PrintingScreenState();
 }
@@ -214,26 +235,93 @@ class _PrintingScreenState extends State<PrintingScreen> {
   late bool _removeNikud;
   late bool _removeTaamim;
 
+  // שמות הקודש להדפסה הזו בלבד — ברירת המחדל מפרופיל ערוץ הייצוא.
+  late HolyNameDisplay _holyName;
+  late DivineNamesDisplay _divineNamesDisplay;
+  DivineNameSpans _divineNames = DivineNameSpans.empty;
+  BookNotes _bookNotes = BookNotes.empty;
+
+  // הפלט נבנה רק אחרי הטעינה — אחרת הדפסה מהירה יוצאת בלי ההחלפה וההערות.
+  late final Future<void> _divineNamesReady;
+
   // יעד ההדפסה הנבחר (הדפסה/PDF/Word) — נשמר כעדיפות לפעמים הבאות.
   static const _destinationKey = 'key-print-destination';
   late _PrintDestination _destination;
 
   bool get _supportsWord =>
-      widget.createPdfOverride == null && !_editableExportRestricted;
+      widget.createPdfOverride == null &&
+      _exportProtection.allowsEditableExport;
 
-  /// ספר שהוגבל לייצוא לפורמט קל לעריכה — גם כשהוא מגיע רק כמפרש שנכלל בפלט.
-  bool get _editableExportRestricted =>
-      ExportRestrictionService.blocksEditableExport(
-        documentTitle: widget.documentTitle ?? widget.bookId,
-        commentariesIncluded:
-            widget.prebuiltBlocks != null || _includeCommentaries,
-        commentators: _selectedCommentators,
-      );
+  bool get _supportsPdf => _exportProtection.allowsPdfExport;
 
-  /// מחזיר את היעד ל-PDF כשייצוא Word חדל להיות זמין (למשל בהכללת מפרש מוגבל).
-  void _syncDestinationWithWordSupport() {
+  BookProtection _mainProtection = BookProtection.none;
+  Map<String, BookProtection> _commentatorProtection = const {};
+  late final Future<void> _protectionReady;
+
+  /// ההגבלה המחמירה מבין הספר והמפרשים שנכללים בפלט — קובעת את יעדי השמירה.
+  BookProtection get _exportProtection {
+    var result = _mainProtection;
+    if (widget.prebuiltBlocks == null && _includeCommentaries) {
+      for (final title in _selectedCommentators) {
+        result = result.strictest(
+          _commentatorProtection[title] ?? BookProtection.none,
+        );
+      }
+    }
+    return result;
+  }
+
+  /// סוף הטווח (בלעדי) אחרי מגבלת ההדפסה של הספר עצמו; מפרש מוגבל נחתך
+  /// בנפרד, בקטעים שלו.
+  int _limitPrintEnd(int start, int end) =>
+      _mainProtection.limitPrintEnd(start, end);
+
+  /// מגבלת ההדפסה של מפרש שנכלל, ב-[_buildPrintBlocks].
+  int? _commentatorPrintLimit(String title) =>
+      _commentatorProtection[title]?.maxPrintSegments;
+
+  bool get _anyIncludedCommentatorLimited =>
+      widget.prebuiltBlocks == null &&
+      _includeCommentaries &&
+      _selectedCommentators.any((t) => _commentatorPrintLimit(t) != null);
+
+  Future<void> _loadProtection() async {
+    final repository = BookProtectionRepository.instance;
+    final book = widget.book;
+    final main =
+        widget.protection ??
+        (book == null ? BookProtection.none : await repository.forBook(book));
+    final commentators = <String, BookProtection>{};
+    if (widget.prebuiltBlocks == null) {
+      final seen = <String>{};
+      for (final link in widget.links) {
+        if (!seen.add(link.targetIdentityKey)) continue;
+        final title = getTitleFromPath(link.path2);
+        commentators[title] = (commentators[title] ?? BookProtection.none)
+            .strictest(await repository.forLink(link));
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _mainProtection = main;
+      _commentatorProtection = commentators;
+      _syncDestinationWithProtection();
+    });
+    if (widget.createPdfOverride == null && widget.prebuiltBlocks == null) {
+      await _applyCurrentRange();
+      if (mounted) _refreshPreview();
+    }
+  }
+
+  /// מחזיר את היעד ליעד מותר כשיעד נחסם (למשל בהכללת מפרש מוגבל).
+  void _syncDestinationWithProtection() {
     if (_destination == _PrintDestination.word && !_supportsWord) {
-      _destination = _PrintDestination.pdf;
+      _destination = _supportsPdf
+          ? _PrintDestination.pdf
+          : _PrintDestination.printer;
+    }
+    if (_destination == _PrintDestination.pdf && !_supportsPdf) {
+      _destination = _PrintDestination.printer;
     }
   }
 
@@ -246,6 +334,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
   void initState() {
     super.initState();
     _selectedCommentators = List.of(widget.activeCommentators);
+    _includeCommentaries = widget.initialIncludeCommentaries;
     _dataFuture = widget.data;
     startLine = widget.startLine;
     endLine = startLine;
@@ -260,10 +349,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
     if (_destination == _PrintDestination.word && !_supportsWord) {
       _destination = _PrintDestination.pdf;
     }
-    // הרשימה נטענת מ-assets ולכן עשויה עוד לא להיות זמינה כאן.
-    ExportRestrictionService.ensureLoaded().then((_) {
-      if (mounted) setState(_syncDestinationWithWordSupport);
-    });
+    _protectionReady = _loadProtection();
 
     // אתחול הגדרות ניקוד וטעמים לפי תצוגת הספר
     final profile =
@@ -273,6 +359,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
             : null);
     _removeNikud = profile?.removeNikud ?? widget.removeNikud;
     _removeTaamim = profile?.removeTeamim ?? widget.removeTaamim;
+    final exportProfile = _exportProfile;
+    _holyName = exportProfile.holyName;
+    _divineNamesDisplay = exportProfile.divineNames;
+    _divineNamesReady = Future.wait([_loadDivineNames(), _loadBookNotes()]);
 
     // במצב PDF חיצוני (כמו "צורת הדף") אין טווח שורות/כותרות.
     if (widget.createPdfOverride != null) {
@@ -391,7 +481,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
       return;
     }
     startLine = s.clamp(0, totalLines);
-    endLine = e.clamp(startLine, totalLines);
+    endLine = _limitPrintEnd(startLine, e.clamp(startLine, totalLines));
   }
 
   /// שורת ההתחלה של עוגן: כותרת/כותרת משנה → שורת הכותרת; שורה → השורה עצמה.
@@ -776,15 +866,21 @@ class _PrintingScreenState extends State<PrintingScreen> {
       _removeTaamim,
       holyNames,
       _holyNameStyle.storageKey,
+      _divineNamesDisplay.name,
+      identityHashCode(_divineNames),
+      identityHashCode(_bookNotes),
       startLine,
       endLine,
       _includeCommentaries,
       (List.of(_selectedCommentators)..sort()).join("\u0000"),
       _includePersonalNotes,
+      _mainProtection.effectiveLevel,
+      identityHashCode(_commentatorProtection),
     ].join('|');
   }
 
   Future<Uint8List> _createBasePdf(PdfPageFormat format) async {
+    await _divineNamesReady;
     final key = _baseCacheKey(format);
     final cached = _cachedBasePdf;
     if (cached != null && _cachedBaseKey == key) {
@@ -906,10 +1002,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final fontSize = this.fontSize;
 
     final bookName = stripHtmlIfNeeded(
-      _applyTextTransforms(linesInRange(dataString, 0, 1).first),
+      _applyTextTransforms(
+        _withStoredLineData(linesInRange(dataString, 0, 1).first, 0),
+      ),
     );
     final selectedStart = startLine.clamp(0, totalLines);
-    final selectedEnd = endLine.clamp(selectedStart, totalLines);
+    final selectedEnd = _limitPrintEnd(
+      selectedStart,
+      endLine.clamp(selectedStart, totalLines),
+    );
 
     final personalNotes = _includePersonalNotes
         ? await _getPersonalNotesForBook(widget.bookId)
@@ -963,19 +1064,104 @@ class _PrintingScreenState extends State<PrintingScreen> {
         TextDisplaySlot.commentaryDisplay.copyWith(channel: TextChannel.export),
       );
 
-  HolyNameStyle get _holyNameStyle => _exportProfile.holyNameStyle;
+  HolyNameStyle get _holyNameStyle => _holyName.style ?? HolyNameStyle.kufKuf;
 
-  bool get _shouldReplaceHolyNames => _exportProfile.replaceHolyNames;
+  bool get _shouldReplaceHolyNames => _holyName != HolyNameDisplay.asIs;
 
-  /// מחיל את פרופיל הייצוא; מתגי הניקוד והטעמים שבמסך גוברים עליו.
-  String _applyTextTransforms(String input, {bool commentary = false}) =>
-      applyTextDisplayProfile(
-        input,
-        (commentary ? _commentaryExportProfile : _exportProfile).copyWith(
-          nikud: _removeNikud ? MarkVisibility.hide : MarkVisibility.show,
-          teamim: _removeTaamim ? TeamimVisibility.hide : TeamimVisibility.show,
-        ),
+  bool get _substituteDivineNames =>
+      _divineNamesDisplay == DivineNamesDisplay.substitute;
+
+  /// מופעי השמות של הספר (מהמסד), לבורר "שאר שמות הקודש".
+  Future<void> _loadDivineNames() async {
+    final book = widget.book;
+    if (book == null || widget.createPdfOverride != null) return;
+    final spans = await DivineNamesRepository.instance.spansFor(
+      book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      fileType: book.fileType,
+      versionTitle: book.versionTitle,
+    );
+    if (!mounted || spans.isEmpty) return;
+    setState(() => _divineNames = spans);
+  }
+
+  /// הערות השוליים של הספר מהמסד, שמוחזרות לשורה בהדפסה.
+  Future<void> _loadBookNotes() async {
+    final book = widget.book;
+    if (book == null || widget.createPdfOverride != null) return;
+    final notes = await BookNotesRepository.instance.notesFor(
+      book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+      fileType: book.fileType,
+      versionTitle: book.versionTitle,
+    );
+    if (!mounted || notes.isEmpty) return;
+    setState(() => _bookNotes = notes);
+  }
+
+  /// שורה [lineIndex] הגולמית של הספר עם מופעי השמות ועם הערות המסד — לפני
+  /// כל טרנספורמציה, כי אופסטי השמות נמדדו על השורה כפי שנשמרה.
+  String _withStoredLineData(String rawLine, int lineIndex) =>
+      applyStoredLineData(
+        rawLine,
+        lineIndex,
+        names: _divineNames,
+        notes: _bookNotes,
+        substituteOtherNames: _substituteDivineNames,
+        holyNameStyle: _shouldReplaceHolyNames ? _holyNameStyle : null,
       );
+
+  /// כמו [_withStoredLineData] לקטע מפרש, לפי נתוני ספר המפרש.
+  Future<String> _withCommentaryStoredData(Link link, String rawText) async {
+    // קטע שמשתרע על כמה שורות — אין שורה אחת שהאופסטים שלה מתאימים לו.
+    if (link.index2End != null && link.index2End != link.index2) {
+      return rawText;
+    }
+    final title = getTitleFromPath(link.path2);
+    final notes = await BookNotesRepository.instance.notesFor(
+      title,
+      categoryId: link.targetCategoryId,
+      source: link.targetSource,
+      fileType: link.targetFileType,
+    );
+    final profile = _screenProfile(commentary: true);
+    final holyNameStyle = profile.replaceHolyNames
+        ? profile.holyNameStyle
+        : null;
+    final names = _substituteDivineNames || holyNameStyle != null
+        ? await DivineNamesRepository.instance.spansFor(
+            title,
+            categoryId: link.targetCategoryId,
+            source: link.targetSource,
+            fileType: link.targetFileType,
+          )
+        : DivineNameSpans.empty;
+    return applyStoredLineData(
+      rawText,
+      link.index2 - 1,
+      names: names,
+      notes: notes,
+      substituteOtherNames: _substituteDivineNames,
+      holyNameStyle: holyNameStyle,
+    );
+  }
+
+  /// מחיל את פרופיל הייצוא; מתגי הניקוד, הטעמים ושם הוי"ה שבמסך גוברים עליו.
+  String _applyTextTransforms(String input, {bool commentary = false}) =>
+      applyTextDisplayProfile(input, _screenProfile(commentary: commentary));
+
+  // שם הוי"ה במפרשים נשאר לפי פרופיל המפרשים כל עוד לא שונה במסך.
+  TextDisplayProfile _screenProfile({bool commentary = false}) {
+    final base = commentary ? _commentaryExportProfile : _exportProfile;
+    final holyNameChanged = _holyName != _exportProfile.holyName;
+    return base.copyWith(
+      nikud: _removeNikud ? MarkVisibility.hide : MarkVisibility.show,
+      teamim: _removeTaamim ? TeamimVisibility.hide : TeamimVisibility.show,
+      holyName: commentary && !holyNameChanged ? null : _holyName,
+    );
+  }
 
   /// ממיר בלוקים מוכנים לייצוג הפנימי, תוך החלת הסרת ניקוד/טעמים ושמות קודש.
   List<Map<String, String>> _mapPrebuiltBlocks(List<PrintBlock> source) {
@@ -1205,6 +1391,24 @@ class _PrintingScreenState extends State<PrintingScreen> {
     );
   }
 
+  Future<void> _loadCommentaryProtection(Iterable<Link> links) async {
+    final protections = Map<String, BookProtection>.of(_commentatorProtection);
+    final seen = <String>{};
+    for (final link in links) {
+      if (!seen.add(link.targetIdentityKey)) continue;
+      final title = getTitleFromPath(link.path2);
+      protections[title] = (protections[title] ?? BookProtection.none)
+          .strictest(
+            await BookProtectionRepository.instance.forLink(link),
+          );
+    }
+    if (!mounted || mapEquals(protections, _commentatorProtection)) return;
+    setState(() {
+      _commentatorProtection = protections;
+      _syncDestinationWithProtection();
+    });
+  }
+
   Future<List<Map<String, String>>> _buildPrintBlocks({
     required List<String> rangeLines,
     required int selectedStart,
@@ -1229,10 +1433,13 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final rangeLinks = _includeCommentaries
         ? await _loadLinksForPrintRange(selectedStart, selectedEnd)
         : <Link>[];
+    await _loadCommentaryProtection(rangeLinks);
+    final limit = CommentaryPrintLimit();
 
     for (var i = selectedStart; i < selectedEnd; i++) {
       // הטרנספורמציות מוחלות רק על שורות הטווח; ב-Word ה-HTML נשמר לעיצוב.
-      final lineText = _applyTextTransforms(rangeLines[i - selectedStart]);
+      final rawLine = rangeLines[i - selectedStart];
+      final lineText = _applyTextTransforms(_withStoredLineData(rawLine, i));
       blocks.add({
         'kind': 'text',
         'text': keepHtml ? lineText : stripHtmlIfNeeded(lineText),
@@ -1247,12 +1454,19 @@ class _PrintingScreenState extends State<PrintingScreen> {
           commentatorsToShow: _selectedCommentators,
         );
 
-        if (linksForLine.isNotEmpty) {
+        // מפרש עם מגבלת הדפסה נחתך לפי הקטעים שלו לאורך כל העבודה.
+        final printable = <Link>[];
+        for (final link in linksForLine) {
+          final selected = await limit.take(link);
+          if (selected != null) printable.add(selected);
+        }
+
+        if (printable.isNotEmpty) {
           blocks.add({'kind': 'commentaryTitle', 'title': 'מפרשים'});
 
           // קיבוץ לפי מפרש (כמו בתצוגת PDF): כותרת לכל מפרש, ומתחתיה כל הקטעים שלו
           String? currentGroupTitle;
-          for (final link in linksForLine) {
+          for (final link in printable) {
             final commentatorTitle = getTitleFromPath(link.path2);
             if (currentGroupTitle != commentatorTitle) {
               currentGroupTitle = commentatorTitle;
@@ -1292,10 +1506,12 @@ class _PrintingScreenState extends State<PrintingScreen> {
       }
     }
 
+    PrintingScreen.debugOnPrintBlocks?.call(blocks);
     return blocks;
   }
 
   Future<PreparedPrintDocument> _prepareWordDocument() async {
+    await _divineNamesReady;
     if (widget.prebuiltBlocks != null) {
       final blocks = widget.prebuiltBlocks!
           .map((block) {
@@ -1330,14 +1546,19 @@ class _PrintingScreenState extends State<PrintingScreen> {
     // שומרים את תגיות ה-HTML — WordExportService ממיר אותן לעיצוב במסמך
     final totalLines = _lineCounts.of(dataString);
     var bookName = stripHtmlIfNeeded(
-      _applyTextTransforms(linesInRange(dataString, 0, 1).first),
+      _applyTextTransforms(
+        _withStoredLineData(linesInRange(dataString, 0, 1).first, 0),
+      ),
     );
     if (bookName.trim().isEmpty) {
       bookName = widget.bookId;
     }
 
     final selectedStart = startLine.clamp(0, totalLines);
-    final selectedEnd = endLine.clamp(selectedStart, totalLines);
+    final selectedEnd = _limitPrintEnd(
+      selectedStart,
+      endLine.clamp(selectedStart, totalLines),
+    );
     final personalNotes = _includePersonalNotes
         ? await _getPersonalNotesForBook(widget.bookId)
         : const <PersonalNote>[];
@@ -1449,8 +1670,47 @@ class _PrintingScreenState extends State<PrintingScreen> {
     return trimmed;
   }
 
+  /// הערה קבועה מתחת לבחירת הטווח כשהמו"ל הגביל את ההדפסה.
+  Widget? _buildPrintLimitHint(ColorScheme colorScheme) {
+    final mainLimit = _mainProtection.maxPrintSegments;
+    final text = mainLimit != null
+        ? PdfMessages.printLimitedByPublisher(mainLimit)
+        : _anyIncludedCommentatorLimited
+        ? PdfMessages.commentaryPrintLimitedByPublisher(
+            BookProtection.printSegmentLimit,
+          )
+        : null;
+    if (text == null) return null;
+    return Padding(
+      padding: kPrintingRowPadding,
+      child: Text(
+        text,
+        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+      ),
+    );
+  }
+
   /// מבצע את הפעולה לפי היעד הנבחר: הדפסה למדפסת, או שמירה ל-PDF/Word.
   Future<void> _performDestinationAction(BuildContext context) async {
+    try {
+      await _protectionReady;
+    } catch (error) {
+      debugPrint('Print protection lookup failed: $error');
+    }
+    if (!mounted || !context.mounted) return;
+    final requested = _destination;
+    if (_includeCommentaries && widget.prebuiltBlocks == null) {
+      await _loadCommentaryProtection(
+        await _loadLinksForPrintRange(startLine, endLine),
+      );
+    }
+    if (!mounted || !context.mounted) return;
+    setState(_syncDestinationWithProtection);
+    // יעד שנחסם אחרי הבחירה — הרשימה התעדכנה, והמשתמש יבחר שוב.
+    if (_destination != requested) {
+      UiSnack.show(PdfMessages.exportFormatRestrictedByPublisher);
+      return;
+    }
     switch (_destination) {
       case _PrintDestination.printer:
         final printed = await printPdfWithSaferMode(
@@ -1468,9 +1728,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
           Navigator.of(context).pop(true);
         }
       case _PrintDestination.word:
-        await ExportRestrictionService.ensureLoaded();
-        if (!mounted) return;
-        if (_editableExportRestricted) {
+        if (!_supportsWord) {
           UiSnack.showError(PdfMessages.editableExportRestricted);
           return;
         }
@@ -1545,17 +1803,23 @@ class _PrintingScreenState extends State<PrintingScreen> {
   }) async {
     // המפתח כולל את דגלי הניקוד/טעמים/שמות-קודש: אחרת החלפת "הדפסה עם ניקוד"
     // הייתה מחזירה תוכן מפרש מוטרנספרם קודם (באג: הניקוד לא התעדכן).
+    final commentaryProfile = _screenProfile(commentary: true);
     final key = printCommentaryContentCacheKey(
       link,
       removeNikud: _removeNikud,
       removeTaamim: _removeTaamim,
-      replaceHolyNames: _commentaryExportProfile.replaceHolyNames,
+      replaceHolyNames: commentaryProfile.replaceHolyNames,
       keepHtml: keepHtml,
+      holyNameStyle: commentaryProfile.holyNameStyle,
+      substituteDivineNames: _substituteDivineNames,
     );
     final cached = _commentaryContentCache[key];
     if (cached != null) return cached;
 
-    var text = _applyTextTransforms(await link.content, commentary: true);
+    var text = _applyTextTransforms(
+      await _withCommentaryStoredData(link, await link.content),
+      commentary: true,
+    );
     if (!keepHtml) {
       text = stripHtmlIfNeeded(text);
     }
@@ -1936,7 +2200,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                                 alignment: AlignmentDirectional
                                                     .centerStart,
                                                 child: Text(
-                                                  '${(endLine - startLine).clamp(0, totalLines)} שורות נבחרו מתוך $totalLines',
+                                                  '${(_limitPrintEnd(startLine, endLine) - startLine).clamp(0, totalLines)} שורות נבחרו מתוך $totalLines',
                                                   style: TextStyle(
                                                     color: colorScheme.primary,
                                                     fontSize: 12,
@@ -1957,13 +2221,14 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                               isStart: false,
                                               totalLines: totalLines,
                                             ),
+                                            ?_buildPrintLimitHint(colorScheme),
                                             PrintingSwitchRow(
                                               label: 'כלול מפרשים',
                                               value: _includeCommentaries,
                                               onChanged: (value) {
                                                 setState(() {
                                                   _includeCommentaries = value;
-                                                  _syncDestinationWithWordSupport();
+                                                  _syncDestinationWithProtection();
                                                   _refreshPreview();
                                                 });
                                               },
@@ -1983,7 +2248,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                                     (selected) => setState(() {
                                                       _selectedCommentators =
                                                           List.of(selected);
-                                                      _syncDestinationWithWordSupport();
+                                                      _syncDestinationWithProtection();
                                                       _refreshPreview();
                                                     }),
                                               ),
@@ -2078,6 +2343,58 @@ class _PrintingScreenState extends State<PrintingScreen> {
                                               });
                                             },
                                           ),
+                                          PrintingDropdownRow(
+                                            label: 'שם הוי"ה',
+                                            child:
+                                                AppDropdownField<
+                                                  HolyNameDisplay
+                                                >(
+                                                  value: _holyName,
+                                                  entries: [
+                                                    AppMenuEntry(
+                                                      value:
+                                                          HolyNameDisplay.asIs,
+                                                      label: 'ככתבו',
+                                                    ),
+                                                    AppMenuEntry(
+                                                      value: HolyNameDisplay
+                                                          .kufKuf,
+                                                      label: 'יקוק',
+                                                    ),
+                                                    AppMenuEntry(
+                                                      value: HolyNameDisplay
+                                                          .hehApostrophe,
+                                                      label: "ה'",
+                                                    ),
+                                                    AppMenuEntry(
+                                                      value: HolyNameDisplay
+                                                          .doubleYod,
+                                                      label: 'יי',
+                                                    ),
+                                                  ],
+                                                  onSelected: (value) {
+                                                    if (value == null) return;
+                                                    setState(() {
+                                                      _holyName = value;
+                                                      _refreshPreview();
+                                                    });
+                                                  },
+                                                ),
+                                          ),
+                                          if (!_divineNames.isEmpty)
+                                            PrintingSwitchRow(
+                                              label: 'שאר שמות הקודש בכינוי',
+                                              value: _substituteDivineNames,
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  _divineNamesDisplay = value
+                                                      ? DivineNamesDisplay
+                                                            .substitute
+                                                      : DivineNamesDisplay.asIs;
+                                                  _refreshPreview();
+                                                });
+                                              },
+                                            ),
                                         ],
                                       ),
 
@@ -2253,10 +2570,11 @@ class _PrintingScreenState extends State<PrintingScreen> {
                         value: _PrintDestination.printer,
                         label: 'הדפס',
                       ),
-                      const AppMenuEntry(
-                        value: _PrintDestination.pdf,
-                        label: 'שמור ל-PDF',
-                      ),
+                      if (_supportsPdf)
+                        const AppMenuEntry(
+                          value: _PrintDestination.pdf,
+                          label: 'שמור ל-PDF',
+                        ),
                       if (_supportsWord)
                         const AppMenuEntry(
                           value: _PrintDestination.word,

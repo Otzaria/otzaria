@@ -16,9 +16,9 @@ class DatabaseConstants {
   /// The name of the compressed main database archive (as published on releases).
   static const String databaseArchiveFileName = 'seforim.db.zst';
 
-  /// סכמת ה-DB הגבוהה ביותר שהגרסה הזו קוראת (`DbCapabilities.hasSplitLineContent`).
+  /// סכמת ה-DB הגבוהה ביותר שהגרסה הזו קוראת (סכמה 7: `DbCapabilities.hasBookNotes`).
   /// מועברת ל-updater במפורש — ברירת המחדל שלו נשארת בסכמה 5.
-  static const int readableDbSchemaVersion = 6;
+  static const int readableDbSchemaVersion = 7;
 
   /// שם הארכיון לסכמה [schemaVersion]: השם הישן שמור לסכמה 5 ומטה, כדי
   /// שגרסאות ישנות של התוכנה לעולם לא יורידו מסד שאינן יודעות לקרוא.

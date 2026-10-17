@@ -44,6 +44,12 @@ const Set<String> kKnownSeforimTables = {
   'schema_meta',
   'db_meta',
   'external_link',
+  // מסכמה 7; מסד בסכמה 6, מצורף או אישי עשוי שלא להכיל אותן.
+  'book_banner',
+  'book_protection',
+  'line_divine_name',
+  'line_note',
+  'line_note_divine_name',
 };
 
 /// אילו מהטבלאות המוכרות קיימות במסד בפורמט seforim.db, ובאילו עמודות.
@@ -145,6 +151,32 @@ class DbCapabilities {
       hasBooks && has('book_version') && has('version_line');
   bool get hasLineRef => hasLines && has('line_ref');
   bool get hasLineDhDisplay => hasBooks && hasColumn('line_dh', 'dhDisplay');
+
+  /// מופעי שמות הקודש לפי שורה; במסד בלי הטבלה התכונה כבויה בשקט.
+  bool get hasDivineNames =>
+      hasLines &&
+      hasColumn('line_divine_name', 'lineId') &&
+      hasColumn('line_divine_name', 'charStart') &&
+      hasColumn('line_divine_name', 'charEnd') &&
+      hasColumn('line_divine_name', 'kind');
+
+  /// הערות שוליים שהוצאו מתוכן השורה (סכמה 7); בלעדיה הן נשארות בשורה.
+  bool get hasBookNotes =>
+      hasLines &&
+      hasColumn('line_note', 'lineId') &&
+      hasColumn('line_note', 'noteIndex') &&
+      hasColumn('line_note', 'charPos') &&
+      hasColumn('line_note', 'marker') &&
+      hasColumn('line_note', 'body');
+
+  /// מופעי שמות הקודש בגוף הערות השוליים; בלי הטבלה הגוף מוצג ככתבו.
+  bool get hasBookNoteDivineNames =>
+      hasBookNotes &&
+      hasColumn('line_note_divine_name', 'lineId') &&
+      hasColumn('line_note_divine_name', 'noteIndex') &&
+      hasColumn('line_note_divine_name', 'charStart') &&
+      hasColumn('line_note_divine_name', 'charEnd') &&
+      hasColumn('line_note_divine_name', 'kind');
   bool get hasLineBookIndex => hasIndex('idx_line_book_index');
   bool get hasAuthors => hasBooks && has('author') && has('book_author');
   bool get hasTopics => hasBooks && has('topic') && has('book_topic');
@@ -157,6 +189,15 @@ class DbCapabilities {
   bool get hasDefaultCommentators => hasBooks && has('default_commentator');
   bool get hasDefaultTargums => hasBooks && has('default_targum');
   bool get hasCategoryClosure => hasCategories && has('category_closure');
+
+  /// באנר קרדיט לספר; טבלה דלילה.
+  bool get hasBookBanners =>
+      hasColumn('book_banner', 'bookId') && hasColumn('book_banner', 'text');
+
+  /// רמת הגבלת מו"ל לספר; טבלה דלילה.
+  bool get hasBookProtection =>
+      hasColumn('book_protection', 'bookId') &&
+      hasColumn('book_protection', 'level');
 
   /// קישורים ממסד מצורף אל ספרים במסד אחר (רשמי או מצורף אחר).
   bool get hasExternalLinks =>

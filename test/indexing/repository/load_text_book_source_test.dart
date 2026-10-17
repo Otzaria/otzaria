@@ -53,6 +53,7 @@ void main() {
       (302, 'מעבר בשורה', ['א\nב', 'ג']),
       (303, 'תמונה בלבד', [imageOnlyRow]),
       (304, 'ספר מצויר', illustratedRows),
+      (305, 'ספר הערות', _notedRows),
     ]) {
       db.execute(
         'INSERT INTO book (id, categoryId, sourceId, title, orderIndex, '
@@ -66,6 +67,16 @@ void main() {
         );
       }
     }
+    db.execute(
+      'CREATE TABLE line_note (lineId INTEGER NOT NULL, '
+      'noteIndex INTEGER NOT NULL, charPos INTEGER NOT NULL, marker TEXT, '
+      'body TEXT NOT NULL, PRIMARY KEY (lineId, noteIndex)) WITHOUT ROWID',
+    );
+    db.execute(
+      'INSERT INTO line_note (lineId, noteIndex, charPos, marker, body) '
+      "SELECT id, 0, 4, 'א', 'מילה_בהערה' FROM line "
+      'WHERE bookId = 305 AND lineIndex = 0',
+    );
     database.close();
 
     await UserBooksDatabaseHolder.instance.close();
@@ -136,6 +147,23 @@ void main() {
     expect(source.libraryDbBookId, isNull);
     expect(storageFor(book, source.libraryDbBookId), TextStorage.inIndex);
   });
+
+  test(
+    'ספר מהמסד עם הערות ב-line_note — הגוף מאונדקס, והטקסט נשמר באינדקס',
+    () async {
+      final book = TextBook(id: 305, title: 'ספר הערות', categoryId: 7);
+      final source = await repository.loadTextBookSource(book);
+
+      expect(
+        utf8.decode(source.bytes!),
+        'גוף<sup class="footnote-marker">א</sup>'
+        '<i class="footnote">מילה_בהערה</i> סוף\nב',
+      );
+      // שורות המסד אינן הטקסט המאונדקס, ולכן המנוע אינו קורא אותן משם.
+      expect(source.libraryDbBookId, isNull);
+      expect(storageFor(book, source.libraryDbBookId), TextStorage.inIndex);
+    },
+  );
 
   test('טקסט שנלקח מהקובץ ולא מהמסד — הטקסט נשמר באינדקס', () async {
     final file = File(path.join(tempDir.path, 'תמונה בלבד.html'));
@@ -236,6 +264,8 @@ void main() {
     });
   });
 }
+
+const _notedRows = ['גוף<sup class="footnote-marker">א</sup> סוף', 'ב'];
 
 class _UnusedTantivyDataProvider implements TantivyDataProvider {
   @override

@@ -1,3 +1,6 @@
+import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/indexing/models/index_update_mode.dart';
@@ -1688,6 +1691,19 @@ class IndexingRepository {
       libraryDbBookId = fromDb?.officialBookId;
       userBooksDbBookId = fromDb?.userBookId;
       attachedDbBookId = fromDb?.attachedBookId;
+      if (bytes != null && libraryDbBookId != null) {
+        final notes = await _dbBookNotes(book);
+        if (!notes.isEmpty) {
+          // הטקסט המאונדקס שונה משורות המסד, ולכן המנוע שומר אותו בעצמו.
+          final stored = bytes;
+          bytes = await Isolate.run(
+            () => utf8.encode(
+              rehydrateInlineNotesInText(utf8.decode(stored), notes),
+            ),
+          );
+          libraryDbBookId = null;
+        }
+      }
       // ניקוי תמונות מוטמעות חייב לרוץ בשני הצדדים — אחרת חתימת האינדוקס
       // לעולם לא תתאים לאימות ו-reconcile יאנדקס את הספר מחדש בכל ריצה.
       if (bytes != null) {
@@ -1718,6 +1734,17 @@ class IndexingRepository {
     );
   }
 
+  /// הערות השוליים שהוצאו משורות הספר במסד — האינדקס מכיל אותן כמו בסכמה 6,
+  /// כדי שמילה שמופיעה רק בהערה תימצא. בלי מטמון: האינדוקס עובר על כל הספרייה.
+  static Future<BookNotes> _dbBookNotes(TextBook book) {
+    if (!book.source.isOfficial) return Future.value(BookNotes.empty);
+    return DatabaseLibraryProvider.instance.getBookNotes(
+      book.title,
+      categoryId: book.categoryId,
+      source: book.source,
+    );
+  }
+
   Future<String?> _loadTextBookText(TextBook book) async {
     String? text;
 
@@ -1729,6 +1756,9 @@ class IndexingRepository {
         book.source,
         true,
       );
+      if (text != null) {
+        text = rehydrateInlineNotesInText(text, await _dbBookNotes(book));
+      }
     }
 
     if (text == null) {

@@ -12,6 +12,8 @@ import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/text_display/models/text_display_profile.dart';
 import 'package:otzaria/widgets/commentary/commentary_content.dart';
 import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
@@ -454,6 +456,90 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+  });
+
+  group('חברותא במסד בסכמה 7 — ההערות בטבלת line_note של שורת היעד', () {
+    BookNotes? notes;
+    setUp(() {
+      notes = null;
+      BookNotesRepository.instance
+        ..clear()
+        ..debugLoader = (title, {categoryId, required source}) async =>
+            title == 'רש״י' ? notes ?? BookNotes.empty : BookNotes.empty;
+    });
+    tearDown(() {
+      BookNotesRepository.instance
+        ..debugLoader = null
+        ..clear();
+      LinkPreviewOverlay.dismiss();
+    });
+
+    Future<void> hover(WidgetTester tester, String url) async {
+      tester
+          .widget<SmartTextWidget>(find.byType(SmartTextWidget))
+          .onAnchorHover!(url, const Offset(100, 100));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    String previewContent(WidgetTester tester) => tester
+        .widget<InlineBookNotePreviewContent>(
+          find.byType(InlineBookNotePreviewContent),
+        )
+        .content;
+
+    testWidgets('סמן <sup> בלי קישור FOOTNOTES — ריחוף מציג את ההערה מהטבלה', (
+      tester,
+    ) async {
+      notes = (BookNotesBuilder()..add(2, 0, '(26)', 'בביאור הלכה')).build();
+      await _pumpPanel(
+        tester,
+        loaded: const [],
+        html: 'לדרשא!<sup class="footnote-marker">(26)</sup> סוף',
+      );
+
+      final html = _renderedHtml(tester);
+      expect(html, contains('otzaria://book-note?line=2&note=0'));
+      expect(html, isNot(contains('<sup')));
+      await hover(tester, 'otzaria://book-note?line=2&note=0');
+      expect(previewContent(tester), contains('בביאור הלכה'));
+    });
+
+    testWidgets('סמן מודפס (26) והערה בלי marker — לפי פתיחת ההערה', (
+      tester,
+    ) async {
+      notes =
+          (BookNotesBuilder()
+                ..add(2, 0, null, '(25) אחרת')
+                ..add(2, 1, null, '<b>(26)</b> בביאור הלכה'))
+              .build();
+      await _pumpPanel(
+        tester,
+        loaded: const [],
+        html: 'לדרשא! <small>(26)</small>',
+      );
+
+      expect(
+        _renderedHtml(tester),
+        contains('otzaria://note-marker?line=2&num=26'),
+      );
+      await hover(tester, 'otzaria://note-marker?line=2&num=26');
+      expect(previewContent(tester), contains('בביאור הלכה'));
+    });
+
+    testWidgets('בלי הערות בשורה המוצגת — אין ריחוף', (tester) async {
+      notes = (BookNotesBuilder()..add(9, 0, '(26)', 'שורה אחרת')).build();
+      await _pumpPanel(
+        tester,
+        loaded: const [],
+        html: 'לדרשא!<sup class="footnote-marker">(26)</sup>',
+      );
+
+      final smartText = tester.widget<SmartTextWidget>(
+        find.byType(SmartTextWidget),
+      );
+      expect(smartText.onAnchorHover, isNull);
+      expect(smartText.text, isNot(contains('book-note')));
+    });
   });
 }
 

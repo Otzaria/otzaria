@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/services/commentary_service.dart';
@@ -14,6 +16,9 @@ Link _link(String path, int index2) => Link(
 
 LinkGroup _group(String title, List<Link> links) =>
     LinkGroup(bookTitle: title, links: links);
+
+const _limit = BookProtection.printSegmentLimit;
+const _long = _limit + 5;
 
 void main() {
   group('buildCommentaryPrintBlocks', () {
@@ -60,6 +65,141 @@ void main() {
       expect(blocks, hasLength(2));
       expect(blocks[0].kind, PrintBlockKind.commentaryGroupTitle);
       expect(blocks[1].text, 'תוכן');
+    });
+
+    test('מפרש ברמה 2 נחתך למגבלה, ומפרש חופשי נשאר שלם', () async {
+      final groups = [
+        _group('מוגן', [
+          for (var i = 1; i <= _long; i++) _link('a/מוגן.txt', i),
+        ]),
+        _group('חופשי', [
+          for (var i = 1; i <= _long; i++) _link('a/חופשי.txt', i),
+        ]),
+      ];
+
+      final blocks = await buildCommentaryPrintBlocks(
+        groups,
+        contentResolver: (link) async => 'קטע ${link.index2}',
+        protectionResolver: (link) async => link.path2.contains('מוגן')
+            ? const BookProtection(level: 2)
+            : BookProtection.none,
+      );
+
+      // כותרת + מגבלה קטעים, ואז כותרת + כל הקטעים.
+      expect(blocks, hasLength(1 + _limit + 1 + _long));
+      expect(blocks[_limit].text, 'קטע $_limit');
+      expect(blocks[_limit + 1].text, 'חופשי');
+    });
+
+    test('טווח מקור ארוך נחתך לפני קריאת התוכן', () async {
+      final range = Link(
+        heRef: 'ref',
+        index1: 1,
+        path2: 'מוגן.txt',
+        index2: 1,
+        index2End: _long,
+        targetBookId: 7,
+        connectionType: 'COMMENTARY',
+      );
+      final blocks = await buildCommentaryPrintBlocks(
+        [
+          _group('מוגן', [range]),
+        ],
+        protectionResolver: (_) async => const BookProtection(level: 2),
+        contentResolver: (link) async {
+          expect(link.index2End, _limit);
+          expect(link.targetBookId, 7);
+          return [
+            for (var i = link.index2; i <= link.index2End!; i++)
+              '<p>שורה $i<br>המשך $i</p>',
+          ].join('<br>');
+        },
+      );
+      expect(blocks, hasLength(2));
+      expect(blocks.last.text, contains('שורה $_limit'));
+      expect(blocks.last.text, isNot(contains('שורה ${_limit + 1}')));
+      expect(blocks.last.text, contains('המשך $_limit'));
+    });
+
+    test('אותו שם בשני מסדים ומפרש חופשי אינם חולקים מכסת הדפסה', () async {
+      final links = [
+        for (final source in [
+          BookSource.official,
+          BookSource.attached('extra'),
+        ])
+          Link(
+            heRef: 'ref',
+            index1: 1,
+            path2: 'מפרש.txt',
+            index2: 1,
+            index2End: _long,
+            targetBookId: 1,
+            targetSource: source,
+            connectionType: 'COMMENTARY',
+          ),
+      ];
+      final blocks = await buildCommentaryPrintBlocks(
+        [_group('מפרש', links)],
+        protectionResolver: (link) async => link.targetSource.isOfficial
+            ? const BookProtection(level: 2)
+            : BookProtection.none,
+        contentResolver: (link) async =>
+            '${link.targetSource.wireKey}:${link.index2End}',
+      );
+      expect(blocks, hasLength(3));
+      expect(blocks[1].text, endsWith(':$_limit'));
+      expect(blocks[2].text, endsWith(':$_long'));
+    });
+
+    test(
+      'שני ספרים מוגנים באותו שם ממסדים שונים מקבלים מכסה מלאה כל אחד',
+      () async {
+        final links = [
+          for (final source in [
+            BookSource.official,
+            BookSource.attached('extra'),
+          ])
+            Link(
+              heRef: 'ref',
+              index1: 1,
+              path2: 'מפרש.txt',
+              index2: 1,
+              index2End: _long,
+              targetBookId: 1,
+              targetSource: source,
+              connectionType: 'COMMENTARY',
+            ),
+        ];
+        final blocks = await buildCommentaryPrintBlocks(
+          [_group('מפרש', links)],
+          protectionResolver: (_) async => const BookProtection(level: 2),
+          contentResolver: (link) async =>
+              '${link.targetSource.wireKey}:${link.index2End}',
+        );
+        expect(blocks, hasLength(3));
+        expect(blocks[1].text, endsWith(':$_limit'));
+        expect(blocks[2].text, endsWith(':$_limit'));
+      },
+    );
+
+    test('מכסת אותו ספר נצברת גם כשהוא מפוצל לכמה קבוצות', () async {
+      final blocks = await buildCommentaryPrintBlocks(
+        [
+          _group('מוגן', [
+            for (var i = 1; i < _limit; i++) _link('מוגן.txt', i),
+          ]),
+          _group('מוגן', [
+            for (var i = _limit; i <= _long; i++) _link('מוגן.txt', i),
+          ]),
+        ],
+        protectionResolver: (_) async => const BookProtection(level: 2),
+        contentResolver: (link) async => 'שורה ${link.index2}',
+      );
+      expect(
+        blocks.where((block) => block.kind == PrintBlockKind.commentary),
+        hasLength(_limit),
+      );
+      expect(blocks.last.text, 'שורה $_limit');
     });
 
     test('מדלג על קבוצה שכל הקישורים בה ריקים (ללא כותרת)', () async {

@@ -1,5 +1,9 @@
 import 'dart:io';
 
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
+import 'package:otzaria/divine_names/models/divine_name_forms.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
@@ -12,6 +16,58 @@ String applyTextBookExportProfile(
   final text = applyTextDisplayProfile(input, profile);
   return stripHtml ? stripHtmlIfNeeded(text) : text;
 }
+
+/// בקשת ייצוא של ספר שלם. עוברת ל-isolate, ולכן מופעי השמות והערות השוליים
+/// מגיעים כנתונים ([divineNames], [bookNotes]) ולא נשלפים מהמסד שם.
+class TextBookExportRequest {
+  final String rawContent;
+  final TextDisplayProfile profile;
+  final DivineNameSpans divineNames;
+  final BookNotes bookNotes;
+
+  TextBookExportRequest({
+    required this.rawContent,
+    required this.profile,
+    DivineNameSpans? divineNames,
+    BookNotes? bookNotes,
+  }) : divineNames = divineNames ?? DivineNameSpans.empty,
+       bookNotes = bookNotes ?? BookNotes.empty;
+}
+
+/// שורות הספר לייצוא: מופעי השמות לפי `lineIndex` על השורה הגולמית, הערות
+/// המסד בחזרה בשורה, ואחריהם פרופיל הייצוא (כולל ה-regex של שם הוי"ה).
+List<String> textBookExportLines(
+  TextBookExportRequest request, {
+  required bool stripHtml,
+}) {
+  final profile = request.profile;
+  final lines = request.rawContent.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    final stored = applyStoredLineData(
+      lines[i],
+      i,
+      names: request.divineNames,
+      notes: request.bookNotes,
+      substituteOtherNames: profile.substituteDivineNames,
+      holyNameStyle: profile.replaceHolyNames ? profile.holyNameStyle : null,
+    );
+    lines[i] = applyTextBookExportProfile(
+      stored,
+      profile: profile,
+      stripHtml: stripHtml,
+    );
+  }
+  return lines;
+}
+
+/// תוכן קובץ הטקסט של ייצוא ספר שלם. בקובץ טקסט אין שבירת שורות לשמור מפניה,
+/// ולכן המקף נשאר רגיל; ב-Word מחבר המילים נשאר.
+String createTextBookTextExport(TextBookExportRequest request) =>
+    request.rawContent.isEmpty
+    ? ''
+    : withoutDivineNameJoiners(
+        textBookExportLines(request, stripHtml: true).join('\n'),
+      );
 
 /// מנקה שם ספר כך שיהיה תקין כשם קובץ במערכות הקבצים הנתמכות.
 String sanitizeTextBookExportFileName(String value) {

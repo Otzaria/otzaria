@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:otzaria/book_common/view/parallel_editions_action.dart';
 import 'package:otzaria/plugins/utils/reader_plugin_toolbar_actions.dart';
@@ -41,6 +43,8 @@ import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
 import 'package:otzaria/text_display/view/text_display_bar_button.dart';
 import 'package:otzaria/text_book/utils/reader_build_policy.dart';
 import 'package:otzaria/text_book/utils/text_book_export_utils.dart';
+import 'package:otzaria/text_book/view/text_book_export_dialog.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -59,7 +63,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
-import 'package:otzaria/printing/export_restriction_service.dart';
+import 'package:otzaria/printing/page_shape_print_policy.dart';
 import 'package:otzaria/printing/word_export_service.dart';
 import 'package:otzaria/text_book/view/tabbed_commentary_panel.dart';
 import 'package:otzaria/text_book/view/text_book_scaffold.dart';
@@ -121,50 +125,23 @@ const String _viewModePage = 'page';
 // פעולה (לא מצב תצוגה): פתיחת כרטיסיית מפרשים נפרדת
 const String _actionOpenCommentatorsTab = 'open_commentators_tab';
 
-enum _TextBookExportFormat {
-  word('docx'),
-  text('txt');
-
-  final String extension;
-  const _TextBookExportFormat(this.extension);
-}
-
 class _WordExportRequest {
   final String title;
-  final String rawContent;
-  final TextDisplayProfile profile;
+  final TextBookExportRequest text;
   final String? fontFamily;
   final double fontSize;
 
   const _WordExportRequest({
     required this.title,
-    required this.rawContent,
-    required this.profile,
+    required this.text,
     required this.fontFamily,
     required this.fontSize,
   });
 }
 
-class _TextExportRequest {
-  final String rawContent;
-  final TextDisplayProfile profile;
-
-  const _TextExportRequest({required this.rawContent, required this.profile});
-}
-
 Uint8List _createTextBookWordExport(_WordExportRequest request) {
-  final blocks = request.rawContent
-      .split('\n')
-      .map(
-        (line) => PrintBlock(
-          kind: PrintBlockKind.text,
-          text: applyTextBookExportProfile(
-            line,
-            profile: request.profile,
-            stripHtml: false,
-          ),
-        ),
-      )
+  final blocks = textBookExportLines(request.text, stripHtml: false)
+      .map((line) => PrintBlock(kind: PrintBlockKind.text, text: line))
       .toList(growable: false);
 
   return WordExportService.createWordDocument(
@@ -176,23 +153,6 @@ Uint8List _createTextBookWordExport(_WordExportRequest request) {
     fontFamily: request.fontFamily,
     fontSize: request.fontSize,
   );
-}
-
-String _createTextBookTextExport(_TextExportRequest request) {
-  if (request.rawContent.isEmpty) {
-    return '';
-  }
-
-  return request.rawContent
-      .split('\n')
-      .map(
-        (line) => applyTextBookExportProfile(
-          line,
-          profile: request.profile,
-          stripHtml: true,
-        ),
-      )
-      .join('\n');
 }
 
 /// פרופיל ערוץ הייצוא של גוף הספר — משותף להדפסה ולייצוא.
@@ -605,14 +565,29 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     context.read<TourCubit>().recordInteraction(
       TourInteraction(type: TourInteractionType.printUsed),
     );
+    var commentators = state.activeCommentators;
+    var protection = state.protection;
+    var useScreenshot = state.showPageShapeView;
     if (state.showPageShapeView) {
+      final policy = await resolvePageShapePrintPolicy(
+        mainProtection: state.protection,
+        layout: widget.tab.pageShapePluginController.layout,
+        availableCommentators: state.availableCommentators,
+        links: state.links,
+      );
+      commentators = policy.commentators;
+      protection = policy.protection;
+      useScreenshot = policy.useScreenshot;
+    }
+    if (!mounted) return;
+    if (useScreenshot) {
       final png = await _capturePageShapeViewPng();
       if (!mounted) return;
-
       if (png == null || png.isEmpty) {
         UiSnack.showError(TextBookMessages.cannotCapturePageShapeForPrint);
         return;
       }
+      if (!mounted) return;
 
       showDialog(
         context: context,
@@ -621,6 +596,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           // במצב זה ה-PDF נוצר מצילום המסך, ולכן אין צורך בנתוני הטקסט
           data: Future.value(''),
           bookId: state.book.title,
+          protection: protection,
           displayProfile: _exportProfile(state),
           createPdfOverride: (PdfPageFormat format) async {
             final doc = pw.Document(compress: false);
@@ -652,8 +628,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         data: contentData,
         bookId: state.book.title,
         book: state.book,
+        protection: state.protection,
         links: state.links,
-        activeCommentators: state.activeCommentators,
+        activeCommentators: commentators,
+        initialIncludeCommentaries: state.showPageShapeView,
         startLine: widget.tab.index,
         displayProfile: _exportProfile(state),
         commentaryDisplayProfile: state.displayProfile(
@@ -666,9 +644,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   }
 
   Future<void> _exportWholeBook(TextBookLoaded state) async {
-    await ExportRestrictionService.ensureLoaded();
-    if (!mounted) return;
-    if (ExportRestrictionService.isRestricted(state.book.title)) {
+    if (!state.protection.allowsEditableExport) {
       UiSnack.showError(TextBookMessages.editableExportRestricted);
       return;
     }
@@ -676,40 +652,63 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     if (!mounted) return;
 
     try {
-      final selectedFormat = await _pickTextBookExportFormat();
-      if (selectedFormat == null) return;
+      // לא state.divineNames: הטעינה ברקע עשויה שלא להסתיים עד הייצוא.
+      final book = state.book;
+      final divineNames = await DivineNamesRepository.instance.spansFor(
+        book.title,
+        categoryId: book.categoryId,
+        source: book.source,
+        fileType: book.fileType,
+        versionTitle: book.versionTitle,
+      );
+      if (!mounted) return;
+      final choice = await showTextBookExportDialog(
+        context,
+        profile: _exportProfile(state),
+        hasDivineNames: !divineNames.isEmpty,
+      );
+      if (choice == null) return;
       if (!mounted) return;
 
+      final selectedFormat = choice.format;
       final extension = selectedFormat.extension;
       final settingsState = context.read<SettingsBloc>().state;
-      final profile = state.displayProfile(
-        target: TextTarget.body,
-        channel: TextChannel.export,
-      );
+      final profile = _exportProfile(
+        state,
+      ).copyWith(holyName: choice.holyName, divineNames: choice.divineNames);
       final fullContent = await context
           .read<TextBookBloc>()
           .repository
           .getBookContent(state.book);
 
+      final bookNotes = await BookNotesRepository.instance.notesFor(
+        book.title,
+        categoryId: book.categoryId,
+        source: book.source,
+        fileType: book.fileType,
+        versionTitle: book.versionTitle,
+      );
+      final exportRequest = TextBookExportRequest(
+        rawContent: fullContent,
+        profile: profile,
+        divineNames: divineNames,
+        bookNotes: bookNotes,
+      );
       final Uint8List bytes;
       final String successMessage;
-      if (selectedFormat == _TextBookExportFormat.word) {
+      if (selectedFormat == TextBookExportFormat.word) {
         bytes = await compute(
           _createTextBookWordExport,
           _WordExportRequest(
             title: state.book.title,
-            rawContent: fullContent,
-            profile: profile,
+            text: exportRequest,
             fontFamily: settingsState.fontFamily,
             fontSize: state.fontSize,
           ),
         );
         successMessage = TextBookMessages.wordFileSaved;
       } else {
-        final text = await compute(
-          _createTextBookTextExport,
-          _TextExportRequest(rawContent: fullContent, profile: profile),
-        );
+        final text = await compute(createTextBookTextExport, exportRequest);
         bytes = Uint8List.fromList(utf8.encode(text));
         successMessage = TextBookMessages.textFileSaved;
       }
@@ -735,29 +734,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     }
   }
 
-  Future<_TextBookExportFormat?> _pickTextBookExportFormat() async {
-    final result = await showTwoActionsDialog(
-      context: context,
-      title: 'בחירת סוג קובץ',
-      content: 'בחר פורמט לייצוא',
-      cancelText: 'טקסט',
-      confirmText: 'Word',
-      barrierDismissible: true,
-    );
-
-    if (result == null) return null;
-    return result ? _TextBookExportFormat.word : _TextBookExportFormat.text;
-  }
-
   @override
   void initState() {
     super.initState();
-
-    // רשימת הספרים המוגבלים לייצוא נטענת מ-asset, ולכן עשויה עוד לא להיות
-    // זמינה כשהכפתור נבנה. טעינה כאן במקום בעלייה מכסה גם חלון משני.
-    ExportRestrictionService.ensureLoaded().then((_) {
-      if (mounted) setState(() {});
-    });
 
     // טעינת נתוני שמור וזכור ברקע כדי שהמצב יהיה נכון בפתיחת ספר
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1991,8 +1970,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ),
 
       // ייצוא הספר המלא - Word מעוצב או טקסט פשוט
-      if (!widget.isInCombinedView &&
-          !ExportRestrictionService.isRestricted(state.book.title))
+      if (!widget.isInCombinedView && state.protection.allowsEditableExport)
         (
           50,
           ActionButtonData(
@@ -2068,7 +2046,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
                 tooltip: 'הדפסה',
                 onPressed: () => _handlePrintPress(state),
               ),
-              if (!ExportRestrictionService.isRestricted(state.book.title))
+              if (state.protection.allowsEditableExport)
                 ActionButtonData(
                   widget: const SizedBox.shrink(),
                   icon: OtzariaIcons.document_download_24_regular,
@@ -2485,6 +2463,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             data: contentData,
             bookId: state.book.title,
             book: state.book,
+            protection: state.protection,
             links: state.links,
             activeCommentators: state.activeCommentators,
             startLine: widget.tab.index,
@@ -3119,6 +3098,7 @@ bool _handleGlobalKeyEvent(
         data: contentData,
         bookId: state.book.title,
         book: state.book,
+        protection: state.protection,
         links: state.links,
         activeCommentators: state.activeCommentators,
         startLine: tab.index,
@@ -3233,7 +3213,10 @@ bool _handleGlobalKeyEvent(
           : buildTextMarkLink(
               bookId,
               index,
-              selectedTextForNote ?? '',
+              limitTextToCopySegments(
+                state.protection,
+                selectedTextForNote ?? '',
+              ),
               source: state.book.source,
             );
       if (bookId == null) {

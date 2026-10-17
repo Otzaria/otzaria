@@ -13,6 +13,8 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
@@ -59,6 +61,8 @@ Future<void> resetRuntimeStateForAppRestart() async {
   FindRefBloc.clearAllSearches();
   CommentaryService.clearEraCache();
   TargetLineLinksService.instance.clearCache();
+  DivineNamesRepository.instance.clear();
+  BookNotesRepository.instance.clear();
 }
 
 /// תאימות לשם הישן במסלול איפוס הגדרות.

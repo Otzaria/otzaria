@@ -1997,6 +1997,7 @@ export type OtzariaMethod =
   | 'library.resolveRef'
   | 'library.getBookMetadata'
   | 'library.getBookDetails'
+  | 'library.getBookProtections'
   | 'library.resolveBooks'
   | 'library.resolveCategoryPaths'
   | 'library.getTree'

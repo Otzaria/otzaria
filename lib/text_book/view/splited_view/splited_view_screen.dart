@@ -328,6 +328,7 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
       state.content[idx],
       query,
       wholeWord: state.searchWholeWord,
+      dbNotes: state.bookNotes.notesAt(idx),
     )) {
       return;
     }

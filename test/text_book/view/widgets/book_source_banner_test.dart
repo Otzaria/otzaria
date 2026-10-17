@@ -44,14 +44,44 @@ Widget _wrap(Widget child, {bool isOfflineMode = false}) {
 }
 
 void main() {
-  group('wikiJewishBooksPageUrl', () {
-    test('replaces spaces with underscores and url-encodes the title', () {
-      expect(
-        wikiJewishBooksPageUrl('עץ הדר'),
-        equals(
-          'https://wiki.jewishbooks.org.il/mediawiki/wiki/%D7%A2%D7%A5_%D7%94%D7%93%D7%A8',
-        ),
+  group('parseBannerText', () {
+    test('only a real line break splits lines', () {
+      final lines = parseBannerText(
+        'א\nב'
+        r'\n'
+        'ג',
       );
+      expect(lines.map((l) => l.single.text).toList(), ['א', r'ב\nג']);
+      expect(lines.every((l) => l.single.url == null), isTrue);
+    });
+
+    test('a [label](url) link splits into text and link segments', () {
+      final line = parseBannerText(
+        'אפשר ללחוץ [כאן](https://wiki.example.org/wiki/%D7%A2%D7%A5%20%D7%94%D7%93%D7%A8) ולתקן',
+      ).single;
+      expect(line.map((s) => s.text).toList(), [
+        'אפשר ללחוץ ',
+        'כאן',
+        ' ולתקן',
+      ]);
+      expect(
+        line[1].url.toString(),
+        'https://wiki.example.org/wiki/%D7%A2%D7%A5%20%D7%94%D7%93%D7%A8',
+      );
+      expect(line[0].url, isNull);
+      expect(line[2].url, isNull);
+    });
+
+    test('the url runs to the first closing parenthesis', () {
+      final line = parseBannerText('[x](https://e.org/a)) סוף').single;
+      expect(line[0].url.toString(), 'https://e.org/a');
+      expect(line[1].text, ') סוף');
+    });
+
+    test('a non-web scheme stays as raw text', () {
+      final line = parseBannerText('[x](javascript:alert)').single;
+      expect(line.single.url, isNull);
+      expect(line.single.text, '[x](javascript:alert)');
     });
   });
 
@@ -76,69 +106,65 @@ void main() {
   });
 
   group('BookSourceBanner', () {
-    testWidgets('shows the national library credit text', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          const BookSourceBanner(
-            kind: BookSourceBannerKind.nationalLibrary,
-            bookTitle: 'ספר',
-          ),
-        ),
-      );
+    const text =
+        "באדיבות 'אוצר הספרים'\nאפשר ללחוץ [כאן](https://example.org) ולתקן";
 
-      expect(find.text(kNationalLibraryBannerText), findsOneWidget);
-      expect(find.text('כאן'), findsNothing);
+    testWidgets('renders the DB text with a tappable link label', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_wrap(const BookSourceBanner(text: text)));
+
+      expect(find.textContaining("באדיבות 'אוצר הספרים'"), findsOneWidget);
+      expect(find.textContaining('אפשר ללחוץ כאן ולתקן'), findsOneWidget);
+      expect(find.textContaining('https://'), findsNothing);
+      expect(_linkSpans(tester), hasLength(1));
     });
 
-    testWidgets('shows the Beit Aharon VeYisrael copyright text', (
+    testWidgets('the banner is excluded from text selection', (tester) async {
+      await tester.pumpWidget(
+        _wrap(SelectionArea(child: const BookSourceBanner(text: text))),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(BookSourceBanner),
+          matching: find.byType(SelectionContainer),
+        ),
+        findsOneWidget,
+      );
+      final container = tester.widget<SelectionContainer>(
+        find.descendant(
+          of: find.byType(BookSourceBanner),
+          matching: find.byType(SelectionContainer),
+        ),
+      );
+      expect(container.delegate, isNull);
+    });
+
+    testWidgets('omits lines that contain a link when offline', (
       tester,
     ) async {
       await tester.pumpWidget(
-        _wrap(
-          const BookSourceBanner(
-            kind: BookSourceBannerKind.beitAharonVeYisrael,
-            bookTitle: 'ספר',
-          ),
-        ),
+        _wrap(const BookSourceBanner(text: text), isOfflineMode: true),
       );
 
-      expect(find.text(kBeitAharonVeYisraelBannerText), findsOneWidget);
-      expect(find.text('כאן'), findsNothing);
-    });
-
-    testWidgets('shows the wiki jewish books link when online', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(
-          const BookSourceBanner(
-            kind: BookSourceBannerKind.wikiJewishBooks,
-            bookTitle: 'עץ הדר',
-          ),
-          isOfflineMode: false,
-        ),
-      );
-
-      expect(find.textContaining(kWikiJewishBooksBannerText), findsOneWidget);
-      expect(find.textContaining('אפשר ללחוץ'), findsOneWidget);
-      expect(find.textContaining('כאן'), findsOneWidget);
-    });
-
-    testWidgets('hides the wiki jewish books link when offline', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(
-          const BookSourceBanner(
-            kind: BookSourceBannerKind.wikiJewishBooks,
-            bookTitle: 'עץ הדר',
-          ),
-          isOfflineMode: true,
-        ),
-      );
-
-      expect(find.text(kWikiJewishBooksBannerText), findsOneWidget);
+      expect(find.textContaining("באדיבות 'אוצר הספרים'"), findsOneWidget);
       expect(find.textContaining('אפשר ללחוץ'), findsNothing);
+      expect(_linkSpans(tester), isEmpty);
     });
   });
+}
+
+List<TextSpan> _linkSpans(WidgetTester tester) {
+  final rich = tester.widget<RichText>(
+    find.descendant(
+      of: find.byType(BookSourceBanner),
+      matching: find.byType(RichText),
+    ),
+  );
+  final spans = <TextSpan>[];
+  rich.text.visitChildren((span) {
+    if (span is TextSpan && span.recognizer != null) spans.add(span);
+    return true;
+  });
+  return spans;
 }

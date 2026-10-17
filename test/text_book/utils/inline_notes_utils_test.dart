@@ -1,4 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
+import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
 
 void main() {
@@ -215,6 +218,173 @@ void main() {
     test('מתעלם משורות ללא הערות', () {
       final content = ['שורה רגילה', 'שורה אחרת'];
       expect(notesForLines(content, [0, 1]), isEmpty);
+    });
+  });
+
+  group('הערות מהמסד (line_note) — גוף ההערה אינו בשורה', () {
+    // השורה כפי שנשמרה בסכמה 7: ה-<sup> נשאר, הגוף בטבלה.
+    const stripped =
+        'גוף<sup class="footnote-marker">א</sup> המשך'
+        '<sup class="footnote-marker">ב</sup> סוף';
+    final dbNotes =
+        (BookNotesBuilder()
+              ..add(4, 0, 'א', 'ראשונה')
+              ..add(4, 1, null, 'נספחת')
+              ..add(4, 2, 'ב', 'שנייה'))
+            .build();
+
+    test('notesForLines ו-hasInlineNotes רואים את הערות הטבלה', () {
+      final content = List.filled(6, 'שורה');
+      content[4] = stripped;
+      expect(hasInlineNotes(content), isFalse);
+      expect(hasInlineNotes(content, dbNotes: dbNotes), isTrue);
+      expect(notesForLines(content, [4], dbNotes: dbNotes), [
+        '<sup class="footnote-marker">א</sup> ראשונה',
+        'נספחת',
+        '<sup class="footnote-marker">ב</sup> שנייה',
+      ]);
+    });
+
+    test('ה-<sup> ה-k-י מקושר להערה ה-k-ית שיש לה marker', () {
+      final result = addInlineNotePreviewLinks(
+        stripped,
+        lineIndex: 4,
+        dbNotes: dbNotes,
+      );
+      expect(result, contains('note=0">א</a>'));
+      expect(result, contains('note=2">ב</a>'));
+      expect(result, isNot(contains('<sup')));
+
+      final content = List.filled(6, '');
+      content[4] = stripped;
+      expect(
+        inlineNoteFromPreviewUrl(
+          content,
+          'otzaria://book-note?line=4&note=2',
+          dbNotes: dbNotes,
+        ),
+        '<sup class="footnote-marker">ב</sup> שנייה',
+      );
+    });
+
+    test('בלי הערות מהמסד — השורה ללא שינוי', () {
+      expect(addInlineNotePreviewLinks(stripped, lineIndex: 4), stripped);
+    });
+
+    test('rehydrate מחזיר את הגוף אחרי ה-<sup> שלו, ואת היתר לסוף', () {
+      expect(
+        rehydrateInlineNotes(stripped, dbNotes.notesAt(4)),
+        'גוף<sup class="footnote-marker">א</sup>'
+        '<i class="footnote">ראשונה</i> המשך'
+        '<sup class="footnote-marker">ב</sup>'
+        '<i class="footnote">שנייה</i> סוף'
+        '<i class="footnote">נספחת</i>',
+      );
+      expect(rehydrateInlineNotes(stripped, const []), stripped);
+      expect(
+        rehydrateInlineNotesInText(
+          'א\n\n\n\n$stripped',
+          dbNotes,
+        ).split('\n')[4],
+        rehydrateInlineNotes(stripped, dbNotes.notesAt(4)),
+      );
+    });
+
+    test('rehydrate ואחריו notesForLines — כמו הערה inline מקורית', () {
+      final line = rehydrateInlineNotes(stripped, dbNotes.notesAt(4));
+      expect(notesForLines([line], [0]), [
+        '<sup class="footnote-marker">א</sup> ראשונה',
+        '<sup class="footnote-marker">ב</sup> שנייה',
+        'נספחת',
+      ]);
+    });
+  });
+
+  group('line_note עם charPos ושמות קודש בגוף', () {
+    // "גוף" + sup "א" — 4 תווים גלויים; "המשך" אחריהם.
+    const stored = 'גוף<sup class="footnote-marker">א</sup> <b>המשך</b> סוף';
+
+    test('כל גוף חוזר באופסט שלו — גם הערה בלי marker באמצע השורה', () {
+      final notes =
+          (BookNotesBuilder()
+                ..add(0, 0, 'א', 'ראשונה', charPos: 4)
+                ..add(0, 1, null, 'באמצע', charPos: 9))
+              .build();
+      expect(
+        rehydrateInlineNotes(stored, notes.notesAt(0)),
+        'גוף<sup class="footnote-marker">א</sup>'
+        '<i class="footnote">ראשונה</i> <b>המשך</b>'
+        '<i class="footnote">באמצע</i> סוף',
+      );
+    });
+
+    test('ישות נספרת כתו אחד, ושתי הערות באותו מקום נשמרות בסדרן', () {
+      final notes =
+          (BookNotesBuilder()
+                ..add(0, 0, null, 'א', charPos: 2)
+                ..add(0, 1, null, 'ב', charPos: 2))
+              .build();
+      expect(
+        rehydrateInlineNotes('x&amp;y', notes.notesAt(0)),
+        'x&amp;<i class="footnote">א</i><i class="footnote">ב</i>y',
+      );
+    });
+
+    test('אופסט מעבר לסוף השורה — בסוף', () {
+      final notes = (BookNotesBuilder()..add(0, 0, null, 'ז', charPos: 99))
+          .build();
+      expect(
+        rehydrateInlineNotes('קצר', notes.notesAt(0)),
+        'קצר<i class="footnote">ז</i>',
+      );
+    });
+
+    test('שמות הקודש בגוף ההערה מסומנים לחלונית ולריחוף', () {
+      final notes =
+          (BookNotesBuilder()
+                ..add(0, 0, 'א', 'אמר אלהים', charPos: 4)
+                ..addDivineName(0, 0, 4, 9, DivineNameKind.elohim))
+              .build();
+      final html = notesForLines(const [stored], [0], dbNotes: notes).single;
+      expect(html, contains('data-k="${DivineNameKind.elohim}">אלהים</span>'));
+      expect(
+        resolveDivineNameMarkers(html, substituteOtherNames: true),
+        '<sup class="footnote-marker">א</sup> אמר אלקים',
+      );
+    });
+
+    test('applyStoredLineData — שמות השורה וההערה, וההערה במקומה', () {
+      const line = 'ברא אלהים<sup class="footnote-marker">א</sup> סוף';
+      final names =
+          (DivineNameSpansBuilder()..add(0, 4, 9, DivineNameKind.elohim))
+              .build();
+      final notes =
+          (BookNotesBuilder()
+                ..add(0, 0, 'א', 'אמר אלהים', charPos: 10)
+                ..addDivineName(0, 0, 4, 9, DivineNameKind.elohim))
+              .build();
+      expect(
+        applyStoredLineData(
+          line,
+          0,
+          names: names,
+          notes: notes,
+          substituteOtherNames: true,
+        ),
+        'ברא אלקים<sup class="footnote-marker">א</sup>'
+        '<i class="footnote">אמר אלקים</i> סוף',
+      );
+      expect(
+        applyStoredLineData(
+          line,
+          0,
+          names: names,
+          notes: notes,
+          substituteOtherNames: false,
+        ),
+        'ברא אלהים<sup class="footnote-marker">א</sup>'
+        '<i class="footnote">אמר אלהים</i> סוף',
+      );
     });
   });
 }

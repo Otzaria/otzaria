@@ -216,7 +216,8 @@ bool _isIgnored(int codeUnit) {
       codeUnit == 0x05F3 || // ׳
       codeUnit == 0x05F4 || // ״
       codeUnit == 0x2013 || // –
-      codeUnit == 0x2014; // —
+      codeUnit == 0x2014 || // —
+      codeUnit == 0x2060; // מחבר מילים (אחרי המקף בצורות שמות הקודש)
 }
 
 /// משייך לכל קטע טקסט את הטווח שלו בתוך הבחירה. הטווח נמתח מקצה לקצה

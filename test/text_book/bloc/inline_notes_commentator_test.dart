@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -486,4 +489,125 @@ void main() {
       },
     );
   });
+
+  group('ספר מהמסד — גוף ההערות בטבלת line_note ולא בשורות', () {
+    final dbNotes = (BookNotesBuilder()..add(1, 0, 'א', 'תוכן')).build();
+    const strippedContent = [
+      'שורה רגילה',
+      'שורה<sup class="footnote-marker">א</sup> המשך',
+    ];
+
+    blocTest<TextBookBloc, TextBookState>(
+      'ApplyFullBookContent מוסיף את "הערות" גם בלי <i class="footnote">',
+      build: () => bloc,
+      seed: () => _seed(
+        book: book,
+        content: const ['preview'],
+      ).copyWith(bookNotes: dbNotes),
+      act: (bloc) => bloc.add(
+        const ApplyFullBookContent(
+          bookTitle: 'ספר בדיקה',
+          content: strippedContent,
+        ),
+      ),
+      expect: () => [
+        isA<TextBookLoaded>()
+            .having(
+              (state) => state.availableCommentators,
+              'availableCommentators',
+              contains(kNotesCommentatorTitle),
+            )
+            .having(
+              (state) => state.activeCommentators,
+              'activeCommentators',
+              const [kNotesCommentatorTitle],
+            ),
+      ],
+    );
+
+    blocTest<TextBookBloc, TextBookState>(
+      'UpdateAvailableCommentators אחרי סריקה מלאה לא מפיל את "הערות"',
+      build: () => bloc,
+      seed: () => _seed(
+        book: book,
+        content: const ['preview'],
+      ).copyWith(bookNotes: dbNotes),
+      act: (bloc) async {
+        bloc.add(
+          const ApplyFullBookContent(
+            bookTitle: 'ספר בדיקה',
+            content: strippedContent,
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const UpdateAvailableCommentators(['רש"י'], []));
+      },
+      skip: 1,
+      expect: () => [
+        isA<TextBookLoaded>().having(
+          (state) => state.availableCommentators,
+          'availableCommentators',
+          containsAll(['רש"י', kNotesCommentatorTitle]),
+        ),
+      ],
+    );
+
+    test(
+      'LoadContent — ההערות נטענות במקביל ו"הערות" זמין כבר ב-emit הראשון',
+      () async {
+        final loaded = Completer<BookNotes>();
+        final notesBloc = TextBookBloc(
+          repository: _ContentRepository(strippedContent),
+          bookNotesLoader: (_) => loaded.future,
+          protectionLoader: (_) async => BookProtection.none,
+          initialState: TextBookInitial.named(book, 0, false, const []),
+        );
+        addTearDown(notesBloc.close);
+        final first = notesBloc.stream.firstWhere((s) => s is TextBookLoaded);
+        notesBloc.add(
+          const LoadContent(
+            fontSize: 20,
+            showSplitView: false,
+            removeNikud: false,
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(notesBloc.state, isNot(isA<TextBookLoaded>()));
+        loaded.complete(dbNotes);
+        final state = await first as TextBookLoaded;
+        expect(state.bookNotes, same(dbNotes));
+        expect(state.availableCommentators, contains(kNotesCommentatorTitle));
+      },
+    );
+  });
+}
+
+/// ספר מקומי קצר בלי מפרשים — מספיק למסלול LoadContent.
+class _ContentRepository extends TextBookRepository {
+  _ContentRepository(this.lines) : super(fileSystem: FileSystemData.instance);
+
+  final List<String> lines;
+
+  @override
+  Future<String> getBookContent(TextBook book) async => lines.join('\n');
+
+  @override
+  Future<BookContentRange?> getBookContentRange(
+    TextBook book, {
+    required int startLine,
+    required int endLine,
+  }) async => BookContentRange(
+    startLine: 0,
+    endLine: lines.length - 1,
+    totalLines: lines.length,
+    lines: lines,
+  );
+
+  @override
+  Future<List<TocEntry>> getTableOfContents(TextBook book) async => const [];
+
+  @override
+  Future<({List<String> all, Set<String> rare})> getCommentatorsWithRarity(
+    TextBook book,
+  ) async => (all: const <String>[], rare: const <String>{});
 }

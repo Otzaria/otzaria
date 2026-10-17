@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/link_types.dart';
@@ -94,13 +95,16 @@ List<String> paragraphCommentators({
   required int paragraphIndex,
   required Map<int, List<Link>> linksByLine,
   List<String>? queriedCommentators,
+  BookNotes? bookNotes,
 }) {
   final onParagraph = queriedCommentators?.toSet() ?? <String>{};
   for (final link in linksByLine[paragraphIndex + 1] ?? const <Link>[]) {
     if (!LinkTypes.isDependentTextLink(link.connectionType)) continue;
     onParagraph.add(getTitleFromPath(link.path2));
   }
-  if (inline_notes.notesForLines(content, [paragraphIndex]).isNotEmpty) {
+  if (inline_notes.notesForLines(content, [
+    paragraphIndex,
+  ], dbNotes: bookNotes).isNotEmpty) {
     onParagraph.add(kNotesCommentatorTitle);
   }
   return availableCommentators.where(onParagraph.contains).toList();

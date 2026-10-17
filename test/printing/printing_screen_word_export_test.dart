@@ -9,7 +9,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
-import 'package:otzaria/printing/export_restriction_service.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -57,7 +56,6 @@ Future<String> _exportWord(WidgetTester tester) async {
   tester.view.physicalSize = const Size(1600, 1200);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  ExportRestrictionService.setRestrictedTitlesForTesting(const []);
   final picker = _CapturingFilePicker();
   FilePickerPlatform.instance = picker;
   final settingsBloc = _MockSettingsBloc();

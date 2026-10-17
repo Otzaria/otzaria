@@ -1,4 +1,6 @@
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
@@ -19,11 +21,13 @@ IconData _iconFor(DirectLinkKind kind) => switch (kind) {
 /// משתמש ב-[buildDirectLinkSubmenuEntries] (לוגיקה טהורה) ועוטף ב-
 /// [AppContextMenuSubAction] עם האייקון של סוג הקישור וקריאה ל-
 /// [copyLinkToClipboard].
+/// [protection] — הגבלת המו"ל של הספר: הטקסט שבקישור עם הדגשה מוגבל כמו העתקה.
 List<AppContextMenuSubAction> buildDirectLinkSubmenuActions({
   required int bookId,
   BookSource source = BookSource.official,
   required int index,
   required String? selectedText,
+  Future<BookProtection> Function()? protection,
 }) {
   final entries = buildDirectLinkSubmenuEntries(
     bookId: bookId,
@@ -37,7 +41,26 @@ List<AppContextMenuSubAction> buildDirectLinkSubmenuActions({
           label: e.label,
           icon: _iconFor(e.kind),
           enabled: e.link != null,
-          onTap: e.link != null ? () => copyLinkToClipboard(e.link!) : null,
+          onTap: e.link == null
+              ? null
+              : () async {
+                  var link = e.link!;
+                  if (e.kind == DirectLinkKind.textMark && protection != null) {
+                    final limited = limitTextToCopySegments(
+                      await protection(),
+                      selectedText!,
+                    );
+                    link =
+                        buildTextMarkLink(
+                          bookId,
+                          index,
+                          limited,
+                          source: source,
+                        ) ??
+                        link;
+                  }
+                  await copyLinkToClipboard(link);
+                },
         ),
       )
       .toList();
@@ -50,12 +73,14 @@ List<AppContextMenuEntry> buildDirectLinkContextMenuEntries({
   BookSource source = BookSource.official,
   required int index,
   required String? selectedText,
+  Future<BookProtection> Function()? protection,
 }) =>
     buildDirectLinkSubmenuActions(
           bookId: bookId,
           source: source,
           index: index,
           selectedText: selectedText,
+          protection: protection,
         )
         .map(
           (a) => AppContextMenuEntry(
@@ -74,6 +99,7 @@ AppContextMenuEntry buildCopyDirectLinkEntry({
   BookSource source = BookSource.official,
   required int index,
   required String? selectedText,
+  Future<BookProtection> Function()? protection,
 }) => AppContextMenuEntry(
   label: 'העתק קישור ישיר',
   icon: OtzariaIcons.link_24_regular,
@@ -82,5 +108,6 @@ AppContextMenuEntry buildCopyDirectLinkEntry({
     source: source,
     index: index,
     selectedText: selectedText,
+    protection: protection,
   ),
 );

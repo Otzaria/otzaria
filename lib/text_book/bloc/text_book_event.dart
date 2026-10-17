@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 
@@ -543,6 +544,22 @@ class LoadAllLinksForIndices extends TextBookEvent {
 
   @override
   List<Object?> get props => [indices];
+}
+
+/// מופעי שמות הקודש של הספר [bookTitle] (במהדורה [versionTitle]) נטענו ברקע.
+class UpdateDivineNames extends TextBookEvent {
+  final String bookTitle;
+  final String? versionTitle;
+  final DivineNameSpans spans;
+
+  const UpdateDivineNames({
+    required this.bookTitle,
+    required this.versionTitle,
+    required this.spans,
+  });
+
+  @override
+  List<Object?> get props => [bookTitle, versionTitle, spans];
 }
 
 /// מעדכן את ה-ID וה-heCategories של הספר הנוכחי לאחר העשרה אסינכרונית.

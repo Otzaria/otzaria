@@ -1,6 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -21,6 +25,10 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   /// המיקום ברשימה הזו, ולכן [anchorLinkFromUrl] חייב לקרוא את אותה רשימה.
   List<Link> _anchorLinks = const [];
   List<Link> _noteLinks = const [];
+
+  /// הערות השוליים מהמסד של ספר הקטע (`line_note`) — במסד חדש הן מחליפות
+  /// את קישורי FOOTNOTES של "הערות על ...", למשל בחברותא.
+  BookNotes _targetNotes = BookNotes.empty;
   int _anchorHoverGeneration = 0;
 
   /// הקישור שהקטע שלו מוצג — [Link.path2]/[Link.index2] הם הספר והשורה.
@@ -29,7 +37,16 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   /// כיבוי לפי פרופיל התצוגה של הכרטיסייה.
   bool get anchorLinksEnabled;
 
-  bool get hasPanelLinks => _anchorLinks.isNotEmpty || _noteLinks.isNotEmpty;
+  bool get hasPanelLinks =>
+      _anchorLinks.isNotEmpty || _noteLinks.isNotEmpty || _lineNotes.isNotEmpty;
+
+  bool get _isSingleLine =>
+      (anchorSourceLink.index2End ?? anchorSourceLink.index2) <=
+      anchorSourceLink.index2;
+
+  List<BookNote> get _lineNotes => _isSingleLine
+      ? _targetNotes.notesAt(anchorSourceLink.index2 - 1)
+      : const [];
 
   void startAnchorLinks() {
     _anchorSubscription = TargetLineLinksService.instance.refreshStream.listen(
@@ -42,6 +59,7 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
     _cancelAnchorHoverTimer();
     _anchorLinks = const [];
     _noteLinks = const [];
+    _targetNotes = BookNotes.empty;
     _requestAnchorLinks();
   }
 
@@ -70,13 +88,19 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
     _cancelAnchorHoverTimer();
     final generation = _anchorHoverGeneration;
     final isNoteMarker = url.startsWith('otzaria://note-marker');
-    final anchorLink = isNoteMarker ? null : anchorLinkFromUrl(url);
-    if (!isNoteMarker && anchorLink == null) return;
+    final isBookNote = url.startsWith('otzaria://book-note');
+    final anchorLink = isNoteMarker || isBookNote
+        ? null
+        : anchorLinkFromUrl(url);
+    if (!isNoteMarker && !isBookNote && anchorLink == null) return;
     if (anchorLink != null) prefetchLinkPreview(anchorLink);
     _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () async {
       final link = anchorLink ?? await numberedNoteLinkFromUrl(url, _noteLinks);
-      if (!mounted || link == null) return;
-      if (generation != _anchorHoverGeneration) return;
+      if (!mounted || generation != _anchorHoverGeneration) return;
+      if (link == null) {
+        _showBookNotePreview(url, globalPosition, displayProfile);
+        return;
+      }
       LinkPreviewOverlay.show(
         context,
         link: link,
@@ -89,6 +113,41 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
         },
       );
     });
+  }
+
+  void _showBookNotePreview(
+    String url,
+    Offset globalPosition,
+    TextDisplayProfile? displayProfile,
+  ) {
+    final lineNotes = _lineNotes;
+    if (lineNotes.isEmpty) return;
+    final String? note;
+    if (url.startsWith('otzaria://book-note')) {
+      note = inlineNoteFromPreviewUrl(const [], url, dbNotes: _targetNotes);
+    } else {
+      final match = numberedBookNoteFromUrl(url, lineNotes);
+      note = match == null
+          ? null
+          : BookNotes.toInlineHtml(
+              match,
+              body: bookNoteBodyWithDivineNames(
+                _targetNotes,
+                anchorSourceLink.index2 - 1,
+                match,
+              ),
+            );
+    }
+    if (note == null) return;
+    LinkPreviewOverlay.showContent(
+      context,
+      globalPosition: globalPosition,
+      hoverMode: true,
+      contentBuilder: (_) => InlineBookNotePreviewContent(
+        content: note!,
+        displayProfile: displayProfile,
+      ),
+    );
   }
 
   void handleAnchorHoverExit(String url) {
@@ -106,6 +165,21 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
     if (!anchorLinksEnabled) return;
     TargetLineLinksService.instance.prefetch(anchorSourceLink);
     _syncAnchorLinks();
+    _loadTargetNotes();
+  }
+
+  Future<void> _loadTargetNotes() async {
+    final link = anchorSourceLink;
+    if (!_isSingleLine || link.path2.isEmpty) return;
+    final notes = await BookNotesRepository.instance.notesFor(
+      utils.getTitleFromPath(link.path2),
+      categoryId: link.targetCategoryId,
+      source: link.targetSource,
+      fileType: link.targetFileType,
+    );
+    if (!mounted || !identical(anchorSourceLink, link)) return;
+    if (identical(notes, _targetNotes)) return;
+    setState(() => _targetNotes = notes);
   }
 
   void _syncAnchorLinks() {
@@ -164,12 +238,20 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
           );
     // אחרי הציטוטים: אופסטי קישור-משתמש נמדדים על השורה הגולמית.
     // HTML של טווח אינו שומר גבולות שורות מקור; מספר הערה יכול לחזור.
-    if (_noteLinks.isEmpty ||
-        (anchorSourceLink.index2End ?? anchorSourceLink.index2) >
-            anchorSourceLink.index2) {
-      return html;
+    if (!_isSingleLine) return html;
+    final lineNotes = _lineNotes;
+    var result = lineNotes.isEmpty
+        ? html
+        : addInlineNotePreviewLinks(
+            html,
+            lineIndex: lineIndex,
+            dbNotes: _targetNotes,
+          );
+    // סמן מודפס כמו (9) בלי <sup> — ההערה שלו נשמרה בלי אות-הפניה.
+    if (_noteLinks.isNotEmpty || lineNotes.any((n) => n.marker == null)) {
+      result = addNumberedNoteMarkerLinks(result, lineIndex: lineIndex);
     }
-    return addNumberedNoteMarkerLinks(html, lineIndex: lineIndex);
+    return result;
   }
 
   /// פענוח `otzaria://anchor?ref=<line>_<i>` לקישור שממנו נוצר הסימון.

@@ -142,6 +142,7 @@ class TextSettingsTab extends StatelessWidget {
         'לא יוצג',
         'יקוק',
         "ה'",
+        'יי',
         'הוי"ה',
       ],
     ),

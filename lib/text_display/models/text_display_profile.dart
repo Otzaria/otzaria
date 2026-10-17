@@ -31,13 +31,15 @@ enum TeamimVisibility {
 enum HolyNameDisplay {
   asIs,
   kufKuf,
-  hehApostrophe;
+  hehApostrophe,
+  doubleYod;
 
   /// null = הצגה ככתבו (אין החלפה).
   HolyNameStyle? get style => switch (this) {
     HolyNameDisplay.asIs => null,
     HolyNameDisplay.kufKuf => HolyNameStyle.kufKuf,
     HolyNameDisplay.hehApostrophe => HolyNameStyle.hehApostrophe,
+    HolyNameDisplay.doubleYod => HolyNameStyle.doubleYod,
   };
 
   static HolyNameDisplay fromLegacy({
@@ -45,15 +47,31 @@ enum HolyNameDisplay {
     required HolyNameStyle style,
   }) {
     if (!replaceHolyNames) return HolyNameDisplay.asIs;
-    return style == HolyNameStyle.hehApostrophe
-        ? HolyNameDisplay.hehApostrophe
-        : HolyNameDisplay.kufKuf;
+    return switch (style) {
+      HolyNameStyle.kufKuf => HolyNameDisplay.kufKuf,
+      HolyNameStyle.hehApostrophe => HolyNameDisplay.hehApostrophe,
+      HolyNameStyle.doubleYod => HolyNameDisplay.doubleYod,
+    };
   }
 
   static HolyNameDisplay? fromJson(Object? value) => switch (value) {
     'asIs' => HolyNameDisplay.asIs,
     'kufKuf' => HolyNameDisplay.kufKuf,
     'hehApostrophe' => HolyNameDisplay.hehApostrophe,
+    'doubleYod' => HolyNameDisplay.doubleYod,
+    _ => null,
+  };
+}
+
+/// הצגת שמות הקודש שאינם שם הוי"ה (אלהים, שדי וכד'): ככתבם, או בצורת
+/// התצוגה שלהם. חל רק על מופעים שסומנו במסד (`line_divine_name`).
+enum DivineNamesDisplay {
+  asIs,
+  substitute;
+
+  static DivineNamesDisplay? fromJson(Object? value) => switch (value) {
+    'asIs' => DivineNamesDisplay.asIs,
+    'substitute' => DivineNamesDisplay.substitute,
     _ => null,
   };
 }
@@ -72,12 +90,16 @@ class TextDisplayProfile {
   /// ציוני המפרשים בגוף הטקסט — אותיות העוגן, למשל (א).
   final MarkVisibility anchorMarkers;
 
+  /// שאר שמות הקודש — כבוי כברירת מחדל עד לאישור הצורות.
+  final DivineNamesDisplay divineNames;
+
   const TextDisplayProfile({
     this.nikud = MarkVisibility.show,
     this.teamim = TeamimVisibility.followNikud,
     this.punctuation = MarkVisibility.show,
     this.holyName = HolyNameDisplay.kufKuf,
     this.anchorMarkers = MarkVisibility.show,
+    this.divineNames = DivineNamesDisplay.asIs,
   });
 
   /// ברירת המחדל של התוכנה: הכול מוצג, שם הוי"ה מוחלף ביקוק.
@@ -95,6 +117,8 @@ class TextDisplayProfile {
   bool get replaceHolyNames => holyName != HolyNameDisplay.asIs;
   HolyNameStyle get holyNameStyle => holyName.style ?? HolyNameStyle.kufKuf;
   bool get showAnchorMarkers => anchorMarkers == MarkVisibility.show;
+  bool get substituteDivineNames =>
+      divineNames == DivineNamesDisplay.substitute;
 
   TextDisplayProfile copyWith({
     MarkVisibility? nikud,
@@ -102,6 +126,7 @@ class TextDisplayProfile {
     MarkVisibility? punctuation,
     HolyNameDisplay? holyName,
     MarkVisibility? anchorMarkers,
+    DivineNamesDisplay? divineNames,
   }) {
     return TextDisplayProfile(
       nikud: nikud ?? this.nikud,
@@ -109,6 +134,7 @@ class TextDisplayProfile {
       punctuation: punctuation ?? this.punctuation,
       holyName: holyName ?? this.holyName,
       anchorMarkers: anchorMarkers ?? this.anchorMarkers,
+      divineNames: divineNames ?? this.divineNames,
     );
   }
 
@@ -119,6 +145,7 @@ class TextDisplayProfile {
     punctuation: punctuation,
     holyName: holyName,
     anchorMarkers: anchorMarkers,
+    divineNames: divineNames,
   );
 
   @override
@@ -128,17 +155,24 @@ class TextDisplayProfile {
       teamim == other.teamim &&
       punctuation == other.punctuation &&
       holyName == other.holyName &&
-      anchorMarkers == other.anchorMarkers;
+      anchorMarkers == other.anchorMarkers &&
+      divineNames == other.divineNames;
 
   @override
-  int get hashCode =>
-      Object.hash(nikud, teamim, punctuation, holyName, anchorMarkers);
+  int get hashCode => Object.hash(
+    nikud,
+    teamim,
+    punctuation,
+    holyName,
+    anchorMarkers,
+    divineNames,
+  );
 
   @override
   String toString() =>
       'TextDisplayProfile(nikud: ${nikud.name}, teamim: ${teamim.name}, '
       'punctuation: ${punctuation.name}, holyName: ${holyName.name}, '
-      'anchorMarkers: ${anchorMarkers.name})';
+      'anchorMarkers: ${anchorMarkers.name}, divineNames: ${divineNames.name})';
 }
 
 /// טלאי חלקי על פרופיל: שדה null = "ירש מלמעלה".
@@ -149,6 +183,7 @@ class TextDisplayPatch {
   final MarkVisibility? punctuation;
   final HolyNameDisplay? holyName;
   final MarkVisibility? anchorMarkers;
+  final DivineNamesDisplay? divineNames;
 
   const TextDisplayPatch({
     this.nikud,
@@ -156,6 +191,7 @@ class TextDisplayPatch {
     this.punctuation,
     this.holyName,
     this.anchorMarkers,
+    this.divineNames,
   });
 
   static const TextDisplayPatch empty = TextDisplayPatch();
@@ -165,7 +201,8 @@ class TextDisplayPatch {
       teamim == null &&
       punctuation == null &&
       holyName == null &&
-      anchorMarkers == null;
+      anchorMarkers == null &&
+      divineNames == null;
 
   bool get isNotEmpty => !isEmpty;
 
@@ -176,6 +213,7 @@ class TextDisplayPatch {
     punctuation: other.punctuation ?? punctuation,
     holyName: other.holyName ?? holyName,
     anchorMarkers: other.anchorMarkers ?? anchorMarkers,
+    divineNames: other.divineNames ?? divineNames,
   );
 
   /// הפרופיל שמתקבל מהחלת הטלאי על [base].
@@ -185,6 +223,7 @@ class TextDisplayPatch {
     punctuation: punctuation,
     holyName: holyName,
     anchorMarkers: anchorMarkers,
+    divineNames: divineNames,
   );
 
   /// עותק שבו השדות ששווים ל-[base] נמחקים — כך שהטלאי מכיל רק סטיות
@@ -195,6 +234,7 @@ class TextDisplayPatch {
     punctuation: punctuation == base.punctuation ? null : punctuation,
     holyName: holyName == base.holyName ? null : holyName,
     anchorMarkers: anchorMarkers == base.anchorMarkers ? null : anchorMarkers,
+    divineNames: divineNames == base.divineNames ? null : divineNames,
   );
 
   TextDisplayPatch copyWith({
@@ -203,11 +243,13 @@ class TextDisplayPatch {
     MarkVisibility? punctuation,
     HolyNameDisplay? holyName,
     MarkVisibility? anchorMarkers,
+    DivineNamesDisplay? divineNames,
     bool clearNikud = false,
     bool clearTeamim = false,
     bool clearPunctuation = false,
     bool clearHolyName = false,
     bool clearAnchorMarkers = false,
+    bool clearDivineNames = false,
   }) {
     return TextDisplayPatch(
       nikud: clearNikud ? null : (nikud ?? this.nikud),
@@ -217,6 +259,7 @@ class TextDisplayPatch {
       anchorMarkers: clearAnchorMarkers
           ? null
           : (anchorMarkers ?? this.anchorMarkers),
+      divineNames: clearDivineNames ? null : (divineNames ?? this.divineNames),
     );
   }
 
@@ -226,6 +269,7 @@ class TextDisplayPatch {
     if (punctuation != null) 'punctuation': punctuation!.name,
     if (holyName != null) 'holyName': holyName!.name,
     if (anchorMarkers != null) 'anchorMarkers': anchorMarkers!.name,
+    if (divineNames != null) 'divineNames': divineNames!.name,
   };
 
   /// ערך לא מוכר בשדה נחשב null (ירושה) — קובץ פגום לא מפיל את הטעינה.
@@ -236,6 +280,7 @@ class TextDisplayPatch {
         punctuation: MarkVisibility.fromJson(json['punctuation']),
         holyName: HolyNameDisplay.fromJson(json['holyName']),
         anchorMarkers: MarkVisibility.fromJson(json['anchorMarkers']),
+        divineNames: DivineNamesDisplay.fromJson(json['divineNames']),
       );
 
   @override
@@ -245,11 +290,18 @@ class TextDisplayPatch {
       teamim == other.teamim &&
       punctuation == other.punctuation &&
       holyName == other.holyName &&
-      anchorMarkers == other.anchorMarkers;
+      anchorMarkers == other.anchorMarkers &&
+      divineNames == other.divineNames;
 
   @override
-  int get hashCode =>
-      Object.hash(nikud, teamim, punctuation, holyName, anchorMarkers);
+  int get hashCode => Object.hash(
+    nikud,
+    teamim,
+    punctuation,
+    holyName,
+    anchorMarkers,
+    divineNames,
+  );
 
   @override
   String toString() => 'TextDisplayPatch(${toJson()})';

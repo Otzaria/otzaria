@@ -1,41 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
-import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-/// המקורות שעבורם מוצג באנר קרדיט מעל תחילת הספר.
-enum BookSourceBannerKind {
-  nationalLibrary,
-  wikiJewishBooks,
-  beitAharonVeYisrael,
-}
-
-/// הטקסט המוצג בראש ספרי "יד הרמב"ם" (הספרייה הלאומית).
-const String kNationalLibraryBannerText =
-    'באדיבות הספרייה הלאומית לישראל, ואגודת פרידברג לכתבי יד יהודיים\n'
-    'כל הזכויות שמורות';
-
-/// הטקסט המוצג בראש ספרי "אוצר הספרים היהודי השיתופי".
-const String kWikiJewishBooksBannerText =
-    'באדיבות \'אוצר הספרים היהודי השיתופי\'';
-
-/// הטקסט המוצג בראש ספרי "מכון בית אהרן וישראל", בנוסח שקבע המכון.
-const String kBeitAharonVeYisraelBannerText =
-    'כל הזכויות שמורות למכון בית אהרן וישראל שע"י מרכז סטאלין קארלין.\n'
-    'אין להעתיק ולשכפל בכל צורה שהיא ללא אישור מפורש בכתב מהמו"ל';
-
-const String _wikiJewishBooksPageBaseUrl =
-    'https://wiki.jewishbooks.org.il/mediawiki/wiki/';
-
-/// בונה את כתובת דף הוויקי המקורי של הספר, לפי מוסכמת ה-URL של מדיה-ויקי
-/// (רווחים הופכים לקו תחתון).
-String wikiJewishBooksPageUrl(String bookTitle) =>
-    _wikiJewishBooksPageBaseUrl +
-    Uri.encodeComponent(bookTitle.replaceAll(' ', '_'));
 
 /// משווה את שדות הזהות שקובעים את מקור הספר. במסלול side-by-side ה-widget
 /// אינו ממופתח לפי identity, ולכן מעבר לספר בעל אותה כותרת אך מקור שונה חייב
@@ -46,41 +14,52 @@ bool sameSourceIdentity(TextBook a, TextBook b) =>
     a.fileType == b.fileType &&
     a.source == b.source;
 
-/// טוען מה-DB איזה באנר מקור יש להציג לספר, אם בכלל.
-/// רק ספרי הספרייה הרשמית באים ממקורות אלו; לשאר מדלגים על השאילתה.
-Future<BookSourceBannerKind?> resolveBookSourceBannerKind(
-  TextBook book,
-) async {
-  if (!book.source.isOfficial) return null;
-  final sourceName = await SqliteDataProvider.instance.getBookSourceNameFromDb(
-    book.title,
-    book.categoryId,
-    book.fileType,
-  );
-  if (isNationalLibrarySource(sourceName)) {
-    return BookSourceBannerKind.nationalLibrary;
+/// קטע בטקסט הבאנר: טקסט רגיל, או קישור כש-[url] אינו null.
+typedef BannerSegment = ({String text, Uri? url});
+
+/// הכתובת שמורה במסד מקודדת כבר, ולכן אין בה רווחים או סוגריים.
+final _bannerLinkPattern = RegExp(r'\[([^\]\n]+)\]\(([^)\s]+)\)');
+
+/// מפרק את טקסט הבאנר מהמסד לשורות של קטעים. הסימון היחיד הוא
+/// `[תווית](כתובת)`; כתובת שאינה http/https/mailto נשארת טקסט. שבירת שורה
+/// אמיתית מפרידה שורות.
+List<List<BannerSegment>> parseBannerText(String raw) => [
+  for (final line in raw.split('\n')) _parseBannerLine(line),
+];
+
+List<BannerSegment> _parseBannerLine(String line) {
+  final segments = <BannerSegment>[];
+  var position = 0;
+  for (final match in _bannerLinkPattern.allMatches(line)) {
+    if (match.start > position) {
+      segments.add((text: line.substring(position, match.start), url: null));
+    }
+    final url = _parseBannerUrl(match.group(2)!);
+    segments.add((
+      text: url == null ? match.group(0)! : match.group(1)!,
+      url: url,
+    ));
+    position = match.end;
   }
-  if (isWikiJewishBooksSource(sourceName)) {
-    return BookSourceBannerKind.wikiJewishBooks;
+  if (position < line.length || segments.isEmpty) {
+    segments.add((text: line.substring(position), url: null));
   }
-  if (isBeitAharonVeYisraelSource(sourceName)) {
-    return BookSourceBannerKind.beitAharonVeYisrael;
-  }
-  return null;
+  return segments;
 }
 
-/// שורה נגללת המוצגת מעל השורה הראשונה בספרים ממקורות בעלי נוסח קרדיט קבוע.
+Uri? _parseBannerUrl(String raw) {
+  final uri = Uri.tryParse(raw);
+  if (uri == null) return null;
+  const allowed = {'http', 'https', 'mailto'};
+  return allowed.contains(uri.scheme.toLowerCase()) ? uri : null;
+}
+
+/// שורה נגללת המוצגת מעל השורה הראשונה בספרים שיש להם באנר במסד.
 /// אינה חלק מתוכן הספר עצמו — לכן אינה משפיעה על אינדקסי שורות, קישורים או חיפוש.
 class BookSourceBanner extends StatefulWidget {
-  const BookSourceBanner({
-    super.key,
-    required this.kind,
-    required this.bookTitle,
-    this.fontSize,
-  });
+  const BookSourceBanner({super.key, required this.text, this.fontSize});
 
-  final BookSourceBannerKind kind;
-  final String bookTitle;
+  final String text;
   final double? fontSize;
 
   @override
@@ -88,31 +67,35 @@ class BookSourceBanner extends StatefulWidget {
 }
 
 class _BookSourceBannerState extends State<BookSourceBanner> {
-  TapGestureRecognizer? _recognizer;
+  List<List<BannerSegment>> _lines = const [];
+
+  /// מקביל ל-[_lines]; null לקטע שאינו קישור.
+  List<List<TapGestureRecognizer?>> _recognizers = const [];
 
   @override
   void initState() {
     super.initState();
-    _setupRecognizer();
+    _parse();
   }
 
   @override
   void didUpdateWidget(covariant BookSourceBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.bookTitle != widget.bookTitle ||
-        oldWidget.kind != widget.kind) {
-      _setupRecognizer();
-    }
+    if (oldWidget.text != widget.text) _parse();
   }
 
-  void _setupRecognizer() {
-    _recognizer?.dispose();
-    if (widget.kind != BookSourceBannerKind.wikiJewishBooks) {
-      _recognizer = null;
-      return;
-    }
-    final uri = Uri.parse(wikiJewishBooksPageUrl(widget.bookTitle));
-    _recognizer = TapGestureRecognizer()
+  void _parse() {
+    _disposeRecognizers();
+    _lines = parseBannerText(widget.text);
+    _recognizers = [
+      for (final line in _lines)
+        [for (final segment in line) _recognizerFor(segment.url)],
+    ];
+  }
+
+  static TapGestureRecognizer? _recognizerFor(Uri? uri) {
+    if (uri == null) return null;
+    return TapGestureRecognizer()
       ..onTap = () async {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
@@ -120,9 +103,18 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
       };
   }
 
+  void _disposeRecognizers() {
+    for (final line in _recognizers) {
+      for (final recognizer in line) {
+        recognizer?.dispose();
+      }
+    }
+    _recognizers = const [];
+  }
+
   @override
   void dispose() {
-    _recognizer?.dispose();
+    _disposeRecognizers();
     super.dispose();
   }
 
@@ -136,64 +128,47 @@ class _BookSourceBannerState extends State<BookSourceBanner> {
       height: 1.3,
       color: cs.onSurfaceVariant,
     );
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: _buildContent(context, cs, textStyle),
+    final linkStyle = TextStyle(
+      color: cs.primary,
+      decoration: TextDecoration.underline,
     );
-  }
-
-  Widget _buildContent(
-    BuildContext context,
-    ColorScheme cs,
-    TextStyle textStyle,
-  ) {
-    final fixedText = switch (widget.kind) {
-      BookSourceBannerKind.nationalLibrary => kNationalLibraryBannerText,
-      BookSourceBannerKind.beitAharonVeYisrael =>
-        kBeitAharonVeYisraelBannerText,
-      BookSourceBannerKind.wikiJewishBooks => null,
-    };
-    if (fixedText != null) {
-      return Text(
-        fixedText,
-        textAlign: TextAlign.center,
-        style: textStyle,
-      );
-    }
-
     final isOfflineMode = context.watch<SettingsBloc>().state.isOfflineMode;
-    if (isOfflineMode) {
-      return Text(
-        kWikiJewishBooksBannerText,
-        textAlign: TextAlign.center,
-        style: textStyle,
-      );
-    }
-    return Text.rich(
-      TextSpan(
-        style: textStyle,
-        children: [
-          const TextSpan(text: '$kWikiJewishBooksBannerText\nאפשר ללחוץ '),
+    // במצב לא מקוון שורה עם קישור אינה מוצגת — ההנחיה שבה אינה ברת ביצוע.
+    final lineIndices = [
+      for (var i = 0; i < _lines.length; i++)
+        if (!isOfflineMode || _lines[i].every((s) => s.url == null)) i,
+    ];
+    if (lineIndices.isEmpty) return const SizedBox.shrink();
+    // אינו חלק מהספר: בחירה והעתקה של הטקסט אינן כוללות אותו.
+    return SelectionContainer.disabled(
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text.rich(
           TextSpan(
-            text: 'כאן',
-            style: TextStyle(
-              color: cs.primary,
-              decoration: TextDecoration.underline,
-            ),
-            recognizer: _recognizer,
+            style: textStyle,
+            children: [
+              for (final (n, i) in lineIndices.indexed) ...[
+                if (n > 0) const TextSpan(text: '\n'),
+                for (var j = 0; j < _lines[i].length; j++)
+                  _lines[i][j].url == null
+                      ? TextSpan(text: _lines[i][j].text)
+                      : TextSpan(
+                          text: _lines[i][j].text,
+                          style: linkStyle,
+                          recognizer: _recognizers[i][j],
+                        ),
+              ],
+            ],
           ),
-          const TextSpan(
-            text: ' ולתקן את הדף המקורי או להוסיף הערת שוליים',
-          ),
-        ],
+          textAlign: TextAlign.center,
+        ),
       ),
-      textAlign: TextAlign.center,
     );
   }
 }

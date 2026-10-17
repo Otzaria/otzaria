@@ -12,6 +12,7 @@ import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/view/custom_shortcut_dialog.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 
@@ -218,23 +219,59 @@ class _DynamicShortcutForm extends StatelessWidget {
                 value.copyWith(change: change.copyWith(punctuation: v)),
               ),
             ),
-            SettingsActionTile.segmentedTile<HolyNameDisplay?>(
+            // התפריט אינו מעביר null, לכן "ללא שינוי" מיוצג במחרוזת.
+            SettingsActionTile.dropdownTile<String>(
               icon: OtzariaIcons.alef_lock_24_filled,
               title: t('שם הוי"ה'),
-              options: [
-                SegmentOption(value: null, label: t('ללא שינוי')),
-                SegmentOption(value: HolyNameDisplay.asIs, label: t('ככתבו')),
-                SegmentOption(value: HolyNameDisplay.kufKuf, label: t('יקוק')),
-                SegmentOption(
-                  value: HolyNameDisplay.hehApostrophe,
+              entries: [
+                AppMenuEntry(value: '', label: t('ללא שינוי')),
+                AppMenuEntry(
+                  value: HolyNameDisplay.asIs.name,
+                  label: t('ככתבו'),
+                ),
+                AppMenuEntry(
+                  value: HolyNameDisplay.kufKuf.name,
+                  label: t('יקוק'),
+                ),
+                AppMenuEntry(
+                  value: HolyNameDisplay.hehApostrophe.name,
                   label: t("ה'"),
                 ),
+                AppMenuEntry(
+                  value: HolyNameDisplay.doubleYod.name,
+                  label: t('יי'),
+                ),
               ],
-              currentValue: change.holyName,
-              onChanged: (v) => onChanged(
-                value.copyWith(change: change.copyWith(holyName: v)),
+              value: change.holyName?.name ?? '',
+              onSelected: (v) => onChanged(
+                value.copyWith(
+                  change: change.copyWith(
+                    holyName: HolyNameDisplay.fromJson(v),
+                  ),
+                ),
               ),
             ),
+            // ההעתקה לוקחת את הטקסט כפי שהוא מוצג, ולכן רק בשינוי תצוגה.
+            if (isDisplay)
+              SettingsActionTile.segmentedTile<DivineNamesDisplay?>(
+                icon: OtzariaIcons.alef_crown_24_filled,
+                title: t('שאר שמות הקודש'),
+                options: [
+                  SegmentOption(value: null, label: t('ללא שינוי')),
+                  SegmentOption(
+                    value: DivineNamesDisplay.asIs,
+                    label: t('ככתבם'),
+                  ),
+                  SegmentOption(
+                    value: DivineNamesDisplay.substitute,
+                    label: t('בכינוי'),
+                  ),
+                ],
+                currentValue: change.divineNames,
+                onChanged: (v) => onChanged(
+                  value.copyWith(change: change.copyWith(divineNames: v)),
+                ),
+              ),
             if (value.target == TextTarget.body && isDisplay)
               SettingsActionTile.segmentedTile<DynamicMarkChange?>(
                 icon: OtzariaIcons.alef_1_24_filled,

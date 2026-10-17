@@ -6,6 +6,9 @@ import 'dart:io' hide Link;
 import 'dart:math' as math;
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/utils/file/file_picker_dialog_options.dart';
 import 'package:otzaria/widgets/dialogs/input_dialog.dart';
@@ -508,6 +511,9 @@ class PluginBridgeDependencies {
   /// היא [Link.content] עם המטמון שלו.
   final Future<String> Function(Link link)? linkContentLoader;
 
+  /// הגבלת המו"ל של ספר. ברירת המחדל: [BookProtectionRepository].
+  final Future<BookProtection> Function(Book book)? bookProtectionResolver;
+
   /// מקור-האמת של הסימניות (`bookmarks.*`). ה-bloc מחזיק את הרשימה בזיכרון
   /// וכותב לדיסק, ולכן כתיבה ישירה למחסן הייתה נדרסת. null = ה-API אינו זמין.
   final BookmarkBloc? bookmarkBloc;
@@ -598,6 +604,7 @@ class PluginBridgeDependencies {
     this.textBookRepository,
     this.linkTargetsSummaryProvider,
     this.linkContentLoader,
+    this.bookProtectionResolver,
     this.bookmarkBloc,
     this.onBackgroundInstanceDone,
     this.dispatchEventToPlugin,
@@ -843,6 +850,45 @@ class PluginBridgeAdapter {
     _booksByTitle = const {};
     _booksByUid = const {};
     _booksByIndexedPath = const {};
+  }
+
+  static const _restrictedTextMessage =
+      "The publisher restricted access to this book's text";
+
+  /// הגבלת המו"ל של [book].
+  Future<BookProtection> _protectionOf(Book book) async {
+    // הקורא המקושר כבר טען את ההגבלה; בלי await, כדי לא לדחות את קריאת מצבו.
+    final boundState = readerTab?.bloc.state;
+    if (boundState is TextBookLoaded &&
+        PluginBookIdentity.uidOf(boundState.book) ==
+            PluginBookIdentity.uidOf(book)) {
+      return boundState.protection;
+    }
+    final resolver =
+        _dependencies.bookProtectionResolver ??
+        BookProtectionRepository.instance.forBook;
+    return resolver(book);
+  }
+
+  /// ספר עם הגבלת מו"ל: הטקסט שלו אינו נמסר לתוספים.
+  Future<bool> _isTextRestricted(Book book) async =>
+      (await _protectionOf(book)).isProtected;
+
+  /// ההגבלה כפי שנמסרת לתוספים — מה מותר, לא רק הרמה, כדי שתוסף לא יצטרך
+  /// לשכפל את טבלת הרמות של [BookProtection].
+  static Map<String, dynamic> _protectionJson(BookProtection p) => {
+    'level': p.effectiveLevel,
+    'textAvailable': !p.isProtected,
+    'editableExport': p.allowsEditableExport,
+    'pdfExport': p.allowsPdfExport,
+    'copyLimit': p.maxCopySegments,
+    'printLimit': p.maxPrintSegments,
+  };
+
+  Future<void> _ensureBookTextAvailable(Book book) async {
+    if (await _isTextRestricted(book)) {
+      throw Exception('error.forbidden: $_restrictedTextMessage');
+    }
   }
 
   /// LRU מונע טעינה חוזרת של ספר בקריאות מקוטעות; UID שומר על הפרדת המקורות.
@@ -1270,10 +1316,45 @@ class PluginBridgeAdapter {
                     if (sourceDisplay.url.isNotEmpty) 'url': sourceDisplay.url,
                   },
             'reference': info.reference,
+            'protection': _protectionJson(await _protectionOf(book)),
             'lineCount': info.lineCount,
             // רק הנתיב היחסי בספרייה: נתיב מוחלט מסגיר את שם המשתמש.
             'libraryPath': libraryDisplayPath(book.filePath ?? ''),
           };
+        }
+      case 'getBookProtections':
+        // spec: { items } (עד 500) — זהות ספר לכל פריט, כמו getBookMetadata,
+        // או כותרת + categoryId כפי שחוזרים מ-getLinks (מפרש). מחזיר מערך
+        // באותו סדר; ספר שלא נמצא → null.
+        {
+          final raw = args['items'];
+          if (raw is! List || raw.length > 500) {
+            throw Exception(
+              'error.invalid_params: items must be an array with at most 500 entries',
+            );
+          }
+          final out = <Map<String, dynamic>?>[];
+          for (final item in raw) {
+            if (item is! Map) {
+              throw Exception('error.invalid_params: items must be objects');
+            }
+            final itemArgs = Map<String, dynamic>.from(item);
+            final title = (itemArgs['bookId'] ?? itemArgs['title']) as String?;
+            final book =
+                _findPluginBook(library, itemArgs) ??
+                (title == null || title.trim().isEmpty
+                    ? null
+                    : TextBook(
+                        title: title,
+                        categoryId: PluginBookIdentity.parseId(
+                          itemArgs['categoryId'],
+                        ),
+                      ));
+            out.add(
+              book == null ? null : _protectionJson(await _protectionOf(book)),
+            );
+          }
+          return out;
         }
       case 'resolveBooks':
         {
@@ -1352,6 +1433,7 @@ class PluginBridgeAdapter {
         if (book == null && bookId == null) {
           throw Exception('error.not_found: book not found');
         }
+        await _ensureBookTextAvailable(book ?? TextBook(title: bookId!));
         var rawText = book == null
             ? await DataRepository.instance.getBookText(bookId!)
             : await _loadBookRawText(book);
@@ -1937,6 +2019,16 @@ class PluginBridgeAdapter {
           legacyUserFlagKey: 'targetIsUserBook',
         ),
       );
+      if (await _isTextRestricted(
+        TextBook(
+          title: targetTitle,
+          categoryId: link.targetCategoryId,
+          source: link.targetSource,
+        ),
+      )) {
+        items.add(const {'error': 'forbidden'});
+        continue;
+      }
       try {
         items.add({'content': await (loader?.call(link) ?? link.content)});
       } catch (_) {
@@ -2220,18 +2312,25 @@ class PluginBridgeAdapter {
         final results = await _dependencies.searchRepository.searchTexts(
           SearchEngineRequest(query: query, facets: [], limit: limit),
         );
-        return results
-            .map(
-              (r) => {
-                'type': r.isPdf ? 'pdf' : 'text',
-                'book': r.title,
-                'text': r.text,
-                'textStatus': r.textStatus.name,
-                'continuesToNextLine': r.continuesToNextLine,
-                'index': r.segment.toInt(),
-              },
-            )
-            .toList();
+        final restricted = <String>{
+          for (final title in {
+            for (final r in results)
+              if (!r.isPdf) r.title,
+          })
+            if (await _isTextRestricted(TextBook(title: title))) title,
+        };
+        return results.map((r) {
+          final isRestricted = !r.isPdf && restricted.contains(r.title);
+          return {
+            'type': r.isPdf ? 'pdf' : 'text',
+            'book': r.title,
+            'text': isRestricted ? '' : r.text,
+            'textStatus': r.textStatus.name,
+            'continuesToNextLine': r.continuesToNextLine,
+            'index': r.segment.toInt(),
+            if (isRestricted) 'error': 'forbidden',
+          };
+        }).toList();
       case 'getOptions':
         return PluginSearchApi.describeOptions();
       case 'setFieldText':
@@ -2369,6 +2468,7 @@ class PluginBridgeAdapter {
     int? totalCount;
     int? groupCount;
     var truncated = false;
+    final restrictedByPath = <String, bool>{};
     try {
       while (await iterator.moveNext().timeout(_searchIdleTimeout)) {
         final update = iterator.current;
@@ -2381,6 +2481,14 @@ class PluginBridgeAdapter {
           _ensureBookIndex(library);
         }
         final booksByPath = _booksByIndexedPath;
+        for (final result in update.results) {
+          if (result.isPdf || restrictedByPath.containsKey(result.filePath)) {
+            continue;
+          }
+          restrictedByPath[result.filePath] = await _isTextRestricted(
+            booksByPath[result.filePath] ?? TextBook(title: result.title),
+          );
+        }
         await eventSink(_searchStreamEvent, {
           'streamId': streamId,
           'chunk': {
@@ -2391,6 +2499,7 @@ class PluginBridgeAdapter {
                   result,
                   booksByPath[result.filePath],
                   booksByPath: booksByPath,
+                  textRestricted: restrictedByPath[result.filePath] ?? false,
                 ),
             ],
             'total': totalCount,
@@ -3421,6 +3530,12 @@ class PluginBridgeAdapter {
       if (state is! TextBookLoaded || sectionIndex >= state.content.length) {
         continue;
       }
+      if (state.protection.isProtected) {
+        throw const PluginTextOccurrenceException(
+          'error.forbidden',
+          _restrictedTextMessage,
+        );
+      }
       final snapshot =
           identical(tab, _dependencies.tabsBloc.state.readingPane) &&
               tab.index == sectionIndex
@@ -3445,6 +3560,12 @@ class PluginBridgeAdapter {
       throw const PluginTextOccurrenceException(
         'error.not_found',
         'text book was not found',
+      );
+    }
+    if (await _isTextRestricted(book)) {
+      throw const PluginTextOccurrenceException(
+        'error.forbidden',
+        _restrictedTextMessage,
       );
     }
     final range = await TextBookRepository(fileSystem: FileSystemData.instance)
@@ -6709,10 +6830,14 @@ class PluginBridgeAdapter {
       return null;
     }
 
-    final selectedText = state.selectedTextForNote;
-    if (selectedText == null || selectedText.trim().isEmpty) {
+    final rawSelectedText = state.selectedTextForNote;
+    if (rawSelectedText == null || rawSelectedText.trim().isEmpty) {
       return null;
     }
+    final selectedText = limitTextToCopySegments(
+      state.protection,
+      rawSelectedText,
+    );
 
     final legacySelection = <String, dynamic>{
       'id': currentTab.book.id,
@@ -6731,7 +6856,8 @@ class PluginBridgeAdapter {
     final start = state.selectedTextStart;
     final end = state.selectedTextEnd;
     final sectionIndex = state.selectedTextSectionIndex ?? currentTab.index;
-    if (start == null ||
+    if (!identical(selectedText, rawSelectedText) ||
+        start == null ||
         end == null ||
         sectionIndex < 0 ||
         sectionIndex >= state.content.length) {

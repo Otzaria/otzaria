@@ -23,7 +23,7 @@ try {
   # DB מעל מגבלת הנכס של GitHub מתפרסם כ-<name>.part-NNN ולצדם <name>.manifest.json.
   $dbAsset = $null
   $dbManifest = $null
-  foreach ($name in @("seforim-schema6.db.zst", "seforim.db.zst")) {
+  foreach ($name in @("seforim-schema7.db.zst", "seforim-schema6.db.zst", "seforim.db.zst")) {
     $dbAsset = $libraryRelease.assets | Where-Object { $_.name -eq $name }
     if ($dbAsset) { break }
     $dbManifest = $libraryRelease.assets | Where-Object { $_.name -eq "$name.manifest.json" }
@@ -31,7 +31,7 @@ try {
   }
 
   if (-not $dbAsset -and -not $dbManifest) {
-    Write-Host "::error::Could not find seforim-schema6.db.zst or seforim.db.zst, whole or split, in release $($libraryRelease.tag_name)"
+    Write-Host "::error::Could not find seforim-schema7.db.zst, seforim-schema6.db.zst or seforim.db.zst, whole or split, in release $($libraryRelease.tag_name)"
     exit 1
   }
 

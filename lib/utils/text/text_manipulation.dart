@@ -1727,15 +1727,16 @@ enum HolyNameStyle {
   kufKuf('kuf'),
 
   /// החלפה ב"ה'" — הניקוד והטעמים של השם עצמו מושמטים.
-  hehApostrophe('heh');
+  hehApostrophe('heh'),
+
+  /// החלפה ב"יי": ניקוד ה-ו וה-ה האחרונה עובר ל-י השנייה (יְיָ).
+  doubleYod('yy');
 
   final String storageKey;
   const HolyNameStyle(this.storageKey);
 
-  static HolyNameStyle fromStorage(String? key) =>
-      key == HolyNameStyle.hehApostrophe.storageKey
-      ? HolyNameStyle.hehApostrophe
-      : HolyNameStyle.kufKuf;
+  static HolyNameStyle fromStorage(String? key) => HolyNameStyle.values
+      .firstWhere((s) => s.storageKey == key, orElse: () => kufKuf);
 }
 
 String replaceHolyNames(
@@ -1750,11 +1751,12 @@ String replaceHolyNames(
   for (final match in matches) {
     out
       ..write(s.substring(copied, match.start))
-      ..write(
-        style == HolyNameStyle.hehApostrophe
-            ? "ה'"
-            : 'י${match[1]}ק${match[2]}ו${match[3]}ק${match[4]}',
-      );
+      ..write(switch (style) {
+        HolyNameStyle.kufKuf =>
+          'י${match[1]}ק${match[2]}ו${match[3]}ק${match[4]}',
+        HolyNameStyle.hehApostrophe => "ה'",
+        HolyNameStyle.doubleYod => 'י${match[1]}י${match[3]}${match[4]}',
+      });
     copied = match.end;
   }
   return (out..write(s.substring(copied))).toString();

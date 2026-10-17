@@ -58,7 +58,7 @@ void main() {
       discovery: _unusedDiscovery(),
       downloader: StreamingPatchDownloader(),
     );
-    expect(DatabaseConstants.readableDbSchemaVersion, 6);
+    expect(DatabaseConstants.readableDbSchemaVersion, 7);
     expect(
       DatabaseConstants.readableDbSchemaVersion,
       lessThanOrEqualTo(kSupportedDbSchemaVersion),
@@ -1457,6 +1457,7 @@ void main() {
   });
 
   test('release בסכמה חדשה ללא דלתא דורש עדכון אפליקציה', () async {
+    const newer = DatabaseConstants.readableDbSchemaVersion + 1;
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
     _writeDb(dbPath, version: 1, marker: 'old');
     final repository = LibraryUpdateRepository(
@@ -1472,8 +1473,8 @@ void main() {
                   'prerelease': false,
                   'assets': [
                     {
-                      'name': 'seforim-schema7.db.zst',
-                      'browser_download_url': 'https://example.com/schema7',
+                      'name': 'seforim-schema$newer.db.zst',
+                      'browser_download_url': 'https://example.com/schema$newer',
                       'size': 100,
                     },
                   ],
@@ -1492,7 +1493,7 @@ void main() {
     expect(plan.kind, LibraryUpdatePlanKind.blocked);
     expect(plan.targetVersion, 2);
     expect(plan.reason, contains('נדרש עדכון אפליקציה'));
-    expect(plan.reason, contains('DB 7'));
+    expect(plan.reason, contains('DB $newer'));
     expect(plan.fullDbAsset, isNull);
   });
 

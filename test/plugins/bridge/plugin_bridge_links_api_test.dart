@@ -1,6 +1,7 @@
 import 'package:flutter_settings_screens/flutter_settings_screens.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/library/models/library.dart';
@@ -225,6 +226,7 @@ void main() {
     )?
     linkTargetsSummaryProvider,
     Future<String> Function(Link link)? linkContentLoader,
+    Future<BookProtection> Function(Book book)? bookProtectionResolver,
   }) {
     return PluginBridgeAdapter(
       _buildInstalledPlugin(),
@@ -245,6 +247,8 @@ void main() {
         textBookRepository: repository,
         linkTargetsSummaryProvider: linkTargetsSummaryProvider,
         linkContentLoader: linkContentLoader,
+        bookProtectionResolver:
+            bookProtectionResolver ?? (_) async => BookProtection.none,
       ),
       pluginRepository: _StubPluginRegistryRepository(),
     );
@@ -1244,6 +1248,33 @@ void main() {
       final items = result['items'] as List;
       expect((items.first as Map)['content'], 'תוכן 1');
       expect((items.last as Map)['content'], 'תוכן 5');
+    });
+
+    test('מפרש עם הגבלת מו"ל מוחזר כ-forbidden בלי לטעון תוכן', () async {
+      final requested = <String>[];
+      final localAdapter = buildAdapter(
+        linkContentLoader: (link) async {
+          requested.add(link.path2);
+          return 'תוכן';
+        },
+        bookProtectionResolver: (book) async => book.title == 'מפרש מוגן'
+            ? const BookProtection(level: 1)
+            : BookProtection.none,
+      );
+
+      final result =
+          await localAdapter.execute('library', 'getLinkContent', {
+                'links': [
+                  {'targetTitle': 'מפרש מוגן', 'targetLine': 0},
+                  {'targetTitle': 'רש״י על בראשית', 'targetLine': 0},
+                ],
+              })
+              as Map<String, dynamic>;
+
+      final items = result['items'] as List;
+      expect(items.first, {'error': 'forbidden'});
+      expect((items.last as Map)['content'], 'תוכן');
+      expect(requested, ['רש״י על בראשית']);
     });
 
     test('כשל בטעינה מוחזר כ-not_found באותו מקום ברשימה', () async {

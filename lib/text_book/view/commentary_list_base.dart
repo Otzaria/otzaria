@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
+import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_flat_items.dart';
 import 'package:otzaria/theme/app_fonts.dart';
@@ -14,6 +15,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/text/rtl_selection_shortcuts.dart';
 import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
+import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
+import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
@@ -363,6 +366,28 @@ class CommentaryListBaseState extends State<CommentaryListBase>
 
   String _getLinkKey(Link link) => commentaryLinkKey(link);
 
+  Future<CommentaryCopyGuard?> _multiItemCopyGuard() async {
+    final links = selectedItemLinks(_itemKeys, _orderedLinks, _getLinkKey);
+    if (links.isEmpty) return null;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return null;
+    return buildCommentaryCopyGuard(
+      links,
+      selectionOf: (link) => CommentarySelectionTracker.selectionIn(
+        _itemKeys[_getLinkKey(link)]!,
+      ),
+      renderSettings: RenderSettings.fromProfile(
+        state.commentaryDisplayProfile,
+      ),
+    );
+  }
+
+  /// הקישור של הבחירה כשהיא בתוך פריט יחיד, גם בלי לחיצה שסימנה אותו.
+  Link? _singleSelectedLink() {
+    final links = selectedItemLinks(_itemKeys, _orderedLinks, _getLinkKey);
+    return links.length == 1 ? links.single : null;
+  }
+
   // סדר הקישורים המוצגים, שעליו מבוססים היסטי החיפוש.
   List<Link> _orderedLinks = [];
   Map<String, int>? _searchResultOffsets;
@@ -410,7 +435,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     return links
         .map(
           (link) =>
-              '${link.index1}|${link.path2}|${link.index2}|${link.connectionType}',
+              '${link.index1}|${link.contentIdentityKey}|${link.connectionType}',
         )
         .join('||');
   }
@@ -819,6 +844,9 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     }
     if (!mounted) return;
 
+    final protection = await BookProtectionRepository.instance
+        .strictestForLinks(links);
+    if (!mounted) return;
     final bookTitle = _bookTitle(blocState);
     final profile = blocState.commentaryDisplayProfile;
     await showDialog<bool>(
@@ -829,6 +857,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         bookId: bookTitle,
         documentTitle: bookTitle,
         prebuiltBlocks: blocks,
+        protection: protection,
         activeCommentators: groups
             .map((group) => group.bookTitle)
             .toList(growable: false),
@@ -1777,6 +1806,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
       highlightQueryListenable: widget.highlightQueryListenable,
       itemKeys: _itemKeys,
       getLinkKey: _getLinkKey,
+      multiItemCopyGuard: _multiItemCopyGuard,
       savedSelectedTextListenable: _savedSelectedText,
       lastSelectedLinkListenable: _lastSelectedLink,
       // לחיצת עכבר על מפרש מסמנת אותו כיעד הייחוס להעתקת מקלדת (Ctrl+C),
@@ -1811,7 +1841,8 @@ class CommentaryListBaseState extends State<CommentaryListBase>
         selectionText: _restoreLineBreaks(text),
         selectionLink: selectionSpansMultipleItems(_itemKeys)
             ? null
-            : _lastSelectedLink.value,
+            : _lastSelectedLink.value ?? _singleSelectedLink(),
+        copyGuard: _multiItemCopyGuard,
       );
     } else {
       _savedSelectedText.value = null;
@@ -1940,6 +1971,7 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                 final relevantNotes = inline_notes.notesForLines(
                   state.content,
                   currentIndexes,
+                  dbNotes: state.bookNotes,
                 );
                 if (relevantNotes.isNotEmpty) {
                   notesWidget = _NotesCommentaryWidget(
@@ -2116,19 +2148,23 @@ class CommentaryListBaseState extends State<CommentaryListBase>
                   // המקשים: בלעדיו Ctrl+C נופל להעתקת ברירת המחדל של Flutter,
                   // שכותבת ללוח את הבחירה כמות שהיא — גם כשהיא ריקה (#674).
                   return SelectionCopyShortcuts(
-                    onCopy: () {
+                    onCopy: () async {
                       // בחירה החוצה כמה מפרשים — לא מייחסים כותרת מקור
                       // (היא הייתה משתייכת למפרש בודד בלבד).
                       final link = selectionSpansMultipleItems(_itemKeys)
                           ? null
-                          : _lastSelectedLink.value;
-                      ContextMenuUtils.copyFormattedText(
+                          : _lastSelectedLink.value ?? _singleSelectedLink();
+                      final guard = await _multiItemCopyGuard();
+                      if (!context.mounted) return;
+                      await ContextMenuUtils.copyFormattedText(
                         context: context,
                         savedSelectedText: _restoreLineBreaks(
                           _savedSelectedText.value,
                         ),
                         fontSize: widget.fontSize,
                         link: link,
+                        protection: guard?.protection,
+                        segmentCount: guard?.segmentCount,
                       );
                     },
                     child: Listener(
@@ -2533,6 +2569,7 @@ class _CommentaryLinkItem extends StatefulWidget {
   final void Function(Link, List<String>)? updateSearchSnippets;
   final Map<String, GlobalKey> itemKeys;
   final String Function(Link) getLinkKey;
+  final Future<CommentaryCopyGuard?> Function() multiItemCopyGuard;
   final ValueListenable<String?> savedSelectedTextListenable;
   final ValueListenable<Link?> lastSelectedLinkListenable;
 
@@ -2575,6 +2612,7 @@ class _CommentaryLinkItem extends StatefulWidget {
     this.updateSearchSnippets,
     required this.itemKeys,
     required this.getLinkKey,
+    required this.multiItemCopyGuard,
     required this.savedSelectedTextListenable,
     required this.lastSelectedLinkListenable,
     required this.personalNotes,
@@ -2592,6 +2630,25 @@ class _CommentaryLinkItem extends StatefulWidget {
 }
 
 class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
+  Future<void> _copySelection(
+    BuildContext menuContext,
+    String? savedText,
+    Link link, {
+    bool removeNikud = false,
+  }) async {
+    final guard = await widget.multiItemCopyGuard();
+    if (!menuContext.mounted) return;
+    await ContextMenuUtils.copyFormattedText(
+      context: menuContext,
+      savedSelectedText: (widget.restoreLineBreaks ?? (s) => s)(savedText),
+      fontSize: widget.fontSize,
+      link: link,
+      removeNikud: removeNikud,
+      protection: guard?.protection,
+      segmentCount: guard?.segmentCount,
+    );
+  }
+
   /// פותח את יעד הקישור בכרטיסייה חדשה (טקסט או PDF, לפי תבנית הפתיחה).
   Future<void> _navigateToLink(Link link) async {
     final tab = await buildLinkTargetTab(link);
@@ -2732,36 +2789,24 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                       copyDisplayProfile: widget.copyDisplayProfile,
                       savedSelectedText: savedTextAtBuild,
                       onNavigateToLink: _navigateToLink,
-                      onCopySelected: () => ContextMenuUtils.copyFormattedText(
-                        context: menuCtx,
-                        savedSelectedText:
-                            (widget.restoreLineBreaks ?? (s) => s)(
-                              savedTextAtBuild,
-                            ),
-                        fontSize: widget.fontSize,
+                      onCopySelected: () => _copySelection(
+                        menuCtx,
+                        savedTextAtBuild,
                         // במצב הפאנל/כרטיסייה אין מעקב פר-פריט אחר
                         // המפרש הנבחר (אין SelectionArea פר-פריט), לכן
                         // נופלים חזרה ל-link של הפריט שעליו נפתח התפריט.
-                        link: widget.lastSelectedLinkListenable.value ?? link,
+                        widget.lastSelectedLinkListenable.value ?? link,
                       ),
-                      onCopySelectedWithoutNikud: () =>
-                          ContextMenuUtils.copyFormattedText(
-                            context: menuCtx,
-                            savedSelectedText:
-                                (widget.restoreLineBreaks ?? (s) => s)(
-                                  savedTextAtBuild,
-                                ),
-                            fontSize: widget.fontSize,
-                            link:
-                                widget.lastSelectedLinkListenable.value ?? link,
-                            removeNikud: true,
-                          ),
+                      onCopySelectedWithoutNikud: () => _copySelection(
+                        menuCtx,
+                        savedTextAtBuild,
+                        widget.lastSelectedLinkListenable.value ?? link,
+                        removeNikud: true,
+                      ),
                     );
                   },
                   child: CommentaryContent(
-                    key: ValueKey(
-                      '${link.index1}_${link.path2}_${link.index2}',
-                    ),
+                    key: ValueKey(widget.getLinkKey(link)),
                     link: link,
                     fontSize: widget.fontSize,
                     openBookCallback: widget.openBookCallback,
@@ -2846,6 +2891,10 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
       widget.selectionSyncController?.activate(
         _selectionOwner,
         selectionText: text,
+        copyGuard: () async => (
+          protection: widget.state.protection,
+          segmentCount: countTextSegments(text),
+        ),
       );
     } else {
       widget.selectionSyncController?.clear(_selectionOwner);
@@ -2858,6 +2907,21 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
     super.dispose();
   }
 
+  /// ההערות הן טקסט הספר עצמו: בספר מוגן Ctrl+C עובר דרך מגבלת ההעתקה.
+  Widget _notesCopyWrapper({required Widget child}) {
+    final protection = widget.state.protection;
+    if (!protection.isProtected) return SelectionCutFallthrough(child: child);
+    return SelectionCopyShortcuts(
+      onCopy: () => ContextMenuUtils.copyFormattedText(
+        context: context,
+        savedSelectedText: _selectedText,
+        fontSize: widget.fontSize,
+        protection: protection,
+      ),
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SettingsBloc, SettingsState>(
@@ -2865,7 +2929,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
         // SelectionArea משלו: הרשימה הזו מוחזרת *מחוץ* ל-SelectionArea של
         // רשימת המפרשים (שנבנה רק סביב ה-ListView), ולכן בלעדיו לא ניתן
         // לבחור טקסט בהערות כלל.
-        return SelectionCutFallthrough(
+        return _notesCopyWrapper(
           child: RtlSelectionShortcuts(
             child: SelectionArea(
               // ביטול תפריט ברירת המחדל של Flutter — נשתמש ב-AppContextMenuRegion.
@@ -2898,6 +2962,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                       context: menuCtx,
                       savedSelectedText: _selectedText,
                       fontSize: widget.fontSize,
+                      protection: widget.state.protection,
                     ),
                   ),
                   if (showCopyWithoutNikud(_selectedText))
@@ -2909,6 +2974,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                         savedSelectedText: _selectedText,
                         fontSize: widget.fontSize,
                         removeNikud: true,
+                        protection: widget.state.protection,
                       ),
                     ),
                   if (widget.state.book.isOfficialLibraryBook) ...[

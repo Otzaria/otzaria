@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:otzaria/text_book/repository/book_notes_repository.dart';
+import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 
@@ -32,7 +34,7 @@ import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
-import 'package:otzaria/printing/export_restriction_service.dart';
+import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -253,16 +255,11 @@ void main() {
       expect(find.text('הצג נוסחאות נוספות'), findsNothing);
     });
 
-    testWidgets('ספר מוגבל לייצוא — הפריט נעדר בלי טעינה מוקדמת של הרשימה', (
-      tester,
-    ) async {
-      // בלי הטעינה שהמסך עושה בעצמו הרשימה ריקה, והפריט היה מוצג.
-      ExportRestrictionService.resetForTesting();
-      addTearDown(ExportRestrictionService.resetForTesting);
-      _mockRestrictedBooksAsset(const ['שמירת שבת כהלכתה - א']);
-
+    testWidgets('ספר עם הגבלת מו"ל — פריט הייצוא נעדר', (tester) async {
       final book = TextBook(title: 'שמירת שבת כהלכתה - א');
-      final bloc = _TestTextBookBloc(_loadedState(book));
+      final bloc = _TestTextBookBloc(
+        _loadedState(book, protection: const BookProtection(level: 1)),
+      );
       final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
       final tabsBloc = _TestTabsBloc(
         TabsState(tabs: [tab], currentTabIndex: 0),
@@ -304,12 +301,30 @@ void main() {
     testWidgets('ייצוא הספר כטקסט מחיל את פרופיל הייצוא כמו התצוגה', (
       tester,
     ) async {
-      ExportRestrictionService.setRestrictedTitlesForTesting(const []);
-      addTearDown(ExportRestrictionService.resetForTesting);
       final picker = _CapturingFilePicker();
       final previousPicker = FilePickerPlatform.instance;
       FilePickerPlatform.instance = picker;
       addTearDown(() => FilePickerPlatform.instance = previousPicker);
+      // איתור הספק האמיתי מאתחל את הספרייה מהדיסק, ותחת FakeAsync הוא נתקע.
+      Future<bool> notFromDb(
+        String title, {
+        int? categoryId,
+        String? fileType,
+      }) => Future.value(false);
+      DivineNamesRepository.instance
+        ..clear()
+        ..debugIsDatabaseBook = notFromDb;
+      BookNotesRepository.instance
+        ..clear()
+        ..debugIsDatabaseBook = notFromDb;
+      addTearDown(() {
+        DivineNamesRepository.instance
+          ..debugIsDatabaseBook = null
+          ..clear();
+        BookNotesRepository.instance
+          ..debugIsDatabaseBook = null
+          ..clear();
+      });
 
       const verse =
           'בְּרֵאשִׁ֖ית, בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃';
@@ -1926,32 +1941,15 @@ Future<void> _setSurfaceSize(WidgetTester tester, Size size) async {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
-/// מגיש את רשימת הספרים המוגבלים מהזיכרון. קריאה אמיתית ל-asset נתקעת תחת
-/// ה-FakeAsync של testWidgets ולא הייתה מסתיימת לעולם.
-void _mockRestrictedBooksAsset(List<String> titles) {
-  rootBundle.clear();
-  addTearDown(rootBundle.clear);
-  final payload = ByteData.sublistView(
-    Uint8List.fromList(utf8.encode(jsonEncode({'books': titles}))),
-  );
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMessageHandler('flutter/assets', (message) async {
-        final key = utf8.decode(message!.buffer.asUint8List());
-        return key == ExportRestrictionService.assetPath ? payload : null;
-      });
-  addTearDown(
-    () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMessageHandler('flutter/assets', null),
-  );
-}
-
 TextBookLoaded _loadedState(
   TextBook book, {
   bool showSplitView = false,
   List<String> content = const ['שורה א', 'שורה ב', 'שורה ג'],
+  BookProtection protection = BookProtection.none,
 }) {
   return TextBookLoaded(
     book: book,
+    protection: protection,
     showLeftPane: false,
     content: content,
     fontSize: 18,
