@@ -34,6 +34,15 @@ class PluginManifest {
   /// שדה חובה בחנות (נגזר ל-status); כאן אופציונלי עם ברירת מחדל `stable`.
   final String stability;
 
+  /// מערכות ההפעלה שהתוסף תומך בהן (`windows`/`linux`/`macos`/`android`/`ios`
+  /// — הערכים של `Platform.operatingSystem` ושל `payload.app.platform`).
+  /// null = השדה לא הוצהר, והתוסף מיועד לכל הפלטפורמות.
+  ///
+  /// סובלני לטיפוס שגוי כמו [startup]: ערך שאינו מערך נשמר כרשימה ריקה עם
+  /// [platformsIsList] = false, וה-validator מדווח עליו.
+  final List<String>? platforms;
+  final bool platformsIsList;
+
   final List<String> permissions;
   final bool networkEnabled;
   final List<String> networkAllowlist;
@@ -82,6 +91,8 @@ class PluginManifest {
     this.maxAppVersion,
     required this.sdkVersion,
     this.stability = 'stable',
+    this.platforms,
+    this.platformsIsList = true,
     required this.permissions,
     required this.networkEnabled,
     required this.networkAllowlist,
@@ -106,6 +117,7 @@ class PluginManifest {
     final startup = startupRaw is Map
         ? Map<String, dynamic>.from(startupRaw)
         : null;
+    final platformsRaw = json['platforms'];
 
     return PluginManifest(
       schemaVersion: json['schemaVersion'] as int? ?? 1,
@@ -123,6 +135,12 @@ class PluginManifest {
       maxAppVersion: json['maxAppVersion'] as String?,
       sdkVersion: json['sdkVersion'] as String? ?? '1.x',
       stability: json['stability'] as String? ?? 'stable',
+      platforms: platformsRaw == null
+          ? null
+          : platformsRaw is List
+          ? platformsRaw.map((e) => e is String ? e : '$e').toList()
+          : const <String>[],
+      platformsIsList: platformsRaw == null || platformsRaw is List,
       permissions:
           (json['permissions'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -173,6 +191,7 @@ class PluginManifest {
       'maxAppVersion': maxAppVersion,
       'sdkVersion': sdkVersion,
       'stability': stability,
+      if (platforms != null) 'platforms': platforms,
       'permissions': permissions,
       'network': {
         'enabled': networkEnabled,

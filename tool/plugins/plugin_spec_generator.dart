@@ -260,6 +260,9 @@ Map<String, Object?> buildPluginSpec(Directory root) {
       'stability': env.stringCollection(
         'PluginManifestValidator.validStabilityValues',
       ),
+      'platforms': env.stringCollection(
+        'PluginManifestValidator.validPlatformValues',
+      ),
     },
     'versions': {
       'whenCondition': env.stringConst('_whenConditionMinVersion'),
