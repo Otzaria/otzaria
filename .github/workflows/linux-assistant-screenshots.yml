@@ -62,7 +62,7 @@ jobs:
 
       - name: Upload screenshots
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: linux-assistant-screenshots
           path: ${{ runner.temp }}/linux-assistant-screenshots.tar

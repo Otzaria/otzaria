@@ -527,26 +527,26 @@ jobs:
         if: steps.download_assistant.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 15
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-download-assistant
           path: installer/Otzaria-Download-Assistant-windows.exe
           if-no-files-found: warn
 
       - name: Upload Windows installer (full)
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-windows-installer-full
           path: installer/otzaria-*-windows-full.exe
 
       - name: Upload Windows installer tools
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-windows-installer-tools
           path: installer-tools/*
 
       - name: Upload Windows ZIP
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-windows-zip
           path: otzaria-windows.zip
@@ -569,7 +569,7 @@ jobs:
       - name: Upload application file manifest (x64)
         if: steps.app_file_manifest.outcome == 'success'
         continue-on-error: true
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-app-file-manifest-x64
           path: otzaria-app-files-windows-x64.json
@@ -770,7 +770,7 @@ jobs:
       # הספרייה מ-build_linux.
 
       - name: Upload Windows ARM64 ZIP
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-windows-arm64-zip
           path: otzaria-windows_arm64.zip
@@ -792,7 +792,7 @@ jobs:
       - name: Upload application file manifest (ARM64)
         if: steps.app_file_manifest_arm64.outcome == 'success'
         continue-on-error: true
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-app-file-manifest-arm64
           path: otzaria-app-files-windows-arm64.json
@@ -821,7 +821,7 @@ jobs:
         if: steps.arm64_full.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 30
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-windows-arm64-installer-full
           path: installer/otzaria-*-windows_arm64-full.exe
@@ -1511,21 +1511,21 @@ jobs:
       
       - name: Upload Linux DEB package
         if: matrix.target == 'deb' && steps.find_packages.outputs.deb_file != ''
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-linux-deb${{ matrix.arch == 'aarch64' && '-arm64' || '' }}
           path: ${{ steps.find_packages.outputs.deb_file }}
           
       - name: Upload Linux RPM package
         if: github.event_name != 'pull_request' && matrix.target == 'rpm' && steps.find_packages.outputs.rpm_file != ''
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-linux-rpm${{ matrix.arch == 'aarch64' && '-arm64' || '' }}
           path: ${{ steps.find_packages.outputs.rpm_file }}
        
       - name: Upload linux build (raw)
         if: matrix.target == 'raw'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-linux-raw${{ matrix.arch == 'aarch64' && '-arm64' || '' }}
           path: linux-build/*
@@ -1535,7 +1535,7 @@ jobs:
       # נוסעת לשם כארטיפקט לצד החבילה — הבנייה כאן מסרבת לאינדקס שנבנה בגרסה אחרת.
       - name: Upload index build inputs
         if: matrix.target == 'raw' && matrix.arch == 'x86_64'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-index-inputs
           path: pubspec.lock
@@ -1717,7 +1717,7 @@ jobs:
       - name: Upload application file manifest (Linux)
         if: matrix.target == 'full' && steps.app_file_manifest_linux.outcome == 'success'
         continue-on-error: true
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-app-file-manifest-linux-${{ matrix.arch == 'aarch64' && 'arm64' || 'x64' }}
           path: otzaria-app-files-linux-${{ matrix.arch == 'aarch64' && 'arm64' || 'x64' }}.json
@@ -1725,14 +1725,14 @@ jobs:
 
       - name: Upload Linux FULL bundle
         if: matrix.target == 'full'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-linux-full${{ matrix.arch == 'aarch64' && '-arm64' || '' }}
           path: otzaria-linux-full${{ matrix.arch == 'aarch64' && '-arm64' || '' }}.tar.zst
 
       - name: Upload library and search index parts
         if: matrix.target == 'full' && matrix.arch == 'x86_64'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-library-parts
           path: library-release-parts/*
@@ -1741,7 +1741,7 @@ jobs:
 
       - name: Upload library manifests for installer build
         if: matrix.target == 'full' && matrix.arch == 'x86_64'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-library-manifests
           path: library-release-parts/*.manifest.json
@@ -1776,7 +1776,7 @@ jobs:
         if: matrix.target == 'raw' && steps.download_assistant_linux.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 15
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-download-assistant-linux-${{ matrix.arch == 'aarch64' && 'arm64' || 'x64' }}
           path: tool/download_assistant/linux/build/Otzaria-Download-Assistant-linux-${{ matrix.arch == 'aarch64' && 'arm64' || 'x64' }}.tar.gz
@@ -2002,7 +2002,7 @@ jobs:
           df -h
       
       - name: Upload apk
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-android.apk
           path: build/app/outputs/flutter-apk/app-release.apk
@@ -2082,7 +2082,7 @@ jobs:
           df -h .
 
       - name: Upload Android FULL bundle
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-android-full
           path: otzaria-android-full*.zip
@@ -2331,7 +2331,7 @@ jobs:
       - name: Upload application file manifest (macOS)
         if: steps.app_file_manifest_macos.outcome == 'success'
         continue-on-error: true
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-app-file-manifest-macos
           path: otzaria-app-files-macos-universal.json
@@ -2436,21 +2436,21 @@ jobs:
 
       - name: Upload macOS DMG
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-macos.dmg
           path: otzaria-macos.dmg
 
       - name: Upload macOS update zip
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-macos-update
           path: otzaria-macos.zip
 
       - name: Upload macOS FULL bundle
         if: true
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-macos-full
           path: otzaria-macos-full.tar.zst
@@ -2482,7 +2482,7 @@ jobs:
         if: steps.download_assistant_macos.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 15
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-download-assistant-macos
           path: ${{ runner.temp }}/download-assistant-macos/Otzaria-Download-Assistant-macos.zip
@@ -2602,14 +2602,14 @@ jobs:
           }
 
       - name: Upload Windows installer (regular)
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-windows-installer
           path: installer/otzaria-*-windows.exe
 
       - name: Upload Windows ARM64 installer
         if: needs.build_windows_arm64.result == 'success'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: otzaria-windows-arm64-installer
           path: installer/otzaria-*-windows_arm64.exe

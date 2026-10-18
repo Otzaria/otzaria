@@ -45,14 +45,14 @@ jobs:
 
       - name: Upload screenshots
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: macos-assistant-screenshots
           path: ${{ runner.temp }}/shots
           if-no-files-found: warn
 
       - name: Upload app
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: macos-assistant-app
           path: ${{ runner.temp }}/app/Otzaria-Download-Assistant-macos.zip

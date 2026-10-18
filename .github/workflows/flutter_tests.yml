@@ -384,7 +384,7 @@ jobs:
       # קלט ל-tool/ci/test_shards.dart --record, לעדכון זמני הפיצול.
       - name: Upload test timings
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: test-results-${{ matrix.shard }}
           path: test-results.json
@@ -449,7 +449,7 @@ jobs:
       # שמסביר למה — ההודעה ב-stdout מפנה לכיוון הלא נכון בדרך כלל.
       - name: Upload build logs on failure
         if: failure()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: windows-build-logs
           path: |
