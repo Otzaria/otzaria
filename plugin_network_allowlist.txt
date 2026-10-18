@@ -110,3 +110,16 @@ https://hameshiv.com
 https://github.com/yakov100/otzaria-voice/releases/latest/download
 https://github.com/yakov100/otzaria-voice/releases/download
 https://api.github.com/repos/yakov100/otzaria-voice
+
+# עלוני שבת (com.otzaria-alonim): קטלוג, מטא-דאטה בלבד (JSON). ענף data בריפו התוסף
+https://raw.githubusercontent.com/mmichaelush/otzaria-alonim-plugin/data
+# עלוני שבת: לדעת (קבצי PDF ותמונות ממוזערות)
+https://ladaat.co/gilyonot/uploads
+# עלוני שבת: תא שמע (קבצי PDF)
+https://tashma.co.il/gilyonot/file
+# עלוני שבת: תא שמע (תמונות ממוזערות)
+https://tashma.co.il/gilyonot/thumb
+# עלוני שבת: גיליוינעס (קבצי PDF ותמונות ממוזערות)
+https://gilyoines.com/storage
+# עלוני שבת: עלון עולם (קבצי PDF ותמונות ממוזערות)
+https://alonolam.com/wp-content/uploads
