@@ -2028,13 +2028,13 @@ jobs:
           ref: ${{ needs.bump_version.outputs.sha }}
 
       - name: Download APK
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: otzaria-android.apk
           path: android-apk
 
       - name: Download library and search index parts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: otzaria-library-parts
           path: full_installer/otzaria-android-full
@@ -2506,27 +2506,27 @@ jobs:
           ref: ${{ needs.bump_version.outputs.sha }}
 
       - name: Download Windows app bundle
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: otzaria-windows-zip
           path: installer-inputs/windows
 
       - name: Download installer tools
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: otzaria-windows-installer-tools
           path: installer-inputs/tools
 
       - name: Download Windows ARM64 app bundle
         if: needs.build_windows_arm64.result == 'success'
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: otzaria-windows-arm64-zip
           path: installer-inputs/windows-arm64
 
       - name: Download library manifests
         if: needs.build_linux.result == 'success'
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: otzaria-library-manifests
           path: installer-inputs/library
@@ -2643,7 +2643,7 @@ jobs:
           ref: ${{ needs.bump_version.outputs.sha }}
       
       - name: Download all artifacts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           path: artifacts
       
