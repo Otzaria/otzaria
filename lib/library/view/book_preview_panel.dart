@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -16,6 +17,8 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/utils/cross_line_result.dart';
+import 'package:otzaria/search/utils/snippet_builder.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
@@ -589,7 +592,9 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
                       // טרייה שנפתחת ב-initialScrollIndex של היעד החדש.
                       return CombinedView(
                         key: ObjectKey(_currentTextTab),
-                        data: state.content,
+                        data: _windowedContent[state.content] ??= state.content
+                            .map(_windowLongLine)
+                            .toList(),
                         textSize: _fontSize,
                         openBookCallback: (tab) =>
                             openPreparedTab(context, tab),
@@ -744,6 +749,32 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
         ),
       ],
     );
+  }
+
+  /// שורת ענק נבנית ונפרסת כולה ותוקעת את התצוגה; מוצג חלון סביב ההתאמה.
+  static const _maxPreviewLineChars = 20000;
+  final _windowedContent = Expando<List<String>>();
+
+  String _windowLongLine(String line) {
+    if (line.length <= _maxPreviewLineChars) return line;
+    final query = widget.searchText ?? '';
+    final excerpt = SnippetBuilder.buildExcerptText(
+      fullText: stripHtmlIfNeeded(line),
+      query: query,
+      maxChars: _maxPreviewLineChars ~/ 4,
+      anchorOf: (text) => computeHighlightRanges(
+        text,
+        query,
+        searchOptions: widget.searchOptions,
+        alternativeWords: widget.alternativeWords,
+        spacingValues: widget.spacingValues,
+        isFuzzy: widget.searchMode == SearchMode.fuzzy,
+        searchDistance: widget.searchDistance,
+        matchPolicy: widget.matchPolicy,
+        isSearchResultLine: true,
+      ).firstOrNull?.first,
+    );
+    return const HtmlEscape(HtmlEscapeMode.element).convert(excerpt);
   }
 
   Widget _buildSkeletonLoading() {
