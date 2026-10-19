@@ -20,7 +20,6 @@ import 'package:path/path.dart' as p;
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/update/app_release_version.dart';
@@ -6636,12 +6635,7 @@ class PluginBridgeAdapter {
           throw Exception('error.invalid_params: title and body required');
         }
 
-        // בדיקה אם השירות מאותחל
-        if (!_notificationService.isInitialized) {
-          throw Exception(
-            'error.unavailable: Notification service not initialized',
-          );
-        }
+        await _requireNotificationService();
 
         // בדיקה אם יש הרשאות
         if (!_notificationService.hasPermissions) {
@@ -6653,11 +6647,10 @@ class PluginBridgeAdapter {
         // שליחת התראה מיידית
         final notificationId = id ?? _newNotificationId();
 
-        await _notificationService.flutterLocalNotificationsPlugin.show(
+        await _notificationService.showNotification(
           id: notificationId,
           title: title,
           body: body,
-          notificationDetails: _buildNotificationDetails(),
         );
 
         // שמירת ה-ID לעקוב אחרי התראות התוסף
@@ -6691,11 +6684,7 @@ class PluginBridgeAdapter {
           );
         }
 
-        if (!_notificationService.isInitialized) {
-          throw Exception(
-            'error.unavailable: Notification service not initialized',
-          );
-        }
+        await _requireNotificationService();
 
         if (!_notificationService.hasPermissions) {
           throw Exception(
@@ -6723,28 +6712,15 @@ class PluginBridgeAdapter {
         final id = args['id'] as int?;
         if (id == null) throw Exception('error.invalid_params: id required');
 
-        if (!_notificationService.isInitialized) {
-          throw Exception(
-            'error.unavailable: Notification service not initialized',
-          );
-        }
-
-        await _notificationService.cancelNotification(id);
+        // ביטול שנכשל משאיר את המזהה במעקב, כדי שאפשר יהיה לנסות שוב.
+        await _notificationService.cancelNotifications([id]);
         await _untrackNotificationId(id);
         return true;
 
       case 'cancelAll':
         // ביטול כל ההתראות של התוסף
-        if (!_notificationService.isInitialized) {
-          throw Exception(
-            'error.unavailable: Notification service not initialized',
-          );
-        }
-
         final notificationIds = await _getTrackedNotificationIds();
-        for (final id in notificationIds) {
-          await _notificationService.cancelNotification(id);
-        }
+        await _notificationService.cancelNotifications(notificationIds);
         await _clearTrackedNotificationIds();
         return true;
 
@@ -6762,11 +6738,7 @@ class PluginBridgeAdapter {
 
       case 'requestPermissions':
         // בקשת הרשאות התראות
-        if (!_notificationService.isInitialized) {
-          throw Exception(
-            'error.unavailable: Notification service not initialized',
-          );
-        }
+        await _requireNotificationService();
 
         final granted = await _notificationService.requestPermissions();
         return {'granted': granted};
@@ -6792,33 +6764,13 @@ class PluginBridgeAdapter {
         .join('&');
   }
 
-  /// Build notification details for all platforms
-  NotificationDetails _buildNotificationDetails() {
-    const androidDetails = AndroidNotificationDetails(
-      'plugin_channel',
-      'התראות תוספים',
-      channelDescription: 'התראות מתוספי אוצריא',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      icon: '@mipmap/ic_launcher',
-    );
-
-    const iOSDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
-
-    const windowsDetails = WindowsNotificationDetails();
-
-    return const NotificationDetails(
-      android: androidDetails,
-      iOS: iOSDetails,
-      macOS: iOSDetails,
-      linux: LinuxNotificationDetails(),
-      windows: windowsDetails,
-    );
+  /// מאתחל את שירות ההתראות לפי דרישה; זורק כשאינו זמין.
+  Future<void> _requireNotificationService() async {
+    if (_notificationService.isInitialized ||
+        await _notificationService.ensureInitialized()) {
+      return;
+    }
+    throw Exception('error.unavailable: Notification service not initialized');
   }
 
   // flutter_local_notifications דוחה מזהה שאינו נכנס ב-32 ביט.

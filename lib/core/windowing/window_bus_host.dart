@@ -42,6 +42,7 @@ import 'package:otzaria/widgets/misc/restart_widget.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tools/calendar/services/notification_service.dart';
 
 /// מחבר את [WindowBus] לחלון שהוא יושב בו.
 ///
@@ -223,6 +224,10 @@ class _WindowBusHostState extends State<WindowBusHost> {
       case LibraryAccessGate.requestResume:
       case LibraryAccessGate.requestOwnerExited:
         return LibraryAccessGate.instance.handlePeerRequest(request);
+      case NotificationService.busRequest:
+        // רק הבעלים מאתחל את התוסף הנייטיבי; חלון משני מעביר אליו.
+        if (WindowRole.isSecondary) throw StateError('Not the main window');
+        return NotificationService().handleOwnerRequest(request);
       case PluginNewTabPageService.requestChanged:
         await PluginNewTabPageService.instance.syncOwner(
           PluginRegistryRepository(),

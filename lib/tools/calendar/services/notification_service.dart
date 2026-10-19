@@ -1,9 +1,13 @@
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter/foundation.dart';
 
+/// התראות המערכת של התהליך. התוסף הנייטיבי מאותחל רק לפי דרישה, בחלון
+/// הבעלים בלבד; חלון משני מעביר אליו כל פעולה דרך [WindowBus].
 class NotificationService {
   static final NotificationService _notificationService =
       NotificationService._internal();
@@ -14,11 +18,53 @@ class NotificationService {
 
   NotificationService._internal();
 
+  /// סוג הבקשה באפיק החלונות לפעולות התראה שחלון משני מעביר לבעלים.
+  static const String busRequest = 'notifications';
+
+  /// ⚠️ האתחול הנייטיבי הוא קריאת COM סינכרונית שנתקעה 30 שניות על ה-thread
+  /// הראשי (issue #1192). כל אתחול ממתין לשער הזה — חשיפת החלון הראשי.
+  static Future<void> Function()? startupGate;
+
+  static Future<Object?> Function(Map<String, Object?> request)? _ownerChannel;
+
+  /// מנתב את כל הפעולות לחלון הבעלים: אתחול שני של התוסף באותו תהליך היה
+  /// רושם את אותו מזהה אפליקציה פעמיים.
+  static void forwardToOwnerWindow() {
+    _ownerChannel = (request) async {
+      final owner = WindowBus.instance.ownerPort;
+      if (owner == null) throw StateError('Main window unavailable');
+      final response = await WindowBus.instance.requestPortDetailed(
+        owner,
+        {'type': busRequest, ...request},
+        // הבעלים עשוי להיות חסום באתחול הנייטיבי עצמו.
+        timeout: const Duration(seconds: 60),
+        label: 'owner notifications',
+      );
+      if (response.failure != null) {
+        throw StateError('Main window notifications: ${response.failure}');
+      }
+      return response.result;
+    };
+  }
+
+  @visibleForTesting
+  static set ownerChannelForTesting(
+    Future<Object?> Function(Map<String, Object?> request)? channel,
+  ) => _ownerChannel = channel;
+
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   bool _permissionsGranted = false;
   bool _isInitialized = false;
+  Future<bool>? _pendingInit;
+
+  @visibleForTesting
+  void resetForTesting() {
+    _permissionsGranted = false;
+    _isInitialized = false;
+    _pendingInit = null;
+  }
 
   /// מאתחל את מסד אזורי הזמן וקובע את אזור הזמן המקומי.
   ///
@@ -26,6 +72,142 @@ class NotificationService {
   static void initializeTimeZones() {
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Jerusalem'));
+  }
+
+  /// מאתחל את התוסף אם טרם אותחל, אחרי [startupGate]. מחזיר האם הוא זמין.
+  ///
+  /// קוראים לזה רק לפני תזמון או ביטול אמיתי, כדי שמי שאינו משתמש בהתראות
+  /// לא ישלם על האתחול הנייטיבי.
+  Future<bool> ensureInitialized() async {
+    if (_ownerChannel != null) {
+      return await _forward('ensureInitialized') == true;
+    }
+    return _ensureInitializedLocally();
+  }
+
+  Future<bool> _ensureInitializedLocally() async {
+    if (_isInitialized) return true;
+    // קריאות מקבילות חולקות אתחול אחד; אחרי כשל הקריאה הבאה מנסה שוב.
+    final pending = _pendingInit ??= _initAfterGate();
+    final initialized = await pending;
+    if (!initialized && identical(_pendingInit, pending)) _pendingInit = null;
+    return initialized;
+  }
+
+  Future<bool> _initAfterGate() async {
+    await startupGate?.call();
+    try {
+      if (!_isInitialized) await init();
+    } catch (error, stackTrace) {
+      _logInitFailure(error, stackTrace);
+    }
+    return _isInitialized;
+  }
+
+  static void _logInitFailure(Object error, StackTrace stackTrace) {
+    if (kDebugMode) {
+      debugPrint('Notification service initialization failed: $error');
+      return;
+    }
+    try {
+      ErrorLogFile.append(
+        title: 'אתחול שירות ההתראות נכשל',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } catch (_) {
+      // רישום הוא best-effort.
+    }
+  }
+
+  /// מוכן לבטל התראות. ב-Windows ובלינוקס הביטול דורש אתחול; בשאר
+  /// הפלטפורמות לא, ושם אתחול היה מציג בקשת הרשאות.
+  Future<bool> ensureReadyToCancel() async {
+    if (_ownerChannel != null) {
+      return await _forward('ensureReadyToCancel') == true;
+    }
+    return _ensureReadyToCancelLocally();
+  }
+
+  static bool get _cancelRequiresInit =>
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
+
+  /// שולח פעולה לחלון הבעלים ומעדכן את המצב המקומי לפי תשובתו.
+  Future<Object?> _forward(
+    String op, [
+    Map<String, Object?> args = const {},
+  ]) async {
+    final Object? reply;
+    try {
+      reply = await _ownerChannel!({'op': op, ...args});
+    } catch (error) {
+      debugPrint('NotificationService: $op via main window failed: $error');
+      if (op == 'ensureInitialized' || op == 'ensureReadyToCancel') {
+        return false;
+      }
+      rethrow;
+    }
+    if (reply is! Map) throw StateError('Main window ignored notification $op');
+    _isInitialized = reply['initialized'] == true;
+    _permissionsGranted = reply['permissions'] == true;
+    return reply['value'];
+  }
+
+  /// מבצע בחלון הבעלים פעולה שחלון משני העביר. חריגה חוזרת לשולח ככשל.
+  Future<Object?> handleOwnerRequest(Map<String, dynamic> request) async {
+    final Object? value;
+    switch (request['op']) {
+      case 'ensureInitialized':
+        value = await _ensureInitializedLocally();
+      case 'ensureReadyToCancel':
+        value = await _ensureReadyToCancelLocally();
+      case 'checkPermissions':
+        value = await _checkPermissionsLocally();
+      case 'requestPermissions':
+        value = await _requestPermissionsLocally();
+      case 'forceRequestPermissions':
+        value = await _forceRequestPermissionsLocally();
+      case 'schedule':
+        await _scheduleLocally(
+          id: request['id'] as int,
+          title: request['title'] as String,
+          body: request['body'] as String,
+          eventDate: DateTime.fromMicrosecondsSinceEpoch(
+            request['eventDate'] as int,
+          ),
+          reminderMinutes: request['reminderMinutes'] as int,
+          soundEnabled: request['soundEnabled'] as bool,
+        );
+        value = true;
+      case 'show':
+        await _showLocally(
+          id: request['id'] as int,
+          title: request['title'] as String,
+          body: request['body'] as String,
+        );
+        value = true;
+      case 'cancel':
+        await _cancelLocally(request['id'] as int);
+        value = true;
+      case 'cancelMany':
+        await _cancelManyLocally((request['ids'] as List).cast<int>());
+        value = true;
+      case 'sendTest':
+        value = await _sendTestLocally();
+      default:
+        throw ArgumentError.value(request['op'], 'op');
+    }
+    return {
+      'value': value,
+      'initialized': _isInitialized,
+      'permissions': _permissionsGranted,
+    };
+  }
+
+  Future<bool> _ensureReadyToCancelLocally() async {
+    if (_isInitialized || !_cancelRequiresInit) return true;
+    return _ensureInitializedLocally();
   }
 
   Future<void> init() async {
@@ -68,13 +250,20 @@ class NotificationService {
     _isInitialized = true;
 
     // Request permissions
-    await requestPermissions();
+    await _requestPermissionsLocally();
   }
 
   bool get isInitialized => _isInitialized;
 
   /// בקשות הרשאות התראות ושעון מעורר באנדרואיד חייבות להישלח בנפרד.
   Future<bool> requestPermissions() async {
+    if (_ownerChannel != null) {
+      return await _forward('requestPermissions') == true;
+    }
+    return _requestPermissionsLocally();
+  }
+
+  Future<bool> _requestPermissionsLocally() async {
     if (Platform.isAndroid) {
       final androidPlugin = flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
@@ -219,6 +408,13 @@ class NotificationService {
 
   /// Check current permission status without requesting
   Future<bool> checkPermissions() async {
+    if (_ownerChannel != null) {
+      return await _forward('checkPermissions') == true;
+    }
+    return _checkPermissionsLocally();
+  }
+
+  Future<bool> _checkPermissionsLocally() async {
     if (Platform.isAndroid) {
       final androidPlugin = flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
@@ -311,6 +507,8 @@ class NotificationService {
     return null;
   }
 
+  /// מתזמן התראה, ומאתחל לפי הצורך. זורק כשההתראה לא נמסרה למערכת, כדי
+  /// שהקורא לא ישמור מזהה של התראה שאינה קיימת.
   Future<void> scheduleNotification({
     required int id,
     required String title,
@@ -319,21 +517,36 @@ class NotificationService {
     required int reminderMinutes,
     bool soundEnabled = true,
   }) async {
-    // Check if initialized before scheduling
-    if (!_isInitialized) {
-      if (kDebugMode) {
-        debugPrint('Cannot schedule notification: service not initialized');
-      }
+    if (_ownerChannel != null) {
+      await _forward('schedule', {
+        'id': id,
+        'title': title,
+        'body': body,
+        'eventDate': eventDate.microsecondsSinceEpoch,
+        'reminderMinutes': reminderMinutes,
+        'soundEnabled': soundEnabled,
+      });
       return;
     }
+    await _scheduleLocally(
+      id: id,
+      title: title,
+      body: body,
+      eventDate: eventDate,
+      reminderMinutes: reminderMinutes,
+      soundEnabled: soundEnabled,
+    );
+  }
 
-    // Check permissions before scheduling
-    if (!_permissionsGranted) {
-      if (kDebugMode) {
-        debugPrint('Cannot schedule notification: permissions not granted');
-      }
-      return;
-    }
+  Future<void> _scheduleLocally({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime eventDate,
+    required int reminderMinutes,
+    required bool soundEnabled,
+  }) async {
+    await _requireReadyToShow();
 
     final scheduleTime = resolveScheduleTime(
       eventDate: eventDate,
@@ -370,39 +583,95 @@ class NotificationService {
       windows: windowsDetails,
     );
 
-    try {
-      // Use exact alarm if permission granted, otherwise fall back to inexact
-      final canScheduleExact = Platform.isAndroid
-          ? await flutterLocalNotificationsPlugin
-                    .resolvePlatformSpecificImplementation<
-                      AndroidFlutterLocalNotificationsPlugin
-                    >()
-                    ?.canScheduleExactNotifications() ??
-                false
-          : true;
+    // Use exact alarm if permission granted, otherwise fall back to inexact
+    final canScheduleExact = Platform.isAndroid
+        ? await flutterLocalNotificationsPlugin
+                  .resolvePlatformSpecificImplementation<
+                    AndroidFlutterLocalNotificationsPlugin
+                  >()
+                  ?.canScheduleExactNotifications() ??
+              false
+        : true;
 
-      await flutterLocalNotificationsPlugin.zonedSchedule(
-        id: id,
-        title: title,
-        body: body,
-        scheduledDate: tz.TZDateTime.from(scheduleTime, tz.local),
-        notificationDetails: notificationDetails,
-        matchDateTimeComponents: null,
-        androidScheduleMode: canScheduleExact
-            ? AndroidScheduleMode.exactAllowWhileIdle
-            : AndroidScheduleMode.inexactAllowWhileIdle,
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Failed to schedule notification: $e');
-      }
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: tz.TZDateTime.from(scheduleTime, tz.local),
+      notificationDetails: notificationDetails,
+      matchDateTimeComponents: null,
+      androidScheduleMode: canScheduleExact
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.inexactAllowWhileIdle,
+    );
+  }
+
+  Future<void> _requireReadyToShow() async {
+    if (!await _ensureInitializedLocally()) {
+      throw StateError('Notification service not initialized');
+    }
+    if (!_permissionsGranted) {
+      throw StateError('Notification permissions not granted');
     }
   }
 
+  /// מציג מיד התראה של תוסף. זורק כשההתראה לא נמסרה למערכת.
+  Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    if (_ownerChannel != null) {
+      await _forward('show', {'id': id, 'title': title, 'body': body});
+      return;
+    }
+    await _showLocally(id: id, title: title, body: body);
+  }
+
+  Future<void> _showLocally({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    await _requireReadyToShow();
+    await flutterLocalNotificationsPlugin.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: _pluginNotificationDetails,
+    );
+  }
+
+  static const _pluginDarwinDetails = DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: true,
+    presentSound: true,
+  );
+
+  static const _pluginNotificationDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'plugin_channel',
+      'התראות תוספים',
+      channelDescription: 'התראות מתוספי אוצריא',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      icon: '@mipmap/ic_launcher',
+    ),
+    iOS: _pluginDarwinDetails,
+    macOS: _pluginDarwinDetails,
+    linux: LinuxNotificationDetails(),
+    windows: WindowsNotificationDetails(),
+  );
+
+  /// ביטול שכשלונו אינו מדווח. מאתחל לפי הצורך.
   Future<void> cancelNotification(int id) async {
-    if (!_isInitialized) return;
     try {
-      await flutterLocalNotificationsPlugin.cancel(id: id);
+      if (_ownerChannel != null) {
+        await _forward('cancel', {'id': id});
+      } else {
+        await _cancelLocally(id);
+      }
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Failed to cancel notification $id: $e');
@@ -410,22 +679,41 @@ class NotificationService {
     }
   }
 
+  Future<void> _cancelLocally(int id) => _cancelManyLocally([id]);
+
   /// ביטול לפני מחיקת מזהים שמורים: הכשל חייב להגיע למי שמוחק אותם.
   Future<void> cancelNotifications(Iterable<int> ids) async {
     final notificationIds = ids.toList();
     if (notificationIds.isEmpty) return;
-    if (!_isInitialized &&
-        (defaultTargetPlatform == TargetPlatform.windows ||
-            defaultTargetPlatform == TargetPlatform.linux)) {
-      await init();
+    if (_ownerChannel != null) {
+      await _forward('cancelMany', {'ids': notificationIds});
+      return;
     }
-    for (final id in notificationIds) {
+    await _cancelManyLocally(notificationIds);
+  }
+
+  Future<void> _cancelManyLocally(List<int> ids) async {
+    if (!await _ensureReadyToCancelLocally()) {
+      throw StateError('Notification service not initialized');
+    }
+    for (final id in ids) {
       await flutterLocalNotificationsPlugin.cancel(id: id);
     }
   }
 
   /// שולח התראת בדיקה למערכת ההפעלה. מחזיר האם השליחה הצליחה.
   Future<bool> sendTestNotification() async {
+    if (_ownerChannel != null) {
+      try {
+        return await _forward('sendTest') == true;
+      } catch (_) {
+        return false;
+      }
+    }
+    return _sendTestLocally();
+  }
+
+  Future<bool> _sendTestLocally() async {
     if (!_isInitialized || !_permissionsGranted) {
       if (kDebugMode) {
         debugPrint(
@@ -484,6 +772,13 @@ class NotificationService {
 
   /// Force re-request permissions (useful for macOS troubleshooting)
   Future<bool> forceRequestPermissions() async {
+    if (_ownerChannel != null) {
+      return await _forward('forceRequestPermissions') == true;
+    }
+    return _forceRequestPermissionsLocally();
+  }
+
+  Future<bool> _forceRequestPermissionsLocally() async {
     if (Platform.isMacOS) {
       if (kDebugMode) {
         debugPrint('Force requesting macOS permissions...');
@@ -536,6 +831,6 @@ class NotificationService {
     }
 
     // For other platforms, use regular request
-    return await requestPermissions();
+    return await _requestPermissionsLocally();
   }
 }

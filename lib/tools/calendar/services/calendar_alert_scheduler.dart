@@ -32,9 +32,7 @@ class CalendarAlertScheduler {
 
   /// Initializes notifications and asks for permission when it is missing.
   Future<bool> ensurePermission() async {
-    if (!_notifications.isInitialized) {
-      await _notifications.init();
-    }
+    if (!await _ensureInitialized()) return false;
 
     bool hasPermission = await _notifications.checkPermissions();
     if (!hasPermission) {
@@ -53,8 +51,16 @@ class CalendarAlertScheduler {
     return _notifications.sendTestNotification();
   }
 
+  Future<bool> _ensureInitialized() async =>
+      _notifications.isInitialized || await _notifications.ensureInitialized();
+
+  Future<bool> _ensureReadyToCancel() async =>
+      _notifications.isInitialized ||
+      await _notifications.ensureReadyToCancel();
+
   /// Cancels the notifications of [timeId] in the rolling window.
   Future<void> cancelZmanAlert(String timeId) async {
+    if (!await _ensureReadyToCancel()) return;
     final now = _now();
     final today = DateTime(now.year, now.month, now.day);
     for (int i = 0; i <= _zmanScheduleDaysAhead; i++) {
@@ -74,9 +80,7 @@ class CalendarAlertScheduler {
   }) async {
     if (alerts.isEmpty) return;
 
-    if (!_notifications.isInitialized) {
-      return;
-    }
+    if (!await _ensureInitialized()) return;
 
     // Don't prompt here; only schedule if we already have permissions.
     final hasPermission = await _notifications.checkPermissions();
@@ -136,21 +140,29 @@ class CalendarAlertScheduler {
 
         await _notifications.cancelNotification(cancellationId);
 
-        await _notifications.scheduleNotification(
-          id: cancellationId,
-          title: 'תזכורת: ${pref.displayName}',
-          body:
-              'בעוד ${_formatMinutesBefore(pref.minutesBefore)} ${pref.displayName} (${timeStr.replaceAll(RegExp('[\u2066\u2069]'), '').replaceFirst(RegExp(r'[.:]$'), '')})',
-          eventDate: eventDt,
-          reminderMinutes: pref.minutesBefore,
-          soundEnabled: true,
-        );
+        try {
+          await _notifications.scheduleNotification(
+            id: cancellationId,
+            title: 'תזכורת: ${pref.displayName}',
+            body:
+                'בעוד ${_formatMinutesBefore(pref.minutesBefore)} ${pref.displayName} (${timeStr.replaceAll(RegExp('[\u2066\u2069]'), '').replaceFirst(RegExp(r'[.:]$'), '')})',
+            eventDate: eventDt,
+            reminderMinutes: pref.minutesBefore,
+            soundEnabled: true,
+          );
+        } catch (e) {
+          debugPrint('CalendarAlertScheduler: zman alert not scheduled: $e');
+          return;
+        }
       }
     }
   }
 
   /// מחליף את תזכורות האירועים לפי המצב העדכני לאחר ביטול התזכורות הקודמות.
   /// זמן התזכורת והצליל נקראים לפני כל תזמון.
+  ///
+  /// מאתחל את ההתראות רק כשיש מה לבטל או לתזמן. כשהן אינן זמינות המזהים
+  /// השמורים נשארים, כדי שהתזמון הבא יבטל אותם.
   Future<void> rescheduleEventNotifications({
     required List<CustomEvent> Function() events,
     required bool Function() enabled,
@@ -158,16 +170,13 @@ class CalendarAlertScheduler {
     required bool Function() soundEnabled,
   }) async {
     // Cancel previously scheduled calendar EVENT notifications only.
-    final prevIdsJson = _settings.getCalendarEventNotificationIdsJson();
-    final prevIds = <int>[];
-    try {
-      final decoded = jsonDecode(prevIdsJson);
-      if (decoded is List) {
-        for (final v in decoded) {
-          if (v is int) prevIds.add(v);
-        }
-      }
-    } catch (_) {}
+    final prevIds = _storedEventNotificationIds();
+    final willSchedule = enabled() && _eventReminders(events()).isNotEmpty;
+    if (willSchedule) {
+      if (!await _ensureInitialized()) return;
+    } else if (prevIds.isNotEmpty) {
+      if (!await _ensureReadyToCancel()) return;
+    }
 
     for (final id in prevIds) {
       await _notifications.cancelNotification(id);
@@ -179,10 +188,51 @@ class CalendarAlertScheduler {
     }
 
     final scheduledIds = <int>{};
+    for (final reminder in _eventReminders(events())) {
+      try {
+        await _notifications.scheduleNotification(
+          id: reminder.id,
+          title: reminder.event.title,
+          body: reminder.event.description,
+          eventDate: reminder.date,
+          reminderMinutes:
+              reminder.event.notificationMinutes ?? defaultMinutes(),
+          soundEnabled: soundEnabled(),
+        );
+        scheduledIds.add(reminder.id);
+      } catch (e) {
+        debugPrint('CalendarAlertScheduler: event reminder not scheduled: $e');
+      }
+    }
 
+    await _settings.updateCalendarEventNotificationIdsJson(
+      jsonEncode(scheduledIds.toList()),
+    );
+  }
+
+  List<int> _storedEventNotificationIds() {
+    final ids = <int>[];
+    try {
+      final decoded = jsonDecode(
+        _settings.getCalendarEventNotificationIdsJson(),
+      );
+      if (decoded is List) {
+        for (final v in decoded) {
+          if (v is int) ids.add(v);
+        }
+      }
+    } catch (_) {}
+    return ids;
+  }
+
+  /// מופעי האירועים העתידיים בחלון התזמון, עם מזהה ההתראה של כל מופע.
+  List<({int id, CustomEvent event, DateTime date})> _eventReminders(
+    List<CustomEvent> events,
+  ) {
+    final reminders = <({int id, CustomEvent event, DateTime date})>[];
     final now = _now();
 
-    for (final event in events()) {
+    for (final event in events) {
       if (event.recurring) {
         // שנתי: השנה והבאה; שבועי/חודשי: כל יום בחלון הקרוב שבו מתחיל מופע.
         final annual =
@@ -248,18 +298,12 @@ class CalendarAlertScheduler {
           }
 
           if (eventDateTime.isAfter(now)) {
-            final id =
-                '${event.id}${occurrenceDate.year}${occurrenceDate.month}${occurrenceDate.day}'
-                    .hashCode;
-            scheduledIds.add(id);
-            await _notifications.scheduleNotification(
-              id: id,
-              title: event.title,
-              body: event.description,
-              eventDate: eventDateTime,
-              reminderMinutes: event.notificationMinutes ?? defaultMinutes(),
-              soundEnabled: soundEnabled(),
-            );
+            reminders.add((
+              id: '${event.id}${occurrenceDate.year}${occurrenceDate.month}${occurrenceDate.day}'
+                  .hashCode,
+              event: event,
+              date: eventDateTime,
+            ));
           }
         }
       } else {
@@ -286,23 +330,16 @@ class CalendarAlertScheduler {
         }
 
         if (eventDateTime.isAfter(now)) {
-          final id = event.id.hashCode;
-          scheduledIds.add(id);
-          await _notifications.scheduleNotification(
-            id: id,
-            title: event.title,
-            body: event.description,
-            eventDate: eventDateTime,
-            reminderMinutes: event.notificationMinutes ?? defaultMinutes(),
-            soundEnabled: soundEnabled(),
-          );
+          reminders.add((
+            id: event.id.hashCode,
+            event: event,
+            date: eventDateTime,
+          ));
         }
       }
     }
 
-    await _settings.updateCalendarEventNotificationIdsJson(
-      jsonEncode(scheduledIds.toList()),
-    );
+    return reminders;
   }
 
   static int _zmanNotificationId(String timeId, DateTime date) {

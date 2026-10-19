@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
@@ -46,15 +48,15 @@ class _KvRepo extends Mock implements PluginRegistryRepository {
   ) async => kv['$pluginId/$namespace/$key'] = valueJson;
 }
 
-class _RecordingPlugin extends Mock implements FlutterLocalNotificationsPlugin {
+class _FakeNotifications extends Mock implements NotificationService {
+  final scheduledIds = <int>[];
   final shownIds = <int>[];
+
   @override
-  Future<void> show({
+  Future<void> showNotification({
     required int id,
-    String? title,
-    String? body,
-    NotificationDetails? notificationDetails,
-    String? payload,
+    required String title,
+    required String body,
   }) async {
     // אותה בדיקה ש-validateId של flutter_local_notifications מריץ.
     if (id > 0x7FFFFFFF || id < -0x80000000) {
@@ -62,16 +64,7 @@ class _RecordingPlugin extends Mock implements FlutterLocalNotificationsPlugin {
     }
     shownIds.add(id);
   }
-}
 
-class _FakeNotifications extends Mock implements NotificationService {
-  final scheduledIds = <int>[];
-  final _plugin = _RecordingPlugin();
-  List<int> get shownIds => _plugin.shownIds;
-
-  @override
-  FlutterLocalNotificationsPlugin get flutterLocalNotificationsPlugin =>
-      _plugin;
   @override
   bool get isInitialized => true;
   @override
@@ -146,6 +139,51 @@ String _future() =>
     DateTime.now().add(const Duration(hours: 1)).toIso8601String();
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('התראות תוסף לפני שהשירות אותחל', () {
+    const channel = MethodChannel('dexterous.com/flutter/local_notifications');
+    final methods = <String>[];
+
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      FlutterLocalNotificationsPlatform.instance =
+          MacOSFlutterLocalNotificationsPlugin();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            methods.add(call.method);
+            return true;
+          });
+      NotificationService().resetForTesting();
+      methods.clear();
+    });
+
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    test('scheduleSystem מאתחל לפי דרישה ומתזמן', () async {
+      final result = await _adapter(NotificationService()).execute(
+        'notifications',
+        'scheduleSystem',
+        {'title': 't', 'body': 'b', 'scheduledTime': _future(), 'id': 3},
+      );
+      expect(result, {'id': 3});
+      expect(methods, containsAllInOrder(['initialize', 'zonedSchedule']));
+    });
+
+    test('sendSystem מאתחל לפי דרישה ומציג', () async {
+      await _adapter(NotificationService()).execute(
+        'notifications',
+        'sendSystem',
+        {'title': 't', 'body': 'b', 'id': 4},
+      );
+      expect(methods, containsAllInOrder(['initialize', 'show']));
+    });
+  });
+
   group('מזהה ברירת המחדל של התראת תוסף נכנס ב-32 ביט', () {
     test('sendSystem בלי id', () async {
       final notifications = _FakeNotifications();

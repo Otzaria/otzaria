@@ -20,6 +20,7 @@ import 'package:otzaria/tools/calendar/models/zman_alert_preference.dart';
 import 'package:otzaria/tools/calendar/models/calendar_location.dart'
     as calendar_location;
 import 'package:otzaria/core/messages/tools_messages.dart';
+import 'package:otzaria/core/windowing/window_role.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/adapters/plugin_calendar_adapter.dart';
 import 'package:otzaria/theme/calendar_event_colors.dart';
@@ -230,10 +231,8 @@ class CalendarCubit extends Cubit<CalendarState> {
     }
     if (isClosed) return;
     _updateTimesForDate(selectedGregorianDate, selectedCity);
-    await _rescheduleNotifications();
-    if (isClosed) return;
-    await _rescheduleZmanAlerts();
-    if (isClosed) return;
+    // פר-תהליך. לא ממתינים: האתחול הנייטיבי מחכה לחשיפת החלון.
+    if (!WindowRole.isSecondary) unawaited(_restoreScheduledNotifications());
     await _refreshGoogleConnectionStatus();
     if (isClosed) return;
     if (googleCalendarEnabled) {
@@ -379,6 +378,13 @@ class CalendarCubit extends Cubit<CalendarState> {
     await _alerts.cancelZmanAlert(timeId);
 
     UiSnack.show(ToolsMessages.zmanAlertCancelled(existing.displayName));
+  }
+
+  /// מתזמן מחדש את מה שנשמר, וכך גם מאריך את חלון זמני היום.
+  Future<void> _restoreScheduledNotifications() async {
+    await _rescheduleNotifications();
+    if (isClosed) return;
+    await _rescheduleZmanAlerts();
   }
 
   Future<void> _rescheduleZmanAlerts() async {
@@ -1315,14 +1321,15 @@ class CalendarCubit extends Cubit<CalendarState> {
     if (enabled) {
       // בקש הרשאות לפני הפעלת התראות
       final notificationService = _notificationService;
-      if (!notificationService.isInitialized) {
-        await notificationService.init();
-      }
+      final available =
+          notificationService.isInitialized ||
+          await notificationService.ensureInitialized();
       // בדוק תחילה אם ההרשאות כבר ניתנו
-      bool hasPermission = await notificationService.checkPermissions();
+      bool hasPermission =
+          available && await notificationService.checkPermissions();
 
       // אם אין הרשאות, בקש אותן
-      if (!hasPermission) {
+      if (available && !hasPermission) {
         hasPermission = await notificationService.requestPermissions();
       }
 
