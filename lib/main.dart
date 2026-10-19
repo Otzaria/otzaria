@@ -357,9 +357,10 @@ void main(List<String> args) async {
   // SQLite סינכרוני יכול לחסום גם טיימרים: אין לעקוף את החשיפה עם timeout.
   AttachedLibraryRegistry.startupGate = () =>
       _mainWindowRevealedCompleter.future;
-  // כמו sentry: אחרי החשיפה, בלי timeout, ועם מרווח ל-uncloak הנייטיבי.
-  final notificationGate = _mainWindowRevealedCompleter.future.then(
-    (_) => Future<void>.delayed(const Duration(seconds: 2)),
+  // האתחול אינו חוסם (הפורק מריץ את ה-COM ב-thread משלו), ולכן timeout רגיל.
+  final notificationGate = _mainWindowRevealedCompleter.future.timeout(
+    const Duration(seconds: 20),
+    onTimeout: () {},
   );
   NotificationService.startupGate = () => notificationGate;
   // אבחון שמריץ Process.start (סינכרוני) — רק אחרי החשיפה, בלי timeout.

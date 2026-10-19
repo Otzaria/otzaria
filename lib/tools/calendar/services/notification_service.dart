@@ -21,8 +21,8 @@ class NotificationService {
   /// סוג הבקשה באפיק החלונות לפעולות התראה שחלון משני מעביר לבעלים.
   static const String busRequest = 'notifications';
 
-  /// ⚠️ האתחול הנייטיבי הוא קריאת COM סינכרונית שנתקעה 30 שניות על ה-thread
-  /// הראשי (issue #1192). כל אתחול ממתין לשער הזה — חשיפת החלון הראשי.
+  /// כל אתחול ממתין לשער הזה (חשיפת החלון הראשי), כדי שלא ייכנס לנתיב העלייה.
+  /// ⚠️ ב-Windows ה-COM רץ ב-thread של הפורק; אסור לחזור לגרסה שמריצה אותו כאן (#1192).
   static Future<void> Function()? startupGate;
 
   static Future<Object?> Function(Map<String, Object?> request)? _ownerChannel;
@@ -36,8 +36,8 @@ class NotificationService {
       final response = await WindowBus.instance.requestPortDetailed(
         owner,
         {'type': busRequest, ...request},
-        // הבעלים עשוי להיות חסום באתחול הנייטיבי עצמו.
-        timeout: const Duration(seconds: 60),
+        // הבעלים עשוי להיות עסוק (טעינת קטלוג נמדדה ~2 שניות).
+        timeout: const Duration(seconds: 10),
         label: 'owner notifications',
       );
       if (response.failure != null) {
