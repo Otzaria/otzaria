@@ -80,6 +80,8 @@ void main() {
             throw PlatformException(code: 'unavailable');
           }
           if (call.method == 'zonedSchedule') {
+            // ערוץ אמיתי עונה באירוע ולא ב-microtask, וכך ריצות מקבילות משתלבות.
+            await Future<void>.delayed(Duration.zero);
             pending.add((call.arguments as Map)['id'] as int);
           } else if (call.method == 'cancel') {
             pending.remove(call.arguments);
@@ -147,6 +149,19 @@ void main() {
     final events = [_event('a')];
 
     await Future.wait([rescheduleEvents(events), rescheduleEvents(events)]);
+
+    expect(pending, ['a'.hashCode]);
+    expect(jsonDecode(settings.ids), ['a'.hashCode]);
+  });
+
+  test('בקשה חוזרת מיד בסיום ריצה אינה רצה במקביל לבקשה הממוזגת', () async {
+    final events = [_event('a')];
+    Future<void> twice() async {
+      await rescheduleEvents(events);
+      await rescheduleEvents(events);
+    }
+
+    await Future.wait([twice(), rescheduleEvents(events)]);
 
     expect(pending, ['a'.hashCode]);
     expect(jsonDecode(settings.ids), ['a'.hashCode]);

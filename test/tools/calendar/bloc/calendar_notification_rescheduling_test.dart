@@ -188,7 +188,10 @@ void main() {
 
     expect(cubit.state.calendarNotificationTime, 20);
     expect(cubit.state.calendarNotificationSound, isTrue);
-    expect(notifications.scheduled, isNotEmpty);
-    expect(notifications.scheduled, everyElement((minutes: 20, sound: true)));
+    // הריצה הישנה ממשיכה עם הערכים העדכניים, ואחריה הריצה הממוזגת.
+    expect(notifications.scheduled, [
+      (minutes: 20, sound: true),
+      (minutes: 20, sound: true),
+    ]);
   });
 }

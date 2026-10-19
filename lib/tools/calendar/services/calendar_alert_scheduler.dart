@@ -401,26 +401,20 @@ class CalendarAlertScheduler {
 /// מריץ עבודה אחת בכל פעם. בקשות שמגיעות בזמן ריצה מתאחדות לריצה אחת
 /// נוספת, שמבצעת את הבקשה האחרונה.
 class _CoalescingRunner {
-  Future<void>? _running;
+  // ⚠️ משרשרים לריצה הקודמת ולא לדגל "רץ": מי שממתין לריצה וקורא שוב
+  // בסיומה היה מתחיל ריצה במקביל לבקשה הממוזגת.
+  Future<void> _tail = Future.value();
   Future<void>? _queued;
   Future<void> Function()? _latest;
 
   Future<void> run(Future<void> Function() job) {
     _latest = job;
-    final running = _running;
-    if (running == null) return _start();
-    return _queued ??= running.catchError((Object _) {}).then((_) {
+    final queued = _queued;
+    if (queued != null) return queued;
+    final next = _tail.catchError((Object _) {}).then((_) {
       _queued = null;
-      return _start();
+      return _latest!();
     });
-  }
-
-  Future<void> _start() {
-    late final Future<void> current;
-    current = Future.sync(_latest!).whenComplete(() {
-      if (identical(_running, current)) _running = null;
-    });
-    _running = current;
-    return current;
+    return _queued = _tail = next;
   }
 }
