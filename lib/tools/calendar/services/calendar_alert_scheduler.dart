@@ -30,6 +30,11 @@ class CalendarAlertScheduler {
   final SettingsRepository _settings;
   final DateTime Function() _now;
 
+  // ⚠️ ריצות מקבילות קראו את אותם מזהים שמורים ותזמנו כל אחת הכול. ב-Windows
+  // AddToSchedule אינו דורס, ונשארה התראה כפולה שאי אפשר לבטל.
+  final _eventRuns = _CoalescingRunner();
+  Future<void> _zmanQueue = Future.value();
+
   /// Initializes notifications and asks for permission when it is missing.
   Future<bool> ensurePermission() async {
     if (!await _ensureInitialized()) return false;
@@ -58,8 +63,17 @@ class CalendarAlertScheduler {
       _notifications.isInitialized ||
       await _notifications.ensureReadyToCancel();
 
+  Future<void> _enqueueZman(Future<void> Function() job) {
+    final run = _zmanQueue.catchError((Object _) {}).then((_) => job());
+    _zmanQueue = run;
+    return run;
+  }
+
   /// Cancels the notifications of [timeId] in the rolling window.
-  Future<void> cancelZmanAlert(String timeId) async {
+  Future<void> cancelZmanAlert(String timeId) =>
+      _enqueueZman(() => _cancelZmanAlertNow(timeId));
+
+  Future<void> _cancelZmanAlertNow(String timeId) async {
     if (!await _ensureReadyToCancel()) return;
     final now = _now();
     final today = DateTime(now.year, now.month, now.day);
@@ -77,7 +91,15 @@ class CalendarAlertScheduler {
     Map<String, ZmanAlertPreference> alerts,
     String city, {
     void Function()? onCityNotFound,
-  }) async {
+  }) => _enqueueZman(
+    () => _rescheduleZmanAlertsNow(alerts, city, onCityNotFound),
+  );
+
+  Future<void> _rescheduleZmanAlertsNow(
+    Map<String, ZmanAlertPreference> alerts,
+    String city,
+    void Function()? onCityNotFound,
+  ) async {
     if (alerts.isEmpty) return;
 
     if (!await _ensureInitialized()) return;
@@ -163,7 +185,23 @@ class CalendarAlertScheduler {
   ///
   /// מאתחל את ההתראות רק כשיש מה לבטל או לתזמן. כשהן אינן זמינות המזהים
   /// השמורים נשארים, כדי שהתזמון הבא יבטל אותם.
+  ///
+  /// ריצה אחת בכל פעם; בקשות שמגיעות בינתיים מתאחדות לריצה אחת נוספת.
   Future<void> rescheduleEventNotifications({
+    required List<CustomEvent> Function() events,
+    required bool Function() enabled,
+    required int Function() defaultMinutes,
+    required bool Function() soundEnabled,
+  }) => _eventRuns.run(
+    () => _rescheduleEventNotificationsNow(
+      events: events,
+      enabled: enabled,
+      defaultMinutes: defaultMinutes,
+      soundEnabled: soundEnabled,
+    ),
+  );
+
+  Future<void> _rescheduleEventNotificationsNow({
     required List<CustomEvent> Function() events,
     required bool Function() enabled,
     required int Function() defaultMinutes,
@@ -357,5 +395,32 @@ class CalendarAlertScheduler {
     if (h > 0 && m > 0) return '$h שעות ו-$m דקות';
     if (h > 0) return '$h שעות';
     return '$m דקות';
+  }
+}
+
+/// מריץ עבודה אחת בכל פעם. בקשות שמגיעות בזמן ריצה מתאחדות לריצה אחת
+/// נוספת, שמבצעת את הבקשה האחרונה.
+class _CoalescingRunner {
+  Future<void>? _running;
+  Future<void>? _queued;
+  Future<void> Function()? _latest;
+
+  Future<void> run(Future<void> Function() job) {
+    _latest = job;
+    final running = _running;
+    if (running == null) return _start();
+    return _queued ??= running.catchError((Object _) {}).then((_) {
+      _queued = null;
+      return _start();
+    });
+  }
+
+  Future<void> _start() {
+    late final Future<void> current;
+    current = Future.sync(_latest!).whenComplete(() {
+      if (identical(_running, current)) _running = null;
+    });
+    _running = current;
+    return current;
   }
 }

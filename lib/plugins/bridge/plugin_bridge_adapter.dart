@@ -6727,7 +6727,10 @@ class PluginBridgeAdapter {
       case 'checkPermissions':
         // בדיקת הרשאות התראות
         if (!_notificationService.isInitialized) {
-          return {'granted': false, 'initialized': false};
+          return {
+            'granted': NotificationService.grantsWithoutPrompt,
+            'initialized': false,
+          };
         }
 
         final hasPermissions = await _notificationService.checkPermissions();

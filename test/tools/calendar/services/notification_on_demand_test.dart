@@ -47,6 +47,8 @@ void main() {
   tz_data.initializeTimeZones();
   const channel = MethodChannel('dexterous.com/flutter/local_notifications');
   final calls = <MethodCall>[];
+  // כמו AddToSchedule/RemoveFromSchedule ב-Windows: אין דריסה, וביטול מסיר מופע אחד.
+  final pending = <int>[];
   String? failingMethod;
 
   late _Settings settings;
@@ -77,6 +79,11 @@ void main() {
           if (call.method == failingMethod) {
             throw PlatformException(code: 'unavailable');
           }
+          if (call.method == 'zonedSchedule') {
+            pending.add((call.arguments as Map)['id'] as int);
+          } else if (call.method == 'cancel') {
+            pending.remove(call.arguments);
+          }
           return true;
         });
   });
@@ -92,6 +99,7 @@ void main() {
     NotificationService.startupGate = null;
     NotificationService.ownerChannelForTesting = null;
     calls.clear();
+    pending.clear();
     failingMethod = null;
     settings = _Settings();
     scheduler = CalendarAlertScheduler(
@@ -131,6 +139,31 @@ void main() {
 
     expect(calls, isEmpty);
     expect(service.isInitialized, isFalse);
+  });
+
+  test('תזמונים מחדש מקבילים אינם משאירים התראה כפולה', () async {
+    settings.ids = '[5]';
+    pending.add(5);
+    final events = [_event('a')];
+
+    await Future.wait([rescheduleEvents(events), rescheduleEvents(events)]);
+
+    expect(pending, ['a'.hashCode]);
+    expect(jsonDecode(settings.ids), ['a'.hashCode]);
+  });
+
+  test('תזמוני זמני היום מקבילים אינם משאירים התראה כפולה', () async {
+    const alerts = {
+      'sunrise': ZmanAlertPreference(minutesBefore: 15, displayName: 'הנץ'),
+    };
+
+    await Future.wait([
+      scheduler.rescheduleZmanAlerts(alerts, 'ירושלים'),
+      scheduler.rescheduleZmanAlerts(alerts, 'ירושלים'),
+    ]);
+
+    expect(pending, hasLength(46));
+    expect(pending.toSet(), hasLength(46));
   });
 
   test('תזמון שנכשל אינו נשמר כמזהה', () async {
@@ -204,6 +237,38 @@ void main() {
 
       expect(methods(), containsAllInOrder(['initialize', 'zonedSchedule']));
       expect(jsonDecode(settings.ids), ['a'.hashCode]);
+    });
+
+    test('תשובה פגומה מהחלון הראשי אינה זורקת', () async {
+      NotificationService.ownerChannelForTesting = (_) async => 'garbage';
+
+      expect(await service.ensureInitialized(), isFalse);
+      expect(await service.ensureReadyToCancel(), isFalse);
+      expect(await service.checkPermissions(), isFalse);
+      expect(await service.requestPermissions(), isFalse);
+    });
+
+    test('תזמון שפקע בחלון הראשי נשמר, כדי שאפשר יהיה לבטל אותו', () async {
+      NotificationService.ownerChannelForTesting = (request) async {
+        if (request['op'] == 'schedule') throw TimeoutException('owner busy');
+        return service.handleOwnerRequest(
+          jsonDecode(jsonEncode(request)) as Map<String, dynamic>,
+        );
+      };
+
+      await rescheduleEvents([_event('a')]);
+
+      expect(jsonDecode(settings.ids), ['a'.hashCode]);
+    });
+
+    test('ביטול שפקע מגיע לקורא', () async {
+      NotificationService.ownerChannelForTesting = (_) async =>
+          throw TimeoutException('owner busy');
+
+      await expectLater(
+        service.cancelNotifications([5]),
+        throwsA(isA<TimeoutException>()),
+      );
     });
 
     test('בלי חלון ראשי המזהים השמורים נשארים לניסיון הבא', () async {

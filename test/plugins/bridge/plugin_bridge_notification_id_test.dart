@@ -174,6 +174,15 @@ void main() {
       expect(methods, containsAllInOrder(['initialize', 'zonedSchedule']));
     });
 
+    test('checkPermissions ב-Windows עונה בלי אתחול', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      final result = await _adapter(
+        NotificationService(),
+      ).execute('notifications', 'checkPermissions', {});
+      expect(result, {'granted': true, 'initialized': false});
+      expect(methods, isEmpty);
+    });
+
     test('sendSystem מאתחל לפי דרישה ומציג', () async {
       await _adapter(NotificationService()).execute(
         'notifications',

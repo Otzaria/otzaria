@@ -151,9 +151,10 @@ void main() {
   test('disabling notifications during cancellation stays disabled', () async {
     final olderReschedule = cubit.changeCalendarNotificationTime(15);
     await notifications.cancellationStarted.future;
-    await cubit.changeCalendarNotificationsEnabled(false);
+    final disabling = cubit.changeCalendarNotificationsEnabled(false);
     notifications.releaseCancellation.complete();
     await olderReschedule;
+    await disabling;
 
     expect(cubit.state.calendarNotificationsEnabled, isFalse);
     expect(notifications.scheduled, isEmpty);
@@ -165,10 +166,10 @@ void main() {
     () async {
       final olderReschedule = cubit.changeCalendarNotificationTime(15);
       await notifications.cancellationStarted.future;
-      await cubit.deleteEvent('event');
-      await settings.secondScheduleSaved.future;
+      final deleting = cubit.deleteEvent('event');
       notifications.releaseCancellation.complete();
       await olderReschedule;
+      await deleting;
 
       expect(cubit.state.events, isEmpty);
       expect(notifications.scheduled, isEmpty);
@@ -179,16 +180,15 @@ void main() {
   test('rescheduling after cancellation uses current time and sound', () async {
     final olderReschedule = cubit.changeCalendarNotificationTime(15);
     await notifications.cancellationStarted.future;
-    await cubit.changeCalendarNotificationTime(20);
+    final newer = cubit.changeCalendarNotificationTime(20);
     await cubit.changeCalendarNotificationSound(true);
     notifications.releaseCancellation.complete();
     await olderReschedule;
+    await newer;
 
     expect(cubit.state.calendarNotificationTime, 20);
     expect(cubit.state.calendarNotificationSound, isTrue);
-    expect(notifications.scheduled, [
-      (minutes: 20, sound: false),
-      (minutes: 20, sound: true),
-    ]);
+    expect(notifications.scheduled, isNotEmpty);
+    expect(notifications.scheduled, everyElement((minutes: 20, sound: true)));
   });
 }

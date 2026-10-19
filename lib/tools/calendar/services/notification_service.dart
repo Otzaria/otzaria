@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:otzaria/core/error_log_file.dart';
@@ -36,14 +37,22 @@ class NotificationService {
       final response = await WindowBus.instance.requestPortDetailed(
         owner,
         {'type': busRequest, ...request},
-        // הבעלים עשוי להיות עסוק (טעינת קטלוג נמדדה ~2 שניות).
-        timeout: const Duration(seconds: 10),
+        // אתחול והרשאות עלולים להמתין לדיאלוג של המשתמש (macOS); השאר ממתינים
+        // לכל היותר לשער החשיפה של הבעלים (20 שניות).
+        timeout: _mayWaitForUser.contains(request['op'])
+            ? const Duration(minutes: 5)
+            : const Duration(seconds: 30),
         label: 'owner notifications',
       );
-      if (response.failure != null) {
-        throw StateError('Main window notifications: ${response.failure}');
-      }
-      return response.result;
+      return switch (response.failure) {
+        null => response.result,
+        WindowBusFailure.timeout => throw TimeoutException(
+          'Main window notifications',
+        ),
+        WindowBusFailure.error => throw StateError(
+          'Main window notifications failed',
+        ),
+      };
     };
   }
 
@@ -133,26 +142,47 @@ class NotificationService {
       defaultTargetPlatform == TargetPlatform.windows ||
       defaultTargetPlatform == TargetPlatform.linux;
 
+  /// ב-Windows ובלינוקס אין הרשאת התראות לבקש, ולכן אפשר לענות בלי אתחול.
+  static bool get grantsWithoutPrompt =>
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
+
   /// שולח פעולה לחלון הבעלים ומעדכן את המצב המקומי לפי תשובתו.
+  ///
+  /// שאלות כן/לא מחזירות false בכשל. תזמון או הצגה שפקעו נחשבים כאילו נמסרו:
+  /// הבעלים עשוי לסיים אחר כך, ומזהה שלא נשמר היה משאיר התראה שאין לבטל.
   Future<Object?> _forward(
     String op, [
     Map<String, Object?> args = const {},
   ]) async {
-    final Object? reply;
     try {
-      reply = await _ownerChannel!({'op': op, ...args});
+      final reply = await _ownerChannel!({'op': op, ...args});
+      if (reply is! Map) {
+        throw StateError('Main window ignored notification $op');
+      }
+      _isInitialized = reply['initialized'] == true;
+      _permissionsGranted = reply['permissions'] == true;
+      return reply['value'];
     } catch (error) {
       debugPrint('NotificationService: $op via main window failed: $error');
-      if (op == 'ensureInitialized' || op == 'ensureReadyToCancel') {
-        return false;
-      }
+      if (_answersYesNo.contains(op)) return false;
+      if (error is TimeoutException && _delivers.contains(op)) return null;
       rethrow;
     }
-    if (reply is! Map) throw StateError('Main window ignored notification $op');
-    _isInitialized = reply['initialized'] == true;
-    _permissionsGranted = reply['permissions'] == true;
-    return reply['value'];
   }
+
+  static const _mayWaitForUser = {
+    'ensureInitialized',
+    'ensureReadyToCancel',
+    'checkPermissions',
+    'requestPermissions',
+    'forceRequestPermissions',
+  };
+  static const _answersYesNo = {
+    ..._mayWaitForUser,
+    'sendTest',
+  };
+  static const _delivers = {'schedule', 'show'};
 
   /// מבצע בחלון הבעלים פעולה שחלון משני העביר. חריגה חוזרת לשולח ככשל.
   Future<Object?> handleOwnerRequest(Map<String, dynamic> request) async {
