@@ -149,14 +149,14 @@ dependency_overrides:
       ref: 3d9c8a5b3d5eca446542dcc8b81fef283441a214
       path: packages/pdfrx_engine
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
-  # (קריאות WinRT ב-thread ייעודי, כולל תיקון ה-deadlock ב-invoke). עד אז הפורק
-  # Otzaria, מוצמד לקומיט.
+  # (קריאות WinRT ב-thread ייעודי, כולל תיקוני ה-deadlock ב-invoke וסדר האתחול
+  # ב-worker). עד אז הפורק Otzaria, מוצמד לקומיט.
   # בהסרה: למחוק גם את core.longpaths מ-workflows של Windows - הוא נדרש
   # רק בגלל הנתיב העמוק במונורפו הזה.
   flutter_local_notifications_windows:
     git:
       url: https://github.com/Otzaria/flutter_local_notifications
-      ref: 8b615cdcd3611466ac385146f63f992ed77c827e
+      ref: 49e1cca2541d083c27f55a5cc2f7e12d7b209bf2
       path: flutter_local_notifications_windows
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר getsentry/sentry-dart#4094 (ה-backport ל-9.x בענף
   # feat/9.x-nonblocking-native-init: sentry_init ב-isolate עזר ב-Windows).
