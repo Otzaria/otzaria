@@ -494,10 +494,17 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
   final String windowLinksArm;
   final String coverageArm;
   final List<Object?> params;
+  // סדר השורות השוות כמו לפני הסינון: שורות החלון לפני שורות הכיסוי, לפי מזהה.
+  const orderTieBreak = ', a.anchorLineId != l.targetLineId, l.id';
   if (hasRange) {
     // מסד שאינו הרשמי נשאר בדיוק עם השאילתה המקורית (ראו officialForwardWindowSql).
+    // הסוג נבדק כבר ב-idx_link_type_target_line: קישור שלא יוצג (LINKER) לא
+    // נקרא משורת link, וזו רוב הקריאה הקרה מהדיסק.
     windowLinksArm = official
-        ? officialInverseWindowLinksSql
+        ? '''$officialInverseWindowLinksSql
+            AND l.connectionTypeId IN (
+              SELECT id FROM connection_type WHERE name IN ($typePlaceholders)
+            )'''
         : '''SELECT l.id, l.targetLineId FROM link l
           WHERE l.targetLineId IN (
             SELECT id FROM line WHERE bookId = ? AND lineIndex BETWEEN ? AND ?
@@ -515,7 +522,7 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
       bookId,
       startLineIndex,
       endLineIndex,
-      if (!official) bookId,
+      if (official) ...types else bookId,
       if (hasLinkRanges) ...[bookId, startLineIndex, endLineIndex],
       ...types,
     ];
@@ -558,7 +565,7 @@ List<Map<String, dynamic>> _loadInverseSourceRows(
       WHERE ct.name IN ($typePlaceholders)
         $inverseBookFilter
         $suppressedFilter
-      ORDER BY tl.lineIndex
+      ORDER BY tl.lineIndex${hasRange && official ? orderTieBreak : ''}
     ''', params).toMapList();
 }
 
