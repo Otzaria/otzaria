@@ -9,19 +9,34 @@ class ReaderSectionSyncGate {
   /// יאבד קו-בסיס בעוד השער עוד מסמן "מסונכרן", השינוי האמיתי הבא ייבלע.
   static const int defaultMaxEntries = 1024;
 
+  /// סך התווים (מקור + מעובד) שנשמרים; בשורות ארוכות 1024 קטעים הם עשרות MB.
+  static const int defaultMaxChars = 512 * 1024;
+
   static final ReaderSectionSyncGate instance = ReaderSectionSyncGate._();
 
-  ReaderSectionSyncGate._() : maxEntries = defaultMaxEntries;
+  ReaderSectionSyncGate._()
+    : maxEntries = defaultMaxEntries,
+      maxChars = defaultMaxChars;
 
   @visibleForTesting
-  ReaderSectionSyncGate.forTesting({this.maxEntries = defaultMaxEntries})
-    : assert(maxEntries > 0);
+  ReaderSectionSyncGate.forTesting({
+    this.maxEntries = defaultMaxEntries,
+    this.maxChars = defaultMaxChars,
+  }) : assert(maxEntries > 0);
 
   final int maxEntries;
+  final int maxChars;
   final Map<_SectionKey, _SyncedInputs> _synced = {};
+  int _chars = 0;
 
   @visibleForTesting
   int get trackedSections => _synced.length;
+
+  @visibleForTesting
+  int get trackedChars => _chars;
+
+  static int _charsOf(_SyncedInputs inputs) =>
+      inputs.rawSourceHtml.length + inputs.processedHtml.length;
 
   /// compare-and-set: מחזיר `true` כשהקטע צריך סנכרון, ואז **מסמן** את הקלט
   /// הנוכחי כמסונכרן. קריאה חוזרת עם אותו קלט תחזיר `false`.
@@ -58,15 +73,17 @@ class ReaderSectionSyncGate {
       _synced[key] = _synced.remove(key)!;
       return false;
     }
-    _synced.remove(key);
+    if (previous != null) _chars -= _charsOf(_synced.remove(key)!);
     _synced[key] = (
       rawSourceHtml: rawSourceHtml,
       processedHtml: processedHtml,
       renderingSignature: renderingSignature,
       highlightsRevision: highlightsRevision,
     );
-    while (_synced.length > maxEntries) {
-      _synced.remove(_synced.keys.first);
+    _chars += _charsOf(_synced[key]!);
+    while (_synced.length > maxEntries ||
+        (_chars > maxChars && _synced.length > 1)) {
+      _chars -= _charsOf(_synced.remove(_synced.keys.first)!);
     }
     return true;
   }
@@ -76,13 +93,21 @@ class ReaderSectionSyncGate {
     _synced.removeWhere(
       (key, _) => key.bookId == bookId && key.sectionIndex == sectionIndex,
     );
+    _recountChars();
   }
 
   void forgetBook(String bookId) {
     _synced.removeWhere((key, _) => key.bookId == bookId);
+    _recountChars();
   }
 
-  void clear() => _synced.clear();
+  void clear() {
+    _synced.clear();
+    _chars = 0;
+  }
+
+  void _recountChars() =>
+      _chars = _synced.values.fold(0, (sum, inputs) => sum + _charsOf(inputs));
 }
 
 typedef _SectionKey = ({
