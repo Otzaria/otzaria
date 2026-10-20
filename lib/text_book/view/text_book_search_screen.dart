@@ -4,7 +4,7 @@ import 'package:otzaria/search/view/in_book_snippet_style.dart';
 import 'package:otzaria/search/in_book_search_settings.dart';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -144,40 +144,6 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   static const int _maxResultSnippetChars = 220;
 
-  bool _searchOptionsEqual(
-    Map<String, Map<String, bool>> first,
-    Map<String, Map<String, bool>> second,
-  ) {
-    if (identical(first, second)) return true;
-    if (first.length != second.length) return false;
-
-    for (final key in first.keys) {
-      final firstValue = first[key];
-      final secondValue = second[key];
-      if (firstValue == null || secondValue == null) return false;
-      if (!mapEquals(firstValue, secondValue)) return false;
-    }
-
-    return true;
-  }
-
-  bool _alternativeWordsEqual(
-    Map<int, List<String>> first,
-    Map<int, List<String>> second,
-  ) {
-    if (identical(first, second)) return true;
-    if (first.length != second.length) return false;
-
-    for (final key in first.keys) {
-      final firstValue = first[key];
-      final secondValue = second[key];
-      if (firstValue == null || secondValue == null) return false;
-      if (!listEquals(firstValue, secondValue)) return false;
-    }
-
-    return true;
-  }
-
   SearchModeScopedParameters get _activeSearchParameters =>
       _settings.activeParameters;
 
@@ -275,13 +241,11 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         widget.initialQuery != controllerQuery &&
         widget.initialQuery != (searchableInBookQuery(controllerQuery) ?? '');
     final normalizedSearchMode = widget.initialSearchMode;
+    const equality = DeepCollectionEquality();
     final searchConfigurationChanged =
-        !_searchOptionsEqual(_searchOptions, widget.initialSearchOptions) ||
-        !_alternativeWordsEqual(
-          _alternativeWords,
-          widget.initialAlternativeWords,
-        ) ||
-        !mapEquals(_spacingValues, widget.initialSpacingValues) ||
+        !equality.equals(_searchOptions, widget.initialSearchOptions) ||
+        !equality.equals(_alternativeWords, widget.initialAlternativeWords) ||
+        !equality.equals(_spacingValues, widget.initialSpacingValues) ||
         _searchMode != normalizedSearchMode ||
         _searchDistance != widget.initialSearchDistance ||
         _settings.requestedMatchPolicy != widget.initialMatchPolicy;
