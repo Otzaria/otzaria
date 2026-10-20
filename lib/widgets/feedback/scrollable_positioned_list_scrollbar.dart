@@ -65,7 +65,7 @@ class _ScrollablePositionedListScrollbarState
   // נקבע ממטריקות ה-Scrollable ולא מ-itemPositions: הן מתעדכנות רק בגלילה או
   // בבנייה מחדש, וכשגובה פריט גדל אחרי הדיווח האחרון (תוכן מפרש שנטען) הן
   // נשארות ישנות — והמסילה נעלמה לגמרי בחלונית המפרשים.
-  bool _canScroll = false;
+  bool? _canScroll;
   // האינדקס המקסימלי שאפשר לקפוץ אליו (itemCount - visibleItems) — נשמר כדי
   // שמיפוי הגרירה לאינדקס יישאר עקבי גם כש-_thumbHeight מקובל למינימום
   // 0.05. בלי זה, כשמפרש פתוח מתחת ומעט סגמנטים גלויים, הגרירה לתחתית לא
@@ -101,6 +101,9 @@ class _ScrollablePositionedListScrollbarState
   @override
   void initState() {
     super.initState();
+    // רשימה ארוכה כמעט תמיד נגללת: עד המדידה הראשונה מקום המסילה שמור, אחרת
+    // הופעתה מצרה את הרשימה ופורסת מחדש כל פריט גלוי.
+    _canScroll = widget.itemCount >= 100 ? null : false;
     widget.itemPositionsListener.itemPositions.addListener(
       _updateScrollPosition,
     );
@@ -173,7 +176,7 @@ class _ScrollablePositionedListScrollbarState
   /// maxScrollExtent מתאפס אף שיש עוד פריטים, וההסתרה נקבעת לפי המיקומים.
   bool _onScrollMetrics(ScrollMetricsNotification notification) {
     if (notification.depth != 0) return false;
-    if (!_canScroll &&
+    if (_canScroll != true &&
         mounted &&
         notification.metrics.maxScrollExtent > precisionErrorTolerance) {
       setState(() => _canScroll = true);
@@ -295,7 +298,7 @@ class _ScrollablePositionedListScrollbarState
     final canScroll =
         hasOffscreenItem || totalContent > 1.0 + precisionErrorTolerance;
     // המסילה יוצאת מהעץ, ו-MouseRegion שהוסר אינו מקבל onExit שיסתיר את התווית.
-    if (!canScroll && _canScroll) _hideLabel();
+    if (!canScroll && _canScroll == true) _hideLabel();
 
     // מתעדכן גם בגרירה: באזור של פריטים גבוהים האינדקס המקסימלי עולה, ובלעדיו
     // הגרירה לא מגיעה לסוף הספר. אינו משתתף ב-build ולכן בלי setState.
@@ -460,7 +463,9 @@ class _ScrollablePositionedListScrollbarState
       // מתמרכז אנכית תחת ברירת המחדל center.
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (widget.itemCount > 0 && _canScroll)
+        if (widget.itemCount > 0 && _canScroll == null)
+          const SizedBox(width: _trackWidth)
+        else if (widget.itemCount > 0 && _canScroll == true)
           SizedBox(
             width: _trackWidth,
             child: LayoutBuilder(
