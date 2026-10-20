@@ -122,6 +122,46 @@ void main() {
       expect(gate.trackedSections, 3);
     });
 
+    test('הזיכרון חסום גם בסך התווים — שורות ארוכות לא מוחזקות באלפים', () {
+      // אורך שורה ממוצע בעקידת יצחק במסד הספרייה (~3,150 תווים).
+      final line = 'א' * 3150;
+      for (var i = 0; i < ReaderSectionSyncGate.defaultMaxEntries; i++) {
+        sync(
+          sectionIndex: i,
+          rawSourceHtml: '$line$i',
+          processedHtml: '<b>$line$i</b>',
+        );
+      }
+      expect(
+        gate.trackedChars,
+        lessThanOrEqualTo(ReaderSectionSyncGate.defaultMaxChars),
+      );
+      expect(gate.trackedSections, greaterThan(50));
+    });
+
+    test('קטע בודד שחורג מתקציב התווים עדיין נחסם בקריאה חוזרת', () {
+      gate = ReaderSectionSyncGate.forTesting(maxChars: 10);
+      final long = 'ב' * 100;
+      expect(sync(rawSourceHtml: long, processedHtml: long), isTrue);
+      expect(sync(rawSourceHtml: long, processedHtml: long), isFalse);
+      expect(gate.trackedChars, 200);
+    });
+
+    test('ספירת התווים מתעדכנת בהחלפה, ב-forget, ב-forgetBook וב-clear', () {
+      sync(sectionIndex: 1, rawSourceHtml: 'אב', processedHtml: 'אב');
+      sync(sectionIndex: 1, rawSourceHtml: 'א', processedHtml: 'א');
+      expect(gate.trackedChars, 2);
+      sync(bookId: 'שמות', sectionIndex: 2, rawSourceHtml: 'גגג');
+      sync(sectionIndex: 3, rawSourceHtml: 'דד', processedHtml: 'ד');
+      expect(gate.trackedChars, 2 + 3 + '<b>בראשית</b> ברא'.length + 3);
+      gate.forget(bookId: 'book', sectionIndex: 1);
+      expect(gate.trackedChars, 3 + '<b>בראשית</b> ברא'.length + 3);
+      gate.forgetBook('שמות');
+      expect(gate.trackedChars, 3);
+      gate.clear();
+      expect(gate.trackedChars, 0);
+    });
+
     test('קטע שפונה מהזיכרון מסתנכרן מחדש, בלי לשבור נכונות', () {
       gate = ReaderSectionSyncGate.forTesting(maxEntries: 2);
       expect(sync(sectionIndex: 1), isTrue);
