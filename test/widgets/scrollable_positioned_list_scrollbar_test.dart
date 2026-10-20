@@ -1927,4 +1927,57 @@ void main() {
     expect(tester.binding.hasScheduledFrame, isTrue);
     await tester.pump();
   });
+
+  group('רוחב הרשימה בפתיחה', () {
+    Future<List<double>> pumpList(WidgetTester tester, int itemCount) async {
+      final widths = <double>[];
+      final listener = ItemPositionsListener.create();
+      final controller = ItemScrollController();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScrollablePositionedListScrollbar(
+              scrollController: controller,
+              itemPositionsListener: listener,
+              itemCount: itemCount,
+              child: ScrollablePositionedList.builder(
+                itemScrollController: controller,
+                itemPositionsListener: listener,
+                itemCount: itemCount,
+                itemBuilder: (context, i) => LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (i == 0) widths.add(constraints.maxWidth);
+                    return const SizedBox(height: 50);
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return widths;
+    }
+
+    testWidgets('רשימה ארוכה נפרסת פעם אחת, ברוחב שליד המסילה', (tester) async {
+      final widths = await pumpList(tester, 200);
+
+      // הופעת המסילה אחרי הפריים הראשון הצרה את הרשימה ופרסה מחדש כל פריט.
+      expect(widths, [800 - ScrollablePositionedListScrollbar.trackWidth]);
+      expect(
+        find.byKey(ScrollablePositionedListScrollbar.thumbKey),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('רשימה שנכנסת במסך נשארת בלי מסילה וברוחב מלא', (tester) async {
+      final widths = await pumpList(tester, 3);
+
+      expect(widths.last, 800);
+      expect(
+        find.byKey(ScrollablePositionedListScrollbar.thumbKey),
+        findsNothing,
+      );
+    });
+  });
 }
