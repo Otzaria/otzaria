@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:otzaria/book_common/highlights/reader_highlights.dart';
 import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
@@ -157,6 +158,13 @@ List<AppContextMenuEntry> buildClickedHighlightPluginEntries({
 }) {
   if (root == null) return const [];
   final book = state.book;
+  final highlights = ReaderHighlights.pluginHighlights(
+    bookTitle: book.title,
+    bookUid: PluginBookIdentity.uidOf(book),
+    bookVersion: book.versionTitle,
+    sectionIndex: paragraphIndex,
+  );
+  if (highlights.isEmpty) return const [];
   final clicked = resolveClickedHighlights(
     root: root,
     globalPosition: tapPosition,
@@ -166,6 +174,7 @@ List<AppContextMenuEntry> buildClickedHighlightPluginEntries({
     rawText: rawText,
     settings: settings,
     lineRange: lineRange,
+    highlights: highlights,
   );
   if (clicked.isEmpty) return const [];
   final entries = buildPluginContextMenuEntries(

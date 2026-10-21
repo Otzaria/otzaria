@@ -261,11 +261,17 @@ bool? clickIsOnTextOccurrence({
   final (text: pText, base: _, length: _) = paragraphText;
   if (pText.isEmpty) return null;
 
+  // שבירת שורה (<br>) ורצף רווחים מוצגים אחרת מהטקסט שחושב להדגשה; מחפשים
+  // ברצף שבו כל רווח הוא רווח אחד, וממפים כל מופע חזרה לטקסט הפסקה.
+  final collapsed = _collapseWhitespace(pText);
+  final needle = text.replaceAll(_whitespace, ' ');
   final starts = <int>[];
+  final ends = <int>[];
   for (var from = 0; ;) {
-    final start = pText.indexOf(text, from);
+    final start = collapsed.text.indexOf(needle, from);
     if (start < 0) break;
-    starts.add(start);
+    starts.add(collapsed.origin[start]);
+    ends.add(collapsed.origin[start + needle.length - 1] + 1);
     from = start + 1;
   }
   if (starts.isEmpty) return null;
@@ -276,12 +282,14 @@ bool? clickIsOnTextOccurrence({
       starts.length == occurrenceCount &&
       occurrenceIndex >= 0 &&
       occurrenceIndex < starts.length;
-  final candidates = onlyKnownOccurrence ? [starts[occurrenceIndex]] : starts;
+  final candidates = onlyKnownOccurrence
+      ? [occurrenceIndex]
+      : [for (var i = 0; i < starts.length; i++) i];
 
   final local = paragraph.globalToLocal(globalPosition);
-  for (final start in candidates) {
+  for (final i in candidates) {
     final boxes = paragraph.getBoxesForSelection(
-      _selectionInParagraph(paragraphText, start, start + text.length),
+      _selectionInParagraph(paragraphText, starts[i], ends[i]),
       boxHeightStyle: ui.BoxHeightStyle.includeLineSpacingMiddle,
     );
     for (final box in boxes) {
@@ -289,6 +297,25 @@ bool? clickIsOnTextOccurrence({
     }
   }
   return false;
+}
+
+final RegExp _whitespace = RegExp(r'\s+');
+
+/// [text] כשכל רצף רווחים (גם מעבר שורה) הוא רווח אחד; [origin] — המיקום
+/// ב-[text] המקורי של כל תו ברצף המכווץ.
+({String text, List<int> origin}) _collapseWhitespace(String text) {
+  final buffer = StringBuffer();
+  final origin = <int>[];
+  var previousSpace = false;
+  for (var i = 0; i < text.length; i++) {
+    final char = text[i];
+    final space = char.trim().isEmpty;
+    if (space && previousSpace) continue;
+    previousSpace = space;
+    buffer.write(space ? ' ' : char);
+    origin.add(i);
+  }
+  return (text: buffer.toString(), origin: origin);
 }
 
 /// מחשב את טווח התווים המסומן בתוך טקסט הפסקה [pText], בהינתן כלל הטקסט הנבחר

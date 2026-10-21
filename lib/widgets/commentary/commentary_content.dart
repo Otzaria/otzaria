@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/book_common/utils/commentary_plugin_menu_entries.dart';
+import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -258,6 +260,11 @@ class _CommentaryContentState extends State<CommentaryContent>
                     );
                   }
 
+                  // סימונים מצוירים רק בקטע של שורה אחת: עוגן מתייחס לשורה.
+                  final highlightBook =
+                      widget.link.index2End == null && !data.startsWith('שגיאה')
+                      ? commentaryTargetForLink(widget.link).book
+                      : null;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -265,6 +272,24 @@ class _CommentaryContentState extends State<CommentaryContent>
                         child: SmartTextWidget(
                           text: displayData,
                           settings: renderSettings,
+                          highlightBookId: highlightBook?.title,
+                          highlightBookUid: highlightBook?.id == null
+                              ? null
+                              : PluginBookIdentity.uidOf(highlightBook!),
+                          highlightBookDbId: highlightBook?.id,
+                          highlightBookType: highlightBook == null
+                              ? null
+                              : PluginBookIdentity.typeOf(highlightBook),
+                          highlightBookSource: highlightBook == null
+                              ? null
+                              : PluginBookIdentity.sourceOf(highlightBook),
+                          highlightSectionIndex: highlightBook == null
+                              ? null
+                              : widget.link.index2 - 1,
+                          highlightSourceText: highlightBook == null
+                              ? null
+                              : data,
+                          markerOnly: true,
                           onAnchorTap: !hasPanelLinks
                               ? null
                               : (url) {

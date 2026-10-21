@@ -6,8 +6,8 @@ import 'package:otzaria/plugins/services/text_source_map_service.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
-/// מאתר את הדגשות התוספים שנקודת הלחיצה [globalPosition] נופלת עליהן
-/// בפסקה [sectionIndex]. מאפשר להציג "הסר סימון" גם ללא בחירה פעילה.
+/// מאתר את ההדגשות שנקודת הלחיצה נופלת עליהן בפסקה [sectionIndex] — של
+/// התוספים, או [highlights] כשסופקו — כדי לפעול עליהן גם בלי בחירה.
 List<PluginHighlight> resolveClickedHighlights({
   required RenderObject root,
   required Offset globalPosition,
@@ -17,8 +17,9 @@ List<PluginHighlight> resolveClickedHighlights({
   required RenderSettings settings,
   String? bookUid,
   TextRange? lineRange,
+  List<PluginHighlight>? highlights,
 }) {
-  final highlights = PluginHighlightRegistry.instance.getAllHighlights(
+  highlights ??= PluginHighlightRegistry.instance.getAllHighlights(
     bookId: bookId,
     sectionIndex: sectionIndex,
     bookUid: bookUid,
