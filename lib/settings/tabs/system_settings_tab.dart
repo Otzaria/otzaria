@@ -236,7 +236,7 @@ class SystemSettingsTab extends StatefulWidget {
     SettingsSearchEntry(
       id: 'system.advanced.backup.notes',
       title: 'גיבוי הערות אישיות',
-      subtitle: 'כל ההערות האישיות שלך',
+      subtitle: 'ההערות האישיות והסימונים במרקר',
       tab: SettingsTab.system,
       cardId: 'system.advanced',
       keywords: ['גיבוי', 'הערות'],
@@ -1002,6 +1002,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           '{count} ספרים בשמור וזכור',
           args: {'count': added.shamorZachorBooks},
         ),
+      if (added.markerHighlights > 0)
+        context.settingsText(
+          '{count} סימונים במרקר',
+          args: {'count': added.markerHighlights},
+        ),
     ];
 
     final content = [
@@ -1409,7 +1414,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               _BackupOptionTile(
                 icon: FluentIcons.note_24_regular,
                 title: context.settingsText('הערות אישיות'),
-                subtitle: context.settingsText('כל ההערות האישיות שלך'),
+                subtitle: context.settingsText(
+                  'ההערות האישיות והסימונים במרקר',
+                ),
                 settingKey: _keyBackupNotes,
                 onChanged: () => setState(() {}),
               ),
