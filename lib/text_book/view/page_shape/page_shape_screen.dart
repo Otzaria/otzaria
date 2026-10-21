@@ -1832,6 +1832,15 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   List<String>? _content;
   TextBook? _reportBook;
 
+  /// ה-id של ספר המפרש, כשנמצא. הספר שנטען נשאר בלעדיו, כדי לא לשנות את
+  /// הטעינה; ספר הדיווח נושא אותו, לקישור ישיר ולסימונים בעמודה.
+  int? _reportBookId;
+
+  TextBook _withReportId(TextBook book) =>
+      book.id != null || _reportBookId == null
+      ? book
+      : book.copyWith(id: _reportBookId);
+
   // טעינת-חלונות לספרי DB: _content באורך הספר המלא עם placeholders ריקים,
   // ורק חלונות סביב יעד הסנכרון/הגלילה נטענים בפועל.
   bool _useWindowedLoading = false;
@@ -2017,7 +2026,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       endLine: range.endLine,
     );
     setState(() {
-      _reportBook = book;
+      _reportBook = _withReportId(book);
       _content = content;
       _isLoading = false;
       _lastSyncedIndex = null;
@@ -2306,7 +2315,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     }
 
     setState(() {
-      _reportBook = data.book;
+      _reportBook = _withReportId(data.book);
       _content = data.content;
       _isLoading = false;
       _lastSyncedIndex = null;
@@ -2386,6 +2395,8 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
 
   Future<void> _loadCommentary() async {
     if (!mounted) return;
+    final commentator = widget.commentatorName;
+    _reportBookId = null;
     setState(() {
       _isLoading = true;
       _commentaryToc = null;
@@ -2453,6 +2464,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       final bookLocation = attachedSource != null
           ? null
           : await BookLocator.locateBook(widget.commentatorName);
+      // מפרש שהוחלף בזמן החיפוש אינו מעביר את ה-id שלו למפרש הבא.
+      if (widget.commentatorName != commentator) return;
+      _reportBookId = attachedRecord?.book.id ?? bookLocation?.book?.id;
 
       if (attachedRecord != null) {
         book = TextBook(

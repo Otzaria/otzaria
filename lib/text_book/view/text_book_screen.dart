@@ -84,6 +84,10 @@ import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 // [EDITING DISABLED] import 'package:otzaria/text_book/editing/helpers/editor_settings_helper.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
+import 'package:otzaria/marker/services/marker_settings.dart';
+import 'package:otzaria/marker/view/reader/marker_reader_selection.dart';
+import 'package:otzaria/marker/view/reader/marker_toolbar_action.dart';
+import 'package:otzaria/text_book/view/selection/keyboard_selection_settings.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
@@ -99,7 +103,6 @@ import 'package:otzaria/plugins/utils/plugin_toolbar_actions.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
-import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/text_book/view/selection/plugin_selection_payload.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
@@ -1655,7 +1658,11 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
   Widget _buildActions(BuildContext context, TextBookLoaded state) {
     final tourKeys = TourTargetKeys.of(context);
     return ListenableBuilder(
-      listenable: PluginToolbarRegistry.instance,
+      listenable: Listenable.merge([
+        PluginToolbarRegistry.instance,
+        MarkerSettings.instance,
+        markerToolbarListenable(state),
+      ]),
       builder: (context, _) => Consumer<ShamorZachorDataProvider>(
         builder: (context, _, _) => ResponsiveActionBar(
           key: const ValueKey('responsive_actions'),
@@ -1797,6 +1804,28 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
         tooltip: 'חיפוש',
         onPressed: _openSearchFromToolbar,
         actionId: ToolbarActionId.search,
+      ),
+
+      ?buildMarkerToolbarAction(
+        context: context,
+        state: state,
+        compact: context.read<SettingsBloc>().state.compactMenuMode,
+        selection: () {
+          // צורת הדף מדווחת את הבחירה רק ל-BLoC, לא לשדות של המסך.
+          final current = context.read<TextBookBloc>().state;
+          if (current is TextBookLoaded && current.showPageShapeView) {
+            return (
+              text: current.selectedTextForNote,
+              lineIndex: current.selectedTextSectionIndex,
+              column: current.selectedTextStart,
+            );
+          }
+          return (
+            text: _selectedTextForSearch,
+            lineIndex: _selectedLineForNote,
+            column: _selectedColumnForNote,
+          );
+        },
       ),
 
       // 5) Zoom In Button
@@ -2125,6 +2154,10 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       if (!isPageSelected && selected != null) {
         widget.tab.lines.scrollToLineOnNextAttach(selected);
       }
+      // הבחירה של התצוגה הקודמת כבר אינה על המסך; קיצור או כפתור לא יפעלו עליה.
+      _selectedTextForSearch = null;
+      _selectedLineForNote = null;
+      _selectedColumnForNote = null;
       bloc.add(TogglePageShapeView(isPageSelected));
     }
 
@@ -3200,6 +3233,31 @@ bool _handleGlobalKeyEvent(
     return true;
   }
 
+  final markerShortcut =
+      ShortcutValidator.getShortcutValue(
+        ShortcutValidator.markerHighlightKey,
+      ) ??
+      '';
+  if (markerShortcut.isNotEmpty &&
+      ShortcutHelper.matchesShortcut(event, markerShortcut)) {
+    // צורת הדף מדווחת את הבחירה רק ל-BLoC, לא לשדות של המסך.
+    final pageShape = state.showPageShapeView;
+    unawaited(
+      markReaderSelection(
+        context: context,
+        state: state,
+        selectedText: pageShape
+            ? state.selectedTextForNote
+            : selectedTextForNote,
+        lineIndex: pageShape
+            ? state.selectedTextSectionIndex
+            : selectedLineForNote,
+        column: pageShape ? state.selectedTextStart : selectedColumnForNote,
+      ),
+    );
+    return true;
+  }
+
   // דיווח על טעות בספר — רק כשיש טקסט מסומן או קטע נבחר, בדיוק כמו הפריט
   // בתפריט ההקשר (שאינו מוצג בספרי המשתמש).
   if (reportErrorShortcut.isNotEmpty &&
@@ -3519,21 +3577,7 @@ Future<void> _dispatchContextMenuShortcut({
     return;
   }
 
-  final renderSettings = RenderSettings.fromProfile(
-    state.bodyDisplayProfile,
-    searchText: state.searchText,
-    searchOptions: state.searchOptions,
-    alternativeWords: state.alternativeWords,
-    spacingValues: state.spacingValues,
-    isFuzzySearch: state.searchMode == SearchMode.fuzzy,
-    searchMode: state.searchMode,
-    searchDistance: state.searchDistance,
-    matchPolicy: state.matchPolicy,
-    fontSize: state.fontSize,
-    fontFamily: settingsState.fontFamily,
-    fontWeight: settingsState.fontBold ? FontWeight.bold : null,
-    lineHeight: settingsState.lineHeight,
-  );
+  final renderSettings = keyboardSelectionRenderSettings(state, settingsState);
 
   final Map<String, dynamic> selection;
   if (selectedLineCount > 1 && fullContentLines != null) {

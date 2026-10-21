@@ -164,6 +164,21 @@ class ShortcutsSettingsTab extends StatelessWidget {
       keywords: ['הערה', 'אישית', 'ctrl+n', 'מקלדת'],
     ),
     SettingsSearchEntry(
+      id: 'shortcuts.book.marker',
+      title: 'קיצור לסימון במרקר',
+      subtitle: 'סימון הטקסט שנבחר בצבע ברירת המחדל',
+      tab: SettingsTab.shortcuts,
+      cardId: 'shortcuts.main',
+      keywords: [
+        'מרקר',
+        'סימון',
+        'הדגשה',
+        'ctrl+alt+h',
+        'ctrl+shift+h',
+        'מקלדת',
+      ],
+    ),
+    SettingsSearchEntry(
       id: 'shortcuts.book.close',
       title: 'קיצור לסגור ספר נוכחי',
       subtitle: 'סגירת הספר הפתוח',
@@ -544,6 +559,12 @@ class ShortcutsSettingsTab extends StatelessWidget {
         icon: FluentIcons.text_quote_24_regular,
         allShortcuts: _shortcutsList,
       ),
+      _ShortcutTile(
+        settingKey: 'key-shortcut-open-tool-marker',
+        label: context.settingsText('פתיחת המרקר'),
+        icon: FluentIcons.highlight_24_regular,
+        allShortcuts: _shortcutsList,
+      ),
     ]);
 
     // קיצורי "פתיחת תוסף" אופציונליים, לכל תוסף מותקן פעיל. כמו פתיחת כלים,
@@ -744,6 +765,13 @@ class ShortcutsSettingsTab extends StatelessWidget {
               settingKey: 'key-shortcut-add-note',
               label: context.settingsText('הוספת הערה'),
               icon: FluentIcons.note_24_regular,
+              allShortcuts: _shortcutsList,
+            ),
+            _ShortcutTile(
+              settingKey: ShortcutValidator.markerHighlightKey,
+              label: context.settingsText('סימון הטקסט שנבחר במרקר'),
+              subtitle: context.settingsText('בצבע ברירת המחדל של המרקר'),
+              icon: FluentIcons.highlight_24_regular,
               allShortcuts: _shortcutsList,
             ),
             _ShortcutTile(

@@ -3,6 +3,7 @@ import 'package:otzaria/book_common/bloc/commentary_search_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:otzaria/marker/view/reader/marker_commentary_menu.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
@@ -2598,6 +2599,23 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
     );
   }
 
+  /// שורת הצבעים של המרקר, לבחירה בתוך הקטע הזה בלבד, או פעולות על סימון
+  /// שנלחץ בו.
+  List<AppContextMenuEntry> _markerEntries(
+    String? savedText,
+    Offset tapPosition,
+  ) => buildCommentaryLinkMarkerEntries(
+    context: context,
+    link: widget.link,
+    selectedText: _restoreLineBreaks(savedText),
+    selectedLink: widget.lastSelectedLinkListenable.value,
+    itemKeys: widget.itemKeys,
+    linkKey: widget.getLinkKey,
+    displayProfile: widget.displayProfile,
+    fontSize: widget.fontSize,
+    tapPosition: tapPosition,
+  );
+
   /// פריטי התוספים בהקשרי המפרש. עם סימון — על המפרש המסומן, כמו בהעתקה.
   List<AppContextMenuEntry> _pluginEntries(
     BuildContext menuContext,
@@ -2760,33 +2778,36 @@ class _CommentaryLinkItemState extends State<_CommentaryLinkItem> {
                         ) ??
                         true; // לא הוכרע — סלחני
                   },
-                  menuBuilder: (menuCtx, _) {
+                  menuBuilder: (menuCtx, tapPosition) {
                     final savedTextAtBuild = captureSelectedTextForMenu(
                       widget.savedSelectedTextListenable,
                     );
-                    return ContextMenuUtils.buildCommentaryContextMenu(
-                      context: menuCtx,
-                      link: link,
-                      openBookCallback: widget.openBookCallback,
-                      fontSize: widget.fontSize,
-                      displayProfile: widget.displayProfile,
-                      copyDisplayProfile: widget.copyDisplayProfile,
-                      savedSelectedText: savedTextAtBuild,
-                      onNavigateToLink: _navigateToLink,
-                      onCopySelected: () => _copySelection(
-                        menuCtx,
-                        savedTextAtBuild,
-                        // במצב הפאנל/כרטיסייה אין מעקב פר-פריט אחר
-                        // המפרש הנבחר (אין SelectionArea פר-פריט), לכן
-                        // נופלים חזרה ל-link של הפריט שעליו נפתח התפריט.
-                        widget.lastSelectedLinkListenable.value ?? link,
+                    return withMarkerEntries(
+                      ContextMenuUtils.buildCommentaryContextMenu(
+                        context: menuCtx,
+                        link: link,
+                        openBookCallback: widget.openBookCallback,
+                        fontSize: widget.fontSize,
+                        displayProfile: widget.displayProfile,
+                        copyDisplayProfile: widget.copyDisplayProfile,
+                        savedSelectedText: savedTextAtBuild,
+                        onNavigateToLink: _navigateToLink,
+                        onCopySelected: () => _copySelection(
+                          menuCtx,
+                          savedTextAtBuild,
+                          // במצב הפאנל/כרטיסייה אין מעקב פר-פריט אחר
+                          // המפרש הנבחר (אין SelectionArea פר-פריט), לכן
+                          // נופלים חזרה ל-link של הפריט שעליו נפתח התפריט.
+                          widget.lastSelectedLinkListenable.value ?? link,
+                        ),
+                        onCopySelectedWithoutNikud: () => _copySelection(
+                          menuCtx,
+                          savedTextAtBuild,
+                          widget.lastSelectedLinkListenable.value ?? link,
+                          removeNikud: true,
+                        ),
                       ),
-                      onCopySelectedWithoutNikud: () => _copySelection(
-                        menuCtx,
-                        savedTextAtBuild,
-                        widget.lastSelectedLinkListenable.value ?? link,
-                        removeNikud: true,
-                      ),
+                      _markerEntries(savedTextAtBuild, tapPosition),
                     )..addAll(_pluginEntries(menuCtx, savedTextAtBuild));
                   },
                   child: CommentaryContent(

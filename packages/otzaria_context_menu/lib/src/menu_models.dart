@@ -4,6 +4,9 @@ class AppMenuEntry<T> {
   final T value;
   final String label;
   final IconData? icon;
+
+  /// צבע קבוע לאייקון, כמו נקודת צבע ליד שם הצבע.
+  final Color? iconColor;
   final bool enabled;
   final bool isDestructive;
   final Widget? trailing;
@@ -25,6 +28,7 @@ class AppMenuEntry<T> {
     required this.value,
     required this.label,
     this.icon,
+    this.iconColor,
     this.enabled = true,
     this.isDestructive = false,
     this.trailing,

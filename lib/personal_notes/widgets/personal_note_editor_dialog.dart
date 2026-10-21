@@ -19,6 +19,9 @@ class PersonalNoteEditorDialog extends StatefulWidget {
   final List<PersonalNote> linkableNotes;
   final int? draftLineNumber;
 
+  /// טיוטה של הערה קיימת, לפי מזהה, במקום טיוטה של שורה.
+  final String? draftNoteId;
+
   const PersonalNoteEditorDialog({
     super.key,
     this.initialContent = '',
@@ -30,6 +33,7 @@ class PersonalNoteEditorDialog extends StatefulWidget {
     this.categoryId,
     this.linkableNotes = const [],
     this.draftLineNumber,
+    this.draftNoteId,
   });
 
   @override
@@ -126,14 +130,16 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
 
   Future<void> _saveDraftIfPossible() async {
     final bookId = widget.bookId;
-    final lineNumber = widget.draftLineNumber;
-    if (bookId == null || lineNumber == null) return;
+    final noteId = widget.draftNoteId;
+    final lineNumber = noteId == null ? widget.draftLineNumber : null;
+    if (bookId == null || (lineNumber == null && noteId == null)) return;
     final result = _editorController.buildResult();
     if (result.contentPlain.trim().isEmpty) return;
     await _draftService.saveDraft(
       bookId: bookId,
       categoryId: widget.categoryId,
       lineNumber: lineNumber,
+      noteId: noteId,
       draft: PersonalNoteDraft(
         content: result.content,
         contentPlain: result.contentPlain,
@@ -145,12 +151,14 @@ class _PersonalNoteEditorDialogState extends State<PersonalNoteEditorDialog>
 
   Future<void> _clearDraftIfPossible() async {
     final bookId = widget.bookId;
-    final lineNumber = widget.draftLineNumber;
-    if (bookId == null || lineNumber == null) return;
+    final noteId = widget.draftNoteId;
+    final lineNumber = noteId == null ? widget.draftLineNumber : null;
+    if (bookId == null || (lineNumber == null && noteId == null)) return;
     await _draftService.clearDraft(
       bookId: bookId,
       categoryId: widget.categoryId,
       lineNumber: lineNumber,
+      noteId: noteId,
     );
   }
 

@@ -208,6 +208,12 @@ class Link {
   /// התוכן כפי שכבר נטען דרך [content], או null אם טרם נטען.
   String? get loadedContent => _loadedContent[_contentKey];
 
+  /// שורות היעד כפי שכבר נטענו דרך [contentLines] (גם [content] טוען
+  /// אותן), או null אם טרם נטענו.
+  List<LinkContentLine>? get loadedContentLines => _loadedLines[_contentKey];
+
+  static final Map<String, List<LinkContentLine>> _loadedLines = {};
+
   /// Returns the content of the link as a [Future] of [String].
   /// The result is cached per (path2, index2) so repeated calls are instant.
   Future<String> get content {
@@ -220,6 +226,9 @@ class Link {
     final cached = _contentCache.remove(key);
     if (cached != null) {
       _contentCache[key] = cached;
+      // השורות נשארות במטמון כל עוד התוכן בו: [loadedContentLines] נשען עליהן.
+      final lines = _lineContentCache.remove(key);
+      if (lines != null) _lineContentCache[key] = lines;
       return cached;
     }
 
@@ -263,9 +272,14 @@ class Link {
     }
 
     future.then((lines) {
-      if (lines.isEmpty || lines.first.content.startsWith('שגיאה')) evict();
+      if (lines.isEmpty || lines.first.content.startsWith('שגיאה')) {
+        evict();
+      } else if (identical(_lineContentCache[key], future)) {
+        _loadedLines[key] = lines;
+      }
     }, onError: (_) => evict());
     if (_lineContentCache.length > _maxContentCacheEntries) {
+      _loadedLines.remove(_lineContentCache.keys.first);
       _lineContentCache.remove(_lineContentCache.keys.first);
     }
     return future;
@@ -278,6 +292,7 @@ class Link {
     _contentCache.clear();
     _loadedContent.clear();
     _lineContentCache.clear();
+    _loadedLines.clear();
     _displayReferenceCache.clear();
   }
 

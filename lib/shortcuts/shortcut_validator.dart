@@ -53,6 +53,7 @@ class ShortcutValidator {
     'key-shortcut-open-tool-gematria': 'builtin.gematria',
     'key-shortcut-open-tool-aramaic-dictionary': 'builtin.aramaic_dictionary',
     'key-shortcut-open-tool-acronyms-dictionary': 'builtin.acronyms_dictionary',
+    'key-shortcut-open-tool-marker': 'builtin.marker',
   };
 
   /// קיצורי "העתק קישור" אופציונליים. הקיצור פועל לפי הטאב הפעיל: קישור למקטע
@@ -75,6 +76,7 @@ class ShortcutValidator {
   static const String printKey = 'key-shortcut-print';
   static const String addBookmarkKey = 'key-shortcut-add-bookmark';
   static const String addNoteKey = 'key-shortcut-add-note';
+  static const String markerHighlightKey = 'key-shortcut-marker-highlight';
   static const String togglePdfViewKey = 'key-shortcut-toggle-pdf-view';
   static const String zoomInKey = 'key-shortcut-zoom-in';
   static const String zoomOutKey = 'key-shortcut-zoom-out';
@@ -201,6 +203,7 @@ class ShortcutValidator {
     // שמירת סימניה מרוכזת — אופציונלי, ללא ברירת מחדל.
     'key-shortcut-save-group-bookmark',
     addNoteKey,
+    markerHighlightKey,
     'key-shortcut-switch-workspace',
     openNewWindowKey,
     printKey,
@@ -236,6 +239,7 @@ class ShortcutValidator {
     'key-shortcut-open-tool-gematria',
     'key-shortcut-open-tool-aramaic-dictionary',
     'key-shortcut-open-tool-acronyms-dictionary',
+    'key-shortcut-open-tool-marker',
     // העתקת קישורים — אופציונלי, ללא ברירת מחדל (ראה copyLinkShortcutKeys).
     copyBookLinkKey,
     copySectionLinkKey,
@@ -244,13 +248,18 @@ class ShortcutValidator {
   ];
 
   /// מקשים שתפריט המערכת ב-Mac בולע לפני שהאירוע מגיע ל-Flutter (⌘H הסתרת
-  /// היישום, ⌘M מזעור החלון) — קיצור בערך כזה לא ייתפס שם לעולם.
-  static const Set<String> macReservedShortcuts = {'ctrl+h', 'ctrl+m'};
+  /// היישום, ⌘M מזעור, ⌥⌘H הסתרת האחרים) — קיצור כזה לא ייתפס שם לעולם.
+  static const Set<String> macReservedShortcuts = {
+    'ctrl+h',
+    'ctrl+m',
+    'ctrl+alt+h',
+  };
 
   /// ברירות המחדל שמחליפות ב-Mac את הקיצורים שב-[macReservedShortcuts].
   static const Map<String, String> macDefaultShortcutOverrides = {
     'key-shortcut-open-history': 'ctrl+y',
     'key-shortcut-open-more': 'ctrl+shift+m',
+    markerHighlightKey: 'ctrl+shift+h',
   };
 
   /// Default values for shortcuts
@@ -277,6 +286,7 @@ class ShortcutValidator {
     addBookmarkKey: 'ctrl+b',
     'key-shortcut-save-group-bookmark': '',
     addNoteKey: 'ctrl+n',
+    markerHighlightKey: 'ctrl+alt+h',
     'key-shortcut-switch-workspace': 'ctrl+k',
     openNewWindowKey: 'ctrl+alt+n',
     printKey: 'ctrl+p',
@@ -311,6 +321,7 @@ class ShortcutValidator {
     'key-shortcut-open-tool-gematria': '',
     'key-shortcut-open-tool-aramaic-dictionary': '',
     'key-shortcut-open-tool-acronyms-dictionary': '',
+    'key-shortcut-open-tool-marker': '',
     copyBookLinkKey: '',
     copySectionLinkKey: '',
     copySectionMarkLinkKey: '',
@@ -343,6 +354,7 @@ class ShortcutValidator {
     addBookmarkKey: 'הוסף סימניה',
     'key-shortcut-save-group-bookmark': 'שמור סימניה לכל הספרים הפתוחים',
     addNoteKey: 'הוספת הערה',
+    markerHighlightKey: 'סימון הטקסט שנבחר במרקר',
     'key-shortcut-switch-workspace': 'החלף שולחן עבודה',
     openNewWindowKey: 'חלון חדש',
     printKey: 'הדפסה',
@@ -377,6 +389,7 @@ class ShortcutValidator {
     'key-shortcut-open-tool-gematria': 'פתיחת גימטריה',
     'key-shortcut-open-tool-aramaic-dictionary': 'פתיחת מילון ארמי-עברי',
     'key-shortcut-open-tool-acronyms-dictionary': 'פתיחת ראשי תיבות',
+    'key-shortcut-open-tool-marker': 'פתיחת המרקר',
     copyBookLinkKey: 'העתק קישור ישיר לספר',
     copySectionLinkKey: 'העתק קישור למקטע / לעמוד',
     copySectionMarkLinkKey: 'העתק קישור עם הדגשת המקטע',
