@@ -213,6 +213,7 @@ class ShowInfoAction extends ExternalUriAction {
 /// * `otzaria://open/calendar`              – לוח שנה
 /// * `otzaria://open/gematria`              – גימטריה
 /// * `otzaria://open/notes`                 – הערות אישיות
+/// * `otzaria://open/marker`                – מרקר; `?q=<text>` מסנן את הרשימה
 /// * `otzaria://open/shamor_zachor`         – שמור וזכור
 /// * `otzaria://open/measurements`          – מדות ושיעורים
 /// * `otzaria://open/aramaic_dictionary`    – מילון ארמי-עברי
@@ -220,7 +221,7 @@ class ShowInfoAction extends ExternalUriAction {
 /// * `otzaria://open/tikkun_korim`          – תיקון קוראים
 /// * `otzaria://open/biographies`           – ביוגרפיות
 /// * `?q=<text>` (גם ב-`tool/<id>`)          – חיפוש מיידי בביוגרפיות, בראשי
-///   תיבות, במילון ובגימטריה; `&from=hebrew` במילון: מעברית לארמית
+///   תיבות, במילון, בגימטריה ובמרקר; `&from=hebrew` במילון: מעברית לארמית
 /// * `otzaria://open/library`               – ספרייה
 /// * `otzaria://open/search`                – פותח את מסך החיפוש (ללא הפעלת חיפוש)
 /// * `otzaria://open/search?q=<text>`        – פותח לשונית חיפוש חדשה ומפעיל חיפוש
@@ -290,6 +291,7 @@ class ExternalUriRouter {
     'calendar': 'builtin.calendar',
     'gematria': 'builtin.gematria',
     'notes': 'builtin.notes',
+    'marker': 'builtin.marker',
     'shamor_zachor': 'builtin.shamor_zachor',
     'measurements': 'builtin.measurements',
     'tikkun_korim': 'builtin.tikkun_korim',

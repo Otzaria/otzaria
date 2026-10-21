@@ -29,6 +29,7 @@
 | `otzaria://open/gematria` | פותח את כלי הגימטריה |
 | `otzaria://open/gematria?q=<text>` | פותח את כלי הגימטריה ומחפש פסוקים בערך הגימטרי של `text`. מספר (`?q=26`) מחופש כערך עצמו |
 | `otzaria://open/notes` | פותח הערות אישיות |
+| `otzaria://open/marker` | פותח את המרקר |
 | `otzaria://open/shamor_zachor` | פותח שמור וזכור |
 | `otzaria://open/measurements` | פותח מדות ושיעורים |
 | `otzaria://open/aramaic_dictionary` | פותח מילון ארמי-עברי |
@@ -456,7 +457,7 @@ _externalActivationWatchSub = queueFile.parent.watch().listen((event) {
 | variant | מאיפה | תוכן |
 |---------|--------|------|
 | `OpenScreenAction(Screen)` | `otzaria://open/library`, ... | מסך עליון |
-| `OpenToolAction(String toolId, {ToolQuery? query})` | `otzaria://open/calendar`, `/shamor_zachor`, `/measurements`, `/tikkun_korim`, `/biographies`, `/aramaic_dictionary`, `/acronyms_dictionary`, `/gematria`, `/notes`, `/tool/<id>`, ... | לשונית כלי; `query` מ-`q=`/`from=` לכלים שתומכים בו |
+| `OpenToolAction(String toolId, {ToolQuery? query})` | `otzaria://open/calendar`, `/shamor_zachor`, `/measurements`, `/tikkun_korim`, `/biographies`, `/aramaic_dictionary`, `/acronyms_dictionary`, `/gematria`, `/notes`, `/marker`, `/tool/<id>`, ... | לשונית כלי; `query` מ-`q=`/`from=` לכלים שתומכים בו |
 | `OpenPluginAction(String pluginId)` | `otzaria://open/plugin/<plugin-id>` | פתיחת תוסף ישירות (גם לא-מוצמד) |
 | `SwitchToTabAction(int index)` | `otzaria://open/tab/<index>` | מעבר לטאב פתוח קיים לפי מיקומו |
 | `OpenBookAction(int bookId, {bool isUserBook, int? index, String? searchQuery, bool markSection, String? markText})` | `otzaria://open/book/<id>?source=user&index=<n>&q=<text>&mark&m=<text>` | ספר בעיון; `source=user` נדרש לספר אישי, וקישור ללא `source` נשאר רשמי לתאימות לאחור |

@@ -164,6 +164,7 @@ class WordExportService {
           basePt,
           footnotes: block.footnotes,
           registry: footnotes,
+          accent: block.accent,
         );
       case PrintBlockKind.commentaryTitle:
         return _paragraphXml(text, 'CommentaryHeading', basePt);
@@ -180,6 +181,7 @@ class WordExportService {
     double basePt, {
     List<PrintFootnote> footnotes = const [],
     List<_WordFootnote>? registry,
+    PrintAccent? accent,
   }) {
     if (text.isEmpty) {
       return '''
@@ -196,11 +198,22 @@ class WordExportService {
 <w:p>
   <w:pPr>
     <w:pStyle w:val="$styleId"/>
-    ${_paragraphPropertiesXml(styleId)}
+    ${_accentXml(accent)}${_paragraphPropertiesXml(styleId)}
   </w:pPr>''');
 
+    final detail = accent?.style == PrintAccentStyle.detail;
     for (final run in _parseInlineRuns(text)) {
-      buffer.write(_runXml(run, basePt));
+      buffer.write(
+        _runXml(
+          detail && !run.isBreak
+              ? _InlineRun(
+                  text: run.text,
+                  style: run.style.copyWith(small: true),
+                )
+              : run,
+          basePt,
+        ),
+      );
     }
 
     for (final footnote in footnotes) {
@@ -286,6 +299,26 @@ class WordExportService {
     }
     return '<w:r><w:rPr>$props</w:rPr>'
         '<w:t xml:space="preserve">${_escapeXml(run.text)}</w:t></w:r>';
+  }
+
+  /// פס בצבע בצד ימין של הפסקה, ובסגנון [PrintAccentStyle.filled] גם רקע
+  /// בגוון שלו. גבולות הפסקה אינם מתהפכים ב-bidi, בשונה מ-jc.
+  static String _accentXml(PrintAccent? accent) {
+    if (accent == null) return '';
+    String hex(int value) => value.toRadixString(16).padLeft(2, '0');
+    final argb = accent.argb;
+    final r = (argb >> 16) & 0xff, g = (argb >> 8) & 0xff, b = argb & 0xff;
+    String mixed(double toWhite) => [
+      r,
+      g,
+      b,
+    ].map((c) => hex((c + (255 - c) * toWhite).round())).join().toUpperCase();
+    final bar = [r, g, b].map((c) => hex((c * 0.7).round())).join();
+    final shading = accent.style == PrintAccentStyle.filled
+        ? '<w:shd w:val="clear" w:color="auto" w:fill="${mixed(0.45)}"/>'
+        : '';
+    return '<w:pBdr><w:right w:val="single" w:sz="18" w:space="6" '
+        'w:color="${bar.toUpperCase()}"/></w:pBdr>$shading';
   }
 
   static String _paragraphPropertiesXml(String styleId) {

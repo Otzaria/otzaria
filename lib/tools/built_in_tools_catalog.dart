@@ -67,6 +67,13 @@ const List<BuiltInToolMeta> kBuiltInToolsCatalog = [
     iconFilled: FluentIcons.note_24_filled,
   ),
   BuiltInToolMeta(
+    toolId: 'builtin.marker',
+    label: 'מרקר',
+    order: 27,
+    icon: FluentIcons.highlight_24_regular,
+    iconFilled: FluentIcons.highlight_24_filled,
+  ),
+  BuiltInToolMeta(
     toolId: 'builtin.tikkun_korim',
     label: 'תיקון קוראים',
     order: 40,
