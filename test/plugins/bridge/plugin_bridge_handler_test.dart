@@ -1211,6 +1211,54 @@ void main() {
       }
     });
   });
+  for (final confirmed in [true, false]) {
+    testWidgets('ui.showConfirm waits for a slow decision: $confirmed', (
+      tester,
+    ) async {
+      final dialog = Completer<Map<String, bool>>();
+      final adapter = _FakeAdapter(result: dialog.future);
+      final handler = PluginBridgeHandler(
+        _buildInstalledPlugin(permissions: const ['ui.feedback']),
+        adapter: adapter,
+        registry: _StubRegistry(true),
+      );
+      Map<String, dynamic>? response;
+      final pending = handler
+          .handleRpcForTesting([
+            {
+              'method': 'ui.showConfirm',
+              'payload': {'title': 'אישור', 'content': 'שליחה?'},
+            },
+          ])
+          .then((value) => response = value as Map<String, dynamic>);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 31));
+      expect(response, isNull);
+      dialog.complete({'confirmed': confirmed});
+      await tester.pump();
+      await pending;
+      expect(response!['data'], {'confirmed': confirmed});
+      expect(adapter.executeCalls, 1);
+    });
+  }
+
+  testWidgets('ui.showConfirm still requires permission', (tester) async {
+    final adapter = _FakeAdapter(result: true);
+    final handler = PluginBridgeHandler(
+      _buildInstalledPlugin(permissions: const ['ui.feedback']),
+      adapter: adapter,
+      registry: _StubRegistry(false),
+    );
+    final response = await handler.handleRpcForTesting([
+      {
+        'method': 'ui.showConfirm',
+        'payload': {'title': 'אישור', 'content': 'שליחה?'},
+      },
+    ]);
+    expect(response['error']['code'], 'permission_denied');
+    expect(adapter.executeCalls, 0);
+  });
+
   for (final printed in [true, false]) {
     testWidgets('reader.printRange waits beyond 30 seconds, printed=$printed', (
       tester,

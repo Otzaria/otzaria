@@ -10,6 +10,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' show sqlite3;
 import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
+import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
@@ -152,13 +153,19 @@ void main() {
                   .map((field) => field.controller!.text)
                   .toList();
             }
+            final continuousParagraphs = find.descendant(
+              of: find.byKey(keys[index]),
+              matching: find.byType(ContinuousReadingParagraph),
+            );
+            final useContinuous =
+                continuous && continuousParagraphs.evaluate().isNotEmpty;
             final descendants = find.descendant(
               of: find.byKey(keys[index]),
               matching: find.byType(
-                continuous ? ContinuousReadingParagraph : SmartTextWidget,
+                useContinuous ? ContinuousReadingParagraph : SmartTextWidget,
               ),
             );
-            return continuous
+            return useContinuous
                 ? tester
                       .widgetList<ContinuousReadingParagraph>(descendants)
                       .expand(
@@ -205,6 +212,18 @@ void main() {
             of: find.byKey(keys.first),
             matching: find.byType(RtlTextField),
           );
+          expect(editorFinder, findsNothing);
+          await tester.tap(
+            find.descendant(
+              of: find.byKey(keys.first),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is PluginCorrectionParagraph &&
+                    widget.sectionIndex == 0,
+              ),
+            ),
+          );
+          await tester.pump();
           expect(editorFinder, findsWidgets);
           expect(
             find.descendant(
@@ -440,6 +459,14 @@ void main() {
         expect(external.hasFocus, isTrue);
 
         id = await begin();
+        expect(find.byType(RtlTextField), findsNothing);
+        await tester.tap(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is PluginCorrectionParagraph && widget.sectionIndex == 0,
+          ),
+        );
+        await tester.pump();
         await tester.tap(find.byType(RtlTextField).first);
         await tester.pump();
         await end(id);

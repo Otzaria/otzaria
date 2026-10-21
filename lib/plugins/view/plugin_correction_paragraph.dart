@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
+import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_fonts.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
@@ -36,7 +38,8 @@ class PluginCorrectionParagraph extends StatefulWidget {
 class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   bool _editable = false;
   bool _corrected = false;
-  TextEditingController? _controller;
+  bool _showEditor = false;
+  PluginCorrectionController? _controller;
   FocusNode? _focus;
   String? _lastRejection;
   DateTime _lastRejectionAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -65,8 +68,6 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   }
 
   void _activate() {
-    _controller = TextEditingController();
-    _focus = FocusNode();
     _registry.addListener(_changed);
     _syncText();
   }
@@ -78,26 +79,55 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     _focus = null;
     _editable = false;
     _corrected = false;
+    _showEditor = false;
+  }
+
+  void _focusChanged() {
+    if (mounted) setState(() => _showEditor = _focus!.hasFocus);
+  }
+
+  void _startEditing({Offset? position}) {
+    setState(() => _showEditor = true);
+    _focus!.requestFocus();
+    if (position == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _controller == null) return;
+      final editor = _focus!.context
+          ?.findAncestorStateOfType<EditableTextState>();
+      if (editor == null) return;
+      _controller!.selection = TextSelection.fromPosition(
+        editor.renderEditable.getPositionForPoint(position),
+      );
+    });
   }
 
   bool _syncText() {
-    if (!_registry.hasSessionForTab(widget.tabId)) return false;
-    final controller = _controller;
-    if (controller == null) return false;
-    final text = _registry.editableText(
-      widget.tabId,
-      widget.sectionIndex,
-      widget.sourceText,
+    if (!_registry.canEditParagraph(widget.tabId, widget.sourceText)) {
+      return false;
+    }
+    if (_controller == null) {
+      _controller = PluginCorrectionController(widget.sourceText);
+      _focus = FocusNode()..addListener(_focusChanged);
+    }
+    final controller = _controller!;
+    controller.setSource(widget.sourceText);
+    final text = controller.forEditor(
+      _registry.editableText(
+        widget.tabId,
+        widget.sectionIndex,
+        widget.sourceText,
+      ),
     );
     if (controller.text == text) return false;
     final selection = controller.selection;
     controller.value = TextEditingValue(
       text: text,
-      selection: TextSelection.collapsed(
-        offset: selection.isValid
-            ? selection.extentOffset.clamp(0, text.length)
-            : text.length,
-      ),
+      selection: selection.isValid
+          ? selection.copyWith(
+              baseOffset: selection.baseOffset.clamp(0, text.length),
+              extentOffset: selection.extentOffset.clamp(0, text.length),
+            )
+          : TextSelection.collapsed(offset: text.length),
     );
     return true;
   }
@@ -145,7 +175,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.tabId,
         widget.sectionIndex,
         widget.sourceText,
-        newValue.text,
+        _controller!.forService(newValue.text),
       );
       return newValue;
     } on PluginCorrectionException catch (error) {
@@ -160,7 +190,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
         widget.tabId,
         widget.sectionIndex,
         widget.sourceText,
-        text,
+        _controller!.forService(text),
       );
     } on PluginCorrectionException catch (error) {
       _showRejection(error);
@@ -176,8 +206,20 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       return widget.original;
     }
     _corrected = _isCorrected;
+    if (!_showEditor && !_corrected) {
+      return Focus(
+        onFocusChange: (focused) {
+          if (focused) _startEditing();
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTapUp: (details) => _startEditing(position: details.globalPosition),
+          child: widget.original,
+        ),
+      );
+    }
     final colorScheme = Theme.of(context).colorScheme;
-    // מבנה קבוע: החלפת העץ בהקשה הראשונה הייתה יוצרת את שדה העריכה מחדש.
+    // העורך נשאר מחובר גם כשהתיקון הראשון מוסיף את סימון הפסקה.
     return DecoratedBox(
       decoration: BoxDecoration(
         border: BorderDirectional(
@@ -189,21 +231,23 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
               : BorderSide.none,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(start: 8),
-        child: _buildEditor(),
-      ),
+      child: _buildEditor(),
     );
   }
 
   Widget _buildEditor() {
     final settings = widget.settings;
+    final family = AppFonts.taamimSafeFontFamily(
+      settings.fontFamily,
+      widget.sourceText,
+    );
     return RtlTextField(
       controller: _controller!,
       focusNode: _focus!,
       maxLines: null,
       minLines: 1,
       textInputAction: TextInputAction.done,
+      textAlign: settings.justifyText ? TextAlign.justify : TextAlign.right,
       decoration: const InputDecoration(
         border: InputBorder.none,
         isDense: true,
@@ -211,8 +255,12 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
       ),
       style: TextStyle(
         fontSize: settings.fontSize,
-        fontFamily: settings.fontFamily,
+        fontFamily: AppFonts.renderFontFamily(family),
         fontWeight: settings.fontWeight,
+        fontVariations: AppFonts.boldFontVariations(
+          family,
+          settings.fontWeight ?? FontWeight.normal,
+        ),
         height: settings.lineHeight,
       ),
       inputFormatters: [TextInputFormatter.withFunction(_validate)],

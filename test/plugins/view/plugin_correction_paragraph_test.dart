@@ -18,6 +18,45 @@ class _CountingService extends PluginCorrectionSessionService {
 }
 
 void main() {
+  testWidgets('סשן פעיל אינו מעבד פסקה שחורגת ממגבלת המקור', (tester) async {
+    final db = sqlite3.openInMemory();
+    addTearDown(db.close);
+    final service = _CountingService()
+      ..draftRepository = PluginCorrectionDraftRepository.direct(db);
+    addTearDown(service.dispose);
+    final source = 'א' * (PluginCorrectionSessionService.maxTextLength + 1);
+    final session = (await tester.runAsync(
+      () => service.begin(
+        owner: 'owner',
+        tabId: 'tab',
+        bookId: 'ספר',
+        bookUid: 'id:1',
+        libraryVersion: '1',
+        loadSource: (_) async => source,
+      ),
+    ))!;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PluginCorrectionParagraph(
+            tabId: 'tab',
+            sectionIndex: 0,
+            sourceText: source,
+            settings: const RenderSettings(),
+            original: const Text('קריאה'),
+            service: service,
+            sessionActive: true,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('קריאה'), findsOneWidget);
+    expect(find.byType(RtlTextField), findsNothing);
+    expect(service.editableTextCalls, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() => service.end('owner', session['sessionId'], 0));
+  });
+
   testWidgets('קריאה רגילה אינה מעבדת טקסט עבור עורך שאינו פעיל', (
     tester,
   ) async {
@@ -69,6 +108,10 @@ void main() {
         ),
       ),
     );
+    expect(find.text('קריאה'), findsOneWidget);
+    expect(find.byType(RtlTextField), findsNothing);
+    await tester.tap(find.text('קריאה'));
+    await tester.pump();
     expect(find.byType(RtlTextField), findsOneWidget);
     expect(
       tester.widget<RtlTextField>(find.byType(RtlTextField)).controller!.text,

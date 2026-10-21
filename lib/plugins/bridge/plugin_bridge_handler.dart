@@ -152,6 +152,7 @@ class PluginBridgeHandler {
       method == 'ui.printFile' ||
       method == 'ui.exportPdf' ||
       method == 'reader.printRange' ||
+      method == 'ui.showConfirm' ||
       method == 'feedback.report' ||
       method == 'feedback.submitBookCorrection';
 

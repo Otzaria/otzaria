@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:otzaria/plugins/services/plugin_correction_text.dart';
 import 'package:otzaria/services/direct_error_report_service.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
@@ -142,37 +143,40 @@ class PluginBookCorrectionService {
         first == last &&
         raw.length <= TextCorrection.maxTextLength) {
       if (raw == plain && original == plain && selectionStart == 0) {
-        correction = TextCorrection.wholeLine(
-          originalLine: raw,
-          proposedText: proposed,
-        );
-      } else if (original.isNotEmpty && selectionStart != null) {
-        final rawStart = raw == plain ? selectionStart : raw.indexOf(original);
-        final rawEnd = rawStart + original.length;
-        if (rawStart >= 0 &&
-            (raw == plain || raw.lastIndexOf(original) == rawStart) &&
-            (raw == plain ||
-                raw.lastIndexOf('<', rawStart) <=
-                    raw.lastIndexOf('>', rawStart)) &&
-            TextRendererService.stripHtml(raw.substring(0, rawStart)) ==
-                plain.substring(0, selectionStart) &&
-            TextRendererService.stripHtml(raw.substring(rawEnd)) ==
-                plain.substring(selectionStart + original.length)) {
-          correction = TextCorrection.selection(
-            originalLine: raw,
-            start: rawStart,
-            end: rawEnd,
-            proposedText: proposed,
-          );
-        }
-      } else if (original.isEmpty && raw == plain && start is int) {
-        final replacement =
-            raw.substring(0, start) + proposed + raw.substring(start);
-        if (replacement.length <= TextCorrection.maxTextLength) {
+        final escaped = const HtmlEscape(
+          HtmlEscapeMode.element,
+        ).convert(proposed);
+        if (escaped.length <= TextCorrection.maxTextLength) {
           correction = TextCorrection.wholeLine(
             originalLine: raw,
-            proposedText: replacement,
+            proposedText: escaped,
           );
+        }
+      } else if (selectionStart != null) {
+        final mapped = PluginCorrectionText(raw).replacement(
+          selectionStart,
+          selectionStart + original.length,
+          proposed,
+        );
+        if (mapped != null) {
+          final replacement = raw.replaceRange(
+            mapped.start,
+            mapped.end,
+            mapped.replacement,
+          );
+          if (replacement.length <= TextCorrection.maxTextLength) {
+            correction = mapped.start == mapped.end
+                ? TextCorrection.wholeLine(
+                    originalLine: raw,
+                    proposedText: replacement,
+                  )
+                : TextCorrection.selection(
+                    originalLine: raw,
+                    start: mapped.start,
+                    end: mapped.end,
+                    proposedText: mapped.replacement,
+                  );
+          }
         }
       }
     }
