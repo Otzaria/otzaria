@@ -214,6 +214,7 @@ class MarkerRepository {
                 sectionIndex: segments[i].sectionIndex,
                 range: segments[i].range,
                 legacyId: existing.segments[i].legacyId,
+                html: segments[i].html,
               ),
           ],
           text: draft.text,

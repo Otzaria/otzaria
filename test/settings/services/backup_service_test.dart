@@ -1,3 +1,4 @@
+import 'package:otzaria/marker/storage/marker_database.dart';
 import 'package:otzaria/plugins/services/plugin_user_folder_grants.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/hidden/hidden_library_store.dart';
@@ -81,6 +82,7 @@ void main() {
 
   tearDown(() async {
     await PersonalNotesDatabase.instance.close();
+    MarkerDatabase.instance.close();
     await Hive.close();
     // סוגר את חיבורי ה-DB כדי שמחיקת התיקייה תצליח (Windows נועל קבצים
     // פתוחים), ומאפס את ה-override של נתיב הנתונים.
@@ -1567,11 +1569,13 @@ void main() {
       dataRoot = await Directory.systemTemp.createTemp('notes_anchor_test_');
       AppPaths.debugOverrideDataRootPath(dataRoot.path);
       await PersonalNotesDatabase.instance.close();
+      MarkerDatabase.instance.close();
       await PersonalNotesDatabase.instance.insertNote(anchoredNote());
     });
 
     tearDown(() async {
       await PersonalNotesDatabase.instance.close();
+      MarkerDatabase.instance.close();
       AppPaths.debugOverrideDataRootPath(null);
       try {
         await dataRoot.delete(recursive: true);

@@ -65,6 +65,8 @@ import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
+import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
+import 'package:otzaria/marker/view/reader/marker_notes_section.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/view/reading_viewport/reading_scrollbar_label.dart';
@@ -123,6 +125,14 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
   bool _isLeftSidebarOpen = false;
   int _leftSidebarTabIndex = 0;
   String? _notesBookIdOverride;
+
+  /// ספרי המפרשים שבעמודות, לפי מפתח ההערות שלהם — כדי שחלונית ההערות
+  /// תציג גם את הערות המרקר של מפרש שהיא עברה אליו.
+  final Map<String, TextBook> _commentaryBooks = {};
+
+  /// סימון במפרש שנלחץ בחלונית ההערות: העמודה שלו גוללת אליו.
+  final ValueNotifier<({String title, int index})?> _commentaryMarkTarget =
+      ValueNotifier(null);
   int? _notesCategoryIdOverride;
   int? _notesFocusLineNumber;
 
@@ -658,6 +668,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
           openBookCallback: widget.openBookCallback,
           workspaceId: _activeWorkspaceId,
           selectionSyncController: _selectionSyncController,
+          onOpenPersonalNote: _openCommentaryPersonalNote,
+          onBookLoaded: _rememberCommentaryBook,
+          markTarget: _commentaryMarkTarget,
           onLoadFailed: () => _hideColumn(
             'right',
             showSnack: false,
@@ -876,6 +889,32 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     });
   }
 
+  void _rememberCommentaryBook(TextBook book) {
+    final key = personalNotesBookKey(book);
+    if (identical(_commentaryBooks[key], book)) return;
+    _commentaryBooks[key] = book;
+    if (mounted) setState(() {});
+  }
+
+  /// ספרי המפרשים המוצגים שכבר נטענו, לפי סדר התצוגה.
+  List<TextBook> _displayedCommentaryBooks(TextBookLoaded state) => [
+    for (final title in _displayedCommentators(state))
+      ?_commentaryBooks.values.where((book) => book.title == title).firstOrNull,
+  ];
+
+  /// סימון במפרש מחלונית ההערות: החלונית עוברת להערות המפרש, והעמודה שלו
+  /// גוללת אל הסימון.
+  void _openCommentaryMark(TextBook commentary, int section) {
+    _openCommentaryPersonalNote(
+      personalNotesBookKey(commentary),
+      commentary.categoryId,
+      section + 1,
+    );
+    // לחיצה חוזרת על אותו סימון גוללת שוב, אחרי שהעמודה זזה.
+    _commentaryMarkTarget.value = null;
+    _commentaryMarkTarget.value = (title: commentary.title, index: section);
+  }
+
   void _focusMainBookNotes() {
     if (_notesBookIdOverride == null ||
         !_isLeftSidebarOpen ||
@@ -1012,6 +1051,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     unawaited(_hiddenSelectionSubscription?.cancel() ?? Future.value());
     widget.sidebarTabNotifier?.removeListener(_handleSidebarTabRequest);
     widget.openSettingsNotifier?.removeListener(_handleOpenSettingsRequest);
+    _commentaryMarkTarget.dispose();
     widget.tab?.toggleCommentatorsPaneNotifier.removeListener(
       _onToggleCommentatorsPaneRequest,
     );
@@ -1131,15 +1171,27 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                               _closeCommentatorsFilterNotifier,
                           tab: widget.tab,
                           notesBookIdOverride: _notesBookIdOverride,
+                          notesCommentaryBook: _notesBookIdOverride == null
+                              ? null
+                              : _commentaryBooks[_notesBookIdOverride],
+                          onNavigateCommentaryMark: _openCommentaryMark,
                           notesCategoryIdOverride: _notesCategoryIdOverride,
                           notesFocusLineNumber: _notesFocusLineNumber,
-                          notesFooter: CommentaryNotesSection(
-                            bookIds: _displayedCommentators(state),
-                            onOpenNote: (bookId, lineNumber) =>
-                                _openCommentaryPersonalNote(
-                                  bookId,
-                                  null,
-                                  lineNumber,
+                          // ההערות על סימונים במפרש מוצגות תחת שמו, אחרי
+                          // ההערות האישיות עליו.
+                          notesFooter: MarkerCommentaryNoteTiles(
+                            commentaries: _displayedCommentaryBooks(state),
+                            onNavigate: _openCommentaryMark,
+                            builder: (context, markerTiles) =>
+                                CommentaryNotesSection(
+                                  bookIds: _displayedCommentators(state),
+                                  onOpenNote: (bookId, lineNumber) =>
+                                      _openCommentaryPersonalNote(
+                                        bookId,
+                                        null,
+                                        lineNumber,
+                                      ),
+                                  extraTiles: markerTiles,
                                 ),
                           ),
                           onNavigateToLine: (lineNumber, {note}) =>
@@ -1308,6 +1360,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                             _selectionSyncController,
                                                         onOpenPersonalNote:
                                                             _openCommentaryPersonalNote,
+                                                        onBookLoaded:
+                                                            _rememberCommentaryBook,
+                                                        markTarget:
+                                                            _commentaryMarkTarget,
                                                         onLoadFailed: () =>
                                                             _hideColumn(
                                                               'left',
@@ -1563,6 +1619,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                                         _selectionSyncController,
                                                                     onOpenPersonalNote:
                                                                         _openCommentaryPersonalNote,
+                                                                    onBookLoaded:
+                                                                        _rememberCommentaryBook,
+                                                                    markTarget:
+                                                                        _commentaryMarkTarget,
                                                                     onLoadFailed: () => _hideColumn(
                                                                       'bottom',
                                                                       showSnack:
@@ -1624,6 +1684,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                                       _selectionSyncController,
                                                                   onOpenPersonalNote:
                                                                       _openCommentaryPersonalNote,
+                                                                  onBookLoaded:
+                                                                      _rememberCommentaryBook,
+                                                                  markTarget:
+                                                                      _commentaryMarkTarget,
                                                                   onLoadFailed: () =>
                                                                       _hideColumn(
                                                                         'bottomRight',
@@ -1691,6 +1755,10 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                                                                       _selectionSyncController,
                                                                   onOpenPersonalNote:
                                                                       _openCommentaryPersonalNote,
+                                                                  onBookLoaded:
+                                                                      _rememberCommentaryBook,
+                                                                  markTarget:
+                                                                      _commentaryMarkTarget,
                                                                   onLoadFailed: () =>
                                                                       _hideColumn(
                                                                         'bottom',
@@ -1779,6 +1847,12 @@ class _CommentaryPane extends StatefulWidget {
   final void Function(String bookId, int? categoryId, int lineNumber)?
   onOpenPersonalNote;
 
+  /// ספר המפרש, כשנטען.
+  final void Function(TextBook book)? onBookLoaded;
+
+  /// סימון במפרש שצריך לגלול אליו.
+  final ValueListenable<({String title, int index})?>? markTarget;
+
   const _CommentaryPane({
     required this.commentatorName,
     required this.openBookCallback,
@@ -1787,6 +1861,8 @@ class _CommentaryPane extends StatefulWidget {
     this.onLoadFailed,
     this.selectionSyncController,
     this.onOpenPersonalNote,
+    this.onBookLoaded,
+    this.markTarget,
   });
 
   @override
@@ -1879,6 +1955,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   void initState() {
     super.initState();
     _positionsListener.itemPositions.addListener(_onPanePositionsChanged);
+    widget.markTarget?.addListener(_scrollToMark);
     // דוחה את הטעינה כדי לוודא שכל ה-providers מוכנים וה-bloc זמין
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -1886,6 +1963,32 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
         _setupBlocListener();
       }
     });
+  }
+
+  /// קופץ לסימון שנלחץ בחלונית ההערות, אחרי שהשורות סביבו נטענו: גלילה
+  /// אל שורות שעוד לא נטענו נוחתת במקום אחר.
+  Future<void> _scrollToMark() async {
+    final target = widget.markTarget?.value;
+    final content = _content;
+    if (target == null ||
+        target.title != widget.commentatorName ||
+        content == null ||
+        target.index < 0 ||
+        target.index >= content.length) {
+      return;
+    }
+    if (_useWindowedLoading) {
+      await _ensureWindowLoaded(target.index, target.index);
+    }
+    if (!mounted || !_scrollController.isAttached) return;
+    _scrollController.jumpTo(index: target.index, alignment: _syncAlignment);
+  }
+
+  /// ספר המפרש נטען: מעדכן את ספר הדיווח ומודיע עליו.
+  void _setReportBook(TextBook book) {
+    final reportBook = _withReportId(book);
+    _reportBook = reportBook;
+    widget.onBookLoaded?.call(reportBook);
   }
 
   /// גלילה בתוך חלונית המפרש — טוען חלון חדש כשמתקרבים לקצה הטעון.
@@ -2026,7 +2129,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
       endLine: range.endLine,
     );
     setState(() {
-      _reportBook = _withReportId(book);
+      _setReportBook(book);
       _content = content;
       _isLoading = false;
       _lastSyncedIndex = null;
@@ -2055,11 +2158,16 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     if (oldWidget.workspaceId != widget.workspaceId) {
       _updateHighlightSettings();
     }
+    if (oldWidget.markTarget != widget.markTarget) {
+      oldWidget.markTarget?.removeListener(_scrollToMark);
+      widget.markTarget?.addListener(_scrollToMark);
+    }
   }
 
   @override
   void dispose() {
     _positionsListener.itemPositions.removeListener(_onPanePositionsChanged);
+    widget.markTarget?.removeListener(_scrollToMark);
     _blocSubscription?.cancel();
     super.dispose();
   }
@@ -2315,7 +2423,7 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     }
 
     setState(() {
-      _reportBook = _withReportId(data.book);
+      _setReportBook(data.book);
       _content = data.content;
       _isLoading = false;
       _lastSyncedIndex = null;

@@ -12,6 +12,7 @@ import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
+import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 
 import '../helpers/memory_settings_cache.dart';
@@ -171,23 +172,24 @@ void main() {
   });
 
   test('the toolbar tooltip says what a click does', () {
-    final yellow = MarkerSettings.instance.palette.defaultColor;
-    expect(
-      markerToolbarTooltip(hasMarks: false, shown: true, color: yellow),
-      'סימון הטקסט שנבחר ב${yellow.label}',
+    expect(markerToolbarTooltip(shown: true), 'הסתרת הסימונים בספר');
+    expect(markerToolbarTooltip(shown: false), 'הצגת הסימונים בספר');
+  });
+
+  test('the toolbar button appears only in a sefer with marks', () async {
+    ActionButtonData? button() => buildMarkerToolbarAction(
+      bookTitle: 'בראשית',
+      bookUid: 'id:1',
+      compact: false,
     );
-    expect(
-      markerToolbarTooltip(hasMarks: true, shown: true, color: yellow),
-      'הסתרת הסימונים בספר',
-    );
-    expect(
-      markerToolbarTooltip(hasMarks: true, shown: false, color: yellow),
-      'הצגת הסימונים בספר',
-    );
-    expect(
-      markerToolbarTooltip(hasMarks: false, shown: false, color: yellow),
-      'הצגת הסימונים בספר',
-    );
+    expect(button(), isNull);
+    await repository.importHighlights([
+      highlightFor('a', [segmentFor(0, _lines.first, 'אלהים')]),
+    ]);
+    await MarkerBookCache.instance.ensureLoaded('בראשית', 'id:1');
+    expect(button()!.tooltip, 'הסתרת הסימונים בספר');
+    await MarkerSettings.instance.setBookHidden('בראשית', true);
+    expect(button()!.tooltip, 'הצגת הסימונים בספר');
   });
 
   test('the commentary marker entries go before the first divider', () {

@@ -203,6 +203,27 @@ void main() {
     expect(saved.start, edited.indexOf('השמים'));
   });
 
+  test('a mark anchored beside the words it shows moves to them', () async {
+    // כך נשמר סימון שנעשה כשהניקוד הוסתר, לפני תיקון המיפוי.
+    await repository.importHighlights([
+      highlightFor('a', [segmentFor(0, _line, 'את השמים')], text: 'אֱלֹהִים'),
+    ]);
+    await cache.ensureLoaded('בראשית', 'id:1');
+    cache.reanchorSection(
+      bookTitle: 'בראשית',
+      bookUid: 'id:1',
+      sectionIndex: 0,
+      sourceText: _line,
+      display: () => (raw: _line, processed: _line),
+    );
+    await pumpEventQueue();
+    final saved = (await repository.get('a'))!.segments.single;
+    expect(saved.range.exactText, 'אלהים');
+    expect(saved.start, _line.indexOf('אלהים'));
+    // העיצוב לרשימות נשמר יחד עם העוגן.
+    expect(saved.html, 'אלהים');
+  });
+
   test(
     'text that disappeared marks the record for repair without moving it',
     () async {

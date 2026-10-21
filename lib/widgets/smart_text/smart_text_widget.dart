@@ -161,6 +161,8 @@ class SmartTextWidget extends StatelessWidget {
     final bookId = highlightBookId;
     final sectionIndex = highlightSectionIndex;
     if (bookId != null && sectionIndex != null && markerOnly) {
+      // התצוגה בלי ההדגשות: הקריאה היא אחרי הפריים, כשהמשתנה כבר כולל אותן.
+      final shown = processedHtml;
       ReaderHighlights.reanchorMarkerSection(
         bookTitle: bookId,
         bookUid: highlightBookUid,
@@ -168,6 +170,7 @@ class SmartTextWidget extends StatelessWidget {
         sectionIndex: sectionIndex,
         sourceText: () =>
             TextRendererService.stripHtml(highlightSourceText ?? text),
+        display: () => (raw: highlightSourceText ?? text, processed: shown),
       );
     } else if (bookId != null && sectionIndex != null) {
       syncReaderSectionForPlugins(
@@ -782,6 +785,7 @@ void syncReaderSectionForPlugins({
       bookVersion: bookVersion,
       sectionIndex: sectionIndex,
       sourceText: sourceText,
+      display: () => (raw: rawSourceHtml, processed: processedHtml),
     );
     unawaited(
       _recordSectionContentSnapshot(

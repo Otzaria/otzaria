@@ -6,11 +6,13 @@ import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/marker/models/marker_book_uid.dart';
 import 'package:otzaria/marker/models/marker_highlight.dart';
 import 'package:otzaria/marker/repository/marker_repository.dart';
+import 'package:otzaria/marker/services/marker_text_format.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/services/reader_selection_service.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reader_plugin_menu_entries.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
 /// טיוטה מהבחירה בטקסט הראשי, או null כשאי אפשר לעגן בוודאות. כל פסקה
 /// מאותרת בטקסט המוצג בלי תלות ברווחים, וממופה לטקסט המקור.
@@ -101,7 +103,18 @@ MarkerDraft? markerDraftFor({
     );
     final range = selection?.sourceRange;
     if (range == null || range.exactText.trim().isEmpty) return null;
-    return MarkerSegment(sectionIndex: sectionIndex, range: range);
+    final raw = lines[sectionIndex];
+    return MarkerSegment(
+      sectionIndex: sectionIndex,
+      range: range,
+      html: markerSegmentHtml(
+        bookId: book.title,
+        sectionIndex: sectionIndex,
+        rawText: raw,
+        processedHtml: TextRendererService.processText(raw, settings),
+        range: range,
+      ),
+    );
   }
 
   final segments = <MarkerSegment>[];

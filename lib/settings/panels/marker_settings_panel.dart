@@ -7,6 +7,8 @@ import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/search/settings_search_models.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -51,7 +53,7 @@ class MarkerSettingsPanel extends StatelessWidget {
     SettingsSearchEntry(
       id: 'tools.marker.toolbar',
       title: 'כפתור המרקר בסרגל הקורא',
-      subtitle: 'מסמן את הטקסט שנבחר, ומסתיר או מציג את הסימונים בספר',
+      subtitle: 'מסתיר ומציג את הסימונים, בספר שיש בו סימונים',
       tab: SettingsTab.tools,
       cardId: 'tools.marker',
       keywords: ['מרקר', 'סרגל', 'כפתור', 'הסתרה'],
@@ -67,7 +69,7 @@ class MarkerSettingsPanel extends StatelessWidget {
     SettingsSearchEntry(
       id: 'tools.marker.default_color',
       title: 'צבע ברירת המחדל',
-      subtitle: 'הצבע של כפתור הסרגל ושל קיצור המקלדת',
+      subtitle: 'הצבע שקיצור המקלדת לסימון משתמש בו',
       tab: SettingsTab.tools,
       cardId: 'tools.marker',
       keywords: ['מרקר', 'צבע', 'צהוב', 'קיצור'],
@@ -86,6 +88,9 @@ class MarkerSettingsPanel extends StatelessWidget {
             MarkerSettings.bookOfHiddenKey(key),
         ]..sort((a, b) => a.title.compareTo(b.title));
         final menu = settings.showInContextMenu;
+        final shortcut = ShortcutValidator.getShortcutValue(
+          ShortcutValidator.markerHighlightKey,
+        );
         return SettingsCard(
           cardId: 'tools.marker',
           title: context.settingsText('מרקר'),
@@ -107,47 +112,46 @@ class MarkerSettingsPanel extends StatelessWidget {
               subtitle: context.settingsText(
                 menu
                     ? 'בחרו טקסט, לחצו לחיצה ימנית ובחרו צבע'
-                    : 'הצבעים אינם מוצגים בתפריט. אפשר לסמן מכפתור הסרגל או בקיצור המקלדת',
+                    : 'הצבעים אינם מוצגים בתפריט. אפשר לסמן בקיצור המקלדת',
               ),
               value: menu,
               onChanged: settings.setShowInContextMenu,
             ),
-            _Nested(
-              child: SettingsActionTile.switchTile(
-                icon: FluentIcons.text_column_two_24_regular,
-                title: context.settingsText('גם במפרשים'),
-                subtitle: context.settingsText(
-                  !menu
-                      ? 'זמין כשצבעי המרקר מוצגים בתפריט'
-                      : settings.showInCommentaryMenu
-                      ? 'במפרשים שמתחת לספר, בצד ובצורת הדף'
-                      : 'רק בטקסט של הספר עצמו, לא במפרשים',
+            // המפרשים וספרי ה-PDF תלויים בצבעים שבתפריט, ומוצגים רק כשהם מופעלים.
+            if (menu) ...[
+              _Nested(
+                child: SettingsActionTile.switchTile(
+                  icon: FluentIcons.text_column_two_24_regular,
+                  title: context.settingsText('גם במפרשים'),
+                  subtitle: context.settingsText(
+                    settings.showInCommentaryMenu
+                        ? 'במפרשים שמתחת לספר, בצד ובצורת הדף'
+                        : 'רק בטקסט של הספר עצמו, לא במפרשים',
+                  ),
+                  value: settings.showInCommentaryMenu,
+                  onChanged: settings.setShowInCommentaryMenu,
                 ),
-                value: settings.showInCommentaryMenu,
-                onChanged: menu ? settings.setShowInCommentaryMenu : null,
               ),
-            ),
-            _Nested(
-              child: SettingsActionTile.switchTile(
-                icon: FluentIcons.document_pdf_24_regular,
-                title: context.settingsText('גם בספרי PDF'),
-                subtitle: context.settingsText(
-                  !menu
-                      ? 'זמין כשצבעי המרקר מוצגים בתפריט'
-                      : settings.showInPdfMenu
-                      ? 'גם כשבוחרים טקסט בספר PDF'
-                      : 'הצבעים אינם מוצגים בתפריט של ספרי PDF',
+              _Nested(
+                child: SettingsActionTile.switchTile(
+                  icon: FluentIcons.document_pdf_24_regular,
+                  title: context.settingsText('גם בספרי PDF'),
+                  subtitle: context.settingsText(
+                    settings.showInPdfMenu
+                        ? 'גם כשבוחרים טקסט בספר PDF'
+                        : 'הצבעים אינם מוצגים בתפריט של ספרי PDF',
+                  ),
+                  value: settings.showInPdfMenu,
+                  onChanged: settings.setShowInPdfMenu,
                 ),
-                value: settings.showInPdfMenu,
-                onChanged: menu ? settings.setShowInPdfMenu : null,
               ),
-            ),
+            ],
             SettingsActionTile.switchTile(
               icon: FluentIcons.toolbox_24_regular,
               title: context.settingsText('כפתור המרקר בסרגל הקורא'),
               subtitle: context.settingsText(
                 settings.showToolbarButton
-                    ? 'לחיצה מסמנת את הטקסט שנבחר. בלי טקסט נבחר היא מסתירה או מציגה את הסימונים בספר'
+                    ? 'מסתיר ומציג את הסימונים בספר. מופיע רק בספר שיש בו סימונים'
                     : 'הכפתור אינו מוצג בסרגל',
               ),
               value: settings.showToolbarButton,
@@ -169,9 +173,19 @@ class MarkerSettingsPanel extends StatelessWidget {
             SettingsActionTile.dropdownTile<String>(
               icon: FluentIcons.star_24_regular,
               title: context.settingsText('צבע ברירת המחדל'),
-              subtitle: context.settingsText(
-                'הצבע של כפתור הסרגל ושל קיצור המקלדת',
-              ),
+              // הקיצור עצמו מוגדר בלשונית קיצורי המקשים.
+              subtitle: shortcut == null
+                  ? context.settingsText(
+                      'הצבע שקיצור המקלדת לסימון משתמש בו. הקיצור אינו מוגדר',
+                    )
+                  : context.settingsText(
+                      'הצבע שקיצור המקלדת {shortcut} משתמש בו',
+                      args: {
+                        'shortcut': ShortcutHelper.formatShortcutForDisplay(
+                          shortcut,
+                        ),
+                      },
+                    ),
               value: palette.defaultColorId,
               entries: [
                 for (final color in palette.menuColors)

@@ -53,9 +53,10 @@ class MarkerSettings extends ChangeNotifier {
 
   bool get showInContextMenu => _read<bool>(keyShowInContextMenu) ?? true;
 
-  /// גם בתפריט של המפרשים; חל רק כשהסימון מהתפריט מופעל.
+  /// גם בתפריט של המפרשים; חל רק כשהסימון מהתפריט מופעל. כבוי כברירת מחדל:
+  /// התפריט של המפרשים קצר, והסימון בהם פחות נפוץ.
   bool get showInCommentaryMenu =>
-      showInContextMenu && (_read<bool>(keyShowInCommentaryMenu) ?? true);
+      showInContextMenu && (_read<bool>(keyShowInCommentaryMenu) ?? false);
 
   /// גם בתפריט של ספרי PDF; חל רק כשהסימון מהתפריט מופעל.
   bool get showInPdfMenu =>

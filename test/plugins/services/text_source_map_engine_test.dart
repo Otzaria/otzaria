@@ -112,8 +112,12 @@ void main() {
       final map = service.build(
         bookId: 'book',
         sectionIndex: 0,
-        rawText: 'בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ',
-        settings: const RenderSettings(removeNikud: true),
+        // ניקוד שהוסר אינו מפצל את המפה; הפסיקים שהוסרו כן.
+        rawText: 'בְּרֵאשִׁית, בָּרָא אֱלֹהִים, אֵת הַשָּׁמַיִם, וְאֵת הָאָרֶץ',
+        settings: const RenderSettings(
+          removeNikud: true,
+          removePunctuation: true,
+        ),
       );
 
       expect(map.mappings.length, greaterThan(2));

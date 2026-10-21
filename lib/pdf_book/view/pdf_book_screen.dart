@@ -5391,12 +5391,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         compact: isCompact,
         actionId: ToolbarActionId.search,
       ),
-      ?_marker.toolbarAction(
-        context,
-        compact: isCompact,
-        copyAllowed: _isPdfCopyAllowed(),
-        ref: (page) => pdfPageRef(widget.tab, page),
-      ),
+      ?_marker.toolbarAction(compact: isCompact),
       if (!Platform.isAndroid && !Platform.isIOS)
         ActionButtonData.simple(
           icon: _isHandMode

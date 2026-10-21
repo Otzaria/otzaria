@@ -84,6 +84,7 @@ import 'package:otzaria/text_book/view/page_shape/simple_text_viewer.dart';
 // [EDITING DISABLED] import 'package:otzaria/text_book/editing/helpers/editor_settings_helper.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/personal_notes/utils/personal_note_source_selection.dart';
+import 'package:otzaria/marker/models/marker_book_uid.dart';
 import 'package:otzaria/marker/services/marker_settings.dart';
 import 'package:otzaria/marker/view/reader/marker_reader_selection.dart';
 import 'package:otzaria/marker/view/reader/marker_toolbar_action.dart';
@@ -1661,7 +1662,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       listenable: Listenable.merge([
         PluginToolbarRegistry.instance,
         MarkerSettings.instance,
-        markerToolbarListenable(state),
+        markerToolbarListenable(state.book.title),
       ]),
       builder: (context, _) => Consumer<ShamorZachorDataProvider>(
         builder: (context, _, _) => ResponsiveActionBar(
@@ -1807,25 +1808,9 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       ),
 
       ?buildMarkerToolbarAction(
-        context: context,
-        state: state,
+        bookTitle: state.book.title,
+        bookUid: markerBookUidOf(state.book),
         compact: context.read<SettingsBloc>().state.compactMenuMode,
-        selection: () {
-          // צורת הדף מדווחת את הבחירה רק ל-BLoC, לא לשדות של המסך.
-          final current = context.read<TextBookBloc>().state;
-          if (current is TextBookLoaded && current.showPageShapeView) {
-            return (
-              text: current.selectedTextForNote,
-              lineIndex: current.selectedTextSectionIndex,
-              column: current.selectedTextStart,
-            );
-          }
-          return (
-            text: _selectedTextForSearch,
-            lineIndex: _selectedLineForNote,
-            column: _selectedColumnForNote,
-          );
-        },
       ),
 
       // 5) Zoom In Button
@@ -2154,7 +2139,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       if (!isPageSelected && selected != null) {
         widget.tab.lines.scrollToLineOnNextAttach(selected);
       }
-      // הבחירה של התצוגה הקודמת כבר אינה על המסך; קיצור או כפתור לא יפעלו עליה.
+      // הבחירה של התצוגה הקודמת כבר אינה על המסך; הקיצור לא יפעל עליה.
       _selectedTextForSearch = null;
       _selectedLineForNote = null;
       _selectedColumnForNote = null;

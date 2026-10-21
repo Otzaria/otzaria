@@ -48,11 +48,16 @@ class MarkerSegment extends Equatable {
   /// כשהתוסף עדיין פעיל.
   final String? legacyId;
 
+  /// הטקסט המסומן בעיצוב שהיה לו בספר (`markerSegmentHtml`), לרשימות; null
+  /// עד שהפסקה מוצגת בספר. מתאפס כשהעוגן זז.
+  final String? html;
+
   const MarkerSegment({
     required this.sectionIndex,
     required this.range,
     this.status = MarkerAnchorStatus.active,
     this.legacyId,
+    this.html,
   });
 
   int get start => range.start.grapheme;
@@ -68,14 +73,17 @@ class MarkerSegment extends Equatable {
       start == other.start &&
       end == other.end;
 
+  /// עוגן חדש מאפס את [html], אלא אם הוא ניתן.
   MarkerSegment copyWith({
     PluginTextRangeAnchor? range,
     MarkerAnchorStatus? status,
+    String? html,
   }) => MarkerSegment(
     sectionIndex: sectionIndex,
     range: range ?? this.range,
     status: status ?? this.status,
     legacyId: legacyId,
+    html: html ?? (range == null ? this.html : null),
   );
 
   Map<String, dynamic> toJson() => {
@@ -83,6 +91,7 @@ class MarkerSegment extends Equatable {
     'range': range.toJson(),
     if (status != MarkerAnchorStatus.active) 'status': status.wireName,
     'legacyId': ?legacyId,
+    'html': ?html,
   };
 
   static MarkerSegment fromJson(Map<String, dynamic> json) {
@@ -92,16 +101,24 @@ class MarkerSegment extends Equatable {
       throw const FormatException('invalid marker segment');
     }
     final legacyId = json['legacyId'];
+    final html = json['html'];
     return MarkerSegment(
       sectionIndex: section,
       range: PluginTextRangeAnchor.fromJson(Map<String, dynamic>.from(range)),
       status: MarkerAnchorStatus.fromWire(json['status']),
       legacyId: legacyId is String ? legacyId : null,
+      html: html is String ? html : null,
     );
   }
 
   @override
-  List<Object?> get props => [sectionIndex, range.toJson(), status, legacyId];
+  List<Object?> get props => [
+    sectionIndex,
+    range.toJson(),
+    status,
+    legacyId,
+    html,
+  ];
 }
 
 /// הערה על סימון. התוכן בפורמט של עורך ההערות האישיות, כדי ששני סוגי

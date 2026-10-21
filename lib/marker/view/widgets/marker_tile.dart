@@ -6,6 +6,7 @@ import 'package:otzaria/marker/services/marker_actions.dart';
 import 'package:otzaria/marker/services/marker_export.dart';
 import 'package:otzaria/marker/view/marker_navigation.dart';
 import 'package:otzaria/marker/view/widgets/marker_dialogs.dart';
+import 'package:otzaria/marker/view/widgets/marker_marked_text.dart';
 import 'package:otzaria/marker/view/widgets/marker_note_view.dart';
 import 'package:otzaria/marker/view/widgets/marker_range_editor.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
@@ -114,10 +115,9 @@ class MarkerTile extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        mark.text.isEmpty ? 'סימון' : mark.text,
+                      MarkerMarkedText(
+                        mark,
                         maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyLarge?.copyWith(
                           height: 1.4,
                         ),

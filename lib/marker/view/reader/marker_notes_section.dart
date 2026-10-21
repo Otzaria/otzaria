@@ -16,8 +16,10 @@ import 'package:otzaria/marker/services/marker_note_requests.dart';
 import 'package:otzaria/marker/services/marker_settings.dart';
 import 'package:otzaria/marker/storage/marker_search_text.dart';
 import 'package:otzaria/marker/view/pdf/marker_pdf.dart';
+import 'package:otzaria/marker/view/reader/marker_reader_menu.dart';
 import 'package:otzaria/marker/view/reader/marker_reader_selection.dart';
 import 'package:otzaria/marker/view/widgets/marker_dialogs.dart';
+import 'package:otzaria/marker/view/widgets/marker_marked_text.dart';
 import 'package:otzaria/marker/view/widgets/marker_note_view.dart';
 import 'package:otzaria/marker/view/widgets/marker_range_editor.dart';
 import 'package:otzaria/models/books.dart';
@@ -35,7 +37,8 @@ import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
 /// ההערות שנכתבו על סימוני המרקר בספר, בראש חלונית ההערות. כשהחלונית
-/// מציגה רק את מה שבמסך, גם כאן מוצגים רק סימונים בטקסט הנראה.
+/// מציגה רק את מה שבמסך, גם כאן מוצגים רק סימונים בטקסט הנראה. כשהסימונים
+/// מוסתרים בכל הספרים, גם ההערות עליהם מוסתרות.
 class MarkerNotesSection extends StatelessWidget {
   final Book book;
 
@@ -48,18 +51,26 @@ class MarkerNotesSection extends StatelessWidget {
   /// הבקר של צופה ה-PDF, לבחירה ולטקסט העמודים.
   final MarkerPdfController? Function()? pdfController;
 
+  /// מפרש שמוצג לצד הספר: הסימונים נשמרים בו לפי [markerCommentaryUid], אין
+  /// סינון לפי השורות שבמסך של הספר, ומיקום הסימון משתנה מטקסט המפרש שבקובץ.
+  final bool commentary;
+
   const MarkerNotesSection({
     super.key,
     required this.book,
     required this.onNavigate,
     this.pdf = false,
     this.pdfController,
+    this.commentary = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final cache = MarkerBookCache.instance;
-    final uid = markerBookUidOf(book);
+    final book = this.book;
+    final uid = commentary && book is TextBook
+        ? markerCommentaryUid(book)
+        : markerBookUidOf(book);
     return ListenableBuilder(
       listenable: Listenable.merge([
         cache.contentListenable(book.title),
@@ -67,6 +78,9 @@ class MarkerNotesSection extends StatelessWidget {
         MarkerNoteRequests.editing,
       ]),
       builder: (context, _) {
+        if (!MarkerSettings.instance.showHighlights) {
+          return const SizedBox.shrink();
+        }
         final marks =
             cache.marksOf(book.title, uid, pdf: pdf) ??
             const <MarkerHighlight>[];
@@ -98,12 +112,15 @@ class MarkerNotesSection extends StatelessWidget {
               return _Section(
                 marks: shown,
                 onNavigate: onNavigate,
-                pdf: pdf,
-                pdfController: pdfController,
+                location: MarkerNoteLocation(
+                  pdf: pdf,
+                  pdfController: pdfController,
+                  commentary: commentary,
+                ),
               );
             }
 
-            if (pdf) return section(const []);
+            if (pdf || commentary) return section(const []);
             // רשימה חדשה בכל גלילה; בונים מחדש רק כשהשורות עצמן השתנו. אותו
             // עץ גם כשהסינון כבוי, כדי שעורך פתוח לא ייסגר בהחלפה.
             return BlocBuilder<TextBookBloc, TextBookState>(
@@ -148,26 +165,115 @@ class MarkerNotesSection extends StatelessWidget {
                     mark.segments.any((s) => lines.contains(s.sectionIndex))) &&
                 matches(mark)))
           mark,
-    ]..sort((a, b) {
-      final section = a.sectionStart.compareTo(b.sectionStart);
-      return section != 0
-          ? section
-          : a.segments.first.start.compareTo(b.segments.first.start);
-    });
+    ]..sort(_byPlace);
   }
+}
+
+/// לפי המקום בספר: המקטע, ובתוכו תחילת הסימון.
+int _byPlace(MarkerHighlight a, MarkerHighlight b) {
+  final section = a.sectionStart.compareTo(b.sectionStart);
+  return section != 0
+      ? section
+      : a.segments.first.start.compareTo(b.segments.first.start);
+}
+
+/// ההערות על סימונים במפרשים שמוצגים לצד הספר, כשורות באזור ההערות על
+/// המפרשים — כמו ההערות האישיות שם. [builder] מקבל את השורות לפי שם המפרש;
+/// לחיצה על שורה מעבירה את החלונית להערות המפרש, ושם אפשר לערוך אותן.
+class MarkerCommentaryNoteTiles extends StatelessWidget {
+  final List<TextBook> commentaries;
+  final void Function(TextBook commentary, int section) onNavigate;
+  final Widget Function(BuildContext context, Map<String, List<Widget>> tiles)
+  builder;
+
+  const MarkerCommentaryNoteTiles({
+    super.key,
+    required this.commentaries,
+    required this.onNavigate,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cache = MarkerBookCache.instance;
+    final settings = MarkerSettings.instance;
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        for (final commentary in commentaries)
+          cache.contentListenable(commentary.title),
+        settings,
+      ]),
+      builder: (context, _) {
+        final tiles = <String, List<Widget>>{};
+        if (settings.showHighlights) {
+          for (final commentary in commentaries) {
+            final marks = [
+              for (final mark
+                  in cache.marksOf(
+                        commentary.title,
+                        markerCommentaryUid(commentary),
+                      ) ??
+                      const <MarkerHighlight>[])
+                if (mark.hasNote) mark,
+            ]..sort(_byPlace);
+            if (marks.isEmpty) continue;
+            tiles[commentary.title] = [
+              for (final mark in marks)
+                _CommentaryNoteTile(
+                  key: ValueKey(mark.id),
+                  mark: mark,
+                  color: Color(
+                    settings.palette.colorById(mark.colorId)?.argb ??
+                        MarkerColor.argbOf(mark.colorHex),
+                  ),
+                  onTap: () => onNavigate(commentary, mark.sectionStart),
+                ),
+            ];
+          }
+        }
+        return builder(context, tiles);
+      },
+    );
+  }
+}
+
+class _CommentaryNoteTile extends StatelessWidget {
+  final MarkerHighlight mark;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _CommentaryNoteTile({
+    super.key,
+    required this.mark,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    dense: true,
+    minLeadingWidth: 0,
+    horizontalTitleGap: 8,
+    leading: Icon(FluentIcons.highlight_24_filled, size: 18, color: color),
+    title: MarkerMarkedText(mark, maxLines: 1, maxChars: 80),
+    subtitle: Text(
+      mark.note?.plain ?? '',
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    ),
+    onTap: onTap,
+  );
 }
 
 class _Section extends StatelessWidget {
   final List<MarkerHighlight> marks;
   final void Function(int section) onNavigate;
-  final bool pdf;
-  final MarkerPdfController? Function()? pdfController;
+  final MarkerNoteLocation location;
 
   const _Section({
     required this.marks,
     required this.onNavigate,
-    required this.pdf,
-    required this.pdfController,
+    required this.location,
   });
 
   @override
@@ -204,10 +310,7 @@ class _Section extends StatelessWidget {
             mark: mark,
             palette: palette,
             onTap: () => onNavigate(mark.sectionStart),
-            location: MarkerNoteLocation(
-              pdf: pdf,
-              pdfController: pdfController,
-            ),
+            location: location,
           ),
         const Divider(height: 16),
       ],
@@ -221,7 +324,16 @@ class MarkerNoteLocation {
   final bool pdf;
   final MarkerPdfController? Function()? pdfController;
 
-  const MarkerNoteLocation({required this.pdf, required this.pdfController});
+  /// מפרש לצד הספר: הבחירה שבספר אינה בו, והגבולות נערכים מטקסט הקובץ.
+  final bool commentary;
+
+  const MarkerNoteLocation({
+    required this.pdf,
+    required this.pdfController,
+    this.commentary = false,
+  });
+
+  bool get canMoveToSelection => !commentary;
 
   /// הבחירה הנוכחית בספר, כטיוטת סימון. [selected] — אם יש בחירה בכלל;
   /// [draft] null עם בחירה פירושו שאי אפשר לעגן אותה.
@@ -254,6 +366,7 @@ class MarkerNoteLocation {
 
   /// עורך הגבולות של [mark], עם טקסט המקור של המקטע הראשון והאחרון.
   Future<void> editRange(BuildContext context, MarkerHighlight mark) async {
+    if (commentary) return editMarkerRangeFromBook(context, mark);
     final first = mark.segments.first.sectionIndex;
     final last = mark.segments.last.sectionIndex;
     if (pdf) {
@@ -518,10 +631,10 @@ class _MarkerNoteCardState extends State<MarkerNoteCard>
                       onTap: widget.onTap,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Text(
-                          markerQuote(_mark.text, 80),
+                        child: MarkerMarkedText(
+                          _mark,
+                          maxChars: 80,
                           maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: cs.onSurfaceVariant,
                           ),
@@ -561,13 +674,14 @@ class _MarkerNoteCardState extends State<MarkerNoteCard>
         ),
     ];
     final location = [
-      if (widget.location != null) ...const [
-        AppMenuEntry<Object>(
-          value: _CardAction.moveToSelection,
-          label: 'העברה לטקסט שנבחר בספר',
-          icon: FluentIcons.pin_24_regular,
-        ),
-        AppMenuEntry<Object>(
+      if (widget.location case final location?) ...[
+        if (location.canMoveToSelection)
+          const AppMenuEntry<Object>(
+            value: _CardAction.moveToSelection,
+            label: 'העברה לטקסט שנבחר בספר',
+            icon: FluentIcons.pin_24_regular,
+          ),
+        const AppMenuEntry<Object>(
           value: _CardAction.editRange,
           label: 'הוספה או הסרה של מילים…',
           icon: FluentIcons.arrow_autofit_width_24_regular,

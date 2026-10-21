@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:otzaria/data/data_providers/hive_data_provider.dart';
 import 'package:otzaria/marker/models/marker_highlight.dart';
+import 'package:otzaria/marker/repository/marker_repository.dart';
 import 'package:otzaria/marker/services/marker_book_cache.dart';
 import 'package:otzaria/marker/services/marker_note_requests.dart';
 import 'package:otzaria/marker/services/marker_settings.dart';
@@ -15,6 +16,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_bloc.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_event.dart';
 import 'package:otzaria/personal_notes/bloc/personal_notes_state.dart';
+import 'package:otzaria/personal_notes/widgets/commentary_notes_section.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -61,6 +63,7 @@ void main() {
   late Directory hiveDir;
   late MarkerDatabase db;
   late MarkerBookCache previous;
+  late MarkerRepository repository;
 
   setUp(() async {
     hiveDir = await Directory.systemTemp.createTemp('marker_notes_');
@@ -70,6 +73,7 @@ void main() {
     MarkerSettings.instance.reload();
     final store = openTestMarkerStore();
     db = store.db;
+    repository = store.repository;
     previous = MarkerBookCache.instance;
     MarkerBookCache.instance = MarkerBookCache(
       repository: store.repository,
@@ -167,6 +171,81 @@ void main() {
     await pump(tester, search: 'אחר', onNavigate: (_) {});
     await tester.pumpAndSettle();
     expect(find.text('הערות על סימונים'), findsNothing);
+  });
+
+  testWidgets('hiding the marks in all books hides their notes too', (
+    tester,
+  ) async {
+    await pump(tester, onNavigate: (_) {});
+    await tester.pumpAndSettle();
+    expect(find.text('הערות על סימונים'), findsOneWidget);
+    await tester.runAsync(
+      () => MarkerSettings.instance.setShowHighlights(false),
+    );
+    await tester.pump();
+    expect(find.text('הערות על סימונים'), findsNothing);
+    await tester.runAsync(
+      () => MarkerSettings.instance.setShowHighlights(true),
+    );
+    await tester.pump();
+    expect(find.text('הערות על סימונים'), findsOneWidget);
+  });
+
+  testWidgets('notes on a commentary are rows under its name', (tester) async {
+    final commentary = TextBook(title: 'רש"י על ספר');
+    await tester.runAsync(() async {
+      await repository.importHighlights([
+        highlightFor(
+          'c1',
+          [segmentFor(2, _line, 'השמים')],
+          book: commentary.title,
+          uid: null,
+          text: 'השמים',
+          note: const MarkerNote(content: 'הערה במפרש', plain: 'הערה במפרש'),
+        ),
+        highlightFor(
+          'c2',
+          [segmentFor(4, _line, 'הארץ')],
+          book: commentary.title,
+          uid: null,
+          text: 'הארץ',
+        ),
+      ]);
+      await MarkerBookCache.instance.ensureLoaded(commentary.title, null);
+    });
+    (TextBook, int)? opened;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: MarkerCommentaryNoteTiles(
+              commentaries: [commentary],
+              onNavigate: (book, section) => opened = (book, section),
+              builder: (context, tiles) => CommentaryNotesSection(
+                bookIds: [commentary.title],
+                loader: (_, {categoryId}) async => const [],
+                revision: ValueNotifier(0),
+                onOpenNote: (_, _) {},
+                extraTiles: tiles,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('הערות על המפרשים המוצגים'), findsOneWidget);
+    expect(find.text(commentary.title), findsOneWidget);
+    expect(find.text('הערה במפרש'), findsOneWidget);
+    // סימון בלי הערה אינו ברשימה.
+    expect(find.text('הארץ', findRichText: true), findsNothing);
+    await tester.tap(find.text('הערה במפרש'));
+    expect(opened, (commentary, 2));
+    await tester.runAsync(
+      () => MarkerSettings.instance.setShowHighlights(false),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('הערות על המפרשים המוצגים'), findsNothing);
   });
 
   testWidgets('a request opens the editor in the card, also for a new note', (

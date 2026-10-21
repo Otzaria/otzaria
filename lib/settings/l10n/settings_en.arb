@@ -1484,17 +1484,18 @@
   "הסימונים מוסתרים בכל הספרים, אבל נשמרים ואפשר להציג אותם שוב": "Highlights are hidden in all sefarim, but kept, and you can show them again",
   "כשהתצוגה כבויה הסימונים נשמרים, ואפשר להציג אותם שוב": "While hidden, highlights are kept and you can show them again",
   "צבעי המרקר בתפריט הלחיצה הימנית": "Marker colors in the right-click menu",
-  "הצבעים אינם מוצגים בתפריט. אפשר לסמן מכפתור הסרגל או בקיצור המקלדת": "The colors are not shown in the menu. You can still highlight from the toolbar button or the keyboard shortcut",
+  "הצבעים אינם מוצגים בתפריט. אפשר לסמן בקיצור המקלדת": "The colors are not shown in the menu. You can still highlight with the keyboard shortcut",
   "גם במפרשים": "In commentaries too",
   "רק בטקסט של הספר עצמו, לא במפרשים": "Only in the sefer itself, not in commentaries",
   "גם בספרי PDF": "In PDF sefarim too",
   "הכפתור אינו מוצג בסרגל": "The button is not shown in the toolbar",
   "אילו צבעים מופיעים בתפריט, שמם וסדרם": "Which colors appear in the menu, their names and order",
-  "הצבע של כפתור הסרגל ושל קיצור המקלדת": "The color of the toolbar button and the keyboard shortcut",
+  "הצבע שקיצור המקלדת לסימון משתמש בו": "The color the highlight keyboard shortcut uses",
+  "הצבע שקיצור המקלדת לסימון משתמש בו. הקיצור אינו מוגדר": "The color the highlight keyboard shortcut uses. No shortcut is set",
+  "הצבע שקיצור המקלדת {shortcut} משתמש בו": "The color the keyboard shortcut {shortcut} uses",
   "בחרו טקסט, לחצו לחיצה ימנית ובחרו צבע": "Select text, right-click and pick a color",
-  "זמין כשצבעי המרקר מוצגים בתפריט": "Available while the Marker colors are shown in the menu",
   "גם כשבוחרים טקסט בספר PDF": "Also when you select text in a PDF sefer",
   "הצבעים אינם מוצגים בתפריט של ספרי PDF": "The colors are not shown in the menu of PDF sefarim",
-  "לחיצה מסמנת את הטקסט שנבחר. בלי טקסט נבחר היא מסתירה או מציגה את הסימונים בספר": "Clicking highlights the selected text. With nothing selected, it hides or shows the highlights in the sefer",
-  "מסמן את הטקסט שנבחר, ומסתיר או מציג את הסימונים בספר": "Highlights the selected text, and hides or shows the highlights in the sefer"
+  "מסתיר ומציג את הסימונים בספר. מופיע רק בספר שיש בו סימונים": "Hides and shows the highlights in the sefer. Appears only in a sefer that has highlights",
+  "מסתיר ומציג את הסימונים, בספר שיש בו סימונים": "Hides and shows the highlights, in a sefer that has highlights"
 }

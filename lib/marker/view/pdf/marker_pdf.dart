@@ -6,8 +6,6 @@ import 'dart:ui' as ui;
 import 'package:crypto/crypto.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/core/messages/marker_messages.dart';
-import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/marker/models/marker_book_uid.dart';
 import 'package:otzaria/marker/models/marker_highlight.dart';
 import 'package:otzaria/marker/models/marker_palette.dart';
@@ -404,69 +402,14 @@ class MarkerPdfController {
   Listenable get toolbarListenable =>
       Listenable.merge([_listenable, MarkerSettings.instance]);
 
-  /// כפתור המרקר בסרגל, כמו בספר טקסט: טקסט נבחר מסומן בצבע ברירת המחדל,
-  /// ובלי בחירה הלחיצה מסתירה ומציגה את הסימונים שבספר.
-  /// [ref] — מראה המקום של עמוד; [copyAllowed] — מסמך שאוסר העתקה אינו מסומן.
-  ActionButtonData? toolbarAction(
-    BuildContext context, {
-    required bool compact,
-    required bool copyAllowed,
-    required String? Function(int pageNumber) ref,
-  }) {
-    final settings = MarkerSettings.instance;
-    if (!settings.showToolbarButton) return null;
-    final palette = settings.palette;
-    final hasMarks =
-        MarkerBookCache.instance
-            .marksOf(book.title, uid, pdf: true)
-            ?.isNotEmpty ??
-        false;
-    if (!hasMarks && !copyAllowed) return null;
-    final shown =
-        settings.showHighlights &&
-        !settings.isBookHidden(book.title, pdf: true);
-
-    Future<void> mark() async {
-      // לפני שהמסמך נטען אין בחירה, וגישה לבחירה הייתה זורקת.
-      if (!viewer.isReady) {
-        UiSnack.show(MarkerMessages.noSelection);
-        return;
-      }
-      final range = viewer.textSelectionDelegate.textSelectionPointRange;
-      if (range == null) {
-        UiSnack.show(MarkerMessages.noSelection);
-        return;
-      }
-      await MarkerActions.instance.mark(
-        await draftFromSelection(ref(range.start.text.pageNumber)),
-        palette.defaultColor,
+  /// כפתור המרקר בסרגל, כמו בספר טקסט.
+  ActionButtonData? toolbarAction({required bool compact}) =>
+      buildMarkerToolbarAction(
+        bookTitle: book.title,
+        bookUid: uid,
+        compact: compact,
+        pdf: true,
       );
-    }
-
-    // סימונים מוסתרים מוצגים קודם; אחר כך טקסט נבחר מסומן, ובלי בחירה
-    // הלחיצה מסתירה את הסימונים.
-    void press() {
-      if (!shown || (hasMarks && !(copyAllowed && hasSelection))) {
-        MarkerActions.instance.toggleBookVisible(book.title, pdf: true);
-      } else {
-        mark();
-      }
-    }
-
-    return ActionButtonData.simple(
-      icon: shown && hasMarks
-          ? FluentIcons.highlight_24_filled
-          : FluentIcons.highlight_24_regular,
-      tooltip: markerToolbarTooltip(
-        hasMarks: hasMarks,
-        shown: shown,
-        color: palette.defaultColor,
-      ),
-      compact: compact,
-      actionId: ToolbarActionId.marker,
-      onPressed: press,
-    );
-  }
 
   /// פריטי המרקר בתפריט ההקשר של ה-PDF. [ref] — מראה המקום של עמוד.
   List<AppContextMenuEntry> menuEntries({

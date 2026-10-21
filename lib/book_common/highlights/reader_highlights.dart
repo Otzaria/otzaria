@@ -80,6 +80,7 @@ abstract final class ReaderHighlights {
     String? bookVersion,
     required int sectionIndex,
     required String sourceText,
+    ({String raw, String processed}) Function()? display,
   }) {
     PluginHighlightRegistry.instance.reanchorSection(
       bookId: bookTitle,
@@ -92,6 +93,7 @@ abstract final class ReaderHighlights {
       bookUid: _markerUid(bookUid, bookVersion),
       sectionIndex: sectionIndex,
       sourceText: sourceText,
+      display: display,
     );
   }
 
@@ -103,6 +105,7 @@ abstract final class ReaderHighlights {
     String? bookVersion,
     required int sectionIndex,
     required String Function() sourceText,
+    ({String raw, String processed}) Function()? display,
   }) {
     final uid = _markerUid(bookUid, bookVersion);
     final cache = MarkerBookCache.instance;
@@ -122,6 +125,7 @@ abstract final class ReaderHighlights {
         bookUid: uid,
         sectionIndex: sectionIndex,
         sourceText: text,
+        display: display,
       ),
     );
   }

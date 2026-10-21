@@ -9,7 +9,9 @@ import 'package:otzaria/marker/models/marker_book_uid.dart';
 import 'package:otzaria/marker/models/marker_highlight.dart';
 import 'package:otzaria/marker/repository/marker_repository.dart';
 import 'package:otzaria/marker/services/marker_paint.dart';
+import 'package:otzaria/marker/services/marker_realign.dart';
 import 'package:otzaria/marker/services/marker_settings.dart';
+import 'package:otzaria/marker/services/marker_text_format.dart';
 import 'package:otzaria/marker/storage/marker_changes.dart';
 import 'package:otzaria/plugins/models/plugin_highlight.dart';
 import 'package:otzaria/plugins/models/plugin_reader_selection.dart';
@@ -214,12 +216,15 @@ class MarkerBookCache {
 
   /// מעגן מחדש את סימוני הפסקה מול [sourceText] ושומר עוגן שהשתנה. סימון
   /// שלא נמצא בוודאות נשמר במקומו עם מצב "דורש תיקון", ואינו מוזז.
+  /// [display] — שורת המקור והתצוגה שלה, לעיצוב הטקסט ברשימות
+  /// ([MarkerSegment.html]) של סימון שעוד אין לו.
   void reanchorSection({
     required String bookTitle,
     String? bookUid,
     required int sectionIndex,
     required String sourceText,
     bool pdf = false,
+    ({String raw, String processed}) Function()? display,
   }) {
     // טקסט ריק הוא טעינה שלא הושלמה, לא פסקה שהטקסט שלה נמחק.
     if (sourceText.isEmpty) return;
@@ -229,12 +234,47 @@ class MarkerBookCache {
     if (entry == null || marks == null) return;
     final changed = <String, List<MarkerSegment>>{};
     final next = <MarkerHighlight>[];
+    ({String raw, String processed})? shown;
     for (final mark in marks) {
       var segments = mark.segments;
       for (var i = 0; i < segments.length; i++) {
         final segment = segments[i];
         if (segment.sectionIndex != sectionIndex) continue;
-        final resolved = _resolve(segment, sourceText);
+        var resolved = _resolve(segment, sourceText);
+        final current = resolved ?? segment;
+        // רק עוגן שנמצא במקומו: טקסט שנמחק או זז בספר אינו מחפש מקום חדש.
+        if (display != null &&
+            !pdf &&
+            segments.length == 1 &&
+            current.status == MarkerAnchorStatus.active &&
+            current.start == segment.start &&
+            current.end == segment.end &&
+            _textChecked.add('${mark.id}:${mark.version}')) {
+          shown ??= display();
+          resolved =
+              realignMarkerSegment(
+                segment: current,
+                markText: mark.text,
+                rawLine: shown.raw,
+              ) ??
+              resolved;
+        }
+        final placed = resolved ?? segment;
+        // עיצוב שאי אפשר לחשב (טקסט שהתצוגה מסתירה) אינו מנוסה בכל פריים.
+        if (display != null &&
+            placed.html == null &&
+            placed.status == MarkerAnchorStatus.active &&
+            _htmlTried.add('${mark.id}:${mark.version}:${placed.start}')) {
+          shown ??= display();
+          final html = markerSegmentHtml(
+            bookId: bookTitle,
+            sectionIndex: sectionIndex,
+            rawText: shown.raw,
+            processedHtml: shown.processed,
+            range: placed.range,
+          );
+          if (html != null) resolved = placed.copyWith(html: html);
+        }
         if (resolved == null) continue;
         if (identical(segments, mark.segments)) segments = [...segments];
         segments[i] = resolved;
@@ -273,6 +313,13 @@ class MarkerBookCache {
           }),
     );
   }
+
+  /// סימונים שהטקסט שלהם כבר הושווה לעוגן ([realignMarkerSegment]), לפי
+  /// מזהה וגרסה: הבדיקה נעשית פעם אחת לכל גרסה של סימון.
+  final Set<String> _textChecked = {};
+
+  /// מקטעים שהעיצוב שלהם כבר חושב, לפי מזהה, גרסה ומקום.
+  final Set<String> _htmlTried = {};
 
   MarkerSegment? _resolve(MarkerSegment segment, String sourceText) {
     PluginHighlightAnchorResult result;

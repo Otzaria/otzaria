@@ -67,6 +67,7 @@ List<AppContextMenuEntry> buildCommentaryMarkerEntries({
   required RenderSettings Function() settings,
   required Offset tapPosition,
   TextRange? lineRange,
+  VoidCallback? openNotes,
 }) {
   return _markerEntries(
     context: context,
@@ -83,6 +84,7 @@ List<AppContextMenuEntry> buildCommentaryMarkerEntries({
     tapPosition: tapPosition,
     lineRange: lineRange,
     commentary: true,
+    openNotes: openNotes,
   );
 }
 

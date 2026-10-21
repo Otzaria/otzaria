@@ -728,7 +728,7 @@ class _MarkerViewState extends State<_MarkerView>
               message: 'עדיין אין סימונים',
               subtitle:
                   'בחרו טקסט בספר וסמנו אותו מהתפריט (לחיצה ימנית או לחיצה '
-                  'ארוכה), מכפתור המרקר שבסרגל או בקיצור המקלדת.',
+                  'ארוכה) או בקיצור המקלדת.',
             )
           : const ToolEmptyState(
               icon: FluentIcons.search_24_regular,

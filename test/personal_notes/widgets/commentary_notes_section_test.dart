@@ -33,7 +33,10 @@ void main() {
     opened.clear();
   });
 
-  Widget build(List<String> bookIds) => MaterialApp(
+  Widget build(
+    List<String> bookIds, {
+    Map<String, List<Widget>> extraTiles = const {},
+  }) => MaterialApp(
     home: Scaffold(
       body: SingleChildScrollView(
         child: CommentaryNotesSection(
@@ -41,6 +44,7 @@ void main() {
           revision: revision,
           loader: (bookId, {categoryId}) async => store[bookId] ?? const [],
           onOpenNote: (bookId, line) => opened.add((bookId, line)),
+          extraTiles: extraTiles,
         ),
       ),
     ),
@@ -63,6 +67,35 @@ void main() {
 
     await tester.tap(find.text('הערה על רש"י'));
     expect(opened, [('רש"י', 4)]);
+  });
+
+  testWidgets('שורות נוספות מוצגות אחרי ההערות, גם למפרש בלי הערות', (
+    tester,
+  ) async {
+    store = {
+      'רש"י': [_note('רש"י', 4, 'הערה על רש"י')],
+    };
+
+    await tester.pumpWidget(
+      build(
+        ['רש"י', 'תוספות', 'ר"ן'],
+        extraTiles: {
+          'רש"י': [const Text('נוספת ברש"י')],
+          'תוספות': [const Text('נוספת בתוספות')],
+          'ר"ן': const [],
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final rashiNote = tester.getTopLeft(find.text('הערה על רש"י')).dy;
+    expect(
+      tester.getTopLeft(find.text('נוספת ברש"י')).dy,
+      greaterThan(rashiNote),
+    );
+    expect(find.text('תוספות'), findsOneWidget);
+    expect(find.text('נוספת בתוספות'), findsOneWidget);
+    expect(find.text('ר"ן'), findsNothing);
   });
 
   testWidgets('בלי הערות על המפרשים האזור לא מוצג', (tester) async {
