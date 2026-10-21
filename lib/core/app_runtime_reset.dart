@@ -22,6 +22,8 @@ import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
 import 'package:otzaria/migration/sync/background_sync_initializer.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/marker/services/marker_book_cache.dart';
+import 'package:otzaria/marker/storage/marker_database.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
@@ -42,6 +44,8 @@ Future<void> resetRuntimeStateForAppRestart({
   await AttachedLibraryRegistry.instance.reset();
   await CacheDatabaseHolder.instance.close();
   await PersonalNotesDatabase.instance.close();
+  MarkerDatabase.instance.close();
+  MarkerBookCache.instance.clear();
   await PluginSystemDatabase.instance.close();
   await UserStateDatabase.instance.reopen();
 

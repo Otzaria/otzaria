@@ -34,6 +34,7 @@ import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/services/backup_service.dart';
 import 'package:otzaria/settings/services/backup/backup_import_merge.dart';
+import 'package:otzaria/settings/services/backup/backup_merge.dart';
 import 'package:otzaria/settings/services/backup/backup_store.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
@@ -219,6 +220,55 @@ void main() {
         {'error': WindowMessages.mainWindowRequestFailed},
       );
     });
+  });
+
+  test('מיזוג לארכיון שומר את סימוני המרקר משני הגיבויים', () {
+    Map<String, dynamic> backup(List<String> ids, String legacy) => {
+      'marker': {
+        'format': 'otzaria-marker',
+        'highlights': [
+          for (final id in ids) {'id': id},
+        ],
+        'importedLegacy': [
+          {'id': legacy, 'book': 'בראשית'},
+        ],
+      },
+    };
+    final merged = BackupMerge.merge(
+      backup(['a', 'b'], 'old-1'),
+      backup(['b', 'c'], 'old-2'),
+      olderTimestamp: DateTime(2026, 1, 1),
+      newerTimestamp: DateTime(2026, 2, 1),
+      now: DateTime(2026, 2, 2),
+    );
+    final marker = merged['marker'] as Map<String, dynamic>;
+    expect(
+      [for (final h in marker['highlights'] as List) h['id']],
+      unorderedEquals(['a', 'b', 'c']),
+    );
+    expect(
+      [for (final l in marker['importedLegacy'] as List) l['id']],
+      unorderedEquals(['old-1', 'old-2']),
+    );
+  });
+
+  test('סעיף שקודד מראש משתלב ב-JSON תקין של הגיבוי', () {
+    final marker = jsonEncode({
+      'format': 'otzaria-marker',
+      'highlights': [
+        {'id': 'a'},
+      ],
+    });
+    final full = jsonDecode(
+      BackupService.encodeBackupData({'version': '2.0'}, {'marker': marker}),
+    );
+    expect(full['version'], '2.0');
+    expect(full['marker']['highlights'][0]['id'], 'a');
+    final only = jsonDecode(
+      BackupService.encodeBackupData({}, {'marker': marker}),
+    );
+    expect(only.keys, ['marker']);
+    expect(BackupService.encodeBackupData({'a': 1}, {}), '{"a":1}');
   });
 
   test('createBackup מגבה מפתחות sz דינמיים מה-Box', () async {

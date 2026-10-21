@@ -24,6 +24,7 @@ import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/indexing/utils/indexing_crash_canary.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/marker/storage/marker_database.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
@@ -244,6 +245,7 @@ class AppWindowListener extends WindowListener {
   Future<void> _closeWritableDatabases() async {
     await CacheDatabaseHolder.instance.close();
     await PersonalNotesDatabase.instance.close();
+    MarkerDatabase.instance.close();
     await PluginSystemDatabase.instance.close();
     UserStateDatabase.instance.close();
   }

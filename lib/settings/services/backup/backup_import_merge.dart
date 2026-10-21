@@ -23,6 +23,7 @@ class BackupImportCounts {
   int workspaces = 0;
   int plugins = 0;
   int shamorZachorBooks = 0;
+  int markerHighlights = 0;
 
   int get total =>
       bookmarks +
@@ -32,7 +33,8 @@ class BackupImportCounts {
       notesUpdated +
       workspaces +
       plugins +
-      shamorZachorBooks;
+      shamorZachorBooks +
+      markerHighlights;
 }
 
 /// כללי המיזוג של ייבוא מגיבוי של מכשיר אחר.
