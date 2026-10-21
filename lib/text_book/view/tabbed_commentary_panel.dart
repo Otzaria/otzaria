@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/marker/view/reader/marker_notes_section.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -285,6 +286,26 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                     focusLineNumber: widget.notesFocusLineNumber,
                     footer: widget.notesBookIdOverride == null
                         ? widget.notesFooter
+                        : null,
+                    header: widget.notesBookIdOverride == null
+                        ? MarkerNotesSection(
+                            book: state.book,
+                            onNavigate: (section) {
+                              // מספר שורה מ-1, כמו בהערות האישיות.
+                              final line = section + 1;
+                              final navigate = widget.onNavigateToLine;
+                              if (navigate != null) {
+                                navigate(line);
+                              } else {
+                                _handleNoteNavigation(
+                                  context,
+                                  state,
+                                  line,
+                                  null,
+                                );
+                              }
+                            },
+                          )
                         : null,
                     onNavigateToLine:
                         widget.onNavigateToLine ??

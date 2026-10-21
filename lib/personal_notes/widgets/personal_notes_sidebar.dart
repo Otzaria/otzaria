@@ -48,6 +48,9 @@ class PersonalNotesSidebar extends StatefulWidget {
   /// מוצג בסוף הרשימה, אחרי הערות הספר (למשל הערות המפרשים בצורת הדף).
   final Widget? footer;
 
+  /// מוצג בראש הרשימה (למשל ההערות על סימוני המרקר).
+  final Widget? header;
+
   const PersonalNotesSidebar({
     super.key,
     required this.bookId,
@@ -58,6 +61,7 @@ class PersonalNotesSidebar extends StatefulWidget {
     this.focusLineNumber,
     this.pdfOutline,
     this.footer,
+    this.header,
   });
 
   @override
@@ -406,6 +410,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     if (state.isCreatingNewNote && state.newNoteBookId == widget.bookId) {
       items.add(_buildNewNoteEditor(context, state));
     }
+    final headerIndex = items.length;
 
     // הערות ממוקמות
     if (filtered.locatedNotes.isNotEmpty) {
@@ -498,13 +503,15 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
     }
 
     if (items.isEmpty) {
+      // מעל הרשימה עשויות להופיע הערות אחרות (של המרקר), ולכן ההודעה מדייקת.
+      final notes = widget.header == null ? 'הערות' : 'הערות אישיות';
       final message = state.showOnlyVisible && visibleLineIndices.isNotEmpty
           ? (widget.isPdf
-                ? 'אין הערות לעמוד המוצג'
-                : 'אין הערות לטקסט הנראה במסך')
+                ? 'אין $notes לעמוד המוצג'
+                : 'אין $notes לטקסט הנראה במסך')
           : (state.searchQuery.isNotEmpty
-                ? 'לא נמצאו הערות התואמות לחיפוש'
-                : 'אין עדיין הערות על ספר זה');
+                ? 'לא נמצאו $notes התואמות לחיפוש'
+                : 'אין עדיין $notes על ספר זה');
       items.add(
         OtzariaEmptyState(
           isCompact: true,
@@ -514,6 +521,7 @@ class PersonalNotesSidebarState extends State<PersonalNotesSidebar>
       );
     }
 
+    if (widget.header case final header?) items.insert(headerIndex, header);
     if (widget.footer case final footer?) items.add(footer);
 
     if (state.isLoading) {

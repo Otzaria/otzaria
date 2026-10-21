@@ -73,6 +73,9 @@ import 'package:otzaria/core/messages/pdf_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/printing/commentary_print_builder.dart';
 import 'package:otzaria/printing/view/printing_screen.dart';
+import 'package:otzaria/marker/view/pdf/marker_pdf.dart';
+import 'package:otzaria/marker/view/reader/marker_commentary_menu.dart';
+import 'package:otzaria/marker/view/reader/marker_notes_section.dart';
 
 import 'dart:async';
 
@@ -1062,8 +1065,9 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   List<AppContextMenuEntry> _buildCommentaryContextMenuEntries(
     BuildContext menuCtx,
     Link link,
+    Offset tapPosition,
   ) {
-    return ContextMenuUtils.buildCommentaryContextMenu(
+    final menu = ContextMenuUtils.buildCommentaryContextMenu(
       context: menuCtx,
       link: link,
       openBookCallback: widget.openBookCallback,
@@ -1075,7 +1079,23 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       onCopySelected: () => _copySelection(menuCtx, link),
       onCopySelectedWithoutNikud: () =>
           _copySelection(menuCtx, link, removeNikud: true),
-    )..addAll(_pluginEntries(menuCtx, link));
+    );
+    // בחירה שחוצה כמה מפרשים אינה מסומנת, כמו במפרשים של ספר טקסט.
+    final marker = _selectionSpansMultipleItems()
+        ? const <AppContextMenuEntry>[]
+        : buildCommentaryLinkMarkerEntries(
+            context: menuCtx,
+            link: link,
+            selectedText: _restoreLineBreaks(_currentSelectedText),
+            selectedLink: _lastSelectedLink,
+            itemKeys: _itemKeys,
+            linkKey: _getLinkKey,
+            displayProfile: widget.displayProfile,
+            fontSize: widget.fontSize,
+            tapPosition: tapPosition,
+          );
+    return withMarkerEntries(menu, marker)
+      ..addAll(_pluginEntries(menuCtx, link));
   }
 
   /// פריטי התוספים בהקשרי המפרש, על הספר הנקרא — ה-PDF בעמוד הנוכחי. עם
@@ -1960,6 +1980,17 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
       isPdf: true,
       pdfOutline: widget.tab.outline,
       visibleLineIndices: _getVisibleLineIndicesForCurrentPage(),
+      header: MarkerNotesSection(
+        book: widget.tab.book,
+        pdf: true,
+        pdfController: () =>
+            MarkerPdfController.of(widget.tab.pdfViewerController),
+        onNavigate: (page) {
+          if (widget.tab.pdfViewerController.isReady) {
+            widget.tab.pdfViewerController.goToPage(pageNumber: page);
+          }
+        },
+      ),
       onNavigateToLine: (lineNumber, {note}) {
         // lineNumber הוא מספר שורה לוגי — ממירים אותו לעמוד דרך ה-heading
         // הקרוב לפניו, ונופלים לפרשנות-עמוד-ישירה בספרים ללא headings.
@@ -2272,7 +2303,8 @@ class _PdfCommentaryLinkItem extends StatelessWidget {
   final SettingsState settingsState;
   final double fontSize;
   final Function(OpenedTab) openBookCallback;
-  final List<AppContextMenuEntry> Function(BuildContext, Link) buildContextMenu;
+  final List<AppContextMenuEntry> Function(BuildContext, Link, Offset)
+  buildContextMenu;
   final String? Function() getSavedSelectedText;
   final String searchQuery;
   final Function(Link, int)? onSearchResultsCountUpdate;
@@ -2366,7 +2398,8 @@ class _PdfCommentaryLinkItem extends StatelessWidget {
                     ) ??
                     true; // לא הוכרע — סלחני
               },
-              menuBuilder: (menuCtx, _) => buildContextMenu(menuCtx, link),
+              menuBuilder: (menuCtx, tapPosition) =>
+                  buildContextMenu(menuCtx, link, tapPosition),
               child: CommentaryContent(
                 key: ValueKey(pdfCommentaryItemKey(link)),
                 link: link,
