@@ -134,19 +134,23 @@ SelectionParagraphs? readerSelectionParagraphs({
   bool Function(int line)? splitsAfter,
 }) {
   if (!layout.continuous) return null;
+  // השחזור שואל על כל שורה כמה פעמים, ובדיקת הבלוק (RegExp) יקרה.
+  final inParagraph = <int, bool>{};
+  bool inParagraphAt(int line) =>
+      inParagraph[line] ??= readerLineInParagraph(layout, lines, line);
   return (
     joinsNext: (windowLine) {
       final line = baseIndex + windowLine;
-      return readerLineInParagraph(layout, lines, line) &&
-          readerLineInParagraph(layout, lines, line + 1) &&
+      return inParagraphAt(line) &&
+          inParagraphAt(line + 1) &&
           layout.itemForLine(line) == layout.itemForLine(line + 1) &&
           !(splitsAfter?.call(line) ?? false);
     },
     headingAt: (windowLine) {
       final line = baseIndex + windowLine;
-      return readerLineInParagraph(layout, lines, line)
-          ? readerInlineHeading(sectionHeadings[line])
-          : null;
+      // נקרא לכל שורה בחלון, ולכן בדיקת הבלוק רק לשורה שיש לה כותרת.
+      final heading = readerInlineHeading(sectionHeadings[line]);
+      return heading != null && inParagraphAt(line) ? heading : null;
     },
   );
 }
