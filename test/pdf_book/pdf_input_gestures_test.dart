@@ -35,6 +35,7 @@ void main() {
   late Directory directory;
   late PdfBookTab tab;
   var tabSwipeUpdates = 0;
+  var autoScrollDistance = 0.0;
 
   setUp(() async {
     await Settings.init(cacheProvider: MemorySettingsCache());
@@ -50,6 +51,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => directory.path);
     tabSwipeUpdates = 0;
+    autoScrollDistance = 0.0;
   });
 
   tearDown(() {
@@ -144,7 +146,15 @@ void main() {
                           recognizer.onUpdate = (_) => tabSwipeUpdates++,
                     ),
               },
-              child: PdfBookScreen(tab: tab),
+              child: Listener(
+                onPointerSignal: (event) {
+                  if (event is PointerScrollEvent &&
+                      event.device == kAutoScrollSyntheticDevice) {
+                    autoScrollDistance += event.scrollDelta.dy;
+                  }
+                },
+                child: PdfBookScreen(tab: tab),
+              ),
             ),
           ),
         ),
@@ -430,6 +440,96 @@ void main() {
       },
     );
   }
+
+  // גלגלת בספר טקסט זזה 1:1 עם scrollDelta, ו-PDF זז באותו מרחק (issue #2960).
+  testWidgets('גלגלת מזיזה את ה-PDF כמו ספר טקסט, 1:1 עם scrollDelta', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final top = controller.value.getTranslation().y;
+    await wheel(tester, delta: 100);
+    expect(top - controller.value.getTranslation().y, closeTo(100, 1));
+    await finish(tester);
+  });
+
+  testWidgets('Ctrl+גלגלת מגדיל את ה-PDF פעם אחת לכל אירוע', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final dampening = tester
+        .widget<PdfViewer>(find.byType(PdfViewer))
+        .params
+        .scaleByPointerScale;
+    final zoom = controller.currentZoom;
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await wheel(tester, delta: -120);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    for (var frame = 0; frame < 60; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(
+      controller.currentZoom / zoom,
+      closeTo((1.2 - 1) * dampening + 1, 0.001),
+    );
+    await finish(tester);
+  });
+
+  testWidgets('נעילת הציר חלה על כל תנועת הגלגלת', (tester) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    await controller.setZoom(
+      controller.centerPosition,
+      controller.currentZoom * 2,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    final start = controller.value.getTranslation();
+    await tester.sendEventToBinding(
+      PointerScrollEvent(
+        position: tester.getCenter(find.byType(PdfViewer)),
+        scrollDelta: const Offset(30, 100),
+      ),
+    );
+    for (var frame = 0; frame < 30; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final end = controller.value.getTranslation();
+    expect(start.y - end.y, closeTo(100, 1));
+    expect(end.x, closeTo(start.x, 0.5));
+    await finish(tester);
+  });
+
+  testWidgets('גלילה אוטומטית ב-PDF זזה כמו בטקסט, 1:1 עם האירועים', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    final controller = tab.pdfViewerController;
+    final top = controller.value.getTranslation().y;
+    final center = tester.getCenter(find.byType(PdfViewer));
+    final gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      buttons: kMiddleMouseButton,
+    );
+    await gesture.down(center);
+    await tester.pump();
+    await gesture.up();
+    await gesture.moveTo(center + const Offset(0, 100));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.down(center);
+    await tester.pump();
+    await gesture.up();
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(autoScrollDistance, greaterThan(50));
+    expect(
+      top - controller.value.getTranslation().y,
+      closeTo(autoScrollDistance, 1),
+    );
+    await finish(tester);
+  });
 }
 
 class _TabsRepository implements TabsRepository {

@@ -144,15 +144,16 @@ dependencies:
 dependency_overrides:
   # TODO: לחזור ל-pub.dev לאחר שחרור תעדוף הרינדור והמטמונים, עם תאימות OCR ל-dev.
   # מנרמל העברית הקיים נשמר, כולל מגבלותיו בטקסט מעורב ובפיסוק מספרים.
+  # TODO: return to the official pdfrx release once the upstream fix (fix/wheel-pointer-signal-resolver) is merged and released
   pdfrx:
     git:
-      url: https://github.com/Y-PLONI/pdfrx
-      ref: 74726f6d46ef58783cc246d0c2f1f6551f2cf364
+      url: https://github.com/Otzaria/pdfrx
+      ref: f7574ec354d23df01224cf94173445a0590be045
       path: packages/pdfrx
   pdfrx_engine:
     git:
-      url: https://github.com/Y-PLONI/pdfrx
-      ref: 74726f6d46ef58783cc246d0c2f1f6551f2cf364
+      url: https://github.com/Otzaria/pdfrx
+      ref: f7574ec354d23df01224cf94173445a0590be045
       path: packages/pdfrx_engine
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
   # (קריאות WinRT ב-thread ייעודי, כולל תיקון ה-deadlock ב-invoke). עד אז הפורק

@@ -715,9 +715,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final TrackpadAxisLock _trackpadAxisLock = TrackpadAxisLock();
   final TrackpadAxisLock _trackpadPanAxisLock = TrackpadAxisLock();
 
-  // pan מוזרם במסלול הגלגלת, ולכן מחלקים במקדם הזה כדי לשמור על תנועה 1:1.
-  static const double _kScrollByMouseWheel = 0.2;
-
   // Pre-rendered spread cache: lets the page-turn animation start instantly
   // because the target spread snapshot is already in memory at click time.
   // Key = spread start page (1-indexed). Pages are rendered via pdfrx's
@@ -898,7 +895,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       PointerScrollEvent(
         kind: PointerDeviceKind.trackpad,
         position: globalPosition,
-        scrollDelta: scrollDelta / _kScrollByMouseWheel,
+        scrollDelta: scrollDelta,
       ),
     );
   }
@@ -1675,7 +1672,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
       },
       enableKeyboardNavigation: false,
       scrollByArrowKey: 25.0,
-      scrollByMouseWheel: _kScrollByMouseWheel,
+      // ברירת המחדל של pdfrx היא 0.2; 1.0 זז כמו גלגלת בספר טקסט.
+      scrollByMouseWheel: 1.0,
       textSelectionParams: PdfTextSelectionParams(enabled: !_isHandMode),
       // נעילת הציר מתבצעת ב-TrackpadPanRecognizer; PanAxis נועל גם אלכסונים.
       panAxis: PanAxis.free,
