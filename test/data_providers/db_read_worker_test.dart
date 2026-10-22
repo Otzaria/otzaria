@@ -352,6 +352,45 @@ void main() {
     expect('Stack:'.allMatches(log), hasLength(2));
   });
 
+  test('רק כשל של מסד פגום מסמן אותו, והחלפת המסד מנקה את הסימון', () async {
+    final validPath = await seedDb('seforim');
+    final corruptPath = await seedDb('corrupt');
+    // דף הכותרת נשאר שלם, וכל שאר הדפים נדרסים.
+    final bytes = File(corruptPath).readAsBytesSync();
+    final pageSize = bytes[16] << 8 | bytes[17];
+    bytes.fillRange(pageSize, bytes.length, 0xA5);
+    File(corruptPath).writeAsBytesSync(bytes);
+    addTearDown(() => DbReadWorker.corruptDatabaseDetected.value = false);
+
+    await expectLater(
+      DbReadWorker.request('commentatorsByBook', {
+        'dbPath': validPath,
+        'bookId': 'x',
+      }),
+      throwsStateError,
+    );
+    expect(DbReadWorker.corruptDatabaseDetected.value, isFalse);
+
+    await expectLater(
+      DbReadWorker.request('commentatorsByBook', {
+        'dbPath': corruptPath,
+        'bookId': 1,
+      }),
+      throwsA(
+        isA<StateError>().having(
+          (e) => e.message,
+          'message',
+          contains('SqliteException(11)'),
+        ),
+      ),
+    );
+    expect(DbReadWorker.corruptDatabaseDetected.value, isTrue);
+
+    await DbReadWorker.suspendForExternalWrite();
+    await DbReadWorker.resumeAfterExternalWrite();
+    expect(DbReadWorker.corruptDatabaseDetected.value, isFalse);
+  });
+
   test('בקשות של אותו סבב נשלחות ל-worker כהודעה אחת', () async {
     final dbPath = await seedDb('seforim');
     // מעלה את ה-worker, כדי שה-spawn לא ייספר.

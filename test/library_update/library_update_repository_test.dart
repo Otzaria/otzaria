@@ -1632,6 +1632,50 @@ void main() {
     expect(planner.seenLocalVersion, _IsolateRecordingReader.otherIsolate);
   });
 
+  test('מסד שסומן כפגום מקבל הורדה מלאה גם כשהוא בגרסה האחרונה', () async {
+    const schema = DatabaseConstants.readableDbSchemaVersion;
+    final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+    _writeDb(dbPath, version: 2, marker: 'current');
+    final repository = LibraryUpdateRepository(
+      discovery: LibraryUpdateDiscovery(
+        supportedDbSchemaVersion: schema,
+        client: GithubLibraryReleaseClient(
+          httpClient: MockClient(
+            (request) async => http.Response(
+              jsonEncode([
+                {
+                  'tag_name': 'v2',
+                  'draft': false,
+                  'prerelease': false,
+                  'assets': [
+                    {
+                      'name': 'seforim-schema$schema.db.zst',
+                      'browser_download_url': 'https://example.com/full',
+                      'size': 100,
+                    },
+                  ],
+                },
+              ]),
+              200,
+            ),
+          ),
+        ),
+      ),
+      downloader: _PatchMapDownloader(const {}),
+      dbPathProvider: () => dbPath,
+    );
+
+    final regular = await repository.checkForUpdate(allowPrerelease: false);
+    DbReadWorker.corruptDatabaseDetected.value = true;
+    addTearDown(() => DbReadWorker.corruptDatabaseDetected.value = false);
+    final forced = await repository.checkForUpdate(allowPrerelease: false);
+
+    expect(regular.kind, LibraryUpdatePlanKind.none);
+    expect(forced.kind, LibraryUpdatePlanKind.fullDownload);
+    expect(forced.targetVersion, 2);
+    expect(forced.fullDbAsset?.size, 100);
+  });
+
   test('release בסכמה חדשה ללא דלתא דורש עדכון אפליקציה', () async {
     const newer = DatabaseConstants.readableDbSchemaVersion + 1;
     final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
