@@ -41,6 +41,8 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   bool _showEditor = false;
   PluginCorrectionController? _controller;
   FocusNode? _focus;
+  FocusNode? _activationFocus;
+  Offset? _editPosition;
   String? _lastRejection;
   DateTime _lastRejectionAt = DateTime.fromMillisecondsSinceEpoch(0);
   PluginCorrectionSessionService get _registry =>
@@ -75,8 +77,10 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
   void _disposeEditor() {
     _controller?.dispose();
     _focus?.dispose();
+    _activationFocus?.dispose();
     _controller = null;
     _focus = null;
+    _activationFocus = null;
     _editable = false;
     _corrected = false;
     _showEditor = false;
@@ -84,6 +88,10 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
 
   void _focusChanged() {
     if (mounted) setState(() => _showEditor = _focus!.hasFocus);
+  }
+
+  void _activationFocusChanged() {
+    if (_activationFocus!.hasPrimaryFocus) _startEditing();
   }
 
   void _startEditing({Offset? position}) {
@@ -108,16 +116,17 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     if (_controller == null) {
       _controller = PluginCorrectionController(widget.sourceText);
       _focus = FocusNode()..addListener(_focusChanged);
+      _activationFocus = FocusNode()..addListener(_activationFocusChanged);
     }
     final controller = _controller!;
     controller.setSource(widget.sourceText);
-    final text = controller.forEditor(
-      _registry.editableText(
-        widget.tabId,
-        widget.sectionIndex,
-        widget.sourceText,
-      ),
+    final canonical = _registry.editableText(
+      widget.tabId,
+      widget.sectionIndex,
+      widget.sourceText,
     );
+    if (controller.forService(controller.text) == canonical) return false;
+    final text = controller.forEditor(canonical);
     if (controller.text == text) return false;
     final selection = controller.selection;
     controller.value = TextEditingValue(
@@ -208,12 +217,11 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     _corrected = _isCorrected;
     if (!_showEditor && !_corrected) {
       return Focus(
-        onFocusChange: (focused) {
-          if (focused) _startEditing();
-        },
+        focusNode: _activationFocus,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onTapUp: (details) => _startEditing(position: details.globalPosition),
+          onDoubleTapDown: (details) => _editPosition = details.globalPosition,
+          onDoubleTap: () => _startEditing(position: _editPosition),
           child: widget.original,
         ),
       );
@@ -274,6 +282,7 @@ class _PluginCorrectionParagraphState extends State<PluginCorrectionParagraph> {
     _registry.removeListener(_changed);
     _controller?.dispose();
     _focus?.dispose();
+    _activationFocus?.dispose();
     super.dispose();
   }
 }

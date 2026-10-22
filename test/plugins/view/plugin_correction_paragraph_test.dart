@@ -6,6 +6,7 @@ import 'package:otzaria/plugins/services/plugin_correction_session_service.dart'
 import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import '../../test_helpers/activate_correction_paragraph.dart';
 
 class _CountingService extends PluginCorrectionSessionService {
   int editableTextCalls = 0;
@@ -110,7 +111,7 @@ void main() {
     );
     expect(find.text('קריאה'), findsOneWidget);
     expect(find.byType(RtlTextField), findsNothing);
-    await tester.tap(find.text('קריאה'));
+    await activateCorrectionParagraph(tester, find.text('קריאה'));
     await tester.pump();
     expect(find.byType(RtlTextField), findsOneWidget);
     expect(

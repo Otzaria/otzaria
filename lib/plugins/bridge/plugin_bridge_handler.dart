@@ -152,6 +152,7 @@ class PluginBridgeHandler {
       method == 'ui.printFile' ||
       method == 'ui.exportPdf' ||
       method == 'reader.printRange' ||
+      // החלטה אנושית אינה מוגבלת בזמן; סגירת ה-host מבטלת את הדיאלוג.
       method == 'ui.showConfirm' ||
       method == 'feedback.report' ||
       method == 'feedback.submitBookCorrection';

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart';
@@ -6,6 +7,8 @@ import 'package:otzaria/plugins/repository/plugin_correction_draft_repository.da
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/plugins/view/plugin_correction_paragraph.dart';
 import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import '../../test_helpers/activate_correction_paragraph.dart';
 
 Future<PluginCorrectionSessionService> _begin(
   WidgetTester tester,
@@ -36,6 +39,7 @@ Future<void> _pumpEditor(
   int section = 0,
   Brightness brightness = Brightness.light,
   bool activate = true,
+  Widget? original,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -48,7 +52,7 @@ Future<void> _pumpEditor(
             sectionIndex: section,
             sourceText: source,
             settings: const RenderSettings(fontSize: 20),
-            original: const Text('קריאה'),
+            original: original ?? const Text('קריאה'),
             service: service,
             sessionActive: true,
           ),
@@ -57,7 +61,7 @@ Future<void> _pumpEditor(
     ),
   );
   if (activate && find.byType(EditableText).evaluate().isEmpty) {
-    await tester.tap(find.text('קריאה'));
+    await activateCorrectionParagraph(tester, find.text('קריאה'));
     await tester.pump();
   }
 }
@@ -102,6 +106,137 @@ TextStyle _styleAt(TextSpan span, int offset, [TextStyle? inherited]) {
 }
 
 void main() {
+  testWidgets('הקשה, קישור, הערה, פוקוס צאצא ובחירה משמרים את המקור', (
+    tester,
+  ) async {
+    const source = 'קישור הערה';
+    const originalKey = ValueKey('selectable-original');
+    final service = await _begin(tester, [source]);
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    var links = 0;
+    var notes = 0;
+    final link = TapGestureRecognizer()..onTap = () => links++;
+    final note = TapGestureRecognizer()..onTap = () => notes++;
+    addTearDown(link.dispose);
+    addTearDown(note.dispose);
+    await _pumpEditor(
+      tester,
+      service,
+      source,
+      activate: false,
+      original: SelectableText.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: 'קישור', recognizer: link),
+            TextSpan(text: ' הערה', recognizer: note),
+          ],
+        ),
+        key: originalKey,
+        focusNode: focus,
+        style: const TextStyle(fontSize: 20),
+      ),
+    );
+    final originalElement = tester.element(find.byKey(originalKey));
+    final selectable = find.descendant(
+      of: find.byKey(originalKey),
+      matching: find.byType(EditableText),
+    );
+    final state = tester.state<EditableTextState>(selectable);
+    Offset point(int offset) => state.renderEditable.localToGlobal(
+      state.renderEditable
+          .getLocalRectForCaret(TextPosition(offset: offset))
+          .center,
+    );
+    await tester.tapAt(point(1));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(links, 1);
+    expect(find.byType(RtlTextField), findsNothing);
+    expect(tester.element(find.byKey(originalKey)), same(originalElement));
+    await tester.tapAt(point(7));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(notes, 1);
+    expect(find.byType(RtlTextField), findsNothing);
+    focus.requestFocus();
+    await tester.pump();
+    await tester.dragFrom(
+      point(1),
+      point(8) - point(1),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(focus.hasFocus, isTrue);
+    expect(state.widget.controller.selection.isCollapsed, isFalse);
+    expect(find.byType(RtlTextField), findsNothing);
+    expect(service.isCorrected('tab', 0, source), isFalse);
+    await _finish(tester, service);
+  });
+
+  testWidgets('רווח שהוקלד אחרי הסרת שולי HTML אינו מבטל IME בהד חוזר', (
+    tester,
+  ) async {
+    const source = '<br><b>אב</b><br>';
+    final service = await _begin(tester, [source, 'אחר']);
+    service.editParagraph('tab', 0, source, 'אם');
+    await _pumpEditor(tester, service, source);
+    await tester.showKeyboard(find.byType(EditableText));
+    const input = TextEditingValue(
+      text: ' אמת ',
+      selection: TextSelection.collapsed(offset: 4),
+      composing: TextRange(start: 1, end: 4),
+    );
+    tester.testTextInput.updateEditingValue(input);
+    await tester.pump();
+    service.editParagraph('tab', 1, 'אחר', 'חדש');
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(_editor(tester).controller.value, input);
+    expect(service.editableText('tab', 0, source), input.text);
+    expect(_editor(tester).focusNode.hasFocus, isTrue);
+    await _finish(tester, service);
+  });
+
+  testWidgets('מאפיינים רגילים שומרים בולד בעורך המחובר', (tester) async {
+    const source = '<b class="bold">אב</b>';
+    final service = await _begin(tester, [source]);
+    await _pumpEditor(tester, service, source);
+    expect(_styleAt(_renderedSpan(tester), 0).fontWeight, FontWeight.bold);
+    await _finish(tester, service);
+  });
+
+  testWidgets('מאפיין עם סוגר תג מצוטט שאינו קנוני נשאר במקור', (tester) async {
+    const source = '<b title="x > y">אב</b>';
+    final service = await _begin(tester, [source]);
+    await _pumpEditor(tester, service, source, activate: false);
+    await activateCorrectionParagraph(tester, find.text('קריאה'));
+    expect(find.text('קריאה'), findsOneWidget);
+    expect(find.byType(RtlTextField), findsNothing);
+    await _finish(tester, service);
+  });
+  for (final source in [
+    '<br><b>אב</b>',
+    '<b>אב</b><br>',
+    '<br><b>אב</b><br>',
+  ]) {
+    testWidgets('תיקון מקלדת אינו משכפל שולי בלוק שנמחקו: $source', (
+      tester,
+    ) async {
+      final service = await _begin(tester, [source]);
+      service.editParagraph('tab', 0, source, 'אם');
+      await _pumpEditor(tester, service, source);
+      expect(_editor(tester).controller.text, 'אם');
+      await tester.showKeyboard(find.byType(EditableText));
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'אמת',
+          selection: TextSelection.collapsed(offset: 3),
+        ),
+      );
+      await tester.pump();
+      expect(service.editableText('tab', 0, source), 'אמת');
+      await _finish(tester, service);
+    });
+  }
+
   final styles = <String, Matcher>{
     'b': predicate<TextStyle>((style) => style.fontWeight == FontWeight.bold),
     'i': predicate<TextStyle>((style) => style.fontStyle == FontStyle.italic),
@@ -245,6 +380,10 @@ void main() {
     await tester.pump();
     expect(_renderedSpan(tester).toPlainText(), '  אם  גד  ');
     expect(service.editableText('tab', 0, source), '   אם  גד   ');
+    expect(
+      tester.getTopRight(find.byType(EditableText)).dx,
+      tester.getTopRight(find.byType(PluginCorrectionParagraph)).dx,
+    );
     await _finish(tester, service);
   });
 
@@ -256,7 +395,7 @@ void main() {
     await _pumpEditor(tester, service, source, activate: false);
     expect(find.text('קריאה'), findsOneWidget);
     expect(find.byType(EditableText), findsNothing);
-    await tester.tap(find.text('קריאה'));
+    await activateCorrectionParagraph(tester, find.text('קריאה'));
     await tester.pump();
     await tester.showKeyboard(find.byType(EditableText));
     _editor(tester).focusNode.unfocus();
@@ -264,7 +403,7 @@ void main() {
     expect(find.text('קריאה'), findsOneWidget);
     expect(find.byType(EditableText), findsNothing);
     expect(service.isCorrected('tab', 0, source), isFalse);
-    await tester.tap(find.text('קריאה'));
+    await activateCorrectionParagraph(tester, find.text('קריאה'));
     await tester.pump();
     await tester.showKeyboard(find.byType(EditableText));
     tester.testTextInput.updateEditingValue(
@@ -300,7 +439,7 @@ void main() {
     await _finish(tester, service);
   });
 
-  testWidgets('קליק בקצה הימני של המקור ממקם סמן בתחילת הטקסט', (
+  testWidgets('דאבל קליק בקצה הימני של המקור ממקם סמן בתחילת הטקסט', (
     tester,
   ) async {
     const source = 'אב גד';
@@ -327,7 +466,11 @@ void main() {
       ),
     );
     final rect = tester.getRect(find.text(source));
-    await tester.tapAt(Offset(rect.right - 1, rect.center.dy));
+    await activateCorrectionParagraph(
+      tester,
+      find.text(source),
+      position: Offset(rect.right - 1, rect.center.dy),
+    );
     await tester.pump();
     await tester.pump();
     expect(find.byType(EditableText), findsOneWidget);

@@ -2396,6 +2396,7 @@ const { data: session } = await Otzaria.call('reader.beginCorrectionSession', {
 אין שינוי גבולות פסקה, והיסטים נמדדים ביחידות UTF-16 בטקסט הקנוני.
 פסקת מקור ריקה אינה ניתנת לעריכה בתוך הקורא. בקריאה רציפה יש שדה נפרד לכל
 פסקת מקור נתמכת, ואינדקסי המקור נשמרים.
+פסקה שטרם תוקנה שומרת את תצוגת המקור ואת הקישורים, ההערות והבחירה שלה. כניסה לעריכה נעשית בלחיצה כפולה או במיקוד ישיר באמצעות Tab; מיקוד בתוך תוכן הפסקה אינו מפעיל את העורך.
 
 היכולות הן `plainTextOnly: true`, `htmlSource: true`, `paragraphBoundaries: false`, `offsetUnit: 'utf16'`,
 `maxChanges: 500`, `maxTextLength: 20000` ו־`maxChangesBytes: 1048576`.
@@ -3172,6 +3173,7 @@ Otzaria.on('ui.messageClicked', (data) => {
 **הרשאה:** `ui.feedback`
 
 הצגת דיאלוג אישור. הקריאה ממתינה להחלטת המשתמש ואינה נחתכת בתקרת ה־RPC הכללית של 30 שניות.
+מופע תוסף יכול להציג דיאלוג אישור אחד בכל רגע. ההגבלה חלה גם על אישורים מובנים שאוצריא מציגה בשם התוסף (פתיחת קישור חיצוני, יצירת קיצור דרך, `feedback.report`); בקשה מקבילה מחזירה `error.conflict`. סגירת החלון או המופע מסירה את דיאלוג האישור שלו ומסיימת אותו עם `confirmed: false`.
 
 ```javascript
 const { data } = await Otzaria.call('ui.showConfirm', {

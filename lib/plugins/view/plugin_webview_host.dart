@@ -22,6 +22,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_adapter.dart';
 import 'package:otzaria/plugins/bridge/plugin_bridge_handler.dart';
+import 'package:otzaria/plugins/view/plugin_confirmation_dialog.dart';
 import 'package:otzaria/plugins/bridge/plugin_reference_resolver.dart';
 import 'package:otzaria/plugins/bridge/plugin_save_target.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
@@ -128,6 +129,7 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
   late final FindRefRepository _findRefRepository;
   late final PluginBridgeWindowDependencies Function()
   _initialWindowDependencies;
+  final _confirmationDialog = PluginConfirmationDialog();
   DateTime? _lastFileServerDenialLogAt;
   Future<PluginNetworkPolicy>? _networkPolicy;
   StreamSubscription<String?>? _networkPolicyChanges;
@@ -222,14 +224,11 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
           }) async {
             final ctx = adapter.rpcWindowContext ?? dialogContext;
             if (ctx == null || !ctx.mounted) return false;
-            return await showTwoActionsDialog(
-                  context: ctx,
-                  title: title,
-                  content: content,
-                  cancelText: 'ביטול',
-                  confirmText: 'אישור',
-                ) ==
-                true;
+            return _confirmationDialog.show(
+              context: ctx,
+              title: title,
+              content: content,
+            );
           },
       showWarningDialog:
           ({
@@ -450,6 +449,7 @@ mixin PluginWebViewHost<T extends StatefulWidget> on State<T> {
     void Function()? afterAdapter,
     void Function()? onOwnerClosed,
   }) {
+    _confirmationDialog.dispose();
     _findRefRepository.dispose();
     unawaited(_networkPolicyChanges?.cancel());
     final pluginId = plugin.pluginId;

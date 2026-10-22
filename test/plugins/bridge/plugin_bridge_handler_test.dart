@@ -1242,6 +1242,28 @@ void main() {
     });
   }
 
+  testWidgets('ui.showConfirm keeps the parallel-dialog conflict code', (
+    tester,
+  ) async {
+    final handler = PluginBridgeHandler(
+      _buildInstalledPlugin(permissions: const ['ui.feedback']),
+      adapter: _FakeAdapter(
+        errorToThrow: Exception(
+          'error.conflict: כבר פתוח דיאלוג אישור של מופע התוסף.',
+        ),
+      ),
+      registry: _StubRegistry(true),
+    );
+    final response = await handler.handleRpcForTesting([
+      {
+        'method': 'ui.showConfirm',
+        'payload': {'title': 'אישור', 'content': 'שליחה?'},
+      },
+    ]);
+    expect(response['error']['code'], 'error.conflict');
+    expect(response['error']['category'], 'conflict');
+  });
+
   testWidgets('ui.showConfirm still requires permission', (tester) async {
     final adapter = _FakeAdapter(result: true);
     final handler = PluginBridgeHandler(

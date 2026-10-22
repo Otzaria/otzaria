@@ -37,6 +37,88 @@ class _StyledController extends TextEditingController {
 }
 
 void main() {
+  for (final composing in [
+    TextRange.empty,
+    const TextRange(start: 1, end: 4),
+  ]) {
+    for (final withComposing in [false, true]) {
+      testWidgets(
+        'controller רגיל שקול לקודם: composing=$composing, paint=$withComposing',
+        (
+          tester,
+        ) async {
+          final controller = TextEditingController.fromValue(
+            TextEditingValue(
+              text: 'אב\nגד',
+              selection: const TextSelection.collapsed(offset: 4),
+              composing: composing,
+            ),
+          );
+          addTearDown(controller.dispose);
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: RtlTextField(controller: controller, maxLines: null),
+              ),
+            ),
+          );
+          void matchesPreviousController() {
+            final editor = tester.widget<EditableText>(
+              find.byType(EditableText),
+            );
+            final reference = TextEditingController.fromValue(
+              editor.controller.value,
+            );
+            final context = tester.element(find.byType(EditableText));
+            final actual = editor.controller.buildTextSpan(
+              context: context,
+              style: editor.style,
+              withComposing: withComposing,
+            );
+            final expected = reference.buildTextSpan(
+              context: context,
+              style: editor.style,
+              withComposing: withComposing,
+            );
+            expect(actual.toPlainText(), editor.controller.text);
+            expect(actual.compareTo(expected), RenderComparison.identical);
+            reference.dispose();
+          }
+
+          matchesPreviousController();
+          await tester.showKeyboard(find.byType(EditableText));
+          tester.testTextInput.updateEditingValue(
+            TextEditingValue(
+              text: 'אבו\nגד',
+              selection: const TextSelection.collapsed(offset: 6),
+              composing: composing.isValid
+                  ? const TextRange(start: 2, end: 6)
+                  : TextRange.empty,
+            ),
+          );
+          await tester.pump();
+          matchesPreviousController();
+          tester.testTextInput.updateEditingValue(
+            const TextEditingValue(
+              text: 'אבו\nגד',
+              selection: TextSelection.collapsed(offset: 6),
+            ),
+          );
+          await tester.pump();
+          matchesPreviousController();
+          controller.value = TextEditingValue(
+            text: 'חדש\nאב',
+            selection: const TextSelection.collapsed(offset: 6),
+            composing: composing,
+          );
+          await tester.pump();
+          matchesPreviousController();
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+  }
+
   testWidgets('CRLF קיים נשמר גם כשהספאנים מפצלים את מעבר השורה', (
     tester,
   ) async {

@@ -36,6 +36,7 @@ import 'package:otzaria/widgets/text/selection_copy_shortcuts.dart';
 import '../../../support/search_engine_test_init.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import '../../../test_helpers/memory_cache_provider.dart';
+import '../../../test_helpers/activate_correction_paragraph.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -213,7 +214,8 @@ void main() {
             matching: find.byType(RtlTextField),
           );
           expect(editorFinder, findsNothing);
-          await tester.tap(
+          await activateCorrectionParagraph(
+            tester,
             find.descendant(
               of: find.byKey(keys.first),
               matching: find.byWidgetPredicate(
@@ -460,7 +462,8 @@ void main() {
 
         id = await begin();
         expect(find.byType(RtlTextField), findsNothing);
-        await tester.tap(
+        await activateCorrectionParagraph(
+          tester,
           find.byWidgetPredicate(
             (widget) =>
                 widget is PluginCorrectionParagraph && widget.sectionIndex == 0,

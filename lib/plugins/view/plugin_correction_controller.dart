@@ -4,11 +4,24 @@ import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 
 /// בקר ששומר את סגנון המקור של התווים גם במהלך עריכה רגילה ו-IME.
 class PluginCorrectionController extends TextEditingController {
+  static final _styleTag = RegExp(
+    r'^<(/?)(b|strong|i|em|u|big|small)(?=[\s/>])',
+    caseSensitive: false,
+  );
   late PluginCorrectionText source;
   List<int> _origins = [];
   String? _styledSource;
   TextStyle? _baseStyle;
   List<TextStyle> _styles = [];
+  String _prefix = '';
+  String _suffix = '';
+  TextSpan? _plainSpan;
+  TextSpan? _composingSpan;
+
+  void _invalidateSpans() {
+    _plainSpan = null;
+    _composingSpan = null;
+  }
 
   PluginCorrectionController(String raw) {
     setSource(raw);
@@ -19,36 +32,38 @@ class PluginCorrectionController extends TextEditingController {
     source = PluginCorrectionText(raw);
     _styledSource = raw;
     _baseStyle = null;
-    final visible = source.plain.substring(
-      source.visibleStart,
-      source.visibleEnd,
-    );
-    super.value = TextEditingValue(text: visible);
+    _invalidateSpans();
+    final visible = forEditor(source.plain);
     _origins = List.generate(
       visible.length,
       (index) => source.visibleStart + index,
     );
+    super.value = TextEditingValue(text: visible);
   }
 
   String forEditor(String canonical) {
     final prefix = source.plain.substring(0, source.visibleStart);
     final suffix = source.plain.substring(source.visibleEnd);
+    _prefix = '';
+    _suffix = '';
     if (!canonical.startsWith(prefix) ||
         !canonical.endsWith(suffix) ||
         canonical.length < prefix.length + suffix.length) {
       return canonical;
     }
+    _prefix = prefix;
+    _suffix = suffix;
     return canonical.substring(prefix.length, canonical.length - suffix.length);
   }
 
-  String forService(String visible) =>
-      source.plain.substring(0, source.visibleStart) +
-      visible +
-      source.plain.substring(source.visibleEnd);
+  String forService(String visible) => _prefix + visible + _suffix;
 
   @override
   set value(TextEditingValue next) {
     final previous = text;
+    if (previous != next.text || value.composing != next.composing) {
+      _invalidateSpans();
+    }
     if (previous != next.text) {
       var prefix = 0;
       while (prefix < previous.length &&
@@ -63,9 +78,24 @@ class PluginCorrectionController extends TextEditingController {
               next.text.codeUnitAt(next.text.length - suffix - 1)) {
         suffix++;
       }
+      final selection = value.selection;
+      final insertedLength =
+          next.text.length - previous.length + selection.end - selection.start;
+      if (selection.isValid &&
+          selection.end <= previous.length &&
+          insertedLength >= 0 &&
+          next.selection.isCollapsed &&
+          next.selection.extentOffset == selection.start + insertedLength &&
+          previous.substring(0, selection.start) ==
+              next.text.substring(0, selection.start) &&
+          previous.substring(selection.end) ==
+              next.text.substring(selection.start + insertedLength)) {
+        prefix = selection.start;
+        suffix = previous.length - selection.end;
+      }
       final origin = _origins.isEmpty
           ? source.visibleStart
-          : _origins[prefix.clamp(0, _origins.length - 1)];
+          : _origins[(prefix - 1).clamp(0, _origins.length - 1)];
       _origins = [
         ..._origins.take(prefix),
         ...List.filled(next.text.length - prefix - suffix, origin),
@@ -78,20 +108,21 @@ class PluginCorrectionController extends TextEditingController {
   void _styleSource(TextStyle base) {
     if (_baseStyle == base) return;
     _baseStyle = base;
+    _invalidateSpans();
     final heading = SimpleInlineHtml.headingStyle(source.source, base) ?? base;
     _styles = List.filled(source.plain.length, heading);
-    final tags = RegExp(r'<[^>]*>').allMatches(source.source).iterator;
+    final tags = source.tags.iterator;
     var hasTag = tags.moveNext();
     final open = <String>[];
     for (final node in source.nodes) {
       final rawStart = node.boundaries[0]!;
       while (hasTag && tags.current.end <= rawStart) {
-        final tag = tags.current[0]!;
-        final match = RegExp(
-          r'^<(/?)(b|strong|i|em|u|big|small)\s*>$',
-          caseSensitive: false,
-        ).firstMatch(tag);
-        if (match != null) {
+        final tag = source.source.substring(
+          tags.current.start,
+          tags.current.end,
+        );
+        final match = _styleTag.firstMatch(tag);
+        if (match != null && !tag.endsWith('/>')) {
           final name = match[2]!.toLowerCase();
           if (match[1] == '/') {
             final index = open.lastIndexOf(name);
@@ -128,23 +159,19 @@ class PluginCorrectionController extends TextEditingController {
   }) {
     final base = style ?? const TextStyle();
     _styleSource(base);
+    final cached = withComposing ? _composingSpan : _plainSpan;
+    if (cached != null) return cached;
     final spans = <TextSpan>[];
     final composing = value.composing;
     TextStyle at(int index) {
       final origin = _origins[index];
-      var result = origin < _styles.length ? _styles[origin] : base;
-      if (withComposing &&
-          composing.isValid &&
-          index >= composing.start &&
-          index < composing.end) {
-        result = result.copyWith(
-          decoration: TextDecoration.combine([
-            if (result.decoration != null) result.decoration!,
-            TextDecoration.underline,
-          ]),
-        );
+      return origin < _styles.length ? _styles[origin] : base;
+    }
+
+    void add(int start, int end, TextStyle style) {
+      if (start < end) {
+        spans.add(TextSpan(text: text.substring(start, end), style: style));
       }
-      return result;
     }
 
     var start = 0;
@@ -154,9 +181,34 @@ class PluginCorrectionController extends TextEditingController {
       while (end < text.length && at(end) == current) {
         end++;
       }
-      spans.add(TextSpan(text: text.substring(start, end), style: current));
+      final composingStart = composing.start.clamp(start, end);
+      final composingEnd = composing.end.clamp(start, end);
+      if (withComposing &&
+          value.isComposingRangeValid &&
+          composingStart < composingEnd) {
+        add(start, composingStart, current);
+        add(
+          composingStart,
+          composingEnd,
+          current.copyWith(
+            decoration: TextDecoration.combine([
+              if (current.decoration != null) current.decoration!,
+              TextDecoration.underline,
+            ]),
+          ),
+        );
+        add(composingEnd, end, current);
+      } else {
+        add(start, end, current);
+      }
       start = end;
     }
-    return TextSpan(style: base, children: spans);
+    final result = TextSpan(style: base, children: spans);
+    if (withComposing) {
+      _composingSpan = result;
+    } else {
+      _plainSpan = result;
+    }
+    return result;
   }
 }

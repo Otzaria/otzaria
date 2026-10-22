@@ -7,11 +7,14 @@ class PluginCorrectionText {
   final String source;
   late final String plain;
   final List<CorrectionTextNode> nodes = [];
+  late final List<({int start, int end})> tags = List.unmodifiable(
+    _scanTags(source),
+  );
 
   PluginCorrectionText(this.source) {
     final output = StringBuffer();
     var offset = 0;
-    for (final tag in _scanTags(source)) {
+    for (final tag in tags) {
       _addNode(offset, tag.start, output);
       output.write(
         TextRendererService.stripHtml(source.substring(tag.start, tag.end)),
