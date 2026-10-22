@@ -771,7 +771,7 @@ class _CombinedViewState extends State<CombinedView> {
   /// (מתבטלת אם הסמן נכנס לחלונית עצמה או חוזר לעוגן).
   void _handleAnchorHoverExit(String url) {
     _cancelPendingAnchorHover();
-    LinkPreviewOverlay.scheduleHide(AppWindowKeys.of(context));
+    LinkPreviewOverlay.scheduleHide(_previewWindow);
   }
 
   late final ReadingViewportBinding _viewportBinding = ReadingViewportBinding(

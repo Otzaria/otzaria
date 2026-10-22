@@ -2899,6 +2899,14 @@ class _NotesCommentaryWidget extends StatefulWidget {
 class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
   String? _selectedText;
   final Object _selectionOwner = Object();
+  // onExit של ספאן מגיע גם אחרי שהווידג'ט הוסר מהעץ, וכבר אין context.
+  late final AppWindowKeys _previewWindow;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewWindow = AppWindowKeys.of(context);
+  }
 
   void _onNotesSelectionChanged(String? text) {
     _selectedText = text;
@@ -3094,9 +3102,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
                             onAnchorTap: _openAnchor,
                             onAnchorHover: _previewAnchor,
                             onAnchorHoverExit: (_) =>
-                                LinkPreviewOverlay.scheduleHide(
-                                  AppWindowKeys.of(context),
-                                ),
+                                LinkPreviewOverlay.scheduleHide(_previewWindow),
                           ),
                         );
                       }),
