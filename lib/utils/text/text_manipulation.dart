@@ -2058,21 +2058,16 @@ Set<String> titleMatchTokensOf(List<String> tokens) {
 /// ציטוט דף מנותח: מספר הדף ועמוד אופציונלי ("א"/"ב").
 typedef DafCitation = ({String number, String? amud});
 
-/// "סימן"/"סי'" בציטוט שו"ת הוא היחידה שבתוכן העניינים נקראת "שאלה"/"תשובה".
-const Map<String, List<String>> _structureWordAlternatives = {
-  'סימן': ['סימן', 'שאלה', 'תשובה'],
-  'סי': ['סי', 'סימן', 'שאלה', 'תשובה'],
-};
+/// בשו"ת היחידה שמצוטטת "סימן" נקראת בתוכן העניינים לעתים "שאלה"/"תשובה".
+const List<String> responsaUnitWords = ['שאלה', 'תשובה'];
+
+/// "סימן" או קיצורו "סי'" — ראו [responsaUnitWords].
+bool isStructureWord(String token) => token == 'סימן' || token == 'סי';
 
 /// מחזיר טוקן + גרסת טרנספוזיציה לאותיות עבריות דו-תווניות.
 /// לדוגמה: "טל" → ["טל", "לט"] (שתי שיטות מניין עבריות ל-39).
-/// מילת מבנה מקבלת את חלופותיה ([_structureWordAlternatives]), המילולית קודם.
-List<String> hebrewTokenAlternatives(
-  String token, {
-  bool structureWords = true,
-}) {
-  final structure = structureWords ? _structureWordAlternatives[token] : null;
-  if (structure != null) return structure;
+List<String> hebrewTokenAlternatives(String token) {
+  if (token == 'סי') return const ['סי', 'סימן'];
   if (token.length == 2) {
     final c0 = token.codeUnitAt(0);
     final c1 = token.codeUnitAt(1);

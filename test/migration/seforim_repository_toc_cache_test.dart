@@ -685,6 +685,61 @@ void main() {
         expect(results.map((r) => r['reference']), ['תשובות סימן ה']);
       });
 
+      test('"תשובה" בשם הספר אינה מחליפה את "סימן"', () async {
+        final catId = await createCategory();
+        final bookId = await createBook(catId, 'שערי תשובה');
+        await insertLines(bookId, ['l0', 'l1']);
+        final root = await insertToc(
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'שערי תשובה',
+          level: 0,
+        );
+        await insertToc(
+          bookId: bookId,
+          lineIndex: 1,
+          text: 'פרק א',
+          level: 1,
+          parentId: root,
+        );
+        await repository.updateTocEntryLineIdsByLineIndex(bookId);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'שערי תשובה',
+          queryTokens: ['סימן', 'א'],
+        );
+        expect(results, isEmpty);
+      });
+
+      test('"סימן" אחרי "הלכות תשובה" אינו נבלע כחזרה על "תשובה"', () async {
+        final catId = await createCategory();
+        final bookId = await createBook(catId, 'משנה תורה');
+        await insertLines(bookId, ['l0', 'l1']);
+        final hilchot = await insertToc(
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'הלכות תשובה',
+          level: 1,
+        );
+        await insertToc(
+          bookId: bookId,
+          lineIndex: 1,
+          text: 'פרק א',
+          level: 2,
+          parentId: hilchot,
+        );
+        await repository.updateTocEntryLineIdsByLineIndex(bookId);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'משנה תורה',
+          queryTokens: ['הלכות', 'תשובה', 'סימן', 'א'],
+        );
+        expect(
+          results.map((r) => r['reference']),
+          isNot(contains('משנה תורה הלכות תשובה פרק א')),
+        );
+      });
+
       for (final (headings, expected) in [
         (['תשובה ה'], ['תשובה ה']),
         (['תשובה ה', 'סימן ה'], ['סימן ה']),
