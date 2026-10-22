@@ -146,6 +146,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   /// שהמנוע בנה, ולכן הוא מדווח "מילים שלמות" ללא תלות במתג.
   bool get _effectiveWholeWord => _isSimpleSearch ? _wholeWord : true;
 
+  String? _searchableQuery(String raw) => _effectiveWholeWord
+      ? searchableInBookQuery(raw)
+      : searchableInBookQueryWithEdges(raw);
+
   static const int _maxResultSnippetChars = 220;
 
   bool _searchOptionsEqual(
@@ -277,7 +281,9 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     final controllerQuery = searchTextController.text;
     final needsControllerSync =
         widget.initialQuery != controllerQuery &&
-        widget.initialQuery != (searchableInBookQuery(controllerQuery) ?? '');
+        widget.initialQuery != (searchableInBookQuery(controllerQuery) ?? '') &&
+        widget.initialQuery !=
+            (searchableInBookQueryWithEdges(controllerQuery) ?? '');
     final normalizedSearchMode = widget.initialSearchMode;
     final searchConfigurationChanged =
         !_searchOptionsEqual(_searchOptions, widget.initialSearchOptions) ||
@@ -399,7 +405,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
   Future<void> _searchTextUpdated() async {
     final requestId = ++_activeSearchRequestId;
-    final searchable = searchableInBookQuery(searchTextController.text);
+    final searchable = _searchableQuery(searchTextController.text);
     if (searchable == null) {
       setState(() {
         searchResults = [];
@@ -1066,7 +1072,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         final activeParameters = _activeSearchParameters;
         context.read<TextBookBloc>().add(
           UpdateSearchText(
-            searchableInBookQuery(value) ?? '',
+            _searchableQuery(value) ?? '',
             searchOptions: activeParameters.searchOptions,
             alternativeWords: activeParameters.alternativeWords,
             spacingValues: activeParameters.customSpacing,

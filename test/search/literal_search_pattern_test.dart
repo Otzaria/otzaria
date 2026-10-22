@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
 import '../support/search_engine_test_init.dart';
 import '../text_book/utils/literal_pattern_test_helper.dart';
@@ -147,4 +148,103 @@ Future<void> main() async {
       }
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
+
+  group('literalQueryWordEdges', () {
+    test('מזהה רווח בקצוות, ולא בשאילתה ריקה', () {
+      expect(literalQueryWordEdges('כם '), (start: false, end: true));
+      expect(literalQueryWordEdges('  וה'), (start: true, end: false));
+      expect(literalQueryWordEdges(' אב גד '), (start: true, end: true));
+      expect(literalQueryWordEdges('אב גד'), (start: false, end: false));
+      expect(literalQueryWordEdges('   '), (start: false, end: false));
+    });
+  });
+
+  group('buildLiteralPattern — רווח בקצה בהתאמה חלקית (issue #2679)', () {
+    List<String> partialWords(String query, String line) => [
+      for (final m in buildLiteralPattern(
+        query,
+        wholeWord: false,
+      )!.regExp.allMatches(line))
+        _wordAt(line, m.start),
+    ];
+
+    const line = 'לכם כמה הכמות עליכם ובהם וההר והם שווה';
+
+    test('רווח בסוף: רק מילים שמסתיימות בצירוף', () {
+      expect(partialWords('כם', line), ['לכם', 'כמה', 'הכמות', 'עליכם']);
+      expect(partialWords('כם ', line), ['לכם', 'עליכם']);
+    });
+
+    test('רווח בהתחלה: רק מילים שמתחילות בצירוף', () {
+      expect(partialWords('וה', line), ['וההר', 'והם', 'שווה']);
+      expect(partialWords(' וה', line), ['וההר', 'והם']);
+    });
+
+    test('רווח בשני הצדדים: מילה שלמה', () {
+      expect(partialWords(' והם ', line), ['והם']);
+      expect(partialWords(' הם ', 'הם ובהם הםם'), ['הם']);
+    });
+
+    test('רווח בסוף משאיר אות סופית סופית', () {
+      expect(partialWords('מלך', 'המלכים מלך'), ['המלכים', 'מלך']);
+      expect(partialWords('מלך ', 'המלכים המלך'), ['המלך']);
+    });
+
+    test('ביטוי של כמה מילים מעוגן רק בקצה המסומן', () {
+      expect(partialWords('שמע ישראל ', 'ושמע ישראלים ושמע ישראל'), [
+        'ושמע',
+      ]);
+    });
+
+    test('במילים שלמות ובאות אחת הרווח אינו משנה', () {
+      for (final q in ['כם', 'פ']) {
+        expect(
+          buildLiteralPattern(' $q ', wholeWord: true)!.source,
+          buildLiteralPattern(q, wholeWord: true)!.source,
+        );
+      }
+      expect(
+        buildLiteralPattern('פ ', wholeWord: false)!.source,
+        buildLiteralPattern('פ', wholeWord: false)!.source,
+      );
+      expect(buildLiteralPattern('   ', wholeWord: false), isNull);
+    });
+
+    test('ההדגשה בגוף הספר מוצאת בדיוק את ההתאמות של החיפוש', () {
+      const lines = [
+        line,
+        'וְהָיָה לָכֶם הַמֶּלֶךְ וְהַמְּלָכִים',
+        'ושמע ישראלים ושמע ישראל',
+      ];
+      for (final q in ['כם ', ' וה', ' והם ', 'מלך ', 'שמע ישראל ']) {
+        for (final l in lines) {
+          final clean = utils.removeVolwels(l);
+          // ההדגשה מחזירה טווח לכל מילה שבהתאמה.
+          final search = [
+            for (final m in buildLiteralPattern(
+              q,
+              wholeWord: false,
+            )!.regExp.allMatches(clean))
+              for (final w in RegExp(r'\S+').allMatches(m.group(0)!))
+                (m.start + w.start, m.start + w.end),
+          ];
+          final highlight = [
+            for (final r in utils.computeHighlightRanges(
+              clean,
+              q,
+              partialWordMatch: true,
+            ))
+              (r.first, r.last),
+          ];
+          expect(highlight, search, reason: '"$q" ב-"$clean"');
+        }
+      }
+    });
+  }, skip: engineReady ? false : searchEngineSkipReason);
+}
+
+String _wordAt(String line, int offset) {
+  final start = line.lastIndexOf(' ', offset) + 1;
+  final end = line.indexOf(' ', offset);
+  return line.substring(start, end < 0 ? line.length : end);
 }

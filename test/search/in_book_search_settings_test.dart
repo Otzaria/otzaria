@@ -115,6 +115,19 @@ Future<void> main() async {
     });
   });
 
+  group('searchableInBookQueryWithEdges (issue #2679)', () {
+    test('keeps the edge whitespace and drops nikud', () {
+      expect(searchableInBookQueryWithEdges(' שָׁלוֹם  '), ' שלום  ');
+      expect(searchableInBookQueryWithEdges('כם '), 'כם ');
+      expect(searchableInBookQueryWithEdges('כם'), 'כם');
+    });
+
+    test('a blank query and a /regex/ are unchanged', () {
+      expect(searchableInBookQueryWithEdges('   '), isNull);
+      expect(searchableInBookQueryWithEdges(' /אב/ '), '/אב/');
+    });
+  });
+
   group('limitInBookResults', () {
     test('keeps every result up to the limit', () {
       final limited = limitInBookResults(List.generate(10, (i) => i));

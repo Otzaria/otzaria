@@ -159,6 +159,16 @@ String? searchableInBookQuery(String raw) {
   return query.isEmpty ? null : query;
 }
 
+/// [searchableInBookQuery] with the whitespace at the edges of [raw] kept: in
+/// partial-word search it anchors the match to a word start or end.
+String? searchableInBookQueryWithEdges(String raw) {
+  final query = searchableInBookQuery(raw);
+  if (query == null || UserRegexQuery.isValid(query)) return query;
+  final leading = raw.substring(0, raw.length - raw.trimLeft().length);
+  final trailing = raw.substring(raw.trimRight().length);
+  return '$leading$query$trailing';
+}
+
 /// Searches the book whose facet is [bookPath] for [query] through the
 /// search engine, with [settings], in the book's order.
 Future<List<SearchResult>> searchBookWithEngine(
