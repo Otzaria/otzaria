@@ -34,6 +34,7 @@ class _FakeRepository implements FindRefRepository {
 
   final List<DbReferenceResult> results;
   final List<DbCommentatorEntry> commentators;
+  int commentatorRequests = 0;
 
   @override
   bool get respectHiddenLibrary => false;
@@ -50,7 +51,10 @@ class _FakeRepository implements FindRefRepository {
   @override
   Future<List<DbCommentatorEntry>> getCommentatorsForResult(
     DbReferenceResult ref,
-  ) async => commentators;
+  ) async {
+    commentatorRequests++;
+    return commentators;
+  }
 
   @override
   Future<void> prewarmGlobalAltToc() async {}
@@ -152,6 +156,8 @@ Future<OpenOrFocusTab> _openResultEvent(
   required Library library,
   List<Bookmark> history = const [],
   DbCommentatorEntry? commentator,
+  bool enterBeforeResults = false,
+  _FakeRepository? repository,
 }) async {
   final previousLibrary = DataRepository.instance.cachedLibraryFutureForTesting;
   DataRepository.instance.library = Future.value(library);
@@ -164,7 +170,8 @@ Future<OpenOrFocusTab> _openResultEvent(
   });
   FocusRepository().findRefSearchController.clear();
   final bloc = FindRefBloc(
-    findRefRepository: _FakeRepository([result], commentators: [?commentator]),
+    findRefRepository:
+        repository ?? _FakeRepository([result], commentators: [?commentator]),
   );
   final tabsBloc = _CapturingTabsBloc();
   final navigationBloc = _FakeNavigationBloc();
@@ -206,6 +213,11 @@ Future<OpenOrFocusTab> _openResultEvent(
   await tester.tap(find.text('open'));
   await tester.pumpAndSettle();
   await tester.enterText(find.byType(TextField), 'שאילתה');
+  if (enterBeforeResults) {
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    return tabsBloc.openEvent;
+  }
   await tester.pump(const Duration(milliseconds: 400));
   await tester.pump();
   if (commentator != null) {
@@ -387,6 +399,50 @@ void main() {
     final fallback = (tab as ResolvingTab).fallbackTab as TextBookTab;
     expect(fallback.index, 0);
     expect(fallback.commentators, ['מפרש']);
+  });
+
+  // #2696: Enter שממתין לתוצאות פותח באותו פריים שהרשימה נבנית לראשונה;
+  // טעינת מפרשים לדיאלוג שנסגר מתחרה בטעינת הספר.
+  testWidgets('Enter לפני התוצאות פותח בלי לטעון מפרשים לדיאלוג שנסגר', (
+    tester,
+  ) async {
+    final book = TextBook(id: 1, title: 'ברכות');
+    const result = DbReferenceResult(
+      title: 'ברכות',
+      reference: 'ברכות יג ב',
+      segment: 5,
+      bookId: 1,
+    );
+    final repository = _FakeRepository([result]);
+    final event = await _openResultEvent(
+      tester,
+      library: _libraryWith([book]),
+      result: result,
+      repository: repository,
+      enterBeforeResults: true,
+    );
+
+    expect((event.tab as TextBookTab).index, 5);
+    expect(repository.commentatorRequests, 0);
+  });
+
+  testWidgets('תוצאות מוצגות טוענות מפרשים לפני הפתיחה', (tester) async {
+    final book = TextBook(id: 1, title: 'ברכות');
+    const result = DbReferenceResult(
+      title: 'ברכות',
+      reference: 'ברכות יג ב',
+      segment: 5,
+      bookId: 1,
+    );
+    final repository = _FakeRepository([result]);
+    await _openResultEvent(
+      tester,
+      library: _libraryWith([book]),
+      result: result,
+      repository: repository,
+    );
+
+    expect(repository.commentatorRequests, 1);
   });
 
   testWidgets('תוצאת ספר בלבד ממשיכה מהמיקום שבהיסטוריה', (tester) async {

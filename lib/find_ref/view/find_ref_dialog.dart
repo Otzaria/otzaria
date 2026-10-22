@@ -646,7 +646,8 @@ class _FindRefDialogState extends State<FindRefDialog> {
       _commentatorsLoadScheduled = false;
       final rows = _rowsAwaitingCommentators.toList();
       _rowsAwaitingCommentators.clear();
-      if (!mounted) return;
+      // דיאלוג שנסגר (Enter ממתין פותח באותו פריים) לא יתחרה בטעינת הספר.
+      if (!mounted || !(ModalRoute.isCurrentOf(context) ?? true)) return;
       final state = context.read<FindRefBloc>().state;
       if (!_isCurrentSuccess(state)) return;
       final refs = (state as FindRefSuccess).refs;
