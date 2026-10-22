@@ -131,6 +131,7 @@ class SqliteDataProvider {
       _repository = SeforimRepository(database);
       await _repository.ensureInitialized();
       _isInitialized = true;
+      _wasOpened = true;
       DbReadWorker.allowReopen();
       unawaited(LibraryLineSource.configure(_dbPath));
     } on SqliteException catch (e) {
@@ -159,6 +160,10 @@ class SqliteDataProvider {
 
   /// Checks if the database is initialized and ready
   bool get isInitialized => _isInitialized;
+
+  /// נפתח בהצלחה לפחות פעם אחת; סגור כעת = נסגר בדרך ולא "אין ספרייה".
+  bool get wasOpened => _wasOpened;
+  bool _wasOpened = false;
 
   /// Closes the database connection to free resources
   /// [forAppExit] לא ממתין ל-worker עסוק: התהליך מסתיים ממילא.
