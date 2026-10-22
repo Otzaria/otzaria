@@ -62,8 +62,29 @@ LiteralEdgeCheck? _buildEdgeCheck(String query) {
   final before = edges.start ? compileLiteralPattern(parts.before) : null;
   final after = edges.end ? compileLiteralPattern(parts.after) : null;
   return (text, start, end) =>
-      (before == null || before.matchAsPrefix(text, start) != null) &&
-      (after == null || after.matchAsPrefix(text, end) != null);
+      (before == null ||
+          before.matchAsPrefix(text, _skipTagsBefore(text, start)) != null) &&
+      (after == null ||
+          after.matchAsPrefix(text, _skipTagsAfter(text, end)) != null);
+}
+
+// החיפוש רץ על טקסט נקי מתגים, ושם תג שבתוך מילה אינו מפריד בין חלקיה.
+int _skipTagsBefore(String text, int index) {
+  while (index > 0 && text.codeUnitAt(index - 1) == 0x3E) {
+    final open = text.lastIndexOf('<', index - 1);
+    if (open < 0) break;
+    index = open;
+  }
+  return index;
+}
+
+int _skipTagsAfter(String text, int index) {
+  while (index < text.length && text.codeUnitAt(index) == 0x3C) {
+    final close = text.indexOf('>', index);
+    if (close < 0) break;
+    index = close + 1;
+  }
+  return index;
 }
 
 /// עטיפת גבול-המילה שהמנוע מוסיף סביב הביטוי:

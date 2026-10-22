@@ -251,6 +251,25 @@ Future<void> main() async {
       }
     });
 
+    test('תג HTML צמוד לקצה אינו גבול מילה, כמו בטקסט הנקי של החיפוש', () {
+      for (final (q, html) in [
+        (' הא', '<b>ו</b>הארץ'),
+        ('וה ', '<b>וה</b>ארץ'),
+        (' הא', '<b>ו</b> הארץ'),
+        ('וה ', '<b>וה</b> ארץ'),
+      ]) {
+        final clean = utils.stripHtmlIfNeeded(html);
+        final searchFound = buildLiteralPattern(
+          q,
+          wholeWord: false,
+        )!.regExp.hasMatch(clean);
+        final highlighted = utils
+            .computeHighlightRanges(html, q, partialWordMatch: true)
+            .isNotEmpty;
+        expect(highlighted, searchFound, reason: '"$q" ב-"$html"');
+      }
+    });
+
     test('שאילתת /regex/ אינה מסוננת לפי רווח בקצה', () {
       expect(
         utils.computeHighlightRanges('אב ג', ' /אב/ ', partialWordMatch: true),
