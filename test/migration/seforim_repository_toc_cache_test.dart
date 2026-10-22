@@ -684,6 +684,45 @@ void main() {
         );
         expect(results.map((r) => r['reference']), ['תשובות סימן ה']);
       });
+
+      for (final (headings, expected) in [
+        (['תשובה ה'], ['תשובה ה']),
+        (['תשובה ה', 'סימן ה'], ['סימן ה']),
+      ]) {
+        test('AltToc: "סימן ה" מול $headings', () async {
+          final bookId = await buildResponsaBook('תשובות', ['תשובה א']);
+          final db = await database.database;
+          db.execute(
+            'INSERT INTO alt_toc_structure (bookId, key, title, heTitle) '
+            'VALUES (?, ?, ?, ?)',
+            [bookId, 'Topic', 'Topic', 'נושאים'],
+          );
+          final structureId = db.lastInsertRowId;
+          final lineId =
+              db.select('SELECT id FROM line WHERE bookId = ? LIMIT 1', [
+                    bookId,
+                  ]).first['id']
+                  as int;
+          for (final heading in headings) {
+            db.execute('INSERT INTO tocText (text) VALUES (?)', [heading]);
+            db.execute(
+              'INSERT INTO alt_toc_entry (structureId, parentId, textId, '
+              'level, lineId, isLastChild, hasChildren) '
+              'VALUES (?, NULL, ?, 1, ?, 1, 0)',
+              [structureId, db.lastInsertRowId, lineId],
+            );
+          }
+          final results = await repository.getAltTocEntriesForReference(
+            bookId,
+            'תשובות',
+            queryTokens: ['סימן', 'ה'],
+          );
+          expect(
+            results.map((r) => r['reference']),
+            expected,
+          );
+        });
+      }
     });
 
     test('הקאש מבוטל לספר ספציפי בלבד — שאר הספרים נשארים cached', () async {

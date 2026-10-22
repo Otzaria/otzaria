@@ -2803,6 +2803,7 @@ extension BookAcronymRepository on SeforimRepository {
     required List<String> Function(T) ownTokensOf,
     required List<String> Function(T) pathTokensOf,
     int Function(T)? refMaskOf,
+    bool structureWords = false,
   }) {
     if (tokens.isEmpty) return const [];
 
@@ -2815,7 +2816,8 @@ extension BookAcronymRepository on SeforimRepository {
     }
     final explicitDaf = cite != null && tokens.contains('דף');
     final alternatives = [
-      for (final token in tokens) hebrewTokenAlternatives(token),
+      for (final token in tokens)
+        hebrewTokenAlternatives(token, structureWords: structureWords),
     ];
     final lastAlts = alternatives.last;
     // ציון דף עשוי להתאים גם בלי טוקן העמוד בעלה או בנתיב.
@@ -2823,7 +2825,7 @@ extension BookAcronymRepository on SeforimRepository {
         ? altTocTokenMask(lastAlts)
         : 0;
 
-    return entries.where((e) {
+    final matches = entries.where((e) {
       if (lastMask != 0 && (refMaskOf!(e) & lastMask) == 0) return false;
       final ownTokens = ownTokensOf(e);
       List<String>? checkedPath;
@@ -2857,6 +2859,16 @@ extension BookAcronymRepository on SeforimRepository {
       }
       return true;
     });
+    // כמו ב-[_searchTocFlat]: "תשובה ה" רק כשאין "סימן ה" מילולי.
+    if (structureWords || matches.isNotEmpty) return matches;
+    return _searchAltTocFlat(
+      entries,
+      tokens,
+      ownTokensOf: ownTokensOf,
+      pathTokensOf: pathTokensOf,
+      refMaskOf: refMaskOf,
+      structureWords: true,
+    );
   }
 
   /// ערכי ה-AltToc של [bookId] (כל המבנים החלופיים יחד), ממוינים לפי segment.

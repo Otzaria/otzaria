@@ -1068,7 +1068,7 @@ class FindRefRepository {
   }) async {
     final query = _parseQuery(rawRef);
     if (query == null) return const [];
-    final queryTokens = query.tokens;
+    var queryTokens = query.tokens;
 
     final SeforimRepository? repository =
         SqliteDataProvider.instance.repository;
@@ -1094,12 +1094,27 @@ class FindRefRepository {
       if (eraResults.isNotEmpty) return eraResults;
     }
 
-    final books = _BookSearch(
+    var books = _BookSearch(
       injected: searchReferenceBooks,
       queryTokens: queryTokens,
       visibility: visibility,
     );
-    final detection = _detectBooks(books, queryTokens);
+    var detection = _detectBooks(books, queryTokens);
+    // רוב ספרי השו"ת אינם נושאים "שו"ת" בשמם ("שות בית" תפס את "שות בית דוד"):
+    // הזיהוי בלי הקידומת גובר כשהוא מכסה יותר טוקנים.
+    if (queryTokens.length > 1 && _genrePrefixes.contains(queryTokens.first)) {
+      final stripped = queryTokens.sublist(1);
+      final retryBooks = _BookSearch(
+        injected: searchReferenceBooks,
+        queryTokens: stripped,
+        visibility: visibility,
+      );
+      final retry = _detectBooks(retryBooks, stripped);
+      if (retry.hits.isNotEmpty &&
+          retry.phraseTokenCount > detection.phraseTokenCount) {
+        (queryTokens, books, detection) = (stripped, retryBooks, retry);
+      }
+    }
     final search = _FindRefSearch(
       rawQuery: query.ref,
       queryTokens: queryTokens,
@@ -1121,6 +1136,8 @@ class FindRefRepository {
         ? _singleWordResults(search)
         : _multiWordResults(search, repository);
   }
+
+  static const _genrePrefixes = {'שות', 'תשובות'};
 
   /// הטוקנים המנורמלים של השאילתה; `null` כשלא נשאר בה דבר לחפש.
   ({
