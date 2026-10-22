@@ -21,6 +21,9 @@ KeyDownEvent _modifier(LogicalKeyboardKey key, PhysicalKeyboardKey physical) =>
       timeStamp: Duration.zero,
     );
 
+/// הפעולה שברירת המחדל שלה Alt+↑ — רק בה מותר חץ (issue #2851).
+const _prevSegmentKey = 'key-shortcut-prev-segment';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -41,6 +44,7 @@ void main() {
   Future<Future<String?>> openDialog(
     WidgetTester tester, {
     String? initialShortcut,
+    String? settingKey,
     bool startRecording = true,
   }) async {
     final navigatorKey = GlobalKey<NavigatorState>();
@@ -56,6 +60,7 @@ void main() {
       builder: (_) => CustomShortcutDialog(
         initialShortcut: initialShortcut,
         actionName: 'חיפוש חדש בכל הספרים',
+        settingKey: settingKey,
       ),
     );
     await tester.pumpAndSettle();
@@ -178,7 +183,7 @@ void main() {
     });
 
     testWidgets('AltGraph מובחן נשמר כ-alt', (tester) async {
-      final result = await openDialog(tester);
+      final result = await openDialog(tester, settingKey: _prevSegmentKey);
 
       sendKeys(tester, [
         _modifier(LogicalKeyboardKey.altGraph, PhysicalKeyboardKey.altRight),
@@ -196,7 +201,7 @@ void main() {
 
     testWidgets('AltGr של Windows אינו שומר Control סינתטי', (tester) async {
       ShortcutHelper.isWindowsForTesting = true;
-      final result = await openDialog(tester);
+      final result = await openDialog(tester, settingKey: _prevSegmentKey);
 
       sendKeys(tester, [
         _modifier(
@@ -227,15 +232,15 @@ void main() {
         ),
         _modifier(LogicalKeyboardKey.altLeft, PhysicalKeyboardKey.altLeft),
         const KeyDownEvent(
-          physicalKey: PhysicalKeyboardKey.arrowUp,
-          logicalKey: LogicalKeyboardKey.arrowUp,
+          physicalKey: PhysicalKeyboardKey.f5,
+          logicalKey: LogicalKeyboardKey.f5,
           timeStamp: Duration.zero,
         ),
       ]);
       await tester.pump();
       await confirm(tester);
 
-      expect(await result, 'ctrl+alt+arrowup');
+      expect(await result, 'ctrl+alt+f5');
     });
   });
 
@@ -277,7 +282,7 @@ void main() {
     });
 
     testWidgets('Alt + חץ למעלה נשמר כ-alt+arrowup', (tester) async {
-      final result = await openDialog(tester);
+      final result = await openDialog(tester, settingKey: _prevSegmentKey);
 
       sendKeys(tester, [
         _modifier(LogicalKeyboardKey.alt, PhysicalKeyboardKey.altLeft),

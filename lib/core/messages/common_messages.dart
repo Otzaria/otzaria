@@ -73,6 +73,8 @@ abstract class CommonMessages {
 
   // ── קיצורי מקשים ────────────────────────────────────────────────────────
   static const String shortcutRequired = 'יש לבחור קיצור';
+  static const String shortcutNavigationKey =
+      'לא ניתן להגדיר קיצור עם החיצים, Tab, PageUp/PageDown או Home/End — מקשים אלה משמשים לניווט ולגלילה';
 
   static String shortcutAlreadyInUse(String actionName) =>
       'קיצור זה כבר בשימוש עבור: $actionName';
