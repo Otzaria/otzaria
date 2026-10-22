@@ -166,17 +166,11 @@ class _PinnedToolNavItem {
   /// מובנים כמו "שמור וזכור" שמשתמשים בלוגו ייחודי במקום באייקון Fluent.
   final String? imageAsset;
 
-  /// `true` עבור תוסף, `false` עבור כלי מובנה.
-  final bool isPlugin;
-  final InstalledPlugin? plugin;
-
   const _PinnedToolNavItem({
     required this.toolId,
     required this.label,
-    required this.isPlugin,
     this.icon,
     this.imageAsset,
-    this.plugin,
   }) : assert(
          icon != null || imageAsset != null,
          'pinned nav item must have an icon or image asset',
@@ -188,7 +182,6 @@ class _PinnedToolNavItem {
       label: meta.label,
       icon: meta.icon,
       imageAsset: meta.imageIcon,
-      isPlugin: false,
     );
   }
 
@@ -199,8 +192,6 @@ class _PinnedToolNavItem {
       icon:
           pluginIconFromName(plugin.manifest.toolTabIconName) ??
           FluentIcons.puzzle_piece_24_regular,
-      isPlugin: true,
-      plugin: plugin,
     );
   }
 

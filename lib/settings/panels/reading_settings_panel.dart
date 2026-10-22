@@ -47,7 +47,7 @@ class ReadingSettingsPanel extends StatelessWidget {
 }
 
 /// מציג את [ReadingSettingsPanel] כדיאלוג. ניתן לקרוא מכל מקום (למשל ממסך העיון).
-void showReadingSettingsDialog(BuildContext context) {
+void showReadingSettingsDialog() {
   final dialogContext = navigatorKey.currentContext;
   if (dialogContext == null) {
     return;

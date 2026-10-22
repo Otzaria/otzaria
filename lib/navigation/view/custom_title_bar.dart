@@ -708,8 +708,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           ),
           tooltip: 'הגדרות תצוגת הספרים',
           onPressed:
-              widget.onReadingSettingsPressed ??
-              () => showReadingSettingsDialog(context),
+              widget.onReadingSettingsPressed ?? showReadingSettingsDialog,
           style: _kIconButtonStyle,
         ),
       ),
