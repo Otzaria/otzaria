@@ -11,6 +11,7 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
+import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -364,6 +365,21 @@ Future<void> main() async {
         expect(pattern.hasMatch('אמר אמר רבא'), isFalse);
       });
 
+      test('בסדר ההפוך רווח בקצה אינו משנה — הקצוות שלו פנימיים', () {
+        expect(
+          PdfBookSearchView.buildSimpleSearchPattern(
+            ' תנו רבנן ',
+            wholeWord: false,
+            reversed: true,
+          )!.source,
+          PdfBookSearchView.buildSimpleSearchPattern(
+            'תנו רבנן',
+            wholeWord: false,
+            reversed: true,
+          )!.source,
+        );
+      });
+
       test('נשמרת הסובלנות לניקוד גם בסדר ההפוך', () {
         final pattern = PdfBookSearchView.buildSimpleSearchPattern(
           'תנו רבנן',
@@ -481,6 +497,30 @@ Future<void> main() async {
       await _finishScan(tester, searcher);
 
       expect(searcher.searchedPatterns.length, 1);
+    });
+
+    testWidgets('רווח בקצה בחלק ממילה — הסריקה מעוגנת לגבול המילה (#2679)', (
+      tester,
+    ) async {
+      await InBookSearchPreferences.saveWholeWord(false);
+      final searcher = await _pumpSearchView(
+        tester,
+        pageFullText: 'לכם כמה הכמות עליכם',
+      );
+
+      for (final query in ['כם ', ' כמ', 'כם']) {
+        await _search(tester, query);
+        final pattern = searcher.searchedPatterns.last;
+        expect(
+          pattern.pattern,
+          buildLiteralPattern(query, wholeWord: false)!.source,
+          reason: '"$query"',
+        );
+      }
+      expect(
+        searcher.searchedPatterns.last.pattern,
+        isNot(buildLiteralPattern('כם ', wholeWord: false)!.source),
+      );
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
 }

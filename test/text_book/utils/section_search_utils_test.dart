@@ -744,6 +744,15 @@ Future<void> main() async {
       );
       expect(fraction, greaterThan(0));
     });
+
+    test(
+      'אות אחת בחלק ממילה — גלילה למילה השלמה, כמו החיפוש',
+      () {
+        expect(matchFractionInLine('הארץ ה', 'ה', wholeWord: false), 5 / 6);
+        expect(matchFractionInLine('הארץ ה', 'הא', wholeWord: false), 0);
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
   });
 
   group('matchFractionFromLineLength', () {

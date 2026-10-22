@@ -213,7 +213,7 @@ double matchFractionInLine(
       searchDistance: searchDistance,
       matchPolicy: matchPolicy,
       isSearchResultLine: true,
-      partialWordMatch: !wholeWord,
+      partialWordMatch: literalPartialWordMatch(query, wholeWord: wholeWord),
     );
     offset = ranges.isEmpty ? -1 : ranges.first.first;
   }

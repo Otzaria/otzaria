@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
@@ -1479,7 +1480,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       matchPolicy: widget.isMainText
           ? state.matchPolicy
           : SearchMatchPolicy.standard,
-      partialWordHighlight: widget.isMainText && !state.searchWholeWord,
+      partialWordHighlight:
+          widget.isMainText &&
+          literalPartialWordMatch(
+            state.searchText,
+            wholeWord: state.searchWholeWord,
+          ),
       fontSize: widget.fontSize,
       fontFamily: widget.fontFamily ?? settingsState.fontFamily,
       fontWeight:

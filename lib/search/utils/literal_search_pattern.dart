@@ -93,6 +93,11 @@ final Map<String, LiteralSearchPattern?> _cache = {};
 /// אורך השאילתה המינימלי להתאמה בתוך מילה.
 const int _minPartialMatchChars = 2;
 
+/// האם החיפוש הליטרלי ל-[query] מתאים גם בתוך מילה. ההדגשה בגוף הספר חייבת
+/// לקבל אותו ערך, אחרת אות בודדת מודגשת בתוך מילים שהחיפוש לא מצא.
+bool literalPartialWordMatch(String query, {required bool wholeWord}) =>
+    !wholeWord && normalizeLiteralQuery(query).length >= _minPartialMatchChars;
+
 const Map<String, String> _finalToRegularLetter = {
   'ך': 'כ',
   'ם': 'מ',
@@ -192,7 +197,7 @@ LiteralSearchPattern? buildLiteralPattern(
   bool wholeWord = true,
 }) {
   final q = normalizeLiteralQuery(query);
-  final partial = !wholeWord && q.length >= _minPartialMatchChars;
+  final partial = literalPartialWordMatch(query, wholeWord: wholeWord);
   final edges = partial
       ? literalQueryWordEdges(query)
       : (start: false, end: false);

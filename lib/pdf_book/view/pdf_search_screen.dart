@@ -852,7 +852,8 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       final literal = userRegex != null
           ? null
           : PdfBookSearchView.buildSimpleSearchPattern(
-              query,
+              // כמו הדגשת התוצאות: רווח בקצה השדה מעגן התאמה חלקית לגבול מילה.
+              widget.searchController.text,
               wholeWord: _wholeWord,
             );
       _lastPdfHighlightSource = literal?.source ?? query;
