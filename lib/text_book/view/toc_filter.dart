@@ -103,6 +103,12 @@ TocEntry? _filterEntry(
   cloned.children = children;
 
   if (!selfMatches && children.isEmpty) return null;
+  // ערך שצאצאיו תואמים נשאר בסדר הספר (rank 6), אלא אם השאילתה היא מילים
+  // שלמות בשמו: "ח" מקדימה את "פרק ח", אך לא את "חושן משפט".
+  if (children.isNotEmpty &&
+      !(selfMatches && ' ${_matchText(entry)} '.contains(' $query '))) {
+    return cloned;
+  }
 
   final rankText = _rankText(entry);
   final rankFullText = _rankFullText(entry);
@@ -150,8 +156,8 @@ List<TocEntry> _sortEntriesByRelevance(List<TocEntry> entries) {
       final rankCompare = keysA.rank.compareTo(keysB.rank);
       if (rankCompare != 0) return rankCompare;
 
-      // length-delta רלוונטי רק לערכים שתאמו בעצמם; ערכי-אב שנכללו בגלל
-      // צאצא בלבד (rank 6) חייבים לשמור על סדר הספר ולא להידרג לפי אורך.
+      // length-delta רלוונטי רק לערכים שדורגו לפי שמם; ערכי-אב בסדר הספר
+      // (rank 6) אינם נדרגים לפי אורך.
       if (keysA.rank < 6) {
         final lengthCompare = keysA.lengthDelta.compareTo(keysB.lengthDelta);
         if (lengthCompare != 0) return lengthCompare;
