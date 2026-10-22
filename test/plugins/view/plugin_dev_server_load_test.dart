@@ -36,7 +36,14 @@ class _NoopBridge extends Fake implements PluginBridgeHandler {
   void register(InAppWebViewController controller) {}
 }
 
-class _Host extends State<StatefulWidget> with PluginWebViewHost {
+class _HostWidget extends StatefulWidget {
+  const _HostWidget();
+
+  @override
+  State<_HostWidget> createState() => _Host();
+}
+
+class _Host extends State<_HostWidget> with PluginWebViewHost {
   @override
   final plugin = InstalledPlugin(
     pluginId: 'dev.plugin',
@@ -85,8 +92,11 @@ class _Host extends State<StatefulWidget> with PluginWebViewHost {
 }
 
 void main() {
-  test('תוסף פיתוח נטען מהשרת שלו כשה-WebView מתחבר', () async {
-    final host = _Host()..bridge = _NoopBridge();
+  testWidgets('תוסף פיתוח נטען מהשרת שלו כשה-WebView מתחבר', (tester) async {
+    // הרישום קורא את חלון המקור מה-context, ולכן המארח חייב להיות בעץ.
+    await tester.pumpWidget(const _HostWidget());
+    final host = tester.state<_Host>(find.byType(_HostWidget))
+      ..bridge = _NoopBridge();
     final controller = _RecordingController();
     addTearDown(
       () => PluginRuntimeDispatcher.instance.unregisterController(
@@ -102,7 +112,7 @@ void main() {
       ),
       isTrue,
     );
-    await pumpEventQueue();
+    await tester.pump();
 
     expect(controller.calls.last, 'load http://localhost:3000');
   });
