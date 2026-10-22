@@ -230,6 +230,10 @@ class TextBookLoaded extends TextBookState {
   final bool supportsContinuousReadingMode;
   final bool continuousReadingMode;
 
+  /// ספר מקרא במצב רצף: בלי חלוקת פרקים בגוף הטקסט, פרקים ופסוקים בגליון.
+  /// חל רק כש-[isTanach] ו-[continuousReadingMode]; תצוגה בלבד.
+  final bool mikraTraditionalLayout;
+
   /// אילו שורות של [content] נטענו; null = כולן. שורה לא טעונה מוחזקת
   /// ב-[content] כמחרוזת ריקה.
   final List<bool>? loadedLineFlags;
@@ -343,6 +347,7 @@ class TextBookLoaded extends TextBookState {
     TextDisplayPolicy? displayPolicy,
     this.supportsContinuousReadingMode = false,
     this.continuousReadingMode = false,
+    this.mikraTraditionalLayout = true,
     this.loadedLineFlags,
     required this.visibleIndices,
     this.selectedIndex,
@@ -558,6 +563,7 @@ class TextBookLoaded extends TextBookState {
     TextDisplayPolicy? displayPolicy,
     bool? supportsContinuousReadingMode,
     bool? continuousReadingMode,
+    bool? mikraTraditionalLayout,
     List<bool>? loadedLineFlags,
     int? selectedIndex,
     bool clearSelectedIndex = false,
@@ -700,6 +706,8 @@ class TextBookLoaded extends TextBookState {
           supportsContinuousReadingMode ?? this.supportsContinuousReadingMode,
       continuousReadingMode:
           continuousReadingMode ?? this.continuousReadingMode,
+      mikraTraditionalLayout:
+          mikraTraditionalLayout ?? this.mikraTraditionalLayout,
       loadedLineFlags: loadedLineFlags ?? this.loadedLineFlags,
       visibleIndices: visibleIndices ?? this.visibleIndices,
       selectedIndex: clearSelectedIndex
@@ -803,6 +811,7 @@ class TextBookLoaded extends TextBookState {
     displayPolicy,
     supportsContinuousReadingMode,
     continuousReadingMode,
+    mikraTraditionalLayout,
     visibleIndices,
     selectedIndex,
     _SetProp(selectedIndices),

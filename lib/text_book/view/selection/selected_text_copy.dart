@@ -65,6 +65,9 @@ String resolveHtmlTextForSelection({
 /// [plainTextOnly] — טקסט פשוט בלבד, בלי HTML מעוצב.
 /// [protection] — הגבלת המו"ל של מקור הטקסט; ברירת המחדל היא של
 /// [textBookState]. [segmentCount] — מספר שורות המקור שבבחירה, כשידוע.
+/// [plainTextFilter] — עיבוד אחרון של הטקסט הנבחר (במקרא: הסרת {פ} ו-{ס}).
+/// [sourceCitation] — ב«שם וכותרת»: ציון מקור לשורה שמחליף את «ספר, נתיב»
+/// (בתורה: פרשה ועלייה); null לשורה — הנתיב הרגיל.
 Future<void> copySelectedTextForBook({
   required String plainText,
   required int? selectedIndex,
@@ -82,6 +85,8 @@ Future<void> copySelectedTextForBook({
   bool plainTextOnly = false,
   BookProtection? protection,
   int? segmentCount,
+  String Function(String text)? plainTextFilter,
+  String? Function(int index)? sourceCitation,
 }) async {
   if (!ensureCopyAllowed(
     protection ?? textBookState?.protection ?? BookProtection.none,
@@ -101,6 +106,8 @@ Future<void> copySelectedTextForBook({
     copyProfile: copyProfile,
     copyTarget: copyTarget,
     source: source,
+    plainTextFilter: plainTextFilter,
+    sourceCitation: sourceCitation,
   );
   if (copyContent == null) return;
   final handler = debugSelectedTextCopyHandler;
@@ -134,6 +141,8 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
   TextDisplayProfile? copyProfile,
   TextTarget? copyTarget,
   SourceSelection? source,
+  String Function(String text)? plainTextFilter,
+  String? Function(int index)? sourceCitation,
 }) async {
   var profile = copyProfile;
   if (profile == null && copyTarget != null && textBookState != null) {
@@ -152,6 +161,10 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
     plainText = SourceSelection.resolve(source, plainText, null).text;
     if (plainText.trim().isEmpty) return null;
   }
+  if (plainTextFilter != null) {
+    plainText = plainTextFilter(plainText);
+    if (plainText.trim().isEmpty) return null;
+  }
 
   final showsSubstitutedNames =
       textBookState != null &&
@@ -166,7 +179,22 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
 
   var finalPlainText = plainText;
   final headerBook = headerBookOverride ?? textBookState?.book;
-  if (settingsState.copyWithHeaders != 'none' && headerBook != null) {
+  final citation =
+      settingsState.copyWithHeaders == 'book_and_path' && headerBook != null
+      ? sourceCitation?.call(selectedIndex ?? 0)
+      : null;
+  if (citation != null) {
+    // ציון מקור אמיתי מחליף את «ספר, נתיב»; עיצוב הכותרת נשאר כבהגדרות.
+    String withCitation(String text) => CopyUtils.formatTextWithHeaders(
+      originalText: text,
+      copyWithHeaders: 'book_name',
+      copyHeaderFormat: settingsState.copyHeaderFormat,
+      bookName: citation,
+      currentPath: '',
+    );
+    finalPlainText = withCitation(plainText);
+    htmlContentToUse = withCitation(htmlContentToUse);
+  } else if (settingsState.copyWithHeaders != 'none' && headerBook != null) {
     final bookName = CopyUtils.extractBookName(headerBook);
     final currentIndex = selectedIndex ?? 0;
     final headerContent = headerContentOverride ?? sourceContent;

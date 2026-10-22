@@ -71,6 +71,7 @@ void main() {
     TextBookLoaded state, {
     bool? removeNikud,
     bool? removePunctuation,
+    bool? mikraTraditionalLayout,
   }) async {
     late BuildContext capturedContext;
     await tester.pumpWidget(
@@ -92,6 +93,7 @@ void main() {
         state,
         removeNikud: removeNikud,
         removePunctuation: removePunctuation,
+        mikraTraditionalLayout: mikraTraditionalLayout,
       );
       json = await PerBookSettings.loadSettings(PerBookSettings.bookKey(book));
     });
@@ -171,5 +173,75 @@ void main() {
     );
 
     expect(json, isNull);
+  });
+  group('תצוגת המקרא ברצף לכל ספר', () {
+    final perBook = SettingsState.initial().copyWith(
+      enablePerBookSettings: true,
+      mikraTraditionalLayout: true,
+    );
+
+    testWidgets('"כנדפס" בספר, כשהכללית "כמסורה" — נשמר', (tester) async {
+      final json = await saveAndRead(
+        tester,
+        perBook,
+        loaded(isTanach: true),
+        mikraTraditionalLayout: false,
+      );
+      expect(json?['mikraTraditionalLayout'], isFalse);
+    });
+
+    testWidgets('בחירה ששווה לכללית — לא נשמרת', (tester) async {
+      final json = await saveAndRead(
+        tester,
+        perBook,
+        loaded(isTanach: true),
+        mikraTraditionalLayout: true,
+      );
+      expect(json, isNull);
+    });
+
+    testWidgets('שמירת הגדרה אחרת אינה מוחקת את בחירת המקרא', (tester) async {
+      await saveAndRead(
+        tester,
+        perBook,
+        loaded(isTanach: true),
+        mikraTraditionalLayout: false,
+      );
+      final json = await saveAndRead(
+        tester,
+        perBook.copyWith(defaultRemoveNikud: false),
+        loaded(isTanach: true),
+        removeNikud: true,
+      );
+      expect(json?['mikraTraditionalLayout'], isFalse);
+      expect(json?['display'], isNotNull);
+    });
+
+    testWidgets('חזרה לבחירה הכללית מוחקת את הבחירה מהקובץ', (tester) async {
+      await saveAndRead(
+        tester,
+        perBook,
+        loaded(isTanach: true),
+        mikraTraditionalLayout: false,
+      );
+      final json = await saveAndRead(
+        tester,
+        perBook,
+        loaded(isTanach: true),
+        mikraTraditionalLayout: true,
+      );
+      expect(json, isNull);
+    });
+
+    test('JSON הלוך וחזור', () {
+      final settings = TextBookPerBookSettings(mikraTraditionalLayout: false);
+      final json = settings.toJson();
+      expect(json['mikraTraditionalLayout'], isFalse);
+      expect(
+        TextBookPerBookSettings.fromJson(json).mikraTraditionalLayout,
+        isFalse,
+      );
+      expect(TextBookPerBookSettings().toJson(), isEmpty);
+    });
   });
 }

@@ -90,6 +90,9 @@ import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
 import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
+import 'package:otzaria/text_book/utils/mikra_citation.dart';
+import 'package:otzaria/text_book/utils/mikra_selection.dart';
+import 'package:otzaria/text_book/utils/mikra_structure.dart';
 import 'package:otzaria/text_book/utils/reading_segments.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_item.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
@@ -1550,6 +1553,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               layout: readingLayoutOf(textBookState),
               lines: widget.content,
               baseIndex: baseIndex,
+              mikra: _mikraOf(textBookState),
             )
           : null,
     );
@@ -1591,7 +1595,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       _selectionLineEnd = lineEnd;
       _selectionStartColumn = startColumn;
     });
-    final source = SourceSelection.resolve(
+    final source = _resolveSource(
       sourceSelection,
       restoredText,
       startColumn,
@@ -1906,7 +1910,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         _paragraphCommentatorsCache.isLoading(state.book, index);
 
     final entries = <AppContextMenuEntry>[];
-    final source = SourceSelection.resolve(
+    final source = _resolveSource(
       _sourceSelection,
       capturedText,
       _selectionStartColumn,
@@ -2066,12 +2070,15 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
             lineStart: _selectionLineStart,
             lineEnd: _selectionLineEnd,
             startColumn: source.column,
-            pointerColumn: SourceSelection.resolvePointerColumn(
-              _sourceSelection,
-              capturedText,
-              _selectionPointerColumn,
-              lineStart: _selectionLineStart,
-              pointerLineIndex: _selectionPointerLineIndex,
+            pointerColumn: _sourceColumn(
+              SourceSelection.resolvePointerColumn(
+                _sourceSelection,
+                capturedText,
+                _selectionPointerColumn,
+                lineStart: _selectionLineStart,
+                pointerLineIndex: _selectionPointerLineIndex,
+              ),
+              _selectionLineStart,
             ),
           ),
           settings: () => _selectionRenderSettings(
@@ -2156,7 +2163,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   String _selectionMarkerLine(int index, TextBookLoaded state) {
     final rawLine = widget.content[index];
     if (widget.isMainText) {
-      return _injectBodyAnchorMarkers(rawLine, index, state);
+      final injected = _injectBodyAnchorMarkers(rawLine, index, state);
+      // במקרא — השורה כפי שהיא מוצגת, כדי שבחירה חוצת פסוקים תימצא.
+      final mikra = _mikraOf(state);
+      return mikra == null
+          ? injected
+          : mikraSelectionHtml(mikra, index, injected);
     }
     return widget.anchorLinksByLine == null
         ? rawLine
@@ -2310,7 +2322,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
 
-    final source = SourceSelection.resolve(
+    final source = _resolveSource(
       _sourceSelection,
       capturedText ?? _savedSelectedText,
       _selectionStartColumn,
@@ -2480,7 +2492,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
     ErrorReportHelper.showErrorReportDialog(
       context: context,
-      selectedText: SourceSelection.resolve(
+      selectedText: _resolveSource(
         _sourceSelection,
         selectedText,
         null,
@@ -2510,12 +2522,15 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }) async {
     if (index < 0 || index >= widget.content.length) return;
 
-    final text = widget.content[index];
-    if (text.trim().isEmpty) return;
-
     final settingsState = context.read<SettingsBloc>().state;
     final textBookState = context.read<TextBookBloc>().state;
     final loaded = textBookState is TextBookLoaded ? textBookState : null;
+    // במקרא ההעתקה כמו התצוגה: בלי מספר הפסוק ובלי {פ} ו-{ס}.
+    final mikra = loaded == null ? null : _mikraOf(loaded);
+    final text = mikra == null
+        ? widget.content[index]
+        : mikraCopyHtml(widget.content[index]);
+    if (text.trim().isEmpty) return;
 
     // ההעתקה משקפת את התצוגה — פרופיל ערוץ ההעתקה של הטור (או פרופיל
     // מפורש מ"העתק כ..." / קיצור דינמי).
@@ -2541,6 +2556,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       fontFamily: widget.fontFamily ?? settingsState.fontFamily,
       fontSize: widget.fontSize,
       plainTextOnly: plainTextOnly,
+      sourceCitation: loaded == null || !widget.isMainText
+          ? null
+          : _torahCitation(loaded, settingsState, widget.content),
     );
   }
 
@@ -2630,10 +2648,17 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       if (!mounted) return;
       final settingsState = context.read<SettingsBloc>().state;
 
+      final mikra = _mikraOf(textBookState);
       await copySelectedTextForBook(
         plainText: plainText,
         selectedIndex: _savedSelectedIndex,
-        sourceContent: widget.content,
+        sourceContent: mikra == null
+            ? widget.content
+            : mikraCopyContent(widget.content, _savedSelectedIndex),
+        plainTextFilter: mikra == null ? null : mikraCopyText,
+        sourceCitation: widget.isMainText
+            ? _torahCitation(textBookState, settingsState, widget.content)
+            : null,
         textBookState: textBookState,
         protection: protection,
         segmentCount: selectionSegmentCount(
@@ -2645,7 +2670,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         fontFamily: widget.fontFamily ?? settingsState.fontFamily,
         fontSize: widget.fontSize,
         headerBookOverride: widget.reportBook,
-        headerContentOverride: widget.reportBook != null
+        // הכותרות (שם הספר והפרק) נגזרות מהשורות המקוריות.
+        headerContentOverride: widget.reportBook != null || mikra != null
             ? widget.content
             : null,
         removeNikud: removeNikud,
@@ -3252,6 +3278,68 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     );
   }
 
+  /// ציון המקור בתורה להעתקה עם «שם וכותרת» (פרשה ועלייה), לפי ההגדרות.
+  String? Function(int index)? _torahCitation(
+    TextBookLoaded state,
+    SettingsState settings,
+    List<String> lines,
+  ) {
+    if (settings.torahCopyCitation == TorahCopyCitation.chapter ||
+        !identical(lines, state.content)) {
+      return null;
+    }
+    final mikra = mikraTextStructureOf(state);
+    if (mikra == null) return null;
+    return (index) => torahCitationHeader(
+      mikra: mikra,
+      line: index,
+      bookTitle: state.book.title,
+      style: settings.torahCopyCitation,
+    );
+  }
+
+  /// [SourceSelection.resolve] בעמודות השורה הרגילה: במקרא התצוגה מסירה את
+  /// מספר הפסוק מתחילת השורה, והצרכנים (הערות, תוספים, דיווח) מצפים לעמודה
+  /// בשורה כפי שהיא בלי מצב המקרא.
+  ({T text, int? column}) _resolveSource<T extends String?>(
+    SourceSelection? selection,
+    T text,
+    int? column,
+  ) {
+    final source = SourceSelection.resolve(selection, text, column);
+    return (
+      text: source.text,
+      column: _sourceColumn(source.column, _selectionLineStart),
+    );
+  }
+
+  /// עמודה בטקסט המוצג → עמודה בשורה הרגילה (במקרא: אחרי מספר הפסוק).
+  int? _sourceColumn(int? column, int? line) {
+    if (column == null || line == null) return column;
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return column;
+    final mikra = _mikraOf(state);
+    if (mikra == null || line < 0 || line >= widget.content.length) {
+      return column;
+    }
+    return column +
+        mikraColumnShift(
+          rawLine: widget.content[line],
+          line: line,
+          mikra: mikra,
+          settings: _selectionRenderSettings(
+            state: state,
+            settingsState: context.read<SettingsBloc>().state,
+          ),
+        );
+  }
+
+  /// מבנה המקרא של הספר שבתצוגה (טקסט ראשי בלבד); null לכל ספר אחר.
+  MikraStructure? _mikraOf(TextBookLoaded state) =>
+      widget.isMainText && identical(widget.content, state.content)
+      ? mikraStructureOf(state)
+      : null;
+
   ReaderLineContext _readerLineContext(
     TextBookLoaded state,
     SettingsState settingsState,
@@ -3270,6 +3358,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ? FontWeight.bold
         : null,
     lineHeight: settingsState.lineHeight,
+    mikra: _mikraOf(state),
     isRelated: widget.isMainText
         ? null
         : (line) => widget.highlightedIndices?.contains(line) ?? false,

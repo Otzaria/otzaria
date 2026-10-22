@@ -10,6 +10,7 @@ import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/utils/mikra_structure.dart';
 import 'package:otzaria/text_book/utils/reading_layout.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -119,13 +120,18 @@ String? readerInlineHeading(List<String>? headings) =>
 bool readerLineInParagraph(
   ReadingLayout layout,
   List<String> lines,
-  int line,
-) =>
+  int line, {
+  MikraStructure? mikra,
+}) =>
     layout.continuous &&
     line >= 0 &&
     line < lines.length &&
     layout.lineCountOf(layout.itemForLine(line)) > 1 &&
-    !isReaderBlockLine(lines[line]);
+    (mikra?.isHiddenLine(line) == true || !isReaderBlockLine(lines[line]));
+
+/// רוחבי הגליונות של ספר מקרא: פרק ופסוק (שמאל), פרשה ועלייה (ימין).
+const double kMikraGutterWidth = 48;
+const double kMikraDivisionWidth = 72;
 
 /// מבנה הפסקאות של חלון בחירה שמתחיל בשורה [baseIndex]; null במצב רגיל.
 /// [splitsAfter] — שורה שאחריה הפסקה נחתכת (כרטיס מפרשים מתחתיה).
@@ -135,19 +141,20 @@ SelectionParagraphs? readerSelectionParagraphs({
   required int baseIndex,
   Map<int, List<String>> sectionHeadings = const {},
   bool Function(int line)? splitsAfter,
+  MikraStructure? mikra,
 }) {
   if (!layout.continuous) return null;
   return (
     joinsNext: (windowLine) {
       final line = baseIndex + windowLine;
-      return readerLineInParagraph(layout, lines, line) &&
-          readerLineInParagraph(layout, lines, line + 1) &&
+      return readerLineInParagraph(layout, lines, line, mikra: mikra) &&
+          readerLineInParagraph(layout, lines, line + 1, mikra: mikra) &&
           layout.itemForLine(line) == layout.itemForLine(line + 1) &&
           !(splitsAfter?.call(line) ?? false);
     },
     headingAt: (windowLine) {
       final line = baseIndex + windowLine;
-      return readerLineInParagraph(layout, lines, line)
+      return readerLineInParagraph(layout, lines, line, mikra: mikra)
           ? readerInlineHeading(sectionHeadings[line])
           : null;
     },
@@ -169,7 +176,11 @@ class ReaderLineContext {
     this.isMainText = true,
     this.sectionHeadings = const {},
     this.isRelated,
+    this.mikra,
   });
+
+  /// מבנה ספר המקרא (פרקים וגליון) כשהספר מוצג כמקרא; אחרת null.
+  final MikraStructure? mikra;
 
   final TextBookLoaded state;
   final List<String> lines;
@@ -195,7 +206,11 @@ class ReaderLineSpec {
     required this.settings,
     required this.marks,
     this.sectionHeadings,
+    this.forceInline = false,
   });
+
+  /// כותרת פרק במקרא: אינה בלוק ואינה שוברת פסקה (תוכנה עובר לגליון).
+  final bool forceInline;
 
   final int lineIndex;
 
@@ -208,7 +223,7 @@ class ReaderLineSpec {
   final ReaderLineMarks marks;
 
   /// נבדק רק בפריט של כמה שורות; בשורה בודדת אין לו משמעות.
-  bool get isBlock => isReaderBlockLine(sourceText);
+  bool get isBlock => !forceInline && isReaderBlockLine(sourceText);
   final List<String>? sectionHeadings;
 }
 
@@ -246,9 +261,16 @@ ReaderLineSpec buildReaderLineSpec(int lineIndex, ReaderLineContext ctx) {
     fontWeight: ctx.fontWeight,
     lineHeight: ctx.lineHeight,
   );
+  final mikra = ctx.mikra;
+  final hidden = mikra?.isHiddenLine(lineIndex) ?? false;
   return ReaderLineSpec(
     lineIndex: lineIndex,
-    html: ctx.lineHtml(lineIndex),
+    html: mikra == null
+        ? ctx.lineHtml(lineIndex)
+        : hidden
+        ? ''
+        : mikraDisplayHtml(ctx.lineHtml(lineIndex)),
+    forceInline: hidden,
     sourceText: raw,
     settings: settings,
     marks: readerLineMarks(
@@ -343,6 +365,8 @@ ContinuousReadingParagraphLine readerParagraphLine(
     background: readerLineBackgroundColor(spec.marks.background, colorScheme),
     selected: spec.marks.isSelected,
     heading: readerInlineHeading(spec.sectionHeadings),
+    gutter: ctx.mikra?.gutterLabelAt(spec.lineIndex),
+    division: ctx.mikra?.divisionAt(spec.lineIndex),
   );
 }
 
@@ -371,7 +395,7 @@ class ReaderParagraphRun extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final baseStyle = readerParagraphBaseStyle(lineContext, colorScheme);
     final hasSearch = specs.any((spec) => spec.settings.searchText.isNotEmpty);
-    return ListenableBuilder(
+    final paragraph = ListenableBuilder(
       listenable: Listenable.merge([
         PluginHighlightRegistry.instance,
         PluginHighlightRevealService.instance,
@@ -395,6 +419,21 @@ class ReaderParagraphRun extends StatelessWidget {
         ),
         anchorActiveBackground: colorScheme.primaryContainer,
         headingColor: colorScheme.onSurfaceVariant,
+        gutterStyle: lineContext.mikra == null
+            ? null
+            : baseStyle.copyWith(
+                fontSize: (baseStyle.fontSize ?? 18) * 0.62,
+                height: 1.2,
+                color: colorScheme.onSurface.withValues(alpha: 0.4),
+              ),
+        // פרשה ועלייה: גדולים וכהים יותר ממספורי הדפוסים.
+        divisionStyle: lineContext.mikra == null
+            ? null
+            : baseStyle.copyWith(
+                fontSize: (baseStyle.fontSize ?? 18) * 0.72,
+                height: 1.2,
+                color: colorScheme.onSurface.withValues(alpha: 0.75),
+              ),
         textAlign: specs.isEmpty || specs.first.settings.justifyText
             ? TextAlign.justify
             : TextAlign.right,
@@ -404,6 +443,17 @@ class ReaderParagraphRun extends StatelessWidget {
         onAnchorExit: onAnchorExit,
       ),
     );
+    // ספר מקרא: מקום בצד ההתחלה לציוני הפרק והפסוק שבגליון.
+    return lineContext.mikra == null
+        ? paragraph
+        : Padding(
+            // התחלה (ימין): פרשה ועלייה. סוף (שמאל): פרק ופסוק מהדפוסים.
+            padding: const EdgeInsetsDirectional.only(
+              start: kMikraDivisionWidth,
+              end: kMikraGutterWidth,
+            ),
+            child: paragraph,
+          );
   }
 }
 

@@ -396,6 +396,25 @@ class TextSettingsTab extends StatelessWidget {
             );
           },
         ),
+        SettingsActionTile.segmentedTile<bool>(
+          icon: FluentIcons.book_open_24_regular,
+          title: context.settingsText('תצוגת המקרא ברצף'),
+          subtitle: context.settingsText(
+            state.mikraTraditionalLayout
+                ? 'בלי חלוקת פרקים בגוף הטקסט; פרקים ופסוקים בגליון'
+                : 'כותרות פרקים ומספרי פסוקים בגוף הטקסט',
+          ),
+          options: [
+            SegmentOption(value: true, label: context.settingsText('כמסורה')),
+            SegmentOption(value: false, label: context.settingsText('כנדפס')),
+          ],
+          currentValue: state.mikraTraditionalLayout,
+          onChanged: (value) {
+            context.read<SettingsBloc>().add(
+              UpdateMikraTraditionalLayout(value),
+            );
+          },
+        ),
       ],
     );
   }
@@ -435,6 +454,34 @@ class TextSettingsTab extends StatelessWidget {
             context.read<SettingsBloc>().add(UpdateCopyWithHeaders(value));
           },
         ),
+        if (state.copyWithHeaders == 'book_and_path')
+          SettingsActionTile.segmentedTile<String>(
+            icon: FluentIcons.book_open_24_regular,
+            title: context.settingsText('ציון המקור בתורה'),
+            options: [
+              SegmentOption(
+                value: 'chapter',
+                label: context.settingsText('פרק'),
+                subtitle: context.settingsText('למשל: בראשית, פרק א'),
+              ),
+              SegmentOption(
+                value: 'book_parasha_aliyah',
+                label: context.settingsText('ספר, פרשה ועלייה'),
+                subtitle: context.settingsText(
+                  'למשל: ויקרא, פרשת אמור, ששי',
+                ),
+              ),
+              SegmentOption(
+                value: 'parasha_aliyah',
+                label: context.settingsText('פרשה ועלייה'),
+                subtitle: context.settingsText('למשל: אמור, ששי'),
+              ),
+            ],
+            currentValue: state.torahCopyCitation,
+            onChanged: (value) {
+              context.read<SettingsBloc>().add(UpdateTorahCopyCitation(value));
+            },
+          ),
         if (state.copyWithHeaders != 'none')
           SettingsActionTile.dropdownTile<String>(
             rtlIcon: FluentIcons.text_align_right_24_regular,

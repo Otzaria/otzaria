@@ -5,6 +5,7 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/utils/mikra_structure.dart';
 
 /// מספר הרצות תבניות הכותרת/היישור; נספר רק במצב debug.
 int debugReadingTagPatternChecks = 0;
@@ -56,31 +57,35 @@ class ReadingLayout {
   const ReadingLayout._continuous(this.lineCount, this._starts)
     : continuous = true;
 
-  /// [breakLines] מחוץ לטווח השורות מתעלמים מהן.
+  /// [breakLines] מחוץ לטווח השורות מתעלמים מהן. [splitAfterLines] — שורות
+  /// שאחריהן הפסקה נחתכת, בלי שהשורה עצמה נעשית פריט לבדה (פרשה פתוחה).
   factory ReadingLayout.continuous({
     required int lineCount,
     required Iterable<int> breakLines,
+    Iterable<int> splitAfterLines = const [],
   }) {
-    final breaks =
-        breakLines
-            .where((line) => line >= 0 && line < lineCount)
-            .toSet()
-            .toList()
-          ..sort();
+    // נקודות חיתוך: שורת שבירה היא פריט לבדה (חיתוך לפניה ואחריה).
+    final cuts = <int>{0};
+    for (final line in breakLines) {
+      if (line < 0 || line >= lineCount) continue;
+      cuts.add(line);
+      if (line + 1 < lineCount) cuts.add(line + 1);
+    }
+    for (final line in splitAfterLines) {
+      if (line >= 0 && line + 1 < lineCount) cuts.add(line + 1);
+    }
+    final ordered = cuts.toList()..sort();
     final starts = <int>[];
-    void addRun(int from, int to) {
-      for (var start = from; start < to; start += kMaxReadingParagraphLines) {
+    for (var i = 0; i < ordered.length; i++) {
+      final to = i + 1 < ordered.length ? ordered[i + 1] : lineCount;
+      for (
+        var start = ordered[i];
+        start < to;
+        start += kMaxReadingParagraphLines
+      ) {
         starts.add(start);
       }
     }
-
-    var cursor = 0;
-    for (final line in breaks) {
-      addRun(cursor, line);
-      starts.add(line);
-      cursor = line + 1;
-    }
-    addRun(cursor, lineCount);
     return ReadingLayout._continuous(lineCount, Int32List.fromList(starts));
   }
 
@@ -158,10 +163,18 @@ ReadingLayout continuousReadingLayout({
 );
 
 class _LayoutMemo {
-  _LayoutMemo(TextBookLoaded state, this.breakLines, this.layout)
-    : bookTitle = state.book.title,
-      lineCount = state.content.length,
-      tableOfContents = state.tableOfContents;
+  _LayoutMemo(
+    TextBookLoaded state,
+    this.breakLines,
+    this.layout, {
+    this.splitAfterLines,
+  }) : bookTitle = state.book.title,
+       lineCount = state.content.length,
+       tableOfContents = state.tableOfContents,
+       mikra = isMikraDisplay(state);
+
+  /// הפריסה נבנתה בתצוגת מקרא; החלפת התצוגה מחייבת פריסה חדשה.
+  final bool mikra;
 
   final String bookTitle;
   final int lineCount;
@@ -169,6 +182,9 @@ class _LayoutMemo {
 
   /// null במצב רגיל, שבו ה-TOC אינו משפיע.
   final List<int>? breakLines;
+
+  /// שורות החיתוך שאחריהן (פתוחה במקרא); null כשאין.
+  final List<int>? splitAfterLines;
   final ReadingLayout layout;
 }
 
@@ -188,17 +204,28 @@ ReadingLayout readingLayoutOf(TextBookLoaded state) {
   final sameBook =
       memo != null &&
       memo.bookTitle == state.book.title &&
-      memo.lineCount == state.content.length;
+      memo.lineCount == state.content.length &&
+      memo.mikra == isMikraDisplay(state);
   if (sameBook &&
       (!continuous || identical(memo.tableOfContents, state.tableOfContents))) {
     return memo.layout;
   }
 
+  // ספר מקרא: רק שם הספר שובר את הרצף, והפתוחה חותכת פסקה; הפרקים בגליון.
+  final mikra = continuous ? mikraStructureOf(state) : null;
   final breakLines = continuous
-      ? readingBreakLines(state.tableOfContents)
+      ? (mikra?.bookTitleLines ?? readingBreakLines(state.tableOfContents))
       : null;
-  if (sameBook && listEquals(memo.breakLines, breakLines)) {
-    slots[slot] = _LayoutMemo(state, breakLines, memo.layout);
+  final splitAfter = mikra?.paragraphEndLines;
+  if (sameBook &&
+      listEquals(memo.breakLines, breakLines) &&
+      listEquals(memo.splitAfterLines, splitAfter)) {
+    slots[slot] = _LayoutMemo(
+      state,
+      breakLines,
+      memo.layout,
+      splitAfterLines: splitAfter,
+    );
     return memo.layout;
   }
 
@@ -206,11 +233,52 @@ ReadingLayout readingLayoutOf(TextBookLoaded state) {
       ? ReadingLayout.continuous(
           lineCount: state.content.length,
           breakLines: breakLines,
+          splitAfterLines: splitAfter ?? const [],
         )
       : ReadingLayout.identity(state.content.length);
   final layout = memo != null && memo.layout.hasSameStructure(built)
       ? memo.layout
       : built;
-  slots[slot] = _LayoutMemo(state, breakLines, layout);
+  slots[slot] = _LayoutMemo(
+    state,
+    breakLines,
+    layout,
+    splitAfterLines: splitAfter,
+  );
   return layout;
+}
+
+class _MikraParse {
+  const _MikraParse(this.structure);
+  final MikraStructure? structure;
+}
+
+final Expando<_MikraParse> _mikraByContent = Expando<_MikraParse>(
+  'mikraStructure',
+);
+
+/// האם [state] מוצג כמקרא כמסורה: ספר תנ"ך (לפי זיהוי האפליקציה), במצב רצף,
+/// והתצוגה כמסורה מופעלת.
+bool isMikraDisplay(TextBookLoaded state) =>
+    state.isTanach &&
+    state.continuousReadingMode &&
+    state.mikraTraditionalLayout;
+
+/// מבנה המקרא של [state], או null כשאינו מוצג כמקרא. נשמר לפי זהות התוכן,
+/// כמו פריסת הקריאה. ספר שמבנהו אינו כותרת/פרק/פסוק נשאר כמות שהוא.
+MikraStructure? mikraStructureOf(TextBookLoaded state) =>
+    isMikraDisplay(state) ? mikraTextStructureOf(state) : null;
+
+/// מבנה ספר התנ"ך בלי קשר לתצוגה (לציון מקור בהעתקה גם כנדפס ובשורות
+/// בודדות); null בספר שאינו תנ"ך או שמבנהו אינו כותרת/פרק/פסוק.
+MikraStructure? mikraTextStructureOf(TextBookLoaded state) {
+  if (!state.isTanach) return null;
+  final content = state.content;
+  final cached = _mikraByContent[content];
+  if (cached != null) return cached.structure;
+  final parsed = _MikraParse(
+    MikraStructure.parse(content, bookTitle: state.book.title),
+  );
+  _mikraByContent[content] = parsed;
+  return parsed.structure;
 }

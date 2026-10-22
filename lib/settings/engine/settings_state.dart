@@ -50,6 +50,10 @@ class SettingsState extends Equatable {
   /// ברירת מחדל להצגת הטקסט ברצף (מצב "קריאה רציפה"). חלה בפתיחת ספר על
   /// ספרים שתומכים בכך בלבד (תנ"ך ותלמוד); בשאר הספרים אין לה השפעה.
   final bool defaultContinuousReadingMode;
+
+  /// ספרי המקרא במצב רצף: בלי חלוקת פרקים בגוף הטקסט; פרקים ופסוקים בגליון,
+  /// ופרשות ועליות בגליון שמנגד. false — כנדפס (כותרות פרק ומספרי פסוק בטקסט).
+  final bool mikraTraditionalLayout;
   final bool defaultSidebarOpen;
   final bool defaultCommentaryOpen;
   final bool pinSidebar;
@@ -62,6 +66,10 @@ class SettingsState extends Equatable {
   final double commentaryPaneWidth;
   final String copyWithHeaders;
   final String copyHeaderFormat;
+
+  /// ציון המקור בתורה בהעתקה עם «שם וכותרת»: 'chapter' (פרק, כרגיל),
+  /// 'book_parasha_aliyah' או 'parasha_aliyah'.
+  final String torahCopyCitation;
   final bool isFullscreen;
   final String libraryViewMode;
   final bool libraryShowPreview;
@@ -122,6 +130,7 @@ class SettingsState extends Equatable {
     TextDisplayPolicy? textDisplayPolicy,
     required this.indexUpdateMode,
     this.defaultContinuousReadingMode = false,
+    this.mikraTraditionalLayout = true,
     required this.defaultSidebarOpen,
     required this.defaultCommentaryOpen,
     required this.pinSidebar,
@@ -131,6 +140,7 @@ class SettingsState extends Equatable {
     required this.commentaryPaneWidth,
     required this.copyWithHeaders,
     required this.copyHeaderFormat,
+    this.torahCopyCitation = 'chapter',
     required this.isFullscreen,
     required this.libraryViewMode,
     required this.libraryShowPreview,
@@ -176,6 +186,7 @@ class SettingsState extends Equatable {
       showExternalBooks: false,
       indexUpdateMode: IndexUpdateMode.all,
       defaultContinuousReadingMode: false,
+      mikraTraditionalLayout: true,
       defaultSidebarOpen: false,
       defaultCommentaryOpen: false,
       pinSidebar: false,
@@ -185,6 +196,7 @@ class SettingsState extends Equatable {
       commentaryPaneWidth: 400,
       copyWithHeaders: 'none',
       copyHeaderFormat: 'same_line_after_brackets',
+      torahCopyCitation: 'chapter',
       isFullscreen: false,
       libraryViewMode: 'grid',
       libraryShowPreview: true,
@@ -228,6 +240,7 @@ class SettingsState extends Equatable {
     bool? removeNikudFromTanach,
     bool? defaultRemovePunctuation,
     bool? defaultContinuousReadingMode,
+    bool? mikraTraditionalLayout,
     bool? defaultSidebarOpen,
     bool? defaultCommentaryOpen,
     bool? pinSidebar,
@@ -237,6 +250,7 @@ class SettingsState extends Equatable {
     double? commentaryPaneWidth,
     String? copyWithHeaders,
     String? copyHeaderFormat,
+    String? torahCopyCitation,
     bool? isFullscreen,
     String? libraryViewMode,
     bool? libraryShowPreview,
@@ -304,6 +318,8 @@ class SettingsState extends Equatable {
       indexUpdateMode: indexUpdateMode ?? this.indexUpdateMode,
       defaultContinuousReadingMode:
           defaultContinuousReadingMode ?? this.defaultContinuousReadingMode,
+      mikraTraditionalLayout:
+          mikraTraditionalLayout ?? this.mikraTraditionalLayout,
       defaultSidebarOpen: defaultSidebarOpen ?? this.defaultSidebarOpen,
       defaultCommentaryOpen:
           defaultCommentaryOpen ?? this.defaultCommentaryOpen,
@@ -314,6 +330,7 @@ class SettingsState extends Equatable {
       commentaryPaneWidth: commentaryPaneWidth ?? this.commentaryPaneWidth,
       copyWithHeaders: copyWithHeaders ?? this.copyWithHeaders,
       copyHeaderFormat: copyHeaderFormat ?? this.copyHeaderFormat,
+      torahCopyCitation: torahCopyCitation ?? this.torahCopyCitation,
       isFullscreen: isFullscreen ?? this.isFullscreen,
       libraryViewMode: libraryViewMode ?? this.libraryViewMode,
       libraryShowPreview: libraryShowPreview ?? this.libraryShowPreview,
@@ -381,6 +398,7 @@ class SettingsState extends Equatable {
     textDisplayPolicy,
     indexUpdateMode,
     defaultContinuousReadingMode,
+    mikraTraditionalLayout,
     defaultSidebarOpen,
     defaultCommentaryOpen,
     pinSidebar,
@@ -390,6 +408,7 @@ class SettingsState extends Equatable {
     commentaryPaneWidth,
     copyWithHeaders,
     copyHeaderFormat,
+    torahCopyCitation,
     isFullscreen,
     libraryViewMode,
     libraryShowPreview,

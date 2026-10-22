@@ -7,7 +7,9 @@ import 'package:super_clipboard/super_clipboard.dart';
 /// clipboard: [processedText], the paragraph as the copy profile renders it,
 /// with the headers that [copyWithHeaders] asks for. The headers name
 /// [headerBook] and its path in [bookContent]; without a book there are no
-/// headers.
+/// headers. [sourceCitation] — with 'book_and_path', a source citation for the
+/// line that replaces "book, path" (in the Torah: parasha and aliyah); null
+/// for the line keeps the regular path.
 Future<({String plainText, String htmlText})> buildParagraphCopyText({
   required String processedText,
   required int index,
@@ -16,12 +18,26 @@ Future<({String plainText, String htmlText})> buildParagraphCopyText({
   TextBook? headerBook,
   List<String>? bookContent,
   bool Function(int)? isLineLoaded,
+  String? Function(int index)? sourceCitation,
 }) async {
   final plainText = utils.stripHtmlIfNeeded(processedText);
   var finalText = plainText;
   var finalHtmlText = processedText;
 
-  if (copyWithHeaders != 'none' && headerBook != null) {
+  final citation = copyWithHeaders == 'book_and_path' && headerBook != null
+      ? sourceCitation?.call(index)
+      : null;
+  if (citation != null) {
+    String withCitation(String text) => CopyUtils.formatTextWithHeaders(
+      originalText: text,
+      copyWithHeaders: 'book_name',
+      copyHeaderFormat: copyHeaderFormat,
+      bookName: citation,
+      currentPath: '',
+    );
+    finalText = withCitation(plainText);
+    finalHtmlText = withCitation(processedText);
+  } else if (copyWithHeaders != 'none' && headerBook != null) {
     final bookName = CopyUtils.extractBookName(headerBook);
     final currentPath = await CopyUtils.extractCurrentPath(
       headerBook,
@@ -67,6 +83,7 @@ Future<void> copyParagraphToClipboard({
   List<String>? bookContent,
   bool Function(int)? isLineLoaded,
   bool plainTextOnly = false,
+  String? Function(int index)? sourceCitation,
 }) async {
   final text = await buildParagraphCopyText(
     processedText: processedText,
@@ -76,6 +93,7 @@ Future<void> copyParagraphToClipboard({
     headerBook: headerBook,
     bookContent: bookContent,
     isLineLoaded: isLineLoaded,
+    sourceCitation: sourceCitation,
   );
   await SystemClipboard.instance?.write([
     CopyUtils.buildClipboardItem(

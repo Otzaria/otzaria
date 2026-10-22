@@ -21,6 +21,7 @@ Future<void> savePerBookDisplaySettings(
   bool? removeNikud,
   bool? removePunctuation,
   bool? continuousReadingMode,
+  bool? mikraTraditionalLayout,
 }) async {
   final settingsBloc = context.read<SettingsBloc>();
   if (!settingsBloc.state.enablePerBookSettings) {
@@ -46,7 +47,8 @@ Future<void> savePerBookDisplaySettings(
   }
   if (fontSize == null &&
       showSplitView == null &&
-      continuousReadingMode == null) {
+      continuousReadingMode == null &&
+      mikraTraditionalLayout == null) {
     return;
   }
 
@@ -55,6 +57,7 @@ Future<void> savePerBookDisplaySettings(
       Settings.getValue<bool>('key-splited-view') ?? true;
   final defaultContinuousReading =
       settingsBloc.state.defaultContinuousReadingMode;
+  final defaultMikraLayout = settingsBloc.state.mikraTraditionalLayout;
 
   // עדכון אטומי: ה-load וה-merge מבוצעים בתוך תור הכתיבה כדי למנוע דריסה
   // הדדית עם שמירות מקבילות על אותו קובץ (רוחבי טורים, מפרשים).
@@ -62,6 +65,7 @@ Future<void> savePerBookDisplaySettings(
     double? newFontSize = existingSettings?.fontSize;
     bool? newCommentatorsBelow = existingSettings?.commentatorsBelow;
     bool? newContinuousReadingMode = existingSettings?.continuousReadingMode;
+    bool? newMikraLayout = existingSettings?.mikraTraditionalLayout;
 
     if (fontSize != null) {
       newFontSize = (fontSize == defaultFontSize) ? null : fontSize;
@@ -80,11 +84,18 @@ Future<void> savePerBookDisplaySettings(
           : continuousReadingMode;
     }
 
+    if (mikraTraditionalLayout != null) {
+      newMikraLayout = (mikraTraditionalLayout == defaultMikraLayout)
+          ? null
+          : mikraTraditionalLayout;
+    }
+
     return _withDisplayFields(
       existingSettings,
       fontSize: newFontSize,
       commentatorsBelow: newCommentatorsBelow,
       continuousReadingMode: newContinuousReadingMode,
+      mikraTraditionalLayout: newMikraLayout,
       displayLayer: existingSettings?.effectiveDisplayLayer,
     );
   });
@@ -159,6 +170,9 @@ Future<void> persistPerBookDisplayPatch({
   });
 }
 
+/// סימן ל-[_withDisplayFields]: השדה נשמר כפי שהוא בקובץ.
+const Object _keepExisting = Object();
+
 /// בונה את ההגדרות לשמירה; השדות הישנים removeNikud/removePunctuation/isTanach
 /// אינם נכתבים עוד — הם חיים בתוך [displayLayer]. אם כל השדות null,
 /// mutate ימחק את הקובץ.
@@ -167,6 +181,7 @@ TextBookPerBookSettings _withDisplayFields(
   required double? fontSize,
   required bool? commentatorsBelow,
   required bool? continuousReadingMode,
+  Object? mikraTraditionalLayout = _keepExisting,
   required TextDisplayLayer? displayLayer,
 }) {
   return TextBookPerBookSettings(
@@ -176,6 +191,9 @@ TextBookPerBookSettings _withDisplayFields(
         ? null
         : displayLayer,
     continuousReadingMode: continuousReadingMode,
+    mikraTraditionalLayout: identical(mikraTraditionalLayout, _keepExisting)
+        ? existing?.mikraTraditionalLayout
+        : mikraTraditionalLayout as bool?,
     activeCommentators: existing?.activeCommentators,
     pageShapeLeftWidth: existing?.pageShapeLeftWidth,
     pageShapeRightWidth: existing?.pageShapeRightWidth,

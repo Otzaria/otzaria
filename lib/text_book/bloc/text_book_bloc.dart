@@ -210,6 +210,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     on<ApplyDisplayPatch>(_onApplyDisplayPatch);
     on<ClearDisplayOverrides>(_onClearDisplayOverrides);
     on<ToggleContinuousReadingMode>(_onToggleContinuousReadingMode);
+    on<ToggleMikraTraditionalLayout>(_onToggleMikraTraditionalLayout);
     on<UpdateVisibleIndecies>(_onUpdateVisibleIndecies);
     on<UpdateSelectedIndex>(_onUpdateSelectedIndex);
     on<HighlightLine>(_onHighlightLine);
@@ -1005,6 +1006,14 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         displayOverrides: displayOverrides,
         supportsContinuousReadingMode: supportsContinuousReading,
         continuousReadingMode: effectiveContinuousReading,
+        // טעינה מחדש של אותו קורא שומרת את המצב; פתיחה — ההגדרה הכללית.
+        mikraTraditionalLayout: state is TextBookLoaded
+            ? (state as TextBookLoaded).mikraTraditionalLayout
+            : perBookSettings?.mikraTraditionalLayout ??
+                  Settings.getValue<bool>(
+                    SettingsRepository.keyMikraTraditionalLayout,
+                  ) ??
+                  true,
         loadedLineFlags: loadedLineFlags,
         // בלי בחירת מפרשים הקישורים נטענים רק אחרי שהבחירה נפתרה (ראה למטה),
         // והחלונית מציגה "טוען" עד אז ולא "לא נמצאו" (issue #1130).
@@ -1404,6 +1413,18 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         continuousReadingMode: effectiveEnabled,
       ),
     );
+  }
+
+  void _onToggleMikraTraditionalLayout(
+    ToggleMikraTraditionalLayout event,
+    Emitter<TextBookState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! TextBookLoaded ||
+        currentState.mikraTraditionalLayout == event.enabled) {
+      return;
+    }
+    emit(currentState.copyWith(mikraTraditionalLayout: event.enabled));
   }
 
   void _onUpdateVisibleIndecies(

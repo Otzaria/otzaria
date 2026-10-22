@@ -197,6 +197,15 @@ class UpdateDefaultContinuousReadingMode extends SettingsEvent {
   List<Object?> get props => [defaultContinuousReadingMode];
 }
 
+class UpdateMikraTraditionalLayout extends SettingsEvent {
+  final bool mikraTraditionalLayout;
+
+  const UpdateMikraTraditionalLayout(this.mikraTraditionalLayout);
+
+  @override
+  List<Object?> get props => [mikraTraditionalLayout];
+}
+
 class UpdateDefaultSidebarOpen extends SettingsEvent {
   final bool defaultSidebarOpen;
 
@@ -268,6 +277,15 @@ class UpdateCopyWithHeaders extends SettingsEvent {
 
   @override
   List<Object?> get props => [copyWithHeaders];
+}
+
+class UpdateTorahCopyCitation extends SettingsEvent {
+  final String torahCopyCitation;
+
+  const UpdateTorahCopyCitation(this.torahCopyCitation);
+
+  @override
+  List<Object?> get props => [torahCopyCitation];
 }
 
 class UpdateCopyHeaderFormat extends SettingsEvent {

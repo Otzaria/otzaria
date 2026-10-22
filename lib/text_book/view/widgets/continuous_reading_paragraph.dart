@@ -9,6 +9,7 @@ import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
 import 'package:otzaria/book_common/utils/link_anchor_variants.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/text_book/utils/mikra_structure.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/view/plugin_highlight_frame_overlay.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
@@ -43,6 +44,12 @@ class ContinuousReadingParagraphLine {
   /// כותרת נושא שנפתחת בשורה — מוצגת לפניה בתוך הזרימה.
   final String? heading;
 
+  /// ציון פרק/פסוק לגליון הצדדי (ספרי מקרא).
+  final MikraGutterLabel? gutter;
+
+  /// פרשה ועלייה לגליון הצדדי (חומשי התורה).
+  final MikraDivisionLabel? division;
+
   const ContinuousReadingParagraphLine({
     required this.lineIndex,
     this.text = '',
@@ -52,6 +59,8 @@ class ContinuousReadingParagraphLine {
     this.background,
     this.selected = false,
     this.heading,
+    this.gutter,
+    this.division,
   });
 }
 
@@ -142,6 +151,10 @@ class ContinuousReadingParagraph extends StatefulWidget {
   /// צבע כותרות הנושא שמוצגות בתוך הזרימה לפני השורה שהן פותחות.
   final Color? headingColor;
 
+  /// סגנון ציוני הגליון; null — אין גליון.
+  final TextStyle? gutterStyle;
+  final TextStyle? divisionStyle;
+
   const ContinuousReadingParagraph({
     super.key,
     required this.lines,
@@ -154,6 +167,8 @@ class ContinuousReadingParagraph extends StatefulWidget {
     this.anchorActiveBackground,
     this.textAlign = TextAlign.justify,
     this.headingColor,
+    this.gutterStyle,
+    this.divisionStyle,
   });
 
   @override
@@ -204,6 +219,8 @@ class _ContinuousReadingParagraphState
           range: TextRange(start: offset, end: offset + built.length),
           background: line.background,
           selected: line.selected,
+          gutter: line.gutter,
+          division: line.division,
         ),
       );
       for (final range in line.frameRanges) {
@@ -241,7 +258,12 @@ class _ContinuousReadingParagraphState
         child: result,
       );
     }
-    result = ReaderParagraphLines(lines: lineData, child: result);
+    result = ReaderParagraphLines(
+      lines: lineData,
+      gutterStyle: widget.gutterStyle,
+      divisionStyle: widget.divisionStyle,
+      child: result,
+    );
     // סימונים מורמים: ספירת המופעים רצה על הפסקה כולה, באותו סדר שהשכבה
     // קוראת את הטקסט מעץ הרינדור.
     return RaisedMarkerOverlay.wrap(

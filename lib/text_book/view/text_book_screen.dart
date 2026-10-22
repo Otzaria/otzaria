@@ -1254,7 +1254,15 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
     super.build(context);
     return LineScrollScope(
       controller: widget.tab.lines,
-      child: _buildReader(context),
+      // שינוי "תצוגת המקרא ברצף" בהגדרות חל מיד גם על הספר הפתוח (אם אין
+      // לו בחירה משלו).
+      child: BlocListener<SettingsBloc, SettingsState>(
+        listenWhen: (previous, current) =>
+            previous.mikraTraditionalLayout != current.mikraTraditionalLayout,
+        listener: (context, settings) =>
+            _applyGlobalMikraLayout(settings.mikraTraditionalLayout),
+        child: _buildReader(context),
+      ),
     );
   }
 
@@ -1784,6 +1792,16 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
           onPressed: () => _toggleAndSaveContinuousReading(context, state),
         ),
 
+      // 3d) תצוגת המקרא ברצף — כמסורה/כנדפס; רק בספרי תנ"ך במצב רצף
+      if (state.isTanach && state.continuousReadingMode)
+        ActionButtonData(
+          widget: _buildMikraLayoutButton(context, state),
+          icon: _mikraLayoutIcon(state),
+          tooltip: _mikraLayoutTooltip(state),
+          actionId: ToolbarActionId.mikraLayout,
+          onPressed: () => _toggleAndSaveMikraLayout(context, state),
+        ),
+
       // 4) Search Button
       ActionButtonData(
         widget: _buildSearchButton(
@@ -2206,6 +2224,47 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       state,
       continuousReadingMode: newValue,
     );
+  }
+
+  IconData _mikraLayoutIcon(TextBookLoaded state) =>
+      state.mikraTraditionalLayout
+      ? FluentIcons.book_open_24_filled
+      : FluentIcons.book_open_24_regular;
+
+  String _mikraLayoutTooltip(TextBookLoaded state) =>
+      state.mikraTraditionalLayout
+      ? 'הצג כנדפס (פרקים ופסוקים בגוף הטקסט)'
+      : 'הצג כמסורה (פרקים ופסוקים בגליון)';
+
+  Future<void> _toggleAndSaveMikraLayout(
+    BuildContext context,
+    TextBookLoaded state,
+  ) async {
+    final newValue = !state.mikraTraditionalLayout;
+    context.read<TextBookBloc>().add(ToggleMikraTraditionalLayout(newValue));
+    await savePerBookDisplaySettings(
+      context,
+      state,
+      mikraTraditionalLayout: newValue,
+    );
+  }
+
+  Widget _buildMikraLayoutButton(BuildContext context, TextBookLoaded state) {
+    return BarButton.icon(
+      tooltip: _mikraLayoutTooltip(state),
+      icon: _mikraLayoutIcon(state),
+      compact: context.read<SettingsBloc>().state.compactMenuMode,
+      onPressed: () => _toggleAndSaveMikraLayout(context, state),
+    );
+  }
+
+  /// שינוי ההגדרה הכללית חל על הספר הפתוח, אלא אם נשמרה לו בחירה משלו.
+  Future<void> _applyGlobalMikraLayout(bool value) async {
+    final bloc = context.read<TextBookBloc>();
+    final perBook = await TextBookPerBookSettings.load(widget.tab.book);
+    if (perBook?.mikraTraditionalLayout != null) return;
+    if (!mounted) return;
+    bloc.add(ToggleMikraTraditionalLayout(value));
   }
 
   Widget _buildContinuousReadingButton(

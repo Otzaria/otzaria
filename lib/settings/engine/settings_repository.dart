@@ -46,6 +46,10 @@ class SettingsRepository {
   /// (ניקוד/תנ"ך/פיסוק/טעמים/שם הוי"ה) משוקפים ממנה לתאימות.
   static const String keyTextDisplayPolicy = 'key-text-display-policy';
   static const String keyContinuousReadingMode = 'key-continuous-reading-mode';
+
+  /// ספרי המקרא במצב רצף: בלי חלוקת פרקים בגוף הטקסט, פרקים ופסוקים בגליון.
+  static const String keyMikraTraditionalLayout =
+      'key-mikra-traditional-layout';
   static const String keyDefaultSidebarOpen = 'key-default-sidebar-open';
   static const String keyDefaultCommentaryOpen = 'key-default-commentary-open';
 
@@ -64,6 +68,9 @@ class SettingsRepository {
   static const String keyCalendarEvents = 'key-calendar-events';
   static const String keyCopyWithHeaders = 'key-copy-with-headers';
   static const String keyCopyHeaderFormat = 'key-copy-header-format';
+
+  /// ציון המקור בתורה בהעתקה עם «שם וכותרת»: פרק / ספר-פרשה-עלייה / פרשה-עלייה.
+  static const String keyTorahCopyCitation = 'key-torah-copy-citation';
   static const String keyIsFullscreen = 'key-is-fullscreen';
   static const String keyRestoreAllWindows = 'key-restore-all-windows';
   static const String keyLibraryViewMode = 'key-library-view-mode';
@@ -265,6 +272,7 @@ class SettingsRepository {
     keyDefaultRemovePunctuation,
     keyTextDisplayPolicy,
     keyContinuousReadingMode,
+    keyMikraTraditionalLayout,
     keyDefaultSidebarOpen,
     keyDefaultCommentaryOpen,
     keySelectedLinkTypes,
@@ -279,6 +287,7 @@ class SettingsRepository {
     keyCalendarEvents,
     keyCopyWithHeaders,
     keyCopyHeaderFormat,
+    keyTorahCopyCitation,
     keyIsFullscreen,
     keyRestoreAllWindows,
     keyLibraryViewMode,
@@ -445,6 +454,10 @@ class SettingsRepository {
         keyContinuousReadingMode,
         defaultValue: false,
       ),
+      'mikraTraditionalLayout': _settings.getValue<bool>(
+        keyMikraTraditionalLayout,
+        defaultValue: true,
+      ),
       'defaultSidebarOpen': _settings.getValue<bool>(
         keyDefaultSidebarOpen,
         defaultValue: false,
@@ -496,6 +509,10 @@ class SettingsRepository {
       'copyHeaderFormat': _settings.getValue<String>(
         keyCopyHeaderFormat,
         defaultValue: 'same_line_after_brackets',
+      ),
+      'torahCopyCitation': _settings.getValue<String>(
+        keyTorahCopyCitation,
+        defaultValue: 'chapter',
       ),
       'isFullscreen': _settings.getValue<bool>(
         keyIsFullscreen,
@@ -788,6 +805,10 @@ class SettingsRepository {
     await _settings.setValue(keyContinuousReadingMode, value);
   }
 
+  Future<void> updateMikraTraditionalLayout(bool value) async {
+    await _settings.setValue(keyMikraTraditionalLayout, value);
+  }
+
   Future<void> updateDefaultSidebarOpen(bool value) async {
     await _settings.setValue(keyDefaultSidebarOpen, value);
   }
@@ -838,6 +859,10 @@ class SettingsRepository {
 
   Future<void> updateCopyHeaderFormat(String value) async {
     await _settings.setValue(keyCopyHeaderFormat, value);
+  }
+
+  Future<void> updateTorahCopyCitation(String value) async {
+    await _settings.setValue(keyTorahCopyCitation, value);
   }
 
   Future<void> updateIsFullscreen(bool value) async {
@@ -1220,6 +1245,7 @@ class SettingsRepository {
     await updateTextDisplayPolicy(TextDisplayPolicy.empty);
     await updateIndexUpdateMode(IndexUpdateMode.all);
     await _settings.setValue(keyContinuousReadingMode, false);
+    await _settings.setValue(keyMikraTraditionalLayout, true);
     await _settings.setValue(keyDefaultSidebarOpen, false);
     await _settings.setValue(keyDefaultCommentaryOpen, false);
     await _settings.setValue(keyPinSidebar, false);
@@ -1233,6 +1259,7 @@ class SettingsRepository {
     await _settings.setValue(keyCalendarEvents, '[]');
     await _settings.setValue(keyCopyWithHeaders, 'none');
     await _settings.setValue(keyCopyHeaderFormat, 'same_line_after_brackets');
+    await _settings.setValue(keyTorahCopyCitation, 'chapter');
     await _settings.setValue(keyIsFullscreen, false);
     await _settings.setValue(keyLibraryViewMode, 'grid');
     await _settings.setValue(keyLibraryShowPreview, true);

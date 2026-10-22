@@ -57,6 +57,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateDefaultContinuousReadingMode>(
       _onUpdateDefaultContinuousReadingMode,
     );
+    on<UpdateMikraTraditionalLayout>(_onUpdateMikraTraditionalLayout);
     on<UpdateDefaultSidebarOpen>(_onUpdateDefaultSidebarOpen);
     on<UpdateDefaultCommentaryOpen>(_onUpdateDefaultCommentaryOpen);
     on<UpdatePinSidebar>(_onUpdatePinSidebar);
@@ -66,6 +67,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<UpdateCommentaryPaneWidth>(_onUpdateCommentaryPaneWidth);
     on<UpdateCopyWithHeaders>(_onUpdateCopyWithHeaders);
     on<UpdateCopyHeaderFormat>(_onUpdateCopyHeaderFormat);
+    on<UpdateTorahCopyCitation>(_onUpdateTorahCopyCitation);
     on<UpdateIsFullscreen>(_onUpdateIsFullscreen);
     on<UpdateLibraryViewMode>(_onUpdateLibraryViewMode);
     on<UpdateLibraryShowPreview>(_onUpdateLibraryShowPreview);
@@ -148,6 +150,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       textDisplayPolicy: settings['textDisplayPolicy'] as TextDisplayPolicy?,
       defaultContinuousReadingMode:
           settings['defaultContinuousReadingMode'] ?? false,
+      mikraTraditionalLayout: settings['mikraTraditionalLayout'] ?? true,
       defaultSidebarOpen: settings['defaultSidebarOpen'],
       defaultCommentaryOpen: settings['defaultCommentaryOpen'],
       pinSidebar: settings['pinSidebar'],
@@ -157,6 +160,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       commentaryPaneWidth: settings['commentaryPaneWidth'],
       copyWithHeaders: settings['copyWithHeaders'],
       copyHeaderFormat: settings['copyHeaderFormat'],
+      torahCopyCitation: settings['torahCopyCitation'] ?? 'chapter',
       isFullscreen: settings['isFullscreen'],
       libraryViewMode: settings['libraryViewMode'],
       libraryShowPreview: settings['libraryShowPreview'],
@@ -514,6 +518,19 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     emit(state.copyWith(indexUpdateMode: event.indexUpdateMode));
   }
 
+  Future<void> _onUpdateMikraTraditionalLayout(
+    UpdateMikraTraditionalLayout event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateMikraTraditionalLayout(
+      event.mikraTraditionalLayout,
+    );
+    emit(state.copyWith(mikraTraditionalLayout: event.mikraTraditionalLayout));
+
+    // ספר שבחירתו שווה עכשיו לברירת המחדל יירש אותה מעתה.
+    _cleanupRedundantPerBookSettings();
+  }
+
   Future<void> _onUpdateDefaultContinuousReadingMode(
     UpdateDefaultContinuousReadingMode event,
     Emitter<SettingsState> emit,
@@ -593,6 +610,14 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   ) async {
     await _repository.updateCopyWithHeaders(event.copyWithHeaders);
     emit(state.copyWith(copyWithHeaders: event.copyWithHeaders));
+  }
+
+  Future<void> _onUpdateTorahCopyCitation(
+    UpdateTorahCopyCitation event,
+    Emitter<SettingsState> emit,
+  ) async {
+    await _repository.updateTorahCopyCitation(event.torahCopyCitation);
+    emit(state.copyWith(torahCopyCitation: event.torahCopyCitation));
   }
 
   Future<void> _onUpdateCopyHeaderFormat(
@@ -695,6 +720,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         defaultShowSplitView:
             Settings.getValue<bool>('key-splited-view') ?? true,
         defaultContinuousReadingMode: state.defaultContinuousReadingMode,
+        defaultMikraTraditionalLayout: state.mikraTraditionalLayout,
       );
     } catch (e) {
       // בטסטים או בסביבות ללא פלאגין, זה בסדר להתעלם

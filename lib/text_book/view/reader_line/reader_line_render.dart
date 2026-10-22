@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
+import 'package:otzaria/text_book/utils/mikra_structure.dart';
 import 'package:otzaria/text_book/utils/reading_layout.dart';
 
 /// שורת המקור שתחת נקודה בפריט קריאה.
@@ -40,6 +41,8 @@ class ReaderParagraphLineData {
     required this.range,
     this.background,
     this.selected = false,
+    this.gutter,
+    this.division,
   });
 
   final int lineIndex;
@@ -49,16 +52,25 @@ class ReaderParagraphLineData {
   final Color? background;
   final bool selected;
 
+  /// ציון פרק/פסוק שמצויר בגליון הצדדי של הפסקה (ספרי מקרא); null — אין.
+  final MikraGutterLabel? gutter;
+
+  /// פרשה ועלייה שמתחילות בשורה (חומשי התורה).
+  final MikraDivisionLabel? division;
+
   @override
   bool operator ==(Object other) =>
       other is ReaderParagraphLineData &&
       other.lineIndex == lineIndex &&
       other.range == range &&
       other.background == background &&
-      other.selected == selected;
+      other.selected == selected &&
+      other.gutter == gutter &&
+      other.division == division;
 
   @override
-  int get hashCode => Object.hash(lineIndex, range, background, selected);
+  int get hashCode =>
+      Object.hash(lineIndex, range, background, selected, gutter, division);
 }
 
 /// נושא את מפת השורות של פסקה ממוזגת ומצייר את רקע השורות המודגשות.
@@ -66,26 +78,58 @@ class ReaderParagraphLines extends SingleChildRenderObjectWidget {
   const ReaderParagraphLines({
     super.key,
     required this.lines,
+    this.gutterStyle,
+    this.divisionStyle,
     required super.child,
   });
 
   final List<ReaderParagraphLineData> lines;
 
+  /// סגנון ציוני הגליון; הציור רק כשיש לשורה [ReaderParagraphLineData.gutter].
+  final TextStyle? gutterStyle;
+
+  /// סגנון הפרשה והעלייה; כהה וגדול מ-[gutterStyle].
+  final TextStyle? divisionStyle;
+
   @override
   RenderReaderParagraphLines createRenderObject(BuildContext context) =>
-      RenderReaderParagraphLines(lines);
+      RenderReaderParagraphLines(lines, gutterStyle, divisionStyle);
 
   @override
   void updateRenderObject(
     BuildContext context,
     RenderReaderParagraphLines renderObject,
   ) {
-    renderObject.lines = lines;
+    renderObject
+      ..lines = lines
+      ..gutterStyle = gutterStyle
+      ..divisionStyle = divisionStyle;
   }
 }
 
+/// מרחק ציוני הגליון מקצה הפסקה (בצד ההתחלה, ימין בעברית).
+const double kMikraGutterGap = 10;
+
 class RenderReaderParagraphLines extends RenderProxyBox {
-  RenderReaderParagraphLines(this._lines);
+  RenderReaderParagraphLines(
+    this._lines, [
+    this._gutterStyle,
+    this._divisionStyle,
+  ]);
+
+  TextStyle? _divisionStyle;
+  set divisionStyle(TextStyle? value) {
+    if (value == _divisionStyle) return;
+    _divisionStyle = value;
+    markNeedsPaint();
+  }
+
+  TextStyle? _gutterStyle;
+  set gutterStyle(TextStyle? value) {
+    if (value == _gutterStyle) return;
+    _gutterStyle = value;
+    markNeedsPaint();
+  }
 
   List<ReaderParagraphLineData> _lines;
   List<ReaderParagraphLineData> get lines => _lines;
@@ -265,6 +309,125 @@ class RenderReaderParagraphLines extends RenderProxyBox {
       if (bar != null) canvas.restore();
     }
     super.paint(context, offset);
+    _paintGutterLabels(canvas, offset);
+    _paintDivisionLabels(canvas, offset);
+  }
+
+  /// ציוני פרק ופסוק בגליון: ציון אחד לכל שורת תצוגה — כשכמה פסוקים מתחילים
+  /// בשורה אחת, מוצג הטווח שלהם (הפרק מודגש, הפסוק דק).
+  @visibleForTesting
+  List<({double top, MikraGutterLabel first, MikraGutterLabel last})>
+  gutterEntries() {
+    final entries =
+        <({double top, MikraGutterLabel first, MikraGutterLabel last})>[];
+    for (final line in _lines) {
+      final label = line.gutter;
+      if (label == null) continue;
+      final extent = lineExtent(line.lineIndex);
+      if (extent == null) continue;
+      final last = entries.isEmpty ? null : entries.last;
+      if (last != null && (last.top - extent.top).abs() < 1) {
+        entries[entries.length - 1] = (
+          top: last.top,
+          first: last.first,
+          last: label,
+        );
+      } else {
+        entries.add((top: extent.top, first: label, last: label));
+      }
+    }
+    return entries;
+  }
+
+  void _paintGutterLabels(Canvas canvas, Offset offset) {
+    final style = _gutterStyle;
+    if (style == null || !hasSize) return;
+    for (final entry in gutterEntries()) {
+      final spans = <InlineSpan>[];
+      final chapter = entry.first.chapter;
+      if (chapter != null) {
+        spans.add(
+          TextSpan(
+            text: chapter,
+            style: style.copyWith(fontWeight: FontWeight.w800),
+          ),
+        );
+        spans.add(TextSpan(text: ':', style: style));
+      }
+      spans.add(
+        TextSpan(
+          text: entry.first.verse,
+          style: style.copyWith(fontWeight: FontWeight.w300),
+        ),
+      );
+      if (entry.first != entry.last) {
+        final lastChapter = entry.last.chapter;
+        spans.add(
+          TextSpan(
+            text: lastChapter == null
+                ? '־${entry.last.verse}'
+                : '־$lastChapter:${entry.last.verse}',
+            style: style.copyWith(fontWeight: FontWeight.w300),
+          ),
+        );
+      }
+      final painter = TextPainter(
+        text: TextSpan(children: spans, style: style),
+        textDirection: TextDirection.rtl,
+      )..layout();
+      // פרק ופסוק בשמאל הפסקה, בצד שלא של הפרשות והעליות.
+      painter.paint(
+        canvas,
+        offset + Offset(-kMikraGutterGap - painter.width, entry.top),
+      );
+      painter.dispose();
+    }
+  }
+
+  /// פרשה (מודגשת) ועלייה (דקה) בימין הפסקה, בגובה השורה שבה הן מתחילות.
+  @visibleForTesting
+  List<({double top, MikraDivisionLabel label})> divisionEntries() {
+    final entries = <({double top, MikraDivisionLabel label})>[];
+    for (final line in _lines) {
+      final label = line.division;
+      if (label == null) continue;
+      final extent = lineExtent(line.lineIndex);
+      if (extent == null) continue;
+      entries.add((top: extent.top, label: label));
+    }
+    return entries;
+  }
+
+  void _paintDivisionLabels(Canvas canvas, Offset offset) {
+    final style = _divisionStyle;
+    if (style == null || !hasSize) return;
+    var lastBottom = double.negativeInfinity;
+    for (final entry in divisionEntries()) {
+      final label = entry.label;
+      final spans = <InlineSpan>[
+        if (label.parasha != null)
+          TextSpan(
+            text: label.parasha,
+            style: style.copyWith(fontWeight: FontWeight.w800),
+          ),
+        TextSpan(
+          text: label.parasha != null ? '\n${label.aliyah}' : label.aliyah,
+          style: style.copyWith(fontWeight: FontWeight.w300),
+        ),
+      ];
+      final painter = TextPainter(
+        text: TextSpan(children: spans, style: style),
+        textDirection: TextDirection.rtl,
+      )..layout();
+      // שני ציונים סמוכים לא יוצרו חפיפה: השני יורד מתחת לראשון.
+      final top = entry.top < lastBottom ? lastBottom : entry.top;
+      painter.paint(
+        canvas,
+        offset + Offset(size.width + kMikraGutterGap, top),
+      );
+      lastBottom = top + painter.height;
+      painter.dispose();
+    }
   }
 
   /// רצועת הסמן של [RenderReaderLineGutter] שמעל, במרחב של הפסקה הזו.

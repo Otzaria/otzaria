@@ -97,6 +97,16 @@ class ToggleContinuousReadingMode extends TextBookEvent {
   List<Object?> get props => [enabled];
 }
 
+/// תצוגת המקרא ברצף: כמסורה (true) או כנדפס (false).
+class ToggleMikraTraditionalLayout extends TextBookEvent {
+  final bool enabled;
+
+  const ToggleMikraTraditionalLayout(this.enabled);
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
 class UpdateFontSize extends TextBookEvent {
   final double fontSize;
 

@@ -157,6 +157,13 @@ class PerBookSettings {
           (Settings.getValue<bool>('key-continuous-reading-mode') ?? false)) {
         cleaned.remove('continuousReadingMode');
       }
+      if (cleaned['mikraTraditionalLayout'] ==
+          (Settings.getValue<bool>(
+                SettingsRepository.keyMikraTraditionalLayout,
+              ) ??
+              true)) {
+        cleaned.remove('mikraTraditionalLayout');
+      }
       return cleaned;
     } catch (_) {
       return null;
@@ -327,6 +334,7 @@ class PerBookSettings {
     bool removeNikudFromTanach = false,
     bool defaultRemovePunctuation = false,
     bool defaultContinuousReadingMode = false,
+    bool defaultMikraTraditionalLayout = true,
   }) async {
     try {
       final dir = await _getSettingsDirectory();
@@ -379,6 +387,10 @@ class PerBookSettings {
                 defaultContinuousReadingMode) {
               cleaned.remove('continuousReadingMode');
             }
+            if (cleaned['mikraTraditionalLayout'] ==
+                defaultMikraTraditionalLayout) {
+              cleaned.remove('mikraTraditionalLayout');
+            }
 
             if (cleaned.isEmpty) {
               await file.delete();
@@ -421,6 +433,9 @@ class TextBookPerBookSettings {
   final TextDisplayLayer? displayLayer;
   final bool? continuousReadingMode;
 
+  /// תצוגת המקרא ברצף בספר זה (כמסורה/כנדפס); null — ההגדרה הכללית.
+  final bool? mikraTraditionalLayout;
+
   /// המפרשים הנבחרים בספר זה. נשמר תמיד (לא תלוי ב-enablePerBookSettings) כדי
   /// שבחירת המשתמש תיטען בכל פתיחה. רשימה ריקה = המשתמש ביטל את כל הבחירה.
   final List<String>? activeCommentators;
@@ -439,6 +454,7 @@ class TextBookPerBookSettings {
     this.isTanach,
     this.displayLayer,
     this.continuousReadingMode,
+    this.mikraTraditionalLayout,
     this.activeCommentators,
     this.pageShapeLeftWidth,
     this.pageShapeRightWidth,
@@ -456,6 +472,8 @@ class TextBookPerBookSettings {
       'display': displayLayer!.toJson(),
     if (continuousReadingMode != null)
       'continuousReadingMode': continuousReadingMode,
+    if (mikraTraditionalLayout != null)
+      'mikraTraditionalLayout': mikraTraditionalLayout,
     if (activeCommentators != null) 'activeCommentators': activeCommentators,
     if (pageShapeLeftWidth != null) 'pageShapeLeftWidth': pageShapeLeftWidth,
     if (pageShapeRightWidth != null) 'pageShapeRightWidth': pageShapeRightWidth,
@@ -478,6 +496,7 @@ class TextBookPerBookSettings {
             )
           : null,
       continuousReadingMode: json['continuousReadingMode'] as bool?,
+      mikraTraditionalLayout: json['mikraTraditionalLayout'] as bool?,
       activeCommentators: (json['activeCommentators'] as List<dynamic>?)
           ?.cast<String>(),
       pageShapeLeftWidth: (json['pageShapeLeftWidth'] as num?)?.toDouble(),
@@ -504,6 +523,7 @@ class TextBookPerBookSettings {
     bool? removePunctuation,
     TextDisplayLayer? displayLayer,
     bool? continuousReadingMode,
+    bool? mikraTraditionalLayout,
     List<String>? activeCommentators,
     bool clearActiveCommentators = false,
     double? pageShapeLeftWidth,
@@ -520,6 +540,8 @@ class TextBookPerBookSettings {
       displayLayer: displayLayer ?? this.displayLayer,
       continuousReadingMode:
           continuousReadingMode ?? this.continuousReadingMode,
+      mikraTraditionalLayout:
+          mikraTraditionalLayout ?? this.mikraTraditionalLayout,
       activeCommentators: clearActiveCommentators
           ? null
           : activeCommentators ?? this.activeCommentators,
