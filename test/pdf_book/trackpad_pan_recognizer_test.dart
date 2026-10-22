@@ -209,7 +209,7 @@ void main() {
     expect(scaleUpdates, 0);
     expect(tabSwipeUpdates, 0);
     expect(forwardedEvents.first, isA<PointerPanZoomStartEvent>());
-    expect(forwardedEvents.first.position, center + const Offset(0, 8));
+    expect(forwardedEvents.first.position, center);
     final updates = forwardedEvents
         .whereType<PointerPanZoomUpdateEvent>()
         .toList();
@@ -220,10 +220,7 @@ void main() {
       Offset(9, 22),
       Offset(10, 32),
     ]);
-    expect(
-      updates.first.position + updates.first.pan,
-      center + const Offset(2, 12),
-    );
+    expect(updates.map((event) => event.position), everyElement(center));
     expect(updates.first.panDelta, const Offset(2, 4));
     expect(forwardedEvents.last, isA<PointerPanZoomEndEvent>());
   });

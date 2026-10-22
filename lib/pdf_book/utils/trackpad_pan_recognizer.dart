@@ -113,7 +113,8 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
         timeStamp: event.timeStamp,
         pointer: event.pointer,
         device: event.device,
-        position: (previous?.position ?? event.position) + _scaleOriginPan,
+        // הסמן לא זז במחוות לוח מגע - הזום מעוגן אליו ולא לסכום ה-pan שקדם.
+        position: event.position,
       ),
     );
     if (_claim == _PanClaim.scaling) _forwardScale(event);
@@ -128,7 +129,7 @@ class TrackpadPanRecognizer extends OneSequenceGestureRecognizer {
         timeStamp: event.timeStamp,
         pointer: event.pointer,
         device: event.device,
-        position: event.position + _scaleOriginPan,
+        position: event.position,
         pan: event.pan - _scaleOriginPan,
         panDelta: event.panDelta,
         scale: event.scale / _scaleOrigin,

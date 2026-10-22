@@ -361,9 +361,8 @@ void main() {
     await gesture.panZoomUpdate(center, pan: const Offset(0, -8));
     await tester.pump(const Duration(milliseconds: 300));
     final localCenter = center - tester.getTopLeft(find.byType(PdfViewer));
-    final anchor = controller.localToDocument(
-      localCenter + const Offset(0, -8),
-    );
+    // הסמן לא זז במחוות לוח מגע - הזום מעוגן לנקודה שמתחתיו בתחילת הצביטה.
+    final anchor = controller.localToDocument(localCenter);
     for (final (pan, scale) in [
       (const Offset(4, -12), 1.1),
       (const Offset(8, -20), 1.4),
@@ -371,12 +370,13 @@ void main() {
       (const Offset(15, -30), 0.8),
     ]) {
       await gesture.panZoomUpdate(center, pan: pan, scale: scale);
+      final target = localCenter + pan - const Offset(0, -8);
       expect(controller.currentZoom, closeTo(zoom * scale, 0.000001));
       expect(
-        (controller.documentToLocal(anchor) - localCenter - pan).distance,
+        (controller.documentToLocal(anchor) - target).distance,
         lessThan(0.001),
         reason:
-            'scale=$scale point=${controller.documentToLocal(anchor)} target=${localCenter + pan}',
+            'scale=$scale point=${controller.documentToLocal(anchor)} target=$target',
       );
       expect(tabSwipeUpdates, 0);
     }
