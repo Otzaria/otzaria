@@ -7,6 +7,7 @@ import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart';
 
 import 'library_changes_store.dart';
 
@@ -225,7 +226,11 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
                   ? Center(child: Text(context.settingsText('לא נמצאו ספרים')))
                   : ContentDirectionality(
                       child: Scrollbar(
-                        child: ListView.builder(
+                        // שורות בגובה משתנה: ListView רגיל בונה בקפיצת פס
+                        // הגלילה את כל השורות שבדרך (#3022). מפתח לכל סינון,
+                        // כדי שהגבהים שנמדדו לא יעברו לשורות אחרות.
+                        child: SuperListView.builder(
+                          key: ObjectKey(_visible),
                           itemCount: _visible.length,
                           itemBuilder: (context, index) =>
                               _LineView(line: _visible[index]),

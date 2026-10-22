@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library_update/changes_notes/library_changes_dialog.dart';
 import 'package:otzaria/library_update/changes_notes/library_changes_store.dart';
+import 'package:positioned_sliver_list/positioned_sliver_list.dart';
 
 /// בצורה של build_release_notes ב-SeforimLibrary (library_update_announce.py).
 String _notes(int version, int books) {
@@ -139,7 +140,7 @@ void main() {
 
     await tester.dragUntilVisible(
       find.text('• ספרות/הלכה/ספר 200'),
-      find.byType(ListView),
+      find.byType(SuperListView),
       const Offset(0, -500),
     );
     expect(find.text('• ספרות/הלכה/ספר 200'), findsOneWidget);
@@ -156,5 +157,55 @@ void main() {
     await tester.tap(find.text('סגור'));
     await tester.pumpAndSettle();
     expect(find.text('מה חדש בספרים'), findsNothing);
+  });
+
+  testWidgets('קפיצה לסוף הרשימה לא בונה את כל השורות שבדרך (#3022)', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      _app(
+        Builder(
+          builder: (context) => Center(
+            child: TextButton(
+              onPressed: () => showLibraryChangesDialog(context, [
+                _note('v35-1', _notes(35, 6000)),
+              ]),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 500)),
+    );
+    await tester.pumpAndSettle();
+
+    final position = Scrollable.of(
+      tester.element(find.text('• ספרות/הלכה/ספר 0')),
+    ).position;
+    var builtLines = 0;
+    debugOnRebuildDirtyWidget = (element, _) {
+      if (element.widget.runtimeType.toString() == '_LineView') builtLines++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+    // כמו גרירת ה-thumb לסוף: קפיצה רחוקה בפריים אחד.
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    expect(builtLines, lessThan(200));
+    expect(
+      find.text(
+        '• תנך/תורה/בראשית - שינוי מהדורה ל-מהדורה ב (שונה גם מיקומו/שמו)',
+      ),
+      findsOneWidget,
+    );
   });
 }
