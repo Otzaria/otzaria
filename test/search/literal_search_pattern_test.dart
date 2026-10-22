@@ -215,8 +215,18 @@ Future<void> main() async {
         line,
         'וְהָיָה לָכֶם הַמֶּלֶךְ וְהַמְּלָכִים',
         'ושמע ישראלים ושמע ישראל',
+        'אמר הרמב"ם כך והרמב״ם',
+        'לכם1 לכםabc לכם',
       ];
-      for (final q in ['כם ', ' וה', ' והם ', 'מלך ', 'שמע ישראל ']) {
+      for (final q in [
+        'כם ',
+        ' וה',
+        ' והם ',
+        'מלך ',
+        'שמע ישראל ',
+        'מב ',
+        ' רמב',
+      ]) {
         for (final l in lines) {
           final clean = utils.removeVolwels(l);
           // ההדגשה מחזירה טווח לכל מילה שבהתאמה.
@@ -239,6 +249,17 @@ Future<void> main() async {
           expect(highlight, search, reason: '"$q" ב-"$clean"');
         }
       }
+    });
+
+    test('שאילתת /regex/ אינה מסוננת לפי רווח בקצה', () {
+      expect(
+        utils.computeHighlightRanges('אב ג', ' /אב/ ', partialWordMatch: true),
+        utils.computeHighlightRanges('אב ג', '/אב/', partialWordMatch: true),
+      );
+      expect(
+        utils.computeHighlightRanges('אב ג', '/אב/', partialWordMatch: true),
+        isNotEmpty,
+      );
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
 }

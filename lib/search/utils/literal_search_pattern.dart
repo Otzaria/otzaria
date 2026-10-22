@@ -37,6 +37,35 @@ String _collapse(String query) =>
   return (start: collapsed.startsWith(' '), end: collapsed.endsWith(' '));
 }
 
+/// בודקת שהתאמה בטווח `[start, end)` של `text` עומדת בגבול המילה שהרווח
+/// בקצה דורש.
+typedef LiteralEdgeCheck = bool Function(String text, int start, int end);
+
+String? _edgeCheckQuery;
+LiteralEdgeCheck? _edgeCheck;
+
+/// גבולות המילה של המנוע בקצוות של [query] שיש בהם רווח — אותם גבולות של
+/// [buildLiteralPattern]. `null` כשאין קצה מעוגן.
+LiteralEdgeCheck? literalEdgeCheck(String query) {
+  if (query == _edgeCheckQuery) return _edgeCheck;
+  final check = _buildEdgeCheck(query);
+  _edgeCheckQuery = query;
+  return _edgeCheck = check;
+}
+
+LiteralEdgeCheck? _buildEdgeCheck(String query) {
+  final edges = literalQueryWordEdges(query);
+  if (!edges.start && !edges.end) return null;
+  final source = _literalSource(normalizeLiteralQuery(query));
+  final parts = source == null ? null : _splitWordBoundaryWrapper(source);
+  if (parts == null) return null;
+  final before = edges.start ? compileLiteralPattern(parts.before) : null;
+  final after = edges.end ? compileLiteralPattern(parts.after) : null;
+  return (text, start, end) =>
+      (before == null || before.matchAsPrefix(text, start) != null) &&
+      (after == null || after.matchAsPrefix(text, end) != null);
+}
+
 /// עטיפת גבול-המילה שהמנוע מוסיף סביב הביטוי:
 /// `(?<!גבול לפני)(?:ביטוי)(?!גבול אחרי)`. מחזירה את הביטוי בלבד, או `null`
 /// אם המבנה אינו מזוהה — ואז החיפוש נשאר בהתאמת מילה שלמה במקום לסרוק
