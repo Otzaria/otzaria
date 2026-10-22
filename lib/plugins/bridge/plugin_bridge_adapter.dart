@@ -2668,8 +2668,8 @@ class PluginBridgeAdapter {
         // דיאלוג של התוסף הקורא (מפתחי הבחירה נגזרים מ-pluginId שלו בלבד).
         // autoSearch: false פותח את הטאב עם השאילתה בשדה מבלי להריץ חיפוש
         // (ברירת המחדל true — הרצה אוטומטית). settings מקבל את הגדרות
-        // החיפוש (מצב, מרחק, מדיניות התאמה ואפשרויות מילה) בדיוק כמו
-        // search.query — ראה PluginOpenSearchTabSettings.
+        // החיפוש (מצב, מרחק, מדיניות התאמה, אפשרויות מילה, שלילה והיקף)
+        // בדיוק כמו search.query — ראה PluginOpenSearchTabSettings.
         {
           final query = (args['query'] as String? ?? '').trim();
           if (query.isEmpty || query.length > 500) {
@@ -2681,9 +2681,17 @@ class PluginBridgeAdapter {
               .where((id) => RegExp(r'^[A-Za-z0-9._-]{1,128}$').hasMatch(id))
               .take(4)
               .toList();
+          final rawSettings = args['settings'];
+          // הקטלוג נדרש רק כדי לאתר ספרים בהיקף.
+          final library = rawSettings is Map && rawSettings['books'] != null
+              ? await DataRepository.instance.library
+              : null;
           final settings = PluginOpenSearchTabSettings.parse(
-            args['settings'],
+            rawSettings,
             query: query,
+            findBook: library == null
+                ? null
+                : (identity) => _findPluginBook(library, identity),
           );
           return openPluginSearchTab(
             coordinator: _dependencies.bookOpenCoordinator,

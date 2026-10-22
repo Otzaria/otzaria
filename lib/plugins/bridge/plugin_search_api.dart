@@ -840,8 +840,9 @@ class PluginSearchRequest {
 
 /// הגדרות פתיחת טאב חיפוש מתוסף (`reader.openSearchTab` → `settings`).
 ///
-/// תת-קבוצה של פרמטרי `search.query` — מצב, מרווח, מדיניות התאמה ואפשרויות
-/// מילה (קידומות, סיומות וכד'). ה-parser משתמש באותו מסלול אימות של
+/// תת-קבוצה של פרמטרי `search.query` — כל מה שטאב החיפוש מחזיק: מצב, מרווח,
+/// מדיניות התאמה, אפשרויות מילה, השאילתה השלילית, מילים חלופיות, מרווחים
+/// מותאמים והיקף החיפוש. ה-parser משתמש באותו מסלול אימות של
 /// `PluginSearchRequest` כדי שהתוסף לא יקבל התנהגות שונה ממסך החיפוש: מפתח
 /// לא מוכר, אפשרות שאין למצב הנבחר, או מפתח פר-מילה שאינו תואם לשאילתה —
 /// נדחים ב-`error.invalid_params` ולא נבלעים בשקט.
@@ -857,6 +858,16 @@ class PluginOpenSearchTabSettings {
   /// מנורמלות למצב — בדיוק מה שמסך החיפוש שולח למנוע.
   final Map<String, Map<String, bool>> searchOptions;
 
+  final String negativeQuery;
+  final Map<String, Map<String, bool>> negativeSearchOptions;
+  final Map<int, List<String>> alternativeWords;
+  final Map<int, List<String>> negativeAlternativeWords;
+  final Map<String, String> customSpacing;
+  final Map<String, String> negativeCustomSpacing;
+
+  /// היקף החיפוש כ-facets של המנוע; `["/"]` הוא כל הספרייה.
+  final List<String> facets;
+
   const PluginOpenSearchTabSettings({
     required this.searchMode,
     required this.distance,
@@ -865,9 +876,18 @@ class PluginOpenSearchTabSettings {
     required this.wordMatchCount,
     this.anyOrder = false,
     required this.searchOptions,
+    this.negativeQuery = '',
+    this.negativeSearchOptions = const {},
+    this.alternativeWords = const {},
+    this.negativeAlternativeWords = const {},
+    this.customSpacing = const {},
+    this.negativeCustomSpacing = const {},
+    this.facets = const ['/'],
   });
 
-  /// מפתחות ה-`settings` הנתמכים על ידי `reader.openSearchTab`.
+  /// מפתחות ה-`settings` הנתמכים על ידי `reader.openSearchTab`. השאר של
+  /// `search.query` אין לו מקום בטאב: דפדוף וספירת ספרים, סדר וקיבוץ (נקבעים
+  /// לפי העדפות המשתמש), ומרווח/היקף קרבה נפרדים לשאילתה השלילית.
   static const Set<String> _allowedKeys = {
     'mode',
     'distance',
@@ -877,6 +897,19 @@ class PluginOpenSearchTabSettings {
     'anyOrder',
     'options',
     'wordOptions',
+    'negativeQuery',
+    'negativeOptions',
+    'negativeWordOptions',
+    'alternativeWords',
+    'negativeAlternativeWords',
+    'customSpacing',
+    'negativeCustomSpacing',
+    'facets',
+    'categories',
+    'books',
+    'authors',
+    'eras',
+    'baseBooksOnly',
   };
 
   /// ברירות המחדל של הטאב — זהות ל-`SearchConfiguration()`.
@@ -890,9 +923,12 @@ class PluginOpenSearchTabSettings {
         searchOptions: {},
       );
 
+  /// [findBook] מאתר את הספרים של `books`, כמו ב-`search.query`. בלעדיו
+  /// אין קטלוג לחפש בו, וכל ספר נדחה ב-`error.not_found`.
   static PluginOpenSearchTabSettings parse(
     Object? raw, {
     required String query,
+    Book? Function(Map<String, dynamic> identity)? findBook,
   }) {
     if (raw == null) return _defaults;
     if (raw is! Map) {
@@ -908,20 +944,13 @@ class PluginOpenSearchTabSettings {
       );
     }
 
-    // בונים מפה מינימלית עבור PluginSearchRequest — כך כל האימות של
-    // search.query (מגבלות מצב, מפתחות אפשרויות, מבני ערכים) חל כאן גם.
+    // המפתחות המותרים הם תת-קבוצה של search.query, ולכן כל האימות של
+    // PluginSearchRequest (מגבלות מצב, מפתחות אפשרויות, מבני ערכים) חל כאן גם.
     final miniArgs = <String, dynamic>{
+      for (final entry in args.entries)
+        if (entry.value != null) entry.key: entry.value,
       'query': query,
       'mode': args['mode'] ?? 'advanced',
-      if (args['distance'] != null) 'distance': args['distance'],
-      if (args['proximityScope'] != null)
-        'proximityScope': args['proximityScope'],
-      if (args['wordMatchMode'] != null) 'wordMatchMode': args['wordMatchMode'],
-      if (args['wordMatchCount'] != null)
-        'wordMatchCount': args['wordMatchCount'],
-      if (args['anyOrder'] != null) 'anyOrder': args['anyOrder'],
-      if (args['options'] != null) 'options': args['options'],
-      if (args['wordOptions'] != null) 'wordOptions': args['wordOptions'],
     };
     final request = PluginSearchRequest.fromArgs(miniArgs)
       ..validateAgainstQuery();
@@ -933,6 +962,16 @@ class PluginOpenSearchTabSettings {
       wordMatchCount: request.wordMatchCount,
       anyOrder: request.anyOrder,
       searchOptions: request.effectiveSearchOptions,
+      negativeQuery: request.negativeQuery.trim(),
+      negativeSearchOptions: request.effectiveNegativeSearchOptions,
+      alternativeWords: request.effectiveAlternativeWords,
+      negativeAlternativeWords: request.effectiveNegativeAlternativeWords,
+      customSpacing: request.effectiveCustomSpacing,
+      negativeCustomSpacing: request.effectiveNegativeCustomSpacing,
+      facets: PluginSearchApi.resolveFacets(
+        miniArgs,
+        findBook: findBook ?? (_) => null,
+      ),
     );
   }
 }

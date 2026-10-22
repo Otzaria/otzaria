@@ -56,6 +56,7 @@ import 'package:otzaria/plugins/utils/reader_location_resolver.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria/search/utils/facet_helper.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
@@ -5768,6 +5769,95 @@ Future<void> main() async {
         });
         final tab = capturedSearchTab();
         expect(tab.searchOptions['ואהבת_0'], {'קידומות': true});
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+
+    test('settings מעבירים היקף ושלילה לטאב', () async {
+      await adapter.execute('reader', 'openSearchTab', {
+        'query': 'שבת',
+        'autoSearch': false,
+        'settings': {
+          'negativeQuery': 'גוי',
+          'categories': ['/הלכה'],
+          'eras': ['ראשונים'],
+        },
+      });
+      final tab = capturedSearchTab();
+      final config = tab.searchBloc.state.configuration;
+      final expected = ['/הלכה', FacetHelper.buildEraFacet('ראשונים')];
+      // שני השדות יחד: searchScopeFacets מוצג בתפריט "היקף החיפוש",
+      // ו-currentFacets הוא מה שהחיפוש שולח למנוע.
+      expect(config.searchScopeFacets, expected);
+      expect(config.currentFacets, expected);
+      expect(tab.negativeQueryController.text, 'גוי');
+    });
+
+    test('settings.books מאתר את הספר בספרייה', () async {
+      final book = TextBook(id: 10, title: 'בראשית', topics: 'תנך, תורה');
+      final category = Category(
+        title: 'בדיקה',
+        description: '',
+        shortDescription: '',
+        order: 0,
+        subCategories: const [],
+        books: [book],
+        parent: null,
+      );
+      final library = Library(categories: [category]);
+      category.parent = library;
+      DataRepository.instance.library = Future.value(library);
+
+      await adapter.execute('reader', 'openSearchTab', {
+        'query': 'בראשית',
+        'autoSearch': false,
+        'settings': {
+          'books': [
+            {'id': 10},
+          ],
+        },
+      });
+      expect(
+        capturedSearchTab().searchBloc.state.searchScopeFacets.single,
+        startsWith('/תנך/תורה/'),
+      );
+
+      await expectLater(
+        adapter.execute('reader', 'openSearchTab', {
+          'query': 'בראשית',
+          'settings': {
+            'books': [
+              {'id': 99},
+            ],
+          },
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.not_found'),
+          ),
+        ),
+      );
+      expect(tabsBloc.captured.whereType<AddTab>(), hasLength(1));
+    });
+
+    test(
+      'החיפוש האוטומטי רץ בהיקף ועם השלילה',
+      () async {
+        await adapter.execute('reader', 'openSearchTab', {
+          'query': 'שבת',
+          'settings': {
+            'negativeQuery': 'גוי',
+            'categories': ['/הלכה'],
+          },
+        });
+        final tab = capturedSearchTab();
+        await pumpEventQueue();
+        final state = tab.searchBloc.state;
+        expect(state.searchQuery, 'שבת');
+        expect(state.negativeQuery, 'גוי');
+        expect(state.currentFacets, ['/הלכה']);
       },
       skip: engineReady ? false : searchEngineSkipReason,
     );
