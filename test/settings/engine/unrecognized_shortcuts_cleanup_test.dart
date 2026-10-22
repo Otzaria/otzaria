@@ -14,6 +14,8 @@ void main() {
 
   const newSearchKey = 'key-shortcut-open-new-search';
   const closeTabKey = 'key-shortcut-close-tab';
+  const prevSegmentKey = 'key-shortcut-prev-segment';
+  const nextSegmentKey = 'key-shortcut-next-segment';
 
   late MemorySettingsCache cache;
   late SettingsRepository repository;
@@ -78,15 +80,32 @@ void main() {
 
     test('אינו נוגע בקיצורים שאינם אות (F11, Alt+חץ, Ctrl+פסיק)', () async {
       await storeShortcut(newSearchKey, 'f11');
-      await storeShortcut(closeTabKey, 'alt+arrowup');
+      await storeShortcut(prevSegmentKey, 'alt+arrowup');
       await storeShortcut('key-shortcut-open-settings', 'ctrl+comma');
 
       await repository.removeUnrecognizedShortcuts();
 
       final shortcuts = await repository.getShortcuts();
       expect(shortcuts[newSearchKey], 'f11');
-      expect(shortcuts[closeTabKey], 'alt+arrowup');
+      expect(shortcuts[prevSegmentKey], 'alt+arrowup');
       expect(shortcuts['key-shortcut-open-settings'], 'ctrl+comma');
+    });
+
+    test('מוחק קיצור על מקש ניווט שאינו ברירת המחדל (issue #2851)', () async {
+      await storeShortcut(nextSegmentKey, 'arrowleft');
+      await storeShortcut(closeTabKey, 'ctrl+tab');
+      await storeShortcut(newSearchKey, 'pagedown');
+      await storeShortcut(ShortcutValidator.tikkunNextPageKey, 'ctrl+pagedown');
+
+      await repository.removeUnrecognizedShortcuts();
+
+      final shortcuts = await repository.getShortcuts();
+      expect(shortcuts[nextSegmentKey], 'alt+arrowdown');
+      expect(shortcuts[closeTabKey], 'ctrl+w');
+      expect(shortcuts[newSearchKey], 'ctrl+shift+f');
+      expect(storedMap(), isNot(contains(nextSegmentKey)));
+      // ברירת המחדל של אותה פעולה נשמרת גם כשהיא על PageDown.
+      expect(storedMap()[ShortcutValidator.tikkunNextPageKey], 'ctrl+pagedown');
     });
 
     test('אינו מוחק קיצור ריק (פעולה שהמשתמש השאיר בלי קיצור)', () async {
