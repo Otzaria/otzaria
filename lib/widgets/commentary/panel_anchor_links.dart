@@ -98,6 +98,9 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
 
   Timer? _anchorHoverTimer;
 
+  // Flutter קורא ל-onExit של ספאן גם אחרי שהחלונית הוסרה מהעץ, וכבר אין context.
+  AppWindowKeys? _anchorHoverWindow;
+
   void _cancelAnchorHoverTimer() {
     _anchorHoverTimer?.cancel();
     _anchorHoverGeneration++;
@@ -111,7 +114,8 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
     required void Function(Link link) onOpen,
     TextDisplayProfile? displayProfile,
   }) {
-    LinkPreviewOverlay.cancelScheduledHide(AppWindowKeys.of(context));
+    _anchorHoverWindow = AppWindowKeys.of(context);
+    LinkPreviewOverlay.cancelScheduledHide(_anchorHoverWindow);
     _cancelAnchorHoverTimer();
     final generation = _anchorHoverGeneration;
     final isNoteMarker = url.startsWith('otzaria://note-marker');
@@ -258,7 +262,9 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
 
   void handleAnchorHoverExit(String url) {
     _cancelAnchorHoverTimer();
-    LinkPreviewOverlay.scheduleHide(AppWindowKeys.of(context));
+    LinkPreviewOverlay.scheduleHide(
+      mounted ? AppWindowKeys.of(context) : _anchorHoverWindow,
+    );
   }
 
   /// לחיצה על הציטוט מנווטת — ריחוף ממתין היה פותח חלונית אחרי הניווט.
