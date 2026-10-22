@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:ui' show Offset, Rect;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/books.dart';
@@ -652,10 +653,10 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     add(const SavePerBookSettings());
   }
 
-  void _onSetLayoutMode(
+  Future<void> _onSetLayoutMode(
     SetLayoutMode event,
     Emitter<PdfBookState> emit,
-  ) {
+  ) async {
     final current = state;
 
     tab.savedLayoutMode = event.layoutMode;
@@ -663,7 +664,11 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     if (current is PdfBookLoaded) {
       if (current.layoutMode == event.layoutMode) return;
       emit(current.copyWith(layoutMode: event.layoutMode));
-      add(const SavePerBookSettings());
+      if (current.layoutMode.isBookView != event.layoutMode.isBookView) {
+        await _fitWidthAfterRelayout();
+      } else {
+        add(const SavePerBookSettings());
+      }
     } else if (current is PdfBookInitial) {
       emit(
         PdfBookInitial(
@@ -680,6 +685,23 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         ),
       );
     }
+  }
+
+  /// כמו בפתיחה טרייה: התאמה לרוחב המסמך, אחרי ש-pdfrx פרס אותו מחדש.
+  /// FitZoom שומר את הזום החדש בטאב ובהגדרות הספר.
+  Future<void> _fitWidthAfterRelayout() async {
+    await SchedulerBinding.instance.endOfFrame;
+    if (isClosed || !pdfController.isReady) return;
+    final documentSize = pdfController.documentSize;
+    final zoom = pdfController.viewSize.width / documentSize.width;
+    final keepTop = pdfZoomCenterKeepingTop(
+      pdfController.visibleRect,
+      fromZoom: pdfController.currentZoom,
+      toZoom: zoom,
+    );
+    add(
+      FitZoom(zoom: zoom, center: Offset(documentSize.width / 2, keepTop.dy)),
+    );
   }
 
   void _onSetShowZoomBar(
@@ -922,17 +944,23 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         ? PdfLayoutMode.bookView
         : PdfLayoutMode.regularView;
 
+    // החלת מצב תצוגה — לפני קריאת tab.savedZoom, שמתבטל במעבר ספר/רגיל.
+    tab.savedLayoutMode = layoutModeToApply;
+
     // אם אין הגדרות פר-ספר, נסה לשחזר זום מהסשן (שנשמר ב-tab.savedZoom)
     if (zoomToApply == null && tab.savedZoom != null && tab.savedZoom != 1.0) {
       zoomToApply = tab.savedZoom;
     }
 
-    // החלת מצב תצוגה
-    tab.savedLayoutMode = layoutModeToApply;
     final currentForLayout = state;
     if (currentForLayout is! PdfBookLoaded) return;
     if (currentForLayout.layoutMode != layoutModeToApply) {
       emit(currentForLayout.copyWith(layoutMode: layoutModeToApply));
+      if (zoomToApply == null &&
+          currentForLayout.layoutMode.isBookView !=
+              layoutModeToApply.isBookView) {
+        await _fitWidthAfterRelayout();
+      }
     }
 
     // אם יש זום להחיל, מחילים אותו
@@ -1016,8 +1044,8 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
         pdfController.centerPosition,
         1.0,
       );
-      tab.savedZoom = 1.0;
       tab.savedLayoutMode = PdfLayoutMode.regularView;
+      tab.savedZoom = 1.0;
       emit(current.copyWith(zoom: 1.0, layoutMode: PdfLayoutMode.regularView));
     }
   }

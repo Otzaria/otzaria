@@ -1200,7 +1200,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
 
     if (mounted) {
       widget.tab.savedLayoutMode = layoutMode;
-      _bloc.add(pdf_events.SetLayoutMode(layoutMode));
+      // אחרי Loaded המצב נקבע ב-LoadPerBookSettings יחד עם הזום השמור.
+      if (_bloc.state is! PdfBookLoaded) {
+        _bloc.add(pdf_events.SetLayoutMode(layoutMode));
+      }
     }
   }
 
