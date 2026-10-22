@@ -144,7 +144,8 @@ dependencies:
 dependency_overrides:
   # TODO: לחזור ל-pub.dev לאחר שחרור תעדוף הרינדור והמטמונים, עם תאימות OCR ל-dev.
   # מנרמל העברית הקיים נשמר, כולל מגבלותיו בטקסט מעורב ובפיסוק מספרים.
-  # TODO: return to the official pdfrx release once the upstream fix (fix/wheel-pointer-signal-resolver) is merged and released
+  # TODO: לחזור לגרסה הרשמית גם אחרי מיזוג ושחרור espresso3389/pdfrx#774.
+  # הפורק Otzaria/pdfrx: כל תיקון נדחף גם ל-otzaria/main (המוצמד כאן) וגם לענף ה-PR.
   pdfrx:
     git:
       url: https://github.com/Otzaria/pdfrx
