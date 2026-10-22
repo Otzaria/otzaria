@@ -22,6 +22,9 @@ import 'package:otzaria/settings/engine/settings_engine_exports.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/workspaces/workspace_repository.dart';
 import 'package:otzaria/workspaces/workspace.dart';
+import 'package:otzaria/marker/repository/marker_repository.dart';
+import 'package:otzaria/marker/services/marker_settings.dart';
+import 'package:otzaria/marker/services/marker_transfer.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart';
@@ -134,6 +137,7 @@ class BackupService {
       _logger.info('Creating backup at: $backupPath');
       _logger.info('Backup directory: $backupDir');
 
+      String? markerSection;
       final backupData = <String, dynamic>{
         'version': '2.0',
         'timestamp': timestamp,
@@ -180,9 +184,12 @@ class BackupService {
         backupData['history'] = await _backupHistory();
       }
 
-      // Backup notes
+      // Backup notes — הערות אישיות וסימוני המרקר
       if (includeNotes) {
         backupData['notes'] = await _backupNotes();
+        markerSection = await MarkerTransfer().backupSectionJson(
+          MarkerSettings.instance.palette,
+        );
       }
 
       // [EDITING DISABLED]
@@ -220,7 +227,9 @@ class BackupService {
       final file = File(backupPath);
       _logger.info('Writing backup data (${backupData.length} keys)...');
 
-      final jsonString = json.encode(backupData);
+      final jsonString = encodeBackupData(backupData, {
+        'marker': ?markerSection,
+      });
       _logger.info('JSON size: ${jsonString.length} characters');
 
       await file.writeAsString(jsonString);
@@ -239,6 +248,28 @@ class BackupService {
     }
   }
 
+  /// [encodedSections] — סעיפים שקודדו כבר ב-isolate, כמו סימוני המרקר.
+  @visibleForTesting
+  static String encodeBackupData(
+    Map<String, dynamic> data,
+    Map<String, String> encodedSections,
+  ) {
+    final encoded = json.encode(data);
+    if (encodedSections.isEmpty) return encoded;
+    final buffer = StringBuffer(encoded.substring(0, encoded.length - 1));
+    var first = data.isEmpty;
+    for (final section in encodedSections.entries) {
+      if (!first) buffer.write(',');
+      first = false;
+      buffer
+        ..write(json.encode(section.key))
+        ..write(':')
+        ..write(section.value);
+    }
+    buffer.write('}');
+    return buffer.toString();
+  }
+
   /// מקומות השמירה שהגיבוי מכסה: Hive boxes, מסדי נתונים ותיקיות תחת שורש
   /// הנתונים. `databases` היא התיקייה; כל קובץ בה מוכרע בנפרד.
   static const Set<String> backedUpStores = {
@@ -247,6 +278,7 @@ class BackupService {
     // הרשימות, סשני החלונות ותורי הדיווחים — כל אחד בסעיף משלו בקובץ.
     'user_state.db',
     'personal_notes.db',
+    'marker.db',
     'plugins_host.db',
     'user_books.db',
     'plugins',
@@ -1093,6 +1125,14 @@ class BackupService {
         counts: counts,
       );
     }
+    if (includes['notes'] == true && backupData['marker'] is Map) {
+      final restored = await _restoreMarker(
+        backupData['marker'],
+        keepNewerLocal: isMerge,
+        counts: counts,
+      );
+      if (!restored) runtimeSkipped.add('marker');
+    }
 
     // [EDITING DISABLED]
     // final includeOverrides =
@@ -1473,6 +1513,32 @@ class BackupService {
     }
 
     return anchorlessNotes;
+  }
+
+  /// סימוני המרקר מהגיבוי. קובץ פגום בסעיף אינו מכשיל את שאר השחזור.
+  /// false כשסימוני המרקר לא שוחזרו; שאר השחזור ממשיך בכל מקרה.
+  static Future<bool> _restoreMarker(
+    Object? section, {
+    required bool keepNewerLocal,
+    BackupImportCounts? counts,
+  }) async {
+    try {
+      final data = parseMarkerBackup(section);
+      final written = await MarkerRepository().restoreBackup(
+        data.highlights,
+        keepNewerLocal: keepNewerLocal,
+        importedLegacy: data.importedLegacy,
+      );
+      counts?.markerHighlights += written;
+      return true;
+    } catch (error, stackTrace) {
+      _logger.warning(
+        'Marker section was not restored: $error',
+        error,
+        stackTrace,
+      );
+      return false;
+    }
   }
 
   /// משמר עוגן קיים כששדות העיגון חסרים בגיבוי; `null` מפורש מכובד.
@@ -1870,8 +1936,9 @@ class BackupService {
     if (bookmarks && (await _backupBookmarks()).isNotEmpty) return const [];
     if (history && (await _backupHistory()).isNotEmpty) return const [];
     if (notes &&
-        (await PersonalNotesDatabase.instance.listBooksWithNotes())
-            .isNotEmpty) {
+        ((await PersonalNotesDatabase.instance.listBooksWithNotes())
+                .isNotEmpty ||
+            await MarkerRepository().countAll() > 0)) {
       return const [];
     }
     if (plugins) {

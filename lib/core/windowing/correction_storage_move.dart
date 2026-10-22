@@ -8,6 +8,7 @@ import 'package:otzaria/core/windowing/settings_sync.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/services/plugin_correction_session_service.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/marker/storage/marker_database.dart';
 
 class CorrectionStorageMovePreparation {
   const CorrectionStorageMovePreparation(this.requestId, this.peers);
@@ -103,6 +104,7 @@ Future<void> releaseCorrectionStorageMove(
     return;
   }
   PluginSystemDatabase.instance.releaseStorageMove(preparation.requestId);
+  MarkerDatabase.instance.releaseStorageMove(preparation.requestId);
   PluginCorrectionSessionService.instance.cancelProcessQuitPreparation(
     preparation.requestId,
   );

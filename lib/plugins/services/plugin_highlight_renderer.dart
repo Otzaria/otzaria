@@ -28,8 +28,10 @@ class PluginHighlightRenderer {
     revealedHighlightId: revealedHighlightId,
   ).html;
 
-  /// מחיל הדגשות ומחזיר גם את טווחי הציור, תוך בניית מפת מקור פעם אחת.
-  ({String html, List<PluginHighlightRenderedRange> ranges}) renderWithRanges({
+  /// מחיל הדגשות ומחזיר את טווחי הציור, ב-graphemes של צמתי הטקסט ([text]):
+  /// `<br>` אינו נספר ורווחים אינם מכווצים, בשונה מ-`stripHtml`.
+  ({String html, List<PluginHighlightRenderedRange> ranges, String text})
+  renderWithRanges({
     required String bookId,
     required int sectionIndex,
     required String rawText,
@@ -38,7 +40,7 @@ class PluginHighlightRenderer {
     String? revealedHighlightId,
   }) {
     if (highlights.isEmpty) {
-      return (html: processedHtml, ranges: const []);
+      return (html: processedHtml, ranges: const [], text: '');
     }
     final map = _sourceMapService.cachedFromProcessedHtml(
       bookId: bookId,
@@ -48,30 +50,58 @@ class PluginHighlightRenderer {
     );
     final intervals = _resolveIntervals(map, highlights);
     if (intervals.isEmpty) {
-      return (html: processedHtml, ranges: const []);
+      return (html: processedHtml, ranges: const [], text: '');
     }
 
-    return (
-      html: _applyIntervals(
-        processedHtml,
-        intervals,
-        revealedHighlightId: revealedHighlightId,
-      ),
-      ranges: intervals,
-    );
-  }
-
-  String _applyIntervals(
-    String processedHtml,
-    List<PluginHighlightRenderedRange> intervals, {
-    String? revealedHighlightId,
-  }) {
     final fragment = html_parser.parseFragment(processedHtml);
-    var renderedCursor = 0;
     final textNodes = fragment.nodes
         .expand(_descendantsAndSelf)
         .whereType<dom.Text>()
         .toList();
+    final nodeText = textNodes.map((node) => node.data).join();
+    final toNode = _renderedToNodeBoundaries(map.renderedText, nodeText);
+    final nodeIntervals = [
+      for (final range in intervals)
+        PluginHighlightRenderedRange(
+          start: toNode[range.start],
+          end: toNode[range.end],
+          highlight: range.highlight,
+        ),
+    ];
+    _applyIntervals(
+      textNodes,
+      nodeIntervals,
+      revealedHighlightId: revealedHighlightId,
+    );
+    return (html: fragment.outerHtml, ranges: nodeIntervals, text: nodeText);
+  }
+
+  /// לכל גבול grapheme בטקסט של `stripHtml` הגבול המקביל בצמתי הטקסט; רק
+  /// רווחים עשויים לעדוף בצד אחד, כי `stripHtml` מוסיף רווח במקום תגיות.
+  static List<int> _renderedToNodeBoundaries(String rendered, String nodes) {
+    final r = rendered.characters.toList(growable: false);
+    final n = nodes.characters.toList(growable: false);
+    final result = List<int>.filled(r.length + 1, 0);
+    var j = 0;
+    for (var i = 0; i < r.length; i++) {
+      while (j < n.length && r[i] != n[j] && _isSpace(n[j])) {
+        j++;
+      }
+      result[i] = j;
+      if (j < n.length && (r[i] == n[j] || !_isSpace(r[i]))) j++;
+    }
+    result[r.length] = j;
+    return result;
+  }
+
+  static bool _isSpace(String grapheme) => grapheme.trim().isEmpty;
+
+  void _applyIntervals(
+    List<dom.Text> textNodes,
+    List<PluginHighlightRenderedRange> intervals, {
+    String? revealedHighlightId,
+  }) {
+    var renderedCursor = 0;
     for (final textNode in textNodes) {
       final graphemes = textNode.data.characters.toList(growable: false);
       final nodeStart = renderedCursor;
@@ -99,7 +129,6 @@ class PluginHighlightRenderer {
         );
       }
     }
-    return fragment.outerHtml;
   }
 
   List<PluginHighlightRenderedRange> resolveRenderedRanges({

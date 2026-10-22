@@ -5,6 +5,7 @@ import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut.dart';
 import 'package:otzaria/text_book/utils/reader_paragraph_copy.dart';
 import 'package:otzaria/text_book/utils/reader_menu_entries.dart';
 import 'package:otzaria/text_book/utils/reader_plugin_menu_entries.dart';
+import 'package:otzaria/marker/view/reader/marker_reader_menu.dart';
 import 'package:otzaria/book_common/utils/commentators_menu.dart';
 import 'package:otzaria/text_display/view/copy_as_menu.dart';
 
@@ -97,6 +98,7 @@ import 'package:otzaria/text_book/view/reader_line/reader_line_spec.dart';
 import 'package:otzaria/text_book/view/widgets/unloaded_paragraph_placeholder.dart';
 import 'package:otzaria/text_book/view/widgets/reading_extent_estimation.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/marker/view/marker_navigation.dart';
 
 class CombinedView extends StatefulWidget {
   const CombinedView({
@@ -1060,9 +1062,11 @@ class _CombinedViewState extends State<CombinedView> {
 
   void _handlePluginHighlightReveal() {
     final highlight = PluginHighlightRevealService.instance.highlight;
+    // ספר אחר באותה כותרת (מהדורה, ספר אישי) אינו נגלל.
     if (!mounted ||
         highlight == null ||
-        highlight.bookId != widget.tab.book.title) {
+        highlight.bookId != widget.tab.book.title ||
+        revealTargetsOtherBook(highlight, widget.tab.book)) {
       return;
     }
     final tab = widget.tab;
@@ -1450,6 +1454,20 @@ class _CombinedViewState extends State<CombinedView> {
     );
     final sourceText = source.text;
     final menuSelection = ReaderMenuSelection(sourceText);
+    final selectionAnchor = (
+      lineStart: _selectionLineStart,
+      lineEnd: _selectionLineEnd,
+      startColumn: source.column,
+      pointerColumn: SourceSelection.resolvePointerColumn(
+        _sourceSelection,
+        selectedText,
+        _selectionPointerColumn,
+        lineStart: _selectionLineStart,
+        pointerLineIndex: _selectionPointerLineIndex,
+      ),
+    );
+    RenderSettings selectionSettings() =>
+        _selectionRenderSettings(state, menuContext.read<SettingsBloc>().state);
 
     return [
       // שורת אייקונים עליונה בסגנון Windows 11 — הרשימה המלאה נשארת מתחת.
@@ -1467,6 +1485,19 @@ class _CombinedViewState extends State<CombinedView> {
         ),
       ),
       _copyAsEntry(state, selectedText),
+      ...buildMarkerMenuEntries(
+        context: context,
+        root: context.findRenderObject(),
+        state: state,
+        lines: widget.data,
+        paragraphIndex: paragraphIndex,
+        selectedText: menuSelection.hasText ? sourceText : null,
+        anchor: selectionAnchor,
+        settings: selectionSettings,
+        tapPosition: tapPosition,
+        lineRange: lineRange,
+        openNotes: widget.onOpenPersonalNotes,
+      ),
       const AppContextMenuEntry.divider(),
       AppContextMenuEntry(
         label: menuSelection.hasText
@@ -1544,22 +1575,8 @@ class _CombinedViewState extends State<CombinedView> {
         paragraphIndex: paragraphIndex,
         hasSelection: menuSelection.hasText,
         selectedText: sourceText,
-        anchor: (
-          lineStart: _selectionLineStart,
-          lineEnd: _selectionLineEnd,
-          startColumn: source.column,
-          pointerColumn: SourceSelection.resolvePointerColumn(
-            _sourceSelection,
-            selectedText,
-            _selectionPointerColumn,
-            lineStart: _selectionLineStart,
-            pointerLineIndex: _selectionPointerLineIndex,
-          ),
-        ),
-        settings: () => _selectionRenderSettings(
-          state,
-          menuContext.read<SettingsBloc>().state,
-        ),
+        anchor: selectionAnchor,
+        settings: selectionSettings,
         tapPosition: tapPosition,
         menuContext: menuContext,
         lineRange: lineRange,
@@ -3080,6 +3097,7 @@ class _CombinedViewState extends State<CombinedView> {
       text: spec.html,
       highlightBookId: state.book.title,
       highlightBookUid: PluginBookIdentity.uidOf(state.book),
+      highlightBookVersion: state.book.versionTitle,
       highlightBookDbId: state.book.id,
       highlightBookType: PluginBookIdentity.typeOf(state.book),
       highlightBookSource: PluginBookIdentity.sourceOf(state.book),

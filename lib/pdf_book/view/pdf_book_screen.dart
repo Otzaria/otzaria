@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:otzaria/marker/view/pdf/marker_pdf.dart';
 import 'package:otzaria/bookmarks/view/book_bookmarks_action.dart';
 import 'package:otzaria/book_common/view/parallel_editions_action.dart';
 import 'package:otzaria/plugins/utils/reader_plugin_toolbar_actions.dart';
@@ -607,6 +608,11 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         WidgetsBindingObserver {
   AppLifecycleState? _appLifecycleState;
   final _snapshotBudgetEntries = <ui.Image, PdfImageCacheEntry>{};
+  late final MarkerPdfController _marker;
+
+  /// בהירות הערכה מה-build האחרון; הציור של העמודים אינו קורא ל-Theme.
+  Brightness _brightness = Brightness.light;
+
   final _bookViewLayoutMemo = BookViewLayoutMemo();
   final _thumbnailCache = createPdfThumbnailCache();
   static const int _defaultPdfLineRange = 50;
@@ -945,6 +951,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     _initialPageNumber = widget.tab.pageNumber;
     pdfController = PdfViewerController();
     widget.tab.pdfViewerController = pdfController;
+    _marker = MarkerPdfController(
+      book: widget.tab.book,
+      viewer: pdfController,
+      brightness: () => _brightness,
+      pageRef: (page) => pdfPageRef(widget.tab, page),
+      copyAllowed: () => _isPdfCopyAllowed(),
+    )..preload();
     _resolvedPdfPath = resolveMovedFileBookPath(widget.tab.book.path);
     _searchIndexRestorer = PdfSearchIndexRestorer(
       widget.tab.pdfSearchCurrentMatchIndex,
@@ -1478,31 +1491,42 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         : ReaderMenuSelection(selectedText);
 
     return buildPdfContextMenuEntries(
-      commentatorChildren: commentatorChildren,
-      hasRelevantCommentators: relevantCommentators.isNotEmpty,
-      canSelectCommentators: shouldShowSelectEntry,
-      linksEntry: buildPdfLinksContextMenuEntry(
-        relevantLinks: relevantLinks,
-        showOpenLinksPaneEntry: showOpenLinksPaneEntry,
-        onOpenLinksPane: _openLinksPane,
-        onOpenLink: (link) => _openLinkTarget(menuContext, link),
-      ),
-      hasTextSelection: hasTextSelection,
-      selection: selection,
-      canCopySelection: hasTextSelection && _isPdfCopyAllowed(),
-      onSearchInBook: _ensureSearchTabIsActive,
-      onSearchAllBooks: () => _searchAllBooksFromSelection(selection),
-      onCopySelection: _copyPdfTextSelection,
-      onAddBookmark: () => _handleBookmarkPress(menuContext),
-      onAddNote: () => _handleAddNotePress(menuContext),
-    )..addAll(
-      _pdfPluginEntries(
-        menuContext,
-        tapPosition,
-        hasSelection: hasTextSelection,
-        loadedText: selectedText,
-      ),
-    );
+        commentatorChildren: commentatorChildren,
+        hasRelevantCommentators: relevantCommentators.isNotEmpty,
+        canSelectCommentators: shouldShowSelectEntry,
+        linksEntry: buildPdfLinksContextMenuEntry(
+          relevantLinks: relevantLinks,
+          showOpenLinksPaneEntry: showOpenLinksPaneEntry,
+          onOpenLinksPane: _openLinksPane,
+          onOpenLink: (link) => _openLinkTarget(menuContext, link),
+        ),
+        hasTextSelection: hasTextSelection,
+        selection: selection,
+        canCopySelection: hasTextSelection && _isPdfCopyAllowed(),
+        onSearchInBook: _ensureSearchTabIsActive,
+        onSearchAllBooks: () => _searchAllBooksFromSelection(selection),
+        onCopySelection: _copyPdfTextSelection,
+        onAddBookmark: () => _handleBookmarkPress(menuContext),
+        onAddNote: () => _handleAddNotePress(menuContext),
+      )
+      ..addAll(
+        _marker.menuEntries(
+          context: context,
+          tapPosition: tapPosition,
+          hasSelection: hasTextSelection,
+          copyAllowed: _isPdfCopyAllowed(),
+          ref: (page) => pdfPageRef(widget.tab, page),
+          openNotes: _openPersonalNotesPane,
+        ),
+      )
+      ..addAll(
+        _pdfPluginEntries(
+          menuContext,
+          tapPosition,
+          hasSelection: hasTextSelection,
+          loadedText: selectedText,
+        ),
+      );
   }
 
   List<AppContextMenuEntry> _pdfPluginEntries(
@@ -1765,9 +1789,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         linkColor: Colors.transparent,
         linkHoverColor: AppSurfaces.pdfLinkHover(Theme.of(context).colorScheme),
       ),
-      pagePaintCallbacks: textSearcher != null
-          ? [textSearcher!.pageTextMatchPaintCallback]
-          : null,
+      pagePaintCallbacks: [
+        ?textSearcher?.pageTextMatchPaintCallback,
+        _marker.paint,
+      ],
       onDocumentChanged: (document) async {
         if (document == null) {
           widget.tab.documentRef.value = null;
@@ -4052,6 +4077,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pageTurnController.stop(canceled: false);
+    _marker.dispose();
     _stopContinuousScroll();
     _disposePageTurnSnapshot();
     _disposeAllSpreadCache();
@@ -4263,6 +4289,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    _brightness = Theme.of(context).brightness;
 
     return BlocProvider.value(
       value: _bloc,
@@ -5279,7 +5306,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   Widget _buildPdfActions(BuildContext context) {
     final tourKeys = TourTargetKeys.of(context);
     return ListenableBuilder(
-      listenable: PluginToolbarRegistry.instance,
+      listenable: Listenable.merge([
+        PluginToolbarRegistry.instance,
+        _marker.toolbarListenable,
+      ]),
       builder: (context, _) => ResponsiveActionBar(
         key: const ValueKey('pdf_actions'),
         overflowMenuOffset: const Offset(0, 8),
@@ -5361,6 +5391,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         compact: isCompact,
         actionId: ToolbarActionId.search,
       ),
+      ?_marker.toolbarAction(compact: isCompact),
       if (!Platform.isAndroid && !Platform.isIOS)
         ActionButtonData.simple(
           icon: _isHandMode

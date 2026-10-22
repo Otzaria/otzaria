@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/marker/view/marker_screen.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/view/plugin_tab_page.dart';
@@ -35,6 +36,8 @@ Widget? buildBuiltInToolPage(
       return const MeasurementConverterScreen();
     case 'builtin.notes':
       return const PersonalNotesManagerScreen();
+    case 'builtin.marker':
+      return MarkerScreen(queryInbox: queryInbox);
     case 'builtin.tikkun_korim':
       return const TikkunKorimScreen(
         engine: TikkunEngineImpl(),

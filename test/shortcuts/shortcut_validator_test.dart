@@ -322,7 +322,7 @@ void main() {
       pluginId: pluginId,
       shortcutId: shortcutId,
       label: 'הדגשה',
-      defaultKey: 'ctrl+alt+h',
+      defaultKey: 'ctrl+alt+u',
       command: null,
       contextMenuItemId: 'highlight-item',
     );
@@ -348,7 +348,7 @@ void main() {
 
     test('getShortcutValue נופל לקיצור ברירת המחדל שהתוסף הצהיר', () {
       ShortcutValidator.registerPluginShortcuts({key: target});
-      expect(ShortcutValidator.getShortcutValue(key), 'ctrl+alt+h');
+      expect(ShortcutValidator.getShortcutValue(key), 'ctrl+alt+u');
     });
 
     test(
@@ -506,7 +506,7 @@ void main() {
           contextMenuItemId: null,
         );
         final otherKey = ShortcutValidator.pluginShortcutKey('com.b', 'other');
-        await Settings.setValue<String>(otherKey, 'ctrl+alt+h');
+        await Settings.setValue<String>(otherKey, 'ctrl+alt+u');
         ShortcutValidator.registerPluginShortcuts({
           key: target,
           otherKey: other,

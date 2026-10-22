@@ -3,6 +3,7 @@ library;
 
 export 'common_messages.dart';
 export 'library_messages.dart';
+export 'marker_messages.dart';
 export 'notes_messages.dart';
 export 'pdf_messages.dart';
 export 'plugin_messages.dart';

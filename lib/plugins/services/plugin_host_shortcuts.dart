@@ -78,6 +78,7 @@ class PluginHostShortcuts {
     'key-shortcut-open-tool-gematria',
     'key-shortcut-open-tool-aramaic-dictionary',
     'key-shortcut-open-tool-acronyms-dictionary',
+    'key-shortcut-open-tool-marker',
   ];
 
   /// קיצורים קבועים שאינם ניתנים להגדרה: מעבר בין לשוניות ומסך מלא.

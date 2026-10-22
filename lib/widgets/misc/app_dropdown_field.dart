@@ -164,7 +164,11 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (selectedEntry?.icon != null) ...[
-          RtlIcon(selectedEntry!.icon!),
+          // צבע קבוע של האפשרות (נקודת צבע) נשמר גם בשדה עצמו.
+          RtlIcon(
+            selectedEntry!.icon!,
+            color: effectiveEnabled ? selectedEntry.iconColor : null,
+          ),
           const SizedBox(width: 8),
         ],
         Flexible(

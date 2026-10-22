@@ -305,6 +305,35 @@ void main() {
     expect(result.ranges.single.start, 1);
     expect(result.ranges.single.end, 3);
   });
+
+  test('ranges and spans after <br> follow the text nodes, not stripHtml', () {
+    const raw = 'אב<br>גד';
+    final result = renderer.renderWithRanges(
+      bookId: 'book',
+      sectionIndex: 0,
+      rawText: raw,
+      processedHtml: raw,
+      highlights: [
+        _highlight(
+          id: 'u',
+          start: 3,
+          end: 5,
+          exactText: 'גד',
+          markerMode: 'underline',
+        ),
+      ],
+    );
+    expect(result.text, 'אבגד');
+    expect(result.ranges.single.start, 2);
+    expect(result.ranges.single.end, 4);
+    expect(
+      html_parser
+          .parseFragment(result.html)
+          .querySelector('[data-highlight-id="u"]')!
+          .text,
+      'גד',
+    );
+  });
 }
 
 PluginHighlight _highlight({

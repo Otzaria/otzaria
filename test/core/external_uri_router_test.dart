@@ -36,6 +36,12 @@ void main() {
               .toolId,
           'builtin.notes',
         );
+        expect(
+          (ExternalUriRouter.parseUri(Uri.parse('otzaria://open/marker'))
+                  as OpenToolAction)
+              .toolId,
+          'builtin.marker',
+        );
       });
 
       test('aliases של מסכים עליונים', () {
@@ -1623,6 +1629,14 @@ void main() {
         final action = parse('otzaria://open/tool/builtin.gematria?q=26');
         expect(action.toolId, 'builtin.gematria');
         expect(action.query!.text, '26');
+      });
+
+      test('marker?q= מסנן את רשימת המרקר', () {
+        final action = parse(
+          'otzaria://open/marker?q=${Uri.encodeQueryComponent('לעיון')}',
+        );
+        expect(action.toolId, 'builtin.marker');
+        expect(action.query!.text, 'לעיון');
       });
 
       test('q= לכלי שאינו תומך בו — מתעלם, הכלי עדיין נפתח', () {

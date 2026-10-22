@@ -13,6 +13,8 @@ import 'package:otzaria/core/windowing/app_window_scope.dart';
 import 'package:otzaria/core/windowing/external_tab_drag.dart';
 import 'package:otzaria/core/windowing/multi_window_service.dart';
 import 'package:otzaria/core/user_state/user_state_list_store.dart';
+import 'package:otzaria/marker/storage/marker_changes.dart';
+import 'package:otzaria/marker/storage/marker_database.dart';
 import 'package:otzaria/core/windowing/settings_sync.dart';
 import 'package:otzaria/core/windowing/window_bus.dart';
 import 'package:otzaria/core/windowing/window_role.dart';
@@ -252,6 +254,8 @@ class _WindowBusHostState extends State<WindowBusHost> {
         return true;
       case UserStateListStore.requestChanged:
         return UserStateListStore.instance.handleRequest(request);
+      case MarkerChanges.requestChanged:
+        return MarkerChanges.instance.handleRequest(request);
       case LibraryAccessGate.requestSuspend:
       case LibraryAccessGate.requestResume:
       case LibraryAccessGate.requestOwnerExited:
@@ -326,6 +330,7 @@ class _WindowBusHostState extends State<WindowBusHost> {
           );
           if (finished) {
             await PluginSystemDatabase.instance.lockForStorageMove(requestId);
+            await MarkerDatabase.instance.lockForStorageMove(requestId);
           }
           return finished;
         } catch (_) {
@@ -370,6 +375,7 @@ class _WindowBusHostState extends State<WindowBusHost> {
         final requestId = request['requestId'];
         if (requestId is String) {
           PluginSystemDatabase.instance.releaseStorageMove(requestId);
+          MarkerDatabase.instance.releaseStorageMove(requestId);
           PluginCorrectionSessionService.instance.cancelProcessQuitPreparation(
             requestId,
           );

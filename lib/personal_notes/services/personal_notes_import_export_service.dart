@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/personal_notes/utils/note_print_html.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
 import 'package:otzaria/printing/print_content_models.dart';
 
@@ -197,68 +198,13 @@ class PersonalNotesImportExportService {
     ];
   }
 
-  /// ממיר את תוכן ההערה לפסקאות HTML פנים-שורתי (מודגש/נטוי/קו תחתי וכו')
-  /// שמנוע הוורד יודע לפרש. יעדי קישורים חיצוניים (http) נשמרים כטקסט;
-  /// קישורים פנימיים של האפליקציה מושמטים — הם חסרי משמעות במסמך מודפס.
-  List<String> _noteHtmlParagraphs(PersonalNote note) {
-    List<String> fromPlain() =>
-        note.contentPlain.trimRight().split('\n').map(_escapeHtml).toList();
+  List<String> _noteHtmlParagraphs(PersonalNote note) => noteHtmlParagraphs(
+    content: note.content,
+    contentPlain: note.contentPlain,
+    format: note.contentFormat,
+  );
 
-    if (note.contentFormat != PersonalNoteContentFormat.quillDelta) {
-      return fromPlain();
-    }
-    try {
-      final decoded = jsonDecode(note.content) as List<dynamic>;
-      final paragraphs = <String>[];
-      final current = StringBuffer();
-      for (final op in decoded) {
-        if (op is! Map<String, dynamic>) continue;
-        final insert = op['insert'];
-        if (insert is! String) continue;
-        final rawAttributes = op['attributes'];
-        final attributes = rawAttributes is Map<String, dynamic>
-            ? rawAttributes
-            : null;
-        final parts = insert.split('\n');
-        for (var i = 0; i < parts.length; i++) {
-          if (parts[i].isNotEmpty) {
-            current.write(_styledHtml(parts[i], attributes));
-          }
-          if (i < parts.length - 1) {
-            paragraphs.add(current.toString());
-            current.clear();
-          }
-        }
-      }
-      if (current.isNotEmpty) paragraphs.add(current.toString());
-      return paragraphs;
-    } catch (_) {
-      return fromPlain();
-    }
-  }
-
-  String _styledHtml(String text, Map<String, dynamic>? attributes) {
-    var html = _escapeHtml(text);
-    final link = attributes?['link'];
-    if (link is String && link.startsWith('http') && text.trim().isNotEmpty) {
-      html = '$html (${_escapeHtml(link)})';
-    }
-    if (attributes?['bold'] == true) html = '<b>$html</b>';
-    if (attributes?['italic'] == true) html = '<i>$html</i>';
-    if (attributes?['underline'] == true) html = '<u>$html</u>';
-    if (attributes?['strike'] == true) html = '<s>$html</s>';
-    final script = attributes?['script'];
-    if (script == 'super') html = '<sup>$html</sup>';
-    if (script == 'sub') html = '<sub>$html</sub>';
-    return html;
-  }
-
-  String _escapeHtml(String value) {
-    return value
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-  }
+  String _escapeHtml(String value) => escapePrintHtml(value);
 
   String _formatDate(DateTime date) {
     String two(int n) => n.toString().padLeft(2, '0');

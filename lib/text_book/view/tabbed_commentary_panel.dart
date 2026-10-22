@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:otzaria/marker/view/reader/marker_notes_section.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
@@ -24,6 +25,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
+import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/text_book/widgets/text_book_state_builder.dart';
@@ -63,6 +65,12 @@ class TabbedCommentaryPanel extends StatefulWidget {
   final String? notesBookIdOverride;
   final int? notesCategoryIdOverride;
   final int? notesFocusLineNumber;
+
+  /// ספר המפרש ש-[notesBookIdOverride] שלו, כשהוא ידוע: החלונית מציגה גם את
+  /// הערות המרקר עליו, ולחיצה על אחת מהן קוראת ל-[onNavigateCommentaryMark].
+  final TextBook? notesCommentaryBook;
+  final void Function(TextBook commentary, int section)?
+  onNavigateCommentaryMark;
   final Widget? notesFooter;
 
   /// בקשות גלילה לקטע מפרש מלחיצה על עוגן-אות בטקסט הראשי. מועבר כמות שהוא
@@ -90,6 +98,8 @@ class TabbedCommentaryPanel extends StatefulWidget {
     this.notesBookIdOverride,
     this.notesCategoryIdOverride,
     this.notesFocusLineNumber,
+    this.notesCommentaryBook,
+    this.onNavigateCommentaryMark,
     this.notesFooter,
     this.commentaryScrollTarget,
     this.isPaneOpen = true,
@@ -286,6 +296,35 @@ class _TabbedCommentaryPanelState extends State<TabbedCommentaryPanel>
                     footer: widget.notesBookIdOverride == null
                         ? widget.notesFooter
                         : null,
+                    header: widget.notesBookIdOverride == null
+                        ? MarkerNotesSection(
+                            book: state.book,
+                            onNavigate: (section) {
+                              // מספר שורה מ-1, כמו בהערות האישיות.
+                              final line = section + 1;
+                              final navigate = widget.onNavigateToLine;
+                              if (navigate != null) {
+                                navigate(line);
+                              } else {
+                                _handleNoteNavigation(
+                                  context,
+                                  state,
+                                  line,
+                                  null,
+                                );
+                              }
+                            },
+                          )
+                        : switch (widget.notesCommentaryBook) {
+                            final commentary? => MarkerNotesSection(
+                              book: commentary,
+                              commentary: true,
+                              onNavigate: (section) => widget
+                                  .onNavigateCommentaryMark
+                                  ?.call(commentary, section),
+                            ),
+                            null => null,
+                          },
                     onNavigateToLine:
                         widget.onNavigateToLine ??
                         (line, {note}) =>

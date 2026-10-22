@@ -1163,9 +1163,15 @@ class _PrintingScreenState extends State<PrintingScreen> {
           });
         case PrintBlockKind.heading:
         case PrintBlockKind.text:
+          final accent = block.accent;
           result.add({
-            'kind': 'text',
+            'kind': block.kind == PrintBlockKind.heading ? 'heading' : 'text',
+            'level': '${block.headingLevel ?? 1}',
             'text': stripHtmlIfNeeded(_applyTextTransforms(block.text)),
+            if (accent != null) ...{
+              'accent': '${accent.argb}',
+              'accentStyle': accent.style.name,
+            },
           });
       }
     }
@@ -1313,6 +1319,47 @@ class _PrintingScreenState extends State<PrintingScreen> {
                 ];
               }
 
+              if (kind == 'heading') {
+                final top = b['level'] == '1';
+                return [
+                  pw.Container(
+                    margin: pw.EdgeInsets.only(top: top ? 14 : 8, bottom: 2),
+                    padding: const pw.EdgeInsets.only(bottom: 3),
+                    decoration: top
+                        ? const pw.BoxDecoration(
+                            border: pw.Border(
+                              bottom: pw.BorderSide(
+                                color: PdfColors.blueGrey300,
+                                width: 0.8,
+                              ),
+                            ),
+                          )
+                        : null,
+                    child: ShapedText(
+                      text,
+                      fonts: shapedFonts,
+                      fontSize: fontSize * (top ? 1.25 : 1.1),
+                      color: PdfColors.blueGrey800,
+                    ),
+                  ),
+                ];
+              }
+
+              final accent = int.tryParse(b['accent'] ?? '');
+              if (accent != null) {
+                return [
+                  _accentBlock(
+                    text,
+                    argb: accent,
+                    style:
+                        PrintAccentStyle.values.asNameMap()[b['accentStyle']] ??
+                        PrintAccentStyle.body,
+                    fonts: shapedFonts,
+                    fontSize: fontSize,
+                  ),
+                ];
+              }
+
               final effectiveFontSize = switch (kind) {
                 'commentary' || 'note' => max(10.0, fontSize * 0.9),
                 _ => fontSize,
@@ -1356,6 +1403,47 @@ class _PrintingScreenState extends State<PrintingScreen> {
     primaryShaper.dispose();
     fallbackShaper.dispose();
     return result;
+  }
+
+  /// בלוק בעל צבע: פס בצבע בצד הימני, ובסגנון [PrintAccentStyle.filled] גם
+  /// רקע בגוון בהיר שלו. בלוקים רצופים מתחברים לפס אחד.
+  static pw.Widget _accentBlock(
+    String text, {
+    required int argb,
+    required PrintAccentStyle style,
+    required List<PdfShapedFont> fonts,
+    required double fontSize,
+  }) {
+    final color = PdfColor.fromInt(argb);
+    PdfColor mix(double toWhite) => PdfColor(
+      color.red + (1 - color.red) * toWhite,
+      color.green + (1 - color.green) * toWhite,
+      color.blue + (1 - color.blue) * toWhite,
+    );
+    final bar = PdfColor(color.red * 0.7, color.green * 0.7, color.blue * 0.7);
+    final filled = style == PrintAccentStyle.filled;
+    return pw.Container(
+      margin: pw.EdgeInsets.only(top: filled ? 8 : 0, left: 8),
+      padding: pw.EdgeInsets.fromLTRB(8, filled ? 6 : 2, 10, filled ? 6 : 3),
+      decoration: pw.BoxDecoration(
+        color: filled ? mix(0.45) : null,
+        border: pw.Border(right: pw.BorderSide(color: bar, width: 3)),
+      ),
+      child: ShapedText(
+        text,
+        fonts: fonts,
+        fontSize: style == PrintAccentStyle.detail
+            ? max(9.0, fontSize * 0.8)
+            : fontSize * (filled ? 1.0 : 0.92),
+        color: style == PrintAccentStyle.detail
+            ? PdfColors.grey700
+            : PdfColors.black,
+        align: style == PrintAccentStyle.detail
+            ? ShapedTextAlign.start
+            : ShapedTextAlign.justify,
+        heightFactor: 1.35,
+      ),
+    );
   }
 
   Future<List<Link>> _loadLinksForPrintRange(
@@ -1514,6 +1602,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
                   ),
                   headingLevel: block.headingLevel,
                   footnotes: block.footnotes,
+                  accent: block.accent,
                 );
               case PrintBlockKind.commentaryTitle:
               case PrintBlockKind.commentaryGroupTitle:

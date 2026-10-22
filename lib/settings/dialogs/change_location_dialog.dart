@@ -21,6 +21,7 @@ import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/indexing/repository/indexing_repository.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
+import 'package:otzaria/marker/storage/marker_database.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 import 'package:otzaria/plugins/view/webview_environment_holder.dart';
 import 'package:otzaria/semantic_search/models/semantic_paths.dart';
@@ -327,6 +328,7 @@ Future<void> _closeUserDatabasesForMove() async {
   await UserBooksDatabaseHolder.instance.close();
   await CacheDatabaseHolder.instance.close();
   await PersonalNotesDatabase.instance.close();
+  MarkerDatabase.instance.close();
   await PluginSystemDatabase.instance.close();
 }
 
@@ -429,6 +431,8 @@ Future<void> performLibraryMove({
     await PluginSystemDatabase.instance.lockForStorageMove(
       correctionMove.requestId,
     );
+    // גם כאן: ייבוא סימונים שרץ ברקע מסתיים, וכתיבה חדשה נחסמת עד הסוף.
+    await MarkerDatabase.instance.lockForStorageMove(correctionMove.requestId);
     if (databasesNeedsMove) {
       await _closeUserDatabasesForMove();
     }

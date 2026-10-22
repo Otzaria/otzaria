@@ -7,6 +7,7 @@ import 'package:otzaria/data/data_providers/cache_database_holder.dart';
 import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/marker/storage/marker_database.dart';
 import 'package:otzaria/migration/database/sqlite3_utils.dart';
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
@@ -22,6 +23,7 @@ Future<void> releaseSqliteMemory() async {
         .shrinkMemoryIfOpen(),
     () => shrinkMemoryBestEffort(UserStateDatabase.instance.openDatabase),
     () => shrinkMemoryBestEffort(PersonalNotesDatabase.instance.openDatabase),
+    () => shrinkMemoryBestEffort(MarkerDatabase.instance.openDatabase),
     () => shrinkMemoryBestEffort(PluginSystemDatabase.instance.openDatabase),
   ];
   final worker = DbReadWorker.shrinkMemoryIfRunning();

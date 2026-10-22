@@ -110,6 +110,15 @@ class BackupMerge {
     );
     if (notes != null) result['notes'] = notes;
 
+    final marker = _mergeMarker(
+      older['marker'],
+      newer['marker'],
+      olderSeen: olderSeen,
+      newerSeen: newerSeen,
+      cutoff: cutoff,
+    );
+    if (marker != null) result['marker'] = marker;
+
     final workspaces = _mergeItemLists(
       older['workspaces'],
       newer['workspaces'],
@@ -154,6 +163,38 @@ class BackupMerge {
   }
 
   static const int _maxHistoryEntries = 500;
+
+  /// סימוני המרקר: איחוד לפי מזהה, כמו ההערות; שאר הסעיף (הפלטה, הגרסה)
+  /// מהגיבוי החדש. מזהי התוסף הישן שיובאו מתאחדים, כי הם רק מתווספים.
+  static Map<String, dynamic>? _mergeMarker(
+    Object? older,
+    Object? newer, {
+    required String olderSeen,
+    required String newerSeen,
+    required DateTime cutoff,
+  }) {
+    final olderMap = older is Map ? older.cast<String, dynamic>() : null;
+    final newerMap = newer is Map ? newer.cast<String, dynamic>() : null;
+    final base = newerMap ?? olderMap;
+    if (base == null) return null;
+    final result = {...base};
+    final highlights = _mergeItemLists(
+      olderMap?['highlights'],
+      newerMap?['highlights'],
+      keyOf: (m) => (m['id'] ?? '').toString(),
+      olderSeen: olderSeen,
+      newerSeen: newerSeen,
+      cutoff: cutoff,
+    );
+    if (highlights != null) result['highlights'] = highlights;
+    final legacy = <String, Map<String, dynamic>>{
+      for (final source in [olderMap, newerMap])
+        for (final entry in _asItemList(source?['importedLegacy']) ?? const [])
+          (entry['id'] ?? '').toString(): entry,
+    };
+    if (legacy.isNotEmpty) result['importedLegacy'] = legacy.values.toList();
+    return result;
+  }
 
   static Map<String, dynamic> _mergeIncludes(
     Map<String, dynamic> older,

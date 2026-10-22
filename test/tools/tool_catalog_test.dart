@@ -252,6 +252,7 @@ void main() {
         'builtin.calendar',
         'builtin.shamor_zachor',
         'builtin.notes',
+        'builtin.marker',
         'builtin.measurements',
         'builtin.tikkun_korim',
         'builtin.gematria',

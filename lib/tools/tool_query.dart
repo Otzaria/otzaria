@@ -15,6 +15,7 @@ class ToolQuery {
     'builtin.acronyms_dictionary',
     'builtin.aramaic_dictionary',
     'builtin.gematria',
+    'builtin.marker',
   };
 }
 

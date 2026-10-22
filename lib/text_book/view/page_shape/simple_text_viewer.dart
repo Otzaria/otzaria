@@ -3,6 +3,7 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/text_book/utils/reader_paragraph_copy.dart';
 import 'package:otzaria/text_book/utils/reader_menu_entries.dart';
 import 'package:otzaria/text_book/utils/reader_plugin_menu_entries.dart';
+import 'package:otzaria/marker/view/reader/marker_reader_menu.dart';
 import 'package:otzaria/book_common/utils/commentators_menu.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut_registry.dart';
@@ -100,6 +101,7 @@ import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/widgets/reading_extent_estimation.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/marker/view/marker_navigation.dart';
 
 /// מחזירה האם אירוע המקלדת צריך להניע גלילה/ניווט שורה בצורת הדף.
 ///
@@ -1145,7 +1147,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     if (!mounted ||
         highlight == null ||
         tab is! TextBookTab ||
-        highlight.bookId != tab.book.title) {
+        highlight.bookId != tab.book.title ||
+        revealTargetsOtherBook(highlight, tab.book)) {
       return;
     }
     final lines = _lines;
@@ -1912,6 +1915,22 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       _selectionStartColumn,
     );
     final sourceText = source.text;
+    final selectionAnchor = (
+      lineStart: _selectionLineStart,
+      lineEnd: _selectionLineEnd,
+      startColumn: source.column,
+      pointerColumn: SourceSelection.resolvePointerColumn(
+        _sourceSelection,
+        capturedText,
+        _selectionPointerColumn,
+        lineStart: _selectionLineStart,
+        pointerLineIndex: _selectionPointerLineIndex,
+      ),
+    );
+    RenderSettings selectionSettings() => _selectionRenderSettings(
+      state: state,
+      settingsState: menuContext.read<SettingsBloc>().state,
+    );
 
     if (widget.isMainText) {
       final menuSelection = ReaderMenuSelection(sourceText);
@@ -1930,6 +1949,21 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ),
       );
       entries.add(_copyAsEntry(state, capturedText));
+      entries.addAll(
+        buildMarkerMenuEntries(
+          context: context,
+          root: context.findRenderObject(),
+          state: state,
+          lines: widget.content,
+          paragraphIndex: index,
+          selectedText: menuSelection.hasText ? sourceText : null,
+          anchor: selectionAnchor,
+          settings: selectionSettings,
+          tapPosition: tapPosition,
+          lineRange: lineRange,
+          openNotes: _openNotesTab,
+        ),
+      );
       entries.add(const AppContextMenuEntry.divider());
 
       entries.add(
@@ -2041,6 +2075,23 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           onTap: () => _copyFormattedText(capturedText),
         ),
         _copyAsEntry(state, capturedText),
+        if (widget.reportBook case final commentary?)
+          ...buildCommentaryMarkerEntries(
+            context: context,
+            root: context.findRenderObject(),
+            book: commentary,
+            ref: widget.labelForIndex?.call(index),
+            protection: () => _textProtection(state),
+            lines: widget.content,
+            paragraphIndex: index,
+            selectedText: sourceText?.trim().isNotEmpty == true
+                ? sourceText
+                : null,
+            anchor: selectionAnchor,
+            settings: selectionSettings,
+            tapPosition: tapPosition,
+            lineRange: lineRange,
+          ),
       ],
       AppContextMenuEntry(
         label: 'העתק את כל הפסקה',
@@ -2062,22 +2113,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
           paragraphIndex: index,
           hasSelection: sourceText?.trim().isNotEmpty == true,
           selectedText: sourceText,
-          anchor: (
-            lineStart: _selectionLineStart,
-            lineEnd: _selectionLineEnd,
-            startColumn: source.column,
-            pointerColumn: SourceSelection.resolvePointerColumn(
-              _sourceSelection,
-              capturedText,
-              _selectionPointerColumn,
-              lineStart: _selectionLineStart,
-              pointerLineIndex: _selectionPointerLineIndex,
-            ),
-          ),
-          settings: () => _selectionRenderSettings(
-            state: state,
-            settingsState: menuContext.read<SettingsBloc>().state,
-          ),
+          anchor: selectionAnchor,
+          settings: selectionSettings,
           tapPosition: tapPosition,
           menuContext: menuContext,
           selectionContext: 'reader-page-shape-selection',
@@ -2387,6 +2424,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     context.read<PersonalNotesBloc>().add(
       RequestExpandNotesForLine(lineIndex + 1),
     );
+    _openNotesTab();
+  }
+
+  /// פותח את לשונית ההערות בחלונית הצד.
+  void _openNotesTab() {
     if (widget.onOpenSidebarTab != null) {
       widget.onOpenSidebarTab!(kNotesTabIndex);
     } else {
@@ -3334,17 +3376,27 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final lineIndex = spec.lineIndex;
     final main = widget.isMainText;
     final hasOwnAnchors = widget.anchorLinksByLine != null;
+    // בטור מפרש מציירים את הסימונים של ספר המפרש עצמו.
+    final highlightBook = main ? state.book : widget.reportBook;
     return SmartTextWidget(
       text: spec.html,
-      highlightBookId: main ? state.book.title : null,
-      highlightBookUid: main ? PluginBookIdentity.uidOf(state.book) : null,
-      highlightBookDbId: main ? state.book.id : null,
-      highlightBookType: main ? PluginBookIdentity.typeOf(state.book) : null,
-      highlightBookSource: main
-          ? PluginBookIdentity.sourceOf(state.book)
-          : null,
-      highlightSectionIndex: main ? lineIndex : null,
-      highlightSourceText: main ? spec.sourceText : null,
+      highlightBookId: highlightBook?.title,
+      // מפרש בלי book_id מזוהה לפי הכותרת, כמו בסימון שלו.
+      highlightBookUid:
+          highlightBook == null || (!main && highlightBook.id == null)
+          ? null
+          : PluginBookIdentity.uidOf(highlightBook),
+      highlightBookVersion: highlightBook?.versionTitle,
+      highlightBookDbId: highlightBook?.id,
+      highlightBookType: highlightBook == null
+          ? null
+          : PluginBookIdentity.typeOf(highlightBook),
+      highlightBookSource: highlightBook == null
+          ? null
+          : PluginBookIdentity.sourceOf(highlightBook),
+      highlightSectionIndex: highlightBook == null ? null : lineIndex,
+      highlightSourceText: highlightBook == null ? null : spec.sourceText,
+      markerOnly: !main,
       widgetKey: ValueKey('html_simple_text_$lineIndex'),
       settings: spec.settings,
       onOpenBook: widget.openBookCallback,

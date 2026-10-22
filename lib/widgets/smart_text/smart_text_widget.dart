@@ -23,7 +23,7 @@ import 'package:otzaria/widgets/smart_text/selection_fill_text.dart';
 import 'package:otzaria/widgets/smart_text/simple_inline_html.dart';
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 import 'package:otzaria/plugins/models/plugin_highlight.dart';
-import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
+import 'package:otzaria/book_common/highlights/reader_highlights.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/plugins/services/reader_section_content_tracker.dart';
@@ -74,17 +74,24 @@ class SmartTextWidget extends StatelessWidget {
   /// מצב רינדור של HtmlWidget
   final RenderMode renderMode;
 
-  /// כאשר שניהם מסופקים, הווידג'ט מצייר Highlights זמניים של תוספים.
+  /// כאשר שניהם מסופקים, הווידג'ט מצייר את ההדגשות של התוספים והמרקר.
   final String? highlightBookId;
 
   /// מזהה הספר היציב (`PluginBookIdentity.uidOf`). מבדיל בין שני ספרים בעלי
   /// אותה כותרת; הדגשה ישנה ללא uid מצוירת כמקודם.
   final String? highlightBookUid;
+
+  /// מהדורה חלופית של הספר; סימוני המרקר שלה נפרדים מאלה של הנוסח הראשי.
+  final String? highlightBookVersion;
   final int? highlightSectionIndex;
   final String? highlightSourceText;
   final int? highlightBookDbId;
   final String? highlightBookType;
   final String? highlightBookSource;
+
+  /// שורה של מפרש: מצוירים רק סימוני המרקר. הדגשות התוספים ותיעוד תוכן
+  /// הקטע שייכים לטקסט הראשי, והיו נשלחים שוב מכל מקום שהמפרש מוצג בו.
+  final bool markerOnly;
 
   const SmartTextWidget({
     super.key,
@@ -100,11 +107,13 @@ class SmartTextWidget extends StatelessWidget {
     this.renderMode = RenderMode.column,
     this.highlightBookId,
     this.highlightBookUid,
+    this.highlightBookVersion,
     this.highlightSectionIndex,
     this.highlightSourceText,
     this.highlightBookDbId,
     this.highlightBookType,
     this.highlightBookSource,
+    this.markerOnly = false,
   });
 
   @override
@@ -119,17 +128,20 @@ class SmartTextWidget extends StatelessWidget {
     }
     if (bookId != null && sectionIndex != null) {
       listenables.addAll([
-        PluginHighlightRegistry.instance,
+        ReaderHighlights.listenable(bookId, plugins: !markerOnly),
         PluginHighlightRevealService.instance,
       ]);
     }
     Widget buildResolved() => _buildResolved(
       context,
       bookId != null && sectionIndex != null
-          ? PluginHighlightRegistry.instance.getAllHighlights(
-              bookId: bookId,
-              sectionIndex: sectionIndex,
+          ? ReaderHighlights.forSection(
+              bookTitle: bookId,
               bookUid: highlightBookUid,
+              bookVersion: highlightBookVersion,
+              sectionIndex: sectionIndex,
+              brightness: Theme.of(context).brightness,
+              plugins: !markerOnly,
             )
           : const [],
     );
@@ -148,10 +160,23 @@ class SmartTextWidget extends StatelessWidget {
     var processedHtml = TextRendererService.processText(text, settings);
     final bookId = highlightBookId;
     final sectionIndex = highlightSectionIndex;
-    if (bookId != null && sectionIndex != null) {
+    if (bookId != null && sectionIndex != null && markerOnly) {
+      // התצוגה בלי ההדגשות: הקריאה היא אחרי הפריים, כשהמשתנה כבר כולל אותן.
+      final shown = processedHtml;
+      ReaderHighlights.reanchorMarkerSection(
+        bookTitle: bookId,
+        bookUid: highlightBookUid,
+        bookVersion: highlightBookVersion,
+        sectionIndex: sectionIndex,
+        sourceText: () =>
+            TextRendererService.stripHtml(highlightSourceText ?? text),
+        display: () => (raw: highlightSourceText ?? text, processed: shown),
+      );
+    } else if (bookId != null && sectionIndex != null) {
       syncReaderSectionForPlugins(
         bookId: bookId,
         bookUid: highlightBookUid,
+        bookVersion: highlightBookVersion,
         bookDbId: highlightBookDbId,
         bookType: highlightBookType,
         bookSource: highlightBookSource,
@@ -162,6 +187,7 @@ class SmartTextWidget extends StatelessWidget {
       );
     }
     var frameRanges = const <PluginHighlightRenderedRange>[];
+    var frameText = '';
     if (highlights.isNotEmpty) {
       const highlightRenderer = PluginHighlightRenderer();
       final rendering = highlightRenderer.renderWithRanges(
@@ -174,6 +200,7 @@ class SmartTextWidget extends StatelessWidget {
       );
       processedHtml = rendering.html;
       frameRanges = rendering.ranges;
+      frameText = rendering.text;
     }
     // סימונים מורמים (sup פשוט ולא-מספרי שהומר ל-span ב-processText): מחולצים
     // מה-HTML הסופי. ה-HTML לא משתנה — הגליפים נשארים בשורה (שקופים, בסדר
@@ -225,6 +252,7 @@ class SmartTextWidget extends StatelessWidget {
         // ב-Center (הגבלת רוחב קריאה) ימרכזו שורות קצרות בטעות.
         return _withPluginFrames(
           frameRanges,
+          frameText,
           _withRaisedMarkers(
             context,
             raisedMarkers,
@@ -264,6 +292,7 @@ class SmartTextWidget extends StatelessWidget {
 
     return _withPluginFrames(
       frameRanges,
+      frameText,
       _withRaisedMarkers(
         context,
         raisedMarkers,
@@ -462,6 +491,7 @@ class SmartTextWidget extends StatelessWidget {
 
   Widget _withPluginFrames(
     List<PluginHighlightRenderedRange> ranges,
+    String rangeText,
     Widget child,
   ) {
     if (!ranges.any(
@@ -472,7 +502,11 @@ class SmartTextWidget extends StatelessWidget {
     )) {
       return child;
     }
-    return PluginHighlightFrameOverlay(ranges: ranges, child: child);
+    return PluginHighlightFrameOverlay(
+      ranges: ranges,
+      rangeText: rangeText,
+      child: child,
+    );
   }
 }
 
@@ -713,11 +747,12 @@ class _SmartTextCallbacks extends InheritedWidget {
   bool updateShouldNotify(_SmartTextCallbacks oldWidget) => false;
 }
 
-/// עיגון מחדש של הדגשות התוספים ותיעוד תוכן הקטע (#828) לשורה מוצגת.
+/// עיגון מחדש של ההדגשות (תוספים ומרקר) ותיעוד תוכן הקטע (#828) לשורה מוצגת.
 /// [processedHtml] הוא התוצר של `processText`, לפני ציור ההדגשות.
 void syncReaderSectionForPlugins({
   required String bookId,
   String? bookUid,
+  String? bookVersion,
   int? bookDbId,
   String? bookType,
   String? bookSource,
@@ -737,18 +772,20 @@ void syncReaderSectionForPlugins({
     rawSourceHtml: rawSourceHtml,
     processedHtml: processedHtml,
     renderingSignature: renderingSignature,
-    highlightsRevision: PluginHighlightRegistry.instance.revision,
+    highlightsRevision: ReaderHighlights.revision,
   )) {
     return;
   }
   final sourceText = TextRendererService.stripHtml(rawSourceHtml);
   final renderedText = TextRendererService.stripHtml(processedHtml);
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    PluginHighlightRegistry.instance.reanchorSection(
-      bookId: bookId,
+    ReaderHighlights.reanchorSection(
+      bookTitle: bookId,
+      bookUid: bookUid,
+      bookVersion: bookVersion,
       sectionIndex: sectionIndex,
       sourceText: sourceText,
-      bookUid: bookUid,
+      display: () => (raw: rawSourceHtml, processed: processedHtml),
     );
     unawaited(
       _recordSectionContentSnapshot(

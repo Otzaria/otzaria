@@ -386,6 +386,47 @@ void main() {
     expect(offText, isFalse);
   });
 
+  testWidgets('occurrence: הדגשה שחוצה שבירת שורה ורווחים כפולים נמצאת', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Text(
+              'AAAA\nBBBB  CCCC',
+              textDirection: TextDirection.ltr,
+              style: TextStyle(fontSize: 20),
+            ),
+          ),
+        ),
+      ),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.byType(RichText),
+    );
+    final topLeft = tester.getTopLeft(find.byType(RichText));
+    final size = tester.getSize(find.byType(RichText));
+
+    // השורה הראשונה מכילה את AAAA; ההדגשה היא "AAAA BBBB" אחרי כיווץ.
+    final onFirstLine = clickIsOnTextOccurrence(
+      root: paragraph,
+      globalPosition: Offset(topLeft.dx + 5, topLeft.dy + size.height * 0.25),
+      text: 'AAAA BBBB',
+    );
+    expect(onFirstLine, isTrue);
+
+    final acrossSpaces = clickIsOnTextOccurrence(
+      root: paragraph,
+      globalPosition: Offset(
+        topLeft.dx + size.width - 5,
+        topLeft.dy + size.height * 0.75,
+      ),
+      text: 'BBBB CCCC',
+    );
+    expect(acrossSpaces, isTrue);
+  });
+
   testWidgets('occurrence: טקסט שאינו בפסקה מחזיר null', (tester) async {
     final paragraph = await pumpRichText(tester);
 

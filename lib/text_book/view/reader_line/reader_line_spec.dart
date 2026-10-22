@@ -3,9 +3,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:otzaria/book_common/highlights/reader_highlights.dart';
 import 'package:otzaria/book_common/selection/selected_text_restore.dart';
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
-import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
@@ -277,7 +277,7 @@ TextStyle readerParagraphBaseStyle(
   color: colorScheme.onSurface,
 );
 
-/// שורה בתוך פסקה ממוזגת: עיבוד, הדגשות תוספים וסנכרון התוכן לתוספים —
+/// שורה בתוך פסקה ממוזגת: עיבוד, הדגשות וסנכרון התוכן לתוספים —
 /// אותו מסלול ש-[SmartTextWidget] מריץ לשורה בודדת.
 ContinuousReadingParagraphLine readerParagraphLine(
   ReaderLineSpec spec,
@@ -295,6 +295,7 @@ ContinuousReadingParagraphLine readerParagraphLine(
     syncReaderSectionForPlugins(
       bookId: book.title,
       bookUid: uid,
+      bookVersion: book.versionTitle,
       bookDbId: book.id,
       bookType: PluginBookIdentity.typeOf(book),
       bookSource: PluginBookIdentity.sourceOf(book),
@@ -303,10 +304,12 @@ ContinuousReadingParagraphLine readerParagraphLine(
       processedHtml: processed,
       renderingSignature: spec.settings.sectionContentRenderingSignature,
     );
-    final highlights = PluginHighlightRegistry.instance.getAllHighlights(
-      bookId: book.title,
-      sectionIndex: spec.lineIndex,
+    final highlights = ReaderHighlights.forSection(
+      bookTitle: book.title,
       bookUid: uid,
+      bookVersion: book.versionTitle,
+      sectionIndex: spec.lineIndex,
+      brightness: colorScheme.brightness,
     );
     if (highlights.isNotEmpty) {
       final rendering = const PluginHighlightRenderer().renderWithRanges(
@@ -346,7 +349,7 @@ ContinuousReadingParagraphLine readerParagraphLine(
   );
 }
 
-/// רצף שורות שמוצג כפסקה אחת. מאזין להדגשות התוספים ולתבנית החיפוש כמו
+/// רצף שורות שמוצג כפסקה אחת. מאזין להדגשות ולתבנית החיפוש כמו
 /// [SmartTextWidget].
 class ReaderParagraphRun extends StatelessWidget {
   const ReaderParagraphRun({
@@ -373,7 +376,7 @@ class ReaderParagraphRun extends StatelessWidget {
     final hasSearch = specs.any((spec) => spec.settings.searchText.isNotEmpty);
     return ListenableBuilder(
       listenable: Listenable.merge([
-        PluginHighlightRegistry.instance,
+        ReaderHighlights.listenable(lineContext.state.book.title),
         PluginHighlightRevealService.instance,
         if (hasSearch) utils.highlightPatternRevision,
       ]),

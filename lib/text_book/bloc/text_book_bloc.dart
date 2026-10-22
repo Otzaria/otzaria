@@ -1217,6 +1217,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         showPageShapeView: event.show,
         selectedIndex: currentState.selectedIndex,
         showLeftPane: event.show ? false : currentState.showLeftPane,
+        clearSelectedText: true,
       );
       emit(updatedState);
       _loadLinksInBackground(

@@ -948,6 +948,7 @@ class AppPaths {
     'plugins_host.db',
     'personal_notes.db',
     'user_books.db',
+    'marker.db',
   ];
 
   /// האם המסדים האישיים נמחקו מבחוץ: ספרייה כבר נטענה כאן, ואף מסד אישי

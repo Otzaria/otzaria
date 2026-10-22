@@ -15,12 +15,17 @@ class CommentaryNotesSection extends StatefulWidget {
   /// מתעדכן בכל שינוי בהערות, גם בשמירה שעוקפת את ה-PersonalNotesBloc.
   final ValueListenable<int>? revision;
 
+  /// שורות נוספות לכל מפרש, אחרי ההערות האישיות שלו ולפי אותו מפתח (למשל
+  /// הערות על סימוני מרקר). מפרש שיש לו רק שורות כאלה מוצג גם הוא.
+  final Map<String, List<Widget>> extraTiles;
+
   CommentaryNotesSection({
     super.key,
     required this.bookIds,
     required this.onOpenNote,
     this.loader = loadStoredPersonalNotes,
     ValueListenable<int>? revision,
+    this.extraTiles = const {},
   }) : revision = revision ?? PersonalNotesDatabase.instance.revision;
 
   @override
@@ -28,7 +33,7 @@ class CommentaryNotesSection extends StatefulWidget {
 }
 
 class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
-  List<(String, List<PersonalNote>)> _groups = const [];
+  Map<String, List<PersonalNote>> _notes = const {};
   int _loadToken = 0;
 
   @override
@@ -56,20 +61,26 @@ class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
 
   Future<void> _load() async {
     final token = ++_loadToken;
-    final groups = <(String, List<PersonalNote>)>[];
+    final notes = <String, List<PersonalNote>>{};
     for (final bookId in widget.bookIds) {
-      final notes = (await widget.loader(
+      final lines = (await widget.loader(
         bookId,
       )).where((note) => note.lineNumber != null).toList();
-      if (notes.isNotEmpty) groups.add((bookId, notes));
+      if (lines.isNotEmpty) notes[bookId] = lines;
     }
     if (!mounted || token != _loadToken) return;
-    setState(() => _groups = groups);
+    setState(() => _notes = notes);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_groups.isEmpty) return const SizedBox.shrink();
+    final groups = [
+      for (final bookId in widget.bookIds)
+        if (_notes.containsKey(bookId) ||
+            (widget.extraTiles[bookId]?.isNotEmpty ?? false))
+          bookId,
+    ];
+    if (groups.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
 
     return Column(
@@ -83,7 +94,7 @@ class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
             style: theme.textTheme.titleSmall,
           ),
         ),
-        for (final (bookId, notes) in _groups) ...[
+        for (final bookId in groups) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Text(
@@ -93,7 +104,7 @@ class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
               ),
             ),
           ),
-          for (final note in notes)
+          for (final note in _notes[bookId] ?? const <PersonalNote>[])
             ListTile(
               dense: true,
               title: Text(
@@ -108,6 +119,7 @@ class _CommentaryNotesSectionState extends State<CommentaryNotesSection> {
               ),
               onTap: () => widget.onOpenNote(bookId, note.lineNumber!),
             ),
+          ...?widget.extraTiles[bookId],
         ],
       ],
     );

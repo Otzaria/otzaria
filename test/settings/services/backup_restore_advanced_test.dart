@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:otzaria/marker/storage/marker_database.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -73,6 +74,7 @@ void main() {
 
   tearDown(() async {
     await PersonalNotesDatabase.instance.close();
+    MarkerDatabase.instance.close();
     PluginSystemDatabase.instance.resetForTests();
     await Hive.close();
     UserStateDatabase.instance.close();
@@ -861,6 +863,7 @@ void main() {
 
         UserStateDatabase.instance.close();
         await PersonalNotesDatabase.instance.close();
+        MarkerDatabase.instance.close();
         PluginSystemDatabase.instance.resetForTests();
         for (final f in Directory(
           p.join(tempDir.path, 'databases'),
