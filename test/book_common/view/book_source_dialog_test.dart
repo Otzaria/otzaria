@@ -111,4 +111,16 @@ void main() {
       expect(isTashmaSource(null), isFalse);
     });
   });
+
+  group('formatPublicationDate', () {
+    test('shows both Hebrew years a Gregorian year overlaps', () {
+      expect(formatPublicationDate('1782'), 'ה׳תקמ״ב–ה׳תקמ״ג (1782)');
+    });
+
+    test('keeps non-Gregorian values as they are', () {
+      expect(formatPublicationDate("ה' תקמב"), "ה' תקמב");
+      expect(formatPublicationDate('שס"ו'), 'שס"ו');
+      expect(formatPublicationDate('5542'), '5542');
+    });
+  });
 }

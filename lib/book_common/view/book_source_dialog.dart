@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/book_details_service.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -228,7 +229,9 @@ Widget _buildBookDetailsContent(
             DetailsInfoSection(
               title: 'תאריך פרסום:',
               icon: FluentIcons.print_24_regular,
-              value: information.publicationDates.join(', '),
+              value: information.publicationDates
+                  .map(formatPublicationDate)
+                  .join(', '),
             ),
           if (information.publicationPlaces.isNotEmpty)
             DetailsInfoSection(
@@ -280,6 +283,15 @@ Widget _buildBookDetailsContent(
       ),
     ),
   );
+}
+
+/// שנה לועזית חופפת שתי שנים עבריות, ולכן מוצג הטווח ולא המרה מקורבת.
+@visibleForTesting
+String formatPublicationDate(String date) {
+  final year = RegExp(r'^\d{4}$').hasMatch(date) ? int.parse(date) : null;
+  if (year == null || year < 1240 || year > 2239) return date;
+  final first = formatHebrewYear(year + 3760);
+  return '$first–${formatHebrewYear(year + 3761)} ($date)';
 }
 
 /// שם המקור כפי שמוצג למשתמש: לוגו (למקורות שהרישיון שלהם מחייב קרדיט חזותי),
