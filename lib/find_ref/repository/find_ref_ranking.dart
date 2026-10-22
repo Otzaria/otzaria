@@ -192,9 +192,12 @@ int compareFindRefRelevance(
     return a.startsWithMatch ? -1 : 1;
   }
 
-  // 3. התאמת מילים בודדות (מילה שנייה ואילך); אות בודדת היא מספר מיקום.
+  // 3. התאמת מילים בודדות (מילה שנייה ואילך), מעוגנת למילה הראשונה בכותרת:
+  // "ירושלמי מעשר שני" ב"תלמוד ירושלמי מעשר שני". אות בודדת היא מספר מיקום.
   if (query.needsTokenWiseRanking) {
     final queryTokens = query.tokens;
+    final aStart = _titleAnchor(a.titleTokens, query.matchTokens.first);
+    final bStart = _titleAnchor(b.titleTokens, query.matchTokens.first);
     for (int i = 1; i < queryTokens.length; i++) {
       final queryToken = queryTokens[i];
       if (queryToken.length == 1) continue;
@@ -203,10 +206,10 @@ int compareFindRefRelevance(
       // לכל תוצאה, אחרת שילוב עם התאמות TOC יוצר מעגל בהשוואה.
       final aHasMatch =
           a.categoryTokens.contains(queryToken) ||
-          (i < a.titleTokens.length && a.titleTokens[i].startsWith(matchToken));
+          _titleTokenAt(a.titleTokens, aStart + i, matchToken);
       final bHasMatch =
           b.categoryTokens.contains(queryToken) ||
-          (i < b.titleTokens.length && b.titleTokens[i].startsWith(matchToken));
+          _titleTokenAt(b.titleTokens, bStart + i, matchToken);
       if (aHasMatch != bHasMatch) return aHasMatch ? -1 : 1;
     }
   }
@@ -243,6 +246,17 @@ int compareFindRefRelevance(
   // 8. סדר: TOC L1 < TOC L2 < AltToc < TOC L3+
   return a.specificity.compareTo(b.specificity);
 }
+
+/// מקום המילה הראשונה של השאילתה בכותרת; 0 כשאינה בה (כינוי, ראשי-תיבות)
+/// או כשהיא אות בודדת, שהייתה מתאימה לכל מילה שפותחת בה.
+int _titleAnchor(List<String> titleTokens, String first) {
+  if (first.length < 2) return 0;
+  final at = titleTokens.indexWhere((t) => t.startsWith(first));
+  return at < 0 ? 0 : at;
+}
+
+bool _titleTokenAt(List<String> titleTokens, int index, String prefix) =>
+    index < titleTokens.length && titleTokens[index].startsWith(prefix);
 
 /// סדר הדירוג: רלוונטיות ואז סדר תצוגה. שתי תוצאות ששוות בשניהם שקולות, והמיון
 /// מציב אותן בסדר שרירותי.
