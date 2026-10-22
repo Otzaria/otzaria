@@ -88,7 +88,9 @@ class DynamicShortcutRegistry extends ChangeNotifier {
           for (final item in decoded) {
             if (item is! Map) continue;
             final s = DynamicShortcut.fromJson(Map<String, dynamic>.from(item));
-            if (s != null) _shortcuts.add(s);
+            if (s != null && !ShortcutValidator.isNavigationShortcut(s.key)) {
+              _shortcuts.add(s);
+            }
           }
         }
       } catch (_) {

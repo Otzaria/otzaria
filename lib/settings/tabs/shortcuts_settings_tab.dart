@@ -1107,6 +1107,7 @@ class ShortcutsSettingsTab extends StatelessWidget {
         context,
         (_) => CustomShortcutDialog(
           actionName: ShortcutValidator.shortcutNames[selectedKey],
+          settingKey: selectedKey,
         ),
       ),
     );

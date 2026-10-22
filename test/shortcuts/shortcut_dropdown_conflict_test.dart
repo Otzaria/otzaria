@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
@@ -14,7 +15,11 @@ import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria/settings/l10n/settings_catalogs.g.dart';
+import 'package:otzaria/settings/l10n/settings_language.dart';
+import 'package:otzaria/settings/l10n/settings_text_scope.dart';
 import 'package:otzaria/settings/tabs/shortcuts_settings_tab.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/view/shortcut_dropdown_tile.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
@@ -74,6 +79,25 @@ void _expectUnusedShortcut(String shortcut) {
 
 Future<void> _drainUiSnack(WidgetTester tester) async {
   await tester.pump(const Duration(seconds: 6));
+  await tester.pumpAndSettle();
+}
+
+/// מקליט [keys] בדיאלוג הפתוח ומאשר, כמו משתמש: הקלטה, עצירה ואישור.
+Future<void> _recordInDialog(
+  WidgetTester tester,
+  List<LogicalKeyboardKey> keys,
+) async {
+  await tester.tap(find.text('התחל הקלטה'));
+  await tester.pump();
+  for (final key in keys) {
+    await tester.sendKeyDownEvent(key);
+  }
+  for (final key in keys.reversed) {
+    await tester.sendKeyUpEvent(key);
+  }
+  await tester.tap(find.text('עצור הקלטה'));
+  await tester.pump();
+  await tester.tap(find.text('אישור'));
   await tester.pumpAndSettle();
 }
 
@@ -241,6 +265,67 @@ void main() {
         await _drainUiSnack(tester);
       },
     );
+
+    for (final mac in [false, true]) {
+      testWidgets(
+        'מקשי ניווט שהוקלטו לקטע הבא נדחים, וברירת המחדל Alt+↓ נשמרת '
+        '(${mac ? 'macOS' : 'Windows'}) (issue #2851)',
+        (tester) async {
+          ShortcutHelper.isMacForTesting = mac;
+          addTearDown(() => ShortcutHelper.isMacForTesting = null);
+          await tester.pumpWidget(
+            _buildTile(
+              bloc: settingsBloc,
+              settingKey: 'key-shortcut-next-segment',
+              selectedShortcut: 'alt+arrowdown',
+            ),
+          );
+          await tester.pump();
+          tester
+              .widget<AppDropdownField<String>>(
+                find.byType(AppDropdownField<String>),
+              )
+              .onSelected
+              ?.call('__custom__');
+          await tester.pumpAndSettle();
+
+          final primary = mac
+              ? LogicalKeyboardKey.metaLeft
+              : LogicalKeyboardKey.controlLeft;
+          for (final keys in [
+            [LogicalKeyboardKey.arrowLeft],
+            [primary, LogicalKeyboardKey.arrowRight],
+            [LogicalKeyboardKey.shiftLeft, LogicalKeyboardKey.tab],
+            [LogicalKeyboardKey.pageDown],
+            [primary, LogicalKeyboardKey.home],
+          ]) {
+            await _recordInDialog(tester, keys);
+            verifyNever(
+              () => settingsBloc.add(any(that: isA<UpdateShortcut>())),
+            );
+            expect(find.text('הגדרת קיצור מקשים מותאם אישית'), findsOneWidget);
+            expect(
+              find.text(CommonMessages.shortcutNavigationKey),
+              findsOneWidget,
+            );
+            await _drainUiSnack(tester);
+          }
+
+          await _recordInDialog(tester, [
+            LogicalKeyboardKey.altLeft,
+            LogicalKeyboardKey.arrowDown,
+          ]);
+          final saved = verify(
+            () => settingsBloc.add(captureAny(that: isA<UpdateShortcut>())),
+          );
+          saved.called(1);
+          expect(
+            (saved.captured.single as UpdateShortcut).value,
+            'alt+arrowdown',
+          );
+        },
+      );
+    }
   });
 
   group('ShortcutValidator - זיהוי קיצורים כפולים', () {
@@ -292,7 +377,9 @@ void main() {
   // key-shortcut-open-commentators-tab ריק כברירת מחדל ולכן הכרטיס תמיד מופיע.
 
   group('ShortcutsSettingsTab - זרימת הוסף קיצור', () {
-    Widget buildTab() {
+    Widget buildTab({
+      SettingsLanguage language = SettingsLanguage.hebrew,
+    }) {
       final pluginBloc = _MockPluginSystemBloc();
       whenListen(
         pluginBloc,
@@ -302,12 +389,15 @@ void main() {
       return MaterialApp(
         navigatorKey: navigatorKey,
         home: Scaffold(
-          body: MultiBlocProvider(
-            providers: [
-              BlocProvider<SettingsBloc>.value(value: settingsBloc),
-              BlocProvider<PluginSystemBloc>.value(value: pluginBloc),
-            ],
-            child: const ShortcutsSettingsTab(),
+          body: SettingsTextScope(
+            language: language,
+            child: MultiBlocProvider(
+              providers: [
+                BlocProvider<SettingsBloc>.value(value: settingsBloc),
+                BlocProvider<PluginSystemBloc>.value(value: pluginBloc),
+              ],
+              child: const ShortcutsSettingsTab(),
+            ),
           ),
         ),
       );
@@ -409,5 +499,30 @@ void main() {
       expect(event.key, 'key-shortcut-open-commentators-tab');
       expect(event.value, _unusedShortcut1);
     });
+
+    testWidgets(
+      'Tab שהוקלט ב"הוסף קיצור" נדחה בהודעה באנגלית (issue #2851)',
+      (tester) async {
+        await tester.pumpWidget(buildTab(language: SettingsLanguage.english));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Add shortcut'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Add shortcut'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('פתח כרטיסיית מפרשים'));
+        await tester.pumpAndSettle();
+
+        await _recordInDialog(tester, [LogicalKeyboardKey.tab]);
+
+        verifyNever(() => settingsBloc.add(any(that: isA<UpdateShortcut>())));
+        expect(
+          find.text(
+            kSettingsCatalogs['en']![CommonMessages.shortcutNavigationKey]!,
+          ),
+          findsOneWidget,
+        );
+        await _drainUiSnack(tester);
+      },
+    );
   });
 }

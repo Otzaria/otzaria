@@ -1107,7 +1107,7 @@ class SettingsRepository {
 
   /// מוחק קיצורים שמורים שלעולם לא ייתפסו, כך שהפעולה חוזרת לקיצור ברירת
   /// המחדל שעובד: מקש שאינו מוכר (`ctrl+shift+כ` שהוקלט בפריסה לא-לטינית
-  /// לפני שההקלטה נורמלה), וב-Mac גם מקש שתפריט המערכת בולע.
+  /// לפני שההקלטה נורמלה), מקש ניווט וגלילה, וב-Mac גם מקש שתפריט המערכת בולע.
   Future<void> removeUnrecognizedShortcuts() async {
     final storedRaw = _settings.getValue<Map<dynamic, dynamic>>(
       'shortcuts',
@@ -1123,20 +1123,21 @@ class SettingsRepository {
 
     for (final key in keysToCheck) {
       final value = _settings.getValue<String?>(key, defaultValue: null);
-      if (value != null && !_isUsableShortcut(value)) {
+      if (value != null && !_isUsableShortcut(key, value)) {
         await _settings.remove(key);
       }
     }
 
     final cleaned = Map<String, String>.from(stored)
-      ..removeWhere((_, value) => !_isUsableShortcut(value));
+      ..removeWhere((key, value) => !_isUsableShortcut(key, value));
     if (cleaned.length != stored.length) {
       await _settings.setValue('shortcuts', cleaned);
     }
   }
 
-  bool _isUsableShortcut(String value) {
+  bool _isUsableShortcut(String key, String value) {
     if (!ShortcutHelper.isRecognized(value)) return false;
+    if (ShortcutValidator.isNavigationShortcut(value, key)) return false;
     if (!ShortcutHelper.usesMacModifiers) return true;
     final normalized = ShortcutHelper.normalizeShortcut(value) ?? '';
     return !ShortcutValidator.macReservedShortcuts.contains(normalized);

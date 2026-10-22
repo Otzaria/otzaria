@@ -505,6 +505,16 @@ class ShortcutValidator {
     return false;
   }
 
+  /// מקשי ניווט וגלילה נבלעים בגלילה, בבחירת טקסט ובמעבר בין רכיבים לפני
+  /// שקיצור מגיע לטיפול, ולכן מותרים רק בברירת המחדל של [settingKey].
+  static bool isNavigationShortcut(String shortcut, [String? settingKey]) {
+    final value = _normalizedShortcutValue(shortcut);
+    final mainKey = value.split('+').last;
+    const navKeys = {'tab', 'pageup', 'pagedown', 'home', 'end'};
+    return (mainKey.startsWith('arrow') || navKeys.contains(mainKey)) &&
+        value != _normalizedShortcutValue(defaultShortcuts[settingKey]);
+  }
+
   static String canonicalSettingKey(String settingKey) {
     if (settingKey == legacySearchInBookKey) {
       return currentWindowSearchKey;

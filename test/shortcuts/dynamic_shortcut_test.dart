@@ -1,8 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut_registry.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+
+import '../helpers/memory_settings_cache.dart';
 
 void main() {
   group('DynamicDisplayChange.patchFor', () {
@@ -145,6 +148,23 @@ void main() {
       registry.loadFromJson('not json');
       expect(registry.shortcuts, isEmpty);
     });
+
+    test(
+      'קיצור דינמי שמור על מקש ניווט נשמט בטעינה, ותקין נשאר (issue #2851)',
+      () async {
+        final cache = MemorySettingsCache();
+        await Settings.init(cacheProvider: cache);
+        await cache.setString(
+          DynamicShortcutRegistry.settingsKey,
+          '[{"id":"ok","kind":"setTextDisplay","key":"ctrl+1"},'
+          '{"id":"nav","kind":"setTextDisplay","key":"ctrl+arrowleft"}]',
+        );
+
+        expect(DynamicShortcutRegistry.instance.shortcuts.map((s) => s.id), [
+          'ok',
+        ]);
+      },
+    );
 
     test('put עם אותו id מחליף', () {
       registry.put(

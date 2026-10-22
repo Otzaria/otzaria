@@ -828,6 +828,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'לא ממוזגת': 'not merged',
     'לא נוסף דבר — כל מה שבקובץ כבר קיים במכשיר זה.': 'Nothing was added — everything in the file already exists on this device.',
     'לא ניתן היה להעביר את הבקשה לחלון הראשי של אוצריא. נסה שוב.': 'The request could not be passed to the main Otzaria window. Try again.',
+    'לא ניתן להגדיר קיצור עם החיצים, Tab, PageUp/PageDown או Home/End — מקשים אלה משמשים לניווט ולגלילה': 'Shortcuts can\'t use the arrow keys, Tab, PageUp/PageDown or Home/End — these keys are used for navigation and scrolling',
     'לא ניתן להתחבר למקור העדכונים': 'Could not reach the update source',
     'לא ניתן למחוק את הסיסמה כשמצב סייפר פעיל': 'The password cannot be removed while Safer Mode is on',
     'לא ניתן לפתוח': 'Cannot be opened',
