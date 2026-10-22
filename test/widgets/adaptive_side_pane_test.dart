@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -931,6 +932,38 @@ void main() {
 
       await tester.tapAt(const Offset(200, 300));
       expect(closed, 1);
+    });
+
+    testWidgets('גלילה על ההצללה סוגרת את החלונית (issue #2855)', (
+      tester,
+    ) async {
+      var closed = 0;
+      await tester.pumpWidget(pane(float: true, onClose: () => closed++));
+      await tester.pumpAndSettle();
+
+      final mouse = TestPointer(1, PointerDeviceKind.mouse);
+      mouse.hover(const Offset(200, 300));
+      await tester.sendEventToBinding(mouse.scroll(const Offset(0, 100)));
+      expect(closed, 1);
+
+      final touchpad = TestPointer(2, PointerDeviceKind.trackpad);
+      await tester.sendEventToBinding(
+        touchpad.panZoomStart(const Offset(200, 300)),
+      );
+      expect(closed, 2);
+    });
+
+    testWidgets('גלילה על התוכן ליד חלונית נעוצה אינה סוגרת אותה', (
+      tester,
+    ) async {
+      var closed = 0;
+      await tester.pumpWidget(pane(float: false, onClose: () => closed++));
+      await tester.pumpAndSettle();
+
+      final mouse = TestPointer(1, PointerDeviceKind.mouse);
+      mouse.hover(const Offset(200, 300));
+      await tester.sendEventToBinding(mouse.scroll(const Offset(0, 100)));
+      expect(closed, 0);
     });
 
     for (final float in [true, false]) {
