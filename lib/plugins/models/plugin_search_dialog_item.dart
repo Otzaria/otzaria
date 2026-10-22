@@ -22,6 +22,10 @@ class PluginSearchDialogItem {
   /// כותרת מדור התוצאות בטאב החיפוש; ברירת המחדל היא [title].
   final String resultsTitle;
 
+  /// כשמוגדר, טאב חיפוש שהסתיים מציג כפתור בכותרת הזו, ולחיצה מעבירה לתוסף
+  /// את אותו חיפוש — כמו שליחה עם השורה מסומנת. דורש [openPluginOnSubmit].
+  final String? resultsAction;
+
   final Set<SearchMode> visibleInModes;
   final Map<SearchMode, Set<String>> disabledSearchOptionIds;
 
@@ -35,6 +39,7 @@ class PluginSearchDialogItem {
     required this.openPluginOnSubmit,
     this.resultsProvider,
     String? resultsTitle,
+    this.resultsAction,
     required this.visibleInModes,
     required this.disabledSearchOptionIds,
     this.when,
@@ -54,6 +59,7 @@ class PluginSearchDialogItem {
       'openPluginOnSubmit',
       'resultsProvider',
       'resultsTitle',
+      'resultsAction',
       'visibleInModes',
       'disabledSearchOptions',
       'when',
@@ -120,6 +126,18 @@ class PluginSearchDialogItem {
         'resultsTitle requires resultsProvider',
       );
     }
+    final resultsAction = payload['resultsAction'] == null
+        ? null
+        : _requiredText(
+            payload['resultsAction'],
+            field: 'resultsAction',
+            maxLength: 120,
+          );
+    if (resultsAction != null && openPluginOnSubmit != true) {
+      throw const PluginSearchDialogItemException(
+        'resultsAction requires openPluginOnSubmit',
+      );
+    }
 
     final visibleInModes = _parseModes(
       payload['visibleInModes'],
@@ -147,6 +165,7 @@ class PluginSearchDialogItem {
       openPluginOnSubmit: openPluginOnSubmit as bool? ?? false,
       resultsProvider: resultsProvider as String?,
       resultsTitle: resultsTitle,
+      resultsAction: resultsAction,
       visibleInModes: Set.unmodifiable(visibleInModes),
       disabledSearchOptionIds: Map.unmodifiable({
         for (final entry in disabledSearchOptionIds.entries)

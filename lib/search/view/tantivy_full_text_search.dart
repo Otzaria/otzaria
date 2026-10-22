@@ -16,6 +16,7 @@ import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
+import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
@@ -23,6 +24,7 @@ import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/search/view/layout_fix_suggestion_banner.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/search/view/search_results_layout.dart';
+import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/feedback/indexing_warning.dart';
 
 class TantivyFullTextSearch extends StatefulWidget {
@@ -59,23 +61,35 @@ bool shouldShowFacetFilterBanner({
   return normalizedScope.isNotEmpty;
 }
 
+/// הגדרות החיפוש השמורות בטאב (חיוביות ושליליות), מנורמלות למצב החיפוש
+/// הנוכחי שלו.
+(SearchModeScopedParameters, SearchModeScopedParameters) _tabParameters(
+  SearchingTab tab,
+  String query,
+  String negativeQuery,
+) {
+  final searchMode = tab.searchBloc.state.configuration.searchMode;
+  return (
+    SearchQueryBuilder.normalizeParametersForMode(
+      searchMode,
+      customSpacing: tab.spacingValues,
+      alternativeWords: tab.alternativeWords,
+      searchOptions: tab.effectiveSearchOptions(query: query),
+    ),
+    SearchQueryBuilder.normalizeParametersForMode(
+      searchMode,
+      customSpacing: tab.negativeSpacingValues,
+      alternativeWords: tab.negativeAlternativeWords,
+      searchOptions: tab.effectiveNegativeSearchOptions(query: negativeQuery),
+    ),
+  );
+}
+
 /// אירוע הרצת [query] בטאב עם הגדרות החיפוש השמורות בו (חיוביות ושליליות),
 /// מנורמלות למצב החיפוש הנוכחי של הטאב.
 UpdateSearchQuery searchQueryEventForTab(SearchingTab tab, String query) {
-  final searchMode = tab.searchBloc.state.configuration.searchMode;
   final negativeQuery = tab.negativeQueryController.text;
-  final positive = SearchQueryBuilder.normalizeParametersForMode(
-    searchMode,
-    customSpacing: tab.spacingValues,
-    alternativeWords: tab.alternativeWords,
-    searchOptions: tab.effectiveSearchOptions(query: query),
-  );
-  final negative = SearchQueryBuilder.normalizeParametersForMode(
-    searchMode,
-    customSpacing: tab.negativeSpacingValues,
-    alternativeWords: tab.negativeAlternativeWords,
-    searchOptions: tab.effectiveNegativeSearchOptions(query: negativeQuery),
-  );
+  final (positive, negative) = _tabParameters(tab, query, negativeQuery);
   return UpdateSearchQuery(
     query,
     negativeQuery: negativeQuery,
@@ -512,5 +526,98 @@ class _TantivyFullTextSearchState extends State<TantivyFullTextSearch>
         ),
       ),
     ),
+    AppTopBarItem(
+      widget: PluginSearchResultsActions(
+        tab: widget.tab,
+        iconOnly: collapseMenus,
+      ),
+    ),
   ];
+}
+
+/// כפתורי `resultsAction` של שורות החיפוש של תוספים. מוצגים כשהחיפוש
+/// הסתיים, גם בלי תוצאות, ולחיצה שולחת לתוסף `search.requested` עם אותו
+/// חיפוש — כמו שליחת הדיאלוג עם השורה מסומנת.
+class PluginSearchResultsActions extends StatelessWidget {
+  const PluginSearchResultsActions({
+    super.key,
+    required this.tab,
+    this.iconOnly = false,
+    this.registry,
+    this.launcher,
+  });
+
+  final SearchingTab tab;
+
+  /// כשאין מקום בסרגל — אייקון בלבד, והכותרת ב-tooltip.
+  final bool iconOnly;
+
+  /// ברירת המחדל: [PluginSearchDialogRegistry.instance] (לבדיקות).
+  final PluginSearchDialogRegistry? registry;
+
+  /// ברירת המחדל: [launchPluginSearch] (לבדיקות).
+  final PluginSearchSubmitLauncher? launcher;
+
+  @override
+  Widget build(BuildContext context) {
+    final registry = this.registry ?? PluginSearchDialogRegistry.instance;
+    return ListenableBuilder(
+      listenable: registry,
+      builder: (context, _) => BlocBuilder<SearchBloc, SearchState>(
+        bloc: tab.searchBloc,
+        builder: (context, state) {
+          if (state.searchQuery.isEmpty ||
+              state.isLoading ||
+              state.errorMessage != null) {
+            return const SizedBox.shrink();
+          }
+          final mode = state.configuration.searchMode;
+          final actions = registry
+              .getAll()
+              .where(
+                (record) =>
+                    record.$2.resultsAction != null &&
+                    record.$2.isVisibleIn(mode),
+              )
+              .toList();
+          if (actions.isEmpty) return const SizedBox.shrink();
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (pluginId, item) in actions)
+                BarButton.icon(
+                  icon: FluentIcons.open_24_regular,
+                  label: iconOnly ? null : item.resultsAction,
+                  tooltip: item.resultsAction!,
+                  onPressed: () => (launcher ?? launchPluginSearch)(pluginId, {
+                    'itemId': item.id,
+                    'request': _request(state),
+                  }),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Map<String, dynamic> _request(SearchState state) {
+    final configuration = state.configuration;
+    final (positive, negative) = _tabParameters(
+      tab,
+      state.searchQuery,
+      state.negativeQuery,
+    );
+    return pluginSearchRequest(
+      query: state.searchQuery,
+      negativeQuery: state.negativeQuery,
+      mode: configuration.searchMode,
+      distance: configuration.distance,
+      proximityScope: configuration.proximityScope,
+      facets: state.searchScopeFacets,
+      configuration: configuration,
+      normalizedParameters: positive,
+      normalizedNegativeParameters: negative,
+    );
+  }
 }

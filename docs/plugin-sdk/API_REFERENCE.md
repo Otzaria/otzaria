@@ -5517,6 +5517,7 @@ async function scheduleReminder(title, body, dateTime) {
 | `openPluginOnSubmit` | לא | מגרסה 0.9.97: אם `true`, אישור חיפוש כשהשורה מסומנת פותח את דף התוסף ושולח אליו `search.requested`. |
 | `resultsProvider` | לא | שם ספק תוצאות חיצוני (אותיות קטנות, עד 64 תווים). כשהשורה מסומנת, טאב החיפוש מציג מדור תוצאות מהתוסף דרך `search.external.requested` (ראו `reader.registerExternalSearchProvider`). סותר את `openPluginOnSubmit`. |
 | `resultsTitle` | לא | כותרת מדור התוצאות בטאב החיפוש (עד 120 תווים); דורש `resultsProvider`. ברירת המחדל: `title`. |
+| `resultsAction` | לא | מגרסה 0.9.99: כיתוב כפתור (עד 120 תווים) בסרגל של טאב החיפוש. הכפתור מוצג כשהחיפוש הסתיים, גם בלי תוצאות, ולחיצה פותחת את דף התוסף עם `search.requested` על אותו חיפוש. דורש `openPluginOnSubmit`. |
 | `visibleInModes` | לא | מערך לא-ריק מתוך `"exact"`, `"advanced"`, `"fuzzy"`; ברירת המחדל היא כל המצבים. |
 | `disabledSearchOptions` | לא | אובייקט `מצב → מזהי אפשרויות מילה` להשבתה כשה-checkbox מסומן. |
 
@@ -5526,6 +5527,12 @@ async function scheduleReminder(title, body, dateTime) {
 חוזה חוקי של `search.query`, אחרי נרמול המצב והאפשרויות. אם כמה שורות פעילות
 מבקשות ניתוב, כל תוסף נפתח ומקבל את הבקשה. מצב `fuzzy` יכול פשוט להיעדר
 מ־`visibleInModes`.
+
+`resultsAction` מאפשר למשתמש להחליט אחרי שראה את התוצאות: כשהשורה אינה
+מסומנת החיפוש רץ באוצריא כרגיל, ובסרגל הטאב מוצג כפתור (במצבי
+`visibleInModes` בלבד). לחיצה עליו מוסרת לתוסף אותו `{itemId, request}` כמו
+שליחה עם השורה מסומנת, עם השאילתה, ההיקף והשלילה של הטאב. כך תוסף של מנוע
+חיצוני לא צריך להריץ את החיפוש באוצריא בעצמו כדי לדעת אם נמצאו תוצאות.
 
 `disabledSearchOptions` משפיע רק על ממשק האפשרויות: הוא מאפיר את ה-chip
 ואת אותה אפשרות בתפריט ברירות המחדל, ואינו מוחק בחירה קיימת של המשתמש

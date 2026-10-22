@@ -502,6 +502,25 @@ void main() {
     expect(supportedVersion.errors, isEmpty);
   });
 
+  test('resultsAction דורש minAppVersion 0.9.99', () {
+    final startup = validStartup();
+    (startup['searchDialogItems'] as List).single
+      ..['openPluginOnSubmit'] = true
+      ..['resultsAction'] = 'המשך בתוסף';
+
+    final oldVersion = _run(
+      tempDir,
+      _manifest(minAppVersion: '0.9.98', startup: startup),
+    );
+    expect(oldVersion.errors, contains(contains('0.9.99')));
+
+    final supportedVersion = _run(
+      tempDir,
+      _manifest(minAppVersion: '0.9.99', startup: startup),
+    );
+    expect(supportedVersion.errors, isEmpty);
+  });
+
   test('action בתפריט ההקשר: גרסת מינימום והצהרת הרשאה', () {
     Map<String, dynamic> startup() => {
       'contextMenuItems': [
