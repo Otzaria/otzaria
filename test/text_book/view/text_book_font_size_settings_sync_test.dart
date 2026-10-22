@@ -140,13 +140,16 @@ void main() {
   Future<_MockTextBookBloc> pumpViewer(
     WidgetTester tester, {
     required double fontSize,
+    List<String>? content,
   }) async {
     final book = TextBook(title: 'ספר בדיקה');
     final bloc = _MockTextBookBloc();
     whenListen(
       bloc,
       const Stream<TextBookState>.empty(),
-      initialState: _loadedState(book, fontSize: fontSize),
+      initialState: content == null
+          ? _loadedState(book, fontSize: fontSize)
+          : _loadedState(book, fontSize: fontSize, content: content),
     );
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
@@ -228,6 +231,82 @@ void main() {
     verify(() => bloc.add(const UpdateFontSize(30))).called(1);
   });
 
+  testWidgets('a precision touchpad pinch over a long book keeps its start', (
+    tester,
+  ) async {
+    final bloc = await pumpViewer(
+      tester,
+      fontSize: 20,
+      content: List.generate(200, (i) => 'שורה $i'),
+    );
+    final text = tester.getCenter(find.byType(CombinedView).first);
+    final pad = TestPointer(2, PointerDeviceKind.trackpad);
+
+    await tester.sendEventToBinding(pad.panZoomStart(text));
+    for (final scale in [1.1, 1.2, 1.3, 1.4, 1.5]) {
+      await tester.sendEventToBinding(pad.panZoomUpdate(text, scale: scale));
+      await tester.pump();
+    }
+    await tester.sendEventToBinding(pad.panZoomEnd());
+    await tester.pump();
+
+    verify(() => bloc.add(const UpdateFontSize(22))).called(1);
+    verify(() => bloc.add(const UpdateFontSize(30))).called(1);
+  });
+
+  testWidgets('a small one-sided touch pinch zooms instead of scrolling', (
+    tester,
+  ) async {
+    // Enough lines for the text list to scroll, so its drag joins the arena.
+    final bloc = await pumpViewer(
+      tester,
+      fontSize: 20,
+      content: List.generate(200, (i) => 'שורה $i'),
+    );
+    final text = tester.getCenter(find.byType(CombinedView).first);
+    final still = await tester.startGesture(text, pointer: 1);
+    final moving = await tester.startGesture(
+      text + const Offset(0, 100),
+      pointer: 2,
+    );
+    for (var step = 0; step < 5; step++) {
+      await moving.moveBy(const Offset(0, 5));
+      await tester.pump();
+    }
+    await moving.up();
+    await still.up();
+    await tester.pump();
+
+    verify(() => bloc.add(const UpdateFontSize(25))).called(1);
+  });
+
+  testWidgets('a parallel two-finger vertical drag does not zoom', (
+    tester,
+  ) async {
+    registerFallbackValue(const UpdateFontSize(0));
+    final bloc = await pumpViewer(
+      tester,
+      fontSize: 20,
+      content: List.generate(200, (i) => 'שורה $i'),
+    );
+    final text = tester.getCenter(find.byType(CombinedView).first);
+    final first = await tester.startGesture(text, pointer: 1);
+    final second = await tester.startGesture(
+      text + const Offset(0, 100),
+      pointer: 2,
+    );
+    for (var step = 0; step < 6; step++) {
+      await first.moveBy(const Offset(0, -5));
+      await second.moveBy(const Offset(0, -5));
+      await tester.pump();
+    }
+    await first.up();
+    await second.up();
+    await tester.pump();
+
+    verifyNever(() => bloc.add(any(that: isA<UpdateFontSize>())));
+  });
+
   test('TextBookBloc מחיל UpdateFontSize על מצב טעון', () async {
     final book = TextBook(title: 'ספר בדיקה');
     final bloc = TextBookBloc(
@@ -278,11 +357,15 @@ void main() {
   });
 }
 
-TextBookLoaded _loadedState(TextBook book, {required double fontSize}) {
+TextBookLoaded _loadedState(
+  TextBook book, {
+  required double fontSize,
+  List<String> content = const ['שורה א', 'שורה ב', 'שורה ג'],
+}) {
   return TextBookLoaded(
     book: book,
     showLeftPane: false,
-    content: const ['שורה א', 'שורה ב', 'שורה ג'],
+    content: content,
     fontSize: fontSize,
     showSplitView: false,
     activeCommentators: const [],
