@@ -571,6 +571,107 @@ Future<void> main() async {
     });
   });
 
+  group('PluginOpenSearchTabSettings.parse', () {
+    test('בלי היקף הטאב נפתח על כל הספרייה', () {
+      expect(PluginOpenSearchTabSettings.parse(null, query: 'א').facets, [
+        '/',
+      ]);
+      expect(
+        PluginOpenSearchTabSettings.parse({'mode': 'exact'}, query: 'א').facets,
+        ['/'],
+      );
+    });
+
+    test('היקף עובר באותו תרגום של search.query', () {
+      final book = TextBook(id: 7, title: 'בראשית', topics: 'תנך, תורה');
+      final settings = PluginOpenSearchTabSettings.parse(
+        {
+          'categories': ['/הלכה'],
+          'books': [
+            {'id': 7},
+          ],
+          'eras': ['ראשונים'],
+        },
+        query: 'שבת',
+        findBook: (_) => book,
+      );
+
+      expect(settings.facets, hasLength(3));
+      expect(settings.facets[0], '/הלכה');
+      expect(settings.facets[1], startsWith('/תנך/תורה/'));
+      expect(settings.facets[2], FacetHelper.buildEraFacet('ראשונים'));
+    });
+
+    test('ספר בלי קטלוג לאיתור נדחה ב-not_found', () {
+      expect(
+        () => PluginOpenSearchTabSettings.parse(
+          {
+            'books': [
+              {'id': 7},
+            ],
+          },
+          query: 'שבת',
+        ),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.not_found'),
+          ),
+        ),
+      );
+    });
+
+    test('השאילתה השלילית נשמרת, ומחייבת מצב מתקדם', () {
+      expect(
+        PluginOpenSearchTabSettings.parse({
+          'negativeQuery': ' גוי ',
+        }, query: 'שבת').negativeQuery,
+        'גוי',
+      );
+      expect(
+        () => PluginOpenSearchTabSettings.parse({
+          'mode': 'exact',
+          'negativeQuery': 'גוי',
+        }, query: 'שבת'),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test('פרמטרים של search.query שאין להם מקום בטאב נדחים', () {
+      for (final key in ['limit', 'offset', 'order', 'grouping']) {
+        expect(
+          () => PluginOpenSearchTabSettings.parse({key: 1}, query: 'שבת'),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('unknown settings parameter "$key"'),
+            ),
+          ),
+        );
+      }
+    });
+
+    test(
+      'מילים חלופיות ומרווחים נשמרים לפי מילות השאילתה',
+      () {
+        final settings = PluginOpenSearchTabSettings.parse({
+          'alternativeWords': {
+            '0': ['שבתות'],
+          },
+          'customSpacing': {'0-1': '3'},
+        }, query: 'שבת קודש');
+
+        expect(settings.alternativeWords, {
+          0: ['שבתות'],
+        });
+        expect(settings.customSpacing, {'0-1': '3'});
+      },
+      skip: engineReady ? false : searchEngineSkipReason,
+    );
+  });
+
   group('PluginSearchApi.resultToJson', () {
     engine.SearchResult buildResult() => engine.SearchResult(
       title: 'בראשית',

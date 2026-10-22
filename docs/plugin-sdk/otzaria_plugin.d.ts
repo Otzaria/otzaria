@@ -482,6 +482,21 @@ export interface OpenSearchTabSettings {
   options?: Record<string, boolean>;
   /** אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options`. */
   wordOptions?: Record<string, Record<string, boolean>>;
+  /** מגרסה 0.9.99. השלילה, המילים החלופיות והמרווחים — רק עם mode: 'advanced'. */
+  negativeQuery?: string;
+  negativeOptions?: Record<string, boolean>;
+  negativeWordOptions?: Record<string, Record<string, boolean>>;
+  alternativeWords?: Record<string, string[]>;
+  negativeAlternativeWords?: Record<string, string[]>;
+  customSpacing?: Record<string, string>;
+  negativeCustomSpacing?: Record<string, string>;
+  /** מגרסה 0.9.99. היקף החיפוש, כמו ב-`search.query`; ברירת מחדל כל הספרייה. */
+  facets?: string[];
+  categories?: string[];
+  books?: BookIdentity[];
+  authors?: string[];
+  eras?: string[];
+  baseBooksOnly?: boolean;
 }
 
 /** פרמטרי `reader.openSearchTab` — פתיחת כרטיסיית חיפוש מובנית. */

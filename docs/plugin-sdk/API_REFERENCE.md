@@ -1902,9 +1902,12 @@ window.addEventListener('search.external.requested', async (event) => {
 לעריכה.
 
 `settings` (אופציונלי) — הגדרות החיפוש איתן תיפתח הכרטיסייה: מצב, מרחק,
-מדיניות התאמה ואפשרויות מילה. הפרמטרים והערכים זהים ל-`search.query` (ראו
-`search.getOptions` לערכים החוקיים), ומפתחות `wordOptions` פר-מילה נבדקים
-מול פיצול מילות השאילתה.
+מדיניות התאמה, אפשרויות מילה, ומגרסה 0.9.99 גם שאילתה שלילית, מילים חלופיות,
+מרווחים מותאמים והיקף החיפוש. הפרמטרים והערכים זהים ל-`search.query` (ראו
+`search.getOptions` לערכים החוקיים), ומפתחות פר-מילה נבדקים מול פיצול מילות
+השאילתה. ההיקף מוצג בתפריט "היקף החיפוש" של הכרטיסייה, והחיפוש רץ בתוכו.
+כך תוסף שקיבל `search.requested` יכול להחזיר את אותו חיפוש למסך החיפוש עם
+ה-`request` שקיבל, אחרי שהסיר ממנו את `order`, `limit` ו-`grouping`.
 
 ```javascript
 await Otzaria.call('reader.openSearchTab', {
@@ -1926,6 +1929,16 @@ await Otzaria.call('reader.openSearchTab', {
     options: { 'קידומות דקדוקיות': true },
   },
 });
+
+// מגרסה 0.9.99: היקף ושלילה — חיפוש בהלכה בלבד, בלי תוצאות עם "גוי"
+await Otzaria.call('reader.openSearchTab', {
+  query: 'שבת',
+  settings: {
+    mode: 'advanced',
+    negativeQuery: 'גוי',
+    categories: ['/הלכה'],
+  },
+});
 ```
 
 **פרמטרים של `settings`**
@@ -1940,9 +1953,14 @@ await Otzaria.call('reader.openSearchTab', {
 | `anyOrder` (מגרסה 0.9.99) | `false` | אותו מרווח, אבל המילים בכל סדר; אותם כללים כמו ב-`search.query` |
 | `options` | `{}` | אפשרויות מילה שחלות על כל מילות השאילתה (למשל `'קידומות דקדוקיות'`) |
 | `wordOptions` | `{}` | אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options` |
+| `negativeQuery`, `negativeOptions`, `negativeWordOptions` (מגרסה 0.9.99) | — | שאילתה שלילית ואפשרויות המילה שלה, כמו ב-`search.query`. רק במצב `'advanced'` |
+| `alternativeWords`, `negativeAlternativeWords` (מגרסה 0.9.99) | `{}` | מילים חלופיות לפי אינדקס המילה. רק במצב `'advanced'` |
+| `customSpacing`, `negativeCustomSpacing` (מגרסה 0.9.99) | `{}` | מרווח בין זוג מילים סמוכות (`"0-1"`). רק במצב `'advanced'` |
+| `facets`, `categories`, `books`, `authors`, `eras`, `baseBooksOnly` (מגרסה 0.9.99) | כל הספרייה | היקף החיפוש, כמו ב-`search.query` |
 
 שגיאות אפשריות: `error.invalid_params` (פרמטר או ערך לא מוכר, פרמטר שאינו
-נתמך במצב שנבחר, או מפתח פר-מילה שאינו תואם לשאילתה).
+נתמך במצב שנבחר, או מפתח פר-מילה שאינו תואם לשאילתה), `error.not_found`
+(ספר ב-`books` שלא נמצא בספרייה).
 
 ### `reader.openBookAtRef`
 **הרשאה:** `reader.open`

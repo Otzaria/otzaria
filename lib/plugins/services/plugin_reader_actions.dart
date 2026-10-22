@@ -42,20 +42,40 @@ bool openPluginSearchTab({
         wordMatchMode: resolved.wordMatchMode,
         wordMatchCount: resolved.wordMatchCount,
         anyOrder: resolved.anyOrder,
+        currentFacets: resolved.facets,
+        searchScopeFacets: resolved.facets,
         pluginSearchSelections: pluginSearchSelections,
       ),
     ),
     autoRunInitialSearch: autoSearch,
   );
-  // אפשרויות פר-מילה נשמרות בטאב (לתצוגה ב-UI ולחיפוש ידני), ומועברות גם
-  // להרצה האוטומטית כדי שלא תרוץ ללא 'קידומות' וכד'.
+  // פרמטרי המילים והשלילה נשמרים בטאב (לתצוגה ב-UI ולחיפוש ידני), ומועברים
+  // גם להרצה האוטומטית כדי שלא תרוץ ללא 'קידומות', ללא השלילה וכד'.
+  tab.negativeQueryController.text = resolved.negativeQuery;
   tab.searchOptions.addAll(resolved.searchOptions);
   if (resolved.searchOptions.isNotEmpty) {
     tab.useGlobalSearchOptions.value = false;
   }
+  tab.negativeSearchOptions.addAll(resolved.negativeSearchOptions);
+  if (resolved.negativeSearchOptions.isNotEmpty) {
+    tab.useGlobalNegativeSearchOptions.value = false;
+  }
+  tab.alternativeWords.addAll(resolved.alternativeWords);
+  tab.negativeAlternativeWords.addAll(resolved.negativeAlternativeWords);
+  tab.spacingValues.addAll(resolved.customSpacing);
+  tab.negativeSpacingValues.addAll(resolved.negativeCustomSpacing);
   if (autoSearch) {
     tab.searchBloc.add(
-      UpdateSearchQuery(query, searchOptions: resolved.searchOptions),
+      UpdateSearchQuery(
+        query,
+        negativeQuery: resolved.negativeQuery,
+        customSpacing: resolved.customSpacing,
+        alternativeWords: resolved.alternativeWords,
+        searchOptions: resolved.searchOptions,
+        negativeCustomSpacing: resolved.negativeCustomSpacing,
+        negativeAlternativeWords: resolved.negativeAlternativeWords,
+        negativeSearchOptions: resolved.negativeSearchOptions,
+      ),
     );
   }
   coordinator.historyBloc.add(AddHistory(tab));
