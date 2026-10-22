@@ -322,6 +322,7 @@ class PluginExtendedValidator {
   };
   static const String _contextMenuActionMinVersion = '0.9.97';
   static const String _searchSubmitRoutingMinVersion = '0.9.97';
+  static const String _searchResultsActionMinVersion = '0.9.99';
   static const String _boundToolbarOpenPluginMinVersion = '0.9.99';
   static const String _externalEditionsMinVersion = '0.9.97';
   static const String _libraryBooksMinVersion = '0.9.98';
@@ -901,6 +902,25 @@ class PluginExtendedValidator {
             errors.add(
               'openPluginOnSubmit נתמך החל מגרסה '
               '$_searchSubmitRoutingMinVersion, אך minAppVersion שהוצהר הוא '
+              '${manifest.minAppVersion}. עדכן את minAppVersion',
+            );
+          }
+        } on PluginVersionFormatException {
+          // minAppVersion נבדק ב-PluginManifestValidator.
+        }
+      }
+      if (startup.searchDialogItems.any(
+        (item) => item['resultsAction'] != null,
+      )) {
+        try {
+          if (PluginVersionUtils.compareCoreVersions(
+                _searchResultsActionMinVersion,
+                manifest.minAppVersion,
+              ) >
+              0) {
+            errors.add(
+              'resultsAction נתמך החל מגרסה '
+              '$_searchResultsActionMinVersion, אך minAppVersion שהוצהר הוא '
               '${manifest.minAppVersion}. עדכן את minAppVersion',
             );
           }

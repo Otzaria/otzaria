@@ -71,6 +71,27 @@ void main() {
     }
   });
 
+  test('resultsAction נשמר, ודורש openPluginOnSubmit', () {
+    final parsed = PluginSearchDialogItem.fromPayload({
+      ...item(),
+      'resultsAction': 'המשך במקור החיצוני',
+    });
+    expect(parsed.resultsAction, 'המשך במקור החיצוני');
+    expect(PluginSearchDialogItem.fromPayload(item()).resultsAction, isNull);
+
+    for (final invalid in [
+      {'openPluginOnSubmit': false, 'resultsAction': 'המשך'},
+      {'resultsAction': ''},
+      {'resultsAction': 7},
+    ]) {
+      expect(
+        () => PluginSearchDialogItem.fromPayload({...item(), ...invalid}),
+        throwsA(isA<PluginSearchDialogItemException>()),
+        reason: '$invalid היה אמור להידחות',
+      );
+    }
+  });
+
   test('rejects a non-boolean openPluginOnSubmit value', () {
     expect(
       () => PluginSearchDialogItem.fromPayload({

@@ -72,6 +72,67 @@ import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 typedef PluginSearchSubmitLauncher =
     void Function(String pluginId, Map<String, dynamic> payload);
 
+/// פותח את דף התוסף עם האירוע `search.requested`.
+void launchPluginSearch(String pluginId, Map<String, dynamic> payload) {
+  PluginPageLauncher.instance.open(
+    pluginId,
+    topic: 'search.requested',
+    payload: payload,
+  );
+}
+
+/// ה-`request` של `search.requested` — אותו חוזה בשליחת הדיאלוג עם שורת
+/// תוסף מסומנת ובכפתור `resultsAction` שבטאב החיפוש.
+Map<String, dynamic> pluginSearchRequest({
+  required String query,
+  required String negativeQuery,
+  required SearchMode mode,
+  required int distance,
+  required SearchScope proximityScope,
+  required List<String> facets,
+  required SearchConfiguration configuration,
+  required SearchModeScopedParameters normalizedParameters,
+  required SearchModeScopedParameters normalizedNegativeParameters,
+}) => {
+  'query': query,
+  'mode': mode.name,
+  'order': configuration.sortBy.name,
+  'limit': configuration.numResults,
+  'distance': distance,
+  'facets': facets,
+  if (normalizedParameters.searchOptions.isNotEmpty)
+    'wordOptions': normalizedParameters.searchOptions,
+  if (configuration.appliesAnyOrder(
+    customSpacing: normalizedParameters.customSpacing,
+    query: query,
+  ))
+    'anyOrder': true,
+  if (mode == SearchMode.advanced) ...{
+    if (negativeQuery.isNotEmpty) 'negativeQuery': negativeQuery,
+    'proximityScope': proximityScope.name,
+    'wordMatchMode': configuration.wordMatchMode.name,
+    if (configuration.wordMatchMode == WordMatchMode.atLeast)
+      'wordMatchCount': configuration.wordMatchCount,
+    'grouping': configuration.resultGrouping.name,
+    if (normalizedParameters.alternativeWords.isNotEmpty)
+      'alternativeWords': _stringKeyed(normalizedParameters.alternativeWords),
+    if (normalizedParameters.customSpacing.isNotEmpty)
+      'customSpacing': normalizedParameters.customSpacing,
+    if (normalizedNegativeParameters.searchOptions.isNotEmpty)
+      'negativeWordOptions': normalizedNegativeParameters.searchOptions,
+    if (normalizedNegativeParameters.alternativeWords.isNotEmpty)
+      'negativeAlternativeWords': _stringKeyed(
+        normalizedNegativeParameters.alternativeWords,
+      ),
+    if (normalizedNegativeParameters.customSpacing.isNotEmpty)
+      'negativeCustomSpacing': normalizedNegativeParameters.customSpacing,
+  },
+};
+
+Map<String, List<String>> _stringKeyed(Map<int, List<String>> values) => {
+  for (final entry in values.entries) entry.key.toString(): entry.value,
+};
+
 class SearchDialogResult {
   const SearchDialogResult({
     required this.query,
@@ -1309,62 +1370,23 @@ class _SearchDialogState extends State<SearchDialog> {
     }).toList();
     if (targets.isEmpty) return false;
 
-    final configuration = _searchTab.searchBloc.state.configuration;
-    final request = <String, dynamic>{
-      'query': query,
-      'mode': mode.name,
-      'order': configuration.sortBy.name,
-      'limit': configuration.numResults,
-      'distance': distance,
-      'facets': facets,
-      if (normalizedParameters.searchOptions.isNotEmpty)
-        'wordOptions': normalizedParameters.searchOptions,
-      if (configuration.appliesAnyOrder(
-        customSpacing: normalizedParameters.customSpacing,
-        query: query,
-      ))
-        'anyOrder': true,
-      if (mode == SearchMode.advanced) ...{
-        if (negativeQuery.isNotEmpty) 'negativeQuery': negativeQuery,
-        'proximityScope': proximityScope.name,
-        'wordMatchMode': configuration.wordMatchMode.name,
-        if (configuration.wordMatchMode == WordMatchMode.atLeast)
-          'wordMatchCount': configuration.wordMatchCount,
-        'grouping': configuration.resultGrouping.name,
-        if (normalizedParameters.alternativeWords.isNotEmpty)
-          'alternativeWords': _stringKeyed(
-            normalizedParameters.alternativeWords,
-          ),
-        if (normalizedParameters.customSpacing.isNotEmpty)
-          'customSpacing': normalizedParameters.customSpacing,
-        if (normalizedNegativeParameters.searchOptions.isNotEmpty)
-          'negativeWordOptions': normalizedNegativeParameters.searchOptions,
-        if (normalizedNegativeParameters.alternativeWords.isNotEmpty)
-          'negativeAlternativeWords': _stringKeyed(
-            normalizedNegativeParameters.alternativeWords,
-          ),
-        if (normalizedNegativeParameters.customSpacing.isNotEmpty)
-          'negativeCustomSpacing': normalizedNegativeParameters.customSpacing,
-      },
-    };
-    final launch =
-        widget.pluginSearchSubmitLauncher ??
-        (String pluginId, Map<String, dynamic> payload) {
-          PluginPageLauncher.instance.open(
-            pluginId,
-            topic: 'search.requested',
-            payload: payload,
-          );
-        };
+    final request = pluginSearchRequest(
+      query: query,
+      negativeQuery: negativeQuery,
+      mode: mode,
+      distance: distance,
+      proximityScope: proximityScope,
+      facets: facets,
+      configuration: _searchTab.searchBloc.state.configuration,
+      normalizedParameters: normalizedParameters,
+      normalizedNegativeParameters: normalizedNegativeParameters,
+    );
+    final launch = widget.pluginSearchSubmitLauncher ?? launchPluginSearch;
     for (final target in targets) {
       launch(target.$1, {'itemId': target.$2.id, 'request': request});
     }
     return true;
   }
-
-  Map<String, List<String>> _stringKeyed(Map<int, List<String>> values) => {
-    for (final entry in values.entries) entry.key.toString(): entry.value,
-  };
 
   /// מעתיק ל-[target] את השאילתות ואת הגדרות המילים שנערכו בדיאלוג.
   /// חלופות שמורות שמוזגו ([effectiveAlternatives]) הופכות לחלק מהטאב —
