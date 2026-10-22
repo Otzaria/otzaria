@@ -3,6 +3,7 @@ import 'package:otzaria/data/book_identity.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/view/widgets/selection_gutter_painter.dart';
 import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut.dart';
+import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/text_book/utils/reader_paragraph_copy.dart';
 import 'package:otzaria/text_book/utils/reader_menu_entries.dart';
 import 'package:otzaria/text_book/utils/reader_plugin_menu_entries.dart';
@@ -1936,6 +1937,38 @@ class _CombinedViewState extends State<CombinedView> {
   @visibleForTesting
   int get debugSelectionCachedLineCount => _selectionLineCache._lines.length;
 
+  /// ←/→ לקטע הבא/הקודם ו-Ctrl+←/→ לדף/פרק, כמו החיצים בסרגל (← קדימה, כמו ב-PDF).
+  /// עם טקסט מסומן Ctrl+חץ נשאר להזזת קצה הבחירה.
+  KeyEventResult _handleSideArrowNavigation(FocusNode _, KeyEvent event) {
+    final key = event.logicalKey;
+    if (event is KeyUpEvent ||
+        (key != LogicalKeyboardKey.arrowLeft &&
+            key != LogicalKeyboardKey.arrowRight) ||
+        ShortcutHelper.isEditingText) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isShiftPressed || ShortcutHelper.isAltModifierPressed) {
+      return KeyEventResult.ignored;
+    }
+    final toToc = ShortcutHelper.isPlainCtrlOrCmdPressed;
+    if (!toToc && (keyboard.isControlPressed || keyboard.isMetaPressed)) {
+      return KeyEventResult.ignored;
+    }
+    if (toToc && _savedSelectedText.value != null) {
+      return KeyEventResult.ignored;
+    }
+    final forward = key == LogicalKeyboardKey.arrowLeft;
+    final tab = widget.tab;
+    final notifier = toToc
+        ? (forward ? tab.navNextTocNotifier : tab.navPreviousTocNotifier)
+        : (forward
+              ? tab.navNextSegmentNotifier
+              : tab.navPreviousSegmentNotifier);
+    notifier.value++;
+    return KeyEventResult.handled;
+  }
+
   Widget buildKeyboardListener(TextBookBloc bloc) {
     return BlocBuilder<TextBookBloc, TextBookState>(
       bloc: bloc,
@@ -2175,6 +2208,9 @@ class _CombinedViewState extends State<CombinedView> {
                                           readingScrollbarLabel(state, index),
                                 child: ProgressiveScroll(
                                   focusNode: _focusNode,
+                                  onKeyEvent: widget.isPreviewMode
+                                      ? null
+                                      : _handleSideArrowNavigation,
                                   maxSpeed: 10000.0,
                                   curve: 10.0,
                                   accelerationFactor: 312.5,
