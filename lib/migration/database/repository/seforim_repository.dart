@@ -2708,17 +2708,20 @@ extension BookAcronymRepository on SeforimRepository {
     _TocBookCache cache,
     List<String> tokens, {
     bool requireAllTokensInOwnHeading = false,
+    bool structureWords = false,
   }) {
     if (tokens.isEmpty) return const [];
 
+    List<String> alternatives(String token) =>
+        hebrewTokenAlternatives(token, structureWords: structureWords);
     final cite = parseDafCitation(tokens);
     final implicitDaf = cache.hasBareDafHeadings && tokens.contains('דף');
-    final lastAlts = hebrewTokenAlternatives(tokens.last);
+    final lastAlts = alternatives(tokens.last);
 
-    return cache.all.where((e) {
+    final matches = cache.all.where((e) {
       if (requireAllTokensInOwnHeading) {
         return tokens.every(
-          (token) => hebrewTokenAlternatives(token).any(e.ownTokens.contains),
+          (token) => alternatives(token).any(e.ownTokens.contains),
         );
       }
       if (cite != null) {
@@ -2734,7 +2737,7 @@ extension BookAcronymRepository on SeforimRepository {
         e.reference,
       ).split(' ').where((t) => t.isNotEmpty).toList(growable: false);
       for (final token in tokens) {
-        final alts = hebrewTokenAlternatives(token);
+        final alts = alternatives(token);
         if (!alts.any(
           (a) => pathTokens.contains(a) || cache.titleHeadingTokens.contains(a),
         )) {
@@ -2743,6 +2746,14 @@ extension BookAcronymRepository on SeforimRepository {
       }
       return true;
     }).toList();
+    // "סימן ב" מול "תשובה ב" רק כשאין בספר כותרת "סימן ב" מילולית.
+    if (matches.isNotEmpty || structureWords) return matches;
+    return _searchTocFlat(
+      cache,
+      tokens,
+      requireAllTokensInOwnHeading: requireAllTokensInOwnHeading,
+      structureWords: true,
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
