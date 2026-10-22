@@ -106,7 +106,19 @@ class PdfBookTab extends OpenedTab {
   double? savedZoom;
 
   /// Saved layout mode for restoration after rebuild
-  PdfLayoutMode? savedLayoutMode;
+  PdfLayoutMode? get savedLayoutMode => _savedMode;
+  PdfLayoutMode? _savedMode;
+
+  /// תצוגת ספר רחבה פי שניים, ולכן [savedZoom] שנמדד בתצוגה השנייה פסול.
+  set savedLayoutMode(PdfLayoutMode? mode) {
+    final previous = _savedMode;
+    if (previous != null &&
+        mode != null &&
+        previous.isBookView != mode.isBookView) {
+      savedZoom = null;
+    }
+    _savedMode = mode;
+  }
 
   /// מבטל טעינה הדרגתית בפתיחה ישירה לעמוד גבוה, כדי שעדכון ממדי העמודים
   /// לא יזיז את המיקום הנראה. הפתיחה עצמה עשויה להיות איטית יותר.

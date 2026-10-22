@@ -19,6 +19,7 @@ import 'package:otzaria/core/messages/text_book_messages.dart';
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -111,6 +112,7 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/misc/ctrl_wheel_zoom.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/misc/touch_pinch_scale_recognizer.dart';
 import 'package:otzaria/settings/services/nikud_display_service.dart';
 import 'package:otzaria/utils/link_helpers.dart';
 import 'package:otzaria/text_book/utils/link_processing.dart'
@@ -2799,31 +2801,42 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       // ללא שוליים אופקיים: רוחב הטקסט נקבע ב-textMaxWidth, ושוליים כאן הרחיקו
       // את פס הגלילה מדופן החלון בשונה משאר החלוניות.
       padding: const EdgeInsets.only(bottom: 5),
-      child: GestureDetector(
-        onScaleStart: (details) {
-          final currentState = context.read<TextBookBloc>().state;
-          _pinchStartFontSize = currentState is TextBookLoaded
-              ? currentState.fontSize
-              : null;
-        },
-        onScaleUpdate: (details) {
-          final baseFontSize = _pinchStartFontSize;
-          if (baseFontSize == null) return;
-          context.read<TextBookBloc>().add(
-            UpdateFontSize((baseFontSize * details.scale).clamp(15, 60)),
-          );
-        },
-        onScaleEnd: (details) {
-          // שמירת גודל הגופן בסיום המחווה
-          final textBookBloc = context.read<TextBookBloc>();
-          final currentState = textBookBloc.state;
-          if (currentState is TextBookLoaded) {
-            savePerBookDisplaySettings(
-              context,
-              currentState,
-              fontSize: currentState.fontSize,
-            );
-          }
+      child: RawGestureDetector(
+        gestures: {
+          TouchPinchScaleRecognizer:
+              GestureRecognizerFactoryWithHandlers<TouchPinchScaleRecognizer>(
+                () => TouchPinchScaleRecognizer(debugOwner: this),
+                (recognizer) => recognizer
+                  // היחס נמדד מרגע הנחת האצבעות, לא מרגע זיהוי הצביטה.
+                  ..dragStartBehavior = DragStartBehavior.down
+                  ..onStart = (details) {
+                    final currentState = context.read<TextBookBloc>().state;
+                    _pinchStartFontSize = currentState is TextBookLoaded
+                        ? currentState.fontSize
+                        : null;
+                  }
+                  ..onUpdate = (details) {
+                    final baseFontSize = _pinchStartFontSize;
+                    if (baseFontSize == null) return;
+                    context.read<TextBookBloc>().add(
+                      UpdateFontSize(
+                        (baseFontSize * details.scale).clamp(15, 60),
+                      ),
+                    );
+                  }
+                  ..onEnd = (details) {
+                    // שמירת גודל הגופן בסיום המחווה
+                    final textBookBloc = context.read<TextBookBloc>();
+                    final currentState = textBookBloc.state;
+                    if (currentState is TextBookLoaded) {
+                      savePerBookDisplaySettings(
+                        context,
+                        currentState,
+                        fontSize: currentState.fontSize,
+                      );
+                    }
+                  },
+              ),
         },
         child: CallbackShortcuts(
           bindings: <ShortcutActivator, VoidCallback>{

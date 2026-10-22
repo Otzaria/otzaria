@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../helpers/memory_settings_cache.dart';
@@ -42,6 +43,13 @@ class _ReadyPdfViewerController extends PdfViewerController {
   double get currentZoom => 2.05;
 
   @override
+  Size get viewSize => const Size(400, 600);
+
+  // ברוחב מסמך כפול מהתצוגה זום ההתאמה לרוחב הוא 0.5.
+  @override
+  Size get documentSize => const Size(800, 10000);
+
+  @override
   Future<void> setZoom(
     Offset position,
     double zoom, {
@@ -71,6 +79,15 @@ PdfBookBloc _makeBloc(PdfBookTab tab, {Duration? loadTimeout}) => PdfBookBloc(
   // בטסטים: מדלגים על אתחול pdfrx (שדורש platform channels)
   pdfrxInit: () async {},
 );
+
+/// אין פריימים ב-test רגיל; מריצים אחד ידנית כדי שהבלוק ימשיך אחרי הפריסה.
+Future<void> _pumpRelayoutFrame() async {
+  await Future<void>.delayed(const Duration(milliseconds: 20));
+  SchedulerBinding.instance
+    ..handleBeginFrame(Duration.zero)
+    ..handleDrawFrame();
+  await Future<void>.delayed(const Duration(milliseconds: 20));
+}
 
 // הטיפול באירוע בודק קיום קובץ בדיסק לפני ה-emit, ו-blocTest סוגר את ה-bloc
 // אחרי סבב אחד בלבד; בעומס הבדיקה מסתיימת אחרי הסגירה וה-emit נבלע.
@@ -525,6 +542,55 @@ void main() {
       act: (b) => b.add(const SetLayoutMode(PdfLayoutMode.regularView)),
       expect: () => [],
     );
+
+    test('מעבר מרגילה לספר מתאים לרוחב ושומר את הזום החדש', () async {
+      final events = <Object?>[];
+      final previousObserver = Bloc.observer;
+      Bloc.observer = _EventRecorder(events);
+      addTearDown(() => Bloc.observer = previousObserver);
+
+      final tab = _tab();
+      final controller = _ReadyPdfViewerController();
+      tab.pdfViewerController = controller;
+      tab.savedLayoutMode = PdfLayoutMode.regularView;
+      tab.savedZoom = 2.0;
+      final bloc = _makeBloc(tab);
+      addTearDown(bloc.close);
+      bloc
+        ..seed(_loaded(zoom: 2.0))
+        ..add(const SetLayoutMode(PdfLayoutMode.bookView));
+      await _pumpRelayoutFrame();
+
+      final state = bloc.state as PdfBookLoaded;
+      expect(state.layoutMode, PdfLayoutMode.bookView);
+      expect(controller.lastZoom, 0.5);
+      expect(state.zoom, 0.5);
+      expect(tab.savedZoom, 0.5);
+      final fitIndex = events.indexWhere((e) => e is FitZoom);
+      expect(fitIndex, isNonNegative);
+      // שמירה לפני ההתאמה הייתה כותבת את זום התצוגה הקודמת.
+      expect(events.indexWhere((e) => e is SavePerBookSettings), fitIndex + 1);
+    });
+
+    test('מעבר בין גרסאות תצוגת ספר שומר על הזום', () async {
+      final tab = _tab();
+      final controller = _ReadyPdfViewerController();
+      tab.pdfViewerController = controller;
+      tab.savedLayoutMode = PdfLayoutMode.bookView;
+      tab.savedZoom = 1.7;
+      final bloc = _makeBloc(tab);
+      addTearDown(bloc.close);
+      bloc
+        ..seed(_loaded(zoom: 1.7, layoutMode: PdfLayoutMode.bookView))
+        ..add(const SetLayoutMode(PdfLayoutMode.bookViewNoCover));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      final state = bloc.state as PdfBookLoaded;
+      expect(state.layoutMode, PdfLayoutMode.bookViewNoCover);
+      expect(state.zoom, 1.7);
+      expect(controller.lastZoom, isNull);
+      expect(tab.savedZoom, 1.7);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -582,6 +648,65 @@ void main() {
         expect(controller.lastZoom, 2.5);
       },
     );
+
+    test('איפוס הגדרות מתצוגת ספר משאיר בטאב זום 1.0', () async {
+      final tab = _tab();
+      tab.pdfViewerController = _ReadyPdfViewerController();
+      tab.savedLayoutMode = PdfLayoutMode.bookView;
+      tab.savedZoom = 1.7;
+      final bloc = _makeBloc(tab);
+      addTearDown(bloc.close);
+      bloc.seed(_loaded(zoom: 1.7, layoutMode: PdfLayoutMode.bookView));
+      await _addAndAwaitState(bloc, const ResetPerBookSettings());
+
+      expect(tab.savedLayoutMode, PdfLayoutMode.regularView);
+      expect(tab.savedZoom, 1.0);
+    });
+
+    test('זום שנשמר בתצוגה רגילה לא מוחל בפתיחה בתצוגת ספר', () async {
+      final previousEnablePerBookSettings = Settings.getValue<bool>(
+        SettingsRepository.keyEnablePerBookSettings,
+      );
+      final previousPdfBookViewByDefault = Settings.getValue<bool>(
+        SettingsRepository.keyPdfBookViewByDefault,
+      );
+      addTearDown(() async {
+        await Settings.setValue<bool>(
+          SettingsRepository.keyEnablePerBookSettings,
+          previousEnablePerBookSettings ?? false,
+        );
+        await Settings.setValue<bool>(
+          SettingsRepository.keyPdfBookViewByDefault,
+          previousPdfBookViewByDefault ?? false,
+        );
+      });
+      await Settings.setValue<bool>(
+        SettingsRepository.keyEnablePerBookSettings,
+        false,
+      );
+      await Settings.setValue<bool>(
+        SettingsRepository.keyPdfBookViewByDefault,
+        true,
+      );
+
+      final tab = _tab();
+      final controller = _ReadyPdfViewerController();
+      tab.pdfViewerController = controller;
+      tab.savedLayoutMode = PdfLayoutMode.regularView;
+      tab.savedZoom = 2.0;
+
+      final bloc = _makeBloc(tab);
+      addTearDown(bloc.close);
+      bloc.add(DocumentReady(documentRef: _FakeDocumentRef(), totalPages: 12));
+      await Future<void>.delayed(Duration.zero);
+      bloc.add(const LoadPerBookSettings());
+      await _pumpRelayoutFrame();
+
+      final state = bloc.state as PdfBookLoaded;
+      expect(state.layoutMode, PdfLayoutMode.bookView);
+      expect(controller.lastZoom, 0.5);
+      expect(tab.savedZoom, 0.5);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────────
