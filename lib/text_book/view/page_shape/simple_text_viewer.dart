@@ -888,7 +888,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
   void _handlePreviewHoverExit(String url) {
     _cancelPendingPreview();
-    LinkPreviewOverlay.scheduleHide(AppWindowKeys.of(context));
+    LinkPreviewOverlay.scheduleHide(_previewWindow);
   }
 
   bool _isTextInputFocused() {
