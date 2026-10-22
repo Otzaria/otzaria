@@ -216,6 +216,33 @@ class _RenderSelectionFillParagraph extends RenderParagraph {
     super.devicePixelRatio,
   });
 
+  /// הבחירה ממיינת את הנרשמים לפי מיקומם, ופסקה שלא נפרסה (פריט רשימה שמור
+  /// מחוץ לתצוגה) מפילה את המיון — לכן נרשמים לבחירה רק אחרי הפריסה הראשונה.
+  SelectionRegistrar? _pendingRegistrar;
+
+  @override
+  SelectionRegistrar? get registrar =>
+      hasSize ? super.registrar : _pendingRegistrar;
+
+  @override
+  set registrar(SelectionRegistrar? value) {
+    if (hasSize) {
+      super.registrar = value;
+    } else {
+      _pendingRegistrar = value;
+    }
+  }
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final pending = _pendingRegistrar;
+    if (pending != null) {
+      _pendingRegistrar = null;
+      super.registrar = pending;
+    }
+  }
+
   /// ציור הבחירה בפריימוורק קורא לכאן בלי `boxHeightStyle`, כלומר `tight`.
   /// סגנון שהמתקשר ביקש במפורש נשאר שלו.
   @override

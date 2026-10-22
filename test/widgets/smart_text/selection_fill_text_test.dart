@@ -342,6 +342,45 @@ void main() {
     });
   });
 
+  // issue #3102: פריט רשימה שמור שנגלל מהתצוגה מחובר לעץ, אבל הרשימה לא פורסת
+  // אותו — ופסקה חדשה בו נרשמת לבחירה בלי שנפרסה.
+  testWidgets('פסקה שנבנתה בפריט רשימה שמור מחוץ לתצוגה לא מפילה את הבחירה', (
+    tester,
+  ) async {
+    final scroll = ScrollController();
+    final lines = GlobalKey<_GrowingLinesState>();
+    String? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SelectionArea(
+          onSelectionChanged: (content) => selected = content?.plainText,
+          child: ListView(
+            controller: scroll,
+            children: [
+              _KeptAlive(child: _GrowingLines(key: lines)),
+              const SizedBox(height: 5000),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    scroll.jumpTo(3000);
+    await tester.pump();
+    lines.currentState!.add('שורה שנוספה מחוץ לתצוגה');
+    lines.currentState!.add('ועוד אחת');
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+
+    scroll.jumpTo(0);
+    await tester.pump();
+    tester
+        .state<SelectableRegionState>(find.byType(SelectableRegion))
+        .selectAll();
+    await tester.pump();
+    expect(selected, contains('שורה שנוספה מחוץ לתצוגה'));
+  });
+
   // issue #1402: מי שממקם ציור ביחס לאותיות (סימונים מורמים, הדגשות תוספים)
   // חייב לקבל תיבות בגובה הגליף גם כשהבחירה ממופה לגובה השורה.
   testWidgets('glyphBoxesForSelection מחזיר תיבות tight גם בטקסט בר-בחירה', (
@@ -380,4 +419,46 @@ void main() {
       reason: 'ציור הבחירה עצמו עדיין ממלא את גובה השורה',
     );
   });
+}
+
+class _KeptAlive extends StatefulWidget {
+  const _KeptAlive({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeptAlive> createState() => _KeptAliveState();
+}
+
+class _KeptAliveState extends State<_KeptAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
+class _GrowingLines extends StatefulWidget {
+  const _GrowingLines({super.key});
+
+  @override
+  State<_GrowingLines> createState() => _GrowingLinesState();
+}
+
+class _GrowingLinesState extends State<_GrowingLines> {
+  final _lines = <String>['שורה ראשונה'];
+
+  void add(String line) => setState(() => _lines.add(line));
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      for (final line in _lines)
+        SelectionFillText.rich(TextSpan(text: line), style: _baseStyle),
+    ],
+  );
 }
