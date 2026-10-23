@@ -36,6 +36,7 @@ class SettingsSearchResultsView extends StatelessWidget {
           maxWidth: LayoutConstraints.panelContentMaxWidth,
         ),
         child: ListView.separated(
+          primary: true,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           itemCount: results.length,
           separatorBuilder: (_, _) => const SizedBox(height: 6),
@@ -53,10 +54,9 @@ class SettingsSearchResultsView extends StatelessWidget {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    // עוטפים ב-CustomScrollView/SliverFillRemaining כדי שה-PrimaryScrollController
-    // העוטף יקבל ScrollPosition פעיל גם כשאין תוצאות (אחרת ה-Scrollbar
-    // החיצוני זורק "no ScrollPosition attached").
+    // גליל primary גם כשאין תוצאות: ה-Scrollbar של המסך צריך ScrollPosition.
     return CustomScrollView(
+      primary: true,
       slivers: [
         SliverFillRemaining(
           hasScrollBody: false,
