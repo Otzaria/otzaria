@@ -526,6 +526,39 @@ void main() {
     expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
   });
 
+  // הסמן על הציטוט כשהחלונית יוצאת מהעץ (מעבר שורה, החלפת לשונית).
+  for (final viaHtml in [false, true]) {
+    testWidgets(
+      'הסרת החלונית מתחת לסמן סוגרת את התצוגה (HtmlWidget: $viaHtml)',
+      (
+        tester,
+      ) async {
+        SmartTextWidget.debugForceHtmlWidget = viaHtml;
+        addTearDown(() => SmartTextWidget.debugForceHtmlWidget = false);
+        await _pumpPanel(
+          tester,
+          loaded: [_anchored(index1: 3, charStart: 2, charEnd: 6)],
+        );
+        addTearDown(LinkPreviewOverlay.dismiss);
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        await mouse.moveTo(_centerOfText(tester, 'גדהו'));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+
+        await tester.pumpWidget(
+          BlocProvider<SettingsBloc>.value(
+            value: _TestSettingsBloc(SettingsState.initial()),
+            child: const MaterialApp(home: SizedBox()),
+          ),
+        );
+        await tester.pumpAndSettle(const Duration(seconds: 1));
+        expect(find.byType(LinkHoverPreviewContent), findsNothing);
+      },
+    );
+  }
+
   group('חברותא במסד בסכמה 7 — ההערות בטבלת line_note של שורת היעד', () {
     BookNotes? notes;
     setUp(() {
