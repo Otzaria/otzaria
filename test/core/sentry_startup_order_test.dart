@@ -23,6 +23,18 @@ void main() {
     );
   });
 
+  test('מסד sentry-native בתיקיית הלוגים, לא בתיקיית העבודה', () {
+    final source = File('lib/main.dart').readAsStringSync();
+    final start = source.indexOf('Future<void> _initializeSentry() async {');
+    final end = source.indexOf('Future<void> _runAppBootstrap()', start);
+    expect(
+      source.substring(start, end),
+      contains(
+        'options.nativeDatabasePath = UncleanExitDetector.sentryDatabasePath();',
+      ),
+    );
+  });
+
   test('במצב מנותק Sentry אינו מאותחל', () {
     final source = File('lib/main.dart').readAsStringSync();
     final start = source.indexOf('Future<void> _initializeSentry() async {');
