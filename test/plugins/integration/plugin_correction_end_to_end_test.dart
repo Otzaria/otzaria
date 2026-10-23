@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import '../../test_helpers/activate_correction_paragraph.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -490,6 +491,12 @@ void main() {
       expect(begun['recovery'], isNull);
       expect(begun['changes'], isEmpty);
       await tester.pumpAndSettle();
+      expect(editors(), findsNothing);
+      await activateCorrectionParagraph(
+        tester,
+        find.text(_lines.first, findRichText: true).first,
+      );
+      await tester.pumpAndSettle();
       expect(editors(), findsWidgets);
       expect(editorText(), _lines.first);
       expect(
@@ -719,6 +726,12 @@ void main() {
       );
       expect(fresh['recovery'], isNull);
       expect(fresh['changes'], isEmpty);
+      await tester.pumpAndSettle();
+      expect(editors(), findsNothing);
+      await activateCorrectionParagraph(
+        tester,
+        find.text(_lines.first, findRichText: true).first,
+      );
       await tester.pumpAndSettle();
       expect(editorText(), _lines.first);
       expect(received, hasLength(1));

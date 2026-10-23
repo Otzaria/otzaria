@@ -21,6 +21,7 @@ void main() {
   late Map<int, String> source;
   late Map<String, dynamic> session;
   late Database db;
+  Directory? storageMoveDirectory;
 
   Map<String, dynamic> change(int index, String proposed) => {
     'sectionIndex': index,
@@ -79,6 +80,7 @@ void main() {
   );
 
   setUp(() async {
+    storageMoveDirectory = null;
     db = sqlite3.openInMemory();
     service = PluginCorrectionSessionService()
       ..draftRepository = PluginCorrectionDraftRepository.direct(db);
@@ -92,6 +94,9 @@ void main() {
     await _idle();
     service.dispose();
     db.close();
+    if (storageMoveDirectory != null) {
+      await storageMoveDirectory!.delete(recursive: true);
+    }
   });
 
   test('טיוטה אינה משנה מקור ותמונת המצב עצמאית', () async {
@@ -191,7 +196,7 @@ void main() {
       final temp = await Directory.systemTemp.createTemp(
         'correction-storage-move-',
       );
-      addTearDown(() => temp.delete(recursive: true));
+      storageMoveDirectory = temp;
       service.endAll('test');
       await service.flushAll();
       await _idle();

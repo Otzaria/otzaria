@@ -79,12 +79,12 @@ void main() {
     expect(report.correction?.contextAfter, '</b> סוף');
   });
 
-  test('entity או טווח שחוצה HTML נשלחים כ-v2 חופשי ללא טווח כוזב', () async {
+  test('ישות ממופה במדויק וטווח שחוצה HTML אינו מקבל טווח כוזב', () async {
     await submit(['א&amp;ב'], '&', 'וגם', start: 1, end: 2);
-    expect(report.correction, isNull);
-    expect(report.reportKind, DirectErrorReportKind.freeText);
+    expect(report.correction?.originalSelection, '&amp;');
+    expect(report.correction?.proposedText, 'וגם');
+    expect(report.reportKind, DirectErrorReportKind.textCorrection);
     expect(report.contextText, 'א&amp;ב');
-    expect(report.errorDetails, contains('מקור: &\nמוצע: וגם'));
     await submit(['מי<b>לה</b>'], 'מילה', 'חדש', start: 0, end: 4);
     expect(report.correction, isNull);
   });
@@ -282,7 +282,13 @@ void main() {
     });
 
     test('בלי האפשרות נשמרים שדות התוצאה הקודמים', () async {
-      final result = await submit(['א&amp;ב'], '&', 'וגם', start: 1, end: 2);
+      final result = await submit(
+        ['מי<b>לה</b>'],
+        'מילה',
+        'חדש',
+        start: 0,
+        end: 4,
+      );
       expect(result, {
         'status': 'sent',
         'reportId': 'stable-id',

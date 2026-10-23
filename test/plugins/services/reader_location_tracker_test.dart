@@ -67,9 +67,9 @@ void main() {
       when(mockTabsBloc.state).thenReturn(state);
     }
 
-    Future<void> settle() async {
-      await Future.delayed(const Duration(milliseconds: 20));
-    }
+    // לפי סדר האירועים ולא לפי השעון: יצירת bloc סינכרונית בחיבור לטאב חדש
+    // עלולה להימשך יותר מכל השהיה קבועה ולדחות את טיימר ה-tracker.
+    Future<void> settle() => pumpEventQueue();
 
     test('initializes without errors', () {
       expect(

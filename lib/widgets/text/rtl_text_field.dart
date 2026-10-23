@@ -164,7 +164,8 @@ class _RtlTextFieldState extends State<RtlTextField> {
     if (widget.maxLines == 1) return;
     // לא משנים כאן את ה-controller של הקורא: זה רץ בזמן build, ומאזינים שלו
     // היו מופעלים באמצע הבנייה. \r שכבר היה בטקסט ינוקה בפעולה הראשונה בשדה.
-    _rawController = TextEditingController.fromValue(
+    _rawController = _HardBreakController(
+      _effectiveController,
       _expandMapper.map(_effectiveController.value),
     );
     _rawController!.addListener(_syncCleanFromRawLive);
@@ -716,6 +717,62 @@ class _RtlTextFieldState extends State<RtlTextField> {
             style: const TextStyle(fontSize: 14),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HardBreakController extends TextEditingController {
+  final TextEditingController source;
+
+  _HardBreakController(this.source, TextEditingValue initial)
+    : super.fromValue(initial);
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    var targetOffset = 0;
+    String expandText(String chunk) {
+      final output = StringBuffer();
+      for (final unit in chunk.codeUnits) {
+        if (unit == 10 &&
+            targetOffset + 1 < text.length &&
+            text.codeUnitAt(targetOffset) == 13 &&
+            text.codeUnitAt(targetOffset + 1) == 10) {
+          output.write('\r');
+          targetOffset++;
+        }
+        output.writeCharCode(unit);
+        targetOffset++;
+      }
+      return output.toString();
+    }
+
+    TextSpan expand(TextSpan span) => TextSpan(
+      text: span.text == null ? null : expandText(span.text!),
+      style: span.style,
+      children: span.children?.map((child) {
+        if (child is TextSpan) return expand(child);
+        targetOffset++;
+        return child;
+      }).toList(),
+      recognizer: span.recognizer,
+      mouseCursor: span.mouseCursor,
+      onEnter: span.onEnter,
+      onExit: span.onExit,
+      semanticsLabel: span.semanticsLabel,
+      semanticsIdentifier: span.semanticsIdentifier,
+      locale: span.locale,
+      spellOut: span.spellOut,
+    );
+    return expand(
+      source.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
       ),
     );
   }

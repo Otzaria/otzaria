@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/text_book/utils/link_preview_utils.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/text/html_link_handler.dart';
 import 'package:otzaria/widgets/misc/inline_link_targets.dart';
 import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
@@ -28,6 +29,10 @@ class InlineHtmlText extends StatefulWidget {
     this.onMiddleClickUrl,
     this.splitLongLines = true,
   });
+
+  /// צבע הקישור של הקורא; ב-HtmlWidget הוא עובר ב-CSS כ-hex בלי שקיפות.
+  static Color readerLinkColor(ColorScheme colorScheme) =>
+      Color(0xFF000000 | AppSurfaces.readerLink(colorScheme).toARGB32());
 
   /// שורה ארוכה מאוד מוצגת במקטעים ([LongLineChunks]).
   final bool splitLongLines;
@@ -137,21 +142,12 @@ class _InlineHtmlTextState extends State<InlineHtmlText> {
     final cached = _span;
     if (cached != null && _spanKey == key) return cached;
 
-    Color? colorOf(InlineColorRole? role) => switch (role) {
-      InlineColorRole.readerLink => widget.linkColor,
-      InlineColorRole.primary => widget.primaryColor,
-      null => null,
-    };
-
     final children = <InlineSpan>[];
     for (final run in document.runs) {
-      var style = run.style;
-      if (run.colorRole != null || run.decorationColorRole != null) {
-        style = (style ?? const TextStyle()).copyWith(
-          color: colorOf(run.colorRole),
-          decorationColor: colorOf(run.decorationColorRole),
-        );
-      }
+      final style = run.resolvedStyle(
+        linkColor: widget.linkColor,
+        primaryColor: widget.primaryColor,
+      );
       if (run.link < 0) {
         children.add(TextSpan(text: run.text, style: style));
         continue;
