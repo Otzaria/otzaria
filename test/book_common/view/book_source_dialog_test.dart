@@ -111,4 +111,35 @@ void main() {
       expect(isTashmaSource(null), isFalse);
     });
   });
+
+  group('splitShortAndFullDescription', () {
+    test('should split when the full description starts with the short', () {
+      final r = splitShortAndFullDescription('קצר.', 'קצר. והמשך ארוך.');
+      expect(r, isNotNull);
+      expect(r!.lead, equals('קצר.'));
+      expect(r.rest, equals('והמשך ארוך.'));
+    });
+
+    test('should ignore surrounding whitespace', () {
+      final r = splitShortAndFullDescription('  קצר. ', '\nקצר.  המשך \n');
+      expect(r!.lead, equals('קצר.'));
+      expect(r.rest, equals('המשך'));
+    });
+
+    test('should return an empty rest when both are identical', () {
+      final r = splitShortAndFullDescription('קצר.', 'קצר.');
+      expect(r!.rest, isEmpty);
+    });
+
+    test('should return null when the full does not start with the short', () {
+      expect(splitShortAndFullDescription('קצר.', 'אחר לגמרי'), isNull);
+    });
+
+    test('should return null when either description is missing or empty', () {
+      expect(splitShortAndFullDescription(null, 'ארוך'), isNull);
+      expect(splitShortAndFullDescription('   ', 'ארוך'), isNull);
+      expect(splitShortAndFullDescription('קצר', null), isNull);
+      expect(splitShortAndFullDescription('קצר', ''), isNull);
+    });
+  });
 }

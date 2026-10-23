@@ -174,6 +174,10 @@ Widget _buildBookDetailsContent(
   final bookSource = information.source ?? 'לא נמצא מקור';
   final sourceInfo = getSourceDisplayInfo(bookSource);
   final isTashma = isTashmaSource(bookSource);
+  final mergedDescription = splitShortAndFullDescription(
+    information.shortDescription,
+    information.fullDescription,
+  );
 
   return AppSelectionArea(
     child: SingleChildScrollView(
@@ -242,18 +246,25 @@ Widget _buildBookDetailsContent(
               icon: FluentIcons.tag_24_regular,
               value: information.topics.join(', '),
             ),
-          if (information.shortDescription != null)
-            DetailsInfoSection(
-              title: 'תיאור קצר:',
-              icon: OtzariaIcons.book_information_24_regular,
-              value: information.shortDescription!,
-            ),
-          if (information.fullDescription != null)
-            DetailsInfoSection(
-              title: 'תיאור מורחב:',
-              icon: FluentIcons.document_text_24_regular,
-              value: information.fullDescription!,
-            ),
+          if (mergedDescription != null)
+            _MergedDescriptionSection(
+              lead: mergedDescription.lead,
+              rest: mergedDescription.rest,
+            )
+          else ...[
+            if (information.shortDescription != null)
+              DetailsInfoSection(
+                title: 'תיאור קצר:',
+                icon: OtzariaIcons.book_information_24_regular,
+                value: information.shortDescription!,
+              ),
+            if (information.fullDescription != null)
+              DetailsInfoSection(
+                title: 'תיאור מורחב:',
+                icon: FluentIcons.document_text_24_regular,
+                value: information.fullDescription!,
+              ),
+          ],
           const Divider(height: 24),
           Row(
             children: [
@@ -341,6 +352,62 @@ String? libraryDisplayPath(String filePath) {
   final lastSlash = relative.lastIndexOf('/');
   final lastDot = relative.lastIndexOf('.');
   return lastDot > lastSlash ? relative.substring(0, lastDot) : relative;
+}
+
+/// מפצל את התיאור לקצר (מודגש) ולהמשך הארוך, כשהתיאור הארוך פותח בקצר.
+/// מחזיר null כשאין מה למזג (אחד מהם חסר/ריק, או שהארוך אינו פותח בקצר),
+/// ואז מוצגים שני השדות כמו קודם. רווחים בקצוות מתעלמים מהם.
+({String lead, String rest})? splitShortAndFullDescription(
+  String? shortDescription,
+  String? fullDescription,
+) {
+  final lead = shortDescription?.trim() ?? '';
+  final full = fullDescription?.trim() ?? '';
+  if (lead.isEmpty || full.isEmpty || !full.startsWith(lead)) return null;
+  return (lead: lead, rest: full.substring(lead.length).trim());
+}
+
+/// תיאור הספר בלי כותרות: הקצר מודגש, ואחריו (בפסקה חדשה) המשך הארוך.
+class _MergedDescriptionSection extends StatelessWidget {
+  const _MergedDescriptionSection({required this.lead, required this.rest});
+
+  final String lead;
+  final String rest;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+              OtzariaIcons.book_information_24_regular,
+              size: 16,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: const TextStyle(fontSize: 14),
+                children: [
+                  TextSpan(
+                    text: lead,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  if (rest.isNotEmpty) TextSpan(text: '\n\n$rest'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 Widget _buildFilePathSection(String filePath) {
