@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,9 +13,11 @@ import 'package:otzaria/tools/shamor_zachor/models/error_model.dart';
 import 'package:otzaria/tools/shamor_zachor/models/progress_model.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
+import 'package:otzaria/tools/shamor_zachor/screens/book_detail_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/screens/shamor_zachor_main_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/shamor_zachor_widget.dart';
 import 'package:otzaria/tools/shamor_zachor/widgets/book_card_widget.dart';
+import 'package:otzaria/tools/shamor_zachor/widgets/category_books_grid.dart';
 import '../test_helpers/memory_cache_provider.dart';
 
 void main() {
@@ -233,6 +236,91 @@ void main() {
       expect(handled, isFalse);
     });
 
+    testWidgets(
+      'PageDown, PageUp ו-Ctrl+חצים גוללים את התוכן כשהסרגל פתוח',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider<ShamorZachorDataProvider>(
+                create: (_) => _ManyBooksDataProvider(),
+              ),
+              ChangeNotifierProvider<ShamorZachorProgressProvider>(
+                create: (_) => _FakeShamorZachorProgressProvider(),
+              ),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: BlocProvider.value(
+                  value: settingsBloc,
+                  child: const ShamorZachorMainScreen(),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        ScrollPosition scrollIn(Type view) => tester
+            .state<ScrollableState>(
+              find
+                  .descendant(
+                    of: find.byType(view),
+                    matching: find.byType(Scrollable),
+                  )
+                  .first,
+            )
+            .position;
+        // Ctrl+חצים (Cmd ב-macOS) הם קיצורי הגלילה המובנים של Flutter.
+        final modifier = defaultTargetPlatform == TargetPlatform.macOS
+            ? LogicalKeyboardKey.metaLeft
+            : LogicalKeyboardKey.controlLeft;
+        Future<void> press(
+          LogicalKeyboardKey key, {
+          bool modified = false,
+        }) async {
+          if (modified) await tester.sendKeyDownEvent(modifier);
+          await tester.sendKeyEvent(key);
+          if (modified) await tester.sendKeyUpEvent(modifier);
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+        }
+
+        Future<void> expectKeysScroll(ScrollPosition position) async {
+          await press(LogicalKeyboardKey.pageDown);
+          expect(position.pixels, greaterThan(0));
+          await press(LogicalKeyboardKey.pageUp);
+          expect(position.pixels, 0);
+          await press(LogicalKeyboardKey.arrowDown, modified: true);
+          expect(position.pixels, greaterThan(0));
+          await press(LogicalKeyboardKey.arrowUp, modified: true);
+          expect(position.pixels, 0);
+        }
+
+        await expectKeysScroll(scrollIn(CategoryBooksGrid));
+
+        // גם בפרטי ספר פתוח המקשים גוללים את רשימת העמודים
+        await tester.tap(find.text('ספר 0'));
+        await tester.pumpAndSettle();
+        await expectKeysScroll(scrollIn(BookDetailScreen));
+
+        // ובתוצאות חיפוש, אחרי ש-Enter מחזיר את המוקד לחלון
+        await tester.enterText(find.byType(EditableText).first, 'ספר');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        await expectKeysScroll(scrollIn(CategoryBooksGrid));
+      },
+      variant: const TargetPlatformVariant({
+        TargetPlatform.windows,
+        TargetPlatform.macOS,
+        TargetPlatform.android,
+      }),
+    );
+
     testWidgets('retry reloads progress error state', (tester) async {
       final progressProvider = _RetryableShamorZachorProgressProvider();
 
@@ -443,7 +531,7 @@ class _FakeShamorZachorDataProvider extends ShamorZachorDataProvider {
     if (query.isEmpty) return const [];
 
     final results = <BookSearchResult>[];
-    for (final entry in _categories.entries) {
+    for (final entry in allBookData.entries) {
       _collectSearchResults(entry.value, query, results, entry.key);
     }
     return results;
@@ -479,6 +567,35 @@ class _FakeShamorZachorDataProvider extends ShamorZachorDataProvider {
       );
     }
   }
+}
+
+/// קטגוריה אחת עם מספיק ספרים במעקב כדי שיהיה מה לגלול בתוכן.
+class _ManyBooksDataProvider extends _FakeShamorZachorDataProvider {
+  @override
+  final Map<String, BookCategory> allBookData = {
+    'רבים': BookCategory(
+      name: 'רבים',
+      contentType: 'text',
+      books: {
+        for (var i = 0; i < 30; i++)
+          'ספר $i': BookDetails(
+            id: 100 + i,
+            contentType: 'text',
+            parts: [
+              BookPart(name: 'ראשי', startPage: 1, endPage: i == 0 ? 100 : 1),
+            ],
+            categoryPath: 'רבים',
+          ),
+      },
+      defaultStartPage: 1,
+      isCustom: false,
+      sourceFile: 'test',
+      schemaVersion: 1,
+    ),
+  };
+
+  @override
+  bool isBookTrackedById(int bookId) => true;
 }
 
 class _FakeShamorZachorProgressProvider extends ShamorZachorProgressProvider {

@@ -8,7 +8,9 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_import_export_service.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -949,6 +951,55 @@ void main() {
     );
     expect(find.text('כותרת 39'), findsOneWidget);
   });
+
+  testWidgets(
+    'PageDown, PageUp ו-Ctrl+חצים גוללים את רשימת ההערות כשהסרגל פתוח',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await pumpScreenWithManyNotes(tester, count: 40);
+      final list = tester
+          .state<ScrollableState>(
+            find
+                .ancestor(
+                  of: find.text('כותרת 0'),
+                  matching: find.byType(Scrollable),
+                )
+                .last,
+          )
+          .position;
+      // Ctrl+חצים (Cmd ב-macOS) הם קיצורי הגלילה המובנים של Flutter.
+      final modifier = defaultTargetPlatform == TargetPlatform.macOS
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
+      Future<void> press(
+        LogicalKeyboardKey key, {
+        bool modified = false,
+      }) async {
+        if (modified) await tester.sendKeyDownEvent(modifier);
+        await tester.sendKeyEvent(key);
+        if (modified) await tester.sendKeyUpEvent(modifier);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
+
+      await press(LogicalKeyboardKey.pageDown);
+      expect(list.pixels, greaterThan(0));
+      await press(LogicalKeyboardKey.pageUp);
+      expect(list.pixels, 0);
+      await press(LogicalKeyboardKey.arrowDown, modified: true);
+      expect(list.pixels, greaterThan(0));
+      await press(LogicalKeyboardKey.arrowUp, modified: true);
+      expect(list.pixels, 0);
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.windows,
+      TargetPlatform.macOS,
+      TargetPlatform.android,
+    }),
+  );
 
   group('noteWithinDateRange - סינון לפי טווח תאריכים', () {
     PersonalNote noteUpdatedAt(DateTime updatedAt) => PersonalNote(
