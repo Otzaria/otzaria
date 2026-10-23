@@ -555,6 +555,51 @@ Future<void> main() async {
   );
 
   testWidgets(
+    'חיפוש סימן: החלקים נשארים בסדר הספר גם כשהשאילתה מופיעה בשמם (issue #3043)',
+    (tester) async {
+      const sections = ['אורח חיים', 'יורה דעה', 'אבן העזר', 'חושן משפט'];
+      final toc = [
+        for (var i = 0; i < sections.length; i++)
+          TocEntry(text: sections[i], index: i * 3, level: 1)
+            ..children.addAll([
+              TocEntry(text: 'סימן ז', index: i * 3 + 1, level: 2),
+              TocEntry(text: 'סימן ח', index: i * 3 + 2, level: 2),
+            ]),
+      ];
+      final bloc = _TestTextBookBloc(
+        _loadedState(toc: toc, visibleIndices: const [0]),
+      );
+      addTearDown(bloc.close);
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        _wrap(
+          TocViewer(
+            lines: LineScrollController(),
+            closeLeftPaneCallback: () {},
+            focusNode: focusNode,
+          ),
+          bloc,
+        ),
+      );
+      await tester.pump();
+
+      // "ח" פותחת את "חושן משפט" ומופיעה ב"אורח חיים" — אך היא חיפוש סימן ח.
+      await _typeInSearch(tester, 'ח');
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final titles = tester
+          .widgetList<NavTreeTile>(find.byType(NavTreeTile))
+          .map((tile) => tile.title)
+          .toList();
+      expect(titles.where(sections.contains), sections);
+      expect(titles.where((title) => title == 'סימן ח'), hasLength(4));
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
     'דפדוף בחיצים בין תוצאות איתור כותרת בלי לעזוב את שדה החיפוש',
     (tester) async {
       final toc = [

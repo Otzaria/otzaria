@@ -142,4 +142,33 @@ Future<void> main() async {
     },
     skip: engineReady ? false : searchEngineSkipReason,
   );
+
+  test(
+    'a container keeps its relevance rank only when the query is a whole word',
+    () {
+      final root = _entry(text: 'ספר', index: 0, level: 1);
+      TocEntry chapter(String title, int index) {
+        final entry = _entry(text: title, index: index, level: 2, parent: root);
+        entry.children = [
+          _entry(text: 'הלכה ח', index: index + 1, level: 3, parent: entry),
+        ];
+        return entry;
+      }
+
+      root.children = [
+        chapter('פרק ז', 1),
+        chapter('פרק ח', 3),
+        _entry(text: 'פרק יח', index: 5, level: 2, parent: root),
+      ];
+
+      final filtered = filterTocEntriesForSearch([root], 'ח');
+
+      expect(filtered.single.children.map((entry) => entry.text).toList(), [
+        'פרק ח',
+        'פרק יח',
+        'פרק ז',
+      ]);
+    },
+    skip: engineReady ? false : searchEngineSkipReason,
+  );
 }
