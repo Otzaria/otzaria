@@ -131,13 +131,16 @@ class WindowScopeProviders extends StatelessWidget {
               return bloc;
             },
           ),
-          // ⚠️ אחרי TabsBloc: ה-context של create רואה רק ספקים שמעליו,
-          // ו-currentTab קורא את TabsBloc בכל לכידה של ההיסטוריה.
+          // ⚠️ אחרי TabsBloc: ה-context של create רואה רק ספקים שמעליו.
+          // נלכד כאן ולא ב-currentTab: ב-close() ה-context כבר מפורק.
           BlocProvider<HistoryBloc>(
-            create: (context) => HistoryBloc(
-              historyRepository,
-              currentTab: () => context.read<TabsBloc>().state.currentTab,
-            ),
+            create: (context) {
+              final tabsBloc = context.read<TabsBloc>();
+              return HistoryBloc(
+                historyRepository,
+                currentTab: () => tabsBloc.state.currentTab,
+              );
+            },
           ),
           BlocProvider<NavigationBloc>(
             create: (context) {
