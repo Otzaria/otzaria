@@ -76,7 +76,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           cache: true
       - name: Install dependencies
         run: flutter pub get --enforce-lockfile
@@ -97,7 +97,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           cache: true
 
       - name: Install dependencies
@@ -185,7 +185,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           cache: true
 
       - name: Install dependencies
@@ -426,7 +426,7 @@ jobs:
           channel: stable
           # ⚠️ חייב להתאים לשאר ה-jobs. `pubspec.lock` דורש Flutter >=3.47.0,
           # ולכן עם 3.44.0 ה-job הזה נכשל ב-`pub get` ומעולם לא רץ ירוק.
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           # ה-cache של Windows נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
           cache: true
 
@@ -487,7 +487,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           cache: true
 
       - name: Install dependencies
@@ -551,7 +551,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           # ה-cache של הקונטיינר נשמר על ענף הבסיס ב-warm_flutter_cache.yml.
           cache: true
 
