@@ -18,6 +18,10 @@ import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
 import 'package:otzaria/text_book/view/commentary_list_base.dart';
+import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
+import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
+import 'package:otzaria/widgets/smart_text/smart_text.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 import '../../test_helpers/memory_cache_provider.dart';
 
@@ -209,6 +213,62 @@ void main() {
       findsOneWidget,
       reason: 'תפריט ההקשר של ההערות חייב לאפשר דיווח על טעות בספר הראשי',
     );
+  });
+
+  // הסמן בתוך התצוגה המקדימה כשההערות יוצאות מהעץ (מעבר שורה במקלדת).
+  testWidgets('כותרת תצוגה מקדימה מציטוט בהערות אחרי שההערות הוסרו', (
+    tester,
+  ) async {
+    final state = _loadedStateWithNotesAndCommentary();
+    final anchor = Link(
+      heRef: 'בראשית א, א',
+      index1: 1,
+      path2: 'בראשית',
+      index2: 1,
+      connectionType: 'linker',
+      anchorStart: 0,
+      anchorEnd: 4,
+    );
+    textBookBloc.emit(
+      state.copyWith(
+        linksByLine: {
+          1: [...state.linksByLine[1]!, anchor],
+        },
+      ),
+    );
+    addTearDown(LinkPreviewOverlay.dismiss);
+    Widget app(Widget home) => BlocProvider<SettingsBloc>.value(
+      value: settingsBloc,
+      child: MaterialApp(
+        home: BlocProvider<TextBookBloc>.value(
+          value: textBookBloc,
+          child: home,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      app(
+        Scaffold(
+          body: CommentaryListBase(
+            openBookCallback: (_) {},
+            fontSize: 18,
+            showSearch: true,
+            shrinkWrap: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    tester
+        .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+        .firstWhere((widget) => widget.text.contains('הערה לבדיקה'))
+        .onAnchorHover!('otzaria://anchor?ref=0_0', const Offset(100, 100));
+    await tester.pump();
+    await tester.pumpWidget(app(const SizedBox()));
+
+    await tester.tap(find.byIcon(FluentIcons.open_24_regular));
+    await tester.pumpAndSettle();
+    expect(find.byType(LinkHoverPreviewContent), findsNothing);
   });
 }
 
