@@ -350,7 +350,6 @@ class _BookDetailScreenState extends State<BookDetailScreen>
         // ── תוכן גלילה ────────────────────────────────────────────────────
         Expanded(
           child: CustomScrollView(
-            primary: false,
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.all(12.0),
