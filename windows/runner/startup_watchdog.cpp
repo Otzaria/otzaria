@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <thread>
@@ -93,6 +95,77 @@ std::shared_ptr<const ModuleSnapshot> BuildModuleSnapshot() {
   return fresh;
 }
 
+bool ReadBytes(ULONG_PTR address, void* out, size_t size) {
+  __try {
+    memcpy(out, reinterpret_cast<const void*>(address), size);
+    return true;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return false;
+  }
+}
+
+// ה-loader של Dart טוען את app.so ל-VirtualAlloc אחד בלי מודול, וכותרת ה-ELF
+// בבסיסו; ההיסט ממנו הוא הכתובת הווירטואלית שבקובץ הסמלים.
+ULONG_PTR DartImageBase(ULONG_PTR address) {
+  MEMORY_BASIC_INFORMATION info = {};
+  if (::VirtualQuery(reinterpret_cast<LPCVOID>(address), &info,
+                     sizeof(info)) == 0 ||
+      info.Type != MEM_PRIVATE ||
+      (info.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ)) == 0) {
+    return 0;
+  }
+  const auto base = reinterpret_cast<ULONG_PTR>(info.AllocationBase);
+  unsigned char magic[4] = {};
+  if (!ReadBytes(base, magic, sizeof(magic))) return 0;
+  return memcmp(magic, "\x7f" "ELF", sizeof(magic)) == 0 ? base : 0;
+}
+
+// ה-build-id מ-PT_NOTE של ה-ELF (64 ביט) — מזהה את קובץ הסמלים התואם.
+std::string DartBuildId(ULONG_PTR base) {
+  unsigned char header[64] = {};
+  if (!ReadBytes(base, header, sizeof(header)) || header[4] != 2) return "";
+  uint64_t phoff = 0;
+  uint16_t phentsize = 0, phnum = 0;
+  memcpy(&phoff, header + 0x20, sizeof(phoff));
+  memcpy(&phentsize, header + 0x36, sizeof(phentsize));
+  memcpy(&phnum, header + 0x38, sizeof(phnum));
+  if (phentsize < 0x30 || phnum > 64) return "";
+  for (uint16_t i = 0; i < phnum; ++i) {
+    unsigned char ph[0x30] = {};
+    if (!ReadBytes(base + phoff + i * phentsize, ph, sizeof(ph))) return "";
+    uint32_t type = 0;
+    uint64_t vaddr = 0, size = 0;
+    memcpy(&type, ph, sizeof(type));
+    memcpy(&vaddr, ph + 0x10, sizeof(vaddr));
+    memcpy(&size, ph + 0x28, sizeof(size));
+    if (type != 4 /* PT_NOTE */) continue;
+    for (uint64_t at = 0; at + 12 <= size;) {
+      uint32_t note[3] = {};  // namesz, descsz, type
+      if (!ReadBytes(base + vaddr + at, note, sizeof(note))) return "";
+      const uint64_t name_size = (note[0] + 3) & ~3u;
+      const uint64_t desc_size = (note[1] + 3) & ~3u;
+      char name[4] = {};
+      if (note[2] == 3 /* NT_GNU_BUILD_ID */ && note[0] == 4 && note[1] <= 64 &&
+          ReadBytes(base + vaddr + at + 12, name, sizeof(name)) &&
+          memcmp(name, "GNU", 4) == 0) {
+        unsigned char id[64] = {};
+        if (!ReadBytes(base + vaddr + at + 12 + name_size, id, note[1])) {
+          return "";
+        }
+        std::string hex;
+        char byte[3];
+        for (uint32_t b = 0; b < note[1]; ++b) {
+          snprintf(byte, sizeof(byte), "%02x", id[b]);
+          hex += byte;
+        }
+        return hex;
+      }
+      at += 12 + name_size + desc_size;
+    }
+  }
+  return "";
+}
+
 std::string DescribeAddress(ULONG_PTR address) {
   char buffer[160];
   const auto modules =
@@ -103,6 +176,12 @@ std::string DescribeAddress(ULONG_PTR address) {
                static_cast<unsigned long long>(address - range.base));
       return buffer;
     }
+  }
+  const ULONG_PTR dart_base = DartImageBase(address);
+  if (dart_base != 0) {
+    snprintf(buffer, sizeof(buffer), "app.so+0x%llx",
+             static_cast<unsigned long long>(address - dart_base));
+    return buffer;
   }
   // מיפוי לפי כתובת מזהה DLL מאוחר בלי לגשת לרשימת ה-loader.
   // נקרא רק בעת דיווח, אחרי חידוש ה-thread הראשי.
@@ -274,6 +353,21 @@ void AppendStackSection(const std::vector<ULONG_PTR>& frames,
   }
 }
 
+// לפני שורת Stack: הפרסר של הלוג קורא כפריימים את כל מה שאחריה.
+void AppendBuildIdentitySection(const std::vector<ULONG_PTR>& frames,
+                                std::string* report) {
+#ifdef OTZARIA_BUILD_COMMIT
+  *report += std::string("Build commit: ") + OTZARIA_BUILD_COMMIT + "\n";
+#endif
+  for (const ULONG_PTR frame : frames) {
+    const ULONG_PTR base = DartImageBase(frame);
+    if (base == 0) continue;
+    const std::string build_id = DartBuildId(base);
+    if (!build_id.empty()) *report += "Dart build-id: " + build_id + "\n";
+    return;
+  }
+}
+
 void ReportStall(int capture_index, ULONGLONG stalled_for_ms,
                  ULONGLONG since_launch_ms,
                  const std::vector<ULONG_PTR>& frames) {
@@ -291,6 +385,7 @@ void ReportStall(int capture_index, ULONGLONG stalled_for_ms,
            static_cast<unsigned long long>(since_launch_ms), capture_index,
            kMaxCaptures);
   report += header;
+  AppendBuildIdentitySection(frames, &report);
   AppendStackSection(frames, &report);
   AppendToLog(report);
 }
@@ -330,6 +425,11 @@ bool CaptureMainStack(std::vector<ULONG_PTR>* frames) {
 
 void AppendStack(const std::vector<ULONG_PTR>& frames, std::string* report) {
   AppendStackSection(frames, report);
+}
+
+void AppendBuildIdentity(const std::vector<ULONG_PTR>& frames,
+                         std::string* report) {
+  AppendBuildIdentitySection(frames, report);
 }
 
 void AppendReport(const std::string& text) { AppendToLog(text); }

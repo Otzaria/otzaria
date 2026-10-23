@@ -20,6 +20,9 @@ constexpr ULONGLONG kSleepGapMs = 2000;
 constexpr ULONGLONG kResumeGraceMs = 10000;
 constexpr int kMaxReports = 5;
 constexpr int kMaxFrames = 48;
+// דגימה אחת לא מבדילה בין לולאה ארוכה אחת לבין עבודה שמתחלפת.
+constexpr int kMaxExtraSamples = 3;
+constexpr ULONGLONG kSampleIntervalMs = 2000;
 
 HWND g_window = nullptr;
 HANDLE g_stop_event = nullptr;
@@ -60,8 +63,28 @@ void ReportHang(const std::vector<ULONG_PTR>& frames) {
   snprintf(detected, sizeof(detected), "Detected: %llums after launch\n",
            MsSinceLaunch());
   report += detected;
+  startup_watchdog::AppendBuildIdentity(frames, &report);
   startup_watchdog::AppendStack(frames, &report);
   startup_watchdog::AppendReport(report);
+}
+
+// בתוך רשומת התקיעה, אחרי שורת `---`: הפרסר מחשב את החתימה מהדגימה הראשונה.
+void ReportSample(int index, ULONGLONG into_hang_ms,
+                  const std::vector<ULONG_PTR>& frames) {
+  char header[96];
+  snprintf(header, sizeof(header), "--- Sample %d, %llums into the hang ---\n",
+           index, into_hang_ms);
+  std::string report = header;
+  startup_watchdog::AppendStack(frames, &report);
+  startup_watchdog::AppendReport(report);
+}
+
+std::vector<ULONG_PTR> CaptureFrames() {
+  // הקצאה מראש: הקצאה בזמן שה-thread הראשי מושהה עלולה להיתקע על נעילת ה-heap.
+  std::vector<ULONG_PTR> frames;
+  frames.reserve(kMaxFrames);
+  startup_watchdog::CaptureMainStack(&frames);
+  return frames;
 }
 
 void ReportRecovered(ULONGLONG duration_ms) {
@@ -78,8 +101,10 @@ void WatcherLoop() {
   ULONGLONG grace_until = 0;
   ULONGLONG first_hung_at = 0;
   ULONGLONG hang_started_at = 0;
+  ULONGLONG last_sample_at = 0;
   int hung_polls = 0;
   int reports = 0;
+  int samples = 0;
   bool in_hang = false;
 
   while (::WaitForSingleObject(g_stop_event, kPollIntervalMs) == WAIT_TIMEOUT) {
@@ -97,7 +122,14 @@ void WatcherLoop() {
 
     const bool hung = ::IsHungAppWindow(g_window) != FALSE;
     if (in_hang) {
-      if (hung) continue;
+      if (hung) {
+        if (samples < kMaxExtraSamples &&
+            awake - last_sample_at >= kSampleIntervalMs) {
+          last_sample_at = awake;
+          ReportSample(++samples, awake - hang_started_at, CaptureFrames());
+        }
+        continue;
+      }
       in_hang = false;
       const ULONGLONG duration = awake - hang_started_at;
       ReportRecovered(duration);
@@ -117,11 +149,9 @@ void WatcherLoop() {
     ++reports;
     in_hang = true;
     hang_started_at = first_hung_at - kHungThresholdMs;
-    // הקצאה מראש: הקצאה בזמן שה-thread הראשי מושהה עלולה להיתקע על נעילת ה-heap.
-    std::vector<ULONG_PTR> frames;
-    frames.reserve(kMaxFrames);
-    startup_watchdog::CaptureMainStack(&frames);
-    ReportHang(frames);
+    last_sample_at = awake;
+    samples = 0;
+    ReportHang(CaptureFrames());
   }
 }
 

@@ -72,6 +72,50 @@ void main() {
     expect(section, contains('DescribeAddress(frame)'));
   });
 
+  test('פריים Dart מזוהה כ-app.so לפי כותרת ה-ELF, בלי loader APIs', () {
+    final dartBase = source.substring(
+      source.indexOf('ULONG_PTR DartImageBase('),
+      source.indexOf('std::string DartBuildId('),
+    );
+    expect(dartBase, contains('info.Type != MEM_PRIVATE'));
+    expect(dartBase, contains('info.AllocationBase'));
+    expect(dartBase, contains('ReadBytes(base, magic, sizeof(magic))'));
+    expect(dartBase, isNot(contains('GetModule')));
+
+    final describe = source.substring(
+      source.indexOf('std::string DescribeAddress('),
+      source.indexOf('#if defined(_M_X64) || defined(_M_ARM64)'),
+    );
+    expect(describe, contains('"app.so+0x%llx"'));
+    expect(
+      describe.indexOf('DartImageBase(address)'),
+      lessThan(describe.indexOf('info.Type == MEM_IMAGE')),
+    );
+  });
+
+  test('זהות הבנייה נכתבת לפני שורת Stack, שאחריה הכול פריימים', () {
+    final identity = source.substring(
+      source.indexOf('void AppendBuildIdentitySection('),
+      source.indexOf('void ReportStall('),
+    );
+    expect(identity, contains('"Build commit: "'));
+    expect(identity, contains('"Dart build-id: "'));
+    expect(identity, isNot(contains('Stack')));
+    final stall = source.substring(source.indexOf('void ReportStall('));
+    expect(
+      stall.indexOf('AppendBuildIdentitySection(frames, &report);'),
+      allOf(
+        greaterThanOrEqualTo(0),
+        lessThan(stall.indexOf('AppendStackSection(frames, &report);')),
+      ),
+    );
+    // רק הקובץ שמשתמש ב-commit מקומפל מחדש כשהוא משתנה.
+    expect(
+      File('windows/runner/CMakeLists.txt').readAsStringSync(),
+      contains('set_property(SOURCE "startup_watchdog.cpp" APPEND PROPERTY'),
+    );
+  });
+
   test('הכלים המשותפים ל-hang_monitor עוטפים את אותם מימושים', () {
     final shared = source.substring(source.indexOf('}  // namespace\n'));
     expect(
@@ -136,14 +180,25 @@ void main() {
     });
 
     test('מתרגם לשמות מודולים רק אחרי חידוש ה-thread', () {
-      final reserve = watcher.indexOf('frames.reserve(kMaxFrames);');
-      final capture = watcher.indexOf(
+      final captureFrames = hang.substring(
+        hang.indexOf('std::vector<ULONG_PTR> CaptureFrames()'),
+        hang.indexOf('void ReportRecovered('),
+      );
+      final reserve = captureFrames.indexOf('frames.reserve(kMaxFrames);');
+      final capture = captureFrames.indexOf(
         'startup_watchdog::CaptureMainStack(&frames);',
       );
-      final report = watcher.indexOf('ReportHang(frames);');
       expect(reserve, greaterThanOrEqualTo(0));
       expect(capture, greaterThan(reserve));
-      expect(report, greaterThan(capture));
+      expect(captureFrames, isNot(contains('AppendStack(')));
+      // התרגום ב-ReportHang/ReportSample, אחרי שהלכידה חזרה.
+      expect(watcher, contains('ReportHang(CaptureFrames());'));
+      expect(
+        watcher,
+        contains(
+          'ReportSample(++samples, awake - hang_started_at, CaptureFrames());',
+        ),
+      );
       expect(watcher, isNot(contains('AppendStack(')));
       expect(watcher, isNot(contains('RefreshModules')));
       expect(watcher, isNot(contains('EnumProcessModules')));
@@ -156,6 +211,28 @@ void main() {
       expect(hang, contains('"Message: AppHang: UI thread not responding\\n"'));
       expect(hang, contains('"\\n=== App hang recovered " +'));
       expect(hang, contains('"Duration: %llums\\n"'));
+    });
+
+    test('זהות הבנייה לפני Stack, ודגימות נוספות אחרי `---` ובמספר מוגבל', () {
+      final report = hang.substring(
+        hang.indexOf('void ReportHang('),
+        hang.indexOf('void ReportSample('),
+      );
+      expect(
+        report.indexOf('AppendBuildIdentity(frames, &report);'),
+        allOf(
+          greaterThanOrEqualTo(0),
+          lessThan(report.indexOf('AppendStack(frames, &report);')),
+        ),
+      );
+      final sample = hang.substring(
+        hang.indexOf('void ReportSample('),
+        hang.indexOf('std::vector<ULONG_PTR> CaptureFrames()'),
+      );
+      expect(sample, contains('"--- Sample %d, %llums into the hang ---\\n"'));
+      expect(sample, isNot(contains('=== ')));
+      expect(watcher, contains('samples < kMaxExtraSamples'));
+      expect(watcher, contains('awake - last_sample_at >= kSampleIntervalMs'));
     });
 
     test('מתחיל בחשיפה, רק בחלון ראשי שאינו CLI, ונעצר לפני ה-watchdog', () {
