@@ -31,6 +31,7 @@ import 'package:otzaria/book_protection/utils/copy_guard.dart';
 import 'package:otzaria/pdf_book/utils/pdf_plugin_menu_entries.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/models/links.dart';
+import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
@@ -131,14 +132,6 @@ List<Link> pdfScopedCommentaryLinks({
   }
   return dedupeLinksByTarget(scoped);
 }
-
-/// מפתח הזהות של פריט מפרש. חייב להיות תלוי-קישור בלבד: מפתח שכולל את העמוד
-/// הנוכחי מחריב את ה-State של כל פריט בכל דפדוף וגורם לטעינת התוכן מחדש.
-@visibleForTesting
-String pdfCommentaryItemKey(Link link) =>
-    '${link.index1}_${link.path2}_${link.index2}'
-    '${link.targetSource.isOfficial ? '' : '|${link.targetSource.wireKey}'}'
-    '${link.index2End == null ? '' : '|end:${link.index2End}'}';
 
 /// מפתח ה-PageStorage של רשימת המפרשים. תלוי בבחירת המפרשים בלבד: הכללת
 /// העמוד או מצב הכיווץ יוצרת רשימה חדשה ומאבדת את מיקום הגלילה.
@@ -498,7 +491,7 @@ class PdfCommentaryPanelState extends State<PdfCommentaryPanel>
   /// setState, כדי ששינוי הסינון לא יבנה מחדש את רשימת המפרשים.
   final ValueNotifier<Set<String>> _selectedLinkTypes = ValueNotifier(const {});
 
-  String _getLinkKey(Link link) => pdfCommentaryItemKey(link);
+  String _getLinkKey(Link link) => commentaryLinkKey(link);
 
   /// היסט התוצאה הראשונה של כל פריט בסדר התצוגה. מחושב פעם אחת לכל build:
   /// סריקה מלאה לכל פריט שנבנה הייתה ריבועית בקבוצה מורחבת גדולה.
@@ -2391,7 +2384,7 @@ class _PdfCommentaryLinkItem extends StatelessWidget {
               },
               menuBuilder: (menuCtx, _) => buildContextMenu(menuCtx, link),
               child: CommentaryContent(
-                key: ValueKey(pdfCommentaryItemKey(link)),
+                key: ValueKey(commentaryLinkKey(link)),
                 link: link,
                 fontSize: fontSize,
                 openBookCallback: openBookCallback,

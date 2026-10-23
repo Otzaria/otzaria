@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/pdf_book/view/pdf_commentary_panel.dart';
+import 'package:otzaria/text_book/models/commentary_scroll_request.dart';
 
 Link _link({
   required int index1,
@@ -19,10 +20,10 @@ Link _link({
 }
 
 void main() {
-  group('pdfCommentaryItemKey — יציבות מפתח פריט המפרש', () {
+  group('commentaryLinkKey — יציבות מפתח פריט המפרש', () {
     test('מפתח נגזר מזהות הקישור בלבד', () {
       expect(
-        pdfCommentaryItemKey(_link(index1: 7, path2: 'רש"י על שבת', index2: 3)),
+        commentaryLinkKey(_link(index1: 7, path2: 'רש"י על שבת', index2: 3)),
         '7_רש"י על שבת_3',
       );
     });
@@ -30,43 +31,36 @@ void main() {
     test('שני קישורים זהים מקבלים אותו מפתח', () {
       final a = _link(index1: 7, path2: 'רש"י על שבת', index2: 3);
       final b = _link(index1: 7, path2: 'רש"י על שבת', index2: 3);
-      expect(pdfCommentaryItemKey(a), pdfCommentaryItemKey(b));
+      expect(commentaryLinkKey(a), commentaryLinkKey(b));
     });
 
     test('שינוי index1 משנה את המפתח', () {
       expect(
-        pdfCommentaryItemKey(_link(index1: 7, path2: 'רש"י', index2: 3)),
-        isNot(pdfCommentaryItemKey(_link(index1: 8, path2: 'רש"י', index2: 3))),
+        commentaryLinkKey(_link(index1: 7, path2: 'רש"י', index2: 3)),
+        isNot(commentaryLinkKey(_link(index1: 8, path2: 'רש"י', index2: 3))),
       );
     });
 
     test('שינוי ספר היעד משנה את המפתח', () {
       expect(
-        pdfCommentaryItemKey(_link(index1: 7, path2: 'רש"י', index2: 3)),
-        isNot(
-          pdfCommentaryItemKey(_link(index1: 7, path2: 'תוספות', index2: 3)),
-        ),
+        commentaryLinkKey(_link(index1: 7, path2: 'רש"י', index2: 3)),
+        isNot(commentaryLinkKey(_link(index1: 7, path2: 'תוספות', index2: 3))),
       );
     });
 
     test('שינוי index2 משנה את המפתח', () {
       expect(
-        pdfCommentaryItemKey(_link(index1: 7, path2: 'רש"י', index2: 3)),
-        isNot(pdfCommentaryItemKey(_link(index1: 7, path2: 'רש"י', index2: 4))),
+        commentaryLinkKey(_link(index1: 7, path2: 'רש"י', index2: 3)),
+        isNot(commentaryLinkKey(_link(index1: 7, path2: 'רש"י', index2: 4))),
       );
     });
 
     test('המפתח אינו מכיל את סוג הקישור — סוג אינו חלק מהזהות התצוגתית', () {
       expect(
-        pdfCommentaryItemKey(
-          _link(
-            index1: 7,
-            path2: 'רש"י',
-            index2: 3,
-            connectionType: 'TARGUM',
-          ),
+        commentaryLinkKey(
+          _link(index1: 7, path2: 'רש"י', index2: 3, connectionType: 'TARGUM'),
         ),
-        pdfCommentaryItemKey(
+        commentaryLinkKey(
           _link(
             index1: 7,
             path2: 'רש"י',
@@ -173,8 +167,8 @@ void main() {
         targetSource: BookSource.attached(slug),
       );
       expect(
-        pdfCommentaryItemKey(attached('a')),
-        isNot(pdfCommentaryItemKey(attached('b'))),
+        commentaryLinkKey(attached('a')),
+        isNot(commentaryLinkKey(attached('b'))),
       );
     },
   );
