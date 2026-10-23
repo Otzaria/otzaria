@@ -56,6 +56,10 @@ class NavigationRepository {
       return true;
     }
 
+    if (SqliteDataProvider.instance.unsupportedDbSchemaVersion != null) {
+      return true;
+    }
+
     if (_isAndroid) {
       final canOpen = await DatabaseLibraryProvider.operationQueue.enqueue(() {
         final canOpenSqlite = debugCanOpenSqliteOverride;
