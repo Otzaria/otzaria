@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
@@ -11,7 +12,9 @@ import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart'
     show stripHtmlIfNeeded;
+import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/services/target_line_links_service.dart';
+import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -24,6 +27,8 @@ import 'package:otzaria/widgets/commentary/panel_anchor_links.dart';
 import 'package:otzaria/widgets/misc/link_context_menu_entry.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
+
+import '../../test_helpers/memory_cache_provider.dart';
 
 /// הקישור שהקטע שלו מוצג בחלונית: שורה 3 בספר "רש״י".
 Link _displayed() => Link(
@@ -107,8 +112,25 @@ Offset _centerOfText(WidgetTester tester, String needle) {
 String _renderedHtml(WidgetTester tester) =>
     tester.widget<SmartTextWidget>(find.byType(SmartTextWidget)).text;
 
+/// החלונית יוצאת מהעץ (מעבר שורה, החלפת לשונית); התצוגה המקדימה נשארת.
+Future<void> _removePanel(WidgetTester tester) async {
+  await tester.pumpWidget(
+    BlocProvider<SettingsBloc>.value(
+      value: _TestSettingsBloc(SettingsState.initial()),
+      child: const MaterialApp(home: SizedBox()),
+    ),
+  );
+  expect(find.byType(PanelAnchoredText), findsNothing);
+}
+
 void main() {
+  // פתיחת יעד בונה טאב שקורא הגדרות; עם הגדרות, טעינת הקישורים ממתינה לדורות.
+  setUpAll(() => Settings.init(cacheProvider: MemoryCacheProvider()));
   setUp(() {
+    CommentaryService.seedEraCache({
+      for (final title in ['בראשית', 'הערות על חברותא על ברכות'])
+        title: CommentaryEra.other,
+    });
     BookNotesRepository.instance
       ..clear()
       ..debugLoader = (title, {categoryId, required source}) async =>
@@ -128,6 +150,7 @@ void main() {
   });
   tearDown(TargetLineLinksService.resetInstanceForTesting);
   tearDown(LibraryProviderManager.instance.resetForTesting);
+  tearDown(CommentaryService.clearEraCache);
 
   testWidgets('כשל בטעינת הערות הספר — הציטוטים אינם מוצבים והכשל מדווח', (
     tester,
@@ -220,6 +243,26 @@ void main() {
     expect(find.byType(LinkHoverPreviewContent), findsNothing);
   });
 
+  testWidgets('כותרת התצוגה המקדימה סוגרת אותה גם אחרי שהחלונית הוסרה', (
+    tester,
+  ) async {
+    await _pumpPanel(
+      tester,
+      loaded: [_anchored(index1: 3, charStart: 2, charEnd: 6)],
+    );
+    addTearDown(LinkPreviewOverlay.dismiss);
+    tester.widget<SmartTextWidget>(find.byType(SmartTextWidget)).onAnchorHover!(
+      'otzaria://anchor?ref=2_0&range=1',
+      const Offset(100, 100),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await _removePanel(tester);
+
+    await tester.tap(find.byIcon(FluentIcons.open_24_regular));
+    await tester.pumpAndSettle();
+    expect(find.byType(LinkHoverPreviewContent), findsNothing);
+  });
+
   testWidgets('יציאה מהירה מהציטוט מבטלת תצוגה מקדימה ממתינה', (
     tester,
   ) async {
@@ -272,7 +315,7 @@ void main() {
       const Offset(100, 100),
     );
     await tester.pump(const Duration(milliseconds: 100));
-    // עוגן שאינו ברשימה: הלחיצה מבטלת את הריחוף בלי לנווט (הניווט צריך Settings).
+    // עוגן שאינו ברשימה: הלחיצה מבטלת את הריחוף בלי לנווט.
     smartText.onAnchorTap!('otzaria://anchor?ref=2_9&range=1');
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
@@ -570,6 +613,27 @@ void main() {
       expect(html, isNot(contains('<sup')));
       await hover(tester, 'otzaria://book-note?line=2&note=0');
       expect(previewContent(tester), contains('בביאור הלכה'));
+    });
+
+    testWidgets('ציטוט בהערה שבתצוגה המקדימה אחרי שהחלונית הוסרה', (
+      tester,
+    ) async {
+      notes = (BookNotesBuilder()..add(2, 0, '(26)', 'בביאור הלכה')).build();
+      await _pumpPanel(
+        tester,
+        loaded: [_anchored(index1: 3, charStart: 2, charEnd: 6)],
+        html: 'לדרשא!<sup class="footnote-marker">(26)</sup> סוף',
+      );
+      await hover(tester, 'otzaria://book-note?line=2&note=0');
+      await _removePanel(tester);
+
+      tester
+          .widget<InlineBookNotePreviewContent>(
+            find.byType(InlineBookNotePreviewContent),
+          )
+          .onAnchorTap!('otzaria://anchor?ref=2_0&range=1');
+      await tester.pumpAndSettle();
+      expect(find.byType(InlineBookNotePreviewContent), findsNothing);
     });
 
     testWidgets('סמן מודפס (26) והערה בלי marker — לפי פתיחת ההערה', (

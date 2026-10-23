@@ -147,7 +147,7 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
         hoverMode: true,
         displayProfile: displayProfile,
         onOpen: () {
-          LinkPreviewOverlay.dismiss(window: AppWindowKeys.of(context));
+          LinkPreviewOverlay.dismiss(window: _anchorHoverWindow);
           onOpen(link);
         },
       );
@@ -237,7 +237,7 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
   void _openNoteAnchor(String url) {
     final link = anchorLinkFromUrl(url);
     if (link == null) return;
-    LinkPreviewOverlay.dismiss(window: AppWindowKeys.of(context));
+    LinkPreviewOverlay.dismiss(window: _anchorHoverWindow);
     openPanelAnchor(link);
   }
 

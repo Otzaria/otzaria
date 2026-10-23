@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_protection/repository/book_protection_repository.dart';
@@ -762,6 +763,69 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(LinkHoverPreviewContent), findsOneWidget);
+  });
+
+  // הסמן בתוך התצוגה המקדימה כשעמודת המפרש יוצאת מהעץ (החלפת מפרש).
+  testWidgets('כותרת התצוגה המקדימה בעמודת מפרש אחרי שהעמודה הוסרה', (
+    tester,
+  ) async {
+    final superLink = Link(
+      heRef: 'שער הציון, לב, ה',
+      index1: 1,
+      path2: 'שער הציון',
+      index2: 1,
+      connectionType: 'SUPER_COMMENTARY',
+      anchorStart: 3,
+      anchorLabel: 'ה',
+    );
+    final textBookBloc = _TestTextBookBloc(_loadedState());
+    final personalNotesBloc = _TestPersonalNotesBloc(
+      const PersonalNotesState(
+        isLoading: false,
+        bookId: 'ספר בדיקה',
+        locatedNotes: [],
+        missingNotes: [],
+        errorMessage: null,
+        filteredLocatedNotes: [],
+        filteredMissingNotes: [],
+      ),
+    );
+    final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+    addTearDown(LinkPreviewOverlay.dismiss);
+    Widget app(Widget home) => MultiBlocProvider(
+      providers: [
+        BlocProvider<TextBookBloc>.value(value: textBookBloc),
+        BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+        BlocProvider<SettingsBloc>.value(value: settingsBloc),
+      ],
+      child: MaterialApp(home: Scaffold(body: home)),
+    );
+    await tester.pumpWidget(
+      app(
+        SimpleTextViewer(
+          content: const ['שורת משנה ברורה'],
+          fontSize: 18,
+          openBookCallback: (_) {},
+          isMainText: false,
+          bookTitle: 'משנה ברורה',
+          anchorLinksByLine: {
+            1: [superLink],
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    tester
+        .widgetList<SmartTextWidget>(find.byType(SmartTextWidget))
+        .firstWhere((widget) => widget.onAnchorHover != null)
+        .onAnchorHover!('otzaria://anchor?ref=0_0', const Offset(100, 100));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpWidget(app(const SizedBox()));
+    expect(find.byType(SimpleTextViewer), findsNothing);
+
+    await tester.tap(find.byIcon(FluentIcons.open_24_regular));
+    await tester.pumpAndSettle();
+    expect(find.byType(LinkHoverPreviewContent), findsNothing);
   });
 
   testWidgets('עמודת מפרש בלי anchorLinksByLine נשארת ללא סמנים', (
