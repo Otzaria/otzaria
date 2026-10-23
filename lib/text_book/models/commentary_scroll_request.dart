@@ -9,6 +9,9 @@ import 'package:otzaria/models/links.dart';
 ///
 /// `index2` הוא מה שמבדיל בין שני קטעים של אותו מפרש על אותה שורה; בלעדיו
 /// שניהם היו נראים כאותו יעד.
+///
+/// משמש גם כמפתח הפריט בחלונית המפרשים של PDF, ולכן תלוי בקישור בלבד: מפתח
+/// שכולל את העמוד הנוכחי מחריב את ה-State של כל פריט בכל דפדוף.
 String commentaryLinkKey(Link link) =>
     '${link.index1}_${link.path2}_${link.index2}'
     '${link.targetSource.isOfficial ? '' : '|${link.targetSource.wireKey}'}'
