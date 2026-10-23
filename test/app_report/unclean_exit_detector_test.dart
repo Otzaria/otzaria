@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/core/startup_timeline.dart';
 import 'package:path/path.dart' as p;
 
@@ -310,6 +311,21 @@ void main() {
       p.join(logs.path, UncleanExitDetector.lockFileName),
     ).writeAsStringSync('{not json');
     expect(await detector().detectPreviousCrash(), isNull);
+  });
+
+  test('מסד sentry-native נבדק קודם בתיקיית הלוגים, ואחריו המיקום הישן', () {
+    final dirs = UncleanExitDetector.defaultSentryDatabaseDirs();
+    expect(
+      dirs.first,
+      p.join(p.dirname(ErrorLogFile.resolvePath()), '.sentry-native'),
+    );
+    expect(dirs.first, UncleanExitDetector.sentryDatabasePath());
+    expect(
+      dirs,
+      contains(
+        p.join(p.dirname(Platform.resolvedExecutable), '.sentry-native'),
+      ),
+    );
   });
 
   test('defaultIsProcessAlive: התהליך הנוכחי חי', () {

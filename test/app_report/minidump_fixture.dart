@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
-/// minidump מינימלי: כותרת, זרם חריגה ורשימת מודולים — במבנה של Windows.
+/// minidump מינימלי: כותרת, זרם חריגה, רשימת מודולים ומפת זיכרון — במבנה של
+/// Windows.
 Uint8List buildMinidump({
   int exceptionCode = 0xc0000005,
   int exceptionAddress = 0x7ffa1001e220,
@@ -17,11 +18,15 @@ Uint8List buildMinidump({
       size: 0x2000000,
     ),
   ],
+  List<({int base, int allocationBase, int size, int protect, int type})>
+      memoryRegions =
+      const [],
 }) {
   const headerSize = 32;
   const exceptionSize = 168;
   const moduleSize = 108;
-  final streamCount = withException ? 2 : 1;
+  const memoryInfoSize = 48;
+  final streamCount = (withException ? 2 : 1) + (memoryRegions.isEmpty ? 0 : 1);
   final directoryRva = headerSize;
   final exceptionRva = directoryRva + streamCount * 12;
   final moduleListRva = exceptionRva + (withException ? exceptionSize : 0);
@@ -31,8 +36,12 @@ Uint8List buildMinidump({
     nameRvas.add(namesRva);
     namesRva += 4 + module.path.length * 2;
   }
+  final memoryInfoRva = namesRva;
+  final end = memoryRegions.isEmpty
+      ? namesRva
+      : memoryInfoRva + 16 + memoryRegions.length * memoryInfoSize;
 
-  final data = ByteData(namesRva);
+  final data = ByteData(end);
   data.setUint32(0, 0x504d444d, Endian.little);
   data.setUint32(4, 0xa793, Endian.little);
   data.setUint32(8, streamCount, Endian.little);
@@ -67,6 +76,28 @@ Uint8List buildMinidump({
         path.codeUnitAt(j),
         Endian.little,
       );
+    }
+  }
+  if (memoryRegions.isNotEmpty) {
+    directoryEntry(
+      16,
+      16 + memoryRegions.length * memoryInfoSize,
+      memoryInfoRva,
+    );
+    data
+      ..setUint32(memoryInfoRva, 16, Endian.little)
+      ..setUint32(memoryInfoRva + 4, memoryInfoSize, Endian.little)
+      ..setUint64(memoryInfoRva + 8, memoryRegions.length, Endian.little);
+    for (var i = 0; i < memoryRegions.length; i++) {
+      final at = memoryInfoRva + 16 + i * memoryInfoSize;
+      final region = memoryRegions[i];
+      data
+        ..setUint64(at, region.base, Endian.little)
+        ..setUint64(at + 8, region.allocationBase, Endian.little)
+        ..setUint64(at + 24, region.size, Endian.little)
+        ..setUint32(at + 32, 0x1000, Endian.little)
+        ..setUint32(at + 36, region.protect, Endian.little)
+        ..setUint32(at + 40, region.type, Endian.little);
     }
   }
   return data.buffer.asUint8List();

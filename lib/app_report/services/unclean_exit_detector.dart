@@ -326,9 +326,17 @@ class UncleanExitDetector {
     return (found: found, newest: newest);
   }
 
-  /// מסד sentry-native יחסי לתיקיית העבודה, שבהתקנה היא תיקיית ה-exe.
+  /// מסד sentry-native בתיקיית הלוגים. ברירת המחדל שלו יחסית לתיקיית העבודה,
+  /// שב-Program Files אינה ניתנת לכתיבה — ואז קריסה נייטיבית לא נרשמת כלל.
+  static String sentryDatabasePath() =>
+      p.join(p.dirname(ErrorLogFile.resolvePath()), '.sentry-native');
+
+  /// [sentryDatabasePath], ואחריו המיקום של גרסאות שלא קבעו אותו.
   static List<String> defaultSentryDatabaseDirs() {
     final dirs = <String>{};
+    try {
+      dirs.add(sentryDatabasePath());
+    } catch (_) {}
     try {
       dirs.add(
         p.join(p.dirname(Platform.resolvedExecutable), '.sentry-native'),

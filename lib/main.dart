@@ -480,6 +480,7 @@ Future<void> _initializeSentry() async {
         );
         options.release =
             '${info.appName}@${canonicalAppVersion(info)}+${info.buildNumber}';
+        options.nativeDatabasePath = UncleanExitDetector.sentryDatabasePath();
         // Privacy: Do not collect IP addresses and request headers
         options.sendDefaultPii = false;
         // Sentry משמש לדיווח שגיאות בלבד; עסקאות ביצועים אינן נשלחות.
