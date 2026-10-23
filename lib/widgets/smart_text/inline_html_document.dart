@@ -61,6 +61,23 @@ class InlineRun {
   final int link;
   final InlineColorRole? colorRole;
   final InlineColorRole? decorationColorRole;
+
+  /// [style] עם צבעי ערכת הנושא של [colorRole]/[decorationColorRole].
+  TextStyle? resolvedStyle({
+    required Color linkColor,
+    required Color primaryColor,
+  }) {
+    if (colorRole == null && decorationColorRole == null) return style;
+    Color? colorOf(InlineColorRole? role) => switch (role) {
+      InlineColorRole.readerLink => linkColor,
+      InlineColorRole.primary => primaryColor,
+      null => null,
+    };
+    return (style ?? const TextStyle()).copyWith(
+      color: colorOf(colorRole),
+      decorationColor: colorOf(decorationColorRole),
+    );
+  }
 }
 
 /// קישור `<a href>`: [href] כפי שנכתב, [url] כפי ש-fwfh מעביר ללחיצה.

@@ -38,4 +38,36 @@ void main() {
       expect(build().toPlainText(), controller.text);
     }
   });
+
+  testWidgets('מדידת בניית העיצוב הראשונה מול רצף רווחים שהקורא מכווץ', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const SizedBox());
+    final context = tester.element(find.byType(SizedBox));
+    const style = TextStyle(fontSize: 20);
+    for (final length in [5000, 10000, 19000]) {
+      final inputs = {
+        'spaces': 'א${' ' * length}ב',
+        'plain': 'א${'ב' * length}ג',
+      };
+      for (final MapEntry(key: kind, value: raw) in inputs.entries) {
+        for (var sample = 1; sample <= 3; sample++) {
+          final controller = PluginCorrectionController(raw);
+          final watch = Stopwatch()..start();
+          final span = controller.buildTextSpan(
+            context: context,
+            style: style,
+            withComposing: false,
+          );
+          watch.stop();
+          expect(span.toPlainText(), controller.text);
+          controller.dispose();
+          debugPrint(
+            'CORRECTION_STYLE_BENCH kind=$kind length=$length sample=$sample '
+            'ms=${watch.elapsedMicroseconds / 1000}',
+          );
+        }
+      }
+    }
+  });
 }

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/view/plugin_correction_controller.dart';
+import 'package:otzaria/widgets/smart_text/inline_html_document.dart';
+import 'package:otzaria/widgets/smart_text/render_settings.dart';
+import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 
 TextStyle _styleAt(TextSpan span, int offset, [TextStyle? inherited]) {
   final style = (inherited ?? const TextStyle()).merge(span.style);
@@ -157,6 +161,147 @@ void main() {
       expect(_styleAt(span, span.toPlainText().length - 1), styled('גד'));
     });
   }
+
+  const readerCases = {
+    'צבע ב-style של b': '<b style="color: #ff0000">אב</b>',
+    'h2 רגיל': '<h2>אב</h2>',
+    'H2 באותיות גדולות': '<H2>אב</H2>',
+    'הערה לפני h2': '<!--הערה--><h2>אב</h2>',
+    'טקסט בלי צבע מפורש': 'אב',
+    'b בלי צבע מפורש': '<b>אב</b>',
+  };
+  for (final MapEntry(key: name, value: html) in readerCases.entries) {
+    testWidgets('העורך מציג כמו הקורא: $name', (tester) async {
+      const base = TextStyle(fontSize: 20, color: Color(0xFF203040));
+      final line = InlineHtmlDocument.parseLine(html, base)!;
+      final reader = line.style.merge(line.document.runs.first.style);
+      final controller = PluginCorrectionController(html);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(const SizedBox());
+      TextStyle editorAt(int offset) => _styleAt(
+        controller.buildTextSpan(
+          context: tester.element(find.byType(SizedBox)),
+          style: base,
+          withComposing: true,
+        ),
+        offset,
+        base,
+      );
+      void expectReader(TextStyle actual) {
+        expect(actual.color, reader.color);
+        expect(actual.fontSize, reader.fontSize);
+        expect(actual.fontWeight, reader.fontWeight);
+      }
+
+      expectReader(editorAt(0));
+      controller.value = const TextEditingValue(
+        text: 'אגב',
+        selection: TextSelection.collapsed(offset: 2),
+      );
+      expectReader(editorAt(1));
+      controller.value = controller.value.copyWith(
+        composing: const TextRange(start: 1, end: 2),
+      );
+      final composing = editorAt(1);
+      expectReader(composing);
+      expect(composing.decoration, TextDecoration.underline);
+    });
+  }
+
+  group('רצף רווחים שהקורא כיווץ', () {
+    const base = TextStyle(fontSize: 20, color: Color(0xFF203040));
+    const red = Color(0xFFFF0000);
+    final cases = <String, (String, List<Color>)>{
+      'באמצע, אותו סגנון משני הצדדים': (
+        '<b style="color:#ff0000">אב   גד</b>',
+        [red, red, red],
+      ),
+      'באמצע, סגנונות שונים': (
+        '<b style="color:#ff0000">אב</b>   <i>גד</i>',
+        [base.color!, base.color!, base.color!],
+      ),
+      'בתחילה': ('   <b style="color:#ff0000">אב</b>', [base.color!]),
+      'בסוף': ('<b style="color:#ff0000">אב</b>   ', [base.color!]),
+    };
+    for (final MapEntry(key: name, value: (html, colors)) in cases.entries) {
+      testWidgets(name, (tester) async {
+        final controller = PluginCorrectionController(html);
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(const SizedBox());
+        final span = controller.buildTextSpan(
+          context: tester.element(find.byType(SizedBox)),
+          style: base,
+          withComposing: false,
+        );
+        final text = controller.text;
+        final spaces = [
+          for (var i = 0; i < text.length; i++)
+            if (text[i] == ' ') i,
+        ];
+        expect(spaces, hasLength(3));
+        // הרווח הראשון ברצף מוצמד לרווח שהקורא מציג; השאר מכווצים.
+        final collapsed = name == 'בתחילה' ? spaces : spaces.skip(1);
+        for (final (index, offset) in collapsed.indexed) {
+          expect(
+            _styleAt(span, offset, base).color,
+            colors[index.clamp(0, colors.length - 1)],
+            reason: 'רווח $offset',
+          );
+        }
+        expect(_styleAt(span, text.indexOf('א'), base).color, red);
+      });
+    }
+  });
+
+  testWidgets('החלפת ערכת נושא עם אותו baseStyle אינה מחזירה צבע קישור ישן', (
+    tester,
+  ) async {
+    const html = '<a href="https://example.com">אב</a>';
+    const base = TextStyle(fontSize: 20);
+    const host = Key('host');
+    final controller = PluginCorrectionController(html);
+    addTearDown(controller.dispose);
+    Future<(Color?, Color?)> readerAndEditor(Color seed) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(colorSchemeSeed: seed),
+          home: Scaffold(
+            body: Column(
+              children: [
+                const SizedBox(key: host),
+                SmartTextWidget(text: html, settings: const RenderSettings()),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final reader = tester
+          .renderObjectList<RenderParagraph>(
+            find.descendant(
+              of: find.byType(SmartTextWidget),
+              matching: find.byType(RichText),
+            ),
+          )
+          .single
+          .text;
+      final editor = controller.buildTextSpan(
+        context: tester.element(find.byKey(host)),
+        style: base,
+        withComposing: false,
+      );
+      return (
+        _styleAt(reader as TextSpan, 0).color,
+        _styleAt(editor, 0, base).color,
+      );
+    }
+
+    final (blueReader, blueEditor) = await readerAndEditor(Colors.blue);
+    expect(blueEditor, blueReader);
+    final (greenReader, greenEditor) = await readerAndEditor(Colors.green);
+    expect(greenReader, isNot(blueReader));
+    expect(greenEditor, greenReader);
+  });
 
   testWidgets('תגיות באותיות גדולות, הערות ותג סגור אינם מדליפים סגנון', (
     tester,
