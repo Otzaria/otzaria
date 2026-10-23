@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart' hide Printer;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/plugins/services/plugin_print_service.dart';
 import 'package:otzaria/printing/print_work_status.dart';
 import 'package:otzaria/printing/safer_print_service.dart';
@@ -102,6 +104,45 @@ void main() {
     await platform.layouts.single(PdfPageFormat.a4);
     platform.jobs.single.complete(false);
     expect(await printing, isFalse);
+  });
+
+  test('עמוד אינסופי מהמדפסת מוחלף בגודל שהתבקש ונרשם ביומן (#3172)', () async {
+    final received = <PdfPageFormat>[];
+    final printing = printPdfWithSaferMode(
+      name: 'ספר',
+      format: PdfPageFormat.a5,
+      usePrinterSettings: true,
+      onLayout: (format) {
+        received.add(format);
+        return Uint8List.fromList([37, 80, 68, 70]);
+      },
+    );
+    // כך מגיע עמוד מ-DC ש-GetDeviceCaps שלו מחזיר 0 (חלוקה ב-dpi אפס).
+    await platform.layouts.single(
+      const PdfPageFormat(double.infinity, double.infinity),
+    );
+    await platform.layouts.single(PdfPageFormat.letter);
+    platform.jobs.single.complete(true);
+    expect(await printing, isTrue);
+
+    expect(received, [PdfPageFormat.a5, PdfPageFormat.letter]);
+    final log = File(ErrorLogFile.resolvePath()).readAsStringSync();
+    expect(log, contains('=== Printer page size'));
+    expect(log, contains('unusable page size'));
+  });
+
+  test('isUsablePageFormat: מידות סופיות וחיוביות ושוליים סופיים', () {
+    expect(isUsablePageFormat(PdfPageFormat.a4), isTrue);
+    expect(
+      isUsablePageFormat(const PdfPageFormat(double.infinity, 800)),
+      isFalse,
+    );
+    expect(
+      isUsablePageFormat(
+        const PdfPageFormat(500, 800, marginLeft: double.negativeInfinity),
+      ),
+      isFalse,
+    );
   });
 
   test('כשל בעבודה אחת אינו מסיר מעקב של עבודה מקבילה', () async {
