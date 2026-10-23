@@ -179,9 +179,9 @@ if (response.success) {
 | `search.fullText` | 0.9.89 |
 | `search.query` | 0.9.97 |
 | `search.getOptions` | 0.9.97 |
-| `search.setFieldText` | 0.9.99 |
-| `search.setFieldActionState` | 0.9.99 |
-| `search.endFieldSession` | 0.9.99 |
+| `search.setFieldText` | 0.9.98 |
+| `search.setFieldActionState` | 0.9.98 |
+| `search.endFieldSession` | 0.9.98 |
 | `reader.openBook` | 0.9.89 |
 | `reader.openBookAtRef` | 0.9.89 |
 | `reader.printRange` | 0.9.99 |
@@ -203,14 +203,14 @@ if (response.success) {
 | `reader.getHighlightCapabilities` | 0.9.97 |
 | `reader.findTextOccurrences` | 0.9.95 |
 | `reader.getSectionTextMap` | 0.9.95 |
-| `reader.beginCorrectionSession` | 0.9.99 |
-| `reader.getCorrectionSession` | 0.9.99 |
-| `reader.restoreCorrectionDraft` | 0.9.99 |
-| `reader.resetCorrection` | 0.9.99 |
-| `reader.endCorrectionSession` | 0.9.99 |
-| `reader.acknowledgeCorrectionDraft` | 0.9.99 |
-| `reader.listCorrectionDrafts` | 0.9.99 |
-| `reader.getCorrectionDraft` | 0.9.99 |
+| `reader.beginCorrectionSession` | 0.9.98 |
+| `reader.getCorrectionSession` | 0.9.98 |
+| `reader.restoreCorrectionDraft` | 0.9.98 |
+| `reader.resetCorrection` | 0.9.98 |
+| `reader.endCorrectionSession` | 0.9.98 |
+| `reader.acknowledgeCorrectionDraft` | 0.9.98 |
+| `reader.listCorrectionDrafts` | 0.9.98 |
+| `reader.getCorrectionDraft` | 0.9.98 |
 | `reader.registerInBookSearchProvider` | 0.9.97 |
 | `reader.respondInBookSearch` | 0.9.97 |
 | `reader.registerExternalSearchProvider` | 0.9.97 |
@@ -276,7 +276,7 @@ if (response.success) {
 | `fs.revokeFolder` | 0.9.98 |
 | `feedback.sendEmail` | 0.9.89 |
 | `feedback.report` | 0.9.97 |
-| `feedback.submitBookCorrection` | 0.9.99 |
+| `feedback.submitBookCorrection` | 0.9.98 |
 | `feedback.hasReporterEmail` | 0.9.97 |
 | `history.list` | 0.9.89 |
 | `history.listSearches` | 0.9.89 |
@@ -1662,7 +1662,7 @@ const { data } = await Otzaria.call('search.getOptions', {});
 > נבלע (מקורב, טווח פסקה/כותרת, התאמה חלקית, מרווח ידני).
 
 ### `search.setFieldText`
-**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
+**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.98
 
 כותב טקסט לשדה חיפוש בתוך סשן שהמשתמש פתח בלחיצה על כפתור התוסף בשדה
 (ראו [כפתורים בשדות החיפוש](#כפתורים-בשדות-החיפוש-searchfieldactions)).
@@ -1685,7 +1685,7 @@ await Otzaria.call('search.setFieldText', { sessionId, text: 'ברכות דף ב
 - סשן שאינו קיים, שהסתיים, או של תוסף אחר: `error.not_found`.
 
 ### `search.setFieldActionState`
-**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
+**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.98
 
 משנה את מראה הכפתור בזמן הסשן.
 
@@ -1702,7 +1702,7 @@ await Otzaria.call('search.setFieldActionState', {
 - `tooltip` (לא חובה, עד 120 תווים בשורה אחת) מחליף את הכותרת בזמן הסשן.
 
 ### `search.endFieldSession`
-**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
+**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.98
 
 ```javascript
 await Otzaria.call('search.endFieldSession', { sessionId, submit: true });
@@ -2291,7 +2291,7 @@ if (data.hasMore) {
 
 ### `reader.beginCorrectionSession`
 
-**גרסת מינימום:** `0.9.99`. **הרשאה:** `reader.local_edit` לכל פעולות הסשן.
+**גרסת מינימום:** `0.9.98`. **הרשאה:** `reader.local_edit` לכל פעולות הסשן.
 קבלת `tabId` דרך `reader.getCurrentState` דורשת גם `reader.open`.
 
 פותחת שכבת תיקונים זמנית בלשונית טקסט רשמית ממסד הספרייה, עם מפרשים בצד או מתחת.
@@ -2307,7 +2307,7 @@ const { data: session } = await Otzaria.call('reader.beginCorrectionSession', {
 });
 ```
 
-מ־`0.9.99`, `getCurrentState` מחזירה `currentTabId` ו־`openTabs[].tabId`:
+מ־`0.9.98`, `getCurrentState` מחזירה `currentTabId` ו־`openTabs[].tabId`:
 מזהה יציב למשך חיי לשונית הטקסט, ו־`null` עבור לשוניות אחרות. המזהה אינו נשמר
 בין הפעלות. מעבר ללשונית אחרת אינו משנה את יעד הסשן. לכל לשונית בעלים יחיד;
 פתיחה חוזרת של אותו תוסף באותה לשונית מחזירה את הסשן הקיים (עם `recovery: null`).
@@ -2466,7 +2466,7 @@ false (ו־`pending` או `error` מסבירים למה), ו־`version` הוא `
 
 ### Event: `reader.correctionSessionChanged`
 
-אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.99`.
+אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.98`.
 כולל `{ sessionId, revision, sectionIndices }`; מבקש מהתוסף למשוך snapshot,
 ואינו מחליף קריאת מצב מלא. האירוע מוגבל בקצב (לא debounce): לכל היותר אחד לכל
 חלון של 300ms לסשן, גם בהקלדה רצופה. `sectionIndices` הוא רשימה ממוינת וללא כפילויות
@@ -2476,7 +2476,7 @@ false (ו־`pending` או `error` מסבירים למה), ו־`version` הוא `
 
 ### Event: `reader.correctionSessionEnded`
 
-אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.99`.
+אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.98`.
 כולל `{ sessionId, reason, snapshot }`. הסיבות:
 
 | `reason` | מתי |
@@ -2580,7 +2580,7 @@ false (ו־`pending` או `error` מסבירים למה), ו־`version` הוא `
 
 ### `reader.acknowledgeCorrectionDraft`
 
-**גרסת מינימום:** `0.9.99`. **הרשאה:** `reader.local_edit`. מקבלת
+**גרסת מינימום:** `0.9.98`. **הרשאה:** `reader.local_edit`. מקבלת
 `{ draftId: string, version: int }`; מפתחות אחרים נדחים ב־`error.invalid_params`.
 אינה דורשת סשן או לשונית פתוחים, ופועלת גם אחרי סיום הסשן.
 
@@ -2611,7 +2611,7 @@ if (ended.draft.persisted) {
 
 ### `reader.listCorrectionDrafts`
 
-**גרסת מינימום:** `0.9.99`. **הרשאה:** `reader.local_edit`. מקבלת `{}` ומחזירה
+**גרסת מינימום:** `0.9.98`. **הרשאה:** `reader.local_edit`. מקבלת `{}` ומחזירה
 `{ drafts }` — הטיוטות של התוסף הקורא שיש בהן תוכן או התנגשויות שלא אושרו, מהחדשה
 לישנה, ללא התוכן עצמו:
 
@@ -2638,7 +2638,7 @@ if (ended.draft.persisted) {
 
 ### `reader.getCorrectionDraft`
 
-**גרסת מינימום:** `0.9.99`. **הרשאה:** `reader.local_edit`. מקבלת `{ draftId }`
+**גרסת מינימום:** `0.9.98`. **הרשאה:** `reader.local_edit`. מקבלת `{ draftId }`
 ומחזירה את אותם שדות מטא־דאטה, ובמקום המונים את `changes` ו־`conflicts` המלאים.
 `version` היא הגרסה לאישור. טיוטה שאושרה, שאין בה תוכן או שאינה של התוסף מחזירה
 `error.not_found`.
@@ -3916,7 +3916,7 @@ const { data } = await Otzaria.call('feedback.report', {
 
 מגיש דיווח שגיאה בספר דרך `DirectErrorReportService` של אוצריא, באותו חוזה v2, תור והיסטוריית דיווחים של התוכנה. אינו משנה את טקסט הספר. דורש הרשאת `feedback.send_email`, המוצהרת במניפסט ומאושרת בידי המשתמש, וכתובת מייל שמורה בהגדרות אוצריא; אינו מקבל כתובת מהתוסף.
 
-גרסת המינימום של ה־API היא `0.9.99`. הוא זמין בבנייה הכוללת את ההרחבה; הוא אינו קיים במהדורת 0.9.98 הרשמית המקורית. בגרסה רשמית ללא התוספת מתקבלת שיטת API לא מוכרת.
+גרסת המינימום של ה־API היא `0.9.98`. הוא אינו קיים במהדורת `0.9.98+801`, ושם מתקבלת שיטת API לא מוכרת.
 
 ```js
 const result = await Otzaria.call('feedback.submitBookCorrection', {
@@ -4996,7 +4996,7 @@ Otzaria.on('event.name', (data) => {
 - `workspace.changed` - שינוי סביבת העבודה (הרשאה: `events.subscribe:workspace.changed`)
 - `settings.changed` - שינוי הגדרה (הרשאה: `events.subscribe:settings.changed`)
 - `plugin.permissions_changed` - שינוי הרשאות (מחזיר `{ permissions: string[] }` - רשימת כל ההרשאות המאושרות) (הרשאה: `events.subscribe:plugin.permissions_changed`)
-- `search.fieldAction.invoked` / `search.fieldAction.stopRequested` / `search.fieldAction.ended` - סשן של כפתור התוסף בשדה חיפוש. נשלחים רק לתוסף הבעלים, ללא הרשאת subscribe (מגרסה 0.9.99; ראו [כפתורים בשדות החיפוש](#כפתורים-בשדות-החיפוש-searchfieldactions))
+- `search.fieldAction.invoked` / `search.fieldAction.stopRequested` / `search.fieldAction.ended` - סשן של כפתור התוסף בשדה חיפוש. נשלחים רק לתוסף הבעלים, ללא הרשאת subscribe (מגרסה 0.9.98; ראו [כפתורים בשדות החיפוש](#כפתורים-בשדות-החיפוש-searchfieldactions))
 
 ### הבדלים חשובים בין אירועי הקורא:
 
@@ -5440,14 +5440,14 @@ async function scheduleReminder(title, body, dateTime) {
   4096 תווים) ואינו `null`. מפתח שתנאי `when` קורא מתעדכן מיד — כך לחיצה
   יכולה להציג/להסתיר פקדים באופן מיידי (פלטי תכניות, לעומת זאת, מחושבים
   מחדש רק בהחלפת ספר).
-- מ־`minAppVersion: 0.9.99`, כפתור יכול להצהיר `openPlugin: true` במקום `action`.
+- מ־`minAppVersion: 0.9.98`, כפתור יכול להצהיר `openPlugin: true` במקום `action`.
   הוא מוצג לפי `binding`,
   כמו כל פקד קשור, ולחיצה עליו פותחת את דף התוסף ומוסרת לו
   `reader.toolbar_item_clicked` עם המיקום הנוכחי (`currentBook`,
   `currentIndex`) — כמו בכפתור רגיל עם `openPlugin`. כך, למשל, כפתור שמוצג רק
   בספרים מסוימים ופותח את התוסף במקום שבו הלומד נמצא. `openPlugin` סותר את
   `action`, ומותר רק ב־`"type": "button"`. עצם הצהרת השדה בפקד קשור, גם כ־`false`,
-  דורשת גרסה 0.9.99 לפחות; `openPlugin` בפקד רגיל נשאר נתמך מגרסה 0.9.96.
+  דורשת גרסה 0.9.98 לפחות; `openPlugin` בפקד רגיל נשאר נתמך מגרסה 0.9.96.
 - תפריט משתמש ב־`childrenBinding.itemsOutput` וב־`itemTemplate`; בתוך התבנית
   זמינה ההפניה `$item`.
 - לחצן מפוצל (`"type": "split"`) מצהיר על שניהם: `action` לפעולה הראשית
@@ -5550,7 +5550,7 @@ async function scheduleReminder(title, body, dateTime) {
 
 ### כפתורים בשדות החיפוש (searchFieldActions)
 
-מגרסה 0.9.99, `startup.searchFieldActions` מוסיף כפתור לתוך שדות החיפוש של
+מגרסה 0.9.98, `startup.searchFieldActions` מוסיף כפתור לתוך שדות החיפוש של
 אוצריא. התוסף יכול לכתוב טקסט לשדה, אבל רק אחרי שהמשתמש לחץ על הכפתור.
 השימוש העיקרי הוא הקלדה בדיבור: מנוע הזיהוי רץ מחוץ לאוצריא, והתוסף מעביר
 לשדה את מה שזוהה. אותו מנגנון מתאים גם לתעתיק, למקלדת וירטואלית ועוד.
@@ -5561,7 +5561,7 @@ async function scheduleReminder(title, body, dateTime) {
 
 ```json
 {
-  "minAppVersion": "0.9.99",
+  "minAppVersion": "0.9.98",
   "headless": true,
   "permissions": [
     "app.startup_contributions",
@@ -5634,7 +5634,7 @@ Otzaria.on('search.fieldAction.ended', ({ sessionId, reason }) => { /* ניקו�
 המשתמש בשדה סוגרת את הסשן מיד, כך שהתוסף אינו יכול לדרוס את מה שהמשתמש הקליד.
 
 **זיהוי תמיכה.** בגרסה ללא התכונה הכפתור לא יוצג, ו-`search.setFieldText` מחזיר
-`error.unknown_method`. מומלץ להצהיר `minAppVersion: "0.9.99"`.
+`error.unknown_method`. מומלץ להצהיר `minAppVersion: "0.9.98"`.
 
 ### מהדורות מקבילות חיצוניות (externalEditions)
 

@@ -167,7 +167,7 @@ my-plugin/
 | `contributes.startup` | `null` | פקדים, פריטי תפריט ונתונים שאוצריא טוענת ישירות מהמניפסט בלי להפעיל WebView. |
 | `contributes.startup.programs` | `[]` | תכניות חישוב Host מוולדות, ללא JavaScript; ראו `API_REFERENCE.md` §תכניות Host ללא WebView. |
 | `contributes.startup.searchDialogItems` | `[]` | שורות checkbox סטטיות; `openPluginOnSubmit` יכול לנתב את אישור החיפוש לתוסף. |
-| `contributes.startup.searchFieldActions` | `[]` | כפתורים בתוך שדות החיפוש (מגרסה 0.9.99). לחיצה פותחת סשן שבו התוסף כותב לשדה דרך `search.setFieldText`. |
+| `contributes.startup.searchFieldActions` | `[]` | כפתורים בתוך שדות החיפוש (מגרסה 0.9.98). לחיצה פותחת סשן שבו התוסף כותב לשדה דרך `search.setFieldText`. |
 | `contributes.startup.externalEditions` | `[]` | קונפיגורציית מהדורות מקבילות של ספק חיצוני (טבלת מיפוי במקור DB מוכרז); ראו `API_REFERENCE.md` §מהדורות מקבילות חיצוניות. |
 | `contributes.startup.libraryBooks` | `[]` | ספק ספרים שמצטרף לאיתור הספרים במסך הספרייה. לחיצה על ספריו נמסרת לתוסף, או מבצעת `openAction` בלי להעיר את המנוע. מגרסה 0.9.98; ראו `API_REFERENCE.md` §ספרים בחיפוש הספרייה. |
 | `contributes.startup.activationEvents` | `[]` | אירועים שמעירים את מנוע הרקע בעצלנות; כל נושא דורש גם הרשאת subscribe מתאימה. |
@@ -655,7 +655,7 @@ const { data: keys } = await Otzaria.call('storage.list');
 | `library.books.provide` | הוספת ספרים מהתוסף לאיתור הספרים במסך הספרייה (`contributes.startup.libraryBooks`); לחיצה על ספר כזה נמסרת לתוסף |
 | `search.fulltext.read` | חיפוש טקסט מלא |
 | `reader.open` | פתיחת ספרים + קריאת מצב הקורא |
-| `reader.local_edit` | שכבת תיקונים זמנית בקורא הטקסט הרשמי, ללא כתיבה למקור; מ־0.9.99 |
+| `reader.local_edit` | שכבת תיקונים זמנית בקורא הטקסט הרשמי, ללא כתיבה למקור; מ־0.9.98 |
 | `navigation.write` | ניווט בין מסכים |
 | `plugin.open_other` | פתיחת דף של תוסף אחר המותקן אצל המשתמש (`plugin.openOther`), כולל הפעלת הקוד שלו |
 | `notes.read` | קריאת הערות אישיות |

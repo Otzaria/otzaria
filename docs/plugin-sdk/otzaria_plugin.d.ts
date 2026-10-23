@@ -861,7 +861,7 @@ export interface CityInfo {
   inIsrael: boolean;
 }
 
-/** Since 0.9.99. Raw HTML source is retained; editable text uses the host's stripHtml. */
+/** Since 0.9.98. Raw HTML source is retained; editable text uses the host's stripHtml. */
 export interface CorrectionChange {
   sectionIndex: number;
   originalSourceText: string;
@@ -1000,9 +1000,9 @@ export interface CorrectionSessionEndedEvent {
 }
 
 export interface ReaderState {
-  /** Since 0.9.99: text-tab identity, stable until closure; never persisted. */
+  /** Since 0.9.98: text-tab identity, stable until closure; never persisted. */
   currentTabId: string | null;
-  /** Since 0.9.99: existing session owned by the caller; never creates a session. */
+  /** Since 0.9.98: existing session owned by the caller; never creates a session. */
   currentCorrectionSessionId: string | null;
   currentBook: string | null;
   currentBookId: string | null;
@@ -1015,7 +1015,7 @@ export interface ReaderState {
   currentIndex: number;
   currentRef: string | null;
   openTabs: Array<{
-    /** Since 0.9.99: text-tab identity; null for other tabs. */
+    /** Since 0.9.98: text-tab identity; null for other tabs. */
     tabId: string | null;
     /** Existing correction session owned by the caller; null for other owners or tabs. */
     correctionSessionId: string | null;

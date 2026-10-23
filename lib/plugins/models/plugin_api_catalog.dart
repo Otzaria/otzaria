@@ -191,17 +191,17 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
   'search.getOptions': PluginApiMethod('search.fulltext.read', '0.9.97'),
   'search.setFieldText': PluginApiMethod(
     'search.field_actions',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'search.setFieldActionState': PluginApiMethod(
     'search.field_actions',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'search.endFieldSession': PluginApiMethod(
     'search.field_actions',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.openBook': PluginApiMethod('reader.open', '0.9.89'),
@@ -282,42 +282,42 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
   ),
   'reader.beginCorrectionSession': PluginApiMethod(
     'reader.local_edit',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.getCorrectionSession': PluginApiMethod(
     'reader.local_edit',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.restoreCorrectionDraft': PluginApiMethod(
     'reader.local_edit',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.resetCorrection': PluginApiMethod(
     'reader.local_edit',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.endCorrectionSession': PluginApiMethod(
     'reader.local_edit',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.acknowledgeCorrectionDraft': PluginApiMethod(
     'reader.local_edit',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.listCorrectionDrafts': PluginApiMethod(
     'reader.local_edit',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.getCorrectionDraft': PluginApiMethod(
     'reader.local_edit',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.registerInBookSearchProvider': PluginApiMethod(
@@ -452,7 +452,7 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
   ),
   'feedback.submitBookCorrection': PluginApiMethod(
     'feedback.send_email',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'feedback.report': PluginApiMethod(null, '0.9.97'),
