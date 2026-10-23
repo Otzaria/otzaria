@@ -373,8 +373,14 @@ class ReaderParagraphRun extends StatelessWidget {
     final hasSearch = specs.any((spec) => spec.settings.searchText.isNotEmpty);
     return ListenableBuilder(
       listenable: Listenable.merge([
-        PluginHighlightRegistry.instance,
-        PluginHighlightRevealService.instance,
+        // ערוץ לכל קטע: מאזין לרישום הגלובלי בכל פסקה הופך פירוק לריבועי (#3145).
+        if (lineContext.isMainText)
+          for (final spec in specs)
+            PluginHighlightRegistry.instance.sectionListenable(
+              bookId: lineContext.state.book.title,
+              sectionIndex: spec.lineIndex,
+              bookUid: PluginBookIdentity.uidOf(lineContext.state.book),
+            ),
         if (hasSearch) utils.highlightPatternRevision,
       ]),
       builder: (context, _) => ContinuousReadingParagraph(

@@ -7,6 +7,7 @@ import 'package:otzaria/attached_libraries/repository/attached_library_registry.
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/utils/many_listener_value_notifier.dart';
 import 'package:otzaria/search/models/search_match_policy.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
@@ -631,7 +632,9 @@ final LinkedHashMap<String, _CompiledHighlightPattern> _primedHighlightCache =
 const int _maxPrimedHighlightEntries = 8;
 final Set<String> _primedHighlightInFlight = <String>{};
 
-final ValueNotifier<int> _highlightPatternRevision = ValueNotifier<int>(0);
+// כל שורה עם חיפוש מאזינה לזה; ראו [ManyListenerValueNotifier].
+final ManyListenerValueNotifier<int> _highlightPatternRevision =
+    ManyListenerValueNotifier<int>(0);
 
 /// מתעדכן כשתבנית הדגשה מבוססת-אינדקס חדשה נכנסת למטמון. הרינדור שכבר צויר
 /// עם ה-fallback (צורת-השאילתה בלבד) מאזין לזה ומתרנדר מחדש עם התבנית
