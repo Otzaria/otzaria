@@ -9,6 +9,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
+import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_installer_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -738,6 +739,135 @@ void main() {
             'new plugin must inherit max+1 so it lands AFTER the '
             'manually-ordered block, not before it',
       );
+    });
+
+    group('יכולות שנכללות ב-0.9.98 (#3110)', () {
+      setUp(() {
+        PackageInfo.setMockInitialValues(
+          appName: 'Otzaria',
+          packageName: 'com.otzaria.app',
+          version: '0.9.98',
+          buildNumber: '99800',
+          buildSignature: '',
+        );
+      });
+      tearDown(() {
+        PackageInfo.setMockInitialValues(
+          appName: 'Otzaria',
+          packageName: 'com.otzaria.app',
+          version: '1.0.0',
+          buildNumber: '1',
+          buildSignature: '',
+        );
+      });
+
+      String writeCorrectionsPlugin(String minAppVersion) {
+        final archive = Archive()
+          ..addFile(
+            ArchiveFile.string(
+              'manifest.json',
+              jsonEncode({
+                'schemaVersion': 1,
+                'id': 'test.book.corrections',
+                'version': '1.0.0',
+                'name': 'תיקוני ספרים',
+                'entrypoint': 'index.html',
+                'minAppVersion': minAppVersion,
+                'permissions': [
+                  'app.startup_contributions',
+                  'app.run_on_startup',
+                  'search.field_actions',
+                  'reader.local_edit',
+                  'feedback.send_email',
+                ],
+                'contributes': {
+                  'startup': {
+                    'searchFieldActions': [
+                      {
+                        'id': 'correct',
+                        'title': 'תיקון',
+                        'icon': 'edit_24_regular',
+                        'fields': ['library', 'inBook'],
+                      },
+                    ],
+                  },
+                },
+              }),
+            ),
+          )
+          ..addFile(
+            ArchiveFile.string(
+              'index.html',
+              '<!doctype html><html lang="he" dir="rtl"><script>'
+                  "Otzaria.call('search.setFieldText', {sessionId: 's'});"
+                  "Otzaria.call('reader.beginCorrectionSession', {});"
+                  "Otzaria.call('feedback.submitBookCorrection', {});"
+                  '</script></html>',
+            ),
+          );
+        final archivePath = p.join(tempDir.path, 'corrections.zip');
+        File(archivePath).writeAsBytesSync(ZipEncoder().encode(archive));
+        return archivePath;
+      }
+
+      test('תוסף עם searchFieldActions ו-minAppVersion 0.9.98 מותקן', () async {
+        final prepared = await installer.prepareInstall(
+          writeCorrectionsPlugin('0.9.98'),
+        );
+        final grants = {
+          for (final permission in effectiveManifestPermissions(
+            prepared.manifest.permissions,
+          ))
+            permission: true,
+        };
+
+        await installer.finalizeInstall(
+          prepared.tempDirPath,
+          prepared.manifest,
+          grantedPermissions: grants,
+        );
+
+        final saved = repository.savedPlugins.single;
+        expect(saved.pluginId, 'test.book.corrections');
+        expect(saved.manifest.minAppVersion, '0.9.98');
+        expect(saved.manifest.startup!.searchFieldActions, hasLength(1));
+        expect(
+          File(p.join(saved.installPath, 'index.html')).existsSync(),
+          isTrue,
+        );
+        expect(
+          repository.permissions['test.book.corrections|search.field_actions'],
+          isTrue,
+        );
+        expect(Directory(prepared.tempDirPath).existsSync(), isFalse);
+      });
+
+      test('תוסף שדורש גרסה עתידית נדחה על 0.9.98', () async {
+        await expectLater(
+          installer.prepareInstall(writeCorrectionsPlugin('0.9.99')),
+          throwsA(
+            predicate(
+              (error) => error.toString().contains(
+                'התוסף דורש אוצריא בגרסה 0.9.99 לפחות, אך מותקנת 0.9.98',
+              ),
+            ),
+          ),
+        );
+        expect(repository.savedPlugins, isEmpty);
+      });
+
+      test('minAppVersion נמוך מסף התמיכה עדיין נדחה', () async {
+        await expectLater(
+          installer.prepareInstall(writeCorrectionsPlugin('0.9.97')),
+          throwsA(
+            predicate(
+              (error) => error.toString().contains(
+                'searchFieldActions נתמך החל מגרסה 0.9.98',
+              ),
+            ),
+          ),
+        );
+      });
     });
   });
 }

@@ -188,7 +188,7 @@ void main() {
         'app.run_on_startup',
         'search.field_actions',
       ],
-      String minAppVersion = '0.9.99',
+      String minAppVersion = '0.9.98',
       List<Map<String, dynamic>>? items,
     }) => _manifest(
       permissions: permissions,
@@ -231,11 +231,16 @@ void main() {
     });
 
     test('minAppVersion ישן מדי — שגיאה חוסמת', () {
-      final report = _run(tempDir, actionsManifest(minAppVersion: '0.9.98'));
+      final report = _run(tempDir, actionsManifest(minAppVersion: '0.9.97'));
       expect(
         report.errors,
-        contains(contains('searchFieldActions נתמך החל מגרסה 0.9.99')),
+        contains(contains('searchFieldActions נתמך החל מגרסה 0.9.98')),
       );
+    });
+
+    test('minAppVersion 0.9.98 מספיק (#3110)', () {
+      final report = _run(tempDir, actionsManifest(minAppVersion: '0.9.98'));
+      expect(report.errors, isEmpty);
     });
 
     test('יותר מ-2 כפתורים, מזהה כפול ופריט פגום — שגיאות', () {
@@ -273,25 +278,64 @@ void main() {
       expect(report.warnings, contains(contains('no_such_icon')));
     });
 
-    test('קריאה ל-search.setFieldText מחייבת minAppVersion 0.9.99', () {
-      final dir = Directory(p.join(tempDir.path, 'plugin'))..createSync();
-      final json = actionsManifest(minAppVersion: '0.9.98', items: const []);
+    List<String> methodVersionErrors(String method, String minAppVersion) {
+      final dir = Directory(p.join(tempDir.path, 'plugin'))
+        ..createSync(recursive: true);
+      final json = actionsManifest(
+        minAppVersion: minAppVersion,
+        permissions: const [
+          'search.field_actions',
+          'reader.local_edit',
+          'reader.open',
+          'feedback.send_email',
+          'library.books.read',
+          'network.access',
+        ],
+        items: const [],
+      );
       (json['contributes'] as Map).remove('startup');
       File(p.join(dir.path, 'manifest.json')).writeAsStringSync(
         jsonEncode(json),
       );
       File(p.join(dir.path, 'index.html')).writeAsStringSync(
         '<!doctype html><html lang="he" dir="rtl"><script>'
-        "Otzaria.call('search.setFieldText', {sessionId: 's', text: 'x'});"
+        "Otzaria.call('$method', {});"
         '</script><style>body { color: var(--color-text); }</style></html>',
       );
-      final report = PluginExtendedValidator.validate(
+      return PluginExtendedValidator.validate(
         manifest: PluginManifest.fromJson(json),
         manifestJson: json,
         directoryPath: dir.path,
-      );
-      expect(report.errors, contains(contains('search.setFieldText')));
-    });
+      ).errors.where((error) => error.contains(method)).toList();
+    }
+
+    for (final method in const [
+      'search.setFieldText',
+      'search.setFieldActionState',
+      'search.endFieldSession',
+      'reader.beginCorrectionSession',
+      'reader.getCorrectionSession',
+      'reader.restoreCorrectionDraft',
+      'reader.resetCorrection',
+      'reader.endCorrectionSession',
+      'reader.acknowledgeCorrectionDraft',
+      'reader.listCorrectionDrafts',
+      'reader.getCorrectionDraft',
+      'feedback.submitBookCorrection',
+      'reader.printRange',
+      'network.fetchFile',
+      'library.getBookProtections',
+      'plugin.setRestoreState',
+      'ui.printFile',
+    ]) {
+      test('קריאה ל-$method זמינה מ-0.9.98 ונחסמת לפניה (#3110)', () {
+        expect(methodVersionErrors(method, '0.9.98'), isEmpty);
+        expect(
+          methodVersionErrors(method, '0.9.97'),
+          contains(contains('החל מגרסה 0.9.98')),
+        );
+      });
+    }
   });
 
   group('libraryBooks', () {
@@ -1240,7 +1284,7 @@ void main() {
     }
 
     for (final openPlugin in [true, false]) {
-      for (final version in ['0.9.96', '0.9.98', '0.9.99']) {
+      for (final version in ['0.9.96', '0.9.97', '0.9.98']) {
         test('$openPlugin בגרסה $version: ולידציה ואריזה', () async {
           final report = _run(tempDir, manifest(openPlugin, version));
           final output = File(p.join(tempDir.path, 'plugin.otzplugin'));
@@ -1248,7 +1292,7 @@ void main() {
             directoryPath: p.join(tempDir.path, 'plugin'),
             outputPath: output.path,
           );
-          if (version == '0.9.99') {
+          if (version == '0.9.98') {
             expect(report.errors, isEmpty);
             expect((await packaging).validation.errors, isEmpty);
             expect(output.existsSync(), isTrue);
@@ -1259,13 +1303,13 @@ void main() {
                 isA<PluginPackagerException>().having(
                   (error) => error.message,
                   'message',
-                  allOf(contains('openPlugin'), contains('0.9.99')),
+                  allOf(contains('openPlugin'), contains('0.9.98')),
                 ),
               ),
             );
             expect(
               report.errors,
-              contains(allOf(contains('openPlugin'), contains('0.9.99'))),
+              contains(allOf(contains('openPlugin'), contains('0.9.98'))),
             );
             expect(output.existsSync(), isFalse);
           }
@@ -1295,7 +1339,7 @@ void main() {
     });
 
     test('openPlugin קשור עדיין נחסם בתוסף ללא ממשק', () {
-      final json = manifest(true, '0.9.99')..['headless'] = true;
+      final json = manifest(true, '0.9.98')..['headless'] = true;
       json['permissions'] = [
         ...json['permissions'] as List,
         'app.run_on_startup',

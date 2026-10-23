@@ -78,7 +78,7 @@ InstalledPlugin _plugin(String id) => InstalledPlugin(
     author: '',
     homepage: '',
     entrypoint: 'index.html',
-    minAppVersion: '0.9.99',
+    minAppVersion: '0.9.98',
     sdkVersion: '1.x',
     permissions: const ['search.field_actions'],
     networkEnabled: false,

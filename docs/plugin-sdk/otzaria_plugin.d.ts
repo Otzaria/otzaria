@@ -154,11 +154,11 @@ export interface BootPayload {
    *  crash, update) — then `state` may be `null`. For a tab restored from a
    *  previous session or a workspace, present only if a state was saved.
    *  Absent on a fresh open. `state` is the last value passed to
-   *  `plugin.setRestoreState`. Since 0.9.99. */
+   *  `plugin.setRestoreState`. Since 0.9.98. */
   restore?: PluginRestorePayload;
 }
 
-/** The `restore` field of `plugin.boot`. Since 0.9.99. */
+/** The `restore` field of `plugin.boot`. Since 0.9.98. */
 export interface PluginRestorePayload {
   reason: 'discarded' | 'crashed' | 'reloaded' | 'session';
   state: unknown | null;
@@ -354,7 +354,7 @@ export interface SearchQueryParams {
   wordMatchMode?: SearchWordMatchMode;
   /** חוקי רק ב-advanced יחד עם wordMatchMode: 'atLeast'. */
   wordMatchCount?: number;
-  /** מגרסה 0.9.99. אותו מרווח כמו לפי הסדר, אבל המילים בכל סדר; נדחה ב-fuzzy,
+  /** מגרסה 0.9.98. אותו מרווח כמו לפי הסדר, אבל המילים בכל סדר; נדחה ב-fuzzy,
    *  בטווח שאינו wordDistance, בהתאמה שאינה all ועם customSpacing. */
   anyOrder?: boolean;
   /** אפשרויות מילה שחלות על כל מילות השאילתה. */
@@ -476,7 +476,7 @@ export interface OpenSearchTabSettings {
   wordMatchMode?: SearchWordMatchMode;
   /** חוקי רק עם mode: 'advanced' ו-wordMatchMode: 'atLeast'. */
   wordMatchCount?: number;
-  /** מגרסה 0.9.99. אותו מרווח, אבל המילים בכל סדר; כללים כמו ב-search.query. */
+  /** מגרסה 0.9.98. אותו מרווח, אבל המילים בכל סדר; כללים כמו ב-search.query. */
   anyOrder?: boolean;
   /** אפשרויות מילה שחלות על כל מילות השאילתה (למשל 'קידומות דקדוקיות'). */
   options?: Record<string, boolean>;
@@ -676,7 +676,7 @@ export interface HighlightCapabilities {
   /** בחירת טקסט אינה נתמכת ב-PDF. */
   selection: boolean;
   /** האזורים שבמשטח הנוכחי שבהם פריטי תפריט הקשר של תוספים מוצגים:
-   * `mainText` בספר טקסט, ומ־0.9.99 גם `commentary`, ו־`pdf` בספר PDF. */
+   * `mainText` בספר טקסט, ומ־0.9.98 גם `commentary`, ו־`pdf` בספר PDF. */
   contextMenu: Array<'mainText' | 'commentary' | 'pdf'>;
 }
 
@@ -861,7 +861,7 @@ export interface CityInfo {
   inIsrael: boolean;
 }
 
-/** Since 0.9.99. Raw HTML source is retained; editable text uses the host's stripHtml. */
+/** Since 0.9.98. Raw HTML source is retained; editable text uses the host's stripHtml. */
 export interface CorrectionChange {
   sectionIndex: number;
   originalSourceText: string;
@@ -1000,9 +1000,9 @@ export interface CorrectionSessionEndedEvent {
 }
 
 export interface ReaderState {
-  /** Since 0.9.99: text-tab identity, stable until closure; never persisted. */
+  /** Since 0.9.98: text-tab identity, stable until closure; never persisted. */
   currentTabId: string | null;
-  /** Since 0.9.99: existing session owned by the caller; never creates a session. */
+  /** Since 0.9.98: existing session owned by the caller; never creates a session. */
   currentCorrectionSessionId: string | null;
   currentBook: string | null;
   currentBookId: string | null;
@@ -1015,7 +1015,7 @@ export interface ReaderState {
   currentIndex: number;
   currentRef: string | null;
   openTabs: Array<{
-    /** Since 0.9.99: text-tab identity; null for other tabs. */
+    /** Since 0.9.98: text-tab identity; null for other tabs. */
     tabId: string | null;
     /** Existing correction session owned by the caller; null for other owners or tabs. */
     correctionSessionId: string | null;
@@ -1065,7 +1065,7 @@ export interface ReaderSelection {
   selectionId?: string;
   bookId?: string;
   bookTitle?: string;
-  /** Since 0.9.99: exact tab identity in reader-book; absent in detached previews. */
+  /** Since 0.9.98: exact tab identity in reader-book; absent in detached previews. */
   tabId?: string;
   sectionIndex?: number;
   sectionId?: string;
@@ -1084,11 +1084,11 @@ export interface ReaderSelection {
    * click position. Act only on your own ids. From 0.9.97. */
   clickedHighlights?: ClickedHighlightRef[];
   /** `reader-commentary*` contexts only: the book being read, while the
-   * top-level fields describe the commentary. From 0.9.99. */
+   * top-level fields describe the commentary. From 0.9.98. */
   mainBook?: CommentaryMainBook;
   /** `reader-pdf*` contexts only (a PDF page, not its commentary pane): the
    * 1-based page that was clicked, or where the selection starts; also given
-   * as `sectionIndex`/`currentIndex`. From 0.9.99. */
+   * as `sectionIndex`/`currentIndex`. From 0.9.98. */
   pageNumber?: number;
   /** Identity of the book the text belongs to (see `BookIdentity`). */
   id?: number | null;
@@ -1097,7 +1097,7 @@ export interface ReaderSelection {
   external?: { provider: 'hebrewbooks' | 'otzar'; id: number | string };
 }
 
-/** The book a right-clicked commentary belongs to. From 0.9.99. */
+/** The book a right-clicked commentary belongs to. From 0.9.98. */
 export interface CommentaryMainBook extends BookIdentity {
   bookId: string;
   bookTitle: string;
@@ -1386,15 +1386,15 @@ export type ContextMenuContext =
   /** Right-click on a commentary (commentary list, page-shape column or the
    * PDF commentary pane) without a selection. Opt-in: an item without
    * `contexts` does not appear. The commentary is the current book; see
-   * `ReaderSelection.mainBook`. From 0.9.99. */
+   * `ReaderSelection.mainBook`. From 0.9.98. */
   | 'reader-commentary'
   /** Like `reader-commentary`, with selected text in the commentary.
-   * From 0.9.99. */
+   * From 0.9.98. */
   | 'reader-commentary-selection'
   /** Right-click on a PDF page without a selection. Opt-in; see
-   * `ReaderSelection.pageNumber`. From 0.9.99. */
+   * `ReaderSelection.pageNumber`. From 0.9.98. */
   | 'reader-pdf'
-  /** Like `reader-pdf`, with selected text on the page. From 0.9.99. */
+  /** Like `reader-pdf`, with selected text on the page. From 0.9.98. */
   | 'reader-pdf-selection';
 
 export interface ContextMenuColor {
@@ -1438,7 +1438,7 @@ export interface ContextMenuItem {
   showWhen?: ContextMenuShowWhen;
   /** By default the host draws a divider between the items of different
    * plugins. Set `false` on a plugin's first top-level item to opt out.
-   * Top-level items only. Available from 0.9.99. */
+   * Top-level items only. Available from 0.9.98. */
   separatorBefore?: boolean;
 }
 
@@ -1658,7 +1658,7 @@ export interface OtzariaEventMap {
     /** Always `'all'` outside `mode: 'advanced'`. Older hosts omit it. */
     wordMatchMode?: SearchWordMatchMode;
     wordMatchCount?: number;
-    /** Since 0.9.99: same distance as ordered search, but the words may
+    /** Since 0.9.98: same distance as ordered search, but the words may
      *  appear in any order. Sent only when true. */
     anyOrder?: boolean;
     offset: number;

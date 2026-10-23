@@ -138,6 +138,8 @@ if (response.success) {
 
 > סקריפט האריזה (`otzaria pack-plugin` / `dart run tool/plugins/package_plugin.dart`) **חוסם אריזה** אם התוסף קורא ל-API חדש מ-`minAppVersion` שהוצהר — כך תוסף לא יישלח עם דרישת גרסה נמוכה מדי שתגרום לו לקרוס אצל משתמשים בגרסה ישנה.
 
+> **0.9.98:** היכולות שמסומנות `0.9.98` ונוספו אחרי `0.9.98+801` דורשות את ההפצה המעודכנת של 0.9.98. מספר הגרסה לבדו אינו מבחין בין שתי ההפצות, ולכן ב-`0.9.98+801` הן מחזירות `error.unknown_method` או לא מוצגות.
+
 | API | קיים מגרסה |
 |-----|-----------|
 | `app.getInfo` | 0.9.89 |
@@ -156,7 +158,7 @@ if (response.success) {
 | `library.resolveRef` | 0.9.97 |
 | `library.getBookMetadata` | 0.9.89 |
 | `library.getBookDetails` | 0.9.98 |
-| `library.getBookProtections` | 0.9.99 |
+| `library.getBookProtections` | 0.9.98 |
 | `library.resolveBooks` | 0.9.97 |
 | `library.resolveCategoryPaths` | 0.9.97 |
 | `library.listRecentBooks` | 0.9.89 |
@@ -175,16 +177,16 @@ if (response.success) {
 | `library.setProviderBooks` | 0.9.98 |
 | `network.fetchStream` | 0.9.97 |
 | `network.download` | 0.9.93 |
-| `network.fetchFile` | 0.9.99 |
+| `network.fetchFile` | 0.9.98 |
 | `search.fullText` | 0.9.89 |
 | `search.query` | 0.9.97 |
 | `search.getOptions` | 0.9.97 |
-| `search.setFieldText` | 0.9.99 |
-| `search.setFieldActionState` | 0.9.99 |
-| `search.endFieldSession` | 0.9.99 |
+| `search.setFieldText` | 0.9.98 |
+| `search.setFieldActionState` | 0.9.98 |
+| `search.endFieldSession` | 0.9.98 |
 | `reader.openBook` | 0.9.89 |
 | `reader.openBookAtRef` | 0.9.89 |
-| `reader.printRange` | 0.9.99 |
+| `reader.printRange` | 0.9.98 |
 | `reader.openSearchTab` | 0.9.89 |
 | `reader.getCurrentState` | 0.9.89 |
 | `reader.getDefaultTextReader` | 0.9.98 |
@@ -203,14 +205,14 @@ if (response.success) {
 | `reader.getHighlightCapabilities` | 0.9.97 |
 | `reader.findTextOccurrences` | 0.9.95 |
 | `reader.getSectionTextMap` | 0.9.95 |
-| `reader.beginCorrectionSession` | 0.9.99 |
-| `reader.getCorrectionSession` | 0.9.99 |
-| `reader.restoreCorrectionDraft` | 0.9.99 |
-| `reader.resetCorrection` | 0.9.99 |
-| `reader.endCorrectionSession` | 0.9.99 |
-| `reader.acknowledgeCorrectionDraft` | 0.9.99 |
-| `reader.listCorrectionDrafts` | 0.9.99 |
-| `reader.getCorrectionDraft` | 0.9.99 |
+| `reader.beginCorrectionSession` | 0.9.98 |
+| `reader.getCorrectionSession` | 0.9.98 |
+| `reader.restoreCorrectionDraft` | 0.9.98 |
+| `reader.resetCorrection` | 0.9.98 |
+| `reader.endCorrectionSession` | 0.9.98 |
+| `reader.acknowledgeCorrectionDraft` | 0.9.98 |
+| `reader.listCorrectionDrafts` | 0.9.98 |
+| `reader.getCorrectionDraft` | 0.9.98 |
 | `reader.registerInBookSearchProvider` | 0.9.97 |
 | `reader.respondInBookSearch` | 0.9.97 |
 | `reader.registerExternalSearchProvider` | 0.9.97 |
@@ -236,7 +238,7 @@ if (response.success) {
 | `plugin.setNewTabPage` | 0.9.97 |
 | `plugin.openOther` | 0.9.97 |
 | `plugin.backgroundDone` | 0.9.97 |
-| `plugin.setRestoreState` | 0.9.99 |
+| `plugin.setRestoreState` | 0.9.98 |
 | `plugin.listInstalled` | 0.9.97 |
 | `notes.list` | 0.9.89 |
 | `notes.getBookNotesSummary` | 0.9.89 |
@@ -250,7 +252,7 @@ if (response.success) {
 | `ui.showWarning` | 0.9.89 |
 | `ui.pickFolder` | 0.9.93 |
 | `ui.print` | 0.9.97 |
-| `ui.printFile` | 0.9.99 |
+| `ui.printFile` | 0.9.98 |
 | `ui.exportPdf` | 0.9.97 |
 | `ui.setUnsavedChanges` | 0.9.97 |
 | `fs.extractZip` | 0.9.93 |
@@ -276,7 +278,7 @@ if (response.success) {
 | `fs.revokeFolder` | 0.9.98 |
 | `feedback.sendEmail` | 0.9.89 |
 | `feedback.report` | 0.9.97 |
-| `feedback.submitBookCorrection` | 0.9.99 |
+| `feedback.submitBookCorrection` | 0.9.98 |
 | `feedback.hasReporterEmail` | 0.9.97 |
 | `history.list` | 0.9.89 |
 | `history.listSearches` | 0.9.89 |
@@ -750,7 +752,7 @@ const { data } = await Otzaria.call('library.getBookDetails', {
 //   topics: ['הלכה'], shortDescription: '...', fullDescription: '...',
 //   textSource: { key: 'Sefaria', name: 'ספריא', url: 'https://www.sefaria.org/texts' },
 //   reference: '...', lineCount: 4210, libraryPath: 'הלכה/שולחן ערוך',
-//   protection: { level: 0, textAvailable: true, editableExport: true,   // מ-0.9.99
+//   protection: { level: 0, textAvailable: true, editableExport: true,   // מ-0.9.98
 //                 pdfExport: true, copyLimit: null, printLimit: null }
 // }
 ```
@@ -762,11 +764,11 @@ const { data } = await Otzaria.call('library.getBookDetails', {
   עם `name` זהה ל-`key` וללא `url`.
 - `libraryPath` הוא הנתיב היחסי בספרייה בלבד. לספר אישי הוא `null` — נתיב
   הקובץ שלו אינו נחשף לתוספים.
-- `protection` (מגרסה 0.9.99) — הגבלת המו"ל של הספר. ראו
+- `protection` (מגרסה 0.9.98) — הגבלת המו"ל של הספר. ראו
   [`library.getBookProtections`](#librarygetbookprotections).
 
 ### `library.getBookProtections`
-**הרשאה:** `library.books.read` · **מגרסה:** 0.9.99
+**הרשאה:** `library.books.read` · **מגרסה:** 0.9.98
 
 הגבלת המו"ל (טבלת `book_protection` במסד) של כמה ספרים בקריאה אחת — הספר עצמו
 ומפרשיו. מאפשר לתוסף לדעת **מראש** מה מותר, במקום לגלות זאת מ-`error.forbidden`
@@ -1409,7 +1411,7 @@ if (folder.success && folder.data.path) {
 `error.invalid_params` (URL חסר/לא תקין), `error.internal` (כשל הורדה).
 
 ### `network.fetchFile`
-**הרשאה:** `network.access` (או `network.localhost` ליעד מקומי) · **מגרסה:** 0.9.99
+**הרשאה:** `network.access` (או `network.localhost` ליעד מקומי) · **מגרסה:** 0.9.98
 
 מורידה קובץ מ-URL מותר **בלי לשמור אותו בתיקיית המשתמש**: הקובץ נשמר במטמון
 זמני פרטי של התוסף, והתוסף מקבל עליו `token` לקריאה בלבד, מאותו סוג ש-
@@ -1538,7 +1540,7 @@ for await (const chunk of chunks) {
 | `proximityScope` | `'wordDistance'` | `'wordDistance'` מרווח מילים \| `'sameParagraph'` באותה פסקה \| `'sameSection'` תחת אותה כותרת |
 | `wordMatchMode` | `'all'` | `'all'` \| `'anyWord'` \| `'mostWords'` \| `'atLeast'` |
 | `wordMatchCount` | `2` | מספר המילים הנדרש; ניתן לשלוח רק עם `mode: 'advanced'` ו-`wordMatchMode: 'atLeast'` |
-| `anyOrder` (מגרסה 0.9.99) | `false` | `true` = אותו מרווח כמו בחיפוש לפי הסדר (`distance`), אבל המילים יכולות להופיע בכל סדר; חל גם על `negativeQuery` ואינו משפיע על שאילתה של מילה אחת. נדחה במצב `'fuzzy'`, עם `proximityScope` שאינו `'wordDistance'`, עם `wordMatchMode` שאינו `'all'` ועם `customSpacing` |
+| `anyOrder` (מגרסה 0.9.98) | `false` | `true` = אותו מרווח כמו בחיפוש לפי הסדר (`distance`), אבל המילים יכולות להופיע בכל סדר; חל גם על `negativeQuery` ואינו משפיע על שאילתה של מילה אחת. נדחה במצב `'fuzzy'`, עם `proximityScope` שאינו `'wordDistance'`, עם `wordMatchMode` שאינו `'all'` ועם `customSpacing` |
 | `grouping` | `'none'` | `'none'` \| `'sameSection'` (איחוד לפי סעיף) \| `'identicalText'` (איחוד טקסט זהה) |
 | `options` | `{}` | אפשרויות מילה שחלות על **כל** מילות השאילתה |
 | `wordOptions` | `{}` | אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options` |
@@ -1662,7 +1664,7 @@ const { data } = await Otzaria.call('search.getOptions', {});
 > נבלע (מקורב, טווח פסקה/כותרת, התאמה חלקית, מרווח ידני).
 
 ### `search.setFieldText`
-**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
+**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.98
 
 כותב טקסט לשדה חיפוש בתוך סשן שהמשתמש פתח בלחיצה על כפתור התוסף בשדה
 (ראו [כפתורים בשדות החיפוש](#כפתורים-בשדות-החיפוש-searchfieldactions)).
@@ -1685,7 +1687,7 @@ await Otzaria.call('search.setFieldText', { sessionId, text: 'ברכות דף ב
 - סשן שאינו קיים, שהסתיים, או של תוסף אחר: `error.not_found`.
 
 ### `search.setFieldActionState`
-**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
+**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.98
 
 משנה את מראה הכפתור בזמן הסשן.
 
@@ -1702,7 +1704,7 @@ await Otzaria.call('search.setFieldActionState', {
 - `tooltip` (לא חובה, עד 120 תווים בשורה אחת) מחליף את הכותרת בזמן הסשן.
 
 ### `search.endFieldSession`
-**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.99
+**הרשאה:** `search.field_actions` · **מגרסה:** 0.9.98
 
 ```javascript
 await Otzaria.call('search.endFieldSession', { sessionId, submit: true });
@@ -1817,7 +1819,7 @@ window.addEventListener('reader.inBookSearch.requested', async (event) => {
 `distance` הוא מספר המילים שמותר שיופיעו *בין* מילות השאילתה (0 = צמודות),
 ומנוע שמודד מרחק ביחידה אחרת חייב לתרגם אותו. מארח ותיק אינו שולח את השדות.
 
-מגרסה 0.9.99 האירוע נושא `anyOrder: true` כשהמשתמש ביטל "שמור על סדר המילים
+מגרסה 0.9.98 האירוע נושא `anyOrder: true` כשהמשתמש ביטל "שמור על סדר המילים
 המקורי" והבחירה חלה (גם במצב `exact`): אותו מרווח כמו בחיפוש לפי הסדר,
 אבל המילים יכולות להופיע בכל סדר. כשהשדה חסר — לפי הסדר.
 
@@ -1937,7 +1939,7 @@ await Otzaria.call('reader.openSearchTab', {
 | `proximityScope` | `'wordDistance'` | `'wordDistance'` \| `'sameParagraph'` \| `'sameSection'` |
 | `wordMatchMode` | `'all'` | `'all'` \| `'anyWord'` \| `'mostWords'` \| `'atLeast'` |
 | `wordMatchCount` | `2` | חוקי רק עם `mode: 'advanced'` ו-`wordMatchMode: 'atLeast'` |
-| `anyOrder` (מגרסה 0.9.99) | `false` | אותו מרווח, אבל המילים בכל סדר; אותם כללים כמו ב-`search.query` |
+| `anyOrder` (מגרסה 0.9.98) | `false` | אותו מרווח, אבל המילים בכל סדר; אותם כללים כמו ב-`search.query` |
 | `options` | `{}` | אפשרויות מילה שחלות על כל מילות השאילתה (למשל `'קידומות דקדוקיות'`) |
 | `wordOptions` | `{}` | אפשרויות פר-מילה במפתח `"{מילה}_{אינדקס}"`; גובר על `options` |
 
@@ -1973,7 +1975,7 @@ await Otzaria.call('reader.openBookAtRef', {
   והטקסט מועבר לתיבת החיפוש כגיבוי (התנהגות קיימת).
 
 ### `reader.printRange`
-**הרשאה:** `reader.open` · **מגרסה:** 0.9.99
+**הרשאה:** `reader.open` · **מגרסה:** 0.9.98
 
 פותח את מסך ההדפסה של אוצריא — אותו מסך שכפתור ההדפסה בקורא פותח — על טווח
 שורות בספר טקסט, כשהטווח כבר מסומן. המשתמש בוחר בו גופן, עימוד, ניקוד,
@@ -2237,7 +2239,7 @@ await Otzaria.call('reader.scrollToSection', { sectionIndex: 42 });
 | `surface` | `'combined'` \| `'pageShape'` \| `'pdf'` \| `null` |
 | `highlights` | האם `reader.setHighlight` ייראה במשטח הזה |
 | `selection` | האם `reader.getSelection` יכול להחזיר בחירה |
-| `contextMenu` | האזורים במשטח הנוכחי שבהם פריטי `reader.addContextMenuItem` מוצגים: `mainText` בספר טקסט, `commentary` (מ-0.9.99), ו-`pdf` בספר PDF (מ-0.9.99) |
+| `contextMenu` | האזורים במשטח הנוכחי שבהם פריטי `reader.addContextMenuItem` מוצגים: `mainText` בספר טקסט, `commentary` (מ-0.9.98), ו-`pdf` בספר PDF (מ-0.9.98) |
 
 ```javascript
 const { data } = await Otzaria.call('reader.getHighlightCapabilities');
@@ -2291,7 +2293,7 @@ if (data.hasMore) {
 
 ### `reader.beginCorrectionSession`
 
-**גרסת מינימום:** `0.9.99`. **הרשאה:** `reader.local_edit` לכל פעולות הסשן.
+**גרסת מינימום:** `0.9.98`. **הרשאה:** `reader.local_edit` לכל פעולות הסשן.
 קבלת `tabId` דרך `reader.getCurrentState` דורשת גם `reader.open`.
 
 פותחת שכבת תיקונים זמנית בלשונית טקסט רשמית ממסד הספרייה, עם מפרשים בצד או מתחת.
@@ -2307,7 +2309,7 @@ const { data: session } = await Otzaria.call('reader.beginCorrectionSession', {
 });
 ```
 
-מ־`0.9.99`, `getCurrentState` מחזירה `currentTabId` ו־`openTabs[].tabId`:
+מ־`0.9.98`, `getCurrentState` מחזירה `currentTabId` ו־`openTabs[].tabId`:
 מזהה יציב למשך חיי לשונית הטקסט, ו־`null` עבור לשוניות אחרות. המזהה אינו נשמר
 בין הפעלות. מעבר ללשונית אחרת אינו משנה את יעד הסשן. לכל לשונית בעלים יחיד;
 פתיחה חוזרת של אותו תוסף באותה לשונית מחזירה את הסשן הקיים (עם `recovery: null`).
@@ -2466,7 +2468,7 @@ false (ו־`pending` או `error` מסבירים למה), ו־`version` הוא `
 
 ### Event: `reader.correctionSessionChanged`
 
-אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.99`.
+אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.98`.
 כולל `{ sessionId, revision, sectionIndices }`; מבקש מהתוסף למשוך snapshot,
 ואינו מחליף קריאת מצב מלא. האירוע מוגבל בקצב (לא debounce): לכל היותר אחד לכל
 חלון של 300ms לסשן, גם בהקלדה רצופה. `sectionIndices` הוא רשימה ממוינת וללא כפילויות
@@ -2476,7 +2478,7 @@ false (ו־`pending` או `error` מסבירים למה), ו־`version` הוא `
 
 ### Event: `reader.correctionSessionEnded`
 
-אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.99`.
+אירוע ממוקד לבעלים בלבד, ללא הרשאת subscribe נפרדת, מ־`0.9.98`.
 כולל `{ sessionId, reason, snapshot }`. הסיבות:
 
 | `reason` | מתי |
@@ -2580,7 +2582,7 @@ false (ו־`pending` או `error` מסבירים למה), ו־`version` הוא `
 
 ### `reader.acknowledgeCorrectionDraft`
 
-**גרסת מינימום:** `0.9.99`. **הרשאה:** `reader.local_edit`. מקבלת
+**גרסת מינימום:** `0.9.98`. **הרשאה:** `reader.local_edit`. מקבלת
 `{ draftId: string, version: int }`; מפתחות אחרים נדחים ב־`error.invalid_params`.
 אינה דורשת סשן או לשונית פתוחים, ופועלת גם אחרי סיום הסשן.
 
@@ -2611,7 +2613,7 @@ if (ended.draft.persisted) {
 
 ### `reader.listCorrectionDrafts`
 
-**גרסת מינימום:** `0.9.99`. **הרשאה:** `reader.local_edit`. מקבלת `{}` ומחזירה
+**גרסת מינימום:** `0.9.98`. **הרשאה:** `reader.local_edit`. מקבלת `{}` ומחזירה
 `{ drafts }` — הטיוטות של התוסף הקורא שיש בהן תוכן או התנגשויות שלא אושרו, מהחדשה
 לישנה, ללא התוכן עצמו:
 
@@ -2638,7 +2640,7 @@ if (ended.draft.persisted) {
 
 ### `reader.getCorrectionDraft`
 
-**גרסת מינימום:** `0.9.99`. **הרשאה:** `reader.local_edit`. מקבלת `{ draftId }`
+**גרסת מינימום:** `0.9.98`. **הרשאה:** `reader.local_edit`. מקבלת `{ draftId }`
 ומחזירה את אותם שדות מטא־דאטה, ובמקום המונים את `changes` ו־`conflicts` המלאים.
 `version` היא הגרסה לאישור. טיוטה שאושרה, שאין בה תוכן או שאינה של התוסף מחזירה
 `error.not_found`.
@@ -2863,7 +2865,7 @@ Otzaria.on('plugin.boot', async (payload) => {
 ---
 
 ### `plugin.setRestoreState`
-**הרשאה:** אין | **מגרסה:** 0.9.99
+**הרשאה:** אין | **מגרסה:** 0.9.98
 
 שומר אצל אוצריא מצב קטן של הכרטיסייה (מסך, גלילה, טיוטה בטופס), שיחזור
 לתוסף ב-`plugin.boot` כשהדף של אותה כרטיסייה נטען מחדש. אוצריא עשויה לפנות
@@ -3265,7 +3267,7 @@ const res = await Otzaria.call('ui.print', {
 > בו; אחרת השאירו את השדה ריק ותנו למשתמש לשלוט.
 
 ### `ui.printFile`
-**הרשאה:** `fs.user_files.read` לקובץ אישי; קובץ של `network.fetchFile` אינו דורש אותה · **מגרסה:** 0.9.99
+**הרשאה:** `fs.user_files.read` לקובץ אישי; קובץ של `network.fetchFile` אינו דורש אותה · **מגרסה:** 0.9.98
 
 מדפיסה קובץ PDF שהוענק לתוסף — `token` של [`fs.pickUserFile`](#fspickuserfile),
 [`fs.openFolderFile`](#fsopenfolderfile) או [`network.fetchFile`](#networkfetchfile).
@@ -3568,7 +3570,7 @@ const { data } = await Otzaria.call('fs.stat', { path: 'cache/index.json' });
 > **PDF/בינארי גדול:** הקובץ מוגש דרך שרת `localhost` פנימי (`http://127.0.0.1`)
 > עם תמיכת `Range`. הבייטים **אינם** עוברים דרך גשר ה-JS. מציבים את ה-`url`
 > שמתקבל ב-`<iframe>`/PDF.js (או `fetch`). שרת הקבצים מתיר הטמעה ב-`<iframe>`
-> רק מדף תוסף (`file://` או `otzaria-plugin://`, דרך `frame-ancestors`), מגרסה 0.9.99; בגרסאות
+> רק מדף תוסף (`file://` או `otzaria-plugin://`, דרך `frame-ancestors`), מגרסה 0.9.98; בגרסאות
 > קודמות הוא שלח `X-Frame-Options: SAMEORIGIN` וה-`<iframe>` נחסם — שם יש
 > לטעון עם `fetch` ← `Blob` ← `iframe src=blob:`. שימו לב: רינדור PDF ב-`<iframe>`
 > מובנה עובד רק ב-Windows/macOS — לתאימות מלאה (Android/Linux) יש לרנדר עם
@@ -3916,7 +3918,7 @@ const { data } = await Otzaria.call('feedback.report', {
 
 מגיש דיווח שגיאה בספר דרך `DirectErrorReportService` של אוצריא, באותו חוזה v2, תור והיסטוריית דיווחים של התוכנה. אינו משנה את טקסט הספר. דורש הרשאת `feedback.send_email`, המוצהרת במניפסט ומאושרת בידי המשתמש, וכתובת מייל שמורה בהגדרות אוצריא; אינו מקבל כתובת מהתוסף.
 
-גרסת המינימום של ה־API היא `0.9.99`. הוא זמין בבנייה הכוללת את ההרחבה; הוא אינו קיים במהדורת 0.9.98 הרשמית המקורית. בגרסה רשמית ללא התוספת מתקבלת שיטת API לא מוכרת.
+גרסת המינימום של ה־API היא `0.9.98`. הוא אינו קיים במהדורת `0.9.98+801`, ושם מתקבלת שיטת API לא מוכרת.
 
 ```js
 const result = await Otzaria.call('feedback.submitBookCorrection', {
@@ -4996,7 +4998,7 @@ Otzaria.on('event.name', (data) => {
 - `workspace.changed` - שינוי סביבת העבודה (הרשאה: `events.subscribe:workspace.changed`)
 - `settings.changed` - שינוי הגדרה (הרשאה: `events.subscribe:settings.changed`)
 - `plugin.permissions_changed` - שינוי הרשאות (מחזיר `{ permissions: string[] }` - רשימת כל ההרשאות המאושרות) (הרשאה: `events.subscribe:plugin.permissions_changed`)
-- `search.fieldAction.invoked` / `search.fieldAction.stopRequested` / `search.fieldAction.ended` - סשן של כפתור התוסף בשדה חיפוש. נשלחים רק לתוסף הבעלים, ללא הרשאת subscribe (מגרסה 0.9.99; ראו [כפתורים בשדות החיפוש](#כפתורים-בשדות-החיפוש-searchfieldactions))
+- `search.fieldAction.invoked` / `search.fieldAction.stopRequested` / `search.fieldAction.ended` - סשן של כפתור התוסף בשדה חיפוש. נשלחים רק לתוסף הבעלים, ללא הרשאת subscribe (מגרסה 0.9.98; ראו [כפתורים בשדות החיפוש](#כפתורים-בשדות-החיפוש-searchfieldactions))
 
 ### הבדלים חשובים בין אירועי הקורא:
 
@@ -5440,14 +5442,14 @@ async function scheduleReminder(title, body, dateTime) {
   4096 תווים) ואינו `null`. מפתח שתנאי `when` קורא מתעדכן מיד — כך לחיצה
   יכולה להציג/להסתיר פקדים באופן מיידי (פלטי תכניות, לעומת זאת, מחושבים
   מחדש רק בהחלפת ספר).
-- מ־`minAppVersion: 0.9.99`, כפתור יכול להצהיר `openPlugin: true` במקום `action`.
+- מ־`minAppVersion: 0.9.98`, כפתור יכול להצהיר `openPlugin: true` במקום `action`.
   הוא מוצג לפי `binding`,
   כמו כל פקד קשור, ולחיצה עליו פותחת את דף התוסף ומוסרת לו
   `reader.toolbar_item_clicked` עם המיקום הנוכחי (`currentBook`,
   `currentIndex`) — כמו בכפתור רגיל עם `openPlugin`. כך, למשל, כפתור שמוצג רק
   בספרים מסוימים ופותח את התוסף במקום שבו הלומד נמצא. `openPlugin` סותר את
   `action`, ומותר רק ב־`"type": "button"`. עצם הצהרת השדה בפקד קשור, גם כ־`false`,
-  דורשת גרסה 0.9.99 לפחות; `openPlugin` בפקד רגיל נשאר נתמך מגרסה 0.9.96.
+  דורשת גרסה 0.9.98 לפחות; `openPlugin` בפקד רגיל נשאר נתמך מגרסה 0.9.96.
 - תפריט משתמש ב־`childrenBinding.itemsOutput` וב־`itemTemplate`; בתוך התבנית
   זמינה ההפניה `$item`.
 - לחצן מפוצל (`"type": "split"`) מצהיר על שניהם: `action` לפעולה הראשית
@@ -5550,7 +5552,7 @@ async function scheduleReminder(title, body, dateTime) {
 
 ### כפתורים בשדות החיפוש (searchFieldActions)
 
-מגרסה 0.9.99, `startup.searchFieldActions` מוסיף כפתור לתוך שדות החיפוש של
+מגרסה 0.9.98, `startup.searchFieldActions` מוסיף כפתור לתוך שדות החיפוש של
 אוצריא. התוסף יכול לכתוב טקסט לשדה, אבל רק אחרי שהמשתמש לחץ על הכפתור.
 השימוש העיקרי הוא הקלדה בדיבור: מנוע הזיהוי רץ מחוץ לאוצריא, והתוסף מעביר
 לשדה את מה שזוהה. אותו מנגנון מתאים גם לתעתיק, למקלדת וירטואלית ועוד.
@@ -5561,7 +5563,7 @@ async function scheduleReminder(title, body, dateTime) {
 
 ```json
 {
-  "minAppVersion": "0.9.99",
+  "minAppVersion": "0.9.98",
   "headless": true,
   "permissions": [
     "app.startup_contributions",
@@ -5634,7 +5636,7 @@ Otzaria.on('search.fieldAction.ended', ({ sessionId, reason }) => { /* ניקו�
 המשתמש בשדה סוגרת את הסשן מיד, כך שהתוסף אינו יכול לדרוס את מה שהמשתמש הקליד.
 
 **זיהוי תמיכה.** בגרסה ללא התכונה הכפתור לא יוצג, ו-`search.setFieldText` מחזיר
-`error.unknown_method`. מומלץ להצהיר `minAppVersion: "0.9.99"`.
+`error.unknown_method`. מומלץ להצהיר `minAppVersion: "0.9.98"`.
 
 ### מהדורות מקבילות חיצוניות (externalEditions)
 
@@ -5817,7 +5819,7 @@ API — מפונה. הפינוי שקוף באותו אופן ככיבוי אח�
 
 ### separatorBefore — קו חוצץ בין תוספים
 
-מ-`0.9.99`. כשכמה תוספים מוסיפים פריטים לאותו תפריט הקשר, התוכנה מציירת
+מ-`0.9.98`. כשכמה תוספים מוסיפים פריטים לאותו תפריט הקשר, התוכנה מציירת
 כברירת מחדל קו חוצץ בין קבוצת הפריטים של כל תוסף. תוסף שמעדיף שהפריטים שלו
 ימשיכו ברצף עם מה שמעליהם מצהיר על הפריט העליון הראשון שלו:
 
@@ -6246,18 +6248,18 @@ await Otzaria.call('reader.addContextMenuItem', {
   הטקסט המסומן ולפעול עליו בדף שלו.
 - `type` יכול להיות `item`,‏ `submenu`,‏ `color-row` או `separator`
 - תת־תפריט מקבל `children`; שורת צבעים מקבלת `colors` עם `id`,‏ `color`,‏ `label`,‏ `selected` ו־`icon` אופציונלי. כאשר `icon` קיים הוא מוצג במקום גוש הצבע ומתאים לפעולות קומפקטיות כמו מחק
-- `contexts` הוא מערך ויכול להכיל את `reader-selection`, את `reader-page-shape-selection`, או את שניהם באותו פריט. מ-`0.9.97` נתמך גם `reader-highlight` (ראו למטה), ומ־`0.9.99` נתמכים גם `reader-book` (ללא סימון) וארבעת הקשרי המפרשים וה־PDF (ראו למטה). ערכי `contexts` חייבים להיות חוקיים וייחודיים. פריט שלא מגדיר `contexts` מופיע בשני הקשרי הבחירה (כהתנהגות הרישום המקורית).
+- `contexts` הוא מערך ויכול להכיל את `reader-selection`, את `reader-page-shape-selection`, או את שניהם באותו פריט. מ-`0.9.97` נתמך גם `reader-highlight` (ראו למטה), ומ־`0.9.98` נתמכים גם `reader-book` (ללא סימון) וארבעת הקשרי המפרשים וה־PDF (ראו למטה). ערכי `contexts` חייבים להיות חוקיים וייחודיים. פריט שלא מגדיר `contexts` מופיע בשני הקשרי הבחירה (כהתנהגות הרישום המקורית).
 - ילד שלא מגדיר `contexts` יורש את המערך של אביו. ילד שמגדיר `contexts` במפורש מוצג רק בהקשרים שלו, ללא איחוד אוטומטי עם הקשר האב; ההקשרים המפורשים חייבים להיות תת־קבוצה של הקשרי האב.
 - אפשר להגדיר `onClickEvent` או `onColorClickEvent` כאירוע מותאם אישית
 
-**פעולה ללא סימון — `reader-book` (מ־`0.9.99`):**
-מ־`0.9.99`, `selection.tabId` מזהה את לשונית הטקסט המדויקת שממנה נפתח התפריט,
+**פעולה ללא סימון — `reader-book` (מ־`0.9.98`):**
+מ־`0.9.98`, `selection.tabId` מזהה את לשונית הטקסט המדויקת שממנה נפתח התפריט,
 גם כשאותו ספר פתוח בכמה לשוניות או בחלוניות מפוצלות. מעבירים אותו ישירות ל־
 `reader.beginCorrectionSession`; אין לבחור לשונית לפי כותרת הספר או לפי הלשונית
 הפעילה לאחר פתיחת התוסף. השדה יכול להיעדר בתצוגה מקדימה שאינה מחוברת ללשונית.
 אפשר לרשום `contexts: ['reader-book']` להצגת פעולה בלחיצה ימנית ללא סימון, בשני קוראי הטקסט: הקורא הרגיל וקורא צורת הדף. ה־payload כולל את זהות הספר ואת `sectionIndex` ו־`currentIndex` של הפסקה שנלחצה. בשדה `selection`, הערך `text` הוא מחרוזת ריקה, `start` ו־`end` הם `null`, ואין `sourceRange`. ברירות המחדל של פריט ללא `contexts` נשארות שני הקשרי הבחירה; ילדים ללא `contexts` יורשים את הקשרי האב גם עבור `reader-book`.
 
-**מפרשים ו־PDF — `reader-commentary`, `reader-pdf` וגרסאות `-selection` (מ־`0.9.99`):**
+**מפרשים ו־PDF — `reader-commentary`, `reader-pdf` וגרסאות `-selection` (מ־`0.9.98`):**
 
 | הקשר | היכן מופיע הפריט |
 |------|------------------|
@@ -6316,7 +6318,7 @@ Otzaria.on('myPlugin.search', ({ selectedText, currentBook, selection }) => {
 });
 ```
 
-בגרסאות שלפני `0.9.99` הפריט כולו נדחה עם `error.unsupported_context`, גם כשהוא
+בגרסאות קודמות, כולל `0.9.98+801`, הפריט כולו נדחה עם `error.unsupported_context`, גם כשהוא
 כולל לצדם הקשרים מוכרים. תוסף שתומך בגרסאות קודמות רושם שוב בלי ההקשרים
 החדשים:
 

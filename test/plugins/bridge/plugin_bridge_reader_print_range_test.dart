@@ -83,7 +83,7 @@ InstalledPlugin _plugin() => InstalledPlugin(
     author: '',
     homepage: '',
     entrypoint: 'index.html',
-    minAppVersion: '0.9.99',
+    minAppVersion: '0.9.98',
     sdkVersion: '1.x',
     permissions: const ['reader.open'],
     networkEnabled: false,

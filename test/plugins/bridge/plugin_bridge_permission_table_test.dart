@@ -87,7 +87,7 @@ void main() {
       expect(
         PluginExtendedValidator
             .methodMinVersions['feedback.submitBookCorrection'],
-        '0.9.99',
+        '0.9.98',
       );
     });
 

@@ -200,12 +200,12 @@ void main() {
     final store = PluginRestoreStateStore.instance;
     tearDown(() => store.remove(key));
 
-    test('בלי הרשאה, מגרסה 0.9.99', () {
+    test('בלי הרשאה, מגרסה 0.9.98', () {
       expect(
         PluginBridgeHandler.methodPermissions['plugin.setRestoreState'],
         PluginBridgeHandler.noManifestPermission,
       );
-      expect(pluginApiMinVersions['plugin.setRestoreState'], '0.9.99');
+      expect(pluginApiMinVersions['plugin.setRestoreState'], '0.9.98');
     });
 
     test('שומר את המצב של המופע הקורא, ו-null מוחק', () async {
