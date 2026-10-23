@@ -24,6 +24,7 @@ import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/tantivy_data_provider.dart';
 import 'package:otzaria/indexing/bloc/indexing_bloc.dart';
 import 'package:otzaria/indexing/bloc/indexing_event.dart';
@@ -691,6 +692,15 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (!_role.isViewWindow) {
       LibraryChangesNotes.instance.beforeAutoShow = _tourFinished;
     }
+    // פר-תהליך, כמו עדכון הספרייה: שני חלונות היו מורידים לאותו נתיב.
+    if (_duties.isProcessOwner) {
+      DbReadWorker.corruptDatabaseDetected.addListener(
+        _corruptLibraryDbChanged,
+      );
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _corruptLibraryDbChanged(),
+      );
+    }
     _lastScreen = context.read<NavigationBloc>().state.currentScreen;
 
     // כשהמסך ההתחלתי אינו קריאה (אין טאבים שמורים) אין ספר להמתין לו, ולכן
@@ -1201,16 +1211,20 @@ class MainWindowScreenState extends State<MainWindowScreen>
     final sizeText = sizeMb >= 1024
         ? '${(sizeMb / 1024).toStringAsFixed(1)} GB'
         : '$sizeMb MB';
+    final corrupt = DbReadWorker.corruptDatabaseDetected.value;
     try {
       final confirmed = await showTwoActionsDialog(
         context: context,
-        title: 'נדרשת הורדה מלאה של הספרייה',
-        content:
-            'לא נמצא מסלול עדכון מצומצם למצב הנוכחי. כדי לעדכן יש להוריד '
-            'את הספרייה המלאה (כ-$sizeText). אפשר גם להמשיך עם הגרסה הנוכחית '
-            'ללא עדכון.',
+        title: corrupt
+            ? LibraryMessages.libraryDbCorruptTitle
+            : 'נדרשת הורדה מלאה של הספרייה',
+        content: corrupt
+            ? LibraryMessages.libraryDbCorruptRedownload(sizeText)
+            : 'לא נמצא מסלול עדכון מצומצם למצב הנוכחי. כדי לעדכן יש להוריד '
+                  'את הספרייה המלאה (כ-$sizeText). אפשר גם להמשיך עם הגרסה '
+                  'הנוכחית ללא עדכון.',
         cancelText: 'המשך עם הנוכחי',
-        confirmText: 'הורד עדכון מלא',
+        confirmText: corrupt ? 'הורד את הספרייה מחדש' : 'הורד עדכון מלא',
       );
       if (!context.mounted) return;
       bloc.add(
@@ -1222,6 +1236,33 @@ class MainWindowScreenState extends State<MainWindowScreen>
       _isShowingFullDownloadDialog = false;
     }
   }
+
+  /// מסד פגום מציג ספרים ריקים בלי שגיאה, ולכן מציעים להוריד אותו מחדש.
+  Future<void> _onCorruptLibraryDb() async {
+    if (!mounted || !DbReadWorker.corruptDatabaseDetected.value) return;
+    final bloc = context.read<LibraryUpdateBloc>();
+    if (bloc.isOfflineMode() || !bloc.areUpdatesEnabled()) {
+      UiSnack.showError(
+        LibraryMessages.libraryDbCorruptReinstall,
+        duration: const Duration(seconds: 15),
+      );
+      return;
+    }
+    if (bloc.state.isBusy) {
+      await bloc.stream.firstWhere((s) => !s.isBusy, orElse: () => bloc.state);
+    }
+    // עדכון שרץ בינתיים ניקה את הסימון, או שהמשתמש כבר מתבקש לבחור.
+    if (!mounted ||
+        !DbReadWorker.corruptDatabaseDetected.value ||
+        bloc.state.status == LibraryUpdateStatus.needsFullConfirmation ||
+        bloc.state.status == LibraryUpdateStatus.needsRouteChoice) {
+      return;
+    }
+    // כל עוד המסד מסומן כפגום, הבדיקה מחזירה הורדה מלאה.
+    bloc.add(const StartLibraryUpdate());
+  }
+
+  void _corruptLibraryDbChanged() => unawaited(_onCorruptLibraryDb());
 
   Future<void> _resolveStartupIndexing(
     BuildContext context,
@@ -1848,6 +1889,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (LibraryChangesNotes.instance.beforeAutoShow == _tourFinished) {
       LibraryChangesNotes.instance.beforeAutoShow = null;
     }
+    DbReadWorker.corruptDatabaseDetected.removeListener(
+      _corruptLibraryDbChanged,
+    );
     _tourCubit.close();
     _readerLocationTracker?.dispose();
     _semanticWorkStatusSub?.cancel();

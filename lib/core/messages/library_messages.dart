@@ -92,6 +92,17 @@ abstract class LibraryMessages {
 
   static const String updateCheckError = 'שגיאה בבדיקת עדכונים';
 
+  static const String libraryDbCorruptTitle = 'קובץ הספרייה פגום';
+
+  static String libraryDbCorruptRedownload(String size) =>
+      'חלק מהספרים נפתחים ריקים כי קובץ הספרייה (seforim.db) פגום. '
+      'כדי לתקן יש להוריד את הספרייה מחדש (כ-\u2066$size\u2069).';
+
+  static const String libraryDbCorruptReinstall =
+      'קובץ הספרייה (seforim.db) פגום, ולכן חלק מהספרים נפתחים ריקים. '
+      'כדי לתקן יש לבטל את המצב הלא מקוון ולהפעיל עדכוני ספרים, ואז ללחוץ '
+      '"עדכון ספרייה" — או להתקין מחדש במתקין המלא.';
+
   /// GitHub הגביל את מספר הבדיקות מכתובת ה-IP; [minutes] = `null` כשלא ידוע.
   static String updateRateLimited(int? minutes) => minutes == null
       ? 'GitHub הגביל זמנית את מספר הבדיקות מרשת זו. נסה שוב מאוחר יותר'

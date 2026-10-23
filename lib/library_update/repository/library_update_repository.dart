@@ -275,7 +275,14 @@ class LibraryUpdateRepository implements LibraryUpdateService {
     required bool allowPrerelease,
   }) async {
     final dbPath = dbPathProvider();
-    final local = await _readLocalVersion(versionReader, dbPath);
+    // ממסד פגום אין גרסה אמינה; בלי גרסה המתכנן בוחר הורדה מלאה.
+    final local = DbReadWorker.corruptDatabaseDetected.value
+        ? const LocalDbVersion(
+            dbVersion: 0,
+            schemaVersion: null,
+            hasVersionMeta: false,
+          )
+        : await _readLocalVersion(versionReader, dbPath);
     final result = await discovery.discover(allowPrerelease: allowPrerelease);
     return planner.plan(
       localDbSizeBytes: _fileSizeOrNull(dbPath),
