@@ -55,6 +55,11 @@ class AppInfoReport {
 class AppInfoService {
   const AppInfoService._();
 
+  /// ה-commit שממנו נבנתה התוכנה: כל בניות ה-dev נושאות אותה גרסה ב-pubspec.
+  static const String buildCommit = String.fromEnvironment(
+    'OTZARIA_BUILD_COMMIT',
+  );
+
   /// אוסף את הדוח עבור [topic].
   ///
   /// [pluginsLoader] — מקור רשימת התוספים. במסלול הגרפי מגיע מ-`PluginSystemBloc`
@@ -125,6 +130,7 @@ class AppInfoService {
       'buildNumber': packageInfo.buildNumber,
       // באותו פורמט של previousVersion, כדי שהשוואה מכונתית תהיה אפשרית.
       'fullVersion': _fullVersion(packageInfo),
+      if (buildCommit.isNotEmpty) 'buildCommit': buildCommit,
       'installedAt': _utc(timeline.installedAt),
       'installedAtSource': timeline.installedAtSource.name,
       'updatedAt': _utc(timeline.updatedAt),

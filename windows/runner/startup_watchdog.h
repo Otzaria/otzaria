@@ -27,6 +27,9 @@ void Stop();
 bool CaptureMainStack(std::vector<ULONG_PTR>* frames);
 // מתרגם לשמות מודולים — רק אחרי ש-CaptureMainStack חידש את ה-thread.
 void AppendStack(const std::vector<ULONG_PTR>& frames, std::string* report);
+// commit הבנייה ו-build-id של app.so — מזהים את קובצי הסמלים לפענוח.
+void AppendBuildIdentity(const std::vector<ULONG_PTR>& frames,
+                         std::string* report);
 void AppendReport(const std::string& text);
 std::string UtcTimestamp();
 

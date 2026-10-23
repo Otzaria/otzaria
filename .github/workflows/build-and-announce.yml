@@ -351,7 +351,10 @@ jobs:
           EnforceProcessCountAcrossBuilds: 'true'
           CMAKE_BUILD_PARALLEL_LEVEL: '4'
         run: |
-          flutter build windows --release --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }}
+          # קובץ הסמלים מפענח את פריימי ה-Dart (app.so+0x…) בדוחות התקיעה.
+          New-Item -ItemType Directory -Force -Path build\dart-symbols | Out-Null
+          $symbols = Join-Path $PWD 'build\dart-symbols\otzaria-dart-symbols-windows-x64.debug'
+          flutter build windows --release --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }} "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)" "--extra-gen-snapshot-options=--save-debugging-info=$symbols"
 
       # המעדכן העצמאי נכנס לתיקיית הבנייה לפני האריזה, ולכן הוא נארז ל-ZIP,
       # למתקין ולמניפסט קובצי ההתקנה בלי שינוי ב-otzaria.iss.
@@ -551,6 +554,14 @@ jobs:
           name: otzaria-windows-zip
           path: otzaria-windows.zip
 
+      - name: Upload Dart symbols (x64)
+        continue-on-error: true
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: otzaria-dart-symbols-x64
+          path: build/dart-symbols/otzaria-dart-symbols-windows-x64.debug
+          if-no-files-found: warn
+
       # מניפסט קובצי ההתקנה — הקלט של העדכון הדיפרנציאלי בשחרור הבא.
       # נסרקת תיקיית הבנייה ולא ה-ZIP, ולכן portable.marker אינו נכנס.
       # אופטימיזציה בלבד: בלעדיו העדכון הבא נופל למתקין המלא.
@@ -704,7 +715,9 @@ jobs:
           EnforceProcessCountAcrossBuilds: 'true'
           CMAKE_BUILD_PARALLEL_LEVEL: '4'
         run: |
-          flutter build windows --release --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }}
+          New-Item -ItemType Directory -Force -Path build\dart-symbols | Out-Null
+          $symbols = Join-Path $PWD 'build\dart-symbols\otzaria-dart-symbols-windows-arm64.debug'
+          flutter build windows --release --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }} "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)" "--extra-gen-snapshot-options=--save-debugging-info=$symbols"
           if (-not (Test-Path 'build\windows\arm64\runner\Release\otzaria.exe')) {
             throw 'Expected an arm64 build output — the tool built a different architecture'
           }
@@ -774,6 +787,14 @@ jobs:
         with:
           name: otzaria-windows-arm64-zip
           path: otzaria-windows_arm64.zip
+
+      - name: Upload Dart symbols (ARM64)
+        continue-on-error: true
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: otzaria-dart-symbols-arm64
+          path: build/dart-symbols/otzaria-dart-symbols-windows-arm64.debug
+          if-no-files-found: warn
 
       # ראה ההסבר בשלב המקביל ב-build_windows. ארכיטקטורה נפרדת = מניפסט
       # נפרד: בינארי ARM64 אינו רץ על x64 ולהפך.
@@ -1225,7 +1246,7 @@ jobs:
           : > "$GITHUB_WORKSPACE/build_linux.log"
           until [ $tries -ge 3 ]
           do
-            if flutter build linux --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }} 2>&1 | tee -a "$GITHUB_WORKSPACE/build_linux.log"; then
+            if flutter build linux --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }} "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)" 2>&1 | tee -a "$GITHUB_WORKSPACE/build_linux.log"; then
               break
             fi
             tries=$((tries+1))
@@ -1994,7 +2015,7 @@ jobs:
           # Generate the settings .g.dart files: search index + translation catalog.
           dart run tool/generate_search_index.dart
           dart run tool/generate_settings_l10n.dart
-          flutter build apk --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }}
+          flutter build apk --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }} "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)"
           # ניקוי מיידי של קבצים מיותרים מהבנייה (לא ה-APK הסופי)
           rm -rf build/app/intermediates || true
           rm -rf build/app/.transforms || true
@@ -2181,7 +2202,7 @@ jobs:
           tries=0
           until [ $tries -ge 3 ]
           do
-            if flutter build macos --release --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }}; then
+            if flutter build macos --release --verbose --dart-define=BIO_OBF_KEY=${{ secrets.BIO_OBF_KEY }} "--dart-define=OTZARIA_BUILD_COMMIT=$(git rev-parse --short=12 HEAD)"; then
               break
             fi
             tries=$((tries+1))
@@ -2828,6 +2849,20 @@ jobs:
               cp "$src" release-files/
             else
               echo "::warning::$(basename "$src") is missing - the next release will have no differential update for it"
+            fi
+          done
+
+      # סמלי Dart לפענוח דוחות תקיעה (tool/symbolize_hang_report.dart). לא
+      # מקושרים בגוף השחרור; היעדרם אינו חוסם.
+      - name: Stage Dart symbols
+        run: |
+          set -euo pipefail
+          for arch in x64 arm64; do
+            src="artifacts/otzaria-dart-symbols-$arch/otzaria-dart-symbols-windows-$arch.debug"
+            if [ -f "$src" ]; then
+              cp "$src" release-files/
+            else
+              echo "::warning::Dart symbols for $arch are missing - hang reports from this release cannot be symbolized"
             fi
           done
 

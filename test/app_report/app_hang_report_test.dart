@@ -68,6 +68,86 @@ void main() {
       expect(b.hash, a.hash);
     });
 
+    // כניסת המנוע ל-Dart (DartEntry::InvokeFunction/InvokeCallable/InvokeClosure)
+    // ב-Flutter 3.47.2, מתחת לכל קוד Dart של פריים (#3123).
+    const engineEntry = [
+      'flutter_windows.dll+0x7fa88b',
+      'flutter_windows.dll+0x7faf5f',
+      'flutter_windows.dll+0x7fb3ff',
+    ];
+
+    test('תקיעה בקוד Dart: החתימה מפריימי app.so, לא מכניסת המנוע', () {
+      CrashSignature signatureOf(List<String> dart) => parseErrorLogBlocks(
+        hangEntry(
+          DateTime.utc(2026, 10, 23),
+          frames: [...dart, ...engineEntry],
+        ),
+      ).single.signature;
+
+      final unmount = signatureOf(const [
+        'app.so+0x7d7af8',
+        'app.so+0x7d7b53',
+        'app.so+0xee04964',
+        'app.so+0x7d7b0f',
+      ]);
+      final layout = signatureOf(const [
+        'app.so+0x2776fd9',
+        'app.so+0x2777c82',
+      ]);
+
+      expect(unmount.frames, [
+        'app.so+0x7d7af8',
+        'app.so+0x7d7b53',
+        'app.so+0xee04964',
+      ]);
+      expect(layout.frames, ['app.so+0x2776fd9', 'app.so+0x2777c82']);
+      expect(unmount.hash, isNot(layout.hash));
+    });
+
+    test('נייטיב שנקרא מ-Dart נשאר בראש החתימה', () {
+      final signature = parseErrorLogBlocks(
+        hangEntry(
+          DateTime.utc(2026, 10, 21),
+          frames: const [
+            'ntdll.dll+0x2b89a',
+            'flutter_windows.dll+0xfe5604',
+            'flutter_windows.dll+0xc584e',
+            'app.so+0x272b96e',
+            ...engineEntry,
+          ],
+        ),
+      ).single.signature;
+      expect(signature.frames, [
+        'flutter_windows.dll+0xfe5604',
+        'flutter_windows.dll+0xc584e',
+        'app.so+0x272b96e',
+      ]);
+    });
+
+    test('זהות הבנייה ודגימות נוספות אינן משנות את החתימה', () {
+      final plain = parseErrorLogBlocks(
+        hangEntry(DateTime.utc(2026, 10, 23), frames: const ['app.so+0x10']),
+      ).single;
+      final withIdentity =
+          hangEntry(
+            DateTime.utc(2026, 10, 23),
+            frames: const ['app.so+0x10'],
+          ).replaceFirst(
+            'Stack (module+RVA):',
+            'Build commit: 0d6049857abc-dirty\n'
+                'Dart build-id: 3f4de71d7b1eccf7d1d9594e1c03aad2\n'
+                'Stack (module+RVA):',
+          );
+      final rich = parseErrorLogBlocks(
+        '$withIdentity'
+        '--- Sample 1, 8000ms into the hang ---\n'
+        'Stack (module+RVA):\n'
+        '  app.so+0x99\n',
+      ).single;
+      expect(rich.exceptionMessage, plain.exceptionMessage);
+      expect(rich.signature, plain.signature);
+    });
+
     test('מחסנית של מערכת ההפעלה בלבד — נשארים הפריימים המקוריים', () {
       final signature = parseErrorLogBlocks(
         hangEntry(

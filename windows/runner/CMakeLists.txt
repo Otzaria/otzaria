@@ -34,6 +34,31 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_MINOR=${FLUTT
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_PATCH=${FLUTTER_VERSION_PATCH}")
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_BUILD=${FLUTTER_VERSION_BUILD}")
 
+# ה-commit בדוחות התקיעה. `flutter build`/`run` מריצים configure בכל בנייה,
+# ולכן הערך עדכני; רק startup_watchdog.cpp מקומפל מחדש כשהוא משתנה.
+find_package(Git QUIET)
+if(GIT_FOUND)
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" rev-parse --short=12 HEAD
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    OUTPUT_VARIABLE OTZARIA_BUILD_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET)
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" status --porcelain --untracked-files=no
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    OUTPUT_VARIABLE OTZARIA_BUILD_CHANGES
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET)
+  if(OTZARIA_BUILD_COMMIT AND OTZARIA_BUILD_CHANGES)
+    string(APPEND OTZARIA_BUILD_COMMIT "-dirty")
+  endif()
+endif()
+if(OTZARIA_BUILD_COMMIT)
+  set_property(SOURCE "startup_watchdog.cpp" APPEND PROPERTY
+    COMPILE_DEFINITIONS "OTZARIA_BUILD_COMMIT=\"${OTZARIA_BUILD_COMMIT}\"")
+endif()
+
 # Disable Windows macros that collide with C++ standard library functions.
 target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 
