@@ -142,17 +142,7 @@ class PluginBookCorrectionService {
     if (!forceFreeText &&
         first == last &&
         raw.length <= TextCorrection.maxTextLength) {
-      if (raw == plain && original == plain && selectionStart == 0) {
-        final escaped = const HtmlEscape(
-          HtmlEscapeMode.element,
-        ).convert(proposed);
-        if (escaped.length <= TextCorrection.maxTextLength) {
-          correction = TextCorrection.wholeLine(
-            originalLine: raw,
-            proposedText: escaped,
-          );
-        }
-      } else if (selectionStart != null) {
+      if (selectionStart != null) {
         final mapped = PluginCorrectionText(raw).replacement(
           selectionStart,
           selectionStart + original.length,

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/widgets/smart_text/text_renderer_service.dart';
 
 /// מיפוי UTF-16 קנוני לצמתי טקסט, בלי לשנות את תגיות המקור.
@@ -7,6 +8,7 @@ class PluginCorrectionText {
   final String source;
   late final String plain;
   final List<CorrectionTextNode> nodes = [];
+  final List<int> _droppedEntities = [];
   late final List<({int start, int end})> tags = List.unmodifiable(
     _scanTags(source),
   );
@@ -78,7 +80,11 @@ class PluginCorrectionText {
 
     for (final entity in _entities.allMatches(raw)) {
       literal(entity.start);
-      text.write(TextRendererService.stripHtml(entity[0]!));
+      final decoded = TextRendererService.stripHtml(entity[0]!);
+      // ישות שהפענוח מוחק (כמו &copy;) מוצגת בקורא, אך אין לה היסט קנוני:
+      // טווח שנוגע בה אינו מכריע אם היא נבחרה.
+      if (decoded.isEmpty) _droppedEntities.add(output.length + text.length);
+      text.write(decoded);
       offset = entity.end;
       boundaries[text.length] = start + offset;
     }
@@ -96,7 +102,10 @@ class PluginCorrectionText {
     int end,
     String proposed,
   ) {
-    if (plain != TextRendererService.stripHtml(source)) return null;
+    if (plain != TextRendererService.stripHtml(source) ||
+        _droppedEntities.any((offset) => offset >= start && offset <= end)) {
+      return null;
+    }
     final full = _map(start, end, proposed);
     final original = plain.substring(start, end);
     var prefix = 0;
@@ -141,12 +150,41 @@ class PluginCorrectionText {
       mapped.end,
       mapped.replacement,
     );
+    final insertedEnd = delta.start + delta.replacement.length;
     if (TextRendererService.stripHtml(updated) !=
-        plain.replaceRange(start, end, proposed)) {
+            plain.replaceRange(start, end, proposed) ||
+        !_keepsDisplay(source, [
+          mapped.start,
+          delta.start,
+          delta.end,
+          mapped.end,
+        ]) ||
+        !_keepsDisplay(updated, [
+          mapped.start,
+          delta.start,
+          insertedEnd,
+          mapped.start + mapped.replacement.length,
+        ])) {
       return null;
     }
     return mapped;
   }
+
+  // פרסר HTML5 של הקורא מפענח גם ישויות בלי `;` (`&copy`), שהפענוח הקנוני
+  // אינו מכיר: חיתוך במקור או בתוצאה אסור שישנה את מה שמוצג.
+  static bool _keepsDisplay(String html, List<int> cuts) {
+    final pieces = StringBuffer();
+    var previous = 0;
+    for (final cut in cuts) {
+      pieces.write(_displayed(html.substring(previous, cut)));
+      previous = cut;
+    }
+    pieces.write(_displayed(html.substring(previous)));
+    return pieces.toString() == _displayed(html);
+  }
+
+  static String _displayed(String html) =>
+      html_parser.parseFragment(html).text ?? '';
 
   ({int start, int end, String replacement})? _map(
     int start,
