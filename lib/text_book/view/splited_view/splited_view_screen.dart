@@ -331,8 +331,8 @@ class _SplitedViewScreenState extends State<SplitedViewScreen> {
     if (state is! TextBookLoaded) return;
     // ערך אמין: state.searchText מתעדכן בחיפוש בתוך הספר (UpdateSearchText),
     // בעוד widget.tab.searchText הוא הערך ההתחלתי בלבד.
-    final query = state.searchText.trim();
-    if (query.isEmpty) return;
+    final query = state.searchText;
+    if (query.trim().isEmpty) return;
     final idx = state.selectedIndex ?? widget.tab.index;
     if (idx < 0 || idx >= state.content.length) return;
     if (!queryMatchesInlineNoteOnly(

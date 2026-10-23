@@ -1439,5 +1439,8 @@
   "הענק ל{plugin}": "Give to {plugin}",
   "כפתור לשונית חדשה (+)": "New-tab (+) button",
   "פתיחת דף התוסף בכפתור \"+\". רק תוסף אחד יכול לקבל הרשאה זו. בעל הכפתור כעת: {owner}": "Open the plugin page with the \"+\" button. Only one plugin can have this permission. Current owner: {owner}",
-  "אין": "None"
+  "אין": "None",
+  "מחפש מילים שלמות בלבד": "Searching whole words only",
+  "מחפש גם חלק ממילה — לחץ למילים שלמות": "Also searching parts of words — click for whole words",
+  "רווח בסוף מחפש סוף מילה, רווח בהתחלה מחפש תחילת מילה": "A trailing space matches word ends, a leading space matches word starts"
 }

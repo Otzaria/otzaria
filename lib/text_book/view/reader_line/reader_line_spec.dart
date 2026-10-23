@@ -9,6 +9,7 @@ import 'package:otzaria/plugins/services/plugin_highlight_registry.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_renderer.dart';
 import 'package:otzaria/plugins/services/plugin_highlight_reveal_service.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/utils/reading_layout.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
@@ -232,7 +233,12 @@ ReaderLineSpec buildReaderLineSpec(int lineIndex, ReaderLineContext ctx) {
     searchMode: main ? state.searchMode : SearchMode.exact,
     searchDistance: main ? state.searchDistance : 0,
     matchPolicy: main ? state.matchPolicy : SearchMatchPolicy.standard,
-    partialWordHighlight: main && !state.searchWholeWord,
+    partialWordHighlight:
+        main &&
+        literalPartialWordMatch(
+          state.searchText,
+          wholeWord: state.searchWholeWord,
+        ),
     isSearchResultLine:
         main && state.lineParticipatesInSearchHighlight(lineIndex),
     previousLineText: main

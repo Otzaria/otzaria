@@ -20,6 +20,41 @@ Future<void> main() async {
       match.group(1)!,
   ];
 
+  group('רווח בקצה בהתאמה חלקית נבדק בטקסט המחובר (#2679)', () {
+    const top = 'ויאמר בשל';
+    const bottom = 'הבית הזה';
+
+    test('רווח בסוף: סוף המילה בשורה הבאה', () {
+      expect(
+        painted(
+          highLight(top, 'של ה ', nextLine: bottom, partialWordMatch: true),
+        ),
+        isEmpty,
+      );
+      expect(
+        painted(
+          highLight(top, 'של ה', nextLine: bottom, partialWordMatch: true),
+        ),
+        ['של'],
+      );
+    });
+
+    test('רווח בהתחלה: תחילת המילה בשורה הקודמת', () {
+      expect(
+        painted(
+          highLight(bottom, ' של ה', previousLine: top, partialWordMatch: true),
+        ),
+        isEmpty,
+      );
+      expect(
+        painted(
+          highLight(bottom, 'של ה', previousLine: top, partialWordMatch: true),
+        ),
+        ['ה'],
+      );
+    });
+  }, skip: engineReady ? false : searchEngineSkipReason);
+
   group('הדגשה במעבר בין שורות', () {
     test('בלי השורה הסמוכה אין הדגשה', () {
       expect(painted(highLight(first, query)), isEmpty);

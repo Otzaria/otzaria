@@ -617,6 +617,169 @@ void main() {
       });
     });
 
+    // issue #2707 — ציטוט שו"ת "סי' מז" מול כותרות "שאלה מז".
+    group('SeforimRepository — סימן בשו"ת שכותרותיו שאלה/תשובה', () {
+      Future<int> buildResponsaBook(String title, List<String> headings) async {
+        final catId = await createCategory();
+        final bookId = await createBook(catId, title);
+        await insertLines(
+          bookId,
+          List.generate(headings.length + 1, (i) => 'l$i'),
+        );
+        final root = await insertToc(
+          bookId: bookId,
+          lineIndex: 0,
+          text: title,
+          level: 1,
+        );
+        for (var i = 0; i < headings.length; i++) {
+          await insertToc(
+            bookId: bookId,
+            lineIndex: i + 1,
+            text: headings[i],
+            level: 2,
+            parentId: root,
+          );
+        }
+        await repository.updateTocEntryLineIdsByLineIndex(bookId);
+        return bookId;
+      }
+
+      for (final keyword in ['סימן', 'סי']) {
+        test('"$keyword מז" מוצא את "שאלה מז"', () async {
+          final bookId = await buildResponsaBook('פנים מאירות חלק א', [
+            'שאלה א',
+            'שאלה מז',
+          ]);
+          final results = await repository.getTocEntriesForReference(
+            bookId,
+            'פנים מאירות חלק א',
+            queryTokens: [keyword, 'מז'],
+          );
+          expect(results.map((r) => r['reference']), [
+            'פנים מאירות חלק א שאלה מז',
+          ]);
+        });
+      }
+
+      test('"סימן ה" מוצא את "תשובה ה"', () async {
+        final bookId = await buildResponsaBook('תשובות', [
+          'תשובה א',
+          'תשובה ה',
+        ]);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'תשובות',
+          queryTokens: ['סימן', 'ה'],
+        );
+        expect(results.map((r) => r['reference']), ['תשובות תשובה ה']);
+      });
+
+      test('כותרת "סימן" מילולית קודמת ל"תשובה" באותו ספר', () async {
+        final bookId = await buildResponsaBook('תשובות', ['תשובה ה', 'סימן ה']);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'תשובות',
+          queryTokens: ['סימן', 'ה'],
+        );
+        expect(results.map((r) => r['reference']), ['תשובות סימן ה']);
+      });
+
+      test('"תשובה" בשם הספר אינה מחליפה את "סימן"', () async {
+        final catId = await createCategory();
+        final bookId = await createBook(catId, 'שערי תשובה');
+        await insertLines(bookId, ['l0', 'l1']);
+        final root = await insertToc(
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'שערי תשובה',
+          level: 0,
+        );
+        await insertToc(
+          bookId: bookId,
+          lineIndex: 1,
+          text: 'פרק א',
+          level: 1,
+          parentId: root,
+        );
+        await repository.updateTocEntryLineIdsByLineIndex(bookId);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'שערי תשובה',
+          queryTokens: ['סימן', 'א'],
+        );
+        expect(results, isEmpty);
+      });
+
+      test('"סימן" אחרי "הלכות תשובה" אינו נבלע כחזרה על "תשובה"', () async {
+        final catId = await createCategory();
+        final bookId = await createBook(catId, 'משנה תורה');
+        await insertLines(bookId, ['l0', 'l1']);
+        final hilchot = await insertToc(
+          bookId: bookId,
+          lineIndex: 0,
+          text: 'הלכות תשובה',
+          level: 1,
+        );
+        await insertToc(
+          bookId: bookId,
+          lineIndex: 1,
+          text: 'פרק א',
+          level: 2,
+          parentId: hilchot,
+        );
+        await repository.updateTocEntryLineIdsByLineIndex(bookId);
+        final results = await repository.getTocEntriesForReference(
+          bookId,
+          'משנה תורה',
+          queryTokens: ['הלכות', 'תשובה', 'סימן', 'א'],
+        );
+        expect(
+          results.map((r) => r['reference']),
+          isNot(contains('משנה תורה הלכות תשובה פרק א')),
+        );
+      });
+
+      for (final (headings, expected) in [
+        (['תשובה ה'], ['תשובה ה']),
+        (['תשובה ה', 'סימן ה'], ['סימן ה']),
+      ]) {
+        test('AltToc: "סימן ה" מול $headings', () async {
+          final bookId = await buildResponsaBook('תשובות', ['תשובה א']);
+          final db = await database.database;
+          db.execute(
+            'INSERT INTO alt_toc_structure (bookId, key, title, heTitle) '
+            'VALUES (?, ?, ?, ?)',
+            [bookId, 'Topic', 'Topic', 'נושאים'],
+          );
+          final structureId = db.lastInsertRowId;
+          final lineId =
+              db.select('SELECT id FROM line WHERE bookId = ? LIMIT 1', [
+                    bookId,
+                  ]).first['id']
+                  as int;
+          for (final heading in headings) {
+            db.execute('INSERT INTO tocText (text) VALUES (?)', [heading]);
+            db.execute(
+              'INSERT INTO alt_toc_entry (structureId, parentId, textId, '
+              'level, lineId, isLastChild, hasChildren) '
+              'VALUES (?, NULL, ?, 1, ?, 1, 0)',
+              [structureId, db.lastInsertRowId, lineId],
+            );
+          }
+          final results = await repository.getAltTocEntriesForReference(
+            bookId,
+            'תשובות',
+            queryTokens: ['סימן', 'ה'],
+          );
+          expect(
+            results.map((r) => r['reference']),
+            expected,
+          );
+        });
+      }
+    });
+
     test('הקאש מבוטל לספר ספציפי בלבד — שאר הספרים נשארים cached', () async {
       final bookA = await buildSampleBook('בראשית');
       final bookB = await buildSampleBook('שמות');

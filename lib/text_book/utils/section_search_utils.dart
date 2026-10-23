@@ -96,7 +96,7 @@ String cleanLineForSearch(String rawLine) => utils
     .trim();
 
 String _normalizeQueryWhitespace(String query) =>
-    query.replaceAll(_whitespaceRun, ' ').trim();
+    query.replaceAll(_whitespaceRun, ' ');
 
 void _updateAddress(List<String> address, String line) {
   if (line.length < 4) {
@@ -213,7 +213,7 @@ double matchFractionInLine(
       searchDistance: searchDistance,
       matchPolicy: matchPolicy,
       isSearchResultLine: true,
-      partialWordMatch: !wholeWord,
+      partialWordMatch: literalPartialWordMatch(query, wholeWord: wholeWord),
     );
     offset = ranges.isEmpty ? -1 : ranges.first.first;
   }

@@ -13,16 +13,20 @@ import '../helpers/seforim_fixture_db.dart';
 
 class _MockDataRepository extends Mock implements DataRepository {}
 
-ReferenceBookHit _hit(int bookId, String title, {double orderIndex = 999}) =>
-    ReferenceBookHit(
-      bookId: bookId,
-      title: title,
-      normalizedTitle: normalizeForFindRefMatch(title),
-      filePath: '',
-      fileType: 'txt',
-      matchRank: 0,
-      orderIndex: orderIndex,
-    );
+ReferenceBookHit _hit(
+  int bookId,
+  String title, {
+  double orderIndex = 999,
+  int matchRank = 0,
+}) => ReferenceBookHit(
+  bookId: bookId,
+  title: title,
+  normalizedTitle: normalizeForFindRefMatch(title),
+  filePath: '',
+  fileType: 'txt',
+  matchRank: matchRank,
+  orderIndex: orderIndex,
+);
 
 FindRefRepository _repo({
   required List<ReferenceBookHit> hits,
@@ -193,6 +197,97 @@ void main() {
     expect(results.first.segment, 5);
     expect(results.first.isPartialTocMatch, isFalse);
   });
+
+  // issue #3082: מילות השאילתה אינן באותו מקום כמו בכותרת ("תלמוד ירושלמי ...").
+  for (final query in ['ירושלמי מעשר שני', 'מעשר שני']) {
+    test(
+      '"$query" — הספר שכל מילותיו בכותרת קודם לספר שבו "שני" הוא מיקום',
+      () async {
+        // matchRank=2 (מכיל): הכותרות פותחות ב"תלמוד ירושלמי", כמו במטמון האמיתי.
+        final books = [
+          _hit(1, 'תלמוד ירושלמי מעשרות', orderIndex: 1, matchRank: 2),
+          _hit(2, 'תלמוד ירושלמי מעשר שני', orderIndex: 2, matchRank: 2),
+        ];
+        final repo = _repo(
+          hits: books,
+          hitsFor: (phrase) => [
+            for (final b in books)
+              if (phrase
+                  .split(' ')
+                  .every((w) => b.title.split(' ').any((t) => t.startsWith(w))))
+                b,
+          ],
+          toc: (bookId, _, _) async => bookId == 1
+              ? [
+                  {
+                    'reference': 'תלמוד ירושלמי מעשרות פרק שני',
+                    'segment': 40,
+                    'level': 1,
+                    'dbLineId': 0,
+                  },
+                ]
+              : const [],
+        );
+
+        final results = await repo.findRefs(query);
+
+        expect(results.first.title, 'תלמוד ירושלמי מעשר שני');
+      },
+    );
+  }
+
+  // מספר מיקום אינו מילת כותרת: "סו" אינו "סופר", ולכן הספר עצמו קודם למפרש.
+  for (final (query, base, commentary, reference) in [
+    ('שבת סו א', 'שבת', 'חידושי חתם סופר על שבת', 'דף סו א'),
+    ('ברכות נו ב', 'ברכות', 'ביאור גמרא נוחה על ברכות', 'דף נו ב'),
+    ('נדה נד א', 'נדה', 'חידושי הרשב"א על נדה', 'דף נד א'),
+  ]) {
+    test('"$query" — $base קודם ל$commentary', () async {
+      final repo = _repo(
+        hits: [
+          _hit(1, base, orderIndex: 1),
+          _hit(2, commentary, orderIndex: 2, matchRank: 2),
+        ],
+        toc: (_, _, _) async => [
+          {
+            'reference': reference,
+            'segment': 10,
+            'level': 1,
+            'dbLineId': 0,
+          },
+        ],
+      );
+
+      final results = await repo.findRefs(query);
+
+      expect(results.first.title, base);
+    });
+  }
+
+  // "יח" הוא תחילית של "יחזקאל" עצמו; המפרש נמצא רק לפי "יחזקאל" לבדו.
+  for (final commentary in ['מלבים על יחזקאל', 'מלבי"ם על יחזקאל']) {
+    test('"יחזקאל יח" — יחזקאל קודם ל$commentary', () async {
+      final repo = _repo(
+        hits: const [],
+        hitsFor: (phrase) => [
+          for (final (id, title, order, rank) in [
+            (1, 'יחזקאל', 1.0, 0),
+            (2, commentary, 2.0, 2),
+          ])
+            if (phrase.split(' ').every(title.split(' ').contains))
+              _hit(id, title, orderIndex: order, matchRank: rank),
+        ],
+        toc: (_, _, _) async => [
+          {'reference': 'פרק יח', 'segment': 10, 'level': 1, 'dbLineId': 0},
+        ],
+      );
+
+      final results = await repo.findRefs('יחזקאל יח');
+
+      expect(results.map((r) => r.title), contains(commentary));
+      expect(results.first.title, 'יחזקאל');
+    });
+  }
 
   group('SeforimRepository.getTocEntriesForReference — סימון התאמה חלקית', () {
     late Directory tempDir;
