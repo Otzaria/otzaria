@@ -73,21 +73,24 @@ ORDER BY b.orderIndex, b.title;
 
 -- מחזיר את **הקישורים** למפרשים על טווח שורות מקור [startLineIndex,
 -- endLineIndex), עם כל השדות הדרושים לבניית Link לניווט ולתצוגה מקדימה. מפרש
--- אחד לכל ספר (GROUP BY). מחזיר שלושה מיקומים בספר המפרש:
+-- אחד לכל ספר (GROUP BY). מחזיר מיקומים בספר המפרש:
 --   `exactTargetLineIndex` — המיקום המקביל לשורת המקור המדויקת (`exactLine`),
 --      או NULL אם המפרש אינו מקושר לאותה שורה בדיוק. כשקיים — התצוגה המקדימה
---      תציג את הקטע המדויק בלבד.
+--      תציג את קטעי השורה (`exactTargetLineIndexes`, ממוינים) עד קטע של שורת
+--      מקור אחרת בקטע (`otherTargetLineIndexes`).
 --   `minTargetLineIndex`/`maxTargetLineIndex` — קצות טווח המפרש על פני כל הקטע;
 --      כשאין התאמה מדויקת מציגים את כל התוכן שבטווח זה.
 -- מסנן את `excludeBookId` (ספר המפרש שממנו הגיע המשתמש).
--- פרמטרים: (exactLine, sourceBookId, startLineIndex, endLineIndex, excludeBookId).
+-- פרמטרים: (exactLine — ?1 בכל עמודות ההתאמה, sourceBookId, startLineIndex, endLineIndex, excludeBookId).
 selectCommentaryLinksByLineRange:
 SELECT l.targetBookId, b.title AS targetBookTitle,
        b.categoryId AS targetCategoryId, NULL AS targetFileType,
        MIN(ct.name) AS connectionType,
        MIN(tl.lineIndex) AS minTargetLineIndex,
        MAX(tl.lineIndex) AS maxTargetLineIndex,
-       MIN(CASE WHEN sl.lineIndex = ? THEN tl.lineIndex END) AS exactTargetLineIndex
+       MIN(CASE WHEN sl.lineIndex = ?1 THEN tl.lineIndex END) AS exactTargetLineIndex,
+       GROUP_CONCAT(tl.lineIndex ORDER BY tl.lineIndex) FILTER (WHERE sl.lineIndex = ?1) AS exactTargetLineIndexes,
+       GROUP_CONCAT(tl.lineIndex ORDER BY tl.lineIndex) FILTER (WHERE sl.lineIndex != ?1) AS otherTargetLineIndexes
 FROM link l
 JOIN connection_type ct ON l.connectionTypeId = ct.id
 JOIN book b ON l.targetBookId = b.id
@@ -110,7 +113,9 @@ SELECT l.targetBookId, b.title AS targetBookTitle,
        MIN(ct.name) AS connectionType,
        MIN(tl.lineIndex) AS minTargetLineIndex,
        MAX(tl.lineIndex) AS maxTargetLineIndex,
-       MIN(CASE WHEN sl.lineIndex = ? THEN tl.lineIndex END) AS exactTargetLineIndex
+       MIN(CASE WHEN sl.lineIndex = ?1 THEN tl.lineIndex END) AS exactTargetLineIndex,
+       GROUP_CONCAT(tl.lineIndex ORDER BY tl.lineIndex) FILTER (WHERE sl.lineIndex = ?1) AS exactTargetLineIndexes,
+       GROUP_CONCAT(tl.lineIndex ORDER BY tl.lineIndex) FILTER (WHERE sl.lineIndex != ?1) AS otherTargetLineIndexes
 FROM line sl
 CROSS JOIN link l ON l.sourceLineId = sl.id AND +l.sourceBookId = sl.bookId
 JOIN connection_type ct ON l.connectionTypeId = ct.id

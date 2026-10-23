@@ -1049,6 +1049,60 @@ void main() {
       expect(DbReadWorker.sentMessageCount - before, 1);
     });
 
+    test('מפרשים נוספים: התצוגה המקדימה מציגה את כל קטעי המפרש על שורת המקור '
+        '(issue #3026)', () async {
+      final db = sqlite3.sqlite3.open(dbPath);
+      for (var i = 3; i < 12; i++) {
+        db.execute(
+          'INSERT INTO line (id, bookId, lineIndex, content) '
+          'VALUES (?, 2, ?, ?)',
+          [200 + i, i, 'פירוש $i'],
+        );
+      }
+      db.execute(
+        "INSERT INTO connection_type (name) SELECT 'COMMENTARY' WHERE NOT "
+        "EXISTS (SELECT 1 FROM connection_type WHERE name = 'COMMENTARY')",
+      );
+      // שורת מקור 1: ס"ק צמודים, ביניהם שורת הפרדה. שורת מקור 2: בין שני ס"ק
+      // שלה ס"ק של שורה 3. שורת מקור 4: ס"ק ועוד אחד רחוק ממנו.
+      for (final (sourceLine, targetLine) in [
+        (101, 200),
+        (101, 201),
+        (101, 203),
+        (102, 204),
+        (102, 206),
+        (103, 205),
+        (104, 207),
+        (104, 211),
+      ]) {
+        db.execute(
+          'INSERT INTO link (sourceBookId, sourceLineId, targetLineId, '
+          'targetBookId, connectionTypeId) SELECT 1, ?, ?, 2, id '
+          "FROM connection_type WHERE name = 'COMMENTARY'",
+          [sourceLine, targetLine],
+        );
+      }
+      db.close();
+      final repository = TextBookRepository(
+        fileSystem: FileSystemData.instance,
+      );
+
+      Future<String> preview(int sourceLineIndex) async {
+        final links = await repository.getSiblingCommentaries(
+          sourceBookTitle: 'בראשית',
+          sourceCategoryId: 7,
+          sourceLineIndex: sourceLineIndex,
+          currentBookTitle: 'אחר',
+          currentCategoryId: 7,
+        );
+        return DatabaseLibraryProvider.instance.getLinkContent(links.single);
+      }
+
+      expect(await preview(1), 'פירוש 0<br>פירוש 1<br>פירוש 2<br>פירוש 3');
+      expect(await preview(2), 'פירוש 4');
+      expect(await preview(4), 'פירוש 7');
+    });
+
     test('טווחי טקסט וקישורים נטענים דרך ה-worker', () async {
       final provider = DatabaseLibraryProvider.instance;
       final before = DbReadWorker.sentMessageCount;

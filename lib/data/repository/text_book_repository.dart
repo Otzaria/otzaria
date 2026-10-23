@@ -629,25 +629,29 @@ class TextBookRepository {
         : rows;
     final links = matchedRows.map((row) {
       final exact = row['exactTargetLineIndex'] as int?;
-      final minIdx = row['minTargetLineIndex'] as int;
-      final maxIdx = row['maxTargetLineIndex'] as int;
-      // התאמה מדויקת לשורת המקור → תצוגה מקדימה של אותו קטע בלבד. אחרת →
-      // טווח כל הקישורים של המפרש בקטע (תוכן המפרש על העמוד).
-      final int index2;
-      final int? index2End;
+      final first = exact ?? row['minTargetLineIndex'] as int;
+      var last = exact ?? row['maxTargetLineIndex'] as int;
       if (exact != null) {
-        index2 = exact + 1;
-        index2End = null;
-      } else {
-        index2 = minIdx + 1;
-        index2End = maxIdx > minIdx ? maxIdx + 1 : null;
+        // קטעי השורה ברצף מהראשון: עד שתי שורות הפרדה, שאינן קטע של שורת מקור
+        // אחרת — כדי שהתצוגה לא תגלוש לס"ק של סעיף אחר.
+        late final others = _lineIndexes(row['otherTargetLineIndexes']).toSet();
+        for (final next in _lineIndexes(row['exactTargetLineIndexes'])) {
+          final gap = next - last - 1;
+          if (gap < 0) continue;
+          if (gap > 2 ||
+              gap > 0 &&
+                  (others.contains(last + 1) || others.contains(next - 1))) {
+            break;
+          }
+          last = next;
+        }
       }
       return Link(
         heRef: row['targetBookTitle'] as String,
         index1: sourceLineIndex + 1,
         path2: row['targetBookTitle'] as String,
-        index2: index2,
-        index2End: index2End,
+        index2: first + 1,
+        index2End: last > first ? last + 1 : null,
         connectionType: row['connectionType'] as String? ?? 'commentary',
         targetCategoryId: row['targetCategoryId'] as int?,
         targetBookId: row['targetBookId'] as int?,
@@ -659,6 +663,9 @@ class TextBookRepository {
     // מיון לפי דורות (ראשונים→אחרונים→…) לצורך פסי ההפרדה בתת-התפריט.
     return CommentaryService.sortLinksByEra(mergeExtraLinks(links, external));
   }
+
+  static Iterable<int> _lineIndexes(Object? csv) =>
+      csv == null ? const [] : (csv as String).split(',').map(int.parse);
 
   /// ב-seforim.db השאילתה סורקת את כל קישורי הספר (עד 124ms בבראשית),
   /// ולכן רצה ב-worker ולא על ה-UI isolate.
