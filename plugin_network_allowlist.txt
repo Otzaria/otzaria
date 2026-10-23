@@ -27,6 +27,7 @@ https://tablet.otzar.org
 # אתרי היברבוקס
 https://hebrewbooks.org
 https://beta.hebrewbooks.org
+https://download.hebrewbooks.org
 
 # ספריית על התורה
 https://library.alhatorah.org
