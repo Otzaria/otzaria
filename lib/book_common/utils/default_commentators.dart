@@ -3,6 +3,7 @@ import 'package:otzaria/attached_libraries/repository/attached_library_registry.
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/settings/services/category_commentators_service.dart';
 import 'package:otzaria/book_common/utils/category_settings_utils.dart';
 
@@ -28,7 +29,8 @@ class DefaultCommentators {
 
     final source = book.source;
     final repository = switch (source) {
-      OfficialBookSource() => SqliteDataProvider.instance.repository,
+      OfficialBookSource() =>
+        _needsReopen ? await _reopenedRepository() : _provider.repository,
       UserBookSource() => null,
       AttachedBookSource(:final slug) =>
         await AttachedLibraryRegistry.instance.repositoryFor(slug),
@@ -60,6 +62,17 @@ class DefaultCommentators {
           .map((row) => row['targetBookTitle'] as String)
           .toList(),
     );
+  }
+
+  static SqliteDataProvider get _provider => SqliteDataProvider.instance;
+
+  /// חיבור שנפתח ונסגר נפתח כאן מחדש, אחרת ברירות המחדל נעלמות בשקט (#3081).
+  static bool get _needsReopen =>
+      !_provider.isInitialized && _provider.wasOpened;
+
+  static Future<SeforimRepository?> _reopenedRepository() async {
+    await _provider.initialize();
+    return _provider.repository;
   }
 
   /// מחזיר את רשימת המפרשים הבסיסיים של [book] (מפרשים ואחריהם תרגומים),

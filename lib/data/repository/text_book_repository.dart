@@ -454,24 +454,16 @@ class TextBookRepository {
     );
 
     // קישורי המפרשים במסד של הספר בלבד; ספר אישי — רק מקישורי-משתמש.
-    final repository = await _linksRepositoryFor(book.source);
-    if (repository == null) return userOnly();
-
-    // מקבל את ה-book ישירות מה-repository (אותו DB שממנו נשלוף את המפרשים)
-    final dbBook = book.categoryId != null
-        ? await repository.getBookByTitleAndCategory(
-            book.title,
-            book.categoryId!,
-          )
-        : await repository.getBookByTitle(book.title);
-    if (dbBook == null) return userOnly();
-
-    // שולף את הפרשנים ישירות מה-DB, כולל מספר הקישורים של כל מפרש
-    final commentatorsData = await _selectCommentatorsByBook(
-      repository,
-      book.source,
-      dbBook.id,
-    );
+    ({int totalLines, List<Map<String, dynamic>> rows})? fromDb;
+    try {
+      fromDb = await _commentatorRowsFromDb(book);
+    } on DbReadWorkerSuspended {
+      // החלפת ספרייה: [_officialRepository] ממתין לסיומה ואז שואלים שוב על
+      // החיבור הראשי — מזהה הספר עשוי להשתנות, וה-worker אולי עוד מושהה.
+      fromDb = await _commentatorRowsFromDb(book, viaWorker: false);
+    }
+    if (fromDb == null) return userOnly();
+    final commentatorsData = fromDb.rows;
 
     // מפרש עשוי להופיע בכמה שורות (מחבר לכל שורה) עם אותו linkCount; לוקחים
     // את הערך המרבי כמספר הקישורים לספר.
@@ -492,7 +484,7 @@ class TextBookRepository {
     final all = {...linkCountByTitle.keys, ...userCommentators}.toList()
       ..sort((a, b) => a.compareTo(b));
     final rare = computeRareCommentators(
-      bookTotalLines: dbBook.totalLines,
+      bookTotalLines: fromDb.totalLines,
       linkCountByCommentator: linkCountByTitle,
     ).difference(userCommentators);
     return (
@@ -660,15 +652,43 @@ class TextBookRepository {
     return CommentaryService.sortLinksByEra(mergeExtraLinks(links, external));
   }
 
+  /// שורות המפרשים של [book] מהמסד שלו; null — אין מסד או שהספר אינו בו.
+  Future<({int totalLines, List<Map<String, dynamic>> rows})?>
+  _commentatorRowsFromDb(TextBook book, {bool viaWorker = true}) async {
+    final repository = await _linksRepositoryFor(book.source);
+    if (repository == null) return null;
+
+    // מקבל את ה-book ישירות מה-repository (אותו DB שממנו נשלוף את המפרשים)
+    final dbBook = book.categoryId != null
+        ? await repository.getBookByTitleAndCategory(
+            book.title,
+            book.categoryId!,
+          )
+        : await repository.getBookByTitle(book.title);
+    if (dbBook == null) return null;
+
+    // שולף את הפרשנים ישירות מה-DB, כולל מספר הקישורים של כל מפרש
+    return (
+      totalLines: dbBook.totalLines,
+      rows: await _selectCommentatorsByBook(
+        repository,
+        book.source,
+        dbBook.id,
+        viaWorker: viaWorker,
+      ),
+    );
+  }
+
   /// ב-seforim.db השאילתה סורקת את כל קישורי הספר (עד 124ms בבראשית),
   /// ולכן רצה ב-worker ולא על ה-UI isolate.
   Future<List<Map<String, dynamic>>> _selectCommentatorsByBook(
     SeforimRepository repository,
     BookSource source,
-    int bookId,
-  ) async {
+    int bookId, {
+    bool viaWorker = true,
+  }) async {
     final dbPath = _sqliteProvider.dbPath;
-    if (source.isOfficial && dbPath.isNotEmpty) {
+    if (viaWorker && source.isOfficial && dbPath.isNotEmpty) {
       try {
         return (await DbReadWorker.request('commentatorsByBook', {
                   'dbPath': dbPath,
@@ -721,11 +741,24 @@ class TextBookRepository {
   /// אישי — null (קישוריו ב-user_link).
   Future<SeforimRepository?> _linksRepositoryFor(BookSource source) =>
       switch (source) {
-        OfficialBookSource() => Future.value(_sqliteProvider.repository),
+        OfficialBookSource() => _officialRepository(),
         UserBookSource() => Future.value(),
         AttachedBookSource(:final slug) =>
           AttachedLibraryRegistry.instance.repositoryFor(slug),
       };
+
+  /// חיבור שנפתח ונסגר (refresh, השהיה) נפתח כאן מחדש, אחרת המפרשים נעלמים
+  /// בשקט (#3081). חיבור שמעולם לא נפתח שייך לאתחול האפליקציה.
+  Future<SeforimRepository?> _officialRepository() async {
+    final provider = _sqliteProvider;
+    if (!provider.isInitialized && provider.wasOpened) {
+      await provider.initialize();
+    }
+    return provider.repository;
+  }
+
+  /// האם חיבור הספרייה הרשמית פתוח — לרישום כשל בטעינת המפרשים.
+  bool get isLibraryConnectionOpen => _sqliteProvider.isInitialized;
 
   Future<void> saveBookContent(TextBook book, String content) async {
     await _fileSystem.saveBookText(book.title, content);
