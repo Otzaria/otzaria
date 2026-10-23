@@ -246,6 +246,14 @@ After reveal, `windows/runner/hang_monitor.cpp` polls `IsHungAppWindow` once a s
 which floods starve) and writes `=== App hang` / `=== App hang recovered`; Dart offers a report
 under the crash-report setting (`lib/app_report/services/app_hang_report.dart`).
 
+**Reading a hang stack.** Every Dart-code hang ends in the same engine frames (`DartEntry::Invoke*`
+called from `BeginFrame` or a platform message). The cause is in the `app.so+0x…` frames above them.
+Name those frames with the release asset `otzaria-dart-symbols-windows-<arch>.debug`:
+`dart run tool/symbolize_hang_report.dart --symbols <file> errors.txt`. The tool skips any record
+whose `Dart build-id` does not match the file. `Build commit` identifies a dev build, and those have no
+published symbols. To name `flutter_windows.dll` frames, use its PDB from
+`flutter_infra_release/flutter/<engine.version>/windows-x64-release/windows-x64-flutter.zip`.
+
 ## Developer diagnostics (measuring the real app)
 
 To compare performance before and after a change, run the real app with developer diagnostics
