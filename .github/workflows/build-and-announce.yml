@@ -167,7 +167,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           cache: true
 
       - name: Create Google Calendar Credentials
@@ -597,7 +597,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          git clone --depth 1 --branch 3.47.2 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
           "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" --version
           $dartVersion = & "$env:RUNNER_TEMP\flutter\bin\cache\dart-sdk\bin\dart.exe" --version 2>&1
@@ -899,7 +899,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           cache: true
 
       # אין חבילת SDK רשמית של Flutter ללינוקס-ARM (המניפסט של flutter-action
@@ -909,7 +909,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch 3.47.2 https://github.com/flutter/flutter.git /opt/flutter
+          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git /opt/flutter
           echo "/opt/flutter/bin" >> "$GITHUB_PATH"
           # flutter-action מוסיף את bin של מטמון pub ל-PATH; במסלול ה-git זה עלינו —
           # בלעדיו flutter_distributor מותקן אך לא נמצא בהרצה.
@@ -1836,7 +1836,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           cache: true
 
       - name: Install Rust (stable)
@@ -2125,7 +2125,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           # ב-macOS ה-cache (~2.5GB) כמעט לא נמצא בין ריצות, ושמירתו איטית מהתקנה.
           cache: false
 
@@ -2848,7 +2848,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.2
+          flutter-version: 3.47.7
           cache: true
 
       # נתוני החיפוש החכם לתג הספרייה שהשחרור אורז, ממאגרים אחרים בארגון.
