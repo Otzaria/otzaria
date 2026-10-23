@@ -105,7 +105,7 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
   ),
   'library.getBookProtections': PluginApiMethod(
     'library.books.read',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'library.resolveBooks': PluginApiMethod(
@@ -208,7 +208,7 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
   'reader.openBookAtRef': PluginApiMethod('reader.open', '0.9.89'),
   'reader.printRange': PluginApiMethod(
     'reader.open',
-    '0.9.99',
+    '0.9.98',
     hasPermissionHint: true,
   ),
   'reader.openSearchTab': PluginApiMethod('reader.open', '0.9.89'),
@@ -427,7 +427,7 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
     hasPermissionHint: true,
   ),
   'ui.print': PluginApiMethod(null, '0.9.97'),
-  'ui.printFile': PluginApiMethod(null, '0.9.99'),
+  'ui.printFile': PluginApiMethod(null, '0.9.98'),
   'ui.exportPdf': PluginApiMethod(null, '0.9.97'),
   'ui.setUnsavedChanges': PluginApiMethod(null, '0.9.97'),
   'storage.get': PluginApiMethod('plugin.storage.read', '0.9.89'),
@@ -577,7 +577,7 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
   ),
   'network.fetchFile': PluginApiMethod(
     null,
-    '0.9.99',
+    '0.9.98',
     validationPermission: 'network.access',
     hasPermissionHint: true,
   ),
@@ -671,7 +671,7 @@ const Map<String, PluginApiMethod> pluginApiMethods = {
     documented: false,
   ),
   'plugin.backgroundDone': PluginApiMethod(null, '0.9.97'),
-  'plugin.setRestoreState': PluginApiMethod(null, '0.9.99'),
+  'plugin.setRestoreState': PluginApiMethod(null, '0.9.98'),
 };
 
 final Map<String, String> pluginApiMethodPermissions = Map.unmodifiable({

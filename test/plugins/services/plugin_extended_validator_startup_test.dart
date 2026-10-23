@@ -188,7 +188,7 @@ void main() {
         'app.run_on_startup',
         'search.field_actions',
       ],
-      String minAppVersion = '0.9.99',
+      String minAppVersion = '0.9.98',
       List<Map<String, dynamic>>? items,
     }) => _manifest(
       permissions: permissions,
@@ -288,6 +288,8 @@ void main() {
           'reader.local_edit',
           'reader.open',
           'feedback.send_email',
+          'library.books.read',
+          'network.access',
         ],
         items: const [],
       );
@@ -320,6 +322,11 @@ void main() {
       'reader.listCorrectionDrafts',
       'reader.getCorrectionDraft',
       'feedback.submitBookCorrection',
+      'reader.printRange',
+      'network.fetchFile',
+      'library.getBookProtections',
+      'plugin.setRestoreState',
+      'ui.printFile',
     ]) {
       test('קריאה ל-$method זמינה מ-0.9.98 ונחסמת לפניה (#3110)', () {
         expect(methodVersionErrors(method, '0.9.98'), isEmpty);
@@ -329,13 +336,6 @@ void main() {
         );
       });
     }
-
-    test('ספי 0.9.99 של יכולות אחרות לא השתנו', () {
-      expect(
-        methodVersionErrors('reader.printRange', '0.9.98'),
-        contains(contains('החל מגרסה 0.9.99')),
-      );
-    });
   });
 
   group('libraryBooks', () {
@@ -1339,7 +1339,7 @@ void main() {
     });
 
     test('openPlugin קשור עדיין נחסם בתוסף ללא ממשק', () {
-      final json = manifest(true, '0.9.99')..['headless'] = true;
+      final json = manifest(true, '0.9.98')..['headless'] = true;
       json['permissions'] = [
         ...json['permissions'] as List,
         'app.run_on_startup',

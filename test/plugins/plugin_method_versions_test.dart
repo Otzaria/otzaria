@@ -49,6 +49,28 @@ void main() {
       }
     });
 
+    // סף מעל גרסת האפליקציה חוסם תוספים ל-API שכבר קיים בה (#3110).
+    test('אף גרסת מינימום אינה גבוהה מגרסת האפליקציה', () {
+      final appVersion = RegExp(
+        r'^version:\s*([\d.]+)',
+        multiLine: true,
+      ).firstMatch(File('pubspec.yaml').readAsStringSync())!.group(1)!;
+      final ahead =
+          versions.entries
+              .where(
+                (e) =>
+                    PluginVersionUtils.compareCoreVersions(
+                      e.value,
+                      appVersion,
+                    ) >
+                    0,
+              )
+              .map((e) => '${e.key}: ${e.value}')
+              .toList()
+            ..sort();
+      expect(ahead, isEmpty, reason: 'גרסת האפליקציה $appVersion');
+    });
+
     test('הטבלה ב-API_REFERENCE.md זהה למפה בקוד', () {
       final md = File('docs/plugin-sdk/API_REFERENCE.md').readAsStringSync();
       final tableVersions = _parseVersionTable(md);

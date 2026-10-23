@@ -9,6 +9,7 @@ import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_permission_grant.dart';
+import 'package:otzaria/plugins/models/plugin_valid_permissions.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_installer_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -813,8 +814,46 @@ void main() {
         final prepared = await installer.prepareInstall(
           writeCorrectionsPlugin('0.9.98'),
         );
-        expect(prepared.manifest.minAppVersion, '0.9.98');
-        await Directory(prepared.tempDirPath).delete(recursive: true);
+        final grants = {
+          for (final permission in effectiveManifestPermissions(
+            prepared.manifest.permissions,
+          ))
+            permission: true,
+        };
+
+        await installer.finalizeInstall(
+          prepared.tempDirPath,
+          prepared.manifest,
+          grantedPermissions: grants,
+        );
+
+        final saved = repository.savedPlugins.single;
+        expect(saved.pluginId, 'test.book.corrections');
+        expect(saved.manifest.minAppVersion, '0.9.98');
+        expect(saved.manifest.startup!.searchFieldActions, hasLength(1));
+        expect(
+          File(p.join(saved.installPath, 'index.html')).existsSync(),
+          isTrue,
+        );
+        expect(
+          repository.permissions['test.book.corrections|search.field_actions'],
+          isTrue,
+        );
+        expect(Directory(prepared.tempDirPath).existsSync(), isFalse);
+      });
+
+      test('תוסף שדורש גרסה עתידית נדחה על 0.9.98', () async {
+        await expectLater(
+          installer.prepareInstall(writeCorrectionsPlugin('0.9.99')),
+          throwsA(
+            predicate(
+              (error) => error.toString().contains(
+                'התוסף דורש אוצריא בגרסה 0.9.99 לפחות, אך מותקנת 0.9.98',
+              ),
+            ),
+          ),
+        );
+        expect(repository.savedPlugins, isEmpty);
       });
 
       test('minAppVersion נמוך מסף התמיכה עדיין נדחה', () async {
