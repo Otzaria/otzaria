@@ -123,6 +123,7 @@ void main() {
   late List<({String path, String jobName})> printed;
   late bool userActivated;
   late Completer<bool>? printGate;
+  late void Function()? onPrintEntered;
   var httpHits = 0;
 
   setUp(() async {
@@ -133,6 +134,7 @@ void main() {
     printed = [];
     userActivated = true;
     printGate = null;
+    onPrintEntered = null;
     httpHits = 0;
     originalResolver = PluginNetworkAccessResolver.instance;
     PluginNetworkAccessResolver.instance = PluginNetworkAccessResolver(
@@ -193,6 +195,7 @@ void main() {
         hasUserActivation: (pluginId, instanceId) async => userActivated,
         printPluginFile: (file, {required jobName}) async {
           printed.add((path: file.path, jobName: jobName));
+          onPrintEntered?.call();
           return await (printGate?.future ?? Future.value(true));
         },
       ),
@@ -846,16 +849,30 @@ void main() {
     test('דיאלוג אחד בכל רגע', () async {
       final adapter = buildAdapter();
       final res = await fetchFile(adapter);
-      printGate = Completer<bool>();
+      final gate = printGate = Completer<bool>();
+      final entered = Completer<void>();
+      final reentered = Completer<void>();
+      onPrintEntered = () =>
+          (entered.isCompleted ? reentered : entered).complete();
 
       final first = adapter.execute('ui', 'printFile', {'token': res['token']});
-      await Future<void>.delayed(Duration.zero);
-      await expectLater(
-        adapter.execute('ui', 'printFile', {'token': res['token']}),
-        _failsWith('error.forbidden'),
-      );
-
-      printGate!.complete(true);
+      try {
+        // לפני הדיאלוג יש פעולות קובץ אסינכרוניות; ממתינים לכניסה בפועל.
+        await Future.any([entered.future, first]);
+        expect(entered.isCompleted, isTrue);
+        final second = adapter.execute('ui', 'printFile', {
+          'token': res['token'],
+        });
+        // כניסה שגויה של השנייה הייתה ממתינה ל-gate עד timeout.
+        await Future.any([
+          second.then<void>((_) {}, onError: (Object _) {}),
+          reentered.future,
+        ]);
+        if (reentered.isCompleted) gate.complete(true);
+        await expectLater(second, _failsWith('error.forbidden'));
+      } finally {
+        if (!gate.isCompleted) gate.complete(true);
+      }
       expect(await first, {'printed': true});
       expect(printed, hasLength(1));
     });
