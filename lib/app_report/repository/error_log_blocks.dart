@@ -57,7 +57,7 @@ class ErrorLogBlock {
   /// חתימה לפי ההודעה וה-stack; לרשומה בלי הודעה — לפי הכותרת.
   CrashSignature get signature => CrashSignature.fromLogText(
     exceptionMessage: exceptionMessage ?? title,
-    stackText: isAppHang ? _withoutSystemFrames(stackText) : stackText,
+    stackText: isAppHang ? _hangSignatureStack(stackText) : stackText,
   );
 }
 
@@ -82,13 +82,20 @@ const Set<String> _systemModules = {
   'vcruntime140_1.dll',
 };
 
-String _withoutSystemFrames(String stackText) {
-  final lines = const LineSplitter().convert(stackText);
-  final kept = lines.where((line) {
+String _hangSignatureStack(String stackText) {
+  final kept = <String>[];
+  var inDart = false;
+  for (final line in const LineSplitter().convert(stackText)) {
     final frame = line.trim().toLowerCase();
+    // מתחת לקוד Dart יש רק כניסת המנוע ולולאת ההודעות, זהות לכל תקיעה בו.
+    final isDart = frame.startsWith('app.so+');
+    if (inDart && !isDart) break;
+    inDart = isDart;
     final plus = frame.indexOf('+');
-    return plus <= 0 || !_systemModules.contains(frame.substring(0, plus));
-  }).toList();
+    if (plus <= 0 || !_systemModules.contains(frame.substring(0, plus))) {
+      kept.add(line);
+    }
+  }
   final hasFrame = kept.any(
     (line) => CrashSignature.normalizeFrame(line) != null,
   );
