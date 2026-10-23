@@ -408,133 +408,135 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
           _focusSearchField();
         },
       },
-      child: Focus(
-        focusNode: _windowFocusNode,
-        autofocus: true,
-        onKeyEvent: _handleWindowKeyEvent,
-        child: ErrorBoundary(
-          child: Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
-            builder: (context, dataProvider, progressProvider, child) {
-              if (dataProvider.isLoading || progressProvider.isLoading) {
-                return const Center(child: CircularProgressIndicator());
-              }
+      // מעל ה-Focus כי ממנו Ctrl+חצים מחפשים בקר. התוכן יורש אותו, הסרגל לא.
+      child: PrimaryScrollController(
+        controller: _contentScrollController,
+        automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+        child: Focus(
+          focusNode: _windowFocusNode,
+          autofocus: true,
+          onKeyEvent: _handleWindowKeyEvent,
+          child: ErrorBoundary(
+            child: Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
+              builder: (context, dataProvider, progressProvider, child) {
+                if (dataProvider.isLoading || progressProvider.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-              if (dataProvider.error != null ||
-                  progressProvider.error != null) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('שגיאה בטעינת הנתונים'),
-                      ActionButton.recommended(
-                        text: 'נסה שוב',
-                        onPressed: () async {
-                          if (dataProvider.error != null) {
-                            await dataProvider.loadAllData();
-                          }
-                          if (!context.mounted) {
-                            return;
-                          }
-                          if (progressProvider.error != null) {
-                            await progressProvider.retry();
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              // Default Selection Logic: 'All Books'
-              BookCategory? currentCategoryObject = _resolveSelectedCategory(
-                dataProvider,
-              );
-              String? currentCategoryName = _selectedCategoryName;
-              String? currentTopLevelName = _selectedTopLevelName;
-
-              if (currentCategoryObject == null &&
-                  currentCategoryName == null &&
-                  _selectedBookName == null) {
-                // Construct 'All Books' category (same logic as Sidebar)
-                final allCategories = dataProvider.allBookData;
-                // Use natural order from DataProvider (already sorted by orderIndex from DB)
-                final sortedKeys = allCategories.keys.toList();
-
-                currentCategoryName = 'כל הספרים';
-                currentTopLevelName = 'all_books_virtual';
-                currentCategoryObject = BookCategory(
-                  name: 'כל הספרים',
-                  books: {},
-                  subcategories: sortedKeys
-                      .map((key) => allCategories[key]!)
-                      .toList(),
-                  isCustom: false,
-                  sourceFile: 'virtual',
-                  schemaVersion: 1,
-                  contentType: 'text',
-                  defaultStartPage: 1,
-                );
-              }
-
-              return Scaffold(
-                body: Builder(
-                  builder: (context) {
-                    final screenWidth = MediaQuery.sizeOf(context).width;
-                    final useSecondaryRow = screenWidth < 900;
-                    final filterControl = ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 460),
-                      child: _buildFilterControls(),
-                    );
-                    final narrowFilterControl = _buildFilterControls();
-
-                    return Column(
+                if (dataProvider.error != null ||
+                    progressProvider.error != null) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        AppTopBar(
-                          leadingItems: [
-                            AppTopBarItem(
-                              widget: NavPanelToggleButton(
-                                isOpen: _isSidebarVisible,
-                                onToggle: () =>
-                                    _setSidebarVisible(!_isSidebarVisible),
-                              ),
-                            ),
-                          ],
-                          center: Row(
-                            children: [
-                              if (!useSecondaryRow) ...[
-                                filterControl,
-                                const SizedBox(width: 16),
-                              ],
-                              Expanded(
-                                child: OtzariaSearchField(
-                                  icon:
-                                      OtzariaIcons.search_in_library_24_regular,
-                                  controller: _searchController,
-                                  focusNode: _searchFocusNode,
-                                  hintText: 'חפש...',
-                                  onChanged: _onSearchChanged,
-                                  onSubmitted: (_) => _focusWindow(),
-                                  onClear: () => _onSearchChanged(''),
+                        const Text('שגיאה בטעינת הנתונים'),
+                        ActionButton.recommended(
+                          text: 'נסה שוב',
+                          onPressed: () async {
+                            if (dataProvider.error != null) {
+                              await dataProvider.loadAllData();
+                            }
+                            if (!context.mounted) {
+                              return;
+                            }
+                            if (progressProvider.error != null) {
+                              await progressProvider.retry();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Default Selection Logic: 'All Books'
+                BookCategory? currentCategoryObject = _resolveSelectedCategory(
+                  dataProvider,
+                );
+                String? currentCategoryName = _selectedCategoryName;
+                String? currentTopLevelName = _selectedTopLevelName;
+
+                if (currentCategoryObject == null &&
+                    currentCategoryName == null &&
+                    _selectedBookName == null) {
+                  // Construct 'All Books' category (same logic as Sidebar)
+                  final allCategories = dataProvider.allBookData;
+                  // Use natural order from DataProvider (already sorted by orderIndex from DB)
+                  final sortedKeys = allCategories.keys.toList();
+
+                  currentCategoryName = 'כל הספרים';
+                  currentTopLevelName = 'all_books_virtual';
+                  currentCategoryObject = BookCategory(
+                    name: 'כל הספרים',
+                    books: {},
+                    subcategories: sortedKeys
+                        .map((key) => allCategories[key]!)
+                        .toList(),
+                    isCustom: false,
+                    sourceFile: 'virtual',
+                    schemaVersion: 1,
+                    contentType: 'text',
+                    defaultStartPage: 1,
+                  );
+                }
+
+                return Scaffold(
+                  body: Builder(
+                    builder: (context) {
+                      final screenWidth = MediaQuery.sizeOf(context).width;
+                      final useSecondaryRow = screenWidth < 900;
+                      final filterControl = ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 460),
+                        child: _buildFilterControls(),
+                      );
+                      final narrowFilterControl = _buildFilterControls();
+
+                      return Column(
+                        children: [
+                          AppTopBar(
+                            leadingItems: [
+                              AppTopBarItem(
+                                widget: NavPanelToggleButton(
+                                  isOpen: _isSidebarVisible,
+                                  onToggle: () =>
+                                      _setSidebarVisible(!_isSidebarVisible),
                                 ),
                               ),
                             ],
+                            center: Row(
+                              children: [
+                                if (!useSecondaryRow) ...[
+                                  filterControl,
+                                  const SizedBox(width: 16),
+                                ],
+                                Expanded(
+                                  child: OtzariaSearchField(
+                                    icon: OtzariaIcons
+                                        .search_in_library_24_regular,
+                                    controller: _searchController,
+                                    focusNode: _searchFocusNode,
+                                    hintText: 'חפש...',
+                                    onChanged: _onSearchChanged,
+                                    onSubmitted: (_) => _focusWindow(),
+                                    onClear: () => _onSearchChanged(''),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            secondaryRow: useSecondaryRow
+                                ? Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: narrowFilterControl,
+                                    ),
+                                  )
+                                : null,
                           ),
-                          secondaryRow: useSecondaryRow
-                              ? Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.centerRight,
-                                    child: narrowFilterControl,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        Expanded(
-                          child: PrimaryScrollController(
-                            controller: _contentScrollController,
+                          Expanded(
                             child: NavSidePanel(
                               isOpen: _isSidebarVisible,
                               alignment: AlignmentDirectional.centerEnd,
@@ -548,12 +550,14 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                               onPaneWidthChanged: (nextWidth) {
                                 _sidebarWidth = nextWidth;
                               },
-                              paneContent: ShamorZachorSidebar(
-                                onCategorySelected: _onCategorySelected,
-                                selectedCategoryName:
-                                    currentTopLevelName == 'all_books_virtual'
-                                    ? 'all_books_virtual'
-                                    : _selectedCategoryName,
+                              paneContent: PrimaryScrollController.none(
+                                child: ShamorZachorSidebar(
+                                  onCategorySelected: _onCategorySelected,
+                                  selectedCategoryName:
+                                      currentTopLevelName == 'all_books_virtual'
+                                      ? 'all_books_virtual'
+                                      : _selectedCategoryName,
+                                ),
                               ),
                               mainContent:
                                   _selectedBookName != null &&
@@ -591,13 +595,13 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                     ),
                             ),
                           ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              );
-            },
+                        ],
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),

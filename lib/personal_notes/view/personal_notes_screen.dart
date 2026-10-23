@@ -340,37 +340,39 @@ class _PersonalNotesManagerScreenState
           _focusSearchField();
         },
       },
-      child: Focus(
-        focusNode: _windowFocusNode,
-        autofocus: true,
-        onKeyEvent: _handleWindowKeyEvent,
-        child: BlocListener<PersonalNotesBloc, PersonalNotesState>(
-          listener: (context, state) {
-            // Store the state for each book and trigger rebuild
-            if (state.bookId != null && !state.isLoading) {
-              setState(() {
-                _bookStates[state.bookId!] = state;
-              });
+      // מעל ה-Focus כי ממנו Ctrl+חצים מחפשים בקר; בלי ירושה, שהסרגל לא יתחבר.
+      child: PrimaryScrollController(
+        controller: _contentScrollController,
+        automaticallyInheritForPlatforms: const {},
+        child: Focus(
+          focusNode: _windowFocusNode,
+          autofocus: true,
+          onKeyEvent: _handleWindowKeyEvent,
+          child: BlocListener<PersonalNotesBloc, PersonalNotesState>(
+            listener: (context, state) {
+              // Store the state for each book and trigger rebuild
+              if (state.bookId != null && !state.isLoading) {
+                setState(() {
+                  _bookStates[state.bookId!] = state;
+                });
 
-              // If this is a new book (not in _books list), refresh the books list
-              final bookExists = _books.any(
-                (book) => book.bookId == state.bookId,
-              );
-              if (!bookExists &&
-                  (state.locatedNotes.isNotEmpty ||
-                      state.missingNotes.isNotEmpty)) {
-                _loadBooks();
+                // If this is a new book (not in _books list), refresh the books list
+                final bookExists = _books.any(
+                  (book) => book.bookId == state.bookId,
+                );
+                if (!bookExists &&
+                    (state.locatedNotes.isNotEmpty ||
+                        state.missingNotes.isNotEmpty)) {
+                  _loadBooks();
+                }
               }
-            }
-          },
-          child: Column(
-            children: [
-              // שורת כלים עליונה לכל רוחב העמוד
-              _buildTopBar(),
-              // תוכן העמוד
-              Expanded(
-                child: PrimaryScrollController(
-                  controller: _contentScrollController,
+            },
+            child: Column(
+              children: [
+                // שורת כלים עליונה לכל רוחב העמוד
+                _buildTopBar(),
+                // תוכן העמוד
+                Expanded(
                   child: NavSidePanel(
                     isOpen: _isNavigationVisible,
                     alignment: AlignmentDirectional
@@ -399,8 +401,8 @@ class _PersonalNotesManagerScreenState
                     paneContent: _buildNotesTree(),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1086,6 +1088,7 @@ class _PersonalNotesManagerScreenState
         ];
 
         return ListView.builder(
+          controller: _contentScrollController,
           padding: const EdgeInsets.all(16.0),
           itemCount: rows.length,
           itemBuilder: (context, index) {
