@@ -716,7 +716,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
   }
 
   Future<void> _openAnchorTarget(Link link) {
-    LinkPreviewOverlay.dismiss(window: AppWindowKeys.of(context));
+    LinkPreviewOverlay.dismiss(window: _previewWindow);
     return openLinkTarget(link, (tab) => widget.openBookCallback(tab));
   }
 

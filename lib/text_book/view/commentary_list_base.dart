@@ -2943,7 +2943,7 @@ class _NotesCommentaryWidgetState extends State<_NotesCommentaryWidget> {
   void _openAnchor(String url) {
     final link = _anchorLink(url);
     if (link == null) return;
-    LinkPreviewOverlay.dismiss(window: AppWindowKeys.of(context));
+    LinkPreviewOverlay.dismiss(window: _previewWindow);
     openLinkTarget(link, (tab) => widget.openBookCallback(tab));
   }
 
