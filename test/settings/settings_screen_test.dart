@@ -4,6 +4,7 @@
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,6 +19,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/settings/search/settings_search_field.dart';
+import 'package:otzaria/settings/search/settings_search_results_view.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
 import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 
@@ -112,6 +114,59 @@ void main() {
       expect(find.text('תוצאות חיפוש'), findsNothing);
       expect(backCount, 0);
     });
+
+    // רשימה בלי primary יורשת את בקר המסך רק בנייד: בדסקטופ הגלגלת מהסרגל
+    // ופס הגלילה של המסך לא הגיעו לתוצאות.
+    testWidgets(
+      'תוצאות החיפוש נגללות בגלגלת מהסרגל ובפס הגלילה של המסך',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(buildScreen());
+        await tester.pump();
+        await tester.tap(find.byType(SettingsSearchField));
+        await tester.enterText(find.byType(EditableText), 'ה');
+        await tester.pumpAndSettle();
+        final results = find.byType(SettingsSearchResultsView);
+        final position = tester
+            .state<ScrollableState>(
+              find.descendant(of: results, matching: find.byType(Scrollable)),
+            )
+            .position;
+
+        final mouse = TestPointer(1, PointerDeviceKind.mouse)
+          ..hover(tester.getCenter(find.byType(SidebarNavItem).first));
+        await tester.sendEventToBinding(mouse.scroll(const Offset(0, 300)));
+        await tester.pump();
+        expect(position.pixels, 300, reason: 'גלגלת מעל הסרגל');
+
+        // פס הגלילה בצד שמאל (RTL); לחיצה על המסילה מתחת לסמן מדפדפת.
+        final bar = tester.getRect(
+          find.ancestor(of: results, matching: find.byType(Scrollbar)),
+        );
+        await tester.tapAt(
+          bar.bottomLeft + const Offset(8, -40),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pumpAndSettle();
+        expect(position.pixels, greaterThan(300), reason: 'לחיצה על המסילה');
+
+        // הרחבת חלון צר בונה מחדש את אזור התוכן, גם כשאין תוצאות.
+        await tester.enterText(find.byType(EditableText), 'קקקקזזזז');
+        await tester.binding.setSurfaceSize(const Size(400, 800));
+        await tester.pump();
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        await tester.pump();
+        await tester.pump();
+        expect(find.text('לא נמצאו הגדרות תואמות'), findsOneWidget);
+      },
+      variant: TargetPlatformVariant({
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.macOS,
+        TargetPlatform.android,
+      }),
+    );
 
     testWidgets(
       'לחיצה על קטגוריה ב-sidebar (desktop) מנקה את שדה החיפוש',
