@@ -478,10 +478,7 @@ class BookGridItem extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   mainAxisSize: MainAxisSize.max,
                   children: [
-                    _BookGridMediaColumn(
-                      book: book,
-                      showTopics: showTopics,
-                    ),
+                    _BookGridMediaColumn(book: book),
                     // "אודות הספר" מחפש לפי כותרת, ולספר של תוסף היה מציג
                     // את פרטי ספר אוצריא בעל אותו שם.
                     if (PluginLibraryBooksRegistry.instance.providerOf(book) ==
@@ -503,12 +500,8 @@ class BookGridItem extends StatelessWidget {
 
 class _BookGridMediaColumn extends StatelessWidget {
   final Book book;
-  final bool showTopics;
 
-  const _BookGridMediaColumn({
-    required this.book,
-    required this.showTopics,
-  });
+  const _BookGridMediaColumn({required this.book});
 
   @override
   Widget build(BuildContext context) {

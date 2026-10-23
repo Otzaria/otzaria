@@ -1008,7 +1008,6 @@ class _TabDragFeedback extends StatelessWidget {
                 : _MiniWindow(
                     content: content,
                     tabWidth: width,
-                    stripColor: stripColor,
                     tab: child,
                   ),
           ),
@@ -1023,13 +1022,11 @@ class _MiniWindow extends StatelessWidget {
   const _MiniWindow({
     required this.content,
     required this.tabWidth,
-    required this.stripColor,
     required this.tab,
   });
 
   final ui.Image content;
   final double? tabWidth;
-  final Color stripColor;
   final Widget tab;
 
   @override
