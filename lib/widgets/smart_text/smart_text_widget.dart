@@ -548,13 +548,15 @@ bool _isInsideMarkdownBlock(dom.Element element) {
 class _SmartTextWidgetFactory extends OtzariaWidgetFactory {
   final _previewHrefByRecognizer = <GestureRecognizer, String>{};
   State? _state;
+  _SmartTextCallbacks? _callbacks;
 
   /// ה-factory והעץ השמור שורדים בנייה חוזרת, לכן callbacks נקראים מהבנייה
-  /// הנוכחית ולא מזו שבנתה את העץ.
+  /// הנוכחית ולא מזו שבנתה את העץ; onExit שמגיע אחרי ההסרה — מהאחרונה.
   _SmartTextCallbacks? get _live {
     final state = _state;
-    if (state == null || !state.mounted) return null;
-    return state.context.getInheritedWidgetOfExactType<_SmartTextCallbacks>();
+    if (state == null || !state.mounted) return _callbacks;
+    return _callbacks = state.context
+        .getInheritedWidgetOfExactType<_SmartTextCallbacks>();
   }
 
   @override
