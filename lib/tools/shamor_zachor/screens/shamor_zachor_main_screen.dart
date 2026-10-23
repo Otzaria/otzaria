@@ -22,6 +22,7 @@ import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 
 /// Main screen for Shamor Zachor with Split View (Sidebar + Content)
 class ShamorZachorMainScreen extends StatefulWidget {
@@ -297,31 +298,16 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
 
     if (event.logicalKey == LogicalKeyboardKey.space ||
         event.logicalKey == LogicalKeyboardKey.pageDown) {
-      _scrollContent(forward: true);
+      scrollToolContentByPage(_contentScrollController, forward: true);
       return KeyEventResult.handled;
     }
 
     if (event.logicalKey == LogicalKeyboardKey.pageUp) {
-      _scrollContent(forward: false);
+      scrollToolContentByPage(_contentScrollController, forward: false);
       return KeyEventResult.handled;
     }
 
     return KeyEventResult.ignored;
-  }
-
-  void _scrollContent({required bool forward}) {
-    if (!_contentScrollController.hasClients) return;
-    final position = _contentScrollController.position;
-    final delta = (position.viewportDimension * 0.85) * (forward ? 1 : -1);
-    final target = (position.pixels + delta).clamp(
-      0.0,
-      position.maxScrollExtent,
-    );
-    _contentScrollController.animateTo(
-      target,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-    );
   }
 
   BookCategory? _findCategoryByName(
@@ -382,13 +368,6 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
               .defaultShortcuts['key-shortcut-shamor-zachor-cycle-filter'] ??
           'ctrl+s',
     );
-    final searchShortcutSetting = context.select(
-      (SettingsBloc bloc) =>
-          bloc.state.shortcuts['key-shortcut-search-current-window'] ??
-          ShortcutValidator
-              .defaultShortcuts['key-shortcut-search-current-window'] ??
-          'ctrl+f',
-    );
 
     return CallbackShortcuts(
       bindings: {
@@ -400,11 +379,7 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
           if (_isTextFieldFocused()) return;
           _cycleFilter();
         },
-        ShortcutHelper.activatorFromShortcut(
-              searchShortcutSetting,
-              mapCtrlToMeta: false,
-            ) ??
-            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+        currentWindowSearchActivator(context, mapCtrlToMeta: false): () {
           _focusSearchField();
         },
       },

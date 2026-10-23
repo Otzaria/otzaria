@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -7,8 +6,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/shortcuts/shortcut_helper.dart';
-import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/tools/gematria/gematria_search.dart';
 import 'package:otzaria/tools/gematria/models/gematria_search_result.dart';
 import 'package:otzaria/tools/gematria/widgets/gematria_result_card.dart';
@@ -366,18 +363,9 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
 
   @override
   Widget build(BuildContext context) {
-    final searchShortcutSetting = context.select(
-      (SettingsBloc bloc) =>
-          bloc.state.shortcuts['key-shortcut-search-current-window'] ??
-          ShortcutValidator
-              .defaultShortcuts['key-shortcut-search-current-window'] ??
-          'ctrl+f',
-    );
-
     return CallbackShortcuts(
       bindings: {
-        ShortcutHelper.activatorFromShortcut(searchShortcutSetting) ??
-            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+        currentWindowSearchActivator(context): () {
           _searchFocusNode.requestFocus();
         },
       },

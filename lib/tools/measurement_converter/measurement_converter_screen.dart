@@ -5,8 +5,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/shortcuts/shortcut_helper.dart';
-import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'measurement_data.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
@@ -14,6 +12,7 @@ import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
+import 'package:otzaria/widgets/misc/tool_ui_helpers.dart';
 import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 import 'package:otzaria/core/ui_snack.dart';
 
@@ -455,17 +454,9 @@ class _MeasurementConverterScreenState
     final showOpinion = _shouldShowOpinionSelector();
     final hasResult = _resultController.text.isNotEmpty;
 
-    final searchShortcutSetting = context.select(
-      (SettingsBloc bloc) =>
-          bloc.state.shortcuts['key-shortcut-search-current-window'] ??
-          ShortcutValidator
-              .defaultShortcuts['key-shortcut-search-current-window'] ??
-          'ctrl+f',
-    );
     return CallbackShortcuts(
       bindings: {
-        ShortcutHelper.activatorFromShortcut(searchShortcutSetting) ??
-            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+        currentWindowSearchActivator(context): () {
           _inputFocusNode.requestFocus();
         },
       },

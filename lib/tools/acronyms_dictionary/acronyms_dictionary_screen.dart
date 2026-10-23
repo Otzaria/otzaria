@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/shortcuts/shortcut_helper.dart';
-import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/tools/acronyms_dictionary/widgets/acronym_result_card.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 import 'package:otzaria/tools/tool_query.dart';
@@ -153,18 +148,9 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
       return const Center(child: CircularProgressIndicator());
     }
 
-    final searchShortcutSetting = context.select(
-      (SettingsBloc bloc) =>
-          bloc.state.shortcuts['key-shortcut-search-current-window'] ??
-          ShortcutValidator
-              .defaultShortcuts['key-shortcut-search-current-window'] ??
-          'ctrl+f',
-    );
-
     return CallbackShortcuts(
       bindings: {
-        ShortcutHelper.activatorFromShortcut(searchShortcutSetting) ??
-            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+        currentWindowSearchActivator(context): () {
           _searchFocusNode.requestFocus();
         },
       },
