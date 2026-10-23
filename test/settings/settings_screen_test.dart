@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
@@ -19,6 +20,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/settings/l10n/settings_language.dart';
 import 'package:otzaria/settings/search/settings_search_field.dart';
 import 'package:otzaria/settings/view/settings_screen.dart';
+import 'package:otzaria/settings/widgets/settings_tab_scroll_view.dart';
 import 'package:otzaria/widgets/navigation/sidebar_nav_item.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
@@ -365,5 +367,66 @@ void main() {
       expect(find.text('קיצורי מקשים'), findsOneWidget);
       debugDefaultTargetPlatformOverride = null;
     });
+
+    // מקשי הגלילה פונים ל-PrimaryScrollController שמעל הפוקוס. כשבקר התוכן
+    // מתחת לפוקוס, הם מגיעים לבקר של ה-route: בדסקטופ ריק, וב-Android של הסרגל.
+    testWidgets(
+      'PageDown/PageUp ו-Ctrl+חצים גוללים את התוכן בפתיחה ואחרי בחירת לשונית',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final modifier = defaultTargetPlatform == TargetPlatform.macOS
+            ? LogicalKeyboardKey.metaLeft
+            : LogicalKeyboardKey.controlLeft;
+        double contentOffset() => tester
+            .state<ScrollableState>(
+              find
+                  .descendant(
+                    of: find.byType(SettingsTabScrollView),
+                    matching: find.byType(Scrollable),
+                  )
+                  .first,
+            )
+            .position
+            .pixels;
+        Future<void> press(LogicalKeyboardKey key, {bool mod = false}) async {
+          if (mod) await tester.sendKeyDownEvent(modifier);
+          await tester.sendKeyEvent(key);
+          if (mod) await tester.sendKeyUpEvent(modifier);
+          await tester.pumpAndSettle();
+        }
+
+        Future<void> expectKeysScrollContent(String when) async {
+          expect(contentOffset(), 0, reason: when);
+          await press(LogicalKeyboardKey.pageDown);
+          expect(contentOffset(), greaterThan(0), reason: '$when: PageDown');
+          await press(LogicalKeyboardKey.pageUp);
+          expect(contentOffset(), 0, reason: '$when: PageUp');
+          await press(LogicalKeyboardKey.arrowDown, mod: true);
+          expect(contentOffset(), greaterThan(0), reason: '$when: Ctrl+↓');
+          await press(LogicalKeyboardKey.arrowUp, mod: true);
+          expect(contentOffset(), 0, reason: '$when: Ctrl+↑');
+        }
+
+        await tester.pumpWidget(buildScreen());
+        await tester.pumpAndSettle();
+        // כמו MainWindowScreen במעבר למסך ההגדרות.
+        FocusRepository.of(
+          tester.element(find.byType(MySettingsScreen)),
+        ).requestSettingsFocus();
+        await tester.pump();
+        await expectKeysScrollContent('פתיחת ההגדרות');
+
+        await tester.tap(find.widgetWithText(SidebarNavItem, 'כתב'));
+        await tester.pumpAndSettle();
+        await expectKeysScrollContent('לשונית מהסרגל');
+      },
+      variant: TargetPlatformVariant({
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.macOS,
+        TargetPlatform.android,
+      }),
+    );
   });
 }

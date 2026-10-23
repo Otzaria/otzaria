@@ -568,29 +568,33 @@ class _MySettingsScreenState extends State<MySettingsScreen> {
 
                     // ── אזור תוכן ────────────────────────────────────
                     Expanded(
-                      child: _SettingsContentPane(
-                        key: ValueKey(_selectedIndex),
-                        label: context.settingsText(
-                          isSearching
-                              ? 'תוצאות חיפוש'
-                              : _tabsData[_selectedIndex].label,
+                      // מעל ה-Focus של התוכן: ממנו מקשי הגלילה מחפשים בקר.
+                      child: PrimaryScrollController(
+                        controller: _contentScrollController,
+                        child: _SettingsContentPane(
+                          key: ValueKey(_selectedIndex),
+                          label: context.settingsText(
+                            isSearching
+                                ? 'תוצאות חיפוש'
+                                : _tabsData[_selectedIndex].label,
+                          ),
+                          bgColor: bgColor,
+                          focusNode: _contentFocusNode,
+                          scrollController: _contentScrollController,
+                          headerExtra: SettingsSearchField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            onChanged: _onSearchChanged,
+                          ),
+                          overrideContent: _searchQuery.trim().isEmpty
+                              ? null
+                              : SettingsSearchResultsView(
+                                  query: _searchQuery,
+                                  results: _searchResults,
+                                  onResultTap: _onSearchResultTap,
+                                ),
+                          child: _tabsData[_selectedIndex].pageBuilder(),
                         ),
-                        bgColor: bgColor,
-                        focusNode: _contentFocusNode,
-                        scrollController: _contentScrollController,
-                        headerExtra: SettingsSearchField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          onChanged: _onSearchChanged,
-                        ),
-                        overrideContent: _searchQuery.trim().isEmpty
-                            ? null
-                            : SettingsSearchResultsView(
-                                query: _searchQuery,
-                                results: _searchResults,
-                                onResultTap: _onSearchResultTap,
-                              ),
-                        child: _tabsData[_selectedIndex].pageBuilder(),
                       ),
                     ),
                   ],
@@ -705,10 +709,7 @@ class _SettingsContentPaneState extends State<_SettingsContentPane> {
                     controller: widget.scrollController,
                     thumbVisibility: true,
                     interactive: true,
-                    child: PrimaryScrollController(
-                      controller: widget.scrollController,
-                      child: widget.overrideContent ?? widget.child,
-                    ),
+                    child: widget.overrideContent ?? widget.child,
                   ),
                 ),
               ),
