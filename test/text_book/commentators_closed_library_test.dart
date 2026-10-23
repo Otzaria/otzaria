@@ -142,6 +142,12 @@ void main() {
   test('החלפת ספרייה בעיצומה: הטעינה ממתינה לפתיחה מחדש', () async {
     await SqliteDataProvider.instance.initialize();
     await SqliteDataProvider.instance.closeForExternalWrite();
+    // כשל לפני ה-reopen משאיר session פתוח, וה-setUp הבא נתקע עליו.
+    addTearDown(
+      () => SqliteDataProvider.instance.reopenAfterExternalWrite(
+        reopenDatabase: false,
+      ),
+    );
     final repository = TextBookRepository(fileSystem: FileSystemData.instance);
 
     var done = false;
