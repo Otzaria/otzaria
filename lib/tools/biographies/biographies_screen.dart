@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
-import 'package:otzaria/settings/settings_exports.dart';
-import 'package:otzaria/shortcuts/shortcut_helper.dart';
-import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/biographies/models/biography.dart';
 import 'package:otzaria/tools/biographies/repository/biographies_repository.dart';
@@ -94,18 +89,9 @@ class _BiographiesScreenState extends State<BiographiesScreen>
       return const Center(child: CircularProgressIndicator());
     }
 
-    final searchShortcutSetting = context.select(
-      (SettingsBloc bloc) =>
-          bloc.state.shortcuts['key-shortcut-search-current-window'] ??
-          ShortcutValidator
-              .defaultShortcuts['key-shortcut-search-current-window'] ??
-          'ctrl+f',
-    );
-
     return CallbackShortcuts(
       bindings: {
-        ShortcutHelper.activatorFromShortcut(searchShortcutSetting) ??
-            const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+        currentWindowSearchActivator(context): () {
           _searchFocusNode.requestFocus();
         },
       },
