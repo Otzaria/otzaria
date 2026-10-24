@@ -15,6 +15,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/widgets/misc/app_context_menu.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/search/view/layout_fix_suggestion_banner.dart';
+import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/empty_library/empty_library_screen.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
@@ -1008,7 +1009,11 @@ class _LibraryBrowserState extends State<LibraryBrowser>
           (b) => b.state.isLibraryEmpty,
         );
         final mainContent = isLibraryEmpty
-            ? LibrarySetupView(onLibraryLoaded: _handleLibraryLoaded)
+            ? LibrarySetupView(
+                onLibraryLoaded: _handleLibraryLoaded,
+                unsupportedDbSchemaVersion:
+                    SqliteDataProvider.instance.unsupportedDbSchemaVersion,
+              )
             : Column(
                 children: [
                   // הצעת תיקון-מקלדת חיה לשדה האיתור (issue #975): לחיצה

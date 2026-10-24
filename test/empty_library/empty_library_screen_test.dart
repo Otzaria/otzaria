@@ -40,6 +40,30 @@ void main() {
       expect(find.text('לא נמצאה ספריית ספרים'), findsOneWidget);
     });
 
+    testWidgets('ספרייה בסכמה שאינה נתמכת — מסביר שיש לעדכן את התוכנה', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(430, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LibrarySetupView(
+              onLibraryLoaded: () async {},
+              unsupportedDbSchemaVersion: 99,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('ספריית הספרים חדשה מגרסת התוכנה'), findsOneWidget);
+      expect(find.text('לא נמצאה ספריית ספרים'), findsNothing);
+      expect(find.textContaining('בפורמט מסד 99'), findsOneWidget);
+      expect(find.textContaining('יש לעדכן את התוכנה'), findsOneWidget);
+    });
+
     // חלון נמוך (טלפון לרוחב, מסך מפוצל): בלי גלילה הכפתור נחתך מחוץ למסך
     // ואי אפשר בכלל להגדיר ספרייה.
     testWidgets('בחלון נמוך הכפתור נשאר נגיש דרך גלילה', (tester) async {

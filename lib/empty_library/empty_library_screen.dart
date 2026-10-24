@@ -3,6 +3,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/data/constants/database_constants.dart';
 import 'package:otzaria/settings/dialogs/library_setup_dialog.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
@@ -15,7 +16,14 @@ import 'package:otzaria/widgets/widgets_exports.dart';
 class LibrarySetupView extends StatefulWidget {
   final Future<void> Function() onLibraryLoaded;
 
-  const LibrarySetupView({super.key, required this.onLibraryLoaded});
+  /// סכמת מסד שנחסם כי הגרסה הזו אינה קוראת אותה; null — אין ספרייה.
+  final int? unsupportedDbSchemaVersion;
+
+  const LibrarySetupView({
+    super.key,
+    required this.onLibraryLoaded,
+    this.unsupportedDbSchemaVersion,
+  });
 
   @override
   State<LibrarySetupView> createState() => _LibrarySetupViewState();
@@ -65,6 +73,7 @@ class _LibrarySetupViewState extends State<LibrarySetupView> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final unsupportedSchema = widget.unsupportedDbSchemaVersion;
     return CenteredScrollableState(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
@@ -77,15 +86,22 @@ class _LibrarySetupViewState extends State<LibrarySetupView> {
               color: cs.onSurfaceVariant,
             ),
             const SizedBox(height: 24),
-            const Text(
-              'לא נמצאה ספריית ספרים',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            Text(
+              unsupportedSchema == null
+                  ? 'לא נמצאה ספריית ספרים'
+                  : 'ספריית הספרים חדשה מגרסת התוכנה',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             Text(
-              'ניתן להוריד את הספרייה מהאינטרנט, להצביע על ספרייה קיימת\n'
-              'שכבר יש במחשב, או לייבא אותה מהתיקייה שבה נמצאים קובצי הספרייה.',
+              unsupportedSchema == null
+                  ? 'ניתן להוריד את הספרייה מהאינטרנט, להצביע על ספרייה קיימת\n'
+                        'שכבר יש במחשב, או לייבא אותה מהתיקייה שבה נמצאים קובצי הספרייה.'
+                  : 'הספרייה במחשב בפורמט מסד $unsupportedSchema, וגרסה זו של '
+                        'אוצריא קוראת עד פורמט '
+                        '${DatabaseConstants.readableDbSchemaVersion}.\n'
+                        'יש לעדכן את התוכנה לגרסה האחרונה, או לבחור ספרייה אחרת.',
               style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),

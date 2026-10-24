@@ -113,6 +113,19 @@ class MyDatabase {
   Future<DbCapabilities> get capabilities async =>
       DbCapabilities.forDatabase(_path, await database);
 
+  /// `schema_meta.db_schema_version`, או null במסד ישן שאין בו את השדה.
+  Future<int?> readDbSchemaVersion() async {
+    final caps = await capabilities;
+    if (!caps.hasColumn('schema_meta', 'key') ||
+        !caps.hasColumn('schema_meta', 'value')) {
+      return null;
+    }
+    final rows = (await database).select(
+      "SELECT value FROM schema_meta WHERE key = 'db_schema_version' LIMIT 1",
+    );
+    return rows.isEmpty ? null : int.tryParse('${rows.first['value']}');
+  }
+
   sqlite3.Database _initDatabase() {
     if (_untrusted) {
       return openUntrustedReadOnlyDatabase(_path, immutable: _immutable);
