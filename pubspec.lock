@@ -1331,18 +1331,18 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/pdfrx"
-      ref: "74726f6d46ef58783cc246d0c2f1f6551f2cf364"
-      resolved-ref: "74726f6d46ef58783cc246d0c2f1f6551f2cf364"
-      url: "https://github.com/Y-PLONI/pdfrx"
+      ref: a50e127e83c20bce439fc4f2879260c1bf36118a
+      resolved-ref: a50e127e83c20bce439fc4f2879260c1bf36118a
+      url: "https://github.com/Otzaria/pdfrx"
     source: git
     version: "2.9.0"
   pdfrx_engine:
     dependency: "direct overridden"
     description:
       path: "packages/pdfrx_engine"
-      ref: "74726f6d46ef58783cc246d0c2f1f6551f2cf364"
-      resolved-ref: "74726f6d46ef58783cc246d0c2f1f6551f2cf364"
-      url: "https://github.com/Y-PLONI/pdfrx"
+      ref: a50e127e83c20bce439fc4f2879260c1bf36118a
+      resolved-ref: a50e127e83c20bce439fc4f2879260c1bf36118a
+      url: "https://github.com/Otzaria/pdfrx"
     source: git
     version: "0.7.4"
   petitparser:

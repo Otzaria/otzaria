@@ -147,17 +147,16 @@ dependencies:
   wakelock_plus: ^1.8.1
 
 dependency_overrides:
-  # TODO: לחזור ל-pub.dev אחרי שחרור espresso3389/pdfrx#759–#772 (תעדוף הרינדור והמטמונים), עם תאימות OCR ל-dev.
-  # 8a7cefa שומר את מנרמל העברית הישן (כולל מגבלותיו בטקסט מעורב ובפיסוק מספרים) ואינו מיועד לאפסטרים.
+  # TODO: לחזור ל-pub.dev אחרי שחרור espresso3389/pdfrx#759–#772 (תעדוף הרינדור והמטמונים).
   pdfrx:
     git:
-      url: https://github.com/Y-PLONI/pdfrx
-      ref: 74726f6d46ef58783cc246d0c2f1f6551f2cf364
+      url: https://github.com/Otzaria/pdfrx
+      ref: a50e127e83c20bce439fc4f2879260c1bf36118a
       path: packages/pdfrx
   pdfrx_engine:
     git:
-      url: https://github.com/Y-PLONI/pdfrx
-      ref: 74726f6d46ef58783cc246d0c2f1f6551f2cf364
+      url: https://github.com/Otzaria/pdfrx
+      ref: a50e127e83c20bce439fc4f2879260c1bf36118a
       path: packages/pdfrx_engine
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
   # (קריאות WinRT ב-thread ייעודי, כולל תיקון ה-deadlock ב-invoke). עד אז הפורק
