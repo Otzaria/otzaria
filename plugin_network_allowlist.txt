@@ -115,3 +115,6 @@ https://api.github.com/repos/yakov100/otzaria-voice
 
 # תוסף חברותא
 http://chavruta-relay.chavruta.workers.dev
+
+# תוסף גבולות עירוב (com.hadabadra.gvulot-eruv) — בדיקת עדכון מפות ואחראים, GET בלבד. האתר זמין רק ב-http
+http://hiruv.com
