@@ -198,7 +198,8 @@ void _appendUnhandledErrorToLocalLog({
   }
 }
 
-Map<String, String?> _flutterErrorDetailsForLog(FlutterErrorDetails details) {
+@visibleForTesting
+Map<String, String?> flutterErrorDetailsForLog(FlutterErrorDetails details) {
   final informationCollector = details.informationCollector;
   final collectedInformation = informationCollector == null
       ? null
@@ -209,7 +210,8 @@ Map<String, String?> _flutterErrorDetailsForLog(FlutterErrorDetails details) {
 
   return {
     'Library': details.library,
-    'Context': details.context?.toString(),
+    // ב-release, toString של DiagnosticsNode הוא "Instance of 'ErrorDescription'".
+    'Context': details.context?.toDescription(),
     'Information': collectedInformation,
   };
 }
@@ -426,7 +428,7 @@ void _installGlobalErrorHandlers() {
         title: 'FlutterError',
         error: details.exceptionAsString(),
         stackTrace: details.stack,
-        details: _flutterErrorDetailsForLog(details),
+        details: flutterErrorDetailsForLog(details),
       );
     }
   };
