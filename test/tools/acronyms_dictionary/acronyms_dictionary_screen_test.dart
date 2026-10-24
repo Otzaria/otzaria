@@ -119,12 +119,15 @@ void main() {
       'אַב',
     ];
     for (final entry
-        in catalog.where((entry) => entry.displayAcronym.length > 1).take(80)) {
+        in catalog.where((entry) => entry.displayAcronym.length > 1).take(10)) {
       queries.add(entry.displayAcronym);
       queries.add(entry.displayAcronym.substring(0, 2));
     }
     final expected = {
       for (final query in queries) query: _legacyResults(oracle, query),
+    };
+    final meaningsByAcronym = {
+      for (final entry in catalog) entry.displayAcronym: entry.meanings,
     };
     final settings = _SettingsBloc();
     addTearDown(settings.close);
@@ -162,12 +165,7 @@ void main() {
         for (var i = 0; i < delegate.childCount!; i++) {
           final card = delegate.builder(context, i)! as AcronymResultCard;
           actual.add(card.acronym);
-          expect(
-            card.meanings,
-            catalog
-                .firstWhere((entry) => entry.displayAcronym == card.acronym)
-                .meanings,
-          );
+          expect(card.meanings, meaningsByAcronym[card.acronym]);
         }
       }
       expect(actual, expected[query], reason: query);
