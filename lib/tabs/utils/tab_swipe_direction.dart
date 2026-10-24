@@ -17,3 +17,21 @@ int tabSwipeDirection({
       (accumulatedDx > 0) == (textDirection == TextDirection.rtl);
   return towardHigherIndex ? 1 : -1;
 }
+
+/// אינדקס הטאב שאליו מעבירה החלקה בודדת, או `null` כשאין לאן לזוז (הטאב
+/// הנוכחי הוא הקצה בכיוון ההחלקה). בלי גלישה מהסוף להתחלה — כמו ה-PageView.
+int? swipeTargetTabIndex({
+  required int currentIndex,
+  required int tabCount,
+  required double accumulatedDx,
+  required TextDirection textDirection,
+}) {
+  if (accumulatedDx == 0) return null;
+  final target =
+      currentIndex +
+      tabSwipeDirection(
+        accumulatedDx: accumulatedDx,
+        textDirection: textDirection,
+      );
+  return target >= 0 && target < tabCount ? target : null;
+}

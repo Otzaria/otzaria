@@ -41,6 +41,7 @@ import 'package:otzaria/plugins/view/plugin_webview2_missing_view.dart';
 import 'package:otzaria/plugins/view/plugin_webview_failed_view.dart';
 import 'package:otzaria/plugins/services/windows_arch_info.dart';
 import 'package:otzaria/plugins/view/plugin_drop_guard_script.dart';
+import 'package:otzaria/plugins/view/plugin_tab_swipe_script.dart';
 import 'package:otzaria/plugins/view/plugin_webrtc_block_script.dart';
 import 'package:otzaria/plugins/view/plugin_sdk_scripts.dart';
 import 'package:otzaria/plugins/view/plugin_webview_host.dart';
@@ -51,6 +52,9 @@ import 'package:otzaria/plugins/services/plugin_download_handler.dart';
 import 'package:otzaria/plugins/services/plugin_webview_permission_gate.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
+import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
+import 'package:otzaria/tabs/bloc/tabs_event.dart';
+import 'package:otzaria/tabs/utils/tab_swipe_direction.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
@@ -479,6 +483,18 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
     }
   }
 
+  /// מעבר לטאב הסמוך בהחלקה בשתי אצבעות שנתפסה בתוך ה-WebView.
+  void _switchTabBySwipe(double accumulatedDx) {
+    final bloc = context.read<TabsBloc>();
+    final target = swipeTargetTabIndex(
+      currentIndex: bloc.state.currentTabIndex,
+      tabCount: bloc.state.tabs.length,
+      accumulatedDx: accumulatedDx,
+      textDirection: Directionality.of(context),
+    );
+    if (target != null) bloc.add(SetCurrentTab(target));
+  }
+
   @override
   void dispose() {
     // dispose = unmount רגיל (סגירת טאב) בזמן שהתהליך חי — לא קריסה, מנקים
@@ -670,6 +686,8 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
         buildPluginDropGuardScript(),
         buildPluginWebRtcBlockScript(),
         buildPluginLinkifyScript(auto: widget.plugin.manifest.autoLinkify),
+        // ב-macOS ה-WebView הנייטיבי בולע את גלילת לוח המגע (issue #3161).
+        if (Platform.isMacOS) buildPluginTabSwipeScript(),
       ]),
       onShowFileChooser: verifyPluginFileChooser,
       onWebViewCreated: (controller) {
@@ -702,6 +720,13 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
               if (!mounted || args.isEmpty) return;
               final shortcut = _hostShortcuts[args.first];
               if (shortcut != null) PluginHostShortcuts.dispatch(shortcut);
+            },
+          );
+          controller.addJavaScriptHandler(
+            handlerName: pluginTabSwipeHandlerName,
+            callback: (args) {
+              if (!mounted || args.isEmpty || args.first is! num) return;
+              _switchTabBySwipe((args.first as num).toDouble());
             },
           );
         });
