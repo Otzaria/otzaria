@@ -66,7 +66,7 @@ dependencies:
     git:
       url: https://github.com/Otzaria/otzaria_icons
       ref: 5225cd36c59097fe1f24a39fb60f9c2c0e15e47c
-  file_picker_darwin: any
+  file_picker_darwin: ^2.4.0
   file_picker: ^13.1.0
   # FilePickerWindowsOptions: בעלים מפורש לדיאלוג (חלון Dart ולא החלון שבחזית).
   windows_file_picker: ^2.0.1
@@ -184,12 +184,6 @@ dependency_overrides:
       url: https://github.com/Otzaria/dart_pdf
       ref: 3cb90fb3025553f3e9f48638c79ccf93efb326af
       path: printing
-  # TODO: לחזור ל-pub.dev אחרי שחרור vicajilau/flutter_file_picker#2281 (דיאלוג הקבצים במק על חלון מפורש).
-  file_picker_darwin:
-    git:
-      url: https://github.com/palmoni5/flutter_file_picker
-      ref: f67f1b6868ae172377f44f75797ac3142a6cd554
-      path: packages/file_picker_darwin
   # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור daohoangson/flutter_widget_from_html#1658, #1659,
   # #1660, #1661, #1662, #1663 (מטמון CSS, מיזוג margins, מחרוזות debug עצלות, Flattener,
   # FutureBuilder, צבע hex פגום).
