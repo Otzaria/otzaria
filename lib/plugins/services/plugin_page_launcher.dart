@@ -17,6 +17,22 @@ class PluginPageLauncher {
   void register(AppWindowKeys keys, void Function(String pluginId) navigator) =>
       _navigators[keys] = navigator;
 
+  final _instanceOpeners = Expando<String? Function(String pluginId)>();
+
+  /// [opener] פותח כרטיסיה חדשה של התוסף ומחזיר את מזהה המופע שלה, או `null`
+  /// כשהפתיחה נדחתה (למשל כלי שאינו זמין).
+  void registerInstanceOpener(
+    AppWindowKeys keys,
+    String? Function(String pluginId) opener,
+  ) => _instanceOpeners[keys] = opener;
+
+  void unregisterInstanceOpener(
+    AppWindowKeys keys,
+    String? Function(String pluginId) opener,
+  ) {
+    if (_instanceOpeners[keys] == opener) _instanceOpeners[keys] = null;
+  }
+
   void unregister(
     AppWindowKeys keys,
     void Function(String pluginId) navigator,
@@ -29,12 +45,24 @@ class PluginPageLauncher {
     List<({String topic, Map<String, dynamic> payload})>
   >
   _pending = {};
+
+  /// אירועים שמיועדים למופע מסוים שנפתחה עבורו כרטיסיה חדשה. בלעדיהם האירוע
+  /// היה נמסר ל"דף המוכן הראשון" של התוסף — כלומר למופע הקיים.
+  final Map<
+    PluginInstanceKey,
+    List<({String topic, Map<String, dynamic> payload})>
+  >
+  _pendingByInstance = {};
   final Map<PluginInstanceKey, int?> _readyPages = {};
   final Map<({String pluginId, int? viewId}), Future<void>> _deliveryChain = {};
 
-  bool hasPendingFor(String pluginId) => _pending.entries.any(
-    (entry) => entry.key.pluginId == pluginId && entry.value.isNotEmpty,
-  );
+  bool hasPendingFor(String pluginId) =>
+      _pending.entries.any(
+        (entry) => entry.key.pluginId == pluginId && entry.value.isNotEmpty,
+      ) ||
+      _pendingByInstance.entries.any(
+        (entry) => entry.key.pluginId == pluginId && entry.value.isNotEmpty,
+      );
 
   PluginInstanceKey? _readyPage(String pluginId, int? viewId) => _readyPages
       .entries
@@ -73,12 +101,49 @@ class PluginPageLauncher {
     _navigators[windowKeys ?? AppWindowKeys.current]?.call(pluginId);
   }
 
+  /// פותח את התוסף בכרטיסיה חדשה (מופע נוסף) ומוסר את [topic] למופע הזה בלבד.
+  ///
+  /// מחזיר את מזהה המופע החדש, או `null` כשלא נפתח מופע: אין פותח רשום
+  /// לחלון (נסגר), או שהפותח דחה את הבקשה.
+  String? openNewInstance(
+    String pluginId, {
+    String? topic,
+    Map<String, dynamic> payload = const {},
+    AppWindowKeys? windowKeys,
+  }) {
+    final opener = _instanceOpeners[windowKeys ?? AppWindowKeys.current];
+    if (opener == null) return null;
+    final instanceId = opener(pluginId);
+    if (instanceId == null) return null;
+    if (topic != null) {
+      _pendingByInstance
+          .putIfAbsent((pluginId: pluginId, instanceId: instanceId), () => [])
+          .add((topic: topic, payload: payload));
+    }
+    return instanceId;
+  }
+
   void markPageReady(
     String pluginId, {
     String instanceId = PluginInstanceIds.defaultForeground,
     int? viewId,
   }) {
     _readyPages[(pluginId: pluginId, instanceId: instanceId)] = viewId;
+    final targeted = _pendingByInstance.remove((
+      pluginId: pluginId,
+      instanceId: instanceId,
+    ));
+    if (targeted != null) {
+      for (final event in targeted) {
+        _enqueueDelivery(
+          pluginId,
+          event.topic,
+          event.payload,
+          viewId: viewId,
+          instanceId: instanceId,
+        );
+      }
+    }
     final pending = [
       ...?_pending.remove((pluginId: pluginId, viewId: viewId)),
       if (viewId != null)
@@ -101,6 +166,7 @@ class PluginPageLauncher {
     int? viewId,
   }) {
     final key = (pluginId: pluginId, instanceId: instanceId);
+    _pendingByInstance.remove(key);
     final ownerView = _readyPages.containsKey(key)
         ? _readyPages.remove(key)
         : viewId;
