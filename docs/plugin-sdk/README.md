@@ -170,6 +170,7 @@ my-plugin/
 | `contributes.toolTab.title` | שם התוסף | כותרת הטאב. אם מגדירים אותה במפורש — חייבת להיות זהה ל-`name` (עד 14 תווים), אחרת התוסף יידחה |
 | `contributes.toolTab.order` | `900` | סדר הופעה בין התוספים (מספר נמוך = קודם). תוספים מוצגים תמיד אחרי הכלים המובנים |
 | `contributes.toolTab.defaultPinned` | `true` | האם להצמיד אוטומטית בהתקנה |
+| `contributes.toolTab.allowMultipleInstances` | `false` | מאפשר לתוסף לפתוח מופע נוסף של עצמו בכרטיסייה חדשה (`plugin.openSelf` עם `newTab: true`). המופעים חולקים אחסון, ולכן יש להצהיר רק אם התוסף יודע לחיות לצד עצמו. |
 | `contributes.toolTab.iconName` | `null` | שם אייקון 24px שיוצג בטאב, מספריית אוצריא או מ-FluentUI, למשל `"book_24_regular"`. ראה [ICONS.md](ICONS.md) |
 | `contributes.publishedDataTypes` | `[]` | סוגי נתונים שהתוסף מפרסם |
 | `contributes.background.entrypoint` | `null` | נתיב יחסי לקובץ HTML קליל (ללא UI) שייטען ברקע במקום ה-`entrypoint` המלא. רלוונטי רק לתוסף עם `app.run_on_startup`. ראה §ריצת רקע. |

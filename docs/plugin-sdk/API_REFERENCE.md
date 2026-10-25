@@ -3083,6 +3083,25 @@ Otzaria.on('plugin.page_opened', (data) => {
 - אם דף התוסף עדיין לא נטען, האירוע יישלח מיד אחרי ה-boot שלו — אין צורך בהמתנה מיוחדת.
 - לפתיחת תוסף אחר יש API נפרד — `plugin.openOther`.
 
+**פתיחה בכרטיסייה נוספת (`newTab`)** — מגרסה 0.9.99
+
+כברירת מחדל `plugin.openSelf` ממקד את הכרטיסייה הקיימת של התוסף. עם `newTab: true`
+נפתח **מופע נוסף** של התוסף בכרטיסייה חדשה, וה-`param` נמסר למופע החדש בלבד:
+
+```javascript
+const { data } = await Otzaria.call('plugin.openSelf', {
+  newTab: true,
+  param: { projectId: 'abc' }   // אופציונלי; מגיע ל-plugin.page_opened של המופע החדש
+});
+// true  — נפתחה כרטיסייה חדשה
+// false — לא נפתחה (למשל הכלי אינו זמין או מושבת)
+```
+
+- דורש `contributes.toolTab.allowMultipleInstances: true` במניפסט; בלעדיו הקריאה נדחית עם `error.forbidden`.
+- `newTab` שאינו בוליאני — `error.invalid_params`.
+- מופעים של אותו תוסף חולקים אחסון (`plugin.storage`, `localStorage`, IndexedDB). תוסף שמחזיק מצב בשם קבוע צריך להפריד בין מופעים.
+- רק המופע שמוצג כרגע רץ; מופעים בכרטיסיות אחרות מושהים (`plugin.suspended`). בכרטיסייה מפוצלת שני המופעים מוצגים ורצים יחד.
+
 ---
 
 ### `plugin.openOther`

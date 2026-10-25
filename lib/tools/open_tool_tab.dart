@@ -37,11 +37,41 @@ void openToolTab(
 }
 
 /// בונה טאב של מופע נוסף לכלי — בלי dedupeKey, כך שפתיחתו לא תמקד טאב קיים.
-ToolTab newToolTabInstance(ToolCatalogEntry entry) => ToolTab(
-  toolId: entry.toolId,
-  title: entry.label,
-  allowMultipleInstances: true,
-);
+/// [instanceId] מאפשר לקורא לדעת מראש את מזהה המופע (למסירת אירוע ממוקד).
+ToolTab newToolTabInstance(ToolCatalogEntry entry, {String? instanceId}) =>
+    ToolTab(
+      toolId: entry.toolId,
+      title: entry.label,
+      allowMultipleInstances: true,
+      instanceId: instanceId,
+    );
+
+/// פותח מופע נוסף של תוסף מותקן בכרטיסיה חדשה — הנתיב של `plugin.openSelf`
+/// עם `newTab: true`.
+///
+/// מחזיר את מזהה המופע שנפתח, או `null` כשהכלי אינו זמין (ההודעה המדויקת
+/// מוצגת למשתמש).
+String? openPluginToolInstanceById(BuildContext context, String pluginId) {
+  final settingsState = context.read<SettingsBloc>().state;
+  final result = lookupTool(
+    pluginId,
+    hiddenBuiltInToolIds: settingsState.hiddenBuiltInToolIds,
+    isOfflineMode: settingsState.isOfflineMode,
+    pluginState: context.read<PluginSystemBloc>().state,
+  );
+  switch (result) {
+    case ToolAvailable(:final entry):
+      final tab = newToolTabInstance(entry);
+      context.read<TabsBloc>().add(OpenOrFocusTab(tab));
+      context.read<NavigationBloc>().add(
+        const NavigateToScreen(Screen.reading),
+      );
+      return tab.instanceId;
+    case ToolUnavailable(:final reason, :final name):
+      UiSnack.showError(toolUnavailableMessage(reason, name, pluginId));
+      return null;
+  }
+}
 
 /// פותח מופע נוסף של הכלי בטאב חדש גם כשכבר פתוח טאב שלו.
 /// נקודת כניסה עתידית (Ctrl+לחיצה / "פתח בטאב חדש") — אין עדיין UI שקורא לה.

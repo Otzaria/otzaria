@@ -23,5 +23,10 @@ void main() {
       final b = newToolTabInstance(entry);
       expect(a.instanceId, isNot(b.instanceId));
     });
+
+    test('instanceId שהוענק נשמר — הקורא יודע לאן למסור אירוע', () {
+      final tab = newToolTabInstance(entry, instanceId: 'fixed-id');
+      expect(tab.instanceId, 'fixed-id');
+    });
   });
 }
