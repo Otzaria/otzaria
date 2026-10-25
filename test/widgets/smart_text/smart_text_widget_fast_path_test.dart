@@ -74,7 +74,7 @@ Future<void> main() async {
       for (final html in const [
         'טקסט <ul><li>פריט</li></ul>',
         'טקסט <table><tr><td>תא</td></tr></table>',
-        'טקסט <sup style="color: blue">1</sup>',
+        'טקסט <sup style="font-weight: bold">1</sup>',
         'לפני<h2>כותרת</h2>',
         '<span style="display: block">בלוק</span>',
         '<span style="line-height: 3">גובה</span>',

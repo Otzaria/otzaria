@@ -152,6 +152,10 @@ class TextRendererService {
     r'\bclass\s*=\s*"[^"]*\bfootnote-marker\b[^"]*"',
     caseSensitive: false,
   );
+  static final RegExp _colorOnlySupAttrsRegex = RegExp(
+    r'^\s+style\s*=\s*"\s*color\s*:\s*[^;"<>]*;?\s*"\s*$',
+    caseSensitive: false,
+  );
   static final RegExp _isolateStartRegex = RegExp(r'[\u2066\u2067\u2068]');
   static final RegExp _rtlCharRegex = RegExp(r'[\u0590-\u08FF]');
 
@@ -206,7 +210,13 @@ class TextRendererService {
 
       // sup סמנטי או מעוצב נשאר בנתיב ה-HTML כדי לא לאבד attributes וסגנונות
       // מקוננים שהציור המורם אינו יכול לשחזר מ-TextStyle הבסיסי בלבד.
+      // חריג: sup שכל עיצובו הוא צבע בלבד (`style="color: gray;"` — כך
+      // מסומנות הערות באנציקלופדיה התלמודית) הוא סימון הערה רגיל. השארתו בנתיב
+      // ה-HTML יוצרת WidgetSpan והופכת את סדר הסימונים בפסקה (3,2,1,6,5,4),
+      // ולכן הוא נפלט כ-raised-sup; הצבע הספציפי אינו נשמר.
+      final colorOnly = _colorOnlySupAttrsRegex.hasMatch(attrs);
       if (!isFootnoteMarker &&
+          !(colorOnly && !_htmlTagRegex.hasMatch(styledInner)) &&
           (attrs.trim().isNotEmpty || _htmlTagRegex.hasMatch(styledInner))) {
         return '<sup$attrs>$wrappedInner</sup>';
       }
