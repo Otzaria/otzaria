@@ -19,6 +19,7 @@ import 'package:mockito/mockito.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
@@ -315,6 +316,7 @@ InstalledPlugin _buildInstalledPlugin({
   bool networkEnabled = false,
   List<String> networkAllowlist = const [],
   String pluginId = 'test.plugin',
+  bool allowMultipleInstances = false,
 }) {
   return InstalledPlugin(
     pluginId: pluginId,
@@ -341,6 +343,7 @@ InstalledPlugin _buildInstalledPlugin({
       toolTabTitle: 'Test Plugin',
       toolTabOrder: 1,
       defaultPinned: true,
+      allowMultipleInstances: allowMultipleInstances,
       publishedDataTypes: const [],
     ),
     installedAt: DateTime(2026),
@@ -4412,6 +4415,9 @@ Future<void> main() async {
 
     tearDown(() {
       PluginPageLauncher.instance.navigator = null;
+      // המשגר הוא singleton: openSelf רגיל בלי דף מוכן משאיר אירוע ממתין, והוא
+      // היה נמסר לבדיקה הבאה של אותו תוסף.
+      PluginPageLauncher.instance.markPageClosed('test.plugin');
       ContextMenuRegistry.instance.removeAll('test.plugin');
     });
 
@@ -4425,6 +4431,154 @@ Future<void> main() async {
 
       expect(result, isTrue);
       expect(navigations, ['test.plugin']);
+    });
+
+    group('plugin.openSelf עם newTab', () {
+      PluginBridgeAdapter adapterFor({required bool allowMultipleInstances}) =>
+          PluginBridgeAdapter(
+            _buildInstalledPlugin(
+              permissions: const ['navigation.write'],
+              allowMultipleInstances: allowMultipleInstances,
+            ),
+            dependencies: _buildNetworkDeps(),
+            pluginRepository: registry,
+          );
+
+      /// רושם פותח מופעים לחלון הנוכחי ומנקה אותו בסוף הבדיקה. מחזיר את רשימת
+      /// התוספים שהפותח נקרא עבורם.
+      List<String> registerOpener(String? instanceId) {
+        final opened = <String>[];
+        String? opener(String pluginId) {
+          opened.add(pluginId);
+          return instanceId;
+        }
+
+        PluginPageLauncher.instance.registerInstanceOpener(
+          AppWindowKeys.current,
+          opener,
+        );
+        addTearDown(
+          () => PluginPageLauncher.instance.unregisterInstanceOpener(
+            AppWindowKeys.current,
+            opener,
+          ),
+        );
+        return opened;
+      }
+
+      Matcher throwsWith(String text) => throwsA(
+        isA<Exception>().having((e) => e.toString(), 'message', contains(text)),
+      );
+
+      test('בלי allowMultipleInstances במניפסט → forbidden', () async {
+        final opened = registerOpener('inst-new');
+
+        await expectLater(
+          adapterFor(
+            allowMultipleInstances: false,
+          ).execute('plugin', 'openSelf', {'newTab': true}),
+          throwsWith('forbidden'),
+        );
+        expect(opened, isEmpty);
+      });
+
+      test('newTab שאינו בוליאני → invalid_params', () async {
+        final opened = registerOpener('inst-new');
+
+        await expectLater(
+          adapterFor(
+            allowMultipleInstances: true,
+          ).execute('plugin', 'openSelf', {'newTab': 'yes'}),
+          throwsWith('invalid_params'),
+        );
+        expect(opened, isEmpty);
+      });
+
+      test(
+        'newTab: false מתנהג כמו openSelf רגיל — ממקד, בלי מופע חדש',
+        () async {
+          final opened = registerOpener('inst-new');
+          final navigations = <String>[];
+          PluginPageLauncher.instance.navigator = navigations.add;
+
+          final result = await adapterFor(
+            allowMultipleInstances: true,
+          ).execute('plugin', 'openSelf', {'newTab': false});
+
+          expect(result, isTrue);
+          expect(navigations, ['test.plugin']);
+          expect(opened, isEmpty);
+        },
+      );
+
+      test('הפותח דחה את הבקשה (כלי לא זמין) → false', () async {
+        registerOpener(null);
+
+        final result = await adapterFor(
+          allowMultipleInstances: true,
+        ).execute('plugin', 'openSelf', {'newTab': true});
+
+        expect(result, isFalse);
+      });
+
+      test('newTab: true פותח מופע חדש ומוסר את param רק אליו', () async {
+        final opened = registerOpener('inst-new');
+        final navigations = <String>[];
+        PluginPageLauncher.instance.navigator = navigations.add;
+        final dispatcher = PluginRuntimeDispatcher.instance;
+        final existing = _RecordingWebViewController();
+        final fresh = _RecordingWebViewController();
+        dispatcher.repositoryForTesting = _EnabledRegistryRepo();
+        dispatcher.registerController(
+          'test.plugin',
+          existing,
+          instanceId: 'inst-old',
+        );
+        dispatcher.registerController(
+          'test.plugin',
+          fresh,
+          instanceId: 'inst-new',
+        );
+        addTearDown(() {
+          PluginPageLauncher.instance.markPageClosed(
+            'test.plugin',
+            instanceId: 'inst-old',
+          );
+          PluginPageLauncher.instance.markPageClosed(
+            'test.plugin',
+            instanceId: 'inst-new',
+          );
+          dispatcher.unregisterController(
+            'test.plugin',
+            instanceId: 'inst-old',
+          );
+          dispatcher.unregisterController(
+            'test.plugin',
+            instanceId: 'inst-new',
+          );
+          dispatcher.repositoryForTesting = PluginRegistryRepository();
+        });
+        PluginPageLauncher.instance.markPageReady(
+          'test.plugin',
+          instanceId: 'inst-old',
+        );
+
+        final result = await adapterFor(
+          allowMultipleInstances: true,
+        ).execute('plugin', 'openSelf', {'newTab': true, 'param': 'x'});
+        PluginPageLauncher.instance.markPageReady(
+          'test.plugin',
+          instanceId: 'inst-new',
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(result, isTrue);
+        expect(opened, ['test.plugin']);
+        expect(navigations, isEmpty, reason: 'לא ממקדים את הכרטיסייה הקיימת');
+        expect(existing.jsCalls, isEmpty);
+        expect(fresh.jsCalls.single, contains('plugin.page_opened'));
+        expect(fresh.jsCalls.single, contains('"param":"x"'));
+      });
     });
 
     test('plugin.openOther מנווט לתוסף היעד ומוסר לו openedBy', () async {

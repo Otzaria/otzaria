@@ -50,7 +50,8 @@ void main() {
     AppWindowKeys.resetForTest();
   });
 
-  Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 20));
+  Future<void> settle() =>
+      Future<void>.delayed(const Duration(milliseconds: 20));
 
   test('האירוע נמסר רק למופע החדש, גם כשמופע קיים כבר מוכן', () async {
     final opened = <String>[];
@@ -83,12 +84,16 @@ void main() {
     launcher.unregisterInstanceOpener(keys, opener);
   });
 
-  test('פותח שדוחה (תקרה / כלי לא זמין) — אין מופע ואין אירוע ממתין', () {
+  test('פותח שדוחה (כלי לא זמין) — אין מופע ואין אירוע ממתין', () {
     String? refuse(String pluginId) => null;
     launcher.registerInstanceOpener(keys, refuse);
 
     expect(
-      launcher.openNewInstance(_kPid, topic: 'plugin.page_opened', windowKeys: keys),
+      launcher.openNewInstance(
+        _kPid,
+        topic: 'plugin.page_opened',
+        windowKeys: keys,
+      ),
       isNull,
     );
     expect(launcher.hasPendingFor(_kPid), isFalse);
@@ -97,7 +102,11 @@ void main() {
 
   test('חלון בלי פותח רשום — null', () {
     expect(
-      launcher.openNewInstance(_kPid, topic: 'plugin.page_opened', windowKeys: keys),
+      launcher.openNewInstance(
+        _kPid,
+        topic: 'plugin.page_opened',
+        windowKeys: keys,
+      ),
       isNull,
     );
   });
@@ -106,7 +115,11 @@ void main() {
     String? opener(String pluginId) => 'second';
     launcher.registerInstanceOpener(keys, opener);
 
-    launcher.openNewInstance(_kPid, topic: 'plugin.page_opened', windowKeys: keys);
+    launcher.openNewInstance(
+      _kPid,
+      topic: 'plugin.page_opened',
+      windowKeys: keys,
+    );
     expect(launcher.hasPendingFor(_kPid), isTrue);
 
     launcher.markPageClosed(_kPid, instanceId: 'second');
