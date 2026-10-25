@@ -124,8 +124,9 @@ void main() {
     });
 
     test('HTML entity מפוענח לאותו טקסט שמוצג בפריסה', () {
-      final marker = RaisedMarkers.extract(process('לפני<sup>&ast;</sup>אחרי'))
-          .single;
+      final marker = RaisedMarkers.extract(
+        process('לפני<sup>&ast;</sup>אחרי'),
+      ).single;
 
       expect(marker.text, '$lri*$pdi');
     });
@@ -444,7 +445,7 @@ void main() {
       );
       expect(
         SimpleInlineHtml.tryParse(
-          'טקסט <sup style="font-weight: bold">1</sup>',
+          'טקסט <sup style="color: red">1</sup>',
           style,
         ),
         isNull,
@@ -578,7 +579,9 @@ void main() {
       );
     });
 
-    testWidgets('סימון מספרי עובר בשכבה כמו סימון אות', (tester) async {
+    testWidgets('סימון מספרי עובר בשכבה כמו סימון אות', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Directionality(
@@ -893,7 +896,9 @@ void main() {
 
     testWidgets(
       'קריאה רציפה: אות מפרש בווריאנט קו — קו אחד בלבד (issue #2758)',
-      (tester) async {
+      (
+        tester,
+      ) async {
         await tester.pumpWidget(
           MaterialApp(
             home: Directionality(
@@ -1011,10 +1016,14 @@ void main() {
       );
       final placement = overlay.debugPlacements().single;
 
-      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
       await gesture.addPointer(location: Offset.zero);
       addTearDown(gesture.removePointer);
-      await gesture.moveTo(overlay.localToGlobal(raisedOnlyPoint(placement)));
+      await gesture.moveTo(
+        overlay.localToGlobal(raisedOnlyPoint(placement)),
+      );
       await tester.pump();
 
       expect(hovered, contains('otzaria://anchor?ref=5_0'));
@@ -1035,10 +1044,14 @@ void main() {
       expect(placement.marker.italic, isTrue);
       expect(placement.paintRect.top, lessThan(placement.anchorRect.top));
 
-      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
       await gesture.addPointer(location: Offset.zero);
       addTearDown(gesture.removePointer);
-      await gesture.moveTo(overlay.localToGlobal(raisedOnlyPoint(placement)));
+      await gesture.moveTo(
+        overlay.localToGlobal(raisedOnlyPoint(placement)),
+      );
       await tester.pump();
       expect(hovered, contains('otzaria://book-note?line=3&note=0'));
     });
@@ -1128,7 +1141,9 @@ void main() {
         expect(tapped, ['otzaria://anchor?ref=0_0']);
       } else {
         // הסימון בשורה הראשונה וההרמה נחסמה — עדיין לחיץ דרך העוגן עצמו.
-        await tester.tapAt(overlay.localToGlobal(placement.anchorRect.center));
+        await tester.tapAt(
+          overlay.localToGlobal(placement.anchorRect.center),
+        );
         await tester.pump();
         expect(tapped, ['otzaria://anchor?ref=0_0']);
       }
@@ -1172,7 +1187,10 @@ Future<Set<int>> inkBelowRaisedMarker(
   RenderRaisedMarkerOverlay overlay,
 ) async {
   final placement = overlay.debugPlacements().single;
-  expect(kLinkAnchorVariants[placement.marker.variantIndex!].underline, isTrue);
+  expect(
+    kLinkAnchorVariants[placement.marker.variantIndex!].underline,
+    isTrue,
+  );
   final boundary = tester.renderObject<RenderRepaintBoundary>(
     find
         .ancestor(
