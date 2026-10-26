@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
@@ -53,7 +54,27 @@ class PluginPageLauncher {
     List<({String topic, Map<String, dynamic> payload})>
   >
   _pendingByInstance = {};
-  final Map<PluginInstanceKey, int?> _pendingInstanceWindows = {};
+  final Map<PluginInstanceKey, ({int? viewId, DateTime openedAt})>
+  _pendingInstanceOrigins = {};
+
+  /// כמה זמן אירוע ממוקד ממתין למופע שלא עלה, לפני שהוא נזנח. בלי זה כשל
+  /// ב-boot משאיר אותו ומונע פינוי של כל מופעי התוסף.
+  static const Duration pendingInstanceEventTtl = Duration(seconds: 60);
+
+  @visibleForTesting
+  DateTime Function() clock = DateTime.now;
+
+  void _dropExpiredInstanceEvents() {
+    final cutoff = clock().subtract(pendingInstanceEventTtl);
+    final expired = [
+      for (final entry in _pendingInstanceOrigins.entries)
+        if (entry.value.openedAt.isBefore(cutoff)) entry.key,
+    ];
+    for (final key in expired) {
+      _pendingInstanceOrigins.remove(key);
+      _pendingByInstance.remove(key);
+    }
+  }
   final Map<PluginInstanceKey, int?> _readyPages = {};
 
   /// מופעים נוספים (שנפתחו דרך `newTab`). פתיחה רגילה לעולם אינה מוסרת להם
@@ -61,13 +82,15 @@ class PluginPageLauncher {
   final Set<PluginInstanceKey> _extraInstances = {};
   final Map<({String pluginId, int? viewId}), Future<void>> _deliveryChain = {};
 
-  bool hasPendingFor(String pluginId) =>
-      _pending.entries.any(
-        (entry) => entry.key.pluginId == pluginId && entry.value.isNotEmpty,
-      ) ||
-      _pendingByInstance.entries.any(
-        (entry) => entry.key.pluginId == pluginId && entry.value.isNotEmpty,
-      );
+  bool hasPendingFor(String pluginId) {
+    _dropExpiredInstanceEvents();
+    return _pending.entries.any(
+          (entry) => entry.key.pluginId == pluginId && entry.value.isNotEmpty,
+        ) ||
+        _pendingByInstance.entries.any(
+          (entry) => entry.key.pluginId == pluginId && entry.value.isNotEmpty,
+        );
+  }
 
   PluginInstanceKey? _readyPage(String pluginId, int? viewId) => _readyPages
       .entries
@@ -124,7 +147,7 @@ class PluginPageLauncher {
     if (instanceId == null) return null;
     if (topic != null) {
       final key = (pluginId: pluginId, instanceId: instanceId);
-      _pendingInstanceWindows[key] = viewId;
+      _pendingInstanceOrigins[key] = (viewId: viewId, openedAt: clock());
       _pendingByInstance
           .putIfAbsent(key, () => [])
           .add((topic: topic, payload: payload));
@@ -145,7 +168,7 @@ class PluginPageLauncher {
     } else {
       _extraInstances.add(key);
     }
-    _pendingInstanceWindows.remove((
+    _pendingInstanceOrigins.remove((
       pluginId: pluginId,
       instanceId: instanceId,
     ));
@@ -191,7 +214,7 @@ class PluginPageLauncher {
   }) {
     final key = (pluginId: pluginId, instanceId: instanceId);
     _pendingByInstance.remove(key);
-    _pendingInstanceWindows.remove(key);
+    _pendingInstanceOrigins.remove(key);
     _extraInstances.remove(key);
     final ownerView = _readyPages.containsKey(key)
         ? _readyPages.remove(key)
@@ -208,11 +231,11 @@ class PluginPageLauncher {
   /// סגירה לפני יצירת דף אינה משאירה אירועים שממתינים לחלון שכבר איננו.
   void forgetWindow(int viewId) {
     final closedInstances = [
-      for (final entry in _pendingInstanceWindows.entries)
-        if (entry.value == viewId) entry.key,
+      for (final entry in _pendingInstanceOrigins.entries)
+        if (entry.value.viewId == viewId) entry.key,
     ];
     for (final key in closedInstances) {
-      _pendingInstanceWindows.remove(key);
+      _pendingInstanceOrigins.remove(key);
       _pendingByInstance.remove(key);
     }
     _pending.removeWhere((key, _) => key.viewId == viewId);

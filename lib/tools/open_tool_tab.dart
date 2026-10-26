@@ -62,6 +62,8 @@ int openToolInstanceCount(Iterable<OpenedTab> tabs, String toolId) => tabs
 ///
 /// מחזיר את מזהה המופע שנפתח, או `null` כשהפתיחה נדחתה: הכלי אינו זמין, או
 /// שכבר פתוחות [kMaxPluginToolInstances] כרטיסיות שלו (בשני המקרים מוצגת הודעה).
+/// כשרשימת התוספים עדיין נטענת הכרטיסיה נפתחת עם כותרת גיבוי, כמו ב-
+/// [openToolTabById].
 String? openPluginToolInstanceById(BuildContext context, String pluginId) {
   final settingsState = context.read<SettingsBloc>().state;
   final result = lookupTool(
@@ -70,39 +72,47 @@ String? openPluginToolInstanceById(BuildContext context, String pluginId) {
     isOfflineMode: settingsState.isOfflineMode,
     pluginState: context.read<PluginSystemBloc>().state,
   );
+  final ToolTab tab;
   switch (result) {
     case ToolAvailable(:final entry):
-      final tabsBloc = context.read<TabsBloc>();
-      final reserved = _reservedInstanceIds(tabsBloc, pluginId);
-      reserved.removeAll(_toolInstanceIds(tabsBloc.state.tabs));
-      final openCount =
-          openToolInstanceCount(tabsBloc.state.tabs, pluginId) +
-          reserved.length;
-      if (openCount >= kMaxPluginToolInstances) {
-        UiSnack.showError(
-          ToolsMessages.pluginInstanceLimitReached(
-            entry.label,
-            kMaxPluginToolInstances,
-          ),
-        );
-        return null;
-      }
-      final instanceId = openNewToolTabInstance(context, entry);
-      reserved.add(instanceId);
-      unawaited(
-        tabsBloc.stream
-            .firstWhere(
-              (state) => _toolInstanceIds(state.tabs).contains(instanceId),
-            )
-            .timeout(const Duration(seconds: 5))
-            .then<void>((_) {}, onError: (_) {})
-            .whenComplete(() => reserved.remove(instanceId)),
+      tab = newToolTabInstance(entry);
+    case ToolUnavailable(reason: ToolUnavailableReason.loading):
+      tab = ToolTab(
+        toolId: pluginId,
+        title: ToolTab.fallbackTitleFor(pluginId),
+        allowMultipleInstances: true,
       );
-      return instanceId;
     case ToolUnavailable(:final reason, :final name):
       UiSnack.showError(toolUnavailableMessage(reason, name, pluginId));
       return null;
   }
+  final tabsBloc = context.read<TabsBloc>();
+  final reserved = _reservedInstanceIds(tabsBloc, pluginId);
+  reserved.removeAll(_toolInstanceIds(tabsBloc.state.tabs));
+  final openCount =
+      openToolInstanceCount(tabsBloc.state.tabs, pluginId) + reserved.length;
+  if (openCount >= kMaxPluginToolInstances) {
+    tab.dispose();
+    UiSnack.showError(
+      ToolsMessages.pluginInstanceLimitReached(
+        tab.title,
+        kMaxPluginToolInstances,
+      ),
+    );
+    return null;
+  }
+  final instanceId = _dispatchInstanceTab(context, tab);
+  reserved.add(instanceId);
+  unawaited(
+    tabsBloc.stream
+        .firstWhere(
+          (state) => _toolInstanceIds(state.tabs).contains(instanceId),
+        )
+        .timeout(const Duration(seconds: 5))
+        .then<void>((_) {}, onError: (_) {})
+        .whenComplete(() => reserved.remove(instanceId)),
+  );
+  return instanceId;
 }
 
 /// פתיחות שנשלחו ל-[TabsBloc] ועדיין אינן ב-state. בלעדיהן שתי קריאות
@@ -121,8 +131,10 @@ Set<String> _toolInstanceIds(Iterable<OpenedTab> tabs) => {
 ///
 /// הקורא כיום: [openPluginToolInstanceById] (`plugin.openSelf` עם `newTab`).
 /// נקודת כניסה אפשרית נוספת: Ctrl+לחיצה / "פתח בטאב חדש".
-String openNewToolTabInstance(BuildContext context, ToolCatalogEntry entry) {
-  final tab = newToolTabInstance(entry);
+String openNewToolTabInstance(BuildContext context, ToolCatalogEntry entry) =>
+    _dispatchInstanceTab(context, newToolTabInstance(entry));
+
+String _dispatchInstanceTab(BuildContext context, ToolTab tab) {
   context.read<TabsBloc>().add(OpenOrFocusTab(tab));
   context.read<NavigationBloc>().add(
     const NavigateToScreen(Screen.reading),

@@ -1209,4 +1209,33 @@ void main() {
       );
     });
   });
+
+  group('contributes.toolTab.allowMultipleInstances', () {
+    Map<String, dynamic> withFlag(Object? value) {
+      final json = _baseManifest();
+      ((json['contributes'] as Map<String, dynamic>)['toolTab']
+              as Map<String, dynamic>)['allowMultipleInstances'] =
+          value;
+      return json;
+    }
+
+    bool mentionsFlag(PluginValidationReport report) =>
+        report.errors.any((e) => e.contains('allowMultipleInstances'));
+
+    test('ערך שאינו בוליאני נדחה בהודעה ברורה', () {
+      for (final value in <Object>['true', 1, <String>[]]) {
+        final report = _runOn(tempDir, manifestOverride: withFlag(value));
+        expect(mentionsFlag(report), isTrue, reason: '$value');
+        Directory(p.join(tempDir.path, 'plugin')).deleteSync(recursive: true);
+      }
+    });
+
+    test('true ו-false תקינים', () {
+      for (final value in <bool>[true, false]) {
+        final report = _runOn(tempDir, manifestOverride: withFlag(value));
+        expect(mentionsFlag(report), isFalse, reason: '$value');
+        Directory(p.join(tempDir.path, 'plugin')).deleteSync(recursive: true);
+      }
+    });
+  });
 }

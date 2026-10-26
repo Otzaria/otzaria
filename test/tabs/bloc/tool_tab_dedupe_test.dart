@@ -223,4 +223,60 @@ void main() {
     expect(pane.title, 'קידוש החודש');
     expect(bloc.state.tabs.single, isA<CombinedTab>());
   });
+
+  group('מופעים נוספים של תוסף (allowMultipleInstances)', () {
+    const pluginId = 'com.example.plugin';
+    ToolTab extra() =>
+        ToolTab(toolId: pluginId, title: pluginId, allowMultipleInstances: true);
+
+    test('מופע נוסף נפתח בכרטיסיה נפרדת ואינו מתמזג עם הראשי', () async {
+      bloc.add(OpenOrFocusTab(tool(pluginId)));
+      bloc.add(OpenOrFocusTab(extra()));
+      bloc.add(OpenOrFocusTab(extra()));
+      await pumpEventQueue();
+
+      expect(bloc.state.tabs.length, 3);
+    });
+
+    test('פתיחה רגילה ממקדת את הראשי ואינה פותחת כרטיסיה נוספת', () async {
+      bloc.add(OpenOrFocusTab(tool(pluginId)));
+      bloc.add(OpenOrFocusTab(extra()));
+      await pumpEventQueue();
+      expect(bloc.state.currentTabIndex, 1);
+
+      bloc.add(OpenOrFocusTab(tool(pluginId)));
+      await pumpEventQueue();
+
+      expect(bloc.state.tabs.length, 2);
+      expect(bloc.state.currentTabIndex, 0);
+    });
+
+    test('כשנשארו רק מופעים נוספים פתיחה רגילה פותחת ראשי חדש', () async {
+      bloc.add(OpenOrFocusTab(extra()));
+      await pumpEventQueue();
+
+      bloc.add(OpenOrFocusTab(tool(pluginId)));
+      await pumpEventQueue();
+
+      final tabs = bloc.state.tabs.whereType<ToolTab>().toList();
+      expect(tabs.length, 2);
+      expect(tabs.where((tab) => tab.dedupeKey != null).length, 1);
+    });
+
+    test('סגירת מופע אחד משאירה את האחרים', () async {
+      final primary = tool(pluginId);
+      final first = extra();
+      final second = extra();
+      for (final tab in [primary, first, second]) {
+        bloc.add(OpenOrFocusTab(tab));
+      }
+      await pumpEventQueue();
+
+      bloc.add(RemoveTab(first));
+      await pumpEventQueue();
+
+      expect(bloc.state.tabs, containsAll([primary, second]));
+      expect(bloc.state.tabs, isNot(contains(first)));
+    });
+  });
 }

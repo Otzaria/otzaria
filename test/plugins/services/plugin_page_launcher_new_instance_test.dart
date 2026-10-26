@@ -42,6 +42,7 @@ void main() {
   });
 
   tearDown(() {
+    launcher.clock = DateTime.now;
     launcher.markPageClosed(_kPid, instanceId: 'first');
     launcher.markPageClosed(_kPid, instanceId: 'second');
     dispatcher.unregisterController(_kPid, instanceId: 'first');
@@ -326,6 +327,51 @@ void main() {
       await settle(() => first.jsCalls.isNotEmpty);
 
       expect(first.jsCalls.single, contains('after.close'));
+    });
+  });
+
+  group('תפוגת אירוע ממוקד שמופע לא עלה עבורו', () {
+    test('אחרי הזמן שנקבע האירוע נזנח ואינו חוסם פינוי', () {
+      final start = DateTime(2026, 1, 1);
+      launcher.clock = () => start;
+      String? opener(String pluginId) => 'second';
+      launcher.registerInstanceOpener(keys, opener);
+      launcher.openNewInstance(
+        _kPid,
+        topic: 'plugin.page_opened',
+        windowKeys: keys,
+      );
+
+      launcher.clock = () => start.add(
+        PluginPageLauncher.pendingInstanceEventTtl - const Duration(seconds: 1),
+      );
+      expect(launcher.hasPendingFor(_kPid), isTrue);
+
+      launcher.clock = () => start.add(
+        PluginPageLauncher.pendingInstanceEventTtl + const Duration(seconds: 1),
+      );
+      expect(launcher.hasPendingFor(_kPid), isFalse);
+      launcher.unregisterInstanceOpener(keys, opener);
+    });
+
+    test('מופע שעולה אחרי התפוגה אינו מקבל את האירוע הישן', () async {
+      final start = DateTime(2026, 1, 1);
+      launcher.clock = () => start;
+      String? opener(String pluginId) => 'second';
+      launcher.registerInstanceOpener(keys, opener);
+      launcher.openNewInstance(
+        _kPid,
+        topic: 'plugin.page_opened',
+        windowKeys: keys,
+      );
+
+      launcher.clock = () => start.add(const Duration(minutes: 5));
+      launcher.hasPendingFor(_kPid);
+      launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(second.jsCalls, isEmpty);
+      launcher.unregisterInstanceOpener(keys, opener);
     });
   });
 }
