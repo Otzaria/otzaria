@@ -4511,6 +4511,42 @@ Future<void> main() async {
         },
       );
 
+      test('newTab: null מתנהג כמו openSelf רגיל', () async {
+        final opened = registerOpener('inst-new');
+        final navigations = <String>[];
+        PluginPageLauncher.instance.navigator = navigations.add;
+
+        final result = await adapterFor(
+          allowMultipleInstances: false,
+        ).execute('plugin', 'openSelf', {'newTab': null});
+
+        expect(result, isTrue);
+        expect(navigations, ['test.plugin']);
+        expect(opened, isEmpty);
+      });
+
+      for (final bad in <Object>[1, 0, 'true', <String, dynamic>{}, <int>[]]) {
+        test('newTab מסוג לא בוליאני (${bad.runtimeType}: $bad) נדחה', () async {
+          final opened = registerOpener('inst-new');
+
+          await expectLater(
+            adapterFor(
+              allowMultipleInstances: true,
+            ).execute('plugin', 'openSelf', {'newTab': bad}),
+            throwsWith('invalid_params'),
+          );
+          expect(opened, isEmpty);
+        });
+      }
+
+      test('חלון בלי פותח רשום → false ולא שגיאה', () async {
+        final result = await adapterFor(
+          allowMultipleInstances: true,
+        ).execute('plugin', 'openSelf', {'newTab': true});
+
+        expect(result, isFalse);
+      });
+
       test('הפותח דחה את הבקשה (כלי לא זמין) → false', () async {
         registerOpener(null);
 

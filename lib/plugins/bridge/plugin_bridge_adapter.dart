@@ -7861,6 +7861,7 @@ class PluginBridgeAdapter {
             plugin.pluginId,
             topic: 'plugin.page_opened',
             payload: {'param': args['param']},
+            viewId: _windowDependencies.viewId,
             windowKeys: _windowDependencies.windowKeys,
           );
           return openedInstanceId != null;

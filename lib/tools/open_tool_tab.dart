@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
@@ -70,10 +72,12 @@ String? openPluginToolInstanceById(BuildContext context, String pluginId) {
   );
   switch (result) {
     case ToolAvailable(:final entry):
-      final openCount = openToolInstanceCount(
-        context.read<TabsBloc>().state.tabs,
-        pluginId,
-      );
+      final tabsBloc = context.read<TabsBloc>();
+      final reserved = _reservedInstanceIds(tabsBloc, pluginId);
+      reserved.removeAll(_toolInstanceIds(tabsBloc.state.tabs));
+      final openCount =
+          openToolInstanceCount(tabsBloc.state.tabs, pluginId) +
+          reserved.length;
       if (openCount >= kMaxPluginToolInstances) {
         UiSnack.showError(
           ToolsMessages.pluginInstanceLimitReached(
@@ -83,12 +87,34 @@ String? openPluginToolInstanceById(BuildContext context, String pluginId) {
         );
         return null;
       }
-      return openNewToolTabInstance(context, entry);
+      final instanceId = openNewToolTabInstance(context, entry);
+      reserved.add(instanceId);
+      unawaited(
+        tabsBloc.stream
+            .firstWhere(
+              (state) => _toolInstanceIds(state.tabs).contains(instanceId),
+            )
+            .timeout(const Duration(seconds: 5))
+            .then<void>((_) {}, onError: (_) {})
+            .whenComplete(() => reserved.remove(instanceId)),
+      );
+      return instanceId;
     case ToolUnavailable(:final reason, :final name):
       UiSnack.showError(toolUnavailableMessage(reason, name, pluginId));
       return null;
   }
 }
+
+/// פתיחות שנשלחו ל-[TabsBloc] ועדיין אינן ב-state. בלעדיהן שתי קריאות
+/// רצופות היו רואות אותו מספר כרטיסיות ועוקפות את התקרה.
+final _instanceReservations = Expando<Map<String, Set<String>>>();
+
+Set<String> _reservedInstanceIds(TabsBloc bloc, String pluginId) =>
+    (_instanceReservations[bloc] ??= {}).putIfAbsent(pluginId, () => {});
+
+Set<String> _toolInstanceIds(Iterable<OpenedTab> tabs) => {
+  for (final tab in tabs.expand(leafPanes).whereType<ToolTab>()) tab.instanceId,
+};
 
 /// פותח מופע נוסף של הכלי בטאב חדש גם כשכבר פתוח טאב שלו, ומחזיר את מזהה
 /// המופע שנפתח.
