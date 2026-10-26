@@ -37,20 +37,29 @@ void openToolTab(
 }
 
 /// בונה טאב של מופע נוסף לכלי — בלי dedupeKey, כך שפתיחתו לא תמקד טאב קיים.
-/// [instanceId] מאפשר לקורא לדעת מראש את מזהה המופע (למסירת אירוע ממוקד).
-ToolTab newToolTabInstance(ToolCatalogEntry entry, {String? instanceId}) =>
-    ToolTab(
-      toolId: entry.toolId,
-      title: entry.label,
-      allowMultipleInstances: true,
-      instanceId: instanceId,
-    );
+ToolTab newToolTabInstance(ToolCatalogEntry entry) => ToolTab(
+  toolId: entry.toolId,
+  title: entry.label,
+  allowMultipleInstances: true,
+);
+
+/// תקרת הכרטיסיות הפתוחות של אותו תוסף (כולל הראשונה). כל מופע הוא WebView
+/// נפרד, וקריאה חוזרת של תוסף ל-`plugin.openSelf` עם `newTab` לא תוכל להציף
+/// את המסך.
+const int kMaxPluginToolInstances = 10;
+
+/// מספר הכרטיסיות הפתוחות של הכלי [toolId], כולל חלוניות מפוצלות.
+int openToolInstanceCount(Iterable<OpenedTab> tabs, String toolId) => tabs
+    .expand(leafPanes)
+    .whereType<ToolTab>()
+    .where((tab) => tab.toolId == toolId)
+    .length;
 
 /// פותח מופע נוסף של תוסף מותקן בכרטיסיה חדשה — הנתיב של `plugin.openSelf`
 /// עם `newTab: true`.
 ///
-/// מחזיר את מזהה המופע שנפתח, או `null` כשהכלי אינו זמין (ההודעה המדויקת
-/// מוצגת למשתמש).
+/// מחזיר את מזהה המופע שנפתח, או `null` כשהפתיחה נדחתה: הכלי אינו זמין, או
+/// שכבר פתוחות [kMaxPluginToolInstances] כרטיסיות שלו (בשני המקרים מוצגת הודעה).
 String? openPluginToolInstanceById(BuildContext context, String pluginId) {
   final settingsState = context.read<SettingsBloc>().state;
   final result = lookupTool(
@@ -61,25 +70,38 @@ String? openPluginToolInstanceById(BuildContext context, String pluginId) {
   );
   switch (result) {
     case ToolAvailable(:final entry):
-      final tab = newToolTabInstance(entry);
-      context.read<TabsBloc>().add(OpenOrFocusTab(tab));
-      context.read<NavigationBloc>().add(
-        const NavigateToScreen(Screen.reading),
+      final openCount = openToolInstanceCount(
+        context.read<TabsBloc>().state.tabs,
+        pluginId,
       );
-      return tab.instanceId;
+      if (openCount >= kMaxPluginToolInstances) {
+        UiSnack.showError(
+          ToolsMessages.pluginInstanceLimitReached(
+            entry.label,
+            kMaxPluginToolInstances,
+          ),
+        );
+        return null;
+      }
+      return openNewToolTabInstance(context, entry);
     case ToolUnavailable(:final reason, :final name):
       UiSnack.showError(toolUnavailableMessage(reason, name, pluginId));
       return null;
   }
 }
 
-/// פותח מופע נוסף של הכלי בטאב חדש גם כשכבר פתוח טאב שלו.
-/// נקודת כניסה עתידית (Ctrl+לחיצה / "פתח בטאב חדש") — אין עדיין UI שקורא לה.
-void openNewToolTabInstance(BuildContext context, ToolCatalogEntry entry) {
-  context.read<TabsBloc>().add(OpenOrFocusTab(newToolTabInstance(entry)));
+/// פותח מופע נוסף של הכלי בטאב חדש גם כשכבר פתוח טאב שלו, ומחזיר את מזהה
+/// המופע שנפתח.
+///
+/// הקורא כיום: [openPluginToolInstanceById] (`plugin.openSelf` עם `newTab`).
+/// נקודת כניסה אפשרית נוספת: Ctrl+לחיצה / "פתח בטאב חדש".
+String openNewToolTabInstance(BuildContext context, ToolCatalogEntry entry) {
+  final tab = newToolTabInstance(entry);
+  context.read<TabsBloc>().add(OpenOrFocusTab(tab));
   context.read<NavigationBloc>().add(
     const NavigateToScreen(Screen.reading),
   );
+  return tab.instanceId;
 }
 
 /// פותח כלי לפי מזהה בלבד — לקישורים עמוקים, קיצורי מקלדת ופריטים מוצמדים
