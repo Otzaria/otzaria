@@ -149,6 +149,7 @@ class PluginExtendedValidator {
       warnings,
     );
     _checkNameVsToolTabTitle(manifestJson, warnings);
+    _validateToolTabFlags(manifestJson, errors);
     _validateHeadless(manifest, manifestJson, declaredPermissions, errors);
 
     final files = directoryPath == null
@@ -334,6 +335,21 @@ class PluginExtendedValidator {
 
   /// תוסף ללא ממשק רץ רק כשמנוע הרקע מתעורר, ואין לו דף שאפשר לפתוח במקומו.
   /// לכן תוסף שאין לו דרך להתעורר, או שמפנה לדף שלו, נחסם כבר בהתקנה.
+  static void _validateToolTabFlags(
+    Map<String, dynamic> manifestJson,
+    List<String> errors,
+  ) {
+    final contributes = manifestJson['contributes'];
+    final toolTab = contributes is Map ? contributes['toolTab'] : null;
+    if (toolTab is! Map) return;
+    final raw = toolTab['allowMultipleInstances'];
+    if (raw != null && raw is! bool) {
+      errors.add(
+        'contributes.toolTab.allowMultipleInstances חייב להיות true או false',
+      );
+    }
+  }
+
   static void _validateHeadless(
     PluginManifest manifest,
     Map<String, dynamic> manifestJson,

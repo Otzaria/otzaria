@@ -137,8 +137,8 @@ class PluginManifest {
       toolTabTitle: toolTab['title'] as String? ?? json['name'] as String,
       toolTabOrder: toolTab['order'] as int? ?? 900,
       defaultPinned: toolTab['defaultPinned'] as bool? ?? true,
-      allowMultipleInstances:
-          toolTab['allowMultipleInstances'] as bool? ?? false,
+      // ערך שאינו בוליאני מדווח ב-PluginExtendedValidator, לא זורק בהתקנה.
+      allowMultipleInstances: toolTab['allowMultipleInstances'] == true,
       toolTabIconName: toolTab['iconName'] as String?,
       publishedDataTypes:
           (contributes['publishedDataTypes'] as List<dynamic>?)

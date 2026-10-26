@@ -36,5 +36,14 @@ void main() {
       final toolTab = contributes['toolTab'] as Map<String, dynamic>;
       expect(toolTab.containsKey('allowMultipleInstances'), isFalse);
     });
+
+    for (final value in <Object?>['true', 1, 'yes', null, <String>[]]) {
+      test('ערך שאינו בוליאני ($value) אינו זורק ונחשב כבוי', () {
+        final manifest = PluginManifest.fromJson(
+          _manifestJson(toolTab: {'allowMultipleInstances': value}),
+        );
+        expect(manifest.allowMultipleInstances, isFalse);
+      });
+    }
   });
 }
