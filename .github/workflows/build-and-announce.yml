@@ -139,6 +139,125 @@ jobs:
             echo "is_version=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # הספרייה ואינדקס החיפוש המוכן, כשני נכסים נפרדים שהמתקינים הרגילים של Windows
+  # וחבילת Android המלאה פורסים מהחלקים שלצדם. אינם תלויים באפליקציה, ולכן נארזים
+  # במקביל לבניות ולא מעכבים את המתקינים עד סוף build_linux.
+  build_library_assets:
+    if: github.event_name != 'release'
+    needs: [bump_version]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.bump_version.outputs.sha }}
+
+      # fetch_prebuilt_library_index.sh קורא את סכמת המנוע מ-package_config.json.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Download library assets
+        shell: bash
+        env:
+          LIBRARY_DB_RELEASE_TAG: ${{ needs.bump_version.outputs.library_tag }}
+          SEFORIM_LIBRARY_TAG: ${{ needs.bump_version.outputs.library_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p full_installer/library_db
+          # DB מעל מגבלת הנכס של GitHub מתפרסם בחלקים; הסקריפט מחבר ומאמת אותם.
+          bash tool/release/download_library_db.sh full_installer/library_db/seforim.db.zst
+          curl -L --fail https://github.com/Otzaria/otzar-HB_catalog/releases/latest/download/otzar-HB_catalog.db.zst -o full_installer/library_db/otzar-HB_catalog.db.zst
+          curl -L --fail https://github.com/Otzaria/otzaria-library/releases/latest/download/talmud_bavli_latest.tar.zst -o full_installer/library_db/talmud_bavli_latest.tar.zst
+          # lexical-v2.db הוא המילון המתוקן; lexical.db קפוא לגרסאות ישנות של התוכנה.
+          curl -L --fail https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical-v2.db -o full_installer/library_db/lexical.db \
+            || curl -L --fail https://github.com/Otzaria/SeforimMagicIndexer/releases/latest/download/lexical.db -o full_installer/library_db/lexical.db
+
+      - name: Pack library and search index assets
+        shell: bash
+        env:
+          SEFORIM_LIBRARY_DISPATCH_TOKEN: ${{ secrets.SEFORIM_LIBRARY_DISPATCH_TOKEN }}
+          PREBUILT_LIBRARY_INDEX_BASE_URL: https://github.com/Otzaria/SeforimLibrary/releases/download/${{ needs.bump_version.outputs.library_tag }}
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          # האינדקס אינו נבנה כאן: הוא נבנה פעם אחת אחרי שחרור הספרייה, ב-build-library-index.yml
+          # שבמאגר SeforimLibrary, ומאוחסן כנכס על אותו release (בנייתו כאן עלתה 118 דקות).
+          #
+          # כרכי התלמוד המצורפים אינם מאונדקסים ממילא — isIndexableBook מחריגה
+          # אותם מאז 9b67127, כי הטקסט שלהם כבר באינדקס מה-DB. סדר הקטלוג אינו
+          # במזהי המסמכים (האפליקציה דוחפת אותו למנוע), ולכן הסט שלהם אינו נבדק.
+          LIBRARY_ROOT="$GITHUB_WORKSPACE/full_installer/otzaria-library"
+          # בלי marker של bundle: המתקין פורס את books לנתיב הספרייה, ו-marker צמוד
+          # לאפליקציה היה גורם לנתיב להיחשב לא-ידני בעלייה הבאה.
+          bash tool/release/stage_bundled_library.sh full_installer/library_db "$LIBRARY_ROOT/books"
+          # סכמת מנוע חדשה (יציאה 3): האינדקס נבנה מהקומיט של הריצה הזו, ואז
+          # מריצים שוב את המשימות שנכשלו.
+          rebuild_tag_file="$RUNNER_TEMP/prebuilt-index-rebuild-tag"
+          fetch_status=0
+          PREBUILT_INDEX_REBUILD_TAG_FILE="$rebuild_tag_file" \
+            bash tool/release/fetch_prebuilt_library_index.sh \
+              "$LIBRARY_ROOT/index" \
+              full_installer/library_db/seforim.db.zst \
+              pubspec.lock || fetch_status=$?
+          if [ "$fetch_status" = 3 ]; then
+            rebuild_tag=$(cat "$rebuild_tag_file")
+            rebuild_hint="build-library-index.yml in Otzaria/SeforimLibrary (release_tag=$rebuild_tag, otzaria_run_id=$GITHUB_RUN_ID)"
+            if [ -z "$SEFORIM_LIBRARY_DISPATCH_TOKEN" ]; then
+              echo "::warning::SEFORIM_LIBRARY_DISPATCH_TOKEN is not set — dispatch $rebuild_hint manually, then rerun the failed jobs"
+            elif jq -nc --arg tag "$rebuild_tag" --arg run "$GITHUB_RUN_ID" --arg ref "$GITHUB_REF_NAME" \
+                '{ref: "otzaria", inputs: {release_tag: $tag, otzaria_run_id: $run, otzaria_ref: $ref}}' \
+              | curl -fsS -X POST \
+                  -H "Authorization: Bearer $SEFORIM_LIBRARY_DISPATCH_TOKEN" \
+                  -H "Accept: application/vnd.github+json" \
+                  --data-binary @- \
+                  https://api.github.com/repos/Otzaria/SeforimLibrary/actions/workflows/build-library-index.yml/dispatches; then
+              echo "::notice::Dispatched $rebuild_hint — rerun the failed jobs of this run once it finishes: https://github.com/Otzaria/SeforimLibrary/actions/workflows/build-library-index.yml"
+            else
+              echo "::warning::Could not dispatch $rebuild_hint — dispatch it manually, then rerun the failed jobs"
+            fi
+          fi
+          [ "$fetch_status" = 0 ] || exit "$fetch_status"
+          touch "$LIBRARY_ROOT/index/.otzaria_prebuilt_index"
+
+          VERSION=$(awk '/^version:/ {split($2, v, "+"); print v[1]; exit}' pubspec.yaml)
+          mkdir -p library-release-parts
+          cp tool/release/assemble_split_asset.sh library-release-parts/
+          cp tool/release/assemble_split_asset.ps1 library-release-parts/
+          # תמיד בחלקים, גם מתחת לסף: המתקין מזהה את הנכס לפי part-000 שלצדו.
+          pack_library_asset() { # pack_library_asset <archive> <books|index>
+            case "$1" in
+              "otzaria-${VERSION}-library.tar.zst"|"otzaria-${VERSION}-library-index.tar.zst") ;;
+              *) echo "::error::Unexpected library archive path: $1"; exit 1 ;;
+            esac
+            tar -C "$LIBRARY_ROOT" -cf - "$2" | zstd -19 -T0 -o "$1"
+            tool/release/split_release_asset.sh "$1" "library-release-split/$2" 1992294400
+            mv "library-release-split/$2"/* library-release-parts/
+            # קובץ-הביניים השלם עלול להיות גדול מ-2 GiB; רק החלקים עולים כ-assets.
+            [ -f "$1" ] || { echo "::error::Library archive is missing: $1"; exit 1; }
+            rm -f -- "$1"
+          }
+          pack_library_asset "otzaria-${VERSION}-library.tar.zst" books
+          pack_library_asset "otzaria-${VERSION}-library-index.tar.zst" index
+
+      - name: Upload library and search index parts
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: otzaria-library-parts
+          path: library-release-parts/*
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload library manifests for installer build
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: otzaria-library-manifests
+          path: library-release-parts/*.manifest.json
+          if-no-files-found: error
+
   build_windows:
     if: github.event_name != 'release' && github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_windows)
     needs: [bump_version]
@@ -465,7 +584,7 @@ jobs:
           Write-Host "zstd.exe staged for differential updates"
 
       # המתקין הרגיל נבנה ב-build_windows_installer: הוא מטמיע את מניפסטי חלקי
-      # הספרייה והאינדקס, שנבנים ב-build_linux.
+      # הספרייה והאינדקס, שנבנים ב-build_library_assets.
       - name: Build Inno Setup installer
         shell: pwsh
         run: |
@@ -780,7 +899,7 @@ jobs:
         run: .\installer\download_bundled_plugins.ps1 -Platform windows
 
       # המתקין הרגיל של ARM64 נבנה ב-build_windows_installer, עם מניפסטי חלקי
-      # הספרייה מ-build_linux.
+      # הספרייה מ-build_library_assets.
 
       - name: Upload Windows ARM64 ZIP
         uses: actions/upload-artifact@v7.0.2
@@ -1593,9 +1712,6 @@ jobs:
       - name: Create Linux FULL portable bundle
         if: matrix.target == 'full'
         shell: bash
-        env:
-          SEFORIM_LIBRARY_DISPATCH_TOKEN: ${{ secrets.SEFORIM_LIBRARY_DISPATCH_TOKEN }}
-          PREBUILT_LIBRARY_INDEX_BASE_URL: https://github.com/Otzaria/SeforimLibrary/releases/download/${{ needs.bump_version.outputs.library_tag }}
         run: |
           set -euo pipefail
           BUNDLE_ROOT="full_installer/otzaria-linux-full"
@@ -1606,18 +1722,7 @@ jobs:
           # חבילת ה-FULL אינה ניידת (נתוני המשתמש נשארים בתיקיית המשתמש);
           # ה-marker שייך רק לחבילת ה-raw — מסירים את העותק שהגיע מ-linux-build.
           rm -f "$BUNDLE_ROOT/app/portable.marker"
-          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/seforim.db.zst > "$BUNDLE_ROOT/אוצריא/seforim.db"
-          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/otzar-HB_catalog.db.zst > "$BUNDLE_ROOT/אוצריא/otzar-HB_catalog.db"
-          zstd -d -c --long=31 --memory=2048MB full_installer/library_db/talmud_bavli_latest.tar.zst | tar -xf - -C "$BUNDLE_ROOT/אוצריא"
-          # בלי קובץ הגרסה בתיקייה, בדיקת העדכון הראשונה של האפליקציה מורידה את
-          # התלמוד (~440MB) מחדש; ה-sha256 של הארכיון הוא ה-digest שהיא משווה מולו.
-          sha256sum full_installer/library_db/talmud_bavli_latest.tar.zst \
-            | cut -d' ' -f1 > "$BUNDLE_ROOT/אוצריא/תלמוד בבלי/.version"
-          # מילון החיפוש המקורב (lexical.db) — אינו דחוס, מועתק כמות שהוא ליד seforim.db.
-          cp full_installer/library_db/lexical.db "$BUNDLE_ROOT/אוצריא/lexical.db"
-          # אותו כלל כמו בתלמוד: בלי סימון גרסה המילון (~57MB) יורד מחדש בבדיקה הראשונה.
-          sha256sum full_installer/library_db/lexical.db \
-            | cut -d' ' -f1 > "$BUNDLE_ROOT/אוצריא/lexical.db.version"
+          bash tool/release/stage_bundled_library.sh full_installer/library_db "$BUNDLE_ROOT/אוצריא"
           # קובץ marker שמסמן לאפליקציה שהתיקייה היא ספרייה מצורפת של חבילת FULL.
           # ראה lib/core/app_paths.dart → _detectBundledLibraryPath.
           touch "$BUNDLE_ROOT/אוצריא/.otzaria_bundled_library"
@@ -1644,82 +1749,9 @@ jobs:
           }
           if [ "${{ matrix.arch }}" = "aarch64" ]; then
             pack_full_bundle otzaria-linux-full-arm64.tar.zst
-            # חלקי הספרייה והאינדקס חוצי-פלטפורמות — עותק אחד נבנה ב-x86_64 בלבד.
-            exit 0
+          else
+            pack_full_bundle otzaria-linux-full.tar.zst
           fi
-          pack_full_bundle otzaria-linux-full.tar.zst
-
-          # הספרייה ואינדקס החיפוש המוכן, כשני נכסים נפרדים שהמתקינים הרגילים של
-          # Windows פורסים מהחלקים שלצדם. האינדקס אינו נבנה כאן:
-          # הוא נבנה פעם אחת אחרי שחרור הספרייה, ב-build-library-index.yml
-          # שבמאגר SeforimLibrary, ומאוחסן כנכס על אותו release. בנייתו כאן
-          # עלתה 118 דקות מול 12 דקות לאותה חבילה בלעדיה (ריצה 34779834547),
-          # ותוצאתה נקבעת רק ע"י seforim.db ומנוע החיפוש — שניהם אינם משתנים
-          # בין בניות של האפליקציה.
-          #
-          # כרכי התלמוד המצורפים אינם מאונדקסים ממילא — isIndexableBook מחריגה
-          # אותם מאז 9b67127, כי הטקסט שלהם כבר באינדקס מה-DB. סדר הקטלוג אינו
-          # במזהי המסמכים (האפליקציה דוחפת אותו למנוע), ולכן הסט שלהם אינו נבדק.
-          LIBRARY_ROOT="$GITHUB_WORKSPACE/full_installer/otzaria-library"
-          mkdir -p "$LIBRARY_ROOT"
-          cp -al "$GITHUB_WORKSPACE/$BUNDLE_ROOT/אוצריא" "$LIBRARY_ROOT/books"
-          # המתקין פורס את books לנתיב הספרייה; marker של bundle צמוד לאפליקציה
-          # היה גורם לנתיב להיחשב לא-ידני בעלייה הבאה.
-          BUNDLED_MARKER="$LIBRARY_ROOT/books/.otzaria_bundled_library"
-          case "$BUNDLED_MARKER" in
-            "$GITHUB_WORKSPACE/full_installer/otzaria-library/books/.otzaria_bundled_library") ;;
-            *) echo "::error::Unexpected bundled marker path: $BUNDLED_MARKER"; exit 1 ;;
-          esac
-          [ ! -L "$BUNDLED_MARKER" ] || { echo "::error::Bundled marker must not be a symlink"; exit 1; }
-          [ ! -e "$BUNDLED_MARKER" ] || rm -f -- "$BUNDLED_MARKER"
-          # סכמת מנוע חדשה (יציאה 3): האינדקס נבנה מהריצה הזו עצמה — ה-raw
-          # וה-index-inputs שלה כבר הועלו — ואז מריצים שוב את המשימות שנכשלו.
-          rebuild_tag_file="$RUNNER_TEMP/prebuilt-index-rebuild-tag"
-          fetch_status=0
-          PREBUILT_INDEX_REBUILD_TAG_FILE="$rebuild_tag_file" \
-            bash tool/release/fetch_prebuilt_library_index.sh \
-              "$LIBRARY_ROOT/index" \
-              full_installer/library_db/seforim.db.zst \
-              pubspec.lock || fetch_status=$?
-          if [ "$fetch_status" = 3 ]; then
-            rebuild_tag=$(cat "$rebuild_tag_file")
-            rebuild_hint="build-library-index.yml in Otzaria/SeforimLibrary (release_tag=$rebuild_tag, otzaria_run_id=$GITHUB_RUN_ID)"
-            if [ -z "$SEFORIM_LIBRARY_DISPATCH_TOKEN" ]; then
-              echo "::warning::SEFORIM_LIBRARY_DISPATCH_TOKEN is not set — dispatch $rebuild_hint manually, then rerun the failed jobs"
-            elif jq -nc --arg tag "$rebuild_tag" --arg run "$GITHUB_RUN_ID" --arg ref "$GITHUB_REF_NAME" \
-                '{ref: "otzaria", inputs: {release_tag: $tag, otzaria_run_id: $run, otzaria_ref: $ref}}' \
-              | curl -fsS -X POST \
-                  -H "Authorization: Bearer $SEFORIM_LIBRARY_DISPATCH_TOKEN" \
-                  -H "Accept: application/vnd.github+json" \
-                  --data-binary @- \
-                  https://api.github.com/repos/Otzaria/SeforimLibrary/actions/workflows/build-library-index.yml/dispatches; then
-              echo "::notice::Dispatched $rebuild_hint — rerun the failed jobs of this run once it finishes: https://github.com/Otzaria/SeforimLibrary/actions/workflows/build-library-index.yml"
-            else
-              echo "::warning::Could not dispatch $rebuild_hint — dispatch it manually, then rerun the failed jobs"
-            fi
-          fi
-          [ "$fetch_status" = 0 ] || exit "$fetch_status"
-          touch "$LIBRARY_ROOT/index/.otzaria_prebuilt_index"
-
-          VERSION=$(awk '/^version:/ {split($2, v, "+"); print v[1]; exit}' pubspec.yaml)
-          mkdir -p library-release-parts
-          cp tool/release/assemble_split_asset.sh library-release-parts/
-          cp tool/release/assemble_split_asset.ps1 library-release-parts/
-          # תמיד בחלקים, גם מתחת לסף: המתקין מזהה את הנכס לפי part-000 שלצדו.
-          pack_library_asset() { # pack_library_asset <archive> <books|index>
-            case "$1" in
-              "otzaria-${VERSION}-library.tar.zst"|"otzaria-${VERSION}-library-index.tar.zst") ;;
-              *) echo "::error::Unexpected library archive path: $1"; exit 1 ;;
-            esac
-            tar -C "$LIBRARY_ROOT" -cf - "$2" | zstd -19 -T0 -o "$1"
-            tool/release/split_release_asset.sh "$1" "library-release-split/$2" 1992294400
-            mv "library-release-split/$2"/* library-release-parts/
-            # קובץ-הביניים השלם עלול להיות גדול מ-2 GiB; רק החלקים עולים כ-assets.
-            [ -f "$1" ] || { echo "::error::Library archive is missing: $1"; exit 1; }
-            rm -f -- "$1"
-          }
-          pack_library_asset "otzaria-${VERSION}-library.tar.zst" books
-          pack_library_asset "otzaria-${VERSION}-library-index.tar.zst" index
 
       # נסרק app של חבילת ה-FULL — העץ שהמשתמש פורס. portable.marker הוסר ממנו.
       - name: Generate application file manifest (Linux)
@@ -1750,23 +1782,6 @@ jobs:
         with:
           name: otzaria-linux-full${{ matrix.arch == 'aarch64' && '-arm64' || '' }}
           path: otzaria-linux-full${{ matrix.arch == 'aarch64' && '-arm64' || '' }}.tar.zst
-
-      - name: Upload library and search index parts
-        if: matrix.target == 'full' && matrix.arch == 'x86_64'
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: otzaria-library-parts
-          path: library-release-parts/*
-          compression-level: 0
-          if-no-files-found: error
-
-      - name: Upload library manifests for installer build
-        if: matrix.target == 'full' && matrix.arch == 'x86_64'
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: otzaria-library-manifests
-          path: library-release-parts/*.manifest.json
-          if-no-files-found: error
 
       # כלי עזר, לא רכיב של הגרסה: כישלון כאן לא יפיל את שחרור אוצריא.
       # C + GTK3 בלבד (docs/download_assistant.md, "מסייע ההורדה ל-Linux").
@@ -2036,11 +2051,11 @@ jobs:
           echo "Disk space after final cleanup:"
           df -h
 
-  # ה-APK עם חלקי חבילת הספרייה והאינדקס שנבנו ב-Linux x86_64 — בדיוק הקבצים
+  # ה-APK עם חלקי חבילת הספרייה והאינדקס מ-build_library_assets — בדיוק הקבצים
   # ש"ייבוא מתיקיית קובצי הספרייה" באוצריא קורא (lib/empty_library/services/library_package).
   build_android_full:
-    if: "!cancelled() && needs.build_android.result == 'success' && needs.build_linux.result == 'success'"
-    needs: [bump_version, build_android, build_linux]
+    if: "!cancelled() && needs.build_android.result == 'success' && needs.build_library_assets.result == 'success'"
+    needs: [bump_version, build_android, build_library_assets]
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
@@ -2510,14 +2525,14 @@ jobs:
           if-no-files-found: warn
 
   # המתקינים הרגילים (x64 ו-ARM64; ISCC רק אורז) מטמיעים את מניפסטי חלקי הספרייה
-  # והאינדקס מ-build_linux. כש-build_linux לא הצליח, הם נבנים בלי התמיכה בהם.
+  # והאינדקס מ-build_library_assets. כשהוא לא הצליח, הם נבנים בלי התמיכה בהם.
   build_windows_installer:
     if: >-
       !cancelled() &&
       github.event_name != 'release' &&
       github.event_name != 'pull_request' &&
       needs.build_windows.result == 'success'
-    needs: [bump_version, build_windows, build_windows_arm64, build_linux]
+    needs: [bump_version, build_windows, build_windows_arm64, build_library_assets]
     runs-on: windows-2022
 
     steps:
@@ -2546,7 +2561,7 @@ jobs:
           path: installer-inputs/windows-arm64
 
       - name: Download library manifests
-        if: needs.build_linux.result == 'success'
+        if: needs.build_library_assets.result == 'success'
         uses: actions/download-artifact@v8.0.2
         with:
           name: otzaria-library-manifests
@@ -2566,7 +2581,7 @@ jobs:
       - name: Prepare regular installer inputs
         shell: pwsh
         env:
-          LINUX_RESULT: ${{ needs.build_linux.result }}
+          LIBRARY_RESULT: ${{ needs.build_library_assets.result }}
           ARM64_RESULT: ${{ needs.build_windows_arm64.result }}
         run: |
           $ErrorActionPreference = 'Stop'
@@ -2585,8 +2600,8 @@ jobs:
 
           $library = @(Get-ChildItem installer-inputs\library\*-library.tar.zst.manifest.json -ErrorAction SilentlyContinue)
           $index = @(Get-ChildItem installer-inputs\library\*-library-index.tar.zst.manifest.json -ErrorAction SilentlyContinue)
-          if ($env:LINUX_RESULT -ne 'success') {
-            Write-Host "::warning::build_linux did not succeed - the regular installers are built without library support"
+          if ($env:LIBRARY_RESULT -ne 'success') {
+            Write-Host "::warning::build_library_assets did not succeed - the regular installers are built without library support"
           } elseif ($library.Count -ne 1 -or $index.Count -ne 1) {
             throw "Expected one library and one index manifest, found $($library.Count) and $($index.Count)"
           } else {
@@ -2645,6 +2660,7 @@ jobs:
       inputs.build_android && inputs.build_macos &&
       needs.build_windows.result == 'success' &&
       needs.build_linux.result == 'success' &&
+      needs.build_library_assets.result == 'success' &&
       needs.build_android.result == 'success' &&
       needs.build_android_full.result == 'success' &&
       needs.build_macos.result == 'success' &&
@@ -2654,7 +2670,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       title: ${{ steps.version.outputs.title }}
       url: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}
-    needs: [bump_version, build_windows, build_windows_arm64, build_linux, build_android, build_android_full, build_macos, build_windows_installer]
+    needs: [bump_version, build_windows, build_windows_arm64, build_linux, build_library_assets, build_android, build_android_full, build_macos, build_windows_installer]
     runs-on: ubuntu-latest
 
     steps:

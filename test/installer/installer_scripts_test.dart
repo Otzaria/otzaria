@@ -1035,7 +1035,7 @@ void main() {
         job,
         contains(
           'needs: [bump_version, build_windows, build_windows_arm64, '
-          'build_linux]',
+          'build_library_assets]',
         ),
       );
       expect(job, contains("needs.build_windows.result == 'success'"));
@@ -1841,19 +1841,22 @@ void main() {
       );
     });
 
-    for (final entry in const {
-      'Create Linux FULL portable bundle': 'sha256sum',
-      'Create macOS FULL portable bundle': 'shasum -a 256',
-    }.entries) {
-      test('${entry.key}: הסימון נכתב לתיקיית התלמוד', () {
-        final step = _workflowStep(entry.key);
-        final talmudDir =
-            '\$BUNDLE_ROOT/אוצריא/${DatabaseConstants.talmudBavliFolderName}';
+    test('Create macOS FULL portable bundle: הסימון נכתב לתיקיית התלמוד', () {
+      final step = _workflowStep('Create macOS FULL portable bundle');
+      final talmudDir =
+          '\$BUNDLE_ROOT/אוצריא/${DatabaseConstants.talmudBavliFolderName}';
 
-        expect(step, contains(entry.value));
-        expect(step, contains('$talmudDir/$versionFile'));
-      });
-    }
+      expect(step, contains('shasum -a 256'));
+      expect(step, contains('$talmudDir/$versionFile'));
+    });
+
+    test('Linux FULL ונכס הספרייה: הסימון נכתב לתיקיית התלמוד', () {
+      final script = _read('../tool/release/stage_bundled_library.sh');
+      final talmudDir = '\$dest/${DatabaseConstants.talmudBavliFolderName}';
+
+      expect(script, contains('sha256sum'));
+      expect(script, contains('$talmudDir/$versionFile'));
+    });
   });
 
   group('סימון גרסת מילון החיפוש בחבילות FULL', () {
@@ -1905,17 +1908,37 @@ void main() {
       }
     });
 
-    for (final entry in const {
-      'Create Linux FULL portable bundle': 'sha256sum',
-      'Create macOS FULL portable bundle': 'shasum -a 256',
-    }.entries) {
-      test('${entry.key}: הסימון נכתב ליד lexical.db', () {
-        final step = _workflowStep(entry.key);
+    test('Create macOS FULL portable bundle: הסימון נכתב ליד lexical.db', () {
+      final step = _workflowStep('Create macOS FULL portable bundle');
 
-        expect(step, contains(entry.value));
-        expect(step, contains(r'$BUNDLE_ROOT/אוצריא/lexical.db.version'));
-      });
-    }
+      expect(step, contains('shasum -a 256'));
+      expect(step, contains(r'$BUNDLE_ROOT/אוצריא/lexical.db.version'));
+    });
+
+    test('Linux FULL ונכס הספרייה: הסימון נכתב ליד lexical.db', () {
+      final script = _read('../tool/release/stage_bundled_library.sh');
+
+      expect(script, contains('sha256sum'));
+      expect(script, contains(r'$dest/lexical.db.version'));
+    });
+
+    // חבילת Linux FULL ונכס הספרייה של המתקינים הרגילים חייבים לשאת אותה תיקייה.
+    test('שתי האריזות של הספרייה בונות אותה תיקייה מסקריפט אחד', () {
+      expect(
+        _workflowStep('Create Linux FULL portable bundle'),
+        contains(
+          'bash tool/release/stage_bundled_library.sh '
+          'full_installer/library_db "\$BUNDLE_ROOT/אוצריא"',
+        ),
+      );
+      expect(
+        _workflowStep('Pack library and search index assets'),
+        contains(
+          'bash tool/release/stage_bundled_library.sh '
+          'full_installer/library_db "\$LIBRARY_ROOT/books"',
+        ),
+      );
+    });
   });
 
   group('תוספים מצורפים — שני סקריפטי ההורדה וכל החבילות מיושרים', () {

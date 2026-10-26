@@ -1330,7 +1330,7 @@ Linux ARM64 — הטבלה ב"נכסי המסייעים") כל אחד בנפרד
   `assemble_split_asset.sh`/`.ps1` להרכבה ידנית. אריזת Linux/macOS אינה נכשלת
   עוד על הגודל — הפיצול בשלב השחרור הוא שמטפל בו.
 * **Android FULL** — המשימה `build_android_full` אוספת את ה-APK ואת חלקי חבילת
-  הספרייה והאינדקס עם המניפסטים שלהם (`otzaria-library-parts` מ-Linux x86_64),
+  הספרייה והאינדקס עם המניפסטים שלהם (`otzaria-library-parts` מ-`build_library_assets`),
   ו-`tool/release/pack_android_full.sh` אורז אותם בלי דחיסה (`zip -0`; החלקים
   כבר zstd) ל-ZIP אחד, או מעל הסף לכרכי ZIP **עצמאיים**
   `otzaria-android-full-partN.zip` (first-fit לפי גודל, ה-APK בכרך הראשון,
@@ -1369,8 +1369,8 @@ Linux ARM64 — הטבלה ב"נכסי המסייעים") כל אחד בנפרד
 `library-index` כשגם `otzaria-<ver>-library-index.tar.zst.part-NNN` שם. הם **אינם
 מורידים** אותם; בלעדיהם ההתקנה רגילה לגמרי, כולל העדכון השקט.
 
-* **נכסים** — ב-`build_linux` (x86_64, אחרי `fetch_prebuilt_library_index.sh`)
-  `pack_library_asset` אורז את `books/` ואת `index/` (עם `.otzaria_prebuilt_index`)
+* **נכסים** — ב-job העצמאי `build_library_assets` (תלוי רק ב-`bump_version`, ורץ
+  במקביל לבניות; אחרי `fetch_prebuilt_library_index.sh`) `pack_library_asset` אורז את `books/` ואת `index/` (עם `.otzaria_prebuilt_index`)
   לשני ארכיונים, כל אחד **תמיד בחלקים** (`split_release_asset.sh`, גם מתחת לסף:
   המתקין מזהה נכס לפי `.part-*`), ומעלה אותם כ-`otzaria-library-parts` ואת שני
   המניפסטים כ-`otzaria-library-manifests`. אינדקס SeforimLibrary
@@ -1382,13 +1382,13 @@ Linux ARM64 — הטבלה ב"נכסי המסייעים") כל אחד בנפרד
   `library` רגיל עם `installedBy`, ו-`library-index` הוא סוג לא מוכר שמוצע רק
   בבחירה האישית ונסגר עם הספרייה והמתקין.
 * **בנייה** — ה-job `build_windows_installer` (אחרי `build_windows`,
-  `build_windows_arm64` ו-`build_linux`) פורס את `otzaria-windows.zip` ואת
+  `build_windows_arm64` ו-`build_library_assets`) פורס את `otzaria-windows.zip` ואת
   `otzaria-windows_arm64.zip` לתיקיות הבנייה בלי `portable.marker`, מניח ב-
   `installer\` את `library.manifest.json`, `library_index.manifest.json`,
   `zstd.exe` ו-`7za.exe` (של x64, מ-`build_windows`), ומקמפל את `otzaria.iss` לשתי
   הארכיטקטורות (ISCC רק אורז, ולכן גם ARM64 נבנה על x64). ה-ISPP מגדיר
   `LibraryParts` רק כשמניפסט הספרייה קיים, ו-`LibraryIndexParts` רק כשגם מניפסט
-  האינדקס קיים — בנייה מקומית וריצה ש-`build_linux` נכשל בה מקבלות מתקין בלי הקוד
+  האינדקס קיים — בנייה מקומית וריצה ש-`build_library_assets` נכשל בה מקבלות מתקין בלי הקוד
   הזה. `build_windows` בונה את מתקין ה-FULL בלבד, ו-`build_windows_arm64` את ה-FULL
   של ARM64 ואת ה-ZIP.
 * **ARM64** — אותם `zstd.exe`/`7za.exe` של x64: ל-`facebook/zstd` אין בינארי

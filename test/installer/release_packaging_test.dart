@@ -179,7 +179,7 @@ packages:
     expect(
       workflow,
       contains(
-        'cp -al "\$GITHUB_WORKSPACE/\$BUNDLE_ROOT/אוצריא" '
+        'bash tool/release/stage_bundled_library.sh full_installer/library_db '
         '"\$LIBRARY_ROOT/books"',
       ),
     );
@@ -523,8 +523,9 @@ packages:
                 'full_installer/library_db/seforim.db.zst'
             .allMatches(workflow)
             .length,
-        2,
-        reason: 'Windows ו-Linux; Android אורז את חלקי חבילת הספרייה',
+        3,
+        reason:
+            'Windows, Linux ונכסי הספרייה; Android אורז את חלקי חבילת הספרייה',
       );
       expect(
         workflow,
