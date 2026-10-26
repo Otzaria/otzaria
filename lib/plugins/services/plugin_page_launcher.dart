@@ -55,6 +55,10 @@ class PluginPageLauncher {
   _pendingByInstance = {};
   final Map<PluginInstanceKey, int?> _pendingInstanceWindows = {};
   final Map<PluginInstanceKey, int?> _readyPages = {};
+
+  /// מופעים נוספים (שנפתחו דרך `newTab`). פתיחה רגילה לעולם אינה מוסרת להם
+  /// אירוע: היעד שלה הוא המופע הראשי בלבד.
+  final Set<PluginInstanceKey> _extraInstances = {};
   final Map<({String pluginId, int? viewId}), Future<void>> _deliveryChain = {};
 
   bool hasPendingFor(String pluginId) =>
@@ -70,6 +74,7 @@ class PluginPageLauncher {
       .where(
         (entry) =>
             entry.key.pluginId == pluginId &&
+            !_extraInstances.contains(entry.key) &&
             (viewId == null || entry.value == viewId),
       )
       .firstOrNull
@@ -131,8 +136,15 @@ class PluginPageLauncher {
     String pluginId, {
     String instanceId = PluginInstanceIds.defaultForeground,
     int? viewId,
+    bool isPrimary = true,
   }) {
-    _readyPages[(pluginId: pluginId, instanceId: instanceId)] = viewId;
+    final key = (pluginId: pluginId, instanceId: instanceId);
+    _readyPages[key] = viewId;
+    if (isPrimary) {
+      _extraInstances.remove(key);
+    } else {
+      _extraInstances.add(key);
+    }
     _pendingInstanceWindows.remove((
       pluginId: pluginId,
       instanceId: instanceId,
@@ -155,6 +167,7 @@ class PluginPageLauncher {
       // כלליים (openSelf רגיל כשלא היה דף מוכן) ממתינים לדף הראשי של התוסף.
       return;
     }
+    if (!isPrimary) return;
     final pending = [
       ...?_pending.remove((pluginId: pluginId, viewId: viewId)),
       if (viewId != null)
@@ -179,6 +192,7 @@ class PluginPageLauncher {
     final key = (pluginId: pluginId, instanceId: instanceId);
     _pendingByInstance.remove(key);
     _pendingInstanceWindows.remove(key);
+    _extraInstances.remove(key);
     final ownerView = _readyPages.containsKey(key)
         ? _readyPages.remove(key)
         : viewId;
@@ -203,6 +217,7 @@ class PluginPageLauncher {
     }
     _pending.removeWhere((key, _) => key.viewId == viewId);
     _deliveryChain.removeWhere((key, _) => key.viewId == viewId);
+    _extraInstances.removeWhere((key) => _readyPages[key] == viewId);
     _readyPages.removeWhere((_, owner) => owner == viewId);
   }
 
