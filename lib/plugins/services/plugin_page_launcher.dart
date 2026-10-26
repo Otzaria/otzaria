@@ -143,6 +143,9 @@ class PluginPageLauncher {
           instanceId: instanceId,
         );
       }
+      // מופע שנפתח דרך openNewInstance מקבל רק אירועים שנועדו לו. אירועים
+      // כלליים (openSelf רגיל כשלא היה דף מוכן) ממתינים לדף הראשי של התוסף.
+      return;
     }
     final pending = [
       ...?_pending.remove((pluginId: pluginId, viewId: viewId)),

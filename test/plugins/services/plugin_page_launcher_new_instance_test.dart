@@ -50,8 +50,14 @@ void main() {
     AppWindowKeys.resetForTest();
   });
 
-  Future<void> settle() =>
-      Future<void>.delayed(const Duration(milliseconds: 20));
+  /// ממתין (עד שתי שניות) עד שהתנאי מתקיים, במקום השהיה קבועה שעלולה להיות
+  /// קצרה מדי ב-CI איטי.
+  Future<void> settle(bool Function() done) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (!done() && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+  }
 
   test('האירוע נמסר רק למופע החדש, גם כשמופע קיים כבר מוכן', () async {
     final opened = <String>[];
@@ -75,7 +81,7 @@ void main() {
     expect(launcher.hasPendingFor(_kPid), isTrue);
 
     launcher.markPageReady(_kPid, instanceId: 'second');
-    await settle();
+    await settle(() => second.jsCalls.isNotEmpty);
 
     expect(launcher.hasPendingFor(_kPid), isFalse);
     expect(first.jsCalls, isEmpty);
@@ -125,5 +131,45 @@ void main() {
     launcher.markPageClosed(_kPid, instanceId: 'second');
     expect(launcher.hasPendingFor(_kPid), isFalse);
     launcher.unregisterInstanceOpener(keys, opener);
+  });
+
+  test('אירוע כללי שממתין לדף הראשי אינו נמסר למופע שנפתח', () async {
+    String? opener(String pluginId) => 'second';
+    void navigate(String pluginId) {}
+    launcher.registerInstanceOpener(keys, opener);
+    launcher.register(keys, navigate);
+
+    // אין דף מוכן, ולכן openSelf רגיל נכנס לתור הכללי של התוסף.
+    launcher.open(
+      _kPid,
+      topic: 'plugin.page_opened',
+      payload: const {'param': 'primary'},
+      windowKeys: keys,
+    );
+    launcher.openNewInstance(
+      _kPid,
+      topic: 'plugin.page_opened',
+      payload: const {'param': 'spawned'},
+      windowKeys: keys,
+    );
+
+    launcher.markPageReady(_kPid, instanceId: 'second');
+    await settle(() => second.jsCalls.isNotEmpty);
+
+    expect(second.jsCalls.single, contains('"param":"spawned"'));
+    expect(
+      launcher.hasPendingFor(_kPid),
+      isTrue,
+      reason: 'האירוע הכללי עדיין ממתין לדף הראשי',
+    );
+
+    launcher.markPageReady(_kPid, instanceId: 'first');
+    await settle(() => first.jsCalls.isNotEmpty);
+
+    expect(first.jsCalls.single, contains('"param":"primary"'));
+    expect(second.jsCalls, hasLength(1));
+    expect(launcher.hasPendingFor(_kPid), isFalse);
+    launcher.unregisterInstanceOpener(keys, opener);
+    launcher.unregister(keys, navigate);
   });
 }

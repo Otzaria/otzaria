@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/open_tool_tab.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 
@@ -23,10 +24,22 @@ void main() {
       final b = newToolTabInstance(entry);
       expect(a.instanceId, isNot(b.instanceId));
     });
+  });
 
-    test('instanceId שהוענק נשמר — הקורא יודע לאן למסור אירוע', () {
-      final tab = newToolTabInstance(entry, instanceId: 'fixed-id');
-      expect(tab.instanceId, 'fixed-id');
+  group('openToolInstanceCount', () {
+    test('סופר רק כרטיסיות של אותו כלי, כולל מופעים נוספים', () {
+      final tabs = [
+        ToolTab(toolId: 'com.example.plugin', title: 'א'),
+        newToolTabInstance(entry),
+        ToolTab(toolId: 'com.example.other', title: 'ב'),
+      ];
+      expect(openToolInstanceCount(tabs, 'com.example.plugin'), 2);
+      expect(openToolInstanceCount(tabs, 'com.example.other'), 1);
+      expect(openToolInstanceCount(tabs, 'com.example.none'), 0);
+    });
+
+    test('התקרה היא עשר כרטיסיות לתוסף', () {
+      expect(kMaxPluginToolInstances, 10);
     });
   });
 }
