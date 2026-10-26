@@ -81,6 +81,7 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
+import 'package:otzaria/tools/open_tool_tab.dart';
 import 'package:otzaria/tools/tools_launcher_controller.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
@@ -7857,14 +7858,22 @@ class PluginBridgeAdapter {
               'is not enabled in the manifest',
             );
           }
-          final openedInstanceId = PluginPageLauncher.instance.openNewInstance(
-            plugin.pluginId,
-            topic: 'plugin.page_opened',
-            payload: {'param': args['param']},
-            viewId: _windowDependencies.viewId,
-            windowKeys: _windowDependencies.windowKeys,
-          );
-          return openedInstanceId != null;
+          // בלי כרטיסיה פתוחה של התוסף, newTab פותח את הראשית כמו פתיחה רגילה.
+          if (openToolInstanceCount(
+                _windowDependencies.tabsBloc.state.tabs,
+                plugin.pluginId,
+              ) >
+              0) {
+            final openedInstanceId = PluginPageLauncher.instance
+                .openNewInstance(
+                  plugin.pluginId,
+                  topic: 'plugin.page_opened',
+                  payload: {'param': args['param']},
+                  viewId: _windowDependencies.viewId,
+                  windowKeys: _windowDependencies.windowKeys,
+                );
+            return openedInstanceId != null;
+          }
         }
         PluginPageLauncher.instance.open(
           plugin.pluginId,

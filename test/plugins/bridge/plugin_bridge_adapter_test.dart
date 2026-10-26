@@ -90,6 +90,7 @@ import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/dst_days.dart';
@@ -351,10 +352,10 @@ InstalledPlugin _buildInstalledPlugin({
   );
 }
 
-PluginBridgeDependencies _buildNetworkDeps() {
+PluginBridgeDependencies _buildNetworkDeps({TabsBloc? tabsBloc}) {
   return PluginBridgeDependencies(
     historyBloc: _MockHistoryBloc(),
-    tabsBloc: _StubTabsBloc(),
+    tabsBloc: tabsBloc ?? _StubTabsBloc(),
     navigationBloc: _MockNavigationBloc(),
     calendarCubit: _StubCalendarCubit(
       _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
@@ -4434,15 +4435,24 @@ Future<void> main() async {
     });
 
     group('plugin.openSelf עם newTab', () {
-      PluginBridgeAdapter adapterFor({required bool allowMultipleInstances}) =>
-          PluginBridgeAdapter(
-            _buildInstalledPlugin(
-              permissions: const ['navigation.write'],
-              allowMultipleInstances: allowMultipleInstances,
+      /// [openTabs] ברירת המחדל: כרטיסיה פתוחה אחת של התוסף עצמו.
+      PluginBridgeAdapter adapterFor({
+        required bool allowMultipleInstances,
+        List<OpenedTab>? openTabs,
+      }) => PluginBridgeAdapter(
+        _buildInstalledPlugin(
+          permissions: const ['navigation.write'],
+          allowMultipleInstances: allowMultipleInstances,
+        ),
+        dependencies: _buildNetworkDeps(
+          tabsBloc: _StubTabsBloc()
+            ..currentState = TabsState(
+              tabs: openTabs ?? [ToolTab(toolId: 'test.plugin', title: 'א')],
+              currentTabIndex: 0,
             ),
-            dependencies: _buildNetworkDeps(),
-            pluginRepository: registry,
-          );
+        ),
+        pluginRepository: registry,
+      );
 
       /// רושם פותח מופעים לחלון הנוכחי ומנקה אותו בסוף הבדיקה. מחזיר את רשימת
       /// התוספים שהפותח נקרא עבורם.
@@ -4537,6 +4547,31 @@ Future<void> main() async {
           );
           expect(opened, isEmpty);
         });
+      }
+
+      for (final entry in <String, List<OpenedTab>>{
+        'אין כרטיסיות פתוחות': const [],
+        'פתוחה רק כרטיסיה של תוסף אחר': [
+          ToolTab(toolId: 'other.plugin', title: 'ב'),
+        ],
+      }.entries) {
+        test(
+          'newTab: true כש${entry.key} — נפתחת הראשית כמו בפתיחה רגילה',
+          () async {
+            final opened = registerOpener('inst-new');
+            final navigations = <String>[];
+            PluginPageLauncher.instance.navigator = navigations.add;
+
+            final result = await adapterFor(
+              allowMultipleInstances: true,
+              openTabs: entry.value,
+            ).execute('plugin', 'openSelf', {'newTab': true});
+
+            expect(result, isTrue);
+            expect(navigations, ['test.plugin']);
+            expect(opened, isEmpty);
+          },
+        );
       }
 
       test('חלון בלי פותח רשום → false ולא שגיאה', () async {

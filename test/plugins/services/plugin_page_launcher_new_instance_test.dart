@@ -80,7 +80,7 @@ void main() {
     expect(opened, [_kPid]);
     expect(launcher.hasPendingFor(_kPid), isTrue);
 
-    launcher.markPageReady(_kPid, instanceId: 'second');
+    launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
     await settle(() => second.jsCalls.isNotEmpty);
 
     expect(launcher.hasPendingFor(_kPid), isFalse);
@@ -153,7 +153,7 @@ void main() {
       windowKeys: keys,
     );
 
-    launcher.markPageReady(_kPid, instanceId: 'second');
+    launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
     await settle(() => second.jsCalls.isNotEmpty);
 
     expect(second.jsCalls.single, contains('"param":"spawned"'));
@@ -186,7 +186,7 @@ void main() {
         windowKeys: keys,
       );
     }
-    launcher.markPageReady(_kPid, instanceId: 'second');
+    launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
     launcher.markPageReady(_kPid, instanceId: 'first');
     await settle(
       () => first.jsCalls.isNotEmpty && second.jsCalls.isNotEmpty,
@@ -227,9 +227,9 @@ void main() {
       windowKeys: keys,
     );
 
-    launcher.markPageReady(_kPid, instanceId: 'second');
+    launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
     await settle(() => second.jsCalls.isNotEmpty);
-    launcher.markPageReady(_kPid, instanceId: 'second');
+    launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(second.jsCalls, hasLength(1));
@@ -253,5 +253,79 @@ void main() {
     launcher.forgetWindow(42);
     expect(launcher.hasPendingFor(_kPid), isFalse);
     launcher.unregisterInstanceOpener(keys, opener);
+  });
+
+  group('פתיחה רגילה מכוונת למופע הראשי בלבד', () {
+    late List<String> navigations;
+    late void Function(String) navigate;
+
+    setUp(() {
+      navigations = [];
+      navigate = navigations.add;
+      launcher.register(keys, navigate);
+    });
+
+    tearDown(() => launcher.unregister(keys, navigate));
+
+    test('מופע נוסף שעלה ראשון אינו מקבל את האירוע', () async {
+      launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
+      launcher.markPageReady(_kPid, instanceId: 'first');
+
+      launcher.open(
+        _kPid,
+        topic: 'contextMenu.itemClicked',
+        payload: const {'param': 'menu'},
+        windowKeys: keys,
+      );
+      await settle(() => first.jsCalls.isNotEmpty);
+
+      expect(navigations, [_kPid]);
+      expect(first.jsCalls.single, contains('"param":"menu"'));
+      expect(second.jsCalls, isEmpty);
+    });
+
+    test('רק מופע נוסף מוכן — האירוע ממתין לראשי ולא נמסר לנוסף', () async {
+      launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
+
+      launcher.open(
+        _kPid,
+        topic: 'contextMenu.itemClicked',
+        payload: const {'param': 'menu'},
+        windowKeys: keys,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(navigations, [_kPid], reason: 'הכרטיסיה הראשית נפתחת או ממוקדת');
+      expect(second.jsCalls, isEmpty);
+      expect(launcher.hasPendingFor(_kPid), isTrue);
+
+      launcher.markPageReady(_kPid, instanceId: 'first');
+      await settle(() => first.jsCalls.isNotEmpty);
+
+      expect(first.jsCalls.single, contains('"param":"menu"'));
+      expect(second.jsCalls, isEmpty);
+      expect(launcher.hasPendingFor(_kPid), isFalse);
+    });
+
+    test('מופע נוסף שנטען מחדש (בלי אירוע ממוקד) אינו צורך אירוע כללי', () async {
+      launcher.open(_kPid, topic: 'general', windowKeys: keys);
+
+      launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(second.jsCalls, isEmpty);
+      expect(launcher.hasPendingFor(_kPid), isTrue);
+    });
+
+    test('אחרי סגירת המופע הנוסף הראשי נשאר היעד', () async {
+      launcher.markPageReady(_kPid, instanceId: 'first');
+      launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
+      launcher.markPageClosed(_kPid, instanceId: 'second');
+
+      launcher.open(_kPid, topic: 'after.close', windowKeys: keys);
+      await settle(() => first.jsCalls.isNotEmpty);
+
+      expect(first.jsCalls.single, contains('after.close'));
+    });
   });
 }
