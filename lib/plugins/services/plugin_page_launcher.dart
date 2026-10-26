@@ -53,6 +53,7 @@ class PluginPageLauncher {
     List<({String topic, Map<String, dynamic> payload})>
   >
   _pendingByInstance = {};
+  final Map<PluginInstanceKey, int?> _pendingInstanceWindows = {};
   final Map<PluginInstanceKey, int?> _readyPages = {};
   final Map<({String pluginId, int? viewId}), Future<void>> _deliveryChain = {};
 
@@ -109,6 +110,7 @@ class PluginPageLauncher {
     String pluginId, {
     String? topic,
     Map<String, dynamic> payload = const {},
+    int? viewId,
     AppWindowKeys? windowKeys,
   }) {
     final opener = _instanceOpeners[windowKeys ?? AppWindowKeys.current];
@@ -116,8 +118,10 @@ class PluginPageLauncher {
     final instanceId = opener(pluginId);
     if (instanceId == null) return null;
     if (topic != null) {
+      final key = (pluginId: pluginId, instanceId: instanceId);
+      _pendingInstanceWindows[key] = viewId;
       _pendingByInstance
-          .putIfAbsent((pluginId: pluginId, instanceId: instanceId), () => [])
+          .putIfAbsent(key, () => [])
           .add((topic: topic, payload: payload));
     }
     return instanceId;
@@ -129,6 +133,10 @@ class PluginPageLauncher {
     int? viewId,
   }) {
     _readyPages[(pluginId: pluginId, instanceId: instanceId)] = viewId;
+    _pendingInstanceWindows.remove((
+      pluginId: pluginId,
+      instanceId: instanceId,
+    ));
     final targeted = _pendingByInstance.remove((
       pluginId: pluginId,
       instanceId: instanceId,
@@ -170,6 +178,7 @@ class PluginPageLauncher {
   }) {
     final key = (pluginId: pluginId, instanceId: instanceId);
     _pendingByInstance.remove(key);
+    _pendingInstanceWindows.remove(key);
     final ownerView = _readyPages.containsKey(key)
         ? _readyPages.remove(key)
         : viewId;
@@ -184,6 +193,14 @@ class PluginPageLauncher {
 
   /// סגירה לפני יצירת דף אינה משאירה אירועים שממתינים לחלון שכבר איננו.
   void forgetWindow(int viewId) {
+    final closedInstances = [
+      for (final entry in _pendingInstanceWindows.entries)
+        if (entry.value == viewId) entry.key,
+    ];
+    for (final key in closedInstances) {
+      _pendingInstanceWindows.remove(key);
+      _pendingByInstance.remove(key);
+    }
     _pending.removeWhere((key, _) => key.viewId == viewId);
     _deliveryChain.removeWhere((key, _) => key.viewId == viewId);
     _readyPages.removeWhere((_, owner) => owner == viewId);
