@@ -163,6 +163,7 @@ class PluginPageLauncher {
     int? viewId,
     bool isPrimary = true,
   }) {
+    _dropExpiredInstanceEvents();
     final key = (pluginId: pluginId, instanceId: instanceId);
     _readyPages[key] = viewId;
     if (isPrimary) {

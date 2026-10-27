@@ -362,7 +362,7 @@ Otzaria.on('plugin.boot', (payload) => {
 ### כמה מופעים של אותו תוסף — `allowMultipleInstances`
 
 תוסף שהצהיר `contributes.toolTab.allowMultipleInstances: true` יכול לבקש
-מופע נוסף של עצמו בכרטיסייה חדשה: `plugin.openSelf({ newTab: true })` (ראו
+מופע נוסף של עצמו בכרטיסייה חדשה באמצעות `Otzaria.call('plugin.openSelf', { newTab: true })` (ראו
 [API_REFERENCE](API_REFERENCE.md)). מה שחשוב לדעת כשכמה מופעים חיים יחד:
 
 - **אחסון משותף.** `plugin.storage`, `localStorage` ו-IndexedDB משותפים לכל

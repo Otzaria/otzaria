@@ -3098,7 +3098,7 @@ const { data } = await Otzaria.call('plugin.openSelf', {
 ```
 
 - דורש `contributes.toolTab.allowMultipleInstances: true` במניפסט; בלעדיו הקריאה נדחית עם `error.forbidden`.
-- `newTab` שאינו בוליאני — `error.invalid_params`.
+- `newTab` שאינו בוליאני (למעט `null`, שמתנהג כאילו לא סופק) — `error.invalid_params`.
 - מופעים של אותו תוסף חולקים אחסון (`plugin.storage`, `localStorage`, IndexedDB). תוסף שמחזיק מצב בשם קבוע צריך להפריד בין מופעים.
 - רק המופע שמוצג כרגע רץ; מופעים בכרטיסיות אחרות מושהים (`plugin.suspended`). בכרטיסייה מפוצלת שני המופעים מוצגים ורצים יחד.
 - אוצריא מגבילה ל-10 כרטיסיות פתוחות של אותו תוסף בכל חלון (כולל הראשונה). מעבר לכך הקריאה מחזירה `false` ומוצגת הודעה למשתמש. כל מופע הוא WebView נפרד, ולכן יש לפתוח מופע נוסף רק בתגובה לפעולת משתמש, לא אוטומטית ולא בלולאה.
