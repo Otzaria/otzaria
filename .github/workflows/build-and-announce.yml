@@ -261,7 +261,7 @@ jobs:
   build_windows:
     if: github.event_name != 'release' && github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_windows)
     needs: [bump_version]
-    runs-on: windows-2022
+    runs-on: windows-2025
     env:
       # VC++ Redistributable מקובע ב-URL ישיר של מיקרוסופט (לא aka.ms שזז),
       # עם אימות SHA-256 אחרי ההורדה. VC_REDIST_MIN_VERSION הוא *רף תחתון*:
@@ -2533,7 +2533,7 @@ jobs:
       github.event_name != 'pull_request' &&
       needs.build_windows.result == 'success'
     needs: [bump_version, build_windows, build_windows_arm64, build_library_assets]
-    runs-on: windows-2022
+    runs-on: windows-2025
 
     steps:
       - name: Clone repository

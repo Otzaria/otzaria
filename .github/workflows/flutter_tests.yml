@@ -405,7 +405,7 @@ jobs:
   # אצל המפתח הבא שניסה לבנות מקומית.
   build_windows:
     name: Build (Windows)
-    runs-on: windows-2022
+    runs-on: windows-2025
     env:
       # כמו בבניית ההפצה: בלי אלה MSBuild מקמפל קובץ C++ אחד בכל פעם.
       UseMultiToolTask: 'true'
@@ -484,7 +484,7 @@ jobs:
   # חתומה מאותו מקור שממנו הבנייה מורידה אותה.
   test_windows:
     name: Test (Windows)
-    runs-on: windows-2022
+    runs-on: windows-2025
     env:
       OTZARIA_REQUIRE_SEARCH_ENGINE: '1'
     timeout-minutes: 20
