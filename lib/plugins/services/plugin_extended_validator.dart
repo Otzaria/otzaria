@@ -334,8 +334,8 @@ class PluginExtendedValidator {
   static const String _headlessMinVersion = '0.9.98';
   static const String _searchFieldActionsMinVersion = '0.9.98.1';
 
-  /// תוסף ללא ממשק רץ רק כשמנוע הרקע מתעורר, ואין לו דף שאפשר לפתוח במקומו.
-  /// לכן תוסף שאין לו דרך להתעורר, או שמפנה לדף שלו, נחסם כבר בהתקנה.
+  /// בודק את הדגלים של `contributes.toolTab`, כרגע `allowMultipleInstances`:
+  /// חייב להיות בוליאני, והצהרה עליו מחייבת `minAppVersion` מתאים.
   static void _validateToolTabFlags(
     PluginManifest manifest,
     Map<String, dynamic> manifestJson,
@@ -370,6 +370,8 @@ class PluginExtendedValidator {
     }
   }
 
+  /// תוסף ללא ממשק רץ רק כשמנוע הרקע מתעורר, ואין לו דף שאפשר לפתוח במקומו.
+  /// לכן תוסף שאין לו דרך להתעורר, או שמפנה לדף שלו, נחסם כבר בהתקנה.
   static void _validateHeadless(
     PluginManifest manifest,
     Map<String, dynamic> manifestJson,
