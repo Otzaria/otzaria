@@ -15,6 +15,7 @@
 #include <cstdlib>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "accessibility_request_filter.h"
 #include "drag_preview_window.h"
 #include "phantom_mouse_button_filter.h"
 #include "shift_key_normalizer.h"
@@ -341,6 +342,7 @@ bool InstallDartViewHooks(HWND root) {
   if (!view) return false;
   InstallPhantomMouseButtonFilter(view);
   InstallShiftKeyNormalizer(view);
+  InstallAccessibilityRequestFilter(view);
   return true;
 }
 
@@ -898,6 +900,8 @@ bool FlutterWindow::OnCreate() {
   InstallPhantomMouseButtonFilter(
       flutter_controller_->view()->GetNativeWindow());
   InstallShiftKeyNormalizer(flutter_controller_->view()->GetNativeWindow());
+  InstallAccessibilityRequestFilter(
+      flutter_controller_->view()->GetNativeWindow());
 
   // NOTE: the main window is intentionally NOT shown here. It stays hidden
   // until Dart reveals it (window_manager.show in presentMainWindow) once the

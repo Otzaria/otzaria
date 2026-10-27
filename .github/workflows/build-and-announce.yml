@@ -286,6 +286,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # TODO: בשדרוג Flutter — אם flutter/flutter#175041 תוקן, למחוק את windows/runner/accessibility_request_filter.* (#3336).
           flutter-version: 3.47.7
           cache: true
 
