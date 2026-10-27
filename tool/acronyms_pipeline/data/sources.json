@@ -1,0 +1,64 @@
+{
+  "sources": {
+    "jastrow-sefaria": {
+      "status": "allowed",
+      "name": "Jastrow, Hebrew or Aramaic Abbreviations (Sefaria)",
+      "url": "https://www.sefaria.org/Jastrow%2C_Hebrew_or_Aramaic_Abbreviations",
+      "license": "Public Domain (מרכוס ג'סטרו, לונדון 1903; שדה license בגרסה בספריא: Public Domain)",
+      "data_taken": "זוגות ראשי תיבות ← פירוש מרשימת הקיצורים שבפתיחת המילון (שורות 3 עד 308); בלי טקסט חופשי",
+      "verification": "סקירה ידנית של כל זוג; מוצג לבודק עם מספר השורה",
+      "attribution_required": false,
+      "may_redistribute": true
+    },
+    "otzaria-corpus": {
+      "status": "allowed",
+      "name": "פענוח מפורש בטקסט ספרי הספרייה של אוצריא",
+      "url": "",
+      "license": "נלקחת עובדה בלבד (פירוש של ראשי תיבות), לא טקסט; הספרים מופצים באוצריא עצמה",
+      "data_taken": "מקומות שבהם הטקסט עצמו פותח את ראשי התיבות (בסוגריים, או 'היינו/הוא/ר\"ל'), כשאותיות הראשי תיבות תואמות את המילים; נשמרים רק הפירוש, מספר הספרים והפניה לספר ולשורה",
+      "verification": "סקירה ידנית של כל זוג, עם קטע ההקשר מהספר",
+      "attribution_required": false,
+      "may_redistribute": true
+    },
+    "human-verified-reference": {
+      "status": "allowed",
+      "name": "אסמכתה עצמאית שהבודק בדק בעצמו",
+      "url": "",
+      "license": "עובדה שאומתה מול ספר או מקור מצוין בעמודת reference",
+      "data_taken": "פירוש שהוצע כרמז (למשל מדיקטה) ואושר רק לאחר שהבודק מצא לו אסמכתה בספר או במקור שמותר להסתמך עליו",
+      "verification": "הבודק מקליד את האסמכתה; בלי אסמכתה אי אפשר לאשר",
+      "attribution_required": false,
+      "may_redistribute": true
+    },
+    "agent-verified-reference": {
+      "status": "allowed",
+      "name": "בדיקה של סוכן AI מול הקשר בספרייה וידע בספרות ההלכה",
+      "url": "",
+      "license": "עובדה (פירוש של ראשי תיבות) שנבדקה; בלי העתקת טקסט",
+      "data_taken": "פירוש שעלה כרמז (למשל מדיקטה) ונבדק בידי סוכן: הופעה משותפת בטקסט הספרייה והכרת הקיצור בספרות. לא אימות אנושי",
+      "verification": "סוכן AI (Claude), בשני מעברים בלתי תלויים; נכנס רק אם שניהם קיבלו. ממתין לבדיקה אנושית מדגמית",
+      "attribution_required": false,
+      "may_redistribute": true
+    },
+    "dicta-lead": {
+      "status": "lead_only",
+      "name": "דיקטה, פיענוח ראשי תיבות רבניים",
+      "url": "https://abbreviation.dicta.org.il/",
+      "license": "לא פורסמו תנאי שימוש באתר. תיעוד ה-API של דיקטה (Nakdan Pro) מגביל שימוש למחקר ולמיזמים ללא כוונת רווח, דורש ציון מקור, ואוסר פרסום כתובת ה-API במאגר ציבורי",
+      "data_taken": "רמזים בלבד, כדי לבחור אילו צירופים לבדוק. פלט השירות לא מועתק למאגר ולא מופץ",
+      "verification": "פענוח של דיקטה הוא ניחוש מודל; הוא נכנס רק אם הבודק מצא אסמכתה עצמאית (מקור human-verified-reference)",
+      "attribution_required": true,
+      "may_redistribute": false
+    },
+    "jewishbooks": {
+      "status": "blocked",
+      "name": "אוצר הספרים היהודי השיתופי (wiki.jewishbooks.org.il)",
+      "url": "https://wiki.jewishbooks.org.il/",
+      "license": "זכויות יוצרים שמורות לאתר; לא התקבלה רשות",
+      "data_taken": "אין. הוסר במלואו מ-PR #3202",
+      "verification": "",
+      "attribution_required": false,
+      "may_redistribute": false
+    }
+  }
+}
