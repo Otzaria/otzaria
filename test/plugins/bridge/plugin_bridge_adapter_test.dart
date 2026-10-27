@@ -4536,17 +4536,20 @@ Future<void> main() async {
       });
 
       for (final bad in <Object>[1, 0, 'true', <String, dynamic>{}, <int>[]]) {
-        test('newTab מסוג לא בוליאני (${bad.runtimeType}: $bad) נדחה', () async {
-          final opened = registerOpener('inst-new');
+        test(
+          'newTab מסוג לא בוליאני (${bad.runtimeType}: $bad) נדחה',
+          () async {
+            final opened = registerOpener('inst-new');
 
-          await expectLater(
-            adapterFor(
-              allowMultipleInstances: true,
-            ).execute('plugin', 'openSelf', {'newTab': bad}),
-            throwsWith('invalid_params'),
-          );
-          expect(opened, isEmpty);
-        });
+            await expectLater(
+              adapterFor(
+                allowMultipleInstances: true,
+              ).execute('plugin', 'openSelf', {'newTab': bad}),
+              throwsWith('invalid_params'),
+            );
+            expect(opened, isEmpty);
+          },
+        );
       }
 
       for (final entry in <String, List<OpenedTab>>{

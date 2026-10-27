@@ -226,8 +226,11 @@ void main() {
 
   group('מופעים נוספים של תוסף (allowMultipleInstances)', () {
     const pluginId = 'com.example.plugin';
-    ToolTab extra() =>
-        ToolTab(toolId: pluginId, title: pluginId, allowMultipleInstances: true);
+    ToolTab extra() => ToolTab(
+      toolId: pluginId,
+      title: pluginId,
+      allowMultipleInstances: true,
+    );
 
     test('מופע נוסף נפתח בכרטיסיה נפרדת ואינו מתמזג עם הראשי', () async {
       bloc.add(OpenOrFocusTab(tool(pluginId)));

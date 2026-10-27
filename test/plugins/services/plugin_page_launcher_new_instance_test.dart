@@ -308,15 +308,18 @@ void main() {
       expect(launcher.hasPendingFor(_kPid), isFalse);
     });
 
-    test('מופע נוסף שנטען מחדש (בלי אירוע ממוקד) אינו צורך אירוע כללי', () async {
-      launcher.open(_kPid, topic: 'general', windowKeys: keys);
+    test(
+      'מופע נוסף שנטען מחדש (בלי אירוע ממוקד) אינו צורך אירוע כללי',
+      () async {
+        launcher.open(_kPid, topic: 'general', windowKeys: keys);
 
-      launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+        launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(second.jsCalls, isEmpty);
-      expect(launcher.hasPendingFor(_kPid), isTrue);
-    });
+        expect(second.jsCalls, isEmpty);
+        expect(launcher.hasPendingFor(_kPid), isTrue);
+      },
+    );
 
     test('אחרי סגירת המופע הנוסף הראשי נשאר היעד', () async {
       launcher.markPageReady(_kPid, instanceId: 'first');

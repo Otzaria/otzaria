@@ -75,6 +75,7 @@ class PluginPageLauncher {
       _pendingByInstance.remove(key);
     }
   }
+
   final Map<PluginInstanceKey, int?> _readyPages = {};
 
   /// מופעים נוספים (שנפתחו דרך `newTab`). פתיחה רגילה לעולם אינה מוסרת להם
@@ -148,9 +149,10 @@ class PluginPageLauncher {
     if (topic != null) {
       final key = (pluginId: pluginId, instanceId: instanceId);
       _pendingInstanceOrigins[key] = (viewId: viewId, openedAt: clock());
-      _pendingByInstance
-          .putIfAbsent(key, () => [])
-          .add((topic: topic, payload: payload));
+      _pendingByInstance.putIfAbsent(key, () => []).add((
+        topic: topic,
+        payload: payload,
+      ));
     }
     return instanceId;
   }
