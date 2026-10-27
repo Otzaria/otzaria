@@ -57,6 +57,14 @@ int openToolInstanceCount(Iterable<OpenedTab> tabs, String toolId) => tabs
     .where((tab) => tab.toolId == toolId)
     .length;
 
+/// האם אפשר לפתוח מופע נוסף של [toolId], לפי הכרטיסיות הפתוחות ו-[pending]
+/// פתיחות שנשלחו ועדיין אינן ב-state.
+bool hasRoomForPluginInstance(
+  Iterable<OpenedTab> tabs,
+  String toolId, {
+  int pending = 0,
+}) => openToolInstanceCount(tabs, toolId) + pending < kMaxPluginToolInstances;
+
 /// פותח מופע נוסף של תוסף מותקן בכרטיסיה חדשה — הנתיב של `plugin.openSelf`
 /// עם `newTab: true`.
 ///
@@ -89,9 +97,11 @@ String? openPluginToolInstanceById(BuildContext context, String pluginId) {
   final tabsBloc = context.read<TabsBloc>();
   final reserved = _reservedInstanceIds(tabsBloc, pluginId);
   reserved.removeAll(_toolInstanceIds(tabsBloc.state.tabs));
-  final openCount =
-      openToolInstanceCount(tabsBloc.state.tabs, pluginId) + reserved.length;
-  if (openCount >= kMaxPluginToolInstances) {
+  if (!hasRoomForPluginInstance(
+    tabsBloc.state.tabs,
+    pluginId,
+    pending: reserved.length,
+  )) {
     tab.dispose();
     UiSnack.showError(
       ToolsMessages.pluginInstanceLimitReached(
@@ -108,12 +118,15 @@ String? openPluginToolInstanceById(BuildContext context, String pluginId) {
         .firstWhere(
           (state) => _toolInstanceIds(state.tabs).contains(instanceId),
         )
-        .timeout(const Duration(seconds: 5))
+        .timeout(_reservationTimeout)
         .then<void>((_) {}, onError: (_) {})
         .whenComplete(() => reserved.remove(instanceId)),
   );
   return instanceId;
 }
+
+/// כמה זמן פתיחה שנשלחה נספרת בתקרה, אם היא עדיין לא הגיעה ל-state.
+const Duration _reservationTimeout = Duration(seconds: 30);
 
 /// פתיחות שנשלחו ל-[TabsBloc] ועדיין אינן ב-state. בלעדיהן שתי קריאות
 /// רצופות היו רואות אותו מספר כרטיסיות ועוקפות את התקרה.

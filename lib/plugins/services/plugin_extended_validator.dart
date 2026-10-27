@@ -149,7 +149,7 @@ class PluginExtendedValidator {
       warnings,
     );
     _checkNameVsToolTabTitle(manifestJson, warnings);
-    _validateToolTabFlags(manifestJson, errors);
+    _validateToolTabFlags(manifest, manifestJson, errors);
     _validateHeadless(manifest, manifestJson, declaredPermissions, errors);
 
     final files = directoryPath == null
@@ -307,6 +307,7 @@ class PluginExtendedValidator {
   /// הגרסה שבה נוסף מנגנון contributes.startup — נאכף מול minAppVersion.
   static const String _startupContributionsMinVersion = '0.9.96';
   static const String _folderAccessPermissionMinVersion = '0.9.97';
+  static const String _multipleInstancesMinVersion = '0.9.99';
   static const String _declarativeProgramsMinVersion = '0.9.96';
 
   /// פקודות דקלרטיביות שנוספו אחרי מנגנון ה-programs — נאכפות מול minAppVersion.
@@ -336,6 +337,7 @@ class PluginExtendedValidator {
   /// תוסף ללא ממשק רץ רק כשמנוע הרקע מתעורר, ואין לו דף שאפשר לפתוח במקומו.
   /// לכן תוסף שאין לו דרך להתעורר, או שמפנה לדף שלו, נחסם כבר בהתקנה.
   static void _validateToolTabFlags(
+    PluginManifest manifest,
     Map<String, dynamic> manifestJson,
     List<String> errors,
   ) {
@@ -347,6 +349,24 @@ class PluginExtendedValidator {
       errors.add(
         'contributes.toolTab.allowMultipleInstances חייב להיות true או false',
       );
+      return;
+    }
+    if (!manifest.allowMultipleInstances) return;
+    try {
+      if (PluginVersionUtils.compareCoreVersions(
+            _multipleInstancesMinVersion,
+            manifest.minAppVersion,
+          ) >
+          0) {
+        errors.add(
+          'contributes.toolTab.allowMultipleInstances נתמך החל מגרסה '
+          '$_multipleInstancesMinVersion, אך minAppVersion שהוצהר הוא '
+          '${manifest.minAppVersion}. אוצריא ישנה מתעלמת מ-newTab ורק ממקדת '
+          'את הכרטיסייה הקיימת. עדכן את minAppVersion',
+        );
+      }
+    } on PluginVersionFormatException {
+      // minAppVersion נבדק ב-PluginManifestValidator.
     }
   }
 

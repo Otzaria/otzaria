@@ -1211,8 +1211,11 @@ void main() {
   });
 
   group('contributes.toolTab.allowMultipleInstances', () {
-    Map<String, dynamic> withFlag(Object? value) {
-      final json = _baseManifest();
+    Map<String, dynamic> withFlag(
+      Object? value, {
+      String minAppVersion = '0.9.99',
+    }) {
+      final json = _baseManifest(minAppVersion: minAppVersion);
       ((json['contributes'] as Map<String, dynamic>)['toolTab']
               as Map<String, dynamic>)['allowMultipleInstances'] =
           value;
@@ -1222,20 +1225,32 @@ void main() {
     bool mentionsFlag(PluginValidationReport report) =>
         report.errors.any((e) => e.contains('allowMultipleInstances'));
 
+    void check(Object? value, String minAppVersion, {required bool rejected}) {
+      final report = _runOn(
+        tempDir,
+        manifestOverride: withFlag(value, minAppVersion: minAppVersion),
+      );
+      expect(
+        mentionsFlag(report),
+        rejected,
+        reason: '$value / $minAppVersion: ${report.errors}',
+      );
+      Directory(p.join(tempDir.path, 'plugin')).deleteSync(recursive: true);
+    }
+
     test('ערך שאינו בוליאני נדחה בהודעה ברורה', () {
       for (final value in <Object>['true', 1, <String>[]]) {
-        final report = _runOn(tempDir, manifestOverride: withFlag(value));
-        expect(mentionsFlag(report), isTrue, reason: '$value');
-        Directory(p.join(tempDir.path, 'plugin')).deleteSync(recursive: true);
+        check(value, '0.9.99', rejected: true);
       }
     });
 
-    test('true ו-false תקינים', () {
-      for (final value in <bool>[true, false]) {
-        final report = _runOn(tempDir, manifestOverride: withFlag(value));
-        expect(mentionsFlag(report), isFalse, reason: '$value');
-        Directory(p.join(tempDir.path, 'plugin')).deleteSync(recursive: true);
-      }
+    test('true עם minAppVersion מספיק, ו-false בכל גרסה, תקינים', () {
+      check(true, '0.9.99', rejected: false);
+      check(false, '0.9.94', rejected: false);
+    });
+
+    test('true עם minAppVersion ישן נדחה', () {
+      check(true, '0.9.94', rejected: true);
     });
   });
 }

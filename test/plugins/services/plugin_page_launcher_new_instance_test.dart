@@ -369,7 +369,6 @@ void main() {
       );
 
       launcher.clock = () => start.add(const Duration(minutes: 5));
-      launcher.hasPendingFor(_kPid);
       launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
