@@ -516,7 +516,7 @@ jobs:
 
   build_linux:
     name: Build (Linux)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # ה-SDK של WPE נבנה ומופץ עבור Debian Bookworm. זהה את סביבת הבנייה
     # לבדיקת ההפצה: על Ubuntu 24.04 ה-try_compile של WPEPlatform נכשל אף
     # שה-PC modules נמצאים, ולכן אינו מייצג build נתמך של המוצר.

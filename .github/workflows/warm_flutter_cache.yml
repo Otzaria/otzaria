@@ -71,7 +71,7 @@ jobs:
   # בלי zstd ה-cache נדחס אחרת ולא יימצא.
   warm_linux_container:
     name: Cache Flutter (debian container)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: debian:bookworm-slim
     defaults:
