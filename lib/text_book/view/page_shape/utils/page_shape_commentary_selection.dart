@@ -76,6 +76,10 @@ String? encodePageShapeCommentatorsSelection(
   return '$_pageShapeMultiCommentatorsPrefix$payload';
 }
 
+/// כל שמות המפרשים שבבחירות השמורות [selections], בלי ערכים מיוחדים.
+Iterable<String> pageShapeSelectionTitles(Iterable<String?> selections) =>
+    selections.expand(decodePageShapeCommentatorsSelection);
+
 /// מחזיר את רשימת המפרשים המפורשת שנשמרה בבחירה.
 List<String> decodePageShapeCommentatorsSelection(String? value) {
   if (value == null ||
@@ -92,6 +96,7 @@ String? resolvePageShapeCommentatorSelection({
   required String? selection,
   required List<String> availableCommentators,
   String? commentedBookTitle,
+  Map<String, CommentatorIdentity> identities = const {},
 }) {
   if (selection == null ||
       isPageShapeRemainingCommentatorsValue(selection) ||
@@ -104,6 +109,7 @@ String? resolvePageShapeCommentatorSelection({
           selection,
           availableCommentators,
           commentedBookTitle: commentedBookTitle,
+          identities: identities,
         ) ??
         selection;
   }
@@ -115,6 +121,7 @@ String? resolvePageShapeCommentatorSelection({
       commentator,
       availableCommentators,
       commentedBookTitle: commentedBookTitle,
+      identities: identities,
     );
     if (match != null && seen.add(match)) {
       resolved.add(match);
@@ -136,6 +143,7 @@ String? resolvePageShapeSingleCommentatorSelection({
   required String? selection,
   required List<String> availableCommentators,
   String? commentedBookTitle,
+  Map<String, CommentatorIdentity> identities = const {},
 }) {
   if (selection == null ||
       isPageShapeRemainingCommentatorsValue(selection) ||
@@ -148,6 +156,7 @@ String? resolvePageShapeSingleCommentatorSelection({
           selection,
           availableCommentators,
           commentedBookTitle: commentedBookTitle,
+          identities: identities,
         ) ??
         selection;
   }
@@ -157,6 +166,7 @@ String? resolvePageShapeSingleCommentatorSelection({
       commentator,
       availableCommentators,
       commentedBookTitle: commentedBookTitle,
+      identities: identities,
     );
     if (match != null) {
       return match;
@@ -172,11 +182,13 @@ List<String> resolvePageShapeSelectedCommentators({
   required List<String> availableCommentators,
   Iterable<String?> excludedCommentators = const [],
   String? commentedBookTitle,
+  Map<String, CommentatorIdentity> identities = const {},
 }) {
   final normalizedSelection = resolvePageShapeCommentatorSelection(
     selection: selection,
     availableCommentators: availableCommentators,
     commentedBookTitle: commentedBookTitle,
+    identities: identities,
   );
 
   if (normalizedSelection == null) {
@@ -203,11 +215,13 @@ String? _resolvePageShapeSingleCommentator({
   required String? selection,
   required List<String> availableCommentators,
   String? commentedBookTitle,
+  Map<String, CommentatorIdentity> identities = const {},
 }) {
   final resolved = resolvePageShapeCommentatorSelection(
     selection: selection,
     availableCommentators: availableCommentators,
     commentedBookTitle: commentedBookTitle,
+    identities: identities,
   );
 
   if (resolved == null ||
@@ -237,21 +251,25 @@ List<String> resolvePageShapeDisplayedCommentators({
     'bottom': true,
   },
   String? commentedBookTitle,
+  Map<String, CommentatorIdentity> identities = const {},
 }) {
   final resolvedLeft = _resolvePageShapeSingleCommentator(
     selection: leftSelection,
     availableCommentators: availableCommentators,
     commentedBookTitle: commentedBookTitle,
+    identities: identities,
   );
   final resolvedBottom = _resolvePageShapeSingleCommentator(
     selection: bottomSelection,
     availableCommentators: availableCommentators,
     commentedBookTitle: commentedBookTitle,
+    identities: identities,
   );
   final resolvedBottomRight = _resolvePageShapeSingleCommentator(
     selection: bottomRightSelection,
     availableCommentators: availableCommentators,
     commentedBookTitle: commentedBookTitle,
+    identities: identities,
   );
 
   final excludedForRightPane = [
@@ -271,6 +289,7 @@ List<String> resolvePageShapeDisplayedCommentators({
           availableCommentators: rightSelectableCommentators,
           excludedCommentators: excludedForRightPane,
           commentedBookTitle: commentedBookTitle,
+          identities: identities,
         );
 
   final displayedCommentators = <String>[];

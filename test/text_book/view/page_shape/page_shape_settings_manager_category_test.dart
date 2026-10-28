@@ -5,6 +5,7 @@
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 
 import '../../../test_helpers/memory_cache_provider.dart';
@@ -61,10 +62,10 @@ void main() {
     });
   });
 
-  group('extractBaseCommentatorName מפריד את שם הספר משם המפרש', () {
+  group('commentatorBaseName מפריד את שם הספר משם המפרש', () {
     test('שם עם "על" — הקידומת היא שם המפרש', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'ברטנורא על משנה נדה',
           commentedBookTitle: 'משנה נדה',
         ),
@@ -74,21 +75,21 @@ void main() {
 
     test('שם בלי "על" — שם המסכת מוסר לפי שם הספר הנקרא', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'יכין מקואות',
           commentedBookTitle: 'משנה מקואות',
         ),
         'יכין',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'ריף בבא מציעא',
           commentedBookTitle: 'בבא מציעא',
         ),
         'ריף',
       );
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'באר היטב אורח חיים',
           commentedBookTitle: 'שולחן ערוך אורח חיים',
         ),
@@ -98,7 +99,7 @@ void main() {
 
     test('מפרש שאינו נושא את שם הספר נשאר כמות שהוא', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'משנה ברורה',
           commentedBookTitle: 'שולחן ערוך אורח חיים',
         ),
@@ -108,7 +109,7 @@ void main() {
 
     test('שם שכולו זהה לשם הספר אינו מתרוקן', () {
       expect(
-        PageShapeSettingsManager.extractBaseCommentatorName(
+        commentatorBaseName(
           'נדה',
           commentedBookTitle: 'משנה נדה',
         ),

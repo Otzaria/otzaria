@@ -36,6 +36,8 @@ import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/text_book/utils/per_book_display_settings.dart';
 import 'package:otzaria/book_common/utils/default_commentators.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_commentary_selection.dart';
+import 'package:otzaria/book_common/utils/commentator_identity_lookup.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_manager.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/data/data_providers/file_system_data_provider.dart';
@@ -708,6 +710,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     List<CommentatorGroup> existingCommentatorGroups = const [];
     TextDisplayLayer? preservedDisplayOverrides;
     bool? preservedPinLeftPane;
+    Map<String, CommentatorIdentity> existingCommentatorIdentities = const {};
 
     if (state is TextBookLoaded && event.preserveState) {
       final currentState = state as TextBookLoaded;
@@ -730,6 +733,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       existingCommentatorGroups = currentState.commentatorGroups;
       preservedDisplayOverrides = currentState.displayOverrides;
       preservedPinLeftPane = currentState.pinLeftPane;
+      existingCommentatorIdentities = currentState.commentatorIdentities;
       pinpointHighlightIndex = currentState.pinpointHighlightIndex;
       pinpointHighlightText = currentState.pinpointHighlightText;
     } else if (state is TextBookInitial) {
@@ -1007,6 +1011,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         showPageShapeView: initialShowPageShapeView,
         activeCommentators: commentators,
         commentatorGroups: existingCommentatorGroups,
+        commentatorIdentities: existingCommentatorIdentities,
         isTanach: isTanach,
         displayPolicy: displayPolicy,
         bookDisplayLayer: bookDisplayLayer,
@@ -1650,6 +1655,10 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       availableCommentators: candidateCommentators,
       columnVisibility: columnVisibility,
       commentedBookTitle: state.book.title,
+      identities: await withSelectionIdentities(
+        state.commentatorIdentities,
+        pageShapeSelectionTitles(configuration.values),
+      ),
     );
 
     _cachedPageShapeTargetBookTitlesKey = cacheKey;
@@ -2990,6 +2999,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           rareCommentators: event.rareCommentators.difference(
             _hiddenCommentatorTitlesCache,
           ),
+          commentatorIdentities: event.commentatorIdentities,
         ),
       );
       emit(updatedState);
@@ -3138,6 +3148,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           availableCommentators,
           groups,
           rareCommentators,
+          commentatorsData.identities,
         ),
       );
 
@@ -3168,6 +3179,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         book,
         availableCommentators: availableCommentators,
         baseCommentators: baseCommentators,
+        identities: commentatorsData.identities,
       );
       if (generation != _commentatorsLoadGeneration || isClosed) return;
       if (initialSelection.isNotEmpty) {

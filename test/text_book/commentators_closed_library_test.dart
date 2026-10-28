@@ -54,7 +54,7 @@ class _FailingCommentatorsRepository extends TextBookRepository {
   Future<List<TocEntry>> getTableOfContents(TextBook book) async => const [];
 
   @override
-  Future<({List<String> all, Set<String> rare})> getCommentatorsWithRarity(
+  Future<CommentatorsWithRarity> getCommentatorsWithRarity(
     TextBook book,
   ) async {
     commentatorCalls++;
@@ -173,7 +173,7 @@ void main() {
     final provider = SqliteDataProvider.instance;
     await provider.initialize();
     final repository = TextBookRepository(fileSystem: _NoFiles());
-    late Future<({List<String> all, Set<String> rare})> commentators;
+    late Future<CommentatorsWithRarity> commentators;
     late Future<
       ({
         List<({String title, int position})> commentators,

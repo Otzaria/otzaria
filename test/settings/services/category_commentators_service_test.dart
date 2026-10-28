@@ -1,4 +1,4 @@
-// בדיקות למפרשים קבועים לקטגוריה (issue #866): שמירה בשמות בסיסיים,
+// בדיקות למפרשים קבועים לקטגוריה (issue #866): שמירה כמפתחות מפרש,
 // טעינה לפי שרשרת הקטגוריות מהספציפית לכללית, קביעה ריקה מפורשת והסרה.
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -14,7 +14,7 @@ void main() {
     await Settings.init(cacheProvider: MemoryCacheProvider());
   });
 
-  test('שמירה וטעינה — השמות נשמרים בסיסיים בלי שם הספר', () async {
+  test('שמירה וטעינה — המפתחות נשמרים בלי שם הספר', () async {
     await CategoryCommentatorsService.save(
       'תלמוד בבלי',
       ['רש"י על ברכות', 'תוספות על ברכות', 'יכין מקואות'],
@@ -22,12 +22,12 @@ void main() {
     );
 
     expect(
-      CategoryCommentatorsService.loadBaseNames('אוצריא, תלמוד, תלמוד בבלי'),
+      CategoryCommentatorsService.loadKeys('אוצריא, תלמוד, תלמוד בבלי'),
       ['רש"י', 'תוספות', 'יכין מקואות'],
     );
   });
 
-  test('כפילויות בשם הבסיסי מאוחדות', () async {
+  test('כפילויות במפתח מאוחדות', () async {
     await CategoryCommentatorsService.save(
       'תלמוד בבלי',
       ['רש"י על ברכות', 'רש"י על שבת'],
@@ -35,7 +35,7 @@ void main() {
     );
 
     expect(
-      CategoryCommentatorsService.loadBaseNames('אוצריא, תלמוד, תלמוד בבלי'),
+      CategoryCommentatorsService.loadKeys('אוצריא, תלמוד, תלמוד בבלי'),
       ['רש"י'],
     );
   });
@@ -53,17 +53,17 @@ void main() {
     );
 
     expect(
-      CategoryCommentatorsService.loadBaseNames('הלכה, משנה תורה, ספר מדע'),
+      CategoryCommentatorsService.loadKeys('הלכה, משנה תורה, ספר מדע'),
       ['לחם משנה'],
     );
   });
 
   test('בלי קביעה — מוחזר null (נופלים לברירת המחדל מה-DB)', () {
     expect(
-      CategoryCommentatorsService.loadBaseNames('אוצריא, תלמוד, תלמוד בבלי'),
+      CategoryCommentatorsService.loadKeys('אוצריא, תלמוד, תלמוד בבלי'),
       isNull,
     );
-    expect(CategoryCommentatorsService.loadBaseNames(null), isNull);
+    expect(CategoryCommentatorsService.loadKeys(null), isNull);
   });
 
   test('קביעה ריקה מפורשת מוחזרת כרשימה ריקה, לא כ-null', () async {
@@ -74,7 +74,7 @@ void main() {
     );
 
     expect(
-      CategoryCommentatorsService.loadBaseNames('אוצריא, תלמוד, תלמוד בבלי'),
+      CategoryCommentatorsService.loadKeys('אוצריא, תלמוד, תלמוד בבלי'),
       isEmpty,
     );
   });
@@ -88,7 +88,7 @@ void main() {
     await CategoryCommentatorsService.reset('תלמוד בבלי');
 
     expect(
-      CategoryCommentatorsService.loadBaseNames('אוצריא, תלמוד, תלמוד בבלי'),
+      CategoryCommentatorsService.loadKeys('אוצריא, תלמוד, תלמוד בבלי'),
       isNull,
     );
     expect(
@@ -124,11 +124,11 @@ void main() {
     );
 
     expect(
-      CategoryCommentatorsService.loadBaseNames('אוצריא, תנ"ך, תורה, בראשית'),
+      CategoryCommentatorsService.loadKeys('אוצריא, תנ"ך, תורה, בראשית'),
       ['רש"י'],
     );
     expect(
-      CategoryCommentatorsService.loadBaseNames(
+      CategoryCommentatorsService.loadKeys(
         'אוצריא, תנ"ך, נביאים, ישעיהו',
       ),
       isNull,

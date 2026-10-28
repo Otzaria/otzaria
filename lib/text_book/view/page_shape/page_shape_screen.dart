@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:otzaria/text_book/view/page_shape/utils/page_shape_default_commentators.dart';
 import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
+import 'package:otzaria/book_common/utils/commentator_identity_lookup.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -364,14 +365,18 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     final Map<String, String?> commentators;
     if (config != null) {
       final hiddenTitles = await hiddenTitlesFuture;
+      final identities = await withSelectionIdentities(
+        state.commentatorIdentities,
+        pageShapeSelectionTitles(config.values),
+      );
       if (!mounted || generation != _loadConfigurationGeneration) return;
-      // יש הגדרה שמורה - צריך להתאים שמות בסיסיים לשמות מלאים
-      // (כי הגדרות קטגוריה שומרות רק שמות בסיסיים כמו "רמב"ן")
+      // הגדרות קטגוריה שומרות מפתחות מפרש ("רמב"ן") ולא שמות מלאים
       commentators = _resolveCommentatorNames(
         config,
         state.availableCommentators,
         state.book.title,
         hiddenTitles,
+        identities: identities,
       );
     } else {
       // אין הגדרה שמורה בכלל - השתמש בברירות מחדל
@@ -418,8 +423,9 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
     Map<String, String?> config,
     List<String> availableCommentators,
     String bookTitle,
-    Set<String> hiddenTitles,
-  ) {
+    Set<String> hiddenTitles, {
+    Map<String, CommentatorIdentity> identities = const {},
+  }) {
     final hiddenList = hiddenTitles.toList();
     return Map.fromEntries(
       config.entries.map((entry) {
@@ -427,6 +433,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
           selection: entry.value,
           availableCommentators: availableCommentators,
           commentedBookTitle: bookTitle,
+          identities: identities,
         );
         if (resolved != null &&
             !availableCommentators.contains(resolved) &&
@@ -434,6 +441,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                   entry.value ?? resolved,
                   hiddenList,
                   commentedBookTitle: bookTitle,
+                  identities: identities,
                 ) !=
                 null) {
           return MapEntry(entry.key, null);
