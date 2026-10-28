@@ -301,6 +301,23 @@ Future<void> dispatchPluginContextMenuItemClick({
     await selectionActionDispatcher?.call(pluginId, action, payload);
     return;
   }
+  if (item.openPlugin && item.newTab) {
+    // אותם אירועים כמו במסלול הרגיל, אבל למופע חדש בלבד.
+    PluginPageLauncher.instance.openInNewTab(
+      pluginId,
+      events: [
+        (
+          topic: item.onClickEvent ?? 'contextMenu.itemClicked',
+          payload: payload,
+        ),
+        if (item.onClickEvent == null)
+          (topic: 'reader.context_menu_item_clicked', payload: payload),
+      ],
+      viewId: viewId,
+      windowKeys: windowKeys,
+    );
+    return;
+  }
   if (item.openPlugin) {
     // אותם אירועים כמו במסלול הרגיל, בתור המסירה של דף התוסף.
     PluginPageLauncher.instance.open(

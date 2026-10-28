@@ -22,16 +22,27 @@ class PluginPageLauncher {
 
   /// [opener] פותח כרטיסיה חדשה של התוסף ומחזיר את מזהה המופע שלה, או `null`
   /// כשהפתיחה נדחתה (למשל כלי שאינו זמין).
+  ///
+  /// [hasOpenTab] אומר אם לתוסף יש כרטיסיה פתוחה בחלון. [openInNewTab] משתמש בו:
+  /// בלי כרטיסיה פתוחה אין "עוד מופע", והבקשה נפתחת כפתיחה רגילה.
   void registerInstanceOpener(
     AppWindowKeys keys,
-    String? Function(String pluginId) opener,
-  ) => _instanceOpeners[keys] = opener;
+    String? Function(String pluginId) opener, {
+    bool Function(String pluginId)? hasOpenTab,
+  }) {
+    _instanceOpeners[keys] = opener;
+    _openTabProbes[keys] = hasOpenTab;
+  }
+
+  final _openTabProbes = Expando<bool Function(String pluginId)>();
 
   void unregisterInstanceOpener(
     AppWindowKeys keys,
     String? Function(String pluginId) opener,
   ) {
-    if (_instanceOpeners[keys] == opener) _instanceOpeners[keys] = null;
+    if (_instanceOpeners[keys] != opener) return;
+    _instanceOpeners[keys] = null;
+    _openTabProbes[keys] = null;
   }
 
   void unregister(
@@ -155,6 +166,47 @@ class PluginPageLauncher {
       ));
     }
     return instanceId;
+  }
+
+  /// לחיצה על לחצן או פריט תפריט הקשר שהוגדרו עם `newTab`: פותח מופע נוסף
+  /// ומוסר את [events] אליו בלבד.
+  ///
+  /// כשאין לתוסף כרטיסיה פתוחה בחלון הפתיחה היא רגילה (כמו `open`), כי אין
+  /// מופע ראשי שצריך להשאיר לצידו. מחזיר `false` רק כשהמופע הנוסף נדחה
+  /// (תקרה, כלי שאינו זמין או חלון שנסגר); ההודעה למשתמש כבר הוצגה.
+  bool openInNewTab(
+    String pluginId, {
+    required List<({String topic, Map<String, dynamic> payload})> events,
+    int? viewId,
+    AppWindowKeys? windowKeys,
+  }) {
+    final keys = windowKeys ?? AppWindowKeys.current;
+    final hasOpenTab = _openTabProbes[keys];
+    if (hasOpenTab != null && !hasOpenTab(pluginId)) {
+      for (final event in events) {
+        open(
+          pluginId,
+          topic: event.topic,
+          payload: event.payload,
+          viewId: viewId,
+          windowKeys: windowKeys,
+        );
+      }
+      return true;
+    }
+    final instanceId = openNewInstance(
+      pluginId,
+      topic: events.isEmpty ? null : events.first.topic,
+      payload: events.isEmpty ? const {} : events.first.payload,
+      viewId: viewId,
+      windowKeys: windowKeys,
+    );
+    if (instanceId == null) return false;
+    final key = (pluginId: pluginId, instanceId: instanceId);
+    for (final event in events.skip(1)) {
+      _pendingByInstance.putIfAbsent(key, () => []).add(event);
+    }
+    return true;
   }
 
   void markPageReady(

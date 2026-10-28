@@ -223,6 +223,20 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
       );
     }
 
+    final newTab = json['newTab'];
+    if (newTab != null && newTab is! bool) {
+      throw const PluginContextMenuException(
+        'error.invalid_params',
+        'newTab must be a boolean',
+      );
+    }
+    if (newTab == true && json['openPlugin'] != true) {
+      throw const PluginContextMenuException(
+        'error.invalid_params',
+        'newTab requires openPlugin: true',
+      );
+    }
+
     return PluginContextMenuItem(
       id: id,
       type: type,
@@ -234,6 +248,7 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
       children: children,
       colors: colors,
       openPlugin: json['openPlugin'] == true,
+      newTab: newTab == true,
       param: json['param'],
       showWhenContainsAny: _parseShowWhen(json['showWhen']),
       when: parseWhen(json['when'], nested: depth > 0),

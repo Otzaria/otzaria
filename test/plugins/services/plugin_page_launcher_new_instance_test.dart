@@ -376,4 +376,91 @@ void main() {
       launcher.unregisterInstanceOpener(keys, opener);
     });
   });
+
+  group('openInNewTab (לחצן או תפריט הקשר עם newTab)', () {
+    test('כמה אירועים נמסרים למופע החדש בלבד, וראשי לא מקבל', () async {
+      String? opener(String pluginId) => 'second';
+      launcher.registerInstanceOpener(keys, opener, hasOpenTab: (_) => true);
+      launcher.markPageReady(_kPid, instanceId: 'first');
+
+      final opened = launcher.openInNewTab(
+        _kPid,
+        events: const [
+          (topic: 'contextMenu.itemClicked', payload: {'a': 1}),
+          (topic: 'reader.context_menu_item_clicked', payload: {'a': 1}),
+        ],
+        windowKeys: keys,
+      );
+      expect(opened, isTrue);
+
+      launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
+      await settle(() => second.jsCalls.length >= 2);
+
+      expect(first.jsCalls, isEmpty);
+      expect(second.jsCalls.length, 2);
+      expect(second.jsCalls[0], contains('contextMenu.itemClicked'));
+      expect(second.jsCalls[1], contains('reader.context_menu_item_clicked'));
+      launcher.unregisterInstanceOpener(keys, opener);
+    });
+
+    test('בלי כרטיסיה פתוחה של התוסף הפתיחה רגילה ואין מופע נוסף', () async {
+      var openerCalls = 0;
+      String? opener(String pluginId) {
+        openerCalls++;
+        return 'second';
+      }
+
+      final navigations = <String>[];
+      void navigator(String pluginId) => navigations.add(pluginId);
+      launcher.register(keys, navigator);
+      launcher.registerInstanceOpener(keys, opener, hasOpenTab: (_) => false);
+
+      final opened = launcher.openInNewTab(
+        _kPid,
+        events: const [(topic: 'reader.toolbar_item_clicked', payload: {})],
+        windowKeys: keys,
+      );
+
+      expect(opened, isTrue);
+      expect(openerCalls, 0);
+      expect(navigations, [_kPid]);
+
+      // האירוע ממתין לדף הראשי, לא למופע נוסף.
+      launcher.markPageReady(_kPid, instanceId: 'first');
+      await settle(() => first.jsCalls.isNotEmpty);
+      expect(first.jsCalls.single, contains('reader.toolbar_item_clicked'));
+      launcher.unregister(keys, navigator);
+      launcher.unregisterInstanceOpener(keys, opener);
+    });
+
+    test('פותח שדוחה (תקרה או כלי לא זמין) — false ואין אירוע ממתין', () {
+      String? refuse(String pluginId) => null;
+      launcher.registerInstanceOpener(keys, refuse, hasOpenTab: (_) => true);
+
+      final opened = launcher.openInNewTab(
+        _kPid,
+        events: const [(topic: 'reader.toolbar_item_clicked', payload: {})],
+        windowKeys: keys,
+      );
+
+      expect(opened, isFalse);
+      expect(launcher.hasPendingFor(_kPid), isFalse);
+      launcher.unregisterInstanceOpener(keys, refuse);
+    });
+
+    test('ביטול הרישום מנקה גם את בדיקת הכרטיסיות', () {
+      String? opener(String pluginId) => 'second';
+      launcher.registerInstanceOpener(keys, opener, hasOpenTab: (_) => false);
+      launcher.unregisterInstanceOpener(keys, opener);
+
+      expect(
+        launcher.openInNewTab(
+          _kPid,
+          events: const [(topic: 'x', payload: {})],
+          windowKeys: keys,
+        ),
+        isFalse,
+      );
+    });
+  });
 }

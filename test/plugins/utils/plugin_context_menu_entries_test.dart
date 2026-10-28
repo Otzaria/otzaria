@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_context_menu_item.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
 void main() {
   test('converts submenu, separator, and color row entries', () {
@@ -335,6 +338,89 @@ void main() {
         shape(const [('a', a1), ('a', trailing), ('b', leading), ('b', b1)]),
         ['A1', '|', 'B1'],
       );
+    });
+  });
+
+  group('openPlugin עם newTab', () {
+    const pid = 'click.new.tab.plugin';
+    late List<String> opened;
+    late List<String> navigated;
+    final launcher = PluginPageLauncher.instance;
+
+    String? opener(String pluginId) {
+      opened.add(pluginId);
+      return 'extra';
+    }
+
+    void navigator(String pluginId) => navigated.add(pluginId);
+
+    setUp(() {
+      opened = [];
+      navigated = [];
+      launcher.register(AppWindowKeys.current, navigator);
+      launcher.registerInstanceOpener(
+        AppWindowKeys.current,
+        opener,
+        hasOpenTab: (_) => true,
+      );
+    });
+
+    tearDown(() {
+      launcher.unregister(AppWindowKeys.current, navigator);
+      launcher.unregisterInstanceOpener(AppWindowKeys.current, opener);
+      launcher.markPageClosed(pid, instanceId: 'extra');
+      launcher.markPageClosed(pid);
+      AppWindowKeys.resetForTest();
+    });
+
+    Future<void> click(PluginContextMenuItem item) =>
+        dispatchPluginContextMenuItemClick(
+          dispatcher: PluginRuntimeDispatcher.instance,
+          pluginId: pid,
+          item: item,
+          selection: const {'text': 'טקסט'},
+        );
+
+    test('פותח מופע נוסף ולא מנווט למופע הראשי', () async {
+      await click(
+        const PluginContextMenuItem(
+          id: 'go',
+          label: 'go',
+          openPlugin: true,
+          newTab: true,
+        ),
+      );
+
+      expect(opened, [pid]);
+      expect(navigated, isEmpty);
+      expect(launcher.hasPendingFor(pid), isTrue);
+    });
+
+    test('שני האירועים ממתינים למופע החדש ולא למופע הראשי', () async {
+      await click(
+        const PluginContextMenuItem(
+          id: 'go',
+          label: 'go',
+          openPlugin: true,
+          newTab: true,
+        ),
+      );
+
+      // שני האירועים (הכללי והייעודי) ממתינים למופע 'extra' בלבד.
+      launcher.markPageReady(pid);
+      expect(launcher.hasPendingFor(pid), isTrue);
+
+      launcher.markPageReady(pid, instanceId: 'extra', isPrimary: false);
+      expect(launcher.hasPendingFor(pid), isFalse);
+    });
+
+    test('בלי newTab הלחיצה מנווטת למופע הראשי ואינה פותחת מופע', () async {
+      await click(
+        const PluginContextMenuItem(id: 'go', label: 'go', openPlugin: true),
+      );
+
+      expect(opened, isEmpty);
+      expect(navigated, [pid]);
     });
   });
 }
