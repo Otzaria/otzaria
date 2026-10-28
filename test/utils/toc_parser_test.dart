@@ -120,6 +120,19 @@ void main() {
       expect(toc, isEmpty);
     });
 
+    test(
+      'מהכותרת יורדת רק ההערה; מספרים ו-<sup> רגיל נשארים (issue #3320)',
+      () {
+        final toc = TocParser.parseEntriesFromContent(
+          '<h2>פרק 1 שנת 1948 x<sup>2</sup>'
+          '<sup class="footnote-marker">3</sup><i class="footnote">גוף</i>'
+          ' סוף</h2>\n'
+          '<h2>פרק 2<sup>*</sup></h2>',
+        );
+        expect(toc.map((e) => e.text), ['פרק 1 שנת 1948 x2 סוף', 'פרק 2*']);
+      },
+    );
+
     test('זהה לזיהוי הקודם על שורות אקראיות (perf)', () {
       const pieces = [
         '#',

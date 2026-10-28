@@ -264,6 +264,21 @@ void main() {
       }
     });
 
+    test('הערה בכותרת אינה נכנסת לנתיב (issue #3320)', () async {
+      expect(
+        await CopyUtils.extractCurrentPath(
+          _TocBook(const []),
+          1,
+          bookContent: const [
+            '<h2>פרק א<sup class="footnote-marker">1</sup>'
+                '<i class="footnote">גוף ההערה</i></h2>',
+            'טקסט',
+          ],
+        ),
+        'פרק א',
+      );
+    });
+
     test('שורה ריקה עם TOC ריק שומרת את הנתיב מהתוכן', () async {
       expect(
         await CopyUtils.extractCurrentPath(
