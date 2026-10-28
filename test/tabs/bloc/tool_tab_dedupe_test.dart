@@ -273,6 +273,7 @@ void main() {
       for (final tab in [primary, other, last]) {
         bloc.add(OpenOrFocusTab(tab));
       }
+      await pumpEventQueue();
       bloc.add(SetCurrentTab(0));
       await pumpEventQueue();
       expect(bloc.state.currentTabIndex, 0);
@@ -291,6 +292,7 @@ void main() {
       for (final tab in [primary, other]) {
         bloc.add(OpenOrFocusTab(tab));
       }
+      await pumpEventQueue();
       bloc.add(SetCurrentTab(0));
       await pumpEventQueue();
 
