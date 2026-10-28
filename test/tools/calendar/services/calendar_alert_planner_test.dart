@@ -82,7 +82,7 @@ void main() {
       expect(hour, greaterThan(12));
       expect(
         firstBody(twelveHourClock: true),
-        endsWith('(${hour - 12}:${clock[2]} PM)'),
+        endsWith('(${hour - 12}:${clock[2]}\u200E\u00A0PM)'),
       );
     });
 

@@ -107,7 +107,7 @@ void main() {
       ],
     );
     expect(
-      [for (final (_, time) in zmanim) time.contains(' AM') ? 'AM' : 'PM'],
+      [for (final (_, time) in zmanim) time.contains('AM') ? 'AM' : 'PM'],
       ['AM', 'PM', 'PM', 'AM'],
     );
   });

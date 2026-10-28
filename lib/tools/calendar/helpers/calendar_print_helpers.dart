@@ -584,16 +584,9 @@ pw.Widget _buildWeekGrid(CalendarState state, _CalendarText font) {
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: days.map((date) {
       final jd = JewishDate.fromDateTime(date);
-      final dailyTimes = {
-        for (final MapEntry(:key, :value) in calculateDailyTimes(
-          date,
-          state.selectedCity,
-        ).entries)
-          key: zmanTimeForDisplay(
-            value,
-            twelveHourClock: state.twelveHourClock,
-          ),
-      };
+      final dailyTimes = calculateDailyTimes(date, state.selectedCity);
+      String display(String time) =>
+          zmanTimeForDisplay(time, twelveHourClock: state.twelveHourClock);
       final events = _eventsForDate(date, state);
       final jewishEvents = _jewishEventsForDate(date, state.inIsrael);
       return pw.Expanded(
@@ -612,9 +605,9 @@ pw.Widget _buildWeekGrid(CalendarState state, _CalendarText font) {
               for (final je in jewishEvents) font(je, 7, singleLine: true),
               if (jewishEvents.isNotEmpty) pw.SizedBox(height: 2),
               if (dailyTimes['sunrise'] case final sunrise?)
-                font('זריחה $sunrise', 7, color: PdfColors.blue800),
+                font('זריחה ${display(sunrise)}', 7, color: PdfColors.blue800),
               if (dailyTimes['sunset'] case final sunset?)
-                font('שקיעה $sunset', 7, color: PdfColors.blue800),
+                font('שקיעה ${display(sunset)}', 7, color: PdfColors.blue800),
               if (dailyTimes['sunrise'] != null || dailyTimes['sunset'] != null)
                 pw.SizedBox(height: 4),
               for (final event in events.take(3))

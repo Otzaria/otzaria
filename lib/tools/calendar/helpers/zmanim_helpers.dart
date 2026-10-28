@@ -193,6 +193,10 @@ final RegExp _isolatedClockTimePattern = RegExp(
   '$_ltrIsolateStart(\\d{1,2}):(\\d{2})([.:]?)$_ltrIsolateEnd',
 );
 
+// LRM ורווח קשיח: כרטיסים זוגיים מפצלים כותרת מערך ברווח האחרון, וגוף
+// ההתראה מוצג בלי ה-isolate, ובלי ה-LRM ה-AM היה מתהפך לפני השעה.
+const String _periodSeparator = '‎ ';
+
 /// מחזיר את [text] לתצוגה, ובשעון 12 שעות ממיר כל שעה שעיצבה
 /// [formatZmanTime] ל-h:mm עם AM/PM. הנתונים עצמם נשארים ב-24 שעות למיון ולהתראות.
 String zmanTimeForDisplay(String text, {required bool twelveHourClock}) {
@@ -201,8 +205,8 @@ String zmanTimeForDisplay(String text, {required bool twelveHourClock}) {
     final hour = int.parse(match[1]!);
     final hour12 = hour % 12 == 0 ? 12 : hour % 12;
     final period = hour < 12 ? 'AM' : 'PM';
-    return '$_ltrIsolateStart$hour12:${match[2]}${match[3]} $period'
-        '$_ltrIsolateEnd';
+    return '$_ltrIsolateStart$hour12:${match[2]}${match[3]}'
+        '$_periodSeparator$period$_ltrIsolateEnd';
   });
 }
 

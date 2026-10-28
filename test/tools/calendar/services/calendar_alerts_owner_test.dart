@@ -161,6 +161,9 @@ void main() {
     expect(calculations, 5);
     expect(plannedTwelveHourClock, isTrue);
     expect(store.values[CalendarAlertsKeys.twelveHourClock], isTrue);
+    final rejected = await o.execute('setTwelveHourClock', {'enabled': 'yes'});
+    expect(rejected['ok'], isFalse);
+    expect(store.values[CalendarAlertsKeys.twelveHourClock], isTrue);
     expect(notifications.everyIdAtMostOnce, isTrue);
   });
 

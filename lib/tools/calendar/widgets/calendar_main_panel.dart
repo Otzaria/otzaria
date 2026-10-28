@@ -188,19 +188,14 @@ class CalendarMainPanel extends StatelessWidget {
         final shortTimes = context.read<CalendarCubit>().shortTimesFor(
           cell.gregorian,
         );
-        final additionalInfoLines =
-            <String>[
-                  if (shortTimes['sunrise'] case final sunrise?)
-                    'זריחה $sunrise',
-                  if (shortTimes['sunset'] case final sunset?) 'שקיעה $sunset',
-                ]
-                .map(
-                  (line) => zmanTimeForDisplay(
-                    line,
-                    twelveHourClock: state.twelveHourClock,
-                  ),
-                )
-                .toList();
+        String display(String time) =>
+            zmanTimeForDisplay(time, twelveHourClock: state.twelveHourClock);
+        final additionalInfoLines = <String>[
+          if (shortTimes['sunrise'] case final sunrise?)
+            'זריחה ${display(sunrise)}',
+          if (shortTimes['sunset'] case final sunset?)
+            'שקיעה ${display(sunset)}',
+        ];
         return Expanded(
           child: buildDayCell(
             context,
