@@ -4,6 +4,7 @@ import 'dart:isolate';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/book_common/utils/commentator_identity_lookup.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/error_log_file.dart';
 import 'package:otzaria/data/data_providers/book_text_reader.dart';
@@ -257,6 +258,26 @@ void main() {
       }),
       direct,
     );
+  });
+
+  test('זהויות מפרשים מה-worker ומ-isolate זמני זהות לשאילתה הישירה', () async {
+    final dbPath = await seedDb('seforim');
+    final args = {
+      'dbPath': dbPath,
+      'titles': ['מפרש', 'לא ספר'],
+    };
+    final direct = await onDirectConnection(
+      dbPath,
+      (repo) => repo.database.linkDao.selectCommentatorIdentities([
+        'מפרש',
+        'לא ספר',
+      ]),
+    );
+    expect([for (final row in direct) row['title']], ['מפרש']);
+
+    expect(await DbReadWorker.request('commentatorIdentities', args), direct);
+    DbReadWorker.stallTimeout = Duration.zero;
+    expect(await DbReadWorker.batched('commentatorIdentities', args), direct);
   });
 
   test('קטלוג הספרים מה-worker זהה לשאילתה הישירה', () async {
@@ -1010,6 +1031,21 @@ void main() {
       await SqliteDataProvider.instance.dispose();
       await UserBooksDatabaseHolder.instance.close();
       AppPaths.debugOverrideDataRootPath(null);
+    });
+
+    test('זהויות המפרשים נשלפות לפי כותרת, ושגיאת קריאה מחזירה ריק', () async {
+      expect((await lookupCommentatorIdentities(['מפרש', 'לא ספר'])).keys, [
+        'מפרש',
+      ]);
+
+      final db = sqlite3.sqlite3.open(dbPath);
+      try {
+        // טבלה בלי baseBookId: השאילתה נכשלת בשגיאת SQL רגילה.
+        db.execute('CREATE TABLE book_base_text (bookId INTEGER)');
+      } finally {
+        db.close();
+      }
+      expect(await lookupCommentatorIdentities(['מפרש']), isEmpty);
     });
 
     Link link(String title, int index2, {int? index2End}) => Link(

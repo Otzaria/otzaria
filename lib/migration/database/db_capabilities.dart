@@ -88,7 +88,7 @@ class DbCapabilities {
   }
 
   /// מתאים שאילתת ספרים קבועה למסד: בלי טבלאות מחברים מסיר את צירוף המחבר
-  /// (`ba`/`a`), ובלי `book.orderIndex` מציב NULL במקומו.
+  /// (`ba`/`a`), ובלי `book.orderIndex` או `book.collectiveTitleHe` מציב NULL.
   String adaptBookQuery(String query) {
     var adapted = query;
     if (!hasAuthors) {
@@ -98,6 +98,9 @@ class DbCapabilities {
     }
     if (!hasColumn('book', 'orderIndex')) {
       adapted = adapted.replaceAll(_bookOrderPattern, 'NULL');
+    }
+    if (!hasColumn('book', 'collectiveTitleHe')) {
+      adapted = adapted.replaceAll('b.collectiveTitleHe', 'NULL');
     }
     return adapted;
   }

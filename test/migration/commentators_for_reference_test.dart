@@ -671,9 +671,9 @@ ORDER BY b.orderIndex, b.title''';
     test('קישורי הספר נצברים לפני הצירוף לספר ולמחברים', () async {
       await enableSideVisibility();
       final db = await database.database;
-      final query = QueryLoader.loadQueries(
-        'LinkQueries.sq',
-      )['selectCommentatorsByBook']!;
+      final query = (await database.capabilities).adaptBookQuery(
+        QueryLoader.loadQueries('LinkQueries.sq')['selectCommentatorsByBook']!,
+      );
       final plan = db.select('EXPLAIN QUERY PLAN ${withVisibility(query)}', [
         1,
       ]);
@@ -746,7 +746,11 @@ ORDER BY b.orderIndex, b.title''';
       );
       expect(actual, hasLength(3));
       expect(
-        actual,
+        actual.map((row) => row['collectiveTitleHe']),
+        everyElement(isNull),
+      );
+      expect(
+        [for (final row in actual) Map.of(row)..remove('collectiveTitleHe')],
         db.select(withVisibility(legacyQuery), [source.bookId]).toMapList(),
       );
     });
