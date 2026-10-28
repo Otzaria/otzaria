@@ -1,4 +1,6 @@
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
+    show stripInlineNotesFromHeading;
 
 /// Shared TOC parsing utilities used by both the TextBook navigator and
 /// the Shamor Zachor scanner. This ensures a single source of truth for
@@ -62,7 +64,7 @@ class TocParser {
         if (code >= '1'.codeUnitAt(0) && code <= '6'.codeUnitAt(0)) {
           if (isTocExcludedHeadingLine(lower)) continue;
           final level = int.tryParse(c) ?? 1;
-          final text = _stripHtmlTags(line);
+          final text = _stripHtmlTags(stripInlineNotesFromHeading(line));
           if (text.isNotEmpty) {
             headers.add(_Header(text: text, index: i, level: level));
           }

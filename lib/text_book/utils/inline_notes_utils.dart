@@ -186,10 +186,18 @@ String stripInlineNotes(String html) {
 /// מסיר גם את אות ההפניה וגם את גוף ההערה — לחיפוש ולאינדוקס, שבהם תגי ה-HTML
 /// נמחקים והשאריות היו נשארות כטקסט חשוף שמזהם את התוצאות.
 /// אות ההפניה מפרידה מילים באינדקס, ולכן במקומה נשאר רווח.
-String stripInlineNotesForSearch(String html) {
+String stripInlineNotesForSearch(String html) =>
+    _stripNoteMarkersAndBodies(html, ' ');
+
+/// כמו [stripInlineNotesForSearch], לטקסט כותרת (תוכן העניינים, המיקום, נתיב
+/// ההעתקה). אות ההפניה צמודה למילה שלפניה, ולכן נמחקת בלי רווח.
+String stripInlineNotesFromHeading(String html) =>
+    _stripNoteMarkersAndBodies(html, '');
+
+String _stripNoteMarkersAndBodies(String html, String markerReplacement) {
   if (!html.contains('footnote')) return html;
   return html
-      .replaceAll(_footnoteMarkerRegExp, ' ')
+      .replaceAll(_footnoteMarkerRegExp, markerReplacement)
       .replaceAll(_footnoteBodyRegExp, '');
 }
 
