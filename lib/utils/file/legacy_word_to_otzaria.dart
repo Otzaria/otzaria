@@ -3,10 +3,13 @@ import 'dart:typed_data';
 import 'package:otzaria/utils/file/cfb_reader.dart';
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
 import 'package:otzaria/utils/file/document_format.dart';
+import 'package:otzaria/utils/file/html_to_otzaria.dart'
+    show kHtmlConverterVersion;
 import 'package:otzaria/utils/file/legacy_word_pictures.dart';
 import 'package:otzaria/utils/file/legacy_word_properties.dart';
 import 'package:otzaria/utils/file/text_encoding.dart';
 import 'package:otzaria/utils/file/word_number_format.dart';
+import 'package:otzaria/utils/file/word_web_page.dart';
 import 'package:otzaria/utils/text/html_escape.dart';
 import 'package:otzaria/utils/text/otzaria_markup.dart';
 
@@ -24,7 +27,13 @@ import 'package:otzaria/utils/text/otzaria_markup.dart';
 /// v7: יישור נגזר גם מ-`sprmPFBiDi`; בפסקה RTL נשמר מרכוז בלבד.
 /// v8: גוף ריק ותקרת תווים זורקים חריגה במקום להחזיר כותרת בלבד, וטבלת
 /// סגנונות פגומה אינה מפילה עוד את שכבת ה-PAPX/CHPX כולה.
-const int kLegacyWordConverterVersion = 9;
+/// v10: דף אינטרנט שנשמר כ-.doc (HTML או MHTML) עובר במנוע ה-HTML.
+const int _legacyWordLayerVersion = 10;
+
+/// נגזרת גם מגרסת מנוע ה-HTML, שממיר את דפי האינטרנט שנשמרו כ-.doc: קבוע
+/// עצמאי היה נשאר מאחור בכל שינוי שם, והמטמון היה מגיש פלט מיושן.
+const int kLegacyWordConverterVersion =
+    _legacyWordLayerVersion * 1000 + kHtmlConverterVersion;
 
 /// ממיר מסמך Word בינארי ישן (.doc / .dot, פורמט Word 97-2003) לטקסט
 /// של אוצריא.
@@ -42,6 +51,20 @@ String legacyWordToText(
   String? path,
   bool embedImages = true,
 }) {
+  final webPage = hasOleContainerSignature(bytes)
+      ? null
+      : sniffWordWebPage(bytes);
+  if (webPage != null) {
+    return wordWebPageToText(
+      bytes,
+      title,
+      kind: webPage,
+      format: format,
+      path: path,
+      embedImages: embedImages,
+    );
+  }
+
   final cfb = CfbFile.parse(bytes, format: format, path: path);
 
   final wordDocument = cfb.readStream('WordDocument');

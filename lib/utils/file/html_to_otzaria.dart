@@ -64,6 +64,7 @@ class HtmlLimits {
 /// שומר על **אותו מספר שורות** בדיוק, שאם לא כן אינדקסי תוכן העניינים
 /// וההערות האישיות היו זזים מול מה שהקורא רואה.
 /// [baseDirectory] היא תיקיית קובץ ה-HTML, שרק בתוכה נפתרות תמונות יחסיות.
+/// [archivedImages] מחליף אותה כשהתמונות שמורות בתוך המסמך עצמו (MHTML).
 /// [format] היא הסיומת שזוהתה בפועל, והיא זו שנרשמת בחריגות. בלעדיה כל כשל
 /// של קובץ .htm היה מדווח כ-.html — בניגוד לעיקרון ש-`fileType` הוא זהות
 /// ולא תווית.
@@ -72,6 +73,7 @@ String htmlToText(
   String title, {
   bool embedImages = true,
   String? baseDirectory,
+  ArchivedImageLookup? archivedImages,
   DocumentFormat format = DocumentFormat.html,
   int maxTotalEmbeddedImageBytes = EmbeddedMediaLimits.maxTotalImageBytes,
 }) {
@@ -112,6 +114,7 @@ String htmlToText(
   final ctx = _HtmlContext(
     images: _HtmlImageResolver(
       baseDirectory: baseDirectory,
+      archivedImages: archivedImages,
       embedImages: embedImages,
       maxTotalBytes: maxTotalEmbeddedImageBytes,
     ),
@@ -328,6 +331,10 @@ final RegExp _dataUriPattern = RegExp(
   caseSensitive: false,
 );
 
+/// תמונה ששמורה בתוך המסמך עצמו, לפי ה-`src` שלה; `null` כשאין כזו.
+typedef ArchivedImageLookup =
+    ({String mime, Uint8List bytes})? Function(String src);
+
 /// תוצאת פתרון תמונה: האם יש בכלל מה להציג, ומה ה-URI.
 ///
 /// ההפרדה חיונית: ההחלטה **האם** לפלוט `<img>` חייבת להיות זהה בשני מצבי
@@ -343,11 +350,13 @@ class _ResolvedImage {
 class _HtmlImageResolver {
   _HtmlImageResolver({
     required this.baseDirectory,
+    this.archivedImages,
     required this.embedImages,
     required this.maxTotalBytes,
   });
 
   final String? baseDirectory;
+  final ArchivedImageLookup? archivedImages;
   final bool embedImages;
   final int maxTotalBytes;
 
@@ -366,7 +375,21 @@ class _HtmlImageResolver {
 
   _ResolvedImage _resolveUncached(String src) {
     if (_dataUriPattern.hasMatch(src)) return _resolveDataUri(src);
+    final archived = archivedImages;
+    if (archived != null) return _resolveArchived(archived(src));
     return _resolveLocalFile(src);
+  }
+
+  _ResolvedImage _resolveArchived(({String mime, Uint8List bytes})? image) {
+    if (image == null || !_embeddableImageMimes.contains(image.mime)) {
+      return const _ResolvedImage.missing();
+    }
+    if (!_reserve(image.bytes.length)) return const _ResolvedImage.missing();
+    return _ResolvedImage(
+      embedImages
+          ? 'data:${image.mime};base64,${base64Encode(image.bytes)}'
+          : '',
+    );
   }
 
   _ResolvedImage _resolveDataUri(String src) {

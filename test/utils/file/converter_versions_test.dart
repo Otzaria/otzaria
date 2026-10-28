@@ -32,7 +32,7 @@ const Map<String, ({int version, String fingerprint})> _pinned = {
   'word-xml': (version: 1015, fingerprint: 'd810aa9cf47cbdef'),
   'odt': (version: 7, fingerprint: 'e7114c864beedc1d'),
   'rtf': (version: 8, fingerprint: 'cfa322a43935a572'),
-  'legacy-word': (version: 9, fingerprint: 'e39829bc7e2dd94f'),
+  'legacy-word': (version: 10003, fingerprint: 'e39829bc7e2dd94f'),
   'epub': (version: 16, fingerprint: 'a999c6001cd8c4f4'),
   'markdown': (version: 8, fingerprint: 'e0ac8348b37de4b8'),
   'html': (version: 3, fingerprint: '022fd0030315b79f'),
@@ -284,6 +284,12 @@ void main() {
     // קבוע עצמאי היה נשאר מאחור בשקט בכל שינוי במנוע, והמטמון של .xml היה
     // מגיש פלט מיושן.
     expect(kWordXmlConverterVersion % 1000, kOoxmlWordConverterVersion);
+  });
+
+  test('גרסת ה-Word הבינארי נגזרת ממנוע ה-HTML', () {
+    // דף אינטרנט שנשמר כ-.doc מומר במנוע ה-HTML, ושינוי שם חייב לפסול את
+    // המטמון שלו.
+    expect(kLegacyWordConverterVersion % 1000, kHtmlConverterVersion);
   });
 }
 
