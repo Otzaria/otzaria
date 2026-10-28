@@ -11,6 +11,27 @@ void main() {
   setUp(() => tmp = Directory.systemTemp.createTempSync('zip_extractor_test'));
   tearDown(() => tmp.deleteSync(recursive: true));
 
+  test('מסלול הספרייה מחלץ ZIP ושומר את המקור לפי בחירת המשתמש', () async {
+    final zip = File(p.join(tmp.path, 'ספרים.zip'))
+      ..writeAsBytesSync(
+        ZipEncoder().encodeBytes(
+          Archive()..add(ArchiveFile.string('ספרים/ספר.txt', 'שלום עולם')),
+        ),
+      );
+    final target = p.join(tmp.path, 'out');
+    final result = await ZipExtractorService.checkAndExtractZipIfNeeded(
+      tmp.path,
+      outputDirectoryPath: target,
+      onAskDeleteZip: () async => false,
+    );
+    expect(result.successfullyExtracted, isTrue);
+    expect(
+      File(p.join(target, 'ספרים/ספר.txt')).readAsStringSync(),
+      'שלום עולם',
+    );
+    expect(zip.existsSync(), isTrue);
+  });
+
   // בדיאלוג החילוץ onProgress לוכד את ה-State — אסור שייגרר ל-isolate.
   test('חילוץ חלופי עם onProgress שלוכד אובייקט לא-sendable', () async {
     final archive = Archive()
