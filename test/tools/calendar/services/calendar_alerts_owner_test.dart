@@ -107,15 +107,24 @@ void main() {
 
   test('חישוב זמני יום נשמר עד שינוי עיר, יום או העדפות', () async {
     var calculations = 0;
+    bool? plannedTwelveHourClock;
     final o = owner(
-      zmanPlanner: ({required alerts, required city, required now}) {
-        calculations++;
-        return CalendarAlertPlanner.planZmanAlerts(
-          alerts: alerts,
-          city: city,
-          now: now,
-        );
-      },
+      zmanPlanner:
+          ({
+            required alerts,
+            required city,
+            required now,
+            required twelveHourClock,
+          }) {
+            calculations++;
+            plannedTwelveHourClock = twelveHourClock;
+            return CalendarAlertPlanner.planZmanAlerts(
+              alerts: alerts,
+              city: city,
+              now: now,
+              twelveHourClock: twelveHourClock,
+            );
+          },
     );
     await o.execute('setZmanAlert', {
       'timeId': 'sunset',
@@ -146,6 +155,12 @@ void main() {
     now = now.add(const Duration(days: 1));
     await o.restoreIfNeeded();
     expect(calculations, 4);
+    expect(plannedTwelveHourClock, isFalse);
+    await o.execute('setTwelveHourClock', {'enabled': true});
+    await o.idle;
+    expect(calculations, 5);
+    expect(plannedTwelveHourClock, isTrue);
+    expect(store.values[CalendarAlertsKeys.twelveHourClock], isTrue);
     expect(notifications.everyIdAtMostOnce, isTrue);
   });
 

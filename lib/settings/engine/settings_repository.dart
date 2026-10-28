@@ -60,6 +60,8 @@ class SettingsRepository {
   static const String keyCommentaryPaneWidth = 'key-commentary-pane-width';
   static const String keyCalendarType = 'key-calendar-type';
   static const String keyCalendarDayTransition = 'key-calendar-day-transition';
+  static const String keyCalendarTwelveHourClock =
+      'key-calendar-twelve-hour-clock';
   static const String keySelectedCity = 'key-selected-city';
   static const String keyCalendarEvents = 'key-calendar-events';
   static const String keyCopyWithHeaders = 'key-copy-with-headers';
@@ -275,6 +277,7 @@ class SettingsRepository {
     keyCommentaryPaneWidth,
     keyCalendarType,
     keyCalendarDayTransition,
+    keyCalendarTwelveHourClock,
     keySelectedCity,
     keyCalendarEvents,
     keyCopyWithHeaders,
@@ -480,6 +483,10 @@ class SettingsRepository {
       'calendarDayTransition': _settings.getValue<String>(
         keyCalendarDayTransition,
         defaultValue: 'sunset',
+      ),
+      'calendarTwelveHourClock': _settings.getValue<bool>(
+        keyCalendarTwelveHourClock,
+        defaultValue: false,
       ),
       'selectedCity': _settings.getValue<String>(
         keySelectedCity,
@@ -818,6 +825,10 @@ class SettingsRepository {
 
   Future<void> updateCalendarDayTransition(String value) async {
     await _settings.setValue(keyCalendarDayTransition, value);
+  }
+
+  Future<void> updateCalendarTwelveHourClock(bool value) async {
+    await _settings.setValue(keyCalendarTwelveHourClock, value);
   }
 
   Future<void> updateSelectedCity(String value) async {
@@ -1225,6 +1236,7 @@ class SettingsRepository {
     await _settings.setValue(keyCommentaryPaneWidth, 400.0);
     await _settings.setValue(keyCalendarType, 'combined');
     await _settings.setValue(keyCalendarDayTransition, 'sunset');
+    await _settings.setValue(keyCalendarTwelveHourClock, false);
     await _settings.setValue(keySelectedCity, 'ירושלים');
     await _settings.setValue(keyCalendarEvents, '[]');
     await _settings.setValue(keyCopyWithHeaders, 'none');

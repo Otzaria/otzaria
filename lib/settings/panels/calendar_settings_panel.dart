@@ -80,6 +80,14 @@ class CalendarSettingsTab extends StatefulWidget {
       keywords: ['לוח שנה', 'מעבר יום', 'שקיעה', 'חצות', 'שעה'],
     ),
     SettingsSearchEntry(
+      id: 'tools.calendar.twelve_hour_clock',
+      title: 'שעון 12 שעות',
+      subtitle: 'הצגת הזמנים בפורמט AM/PM',
+      tab: SettingsTab.tools,
+      cardId: 'tools.calendar',
+      keywords: ['לוח שנה', 'זמנים', 'שעה', 'AM', 'PM', '24 שעות', 'פורמט'],
+    ),
+    SettingsSearchEntry(
       id: 'tools.calendar.candle_minutes',
       title: 'דקות הדלקת נרות',
       subtitle: 'מספר דקות לפני שקיעה להדלקת נרות',
@@ -253,6 +261,15 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
                         value,
                       );
                     }
+                  },
+                ),
+                SettingsActionTile.switchTile(
+                  icon: FluentIcons.clock_24_regular,
+                  title: context.settingsText('שעון 12 שעות'),
+                  subtitle: context.settingsText('הצגת הזמנים בפורמט AM/PM'),
+                  value: state.twelveHourClock,
+                  onChanged: (value) {
+                    context.read<CalendarCubit>().changeTwelveHourClock(value);
                   },
                 ),
                 // עיר

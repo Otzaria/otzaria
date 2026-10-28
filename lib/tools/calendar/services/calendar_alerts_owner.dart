@@ -16,6 +16,7 @@ typedef ZmanAlertPlanner =
       required Map<String, ZmanAlertPreference> alerts,
       required String city,
       required DateTime now,
+      required bool twelveHourClock,
     });
 
 /// מצב שהבעלים פרסם: [values] בתוקף מ-[revision] של ההפעלה [epoch].
@@ -139,7 +140,7 @@ class CalendarAlertsOwner {
 
   Set<int>? _ledger;
   final Map<int, PlannedAlert> _appliedAlerts = {};
-  (DateTime, String, Object?)? _zmanPlanKey;
+  (DateTime, String, Object?, bool)? _zmanPlanKey;
   List<PlannedAlert> _zmanPlan = const [];
   bool _reconcileRunning = false;
   bool _reconcileRequested = false;
@@ -403,6 +404,11 @@ class CalendarAlertsOwner {
     },
     'setCity': (_, current, args) =>
         _changed(current, CalendarAlertsKeys.city, _stringArg(args, 'city')),
+    'setTwelveHourClock': (_, current, args) {
+      final enabled = args['enabled'];
+      if (enabled is! bool) throw const _InvalidCommand('enabled');
+      return _changed(current, CalendarAlertsKeys.twelveHourClock, enabled);
+    },
   };
 
   Future<Map<String, Object?>> _applyState(
@@ -673,13 +679,20 @@ class CalendarAlertsOwner {
     // שומרים יום שלם; הסינון להלן מתחשב גם בחזרה בשעון באותו יום.
     final today = DateTime(now.year, now.month, now.day);
     final city = values[CalendarAlertsKeys.city] as String? ?? 'ירושלים';
-    final zmanPlanKey = (today, city, values[CalendarAlertsKeys.zmanAlerts]);
+    final twelveHourClock = values[CalendarAlertsKeys.twelveHourClock] == true;
+    final zmanPlanKey = (
+      today,
+      city,
+      values[CalendarAlertsKeys.zmanAlerts],
+      twelveHourClock,
+    );
     if (_zmanPlanKey != zmanPlanKey) {
       final cached = <PlannedAlert>[];
       for (final alert in _zmanPlanner(
         alerts: zmanAlerts,
         city: city,
         now: today,
+        twelveHourClock: twelveHourClock,
       )) {
         cached.add(alert);
         // חישוב זמני היום כבד; מפנים את ה-isolate בין יום ליום.

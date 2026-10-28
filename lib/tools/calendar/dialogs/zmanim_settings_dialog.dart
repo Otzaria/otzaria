@@ -19,9 +19,10 @@ class ZmanimSettingsContent extends StatelessWidget {
   const ZmanimSettingsContent({super.key});
 
   /// מחזיר את זמן ההגדרה ליום הנוכחי, או "—" אם אינו זמין/רלוונטי.
-  static String _timeFor(ZmanDefinition def, Map<String, String> dailyTimes) {
-    final t = dailyTimes[def.id];
-    return (t == null || t.isEmpty) ? '—' : t;
+  static String _timeFor(ZmanDefinition def, CalendarState state) {
+    final t = state.dailyTimes[def.id];
+    if (t == null || t.isEmpty) return '—';
+    return zmanTimeForDisplay(t, twelveHourClock: state.twelveHourClock);
   }
 
   @override
@@ -46,7 +47,9 @@ class ZmanimSettingsContent extends StatelessWidget {
       height: height,
       child: BlocBuilder<CalendarCubit, CalendarState>(
         buildWhen: (a, b) =>
-            a.enabledZmanim != b.enabledZmanim || a.dailyTimes != b.dailyTimes,
+            a.enabledZmanim != b.enabledZmanim ||
+            a.dailyTimes != b.dailyTimes ||
+            a.twelveHourClock != b.twelveHourClock,
         builder: (context, state) {
           final dailyTimes = state.dailyTimes;
           // סדר הרישום — שובר-שוויון יציב לזמני תאריך עברי (קידוש לבנה),
@@ -97,7 +100,7 @@ class ZmanimSettingsContent extends StatelessWidget {
                           _ZmanTableRow(
                             definition: def,
                             enabled: state.enabledZmanim.contains(def.id),
-                            timeLabel: _timeFor(def, dailyTimes),
+                            timeLabel: _timeFor(def, state),
                             striped: i.isOdd,
                             onChanged: (value) => context
                                 .read<CalendarCubit>()

@@ -61,6 +61,31 @@ void main() {
       );
     });
 
+    test('שעת ההתראה מנוסחת לפי שעון 12 או 24 שעות', () {
+      String firstBody({required bool twelveHourClock}) =>
+          CalendarAlertPlanner.planZmanAlerts(
+            alerts: const {
+              'sunset': ZmanAlertPreference(
+                minutesBefore: 10,
+                displayName: 'שקיעה',
+              ),
+            },
+            city: 'ירושלים',
+            now: now,
+            twelveHourClock: twelveHourClock,
+          ).first.body;
+
+      final clock = RegExp(
+        r'\((\d{2}):(\d{2})\)$',
+      ).firstMatch(firstBody(twelveHourClock: false))!;
+      final hour = int.parse(clock[1]!);
+      expect(hour, greaterThan(12));
+      expect(
+        firstBody(twelveHourClock: true),
+        endsWith('(${hour - 12}:${clock[2]} PM)'),
+      );
+    });
+
     test('a zman that already passed today is not planned', () {
       final plan = CalendarAlertPlanner.planZmanAlerts(
         alerts: alerts,

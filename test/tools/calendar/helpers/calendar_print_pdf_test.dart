@@ -88,6 +88,30 @@ void main() {
     }
   });
 
+  test('בשעון 12 שעות הזמנים מודפסים ב-AM/PM ונשארים בסדר כרונולוגי', () {
+    final state = dayState(
+      enabled: {'chatzosLayla', 'sunset', 'chatzos', 'sunrise'},
+    ).copyWith(twelveHourClock: true);
+    final zmanim = calendarPrintedZmanim(state);
+    final names = {
+      for (final def in kZmanimRegistry) def.id: def.fullName,
+    };
+    // מיון לפי הטקסט היה מקדים את חצות היום ("12:..") לזריחה ("6:..").
+    expect(
+      [for (final (name, _) in zmanim) name],
+      [
+        names['sunrise'],
+        names['chatzos'],
+        names['sunset'],
+        names['chatzosLayla'],
+      ],
+    );
+    expect(
+      [for (final (_, time) in zmanim) time.contains(' AM') ? 'AM' : 'PM'],
+      ['AM', 'PM', 'PM', 'AM'],
+    );
+  });
+
   test('חודש בן שש שורות מודפס במלואו גם לרוחב העמוד', () async {
     // תשרי תשפ"ז מתחיל בשבת — שש שורות שנדחסות לגובה עמוד A4 לרוחב.
     final greg = DateTime(2026, 9, 20);

@@ -291,7 +291,13 @@ List<(String, String)> calendarPrintedZmanim(CalendarState state) {
       return a.time.compareTo(b.time);
     },
   );
-  return [for (final z in zmanim) (z.name, z.time)];
+  return [
+    for (final z in zmanim)
+      (
+        z.name,
+        zmanTimeForDisplay(z.time, twelveHourClock: state.twelveHourClock),
+      ),
+  ];
 }
 
 CalendarState _getStateForDayOffset(CalendarState state, int offset) {
@@ -578,7 +584,16 @@ pw.Widget _buildWeekGrid(CalendarState state, _CalendarText font) {
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: days.map((date) {
       final jd = JewishDate.fromDateTime(date);
-      final dailyTimes = calculateDailyTimes(date, state.selectedCity);
+      final dailyTimes = {
+        for (final MapEntry(:key, :value) in calculateDailyTimes(
+          date,
+          state.selectedCity,
+        ).entries)
+          key: zmanTimeForDisplay(
+            value,
+            twelveHourClock: state.twelveHourClock,
+          ),
+      };
       final events = _eventsForDate(date, state);
       final jewishEvents = _jewishEventsForDate(date, state.inIsrael);
       return pw.Expanded(
