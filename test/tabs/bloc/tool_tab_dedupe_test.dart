@@ -266,6 +266,41 @@ void main() {
       expect(tabs.where((tab) => tab.dedupeKey != null).length, 1);
     });
 
+    test('מופע נוסף עם insertAdjacent נכנס מיד אחרי הטאב הנוכחי', () async {
+      final primary = tool(pluginId);
+      final other = tool('com.example.other');
+      final last = tool('com.example.last');
+      for (final tab in [primary, other, last]) {
+        bloc.add(OpenOrFocusTab(tab));
+      }
+      bloc.add(SetCurrentTab(0));
+      await pumpEventQueue();
+      expect(bloc.state.currentTabIndex, 0);
+
+      final added = extra();
+      bloc.add(OpenOrFocusTab(added, insertAdjacent: true));
+      await pumpEventQueue();
+
+      expect(bloc.state.tabs, [primary, added, other, last]);
+      expect(bloc.state.currentTabIndex, 1);
+    });
+
+    test('בלי insertAdjacent המופע הנוסף נכנס בסוף השורה', () async {
+      final primary = tool(pluginId);
+      final other = tool('com.example.other');
+      for (final tab in [primary, other]) {
+        bloc.add(OpenOrFocusTab(tab));
+      }
+      bloc.add(SetCurrentTab(0));
+      await pumpEventQueue();
+
+      final added = extra();
+      bloc.add(OpenOrFocusTab(added));
+      await pumpEventQueue();
+
+      expect(bloc.state.tabs, [primary, other, added]);
+    });
+
     test('סגירת מופע אחד משאירה את האחרים', () async {
       final primary = tool(pluginId);
       final first = extra();
