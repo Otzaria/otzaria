@@ -63,6 +63,10 @@ String wordWebPageToText(
 
 const int _sniffWindow = 8 * 1024;
 
+/// הפענוח מחזיק את הארכיון כמחרוזת ואת חלקיו כתת-מחרוזות, ולכן הזיכרון
+/// גדל פי כמה מגודל הקובץ.
+const int _maxArchiveBytes = 256 * 1024 * 1024;
+
 final RegExp _headerBlockPattern = RegExp(r'\r?\n\r?\n');
 final RegExp _multipartRelatedPattern = RegExp(
   r'^content-type:\s*multipart/related',
@@ -71,7 +75,7 @@ final RegExp _multipartRelatedPattern = RegExp(
 );
 final RegExp _htmlStartPattern = RegExp(
   r'^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*'
-  r'<(?:!doctype\s+html|html[\s>])',
+  r'<(?:!doctype\s+html|(?:html|head|body)[\s>]|meta\s)',
   caseSensitive: false,
 );
 
@@ -127,7 +131,9 @@ class _MhtmlPart {
         .toLowerCase();
     try {
       return switch (encoding) {
-        'base64' => base64Decode(_body.replaceAll(_whitespace, '')),
+        'base64' => base64Decode(
+          base64.normalize(_body.replaceAll(_whitespace, '')),
+        ),
         'quoted-printable' => _decodeQuotedPrintable(_body),
         _ => latin1.encode(_body),
       };
@@ -155,6 +161,9 @@ class _MhtmlArchive {
       cause: cause,
     );
 
+    if (bytes.length > _maxArchiveBytes) {
+      fail('ארכיון MHTML של ${bytes.length} בתים (מעל $_maxArchiveBytes)');
+    }
     // latin1 ממפה כל בייט לתו אחד, כך שהמבנה נשמר והבייטים חוזרים כמו שהם.
     final text = latin1.decode(bytes);
     final (topHeaders, body) = _splitHeaders(text);
@@ -337,8 +346,9 @@ Uint8List _decodeQuotedPrintable(String body) {
       i += 1;
       continue;
     }
-    final value = i + 2 < body.length
-        ? int.tryParse(body.substring(i + 1, i + 3), radix: 16)
+    final value =
+        i + 2 < body.length && _hexPair.hasMatch(body.substring(i + 1, i + 3))
+        ? int.parse(body.substring(i + 1, i + 3), radix: 16)
         : null;
     if (value == null) {
       buffer.add(unit);
@@ -351,4 +361,5 @@ Uint8List _decodeQuotedPrintable(String body) {
 }
 
 final RegExp _whitespace = RegExp(r'\s');
+final RegExp _hexPair = RegExp(r'^[0-9A-Fa-f]{2}$');
 final RegExp _lineBreak = RegExp(r'\r?\n');

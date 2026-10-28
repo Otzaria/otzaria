@@ -109,6 +109,13 @@ void main() {
         ),
         WordWebPageKind.html,
       );
+      // ייצוא "שמור כ-Word" של אתרים פותח לפעמים ישר ב-<meta>.
+      expect(
+        sniffWordWebPage(
+          Uint8List.fromList(utf8.encode('<meta charset="utf-8"><p>א</p>')),
+        ),
+        WordWebPageKind.html,
+      );
     });
 
     test('טקסט רגיל ותג שאינו פותח את המסמך אינם דף אינטרנט', () {
@@ -195,6 +202,23 @@ void main() {
         legacyWordToText(Uint8List.fromList(utf8.encode(text)), _title),
       );
       expect(lines, ['שבת']);
+    });
+
+    test('= שאחריו אינם שני תווי hex נשאר כמו שהוא', () {
+      final text = [
+        'Content-Type: multipart/related; boundary="b3"',
+        '',
+        '--b3',
+        'Content-Transfer-Encoding: quoted-printable',
+        'Content-Type: text/html',
+        '',
+        '<p>a=-1b= 1c</p>',
+        '--b3--',
+      ].join('\r\n');
+      final lines = _bodyLines(
+        legacyWordToText(Uint8List.fromList(utf8.encode(text)), _title),
+      );
+      expect(lines, ['a=-1b= 1c']);
     });
 
     test('הדף הראשי נבחר לפי start ולא לפי הסדר', () {
