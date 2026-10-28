@@ -97,30 +97,32 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
 
     final normalizedQuery = _dictionaryRepository.normalizeAcronymQuery(query);
 
+    // הדירוג מחושב פעם אחת לכל תוצאה ולא בכל השוואה במיון — בשאילתה של אות
+    // אחת כמעט כל המילון תואם.
+    final ranked = <({AcronymCatalogEntry entry, int rank})>[];
+    for (final entry in _catalog) {
+      if (entry.displayAcronym.contains(query) ||
+          (normalizedQuery.isNotEmpty &&
+              entry.normalizedKey.contains(normalizedQuery)) ||
+          entry.meanings.any((meaning) => meaning.contains(query))) {
+        ranked.add((
+          entry: entry,
+          rank: _matchRank(entry, query, normalizedQuery),
+        ));
+      }
+    }
+    ranked.sort((a, b) {
+      final rankCompare = a.rank.compareTo(b.rank);
+      if (rankCompare != 0) return rankCompare;
+      final lengthCompare = a.entry.displayAcronym.length.compareTo(
+        b.entry.displayAcronym.length,
+      );
+      if (lengthCompare != 0) return lengthCompare;
+      return a.entry.displayAcronym.compareTo(b.entry.displayAcronym);
+    });
+
     setState(() {
-      _filteredResults =
-          _catalog
-              .where(
-                (entry) =>
-                    entry.displayAcronym.contains(query) ||
-                    (normalizedQuery.isNotEmpty &&
-                        entry.normalizedKey.contains(normalizedQuery)) ||
-                    entry.meanings.any((meaning) => meaning.contains(query)),
-              )
-              .toList()
-            ..sort((a, b) {
-              final rankCompare = _matchRank(
-                a,
-                query,
-                normalizedQuery,
-              ).compareTo(_matchRank(b, query, normalizedQuery));
-              if (rankCompare != 0) return rankCompare;
-              final lengthCompare = a.displayAcronym.length.compareTo(
-                b.displayAcronym.length,
-              );
-              if (lengthCompare != 0) return lengthCompare;
-              return a.displayAcronym.compareTo(b.displayAcronym);
-            });
+      _filteredResults = [for (final match in ranked) match.entry];
     });
   }
 
