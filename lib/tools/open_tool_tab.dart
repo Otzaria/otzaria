@@ -148,7 +148,9 @@ String openNewToolTabInstance(BuildContext context, ToolCatalogEntry entry) =>
     _dispatchInstanceTab(context, newToolTabInstance(entry));
 
 String _dispatchInstanceTab(BuildContext context, ToolTab tab) {
-  context.read<TabsBloc>().add(OpenOrFocusTab(tab));
+  // המופע החדש נפתח מתוך התוסף, ולכן הוא נכנס מיד אחרי הטאב הנוכחי ולא בסוף
+  // השורה.
+  context.read<TabsBloc>().add(OpenOrFocusTab(tab, insertAdjacent: true));
   context.read<NavigationBloc>().add(
     const NavigateToScreen(Screen.reading),
   );
