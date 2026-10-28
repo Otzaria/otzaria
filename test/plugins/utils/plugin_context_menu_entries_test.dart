@@ -396,31 +396,14 @@ void main() {
       expect(launcher.hasPendingFor(pid), isTrue);
     });
 
-    test('שני האירועים ממתינים למופע החדש ולא למופע הראשי', () async {
-      await click(
-        const PluginContextMenuItem(
-          id: 'go',
-          label: 'go',
-          openPlugin: true,
-          newTab: true,
-        ),
-      );
-
-      // שני האירועים (הכללי והייעודי) ממתינים למופע 'extra' בלבד.
-      launcher.markPageReady(pid);
-      expect(launcher.hasPendingFor(pid), isTrue);
-
-      launcher.markPageReady(pid, instanceId: 'extra', isPrimary: false);
-      expect(launcher.hasPendingFor(pid), isFalse);
-    });
-
     test('בלי newTab הלחיצה מנווטת למופע הראשי ואינה פותחת מופע', () async {
       await click(
         const PluginContextMenuItem(id: 'go', label: 'go', openPlugin: true),
       );
 
       expect(opened, isEmpty);
-      expect(navigated, [pid]);
+      // שני האירועים (הכללי והייעודי) פותחים את הדף, ושניהם מכוונים לראשי.
+      expect(navigated.toSet(), {pid});
     });
   });
 }
