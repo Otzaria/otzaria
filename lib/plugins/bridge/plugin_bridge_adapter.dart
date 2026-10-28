@@ -3409,6 +3409,7 @@ class PluginBridgeAdapter {
       case 'getCorrectionDraft':
         return _correctionDraftAction(action, args);
       case 'addContextMenuItem':
+        _requireMultipleInstancesForNewTab(args);
         ContextMenuRegistry.instance.registerPayload(
           plugin.pluginId,
           args,
@@ -3434,6 +3435,7 @@ class PluginBridgeAdapter {
             'id and patch are required',
           );
         }
+        _requireMultipleInstancesForNewTab(Map<String, dynamic>.from(patch));
         ContextMenuRegistry.instance.update(
           plugin.pluginId,
           id,
@@ -3443,6 +3445,7 @@ class PluginBridgeAdapter {
         await _trackWhenStorageKeys(Map<String, dynamic>.from(patch));
         return true;
       case 'addToolbarItem':
+        _requireMultipleInstancesForNewTab(args);
         PluginToolbarRegistry.instance.registerPayload(
           plugin.pluginId,
           args,
@@ -3468,6 +3471,7 @@ class PluginBridgeAdapter {
             'id and patch are required',
           );
         }
+        _requireMultipleInstancesForNewTab(Map<String, dynamic>.from(patch));
         PluginToolbarRegistry.instance.update(
           plugin.pluginId,
           id,
@@ -6160,6 +6164,17 @@ class PluginBridgeAdapter {
 
   /// רושם למעקב את מפתחות ה-KV של תנאי ה-`when` בפריט שנרשם בזמן ריצה,
   /// אחרת הסינון שלו לא יגיב ל-`storage.set`.
+  /// `newTab` בלחצן או בפריט תפריט הקשר פותח מופע נוסף, ולכן מותר רק לתוסף
+  /// שהצהיר על `allowMultipleInstances` — אותו כלל כמו ב-`plugin.openSelf`.
+  void _requireMultipleInstancesForNewTab(Map<String, dynamic> payload) {
+    if (payload['newTab'] == true && !plugin.manifest.allowMultipleInstances) {
+      throw Exception(
+        'error.forbidden: contributes.toolTab.allowMultipleInstances '
+        'is not enabled in the manifest',
+      );
+    }
+  }
+
   Future<void> _trackWhenStorageKeys(Map<String, dynamic> args) async {
     final raw = args['when'];
     if (raw == null) return;

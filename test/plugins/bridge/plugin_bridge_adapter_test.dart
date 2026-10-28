@@ -4733,6 +4733,91 @@ Future<void> main() async {
       expect(item.param, 'my-param');
     });
 
+    group('newTab בפריט תפריט הקשר', () {
+      test('בלי allowMultipleInstances נדחה עם forbidden ולא נרשם', () async {
+        await expectLater(
+          adapter.execute('reader', 'addContextMenuItem', {
+            'id': 'new-tab',
+            'label': 'פתח',
+            'openPlugin': true,
+            'newTab': true,
+          }),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('error.forbidden'),
+            ),
+          ),
+        );
+        expect(ContextMenuRegistry.instance.getAll(), isEmpty);
+      });
+
+      test('עדכון שמוסיף newTab בלי allowMultipleInstances נדחה', () async {
+        await adapter.execute('reader', 'addContextMenuItem', {
+          'id': 'plain',
+          'label': 'פתח',
+          'openPlugin': true,
+        });
+
+        await expectLater(
+          adapter.execute('reader', 'updateContextMenuItem', {
+            'id': 'plain',
+            'patch': {'newTab': true},
+          }),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('error.forbidden'),
+            ),
+          ),
+        );
+        expect(ContextMenuRegistry.instance.getAll().single.$2.newTab, isFalse);
+      });
+
+      test('עם allowMultipleInstances נרשם', () async {
+        final multi = PluginBridgeAdapter(
+          _buildInstalledPlugin(
+            permissions: const ['navigation.write', 'reader.context_menu'],
+            allowMultipleInstances: true,
+          ),
+          dependencies: _buildNetworkDeps(),
+          pluginRepository: registry,
+        );
+
+        await multi.execute('reader', 'addContextMenuItem', {
+          'id': 'new-tab',
+          'label': 'פתח',
+          'openPlugin': true,
+          'newTab': true,
+        });
+
+        expect(ContextMenuRegistry.instance.getAll().single.$2.newTab, isTrue);
+      });
+
+      test('בלי openPlugin נדחה גם כשהתוסף מצהיר על מופעים', () async {
+        final multi = PluginBridgeAdapter(
+          _buildInstalledPlugin(
+            permissions: const ['navigation.write', 'reader.context_menu'],
+            allowMultipleInstances: true,
+          ),
+          dependencies: _buildNetworkDeps(),
+          pluginRepository: registry,
+        );
+
+        await expectLater(
+          multi.execute('reader', 'addContextMenuItem', {
+            'id': 'bad',
+            'label': 'פתח',
+            'newTab': true,
+          }),
+          throwsA(isA<Exception>()),
+        );
+        expect(ContextMenuRegistry.instance.getAll(), isEmpty);
+      });
+    });
+
     test('addContextMenuItem ללא הדגלים החדשים — ברירות מחדל', () async {
       await adapter.execute('reader', 'addContextMenuItem', {
         'id': 'item-2',

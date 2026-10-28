@@ -722,6 +722,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
     PluginPageLauncher.instance.registerInstanceOpener(
       _windowKeys,
       _openPluginInstance,
+      hasOpenTab: _hasOpenPluginTab,
     );
     ToolsLauncherController.instance.register(_windowKeys, _openToolsLauncher);
 
@@ -1989,6 +1990,14 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (!mounted) return null;
     return openPluginToolInstanceById(context, pluginId);
   }
+
+  bool _hasOpenPluginTab(String pluginId) =>
+      mounted &&
+      openToolInstanceCount(
+            context.read<TabsBloc>().state.tabs,
+            pluginId,
+          ) >
+          0;
 
   void _openToolsLauncher() {
     if (!mounted || _isToolsLauncherOpen) return;

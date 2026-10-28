@@ -41,6 +41,10 @@ class PluginContextMenuItem implements PluginRegistryItem {
   /// לחיצה על הפריט תפתח את דף התוסף, ואירוע הלחיצה יימסר לו לאחר הטעינה.
   final bool openPlugin;
 
+  /// עם [openPlugin]: הלחיצה פותחת מופע נוסף של התוסף בכרטיסיה חדשה ומוסרת לו
+  /// את האירוע, במקום למקד את המופע הראשי. דורש `allowMultipleInstances`.
+  final bool newTab;
+
   /// ערך חופשי שהתוסף מסר ברישום — מוחזר לו כלשונו ב-payload של אירוע הלחיצה.
   final Object? param;
 
@@ -80,6 +84,7 @@ class PluginContextMenuItem implements PluginRegistryItem {
     this.children = const [],
     this.colors = const [],
     this.openPlugin = false,
+    this.newTab = false,
     this.param,
     this.showWhenContainsAny = const [],
     this.when,
@@ -112,6 +117,7 @@ class PluginContextMenuItem implements PluginRegistryItem {
     if (colors.isNotEmpty)
       'colors': colors.map((color) => color.toJson()).toList(),
     if (openPlugin) 'openPlugin': true,
+    if (newTab) 'newTab': true,
     if (param != null) 'param': param,
     if (showWhenContainsAny.isNotEmpty)
       'showWhen': {'selectionContainsAny': showWhenContainsAny},

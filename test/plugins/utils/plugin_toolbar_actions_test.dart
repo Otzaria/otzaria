@@ -9,6 +9,9 @@ import 'package:otzaria/widgets/navigation/responsive_action_bar.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/controls/bar_split_button.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
+import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 
 void main() {
   Future<Map<String, dynamic>> emptyLocation() async => const {};
@@ -271,5 +274,74 @@ void main() {
 
     expect(dispatched, [hostAction]);
     expect(locationCalls, 0);
+  });
+
+  group('openPlugin עם newTab', () {
+    const pid = 'click.new.tab.plugin';
+    late List<String> opened;
+    late List<String> navigated;
+    final launcher = PluginPageLauncher.instance;
+
+    String? opener(String pluginId) {
+      opened.add(pluginId);
+      return 'extra';
+    }
+
+    void navigator(String pluginId) => navigated.add(pluginId);
+
+    setUp(() {
+      opened = [];
+      navigated = [];
+      launcher.register(AppWindowKeys.current, navigator);
+      launcher.registerInstanceOpener(
+        AppWindowKeys.current,
+        opener,
+        hasOpenTab: (_) => true,
+      );
+    });
+
+    tearDown(() {
+      launcher.unregister(AppWindowKeys.current, navigator);
+      launcher.unregisterInstanceOpener(AppWindowKeys.current, opener);
+      launcher.markPageClosed(pid, instanceId: 'extra');
+      launcher.markPageClosed(pid);
+      AppWindowKeys.resetForTest();
+    });
+
+    Future<void> press(PluginToolbarItem item) async {
+      final action = buildPluginToolbarActions(
+        records: [(pid, item)],
+        context: 'reader-text',
+        compact: false,
+        locationPayload: emptyLocation,
+        dispatcher: PluginRuntimeDispatcher.instance,
+      ).single;
+      action.onPressed!();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+
+    test('פותח מופע נוסף ולא מנווט למופע הראשי', () async {
+      await press(
+        const PluginToolbarItem(
+          id: 'go',
+          title: 'go',
+          openPlugin: true,
+          newTab: true,
+        ),
+      );
+
+      expect(opened, [pid]);
+      expect(navigated, isEmpty);
+      expect(launcher.hasPendingFor(pid), isTrue);
+    });
+
+    test('בלי newTab הלחיצה מנווטת למופע הראשי ואינה פותחת מופע', () async {
+      await press(
+        const PluginToolbarItem(id: 'go', title: 'go', openPlugin: true),
+      );
+
+      expect(opened, isEmpty);
+      expect(navigated, [pid]);
+    });
   });
 }

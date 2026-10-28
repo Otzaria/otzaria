@@ -334,6 +334,29 @@ class PluginExtendedValidator {
   static const String _headlessMinVersion = '0.9.98';
   static const String _searchFieldActionsMinVersion = '0.9.98.1';
 
+  /// `newTab` בלחצן או בפריט תפריט הקשר פותח מופע נוסף של התוסף, ולכן דורש
+  /// `allowMultipleInstances`. הדרישה ל-`openPlugin` ולסוג הערך נבדקת בניתוח
+  /// הפריט עצמו.
+  static void _validateNewTabItems(
+    PluginManifest manifest,
+    String field,
+    List<Map<String, dynamic>> items,
+    List<String> errors,
+  ) {
+    bool usesNewTab(Object? item) {
+      if (item is! Map) return false;
+      if (item['newTab'] == true) return true;
+      final children = item['children'];
+      return children is List && children.any(usesNewTab);
+    }
+
+    if (manifest.allowMultipleInstances || !items.any(usesNewTab)) return;
+    errors.add(
+      'contributes.startup.$field: newTab דורש '
+      'contributes.toolTab.allowMultipleInstances: true',
+    );
+  }
+
   /// בודק את הדגלים של `contributes.toolTab`, כרגע `allowMultipleInstances`:
   /// חייב להיות בוליאני, והצהרה עליו מחייבת `minAppVersion` מתאים.
   static void _validateToolTabFlags(
@@ -855,6 +878,12 @@ class PluginExtendedValidator {
       if (toolbarIds.toSet().length != toolbarIds.length) {
         errors.add('contributes.startup.toolbarItems מכיל מזהה כפול');
       }
+      _validateNewTabItems(
+        manifest,
+        'toolbarItems',
+        startup.toolbarItems,
+        errors,
+      );
       final registry = PluginToolbarRegistry.detached();
       for (final item in startup.toolbarItems.where(
         (item) => !DeclarativeToolbarTemplateCompiler.isDeclarative(item),
@@ -874,6 +903,12 @@ class PluginExtendedValidator {
           '"reader.context_menu" שלא הוכרזה ב-manifest',
         );
       }
+      _validateNewTabItems(
+        manifest,
+        'contextMenuItems',
+        startup.contextMenuItems,
+        errors,
+      );
       final registry = ContextMenuRegistry.detached();
       for (final item in startup.contextMenuItems) {
         try {

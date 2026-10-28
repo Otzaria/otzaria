@@ -1253,4 +1253,70 @@ void main() {
       check(true, '0.9.94', rejected: true);
     });
   });
+
+  group('newTab בלחצנים ובתפריט הקשר', () {
+    Map<String, dynamic> manifest({
+      required bool allowMultiple,
+      String field = 'toolbarItems',
+      Map<String, dynamic>? item,
+    }) {
+      final json = _baseManifest(
+        minAppVersion: '0.9.99',
+        permissions: const [
+          'app.startup_contributions',
+          'reader.toolbar',
+          'reader.context_menu',
+        ],
+      );
+      final contributes = json['contributes'] as Map<String, dynamic>;
+      if (allowMultiple) {
+        (contributes['toolTab'] as Map<String, dynamic>)['allowMultipleInstances'] =
+            true;
+      }
+      contributes['startup'] = {
+        field: [
+          item ??
+              {
+                'id': 'open-new',
+                'title': 'פתח',
+                'openPlugin': true,
+                'newTab': true,
+              },
+        ],
+      };
+      return json;
+    }
+
+    bool mentionsNewTab(PluginValidationReport report) =>
+        report.errors.any((e) => e.contains('newTab'));
+
+    for (final field in ['toolbarItems', 'contextMenuItems']) {
+      test('$field: newTab בלי allowMultipleInstances נדחה', () {
+        final report = _runOn(
+          tempDir,
+          manifestOverride: manifest(allowMultiple: false, field: field),
+        );
+        expect(mentionsNewTab(report), isTrue, reason: '${report.errors}');
+      });
+
+      test('$field: newTab עם allowMultipleInstances תקין', () {
+        final report = _runOn(
+          tempDir,
+          manifestOverride: manifest(allowMultiple: true, field: field),
+        );
+        expect(mentionsNewTab(report), isFalse, reason: '${report.errors}');
+      });
+    }
+
+    test('newTab בלי openPlugin נדחה גם כשהתוסף מצהיר על מופעים', () {
+      final report = _runOn(
+        tempDir,
+        manifestOverride: manifest(
+          allowMultiple: true,
+          item: {'id': 'open-new', 'title': 'פתח', 'newTab': true},
+        ),
+      );
+      expect(mentionsNewTab(report), isTrue, reason: '${report.errors}');
+    });
+  });
 }

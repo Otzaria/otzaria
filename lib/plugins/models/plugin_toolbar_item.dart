@@ -21,6 +21,10 @@ class PluginToolbarItem implements PluginRegistryItem {
   /// לחיצה על הפריט תפתח את דף התוסף, ואירוע הלחיצה יימסר לו לאחר הטעינה.
   final bool openPlugin;
 
+  /// עם [openPlugin]: הלחיצה פותחת מופע נוסף של התוסף בכרטיסיה חדשה ומוסרת לו
+  /// את האירוע, במקום למקד את המופע הראשי. דורש `allowMultipleInstances`.
+  final bool newTab;
+
   /// ערך חופשי שהתוסף מסר ברישום — מוחזר לו כלשונו ב-payload של אירוע הלחיצה.
   final Object? param;
 
@@ -52,6 +56,7 @@ class PluginToolbarItem implements PluginRegistryItem {
     this.onClickEvent,
     this.children = const [],
     this.openPlugin = false,
+    this.newTab = false,
     this.param,
     this.hostAction,
     this.placement = 'primary',
@@ -70,6 +75,7 @@ class PluginToolbarItem implements PluginRegistryItem {
     if (children.isNotEmpty)
       'children': children.map((child) => child.toJson()).toList(),
     if (openPlugin) 'openPlugin': true,
+    if (newTab) 'newTab': true,
     if (param != null) 'param': param,
     if (placement != 'primary') 'placement': placement,
     if (order != defaultOrder) 'order': order,
