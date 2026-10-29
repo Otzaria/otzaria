@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -143,6 +144,7 @@ class _SaveGroupBookmarkDialogState extends State<_SaveGroupBookmarkDialog> {
   Widget build(BuildContext context) {
     return AppCustomContentDialog(
       title: 'שמירת סימניה מרוכזת',
+      icon: FluentIcons.bookmark_add_24_regular,
       scrollable: false,
       actions: [
         ActionButton.ghost(

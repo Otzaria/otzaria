@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/utils/ui/book_format_icon.dart';
+import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
+import 'package:otzaria/widgets/lists/list_icon_badge.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/widgets/dialogs/reusable_items_dialog.dart';
@@ -38,6 +42,7 @@ class BookmarksDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppCustomContentDialog(
       title: bookFilter == null ? 'סימניות' : 'סימניות בספר זה',
+      icon: FluentIcons.bookmark_multiple_24_regular,
       scrollable: false,
       child: BookmarkView(bookFilter: bookFilter),
     );
@@ -187,57 +192,106 @@ class _BookmarkViewState extends State<BookmarkView> {
 
   Widget _buildGroupsSection(BuildContext context, List<BookmarkGroup> groups) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
           child: Text(
             'סימניות מרוכזות',
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
+            style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
+              color: cs.primary,
             ),
           ),
         ),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 180),
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: groups.length,
-            itemBuilder: (context, i) {
-              final group = groups[i];
-              final count = group.items.length;
-              return ListTile(
-                dense: true,
-                hoverColor: Colors.transparent,
-                leading: const Icon(FluentIcons.bookmark_multiple_24_regular),
-                title: Text(group.name),
-                subtitle: Text(count == 1 ? 'ספר אחד' : '$count ספרים'),
-                onTap: () => _openGroup(context, group),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(FluentIcons.edit_24_regular),
-                      tooltip: 'שינוי שם',
-                      onPressed: () => _renameGroup(context, group),
+          child: Material(
+            color: AppSurfaces.card(context),
+            shape: RoundedRectangleBorder(
+              borderRadius: AppTokens.borderRadiusAll,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: groups.length,
+              separatorBuilder: (_, _) => Divider(
+                height: 1,
+                color: cs.outlineVariant.withValues(alpha: 0.5),
+              ),
+              itemBuilder: (context, i) {
+                final group = groups[i];
+                final count = group.items.length;
+                return InkWell(
+                  onTap: () => _openGroup(context, group),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTokens.spaceMD,
+                      vertical: AppTokens.spaceSM,
                     ),
-                    IconButton(
-                      icon: const Icon(FluentIcons.delete_24_regular),
-                      tooltip: 'מחיקה',
-                      onPressed: () {
-                        context.read<BookmarkBloc>().removeGroup(group.id);
-                        UiSnack.show(NotesMessages.groupBookmarkDeleted);
-                      },
+                    child: Row(
+                      children: [
+                        const ListIconBadge(
+                          icon: Icon(
+                            FluentIcons.bookmark_multiple_24_regular,
+                          ),
+                        ),
+                        const SizedBox(width: AppTokens.spaceMD),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                group.name,
+                                style: TextStyle(
+                                  fontSize: AppTokens.fontLG,
+                                  fontWeight: FontWeight.bold,
+                                  color: cs.primary,
+                                ),
+                              ),
+                              Text(
+                                count == 1 ? 'ספר אחד' : '$count ספרים',
+                                style: TextStyle(
+                                  fontSize: AppTokens.fontMD,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            FluentIcons.edit_24_regular,
+                            color: cs.onSurfaceVariant,
+                          ),
+                          tooltip: 'שינוי שם',
+                          onPressed: () => _renameGroup(context, group),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            FluentIcons.delete_24_regular,
+                            color: cs.onSurfaceVariant,
+                          ),
+                          tooltip: 'מחיקה',
+                          onPressed: () {
+                            context.read<BookmarkBloc>().removeGroup(
+                              group.id,
+                            );
+                            UiSnack.show(NotesMessages.groupBookmarkDeleted);
+                          },
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
+                  ),
+                );
+              },
+            ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppTokens.spaceSM),
       ],
     );
   }
@@ -252,6 +306,7 @@ class _BookmarkViewState extends State<BookmarkView> {
           padding: const EdgeInsetsDirectional.only(start: 8),
           child: IconButton(
             icon: const Icon(FluentIcons.bookmark_multiple_24_regular),
+            color: Theme.of(context).colorScheme.primary,
             tooltip: 'שמור סימניה לכל הספרים הפתוחים',
             onPressed: () => showSaveGroupBookmarkDialog(context),
           ),
@@ -353,7 +408,10 @@ class _BookmarkViewState extends State<BookmarkView> {
               : (item) => bookmarkGroupKey(item as Bookmark),
           groupTitleBuilder: byDate
               ? (item) => _dateGroups.labelFor((item as Bookmark).createdAt)
-              : (item) => bookmarkGroupTitle(item as Bookmark),
+              // בתצוגת ספר בודד שם הספר ידוע, וכותרת קבוצה רק מכפילה אותו.
+              : (item) => bookFilter != null
+                    ? null
+                    : bookmarkGroupTitle(item as Bookmark),
           onItemTap: (ctx, item, originalIndex) => _openBook(
             ctx,
             item,
@@ -373,9 +431,7 @@ class _BookmarkViewState extends State<BookmarkView> {
           clearAllText: bookFilter == null
               ? 'מחק את כל הסימניות'
               : 'מחק סימניות הספר',
-          leadingIconBuilder: (item) => item.book is PdfBook
-              ? const Icon(OtzariaIcons.book_pdf_24_regular)
-              : null,
+          leadingIconBuilder: (item) => Icon(bookFormatIcon(item.book as Book)),
           subtitleBuilder: (item) {
             final label = (item as Bookmark).label?.trim();
             if (label != null && label.isNotEmpty) return label;
@@ -397,17 +453,13 @@ class _BookmarkViewState extends State<BookmarkView> {
               if (state.groups.isNotEmpty)
                 _buildGroupsSection(context, state.groups),
               Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('אין סימניות'),
-                      const SizedBox(height: 16),
-                      ActionButton.neutral(
-                        text: 'שמור סימניה לכל הספרים הפתוחים',
-                        onPressed: () => showSaveGroupBookmarkDialog(context),
-                      ),
-                    ],
+                child: OtzariaEmptyState(
+                  icon: FluentIcons.bookmark_24_regular,
+                  title: 'אין סימניות',
+                  action: ActionButton.neutral(
+                    text: 'שמור סימניה לכל הספרים הפתוחים',
+                    icon: FluentIcons.bookmark_multiple_24_regular,
+                    onPressed: () => showSaveGroupBookmarkDialog(context),
                   ),
                 ),
               ),
