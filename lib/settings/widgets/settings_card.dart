@@ -275,8 +275,13 @@ class SettingsActionTile extends StatelessWidget {
   final bool responsiveActions;
   // ווידג'ט leading מותאם (למשל רדיו) שגובר על האייקון.
   final Widget? leading;
+  // כשהרוחב קטן מזה, ה-actions יורדים מתחת לטקסט. לשורות שהכותרת שלהן
+  // ווידג'ט מורכב, שאין לו טקסט גולמי לבדיקת גלישה.
+  final double? columnBelowWidth;
   // טקסט גולמי לבדיקת גלישה עם TextPainter — מאוכלס רק ב-.text() ו-.path()
   final String? _rawTitle;
+  // תת-כותרת גולמית, לאותה בדיקה — מאוכלסת רק ב-.text().
+  final String? _rawSubtitle;
 
   const SettingsActionTile({
     super.key,
@@ -292,7 +297,9 @@ class SettingsActionTile extends StatelessWidget {
     this.enabled = true,
     this.responsiveActions = true,
     this.leading,
+    this.columnBelowWidth,
   }) : _rawTitle = null,
+       _rawSubtitle = null,
        assert(
          icon == null || rtlIcon == null,
          'העבר icon או rtlIcon — לא שניהם יחד',
@@ -318,7 +325,9 @@ class SettingsActionTile extends StatelessWidget {
          icon == null || rtlIcon == null,
          'העבר icon או rtlIcon — לא שניהם יחד',
        ),
+       columnBelowWidth = null,
        _rawTitle = title,
+       _rawSubtitle = subtitle,
        title = _settingTitle(title),
        subtitle = subtitle != null
            ? _settingSubtitle(subtitle, color: subtitleColor, ltr: subtitleLtr)
@@ -366,7 +375,9 @@ class SettingsActionTile extends StatelessWidget {
          icon == null || rtlIcon == null,
          'העבר icon או rtlIcon — לא שניהם יחד',
        ),
+       columnBelowWidth = null,
        _rawTitle = title,
+       _rawSubtitle = null,
        title = _settingTitle(title),
        subtitle = _settingSubtitle(
          (path != null && path.isNotEmpty) ? _formatPath(path) : placeholder,
@@ -549,6 +560,18 @@ class SettingsActionTile extends StatelessWidget {
     )..layout(maxWidth: textWidth);
     if (titlePainter.didExceedMaxLines) return true;
 
+    // תת-כותרת ארוכה שנדחסת לטור צר לצד הכפתורים נשברת לשורות רבות; אז
+    // הכפתורים יורדים מתחתיה.
+    final rawSubtitle = _rawSubtitle;
+    if (rawSubtitle != null && actions.isNotEmpty) {
+      final subtitlePainter = TextPainter(
+        text: TextSpan(text: rawSubtitle, style: AppTextStyles.settingSubtitle),
+        textDirection: textDirection,
+        maxLines: 2,
+      )..layout(maxWidth: textWidth);
+      if (subtitlePainter.didExceedMaxLines) return true;
+    }
+
     return false;
   }
 
@@ -591,7 +614,7 @@ class SettingsActionTile extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              alignment: WrapAlignment.center,
+              alignment: WrapAlignment.start,
               children: actions,
             ),
           ],
@@ -613,7 +636,12 @@ class SettingsActionTile extends StatelessWidget {
     if (!responsiveActions) return _buildListTile();
     return LayoutBuilder(
       builder: (context, constraints) =>
-          _wouldTextOverflow(constraints.maxWidth, Directionality.of(context))
+          (columnBelowWidth != null &&
+                  constraints.maxWidth < columnBelowWidth!) ||
+              _wouldTextOverflow(
+                constraints.maxWidth,
+                Directionality.of(context),
+              )
           ? _buildColumnLayout()
           : _buildListTile(),
     );
@@ -910,7 +938,10 @@ class __SegmentedTileState<T> extends State<_SegmentedTile<T>> {
             expandToFillWidth: isNarrow,
             showSelectedIcon: false,
             height: 40,
-            maxLabelLines: 2,
+            // במסך רחב השורה בגובה קבוע: רק במצב הצר, שבו הפקד יושב מתחת
+            // לכותרת, תווית יכולה להישבר לשתי שורות. אחרת פקד אחד נראה גבוה
+            // מהאחרים בכרטיס (issue #1956).
+            maxLabelLines: isNarrow ? 2 : 1,
           ),
         );
 

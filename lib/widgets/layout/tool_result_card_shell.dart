@@ -7,32 +7,48 @@ class ToolResultCardShell extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
 
+  /// ריפוד פנימי; ברירת המחדל מתאימה לכרטיס של שורה אחת.
+  final EdgeInsetsGeometry padding;
+
+  /// המרווח מתחת לכרטיס.
+  final double bottomGap;
+
+  /// מסגרת דקה סביב הכרטיס, כשצבעו קרוב לרקע שמאחוריו.
+  final bool outlined;
+
   const ToolResultCardShell({
     super.key,
     required this.child,
     this.onTap,
+    this.padding = const EdgeInsets.symmetric(
+      horizontal: AppTokens.spaceMD,
+      vertical: AppTokens.spaceSM,
+    ),
+    this.bottomGap = 4,
+    this.outlined = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: EdgeInsets.only(bottom: bottomGap),
       child: Material(
         color: AppSurfaces.card(context),
-        borderRadius: AppTokens.borderRadiusAll,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
+        shape: RoundedRectangleBorder(
           borderRadius: AppTokens.borderRadiusAll,
-          focusColor: Colors.transparent,
-          child: AppSelectionArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTokens.spaceMD,
-                vertical: AppTokens.spaceSM,
-              ),
-              child: child,
-            ),
+          side: outlined
+              ? BorderSide(color: Theme.of(context).colorScheme.outlineVariant)
+              : BorderSide.none,
+        ),
+        clipBehavior: Clip.antiAlias,
+        // The tap target sits inside the selection area: a tap on the text
+        // would otherwise go to the selection and never reach the card.
+        child: AppSelectionArea(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppTokens.borderRadiusAll,
+            focusColor: Colors.transparent,
+            child: Padding(padding: padding, child: child),
           ),
         ),
       ),

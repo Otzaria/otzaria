@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
@@ -82,7 +83,7 @@ class _InputDialogState extends State<InputDialog>
       onCancel: () => Navigator.of(context).pop(),
       textFieldFocusNode: _textFieldFocusNode,
       child: AlertDialog(
-        title: Text(widget.title),
+        title: AppDialogTitle(widget.title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

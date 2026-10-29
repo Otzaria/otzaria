@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/theme/app_tokens.dart';
@@ -74,7 +75,7 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
       onCancel: () => Navigator.of(context).pop(),
       textFieldFocusNode: _searchFocusNode,
       child: AlertDialog(
-        title: Text(widget.title),
+        title: AppDialogTitle(widget.title),
         content: SizedBox(
           width: 400,
           height: 400,

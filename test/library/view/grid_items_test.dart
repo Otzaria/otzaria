@@ -423,11 +423,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('אודות הקטגוריה'), findsOneWidget);
-      expect(find.text('שם הקטגוריה:'), findsOneWidget);
+      // הכותרת: שם הקטגוריה ומתחתיו התיאור הקצר; התיאור המורחב בכרטיס.
       expect(find.text('קטגוריית בדיקה'), findsNWidgets(2));
-      expect(find.text('תיאור קצר:'), findsOneWidget);
       expect(find.text('תיאור קצר'), findsOneWidget);
-      expect(find.text('תיאור מורחב:'), findsOneWidget);
+      expect(find.text('תיאור'), findsOneWidget);
       expect(find.text('תיאור מורחב'), findsOneWidget);
       await closeDialog(tester);
     });
@@ -453,9 +452,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('אודות הקטגוריה'), findsOneWidget);
-      expect(find.text('תיאור קצר:'), findsOneWidget);
       expect(find.text('תיאור קצר בלבד'), findsOneWidget);
-      expect(find.text('תיאור מורחב:'), findsNothing);
+      expect(find.text('תיאור'), findsNothing);
       await closeDialog(tester);
     });
 
@@ -480,8 +478,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('אודות הקטגוריה'), findsOneWidget);
-      expect(find.text('תיאור קצר:'), findsNothing);
-      expect(find.text('תיאור מורחב:'), findsOneWidget);
+      expect(find.text('תיאור'), findsOneWidget);
       expect(find.text('תיאור מורחב בלבד'), findsOneWidget);
       await closeDialog(tester);
     });

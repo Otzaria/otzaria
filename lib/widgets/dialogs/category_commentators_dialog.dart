@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -30,6 +31,8 @@ Future<void> showCategoryCommentatorsDialog({
   final confirmed = await showTwoActionsDialog(
     context: context,
     title: 'מפרשים קבועים לקטגוריה',
+    icon: FluentIcons.people_24_regular,
+    headerBand: true,
     content: '',
     confirmText: 'קבע',
     customContent: StatefulBuilder(

@@ -1,3 +1,4 @@
+import 'package:otzaria/widgets/lists/list_icon_badge.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -200,7 +201,10 @@ class _ItemsListViewState extends State<ItemsListView> {
 
     final subtitleWidget = Text(
       text,
-      style: const TextStyle(fontSize: 16),
+      style: TextStyle(
+        fontSize: AppTokens.fontMD,
+        color: cs.onSurfaceVariant,
+      ),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
     );
@@ -251,18 +255,28 @@ class _ItemsListViewState extends State<ItemsListView> {
     final subtitle = widget.subtitleBuilder?.call(item);
     final subtitleTooltip = widget.subtitleTooltipBuilder?.call(item);
     final titleSpan = widget.titleSpanBuilder?.call(item);
-    const titleStyle = TextStyle(fontSize: 16, fontWeight: FontWeight.bold);
+    final cs = Theme.of(context).colorScheme;
+    final titleStyle = TextStyle(
+      fontSize: AppTokens.fontLG,
+      fontWeight: FontWeight.bold,
+      color: cs.primary,
+    );
 
     Widget content = InkWell(
       onTap: () => widget.onItemTap(context, item, originalIndex),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceMD,
+          vertical: AppTokens.spaceMD - 4,
+        ),
         child: Row(
           children: [
             if (widget.leadingIconBuilder?.call(item) case final leadingIcon?)
               Padding(
-                padding: const EdgeInsets.only(left: 12.0),
-                child: leadingIcon,
+                padding: const EdgeInsetsDirectional.only(
+                  end: AppTokens.spaceMD,
+                ),
+                child: ListIconBadge(icon: leadingIcon),
               ),
             Expanded(
               child: Column(
@@ -283,7 +297,10 @@ class _ItemsListViewState extends State<ItemsListView> {
               ),
             ),
             IconButton(
-              icon: const Icon(FluentIcons.delete_24_regular),
+              icon: Icon(
+                FluentIcons.delete_24_regular,
+                color: cs.onSurfaceVariant,
+              ),
               tooltip: 'מחק',
               onPressed: () => widget.onDelete(context, originalIndex),
             ),
@@ -368,7 +385,10 @@ class _ItemsListViewState extends State<ItemsListView> {
     }
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      padding: const EdgeInsets.only(
+        top: AppTokens.spaceMD,
+        bottom: AppTokens.spaceSM,
+      ),
       child: Text(
         title,
         style: theme.textTheme.titleMedium?.copyWith(
