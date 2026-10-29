@@ -215,6 +215,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
         }
 
         return AppCustomContentDialog(
+          icon: FluentIcons.shield_keyhole_24_regular,
           title: 'ניהול הרשאות: ${currentPlugin.name}',
           actions: const [],
           child: Column(

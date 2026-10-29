@@ -177,11 +177,14 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
     final isUpdate = widget.isUpdate;
 
     return AppCustomContentDialog(
+      icon: isUpdate
+          ? FluentIcons.arrow_sync_24_regular
+          : FluentIcons.puzzle_piece_24_regular,
       title: isUpdate
           ? 'עדכון תוסף: ${widget.manifest.name}'
           : 'התקנת תוסף: ${widget.manifest.name}',
       actions: [
-        ActionButton.ghost(
+        ActionButton.neutral(
           text: 'ביטול',
           onPressed: _onCancel,
         ),
