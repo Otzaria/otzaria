@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/layout/tool_results_header.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -145,7 +148,7 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingIndicator();
     }
 
     return CallbackShortcuts(
@@ -192,16 +195,27 @@ class _AcronymsDictionaryScreenState extends State<AcronymsDictionaryScreen>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _filteredResults.length,
-      itemBuilder: (context, index) {
-        final entry = _filteredResults[index];
-        return AcronymResultCard(
-          acronym: entry.displayAcronym,
-          meanings: entry.meanings,
-        );
-      },
+    return Column(
+      children: [
+        ToolResultsHeader(
+          label: _filteredResults.length == 1
+              ? 'תוצאה אחת'
+              : '${_filteredResults.length} תוצאות',
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(AppTokens.spaceMD),
+            itemCount: _filteredResults.length,
+            itemBuilder: (context, index) {
+              final entry = _filteredResults[index];
+              return AcronymResultCard(
+                acronym: entry.displayAcronym,
+                meanings: entry.meanings,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
