@@ -118,3 +118,7 @@ http://chavruta-relay.chavruta.workers.dev
 
 # תוסף גבולות עירוב (com.hadabadra.gvulot-eruv) — בדיקת עדכון מפות ואחראים, GET בלבד. האתר זמין רק ב-http
 http://hiruv.com
+
+# תוסף אורייתא יומי — חומרי העזר והבחינות של תוכנית אורייתא (עמוד וחזרה)
+https://www.oraysa.org
+https://oraysa-media.s3.amazonaws.com
