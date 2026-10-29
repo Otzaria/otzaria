@@ -385,7 +385,12 @@ class ShortcutHelper {
           .replaceAll('meta+', 'WIN + ')
           .toUpperCase();
     }
-    return _prettifyKeyTokens(formatted);
+    final pretty = _prettifyKeyTokens(formatted);
+    // קיצור שמסתיים בסימן פיסוק (למשל `CTRL + ,`) מוצג בהקשר עברי כשהסימן
+    // בקצה השני; סימן כיוון שמאלי בסוף מחזיר אותו למקומו.
+    return RegExp(r'[\p{L}\p{N}]$', unicode: true).hasMatch(pretty)
+        ? pretty
+        : '$pretty\u200E';
   }
 
   /// ממיר שמות מקשי ניווט מילוליים (אחרי uppercase) לסמלים/תוויות קריאות,

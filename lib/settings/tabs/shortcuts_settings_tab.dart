@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1232,15 +1234,25 @@ class _PickActionDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return AlertDialog(
+    return AppDialogFrame(
       backgroundColor: cs.surfaceContainerHigh,
-      title: Text(context.settingsText('בחר פעולה להוספת קיצור')),
-      content: SizedBox(
-        width: 420,
+      title: context.settingsText('בחר פעולה להוספת קיצור'),
+      icon: FluentIcons.keyboard_24_regular,
+      width: 460,
+      actions: [
+        ActionButton.neutral(
+          text: context.settingsText('ביטול'),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
+      child: ListDialogCard(
         child: ListView.separated(
           shrinkWrap: true,
           itemCount: actionKeys.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
+          separatorBuilder: (context, _) => Divider(
+            height: 1,
+            color: listDialogRowDivider(context).color,
+          ),
           itemBuilder: (context, i) {
             final key = actionKeys[i];
             final name = ShortcutValidator.shortcutNames[key] ?? key;
@@ -1252,12 +1264,6 @@ class _PickActionDialog extends StatelessWidget {
           },
         ),
       ),
-      actions: [
-        ActionButton.neutral(
-          text: context.settingsText('ביטול'),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ],
     );
   }
 }

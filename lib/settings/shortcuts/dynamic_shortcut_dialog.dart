@@ -12,6 +12,7 @@ import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/view/custom_shortcut_dialog.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -54,45 +55,27 @@ class _DynamicShortcutDialog extends StatelessWidget {
     final t = context.settingsText;
     // דיאלוג עצמאי ולא AppDialog.twoActions: אישור חייב להיעצר כשהוולידציה
     // נכשלת, והרכיב הקנוני סוגר תמיד.
-    return Dialog(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTokens.spaceMD),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              t(isNew ? 'קיצור דינמי חדש' : 'עריכת קיצור דינמי'),
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: AppTokens.spaceSM),
-            Flexible(
-              child: ValueListenableBuilder<DynamicShortcut>(
-                valueListenable: draft,
-                builder: (context, value, _) => _DynamicShortcutForm(
-                  value: value,
-                  onChanged: (next) => draft.value = next,
-                ),
-              ),
-            ),
-            const SizedBox(height: AppTokens.spaceSM),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ActionButton.ghost(
-                  text: t('ביטול'),
-                  onPressed: () => Navigator.of(context).pop(false),
-                ),
-                const SizedBox(width: AppTokens.spaceSM),
-                ActionButton.recommended(
-                  text: t('שמור'),
-                  onPressed: () {
-                    if (_validate(context)) Navigator.of(context).pop(true);
-                  },
-                ),
-              ],
-            ),
-          ],
+    return AppDialogFrame(
+      title: t(isNew ? 'קיצור דינמי חדש' : 'עריכת קיצור דינמי'),
+      icon: FluentIcons.flash_24_regular,
+      width: 680,
+      actions: [
+        ActionButton.ghost(
+          text: t('ביטול'),
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
+        ActionButton.recommended(
+          text: t('שמור'),
+          onPressed: () {
+            if (_validate(context)) Navigator.of(context).pop(true);
+          },
+        ),
+      ],
+      child: ValueListenableBuilder<DynamicShortcut>(
+        valueListenable: draft,
+        builder: (context, value, _) => _DynamicShortcutForm(
+          value: value,
+          onChanged: (next) => draft.value = next,
         ),
       ),
     );

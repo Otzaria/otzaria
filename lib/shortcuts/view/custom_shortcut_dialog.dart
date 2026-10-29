@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -8,6 +6,7 @@ import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
@@ -102,11 +101,22 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog>
           // נחכה שכל המקשים ישוחררו
         }
       },
-      child: AlertDialog(
+      child: AppDialogFrame(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-        title: const Text('הגדרת קיצור מקשים מותאם אישית'),
-        content: SizedBox(
-          width: math.min(400.0, MediaQuery.sizeOf(context).width - 112),
+        title: 'הגדרת קיצור מקשים מותאם אישית',
+        icon: FluentIcons.keyboard_24_regular,
+        width: 500,
+        actions: [
+          ActionButton.neutral(
+            text: 'ביטול',
+            onPressed: () => Navigator.pop(context),
+          ),
+          ActionButton.recommended(
+            text: 'אישור',
+            onPressed: _confirmShortcut,
+          ),
+        ],
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -205,16 +215,6 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog>
             ],
           ),
         ),
-        actions: [
-          ActionButton.neutral(
-            text: 'ביטול',
-            onPressed: () => Navigator.pop(context),
-          ),
-          ActionButton.recommended(
-            text: 'אישור',
-            onPressed: _confirmShortcut,
-          ),
-        ],
       ),
     );
   }
