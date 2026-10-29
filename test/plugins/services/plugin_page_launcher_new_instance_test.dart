@@ -418,8 +418,14 @@ void main() {
       final opened = launcher.openInNewTab(
         _kPid,
         events: const [
-          (topic: 'reader.toolbar_item_clicked', payload: {'source': 'toolbar'}),
-          (topic: 'reader.context_menu_item_clicked', payload: {'source': 'menu'}),
+          (
+            topic: 'reader.toolbar_item_clicked',
+            payload: {'source': 'toolbar'},
+          ),
+          (
+            topic: 'reader.context_menu_item_clicked',
+            payload: {'source': 'menu'},
+          ),
         ],
         windowKeys: keys,
       );
