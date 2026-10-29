@@ -10,6 +10,10 @@ const double _kCheckmarkGap = 4;
 
 const FontWeight _kSelectedItemFontWeight = FontWeight.w600;
 
+// בתפריט של שורות ספר שלם, מדידת כל תווית תקעה את ה-UI לשניות.
+// הרוחב כמעט מונוטוני באורך, ולכן נמדדות רק התוויות הארוכות ביותר.
+const int _kMaxMeasuredLabels = 64;
+
 Widget buildAppMenuRowContent(
   BuildContext context,
   AppMenuMetrics metrics, {
@@ -180,10 +184,16 @@ double calculateAppMenuPreferredWidth<T>(
     fontWeight: _kSelectedItemFontWeight,
   );
 
+  var labels = entries.map((entry) => entry.label).toSet().toList();
+  if (labels.length > _kMaxMeasuredLabels) {
+    labels.sort((a, b) => b.length.compareTo(a.length));
+    labels = labels.sublist(0, _kMaxMeasuredLabels);
+  }
+
   var maxLabelWidth = 0.0;
-  for (final entry in entries) {
+  for (final label in labels) {
     final painter = TextPainter(
-      text: TextSpan(text: entry.label, style: textStyle),
+      text: TextSpan(text: label, style: textStyle),
       textDirection: TextDirection.rtl,
       maxLines: 1,
     )..layout();

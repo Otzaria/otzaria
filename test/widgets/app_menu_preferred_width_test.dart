@@ -31,6 +31,28 @@ void main() {
     expect(longWidth, greaterThan(shortWidth));
   });
 
+  testWidgets('רשימת ענק (שורות ספר בטווח הדפסה) נמדדת מהר ושומרת על הארוך', (
+    tester,
+  ) async {
+    const longest = 'כותרת ארוכה מאוד שנמצאת בסוף רשימה של עשרות אלפי שורות';
+    final entries = [
+      for (var i = 0; i < 60000; i++)
+        AppMenuEntry<int>(value: i, label: 'שורה ${i + 1}'),
+      const AppMenuEntry<int>(value: -1, label: longest),
+    ];
+
+    final stopwatch = Stopwatch()..start();
+    final width = calculateAppMenuPreferredWidth<int>(metrics, entries);
+    stopwatch.stop();
+
+    final longestOnly = calculateAppMenuPreferredWidth<int>(
+      metrics,
+      const [AppMenuEntry<int>(value: -1, label: longest)],
+    );
+    expect(width, longestOnly);
+    expect(stopwatch.elapsedMilliseconds, lessThan(500));
+  });
+
   testWidgets('משוריין מקום לסימן ה-✓ גם לפריט יחיד לא נבחר', (tester) async {
     // הפריט עדיין עלול להיבחר בעתיד, ולכן חובה לשריין לו מקום מראש.
     const label = 'תווית לבדיקה';
