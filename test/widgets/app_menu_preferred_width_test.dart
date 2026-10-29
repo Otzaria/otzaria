@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -41,6 +42,29 @@ void main() {
       const AppMenuEntry<int>(value: -1, label: longest),
     ];
 
+    var individualMaxWidth = 0.0;
+    final individualStopwatch = Stopwatch()..start();
+    for (final entry in entries) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: entry.label,
+          style: TextStyle(
+            fontFamily: 'Roboto',
+            fontSize: metrics.fontSize,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.rtl,
+        maxLines: 1,
+      )..layout();
+      if (painter.width > individualMaxWidth) {
+        individualMaxWidth = painter.width;
+      }
+      painter.dispose();
+    }
+    individualStopwatch.stop();
+    expect(individualMaxWidth, greaterThan(0));
+
     final stopwatch = Stopwatch()..start();
     final width = calculateAppMenuPreferredWidth<int>(metrics, entries);
     stopwatch.stop();
@@ -50,7 +74,10 @@ void main() {
       const [AppMenuEntry<int>(value: -1, label: longest)],
     );
     expect(width, longestOnly);
-    expect(stopwatch.elapsedMilliseconds, lessThan(1000));
+    expect(
+      stopwatch.elapsedMicroseconds * 1.5,
+      lessThan(individualStopwatch.elapsedMicroseconds),
+    );
   });
 
   testWidgets('משוריין מקום לסימן ה-✓ גם לפריט יחיד לא נבחר', (tester) async {

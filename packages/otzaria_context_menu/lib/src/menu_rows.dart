@@ -10,9 +10,13 @@ const double _kCheckmarkGap = 4;
 
 const FontWeight _kSelectedItemFontWeight = FontWeight.w600;
 
-// בתפריט של שורות ספר שלם, מדידת כל תווית תקעה את ה-UI לשניות.
-// הרוחב כמעט מונוטוני באורך, ולכן נמדדות רק התוויות הארוכות ביותר.
-const int _kMaxMeasuredLabels = 64;
+const int _kLabelsPerMeasurement = 64;
+const int _kMaxBatchedLabelLength = 2048;
+// תווי בקרה דורשים פסקה עצמאית כדי שלא ישפיעו על מדידת תוויות אחרות.
+final _independentParagraphLabel = RegExp(
+  r'[\p{C}\p{Zl}\p{Zp}\u{10000}-\u{10ffff}]',
+  unicode: true,
+);
 
 Widget buildAppMenuRowContent(
   BuildContext context,
@@ -184,21 +188,34 @@ double calculateAppMenuPreferredWidth<T>(
     fontWeight: _kSelectedItemFontWeight,
   );
 
-  var labels = entries.map((entry) => entry.label).toSet().toList();
-  if (labels.length > _kMaxMeasuredLabels) {
-    labels.sort((a, b) => b.length.compareTo(a.length));
-    labels = labels.sublist(0, _kMaxMeasuredLabels);
-  }
-
+  final labels = entries.map((entry) => entry.label).toSet().toList();
   var maxLabelWidth = 0.0;
-  for (final label in labels) {
-    final painter = TextPainter(
-      text: TextSpan(text: label, style: textStyle),
-      textDirection: TextDirection.rtl,
-      maxLines: 1,
-    )..layout();
-    if (painter.width > maxLabelWidth) maxLabelWidth = painter.width;
+  for (var start = 0; start < labels.length; start += _kLabelsPerMeasurement) {
+    final end = min(start + _kLabelsPerMeasurement, labels.length);
+    final batch = labels.sublist(start, end);
+    final paragraphs = <String>[];
+    final ordinaryLabels = <String>[];
+    for (final label in batch) {
+      if (label.length > _kMaxBatchedLabelLength ||
+          _independentParagraphLabel.hasMatch(label)) {
+        paragraphs.add(label);
+      } else {
+        ordinaryLabels.add(label);
+      }
+    }
+    if (ordinaryLabels.isNotEmpty) paragraphs.add(ordinaryLabels.join('\n'));
+    for (final paragraph in paragraphs) {
+      final painter = TextPainter(
+        text: TextSpan(text: paragraph, style: textStyle),
+        textDirection: TextDirection.rtl,
+        maxLines: 1,
+      )..layout();
+      maxLabelWidth = max(maxLabelWidth, painter.width);
+      painter.dispose();
+    }
   }
+  // חיבור פסקאות עלול לצבור שגיאת עיגול תת־פיקסלית במדידה של המנוע.
+  maxLabelWidth = maxLabelWidth.ceilToDouble() + 1;
 
   final hasIcon = entries.any((entry) => entry.icon != null);
 
