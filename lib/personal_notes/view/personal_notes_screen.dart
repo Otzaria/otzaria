@@ -630,7 +630,11 @@ class _PersonalNotesManagerScreenState
     final strategy = await showDialog<NotesImportConflictStrategy>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('ייבוא הערות - טיפול בהתנגשויות'),
+        title: const AppDialogTitle(
+          'ייבוא הערות - טיפול בהתנגשויות',
+          icon: FluentIcons.warning_24_regular,
+          tone: AppDialogHeaderTone.error,
+        ),
         content: const Text('כיצד לטפל בהערות קיימות עם אותו מזהה?'),
         actions: [
           ActionButton.neutral(
@@ -1021,7 +1025,7 @@ class _PersonalNotesManagerScreenState
 
     if (displayNotes.isEmpty) {
       return const ToolEmptyState(
-        icon: OtzariaIcons.cross_24_filled,
+        icon: FluentIcons.note_24_regular,
         message: 'אין הערות להצגה',
       );
     }
@@ -1193,14 +1197,14 @@ class _PersonalNotesManagerScreenState
     return AppCard(
       onTap: isMissing ? () => _repositionMissing(note) : null,
       padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   isMissing ? 'הערה ללא מיקום' : note.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
@@ -1209,48 +1213,44 @@ class _PersonalNotesManagerScreenState
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
-          ),
-          if (locationRef != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              locationRef,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          const SizedBox(height: 8),
-          // מקצרים את התוכן ומגבילים את גובה התצוגה המקדימה בתוך הכרטיס.
-          Expanded(
-            child: ClipRect(
-              child: OverflowBox(
-                alignment: Alignment.topCenter,
-                minHeight: 0,
-                maxHeight: 200,
-                child: IgnorePointer(
-                  child: PersonalNoteContentView(
-                    note: note,
-                    maxPreviewChars: 280,
-                    interactive: false,
-                    textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                if (locationRef != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    locationRef,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: cs.onSurfaceVariant,
-                      height: 1.45,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 8),
+                // מקצרים את התוכן ומגבילים את גובה התצוגה המקדימה בתוך הכרטיס.
+                Expanded(
+                  child: ClipRect(
+                    child: OverflowBox(
+                      alignment: Alignment.topCenter,
+                      minHeight: 0,
+                      maxHeight: 200,
+                      child: IgnorePointer(
+                        child: PersonalNoteContentView(
+                          note: note,
+                          maxPreviewChars: 280,
+                          interactive: false,
+                          textStyle: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: cs.onSurfaceVariant,
+                                height: 1.45,
+                              ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Wrap(
+                const SizedBox(height: 8),
+                // הכפתורים בטור משלהם, ולכן התאריך מקבל את מלוא רוחב התוכן
+                // ולא נחתך במסכים צרים.
+                Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
@@ -1258,7 +1258,10 @@ class _PersonalNotesManagerScreenState
                     _InfoChip(
                       icon: OtzariaIcons.calendar_24_regular,
                       text: hebrewDate,
-                      backgroundColor: cs.secondaryContainer,
+                      // גוון בהיר מזה של הכפתורים, כדי שהתאריך לא ייראה לחיץ.
+                      backgroundColor: cs.secondaryContainer.withValues(
+                        alpha: 0.45,
+                      ),
                       foregroundColor: cs.onSecondaryContainer,
                     ),
                     if (isMissing && note.lastKnownLineNumber != null)
@@ -1270,37 +1273,41 @@ class _PersonalNotesManagerScreenState
                       ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  BarButton.icon(
-                    tooltip: 'עריכה',
-                    icon: FluentIcons.edit_24_regular,
-                    onPressed: () => _editNote(note),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // כל כפתור במסגרת משלו (כמו כפתור ההעתקה במילון ראשי התיבות).
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SecondaryIconButton(
+                  tooltip: 'עריכה',
+                  icon: FluentIcons.edit_24_regular,
+                  onPressed: () => _editNote(note),
+                ),
+                const SizedBox(height: 6),
+                if (isMissing)
+                  SecondaryIconButton(
+                    tooltip: 'מיקום מחדש',
+                    icon: FluentIcons.location_24_regular,
+                    onPressed: () => _repositionMissing(note),
+                  )
+                else
+                  SecondaryIconButton(
+                    tooltip: 'פתח ספר בשורה',
+                    icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
+                    onPressed: () => _openNoteInBook(note),
                   ),
-                  if (isMissing)
-                    BarButton.icon(
-                      tooltip: 'מיקום מחדש',
-                      icon: FluentIcons.location_24_regular,
-                      onPressed: () => _repositionMissing(note),
-                    ),
-                  if (!isMissing)
-                    BarButton.icon(
-                      tooltip: 'פתח ספר בשורה',
-                      icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
-                      onPressed: () => _openNoteInBook(note),
-                    ),
-                  BarButton.icon(
-                    tooltip: 'מחיקה',
-                    icon: FluentIcons.delete_24_regular,
-                    onPressed: () => _deleteNote(note),
-                  ),
-                ],
-              ),
-            ],
+                const SizedBox(height: 6),
+                SecondaryIconButton(
+                  tooltip: 'מחיקה',
+                  icon: FluentIcons.delete_24_regular,
+                  onPressed: () => _deleteNote(note),
+                ),
+              ],
+            ),
           ),
         ],
       ),
