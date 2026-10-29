@@ -361,7 +361,9 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   static const _keyBackupPlugins = 'key-backup-plugins';
   static const _keyAutoBackupFrequency = 'key-auto-backup-frequency';
 
-  _BackupMode _selectedBackupMode = _BackupMode.all;
+  late _BackupMode _selectedBackupMode = BackupService.includesAllSections
+      ? _BackupMode.all
+      : _BackupMode.custom;
 
   // ── גיבוי (expandable) ─────────────────────────────────────────────────────
   bool _isBackupExpanded = false;
@@ -552,9 +554,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     );
   }
 
-  bool _shouldInclude(String key) =>
-      _selectedBackupMode == _BackupMode.all ||
-      (Settings.getValue<bool>(key) ?? true);
+  bool _shouldInclude(String key) => Settings.getValue<bool>(key) ?? true;
 
   // ════════════════════════════════════════════════════════════════════════════
   //  BUILD
@@ -1398,7 +1398,12 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 ),
               ],
               currentValue: _selectedBackupMode,
-              onChanged: (value) => setState(() => _selectedBackupMode = value),
+              onChanged: (value) {
+                setState(() => _selectedBackupMode = value);
+                if (value == _BackupMode.all) {
+                  unawaited(BackupService.includeAllSections());
+                }
+              },
             ),
             if (_selectedBackupMode == _BackupMode.custom) ...[
               _BackupOptionTile(
