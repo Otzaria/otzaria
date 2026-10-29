@@ -609,6 +609,7 @@ class _LibrarySetupDialogContentState
         if (report != null) {
           void close() => Navigator.of(context).pop(true);
           return AppCustomContentDialog(
+            icon: FluentIcons.checkmark_circle_24_regular,
             title: context.settingsText('הספרייה הותקנה'),
             onConfirm: close,
             handleEnterKey: true,
@@ -625,6 +626,9 @@ class _LibrarySetupDialogContentState
         final canConfirm = !working && _canConfirm(state);
         return AppCustomContentDialog(
           canDismiss: !working,
+          icon: _hasLibrary
+              ? FluentIcons.arrow_sync_24_regular
+              : FluentIcons.library_24_regular,
           title: _hasLibrary
               ? context.settingsText(
                   'עדכון {folder}',

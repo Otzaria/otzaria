@@ -602,46 +602,22 @@ class _FontSizeSliderState extends State<_FontSizeSlider> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            RtlIcon(widget.icon),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                widget.label,
-                style: kSettingsTitleStyle,
-              ),
-            ),
-            Text(
-              widget.divisions != null
-                  ? _currentValue.toStringAsFixed(1)
-                  : _currentValue.toStringAsFixed(0),
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        Slider(
-          value: _currentValue,
-          min: widget.min,
-          max: widget.max,
-          divisions: widget.divisions ?? (widget.max - widget.min).toInt(),
-          label: widget.divisions != null
-              ? _currentValue.toStringAsFixed(1)
-              : _currentValue.toStringAsFixed(0),
-          onChanged: (value) {
-            setState(() => _currentValue = value);
-            if (widget.applyWhileDragging) widget.onChanged(value);
-          },
-          onChangeEnd: widget.applyWhileDragging ? null : widget.onChanged,
-        ),
-      ],
+    final valueLabel = widget.divisions != null
+        ? _currentValue.toStringAsFixed(1)
+        : _currentValue.toStringAsFixed(0);
+    return SettingsSliderTile(
+      icon: widget.icon,
+      title: widget.label,
+      valueLabel: valueLabel,
+      value: _currentValue,
+      min: widget.min,
+      max: widget.max,
+      divisions: widget.divisions ?? (widget.max - widget.min).toInt(),
+      onChanged: (value) {
+        setState(() => _currentValue = value);
+        if (widget.applyWhileDragging) widget.onChanged(value);
+      },
+      onChangeEnd: widget.applyWhileDragging ? null : widget.onChanged,
     );
   }
 }
@@ -753,47 +729,27 @@ class _TextWidthSliderState extends State<_TextWidthSlider> {
         ? context.settingsText('מלא')
         : context.settingsText('{cm} ס"מ', args: {'cm': currentStop});
 
-    return Column(
-      children: [
-        ListTile(
-          leading: const RtlIcon(FluentIcons.text_align_distributed_24_regular),
-          title: Text(
-            context.settingsText('רוחב הטקסט'),
-            style: kSettingsTitleStyle,
-          ),
-          subtitle: Text(
-            context.settingsText(
-              isFull
-                  ? 'הטקסט ימלא את כל הרוחב הזמין'
-                  : 'רוחב קבוע, מצטמצם רק כשאין מקום',
-            ),
-            style: kSettingsSubtitleStyle,
-          ),
-          trailing: Text(
-            description,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: SettingsSliderTile(
+        icon: FluentIcons.text_align_distributed_24_regular,
+        title: context.settingsText('רוחב הטקסט'),
+        subtitle: context.settingsText(
+          isFull
+              ? 'הטקסט ימלא את כל הרוחב הזמין'
+              : 'רוחב קבוע, מצטמצם רק כשאין מקום',
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Slider(
-            value: currentStop.toDouble(),
-            min: _minCm.toDouble(),
-            max: _fullStop.toDouble(),
-            divisions: _fullStop - _minCm,
-            label: description,
-            onChanged: (value) {
-              setState(() => _draggedStop = value.round());
-              if (widget.applyWhileDragging) _apply(value);
-            },
-            onChangeEnd: widget.applyWhileDragging ? null : _apply,
-          ),
-        ),
-      ],
+        valueLabel: description,
+        value: currentStop.toDouble(),
+        min: _minCm.toDouble(),
+        max: _fullStop.toDouble(),
+        divisions: _fullStop - _minCm,
+        onChanged: (value) {
+          setState(() => _draggedStop = value.round());
+          if (widget.applyWhileDragging) _apply(value);
+        },
+        onChangeEnd: widget.applyWhileDragging ? null : _apply,
+      ),
     );
   }
 }

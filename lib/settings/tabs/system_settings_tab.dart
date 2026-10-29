@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1645,19 +1647,24 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
         context,
         (ctx) => AppDialog.singleAction(
           title: ctx.settingsText('יומן שינויים בתוכנה'),
+          icon: FluentIcons.history_24_regular,
+          headerBand: true,
           confirmText: ctx.settingsText('סגור'),
           customContent: SizedBox(
             width: 600,
             height: 400,
             // Markdown הגלילתי אומד את היקף התוכן מהפריטים הבנויים בלבד
             // והאגודל "רוקד" בגלילה; היקף מדויק דרך SingleChildScrollView.
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: MarkdownBody(
-                data: changelog,
-                onTapLink: (text, href, title) {
-                  if (href != null) launchUrl(Uri.parse(href));
-                },
+            child: ListDialogCard(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: MarkdownBody(
+                  data: changelog,
+                  styleSheet: changelogMarkdownStyle(Theme.of(ctx)),
+                  onTapLink: (text, href, title) {
+                    if (href != null) launchUrl(Uri.parse(href));
+                  },
+                ),
               ),
             ),
           ),
@@ -1665,6 +1672,25 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       ),
     );
   }
+}
+
+/// סגנון יומן השינויים: כותרות גרסה בצבע הנושא, וגוף קריא ברווחי שורה.
+@visibleForTesting
+MarkdownStyleSheet changelogMarkdownStyle(ThemeData theme) {
+  final cs = theme.colorScheme;
+  TextStyle heading(double size) => TextStyle(
+    fontSize: size,
+    fontWeight: FontWeight.bold,
+    color: cs.primary,
+  );
+  return MarkdownStyleSheet.fromTheme(theme).copyWith(
+    h1: heading(AppTokens.fontXL + 2),
+    h2: heading(AppTokens.fontXL),
+    h3: heading(AppTokens.fontLG),
+    p: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+    listBullet: theme.textTheme.bodyMedium?.copyWith(color: cs.primary),
+    h2Padding: const EdgeInsets.only(top: AppTokens.spaceMD),
+  );
 }
 
 // ── _BackupOptionTile ─────────────────────────────────────────────────────────

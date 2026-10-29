@@ -297,6 +297,9 @@ class _HiddenBooksPanelState extends State<HiddenBooksPanel> {
   Widget build(BuildContext context) {
     final count = _hidden.bookKeys.length + _hidden.categoryPaths.length;
 
+    // שלוש שורות בתוך ילד אחד של הכרטיס, ולכן הקו החוצץ שבין שורות הכרטיס
+    // לא מגיע אליהן — מוסיפים אותו כאן, באותו צבע.
+    final divider = AppCard.sectionDivider(context);
     return Column(
       children: [
         SettingsActionTile.text(
@@ -312,6 +315,7 @@ class _HiddenBooksPanelState extends State<HiddenBooksPanel> {
             ),
           ],
         ),
+        divider,
         SettingsActionTile.text(
           icon: FluentIcons.arrow_import_24_regular,
           title: context.settingsText('ייבוא רשימת הסתרות'),
@@ -325,6 +329,7 @@ class _HiddenBooksPanelState extends State<HiddenBooksPanel> {
             ),
           ],
         ),
+        divider,
         SettingsActionTile.text(
           icon: FluentIcons.eye_off_24_regular,
           title: count == 0

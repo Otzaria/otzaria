@@ -234,6 +234,8 @@ class _SemanticDataCard extends StatelessWidget {
         'רישיון רכיב {name}',
         args: _nameArgs(context),
       ),
+      icon: FluentIcons.certificate_24_regular,
+      headerBand: true,
       customContent: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 420),
         child: SingleChildScrollView(

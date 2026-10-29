@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/settings/l10n/settings_dialog_scope.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
 import 'package:otzaria/settings/services/custom_folders/bloc/custom_folders_bloc.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/services/user_import_library.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
@@ -41,6 +43,7 @@ class UserImportFilesDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppCustomContentDialog(
       title: context.settingsText('קבצים מיובאים'),
+      icon: FluentIcons.arrow_import_24_regular,
       scrollable: false,
       actions: [
         ActionButton.ghost(
@@ -53,24 +56,34 @@ class UserImportFilesDialog extends StatelessWidget {
             p.importFiles != c.importFiles || p.isSyncing != c.isSyncing,
         builder: (context, state) {
           if (state.importFiles.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Text(
-                context.settingsText(
-                  'לא יובאו עדיין קבצים. השתמש ב"ייבוא נתונים" כדי להוסיף.',
-                ),
-                textAlign: TextAlign.center,
+            return OtzariaEmptyState(
+              isCompact: true,
+              icon: FluentIcons.arrow_import_24_regular,
+              title: context.settingsText(
+                'לא יובאו עדיין קבצים. השתמש ב"ייבוא נתונים" כדי להוסיף.',
               ),
             );
           }
-          return ListView.separated(
-            shrinkWrap: true,
-            itemCount: state.importFiles.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) => _ImportFileRow(
-              file: state.importFiles[index],
-              busy: state.isSyncing,
-            ),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Flexible(
+                child: ListDialogCard(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: state.importFiles.length,
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      color: listDialogRowDivider(context).color,
+                    ),
+                    itemBuilder: (context, index) => _ImportFileRow(
+                      file: state.importFiles[index],
+                      busy: state.isSyncing,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -127,16 +140,23 @@ class _ImportFileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final disabledColor = Theme.of(context).disabledColor;
+    final cs = Theme.of(context).colorScheme;
+    final narrow = MediaQuery.sizeOf(context).width < 520;
     return ListTile(
-      contentPadding: EdgeInsets.zero,
+      contentPadding: const EdgeInsetsDirectional.only(
+        start: AppTokens.spaceMD,
+        end: AppTokens.spaceSM,
+      ),
       leading: Icon(
         _iconFor(file.kind),
-        color: file.enabled ? null : disabledColor,
+        color: file.enabled ? cs.primary : disabledColor,
       ),
       title: Text(
         file.name,
         style: TextStyle(
-          color: file.enabled ? null : disabledColor,
+          fontSize: AppTokens.fontMD + 1,
+          fontWeight: FontWeight.w600,
+          color: file.enabled ? cs.onSurface : disabledColor,
           // קובץ מושהה נשאר ברשימה; הקו מבדיל אותו מקובץ פעיל במבט אחד.
           decoration: file.enabled ? null : TextDecoration.lineThrough,
         ),
@@ -146,41 +166,84 @@ class _ImportFileRow extends StatelessWidget {
           _kindLabel(context, file.kind),
           if (!file.enabled) context.settingsText('מושהה'),
         ].join(' · '),
-        style: TextStyle(color: file.enabled ? null : disabledColor),
+        style: TextStyle(
+          fontSize: AppTokens.fontSM,
+          color: file.enabled ? cs.onSurfaceVariant : disabledColor,
+        ),
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: file.enabled
-                ? context.settingsText('השהה')
-                : context.settingsText('החזר לשימוש'),
-            icon: Icon(
-              file.enabled
-                  ? FluentIcons.pause_24_regular
-                  : FluentIcons.play_24_regular,
-            ),
-            onPressed: busy
-                ? null
-                : () => context.read<CustomFoldersBloc>().add(
-                    SetUserImportFileEnabled(
-                      file.id,
-                      enabled: !file.enabled,
-                    ),
+      // ברוחב טלפון שלוש הפעולות מצמצמות את שם הקובץ לכמה אותיות — הן עוברות
+      // לתפריט אחד.
+      trailing: narrow
+          ? PopupMenuButton<int>(
+              enabled: !busy,
+              tooltip: context.settingsText('פעולות'),
+              onSelected: (action) {
+                switch (action) {
+                  case 0:
+                    context.read<CustomFoldersBloc>().add(
+                      SetUserImportFileEnabled(
+                        file.id,
+                        enabled: !file.enabled,
+                      ),
+                    );
+                  case 1:
+                    _export(context);
+                  case 2:
+                    _delete(context);
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 0,
+                  child: Text(
+                    file.enabled
+                        ? context.settingsText('השהה')
+                        : context.settingsText('החזר לשימוש'),
                   ),
-          ),
-          IconButton(
-            tooltip: context.settingsText('ייצוא'),
-            icon: const Icon(FluentIcons.arrow_export_24_regular),
-            onPressed: busy ? null : () => _export(context),
-          ),
-          IconButton(
-            tooltip: context.settingsText('מחיקה'),
-            icon: const Icon(FluentIcons.delete_24_regular),
-            onPressed: busy ? null : () => _delete(context),
-          ),
-        ],
-      ),
+                ),
+                PopupMenuItem(
+                  value: 1,
+                  child: Text(context.settingsText('ייצוא')),
+                ),
+                PopupMenuItem(
+                  value: 2,
+                  child: Text(context.settingsText('מחיקה')),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: file.enabled
+                      ? context.settingsText('השהה')
+                      : context.settingsText('החזר לשימוש'),
+                  icon: Icon(
+                    file.enabled
+                        ? FluentIcons.pause_24_regular
+                        : FluentIcons.play_24_regular,
+                  ),
+                  onPressed: busy
+                      ? null
+                      : () => context.read<CustomFoldersBloc>().add(
+                          SetUserImportFileEnabled(
+                            file.id,
+                            enabled: !file.enabled,
+                          ),
+                        ),
+                ),
+                IconButton(
+                  tooltip: context.settingsText('ייצוא'),
+                  icon: const Icon(FluentIcons.arrow_export_24_regular),
+                  onPressed: busy ? null : () => _export(context),
+                ),
+                IconButton(
+                  tooltip: context.settingsText('מחיקה'),
+                  icon: const Icon(FluentIcons.delete_24_regular),
+                  onPressed: busy ? null : () => _delete(context),
+                ),
+              ],
+            ),
     );
   }
 

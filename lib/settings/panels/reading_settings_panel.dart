@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -62,6 +63,8 @@ void showReadingSettingsDialog() {
       dialogContext,
       (context) => AppDialog.singleAction(
         title: context.settingsText('הגדרות תצוגת הספרים'),
+        icon: FluentIcons.text_font_24_regular,
+        headerBand: true,
         confirmText: context.settingsText('סגור'),
         customContent: SizedBox(
           width: 650,
