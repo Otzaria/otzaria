@@ -1,14 +1,4 @@
-// Integration tests for DatabaseGenerator.createAndProcessBook.
-//
-// Covers the exact production path that crashed in the logs:
-//  a file-backed book that transitions to DB-backed when the txt file
-//  starts with a prefix line before its first <h1>.
-//
-// Tests:
-//  1. First insert with insertContent=true succeeds even when the file has
-//     a prefix line before the first heading (covers the rebuildLineTocForBook fix).
-//  2. Second call (update path) emits exactly one progress message containing
-//     "עודכן ספר" and ZERO messages containing "מדלג על כפילות".
+// בדיקות למסלול יצירה ועדכון של ספר אישי במסד.
 
 import 'dart:io';
 
@@ -382,6 +372,43 @@ void main() {
       reason: 'h4 שאחרי h2 חדש חייב להשתייך ל-h2, לא ל-h3 מהענף הקודם',
     );
   });
+
+  for (final body in ['גוף ההערה', 'הערה <i>מקוננת</i> זנב']) {
+    test('הערה בכותרת אינה נכנסת לתוכן העניינים במסד: $body', () async {
+      final catId = await createCategory();
+      final file = File(p.join(tempDir.path, 'הערה בכותרת.txt'));
+      await file.writeAsString(
+        '<h1>הערה בכותרת</h1>\n'
+        '<h2>פרק ראשון<sup class="footnote-marker">1</sup>'
+        '<i class="footnote">$body</i></h2>\n'
+        'תוכן',
+        flush: true,
+      );
+
+      await buildGenerator(<String>[]).createAndProcessBook(
+        file.path,
+        catId,
+        insertContent: true,
+      );
+
+      final book = await repository.checkBookExistsInCategoryWithFileType(
+        'הערה בכותרת',
+        catId,
+        'txt',
+      );
+      final db = await database.database;
+      final texts = db
+          .select(
+            'SELECT t.text FROM tocEntry e JOIN tocText t ON t.id = e.textId '
+            'WHERE e.bookId = ? ORDER BY e.lineIndex',
+            [book!.id],
+          )
+          .map((row) => row['text'])
+          .toList();
+
+      expect(texts, ['הערה בכותרת', 'פרק ראשון']);
+    });
+  }
 
   group('detectHeaderLevel', () {
     test('כותרת רגילה מזוהה, כותרת עם סימון ההדרה — לא', () {

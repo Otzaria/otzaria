@@ -176,4 +176,30 @@ void main() {
     expect(text, contains('פסקת פתיחה'));
     expect(text, contains('<h1>פרק ראשון</h1>'));
   });
+
+  // issue #3320: הערה בכותרת של קובץ אישי נכנסה לתוכן העניינים ולשורת המיקום.
+  test('הערת שוליים בכותרת אינה נכנסת לתוכן העניינים (issue #3320)', () async {
+    final file = File(p.join(tempDir.path, 'הערה בכותרת.docx'));
+    await file.writeAsBytes(
+      buildDocx(
+        document: documentXml(
+          '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>'
+          '<w:r><w:t>פרק ראשון</w:t></w:r>'
+          '<w:r><w:footnoteReference w:id="2"/></w:r></w:p>'
+          '${para('פסקת פתיחה')}',
+        ),
+        footnotes: footnotesXml({'2': 'גוף ההערה'}),
+      ),
+    );
+
+    final content = await convertDocumentForIndex(
+      file,
+      'ספר',
+      DocumentFormat.docx,
+    );
+    final toc = TocParser.parseEntriesFromContent(content);
+
+    expect(content, contains('גוף ההערה'));
+    expect(toc.map((e) => e.text), ['ספר', 'פרק ראשון']);
+  });
 }

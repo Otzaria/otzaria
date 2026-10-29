@@ -21,6 +21,8 @@ import 'package:otzaria/utils/file/document_format.dart';
 import 'package:otzaria/utils/file/text_encoding.dart';
 import 'package:otzaria/utils/file/toc_parser.dart'
     show TocParser, isTocExcludedHeadingLine;
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
+    show stripInlineNotesFromHeading;
 
 /// DatabaseGenerator is responsible for generating the Otzaria database from source files.
 /// It processes directories and books to create a structured database.
@@ -469,7 +471,7 @@ class DatabaseGenerator {
         localParentStack.removeWhere((stackLevel, _) => stackLevel >= level);
 
         // cleanHtml יקר — מחשבים רק לשורות כותרת שבהן הטקסט נצרך.
-        final plainText = cleanHtml(line);
+        final plainText = cleanHtml(stripInlineNotesFromHeading(line));
         if (plainText.trim().isEmpty) {
           if (currentReference.length >= level) {
             currentReference.removeRange(level - 1, currentReference.length);

@@ -5,6 +5,7 @@
 /// ה-<sup>; כל פונקציה מאחדת את שני המקורות.
 library;
 
+import 'package:html/parser.dart' as html_parser;
 import 'package:otzaria/book_common/utils/link_anchor_markers.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/divine_names/utils/divine_name_markers.dart';
@@ -191,6 +192,19 @@ String stripInlineNotesForSearch(String html) {
   return html
       .replaceAll(_footnoteMarkerRegExp, ' ')
       .replaceAll(_footnoteBodyRegExp, '');
+}
+
+/// מסיר מהכותרת את סימוני ההערות ואת גופן, בלי לשנות את עיצוב שאר הכותרת.
+String stripInlineNotesFromHeading(String html) {
+  if (!html.contains('footnote')) return html;
+  // גוף הערה עשוי להכיל <i> מקונן, ולכן אינו ניתן להסרה ב-regex שטוח.
+  final fragment = html_parser.parseFragment(html);
+  final notes = fragment.querySelectorAll('sup.footnote-marker, i.footnote');
+  if (notes.isEmpty) return html;
+  for (final note in notes) {
+    note.remove();
+  }
+  return fragment.outerHtml;
 }
 
 /// בודק אם הספר מכיל לפחות שורה אחת עם הערה — בשורה או בטבלה ([dbNotes]).

@@ -6,6 +6,8 @@ import 'package:super_clipboard/super_clipboard.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/divine_names/models/divine_name_forms.dart';
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart'
+    show stripInlineNotesFromHeading;
 import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as text_utils;
 
@@ -372,7 +374,9 @@ class CopyUtils {
         try {
           final level = int.parse(match.group(1)!);
           if (level <= 1) continue; // רמה 1 = שם הספר, כבר מכוסה ע"י bookName
-          final text = _cleanHtml(match.group(2)!);
+          final text = _cleanHtml(
+            stripInlineNotesFromHeading(match.group(2)!),
+          );
 
           // בסריקה אחורה רק כותרת רדודה מכל מה שנמצא היא הורה; עמוקה שייכת לקטע קודם.
           final isAncestor = lastHeaderByLevel.keys.every((l) => level < l);
