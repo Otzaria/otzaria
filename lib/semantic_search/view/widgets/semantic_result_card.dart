@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/view/search_result_card_frame.dart';
 import 'package:otzaria/search/view/tantivy_search_results.dart';
 import 'package:otzaria/search_feedback/search_feedback_api.dart';
 import 'package:otzaria/search_feedback/semantic_search_strings.dart';
@@ -64,18 +65,8 @@ class SemanticResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: isPreviewed
-              ? colorScheme.primary
-              : colorScheme.outline.withValues(alpha: 0.3),
-          width: isPreviewed ? 1.5 : 1,
-        ),
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
+    return SearchResultCardFrame(
+      isPreviewed: isPreviewed,
       child: SearchResultOpenInNewTabRegion(
         onOpenInBackground: onOpenInBackground,
         child: CallbackShortcuts(
@@ -89,12 +80,12 @@ class SemanticResultCard extends StatelessWidget {
             onDoubleTap: onDoubleTap,
             borderRadius: AppTokens.borderRadiusAll,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppTokens.spaceMD),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _RankBadge(rank: rank),
-                  const SizedBox(width: 16),
+                  SearchResultRankBadge(rank: rank),
+                  const SizedBox(width: AppTokens.spaceMD),
                   Expanded(child: _buildContent(context)),
                 ],
               ),
@@ -161,22 +152,29 @@ class SemanticResultCard extends StatelessWidget {
           ],
         ),
         Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: SemanticSourceLabel(source: item.source),
-        ),
-        if (titleText.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              titleText,
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+          padding: const EdgeInsets.only(top: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (titleText.isNotEmpty)
+                Expanded(
+                  child: Text(
+                    titleText,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+              else
+                const Spacer(),
+              const SizedBox(width: AppTokens.spaceSM),
+              SemanticSourceLabel(source: item.source),
+            ],
           ),
+        ),
         const SizedBox(height: 8),
         RichText(
           textAlign: TextAlign.justify,
@@ -227,37 +225,6 @@ class SemanticSourceLabel extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: theme.textTheme.labelSmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-}
-
-class _RankBadge extends StatelessWidget {
-  const _RankBadge({required this.rank});
-
-  final int rank;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(minWidth: 32),
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Center(
-        widthFactor: 1,
-        child: Text(
-          '$rank',
-          style: TextStyle(
-            color: colorScheme.onPrimaryContainer,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
         ),
       ),
     );
