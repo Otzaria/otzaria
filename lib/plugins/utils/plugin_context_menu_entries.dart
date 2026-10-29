@@ -319,23 +319,20 @@ Future<void> dispatchPluginContextMenuItemClick({
     return;
   }
   if (item.openPlugin) {
-    // אותם אירועים כמו במסלול הרגיל, בתור המסירה של דף התוסף.
-    PluginPageLauncher.instance.open(
+    // שני האירועים נמסרים באותו סדר, עם בקשת ניווט אחת בלבד.
+    PluginPageLauncher.instance.openWithEvents(
       pluginId,
-      topic: item.onClickEvent ?? 'contextMenu.itemClicked',
-      payload: payload,
+      events: [
+        (
+          topic: item.onClickEvent ?? 'contextMenu.itemClicked',
+          payload: payload,
+        ),
+        if (item.onClickEvent == null)
+          (topic: 'reader.context_menu_item_clicked', payload: payload),
+      ],
       viewId: viewId,
       windowKeys: windowKeys,
     );
-    if (item.onClickEvent == null) {
-      PluginPageLauncher.instance.open(
-        pluginId,
-        topic: 'reader.context_menu_item_clicked',
-        payload: payload,
-        viewId: viewId,
-        windowKeys: windowKeys,
-      );
-    }
     return;
   }
   final instanceId = _targetInstanceId(dispatcher, pluginId, item, viewId);
