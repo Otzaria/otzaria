@@ -161,17 +161,9 @@ void hebrewDefaultDialog({
     builder: (context) {
       final theme = Theme.of(context);
       return AppDialog.twoActions(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              FluentIcons.arrow_sync_24_regular,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(width: AppTokens.spaceSM),
-            const Text('עדכון זמין'),
-          ],
-        ),
+        title: 'עדכון זמין',
+        icon: FluentIcons.arrow_sync_24_regular,
+        headerBand: true,
         content: '',
         cancelText: 'מאוחר יותר',
         confirmText: 'עדכן כעת',

@@ -2,6 +2,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/book_details_service.dart';
@@ -114,20 +115,27 @@ bool isTashmaSource(String? sourceFolder) {
 /// מציג את כל פרטי הספר הזמינים, גם מחוץ לקורא הטקסט.
 Future<void> showBookDetailsDialog(
   BuildContext context,
-  Book book,
-) {
+  Book book, {
+  BookInformation? information,
+}) {
   return showSingleActionDialog(
     context: context,
     title: 'אודות הספר',
+    icon: FluentIcons.book_information_24_regular,
+    headerBand: true,
     confirmText: 'סגור',
-    customContent: _BookDetailsDialogContent(book: book),
+    customContent: _BookDetailsDialogContent(
+      book: book,
+      information: information,
+    ),
   );
 }
 
 class _BookDetailsDialogContent extends StatefulWidget {
   final Book book;
+  final BookInformation? information;
 
-  const _BookDetailsDialogContent({required this.book});
+  const _BookDetailsDialogContent({required this.book, this.information});
 
   @override
   State<_BookDetailsDialogContent> createState() =>
@@ -140,13 +148,16 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
   @override
   void initState() {
     super.initState();
-    _informationFuture = BookDetailsService().getBookInformation(widget.book);
+    final information = widget.information;
+    _informationFuture = information != null
+        ? Future.value(information)
+        : BookDetailsService().getBookInformation(widget.book);
   }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 450,
+      width: 500,
       child: FutureBuilder<BookInformation>(
         future: _informationFuture,
         builder: (context, snapshot) {
@@ -179,115 +190,122 @@ Widget _buildBookDetailsContent(
     information.shortDescription,
     information.fullDescription,
   );
+  final hasPath =
+      bookDetails['נתיב הקובץ'] != BookDetailsService.bookNotFoundText;
 
+  // שורות הפרטים; כרטיס שאין בו שורות לא מוצג.
+  final facts = <Widget>[
+    if (information.generation != null)
+      DetailsInfoSection(
+        icon: FluentIcons.people_team_24_regular,
+        title: 'דור:',
+        value: information.generation!,
+      ),
+    if (book.heEra != null && book.heEra!.isNotEmpty)
+      DetailsInfoSection(
+        icon: FluentIcons.history_24_regular,
+        title: 'תקופה:',
+        value: book.heEra!,
+      ),
+    if (information.categories != null)
+      DetailsInfoSection(
+        title: 'קטגוריות:',
+        icon: FluentIcons.folder_24_regular,
+        value: information.categories!,
+      ),
+    if (book.compDateStringHe != null && book.compDateStringHe!.isNotEmpty)
+      DetailsInfoSection(
+        title: 'תאריך חיבור:',
+        icon: OtzariaIcons.calendar_24_regular,
+        value: book.compDateStringHe!,
+      ),
+    if (book.compPlaceStringHe != null && book.compPlaceStringHe!.isNotEmpty)
+      DetailsInfoSection(
+        title: 'מקום חיבור:',
+        icon: FluentIcons.location_24_regular,
+        value: book.compPlaceStringHe!,
+      ),
+    if (information.publicationDates.isNotEmpty)
+      DetailsInfoSection(
+        title: 'תאריך פרסום:',
+        icon: FluentIcons.print_24_regular,
+        value: information.publicationDates.join(', '),
+      ),
+    if (information.publicationPlaces.isNotEmpty)
+      DetailsInfoSection(
+        title: 'מקום פרסום:',
+        icon: FluentIcons.building_24_regular,
+        value: information.publicationPlaces.join(', '),
+      ),
+    if (information.topics.isNotEmpty)
+      DetailsInfoSection(
+        title: 'נושאים:',
+        icon: FluentIcons.tag_24_regular,
+        value: information.topics.join(', '),
+      ),
+  ];
+
+  const gap = SizedBox(height: AppTokens.spaceMD);
   return AppSelectionArea(
     child: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          DetailsInfoSection(
-            icon: OtzariaIcons.booklet_empty_24_regular,
-            title: 'שם הספר:',
-            value: book.title,
+          DetailsHeading(
+            title: book.title,
+            subtitle: information.authors.join(', '),
           ),
-          if (information.authors.isNotEmpty)
-            DetailsInfoSection(
-              title: 'מחבר:',
-              icon: OtzariaIcons.person_24_regular,
-              value: information.authors.join(', '),
+          gap,
+          if (facts.isNotEmpty) ...[
+            DetailsCard(
+              title: 'פרטי הספר',
+              icon: OtzariaIcons.book_information_24_regular,
+              children: facts,
             ),
-          if (information.generation != null)
-            DetailsInfoSection(
-              icon: FluentIcons.people_team_24_regular,
-              title: 'דור:',
-              value: information.generation!,
-            ),
-          if (book.heEra != null && book.heEra!.isNotEmpty)
-            DetailsInfoSection(
-              icon: FluentIcons.history_24_regular,
-              title: 'תקופה:',
-              value: book.heEra!,
-            ),
-          if (information.categories != null)
-            DetailsInfoSection(
-              title: 'קטגוריות:',
-              icon: FluentIcons.folder_24_regular,
-              value: information.categories!,
-            ),
-          if (book.compDateStringHe != null &&
-              book.compDateStringHe!.isNotEmpty)
-            DetailsInfoSection(
-              title: 'תאריך חיבור:',
-              icon: OtzariaIcons.calendar_24_regular,
-              value: book.compDateStringHe!,
-            ),
-          if (book.compPlaceStringHe != null &&
-              book.compPlaceStringHe!.isNotEmpty)
-            DetailsInfoSection(
-              title: 'מקום חיבור:',
-              icon: FluentIcons.location_24_regular,
-              value: book.compPlaceStringHe!,
-            ),
-          if (information.publicationDates.isNotEmpty)
-            DetailsInfoSection(
-              title: 'תאריך פרסום:',
-              icon: FluentIcons.print_24_regular,
-              value: information.publicationDates.join(', '),
-            ),
-          if (information.publicationPlaces.isNotEmpty)
-            DetailsInfoSection(
-              title: 'מקום פרסום:',
-              icon: FluentIcons.building_24_regular,
-              value: information.publicationPlaces.join(', '),
-            ),
-          if (information.topics.isNotEmpty)
-            DetailsInfoSection(
-              title: 'נושאים:',
-              icon: FluentIcons.tag_24_regular,
-              value: information.topics.join(', '),
-            ),
-          if (mergedDescription != null)
-            _MergedDescriptionSection(
-              lead: mergedDescription.lead,
-              rest: mergedDescription.rest,
-            )
-          else ...[
-            if (information.shortDescription != null)
-              DetailsInfoSection(
-                title: 'תיאור קצר:',
-                icon: OtzariaIcons.book_information_24_regular,
-                value: information.shortDescription!,
-              ),
-            if (information.fullDescription != null)
-              DetailsInfoSection(
-                title: 'תיאור מורחב:',
-                icon: FluentIcons.document_text_24_regular,
-                value: information.fullDescription!,
-              ),
+            gap,
           ],
-          const Divider(height: 24),
-          Row(
+          if (mergedDescription != null) ...[
+            DetailsCard(
+              title: 'תיאור',
+              icon: FluentIcons.document_text_24_regular,
+              children: [
+                _MergedDescriptionSection(
+                  lead: mergedDescription.lead,
+                  rest: mergedDescription.rest,
+                ),
+              ],
+            ),
+            gap,
+          ] else if (information.shortDescription != null ||
+              information.fullDescription != null) ...[
+            DetailsCard(
+              title: 'תיאור',
+              icon: FluentIcons.document_text_24_regular,
+              children: [
+                if (information.shortDescription != null)
+                  DetailsText(information.shortDescription!, bold: true),
+                if (information.fullDescription != null)
+                  DetailsText(information.fullDescription!),
+              ],
+            ),
+            gap,
+          ],
+          DetailsCard(
+            title: 'מקור הספר',
+            icon: OtzariaIcons.book_information_24_filled,
             children: [
-              Icon(
-                OtzariaIcons.book_information_24_filled,
-                size: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppTokens.spaceSM + 1,
+                ),
+                child: isTashma
+                    ? const _TashmaCopyrightNotice()
+                    : _SourceCredit(info: sourceInfo),
               ),
-              const SizedBox(width: 6),
-              const Text(
-                'מקור הספר:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              if (hasPath) _buildFilePathSection(bookDetails['נתיב הקובץ']!),
             ],
           ),
-          const SizedBox(height: 8),
-          if (isTashma)
-            const _TashmaCopyrightNotice()
-          else
-            _SourceCredit(info: sourceInfo),
-          if (bookDetails['נתיב הקובץ'] != BookDetailsService.bookNotFoundText)
-            _buildFilePathSection(bookDetails['נתיב הקובץ']!),
         ],
       ),
     ),
@@ -377,34 +395,22 @@ class _MergedDescriptionSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Icon(
-              OtzariaIcons.book_information_24_regular,
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      child: Text.rich(
+        TextSpan(
+          style: TextStyle(
+            fontSize: AppTokens.fontMD,
+            height: 1.4,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                style: const TextStyle(fontSize: 14),
-                children: [
-                  TextSpan(
-                    text: lead,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  if (rest.isNotEmpty) TextSpan(text: '\n\n$rest'),
-                ],
-              ),
+          children: [
+            TextSpan(
+              text: lead,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-          ),
-        ],
+            if (rest.isNotEmpty) TextSpan(text: '\n\n$rest'),
+          ],
+        ),
       ),
     );
   }
@@ -417,6 +423,7 @@ Widget _buildFilePathSection(String filePath) {
     icon: FluentIcons.folder_open_24_regular,
     value: libraryPath ?? filePath,
     valueDirection: libraryPath == null ? TextDirection.ltr : null,
+    block: true,
   );
 }
 

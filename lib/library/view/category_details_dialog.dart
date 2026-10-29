@@ -1,9 +1,9 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
-import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// מציג את כל פרטי הקטגוריה הזמינים.
 Future<void> showCategoryDetailsDialog(
@@ -13,6 +13,8 @@ Future<void> showCategoryDetailsDialog(
   await showSingleActionDialog(
     context: context,
     title: 'אודות הקטגוריה',
+    icon: FluentIcons.folder_24_regular,
+    headerBand: true,
     confirmText: 'סגור',
     customContent: _CategoryDetailsDialogContent(category: category),
   );
@@ -29,32 +31,25 @@ class _CategoryDetailsDialogContent extends StatelessWidget {
     final fullDescription = category.description.trim();
 
     return SizedBox(
-      width: 450,
+      width: 500,
       child: AppSelectionArea(
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // אותם אייקונים כמו ב"אודות הספר", כדי ששני הדיאלוגים ייקראו
-              // כאותה טבלת פרטים.
-              DetailsInfoSection(
-                title: 'שם הקטגוריה:',
-                icon: FluentIcons.folder_24_regular,
-                value: category.title,
+              DetailsHeading(
+                title: category.title,
+                subtitle: shortDescription,
               ),
-              if (shortDescription.isNotEmpty)
-                DetailsInfoSection(
-                  title: 'תיאור קצר:',
-                  icon: OtzariaIcons.book_information_24_regular,
-                  value: category.shortDescription,
-                ),
-              if (fullDescription.isNotEmpty)
-                DetailsInfoSection(
-                  title: 'תיאור מורחב:',
+              if (fullDescription.isNotEmpty) ...[
+                const SizedBox(height: AppTokens.spaceMD),
+                DetailsCard(
+                  title: 'תיאור',
                   icon: FluentIcons.document_text_24_regular,
-                  value: category.description,
+                  children: [DetailsText(category.description)],
                 ),
+              ],
             ],
           ),
         ),

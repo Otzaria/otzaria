@@ -2662,6 +2662,8 @@ class _LibraryBrowserState extends State<LibraryBrowser>
         'כל הספרים ({count})',
         args: {'count': books.length},
       ),
+      icon: FluentIcons.library_24_regular,
+      headerBand: true,
       confirmText: context.settingsText('סגור'),
       customContent: SizedBox(
         width: 600,
