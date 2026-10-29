@@ -20,6 +20,7 @@ class CalendarState extends Equatable {
   final CalendarType calendarType;
   final CalendarView calendarView;
   final CalendarDayTransition dayTransition;
+  final bool twelveHourClock;
   final int? _calendarClockTick;
   int get calendarClockTick => _calendarClockTick ?? 0;
 
@@ -67,6 +68,7 @@ class CalendarState extends Equatable {
     required this.calendarType,
     required this.calendarView,
     required this.dayTransition,
+    this.twelveHourClock = false,
     required this.inIsrael,
     this._calendarClockTick = 0,
     this.events = const [],
@@ -130,6 +132,7 @@ class CalendarState extends Equatable {
     CalendarType? calendarType,
     CalendarView? calendarView,
     CalendarDayTransition? dayTransition,
+    bool? twelveHourClock,
     int? calendarClockTick,
     List<CustomEvent>? events,
     String? eventSearchQuery,
@@ -167,6 +170,7 @@ class CalendarState extends Equatable {
       calendarType: calendarType ?? this.calendarType,
       calendarView: calendarView ?? this.calendarView,
       dayTransition: dayTransition ?? this.dayTransition,
+      twelveHourClock: twelveHourClock ?? this.twelveHourClock,
       calendarClockTick: calendarClockTick ?? this.calendarClockTick,
       events: events ?? this.events,
       eventSearchQuery: eventSearchQuery ?? this.eventSearchQuery,
@@ -231,6 +235,7 @@ class CalendarState extends Equatable {
     calendarType,
     calendarView,
     dayTransition,
+    twelveHourClock,
     calendarClockTick,
     inIsrael,
     showAllEvents,

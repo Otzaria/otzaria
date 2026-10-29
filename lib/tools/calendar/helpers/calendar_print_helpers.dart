@@ -105,6 +105,8 @@ class _CalendarText {
     ShapedTextAlign align = ShapedTextAlign.start,
     bool singleLine = false,
   }) {
+    // מנוע ה-bidi של ההדפסה מכיר embedding אך לא isolate.
+    text = text.replaceAll('\u2066', '\u202a').replaceAll('\u2069', '\u202c');
     final widget = ShapedText(
       text,
       fonts: fonts,
@@ -291,7 +293,13 @@ List<(String, String)> calendarPrintedZmanim(CalendarState state) {
       return a.time.compareTo(b.time);
     },
   );
-  return [for (final z in zmanim) (z.name, z.time)];
+  return [
+    for (final z in zmanim)
+      (
+        z.name,
+        zmanTimeForDisplay(z.time, twelveHourClock: state.twelveHourClock),
+      ),
+  ];
 }
 
 CalendarState _getStateForDayOffset(CalendarState state, int offset) {
@@ -579,6 +587,8 @@ pw.Widget _buildWeekGrid(CalendarState state, _CalendarText font) {
     children: days.map((date) {
       final jd = JewishDate.fromDateTime(date);
       final dailyTimes = calculateDailyTimes(date, state.selectedCity);
+      String display(String time) =>
+          zmanTimeForDisplay(time, twelveHourClock: state.twelveHourClock);
       final events = _eventsForDate(date, state);
       final jewishEvents = _jewishEventsForDate(date, state.inIsrael);
       return pw.Expanded(
@@ -597,9 +607,9 @@ pw.Widget _buildWeekGrid(CalendarState state, _CalendarText font) {
               for (final je in jewishEvents) font(je, 7, singleLine: true),
               if (jewishEvents.isNotEmpty) pw.SizedBox(height: 2),
               if (dailyTimes['sunrise'] case final sunrise?)
-                font('זריחה $sunrise', 7, color: PdfColors.blue800),
+                font('זריחה ${display(sunrise)}', 7, color: PdfColors.blue800),
               if (dailyTimes['sunset'] case final sunset?)
-                font('שקיעה $sunset', 7, color: PdfColors.blue800),
+                font('שקיעה ${display(sunset)}', 7, color: PdfColors.blue800),
               if (dailyTimes['sunrise'] != null || dailyTimes['sunset'] != null)
                 pw.SizedBox(height: 4),
               for (final event in events.take(3))

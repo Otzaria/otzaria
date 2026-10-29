@@ -15,6 +15,8 @@ abstract final class CalendarAlertsKeys {
   static const String city = SettingsRepository.keySelectedCity;
   static const String icsSubscriptions =
       SettingsRepository.keyCalendarIcsSubscriptions;
+  static const String twelveHourClock =
+      SettingsRepository.keyCalendarTwelveHourClock;
 
   /// רישום המזהים שהבעלים תזמן. פרטי לבעלים ואינו משודר לאף חלון.
   static const String ledger =
@@ -28,6 +30,7 @@ abstract final class CalendarAlertsKeys {
     zmanAlerts: '{}',
     city: 'ירושלים',
     icsSubscriptions: '[]',
+    twelveHourClock: false,
   };
 }
 
@@ -95,6 +98,7 @@ class RepositoryCalendarAlertsStore implements CalendarAlertsStore {
       CalendarAlertsKeys.zmanAlerts: settings['calendarZmanAlerts'],
       CalendarAlertsKeys.city: settings['selectedCity'],
       CalendarAlertsKeys.icsSubscriptions: settings['calendarIcsSubscriptions'],
+      CalendarAlertsKeys.twelveHourClock: settings['calendarTwelveHourClock'],
     };
     for (final entry in CalendarAlertsKeys.defaults.entries) {
       final value = loaded[entry.key];
@@ -124,6 +128,8 @@ class RepositoryCalendarAlertsStore implements CalendarAlertsStore {
           await _repository.updateSelectedCity(value as String);
         case CalendarAlertsKeys.icsSubscriptions:
           await _repository.updateCalendarIcsSubscriptions(value as String);
+        case CalendarAlertsKeys.twelveHourClock:
+          await _repository.updateCalendarTwelveHourClock(value as bool);
       }
     }
   }

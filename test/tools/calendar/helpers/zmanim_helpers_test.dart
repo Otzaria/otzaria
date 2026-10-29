@@ -400,6 +400,42 @@ void main() {
     });
   });
 
+  group('zmanTimeForDisplay — שעון 12 שעות', () {
+    test('בשעון 24 שעות הטקסט חוזר כמו שהוא', () {
+      expect(
+        zmanTimeForDisplay('\u206619:43:\u2069', twelveHourClock: false),
+        '\u206619:43:\u2069',
+      );
+    });
+
+    test('ממיר ל-h:mm עם AM/PM ושומר על סימן השניות', () {
+      String display(String time) =>
+          zmanTimeForDisplay(time, twelveHourClock: true);
+      expect(display('\u206619:43:\u2069'), '\u20667:43:\u200E\u00A0PM\u2069');
+      expect(display('\u206605:02.\u2069'), '\u20665:02.\u200E\u00A0AM\u2069');
+      expect(display('\u206600:15.\u2069'), '\u206612:15.\u200E\u00A0AM\u2069');
+      expect(display('\u206612:30:\u2069'), '\u206612:30:\u200E\u00A0PM\u2069');
+    });
+
+    test('ממיר גם שעה שבתוך תווית, ולא נוגע בטקסט שאינו שעה', () {
+      expect(
+        zmanTimeForDisplay(
+          'ליל שני ט״ו לחודש \u206620:02.\u2069',
+          twelveHourClock: true,
+        ),
+        'ליל שני ט״ו לחודש \u20668:02.\u200E\u00A0PM\u2069',
+      );
+      expect(zmanTimeForDisplay('—', twelveHourClock: true), '—');
+      // כרטיס זוגי מפצל כותרת מערך ברווח האחרון — ה-AM/PM לא יוצר רווח חדש.
+      const pairLabel = 'מג"א \u206609:05.\u2069';
+      expect(
+        zmanTimeForDisplay(pairLabel, twelveHourClock: true).lastIndexOf(' '),
+        pairLabel.lastIndexOf(' '),
+      );
+      expect(zmanTimeForDisplay('--:--', twelveHourClock: true), '--:--');
+    });
+  });
+
   group('isClockTime — סובלנות לעטיפה ולסימן השניות', () {
     test('מזהה שעת-שעון עם/בלי עטיפת isolate וסימן שניות', () {
       expect(isClockTime('19:43.'), isTrue);

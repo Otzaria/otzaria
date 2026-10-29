@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
+import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart'
+    show zmanTimeForDisplay;
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_day_cell.dart';
 
@@ -186,9 +188,13 @@ class CalendarMainPanel extends StatelessWidget {
         final shortTimes = context.read<CalendarCubit>().shortTimesFor(
           cell.gregorian,
         );
+        String display(String time) =>
+            zmanTimeForDisplay(time, twelveHourClock: state.twelveHourClock);
         final additionalInfoLines = <String>[
-          if (shortTimes['sunrise'] case final sunrise?) 'זריחה $sunrise',
-          if (shortTimes['sunset'] case final sunset?) 'שקיעה $sunset',
+          if (shortTimes['sunrise'] case final sunrise?)
+            'זריחה ${display(sunrise)}',
+          if (shortTimes['sunset'] case final sunset?)
+            'שקיעה ${display(sunset)}',
         ];
         return Expanded(
           child: buildDayCell(

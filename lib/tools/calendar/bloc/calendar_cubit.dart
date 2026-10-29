@@ -155,6 +155,8 @@ class CalendarCubit extends Cubit<CalendarState> {
     final calendarType = _stringToCalendarType(calendarTypeString);
     final dayTransitionString = settings['calendarDayTransition'] as String;
     final dayTransition = calendarDayTransitionFromString(dayTransitionString);
+    final twelveHourClock =
+        settings['calendarTwelveHourClock'] as bool? ?? false;
     final selectedCity = settings['selectedCity'] as String;
     final today = resolveCalendarDayForTransition(
       now: DateTime.now(),
@@ -217,6 +219,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       CalendarAlertsKeys.city: selectedCity,
       CalendarAlertsKeys.icsSubscriptions:
           settings['calendarIcsSubscriptions'] as String? ?? '[]',
+      CalendarAlertsKeys.twelveHourClock: twelveHourClock,
     };
 
     if (isClosed) return;
@@ -231,6 +234,7 @@ class CalendarCubit extends Cubit<CalendarState> {
       state.copyWith(
         calendarType: calendarType,
         dayTransition: dayTransition,
+        twelveHourClock: twelveHourClock,
         selectedCity: selectedCity,
         selectedJewishDate: selectedJewishDate,
         selectedGregorianDate: selectedGregorianDate,
@@ -386,6 +390,9 @@ class CalendarCubit extends Cubit<CalendarState> {
       icsSubscriptions: IcsSubscription.listFromJson(
         values[CalendarAlertsKeys.icsSubscriptions] as String? ?? '[]',
       ),
+      twelveHourClock:
+          values[CalendarAlertsKeys.twelveHourClock] as bool? ??
+          current.twelveHourClock,
     );
     final city = values[CalendarAlertsKeys.city];
     if (city is String && city != next.selectedCity) {
@@ -667,6 +674,12 @@ class CalendarCubit extends Cubit<CalendarState> {
     emit(state.copyWith(calendarType: type));
     // שמור את הבחירה בהגדרות
     await _settingsRepository.updateCalendarType(_calendarTypeToString(type));
+  }
+
+  Future<void> changeTwelveHourClock(bool enabled) async {
+    emit(state.copyWith(twelveHourClock: enabled));
+    // נשמר אצל בעלי ההתראות, שמנסחים בו גם את שעת ההתראה.
+    await _send('setTwelveHourClock', {'enabled': enabled});
   }
 
   Future<void> changeCalendarDayTransition(

@@ -125,6 +125,7 @@ class _InMemorySettingsRepository implements SettingsRepository {
   String storedEventsJson = '[]';
   String selectedCity = 'ירושלים';
   String calendarDayTransition = 'sunset';
+  bool calendarTwelveHourClock = false;
 
   @override
   Future<void> updateCalendarEvents(String json) async {
@@ -143,6 +144,7 @@ class _InMemorySettingsRepository implements SettingsRepository {
       'calendarZmanAlerts': calendarZmanAlertsJson,
       'calendarEnabledZmanim': calendarEnabledZmanim,
       'calendarDayTransition': calendarDayTransition,
+      'calendarTwelveHourClock': calendarTwelveHourClock,
       'googleCalendarEnabled': false,
       'googleCalendarSelectedIds': 'primary',
       'googleCalendarSyncPastDays': 60,
@@ -159,6 +161,11 @@ class _InMemorySettingsRepository implements SettingsRepository {
   @override
   Future<void> updateCalendarEnabledZmanim(String json) async {
     calendarEnabledZmanim = json;
+  }
+
+  @override
+  Future<void> updateCalendarTwelveHourClock(bool value) async {
+    calendarTwelveHourClock = value;
   }
 
   @override
@@ -616,6 +623,25 @@ void main() {
       await cubit.setZmanEnabled('tzais', true);
       expect(cubit.state.enabledZmanim.contains('tzais'), isTrue);
       expect(settings.calendarEnabledZmanim, contains('tzais'));
+
+      await cubit.close();
+    });
+  });
+
+  group('changeTwelveHourClock — שעון 12 שעות', () {
+    test('נטען מההגדרות, ושינוי מעדכן את ה-state ונשמר', () async {
+      final settings = _InMemorySettingsRepository()
+        ..calendarTwelveHourClock = true;
+      final cubit = CalendarCubit(
+        settingsRepository: settings,
+        notificationService: _FakeNotificationService(),
+      );
+      await cubit.initialized;
+      expect(cubit.state.twelveHourClock, isTrue);
+
+      await cubit.changeTwelveHourClock(false);
+      expect(cubit.state.twelveHourClock, isFalse);
+      expect(settings.calendarTwelveHourClock, isFalse);
 
       await cubit.close();
     });

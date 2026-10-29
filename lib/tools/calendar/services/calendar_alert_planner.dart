@@ -170,6 +170,7 @@ abstract final class CalendarAlertPlanner {
     required Map<String, ZmanAlertPreference> alerts,
     required String city,
     required DateTime now,
+    bool twelveHourClock = false,
   }) sync* {
     if (alerts.isEmpty) return;
     final cityData = calendar_location.getCityData(city);
@@ -209,9 +210,12 @@ abstract final class CalendarAlertPlanner {
             null) {
           continue;
         }
-        final shownTime = timeStr
-            .replaceAll(RegExp('[\u2066\u2069]'), '')
-            .replaceFirst(RegExp(r'[.:]$'), '');
+        final shownTime = zmanim_helpers
+            .zmanTimeForDisplay(
+              timeStr.replaceFirst(RegExp('[.:](?=\u2069)'), ''),
+              twelveHourClock: twelveHourClock,
+            )
+            .replaceAll(RegExp('[\u2066\u2069]'), '');
         yield PlannedAlert(
           id: zmanNotificationId(timeId, d),
           title: 'תזכורת: ${pref.displayName}',
