@@ -193,6 +193,35 @@ void main() {
     });
   });
 
+  group('stripInlineNotesFromHeading', () {
+    test('מסיר הערה מקוננת בשלמותה ושומר עיצוב וטקסט שסביבה', () {
+      const input =
+          '<h2><i>פרק &lt;א&gt; &amp; x<sup>2</sup></i>'
+          '<sup class="footnote-marker">1</sup>'
+          '<i class="footnote">גוף <i>נטוי <i>עמוק</i></i> זנב</i>'
+          '<i class="footnote-extra"> סוף</i></h2>';
+      expect(
+        stripInlineNotesFromHeading(input),
+        '<h2><i>פרק &lt;א&gt; &amp; x<sup>2</sup></i>'
+        '<i class="footnote-extra"> סוף</i></h2>',
+      );
+    });
+
+    test('מסיר הערות מרובות עם עיצוב פנימי בלי למחוק טקסט ביניהן', () {
+      const input =
+          '<h2>ראשון<sup class="footnote-marker">א</sup>'
+          '<i class="footnote"><i>א</i> זנב</i>'
+          ' אמצע<sup class="footnote-marker">ב</sup>'
+          '<i class="footnote">ב <b><i>נטוי</i></b></i> סוף</h2>';
+      expect(stripInlineNotesFromHeading(input), '<h2>ראשון אמצע סוף</h2>');
+    });
+
+    test('כותרת בלי הערה אינה משתנה', () {
+      const input = '<H2 data-x="footnote-extra">פרק &#1488; &lt;א&gt;</H2>';
+      expect(stripInlineNotesFromHeading(input), input);
+    });
+  });
+
   group('stripInlineNotesForSearch', () {
     test('מסיר גם את אות ההפניה (<sup>) וגם את גוף ההערה', () {
       const input =

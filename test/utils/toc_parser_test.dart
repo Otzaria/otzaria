@@ -133,6 +133,19 @@ void main() {
       },
     );
 
+    test('הסרת הערה שומרת entities ותגי עיצוב רגילים בכותרת', () {
+      for (final note in [
+        '',
+        '<sup class="footnote-marker">1</sup>'
+            '<i class="footnote">הערה <i>מקוננת</i> זנב</i>',
+      ]) {
+        final toc = TocParser.parseEntriesFromContent(
+          '<h2><i>פרק &lt;א&gt;</i> &amp;$note סוף</h2>',
+        );
+        expect(toc.single.text, 'פרק &lt;א&gt; &amp; סוף');
+      }
+    });
+
     test('זהה לזיהוי הקודם על שורות אקראיות (perf)', () {
       const pieces = [
         '#',

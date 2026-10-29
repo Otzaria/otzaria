@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/utils/file/document_conversion_exceptions.dart';
 import 'package:otzaria/utils/file/document_format.dart';
 import 'package:otzaria/utils/file/html_to_otzaria.dart';
+import 'package:otzaria/utils/file/toc_parser.dart';
 import 'package:path/path.dart' as p;
 
 const _title = 'ספר';
@@ -48,6 +49,21 @@ String _joined(String body, {String? baseDirectory}) =>
     _convert(body, baseDirectory: baseDirectory).join('\n');
 
 void main() {
+  test('הערה מקוננת בכותרת נשארת בספר ואינה נכנסת לתוכן העניינים', () {
+    final content = htmlToText(
+      _utf8(
+        '<html><body><h2>פרק א'
+        '<sup class="footnote-marker">1</sup>'
+        '<i class="footnote">הערה <i>נטויה</i> זנב</i>'
+        ' סוף</h2></body></html>',
+      ),
+      _title,
+    );
+    expect(content, contains('<i class="footnote">הערה <i>נטויה</i> זנב</i>'));
+    final toc = TocParser.parseEntriesFromContent(content);
+    expect(toc.single.children.single.text, 'פרק א סוף');
+  });
+
   group('מבנה הפלט', () {
     test('שורת הכותרת היא תמיד הראשונה ועוברת escape', () {
       final output = htmlToText(_utf8('<p>תוכן</p>'), 'ספר <גדול> & נחמד');

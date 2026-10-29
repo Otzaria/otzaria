@@ -279,6 +279,21 @@ void main() {
       );
     });
 
+    test('הערה מקוננת בכותרת אינה נכנסת לנתיב ההעתקה', () async {
+      expect(
+        await CopyUtils.extractCurrentPath(
+          _TocBook(const []),
+          1,
+          bookContent: const [
+            '<h2>פרק &lt;א&gt;<sup class="footnote-marker">1</sup>'
+                '<i class="footnote">גוף <i>נטוי</i> זנב</i> סוף</h2>',
+            'טקסט',
+          ],
+        ),
+        'פרק &lt;א&gt; סוף',
+      );
+    });
+
     test('שורה ריקה עם TOC ריק שומרת את הנתיב מהתוכן', () async {
       expect(
         await CopyUtils.extractCurrentPath(
