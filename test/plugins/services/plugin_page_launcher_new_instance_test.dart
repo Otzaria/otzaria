@@ -417,7 +417,10 @@ void main() {
 
       final opened = launcher.openInNewTab(
         _kPid,
-        events: const [(topic: 'reader.toolbar_item_clicked', payload: {})],
+        events: const [
+          (topic: 'reader.toolbar_item_clicked', payload: {'source': 'toolbar'}),
+          (topic: 'reader.context_menu_item_clicked', payload: {'source': 'menu'}),
+        ],
         windowKeys: keys,
       );
 
@@ -425,10 +428,14 @@ void main() {
       expect(openerCalls, 0);
       expect(navigations, [_kPid]);
 
-      // האירוע ממתין לדף הראשי, לא למופע נוסף.
+      // שני האירועים ממתינים לדף הראשי, אבל יש רק ניווט אחד.
       launcher.markPageReady(_kPid, instanceId: 'first');
-      await settle(() => first.jsCalls.isNotEmpty);
-      expect(first.jsCalls.single, contains('reader.toolbar_item_clicked'));
+      await settle(() => first.jsCalls.length >= 2);
+      expect(first.jsCalls, hasLength(2));
+      expect(first.jsCalls[0], contains('reader.toolbar_item_clicked'));
+      expect(first.jsCalls[0], contains('"source":"toolbar"'));
+      expect(first.jsCalls[1], contains('reader.context_menu_item_clicked'));
+      expect(first.jsCalls[1], contains('"source":"menu"'));
       launcher.unregister(keys, navigator);
       launcher.unregisterInstanceOpener(keys, opener);
     });
