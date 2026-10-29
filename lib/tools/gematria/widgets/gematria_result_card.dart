@@ -42,145 +42,76 @@ class GematriaResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ToolResultCardShell(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final cs = Theme.of(context).colorScheme;
-          final isNarrow = constraints.maxWidth < 700;
-          final reservedEndSpace = isNarrow ? 84.0 : 92.0;
-          final topInset = isNarrow ? 6.0 : 8.0;
+      outlined: true,
+      padding: const EdgeInsets.all(AppTokens.spaceMD),
+      bottomGap: AppTokens.spaceSM + AppTokens.spaceXS,
+      child: BlocBuilder<SettingsBloc, SettingsState>(
+        builder: (context, state) {
+          String holy(String text) => state.replaceHolyNames
+              ? utils.replaceHolyNames(text, style: state.holyNameStyle)
+              : text;
+          final displayPath = holy(
+            result.internalPath.isNotEmpty
+                ? result.internalPath
+                : result.bookTitle,
+          );
+          final displayText = holy(result.preview);
+          final before = holy(result.data.contextBefore);
+          final after = holy(result.data.contextAfter);
+          final faded = TextStyle(color: cs.onSurface.withValues(alpha: 0.45));
 
-          return BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, state) {
-              String displayPath = result.internalPath.isNotEmpty
-                  ? result.internalPath
-                  : result.bookTitle;
-              if (state.replaceHolyNames) {
-                displayPath = utils.replaceHolyNames(
-                  displayPath,
-                  style: state.holyNameStyle,
-                );
-              }
-              String displayText = result.preview;
-              if (state.replaceHolyNames) {
-                displayText = utils.replaceHolyNames(
-                  displayText,
-                  style: state.holyNameStyle,
-                );
-              }
-
-              String before = result.data.contextBefore;
-              String after = result.data.contextAfter;
-              if (state.replaceHolyNames) {
-                before = utils.replaceHolyNames(
-                  before,
-                  style: state.holyNameStyle,
-                );
-                after = utils.replaceHolyNames(
-                  after,
-                  style: state.holyNameStyle,
-                );
-              }
-
-              return ConstrainedBox(
-                constraints: BoxConstraints(minHeight: isNarrow ? 56 : 72),
-                child: Stack(
-                  children: [
-                    Padding(
-                      padding: EdgeInsetsDirectional.only(
-                        end: reservedEndSpace,
-                        top: topInset,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _NumberBadge(number: number),
-                          const SizedBox(width: AppTokens.spaceSM),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  displayPath,
-                                  style: TextStyle(
-                                    fontSize: AppTokens.fontSM,
-                                    fontWeight: FontWeight.w500,
-                                    color: cs.onSurfaceVariant,
-                                  ),
-                                  textAlign: TextAlign.right,
-                                  maxLines: isNarrow ? null : 1,
-                                ),
-                                if (result.preview.isNotEmpty) ...[
-                                  SizedBox(height: isNarrow ? 7 : 9),
-                                  Text.rich(
-                                    TextSpan(
-                                      style: TextStyle(
-                                        fontSize: state.fontSize - 1,
-                                        fontFamily: AppFonts.renderFontFamily(
-                                          state.fontFamily,
-                                        ),
-                                        color: cs.onSurface,
-                                        height: isNarrow ? 1.28 : 1.22,
-                                      ),
-                                      children: [
-                                        if (before.isNotEmpty)
-                                          TextSpan(
-                                            text: '$before ',
-                                            style: TextStyle(
-                                              color: cs.onSurface.withValues(
-                                                alpha: 0.45,
-                                              ),
-                                            ),
-                                          ),
-                                        TextSpan(
-                                          text: displayText,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        if (after.isNotEmpty)
-                                          TextSpan(
-                                            text: ' $after',
-                                            style: TextStyle(
-                                              color: cs.onSurface.withValues(
-                                                alpha: 0.45,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    textAlign: TextAlign.right,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  _NumberBadge(number: number),
+                  const SizedBox(width: AppTokens.spaceSM),
+                  Expanded(
+                    child: Text(
+                      displayPath,
+                      style: TextStyle(
+                        fontSize: AppTokens.fontMD,
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
-                    PositionedDirectional(
-                      end: 0,
-                      top: 0,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SecondaryIconButton(
-                            icon: FluentIcons.copy_24_regular,
-                            tooltip: 'העתק',
-                            onPressed: () => _copy(context),
-                          ),
-                          const SizedBox(width: 4),
-                          PrimaryIconButton(
-                            onPressed: () => _navigate(context),
-                          ),
-                        ],
-                      ),
+                  ),
+                  const SizedBox(width: AppTokens.spaceSM),
+                  SecondaryIconButton(
+                    icon: FluentIcons.copy_24_regular,
+                    tooltip: 'העתק',
+                    onPressed: () => _copy(context),
+                  ),
+                  const SizedBox(width: AppTokens.spaceXS),
+                  PrimaryIconButton(onPressed: () => _navigate(context)),
+                ],
+              ),
+              if (result.preview.isNotEmpty) ...[
+                const SizedBox(height: AppTokens.spaceSM),
+                Text.rich(
+                  TextSpan(
+                    style: TextStyle(
+                      fontSize: state.fontSize,
+                      fontFamily: AppFonts.renderFontFamily(state.fontFamily),
+                      color: cs.onSurface,
+                      height: 1.4,
                     ),
-                  ],
+                    children: [
+                      if (before.isNotEmpty)
+                        TextSpan(text: '$before ', style: faded),
+                      TextSpan(
+                        text: displayText,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      if (after.isNotEmpty)
+                        TextSpan(text: ' $after', style: faded),
+                    ],
+                  ),
                 ),
-              );
-            },
+              ],
+            ],
           );
         },
       ),

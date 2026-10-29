@@ -1,6 +1,8 @@
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/tools/gematria/widgets/gematria_status_bar.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -418,68 +420,12 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
   }
 
   Widget _buildStatusBar() {
-    final resultsText = _hasMoreResults
-        ? 'הוגבל ל-${_searchResults.length} תוצאות'
-        : 'נמצאו ${_searchResults.length} תוצאות';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant,
-            width: 1,
-          ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                resultsText,
-                style: const TextStyle(
-                  fontSize: 14,
-                ),
-              ),
-              Text(
-                'ערך גימטריה: $_lastGematriaValue',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          if (_activeParams.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: _activeParams.map(_buildParamChip).toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildParamChip(String label) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: cs.secondaryContainer,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Text(
-        label,
-        style: Theme.of(
-          context,
-        ).textTheme.labelSmall?.copyWith(color: cs.onSecondaryContainer),
-      ),
+    return GematriaStatusBar(
+      value: _lastGematriaValue!,
+      resultsText: _hasMoreResults
+          ? 'הוגבל ל-${_searchResults.length} תוצאות'
+          : 'נמצאו ${_searchResults.length} תוצאות',
+      params: _activeParams,
     );
   }
 
@@ -510,7 +456,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
 
   Widget _buildResultsList() {
     if (_isSearching) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingIndicator();
     }
 
     if (_searchResults.isEmpty && _hasSearched) {
@@ -528,7 +474,7 @@ class GematriaSearchScreenState extends State<GematriaSearchScreen>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppTokens.spaceMD),
       itemCount: _searchResults.length,
       itemBuilder: (context, index) {
         return GematriaResultCard(
