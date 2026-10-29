@@ -122,21 +122,42 @@ class PluginPageLauncher {
     int? viewId,
     AppWindowKeys? windowKeys,
   }) {
+    openWithEvents(
+      pluginId,
+      events: [
+        if (topic != null) (topic: topic, payload: payload),
+      ],
+      viewId: viewId,
+      windowKeys: windowKeys,
+    );
+  }
+
+  /// Opens a plugin once and delivers all supplied events in order.
+  ///
+  /// Events are delivered to the ready primary page or queued until it is
+  /// ready. Navigation is requested only once, even when [events] has more
+  /// than one entry.
+  void openWithEvents(
+    String pluginId, {
+    required List<({String topic, Map<String, dynamic> payload})> events,
+    int? viewId,
+    AppWindowKeys? windowKeys,
+  }) {
     if (windowKeys != null && _navigators[windowKeys] == null) return;
-    if (topic != null) {
-      final ready = _readyPage(pluginId, viewId);
+    final ready = events.isEmpty ? null : _readyPage(pluginId, viewId);
+    for (final event in events) {
       if (ready != null) {
         _enqueueDelivery(
           pluginId,
-          topic,
-          payload,
+          event.topic,
+          event.payload,
           viewId: viewId,
           instanceId: ready.instanceId,
         );
       } else {
         _pending
             .putIfAbsent((pluginId: pluginId, viewId: viewId), () => [])
-            .add((topic: topic, payload: payload));
+            .add(event);
       }
     }
     _navigators[windowKeys ?? AppWindowKeys.current]?.call(pluginId);
@@ -183,15 +204,12 @@ class PluginPageLauncher {
     final keys = windowKeys ?? AppWindowKeys.current;
     final hasOpenTab = _openTabProbes[keys];
     if (hasOpenTab != null && !hasOpenTab(pluginId)) {
-      for (final event in events) {
-        open(
-          pluginId,
-          topic: event.topic,
-          payload: event.payload,
-          viewId: viewId,
-          windowKeys: windowKeys,
-        );
-      }
+      openWithEvents(
+        pluginId,
+        events: events,
+        viewId: viewId,
+        windowKeys: windowKeys,
+      );
       return true;
     }
     final instanceId = openNewInstance(
