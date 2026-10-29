@@ -9,20 +9,32 @@ class MetaChip extends StatelessWidget {
   /// תגית ניטרלית עם מסגרת, במקום תגית בצבע משני.
   final bool outlined;
 
+  /// תגית מצב תקלה (למשל "התיקייה לא נמצאה"), בצבעי השגיאה.
+  final bool error;
+
   const MetaChip({
     super.key,
     required this.label,
     this.icon,
     this.outlined = false,
+    this.error = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final foreground = outlined ? cs.onSurfaceVariant : cs.onSecondaryContainer;
+    final foreground = error
+        ? cs.onErrorContainer
+        : outlined
+        ? cs.onSurfaceVariant
+        : cs.onSecondaryContainer;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: outlined ? null : cs.secondaryContainer,
+        color: error
+            ? cs.errorContainer
+            : outlined
+            ? null
+            : cs.secondaryContainer,
         border: outlined ? Border.all(color: cs.outlineVariant) : null,
         borderRadius: AppTokens.borderRadiusAll,
       ),

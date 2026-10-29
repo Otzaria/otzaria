@@ -86,12 +86,14 @@ class DetailsCard extends StatelessWidget {
                     Icon(icon, size: AppTokens.fontLG, color: cs.primary),
                     const SizedBox(width: AppTokens.spaceSM),
                   ],
-                  Text(
-                    title!,
-                    style: TextStyle(
-                      fontSize: AppTokens.fontMD + 1,
-                      fontWeight: FontWeight.bold,
-                      color: cs.primary,
+                  Flexible(
+                    child: Text(
+                      title!,
+                      style: TextStyle(
+                        fontSize: AppTokens.fontMD + 1,
+                        fontWeight: FontWeight.bold,
+                        color: cs.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -120,6 +122,8 @@ class DetailsInfoSection extends StatelessWidget {
     this.icon,
     this.valueDirection,
     this.block = false,
+    this.onTap,
+    this.tapTooltip,
   });
 
   /// התווית שמופיעה לפני הערך.
@@ -135,6 +139,13 @@ class DetailsInfoSection extends StatelessWidget {
   final TextDirection? valueDirection;
 
   final bool block;
+
+  /// כשנתון, הערך הוא קישור: בצבע ראשי עם קו תחתון, והקשה עליו מפעילה את
+  /// הפעולה (למשל פתיחת תיקייה במנהל הקבצים).
+  final VoidCallback? onTap;
+
+  /// הסבר קצר למה שההקשה על [onTap] עושה.
+  final String? tapTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -157,15 +168,27 @@ class DetailsInfoSection extends StatelessWidget {
         ),
       ],
     );
-    final valueText = Text(
+    Widget valueText = Text(
       value,
       textDirection: valueDirection,
       style: TextStyle(
         fontSize: AppTokens.fontMD,
         fontWeight: FontWeight.w600,
-        color: cs.onSurface,
+        color: onTap == null ? cs.onSurface : cs.primary,
+        decoration: onTap == null ? null : TextDecoration.underline,
+        decorationColor: cs.primary,
       ),
     );
+    if (onTap != null) {
+      valueText = Tooltip(
+        message: tapTooltip ?? '',
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppTokens.borderRadiusAll,
+          child: valueText,
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
@@ -176,7 +199,13 @@ class DetailsInfoSection extends StatelessWidget {
               children: [
                 label,
                 const SizedBox(height: AppTokens.spaceXS),
-                valueText,
+                // קישור לוחץ רק על הטקסט עצמו, לא על רוחב השורה כולה.
+                onTap == null
+                    ? valueText
+                    : Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: valueText,
+                      ),
               ],
             )
           : Row(
@@ -184,7 +213,17 @@ class DetailsInfoSection extends StatelessWidget {
               children: [
                 Expanded(flex: 4, child: label),
                 const SizedBox(width: AppTokens.spaceMD),
-                Expanded(flex: 6, child: valueText),
+                Expanded(
+                  flex: 6,
+                  // ערך LTR (גרסה, נתיב) צמוד לתחילת העמודה כמו שאר הערכים,
+                  // ולא לקצה השמאלי שלה.
+                  child: valueDirection == null && onTap == null
+                      ? valueText
+                      : Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: valueText,
+                        ),
+                ),
               ],
             ),
     );

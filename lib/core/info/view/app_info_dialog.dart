@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -12,6 +14,8 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
+import 'package:otzaria/utils/file/open_in_file_manager.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 
@@ -22,7 +26,7 @@ Future<void> showAppInfoDialog(
 ) => showSingleActionDialog(
   context: context,
   title: report.topic.title,
-  icon: FluentIcons.info_24_regular,
+  icon: report.topic.icon,
   headerBand: true,
   confirmText: 'סגירה',
   customContent: AppInfoDialogContent(report: report),
@@ -75,7 +79,7 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
               const SizedBox(height: AppTokens.spaceMD),
               for (final topic in widget.report.topic.sections)
                 if (sections[topic.slug] case final data?) ...[
-                  _InfoSectionCard(topic: topic, data: data),
+                  _InfoSection(topic: topic, data: data),
                   const SizedBox(height: AppTokens.spaceMD),
                 ],
               Align(
@@ -157,58 +161,74 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
   }
 }
 
-/// כרטיס מקטע — כותרת הנושא ושורות התווית/ערך שלו.
-class _InfoSectionCard extends StatelessWidget {
-  const _InfoSectionCard({required this.topic, required this.data});
+/// במובייל אין מנהל קבצים שאפשר לפתוח בו תיקייה, אז נתיבים נשארים טקסט.
+bool get _canOpenPaths =>
+    defaultTargetPlatform != TargetPlatform.android &&
+    defaultTargetPlatform != TargetPlatform.iOS;
+
+/// פותח נתיב מהדוח במנהל הקבצים. קובץ (כמו מסד הספרייה) נפתח דרך התיקייה
+/// שמכילה אותו, כדי שלא יופעל בתוכנית ברירת המחדל שלו.
+Future<void> _openInfoPath(String path) async {
+  try {
+    final target = FileSystemEntity.isFileSync(path)
+        ? File(path).parent.path
+        : path;
+    if (!FileSystemEntity.isDirectorySync(target)) {
+      UiSnack.showError('המיקום לא נמצא בדיסק');
+      return;
+    }
+    await openInFileManager(target);
+  } catch (_) {
+    UiSnack.showError('לא ניתן לפתוח את המיקום');
+  }
+}
+
+/// האייקון של נושא המידע: בכותרת הדיאלוג ובכרטיס המקטע.
+extension InfoTopicIcon on InfoTopic {
+  IconData get icon => switch (this) {
+    InfoTopic.app => FluentIcons.app_generic_24_regular,
+    InfoTopic.library => FluentIcons.library_24_regular,
+    InfoTopic.folders => FluentIcons.folder_open_24_regular,
+    InfoTopic.plugins => FluentIcons.puzzle_piece_24_regular,
+    InfoTopic.errors => FluentIcons.error_circle_24_regular,
+    InfoTopic.all => FluentIcons.info_24_regular,
+  };
+}
+
+/// מקטע נושא אחד: כרטיס עם שורות התווית והערך, ומתחתיו הרשימה של הנושא
+/// (תיקיות, תוספים או שגיאות) בכרטיסים משלה.
+class _InfoSection extends StatelessWidget {
+  const _InfoSection({required this.topic, required this.data});
 
   final InfoTopic topic;
   final Map<String, dynamic> data;
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final error = data['error'];
-
-    // כרטיס בהיר מרקע הדיאלוג ובמסגרת עדינה — קודם הוא היה כמעט באותו גוון
-    // של הרקע, והמקטעים נבלעו בו.
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceMD,
-        vertical: AppTokens.spaceSM + 2,
-      ),
-      decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            topic.title,
-            style: TextStyle(
-              fontSize: AppTokens.fontMD + 1,
-              fontWeight: FontWeight.bold,
-              color: cs.primary,
+    final rows = <Widget>[
+      if (error != null)
+        DetailsInfoSection(title: 'שגיאה באיסוף', value: '$error')
+      else
+        for (final field in InfoSectionFields.of(topic))
+          if (data.containsKey(field.key))
+            DetailsInfoSection(
+              title: field.label,
+              value: field.format(data[field.key], data),
+              valueDirection: field.isLtr ? TextDirection.ltr : null,
+              block: field.isBlock,
+              onTap: field.isPath && _canOpenPaths && data[field.key] != null
+                  ? () => _openInfoPath('${data[field.key]}')
+                  : null,
+              tapTooltip: 'פתיחה במנהל הקבצים',
             ),
-          ),
-          const SizedBox(height: AppTokens.spaceXS),
-          Divider(height: AppTokens.spaceSM, color: cs.outlineVariant),
-          if (error != null)
-            _InfoRow(label: 'שגיאה באיסוף', value: '$error')
-          else ...[
-            for (final field in InfoSectionFields.of(topic))
-              if (data.containsKey(field.key))
-                _InfoRow(
-                  label: field.label,
-                  value: field.format(data[field.key], data),
-                  isLtr: field.isLtr,
-                  isBlock: field.isBlock,
-                ),
-            ..._buildLists(context),
-          ],
-        ],
-      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DetailsCard(title: topic.title, icon: topic.icon, children: rows),
+        if (error == null) ..._buildLists(context),
+      ],
     );
   }
 
@@ -217,20 +237,53 @@ class _InfoSectionCard extends StatelessWidget {
   static const int _maxFileNamesPerFolder = 10;
 
   List<Widget> _buildLists(BuildContext context) {
+    const gap = SizedBox(height: AppTokens.spaceMD);
+
     if (topic == InfoTopic.folders) {
       final folders = (data['folders'] as List?) ?? const [];
       if (folders.isEmpty) {
         return const [
-          _InfoRow(label: 'תיקיות', value: 'לא הוגדרו תיקיות ספרים אישיים'),
+          gap,
+          DetailsCard(
+            children: [
+              DetailsInfoSection(
+                title: 'תיקיות',
+                value: 'לא הוגדרו תיקיות ספרים אישיים',
+              ),
+            ],
+          ),
         ];
       }
       return [
-        const _SubHeader('התיקיות המוגדרות'),
+        gap,
+        const _ListHeading('התיקיות המוגדרות'),
         for (final folder in folders.whereType<Map>())
-          _FolderEntryTile(
-            folder: folder,
-            maxFileNames: _maxFileNamesPerFolder,
+          _FolderTile(folder: folder, maxFileNames: _maxFileNamesPerFolder),
+      ];
+    }
+
+    if (topic == InfoTopic.library) {
+      // null — הרשימה השמורה פגומה; אין מה להציג מלבד שורת הספירה.
+      final attached = data['attachedLibraries'] as List?;
+      if (attached == null) return const [];
+      if (attached.isEmpty) {
+        return const [
+          gap,
+          DetailsCard(
+            children: [
+              DetailsInfoSection(
+                title: 'מסדים אישיים',
+                value: 'לא צורפו מסדי ספרים אישיים',
+              ),
+            ],
           ),
+        ];
+      }
+      return [
+        gap,
+        const _ListHeading('מסדי ספרים אישיים'),
+        for (final library in attached.whereType<Map>())
+          _AttachedLibraryTile(library: library),
       ];
     }
 
@@ -238,26 +291,34 @@ class _InfoSectionCard extends StatelessWidget {
       final plugins = (data['installed'] as List?) ?? const [];
       if (plugins.isEmpty) return const [];
       return [
-        const _SubHeader('התוספים המותקנים'),
-        for (final plugin in plugins.whereType<Map>())
-          _InfoRow(
-            label: '${plugin['id']}',
-            value: InfoValueFormat.pluginVersion(plugin),
-            isLtr: true,
-            labelIsLtr: true,
-          ),
+        gap,
+        DetailsCard(
+          title: 'התוספים המותקנים',
+          icon: FluentIcons.puzzle_piece_24_regular,
+          children: [
+            for (final plugin in plugins.whereType<Map>())
+              _PluginRow(plugin: plugin),
+          ],
+        ),
       ];
     }
 
     if (topic == InfoTopic.errors) {
       final recent = (data['recent'] as List?) ?? const [];
       if (recent.isEmpty) {
-        return const [_InfoRow(label: 'רשומות אחרונות', value: 'אין שגיאות')];
+        return const [
+          gap,
+          DetailsCard(
+            children: [
+              DetailsInfoSection(title: 'רשומות אחרונות', value: 'אין שגיאות'),
+            ],
+          ),
+        ];
       }
       return [
-        const _SubHeader('רשומות אחרונות'),
-        for (final entry in recent.whereType<Map>())
-          _ErrorEntryTile(entry: entry),
+        gap,
+        const _ListHeading('רשומות אחרונות'),
+        for (final entry in recent.whereType<Map>()) _ErrorTile(entry: entry),
       ];
     }
 
@@ -265,19 +326,20 @@ class _InfoSectionCard extends StatelessWidget {
   }
 }
 
-class _SubHeader extends StatelessWidget {
-  const _SubHeader(this.text);
+/// כותרת קטנה מעל רשימת כרטיסים.
+class _ListHeading extends StatelessWidget {
+  const _ListHeading(this.text);
 
   final String text;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 2),
+      padding: const EdgeInsets.only(bottom: AppTokens.spaceSM),
       child: Text(
         text,
         style: TextStyle(
-          fontSize: AppTokens.fontMD,
+          fontSize: AppTokens.fontMD + 1,
           fontWeight: FontWeight.bold,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
@@ -286,98 +348,64 @@ class _SubHeader extends StatelessWidget {
   }
 }
 
-/// שורת תווית/ערך. התווית בתחילת השורה, הערך בסופה. עם [isBlock] — התווית
-/// בשורה משלה והערך מתחתיה ברוחב מלא.
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.isLtr = false,
-    this.labelIsLtr = false,
-    this.isBlock = false,
-  });
+/// כרטיס לפריט ברשימה (תיקייה או שגיאה): רקע כרטיס, מסגרת ומרווח תחתון.
+class _ItemCard extends StatelessWidget {
+  const _ItemCard({required this.child});
 
-  final String label;
-  final String value;
-  final bool isLtr;
-  final bool labelIsLtr;
-  final bool isBlock;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final labelStyle = TextStyle(
-      fontSize: AppTokens.fontMD,
-      color: cs.onSurfaceVariant,
-    );
-    final valueStyle = TextStyle(
-      fontSize: AppTokens.fontMD,
-      fontWeight: FontWeight.w600,
-      color: cs.onSurface,
-    );
-
-    // ברוחב טלפון שתי עמודות היו שוברות תוויות וערכים באמצע מילה.
-    if (isBlock || MediaQuery.sizeOf(context).width < 520) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(label, style: labelStyle),
-            Text(
-              value,
-              textDirection: isLtr ? TextDirection.ltr : null,
-              textAlign: isLtr ? TextAlign.end : null,
-              style: valueStyle,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      // שתי עמודות בעלות flex קבוע — Flexible רפוי היה מותיר את הערך צמוד
-      // לתווית עם רווח מבוזבז בקצה השורה במקום ליישר את הערכים לעמודה אחת.
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 4,
-            child: Text(
-              label,
-              style: labelStyle,
-              textDirection: labelIsLtr ? TextDirection.ltr : null,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 6,
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              textDirection: isLtr ? TextDirection.ltr : null,
-              style: valueStyle,
-            ),
-          ),
-        ],
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: AppTokens.spaceSM),
+      padding: const EdgeInsets.all(AppTokens.spaceMD),
+      decoration: BoxDecoration(
+        color: AppSurfaces.card(context),
+        borderRadius: AppTokens.borderRadiusAll,
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
+      child: child,
     );
   }
 }
 
-/// תיקיית ספרים אישיים בודדת: הנתיב, תקציר הקבצים, ושמות הקבצים הראשונים.
-class _FolderEntryTile extends StatelessWidget {
-  const _FolderEntryTile({required this.folder, required this.maxFileNames});
+/// תיקיית ספרים אישיים בודדת: שם ונתיב, תגיות מצב וספירה, וקבצים ראשונים.
+class _FolderTile extends StatefulWidget {
+  const _FolderTile({required this.folder, required this.maxFileNames});
 
   final Map<dynamic, dynamic> folder;
   final int maxFileNames;
 
   @override
+  State<_FolderTile> createState() => _FolderTileState();
+}
+
+class _FolderTileState extends State<_FolderTile> {
+  bool _expanded = false;
+
+  Map<dynamic, dynamic> get folder => widget.folder;
+
+  static final RegExp _separator = RegExp(r'[\\/]');
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final path = '${folder['path']}';
+    final storedName = '${folder['name'] ?? ''}'.trim();
+    final name = storedName.isNotEmpty
+        ? storedName
+        : path
+              .split(_separator)
+              .lastWhere((s) => s.isNotEmpty, orElse: () => path);
+    final exists = folder['exists'] != false;
+    final hidden = folder['hidden'] == true;
     final files = (folder['files'] as List?)?.whereType<Map>().toList() ?? [];
-    final shown = files.take(maxFileNames).toList();
+    final shown = (_expanded ? files : files.take(widget.maxFileNames))
+        .toList();
+    // יש קבצים ברשימה שעוד לא הוצגו: "ועוד" פותח אותם. מעבר לרשימה (`files=`
+    // קיצץ אותה) אין מה להרחיב, וזה נשאר טקסט.
+    final canExpand = files.length > widget.maxFileNames;
     // ההפרש נמדד מול הספירה המלאה ולא מול אורך הרשימה: `files=` כבר קיצץ
     // אותה, ו"ועוד 0" היה מסתיר קבצים שקיימים בתיקייה. כש-`files=0` אין
     // רשימה בכלל, והספירה שבשורת התקציר כבר אומרת את מה ש"ועוד" היה אומר.
@@ -388,62 +416,143 @@ class _FolderEntryTile extends StatelessWidget {
     final types = InfoValueFormat.folderTypes(folder);
     final scanError = folder['scanError'];
 
-    return Container(
-      margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppSurfaces.panelSection(context),
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
+    return _ItemCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            '${folder['path']}',
-            textDirection: TextDirection.ltr,
-            style: const TextStyle(
-              fontSize: AppTokens.fontSM,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            InfoValueFormat.folderSummary(folder),
-            style: TextStyle(
-              fontSize: AppTokens.fontSM,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-          if (types.isNotEmpty)
-            Text(
-              types,
-              textDirection: TextDirection.ltr,
-              style: TextStyle(
-                fontSize: AppTokens.fontSM,
-                color: cs.onSurfaceVariant,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                !exists
+                    ? FluentIcons.folder_prohibited_24_regular
+                    : hidden
+                    ? FluentIcons.eye_off_24_regular
+                    : FluentIcons.folder_open_24_regular,
+                size: AppTokens.fontXL,
+                color: exists ? cs.primary : cs.error,
               ),
-            ),
-          if (scanError != null)
+              const SizedBox(width: AppTokens.spaceSM),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: AppTokens.fontMD + 1,
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    _FolderPath(
+                      path: path,
+                      // תיקייה שלא נמצאה אין מה לפתוח.
+                      onOpen: exists && _canOpenPaths
+                          ? () => _openInfoPath(path)
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.spaceSM),
+          Wrap(
+            spacing: AppTokens.spaceSM - 2,
+            runSpacing: AppTokens.spaceSM - 2,
+            children: [
+              if (!exists)
+                const MetaChip(
+                  error: true,
+                  icon: FluentIcons.folder_prohibited_24_regular,
+                  label: 'התיקייה לא נמצאה',
+                )
+              else
+                MetaChip(
+                  icon: FluentIcons.document_24_regular,
+                  label:
+                      '${InfoValueFormat.count(folder['fileCount'])} קבצים · '
+                      // LRI/PDI: בלי הבידוד הגודל מתהפך ("MB 67.9").
+                      '\u2066${InfoValueFormat.bytes(folder['sizeBytes'])}\u2069',
+                ),
+              if (hidden)
+                const MetaChip(
+                  outlined: true,
+                  icon: FluentIcons.eye_off_24_regular,
+                  label: 'מוסתרת',
+                ),
+              if (folder['scanTruncated'] == true)
+                const MetaChip(
+                  outlined: true,
+                  icon: FluentIcons.warning_24_regular,
+                  label: 'סריקה חלקית',
+                ),
+              if (types.isNotEmpty)
+                Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: MetaChip(outlined: true, label: types),
+                ),
+            ],
+          ),
+          if (scanError != null) ...[
+            const SizedBox(height: AppTokens.spaceSM),
             Text(
               'שגיאת סריקה: $scanError',
               style: TextStyle(fontSize: AppTokens.fontSM, color: cs.error),
             ),
-          for (final file in shown)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(top: 2, start: 8),
-              child: Text(
-                '${file['name']}',
-                style: const TextStyle(fontSize: AppTokens.fontSM),
-              ),
+          ],
+          if (shown.isNotEmpty) ...[
+            const SizedBox(height: AppTokens.spaceSM),
+            Divider(
+              height: 1,
+              color: cs.outlineVariant.withValues(alpha: 0.5),
             ),
+            const SizedBox(height: AppTokens.spaceXS),
+            for (final file in shown)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    Icon(
+                      FluentIcons.document_24_regular,
+                      size: AppTokens.fontMD,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: AppTokens.spaceSM),
+                    Expanded(
+                      child: Text(
+                        '${file['name']}',
+                        style: const TextStyle(fontSize: AppTokens.fontSM),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
           if (remaining > 0)
             Padding(
-              padding: const EdgeInsetsDirectional.only(top: 2, start: 8),
-              child: Text(
-                'ועוד ${InfoValueFormat.count(remaining)}…',
-                style: TextStyle(
-                  fontSize: AppTokens.fontSM,
-                  color: cs.onSurfaceVariant,
-                ),
+              padding: const EdgeInsetsDirectional.only(
+                top: 2,
+                start: AppTokens.fontMD + AppTokens.spaceSM,
+              ),
+              child: _MoreToggle(
+                label: 'ועוד ${InfoValueFormat.count(remaining)}…',
+                onTap: canExpand && !_expanded
+                    ? () => setState(() => _expanded = true)
+                    : null,
+              ),
+            ),
+          if (_expanded && canExpand)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                top: 2,
+                start: AppTokens.fontMD + AppTokens.spaceSM,
+              ),
+              child: _MoreToggle(
+                label: 'הצג פחות',
+                onTap: () => setState(() => _expanded = false),
               ),
             ),
         ],
@@ -452,9 +561,217 @@ class _FolderEntryTile extends StatelessWidget {
   }
 }
 
-/// רשומת שגיאה בודדת: כותרת, זמן, והודעה מקוצרת.
-class _ErrorEntryTile extends StatelessWidget {
-  const _ErrorEntryTile({required this.entry});
+/// מסד ספרים אישי מצורף: שם ונתיב לחיץ, ותגיות מצב, ספירה וגודל.
+class _AttachedLibraryTile extends StatelessWidget {
+  const _AttachedLibraryTile({required this.library});
+
+  final Map<dynamic, dynamic> library;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final path = '${library['path']}';
+    final status = '${library['status']}';
+    final ok = status == 'ok';
+    final name = '${library['name'] ?? ''}'.trim();
+    final sizeBytes = library['sizeBytes'];
+    return _ItemCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                FluentIcons.database_24_regular,
+                size: AppTokens.fontXL,
+                color: ok ? cs.primary : cs.error,
+              ),
+              const SizedBox(width: AppTokens.spaceSM),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isEmpty ? '${library['slug']}' : name,
+                      style: TextStyle(
+                        fontSize: AppTokens.fontMD + 1,
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    _FolderPath(
+                      path: path,
+                      onOpen: _canOpenPaths ? () => _openInfoPath(path) : null,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.spaceSM),
+          Wrap(
+            spacing: AppTokens.spaceSM - 2,
+            runSpacing: AppTokens.spaceSM - 2,
+            children: [
+              if (!ok)
+                MetaChip(
+                  error: true,
+                  icon: FluentIcons.warning_24_regular,
+                  label: _statusLabel(status),
+                )
+              else
+                MetaChip(
+                  icon: FluentIcons.book_24_regular,
+                  label:
+                      '${InfoValueFormat.count(library['bookCount'])} ספרים · '
+                      '\u2066${sizeBytes == null ? InfoValueFormat.dash : InfoValueFormat.bytes(sizeBytes)}\u2069',
+                ),
+              if (library['hidden'] == true)
+                const MetaChip(
+                  outlined: true,
+                  icon: FluentIcons.eye_off_24_regular,
+                  label: 'מוסתר',
+                ),
+              MetaChip(
+                outlined: true,
+                icon: library['mode'] == 'copy'
+                    ? FluentIcons.copy_24_regular
+                    : FluentIcons.link_24_regular,
+                label: library['mode'] == 'copy' ? 'עותק מנוהל' : 'קישור לקובץ',
+              ),
+              MetaChip(
+                outlined: true,
+                icon: FluentIcons.folder_24_regular,
+                label: library['placement'] == 'mergeIntoLibrary'
+                    ? 'ממוזג לספרייה'
+                    : 'בעץ נפרד',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _statusLabel(String status) => switch (status) {
+    'unreachable' => 'הקובץ לא נגיש',
+    'invalid' => 'מסד לא תקין',
+    'duplicateSlug' => 'מזהה כפול',
+    _ => status,
+  };
+}
+
+/// נתיב התיקייה בכרטיס: לחיץ (פותח במנהל הקבצים) כשיש [onOpen].
+class _FolderPath extends StatelessWidget {
+  const _FolderPath({required this.path, this.onOpen});
+
+  final String path;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final text = Text(
+      path,
+      textDirection: TextDirection.ltr,
+      style: TextStyle(
+        fontSize: AppTokens.fontSM,
+        color: onOpen == null ? cs.onSurfaceVariant : cs.primary,
+        decoration: onOpen == null ? null : TextDecoration.underline,
+        decorationColor: cs.primary,
+      ),
+    );
+    if (onOpen == null) return text;
+    return Tooltip(
+      message: 'פתיחה במנהל הקבצים',
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: AppTokens.borderRadiusAll,
+        child: text,
+      ),
+    );
+  }
+}
+
+/// "ועוד N…" / "הצג פחות" מתחת לרשימת הקבצים: קישור כשיש מה להרחיב או לכווץ,
+/// ואחרת טקסט עמום.
+class _MoreToggle extends StatelessWidget {
+  const _MoreToggle({required this.label, this.onTap});
+
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final text = Text(
+      label,
+      style: TextStyle(
+        fontSize: AppTokens.fontSM,
+        color: onTap == null ? cs.onSurfaceVariant : cs.primary,
+        decoration: onTap == null ? null : TextDecoration.underline,
+        decorationColor: cs.primary,
+      ),
+    );
+    if (onTap == null) return text;
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppTokens.borderRadiusAll,
+        child: text,
+      ),
+    );
+  }
+}
+
+/// שורת תוסף מותקן: המזהה, והגרסה בתגית (מושבת מסומן בה).
+class _PluginRow extends StatelessWidget {
+  const _PluginRow({required this.plugin});
+
+  final Map<dynamic, dynamic> plugin;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final enabled = plugin['enabled'] != false;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM),
+      child: Row(
+        children: [
+          Expanded(
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                '${plugin['id']}',
+                textDirection: TextDirection.ltr,
+                style: TextStyle(
+                  fontSize: AppTokens.fontMD,
+                  fontWeight: FontWeight.w600,
+                  color: enabled ? cs.onSurface : cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceSM),
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: MetaChip(
+              outlined: !enabled,
+              label: InfoValueFormat.pluginVersion(plugin),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// רשומת שגיאה בודדת: כותרת, זמן בתגית, והודעה מקוצרת.
+class _ErrorTile extends StatelessWidget {
+  const _ErrorTile({required this.entry});
 
   final Map<dynamic, dynamic> entry;
 
@@ -464,46 +781,57 @@ class _ErrorEntryTile extends StatelessWidget {
     final timestamp = InfoValueFormat.dateTimeOrDash(entry['timestamp']);
     final message = '${entry['message'] ?? ''}'.trim();
 
-    return Container(
-      margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppSurfaces.panelSection(context),
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
+    return _ItemCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  '${entry['title']}',
-                  style: const TextStyle(
-                    fontSize: AppTokens.fontSM,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              Icon(
+                FluentIcons.error_circle_24_regular,
+                size: AppTokens.fontXL,
+                color: cs.error,
               ),
-              // 11 ולא fontSM: בשורה הזו ברוחב 360 נשאר מקום בדיוק.
-              Text(
-                timestamp,
-                textDirection: TextDirection.ltr,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: cs.onSurfaceVariant,
+              const SizedBox(width: AppTokens.spaceSM),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${entry['title']}',
+                      style: TextStyle(
+                        fontSize: AppTokens.fontMD,
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: AppTokens.spaceXS),
+                    // התאריך מתחת לכותרת: ברוחב טלפון אין לו מקום לידה.
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: MetaChip(
+                        outlined: true,
+                        icon: FluentIcons.clock_24_regular,
+                        label: timestamp,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
           if (message.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.only(top: AppTokens.spaceSM),
               child: Text(
                 message,
-                maxLines: 3,
+                maxLines: 4,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: AppTokens.fontSM, color: cs.error),
+                style: TextStyle(
+                  fontSize: AppTokens.fontSM,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ),
         ],

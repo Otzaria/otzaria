@@ -121,7 +121,7 @@ Future<void> showBookDetailsDialog(
   return showSingleActionDialog(
     context: context,
     title: 'אודות הספר',
-    icon: FluentIcons.book_information_24_regular,
+    icon: OtzariaIcons.book_information_24_regular,
     headerBand: true,
     confirmText: 'סגור',
     customContent: _BookDetailsDialogContent(
@@ -144,6 +144,13 @@ class _BookDetailsDialogContent extends StatefulWidget {
 
 class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
   late final Future<BookInformation> _informationFuture;
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -156,22 +163,40 @@ class _BookDetailsDialogContentState extends State<_BookDetailsDialogContent> {
 
   @override
   Widget build(BuildContext context) {
+    // פס הגלילה והגלילה קיימים מהפריים הראשון והתוכן נטען בתוכם: פס גלילה
+    // שנבנה רק אחרי שהמידע הגיע לא צויר בכלל. פס קבוע, כי תיאור מורחב ארוך
+    // חותך את הכרטיסים שמתחתיו ובלי פס אין סימן לכך שיש המשך.
     return SizedBox(
       width: 500,
-      child: FutureBuilder<BookInformation>(
-        future: _informationFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const SizedBox(
-              height: 120,
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          if (snapshot.hasError || snapshot.data == null) {
-            return const Text('לא ניתן לטעון את מידע הספר.');
-          }
-          return _buildBookDetailsContent(context, widget.book, snapshot.data!);
-        },
+      child: RawScrollbar(
+        controller: _scroll,
+        thumbVisibility: true,
+        thumbColor: Theme.of(context).colorScheme.outline,
+        thickness: 6,
+        radius: const Radius.circular(3),
+        child: SingleChildScrollView(
+          controller: _scroll,
+          padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceMD),
+          child: FutureBuilder<BookInformation>(
+            future: _informationFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const SizedBox(
+                  height: 120,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError || snapshot.data == null) {
+                return const Text('לא ניתן לטעון את מידע הספר.');
+              }
+              return _buildBookDetailsContent(
+                context,
+                widget.book,
+                snapshot.data!,
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -247,67 +272,65 @@ Widget _buildBookDetailsContent(
 
   const gap = SizedBox(height: AppTokens.spaceMD);
   return AppSelectionArea(
-    child: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          DetailsHeading(
-            title: book.title,
-            subtitle: information.authors.join(', '),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DetailsHeading(
+          title: book.title,
+          subtitle: information.authors.join(', '),
+        ),
+        gap,
+        if (facts.isNotEmpty) ...[
+          DetailsCard(
+            title: 'פרטי הספר',
+            icon: OtzariaIcons.book_information_24_regular,
+            children: facts,
           ),
           gap,
-          if (facts.isNotEmpty) ...[
-            DetailsCard(
-              title: 'פרטי הספר',
-              icon: OtzariaIcons.book_information_24_regular,
-              children: facts,
-            ),
-            gap,
-          ],
-          if (mergedDescription != null) ...[
-            DetailsCard(
-              title: 'תיאור',
-              icon: FluentIcons.document_text_24_regular,
-              children: [
-                _MergedDescriptionSection(
-                  lead: mergedDescription.lead,
-                  rest: mergedDescription.rest,
-                ),
-              ],
-            ),
-            gap,
-          ] else if (information.shortDescription != null ||
-              information.fullDescription != null) ...[
-            DetailsCard(
-              title: 'תיאור',
-              icon: FluentIcons.document_text_24_regular,
-              children: [
-                if (information.shortDescription != null)
-                  DetailsText(information.shortDescription!, bold: true),
-                if (information.fullDescription != null)
-                  DetailsText(information.fullDescription!),
-              ],
-            ),
-            gap,
-          ],
+        ],
+        if (mergedDescription != null) ...[
           DetailsCard(
-            title: 'מקור הספר',
-            icon: OtzariaIcons.book_information_24_filled,
+            title: 'תיאור',
+            icon: FluentIcons.document_text_24_regular,
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: AppTokens.spaceSM + 1,
-                ),
-                child: isTashma
-                    ? const _TashmaCopyrightNotice()
-                    : _SourceCredit(info: sourceInfo),
+              _MergedDescriptionSection(
+                lead: mergedDescription.lead,
+                rest: mergedDescription.rest,
               ),
-              if (hasPath) _buildFilePathSection(bookDetails['נתיב הקובץ']!),
             ],
           ),
+          gap,
+        ] else if (information.shortDescription != null ||
+            information.fullDescription != null) ...[
+          DetailsCard(
+            title: 'תיאור',
+            icon: FluentIcons.document_text_24_regular,
+            children: [
+              if (information.shortDescription != null)
+                DetailsText(information.shortDescription!, bold: true),
+              if (information.fullDescription != null)
+                DetailsText(information.fullDescription!),
+            ],
+          ),
+          gap,
         ],
-      ),
+        DetailsCard(
+          title: 'מקור הספר',
+          icon: OtzariaIcons.book_information_24_filled,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: AppTokens.spaceSM + 1,
+              ),
+              child: isTashma
+                  ? const _TashmaCopyrightNotice()
+                  : _SourceCredit(info: sourceInfo),
+            ),
+            if (hasPath) _buildFilePathSection(bookDetails['נתיב הקובץ']!),
+          ],
+        ),
+      ],
     ),
   );
 }
@@ -382,7 +405,12 @@ String? libraryDisplayPath(String filePath) {
   final lead = shortDescription?.trim() ?? '';
   final full = fullDescription?.trim() ?? '';
   if (lead.isEmpty || full.isEmpty || !full.startsWith(lead)) return null;
-  return (lead: lead, rest: full.substring(lead.length).trim());
+  // תיאור ארוך שפותח בקצר ממשיך לרוב אחריו בנקודה או בפסיק; הם לא פותחים את
+  // הפסקה החדשה.
+  final rest = full
+      .substring(lead.length)
+      .replaceFirst(RegExp(r'^[\s.,;:\-–—]+'), '');
+  return (lead: lead, rest: rest);
 }
 
 /// תיאור הספר בלי כותרות: הקצר מודגש, ואחריו (בפסקה חדשה) המשך הארוך.

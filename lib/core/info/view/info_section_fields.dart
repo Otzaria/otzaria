@@ -124,6 +124,9 @@ class InfoField {
   /// נתיב נשבר לאמצע מילה ומשאיר תו בודד בשורה נפרדת.
   final bool isBlock;
 
+  /// נתיב בדיסק: הערך לחיץ ופותח את המיקום במנהל הקבצים.
+  final bool isPath;
+
   final String Function(Object? value, Map<String, dynamic> section) _format;
 
   const InfoField(
@@ -131,6 +134,7 @@ class InfoField {
     this.label, {
     this.isLtr = false,
     this.isBlock = false,
+    this.isPath = false,
     String Function(Object? value, Map<String, dynamic> section)? format,
   }) : _format = format ?? _defaultFormat;
 
@@ -196,7 +200,13 @@ class InfoSectionFields {
     ),
     InfoField('platform', 'פלטפורמה', isLtr: true),
     InfoField('operatingSystem', 'מערכת ההפעלה', isLtr: true),
-    InfoField('dataRootPath', 'תיקיית הנתונים', isLtr: true, isBlock: true),
+    InfoField(
+      'dataRootPath',
+      'תיקיית הנתונים',
+      isLtr: true,
+      isBlock: true,
+      isPath: true,
+    ),
   ];
 
   static final List<InfoField> library = [
@@ -223,13 +233,30 @@ class InfoSectionFields {
       format: (value, _) => InfoValueFormat.count(value),
     ),
     InfoField(
+      'attachedLibraryCount',
+      'מסדים אישיים מצורפים',
+      format: (value, _) => InfoValueFormat.count(value),
+    ),
+    InfoField(
       'databaseSizeBytes',
       'גודל מסד הנתונים',
       isLtr: true,
       format: (value, _) => InfoValueFormat.bytes(value),
     ),
-    InfoField('path', 'נתיב הספרייה', isLtr: true, isBlock: true),
-    InfoField('indexPath', 'נתיב האינדקס', isLtr: true, isBlock: true),
+    InfoField(
+      'path',
+      'נתיב הספרייה',
+      isLtr: true,
+      isBlock: true,
+      isPath: true,
+    ),
+    InfoField(
+      'indexPath',
+      'נתיב האינדקס',
+      isLtr: true,
+      isBlock: true,
+      isPath: true,
+    ),
   ];
 
   static final List<InfoField> folders = [

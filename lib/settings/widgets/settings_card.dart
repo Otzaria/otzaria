@@ -278,6 +278,9 @@ class SettingsActionTile extends StatelessWidget {
   // כשהרוחב קטן מזה, ה-actions יורדים מתחת לטקסט. לשורות שהכותרת שלהן
   // ווידג'ט מורכב, שאין לו טקסט גולמי לבדיקת גלישה.
   final double? columnBelowWidth;
+  // תמיד כותרת למעלה ו-actions מתחתיה, בכל רוחב. לשורות בחלונית צדדית שניתנת
+  // להרחבה, שבה הכפתור לא צריך לקפוץ לצד הטקסט כשמרחיבים אותה.
+  final bool stacked;
   // טקסט גולמי לבדיקת גלישה עם TextPainter — מאוכלס רק ב-.text() ו-.path()
   final String? _rawTitle;
   // תת-כותרת גולמית, לאותה בדיקה — מאוכלסת רק ב-.text().
@@ -298,6 +301,7 @@ class SettingsActionTile extends StatelessWidget {
     this.responsiveActions = true,
     this.leading,
     this.columnBelowWidth,
+    this.stacked = false,
   }) : _rawTitle = null,
        _rawSubtitle = null,
        assert(
@@ -321,6 +325,7 @@ class SettingsActionTile extends StatelessWidget {
     this.enabled = true,
     this.responsiveActions = true,
     this.leading,
+    this.stacked = false,
   }) : assert(
          icon == null || rtlIcon == null,
          'העבר icon או rtlIcon — לא שניהם יחד',
@@ -376,6 +381,7 @@ class SettingsActionTile extends StatelessWidget {
          'העבר icon או rtlIcon — לא שניהם יחד',
        ),
        columnBelowWidth = null,
+       stacked = false,
        _rawTitle = title,
        _rawSubtitle = null,
        title = _settingTitle(title),
@@ -463,6 +469,7 @@ class SettingsActionTile extends StatelessWidget {
     required List<AppMenuEntry<T>> entries,
     required ValueChanged<T?> onSelected,
     bool enableSearch = false,
+    bool stacked = false,
   }) => _DropdownTile<T>(
     key: key,
     icon: icon,
@@ -473,6 +480,7 @@ class SettingsActionTile extends StatelessWidget {
     entries: entries,
     onSelected: onSelected,
     enableSearch: enableSearch,
+    stacked: stacked,
   );
 
   /// שורה עם [AppSegmentedControl].
@@ -634,6 +642,7 @@ class SettingsActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!responsiveActions) return _buildListTile();
+    if (stacked) return _buildColumnLayout();
     return LayoutBuilder(
       builder: (context, constraints) =>
           (columnBelowWidth != null &&
@@ -758,6 +767,7 @@ class _DropdownTile<T> extends StatelessWidget {
   final List<AppMenuEntry<T>> entries;
   final ValueChanged<T?> onSelected;
   final bool enableSearch;
+  final bool stacked;
 
   const _DropdownTile({
     super.key,
@@ -769,6 +779,7 @@ class _DropdownTile<T> extends StatelessWidget {
     required this.entries,
     required this.onSelected,
     this.enableSearch = false,
+    this.stacked = false,
   });
 
   @override
@@ -776,6 +787,7 @@ class _DropdownTile<T> extends StatelessWidget {
     return SettingsActionTile.text(
       icon: icon,
       rtlIcon: rtlIcon,
+      stacked: stacked,
       title: title,
       subtitle: _selectedOptionSubtitle<AppMenuEntry<T>, T?>(
         explicitSubtitle: subtitle,

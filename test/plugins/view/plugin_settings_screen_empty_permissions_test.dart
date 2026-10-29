@@ -104,7 +104,7 @@ void main() {
     testWidgets('תוסף עם הרשאה מיוחדת מציג את כרטיס ההרשאות', (tester) async {
       await _pumpDialog(tester, _plugin(const ['app.open_url']));
 
-      expect(find.text('ניהול הרשאות'), findsOneWidget);
+      expect(find.text('הרשאות מבוקשות'), findsOneWidget);
       expect(find.text('אין הרשאות מיוחדות נדרשות'), findsNothing);
     });
 

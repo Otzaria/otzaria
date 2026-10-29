@@ -189,6 +189,7 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
                       final note = filteredNotes[index];
                       final selected = _manualSelection[note.id] ?? false;
                       return CheckboxListTile(
+                        shape: Border(bottom: listDialogRowDivider(context)),
                         value: selected,
                         title: Text(
                           note.displayTitle?.isNotEmpty == true

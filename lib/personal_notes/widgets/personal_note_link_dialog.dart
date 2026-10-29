@@ -208,6 +208,9 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
                           final note = filteredNotes[index];
                           final selected = note.id == _selectedNote?.id;
                           return ListTile(
+                            shape: Border(
+                              bottom: listDialogRowDivider(context),
+                            ),
                             title: Text(
                               note.displayTitle?.trim().isNotEmpty == true
                                   ? note.displayTitle!

@@ -1046,6 +1046,8 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'נדרש איפוס ואינדוקס מחדש באישור המשתמש': 'A reset and re-index is needed — waiting for user approval',
     'נהל את התוספים שלך: השבתה, הסתרה, הצמדה, הרשאות ומחיקה. גרור לשינוי סדר.': 'Manage your plugins: disable, hide, pin, permissions and delete. Drag to reorder.',
     'נוסח הפטרה': 'Haftarah Nusach',
+    'נוסח הרישיון': 'License text',
+    'נוסח הרישיון המקורי, באנגלית': 'The original license text, in English',
     'נוספו: {items}.': 'Added: {items}.',
     'נטען': 'Loading',
     'ניהול דיווחים שמורים': 'Manage saved reports',

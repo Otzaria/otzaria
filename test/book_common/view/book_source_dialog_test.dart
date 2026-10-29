@@ -126,6 +126,15 @@ void main() {
       expect(r.rest, equals('המשך'));
     });
 
+    test('should drop punctuation that links the short to the long text', () {
+      final r = splitShortAndFullDescription('קצר', 'קצר. והמשך ארוך.');
+      expect(r!.rest, equals('והמשך ארוך.'));
+      expect(
+        splitShortAndFullDescription('קצר', 'קצר, והמשך')!.rest,
+        equals('והמשך'),
+      );
+    });
+
     test('should return an empty rest when both are identical', () {
       final r = splitShortAndFullDescription('קצר.', 'קצר.');
       expect(r!.rest, isEmpty);

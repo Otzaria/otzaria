@@ -111,6 +111,66 @@ void main() {
       expect(find.text('7'), findsOneWidget);
       expect(find.text('2.0 MB'), findsOneWidget);
     });
+
+    testWidgets('מסדים אישיים מצורפים מוצגים עם נתיב, ספירה ומצב', (
+      tester,
+    ) async {
+      await pumpContent(
+        tester,
+        reportOf(InfoTopic.library, {
+          'library': {
+            'totalBooks': 10,
+            'attachedLibraryCount': 2,
+            'attachedLibraries': [
+              {
+                'name': 'הספרייה שלי',
+                'slug': 'mine',
+                'path': r'D:\db\mine.db',
+                'status': 'ok',
+                'mode': 'link',
+                'placement': 'separateRoot',
+                'hidden': true,
+                'bookCount': 1200,
+                'sizeBytes': 3 * 1024 * 1024,
+              },
+              {
+                'name': 'מסד שנותק',
+                'slug': 'gone',
+                'path': r'E:\db\gone.db',
+                'status': 'unreachable',
+                'mode': 'copy',
+                'placement': 'mergeIntoLibrary',
+                'bookCount': 5,
+              },
+            ],
+          },
+        }),
+      );
+
+      expect(find.text('מסדי ספרים אישיים'), findsOneWidget);
+      expect(find.text('הספרייה שלי'), findsOneWidget);
+      expect(find.text(r'D:\db\mine.db'), findsOneWidget);
+      expect(find.text('1,200 ספרים · \u20663.0 MB\u2069'), findsOneWidget);
+      expect(find.text('מוסתר'), findsOneWidget);
+      expect(find.text('מסד שנותק'), findsOneWidget);
+      expect(find.text('הקובץ לא נגיש'), findsOneWidget);
+      expect(find.text('ממוזג לספרייה'), findsOneWidget);
+    });
+
+    testWidgets('בלי מסדים מצורפים מוצגת הודעה', (tester) async {
+      await pumpContent(
+        tester,
+        reportOf(InfoTopic.library, {
+          'library': {
+            'totalBooks': 10,
+            'attachedLibraryCount': 0,
+            'attachedLibraries': <Map<String, dynamic>>[],
+          },
+        }),
+      );
+
+      expect(find.text('לא צורפו מסדי ספרים אישיים'), findsOneWidget);
+    });
   });
 
   group('מקטע התיקיות האישיות', () {
@@ -156,7 +216,7 @@ void main() {
 
       expect(find.text('תיקיות ספרים אישיים'), findsOneWidget);
       expect(find.text(r'D:\ספרים שלי'), findsOneWidget);
-      expect(find.text('3 קבצים · 1.5 KB'), findsOneWidget);
+      expect(find.text('3 קבצים · \u20661.5 KB\u2069'), findsOneWidget);
       expect(find.text('pdf 1 · txt 2'), findsOneWidget);
       expect(find.text('בראשית.txt'), findsOneWidget);
       expect(find.text('שולחן ערוך.pdf'), findsOneWidget);
@@ -186,6 +246,47 @@ void main() {
 
       expect(find.text('ספר0.txt'), findsOneWidget);
       // 10 מוצגים מתוך 40 שנספרו — ההפרש נמדד מול הספירה, לא מול הרשימה.
+      expect(find.text('ספר10.txt'), findsNothing);
+      expect(find.text('ועוד 30…'), findsOneWidget);
+    });
+
+    testWidgets('לחיצה על "ועוד" מרחיבה את הרשימה ו"הצג פחות" מכווצת', (
+      tester,
+    ) async {
+      await pumpContent(
+        tester,
+        reportOf(
+          InfoTopic.folders,
+          foldersSection(
+            folders: [
+              {
+                'path': r'D:\רבים',
+                'exists': true,
+                'fileCount': 40,
+                'sizeBytes': 0,
+                'filesByType': {'txt': 40},
+                'files': [
+                  for (var i = 0; i < 25; i++) {'name': 'ספר$i.txt'},
+                ],
+              },
+            ],
+          ),
+        ),
+      );
+
+      await tester.ensureVisible(find.text('ועוד 30…'));
+      await tester.tap(find.text('ועוד 30…'));
+      await tester.pump();
+
+      // כל 25 הקבצים שברשימה מוצגים; ה-15 האחרים נחתכו ע"י `files=` ולכן
+      // "ועוד" שנשאר הוא טקסט בלבד.
+      expect(find.text('ספר24.txt'), findsOneWidget);
+      expect(find.text('ועוד 15…'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('הצג פחות'));
+      await tester.tap(find.text('הצג פחות'));
+      await tester.pump();
+
       expect(find.text('ספר10.txt'), findsNothing);
       expect(find.text('ועוד 30…'), findsOneWidget);
     });

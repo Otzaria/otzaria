@@ -12,6 +12,8 @@ import 'package:otzaria/semantic_search/view/semantic_progress_text.dart';
 import 'package:otzaria/semantic_search/repository/semantic_platform_support.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/settings/widgets/settings_widgets_exports.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// כרטיס נתוני החיפוש הסמנטי: מצב ההורדה, בחירת המודל ומחיקת הנתונים.
@@ -228,22 +230,13 @@ class _SemanticDataCard extends StatelessWidget {
   ) async {
     final license = await bloc.repository.readModelLicense();
     if (license == null || !context.mounted) return;
-    await showSingleActionDialog(
-      context: context,
+    await showSemanticLicenseDialog(
+      context,
       title: context.settingsText(
         'רישיון רכיב {name}',
         args: _nameArgs(context),
       ),
-      icon: FluentIcons.certificate_24_regular,
-      headerBand: true,
-      customContent: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 420),
-        child: SingleChildScrollView(
-          // נוסח הרישיון באנגלית.
-          child: Text(license, textDirection: TextDirection.ltr),
-        ),
-      ),
-      confirmText: context.settingsText('סגור'),
+      license: license,
     );
   }
 
@@ -272,3 +265,97 @@ class _SemanticDataCard extends StatelessWidget {
 Map<String, Object?> _nameArgs(BuildContext context) => {
   'name': context.settingsText(kSemanticSearchModeName),
 };
+
+/// נוסח הרישיון של רכיב החיפוש החכם, בדיאלוג עם רצועת כותרת וגלילה.
+Future<void> showSemanticLicenseDialog(
+  BuildContext context, {
+  required String title,
+  required String license,
+}) {
+  return showSingleActionDialog(
+    context: context,
+    title: title,
+    icon: FluentIcons.certificate_24_regular,
+    headerBand: true,
+    customContent: _LicenseContent(license: license),
+    confirmText: context.settingsText('סגור'),
+  );
+}
+
+/// גוף דיאלוג הרישיון: כותרת (שורה ראשונה של הנוסח) ושורת הסבר, ומתחתן הנוסח
+/// המלא בכרטיס נגלל עם פס גלילה קבוע — אחרת הנוסח נחתך בלי סימן שיש המשך.
+class _LicenseContent extends StatefulWidget {
+  const _LicenseContent({required this.license});
+
+  final String license;
+
+  @override
+  State<_LicenseContent> createState() => _LicenseContentState();
+}
+
+class _LicenseContentState extends State<_LicenseContent> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final firstLine = widget.license
+        .split('\n')
+        .map((line) => line.trim())
+        .firstWhere((line) => line.isNotEmpty, orElse: () => '');
+    final heading = firstLine.isNotEmpty && firstLine.length <= 60
+        ? firstLine
+        : context.settingsText('נוסח הרישיון');
+    return SizedBox(
+      width: 560,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DetailsHeading(
+            title: heading,
+            subtitle: context.settingsText('נוסח הרישיון המקורי, באנגלית'),
+          ),
+          const SizedBox(height: AppTokens.spaceMD),
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppSurfaces.card(context),
+                  borderRadius: AppTokens.borderRadiusAll,
+                  border: Border.all(color: cs.outlineVariant),
+                ),
+                child: Scrollbar(
+                  controller: _scroll,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _scroll,
+                    padding: const EdgeInsets.all(AppTokens.spaceMD),
+                    child: AppSelectionArea(
+                      child: Text(
+                        widget.license,
+                        textDirection: TextDirection.ltr,
+                        style: TextStyle(
+                          fontSize: AppTokens.fontMD,
+                          height: 1.5,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
