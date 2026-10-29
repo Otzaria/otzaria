@@ -11,6 +11,7 @@ import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 
@@ -21,6 +22,8 @@ Future<void> showAppInfoDialog(
 ) => showSingleActionDialog(
   context: context,
   title: report.topic.title,
+  icon: FluentIcons.info_24_regular,
+  headerBand: true,
   confirmText: 'סגירה',
   customContent: AppInfoDialogContent(report: report),
 );
@@ -57,7 +60,7 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
     // AlertDialog משאיר לתוכן 80px פחות מרוחב המסך (insetPadding); רוחב קבוע
     // גדול מזה גורם ל-overflow אופקי במסך צר.
     final width = math.min(
-      420.0,
+      460.0,
       MediaQuery.of(context).size.width - 96,
     );
 
@@ -69,11 +72,11 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeader(cs),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppTokens.spaceMD),
               for (final topic in widget.report.topic.sections)
                 if (sections[topic.slug] case final data?) ...[
                   _InfoSectionCard(topic: topic, data: data),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppTokens.spaceMD),
                 ],
               Align(
                 alignment: AlignmentDirectional.centerStart,
@@ -108,27 +111,47 @@ class _AppInfoDialogContentState extends State<AppInfoDialogContent> {
   }
 
   Widget _buildHeader(ColorScheme cs) {
-    return Row(
+    // ברוחב טלפון התאריך והכפתור לא נכנסים בשורה אחת: הכפתור יורד מתחת.
+    final narrow = MediaQuery.sizeOf(context).width < 520;
+    final copyButton = TextButton.icon(
+      onPressed: _copyJson,
+      icon: const Icon(FluentIcons.copy_24_regular, size: 18),
+      label: const Text('העתק JSON'),
+    );
+    final date = Row(
       children: [
-        Icon(FluentIcons.info_24_regular, size: 18, color: cs.primary),
-        const SizedBox(width: 6),
+        Icon(
+          FluentIcons.clock_24_regular,
+          size: AppTokens.fontLG,
+          color: cs.onSurfaceVariant,
+        ),
+        const SizedBox(width: AppTokens.spaceSM),
         Expanded(
           child: Text(
-            InfoValueFormat.dateTime(widget.report.generatedAt),
-            textDirection: TextDirection.ltr,
-            textAlign: TextAlign.end,
+            '${getHebrewDateFormattedAsString(widget.report.generatedAt)}'
+            // LRI/PDI: בלעדיהם השעה מתהפכת לפני התאריך בתוך משפט ימני.
+            ' · \u2066${InfoValueFormat.dateTime(widget.report.generatedAt)}\u2069',
             style: TextStyle(
-              fontSize: AppTokens.fontSM,
+              fontSize: AppTokens.fontMD,
               color: cs.onSurfaceVariant,
             ),
           ),
         ),
-        IconButton(
-          tooltip: 'העתק JSON',
-          visualDensity: VisualDensity.compact,
-          icon: const Icon(FluentIcons.copy_24_regular, size: 18),
-          onPressed: _copyJson,
-        ),
+      ],
+    );
+    if (narrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          date,
+          Align(alignment: AlignmentDirectional.centerStart, child: copyButton),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: date),
+        copyButton,
       ],
     );
   }
@@ -146,11 +169,17 @@ class _InfoSectionCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final error = data['error'];
 
+    // כרטיס בהיר מרקע הדיאלוג ובמסגרת עדינה — קודם הוא היה כמעט באותו גוון
+    // של הרקע, והמקטעים נבלעו בו.
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceMD,
+        vertical: AppTokens.spaceSM + 2,
+      ),
       decoration: BoxDecoration(
-        color: AppSurfaces.panelSection(context),
+        color: AppSurfaces.card(context),
         borderRadius: AppTokens.borderRadiusAll,
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,12 +187,13 @@ class _InfoSectionCard extends StatelessWidget {
           Text(
             topic.title,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: AppTokens.fontMD + 1,
               fontWeight: FontWeight.bold,
               color: cs.primary,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppTokens.spaceXS),
+          Divider(height: AppTokens.spaceSM, color: cs.outlineVariant),
           if (error != null)
             _InfoRow(label: 'שגיאה באיסוף', value: '$error')
           else ...[
@@ -243,11 +273,11 @@ class _SubHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 2),
+      padding: const EdgeInsets.only(top: 10, bottom: 2),
       child: Text(
         text,
         style: TextStyle(
-          fontSize: AppTokens.fontSM,
+          fontSize: AppTokens.fontMD,
           fontWeight: FontWeight.bold,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
@@ -277,11 +307,17 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final labelStyle = TextStyle(
-      fontSize: AppTokens.fontSM,
+      fontSize: AppTokens.fontMD,
       color: cs.onSurfaceVariant,
     );
+    final valueStyle = TextStyle(
+      fontSize: AppTokens.fontMD,
+      fontWeight: FontWeight.w600,
+      color: cs.onSurface,
+    );
 
-    if (isBlock) {
+    // ברוחב טלפון שתי עמודות היו שוברות תוויות וערכים באמצע מילה.
+    if (isBlock || MediaQuery.sizeOf(context).width < 520) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Column(
@@ -291,7 +327,8 @@ class _InfoRow extends StatelessWidget {
             Text(
               value,
               textDirection: isLtr ? TextDirection.ltr : null,
-              style: const TextStyle(fontSize: AppTokens.fontSM),
+              textAlign: isLtr ? TextAlign.end : null,
+              style: valueStyle,
             ),
           ],
         ),
@@ -299,7 +336,7 @@ class _InfoRow extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       // שתי עמודות בעלות flex קבוע — Flexible רפוי היה מותיר את הערך צמוד
       // לתווית עם רווח מבוזבז בקצה השורה במקום ליישר את הערכים לעמודה אחת.
       child: Row(
@@ -320,7 +357,7 @@ class _InfoRow extends StatelessWidget {
               value,
               textAlign: TextAlign.end,
               textDirection: isLtr ? TextDirection.ltr : null,
-              style: const TextStyle(fontSize: AppTokens.fontSM),
+              style: valueStyle,
             ),
           ),
         ],
@@ -355,7 +392,7 @@ class _FolderEntryTile extends StatelessWidget {
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
+        color: AppSurfaces.panelSection(context),
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Column(
@@ -431,7 +468,7 @@ class _ErrorEntryTile extends StatelessWidget {
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: AppSurfaces.card(context),
+        color: AppSurfaces.panelSection(context),
         borderRadius: AppTokens.borderRadiusAll,
       ),
       child: Column(

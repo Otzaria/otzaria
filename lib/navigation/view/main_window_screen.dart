@@ -3758,6 +3758,9 @@ class MainWindowScreenState extends State<MainWindowScreen>
                                           // רחב מספיק שארבע הקוביות שבשורה יהיו
                                           // מרווחות, ועדיין לא חמש.
                                           width: 440,
+                                          // הרצועה בראש הפאנל רחבה עד הקצוות;
+                                          // הריפוד של התוכן בתוך הפאנל עצמו.
+                                          contentPadding: EdgeInsets.zero,
                                           deferChildBuildOnOpen: true,
                                           child: ToolsLauncherPanel(
                                             key: _windowKeys

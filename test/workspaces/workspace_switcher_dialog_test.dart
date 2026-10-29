@@ -324,9 +324,9 @@ void main() {
                 matching: find.byType(Tooltip),
               ),
             )
-            // ריבועי התצוגה; טולטיפים של כפתורי הכרטיס אינם כרטיסיות.
-            .where((t) => t.child is Container)
-            .map((t) => t.message ?? '');
+            // תצוגת הכרטיסיות; טולטיפים של כפתורי הכרטיס אינם כרטיסיות.
+            .where((t) => t.child is Column)
+            .expand((t) => (t.message ?? '').split('\n'));
 
         expect(previewTitles('שולחן חדש'), ['ברכות', 'שבת']);
         expect(previewTitles('שולחן ישן'), ['ישן']);
