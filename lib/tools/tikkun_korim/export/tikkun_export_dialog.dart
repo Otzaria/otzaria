@@ -1,6 +1,7 @@
 /// דיאלוג בחירת התוכן להדפסה של "תיקון קוראים" — לפני מסך ההדפסה.
 library;
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/tools/tikkun_korim/engine/verse_range_slicer.dart';
@@ -64,6 +65,8 @@ Future<TikkunExportOptions?> showTikkunExportDialog({
   final confirmed = await showTwoActionsDialog(
     context: context,
     title: title,
+    icon: FluentIcons.print_24_regular,
+    headerBand: true,
     content: '',
     confirmText: confirmText,
     customContent: TikkunExportForm(

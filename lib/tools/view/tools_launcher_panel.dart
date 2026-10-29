@@ -655,56 +655,66 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildHeader(),
-          const SizedBox(height: AppTokens.spaceSM),
-          _buildSearchField(entries),
-          const SizedBox(height: AppTokens.spaceMD),
           Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: entries.isEmpty
-                      ? Column(
-                          children: [
-                            Expanded(
-                              child: _buildEmptyState(
-                                settingsState.isOfflineMode,
-                              ),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.only(
-                                bottom:
-                                    AppInputTokens.height(
-                                      settingsState.compactMenuMode,
-                                    ) +
-                                    AppTokens.spaceMD,
-                              ),
-                              child: pluginsFooter,
-                            ),
-                          ],
-                        )
-                      : _buildGrid(
-                          entries,
-                          openToolIds,
-                          footer: pluginsFooter,
-                          bottomInset:
-                              AppInputTokens.height(
-                                settingsState.compactMenuMode,
-                              ) +
-                              AppTokens.spaceMD,
+            child: Padding(
+              padding: const EdgeInsets.all(AppTokens.spaceMD),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSearchField(entries),
+                  const SizedBox(height: AppTokens.spaceMD),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: entries.isEmpty
+                              ? Column(
+                                  children: [
+                                    Expanded(
+                                      child: _buildEmptyState(
+                                        settingsState.isOfflineMode,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom:
+                                            AppInputTokens.height(
+                                              settingsState.compactMenuMode,
+                                            ) +
+                                            AppTokens.spaceMD,
+                                      ),
+                                      child: pluginsFooter,
+                                    ),
+                                  ],
+                                )
+                              : _buildGrid(
+                                  entries,
+                                  openToolIds,
+                                  footer: pluginsFooter,
+                                  bottomInset:
+                                      AppInputTokens.height(
+                                        settingsState.compactMenuMode,
+                                      ) +
+                                      AppTokens.spaceMD,
+                                ),
                         ),
-                ),
-                PositionedDirectional(
-                  bottom: AppTokens.spaceSM,
-                  start: kToolGridScrollbarGutter,
-                  child: _PluginsToolbar(
-                    showDevTools:
-                        widget.showDevTools ?? PluginDevToolsMode.enabled,
-                    onInstall: _installPlugin,
-                    onLoadFolder: _loadDevPlugin,
-                    onLoadLocalhost: _loadLocalhostPlugin,
+                        PositionedDirectional(
+                          bottom: AppTokens.spaceSM,
+                          start: kToolGridScrollbarGutter,
+                          child: _PluginsToolbar(
+                            showDevTools:
+                                widget.showDevTools ??
+                                PluginDevToolsMode.enabled,
+                            onInstall: _installPlugin,
+                            onLoadFolder: _loadDevPlugin,
+                            onLoadLocalhost: _loadLocalhostPlugin,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -719,24 +729,12 @@ class _ToolsLauncherPanelState extends State<ToolsLauncherPanel> {
   };
 
   Widget _buildHeader() {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            context.settingsText('כלים ותוספים'),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: AppTokens.fontXL,
-            ),
-          ),
-        ),
-        IconButton(
-          icon: const Icon(FluentIcons.dismiss_24_regular, size: 20),
-          tooltip: context.settingsText('סגור'),
-          visualDensity: VisualDensity.compact,
-          onPressed: widget.onClose,
-        ),
-      ],
+    return AppDialogHeader(
+      icon: FluentIcons.apps_24_regular,
+      title: context.settingsText('כלים ותוספים'),
+      compact: true,
+      closeTooltip: context.settingsText('סגור'),
+      onClose: widget.onClose,
     );
   }
 

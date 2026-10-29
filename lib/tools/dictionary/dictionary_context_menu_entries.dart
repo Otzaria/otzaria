@@ -210,6 +210,8 @@ void _showMeaningDialog({
   showSingleActionDialog(
     context: context,
     title: title,
+    icon: FluentIcons.book_open_24_regular,
+    headerBand: true,
     customContent: content,
     confirmText: 'סגור',
   );
