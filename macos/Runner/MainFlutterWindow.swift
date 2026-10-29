@@ -367,7 +367,7 @@ final class OtzariaWindowManager {
   /// Dart הסתיר את הראשי (`closeSelf`); הוא חוזר ב-`raiseSelf` או בשחזור.
   private var isMainHidden = false
   /// סגירה ממתינה ליציאה ממסך מלא לפני ההסתרה.
-  private var hidesAfterFullScreen = false
+  private(set) var hidesAfterFullScreen = false
 
   private init() {}
 
@@ -411,12 +411,7 @@ final class OtzariaWindowManager {
       result(nil)
 
     case "raiseSelf":
-      if isMainHidden {
-        showMainWindow()
-      } else {
-        mainWindow?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-      }
+      showMainWindow()
       result(nil)
 
     case "restoreLastClosedWindow":
@@ -456,7 +451,7 @@ final class OtzariaWindowManager {
 
   /// מציג שוב את הראשי ש-Dart הסתיר; false כשלא הוסתר.
   func restoreLastClosedWindow() -> Bool {
-    guard isMainHidden else { return false }
+    guard isMainHidden || hidesAfterFullScreen else { return false }
     showMainWindow()
     return true
   }
