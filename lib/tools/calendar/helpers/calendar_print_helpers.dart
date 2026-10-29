@@ -105,6 +105,8 @@ class _CalendarText {
     ShapedTextAlign align = ShapedTextAlign.start,
     bool singleLine = false,
   }) {
+    // מנוע ה-bidi של ההדפסה מכיר embedding אך לא isolate.
+    text = text.replaceAll('\u2066', '\u202a').replaceAll('\u2069', '\u202c');
     final widget = ShapedText(
       text,
       fonts: fonts,
