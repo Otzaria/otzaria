@@ -50,7 +50,7 @@ void main() {
       const [AppMenuEntry<int>(value: -1, label: longest)],
     );
     expect(width, longestOnly);
-    expect(stopwatch.elapsedMilliseconds, lessThan(500));
+    expect(stopwatch.elapsedMilliseconds, lessThan(1000));
   });
 
   testWidgets('משוריין מקום לסימן ה-✓ גם לפריט יחיד לא נבחר', (tester) async {

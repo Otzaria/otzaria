@@ -960,6 +960,8 @@ class _AnchoredSearchMenuContentState<T>
                         : ListView.builder(
                             controller: _scrollController,
                             padding: widget.metrics.menuPadding,
+                            // בלי גובה קבוע, קפיצה לערך הנבחר בונה כל שורה בדרך.
+                            itemExtent: widget.metrics.itemHeight,
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) {
                               final entry = filtered[i];
