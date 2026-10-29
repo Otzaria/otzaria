@@ -282,6 +282,8 @@ class _ErrorReportsPanelState extends State<ErrorReportsPanel> {
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('עריכת דיווח שמור'),
+      icon: FluentIcons.edit_24_regular,
+      headerBand: true,
       content: '',
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שמור'),

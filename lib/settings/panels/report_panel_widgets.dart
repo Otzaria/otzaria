@@ -12,6 +12,7 @@ import 'package:otzaria/settings/services/offline_send_target.dart';
 import 'package:otzaria/settings/services/safer_mode_guard.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
+import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -208,6 +209,61 @@ String sentReportDetailsTitle(BuildContext context, {required bool carried}) =>
     carried
     ? context.settingsText('הועבר לשליחה דרך עדכוני אוצריא')
     : context.settingsText('פרטי דיווח שנשלח');
+
+/// One labelled part of a report in [showReportDetailsDialog].
+class ReportDetailEntry {
+  const ReportDetailEntry(this.label, this.value, {this.ltr = false});
+
+  final String label;
+  final String value;
+
+  /// Code-like text, such as a stack trace, that reads left to right.
+  final bool ltr;
+}
+
+/// The details of a saved or sent report: its heading, then its parts in a card.
+Future<void> showReportDetailsDialog(
+  BuildContext context, {
+  required String title,
+  required String heading,
+  String? subtitle,
+  required List<ReportDetailEntry> entries,
+}) async {
+  await showSingleActionDialog(
+    context: context,
+    title: title,
+    icon: FluentIcons.document_text_24_regular,
+    headerBand: true,
+    confirmText: context.settingsText('סגור'),
+    customContent: SizedBox(
+      width: 560,
+      child: AppSelectionArea(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DetailsHeading(title: heading, subtitle: subtitle),
+              if (entries.isNotEmpty) ...[
+                const SizedBox(height: AppTokens.spaceMD),
+                DetailsCard(
+                  children: [
+                    for (final entry in entries)
+                      DetailsInfoSection(
+                        title: entry.label,
+                        value: entry.value,
+                        block: true,
+                        valueDirection: entry.ltr ? TextDirection.ltr : null,
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
 /// A report row: an icon, a title, a two-line summary and its actions.
 Widget _buildReportTile({

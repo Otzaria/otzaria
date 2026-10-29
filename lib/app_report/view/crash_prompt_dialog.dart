@@ -14,8 +14,8 @@ import 'package:otzaria/app_report/view/widgets/app_report_preview_section.dart'
 import 'package:otzaria/core/messages/report_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -183,7 +183,6 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _buildHeader(context, editing),
-                  const Divider(height: 1),
                   Flexible(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(
@@ -253,6 +252,8 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
           minLines: 2,
           maxLines: 5,
           decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
             labelText: widget.candidate.isHang
                 ? 'מה עשית לפני שהתוכנה נתקעה? (לא חובה)'
                 : 'מה עשית לפני הסגירה? (לא חובה)',
@@ -261,21 +262,20 @@ class _CrashPromptDialogState extends State<CrashPromptDialog> {
           onChanged: (value) => bloc.add(AppReportDescriptionChanged(value)),
         ),
         const SizedBox(height: 12),
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: RtlTextField(
-            key: const ValueKey('crash-prompt-email'),
-            controller: _email,
-            enabled: enabled,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              labelText: 'דואר אלקטרוני (לא חובה)',
-              errorText: state?.invalidField == 'reporterEmail'
-                  ? 'הכתובת אינה תקינה'
-                  : null,
-            ),
-            onChanged: (value) => bloc.add(AppReportEmailChanged(value)),
+        RtlTextField(
+          key: const ValueKey('crash-prompt-email'),
+          controller: _email,
+          enabled: enabled,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
+            labelText: 'דואר אלקטרוני (לא חובה)',
+            errorText: state?.invalidField == 'reporterEmail'
+                ? 'הכתובת אינה תקינה'
+                : null,
           ),
+          onChanged: (value) => bloc.add(AppReportEmailChanged(value)),
         ),
         const SizedBox(height: 16),
         if (state == null)

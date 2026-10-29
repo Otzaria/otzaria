@@ -147,7 +147,6 @@ class _AppReportDialogState extends State<AppReportDialog> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _buildHeader(context, state),
-                  const Divider(height: 1),
                   Flexible(
                     child: switch (state) {
                       AppReportCollecting() => const Padding(
@@ -323,23 +322,20 @@ class _AppReportDialogState extends State<AppReportDialog> {
           FluentIcons.mail_24_regular,
           'דואר אלקטרוני לחזרה אליך',
         ),
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: RtlTextField(
-            key: const ValueKey('app-report-email'),
-            controller: _email,
-            enabled: enabled,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: AppSurfaces.card(context),
-              hintText: 'name@example.com',
-              errorText: state.invalidField == 'reporterEmail'
-                  ? 'נדרשת כתובת תקינה'
-                  : null,
-            ),
-            onChanged: (value) => bloc.add(AppReportEmailChanged(value)),
+        RtlTextField(
+          key: const ValueKey('app-report-email'),
+          controller: _email,
+          enabled: enabled,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: AppSurfaces.card(context),
+            hintText: 'name@example.com',
+            errorText: state.invalidField == 'reporterEmail'
+                ? 'נדרשת כתובת תקינה'
+                : null,
           ),
+          onChanged: (value) => bloc.add(AppReportEmailChanged(value)),
         ),
         const SizedBox(height: AppTokens.spaceMD),
         AppReportImagesSection(

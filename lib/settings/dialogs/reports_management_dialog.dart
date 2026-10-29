@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -172,6 +173,7 @@ class _ReportsManagementDialogState extends State<ReportsManagementDialog>
   Widget build(BuildContext context) {
     return AppCustomContentDialog(
       title: context.settingsText('הדיווחים שלך'),
+      icon: FluentIcons.bug_24_regular,
       scrollable: false,
       child: BlocSelector<SettingsBloc, SettingsState, bool>(
         selector: (state) => state.isOfflineMode,

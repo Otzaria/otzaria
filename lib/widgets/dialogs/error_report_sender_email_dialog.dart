@@ -1,8 +1,8 @@
 import 'package:collection/collection.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/core/focus_repository.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
@@ -330,20 +330,18 @@ class _EmailFieldWithAutocompleteState extends State<EmailFieldWithAutocomplete>
           link: _layerLink,
           child: KeyedSubtree(
             key: _fieldKey,
-            child: Directionality(
-              textDirection: TextDirection.ltr,
-              child: RtlTextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                keyboardType: TextInputType.emailAddress,
-                textAlign: TextAlign.left,
-                decoration: InputDecoration(
-                  labelText: 'כתובת דוא"ל',
-                  hintText: 'name@example.com',
-                  errorText: _errorText,
-                ),
-                autofocus: true,
+            child: RtlTextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: AppSurfaces.card(context),
+                labelText: 'כתובת דוא"ל',
+                hintText: 'name@example.com',
+                errorText: _errorText,
               ),
+              autofocus: true,
             ),
           ),
         ),
