@@ -1,3 +1,5 @@
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -391,32 +393,30 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
             child: Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
               builder: (context, dataProvider, progressProvider, child) {
                 if (dataProvider.isLoading || progressProvider.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const LoadingIndicator();
                 }
 
                 if (dataProvider.error != null ||
                     progressProvider.error != null) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('שגיאה בטעינת הנתונים'),
-                        ActionButton.recommended(
-                          text: 'נסה שוב',
-                          onPressed: () async {
-                            if (dataProvider.error != null) {
-                              await dataProvider.loadAllData();
-                            }
-                            if (!context.mounted) {
-                              return;
-                            }
-                            if (progressProvider.error != null) {
-                              await progressProvider.retry();
-                            }
-                          },
-                        ),
-                      ],
-                    ),
+                  return OtzariaErrorState(
+                    title: 'שגיאה בטעינת הנתונים',
+                    actions: [
+                      ActionButton.recommended(
+                        text: 'נסה שוב',
+                        icon: FluentIcons.arrow_clockwise_24_regular,
+                        onPressed: () async {
+                          if (dataProvider.error != null) {
+                            await dataProvider.loadAllData();
+                          }
+                          if (!context.mounted) {
+                            return;
+                          }
+                          if (progressProvider.error != null) {
+                            await progressProvider.retry();
+                          }
+                        },
+                      ),
+                    ],
                   );
                 }
 
@@ -501,7 +501,8 @@ class _ShamorZachorMainScreenState extends State<ShamorZachorMainScreen>
                                       vertical: 6,
                                     ),
                                     child: Align(
-                                      alignment: Alignment.centerRight,
+                                      alignment:
+                                          AlignmentDirectional.centerStart,
                                       child: narrowFilterControl,
                                     ),
                                   )

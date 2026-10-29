@@ -1,4 +1,6 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
@@ -54,6 +56,8 @@ Future<MarkRangeSelection?> showMarkRangeDialog({
   final confirmed = await showTwoActionsDialog(
     context: context,
     title: 'סימון טווח בעמודה "$columnLabel"',
+    icon: FluentIcons.checkmark_circle_24_regular,
+    headerBand: true,
     content: '',
     confirmText: 'החל',
     customContent: _MarkRangeForm(bookDetails: bookDetails, draft: draft),
@@ -105,7 +109,7 @@ class _MarkRangeFormState extends State<_MarkRangeForm> {
   Widget build(BuildContext context) {
     final draft = widget.draft;
     return SizedBox(
-      width: 420,
+      width: 440,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,18 +118,18 @@ class _MarkRangeFormState extends State<_MarkRangeForm> {
             children: [
               Expanded(
                 child: _picker(
-                  'מ',
+                  'מ־',
                   draft.fromIndex,
                   (v) => draft.fromIndex = v,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppTokens.spaceMD),
               Expanded(
                 child: _picker('עד', draft.toIndex, (v) => draft.toIndex = v),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppTokens.spaceMD),
           AppSegmentedControl<bool>(
             expandToFillWidth: true,
             currentValue: draft.value,
@@ -135,12 +139,51 @@ class _MarkRangeFormState extends State<_MarkRangeForm> {
             ],
             onChanged: (v) => setState(() => draft.value = v),
           ),
-          const SizedBox(height: 16),
-          Text(
-            draft.value ? '$_count פריטים יסומנו' : '$_count פריטים יבוטלו',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          const SizedBox(height: AppTokens.spaceMD),
+          _summary(context),
         ],
+      ),
+    );
+  }
+
+  /// כמה פריטים ייגעו בפעולה, בתיבה בולטת מתחת לבחירה.
+  Widget _summary(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final marking = widget.draft.value;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.secondaryContainer.withValues(alpha: 0.6),
+        borderRadius: AppTokens.borderRadiusAll,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceMD,
+          vertical: AppTokens.spaceSM + 2,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              marking
+                  ? FluentIcons.checkbox_checked_24_regular
+                  : FluentIcons.checkbox_unchecked_24_regular,
+              size: AppTokens.fontXL,
+              color: cs.onSecondaryContainer,
+            ),
+            const SizedBox(width: AppTokens.spaceSM),
+            Expanded(
+              child: Text(
+                marking
+                    ? '$_count פריטים יסומנו'
+                    : 'הסימון של $_count פריטים יבוטל',
+                style: TextStyle(
+                  fontSize: AppTokens.fontMD,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSecondaryContainer,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -149,8 +192,15 @@ class _MarkRangeFormState extends State<_MarkRangeForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
-        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: AppTokens.fontSM,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppTokens.spaceXS),
         AppDropdownField<int>(
           value: value,
           entries: _entries,

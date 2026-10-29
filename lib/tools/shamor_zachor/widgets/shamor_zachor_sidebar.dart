@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:provider/provider.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
 import '../providers/shamor_zachor_data_provider.dart';
@@ -37,16 +39,12 @@ class _ShamorZachorSidebarState extends State<ShamorZachorSidebar> {
     return Consumer<ShamorZachorDataProvider>(
       builder: (context, dataProvider, child) {
         if (dataProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingIndicator();
         }
         if (dataProvider.error != null) {
-          return Center(
-            child: Text(
-              'שגיאה בטעינת נתונים',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ),
+          return const OtzariaErrorState(
+            title: 'שגיאה בטעינת נתונים',
+            isCompact: true,
           );
         }
 

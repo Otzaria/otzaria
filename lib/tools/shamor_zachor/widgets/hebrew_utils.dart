@@ -1,6 +1,31 @@
+import 'package:kosher_dart/kosher_dart.dart';
+
 /// Utility class for Hebrew text formatting and conversions.
 class HebrewUtils {
   HebrewUtils._();
+
+  /// Hebrew day and month of [date], e.g. כ״ח תשרי. The year is added when it
+  /// is not the current Hebrew year.
+  static String shortHebrewDate(DateTime date, {DateTime? now}) {
+    final formatter = HebrewDateFormatter()..hebrewFormat = true;
+    final jc = JewishCalendar.fromDateTime(date);
+    final text =
+        '${formatter.formatHebrewNumber(jc.getJewishDayOfMonth())} '
+        '${formatter.formatMonth(jc)}';
+    final current = JewishCalendar.fromDateTime(now ?? DateTime.now());
+    if (jc.getJewishYear() == current.getJewishYear()) return text;
+    return '$text ${formatter.formatHebrewNumber(jc.getJewishYear() % 1000)}';
+  }
+
+  /// Hebrew date followed by the Gregorian one, for tooltips.
+  static String fullDate(DateTime date) {
+    final formatter = HebrewDateFormatter()..hebrewFormat = true;
+    final hebrew = formatter.format(JewishCalendar.fromDateTime(date));
+    final gregorian =
+        '${date.day.toString().padLeft(2, '0')}.'
+        '${date.month.toString().padLeft(2, '0')}.${date.year}';
+    return '$hebrew · $gregorian';
+  }
 
   /// Convert integer to Hebrew gematria with the standard geresh/gershayim marks.
   static String intToGematria(int number) {
