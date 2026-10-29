@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
@@ -25,6 +26,61 @@ void main() {
   setUpAll(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await Settings.init(cacheProvider: MemorySettingsCache());
+  });
+
+  group('הכרעת הזזה אופקית לפי רוחב הדפים הנראים', () {
+    late PdfBookTab tab;
+    late _GeometryController controller;
+    setUp(() {
+      tab = _tab();
+      controller = _GeometryController();
+      tab.pdfViewerController = controller;
+    });
+
+    test('מסמך לא מוכן, רשימה ריקה ורווח אנכי אינם תובעים pan', () {
+      controller.ready = false;
+      expect(tab.canPanHorizontally, isFalse);
+      controller.ready = true;
+      expect(tab.canPanHorizontally, isFalse);
+      controller.pageRects = const [Rect.fromLTWH(8, 8, 600, 800)];
+      controller.view = const Rect.fromLTWH(100, 808, 300, 8);
+      expect(tab.canPanHorizontally, isFalse);
+    });
+
+    test('כפולה כוללת את שני הדפים ואת הרווח ביניהם', () {
+      controller.pageRects = const [
+        Rect.fromLTWH(8, 8, 300, 800),
+        Rect.fromLTWH(316, 8, 300, 800),
+      ];
+      controller.view = const Rect.fromLTWH(60, 10, 500, 400);
+      expect(tab.canPanHorizontally, isTrue);
+      controller.view = const Rect.fromLTWH(16, 10, 608, 400);
+      expect(tab.canPanHorizontally, isFalse);
+    });
+
+    test('סבילות לעיגול נשארת פיקסל אחד בכל רמת זום', () {
+      controller.pageRects = const [Rect.fromLTWH(8, 8, 600, 800)];
+      for (final zoom in [0.5, 2.66, 8.0]) {
+        controller.zoom = zoom;
+        controller.view = Rect.fromLTWH(8, 10, 600 - 0.5 / zoom, 400);
+        expect(tab.canPanHorizontally, isFalse);
+        controller.view = Rect.fromLTWH(8, 10, 600 - 2 / zoom, 400);
+        expect(tab.canPanHorizontally, isTrue);
+      }
+    });
+
+    test('דף לרוחב ודפים אנכיים במידות שונות נמדדים לפי הפריסה', () {
+      controller.pageRects = const [
+        Rect.fromLTWH(8, 8, 900, 300),
+        Rect.fromLTWH(308, 316, 300, 800),
+      ];
+      controller.view = const Rect.fromLTWH(0, 0, 916, 316);
+      expect(tab.canPanHorizontally, isFalse);
+      controller.view = const Rect.fromLTWH(300, 320, 316, 400);
+      expect(tab.canPanHorizontally, isFalse);
+      controller.view = const Rect.fromLTWH(300, 300, 316, 400);
+      expect(tab.canPanHorizontally, isTrue);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -301,4 +357,23 @@ void main() {
       expect(restored.isPinned, isTrue);
     });
   });
+}
+
+class _GeometryController extends PdfViewerController {
+  bool ready = true;
+  double zoom = 1;
+  Rect view = Rect.zero;
+  List<Rect> pageRects = const [];
+
+  @override
+  bool get isReady => ready;
+  @override
+  double get currentZoom => zoom;
+  @override
+  Rect get visibleRect => view;
+  @override
+  PdfPageLayout get layout => PdfPageLayout(
+    pageLayouts: pageRects,
+    documentSize: const Size(1000, 2000),
+  );
 }
