@@ -1012,6 +1012,9 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
 
     return AppCustomContentDialog(
       title: isEditMode ? 'ערוך אירוע' : 'צור אירוע חדש',
+      icon: isEditMode
+          ? FluentIcons.calendar_edit_24_regular
+          : FluentIcons.calendar_add_24_regular,
       onConfirm: _submit,
       handleEnterKey: true,
       actions: [
