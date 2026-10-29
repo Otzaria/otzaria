@@ -293,11 +293,13 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
       children: [
         Text(
           'טקסט המקור (לא ניתן לעריכה):',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          style: TextStyle(
+            fontSize: AppTokens.fontMD,
             fontWeight: FontWeight.bold,
+            color: colorScheme.primary,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppTokens.spaceSM),
         Container(
           key: const ValueKey('correction-original'),
           constraints: const BoxConstraints(maxHeight: 150),
@@ -366,6 +368,10 @@ class _TextCorrectionEditorState extends State<TextCorrectionEditor> {
             style: textStyle,
             decoration: InputDecoration(
               isDense: true,
+              filled: true,
+              fillColor: colorScheme.brightness == Brightness.dark
+                  ? colorScheme.surfaceContainerHighest
+                  : AppSurfaces.card(context),
               labelText: 'הנוסח המתוקן',
               errorText: draft.error,
               errorMaxLines: 3,

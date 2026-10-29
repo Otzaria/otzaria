@@ -730,7 +730,10 @@ class _SearchDialogState extends State<_SearchDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('חיפוש בטקסט'),
+      title: const AppDialogTitle(
+        'חיפוש בטקסט',
+        icon: FluentIcons.search_24_regular,
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -799,7 +802,10 @@ class _LinkInsertDialogState extends State<_LinkInsertDialog> {
         ),
       },
       child: AlertDialog(
-        title: const Text('הוסף קישור'),
+        title: const AppDialogTitle(
+          'הוסף קישור',
+          icon: FluentIcons.link_24_regular,
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
