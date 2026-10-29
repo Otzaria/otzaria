@@ -1279,6 +1279,7 @@ void main() {
               {
                 'id': 'open-new',
                 'title': 'פתח',
+                'icon': 'bookmark_24_regular',
                 'openPlugin': true,
                 'newTab': true,
               },
@@ -1313,7 +1314,12 @@ void main() {
         tempDir,
         manifestOverride: manifest(
           allowMultiple: true,
-          item: {'id': 'open-new', 'title': 'פתח', 'newTab': true},
+          item: {
+            'id': 'open-new',
+            'title': 'פתח',
+            'icon': 'bookmark_24_regular',
+            'newTab': true,
+          },
         ),
       );
       expect(mentionsNewTab(report), isTrue, reason: '${report.errors}');
