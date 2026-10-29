@@ -42,4 +42,20 @@ void main() {
       reason: 'הסתרת החלון האחרון אינה מסיימת את התהליך',
     );
   });
+
+  test('סגירה במסך מלא יוצאת ממנו לפני ההסתרה (#3551)', () {
+    final hide = mainWindow.indexOf('private func hide(');
+    final hideEnd = mainWindow.indexOf('func showMainWindow(');
+    final body = mainWindow.substring(hide, hideEnd);
+    final fullScreen = body.indexOf('styleMask.contains(.fullScreen)');
+    final toggle = body.indexOf('window.toggleFullScreen(nil)');
+    expect(fullScreen, inInclusiveRange(0, toggle));
+    expect(
+      body.indexOf('isMainHidden = true'),
+      greaterThan(toggle),
+      reason: 'orderOut במסך מלא משאיר Space שחור',
+    );
+    expect(mainWindow, contains('NSWindow.didExitFullScreenNotification'));
+    expect(mainWindow, contains('NSWindow.didEnterFullScreenNotification'));
+  });
 }
