@@ -27,57 +27,65 @@ class BiographiesCreditLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final linkColor = cs.primary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceMD,
-        vertical: AppTokens.spaceXS,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: cs.outlineVariant)),
       ),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: AppTokens.spaceSM,
-        children: [
-          Text(
-            BiographiesBundle.fullCredit,
-            style: TextStyle(
-              fontSize: AppTokens.fontSM,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-          Tooltip(
-            message: 'הצגת המקורות והרישיונות',
-            child: InkWell(
-              onTap: () => _showCredits(context),
-              borderRadius: AppTokens.borderRadiusAll,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTokens.spaceXS,
-                  vertical: 2,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      FluentIcons.info_16_regular,
-                      size: 14,
-                      color: linkColor,
-                    ),
-                    const SizedBox(width: AppTokens.spaceXS),
-                    Text(
-                      'מקורות וזכויות',
-                      style: TextStyle(
-                        fontSize: AppTokens.fontSM,
-                        color: linkColor,
-                        decoration: TextDecoration.underline,
-                        decorationColor: linkColor,
-                      ),
-                    ),
-                  ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceMD,
+          vertical: AppTokens.spaceSM,
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppTokens.spaceSM,
+            children: [
+              Text(
+                BiographiesBundle.fullCredit,
+                style: TextStyle(
+                  fontSize: AppTokens.fontSM,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
-            ),
+              Tooltip(
+                message: 'הצגת המקורות והרישיונות',
+                child: InkWell(
+                  onTap: () => _showCredits(context),
+                  borderRadius: AppTokens.borderRadiusAll,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTokens.spaceXS,
+                      vertical: 2,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          FluentIcons.info_16_regular,
+                          size: 14,
+                          color: linkColor,
+                        ),
+                        const SizedBox(width: AppTokens.spaceXS),
+                        Text(
+                          'מקורות וזכויות',
+                          style: TextStyle(
+                            fontSize: AppTokens.fontSM,
+                            color: linkColor,
+                            decoration: TextDecoration.underline,
+                            decorationColor: linkColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
