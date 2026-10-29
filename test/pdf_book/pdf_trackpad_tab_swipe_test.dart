@@ -31,6 +31,7 @@ import 'package:otzaria/tabs/reading_screen.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart' as pdfdoc;
 import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
@@ -82,6 +83,8 @@ void main() {
   Future<({TabsBloc tabs, PdfBookTab pdf})> pumpReader(
     WidgetTester tester, {
     required int currentTabIndex,
+    List<Size>? pageSizes,
+    bool edgeText = false,
   }) async {
     tester.view.physicalSize = const Size(1600, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -91,7 +94,32 @@ void main() {
     await tester.runAsync(() async {
       final source = pw.Document();
       for (var page = 0; page < 8; page++) {
-        source.addPage(pw.Page(build: (_) => pw.SizedBox()));
+        source.addPage(
+          pw.Page(
+            pageFormat: pageSizes == null
+                ? pdfdoc.PdfPageFormat.a4
+                : pdfdoc.PdfPageFormat(
+                    pageSizes[page % pageSizes.length].width,
+                    pageSizes[page % pageSizes.length].height,
+                  ),
+            margin: edgeText ? pw.EdgeInsets.zero : null,
+            build: (_) => edgeText
+                ? pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'LEFT EDGE TEXT',
+                        style: pw.TextStyle(fontSize: 12),
+                      ),
+                      pw.Text(
+                        'RIGHT EDGE TEXT',
+                        style: pw.TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  )
+                : pw.SizedBox(),
+          ),
+        );
       }
       await file.writeAsBytes(await source.save());
     });
@@ -190,6 +218,157 @@ void main() {
     await gesture.panZoomEnd(timeStamp: const Duration(milliseconds: 200));
     await frames(tester);
   }
+
+  Future<void> touchSwipe(WidgetTester tester, double dx) async {
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(PageView)),
+      kind: PointerDeviceKind.touch,
+    );
+    for (var i = 0; i < 30; i++) {
+      await gesture.moveBy(Offset(dx / 30, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await frames(tester);
+  }
+
+  testWidgets('מסך מגע: התאמה לרוחב אחרי גלילה באלכסון עוברת כרטיסייה', (
+    tester,
+  ) async {
+    final reader = await pumpReader(tester, currentTabIndex: 1);
+    await toggleFit(tester);
+    await scrollDiagonally(tester, 80);
+    expect(reader.pdf.canPanHorizontally, isFalse);
+    await touchSwipe(tester, 900);
+    expect(reader.tabs.state.currentTabIndex, 0);
+  });
+
+  testWidgets('מסך מגע: PDF מוגדל נשאר ניתן להזזה', (tester) async {
+    final reader = await pumpReader(tester, currentTabIndex: 1);
+    final controller = reader.pdf.pdfViewerController;
+    await controller.setZoom(
+      controller.centerPosition,
+      controller.currentZoom * 2,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    final before = controller.visibleRect.left;
+    expect(reader.pdf.canPanHorizontally, isTrue);
+    await touchSwipe(tester, 300);
+    expect(reader.tabs.state.currentTabIndex, 1);
+    expect(controller.visibleRect.left, isNot(closeTo(before, 1)));
+  });
+
+  testWidgets('כפולה מוגדלת: החלקה מזיזה את הדפים', (tester) async {
+    final reader = await pumpReader(tester, currentTabIndex: 1);
+    pdfBloc(tester).add(const SetLayoutMode(PdfLayoutMode.bookView));
+    await frames(tester, 60);
+    final controller = reader.pdf.pdfViewerController;
+    await controller.setZoom(
+      controller.centerPosition,
+      controller.currentZoom * 2,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    final before = controller.visibleRect.left;
+    expect(reader.pdf.canPanHorizontally, isTrue);
+    await swipe(tester, 300);
+    expect(reader.tabs.state.currentTabIndex, 1);
+    expect(controller.visibleRect.left, isNot(closeTo(before, 1)));
+  });
+
+  testWidgets('עמוד צר נראה אינו נחסם בידי עמודים רחבים מחוץ לתצוגה', (
+    tester,
+  ) async {
+    final reader = await pumpReader(
+      tester,
+      currentTabIndex: 1,
+      pageSizes: const [
+        Size(900, 800),
+        Size(300, 800),
+        Size(900, 800),
+        Size(900, 800),
+      ],
+    );
+    await toggleFit(tester);
+    final controller = reader.pdf.pdfViewerController;
+    expect(controller.pageNumber, 2);
+    expect(reader.pdf.canPanHorizontally, isFalse);
+    await swipe(tester, 900);
+    expect(reader.tabs.state.currentTabIndex, 0);
+  });
+
+  testWidgets('עמוד רחב נראה נשאר ניתן להזזה', (tester) async {
+    final reader = await pumpReader(
+      tester,
+      currentTabIndex: 1,
+      pageSizes: const [
+        Size(900, 800),
+        Size(300, 800),
+        Size(900, 800),
+        Size(900, 800),
+      ],
+    );
+    await toggleFit(tester);
+    final controller = reader.pdf.pdfViewerController;
+    await controller.goToPage(pageNumber: 3, duration: Duration.zero);
+    await frames(tester);
+    await controller.setZoom(
+      controller.centerPosition,
+      controller.currentZoom * 2,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    expect(reader.pdf.canPanHorizontally, isTrue);
+    final before = controller.visibleRect.left;
+    await swipe(tester, 300);
+    expect(reader.tabs.state.currentTabIndex, 1);
+    expect(controller.visibleRect.left, isNot(closeTo(before, 1)));
+  });
+
+  testWidgets('הגדלה קטנה מעבר להתאמה לרוחב משאירה טקסט חתוך ניתן להזזה', (
+    tester,
+  ) async {
+    final reader = await pumpReader(tester, currentTabIndex: 1, edgeText: true);
+    await toggleFit(tester);
+    final controller = reader.pdf.pdfViewerController;
+    await controller.setZoom(
+      controller.centerPosition,
+      controller.currentZoom * 1.04,
+      duration: Duration.zero,
+    );
+    await tester.pump();
+    final view = controller.visibleRect;
+    final page = controller.layout.pageLayouts[1];
+    final clippedLeft = view.left - page.left;
+    final clippedRight = page.right - view.right;
+    expect(clippedLeft, greaterThan(0));
+    expect(clippedRight, greaterThan(0));
+    final text = await tester.runAsync(
+      () => controller.document.pages[1].loadText(),
+    );
+    final minTextLeft =
+        text!.charRects
+            .map((rect) => rect.left)
+            .reduce((a, b) => a < b ? a : b) +
+        page.left;
+    final maxTextRight =
+        text.charRects
+            .map((rect) => rect.right)
+            .reduce((a, b) => a > b ? a : b) +
+        page.left;
+    expect(maxTextRight, greaterThan(view.right));
+    expect(minTextLeft, lessThan(view.left));
+    final canPan = reader.pdf.canPanHorizontally;
+    await swipe(tester, 300);
+    expect(
+      canPan,
+      isTrue,
+      reason: 'טקסט בקצות העמוד חתוך, ולכן צריך לאפשר הזזה אופקית',
+    );
+    expect(reader.tabs.state.currentTabIndex, 1);
+    expect(controller.visibleRect.left, lessThan(view.left));
+  });
 
   final modes = <String, Future<void> Function(WidgetTester)>{
     'זום הפתיחה': (_) async {},
