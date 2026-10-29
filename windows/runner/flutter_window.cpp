@@ -487,6 +487,7 @@ FlutterWindow::FlutterWindow(const flutter::DartProject& project,
 }
 
 FlutterWindow::~FlutterWindow() {
+  otzar_window_automation_.reset();
   // ⚠️ reset() מאפס את המצביע לפני ההריסה: הריסת חלון-הילד שולחת WM_PARENTNOTIFY
   // לחלון הראשי החי, ו-MessageHandler היה מפנה אותה ל-controller שבאמצע פירוק.
   flutter_controller_.reset();
@@ -513,6 +514,8 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  otzar_window_automation_ = std::make_unique<OtzarWindowAutomation>(
+      flutter_controller_->engine()->messenger(), GetHandle());
   // ערוץ החלונות: סגירה והעלאה של הראשי, גרירת כרטיסיות ועזרים לחלונות Dart.
   multiwindow_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
@@ -916,6 +919,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  otzar_window_automation_.reset();
   // NOTE: do NOT close the splash here. Win32Window::Create() calls Destroy()
   // (→ OnDestroy()) at its very start to clear any prior state — even on the
   // first creation, before any window exists — so OnDestroy fires spuriously
@@ -980,6 +984,10 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (otzar_window_automation_ &&
+      otzar_window_automation_->HandleMessage(message, wparam)) {
+    return 0;
+  }
   // נשלחת רק לחלון הראשי: ל-Dart שלו יש את ה-Navigator להצעת הדיווח.
   if (message == hang_monitor::kMsgAppHangRecovered) {
     if (process_control_channel_) {

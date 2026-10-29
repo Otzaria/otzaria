@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+
+import 'otzar_main_window_input.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:path/path.dart' as path;
@@ -142,9 +144,17 @@ class OtzarUtils {
     return exePath.isNotEmpty;
   }
 
+  /// With [preferMainWindow] on modern Windows and default page=1, F1
+  /// selects the book in the running app; it does NOT force page 1. Set false
+  /// for the existing page-aware BOOK= route. macOS and legacy Windows retain
+  /// their existing behavior.
   /// [page] — מספר העמוד לפתיחה (מבוסס-1; ברירת מחדל: הראשון). בגרסאות ישנות של
   /// התוכנה (לפני 18) נפתח הספר מתחילתו.
-  static Future<void> launchOtzarLocal(int bookId, {int page = 1}) async {
+  static Future<void> launchOtzarLocal(
+    int bookId, {
+    int page = 1,
+    bool preferMainWindow = true,
+  }) async {
     if (Platform.isMacOS) {
       if (!await launchUrlString(macBookUri(bookId, page: page))) {
         throw Exception('Failed to launch Otzar: no handler for OtzarBook://');
@@ -154,6 +164,14 @@ class OtzarUtils {
     final (exePath, isVersion18OrAbove) = await findOtzarExePath();
     if (exePath.isEmpty) {
       throw Exception('Otzar.exe not found');
+    }
+
+    // F1 selects a book, not a page. Keep explicit page requests on the
+    // existing BOOK= route. In the default catalog case, Otzar must already be
+    // running and may restore the book's last-read page.
+    if (isVersion18OrAbove && preferMainWindow && _page(page) == 1) {
+      await OtzarMainWindowInput.openBook(bookId);
+      return;
     }
 
     final tabId = Random().nextInt(1000000); // Random tab ID
@@ -208,7 +226,12 @@ class OtzarUtils {
   /// פותח בתוכנת אוצר החכמה כשהיא מותקנת והספר על הכונן, אחרת באתר.
   ///
   /// [page] — העמוד לפתיחה בתוכנה (מבוסס-1; ברירת מחדל: הראשון). באתר נפתח הספר כולו.
-  static Future<bool> openBook(int? bookId, String link, {int page = 1}) async {
+  static Future<bool> openBook(
+    int? bookId,
+    String link, {
+    int page = 1,
+    bool preferMainWindow = true,
+  }) async {
     if (bookId != null &&
         await canLaunchLocally() &&
         await checkBookExistence(bookId)) {
@@ -217,6 +240,7 @@ class OtzarUtils {
         launchOtzarLocal(
           bookId,
           page: page,
+          preferMainWindow: preferMainWindow,
         ).catchError((_) => launchOtzarWeb(link)),
       );
       return true;
