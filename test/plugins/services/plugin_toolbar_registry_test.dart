@@ -400,6 +400,7 @@ void main() {
         registry.registerPayload('marker', {
           'id': 'open-new',
           'title': 'פתח',
+          'icon': 'bookmark_24_regular',
           'openPlugin': true,
           'newTab': true,
         });
@@ -413,6 +414,7 @@ void main() {
         registry.registerPayload('marker', {
           'id': 'plain',
           'title': 'פתח',
+          'icon': 'bookmark_24_regular',
           'openPlugin': true,
         });
 
@@ -426,6 +428,7 @@ void main() {
           () => registry.registerPayload('marker', {
             'id': 'bad',
             'title': 'פתח',
+          'icon': 'bookmark_24_regular',
             'newTab': true,
           }),
           throwsA(isA<PluginToolbarException>()),
@@ -437,6 +440,7 @@ void main() {
           () => registry.registerPayload('marker', {
             'id': 'bad',
             'title': 'פתח',
+          'icon': 'bookmark_24_regular',
             'openPlugin': true,
             'newTab': 'yes',
           }),
