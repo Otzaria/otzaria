@@ -96,6 +96,11 @@ Future<void> main() async {
       skip: !engineReady,
     );
 
+    test('a regex retains its non-literal route with positive distance', () {
+      const settings = InBookSearchSettings(distance: 3);
+      expect(settings.forQuery('/שמים/').isSimpleSearch, isFalse);
+    }, skip: !engineReady);
+
     test('takes the dialog result with its mode, distance and policy', () {
       final settings = InBookSearchSettings.fromDialogResult(
         const SearchDialogResult(

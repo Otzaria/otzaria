@@ -160,6 +160,79 @@ Future<void> main() async {
     skip: !engineReady,
   );
 
+  testWidgets('שאילתה חיצונית מעדכנת ניתוב בשני הכיוונים בלי שינוי בהגדרות', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    final simpleQueries = <String>[];
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע',
+      searchDistance: 3,
+      simpleSearchRunner: (content, query) async {
+        simpleQueries.add(query);
+        return const [];
+      },
+    );
+    await harness.settle();
+    expect(simpleQueries, ['תדע']);
+    expect(repository.requests, isEmpty);
+
+    await harness.rebuildFromBloc('תדע זרעך', 3, SearchMatchPolicy.standard);
+    await harness.settle();
+    expect(repository.requests, hasLength(1));
+    expect(repository.requests.single.query, 'תדע זרעך');
+    expect(repository.requests.single.distance, 3);
+    expect(simpleQueries, ['תדע']);
+
+    await harness.rebuildFromBloc('זרעך', 3, SearchMatchPolicy.standard);
+    await harness.settle();
+    expect(simpleQueries, ['תדע', 'זרעך']);
+    expect(repository.requests, hasLength(1));
+    expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+
+    await harness.type(' זַרְעֲךָ ');
+    await harness.settle();
+    final callsBeforeEcho = simpleQueries.length;
+    await harness.rebuildFromBloc(' זרעך ', 3, SearchMatchPolicy.standard);
+    await harness.settle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+      ' זַרְעֲךָ ',
+    );
+    expect(simpleQueries, hasLength(callsBeforeEcho));
+    expect(repository.requests, hasLength(1));
+  }, skip: !engineReady);
+
+  testWidgets('ביטוי רגולרי עם מרווח חיובי שומר על הדגשת ההתאמה בתוצאה', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: '/שמים/',
+      searchDistance: 3,
+      content: const ['בראשית שמים וארץ'],
+    );
+    await harness.settle();
+    expect(repository.requests, isEmpty);
+    final result = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .singleWhere(
+          (widget) => widget.text.toPlainText() == 'בראשית שמים וארץ',
+        );
+    final highlighted = <String>[];
+    result.text.visitChildren((span) {
+      if (span is TextSpan && span.style?.fontWeight == FontWeight.bold) {
+        highlighted.add(span.toPlainText());
+      }
+      return true;
+    });
+    expect(highlighted, contains('שמים'));
+  }, skip: !engineReady);
+
   testWidgets(
     'שורה שהמנוע לא קרא מוצגת מתוכן הספר הטעון',
     (tester) async {

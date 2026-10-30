@@ -135,12 +135,14 @@ class InBookSearchSettings {
     matchPolicy: matchPolicy,
   );
 
-  /// מרווח בין מילים אינו חל על מילה אחת; בלי זה מרווח שמור חוסם בה את
-  /// החיפוש המקומי ואת "חלק ממילה". שאילתה לא ידועה (null) נשארת במנוע.
+  /// מרווח שמור אינו חוסם חלק ממילה; regex ושאילתה לא ידועה שומרים
+  /// על הניתוב המקורי כדי שלא לאבד את פענוח ההדגשה.
   bool get _appliesDistance {
     final query = this.query;
     return distance > 0 &&
-        (query == null || SearchQueryBuilder.hasMultipleWords(query));
+        (query == null ||
+            UserRegexQuery.isValid(query) ||
+            SearchQueryBuilder.hasMultipleWords(query));
   }
 
   /// Whether the search runs as the local literal scan.
