@@ -719,6 +719,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
     }
 
     PluginPageLauncher.instance.register(_windowKeys, _openPluginPage);
+    PluginPageLauncher.instance.registerInstanceOpener(
+      _windowKeys,
+      _openPluginInstance,
+      hasOpenTab: _hasOpenPluginTab,
+    );
     ToolsLauncherController.instance.register(_windowKeys, _openToolsLauncher);
 
     // הצגת פופאפ פרסומת אחרי 5 שניות
@@ -1868,6 +1873,10 @@ class MainWindowScreenState extends State<MainWindowScreen>
     _startupRefreshWait.cancel();
     _indexingDeferral.clear();
     PluginPageLauncher.instance.unregister(_windowKeys, _openPluginPage);
+    PluginPageLauncher.instance.unregisterInstanceOpener(
+      _windowKeys,
+      _openPluginInstance,
+    );
     ToolsLauncherController.instance.unregister(
       _windowKeys,
       _openToolsLauncher,
@@ -1975,6 +1984,20 @@ class MainWindowScreenState extends State<MainWindowScreen>
     if (!mounted) return;
     openToolTabById(context, pluginId);
   }
+
+  /// מופע נוסף של התוסף בכרטיסיה חדשה (`plugin.openSelf` עם `newTab`).
+  String? _openPluginInstance(String pluginId) {
+    if (!mounted) return null;
+    return openPluginToolInstanceById(context, pluginId);
+  }
+
+  bool _hasOpenPluginTab(String pluginId) =>
+      mounted &&
+      openToolInstanceCount(
+            context.read<TabsBloc>().state.tabs,
+            pluginId,
+          ) >
+          0;
 
   void _openToolsLauncher() {
     if (!mounted || _isToolsLauncherOpen) return;

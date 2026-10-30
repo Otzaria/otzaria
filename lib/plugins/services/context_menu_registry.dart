@@ -6,6 +6,8 @@ import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_item_registry.dart';
 
 class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
+  static const maxNestingDepth = 2;
+  static const maxChildren = 30;
   static final ContextMenuRegistry instance = ContextMenuRegistry._();
   ContextMenuRegistry._() : super(evaluator: PluginConditionEvaluator.instance);
 
@@ -90,7 +92,7 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
     List<String>? inheritedContexts,
     bool inheritedRawDivineNames = false,
   }) {
-    if (depth > 2) {
+    if (depth > maxNestingDepth) {
       throw const PluginContextMenuException(
         'error.invalid_params',
         'context menu nesting is too deep',
@@ -141,7 +143,7 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
     final children = <PluginContextMenuItem>[];
     final childrenValue = json['children'];
     if (childrenValue != null) {
-      if (childrenValue is! List || childrenValue.length > 30) {
+      if (childrenValue is! List || childrenValue.length > maxChildren) {
         throw const PluginContextMenuException(
           'error.invalid_params',
           'children must contain at most 30 items',
@@ -223,6 +225,20 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
       );
     }
 
+    final newTab = json['newTab'];
+    if (newTab != null && newTab is! bool) {
+      throw const PluginContextMenuException(
+        'error.invalid_params',
+        'newTab must be a boolean',
+      );
+    }
+    if (newTab == true && json['openPlugin'] != true) {
+      throw const PluginContextMenuException(
+        'error.invalid_params',
+        'newTab requires openPlugin: true',
+      );
+    }
+
     return PluginContextMenuItem(
       id: id,
       type: type,
@@ -234,6 +250,7 @@ class ContextMenuRegistry extends PluginItemRegistry<PluginContextMenuItem> {
       children: children,
       colors: colors,
       openPlugin: json['openPlugin'] == true,
+      newTab: newTab == true,
       param: json['param'],
       showWhenContainsAny: _parseShowWhen(json['showWhen']),
       when: parseWhen(json['when'], nested: depth > 0),

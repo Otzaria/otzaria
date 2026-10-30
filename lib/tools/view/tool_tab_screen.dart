@@ -254,7 +254,11 @@ class ToolTabScreenState extends State<ToolTabScreen>
   Widget _buildToolContent(ToolCatalogEntry entry) {
     final plugin = entry.plugin;
     if (plugin != null) {
-      return buildPluginToolPage(plugin, instanceId: widget.tab.instanceId);
+      return buildPluginToolPage(
+        plugin,
+        instanceId: widget.tab.instanceId,
+        isPrimary: !widget.tab.allowMultipleInstances,
+      );
     }
     return buildBuiltInToolPage(
           entry.toolId,

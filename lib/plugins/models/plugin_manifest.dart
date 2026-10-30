@@ -41,6 +41,12 @@ class PluginManifest {
   final int toolTabOrder;
   final bool defaultPinned;
 
+  /// contributes.toolTab.allowMultipleInstances — מאפשר לתוסף לבקש מאוצריא מופע
+  /// נוסף של עצמו בכרטיסייה חדשה (`plugin.openSelf` עם `newTab: true`).
+  /// ברירת המחדל `false`: תוספים רבים מניחים מופע יחיד, ומופעים של אותו תוסף
+  /// חולקים אחסון (`plugin.storage`, `localStorage`).
+  final bool allowMultipleInstances;
+
   /// שם אייקון 24px עבור לשונית הכלים, למשל `'book_24_regular'`.
   ///
   /// נפתר ל-`IconData` קבוע באמצעות `pluginIconFromName` — קודם בספריית
@@ -87,6 +93,7 @@ class PluginManifest {
     this.databaseSources = const [],
     this.startup,
     this.autoLinkify = false,
+    this.allowMultipleInstances = false,
   });
 
   factory PluginManifest.fromJson(Map<String, dynamic> json) {
@@ -130,6 +137,8 @@ class PluginManifest {
       toolTabTitle: toolTab['title'] as String? ?? json['name'] as String,
       toolTabOrder: toolTab['order'] as int? ?? 900,
       defaultPinned: toolTab['defaultPinned'] as bool? ?? true,
+      // ערך שאינו בוליאני מדווח ב-PluginExtendedValidator, לא זורק בהתקנה.
+      allowMultipleInstances: toolTab['allowMultipleInstances'] == true,
       toolTabIconName: toolTab['iconName'] as String?,
       publishedDataTypes:
           (contributes['publishedDataTypes'] as List<dynamic>?)
@@ -174,6 +183,7 @@ class PluginManifest {
           'title': toolTabTitle,
           'order': toolTabOrder,
           'defaultPinned': defaultPinned,
+          if (allowMultipleInstances) 'allowMultipleInstances': true,
           if (toolTabIconName != null) 'iconName': toolTabIconName,
         },
         'publishedDataTypes': publishedDataTypes,

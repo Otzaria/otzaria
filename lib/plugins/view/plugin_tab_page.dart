@@ -136,10 +136,14 @@ class PluginTabPage extends StatefulWidget {
   /// אצל PluginRuntimeDispatcher, לצד מופעים נוספים של אותו תוסף.
   final String instanceId;
 
+  /// `false` במופע נוסף (`plugin.openSelf` עם `newTab`): אינו יעד של פתיחה רגילה.
+  final bool isPrimary;
+
   const PluginTabPage({
     super.key,
     required this.plugin,
     required this.instanceId,
+    this.isPrimary = true,
     this.readerTab,
   });
 
@@ -834,6 +838,7 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
             widget.plugin.pluginId,
             viewId: viewId,
             instanceId: widget.instanceId,
+            isPrimary: widget.isPrimary,
           );
           if (mounted && _awaitingFirstBoot) {
             setState(() => _awaitingFirstBoot = false);

@@ -149,6 +149,7 @@ class PluginExtendedValidator {
       warnings,
     );
     _checkNameVsToolTabTitle(manifestJson, warnings);
+    _validateToolTabFlags(manifest, manifestJson, errors);
     _validateHeadless(manifest, manifestJson, declaredPermissions, errors);
 
     final files = directoryPath == null
@@ -306,6 +307,7 @@ class PluginExtendedValidator {
   /// הגרסה שבה נוסף מנגנון contributes.startup — נאכף מול minAppVersion.
   static const String _startupContributionsMinVersion = '0.9.96';
   static const String _folderAccessPermissionMinVersion = '0.9.97';
+  static const String _multipleInstancesMinVersion = '0.9.99';
   static const String _declarativeProgramsMinVersion = '0.9.96';
 
   /// פקודות דקלרטיביות שנוספו אחרי מנגנון ה-programs — נאכפות מול minAppVersion.
@@ -331,6 +333,65 @@ class PluginExtendedValidator {
   static const String _whenConditionMinVersion = '0.9.97';
   static const String _headlessMinVersion = '0.9.98';
   static const String _searchFieldActionsMinVersion = '0.9.98.1';
+
+  /// `newTab` בלחצן או בפריט תפריט הקשר פותח מופע נוסף של התוסף, ולכן דורש
+  /// `allowMultipleInstances`. הדרישה ל-`openPlugin` ולסוג הערך נבדקת בניתוח
+  /// הפריט עצמו.
+  static void _validateNewTabItems(
+    PluginManifest manifest,
+    String field,
+    List<Map<String, dynamic>> items,
+    List<String> errors,
+  ) {
+    bool usesNewTab(Object? item) {
+      if (item is! Map) return false;
+      if (item['newTab'] == true) return true;
+      final children = item['children'];
+      return children is List && children.any(usesNewTab);
+    }
+
+    if (manifest.allowMultipleInstances || !items.any(usesNewTab)) return;
+    errors.add(
+      'contributes.startup.$field: newTab דורש '
+      'contributes.toolTab.allowMultipleInstances: true',
+    );
+  }
+
+  /// בודק את הדגלים של `contributes.toolTab`, כרגע `allowMultipleInstances`:
+  /// חייב להיות בוליאני, והצהרה עליו מחייבת `minAppVersion` מתאים.
+  static void _validateToolTabFlags(
+    PluginManifest manifest,
+    Map<String, dynamic> manifestJson,
+    List<String> errors,
+  ) {
+    final contributes = manifestJson['contributes'];
+    final toolTab = contributes is Map ? contributes['toolTab'] : null;
+    if (toolTab is! Map) return;
+    final raw = toolTab['allowMultipleInstances'];
+    if (raw != null && raw is! bool) {
+      errors.add(
+        'contributes.toolTab.allowMultipleInstances חייב להיות true או false',
+      );
+      return;
+    }
+    if (!manifest.allowMultipleInstances) return;
+    try {
+      if (PluginVersionUtils.compareCoreVersions(
+            _multipleInstancesMinVersion,
+            manifest.minAppVersion,
+          ) >
+          0) {
+        errors.add(
+          'contributes.toolTab.allowMultipleInstances נתמך החל מגרסה '
+          '$_multipleInstancesMinVersion, אך minAppVersion שהוצהר הוא '
+          '${manifest.minAppVersion}. אוצריא ישנה מתעלמת מ-newTab ורק ממקדת '
+          'את הכרטיסייה הקיימת. עדכן את minAppVersion',
+        );
+      }
+    } on PluginVersionFormatException {
+      // minAppVersion נבדק ב-PluginManifestValidator.
+    }
+  }
 
   /// תוסף ללא ממשק רץ רק כשמנוע הרקע מתעורר, ואין לו דף שאפשר לפתוח במקומו.
   /// לכן תוסף שאין לו דרך להתעורר, או שמפנה לדף שלו, נחסם כבר בהתקנה.
@@ -817,6 +878,12 @@ class PluginExtendedValidator {
       if (toolbarIds.toSet().length != toolbarIds.length) {
         errors.add('contributes.startup.toolbarItems מכיל מזהה כפול');
       }
+      _validateNewTabItems(
+        manifest,
+        'toolbarItems',
+        startup.toolbarItems,
+        errors,
+      );
       final registry = PluginToolbarRegistry.detached();
       for (final item in startup.toolbarItems.where(
         (item) => !DeclarativeToolbarTemplateCompiler.isDeclarative(item),
@@ -836,6 +903,12 @@ class PluginExtendedValidator {
           '"reader.context_menu" שלא הוכרזה ב-manifest',
         );
       }
+      _validateNewTabItems(
+        manifest,
+        'contextMenuItems',
+        startup.contextMenuItems,
+        errors,
+      );
       final registry = ContextMenuRegistry.detached();
       for (final item in startup.contextMenuItems) {
         try {

@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/error_log_file.dart';
+import 'package:otzaria/core/messages/tools_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/core/pre_close_registry.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/tabs_repository.dart';
@@ -455,7 +457,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   Future<void> _onAddTab(AddTab event, Emitter<TabsState> emit) async {
     debugPrint('DEBUG: הוספת טאב חדש - ${event.tab.title}');
     final tab = await _withCompanion(event.tab);
-    _insertTab(event, tab, emit.call);
+    if (!_insertTab(event, tab, emit.call)) _disposeTabLater(tab);
   }
 
   /// קליטה אטומית של כרטיסיה שכבר נפתחה; לא פותחים מחדש חלונית מלווה שנסגרה.
@@ -463,15 +465,39 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     if (isClosed || _closeFuture != null || _pendingEvents > 0) return false;
     // האישור למקור חייב לבוא אחרי ההכנסה, ללא תור שיכול לשרוד את החלון.
     // ignore: invalid_use_of_visible_for_testing_member
-    _insertTab(AddTab(tab, index: index), tab, super.emit);
+    return _insertTab(AddTab(tab, index: index), tab, super.emit);
+  }
+
+  /// מגביל תוספת מופעים; טעינת snapshot שלם משמרת את כל מצב המשתמש.
+  bool _hasRoomForPluginTabs(
+    List<OpenedTab> incoming,
+    Iterable<OpenedTab> existing,
+  ) {
+    final plugins = incoming
+        .expand(leafPanes)
+        .whereType<ToolTab>()
+        .where((tab) => tab.isPlugin);
+    for (final plugin in plugins) {
+      if (openToolInstanceCount([...existing, ...incoming], plugin.toolId) >
+          kMaxPluginToolInstances) {
+        UiSnack.showError(
+          ToolsMessages.pluginInstanceLimitReached(
+            plugin.title,
+            kMaxPluginToolInstances,
+          ),
+        );
+        return false;
+      }
+    }
     return true;
   }
 
-  void _insertTab(
+  bool _insertTab(
     AddTab event,
     OpenedTab tab,
     void Function(TabsState) publish,
   ) {
+    if (!_hasRoomForPluginTabs([tab], state.tabs)) return false;
     _separateHistorySlots([tab]);
     final newTabs = List<OpenedTab>.from(state.tabs);
     final newIndex =
@@ -496,6 +522,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       ),
     );
     _scheduleSave(newTabs, currentIndex);
+    return true;
   }
 
   /// משמר מקום קיים, ומפריד רק התנגשות בין חלוניות של אותו ספר.
@@ -626,10 +653,12 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       return;
     }
 
-    _separateHistorySlots(
-      [event.newTab],
-      existingTabs: state.tabs.where((tab) => !identical(tab, event.oldTab)),
-    );
+    final kept = state.tabs.where((tab) => !identical(tab, event.oldTab));
+    if (!_hasRoomForPluginTabs([event.newTab], kept)) {
+      _disposeTabLater(event.newTab);
+      return;
+    }
+    _separateHistorySlots([event.newTab], existingTabs: kept);
     event.newTab.isPinned = event.oldTab.isPinned;
     final newTabs = List<OpenedTab>.from(state.tabs);
     newTabs[index] = event.newTab;
@@ -1327,7 +1356,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     Emitter<TabsState> emit,
   ) async {
     if (_recentlyClosedTabs.isEmpty) return;
-    await _restoreClosedEntry(_recentlyClosedTabs.removeLast(), emit);
+    await _restoreClosedEntry(_recentlyClosedTabs.last, emit);
   }
 
   Future<void> _onRestoreClosedTab(
@@ -1338,7 +1367,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       (entry) => identical(entry.tab, event.tab),
     );
     if (index == -1) return;
-    await _restoreClosedEntry(_recentlyClosedTabs.removeAt(index), emit);
+    await _restoreClosedEntry(_recentlyClosedTabs[index], emit);
   }
 
   void _onClearRecentlyClosedTabs(
@@ -1361,12 +1390,15 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
     // כלי פתוח ממוקד במקום ליצור מופע נוסף.
     final existingIndex = _indexOfMatchingDedupeKey(closedEntry.tab);
     if (existingIndex != null) {
+      _recentlyClosedTabs.remove(closedEntry);
       closedEntry.tab.dispose();
       final tabsToSave = state.tabs;
       emit(state.copyWith(currentTabIndex: existingIndex));
       await _saveCurrentTabIndex(tabsToSave, existingIndex);
       return;
     }
+    if (!_hasRoomForPluginTabs([closedEntry.tab], state.tabs)) return;
+    _recentlyClosedTabs.remove(closedEntry);
     _separateHistorySlots([closedEntry.tab]);
     final restoredTabs = List<OpenedTab>.from(state.tabs);
     final restoreIndex = closedEntry.originalIndex.clamp(
@@ -1422,6 +1454,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
   /// כרטיסיות, שהוא באג ולא מצב אמיתי. ראו [AdoptTab].
   Future<void> _onAdoptTab(AdoptTab event, Emitter<TabsState> emit) async {
     final pinned = state.tabs.where((tab) => tab.isPinned).toList();
+    if (!_hasRoomForPluginTabs([event.tab], pinned)) {
+      _disposeTabLater(event.tab);
+      return;
+    }
     final toDispose = state.tabs.where((tab) => !tab.isPinned).toList();
     for (var i = state.tabs.length - 1; i >= 0; i--) {
       if (!state.tabs[i].isPinned) {
@@ -1627,6 +1663,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
       return;
     }
 
+    if (!_hasRoomForPluginTabs([event.tab], state.tabs)) {
+      _disposeTabLater(event.tab);
+      return;
+    }
     _separateHistorySlots([event.tab]);
     final combinedTab = CombinedTab(
       rightTab: current,

@@ -225,6 +225,15 @@ Future<void> _dispatchItemClick({
     'param': item.param,
   };
   final topic = item.onClickEvent ?? 'reader.toolbar_item_clicked';
+  if (item.openPlugin && item.newTab) {
+    PluginPageLauncher.instance.openInNewTab(
+      pluginId,
+      events: [(topic: topic, payload: payload)],
+      viewId: viewId,
+      windowKeys: windowKeys,
+    );
+    return;
+  }
   if (item.openPlugin) {
     PluginPageLauncher.instance.open(
       pluginId,

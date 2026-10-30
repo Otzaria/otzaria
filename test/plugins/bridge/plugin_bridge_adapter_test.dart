@@ -19,6 +19,7 @@ import 'package:mockito/mockito.dart';
 import 'package:otzaria/book_protection/models/book_protection.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/connectivity_status_service.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/data/data_providers/book_composite_key.dart';
 import 'package:otzaria/data/data_providers/library_provider.dart';
 import 'package:otzaria/data/data_providers/library_provider_manager.dart';
@@ -89,6 +90,7 @@ import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/workspaces/bloc/workspace_bloc.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/tabs/models/tool_tab.dart';
 
 import '../../support/search_engine_test_init.dart';
 import '../../test_helpers/dst_days.dart';
@@ -315,6 +317,7 @@ InstalledPlugin _buildInstalledPlugin({
   bool networkEnabled = false,
   List<String> networkAllowlist = const [],
   String pluginId = 'test.plugin',
+  bool allowMultipleInstances = false,
 }) {
   return InstalledPlugin(
     pluginId: pluginId,
@@ -341,6 +344,7 @@ InstalledPlugin _buildInstalledPlugin({
       toolTabTitle: 'Test Plugin',
       toolTabOrder: 1,
       defaultPinned: true,
+      allowMultipleInstances: allowMultipleInstances,
       publishedDataTypes: const [],
     ),
     installedAt: DateTime(2026),
@@ -348,10 +352,10 @@ InstalledPlugin _buildInstalledPlugin({
   );
 }
 
-PluginBridgeDependencies _buildNetworkDeps() {
+PluginBridgeDependencies _buildNetworkDeps({TabsBloc? tabsBloc}) {
   return PluginBridgeDependencies(
     historyBloc: _MockHistoryBloc(),
-    tabsBloc: _StubTabsBloc(),
+    tabsBloc: tabsBloc ?? _StubTabsBloc(),
     navigationBloc: _MockNavigationBloc(),
     calendarCubit: _StubCalendarCubit(
       _buildCalendarState(DateTime(2026, 1, 1), inIsrael: true),
@@ -4412,6 +4416,9 @@ Future<void> main() async {
 
     tearDown(() {
       PluginPageLauncher.instance.navigator = null;
+      // המשגר הוא singleton: openSelf רגיל בלי דף מוכן משאיר אירוע ממתין, והוא
+      // היה נמסר לבדיקה הבאה של אותו תוסף.
+      PluginPageLauncher.instance.markPageClosed('test.plugin');
       ContextMenuRegistry.instance.removeAll('test.plugin');
     });
 
@@ -4425,6 +4432,229 @@ Future<void> main() async {
 
       expect(result, isTrue);
       expect(navigations, ['test.plugin']);
+    });
+
+    group('plugin.openSelf עם newTab', () {
+      /// [openTabs] ברירת המחדל: כרטיסיה פתוחה אחת של התוסף עצמו.
+      PluginBridgeAdapter adapterFor({
+        required bool allowMultipleInstances,
+        List<OpenedTab>? openTabs,
+      }) => PluginBridgeAdapter(
+        _buildInstalledPlugin(
+          permissions: const ['navigation.write'],
+          allowMultipleInstances: allowMultipleInstances,
+        ),
+        dependencies: _buildNetworkDeps(
+          tabsBloc: _StubTabsBloc()
+            ..currentState = TabsState(
+              tabs: openTabs ?? [ToolTab(toolId: 'test.plugin', title: 'א')],
+              currentTabIndex: 0,
+            ),
+        ),
+        pluginRepository: registry,
+      );
+
+      /// רושם פותח מופעים לחלון הנוכחי ומנקה אותו בסוף הבדיקה. מחזיר את רשימת
+      /// התוספים שהפותח נקרא עבורם.
+      List<String> registerOpener(String? instanceId) {
+        final opened = <String>[];
+        String? opener(String pluginId) {
+          opened.add(pluginId);
+          return instanceId;
+        }
+
+        PluginPageLauncher.instance.registerInstanceOpener(
+          AppWindowKeys.current,
+          opener,
+        );
+        addTearDown(
+          () => PluginPageLauncher.instance.unregisterInstanceOpener(
+            AppWindowKeys.current,
+            opener,
+          ),
+        );
+        return opened;
+      }
+
+      Matcher throwsWith(String text) => throwsA(
+        isA<Exception>().having((e) => e.toString(), 'message', contains(text)),
+      );
+
+      test('בלי allowMultipleInstances במניפסט → forbidden', () async {
+        final opened = registerOpener('inst-new');
+
+        await expectLater(
+          adapterFor(
+            allowMultipleInstances: false,
+          ).execute('plugin', 'openSelf', {'newTab': true}),
+          throwsWith('forbidden'),
+        );
+        expect(opened, isEmpty);
+      });
+
+      test('newTab שאינו בוליאני → invalid_params', () async {
+        final opened = registerOpener('inst-new');
+
+        await expectLater(
+          adapterFor(
+            allowMultipleInstances: true,
+          ).execute('plugin', 'openSelf', {'newTab': 'yes'}),
+          throwsWith('invalid_params'),
+        );
+        expect(opened, isEmpty);
+      });
+
+      test(
+        'newTab: false מתנהג כמו openSelf רגיל — ממקד, בלי מופע חדש',
+        () async {
+          final opened = registerOpener('inst-new');
+          final navigations = <String>[];
+          PluginPageLauncher.instance.navigator = navigations.add;
+
+          final result = await adapterFor(
+            allowMultipleInstances: true,
+          ).execute('plugin', 'openSelf', {'newTab': false});
+
+          expect(result, isTrue);
+          expect(navigations, ['test.plugin']);
+          expect(opened, isEmpty);
+        },
+      );
+
+      test('newTab: null מתנהג כמו openSelf רגיל', () async {
+        final opened = registerOpener('inst-new');
+        final navigations = <String>[];
+        PluginPageLauncher.instance.navigator = navigations.add;
+
+        final result = await adapterFor(
+          allowMultipleInstances: false,
+        ).execute('plugin', 'openSelf', {'newTab': null});
+
+        expect(result, isTrue);
+        expect(navigations, ['test.plugin']);
+        expect(opened, isEmpty);
+      });
+
+      for (final bad in <Object>[1, 0, 'true', <String, dynamic>{}, <int>[]]) {
+        test(
+          'newTab מסוג לא בוליאני (${bad.runtimeType}: $bad) נדחה',
+          () async {
+            final opened = registerOpener('inst-new');
+
+            await expectLater(
+              adapterFor(
+                allowMultipleInstances: true,
+              ).execute('plugin', 'openSelf', {'newTab': bad}),
+              throwsWith('invalid_params'),
+            );
+            expect(opened, isEmpty);
+          },
+        );
+      }
+
+      for (final entry in <String, List<OpenedTab>>{
+        'אין כרטיסיות פתוחות': const [],
+        'פתוחה רק כרטיסיה של תוסף אחר': [
+          ToolTab(toolId: 'other.plugin', title: 'ב'),
+        ],
+      }.entries) {
+        test(
+          'newTab: true כש${entry.key} — נפתחת הראשית כמו בפתיחה רגילה',
+          () async {
+            final opened = registerOpener('inst-new');
+            final navigations = <String>[];
+            PluginPageLauncher.instance.navigator = navigations.add;
+
+            final result = await adapterFor(
+              allowMultipleInstances: true,
+              openTabs: entry.value,
+            ).execute('plugin', 'openSelf', {'newTab': true});
+
+            expect(result, isTrue);
+            expect(navigations, ['test.plugin']);
+            expect(opened, isEmpty);
+          },
+        );
+      }
+
+      test('חלון בלי פותח רשום → false ולא שגיאה', () async {
+        final result = await adapterFor(
+          allowMultipleInstances: true,
+        ).execute('plugin', 'openSelf', {'newTab': true});
+
+        expect(result, isFalse);
+      });
+
+      test('הפותח דחה את הבקשה (כלי לא זמין) → false', () async {
+        registerOpener(null);
+
+        final result = await adapterFor(
+          allowMultipleInstances: true,
+        ).execute('plugin', 'openSelf', {'newTab': true});
+
+        expect(result, isFalse);
+      });
+
+      test('newTab: true פותח מופע חדש ומוסר את param רק אליו', () async {
+        final opened = registerOpener('inst-new');
+        final navigations = <String>[];
+        PluginPageLauncher.instance.navigator = navigations.add;
+        final dispatcher = PluginRuntimeDispatcher.instance;
+        final existing = _RecordingWebViewController();
+        final fresh = _RecordingWebViewController();
+        dispatcher.repositoryForTesting = _EnabledRegistryRepo();
+        dispatcher.registerController(
+          'test.plugin',
+          existing,
+          instanceId: 'inst-old',
+        );
+        dispatcher.registerController(
+          'test.plugin',
+          fresh,
+          instanceId: 'inst-new',
+        );
+        addTearDown(() {
+          PluginPageLauncher.instance.markPageClosed(
+            'test.plugin',
+            instanceId: 'inst-old',
+          );
+          PluginPageLauncher.instance.markPageClosed(
+            'test.plugin',
+            instanceId: 'inst-new',
+          );
+          dispatcher.unregisterController(
+            'test.plugin',
+            instanceId: 'inst-old',
+          );
+          dispatcher.unregisterController(
+            'test.plugin',
+            instanceId: 'inst-new',
+          );
+          dispatcher.repositoryForTesting = PluginRegistryRepository();
+        });
+        PluginPageLauncher.instance.markPageReady(
+          'test.plugin',
+          instanceId: 'inst-old',
+        );
+
+        final result = await adapterFor(
+          allowMultipleInstances: true,
+        ).execute('plugin', 'openSelf', {'newTab': true, 'param': 'x'});
+        PluginPageLauncher.instance.markPageReady(
+          'test.plugin',
+          instanceId: 'inst-new',
+        );
+        for (var i = 0; i < 400 && fresh.jsCalls.isEmpty; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+
+        expect(result, isTrue);
+        expect(opened, ['test.plugin']);
+        expect(navigations, isEmpty, reason: 'לא ממקדים את הכרטיסייה הקיימת');
+        expect(existing.jsCalls, isEmpty);
+        expect(fresh.jsCalls.single, contains('plugin.page_opened'));
+        expect(fresh.jsCalls.single, contains('"param":"x"'));
+      });
     });
 
     test('plugin.openOther מנווט לתוסף היעד ומוסר לו openedBy', () async {
@@ -4501,6 +4731,213 @@ Future<void> main() async {
       expect(items.single.$1, 'test.plugin');
       expect(item.openPlugin, isTrue);
       expect(item.param, 'my-param');
+    });
+
+    test('newTab בילד תפריט דורש הרשאת מופעים גם ברישום ובעדכון', () async {
+      final children = [
+        {
+          'id': 'child',
+          'title': 'פתח בחלונית נוספת',
+          'openPlugin': true,
+          'newTab': true,
+        },
+      ];
+      final forbidden = throwsA(
+        isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains('error.forbidden'),
+        ),
+      );
+      await expectLater(
+        adapter.execute('reader', 'addContextMenuItem', {
+          'id': 'parent',
+          'type': 'submenu',
+          'title': 'תפריט',
+          'children': children,
+        }),
+        forbidden,
+      );
+      expect(ContextMenuRegistry.instance.getAll(), isEmpty);
+      await adapter.execute('reader', 'addContextMenuItem', {
+        'id': 'parent',
+        'type': 'submenu',
+        'title': 'תפריט',
+        'children': [
+          {'id': 'plain', 'title': 'פתח'},
+        ],
+      });
+      await expectLater(
+        adapter.execute('reader', 'updateContextMenuItem', {
+          'id': 'parent',
+          'patch': {'children': children},
+        }),
+        forbidden,
+      );
+      expect(
+        ContextMenuRegistry.instance.getAll().single.$2.children.single.id,
+        'plain',
+      );
+    });
+
+    test('newTab בילד סרגל דורש הצהרת מופעים', () async {
+      final toolbar = PluginBridgeAdapter(
+        _buildInstalledPlugin(
+          permissions: const ['reader.toolbar'],
+        ),
+        dependencies: _buildNetworkDeps(),
+        pluginRepository: registry,
+      );
+      await expectLater(
+        toolbar.execute('reader', 'addToolbarItem', {
+          'id': 'parent',
+          'type': 'menu',
+          'title': 'כלים',
+          'icon': 'apps_24_regular',
+          'children': [
+            {'id': 'child', 'title': 'פתח', 'openPlugin': true, 'newTab': true},
+          ],
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+      expect(PluginToolbarRegistry.instance.getAll(), isEmpty);
+    });
+
+    test('newTab בנכד תפריט דורש הצהרה ומבנה עמוק נדחה כרגיל', () async {
+      var item = <String, dynamic>{
+        'id': 'leaf',
+        'title': 'פתח',
+        'openPlugin': true,
+        'newTab': true,
+      };
+      for (var depth = 0; depth < 2; depth++) {
+        item = {
+          'id': 'parent-$depth',
+          'title': 'תפריט',
+          'type': 'submenu',
+          'children': [item],
+        };
+      }
+      await expectLater(
+        adapter.execute('reader', 'addContextMenuItem', item),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+      for (var depth = 2; depth < 1000; depth++) {
+        item = {
+          'id': 'parent-$depth',
+          'title': 'תפריט',
+          'type': 'submenu',
+          'children': [item],
+        };
+      }
+      await expectLater(
+        adapter.execute('reader', 'addContextMenuItem', item),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.invalid_params'),
+          ),
+        ),
+      );
+      expect(ContextMenuRegistry.instance.getAll(), isEmpty);
+    });
+
+    group('newTab בפריט תפריט הקשר', () {
+      test('בלי allowMultipleInstances נדחה עם forbidden ולא נרשם', () async {
+        await expectLater(
+          adapter.execute('reader', 'addContextMenuItem', {
+            'id': 'new-tab',
+            'label': 'פתח',
+            'openPlugin': true,
+            'newTab': true,
+          }),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('error.forbidden'),
+            ),
+          ),
+        );
+        expect(ContextMenuRegistry.instance.getAll(), isEmpty);
+      });
+
+      test('עדכון שמוסיף newTab בלי allowMultipleInstances נדחה', () async {
+        await adapter.execute('reader', 'addContextMenuItem', {
+          'id': 'plain',
+          'label': 'פתח',
+          'openPlugin': true,
+        });
+
+        await expectLater(
+          adapter.execute('reader', 'updateContextMenuItem', {
+            'id': 'plain',
+            'patch': {'newTab': true},
+          }),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('error.forbidden'),
+            ),
+          ),
+        );
+        expect(ContextMenuRegistry.instance.getAll().single.$2.newTab, isFalse);
+      });
+
+      test('עם allowMultipleInstances נרשם', () async {
+        final multi = PluginBridgeAdapter(
+          _buildInstalledPlugin(
+            permissions: const ['navigation.write', 'reader.context_menu'],
+            allowMultipleInstances: true,
+          ),
+          dependencies: _buildNetworkDeps(),
+          pluginRepository: registry,
+        );
+
+        await multi.execute('reader', 'addContextMenuItem', {
+          'id': 'new-tab',
+          'label': 'פתח',
+          'openPlugin': true,
+          'newTab': true,
+        });
+
+        expect(ContextMenuRegistry.instance.getAll().single.$2.newTab, isTrue);
+      });
+
+      test('בלי openPlugin נדחה גם כשהתוסף מצהיר על מופעים', () async {
+        final multi = PluginBridgeAdapter(
+          _buildInstalledPlugin(
+            permissions: const ['navigation.write', 'reader.context_menu'],
+            allowMultipleInstances: true,
+          ),
+          dependencies: _buildNetworkDeps(),
+          pluginRepository: registry,
+        );
+
+        await expectLater(
+          multi.execute('reader', 'addContextMenuItem', {
+            'id': 'bad',
+            'label': 'פתח',
+            'newTab': true,
+          }),
+          throwsA(isA<Exception>()),
+        );
+        expect(ContextMenuRegistry.instance.getAll(), isEmpty);
+      });
     });
 
     test('addContextMenuItem ללא הדגלים החדשים — ברירות מחדל', () async {
