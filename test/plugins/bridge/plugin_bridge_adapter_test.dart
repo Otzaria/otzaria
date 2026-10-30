@@ -4733,6 +4733,128 @@ Future<void> main() async {
       expect(item.param, 'my-param');
     });
 
+    test('newTab בילד תפריט דורש הרשאת מופעים גם ברישום ובעדכון', () async {
+      final children = [
+        {
+          'id': 'child',
+          'title': 'פתח בחלונית נוספת',
+          'openPlugin': true,
+          'newTab': true,
+        },
+      ];
+      final forbidden = throwsA(
+        isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          contains('error.forbidden'),
+        ),
+      );
+      await expectLater(
+        adapter.execute('reader', 'addContextMenuItem', {
+          'id': 'parent',
+          'type': 'submenu',
+          'title': 'תפריט',
+          'children': children,
+        }),
+        forbidden,
+      );
+      expect(ContextMenuRegistry.instance.getAll(), isEmpty);
+      await adapter.execute('reader', 'addContextMenuItem', {
+        'id': 'parent',
+        'type': 'submenu',
+        'title': 'תפריט',
+        'children': [
+          {'id': 'plain', 'title': 'פתח'},
+        ],
+      });
+      await expectLater(
+        adapter.execute('reader', 'updateContextMenuItem', {
+          'id': 'parent',
+          'patch': {'children': children},
+        }),
+        forbidden,
+      );
+      expect(
+        ContextMenuRegistry.instance.getAll().single.$2.children.single.id,
+        'plain',
+      );
+    });
+
+    test('newTab בילד סרגל דורש הצהרת מופעים', () async {
+      final toolbar = PluginBridgeAdapter(
+        _buildInstalledPlugin(
+          permissions: const ['reader.toolbar'],
+        ),
+        dependencies: _buildNetworkDeps(),
+        pluginRepository: registry,
+      );
+      await expectLater(
+        toolbar.execute('reader', 'addToolbarItem', {
+          'id': 'parent',
+          'type': 'menu',
+          'title': 'כלים',
+          'icon': 'apps_24_regular',
+          'children': [
+            {'id': 'child', 'title': 'פתח', 'openPlugin': true, 'newTab': true},
+          ],
+        }),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+      expect(PluginToolbarRegistry.instance.getAll(), isEmpty);
+    });
+
+    test('newTab בנכד תפריט דורש הצהרה ומבנה עמוק נדחה כרגיל', () async {
+      var item = <String, dynamic>{
+        'id': 'leaf',
+        'title': 'פתח',
+        'openPlugin': true,
+        'newTab': true,
+      };
+      for (var depth = 0; depth < 2; depth++) {
+        item = {
+          'id': 'parent-$depth',
+          'title': 'תפריט',
+          'type': 'submenu',
+          'children': [item],
+        };
+      }
+      await expectLater(
+        adapter.execute('reader', 'addContextMenuItem', item),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.forbidden'),
+          ),
+        ),
+      );
+      for (var depth = 2; depth < 1000; depth++) {
+        item = {
+          'id': 'parent-$depth',
+          'title': 'תפריט',
+          'type': 'submenu',
+          'children': [item],
+        };
+      }
+      await expectLater(
+        adapter.execute('reader', 'addContextMenuItem', item),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('error.invalid_params'),
+          ),
+        ),
+      );
+      expect(ContextMenuRegistry.instance.getAll(), isEmpty);
+    });
+
     group('newTab בפריט תפריט הקשר', () {
       test('בלי allowMultipleInstances נדחה עם forbidden ולא נרשם', () async {
         await expectLater(

@@ -18,6 +18,8 @@ import 'package:otzaria/core/windowing/window_opener.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/navigation/view/reading_tab_strip.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/tools/open_tool_tab.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
@@ -269,10 +271,21 @@ List<AppContextMenuEntry> buildTabContextMenuEntries(
             : context.settingsText('סגור כרטיסיות מימין'),
         onTap: () => closeTabsAfterWithHistory(context, tab),
       ),
-    if (tab is! ToolTab || tab.isBuiltIn)
+    if (tab is! ToolTab ||
+        tab.isBuiltIn ||
+        pluginToolAllowsMultipleInstances(
+          context.read<PluginSystemBloc>().state,
+          tab.toolId,
+        ))
       AppContextMenuEntry(
         label: context.settingsText('שיכפול'),
-        onTap: () => context.read<TabsBloc>().add(CloneTab(tab)),
+        onTap: () {
+          if (tab is ToolTab && tab.isPlugin) {
+            openPluginToolInstanceById(context, tab.toolId, cloneOf: tab);
+          } else {
+            context.read<TabsBloc>().add(CloneTab(tab));
+          }
+        },
       ),
     // הכרטיסיה עוברת לחלון חדש: היא נפתחת שם ונסגרת כאן. הסדר חשוב —
     // פותחים תחילה, וסוגרים רק אחרי שהבקשה נמסרה ל-runner, כדי שכשל
