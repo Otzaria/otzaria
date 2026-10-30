@@ -641,7 +641,7 @@ void main() {
     );
   });
   testWidgets(
-    'בורר המפרשים של צורת הדף אינו מציע את "הערות" ולא מפרשים נדירים',
+    'בורר המפרשים של צורת הדף מציע את "הערות" ולא מפרשים נדירים',
     (tester) async {
       final openSettingsNotifier = ValueNotifier<int>(0);
       addTearDown(openSettingsNotifier.dispose);
@@ -694,9 +694,12 @@ void main() {
       final panel = tester.widget<PageShapeSettingsPanel>(
         find.byType(PageShapeSettingsPanel),
       );
-      // 'הערות' הוא מפרש וירטואלי בלי קישורים — טור שנפתח ונעלם (issue #1227);
-      // מפרש "נדיר" הוא בדרך כלל קישור שסווג בטעות (issue #1233).
-      expect(panel.availableCommentators, ['רש"י על ספר בדיקה']);
+      // מפרש "נדיר" הוא בדרך כלל קישור שסווג בטעות (issue #1233). 'הערות'
+      // מוצג כטור מהערות הספר עצמו (issues #3400, #3507).
+      expect(panel.availableCommentators, [
+        'רש"י על ספר בדיקה',
+        kNotesCommentatorTitle,
+      ]);
     },
   );
 }

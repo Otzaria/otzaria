@@ -407,6 +407,9 @@ class SimpleTextViewer extends StatefulWidget {
   final ValueChanged<String?>?
   onOpenSearch; // callback לפתיחת חיפוש עם הטקסט הנבחר
   final TextBook? reportBook;
+
+  /// טור "הערות" של הספר הראשי: אינו ספר, ולכן אין לו הערות אישיות או טאב משלו.
+  final bool isBookNotesColumn;
   final SelectionSyncController? selectionSyncController;
 
   /// הטאב שאליו שייכת תצוגה זו. משמש לזיהוי האם הטאב פעיל כרגע — כדי שטאב
@@ -465,6 +468,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.onOpenSidebarTab,
     this.onOpenSearch,
     this.reportBook,
+    this.isBookNotesColumn = false,
     this.selectionSyncController,
     this.tab,
     this.onOpenCommentaryPersonalNote,
@@ -1360,7 +1364,12 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     // טעינה ישנה שמסתיימת אחרי חדשה הייתה מחזירה הערה שכבר נמחקה.
     final generation = ++_commentaryNotesLoadGeneration;
     final bookTitle = widget.bookTitle;
-    if (widget.isMainText || bookTitle == null || bookTitle.isEmpty) return;
+    if (widget.isMainText ||
+        widget.isBookNotesColumn ||
+        bookTitle == null ||
+        bookTitle.isEmpty) {
+      return;
+    }
     final notes = await (widget.notesRepository ?? PersonalNotesRepository())
         .loadNotes(
           _commentaryNotesKey(bookTitle),
@@ -2056,7 +2065,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         ),
       // בטקסט ראשי "הוסף הערה" ו"העתק" קיימים כאייקונים למעלה; במפרשים
       // (ללא שורת אייקונים) הם נשארים כאן ברשימה.
-      if (!widget.isMainText)
+      if (!widget.isMainText && !widget.isBookNotesColumn)
         AppContextMenuEntry(
           label: 'הוסף הערה אישית ',
           icon: FluentIcons.note_add_24_regular,
@@ -2345,7 +2354,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     String? capturedText,
   ]) async {
     final state = context.read<TextBookBloc>().state;
-    if (state is! TextBookLoaded) return;
+    if (state is! TextBookLoaded || widget.isBookNotesColumn) return;
 
     final source = SourceSelection.resolve(
       _sourceSelection,
@@ -2637,7 +2646,9 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
 
   /// הגבלת המו"ל של הטקסט שבעמודה: הספר הראשי, או המפרש שבעמודת מפרש.
   Future<BookProtection> _textProtection(TextBookLoaded state) {
-    if (widget.isMainText) return Future.value(state.protection);
+    if (widget.isMainText || widget.isBookNotesColumn) {
+      return Future.value(state.protection);
+    }
     final reportBook = widget.reportBook;
     return reportBook != null
         ? BookProtectionRepository.instance.forBook(reportBook)
@@ -3173,7 +3184,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                 );
               }
             : null,
-        onDoubleTap: !widget.isMainText && widget.bookTitle != null
+        onDoubleTap:
+            !widget.isMainText &&
+                !widget.isBookNotesColumn &&
+                widget.bookTitle != null
             ? () {
                 // לחיצה כפולה במפרש - פתיחה בטאב נפרד
                 widget.openBookCallback(
