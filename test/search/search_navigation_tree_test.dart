@@ -63,6 +63,7 @@ void main() {
     List<SearchTreeExtraCategory> extraRootCategories = const [],
     bool extraCategoriesFirst = false,
     SettingsLanguage language = SettingsLanguage.hebrew,
+    Iterable<String> scopeFacets = const [],
   }) {
     return tester.pumpWidget(
       MaterialApp(
@@ -87,6 +88,7 @@ void main() {
               onClearAll: onClearAll ?? () {},
               extraRootCategories: extraRootCategories,
               extraCategoriesFirst: extraCategoriesFirst,
+              scopeFacets: scopeFacets,
             ),
           ),
         ),
@@ -735,6 +737,58 @@ void main() {
       );
 
       expect(find.text('תנ"ך'), findsOneWidget);
+    });
+
+    Library twoBooksLibrary() => makeLibraryFrom([
+      makeCategory(
+        'תנ"ך',
+        subCategories: [
+          makeCategory(
+            'כתובים',
+            books: [
+              makeBook(7, 'תהילים', '/תנ"ך/כתובים'),
+              makeBook(8, 'משלי', '/תנ"ך/כתובים'),
+            ],
+          ),
+        ],
+      ),
+      makeCategory('משנה'),
+    ]);
+
+    const twoBooksCounts = {
+      '/': 5,
+      '/תנ"ך': 5,
+      '/תנ"ך/כתובים': 5,
+      '/תנ"ך/כתובים/id:7': 5,
+    };
+
+    testWidgets('היקף מ-@ אינו מציג ספרים וקטגוריות בספירה 0 (issue #3690)', (
+      tester,
+    ) async {
+      const scope = {'/תנ"ך/כתובים/id:7', '/תנ"ך/כתובים/id:8', '/משנה'};
+      await pumpTree(
+        tester,
+        library: twoBooksLibrary(),
+        facetCounts: twoBooksCounts,
+        selectedFacets: scope,
+        scopeFacets: scope,
+      );
+
+      expect(find.text('תהילים'), findsOneWidget);
+      expect(find.text('משלי'), findsNothing);
+      expect(find.text('משנה'), findsNothing);
+    });
+
+    testWidgets('ספר שנבחר בתוך היקף מ-@ נשאר גלוי בספירה 0', (tester) async {
+      await pumpTree(
+        tester,
+        library: twoBooksLibrary(),
+        facetCounts: twoBooksCounts,
+        selectedFacets: {'/תנ"ך/כתובים/id:8'},
+        scopeFacets: const {'/תנ"ך/כתובים/id:7', '/תנ"ך/כתובים/id:8'},
+      );
+
+      expect(find.text('משלי'), findsOneWidget);
     });
 
     testWidgets('בחירת ספר מציגה "נקה סינון" בכותרת השורש', (tester) async {
