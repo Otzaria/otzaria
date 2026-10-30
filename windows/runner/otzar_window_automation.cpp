@@ -82,8 +82,8 @@ OtzarWindowAutomation::OtzarWindowAutomation(
         if (args) {
           const auto found = args->find(Value("bookId"));
           if (found != args->end()) {
-            if (const auto* small = std::get_if<int32_t>(&found->second)) book_id = *small;
-            if (const auto* large = std::get_if<int64_t>(&found->second)) book_id = *large;
+            if (const auto* int32_value = std::get_if<int32_t>(&found->second)) book_id = *int32_value;
+            if (const auto* int64_value = std::get_if<int64_t>(&found->second)) book_id = *int64_value;
           }
         }
         if (book_id <= 0) {
