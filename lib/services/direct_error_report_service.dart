@@ -393,21 +393,12 @@ class DirectErrorReportService {
     _isFlushing = true;
     final inFlight = _flushInFlight = Completer<void>();
     try {
-      final rows = await _reports.listByKind(pendingKind);
-      if (rows.isEmpty) {
-        return 0;
-      }
-
-      final rowsToAttempt = onlyAutomaticRetry
-          ? rows
-                .where(
-                  (row) =>
-                      _decode(row).queueType ==
-                      DirectErrorReportQueueType.automaticRetry,
-                )
-                .take(_maxQueuedFlushPerRun)
-                .toList()
-          : rows.take(_maxQueuedFlushPerRun).toList();
+      final rowsToAttempt = await _reports.listByKind(
+        pendingKind,
+        whereField: onlyAutomaticRetry ? 'queueType' : null,
+        equals: DirectErrorReportQueueType.automaticRetry.name,
+        limit: _maxQueuedFlushPerRun,
+      );
 
       var sentCount = 0;
 

@@ -269,6 +269,50 @@ void main() {
       );
     });
 
+    test('שליחה אוטומטית אינה מפענחת את הדיווחים הידניים שבתור', () async {
+      final trackedStore = _TrackingReportStore(database: db);
+      final context = List.filled(20000, 'א').join();
+      for (var i = 0; i < 500; i++) {
+        await trackedStore.add(
+          DirectErrorReportService.pendingKind,
+          _buildReport(id: 'manual-$i').copyWith(contextText: context).toJson(),
+        );
+      }
+      await trackedStore.add(
+        DirectErrorReportService.pendingKind,
+        _buildReport(
+          id: 'retry-report',
+          queueType: DirectErrorReportQueueType.automaticRetry,
+        ).toJson(),
+      );
+      final sentIds = <String>[];
+      final service = DirectErrorReportService(
+        reportStore: trackedStore,
+        client: MockClient((request) async {
+          final payload = jsonDecode(request.body) as Map<String, dynamic>;
+          sentIds.add(payload['report_id'] as String);
+          return http.Response('', 200);
+        }),
+      );
+      addTearDown(service.closeHttpClient);
+
+      final sentCount = await service.flushPendingReports(
+        onlyAutomaticRetry: true,
+      );
+
+      expect(sentCount, 1);
+      expect(sentIds, ['retry-report']);
+      expect(
+        trackedStore.materializedRows,
+        1,
+        reason: 'הסינון ב-SQL; פענוח כל התור תקע את ה-UI כל 5 דקות',
+      );
+      expect(
+        await trackedStore.countByKind(DirectErrorReportService.pendingKind),
+        500,
+      );
+    });
+
     test(
       'permanent failure is removed and does not block later reports',
       () async {
@@ -1396,9 +1440,19 @@ class _TrackingReportStore extends PendingReportStore {
   }
 
   @override
-  Future<List<PendingReport>> listByKind(String kind) async {
+  Future<List<PendingReport>> listByKind(
+    String kind, {
+    String? whereField,
+    Object? equals,
+    int? limit,
+  }) async {
     listCalls++;
-    final rows = await super.listByKind(kind);
+    final rows = await super.listByKind(
+      kind,
+      whereField: whereField,
+      equals: equals,
+      limit: limit,
+    );
     materializedRows += rows.length;
     return rows;
   }

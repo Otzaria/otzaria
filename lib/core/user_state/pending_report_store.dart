@@ -93,12 +93,25 @@ class PendingReportStore {
     }
   }
 
-  Future<List<PendingReport>> listByKind(String kind) async {
+  /// [whereField] מסנן ב-SQL לפי שדה בתוכן ששווה ל-[equals], כך ששורות
+  /// שאינן מתאימות (או מעבר ל-[limit]) אינן מפוענחות כלל.
+  Future<List<PendingReport>> listByKind(
+    String kind, {
+    String? whereField,
+    Object? equals,
+    int? limit,
+  }) async {
     final db = await _database.database;
     final rows = db.select(
       'SELECT id, kind, payload_json, created_at FROM pending_reports '
-      'WHERE kind = ? ORDER BY id',
-      [kind],
+      'WHERE kind = ?'
+      '${whereField == null ? '' : ' AND json_extract(payload_json, ?) = ?'}'
+      ' ORDER BY id LIMIT ?',
+      [
+        kind,
+        if (whereField != null) ...['\$.$whereField', equals],
+        limit ?? -1,
+      ],
     );
     return rows.map(_decodeRow).toList();
   }
