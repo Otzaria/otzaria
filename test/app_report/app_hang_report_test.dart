@@ -95,16 +95,15 @@ void main() {
         'app.so+0x2777c82',
       ]);
 
+      // הפריים העליון הוא PC של קוד רץ ולכן נשמט.
       expect(unmount.frames, [
-        'app.so+0x7d7af8',
-        'app.so+0x7d7b53',
-        'app.so+0xee04964',
+        'app.so+0x7d7b53 app.so+0xee04964 app.so+0x7d7b0f',
       ]);
-      expect(layout.frames, ['app.so+0x2776fd9', 'app.so+0x2777c82']);
+      expect(layout.frames, ['app.so+0x2777c82']);
       expect(unmount.hash, isNot(layout.hash));
     });
 
-    test('נייטיב שנקרא מ-Dart נשאר בראש החתימה', () {
+    test('נייטיב שנקרא מ-Dart: החתימה מאתר הקריאה ב-app.so', () {
       final signature = parseErrorLogBlocks(
         hangEntry(
           DateTime.utc(2026, 10, 21),
@@ -117,11 +116,7 @@ void main() {
           ],
         ),
       ).single.signature;
-      expect(signature.frames, [
-        'flutter_windows.dll+0xfe5604',
-        'flutter_windows.dll+0xc584e',
-        'app.so+0x272b96e',
-      ]);
+      expect(signature.frames, ['app.so+0x272b96e']);
     });
 
     test('זהות הבנייה ודגימות נוספות אינן משנות את החתימה', () {
