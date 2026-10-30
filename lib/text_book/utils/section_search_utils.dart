@@ -221,6 +221,34 @@ double matchFractionInLine(
   return (offset / clean.length).clamp(0.0, 1.0);
 }
 
+/// טווחי [query] בקטע [snippet] שנחתך מ-[line] סביב [matchOffset], על השורה כולה (`^`/`$` לקצותיה).
+/// [display] מחיל על השורה את עיבוד התצוגה של הקטע. null כשהקטע אינו בשורה.
+List<List<int>>? snippetHighlightRangesInLine({
+  required String line,
+  required String snippet,
+  required int matchOffset,
+  required String query,
+  String Function(String text)? display,
+}) {
+  final start = line.lastIndexOf(snippet, matchOffset.clamp(0, line.length));
+  if (start < 0) return null;
+  final show = display ?? (String text) => text;
+  final shown = show(snippet);
+  final full = show(line);
+  final prefix = start == 0 ? 0 : show(line.substring(0, start)).length;
+  final at = full.indexOf(shown, prefix == 0 ? 0 : prefix - 1);
+  if (at < 0) return null;
+  return [
+    for (final range in utils.computeHighlightRanges(
+      full,
+      query,
+      isSearchResultLine: true,
+    ))
+      if (range[0] >= at && range[1] <= at + shown.length)
+        [range[0] - at, range[1] - at],
+  ];
+}
+
 /// מיקום יחסי (0..1) בשורה [rawLine] של הסמן בסוגריים שנפתח בכותרת [title]
 /// (`[דף ו טור א]` לכותרת "דף ו"), כמו [matchFractionInLine]. 0 כשאין סמן.
 double bracketMarkerFractionInLine(String rawLine, String title) {

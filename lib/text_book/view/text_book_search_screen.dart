@@ -861,6 +861,30 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     return const HtmlEscape(HtmlEscapeMode.element).convert(excerpt);
   }
 
+  /// הדגשת `/…/` בקטע של [result] מתוך השורה המלאה; null לשאילתה אחרת.
+  List<List<int>>? _userRegexSnippetRanges(
+    TextSearchResult result,
+    SettingsState settingsState,
+  ) {
+    final state = context.read<TextBookBloc>().state;
+    final offset = result.matchOffset;
+    if (offset == null || !UserRegexQuery.isValid(result.query)) return null;
+    final line = state is TextBookLoaded
+        ? _lineTextAt(result.index, state)
+        : null;
+    if (line == null) return null;
+    return snippetHighlightRangesInLine(
+      line: cleanLineForSearch(line),
+      snippet: result.snippet,
+      matchOffset: offset,
+      query: result.query,
+      // השורה הנקייה כבר בלי ניקוד וטעמים, ולכן הסרת הסימנים אינה משנה אותה.
+      display: (text) => SnippetBuilder.htmlToPlainText(
+        withHolyNamesSetting(text, settingsState),
+      ),
+    );
+  }
+
   List<TextSearchResult> _convertSearchResults(List<SearchResult> results) {
     // רק עותק השורות המלא תוחם את מספרי השורות. `state.content` יכול להיות
     // חלון חלקי סביב מקום הקריאה, ולפיו היו נזרקות תוצאות מנוע תקפות.
@@ -1011,17 +1035,19 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                     // החלק המותאם בלבד, בעקביות עם הדגשת פאנל הקריאה. אם לא נמצאה
                     // התאמה (וריאנט שהתבנית לא מכסה) — נשארים בהדגשת המנוע.
                     final plain = SnippetBuilder.htmlToPlainText(snippet);
-                    final ranges = utils.computeHighlightRanges(
-                      plain,
-                      result.query,
-                      searchOptions: _searchOptions,
-                      alternativeWords: _alternativeWords,
-                      spacingValues: _spacingValues,
-                      isFuzzy: _searchMode == SearchMode.fuzzy,
-                      searchDistance: _searchDistance,
-                      matchPolicy: _matchPolicy,
-                      isSearchResultLine: true,
-                    );
+                    final ranges =
+                        _userRegexSnippetRanges(result, settingsState) ??
+                        utils.computeHighlightRanges(
+                          plain,
+                          result.query,
+                          searchOptions: _searchOptions,
+                          alternativeWords: _alternativeWords,
+                          spacingValues: _spacingValues,
+                          isFuzzy: _searchMode == SearchMode.fuzzy,
+                          searchDistance: _searchDistance,
+                          matchPolicy: _matchPolicy,
+                          isSearchResultLine: true,
+                        );
                     highlightedSnippet = ranges.isEmpty
                         ? SnippetBuilder.fromHighlightedHtml(
                             html: snippet,
