@@ -42,6 +42,7 @@ class ExternalActivationService {
   StreamSubscription<String>? _channelSub;
   ExternalUriHandler? _window;
   Future<bool> Function() _windowVisible = _alwaysVisible;
+  bool _legacyQueueDrained = false;
 
   /// חלונות Dart באותו isolate, לפי סדר הרישום.
   final Map<AppWindowId, _AttachedWindow> _views = {};
@@ -123,7 +124,11 @@ class ExternalActivationService {
   Future<void> _drainPending() async {
     if (_window == null) return;
     try {
-      final pendingUris = await _queue.drainUriStrings();
+      final pendingUris = [
+        if (!_legacyQueueDrained) ...await _queue.drainLegacyUriStrings(),
+        ...await _queue.drainUriStrings(),
+      ];
+      _legacyQueueDrained = true;
       for (final uriString in pendingUris) {
         await _routeDrainedUri(uriString);
       }

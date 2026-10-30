@@ -274,12 +274,15 @@ static std::wstring SingleInstanceMutexName() {
 // Appends a URI string to the external-activation queue file so the already-
 // running instance can pick it up.
 static bool EnqueueUri(const std::string& uri_utf8) {
-  const std::wstring dir = DataRootPath();
-  if (dir.empty()) return false;
+  const std::wstring root = DataRootPath();
+  if (root.empty()) return false;
+  // Must match ExternalActivationQueue: Dart watches only this directory.
+  const std::wstring dir = root + L"\\external_activations";
   std::wstring queue_path =
       dir + L"\\pending_external_activations.jsonl";
 
-  // Ensure the parent directory exists.
+  // Ensure the parent directories exist.
+  CreateDirectoryW(root.c_str(), nullptr);
   CreateDirectoryW(dir.c_str(), nullptr);
 
   // Build ISO-8601 timestamp (UTC).

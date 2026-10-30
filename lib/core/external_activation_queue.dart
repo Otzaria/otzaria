@@ -8,7 +8,10 @@ import 'package:path/path.dart' as p;
 class ExternalActivationQueue {
   final String? queueFilePath;
 
-  const ExternalActivationQueue({this.queueFilePath});
+  /// התור בשורש הנתונים, שגרסאות קודמות כתבו אליו.
+  final String? legacyQueueFilePath;
+
+  const ExternalActivationQueue({this.queueFilePath, this.legacyQueueFilePath});
 
   Future<String> resolveQueueFilePath() => _resolveQueueFilePath();
 
@@ -28,8 +31,16 @@ class ExternalActivationQueue {
     );
   }
 
-  Future<List<String>> drainUriStrings() async {
-    final queuePath = await _resolveQueueFilePath();
+  Future<List<String>> drainUriStrings() async =>
+      _drainFile(await _resolveQueueFilePath());
+
+  /// מנקז את התור בנתיב הישן; אין צורך לנטר אותו.
+  Future<List<String>> drainLegacyUriStrings() async {
+    final legacyPath = await _resolveLegacyQueueFilePath();
+    return legacyPath == null ? const [] : _drainFile(legacyPath);
+  }
+
+  Future<List<String>> _drainFile(String queuePath) async {
     final queueFile = File(queuePath);
     final processingFile = File('$queuePath.processing');
 
@@ -104,6 +115,18 @@ class ExternalActivationQueue {
       return queueFilePath!;
     }
 
+    // תיקייה ייעודית: ניטור שורש הנתונים ב-Windows מריץ GetFileAttributes
+    // סינכרוני על ה-UI thread לכל כתיבה בו (#3590).
+    return p.join(
+      await AppPaths.getDataRootPath(),
+      'external_activations',
+      'pending_external_activations.jsonl',
+    );
+  }
+
+  Future<String?> _resolveLegacyQueueFilePath() async {
+    if (legacyQueueFilePath != null) return legacyQueueFilePath;
+    if (queueFilePath != null) return null;
     return p.join(
       await AppPaths.getDataRootPath(),
       'pending_external_activations.jsonl',

@@ -115,6 +115,7 @@ class AppDelegate: FlutterAppDelegate {
 
     return appSupportDirectory
       .appendingPathComponent("otzaria", isDirectory: true)
+      .appendingPathComponent("external_activations", isDirectory: true)
       .appendingPathComponent(externalActivationQueueFileName, isDirectory: false)
   }
 }

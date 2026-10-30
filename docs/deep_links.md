@@ -435,7 +435,7 @@ System.Diagnostics.Process.Start(new ProcessStartInfo {
 ב‑[`windows/runner/main.cpp:104-121`](../windows/runner/main.cpp#L104-L121) משתמשים ב‑Mutex בשם `OtzariaAppSingleInstance`. אם המופע השני מזהה שהמופע הראשון כבר חי, הוא:
 
 1. מוציא מהארגומנטים את ה‑URIs שמתחילים ב‑`otzaria:`.
-2. מוסיף אותם לקובץ `%APPDATA%\otzaria\pending_external_activations.jsonl` כשורות JSONL.
+2. מוסיף אותם לקובץ `%APPDATA%\otzaria\external_activations\pending_external_activations.jsonl` כשורות JSONL. התור בתיקייה ייעודית כי ניטור שורש הנתונים ב-Windows חוסם את ה-UI thread על כל כתיבה בו (#3590).
 3. יוצא מיד עם `EXIT_SUCCESS`.
 
 המופע הראשון מאזין לשינויים בקובץ דרך [`ExternalActivationQueue`](../lib/core/external_activation_queue.dart) ב־[`ExternalActivationService`](../lib/app_scope/external_activation_service.dart), שחי ברמת התהליך ומוסר את הקישור לחלון שנרשם אליו:

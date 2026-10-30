@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/external_activation_queue.dart';
 import 'package:path/path.dart' as p;
 
@@ -79,6 +80,43 @@ void main() {
         ],
       );
       expect(await processingFile.exists(), isFalse);
+    });
+
+    test('התור בתיקייה ייעודית ולא בשורש הנתונים (#3590)', () async {
+      final dataRoot = await Directory.systemTemp.createTemp('ext_act_root_');
+      AppPaths.debugOverrideDataRootPath(dataRoot.path);
+      addTearDown(() async {
+        AppPaths.debugOverrideDataRootPath(null);
+        await dataRoot.delete(recursive: true);
+      });
+      const queue = ExternalActivationQueue();
+
+      final queueDir = p.dirname(await queue.resolveQueueFilePath());
+      expect(queueDir, isNot(p.normalize(dataRoot.path)));
+      expect(queueDir, p.join(dataRoot.path, 'external_activations'));
+
+      const uri = 'otzaria://library/reindex?n=1';
+      await queue.enqueueUriString(uri);
+      expect(await queue.drainUriStrings(), [uri]);
+      expect(await queue.drainUriStrings(), isEmpty);
+    });
+
+    test('מנקז קובץ שנשאר בנתיב הישן בשורש הנתונים', () async {
+      final dataRoot = await Directory.systemTemp.createTemp('ext_act_root_');
+      AppPaths.debugOverrideDataRootPath(dataRoot.path);
+      addTearDown(() async {
+        AppPaths.debugOverrideDataRootPath(null);
+        await dataRoot.delete(recursive: true);
+      });
+      final legacyFile = File(
+        p.join(dataRoot.path, 'pending_external_activations.jsonl'),
+      );
+      await legacyFile.writeAsString('{"uri":"otzaria://legacy"}\n');
+      const queue = ExternalActivationQueue();
+
+      expect(await queue.drainUriStrings(), isEmpty);
+      expect(await queue.drainLegacyUriStrings(), ['otzaria://legacy']);
+      expect(await legacyFile.exists(), isFalse);
     });
   });
 
