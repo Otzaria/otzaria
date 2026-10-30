@@ -302,6 +302,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         widget.initialQuery !=
             (searchableInBookQueryWithEdges(controllerQuery) ?? '');
     final normalizedSearchMode = widget.initialSearchMode;
+    // ה-bloc מחזיר את המדיניות האפקטיבית, ו"בכל סדר" אינו חל על מילה אחת.
+    final widgetQuery = searchableInBookQuery(widget.initialQuery) ?? '';
     final searchConfigurationChanged =
         widget.initialSearchOrigin != _searchOrigin ||
         !_searchOptionsEqual(_searchOptions, widget.initialSearchOptions) ||
@@ -312,7 +314,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         !mapEquals(_spacingValues, widget.initialSpacingValues) ||
         _searchMode != normalizedSearchMode ||
         _searchDistance != widget.initialSearchDistance ||
-        _settings.requestedMatchPolicy != widget.initialMatchPolicy;
+        _settings.requestedMatchPolicy.forQuery(widgetQuery) !=
+            widget.initialMatchPolicy.forQuery(widgetQuery);
 
     if (queryChanged && needsControllerSync) {
       syncSearchControllerQuery(searchTextController, widget.initialQuery);

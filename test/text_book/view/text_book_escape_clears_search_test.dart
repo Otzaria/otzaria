@@ -13,6 +13,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/personal_notes/personal_notes_system.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -23,6 +24,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
+import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
@@ -166,6 +168,33 @@ Future<void> main() async {
 
     expect(bloc.recordedEvents.whereType<UpdateSearchText>(), isEmpty);
   });
+
+  testWidgets(
+    'חיפוש טקסט מסומן מתחיל מברירות המחדל השמורות (issue #3690)',
+    (tester) async {
+      SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
+      SearchDefaults.saveDistanceDefault(3);
+      addTearDown(() {
+        SearchDefaults.saveExactDefaults(const {});
+        SearchDefaults.saveDistanceDefault(0);
+      });
+      final bloc = await pumpScreen(tester, searchText: '');
+      bloc.recordedEvents.clear();
+
+      tester
+          .widget<CombinedView>(find.byType(CombinedView))
+          .openLeftPaneTab(1, searchText: 'תדע זרעך');
+      await tester.pump();
+
+      final event = bloc.recordedEvents.whereType<UpdateSearchText>().first;
+      expect(event.text, 'תדע זרעך');
+      expect(event.searchDistance, 3);
+      expect(event.searchOptions, {
+        'תדע_0': {'קידומות דקדוקיות': true},
+        'זרעך_1': {'קידומות דקדוקיות': true},
+      });
+    },
+  );
 
   testWidgets('Esc מנקה את הדגשת ה-?mark מקישור (issue #2067)', (tester) async {
     final bloc = await pumpScreen(tester, searchText: '', markLine: 0);
