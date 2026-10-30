@@ -19,6 +19,8 @@ import 'package:otzaria/data/repository/book_toc_loader.dart';
 import 'package:otzaria/utils/file/document_converter.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria/book_common/utils/commentator_group_builder.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart'
+    show CommentatorIdentity;
 import 'package:otzaria/text_book/utils/link_processing.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'dart:io';
@@ -38,18 +40,28 @@ class BookContentRange {
   });
 }
 
-/// מפרש של ספר כפי שהוא יושב בשאילתות הקישורים: השם, המחבר ומספר הקישורים.
+/// מפרש של ספר כפי שהוא יושב בשאילתות הקישורים: השם, המחבר, מספר הקישורים
+/// ושם האוסף (`book.collectiveTitleHe`).
 class CommentatorInfo {
   final String title;
   final String? author;
   final int linkCount;
+  final String? collectiveTitle;
 
   const CommentatorInfo({
     required this.title,
     this.author,
     this.linkCount = 0,
+    this.collectiveTitle,
   });
 }
+
+/// מפרשי הספר, הנדירים שבהם, וזהות כל מפרש לפי כותרתו.
+typedef CommentatorsWithRarity = ({
+  List<String> all,
+  Set<String> rare,
+  Map<String, CommentatorIdentity> identities,
+});
 
 class TextBookRepository {
   final FileSystemData _fileSystem;
@@ -422,13 +434,20 @@ class TextBookRepository {
   /// מחזיר את מפרשי הספר ([all]) יחד עם קבוצת המפרשים ה"נדירים" ([rare]) שיש
   /// להסתיר מרשימת הבחירה הכללית (בספרים גדולים בלבד). ראה
   /// [computeRareCommentators].
-  Future<({List<String> all, Set<String> rare})> getCommentatorsWithRarity(
+  Future<CommentatorsWithRarity> getCommentatorsWithRarity(
     TextBook book,
   ) async {
     final detailed = await getCommentatorsDetailed(book);
     return (
       all: [for (final c in detailed.commentators) c.title],
       rare: detailed.rare,
+      identities: {
+        for (final c in detailed.commentators)
+          c.title: CommentatorIdentity(
+            collectiveTitle: c.collectiveTitle,
+            linkCount: c.linkCount,
+          ),
+      },
     );
   }
 
@@ -477,6 +496,7 @@ class TextBookRepository {
     // את הערך המרבי כמספר הקישורים לספר.
     final linkCountByTitle = <String, int>{};
     final authorByTitle = <String, String>{};
+    final collectiveByTitle = <String, String>{};
     for (final row in commentatorsData) {
       final title = row['targetBookTitle'] as String;
       final count = (row['linkCount'] as int?) ?? 0;
@@ -487,6 +507,8 @@ class TextBookRepository {
       if (author != null && author.isNotEmpty) {
         authorByTitle.putIfAbsent(title, () => author);
       }
+      final collective = row['collectiveTitleHe'] as String?;
+      if (collective != null) collectiveByTitle[title] = collective;
     }
 
     final all = {...linkCountByTitle.keys, ...userCommentators}.toList()
@@ -502,6 +524,7 @@ class TextBookRepository {
             title: title,
             author: authorByTitle[title],
             linkCount: linkCountByTitle[title] ?? 0,
+            collectiveTitle: collectiveByTitle[title],
           ),
       ],
       rare: rare,

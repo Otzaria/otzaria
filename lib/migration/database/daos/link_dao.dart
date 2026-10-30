@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/data/data_providers/link_visibility_sql.dart';
 import '../../models/link.dart';
@@ -152,6 +154,30 @@ class LinkDao {
     if (query == null) return const [];
     final db = await database;
     return db.select(query, [bookId]).toMapList();
+  }
+
+  /// שם האוסף וספר הבסיס של כל ספר שכותרתו ב-[titles].
+  Future<List<Map<String, dynamic>>> selectCommentatorIdentities(
+    List<String> titles,
+  ) async {
+    final capabilities = await _capabilities;
+    if (!capabilities.hasBooks || titles.isEmpty) return const [];
+    final baseOrder = capabilities.hasColumn('book', 'isBaseBook')
+        ? 'bb.isBaseBook DESC, bb.id'
+        : 'bb.id';
+    final baseBook = capabilities.has('book_base_text')
+        ? '(SELECT bb.title FROM book_base_text t JOIN book bb '
+              'ON bb.id = t.baseBookId WHERE t.bookId = b.id '
+              'ORDER BY $baseOrder LIMIT 1)'
+        : 'NULL';
+    final db = await database;
+    return db.select(
+      'SELECT b.title AS title, '
+      '${capabilities.column('book', 'collectiveTitleHe', qualifier: 'b')}, '
+      '$baseBook AS baseBookTitle '
+      'FROM book b WHERE b.title IN (SELECT value FROM json_each(?))',
+      [jsonEncode(titles)],
+    ).toMapList();
   }
 
   /// מחזיר את כל המפרשים על טווח שורות המקור [`startLineIndex`, `endLineIndex`)

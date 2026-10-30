@@ -11,6 +11,7 @@ import 'package:otzaria/models/links.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
@@ -52,9 +53,13 @@ class _Repository extends TextBookRepository {
   Future<List<TocEntry>> getTableOfContents(TextBook book) async => const [];
 
   @override
-  Future<({List<String> all, Set<String> rare})> getCommentatorsWithRarity(
+  Future<CommentatorsWithRarity> getCommentatorsWithRarity(
     TextBook book,
-  ) async => (all: const [_commentator], rare: const <String>{});
+  ) async => (
+    all: const [_commentator],
+    rare: const <String>{},
+    identities: const <String, CommentatorIdentity>{},
+  );
 
   @override
   Future<List<Link>> getBookLinksInRange(

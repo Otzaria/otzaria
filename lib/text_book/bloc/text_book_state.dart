@@ -6,6 +6,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/models/links.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
+import 'package:otzaria/book_common/utils/commentator_name_matching.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
@@ -214,6 +215,9 @@ class TextBookLoaded extends TextBookState {
   /// מוצגים ברשימה רק כשהשורה הנוכחית כוללת קישור מהם.
   final Set<String> rareCommentators;
   final List<Link> links;
+
+  /// שם האוסף ומספר הקישורים של כל מפרש זמין, לזיהוי בחירה שמורה.
+  final Map<String, CommentatorIdentity> commentatorIdentities;
   final List<Link> visibleLinks;
 
   /// סוגי הקישורים שנבחרו להצגה בפאנל הקישורים (ב-UPPERCASE).
@@ -328,6 +332,7 @@ class TextBookLoaded extends TextBookState {
     this.commentatorsLoaded = false,
     this.rareCommentators = const {},
     required this.links,
+    this.commentatorIdentities = const {},
     this.visibleLinks = const [],
     this.selectedLinkTypes = const {},
     required this.linksByLine,
@@ -544,6 +549,7 @@ class TextBookLoaded extends TextBookState {
     bool? commentatorsLoaded,
     Set<String>? rareCommentators,
     List<Link>? links,
+    Map<String, CommentatorIdentity>? commentatorIdentities,
     List<Link>? visibleLinks,
     Set<String>? selectedLinkTypes,
     Map<int, List<Link>>? linksByLine,
@@ -693,6 +699,8 @@ class TextBookLoaded extends TextBookState {
       commentatorsLoaded: commentatorsLoaded ?? this.commentatorsLoaded,
       rareCommentators: rareCommentators ?? this.rareCommentators,
       links: links ?? this.links,
+      commentatorIdentities:
+          commentatorIdentities ?? this.commentatorIdentities,
       visibleLinks: visibleLinks ?? this.visibleLinks,
       selectedLinkTypes: selectedLinkTypes ?? this.selectedLinkTypes,
       linksByLine: linksByLine ?? this.linksByLine,
@@ -800,6 +808,7 @@ class TextBookLoaded extends TextBookState {
     commentatorsLoaded,
     _SetProp(rareCommentators),
     links.length,
+    commentatorIdentities,
     visibleLinks.length,
     // השוואה לפי תוכן — החלפת סוג אחד באחר שומרת על אותו גודל ותיבלע
     // בהשוואת ה-state, והסינון לא יתעדכן.
