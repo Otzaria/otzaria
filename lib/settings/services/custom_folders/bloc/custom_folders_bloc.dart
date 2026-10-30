@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
@@ -125,7 +126,10 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
         });
         if (result.hasPartialFailure) {
           final failedMsg = result.failedDetails.isNotEmpty
-              ? result.failedDetails.map((d) => '"${d.$1}": ${d.$2}').join('\n')
+              ? SettingsMessages.errorLines([
+                  for (final (title, reason) in result.failedDetails)
+                    '"$title": $reason',
+                ])
               : 'כשל: ${result.failedBooks}';
           emit(
             state.copyWith(
@@ -528,11 +532,7 @@ class CustomFoldersBloc extends Bloc<CustomFoldersEvent, CustomFoldersState> {
     imp,
   ) {
     if (imp.errors.isEmpty) return null;
-    final shown = imp.errors.take(10).join('\n');
-    final more = imp.errors.length > 10
-        ? '\nועוד ${imp.errors.length - 10}…'
-        : '';
-    return 'שגיאות בייבוא הקבצים:\n$shown$more';
+    return 'שגיאות בייבוא הקבצים:\n${SettingsMessages.errorLines(imp.errors)}';
   }
 
   List<CustomFolder> _loadFolders() {
