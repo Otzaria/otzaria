@@ -40,6 +40,9 @@ class SemanticResultsState extends Equatable {
   /// כדי שהטלמטריה תיבנה תמיד מהקטע המקורי של המנוע.
   final Map<int, String> passageHighlights;
 
+  /// החלק הסמנטי נכשל והמנוע החזיר רק התאמות מילוליות.
+  final bool onlyLexical;
+
   const SemanticResultsState({
     this.status = SemanticResultsStatus.initial,
     this.options,
@@ -51,6 +54,7 @@ class SemanticResultsState extends Equatable {
     this.votes = const {},
     this.searchId = 0,
     this.passageHighlights = const {},
+    this.onlyLexical = false,
   });
 
   bool get hasMore => status == SemanticResultsStatus.loaded && morePages;
@@ -67,6 +71,7 @@ class SemanticResultsState extends Equatable {
     Map<int, SearchFeedbackVote>? votes,
     int? searchId,
     Map<int, String>? passageHighlights,
+    bool? onlyLexical,
   }) => SemanticResultsState(
     status: status ?? this.status,
     options: options ?? this.options,
@@ -78,6 +83,7 @@ class SemanticResultsState extends Equatable {
     votes: votes ?? this.votes,
     searchId: searchId ?? this.searchId,
     passageHighlights: passageHighlights ?? this.passageHighlights,
+    onlyLexical: onlyLexical ?? this.onlyLexical,
   );
 
   @override
@@ -92,5 +98,6 @@ class SemanticResultsState extends Equatable {
     votes,
     searchId,
     passageHighlights,
+    onlyLexical,
   ];
 }

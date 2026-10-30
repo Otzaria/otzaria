@@ -124,6 +124,9 @@ class FakeResultsSource implements SemanticResultsSource {
   bool? reportsHasMore;
   bool restartContinuation = false;
   String executedMode = 'hybrid';
+
+  /// כשל החלק הסמנטי שהמקור מדווח (שם של SemanticFailureKind); `null` = אין.
+  String? fallbackKind;
   int cancels = 0;
   final List<({int offset, int limit})> fetches = [];
 
@@ -154,7 +157,8 @@ class FakeResultsSource implements SemanticResultsSource {
       hasMore: reportsHasMore ?? pageOffset + page.length < all.length,
       sessionRestarted: restarted,
       executedMode: executedMode,
-      semanticAvailable: true,
+      semanticAvailable: fallbackKind == null,
+      fallbackKind: fallbackKind,
       latencyMs: 12,
       totalCount: all.length,
       lexicalTotalCount: all.length,

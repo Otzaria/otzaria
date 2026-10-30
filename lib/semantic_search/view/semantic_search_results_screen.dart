@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/messages/semantic_search_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
@@ -459,6 +460,7 @@ class _SemanticSearchResultsScreenState
                   _buildResultCounts(context, state, collapsed: collapsed),
               banners: [
                 if (state.isDebugPreview) const SemanticDebugPreviewBanner(),
+                if (state.onlyLexical) const _OnlyLexicalBanner(),
                 if (isWholeLibraryScope(_currentFacets))
                   const _NarrowScopeBanner(),
               ],
@@ -871,6 +873,38 @@ class _NarrowScopeBanner extends StatelessWidget {
           Expanded(
             child: SemanticNarrowScopeHint(
               style: TextStyle(fontSize: 13, color: cs.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// החלק הסמנטי נכשל, והתוצאות הן התאמות מילוליות בלבד.
+class _OnlyLexicalBanner extends StatelessWidget {
+  const _OnlyLexicalBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('semantic-only-lexical-banner'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: cs.errorContainer,
+      child: Row(
+        children: [
+          Icon(
+            FluentIcons.warning_24_regular,
+            size: 16,
+            color: cs.onErrorContainer,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              context.settingsText(SemanticSearchMessages.onlyLexicalShown),
+              style: TextStyle(fontSize: 13, color: cs.onErrorContainer),
             ),
           ),
         ],

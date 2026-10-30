@@ -575,7 +575,12 @@ class SemanticSearchRepository {
       );
     }
     final quantization = this.quantization;
-    if (_openQuantization == quantization) return;
+    // פתיחה מחדש של האינדקס יוצרת מנוע חדש בלי session; בלי הבדיקה כל
+    // חיפוש נופל למילולי עד הפעלה מחדש של התוכנה.
+    if (_openQuantization == quantization &&
+        (await _safeStatus()).state != SemanticBackendState.notConfigured) {
+      return;
+    }
     await _closeSession(waitForOpening: false, invalidateOpening: false);
     final paths = await _paths();
     final identity = await _loadIdentity(await _installedFamily(_vectors));

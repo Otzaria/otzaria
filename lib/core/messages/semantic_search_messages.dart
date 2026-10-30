@@ -40,6 +40,10 @@ abstract class SemanticSearchMessages {
   static const String internal = 'אירעה שגיאה ב{name}.';
   static const String unsupportedScope =
       'הצמצום המבוקש אינו נתמך במלואו בחיפוש החכם. בחרו צמצום אחר או עברו לחיפוש רגיל.';
+  static const String semanticPartFailed =
+      'החיפוש לפי עניין נכשל. נסו שוב, ואם התקלה חוזרת — דווחו עליה.';
+  static const String onlyLexicalShown =
+      'החיפוש לפי עניין נכשל, ולכן מוצגות רק התאמות מילוליות.';
   static const String resultsRefreshed =
       'תוצאות החיפוש רועננו. מוצג העמוד הראשון.';
   static const String vectorsBusy =
@@ -104,6 +108,8 @@ abstract class SemanticSearchMessages {
     vectorsBusy,
     unsupportedRelease,
     libraryMoving,
+    semanticPartFailed,
+    onlyLexicalShown,
   ];
 
   /// ההודעה למשתמש עבור [kind].

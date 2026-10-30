@@ -1202,9 +1202,9 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: d8ebace9d55f73a6e0baa2f794d55a97efd95e28
-      resolved-ref: d8ebace9d55f73a6e0baa2f794d55a97efd95e28
-      url: "https://github.com/Otzaria/otzaria_search_engine.git"
+      ref: fcd022633fab852de11555de004c1a84ec27221b
+      resolved-ref: fcd022633fab852de11555de004c1a84ec27221b
+      url: "https://github.com/palmoni5/otzaria_search_engine.git"
     source: git
     version: "6.0.0"
   package_config:

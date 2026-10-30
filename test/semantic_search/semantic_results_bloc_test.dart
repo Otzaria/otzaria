@@ -25,6 +25,52 @@ Future<void> _settle(SemanticResultsBloc bloc) async {
 }
 
 void main() {
+  group('כשל החלק הסמנטי (fallbackKind)', () {
+    test('בלי תוצאות — failed עם הודעת כשל, לא "אין תוצאות"', () async {
+      final source = FakeResultsSource(items: const [])
+        ..executedMode = 'lexicalOnly'
+        ..fallbackKind = 'queryFailed';
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
+      addTearDown(bloc.close);
+      bloc.add(
+        const SemanticSearchSubmitted(
+          SemanticQueryOptions(query: 'שתי מילים', includeLexical: false),
+        ),
+      );
+      await _settle(bloc);
+
+      expect(bloc.state.status, SemanticResultsStatus.failed);
+      expect(bloc.state.message, SemanticSearchMessages.semanticPartFailed);
+      expect(bloc.state.onlyLexical, isFalse);
+    });
+
+    test('עם תוצאות מילוליות — מוצגות, ומסומן שהן מילוליות בלבד', () async {
+      final source = FakeResultsSource(total: 3)
+        ..executedMode = 'lexicalOnly'
+        ..fallbackKind = 'queryFailed';
+      final bloc = buildResultsBloc(
+        source: source,
+        recorder: RecordingRecorder(),
+      );
+      addTearDown(bloc.close);
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+
+      expect(bloc.state.status, SemanticResultsStatus.loaded);
+      expect(bloc.state.items, hasLength(3));
+      expect(bloc.state.onlyLexical, isTrue);
+      expect(bloc.state.message, isNull);
+
+      source.fallbackKind = null;
+      bloc.add(const SemanticSearchSubmitted(_options));
+      await _settle(bloc);
+      expect(bloc.state.onlyLexical, isFalse);
+    });
+  });
+
   group('דפדוף שאיבד את הסשן', () {
     test('מחזיר עמוד ראשון חדש, מאפס הצבעות וסימונים ומשוב', () async {
       final items = [for (var i = 1; i <= 60; i++) resultItem(i)];
