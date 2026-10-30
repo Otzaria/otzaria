@@ -23,6 +23,7 @@ import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
+import 'package:otzaria/text_book/view/commentary_list_base.dart';
 import 'package:otzaria/text_book/view/reader_line/reader_line_render.dart';
 import 'package:otzaria/text_book/view/widgets/continuous_reading_paragraph.dart';
 import 'package:otzaria/text_book/view/widgets/selection_gutter_painter.dart';
@@ -80,7 +81,7 @@ Future<_TestTextBookBloc> _pumpContinuousView(
   bool simple = false,
   bool preview = false,
   bool isMainText = true,
-  double textMaxWidth = -1,
+  double textMaxWidth = 0,
   double textScale = 1,
 }) async {
   final textBookBloc = _TestTextBookBloc(state);
@@ -237,8 +238,8 @@ void main() {
       for (final (textScale, textMaxWidth) in [
         (1.0, 0.0),
         (2.0, 0.0),
-        (1.0, -10.0),
-        (2.0, -10.0),
+        (1.0, 400.0),
+        (2.0, 400.0),
       ]) {
         testWidgets(
           'קו הבחירה צמוד לטקסט ואינו עולה עליו (issues #2554, #3446), '
@@ -372,6 +373,28 @@ void main() {
       isFalse,
     );
   });
+
+  // כרטיס בתוך פריט רב-שורתי כבר יושב בעמודה; חישוב רוחב נוסף הצר אותו שוב.
+  for (final continuous in [true, false]) {
+    testWidgets('כרטיס המפרשים ברוחב עמודת הטקסט, רציף=$continuous', (
+      tester,
+    ) async {
+      await _pumpContinuousView(
+        tester,
+        _continuousState(
+          selectedIndex: 1,
+        ).copyWith(continuousReadingMode: continuous),
+        textMaxWidth: 400,
+      );
+      final card = find.byKey(const ValueKey('commentary_card_1'));
+      expect(card, findsOneWidget);
+      final list = find.descendant(
+        of: card,
+        matching: find.byType(CommentaryListBase),
+      );
+      expect(tester.getSize(list).width, 400);
+    });
+  }
 
   testWidgets('לחיצה בתוך כרטיס המפרשים אינה משנה את בחירת השורה', (
     tester,

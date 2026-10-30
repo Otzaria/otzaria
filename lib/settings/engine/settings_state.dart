@@ -161,8 +161,7 @@ class SettingsState extends Equatable {
       followSystemTheme: false,
       seedColor: AppSeedColors.defaultLight,
       darkSeedColor: AppSeedColors.defaultDark,
-      textMaxWidth:
-          -1, // רוחב מקסימלי לטקסט (-1 = רמה 1 = 95% כברירת מחדל, 0 = ללא הגבלה)
+      textMaxWidth: 0, // 0 = רוחב מלא; חיובי = רוחב יעד בפיקסלים לוגיים
       fontSize: 16,
       fontFamily: 'FrankRuhlCLM',
       commentatorsFontFamily: 'NotoRashiHebrew',

@@ -48,10 +48,10 @@ void main() {
         ).thenReturn(AppSeedColors.defaultDark.toARGB32());
         when(
           mockSettingsWrapper.getValue<double>(
-            SettingsRepository.keyTextMaxWidth,
-            defaultValue: -1,
+            SettingsRepository.keyTextColumnWidth,
+            defaultValue: 0,
           ),
-        ).thenReturn(-1.0);
+        ).thenReturn(0.0);
         when(
           mockSettingsWrapper.getValue<double>(
             SettingsRepository.keyFontSize,
@@ -138,7 +138,7 @@ void main() {
         expect(settings['followSystemTheme'], false);
         expect(settings['seedColor'], AppSeedColors.defaultLight);
         expect(settings['darkSeedColor'], AppSeedColors.defaultDark);
-        expect(settings['textMaxWidth'], -1.0);
+        expect(settings['textMaxWidth'], 0.0);
         expect(settings['fontSize'], 25.0);
         expect(settings['fontFamily'], 'FrankRuhlCLM');
         expect(settings['showOtzarHachochma'], false);
@@ -185,8 +185,8 @@ void main() {
       ).thenReturn(AppSeedColors.defaultDark.toARGB32());
       when(
         mockSettingsWrapper.getValue<double>(
-          SettingsRepository.keyTextMaxWidth,
-          defaultValue: -1,
+          SettingsRepository.keyTextColumnWidth,
+          defaultValue: 0,
         ),
       ).thenReturn(800.0);
       when(
@@ -429,10 +429,10 @@ void main() {
       ).thenReturn(AppSeedColors.defaultDark.toARGB32());
       when(
         mockSettingsWrapper.getValue<double>(
-          SettingsRepository.keyTextMaxWidth,
-          defaultValue: -1,
+          SettingsRepository.keyTextColumnWidth,
+          defaultValue: 0,
         ),
-      ).thenReturn(-1.0);
+      ).thenReturn(0.0);
       when(
         mockSettingsWrapper.getValue<double>(
           SettingsRepository.keyFontSize,
@@ -513,7 +513,10 @@ void main() {
         ),
       ).called(1);
       verify(
-        mockSettingsWrapper.setValue(SettingsRepository.keyTextMaxWidth, -1.0),
+        mockSettingsWrapper.setValue(
+          SettingsRepository.keyTextColumnWidth,
+          0.0,
+        ),
       ).called(1);
       verify(
         mockSettingsWrapper.setValue(SettingsRepository.keyFontSize, 25.0),
@@ -609,10 +612,10 @@ void main() {
         ).thenReturn(AppSeedColors.defaultDark.toARGB32());
         when(
           mockSettingsWrapper.getValue<double>(
-            SettingsRepository.keyTextMaxWidth,
-            defaultValue: -1,
+            SettingsRepository.keyTextColumnWidth,
+            defaultValue: 0,
           ),
-        ).thenReturn(-1.0);
+        ).thenReturn(0.0);
         when(
           mockSettingsWrapper.getValue<double>(
             SettingsRepository.keyFontSize,
@@ -820,6 +823,37 @@ void main() {
           'builtin.gematria,builtin.calendar',
         ),
       ).called(1);
+    });
+
+    test('ערך במפתח רוחב הטקסט הישן מתעלמים ממנו — רוחב מלא', () async {
+      when(
+        mockSettingsWrapper.getValue<bool>(
+          'settings_initialized',
+          defaultValue: false,
+        ),
+      ).thenReturn(true);
+      when(
+        mockSettingsWrapper.getValue<double>(
+          'key-text-max-width',
+          defaultValue: anyNamed('defaultValue'),
+        ),
+      ).thenReturn(900.0);
+      when(
+        mockSettingsWrapper.getValue<double>(
+          SettingsRepository.keyTextColumnWidth,
+          defaultValue: 0,
+        ),
+      ).thenReturn(0.0);
+
+      final settings = await repository.loadSettings();
+
+      expect(settings['textMaxWidth'], 0.0);
+      verifyNever(
+        mockSettingsWrapper.getValue<double>(
+          'key-text-max-width',
+          defaultValue: anyNamed('defaultValue'),
+        ),
+      );
     });
 
     test('loadSettings parses builtInToolsOrder preserving order', () async {

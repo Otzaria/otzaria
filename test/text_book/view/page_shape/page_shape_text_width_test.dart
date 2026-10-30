@@ -112,14 +112,11 @@ void main() {
     expect(size.width, greaterThan(screenWidth * 0.9));
   });
 
-  testWidgets('רמה ‎-11 (45%) — תוכן הדף מוגבל וממורכז עם שוליים', (
-    tester,
-  ) async {
-    await pumpScreen(tester, textMaxWidth: -11);
+  testWidgets('רוחב יעד — תוכן הדף מוגבל וממורכז עם שוליים', (tester) async {
+    await pumpScreen(tester, textMaxWidth: 900);
 
     final rect = tester.getRect(find.byType(SimpleTextViewer));
-    // 45% מרוחב אזור הקריאה, בתוספת מרווח קטן ל-insets של המסך.
-    expect(rect.width, lessThanOrEqualTo(screenWidth * 0.45 + 1));
+    expect(rect.width, lessThanOrEqualTo(900 + 1));
     // ממורכז: שוליים דומים משני הצדדים.
     expect((rect.left - (screenWidth - rect.right)).abs(), lessThan(40));
   });
@@ -127,7 +124,7 @@ void main() {
   testWidgets('המתג כבוי (ברירת המחדל) — ההגדרה אינה חלה על הדף', (
     tester,
   ) async {
-    await pumpScreen(tester, textMaxWidth: -11, applyTextMaxWidth: false);
+    await pumpScreen(tester, textMaxWidth: 900, applyTextMaxWidth: false);
 
     final size = tester.getSize(find.byType(SimpleTextViewer));
     expect(size.width, greaterThan(screenWidth * 0.9));

@@ -1,6 +1,5 @@
-// Regression test: סליידר "רוחב הטקסט" חייב לשמור רמה שלילית (-level) ולא
-// פיקסלים מוחלטים. שמירת פיקסלים לפי רוחב המסך המלא גרמה לכך שההגדרה לא
-// השפיעה כשחלונית המפרשים פתוחה או בחלון צר (העמודה צרה מהערך השמור).
+// סליידר "רוחב הטקסט" מציג ס"מ ושומר רוחב יעד בפיקסלים לוגיים (96 DPI), או 0
+// לרוחב מלא בעצירה האחרונה.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
@@ -30,14 +29,19 @@ void main() {
 
   setUp(() {
     settingsBloc = MockSettingsBloc();
+  });
+
+  Future<Slider> pumpAndFindWidthSlider(
+    WidgetTester tester, {
+    double textMaxWidth = 0,
+  }) async {
     whenListen(
       settingsBloc,
       const Stream<SettingsState>.empty(),
-      initialState: SettingsState.initial(),
+      initialState: SettingsState.initial().copyWith(
+        textMaxWidth: textMaxWidth,
+      ),
     );
-  });
-
-  Future<Slider> pumpAndFindWidthSlider(WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: BlocProvider<SettingsBloc>.value(
@@ -50,25 +54,44 @@ void main() {
     );
     await tester.pump();
 
-    // סליידר רוחב הטקסט הוא היחיד עם 14 רמות; במסך המלא הערך נשלח בסוף הגרירה
+    // סליידר רוחב הטקסט: 10–40 ס"מ ועצירה אחרונה לרוחב מלא
     final finder = find.byWidgetPredicate(
-      (widget) => widget is Slider && widget.max == 14,
+      (widget) => widget is Slider && widget.min == 10 && widget.max == 41,
     );
     expect(finder, findsOneWidget);
     return tester.widget<Slider>(finder);
   }
 
-  testWidgets('הזזת הסליידר שולחת רמה שלילית, לא פיקסלים', (tester) async {
-    final slider = await pumpAndFindWidthSlider(tester);
-    (slider.onChangeEnd ?? slider.onChanged)!(4);
+  const pxPerCm = 96 / 2.54;
 
-    verify(() => settingsBloc.add(const UpdateTextMaxWidth(-4.0))).called(1);
+  testWidgets('עצירת ס"מ שולחת פיקסלים לוגיים', (tester) async {
+    final slider = await pumpAndFindWidthSlider(tester);
+    (slider.onChangeEnd ?? slider.onChanged)!(25);
+
+    verify(
+      () => settingsBloc.add(const UpdateTextMaxWidth(25 * pxPerCm)),
+    ).called(1);
   });
 
-  testWidgets('רמה 0 (רוחב מלא) שולחת 0', (tester) async {
+  testWidgets('העצירה האחרונה (רוחב מלא) שולחת 0', (tester) async {
     final slider = await pumpAndFindWidthSlider(tester);
-    (slider.onChangeEnd ?? slider.onChanged)!(0);
+    (slider.onChangeEnd ?? slider.onChanged)!(41);
 
     verify(() => settingsBloc.add(const UpdateTextMaxWidth(0))).called(1);
+  });
+
+  testWidgets('רוחב שמור מוצג בס"מ', (tester) async {
+    final slider = await pumpAndFindWidthSlider(
+      tester,
+      textMaxWidth: 25 * pxPerCm,
+    );
+    expect(slider.value, 25);
+    expect(slider.label, '25 ס"מ');
+  });
+
+  testWidgets('רמת אחוזים ישנה (שלילית) מוצגת כ"מלא"', (tester) async {
+    final slider = await pumpAndFindWidthSlider(tester, textMaxWidth: -3);
+    expect(slider.value, 41);
+    expect(slider.label, 'מלא');
   });
 }

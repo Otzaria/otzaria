@@ -24,6 +24,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/widgets/selection_gutter_painter.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
+import 'package:otzaria/widgets/layout/adaptive_side_pane.dart';
 import 'package:otzaria/widgets/layout/reading_area_width.dart';
 import 'package:otzaria/widgets/smart_text/smart_text_widget.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
@@ -138,9 +139,9 @@ void main() {
     required bool isPreviewMode,
     required double textMaxWidth,
     Size size = const Size(900, 700),
-    ValueNotifier<double>? readingAreaWidth,
     BookProtection protection = BookProtection.none,
     int lineCount = _lineCount,
+    Widget Function(Widget view)? wrap,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
@@ -183,14 +184,7 @@ void main() {
             BlocProvider<SettingsBloc>.value(value: settingsBloc),
           ],
           child: Scaffold(
-            body: readingAreaWidth == null
-                ? view
-                : ValueListenableBuilder(
-                    valueListenable: readingAreaWidth,
-                    builder: (_, base, child) =>
-                        ReadingAreaWidth(width: base, child: child!),
-                    child: view,
-                  ),
+            body: wrap == null ? view : wrap(view),
           ),
         ),
       ),
@@ -233,7 +227,7 @@ void main() {
     });
 
     testWidgets('עם הגבלת רוחב — השוליים שווים בשני הצדדים', (tester) async {
-      await pumpView(tester, isPreviewMode: false, textMaxWidth: -1);
+      await pumpView(tester, isPreviewMode: false, textMaxWidth: 500);
       final insets = lineInsets(tester);
       expect(insets.start, greaterThan(0));
       expect(insets.start, closeTo(insets.end, 0.5));
@@ -256,7 +250,7 @@ void main() {
       await pumpView(
         tester,
         isPreviewMode: true,
-        textMaxWidth: -11,
+        textMaxWidth: 300,
         size: const Size(420, 700),
       );
       final insets = lineInsets(tester, listEndPadding: 0);
@@ -264,82 +258,54 @@ void main() {
       expect(insets.end, 0.0);
     });
 
-    testWidgets('שינוי בסיס אזור הקריאה בלבד מרענן הערכת פריט מחוץ למסך', (
-      tester,
-    ) async {
-      final base = ValueNotifier<double>(900);
-      addTearDown(base.dispose);
-      final tab = await pumpView(
+    testWidgets(
+      'גרירת חלון שמצרה את העמודה ברשימה גדולה נדחית עד שהרוחב מתייצב',
+      (
         tester,
-        isPreviewMode: false,
-        textMaxWidth: -11,
-        readingAreaWidth: base,
-      );
-      final list = tab.lines.itemController.listController!;
-      const farItem = _lineCount - 1;
-      expect(find.byType(SmartTextWidget).evaluate().length, lessThan(farItem));
-      final listWidth = tester.getSize(find.byType(ScrollablePositionedList));
-      final before = list.extentForIndex(farItem).$1;
-
-      base.value = 450;
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(tester.getSize(find.byType(ScrollablePositionedList)), listWidth);
-      expect(list.extentForIndex(farItem).$1, greaterThan(before * 1.5));
-    });
-
-    testWidgets('גרירת חלון בהגדרה יחסית ברשימה גדולה נדחית עד שהרוחב מתייצב', (
-      tester,
-    ) async {
-      final base = ValueNotifier<double>(900);
-      addTearDown(base.dispose);
-      final tab = await pumpView(
-        tester,
-        isPreviewMode: false,
-        textMaxWidth: -11,
-        readingAreaWidth: base,
-        lineCount: 5000,
-      );
-      final list = tab.lines.itemController.listController!;
-      Object? estimationKey() => tester
-          .widget<ScrollablePositionedList>(
-            find.byType(ScrollablePositionedList),
-          )
-          .estimationKey;
-      final key = estimationKey();
-      final refreshes = list.estimateRefreshStats!.refreshCount;
-      final before = list.extentForIndex(4999).$1;
-
-      for (var frame = 1; frame <= 10; frame++) {
-        final width = 900.0 - 30 * frame;
-        tester.view.physicalSize = Size(width, 700);
-        base.value = width;
-        await tester.pump(const Duration(milliseconds: 16));
-        expect(
-          list.estimateRefreshStats!.refreshCount,
-          refreshes,
-          reason: 'פריים $frame',
+      ) async {
+        final tab = await pumpView(
+          tester,
+          isPreviewMode: false,
+          textMaxWidth: 800,
+          lineCount: 5000,
         );
-      }
-      expect(estimationKey(), same(key));
-      await tester.pump();
-      await tester.pump();
-      expect(list.estimateRefreshStats!.refreshCount, refreshes + 1);
-      expect(list.extentForIndex(4999).$1, greaterThan(before));
-    });
+        final list = tab.lines.itemController.listController!;
+        Object? estimationKey() => tester
+            .widget<ScrollablePositionedList>(
+              find.byType(ScrollablePositionedList),
+            )
+            .estimationKey;
+        final key = estimationKey();
+        final refreshes = list.estimateRefreshStats!.refreshCount;
+        final before = list.extentForIndex(4999).$1;
+
+        for (var frame = 1; frame <= 10; frame++) {
+          final width = 900.0 - 30 * frame;
+          tester.view.physicalSize = Size(width, 700);
+          await tester.pump(const Duration(milliseconds: 16));
+          expect(
+            list.estimateRefreshStats!.refreshCount,
+            refreshes,
+            reason: 'פריים $frame',
+          );
+        }
+        expect(estimationKey(), same(key));
+        await tester.pump();
+        await tester.pump();
+        expect(list.estimateRefreshStats!.refreshCount, refreshes + 1);
+        expect(list.extentForIndex(4999).$1, greaterThan(before));
+      },
+    );
 
     /// מודד את פריט 0, קופץ לסוף ומצר את הרשימה בלי לשנות את עמודת הטקסט.
     Future<(double, bool)> firstItemAfterNarrowing(
       WidgetTester tester, {
       BookProtection protection = BookProtection.none,
     }) async {
-      final base = ValueNotifier<double>(1200);
-      addTearDown(base.dispose);
       final tab = await pumpView(
         tester,
         isPreviewMode: false,
-        textMaxWidth: -11,
-        readingAreaWidth: base,
+        textMaxWidth: 500,
         protection: protection,
       );
       final list = tab.lines.itemController.listController!;
@@ -395,6 +361,118 @@ void main() {
           line.localToGlobal(Offset.zero).dx -
           clip.localToGlobal(Offset.zero).dx;
       expect(room, greaterThanOrEqualTo(overhang));
+    });
+  });
+
+  group('רוחב יעד קבוע', () {
+    Future<void> settle(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    /// רוחב עמודת הטקסט ורוחב הפריט שבתוכו היא ממורכזת; null כשאין הגבלה.
+    ({double column, double item})? column(WidgetTester tester) {
+      final box = find.ancestor(
+        of: find.byType(SmartTextWidget).first,
+        matching: find.byWidgetPredicate(
+          (w) => w is ConstrainedBox && w.constraints.maxWidth.isFinite,
+        ),
+      );
+      if (box.evaluate().isEmpty) return null;
+      final item = find.ancestor(of: box.first, matching: find.byType(Center));
+      return (
+        column: tester.getSize(box.first).width,
+        item: tester.getSize(item.first).width,
+      );
+    }
+
+    testWidgets('שינוי חלון ולוח שכן ב-Row לא משנים את העמודה כשיש מקום', (
+      tester,
+    ) async {
+      final panel = ValueNotifier<bool>(false);
+      addTearDown(panel.dispose);
+      await pumpView(
+        tester,
+        isPreviewMode: false,
+        textMaxWidth: 600,
+        size: const Size(1400, 700),
+        wrap: (view) => ValueListenableBuilder<bool>(
+          valueListenable: panel,
+          builder: (_, open, _) => Row(
+            children: [
+              if (open) const SizedBox(width: 300),
+              Expanded(child: view),
+            ],
+          ),
+        ),
+      );
+      expect(column(tester)!.column, 600);
+
+      tester.view.physicalSize = const Size(1000, 700);
+      await settle(tester);
+      expect(column(tester)!.column, 600);
+
+      panel.value = true;
+      await settle(tester);
+      expect(column(tester)!.column, 600);
+
+      panel.value = false;
+      await settle(tester);
+      expect(column(tester)!.column, 600);
+
+      tester.view.physicalSize = const Size(500, 700);
+      await settle(tester);
+      final narrow = column(tester)!;
+      expect(narrow.column, narrow.item - 2 * kTextColumnMinMargin);
+    });
+
+    testWidgets('פתיחה וסגירה של AdaptiveSidePane לא משנות את העמודה', (
+      tester,
+    ) async {
+      final pane = ValueNotifier<bool>(false);
+      addTearDown(pane.dispose);
+      await pumpView(
+        tester,
+        isPreviewMode: false,
+        textMaxWidth: 600,
+        size: const Size(1400, 700),
+        wrap: (view) => ValueListenableBuilder<bool>(
+          valueListenable: pane,
+          builder: (_, open, _) => AdaptiveSidePane(
+            isOpen: open,
+            mainContent: view,
+            paneContent: const Text('מפרשים'),
+            paneWidth: 340,
+            onClose: () {},
+            autoHandleResponsiveVisibility: false,
+          ),
+        ),
+      );
+      expect(column(tester)!.column, 600);
+
+      pane.value = true;
+      await settle(tester);
+      expect(column(tester)!.column, 600);
+
+      pane.value = false;
+      await settle(tester);
+      expect(column(tester)!.column, 600);
+    });
+
+    testWidgets('רוחב מלא (0) — אין עמודה מוגבלת גם אחרי שינוי חלון', (
+      tester,
+    ) async {
+      await pumpView(
+        tester,
+        isPreviewMode: false,
+        textMaxWidth: 0,
+        size: const Size(1400, 700),
+      );
+      expect(column(tester), isNull);
+
+      tester.view.physicalSize = const Size(1000, 700);
+      await settle(tester);
+      expect(column(tester), isNull);
     });
   });
 }

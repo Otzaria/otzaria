@@ -116,7 +116,7 @@ void main() {
 
     test('העדפת תצוגה שלא הייתה ברשימת ההיתר נפתחה כעת', () {
       for (final key in const [
-        SettingsRepository.keyTextMaxWidth,
+        SettingsRepository.keyTextColumnWidth,
         SettingsRepository.keyFontBold,
         SettingsRepository.keyCommentatorsFontBold,
         SettingsRepository.keyDefaultRemovePunctuation,

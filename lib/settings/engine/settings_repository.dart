@@ -15,7 +15,8 @@ class SettingsRepository {
   static const String keyFollowSystemTheme = 'key-follow-system-theme';
   static const String keySwatchColor = 'key-swatch-color';
   static const String keyDarkSwatchColor = 'key-dark-swatch-color';
-  static const String keyTextMaxWidth = 'key-text-max-width';
+  // לא key-text-max-width: ערכיו (אחוזים/פיקסלים יחסיים למסך) אינם רוחב יעד.
+  static const String keyTextColumnWidth = 'key-text-column-width';
   static const String keyFontSize = 'key-font-size';
   static const String keyFontFamily = 'key-font-family';
   static const String keyCommentatorsFontFamily =
@@ -244,7 +245,7 @@ class SettingsRepository {
     keyFollowSystemTheme,
     keySwatchColor,
     keyDarkSwatchColor,
-    keyTextMaxWidth,
+    keyTextColumnWidth,
     keyFontSize,
     keyFontFamily,
     keyCommentatorsFontFamily,
@@ -388,8 +389,8 @@ class SettingsRepository {
         ),
       ),
       'textMaxWidth': _settings.getValue<double>(
-        keyTextMaxWidth,
-        defaultValue: -1,
+        keyTextColumnWidth,
+        defaultValue: 0,
       ),
       'fontSize': _settings.getValue<double>(keyFontSize, defaultValue: 25),
       'fontFamily': _settings.getValue<String>(
@@ -685,7 +686,7 @@ class SettingsRepository {
   }
 
   Future<void> updateTextMaxWidth(double value) async {
-    await _settings.setValue(keyTextMaxWidth, value);
+    await _settings.setValue(keyTextColumnWidth, value);
   }
 
   Future<void> updateFontSize(double value) async {
@@ -1209,7 +1210,7 @@ class SettingsRepository {
       keyDarkSwatchColor,
       AppSeedColors.defaultDark.toARGB32(),
     );
-    await _settings.setValue(keyTextMaxWidth, -1.0);
+    await _settings.setValue(keyTextColumnWidth, 0.0);
     await _settings.setValue(keyFontSize, 25.0);
     await _settings.setValue(keyFontFamily, AppFonts.defaultFont);
     await _settings.setValue(

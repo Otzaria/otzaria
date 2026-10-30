@@ -2414,18 +2414,12 @@ class _CombinedViewState extends State<CombinedView> {
           textMaxWidth: bloc.state.textMaxWidth,
         ),
       );
-      // נקרא ב-build ולא בכל הערכה. הבסיס נכנס למפתח הפריסה של הרשימה ולא
-      // ל-styleKey, כדי שגרירת חלון תידחה כמו שינוי רוחב.
-      final baseWidth = widget.isPreviewMode
-          ? null
-          : ReadingAreaWidth.maybeOf(context);
       final setting = metrics.textMaxWidth;
       // בלי הגבלה (0) כל הפריט ברוחב מלא, כולל כרטיס המפרשים — אז העמודה היא הרוחב.
       double columnWidth(double width) {
         final column = resolveTextColumnMaxWidth(
           setting: setting,
           availableWidth: width,
-          baseWidth: baseWidth ?? width,
         );
         return column > 0 ? column : width;
       }
@@ -2763,8 +2757,7 @@ class _CombinedViewState extends State<CombinedView> {
                           // אזור קריאה — הגבלת רוחב הטקסט הייתה מצרה אותו שוב.
                           final textMaxWidth = widget.isPreviewMode
                               ? 0.0
-                              : textColumnMaxWidthOf(
-                                  context,
+                              : resolveTextColumnMaxWidth(
                                   setting: settingsState.textMaxWidth,
                                   availableWidth: constraints.maxWidth,
                                 );
@@ -2886,7 +2879,7 @@ class _CombinedViewState extends State<CombinedView> {
             widget.showCommentaryAsExpansionTiles &&
             isSelected &&
             _hasCommentaries(state, selectedLineIndex))
-          _buildCommentaryCard(state, selectedLineIndex),
+          _inTextColumn(_buildCommentaryCard(state, selectedLineIndex)),
       ],
     );
 
@@ -3018,8 +3011,7 @@ class _CombinedViewState extends State<CombinedView> {
       builder: (context, settingsState) {
         final width = widget.isPreviewMode
             ? 0.0
-            : textColumnMaxWidthOf(
-                context,
+            : resolveTextColumnMaxWidth(
                 setting: settingsState.textMaxWidth,
                 availableWidth: constraints.maxWidth,
               );
@@ -3040,8 +3032,7 @@ class _CombinedViewState extends State<CombinedView> {
             builder: (context, settingsState) {
               final textMaxWidth = widget.isPreviewMode
                   ? 0.0
-                  : textColumnMaxWidthOf(
-                      context,
+                  : resolveTextColumnMaxWidth(
                       setting: settingsState.textMaxWidth,
                       availableWidth: constraints.maxWidth,
                     );
@@ -3403,89 +3394,68 @@ class _CommentaryCardState extends State<_CommentaryCard> {
         ? widget.viewportHeight * 0.75
         : MediaQuery.of(context).size.height * 0.75;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return BlocBuilder<SettingsBloc, SettingsState>(
-          builder: (context, settingsState) {
-            // שימוש באותו רוחב מקסימלי כמו הטקסט
-            final textMaxWidth = textColumnMaxWidthOf(
-              context,
-              setting: settingsState.textMaxWidth,
-              availableWidth: constraints.maxWidth,
-            );
-
-            final commentaryContainer = Container(
-              margin: const EdgeInsets.only(bottom: 8.0),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerLow,
-                borderRadius: AppTokens.borderRadiusAll,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+    // הרוחב נקבע ע"י המקום: עמודת הטקסט (_inTextColumn או פריט רב-שורתי).
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      builder: (context, settingsState) {
+        final commentaryContainer = Container(
+          margin: const EdgeInsets.only(bottom: 8.0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            borderRadius: AppTokens.borderRadiusAll,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
-              child: ClipRRect(
-                borderRadius: AppTokens.borderRadiusAll,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: maxHeight,
-                    minHeight: maxHeight < 50 ? maxHeight : 50,
-                  ),
-                  child: CommentaryListBase(
-                    key: _commentaryKey,
-                    indexes: [widget.index],
-                    fontSize: settingsState.commentatorsFontSize,
-                    openBookCallback: widget.openBookCallback,
-                    showSearch: false,
-                    selectionSyncController: widget.selectionSyncController,
-                    shrinkWrap: true,
-                    highlightQueryListenable: _highlightNotifier,
-                    externalTotalResultsNotifier: _totalNotifier,
-                    externalCurrentIndexNotifier: _currentIndexNotifier,
-                    onOpenPersonalNote: widget.onOpenPersonalNote,
-                    personalNotesLoader: loadStoredPersonalNotes,
-                  ),
-                ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: AppTokens.borderRadiusAll,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: maxHeight,
+                minHeight: maxHeight < 50 ? maxHeight : 50,
               ),
-            );
-
-            final content = ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxHeight),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (widget.searchText.isNotEmpty)
-                    _CommentarySearchNavBar(
-                      totalNotifier: _totalNotifier,
-                      currentIndexNotifier: _currentIndexNotifier,
-                      onPrev: () =>
-                          _commentaryKey.currentState?.navigateSearchPrev(),
-                      onNext: () =>
-                          _commentaryKey.currentState?.navigateSearchNext(),
-                    ),
-                  Flexible(child: commentaryContainer),
-                ],
+              child: CommentaryListBase(
+                key: _commentaryKey,
+                indexes: [widget.index],
+                fontSize: settingsState.commentatorsFontSize,
+                openBookCallback: widget.openBookCallback,
+                showSearch: false,
+                selectionSyncController: widget.selectionSyncController,
+                shrinkWrap: true,
+                highlightQueryListenable: _highlightNotifier,
+                externalTotalResultsNotifier: _totalNotifier,
+                externalCurrentIndexNotifier: _currentIndexNotifier,
+                onOpenPersonalNote: widget.onOpenPersonalNote,
+                personalNotesLoader: loadStoredPersonalNotes,
               ),
-            );
-
-            // מרכוז אופקי בלבד (topCenter) באותו רוחב כמו הטקסט. Center מלא
-            // היה ממרכז גם אנכית וגורם לרווח למעלה כשהמפרשים מכווצים/קצרים.
-            if (textMaxWidth > 0) {
-              return Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: textMaxWidth),
-                  child: content,
-                ),
-              );
-            }
-            return content;
-          },
+            ),
+          ),
         );
+
+        final content = ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.searchText.isNotEmpty)
+                _CommentarySearchNavBar(
+                  totalNotifier: _totalNotifier,
+                  currentIndexNotifier: _currentIndexNotifier,
+                  onPrev: () =>
+                      _commentaryKey.currentState?.navigateSearchPrev(),
+                  onNext: () =>
+                      _commentaryKey.currentState?.navigateSearchNext(),
+                ),
+              Flexible(child: commentaryContainer),
+            ],
+          ),
+        );
+
+        return content;
       },
     );
   }

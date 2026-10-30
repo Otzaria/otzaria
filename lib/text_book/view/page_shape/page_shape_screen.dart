@@ -1195,8 +1195,7 @@ class _PageShapeScreenState extends State<PageShapeScreen> {
                             LayoutBuilder(
                               builder: (context, pageConstraints) {
                                 final pageMaxWidth = _applyTextMaxWidth
-                                    ? textColumnMaxWidthOf(
-                                        context,
+                                    ? resolveTextColumnMaxWidth(
                                         setting: context
                                             .select<SettingsBloc, double>(
                                               (bloc) => bloc.state.textMaxWidth,

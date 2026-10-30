@@ -121,7 +121,7 @@ void main() {
 
   group('סליידר רוחב הטקסט', () {
     final widthSlider = find.byWidgetPredicate(
-      (widget) => widget is Slider && widget.min == 0 && widget.max == 14,
+      (widget) => widget is Slider && widget.min == 10 && widget.max == 41,
     );
 
     Future<TestGesture> dragWidth(WidgetTester tester) async {
@@ -146,13 +146,13 @@ void main() {
       verifyNever(
         () => settingsBloc.add(any(that: isA<UpdateTextMaxWidth>())),
       );
-      final shownLevel = tester.widget<Slider>(widthSlider).value;
-      expect(shownLevel, greaterThan(1));
+      final shownStop = tester.widget<Slider>(widthSlider).value;
+      expect(shownStop, lessThan(41), reason: 'הגרירה עברה לרוחב מוגבל');
 
       await gesture.up();
       await tester.pump();
 
-      expect(sentWidths(), [-shownLevel]);
+      expect(sentWidths(), [closeTo(shownStop * 96 / 2.54, 1e-9)]);
     });
 
     testWidgets('בחלונית שמעל הספר הגרירה מחילה את הרוחב בכל צעד', (
@@ -177,7 +177,7 @@ void main() {
 
       final sent = sentWidths();
       expect(sent, hasLength(1));
-      expect(sent.single, lessThan(0));
+      expect(sent.single, greaterThan(0));
     });
   });
 }

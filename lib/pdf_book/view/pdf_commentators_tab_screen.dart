@@ -738,8 +738,7 @@ class _PdfCommentatorsTabScreenState extends State<PdfCommentatorsTabScreen>
     required bool linksLoading,
     required double availableWidth,
   }) {
-    final textMaxWidth = textColumnMaxWidthOf(
-      context,
+    final textMaxWidth = resolveTextColumnMaxWidth(
       setting: context.select((SettingsBloc bloc) => bloc.state.textMaxWidth),
       availableWidth: availableWidth,
     );
