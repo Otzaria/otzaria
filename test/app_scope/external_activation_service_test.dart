@@ -124,6 +124,34 @@ void main() {
     expect(delivered, [_a, _b, _c]);
   });
 
+  test('start watches only the queue directory and drains the legacy file '
+      'once', () async {
+    final legacyFile = File(p.join(tempDir.path, 'legacy.jsonl'));
+    await legacyFile.writeAsString('{"uri":"$_a"}\n');
+    queue = ExternalActivationQueue(
+      queueFilePath: p.join(tempDir.path, 'queue_dir', 'pending.jsonl'),
+      legacyQueueFilePath: legacyFile.path,
+    );
+    final watched = <String>[];
+    final events = StreamController<FileSystemEvent>();
+    addTearDown(events.close);
+    final svc = service(
+      watchDirectory: (dir) {
+        watched.add(dir.path);
+        return events.stream;
+      },
+    )..attachWindow(handler);
+    addTearDown(svc.dispose);
+
+    await svc.start();
+    expect(watched, [p.join(tempDir.path, 'queue_dir')]);
+    expect(delivered, [_a]);
+
+    await legacyFile.writeAsString('{"uri":"$_b"}\n');
+    await svc.processPending();
+    expect(delivered, [_a]);
+  });
+
   group('Dart windows in one isolate', () {
     const viewA = AppWindowId('window-view-2');
     const viewB = AppWindowId('window-view-3');
