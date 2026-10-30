@@ -102,6 +102,7 @@ void main() {
     );
     expect((await scan()).addedBooks, 1);
     final before = (await repository.getAllBooksLean()).single;
+    await repository.getTocEntriesForReference(before.id, before.title);
     final db = await repository.database.database;
     db.execute('''
       CREATE TRIGGER fail_external_toc BEFORE INSERT ON tocEntry
@@ -120,6 +121,13 @@ void main() {
     db.execute('DROP TRIGGER fail_external_toc');
     expect((await scan()).updatedBooks, 1);
     final after = (await repository.getAllBooksLean()).single;
+    expect(
+      (await repository.getTocEntriesForReference(
+        after.id,
+        after.title,
+      )).map((e) => e['reference']),
+      contains(contains('פרק ב')),
+    );
     expect(after.id, before.id);
     expect(after.lastModified, file.statSync().modified.millisecondsSinceEpoch);
     expect((await repository.getBookToc(before.id)).map((e) => e.text), [

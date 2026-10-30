@@ -83,6 +83,10 @@ class SeforimRepository {
 
   Future<DbCapabilities> get _capabilities => _database.capabilities;
 
+  /// מבטל תוכן עניינים שנשמר לפני עדכון הספר בחיבור worker נפרד.
+  void invalidateExternalBookToc(int bookId) =>
+      _invalidateTocCache(bookId: bookId);
+
   /// מבטל את ערך הקאש של [getTocEntriesForReference] ו-[getAltTocEntriesForReference].
   /// אם [bookId] סופק — מבטל רק את הערך של אותו ספר; אחרת מנקה הכול.
   void _invalidateTocCache({int? bookId}) {
