@@ -49,6 +49,27 @@ Future<void> main() async {
     });
   });
 
+  test(
+    'שאילתה ארוכה מאוד אינה מפילה את ה-worker ב-Stack overflow של RegExp',
+    () async {
+      final queries = [
+        'אבגדהוזחטי' * 300,
+        List.filled(600, 'אבגדה').join(' '),
+      ];
+      for (final query in queries) {
+        for (final wholeWord in [true, false]) {
+          final results = await searchInContent(
+            content: ['את השמים $query ואת הארץ'],
+            query: query,
+            wholeWord: wholeWord,
+          );
+          expect(results, isEmpty);
+        }
+      }
+    },
+    skip: !engineReady,
+  );
+
   group('searchInContent - התאמה חלקית (issue #1046)', () {
     test('"שמים" נמצא בתוך "השמים"', () async {
       final results = await searchInContent(

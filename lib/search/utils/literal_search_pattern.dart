@@ -176,6 +176,10 @@ final Map<String, LiteralSearchPattern?> _cache = {};
 /// אורך השאילתה המינימלי להתאמה בתוך מילה.
 const int _minPartialMatchChars = 2;
 
+/// שאילתה ארוכה מזה אינה נחפשת: RegExp מקמפל את התבנית ברקורסיה לפי אורכה,
+/// ומ-~2000 תווים ההתאמה הראשונה זורקת FormatException: Stack overflow.
+const int _maxQueryChars = 1000;
+
 /// האם החיפוש הליטרלי ל-[query] מתאים גם בתוך מילה. ההדגשה בגוף הספר חייבת
 /// לקבל אותו ערך, אחרת אות בודדת מודגשת בתוך מילים שהחיפוש לא מצא.
 bool literalPartialWordMatch(String query, {required bool wholeWord}) =>
@@ -267,7 +271,7 @@ String? _wordPhrase(String word) {
 }
 
 /// בונה (עם קאש) תבנית ליטרלית לשאילתה, לאחר נרמול.
-/// מחזיר `null` לשאילתה ריקה/רק-רווחים.
+/// מחזיר `null` לשאילתה ריקה/רק-רווחים, או ארוכה מ-[_maxQueryChars].
 ///
 /// [wholeWord] `false` מסיר את גבולות המילה, כך ש"שמים" מתאים גם בתוך "השמים";
 /// רווח בקצה השאילתה משאיר את הגבול שבאותו צד (ראו [literalQueryWordEdges]).
@@ -291,7 +295,7 @@ LiteralSearchPattern? buildLiteralPattern(
   // בונים לפני עדכון ה-cache: אם המנוע זורק, ה-cache נשאר עקבי ולא מקבל
   // רשומה חלקית לשאילתה החדשה.
   LiteralSearchPattern? result;
-  if (q.isNotEmpty) {
+  if (q.isNotEmpty && q.length <= _maxQueryChars) {
     final source = _literalSource(q);
     if (source != null) {
       final effective = partial
