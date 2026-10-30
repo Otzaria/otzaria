@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -361,7 +362,10 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   static const _keyBackupPlugins = 'key-backup-plugins';
   static const _keyAutoBackupFrequency = 'key-auto-backup-frequency';
 
-  _BackupMode _selectedBackupMode = _BackupMode.all;
+  late _BackupMode _selectedBackupMode = BackupService.includesAllSections
+      ? _BackupMode.all
+      : _BackupMode.custom;
+  late final StreamSubscription<BoxEvent> _backupSettingsSubscription;
 
   // ── גיבוי (expandable) ─────────────────────────────────────────────────────
   bool _isBackupExpanded = false;
@@ -382,6 +386,16 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   @override
   void initState() {
     super.initState();
+    _backupSettingsSubscription = Hive.box<dynamic>(HiveCache.keyName)
+        .watch()
+        .where((event) => BackupService.sectionSettingKeys.contains(event.key))
+        .listen((_) {
+          setState(() {
+            _selectedBackupMode = BackupService.includesAllSections
+                ? _BackupMode.all
+                : _BackupMode.custom;
+          });
+        });
     _loadVersionInfo();
     _refreshLibraryChanges();
     LibraryChangesNotes.instance.revision.addListener(_refreshLibraryChanges);
@@ -439,6 +453,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
   @override
   void dispose() {
+    unawaited(_backupSettingsSubscription.cancel());
     LibraryChangesNotes.instance.revision.removeListener(
       _refreshLibraryChanges,
     );
@@ -552,9 +567,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     );
   }
 
-  bool _shouldInclude(String key) =>
-      _selectedBackupMode == _BackupMode.all ||
-      (Settings.getValue<bool>(key) ?? true);
+  bool _shouldInclude(String key) => Settings.getValue<bool>(key) ?? true;
 
   // ════════════════════════════════════════════════════════════════════════════
   //  BUILD
@@ -1398,7 +1411,12 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 ),
               ],
               currentValue: _selectedBackupMode,
-              onChanged: (value) => setState(() => _selectedBackupMode = value),
+              onChanged: (value) {
+                if (value == _BackupMode.all) {
+                  unawaited(BackupService.includeAllSections());
+                }
+                setState(() => _selectedBackupMode = value);
+              },
             ),
             if (_selectedBackupMode == _BackupMode.custom) ...[
               _BackupOptionTile(

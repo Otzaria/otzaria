@@ -781,6 +781,25 @@ void main() {
     });
 
     test(
+      'מצב "גבה הכל" נגזר מהמתגים, ובחירתו מדליקה אותם גם לגיבוי האוטומטי (issue #3510)',
+      () async {
+        expect(BackupService.includesAllSections, isTrue);
+        await Settings.setValue<bool>('key-backup-history', false);
+        expect(BackupService.includesAllSections, isFalse);
+
+        await BackupService.includeAllSections();
+        expect(BackupService.includesAllSections, isTrue);
+
+        await BackupService.performAutoBackup();
+        final backups = await BackupService.getAvailableBackups();
+        final manifest = await readManifest(backups.single.path);
+        final includes = manifest['includes'] as Map;
+        expect(includes, hasLength(BackupService.sectionSettingKeys.length));
+        expect(includes.values, everyElement(isTrue));
+      },
+    );
+
+    test(
       'גיבוי אוטומטי של מצב ריק אינו נעשה "הגיבוי האחרון" על פני גיבוי עם נתונים (issue #2610)',
       () async {
         await BookmarkRepository().replaceBookmarks([buildBookmark('בראשית')]);
