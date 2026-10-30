@@ -44,6 +44,56 @@ void main() {
     }
   });
 
+  test('סריקה ו-prune משתמשים במאגר החדש אחרי סגירה ופתיחה מחדש', () async {
+    final officialDatabase = MyDatabase.withPath(
+      path.join(tempDir.path, 'official.db'),
+    );
+    addTearDown(officialDatabase.close);
+    final officialRepository = SeforimRepository(officialDatabase);
+    await officialRepository.ensureInitialized();
+    final folderPath = path.join(tempDir.path, 'אישי');
+    await Directory(folderPath).create();
+    final file = File(path.join(folderPath, 'ספר.txt'));
+    await file.writeAsString('תוכן ראשוני');
+    final folders = [
+      CustomFolder(
+        path: folderPath,
+        addToDatabase: true,
+        addedAt: DateTime(2026, 10, 30),
+      ),
+    ];
+    final first = await FileSyncService.getInstance(
+      officialRepository,
+      userBooksRepository: repository,
+    );
+    final imported = await first!.syncCustomFoldersWithInputs(
+      customFolders: folders,
+    );
+    expect(imported.errors, isEmpty);
+    expect(imported.addedBooks, 1);
+    await database.retireInBackground();
+    final reopenedDatabase = MyDatabase.withPath(database.path);
+    addTearDown(reopenedDatabase.close);
+    final reopenedRepository = SeforimRepository(reopenedDatabase);
+    await reopenedRepository.ensureInitialized();
+    await file.writeAsString('תוכן מעודכן ארוך יותר שנשמר לאחר פתיחה מחדש');
+    final reopened = await FileSyncService.getInstance(
+      officialRepository,
+      userBooksRepository: reopenedRepository,
+    );
+    final updated = await reopened!.syncCustomFoldersWithInputs(
+      customFolders: folders,
+    );
+    expect(updated.errors, isEmpty);
+    expect(updated.updatedBooks, 1);
+    final book = (await reopenedRepository.getAllBooksLean()).single;
+    final lines = await reopenedRepository.getLines(book.id, 0, 100);
+    expect(lines.map((line) => line.content).join(), contains('תוכן מעודכן'));
+    await reopened.refreshSourcesAndPruneRemovedCustomFolders(const []);
+    expect(await reopenedRepository.getAllBooksLean(), isEmpty);
+    expect(database.isOpen, isFalse);
+  });
+
   test('סנכרון לא מוחק תיקייה מותאמת חדשה עם ספר ברמת השורש', () async {
     final customFolderPath = path.join(tempDir.path, 'היברו');
     await Directory(customFolderPath).create(recursive: true);

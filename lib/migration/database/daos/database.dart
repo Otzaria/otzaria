@@ -105,6 +105,7 @@ class MyDatabase {
     if (_retired) throw StateError('Database $_path was released');
     // Initialize QueryLoader before creating DAOs
     await QueryLoader.initialize();
+    if (_retired) throw StateError('Database $_path was released');
     _database = _initDatabase();
     return _database!;
   }
@@ -333,6 +334,12 @@ class MyDatabase {
     _retired = true;
   }
 
+  /// משחרר לצמיתות כמו [retire], עם מיזוג WAL ברקע.
+  Future<void> retireInBackground() {
+    _retired = true;
+    return closeInBackground();
+  }
+
   /// ראה [shrinkMemoryBestEffort]; לא פותח חיבור סגור.
   bool shrinkMemoryIfOpen() => shrinkMemoryBestEffort(_database);
 
@@ -343,6 +350,15 @@ class MyDatabase {
       _readOnly ? db.close() : closeWithCheckpoint(db);
     }
     _database = null;
+  }
+
+  /// כמו [close], אבל מיזוג ה-WAL אינו רץ על ה-isolate הקורא.
+  Future<void> closeInBackground() async {
+    final db = _database;
+    if (db == null || _readOnly) return close();
+    DbCapabilities.invalidate(_path);
+    _database = null;
+    await closeWithCheckpointInBackground(db, _path);
   }
 
   List<String> _getCreateScripts() {

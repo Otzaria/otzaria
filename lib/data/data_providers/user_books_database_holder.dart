@@ -30,8 +30,16 @@ class UserBooksDatabaseHolder {
   /// אם האתחול נכשל (DB נעול, נתיב חסר הרשאות וכו'), ה-Future שנשמר
   /// מאופס כדי שקריאה חוזרת תנסה לפתוח את ה-DB מחדש במקום להחזיר את
   /// אותה שגיאה לנצח.
-  Future<SeforimRepository> get repository {
+  Future<SeforimRepository> get repository => _openRepository();
+
+  Future<SeforimRepository> _openRepository() {
     if (_repository != null) return Future.value(_repository!);
+    // פתיחה בזמן המיזוג ברקע הייתה מחזיקה את הקובץ אחרי שהסגירה הסתיימה.
+    final closing = _closeFuture;
+    if (_releasing && closing != null) {
+      // מאפשר להמשכי close להחליף את הקובץ סינכרונית, לפני פתיחה חוזרת.
+      return closing.then((_) => Future(_openRepository));
+    }
     return _initFuture ??= _initialize().onError<Object>((error, stackTrace) {
       _initFuture = null;
       throw error;
@@ -78,6 +86,7 @@ class UserBooksDatabaseHolder {
 
   final Set<Future<void>> _activeReads = {};
   Future<void>? _closeFuture;
+  bool _releasing = false;
 
   /// הסגירה ממתינה לקריאה כולה, כולל הכנת הנתיב ופתיחת חיבורים זמניים.
   /// קריאה שמתחילה בזמן הסגירה מדולגת בלי לפתוח מחדש את הקובץ.
@@ -104,10 +113,17 @@ class UserBooksDatabaseHolder {
     for (final listener in _closeListeners.toList()) {
       await listener();
     }
-    _database?.close();
+    final database = _database;
     _database = null;
     _repository = null;
     _dbPath = null;
     _initFuture = null;
+    if (database == null) return;
+    _releasing = true;
+    try {
+      await database.retireInBackground();
+    } finally {
+      _releasing = false;
+    }
   }
 }

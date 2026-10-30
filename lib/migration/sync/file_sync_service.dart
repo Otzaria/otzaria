@@ -84,7 +84,10 @@ class FileSyncService {
     required SeforimRepository userBooksRepository,
   }) async {
     if (repository == null) return null;
-    _instance ??= FileSyncService._(repository, userBooksRepository);
+    if (!identical(_instance?._repository, repository) ||
+        !identical(_instance?._userBooksRepository, userBooksRepository)) {
+      _instance = FileSyncService._(repository, userBooksRepository);
+    }
     return _instance;
   }
 
