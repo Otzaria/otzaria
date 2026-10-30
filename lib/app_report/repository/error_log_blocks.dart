@@ -55,10 +55,19 @@ class ErrorLogBlock {
   }
 
   /// חתימה לפי ההודעה וה-stack; לרשומה בלי הודעה — לפי הכותרת.
-  CrashSignature get signature => CrashSignature.fromLogText(
-    exceptionMessage: exceptionMessage ?? title,
-    stackText: isAppHang ? _hangSignatureStack(stackText) : stackText,
-  );
+  CrashSignature get signature {
+    final message = exceptionMessage ?? title;
+    if (!isAppHang) {
+      return CrashSignature.fromLogText(
+        exceptionMessage: message,
+        stackText: stackText,
+      );
+    }
+    return CrashSignature(
+      exceptionType: CrashSignature.exceptionTypeFromMessage(message),
+      frames: _hangSignatureFrames(stackText),
+    );
+  }
 }
 
 /// בתקיעה הפריימים העליונים הם המתנה של מערכת ההפעלה, זהה לכל התקיעות.
@@ -82,24 +91,41 @@ const Set<String> _systemModules = {
   'vcruntime140_1.dll',
 };
 
-String _hangSignatureStack(String stackText) {
-  final kept = <String>[];
-  var inDart = false;
-  for (final line in const LineSplitter().convert(stackText)) {
-    final frame = line.trim().toLowerCase();
-    // מתחת לקוד Dart יש רק כניסת המנוע ולולאת ההודעות, זהות לכל תקיעה בו.
-    final isDart = frame.startsWith('app.so+');
-    if (inDart && !isDart) break;
-    inDart = isDart;
+/// פריימי app.so הראשונים הם לרוב SDK כללי (`existsSync`) והקורא עמוק יותר, ולכן
+/// נלקחים 8, ארבעה בכל פריט, כי השרת מקבל עד [CrashSignature.maxFrames] פריטים.
+const int _hangDartFrames = 8;
+const int _hangDartFramesPerEntry = 4;
+
+List<String> _hangSignatureFrames(String stackText) {
+  final frames = [
+    for (final line in const LineSplitter().convert(stackText))
+      if (line.trim().isNotEmpty) line.trim(),
+  ];
+  bool isDart(String frame) => frame.toLowerCase().startsWith('app.so+');
+  final dartAt = frames.indexWhere(isDart);
+  if (dartAt < 0) return _nativeHangFrames(frames);
+
+  // מתחת לרצף הראשון יש רק כניסת המנוע ולולאת ההודעות, זהות לכל תקיעה.
+  var run = frames.skip(dartAt).takeWhile(isDart);
+  // מחסנית שמתחילה ב-Dart: הפריים העליון הוא PC של קוד רץ, לא כתובת חזרה, וזז.
+  if (dartAt == 0 && run.length > 1) run = run.skip(1);
+  // כפילויות (רקורסיה) נדחסות, כדי שעומק שונה לא ישנה את החתימה.
+  final distinct = run.toSet().take(_hangDartFrames).toList();
+  return [
+    for (var i = 0; i < distinct.length; i += _hangDartFramesPerEntry)
+      distinct.skip(i).take(_hangDartFramesPerEntry).join(' '),
+  ];
+}
+
+/// תקיעה בלי קוד Dart: הפריימים הראשונים שאינם המתנה של מערכת ההפעלה.
+List<String> _nativeHangFrames(List<String> frames) {
+  final kept = frames.where((frame) {
     final plus = frame.indexOf('+');
-    if (plus <= 0 || !_systemModules.contains(frame.substring(0, plus))) {
-      kept.add(line);
-    }
-  }
-  final hasFrame = kept.any(
-    (line) => CrashSignature.normalizeFrame(line) != null,
-  );
-  return hasFrame ? kept.join('\n') : stackText;
+    return plus <= 0 ||
+        !_systemModules.contains(frame.substring(0, plus).toLowerCase());
+  }).toList();
+  final hasFrame = kept.any((f) => CrashSignature.normalizeFrame(f) != null);
+  return CrashSignature.selectFrames((hasFrame ? kept : frames).join('\n'));
 }
 
 final RegExp _blockHeader = RegExp(r'^===\s+(.*?)\s+(\S+)\s+===\s*$');

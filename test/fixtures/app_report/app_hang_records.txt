@@ -1,0 +1,433 @@
+=== App hang 2026-10-30T01:57:16Z ===
+Version: 0.9.98+99802
+Message: AppHang: UI thread not responding
+Detected: 103353621ms after launch
+Build commit: 1b9f23664bd2-dirty
+Dart build-id: 8f71c5c9358ab325e928c0732aac29a5
+Stack (module+RVA):
+  ntdll.dll+0x164784
+  KERNELBASE.dll+0x23fff
+  flutter_windows.dll+0x796e56
+  flutter_windows.dll+0x795d5b
+  flutter_windows.dll+0x790c0b
+  flutter_windows.dll+0x81e5de
+  app.so+0x2361b43
+  app.so+0x11d6562
+  app.so+0x22125c0
+  app.so+0x184c2ff
+  app.so+0x186ef8d
+  app.so+0x186dc59
+  app.so+0x186e57f
+  app.so+0x186df5e
+  app.so+0x186e57f
+  app.so+0x186df5e
+  app.so+0x186e57f
+  app.so+0x186df5e
+  app.so+0x186e57f
+  app.so+0x186df5e
+  app.so+0x186e57f
+  app.so+0x186ca7e
+  app.so+0x2350f9c
+  app.so+0x235218c
+  app.so+0x10106ef
+  app.so+0x10105a9
+  app.so+0x101056f
+  app.so+0x236198b
+  flutter_windows.dll+0x7fa80b
+  flutter_windows.dll+0x7faedf
+  flutter_windows.dll+0x7fb37f
+  flutter_windows.dll+0xdd25af
+  flutter_windows.dll+0x732b98
+  flutter_windows.dll+0x70f6fd
+  flutter_windows.dll+0xdc893
+  flutter_windows.dll+0xd207f
+  flutter_windows.dll+0x1a567
+  flutter_windows.dll+0x31fc2
+  flutter_windows.dll+0x33e77
+  flutter_windows.dll+0x33f7f
+  USER32.dll+0x152e6
+  USER32.dll+0x15dbd
+  otzaria.exe+0x13144
+  otzaria.exe+0x2099a
+  KERNEL32.DLL+0x2dda7
+  ntdll.dll+0x7ee4c
+
+=== App hang 2026-10-30T06:47:41Z ===
+Version: 0.9.98+99802
+Message: AppHang: UI thread not responding
+Detected: 11222ms after launch
+Build commit: 1b9f23664bd2-dirty
+Dart build-id: 8f71c5c9358ab325e928c0732aac29a5
+Stack (module+RVA):
+  ntdll.dll+0x168e14
+  KERNELBASE.dll+0x1c3df
+  flutter_windows.dll+0x796e56
+  flutter_windows.dll+0x795d5b
+  flutter_windows.dll+0x790c0b
+  flutter_windows.dll+0x81e5de
+  app.so+0x2361b43
+  app.so+0x11d6562
+  app.so+0x22125c0
+  app.so+0x184c2ff
+  app.so+0x186ef8d
+  app.so+0x186dc59
+  app.so+0x186e57f
+  app.so+0x186df5e
+  app.so+0x186e57f
+  app.so+0x186df5e
+  app.so+0x186e57f
+  app.so+0x186df5e
+  app.so+0x186e57f
+  app.so+0x186ca7e
+  app.so+0x2350f9c
+  app.so+0x235218c
+  app.so+0x10106ef
+  app.so+0x10105a9
+  app.so+0x101056f
+  app.so+0x236198b
+  flutter_windows.dll+0x7fa80b
+  flutter_windows.dll+0x7faedf
+  flutter_windows.dll+0x7fb37f
+  flutter_windows.dll+0xdd25af
+  flutter_windows.dll+0x732b98
+  flutter_windows.dll+0x70f6fd
+  flutter_windows.dll+0xdc893
+  flutter_windows.dll+0xd207f
+  flutter_windows.dll+0x1a567
+  flutter_windows.dll+0x31fc2
+  flutter_windows.dll+0x33e77
+  flutter_windows.dll+0x33f7f
+  USER32.dll+0x152e6
+  USER32.dll+0x15dbd
+  otzaria.exe+0x13144
+  otzaria.exe+0x2099a
+  KERNEL32.DLL+0x2dda7
+  ntdll.dll+0xc9c5c
+
+=== App hang 2026-10-28T07:36:13Z ===
+Version: 0.9.98+99802
+Message: AppHang: UI thread not responding
+Detected: 95459ms after launch
+Build commit: 1b9f23664bd2-dirty
+Dart build-id: 8f71c5c9358ab325e928c0732aac29a5
+Stack (module+RVA):
+  ntdll.dll+0x1637d4
+  KERNELBASE.dll+0x23fff
+  flutter_windows.dll+0x796e56
+  flutter_windows.dll+0x795d5b
+  flutter_windows.dll+0x790c0b
+  flutter_windows.dll+0x81e5de
+  app.so+0x2361b43
+  app.so+0x11d6562
+  app.so+0x22125c0
+  app.so+0x1ba0094
+  app.so+0x218f1dd
+  app.so+0x161aa63
+  app.so+0x161b056
+  app.so+0x16e9202
+  app.so+0x163f4c6
+  app.so+0x16e89e8
+  app.so+0x163df00
+  app.so+0x16e89e8
+  app.so+0x16e88a3
+  app.so+0x161bf4d
+  app.so+0x1621781
+  app.so+0x161ad15
+  app.so+0x162654f
+  app.so+0x161ad15
+  app.so+0x161b056
+  app.so+0x1626d0c
+  app.so+0x1620d9b
+  app.so+0x161ad15
+  app.so+0x162654f
+  app.so+0x1626183
+  app.so+0x161ad15
+  app.so+0x161b056
+  app.so+0x1626d0c
+  app.so+0x161ad15
+  app.so+0x1626a4d
+  app.so+0x161ad15
+  app.so+0x161b056
+  app.so+0x1626d0c
+  app.so+0x161ad15
+  app.so+0x161b056
+  app.so+0x1164f68
+  app.so+0x1164b0f
+  app.so+0x11649f7
+  app.so+0x117f0dc
+  app.so+0x117ead1
+  app.so+0x117ea9f
+  app.so+0x22d1ba2
+  app.so+0x22d18dd
+
+=== App hang 2026-10-27T17:28:46Z ===
+Version: 0.9.98+99802
+Message: AppHang: UI thread not responding
+Detected: 303986ms after launch
+Build commit: 1b9f23664bd2-dirty
+Dart build-id: 8f71c5c9358ab325e928c0732aac29a5
+Stack (module+RVA):
+  ntdll.dll+0x160ec4
+  KERNELBASE.dll+0xb218a
+  sqlite3.dll+0x22535
+  sqlite3.dll+0x12b31f
+  sqlite3.dll+0x128e3e
+  sqlite3.dll+0x10c744
+  sqlite3.dll+0xe3021
+  sqlite3.dll+0x12275c
+  sqlite3.dll+0x106ccb
+  sqlite3.dll+0x105747
+  sqlite3.dll+0xf5eb7
+  sqlite3.dll+0x8a45
+  app.so+0x1061bc0
+  app.so+0x1061b5f
+  app.so+0x1061ad2
+  app.so+0x10e35e2
+  app.so+0x10e358c
+  app.so+0x10e3532
+  app.so+0x10e3479
+  app.so+0x175c101
+  app.so+0x2350f9c
+  app.so+0x235218c
+  app.so+0x10106ef
+  app.so+0x10105a9
+  app.so+0x101056f
+  app.so+0x236198b
+  flutter_windows.dll+0x7fa80b
+  flutter_windows.dll+0x7faedf
+  flutter_windows.dll+0x7fb37f
+  flutter_windows.dll+0xdd25af
+  flutter_windows.dll+0x732b98
+  flutter_windows.dll+0x70f6fd
+  flutter_windows.dll+0xdc893
+  flutter_windows.dll+0xd207f
+  flutter_windows.dll+0x1a567
+  flutter_windows.dll+0x31fc2
+  flutter_windows.dll+0x33e77
+  flutter_windows.dll+0x33f7f
+  USER32.dll+0x152c6
+  USER32.dll+0x15d9d
+  otzaria.exe+0x13144
+  otzaria.exe+0x2099a
+  KERNEL32.DLL+0x2cd87
+  ntdll.dll+0xacaec
+
+=== App hang 2026-10-28T22:45:32Z ===
+Version: 0.9.98+99802
+Message: AppHang: UI thread not responding
+Detected: 551653ms after launch
+Build commit: 1b9f23664bd2-dirty
+Dart build-id: 8f71c5c9358ab325e928c0732aac29a5
+Stack (module+RVA):
+  ntdll.dll+0x161e54
+  KERNELBASE.dll+0xb204a
+  sqlite3.dll+0x22535
+  sqlite3.dll+0x12b31f
+  sqlite3.dll+0x128e3e
+  sqlite3.dll+0x10c744
+  sqlite3.dll+0xe3021
+  sqlite3.dll+0x12275c
+  sqlite3.dll+0x106ccb
+  sqlite3.dll+0x105747
+  sqlite3.dll+0xf5eb7
+  sqlite3.dll+0x8a45
+  app.so+0x1061bc0
+  app.so+0x1061b5f
+  app.so+0x1061ad2
+  app.so+0x10e35e2
+  app.so+0x10e358c
+  app.so+0x10e3532
+  app.so+0x10e3479
+  app.so+0x133dfed
+  app.so+0x2350f9c
+  app.so+0x235218c
+  app.so+0x10106ef
+  app.so+0x10105a9
+  app.so+0x101056f
+  app.so+0x236198b
+  flutter_windows.dll+0x7fa80b
+  flutter_windows.dll+0x7faedf
+  flutter_windows.dll+0x7fb37f
+  flutter_windows.dll+0xdd25af
+  flutter_windows.dll+0x732b98
+  flutter_windows.dll+0x70f6fd
+  flutter_windows.dll+0xdc893
+  flutter_windows.dll+0xd207f
+  flutter_windows.dll+0x1a567
+  flutter_windows.dll+0x31fc2
+  flutter_windows.dll+0x33e77
+  flutter_windows.dll+0x33f7f
+  USER32.dll+0x152e6
+  USER32.dll+0x15dbd
+  otzaria.exe+0x13144
+  otzaria.exe+0x2099a
+  KERNEL32.DLL+0x2dda7
+  ntdll.dll+0x7ee4c
+
+=== App hang 2026-10-28T19:49:00Z ===
+Version: 0.9.98+99802
+Message: AppHang: UI thread not responding
+Detected: 44519721ms after launch
+Build commit: 1b9f23664bd2-dirty
+Dart build-id: 8f71c5c9358ab325e928c0732aac29a5
+Stack (module+RVA):
+  flutter_windows.dll+0x7cb9d8
+  flutter_windows.dll+0x7cb586
+  flutter_windows.dll+0x81df20
+  app.so+0x2361c3b
+  app.so+0x23506ff
+  app.so+0x1631069
+  app.so+0x1f43c02
+  app.so+0x1f43b8b
+  app.so+0x163a5d5
+  app.so+0x117f560
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+
+=== App hang 2026-10-28T12:08:28Z ===
+Version: 0.9.98+99802
+Message: AppHang: UI thread not responding
+Detected: 66691123ms after launch
+Build commit: 1b9f23664bd2-dirty
+Dart build-id: 8f71c5c9358ab325e928c0732aac29a5
+Stack (module+RVA):
+  flutter_windows.dll+0x7c8684
+  flutter_windows.dll+0x7cb6e6
+  flutter_windows.dll+0x81df20
+  app.so+0x2361c3b
+  app.so+0x23506ff
+  app.so+0x1631069
+  app.so+0x1f43c02
+  app.so+0x1f43b8b
+  app.so+0x163a5d5
+  app.so+0x117f560
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2c80
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+  app.so+0x117f54b
+  app.so+0x117f58f
+  app.so+0x16c2470
+
+=== App hang 2026-10-27T23:06:43Z ===
+Version: 0.9.98+99802
+Message: AppHang: UI thread not responding
+Detected: 897009ms after launch
+Build commit: 1b9f23664bd2-dirty
+Dart build-id: 8f71c5c9358ab325e928c0732aac29a5
+Stack (module+RVA):
+  ntdll.dll+0x9da84
+  KERNELBASE.dll+0x2783a
+  flutter_windows.dll+0xfde46a
+  flutter_windows.dll+0x796221
+  flutter_windows.dll+0x791d6b
+  flutter_windows.dll+0x81e5de
+  app.so+0x2361b43
+  app.so+0x220a47a
+  app.so+0x220a350
+  app.so+0x1954e77
+  app.so+0x2350f9c
+  app.so+0x10223a5
+  app.so+0x102222c
+  app.so+0x1010dc6
+  app.so+0x1010a4c
+  app.so+0x2351356
+  app.so+0x235d92d
+  app.so+0x2350f9c
+  app.so+0x10223a5
+  app.so+0x102222c
+  app.so+0x1010dc6
+  app.so+0x1010a4c
+  app.so+0x2351356
+  app.so+0x235d92d
+  app.so+0x2350f9c
+  app.so+0x10223a5
+  app.so+0x102222c
+  app.so+0x1010dc6
+  app.so+0x1010a4c
+  app.so+0x2351356
+  app.so+0x235d92d
+  app.so+0x2350f9c
+  app.so+0x10223a5
+  app.so+0x102222c
+  app.so+0x1010dc6
+  app.so+0x1010a4c
+  app.so+0x2351356
+  app.so+0x235d92d
+  app.so+0x2350f9c
+  app.so+0x10223a5
+  app.so+0x102222c
+  app.so+0x1010dc6
+  app.so+0x1010a4c
+  app.so+0x2351356
+  app.so+0x235d92d
+  app.so+0x2350f9c
+  app.so+0x10223a5
+  app.so+0x102222c
