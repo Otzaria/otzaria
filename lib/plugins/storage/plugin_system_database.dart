@@ -27,6 +27,7 @@ class PluginSystemDatabase {
   String? _dbPath;
   List<(String, List<Object?>)>? _openWriteBatch;
   Future<void>? _writeTail;
+  final Set<Future<void>> _pendingReads = {};
 
   Future<Database> get database async {
     // בלי כתיבה ממתינה אין await: מתחת ל-FakeAsync הוא לא היה מתקדם.
@@ -589,19 +590,14 @@ class PluginSystemDatabase {
     );
   }
 
+  /// מעליו הקריאה רצה ב-isolate: ערך גדול נקרא מהדיסק דף אחר דף ותוקע את ה-UI (#3644).
+  static const int maxInlineKVReadBytes = 64 * 1024;
+
   Future<String?> getPluginKV(
     String pluginId,
     String namespace,
     String key,
-  ) async {
-    final db = await database;
-    final results = db.select(
-      'SELECT value_json FROM plugin_kv_store WHERE plugin_id = ? AND namespace = ? AND key = ?',
-      [pluginId, namespace, key],
-    );
-    if (results.isEmpty) return null;
-    return results.first['value_json'] as String?;
-  }
+  ) async => (await getPluginKVMany(pluginId, namespace, [key]))[key];
 
   /// קריאה מרוכזת של מפתחות KV בשאילתה אחת. מפתח שאינו קיים חסר מהמפה.
   /// [keys] נחתך ל-[maxKVBulkKeys] כדי לא לבנות משפט SQL ענק.
@@ -611,8 +607,55 @@ class PluginSystemDatabase {
     Iterable<String> keys,
   ) async {
     if (keys.isEmpty) return const {};
-    return selectKVMany(await database, pluginId, namespace, keys);
+    final db = await database;
+    // octet_length אינו טוען את דפי ה-overflow של הערך.
+    final bytes = _selectKV(
+      db,
+      'octet_length(value_json)',
+      pluginId,
+      namespace,
+      keys,
+    ).fold(0, (sum, row) => sum + (row['v'] as int));
+    if (bytes <= maxInlineKVReadBytes) {
+      return selectKVMany(db, pluginId, namespace, keys);
+    }
+    return _readKVInIsolate(pluginId, namespace, keys.toList());
   }
+
+  Future<Map<String, String>> _readKVInIsolate(
+    String pluginId,
+    String namespace,
+    List<String> keys,
+  ) async {
+    // קריאה שמתחילה אחרי בקשת העברה רצה על הנתיב החדש; הניקוז מחכה רק לרצות.
+    for (
+      var released = _storageMoveWritesReleased;
+      released != null;
+      released = _storageMoveWritesReleased
+    ) {
+      await released.future;
+      await database;
+    }
+    final read = _selectKVInIsolate(_dbPath!, pluginId, namespace, keys);
+    final settled = _settled(read);
+    _pendingReads.add(settled);
+    settled.then((_) => _pendingReads.remove(settled));
+    return read;
+  }
+
+  static Future<Map<String, String>> _selectKVInIsolate(
+    String path,
+    String pluginId,
+    String namespace,
+    List<String> keys,
+  ) => Isolate.run(() {
+    final db = openSecondaryWritableConnection(path, 'PluginDbRead');
+    try {
+      return selectKVMany(db, pluginId, namespace, keys);
+    } finally {
+      db.close();
+    }
+  }, debugName: 'PluginDbRead');
 
   /// הלוגיקה הטהורה של [getPluginKVMany] על Database נתון — חשוף לבדיקות.
   @visibleForTesting
@@ -621,10 +664,19 @@ class PluginSystemDatabase {
     String pluginId,
     String namespace,
     Iterable<String> keys,
-  ) {
+  ) => {
+    for (final row in _selectKV(db, 'value_json', pluginId, namespace, keys))
+      if (row['v'] case final String value) row['key'] as String: value,
+  };
+
+  static Iterable<Row> _selectKV(
+    Database db,
+    String value,
+    String pluginId,
+    String namespace,
+    Iterable<String> keys,
+  ) sync* {
     final unique = keys.toSet().toList();
-    if (unique.isEmpty) return const {};
-    final values = <String, String>{};
     // אצווה חוסמת את גודל משפט ה-SQL, אבל אף מפתח אינו נזרק: תנאי שנשען על
     // מפתח שנחתך היה מוערך false בשקט.
     for (var start = 0; start < unique.length; start += maxKVBulkKeys) {
@@ -633,17 +685,12 @@ class PluginSystemDatabase {
         (start + maxKVBulkKeys).clamp(0, unique.length),
       );
       final placeholders = List.filled(batch.length, '?').join(', ');
-      final rows = db.select(
-        'SELECT key, value_json FROM plugin_kv_store '
+      yield* db.select(
+        'SELECT key, $value AS v FROM plugin_kv_store '
         'WHERE plugin_id = ? AND namespace = ? AND key IN ($placeholders)',
         [pluginId, namespace, ...batch],
       );
-      for (final row in rows) {
-        final value = row['value_json'];
-        if (value is String) values[row['key'] as String] = value;
-      }
     }
-    return values;
   }
 
   Future<void> removePluginKV(
@@ -706,9 +753,15 @@ class PluginSystemDatabase {
   static Future<void> _settled(Future<void> future) =>
       future.then((_) {}, onError: (_) {});
 
+  /// גם קריאות שרצות ב-isolate, כדי שלא יישאר חיבור לקובץ הישן בזמן העברה.
   Future<void> _drainWrites() async {
-    for (var tail = _writeTail; tail != null; tail = _writeTail) {
-      await _settled(tail);
+    while (true) {
+      final pending = [
+        if (_writeTail case final tail?) _settled(tail),
+        ..._pendingReads,
+      ];
+      if (pending.isEmpty) return;
+      await Future.wait(pending);
     }
   }
 
@@ -1017,6 +1070,7 @@ class PluginSystemDatabase {
   void resetForTests() {
     _openWriteBatch = null;
     _writeTail = null;
+    _pendingReads.clear();
     _database?.close();
     _database = null;
     _opening = null;
