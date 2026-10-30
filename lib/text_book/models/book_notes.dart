@@ -23,6 +23,9 @@ class BookNotes {
   /// מספר השורות שיש בהן הערות.
   int get lineCount => _byLine.length;
 
+  /// השורות (0-based) שיש בהן הערות, בלי סדר מובטח.
+  Iterable<int> get lineIndexes => _byLine.keys;
+
   /// ההערות של שורה [lineIndex] (0-based), לפי סדר הקריאה.
   List<BookNote> notesAt(int lineIndex) => _byLine[lineIndex] ?? const [];
 

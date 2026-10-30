@@ -284,6 +284,31 @@ void main() {
       expect(copied!.plainText, 'ספר, פרק א\nטקסט');
     });
 
+    test('כותרת הערה משתמשת במקור בלי לשנות את אינדקס בחירת ה-HTML', () async {
+      final state = _state('גוף', link, const TextDisplayPatch()).copyWith(
+        content: const [
+          '<h2>פרק א</h2>',
+          'גוף',
+          '<h2>פרק ב</h2>',
+          'מקור ההערה',
+        ],
+      );
+      final copied = await buildSelectedTextCopy(
+        plainText: 'הערה',
+        selectedIndex: 0,
+        sourceContent: const ['<b>הערה</b>'],
+        textBookState: state,
+        settingsState: SettingsState.initial().copyWith(
+          copyWithHeaders: 'book_and_path',
+          copyHeaderFormat: 'separate_line_before',
+        ),
+        headerContentOverride: state.content,
+        headerIndexOverride: 3,
+      );
+      expect(copied!.plainText, 'ספר בדיקה, פרק ב\nהערה');
+      expect(copied.htmlText, contains('<b>הערה</b>'));
+    });
+
     test('חיפוש זמינות מבחין בגבולות ובטווח חסר, ומאפשר מידע חסר', () {
       final state = _state('טקסט', link, const TextDisplayPatch()).copyWith(
         loadedLineFlags: const [true, true, false, false, true, true],
