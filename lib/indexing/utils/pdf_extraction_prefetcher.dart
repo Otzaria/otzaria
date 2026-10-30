@@ -48,7 +48,7 @@ class PdfExtractionPrefetcher {
     this.maxInFlight = defaultMaxInFlight,
     this.maxPendingChars = defaultMaxPendingChars,
     this.maxInFlightBytes = defaultMaxInFlightBytes,
-    @visibleForTesting int Function(String path)? fileSizeOf,
+    @visibleForTesting Future<int> Function(String path)? fileSizeOf,
   }) : _fileSizeOf = fileSizeOf ?? _statFileSize;
 
   /// PDFium מעבד את כל הקריאות ב-worker יחיד. תור עמוק רק מפעיל timeouts
@@ -67,12 +67,14 @@ class PdfExtractionPrefetcher {
   final int maxInFlight;
   final int maxPendingChars;
   final int maxInFlightBytes;
-  final int Function(String path) _fileSizeOf;
+  final Future<int> Function(String path) _fileSizeOf;
 
   final List<_PrefetchSlot> _slots = [];
   int _pendingChars = 0;
   int _inFlightBytes = 0;
   int _scanIndex = 0;
+  Future<void>? _filling;
+  bool _disposed = false;
 
   /// מספר החילוצים שרצים או ממתינים מוכנים.
   int get length => _slots.length;
@@ -87,18 +89,35 @@ class PdfExtractionPrefetcher {
 
   /// סורק את [books] קדימה מ-[fromIndex] ומזניק חילוץ לכל ספר PDF שעונה על
   /// [shouldPrefetch], עד שאחת התקרות מתמלאת. הסריקה מתקדמת בלבד.
-  void fill(
+  Future<void> fill(
     List<Book> books,
     int fromIndex, {
     required bool Function(PdfBook book) shouldPrefetch,
   }) {
     if (_scanIndex < fromIndex) _scanIndex = fromIndex;
-    while (_scanIndex < books.length && _hasCapacity) {
-      final candidate = books[_scanIndex];
-      _scanIndex++;
-      if (candidate is PdfBook && shouldPrefetch(candidate)) {
-        _start(candidate);
+    // קריאה חופפת מצטרפת לסריקה הרצה, כדי שלא תזניק את אותו ספר פעמיים.
+    return _filling ??= _scan(
+      books,
+      shouldPrefetch,
+    ).whenComplete(() => _filling = null);
+  }
+
+  Future<void> _scan(
+    List<Book> books,
+    bool Function(PdfBook book) shouldPrefetch,
+  ) async {
+    while (!_disposed && _scanIndex < books.length && _hasCapacity) {
+      final index = _scanIndex;
+      final candidate = books[index];
+      if (candidate is! PdfBook || !shouldPrefetch(candidate)) {
+        _scanIndex++;
+        continue;
       }
+      final fileBytes = await _fileSizeOf(candidate.path);
+      // התקציב או הסריקה עשויים להשתנות בזמן המדידה.
+      if (_disposed || _scanIndex != index || !_hasCapacity) continue;
+      _scanIndex++;
+      _start(candidate, fileBytes);
     }
   }
 
@@ -129,6 +148,7 @@ class PdfExtractionPrefetcher {
   /// משליך את החילוצים שנותרו בתור, כדי שחילוץ שמסתיים אחרי עצירת האינדוקס
   /// לא יעדכן את מוני התקציב.
   void dispose() {
+    _disposed = true;
     for (final slot in _slots) {
       slot.detached = true;
     }
@@ -144,8 +164,8 @@ class PdfExtractionPrefetcher {
     return _pendingChars < maxPendingChars && _inFlightBytes < maxInFlightBytes;
   }
 
-  void _start(PdfBook book) {
-    final slot = _PrefetchSlot(book, _fileSizeOf(book.path));
+  void _start(PdfBook book, int fileBytes) {
+    final slot = _PrefetchSlot(book, fileBytes);
     _slots.add(slot);
     _inFlightBytes += slot.fileBytes;
     slot.completion = extract(book).then(
@@ -200,9 +220,10 @@ class PdfExtractionPrefetcher {
     return chars;
   }
 
-  static int _statFileSize(String path) {
+  // stat סינכרוני חוסם את ה-UI בכונן רשת/ענן או תחת אנטי-וירוס (#3691).
+  static Future<int> _statFileSize(String path) async {
     try {
-      return File(path).statSync().size;
+      return (await File(path).stat()).size;
     } catch (_) {
       return 0;
     }
