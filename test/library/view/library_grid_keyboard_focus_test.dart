@@ -352,6 +352,51 @@ void main() {
     expect(position.pixels, 0);
     expect(_focusedBook(), 'ספר 0');
   });
+
+  testWidgets('בתצוגת רשימה החיצים עוברים שורה-שורה ולא חוזרים לשורה '
+      'הראשונה (issue #3622)', (tester) async {
+    final library = Library(categories: []);
+    final books = [
+      for (var i = 0; i < 5; i++) TextBook(title: 'ספר $i', author: 'מחבר'),
+    ];
+    final focusRepository = FocusRepository();
+    await _pumpBrowser(
+      tester,
+      LibraryState(
+        library: library,
+        currentCategory: library,
+        searchResults: books,
+        searchQuery: 'ספר',
+      ),
+      focusRepository: focusRepository,
+      settingsState: SettingsState.initial().copyWith(libraryViewMode: 'list'),
+    );
+
+    focusRepository.requestLibrarySearchFocus();
+    await tester.pump();
+    for (var i = 0; i < 4; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(_focusedListRow(books), 'ספר $i', reason: 'חץ-מטה מספר ${i + 1}');
+    }
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    expect(_focusedListRow(books), 'ספר 2');
+  });
+}
+
+String? _focusedListRow(List<Book> books) {
+  final focused = FocusManager.instance.primaryFocus?.context;
+  if (focused == null) return null;
+  for (final book in books) {
+    final inFocused = find.descendant(
+      of: find.byElementPredicate((e) => identical(e, focused)),
+      matching: find.text(book.title, findRichText: true),
+    );
+    if (inFocused.evaluate().isNotEmpty) return book.title;
+  }
+  return null;
 }
 
 String? _focusedBook() => FocusManager.instance.primaryFocus?.context
@@ -373,6 +418,7 @@ Future<LibraryBloc> _pumpBrowser(
   WidgetTester tester,
   LibraryState initialState, {
   FocusRepository? focusRepository,
+  SettingsState? settingsState,
 }) async {
   final libraryBloc = _MockLibraryBloc();
   final settingsBloc = _MockSettingsBloc();
@@ -388,7 +434,7 @@ Future<LibraryBloc> _pumpBrowser(
   whenListen(
     settingsBloc,
     const Stream<SettingsState>.empty(),
-    initialState: SettingsState.initial(),
+    initialState: settingsState ?? SettingsState.initial(),
   );
   whenListen(
     navigationBloc,
