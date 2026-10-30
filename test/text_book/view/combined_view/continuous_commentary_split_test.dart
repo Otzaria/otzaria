@@ -80,7 +80,7 @@ Future<_TestTextBookBloc> _pumpContinuousView(
   bool simple = false,
   bool preview = false,
   bool isMainText = true,
-  double textMaxWidth = -1,
+  double textMaxWidth = 0,
   double textScale = 1,
 }) async {
   final textBookBloc = _TestTextBookBloc(state);
@@ -237,8 +237,8 @@ void main() {
       for (final (textScale, textMaxWidth) in [
         (1.0, 0.0),
         (2.0, 0.0),
-        (1.0, -10.0),
-        (2.0, -10.0),
+        (1.0, 400.0),
+        (2.0, 400.0),
       ]) {
         testWidgets(
           'קו הבחירה צמוד לטקסט ואינו עולה עליו (issues #2554, #3446), '

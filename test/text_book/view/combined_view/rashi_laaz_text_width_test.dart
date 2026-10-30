@@ -97,7 +97,7 @@ void main() {
       const PersonalNotesState.initial(),
     );
     final settingsBloc = _TestSettingsBloc(
-      SettingsState.initial().copyWith(textMaxWidth: -11),
+      SettingsState.initial().copyWith(textMaxWidth: 540),
     );
     final tab = TextBookTab(book: book, index: 0);
     addTearDown(textBookBloc.close);

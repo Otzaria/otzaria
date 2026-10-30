@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/edge_scrollbar_behavior.dart';
 import 'package:otzaria/widgets/layout/floating_panel.dart';
-import 'package:otzaria/widgets/layout/reading_area_width.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 
 /// חלונית צד אדפטיבית:
@@ -384,11 +383,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
         }
 
         if (hasRoomForSideBySide) {
-          return _buildWideLayout(
-            context,
-            paneOnRight: paneOnRight,
-            areaWidth: constraints.maxWidth,
-          );
+          return _buildWideLayout(context, paneOnRight: paneOnRight);
         }
 
         return _buildNarrowLayout(
@@ -400,24 +395,10 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     );
   }
 
-  /// עוטף את התוכן הראשי ברוחב אזור הקריאה המלא, כדי שרוחב עמודת הטקסט יחושב
-  /// ממנו ולא ישתנה כשהחלונית נפתחת ודוחקת את התוכן. פאנל מקונן לא דורס את
-  /// הבסיס של הפאנל שמעליו — הרוחב שהוא רואה כבר צומצם ע"י אותו פאנל.
-  Widget _mainContentWithAreaWidth(BuildContext context, double areaWidth) {
-    final content = KeyedSubtree(
-      key: _mainContentKey,
-      child: widget.mainContent,
-    );
-    final base = ReadingAreaWidth.maybeOf(context) ?? areaWidth;
-    if (!base.isFinite) return content;
-    return ReadingAreaWidth(width: base, child: content);
-  }
+  Widget get _mainContent =>
+      KeyedSubtree(key: _mainContentKey, child: widget.mainContent);
 
-  Widget _buildWideLayout(
-    BuildContext context, {
-    required bool paneOnRight,
-    required double areaWidth,
-  }) {
+  Widget _buildWideLayout(BuildContext context, {required bool paneOnRight}) {
     final showHandle =
         widget.isOpen &&
         widget.isResizable &&
@@ -511,7 +492,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       },
     );
 
-    final mainContent = _mainContentWithAreaWidth(context, areaWidth);
+    final mainContent = _mainContent;
     final row = Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: paneOnRight
@@ -590,7 +571,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
     return ClipRect(
       child: Stack(
         children: [
-          Positioned.fill(child: _mainContentWithAreaWidth(context, areaWidth)),
+          Positioned.fill(child: _mainContent),
           IgnorePointer(
             ignoring: !widget.isOpen,
             child: Stack(
@@ -668,7 +649,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
 
     return Stack(
       children: [
-        Positioned.fill(child: _mainContentWithAreaWidth(context, maxWidth)),
+        Positioned.fill(child: _mainContent),
         IgnorePointer(
           ignoring: !widget.isOpen,
           child: Stack(

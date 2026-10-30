@@ -2414,18 +2414,12 @@ class _CombinedViewState extends State<CombinedView> {
           textMaxWidth: bloc.state.textMaxWidth,
         ),
       );
-      // נקרא ב-build ולא בכל הערכה. הבסיס נכנס למפתח הפריסה של הרשימה ולא
-      // ל-styleKey, כדי שגרירת חלון תידחה כמו שינוי רוחב.
-      final baseWidth = widget.isPreviewMode
-          ? null
-          : ReadingAreaWidth.maybeOf(context);
       final setting = metrics.textMaxWidth;
       // בלי הגבלה (0) כל הפריט ברוחב מלא, כולל כרטיס המפרשים — אז העמודה היא הרוחב.
       double columnWidth(double width) {
         final column = resolveTextColumnMaxWidth(
           setting: setting,
           availableWidth: width,
-          baseWidth: baseWidth ?? width,
         );
         return column > 0 ? column : width;
       }
@@ -2763,8 +2757,7 @@ class _CombinedViewState extends State<CombinedView> {
                           // אזור קריאה — הגבלת רוחב הטקסט הייתה מצרה אותו שוב.
                           final textMaxWidth = widget.isPreviewMode
                               ? 0.0
-                              : textColumnMaxWidthOf(
-                                  context,
+                              : resolveTextColumnMaxWidth(
                                   setting: settingsState.textMaxWidth,
                                   availableWidth: constraints.maxWidth,
                                 );
@@ -3018,8 +3011,7 @@ class _CombinedViewState extends State<CombinedView> {
       builder: (context, settingsState) {
         final width = widget.isPreviewMode
             ? 0.0
-            : textColumnMaxWidthOf(
-                context,
+            : resolveTextColumnMaxWidth(
                 setting: settingsState.textMaxWidth,
                 availableWidth: constraints.maxWidth,
               );
@@ -3040,8 +3032,7 @@ class _CombinedViewState extends State<CombinedView> {
             builder: (context, settingsState) {
               final textMaxWidth = widget.isPreviewMode
                   ? 0.0
-                  : textColumnMaxWidthOf(
-                      context,
+                  : resolveTextColumnMaxWidth(
                       setting: settingsState.textMaxWidth,
                       availableWidth: constraints.maxWidth,
                     );
@@ -3408,8 +3399,7 @@ class _CommentaryCardState extends State<_CommentaryCard> {
         return BlocBuilder<SettingsBloc, SettingsState>(
           builder: (context, settingsState) {
             // שימוש באותו רוחב מקסימלי כמו הטקסט
-            final textMaxWidth = textColumnMaxWidthOf(
-              context,
+            final textMaxWidth = resolveTextColumnMaxWidth(
               setting: settingsState.textMaxWidth,
               availableWidth: constraints.maxWidth,
             );

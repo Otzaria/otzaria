@@ -1,6 +1,5 @@
-// Regression: רוחב עמודת הטקסט חושב כאחוז מהרוחב הפנוי, ולכן פתיחת חלונית צד
-// (הערות/מפרשים/ניווט) הצרה את הטקסט. הבסיס הוא רוחב אזור הקריאה המלא,
-// והרוחב הפנוי רק מגביל אותו כשאין מקום.
+// רוחב הטקסט הוא רוחב יעד קבוע: שינוי גודל חלון או פתיחת/סגירת חלונית צד לא
+// משנים את העמודה כל עוד יש מקום, והיא מצטמצמת רק כשאין.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,74 +8,46 @@ import 'package:otzaria/widgets/layout/reading_area_width.dart';
 
 void main() {
   group('resolveTextColumnMaxWidth', () {
-    test('רמה מחושבת מרוחב אזור הקריאה, לא מהרוחב הפנוי', () {
+    test('יעד נשמר כשיש מקום', () {
       expect(
-        resolveTextColumnMaxWidth(
-          setting: -11,
-          availableWidth: 1200,
-          baseWidth: 1800,
-        ),
-        closeTo(810, 0.001),
-      );
-    });
-
-    test('אותו רוחב עם חלונית פתוחה וסגורה', () {
-      double widthFor(double available) => resolveTextColumnMaxWidth(
-        setting: -11,
-        availableWidth: available,
-        baseWidth: 1800,
-      );
-
-      expect(widthFor(1800), widthFor(1200));
-    });
-
-    test('מצטמצם רק כשאין מקום', () {
-      expect(
-        resolveTextColumnMaxWidth(
-          setting: -2,
-          availableWidth: 700,
-          baseWidth: 1800,
-        ),
+        resolveTextColumnMaxWidth(setting: 700, availableWidth: 1200),
         700,
       );
     });
 
-    test('0 = ללא הגבלה', () {
+    test('מצטמצם לרוחב הפנוי פחות שוליים מזעריים כשאין מקום', () {
       expect(
-        resolveTextColumnMaxWidth(
-          setting: 0,
-          availableWidth: 1200,
-          baseWidth: 1800,
-        ),
-        0,
+        resolveTextColumnMaxWidth(setting: 700, availableWidth: 600),
+        600 - 2 * kTextColumnMinMargin,
       );
     });
 
-    test('ערך חיובי (פורמט ישן) נשמר, ומוגבל לרוחב הפנוי', () {
-      expect(
-        resolveTextColumnMaxWidth(
-          setting: 900,
-          availableWidth: 1200,
-          baseWidth: 1800,
-        ),
-        900,
-      );
-      expect(
-        resolveTextColumnMaxWidth(
-          setting: 900,
-          availableWidth: 600,
-          baseWidth: 1800,
-        ),
-        600,
-      );
+    test('0 = רוחב מלא, בלי שוליים', () {
+      expect(resolveTextColumnMaxWidth(setting: 0, availableWidth: 600), 0);
+    });
+
+    test('ערך שלילי (רמת אחוזים ישנה) נחשב רוחב מלא', () {
+      expect(resolveTextColumnMaxWidth(setting: -11, availableWidth: 1200), 0);
     });
   });
 
-  testWidgets('AdaptiveSidePane מספק רוחב אזור קריאה קבוע בפתיחת החלונית', (
+  /// מחזיר את רוחב העמודה שמחושב מהרוחב שהתוכן מקבל בפועל.
+  Widget measuringContent(void Function(double) onColumn) => LayoutBuilder(
+    builder: (context, constraints) {
+      onColumn(
+        resolveTextColumnMaxWidth(
+          setting: 400,
+          availableWidth: constraints.maxWidth,
+        ),
+      );
+      return const SizedBox.expand();
+    },
+  );
+
+  testWidgets('פתיחת AdaptiveSidePane לא משנה את העמודה כשיש מקום', (
     tester,
   ) async {
-    double? areaWidth;
-    double? availableWidth;
+    double? column;
     final isOpen = ValueNotifier<bool>(false);
     addTearDown(isOpen.dispose);
 
@@ -94,17 +65,7 @@ void main() {
                 paneWidth: 200,
                 minMainContentWidth: 300,
                 paneContent: const SizedBox.expand(),
-                mainContent: Builder(
-                  builder: (context) {
-                    areaWidth = ReadingAreaWidth.maybeOf(context);
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        availableWidth = constraints.maxWidth;
-                        return const SizedBox.expand();
-                      },
-                    );
-                  },
-                ),
+                mainContent: measuringContent((w) => column = w),
               ),
             ),
           ),
@@ -112,22 +73,23 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-
-    expect(areaWidth, 800);
-    expect(availableWidth, 800);
+    expect(column, 400);
 
     isOpen.value = true;
     await tester.pumpAndSettle();
+    expect(column, 400);
 
-    expect(availableWidth, lessThan(800));
-    expect(areaWidth, 800);
+    isOpen.value = false;
+    await tester.pumpAndSettle();
+    expect(column, 400);
   });
 
-  testWidgets('פאנל מקונן לא דורס את בסיס הפאנל החיצוני', (tester) async {
-    double? areaWidth;
-    double? availableWidth;
-    final outerOpen = ValueNotifier<bool>(false);
-    addTearDown(outerOpen.dispose);
+  testWidgets('חלונית שכנה ב-Row (כמו לוח הכרטיסיות) לא משנה את העמודה', (
+    tester,
+  ) async {
+    double? column;
+    final panelOpen = ValueNotifier<bool>(true);
+    addTearDown(panelOpen.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -136,45 +98,22 @@ void main() {
             width: 800,
             height: 600,
             child: ValueListenableBuilder<bool>(
-              valueListenable: outerOpen,
-              builder: (context, open, _) => AdaptiveSidePane(
-                isOpen: open,
-                onClose: () => outerOpen.value = false,
-                paneWidth: 200,
-                minMainContentWidth: 300,
-                paneContent: const SizedBox.expand(),
-                mainContent: AdaptiveSidePane(
-                  isOpen: false,
-                  onClose: () {},
-                  paneWidth: 150,
-                  minMainContentWidth: 200,
-                  paneContent: const SizedBox.expand(),
-                  mainContent: Builder(
-                    builder: (context) {
-                      areaWidth = ReadingAreaWidth.maybeOf(context);
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          availableWidth = constraints.maxWidth;
-                          return const SizedBox.expand();
-                        },
-                      );
-                    },
-                  ),
-                ),
+              valueListenable: panelOpen,
+              builder: (context, open, _) => Row(
+                children: [
+                  if (open) const SizedBox(width: 250),
+                  Expanded(child: measuringContent((w) => column = w)),
+                ],
               ),
             ),
           ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    expect(column, 400);
 
-    expect(areaWidth, 800);
-
-    outerOpen.value = true;
-    await tester.pumpAndSettle();
-
-    expect(availableWidth, lessThan(800));
-    expect(areaWidth, 800);
+    panelOpen.value = false;
+    await tester.pump();
+    expect(column, 400);
   });
 }

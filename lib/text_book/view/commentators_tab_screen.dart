@@ -835,8 +835,7 @@ class _CommentatorsTabScreenState extends State<CommentatorsTabScreen>
       builder: (context, constraints) {
         return BlocBuilder<SettingsBloc, SettingsState>(
           builder: (context, settingsState) {
-            final textMaxWidth = textColumnMaxWidthOf(
-              context,
+            final textMaxWidth = resolveTextColumnMaxWidth(
               setting: settingsState.textMaxWidth,
               availableWidth: constraints.maxWidth,
             );
