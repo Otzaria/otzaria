@@ -51,7 +51,7 @@ dependencies:
   pdfrx:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: 41516d63b256ca1d54e9172c23bda70991ed8ee4
+      ref: 3c33670a48e122b1af2a61943dc59ca28063692f
       path: packages/pdfrx
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
   pdfium_dart: ^0.4.0
