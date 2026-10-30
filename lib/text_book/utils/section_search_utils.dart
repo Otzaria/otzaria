@@ -221,9 +221,8 @@ double matchFractionInLine(
   return (offset / clean.length).clamp(0.0, 1.0);
 }
 
-/// טווחי ההדגשה של [query] בקטע [snippet] שנחתך מהשורה הנקייה [line] סביב
-/// [matchOffset], מחושבים על השורה כולה: `^`/`$` של `/…/` מעוגנים לקצות השורה.
-/// [display] מחיל על השורה את מה שהתצוגה מחילה על הקטע. null כשהקטע אינו בשורה.
+/// טווחי [query] בקטע [snippet] שנחתך מ-[line] סביב [matchOffset], על השורה כולה (`^`/`$` לקצותיה).
+/// [display] מחיל על השורה את עיבוד התצוגה של הקטע. null כשהקטע אינו בשורה.
 List<List<int>>? snippetHighlightRangesInLine({
   required String line,
   required String snippet,
