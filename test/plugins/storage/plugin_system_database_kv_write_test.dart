@@ -44,6 +44,42 @@ void main() {
     expect(await db.getPluginKV('p', 'ns', 'k'), '"v"');
   });
 
+  final big = '"${'x' * PluginSystemDatabase.maxInlineKVReadBytes}"';
+
+  test('ערך KV גדול אינו נקרא בחיבור של ה-UI (#3644)', () async {
+    await db.setPluginKV('p', 'ns', 'big', big);
+    await db.setPluginKV('p', 'ns', 'small', '1');
+    // שינוי שלא נשמר נראה רק בחיבור של ה-UI, וכך מזהים איזה חיבור קרא.
+    final ui = (await db.database)
+      ..execute('BEGIN')
+      ..execute("UPDATE plugin_kv_store SET value_json = value_json || ' '");
+    try {
+      expect(await db.getPluginKV('p', 'ns', 'big'), big);
+      expect(await db.getPluginKVMany('p', 'ns', ['big', 'small']), {
+        'big': big,
+        'small': '1',
+      });
+      expect(await db.getPluginKV('p', 'ns', 'small'), '1 ');
+      expect(await db.getPluginKV('p', 'ns', 'missing'), isNull);
+    } finally {
+      ui.execute('ROLLBACK');
+    }
+  });
+
+  test('close מחכה לקריאת KV שרצה ב-isolate', () async {
+    await db.setPluginKV('p', 'ns', 'k', big);
+    final read = db.getPluginKV('p', 'ns', 'k');
+    var readDone = false;
+    unawaited(read.then((_) => readDone = true));
+    for (var i = 0; i < 5; i++) {
+      await Future<void>.microtask(() {});
+    }
+    await db.close();
+    // תשובת isolate מגיעה כאירוע, לא כ-microtask: אם close לא חיכה, היא עוד לא הגיעה.
+    await Future<void>.microtask(() {});
+    expect(readDone, isTrue);
+  });
+
   test('קריאה, מחיקה וכתיבה רצופות שומרות על הסדר', () async {
     final pending = [
       db.setPluginKV('p', 'ns', 'a', '1'),
