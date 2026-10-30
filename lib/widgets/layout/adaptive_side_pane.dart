@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -537,17 +538,31 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   /// הצללה שמכסה את התוכן כשהחלונית פתוחה מעליו; לחיצה עליה סוגרת.
   Widget _buildScrim(BuildContext context) {
     return Positioned.fill(
-      child: GestureDetector(
-        onTap: widget.onClose,
-        child: AnimatedOpacity(
-          duration: AppTokens.animPanelOpacity,
-          opacity: widget.isOpen ? 1.0 : 0.0,
-          child: ColoredBox(
-            color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.30),
+      // The scrim swallows the wheel, so scrolling over it closes the pane
+      // like a tap does instead of doing nothing (issue #2855).
+      child: Listener(
+        onPointerSignal: (event) {
+          if (event is PointerScrollEvent) _closeFromScrim();
+        },
+        onPointerPanZoomStart: (_) => _closeFromScrim(),
+        child: GestureDetector(
+          onTap: widget.onClose,
+          child: AnimatedOpacity(
+            duration: AppTokens.animPanelOpacity,
+            opacity: widget.isOpen ? 1.0 : 0.0,
+            child: ColoredBox(
+              color: Theme.of(
+                context,
+              ).colorScheme.scrim.withValues(alpha: 0.30),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  void _closeFromScrim() {
+    if (widget.isOpen) widget.onClose();
   }
 
   Widget _buildFloatingWideLayout(
