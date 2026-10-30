@@ -14,6 +14,10 @@ import 'package:otzaria/core/windowing/app_window_controller.dart';
 import 'package:otzaria/core/windowing/app_window_id.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/core/windowing/app_window_scope.dart';
+import 'package:otzaria/core/windowing/last_active_window.dart';
+import 'package:otzaria/core/windowing/window_fullscreen_cubit.dart';
+import 'package:otzaria/shortcuts/keyboard_shortcuts.dart';
+import 'package:window_manager/window_manager.dart' show TitleBarStyle;
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/services/context_menu_registry.dart';
@@ -1612,6 +1616,80 @@ void main() {
     });
   });
 
+  group('מסך מלא ב-F11 (issue #3619)', () {
+    testWidgets('F11 מתוך הספר מחליף מצב פעם אחת בלבד, כניסה ויציאה', (
+      tester,
+    ) async {
+      final book = TextBook(title: 'ספר בדיקה');
+      final bloc = _TestTextBookBloc(_loadedState(book));
+      final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
+      final tabsBloc = _TestTabsBloc(
+        TabsState(tabs: [tab], currentTabIndex: 0),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      final fullscreen = WindowFullscreenCubit(
+        initial: false,
+        persist: (_) async {},
+      );
+      final geometry = _RecordingGeometry();
+      final keys = AppWindowKeys(id: const AppWindowId('fullscreen-3619'));
+      AppWindowKeys.register(keys);
+      AppWindowKeys.activateWindow(keys.id);
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        AppWindowKeys.resetForTest();
+        LastActiveWindow.resetForTest();
+        await bloc.close();
+        await tabsBloc.close();
+        await settingsBloc.close();
+        await fullscreen.close();
+        tab.dispose();
+      });
+
+      await _setSurfaceSize(tester, const Size(1200, 900));
+      await _pumpTextBookScreen(
+        tester,
+        tab: tab,
+        textBookBloc: bloc,
+        tabsBloc: tabsBloc,
+        settingsBloc: settingsBloc,
+        focusRepository: focusRepository,
+        shamorZachorDataProvider: shamorZachorDataProvider,
+        shamorZachorProgressProvider: shamorZachorProgressProvider,
+        bookmarkBloc: bookmarkBloc,
+        personalNotesBloc: personalNotesBloc,
+        tourCubit: tourCubit,
+        isInCombinedView: false,
+        windowKeys: keys,
+        geometry: geometry,
+        fullscreenCubit: fullscreen,
+        withGlobalShortcuts: true,
+      );
+
+      // התרחיש מחייב פוקוס בתוך ה-KeyboardListener של הספר.
+      final bookListener = find.descendant(
+        of: find.byType(TextBookViewerBloc),
+        matching: find.byType(KeyboardListener),
+      );
+      expect(
+        tester.widget<KeyboardListener>(bookListener.first).focusNode.hasFocus,
+        isTrue,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.f11);
+      await tester.pump();
+      expect(fullscreen.state, isTrue);
+      expect(geometry.calls, ['titleBar', 'fullScreen:true']);
+
+      geometry.calls.clear();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f11);
+      await tester.pump();
+      expect(fullscreen.state, isFalse);
+      expect(geometry.calls, ['fullScreen:false', 'titleBar']);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+  });
+
   group('שמירת פוקוס מקלדת', () {
     testWidgets(
       'מסך הספר לא חוטף פוקוס משדה קלט בדיאלוג כשה-viewport משתנה (מקלדת וירטואלית)',
@@ -2032,6 +2110,9 @@ Future<void> _pumpTextBookScreen(
   required bool isInCombinedView,
   TextDirection textDirection = TextDirection.ltr,
   AppWindowKeys? windowKeys,
+  AppWindowGeometry? geometry,
+  WindowFullscreenCubit? fullscreenCubit,
+  bool withGlobalShortcuts = false,
 }) async {
   // openBook (מסלול פתיחת נוסח) קורא גם ל-HistoryBloc ול-NavigationBloc.
   final historyBloc = _TestHistoryBloc();
@@ -2041,11 +2122,14 @@ Future<void> _pumpTextBookScreen(
     await navigationBloc.close();
   });
 
-  final screen = TextBookViewerBloc(
+  final Widget viewer = TextBookViewerBloc(
     tab: tab,
     isInCombinedView: isInCombinedView,
     openBookCallback: (_) {},
   );
+  final screen = withGlobalShortcuts
+      ? KeyboardShortcuts(onFindRefRequested: () {}, child: viewer)
+      : viewer;
   await tester.pumpWidget(
     MultiProvider(
       providers: [
@@ -2069,6 +2153,8 @@ Future<void> _pumpTextBookScreen(
           BlocProvider<TourCubit>.value(value: tourCubit),
           BlocProvider<HistoryBloc>.value(value: historyBloc),
           BlocProvider<NavigationBloc>.value(value: navigationBloc),
+          if (fullscreenCubit != null)
+            BlocProvider<WindowFullscreenCubit>.value(value: fullscreenCubit),
         ],
         child: MaterialApp(
           builder: (context, child) =>
@@ -2077,7 +2163,7 @@ Future<void> _pumpTextBookScreen(
               ? screen
               : AppWindowScope(
                   controller: _PluginWindow(),
-                  geometry: _PluginWindow(),
+                  geometry: geometry ?? _PluginWindow(),
                   keys: windowKeys,
                   child: screen,
                 ),
@@ -2355,6 +2441,20 @@ class _MemoryCacheProvider extends CacheProvider {
 
 class _PluginWindow extends Fake
     implements AppWindowController, AppWindowGeometry {}
+
+class _RecordingGeometry extends Fake implements AppWindowGeometry {
+  final List<String> calls = [];
+
+  @override
+  Future<void> setFullScreen(bool value) async =>
+      calls.add('fullScreen:$value');
+
+  @override
+  Future<void> setTitleBarStyle(
+    TitleBarStyle style, {
+    required bool windowButtonVisibility,
+  }) async => calls.add('titleBar');
+}
 
 class _PluginRepository extends Fake implements PluginRegistryRepository {
   @override
