@@ -1411,11 +1411,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 ),
               ],
               currentValue: _selectedBackupMode,
-              onChanged: (value) async {
+              onChanged: (value) {
                 if (value == _BackupMode.all) {
-                  await BackupService.includeAllSections();
+                  unawaited(BackupService.includeAllSections());
                 }
-                if (mounted) setState(() => _selectedBackupMode = value);
+                setState(() => _selectedBackupMode = value);
               },
             ),
             if (_selectedBackupMode == _BackupMode.custom) ...[

@@ -1716,9 +1716,9 @@ class BackupService {
       sectionSettingKeys.every((key) => Settings.getValue<bool>(key) ?? true);
 
   static Future<void> includeAllSections() async {
-    for (final key in sectionSettingKeys) {
-      await Settings.setValue<bool>(key, true);
-    }
+    await Future.wait(
+      sectionSettingKeys.map((key) => Settings.setValue<bool>(key, true)),
+    );
   }
 
   /// Perform automatic backup

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -29,8 +30,29 @@ class _SettingsBloc extends MockBloc<SettingsEvent, SettingsState>
 class _LibraryBloc extends MockBloc<LibraryEvent, LibraryState>
     implements LibraryBloc {}
 
+class _DelayedHiveCache extends HiveCache {
+  Completer<void>? pendingWrites;
+  Completer<void>? allWritesStarted;
+  int startedWrites = 0;
+
+  @override
+  Future<void> setObject<T>(String key, T? value) async {
+    final writing = super.setObject(key, value);
+    if (pendingWrites != null &&
+        BackupService.sectionSettingKeys.contains(key)) {
+      startedWrites++;
+      if (startedWrites == BackupService.sectionSettingKeys.length) {
+        allWritesStarted!.complete();
+      }
+      await pendingWrites!.future;
+    }
+    await writing;
+  }
+}
+
 void main() {
   late Directory root;
+  late _DelayedHiveCache cache;
   late _SettingsBloc settings;
   late _LibraryBloc library;
 
@@ -39,7 +61,8 @@ void main() {
     AppPaths.debugOverrideDataRootPath(root.path);
     AppPaths.debugOverrideDocumentsRootPath(root.path);
     Hive.init(root.path);
-    await Settings.init(cacheProvider: HiveCache());
+    cache = _DelayedHiveCache();
+    await Settings.init(cacheProvider: cache);
     DataRepository.instance.library = Future.value(Library(categories: []));
     final warmUp = await BackupService.createBackup(
       includeSettings: true,
@@ -181,27 +204,44 @@ void main() {
         () => Settings.setValue<bool>('key-backup-history', false),
       );
       await tester.pump();
+      cache.pendingWrites = Completer<void>();
+      cache.allWritesStarted = Completer<void>();
+      await tester.runAsync(
+        () => tester.tap(
+          find.descendant(of: backupMode, matching: find.text('גבה הכל')),
+        ),
+      );
+      await tester.runAsync(
+        () =>
+            cache.allWritesStarted!.future.timeout(const Duration(seconds: 5)),
+      );
+      await tester.pump();
+      expect(BackupService.includesAllSections, isTrue);
+      expect(tester.widget<SegmentedButton>(backupMode).selected.single, all);
+      await tester.tap(
+        find.descendant(of: backupMode, matching: find.text('מותאם אישית')),
+      );
+      await tester.pump();
+      expect(
+        tester.widget<SegmentedButton>(backupMode).selected.single,
+        custom,
+        reason: 'הבחירה המאוחרת מוצגת עוד לפני השלמת הכתיבות',
+      );
+      cache.pendingWrites!.complete();
+      cache.pendingWrites = null;
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+      expect(
+        tester.widget<SegmentedButton>(backupMode).selected.single,
+        custom,
+      );
+      expect(BackupService.includesAllSections, isTrue);
       await tester.runAsync(
         () => tester.tap(
           find.descendant(of: backupMode, matching: find.text('גבה הכל')),
         ),
       );
       await tester.pump();
-      if (!BackupService.includesAllSections) {
-        expect(
-          tester.widget<SegmentedButton>(backupMode).selected.single,
-          custom,
-        );
-      }
-      await tester.runAsync(() async {
-        await (() async {
-          while (!BackupService.includesAllSections) {
-            await Future<void>.delayed(const Duration(milliseconds: 1));
-          }
-        })().timeout(const Duration(seconds: 5));
-      });
-      await tester.pump();
-      expect(BackupService.includesAllSections, isTrue);
       expect(tester.widget<SegmentedButton>(backupMode).selected.single, all);
 
       await tester.pumpWidget(const SizedBox());
