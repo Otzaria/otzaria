@@ -3401,20 +3401,9 @@ bool _handleGlobalKeyEvent(
     }
   }
 
-  // מקשי פונקציה ללא Ctrl/Cmd
+  // ESC ללא Ctrl/Cmd; F11 מטופל בקיצורים הגלובליים, כדי שלא יוחלף פעמיים
   if (event is KeyDownEvent && !isCtrlOrCmd) {
     switch (event.logicalKey) {
-      // F11 - מסך מלא
-      case LogicalKeyboardKey.f11:
-        if (!Platform.isAndroid && !Platform.isIOS) {
-          final newFullscreenState = !context
-              .read<WindowFullscreenCubit>()
-              .state;
-          FullscreenHelper.toggleFullscreen(context, newFullscreenState);
-          return true;
-        }
-        break;
-
       // ESC - ניקוי הדגשת החיפוש או ה-?mark, ואם אין הדגשה — יציאה ממסך מלא
       case LogicalKeyboardKey.escape:
         if (state.searchText.isNotEmpty) {
