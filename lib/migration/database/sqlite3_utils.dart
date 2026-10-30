@@ -37,6 +37,28 @@ void closeWithCheckpoint(Database db) {
   db.close();
 }
 
+const _sqliteDbConfigNoCheckpointOnClose = 1006;
+
+/// כמו [closeWithCheckpoint], אבל המיזוג רץ ב-isolate: fsync איטי או נעילה
+/// של כותב אחר תוקעים אותו לשניות. החיבור עצמו נסגר כאן, בלי מיזוג.
+Future<void> closeWithCheckpointInBackground(Database db, String path) async {
+  try {
+    db.config.setIntConfig(_sqliteDbConfigNoCheckpointOnClose, 1);
+  } catch (_) {
+    closeWithCheckpoint(db);
+    return;
+  }
+  db.close();
+  try {
+    await compute(_checkpointAndClose, path, debugLabel: 'WalCheckpoint');
+  } catch (e) {
+    debugPrint('[WalCheckpoint] $path: $e');
+  }
+}
+
+void _checkpointAndClose(String path) =>
+    closeWithCheckpoint(openSecondaryWritableConnection(path, 'WalCheckpoint'));
+
 /// פותח DB כתיב עם הכוונון האחיד לכל מסדי הנתונים של האפליקציה: המתנה
 /// לנעילה, ו-WAL כשהאחסון תומך בו. [label] מזהה את הקורא בלוג.
 Database openWritableDatabase(

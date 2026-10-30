@@ -149,6 +149,35 @@ void main() {
       );
     });
 
+    test('close() אינו חוסם את ה-isolate כשכותב אחר מחזיק את המסד', () async {
+      final repo = await UserBooksDatabaseHolder.instance.repository;
+      final db = await repo.database.database;
+      db.execute('CREATE TABLE wal_probe(x INTEGER)');
+      db.execute('INSERT INTO wal_probe VALUES (1)');
+
+      final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
+      // כותב מקביל (סנכרון התיקיות ב-isolate) מחזיק את נעילת הכתיבה.
+      final writer = sqlite3.open(dbPath)..execute('BEGIN IMMEDIATE');
+      addTearDown(writer.close);
+
+      final stopwatch = Stopwatch()..start();
+      final closing = UserBooksDatabaseHolder.instance.close();
+      final timerDelay = await Future<Duration>.delayed(
+        const Duration(milliseconds: 100),
+        () => stopwatch.elapsed,
+      );
+      // בקשה בזמן הסגירה ממתינה לסופה ולא פותחת את הקובץ מחדש באמצע.
+      final reopening = UserBooksDatabaseHolder.instance.repository;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      writer.execute('ROLLBACK');
+      await closing;
+      expect(UserBooksDatabaseHolder.instance.openDbPath, isNull);
+      final wal = File('$dbPath-wal');
+      expect(!wal.existsSync() || wal.lengthSync() == 0, isTrue);
+      expect(timerDelay, lessThan(const Duration(seconds: 2)));
+      await reopening;
+    });
+
     test(
       'resolveDbPath מחזיר נתיב legacy קיים תחת data_root/databases',
       () async {

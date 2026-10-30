@@ -345,6 +345,15 @@ class MyDatabase {
     _database = null;
   }
 
+  /// כמו [close], אבל מיזוג ה-WAL אינו רץ על ה-isolate הקורא.
+  Future<void> closeInBackground() async {
+    final db = _database;
+    if (db == null || _readOnly) return close();
+    DbCapabilities.invalidate(_path);
+    _database = null;
+    await closeWithCheckpointInBackground(db, _path);
+  }
+
   List<String> _getCreateScripts() {
     return [
       // Categories table
