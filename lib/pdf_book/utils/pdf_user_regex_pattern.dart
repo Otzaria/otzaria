@@ -5,16 +5,27 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 /// matching is the engine's [UserRegexMatcher] over the page's text layer.
 // ignore: deprecated_implement
 class PdfUserRegexPattern implements RegExp {
-  PdfUserRegexPattern._(this.pattern, this._matcher);
+  PdfUserRegexPattern._(this.pattern, this._matcher, this._lineAnchored);
 
   /// The pattern for [query], or null when it is not a valid `/…/`.
   static PdfUserRegexPattern? tryParse(String query) {
     final raw = query.trim();
-    final matcher = UserRegexQuery.matcher(_asPlainPattern(raw));
-    return matcher == null ? null : PdfUserRegexPattern._(raw, matcher);
+    final plain = _asPlainPattern(raw);
+    final matcher = UserRegexQuery.matcher(plain);
+    if (matcher == null) return null;
+    final searched = UserRegexQuery.plan(plain)!.pattern;
+    return PdfUserRegexPattern._(
+      raw,
+      matcher,
+      searched.contains(r'\A') || searched.contains(r'\z'),
+    );
   }
 
   final UserRegexMatcher _matcher;
+
+  /// An edge `^`/`$` (`\A`/`\z` in the engine's pattern) means a text line, as
+  /// in the index where each PDF line is a document: such a pattern runs per line.
+  final bool _lineAnchored;
 
   /// The query as typed, which also tells pdfrx whether a search repeats.
   @override
@@ -67,7 +78,22 @@ class PdfUserRegexPattern implements RegExp {
     if (start < 0 || start > input.length) {
       throw RangeError.range(start, 0, input.length);
     }
-    final text = _asPlainText(input.substring(start));
+    if (!_lineAnchored) return _matchesIn(input, start, input.length);
+    final matches = <RegExpMatch>[];
+    var lineStart = start == 0 ? 0 : input.lastIndexOf('\n', start - 1) + 1;
+    while (lineStart <= input.length) {
+      final newline = input.indexOf('\n', lineStart);
+      final lineEnd = newline < 0 ? input.length : newline;
+      matches.addAll(
+        _matchesIn(input, lineStart, lineEnd).where((m) => m.start >= start),
+      );
+      lineStart = lineEnd + 1;
+    }
+    return matches;
+  }
+
+  List<RegExpMatch> _matchesIn(String input, int start, int end) {
+    final text = _asPlainText(input.substring(start, end));
     return [
       for (final match in _matcher.findMatches(data: text))
         if (match.end > match.start)

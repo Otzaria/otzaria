@@ -78,7 +78,10 @@ Future<void> main() async {
         UserRegexQuery.plan(' /שמע .* ישראל/ ')?.kind,
         UserRegexKind.crossSpace,
       );
+      // עוגן בקצה הופך גם מילה בודדת לתבנית שורה.
+      expect(UserRegexQuery.plan('/^ספר/')?.kind, UserRegexKind.crossSpace);
       for (final raw in [
+        '/^\$/',
         'מש.ה',
         '/(/',
         '/שמע',
@@ -120,6 +123,12 @@ Future<void> main() async {
 
     test('חוצה-רווחים נסרק בשורות', () async {
       expect(await segments('/שמע .* ישראל/'), [3]);
+    });
+
+    test('^ ו-\$ מעגנים לתחילת השורה ולסופה', () async {
+      expect(await segments('/^ספר/'), [4]);
+      expect(await segments('/ישראל\$/'), isEmpty);
+      expect(await segments('/בהלכות\$/'), [2]);
     });
 
     test('ה-stream המשולב נושא ספירה וספירה לפי ספר', () async {
