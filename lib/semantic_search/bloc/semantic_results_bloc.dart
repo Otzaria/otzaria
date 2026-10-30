@@ -181,13 +181,21 @@ class SemanticResultsBloc
       engine: engine,
     );
     _userBookFlags.addAll(flags);
+    // בלי זה כשל של החלק הסמנטי נראה כ"אין תוצאות".
+    final semanticFailed = page.fallbackKind != null;
+    final failedEmpty = semanticFailed && page.items.isEmpty;
     emit(
       state.copyWith(
-        status: SemanticResultsStatus.loaded,
+        status: failedEmpty
+            ? SemanticResultsStatus.failed
+            : SemanticResultsStatus.loaded,
         items: page.items,
         morePages: page.hasMore,
         isDebugPreview: source.isDebugPreview,
-        message: message,
+        message: failedEmpty
+            ? SemanticSearchMessages.semanticPartFailed
+            : message,
+        onlyLexical: semanticFailed && !failedEmpty,
       ),
     );
     add(SemanticHighlightsRequested(generation, 0, page.items.length));

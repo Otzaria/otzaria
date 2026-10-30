@@ -9,6 +9,7 @@ import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_mode_gate.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_search_repository.dart';
+import 'package:otzaria/semantic_search/services/semantic_fallback_log.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 import 'package:otzaria_search_engine/otzaria_search_engine.dart'
     show
@@ -64,9 +65,13 @@ Future<SemanticResultsSource?> resolveSemanticResultsSource({
 
 /// חיפוש דרך [SemanticSearchRepository].
 class EngineSemanticResultsSource implements SemanticResultsSource {
-  EngineSemanticResultsSource(this._repository);
+  EngineSemanticResultsSource(
+    this._repository, {
+    SemanticFallbackLog? fallbackLog,
+  }) : _fallbackLog = fallbackLog ?? SemanticFallbackLog.shared;
 
   final SemanticSearchRepository _repository;
+  final SemanticFallbackLog _fallbackLog;
 
   /// ערוץ משלו: חיפוש בכרטיסייה אחרת אינו מבטל את החיפוש כאן.
   final SemanticSearchSession _session = SemanticSearchSession();
@@ -103,6 +108,15 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
     );
     if (outcome == null) return null;
     final response = outcome.response;
+    final fallbackKind = outcome.fallbackKind;
+    if (fallbackKind != null) {
+      _fallbackLog.record(
+        fallbackKind,
+        response.fallbackReason,
+        requestedMode: response.requestedMode.name,
+        executedMode: response.executedMode.name,
+      );
+    }
     return SemanticResultsPage(
       items: [
         for (final result in response.results)
@@ -113,7 +127,7 @@ class EngineSemanticResultsSource implements SemanticResultsSource {
       executedMode: response.executedMode.name,
       semanticAvailable: response.semanticAvailable,
       fallbackReason: response.fallbackReason,
-      fallbackKind: outcome.fallbackKind?.name,
+      fallbackKind: fallbackKind?.name,
       latencyMs: response.latencyMs.toInt(),
       totalCount: response.totalCount,
       lexicalTotalCount: response.lexicalTotalCount,

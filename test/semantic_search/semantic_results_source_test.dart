@@ -8,6 +8,7 @@ import 'package:otzaria/semantic_search/models/semantic_engine_models.dart';
 import 'package:otzaria/semantic_search/models/semantic_failure.dart';
 import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/semantic_search/repository/semantic_results_source.dart';
+import 'package:otzaria/semantic_search/services/semantic_fallback_log.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../support/search_engine_test_init.dart';
@@ -116,6 +117,42 @@ Future<void> main() async {
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
     }
+  });
+
+  test('כשל החלק הסמנטי נרשם ליומן פעם אחת לכל סוג, ומגיע לעמוד', () async {
+    final written = <(SemanticFailure, Map<String, String?>)>[];
+    source = EngineSemanticResultsSource(
+      buildRepository(root: root, backend: backend),
+      fallbackLog: SemanticFallbackLog(
+        write: (failure, details) => written.add((failure, details)),
+      ),
+    );
+    backend
+      ..fallbackKind = SemanticFailureKind.queryFailed
+      ..response = SemanticSearchResponse(
+        results: const [],
+        totalCount: 0,
+        lexicalTotalCount: 0,
+        countsAreExact: false,
+        requestedMode: SemanticRetrievalMode.semanticOnly,
+        executedMode: SemanticExecutedMode.lexicalOnly,
+        semanticAvailable: false,
+        fallbackReason: 'embedding failed',
+        fallbackKind: SemanticErrorKind.queryFailed,
+        latencyMs: BigInt.one,
+        candidateWindowTruncated: false,
+        truncated: false,
+      );
+
+    const options = SemanticQueryOptions(query: 'א ב', includeLexical: false);
+    final page = await source.fetch(options, offset: 0, limit: 30);
+    await source.fetch(options, offset: 0, limit: 30);
+
+    expect(page!.fallbackKind, 'queryFailed');
+    expect(written, hasLength(1));
+    expect(written.single.$1.kind, SemanticFailureKind.queryFailed);
+    expect(written.single.$1.message, 'embedding failed');
+    expect(written.single.$2['Executed mode'], 'lexicalOnly');
   });
 
   test('הצד המילולי של החיפוש החכם: fuzzy במרחק 0', () async {

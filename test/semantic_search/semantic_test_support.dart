@@ -124,6 +124,9 @@ class FakeBackend implements SemanticEngineBackend {
   /// התשובה לחיפוש; `null` = [emptyResponse].
   SemanticSearchResponse? response;
 
+  /// למה החלק הסמנטי לא שירת את החיפושים הבאים; `null` = שירת.
+  SemanticFailureKind? fallbackKind;
+
   @override
   Future<SemanticBackendStatus> status() async => statusValue;
 
@@ -248,7 +251,10 @@ class FakeBackend implements SemanticEngineBackend {
     if (cancel.isCancelled) {
       throw const SemanticFailure(SemanticFailureKind.cancelled);
     }
-    return SemanticSearchOutcome(response: response ?? emptyResponse());
+    return SemanticSearchOutcome(
+      response: response ?? emptyResponse(),
+      fallbackKind: fallbackKind,
+    );
   }
 
   final List<SemanticCancelHandle> highlightHandles = [];

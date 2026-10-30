@@ -1285,6 +1285,8 @@
   "לא ניתן לקבוע את גרסת הספרייה המותקנת.": "The installed library version could not be determined.",
   "נתוני {name} עוד לא הותקנו.": "The {name} data has not been installed yet.",
   "אירעה שגיאה ב{name}.": "An error occurred in {name}.",
+  "החיפוש לפי עניין נכשל. נסו שוב, ואם התקלה חוזרת — דווחו עליה.": "The search by topic failed. Try again, and report the problem if it happens again.",
+  "החיפוש לפי עניין נכשל, ולכן מוצגות רק התאמות מילוליות.": "The search by topic failed, so only literal matches are shown.",
   "מוצא קטעים שעוסקים בעניין שתיארתם, גם כשהמילים שונות.": "Finds passages about the topic you described, even when the words differ.",
   "אני מסכים": "I agree",
   "החיפוש לא הורץ מחדש": "The search was not run again",
