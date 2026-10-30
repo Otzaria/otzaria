@@ -199,7 +199,13 @@ class _SemanticDataCard extends StatelessWidget {
       SemanticAvailabilityPhase.failed => [
         ActionButton.recommended(
           key: const ValueKey('semantic-data-retry'),
-          text: context.settingsText('נסה שוב'),
+          text: context.settingsText(
+            SemanticSearchMessages.asksToDownloadAgain(
+                  availability.failure?.kind ?? SemanticFailureKind.internal,
+                )
+                ? SemanticSearchMessages.downloadAgain
+                : 'נסה שוב',
+          ),
           onPressed: () => bloc.add(const SemanticDownloadRequested()),
         ),
       ],

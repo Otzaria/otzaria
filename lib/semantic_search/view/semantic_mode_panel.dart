@@ -197,6 +197,11 @@ class SemanticModePanel extends StatelessWidget {
       ),
     };
     final isFailure = availability.phase == SemanticAvailabilityPhase.failed;
+    final downloadAgain =
+        isFailure &&
+        SemanticSearchMessages.asksToDownloadAgain(
+          availability.failure?.kind ?? SemanticFailureKind.internal,
+        );
     final Widget? action = switch (availability.phase) {
       SemanticAvailabilityPhase.needsDownload => ActionButton.recommended(
         key: const ValueKey('semantic-status-download'),
@@ -217,6 +222,13 @@ class SemanticModePanel extends StatelessWidget {
         text: context.settingsText('ביטול'),
         onPressed: onCancelDownload,
       ),
+      SemanticAvailabilityPhase.failed when downloadAgain =>
+        ActionButton.recommended(
+          key: const ValueKey('semantic-status-redownload'),
+          text: context.settingsText(SemanticSearchMessages.downloadAgain),
+          icon: FluentIcons.arrow_download_24_regular,
+          onPressed: onDownload,
+        ),
       SemanticAvailabilityPhase.failed => ActionButton.recommended(
         key: const ValueKey('semantic-status-retry'),
         text: context.settingsText('נסה שוב'),

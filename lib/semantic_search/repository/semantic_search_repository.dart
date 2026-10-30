@@ -514,7 +514,8 @@ class SemanticSearchRepository {
       final vectors = _vectors = await _backend.vectorsInfo(
         paths.vectorsDirectory,
       );
-      return vectors.present;
+      // סט שנפסל בפתיחה אינו מותקן עד שיוחלף; אחרת "מוכן" ונכשל שוב בחיפוש.
+      return vectors.present && !_needsRepair;
     } on SemanticFailure catch (failure) {
       if (failure.kind != SemanticFailureKind.artifactCorrupt) rethrow;
       _needsRepair = true;
@@ -597,8 +598,9 @@ class SemanticSearchRepository {
         ),
       );
     } on SemanticFailure catch (failure) {
-      // סט פגום מתוקן בהתקנה חוזרת של אותו release ("נסה שוב").
-      if (failure.kind == SemanticFailureKind.artifactCorrupt) {
+      // סט פגום, או של מתכון שהמנוע כבר לא קורא, מוחלף בהורדת ה-base מחדש.
+      if (failure.kind == SemanticFailureKind.artifactCorrupt ||
+          failure.kind == SemanticFailureKind.artifactIncompatible) {
         _needsRepair = true;
       }
       if ({
