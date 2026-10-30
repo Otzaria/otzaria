@@ -96,11 +96,18 @@ const Set<String> _systemModules = {
 const int _hangDartFrames = 8;
 const int _hangDartFramesPerEntry = 4;
 
+/// הנייטיב כותב [_hangTopFrames] פריימים עליונים, `... (N frames omitted) ...` ותחתית.
+/// החתימה רק מהראש, כמו ברשומות שנחתכו בעבר ב-48, כדי שלא תשתנה עם עומק המחסנית.
+const int _hangTopFrames = 48;
+
 List<String> _hangSignatureFrames(String stackText) {
-  final frames = [
-    for (final line in const LineSplitter().convert(stackText))
-      if (line.trim().isNotEmpty) line.trim(),
-  ];
+  final frames = const LineSplitter()
+      .convert(stackText)
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .takeWhile((line) => !line.startsWith('...'))
+      .take(_hangTopFrames)
+      .toList();
   bool isDart(String frame) => frame.toLowerCase().startsWith('app.so+');
   final dartAt = frames.indexWhere(isDart);
   if (dartAt < 0) return _nativeHangFrames(frames);
