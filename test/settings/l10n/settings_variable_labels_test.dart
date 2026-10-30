@@ -65,6 +65,7 @@ void main() {
         final message = SemanticSearchMessages.failure(kind);
         expect(catalog, contains(message), reason: kind.name);
       }
+      expect(catalog, contains(SemanticSearchMessages.downloadAgain));
     });
 
     test('תוויות שלבי ההורדה של החיפוש הסמנטי', () {

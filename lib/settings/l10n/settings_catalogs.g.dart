@@ -349,6 +349,7 @@ const Map<String, Map<String, String>> kSettingsCatalogs = {
     'הועבר לשליחה דרך עדכוני אוצריא': 'Handed over for sending via Otzaria Updates',
     'הורד': 'Download',
     'הורד לשליחה במחשב מחובר': 'Download to Send From an Online Computer',
+    'הורד מחדש': 'Download Again',
     'הורד קטלוג': 'Download Catalog',
     'הורדת הנתונים, הרישיון ומחיקת הנתונים': 'Download the data, the license and delete the data',
     'הורדת הספרייה': 'Download Library',

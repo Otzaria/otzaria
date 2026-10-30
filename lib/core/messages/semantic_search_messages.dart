@@ -112,6 +112,16 @@ abstract class SemanticSearchMessages {
     onlyLexicalShown,
   ];
 
+  /// ההודעה של [kind] מורה להוריד שוב, ולכן הפעולה היא [downloadAgain].
+  static bool asksToDownloadAgain(SemanticFailureKind kind) => const {
+    corruptOrIncompatible,
+    notOfficialRelease,
+    modelMissing,
+    checksumMismatch,
+  }.contains(failure(kind));
+
+  static const String downloadAgain = 'הורד מחדש';
+
   /// ההודעה למשתמש עבור [kind].
   static String failure(SemanticFailureKind kind) => switch (kind) {
     SemanticFailureKind.artifactMissing ||

@@ -647,6 +647,61 @@ void main() {
       expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
     });
 
+    group('סט שהמנוע פוסל בפתיחה (#3689)', () {
+      const incompatible = SemanticFailure(
+        SemanticFailureKind.artifactIncompatible,
+        'line text version 1, engine reads 4',
+        'text.line_text_version',
+      );
+
+      Future<SemanticSearchRepository> failedOpen(
+        FakeBackend backend,
+        FakeLocator locator,
+      ) async {
+        installModelFiles(root);
+        final repository = buildRepository(
+          root: root,
+          backend: backend,
+          locator: locator,
+        );
+        await expectLater(repository.ensureOpen(), throwsA(incompatible));
+        expect(repository.availability.phase, SemanticAvailabilityPhase.failed);
+        return repository;
+      }
+
+      test('הורדה מחדש מתקינה את ה-base גם כשהגרסה עדכנית', () async {
+        final backend = FakeBackend()
+          ..vectors = installedV30
+          ..openFailure = incompatible;
+        final repository = await failedOpen(
+          backend,
+          FakeLocator(releaseV30()),
+        );
+        backend.openFailure = null;
+
+        await repository.enableAndDownload();
+
+        expect(backend.calls, contains('install'));
+        expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
+        await repository.ensureOpen();
+      });
+
+      test('בלי release לגרסה — "עוד לא פורסמו", לא "מוכן"', () async {
+        final backend = FakeBackend()
+          ..vectors = installedV30
+          ..openFailure = incompatible;
+        final repository = await failedOpen(backend, FakeLocator());
+
+        await repository.enableAndDownload();
+
+        expect(backend.calls, isNot(contains('install')));
+        expect(
+          repository.availability.phase,
+          SemanticAvailabilityPhase.vectorsNotPublished,
+        );
+      });
+    });
+
     test('בקשת משתמש שמצטרפת לעבודה ברקע מקבלת את הכשל', () async {
       installModelFiles(root);
       final gate = Completer<void>();
