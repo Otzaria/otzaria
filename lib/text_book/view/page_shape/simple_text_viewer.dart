@@ -410,6 +410,9 @@ class SimpleTextViewer extends StatefulWidget {
 
   /// טור "הערות" של הספר הראשי: אינו ספר, ולכן אין לו הערות אישיות או טאב משלו.
   final bool isBookNotesColumn;
+
+  /// ממפה שורת הערה לשורת המקור שלה, לדיווח ולכותרות ההעתקה בלבד.
+  final int Function(int index)? sourceIndexForIndex;
   final SelectionSyncController? selectionSyncController;
 
   /// הטאב שאליו שייכת תצוגה זו. משמש לזיהוי האם הטאב פעיל כרגע — כדי שטאב
@@ -469,6 +472,7 @@ class SimpleTextViewer extends StatefulWidget {
     this.onOpenSearch,
     this.reportBook,
     this.isBookNotesColumn = false,
+    this.sourceIndexForIndex,
     this.selectionSyncController,
     this.tab,
     this.onOpenCommentaryPersonalNote,
@@ -2162,7 +2166,8 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     final title = widget.bookTitle;
     final book =
         widget.reportBook ?? (title == null ? null : TextBook(title: title));
-    if (!hasPluginContextMenuItems ||
+    if (widget.isBookNotesColumn ||
+        !hasPluginContextMenuItems ||
         book == null ||
         index < 0 ||
         index >= widget.content.length) {
@@ -2514,15 +2519,24 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
     }
   }
 
+  int? _sourceIndex(int? index) =>
+      index == null ? null : (widget.sourceIndexForIndex?.call(index) ?? index);
+
   /// פתיחת דיאלוג דיווח על טעות בספר
   void _openErrorReportDialog(String selectedText) {
     final state = context.read<TextBookBloc>().state;
     if (state is! TextBookLoaded) return;
 
-    final resolvedBookTitle =
-        (widget.bookTitle != null && widget.bookTitle!.trim().isNotEmpty)
+    final resolvedBookTitle = widget.isBookNotesColumn
+        ? state.book.title
+        : (widget.bookTitle != null && widget.bookTitle!.trim().isNotEmpty)
         ? widget.bookTitle!
         : state.book.title;
+    if (widget.isBookNotesColumn &&
+        selectedText.trim().isEmpty &&
+        _savedSelectedIndex != null) {
+      selectedText = widget.content[_savedSelectedIndex!];
+    }
 
     ErrorReportHelper.showErrorReportDialog(
       context: context,
@@ -2534,19 +2548,11 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       state: state,
       fontSize: widget.fontSize,
       bookTitle: resolvedBookTitle,
-      savedSelectedIndex: _savedSelectedIndex,
-      reportContent: widget.content,
+      savedSelectedIndex: _sourceIndex(_savedSelectedIndex),
+      reportContent: widget.isBookNotesColumn ? state.content : widget.content,
       reportBook: widget.reportBook,
     );
   }
-
-  // [EDITING DISABLED]
-  // /// עריכת פסקה
-  // void _editParagraph(int index) {
-  //   if (index >= 0 && index < widget.content.length) {
-  //     context.read<TextBookBloc>().add(OpenEditor(index: index));
-  //   }
-  // }
 
   /// העתקת פסקה לפי אינדקס
   Future<void> _copyParagraphByIndex(
@@ -2576,7 +2582,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
                   ),
             )
           : text,
-      index: index,
+      index: _sourceIndex(index)!,
       copyWithHeaders: settingsState.copyWithHeaders,
       copyHeaderFormat: settingsState.copyHeaderFormat,
       headerBook: loaded == null ? null : (widget.reportBook ?? loaded.book),
@@ -2693,7 +2699,10 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
         fontFamily: widget.fontFamily ?? settingsState.fontFamily,
         fontSize: widget.fontSize,
         headerBookOverride: widget.reportBook,
-        headerContentOverride: widget.reportBook != null
+        headerIndexOverride: _sourceIndex(_savedSelectedIndex),
+        headerContentOverride: widget.isBookNotesColumn
+            ? textBookState.content
+            : widget.reportBook != null
             ? widget.content
             : null,
         removeNikud: removeNikud,

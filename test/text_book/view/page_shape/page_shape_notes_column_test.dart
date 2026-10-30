@@ -1,8 +1,17 @@
-// טור "הערות" בצורת הדף מציג את הערות הספר עצמו — גם כשאין לספר מפרש
-// מקושר אחר (issues #3400, #3507).
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart' show SelectedContent;
+import 'package:otzaria/plugins/services/context_menu_registry.dart';
+// ignore: depend_on_referenced_packages
+import 'package:super_native_extensions/src/native/context.dart';
+// ignore: depend_on_referenced_packages
+import 'package:irondash_message_channel/irondash_message_channel.dart';
+import 'package:super_clipboard/super_clipboard.dart';
+import 'package:otzaria/text_book/view/selection/selected_text_copy.dart';
+import 'package:otzaria/text_book/view/error_report_dialog.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_common/models/commentator_group.dart';
@@ -34,19 +43,41 @@ import 'package:otzaria/text_book/view/page_shape/utils/page_shape_settings_mana
 
 import '../../../test_helpers/memory_cache_provider.dart';
 
-const _content = ['שורה א', 'שורה ב', 'שורה ג'];
+const _content = [
+  '<h2>פרק ראשון</h2>',
+  'שורה ב',
+  'שורה ג',
+  'שורה ד',
+  'שורה ה',
+  'שורה ו',
+  '<h2>פרק שני</h2>',
+  'שורה ח',
+];
 const _columns = ['left', 'right', 'bottom', 'bottomRight'];
 
 BookNotes _notes() {
   final builder = BookNotesBuilder()
     ..add(0, 0, 'א', 'הערה ראשונה על שורה א')
     ..add(0, 1, null, 'הערה שנייה על שורה א')
-    ..add(2, 0, 'ב', 'הערה על שורה ג');
+    ..add(7, 0, 'ב', '<b>הערה על שורה ח</b>');
   return builder.build();
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  final paragraphProviders = <dynamic>[];
+  setUpAll(() {
+    final native = superNativeExtensionsContext as MockMessageChannelContext;
+    native.registerMockMethodCallHandler('DataProviderManager', (call) async {
+      if (call.method == 'registerDataProvider') {
+        paragraphProviders.add(call.arguments['representations']);
+        return paragraphProviders.length;
+      }
+      return null;
+    });
+    native.registerMockMethodCallHandler('ClipboardWriter', (_) async => null);
+  });
 
   setUp(() async {
     final root = Directory.systemTemp.createTempSync('page-shape-notes-');
@@ -66,10 +97,10 @@ void main() {
     expect(column.content, hasLength(3));
     expect(column.content[0], contains('הערה ראשונה על שורה א'));
     expect(column.content[1], contains('הערה שנייה על שורה א'));
-    expect(column.content[2], contains('הערה על שורה ג'));
+    expect(column.content[2], contains('הערה על שורה ח'));
     expect(
       [for (final link in column.links) (link.index1, link.index2)],
-      [(1, 1), (1, 2), (3, 3)],
+      [(1, 1), (1, 2), (8, 3)],
     );
   });
 
@@ -113,13 +144,18 @@ void main() {
         linksByLine: const {},
         tableOfContents: const [],
         visibleIndices: const [0],
-        selectedIndex: 2,
+        selectedIndex: 7,
         pinLeftPane: false,
         searchText: '',
         bookNotes: _notes(),
       ),
     );
-    final settings = _TestSettingsBloc(SettingsState.initial());
+    final settings = _TestSettingsBloc(
+      SettingsState.initial().copyWith(
+        copyWithHeaders: 'book_and_path',
+        copyHeaderFormat: 'separate_line_before',
+      ),
+    );
     final notes = _TestPersonalNotesBloc(const PersonalNotesState.initial());
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
     final tabs = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
@@ -174,8 +210,7 @@ void main() {
     expect(notesViewer(), findsOneWidget);
     final viewer = tester.widget<SimpleTextViewer>(notesViewer());
     expect(viewer.content, hasLength(3));
-    expect(viewer.content.last, contains('הערה על שורה ג'));
-    // השורה הנבחרת (ג) מדגישה את ההערה שלה בטור.
+    expect(viewer.content.last, contains('הערה על שורה ח'));
     expect(viewer.highlightedIndices, {2});
     expect(viewer.isBookNotesColumn, isTrue);
 
@@ -189,6 +224,109 @@ void main() {
       tester.widget<SimpleTextViewer>(notesViewer()).content,
       same(viewer.content),
     );
+
+    Future<void> openNoteMenu() async {
+      final rect = tester.getRect(
+        find
+            .descendant(
+              of: notesViewer(),
+              matching: find.textContaining('הערה על שורה ח'),
+            )
+            .first,
+      );
+      final gesture = await tester.startGesture(
+        rect.center,
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryMouseButton,
+      );
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    ContextMenuRegistry.instance.registerPayload('notes-column-test', {
+      'id': 'action',
+      'title': 'פעולת מפרש לתוסף',
+      'contexts': ['reader-commentary', 'reader-commentary-selection'],
+    });
+    addTearDown(
+      () => ContextMenuRegistry.instance.removeAll('notes-column-test'),
+    );
+    await openNoteMenu();
+    expect(find.text('פעולת מפרש לתוסף'), findsNothing);
+    expect(find.text('הוסף הערה אישית '), findsNothing);
+    await tester.tap(find.text('העתק את כל הפסקה'));
+    await tester.pumpAndSettle();
+    final expectedParagraph = await Formats.plainText(
+      'חברותא על ברכות, פרק שני\nב הערה על שורה ח',
+    );
+    expect(
+      paragraphProviders.last.first,
+      expectedParagraph.representations.single.serialize(),
+    );
+
+    final copied = <({String plainText, String htmlText})>[];
+    debugSelectedTextCopyHandler = copied.add;
+    addTearDown(() => debugSelectedTextCopyHandler = null);
+    SelectableRegion selectionRegion() => tester.widget<SelectableRegion>(
+      find.descendant(
+        of: notesViewer(),
+        matching: find.byType(SelectableRegion),
+      ),
+    );
+    selectionRegion().onSelectionChanged?.call(
+      const SelectedContent(plainText: 'הערה על שורה ח'),
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(copied.single.plainText, contains('חברותא על ברכות, פרק שני'));
+    expect(copied.single.htmlText, contains('<b>'));
+
+    selectionRegion().onSelectionChanged?.call(null);
+    await tester.pumpAndSettle();
+    await openNoteMenu();
+    await tester.tap(find.text('דווח על טעות בספר'));
+    await _pumpUntil(
+      tester,
+      () => find.byType(TabbedReportDialog).evaluate().isNotEmpty,
+    );
+    final dialog = tester.widget<TabbedReportDialog>(
+      find.byType(TabbedReportDialog),
+    );
+    expect(dialog.bookTitle, bookTitle);
+    expect(dialog.currentLineNumber, 8);
+    expect(dialog.selectedText, 'ב הערה על שורה ח');
+    Navigator.of(tester.element(find.byType(TabbedReportDialog))).pop();
+    await tester.pumpAndSettle();
+
+    bloc.publish((bloc.state as TextBookLoaded).copyWith(selectedIndex: 0));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<SimpleTextViewer>(notesViewer()).highlightedIndices,
+      {0, 1},
+      reason: 'הערות על כותרת שייכות לכותרת עצמה, בלי דילוג לשורת הגוף',
+    );
+
+    final movedNotes =
+        (BookNotesBuilder()
+              ..add(1, 0, 'א', 'הערה ראשונה על שורה א')
+              ..add(1, 1, null, 'הערה שנייה על שורה א')
+              ..add(7, 0, 'ב', '<b>הערה על שורה ח</b>'))
+            .build();
+    bloc.publish(
+      (bloc.state as TextBookLoaded).copyWith(
+        selectedIndex: 1,
+        bookNotes: movedNotes,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final movedViewer = tester.widget<SimpleTextViewer>(notesViewer());
+    expect(movedViewer.content, same(viewer.content));
+    expect(movedViewer.highlightedIndices, {0, 1});
+    expect(movedViewer.sourceIndexForIndex!(0), 1);
   });
 }
 

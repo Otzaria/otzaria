@@ -54,6 +54,7 @@ String resolveHtmlTextForSelection({
 }
 
 /// מעתיק טקסט נבחר מספר טקסט תוך שמירה על כותרות ועיצוב.
+/// [headerIndexOverride] ממפה מראה מקום בלבד; ה־HTML נחתך לפי [selectedIndex].
 ///
 /// [textBookState] הוא null בהעתקה ממשטח ללא `TextBookBloc` (חלונית ה-PDF);
 /// אז [headerBookOverride] הוא מקור ספר הכותרת היחיד.
@@ -75,6 +76,7 @@ Future<void> copySelectedTextForBook({
   required double fontSize,
   TextBook? headerBookOverride,
   List<String>? headerContentOverride,
+  int? headerIndexOverride,
   bool removeNikud = false,
   TextDisplayProfile? copyProfile,
   TextTarget? copyTarget,
@@ -97,6 +99,7 @@ Future<void> copySelectedTextForBook({
     settingsState: settingsState,
     headerBookOverride: headerBookOverride,
     headerContentOverride: headerContentOverride,
+    headerIndexOverride: headerIndexOverride,
     removeNikud: removeNikud,
     copyProfile: copyProfile,
     copyTarget: copyTarget,
@@ -130,6 +133,7 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
   required SettingsState settingsState,
   TextBook? headerBookOverride,
   List<String>? headerContentOverride,
+  int? headerIndexOverride,
   bool removeNikud = false,
   TextDisplayProfile? copyProfile,
   TextTarget? copyTarget,
@@ -168,7 +172,7 @@ Future<({String plainText, String htmlText})?> buildSelectedTextCopy({
   final headerBook = headerBookOverride ?? textBookState?.book;
   if (settingsState.copyWithHeaders != 'none' && headerBook != null) {
     final bookName = CopyUtils.extractBookName(headerBook);
-    final currentIndex = selectedIndex ?? 0;
+    final currentIndex = headerIndexOverride ?? selectedIndex ?? 0;
     final headerContent = headerContentOverride ?? sourceContent;
     final currentPath = await CopyUtils.extractCurrentPath(
       headerBook,

@@ -2138,13 +2138,13 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
   void _showNotesColumn(TextBookLoaded state) {
     final column = buildPageShapeNotesColumn(state.content, state.bookNotes);
     _notesColumnSource = (state.content, state.bookNotes);
+    _relevantLinks = column.links;
     // טעינת טווחי תוכן ברקע מחליפה את state.content בלי לשנות את ההערות;
     // בנייה מחדש הייתה מאפסת את הסנכרון ומקפיצה את הטור.
     if (!_isLoading &&
         const ListEquality<String>().equals(_content, column.content)) {
       return;
     }
-    _relevantLinks = column.links;
     setState(() {
       _reportBook = null;
       _content = column.content;
@@ -2416,10 +2416,12 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     }
 
     // חישוב האינדקס הלוגי
-    final logicalIndex = CommentarySyncHelper.getLogicalIndex(
-      state.selectedIndex!,
-      state.content,
-    );
+    final logicalIndex = _isNotesColumn
+        ? state.selectedIndex!
+        : CommentarySyncHelper.getLogicalIndex(
+            state.selectedIndex!,
+            state.content,
+          );
     final mainLineNumber = logicalIndex + 1;
 
     // מציאת כל הקישורים לשורה זו והמרה ישירה ל-Set
@@ -2705,10 +2707,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
     }
 
     // חישוב האינדקס הלוגי (עם טיפול בכותרות)
-    final logicalIndex = CommentarySyncHelper.getLogicalIndex(
-      currentMainIndex,
-      state.content,
-    );
+    final logicalIndex = _isNotesColumn
+        ? currentMainIndex
+        : CommentarySyncHelper.getLogicalIndex(currentMainIndex, state.content);
 
     // חישוב האינדקס היעד במפרש — היצמדות לקישור הקודם הקרוב ביותר
     final targetIndex = CommentarySyncHelper.getCommentaryTargetIndex(
@@ -2864,6 +2865,9 @@ class _CommentaryPaneState extends State<_CommentaryPane> {
                   : _anchorLinksByLine,
               anchorBookNotes: _anchorBookNotes,
               isBookNotesColumn: _isNotesColumn,
+              sourceIndexForIndex: _isNotesColumn
+                  ? (index) => _relevantLinks[index].index1 - 1
+                  : null,
             );
           },
         );
