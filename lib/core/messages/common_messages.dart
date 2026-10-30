@@ -10,6 +10,8 @@ abstract class CommonMessages {
   static const String clipboardUnavailable = 'לא ניתן לגשת ללוח';
   static const String linkCopied = 'הקישור הועתק';
   static const String pathCopied = 'הנתיב הועתק ללוח';
+  static const String locationNotFound = 'המיקום לא נמצא בדיסק';
+  static const String cannotOpenLocation = 'לא ניתן לפתוח את המיקום';
   static const String noTextSelected = 'אנא בחר טקסט להעתקה';
   static const String noContentToCopy = 'אין תוכן להעתקה';
   static const String paragraphCopied = 'הפסקה הועתקה בהצלחה';

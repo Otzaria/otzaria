@@ -174,12 +174,12 @@ Future<void> _openInfoPath(String path) async {
         ? File(path).parent.path
         : path;
     if (!FileSystemEntity.isDirectorySync(target)) {
-      UiSnack.showError('המיקום לא נמצא בדיסק');
+      UiSnack.showError(CommonMessages.locationNotFound);
       return;
     }
     await openInFileManager(target);
   } catch (_) {
-    UiSnack.showError('לא ניתן לפתוח את המיקום');
+    UiSnack.showError(CommonMessages.cannotOpenLocation);
   }
 }
 
