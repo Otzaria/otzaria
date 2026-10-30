@@ -24,6 +24,7 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -257,6 +258,36 @@ Future<void> main() async {
     expect(reopened.requests.single.distance, 3);
     expect(reopened.requests.single.searchOptions, expectedOptions);
   }, skip: !engineReady);
+
+  testWidgets(
+    'מצב מקורב שהגיע מהחיפוש הכללי אינו חל על שאילתה שהוקלדה (issue #3595)',
+    (tester) async {
+      final repository = await pumpPdfSearch(
+        tester,
+        query: 'היא',
+        searchMode: SearchMode.fuzzy,
+        searchDistance: kMaxFuzzyDistance,
+      );
+      final wholeWordToggle = find.byWidgetPredicate(
+        (widget) =>
+            widget is Icon &&
+            (widget.icon == OtzariaIcons.alef_24_regular ||
+                widget.icon == OtzariaIcons.alef_mix_24_regular),
+      );
+      expect(wholeWordToggle, findsNothing);
+
+      await tester.enterText(find.byType(TextField).first, 'שהיד');
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(repository.requests.where((r) => r.query == 'שהיד'), isEmpty);
+      expect(repository.textSearcher.pattern, isA<RegExp>());
+      expect(
+        (repository.textSearcher.pattern as RegExp).hasMatch('שהיד'),
+        isTrue,
+      );
+      expect(wholeWordToggle, findsOneWidget);
+    },
+  );
 
   testWidgets('מרווח בין מילים במצב מדויק רץ במסלול המנוע', (tester) async {
     final repository = await pumpPdfSearch(
