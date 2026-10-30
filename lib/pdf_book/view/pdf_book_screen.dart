@@ -4901,6 +4901,8 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                                 widget.tab.incomingSearchConfiguration,
                             onSearchResultNavigated: _ensureSearchTabIsActive,
                             onNavigationStarted: _preparePdfJump,
+                            takeCenterMatchOnOpen:
+                                widget.tab.takeCenterSearchMatchOnOpen,
                           )
                         : const Center(child: CircularProgressIndicator()),
                   ),

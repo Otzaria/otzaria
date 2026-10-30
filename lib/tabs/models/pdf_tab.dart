@@ -66,6 +66,16 @@ class PdfBookTab extends OpenedTab {
 
   int? pdfSearchCurrentMatchIndex;
 
+  /// נפתח מתוצאת חיפוש כללי; בשחזור מהדיסק הקורא נשאר במיקום ששוחזר.
+  bool _centerSearchMatchOnOpen;
+
+  /// true פעם אחת, כשלשונית החיפוש צריכה למרכז את ההתאמה בעמוד הפתיחה.
+  bool takeCenterSearchMatchOnOpen() {
+    final center = _centerSearchMatchOnOpen;
+    _centerSearchMatchOnOpen = false;
+    return center;
+  }
+
   /// תצורת חיפוש חיצונית שממתינה להחלה בחלונית החיפוש.
   final ValueNotifier<ReadingTabSearchState?> incomingSearchConfiguration =
       ValueNotifier<ReadingTabSearchState?>(null);
@@ -155,6 +165,7 @@ class PdfBookTab extends OpenedTab {
     super.isPinned,
     super.dedupeKey,
     this.requiresStableLayout = false,
+    this._centerSearchMatchOnOpen = false,
     ExternalBookMatches? externalMatches,
   }) : _pageNumber = ValueNotifier<int>(pageNumber),
        externalMatches = ValueNotifier<ExternalBookMatches?>(externalMatches),

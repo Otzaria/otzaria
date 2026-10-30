@@ -39,12 +39,17 @@ class _FakeDocument extends Fake implements PdfDocument {
 /// קונטרולר "מוכן" בלי PdfViewer אמיתי — [PdfTextSearchSession] דורש מסמך חי
 /// בבנייה, ו-useDocument מוחזר null כדי שהחיפוש לא יגע ב-pdfium.
 class _FakeReadyController extends PdfViewerController {
+  _FakeReadyController({this.viewerPage});
+
+  /// העמוד שהצפיין מציג; null — כמו קונטרולר שאינו מחובר לצפיין.
+  final int? viewerPage;
+
   @override
   bool get isReady => true;
 
   // קונטרולר אמיתי מוכן תמיד מחזיר עמוד; זה אינו מחובר לצפיין.
   @override
-  int? get pageNumber => null;
+  int? get pageNumber => viewerPage;
 
   @override
   PdfDocument get document => _FakeDocument();
@@ -118,6 +123,19 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
     ];
   }
 
+  /// טווח ההתאמות שהסריקה מצאה בכל עמוד; null — העמוד טרם נסרק.
+  ({int start, int end})? pageRange;
+  final navigatedTo = <int>[];
+
+  @override
+  ({int start, int end})? getMatchesRangeForPage(int pageNumber) => pageRange;
+
+  @override
+  Future<int> goToMatchOfIndex(int index) async {
+    navigatedTo.add(index);
+    return index;
+  }
+
   /// התבניות שנשלחו לסריקה, בלי איפוסי השדה הריק.
   List<RegExp> get searchedPatterns => [
     for (final pattern in searches)
@@ -144,6 +162,9 @@ Future<_RecordingTextSearcher> _pumpSearchView(
   String initialQuery = '',
   SearchMode initialSearchMode = SearchMode.exact,
   SearchRepository searchRepository = const SearchRepository(),
+  int? viewerPage,
+  bool Function()? takeCenterMatchOnOpen,
+  ({int start, int end})? pageRange,
 }) async {
   final settingsBloc = _MockSettingsBloc();
   whenListen(
@@ -160,9 +181,9 @@ Future<_RecordingTextSearcher> _pumpSearchView(
   final searchController = TextEditingController(text: initialQuery);
   final focusNode = FocusNode();
   final textSearcher = _RecordingTextSearcher(
-    _FakeReadyController(),
+    _FakeReadyController(viewerPage: viewerPage),
     pageFullText,
-  );
+  )..pageRange = pageRange;
   addTearDown(settingsBloc.close);
   addTearDown(pdfBookBloc.close);
   addTearDown(searchController.dispose);
@@ -187,6 +208,7 @@ Future<_RecordingTextSearcher> _pumpSearchView(
             initialSearchMode: initialSearchMode,
             initialSearchDistance: 2,
             searchRepository: searchRepository,
+            takeCenterMatchOnOpen: takeCenterMatchOnOpen,
           ),
         ),
       ),
@@ -389,6 +411,49 @@ Future<void> main() async {
       });
     }, skip: engineReady ? false : searchEngineSkipReason);
   });
+
+  group('מירכוז ההתאמה בפתיחה מתוצאת חיפוש כללי', () {
+    Future<_RecordingTextSearcher> open(
+      WidgetTester tester, {
+      int? viewerPage,
+      bool Function()? takeCenterMatchOnOpen,
+    }) async {
+      final searcher = await _pumpSearchView(
+        tester,
+        pageFullText: 'ממון שאין לו תובעין',
+        initialQuery: 'ממון לו תובעין',
+        initialSearchMode: SearchMode.advanced,
+        searchRepository: _OneResultRepository(),
+        viewerPage: viewerPage,
+        takeCenterMatchOnOpen: takeCenterMatchOnOpen,
+        pageRange: (start: 0, end: 1),
+      );
+      await _settleWithoutTime(tester);
+      return searcher;
+    }
+
+    testWidgets('הקורא בעמוד הפתיחה — ההתאמה שם ממורכזת', (tester) async {
+      final searcher = await open(tester, takeCenterMatchOnOpen: () => true);
+
+      expect(searcher.navigatedTo, [0]);
+    });
+
+    testWidgets('הקורא גלל מעמוד הפתיחה — לא נחטף בחזרה', (tester) async {
+      final searcher = await open(
+        tester,
+        viewerPage: 7,
+        takeCenterMatchOnOpen: () => true,
+      );
+
+      expect(searcher.navigatedTo, isEmpty);
+    });
+
+    testWidgets('טאב ששוחזר עם שאילתה — נשאר במיקום ששוחזר', (tester) async {
+      final searcher = await open(tester);
+
+      expect(searcher.navigatedTo, isEmpty);
+    });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 
   group('הדגשת מסלול המנוע על העמוד', () {
     testWidgets('ההדגשה נשלחת מיד, והסריקה מתחילה בעמוד היעד', (tester) async {

@@ -65,6 +65,7 @@ class PdfBookSearchView extends StatefulWidget {
     this.incomingSearchConfiguration,
     this.onSearchResultNavigated,
     this.onNavigationStarted,
+    this.takeCenterMatchOnOpen,
     this.searchRepository = const SearchRepository(),
     super.key,
   });
@@ -102,6 +103,9 @@ class PdfBookSearchView extends StatefulWidget {
 
   final VoidCallback? onSearchResultNavigated;
   final ValueChanged<int>? onNavigationStarted;
+
+  /// true פעם אחת כשהספר נפתח מתוצאת חיפוש כללי: ההתאמה בעמוד היעד ממורכזת.
+  final bool Function()? takeCenterMatchOnOpen;
 
   /// מנוע החיפוש המתקדם. נחלף בבדיקות במימוש שלא נוגע במנוע ה-Rust.
   final SearchRepository searchRepository;
@@ -432,7 +436,9 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     _centerOnOpenTargetPending = false;
     final state = context.read<PdfBookBloc>().state;
     if (state is PdfBookLoaded) {
-      unawaited(_goToMatchOnPage(state.currentPageNumber, 0));
+      unawaited(
+        _goToMatchOnPage(state.currentPageNumber, 0, onlyIfShown: true),
+      );
     }
   }
 
@@ -451,7 +457,12 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   }
 
   /// ממרכז את ההתאמה ה-[k] בעמוד, אחרי שהעמוד נסרק. false כשאין בו התאמה.
-  Future<bool> _goToMatchOnPage(int pageNumber, int k) async {
+  /// עם [onlyIfShown] — רק אם הקורא עדיין בעמוד, ולא גולל ממנו בינתיים.
+  Future<bool> _goToMatchOnPage(
+    int pageNumber,
+    int k, {
+    bool onlyIfShown = false,
+  }) async {
     final searcher = widget.textSearcher;
     if (searcher.getMatchesRangeForPage(pageNumber) == null &&
         searcher.isSearching) {
@@ -469,6 +480,12 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     }
     final range = searcher.getMatchesRangeForPage(pageNumber);
     if (!mounted || range == null || range.end <= range.start) return false;
+    if (onlyIfShown) {
+      final state = context.read<PdfBookBloc>().state;
+      if (state is! PdfBookLoaded || _currentPage(state) != pageNumber) {
+        return false;
+      }
+    }
     await searcher.goToMatchOfIndex(
       range.start + min(k, range.end - range.start - 1),
     );
@@ -501,7 +518,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
         widget.initialSearchOrigin == InBookSearchOrigin.globalResult
         ? searchableInBookQuery(widget.searchController.text)
         : null;
-    _centerOnOpenTargetPending = _carriedInQuery != null;
+    _centerOnOpenTargetPending = widget.takeCenterMatchOnOpen?.call() ?? false;
     if (!_isBundledTalmudPdf &&
         searchableInBookQuery(widget.searchController.text) == null) {
       _settings = InBookSearchSettings.savedDefaults();
