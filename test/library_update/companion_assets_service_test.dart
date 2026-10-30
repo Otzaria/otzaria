@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -780,6 +781,37 @@ void main() {
       expect(readMarker(), tag);
     });
 
+    test('בדיקת התיקייה וניקוי הקבצים הישנים לא משתמשים ב-IO סינכרוני '
+        '(#3654)', () async {
+      createTalmudDir(markerTag: 'v1.0.0');
+      final stale = File(p.join(talmudDir(), 'מסכת_שהוסרה.pdf'))
+        ..writeAsStringSync('old');
+      final syncCalls = <String>[];
+
+      await IOOverrides.runZoned(
+        () => service().verifyAndUpdate(),
+        createDirectory: (path) {
+          final real = Zone.root.run(() => Directory(path));
+          return p.equals(path, talmudDir())
+              ? _AsyncOnlyDirectory(real, syncCalls)
+              : real;
+        },
+      );
+
+      expect(
+        syncCalls,
+        isEmpty,
+        reason: 'IO סינכרוני על תיקיית התלמוד חוסם את ה-UI',
+      );
+      expect(stale.existsSync(), isFalse);
+      expect(
+        File(p.join(talmudDir(), 'ברכות.pdf')).existsSync(),
+        isFalse,
+        reason: 'הקבצים הישנים נמחקים לפני החילוץ',
+      );
+      expect(readMarker(), tag);
+    });
+
     test(
       'הנכס חסר ב-release האחרון → נלקח מה-release הקודם שמכיל אותו',
       () async {
@@ -1182,4 +1214,53 @@ class _FakeDictionaryDownloader extends MagicDictionaryDownloader {
     disposed = true;
     super.dispose();
   }
+}
+
+/// רושם רשימה/בדיקה סינכרונית של התיקייה; המתודות המוגדרות מועברות לתיקייה
+/// האמיתית, וכל השאר זורק.
+class _AsyncOnlyDirectory implements Directory {
+  _AsyncOnlyDirectory(this._real, this._syncCalls);
+
+  final Directory _real;
+  final List<String> _syncCalls;
+
+  @override
+  String get path => _real.path;
+
+  @override
+  Future<bool> exists() => _real.exists();
+
+  @override
+  Future<Directory> create({bool recursive = false}) =>
+      _real.create(recursive: recursive);
+
+  // משמש את המחלץ המדומה, לא את הקוד הנבדק.
+  @override
+  void createSync({bool recursive = false}) =>
+      _real.createSync(recursive: recursive);
+
+  @override
+  Stream<FileSystemEntity> list({
+    bool recursive = false,
+    bool followLinks = true,
+  }) => _real.list(recursive: recursive, followLinks: followLinks);
+
+  @override
+  bool existsSync() {
+    _syncCalls.add('existsSync');
+    return _real.existsSync();
+  }
+
+  @override
+  List<FileSystemEntity> listSync({
+    bool recursive = false,
+    bool followLinks = true,
+  }) {
+    _syncCalls.add('listSync');
+    return _real.listSync(recursive: recursive, followLinks: followLinks);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('${invocation.memberName}');
 }

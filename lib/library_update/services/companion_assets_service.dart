@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -235,15 +234,21 @@ class CompanionAssetsService {
   ) async {
     onStatus?.call('בודק את התלמוד הבבלי', CompanionAssetPhase.checking);
     final dirs = _talmudDirsProvider();
-    final existingDir = dirs.where((d) {
+    // רק IO אסינכרוני על תיקיית התלמוד: מאות קבצים מול אנטי-וירוס או דיסק
+    // איטי חוסמים את ה-UI לשניות ארוכות.
+    String? existingDir;
+    for (final d in dirs) {
       // תיקייה שאינה נגישה לקריאה (הרשאות, אחסון חיצוני) נחשבת כלא קיימת.
       try {
         final dir = Directory(d);
-        return dir.existsSync() && dir.listSync().whereType<File>().isNotEmpty;
+        if (await dir.exists() && await dir.list().any((e) => e is File)) {
+          existingDir = d;
+          break;
+        }
       } on FileSystemException {
-        return false;
+        continue;
       }
-    }).firstOrNull;
+    }
 
     final client = _clientFactory();
     try {
@@ -253,15 +258,15 @@ class CompanionAssetsService {
       );
       if (existingDir != null) {
         final marker = File(p.join(existingDir, talmudVersionFileName));
-        final installed = marker.existsSync()
-            ? marker.readAsStringSync().trim()
+        final installed = await marker.exists()
+            ? (await marker.readAsString()).trim()
             : '';
         if (installed.isNotEmpty &&
             await _isInstalledUpToDate(client, installed, release)) {
           // תגי הספרייה מתחלפים כמעט יומית גם כשקובץ התלמוד זהה — מרעננים את
           // הסימון ל-digest כדי שהבדיקות הבאות ישוו תוכן ולא תג.
           if (release.sha256 != null && installed != release.sha256) {
-            marker.writeAsStringSync(release.sha256!);
+            await marker.writeAsString(release.sha256!);
           }
           return false;
         }
@@ -291,15 +296,15 @@ class CompanionAssetsService {
 
       onStatus?.call('מחלץ את התלמוד הבבלי', CompanionAssetPhase.applying);
       final dir = Directory(targetDir);
-      dir.createSync(recursive: true);
+      await dir.create(recursive: true);
       final markerFile = File(p.join(targetDir, talmudVersionFileName));
-      markerFile.writeAsStringSync(talmudInstallingMarker);
+      await markerFile.writeAsString(talmudInstallingMarker);
       // עדכון מעל התקנה קיימת: מנקים קבצים ישנים שאולי הוסרו ב-release החדש.
       // הסימון-ביניים כבר נכתב, כך שקטיעה בשלב הזה מותירה התקנה חלקית מסומנת.
-      for (final entity in dir.listSync()) {
+      for (final entity in await dir.list().toList()) {
         if (entity is File &&
             p.basename(entity.path) != talmudVersionFileName) {
-          entity.deleteSync();
+          await entity.delete();
         }
       }
       // הארכיון מכיל את התיקייה 'תלמוד בבלי/' — מחולץ לתיקיית האב.
@@ -328,9 +333,7 @@ class CompanionAssetsService {
       // מחיקת הקובץ הזמני לאחר חילוץ מוצלח.
       await File(tempPath).delete().catchError((_) => File(tempPath));
       await _deleteTalmudDownloadState(tempPath);
-      File(
-        p.join(targetDir, talmudVersionFileName),
-      ).writeAsStringSync(release.sha256 ?? release.tag);
+      await markerFile.writeAsString(release.sha256 ?? release.tag);
       // קיום תיקיית התלמוד ממוטמן ב-DatabaseLibraryProvider — בלי ניקוי,
       // הריענון שאחרי העדכון לא יגלה את התיקייה החדשה עד הפעלה מחדש.
       _invalidateLibraryCaches();
