@@ -895,17 +895,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _onTextSearcherUpdated() {
     final searcher = textSearcher;
     widget.tab.searchText = widget.tab.searchController.text;
+    if (searcher != null) {
+      final restoreIndex = _searchIndexRestorer.onSearcherUpdate(
+        session: searcher.searchSession,
+        isSearching: searcher.isSearching,
+        matchCount: searcher.matches.length,
+        hasCurrentMatch: searcher.currentIndex != null,
+      );
+      if (restoreIndex != null) {
+        unawaited(searcher.goToMatchOfIndex(restoreIndex));
+      }
+    }
     // בלי setState: ה-searcher מודיע אחרי כל עמוד, ורשימת התוצאות מאזינה לו בעצמה.
-    widget.tab.pdfSearchCurrentMatchIndex = searcher?.currentIndex;
-
-    if (searcher == null) return;
-    final restoreIndex = _searchIndexRestorer.onSearcherUpdate(
-      session: searcher.searchSession,
-      isSearching: searcher.isSearching,
-      matchCount: searcher.matches.length,
-    );
-    if (restoreIndex != null) {
-      unawaited(searcher.goToMatchOfIndex(restoreIndex));
+    // שחזור ממתין מחזיק את האינדקס השמור; null כאן היה מוחק אותו מה-session.
+    if (!_searchIndexRestorer.isPending) {
+      widget.tab.pdfSearchCurrentMatchIndex = searcher?.currentIndex;
     }
   }
 

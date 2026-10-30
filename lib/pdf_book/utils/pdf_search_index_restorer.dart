@@ -9,16 +9,21 @@ class PdfSearchIndexRestorer {
   /// החיפוש נבנה מחדש (טעינה חוזרת של המסמך) — ה-session הבא הוא הראשון.
   void resetSession() => _session = null;
 
-  /// מחזיר את האינדקס שיש לנווט אליו עכשיו, או null.
+  /// השחזור עדיין ממתין; עד אז האינדקס השמור הוא המיקום של הטאב.
+  bool get isPending => _pending != null;
+
+  /// מחזיר את האינדקס שיש לנווט אליו עכשיו, או null. [hasCurrentMatch] —
+  /// המשתמש כבר ניווט להתאמה, והשחזור היה מחזיר אותו לישנה.
   int? onSearcherUpdate({
     required int session,
     required bool isSearching,
     required int matchCount,
+    bool hasCurrentMatch = false,
   }) {
     final pending = _pending;
     if (pending == null) return null;
     _session ??= session;
-    if (session != _session) {
+    if (session != _session || hasCurrentMatch) {
       _pending = null;
       return null;
     }

@@ -204,6 +204,7 @@ Future<_RecordingTextSearcher> _pumpSearchView(
   SearchRepository searchRepository = const SearchRepository(),
   int? viewerPage,
   bool Function()? takeCenterMatchOnOpen,
+  ValueChanged<int>? onNavigationStarted,
   List<(int, int)>? pageMatches,
 }) async {
   final settingsBloc = _MockSettingsBloc();
@@ -250,6 +251,7 @@ Future<_RecordingTextSearcher> _pumpSearchView(
             initialSearchDistance: 2,
             searchRepository: searchRepository,
             takeCenterMatchOnOpen: takeCenterMatchOnOpen,
+            onNavigationStarted: onNavigationStarted,
           ),
         ),
       ),
@@ -610,7 +612,10 @@ Future<void> main() async {
         (page.lastIndexOf(near), page.length),
       ];
 
-      Future<_RecordingTextSearcher> pump(WidgetTester tester) async {
+      Future<_RecordingTextSearcher> pump(
+        WidgetTester tester, {
+        ValueChanged<int>? onNavigationStarted,
+      }) async {
         final searcher = await _pumpSearchView(
           tester,
           pageFullText: page,
@@ -620,6 +625,7 @@ Future<void> main() async {
             'והיה <font>ממון</font> <font>לו</font> <font>תובעין</font>',
             '<font>ממון</font> שאין <font>לו</font> <font>תובעין</font>',
           ]),
+          onNavigationStarted: onNavigationStarted,
         );
         searcher.scanning = true;
         await _settleWithoutTime(tester);
@@ -627,7 +633,8 @@ Future<void> main() async {
       }
 
       testWidgets('שתי לחיצות מהירות — רק האחרונה מנווטת', (tester) async {
-        final searcher = await pump(tester);
+        final jumps = <int>[];
+        final searcher = await pump(tester, onNavigationStarted: jumps.add);
 
         await tester.tap(find.byType(SearchResultTile).first);
         await _settleWithoutTime(tester);
@@ -637,6 +644,8 @@ Future<void> main() async {
         await _settleWithoutTime(tester);
 
         expect(searcher.navigatedTo, [0]);
+        // רק מעבר שקרה נרשם כמיקום לחזרה אליו.
+        expect(jumps, [5]);
       });
 
       testWidgets('שאילתה חדשה בזמן ההמתנה — הלחיצה הישנה לא מנווטת', (
