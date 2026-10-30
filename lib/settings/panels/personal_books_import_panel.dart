@@ -191,7 +191,9 @@ class _PersonalBooksImportPanelState extends State<PersonalBooksImportPanel> {
 
       if (result.errors.isNotEmpty) {
         UiSnack.showError(
-          SettingsMessages.importErrors(result.errors.join('\n')),
+          SettingsMessages.importErrors(
+            SettingsMessages.errorLines(result.errors),
+          ),
         );
       }
       if (result.skippedUnsupported > 0) {

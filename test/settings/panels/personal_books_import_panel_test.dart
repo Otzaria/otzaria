@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/settings_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/migration/sync/file_sync_service.dart';
@@ -25,9 +27,13 @@ class _FakeImportService extends PersonalBooksImportService {
   static const _folderPath = 'C:/fake/imported';
 
   final List<String> fileNames = [];
+  List<String> copyErrors = const [];
 
   @override
   Future<PersonalBooksImportResult> copyFiles(List<String> sourcePaths) async {
+    if (copyErrors.isNotEmpty) {
+      return PersonalBooksImportResult(errors: copyErrors);
+    }
     var copied = 0;
     var skipped = 0;
     for (final path in sourcePaths) {
@@ -183,9 +189,11 @@ void main() {
     Future<List<String>?> Function()? pickFiles,
     AndroidFolderImportChannel? folderImport,
     bool showFolderImport = false,
+    GlobalKey<NavigatorState>? snackHost,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
+        navigatorKey: snackHost,
         home: Scaffold(
           body: BlocProvider<CustomFoldersBloc>.value(
             value: bloc,
@@ -374,6 +382,39 @@ void main() {
 
     expect(find.text('ייבא'), findsNothing);
     expect(folderImport.copiedTo, isNull);
+  });
+
+  testWidgets('הודעת שגיאות הייבוא מציגה עד 10 שגיאות ואת מספר הנותרות', (
+    tester,
+  ) async {
+    service.copyErrors = [for (var i = 0; i < 500; i++) '"ספר $i.txt": שגיאה'];
+    final bloc = buildBloc(folderRegistered: true, syncCalls: []);
+
+    await pumpPanel(
+      tester,
+      bloc: bloc,
+      pickFiles: () async => ['C:/picked/ספר.txt'],
+      snackHost: navigatorKey,
+    );
+    await tester.tap(find.text('ייבוא ספרים'));
+    await settle(tester);
+
+    final toast = tester.widget<Text>(
+      find.textContaining('שגיאות בייבוא:', skipOffstage: false),
+    );
+    final lines = toast.data!.split('\n');
+    expect(lines, hasLength(12));
+    expect(lines.last, 'ועוד 490…');
+    UiSnack.hide();
+  });
+
+  test('errorLines מוסיף "ועוד" רק מעל 10 שגיאות', () {
+    List<String> errors(int n) => [for (var i = 0; i < n; i++) 'e$i'];
+    expect(SettingsMessages.errorLines(errors(10)).split('\n'), errors(10));
+    expect(
+      SettingsMessages.errorLines(errors(11)).split('\n'),
+      [...errors(10), 'ועוד 1…'],
+    );
   });
 
   testWidgets('בלי תמיכה בתיקייה הכפתור אינו מוצג', (tester) async {

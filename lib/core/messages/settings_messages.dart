@@ -48,6 +48,12 @@ abstract class SettingsMessages {
 
   static String importErrors(String errors) => 'שגיאות בייבוא:\n$errors';
 
+  /// עד [max] שגיאות להודעה: פריסת טוסט עם אלפי שורות תוקעת את ה-UI לדקות.
+  static String errorLines(List<String> errors, {int max = 10}) {
+    final more = errors.length > max ? '\nועוד ${errors.length - max}…' : '';
+    return '${errors.take(max).join('\n')}$more';
+  }
+
   static String unsupportedFilesSkipped(int count) =>
       '$count קבצים דולגו — ניתן לייבא רק TXT, PDF ו-Word';
 
