@@ -80,6 +80,27 @@ Future<void> main() async {
       skip: !engineReady,
     );
 
+    test(
+      'a distance needs the engine only for a multi-word query (#3501)',
+      () {
+        for (final optionsForEveryWord in [null, const <String, bool>{}]) {
+          final settings = InBookSearchSettings(
+            distance: 3,
+            optionsForEveryWord: optionsForEveryWord,
+          );
+          expect(settings.forQuery('שמים').isSimpleSearch, isTrue);
+          expect(settings.forQuery('שמים').distance, 3);
+          expect(settings.forQuery('שמים וארץ').requiresEngine, isTrue);
+        }
+      },
+      skip: !engineReady,
+    );
+
+    test('a regex retains its non-literal route with positive distance', () {
+      const settings = InBookSearchSettings(distance: 3);
+      expect(settings.forQuery('/שמים/').isSimpleSearch, isFalse);
+    }, skip: !engineReady);
+
     test('takes the dialog result with its mode, distance and policy', () {
       final settings = InBookSearchSettings.fromDialogResult(
         const SearchDialogResult(

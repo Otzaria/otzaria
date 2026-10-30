@@ -200,6 +200,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       searchMode: widget.initialSearchMode,
       distance: widget.initialSearchDistance,
       matchPolicy: widget.initialMatchPolicy,
+      query: searchableInBookQuery(searchTextController.text),
     );
   }
 
@@ -304,12 +305,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       _syncSearchConfigurationFromWidget();
     }
 
-    // הרצת חיפוש מ-didUpdateWidget רק כששינוי ה-query מקורו חיצוני (ה-controller
-    // עדיין לא מסונכרן) או כשהקונפיגורציה השתנתה. שינוי query שכבר משוקף
-    // ב-controller הוא ההד של הקלדה ש-onSearchTextChanged כבר טיפל בה — הרצה
-    // נוספת כאן רק מכפילה את העבודה.
+    // הד של ההקלדה כבר טופל ב-onSearchTextChanged; חיפוש חוזר נדרש רק
+    // לשאילתה חיצונית או לתצורה חדשה.
     final isExternalQueryChange = queryChanged && needsControllerSync;
     if (isExternalQueryChange || searchConfigurationChanged) {
+      _settings = _settings.forQuery(
+        searchableInBookQuery(searchTextController.text) ?? '',
+      );
       _syncBlocSearchTextState();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {

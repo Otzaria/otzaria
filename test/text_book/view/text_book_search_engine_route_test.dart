@@ -23,6 +23,7 @@ import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria/text_display/text_display_exports.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 import '../../support/search_engine_test_init.dart';
@@ -89,33 +90,35 @@ Future<void> main() async {
       await resetSectionSearchWorkerForTesting();
     });
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MultiBlocProvider(
-          providers: [
-            BlocProvider<TextBookBloc>.value(value: textBookBloc),
-            BlocProvider<SettingsBloc>.value(value: settingsBloc),
-          ],
-          child: Scaffold(
-            body: TextBookSearchView(
-              contentLoader: () async => content,
-              lines: LineScrollController(),
-              focusNode: focusNode,
-              closeLeftPaneCallback: () {},
-              initialQuery: initialQuery,
-              initialSearchMode: searchMode,
-              initialSearchDistance: searchDistance,
-              initialMatchPolicy: matchPolicy,
-              simpleSearchRunner: simpleSearchRunner,
-              searchRepository: searchRepository,
+    final lines = LineScrollController();
+    Widget build(String query, int distance, SearchMatchPolicy policy) =>
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<TextBookBloc>.value(value: textBookBloc),
+              BlocProvider<SettingsBloc>.value(value: settingsBloc),
+            ],
+            child: Scaffold(
+              body: TextBookSearchView(
+                contentLoader: () async => content,
+                lines: lines,
+                focusNode: focusNode,
+                closeLeftPaneCallback: () {},
+                initialQuery: query,
+                initialSearchMode: searchMode,
+                initialSearchDistance: distance,
+                initialMatchPolicy: policy,
+                simpleSearchRunner: simpleSearchRunner,
+                searchRepository: searchRepository,
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        );
+
+    await tester.pumpWidget(build(initialQuery, searchDistance, matchPolicy));
     await tester.pump();
 
-    return _Harness(tester, textBookBloc);
+    return _Harness(tester, textBookBloc, build);
   }
 
   testWidgets(
@@ -156,6 +159,79 @@ Future<void> main() async {
     },
     skip: !engineReady,
   );
+
+  testWidgets('שאילתה חיצונית מעדכנת ניתוב בשני הכיוונים בלי שינוי בהגדרות', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    final simpleQueries = <String>[];
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע',
+      searchDistance: 3,
+      simpleSearchRunner: (content, query) async {
+        simpleQueries.add(query);
+        return const [];
+      },
+    );
+    await harness.settle();
+    expect(simpleQueries, ['תדע']);
+    expect(repository.requests, isEmpty);
+
+    await harness.rebuildFromBloc('תדע זרעך', 3, SearchMatchPolicy.standard);
+    await harness.settle();
+    expect(repository.requests, hasLength(1));
+    expect(repository.requests.single.query, 'תדע זרעך');
+    expect(repository.requests.single.distance, 3);
+    expect(simpleQueries, ['תדע']);
+
+    await harness.rebuildFromBloc('זרעך', 3, SearchMatchPolicy.standard);
+    await harness.settle();
+    expect(simpleQueries, ['תדע', 'זרעך']);
+    expect(repository.requests, hasLength(1));
+    expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+
+    await harness.type(' זַרְעֲךָ ');
+    await harness.settle();
+    final callsBeforeEcho = simpleQueries.length;
+    await harness.rebuildFromBloc(' זרעך ', 3, SearchMatchPolicy.standard);
+    await harness.settle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+      ' זַרְעֲךָ ',
+    );
+    expect(simpleQueries, hasLength(callsBeforeEcho));
+    expect(repository.requests, hasLength(1));
+  }, skip: !engineReady);
+
+  testWidgets('ביטוי רגולרי עם מרווח חיובי שומר על הדגשת ההתאמה בתוצאה', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: '/שמים/',
+      searchDistance: 3,
+      content: const ['בראשית שמים וארץ'],
+    );
+    await harness.settle();
+    expect(repository.requests, isEmpty);
+    final result = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .singleWhere(
+          (widget) => widget.text.toPlainText() == 'בראשית שמים וארץ',
+        );
+    final highlighted = <String>[];
+    result.text.visitChildren((span) {
+      if (span is TextSpan && span.style?.fontWeight == FontWeight.bold) {
+        highlighted.add(span.toPlainText());
+      }
+      return true;
+    });
+    expect(highlighted, contains('שמים'));
+  }, skip: !engineReady);
 
   testWidgets(
     'שורה שהמנוע לא קרא מוצגת מתוכן הספר הטעון',
@@ -305,6 +381,55 @@ Future<void> main() async {
       expect(repository.requests, isNotEmpty);
       expect(repository.requests.last.distance, 3);
     });
+
+    testWidgets(
+      'מרווח שמור אינו חוסם חלק ממילה בשאילתה של מילה אחת (issue #3501)',
+      (tester) async {
+        SearchDefaults.saveDistanceDefault(3);
+        final repository = _RecordingSearchRepository(results: const []);
+        final simpleQueries = <String>[];
+        final harness = await pumpSearchView(
+          tester,
+          searchRepository: repository,
+          simpleSearchRunner: (content, query) async {
+            simpleQueries.add(query);
+            return const [];
+          },
+        );
+
+        await harness.type('שמים');
+        await harness.settle();
+
+        expect(repository.requests, isEmpty);
+        expect(simpleQueries, isNotEmpty);
+        expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+      },
+      skip: !engineReady,
+    );
+
+    testWidgets(
+      'מרווח ו"בכל סדר" שמורים: החזרת מצב ה-bloc אינה מחזירה מילה אחת למנוע',
+      (tester) async {
+        SearchDefaults.saveDistanceDefault(3);
+        SearchDefaults.saveAnyOrderDefault(true);
+        addTearDown(() => SearchDefaults.saveAnyOrderDefault(false));
+        final repository = _RecordingSearchRepository(results: const []);
+        final harness = await pumpSearchView(
+          tester,
+          searchRepository: repository,
+          simpleSearchRunner: (content, query) async => const [],
+        );
+
+        await harness.type('שמים');
+        // ה-bloc מקבל את המדיניות שחלה על מילה אחת, בלי "בכל סדר".
+        await harness.rebuildFromBloc('שמים', 3, SearchMatchPolicy.standard);
+        await harness.settle();
+
+        expect(repository.requests, isEmpty);
+        expect(find.byIcon(OtzariaIcons.alef_mix_24_regular), findsOneWidget);
+      },
+      skip: !engineReady,
+    );
 
     testWidgets(
       'אפשרויות שנקבעו כברירת מחדל חלות על כל מילה בשאילתה שהוקלדה',
@@ -723,10 +848,21 @@ Future<void> main() async {
 }
 
 class _Harness {
-  _Harness(this.tester, this.bloc);
+  _Harness(this.tester, this.bloc, this._build);
 
   final WidgetTester tester;
   final _TestTextBookBloc bloc;
+  final Widget Function(String, int, SearchMatchPolicy) _build;
+
+  /// בונה מחדש עם מה שה-bloc האמיתי היה מחזיר לחלונית אחרי ההקלדה.
+  Future<void> rebuildFromBloc(
+    String query,
+    int distance,
+    SearchMatchPolicy policy,
+  ) async {
+    await tester.pumpWidget(_build(query, distance, policy));
+    await tester.pump();
+  }
 
   /// מקליד שאילתה בשדה החיפוש.
   Future<void> type(String query) async {
