@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/windowing/multiview/multiview_flag.dart';
 
+import 'support/profiler_signal.dart';
 import 'support/search_engine_test_init.dart';
 
 /// אתחול גלובלי לכל חבילת הטסטים: פונקציות נרמול/טוקניזציה של החיפוש
@@ -20,6 +21,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
       Platform.environment['OTZARIA_REQUIRE_SEARCH_ENGINE'] == '1') {
     throw StateError(searchEngineSkipReason);
   }
+  ignoreProfilerSignalOnLinux();
   // חלון יחיד כברירת מחדל; בדיקות של פתיחת חלונות מדליקות את הדגל בעצמן.
   MultiViewMode.debugOverride = false;
   // שורש נתונים זמני לכל קובץ בדיקה — אחרת לוג השגיאות והאינדקס נכתבים
