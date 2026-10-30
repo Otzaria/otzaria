@@ -146,6 +146,25 @@ void main() {
       expect(backend.calls, contains('search:$kSemanticWarmUpQuery'));
     });
 
+    test('מנוע שאיבד את ה-session (פתיחה מחדש של האינדקס) נפתח שוב', () async {
+      installModelFiles(root);
+      final backend = FakeBackend()..vectors = installedV30;
+      final repository = buildRepository(root: root, backend: backend);
+      await repository.ensureOpen();
+      await pumpEventQueue();
+
+      backend.statusValue = const SemanticBackendStatus(
+        state: SemanticBackendState.notConfigured,
+        rawState: 'notConfigured',
+      );
+      await repository.search(
+        const SemanticSearchRequest(query: 'חסד', facets: ['/']),
+      );
+
+      expect(backend.calls.where((c) => c == 'open'), hasLength(2));
+      expect(backend.calls, contains('search:חסד'));
+    });
+
     test('חיפוש חדש מבטל את הקודם, והמבוטל מחזיר null', () async {
       installModelFiles(root);
       final backend = FakeBackend()
