@@ -111,7 +111,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
        _sharedDevWatcher = devWatchService == null,
        devWatchService = devWatchService ?? PluginDevWatchService.acquire(),
        super(PluginSystemInitial()) {
-    on<LoadPlugins>(_onLoadPlugins, transformer: sequential());
+    on<LoadPlugins>(_onLoadPlugins, transformer: _sequentialCoalesced());
     on<SeedBundledPlugins>(_onSeedBundledPlugins);
     on<InstallPluginRequested>(_onInstallPluginRequested);
     on<InstallRemotePluginRequested>(_onInstallRemotePluginRequested);
@@ -1168,3 +1168,55 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     PluginInBookSearchService.instance.removePlugin(pluginId);
   }
 }
+
+/// כמו [sequential], אבל בקשות טעינה מתמזגות ומתחילות בתור הבא של לולאת
+/// האירועים: פעולה גורפת על N תוספים ביקשה N טעינות מלאות ברצף (#3688).
+EventTransformer<E> _sequentialCoalesced<E extends Object>() =>
+    (events, mapper) {
+      late final StreamController<E> out;
+      StreamSubscription<E>? input;
+      StreamSubscription<E>? running;
+      Timer? scheduled;
+      E? pending;
+      var inputDone = false;
+
+      void start() {
+        scheduled = Timer(Duration.zero, () {
+          scheduled = null;
+          final event = pending!;
+          pending = null;
+          running = mapper(event).listen(
+            out.add,
+            onError: out.addError,
+            onDone: () {
+              running = null;
+              if (pending != null) {
+                start();
+              } else if (inputDone) {
+                out.close();
+              }
+            },
+          );
+        });
+      }
+
+      out = StreamController<E>(
+        onListen: () => input = events.listen(
+          (event) {
+            pending = event;
+            if (running == null && scheduled == null) start();
+          },
+          onError: out.addError,
+          onDone: () {
+            inputDone = true;
+            if (running == null && scheduled == null) out.close();
+          },
+        ),
+        onCancel: () async {
+          scheduled?.cancel();
+          await running?.cancel();
+          await input?.cancel();
+        },
+      );
+      return out.stream;
+    };
