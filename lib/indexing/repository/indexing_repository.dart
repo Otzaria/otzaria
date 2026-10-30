@@ -679,7 +679,11 @@ class IndexingRepository {
           cancelled = true;
           break;
         }
-        prefetcher.fill(allBooks, bookIndex, shouldPrefetch: shouldPrefetch);
+        await prefetcher.fill(
+          allBooks,
+          bookIndex,
+          shouldPrefetch: shouldPrefetch,
+        );
 
         // ניקוז: חילוץ שהסתיים מאונדקס מיד וסלוטו מתמלא, כך שהצינור אינו
         // נעצר. הספר הנוכחי מוחרג — מסלול הצריכה הרגיל מטפל בו.
@@ -688,7 +692,11 @@ class IndexingRepository {
           final ready = prefetcher.takeReady(exclude: book);
           if (ready == null) break;
           final readyBook = ready.book;
-          prefetcher.fill(allBooks, bookIndex, shouldPrefetch: shouldPrefetch);
+          await prefetcher.fill(
+            allBooks,
+            bookIndex,
+            shouldPrefetch: shouldPrefetch,
+          );
           earlyHandledBooks.add(readyBook);
           // דיווח לפני הכתיבה, אחרת המונה נראה תקוע לאורך אינדוקס PDF גדול.
           // פעם אחת לסבב — המיקום המדווח הוא של הלולאה ואינו זז בין הניקוזים.
@@ -809,7 +817,7 @@ class IndexingRepository {
               // PDFium מעבד קריאה אחת בכל פעם: החילוץ הבא מוזנק רק כשזה הסתיים,
               // ורץ במקביל לאינדוקס של הספר הזה.
               if (preExtracted != null) await preExtracted;
-              prefetcher.fill(
+              await prefetcher.fill(
                 allBooks,
                 bookIndex + 1,
                 shouldPrefetch: shouldPrefetch,
