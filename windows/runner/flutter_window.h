@@ -12,6 +12,7 @@
 #include <string>
 
 #include "win32_window.h"
+#include "otzar_window_automation.h"
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -33,6 +34,7 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  std::unique_ptr<OtzarWindowAutomation> otzar_window_automation_;
   void ArmForceExitWatchdog(uint32_t timeout_ms);
 
   // מציג שוב את החלון אם המשתמש סגר (הסתיר) אותו; false אם לא נסגר.
