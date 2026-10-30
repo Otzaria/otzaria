@@ -109,7 +109,10 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
   );
 
   /// התאמה אחת בעמוד, כדי לדמות סריקה שהצליחה.
-  void setSingleMatch() {
+  void setSingleMatch() => setPageMatches(const [(0, 1)]);
+
+  /// ההתאמות שהסריקה מצאה, כטווחים ב-[pageFullText] של כל עמוד.
+  void setPageMatches(List<(int, int)> ranges) {
     final pageText = PdfPageText(
       pageNumber: 1,
       fullText: pageFullText,
@@ -117,18 +120,21 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
       fragments: const [],
     );
     fakeMatches = [
-      PdfTextSearchResult.fromRange(
-        PdfPageTextRange(pageText: pageText, start: 0, end: 1),
-      ),
+      for (final (start, end) in ranges)
+        PdfTextSearchResult.fromRange(
+          PdfPageTextRange(pageText: pageText, start: start, end: end),
+        ),
     ];
+    pageScanned = true;
   }
 
-  /// טווח ההתאמות שהסריקה מצאה בכל עמוד; null — העמוד טרם נסרק.
-  ({int start, int end})? pageRange;
+  /// false — העמוד טרם נסרק.
+  bool pageScanned = false;
   final navigatedTo = <int>[];
 
   @override
-  ({int start, int end})? getMatchesRangeForPage(int pageNumber) => pageRange;
+  ({int start, int end})? getMatchesRangeForPage(int pageNumber) =>
+      pageScanned ? (start: 0, end: fakeMatches.length) : null;
 
   @override
   Future<int> goToMatchOfIndex(int index) async {
@@ -164,7 +170,7 @@ Future<_RecordingTextSearcher> _pumpSearchView(
   SearchRepository searchRepository = const SearchRepository(),
   int? viewerPage,
   bool Function()? takeCenterMatchOnOpen,
-  ({int start, int end})? pageRange,
+  List<(int, int)>? pageMatches,
 }) async {
   final settingsBloc = _MockSettingsBloc();
   whenListen(
@@ -183,7 +189,8 @@ Future<_RecordingTextSearcher> _pumpSearchView(
   final textSearcher = _RecordingTextSearcher(
     _FakeReadyController(viewerPage: viewerPage),
     pageFullText,
-  )..pageRange = pageRange;
+  );
+  if (pageMatches != null) textSearcher.setPageMatches(pageMatches);
   addTearDown(settingsBloc.close);
   addTearDown(pdfBookBloc.close);
   addTearDown(searchController.dispose);
@@ -234,22 +241,35 @@ Future<void> _finishScan(WidgetTester tester, _RecordingTextSearcher s) async {
 }
 
 /// מנוע שמחזיר תוצאה אחת בעמוד 5, עם ההדגשות שהמנוע מסמן.
-class _OneResultRepository extends SearchRepository {
+class _OneResultRepository extends _PageResultsRepository {
+  _OneResultRepository()
+    : super(const [
+        '<font>ממון</font> שאין <font>לו</font> <font>תובעין</font>',
+      ]);
+}
+
+/// מנוע שמחזיר את [snippets] כתוצאות בעמוד 5, בסדר הזה.
+class _PageResultsRepository extends SearchRepository {
+  const _PageResultsRepository(this.snippets);
+
+  final List<String> snippets;
+
   @override
   Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async => [
-    SearchResult(
-      id: BigInt.zero,
-      title: 'ספר בדיקה',
-      reference: 'עמוד 5',
-      text: '<font>ממון</font> שאין <font>לו</font> <font>תובעין</font>',
-      segment: BigInt.from(4),
-      isPdf: true,
-      filePath: '/nonexistent/test.pdf',
-      mergedCount: 1,
-      merged: const [],
-      textStatus: TextStatus.ok,
-      continuesToNextLine: false,
-    ),
+    for (var i = 0; i < snippets.length; i++)
+      SearchResult(
+        id: BigInt.from(i),
+        title: 'ספר בדיקה',
+        reference: 'עמוד 5 $i',
+        text: snippets[i],
+        segment: BigInt.from(4),
+        isPdf: true,
+        filePath: '/nonexistent/test.pdf',
+        mergedCount: 1,
+        merged: const [],
+        textStatus: TextStatus.ok,
+        continuesToNextLine: false,
+      ),
   ];
 }
 
@@ -372,6 +392,31 @@ Future<void> main() async {
               ).forQuery(query),
             )!;
 
+        test('כל התוצאות מודגשות, גם מעבר ל-50', () {
+          final fillers = List.generate(60, _term);
+          final pattern = PdfBookSearchView.buildAdvancedHighlightPattern(
+            [
+              for (final filler in fillers)
+                '<font>ממון</font> $filler <font>לו</font> <font>תובעין</font>',
+            ],
+            query: query,
+            settings: const InBookSearchSettings(
+              searchMode: SearchMode.advanced,
+              distance: 2,
+            ).forQuery(query),
+          )!;
+          final pageText = [
+            for (final filler in fillers) 'ממון $filler לו תובעין',
+          ].join(' ועוד ');
+
+          expect(pattern.allMatches(pageText), hasLength(60));
+        });
+
+        test('אותה שאילתה ואותן הגדרות — אותה תבנית בעיני pdfrx', () {
+          expect(build().pattern, build().pattern);
+          expect(build().pattern, isNot(build(anyOrder: true).pattern));
+        });
+
         test('התאמה אחת שמכסה את הרצף, בלי המילים הבודדות', () {
           final pattern = build();
           final matches = pattern.allMatches(page).toList();
@@ -426,7 +471,7 @@ Future<void> main() async {
         searchRepository: _OneResultRepository(),
         viewerPage: viewerPage,
         takeCenterMatchOnOpen: takeCenterMatchOnOpen,
-        pageRange: (start: 0, end: 1),
+        pageMatches: const [(0, 4)],
       );
       await _settleWithoutTime(tester);
       return searcher;
@@ -490,6 +535,37 @@ Future<void> main() async {
         searcher.searches.last,
         same(searcher.searchedPatterns.first),
       );
+    });
+
+    testWidgets('לחיצה על תוצאה עוברת להתאמה שהטקסט שלה הוא הרצף שלה', (
+      tester,
+    ) async {
+      const page = 'ממון שאין לו תובעין והיה ממון לו תובעין';
+      const near = 'ממון לו תובעין';
+      final searcher = await _pumpSearchView(
+        tester,
+        pageFullText: page,
+        initialQuery: near,
+        initialSearchMode: SearchMode.advanced,
+        // התוצאה הראשונה היא הרצף שמופיע שני בעמוד.
+        searchRepository: const _PageResultsRepository([
+          'והיה <font>ממון</font> <font>לו</font> <font>תובעין</font>',
+          '<font>ממון</font> שאין <font>לו</font> <font>תובעין</font>',
+        ]),
+        pageMatches: [
+          (0, 'ממון שאין לו תובעין'.length),
+          (page.lastIndexOf(near), page.length),
+        ],
+      );
+      await _settleWithoutTime(tester);
+
+      await tester.tap(find.byType(SearchResultTile).first);
+      await _settleWithoutTime(tester);
+      expect(searcher.navigatedTo, [1]);
+
+      await tester.tap(find.byType(SearchResultTile).last);
+      await _settleWithoutTime(tester);
+      expect(searcher.navigatedTo, [1, 0]);
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
 
