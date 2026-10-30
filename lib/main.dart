@@ -838,6 +838,7 @@ Future<void> _recoverOrphanedDbBackup() async {
   try {
     await EmptyLibraryBloc.recoverOrphanedDbBackup(
       DatabaseConstants.getDatabaseDirectoryPath(),
+      onlyIfDbMissing: true,
     );
   } catch (error, stackTrace) {
     _logNonFatalInitializationError(

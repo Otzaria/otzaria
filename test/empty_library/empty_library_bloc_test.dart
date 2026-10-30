@@ -2348,7 +2348,92 @@ void main() {
       });
 
       test(
-        'בעלייה: יתום כשיש DB תקין בספרייה → היתום נמחק וה-DB לא נדרס',
+        'עלייה (#3669): DB קיים → לא סורקים את temp, אבל `.new` ו-`.import` '
+        'נמחקים',
+        () async {
+          final libDir = await Directory.systemTemp.createTemp(
+            'otzaria-orphan-',
+          );
+          addTearDown(() => libDir.delete(recursive: true));
+          await File(path.join(libDir.path, dbName)).writeAsString('good-db');
+          await File(
+            path.join(libDir.path, '$dbName.new'),
+          ).writeAsString('partial');
+          final staging = Directory(
+            EmptyLibraryBloc.stagingDirFor(libDir.path),
+          );
+          addTearDown(() async {
+            if (await staging.exists()) await staging.delete(recursive: true);
+          });
+          await staging.create(recursive: true);
+          // תיקיית temp שאינה קיימת: כל סריקה שלה הייתה זורקת.
+          EmptyLibraryBloc.tempRootOverride = path.join(
+            tempRoot.path,
+            'missing',
+          );
+
+          await EmptyLibraryBloc.recoverOrphanedDbBackup(
+            libDir.path,
+            onlyIfDbMissing: true,
+          );
+
+          expect(
+            await File(path.join(libDir.path, dbName)).readAsString(),
+            'good-db',
+          );
+          expect(
+            File(path.join(libDir.path, '$dbName.new')).existsSync(),
+            isFalse,
+          );
+          expect(staging.existsSync(), isFalse);
+        },
+      );
+
+      test(
+        'עלייה (#3669): DB קיים → הגיבוי בשם הקבוע נמחק, שם ישן נשאר '
+        'לגיבוי הבא',
+        () async {
+          final libDir = await Directory.systemTemp.createTemp(
+            'otzaria-orphan-',
+          );
+          addTearDown(() => libDir.delete(recursive: true));
+          await File(path.join(libDir.path, dbName)).writeAsString('good-db');
+          await createOrphan('stale-db');
+          final legacy = path.join(tempRoot.path, 'otzaria_db_backup_1');
+          await createOrphan('legacy-db', dirPath: legacy);
+
+          await EmptyLibraryBloc.recoverOrphanedDbBackup(
+            libDir.path,
+            onlyIfDbMissing: true,
+          );
+
+          expect(
+            await File(path.join(libDir.path, dbName)).readAsString(),
+            'good-db',
+          );
+          expect(backupDirs().map((d) => d.path), [legacy]);
+        },
+      );
+
+      test('עלייה (#3669): DB חסר → ה-DB חוזר מהגיבוי היתום', () async {
+        final libDir = await Directory.systemTemp.createTemp('otzaria-orphan-');
+        addTearDown(() => libDir.delete(recursive: true));
+        await createOrphan('orphaned-db');
+
+        await EmptyLibraryBloc.recoverOrphanedDbBackup(
+          libDir.path,
+          onlyIfDbMissing: true,
+        );
+
+        expect(
+          await File(path.join(libDir.path, dbName)).readAsString(),
+          'orphaned-db',
+        );
+        expect(backupDirs(), isEmpty);
+      });
+
+      test(
+        'לפני גיבוי: יתום כשיש DB תקין בספרייה → היתום נמחק וה-DB לא נדרס',
         () async {
           final libDir = await Directory.systemTemp.createTemp(
             'otzaria-orphan-',
