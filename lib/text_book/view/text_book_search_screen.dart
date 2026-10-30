@@ -200,6 +200,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       searchMode: widget.initialSearchMode,
       distance: widget.initialSearchDistance,
       matchPolicy: widget.initialMatchPolicy,
+      query: searchableInBookQuery(searchTextController.text),
     );
   }
 

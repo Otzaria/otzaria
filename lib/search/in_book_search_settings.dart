@@ -128,12 +128,20 @@ class InBookSearchSettings {
   /// literal scan.
   bool get requiresEngine => !InBookSearchRouting.canRunAsSimpleSearch(
     searchMode: searchMode,
-    distance: distance,
+    distance: _appliesDistance ? distance : 0,
     searchOptions: searchOptions,
     alternativeWords: alternativeWords,
     spacingValues: spacingValues,
     matchPolicy: matchPolicy,
   );
+
+  /// מרווח בין מילים אינו חל על מילה אחת; בלי זה מרווח שמור חוסם בה את
+  /// החיפוש המקומי ואת "חלק ממילה". שאילתה לא ידועה (null) נשארת במנוע.
+  bool get _appliesDistance {
+    final query = this.query;
+    return distance > 0 &&
+        (query == null || SearchQueryBuilder.hasMultipleWords(query));
+  }
 
   /// Whether the search runs as the local literal scan.
   bool get isSimpleSearch => !requiresEngine && searchMode == SearchMode.exact;
