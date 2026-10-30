@@ -158,6 +158,31 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
   ];
 }
 
+/// התאמה שסופרת כמה פעמים חושבה שורת ההקשר שלה.
+class _CountingMatch extends Fake implements PdfTextSearchResult {
+  _CountingMatch(this.pageNumber, this.line);
+
+  @override
+  final int pageNumber;
+  final String line;
+  int contextReads = 0;
+
+  @override
+  String get contextText {
+    contextReads++;
+    return line;
+  }
+
+  @override
+  int get contextStart => 0;
+  @override
+  int get start => 0;
+  @override
+  int get end => 4;
+  @override
+  int get pageTextLength => line.length;
+}
+
 /// שכבת טקסט של PDF סרוק בלי אף אות עברית — פיסוק וספרות בלבד.
 final String _scannedOnlyPageText = List.generate(
   120,
@@ -773,6 +798,41 @@ Future<void> main() async {
         expect(pattern.isUnicode, forward.isUnicode);
       });
     }, skip: engineReady ? false : searchEngineSkipReason);
+  });
+
+  group('תוצאות החיפוש הפשוט בסריקה שגולשת', () {
+    testWidgets('התאמה שנכנסה לפני הקיימות — שורות ההקשר לא מחושבות מחדש', (
+      tester,
+    ) async {
+      final searcher = await _pumpSearchView(
+        tester,
+        pageFullText: 'שלום עולם',
+      );
+      await _search(tester, 'שלום');
+      final later = [
+        _CountingMatch(5, 'שלום עולם חמש'),
+        _CountingMatch(6, 'שלום עולם שש'),
+      ];
+      searcher
+        ..fakeMatches = later
+        ..scanning = true;
+      await _finishScan(tester, searcher);
+
+      final earlier = _CountingMatch(2, 'שלום עולם שתיים');
+      searcher
+        ..fakeMatches = [earlier, ...later]
+        ..scanning = false;
+      await _finishScan(tester, searcher);
+
+      expect([for (final m in later) m.contextReads], [1, 1]);
+      expect(earlier.contextReads, 1);
+      expect(find.text('שלום עולם שש'), findsOneWidget);
+
+      // האינדקס של כל תוצאה הוא מקום ההתאמה שלה אחרי ההכנסה.
+      await tester.tap(find.text('שלום עולם שש'));
+      await tester.pump();
+      expect(searcher.navigatedTo, [2]);
+    });
   });
 
   group('מסלול הנסיגה בזרימת החיפוש הפשוט', () {

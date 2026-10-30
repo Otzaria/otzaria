@@ -319,6 +319,10 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   /// Whether the engine found more results than the pane shows.
   bool _resultsTruncated = false;
   List<PdfTextSearchResult> _mappedMatches = const [];
+
+  /// תוצאת החיפוש הפשוט של כל התאמה. סריקה שגולשת מכניסה התאמות לפני
+  /// הקיימות, ובלי המטמון שורת ההקשר של כל התוצאות חושבה מחדש.
+  var _simpleResults = Map<PdfTextSearchResult, SearchResult>.identity();
   List<SearchResult>? _groupedSource;
   final List<dynamic> _groupedItems = [];
   int _groupedCount = 0;
@@ -721,23 +725,34 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
           final keptCount = _searchResults.length == _mappedMatches.length
               ? PdfBookSearchView.keptMatchCount(_mappedMatches, matches)
               : 0;
-          if (keptCount == 0) _searchResults = [];
+          final previous = _simpleResults;
+          if (keptCount == 0) {
+            _searchResults = [];
+            _simpleResults = Map.identity();
+          }
           for (var i = keptCount; i < matches.length; i++) {
+            final match = matches[i];
+            // בחיפוש הפשוט: אינדקס ההתאמה ב-searcher, לניווט למקומה המדויק.
+            final id = BigInt.from(i);
+            final cached = previous[match];
             _searchResults.add(
-              SearchResult(
-                // בחיפוש הפשוט: אינדקס ההתאמה ב-searcher, לניווט למקומה המדויק.
-                id: BigInt.from(i),
-                title: widget.bookTitle ?? '',
-                reference: '', // Populated by _pageTitles in build
-                text: PdfBookSearchView.matchLineSnippet(matches[i], query),
-                segment: BigInt.from(matches[i].pageNumber - 1),
-                isPdf: true,
-                filePath: widget.pdfFilePath ?? '',
-                mergedCount: 1,
-                merged: const [],
-                textStatus: TextStatus.ok,
-                continuesToNextLine: false,
-              ),
+              _simpleResults[match] = cached != null && cached.id == id
+                  ? cached
+                  : SearchResult(
+                      id: id,
+                      title: widget.bookTitle ?? '',
+                      reference: '', // Populated by _pageTitles in build
+                      text:
+                          cached?.text ??
+                          PdfBookSearchView.matchLineSnippet(match, query),
+                      segment: BigInt.from(match.pageNumber - 1),
+                      isPdf: true,
+                      filePath: widget.pdfFilePath ?? '',
+                      mergedCount: 1,
+                      merged: const [],
+                      textStatus: TextStatus.ok,
+                      continuesToNextLine: false,
+                    ),
             );
           }
           _mappedMatches = matches;
