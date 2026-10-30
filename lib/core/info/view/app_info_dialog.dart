@@ -507,10 +507,12 @@ class _FolderTileState extends State<_FolderTile> {
             const SizedBox(height: AppTokens.spaceSM),
             Divider(
               height: 1,
-              color: cs.outlineVariant.withValues(alpha: 0.5),
+              color: AppSurfaces.cardRowDivider(context),
             ),
             const SizedBox(height: AppTokens.spaceXS),
-            for (final file in shown)
+            for (final (i, file) in shown.indexed) ...[
+              if (i > 0)
+                Divider(height: 1, color: AppSurfaces.cardRowDivider(context)),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(
@@ -530,6 +532,7 @@ class _FolderTileState extends State<_FolderTile> {
                   ],
                 ),
               ),
+            ],
           ],
           if (remaining > 0)
             Padding(

@@ -185,7 +185,7 @@ void main() {
       await tester.pumpAndSettle();
 
       ScrollPosition position() => Scrollable.of(
-        tester.element(find.text('• ספרות/הלכה/ספר 0')),
+        tester.element(find.text('ספרות/הלכה/ספר 0')),
       ).position;
       final list = find.byType(SuperListView);
       final bar = tester.getRect(

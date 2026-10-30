@@ -4,6 +4,9 @@ import 'package:otzaria/core/info/app_info_service.dart';
 import 'package:otzaria/core/info/info_topic.dart';
 import 'package:otzaria/core/info/view/app_info_dialog.dart';
 import 'package:otzaria/core/info/view/info_section_fields.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
 
 void main() {
   AppInfoReport reportOf(
@@ -15,9 +18,14 @@ void main() {
     sections: sections,
   );
 
-  Future<void> pumpContent(WidgetTester tester, AppInfoReport report) async {
+  Future<void> pumpContent(
+    WidgetTester tester,
+    AppInfoReport report, {
+    ThemeData? theme,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: theme,
         home: Directionality(
           textDirection: TextDirection.rtl,
           child: Scaffold(body: AppInfoDialogContent(report: report)),
@@ -188,6 +196,63 @@ void main() {
         'folders': folders,
       },
     };
+
+    for (final width in [360.0, 1000.0]) {
+      for (final brightness in Brightness.values) {
+        testWidgets('קו יחיד בין קבצים ברוחב $width ובמצב $brightness', (
+          tester,
+        ) async {
+          tester.view.physicalSize = Size(width, 1000);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final scheme = AppThemeData.createColorScheme(
+            AppSeedColors.defaultLight,
+            brightness,
+          );
+          final theme = brightness == Brightness.light
+              ? AppThemeData.light(scheme, compactMenuMode: false)
+              : AppThemeData.dark(scheme, compactMenuMode: false);
+          const names = ['בראשית.txt', 'ויקרא.txt', 'שולחן ערוך.pdf'];
+          await pumpContent(
+            tester,
+            reportOf(
+              InfoTopic.folders,
+              foldersSection(
+                folders: [
+                  {
+                    'path': r'D:\ספרים שלי',
+                    'exists': true,
+                    'fileCount': names.length,
+                    'files': [
+                      for (final name in names) {'name': name},
+                    ],
+                  },
+                ],
+              ),
+            ),
+            theme: theme,
+          );
+          final context = tester.element(find.byType(AppInfoDialogContent));
+          for (var i = 1; i < names.length; i++) {
+            final previous = tester.getRect(find.text(names[i - 1]));
+            final next = tester.getRect(find.text(names[i]));
+            final between = find.byElementPredicate((element) {
+              if (element.widget is! Divider) return false;
+              final rect = tester.getRect(
+                find.byElementPredicate((other) => identical(other, element)),
+              );
+              return rect.top >= previous.bottom && rect.bottom <= next.top;
+            });
+            expect(between, findsOneWidget);
+            final divider = tester.widget<Divider>(between);
+            expect(divider.height, 1);
+            expect(divider.color, AppSurfaces.cardRowDivider(context));
+          }
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
 
     testWidgets('כל תיקייה מוצגת עם נתיב, תקציר ופירוט סיומות', (tester) async {
       await pumpContent(

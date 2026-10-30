@@ -94,4 +94,21 @@ void main() {
     expect(slider.value, 41);
     expect(slider.label, 'מלא');
   });
+
+  for (final boundary in [(5, 10), (50, 40)]) {
+    testWidgets('רוחב ${boundary.$1} ס"מ נתחם ל-${boundary.$2} ונשמר', (
+      tester,
+    ) async {
+      final slider = await pumpAndFindWidthSlider(
+        tester,
+        textMaxWidth: boundary.$1 * pxPerCm,
+      );
+      expect(slider.value, boundary.$2);
+      expect(slider.label, '${boundary.$2} ס"מ');
+      (slider.onChangeEnd ?? slider.onChanged)!(slider.value);
+      verify(
+        () => settingsBloc.add(UpdateTextMaxWidth(boundary.$2 * pxPerCm)),
+      ).called(1);
+    });
+  }
 }
