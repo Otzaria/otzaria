@@ -4,7 +4,7 @@ import 'dart:isolate';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
 import 'package:otzaria/divine_names/repository/divine_names_repository.dart';
 import 'package:flutter/foundation.dart'
-    show ValueNotifier, debugPrint, visibleForTesting;
+    show ValueNotifier, debugPrint, visibleForTesting, compute;
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
@@ -23,6 +23,9 @@ import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/divine_names/models/divine_name_spans.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/migration/database/daos/book_dao.dart';
+import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/query_loader.dart';
+import 'package:otzaria/migration/models/toc_entry.dart' as migration;
 import 'package:otzaria/migration/database/daos/category_dao.dart';
 import 'package:otzaria/migration/database/db_capabilities.dart';
 import 'package:otzaria/migration/database/line_content_codec.dart';
@@ -286,6 +289,82 @@ class _PendingAttachedCatalog {
   final Future<AttachedCatalogRows> future;
   bool done = false;
   bool timedOut = false;
+}
+
+typedef _ExternalWriteBatch = ({
+  String dbPath,
+  List<_DiscoveredBook> books,
+  Map<String, List<migration.TocEntry>> pdfTocs,
+  Map<String, Map<String, String>> queries,
+  String source,
+});
+
+Future<ScanResult> _writeDiscoveredBooks(_ExternalWriteBatch args) async {
+  QueryLoader.seedCache(args.queries);
+  final database = MyDatabase.withPath(args.dbPath);
+  final repository = SeforimRepository(database);
+  var added = 0;
+  var updated = 0;
+  var failed = 0;
+  final failedDetails = <(String, String)>[];
+  final updatedBookIds = <int>[];
+  final discovered = args.books;
+  final folderSourceName = args.source;
+  try {
+    await repository.ensureInitialized();
+    int? scanSourceId;
+    for (final discoveredBook in discovered) {
+      final book = discoveredBook.book;
+      if (discoveredBook.conversionError != null) {
+        failedDetails.add((book.title, discoveredBook.conversionError!));
+        failed++;
+        continue;
+      }
+      try {
+        if (discoveredBook.existingBookId != null) {
+          await book.update(repository, discoveredBook.existingBookId!);
+          updated++;
+          updatedBookIds.add(discoveredBook.existingBookId!);
+          continue;
+        }
+        if (await DatabaseLibraryProvider._recheckBeforeInsert(
+          repository,
+          book.filePath,
+          book.fileSize,
+          book.lastModified,
+        )) {
+          continue;
+        }
+        final category = await findOrCreateBookCategoryChain(
+          repository,
+          discoveredBook.categoryPath,
+        );
+        final pdfToc = args.pdfTocs[book.filePath];
+        scanSourceId ??= await repository.insertSource(folderSourceName, -1);
+        await book.insert(
+          repository,
+          categoryId: category.categoryId,
+          sourceId: scanSourceId,
+          isPersonal: true,
+          pdfTocEntries: pdfToc,
+        );
+        added++;
+      } catch (e) {
+        debugPrint('⚠️ Failed to process book: ${book.filePath} - $e');
+        failed++;
+      }
+    }
+
+    return ScanResult(
+      addedBooks: added,
+      updatedBooks: updated,
+      failedBooks: failed,
+      failedDetails: failedDetails,
+      updatedBookIds: updatedBookIds,
+    );
+  } finally {
+    database.close();
+  }
 }
 
 class _DiscoveredBook {
@@ -5285,56 +5364,46 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
         '📁 Isolate found ${discovered.length} books to process in $folderPath',
       );
 
-      final folderSourceName = CustomFolderSource.nameForFolder(folderPath);
-      int? scanSourceId;
-      for (final discoveredBook in discovered) {
-        // הכתיבה סינכרונית: מאפשרים ל-UI להגיב בין ספרים.
-        await Future<void>.delayed(Duration.zero);
-        final book = discoveredBook.book;
-        if (discoveredBook.conversionError != null) {
-          failedDetails.add((book.title, discoveredBook.conversionError!));
-          failed++;
+      final pdfTocs = <String, List<migration.TocEntry>>{};
+      for (var i = 0; i < discovered.length; i++) {
+        final item = discovered[i];
+        if (item.book.fileType != 'pdf' || item.existingBookId != null) {
           continue;
         }
         try {
-          if (discoveredBook.existingBookId != null) {
-            await book.update(repository, discoveredBook.existingBookId!);
-            updated++;
-            updatedBookIds.add(discoveredBook.existingBookId!);
-            continue;
-          }
-          if (await _recheckBeforeInsert(
-            repository,
-            book.filePath,
-            book.fileSize,
-            book.lastModified,
-          )) {
-            continue;
-          }
-          final category = await findOrCreateBookCategoryChain(
-            repository,
-            discoveredBook.categoryPath,
+          pdfTocs[item.book.filePath] = externalBookTocEntries(
+            await _parsePdfOutline(File(item.book.filePath)),
           );
-          // PDFium נשאר ב-isolate הראשי; סנכרון הרקע משמר outline קיים.
-          final pdfToc = book.fileType == 'pdf'
-              ? externalBookTocEntries(
-                  await _parsePdfOutline(File(book.filePath)),
-                )
-              : null;
-          scanSourceId ??= await repository.insertSource(folderSourceName, -1);
-          await book.insert(
-            repository,
-            categoryId: category.categoryId,
-            sourceId: scanSourceId,
-            isPersonal: true,
-            pdfTocEntries: pdfToc,
+        } catch (error) {
+          discovered[i] = _DiscoveredBook(
+            book: item.book,
+            categoryPath: item.categoryPath,
+            conversionError: error.toString(),
           );
-          added++;
-        } catch (e) {
-          debugPrint('⚠️ Failed to process book: ${book.filePath} - $e');
-          failed++;
         }
       }
+      await QueryLoader.initialize();
+      late final ScanResult written;
+      try {
+        written = await compute(_writeDiscoveredBooks, (
+          dbPath: repository.database.path,
+          books: discovered,
+          pdfTocs: pdfTocs,
+          queries: QueryLoader.cacheSnapshot,
+          source: CustomFolderSource.nameForFolder(folderPath),
+        ));
+      } finally {
+        for (final item in discovered) {
+          if (item.existingBookId case final id?) {
+            repository.invalidateExternalBookToc(id);
+          }
+        }
+      }
+      added = written.addedBooks;
+      updated = written.updatedBooks;
+      failed = written.failedBooks;
+      failedDetails.addAll(written.failedDetails);
+      updatedBookIds.addAll(written.updatedBookIds);
 
       // קובצי הכותרות והגרסאות שבתיקייה נקלטים אחרי הספרים — הם מזוהים
       // לפי נתיב הקובץ, שקיים ב-DB רק מכאן ואילך.
@@ -5364,7 +5433,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   }
 
   /// בדיקה חוזרת מול המסד הכותב מונעת הוספה כפולה לאחר סריקת הרקע.
-  Future<bool> _recheckBeforeInsert(
+  static Future<bool> _recheckBeforeInsert(
     dynamic repository,
     String filePath,
     int fileSize,
@@ -5392,7 +5461,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
     required int fileSize,
     required int lastModified,
   }) {
-    return DatabaseLibraryProvider.instance._recheckBeforeInsert(
+    return DatabaseLibraryProvider._recheckBeforeInsert(
       repository,
       filePath,
       fileSize,
