@@ -14,6 +14,8 @@ import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/in_book_search_settings.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_repository.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -51,6 +53,10 @@ class _FakeReadyController extends PdfViewerController {
   void invalidate() {}
 
   @override
+  PdfPageLayout get layout =>
+      PdfPageLayout(pageLayouts: const [], documentSize: Size.zero);
+
+  @override
   FutureOr<T?> useDocument<T>(
     FutureOr<T> Function(PdfDocument document) task, {
     bool ensureLoaded = true,
@@ -65,6 +71,7 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
 
   final String pageFullText;
   final List<Pattern> searches = [];
+  final calls = <({bool searchImmediately, int? startPageNumber})>[];
   List<PdfTextSearchResult> fakeMatches = const [];
 
   @override
@@ -79,8 +86,13 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
     bool caseInsensitive = true,
     bool goToFirstMatch = true,
     bool searchImmediately = false,
+    int? startPageNumber,
   }) {
     searches.add(pattern);
+    calls.add((
+      searchImmediately: searchImmediately,
+      startPageNumber: startPageNumber,
+    ));
   }
 
   @override
@@ -129,6 +141,9 @@ PdfBookLoaded _loadedState() => PdfBookLoaded(
 Future<_RecordingTextSearcher> _pumpSearchView(
   WidgetTester tester, {
   required String pageFullText,
+  String initialQuery = '',
+  SearchMode initialSearchMode = SearchMode.exact,
+  SearchRepository searchRepository = const SearchRepository(),
 }) async {
   final settingsBloc = _MockSettingsBloc();
   whenListen(
@@ -142,7 +157,7 @@ Future<_RecordingTextSearcher> _pumpSearchView(
     const Stream<PdfBookState>.empty(),
     initialState: _loadedState(),
   );
-  final searchController = TextEditingController();
+  final searchController = TextEditingController(text: initialQuery);
   final focusNode = FocusNode();
   final textSearcher = _RecordingTextSearcher(
     _FakeReadyController(),
@@ -167,6 +182,11 @@ Future<_RecordingTextSearcher> _pumpSearchView(
             searchController: searchController,
             focusNode: focusNode,
             pdfFilePath: '/nonexistent/test.pdf',
+            bookTitle: 'ספר בדיקה',
+            bookTopics: 'תנך',
+            initialSearchMode: initialSearchMode,
+            initialSearchDistance: 2,
+            searchRepository: searchRepository,
           ),
         ),
       ),
@@ -189,6 +209,34 @@ Future<void> _finishScan(WidgetTester tester, _RecordingTextSearcher s) async {
   await tester.pump();
   await tester.pump();
   await tester.pump();
+}
+
+/// מנוע שמחזיר תוצאה אחת בעמוד 5, עם ההדגשות שהמנוע מסמן.
+class _OneResultRepository extends SearchRepository {
+  @override
+  Future<List<SearchResult>> searchTexts(SearchEngineRequest request) async => [
+    SearchResult(
+      id: BigInt.zero,
+      title: 'ספר בדיקה',
+      reference: 'עמוד 5',
+      text: '<font>ממון</font> שאין <font>לו</font> <font>תובעין</font>',
+      segment: BigInt.from(4),
+      isPdf: true,
+      filePath: '/nonexistent/test.pdf',
+      mergedCount: 1,
+      merged: const [],
+      textStatus: TextStatus.ok,
+      continuesToNextLine: false,
+    ),
+  ];
+}
+
+/// מריצה את העבודה האסינכרונית בלי לקדם את השעון המדומה.
+Future<void> _settleWithoutTime(WidgetTester tester) async {
+  for (var i = 0; i < 4; i++) {
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+  }
 }
 
 /// מייצר מונחים עבריים ייחודיים (ללא אותיות סופיות, למניעת נרמול-שקילות).
@@ -341,6 +389,44 @@ Future<void> main() async {
       });
     }, skip: engineReady ? false : searchEngineSkipReason);
   });
+
+  group('הדגשת מסלול המנוע על העמוד', () {
+    testWidgets('ההדגשה נשלחת מיד, והסריקה מתחילה בעמוד היעד', (tester) async {
+      final searcher = await _pumpSearchView(
+        tester,
+        pageFullText: 'ממון שאין לו תובעין',
+        initialQuery: 'ממון לו תובעין',
+        initialSearchMode: SearchMode.advanced,
+        searchRepository: _OneResultRepository(),
+      );
+      await _settleWithoutTime(tester);
+
+      expect(searcher.searchedPatterns, hasLength(1));
+      expect(searcher.calls.last.searchImmediately, isTrue);
+      // נפתח מתוצאת חיפוש כללי: עמוד היעד הוא עמוד הפתיחה.
+      expect(searcher.calls.last.startPageNumber, 3);
+    });
+
+    testWidgets('לחיצה על תוצאה מעבירה את הסריקה לעמוד שלה', (tester) async {
+      final searcher = await _pumpSearchView(
+        tester,
+        pageFullText: 'ממון שאין לו תובעין',
+        initialQuery: 'ממון לו תובעין',
+        initialSearchMode: SearchMode.advanced,
+        searchRepository: _OneResultRepository(),
+      );
+      await _settleWithoutTime(tester);
+
+      await tester.tap(find.byType(SearchResultTile));
+      await _settleWithoutTime(tester);
+
+      expect(searcher.calls.last.startPageNumber, 5);
+      expect(
+        searcher.searches.last,
+        same(searcher.searchedPatterns.first),
+      );
+    });
+  }, skip: engineReady ? false : searchEngineSkipReason);
 
   group('buildSimpleSearchPattern - סדר השאילתה מול מסלול הנסיגה ההפוך', () {
     test('שאילתה ריקה מחזירה null בשני הסדרים', () {

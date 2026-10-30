@@ -1,5 +1,6 @@
 import 'package:otzaria/data/book_identity.dart';
 import 'dart:async';
+import 'dart:math';
 
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/search/view/in_book_snippet_style.dart';
@@ -341,7 +342,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   int get _searchDistance => _settings.distance;
   SearchMatchPolicy get _matchPolicy => _settings.matchPolicy;
 
-  Timer? _pdfHighlightDebounce;
   String _lastPdfHighlightSource = '';
   int _searchGeneration = 0;
 
@@ -401,18 +401,78 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   int _getPdfPageNumber(SearchResult result) => result.segment.toInt() + 1;
 
-  void _schedulePdfHighlight(RegExp? pattern) {
+  /// מדגיש מיד; [startPageNumber] מעביר גם סריקה שכבר רצה לאותו עמוד.
+  void _schedulePdfHighlight(RegExp? pattern, {int? startPageNumber}) {
     final source = pattern?.pattern ?? '';
-    if (source == _lastPdfHighlightSource) return;
+    if (source == _lastPdfHighlightSource && startPageNumber == null) return;
     _lastPdfHighlightSource = source;
+    widget.textSearcher.startTextSearch(
+      pattern ?? '',
+      goToFirstMatch: false,
+      searchImmediately: true,
+      startPageNumber: startPageNumber ?? _scanStartPage(),
+    );
+  }
 
-    _pdfHighlightDebounce?.cancel();
-    _pdfHighlightDebounce = Timer(const Duration(milliseconds: 250), () {
-      widget.textSearcher.startTextSearch(
-        pattern ?? '',
-        goToFirstMatch: false,
-      );
-    });
+  /// הסריקה מתחילה מהעמוד שהמשתמש רואה, כדי שההדגשה שם תופיע ראשונה.
+  int? _scanStartPage() {
+    final state = context.read<PdfBookBloc>().state;
+    if (state is! PdfBookLoaded) return null;
+    // בפתיחה הצפיין אולי עוד לא הגיע לעמוד היעד.
+    return _centerOnOpenTarget ? state.currentPageNumber : _currentPage(state);
+  }
+
+  /// חיפוש ראשון שהגיע מתוצאת חיפוש כללי: ההתאמה בעמוד היעד ממורכזת.
+  bool _centerOnOpenTargetPending = false;
+  bool get _centerOnOpenTarget =>
+      _centerOnOpenTargetPending && _carriedInQuery != null;
+
+  void _centerOpenTargetMatch() {
+    if (!_centerOnOpenTarget) return;
+    _centerOnOpenTargetPending = false;
+    final state = context.read<PdfBookBloc>().state;
+    if (state is PdfBookLoaded) {
+      unawaited(_goToMatchOnPage(state.currentPageNumber, 0));
+    }
+  }
+
+  /// תוצאת מנוע: ההתאמה בעמוד שבמקום של התוצאה בין תוצאות אותו עמוד.
+  Future<bool> _goToEngineResultMatch(SearchResult result, int pageNumber) {
+    _schedulePdfHighlight(
+      _lastAdvancedHighlightPattern,
+      startPageNumber: pageNumber,
+    );
+    var k = 0;
+    for (final other in _searchResults) {
+      if (identical(other, result)) break;
+      if (_getPdfPageNumber(other) == pageNumber) k++;
+    }
+    return _goToMatchOnPage(pageNumber, k);
+  }
+
+  /// ממרכז את ההתאמה ה-[k] בעמוד, אחרי שהעמוד נסרק. false כשאין בו התאמה.
+  Future<bool> _goToMatchOnPage(int pageNumber, int k) async {
+    final searcher = widget.textSearcher;
+    if (searcher.getMatchesRangeForPage(pageNumber) == null &&
+        searcher.isSearching) {
+      final scanned = Completer<void>();
+      void onUpdate() {
+        if (searcher.getMatchesRangeForPage(pageNumber) != null ||
+            !searcher.isSearching) {
+          if (!scanned.isCompleted) scanned.complete();
+        }
+      }
+
+      searcher.addListener(onUpdate);
+      await scanned.future;
+      searcher.removeListener(onUpdate);
+    }
+    final range = searcher.getMatchesRangeForPage(pageNumber);
+    if (!mounted || range == null || range.end <= range.start) return false;
+    await searcher.goToMatchOfIndex(
+      range.start + min(k, range.end - range.start - 1),
+    );
+    return true;
   }
 
   /// מדגיש על העמוד את מה שהמנוע מצא בפועל (כולל fuzzy/מילים חלופיות).
@@ -441,6 +501,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
         widget.initialSearchOrigin == InBookSearchOrigin.globalResult
         ? searchableInBookQuery(widget.searchController.text)
         : null;
+    _centerOnOpenTargetPending = _carriedInQuery != null;
     if (!_isBundledTalmudPdf &&
         searchableInBookQuery(widget.searchController.text) == null) {
       _settings = InBookSearchSettings.savedDefaults();
@@ -470,7 +531,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     if (identical(oldWidget.textSearcher, widget.textSearcher)) return;
     oldWidget.textSearcher.removeListener(_onTextSearcherMatchesChanged);
     widget.textSearcher.addListener(_onTextSearcherMatchesChanged);
-    _pdfHighlightDebounce?.cancel();
     _searchGeneration++;
     _lastPdfHighlightSource = '';
     _lastAdvancedHighlightPattern = null;
@@ -650,6 +710,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       reversed.regExp,
       goToFirstMatch: false,
       searchImmediately: true,
+      startPageNumber: _scanStartPage(),
     );
   }
 
@@ -769,7 +830,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       _onIncomingSearchConfiguration,
     );
     widget.textSearcher.removeListener(_onTextSearcherMatchesChanged);
-    _pdfHighlightDebounce?.cancel();
     super.dispose();
   }
 
@@ -900,7 +960,6 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     }
 
     if (_isSimpleSearch) {
-      _pdfHighlightDebounce?.cancel();
       _pendingSimpleSearchScrollFor = query;
       final userRegex = PdfUserRegexPattern.tryParse(query);
       // תבנית סובלנית-ניקוד מהמנוע, כדי שגם PDF ששכבת הטקסט שלו מנוקדת יודגש.
@@ -917,7 +976,9 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
         userRegex ?? literal?.regExp ?? query,
         goToFirstMatch: false,
         searchImmediately: true,
+        startPageNumber: _scanStartPage(),
       );
+      _centerOpenTargetMatch();
       return;
     }
 
@@ -964,6 +1025,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
         }
       });
       _updateAdvancedHighlight(results, query);
+      _centerOpenTargetMatch();
       _scheduleScrollToCurrentPage();
     } catch (e, st) {
       debugPrint('[PdfSearch] search failed for "$query": $e\n$st');
@@ -1064,7 +1126,9 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
                           pageNumber) {
                     // גלילה למקום ההתאמה בעמוד וסימונה כהתאמה הנוכחית.
                     await widget.textSearcher.goToMatchOfIndex(matchIndex);
-                  } else if (controller != null &&
+                  } else if ((_isSimpleSearch ||
+                          !await _goToEngineResultMatch(result, pageNumber)) &&
+                      controller != null &&
                       controller.isReady &&
                       controller.layout.pageLayouts.isNotEmpty) {
                     final layout = controller.layout;
