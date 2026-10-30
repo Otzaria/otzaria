@@ -27,23 +27,21 @@ class FileCacheDao<E> {
     return _fromMap(result.first);
   }
 
-  Future<void> upsert(E entry) async {
+  // המטמון אינו חיוני: כתיבה שנתקלת בכותב אחר נכשלת מיד, ולא חוסמת את
+  // ה-UI עד busy_timeout.
+  Future<void> _write(String query, List<Object?> args) async {
     final db = await database;
-    db.execute(queries['upsert']!, _upsertArgs(entry));
+    withoutBusyWait(db, () => db.execute(queries[query]!, args));
   }
 
-  Future<void> updateAccessedAt(String filePath, int accessedAt) async {
-    final db = await database;
-    db.execute(queries['updateAccessedAt']!, [accessedAt, filePath]);
-  }
+  Future<void> upsert(E entry) => _write('upsert', _upsertArgs(entry));
 
-  Future<void> deleteByFilePath(String filePath) async {
-    final db = await database;
-    db.execute(queries['deleteByFilePath']!, [filePath]);
-  }
+  Future<void> updateAccessedAt(String filePath, int accessedAt) =>
+      _write('updateAccessedAt', [accessedAt, filePath]);
 
-  Future<void> deleteAccessedBefore(int cutoffMillis) async {
-    final db = await database;
-    db.execute(queries['deleteAccessedBefore']!, [cutoffMillis]);
-  }
+  Future<void> deleteByFilePath(String filePath) =>
+      _write('deleteByFilePath', [filePath]);
+
+  Future<void> deleteAccessedBefore(int cutoffMillis) =>
+      _write('deleteAccessedBefore', [cutoffMillis]);
 }
