@@ -1301,10 +1301,8 @@ Future<void> _runDeferredCacheWarmups() async {
     // ממשיכים בכל זאת — עדיף חימום מאוחר מאשר אף פעם.
     StartupTimeline.instance.mark('warmupsStartedBeforeReveal');
   }
-  // כיווץ cache.db — ה-prune-ים של מטמוני ה-docx/PDF משחררים דפים במהלך
-  // הסשן אך לא מקטינים את הקובץ. רץ *לפני* החימומים ולא במקביל להם, כי
-  // ה-warmUp של ReferenceBooksCache מנקה את מטמון ה-PDF מול אותו קובץ —
-  // וכתיבה שנתקלת ב-VACUUM נחסמת סינכרונית עד ל-busy_timeout.
+  // רץ לפני החימומים: ה-warmUp של ReferenceBooksCache מנקה את מטמון ה-PDF
+  // ב-cache.db, וכתיבת מטמון שנתקלת ב-VACUUM נכשלת.
   await StartupTimeline.instance.phase(
     'compactCacheDb',
     () => CacheDatabaseHolder.instance.compactIfFragmented().catchError((
