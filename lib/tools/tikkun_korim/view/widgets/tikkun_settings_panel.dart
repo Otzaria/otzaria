@@ -65,6 +65,7 @@ class TikkunSettingsPanel extends StatelessWidget {
           children: [
             SettingsActionTile.dropdownTile<String>(
               icon: OtzariaIcons.text_font_hebrew_24_filled,
+              stacked: true,
               title: 'גופן סת"ם',
               value: settings.stamFont,
               entries: tikkunStamFontEntries(),
@@ -73,6 +74,7 @@ class TikkunSettingsPanel extends StatelessWidget {
             ),
             SettingsActionTile.dropdownTile<String>(
               icon: OtzariaIcons.alef_niqqud_24_filled,
+              stacked: true,
               title: 'גופן ניקוד',
               value: settings.nikudFont,
               entries: tikkunNikudFontEntries(),
@@ -150,6 +152,7 @@ class TikkunSettingsPanel extends StatelessWidget {
           title: 'תוכן ומנהגים',
           children: [
             TikkunVavKetiaSetting(
+              stacked: true,
               value: settings.vavKetia,
               onChanged: (value) => _emit(settings.copyWith(vavKetia: value)),
             ),

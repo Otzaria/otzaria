@@ -1,6 +1,6 @@
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/layout/panel_scrollable_content.dart';
 import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
@@ -8,6 +8,9 @@ import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 class AppCustomContentDialog extends StatefulWidget {
   final String title;
   final Widget child;
+
+  /// תג אייקון בכותרת; בלעדיו הכותרת היא טקסט בלבד.
+  final IconData? icon;
 
   /// כפתורי פעולה שיוצגו בשורה בתחתית הדיאלוג.
   /// הכנס [ActionButton.recommended] / [ActionButton.neutral] כסטנדרט.
@@ -32,6 +35,7 @@ class AppCustomContentDialog extends StatefulWidget {
     super.key,
     required this.title,
     required this.child,
+    this.icon,
     this.actions,
     this.onConfirm,
     this.handleEnterKey = false,
@@ -64,48 +68,26 @@ class _AppCustomContentDialogState extends State<AppCustomContentDialog>
       },
       handleEnterKey: effectiveHandleEnterKey,
       child: Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        backgroundColor: AppSurfaces.panelBackground(context),
-        child: Container(
+        insetPadding: const EdgeInsets.all(AppTokens.spaceMD),
+        // בכהה רקע הלוח שחור, כמו הכיסוי שמאחורי הדיאלוג, והדיאלוג נבלע בו.
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? Theme.of(context).colorScheme.surface
+            : AppSurfaces.panelBackground(context),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
           width: width,
           height: size.height * 0.8,
-          // padding אופקי מנוהל בנפרד: כותרת/כפתורים ב-Padding(horizontal:16),
-          // אזור הגלילה מתפרס עד לגבול כדי שה-Scrollbar יישב בתוך ה-16px הקיים.
-          padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 48),
-                    Expanded(
-                      child: Center(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            widget.title,
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(FluentIcons.dismiss_24_regular),
-                      onPressed: widget.canDismiss
-                          ? () => Navigator.of(context).pop()
-                          : null,
-                    ),
-                  ],
-                ),
+              AppDialogHeader(
+                icon: widget.icon,
+                title: widget.title,
+                compact: true,
+                fitTitle: true,
+                closeEnabled: widget.canDismiss,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppTokens.spaceMD),
               Expanded(
                 child: widget.scrollable
                     // גובה הדיאלוג קבוע (80% מהמסך), כך שבחלון נמוך התוכן
@@ -115,24 +97,26 @@ class _AppCustomContentDialogState extends State<AppCustomContentDialog>
                         child: widget.child,
                       )
                     : Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceMD,
+                        ),
                         child: widget.child,
                       ),
               ),
-              if (widget.actions != null && widget.actions!.isNotEmpty) ...[
-                const SizedBox(height: 16),
+              if (widget.actions != null && widget.actions!.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(AppTokens.spaceMD),
                   child: Align(
                     alignment: AlignmentDirectional.centerEnd,
                     child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: AppTokens.spaceSM,
+                      runSpacing: AppTokens.spaceSM,
                       children: widget.actions!,
                     ),
                   ),
-                ),
-              ],
+                )
+              else
+                const SizedBox(height: AppTokens.spaceMD),
             ],
           ),
         ),

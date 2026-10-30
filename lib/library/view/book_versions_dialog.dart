@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
+import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:otzaria/widgets/smart_text/otzaria_widget_factory.dart';
@@ -111,6 +113,7 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
   Widget build(BuildContext context) {
     final hint = widget.hint;
     return AppCustomContentDialog(
+      icon: OtzariaIcons.books_stacked_high_24_regular,
       title: widget.title ?? 'גרסאות — ${widget.book.title}',
       scrollable: false,
       actions: [
@@ -136,8 +139,9 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
                 }
                 final versions = snapshot.data ?? const [];
                 if (versions.isEmpty) {
-                  return const Center(
-                    child: Text('לא נמצא מידע על גרסאות לספר זה.'),
+                  return const ToolEmptyState(
+                    icon: OtzariaIcons.books_stacked_high_24_regular,
+                    message: 'לא נמצא מידע על גרסאות לספר זה.',
                   );
                 }
                 final book = widget.book;
@@ -154,20 +158,33 @@ class _BookVersionsDialogState extends State<BookVersionsDialog> {
                         book is TextBook ? book.versionTitle : null,
                       );
                 if (selectable.isEmpty) {
-                  return const Center(
-                    child: Text('אין נוסחאות נוספות מלבד הנוסח הפתוח.'),
+                  return const ToolEmptyState(
+                    icon: OtzariaIcons.books_stacked_high_24_regular,
+                    message: 'אין נוסחאות נוספות מלבד הנוסח הפתוח.',
                   );
                 }
-                return ListView.separated(
-                  itemCount: selectable.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) => BookVersionTile(
-                    book: widget.book,
-                    version: selectable[index],
-                    isOnlyVersion:
-                        versions.where((v) => v.separateBook == null).length ==
-                        1,
-                    onSelected: widget.onVersionSelected,
+                // הכרטיס מתכווץ לתוכן, ולא נמתח על כל גובה הדיאלוג לשתי שורות.
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: ListDialogCard(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: selectable.length,
+                      separatorBuilder: (context, _) => Divider(
+                        height: 1,
+                        color: listDialogRowDivider(context).color,
+                      ),
+                      itemBuilder: (context, index) => BookVersionTile(
+                        book: widget.book,
+                        version: selectable[index],
+                        isOnlyVersion:
+                            versions
+                                .where((v) => v.separateBook == null)
+                                .length ==
+                            1,
+                        onSelected: widget.onVersionSelected,
+                      ),
+                    ),
                   ),
                 );
               },

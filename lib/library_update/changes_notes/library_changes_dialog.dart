@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/library/models/library.dart' show normalizeBookTitle;
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -208,6 +211,8 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
     final size = MediaQuery.sizeOf(context);
     return AppDialog.singleAction(
       title: context.settingsText('מה חדש בספרים'),
+      icon: FluentIcons.sparkle_24_regular,
+      headerBand: true,
       confirmText: context.settingsText('סגור'),
       customContent: SizedBox(
         width: size.width < 720 ? size.width * 0.9 : 640,
@@ -227,19 +232,30 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
               child: _parsed == null
                   ? const Center(child: CircularProgressIndicator())
                   : _visible.isEmpty
-                  ? Center(child: Text(context.settingsText('לא נמצאו ספרים')))
+                  ? OtzariaEmptyState(
+                      isCompact: true,
+                      icon: OtzariaIcons.search_in_library_24_regular,
+                      title: context.settingsText('לא נמצאו ספרים'),
+                    )
                   : ContentDirectionality(
-                      child: Scrollbar(
-                        controller: _scroll,
-                        // שורות בגובה משתנה: ListView רגיל בונה בקפיצת פס
-                        // הגלילה את כל השורות שבדרך (#3022). מפתח לכל סינון,
-                        // כדי שהגבהים שנמדדו לא יעברו לשורות אחרות.
-                        child: SuperListView.builder(
-                          key: ObjectKey(_visible),
+                      child: ListDialogCard(
+                        child: Scrollbar(
                           controller: _scroll,
-                          itemCount: _visible.length,
-                          itemBuilder: (context, index) =>
-                              _LineView(line: _visible[index]),
+                          // גבהי שורות משתנים דורשים SuperListView בקפיצת גלילה;
+                          // המפתח מונע העברת גבהים שנמדדו בין סינונים.
+                          child: SuperListView.builder(
+                            key: ObjectKey(_visible),
+                            controller: _scroll,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTokens.spaceMD,
+                              vertical: AppTokens.spaceSM,
+                            ),
+                            itemCount: _visible.length,
+                            itemBuilder: (context, index) => _LineView(
+                              line: _visible[index],
+                              isFirst: index == 0,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -252,40 +268,105 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
 }
 
 class _LineView extends StatelessWidget {
-  const _LineView({required this.line});
+  const _LineView({required this.line, this.isFirst = false});
 
   final LibraryChangesLine line;
+  final bool isFirst;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
     final version = line.version;
     return switch (line.kind) {
+      // כותרת קובץ: קו מפריד מהקודם, ושם בולט.
       LibraryChangesLineKind.title => Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 4),
-        child: Text(
-          version == null
-              ? line.text
-              : context.settingsText(
-                  'גרסת ספרייה {version}',
-                  args: {'version': version},
+        padding: EdgeInsets.only(top: isFirst ? 0 : AppTokens.spaceSM),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!isFirst)
+              Divider(
+                height: AppTokens.spaceLG,
+                color: cs.outlineVariant,
+              ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppTokens.spaceXS),
+              child: Text(
+                version == null
+                    ? line.text
+                    : context.settingsText(
+                        'גרסת ספרייה {version}',
+                        args: {'version': version},
+                      ),
+                style: TextStyle(
+                  fontSize: AppTokens.fontXL,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
                 ),
-          style: theme.titleLarge,
+              ),
+            ),
+          ],
         ),
       ),
       LibraryChangesLineKind.subtitle => Text(
         line.text,
-        style: theme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontSize: AppTokens.fontMD,
+          fontWeight: FontWeight.bold,
+          color: cs.onSurfaceVariant,
+        ),
       ),
       LibraryChangesLineKind.section => Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 4),
-        child: Text(line.text, style: theme.titleMedium),
+        padding: const EdgeInsets.only(
+          top: AppTokens.spaceMD,
+          bottom: AppTokens.spaceXS,
+        ),
+        child: Text(
+          line.text,
+          style: TextStyle(
+            fontSize: AppTokens.fontMD + 1,
+            fontWeight: FontWeight.bold,
+            color: cs.primary,
+          ),
+        ),
       ),
       LibraryChangesLineKind.item => Padding(
-        padding: const EdgeInsetsDirectional.only(start: 12, bottom: 2),
-        child: Text('• ${line.text}'),
+        padding: const EdgeInsetsDirectional.only(
+          start: AppTokens.spaceSM,
+          bottom: 3,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: cs.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppTokens.spaceSM),
+            Expanded(
+              child: Text(
+                line.text,
+                style: TextStyle(
+                  fontSize: AppTokens.fontMD + 1,
+                  height: 1.35,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-      LibraryChangesLineKind.text => Text(line.text),
+      LibraryChangesLineKind.text => Text(
+        line.text,
+        style: TextStyle(fontSize: AppTokens.fontMD, color: cs.onSurface),
+      ),
     };
   }
 }

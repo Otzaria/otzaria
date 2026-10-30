@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/biographies/models/biographies_bundle.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/dialogs/details_info_section.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// The author credit the license of the biographies requires, always visible
@@ -17,6 +19,8 @@ class BiographiesCreditLine extends StatelessWidget {
       context: context,
       builder: (_) => AppDialog.singleAction(
         title: 'מקורות וזכויות',
+        icon: FluentIcons.certificate_24_regular,
+        headerBand: true,
         confirmText: 'סגור',
         customContent: _CreditsContent(bundle: bundle),
       ),
@@ -91,78 +95,121 @@ class _CreditsContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final textStyle = TextStyle(
-      fontSize: AppTokens.fontMD,
-      color: cs.onSurface,
-    );
-    final linkStyle = textStyle.copyWith(
-      color: cs.primary,
-      decoration: TextDecoration.underline,
-      decorationColor: cs.primary,
-    );
     final version = [
       if (bundle.built != null) 'עודכן: ${bundle.built}',
       if (bundle.release != null) 'גרסה ${bundle.release}',
-    ].join(', ');
+    ];
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 520),
+    return SizedBox(
+      width: 520,
       child: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              '${BiographiesBundle.fullCredit}. הערכים נכתבו מחדש בתמצית '
-              'על פי המקורות הבאים, בתנאי הרישיונות שלהם:',
-              style: textStyle,
+            DetailsHeading(
+              title: BiographiesBundle.projectName,
+              subtitle: BiographiesBundle.fullCredit,
             ),
-            for (final credit in bundle.credits.values)
-              Padding(
-                padding: const EdgeInsets.only(top: AppTokens.spaceSM),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      [
-                        credit.name,
-                        ?credit.author,
-                        ?credit.publisher,
-                      ].join(', '),
-                      style: textStyle.copyWith(fontWeight: FontWeight.bold),
+            const SizedBox(height: AppTokens.spaceSM),
+            Text(
+              'הערכים נכתבו מחדש בתמצית על פי המקורות הבאים, בתנאי הרישיונות '
+              'שלהם:',
+              style: TextStyle(
+                fontSize: AppTokens.fontMD,
+                height: 1.4,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppTokens.spaceMD),
+            DetailsCard(
+              title: 'מקורות',
+              icon: FluentIcons.book_open_24_regular,
+              children: [
+                for (final credit in bundle.credits.values)
+                  _CreditTile(credit: credit),
+              ],
+            ),
+            if (version.isNotEmpty) ...[
+              const SizedBox(height: AppTokens.spaceMD),
+              Wrap(
+                spacing: AppTokens.spaceSM,
+                runSpacing: AppTokens.spaceSM,
+                children: [
+                  for (final label in version)
+                    MetaChip(
+                      label: label,
+                      icon: FluentIcons.arrow_sync_24_regular,
+                      outlined: true,
                     ),
-                    if (credit.attribution != null)
-                      Text(credit.attribution!, style: textStyle),
-                    if (credit.license != null)
-                      credit.licenseUrl == null
-                          ? Text(credit.license!, style: textStyle)
-                          : InkWell(
-                              onTap: () => launchUrl(
-                                Uri.parse(credit.licenseUrl!),
-                                mode: LaunchMode.externalApplication,
-                              ),
-                              child: Text(
-                                credit.license!,
-                                style: linkStyle,
-                                textDirection: TextDirection.ltr,
-                              ),
-                            ),
-                  ],
-                ),
+                ],
               ),
-            if (version.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: AppTokens.spaceSM),
-                child: Text(
-                  version,
-                  style: textStyle.copyWith(
-                    fontSize: AppTokens.fontSM,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A source: its name, who wrote and published it, the attribution it asks for
+/// and its license, as a link when the license has a page.
+class _CreditTile extends StatelessWidget {
+  final BiographyCredit credit;
+
+  const _CreditTile({required this.credit});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final byline = [?credit.author, ?credit.publisher].join(', ');
+    final muted = TextStyle(
+      fontSize: AppTokens.fontMD,
+      height: 1.4,
+      color: cs.onSurfaceVariant,
+    );
+    final licenseUrl = credit.licenseUrl;
+    final license = credit.license;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            credit.name,
+            style: TextStyle(
+              fontSize: AppTokens.fontMD,
+              fontWeight: FontWeight.bold,
+              color: cs.onSurface,
+            ),
+          ),
+          if (byline.isNotEmpty) Text(byline, style: muted),
+          if (credit.attribution != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppTokens.spaceXS),
+              child: Text(credit.attribution!, style: muted),
+            ),
+          if (license != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppTokens.spaceSM),
+              child: licenseUrl == null
+                  ? MetaChip(
+                      label: license,
+                      icon: FluentIcons.certificate_24_regular,
+                    )
+                  : InkWell(
+                      onTap: () => launchUrl(
+                        Uri.parse(licenseUrl),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      borderRadius: AppTokens.borderRadiusAll,
+                      child: MetaChip(
+                        label: license,
+                        icon: FluentIcons.open_24_regular,
+                      ),
+                    ),
+            ),
+        ],
       ),
     );
   }

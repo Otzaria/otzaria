@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:otzaria/search/view/search_result_card_frame.dart';
 import 'package:otzaria/theme/app_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -1021,19 +1022,10 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                         segment: result.segment.toInt(),
                         isPdf: result.isPdf,
                       );
-                  return Container(
+                  return SearchResultCardFrame(
                     key: _resultCardKeys.putIfAbsent(index, GlobalKey.new),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isPreviewed
-                            ? colorScheme.primary
-                            : colorScheme.outline.withValues(alpha: 0.3),
-                        width: isPreviewed ? 1.5 : 1,
-                      ),
-                      borderRadius: AppTokens.borderRadiusAll,
-                    ),
-                    child: child,
+                    isPreviewed: isPreviewed,
+                    child: child!,
                   );
                 },
                 child: SearchResultOpenInNewTabRegion(
@@ -1076,31 +1068,8 @@ class _TantivySearchResultsState extends State<TantivySearchResults> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // מספר התוצאה
-                          Container(
-                            constraints: const BoxConstraints(minWidth: 32),
-                            height: 32,
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primaryContainer,
-                              borderRadius: AppTokens.borderRadiusAll,
-                            ),
-                            child: Center(
-                              widthFactor: 1,
-                              child: Text(
-                                '${index + 1}',
-                                style: TextStyle(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimaryContainer,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
+                          SearchResultRankBadge(rank: index + 1),
+                          const SizedBox(width: AppTokens.spaceMD),
                           // תוכן התוצאה
                           Expanded(
                             child: Column(

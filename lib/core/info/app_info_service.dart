@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart'
     show WebViewEnvironment;
+import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/info/app_install_timeline.dart';
 import 'package:otzaria/core/info/error_log_reader.dart';
@@ -189,6 +190,7 @@ class AppInfoService {
 
     final books = await _loadBooks();
     final personalBooks = books?.where((book) => book.isUserBook).length;
+    final attached = await _collectAttachedLibraries();
 
     return {
       'version': version == 'unknown' ? null : version,
@@ -207,7 +209,41 @@ class AppInfoService {
           ? null
           : books.length - personalBooks,
       'pdfBooks': books?.whereType<PdfBook>().length,
+      'attachedLibraryCount': attached?.length,
+      'attachedLibraries': attached,
     };
+  }
+
+  /// מסדי הספרים האישיים שצורפו (`seforim.db` נוספים), או null כשהרשימה
+  /// השמורה פגומה ואינה ידועה.
+  static Future<List<Map<String, dynamic>>?> _collectAttachedLibraries() async {
+    final libraries = AttachedLibraryRegistry.instance.librariesIfKnown;
+    if (libraries == null) return null;
+    return [
+      for (final library in libraries)
+        {
+          'name': library.displayName,
+          'slug': library.slug,
+          'path': library.path,
+          'status': library.status.name,
+          if (library.problem != null) 'problem': library.problem!.name,
+          'mode': library.mode.name,
+          'placement': library.placement.name,
+          'hidden': library.hidden,
+          'origin': library.isImported ? 'imported' : 'folder',
+          'bookCount': library.bookCount,
+          'sizeBytes': await _fileSize(library.path),
+        },
+    ];
+  }
+
+  static Future<int?> _fileSize(String path) async {
+    try {
+      final file = File(path);
+      return await file.exists() ? (await file.stat()).size : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// המקום הפנוי בכונן של [libraryPath], או null כשאינו ידוע.

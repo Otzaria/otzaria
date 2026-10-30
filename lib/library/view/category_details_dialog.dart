@@ -1,9 +1,11 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:otzaria/book_common/view/book_source_dialog.dart'
+    show splitShortAndFullDescription;
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
-import 'package:otzaria_icons/otzaria_icons.dart';
 
 /// מציג את כל פרטי הקטגוריה הזמינים.
 Future<void> showCategoryDetailsDialog(
@@ -13,49 +15,78 @@ Future<void> showCategoryDetailsDialog(
   await showSingleActionDialog(
     context: context,
     title: 'אודות הקטגוריה',
+    icon: FluentIcons.folder_24_regular,
+    headerBand: true,
     confirmText: 'סגור',
     customContent: _CategoryDetailsDialogContent(category: category),
   );
 }
 
-class _CategoryDetailsDialogContent extends StatelessWidget {
+class _CategoryDetailsDialogContent extends StatefulWidget {
   const _CategoryDetailsDialogContent({required this.category});
 
   final Category category;
 
   @override
-  Widget build(BuildContext context) {
-    final shortDescription = category.shortDescription.trim();
-    final fullDescription = category.description.trim();
+  State<_CategoryDetailsDialogContent> createState() =>
+      _CategoryDetailsDialogContentState();
+}
 
+class _CategoryDetailsDialogContentState
+    extends State<_CategoryDetailsDialogContent> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final category = widget.category;
+    final shortDescription = category.shortDescription.trim();
+    // התיאור הקצר כבר בכותרת; כשהמורחב מתחיל בו, בכרטיס נשאר רק ההמשך.
+    final split = splitShortAndFullDescription(
+      shortDescription,
+      category.description,
+    );
+    final fullDescription = split == null
+        ? category.description.trim()
+        : split.rest;
+
+    // פס גלילה קבוע: תיאור מורחב ארוך נחתך בתחתית הדיאלוג, ובלי פס אין סימן
+    // שיש המשך.
     return SizedBox(
-      width: 450,
-      child: AppSelectionArea(
+      width: 500,
+      child: RawScrollbar(
+        controller: _scroll,
+        thumbVisibility: true,
+        thumbColor: Theme.of(context).colorScheme.outline,
+        thickness: 6,
+        radius: const Radius.circular(3),
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // אותם אייקונים כמו ב"אודות הספר", כדי ששני הדיאלוגים ייקראו
-              // כאותה טבלת פרטים.
-              DetailsInfoSection(
-                title: 'שם הקטגוריה:',
-                icon: FluentIcons.folder_24_regular,
-                value: category.title,
-              ),
-              if (shortDescription.isNotEmpty)
-                DetailsInfoSection(
-                  title: 'תיאור קצר:',
-                  icon: OtzariaIcons.book_information_24_regular,
-                  value: category.shortDescription,
+          controller: _scroll,
+          padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceMD),
+          child: AppSelectionArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DetailsHeading(
+                  title: category.title,
+                  subtitle: shortDescription,
                 ),
-              if (fullDescription.isNotEmpty)
-                DetailsInfoSection(
-                  title: 'תיאור מורחב:',
-                  icon: FluentIcons.document_text_24_regular,
-                  value: category.description,
-                ),
-            ],
+                if (fullDescription.isNotEmpty) ...[
+                  const SizedBox(height: AppTokens.spaceMD),
+                  DetailsCard(
+                    title: 'תיאור',
+                    icon: FluentIcons.document_text_24_regular,
+                    children: [DetailsText(fullDescription)],
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),

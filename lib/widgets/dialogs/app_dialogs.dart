@@ -1,10 +1,12 @@
 // lib/widgets/dialogs/app_dialogs.dart
 // דיאלוגים גנריים של האפליקציה — M3-styled.
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 
@@ -27,6 +29,13 @@ class AppDialog extends StatefulWidget {
   final bool handleEnterKey;
   final _DialogVariant _variant;
 
+  /// תג אייקון בכותרת. באזהרה: אייקון אזהרה כברירת מחדל.
+  final IconData? icon;
+
+  /// כותרת ברצועה מלאה — אייקון, איקס סגירה וקו חוצץ — לדיאלוגים עם תוכן
+  /// גדול. דיאלוג קטן נשאר עם כותרת פשוטה.
+  final bool headerBand;
+
   // מאפשר לעצור סגירת הדיאלוג — למשל כשוולידציה נכשלת. null = סגור תמיד.
   final bool Function()? onConfirm;
 
@@ -41,6 +50,8 @@ class AppDialog extends StatefulWidget {
     this.confirmText = 'אישור',
     this.textDirection,
     this.onConfirm,
+    this.icon,
+    this.headerBand = false,
   }) : assert(
          content != null || customContent != null,
          'content או customContent חייבים להיות מוגדרים',
@@ -61,6 +72,8 @@ class AppDialog extends StatefulWidget {
     this.textDirection,
     this.handleEnterKey = true,
     this.hasUnsavedChanges,
+    this.icon,
+    this.headerBand = false,
   }) : _variant = _DialogVariant.twoActions,
        subtitle = null,
        onConfirm = null;
@@ -74,7 +87,9 @@ class AppDialog extends StatefulWidget {
     this.confirmText = 'המשך',
     this.subtitle,
     this.textDirection,
-  }) : _variant = _DialogVariant.warning,
+    this.icon = FluentIcons.warning_24_regular,
+  }) : headerBand = false,
+       _variant = _DialogVariant.warning,
        handleEnterKey = true,
        onConfirm = null,
        hasUnsavedChanges = null;
@@ -129,8 +144,26 @@ class _AppDialogState extends State<AppDialog> {
       handleEnterKey: widget.handleEnterKey,
       child: AlertDialog(
         backgroundColor: cs.surfaceContainerHigh,
-        title: widget.title is String
-            ? Text(widget.title as String, textDirection: widget.textDirection)
+        clipBehavior: widget.headerBand ? Clip.antiAlias : Clip.none,
+        titlePadding: widget.headerBand ? EdgeInsets.zero : null,
+        contentPadding: widget.headerBand
+            ? const EdgeInsets.fromLTRB(24, 16, 24, 8)
+            : null,
+        title: widget.title is String && widget.headerBand
+            ? AppDialogHeader(
+                icon: widget.icon,
+                title: widget.title as String,
+                compact: true,
+              )
+            : widget.title is String
+            ? AppDialogTitle(
+                widget.title as String,
+                icon: widget.icon,
+                tone: widget._variant == _DialogVariant.warning
+                    ? AppDialogHeaderTone.error
+                    : AppDialogHeaderTone.primary,
+                textDirection: widget.textDirection,
+              )
             : widget.title as Widget,
         content: _buildContent(cs),
         actions: _buildActions(),
@@ -229,6 +262,8 @@ Future<bool?> showSingleActionDialog({
   TextDirection? textDirection,
   bool barrierDismissible = true,
   bool Function()? onConfirm,
+  IconData? icon,
+  bool headerBand = false,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -241,6 +276,8 @@ Future<bool?> showSingleActionDialog({
       confirmText: confirmText,
       textDirection: textDirection,
       onConfirm: onConfirm,
+      icon: icon,
+      headerBand: headerBand,
     ),
   ),
 );
@@ -256,6 +293,8 @@ Future<bool?> showTwoActionsDialog({
   bool barrierDismissible = true,
   bool handleEnterKey = true,
   ValueListenable<bool>? hasUnsavedChanges,
+  IconData? icon,
+  bool headerBand = false,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -270,6 +309,8 @@ Future<bool?> showTwoActionsDialog({
       textDirection: textDirection,
       handleEnterKey: handleEnterKey,
       hasUnsavedChanges: hasUnsavedChanges,
+      icon: icon,
+      headerBand: headerBand,
     ),
   ),
 );

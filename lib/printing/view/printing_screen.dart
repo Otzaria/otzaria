@@ -61,6 +61,20 @@ enum _AnchorKind { header, altHeader, line }
 /// נקודת קצה לטווח ההדפסה — כותרת, כותרת משנה, או מספר שורה.
 /// שתי נקודות הקצה (התחלה/עד) עצמאיות בסוגן, כך שניתן להתחיל בכותרת ולסיים בשורה.
 @immutable
+/// פאנל ההגדרות של מסך ההדפסה: עמודה צדדית ברוחב קבוע, ובמסך צר — חצי תחתון
+/// של המסך, כדי שהתצוגה המקדימה לא תתכווץ לרוחב של כמה פיקסלים.
+class _SettingsPane extends StatelessWidget {
+  const _SettingsPane({required this.narrow, required this.child});
+
+  final bool narrow;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => narrow
+      ? Expanded(flex: 6, child: child)
+      : SizedBox(width: 320, child: child);
+}
+
 class _RangeAnchor {
   final _AnchorKind kind;
   final int index;
@@ -149,6 +163,10 @@ class PrintingScreen extends StatefulWidget {
 }
 
 class _PrintingScreenState extends State<PrintingScreen> {
+  /// מתחת לרוחב הזה פאנל ההגדרות עובר מתחת לתצוגה המקדימה.
+  bool _isNarrowLayout(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < 760;
+
   double fontSize = 15.0;
   String fontName =
       AppFonts.fontPaths.keys.first; // ברירת מחדל - הגופן הראשון ברשימה
@@ -2024,25 +2042,34 @@ class _PrintingScreenState extends State<PrintingScreen> {
       insetPadding: const EdgeInsets.fromLTRB(12, 40, 12, 12),
       clipBehavior: Clip.antiAlias,
       child: Scaffold(
-        backgroundColor: AppSurfaces.solidPanelBackground(context),
+        // בכהה רקע הלוח שחור, כמו הכיסוי שמאחורי הדיאלוג, והדיאלוג נבלע בו.
+        backgroundColor: colorScheme.brightness == Brightness.dark
+            ? colorScheme.surface
+            : AppSurfaces.solidPanelBackground(context),
         body: Column(
           children: [
             PrintingAppBar(
               title: 'הדפסה — ${widget.book?.title ?? widget.bookId}',
               leading: _buildTopBarNav(),
+              closeEnabled: !_isPrinting,
             ),
             Expanded(
               child: FutureBuilder(
                 future: _dataFuture,
                 builder: (context, snapshot) {
                   if (isCustomPdfMode) {
-                    return Row(
+                    final narrow = _isNarrowLayout(context);
+                    return Flex(
+                      direction: narrow ? Axis.vertical : Axis.horizontal,
                       children: [
                         // תצוגה מקדימה (תמונות מרוסטרות)
-                        Expanded(child: _buildImagePreview(colorScheme)),
-                        // פאנל הגדרות בצד
-                        SizedBox(
-                          width: 320,
+                        Expanded(
+                          flex: narrow ? 5 : 1,
+                          child: _buildImagePreview(colorScheme),
+                        ),
+                        // פאנל הגדרות בצד (ברוחב טלפון: מתחת לתצוגה)
+                        _SettingsPane(
+                          narrow: narrow,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -2195,13 +2222,18 @@ class _PrintingScreenState extends State<PrintingScreen> {
 
                   if (snapshot.connectionState == ConnectionState.done) {
                     final totalLines = _lineCounts.of(snapshot.data!);
-                    return Row(
+                    final narrow = _isNarrowLayout(context);
+                    return Flex(
+                      direction: narrow ? Axis.vertical : Axis.horizontal,
                       children: [
                         // תצוגה מקדימה (תמונות מרוסטרות)
-                        Expanded(child: _buildImagePreview(colorScheme)),
-                        // פאנל הגדרות בצד
-                        SizedBox(
-                          width: 320,
+                        Expanded(
+                          flex: narrow ? 5 : 1,
+                          child: _buildImagePreview(colorScheme),
+                        ),
+                        // פאנל הגדרות בצד (ברוחב טלפון: מתחת לתצוגה)
+                        _SettingsPane(
+                          narrow: narrow,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -2679,18 +2711,23 @@ class _PrintingScreenState extends State<PrintingScreen> {
               // אין עדיין תמונות — מציגים אינדיקטור טעינה (גם בזמן busy וגם בריק).
               if (images.isEmpty) {
                 if (state.busy) {
+                  // נגלל: בפריסה צרה אזור התצוגה נמוך מהאינדיקטור וההסבר.
                   return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: colorScheme.primary),
-                        const SizedBox(height: 16),
-                        Text(
-                          'מכין תצוגה מקדימה...',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
-                        const SlowPreviewHint(),
-                      ],
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: colorScheme.primary),
+                          const SizedBox(height: 16),
+                          Text(
+                            'מכין תצוגה מקדימה...',
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SlowPreviewHint(),
+                        ],
+                      ),
                     ),
                   );
                 }
@@ -2824,10 +2861,10 @@ class _PrintingScreenState extends State<PrintingScreen> {
               'עמוד',
               style: TextStyle(
                 color: colorScheme.onSurfaceVariant,
-                fontSize: 12,
+                fontSize: AppTokens.fontMD,
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: AppTokens.spaceSM),
             SizedBox(
               width: 96,
               child: AppDropdownField<int>(
@@ -2867,49 +2904,53 @@ class _PrintingScreenState extends State<PrintingScreen> {
     final sheetCount = cells <= 1
         ? images.length
         : (images.length + cells - 1) ~/ cells;
-    return SizedBox(
-      width: 132,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(8),
-        itemCount: sheetCount,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
-        itemBuilder: (context, i) {
-          final selected = i == _currentPreviewItem;
-          return GestureDetector(
-            onTap: () {
-              if (!_itemScrollController.isAttached) return;
-              _itemScrollController.scrollTo(
-                index: i,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            },
-            child: Column(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
+    // רקע מובחן מהתצוגה, כדי שהרצועה תיקרא כסרגל צד ולא כחלק מהדף.
+    return ColoredBox(
+      color: colorScheme.surfaceContainer,
+      child: SizedBox(
+        width: 132,
+        child: ListView.separated(
+          padding: const EdgeInsets.all(8),
+          itemCount: sheetCount,
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
+          itemBuilder: (context, i) {
+            final selected = i == _currentPreviewItem;
+            return GestureDetector(
+              onTap: () {
+                if (!_itemScrollController.isAttached) return;
+                _itemScrollController.scrollTo(
+                  index: i,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
+              child: Column(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: selected
+                            ? colorScheme.primary
+                            : colorScheme.outlineVariant,
+                        width: selected ? 2 : 1,
+                      ),
+                    ),
+                    child: _buildSheet(i, images, rows, cols, colorScheme),
+                  ),
+                  Text(
+                    '${i + 1}',
+                    style: TextStyle(
+                      fontSize: 11,
                       color: selected
                           ? colorScheme.primary
-                          : colorScheme.outlineVariant,
-                      width: selected ? 2 : 1,
+                          : colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  child: _buildSheet(i, images, rows, cols, colorScheme),
-                ),
-                Text(
-                  '${i + 1}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: selected
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

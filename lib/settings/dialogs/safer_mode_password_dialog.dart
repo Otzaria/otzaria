@@ -93,16 +93,9 @@ class _SaferModePasswordDialogState extends State<SaferModePasswordDialog>
       onCancel: () => Navigator.of(context).pop(false),
       textFieldFocusNode: _textFieldFocusNode,
       child: AlertDialog(
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            const Icon(FluentIcons.lock_closed_24_regular),
-            const SizedBox(width: 8),
-            Text(
-              widget.title,
-              style: const TextStyle(fontSize: 20),
-            ),
-          ],
+        title: AppDialogTitle(
+          widget.title,
+          icon: FluentIcons.lock_closed_24_regular,
         ),
         content: SizedBox(
           width: 400,
@@ -298,16 +291,9 @@ class _SaferModeSetPasswordDialogState extends State<SaferModeSetPasswordDialog>
       onCancel: () => Navigator.of(context).pop(false),
       textFieldFocusNode: _passwordFocusNode,
       child: AlertDialog(
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            const Icon(FluentIcons.lock_closed_24_regular),
-            const SizedBox(width: 8),
-            Text(
-              context.settingsText('הגדרת סיסמה'),
-              style: const TextStyle(fontSize: 20),
-            ),
-          ],
+        title: AppDialogTitle(
+          context.settingsText('הגדרת סיסמה'),
+          icon: FluentIcons.lock_closed_24_regular,
         ),
         content: SizedBox(
           width: 400,

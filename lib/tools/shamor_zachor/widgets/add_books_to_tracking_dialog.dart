@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
 import 'package:otzaria/data/constants/database_constants.dart';
@@ -172,17 +175,25 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
               padding: const EdgeInsets.all(AppTokens.spaceMD),
               child: Row(
                 children: [
-                  if (_selectedBooks.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(
-                        start: AppTokens.spaceSM,
-                      ),
-                      child: Text(
-                        'נבחרו ${_selectedBooks.length}',
-                        style: TextStyle(color: colorScheme.onSurfaceVariant),
-                      ),
+                  // ברוחב טלפון המספר מופיע בכפתור ההוספה עצמו.
+                  Expanded(
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child:
+                          _selectedBooks.isEmpty ||
+                              MediaQuery.sizeOf(context).width < 520
+                          ? null
+                          : Padding(
+                              padding: const EdgeInsetsDirectional.only(
+                                start: AppTokens.spaceSM,
+                              ),
+                              child: MetaChip(
+                                icon: FluentIcons.checkmark_circle_24_regular,
+                                label: 'נבחרו ${_selectedBooks.length}',
+                              ),
+                            ),
                     ),
-                  const Spacer(),
+                  ),
                   ActionButton.neutral(
                     text: 'ביטול',
                     onPressed: () => Navigator.of(context).pop(),
@@ -229,13 +240,16 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
             );
 
         if (!hasContent) {
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingIndicator();
         }
 
-        return Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: colorScheme.outlineVariant),
+        // Material and not a decorated box, so the tiles' ink is painted
+        // above the card colour.
+        return Material(
+          color: AppSurfaces.card(context),
+          shape: RoundedRectangleBorder(
             borderRadius: AppTokens.borderRadiusAll,
+            side: BorderSide(color: colorScheme.outlineVariant),
           ),
           clipBehavior: Clip.antiAlias,
           child: _hasActiveSearch
@@ -282,10 +296,10 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
           }),
           child: Padding(
             padding: EdgeInsetsDirectional.only(
-              start: 12.0 + (level * 16.0),
-              end: 12.0,
-              top: 10.0,
-              bottom: 10.0,
+              start: AppTokens.spaceMD + (level * AppTokens.spaceLG),
+              end: AppTokens.spaceMD,
+              top: AppTokens.spaceSM + 2,
+              bottom: AppTokens.spaceSM + 2,
             ),
             child: Row(
               children: [
@@ -296,19 +310,20 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
                   size: 16,
                   color: colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppTokens.spaceSM),
                 RtlIcon(
                   isExpanded
                       ? FluentIcons.folder_open_24_regular
                       : FluentIcons.folder_24_regular,
-                  size: 18,
+                  size: 20,
                   color: colorScheme.primary,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppTokens.spaceSM + 2),
                 Expanded(
                   child: Text(
                     category.title,
                     style: TextStyle(
+                      fontSize: AppTokens.fontMD + 1,
                       fontWeight: level == 0
                           ? FontWeight.w700
                           : FontWeight.w500,
@@ -355,7 +370,7 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
         : 'ספר ללא מזהה — לא נתמך במעקב';
 
     return Padding(
-      padding: EdgeInsetsDirectional.only(start: level * 16.0),
+      padding: EdgeInsetsDirectional.only(start: level * AppTokens.spaceLG),
       child: CheckboxListTile(
         dense: true,
         value: alreadyTracked || isSelected,
@@ -363,23 +378,45 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
             ? null
             : (v) => _toggleBook(book, v ?? false),
         controlAffinity: ListTileControlAffinity.leading,
-        title: Text(
-          book.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: colorScheme.onSurface),
+        contentPadding: const EdgeInsetsDirectional.only(
+          start: AppTokens.spaceSM,
+          end: AppTokens.spaceMD,
+        ),
+        title: Row(
+          children: [
+            Icon(
+              OtzariaIcons.book_24_regular,
+              size: 18,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: AppTokens.spaceSM),
+            Expanded(
+              child: Text(
+                book.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: AppTokens.fontMD + 1,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
         ),
         subtitle: alreadyTracked || disabledReason != null
-            ? Text(
-                alreadyTracked ? 'כבר במעקב' : disabledReason!,
-                style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ? Padding(
+                padding: const EdgeInsetsDirectional.only(
+                  start: 18 + AppTokens.spaceSM,
+                ),
+                child: Text(
+                  alreadyTracked ? 'כבר במעקב' : disabledReason!,
+                  style: TextStyle(
+                    fontSize: AppTokens.fontSM,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
               )
             : null,
-        secondary: Icon(
-          OtzariaIcons.book_24_regular,
-          size: 18,
-          color: colorScheme.onSurfaceVariant,
-        ),
       ),
     );
   }
@@ -392,11 +429,9 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
     )..sort((a, b) => a.title.compareTo(b.title));
 
     if (matches.isEmpty) {
-      return Center(
-        child: Text(
-          'לא נמצאו ספרים תואמים',
-          style: TextStyle(color: colorScheme.onSurfaceVariant),
-        ),
+      return const ToolEmptyState(
+        icon: OtzariaIcons.search_in_library_24_regular,
+        message: 'לא נמצאו ספרים תואמים',
       );
     }
 

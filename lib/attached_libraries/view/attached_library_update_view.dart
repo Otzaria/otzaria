@@ -250,6 +250,8 @@ Future<bool> confirmAttachedUpdate(
           'עדכון המסד "{name}"',
           args: {'name': library.displayName},
         ),
+        icon: FluentIcons.arrow_sync_24_regular,
+        headerBand: true,
         content: '',
         customContent: _ConfirmContent(offer: offer),
         cancelText: dialogContext.settingsText('ביטול'),

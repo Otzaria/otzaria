@@ -247,11 +247,11 @@ void main() {
       () {
         expect(
           ShortcutHelper.formatShortcutForDisplay('alt+arrowup'),
-          'ALT + ↑',
+          'ALT + ↑‎',
         );
         expect(
           ShortcutHelper.formatShortcutForDisplay('alt+arrowdown'),
-          'ALT + ↓',
+          'ALT + ↓‎',
         );
         expect(
           ShortcutHelper.formatShortcutForDisplay('alt+pageup'),

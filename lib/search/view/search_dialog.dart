@@ -5,6 +5,7 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -438,10 +439,10 @@ class _SearchDialogState extends State<SearchDialog> {
           children: [
             Icon(
               FluentIcons.search_24_regular,
-              size: 64,
+              size: 56,
               color: cs.onSurfaceVariant,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             Text(
               isBuilding
                   ? context.settingsText('אינדקס החיפוש בבנייה')
@@ -467,7 +468,7 @@ class _SearchDialogState extends State<SearchDialog> {
               style: TextStyle(fontSize: 16, color: cs.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             if (isBuilding) ...[
               LinearProgressIndicator(
                 value: total > 0 ? processed / total : null,
@@ -1548,24 +1549,12 @@ class _SearchDialogState extends State<SearchDialog> {
             args: {'book': widget.bookTitle},
           )
         : context.settingsText('חיפוש בספרייה');
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(24, 8, 12, 0),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(FluentIcons.dismiss_24_regular),
-            onPressed: () => Navigator.of(context).pop(),
-            tooltip: context.settingsText('סגור'),
-          ),
-        ],
-      ),
+    return AppDialogHeader(
+      icon: FluentIcons.search_24_regular,
+      title: title,
+      compact: true,
+      fitTitle: true,
+      closeTooltip: context.settingsText('סגור'),
     );
   }
 

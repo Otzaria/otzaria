@@ -1,5 +1,6 @@
 // lib/tools/calendar/calendar_screen.dart
 
+import 'package:otzaria/tools/calendar/dialogs/calendar_about_dialog.dart';
 import 'dart:async';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:kosher_dart/kosher_dart.dart';
@@ -790,15 +791,6 @@ class CalendarWidgetState extends State<CalendarWidget> {
     });
   }
 
-  Future<void> _openCalendarCalculationPage(BuildContext context) async {
-    await showSingleActionDialog(
-      context: context,
-      title: 'אודות חישובי הלוח',
-      content:
-          'חישובי הלוח בתוכנה זו מיוסדים על דרכו של הרב ישראל דוד הרפנס, כפי שנתבארה בספרו ישראל והזמנים ובשאר ספריו העוסקים בענייני זמני הלכה. מטרת הדברים איננה להציג חישוב עצמאי חדש, אלא ליישם בצורה מסודרת, מדויקת ובהירה את כללי חשבון הלוח העברי על פי הביאור והסידור שנתפרשו בספריו.\n\n'
-          'הרב הרפנס, מו"ץ בהתאחדות הרבנים ורב קהילת ישראל והזמנים, נודע במיוחד בבירור סוגיות הזמן בהלכה, וספרו ישראל והזמנים הוא ספר היסוד שעל פיו נבנתה תשתית החישוב שבתוכנה. לצד ספר זה, חיבר הרב גם ספרים נוספים בענייני הלכה שונים.\n\n'
-          'אין בהבאת זמנים אלו משום נקיטת צד באופן החישוב, והם הובאו רק משום הקלות לשלבם בתוכנה.',
-      confirmText: 'הבנתי',
-    );
-  }
+  Future<void> _openCalendarCalculationPage(BuildContext context) =>
+      showCalendarAboutDialog(context);
 }

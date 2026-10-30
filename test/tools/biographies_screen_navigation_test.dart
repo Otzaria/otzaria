@@ -86,11 +86,11 @@ void main() {
 
     // Expand רבי עקיבא and follow the link to his student.
     await tester.tap(
-      find.descendant(of: _card('a'), matching: find.byTooltip('הרחב')),
+      find.descendant(of: _card('a'), matching: find.text('הצג עוד')),
     );
     await tester.pumpAndSettle();
     await tester.tap(
-      find.descendant(of: _card('a'), matching: find.byType(InkWell)).last,
+      find.descendant(of: _card('a'), matching: find.text('רבי מאיר')),
     );
     await tester.pumpAndSettle();
 
@@ -100,7 +100,7 @@ void main() {
 
     // From the student back to his teacher, then two steps back.
     await tester.tap(
-      find.descendant(of: _card('m'), matching: find.byType(InkWell)).last,
+      find.descendant(of: _card('m'), matching: find.text('רבי עקיבא')),
     );
     await tester.pumpAndSettle();
     expect(_shownIds(tester), ['a']);

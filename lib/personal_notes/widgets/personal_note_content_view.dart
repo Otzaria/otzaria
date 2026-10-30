@@ -20,6 +20,8 @@ Future<bool?> showPersonalNotesDialog({
 }) => showSingleActionDialog(
   context: context,
   title: notes.length == 1 ? 'הערה אישית' : 'הערות אישיות',
+  icon: FluentIcons.note_24_regular,
+  headerBand: true,
   customContent: PersonalNotesListView(notes: notes),
   confirmText: 'סגור',
 );

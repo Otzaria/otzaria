@@ -9,19 +9,17 @@ void main() {
 
   // AppCustomContentDialog משתמש ב-MediaQuery.of(context).size כדי לחשב את הרוחב.
   // בטסטים `setSurfaceSize` לא תמיד מתפשט ל-MediaQuery של דיאלוגים, לכן עוטפים
-  // ידנית ב-MediaQuery עם הגודל הרצוי. הקונטיינר הפנימי של הדיאלוג הוא היחיד
-  // עם padding אנכי של 16 בלבד (horizontal מנוהל דרך Padding פנימי לכל שורה).
-  Container findInnerContainer() {
+  // ידנית ב-MediaQuery עם הגודל הרצוי. גוף הדיאלוג הוא ה-SizedBox היחיד עם
+  // רוחב וגובה קבועים (horizontal מנוהל דרך Padding פנימי לכל שורה).
+  SizedBox findInnerContainer() {
     return find
         .descendant(
           of: find.byType(AppCustomContentDialog),
-          matching: find.byType(Container),
+          matching: find.byType(SizedBox),
         )
         .evaluate()
-        .map((e) => e.widget as Container)
-        .singleWhere(
-          (c) => c.padding == const EdgeInsets.symmetric(vertical: 16),
-        );
+        .map((e) => e.widget as SizedBox)
+        .firstWhere((s) => s.width != null && s.height != null);
   }
 
   Future<void> pumpDialog(
@@ -111,7 +109,7 @@ void main() {
     testWidgets('מסך רחב: הדיאלוג מבקש רוחב של 50% מהמסך', (tester) async {
       await pumpDialog(tester, const Size(1200, 800));
 
-      final requested = findInnerContainer().constraints!.maxWidth;
+      final requested = findInnerContainer().width!;
       expect(
         requested,
         closeTo(600, 0.5),
@@ -122,7 +120,7 @@ void main() {
     testWidgets('מסך צר: הדיאלוג מבקש רוחב של 95% מהמסך', (tester) async {
       await pumpDialog(tester, const Size(400, 800));
 
-      final requested = findInnerContainer().constraints!.maxWidth;
+      final requested = findInnerContainer().width!;
       expect(
         requested,
         closeTo(380, 0.5),
@@ -268,24 +266,20 @@ void main() {
         );
         await tester.pump();
 
-        // Container הפנימי (vertical padding בלבד) — קצהו השמאלי = גבול אזור התוכן
-        final containerFinder = find
-            .descendant(
-              of: find.byType(AppCustomContentDialog),
-              matching: find.byType(Container),
-            )
-            .evaluate()
-            .where(
-              (e) =>
-                  (e.widget as Container).padding ==
-                  const EdgeInsets.symmetric(vertical: 16),
-            )
-            .first;
+        // גוף הדיאלוג — קצהו השמאלי = גבול אזור התוכן
         final containerRect = tester.getRect(
-          find.byElementPredicate(
-            (el) => el == containerFinder,
-            description: 'inner container',
-          ),
+          find
+              .descendant(
+                of: find.byType(AppCustomContentDialog),
+                matching: find.byType(SizedBox),
+              )
+              .evaluate()
+              .where((e) {
+                final box = e.widget as SizedBox;
+                return box.width != null && box.height != null;
+              })
+              .map((e) => find.byElementPredicate((el) => el == e))
+              .first,
         );
         final contentRect = tester.getRect(find.byKey(childKey));
 

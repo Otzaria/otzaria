@@ -1,7 +1,9 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 
 class ZmanAlertDialogResult {
   final int minutesBefore;
@@ -50,7 +52,10 @@ class _ZmanAlertDialogState extends State<ZmanAlertDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      title: Text(widget.zmanName),
+      title: AppDialogTitle(
+        widget.zmanName,
+        icon: FluentIcons.alert_24_regular,
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

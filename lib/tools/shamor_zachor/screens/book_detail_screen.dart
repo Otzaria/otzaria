@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/theme_exports.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
@@ -53,13 +56,16 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   static const double _titleGutter = 6.0; // עוד טיפה מרווח מהחץ
   static const double _levelIndent = 16.0; // הזחה לכל רמה
   static const double _rightInset = _gridHPad + _chevronReserve + _titleGutter;
-  static const int _titleFlex = 2;
   static const int _gridFlex = 10;
+
+  /// Width of the title column against [_gridFlex]; wider in a narrow window,
+  /// where a sixth of the width cut every title short.
+  int _titleFlex = 3;
+  static const double _narrowWidth = 560;
 
   // סגנון אחיד לכל הכותרות (leaf ו-parent)
   static const TextStyle _headingStyle = TextStyle(
-    fontFamily: 'Heebo',
-    fontSize: 18,
+    fontSize: AppTokens.fontLG,
     fontWeight: FontWeight.w400,
     height: 1.1,
   );
@@ -168,53 +174,23 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     return ErrorBoundary(
       child: Consumer2<ShamorZachorDataProvider, ShamorZachorProgressProvider>(
         builder: (context, dataProvider, progressProvider, child) {
-          final cs = Theme.of(context).colorScheme;
-
           if (dataProvider.isLoading || progressProvider.isLoading) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('טוען פרטי ספר...'),
-                ],
-              ),
-            );
+            return const LoadingIndicator();
           }
 
           if (dataProvider.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    FluentIcons.error_circle_24_regular,
-                    size: 64,
-                    color: cs.error,
+            final error = dataProvider.error!;
+            return OtzariaErrorState(
+              title: error.userFriendlyMessage,
+              details: error.suggestedAction,
+              actions: [
+                if (error.isRecoverable)
+                  ActionButton.recommended(
+                    text: 'נסה שוב',
+                    icon: FluentIcons.arrow_clockwise_24_regular,
+                    onPressed: () => dataProvider.retry(),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    dataProvider.error!.userFriendlyMessage,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  if (dataProvider.error!.suggestedAction != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      dataProvider.error!.suggestedAction!,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  if (dataProvider.error!.isRecoverable)
-                    ActionButton.recommended(
-                      text: 'נסה שוב',
-                      onPressed: () => dataProvider.retry(),
-                    ),
-                ],
-              ),
+              ],
             );
           }
 
@@ -229,27 +205,10 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             _logger.warning(
               'BookDetails not found for ${widget.bookName} in category ${widget.topLevelCategoryKey}',
             );
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    OtzariaIcons.book_24_regular,
-                    size: 64,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'פרטי הספר "${widget.bookName}" לא נמצאו',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'קטגוריה: ${widget.topLevelCategoryKey}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
+            return ToolEmptyState(
+              icon: OtzariaIcons.book_24_regular,
+              message: 'פרטי הספר "${widget.bookName}" לא נמצאו',
+              subtitle: 'קטגוריה: ${widget.topLevelCategoryKey}',
             );
           }
 
@@ -260,6 +219,19 @@ class _BookDetailScreenState extends State<BookDetailScreen>
   }
 
   Widget _buildBookContent(
+    BuildContext context,
+    BookDetails bookDetails,
+    ShamorZachorProgressProvider progressProvider,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _titleFlex = constraints.maxWidth < _narrowWidth ? 4 : 3;
+        return _buildBookBody(context, bookDetails, progressProvider);
+      },
+    );
+  }
+
+  Widget _buildBookBody(
     BuildContext context,
     BookDetails bookDetails,
     ShamorZachorProgressProvider progressProvider,
@@ -288,56 +260,140 @@ class _BookDetailScreenState extends State<BookDetailScreen>
       progressProvider,
     );
 
-    return Column(
-      children: [
-        // ── כותרת הספר (נשארת גלויה בגלילה) ──────────────────────────────
-        Container(
-          color: theme.scaffoldBackgroundColor,
-          child: Row(
+    final cs = theme.colorScheme;
+    final completionRaw = widget.bookId == null
+        ? null
+        : progressProvider.getCompletionDateSyncById(widget.bookId!);
+    final bookCompletionDate = completionRaw == null
+        ? null
+        : DateTime.tryParse(completionRaw);
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: LayoutConstraints.panelContentMaxWidth,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppTokens.spaceMD),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (widget.onBack != null)
-                IconButton(
-                  icon: const Icon(FluentIcons.arrow_left_24_regular),
-                  onPressed: widget.onBack,
-                  tooltip: 'חזרה',
-                ),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: widget.onBack != null ? 0 : 16,
-                    top: 8,
-                    bottom: 8,
-                  ),
-                  child: Text(
-                    widget.bookName,
-                    style: theme.textTheme.titleLarge,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        value: completionPct,
-                        strokeWidth: 3,
-                        backgroundColor: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.2,
+              // ── כותרת הספר ────────────────────────────────────────────────
+              Row(
+                children: [
+                  if (widget.onBack != null) ...[
+                    SecondaryIconButton(
+                      icon: FluentIcons.arrow_left_24_regular,
+                      onPressed: widget.onBack!,
+                      tooltip: 'חזרה',
+                    ),
+                    const SizedBox(width: AppTokens.spaceMD),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.bookName,
+                          style: TextStyle(
+                            fontSize: AppTokens.fontXL + 2,
+                            fontWeight: FontWeight.w700,
+                            color: cs.primary,
+                          ),
                         ),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          theme.colorScheme.primary,
+                        if (bookDetails.categoryPath != null ||
+                            bookCompletionDate != null)
+                          Wrap(
+                            spacing: AppTokens.spaceSM,
+                            runSpacing: AppTokens.spaceXS,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (bookDetails.categoryPath != null)
+                                Text(
+                                  bookDetails.categoryPath!,
+                                  style: TextStyle(
+                                    fontSize: AppTokens.fontSM,
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              if (bookCompletionDate != null)
+                                Tooltip(
+                                  message: HebrewUtils.fullDate(
+                                    bookCompletionDate,
+                                  ),
+                                  child: MetaChip(
+                                    icon: FluentIcons.checkmark_24_regular,
+                                    label:
+                                        'הושלם ${HebrewUtils.shortHebrewDate(bookCompletionDate)}',
+                                  ),
+                                ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppTokens.spaceMD),
+                  Tooltip(
+                    message: 'התקדמות כוללת',
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CircularProgressIndicator(
+                            value: completionPct,
+                            strokeWidth: 4,
+                            backgroundColor: cs.onSurface.withValues(
+                              alpha: 0.08,
+                            ),
+                          ),
+                          Center(
+                            child: completionPct >= 1.0
+                                ? Icon(
+                                    FluentIcons.checkmark_24_regular,
+                                    size: 20,
+                                    color: cs.primary,
+                                  )
+                                : Text(
+                                    '${(completionPct * 100).round()}%',
+                                    style: TextStyle(
+                                      fontSize: AppTokens.fontSM - 1,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTokens.spaceMD),
+              // ── טבלת הסימונים: כותרות העמודות נשארות גלויות בגלילה ───────
+              Expanded(
+                child: Material(
+                  color: AppSurfaces.card(context),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppTokens.borderRadiusAll,
+                    side: BorderSide(color: cs.outlineVariant),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      _buildHeader(context, bookDetails, progressProvider),
+                      Expanded(
+                        child: CustomScrollView(
+                          slivers: [
+                            SliverPadding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppTokens.spaceSM,
+                              ),
+                              sliver: sliverList,
+                            ),
+                          ],
                         ),
                       ),
-                      if (completionPct >= 1.0)
-                        Icon(
-                          FluentIcons.checkmark_24_regular,
-                          size: 14,
-                          color: theme.colorScheme.onSurface,
-                        ),
                     ],
                   ),
                 ),
@@ -345,20 +401,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             ],
           ),
         ),
-        // ── שורת כותרות העמודות (נשארת גלויה בגלילה) ─────────────────────
-        _buildHeader(context, bookDetails, progressProvider),
-        // ── תוכן גלילה ────────────────────────────────────────────────────
-        Expanded(
-          child: CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.all(12.0),
-                sliver: sliverList,
-              ),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -407,24 +450,26 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     return Container(
       padding: EdgeInsets.fromLTRB(
         _gridHPad + 12,
-        8,
+        AppTokens.spaceSM,
         _gridHPad + _chevronReserve + _titleGutter + 12,
-        8,
+        AppTokens.spaceSM,
       ),
       decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.5,
+        ),
         border: Border(
-          bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5)),
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
       child: Row(
         children: [
           Expanded(
-            flex: 2,
+            flex: _titleFlex,
             child: Align(
-              alignment: Alignment.centerRight,
+              alignment: AlignmentDirectional.centerStart,
               child: columns.length < ShamorZachorProgressProvider.maxColumns
-                  ? IconButton(
+                  ? IconButton.filledTonal(
                       tooltip: 'הוסף עמודה',
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(FluentIcons.add_24_regular),
@@ -434,7 +479,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             ),
           ),
           Expanded(
-            flex: 10,
+            flex: _gridFlex,
             child: Row(
               // אין spaceEvenly כדי לשמור פריסה זהה בכל עומק
               children: columns.map((col) {
@@ -544,7 +589,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
               child: Text(
                 column.label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: AppTokens.fontSM,
+                  fontWeight: FontWeight.w600,
                   color: theme.colorScheme.onSurface,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -554,7 +600,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
           const SizedBox(width: 2),
           Icon(
             FluentIcons.chevron_down_24_regular,
-            size: 11,
+            size: 14,
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ],
@@ -664,7 +710,12 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                     horizontal: 12,
                     vertical: 6,
                   ),
-                  margin: const EdgeInsets.only(top: 16.0, bottom: 4.0),
+                  margin: const EdgeInsets.fromLTRB(
+                    AppTokens.spaceSM,
+                    AppTokens.spaceMD,
+                    AppTokens.spaceSM,
+                    AppTokens.spaceXS,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primaryContainer,
                     borderRadius: AppTokens.borderRadiusAll,
@@ -683,18 +734,17 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                 child: Row(
                   children: [
                     Expanded(
-                      flex: 2,
+                      flex: _titleFlex,
                       child: Text(
                         rowLabel,
-                        textAlign: TextAlign.right,
                         style: TextStyle(
-                          fontFamily: 'Heebo',
+                          fontSize: AppTokens.fontLG,
                           color: theme.colorScheme.onSurface,
                         ),
                       ),
                     ),
                     Expanded(
-                      flex: 10,
+                      flex: _gridFlex,
                       child: _buildItemCheckboxes(
                         progressProvider,
                         bookDetails,
@@ -717,7 +767,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     final band = bookDetails.isDafType == true ? 2 : 1;
     return index % (2 * band) < band
         ? Colors.transparent
-        : theme.colorScheme.primaryContainer.withValues(alpha: 0.15);
+        : theme.colorScheme.primaryContainer.withValues(alpha: 0.25);
   }
 
   Widget _buildItemCheckboxes(
@@ -844,120 +894,124 @@ class _BookDetailScreenState extends State<BookDetailScreen>
     }
 
     // Parent
-    return Theme(
-      data: theme.copyWith(
-        // צמצום מרווחי ה-ListTile של ה-ExpansionTile
-        listTileTheme: const ListTileThemeData(
-          dense: true,
-          minVerticalPadding: 0,
-          horizontalTitleGap: 0,
-          minLeadingWidth: 0,
-          contentPadding: EdgeInsets.zero,
-        ),
-        // צמצום tap-target של Checkbox
-        checkboxTheme: const CheckboxThemeData(
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity(horizontal: -4, vertical: -4),
-        ),
-        dividerColor: Colors.transparent,
-      ),
-      child: ExpansionTile(
-        key: ValueKey(section.id),
-        initiallyExpanded: isExpanded,
-        onExpansionChanged: (expanded) {
-          setState(() => _expandedSections[section.id] = expanded);
-        },
-        tilePadding: const EdgeInsetsDirectional.only(
-          end: _gridHPad + _titleGutter,
-        ),
-        childrenPadding: EdgeInsets.zero,
-        controlAffinity: ListTileControlAffinity.trailing,
-        title: Container(
-          padding: const EdgeInsets.only(
-            left: _gridHPad,
-            right: _gridHPad,
-            top: 1,
-            bottom: 1,
+    // Material and not ColoredBox, so the tile's ink is painted above the tint.
+    return Material(
+      color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.4),
+      child: Theme(
+        data: theme.copyWith(
+          // צמצום מרווחי ה-ListTile של ה-ExpansionTile
+          listTileTheme: const ListTileThemeData(
+            dense: true,
+            minVerticalPadding: 0,
+            horizontalTitleGap: 0,
+            minLeadingWidth: 0,
+            contentPadding: EdgeInsets.zero,
           ),
-          child: Row(
-            children: [
-              // קודם כותרת, כמו ב־Header
-              Expanded(
-                flex: _titleFlex,
-                child: Padding(
-                  // הזחה ביחס ל־RTL מהימין פנימה - רק לכותרת!
-                  padding: EdgeInsetsDirectional.only(
-                    start: _levelIndent * level,
-                  ),
-                  child: Text(
-                    section.title,
-                    style: _headingStyle.copyWith(
-                      color: theme.colorScheme.onSurface,
+          // צמצום tap-target של Checkbox
+          checkboxTheme: const CheckboxThemeData(
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity(horizontal: -4, vertical: -4),
+          ),
+          dividerColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          key: ValueKey(section.id),
+          initiallyExpanded: isExpanded,
+          onExpansionChanged: (expanded) {
+            setState(() => _expandedSections[section.id] = expanded);
+          },
+          tilePadding: const EdgeInsetsDirectional.only(
+            end: _gridHPad + _titleGutter,
+          ),
+          childrenPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.trailing,
+          title: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: _gridHPad,
+              vertical: 3,
+            ),
+            child: Row(
+              children: [
+                // קודם כותרת, כמו ב־Header
+                Expanded(
+                  flex: _titleFlex,
+                  child: Padding(
+                    // הזחה ביחס ל־RTL מהימין פנימה - רק לכותרת!
+                    padding: EdgeInsetsDirectional.only(
+                      start: _levelIndent * level,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
+                    child: Text(
+                      section.title,
+                      style: _headingStyle.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
                   ),
                 ),
-              ),
-              Expanded(
-                flex: _gridFlex,
-                child: Row(
-                  children: _columnsOf(progressProvider).map((col) {
-                    final columnId = col.id;
+                Expanded(
+                  flex: _gridFlex,
+                  child: Row(
+                    children: _columnsOf(progressProvider).map((col) {
+                      final columnId = col.id;
 
-                    // אם אין bookId, נחזיר checkbox ריק
-                    if (widget.bookId == null) {
+                      // אם אין bookId, נחזיר checkbox ריק
+                      if (widget.bookId == null) {
+                        return Expanded(
+                          child: SizedBox(
+                            height: 24,
+                            child: Center(
+                              child: Checkbox(
+                                value: false,
+                                tristate: true,
+                                onChanged: null, // disabled
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      final state = progressProvider.getSectionColumnStateById(
+                        widget.bookId!,
+                        bookDetails,
+                        section.id,
+                        columnId,
+                      );
                       return Expanded(
                         child: SizedBox(
                           height: 24,
                           child: Center(
                             child: Checkbox(
-                              value: false,
+                              value: state,
                               tristate: true,
-                              onChanged: null, // disabled
+                              onChanged: (value) async {
+                                if (widget.bookId != null) {
+                                  await progressProvider
+                                      .toggleSectionColumnById(
+                                        widget.bookId!,
+                                        bookDetails,
+                                        section.id,
+                                        columnId,
+                                        value == true,
+                                      );
+                                }
+                              },
                             ),
                           ),
                         ),
                       );
-                    }
-
-                    final state = progressProvider.getSectionColumnStateById(
-                      widget.bookId!,
-                      bookDetails,
-                      section.id,
-                      columnId,
-                    );
-                    return Expanded(
-                      child: SizedBox(
-                        height: 24,
-                        child: Center(
-                          child: Checkbox(
-                            value: state,
-                            tristate: true,
-                            onChanged: (value) async {
-                              if (widget.bookId != null) {
-                                await progressProvider.toggleSectionColumnById(
-                                  widget.bookId!,
-                                  bookDetails,
-                                  section.id,
-                                  columnId,
-                                  value == true,
-                                );
-                              }
-                            },
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                    }).toList(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          // הילדים נבנים כשורות נפרדות ברשימה השטוחה.
+          children: const [],
         ),
-        // הילדים נבנים כשורות נפרדות ברשימה השטוחה.
-        children: const [],
       ),
     );
   }

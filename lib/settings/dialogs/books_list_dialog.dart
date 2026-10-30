@@ -104,8 +104,6 @@ class _BooksListDialogState extends State<_BooksListDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return ListDialogFrame(
       icon: OtzariaIcons.book_24_regular,
       title: context.settingsText('רשימת הספרים'),
@@ -120,29 +118,30 @@ class _BooksListDialogState extends State<_BooksListDialog> {
         const SizedBox(height: AppTokens.spaceMD),
         Expanded(
           child: _visibleRows.isEmpty
-              ? Center(
-                  child: Text(
-                    context.settingsText('לא נמצאו ספרים'),
-                    style: TextStyle(color: cs.onSurfaceVariant),
-                  ),
+              ? OtzariaEmptyState(
+                  isCompact: true,
+                  icon: OtzariaIcons.search_in_library_24_regular,
+                  title: context.settingsText('לא נמצאו ספרים'),
                 )
-              : Scrollbar(
-                  controller: _scrollController,
-                  thumbVisibility: true,
-                  child: ListView.builder(
+              : ListDialogCard(
+                  child: Scrollbar(
                     controller: _scrollController,
-                    // גובה שורה קבוע: קפיצת פס הגלילה לא בונה את כל השורות בדרך
-                    prototypeItem: _BookListRow(
-                      row: _BookRow(
-                        title: ' ',
-                        author: ' ',
-                        category: '',
-                        fileType: '',
+                    thumbVisibility: true,
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      // גובה שורה קבוע: קפיצת פס הגלילה לא בונה את כל השורות בדרך
+                      prototypeItem: _BookListRow(
+                        row: _BookRow(
+                          title: ' ',
+                          author: ' ',
+                          category: '',
+                          fileType: '',
+                        ),
                       ),
-                    ),
-                    itemCount: _visibleRows.length,
-                    itemBuilder: (_, i) => _BookListRow(
-                      row: _visibleRows[i],
+                      itemCount: _visibleRows.length,
+                      itemBuilder: (_, i) => _BookListRow(
+                        row: _visibleRows[i],
+                      ),
                     ),
                   ),
                 ),
@@ -175,7 +174,8 @@ class _BookListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final subtitleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+    final subtitleStyle = TextStyle(
+      fontSize: AppTokens.fontSM,
       color: cs.onSurfaceVariant,
     );
     final detailsLine = [
@@ -187,10 +187,13 @@ class _BookListRow extends StatelessWidget {
     // שורה אחת לכל שדה, גם כשאין פרטים: הגובה חייב להיות זהה לתבנית.
     return DecoratedBox(
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: cs.surfaceContainerHighest)),
+        border: Border(bottom: listDialogRowDivider(context)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: const EdgeInsets.symmetric(
+          vertical: AppTokens.spaceSM,
+          horizontal: AppTokens.spaceMD,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -200,7 +203,11 @@ class _BookListRow extends StatelessWidget {
                 row.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: TextStyle(
+                  fontSize: AppTokens.fontMD + 1,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
               ),
             ),
             const SizedBox(height: 2),

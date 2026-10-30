@@ -452,8 +452,6 @@ class _MeasurementConverterScreenState
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final showOpinion = _shouldShowOpinionSelector();
-    final hasResult = _resultController.text.isNotEmpty;
 
     return CallbackShortcuts(
       bindings: {
@@ -467,317 +465,73 @@ class _MeasurementConverterScreenState
         onKeyEvent: _handleKeyEvent,
         child: Column(
           children: [
-            BlocBuilder<SettingsBloc, SettingsState>(
-              builder: (context, settingsState) => LayoutBuilder(
-                builder: (context, barConstraints) {
-                  // כשיש מקום מספיק — תוצאה בשורה הראשונה; אחרת — שורה שנייה
-                  final singleRow = barConstraints.maxWidth >= 560;
-                  final isWideBar = barConstraints.maxWidth >= 700;
-                  final isCompact = settingsState.compactMenuMode;
-                  final fieldHeight = isCompact
-                      ? AppInputTokens.compactHeight
-                      : 40.0;
-                  final fieldFontSize = AppInputTokens.fontSize(isCompact);
-
-                  // סטטוס הסרגל: רחב=_sidebarVisible, צר=_narrowShowCategories
-                  final sidebarOpen = isWideBar
-                      ? _sidebarVisible
-                      : _narrowShowCategories;
-
-                  // ── ווידג'ט תוצאה (משותף לשני המצבים) ──────────────────
-                  Widget resultSection({required bool inPrimaryRow}) => Row(
-                    mainAxisSize: inPrimaryRow
-                        ? MainAxisSize.min
-                        : MainAxisSize.max,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      if (inPrimaryRow)
-                        SizedBox(
-                          height: 24,
-                          child: VerticalDivider(
-                            width: AppTokens.spaceMD * 2,
-                            thickness: 1,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.outline.withValues(alpha: 0.3),
-                          ),
-                        ),
-                      Text(
-                        'תוצאה',
-                        style: _barLabelStyle(cs, muted: !hasResult),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Container(
-                          height: fieldHeight,
-                          decoration: BoxDecoration(
-                            color: cs.onSurface.withValues(alpha: 0.07),
-                            borderRadius: AppTokens.borderRadiusAll,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppTokens.spaceSM,
-                            ),
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                hasResult ? _resultController.text : '—',
-                                textAlign: TextAlign.start,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: fieldFontSize + 2,
-                                  fontWeight: FontWeight.w600,
-                                  color: hasResult
-                                      ? cs.onSurface
-                                      : cs.onSurface.withValues(alpha: 0.25),
-                                  height: 1.0,
-                                  leadingDistribution:
-                                      TextLeadingDistribution.even,
+            LayoutBuilder(
+              builder: (context, barConstraints) {
+                final isWideBar = barConstraints.maxWidth >= 700;
+                final sidebarOpen = isWideBar
+                    ? _sidebarVisible
+                    : _narrowShowCategories;
+                return AppTopBar(
+                  leadingItems: [
+                    AppTopBarItem(
+                      widget: IconButton(
+                        icon: AnimatedSwitcher(
+                          duration: AppTokens.animFast,
+                          transitionBuilder: (child, animation) =>
+                              RotationTransition(
+                                turns: Tween<double>(
+                                  begin: 0.5,
+                                  end: 0.0,
+                                ).animate(animation),
+                                child: FadeTransition(
+                                  opacity: animation,
+                                  child: child,
                                 ),
                               ),
-                            ),
+                          // panel_right_expand הוא ה"Pane Open" של
+                          // פלואנט — הפאנל עם חץ שפותח אותו, ולא פאנל
+                          // סתום שאינו אומר מה הלחיצה תעשה.
+                          child: Icon(
+                            sidebarOpen
+                                ? OtzariaIcons.panel_right_contract_24_regular
+                                : OtzariaIcons.panel_right_expand_24_regular,
+                            key: ValueKey(sidebarOpen),
+                            size: 24,
                           ),
                         ),
+                        tooltip: sidebarOpen ? 'הסתר קטגוריות' : 'הצג קטגוריות',
+                        onPressed: () => setState(() {
+                          if (isWideBar) {
+                            _sidebarVisible = !_sidebarVisible;
+                          } else {
+                            _narrowShowCategories = !_narrowShowCategories;
+                          }
+                        }),
+                        visualDensity: VisualDensity.standard,
+                        splashRadius: 22,
+                      ),
+                    ),
+                  ],
+                  center: Row(
+                    children: [
+                      Icon(
+                        _getCategoryIcon(_selectedCategory),
+                        size: 22,
+                        color: cs.primary,
                       ),
                       const SizedBox(width: AppTokens.spaceSM),
-                      AnimatedOpacity(
-                        opacity: hasResult ? 1.0 : 0.3,
-                        duration: AppTokens.animFast,
-                        child: IgnorePointer(
-                          ignoring: !hasResult,
-                          child: SecondaryIconButton(
-                            icon: FluentIcons.copy_24_regular,
-                            tooltip: 'העתק',
-                            onPressed: _copyResult,
-                          ),
+                      Text(
+                        'המרת $_selectedCategory',
+                        style: TextStyle(
+                          fontSize: AppTokens.fontLG,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
                         ),
                       ),
                     ],
-                  );
-
-                  return AppTopBar(
-                    leadingItems: [
-                      AppTopBarItem(
-                        widget: IconButton(
-                          icon: AnimatedSwitcher(
-                            duration: AppTokens.animFast,
-                            transitionBuilder: (child, animation) =>
-                                RotationTransition(
-                                  turns: Tween<double>(
-                                    begin: 0.5,
-                                    end: 0.0,
-                                  ).animate(animation),
-                                  child: FadeTransition(
-                                    opacity: animation,
-                                    child: child,
-                                  ),
-                                ),
-                            // panel_right_expand הוא ה"Pane Open" של
-                            // פלואנט — הפאנל עם חץ שפותח אותו, ולא פאנל
-                            // סתום שאינו אומר מה הלחיצה תעשה.
-                            child: Icon(
-                              sidebarOpen
-                                  ? OtzariaIcons.panel_right_contract_24_regular
-                                  : OtzariaIcons.panel_right_expand_24_regular,
-                              key: ValueKey(sidebarOpen),
-                              size: 24,
-                            ),
-                          ),
-                          tooltip: sidebarOpen
-                              ? 'הסתר קטגוריות'
-                              : 'הצג קטגוריות',
-                          onPressed: () => setState(() {
-                            if (isWideBar) {
-                              _sidebarVisible = !_sidebarVisible;
-                            } else {
-                              _narrowShowCategories = !_narrowShowCategories;
-                            }
-                          }),
-                          visualDensity: VisualDensity.standard,
-                          splashRadius: 22,
-                        ),
-                      ),
-                    ],
-                    center: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // ── שיטה ──────────────────────────────────────────────
-                        AnimatedOpacity(
-                          opacity: showOpinion ? 1.0 : 0.35,
-                          duration: AppTokens.animFast,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                'שיטה',
-                                style: _barLabelStyle(cs, muted: !showOpinion),
-                              ),
-                              const SizedBox(width: 6),
-                              SizedBox(
-                                width: 130,
-                                child: AppDropdownField<String>(
-                                  enabled: showOpinion,
-                                  value: _selectedOpinion,
-                                  decoration: _barFieldDecoration(
-                                    cs,
-                                    enabled: showOpinion,
-                                  ),
-                                  entries: _opinions[_selectedCategory]!
-                                      .map(
-                                        (o) => AppMenuEntry(value: o, label: o),
-                                      )
-                                      .toList(),
-                                  onSelected: showOpinion
-                                      ? (value) {
-                                          setState(() {
-                                            _selectedOpinion = value;
-                                            if (value != null) {
-                                              _rememberedOpinions[_selectedCategory] =
-                                                  value;
-                                            }
-                                            _convert();
-                                          });
-                                          WidgetsBinding.instance
-                                              .addPostFrameCallback(
-                                                (_) => _screenFocusNode
-                                                    .requestFocus(),
-                                              );
-                                        }
-                                      : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppTokens.spaceSM),
-                        // ── ערך להמרה ──────────────────────────────────────────
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text('ערך להמרה', style: _barLabelStyle(cs)),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: SizedBox(
-                                  height: fieldHeight,
-                                  child: RtlTextField(
-                                    controller: _inputController,
-                                    focusNode: _inputFocusNode,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.allow(
-                                        RegExp(r'^\d*\.?\d*'),
-                                      ),
-                                    ],
-                                    onChanged: (value) {
-                                      setState(() {});
-                                      if (value.isNotEmpty) {
-                                        _rememberedInputValues[_selectedCategory] =
-                                            value;
-                                      } else {
-                                        _rememberedInputValues.remove(
-                                          _selectedCategory,
-                                        );
-                                      }
-                                      _convert();
-                                    },
-                                    onSubmitted: (_) {
-                                      WidgetsBinding.instance
-                                          .addPostFrameCallback((_) {
-                                            if (mounted &&
-                                                _screenFocusNode
-                                                    .canRequestFocus) {
-                                              _screenFocusNode.requestFocus();
-                                            }
-                                          });
-                                    },
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(
-                                      fontSize: fieldFontSize,
-                                      color: cs.onSurface,
-                                      height: 1.0,
-                                      leadingDistribution:
-                                          TextLeadingDistribution.even,
-                                    ),
-                                    decoration:
-                                        _barFieldDecoration(
-                                          cs,
-                                        ).copyWith(
-                                          isDense: true,
-                                          contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical:
-                                                (fieldHeight - fieldFontSize) /
-                                                2,
-                                          ),
-                                          suffixIconConstraints: BoxConstraints(
-                                            minWidth: 32,
-                                            minHeight: fieldHeight,
-                                            maxWidth: 32,
-                                            maxHeight: fieldHeight,
-                                          ),
-                                          suffixIcon:
-                                              _inputController.text.isNotEmpty
-                                              ? IconButton(
-                                                  icon: Icon(
-                                                    FluentIcons
-                                                        .dismiss_24_regular,
-                                                    size: 15,
-                                                    color: cs.onSurfaceVariant,
-                                                  ),
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      _inputController.clear();
-                                                      _resultController.clear();
-                                                      _rememberedInputValues
-                                                          .remove(
-                                                            _selectedCategory,
-                                                          );
-                                                    });
-                                                    WidgetsBinding.instance
-                                                        .addPostFrameCallback(
-                                                          (
-                                                            _,
-                                                          ) => _screenFocusNode
-                                                              .requestFocus(),
-                                                        );
-                                                  },
-                                                  padding: EdgeInsets.zero,
-                                                  visualDensity:
-                                                      VisualDensity.compact,
-                                                )
-                                              // משבצת הסיומת קובעת את גובה המילוי; בלעדיה התיבה מתכווצת לגובה השורה
-                                              : const SizedBox.shrink(),
-                                        ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // ── תוצאה בשורה הראשונה (רק כשיש מקום) ───────────────
-                        if (singleRow)
-                          Expanded(child: resultSection(inPrimaryRow: true)),
-                      ],
-                    ),
-                    // ── תוצאה בשורה שנייה (כשאין מקום) ──────────────────────
-                    secondaryRow: singleRow
-                        ? null
-                        : Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppTokens.spaceMD,
-                              vertical: 6,
-                            ),
-                            child: resultSection(inPrimaryRow: false),
-                          ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
             Expanded(
               child: LayoutBuilder(
@@ -792,46 +546,6 @@ class _MeasurementConverterScreenState
       ),
     );
   }
-
-  // ── עיצוב אחיד לשדות הסרגל ──────────────────────────────────────────────
-  InputDecoration _barFieldDecoration(
-    ColorScheme cs, {
-    bool enabled = true,
-  }) {
-    final noBorder = OutlineInputBorder(
-      borderRadius: AppTokens.borderRadiusAll,
-      borderSide: BorderSide.none,
-    );
-    return InputDecoration(
-      filled: true,
-      fillColor: cs.onSurface.withValues(
-        alpha: enabled
-            ? AppInputTokens.unfocusedAlpha
-            : AppInputTokens.disabledAlpha,
-      ),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceSM,
-        vertical: 6,
-      ),
-      isDense: true,
-      border: noBorder,
-      enabledBorder: noBorder,
-      disabledBorder: noBorder,
-      focusedBorder: OutlineInputBorder(
-        borderRadius: AppTokens.borderRadiusAll,
-        borderSide: BorderSide(
-          color: cs.primary.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-      ),
-    );
-  }
-
-  TextStyle _barLabelStyle(ColorScheme cs, {bool muted = false}) => TextStyle(
-    fontSize: AppTokens.fontSM,
-    fontWeight: FontWeight.w500,
-    color: muted ? cs.onSurface.withValues(alpha: 0.3) : cs.onSurfaceVariant,
-  );
 
   // ── אייקוני קטגוריה ─────────────────────────────────────────────────────
   IconData _getCategoryIcon(String category) {
@@ -901,26 +615,25 @@ class _MeasurementConverterScreenState
         _categoriesPaneWidth = nextWidth;
       },
       wrapPaneInFloatingPanel: true,
-      mainContent: isWide
-          ? SingleChildScrollView(
-              padding: const EdgeInsets.all(AppTokens.spaceMD),
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 700),
-                  child: _buildUnitColumns(),
-                ),
-              ),
-            )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppTokens.spaceMD),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildUnitSectionNarrow(),
-                ],
-              ),
+      mainContent: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppTokens.spaceMD),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildInputCard(),
+                const SizedBox(height: AppTokens.spaceMD),
+                _buildResultCard(),
+                const SizedBox(height: AppTokens.spaceMD),
+                _buildUnitColumns(),
+              ],
             ),
+          ),
+        ),
+      ),
       paneContent: _buildCategoriesPane(closeOnSelect: !isWide),
     );
   }
@@ -956,8 +669,7 @@ class _MeasurementConverterScreenState
     );
   }
 
-  Widget _swapUnitsButton() => IconButton(
-    iconSize: 32,
+  Widget _swapUnitsButton() => IconButton.filledTonal(
     icon: const Icon(FluentIcons.arrow_swap_24_regular),
     onPressed: () {
       setState(() {
@@ -972,6 +684,254 @@ class _MeasurementConverterScreenState
     },
     tooltip: 'החלף יחידות',
   );
+
+  // ── קלט ──────────────────────────────────────────────────────────────────────
+  Widget _buildInputCard() {
+    final cs = Theme.of(context).colorScheme;
+    final showOpinion = _shouldShowOpinionSelector();
+
+    return BlocBuilder<SettingsBloc, SettingsState>(
+      builder: (context, settingsState) {
+        final isCompact = settingsState.compactMenuMode;
+        final fieldHeight = isCompact ? AppInputTokens.compactHeight : 40.0;
+        final fieldFontSize = AppInputTokens.fontSize(isCompact);
+
+        final valueField = _labeled(
+          'ערך להמרה',
+          SizedBox(
+            height: fieldHeight,
+            child: RtlTextField(
+              controller: _inputController,
+              focusNode: _inputFocusNode,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+              ],
+              onChanged: (value) {
+                setState(() {});
+                if (value.isNotEmpty) {
+                  _rememberedInputValues[_selectedCategory] = value;
+                } else {
+                  _rememberedInputValues.remove(_selectedCategory);
+                }
+                _convert();
+              },
+              onSubmitted: (_) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _screenFocusNode.canRequestFocus) {
+                    _screenFocusNode.requestFocus();
+                  }
+                });
+              },
+              textAlign: TextAlign.start,
+              style: TextStyle(
+                fontSize: fieldFontSize,
+                color: cs.onSurface,
+                height: 1.0,
+                leadingDistribution: TextLeadingDistribution.even,
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: AppTokens.spaceMD,
+                  vertical: (fieldHeight - fieldFontSize) / 2,
+                ),
+                suffixIconConstraints: BoxConstraints(
+                  minWidth: 36,
+                  minHeight: fieldHeight,
+                  maxWidth: 36,
+                  maxHeight: fieldHeight,
+                ),
+                // משבצת הסיומת קובעת את גובה המילוי; בלעדיה התיבה
+                // מתכווצת לגובה השורה.
+                suffixIcon: _inputController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          FluentIcons.dismiss_24_regular,
+                          size: 16,
+                        ),
+                        tooltip: 'נקה',
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          setState(() {
+                            _inputController.clear();
+                            _resultController.clear();
+                            _rememberedInputValues.remove(_selectedCategory);
+                          });
+                          WidgetsBinding.instance.addPostFrameCallback(
+                            (_) => _screenFocusNode.requestFocus(),
+                          );
+                        },
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        );
+
+        final opinionField = AnimatedOpacity(
+          opacity: showOpinion ? 1.0 : 0.4,
+          duration: AppTokens.animFast,
+          child: _labeled(
+            'שיטה',
+            AppDropdownField<String>(
+              enabled: showOpinion,
+              value: _selectedOpinion,
+              entries: _opinions[_selectedCategory]!
+                  .map((o) => AppMenuEntry(value: o, label: o))
+                  .toList(),
+              onSelected: showOpinion
+                  ? (value) {
+                      setState(() {
+                        _selectedOpinion = value;
+                        if (value != null) {
+                          _rememberedOpinions[_selectedCategory] = value;
+                        }
+                        _convert();
+                      });
+                      WidgetsBinding.instance.addPostFrameCallback(
+                        (_) => _screenFocusNode.requestFocus(),
+                      );
+                    }
+                  : null,
+            ),
+          ),
+        );
+
+        return _sectionCard(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= 520) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: valueField),
+                    const SizedBox(width: AppTokens.spaceMD),
+                    SizedBox(width: 220, child: opinionField),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  valueField,
+                  const SizedBox(height: AppTokens.spaceMD),
+                  opinionField,
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  /// שדה עם כותרת קטנה מעליו.
+  Widget _labeled(String label, Widget field) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: AppTokens.fontSM,
+            fontWeight: FontWeight.w500,
+            color: cs.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppTokens.spaceXS),
+        field,
+      ],
+    );
+  }
+
+  // ── תוצאה ─────────────────────────────────────────────────────────────────
+  Widget _buildResultCard() {
+    final cs = Theme.of(context).colorScheme;
+    final text = _resultController.text;
+    final hasResult = text.isNotEmpty;
+    // ההודעה "נא לבחור שיטה" נכתבת לאותו שדה כמו התוצאה.
+    final isNumber = double.tryParse(text) != null;
+    final onColor = cs.onPrimaryContainer;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.primaryContainer.withValues(alpha: 0.6),
+        borderRadius: AppTokens.borderRadiusAll,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppTokens.spaceMD),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasResult && isNumber
+                        ? '${_inputController.text} $_selectedFromUnit ='
+                        : 'תוצאה',
+                    style: TextStyle(
+                      fontSize: AppTokens.fontMD,
+                      color: onColor.withValues(alpha: 0.75),
+                    ),
+                  ),
+                  const SizedBox(height: AppTokens.spaceXS),
+                  Text(
+                    !hasResult
+                        ? '—'
+                        : isNumber
+                        ? '$text $_selectedToUnit'
+                        : text,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: isNumber || !hasResult ? 32 : AppTokens.fontXL,
+                      fontWeight: FontWeight.w700,
+                      color: hasResult
+                          ? onColor
+                          : onColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppTokens.spaceSM),
+            AnimatedOpacity(
+              opacity: hasResult && isNumber ? 1.0 : 0.3,
+              duration: AppTokens.animFast,
+              child: IgnorePointer(
+                ignoring: !(hasResult && isNumber),
+                child: SecondaryIconButton(
+                  icon: FluentIcons.copy_24_regular,
+                  tooltip: 'העתק',
+                  onPressed: _copyResult,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionCard({required Widget child}) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: AppSurfaces.card(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: AppTokens.borderRadiusAll,
+        side: BorderSide(color: cs.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppTokens.spaceMD),
+        child: child,
+      ),
+    );
+  }
 
   // ── עמודות יחידות ────────────────────────────────────────────────────────────
   Widget _buildUnitColumns() {
@@ -1007,9 +967,7 @@ class _MeasurementConverterScreenState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 460;
-
-        if (isWide) {
+        if (constraints.maxWidth >= 560) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1017,70 +975,25 @@ class _MeasurementConverterScreenState
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppTokens.spaceSM,
-                  vertical: AppTokens.spaceMD,
+                  vertical: AppTokens.spaceXL,
                 ),
                 child: swapButton,
               ),
               Expanded(child: toCard),
             ],
           );
-        } else {
-          return Column(
-            children: [
-              fromCard,
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: AppTokens.spaceSM,
-                ),
-                child: Center(child: swapButton),
-              ),
-              toCard,
-            ],
-          );
         }
-      },
-    );
-  }
-
-  // ── חלק סרגל (narrow) ──────────────────────────────────────────────────────
-  Widget _buildUnitSectionNarrow() {
-    final fromCard = _buildUnitCard(
-      title: 'המר מ:',
-      icon: FluentIcons.arrow_up_24_regular,
-      selectedValue: _selectedFromUnit,
-      onChanged: (val) {
-        setState(() => _selectedFromUnit = val);
-        _rememberedFromUnits[_selectedCategory] = val!;
-        _convert();
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _screenFocusNode.requestFocus(),
+        return Column(
+          children: [
+            fromCard,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM),
+              child: swapButton,
+            ),
+            toCard,
+          ],
         );
       },
-    );
-
-    final toCard = _buildUnitCard(
-      title: 'המר ל:',
-      icon: FluentIcons.arrow_down_24_regular,
-      selectedValue: _selectedToUnit,
-      onChanged: (val) {
-        setState(() => _selectedToUnit = val);
-        _rememberedToUnits[_selectedCategory] = val!;
-        _convert();
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _screenFocusNode.requestFocus(),
-        );
-      },
-    );
-
-    return Column(
-      children: [
-        fromCard,
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM),
-          child: Center(child: _swapUnitsButton()),
-        ),
-        toCard,
-      ],
     );
   }
 
@@ -1096,11 +1009,11 @@ class _MeasurementConverterScreenState
     final modernUnits = _getModernUnitsForCategory(_selectedCategory);
     final ancientUnits = units.where((u) => !modernUnits.contains(u)).toList();
 
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: cs.surface,
+        color: AppSurfaces.card(context),
         borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(color: cs.outline.withValues(alpha: 0.2)),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1109,12 +1022,12 @@ class _MeasurementConverterScreenState
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppTokens.spaceMD,
-              vertical: AppTokens.spaceSM,
+              vertical: AppTokens.spaceSM + AppTokens.spaceXS,
             ),
             child: Row(
               children: [
-                Icon(icon, size: 16, color: cs.primary),
-                const SizedBox(width: 6),
+                Icon(icon, size: 18, color: cs.primary),
+                const SizedBox(width: AppTokens.spaceSM),
                 Text(
                   title,
                   style: TextStyle(
@@ -1128,30 +1041,30 @@ class _MeasurementConverterScreenState
           ),
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.all(AppTokens.spaceSM),
+            padding: const EdgeInsets.all(AppTokens.spaceMD),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (ancientUnits.isNotEmpty) ...[
                   _sectionLabel('חז"ל'),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppTokens.spaceSM),
                   Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
+                    spacing: AppTokens.spaceSM,
+                    runSpacing: AppTokens.spaceSM,
                     children: ancientUnits
                         .map(
                           (u) => _buildChip(u, selectedValue == u, onChanged),
                         )
                         .toList(),
                   ),
-                  const SizedBox(height: AppTokens.spaceSM),
+                  const SizedBox(height: AppTokens.spaceMD),
                 ],
                 if (modernUnits.isNotEmpty) ...[
                   _sectionLabel('מודרני'),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppTokens.spaceSM),
                   Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
+                    spacing: AppTokens.spaceSM,
+                    runSpacing: AppTokens.spaceSM,
                     children: modernUnits
                         .map(
                           (u) => _buildChip(u, selectedValue == u, onChanged),
@@ -1173,37 +1086,18 @@ class _MeasurementConverterScreenState
     bool isSelected,
     ValueChanged<String?> onChanged,
   ) {
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: () {
+    return ChoiceChip(
+      label: Text(unit),
+      selected: isSelected,
+      showCheckmark: false,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      onSelected: (_) {
         onChanged(unit);
         WidgetsBinding.instance.addPostFrameCallback(
           (_) => _screenFocusNode.requestFocus(),
         );
       },
-      child: AnimatedContainer(
-        duration: AppTokens.animFast,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? cs.secondaryContainer : cs.surface,
-          borderRadius: AppTokens.borderRadiusAll,
-          border: Border.all(
-            color: isSelected
-                ? cs.secondary
-                : cs.outline.withValues(alpha: 0.25),
-            width: isSelected ? 1.5 : 1.0,
-          ),
-        ),
-        child: Text(
-          unit,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            color: isSelected ? cs.onSecondaryContainer : cs.onSurface,
-          ),
-        ),
-      ),
     );
   }
 

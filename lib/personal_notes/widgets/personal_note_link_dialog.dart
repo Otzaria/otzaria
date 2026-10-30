@@ -1,11 +1,12 @@
-import 'dart:math' as math;
-
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/external_uri_router.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/segmented_control.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 class PersonalNoteLinkTarget {
@@ -114,12 +115,21 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
           note.id.toLowerCase().contains(query);
     }).toList();
 
-    return AlertDialog(
-      title: const Text('הוסף קישור'),
-      // רוחב קבוע ולא ConstrainedBox: AlertDialog מודד intrinsic, ורשימה
-      // גוללת בתוכו לא תומכת בכך. במסך צר הרוחב מצטמצם.
-      content: SizedBox(
-        width: math.min(460.0, MediaQuery.sizeOf(context).width - 112),
+    return AppDialogFrame(
+      title: 'הוסף קישור',
+      icon: FluentIcons.link_24_regular,
+      width: 460,
+      actions: [
+        ActionButton.neutral(
+          text: 'ביטול',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        ActionButton.recommended(
+          text: 'הוסף',
+          onPressed: _submit,
+        ),
+      ],
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -191,28 +201,33 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
                   const SizedBox(height: AppTokens.spaceMD),
                   SizedBox(
                     height: 220,
-                    child: ListView.builder(
-                      itemCount: filteredNotes.length,
-                      itemBuilder: (context, index) {
-                        final note = filteredNotes[index];
-                        final selected = note.id == _selectedNote?.id;
-                        return ListTile(
-                          title: Text(
-                            note.displayTitle?.trim().isNotEmpty == true
-                                ? note.displayTitle!
-                                : note.contentPlain,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            note.contentPlain,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          selected: selected,
-                          onTap: () => setState(() => _selectedNote = note),
-                        );
-                      },
+                    child: ListDialogCard(
+                      child: ListView.builder(
+                        itemCount: filteredNotes.length,
+                        itemBuilder: (context, index) {
+                          final note = filteredNotes[index];
+                          final selected = note.id == _selectedNote?.id;
+                          return ListTile(
+                            shape: Border(
+                              bottom: listDialogRowDivider(context),
+                            ),
+                            title: Text(
+                              note.displayTitle?.trim().isNotEmpty == true
+                                  ? note.displayTitle!
+                                  : note.contentPlain,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              note.contentPlain,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            selected: selected,
+                            onTap: () => setState(() => _selectedNote = note),
+                          );
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(height: AppTokens.spaceMD),
@@ -222,16 +237,6 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
           ],
         ),
       ),
-      actions: [
-        ActionButton.neutral(
-          text: 'ביטול',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        ActionButton.recommended(
-          text: 'הוסף',
-          onPressed: _submit,
-        ),
-      ],
     );
   }
 }

@@ -15,7 +15,9 @@ import 'package:otzaria/plugins/services/plugin_new_tab_page_service.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/settings/widgets/settings_card.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:path/path.dart' as p;
@@ -214,186 +216,269 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
           }
         }
 
-        return AppCustomContentDialog(
+        final permissionKeys = orderedPluginPermissions(
+          {
+            ...effectiveManifestPermissions(currentPlugin.manifest.permissions),
+            if (_permissions.containsKey(pluginNewTabPagePermission))
+              pluginNewTabPagePermission,
+          }.toList(),
+          isOfflineMode: false,
+        );
+        return AppDialogFrame(
+          icon: FluentIcons.shield_keyhole_24_regular,
           title: 'ניהול הרשאות: ${currentPlugin.name}',
-          actions: const [],
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_permissions.isNotEmpty ||
-                  effectiveManifestPermissions(
-                    currentPlugin.manifest.permissions,
-                  ).isNotEmpty) ...[
-                const SizedBox(height: 16),
-                SettingsCard(
-                  title: 'ניהול הרשאות',
-                  subtitle: 'אפשר או חסום הרשאות ספציפיות כפי שנדרש במניפסט',
-                  children:
-                      orderedPluginPermissions(
-                        {
-                          ...effectiveManifestPermissions(
-                            currentPlugin.manifest.permissions,
-                          ),
-                          if (_permissions.containsKey(
-                            pluginNewTabPagePermission,
-                          ))
-                            pluginNewTabPagePermission,
-                        }.toList(),
-                        isOfflineMode: false,
-                      ).map((p) {
-                        final info = getPermissionInfo(
-                          p,
-                          manifest: currentPlugin.manifest,
-                        );
-                        final defaultValue = pluginPermissionDefaultGrant(
-                          p,
+          width: 620,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _PluginIdentity(
+                  plugin: currentPlugin,
+                  grantedCount: permissionKeys
+                      .where(
+                        (p) =>
+                            _permissions[p] ??
+                            pluginPermissionDefaultGrant(
+                              p,
+                              isOfflineMode: false,
+                            ),
+                      )
+                      .length,
+                  totalCount: permissionKeys.length,
+                ),
+                if (_permissions.isNotEmpty ||
+                    effectiveManifestPermissions(
+                      currentPlugin.manifest.permissions,
+                    ).isNotEmpty) ...[
+                  const SizedBox(height: AppTokens.spaceMD),
+                  SettingsCard(
+                    title: 'הרשאות מבוקשות',
+                    subtitle: 'אפשר או חסום הרשאות ספציפיות כפי שנדרש במניפסט',
+                    children:
+                        orderedPluginPermissions(
+                          {
+                            ...effectiveManifestPermissions(
+                              currentPlugin.manifest.permissions,
+                            ),
+                            if (_permissions.containsKey(
+                              pluginNewTabPagePermission,
+                            ))
+                              pluginNewTabPagePermission,
+                          }.toList(),
                           isOfflineMode: false,
-                        );
-                        final isGranted = _permissions[p] ?? defaultValue;
-                        final isSensitive = p == pluginRunOnStartupPermission;
-                        final isCritical =
-                            p == pluginBackgroundKeepAlivePermission;
-                        final colorScheme = Theme.of(context).colorScheme;
-                        final iconData = pluginPermissionIcon(
-                          p,
-                          isGranted: isGranted,
-                          manifest: currentPlugin.manifest,
-                        );
-                        final iconColor = isCritical
-                            ? colorScheme.error
-                            : isSensitive
-                            ? colorScheme.tertiary
-                            : (isGranted
-                                  ? colorScheme.primary
-                                  : colorScheme.error);
-                        return SettingsActionTile.switchTile(
-                          icon: iconData,
-                          iconColor: iconColor,
-                          title: p == pluginNewTabPagePermission
-                              ? context.settingsText('כפתור לשונית חדשה (+)')
-                              : info.label,
-                          subtitle: p == pluginNewTabPagePermission
-                              ? context.settingsText(
-                                  'פתיחת דף התוסף בכפתור "+". רק תוסף אחד יכול לקבל הרשאה זו. בעל הכפתור כעת: {owner}',
-                                  args: {
-                                    'owner':
-                                        _newTabOwnerName ??
-                                        context.settingsText('אין'),
-                                  },
-                                )
-                              : info.description,
-                          value: isGranted,
-                          enabled:
-                              p != pluginNewTabPagePermission ||
-                              isGranted ||
-                              (currentPlugin.enabled &&
-                                  _permissions['navigation.write'] == true),
-                          onChanged: (val) async {
-                            if (p == pluginNewTabPagePermission && val) {
-                              try {
-                                await choosePluginNewTabPage(
-                                  context,
-                                  currentPlugin,
-                                  _repo,
-                                );
-                                await _loadPermissions();
-                              } catch (error) {
-                                UiSnack.showError(
-                                  PluginMessages.updatePermissionError(error),
-                                );
+                        ).map((p) {
+                          final info = getPermissionInfo(
+                            p,
+                            manifest: currentPlugin.manifest,
+                          );
+                          final defaultValue = pluginPermissionDefaultGrant(
+                            p,
+                            isOfflineMode: false,
+                          );
+                          final isGranted = _permissions[p] ?? defaultValue;
+                          final isSensitive = p == pluginRunOnStartupPermission;
+                          final isCritical =
+                              p == pluginBackgroundKeepAlivePermission;
+                          final colorScheme = Theme.of(context).colorScheme;
+                          final iconData = pluginPermissionIcon(
+                            p,
+                            isGranted: isGranted,
+                            manifest: currentPlugin.manifest,
+                          );
+                          final iconColor = isCritical
+                              ? colorScheme.error
+                              : isSensitive
+                              ? colorScheme.tertiary
+                              : (isGranted
+                                    ? colorScheme.primary
+                                    : colorScheme.error);
+                          return SettingsActionTile.switchTile(
+                            icon: iconData,
+                            iconColor: iconColor,
+                            title: p == pluginNewTabPagePermission
+                                ? context.settingsText('כפתור לשונית חדשה (+)')
+                                : info.label,
+                            subtitle: p == pluginNewTabPagePermission
+                                ? context.settingsText(
+                                    'פתיחת דף התוסף בכפתור "+". רק תוסף אחד יכול לקבל הרשאה זו. בעל הכפתור כעת: {owner}',
+                                    args: {
+                                      'owner':
+                                          _newTabOwnerName ??
+                                          context.settingsText('אין'),
+                                    },
+                                  )
+                                : info.description,
+                            value: isGranted,
+                            enabled:
+                                p != pluginNewTabPagePermission ||
+                                isGranted ||
+                                (currentPlugin.enabled &&
+                                    _permissions['navigation.write'] == true),
+                            onChanged: (val) async {
+                              if (p == pluginNewTabPagePermission && val) {
+                                try {
+                                  await choosePluginNewTabPage(
+                                    context,
+                                    currentPlugin,
+                                    _repo,
+                                  );
+                                  await _loadPermissions();
+                                } catch (error) {
+                                  UiSnack.showError(
+                                    PluginMessages.updatePermissionError(error),
+                                  );
+                                }
+                                return;
                               }
-                              return;
-                            }
-                            context.read<PluginSystemBloc>().add(
-                              SetPluginPermissionRequested(
-                                pluginId: currentPlugin.pluginId,
-                                permission: p,
-                                granted: val,
-                              ),
-                            );
-                            setState(() {
-                              _permissions[p] = val;
-                            });
-                          },
-                        );
-                      }).toList(),
-                ),
-              ] else ...[
-                const SizedBox(height: 16),
-                SettingsCard(
-                  title: 'הרשאות',
-                  children: [
-                    SettingsActionTile.text(
-                      icon: FluentIcons.shield_checkmark_24_regular,
-                      iconColor: Theme.of(context).colorScheme.primary,
-                      title: 'אין הרשאות מיוחדות נדרשות',
-                      subtitle: 'תוסף זה אינו מבקש גישה למשאבים רגישים',
-                    ),
-                  ],
-                ),
-              ],
-              if (_userFolders.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                SettingsCard(
-                  title: 'תיקיות עם גישה קבועה',
-                  subtitle:
-                      'התוסף קורא וכותב בתיקיות אלה בלי לשאול שוב. הסרה מבטלת '
-                      'את הגישה ואינה מוחקת דבר מהדיסק.',
-                  children: [
-                    for (final folder in _userFolders)
-                      SettingsActionTile.path(
-                        key: ValueKey(folder.token),
-                        icon: FluentIcons.folder_24_regular,
+                              context.read<PluginSystemBloc>().add(
+                                SetPluginPermissionRequested(
+                                  pluginId: currentPlugin.pluginId,
+                                  permission: p,
+                                  granted: val,
+                                ),
+                              );
+                              setState(() {
+                                _permissions[p] = val;
+                              });
+                            },
+                          );
+                        }).toList(),
+                  ),
+                ] else ...[
+                  const SizedBox(height: AppTokens.spaceMD),
+                  SettingsCard(
+                    title: 'הרשאות',
+                    children: [
+                      SettingsActionTile.text(
+                        icon: FluentIcons.shield_checkmark_24_regular,
                         iconColor: Theme.of(context).colorScheme.primary,
-                        title: p.basename(folder.path).isEmpty
-                            ? folder.path
-                            : p.basename(folder.path),
-                        path: folder.path,
-                        placeholder: '',
-                        pinnedTrailing: IconButton(
-                          icon: const Icon(
-                            FluentIcons.dismiss_24_regular,
-                            size: 18,
+                        title: 'אין הרשאות מיוחדות נדרשות',
+                        subtitle: 'תוסף זה אינו מבקש גישה למשאבים רגישים',
+                      ),
+                    ],
+                  ),
+                ],
+                if (_userFolders.isNotEmpty) ...[
+                  const SizedBox(height: AppTokens.spaceMD),
+                  SettingsCard(
+                    title: 'תיקיות עם גישה קבועה',
+                    subtitle:
+                        'התוסף קורא וכותב בתיקיות אלה בלי לשאול שוב. הסרה מבטלת '
+                        'את הגישה ואינה מוחקת דבר מהדיסק.',
+                    children: [
+                      for (final folder in _userFolders)
+                        SettingsActionTile.path(
+                          key: ValueKey(folder.token),
+                          icon: FluentIcons.folder_24_regular,
+                          iconColor: Theme.of(context).colorScheme.primary,
+                          title: p.basename(folder.path).isEmpty
+                              ? folder.path
+                              : p.basename(folder.path),
+                          path: folder.path,
+                          placeholder: '',
+                          pinnedTrailing: IconButton(
+                            icon: const Icon(
+                              FluentIcons.dismiss_24_regular,
+                              size: 18,
+                            ),
+                            tooltip: 'הסר גישה',
+                            onPressed: () => _revokeUserFolder(folder),
                           ),
-                          tooltip: 'הסר גישה',
-                          onPressed: () => _revokeUserFolder(folder),
                         ),
+                    ],
+                  ),
+                ],
+                if (currentPlugin.isDevelopment) ...[
+                  const SizedBox(height: AppTokens.spaceMD),
+                  SettingsCard(
+                    title: 'פיתוח',
+                    children: [
+                      SettingsActionTile.text(
+                        icon: FluentIcons.folder_24_regular,
+                        title: 'נתיב תיקייה',
+                        subtitle: _formatPathForDisplay(
+                          currentPlugin.resolvedRootPath,
+                        ),
+                        subtitleLtr: true,
                       ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 32),
-              if (currentPlugin.isDevelopment) ...[
-                SettingsCard(
-                  title: 'פיתוח',
-                  children: [
-                    SettingsActionTile.text(
-                      icon: FluentIcons.folder_24_regular,
-                      title: 'נתיב תיקייה',
-                      subtitle: _formatPathForDisplay(
-                        currentPlugin.resolvedRootPath,
+                      SettingsActionTile.text(
+                        icon: FluentIcons.arrow_clockwise_24_regular,
+                        title: 'רענן עכשיו',
+                        onTap: () {
+                          context.read<PluginSystemBloc>().add(
+                            ReloadDevelopmentPluginRequested(
+                              currentPlugin.pluginId,
+                            ),
+                          );
+                        },
                       ),
-                      subtitleLtr: true,
-                    ),
-                    SettingsActionTile.text(
-                      icon: FluentIcons.arrow_clockwise_24_regular,
-                      title: 'רענן עכשיו',
-                      onTap: () {
-                        context.read<PluginSystemBloc>().add(
-                          ReloadDevelopmentPluginRequested(
-                            currentPlugin.pluginId,
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+/// פרטי התוסף בראש דיאלוג ההרשאות: שם ותיאור, ותגיות מצב (פעיל, גרסה, מפתח
+/// וכמה מההרשאות מופעלות).
+class _PluginIdentity extends StatelessWidget {
+  const _PluginIdentity({
+    required this.plugin,
+    required this.grantedCount,
+    required this.totalCount,
+  });
+
+  final InstalledPlugin plugin;
+  final int grantedCount;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final author = plugin.manifest.author.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DetailsHeading(
+          title: plugin.name,
+          subtitle: plugin.manifest.description,
+        ),
+        const SizedBox(height: AppTokens.spaceSM),
+        Wrap(
+          spacing: AppTokens.spaceSM - 2,
+          runSpacing: AppTokens.spaceSM - 2,
+          children: [
+            MetaChip(
+              icon: plugin.enabled
+                  ? FluentIcons.checkmark_circle_24_regular
+                  : FluentIcons.dismiss_circle_24_regular,
+              label: plugin.enabled ? 'פעיל' : 'מושבת',
+              outlined: !plugin.enabled,
+            ),
+            Directionality(
+              textDirection: TextDirection.ltr,
+              child: MetaChip(outlined: true, label: 'v${plugin.version}'),
+            ),
+            if (author.isNotEmpty) MetaChip(outlined: true, label: author),
+            if (plugin.isDevelopment)
+              const MetaChip(
+                outlined: true,
+                icon: FluentIcons.code_24_regular,
+                label: 'פיתוח',
+              ),
+            if (totalCount > 0)
+              MetaChip(
+                icon: FluentIcons.shield_checkmark_24_regular,
+                label: '$grantedCount מתוך $totalCount הרשאות מופעלות',
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

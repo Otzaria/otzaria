@@ -240,35 +240,34 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
   }
 
   Future<void> _showDetails(AppReport report, {required bool sent}) async {
-    final buffer = StringBuffer()
-      ..writeln(_summaryLine(context, report))
-      ..writeln();
-    if (report.description.trim().isNotEmpty) {
-      buffer.writeln(report.description.trim());
-    }
-    if (report.stepsToReproduce.trim().isNotEmpty) {
-      buffer
-        ..writeln()
-        ..writeln(context.settingsText('שלבים לשחזור:'))
-        ..writeln(report.stepsToReproduce.trim());
-    }
     final signature = report.signature;
-    if (signature != null && signature.exceptionType.isNotEmpty) {
-      buffer
-        ..writeln()
-        ..writeln(signature.exceptionType)
-        ..writeln(signature.frames.join('\n'));
-    }
-    await showSingleActionDialog(
-      context: context,
+    await showReportDetailsDialog(
+      context,
       title: sent
           ? sentReportDetailsTitle(
               context,
               carried: report.isCarriedByOfflineUpdate,
             )
           : context.settingsText('פרטי דיווח שמור'),
-      content: buffer.toString().trimRight(),
-      confirmText: context.settingsText('סגור'),
+      heading: _summaryLine(context, report),
+      entries: [
+        if (report.description.trim().isNotEmpty)
+          ReportDetailEntry(
+            context.settingsText('תיאור'),
+            report.description.trim(),
+          ),
+        if (report.stepsToReproduce.trim().isNotEmpty)
+          ReportDetailEntry(
+            context.settingsText('שלבים לשחזור:'),
+            report.stepsToReproduce.trim(),
+          ),
+        if (signature != null && signature.exceptionType.isNotEmpty)
+          ReportDetailEntry(
+            context.settingsText('חתימת הקריסה'),
+            '${signature.exceptionType}\n${signature.frames.join('\n')}',
+            ltr: true,
+          ),
+      ],
     );
   }
 
@@ -309,25 +308,29 @@ class _AppReportsPanelState extends State<AppReportsPanel> {
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('עריכת דיווח שמור'),
+      icon: FluentIcons.edit_24_regular,
+      headerBand: true,
       content: '',
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שמור'),
       handleEnterKey: false,
-      customContent: SizedBox(
-        width: 560,
-        child: AppReportEditFields(
-          report: report,
-          typeLabel: (type) => _typeLabel(context, type),
-          onChanged: (value) {
-            edited = value;
-            hasChanges.value =
-                value.type != report.type ||
-                value.title != report.title ||
-                value.description != report.description ||
-                value.stepsToReproduce != report.stepsToReproduce ||
-                value.reporterEmail != report.reporterEmail ||
-                !listEquals(value.images, report.images);
-          },
+      customContent: SingleChildScrollView(
+        child: SizedBox(
+          width: 560,
+          child: AppReportEditFields(
+            report: report,
+            typeLabel: (type) => _typeLabel(context, type),
+            onChanged: (value) {
+              edited = value;
+              hasChanges.value =
+                  value.type != report.type ||
+                  value.title != report.title ||
+                  value.description != report.description ||
+                  value.stepsToReproduce != report.stepsToReproduce ||
+                  value.reporterEmail != report.reporterEmail ||
+                  !listEquals(value.images, report.images);
+            },
+          ),
         ),
       ),
       hasUnsavedChanges: hasChanges,
@@ -523,19 +526,16 @@ class _AppReportEditFieldsState extends State<AppReportEditFields> {
           ),
         ),
         const SizedBox(height: 12),
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: RtlTextField(
-            key: const ValueKey('app-report-edit-email'),
-            controller: _email,
-            keyboardType: TextInputType.emailAddress,
-            onChanged: (_) => _notifyChanged(),
-            decoration: InputDecoration(
-              labelText: emailRequired
-                  ? context.settingsText('דואר אלקטרוני')
-                  : context.settingsText('דואר אלקטרוני (לא חובה)'),
-              isDense: true,
-            ),
+        RtlTextField(
+          key: const ValueKey('app-report-edit-email'),
+          controller: _email,
+          keyboardType: TextInputType.emailAddress,
+          onChanged: (_) => _notifyChanged(),
+          decoration: InputDecoration(
+            labelText: emailRequired
+                ? context.settingsText('דואר אלקטרוני')
+                : context.settingsText('דואר אלקטרוני (לא חובה)'),
+            isDense: true,
           ),
         ),
         const SizedBox(height: 12),

@@ -771,6 +771,7 @@ class _ChangeLocationDialogContentState
         folderName: widget.folderName,
         isSetup: widget.currentPath.isEmpty,
       ),
+      icon: FluentIcons.folder_open_24_regular,
       onConfirm: _selectedPath != null ? _confirm : null,
       handleEnterKey: _selectedPath != null,
       actions: [

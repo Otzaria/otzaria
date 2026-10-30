@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:otzaria/search/view/search_result_card_frame.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -770,18 +772,10 @@ class _ExternalSearchResultsSectionState
               segment: _previewSegment(result),
               isPdf: true,
             );
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: isPreviewed
-                  ? cs.primary
-                  : cs.outline.withValues(alpha: 0.3),
-              width: isPreviewed ? 1.5 : 1,
-            ),
-            borderRadius: AppTokens.borderRadiusAll,
-          ),
-          child: child,
+        return SearchResultCardFrame(
+          isPreviewed: isPreviewed,
+          gap: AppTokens.spaceSM,
+          child: child!,
         );
       },
       child: InkWell(
@@ -798,11 +792,7 @@ class _ExternalSearchResultsSectionState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               opening
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const LoadingIndicator(size: 20, strokeWidth: 2)
                   : Icon(
                       OtzariaIcons.otzaria_icon_2_page_24_regular,
                       size: 20,

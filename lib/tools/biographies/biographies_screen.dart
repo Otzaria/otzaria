@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/messages/tools_messages.dart';
@@ -9,6 +10,9 @@ import 'package:otzaria/tools/biographies/repository/biographies_repository.dart
 import 'package:otzaria/tools/biographies/widgets/biographies_credit_line.dart';
 import 'package:otzaria/tools/biographies/widgets/biography_card.dart';
 import 'package:otzaria/tools/tool_query.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
+import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
+import 'package:otzaria/widgets/layout/tool_results_header.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -35,11 +39,13 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   late final BiographiesRepository _repository =
       widget.repository ?? BiographiesRepository.instance;
   final ScrollController _scrollController = ScrollController();
+  final ScrollController _eraScroll = ScrollController();
   BiographiesBundle? _bundle;
   Map<String, Biography> _byId = const {};
   List<Biography> _filteredResults = [];
   String? _era;
   bool _isLoading = true;
+  bool _loadFailed = false;
 
   /// Entries opened through links, the last one shown over the list.
   final List<Biography> _opened = [];
@@ -72,10 +78,17 @@ class _BiographiesScreenState extends State<BiographiesScreen>
     _searchController.dispose();
     _searchFocusNode.dispose();
     _scrollController.dispose();
+    _eraScroll.dispose();
     super.dispose();
   }
 
   Future<void> _loadBiographies() async {
+    if (!_isLoading) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
     try {
       final bundle = await _repository.loadBundle();
       if (!mounted) return;
@@ -87,7 +100,10 @@ class _BiographiesScreenState extends State<BiographiesScreen>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
       UiSnack.showError(ToolsMessages.biographiesLoadError(e));
     }
     consumeToolQuery();
@@ -124,7 +140,7 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingIndicator();
     }
 
     return CallbackShortcuts(
@@ -150,15 +166,27 @@ class _BiographiesScreenState extends State<BiographiesScreen>
             _buildEraChips(bundle),
           Expanded(
             child: ToolPanelWrapper(
-              // The list stays mounted under an opened entry, so going back
-              // keeps its scroll position.
-              child: Stack(
+              child: Column(
                 children: [
-                  Offstage(
-                    offstage: _opened.isNotEmpty,
-                    child: _buildResultsList(),
+                  if ((_bundle?.entries.isNotEmpty ?? false) && _opened.isEmpty)
+                    ToolResultsHeader(
+                      label: _filteredResults.length == 1
+                          ? 'ערך אחד'
+                          : '${_filteredResults.length} ערכים',
+                    ),
+                  Expanded(
+                    // The list stays mounted under an opened entry, so going
+                    // back keeps its scroll position.
+                    child: Stack(
+                      children: [
+                        Offstage(
+                          offstage: _opened.isNotEmpty,
+                          child: _buildResultsList(),
+                        ),
+                        if (_opened.isNotEmpty) _buildOpenedEntry(),
+                      ],
+                    ),
                   ),
-                  if (_opened.isNotEmpty) _buildOpenedEntry(),
                 ],
               ),
             ),
@@ -171,6 +199,19 @@ class _BiographiesScreenState extends State<BiographiesScreen>
   }
 
   Widget _buildResultsList() {
+    if (_loadFailed) {
+      return OtzariaErrorState(
+        title: 'טעינת הביוגרפיות נכשלה',
+        actions: [
+          ActionButton.recommended(
+            text: 'נסה שוב',
+            icon: FluentIcons.arrow_clockwise_24_regular,
+            onPressed: _loadBiographies,
+          ),
+        ],
+      );
+    }
+
     if (_allBiographies.isEmpty) {
       return const ToolEmptyState(
         icon: OtzariaIcons.person_24_regular,
@@ -182,7 +223,12 @@ class _BiographiesScreenState extends State<BiographiesScreen>
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.all(AppTokens.spaceMD),
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceMD,
+        AppTokens.spaceXS,
+        AppTokens.spaceMD,
+        AppTokens.spaceMD,
+      ),
       itemCount: _filteredResults.length,
       itemBuilder: (context, index) {
         final bio = _filteredResults[index];
@@ -261,9 +307,11 @@ class _BiographiesScreenState extends State<BiographiesScreen>
     );
   }
 
+  /// One row of era chips across the window, scrolled sideways with the
+  /// wheel or by dragging when they do not all fit.
   Widget _buildEraChips(BiographiesBundle bundle) {
     Widget chip(String label, String? era) => Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXS / 2),
+      padding: const EdgeInsetsDirectional.only(end: AppTokens.spaceSM),
       child: ChoiceChip(
         label: Text(label),
         selected: _era == era,
@@ -272,17 +320,39 @@ class _BiographiesScreenState extends State<BiographiesScreen>
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTokens.spaceMD,
-        vertical: AppTokens.spaceXS,
-      ),
-      child: Row(
-        children: [
-          chip('הכל', null),
-          for (final era in bundle.presentEras) chip(era.label, era.key),
-        ],
+    return Listener(
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent && _eraScroll.hasClients) {
+          final position = _eraScroll.position;
+          _eraScroll.jumpTo(
+            (position.pixels + event.scrollDelta.dy).clamp(
+              0.0,
+              position.maxScrollExtent,
+            ),
+          );
+        }
+      },
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: PointerDeviceKind.values.toSet(),
+          scrollbars: false,
+        ),
+        child: SingleChildScrollView(
+          controller: _eraScroll,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            AppTokens.spaceMD,
+            AppTokens.spaceSM,
+            AppTokens.spaceSM,
+            AppTokens.spaceXS,
+          ),
+          child: Row(
+            children: [
+              chip('הכל', null),
+              for (final era in bundle.presentEras) chip(era.label, era.key),
+            ],
+          ),
+        ),
       ),
     );
   }

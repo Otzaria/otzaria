@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import '../../models/books.dart';
@@ -30,84 +31,76 @@ class OtzarBookDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: FutureBuilder<(bool, bool)>(
-          future: _isHebrewBook
-              ? Future.value((false, false))
-              : Future.wait([
-                  OtzarUtils.canLaunchLocally(),
-                  OtzarUtils.checkBookExistence(book.id!),
-                ]).then((results) => (results[0], results[1])),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.all(AppTokens.spaceXL),
-                child: Center(
-                  heightFactor: 1,
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
-
-            final (canLaunchLocally, bookExists) =
-                snapshot.data ?? (false, false);
-
-            return Padding(
-              padding: const EdgeInsets.all(AppTokens.spaceLG),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Text(
-                      book.title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInfoRow(
-                      context,
-                      FluentIcons.document_text_24_regular,
-                      'תיאור',
-                      book.heShortDesc ?? 'לא קיים',
-                    ),
-                    _buildInfoRow(
-                      context,
-                      OtzariaIcons.person_24_regular,
-                      'מחבר',
-                      book.author ?? 'לא ידוע',
-                    ),
-                    _buildInfoRow(
-                      context,
-                      FluentIcons.location_24_regular,
-                      'מקום הדפסה',
-                      book.pubPlace ?? 'לא ידוע',
-                    ),
-                    _buildInfoRow(
-                      context,
-                      OtzariaIcons.calendar_24_regular,
-                      'שנת הדפסה',
-                      book.pubDate ?? 'לא ידוע',
-                    ),
-                    _buildInfoRow(
-                      context,
-                      FluentIcons.apps_24_regular,
-                      'נושאים',
-                      book.topics,
-                    ),
-                    const SizedBox(height: 24),
-                    _buildButtons(context, canLaunchLocally, bookExists),
-                  ],
-                ),
+    return AppDialogFrame(
+      title: book.title,
+      icon: OtzariaIcons.book_24_regular,
+      width: 440,
+      padding: EdgeInsets.zero,
+      child: FutureBuilder<(bool, bool)>(
+        future: _isHebrewBook
+            ? Future.value((false, false))
+            : Future.wait([
+                OtzarUtils.canLaunchLocally(),
+                OtzarUtils.checkBookExistence(book.id!),
+              ]).then((results) => (results[0], results[1])),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Padding(
+              padding: EdgeInsets.all(AppTokens.spaceXL),
+              child: Center(
+                heightFactor: 1,
+                child: CircularProgressIndicator(),
               ),
             );
-          },
-        ),
+          }
+
+          final (canLaunchLocally, bookExists) =
+              snapshot.data ?? (false, false);
+
+          return Padding(
+            padding: const EdgeInsets.all(AppTokens.spaceLG),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _buildInfoRow(
+                    context,
+                    FluentIcons.document_text_24_regular,
+                    'תיאור',
+                    book.heShortDesc ?? 'לא קיים',
+                  ),
+                  _buildInfoRow(
+                    context,
+                    OtzariaIcons.person_24_regular,
+                    'מחבר',
+                    book.author ?? 'לא ידוע',
+                  ),
+                  _buildInfoRow(
+                    context,
+                    FluentIcons.location_24_regular,
+                    'מקום הדפסה',
+                    book.pubPlace ?? 'לא ידוע',
+                  ),
+                  _buildInfoRow(
+                    context,
+                    OtzariaIcons.calendar_24_regular,
+                    'שנת הדפסה',
+                    book.pubDate ?? 'לא ידוע',
+                  ),
+                  _buildInfoRow(
+                    context,
+                    FluentIcons.apps_24_regular,
+                    'נושאים',
+                    book.topics,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildButtons(context, canLaunchLocally, bookExists),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

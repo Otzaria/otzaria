@@ -195,22 +195,26 @@ class _PluginReportsPanelState extends State<PluginReportsPanel> {
     final confirmed = await showTwoActionsDialog(
       context: context,
       title: context.settingsText('עריכת דיווח שמור'),
+      icon: FluentIcons.edit_24_regular,
+      headerBand: true,
       content: '',
       cancelText: context.settingsText('ביטול'),
       confirmText: context.settingsText('שמור'),
       handleEnterKey: false,
-      customContent: SizedBox(
-        width: 560,
-        child: _PluginReportEditFields(
-          initialType: record.reportType,
-          initialDetails: record.details,
-          typeLabel: (type) => _pluginReportTypeLabel(context, type),
-          onChanged: (type, text) {
-            reportType = type;
-            details = text;
-            hasChanges.value =
-                type != record.reportType || text != record.details;
-          },
+      customContent: SingleChildScrollView(
+        child: SizedBox(
+          width: 560,
+          child: _PluginReportEditFields(
+            initialType: record.reportType,
+            initialDetails: record.details,
+            typeLabel: (type) => _pluginReportTypeLabel(context, type),
+            onChanged: (type, text) {
+              reportType = type;
+              details = text;
+              hasChanges.value =
+                  type != record.reportType || text != record.details;
+            },
+          ),
         ),
       ),
       hasUnsavedChanges: hasChanges,
@@ -280,18 +284,19 @@ class _PluginReportsPanelState extends State<PluginReportsPanel> {
   }) async {
     final typeLabel = _pluginReportTypeLabel(context, record.reportType);
     final date = _formatPluginReportDate(record.createdAt);
-    await showSingleActionDialog(
-      context: context,
+    await showReportDetailsDialog(
+      context,
       title: sent
           ? sentReportDetailsTitle(
               context,
               carried: record.isCarriedByOfflineUpdate,
             )
           : context.settingsText('פרטי דיווח שמור'),
-      content:
-          '${record.pluginName} (${record.pluginVersion})\n'
-          '$typeLabel · $date\n\n${record.details}',
-      confirmText: context.settingsText('סגור'),
+      heading: '${record.pluginName} (${record.pluginVersion})',
+      subtitle: '$typeLabel · $date',
+      entries: [
+        ReportDetailEntry(context.settingsText('פירוט'), record.details),
+      ],
     );
   }
 

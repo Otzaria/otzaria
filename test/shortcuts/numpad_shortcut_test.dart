@@ -41,7 +41,7 @@ void main() {
     test('תצוגה ידידותית למקשי לוח הספרות', () {
       expect(
         ShortcutHelper.formatShortcutForDisplay('ctrl+numpadadd'),
-        'CTRL + Numpad +',
+        'CTRL + Numpad +‎',
       );
       expect(
         ShortcutHelper.formatShortcutForDisplay('ctrl+numpad5'),

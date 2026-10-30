@@ -130,29 +130,29 @@ void main() {
 
     expect(find.text('מה חדש בספרים'), findsOneWidget);
     expect(find.text('גרסת ספרייה 35'), findsOneWidget);
-    final item = find.text('• ספרות/הלכה/ספר 0');
+    final item = find.text('ספרות/הלכה/ספר 0');
     expect(item, findsOneWidget);
     expect(
       Directionality.of(tester.element(item)),
       TextDirection.rtl,
     );
     // ListView עצל: אלפי הפריטים אינם נבנים מראש.
-    expect(find.text('• ספרות/הלכה/ספר 5999'), findsNothing);
+    expect(find.text('ספרות/הלכה/ספר 5999'), findsNothing);
 
     await tester.dragUntilVisible(
-      find.text('• ספרות/הלכה/ספר 200'),
+      find.text('ספרות/הלכה/ספר 200'),
       find.byType(SuperListView),
       const Offset(0, -500),
     );
-    expect(find.text('• ספרות/הלכה/ספר 200'), findsOneWidget);
-    expect(find.text('• ספרות/הלכה/ספר 0'), findsNothing);
+    expect(find.text('ספרות/הלכה/ספר 200'), findsOneWidget);
+    expect(find.text('ספרות/הלכה/ספר 0'), findsNothing);
 
     await tester.enterText(find.byType(EditableText), 'ספר 5999');
     await tester.pump();
-    expect(find.text('• ספרות/הלכה/ספר 5999'), findsNothing);
+    expect(find.text('ספרות/הלכה/ספר 5999'), findsNothing);
     await tester.pump(LibraryChangesDialog.searchDebounce);
     await tester.pumpAndSettle();
-    expect(find.text('• ספרות/הלכה/ספר 5999'), findsOneWidget);
+    expect(find.text('ספרות/הלכה/ספר 5999'), findsOneWidget);
     expect(find.text('גרסת ספרייה 34'), findsNothing);
 
     await tester.tap(find.text('סגור'));
@@ -185,7 +185,7 @@ void main() {
       await tester.pumpAndSettle();
 
       ScrollPosition position() => Scrollable.of(
-        tester.element(find.text('• ספרות/הלכה/ספר 0')),
+        tester.element(find.text('ספרות/הלכה/ספר 0')),
       ).position;
       final list = find.byType(SuperListView);
       final bar = tester.getRect(
@@ -256,7 +256,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final position = Scrollable.of(
-      tester.element(find.text('• ספרות/הלכה/ספר 0')),
+      tester.element(find.text('ספרות/הלכה/ספר 0')),
     ).position;
     var builtLines = 0;
     debugOnRebuildDirtyWidget = (element, _) {
@@ -271,7 +271,7 @@ void main() {
     expect(builtLines, lessThan(200));
     expect(
       find.text(
-        '• תנך/תורה/בראשית - שינוי מהדורה ל-מהדורה ב (שונה גם מיקומו/שמו)',
+        'תנך/תורה/בראשית - שינוי מהדורה ל-מהדורה ב (שונה גם מיקומו/שמו)',
       ),
       findsOneWidget,
     );

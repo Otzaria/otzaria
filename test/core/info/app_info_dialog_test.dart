@@ -4,6 +4,9 @@ import 'package:otzaria/core/info/app_info_service.dart';
 import 'package:otzaria/core/info/info_topic.dart';
 import 'package:otzaria/core/info/view/app_info_dialog.dart';
 import 'package:otzaria/core/info/view/info_section_fields.dart';
+import 'package:otzaria/theme/app_seed_colors.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_theme_data.dart';
 
 void main() {
   AppInfoReport reportOf(
@@ -15,9 +18,14 @@ void main() {
     sections: sections,
   );
 
-  Future<void> pumpContent(WidgetTester tester, AppInfoReport report) async {
+  Future<void> pumpContent(
+    WidgetTester tester,
+    AppInfoReport report, {
+    ThemeData? theme,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: theme,
         home: Directionality(
           textDirection: TextDirection.rtl,
           child: Scaffold(body: AppInfoDialogContent(report: report)),
@@ -111,6 +119,66 @@ void main() {
       expect(find.text('7'), findsOneWidget);
       expect(find.text('2.0 MB'), findsOneWidget);
     });
+
+    testWidgets('מסדים אישיים מצורפים מוצגים עם נתיב, ספירה ומצב', (
+      tester,
+    ) async {
+      await pumpContent(
+        tester,
+        reportOf(InfoTopic.library, {
+          'library': {
+            'totalBooks': 10,
+            'attachedLibraryCount': 2,
+            'attachedLibraries': [
+              {
+                'name': 'הספרייה שלי',
+                'slug': 'mine',
+                'path': r'D:\db\mine.db',
+                'status': 'ok',
+                'mode': 'link',
+                'placement': 'separateRoot',
+                'hidden': true,
+                'bookCount': 1200,
+                'sizeBytes': 3 * 1024 * 1024,
+              },
+              {
+                'name': 'מסד שנותק',
+                'slug': 'gone',
+                'path': r'E:\db\gone.db',
+                'status': 'unreachable',
+                'mode': 'copy',
+                'placement': 'mergeIntoLibrary',
+                'bookCount': 5,
+              },
+            ],
+          },
+        }),
+      );
+
+      expect(find.text('מסדי ספרים אישיים'), findsOneWidget);
+      expect(find.text('הספרייה שלי'), findsOneWidget);
+      expect(find.text(r'D:\db\mine.db'), findsOneWidget);
+      expect(find.text('1,200 ספרים · \u20663.0 MB\u2069'), findsOneWidget);
+      expect(find.text('מוסתר'), findsOneWidget);
+      expect(find.text('מסד שנותק'), findsOneWidget);
+      expect(find.text('הקובץ לא נגיש'), findsOneWidget);
+      expect(find.text('ממוזג לספרייה'), findsOneWidget);
+    });
+
+    testWidgets('בלי מסדים מצורפים מוצגת הודעה', (tester) async {
+      await pumpContent(
+        tester,
+        reportOf(InfoTopic.library, {
+          'library': {
+            'totalBooks': 10,
+            'attachedLibraryCount': 0,
+            'attachedLibraries': <Map<String, dynamic>>[],
+          },
+        }),
+      );
+
+      expect(find.text('לא צורפו מסדי ספרים אישיים'), findsOneWidget);
+    });
   });
 
   group('מקטע התיקיות האישיות', () {
@@ -128,6 +196,63 @@ void main() {
         'folders': folders,
       },
     };
+
+    for (final width in [360.0, 1000.0]) {
+      for (final brightness in Brightness.values) {
+        testWidgets('קו יחיד בין קבצים ברוחב $width ובמצב $brightness', (
+          tester,
+        ) async {
+          tester.view.physicalSize = Size(width, 1000);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final scheme = AppThemeData.createColorScheme(
+            AppSeedColors.defaultLight,
+            brightness,
+          );
+          final theme = brightness == Brightness.light
+              ? AppThemeData.light(scheme, compactMenuMode: false)
+              : AppThemeData.dark(scheme, compactMenuMode: false);
+          const names = ['בראשית.txt', 'ויקרא.txt', 'שולחן ערוך.pdf'];
+          await pumpContent(
+            tester,
+            reportOf(
+              InfoTopic.folders,
+              foldersSection(
+                folders: [
+                  {
+                    'path': r'D:\ספרים שלי',
+                    'exists': true,
+                    'fileCount': names.length,
+                    'files': [
+                      for (final name in names) {'name': name},
+                    ],
+                  },
+                ],
+              ),
+            ),
+            theme: theme,
+          );
+          final context = tester.element(find.byType(AppInfoDialogContent));
+          for (var i = 1; i < names.length; i++) {
+            final previous = tester.getRect(find.text(names[i - 1]));
+            final next = tester.getRect(find.text(names[i]));
+            final between = find.byElementPredicate((element) {
+              if (element.widget is! Divider) return false;
+              final rect = tester.getRect(
+                find.byElementPredicate((other) => identical(other, element)),
+              );
+              return rect.top >= previous.bottom && rect.bottom <= next.top;
+            });
+            expect(between, findsOneWidget);
+            final divider = tester.widget<Divider>(between);
+            expect(divider.height, 1);
+            expect(divider.color, AppSurfaces.cardRowDivider(context));
+          }
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
 
     testWidgets('כל תיקייה מוצגת עם נתיב, תקציר ופירוט סיומות', (tester) async {
       await pumpContent(
@@ -156,7 +281,7 @@ void main() {
 
       expect(find.text('תיקיות ספרים אישיים'), findsOneWidget);
       expect(find.text(r'D:\ספרים שלי'), findsOneWidget);
-      expect(find.text('3 קבצים · 1.5 KB'), findsOneWidget);
+      expect(find.text('3 קבצים · \u20661.5 KB\u2069'), findsOneWidget);
       expect(find.text('pdf 1 · txt 2'), findsOneWidget);
       expect(find.text('בראשית.txt'), findsOneWidget);
       expect(find.text('שולחן ערוך.pdf'), findsOneWidget);
@@ -186,6 +311,47 @@ void main() {
 
       expect(find.text('ספר0.txt'), findsOneWidget);
       // 10 מוצגים מתוך 40 שנספרו — ההפרש נמדד מול הספירה, לא מול הרשימה.
+      expect(find.text('ספר10.txt'), findsNothing);
+      expect(find.text('ועוד 30…'), findsOneWidget);
+    });
+
+    testWidgets('לחיצה על "ועוד" מרחיבה את הרשימה ו"הצג פחות" מכווצת', (
+      tester,
+    ) async {
+      await pumpContent(
+        tester,
+        reportOf(
+          InfoTopic.folders,
+          foldersSection(
+            folders: [
+              {
+                'path': r'D:\רבים',
+                'exists': true,
+                'fileCount': 40,
+                'sizeBytes': 0,
+                'filesByType': {'txt': 40},
+                'files': [
+                  for (var i = 0; i < 25; i++) {'name': 'ספר$i.txt'},
+                ],
+              },
+            ],
+          ),
+        ),
+      );
+
+      await tester.ensureVisible(find.text('ועוד 30…'));
+      await tester.tap(find.text('ועוד 30…'));
+      await tester.pump();
+
+      // כל 25 הקבצים שברשימה מוצגים; ה-15 האחרים נחתכו ע"י `files=` ולכן
+      // "ועוד" שנשאר הוא טקסט בלבד.
+      expect(find.text('ספר24.txt'), findsOneWidget);
+      expect(find.text('ועוד 15…'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('הצג פחות'));
+      await tester.tap(find.text('הצג פחות'));
+      await tester.pump();
+
       expect(find.text('ספר10.txt'), findsNothing);
       expect(find.text('ועוד 30…'), findsOneWidget);
     });

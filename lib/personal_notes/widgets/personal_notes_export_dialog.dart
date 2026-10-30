@@ -1,10 +1,11 @@
-import 'dart:math' as math;
-
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/personal_notes/models/personal_note.dart';
 import 'package:otzaria/personal_notes/utils/personal_notes_book_key.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/calendar_days.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -106,12 +107,21 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
           (note.displayTitle?.toLowerCase().contains(query) ?? false);
     }).toList();
 
-    return AlertDialog(
-      title: Text(widget.title),
-      // רוחב קבוע ולא ConstrainedBox: AlertDialog מודד intrinsic, ורשימה
-      // גוללת בתוכו לא תומכת בכך. במסך צר הרוחב מצטמצם.
-      content: SizedBox(
-        width: math.min(540.0, MediaQuery.sizeOf(context).width - 112),
+    return AppDialogFrame(
+      title: widget.title,
+      icon: FluentIcons.arrow_upload_24_regular,
+      width: 540,
+      actions: [
+        ActionButton.neutral(
+          onPressed: () => Navigator.of(context).pop(),
+          text: 'ביטול',
+        ),
+        ActionButton.recommended(
+          onPressed: _submit,
+          text: widget.confirmText,
+        ),
+      ],
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -172,46 +182,39 @@ class _PersonalNotesExportDialogState extends State<PersonalNotesExportDialog> {
               const SizedBox(height: AppTokens.spaceSM),
               SizedBox(
                 height: 240,
-                child: ListView.builder(
-                  itemCount: filteredNotes.length,
-                  itemBuilder: (context, index) {
-                    final note = filteredNotes[index];
-                    final selected = _manualSelection[note.id] ?? false;
-                    return CheckboxListTile(
-                      value: selected,
-                      title: Text(
-                        note.displayTitle?.isNotEmpty == true
-                            ? note.displayTitle!
-                            : note.bookId,
-                      ),
-                      subtitle: Text(
-                        note.contentPlain,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onChanged: (value) {
-                        setState(
-                          () => _manualSelection[note.id] = value ?? false,
-                        );
-                      },
-                    );
-                  },
+                child: ListDialogCard(
+                  child: ListView.builder(
+                    itemCount: filteredNotes.length,
+                    itemBuilder: (context, index) {
+                      final note = filteredNotes[index];
+                      final selected = _manualSelection[note.id] ?? false;
+                      return CheckboxListTile(
+                        shape: Border(bottom: listDialogRowDivider(context)),
+                        value: selected,
+                        title: Text(
+                          note.displayTitle?.isNotEmpty == true
+                              ? note.displayTitle!
+                              : note.bookId,
+                        ),
+                        subtitle: Text(
+                          note.contentPlain,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onChanged: (value) {
+                          setState(
+                            () => _manualSelection[note.id] = value ?? false,
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
               ),
             ],
           ],
         ),
       ),
-      actions: [
-        ActionButton.neutral(
-          onPressed: () => Navigator.of(context).pop(),
-          text: 'ביטול',
-        ),
-        ActionButton.recommended(
-          onPressed: _submit,
-          text: widget.confirmText,
-        ),
-      ],
     );
   }
 

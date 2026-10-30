@@ -413,6 +413,8 @@ class _AttachedLibraryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return SettingsActionTile(
+      // הכותרת כוללת תגיות; בחלון צר הבורר יורד מתחתיה ולא דוחס אותה.
+      columnBelowWidth: 620,
       icon: library.hidden
           ? FluentIcons.database_24_regular
           : FluentIcons.database_24_filled,
@@ -493,6 +495,7 @@ class _AttachedLibraryTile extends StatelessWidget {
       subtitle: Text(
         library.path,
         textDirection: TextDirection.ltr,
+        textAlign: TextAlign.end,
         style: AppTextStyles.settingSubtitle.copyWith(
           color: cs.onSurfaceVariant,
         ),

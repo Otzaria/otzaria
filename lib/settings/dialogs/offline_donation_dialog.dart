@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/messages/messages_exports.dart';
 import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/app_selection_area.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -35,6 +36,8 @@ Future<void> showOfflineDonationDialog(BuildContext context) =>
     showSingleActionDialog(
       context: context,
       title: context.settingsText('תרומה בנדרים+'),
+      icon: FluentIcons.heart_24_regular,
+      headerBand: true,
       confirmText: context.settingsText('סגור'),
       customContent: wrapWithSettingsScope(
         context,
@@ -75,52 +78,51 @@ class _DonationInstructions extends StatelessWidget {
                 context.settingsText('ניתן לתרום מכל מכשיר בנדרים+'),
                 style: const TextStyle(fontSize: 14),
               ),
-              const Divider(height: 24),
-              DetailsInfoSection(
-                icon: FluentIcons.building_bank_24_regular,
-                title: context.settingsText('שם הקופה:'),
-                value: _fundName,
-              ),
-              DetailsInfoSection(
-                icon: FluentIcons.number_symbol_24_regular,
-                title: context.settingsText('מספר קופה:'),
-                value: _fundNumber,
-              ),
-              DetailsInfoSection(
-                icon: FluentIcons.folder_24_regular,
-                title: context.settingsText('קטגוריה:'),
-                value: _fundCategory,
-              ),
-              const Divider(height: 24),
-              Row(
+              const SizedBox(height: AppTokens.spaceMD),
+              DetailsCard(
+                title: context.settingsText('פרטי הקופה'),
+                icon: FluentIcons.info_24_regular,
                 children: [
-                  Icon(
-                    FluentIcons.payment_24_regular,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  DetailsInfoSection(
+                    icon: FluentIcons.building_bank_24_regular,
+                    title: context.settingsText('שם הקופה:'),
+                    value: _fundName,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    context.settingsText('דף התרומה:'),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  DetailsInfoSection(
+                    icon: FluentIcons.number_symbol_24_regular,
+                    title: context.settingsText('מספר קופה:'),
+                    value: _fundNumber,
+                  ),
+                  DetailsInfoSection(
+                    icon: FluentIcons.folder_24_regular,
+                    title: context.settingsText('קטגוריה:'),
+                    value: _fundCategory,
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: _launchDonationPage,
-                child: Text(
-                  kNedarimDonationUrl,
-                  textDirection: TextDirection.ltr,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Theme.of(context).colorScheme.primary,
-                    decoration: TextDecoration.underline,
+              const SizedBox(height: AppTokens.spaceMD),
+              DetailsCard(
+                title: context.settingsText('דף התרומה'),
+                icon: FluentIcons.payment_24_regular,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppTokens.spaceSM + 1,
+                    ),
+                    child: InkWell(
+                      onTap: _launchDonationPage,
+                      child: Text(
+                        kNedarimDonationUrl,
+                        textDirection: TextDirection.ltr,
+                        style: TextStyle(
+                          fontSize: AppTokens.fontMD,
+                          color: Theme.of(context).colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
               const SizedBox(height: 16),
               ActionButton.neutral(

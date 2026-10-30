@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
 import 'package:otzaria/theme/theme_exports.dart';
@@ -176,14 +177,8 @@ class _BookCardWidgetState extends State<BookCardWidget> {
   @override
   Widget build(BuildContext context) {
     if (!_isInitialized) {
-      return const Card(
-        child: Center(
-          child: SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2.0),
-          ),
-        ),
+      return const AppCard(
+        child: LoadingIndicator(size: 24, strokeWidth: 2),
       );
     }
 
@@ -298,125 +293,54 @@ class _BookCardWidgetState extends State<BookCardWidget> {
     );
   }
 
-  /// בניית תצוגת מחזורים מרובים
+  /// טבעת לכל מחזור שהתחיל, או שהמחזור שלפניו הושלם, ומתחתיה פירוט המחזור
+  /// הנוכחי. הטבעות חולקות את הרוחב שווה בשווה, כך שגם ארבעה מחזורים נכנסים
+  /// בכרטיס צר.
   Widget _buildCyclesProgressInfo(BuildContext context) {
     if (_progressProvider == null) {
       return _buildProgressInfo(context, 0.0);
     }
 
-    // בניית תצוגה - מציג מחזור אם הוא התחיל או אם המחזור הקודם הושלם
     final visibleIndices = [
       for (int i = 0; i < _cycleProgress.length; i++)
         if (i == 0 || _cycleProgress[i] > 0.0 || _cycleProgress[i - 1] >= 1.0)
           i,
     ];
+    final currentIndex = visibleIndices.cast<int?>().lastWhere(
+      (i) => _cycleProgress[i!] < 1.0,
+      orElse: () => null,
+    );
 
-    return Row(
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (int j = 0; j < visibleIndices.length; j++) ...[
-          if (j > 0) const SizedBox(width: 4),
-          Expanded(
-            child: _buildCycleIndicator(
-              context,
-              visibleIndices[j] < _columns.length
-                  ? _columns[visibleIndices[j]].label
-                  : 'מחזור ${visibleIndices[j] + 1}',
-              _cycleProgress[visibleIndices[j]],
-              _cycleProgress[visibleIndices[j]] >= 1.0,
+        Row(
+          children: [
+            for (final index in visibleIndices)
+              Expanded(
+                child: _CycleRing(
+                  label: index < _columns.length
+                      ? _columns[index].label
+                      : 'מחזור ${index + 1}',
+                  progress: _cycleProgress[index],
+                ),
+              ),
+          ],
+        ),
+        if (currentIndex != null) ...[
+          const SizedBox(height: AppTokens.spaceSM),
+          Text(
+            '${(_cycleProgress[currentIndex] * widget.bookDetails.totalLearnableItems).round()}'
+            ' מתוך ${widget.bookDetails.totalLearnableItems}',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: AppTokens.fontSM,
+              color: cs.onSurfaceVariant,
             ),
           ),
         ],
       ],
-    );
-  }
-
-  /// בניית אינדיקטור לעמודה בודדת (מחזור)
-  Widget _buildCycleIndicator(
-    BuildContext context,
-    String cycleName,
-    double progress,
-    bool isCompleted,
-  ) {
-    final cs = Theme.of(context).colorScheme;
-
-    if (isCompleted) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHighest,
-          borderRadius: AppTokens.borderRadiusAll,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              FluentIcons.checkmark_24_regular,
-              color: cs.onSurface,
-              size: 16,
-            ),
-            const SizedBox(height: 1),
-            Text(
-              cycleName,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontSize: 8,
-                color: cs.onSurface,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      );
-    }
-
-    final totalItems = widget.bookDetails.totalLearnableItems;
-    final completedItems = (progress * totalItems).round();
-    final progressPercentage = (progress * 100).round();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: AppTokens.borderRadiusAll,
-        border: Border.all(
-          color: cs.outline.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            cycleName,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: 9,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 1),
-          ClipRRect(
-            borderRadius: AppTokens.borderRadiusAll,
-            child: LinearProgressIndicator(
-              minHeight: 3,
-              value: progress,
-              backgroundColor: cs.onSurface.withValues(alpha: 0.08),
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            '$progressPercentage% • $completedItems/$totalItems',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 8,
-              color: cs.onSurface.withValues(alpha: 0.7),
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
     );
   }
 
@@ -520,7 +444,7 @@ class _BookMetaChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: AppTokens.borderRadiusAll,
@@ -528,13 +452,13 @@ class _BookMetaChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: foregroundColor),
+          Icon(icon, size: 14, color: foregroundColor),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
               text,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: AppTokens.fontSM,
                 color: foregroundColor,
                 fontWeight: FontWeight.w500,
               ),
@@ -544,6 +468,97 @@ class _BookMetaChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// טבעת התקדמות למחזור: אחוז בתוך הטבעת, או וי כשהמחזור הושלם, ושמו מתחתיה.
+class _CycleRing extends StatelessWidget {
+  final String label;
+  final double progress;
+
+  const _CycleRing({required this.label, required this.progress});
+
+  static const double _size = 38;
+
+  /// מתחת לרוחב הזה שם מחזור שהושלם אינו מוצג מתחת לטבעת, כדי שארבע
+  /// טבעות יישארו קריאות בכרטיס צר; השם נשאר בטולטיפ.
+  static const double _labelMinWidth = 52;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final completed = progress >= 1.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.maxWidth < _size + 4
+            ? constraints.maxWidth - 4
+            : _size;
+        final showLabel = !completed || constraints.maxWidth >= _labelMinWidth;
+        return Tooltip(
+          message: label,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: size,
+                height: size,
+                child: completed
+                    ? DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: cs.primaryContainer,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          FluentIcons.checkmark_24_regular,
+                          size: 20,
+                          color: cs.onPrimaryContainer,
+                        ),
+                      )
+                    : Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CircularProgressIndicator(
+                            value: progress,
+                            strokeWidth: 4,
+                            backgroundColor: cs.onSurface.withValues(
+                              alpha: 0.08,
+                            ),
+                          ),
+                          Center(
+                            child: Text(
+                              '${(progress * 100).round()}%',
+                              style: TextStyle(
+                                fontSize: AppTokens.fontSM - 2,
+                                fontWeight: FontWeight.w600,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+              if (showLabel) ...[
+                const SizedBox(height: AppTokens.spaceXS),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: AppTokens.fontSM,
+                      color: completed ? cs.onSurfaceVariant : cs.onSurface,
+                      fontWeight: completed
+                          ? FontWeight.normal
+                          : FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

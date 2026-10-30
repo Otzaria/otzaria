@@ -1,3 +1,4 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
 import 'package:flutter/material.dart';
@@ -100,6 +101,7 @@ class HistoryDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return const AppCustomContentDialog(
       title: 'היסטוריה',
+      icon: FluentIcons.history_24_regular,
       scrollable: false,
       child: HistoryView(),
     );

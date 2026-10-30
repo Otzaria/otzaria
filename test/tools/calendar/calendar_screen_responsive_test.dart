@@ -2,6 +2,9 @@
 // - מסך רחב (≥840): פריסה זה-לצד-זה (AdaptiveSidePane).
 // - מסך צר (<600): פריסה מוערמת — לוח למעלה, חלונית זמנים/אירועים למטה.
 
+import 'dart:async';
+
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -16,6 +19,7 @@ import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tools/calendar/calendar_screen.dart';
 import 'package:otzaria/tools/calendar/dialogs/calendar_zman_alert_dialog.dart';
 import 'package:otzaria/tools/calendar/dialogs/zmanim_settings_dialog.dart';
+import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart';
 import 'package:otzaria/tools/calendar/services/google_calendar_service.dart';
 import 'package:otzaria/tools/calendar/services/notification_service.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_main_panel.dart';
@@ -24,6 +28,9 @@ import 'package:otzaria/tools/calendar/widgets/calendar_times_panel.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
 import '../../test_helpers/memory_cache_provider.dart';
+
+class _MockCalendarCubit extends MockCubit<CalendarState>
+    implements CalendarCubit {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +88,39 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('טבלת זמנים נוספים שומרת מעבר בין שעון 12 ל-24 שעות', (
+    tester,
+  ) async {
+    final tableCubit = _MockCalendarCubit();
+    final updates = StreamController<CalendarState>();
+    const clock = '\u206605:30\u2069';
+    final initial = CalendarState.initial().copyWith(
+      dailyTimes: {kZmanimRegistry.first.id: clock},
+      twelveHourClock: true,
+    );
+    whenListen(tableCubit, updates.stream, initialState: initial);
+    final twelve = zmanTimeForDisplay(clock, twelveHourClock: true);
+    expect(twelve, contains('AM'));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider<CalendarCubit>.value(
+          value: tableCubit,
+          child: const Scaffold(body: Center(child: ZmanimSettingsContent())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(twelve), findsWidgets);
+    updates.add(initial.copyWith(twelveHourClock: false));
+    await tester.pumpAndSettle();
+    expect(find.text(clock), findsWidgets);
+    expect(find.text(twelve), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await updates.close();
+    await tableCubit.close();
+  });
 
   group('CalendarWidget — פריסה רספונסיבית', () {
     testWidgets('מסך צר (<600): הלוח למעלה והחלונית למטה (מוערם)', (

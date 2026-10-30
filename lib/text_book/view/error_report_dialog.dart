@@ -114,9 +114,7 @@ class _DirectReportDetails extends StatelessWidget {
           null => BookProtectionRepository.instance.forTitle(report.bookTitle),
         },
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: DetailsCard(
             children: [
               if (report.rejectionReason != null)
                 _ReportDetailRow(
@@ -185,21 +183,28 @@ class _ReportDetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayValue = value.trim().isEmpty ? 'לא נשלח ערך' : value.trim();
+    if (child == null) {
+      return DetailsInfoSection(
+        title: label,
+        value: displayValue,
+        // ערך קצר בשורה אחת עם התווית; ארוך או רב־שורות מתחתיה.
+        block: displayValue.length > 36 || displayValue.contains('\n'),
+      );
+    }
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             label,
-            style: Theme.of(context).textTheme.labelMedium,
+            style: TextStyle(
+              fontSize: AppTokens.fontMD,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
-          const SizedBox(height: 3),
-          child ??
-              Text(
-                displayValue,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+          const SizedBox(height: AppTokens.spaceXS),
+          child!,
         ],
       ),
     );
@@ -759,6 +764,8 @@ $detailsSection
     await showSingleActionDialog(
       context: context,
       title: title,
+      icon: FluentIcons.document_text_24_regular,
+      headerBand: true,
       confirmText: 'סגור',
       customContent: _DirectReportDetails(report: report),
     );
@@ -1216,7 +1223,6 @@ class _TabbedReportDialogState extends State<TabbedReportDialog>
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildHeader(context),
-            const Divider(height: 1),
             TabBar(
               controller: _tabController,
               splashBorderRadius: AppTokens.borderRadiusAll,
@@ -1367,6 +1373,9 @@ enum _ReportMode { correction, freeText }
 const String _sendShortcut = 'ctrl+enter';
 
 class _RegularReportTabState extends State<RegularReportTab> {
+  bool _isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
   final TextEditingController _detailsController = TextEditingController();
   late _ReportMode _mode = widget.correctionTemplate == null
       ? _ReportMode.freeText
@@ -1531,19 +1540,30 @@ class _RegularReportTabState extends State<RegularReportTab> {
                     )
                   else ...[
                     Text(
-                      'הטקסט שנבחר:',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      'הטקסט שנבחר',
+                      style: TextStyle(
+                        fontSize: AppTokens.fontMD,
                         fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppTokens.spaceXS),
                     Container(
                       constraints: const BoxConstraints(
                         maxHeight: 150,
                       ),
                       width: double.infinity,
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
+                        // כהה מתיבת הקלט שמתחתיו: הטקסט המצוטט הוא מידע, והתיבה
+                        // הבהירה היא המקום להקליד בו.
+                        color: _isDark(context)
+                            ? Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerLowest
+                            : Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHigh,
                         border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant,
                         ),
@@ -1577,6 +1597,12 @@ class _RegularReportTabState extends State<RegularReportTab> {
                     autofocus: !_isCorrection,
                     decoration: InputDecoration(
                       isDense: true,
+                      filled: true,
+                      fillColor: _isDark(context)
+                          ? Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest
+                          : AppSurfaces.card(context),
                       labelText: _isCorrection
                           ? 'הסבר לתיקון (רשות)'
                           : 'פירוט הטעות (חובה)',

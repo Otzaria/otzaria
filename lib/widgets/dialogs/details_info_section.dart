@@ -1,6 +1,119 @@
 import 'package:flutter/material.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
-/// מקטע תווית־וערך אחיד לדיאלוגי מידע.
+/// כותרת בראש דיאלוג מידע: שם הפריט בגדול, ומתחתיו שורת משנה עמומה.
+class DetailsHeading extends StatelessWidget {
+  const DetailsHeading({super.key, required this.title, this.subtitle});
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final sub = subtitle?.trim() ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: AppTokens.fontXL,
+            fontWeight: FontWeight.bold,
+            color: cs.onSurface,
+          ),
+        ),
+        if (sub.isNotEmpty) ...[
+          const SizedBox(height: AppTokens.spaceXS),
+          Text(
+            sub,
+            style: TextStyle(
+              fontSize: AppTokens.fontMD,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// כרטיס מקטע בדיאלוג מידע: רקע כרטיס ומסגרת עדינה, כותרת אופציונלית, ובין
+/// השורות קו חוצץ. בכרטיס שמחזיק [DetailsInfoSection] או טקסט חופשי.
+class DetailsCard extends StatelessWidget {
+  const DetailsCard({
+    super.key,
+    required this.children,
+    this.title,
+    this.icon,
+  });
+
+  final List<Widget> children;
+  final String? title;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final divider = Divider(
+      height: 1,
+      color: cs.outlineVariant.withValues(alpha: 0.5),
+    );
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppSurfaces.card(context),
+        borderRadius: AppTokens.borderRadiusAll,
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceMD,
+        vertical: 2,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (title != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(
+                top: AppTokens.spaceSM + 2,
+                bottom: AppTokens.spaceSM,
+              ),
+              child: Row(
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: AppTokens.fontLG, color: cs.primary),
+                    const SizedBox(width: AppTokens.spaceSM),
+                  ],
+                  Flexible(
+                    child: Text(
+                      title!,
+                      style: TextStyle(
+                        fontSize: AppTokens.fontMD + 1,
+                        fontWeight: FontWeight.bold,
+                        color: cs.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (children.isNotEmpty) divider,
+          ],
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) divider,
+            children[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// מקטע תווית־וערך אחיד לדיאלוגי מידע: התווית (עם אייקון) בתחילת השורה
+/// והערך בסופה. עם [block] התווית בשורה משלה והערך מתחתיה ברוחב מלא — לערכים
+/// ארוכים כמו נתיב או תיאור. מיועד לשימוש בתוך [DetailsCard].
 class DetailsInfoSection extends StatelessWidget {
   const DetailsInfoSection({
     super.key,
@@ -8,9 +121,12 @@ class DetailsInfoSection extends StatelessWidget {
     required this.value,
     this.icon,
     this.valueDirection,
+    this.block = false,
+    this.onTap,
+    this.tapTooltip,
   });
 
-  /// התווית המודגשת שמופיעה לפני הערך.
+  /// התווית שמופיעה לפני הערך.
   final String title;
 
   /// הערך המלא. הבחירה וההעתקה מסופקות ע"י AppSelectionArea שעוטף את הדיאלוג.
@@ -22,39 +138,117 @@ class DetailsInfoSection extends StatelessWidget {
   /// כיוון הערך, כאשר הוא שונה מכיוון הממשק.
   final TextDirection? valueDirection;
 
+  final bool block;
+
+  /// כשנתון, הערך הוא קישור: בצבע ראשי עם קו תחתון, והקשה עליו מפעילה את
+  /// הפעולה (למשל פתיחת תיקייה במנהל הקבצים).
+  final VoidCallback? onTap;
+
+  /// הסבר קצר למה שההקשה על [onTap] עושה.
+  final String? tapTooltip;
+
   @override
   Widget build(BuildContext context) {
-    final titleText = Text(
-      title,
-      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+    final cs = Theme.of(context).colorScheme;
+    final label = Row(
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: AppTokens.fontLG, color: cs.onSurfaceVariant),
+          const SizedBox(width: AppTokens.spaceSM),
+        ],
+        Flexible(
+          child: Text(
+            // הנקודתיים נשארו בטקסטים הקיימים; בתוך הכרטיס הן מיותרות.
+            title.endsWith(':') ? title.substring(0, title.length - 1) : title,
+            style: TextStyle(
+              fontSize: AppTokens.fontMD,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
     );
+    Widget valueText = Text(
+      value,
+      textDirection: valueDirection,
+      style: TextStyle(
+        fontSize: AppTokens.fontMD,
+        fontWeight: FontWeight.w600,
+        color: onTap == null ? cs.onSurface : cs.primary,
+        decoration: onTap == null ? null : TextDecoration.underline,
+        decorationColor: cs.primary,
+      ),
+    );
+    if (onTap != null) {
+      valueText = Tooltip(
+        message: tapTooltip ?? '',
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppTokens.borderRadiusAll,
+          child: valueText,
+        ),
+      );
+    }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (icon == null)
-            titleText
-          else
-            Row(
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      // ברוחב טלפון שתי עמודות היו שוברות את הערך באמצע מילה.
+      child: block || MediaQuery.sizeOf(context).width < 520
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                label,
+                const SizedBox(height: AppTokens.spaceXS),
+                // קישור לוחץ רק על הטקסט עצמו, לא על רוחב השורה כולה.
+                onTap == null
+                    ? valueText
+                    : Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: valueText,
+                      ),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 4, child: label),
+                const SizedBox(width: AppTokens.spaceMD),
+                Expanded(
+                  flex: 6,
+                  // ערך LTR (גרסה, נתיב) צמוד לתחילת העמודה כמו שאר הערכים,
+                  // ולא לקצה השמאלי שלה.
+                  child: valueDirection == null && onTap == null
+                      ? valueText
+                      : Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: valueText,
+                        ),
                 ),
-                const SizedBox(width: 6),
-                titleText,
               ],
             ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 14),
-            textDirection: valueDirection,
-          ),
-        ],
+    );
+  }
+}
+
+/// פסקת טקסט חופשית בתוך [DetailsCard], למשל תיאור. [bold] להדגשת פתיחה קצרה.
+class DetailsText extends StatelessWidget {
+  const DetailsText(this.text, {super.key, this.bold = false});
+
+  final String text;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSM + 1),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: AppTokens.fontMD,
+          height: 1.4,
+          fontWeight: bold ? FontWeight.bold : null,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
       ),
     );
   }

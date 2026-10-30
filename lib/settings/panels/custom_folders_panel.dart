@@ -582,57 +582,61 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
     await showSingleActionDialog(
       context: context,
       title: context.settingsText('הצגה או הוספה של הקבצים'),
+      icon: FluentIcons.folder_24_regular,
+      headerBand: true,
       confirmText: context.settingsText('סגור'),
-      customContent: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            item(
-              FluentIcons.document_24_regular,
-              context.settingsText('הצגה', context: 'storage'),
-              context.settingsText(
-                'הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז אותם — אחרת '
-                'הם לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.',
+      customContent: SingleChildScrollView(
+        child: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              item(
+                FluentIcons.document_24_regular,
+                context.settingsText('הצגה', context: 'storage'),
+                context.settingsText(
+                  'הספרים נקראים ישירות מהקבצים שבדיסק. אל תזיז אותם — אחרת '
+                  'הם לא ייפתחו. למחיקה: מחק את הקובץ מהדיסק וסרוק מחדש.',
+                ),
               ),
-            ),
-            item(
-              FluentIcons.database_24_regular,
-              context.settingsText('הוספה'),
-              context.settingsText(
-                'התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי '
-                'עריכת קובץ לחץ "סרוק מחדש" לעדכון; מחיקה רק דרך הספרייה.',
+              item(
+                FluentIcons.database_24_regular,
+                context.settingsText('הוספה'),
+                context.settingsText(
+                  'התוכן נשמר בתוך התוכנה ועובד גם אם הקבצים יוסרו. אחרי '
+                  'עריכת קובץ לחץ "סרוק מחדש" לעדכון; מחיקה רק דרך הספרייה.',
+                ),
               ),
-            ),
-            item(
-              FluentIcons.info_24_regular,
-              context.settingsText('קבצים שאינם טקסט'),
-              context.settingsText(
-                'אין אפשרות להוספה, והם רק מוצגים ונקראים ישירות מהקבצים שבדיסק.',
+              item(
+                FluentIcons.info_24_regular,
+                context.settingsText('קבצים שאינם טקסט'),
+                context.settingsText(
+                  'אין אפשרות להוספה, והם רק מוצגים ונקראים ישירות מהקבצים שבדיסק.',
+                ),
               ),
-            ),
-            item(
-              OtzariaIcons.links_24_regular,
-              context.settingsText('דורות, קישורים, כותרות וגרסאות'),
-              context.settingsText(
-                'קובץ "דורות.csv", וקבצים שמחוץ לתיקיית הספרים, מייבאים '
-                'בכפתור "ייבוא נתונים" שבהמשך.',
+              item(
+                OtzariaIcons.links_24_regular,
+                context.settingsText('דורות, קישורים, כותרות וגרסאות'),
+                context.settingsText(
+                  'קובץ "דורות.csv", וקבצים שמחוץ לתיקיית הספרים, מייבאים '
+                  'בכפתור "ייבוא נתונים" שבהמשך.',
+                ),
               ),
-            ),
-            item(
-              OtzariaIcons.books_stacked_high_24_regular,
-              context.settingsText('קישורים, כותרות וגרסאות בתיקייה'),
-              context.settingsText(
-                'קובץ "<שם הקובץ>.כותרות.csv" ליד ספר טקסט מוסיף לו את '
-                'לשונית "כותרות" (עמודות: מבנה, רמה, כותרת, שורה או טקסט). '
-                'קובץ "גרסאות.csv" בתיקייה מאחד כמה קבצים לספר אחד (עמודות: '
-                'ראשי, גרסה, שם). קובץ "<שם הספר>.links.csv" או '
-                '"<שם הספר>_links.json" מוסיף קישורים. הקבצים נקלטים בסריקת '
-                'התיקייה.',
+              item(
+                OtzariaIcons.books_stacked_high_24_regular,
+                context.settingsText('קישורים, כותרות וגרסאות בתיקייה'),
+                context.settingsText(
+                  'קובץ "<שם הקובץ>.כותרות.csv" ליד ספר טקסט מוסיף לו את '
+                  'לשונית "כותרות" (עמודות: מבנה, רמה, כותרת, שורה או טקסט). '
+                  'קובץ "גרסאות.csv" בתיקייה מאחד כמה קבצים לספר אחד (עמודות: '
+                  'ראשי, גרסה, שם). קובץ "<שם הספר>.links.csv" או '
+                  '"<שם הספר>_links.json" מוסיף קישורים. הקבצים נקלטים בסריקת '
+                  'התיקייה.',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
