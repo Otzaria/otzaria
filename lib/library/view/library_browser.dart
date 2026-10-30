@@ -1328,6 +1328,12 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
     if (_arrowKeys.contains(event.logicalKey)) {
       if (isEditableTextFocused) return KeyEventResult.ignored;
+      // בשורת רשימה החץ נשאר לניווט הכיווני הרגיל, אחרת היה חוזר לשורה הראשונה.
+      if (FocusManager.instance.primaryFocus?.context
+              ?.findAncestorWidgetOfExactType<_LibraryBrowserList>() !=
+          null) {
+        return KeyEventResult.ignored;
+      }
       // כשהפוקוס על כרטיס, LibraryGridKeyNavigator כבר טיפל באירוע לפנינו —
       // כאן הפוקוס על לחצן אחר במסך, והחץ מחזיר אותו לרשת הספרים.
       return _focusFirstGridItem(state)
