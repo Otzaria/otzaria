@@ -81,7 +81,6 @@ import 'package:otzaria/utils/text/ref_helper.dart';
 import 'package:otzaria/tabs/models/external_book_matches.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
-import 'package:otzaria/tools/open_tool_tab.dart';
 import 'package:otzaria/tools/tools_launcher_controller.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/plugins/services/plugin_text_reader_registry.dart';
@@ -6162,19 +6161,32 @@ class PluginBridgeAdapter {
     }
   }
 
-  /// רושם למעקב את מפתחות ה-KV של תנאי ה-`when` בפריט שנרשם בזמן ריצה,
-  /// אחרת הסינון שלו לא יגיב ל-`storage.set`.
-  /// `newTab` בלחצן או בפריט תפריט הקשר פותח מופע נוסף, ולכן מותר רק לתוסף
-  /// שהצהיר על `allowMultipleInstances` — אותו כלל כמו ב-`plugin.openSelf`.
-  void _requireMultipleInstancesForNewTab(Map<String, dynamic> payload) {
-    if (payload['newTab'] == true && !plugin.manifest.allowMultipleInstances) {
+  /// גם ילד בתפריט יכול לפתוח מופע, ולכן בודקים את כל עץ הפריטים.
+  void _requireMultipleInstancesForNewTab(
+    Map<String, dynamic> payload, {
+    int depth = 0,
+  }) {
+    if (plugin.manifest.allowMultipleInstances) return;
+    if (payload['newTab'] == true) {
       throw Exception(
         'error.forbidden: contributes.toolTab.allowMultipleInstances '
         'is not enabled in the manifest',
       );
     }
+    if (depth >= ContextMenuRegistry.maxNestingDepth) return;
+    final children = payload['children'];
+    if (children is List &&
+        children.length <= ContextMenuRegistry.maxChildren) {
+      for (final child in children.whereType<Map>()) {
+        _requireMultipleInstancesForNewTab(
+          Map<String, dynamic>.from(child),
+          depth: depth + 1,
+        );
+      }
+    }
   }
 
+  /// עוקב אחר מפתחות תנאי ההצגה כדי שהפריט יגיב לשינוי באחסון.
   Future<void> _trackWhenStorageKeys(Map<String, dynamic> args) async {
     final raw = args['when'];
     if (raw == null) return;

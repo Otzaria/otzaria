@@ -19,6 +19,12 @@ import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/tool_query.dart';
 
+export 'package:otzaria/tabs/models/tool_tab.dart'
+    show
+        kMaxPluginToolInstances,
+        openToolInstanceCount,
+        hasRoomForPluginInstance;
+
 /// פותח כלי ככרטיסיה במסך העיון.
 ///
 /// כלי שכבר פתוח ממוקד (dedupeKey) ומקבל את [query]; מופע נוסף נפתח דרך
@@ -45,25 +51,16 @@ ToolTab newToolTabInstance(ToolCatalogEntry entry) => ToolTab(
   allowMultipleInstances: true,
 );
 
-/// תקרת הכרטיסיות הפתוחות של אותו תוסף (כולל הראשונה). כל מופע הוא WebView
-/// נפרד, וקריאה חוזרת של תוסף ל-`plugin.openSelf` עם `newTab` לא תוכל להציף
-/// את המסך.
-const int kMaxPluginToolInstances = 10;
-
-/// מספר הכרטיסיות הפתוחות של הכלי [toolId], כולל חלוניות מפוצלות.
-int openToolInstanceCount(Iterable<OpenedTab> tabs, String toolId) => tabs
-    .expand(leafPanes)
-    .whereType<ToolTab>()
-    .where((tab) => tab.toolId == toolId)
-    .length;
-
-/// האם אפשר לפתוח מופע נוסף של [toolId], לפי הכרטיסיות הפתוחות ו-[pending]
-/// פתיחות שנשלחו ועדיין אינן ב-state.
-bool hasRoomForPluginInstance(
-  Iterable<OpenedTab> tabs,
-  String toolId, {
-  int pending = 0,
-}) => openToolInstanceCount(tabs, toolId) + pending < kMaxPluginToolInstances;
+/// האם המניפסט המותקן מאפשר שכפול מתוך תפריט הכרטיסיה.
+bool pluginToolAllowsMultipleInstances(
+  PluginSystemState state,
+  String toolId,
+) =>
+    state is PluginSystemLoaded &&
+    state.plugins.any(
+      (plugin) =>
+          plugin.pluginId == toolId && plugin.manifest.allowMultipleInstances,
+    );
 
 /// פותח מופע נוסף של תוסף מותקן בכרטיסיה חדשה — הנתיב של `plugin.openSelf`
 /// עם `newTab: true`.
@@ -72,7 +69,11 @@ bool hasRoomForPluginInstance(
 /// שכבר פתוחות [kMaxPluginToolInstances] כרטיסיות שלו (בשני המקרים מוצגת הודעה).
 /// כשרשימת התוספים עדיין נטענת הכרטיסיה נפתחת עם כותרת גיבוי, כמו ב-
 /// [openToolTabById].
-String? openPluginToolInstanceById(BuildContext context, String pluginId) {
+String? openPluginToolInstanceById(
+  BuildContext context,
+  String pluginId, {
+  ToolTab? cloneOf,
+}) {
   final settingsState = context.read<SettingsBloc>().state;
   final result = lookupTool(
     pluginId,
@@ -83,8 +84,12 @@ String? openPluginToolInstanceById(BuildContext context, String pluginId) {
   final ToolTab tab;
   switch (result) {
     case ToolAvailable(:final entry):
-      tab = newToolTabInstance(entry);
+      if (entry.plugin?.manifest.allowMultipleInstances != true) return null;
+      tab = cloneOf == null
+          ? newToolTabInstance(entry)
+          : cloneOf.clone(allowMultipleInstances: true) as ToolTab;
     case ToolUnavailable(reason: ToolUnavailableReason.loading):
+      if (cloneOf != null) return null;
       tab = ToolTab(
         toolId: pluginId,
         title: ToolTab.fallbackTitleFor(pluginId),
@@ -95,6 +100,10 @@ String? openPluginToolInstanceById(BuildContext context, String pluginId) {
       return null;
   }
   final tabsBloc = context.read<TabsBloc>();
+  if (cloneOf != null && !tabsBloc.state.tabs.contains(cloneOf)) {
+    tab.dispose();
+    return null;
+  }
   final reserved = _reservedInstanceIds(tabsBloc, pluginId);
   reserved.removeAll(_toolInstanceIds(tabsBloc.state.tabs));
   if (!hasRoomForPluginInstance(
@@ -111,7 +120,7 @@ String? openPluginToolInstanceById(BuildContext context, String pluginId) {
     );
     return null;
   }
-  final instanceId = _dispatchInstanceTab(context, tab);
+  final instanceId = _dispatchInstanceTab(context, tab, adjacentTo: cloneOf);
   reserved.add(instanceId);
   unawaited(
     tabsBloc.stream
@@ -139,18 +148,23 @@ Set<String> _toolInstanceIds(Iterable<OpenedTab> tabs) => {
   for (final tab in tabs.expand(leafPanes).whereType<ToolTab>()) tab.instanceId,
 };
 
-/// פותח מופע נוסף של הכלי בטאב חדש גם כשכבר פתוח טאב שלו, ומחזיר את מזהה
-/// המופע שנפתח.
-///
-/// הקורא כיום: [openPluginToolInstanceById] (`plugin.openSelf` עם `newTab`).
-/// נקודת כניסה אפשרית נוספת: Ctrl+לחיצה / "פתח בטאב חדש".
+/// פותח מופע נוסף של הכלי ומחזיר את מזהה המופע שנפתח.
 String openNewToolTabInstance(BuildContext context, ToolCatalogEntry entry) =>
     _dispatchInstanceTab(context, newToolTabInstance(entry));
 
-String _dispatchInstanceTab(BuildContext context, ToolTab tab) {
-  // המופע החדש נפתח מתוך התוסף, ולכן הוא נכנס מיד אחרי הטאב הנוכחי ולא בסוף
-  // השורה.
-  context.read<TabsBloc>().add(OpenOrFocusTab(tab, insertAdjacent: true));
+String _dispatchInstanceTab(
+  BuildContext context,
+  ToolTab tab, {
+  ToolTab? adjacentTo,
+}) {
+  final tabsBloc = context.read<TabsBloc>();
+  if (adjacentTo == null) {
+    tabsBloc.add(OpenOrFocusTab(tab, insertAdjacent: true));
+  } else {
+    tabsBloc.add(
+      AddTab(tab, index: tabsBloc.state.tabs.indexOf(adjacentTo) + 1),
+    );
+  }
   context.read<NavigationBloc>().add(
     const NavigateToScreen(Screen.reading),
   );
