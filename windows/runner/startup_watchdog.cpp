@@ -27,8 +27,13 @@ constexpr DWORD kCaptureIntervalMs = 5000;
 constexpr int kMaxCaptures = 6;
 constexpr DWORD kHeartbeatIntervalMs = 250;
 constexpr ULONGLONG kMaxLifetimeMs = 300000;
-constexpr int kMaxFrames = 48;
-constexpr size_t kMaxStackCopyBytes = 256 * 1024;
+// מגבלת הפרישה. בדוח נכתבים רק הראש, שממנו נגזרת החתימה (error_log_blocks.dart),
+// והתחתית, שבה מי שהתחיל את העבודה.
+constexpr size_t kMaxFrames = 8192;
+constexpr size_t kTopFrames = 48;
+constexpr size_t kBottomFrames = 32;
+// כל מחסנית ה-thread הראשי (1MB, ברירת המחדל של ה-linker); מועתק רק החלק שבשימוש.
+constexpr size_t kMaxStackCopyBytes = 1024 * 1024;
 // אפסים אחרי העותק: פרישת המסגרת האחרונה קוראת מעבר לקצהו.
 constexpr size_t kStackCopyPaddingBytes = 64 * 1024;
 
@@ -340,7 +345,7 @@ bool UnwindFrame(CONTEXT* context, bool* has_function) {
 // רצה רק אחרי שה-thread חודש.
 void UnwindCopiedStack(CONTEXT* context, ULONG_PTR stack_begin,
                        ULONG_PTR stack_end, std::vector<ULONG_PTR>* frames) {
-  for (int i = 0; i < kMaxFrames; ++i) {
+  while (frames->size() < kMaxFrames) {
     const ULONG_PTR pc = static_cast<ULONG_PTR>(WD_PC(*context));
     if (pc == 0) break;
     frames->push_back(pc);
@@ -511,7 +516,19 @@ void AppendStackSection(const std::vector<ULONG_PTR>& frames,
     return;
   }
   *report += "Stack (module+RVA):\n";
-  for (const ULONG_PTR frame : frames) {
+  const size_t count = frames.size();
+  const size_t omitted = count > kTopFrames + kBottomFrames
+                             ? count - kTopFrames - kBottomFrames
+                             : 0;
+  for (size_t i = 0; i < count; ++i) {
+    if (omitted != 0 && i == kTopFrames) {
+      char marker[96];
+      snprintf(marker, sizeof(marker), "  ... (%zu frames omitted%s) ...\n",
+               omitted, count >= kMaxFrames ? ", unwind limit reached" : "");
+      *report += marker;
+      i += omitted;
+    }
+    const ULONG_PTR frame = frames[i];
     *report += "  " + DescribeAddress(frame) + "\n";
   }
 }

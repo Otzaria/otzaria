@@ -129,4 +129,25 @@ void main() {
       ],
     );
   });
+
+  test('שורת ההשמטה נשארת כמו שהיא, ופריימי התחתית מקבלים שמות', () {
+    final symbols = DartSymbols.parse(debugElf());
+    final output = symbolizeHangReport(
+      '=== App hang 2026-10-30T00:03:14Z ===\n'
+      'Dart build-id: deadbeef\n'
+      'Stack (module+RVA):\n'
+      '  app.so+0x204f\n'
+      '  ... (1234 frames omitted) ...\n'
+      '  app.so+0x10c4\n',
+      symbols,
+    );
+    expect(const LineSplitter().convert(output), [
+      '=== App hang 2026-10-30T00:03:14Z ===',
+      'Dart build-id: deadbeef',
+      'Stack (module+RVA):',
+      '  app.so+0x204f  _InactiveElements._unmount+0x4f',
+      '  ... (1234 frames omitted) ...',
+      '  app.so+0x10c4  WidgetsBinding.drawFrame+0xc4',
+    ]);
+  });
 }
