@@ -91,4 +91,64 @@ void main() {
     expect(b.hash, a.hash);
     expect(a.frames.first, startsWith('app.so+0x1922320 '));
   });
+
+  group('מחסנית עמוקה: ראש, שורת השמטה ותחתית', () {
+    String record(List<String> frames) =>
+        '=== App hang 2026-10-30T02:00:00Z ===\n'
+        'Message: AppHang: UI thread not responding\n'
+        'Stack (module+RVA):\n'
+        '${frames.map((f) => '  $f').join('\n')}\n';
+    ErrorLogBlock block(List<String> frames) =>
+        parseErrorLogBlocks(record(frames)).single;
+
+    // רקורסיית performRebuild/update כמו ב-#3684, ותחתית עם כניסת המנוע.
+    final rebuildTop = [
+      'app.so+0x1b00010',
+      for (var i = 0; i < 47; i++)
+        'app.so+0x${(0x1a00000 + (i % 6) * 0x40).toRadixString(16)}',
+    ];
+    final bottom = [
+      for (var i = 0; i < 20; i++)
+        'app.so+0x${(0x1c00000 + i * 0x10).toRadixString(16)}',
+      for (var i = 0; i < 10; i++)
+        'flutter_windows.dll+0x${(0x7fa800 + i).toRadixString(16)}',
+      'USER32.dll+0x152e6',
+      'otzaria.exe+0x13144',
+    ];
+    const marker = '... (1234 frames omitted) ...';
+
+    test('החתימה זהה לרשומה ישנה שנחתכה ב-48 פריימים', () {
+      final old = block(rebuildTop);
+      final deep = block([...rebuildTop, marker, ...bottom]);
+      expect(deep.signature.hash, old.signature.hash);
+      expect(deep.signature.frames.join(' '), isNot(contains('0x1c0')));
+      expect(deep.stackText, contains(marker));
+      expect(deep.stackText, contains('otzaria.exe+0x13144'));
+    });
+
+    test('ראש נייטיב בלי Dart: פריימי Dart בתחתית אינם משנים את החתימה', () {
+      final nativeTop = [
+        'ntdll.dll+0x164784',
+        for (var i = 0; i < 47; i++)
+          'flutter_windows.dll+0x${(0x100000 + i).toRadixString(16)}',
+      ];
+      final deep = block([...nativeTop, marker, ...bottom]);
+      expect(deep.signature.hash, block(nativeTop).signature.hash);
+      expect(deep.signature.frames.join(' '), isNot(contains('app.so')));
+    });
+
+    test('מחסנית בלי השמטה, ארוכה מ-48: החתימה רק מ-48 העליונים', () {
+      final longer = [...rebuildTop, ...bottom.take(20)];
+      expect(block(longer).signature.hash, block(rebuildTop).signature.hash);
+    });
+
+    test('שורת ההשמטה אינה פריים בחתימה הכללית', () {
+      expect(CrashSignature.normalizeFrame('  $marker'), isNull);
+      const atLimit = '... (8112 frames omitted, unwind limit reached) ...';
+      expect(
+        block([...rebuildTop, atLimit, ...bottom]).signature.hash,
+        block(rebuildTop).signature.hash,
+      );
+    });
+  });
 }
