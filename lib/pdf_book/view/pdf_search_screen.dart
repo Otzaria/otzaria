@@ -227,13 +227,19 @@ class PdfBookSearchView extends StatefulWidget {
   /// תקרת מונחים ייחודיים לתבנית ההדגשה, כדי שהרגקס לא יתנפח.
   static const int _maxHighlightTerms = 50;
 
-  /// בונה תבנית הדגשה אחת מהמונחים שהמנוע סימן כהתאמות ב-[resultHtmls]
-  /// (עד [_maxHighlightTerms] מונחים). מחזיר null כשאין מונחים.
+  /// בונה תבנית הדגשה אחת מההתאמות שב-[resultHtmls] (עד [_maxHighlightTerms]
+  /// מונחים): כל התאמה של [query] לפי [settings] נכנסת כרצף אחד, מהמילה
+  /// הראשונה עד האחרונה. בקטע שאין בו התאמה כזו נכנסים המונחים שהמנוע סימן.
+  /// מחזיר null כשאין מונחים.
   @visibleForTesting
-  static RegExp? buildAdvancedHighlightPattern(Iterable<String> resultHtmls) {
+  static RegExp? buildAdvancedHighlightPattern(
+    Iterable<String> resultHtmls, {
+    String query = '',
+    InBookSearchSettings settings = const InBookSearchSettings(),
+  }) {
     final terms = <String>{};
     for (final html in resultHtmls) {
-      terms.addAll(SnippetBuilder.extractHighlightedTerms(html));
+      terms.addAll(_matchedSpans(html, query, settings));
       if (terms.length >= _maxHighlightTerms) break;
     }
 
@@ -244,6 +250,29 @@ class PdfBookSearchView extends StatefulWidget {
     }
     if (sources.isEmpty) return null;
     return RegExp(sources.join('|'), caseSensitive: false, unicode: true);
+  }
+
+  /// הרצפים שבהם [query] מתאים ל-[html], באותו מתאם של קטעי הספר הטקסטואלי.
+  static Iterable<String> _matchedSpans(
+    String html,
+    String query,
+    InBookSearchSettings settings,
+  ) {
+    if (query.isEmpty) return SnippetBuilder.extractHighlightedTerms(html);
+    final plain = SnippetBuilder.htmlToPlainText(html);
+    final spans = utils.computeHighlightSpans(
+      plain,
+      query,
+      searchOptions: settings.searchOptions,
+      alternativeWords: settings.alternativeWords,
+      spacingValues: settings.spacingValues,
+      isFuzzy: settings.searchMode == SearchMode.fuzzy,
+      searchDistance: settings.distance,
+      matchPolicy: settings.matchPolicy,
+      isSearchResultLine: true,
+    );
+    if (spans.isEmpty) return SnippetBuilder.extractHighlightedTerms(html);
+    return [for (final span in spans) plain.substring(span[0], span[1])];
   }
 
   /// התבנית של החיפוש הפשוט. עם [reversed] היא נבנית על סדר המילים ההפוך —
@@ -387,9 +416,11 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   }
 
   /// מדגיש על העמוד את מה שהמנוע מצא בפועל (כולל fuzzy/מילים חלופיות).
-  void _updateAdvancedHighlight(List<SearchResult> results) {
+  void _updateAdvancedHighlight(List<SearchResult> results, String query) {
     final pattern = PdfBookSearchView.buildAdvancedHighlightPattern(
       results.map((r) => r.text),
+      query: query,
+      settings: _settings,
     );
     _lastAdvancedHighlightPattern = pattern;
     _schedulePdfHighlight(pattern);
@@ -932,7 +963,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
           );
         }
       });
-      _updateAdvancedHighlight(results);
+      _updateAdvancedHighlight(results, query);
       _scheduleScrollToCurrentPage();
     } catch (e, st) {
       debugPrint('[PdfSearch] search failed for "$query": $e\n$st');
@@ -942,7 +973,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
         _isSearching = false;
         _searchErrorMessage = LibraryMessages.searchError;
       });
-      _updateAdvancedHighlight(const []);
+      _updateAdvancedHighlight(const [], query);
       UiSnack.showError(LibraryMessages.searchError);
     }
   }

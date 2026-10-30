@@ -12,6 +12,8 @@ import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
+import 'package:otzaria/search/in_book_search_settings.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -281,6 +283,61 @@ Future<void> main() async {
         expect(pattern.hasMatch(_term(0)), isTrue);
         expect(pattern.hasMatch(_term(49)), isTrue);
         expect(pattern.hasMatch(_term(59)), isFalse);
+      });
+
+      group('חיפוש במרווח מדגיש את רצף ההתאמה בלבד (#3690)', () {
+        const query = 'ממון לו תובעין';
+        const html =
+            '<font>ממון</font> שאין <font>לו</font> <font>תובעין</font>';
+        const page = 'לו כאן ממון שאין לו תובעין ושוב תובעין';
+
+        RegExp build({bool anyOrder = false, String snippet = html}) =>
+            PdfBookSearchView.buildAdvancedHighlightPattern(
+              [snippet],
+              query: query,
+              settings: InBookSearchSettings(
+                searchMode: SearchMode.advanced,
+                distance: 2,
+                matchPolicy: SearchMatchPolicy(anyOrder: anyOrder),
+              ).forQuery(query),
+            )!;
+
+        test('התאמה אחת שמכסה את הרצף, בלי המילים הבודדות', () {
+          final pattern = build();
+          final matches = pattern.allMatches(page).toList();
+
+          expect(matches, hasLength(1));
+          expect(matches.single.group(0), 'ממון שאין לו תובעין');
+          expect(pattern.hasMatch('לו'), isFalse);
+          expect(pattern.hasMatch('תובעין'), isFalse);
+        });
+
+        test('הרצף נמצא גם כשבשכבת הטקסט יש ירידת שורה בין המילים', () {
+          final pattern = build();
+
+          expect(pattern.hasMatch('ממון שאין\nלו  תובעין'), isTrue);
+        });
+
+        test('סדר הפוך מודגש כרצף רק כשבחרו "בכל סדר"', () {
+          const reversedHtml =
+              '<font>תובעין</font> <font>לו</font> שאין <font>ממון</font>';
+          const reversedPage = 'כאן תובעין לו שאין ממון כאן';
+          bool coversSpan(RegExp pattern) => pattern
+              .allMatches(reversedPage)
+              .any((m) => m.group(0) == 'תובעין לו שאין ממון');
+
+          expect(
+            coversSpan(build(anyOrder: true, snippet: reversedHtml)),
+            isTrue,
+          );
+          expect(coversSpan(build(snippet: reversedHtml)), isFalse);
+        });
+
+        test('קטע בלי התאמה לשאילתה נשאר במונחים שהמנוע סימן', () {
+          final pattern = build(snippet: 'א <font>שבתות</font> ב');
+
+          expect(pattern.hasMatch('שתי שבתות'), isTrue);
+        });
       });
     }, skip: engineReady ? false : searchEngineSkipReason);
   });
