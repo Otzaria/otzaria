@@ -688,14 +688,24 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
   /// מטפל בגיבויים יתומים מריצות שנהרגו (השם הקבוע וגם שמות ישנים עם
   /// timestamp): אם בספרייה [dir] אין seforim.db — מחזיר אותו מהגיבוי שבו
   /// הקובץ החדש ביותר; כל שאר הגיבויים נמחקים. נקרא בעלייה ולפני כל גיבוי חדש.
-  static Future<void> recoverOrphanedDbBackup(String dir) async {
+  ///
+  /// [onlyIfDbMissing] — לעלייה: כש-seforim.db קיים נמחק רק הגיבוי בשם הקבוע,
+  /// בלי לסרוק את כל תיקיית ה-temp; שמות ישנים נמחקים לפני הגיבוי הבא.
+  static Future<void> recoverOrphanedDbBackup(
+    String dir, {
+    bool onlyIfDbMissing = false,
+  }) async {
     final dbName = DatabaseConstants.databaseFileName;
     // כתיבה שנהרגה באמצע משאירה `.new` בגודל ה-DB המלא; אין ממנו המשך,
     // וכך גם תיקיית הביניים של ייבוא שנקטע.
     await _deleteDbFamily(_dbTempPathFor(path.join(dir, dbName)));
     await _deleteEntity(stagingDirFor(dir));
-    // list ולא listSync: הפונקציה רצה בעלייה לפני הפריים הראשון, וסריקה
-    // סינכרונית של כל תיקיית ה-temp (אלפי פריטים) חוסמת את ה-isolate הראשי.
+    final dbMissing = !await File(path.join(dir, dbName)).exists();
+    if (onlyIfDbMissing && !dbMissing) {
+      await _deleteEntity(dbBackupDirPath);
+      return;
+    }
+    // list ולא listSync: סריקת temp (אלפי פריטים) חוסמת את ה-isolate הראשי.
     final backups = await Directory(_tempRoot)
         .list()
         .where((e) => e is Directory)
@@ -704,7 +714,7 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
         .toList();
     if (backups.isEmpty) return;
     Directory? newest;
-    if (!await File(path.join(dir, dbName)).exists()) {
+    if (dbMissing) {
       DateTime? newestTime;
       for (final backup in backups) {
         final db = File(path.join(backup.path, dbName));
