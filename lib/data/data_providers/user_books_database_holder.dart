@@ -37,7 +37,8 @@ class UserBooksDatabaseHolder {
     // פתיחה בזמן המיזוג ברקע הייתה מחזיקה את הקובץ אחרי שהסגירה הסתיימה.
     final closing = _closeFuture;
     if (_releasing && closing != null) {
-      return closing.then((_) => _openRepository());
+      // מאפשר להמשכי close להחליף את הקובץ סינכרונית, לפני פתיחה חוזרת.
+      return closing.then((_) => Future(_openRepository));
     }
     return _initFuture ??= _initialize().onError<Object>((error, stackTrace) {
       _initFuture = null;
@@ -120,7 +121,7 @@ class UserBooksDatabaseHolder {
     if (database == null) return;
     _releasing = true;
     try {
-      await database.closeInBackground();
+      await database.retireInBackground();
     } finally {
       _releasing = false;
     }

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
+import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:path/path.dart' as path;
 import 'package:sqlite3/sqlite3.dart';
@@ -176,6 +177,88 @@ void main() {
       expect(!wal.existsSync() || wal.lengthSync() == 0, isTrue);
       expect(timerDelay, lessThan(const Duration(seconds: 2)));
       await reopening;
+    });
+
+    test('מאגר ישן אינו פותח את הקובץ במהלך הסגירה או אחריה', () async {
+      final holder = UserBooksDatabaseHolder.instance;
+      final repo = await holder.repository;
+      final db = await repo.database.database;
+      db.execute('CREATE TABLE stale_repository_probe(x INTEGER)');
+      db.execute('INSERT INTO stale_repository_probe VALUES (1)');
+      final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
+      final writer = sqlite3.open(dbPath)..execute('BEGIN IMMEDIATE');
+      var closed = false;
+      final closing = holder.close().then((_) => closed = true);
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(closed, isFalse);
+        await expectLater(repo.getAllBooks(), throwsStateError);
+      } finally {
+        writer.execute('ROLLBACK');
+        writer.close();
+        await closing;
+      }
+      expect(repo.database.isOpen, isFalse);
+      await expectLater(repo.getAllBooks(), throwsStateError);
+      expect(holder.openDbPath, isNull);
+      expect(identical(await holder.repository, repo), isFalse);
+    });
+
+    test('שחרור לצמיתות מבטל גם פתיחה שממתינה לטעינת שאילתות', () async {
+      final database = MyDatabase.withPath(
+        path.join(tempDir.path, 'pending-open.db'),
+      );
+      addTearDown(database.close);
+      final opening = database.database;
+      final failed = expectLater(opening, throwsStateError);
+      await database.retireInBackground();
+      await failed;
+      expect(database.isOpen, isFalse);
+      expect(File(database.path).existsSync(), isFalse);
+    });
+
+    test('פתיחה שממתינה לסגירה קוראת את הקובץ שהוחלף מיד אחריה', () async {
+      final holder = UserBooksDatabaseHolder.instance;
+      final repo = await holder.repository;
+      final db = await repo.database.database;
+      db.execute('CREATE TABLE replacement_probe(value TEXT)');
+      db.execute("INSERT INTO replacement_probe VALUES ('old')");
+      final dbPath = await UserBooksDatabaseHolder.resolveDbPath();
+      final staged = File('$dbPath.restore');
+      final replacement = sqlite3.open(staged.path);
+      replacement.execute('CREATE TABLE replacement_probe(value TEXT)');
+      replacement.execute("INSERT INTO replacement_probe VALUES ('new')");
+      replacement.close();
+      final writer = sqlite3.open(dbPath)..execute('BEGIN IMMEDIATE');
+      var writerOpen = true;
+      final closing = holder.close();
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        // נרשם לפני await closing, כמו קורא שמגיע במהלך השחזור.
+        final reopening = holder.repository;
+        writer.execute('ROLLBACK');
+        writer.close();
+        writerOpen = false;
+        await closing;
+        expect(holder.openDbPath, isNull);
+        // בדיוק כמו השחזור: אין await בין הסגירה להחלפה.
+        for (final suffix in const ['-wal', '-shm']) {
+          final sidecar = File('$dbPath$suffix');
+          if (sidecar.existsSync()) sidecar.deleteSync();
+        }
+        staged.renameSync(dbPath);
+        final reopened = await reopening;
+        final reopenedDb = await reopened.database.database;
+        expect(
+          reopenedDb
+              .select('SELECT value FROM replacement_probe')
+              .single['value'],
+          'new',
+        );
+      } finally {
+        if (writerOpen) writer.close();
+        await closing;
+      }
     });
 
     test(

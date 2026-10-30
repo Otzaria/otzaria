@@ -105,6 +105,7 @@ class MyDatabase {
     if (_retired) throw StateError('Database $_path was released');
     // Initialize QueryLoader before creating DAOs
     await QueryLoader.initialize();
+    if (_retired) throw StateError('Database $_path was released');
     _database = _initDatabase();
     return _database!;
   }
@@ -331,6 +332,12 @@ class MyDatabase {
   void retire() {
     close();
     _retired = true;
+  }
+
+  /// משחרר לצמיתות כמו [retire], עם מיזוג WAL ברקע.
+  Future<void> retireInBackground() {
+    _retired = true;
+    return closeInBackground();
   }
 
   /// ראה [shrinkMemoryBestEffort]; לא פותח חיבור סגור.
