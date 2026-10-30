@@ -5,6 +5,8 @@ import 'package:otzaria/search/in_book_search_settings.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
+import 'package:otzaria/utils/text/text_manipulation.dart'
+    show computeHighlightRanges;
 
 import '../../support/search_engine_test_init.dart';
 
@@ -65,6 +67,37 @@ Future<void> main() async {
       ))!.results;
       expect(results.map((r) => r.index), [5]);
       expect(results.single.address.trim(), 'פרק ב');
+    });
+
+    test('הדגשת הקטע מחושבת על השורה המלאה: ^ אינו תחילת הקטע', () async {
+      final line = 'ויאמר משה אל אהרן ${'דבר ' * 60}ויאמר ${'לו ' * 28}אהרן';
+      const query = '/^ויאמר|אהרן/';
+      final last = (await searchUserRegexInContent(
+        content: [line],
+        query: query,
+        matcher: UserRegexQuery.matcher(query)!,
+      ))!.results.last;
+      expect(last.snippet, startsWith('ויאמר לו'));
+      List<String> words(String text, List<List<int>>? ranges) => [
+        for (final r in ranges!) text.substring(r[0], r[1]),
+      ];
+      // בקטע החתוך ^ נופל על תחילת הקטע ומדגיש ויאמר שאינו בתחילת השורה.
+      expect(
+        words(last.snippet, computeHighlightRanges(last.snippet, query)),
+        contains('ויאמר'),
+      );
+      for (final display in [null, (String t) => t.replaceAll('דבר', 'ד')]) {
+        final shown = display?.call(last.snippet) ?? last.snippet;
+        final ranges = snippetHighlightRangesInLine(
+          line: line,
+          snippet: last.snippet,
+          matchOffset: last.matchOffset!,
+          query: query,
+          display: display,
+        );
+        expect(words(shown, ranges), ['אהרן']);
+        expect(ranges!.single.last, shown.length);
+      }
     });
 
     test('חיפוש שהוחלף מחזיר null', () async {

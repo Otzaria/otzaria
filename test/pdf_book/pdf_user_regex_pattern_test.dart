@@ -52,6 +52,24 @@ Future<void> main() async {
       }
     });
 
+    test('^ ו-\$ מעוגנים לשורת הטקסט, לא לעמוד', () {
+      const text = 'ויאמר משה\nויאמר אהרן\r\nאמר משה';
+      List<String?> found(String raw, [int start = 0]) =>
+          PdfUserRegexPattern.tryParse(
+            raw,
+          )!.allMatches(text, start).map((m) => m.group(0)).toList();
+      expect(found('/^ויאמר/'), ['ויאמר', 'ויאמר']);
+      expect(found(r'/משה$/'), ['משה', 'משה']);
+      expect(found(r'/^ויאמר \S+$/'), ['ויאמר משה', 'ויאמר אהרן']);
+      // היסט באמצע שורה אינו תחילת שורה.
+      expect(found('/^משה/', 6), isEmpty);
+      expect(found('/^ויאמר/', 6), ['ויאמר']);
+      expect(
+        PdfUserRegexPattern.tryParse('/^ויאמר/')!.matchAsPrefix(text, 10),
+        isNotNull,
+      );
+    });
+
     test('מילה: מילים שלמות בלבד', () {
       final pattern = PdfUserRegexPattern.tryParse('/מ.ה/')!;
       expect(
