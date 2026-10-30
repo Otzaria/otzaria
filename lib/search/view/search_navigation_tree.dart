@@ -1,5 +1,4 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
@@ -97,14 +96,14 @@ class SearchNavigationTree extends StatelessWidget {
   static bool _leadsToSelection(String path, List<String> selectedPaths) =>
       selectedPaths.any((facet) => facet.startsWith('$path/'));
 
-  /// שורות שנשארות גלויות בספירה 0. כשהסינון הוא ההיקף כולו (@) אין כאלה —
-  /// אחרת כל ספרי ההיקף מוצגים גם בלי תוצאות.
+  /// שורות שנשארות גלויות בספירה 0. חברי היקף (@) אינם נשמרים — אחרת כל ספרי
+  /// ההיקף מוצגים גם בלי תוצאות — מלבד פריט יחיד שנבחר ידנית.
   List<String> _pinnedPaths(List<String> selectedPaths) {
     final scope = FacetHelper.categoryFacetsOf(scopeFacets).toSet();
-    final selected = FacetHelper.categoryFacetsOf(selectedFacets).toSet();
-    final isWholeScope =
-        scope.isNotEmpty && !scope.contains('/') && setEquals(scope, selected);
-    return isWholeScope ? const [] : selectedPaths;
+    if (scope.isEmpty || scope.contains('/') || selectedPaths.length == 1) {
+      return selectedPaths;
+    }
+    return selectedPaths.where((path) => !scope.contains(path)).toList();
   }
 
   static bool _isPinned(String path, List<String> pinnedPaths) =>

@@ -739,7 +739,7 @@ void main() {
       expect(find.text('תנ"ך'), findsOneWidget);
     });
 
-    Library twoBooksLibrary() => makeLibraryFrom([
+    Library ketuvimLibrary() => makeLibraryFrom([
       makeCategory(
         'תנ"ך',
         subCategories: [
@@ -748,6 +748,7 @@ void main() {
             books: [
               makeBook(7, 'תהילים', '/תנ"ך/כתובים'),
               makeBook(8, 'משלי', '/תנ"ך/כתובים'),
+              makeBook(9, 'איוב', '/תנ"ך/כתובים'),
             ],
           ),
         ],
@@ -755,7 +756,7 @@ void main() {
       makeCategory('משנה'),
     ]);
 
-    const twoBooksCounts = {
+    const ketuvimCounts = {
       '/': 5,
       '/תנ"ך': 5,
       '/תנ"ך/כתובים': 5,
@@ -768,8 +769,8 @@ void main() {
       const scope = {'/תנ"ך/כתובים/id:7', '/תנ"ך/כתובים/id:8', '/משנה'};
       await pumpTree(
         tester,
-        library: twoBooksLibrary(),
-        facetCounts: twoBooksCounts,
+        library: ketuvimLibrary(),
+        facetCounts: ketuvimCounts,
         selectedFacets: scope,
         scopeFacets: scope,
       );
@@ -782,13 +783,57 @@ void main() {
     testWidgets('ספר שנבחר בתוך היקף מ-@ נשאר גלוי בספירה 0', (tester) async {
       await pumpTree(
         tester,
-        library: twoBooksLibrary(),
-        facetCounts: twoBooksCounts,
+        library: ketuvimLibrary(),
+        facetCounts: ketuvimCounts,
         selectedFacets: {'/תנ"ך/כתובים/id:8'},
         scopeFacets: const {'/תנ"ך/כתובים/id:7', '/תנ"ך/כתובים/id:8'},
       );
 
       expect(find.text('משלי'), findsOneWidget);
+    });
+
+    const ketuvimScope = {
+      '/תנ"ך/כתובים/id:7',
+      '/תנ"ך/כתובים/id:8',
+      '/תנ"ך/כתובים/id:9',
+      '/משנה',
+    };
+
+    testWidgets('לחיצה על תיקייה בהיקף מ-@ אינה מציגה ספרים בספירה 0', (
+      tester,
+    ) async {
+      // SetFacet על תיקייה מחזיר את ספרי ההיקף שבה, לא את התיקייה עצמה.
+      await pumpTree(
+        tester,
+        library: ketuvimLibrary(),
+        facetCounts: ketuvimCounts,
+        selectedFacets: {'/תנ"ך/כתובים/id:7', '/תנ"ך/כתובים/id:9'},
+        scopeFacets: ketuvimScope,
+      );
+
+      expect(find.text('תהילים'), findsOneWidget);
+      expect(find.text('איוב'), findsNothing);
+      expect(find.text('משלי'), findsNothing);
+    });
+
+    testWidgets('ביטול ספר מהיקף מ-@ ב-Ctrl אינו מציג ספרים בספירה 0', (
+      tester,
+    ) async {
+      await pumpTree(
+        tester,
+        library: ketuvimLibrary(),
+        facetCounts: ketuvimCounts,
+        selectedFacets: {
+          '/תנ"ך/כתובים/id:7',
+          '/תנ"ך/כתובים/id:8',
+          '/משנה',
+        },
+        scopeFacets: ketuvimScope,
+      );
+
+      expect(find.text('תהילים'), findsOneWidget);
+      expect(find.text('משלי'), findsNothing);
+      expect(find.text('משנה'), findsNothing);
     });
 
     testWidgets('בחירת ספר מציגה "נקה סינון" בכותרת השורש', (tester) async {
