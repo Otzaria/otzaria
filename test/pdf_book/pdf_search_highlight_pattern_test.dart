@@ -83,7 +83,16 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
   List<PdfTextSearchResult> get matches => fakeMatches;
 
   @override
-  bool get isSearching => false;
+  bool get isSearching => scanning;
+
+  /// הסריקה עדיין רצה; הטסט מסיים אותה ב-[finishPageScan].
+  bool scanning = false;
+
+  void finishPageScan(List<(int, int)> ranges) {
+    setPageMatches(ranges);
+    scanning = false;
+    notifyListeners();
+  }
 
   @override
   void startTextSearch(
@@ -566,6 +575,59 @@ Future<void> main() async {
       await tester.tap(find.byType(SearchResultTile).last);
       await _settleWithoutTime(tester);
       expect(searcher.navigatedTo, [1, 0]);
+    });
+
+    group('לחיצה שממתינה לסריקת העמוד', () {
+      const page = 'ממון שאין לו תובעין והיה ממון לו תובעין';
+      const near = 'ממון לו תובעין';
+      final ranges = [
+        (0, 'ממון שאין לו תובעין'.length),
+        (page.lastIndexOf(near), page.length),
+      ];
+
+      Future<_RecordingTextSearcher> pump(WidgetTester tester) async {
+        final searcher = await _pumpSearchView(
+          tester,
+          pageFullText: page,
+          initialQuery: near,
+          initialSearchMode: SearchMode.advanced,
+          searchRepository: const _PageResultsRepository([
+            'והיה <font>ממון</font> <font>לו</font> <font>תובעין</font>',
+            '<font>ממון</font> שאין <font>לו</font> <font>תובעין</font>',
+          ]),
+        );
+        searcher.scanning = true;
+        await _settleWithoutTime(tester);
+        return searcher;
+      }
+
+      testWidgets('שתי לחיצות מהירות — רק האחרונה מנווטת', (tester) async {
+        final searcher = await pump(tester);
+
+        await tester.tap(find.byType(SearchResultTile).first);
+        await _settleWithoutTime(tester);
+        await tester.tap(find.byType(SearchResultTile).last);
+        await _settleWithoutTime(tester);
+        searcher.finishPageScan(ranges);
+        await _settleWithoutTime(tester);
+
+        expect(searcher.navigatedTo, [0]);
+      });
+
+      testWidgets('שאילתה חדשה בזמן ההמתנה — הלחיצה הישנה לא מנווטת', (
+        tester,
+      ) async {
+        final searcher = await pump(tester);
+
+        await tester.tap(find.byType(SearchResultTile).first);
+        await _settleWithoutTime(tester);
+        await _search(tester, 'ממון תובעין');
+        await _settleWithoutTime(tester);
+        searcher.finishPageScan(ranges);
+        await _settleWithoutTime(tester);
+
+        expect(searcher.navigatedTo, isEmpty);
+      });
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
 

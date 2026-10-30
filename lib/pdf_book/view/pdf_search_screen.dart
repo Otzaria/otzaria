@@ -447,7 +447,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   }
 
   /// תוצאת מנוע: ההתאמה בעמוד שהטקסט שלה הוא הרצף של התוצאה.
-  Future<bool> _goToEngineResultMatch(SearchResult result, int pageNumber) {
+  Future<bool?> _goToEngineResultMatch(SearchResult result, int pageNumber) {
     _schedulePdfHighlight(
       _lastAdvancedHighlightPattern,
       startPageNumber: pageNumber,
@@ -507,30 +507,50 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   static String _normalizedSpan(String text) =>
       utils.removeVolwels(text).replaceAll(_nonWord, ' ').trim();
 
+  /// ההמתנה לסריקת עמוד של המעבר האחרון. מושלמת כשהמעבר כבר לא רלוונטי:
+  /// dispose של pdfrx מנקה מאזינים בלי להודיע, וההמתנה הייתה נתקעת.
+  Completer<void>? _pageScanWaiter;
+
+  void _cancelPageScanWait() {
+    final waiter = _pageScanWaiter;
+    _pageScanWaiter = null;
+    if (waiter != null && !waiter.isCompleted) waiter.complete();
+  }
+
   /// ממרכז את ההתאמה שבוחר [pick] מבין התאמות העמוד, אחרי שהעמוד נסרק.
-  /// false כשאין בו התאמה. עם [onlyIfShown] — רק אם הקורא עדיין בעמוד.
-  Future<bool> _goToMatchOnPage(
+  /// false כשאין בו התאמה, null כשמעבר או חיפוש חדש החליפו את המעבר הזה.
+  /// עם [onlyIfShown] — רק אם הקורא עדיין בעמוד.
+  Future<bool?> _goToMatchOnPage(
     int pageNumber,
     int Function(List<PdfTextSearchResult> pageMatches) pick, {
     bool onlyIfShown = false,
   }) async {
+    _cancelPageScanWait();
     final searcher = widget.textSearcher;
+    final generation = _searchGeneration;
     if (searcher.getMatchesRangeForPage(pageNumber) == null &&
         searcher.isSearching) {
-      final scanned = Completer<void>();
+      final waiter = _pageScanWaiter = Completer<void>();
       void onUpdate() {
         if (searcher.getMatchesRangeForPage(pageNumber) != null ||
             !searcher.isSearching) {
-          if (!scanned.isCompleted) scanned.complete();
+          if (!waiter.isCompleted) waiter.complete();
         }
       }
 
       searcher.addListener(onUpdate);
-      await scanned.future;
+      await waiter.future;
       searcher.removeListener(onUpdate);
+      if (!identical(waiter, _pageScanWaiter)) return null;
+      _pageScanWaiter = null;
+    }
+    if (!mounted ||
+        generation != _searchGeneration ||
+        !identical(searcher, widget.textSearcher)) {
+      return null;
     }
     final range = searcher.getMatchesRangeForPage(pageNumber);
-    if (!mounted || range == null || range.end <= range.start) return false;
+    if (range == null || range.end <= range.start) return false;
     if (onlyIfShown) {
       final state = context.read<PdfBookBloc>().state;
       if (state is! PdfBookLoaded || _currentPage(state) != pageNumber) {
@@ -600,6 +620,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     oldWidget.textSearcher.removeListener(_onTextSearcherMatchesChanged);
     widget.textSearcher.addListener(_onTextSearcherMatchesChanged);
     _searchGeneration++;
+    _cancelPageScanWait();
     _lastPdfHighlightSource = '';
     _lastAdvancedHighlightPattern = null;
     _mappedMatches = const [];
@@ -898,6 +919,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       _onIncomingSearchConfiguration,
     );
     widget.textSearcher.removeListener(_onTextSearcherMatchesChanged);
+    _cancelPageScanWait();
     super.dispose();
   }
 
@@ -953,6 +975,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     // כל שינוי בשאילתה/במצב החיפוש מבטל תוצאות אסינכרוניות ישנות. בלי מזהה
     // דור, חיפוש איטי קודם יכול להסתיים אחרי החדש ולדרוס תוצאות והדגשות.
     final generation = ++_searchGeneration;
+    _cancelPageScanWait();
     _resultsTruncated = false;
     // הדגל שייך לדור הקודם: כל מסלול יוצא מכאן בסדר השאילתה, והנסיגה
     // תדליק אותו מחדש אם תרוץ.
@@ -1194,24 +1217,31 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
                           pageNumber) {
                     // גלילה למקום ההתאמה בעמוד וסימונה כהתאמה הנוכחית.
                     await widget.textSearcher.goToMatchOfIndex(matchIndex);
-                  } else if ((_isSimpleSearch ||
-                          !await _goToEngineResultMatch(result, pageNumber)) &&
-                      controller != null &&
-                      controller.isReady &&
-                      controller.layout.pageLayouts.isNotEmpty) {
-                    final layout = controller.layout;
-                    final safePage = pageNumber.clamp(
-                      1,
-                      layout.pageLayouts.length,
-                    );
-                    final page = layout.pageLayouts[safePage - 1];
-                    final halfViewHeight =
-                        controller.viewSize.height / 2 / controller.value.zoom;
-                    await controller.goTo(
-                      controller.calcMatrixFor(
-                        page.topCenter.translate(0, halfViewHeight),
-                      ),
-                    );
+                  } else {
+                    final navigated = _isSimpleSearch
+                        ? false
+                        : await _goToEngineResultMatch(result, pageNumber);
+                    if (navigated == null) return;
+                    if (!navigated &&
+                        controller != null &&
+                        controller.isReady &&
+                        controller.layout.pageLayouts.isNotEmpty) {
+                      final layout = controller.layout;
+                      final safePage = pageNumber.clamp(
+                        1,
+                        layout.pageLayouts.length,
+                      );
+                      final page = layout.pageLayouts[safePage - 1];
+                      final halfViewHeight =
+                          controller.viewSize.height /
+                          2 /
+                          controller.value.zoom;
+                      await controller.goTo(
+                        controller.calcMatrixFor(
+                          page.topCenter.translate(0, halfViewHeight),
+                        ),
+                      );
+                    }
                   }
 
                   _schedulePdfHighlight(
