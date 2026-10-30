@@ -452,6 +452,29 @@ void main() {
       await tester.pumpAndSettle();
       expect(harness.repository.downloads, 1);
     });
+
+    testWidgets('נתונים שאינם תואמים — כפתור "הורד מחדש" (#3689)', (
+      tester,
+    ) async {
+      final harness = await pumpDialog(
+        tester,
+        _availability(
+          SemanticAvailabilityPhase.failed,
+          failure: const SemanticFailure(
+            SemanticFailureKind.artifactIncompatible,
+            '',
+            'text.line_text_version',
+          ),
+        ),
+      );
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('semantic-status-retry')), findsNothing);
+      await tester.tap(find.text('הורד מחדש'));
+      await tester.pumpAndSettle();
+      expect(harness.repository.downloads, 1);
+    });
   });
 
   testWidgets('כשהכול מוכן — שליחה פותחת כרטיסיית תוצאות סמנטית', (
