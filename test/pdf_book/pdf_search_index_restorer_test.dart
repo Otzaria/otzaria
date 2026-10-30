@@ -2,14 +2,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_index_restorer.dart';
 
 void main() {
-  test('האינדקס השמור משוחזר כשההתאמה שלו כבר נמצאה — ופעם אחת בלבד', () {
+  test('האינדקס השמור משוחזר בסיום הסריקה — ופעם אחת בלבד', () {
     final restorer = PdfSearchIndexRestorer(4);
     expect(
       restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 2),
       isNull,
     );
+    // הסריקה גולשת: התאמות מתחילת הספר עוד ייכנסו לפני האינדקס השמור.
     expect(
       restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 6),
+      isNull,
+    );
+    expect(
+      restorer.onSearcherUpdate(session: 7, isSearching: false, matchCount: 9),
       4,
     );
     expect(
@@ -48,7 +53,7 @@ void main() {
     restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 0);
     restorer.resetSession();
     expect(
-      restorer.onSearcherUpdate(session: 1, isSearching: true, matchCount: 3),
+      restorer.onSearcherUpdate(session: 1, isSearching: false, matchCount: 3),
       1,
     );
   });
