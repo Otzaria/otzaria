@@ -1201,12 +1201,11 @@ packages:
   otzaria_search_engine:
     dependency: "direct main"
     description:
-      path: "."
-      ref: fcd022633fab852de11555de004c1a84ec27221b
-      resolved-ref: fcd022633fab852de11555de004c1a84ec27221b
-      url: "https://github.com/palmoni5/otzaria_search_engine.git"
-    source: git
-    version: "6.0.0"
+      name: otzaria_search_engine
+      sha256: "00e3471230dc84ef766a4ba2a26edf9506127442178784696105bef2fec1e9c5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.0.0"
   package_config:
     dependency: transitive
     description:

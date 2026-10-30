@@ -250,8 +250,8 @@ Future<void> main() async {
         await repository.searchTextsStreamWithCounts(request).toList(),
         isEmpty,
       );
-      // מזהה אחר אינו מושפע; העיגון בקצוות התבנית מושמט במנוע.
-      expect(await segments(r'/^\S+\s\S+$/'), [0, 1, 2, 3, 4]);
+      // מזהה אחר אינו מושפע; ^ ו-$ מעגנים לשורה: רק שורה של שתי מילים.
+      expect(await segments(r'/^\S+\s\S+$/'), [4]);
     });
   }, skip: ready ? false : searchEngineSkipReason);
 }

@@ -104,11 +104,7 @@ dependencies:
   googleapis_auth: ^2.3.4
   characters: ^1.4.1
   collection: ^1.19.1
-  # TODO: אחרי מיזוג Otzaria/otzaria_search_engine#69 להצמיד לקומיט המיזוג
-  otzaria_search_engine:
-    git:
-      url: https://github.com/palmoni5/otzaria_search_engine.git
-      ref: fcd022633fab852de11555de004c1a84ec27221b
+  otzaria_search_engine: ^7.0.0
   # חוזה הדיווחים מול השרת, משותף עם "עדכוני אוצריא" (Dart טהור).
   otzaria_report_contract:
     path: packages/otzaria_report_contract
