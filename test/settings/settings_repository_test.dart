@@ -48,7 +48,7 @@ void main() {
         ).thenReturn(AppSeedColors.defaultDark.toARGB32());
         when(
           mockSettingsWrapper.getValue<double>(
-            SettingsRepository.keyTextMaxWidth,
+            SettingsRepository.keyTextColumnWidth,
             defaultValue: 0,
           ),
         ).thenReturn(0.0);
@@ -185,7 +185,7 @@ void main() {
       ).thenReturn(AppSeedColors.defaultDark.toARGB32());
       when(
         mockSettingsWrapper.getValue<double>(
-          SettingsRepository.keyTextMaxWidth,
+          SettingsRepository.keyTextColumnWidth,
           defaultValue: 0,
         ),
       ).thenReturn(800.0);
@@ -429,7 +429,7 @@ void main() {
       ).thenReturn(AppSeedColors.defaultDark.toARGB32());
       when(
         mockSettingsWrapper.getValue<double>(
-          SettingsRepository.keyTextMaxWidth,
+          SettingsRepository.keyTextColumnWidth,
           defaultValue: 0,
         ),
       ).thenReturn(0.0);
@@ -513,7 +513,10 @@ void main() {
         ),
       ).called(1);
       verify(
-        mockSettingsWrapper.setValue(SettingsRepository.keyTextMaxWidth, 0.0),
+        mockSettingsWrapper.setValue(
+          SettingsRepository.keyTextColumnWidth,
+          0.0,
+        ),
       ).called(1);
       verify(
         mockSettingsWrapper.setValue(SettingsRepository.keyFontSize, 25.0),
@@ -609,7 +612,7 @@ void main() {
         ).thenReturn(AppSeedColors.defaultDark.toARGB32());
         when(
           mockSettingsWrapper.getValue<double>(
-            SettingsRepository.keyTextMaxWidth,
+            SettingsRepository.keyTextColumnWidth,
             defaultValue: 0,
           ),
         ).thenReturn(0.0);
@@ -822,44 +825,35 @@ void main() {
       ).called(1);
     });
 
-    group('הגירת רוחב הטקסט', () {
-      setUp(() {
-        when(
-          mockSettingsWrapper.getValue<bool>(
-            'settings_initialized',
-            defaultValue: false,
-          ),
-        ).thenReturn(true);
-      });
-
-      void stubTextMaxWidth(double stored) => when(
+    test('ערך במפתח רוחב הטקסט הישן מתעלמים ממנו — רוחב מלא', () async {
+      when(
+        mockSettingsWrapper.getValue<bool>(
+          'settings_initialized',
+          defaultValue: false,
+        ),
+      ).thenReturn(true);
+      when(
         mockSettingsWrapper.getValue<double>(
-          SettingsRepository.keyTextMaxWidth,
+          'key-text-max-width',
+          defaultValue: anyNamed('defaultValue'),
+        ),
+      ).thenReturn(900.0);
+      when(
+        mockSettingsWrapper.getValue<double>(
+          SettingsRepository.keyTextColumnWidth,
           defaultValue: 0,
         ),
-      ).thenReturn(stored);
+      ).thenReturn(0.0);
 
-      test('רמת אחוזים ישנה (שלילית) הופכת לרוחב מלא ונשמרת', () async {
-        stubTextMaxWidth(-11);
+      final settings = await repository.loadSettings();
 
-        final settings = await repository.loadSettings();
-
-        expect(settings['textMaxWidth'], 0.0);
-        verify(
-          mockSettingsWrapper.setValue(SettingsRepository.keyTextMaxWidth, 0.0),
-        ).called(1);
-      });
-
-      test('רוחב יעד חיובי נשאר בלי כתיבה', () async {
-        stubTextMaxWidth(900);
-
-        final settings = await repository.loadSettings();
-
-        expect(settings['textMaxWidth'], 900.0);
-        verifyNever(
-          mockSettingsWrapper.setValue(SettingsRepository.keyTextMaxWidth, any),
-        );
-      });
+      expect(settings['textMaxWidth'], 0.0);
+      verifyNever(
+        mockSettingsWrapper.getValue<double>(
+          'key-text-max-width',
+          defaultValue: anyNamed('defaultValue'),
+        ),
+      );
     });
 
     test('loadSettings parses builtInToolsOrder preserving order', () async {

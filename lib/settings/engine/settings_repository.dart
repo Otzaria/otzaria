@@ -9,14 +9,14 @@ import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' show HolyNameStyle;
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
-import 'dart:math' as math;
 
 class SettingsRepository {
   static const String keyDarkMode = 'key-dark-mode';
   static const String keyFollowSystemTheme = 'key-follow-system-theme';
   static const String keySwatchColor = 'key-swatch-color';
   static const String keyDarkSwatchColor = 'key-dark-swatch-color';
-  static const String keyTextMaxWidth = 'key-text-max-width';
+  // לא key-text-max-width: ערכיו (אחוזים/פיקסלים יחסיים למסך) אינם רוחב יעד.
+  static const String keyTextColumnWidth = 'key-text-column-width';
   static const String keyFontSize = 'key-font-size';
   static const String keyFontFamily = 'key-font-family';
   static const String keyCommentatorsFontFamily =
@@ -245,7 +245,7 @@ class SettingsRepository {
     keyFollowSystemTheme,
     keySwatchColor,
     keyDarkSwatchColor,
-    keyTextMaxWidth,
+    keyTextColumnWidth,
     keyFontSize,
     keyFontFamily,
     keyCommentatorsFontFamily,
@@ -364,14 +364,7 @@ class SettingsRepository {
     // Initialize default settings to disk if needed
     await _initializeDefaultsIfNeeded();
     await removeUnrecognizedShortcuts();
-    await _migrateLegacyTextMaxWidth();
     return readSettings();
-  }
-
-  /// רמות אחוזים ישנות (ערך שלילי) של רוחב הטקסט הופכות לרוחב מלא.
-  Future<void> _migrateLegacyTextMaxWidth() async {
-    final stored = _settings.getValue<double>(keyTextMaxWidth, defaultValue: 0);
-    if (stored < 0) await _settings.setValue(keyTextMaxWidth, 0.0);
   }
 
   /// קריאה סינכרונית של ההגדרות השמורות — למצב ההתחלתי של ה-bloc, כדי
@@ -395,9 +388,9 @@ class SettingsRepository {
           defaultValue: AppSeedColors.defaultDark.toARGB32(),
         ),
       ),
-      'textMaxWidth': math.max(
-        0.0,
-        _settings.getValue<double>(keyTextMaxWidth, defaultValue: 0),
+      'textMaxWidth': _settings.getValue<double>(
+        keyTextColumnWidth,
+        defaultValue: 0,
       ),
       'fontSize': _settings.getValue<double>(keyFontSize, defaultValue: 25),
       'fontFamily': _settings.getValue<String>(
@@ -693,7 +686,7 @@ class SettingsRepository {
   }
 
   Future<void> updateTextMaxWidth(double value) async {
-    await _settings.setValue(keyTextMaxWidth, value);
+    await _settings.setValue(keyTextColumnWidth, value);
   }
 
   Future<void> updateFontSize(double value) async {
@@ -1217,7 +1210,7 @@ class SettingsRepository {
       keyDarkSwatchColor,
       AppSeedColors.defaultDark.toARGB32(),
     );
-    await _settings.setValue(keyTextMaxWidth, 0.0);
+    await _settings.setValue(keyTextColumnWidth, 0.0);
     await _settings.setValue(keyFontSize, 25.0);
     await _settings.setValue(keyFontFamily, AppFonts.defaultFont);
     await _settings.setValue(

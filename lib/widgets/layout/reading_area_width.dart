@@ -5,8 +5,8 @@ const double kTextColumnMinMargin = 16;
 
 /// רוחב מרבי לעמודת הטקסט לפי הגדרת "רוחב הטקסט".
 ///
-/// [setting]: 0 (או שלילי, פורמט ישן) = ללא הגבלה; חיובי = רוחב יעד בפיקסלים
-/// לוגיים, שמצטמצם רק כשאין מקום ב-[availableWidth].
+/// [setting]: 0 = ללא הגבלה; חיובי = רוחב יעד בפיקסלים לוגיים, שמצטמצם רק
+/// כשאין מקום ב-[availableWidth].
 double resolveTextColumnMaxWidth({
   required double setting,
   required double availableWidth,

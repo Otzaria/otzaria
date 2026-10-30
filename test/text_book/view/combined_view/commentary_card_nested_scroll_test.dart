@@ -309,7 +309,8 @@ Future<(TextBookTab, _TestSettingsBloc)> _pumpCombinedView(
   final state = initialState ?? _loadedState();
   final textBookBloc = _TestTextBookBloc(state);
   final settingsBloc = _TestSettingsBloc(
-    SettingsState.initial().copyWith(lineHeight: lineHeight),
+    // ברוחב מלא יש סטייה ידועה ונפרדת בשחזור הגלילה הפנימית; מצמידים רוחב יעד.
+    SettingsState.initial().copyWith(lineHeight: lineHeight, textMaxWidth: 700),
   );
   final personalNotesBloc = _TestPersonalNotesBloc(
     PersonalNotesState(
