@@ -270,7 +270,8 @@ class PdfBookSearchView extends StatefulWidget {
   State<PdfBookSearchView> createState() => PdfBookSearchViewState();
 }
 
-class PdfBookSearchViewState extends State<PdfBookSearchView> {
+class PdfBookSearchViewState extends State<PdfBookSearchView>
+    with AutomaticKeepAliveClientMixin<PdfBookSearchView> {
   final ItemScrollController _resultsScrollController = ItemScrollController();
 
   bool _isSearching = false;
@@ -291,6 +292,15 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
   final Map<int, String> _pageTitles = <int, String>{};
 
   InBookSearchSettings _settings = const InBookSearchSettings();
+
+  /// השאילתה שההגדרות הגיעו איתה (מתוצאת חיפוש כללי). הן חלות רק עליה;
+  /// שאילתה אחרת מחזירה את ברירת המחדל של החלונית (issue #3595).
+  String? _carriedInQuery;
+
+  // מסכת PDF מצורפת אינה מאונדקסת, וברירת מחדל שדורשת מנוע הייתה חוסמת בה.
+  InBookSearchSettings get _paneDefaults => _isBundledTalmudPdf
+      ? const InBookSearchSettings()
+      : InBookSearchSettings.savedDefaults();
 
   Map<String, Map<String, bool>> get _searchOptions => _settings.searchOptions;
   Map<int, List<String>> get _alternativeWords => _settings.alternativeWords;
@@ -389,9 +399,8 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       distance: widget.initialSearchDistance,
       matchPolicy: widget.initialMatchPolicy,
     );
-    // מסכת PDF מצורפת אינה מאונדקסת, וברירת מחדל שדורשת מנוע הייתה חוסמת בה.
-    if (!_isBundledTalmudPdf &&
-        searchableInBookQuery(widget.searchController.text) == null) {
+    _carriedInQuery = searchableInBookQuery(widget.searchController.text);
+    if (!_isBundledTalmudPdf && _carriedInQuery == null) {
       _settings = InBookSearchSettings.savedDefaults();
       _syncSearchOptions(context.read<PdfBookBloc>());
     }
@@ -450,6 +459,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     notifier!.value = null;
     if (!mounted) return;
 
+    _carriedInQuery = searchableInBookQuery(configuration.searchText);
     _applySearchConfiguration(
       query: configuration.searchText,
       settings: InBookSearchSettings(
@@ -725,6 +735,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     SearchDialogResult result,
     PdfBookBloc pdfBookBloc,
   ) {
+    _carriedInQuery = null;
     _applySearchConfiguration(
       query: result.query,
       settings: InBookSearchSettings.fromDialogResult(result),
@@ -921,8 +932,13 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     }
   }
 
+  // בנייה מחדש במעבר לשונית הייתה מסמנת את הגדרות הדיאלוג כאילו הגיעו מבחוץ.
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (!identical(_groupedSource, _searchResults)) {
       _groupedSource = _searchResults;
       _groupedItems.clear();
@@ -1049,7 +1065,16 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
           _searchResults.isEmpty &&
           !_isSearching,
       errorMessage: _searchErrorMessage,
-      onSearchTextChanged: (_) => _searchTextUpdated(),
+      onSearchTextChanged: (_) {
+        // value מה-debounce עשוי להקדים שאילתה חיצונית שכבר נכתבה לשדה.
+        final query = searchableInBookQuery(widget.searchController.text);
+        if (_carriedInQuery != null && query != _carriedInQuery) {
+          _carriedInQuery = null;
+          _settings = _paneDefaults;
+          _syncSearchOptions(context.read<PdfBookBloc>());
+        }
+        _searchTextUpdated();
+      },
       resetSearchCallback: () {
         _pendingSimpleSearchScrollFor = null;
         _lastAdvancedHighlightPattern = null;
@@ -1057,9 +1082,8 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
           _searchResults = [];
           _resultsTruncated = false;
           _searchErrorMessage = null;
-          _settings = _isBundledTalmudPdf
-              ? const InBookSearchSettings()
-              : InBookSearchSettings.savedDefaults();
+          _carriedInQuery = null;
+          _settings = _paneDefaults;
         });
         _syncSearchOptions(context.read<PdfBookBloc>());
         _schedulePdfHighlight(null);

@@ -455,6 +455,42 @@ Future<void> main() async {
   });
 
   testWidgets(
+    'מצב מקורב שהגיע מהחיפוש הכללי אינו חל על שאילתה שהוקלדה (issue #3595)',
+    (tester) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      final simpleQueries = <String>[];
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'היא',
+        searchMode: SearchMode.fuzzy,
+        searchDistance: kMaxFuzzyDistance,
+        simpleSearchRunner: (content, query) async {
+          simpleQueries.add(query);
+          return const [];
+        },
+      );
+      await harness.settle();
+      final wholeWordToggle = find.byWidgetPredicate(
+        (widget) =>
+            widget is Icon &&
+            (widget.icon == OtzariaIcons.alef_24_regular ||
+                widget.icon == OtzariaIcons.alef_mix_24_regular),
+      );
+
+      expect(repository.requests.single.fuzzy, isTrue);
+      expect(wholeWordToggle, findsNothing);
+
+      await harness.type('שהיד');
+      await harness.settle();
+
+      expect(repository.requests, hasLength(1));
+      expect(simpleQueries, contains('שהיד'));
+      expect(wholeWordToggle, findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'חיפוש מנוע ממתין לזיהוי הספר במקום להציג "אין תוצאות"',
     (tester) async {
       // זיהוי הספר (facet) הוא אסינכרוני. חיפוש שנשלח לפני שהסתיים היה

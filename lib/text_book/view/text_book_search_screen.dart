@@ -113,6 +113,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   String? _bookTitle;
   Future<void>? _bookPathFuture;
   InBookSearchSettings _settings = const InBookSearchSettings();
+
+  /// השאילתה שההגדרות הגיעו איתה (מתוצאת חיפוש כללי). הן חלות רק עליה;
+  /// שאילתה אחרת מחזירה את ברירת המחדל של החלונית (issue #3595).
+  String? _carriedInQuery;
   bool _wholeWord = InBookSearchPreferences.loadWholeWord();
 
   /// חיפוש רק בקטע שתחת הכותרת הקרובה למקום הקריאה (issue #1093).
@@ -247,7 +251,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     super.initState();
     searchTextController.text = widget.initialQuery;
     _syncSearchConfigurationFromWidget();
-    if (widget.initialQuery.isEmpty) {
+    _carriedInQuery = searchableInBookQuery(widget.initialQuery);
+    if (_carriedInQuery == null) {
       _settings = InBookSearchSettings.savedDefaults();
     }
     _syncBlocSearchTextState();
@@ -299,6 +304,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
 
     if (queryChanged && needsControllerSync) {
       syncSearchControllerQuery(searchTextController, widget.initialQuery);
+      _carriedInQuery = searchableInBookQuery(widget.initialQuery);
     }
 
     if (searchConfigurationChanged) {
@@ -1070,7 +1076,13 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           !_isSearching,
       errorMessage: _searchErrorMessage,
       onSearchTextChanged: (value) {
-        _settings = _settings.forQuery(searchableInBookQuery(value) ?? '');
+        // value מה-debounce עשוי להקדים שאילתה חיצונית שכבר נכתבה לשדה.
+        final query = searchableInBookQuery(searchTextController.text);
+        if (_carriedInQuery != null && query != _carriedInQuery) {
+          _carriedInQuery = null;
+          _settings = InBookSearchSettings.savedDefaults();
+        }
+        _settings = _settings.forQuery(query ?? '');
         final activeParameters = _activeSearchParameters;
         context.read<TextBookBloc>().add(
           UpdateSearchText(
@@ -1093,6 +1105,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           _selectedSearchResultIndex = null;
           _selectedResultLine = null;
           _selectedResultOffset = null;
+          _carriedInQuery = null;
           _settings = InBookSearchSettings.savedDefaults();
         });
         context.read<TextBookBloc>().add(
@@ -1170,7 +1183,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             );
           },
         );
-        setState(() => _settings = settings);
+        setState(() {
+          _settings = settings;
+          _carriedInQuery = null;
+        });
         _searchTextUpdated();
       },
     );
