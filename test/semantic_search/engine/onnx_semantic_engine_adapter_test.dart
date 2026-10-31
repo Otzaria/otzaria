@@ -350,7 +350,7 @@ void main() {
     await adapter.open(
       const SemanticOpenRequest(
         vectorsDir: '/root/vectors',
-        modelPath: '/root/otzaria/m/seforim-embed-round2-int8.onnx',
+        modelPath: '/root/otzaria/m/query.int8.onnx',
         modelIdentityJson: '{}',
         onnxRuntimePath: '/app/onnxruntime/onnxruntime.dll',
       ),

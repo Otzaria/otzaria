@@ -34,7 +34,7 @@ const int kSemanticModelInstallOrder = 40;
 const int kSemanticVectorsInstallOrder = 41;
 
 const String kSemanticModelBundledIdentity =
-    'assets/semantic/meivin-round2-onnx/model.json';
+    'assets/semantic/meivin-qa491-onnx/model.json';
 
 /// התיקיות היחסיות בתיקיית הפלט, לפי `semantic_import_layout.dart`.
 const String kSemanticModelOutputFolder =
@@ -105,6 +105,7 @@ List<SemanticModelFile> _offlineModelFiles(SemanticModelRelease model) => [
     model.tokenizer,
     model.identity,
     model.license,
+    if (model.passageGraph != null) model.passageGraph!,
   ])
     file.zipped ?? file,
 ];
@@ -275,7 +276,7 @@ Future<List<Map<String, Object?>>> resolveSemanticComponents({
       );
   if (vectors == null) {
     throw SemanticComponentsOmitted(
-      '$kSemanticVectorsRepository has no release vectors-$libraryTag',
+      '$kSemanticVectorsRepository has no release vectors-qa491-$libraryTag',
     );
   }
 
@@ -308,7 +309,7 @@ Future<List<Map<String, Object?>>> resolveSemanticComponents({
         builtModel['family_id'] != identity.familyId ||
         builtModel['tokenizer_checksum'] != identity.tokenizerChecksum) {
       throw SemanticComponentsOmitted(
-        'vectors-$libraryTag was built for another model than the bundled '
+        'vectors-qa491-$libraryTag was built for another model than the bundled '
         '${identity.familyId}',
       );
     }

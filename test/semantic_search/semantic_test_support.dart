@@ -491,7 +491,7 @@ SemanticVectorsRelease deltaRelease(
   int size = 1,
 }) => SemanticVectorsRelease(
   libraryTag: 'v$to-20260930165019',
-  releaseTag: 'vectors-windows-delta-v$to-20260930165019',
+  releaseTag: 'vectors-qa491-windows-delta-v$to-20260930165019',
   toLibraryVersion: to,
   kind: 'delta',
   fromLibraryVersion: from,

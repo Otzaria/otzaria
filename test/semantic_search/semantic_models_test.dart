@@ -24,15 +24,15 @@ void main() {
       expect(paths.root, root);
       expect(
         paths.modelDirectory,
-        p.join(root, 'otzaria', 'meivin-round2-onnx'),
+        p.join(root, 'otzaria', 'meivin-qa491-onnx'),
       );
       expect(
         paths.modelFile(SemanticQuantization.int8),
-        p.join(paths.modelDirectory, 'seforim-embed-round2-int8.onnx'),
+        p.join(paths.modelDirectory, 'query.int8.onnx'),
       );
       expect(
         paths.modelFile(SemanticQuantization.fp32),
-        p.join(paths.modelDirectory, 'seforim-embed-round2-fp32.onnx'),
+        p.join(paths.modelDirectory, 'document.fp32.onnx'),
       );
       expect(
         paths.tokenizerFile,
@@ -50,17 +50,16 @@ void main() {
 
       expect(
         identity.familyId,
-        'ArieLLL123/judaic-semantic-round2-onnx-zayit@'
-        '1ec8dc68888bcea774ae9f735b2fe7cd9dc7f3ca',
+        'otzaria/Meivin-Embed-QA491-native256',
       );
       expect(identity.embeddingDim, 256);
       expect(
         identity.packageFor(SemanticQuantization.int8)?.checksum,
-        '9e408407922b4aab26dd148cbe4b9a0e573c65591cfc799ba28e991d77d9d065',
+        'e90a67be02c077990c7bc2a6485f6872769ac2a71eb9779d25ceb1fcd97ac9b3',
       );
       expect(
         identity.packageFor(SemanticQuantization.fp32)?.checksum,
-        '4a4a2ae88a86f15ffe6069bfcefc3abd13c207cec5d7aaef52c0c59d752ade46',
+        '5f80c47d3310a21fcc0c2f541fbb5732ba254555ef45afc2712cab63c8a33059',
       );
       expect(identity.rawJson, bundledModelJson());
     });
@@ -187,7 +186,7 @@ void main() {
       expect(paths.vectorsDirectory, p.join('D:', 'lib', 'vectors'));
       expect(
         paths.modelDirectory,
-        p.join('D:', 'lib', 'otzaria', 'db', 'meivin-round2-onnx'),
+        p.join('D:', 'lib', 'otzaria', 'db', 'meivin-qa491-onnx'),
       );
     });
 

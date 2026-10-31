@@ -3,7 +3,7 @@ import 'package:path/path.dart' as p;
 import 'semantic_model_identity.dart';
 
 /// שם תיקיית חבילת המודל, ליד `seforim.db`.
-const String kSemanticModelFolderName = 'meivin-round2-onnx';
+const String kSemanticModelFolderName = 'meivin-qa491-onnx';
 
 /// שם קובץ ה-tokenizer בחבילת המודל.
 const String kSemanticTokenizerFileName = 'tokenizer.json';
@@ -15,7 +15,7 @@ const String kSemanticModelIdentityFileName = 'model.json';
 ///
 /// `<root>` הוא ההורה של תיקיית הספרייה — אותו הורה שבו יושב האינדקס הרגיל
 /// (`<root>/index`) בברירת המחדל, וממנו ההעברה מעבירה את `vectors`:
-/// - חבילת המודל: `<root>/<תיקיית ה-DB>/meivin-round2-onnx/`
+/// - חבילת המודל: `<root>/<תיקיית ה-DB>/meivin-qa491-onnx/`
 /// - סט הוקטורים: `<root>/vectors/`
 /// - הורדות זמניות של הוקטורים: `<root>/vectors-download/`
 class SemanticPaths {

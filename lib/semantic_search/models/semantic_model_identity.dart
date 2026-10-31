@@ -10,8 +10,11 @@ enum SemanticQuantization {
   /// אופציונלי: קובץ של כ-168MB, ותוצאות כמעט זהות.
   fp32;
 
-  /// שם הגרף בחבילת המודל, למשל `seforim-embed-round2-int8.onnx`.
-  String get modelFileName => 'seforim-embed-round2-$name.onnx';
+  /// שם הגרף בחבילת המודל, למשל `query.int8.onnx`.
+  String get modelFileName => switch (this) {
+    int8 => 'query.int8.onnx',
+    fp32 => 'document.fp32.onnx',
+  };
 
   /// ממפה ערך שמור בהגדרות; ערך לא מוכר חוזר לברירת המחדל.
   static SemanticQuantization parse(String? value) =>
