@@ -432,6 +432,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   flutter::DartProject project(L"data");
+  // ב-RDP שיתוף ה-D3D surface של ה-composition נכשל (מסך ריק בתוספים); כופים HWND.
+  if (::GetSystemMetrics(SM_REMOTESESSION) &&
+      ::GetEnvironmentVariableW(L"FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND",
+                                nullptr, 0) == 0) {
+    ::SetEnvironmentVariableW(L"FLUTTER_INAPPWEBVIEW_WINDOWS_FORCE_HWND", L"1");
+  }
   // Impeller compiles every shader through ANGLE before the first frame, with
   // no disk cache: ~2s on each launch (#1565, flutter/flutter#191860).
   // TODO: Please follow: https://github.com/flutter/flutter/issues/191860
