@@ -47,7 +47,7 @@ dependencies:
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
   html: ^0.15.7
-  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור espresso3389/pdfrx#TBD (startPageNumber: סריקת החיפוש מתחילה מהעמוד הנוכחי).
+  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור espresso3389/pdfrx#789 (חיפוש: startPageNumber ו-Pattern כללי).
   pdfrx:
     git:
       url: https://github.com/Otzaria/pdfrx
