@@ -6,6 +6,7 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
 import 'package:otzaria/data/cache/acronyms_cache.dart';
 import 'package:otzaria/data/cache/generation_cache.dart';
+import 'package:otzaria/migration/database/untrusted_database.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
@@ -108,9 +109,32 @@ void main() {
         CommentaryEra.rishonim.hebrewName,
       ]),
     );
-    expect(GenerationCache.readAttachedGenerations(path), {
-      bookId: CommentaryEra.rishonim.order,
-    });
+    expect(
+      GenerationCache.readGenerations((
+        path: path,
+        untrusted: true,
+        immutable: false,
+      )),
+      {bookId: CommentaryEra.rishonim.order},
+    );
+  });
+
+  test('דורות seforim.db נקראים ב-isolate בפתיחה מהימנה לפי נתיב', () async {
+    final path = createDb(
+      (db) => db.execute('UPDATE generation SET name = ?', [
+        CommentaryEra.rishonim.hebrewName,
+      ]),
+    );
+    final target = trustedDbTarget(path);
+    expect(
+      await GenerationCache.readGenerationsInIsolate(target),
+      {bookId: CommentaryEra.rishonim.order},
+    );
+
+    final db = sqlite3.sqlite3.open(path);
+    db.execute('DROP TABLE book_generation');
+    db.close();
+    expect(GenerationCache.readGenerations(target), isEmpty);
   });
 
   test('warmUp ממתין לטעינה מחדש של דורות המסדים שבדרך', () async {
