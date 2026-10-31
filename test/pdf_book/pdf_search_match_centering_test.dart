@@ -3,13 +3,18 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/centered_text_search_session.dart';
+import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
+import 'package:otzaria/search/in_book_search_settings.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:pdfrx/pdfrx.dart';
+
+import '../support/search_engine_test_init.dart';
 
 const _pageText = 'שלום עולם';
 
 /// כל תו ברוחב 10, בשורה שבין y=90 ל-y=100 בקואורדינטות העמוד.
-final _charRects = [
-  for (var i = 0; i < _pageText.length; i++)
+List<PdfRect> _charRectsFor(String text) => [
+  for (var i = 0; i < text.length; i++)
     PdfRect(i * 10.0, 100, i * 10.0 + 10, 90),
 ];
 
@@ -82,18 +87,70 @@ class _RecordingController extends PdfViewerController {
 }
 
 class _Session extends CenteredTextSearchSession {
-  _Session(super.controller);
+  _Session(super.controller, {this.pageText = _pageText});
+
+  final String pageText;
 
   @override
   Future<PdfPageText?> loadText({required int pageNumber}) async => PdfPageText(
     pageNumber: pageNumber,
-    fullText: _pageText,
-    charRects: _charRects,
+    fullText: pageText,
+    charRects: _charRectsFor(pageText),
     fragments: const [],
   );
 }
 
-void main() {
+Future<void> _untilScanned(PdfTextSearchSession session) async {
+  for (var i = 0; i < 20 && session.matches.isEmpty; i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
+Future<void> main() async {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  final engineReady = await tryInitSearchEngine();
+
+  test(
+    'תבנית המרווח רצה בסריקה של pdfrx, ותבנית שווה אינה מתחילה אותה מחדש',
+    () async {
+      const query = 'ממון לו תובעין';
+      ProximityHighlightPattern pattern() => ProximityHighlightPattern(
+        query,
+        const InBookSearchSettings(
+          searchMode: SearchMode.advanced,
+          distance: 2,
+        ).forQuery(query),
+      );
+      final session = _Session(
+        _RecordingController(),
+        pageText: 'לו כאן ממון שאין לו תובעין',
+      );
+      addTearDown(session.dispose);
+
+      session.startTextSearch(
+        pattern(),
+        goToFirstMatch: false,
+        searchImmediately: true,
+      );
+      await _untilScanned(session);
+      expect(
+        [for (final m in session.matches) m.text],
+        [
+          'ממון שאין לו תובעין',
+        ],
+      );
+
+      final scan = session.searchSession;
+      session.startTextSearch(
+        pattern(),
+        goToFirstMatch: false,
+        searchImmediately: true,
+      );
+      expect(session.searchSession, scan);
+    },
+    skip: engineReady ? false : searchEngineSkipReason,
+  );
+
   test('מעבר להתאמה ממרכז את מרכז המלבן שלה בתצוגה', () async {
     final controller = _RecordingController();
     final session = _Session(controller);
@@ -104,9 +161,7 @@ void main() {
       goToFirstMatch: false,
       searchImmediately: true,
     );
-    for (var i = 0; i < 5 && session.matches.isEmpty; i++) {
-      await Future<void>.delayed(Duration.zero);
-    }
+    await _untilScanned(session);
     expect(session.matches, hasLength(1));
 
     expect(await session.goToMatchOfIndex(0), 0);

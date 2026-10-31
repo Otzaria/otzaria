@@ -6,19 +6,15 @@ import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
 /// התאמות של [query] בטקסט העמוד, באותו מתאם של הקורא הטקסטואלי: אותו
 /// מרווח, אותם ווריאנטים ואותו "בכל סדר". כל התאמה היא רצף אחד.
-// implements RegExp: PdfPageText.allMatches של pdfrx מקבל רק String או RegExp,
-// ו-pdfrx מזהה הדגשה זהה רק לפי RegExp.pattern.
-// ignore: deprecated_implement
-class ProximityHighlightPattern implements RegExp {
+class ProximityHighlightPattern implements Pattern {
   ProximityHighlightPattern(this.query, this.settings)
-    : pattern = 'proximity:${_settingsKey(query, settings)}';
+    : key = _settingsKey(query, settings);
 
   final String query;
   final InBookSearchSettings settings;
 
-  /// מפתח יציב, כדי ש-pdfrx יזהה הדגשה זהה ולא יתחיל את הסריקה מחדש.
-  @override
-  final String pattern;
+  /// מפתח יציב: pdfrx משווה תבניות ב-`==`, ותבנית זהה אינה מתחילה סריקה מחדש.
+  final String key;
 
   static String _settingsKey(String query, InBookSearchSettings settings) {
     final policy = settings.matchPolicy;
@@ -53,23 +49,11 @@ class ProximityHighlightPattern implements RegExp {
   );
 
   @override
-  Iterable<RegExpMatch> allMatches(String input, [int start = 0]) => [
-    for (final span in spans(input))
+  Iterable<Match> allMatches(String string, [int start = 0]) => [
+    for (final span in spans(string))
       if (span[0] >= start && span[1] > span[0])
-        _SpanMatch(this, input, span[0], span[1]),
+        _SpanMatch(this, string, span[0], span[1]),
   ];
-
-  @override
-  RegExpMatch? firstMatch(String input) {
-    final matches = allMatches(input);
-    return matches.isEmpty ? null : matches.first;
-  }
-
-  @override
-  bool hasMatch(String input) => firstMatch(input) != null;
-
-  @override
-  String? stringMatch(String input) => firstMatch(input)?.group(0);
 
   @override
   Match? matchAsPrefix(String string, [int start = 0]) {
@@ -80,24 +64,18 @@ class ProximityHighlightPattern implements RegExp {
   }
 
   @override
-  bool get isCaseSensitive => false;
+  bool operator ==(Object other) =>
+      other is ProximityHighlightPattern && other.key == key;
 
   @override
-  bool get isMultiLine => false;
-
-  @override
-  bool get isUnicode => true;
-
-  @override
-  bool get isDotAll => false;
+  int get hashCode => key.hashCode;
 }
 
-// ignore: deprecated_implement
-class _SpanMatch implements RegExpMatch {
+class _SpanMatch implements Match {
   _SpanMatch(this.pattern, this.input, this.start, this.end);
 
   @override
-  final RegExp pattern;
+  final Pattern pattern;
   @override
   final String input;
   @override
@@ -121,10 +99,4 @@ class _SpanMatch implements RegExpMatch {
   List<String?> groups(List<int> groupIndices) => [
     for (final index in groupIndices) group(index),
   ];
-
-  @override
-  String? namedGroup(String name) => throw ArgumentError.value(name, 'name');
-
-  @override
-  Iterable<String> get groupNames => const [];
 }

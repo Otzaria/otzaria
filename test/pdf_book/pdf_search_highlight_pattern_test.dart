@@ -10,6 +10,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_bloc.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_event.dart';
 import 'package:otzaria/pdf_book/bloc/pdf_book_state.dart';
+import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/in_book_search_settings.dart';
@@ -156,7 +157,16 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
     for (final pattern in searches)
       if (pattern is RegExp) pattern,
   ];
+
+  /// תבניות ההדגשה של מסלול המנוע, בלי איפוסי השדה הריק.
+  List<Pattern> get highlightPatterns => [
+    for (final pattern in searches)
+      if (pattern is! String) pattern,
+  ];
 }
+
+bool _hasMatch(Pattern pattern, String text) =>
+    pattern.allMatches(text).isNotEmpty;
 
 /// התאמה שסופרת כמה פעמים חושבה שורת ההקשר שלה.
 class _CountingMatch extends Fake implements PdfTextSearchResult {
@@ -356,8 +366,8 @@ Future<void> main() async {
           'ושמרו <font color="red">שבתות</font> הרבה',
         ])!;
 
-        expect(pattern.hasMatch('בזכות שבתות שנשמרו'), isTrue);
-        expect(pattern.hasMatch('טקסט אחר לגמרי'), isFalse);
+        expect(_hasMatch(pattern, 'בזכות שבתות שנשמרו'), isTrue);
+        expect(_hasMatch(pattern, 'טקסט אחר לגמרי'), isFalse);
       });
 
       test('מונחים מכמה תוצאות מאוחדים לתבנית אחת', () {
@@ -366,8 +376,8 @@ Future<void> main() async {
           'ג <mark>שבתות</mark> ד',
         ])!;
 
-        expect(pattern.hasMatch('שבת קודש'), isTrue);
-        expect(pattern.hasMatch('שתי שבתות'), isTrue);
+        expect(_hasMatch(pattern, 'שבת קודש'), isTrue);
+        expect(_hasMatch(pattern, 'שתי שבתות'), isTrue);
       });
 
       test('התבנית סובלנית לניקוד בשכבת הטקסט של ה-PDF', () {
@@ -375,7 +385,7 @@ Future<void> main() async {
           '<font>פרעה</font>',
         ])!;
 
-        expect(pattern.hasMatch('וַיֹּאמֶר פַּרְעֹה'), isTrue);
+        expect(_hasMatch(pattern, 'וַיֹּאמֶר פַּרְעֹה'), isTrue);
       });
 
       test('מכבדת גבולות מילה — לא מדגישה חלק ממילה אחרת', () {
@@ -383,8 +393,8 @@ Future<void> main() async {
           '<font>אמר</font>',
         ])!;
 
-        expect(pattern.hasMatch('נאמרו דברים'), isFalse);
-        expect(pattern.hasMatch('אמר רבא'), isTrue);
+        expect(_hasMatch(pattern, 'נאמרו דברים'), isFalse);
+        expect(_hasMatch(pattern, 'אמר רבא'), isTrue);
       });
 
       test('מונח שחוזר בכמה תוצאות נכלל פעם אחת', () {
@@ -396,7 +406,10 @@ Future<void> main() async {
           'שוב <font>ברא</font> עולם',
         ])!;
 
-        expect(duplicated.pattern, single.pattern);
+        expect(
+          (duplicated as RegExp).pattern,
+          (single as RegExp).pattern,
+        );
       });
 
       test('נאכפת תקרת מונחים — מונחים מעבר לתקרה לא נכללים', () {
@@ -406,9 +419,9 @@ Future<void> main() async {
         );
         final pattern = PdfBookSearchView.buildAdvancedHighlightPattern(htmls)!;
 
-        expect(pattern.hasMatch(_term(0)), isTrue);
-        expect(pattern.hasMatch(_term(49)), isTrue);
-        expect(pattern.hasMatch(_term(59)), isFalse);
+        expect(_hasMatch(pattern, _term(0)), isTrue);
+        expect(_hasMatch(pattern, _term(49)), isTrue);
+        expect(_hasMatch(pattern, _term(59)), isFalse);
       });
 
       group('חיפוש במרווח מדגיש את רצף ההתאמה בלבד (#3690)', () {
@@ -417,7 +430,7 @@ Future<void> main() async {
             '<font>ממון</font> שאין <font>לו</font> <font>תובעין</font>';
         const page = 'לו כאן ממון שאין לו תובעין ושוב תובעין';
 
-        RegExp build({bool anyOrder = false, String snippet = html}) =>
+        Pattern build({bool anyOrder = false, String snippet = html}) =>
             PdfBookSearchView.buildAdvancedHighlightPattern(
               [snippet],
               query: query,
@@ -449,8 +462,14 @@ Future<void> main() async {
         });
 
         test('אותה שאילתה ואותן הגדרות — אותה תבנית בעיני pdfrx', () {
-          expect(build().pattern, build().pattern);
-          expect(build().pattern, isNot(build(anyOrder: true).pattern));
+          final first = build();
+          final second = build();
+
+          expect(first, isA<ProximityHighlightPattern>());
+          expect(identical(first, second), isFalse);
+          expect(first == second, isTrue);
+          expect(first.hashCode, second.hashCode);
+          expect(first == build(anyOrder: true), isFalse);
         });
 
         test('התאמה אחת שמכסה את הרצף, בלי המילים הבודדות', () {
@@ -459,21 +478,21 @@ Future<void> main() async {
 
           expect(matches, hasLength(1));
           expect(matches.single.group(0), 'ממון שאין לו תובעין');
-          expect(pattern.hasMatch('לו'), isFalse);
-          expect(pattern.hasMatch('תובעין'), isFalse);
+          expect(_hasMatch(pattern, 'לו'), isFalse);
+          expect(_hasMatch(pattern, 'תובעין'), isFalse);
         });
 
         test('הרצף נמצא גם כשבשכבת הטקסט יש ירידת שורה בין המילים', () {
           final pattern = build();
 
-          expect(pattern.hasMatch('ממון שאין\nלו  תובעין'), isTrue);
+          expect(_hasMatch(pattern, 'ממון שאין\nלו  תובעין'), isTrue);
         });
 
         test('סדר הפוך מודגש כרצף רק כשבחרו "בכל סדר"', () {
           const reversedHtml =
               '<font>תובעין</font> <font>לו</font> שאין <font>ממון</font>';
           const reversedPage = 'כאן תובעין לו שאין ממון כאן';
-          bool coversSpan(RegExp pattern) => pattern
+          bool coversSpan(Pattern pattern) => pattern
               .allMatches(reversedPage)
               .any((m) => m.group(0) == 'תובעין לו שאין ממון');
 
@@ -487,7 +506,7 @@ Future<void> main() async {
         test('קטע בלי התאמה לשאילתה נשאר במונחים שהמנוע סימן', () {
           final pattern = build(snippet: 'א <font>שבתות</font> ב');
 
-          expect(pattern.hasMatch('שתי שבתות'), isTrue);
+          expect(_hasMatch(pattern, 'שתי שבתות'), isTrue);
         });
       });
     }, skip: engineReady ? false : searchEngineSkipReason);
@@ -547,7 +566,7 @@ Future<void> main() async {
       );
       await _settleWithoutTime(tester);
 
-      expect(searcher.searchedPatterns, hasLength(1));
+      expect(searcher.highlightPatterns, hasLength(1));
       expect(searcher.calls.last.searchImmediately, isTrue);
       // נפתח מתוצאת חיפוש כללי: עמוד היעד הוא עמוד הפתיחה.
       expect(searcher.calls.last.startPageNumber, 3);
@@ -569,7 +588,7 @@ Future<void> main() async {
       expect(searcher.calls.last.startPageNumber, 5);
       expect(
         searcher.searches.last,
-        same(searcher.searchedPatterns.first),
+        same(searcher.highlightPatterns.first),
       );
     });
 
