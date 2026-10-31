@@ -100,10 +100,10 @@
           ],
           "outputFiles": [
             "otzaria-0.10.3-windows-full.exe",
-            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
-            "semantic-import/meivin-round2-onnx/tokenizer.json",
-            "semantic-import/meivin-round2-onnx/model.json",
-            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
+            "semantic-import/meivin-qa491-onnx/tokenizer.json",
+            "semantic-import/meivin-qa491-onnx/model.json",
+            "semantic-import/meivin-qa491-onnx/LICENSE",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -176,10 +176,10 @@
           ],
           "outputFiles": [
             "otzaria-0.10.3-windows_arm64-full.exe",
-            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
-            "semantic-import/meivin-round2-onnx/tokenizer.json",
-            "semantic-import/meivin-round2-onnx/model.json",
-            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
+            "semantic-import/meivin-qa491-onnx/tokenizer.json",
+            "semantic-import/meivin-qa491-onnx/model.json",
+            "semantic-import/meivin-qa491-onnx/LICENSE",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -243,10 +243,10 @@
           ],
           "outputFiles": [
             "otzaria-macos-full.tar.zst",
-            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
-            "semantic-import/meivin-round2-onnx/tokenizer.json",
-            "semantic-import/meivin-round2-onnx/model.json",
-            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
+            "semantic-import/meivin-qa491-onnx/tokenizer.json",
+            "semantic-import/meivin-qa491-onnx/model.json",
+            "semantic-import/meivin-qa491-onnx/LICENSE",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -310,10 +310,10 @@
           ],
           "outputFiles": [
             "otzaria-linux-full.tar.zst",
-            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
-            "semantic-import/meivin-round2-onnx/tokenizer.json",
-            "semantic-import/meivin-round2-onnx/model.json",
-            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
+            "semantic-import/meivin-qa491-onnx/tokenizer.json",
+            "semantic-import/meivin-qa491-onnx/model.json",
+            "semantic-import/meivin-qa491-onnx/LICENSE",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -377,10 +377,10 @@
           ],
           "outputFiles": [
             "otzaria-linux-full.tar.zst",
-            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
-            "semantic-import/meivin-round2-onnx/tokenizer.json",
-            "semantic-import/meivin-round2-onnx/model.json",
-            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
+            "semantic-import/meivin-qa491-onnx/tokenizer.json",
+            "semantic-import/meivin-qa491-onnx/model.json",
+            "semantic-import/meivin-qa491-onnx/LICENSE",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -426,10 +426,10 @@
           ],
           "outputFiles": [
             "otzaria-linux-full.tar.zst",
-            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
-            "semantic-import/meivin-round2-onnx/tokenizer.json",
-            "semantic-import/meivin-round2-onnx/model.json",
-            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
+            "semantic-import/meivin-qa491-onnx/tokenizer.json",
+            "semantic-import/meivin-qa491-onnx/model.json",
+            "semantic-import/meivin-qa491-onnx/LICENSE",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -493,10 +493,10 @@
           ],
           "outputFiles": [
             "otzaria-linux-full-arm64.tar.zst",
-            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
-            "semantic-import/meivin-round2-onnx/tokenizer.json",
-            "semantic-import/meivin-round2-onnx/model.json",
-            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
+            "semantic-import/meivin-qa491-onnx/tokenizer.json",
+            "semantic-import/meivin-qa491-onnx/model.json",
+            "semantic-import/meivin-qa491-onnx/LICENSE",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -560,10 +560,10 @@
           ],
           "outputFiles": [
             "otzaria-linux-full-arm64.tar.zst",
-            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
-            "semantic-import/meivin-round2-onnx/tokenizer.json",
-            "semantic-import/meivin-round2-onnx/model.json",
-            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
+            "semantic-import/meivin-qa491-onnx/tokenizer.json",
+            "semantic-import/meivin-qa491-onnx/model.json",
+            "semantic-import/meivin-qa491-onnx/LICENSE",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],
@@ -609,10 +609,10 @@
           ],
           "outputFiles": [
             "otzaria-linux-full-arm64.tar.zst",
-            "semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx",
-            "semantic-import/meivin-round2-onnx/tokenizer.json",
-            "semantic-import/meivin-round2-onnx/model.json",
-            "semantic-import/meivin-round2-onnx/LICENSE",
+            "semantic-import/meivin-qa491-onnx/query.int8.onnx",
+            "semantic-import/meivin-qa491-onnx/tokenizer.json",
+            "semantic-import/meivin-qa491-onnx/model.json",
+            "semantic-import/meivin-qa491-onnx/LICENSE",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.oxv.zst",
             "semantic-import/vectors/otzaria-vectors-0c3f95be-v30-base.manifest.json"
           ],

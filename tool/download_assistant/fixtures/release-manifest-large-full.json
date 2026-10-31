@@ -541,7 +541,7 @@
       "dependsOn": [],
       "partOf": "semantic-vectors-linux",
       "downloadSize": 46,
-      "outputFolder": "semantic-import/meivin-round2-onnx",
+      "outputFolder": "semantic-import/meivin-qa491-onnx",
       "outputNote": "במחשב היעד העתק את התיקייה semantic-import אל התיקייה שמכילה את תיקיית הספרייה של אוצריא. כשתפעיל שם את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה.",
       "outputNoteEn": "On the target computer, copy the semantic-import folder into the folder that contains the Otzaria library folder. When you turn on Smart Search there (after giving consent), the data will be installed from it without downloading.",
       "compatibility": {
@@ -551,15 +551,15 @@
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
-          "name": "seforim-embed-round2-int8.onnx",
+          "releaseTag": "model-meivin-qa491-int8-v1",
+          "name": "query.int8.onnx",
           "size": 42,
-          "sha256": "3011f299e96326b68575e12e65bf1beab9431efbd0f2122dc98b9b4431f277ea"
+          "sha256": "3f9ef3e925f2413afc5ec1371043be844ae8f0bbcd922976fad6bc10b4392691"
         },
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
+          "releaseTag": "model-meivin-qa491-int8-v1",
           "name": "tokenizer.json",
           "size": 2,
           "sha256": "224931eb13f8d2471acd38a4a0d7417d20e8ea340160a467ceaa359d25197b87"
@@ -567,7 +567,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
+          "releaseTag": "model-meivin-qa491-int8-v1",
           "name": "model.json",
           "size": 1,
           "sha256": "08449dfe8b6c265b9ec864ad13b8d86e7503428f935b9f3d01edab200f0eabd6"
@@ -575,7 +575,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
+          "releaseTag": "model-meivin-qa491-int8-v1",
           "name": "LICENSE",
           "size": 1,
           "sha256": "c693279643b8cd5d248172d9c22cb7cf4ed163a3c98c8a3f69c2717edd3eacb7"
@@ -596,7 +596,7 @@
       "dependsOn": [],
       "partOf": "semantic-vectors-macos",
       "downloadSize": 46,
-      "outputFolder": "semantic-import/meivin-round2-onnx",
+      "outputFolder": "semantic-import/meivin-qa491-onnx",
       "outputNote": "במחשב היעד העתק את התיקייה semantic-import אל התיקייה שמכילה את תיקיית הספרייה של אוצריא. כשתפעיל שם את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה.",
       "outputNoteEn": "On the target computer, copy the semantic-import folder into the folder that contains the Otzaria library folder. When you turn on Smart Search there (after giving consent), the data will be installed from it without downloading.",
       "compatibility": {
@@ -606,15 +606,15 @@
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
-          "name": "seforim-embed-round2-int8.onnx",
+          "releaseTag": "model-meivin-qa491-int8-v1",
+          "name": "query.int8.onnx",
           "size": 42,
-          "sha256": "3011f299e96326b68575e12e65bf1beab9431efbd0f2122dc98b9b4431f277ea"
+          "sha256": "3f9ef3e925f2413afc5ec1371043be844ae8f0bbcd922976fad6bc10b4392691"
         },
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
+          "releaseTag": "model-meivin-qa491-int8-v1",
           "name": "tokenizer.json",
           "size": 2,
           "sha256": "224931eb13f8d2471acd38a4a0d7417d20e8ea340160a467ceaa359d25197b87"
@@ -622,7 +622,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
+          "releaseTag": "model-meivin-qa491-int8-v1",
           "name": "model.json",
           "size": 1,
           "sha256": "08449dfe8b6c265b9ec864ad13b8d86e7503428f935b9f3d01edab200f0eabd6"
@@ -630,7 +630,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
+          "releaseTag": "model-meivin-qa491-int8-v1",
           "name": "LICENSE",
           "size": 1,
           "sha256": "c693279643b8cd5d248172d9c22cb7cf4ed163a3c98c8a3f69c2717edd3eacb7"
@@ -651,7 +651,7 @@
       "dependsOn": [],
       "partOf": "semantic-vectors-windows",
       "downloadSize": 46,
-      "outputFolder": "semantic-import/meivin-round2-onnx",
+      "outputFolder": "semantic-import/meivin-qa491-onnx",
       "outputNote": "מתקין אוצריא שבתיקייה הזאת (הרגיל או המלא) מעתיק בעצמו את התיקייה semantic-import אל ליד תיקיית הספרייה. כשתפעיל את מצב \"חיפוש חכם\" (אחרי ההסכמה), הנתונים יותקנו ממנה בלי הורדה. בהתקנה מקובץ ה-ZIP הנייד — העתק אותה ידנית אל התיקייה שמכילה את תיקיית הספרייה של אוצריא.",
       "outputNoteEn": "The regular or full Otzaria installer in this folder copies the semantic-import folder next to the library folder by itself. When you turn on Smart Search (after giving consent), the data will be installed from it without downloading. If you install using a portable ZIP, copy the folder yourself into the folder that contains the Otzaria library folder.",
       "compatibility": {
@@ -661,15 +661,15 @@
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
-          "name": "seforim-embed-round2-int8.onnx",
+          "releaseTag": "model-meivin-qa491-int8-v1",
+          "name": "query.int8.onnx",
           "size": 42,
-          "sha256": "3011f299e96326b68575e12e65bf1beab9431efbd0f2122dc98b9b4431f277ea"
+          "sha256": "3f9ef3e925f2413afc5ec1371043be844ae8f0bbcd922976fad6bc10b4392691"
         },
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
+          "releaseTag": "model-meivin-qa491-int8-v1",
           "name": "tokenizer.json",
           "size": 2,
           "sha256": "224931eb13f8d2471acd38a4a0d7417d20e8ea340160a467ceaa359d25197b87"
@@ -677,7 +677,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
+          "releaseTag": "model-meivin-qa491-int8-v1",
           "name": "model.json",
           "size": 1,
           "sha256": "08449dfe8b6c265b9ec864ad13b8d86e7503428f935b9f3d01edab200f0eabd6"
@@ -685,7 +685,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/otzaria-semantic-search",
-          "releaseTag": "model-meivin-round2-int8-v1",
+          "releaseTag": "model-meivin-qa491-int8-v1",
           "name": "LICENSE",
           "size": 1,
           "sha256": "c693279643b8cd5d248172d9c22cb7cf4ed163a3c98c8a3f69c2717edd3eacb7"
@@ -720,7 +720,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/SeforimLibrary",
-          "releaseTag": "vectors-v30-20260930165019",
+          "releaseTag": "vectors-qa491-v30-20260930165019",
           "name": "otzaria-vectors-0c3f95be-v30-base.oxv.zst",
           "size": 1642,
           "sha256": "ebc8456896e4f08c5f7ecf9e10da44181f02f934123f6ec2357e644f39533dc2"
@@ -728,7 +728,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/SeforimLibrary",
-          "releaseTag": "vectors-v30-20260930165019",
+          "releaseTag": "vectors-qa491-v30-20260930165019",
           "name": "otzaria-vectors-0c3f95be-v30-base.manifest.json",
           "size": 15,
           "sha256": "f1c16509298a2ebab66abea50d7d47f73724def5ba2a8042fefa938b3c0e3be3"
@@ -763,7 +763,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/SeforimLibrary",
-          "releaseTag": "vectors-v30-20260930165019",
+          "releaseTag": "vectors-qa491-v30-20260930165019",
           "name": "otzaria-vectors-0c3f95be-v30-base.oxv.zst",
           "size": 1642,
           "sha256": "ebc8456896e4f08c5f7ecf9e10da44181f02f934123f6ec2357e644f39533dc2"
@@ -771,7 +771,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/SeforimLibrary",
-          "releaseTag": "vectors-v30-20260930165019",
+          "releaseTag": "vectors-qa491-v30-20260930165019",
           "name": "otzaria-vectors-0c3f95be-v30-base.manifest.json",
           "size": 15,
           "sha256": "f1c16509298a2ebab66abea50d7d47f73724def5ba2a8042fefa938b3c0e3be3"
@@ -806,7 +806,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/SeforimLibrary",
-          "releaseTag": "vectors-v30-20260930165019",
+          "releaseTag": "vectors-qa491-v30-20260930165019",
           "name": "otzaria-vectors-0c3f95be-v30-base.oxv.zst",
           "size": 1642,
           "sha256": "ebc8456896e4f08c5f7ecf9e10da44181f02f934123f6ec2357e644f39533dc2"
@@ -814,7 +814,7 @@
         {
           "kind": "single",
           "repository": "Otzaria/SeforimLibrary",
-          "releaseTag": "vectors-v30-20260930165019",
+          "releaseTag": "vectors-qa491-v30-20260930165019",
           "name": "otzaria-vectors-0c3f95be-v30-base.manifest.json",
           "size": 15,
           "sha256": "f1c16509298a2ebab66abea50d7d47f73724def5ba2a8042fefa938b3c0e3be3"
