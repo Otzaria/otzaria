@@ -447,6 +447,140 @@ void main() {
       expect(context, contains('שלוש'));
       expect(context, contains('חמש'));
     });
+
+    group('ספר גדול (#3727)', () {
+      late String bigText;
+
+      setUpAll(() {
+        final buffer = StringBuffer();
+        for (var i = 0; i < 1500000; i++) {
+          if (i > 0) buffer.write(i % 50 == 0 ? '\n' : ' ');
+          buffer.write('מילה$i');
+        }
+        bigText = buffer.toString();
+      });
+
+      void expectSameAsFullScan(int start, int end) {
+        expect(
+          ErrorReportHelper.buildContextAroundSelection(bigText, start, end),
+          equals(_fullScanContext(bigText, start, end)),
+        );
+      }
+
+      test('בחירה באמצע הספר זהה לסריקה המלאה', () {
+        final start = bigText.indexOf('מילה750000 ');
+        expectSameAsFullScan(start, start + 'מילה750000 מילה750001'.length);
+        expect(
+          ErrorReportHelper.buildContextAroundSelection(
+            bigText,
+            start,
+            start + 'מילה750000'.length,
+          ),
+          equals(
+            'מילה749996 מילה749997 מילה749998 מילה749999\nמילה750000 '
+            'מילה750001 מילה750002 מילה750003 מילה750004',
+          ),
+        );
+      });
+
+      test('בחירה בתחילת הספר ובסופו זהה לסריקה המלאה', () {
+        expectSameAsFullScan(0, 'מילה0'.length);
+        expectSameAsFullScan(2, 9);
+        final last = bigText.lastIndexOf('מילה1499999');
+        expectSameAsFullScan(last, bigText.length);
+        expectSameAsFullScan(last - 3, last + 4);
+        expectSameAsFullScan(bigText.length - 1, bigText.length);
+      });
+
+      test('לא סורק את כל הספר', () {
+        final start = bigText.indexOf('מילה750000 ');
+        final end = start + 'מילה750000'.length;
+        final fullScan = Stopwatch()..start();
+        _fullScanContext(bigText, start, end);
+        fullScan.stop();
+        final windowed = Stopwatch()..start();
+        for (var i = 0; i < 10; i++) {
+          ErrorReportHelper.buildContextAroundSelection(bigText, start, end);
+        }
+        windowed.stop();
+        // עשר קריאות צריכות לעלות פחות מסריקה מלאה אחת.
+        expect(
+          windowed.elapsedMicroseconds,
+          lessThan(fullScan.elapsedMicroseconds),
+        );
+      });
+    });
+
+    test('בחירת רווח אחרי מילה, כשהמילה הקודמת מחוץ לחלון', () {
+      final text = 'x${' ' * 2000}ab cd ef gh ij';
+      final start = text.indexOf('ab') + 2;
+      for (var wordsAfter = 0; wordsAfter <= 4; wordsAfter++) {
+        expect(
+          ErrorReportHelper.buildContextAroundSelection(
+            text,
+            start,
+            start + 1,
+            wordsBefore: 0,
+            wordsAfter: wordsAfter,
+          ),
+          equals(
+            _fullScanContext(
+              text,
+              start,
+              start + 1,
+              wordsBefore: 0,
+              wordsAfter: wordsAfter,
+            ),
+          ),
+          reason: 'wordsAfter=$wordsAfter',
+        );
+      }
+    });
+
+    test('זהה לסריקה המלאה גם כשמילים ארוכות חוצות את קצה החלון', () {
+      var seed = 3727;
+      int next(int max) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed % max;
+      }
+
+      final separators = [' ', '  ', '\n', '\t', ' ', ' \n ', ' ' * 2500];
+      for (var round = 0; round < 300; round++) {
+        final buffer = StringBuffer();
+        if (next(3) == 0) buffer.write(separators[next(separators.length)]);
+        final wordCount = 1 + next(30);
+        for (var w = 0; w < wordCount; w++) {
+          if (w > 0) buffer.write(separators[next(separators.length)]);
+          // מילים של עד אלפי תווים, כדי שקצה החלון ייפול באמצע מילה.
+          buffer.write('א' * (1 + next(next(2) == 0 ? 8 : 3000)));
+        }
+        if (next(3) == 0) buffer.write(separators[next(separators.length)]);
+        final text = buffer.toString();
+        final start = next(text.length + 1);
+        final end = start + next(text.length - start + 2);
+        final wordsBefore = next(6);
+        final wordsAfter = next(6);
+        expect(
+          ErrorReportHelper.buildContextAroundSelection(
+            text,
+            start,
+            end,
+            wordsBefore: wordsBefore,
+            wordsAfter: wordsAfter,
+          ),
+          equals(
+            _fullScanContext(
+              text,
+              start,
+              end,
+              wordsBefore: wordsBefore,
+              wordsAfter: wordsAfter,
+            ),
+          ),
+          reason: 'round $round: start=$start end=$end len=${text.length}',
+        );
+      }
+    });
   });
 
   group('ErrorReportHelper email encoding', () {
@@ -1392,4 +1526,46 @@ TextBookLoaded _loadedState() {
     pinLeftPane: false,
     searchText: '',
   );
+}
+
+/// העתק של האלגוריתם שסורק את כל הטקסט, כמקור אמת להשוואה.
+String _fullScanContext(
+  String fullText,
+  int selectionStart,
+  int selectionEnd, {
+  int wordsBefore = 4,
+  int wordsAfter = 4,
+}) {
+  if (selectionStart < 0 || selectionEnd <= selectionStart) return fullText;
+  final matches = RegExp(r'\S+').allMatches(fullText).toList();
+  if (matches.isEmpty) return fullText;
+
+  var startWordIndex = 0;
+  var endWordIndex = matches.length - 1;
+  for (var i = 0; i < matches.length; i++) {
+    if (selectionStart < matches[i].end) {
+      startWordIndex = i;
+      break;
+    }
+  }
+  final selEndMinusOne = selectionEnd - 1;
+  for (var i = matches.length - 1; i >= 0; i--) {
+    final m = matches[i];
+    if ((selEndMinusOne >= m.start && selEndMinusOne < m.end) ||
+        selEndMinusOne > m.end) {
+      endWordIndex = i;
+      break;
+    }
+  }
+
+  final ctxStart = startWordIndex - wordsBefore < 0
+      ? 0
+      : startWordIndex - wordsBefore;
+  final ctxEnd = endWordIndex + wordsAfter >= matches.length
+      ? matches.length - 1
+      : endWordIndex + wordsAfter;
+  final from = matches[ctxStart].start;
+  final to = matches[ctxEnd].end;
+  if (from < 0 || to <= from || to > fullText.length) return fullText;
+  return fullText.substring(from, to);
 }
