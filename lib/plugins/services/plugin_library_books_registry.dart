@@ -98,6 +98,12 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
   /// חדשה, איפוס, הסרה) אינה דורסת אותו.
   final Map<String, int> _revisions = {};
 
+  /// רשימות מפוענחות ב-isolate במקביל, ומוחלות לפי סדר השליחה.
+  final Map<String, Future<void>> _parseTurns = {};
+
+  /// איפוס או הסרה בזמן הפענוח: רשימה שנשלחה לפניהם לא תיכתב.
+  final Map<String, int> _resets = {};
+
   /// הספקים שהוצגו בהודעה האחרונה. המעריך מודיע על כל מפתח של כל תוסף,
   /// וכל הודעה כאן מריצה מחדש את החיפוש המוצג בספרייה.
   Set<String> _visibleProviders = const {};
@@ -221,6 +227,7 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
     var changed = false;
     for (final provider in _ownedBy(pluginId)) {
       _revisions[provider] = _revisionOf(provider) + 1;
+      _resets[provider] = _resetsOf(provider) + 1;
       _entries.remove(provider);
       _pending.remove(provider);
       changed = _books.remove(provider) != null || changed;
@@ -242,11 +249,14 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
       _entries.remove(provider);
       _pending.remove(provider);
       _revisions[provider] = _revisionOf(provider) + 1;
+      _resets[provider] = _resetsOf(provider) + 1;
     }
     return providers.isNotEmpty;
   }
 
   int _revisionOf(String provider) => _revisions[provider] ?? 0;
+
+  int _resetsOf(String provider) => _resets[provider] ?? 0;
 
   /// מחליף את כל ספרי [provider]; רשימה ריקה מסירה אותם. מחזיר את מספר
   /// הספרים שנשמרו.
@@ -259,7 +269,21 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
         notFound: true,
       );
     }
-    final entries = PluginLibraryBookEntry.parseList(raw);
+    final resets = _resetsOf(provider);
+    final parsing = _parseInIsolate(raw);
+    final previousTurn = _parseTurns[provider];
+    final turn = Completer<void>();
+    _parseTurns[provider] = turn.future;
+    final List<PluginLibraryBookEntry> entries;
+    try {
+      entries = await parsing;
+      await previousTurn;
+    } finally {
+      turn.complete(previousTurn);
+    }
+    if (_resetsOf(provider) != resets || !isOwner(pluginId, provider)) {
+      return entries.length;
+    }
     if (_sameEntries(_pending[provider] ?? _entries[provider], entries)) {
       return entries.length;
     }
@@ -376,6 +400,9 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
   static Future<String> _encodeInIsolate(
     List<PluginLibraryBookEntry> entries,
   ) => Isolate.run(() => _encode(entries));
+
+  static Future<List<PluginLibraryBookEntry>> _parseInIsolate(Object? raw) =>
+      Isolate.run(() => PluginLibraryBookEntry.parseList(raw));
 
   static Future<List<PluginLibraryBookEntry>?> _decodeInIsolate(String raw) =>
       Isolate.run(() => _decode(raw));

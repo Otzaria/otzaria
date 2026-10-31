@@ -366,6 +366,65 @@ void main() {
       );
     });
 
+    test('רשימה של 50,000 ספרים מתקבלת ומנורמלת', () async {
+      final books = [
+        for (var i = 1; i <= PluginLibraryBookEntry.maxBooksPerProvider; i++)
+          {'id': i, 'title': ' ספר	 $i ', 'categoryPath': 'שו"ת/ אחרונים'},
+      ];
+
+      expect(await registry.setBooks('p1', 'mylib', books), 50000);
+
+      final stored = registry.booksOf('mylib');
+      expect(stored, hasLength(50000));
+      expect(stored.last.title, 'ספר 50000');
+      expect(stored.last.categoryPath, 'שו"ת, אחרונים');
+    });
+
+    test('שליחות מהירות זו אחר זו: האחרונה קובעת גם כשקודמת ארוכה', () async {
+      final long = registry.setBooks('p1', 'mylib', [
+        for (var i = 1; i <= 20000; i++) {'id': i, 'title': 'ארוך $i'},
+      ]);
+      final middle = registry.setBooks('p1', 'mylib', [
+        {'id': 1, 'title': 'ביניים'},
+      ]);
+      final last = registry.setBooks('p1', 'mylib', [
+        {'id': 2, 'title': 'אחרון'},
+      ]);
+      await Future.wait([long, middle, last]);
+
+      expect(registry.booksOf('mylib').single.title, 'אחרון');
+      expect(
+        (jsonDecode(repo.kv[_storedKey]!) as Map)['books'],
+        [
+          [2, 'אחרון', null, null],
+        ],
+      );
+    });
+
+    test('שליחה פגומה אחרי שליחה תקינה אינה מבטלת אותה', () async {
+      final valid = registry.setBooks('p1', 'mylib', [
+        for (var i = 1; i <= 20000; i++) {'id': i, 'title': 'תקין $i'},
+      ]);
+      final invalid = registry.setBooks('p1', 'mylib', [
+        {'id': 0, 'title': 'א'},
+      ]);
+
+      await expectLater(
+        invalid,
+        throwsA(
+          isA<PluginLibraryBooksException>()
+              .having((e) => e.notFound, 'notFound', isFalse)
+              .having(
+                (e) => e.message,
+                'message',
+                'books[0].id must be a positive integer',
+              ),
+        ),
+      );
+      expect(await valid, 20000);
+      expect(registry.booksOf('mylib'), hasLength(20000));
+    });
+
     test('ספר שלא השתנה שומר את האובייקט (והתצוגה המקדימה נשארת)', () async {
       await registry.setBooks('p1', 'mylib', [
         {'id': 1, 'title': 'א'},
