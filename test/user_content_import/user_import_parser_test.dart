@@ -228,6 +228,17 @@ void main() {
       expect(result.rows.single.targetTitle, 'ספר');
     });
 
+    test('תמיכה באיות התקני Connection Type (עם שני n)', () {
+      const json =
+          '['
+          '{"line_index_1": 1, "line_index_2": 2, '
+          '"path_2": "בסיס.txt", "Connection Type": "commentary"}'
+          ']';
+      final result = UserImportParser.parseNativeLinksJson(json);
+      expect(result.errors, isEmpty);
+      expect(result.rows.single.connectionType, 'COMMENTARY');
+    });
+
     for (final (label, value) in [
       ('ריק', '""'),
       ('רווחים בלבד', '"   "'),

@@ -496,7 +496,9 @@ class Link {
             ),
       path2 = json['path_2'].toString(),
       index2 = int.parse(json['line_index_2'].toString().split('.').first),
-      connectionType = connectionTypeFromJson(json['Conection Type']),
+      connectionType = connectionTypeFromJson(
+        json['Conection Type'] ?? json['Connection Type'],
+      ),
       targetCategoryId = json['category_id_2'] != null
           ? int.tryParse(json['category_id_2'].toString())
           : null,

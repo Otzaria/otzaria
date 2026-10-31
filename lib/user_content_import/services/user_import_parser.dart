@@ -493,10 +493,11 @@ class UserImportParser {
         errors.add(ImportRowError(n, 'line_index_2_end לא חוקי'));
         continue;
       }
-      final type = _nativeConnectionType(item['Conection Type']);
+      final rawType = item['Conection Type'] ?? item['Connection Type'];
+      final type = _nativeConnectionType(rawType);
       if (type == null) {
         errors.add(
-          ImportRowError(n, 'סוג קישור לא מוכר: "${item['Conection Type']}"'),
+          ImportRowError(n, 'סוג קישור לא מוכר: "$rawType"'),
         );
         continue;
       }

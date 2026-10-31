@@ -793,5 +793,13 @@ void main() {
         'future_kind',
       );
     });
+
+    test('תמיכה במפתח התקני "Connection Type"', () {
+      expect(parse({'Connection Type': 'targum'}).connectionType, 'targum');
+      expect(
+        parse({'Connection Type': 'commentary'}).connectionType,
+        'commentary',
+      );
+    });
   });
 }
