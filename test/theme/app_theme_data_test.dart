@@ -36,6 +36,26 @@ void main() {
     });
   }
 
+  for (final brightness in Brightness.values) {
+    test('כל סוגי התפריטים על אותו רקע ב-$brightness', () {
+      final cs = AppThemeData.createColorScheme(
+        AppSeedColors.defaultLight,
+        brightness,
+      );
+      final theme = brightness == Brightness.light
+          ? AppThemeData.light(cs, compactMenuMode: false)
+          : AppThemeData.dark(cs, compactMenuMode: false);
+      Color? background(MenuStyle? style) =>
+          style?.backgroundColor?.resolve(const <WidgetState>{});
+
+      expect(theme.popupMenuTheme.color, background(theme.menuTheme.style));
+      expect(
+        theme.popupMenuTheme.color,
+        background(theme.dropdownMenuTheme.menuStyle),
+      );
+    });
+  }
+
   test('בוחרי תאריך מצוירים באותו רדיוס כמו שאר הדיאלוגים', () {
     final theme = AppThemeData.light(
       AppThemeData.createColorScheme(Colors.deepPurple, Brightness.light),

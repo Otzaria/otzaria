@@ -153,7 +153,7 @@ class AppThemeData {
     required AppMenuMetrics metrics,
   }) {
     return PopupMenuThemeData(
-      color: cs.surfaceContainer,
+      color: backgroundColor,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.black.withValues(alpha: 0.22),
       elevation: AppTokens.elevation2,
