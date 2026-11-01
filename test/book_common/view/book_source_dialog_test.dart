@@ -152,6 +152,36 @@ void main() {
       expect(r.rest, equals('אשר בו שבעה מחלקים'));
     });
 
+    for (final (short, full, rest) in [
+      (
+        "חיבורים בענייני מוסר ועבודת ה'.",
+        "חיבורים בענייני מוסר ועבודת ה'.",
+        '',
+      ),
+      ('פירוש (חדש)', 'פירוש (חדש). המשך', 'המשך'),
+      ('פירוש (חדש)', 'פירוש\u00A0(חדש). המשך', 'המשך'),
+      ('“פירוש”', '"פירוש". המשך', 'המשך'),
+      ("עבודת ה׳.", "עבודת ה'. המשך", 'המשך'),
+      ('“פירוש”', '"פירוש". "ציטוט"', '"ציטוט"'),
+      ('קצר', 'קצר. (המשך)', '(המשך)'),
+      ('קצר', 'קצר. "ציטוט"', '"ציטוט"'),
+      ('פירוש (חדש)', 'פירוש (חדש). (המשך)', '(המשך)'),
+    ]) {
+      test('preserves the description boundary: $full', () {
+        expect(splitShortAndFullDescription(short, full)!.rest, rest);
+      });
+    }
+
+    test(
+      'keeps separate fields when trailing punctuation cannot be matched',
+      () {
+        expect(
+          splitShortAndFullDescription('פירוש (חדש).', 'פירוש (חדש), המשך'),
+          isNull,
+        );
+      },
+    );
+
     test('should return null when the full does not start with the short', () {
       expect(splitShortAndFullDescription('קצר.', 'אחר לגמרי'), isNull);
     });

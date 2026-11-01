@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
+import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 
 /// רישום כפתורי התוספים בשדות החיפוש — מהמניפסט בלבד, בלי מנוע JS.
 ///
@@ -33,6 +34,7 @@ class PluginSearchFieldActionsRegistry extends ChangeNotifier {
       }
       actions.add(action);
     }
+    _dropOrphanedSourceFilter();
     notifyListeners();
   }
 
@@ -42,11 +44,28 @@ class PluginSearchFieldActionsRegistry extends ChangeNotifier {
     final before = actions.length;
     actions.removeWhere((action) => action.id == actionId);
     if (actions.isEmpty) _actions.remove(pluginId);
-    if (actions.length != before) notifyListeners();
+    if (actions.length != before) {
+      _dropOrphanedSourceFilter();
+      notifyListeners();
+    }
   }
 
   void removeAll(String pluginId) {
-    if (_actions.remove(pluginId) != null) notifyListeners();
+    if (_actions.remove(pluginId) != null) {
+      _dropOrphanedSourceFilter();
+      notifyListeners();
+    }
+  }
+
+  void _dropOrphanedSourceFilter() {
+    final books = PluginLibraryBooksRegistry.instance;
+    final owner = books.sourceFilter.value.pluginId;
+    if (owner != null &&
+        !actionsFor(PluginSearchField.library).any(
+          (entry) => entry.$1 == owner && entry.$2.isProviderBooksFilter,
+        )) {
+      books.resetSourceFilter();
+    }
   }
 
   PluginSearchFieldAction? find(String pluginId, String actionId) {

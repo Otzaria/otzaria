@@ -429,6 +429,8 @@ String hebrewPublicationDate(String date) {
 /// רווח קשיח), פיסוק וגרשיים בצורותיהם השונות.
 final _descriptionNoise = RegExp(r'''[\s.,;:!?\-–—"'״׳“”‘’()]''');
 
+final _descriptionQuotes = RegExp(r'''["'״׳“”‘’]''');
+
 /// מפצל את התיאור לקצר (מודגש) ולהמשך הארוך, כשהתיאור הארוך פותח בקצר.
 /// מחזיר null כשאין מה למזג (אחד מהם חסר/ריק, או שהארוך אינו פותח בקצר),
 /// ואז מוצגים שני השדות כמו קודם. ההשוואה מתעלמת מרווחים, פיסוק וגרשיים.
@@ -452,11 +454,20 @@ final _descriptionNoise = RegExp(r'''[\s.,;:!?\-–—"'״׳“”‘’()]''');
 int? _endOfLead(String lead, String full) {
   final wanted = lead.replaceAll(_descriptionNoise, '');
   if (wanted.isEmpty) return null;
+  if (full.startsWith(lead)) return lead.length;
   var matched = 0;
   for (var i = 0; i < full.length; i++) {
     if (_descriptionNoise.hasMatch(full[i])) continue;
     if (full[i] != wanted[matched]) return null;
-    if (++matched == wanted.length) return i + 1;
+    if (++matched == wanted.length) {
+      final suffix = lead.substring(lead.lastIndexOf(wanted[matched - 1]) + 1);
+      final end = i + 1 + suffix.length;
+      return end <= full.length &&
+              full.substring(i + 1, end).replaceAll(_descriptionQuotes, '"') ==
+                  suffix.replaceAll(_descriptionQuotes, '"')
+          ? end
+          : null;
+    }
   }
   return null;
 }
