@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/navigation/search_pane_base.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -19,6 +20,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
 import 'package:otzaria/text_book/bloc/text_book_event.dart';
 import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
 import 'package:otzaria/text_book/view/text_book_search_screen.dart';
@@ -66,6 +68,7 @@ Future<void> main() async {
     simpleSearchRunner,
     String bookTitle = 'ספר בדיקה',
     bool removeNikud = false,
+    BookNotes? bookNotes,
   }) async {
     final textBookBloc = _TestTextBookBloc(
       bookLoaded
@@ -73,6 +76,7 @@ Future<void> main() async {
               content: content,
               bookTitle: bookTitle,
               removeNikud: removeNikud,
+              bookNotes: bookNotes,
             )
           : TextBookInitial.named(
               TextBook(title: bookTitle),
@@ -101,13 +105,14 @@ Future<void> main() async {
       InBookSearchOrigin origin,
       SearchMode mode,
       InBookSearchTemplate? template,
-    ) => MaterialApp(
-      home: MultiBlocProvider(
-        providers: [
-          BlocProvider<TextBookBloc>.value(value: textBookBloc),
-          BlocProvider<SettingsBloc>.value(value: settingsBloc),
-        ],
-        child: Scaffold(
+    ) => MultiBlocProvider(
+      // מעל MaterialApp, כמו באפליקציה: חלונית ההערה נפתחת ב-Overlay.
+      providers: [
+        BlocProvider<TextBookBloc>.value(value: textBookBloc),
+        BlocProvider<SettingsBloc>.value(value: settingsBloc),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
           body: TextBookSearchView(
             contentLoader: () async => content,
             lines: lines,
@@ -184,6 +189,70 @@ Future<void> main() async {
       expect(find.text('אין תוצאות'), findsNothing);
       expect(find.text('בראשית, פרק טו'), findsOneWidget);
       expect(find.text('נמצאו 1 תוצאות'), findsOneWidget);
+    },
+    skip: !engineReady,
+  );
+
+  testWidgets(
+    'תוצאה שנמצאה רק בגוף הערה מסומנת, והלחיצה עליה פותחת את ההערה (issue #3824)',
+    (tester) async {
+      const note = '<i class="footnote">ידע תדע כי־גר יהיה זרעך</i>';
+      final repository = _RecordingSearchRepository(
+        results: [
+          for (var i = 0; i < 5; i++)
+            _result(
+              title: 'בראשית',
+              reference: 'שורה $i',
+              segment: i,
+              continuesToNextLine: i == 3,
+            ),
+        ],
+      );
+      final dbNotes =
+          (BookNotesBuilder()
+                ..add(2, 0, 'ב', 'ידע תדע כי־גר יהיה זרעך')
+                ..add(3, 0, 'ג', 'ידע תדע כי־גר יהיה זרעך'))
+              .build();
+
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'תדע זרעך',
+        searchDistance: 3,
+        bookTitle: 'בראשית',
+        bookNotes: dbNotes,
+        content: const [
+          // 0: ההתאמה רק בגוף ההערה.
+          'ויאמר לאברם<sup class="footnote-marker">א</sup>$note בארץ',
+          // 1: ההתאמה גלויה, והסימן צמוד למילה שבה.
+          'ויאמר לאברם ידע תדע<sup class="footnote-marker">א</sup>$note'
+              ' כי־גר יהיה זרעך בארץ',
+          // 2: שורה שלא נטענה; אי אפשר לקבוע שההתאמה אינה גלויה.
+          '',
+          // 3: התאמה שנמשכת לשורה הבאה.
+          'ויאמר לאברם<sup class="footnote-marker">ג</sup> ידע',
+          'תדע כי־גר יהיה זרעך בארץ',
+        ],
+      );
+      await harness.settle();
+
+      final inNote = find.byWidgetPredicate(
+        (widget) =>
+            widget is RichText &&
+            widget.text.toPlainText().startsWith('בהערה: '),
+      );
+      expect(find.text('נמצאו 5 תוצאות'), findsOneWidget);
+      expect(inNote, findsOneWidget);
+      expect(find.byType(InlineBookNotePreviewContent), findsNothing);
+
+      await tester.tap(inNote);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final preview = tester.widget<InlineBookNotePreviewContent>(
+        find.byType(InlineBookNotePreviewContent),
+      );
+      expect(preview.content, contains('ידע תדע כי־גר יהיה זרעך'));
     },
     skip: !engineReady,
   );
@@ -1287,8 +1356,10 @@ TextBookLoaded _loadedState({
   List<String> content = const ['שורה א'],
   String bookTitle = 'ספר בדיקה',
   bool removeNikud = false,
+  BookNotes? bookNotes,
 }) {
   return TextBookLoaded(
+    bookNotes: bookNotes,
     book: TextBook(title: bookTitle),
     showLeftPane: true,
     content: content,

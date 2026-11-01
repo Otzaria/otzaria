@@ -33,8 +33,10 @@ import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/search/view/in_book_advanced_search_dialog.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/text_book/utils/reading_segment_navigation.dart';
 import 'package:otzaria/text_book/utils/section_search_utils.dart';
+import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/search/utils/search_query_sync.dart';
 import 'package:otzaria/search/utils/user_regex_query.dart';
 import 'package:otzaria/utils/text/ref_helper.dart' show tocSectionAt;
@@ -863,12 +865,26 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   String? _loadedLineSnippet(int index, TextBookState state) {
     final line = state is TextBookLoaded ? _lineTextAt(index, state) : null;
     if (line == null) return null;
-    final query = searchTextController.text;
     // מרווחים ווריאנטים של המנוע אינם בתבנית הליטרלית; מעגנים כמו ההדגשה.
     int? firstHighlight(String text) {
-      final ranges = utils.computeHighlightRanges(
+      final ranges = _engineHighlightRanges(text);
+      return ranges.isEmpty ? null : ranges.first.first;
+    }
+
+    final excerpt = SnippetBuilder.buildExcerptText(
+      fullText: SnippetBuilder.htmlToPlainText(line),
+      query: searchTextController.text,
+      maxChars: _maxResultSnippetChars,
+      wholeWord: _wholeWord,
+      anchorOf: firstHighlight,
+    );
+    return const HtmlEscape(HtmlEscapeMode.element).convert(excerpt);
+  }
+
+  List<List<int>> _engineHighlightRanges(String text) =>
+      utils.computeHighlightRanges(
         text,
-        query,
+        searchTextController.text,
         searchOptions: _searchOptions,
         alternativeWords: _alternativeWords,
         spacingValues: _spacingValues,
@@ -877,17 +893,53 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         matchPolicy: _matchPolicy,
         isSearchResultLine: true,
       );
-      return ranges.isEmpty ? null : ranges.first.first;
-    }
 
-    final excerpt = SnippetBuilder.buildExcerptText(
-      fullText: SnippetBuilder.htmlToPlainText(line),
-      query: query,
-      maxChars: _maxResultSnippetChars,
-      wholeWord: _wholeWord,
-      anchorOf: firstHighlight,
+  /// המנוע מאנדקס גם את גוף ההערות; כשההתאמה רק שם, אין מה להדגיש בטקסט
+  /// הגלוי, ומחזירים את ההערה הראשונה שבה היא נמצאת.
+  int? _matchedNoteIndex(TextSearchResult result) {
+    final state = context.read<TextBookBloc>().state;
+    if (_isSimpleSearch ||
+        result.continuesToNextLine ||
+        state is! TextBookLoaded) {
+      return null;
+    }
+    final lineNotes = _notesAt(result.index, state);
+    final line = _lineTextAt(result.index, state);
+    // בלי השורה אי אפשר לקבוע שההתאמה אינה בטקסט הגלוי.
+    if (lineNotes.isEmpty || line == null) return null;
+    bool matches(String html) =>
+        _engineHighlightRanges(SnippetBuilder.htmlToPlainText(html)).isNotEmpty;
+    if (matches(notes.stripInlineNotesForSearch(line))) return null;
+    final noteIndex = lineNotes.indexWhere(matches);
+    return noteIndex < 0 ? null : noteIndex;
+  }
+
+  List<String> _notesAt(int index, TextBookLoaded state) => notes.notesForLines(
+    _content ?? state.content,
+    [index],
+    dbNotes: state.bookNotes,
+  );
+
+  void _showResultNote(int index, int noteIndex, BuildContext rowContext) {
+    final state = context.read<TextBookBloc>().state;
+    if (state is! TextBookLoaded) return;
+    final lineNotes = _notesAt(index, state);
+    final row = rowContext.findRenderObject();
+    if (noteIndex >= lineNotes.length || row is! RenderBox || !row.attached) {
+      return;
+    }
+    LinkPreviewOverlay.showContent(
+      context,
+      // פיקסל פנימה: העוגן נבדק ב-hit-test, וקצה השורה גובל בפאנל הקריאה.
+      globalPosition: row.localToGlobal(
+        row.size.centerLeft(Offset.zero) + const Offset(1, 0),
+      ),
+      contentBuilder: (_) => InlineBookNotePreviewContent(
+        content: lineNotes[noteIndex],
+        removeNikud: state.removeNikud,
+        removePunctuation: state.removePunctuation,
+      ),
     );
-    return const HtmlEscape(HtmlEscapeMode.element).convert(excerpt);
   }
 
   /// הדגשת `/…/` בקטע של [result] מתוך השורה המלאה; null לשאילתה אחרת.
@@ -1089,25 +1141,47 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                             highlightStyle: highlightStyle,
                           );
                   }
+                  // מחושב כאן ולא עם התוצאות: רק לשורות שעל המסך, ומחדש כשתבנית
+                  // ההדגשה המלאה מגיעה.
+                  final noteIndex = _matchedNoteIndex(result);
 
                   return NavTreeGroupCard(
                     isGroupStart: isGroupStart,
                     isGroupEnd: isGroupEnd,
                     child: ValueListenableBuilder<int?>(
                       valueListenable: _selectedResult,
-                      builder: (context, selected, child) => NavTreeContentRow(
-                        isSelected: selected == resultListIndex,
-                        onTap: () => _navigateToSearchResult(
-                          resultListIndex,
-                          closePaneOnAndroid: true,
-                        ),
-                        child: child!,
-                      ),
+                      builder: (rowContext, selected, child) =>
+                          NavTreeContentRow(
+                            isSelected: selected == resultListIndex,
+                            onTap: () {
+                              _navigateToSearchResult(
+                                resultListIndex,
+                                closePaneOnAndroid: noteIndex == null,
+                              );
+                              if (noteIndex != null) {
+                                _showResultNote(
+                                  result.index,
+                                  noteIndex,
+                                  rowContext,
+                                );
+                              }
+                            },
+                            child: child!,
+                          ),
                       child: RichText(
                         textAlign: TextAlign.justify,
                         text: TextSpan(
                           style: defaultStyle,
-                          children: highlightedSnippet,
+                          children: [
+                            if (noteIndex != null)
+                              TextSpan(
+                                text: 'בהערה: ',
+                                style: defaultStyle.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ...highlightedSnippet,
+                          ],
                         ),
                       ),
                     ),
