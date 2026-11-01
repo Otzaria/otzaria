@@ -117,8 +117,11 @@ import json, os, pathlib, shutil, sys
 args = sys.argv[1:]
 with open(os.environ['GH_CALLS'], 'a') as log:
     log.write(json.dumps(args) + '\n')
+if args[0] == 'api':
+    print('0.10.1+1')
+    sys.exit(0)
 if args[:2] == ['release', 'list']:
-    print('0.10.1+1 stable')
+    print('0.10.1+1')
     sys.exit(0)
 if args[:2] != ['release', 'download'] or args[2] != '0.10.1+1':
     sys.exit(1)

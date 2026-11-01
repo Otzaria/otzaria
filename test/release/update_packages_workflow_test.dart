@@ -318,21 +318,25 @@ void main() {
       expect(script, contains('map(try tonumber catch 0)'));
     });
 
-    test('ה-build של ערוץ הפיתוח שובר שוויון בין אותה גרסה', () {
+    test('מספר הבנייה שובר שוויון בין אותה גרסה', () {
       expect(script, contains(r'split("+") as $p'));
       expect(script, contains(r'($p[1] // "0") | try tonumber catch 0'));
     });
 
-    // ב-0.9.91 קדמו שלושה שחרורי dev: בלי זה משתמשי 0.9.88 לא היו מכוסים.
-    test('היציב האחרון תמיד בין הבסיסים, גם אחרי כמה שחרורי dev', () {
-      expect(script, contains('tagName,isDraft,isPrerelease'));
+    test('Latest תמיד בין הבסיסים גם אחרי ריליסים אחרים', () {
+      expect(script, contains('tagName,isDraft'));
+      expect(script, contains(r'gh api "repos/$source_repo/releases/latest"'));
+      expect(script, contains(r'candidates+=("$latest_tag")'));
       expect(
         script,
         contains(
-          r'[ "$stable_covered" = false ] && [ "$kind" = stable ] || continue',
+          r'[ "$latest_covered" = false ] && [ "$tag" = "$latest_tag" ] || continue',
         ),
       );
-      expect(script, contains(r'[ "$kind" = stable ] && stable_covered=true'));
+      expect(
+        script,
+        contains(r'[ "$tag" = "$latest_tag" ] && latest_covered=true'),
+      );
     });
   });
 

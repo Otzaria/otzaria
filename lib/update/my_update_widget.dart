@@ -312,133 +312,51 @@ bool isSilentWindowsInstallerUrl(String url) {
   return name.endsWith('.exe');
 }
 
-/// מטמון של תוצאות GitHub API. המפתח כולל גם את הערוץ (stable/dev) כדי למנוע
-/// דליפה בין ערוצים אם המשתמש מחליף הגדרה באותו סשן, וגם כדי שלא יחזרו
-/// תוצאות ישנות כאשר שני release-ים בערוץ dev חולקים אותה core version
-/// (כגון `0.9.92+628` ו-`0.9.92+629`).
+/// שומר את הריליס שנבחר מ-Latest כדי שהיומן והמתקין יתייחסו לאותה בנייה.
 @visibleForTesting
 final Map<String, Map<String, dynamic>> releaseCacheForTesting = {};
 
-bool _isDevChannelEnabled() =>
-    Settings.getValue<bool>('key-dev-channel') ?? false;
-
-String _cacheKey(String version, {bool? isDev}) {
-  final dev = isDev ?? _isDevChannelEnabled();
-  return '${dev ? 'dev' : 'stable'}:$version';
-}
-
-/// מאחסן release ב-cache עבור גרסה נתונה. נקרא מ-`_getLatestVersion` כדי
-/// להבטיח ש-`_getChangelog`/`_getBinaryUrl` מקבלים בדיוק את ה-release שזוהה
-/// כ"החדש ביותר", ולא נבחר מחדש לפי prefix.
-void _cacheRelease(
-  String version,
-  Map<String, dynamic> release, {
-  bool? isDev,
-}) {
-  releaseCacheForTesting[_cacheKey(version, isDev: isDev)] = release;
-}
-
-/// בוחר את ה-release ה-pre-release האחרון ברשימה שמתאים לערוץ dev:
-/// pre-release אמיתי, לא draft, ולא PR preview (tag שלא מכיל `-pr`).
-/// אם אין התאמה — נופל ל-release הראשון ברשימה (כדי להתאים להתנהגות הקודמת).
-/// מקבלת `List<dynamic>` ישירות מ-`jsonDecode` ולא מסתמכת על הסקה גנרית
-/// של `firstWhere` שמשתנה לפי הטיפוס בזמן ריצה.
+/// מקור העדכון היחיד; ריליסים אחרים אינם מועמדים גם כשמספרם גבוה יותר.
 @visibleForTesting
-Map<String, dynamic> pickLatestDevRelease(List<dynamic> releases) {
-  for (final r in releases) {
-    if (r is Map &&
-        r["prerelease"] == true &&
-        r["draft"] == false &&
-        !r["tag_name"].toString().contains('-pr')) {
-      return r.cast<String, dynamic>();
-    }
+Future<Map<String, dynamic>?> fetchLatestAppRelease() async {
+  final response = await http
+      .get(
+        Uri.parse(
+          'https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/latest',
+        ),
+      )
+      .timeout(_kGithubTimeout);
+  if (response.statusCode == 404) return null;
+  if (response.statusCode != 200) {
+    throw StateError('Latest release request failed (${response.statusCode})');
   }
-  return (releases.first as Map).cast<String, dynamic>();
-}
-
-/// בערוץ המפתחים בוחר את ה-release היציב אם הוא חדש מה-pre-release האחרון.
-/// בשוויון גרסה (בלי `+build`) מוחזר ה-stable, כדי לעגן אליו את ה-changelog והנכסים.
-@visibleForTesting
-Map<String, dynamic> pickPreferredReleaseForDevChannel({
-  required Map<String, dynamic> stableRelease,
-  required Map<String, dynamic> devRelease,
-}) {
-  final stableTag = stableRelease['tag_name']?.toString() ?? '';
-  final devTag = devRelease['tag_name']?.toString() ?? '';
-  final stableVersion = _tryParseVersion(stableTag);
-  final devVersion = _tryParseVersion(devTag);
-
-  if (stableVersion == null) return devRelease;
-  if (devVersion == null) return stableRelease;
-
-  return devVersion > stableVersion ? devRelease : stableRelease;
-}
-
-/// שולפת את מידע ה-release מ-GitHub עבור גרסה נתונה ושומרת אותו במטמון.
-/// אם `_getLatestVersion` כבר הקדים לאחסן את ה-release המדויק שזוהה, נחזיר
-/// אותו ישירות — כך מובטח עקביות בין ה-release שזוהה כ"חדש" לבין
-/// ה-changelog וקובץ ההתקנה.
-Future<Map<String, dynamic>> _fetchRelease(String version) async {
-  final cached = releaseCacheForTesting[_cacheKey(version)];
-  if (cached != null) return cached;
-
-  final isDev = _isDevChannelEnabled();
-  Map<String, dynamic> release;
-
-  if (isDev) {
-    final data = await http
-        .get(
-          Uri.parse(
-            "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases",
-          ),
-        )
-        .timeout(_kGithubTimeout);
-    final releases = jsonDecode(data.body) as List;
-    final byPrefix = releases
-        .where(
-          (r) => releaseTagMatchesVersion(r["tag_name"].toString(), version),
-        )
-        .toList();
-    final pool = byPrefix.isNotEmpty ? byPrefix : releases;
-    release = pickLatestDevRelease(pool);
-  } else {
-    var resp = await http
-        .get(
-          Uri.parse(
-            "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/tags/$version",
-          ),
-        )
-        .timeout(_kGithubTimeout);
-    if (resp.statusCode == 404) {
-      resp = await http
-          .get(
-            Uri.parse(
-              "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/tags/v$version",
-            ),
-          )
-          .timeout(_kGithubTimeout);
-    }
-    if (resp.statusCode >= 400) {
-      throw Exception(
-        'Release "$version" not found (status ${resp.statusCode})',
-      );
-    }
-    release = (jsonDecode(resp.body) as Map).cast<String, dynamic>();
+  final release = (jsonDecode(response.body) as Map).cast<String, dynamic>();
+  final tag = release['tag_name'];
+  if (release['draft'] == true ||
+      release['prerelease'] == true ||
+      tag is! String ||
+      !RegExp(
+        r'^v?\d+\.\d+\.\d+(?:\.\d+)?(?:\+[0-9A-Za-z.-]+)?$',
+      ).hasMatch(tag)) {
+    throw const FormatException('Invalid latest release');
   }
-
-  _cacheRelease(version, release, isDev: isDev);
   return release;
 }
 
-/// האם [tag] הוא שחרור של [version] בדיוק: `0.9.97` תופס את `0.9.97+789`
-/// ולא את ה-hotfix `0.9.97.2+790`.
-@visibleForTesting
-bool releaseTagMatchesVersion(String tag, String version) =>
-    tag == version || tag.startsWith('$version+');
+Future<Map<String, dynamic>> _fetchRelease(String version) async {
+  final cached = releaseCacheForTesting[version];
+  if (cached != null) return cached;
+  final release = await fetchLatestAppRelease();
+  if (release == null ||
+      _normalizeVersion(release['tag_name'] as String) != version) {
+    throw StateError('Release is no longer Latest');
+  }
+  releaseCacheForTesting[version] = release;
+  return release;
+}
 
 /// בונה URL לקובץ raw בריפו, צמוד לתג הספציפי של ה-release.
-/// שימוש ב-`pathSegments` מבטיח קידוד נכון של תווים מיוחדים כמו `+` שבתגים
-/// בערוץ dev (לדוגמה `0.9.92+628`) ושל תווי יוניקוד בנתיב.
+/// שימוש ב-`pathSegments` שומר על מספר הבנייה ועל תווי יוניקוד בנתיב.
 @visibleForTesting
 Uri rawAssetUrlForTag(String tagName, String relativePath) {
   final segments = <String>[
@@ -1016,50 +934,11 @@ class _ManagedUpdatWidgetState extends State<_ManagedUpdatWidget> {
 
   Future<String?> _getLatestVersion() async {
     releaseCacheForTesting.clear();
-
-    final isDevChannel = _isDevChannelEnabled();
-
-    if (isDevChannel) {
-      final devData = await http
-          .get(
-            Uri.parse(
-              "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases",
-            ),
-          )
-          .timeout(_kGithubTimeout);
-      final stableData = await http
-          .get(
-            Uri.parse(
-              "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/latest",
-            ),
-          )
-          .timeout(_kGithubTimeout);
-      final releases = jsonDecode(devData.body) as List;
-      final preRelease = pickLatestDevRelease(releases);
-      final stableRelease = (jsonDecode(stableData.body) as Map)
-          .cast<String, dynamic>();
-      final selectedRelease = pickPreferredReleaseForDevChannel(
-        stableRelease: stableRelease,
-        devRelease: preRelease,
-      );
-      final normalized = _normalizeVersion(
-        selectedRelease["tag_name"] as String,
-      );
-      _cacheRelease(normalized, selectedRelease, isDev: true);
-      return normalized;
-    }
-
-    final data = await http
-        .get(
-          Uri.parse(
-            "https://api.github.com/repos/$_githubOwner/$_githubRepository/releases/latest",
-          ),
-        )
-        .timeout(_kGithubTimeout);
-    final release = (jsonDecode(data.body) as Map).cast<String, dynamic>();
-    final normalized = _normalizeVersion(release["tag_name"] as String);
-    _cacheRelease(normalized, release, isDev: false);
-    return normalized;
+    final release = await fetchLatestAppRelease();
+    if (release == null) return null;
+    final version = _normalizeVersion(release['tag_name'] as String);
+    releaseCacheForTesting[version] = release;
+    return version;
   }
 
   Future<String> _getBinaryUrl(String version) async {

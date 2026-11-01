@@ -17,7 +17,7 @@ void main() {
   );
 
   test('bump_version פותר את ה-release פעם אחת ומייצא אותו', () {
-    final bump = job('bump_version', 'check_version');
+    final bump = job('bump_version', 'prepare_release');
     expect(
       bump,
       contains(r'library_tag: ${{ steps.library_release.outputs.tag }}'),

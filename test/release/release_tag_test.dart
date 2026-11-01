@@ -42,9 +42,10 @@ void main() {
       final skip = script.endsWith('.ps1') && !hasPwsh ? 'pwsh חסר' : false;
 
       for (final (hotfix, ref, expected) in [
-        (0, 'refs/heads/main', '0.9.98'),
+        (0, 'refs/heads/main', '0.9.98+800'),
         (0, 'refs/heads/dev', '0.9.98+800'),
-        (2, 'refs/heads/main', '0.9.98.2'),
+        (0, 'refs/heads/feature/example', '0.9.98+800'),
+        (2, 'refs/heads/main', '0.9.98.2+800'),
         (2, 'refs/heads/dev', '0.9.98.2+800'),
       ]) {
         test('hotfix $hotfix על $ref → $expected', () async {
@@ -65,7 +66,7 @@ void main() {
           ['0.9.98', 'refs/heads/main', '800'],
         );
         expect(result.exitCode, 0, reason: '${result.stderr}');
-        expect((result.stdout as String).trim(), '0.9.98');
+        expect((result.stdout as String).trim(), '0.9.98+800');
       }, skip: skip);
 
       test('גרסה שאינה תואמת את version.json נכשלת', () async {
