@@ -1,25 +1,46 @@
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/ast/visitor.dart';
-import 'package:analyzer/source/line_info.dart';
 import 'package:test/test.dart';
 
+import '../../tool/ui_lint/ast_helpers.dart';
+
+/// השורות שבהן נבנה TextPainter בלי textDirection בבנאי.
+List<int> _textPaintersWithoutDirection(String source) {
+  final parsed = parseString(content: source, throwIfDiagnostics: false);
+  return [
+    for (final call in ctorCallsNamed(parsed.unit, {'TextPainter'}))
+      if (call.constructor == null && call.named('textDirection') == null)
+        parsed.lineInfo.getLocation(call.node.offset).lineNumber,
+  ];
+}
+
 void main() {
+  test('הסורק מוצא TextPainter בלי textDirection, עם new ובלעדיו', () {
+    final source = File(
+      'test/design_system/fixtures/text_painter_without_direction.dart',
+    ).readAsStringSync();
+    final marked = [
+      for (final (i, line) in source.split('\n').indexed)
+        if (line.trimRight().endsWith('// LINT')) i + 1,
+    ];
+    expect(marked, hasLength(3));
+    expect(_textPaintersWithoutDirection(source), marked);
+  });
+
   test('כל TextPainter ב-lib מקבל textDirection', () {
     final hits = <String>[];
+    var scanned = 0;
     for (final entity in Directory('lib').listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      final parsed = parseString(
-        content: entity.readAsStringSync(),
-        path: entity.path,
-      );
-      parsed.unit.accept(
-        _TextPainterDirectionVisitor(entity.path, parsed.lineInfo, hits),
-      );
+      final source = entity.readAsStringSync();
+      scanned += 'TextPainter('.allMatches(source).length;
+      for (final line in _textPaintersWithoutDirection(source)) {
+        hits.add('${entity.path}:$line');
+      }
     }
 
+    expect(scanned, greaterThan(0));
     expect(
       hits,
       isEmpty,
@@ -28,23 +49,4 @@ void main() {
           '${hits.join('\n')}',
     );
   });
-}
-
-class _TextPainterDirectionVisitor extends RecursiveAstVisitor<void> {
-  _TextPainterDirectionVisitor(this.path, this.lineInfo, this.hits);
-
-  final String path;
-  final LineInfo lineInfo;
-  final List<String> hits;
-
-  @override
-  void visitInstanceCreationExpression(InstanceCreationExpression node) {
-    if (node.constructorName.type.name.lexeme == 'TextPainter' &&
-        !node.argumentList.arguments.whereType<NamedArgument>().any(
-          (argument) => argument.name.lexeme == 'textDirection',
-        )) {
-      hits.add('$path:${lineInfo.getLocation(node.offset).lineNumber}');
-    }
-    super.visitInstanceCreationExpression(node);
-  }
 }
