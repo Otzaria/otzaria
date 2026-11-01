@@ -499,6 +499,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
 
         unawaited(_refreshManualReindexRequirement(libraryState));
       },
+      buildWhen: LibraryState.catalogChanged,
       builder: (context, libraryState) {
         return BlocConsumer<SettingsBloc, SettingsState>(
           // מרעננים רק אחרי שה-BLoC כתב ל-`Settings`: אחרת `RefreshLibrary` עלול
