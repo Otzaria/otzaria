@@ -2828,11 +2828,13 @@ class PluginBridgeAdapter {
         return true;
       case 'openBook':
         // spec: openBook({ id?, bookId?, type?, index?, searchQuery?,
-        //   navigateToPositionIfReused?, matchPages?, matchedTerms? })
+        //   markText?, markSection?, navigateToPositionIfReused?, matchPages?,
+        //   matchedTerms? })
         // also accepts legacy 'title' for back-compat; all supplied identity fields must match.
         {
           final index = (args['index'] as num?)?.toInt() ?? 0;
           final searchQuery = args['searchQuery'] as String? ?? '';
+          final (:markText, :markSection) = _parseOpenBookMark(args);
           final navigateToPositionIfReused =
               args['navigateToPositionIfReused'] as bool? ?? false;
           final openInSidePane = args['openInSidePane'] as bool? ?? false;
@@ -2868,6 +2870,8 @@ class PluginBridgeAdapter {
               index,
               searchQuery,
               ignoreHistory: true,
+              markSection: markSection,
+              markText: markText,
             );
             if (tab is TextBookTab) registry.useNative(tab);
             for (final existing
@@ -2892,6 +2896,8 @@ class PluginBridgeAdapter {
             searchQuery,
             ignoreHistory: true,
             requiresStableLayout: book is PdfBook,
+            markSection: markSection,
+            markText: markText,
             navigateToPositionIfReused: navigateToPositionIfReused,
             inSidePane: openInSidePane,
             externalMatches: externalMatches,
@@ -3659,6 +3665,27 @@ class PluginBridgeAdapter {
       throw Exception('error.unavailable: Not an active embedded text reader');
     }
     return tab;
+  }
+
+  /// הדגשה בפתיחת ספר — אותה סמנטיקה כמו `m`/`mark` בקישור `otzaria://`
+  /// (ראו `external_uri_router.dart`): `markText` מדגיש טקסט בתוך המקטע ב-`index`,
+  /// `markSection` את המקטע כולו. טקסט ריק או רווחים בלבד נחשב היעדר הדגשה.
+  static ({String? markText, bool markSection}) _parseOpenBookMark(
+    Map<String, dynamic> args,
+  ) {
+    final rawText = args['markText'];
+    if (rawText != null && rawText is! String) {
+      throw Exception('error.invalid_params: markText must be a string');
+    }
+    final rawSection = args['markSection'];
+    if (rawSection != null && rawSection is! bool) {
+      throw Exception('error.invalid_params: markSection must be a boolean');
+    }
+    final trimmed = (rawText as String?)?.trim();
+    return (
+      markText: trimmed == null || trimmed.isEmpty ? null : trimmed,
+      markSection: rawSection as bool? ?? false,
+    );
   }
 
   Map<String, dynamic> _identityFields(Map<String, dynamic> args) => {
