@@ -8,13 +8,14 @@ import 'package:otzaria/text_display/text_display_exports.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 /// מחיל פרופיל תצוגה (ערוץ ייצוא) על שורת ספר, ומנקה HTML לפי [stripHtml].
+/// תג שבירה בקצה השורה (כותרת) הופך לרווח שאינו מפריד דבר, ולכן נחתך.
 String applyTextBookExportProfile(
   String input, {
   required TextDisplayProfile profile,
   required bool stripHtml,
 }) {
   final text = applyTextDisplayProfile(input, profile);
-  return stripHtml ? stripHtmlIfNeeded(text) : text;
+  return stripHtml ? stripHtmlIfNeeded(text).trim() : text;
 }
 
 /// בקשת ייצוא של ספר שלם. עוברת ל-isolate, ולכן מופעי השמות והערות השוליים
