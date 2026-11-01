@@ -34,6 +34,7 @@ import 'package:otzaria/plugins/services/plugin_asset_scheme.dart';
 import 'package:otzaria/plugins/services/plugin_crash_guard.dart';
 import 'package:otzaria/plugins/services/plugin_deep_link_policy.dart';
 import 'package:otzaria/plugins/services/plugin_host_shortcuts.dart';
+import 'package:otzaria/plugins/services/plugin_webview_focus.dart';
 import 'package:otzaria/plugins/services/plugin_webview_failure_log.dart';
 import 'package:otzaria/plugins/view/plugin_crashed_view.dart';
 import 'package:otzaria/plugins/view/plugin_data_folder_unwritable_view.dart';
@@ -709,7 +710,9 @@ class _PluginTabPageState extends State<PluginTabPage> with PluginWebViewHost {
             callback: (args) {
               if (!mounted || args.isEmpty) return;
               final shortcut = _hostShortcuts[args.first];
-              if (shortcut != null) PluginHostShortcuts.dispatch(shortcut);
+              if (shortcut != null && PluginHostShortcuts.dispatch(shortcut)) {
+                returnKeyboardToFlutterWhenItOwnsIt();
+              }
             },
           );
         });

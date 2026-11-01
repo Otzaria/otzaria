@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+
+import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:win32/win32.dart';
 
 /// גבול זמן לקריאה נייטיבית. ה-flush רץ תחת מנעול ה-lifecycle של הדיספצ'ר,
 /// וקריאה תקועה הייתה מקפיאה גם השהיה/החייאה של תוספים.
@@ -78,6 +83,47 @@ bool flutterOwnsKeyboardNow() {
   if (context == null) return false;
   return contextIsInsideTextInput(context) ||
       contextIsInsidePopupRoute(context);
+}
+
+/// מחזיר את המקלדת של המערכת ל-Flutter כשה-UI שלו לוקח אותה, תוך [window].
+///
+/// קיצור שהועבר מתוסף (Ctrl+L) פותח דיאלוג, אבל הפוקוס הנייטיבי נשאר
+/// ב-WebView וההקשות לא מגיעות לשדה עד קליק (#3759).
+void returnKeyboardToFlutterWhenItOwnsIt({
+  Duration window = const Duration(seconds: 2),
+  @visibleForTesting VoidCallback? returnKeyboard,
+}) {
+  final reclaim =
+      returnKeyboard ??
+      (!kIsWeb && Platform.isWindows ? _focusFlutterViewWin32 : null);
+  if (reclaim == null) return;
+  final focusManager = FocusManager.instance;
+  Timer? timeout;
+  late final VoidCallback check;
+  check = () {
+    if (!flutterOwnsKeyboardNow()) return;
+    focusManager.removeListener(check);
+    timeout?.cancel();
+    reclaim();
+  };
+  focusManager.addListener(check);
+  timeout = Timer(window, () => focusManager.removeListener(check));
+  check();
+}
+
+/// הפוקוס של ה-WebView יושב בחלון-בן של החלון העליון; מעבירים אותו ל-view.
+void _focusFlutterViewWin32() {
+  final focused = GetFocus();
+  if (focused.isNull) return;
+  using((arena) {
+    final view = FindWindowEx(
+      GetAncestor(focused, GA_ROOT),
+      null,
+      arena.pcwstr('FLUTTERVIEW'),
+      null,
+    ).value;
+    if (!view.isNull && view.address != focused.address) SetFocus(view);
+  });
 }
 
 /// האם חלון האפליקציה בחזית. Alt-Tab בזמן טעינת תוסף לא יגרור העברת פוקוס.
