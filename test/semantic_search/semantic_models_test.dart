@@ -178,6 +178,37 @@ void main() {
       expect(Directory(foreign).existsSync(), isTrue);
     });
 
+    test(
+      'מחיקה שנכשלה באמצע משאירה את סימן הבעלות',
+      () async {
+        final root = Directory.systemTemp.createTempSync('semantic_owner_');
+        final ours = p.join(root.path, 'meivin-round2-onnx');
+        await markSemanticDirectory(ours);
+        for (final name in ['a', 'z']) {
+          File(p.join(ours, name, 'model.onnx')).createSync(recursive: true);
+        }
+        // ב-APFS ‏'m' בא אחרי הסימון בסדר הקריאה, ולכן גם מחיקה רקורסיבית רגילה נכשלת כאן.
+        final locked = p.join(ours, 'm');
+        File(p.join(locked, 'model.onnx')).createSync(recursive: true);
+        Process.runSync('chmod', ['555', locked]);
+        addTearDown(() {
+          Process.runSync('chmod', ['-R', '755', root.path]);
+          root.deleteSync(recursive: true);
+        });
+
+        await expectLater(
+          deleteSemanticOwnedDirectory(ours),
+          throwsA(isA<FileSystemException>()),
+        );
+        expect(await isSemanticOwnedDirectory(ours), isTrue);
+
+        Process.runSync('chmod', ['-R', '755', ours]);
+        expect(await deleteSemanticOwnedDirectory(ours), isTrue);
+        expect(Directory(ours).existsSync(), isFalse);
+      },
+      skip: Platform.isWindows,
+    );
+
     test('<root> נקבע לפי תיקיית הספרייה כשהיא ניתנת', () {
       final paths = SemanticPaths(
         p.join('D:', 'lib', 'otzaria', 'db'),
