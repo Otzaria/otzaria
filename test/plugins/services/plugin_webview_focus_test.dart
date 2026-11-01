@@ -297,6 +297,79 @@ void main() {
     });
   });
 
+  group('returnKeyboardToFlutterWhenItOwnsIt (#3759)', () {
+    Future<FocusNode> pumpPluginTab(WidgetTester tester) async {
+      final pluginNode = FocusNode();
+      addTearDown(pluginNode.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Focus(
+              focusNode: pluginNode,
+              child: ElevatedButton(
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => const Dialog(
+                    child: Material(child: TextField(autofocus: true)),
+                  ),
+                ),
+                child: const Text('איתור'),
+              ),
+            ),
+          ),
+        ),
+      );
+      pluginNode.requestFocus();
+      await tester.pump();
+      return pluginNode;
+    }
+
+    testWidgets('דיאלוג עם שדה שנפתח מקיצור מקבל את המקלדת של המערכת', (
+      tester,
+    ) async {
+      await pumpPluginTab(tester);
+      var calls = 0;
+
+      returnKeyboardToFlutterWhenItOwnsIt(returnKeyboard: () => calls++);
+      expect(calls, 0, reason: 'הפוקוס עדיין בטאב התוסף');
+
+      await tester.tap(find.text('איתור'));
+      await tester.pumpAndSettle();
+
+      expect(calls, 1);
+    });
+
+    testWidgets('פוקוס שנשאר מחוץ לשדה ולדיאלוג אינו גוזל מהתוסף', (
+      tester,
+    ) async {
+      final pluginNode = await pumpPluginTab(tester);
+      var calls = 0;
+
+      returnKeyboardToFlutterWhenItOwnsIt(returnKeyboard: () => calls++);
+      pluginNode.unfocus();
+      await tester.pump();
+      pluginNode.requestFocus();
+      await tester.pump(const Duration(seconds: 3));
+
+      expect(calls, 0);
+    });
+
+    testWidgets('אחרי חלון ההמתנה דיאלוג מאוחר אינו מושפע', (tester) async {
+      await pumpPluginTab(tester);
+      var calls = 0;
+
+      returnKeyboardToFlutterWhenItOwnsIt(
+        window: const Duration(milliseconds: 100),
+        returnKeyboard: () => calls++,
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.text('איתור'));
+      await tester.pumpAndSettle();
+
+      expect(calls, 0);
+    });
+  });
+
   group('בחירת המסלול לפי פלטפורמה', () {
     test('ווינדוס — ערוץ ה-platform view', () {
       expect(usesPlatformViewFocusChannel(TargetPlatform.windows), isTrue);
