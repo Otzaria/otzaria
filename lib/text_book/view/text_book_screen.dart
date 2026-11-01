@@ -2991,6 +2991,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       state.searchMode,
       state.searchDistance,
       state.matchPolicy,
+      state.searchOrigin,
     );
     // אירועי בחירה והדגשה ממשיכים לבנות את הקורא, אך אינם משנים את החיפוש.
     if (_searchViewInputs == inputs) return _searchView!;
@@ -3008,6 +3009,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       initialSearchMode: state.searchMode,
       initialSearchDistance: state.searchDistance,
       initialMatchPolicy: state.matchPolicy,
+      initialSearchOrigin: state.searchOrigin,
       closeLeftPaneCallback: () =>
           context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
     );
@@ -3407,7 +3409,9 @@ bool _handleGlobalKeyEvent(
       // ESC - ניקוי הדגשת החיפוש או ה-?mark, ואם אין הדגשה — יציאה ממסך מלא
       case LogicalKeyboardKey.escape:
         if (state.searchText.isNotEmpty) {
-          context.read<TextBookBloc>().add(const UpdateSearchText(''));
+          context.read<TextBookBloc>().add(
+            const UpdateSearchText('', searchOrigin: InBookSearchOrigin.inBook),
+          );
           return true;
         }
         if (state.permanentHighlightLine != null) {

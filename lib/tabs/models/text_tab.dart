@@ -32,6 +32,7 @@ class TextBookTab extends OpenedTab {
 
   /// The initial search text for this tab.
   final String searchText;
+  final InBookSearchOrigin searchOrigin;
 
   /// טקסט להדגשה בלבד — לא מפעיל חלונית חיפוש.
   final String highlightText;
@@ -139,6 +140,7 @@ class TextBookTab extends OpenedTab {
     required int index,
     ReadingAnchor? initialReadingAnchor,
     this.searchText = '',
+    this.searchOrigin = InBookSearchOrigin.inBook,
     this.highlightText = '',
     this.permanentHighlightLine,
     this.searchOptions = const {},
@@ -184,6 +186,7 @@ class TextBookTab extends OpenedTab {
       openLeftPane,
       commentators ?? [],
       searchText: searchText,
+      searchOrigin: searchOrigin,
       searchOptions: searchOptions,
       alternativeWords: alternativeWords,
       spacingValues: spacingValues,
@@ -317,6 +320,7 @@ class TextBookTab extends OpenedTab {
       openLeftPane: shouldOpenLeftPane,
       isPinned: json['isPinned'] ?? false,
       searchText: searchState.searchText,
+      searchOrigin: searchState.searchOrigin,
       searchOptions: searchState.searchOptions,
       alternativeWords: searchState.alternativeWords,
       spacingValues: searchState.spacingValues,
@@ -362,6 +366,7 @@ class TextReadingSnapshot {
       mode,
       distance,
       policy,
+      origin,
     ) = switch (state) {
       TextBookLoaded s => (
         s.searchText,
@@ -371,6 +376,7 @@ class TextReadingSnapshot {
         s.searchMode,
         s.searchDistance,
         s.matchPolicy,
+        s.searchOrigin,
       ),
       TextBookInitial s => (
         s.searchText,
@@ -380,6 +386,7 @@ class TextReadingSnapshot {
         s.searchMode,
         s.searchDistance,
         s.matchPolicy,
+        s.searchOrigin,
       ),
       _ => (
         tab.searchText,
@@ -389,10 +396,12 @@ class TextReadingSnapshot {
         tab.searchMode,
         tab.searchDistance,
         tab.matchPolicy,
+        tab.searchOrigin,
       ),
     };
     _search = ReadingTabSearchState(
       searchText: text,
+      searchOrigin: origin,
       searchOptions: options,
       alternativeWords: alternatives,
       spacingValues: spacing,
@@ -451,6 +460,7 @@ class TextReadingSnapshot {
       index: _index,
       initialReadingAnchor: _readingAnchor,
       searchText: search.searchText,
+      searchOrigin: search.searchOrigin,
       searchOptions: search.searchOptions,
       alternativeWords: search.alternativeWords,
       spacingValues: search.spacingValues,

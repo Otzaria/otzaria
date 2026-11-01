@@ -685,6 +685,7 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     tab.searchMode = event.searchMode ?? current.searchMode;
     tab.searchDistance = event.searchDistance ?? current.searchDistance;
     tab.matchPolicy = event.matchPolicy ?? current.matchPolicy;
+    tab.searchOrigin = event.searchOrigin ?? tab.searchOrigin;
   }
 
   // ============ Per-Book Settings Event Handlers ============

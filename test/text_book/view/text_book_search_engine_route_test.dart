@@ -55,6 +55,7 @@ Future<void> main() async {
     required SearchRepository searchRepository,
     String initialQuery = '',
     SearchMode searchMode = SearchMode.exact,
+    InBookSearchOrigin searchOrigin = InBookSearchOrigin.inBook,
     int searchDistance = 0,
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
     List<String> content = const ['שורה א'],
@@ -91,34 +92,48 @@ Future<void> main() async {
     });
 
     final lines = LineScrollController();
-    Widget build(String query, int distance, SearchMatchPolicy policy) =>
-        MaterialApp(
-          home: MultiBlocProvider(
-            providers: [
-              BlocProvider<TextBookBloc>.value(value: textBookBloc),
-              BlocProvider<SettingsBloc>.value(value: settingsBloc),
-            ],
-            child: Scaffold(
-              body: TextBookSearchView(
-                contentLoader: () async => content,
-                lines: lines,
-                focusNode: focusNode,
-                closeLeftPaneCallback: () {},
-                initialQuery: query,
-                initialSearchMode: searchMode,
-                initialSearchDistance: distance,
-                initialMatchPolicy: policy,
-                simpleSearchRunner: simpleSearchRunner,
-                searchRepository: searchRepository,
-              ),
-            ),
+    Widget build(
+      String query,
+      int distance,
+      SearchMatchPolicy policy,
+      InBookSearchOrigin origin,
+      SearchMode mode,
+    ) => MaterialApp(
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider<TextBookBloc>.value(value: textBookBloc),
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+        ],
+        child: Scaffold(
+          body: TextBookSearchView(
+            contentLoader: () async => content,
+            lines: lines,
+            focusNode: focusNode,
+            closeLeftPaneCallback: () {},
+            initialQuery: query,
+            initialSearchMode: mode,
+            initialSearchOrigin: origin,
+            initialSearchDistance: distance,
+            initialMatchPolicy: policy,
+            simpleSearchRunner: simpleSearchRunner,
+            searchRepository: searchRepository,
           ),
-        );
+        ),
+      ),
+    );
 
-    await tester.pumpWidget(build(initialQuery, searchDistance, matchPolicy));
+    await tester.pumpWidget(
+      build(
+        initialQuery,
+        searchDistance,
+        matchPolicy,
+        searchOrigin,
+        searchMode,
+      ),
+    );
     await tester.pump();
 
-    return _Harness(tester, textBookBloc, build);
+    return _Harness(tester, textBookBloc, build, searchOrigin, searchMode);
   }
 
   testWidgets(
@@ -454,6 +469,137 @@ Future<void> main() async {
     );
   });
 
+  testWidgets('תוצאה חדשה באותה שאילתה מחילה תצורה ומקור חדשים', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchMode: SearchMode.advanced,
+      searchDistance: 3,
+    );
+    await harness.settle();
+    await harness.rebuildFromBloc(
+      'תדע זרעך',
+      4,
+      SearchMatchPolicy.standard,
+      searchOrigin: InBookSearchOrigin.globalResult,
+    );
+    await harness.settle();
+    expect(repository.requests.last.distance, 4);
+    expect(
+      harness.bloc.searchTextUpdates.last.searchOrigin,
+      InBookSearchOrigin.globalResult,
+    );
+    final requestsBeforeEdit = repository.requests.length;
+    await harness.type('זרעך אחריך');
+    await harness.settle();
+    expect(repository.requests, hasLength(requestsBeforeEdit));
+    expect(
+      harness.bloc.searchTextUpdates.last.searchOrigin,
+      InBookSearchOrigin.inBook,
+    );
+  });
+
+  testWidgets('debounce ישן אינו מחזיר שאילתה אחרי תוצאה חיצונית', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchMode: SearchMode.advanced,
+      searchDistance: 3,
+    );
+    await harness.settle();
+    await harness.type('שאילתה ישנה');
+    await harness.rebuildFromBloc(
+      'שאילתה חדשה',
+      4,
+      SearchMatchPolicy.standard,
+      searchOrigin: InBookSearchOrigin.globalResult,
+    );
+    final updatesBeforeDebounce = harness.bloc.searchTextUpdates.length;
+    await harness.settle();
+    expect(
+      harness.bloc.searchTextUpdates.skip(updatesBeforeDebounce),
+      isNotEmpty,
+    );
+    expect(
+      harness.bloc.searchTextUpdates
+          .skip(updatesBeforeDebounce)
+          .every(
+            (event) =>
+                event.text == 'שאילתה חדשה' &&
+                event.searchOrigin == InBookSearchOrigin.globalResult,
+          ),
+      isTrue,
+    );
+    expect(repository.requests.last.query, 'שאילתה חדשה');
+    expect(repository.requests.last.distance, 4);
+  });
+
+  testWidgets(
+    'ניקוד ורווחים משמרים הורשה והד הבלוק אינו מחזיר אותה אחרי עריכה',
+    (tester) async {
+      final repository = _RecordingSearchRepository(results: const []);
+      final harness = await pumpSearchView(
+        tester,
+        searchRepository: repository,
+        initialQuery: 'תדע זרעך',
+        searchMode: SearchMode.fuzzy,
+        searchDistance: kMaxFuzzyDistance,
+        searchOrigin: InBookSearchOrigin.globalResult,
+      );
+      await harness.settle();
+      await harness.type(' תֵדַע זרעך ');
+      await harness.settle();
+      expect(repository.requests.last.fuzzy, isTrue);
+      expect(
+        harness.bloc.searchTextUpdates.last.searchOrigin,
+        InBookSearchOrigin.globalResult,
+      );
+      await harness.type('זרעך אחריך');
+      await harness.settle();
+      final updatesBeforeEcho = harness.bloc.searchTextUpdates.length;
+      final requestsBeforeEcho = repository.requests.length;
+      await harness.rebuildFromBloc(
+        'זרעך אחריך',
+        0,
+        SearchMatchPolicy.standard,
+        searchOrigin: InBookSearchOrigin.inBook,
+        searchMode: SearchMode.exact,
+      );
+      await harness.settle();
+      expect(repository.requests, hasLength(requestsBeforeEcho));
+      expect(harness.bloc.searchTextUpdates, hasLength(updatesBeforeEcho));
+    },
+  );
+
+  testWidgets('עריכת חיפוש מתקדם משוחזר משמרת את ההגדרות', (tester) async {
+    SearchDefaults.saveModeDefault(SearchMode.exact);
+    SearchDefaults.saveDistanceDefault(0);
+    final repository = _RecordingSearchRepository(results: const []);
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'תדע זרעך',
+      searchMode: SearchMode.advanced,
+      searchDistance: 3,
+    );
+    await harness.settle();
+    expect(repository.requests.single.distance, 3);
+
+    await harness.type('זרעך אחריך');
+    await harness.settle();
+    expect(repository.requests, hasLength(2));
+    expect(repository.requests.last.query, 'זרעך אחריך');
+    expect(repository.requests.last.distance, 3);
+  });
+
   testWidgets(
     'מצב מקורב שהגיע מהחיפוש הכללי אינו חל על שאילתה שהוקלדה (issue #3595)',
     (tester) async {
@@ -464,6 +610,7 @@ Future<void> main() async {
         searchRepository: repository,
         initialQuery: 'היא',
         searchMode: SearchMode.fuzzy,
+        searchOrigin: InBookSearchOrigin.globalResult,
         searchDistance: kMaxFuzzyDistance,
         simpleSearchRunner: (content, query) async {
           simpleQueries.add(query);
@@ -884,19 +1031,32 @@ Future<void> main() async {
 }
 
 class _Harness {
-  _Harness(this.tester, this.bloc, this._build);
+  _Harness(this.tester, this.bloc, this._build, this._origin, this._mode);
 
   final WidgetTester tester;
   final _TestTextBookBloc bloc;
-  final Widget Function(String, int, SearchMatchPolicy) _build;
+  final Widget Function(
+    String,
+    int,
+    SearchMatchPolicy,
+    InBookSearchOrigin,
+    SearchMode,
+  )
+  _build;
+  InBookSearchOrigin _origin;
+  SearchMode _mode;
 
   /// בונה מחדש עם מה שה-bloc האמיתי היה מחזיר לחלונית אחרי ההקלדה.
   Future<void> rebuildFromBloc(
     String query,
     int distance,
-    SearchMatchPolicy policy,
-  ) async {
-    await tester.pumpWidget(_build(query, distance, policy));
+    SearchMatchPolicy policy, {
+    InBookSearchOrigin? searchOrigin,
+    SearchMode? searchMode,
+  }) async {
+    _origin = searchOrigin ?? _origin;
+    _mode = searchMode ?? _mode;
+    await tester.pumpWidget(_build(query, distance, policy, _origin, _mode));
     await tester.pump();
   }
 
@@ -1024,6 +1184,7 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
     implements TextBookBloc {
   _TestTextBookBloc(super.initialState) {
     on<TextBookEvent>((event, emit) {
+      if (event is UpdateSearchText) searchTextUpdates.add(event);
       if (event is UpdateSearchResultLines) {
         reportedResultLines.add(event.lines);
       }
@@ -1034,6 +1195,7 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   void emitLoaded(TextBookLoaded state) => emit(state);
 
   final List<Set<int>> reportedResultLines = [];
+  final List<UpdateSearchText> searchTextUpdates = [];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

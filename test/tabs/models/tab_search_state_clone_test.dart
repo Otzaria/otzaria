@@ -31,6 +31,58 @@ void main() {
     wordMatchCount: 3,
   );
 
+  for (final origin in InBookSearchOrigin.values) {
+    test('מקור $origin נשמר בשכפול ובשחזור של טקסט ו-PDF', () {
+      final text = TextBookTab(
+        book: TextBook(title: 'בראשית'),
+        index: 0,
+        searchText: 'תדע זרעך',
+        searchDistance: 3,
+        searchOrigin: origin,
+      );
+      final pdf = PdfBookTab(
+        book: PdfBook(title: 'ספר', path: '/nonexistent/test.pdf'),
+        pageNumber: 1,
+        searchText: 'תדע זרעך',
+        searchDistance: 3,
+        searchOrigin: origin,
+      );
+      final textClone = OpenedTab.from(text) as TextBookTab;
+      final pdfClone = OpenedTab.from(pdf) as PdfBookTab;
+      final textRestored = TextBookTab.fromJson(text.toJson());
+      final pdfRestored = PdfBookTab.fromJson(pdf.toJson());
+      for (final tab in [
+        text,
+        pdf,
+        textClone,
+        pdfClone,
+        textRestored,
+        pdfRestored,
+      ]) {
+        addTearDown(tab.dispose);
+      }
+      expect(textClone.searchOrigin, origin);
+      expect((textClone.bloc.state as TextBookInitial).searchOrigin, origin);
+      expect(textRestored.searchOrigin, origin);
+      expect(pdfClone.searchOrigin, origin);
+      expect(pdfRestored.searchOrigin, origin);
+      expect(textRestored.searchDistance, 3);
+      expect(pdfRestored.searchDistance, 3);
+    });
+  }
+
+  test('שמירה ישנה או מקור לא מוכר אינם מסומנים כתוצאה גלובלית', () {
+    for (final value in [null, 'futureValue', 42]) {
+      final restored = ReadingTabSearchState.fromJson({
+        'searchText': 'תדע זרעך',
+        'searchDistance': 3,
+        'searchOrigin': ?value,
+      });
+      expect(restored.searchOrigin, InBookSearchOrigin.inBook);
+      expect(restored.searchDistance, 3);
+    }
+  });
+
   test('שכפול טאב טקסט שומר את כל קונפיגורציית החיפוש', () {
     final original = TextBookTab(
       book: TextBook(title: 'בראשית'),
@@ -243,6 +295,32 @@ void main() {
     expect(restored.searchText, isEmpty);
     expect(restored.searchMode, SearchMode.exact);
     expect(restored.matchPolicy, SearchMatchPolicy.standard);
+  });
+
+  test('שכפול ושמירה מעדיפים את מקור ההגדרות המעודכן בבלוק', () {
+    final state = _loadedState(
+      searchText: 'תדע זרעך',
+      searchMode: SearchMode.advanced,
+      searchDistance: 3,
+      matchPolicy: policy,
+    );
+    final bloc = _LoadedTextBookBloc(state);
+    final original = TextBookTab(
+      book: state.book,
+      index: 0,
+      searchText: 'תדע זרעך',
+      searchOrigin: InBookSearchOrigin.globalResult,
+      blocOverride: bloc,
+    );
+    final clone = OpenedTab.from(original) as TextBookTab;
+    final restored = TextBookTab.fromJson(original.toJson());
+    for (final tab in [original, clone, restored]) {
+      addTearDown(tab.dispose);
+    }
+    expect(clone.searchOrigin, InBookSearchOrigin.inBook);
+    expect(restored.searchOrigin, InBookSearchOrigin.inBook);
+    expect(clone.searchDistance, 3);
+    expect(restored.searchDistance, 3);
   });
 
   test('שכפול טאב טקסט מעדיף את מצב החיפוש המעודכן מה-BLoC', () {

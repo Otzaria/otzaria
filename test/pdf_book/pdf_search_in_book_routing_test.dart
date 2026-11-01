@@ -47,6 +47,7 @@ Future<void> main() async {
     WidgetTester tester, {
     required String query,
     required SearchMode searchMode,
+    InBookSearchOrigin searchOrigin = InBookSearchOrigin.inBook,
     required int searchDistance,
     Map<String, Map<String, bool>> searchOptions = const {},
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
@@ -110,6 +111,7 @@ Future<void> main() async {
               externalLibraryId: externalLibraryId,
               pdfFilePath: '/nonexistent/test.pdf',
               initialSearchMode: searchMode,
+              initialSearchOrigin: searchOrigin,
               initialSearchDistance: searchDistance,
               initialSearchOptions: searchOptions,
               initialMatchPolicy: matchPolicy,
@@ -259,6 +261,114 @@ Future<void> main() async {
     expect(reopened.requests.single.searchOptions, expectedOptions);
   }, skip: !engineReady);
 
+  testWidgets('דיאלוג לוקח בעלות גם באותה שאילתה ושחזור החלונית משמר אותה', (
+    tester,
+  ) async {
+    final tab = PdfBookTab(
+      book: _loadedState().book,
+      pageNumber: 1,
+      searchText: 'תדע זרעך',
+      searchMode: SearchMode.fuzzy,
+      searchDistance: kMaxFuzzyDistance,
+      searchOrigin: InBookSearchOrigin.globalResult,
+    );
+    final persistenceBloc = PdfBookBloc(
+      tab: tab,
+      initialState: PdfBookInitial(book: tab.book, initialPageNumber: 1),
+      pdfrxInit: () async {},
+    );
+    // ignore: invalid_use_of_visible_for_testing_member
+    persistenceBloc.emit(_loadedState());
+    addTearDown(persistenceBloc.close);
+    addTearDown(tab.dispose);
+    final repository = await pumpPdfSearch(
+      tester,
+      query: tab.searchText,
+      searchMode: tab.searchMode,
+      searchDistance: tab.searchDistance,
+      searchOrigin: tab.searchOrigin,
+      tab: tab,
+      persistenceBloc: persistenceBloc,
+    );
+    tester
+        .state<PdfBookSearchViewState>(find.byType(PdfBookSearchView))
+        .applySearchDialogResult(
+          const SearchDialogResult(
+            query: 'תדע זרעך',
+            searchOptions: {},
+            alternativeWords: {},
+            spacingValues: {},
+            searchMode: SearchMode.advanced,
+            distance: 3,
+          ),
+          repository.bloc,
+        );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tab.searchOrigin, InBookSearchOrigin.inBook);
+    expect(tab.searchDistance, 3);
+    await tester.pumpWidget(const SizedBox.shrink());
+    final reopened = await pumpPdfSearch(
+      tester,
+      query: tab.searchController.text,
+      searchMode: tab.searchMode,
+      searchDistance: tab.searchDistance,
+      searchOptions: tab.searchOptions,
+      searchOrigin: tab.searchOrigin,
+      tab: tab,
+    );
+    await tester.enterText(find.byType(TextField).first, 'זרעך אחריך');
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(reopened.requests.last.query, 'זרעך אחריך');
+    expect(reopened.requests.last.distance, 3);
+    expect(reopened.requests.last.searchMode, SearchMode.advanced);
+  });
+
+  testWidgets(
+    'תוצאה חיצונית באותה שאילתה מחליפה תצורה ומורישה אותה רק לשאילתה',
+    (tester) async {
+      final incoming = ValueNotifier<ReadingTabSearchState?>(null);
+      addTearDown(incoming.dispose);
+      final repository = await pumpPdfSearch(
+        tester,
+        query: 'תדע זרעך',
+        searchMode: SearchMode.advanced,
+        searchDistance: 3,
+        incomingSearchConfiguration: incoming,
+      );
+      incoming.value = const ReadingTabSearchState(
+        searchText: 'תדע זרעך',
+        searchMode: SearchMode.advanced,
+        searchDistance: 4,
+        searchOrigin: InBookSearchOrigin.globalResult,
+      );
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(repository.requests.last.distance, 4);
+      final requestsBeforeEdit = repository.requests.length;
+      await tester.enterText(find.byType(TextField).first, 'זרעך אחריך');
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(repository.requests, hasLength(requestsBeforeEdit));
+      expect(repository.textSearcher.pattern, isA<RegExp>());
+    },
+  );
+
+  testWidgets('עריכת חיפוש מתקדם משוחזר משמרת את ההגדרות', (tester) async {
+    SearchDefaults.saveModeDefault(SearchMode.exact);
+    SearchDefaults.saveDistanceDefault(0);
+    final repository = await pumpPdfSearch(
+      tester,
+      query: 'תדע זרעך',
+      searchMode: SearchMode.advanced,
+      searchDistance: 3,
+    );
+    expect(repository.requests.single.distance, 3);
+
+    await tester.enterText(find.byType(TextField).first, 'זרעך אחריך');
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(repository.requests, hasLength(2));
+    expect(repository.requests.last.query, 'זרעך אחריך');
+    expect(repository.requests.last.distance, 3);
+  });
+
   testWidgets(
     'מצב מקורב שהגיע מהחיפוש הכללי אינו חל על שאילתה שהוקלדה (issue #3595)',
     (tester) async {
@@ -266,6 +376,7 @@ Future<void> main() async {
         tester,
         query: 'היא',
         searchMode: SearchMode.fuzzy,
+        searchOrigin: InBookSearchOrigin.globalResult,
         searchDistance: kMaxFuzzyDistance,
       );
       final wholeWordToggle = find.byWidgetPredicate(

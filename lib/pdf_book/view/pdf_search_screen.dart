@@ -60,6 +60,7 @@ class PdfBookSearchView extends StatefulWidget {
     this.initialSearchMode = SearchMode.exact,
     this.initialSearchDistance = 0,
     this.initialMatchPolicy = SearchMatchPolicy.standard,
+    this.initialSearchOrigin = InBookSearchOrigin.inBook,
     this.incomingSearchConfiguration,
     this.onSearchResultNavigated,
     this.onNavigationStarted,
@@ -93,6 +94,7 @@ class PdfBookSearchView extends StatefulWidget {
   final SearchMode initialSearchMode;
   final int initialSearchDistance;
   final SearchMatchPolicy initialMatchPolicy;
+  final InBookSearchOrigin initialSearchOrigin;
 
   /// תצורת חיפוש שממתינה להחלה אטומית בחלונית.
   final ValueNotifier<ReadingTabSearchState?>? incomingSearchConfiguration;
@@ -270,8 +272,7 @@ class PdfBookSearchView extends StatefulWidget {
   State<PdfBookSearchView> createState() => PdfBookSearchViewState();
 }
 
-class PdfBookSearchViewState extends State<PdfBookSearchView>
-    with AutomaticKeepAliveClientMixin<PdfBookSearchView> {
+class PdfBookSearchViewState extends State<PdfBookSearchView> {
   final ItemScrollController _resultsScrollController = ItemScrollController();
 
   bool _isSearching = false;
@@ -293,9 +294,11 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
 
   InBookSearchSettings _settings = const InBookSearchSettings();
 
-  /// השאילתה שההגדרות הגיעו איתה (מתוצאת חיפוש כללי). הן חלות רק עליה;
-  /// שאילתה אחרת מחזירה את ברירת המחדל של החלונית (issue #3595).
+  // הגדרות מתוצאה גלובלית חלות רק על השאילתה שהגיעה איתן.
   String? _carriedInQuery;
+  InBookSearchOrigin get _searchOrigin => _carriedInQuery == null
+      ? InBookSearchOrigin.inBook
+      : InBookSearchOrigin.globalResult;
 
   // מסכת PDF מצורפת אינה מאונדקסת, וברירת מחדל שדורשת מנוע הייתה חוסמת בה.
   InBookSearchSettings get _paneDefaults => _isBundledTalmudPdf
@@ -358,7 +361,11 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
 
   /// החלפת מצב ההתאמה: הסריקה של pdfrx רצה מחדש עם התבנית המתאימה.
   void _toggleWholeWord() {
-    setState(() => _wholeWord = !_wholeWord);
+    setState(() {
+      _carriedInQuery = null;
+      _wholeWord = !_wholeWord;
+    });
+    _syncSearchOptions(context.read<PdfBookBloc>());
     unawaited(InBookSearchPreferences.saveWholeWord(_wholeWord));
     _searchTextUpdated();
   }
@@ -399,8 +406,12 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
       distance: widget.initialSearchDistance,
       matchPolicy: widget.initialMatchPolicy,
     );
-    _carriedInQuery = searchableInBookQuery(widget.searchController.text);
-    if (!_isBundledTalmudPdf && _carriedInQuery == null) {
+    _carriedInQuery =
+        widget.initialSearchOrigin == InBookSearchOrigin.globalResult
+        ? searchableInBookQuery(widget.searchController.text)
+        : null;
+    if (!_isBundledTalmudPdf &&
+        searchableInBookQuery(widget.searchController.text) == null) {
       _settings = InBookSearchSettings.savedDefaults();
       _syncSearchOptions(context.read<PdfBookBloc>());
     }
@@ -459,7 +470,10 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     notifier!.value = null;
     if (!mounted) return;
 
-    _carriedInQuery = searchableInBookQuery(configuration.searchText);
+    _carriedInQuery =
+        configuration.searchOrigin == InBookSearchOrigin.globalResult
+        ? searchableInBookQuery(configuration.searchText)
+        : null;
     _applySearchConfiguration(
       query: configuration.searchText,
       settings: InBookSearchSettings(
@@ -771,6 +785,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
         searchMode: _searchMode,
         searchDistance: _searchDistance,
         matchPolicy: _matchPolicy,
+        searchOrigin: _searchOrigin,
       ),
     );
   }
@@ -932,13 +947,8 @@ class PdfBookSearchViewState extends State<PdfBookSearchView>
     }
   }
 
-  // בנייה מחדש במעבר לשונית הייתה מסמנת את הגדרות הדיאלוג כאילו הגיעו מבחוץ.
-  @override
-  bool get wantKeepAlive => true;
-
   @override
   Widget build(BuildContext context) {
-    super.build(context);
     if (!identical(_groupedSource, _searchResults)) {
       _groupedSource = _searchResults;
       _groupedItems.clear();

@@ -4,6 +4,7 @@ import 'package:otzaria/search/models/search_configuration.dart';
 class ReadingTabSearchState {
   const ReadingTabSearchState({
     this.searchText = '',
+    this.searchOrigin = InBookSearchOrigin.inBook,
     this.searchOptions = const {},
     this.alternativeWords = const {},
     this.spacingValues = const {},
@@ -13,6 +14,7 @@ class ReadingTabSearchState {
   });
 
   final String searchText;
+  final InBookSearchOrigin searchOrigin;
   final Map<String, Map<String, bool>> searchOptions;
   final Map<int, List<String>> alternativeWords;
   final Map<String, String> spacingValues;
@@ -23,6 +25,7 @@ class ReadingTabSearchState {
   /// מעתיק גם אוספים פנימיים כדי שטאבים לא יחלקו הגדרות ניתנות לשינוי.
   ReadingTabSearchState copy({String? searchText}) => ReadingTabSearchState(
     searchText: searchText ?? this.searchText,
+    searchOrigin: searchOrigin,
     searchOptions: {
       for (final entry in searchOptions.entries)
         entry.key: Map<String, bool>.of(entry.value),
@@ -43,6 +46,8 @@ class ReadingTabSearchState {
     if (searchText.isEmpty) return const {};
     return {
       'searchText': searchText,
+      if (searchOrigin != InBookSearchOrigin.inBook)
+        'searchOrigin': searchOrigin.name,
       if (searchOptions.isNotEmpty) 'searchOptions': searchOptions,
       if (alternativeWords.isNotEmpty)
         'searchAlternativeWords': {
@@ -62,6 +67,9 @@ class ReadingTabSearchState {
   factory ReadingTabSearchState.fromJson(Map<String, dynamic> json) {
     return ReadingTabSearchState(
       searchText: json['searchText'] is String ? json['searchText'] : '',
+      searchOrigin: json['searchOrigin'] == InBookSearchOrigin.globalResult.name
+          ? InBookSearchOrigin.globalResult
+          : InBookSearchOrigin.inBook,
       searchOptions: _decodeSearchOptions(json['searchOptions']),
       alternativeWords: _decodeAlternativeWords(json['searchAlternativeWords']),
       spacingValues: _decodeSpacingValues(json['searchSpacingValues']),

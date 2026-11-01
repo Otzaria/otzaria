@@ -72,6 +72,45 @@ void main() {
   );
 
   blocTest<TextBookBloc, TextBookState>(
+    'שינוי מקור בלבד נפלט בלי למחוק את שורות התוצאה',
+    build: () => bloc,
+    seed: () => seed(searchText: 'בראשית'),
+    act: (bloc) => bloc.add(
+      const UpdateSearchText(
+        'בראשית',
+        searchOrigin: InBookSearchOrigin.globalResult,
+      ),
+    ),
+    expect: () => [
+      isA<TextBookLoaded>()
+          .having(
+            (s) => s.searchOrigin,
+            'מקור',
+            InBookSearchOrigin.globalResult,
+          )
+          .having((s) => s.searchResultLines, 'תוצאות', {3, 7}),
+    ],
+  );
+
+  blocTest<TextBookBloc, TextBookState>(
+    'עדכון שאילתה בלבד משמר את מקור ההגדרות',
+    build: () => bloc,
+    seed: () => seed(
+      searchText: 'בראשית',
+    ).copyWith(searchOrigin: InBookSearchOrigin.globalResult),
+    act: (bloc) => bloc.add(const UpdateSearchText('שמות')),
+    expect: () => [
+      isA<TextBookLoaded>()
+          .having(
+            (s) => s.searchOrigin,
+            'מקור',
+            InBookSearchOrigin.globalResult,
+          )
+          .having((s) => s.searchText, 'שאילתה', 'שמות'),
+    ],
+  );
+
+  blocTest<TextBookBloc, TextBookState>(
     'סנכרון עם אותה שאילתה — אין פליטת state כלל, וההדגשה נשמרת',
     build: () => bloc,
     seed: () => seed(searchText: 'בראשית'),

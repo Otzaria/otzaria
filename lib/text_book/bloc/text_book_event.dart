@@ -251,6 +251,7 @@ class UpdateSearchText extends TextBookEvent {
   final SearchMode? searchMode;
   final int? searchDistance;
   final SearchMatchPolicy? matchPolicy;
+  final InBookSearchOrigin? searchOrigin;
 
   /// האם החיפוש הפשוט דורש מילים שלמות. ראו [TextBookLoaded.searchWholeWord].
   final bool? searchWholeWord;
@@ -263,6 +264,7 @@ class UpdateSearchText extends TextBookEvent {
     this.searchMode,
     this.searchDistance,
     this.matchPolicy,
+    this.searchOrigin,
     this.searchWholeWord,
   });
 
@@ -275,6 +277,7 @@ class UpdateSearchText extends TextBookEvent {
     searchMode,
     searchDistance,
     matchPolicy,
+    searchOrigin,
     searchWholeWord,
   ];
 }
