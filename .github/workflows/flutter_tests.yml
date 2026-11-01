@@ -143,6 +143,12 @@ jobs:
       - name: Check plugin SDK spec is fresh
         run: dart run tool/plugins/generate_plugin_spec.dart --check
 
+      # דוח ui_lint מול tool/ui_lint/baseline.json (docs/design-system/CI_ENFORCEMENT.md).
+      # מצב דוח: חריגות חדשות מסומנות ב-annotations ולא מכשילות את ה-job.
+      - name: UI lint report
+        continue-on-error: true
+        run: dart tool/ui_lint_cli.dart --format=github
+
       # בדיקות ה־CI: analyze + test (פורמט נבדק locally ב־lint).
       - name: Analyze
         run: flutter analyze
@@ -548,7 +554,7 @@ jobs:
           git config --global core.longpaths true
           flutter pub get --enforce-lockfile
 
-      # ההיקף מכוון וצר: הסוללה המלאה רצה על Linux ב-4 shards. כאן רצות
+      # ההיקף מכוון וצר: הסוללה המלאה רצה על Linux ב-5 shards. כאן רצות
       # רק הקבוצות שאומתו כירוקות ב-Windows (1,073 בדיקות, ועוד 146 של
       # personal_notes), והקבוצות הידועות כתלויות-סביבה או flaky (migration,
       # installer, tools/calendar) נשארות ל-Linux בלבד. הרחבת ההיקף מחייבת אימות

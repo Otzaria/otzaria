@@ -1,0 +1,19 @@
+import '../ui_lint.dart';
+import 'hardcoded_color_rule.dart';
+import 'icon_button_tooltip_rule.dart';
+import 'literal_font_size_rule.dart';
+import 'literal_radius_rule.dart';
+import 'material_icons_rule.dart';
+import 'primary_color_rule.dart';
+import 'raw_dialog_rule.dart';
+
+/// הכללים הפעילים, לפי הסדר בקטלוג.
+const List<UiLintRule> uiLintRules = [
+  RawDialogRule(),
+  IconButtonTooltipRule(),
+  PrimaryColorRule(),
+  MaterialIconsRule(),
+  HardcodedColorRule(),
+  LiteralFontSizeRule(),
+  LiteralRadiusRule(),
+];

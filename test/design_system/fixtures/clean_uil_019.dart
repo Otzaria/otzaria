@@ -1,0 +1,19 @@
+import 'package:flutter/material.dart';
+import 'package:pdf/widgets.dart' as pw;
+
+BorderRadius computed(double radius) => BorderRadius.circular(radius);
+
+pw.BorderRadius paper() => pw.BorderRadius.circular(4);
+
+class Painter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(3)),
+      Paint(),
+    );
+  }
+
+  @override
+  bool shouldRepaint(Painter oldDelegate) => false;
+}
