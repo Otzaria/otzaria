@@ -6,10 +6,11 @@ import 'package:file_picker/file_picker.dart';
 // ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/core/windowing/dialog_owner.dart';
 import 'package:otzaria/personal_notes/services/personal_notes_import_export_service.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -758,6 +759,7 @@ void main() {
     WidgetTester tester, {
     int books = 1,
     required int count,
+    Stream<LibraryState> libraryStates = const Stream.empty(),
   }) async {
     String bookIdAt(int b) => books == 1 ? 'ספר עמוס' : 'ספר עמוס $b';
     final notesByBookId = {
@@ -795,7 +797,7 @@ void main() {
     final libraryBloc = MockLibraryBloc();
     whenListen(
       libraryBloc,
-      const Stream<LibraryState>.empty(),
+      libraryStates,
       initialState: LibraryState(
         library: Library(categories: []),
         isLoading: false,
@@ -1032,6 +1034,67 @@ void main() {
     await tester.enterText(field, '');
     await tester.pump();
     expect(cards, findsNWidgets(6));
+  });
+
+  testWidgets('איתור ועיון במסך הספרייה אינם בונים מחדש את עץ ההערות', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final libraryStates = StreamController<LibraryState>.broadcast();
+    addTearDown(libraryStates.close);
+
+    await pumpScreenWithManyNotes(
+      tester,
+      count: 2,
+      libraryStates: libraryStates.stream,
+    );
+    final initial = tester
+        .element(find.byType(PersonalNotesManagerScreen))
+        .read<LibraryBloc>()
+        .state;
+    final tree = tester.widget(find.byType(NavTreeHeader));
+    Future<void> emit(LibraryState state) async {
+      libraryStates.add(state);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    final book = TextBook(title: 'בראשית');
+    var state = initial;
+    for (final query in ['בר', 'ברא', 'בראשית']) {
+      state = state.copyWith(searchQuery: query, isSearching: true);
+      await emit(state);
+      state = state.copyWith(isSearching: false, searchResults: [book]);
+      await emit(state);
+    }
+    await emit(state.copyWith(previewBook: book));
+    await emit(state.copyWith(currentCategory: initial.library));
+    expect(identical(tester.widget(find.byType(NavTreeHeader)), tree), isTrue);
+
+    await emit(initial.copyWith(isLoading: true));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await emit(initial.copyWith(error: 'שגיאה'));
+    expect(find.text(CommonMessages.loadFailed), findsOneWidget);
+    // copyWith מאפס את השגיאה, ולכן ההקשה הבאה במסך הספרייה מחזירה את העץ.
+    await emit(initial.copyWith(searchQuery: 'ב'));
+    expect(find.byType(NavTreeHeader), findsOneWidget);
+
+    final kabbalah = Category(
+      title: 'קבלה',
+      description: '',
+      shortDescription: '',
+      order: 1,
+      subCategories: [],
+      books: [],
+      parent: null,
+    );
+    kabbalah.books.add(TextBook(title: 'ספר עמוס', category: kabbalah));
+    final refreshed = Library(categories: [kabbalah]);
+    kabbalah.parent = refreshed;
+    await emit(initial.copyWith(library: refreshed));
+    expect(find.text('קבלה'), findsOneWidget);
   });
 
   testWidgets('כרטיסי ההערות נשארים שלושה בשורה ובסדר השורות', (tester) async {

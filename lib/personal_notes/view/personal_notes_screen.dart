@@ -692,6 +692,7 @@ class _PersonalNotesManagerScreenState
 
   Widget _buildNotesTree() {
     return BlocBuilder<LibraryBloc, LibraryState>(
+      buildWhen: LibraryState.catalogChanged,
       builder: (context, libraryState) {
         if (libraryState.isLoading) {
           return const Center(child: CircularProgressIndicator());
