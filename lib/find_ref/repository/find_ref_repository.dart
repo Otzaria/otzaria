@@ -64,26 +64,40 @@ typedef _UserBookRecord = ({
 /// ספר ממסד משני עם השם המנורמל — מחושב פעם אחת בטעינה, לא בכל הקלדה.
 /// [folderNameTokens] [i] = סיומת שרשרת התיקיות מ-i ואחריה הכותרת.
 class _SecondaryBook {
-  _SecondaryBook(this.record)
-    : normalizedTitle = _normalizedName(record.title),
-      folderNameTokens = [
+  _SecondaryBook(_UserBookRecord record)
+    : this._(record, [
         for (var i = 0; i < record.folderTitles.length; i++)
           _tokens(
             _normalizedName(
               '${record.folderTitles.sublist(i).join(' ')} ${record.title}',
             ),
           ),
+      ]);
+
+  _SecondaryBook._(this.record, this.folderNameTokens)
+    : normalizedTitle = _normalizedName(record.title),
+      folderMatchTokens = [
+        for (final tokens in folderNameTokens)
+          tokens.map(_matchToken).toList(growable: false),
       ];
 
   final _UserBookRecord record;
   final String normalizedTitle;
   final List<List<String>> folderNameTokens;
 
+  /// [folderNameTokens] ב-[bookNameMatchToken], להשוואה מול מילות השאילתה.
+  final List<List<String>> folderMatchTokens;
+
   late final List<String> titleTokens = _tokens(normalizedTitle);
 
   static String _normalizedName(String name) {
     FindRefRepository.debugSecondaryNameNormalizations++;
     return normalizeForFindRefMatch(name);
+  }
+
+  static String _matchToken(String token) {
+    FindRefRepository.debugSecondaryNameNormalizations++;
+    return bookNameMatchToken(token);
   }
 
   static List<String> _tokens(String normalized) =>
@@ -460,7 +474,7 @@ class FindRefRepository {
   @visibleForTesting
   static int secondaryIndexIsolateThreshold = 1000;
 
-  /// בדיקות בלבד: כמה שמות של ספרים משניים נורמלו (ראו [_SecondaryBook]).
+  /// בדיקות בלבד: כמה שמות ומילות-שם משניים נורמלו (ראו [_SecondaryBook]).
   @visibleForTesting
   static int debugSecondaryNameNormalizations = 0;
 
@@ -2337,6 +2351,9 @@ class FindRefRepository {
     final partialFolderToken = quoted.contains(queryTokens.last)
         ? -1
         : queryTokens.length - 1;
+    final queryMatchTokens = queryTokens
+        .map(bookNameMatchToken)
+        .toList(growable: false);
     final books = _BookSearch(
       queryTokens: queryTokens,
       visibility: search.visibility,
@@ -2344,7 +2361,7 @@ class FindRefRepository {
       source: source,
       extraHits: (phrase, hits) => _folderNameHits(
         index,
-        queryTokens,
+        queryMatchTokens,
         phrase,
         hits,
         search.visibility,
@@ -2541,7 +2558,7 @@ class FindRefRepository {
   /// לרוב על התיקייה. רק לספרים שהמנוע לא מצא בצירוף [phrase].
   static List<ReferenceBookHit> _folderNameHits(
     _SecondaryIndex index,
-    List<String> queryTokens,
+    List<String> queryMatchTokens,
     String phrase,
     List<ReferenceBookHit> hits,
     FindRefVisibility visibility,
@@ -2568,9 +2585,9 @@ class FindRefRepository {
       for (var i = book.folderNameTokens.length - 1; i >= 0; i--) {
         final candidate = book.folderNameTokens[i];
         final n = _leadingPrefixMatch(
-          candidate,
-          queryTokens,
-          queryTokens.length.clamp(0, candidate.length),
+          book.folderMatchTokens[i],
+          queryMatchTokens,
+          queryMatchTokens.length.clamp(0, candidate.length),
           wholeWords: candidate.length - book.titleTokens.length,
           partialIndex: partialFolderToken,
         );
@@ -2603,6 +2620,7 @@ class FindRefRepository {
   /// מספר הטוקנים המובילים הארוך ביותר (עד [cap]) שכל אחד מהם תחילית של
   /// הטוקן שבאותו מקום ב-[nameTokens]. [wholeWords] הראשונים (מילות התיקייה)
   /// נדרשים במלואם, חוץ מ-[partialIndex] — אחרת "רא"ש" התאים לכל תיקיית "ראשונים".
+  /// שני הצדדים כבר ב-[bookNameMatchToken].
   static int? _leadingPrefixMatch(
     List<String> nameTokens,
     List<String> queryTokens,
@@ -2610,21 +2628,16 @@ class FindRefRepository {
     int wholeWords = 0,
     int partialIndex = -1,
   }) {
-    for (var n = cap; n >= 1; n--) {
-      if (n > nameTokens.length) continue;
-      var ok = true;
-      for (var i = 0; i < n; i++) {
-        final name = bookNameMatchToken(nameTokens[i]);
-        final query = bookNameMatchToken(queryTokens[i]);
-        final whole = i < wholeWords && i != partialIndex;
-        if (whole ? name != query : !name.startsWith(query)) {
-          ok = false;
-          break;
-        }
-      }
-      if (ok) return n;
+    final limit = cap < nameTokens.length ? cap : nameTokens.length;
+    var n = 0;
+    while (n < limit) {
+      final name = nameTokens[n];
+      final query = queryTokens[n];
+      final whole = n < wholeWords && n != partialIndex;
+      if (whole ? name != query : !name.startsWith(query)) break;
+      n++;
     }
-    return null;
+    return n == 0 ? null : n;
   }
 
   Future<List<DbReferenceResult>> _enrichWithPaths(

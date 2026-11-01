@@ -74,8 +74,9 @@ void main() {
 
     await repo.findRefs('ספר', includePersonalBooks: true);
     final afterLoad = FindRefRepository.debugSecondaryNameNormalizations;
-    // כותרת לכל ספר + שם מורחב לכל סיומת של שרשרת התיקיות.
-    expect(afterLoad - before, 3 + 2);
+    // כותרת לכל ספר, שם מורחב לכל סיומת של שרשרת התיקיות, וצורת ההשוואה של
+    // כל מילה בשמות המורחבים (6 + 4).
+    expect(afterLoad - before, 3 + 2 + 10);
 
     for (final query in ['ספר פ', 'ספר פלוני', 'שות פלוני חלק', 'קונטרס ב']) {
       await repo.findRefs(query, includePersonalBooks: true);
@@ -252,6 +253,37 @@ void main() {
         contains('הלכות ברכות להריטבא'),
       );
     });
+
+    test(
+      'שם תיקייה מקונן: כתיב מלא/חסר, ה"א לפני ראשי-תיבות ותחילית',
+      () async {
+        final repo = _repo(
+          books: [
+            _book(
+              1,
+              'חלק א',
+              folders: const ['ספרים אישיים', 'הרמבם', 'משנה תורה מוגה'],
+            ),
+            _book(2, 'חלק ב', folders: const ['ספרים אישיים', 'מקוואות']),
+            _book(3, 'חלק ג', folders: const ['ספרים אישיים', 'מקוואות']),
+            _book(4, 'הלכות', folders: const ['ספרים אישיים', 'ראשונים']),
+            _book(5, 'חלק ד', folders: const ['רשבא', 'מקואות קטן']),
+          ],
+        );
+        Future<List<int>> ids(String query) async => [
+          for (final r in await personal(repo, query)) r.bookId,
+        ];
+        expect(await ids('רמב"ם משנה תורה מוגה חלק א'), [1]);
+        expect(await ids('ספרים אישיים רמבם משנה תורה מוגה חלק א'), [1]);
+        expect(await ids('מקואות חלק ב'), [2]);
+        expect(await ids('מקואות חל'), [2, 3]);
+        expect(await ids('ספרים אישיים מקואות חלק ג'), [3]);
+        expect(await ids('ראשונ'), [4]);
+        expect(await ids('ראשונ הלכות'), isEmpty);
+        expect(await ids('הרשבא מקוואות קטן חלק ד'), [5]);
+        expect(await ids('מקוואות קטן חלק'), [5]);
+      },
+    );
 
     test('ספר רשמי קודם לספר אישי כשהרלוונטיות שווה', () async {
       final repo = FindRefRepository(
