@@ -133,6 +133,21 @@ Future<Object?> _readBookLines(
 
 const _bookLineMethods = {'lineContents', 'lines'};
 
+/// כתובת שורה אחת: נתיב הכותרות (`breadcrumb`) או ה-heRef המלא (`heRef`).
+Future<String?> _readLineRef(
+  SeforimRepository repository,
+  String method,
+  Map<String, Object?> args,
+) {
+  final bookId = args['bookId'] as int;
+  final lineIndex = args['lineIndex'] as int;
+  return method == 'heRef'
+      ? repository.getLineHeRef(bookId, lineIndex)
+      : repository.getLineBreadcrumb(bookId, lineIndex);
+}
+
+const _lineRefMethods = {'breadcrumb', 'heRef'};
+
 Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
   List<Map<String, Object?>> items,
   Map<String, Map<String, String>> queryCache,
@@ -160,13 +175,8 @@ Future<List<Map<String, Object?>>> _readBatchOnFreshConnection(
         final method = item['method'] as String;
         final args = (item['args'] as Map).cast<String, Object?>();
         final repo = await repoFor(args['dbPath'] as String);
-        if (method == 'breadcrumb') {
-          results.add({
-            'result': await repo.getLineBreadcrumb(
-              args['bookId'] as int,
-              args['lineIndex'] as int,
-            ),
-          });
+        if (_lineRefMethods.contains(method)) {
+          results.add({'result': await _readLineRef(repo, method, args)});
           continue;
         }
         if (_bookLineMethods.contains(method)) {
@@ -963,12 +973,9 @@ void _workerMain(_Bootstrap bootstrap) {
           args['categoryId'] as int?,
         );
         return _officialLinkContent(repo, book, args);
-      case 'breadcrumb':
+      case 'breadcrumb' || 'heRef':
         final repo = await ensureRepo(args['dbPath'] as String);
-        return repo.getLineBreadcrumb(
-          args['bookId'] as int,
-          args['lineIndex'] as int,
-        );
+        return _readLineRef(repo, method, args);
       case 'lineContents' || 'lines':
         final repo = await ensureRepo(args['dbPath'] as String);
         return _readBookLines(repo, method, args);
