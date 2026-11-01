@@ -322,4 +322,16 @@ void main() {
     expect(failureBlock, contains('splash::Close();'));
     expect(failureBlock, contains('::CoUninitialize();'));
   });
+
+  test('מחסנית עמוקה: ראש, שורת השמטה שמתחילה ב-"..." ותחתית', () {
+    // error_log_blocks.dart מחשב את חתימת התקיעה רק מהשורות שלפני "...".
+    expect(source, contains('constexpr size_t kTopFrames = 48;'));
+    expect(source, contains(r'"  ... (%zu frames omitted%s) ...\n"'));
+    final section = source.substring(
+      source.indexOf('void AppendStackSection('),
+      source.indexOf('void AppendBuildIdentitySection('),
+    );
+    expect(section, contains('i == kTopFrames'));
+    expect(section, contains('count - kTopFrames - kBottomFrames'));
+  });
 }
