@@ -32,15 +32,22 @@ class AramaicResultCard extends StatelessWidget {
   final AramaicSearchRequest? onSearch;
 
   static final RegExp _quotes = RegExp("[\"'״׳]");
-  static final RegExp _alternativeSeparator = RegExp('[,;]');
+  static final RegExp _alternativeSeparator = RegExp(r'[,;\n]');
   static final RegExp _parenthetical = RegExp(r'\([^)]*\)');
+
+  static const String _copyWithResultTooltip = 'העתק את הערך עם התוצאה';
 
   static String _plain(String text) =>
       removeVolwels(text).replaceAll(_quotes, '').trim();
 
-  /// המונח הראשון בפירוש, לחיפוש הפוך ("ארץ, קרקע" -> "ארץ").
+  static final RegExp _listBullet = RegExp(r'^•\s*', multiLine: true);
+
+  /// המונח הראשון בפירוש, לחיפוש הפוך ("ארץ, קרקע" -> "ארץ"). פירוש מרובה
+  /// שורות או נקודות רשימה נמדד לפי השורה הראשונה, בלי הנקודה.
   static String searchTermOf(String meaning) {
-    final withoutNotes = meaning.replaceAll(_parenthetical, ' ');
+    final withoutNotes = meaning
+        .replaceAll(_parenthetical, ' ')
+        .replaceAll(_listBullet, '');
     return withoutNotes
         .split(_alternativeSeparator)
         .map((part) => removeVolwels(part).trim())
@@ -135,11 +142,18 @@ class AramaicResultCard extends StatelessWidget {
                           onPressed: () =>
                               onSearch!(aramaic, hebrewToAramaic: false),
                         ),
+                      if (queryIsAramaic)
+                        _ActionButton(
+                          visible: hovering,
+                          icon: FluentIcons.copy_add_24_regular,
+                          tooltip: _copyWithResultTooltip,
+                          onPressed: () => _copy(_entryAsText(meanings)),
+                        ),
                       _ActionButton(
                         visible: hovering,
                         icon: FluentIcons.copy_24_regular,
                         tooltip: 'העתק את הערך',
-                        onPressed: () => _copy(_entryAsText(meanings)),
+                        onPressed: () => _copy(aramaic),
                       ),
                     ],
                   ),
@@ -156,6 +170,9 @@ class AramaicResultCard extends StatelessWidget {
                       query: queryIsAramaic ? '' : query,
                       highlight: highlight,
                       onCopy: () => _copy(meanings[i].text),
+                      onCopyWithEntry: queryIsAramaic
+                          ? null
+                          : () => _copy('$aramaic\n${meanings[i].text}'),
                       onSearch: queryIsAramaic && onSearch != null
                           ? () {
                               final term = searchTermOf(meanings[i].hebrewText);
@@ -194,6 +211,7 @@ class _MeaningRow extends StatelessWidget {
     required this.query,
     required this.highlight,
     required this.onCopy,
+    required this.onCopyWithEntry,
     required this.onSearch,
   });
 
@@ -204,6 +222,7 @@ class _MeaningRow extends StatelessWidget {
   final String query;
   final TextStyle highlight;
   final VoidCallback onCopy;
+  final VoidCallback? onCopyWithEntry;
   final VoidCallback? onSearch;
 
   @override
@@ -261,7 +280,7 @@ class _MeaningRow extends StatelessWidget {
                   if (meaning.mainText.isNotEmpty)
                     Text.rich(
                       TextSpan(
-                        children: _highlighted(
+                        children: _withBold(
                           meaning.mainText,
                           query,
                           highlight,
@@ -289,6 +308,13 @@ class _MeaningRow extends StatelessWidget {
               icon: OtzariaIcons.search_24_regular,
               tooltip: 'חפש בעברית',
               onPressed: onSearch!,
+            ),
+          if (onCopyWithEntry != null)
+            _ActionButton(
+              visible: showActions,
+              icon: FluentIcons.copy_add_24_regular,
+              tooltip: AramaicResultCard._copyWithResultTooltip,
+              onPressed: onCopyWithEntry!,
             ),
           _ActionButton(
             visible: showActions,
@@ -356,6 +382,33 @@ class _HoverBuilderState extends State<_HoverBuilder> {
       child: widget.builder(context, _hovering || _isTouch),
     );
   }
+}
+
+/// כמו [_highlighted], ובנוסף מציג מודגש כל קטע שסומן ב-`**`.
+List<InlineSpan> _withBold(String text, String query, TextStyle mark) {
+  final spans = <InlineSpan>[];
+  var copied = 0;
+  for (final bold in AramaicDictionaryEntryPresentation.boldMarkup.allMatches(
+    text,
+  )) {
+    if (bold.start > copied) {
+      spans.addAll(
+        _highlighted(text.substring(copied, bold.start), query, mark),
+      );
+    }
+    spans.add(
+      TextSpan(
+        children: _highlighted(bold[1]!, query, mark),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+    );
+    copied = bold.end;
+  }
+  if (copied == 0) return _highlighted(text, query, mark);
+  if (copied < text.length) {
+    spans.addAll(_highlighted(text.substring(copied), query, mark));
+  }
+  return spans;
 }
 
 bool _isIgnorable(int unit) =>

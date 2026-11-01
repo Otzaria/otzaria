@@ -1,5 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/book_common/view/book_source_dialog.dart';
+import 'package:otzaria/models/books.dart';
+import 'package:otzaria/services/book_details_service.dart';
 
 void main() {
   group('libraryDisplayPath', () {
@@ -140,6 +143,15 @@ void main() {
       expect(r!.rest, isEmpty);
     });
 
+    test('should match despite NBSP, quote variants and punctuation', () {
+      final r = splitShortAndFullDescription(
+        'חיבורו של החיד"א - עבודת הקודש',
+        'חיבורו\u00A0של החיד“א - עבודת הקודש, אשר בו שבעה מחלקים',
+      );
+      expect(r!.lead, equals('חיבורו של החיד"א - עבודת הקודש'));
+      expect(r.rest, equals('אשר בו שבעה מחלקים'));
+    });
+
     test('should return null when the full does not start with the short', () {
       expect(splitShortAndFullDescription('קצר.', 'אחר לגמרי'), isNull);
     });
@@ -150,5 +162,95 @@ void main() {
       expect(splitShortAndFullDescription('קצר', null), isNull);
       expect(splitShortAndFullDescription('קצר', ''), isNull);
     });
+  });
+
+  group('hebrewPublicationDate', () {
+    test('converts a bare Gregorian year to a Hebrew year', () {
+      expect(hebrewPublicationDate('1884'), equals('ה׳תרמ״ד (1884)'));
+    });
+
+    test('keeps four-digit values that are not a plausible Gregorian year', () {
+      expect(hebrewPublicationDate('5644'), equals('5644'));
+      expect(hebrewPublicationDate('2240'), equals('2240'));
+      expect(hebrewPublicationDate('1399'), equals('1399'));
+      expect(hebrewPublicationDate('0650'), equals('0650'));
+    });
+
+    test('converts the boundary years', () {
+      final now = DateTime.now().year;
+      expect(hebrewPublicationDate('1400'), endsWith('(1400)'));
+      expect(hebrewPublicationDate('$now'), endsWith('($now)'));
+      expect(hebrewPublicationDate('${now + 1}'), endsWith('(${now + 1})'));
+      expect(hebrewPublicationDate('${now + 2}'), equals('${now + 2}'));
+    });
+
+    test('keeps values that are not a four-digit year', () {
+      expect(hebrewPublicationDate("ה' תרג"), equals("ה' תרג"));
+      expect(hebrewPublicationDate('650'), equals('650'));
+    });
+  });
+
+  testWidgets('אודות הספר מציג תקופה ותאריך פרסום עברי', (tester) async {
+    final book = TextBook(title: 'משנה ברורה', pubDate: '1884');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showBookDetailsDialog(
+              context,
+              book,
+              information: BookInformation(
+                book: book,
+                databaseBook: null,
+                source: 'Sefaria',
+                generation: 'אחרונים',
+                fileDetails: const {
+                  'נתיב הקובץ': BookDetailsService.bookNotFoundText,
+                },
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('תקופה'), findsOneWidget);
+    expect(find.text('אחרונים'), findsOneWidget);
+    expect(find.text('דור'), findsNothing);
+    expect(find.text('ה׳תרמ״ד (1884)'), findsOneWidget);
+  });
+
+  testWidgets('תקופה ריקה במסד נופלת לתקופת הספר', (tester) async {
+    final book = TextBook(title: 'משנה ברורה', heEra: 'אחרונים');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showBookDetailsDialog(
+              context,
+              book,
+              information: BookInformation(
+                book: book,
+                databaseBook: null,
+                source: 'Sefaria',
+                generation: '  ',
+                fileDetails: const {
+                  'נתיב הקובץ': BookDetailsService.bookNotFoundText,
+                },
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('תקופה'), findsOneWidget);
+    expect(find.text('אחרונים'), findsOneWidget);
   });
 }

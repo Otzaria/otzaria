@@ -131,6 +131,10 @@ class AppThemeData {
         backgroundColor: cs.surfaceContainerHigh,
         shape: AppTokens.roundedShape,
       ),
+      datePickerTheme: const DatePickerThemeData(
+        shape: AppTokens.roundedShape,
+        rangePickerShape: AppTokens.roundedShape,
+      ),
       // שדות טקסט: מסגרת מלאה בכל האפליקציה (בלי זה שדה ללא border מפורש
       // מצויר כקו תחתון), ובאותו רדיוס כמו שאר הרכיבים.
       inputDecorationTheme: const InputDecorationTheme(

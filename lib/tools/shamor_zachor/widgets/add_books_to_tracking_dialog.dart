@@ -12,6 +12,7 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
+import 'package:otzaria/settings/dialogs/list_dialog_frame.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -294,7 +295,10 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
           onTap: () => setState(() {
             _expansionState[category.path] = !isExpanded;
           }),
-          child: Padding(
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(bottom: listDialogRowDivider(context)),
+            ),
             padding: EdgeInsetsDirectional.only(
               start: AppTokens.spaceMD + (level * AppTokens.spaceLG),
               end: AppTokens.spaceMD,
@@ -369,55 +373,54 @@ class _AddBooksToTrackingDialogState extends State<AddBooksToTrackingDialog> {
         ? 'ספר חיצוני — לא נתמך במעקב'
         : 'ספר ללא מזהה — לא נתמך במעקב';
 
-    return Padding(
-      padding: EdgeInsetsDirectional.only(start: level * AppTokens.spaceLG),
-      child: CheckboxListTile(
-        dense: true,
-        value: alreadyTracked || isSelected,
-        onChanged: alreadyTracked || !isSelectable
-            ? null
-            : (v) => _toggleBook(book, v ?? false),
-        controlAffinity: ListTileControlAffinity.leading,
-        contentPadding: const EdgeInsetsDirectional.only(
-          start: AppTokens.spaceSM,
-          end: AppTokens.spaceMD,
-        ),
-        title: Row(
-          children: [
-            Icon(
-              OtzariaIcons.book_24_regular,
-              size: 18,
-              color: colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: AppTokens.spaceSM),
-            Expanded(
-              child: Text(
-                book.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: AppTokens.fontMD + 1,
-                  color: colorScheme.onSurface,
-                ),
+    // The indent lives in contentPadding so the divider spans the full width.
+    return CheckboxListTile(
+      shape: Border(bottom: listDialogRowDivider(context)),
+      dense: true,
+      value: alreadyTracked || isSelected,
+      onChanged: alreadyTracked || !isSelectable
+          ? null
+          : (v) => _toggleBook(book, v ?? false),
+      controlAffinity: ListTileControlAffinity.leading,
+      contentPadding: EdgeInsetsDirectional.only(
+        start: AppTokens.spaceSM + level * AppTokens.spaceLG,
+        end: AppTokens.spaceMD,
+      ),
+      title: Row(
+        children: [
+          Icon(
+            OtzariaIcons.book_24_regular,
+            size: 18,
+            color: colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppTokens.spaceSM),
+          Expanded(
+            child: Text(
+              book.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: AppTokens.fontMD + 1,
+                color: colorScheme.onSurface,
               ),
             ),
-          ],
-        ),
-        subtitle: alreadyTracked || disabledReason != null
-            ? Padding(
-                padding: const EdgeInsetsDirectional.only(
-                  start: 18 + AppTokens.spaceSM,
-                ),
-                child: Text(
-                  alreadyTracked ? 'כבר במעקב' : disabledReason!,
-                  style: TextStyle(
-                    fontSize: AppTokens.fontSM,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              )
-            : null,
+          ),
+        ],
       ),
+      subtitle: alreadyTracked || disabledReason != null
+          ? Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: 18 + AppTokens.spaceSM,
+              ),
+              child: Text(
+                alreadyTracked ? 'כבר במעקב' : disabledReason!,
+                style: TextStyle(
+                  fontSize: AppTokens.fontSM,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            )
+          : null,
     );
   }
 

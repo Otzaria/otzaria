@@ -215,24 +215,14 @@ class _BiographyCardState extends State<BiographyCard> {
           if (_bio.born != null || _bio.died != null)
             Padding(
               padding: const EdgeInsets.only(top: AppTokens.spaceSM),
-              child: Wrap(
-                spacing: AppTokens.spaceMD,
-                runSpacing: AppTokens.spaceXS,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: AppTokens.spaceXS,
                 children: [
                   if (_bio.born != null)
-                    _lifeEvent(
-                      'נולד',
-                      _bio.born!,
-                      cs,
-                      bodyStyle,
-                    ),
+                    _lifeEvent('נולד', _bio.born!, cs, bodyStyle),
                   if (_bio.died != null)
-                    _lifeEvent(
-                      'נפטר',
-                      _bio.died!,
-                      cs,
-                      bodyStyle,
-                    ),
+                    _lifeEvent('נפטר', _bio.died!, cs, bodyStyle),
                 ],
               ),
             ),

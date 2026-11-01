@@ -11,6 +11,7 @@ import 'package:otzaria/settings/engine/settings_state.dart';
 import 'package:otzaria/tools/aramaic_dictionary/aramaic_dictionary_screen.dart';
 import 'package:otzaria/tools/aramaic_dictionary/widgets/aramaic_result_card.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
+import 'package:otzaria/tools/dictionary/widgets/aramaic_dictionary_entry_view.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
 
 class _Settings extends Bloc<SettingsEvent, SettingsState>
@@ -109,7 +110,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('העתק את הערך'));
       await tester.pump();
-      expect(copied, contains(pair.$2));
+      expect(copied, pair.$1);
+      await tester.tap(find.byTooltip('העתק את הערך עם התוצאה'));
+      await tester.pump();
+      expect(copied, allOf(startsWith(pair.$1), contains(pair.$2)));
       await tester.tap(find.byTooltip('העתק פירוש'));
       await tester.pump();
       expect(copied, contains(pair.$2));
@@ -257,5 +261,147 @@ void main() {
       capped.firstWhere((e) => e.aramaic == 'אי בעית אימא').hebrew,
       expected,
     );
+  });
+
+  group('סימוני ויקי גולמיים', () {
+    ParsedAramaicMeaning single(String raw) =>
+        AramaicDictionaryEntryPresentation.parse(raw).meanings.single;
+
+    void mockClipboard(WidgetTester tester, void Function(String) onCopy) {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            onCopy((call.arguments as Map)['text'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+    }
+
+    test('שבירות שורה ורשימות נעשות שורות ונקודות', () {
+      const raw =
+          'מחלוקות בין אביי לרבא לבהן הלכה כאביי:<BR> * ייאוש שלא מדעת '
+          '<BR>* עד זומם למפרע <br/> * לחי העומד מאליו';
+      expect(
+        single(raw).mainText,
+        'מחלוקות בין אביי לרבא לבהן הלכה כאביי:\n'
+        '• ייאוש שלא מדעת\n'
+        '• עד זומם למפרע\n'
+        '• לחי העומד מאליו',
+      );
+    });
+
+    test('הדגשה בשני הסגנונות נשמרת בתצוגה ונמחקת בהעתקה', () {
+      final meaning = single("א **ב** ג '''ד''' ה");
+      expect(meaning.mainText, 'א **ב** ג **ד** ה');
+      expect(meaning.text, 'א ב ג ד ה');
+      expect(meaning.hebrewText, 'א ב ג ד ה');
+    });
+
+    test('מפריד הפירושים *** אינו הדגשה, וכוכביות ברווחים נשארות', () {
+      final parsed = AramaicDictionaryEntryPresentation.parse(
+        'א **ב** *** ג ** ד ** ה',
+      );
+      expect(parsed.meanings.map((m) => m.text), ['א ב', 'ג ** ד ** ה']);
+    });
+
+    test('סימוני הדגשה שבורים נשארים כמות שהם', () {
+      expect(single('א ** ב').text, 'א ** ב');
+      expect(single('א **ב').text, 'א **ב');
+      expect(single('א * ב *ג').mainText, 'א * ב *ג');
+      expect(single('****').mainText, '****');
+      expect(single("א '''ב").mainText, "א '''ב");
+    });
+
+    test('הדגשה שחוצה את מפריד הפירושים אינה מזוהה', () {
+      final parsed = AramaicDictionaryEntryPresentation.parse('**א *** ב**');
+      expect(parsed.meanings.map((m) => m.mainText), ['**א', 'ב**']);
+      expect(parsed.meanings.map((m) => m.text), ['**א', 'ב**']);
+    });
+
+    test('הדגשה אינה מונעת זיהוי פירוש חוזר', () {
+      final meanings = AramaicDictionaryEntryPresentation.parse(
+        '**ארץ**, קרקע *** ארץ',
+      ).withoutRepeatedMeanings().meanings;
+      expect(meanings.map((m) => m.mainText), ['**ארץ**, קרקע']);
+    });
+
+    testWidgets('תצוגת הערך אינה מציגה את סימוני ההדגשה', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AramaicDictionaryEntryView(definition: 'א **ב** ג'),
+          ),
+        ),
+      );
+      expect(find.text('א ב ג'), findsOneWidget);
+    });
+
+    testWidgets('כרטיס מציג הדגשה ומעתיק בלי סימונים', (tester) async {
+      String? copied;
+      mockClipboard(tester, (text) => copied = text);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AramaicResultCard(
+              aramaic: 'מילה',
+              hebrew: 'פתיחה:<BR>* **מודגש** רגיל *** פירוש שני',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final meaning = tester
+          .widgetList<RichText>(find.byType(RichText))
+          .map((r) => r.text)
+          .whereType<TextSpan>()
+          .firstWhere((s) => s.toPlainText() == 'פתיחה:\n• מודגש רגיל');
+      bool isBold(InlineSpan span) =>
+          span is TextSpan &&
+          ((span.style?.fontWeight == FontWeight.bold &&
+                  span.toPlainText() == 'מודגש') ||
+              (span.children?.any(isBold) ?? false));
+      expect(isBold(meaning), isTrue);
+
+      await tester.tap(find.byTooltip('העתק את הערך עם התוצאה'));
+      await tester.pump();
+      expect(copied, 'מילה\n1. פתיחה:\n• מודגש רגיל\n2. פירוש שני');
+      UiSnack.hide();
+    });
+
+    testWidgets('בחיפוש עברי הכפתור המשולב נמצא בכל שורת פירוש', (
+      tester,
+    ) async {
+      String? copied;
+      mockClipboard(tester, (text) => copied = text);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AramaicResultCard(
+              aramaic: 'מילה',
+              hebrew: 'פירוש ראשון *** פירוש שני',
+              query: 'פירוש',
+              queryIsAramaic: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final buttons = find.byTooltip('העתק את הערך עם התוצאה');
+      expect(buttons, findsNWidgets(2));
+      await tester.tap(buttons.last);
+      await tester.pump();
+      expect(copied, 'מילה\nפירוש שני');
+      UiSnack.hide();
+    });
   });
 }

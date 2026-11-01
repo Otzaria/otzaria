@@ -16,6 +16,8 @@ class ProgressService {
   static const String _progressByIdKey = '${_keyPrefix}progress_by_id';
   static const String _completionDatesByIdKey =
       '${_keyPrefix}completion_dates_by_id';
+  static const String _columnCompletionDatesKey =
+      '${_keyPrefix}column_completion_dates';
   static const String _lastAccessedKey = '${_keyPrefix}last_accessed';
   static const String _bookColumnsKey = '${_keyPrefix}book_columns';
 
@@ -202,6 +204,47 @@ class ProgressService {
         e,
         stackTrace: stackTrace,
         customMessage: 'Failed to save completion dates by ID',
+      );
+    }
+  }
+
+  /// מתי הושלמה כל עמודה בספר (bookId → columnId → תאריך ISO).
+  Future<ColumnCompletionDatesMap> loadColumnCompletionDates() async {
+    try {
+      final jsonString = Settings.getValue<String>(_columnCompletionDatesKey);
+      if (jsonString == null || jsonString.isEmpty) return {};
+
+      final Map<String, dynamic> decoded = json.decode(jsonString);
+      final result = <int, Map<String, String>>{};
+      decoded.forEach((bookIdKey, value) {
+        if (value is Map) {
+          result[int.parse(bookIdKey)] = {
+            for (final e in value.entries)
+              if (e.value is String) e.key as String: e.value as String,
+          };
+        }
+      });
+      return result;
+    } catch (e, stackTrace) {
+      _logger.warning('Failed to load column completion dates', e, stackTrace);
+      return {};
+    }
+  }
+
+  Future<void> saveColumnCompletionDates(
+    ColumnCompletionDatesMap dates,
+  ) async {
+    try {
+      await Settings.setValue<String>(
+        _columnCompletionDatesKey,
+        json.encode(dates.map((k, v) => MapEntry(k.toString(), v))),
+      );
+    } catch (e, stackTrace) {
+      throw ShamorZachorError.fromException(
+        e,
+        stackTrace: stackTrace,
+        type: ShamorZachorErrorType.storageUnavailable,
+        customMessage: 'Failed to save column completion dates',
       );
     }
   }

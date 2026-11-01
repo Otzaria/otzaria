@@ -136,6 +136,9 @@ typedef ProgressMapById = Map<int, Map<String, PageProgress>>;
 /// Completion dates by book ID: BookId -> Completion Date (Hebrew)
 typedef CompletionDatesByIdMap = Map<int, String>;
 
+/// Completion dates of whole columns: BookId -> ColumnId -> ISO date
+typedef ColumnCompletionDatesMap = Map<int, Map<String, String>>;
+
 /// Book progress summary for display purposes
 class BookProgressSummary {
   final String categoryName;

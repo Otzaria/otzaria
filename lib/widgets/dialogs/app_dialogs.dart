@@ -5,6 +5,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
@@ -147,7 +148,7 @@ class _AppDialogState extends State<AppDialog> {
         clipBehavior: widget.headerBand ? Clip.antiAlias : Clip.none,
         titlePadding: widget.headerBand ? EdgeInsets.zero : null,
         contentPadding: widget.headerBand
-            ? const EdgeInsets.fromLTRB(24, 16, 24, 8)
+            ? const EdgeInsets.fromLTRB(24, 16, 24, AppTokens.spaceMD)
             : null,
         title: widget.title is String && widget.headerBand
             ? AppDialogHeader(
