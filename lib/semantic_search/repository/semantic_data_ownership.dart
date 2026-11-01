@@ -31,6 +31,11 @@ Future<bool> isSemanticOwnedDirectory(String dir) async {
 /// מוחק את [dir] רק כשהיא שלנו. מחזיר האם נמחקה.
 Future<bool> deleteSemanticOwnedDirectory(String dir) async {
   if (!await isSemanticOwnedDirectory(dir)) return false;
+  // followLinks של list מגן רק על הילדים, לא על קישור השורש.
+  if (await FileSystemEntity.isLink(dir)) {
+    await Link(dir).delete();
+    return true;
+  }
   // סימני הבעלות נמחקים אחרונים: קובץ נעול לא ישאיר תיקייה שכבר לא מזוהה כשלנו.
   await for (final entry in Directory(dir).list(followLinks: false)) {
     if (_ownershipSigns.contains(p.basename(entry.path))) continue;
