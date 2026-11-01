@@ -204,6 +204,16 @@ String? buildLineRefKey(String heRef, Iterable<String> titleAliases) {
   return tokens.sublist(longestMatch.length).join(' ');
 }
 
+/// האם [keyTokens] (לא ריקים) הם סיומת של [tokens].
+bool endsWithRefKeyTokens(List<String> tokens, List<String> keyTokens) {
+  if (keyTokens.isEmpty || keyTokens.length > tokens.length) return false;
+  final offset = tokens.length - keyTokens.length;
+  for (var i = 0; i < keyTokens.length; i++) {
+    if (tokens[offset + i] != keyTokens[i]) return false;
+  }
+  return true;
+}
+
 /// האם השורה שה-heRef שלה [heRef] יושבת בתוך הציון [locationKey]
 /// ([refKeyTokens] של "עט" או "עט ב") בספר [bookTitle].
 bool heRefWithinLocation(

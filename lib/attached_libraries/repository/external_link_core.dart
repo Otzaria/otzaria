@@ -250,7 +250,7 @@ class ExternalTargetResolver {
       final lineIndex = _int(row['lineIndex']);
       if (heRef == null || bookId == null || lineIndex == null) continue;
       // ה-hash לבדו אינו מספיק — טוקני המפתח חייבים להיות סיומת של ה-heRef.
-      if (!_endsWith(refKeyTokens(heRef), keyTokens)) continue;
+      if (!endsWithRefKeyTokens(refKeyTokens(heRef), keyTokens)) continue;
       return (bookId, categoryByBook[bookId], lineIndex, heRef);
     }
     return null;
@@ -266,15 +266,6 @@ class ExternalTargetResolver {
     official: official,
     columns: 'lr.bookId, lr.lineIndex, l.heRef',
   );
-
-  static bool _endsWith(List<String> tokens, List<String> suffix) {
-    if (suffix.isEmpty || suffix.length > tokens.length) return false;
-    final offset = tokens.length - suffix.length;
-    for (var i = 0; i < suffix.length; i++) {
-      if (tokens[offset + i] != suffix[i]) return false;
-    }
-    return true;
-  }
 
   void close() {
     for (final connection in _open.values) {
