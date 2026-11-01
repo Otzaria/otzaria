@@ -1975,7 +1975,8 @@ await Otzaria.call('reader.openBook', {
 
 `markText` ו-`markSection` הם אותה הדגשה שקישור `otzaria://open/book/<id>?index=N&m=<טקסט>`
 (או `&mark`) מייצר — למשל קישור שהועתק מ"העתק קישור עם הדגשת הטקסט" בתפריט הקורא
-ונשמר במסמך של תוסף. סדר העדיפות זהה: `markText` > `markSection` > `searchQuery`.
+ונשמר במסמך של תוסף. סדר העדיפות זהה: `markText` > `markSection` > `searchQuery`,
+כלומר כשיש הדגשה `searchQuery` אינו מופעל — כמו `q` בקישור שיש בו `m` או `mark`.
 `markText` ריק או רווחים בלבד נחשב כאילו לא נשלח; ערך מסוג שגוי נדחה עם
 `error.invalid_params`. מארח ישן שאינו מכיר את השדות מתעלם מהם ופותח את הספר
 במקטע בלי הדגשה.

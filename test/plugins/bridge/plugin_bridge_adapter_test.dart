@@ -5623,6 +5623,46 @@ Future<void> main() async {
       },
     );
 
+    test(
+      'reader.openBook: הדגשה מבטלת את searchQuery, כמו m/mark מול q בקישור',
+      () async {
+        final book = TextBook(id: 5, title: 'ויקרא');
+        final adapter = buildAdapter(books: [book]);
+
+        await adapter.execute('reader', 'openBook', {
+          'id': 5,
+          'index': 7,
+          'searchQuery': 'משה',
+          'markText': 'ויקרא',
+        });
+        await adapter.execute('reader', 'openBook', {
+          'id': 5,
+          'index': 8,
+          'searchQuery': 'משה',
+          'markSection': true,
+        });
+
+        verify(
+          mockCoordinator.openBook(
+            book,
+            7,
+            '',
+            ignoreHistory: true,
+            markText: 'ויקרא',
+          ),
+        ).called(1);
+        verify(
+          mockCoordinator.openBook(
+            book,
+            8,
+            '',
+            ignoreHistory: true,
+            markSection: true,
+          ),
+        ).called(1);
+      },
+    );
+
     test('reader.openBook: markText ריק או רווחים בלבד — בלי הדגשה', () async {
       final book = TextBook(id: 5, title: 'ויקרא');
       final adapter = buildAdapter(books: [book]);

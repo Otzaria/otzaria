@@ -2833,8 +2833,12 @@ class PluginBridgeAdapter {
         // also accepts legacy 'title' for back-compat; all supplied identity fields must match.
         {
           final index = (args['index'] as num?)?.toInt() ?? 0;
-          final searchQuery = args['searchQuery'] as String? ?? '';
           final (:markText, :markSection) = _parseOpenBookMark(args);
+          // עדיפות markText > markSection > searchQuery, כמו בקישור
+          // (external_uri_router.dart): הדגשה מקומית מבטלת את החיפוש.
+          final searchQuery = markText != null || markSection
+              ? ''
+              : args['searchQuery'] as String? ?? '';
           final navigateToPositionIfReused =
               args['navigateToPositionIfReused'] as bool? ?? false;
           final openInSidePane = args['openInSidePane'] as bool? ?? false;
