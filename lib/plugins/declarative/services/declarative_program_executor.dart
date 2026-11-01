@@ -274,15 +274,17 @@ class DeclarativeProgramExecutor {
     if (value is Map) {
       final map = Map<String, dynamic>.from(value);
       if (map.length == 1) {
-        if (map.containsKey(r'$literal')) return _copy(map[r'$literal']);
+        if (map.containsKey(r'$literal')) {
+          return deepCopyValue(map[r'$literal']);
+        }
         if (map.containsKey(r'$context')) {
-          return _readPath(context, map[r'$context'] as String);
+          return readValuePath(context, map[r'$context'] as String);
         }
         if (map.containsKey(r'$result')) {
-          return _readPath(results, map[r'$result'] as String);
+          return readValuePath(results, map[r'$result'] as String);
         }
         if (map.containsKey(r'$row')) {
-          return _readPath(row, map[r'$row'] as String);
+          return readValuePath(row, map[r'$row'] as String);
         }
         if (map.containsKey(r'$concat')) {
           final parts = map[r'$concat'] as List<dynamic>;
@@ -383,7 +385,7 @@ class DeclarativeProgramExecutor {
             ) !=
             null;
       case 'notEmpty':
-        return _isNotEmpty(
+        return isNotEmptyValue(
           _conditionValue(
             condition['value'],
             context: context,
@@ -404,34 +406,5 @@ class DeclarativeProgramExecutor {
     required Map<String, Object?> results,
   }) {
     return _resolveValue(value, context: context, results: results);
-  }
-
-  bool _isNotEmpty(Object? value) {
-    if (value is String) return value.isNotEmpty;
-    if (value is Iterable) return value.isNotEmpty;
-    if (value is Map) return value.isNotEmpty;
-    return value != null;
-  }
-
-  Object? _readPath(Object? root, String path) {
-    Object? current = root;
-    for (final part in path.split('.')) {
-      if (current is Map && current.containsKey(part)) {
-        current = current[part];
-      } else {
-        return null;
-      }
-    }
-    return current;
-  }
-
-  Object? _copy(Object? value) {
-    if (value is Map) {
-      return {
-        for (final entry in value.entries) entry.key: _copy(entry.value),
-      };
-    }
-    if (value is List) return value.map(_copy).toList();
-    return value;
   }
 }

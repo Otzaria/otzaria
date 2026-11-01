@@ -286,7 +286,7 @@ class DeclarativeActionCompiler {
     if (value is! String ||
         value.trim().isEmpty ||
         value.length > maxLength ||
-        _hasControlChars(value)) {
+        hasControlChars(value)) {
       throw DeclarativeProgramException(
         'declarative.invalid_args',
         '$context must be a non-empty string of up to $maxLength characters',
@@ -311,7 +311,7 @@ class DeclarativeActionCompiler {
     if (key is! String ||
         key.isEmpty ||
         key.length > maxStorageKeyLength ||
-        _hasControlChars(key)) {
+        hasControlChars(key)) {
       throw const DeclarativeProgramException(
         'declarative.invalid_args',
         'storage key must be a non-empty string of up to '
@@ -359,7 +359,7 @@ class DeclarativeActionCompiler {
       if (current == null || current is num || current is bool) return;
       if (current is String &&
           current.length <= maxJsonStringLength &&
-          !_hasControlChars(current)) {
+          !hasControlChars(current)) {
         return;
       }
       throw DeclarativeProgramException(
@@ -371,13 +371,6 @@ class DeclarativeActionCompiler {
     visit(value, 0);
   }
 
-  static bool _hasControlChars(String value) {
-    for (final unit in value.codeUnits) {
-      if (unit < 0x20 || unit == 0x7F) return true;
-    }
-    return false;
-  }
-
   Map<String, dynamic> _requiredMap(Object? value, String context) =>
       requiredMap(value, context, code: 'declarative.invalid_action');
 
@@ -385,7 +378,7 @@ class DeclarativeActionCompiler {
     if (value is! String ||
         value.isEmpty ||
         value.length > 4096 ||
-        RegExp(r'[\u0000-\u001F\u007F]').hasMatch(value)) {
+        hasControlChars(value)) {
       throw DeclarativeProgramException(
         'declarative.invalid_action',
         '$context must be a valid non-empty string',

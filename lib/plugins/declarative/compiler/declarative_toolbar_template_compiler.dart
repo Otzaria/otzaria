@@ -336,7 +336,7 @@ class DeclarativeToolbarTemplateCompiler {
         if (referenceKey == r'$output') {
           _assertOutputPath(path, program, key);
         } else {
-          _assertPath(path, key);
+          referencePathParts(path, key);
         }
         return;
       }
@@ -385,26 +385,13 @@ class DeclarativeToolbarTemplateCompiler {
     CompiledDeclarativeProgram program,
     String context,
   ) {
-    final parts = _assertPath(path, context);
+    final parts = referencePathParts(path, context);
     if (!program.outputs.containsKey(parts.first)) {
       throw DeclarativeProgramException(
         'declarative.output_not_found',
         'Program "${program.id}" has no output "${parts.first}"',
       );
     }
-  }
-
-  List<String> _assertPath(String path, String context) {
-    final parts = path.split('.');
-    if (parts.any(
-      (part) => !RegExp(r'^[A-Za-z_][A-Za-z0-9_-]*$').hasMatch(part),
-    )) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_reference',
-        '$context contains an invalid path',
-      );
-    }
-    return parts;
   }
 
   void _validateLiteral(Object? value, {required int depth}) {
@@ -432,9 +419,7 @@ class DeclarativeToolbarTemplateCompiler {
 
   void _validateScalar(Object? value, String context) {
     if (value == null || value is num || value is bool) return;
-    if (value is String &&
-        value.length <= 4096 &&
-        !RegExp(r'[\u0000-\u001F\u007F]').hasMatch(value)) {
+    if (value is String && value.length <= 4096 && !hasControlChars(value)) {
       return;
     }
     throw DeclarativeProgramException(
@@ -483,15 +468,8 @@ class DeclarativeToolbarTemplateCompiler {
   Map<String, dynamic> _requiredMap(Object? value, String context) =>
       requiredMap(value, context, code: 'declarative.invalid_toolbar_item');
 
-  List<dynamic> _requiredList(Object? value, String context) {
-    if (value is! List) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_toolbar_item',
-        '$context must be an array',
-      );
-    }
-    return value;
-  }
+  List<dynamic> _requiredList(Object? value, String context) =>
+      requiredList(value, context, code: 'declarative.invalid_toolbar_item');
 
   String _requiredString(Object? value, String context) {
     if (value is! String || value.isEmpty || value.length > 4096) {

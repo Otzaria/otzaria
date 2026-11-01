@@ -726,32 +726,14 @@ class DeclarativeProgramCompiler {
     return DeclarativeValueKind.scalar;
   }
 
-  List<String> _requiredReferencePath(Object? value, String context) {
-    final path = _requiredString(value, context);
-    final parts = path.split('.');
-    if (parts.any(
-      (part) => !RegExp(r'^[A-Za-z_][A-Za-z0-9_-]*$').hasMatch(part),
-    )) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_reference',
-        '$context contains an invalid path',
-      );
-    }
-    return parts;
-  }
+  List<String> _requiredReferencePath(Object? value, String context) =>
+      referencePathParts(_requiredString(value, context), context);
 
   Map<String, dynamic> _requiredMap(Object? value, String context) =>
       requiredMap(value, context, code: 'declarative.invalid_program');
 
-  List<dynamic> _requiredList(Object? value, String context) {
-    if (value is! List) {
-      throw DeclarativeProgramException(
-        'declarative.invalid_program',
-        '$context must be an array',
-      );
-    }
-    return value;
-  }
+  List<dynamic> _requiredList(Object? value, String context) =>
+      requiredList(value, context, code: 'declarative.invalid_program');
 
   List<String> _stringList(Object? value, String context) {
     final list = _requiredList(value, context);
@@ -791,8 +773,7 @@ class DeclarativeProgramCompiler {
   }
 
   void _validateString(String value, String context) {
-    if (value.length > maxStringLength ||
-        RegExp(r'[\u0000-\u001F\u007F]').hasMatch(value)) {
+    if (value.length > maxStringLength || hasControlChars(value)) {
       throw DeclarativeProgramException(
         'declarative.value_too_large',
         '$context contains an invalid string',
