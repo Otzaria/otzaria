@@ -1475,6 +1475,60 @@ void main() {
   );
 
   test(
+    'קריאה ארוכה שמסתיימת אחרי הניסיון הראשון לא מבטלת את ההמרה ל-WAL',
+    () async {
+      final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);
+      _writeDb(dbPath, version: 1, marker: 'old');
+      AppPaths.debugOverrideDataRootPath(tmp.path);
+      final reader = sqlite3.sqlite3.open(dbPath)
+        ..execute('BEGIN')
+        ..select('SELECT value FROM marker');
+      Timer? release;
+      final modesAtApply = <String>[];
+
+      final repository = LibraryUpdateRepository(
+        discovery: _unusedDiscovery(),
+        // הניסיון הראשון ממתין 5 שניות לנעילה; הקורא משתחרר בזמן הניסיון השני.
+        downloader: _LocalPatchDownloader(
+          p.join(tmp.path, 'patch.db'),
+          beforeReturn: () async =>
+              release = Timer(const Duration(seconds: 6), reader.close),
+        ),
+        refreshService: _NoopRefreshService(),
+        dbPathProvider: () => dbPath,
+        dataRootProvider: () async => tmp.path,
+        // נקרא ב-beginApply, אחרי ההמרה ופתיחת הקוראים מחדש.
+        nowTimestamp: () {
+          modesAtApply.add(_journalMode(dbPath));
+          return '2026-09-07T00:00:00Z';
+        },
+      );
+
+      try {
+        await expectLater(
+          repository.applyDeltaPlan(_deltaPlan()),
+          throwsA(isA<PatchApplyException>()),
+        );
+        expect(release, isNotNull);
+        expect(modesAtApply.single, 'wal');
+        final log = ErrorLogFile.resolveFile();
+        expect(
+          log.existsSync() ? log.readAsStringSync() : '',
+          isNot(contains('journal_mode=WAL failed')),
+        );
+        expect(_journalMode(dbPath), 'delete');
+      } finally {
+        if (release?.isActive ?? true) {
+          release?.cancel();
+          reader.close();
+        }
+        AppPaths.debugOverrideDataRootPath(null);
+      }
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  test(
     'applyDeltaPlan מסמן reconcile מלא כשמשתנה תוכן שאינו ניתן למיפוי לספר',
     () async {
       final dbPath = p.join(tmp.path, DatabaseConstants.databaseFileName);

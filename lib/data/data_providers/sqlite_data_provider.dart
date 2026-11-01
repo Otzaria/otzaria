@@ -117,7 +117,7 @@ class SqliteDataProvider {
     // דרך [closeForExternalWrite]/[reopenAfterExternalWrite]. לפני הפתיחה
     // ה-read-only יש לוודא שהקובץ אינו במצב WAL — אחרת SQLite לא יוכל לפתוח
     // אותו ללא יצירת קובצי -wal/-shm (שדורשים הרשאת כתיבה).
-    await normalizeJournalModeForReadOnly(_dbPath);
+    if (!keepWalJournal) await normalizeJournalModeForReadOnly(_dbPath);
 
     try {
       final database = MyDatabase.withPath(
@@ -214,6 +214,10 @@ class SqliteDataProvider {
   /// מוצב ב-[LibraryAccessGate] לכל משך החלפת הספרייה. ייבוא או הורדה מחדש
   /// סוגרים את המסד לדקות, ולכן קוראים ממתינים בלי תקרת הדליפה.
   bool libraryReplacing = false;
+
+  /// מוצב בזמן ש-patch מוחל במצב WAL והקוראים פתוחים: נרמול ל-DELETE בפתיחת
+  /// קורא היה מבטל את ה-WAL לפני שהכותב התחיל.
+  bool keepWalJournal = false;
 
   /// עקיפת פרמטרי ההמתנה ל-gate בטסטים בלבד, כדי לבדוק את חסימת הקיפאון
   /// בלי להמתין את התקרה המלאה (~30ש').
