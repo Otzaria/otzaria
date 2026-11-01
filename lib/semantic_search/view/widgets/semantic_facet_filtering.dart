@@ -74,6 +74,7 @@ class _SemanticFacetFilteringState extends State<SemanticFacetFiltering>
         onClear: () => setState(_filterQuery.clear),
       ),
       child: BlocBuilder<LibraryBloc, LibraryState>(
+        buildWhen: LibraryState.catalogChanged,
         builder: (context, libraryState) {
           if (libraryState.isLoading) {
             return const Center(child: CircularProgressIndicator());
