@@ -674,9 +674,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   _View _view = _View.root;
   final List<ScopeNode> _stack = [];
   int _highlight = 0;
-  // ריחוף משנה רק את כפתור "רק" בשורה; בנייה מחדש של התפריט
-  // מריצה שוב את החיפוש בכל העץ.
+  // ריחוף משנה רק את כפתור "רק" בשורה, בלי לבנות מחדש את כל שורות התפריט.
   final ValueNotifier<int> _hoveredRow = ValueNotifier<int>(-1);
+
+  // חיצים, סימון ותוצאות המחברים בונים את התפריט מחדש עם אותה שאילתה.
+  ({ScopeTree tree, String query, List<ScopeSearchResultItem> results})?
+  _treeSearch;
 
   List<String> _authorResults = const [];
   int _authorRequestId = 0;
@@ -1049,7 +1052,17 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     final tree = widget.tree!;
     final query = _normalizedQuery;
     final categoryPart = _categoryPart;
-    final treeResults = tree.search(query);
+    var search = _treeSearch;
+    if (search == null ||
+        !identical(search.tree, tree) ||
+        search.query != query) {
+      search = _treeSearch = (
+        tree: tree,
+        query: query,
+        results: tree.search(query),
+      );
+    }
+    final treeResults = search.results;
     final eraMatches = [
       for (final era in _eraNames)
         if (normalizeFindText(era).contains(query)) era,
