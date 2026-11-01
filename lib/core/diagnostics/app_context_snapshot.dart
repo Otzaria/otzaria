@@ -3,6 +3,7 @@ import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
 import 'package:otzaria/plugins/models/installed_plugin.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
+import 'package:otzaria/search/utils/literal_search_pattern.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
@@ -93,6 +94,8 @@ Map<String, Object?> _textReaderContext(TextBookState state) {
         pageShape: state.showPageShapeView,
         split: state.splitedView,
       ),
+      ..._highlightContext(state.highlightText, state.permanentHighlightLine),
+      'pinpointHighlight': state.pinpointHighlightText?.isNotEmpty ?? false,
       ..._searchContext(
         query: state.searchText,
         mode: state.searchMode,
@@ -120,7 +123,8 @@ Map<String, Object?> _textReaderContext(TextBookState state) {
     'lines': state.content.length,
     'maxLineChars': _maxLineChars(state.content),
     'partiallyLoaded': state.loadedLineFlags != null,
-    'highlightLine': state.highlightText.isNotEmpty,
+    'removeNikud': state.removeNikud,
+    ..._highlightContext(state.highlightText, state.permanentHighlightLine),
     'pinpointHighlight': state.pinpointHighlightText?.isNotEmpty ?? false,
     ..._searchContext(
       query: state.searchText,
@@ -138,7 +142,21 @@ Map<String, Object?> _textReaderContext(TextBookState state) {
 }
 
 String _viewName({required bool pageShape, required bool split}) =>
-    pageShape ? 'pageShape' : (split ? 'split' : 'below');
+    pageShape ? 'pageShape' : (split ? 'split' : 'combined');
+
+/// השורה הצהובה מודגשת לפי [highlightText] במקום השאילתה, באותו מסלול הדגשה.
+Map<String, Object?> _highlightContext(String highlightText, int? line) =>
+    highlightText.isEmpty || line == null
+    ? const {}
+    : {
+        'highlightChars': highlightText.length,
+        'highlightWords': _wordCount(highlightText),
+      };
+
+int _wordCount(String text) {
+  final trimmed = text.trim();
+  return trimmed.isEmpty ? 0 : trimmed.split(RegExp(r'\s+')).length;
+}
 
 /// שורה ארוכה מייקרת את ההדגשה; שורה שטרם נטענה היא מחרוזת ריקה.
 int _maxLineChars(List<String> content) =>
@@ -176,13 +194,18 @@ Map<String, Object?> _searchContext({
       'origin': origin.name,
       'distance': distance,
       'queryChars': query.length,
-      'queryWords': trimmed.isEmpty ? 0 : trimmed.split(RegExp(r'\s+')).length,
+      'queryWords': _wordCount(query),
       'slashWrapped':
           trimmed.length > 2 &&
           trimmed.startsWith('/') &&
           trimmed.endsWith('/'),
       'hasQuotes': query.contains('"') || query.contains('״'),
       'wholeWord': ?wholeWord,
+      if (wholeWord != null)
+        'partialWordHighlight': literalPartialWordMatch(
+          query,
+          wholeWord: wholeWord,
+        ),
       'wordOptions': wordOptions,
       'alternativeWords': alternativeWords.values.fold<int>(
         0,

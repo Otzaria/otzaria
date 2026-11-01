@@ -427,6 +427,8 @@ void main() {
       TextBookTab loadedTab({
         required String searchText,
         BookSource source = BookSource.official,
+        String highlightText = '',
+        int? permanentHighlightLine,
       }) {
         final book = TextBook(title: 'ספר הבדיקה', source: source);
         return TextBookTab(
@@ -452,13 +454,19 @@ void main() {
               selectedIndex: 0,
               pinLeftPane: false,
               continuousReadingMode: true,
+              highlightText: highlightText,
+              permanentHighlightLine: permanentHighlightLine,
               searchText: searchText,
               searchMode: SearchMode.advanced,
               searchDistance: 3,
               searchWholeWord: false,
               searchResultLines: const {0, 2},
               searchOptions: const {
-                'שאילתה_0': {'חלק ממילה': true, 'קידומות': true},
+                'שאילתה_0': {
+                  'חלק ממילה': true,
+                  'קידומות': true,
+                  'אפשרות-סודית': true,
+                },
                 'פרטית_1': {'חלק ממילה': true, 'סיומות': false},
               },
               alternativeWords: const {
@@ -482,13 +490,13 @@ void main() {
           {
             'kind': 'text',
             'state': 'loaded',
-            'view': 'below',
+            'view': 'combined',
             'continuousReading': true,
             'commentators': 2,
             'lines': 3,
             'maxLineChars': bookLine.length,
             'partiallyLoaded': false,
-            'highlightLine': false,
+            'removeNikud': false,
             'pinpointHighlight': false,
             'searchActive': true,
             'search': {
@@ -500,7 +508,12 @@ void main() {
               'slashWrapped': false,
               'hasQuotes': false,
               'wholeWord': false,
-              'wordOptions': {'word.partial': 2, 'word.prefixes': 1},
+              'partialWordHighlight': true,
+              'wordOptions': {
+                'word.partial': 2,
+                'word.prefixes': 1,
+                'other': 1,
+              },
               'alternativeWords': 1,
               'customSpacing': 1,
               'matchPolicy': {
@@ -518,8 +531,13 @@ void main() {
           query,
           'שאילתה',
           'פרטית',
+          'מאוד',
           'חלופה',
+          'אפשרות-סודית',
+          'חלק ממילה',
           bookLine,
+          'קצר',
+          'תוספות',
           'רש"י',
         ]) {
           expect(encoded.contains(secret), isFalse, reason: secret);
@@ -532,6 +550,21 @@ void main() {
         final reader = (contextOf(tab)['readers'] as List).single as Map;
         expect(reader['searchActive'], isFalse);
         expect(reader.containsKey('search'), isFalse);
+      });
+
+      test('שורה צהובה: אורך ההדגשה ומספר מילותיה, בלי הטקסט', () {
+        const highlight = 'הדגשה מתוצאת חיפוש';
+        final tab = loadedTab(
+          searchText: '',
+          highlightText: highlight,
+          permanentHighlightLine: 1,
+        );
+        addTearDown(tab.dispose);
+        final context = contextOf(tab);
+        final reader = (context['readers'] as List).single as Map;
+        expect(reader['highlightChars'], highlight.length);
+        expect(reader['highlightWords'], 3);
+        expect(jsonEncode(context).contains('הדגשה'), isFalse);
       });
 
       test('ספר אישי: הכותרת מוסתרת גם כשמצב החיפוש מדווח', () {
@@ -569,7 +602,10 @@ void main() {
         expect((readers[0]['search'] as Map)['slashWrapped'], isTrue);
         expect(readers[1]['kind'], 'pdf');
         expect((readers[1]['search'] as Map)['hasQuotes'], isTrue);
-        expect(jsonEncode(context).contains('שאילתה'), isFalse);
+        final encoded = jsonEncode(context);
+        for (final word in query.split(' ')) {
+          expect(encoded.contains(word), isFalse, reason: word);
+        }
       });
 
       test('כרטיסייה שאינה קורא: אין מפתח readers', () {
