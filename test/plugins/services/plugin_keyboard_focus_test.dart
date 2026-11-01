@@ -418,6 +418,76 @@ void main() {
       expect(controller.focusCalls, 1);
     });
 
+    test('אחרי ההחייאה הפוקוס מועבר גם כשהדף מדווח שהוא ממוקד', () async {
+      // כמו אחרי מיזעור: דף שהוקפא מדווח `document.hasFocus()` אמת כשחוזרים
+      // אליו — ובכל זאת אף הקשה אינה מגיעה אליו עד MoveFocus או קליק.
+      final controller = _FocusController()..pageHasFocusAfterFirst = true;
+      _d.registerController(_pid, controller);
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      await _d.requestKeyboardFocus(_pid);
+      expect(controller.focusCalls, 1);
+
+      // מעבר לטאב אחר משהה את המופע.
+      _d.setVisiblePluginInstances({_fg(_other)});
+      await pumpEventQueue();
+      expect(controller.pauseCalls, 1);
+
+      // חזרה לטאב התוסף: בקשת הפוקוס מקדימה את ההחייאה ונזכרת.
+      final gate = Completer<void>();
+      controller.resumeGate = gate;
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      expect(await _d.requestKeyboardFocus(_pid), isFalse);
+
+      controller.resumeGate = null;
+      gate.complete();
+      await pumpEventQueue();
+
+      expect(controller.focusCalls, 2);
+    });
+
+    test('חזרה למסך העיון — אותו דבר', () async {
+      final controller = _FocusController()..pageHasFocusAfterFirst = true;
+      _d.registerController(_pid, controller);
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      await _d.requestKeyboardFocus(_pid);
+      expect(controller.focusCalls, 1);
+
+      _d.setReaderScreenVisible(false);
+      await pumpEventQueue();
+      expect(controller.pauseCalls, 1);
+
+      final gate = Completer<void>();
+      controller.resumeGate = gate;
+      _d.setReaderScreenVisible(true);
+      await pumpEventQueue();
+      expect(await _d.requestKeyboardFocus(_pid), isFalse);
+
+      controller.resumeGate = null;
+      gate.complete();
+      await pumpEventQueue();
+
+      expect(controller.focusCalls, 2);
+    });
+
+    test('מופע שעוד לא נוצר — עדות הדף עדיין קובעת', () async {
+      // בקשה שנזכרה לפני שה-WebView נוצר אינה מגיעה מדף שהוקפא, ולכן השער
+      // נגד MoveFocus שמבטל פוקוס של קליק (#2736) נשאר במקומו.
+      _d.setVisiblePluginInstances({_fg(_pid)});
+      await pumpEventQueue();
+      expect(await _d.requestKeyboardFocus(_pid), isFalse);
+
+      // הדף כבר ממוקד (המשתמש לחץ בו לפני שהטעינה הסתיימה).
+      final controller = _FocusController()..pageHasFocusAfterFirst = true;
+      controller.focusCalls = 1;
+      _d.registerController(_pid, controller);
+      await _d.onForegroundInstanceReady(_pid);
+
+      expect(controller.focusCalls, 1);
+    });
+
     test('השהיה מנקה בקשה שנזכרה — חזרה אינה יורה מעצמה', () async {
       // הבקשה נזכרת לפני שה-WebView נרשם, ולכן היא באמת ממתינה.
       _d.setVisiblePluginInstances({_fg(_pid)});

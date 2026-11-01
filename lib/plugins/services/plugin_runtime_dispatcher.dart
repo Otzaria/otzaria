@@ -102,7 +102,8 @@ class _PluginInstance {
   /// שנוצר, או שה-resume עוד רץ) — תתבצע ברגע שיהיה.
   bool pendingKeyboardFocus = false;
 
-  /// ראה [PluginWebViewFocus.request]; false אם אחת הבקשות שנזכרו דרשה זאת.
+  /// ראה [PluginWebViewFocus.request]; false אם אחת הבקשות שנזכרו דרשה זאת,
+  /// או שנזכרה בזמן שהמופע היה מוקפא.
   bool pendingFocusTrustsPage = true;
 
   /// אירועים שהוזרקו בזמן השעיה וממתינים למסירה חוזרת אחרי boot. מקודדים
@@ -582,9 +583,13 @@ class PluginRuntimeDispatcher {
       platformNeedsHandoff: platformNeedsHandoff,
     )) {
       final pending = _instanceFor(pluginId, instanceId);
+      // בקשה שנזכרה בזמן שהמופע מוקפא תתבצע מיד אחרי ההחייאה — וכמו אחרי
+      // מיזעור, עדות הדף על עצמו כוזבת שם: `document.hasFocus()` מחזיר אמת
+      // ואף הקשה אינה מגיעה עד קליק. בקשה למופע שעוד לא נוצר נשארת כשהייתה.
       pending.pendingFocusTrustsPage =
           (!pending.pendingKeyboardFocus || pending.pendingFocusTrustsPage) &&
-          trustPageFocus;
+          trustPageFocus &&
+          !pending.suspended;
       pending.pendingKeyboardFocus = true;
     }
     return false;

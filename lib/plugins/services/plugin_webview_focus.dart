@@ -165,7 +165,9 @@ class PluginWebViewFocus {
   /// האפליקציה חוזר ממיזעור היא **אינה** קבילה: נמדד שהדף מקבל אירוע
   /// `focus`, ש-`document.hasFocus()` מחזיר `true` ושה-`activeElement` שלו
   /// הוא שדה העריכה — ובכל זאת אף הקשה אינה מגיעה אליו עד MoveFocus או
-  /// קליק. במסלול הזה בלבד מוותרים על השער.
+  /// קליק. כך גם בבקשה שנזכרה בזמן שהמופע היה מוקפא (חזרה לטאב התוסף או
+  /// למסך העיון) ומתבצעת אחרי ההחייאה. בשני המסלולים האלה בלבד מוותרים על
+  /// השער.
   static Future<bool> request(
     InAppWebViewController controller, {
     bool trustPageFocus = true,
