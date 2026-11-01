@@ -19,6 +19,8 @@ String hangEntry(DateTime at, {List<String>? frames}) =>
     'Version: 0.9.98\n'
     'Message: AppHang: UI thread not responding\n'
     'Detected: 61234ms after launch\n'
+    'Memory: private 812MB, working set 640MB; system available '
+    '1210/8079MB (load 85%), commit available 2048/12175MB\n'
     'Stack (module+RVA):\n'
     '${(frames ?? const ['ntdll.dll+0x9f4e4', 'win32u.dll+0x1234', 'KERNELBASE.dll+0x55', '0x1f8e8b92bbc', 'otzaria.exe+0x1a2b', 'flutter_windows.dll+0x81bb05', 'flutter_windows.dll+0x10', 'flutter_windows.dll+0x20']).map((f) => '  $f').join('\n')}\n';
 
