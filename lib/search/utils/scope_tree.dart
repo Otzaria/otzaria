@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
@@ -367,11 +368,16 @@ class ScopeTree {
 
   // --- חיפוש שטוח בעץ ---
 
+  /// בדיקות בלבד: מספר הסריקות של העץ ב-[search].
+  @visibleForTesting
+  static int debugSearchScans = 0;
+
   List<ScopeSearchResultItem> search(String normalizedQuery) {
     if (normalizedQuery.isEmpty) {
       return const [];
     }
 
+    debugSearchScans++;
     final results = <ScopeSearchResultItem>[];
 
     void visit(ScopeNode node) {

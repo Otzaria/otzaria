@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
@@ -11,6 +12,7 @@ import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
+import 'package:otzaria/search/utils/scope_tree.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 
 import '../support/search_engine_test_init.dart';
@@ -188,6 +190,34 @@ Future<void> main() async {
 
         expect(find.text('רק'), findsOneWidget);
         expect(tester.widget<Text>(textInList('בראשית')), same(labelBefore));
+      });
+
+      testWidgets('חיצים וסימון אינם סורקים שוב את העץ לאותה שאילתה (perf)', (
+        tester,
+      ) async {
+        await pumpMenu(tester, <String>{});
+        // "תורה" (תיקייה), ואחריה "שמות" ו"בראשית" שבתוכה.
+        await typeQuery(tester, 'תורה');
+        final scans = ScopeTree.debugSearchScans;
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+
+        expect(selection, {
+          FacetHelper.buildBookFacet(
+            '/תנ״ך/תורה',
+            TextBook(title: 'שמות', categoryPath: '/תנ״ך/תורה'),
+          ),
+        });
+        expect(ScopeTree.debugSearchScans, scans);
+
+        await typeQuery(tester, 'בראשית');
+        expect(ScopeTree.debugSearchScans, greaterThan(scans));
+        expect(textInList('בראשית'), findsOneWidget);
+        expect(textInList('שמות'), findsNothing);
       });
     },
     skip: engineReady ? false : searchEngineSkipReason,
