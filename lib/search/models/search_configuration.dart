@@ -3,6 +3,7 @@ import 'package:otzaria/search/search_query_builder.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 
 export 'package:otzaria/search/models/search_match_policy.dart';
+export 'package:otzaria/search/models/in_book_search_template.dart';
 
 /// מרחק העריכה המרבי שמנוע החיפוש המקורב מכבד; ערך גדול יותר נחתך אליו.
 const int kMaxFuzzyDistance = 2;

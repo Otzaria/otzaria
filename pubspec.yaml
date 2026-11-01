@@ -47,11 +47,12 @@ dependencies:
   # RAM פיזי לגודל ה-cache של SQLite בעדכון הספרייה ב-mobile.
   device_info_plus: ^13.3.0
   html: ^0.15.7
-  # TODO: לחזור ל-pub.dev אחרי מיזוג ושחרור espresso3389/pdfrx#789 (חיפוש: startPageNumber ו-Pattern כללי).
+  # TODO: לחזור ל-pub.dev לאחר שחרור Pattern כללי (pdfrx#789) ו-hook ניווט.
+  # hook הניווט אינו חלק מ-#789.
   pdfrx:
     git:
       url: https://github.com/Otzaria/pdfrx
-      ref: f17f722f2b8f3197e7500a81338e39854029b0ba
+      ref: a656fd1a14de1a82a5e432261f3cfe66c7860356
       path: packages/pdfrx
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
   pdfium_dart: ^0.4.0

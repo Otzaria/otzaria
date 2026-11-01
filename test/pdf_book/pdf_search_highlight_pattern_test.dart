@@ -14,6 +14,7 @@ import 'package:otzaria/pdf_book/utils/proximity_highlight_pattern.dart';
 import 'package:otzaria/pdf_book/view/pdf_search_screen.dart';
 import 'package:otzaria/search/in_book_search_preferences.dart';
 import 'package:otzaria/search/in_book_search_settings.dart';
+import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_repository.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
@@ -40,10 +41,14 @@ class _FakeDocument extends Fake implements PdfDocument {
 /// קונטרולר "מוכן" בלי PdfViewer אמיתי — [PdfTextSearchSession] דורש מסמך חי
 /// בבנייה, ו-useDocument מוחזר null כדי שהחיפוש לא יגע ב-pdfium.
 class _FakeReadyController extends PdfViewerController {
-  _FakeReadyController({this.viewerPage});
+  _FakeReadyController({this.viewerPage, this.canReveal = false});
 
   /// העמוד שהצפיין מציג; null — כמו קונטרולר שאינו מחובר לצפיין.
-  final int? viewerPage;
+  int? viewerPage;
+  final bool canReveal;
+  Completer<void>? revealGate;
+  int reveals = 0;
+  int? _plannedPage;
 
   @override
   bool get isReady => true;
@@ -59,8 +64,32 @@ class _FakeReadyController extends PdfViewerController {
   void invalidate() {}
 
   @override
-  PdfPageLayout get layout =>
-      PdfPageLayout(pageLayouts: const [], documentSize: Size.zero);
+  PdfPageLayout get layout => PdfPageLayout(
+    pageLayouts: canReveal
+        ? [for (var i = 0; i < 12; i++) Rect.fromLTWH(0, i * 100, 100, 100)]
+        : const [],
+    documentSize: const Size(100, 1200),
+  );
+
+  @override
+  Size get viewSize => const Size(100, 100);
+  @override
+  Matrix4 get value => Matrix4.identity();
+  @override
+  Matrix4 calcMatrixFor(Offset position, {double? zoom, Size? viewSize}) {
+    _plannedPage = (position.dy / 100).floor() + 1;
+    return Matrix4.identity();
+  }
+
+  @override
+  Future<void> goTo(
+    Matrix4? destination, {
+    Duration duration = const Duration(milliseconds: 200),
+  }) async {
+    reveals++;
+    viewerPage = _plannedPage;
+    await revealGate?.future;
+  }
 
   @override
   FutureOr<T?> useDocument<T>(
@@ -77,7 +106,7 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
 
   final String pageFullText;
   final List<Pattern> searches = [];
-  final calls = <({bool searchImmediately, int? startPageNumber})>[];
+  final calls = <({bool searchImmediately})>[];
   List<PdfTextSearchResult> fakeMatches = const [];
 
   @override
@@ -101,12 +130,10 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
     bool caseInsensitive = true,
     bool goToFirstMatch = true,
     bool searchImmediately = false,
-    int? startPageNumber,
   }) {
     searches.add(pattern);
     calls.add((
       searchImmediately: searchImmediately,
-      startPageNumber: startPageNumber,
     ));
   }
 
@@ -141,6 +168,7 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
   /// false — העמוד טרם נסרק.
   bool pageScanned = false;
   final navigatedTo = <int>[];
+  final navigationGates = <Completer<void>>[];
 
   @override
   ({int start, int end})? getMatchesRangeForPage(int pageNumber) =>
@@ -148,9 +176,15 @@ class _RecordingTextSearcher extends PdfTextSearchSession {
 
   @override
   Future<int> goToMatchOfIndex(int index) async {
+    final call = navigatedTo.length;
     navigatedTo.add(index);
+    if (call < navigationGates.length) await navigationGates[call].future;
     return index;
   }
+
+  @override
+  Future<int> goToNextMatch() =>
+      goToMatchOfIndex(navigatedTo.isEmpty ? 0 : navigatedTo.last + 1);
 
   /// התבניות שנשלחו לסריקה, בלי איפוסי השדה הריק.
   List<RegExp> get searchedPatterns => [
@@ -211,9 +245,14 @@ Future<_RecordingTextSearcher> _pumpSearchView(
   required String pageFullText,
   String initialQuery = '',
   SearchMode initialSearchMode = SearchMode.exact,
+  InBookSearchOrigin initialSearchOrigin = InBookSearchOrigin.inBook,
   SearchRepository searchRepository = const SearchRepository(),
   int? viewerPage,
-  bool Function()? takeCenterMatchOnOpen,
+  _FakeReadyController? controller,
+  int statePage = 3,
+  ValueNotifier<ReadingTabSearchState?>? incoming,
+  VoidCallback? onSearchResultNavigated,
+  int? Function()? takeCenterMatchPage,
   ValueChanged<int>? onNavigationStarted,
   List<(int, int)>? pageMatches,
 }) async {
@@ -227,12 +266,12 @@ Future<_RecordingTextSearcher> _pumpSearchView(
   whenListen(
     pdfBookBloc,
     const Stream<PdfBookState>.empty(),
-    initialState: _loadedState(),
+    initialState: _loadedState().copyWith(currentPageNumber: statePage),
   );
   final searchController = TextEditingController(text: initialQuery);
   final focusNode = FocusNode();
   final textSearcher = _RecordingTextSearcher(
-    _FakeReadyController(viewerPage: viewerPage),
+    controller ?? _FakeReadyController(viewerPage: viewerPage),
     pageFullText,
   );
   if (pageMatches != null) textSearcher.setPageMatches(pageMatches);
@@ -258,10 +297,13 @@ Future<_RecordingTextSearcher> _pumpSearchView(
             bookTitle: 'ספר בדיקה',
             bookTopics: 'תנך',
             initialSearchMode: initialSearchMode,
+            initialSearchOrigin: initialSearchOrigin,
             initialSearchDistance: 2,
             searchRepository: searchRepository,
-            takeCenterMatchOnOpen: takeCenterMatchOnOpen,
+            takeCenterMatchPage: takeCenterMatchPage,
             onNavigationStarted: onNavigationStarted,
+            onSearchResultNavigated: onSearchResultNavigated,
+            incomingSearchConfiguration: incoming,
           ),
         ),
       ),
@@ -516,7 +558,7 @@ Future<void> main() async {
     Future<_RecordingTextSearcher> open(
       WidgetTester tester, {
       int? viewerPage,
-      bool Function()? takeCenterMatchOnOpen,
+      int? Function()? takeCenterMatchPage,
     }) async {
       final searcher = await _pumpSearchView(
         tester,
@@ -525,7 +567,10 @@ Future<void> main() async {
         initialSearchMode: SearchMode.advanced,
         searchRepository: _OneResultRepository(),
         viewerPage: viewerPage,
-        takeCenterMatchOnOpen: takeCenterMatchOnOpen,
+        takeCenterMatchPage: takeCenterMatchPage,
+        initialSearchOrigin: takeCenterMatchPage == null
+            ? InBookSearchOrigin.inBook
+            : InBookSearchOrigin.globalResult,
         pageMatches: const [(0, 4)],
       );
       await _settleWithoutTime(tester);
@@ -533,16 +578,72 @@ Future<void> main() async {
     }
 
     testWidgets('הקורא בעמוד הפתיחה — ההתאמה שם ממורכזת', (tester) async {
-      final searcher = await open(tester, takeCenterMatchOnOpen: () => true);
+      final searcher = await open(tester, takeCenterMatchPage: () => 3);
 
       expect(searcher.navigatedTo, [0]);
+    });
+
+    testWidgets(
+      'חלונית שנבנתה אחרי טעינה בעמוד אחר אינה מחליפה את יעד התוצאה',
+      (
+        tester,
+      ) async {
+        final searcher = await _pumpSearchView(
+          tester,
+          pageFullText: 'ממון שאין לו תובעין',
+          initialQuery: 'ממון לו תובעין',
+          initialSearchMode: SearchMode.advanced,
+          initialSearchOrigin: InBookSearchOrigin.globalResult,
+          searchRepository: _OneResultRepository(),
+          viewerPage: 7,
+          statePage: 7,
+          takeCenterMatchPage: () => 3,
+          pageMatches: const [(0, 4)],
+        );
+        await _settleWithoutTime(tester);
+        expect(searcher.navigatedTo, isEmpty);
+      },
+    );
+
+    testWidgets('תוצאה נכנסת לחלונית קיימת צורכת את עמוד המירכוז החדש', (
+      tester,
+    ) async {
+      int? target;
+      final incoming = ValueNotifier<ReadingTabSearchState?>(null);
+      addTearDown(incoming.dispose);
+      final searcher = await _pumpSearchView(
+        tester,
+        pageFullText: 'ממון שאין לו תובעין',
+        initialQuery: 'שאילתה קודמת',
+        initialSearchMode: SearchMode.advanced,
+        searchRepository: _OneResultRepository(),
+        pageMatches: const [(0, 4)],
+        incoming: incoming,
+        takeCenterMatchPage: () {
+          final page = target;
+          target = null;
+          return page;
+        },
+      );
+      await _settleWithoutTime(tester);
+      expect(searcher.navigatedTo, isEmpty);
+      target = 3;
+      incoming.value = const ReadingTabSearchState(
+        searchText: 'ממון לו תובעין',
+        searchMode: SearchMode.advanced,
+        searchOrigin: InBookSearchOrigin.globalResult,
+        searchDistance: 2,
+      );
+      await _settleWithoutTime(tester);
+      expect(searcher.navigatedTo, [0]);
+      expect(target, isNull);
     });
 
     testWidgets('הקורא גלל מעמוד הפתיחה — לא נחטף בחזרה', (tester) async {
       final searcher = await open(
         tester,
         viewerPage: 7,
-        takeCenterMatchOnOpen: () => true,
+        takeCenterMatchPage: () => 3,
       );
 
       expect(searcher.navigatedTo, isEmpty);
@@ -556,7 +657,7 @@ Future<void> main() async {
   }, skip: engineReady ? false : searchEngineSkipReason);
 
   group('הדגשת מסלול המנוע על העמוד', () {
-    testWidgets('ההדגשה נשלחת מיד, והסריקה מתחילה בעמוד היעד', (tester) async {
+    testWidgets('ההדגשה נשלחת מיד', (tester) async {
       final searcher = await _pumpSearchView(
         tester,
         pageFullText: 'ממון שאין לו תובעין',
@@ -568,28 +669,6 @@ Future<void> main() async {
 
       expect(searcher.highlightPatterns, hasLength(1));
       expect(searcher.calls.last.searchImmediately, isTrue);
-      // נפתח מתוצאת חיפוש כללי: עמוד היעד הוא עמוד הפתיחה.
-      expect(searcher.calls.last.startPageNumber, 3);
-    });
-
-    testWidgets('לחיצה על תוצאה מעבירה את הסריקה לעמוד שלה', (tester) async {
-      final searcher = await _pumpSearchView(
-        tester,
-        pageFullText: 'ממון שאין לו תובעין',
-        initialQuery: 'ממון לו תובעין',
-        initialSearchMode: SearchMode.advanced,
-        searchRepository: _OneResultRepository(),
-      );
-      await _settleWithoutTime(tester);
-
-      await tester.tap(find.byType(SearchResultTile));
-      await _settleWithoutTime(tester);
-
-      expect(searcher.calls.last.startPageNumber, 5);
-      expect(
-        searcher.searches.last,
-        same(searcher.highlightPatterns.first),
-      );
     });
 
     testWidgets('לחיצה על תוצאה עוברת להתאמה שהטקסט שלה הוא הרצף שלה', (
@@ -651,6 +730,91 @@ Future<void> main() async {
         return searcher;
       }
 
+      for (final empty in [false, true]) {
+        testWidgets(
+          'קפיצה לעמוד לפני הסריקה ומירכוז בלי היסטוריה כפולה (empty=$empty)',
+          (tester) async {
+            final controller = _FakeReadyController(
+              viewerPage: 3,
+              canReveal: true,
+            );
+            final jumps = <int>[];
+            final searcher = await _pumpSearchView(
+              tester,
+              pageFullText: page,
+              initialQuery: near,
+              initialSearchMode: SearchMode.advanced,
+              searchRepository: _OneResultRepository(),
+              controller: controller,
+              onNavigationStarted: jumps.add,
+            );
+            searcher.scanning = true;
+            await _settleWithoutTime(tester);
+            await tester.tap(find.byType(SearchResultTile).first);
+            await _settleWithoutTime(tester);
+            expect(controller.reveals, 1);
+            expect(controller.viewerPage, 5);
+            expect(searcher.navigatedTo, isEmpty);
+            searcher.finishPageScan(empty ? const [] : ranges);
+            await _settleWithoutTime(tester);
+            expect(controller.reveals, 1);
+            expect(jumps, [5]);
+            expect(searcher.navigatedTo, empty ? isEmpty : [0]);
+          },
+        );
+      }
+
+      testWidgets('סריקה שמסתיימת בזמן אנימציית הקפיצה אינה משאירה המתנה', (
+        tester,
+      ) async {
+        final controller = _FakeReadyController(viewerPage: 3, canReveal: true)
+          ..revealGate = Completer<void>();
+        final searcher = await _pumpSearchView(
+          tester,
+          pageFullText: page,
+          initialQuery: near,
+          initialSearchMode: SearchMode.advanced,
+          searchRepository: _OneResultRepository(),
+          controller: controller,
+        );
+        searcher.scanning = true;
+        await _settleWithoutTime(tester);
+        await tester.tap(find.byType(SearchResultTile).first);
+        await _settleWithoutTime(tester);
+        searcher.finishPageScan(ranges);
+        await _settleWithoutTime(tester);
+        controller.revealGate!.complete();
+        await _settleWithoutTime(tester);
+        expect(searcher.navigatedTo, [0]);
+        expect(controller.reveals, 1);
+      });
+
+      testWidgets('גלילה אחרי הקפיצה אינה מחזירה קורא כשהסריקה מסתיימת', (
+        tester,
+      ) async {
+        final controller = _FakeReadyController(viewerPage: 3, canReveal: true);
+        var callbacks = 0;
+        final searcher = await _pumpSearchView(
+          tester,
+          pageFullText: page,
+          initialQuery: near,
+          initialSearchMode: SearchMode.advanced,
+          searchRepository: _OneResultRepository(),
+          controller: controller,
+          onSearchResultNavigated: () => callbacks++,
+        );
+        searcher.scanning = true;
+        await _settleWithoutTime(tester);
+        await tester.tap(find.byType(SearchResultTile).first);
+        await _settleWithoutTime(tester);
+        controller.viewerPage = 7;
+        searcher.finishPageScan(ranges);
+        await _settleWithoutTime(tester);
+        expect(searcher.navigatedTo, isEmpty);
+        expect(controller.reveals, 1);
+        expect(callbacks, 0);
+      });
+
       testWidgets('שתי לחיצות מהירות — רק האחרונה מנווטת', (tester) async {
         final jumps = <int>[];
         final searcher = await pump(tester, onNavigationStarted: jumps.add);
@@ -683,6 +847,96 @@ Future<void> main() async {
       });
     });
   }, skip: engineReady ? false : searchEngineSkipReason);
+
+  for (final mode in [SearchMode.exact, SearchMode.advanced]) {
+    testWidgets('query חדשה בזמן ניווט אינה מפעילה callback ישן ($mode)', (
+      tester,
+    ) async {
+      var callbacks = 0;
+      final searcher = await _pumpSearchView(
+        tester,
+        pageFullText: 'ממון שאין לו תובעין',
+        initialQuery: mode == SearchMode.exact ? 'ממון' : 'ממון לו תובעין',
+        initialSearchMode: mode,
+        searchRepository: _OneResultRepository(),
+        pageMatches: const [(0, 4)],
+        onSearchResultNavigated: () => callbacks++,
+      );
+      await _finishScan(tester, searcher);
+      final gate = Completer<void>();
+      searcher.navigationGates.add(gate);
+      await tester.tap(find.byType(SearchResultTile).first);
+      await _settleWithoutTime(tester);
+      await _search(tester, 'שאילתה');
+      gate.complete();
+      await _settleWithoutTime(tester);
+      expect(callbacks, 0);
+    });
+  }
+
+  for (final navigation in ['click', 'toolbar', 'external']) {
+    testWidgets(
+      'פעולות ניווט שהסתיימו הפוך מפעילות רק callback אחרון (via=$navigation)',
+      (
+        tester,
+      ) async {
+        var callbacks = 0;
+        final searcher = await _pumpSearchView(
+          tester,
+          pageFullText: 'שלום שלום',
+          initialQuery: 'שלום',
+          onSearchResultNavigated: () => callbacks++,
+        );
+        searcher.fakeMatches = [
+          _CountingMatch(1, 'שלום ראשון'),
+          _CountingMatch(1, 'שלום שני'),
+        ];
+        searcher.pageScanned = true;
+        await _finishScan(tester, searcher);
+        final first = Completer<void>();
+        final second = Completer<void>();
+        searcher.navigationGates.addAll([first, second]);
+        await tester.tap(find.byType(SearchResultTile).first);
+        await _settleWithoutTime(tester);
+        if (navigation == 'external') {
+          tester
+              .state<PdfBookSearchViewState>(find.byType(PdfBookSearchView))
+              .navigateSearchMatch(forward: true);
+        } else {
+          await tester.tap(
+            navigation == 'toolbar'
+                ? find.byTooltip('התוצאה הבאה')
+                : find.byType(SearchResultTile).last,
+          );
+        }
+        await _settleWithoutTime(tester);
+        second.complete();
+        await _settleWithoutTime(tester);
+        expect(callbacks, navigation == 'click' ? 1 : 0);
+        first.complete();
+        await _settleWithoutTime(tester);
+        expect(callbacks, navigation == 'click' ? 1 : 0);
+      },
+    );
+  }
+
+  testWidgets('קיצור חיצוני בלי התאמות אינו מנווט לאינדקס מחוץ לטווח', (
+    tester,
+  ) async {
+    final searcher = await _pumpSearchView(
+      tester,
+      pageFullText: 'שלום',
+      initialQuery: 'שלום',
+    );
+    await _finishScan(tester, searcher);
+    final state = tester.state<PdfBookSearchViewState>(
+      find.byType(PdfBookSearchView),
+    );
+    state.navigateSearchMatch(forward: true);
+    state.navigateSearchMatch(forward: false);
+    await _settleWithoutTime(tester);
+    expect(searcher.navigatedTo, isEmpty);
+  });
 
   group('buildSimpleSearchPattern - סדר השאילתה מול מסלול הנסיגה ההפוך', () {
     test('שאילתה ריקה מחזירה null בשני הסדרים', () {
@@ -828,8 +1082,8 @@ Future<void> main() async {
     }, skip: engineReady ? false : searchEngineSkipReason);
   });
 
-  group('תוצאות החיפוש הפשוט בסריקה שגולשת', () {
-    testWidgets('התאמה שנכנסה לפני הקיימות — שורות ההקשר לא מחושבות מחדש', (
+  group('תוצאות החיפוש הפשוט בסריקה סדרתית', () {
+    testWidgets('התאמות שמצטרפות בסוף אינן מחשבות מחדש שורות הקשר קודמות', (
       tester,
     ) async {
       final searcher = await _pumpSearchView(
@@ -846,20 +1100,20 @@ Future<void> main() async {
         ..scanning = true;
       await _finishScan(tester, searcher);
 
-      final earlier = _CountingMatch(2, 'שלום עולם שתיים');
+      final next = _CountingMatch(7, 'שלום עולם שבע');
       searcher
-        ..fakeMatches = [earlier, ...later]
+        ..fakeMatches = [...later, next]
         ..scanning = false;
       await _finishScan(tester, searcher);
 
       expect([for (final m in later) m.contextReads], [1, 1]);
-      expect(earlier.contextReads, 1);
+      expect(next.contextReads, 1);
       expect(find.text('שלום עולם שש'), findsOneWidget);
 
-      // האינדקס של כל תוצאה הוא מקום ההתאמה שלה אחרי ההכנסה.
+      // האינדקסים הקיימים נשמרים כשנוספות תוצאות מאוחרות.
       await tester.tap(find.text('שלום עולם שש'));
       await tester.pump();
-      expect(searcher.navigatedTo, [2]);
+      expect(searcher.navigatedTo, [1]);
     });
   });
 

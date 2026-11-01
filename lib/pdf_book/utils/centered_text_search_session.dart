@@ -1,19 +1,18 @@
 import 'package:pdfrx/pdfrx.dart';
 
-/// מעבר להתאמה ממרכז אותה בתצוגה; ensureVisible של pdfrx עוצר בשולי המסך.
+/// ממרכז התאמה באנימציה אחת, תוך שימור הבחירה וניהול הדור של pdfrx.
 class CenteredTextSearchSession extends PdfTextSearchSession {
-  CenteredTextSearchSession(super.controller, {super.contextLength});
+  CenteredTextSearchSession(super.controller, {super.contextLength})
+    : super(onNavigateToMatch: _centerMatch);
 
-  @override
-  Future<void> goToMatch(PdfTextSearchResult match) async {
-    final controller = this.controller;
-    if (controller != null && controller.isReady) {
-      final rect = controller.calcRectForRectInsidePage(
-        pageNumber: match.pageNumber,
-        rect: match.bounds,
-      );
-      await controller.goTo(controller.calcMatrixFor(rect.center));
-    }
-    await super.goToMatch(match);
+  static Future<void> _centerMatch(
+    PdfViewerController controller,
+    PdfTextSearchResult match,
+  ) {
+    final rect = controller.calcRectForRectInsidePage(
+      pageNumber: match.pageNumber,
+      rect: match.bounds,
+    );
+    return controller.goTo(controller.calcMatrixFor(rect.center));
   }
 }

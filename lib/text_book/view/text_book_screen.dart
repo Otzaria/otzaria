@@ -1195,6 +1195,8 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
             alternativeWords: parameters.alternativeWords,
             spacingValues: parameters.customSpacing,
             searchMode: defaults.searchMode,
+            searchOrigin: InBookSearchOrigin.inBook,
+            searchTemplate: defaults.template,
             searchDistance: defaults.distance,
             matchPolicy: defaults.matchPolicy,
           ),
@@ -3008,6 +3010,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       state.searchDistance,
       state.matchPolicy,
       state.searchOrigin,
+      state.searchTemplate,
     );
     // אירועי בחירה והדגשה ממשיכים לבנות את הקורא, אך אינם משנים את החיפוש.
     if (_searchViewInputs == inputs) return _searchView!;
@@ -3026,6 +3029,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       initialSearchDistance: state.searchDistance,
       initialMatchPolicy: state.matchPolicy,
       initialSearchOrigin: state.searchOrigin,
+      initialSearchTemplate: state.searchTemplate,
       closeLeftPaneCallback: () =>
           context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
     );

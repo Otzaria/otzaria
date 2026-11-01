@@ -3,6 +3,7 @@ import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/reading_tab_search_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -30,6 +31,63 @@ void main() {
     wordMatchMode: WordMatchMode.atLeast,
     wordMatchCount: 3,
   );
+
+  for (final wordDefaults in [
+    null,
+    const {'קידומות דקדוקיות': true},
+  ]) {
+    test(
+      'snapshot תבנית ($wordDefaults) אינו קורא העדפות חדשות בשכפול/שחזור',
+      () {
+        final template = InBookSearchTemplate(
+          wordDefaults: wordDefaults,
+          requestedPolicy: const SearchMatchPolicy(anyOrder: true),
+        );
+        final text = TextBookTab(
+          book: TextBook(title: 'בראשית'),
+          index: 0,
+          searchText: 'ממון',
+          searchTemplate: template,
+        );
+        final pdf = PdfBookTab(
+          book: PdfBook(title: 'ספר', path: '/nonexistent/test.pdf'),
+          pageNumber: 1,
+          searchText: 'ממון',
+          searchTemplate: template,
+          centerSearchMatchPage: 5,
+        );
+        SearchDefaults.saveExactDefaults(const {'תחיליות': true});
+        SearchDefaults.saveAnyOrderDefault(false);
+        addTearDown(() => SearchDefaults.saveExactDefaults(const {}));
+        final textClone = OpenedTab.from(text) as TextBookTab;
+        final pdfClone = OpenedTab.from(pdf) as PdfBookTab;
+        final textRestored = TextBookTab.fromJson(text.toJson());
+        final pdfRestored = PdfBookTab.fromJson(pdf.toJson());
+        for (final tab in [
+          text,
+          pdf,
+          textClone,
+          pdfClone,
+          textRestored,
+          pdfRestored,
+        ]) {
+          addTearDown(tab.dispose);
+        }
+        expect(textClone.searchTemplate, template);
+        expect(
+          (textClone.blocState as TextBookInitial).searchTemplate,
+          template,
+        );
+        expect(textRestored.searchTemplate, template);
+        expect(pdfClone.searchTemplate, template);
+        expect(pdfRestored.searchTemplate, template);
+        expect(pdfClone.takeCenterSearchMatchPage(), isNull);
+        expect(pdfRestored.takeCenterSearchMatchPage(), isNull);
+        expect(pdf.takeCenterSearchMatchPage(), 5);
+        expect(textRestored.searchTemplate!.requestedPolicy.anyOrder, isTrue);
+      },
+    );
+  }
 
   for (final origin in InBookSearchOrigin.values) {
     test('מקור $origin נשמר בשכפול ובשחזור של טקסט ו-PDF', () {

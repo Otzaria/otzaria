@@ -48,6 +48,7 @@ Future<void> main() async {
     required String query,
     required SearchMode searchMode,
     InBookSearchOrigin searchOrigin = InBookSearchOrigin.inBook,
+    InBookSearchTemplate? searchTemplate,
     required int searchDistance,
     Map<String, Map<String, bool>> searchOptions = const {},
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
@@ -112,6 +113,7 @@ Future<void> main() async {
               pdfFilePath: '/nonexistent/test.pdf',
               initialSearchMode: searchMode,
               initialSearchOrigin: searchOrigin,
+              initialSearchTemplate: searchTemplate,
               initialSearchDistance: searchDistance,
               initialSearchOptions: searchOptions,
               initialMatchPolicy: matchPolicy,
@@ -260,6 +262,79 @@ Future<void> main() async {
     expect(reopened.requests.single.distance, 3);
     expect(reopened.requests.single.searchOptions, expectedOptions);
   }, skip: !engineReady);
+
+  testWidgets('דיאלוג מחליף template לכל מילה ושומר מדיניות פר-מילה', (
+    tester,
+  ) async {
+    final tab = PdfBookTab(
+      book: _loadedState().book,
+      pageNumber: 1,
+      searchText: 'ממון',
+      searchMode: SearchMode.advanced,
+      searchTemplate: InBookSearchTemplate(
+        wordDefaults: const {'קידומות דקדוקיות': true},
+        requestedPolicy: const SearchMatchPolicy(anyOrder: true),
+      ),
+    );
+    final persistence = PdfBookBloc(
+      tab: tab,
+      initialState: PdfBookInitial(book: tab.book, initialPageNumber: 1),
+      pdfrxInit: () async {},
+    );
+    // ignore: invalid_use_of_visible_for_testing_member
+    persistence.emit(_loadedState());
+    addTearDown(persistence.close);
+    addTearDown(tab.dispose);
+    final repository = await pumpPdfSearch(
+      tester,
+      query: tab.searchText,
+      searchMode: SearchMode.advanced,
+      searchDistance: 3,
+      searchTemplate: tab.searchTemplate,
+      tab: tab,
+      persistenceBloc: persistence,
+    );
+    tester
+        .state<PdfBookSearchViewState>(find.byType(PdfBookSearchView))
+        .applySearchDialogResult(
+          const SearchDialogResult(
+            query: 'ממון',
+            searchOptions: {
+              'ממון_0': {'ראשי תיבות': true},
+            },
+            alternativeWords: {},
+            spacingValues: {},
+            searchMode: SearchMode.advanced,
+            distance: 3,
+            matchPolicy: SearchMatchPolicy(anyOrder: true),
+          ),
+          repository.bloc,
+        );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tab.searchTemplate!.wordDefaults, isNull);
+    expect(tab.searchTemplate!.requestedPolicy.anyOrder, isTrue);
+    final restored = PdfBookTab.fromJson(tab.toJson());
+    addTearDown(restored.dispose);
+    expect(restored.searchTemplate, tab.searchTemplate);
+    await tester.pumpWidget(const SizedBox.shrink());
+    final reopened = await pumpPdfSearch(
+      tester,
+      query: restored.searchController.text,
+      searchMode: restored.searchMode,
+      searchDistance: restored.searchDistance,
+      searchOptions: restored.searchOptions,
+      matchPolicy: restored.matchPolicy,
+      searchTemplate: restored.searchTemplate,
+      tab: restored,
+    );
+    await tester.enterText(find.byType(TextField).first, 'ממון תובעין');
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(reopened.requests.last.anyOrder, isTrue);
+    expect(
+      reopened.requests.last.searchOptions!.containsKey('תובעין_1'),
+      isFalse,
+    );
+  });
 
   testWidgets('דיאלוג לוקח בעלות גם באותה שאילתה ושחזור החלונית משמר אותה', (
     tester,
@@ -713,6 +788,7 @@ class _SearchRequest {
     required this.distance,
     required this.scope,
     required this.wordMatchMode,
+    required this.anyOrder,
     required this.facets,
     required this.searchMode,
     required this.searchOptions,
@@ -722,6 +798,7 @@ class _SearchRequest {
   final int distance;
   final SearchScope scope;
   final WordMatchMode wordMatchMode;
+  final bool anyOrder;
   final List<String> facets;
   final SearchMode searchMode;
   final Map<String, Map<String, bool>>? searchOptions;
@@ -740,6 +817,7 @@ class _RecordingSearchRepository extends SearchRepository {
         distance: request.distance,
         scope: request.scope,
         wordMatchMode: request.wordMatchMode,
+        anyOrder: request.anyOrder,
         facets: request.facets,
         searchMode: request.searchMode,
         searchOptions: request.searchOptions,

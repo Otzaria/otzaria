@@ -26,6 +26,7 @@ import 'package:otzaria/text_book/bloc/text_book_state.dart';
 import 'package:otzaria/data/repository/text_book_repository.dart';
 import 'package:otzaria/text_book/view/combined_view/combined_book_screen.dart';
 import 'package:otzaria/text_book/view/text_book_screen.dart';
+import 'package:otzaria/text_book/view/text_book_search_screen.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_progress_provider.dart';
 import 'package:otzaria/tour/bloc/tour_cubit.dart';
@@ -74,10 +75,16 @@ Future<void> main() async {
     WidgetTester tester, {
     required String searchText,
     int? markLine,
+    InBookSearchOrigin searchOrigin = InBookSearchOrigin.inBook,
   }) async {
     final book = TextBook(title: 'ספר בדיקה');
     final bloc = _TestTextBookBloc(
-      _loadedState(book, searchText: searchText, markLine: markLine),
+      _loadedState(
+        book,
+        searchText: searchText,
+        markLine: markLine,
+        searchOrigin: searchOrigin,
+      ),
     );
     final tab = TextBookTab(book: book, index: 0, blocOverride: bloc);
     final tabsBloc = _TestTabsBloc(TabsState(tabs: [tab], currentTabIndex: 0));
@@ -178,7 +185,11 @@ Future<void> main() async {
         SearchDefaults.saveExactDefaults(const {});
         SearchDefaults.saveDistanceDefault(0);
       });
-      final bloc = await pumpScreen(tester, searchText: '');
+      final bloc = await pumpScreen(
+        tester,
+        searchText: 'תוצאה כללית',
+        searchOrigin: InBookSearchOrigin.globalResult,
+      );
       bloc.recordedEvents.clear();
 
       tester
@@ -189,12 +200,55 @@ Future<void> main() async {
       final event = bloc.recordedEvents.whereType<UpdateSearchText>().first;
       expect(event.text, 'תדע זרעך');
       expect(event.searchDistance, 3);
+      expect(event.searchOrigin, InBookSearchOrigin.inBook);
       expect(event.searchOptions, {
         'תדע_0': {'קידומות דקדוקיות': true},
         'זרעך_1': {'קידומות דקדוקיות': true},
       });
     },
   );
+
+  testWidgets('בחירת מילה והוספת מילה משמרות תבנית ברירות מחדל ובכל סדר', (
+    tester,
+  ) async {
+    SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
+    SearchDefaults.saveDistanceDefault(3);
+    SearchDefaults.saveAnyOrderDefault(true);
+    addTearDown(() {
+      SearchDefaults.saveExactDefaults(const {});
+      SearchDefaults.saveDistanceDefault(0);
+      SearchDefaults.saveAnyOrderDefault(false);
+    });
+    final bloc = await pumpScreen(
+      tester,
+      searchText: 'חיפוש גלובלי',
+      searchOrigin: InBookSearchOrigin.globalResult,
+    );
+    bloc.recordedEvents.clear();
+    tester
+        .widget<CombinedView>(find.byType(CombinedView))
+        .openLeftPaneTab(1, searchText: 'תדע');
+    await tester.pump();
+    final selected = bloc.recordedEvents.whereType<UpdateSearchText>().first;
+    bloc.showSearch(selected);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final field = find
+        .descendant(
+          of: find.byType(TextBookSearchView),
+          matching: find.byType(TextField),
+        )
+        .first;
+    expect(field, findsOneWidget);
+    await tester.enterText(field, 'תדע זרעך');
+    await tester.pump(const Duration(milliseconds: 800));
+    final edited = bloc.recordedEvents.whereType<UpdateSearchText>().last;
+    expect(edited.searchOptions, {
+      'תדע_0': {'קידומות דקדוקיות': true},
+      'זרעך_1': {'קידומות דקדוקיות': true},
+    });
+    expect(edited.matchPolicy?.anyOrder, isTrue);
+  });
 
   testWidgets('Esc מנקה את הדגשת ה-?mark מקישור (issue #2067)', (tester) async {
     final bloc = await pumpScreen(tester, searchText: '', markLine: 0);
@@ -214,6 +268,7 @@ TextBookLoaded _loadedState(
   TextBook book, {
   required String searchText,
   int? markLine,
+  InBookSearchOrigin searchOrigin = InBookSearchOrigin.inBook,
 }) {
   return TextBookLoaded(
     book: book,
@@ -234,6 +289,7 @@ TextBookLoaded _loadedState(
     selectedIndex: 0,
     pinLeftPane: false,
     searchText: searchText,
+    searchOrigin: searchOrigin,
     permanentHighlightLine: markLine,
     currentTitle: 'סימן א',
     searchMode: SearchMode.exact,
@@ -247,6 +303,23 @@ class _TestTextBookBloc extends Bloc<TextBookEvent, TextBookState>
   }
 
   final List<TextBookEvent> recordedEvents = [];
+
+  void showSearch(UpdateSearchText event) {
+    emit(
+      (state as TextBookLoaded).copyWith(
+        showLeftPane: true,
+        searchText: event.text,
+        searchOptions: event.searchOptions,
+        alternativeWords: event.alternativeWords,
+        spacingValues: event.spacingValues,
+        searchMode: event.searchMode,
+        searchDistance: event.searchDistance,
+        matchPolicy: event.matchPolicy,
+        searchOrigin: event.searchOrigin,
+        searchTemplate: event.searchTemplate,
+      ),
+    );
+  }
 
   @override
   final TextBookRepository repository = TextBookRepository(

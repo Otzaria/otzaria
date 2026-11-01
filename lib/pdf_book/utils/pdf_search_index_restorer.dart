@@ -23,13 +23,14 @@ class PdfSearchIndexRestorer {
     final pending = _pending;
     if (pending == null) return null;
     _session ??= session;
-    if (session != _session || hasCurrentMatch) {
+    if (session != _session ||
+        hasCurrentMatch ||
+        (!isSearching && pending >= matchCount)) {
       _pending = null;
       return null;
     }
-    // הסריקה מתחילה מהעמוד הנוכחי וגולשת, ולכן האינדקס סופי רק בסיומה.
-    if (isSearching) return null;
+    if (pending >= matchCount) return null;
     _pending = null;
-    return pending < matchCount ? pending : null;
+    return pending;
   }
 }

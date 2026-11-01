@@ -2,20 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_index_restorer.dart';
 
 void main() {
-  test('האינדקס השמור משוחזר בסיום הסריקה — ופעם אחת בלבד', () {
+  test('האינדקס השמור משוחזר ברגע שהוא זמין — ופעם אחת בלבד', () {
     final restorer = PdfSearchIndexRestorer(4);
     expect(
       restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 2),
       isNull,
     );
-    // הסריקה גולשת: התאמות מתחילת הספר עוד ייכנסו לפני האינדקס השמור.
+    // הסריקה סדרתית: התאמות מאוחרות אינן משנות את האינדקס שכבר זמין.
     expect(
       restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 6),
-      isNull,
+      4,
     );
     expect(
       restorer.onSearcherUpdate(session: 7, isSearching: false, matchCount: 9),
-      4,
+      isNull,
     );
     expect(
       restorer.onSearcherUpdate(session: 7, isSearching: false, matchCount: 9),
@@ -61,7 +61,7 @@ void main() {
   test('המשתמש ניווט להתאמה לפני סוף הסריקה — לא חוזרים לשמורה', () {
     final restorer = PdfSearchIndexRestorer(4);
     expect(
-      restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 6),
+      restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 2),
       isNull,
     );
     expect(
@@ -79,7 +79,7 @@ void main() {
   test('האינדקס השמור ממתין עד השחזור או הוויתור עליו', () {
     final restorer = PdfSearchIndexRestorer(4);
     expect(restorer.isPending, isTrue);
-    restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 6);
+    restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 2);
     expect(restorer.isPending, isTrue);
     restorer.onSearcherUpdate(session: 7, isSearching: false, matchCount: 9);
     expect(restorer.isPending, isFalse);

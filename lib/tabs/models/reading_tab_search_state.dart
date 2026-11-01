@@ -5,6 +5,7 @@ class ReadingTabSearchState {
   const ReadingTabSearchState({
     this.searchText = '',
     this.searchOrigin = InBookSearchOrigin.inBook,
+    this.searchTemplate,
     this.searchOptions = const {},
     this.alternativeWords = const {},
     this.spacingValues = const {},
@@ -15,6 +16,7 @@ class ReadingTabSearchState {
 
   final String searchText;
   final InBookSearchOrigin searchOrigin;
+  final InBookSearchTemplate? searchTemplate;
   final Map<String, Map<String, bool>> searchOptions;
   final Map<int, List<String>> alternativeWords;
   final Map<String, String> spacingValues;
@@ -26,6 +28,7 @@ class ReadingTabSearchState {
   ReadingTabSearchState copy({String? searchText}) => ReadingTabSearchState(
     searchText: searchText ?? this.searchText,
     searchOrigin: searchOrigin,
+    searchTemplate: searchTemplate,
     searchOptions: {
       for (final entry in searchOptions.entries)
         entry.key: Map<String, bool>.of(entry.value),
@@ -46,6 +49,7 @@ class ReadingTabSearchState {
     if (searchText.isEmpty) return const {};
     return {
       'searchText': searchText,
+      if (searchTemplate != null) 'searchTemplate': searchTemplate!.toJson(),
       if (searchOrigin != InBookSearchOrigin.inBook)
         'searchOrigin': searchOrigin.name,
       if (searchOptions.isNotEmpty) 'searchOptions': searchOptions,
@@ -70,6 +74,7 @@ class ReadingTabSearchState {
       searchOrigin: json['searchOrigin'] == InBookSearchOrigin.globalResult.name
           ? InBookSearchOrigin.globalResult
           : InBookSearchOrigin.inBook,
+      searchTemplate: InBookSearchTemplate.tryFromJson(json['searchTemplate']),
       searchOptions: _decodeSearchOptions(json['searchOptions']),
       alternativeWords: _decodeAlternativeWords(json['searchAlternativeWords']),
       spacingValues: _decodeSpacingValues(json['searchSpacingValues']),

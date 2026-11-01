@@ -654,6 +654,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final FocusNode _navigationFieldFocusNode = FocusNode();
   final FocusNode _pdfViewFocusNode = FocusNode();
   final GlobalKey _pdfViewportBoundaryKey = GlobalKey();
+  final _searchViewKey = GlobalKey<PdfBookSearchViewState>();
   final GlobalKey<AppContextMenuRegionState> _pdfContextMenuKey = GlobalKey();
   late final StreamSubscription<SettingsState> _settingsSub;
   StreamSubscription<LibraryState>? _libraryReloadSub;
@@ -791,7 +792,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     textSearcher?.startTextSearch(
       query,
       goToFirstMatch: false,
-      startPageNumber: widget.tab.pageNumber,
     );
   }
 
@@ -4881,6 +4881,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     builder: (context, documentRef, child) => child!,
                     child: textSearcher != null
                         ? PdfBookSearchView(
+                            key: _searchViewKey,
                             textSearcher: textSearcher!,
                             searchController: widget.tab.searchController,
                             focusNode: _searchFieldFocusNode,
@@ -4901,12 +4902,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             initialSearchDistance: widget.tab.searchDistance,
                             initialMatchPolicy: widget.tab.matchPolicy,
                             initialSearchOrigin: widget.tab.searchOrigin,
+                            initialSearchTemplate: widget.tab.searchTemplate,
                             incomingSearchConfiguration:
                                 widget.tab.incomingSearchConfiguration,
                             onSearchResultNavigated: _ensureSearchTabIsActive,
                             onNavigationStarted: _preparePdfJump,
-                            takeCenterMatchOnOpen:
-                                widget.tab.takeCenterSearchMatchOnOpen,
+                            takeCenterMatchPage:
+                                widget.tab.takeCenterSearchMatchPage,
                           )
                         : const Center(child: CircularProgressIndicator()),
                   ),
@@ -5019,6 +5021,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   void _navigateSearchMatch({required bool forward}) {
+    final searchView = _searchViewKey.currentState;
+    if (searchView != null) {
+      searchView.navigateSearchMatch(forward: forward);
+      return;
+    }
+    widget.tab.takeCenterSearchMatchPage();
     final searcher = textSearcher;
     if (searcher == null) return;
     final index = forward

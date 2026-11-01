@@ -149,6 +149,7 @@ class SearchDialogResult {
     required this.searchMode,
     required this.distance,
     this.matchPolicy = SearchMatchPolicy.standard,
+    this.searchTemplate,
     this.pluginSearchSelections = const {},
   });
 
@@ -161,6 +162,7 @@ class SearchDialogResult {
 
   /// טווח הקרבה ומצב התאמת המילים שנבחרו בדיאלוג — ראו [SearchMatchPolicy].
   final SearchMatchPolicy matchPolicy;
+  final InBookSearchTemplate? searchTemplate;
 
   /// בחירות של שורות החיפוש הסטטיות שהיו פעילות בעת אישור הדיאלוג.
   final Map<String, bool> pluginSearchSelections;
@@ -1083,6 +1085,15 @@ class _SearchDialogState extends State<SearchDialog> {
           searchOptions: effectiveNegativeOptions,
         );
     if (widget.returnResultOnSubmit) {
+      final requestedPolicy = currentState.configuration.matchPolicyWithSpacing(
+        normalizedParameters.customSpacing,
+      );
+      final wordDefaults = _searchTab.useGlobalSearchOptions.value
+          ? SearchQueryBuilder.normalizeGlobalOptionsForMode(
+              currentMode,
+              _searchTab.globalSearchOptions,
+            )
+          : null;
       Navigator.of(context).pop(
         SearchDialogResult(
           query: query,
@@ -1095,6 +1106,12 @@ class _SearchDialogState extends State<SearchDialog> {
             normalizedParameters.customSpacing,
             query: query,
           ),
+          searchTemplate: wordDefaults == null && requestedPolicy.isStandard
+              ? null
+              : InBookSearchTemplate(
+                  wordDefaults: wordDefaults,
+                  requestedPolicy: requestedPolicy,
+                ),
           pluginSearchSelections: _allPluginSearchSelections(),
         ),
       );

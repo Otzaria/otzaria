@@ -93,20 +93,20 @@ class SearchNavigationTree extends StatelessWidget {
 
   /// האם [path] הוא אב-קדמון של סינון פעיל. ענף כזה נפתח כברירת מחדל ומוצג
   /// גם בספירה 0 — אחרת הסינון הפעיל נעלם מהעץ ואין דרך לבטלו.
-  static bool _leadsToSelection(String path, List<String> selectedPaths) =>
+  static bool _leadsToSelection(String path, Iterable<String> selectedPaths) =>
       selectedPaths.any((facet) => facet.startsWith('$path/'));
 
   /// שורות שנשארות גלויות בספירה 0. חברי היקף (@) אינם נשמרים — אחרת כל ספרי
   /// ההיקף מוצגים גם בלי תוצאות — מלבד פריט יחיד שנבחר ידנית.
-  List<String> _pinnedPaths(List<String> selectedPaths) {
+  Set<String> _pinnedPaths(List<String> selectedPaths) {
     final scope = FacetHelper.categoryFacetsOf(scopeFacets).toSet();
     if (scope.isEmpty || scope.contains('/') || selectedPaths.length == 1) {
-      return selectedPaths;
+      return selectedPaths.toSet();
     }
-    return selectedPaths.where((path) => !scope.contains(path)).toList();
+    return selectedPaths.where((path) => !scope.contains(path)).toSet();
   }
 
-  static bool _isPinned(String path, List<String> pinnedPaths) =>
+  static bool _isPinned(String path, Set<String> pinnedPaths) =>
       pinnedPaths.contains(path) || _leadsToSelection(path, pinnedPaths);
 
   bool get _categoryFilterActive =>
@@ -209,7 +209,7 @@ class SearchNavigationTree extends StatelessWidget {
     int level,
     List<_FlatRow> rows,
     List<String> selectedPaths,
-    List<String> pinnedPaths,
+    Set<String> pinnedPaths,
   ) {
     for (final sub in _sortedSubCategories(category)) {
       final subPath = sub.path;
@@ -242,7 +242,7 @@ class SearchNavigationTree extends StatelessWidget {
 
   /// האם לקטגוריה יש לפחות שורה נראית אחת מתחתיה — אותם תנאים בדיוק
   /// שבהם [_flattenChildren] מרנדר ילד (קטגוריה או ספר).
-  bool _hasVisibleChildren(Category category, List<String> pinnedPaths) {
+  bool _hasVisibleChildren(Category category, Set<String> pinnedPaths) {
     for (final sub in category.subCategories) {
       final count = facetCounts[sub.path] ?? 0;
       if (count > 0 || _isPinned(sub.path, pinnedPaths)) return true;
@@ -472,7 +472,7 @@ class SearchNavigationTree extends StatelessWidget {
 
   Category? _singleVisibleSubCategory(
     Category category,
-    List<String> pinnedPaths,
+    Set<String> pinnedPaths,
   ) {
     final categoryPath = category.path;
     final hasVisibleBook = category.books.any((book) {

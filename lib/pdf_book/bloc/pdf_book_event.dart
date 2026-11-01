@@ -236,6 +236,7 @@ class UpdateSearchOptions extends PdfBookEvent {
   final int? searchDistance;
   final SearchMatchPolicy? matchPolicy;
   final InBookSearchOrigin? searchOrigin;
+  final Object? searchTemplate;
 
   const UpdateSearchOptions({
     this.searchOptions,
@@ -245,6 +246,7 @@ class UpdateSearchOptions extends PdfBookEvent {
     this.searchDistance,
     this.matchPolicy,
     this.searchOrigin,
+    this.searchTemplate = preserveInBookSearchTemplate,
   });
 
   @override
@@ -256,6 +258,7 @@ class UpdateSearchOptions extends PdfBookEvent {
     searchDistance,
     matchPolicy,
     searchOrigin,
+    searchTemplate,
   ];
 }
 

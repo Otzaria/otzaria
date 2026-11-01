@@ -71,6 +71,38 @@ void main() {
     pinpointHighlightIndex: 4,
   );
 
+  InBookSearchTemplate template() => InBookSearchTemplate(
+    wordDefaults: const {'קידומות דקדוקיות': true},
+    requestedPolicy: const SearchMatchPolicy(anyOrder: true),
+  );
+
+  blocTest<TextBookBloc, TextBookState>(
+    'אירוע שאילתה בלבד משמר תבנית ו-null מפורש מנקה אותה',
+    build: () => bloc,
+    seed: () => seed(searchText: 'ממון').copyWith(searchTemplate: template()),
+    act: (bloc) {
+      bloc.add(const UpdateSearchText('תובעין'));
+      bloc.add(const UpdateSearchText('תובעין', searchTemplate: null));
+    },
+    expect: () => [
+      isA<TextBookLoaded>().having(
+        (s) => s.searchTemplate,
+        'תבנית',
+        template(),
+      ),
+      isA<TextBookLoaded>().having((s) => s.searchTemplate, 'תבנית', isNull),
+    ],
+  );
+
+  blocTest<TextBookBloc, TextBookState>(
+    'snapshot שווה לפי ערך אינו פולט state נוסף',
+    build: () => bloc,
+    seed: () => seed(searchText: 'ממון').copyWith(searchTemplate: template()),
+    act: (bloc) =>
+        bloc.add(UpdateSearchText('ממון', searchTemplate: template())),
+    expect: () => const <TextBookState>[],
+  );
+
   blocTest<TextBookBloc, TextBookState>(
     'שינוי מקור בלבד נפלט בלי למחוק את שורות התוצאה',
     build: () => bloc,

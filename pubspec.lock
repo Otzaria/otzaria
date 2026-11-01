@@ -1331,8 +1331,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/pdfrx"
-      ref: f17f722f2b8f3197e7500a81338e39854029b0ba
-      resolved-ref: f17f722f2b8f3197e7500a81338e39854029b0ba
+      ref: a656fd1a14de1a82a5e432261f3cfe66c7860356
+      resolved-ref: a656fd1a14de1a82a5e432261f3cfe66c7860356
       url: "https://github.com/Otzaria/pdfrx"
     source: git
     version: "2.11.0"

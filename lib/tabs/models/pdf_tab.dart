@@ -55,6 +55,7 @@ class PdfBookTab extends OpenedTab {
 
   String searchText;
   InBookSearchOrigin searchOrigin;
+  InBookSearchTemplate? searchTemplate;
   Map<String, Map<String, bool>> searchOptions;
   Map<int, List<String>> alternativeWords;
   Map<String, String> spacingValues;
@@ -66,14 +67,13 @@ class PdfBookTab extends OpenedTab {
 
   int? pdfSearchCurrentMatchIndex;
 
-  /// נפתח מתוצאת חיפוש כללי; בשחזור מהדיסק הקורא נשאר במיקום ששוחזר.
-  bool _centerSearchMatchOnOpen;
+  int? _centerSearchMatchPage;
 
-  /// true פעם אחת, כשלשונית החיפוש צריכה למרכז את ההתאמה בעמוד הפתיחה.
-  bool takeCenterSearchMatchOnOpen() {
-    final center = _centerSearchMatchOnOpen;
-    _centerSearchMatchOnOpen = false;
-    return center;
+  /// עמוד התוצאה המקורי נצרך פעם אחת; אינו נשמר בסשן או בשכפול.
+  int? takeCenterSearchMatchPage() {
+    final page = _centerSearchMatchPage;
+    _centerSearchMatchPage = null;
+    return page;
   }
 
   /// תצורת חיפוש חיצונית שממתינה להחלה בחלונית החיפוש.
@@ -155,6 +155,7 @@ class PdfBookTab extends OpenedTab {
     bool openLeftPane = false,
     this.searchText = '',
     this.searchOrigin = InBookSearchOrigin.inBook,
+    this.searchTemplate,
     this.searchOptions = const {},
     this.alternativeWords = const {},
     this.spacingValues = const {},
@@ -165,7 +166,7 @@ class PdfBookTab extends OpenedTab {
     super.isPinned,
     super.dedupeKey,
     this.requiresStableLayout = false,
-    this._centerSearchMatchOnOpen = false,
+    this._centerSearchMatchPage,
     ExternalBookMatches? externalMatches,
   }) : _pageNumber = ValueNotifier<int>(pageNumber),
        externalMatches = ValueNotifier<ExternalBookMatches?>(externalMatches),
@@ -184,9 +185,14 @@ class PdfBookTab extends OpenedTab {
   OpenedTab clone() => PdfReadingSnapshot._capture(this).createTab();
 
   /// מחיל תצורת חיפוש חיצונית בלי לחשוף שאילתה לתצורה הישנה.
-  void applyIncomingSearchConfiguration(ReadingTabSearchState configuration) {
+  void applyIncomingSearchConfiguration(
+    ReadingTabSearchState configuration, {
+    int? centerMatchPage,
+  }) {
+    _centerSearchMatchPage = centerMatchPage;
     searchText = configuration.searchText;
     searchOrigin = configuration.searchOrigin;
+    searchTemplate = configuration.searchTemplate;
     searchOptions = configuration.searchOptions;
     alternativeWords = configuration.alternativeWords;
     spacingValues = configuration.spacingValues;
@@ -229,6 +235,7 @@ class PdfBookTab extends OpenedTab {
       requiresStableLayout: json['requiresStableLayout'] ?? false,
       searchText: searchState.searchText,
       searchOrigin: searchState.searchOrigin,
+      searchTemplate: searchState.searchTemplate,
       searchOptions: searchState.searchOptions,
       alternativeWords: searchState.alternativeWords,
       spacingValues: searchState.spacingValues,
@@ -290,6 +297,7 @@ class PdfReadingSnapshot {
       _search = ReadingTabSearchState(
         searchText: tab.searchText,
         searchOrigin: tab.searchOrigin,
+        searchTemplate: tab.searchTemplate,
         searchOptions: tab.searchOptions,
         alternativeWords: tab.alternativeWords,
         spacingValues: tab.spacingValues,
@@ -332,6 +340,7 @@ class PdfReadingSnapshot {
         openLeftPane: _showLeftPane,
         searchText: search.searchText,
         searchOrigin: search.searchOrigin,
+        searchTemplate: search.searchTemplate,
         searchOptions: search.searchOptions,
         alternativeWords: search.alternativeWords,
         spacingValues: search.spacingValues,

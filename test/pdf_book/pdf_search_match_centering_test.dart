@@ -39,6 +39,8 @@ class _RecordingController extends PdfViewerController {
   final _document = _FakeDocument();
   final actions = <String>[];
   Offset? centeredOn;
+  Completer<void>? navigationGate;
+  final pageSelections = <int>[];
 
   @override
   bool get isReady => true;
@@ -70,7 +72,10 @@ class _RecordingController extends PdfViewerController {
   Future<void> goTo(
     Matrix4? destination, {
     Duration duration = const Duration(milliseconds: 200),
-  }) async => actions.add('goTo');
+  }) async {
+    actions.add('goTo');
+    await navigationGate?.future;
+  }
 
   @override
   Future<void> ensureVisible(
@@ -80,7 +85,7 @@ class _RecordingController extends PdfViewerController {
   }) async => actions.add('ensureVisible');
 
   @override
-  void setCurrentPageNumber(int pageNumber) {}
+  void setCurrentPageNumber(int pageNumber) => pageSelections.add(pageNumber);
 
   @override
   void invalidate() {}
@@ -151,6 +156,32 @@ Future<void> main() async {
     skip: engineReady ? false : searchEngineSkipReason,
   );
 
+  test('שאילתה חדשה בזמן אנימציה אינה מחזירה בחירה וניווט ישנים', () async {
+    final controller = _RecordingController();
+    final session = _Session(controller);
+    addTearDown(session.dispose);
+    session.startTextSearch(
+      'עולם',
+      goToFirstMatch: false,
+      searchImmediately: true,
+    );
+    await _untilScanned(session);
+    controller.navigationGate = Completer<void>();
+    final navigation = session.goToMatchOfIndex(0);
+    await pumpEventQueue();
+    session.startTextSearch(
+      'שלום',
+      goToFirstMatch: false,
+      searchImmediately: true,
+    );
+    await _untilScanned(session);
+    controller.navigationGate!.complete();
+    await navigation;
+    expect(session.currentIndex, isNull);
+    expect(controller.actions, ['goTo']);
+    expect(controller.pageSelections, isEmpty);
+  });
+
   test('מעבר להתאמה ממרכז את מרכז המלבן שלה בתצוגה', () async {
     final controller = _RecordingController();
     final session = _Session(controller);
@@ -168,7 +199,7 @@ Future<void> main() async {
 
     // "עולם" הוא תווים 5–8: x בין 50 ל-90, y בין 0 ל-10.
     expect(controller.centeredOn, const Offset(70, 5));
-    expect(controller.actions, ['goTo', 'ensureVisible']);
+    expect(controller.actions, ['goTo']);
     expect(session.currentIndex, 0);
   });
 }
