@@ -8,6 +8,7 @@ import 'package:otzaria/tools/biographies/models/biography.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/layout/tool_result_card_shell.dart';
+import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -35,6 +36,8 @@ class BiographyCard extends StatefulWidget {
   @override
   State<BiographyCard> createState() => _BiographyCardState();
 }
+
+final _summaryOverflowCache = newTextOverflowCache();
 
 class _BiographyCardState extends State<BiographyCard> {
   /// Summary lines shown before expanding.
@@ -107,17 +110,6 @@ class _BiographyCardState extends State<BiographyCard> {
 
   void _toggle() => setState(() => _expanded = !_expanded);
 
-  /// Whether [text] needs more than [maxLines] at [width].
-  bool _overflows(String text, TextStyle style, double width, int maxLines) {
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      maxLines: maxLines,
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-    )..layout(maxWidth: width);
-    return painter.didExceedMaxLines;
-  }
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -133,7 +125,14 @@ class _BiographyCardState extends State<BiographyCard> {
         final summary = _bio.summary;
         final clamped =
             summary != null &&
-            _overflows(summary, bodyStyle, textWidth, _collapsedLines);
+            textOverflows(
+              context: context,
+              text: summary,
+              style: bodyStyle,
+              maxLines: _collapsedLines,
+              maxWidth: textWidth,
+              cache: _summaryOverflowCache,
+            );
         return _buildCard(cs, bodyStyle, _hasDetails || clamped);
       },
     );

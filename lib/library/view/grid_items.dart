@@ -28,6 +28,7 @@ import 'package:otzaria/book_common/view/book_source_dialog.dart';
 import 'package:otzaria/widgets/dialogs/dialogs_exports.dart';
 import 'package:otzaria/widgets/layout/app_card.dart';
 import 'package:otzaria/utils/ui/book_format_icon.dart';
+import 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 
 /// מספר התווים המרבי בתיאור קצר המוצג בכרטיס ספר, כולל שלוש הנקודות.
 const kBookCardDescriptionMaxCharacters = 120;
@@ -125,53 +126,7 @@ Widget _buildBookIconChild(Book book, ColorScheme cs, double iconSize) {
   );
 }
 
-bool _textOverflows({
-  required BuildContext context,
-  required String text,
-  required TextStyle style,
-  required int maxLines,
-  required double maxWidth,
-  required TextAlign textAlign,
-}) {
-  final textDirection = Directionality.of(context);
-  final textScaler = MediaQuery.textScalerOf(context);
-  final cacheKey = (
-    text,
-    style,
-    maxLines,
-    maxWidth,
-    textDirection,
-    textAlign,
-    textScaler,
-  );
-  final cached = _overflowCache.remove(cacheKey);
-  if (cached != null) return _overflowCache[cacheKey] = cached;
-  debugLibraryTextOverflowLayouts++;
-  final textPainter = TextPainter(
-    text: TextSpan(text: text, style: style),
-    maxLines: maxLines,
-    ellipsis: 'Γאª',
-    textDirection: textDirection,
-    textAlign: textAlign,
-    textScaler: textScaler,
-  )..layout(maxWidth: maxWidth);
-  final overflows = textPainter.didExceedMaxLines;
-  textPainter.dispose();
-  if (_overflowCache.length >= 2000) {
-    _overflowCache.remove(_overflowCache.keys.first);
-  }
-  return _overflowCache[cacheKey] = overflows;
-}
-
-// בנייה מחדש של פריט ברשימה מודדת שוב את אותן שורות; גופן שנטען משנה מדידה.
-final Map<Object, bool> _overflowCache = () {
-  final cache = <Object, bool>{};
-  PaintingBinding.instance.systemFonts.addListener(cache.clear);
-  return cache;
-}();
-
-@visibleForTesting
-int debugLibraryTextOverflowLayouts = 0;
+final _libraryOverflowCache = newTextOverflowCache();
 
 Decoration _libraryTooltipDecoration(BuildContext context) {
   final cs = Theme.of(context).colorScheme;
@@ -252,13 +207,14 @@ class LibraryOverflowTooltipText extends StatelessWidget {
         final hasOverflow =
             constraints.maxWidth.isFinite &&
             constraints.maxWidth > 0 &&
-            _textOverflows(
+            textOverflows(
               context: context,
               text: text,
               style: resolvedStyle,
               maxLines: maxLines,
               maxWidth: constraints.maxWidth,
               textAlign: textAlign,
+              cache: _libraryOverflowCache,
             );
 
         final child = Text(
@@ -634,13 +590,14 @@ class _BookGridTextColumn extends StatelessWidget {
             titleStyle != null &&
             constraints.maxWidth.isFinite &&
             constraints.maxWidth > 0 &&
-            _textOverflows(
+            textOverflows(
               context: context,
               text: book.title,
               style: titleStyle,
               maxLines: 2,
               maxWidth: constraints.maxWidth,
               textAlign: TextAlign.right,
+              cache: _libraryOverflowCache,
             );
 
         final authorMaxLines = titleOverflow ? 1 : 2;
