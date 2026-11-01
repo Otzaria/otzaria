@@ -157,9 +157,8 @@ dependencies:
 
 dependency_overrides:
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
-  # (קריאות WinRT ב-thread ייעודי, כולל תיקון ה-deadlock ב-invoke) ויוגש וישוחרר ענף
-  # windows-lazy-library-open (טעינת ה-DLL בשימוש הראשון, לא לפני הפריים הראשון). עד אז
-  # הפורק Otzaria, ענף windows-worker-thread-lazy-library, מוצמד לקומיט.
+  # (קריאות WinRT ב-thread ייעודי, כולל תיקון ה-deadlock ב-invoke) ו-#2862 (טעינת ה-DLL
+  # בשימוש הראשון). עד אז הפורק Otzaria, ענף windows-worker-thread-lazy-library, מוצמד לקומיט.
   # בהסרה: למחוק גם את core.longpaths מ-workflows של Windows - הוא נדרש
   # רק בגלל הנתיב העמוק במונורפו הזה.
   flutter_local_notifications_windows:
