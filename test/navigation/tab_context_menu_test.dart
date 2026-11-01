@@ -14,6 +14,14 @@ import 'package:otzaria/core/windowing/window_opener.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
+import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
+import 'package:otzaria/navigation/bloc/navigation_event.dart';
+import 'package:otzaria/navigation/bloc/navigation_state.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
+import 'package:otzaria/plugins/bloc/plugin_system_state.dart';
+import 'package:otzaria/plugins/models/installed_plugin.dart';
+import 'package:otzaria/plugins/models/plugin_manifest.dart';
+import 'package:otzaria/plugins/services/plugin_restore_state_store.dart';
 import 'package:otzaria/navigation/view/tab_context_menu.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
@@ -51,22 +59,29 @@ void main() {
     required OpenedTab tab,
     required TabsState state,
     Widget Function(Widget child)? wrap,
+    PluginSystemState? pluginState,
   }) async {
     tabsBloc = _TestTabsBloc(state);
     settingsBloc = _TestSettingsBloc(SettingsState.initial());
     historyBloc = _TestHistoryBloc();
     workspaceBloc = _TestWorkspaceBloc();
+    final pluginBloc = _TestPluginBloc(pluginState ?? PluginSystemInitial());
+    final navigationBloc = _TestNavigationBloc();
     addTearDown(() async {
       await tabsBloc.close();
       await settingsBloc.close();
       await historyBloc.close();
       await workspaceBloc.close();
+      await pluginBloc.close();
+      await navigationBloc.close();
     });
 
     late List<AppContextMenuEntry> entries;
     final tree = MultiBlocProvider(
       providers: [
         BlocProvider<TabsBloc>.value(value: tabsBloc),
+        BlocProvider<PluginSystemBloc>.value(value: pluginBloc),
+        BlocProvider<NavigationBloc>.value(value: navigationBloc),
         BlocProvider<SettingsBloc>.value(value: settingsBloc),
         BlocProvider<HistoryBloc>.value(value: historyBloc),
         BlocProvider<WorkspaceBloc>.value(value: workspaceBloc),
@@ -171,6 +186,72 @@ void main() {
     );
 
     expect(entries.any((e) => e.label == 'סגור כרטיסיות משמאל'), isFalse);
+  });
+
+  group('שכפול תוסף מורשה', () {
+    InstalledPlugin plugin(bool allows) => InstalledPlugin(
+      pluginId: 'com.example.plugin',
+      name: 'תוסף',
+      version: '1.0.0',
+      installPath: '/',
+      entrypointPath: 'index.html',
+      enabled: true,
+      pinned: true,
+      manifest: PluginManifest.fromJson({
+        'id': 'com.example.plugin',
+        'name': 'תוסף',
+        'version': '1.0.0',
+        'entrypoint': 'index.html',
+        'contributes': {
+          'toolTab': {'allowMultipleInstances': allows},
+        },
+      }),
+      installedAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
+
+    testWidgets('שכפול מופיע רק לאחר הצהרת המניפסט', (tester) async {
+      final tab = ToolTab(toolId: 'com.example.plugin', title: 'תוסף');
+      for (final allows in [false, true]) {
+        final entries = await buildEntries(
+          tester,
+          tab: tab,
+          state: TabsState(tabs: [tab], currentTabIndex: 0),
+          pluginState: PluginSystemLoaded([plugin(allows)]),
+        );
+        expect(entries.any((e) => e.label == 'שיכפול'), allows);
+      }
+    });
+
+    testWidgets('שכפול מעתיק מצב למופע נוסף ליד הטאב שנלחץ', (tester) async {
+      final tab = ToolTab(toolId: 'com.example.plugin', title: 'תוסף');
+      final other = _StubTab('ספר אחר');
+      final key = (pluginId: tab.toolId, instanceId: tab.instanceId);
+      PluginRestoreStateStore.instance.set(key, {'page': 4});
+      addTearDown(() => PluginRestoreStateStore.instance.remove(key));
+      final entries = await buildEntries(
+        tester,
+        tab: tab,
+        state: TabsState(tabs: [tab, other], currentTabIndex: 1),
+        pluginState: PluginSystemLoaded([plugin(true)]),
+      );
+      entryOf(entries, 'שיכפול').onTap!();
+      await tester.pump();
+      final event = tabsBloc.addedEvents.whereType<AddTab>().single;
+      final copy = event.tab as ToolTab;
+      addTearDown(copy.dispose);
+      expect(copy.instanceId, isNot(tab.instanceId));
+      expect(copy.allowMultipleInstances, isTrue);
+      expect(copy.dedupeKey, isNull);
+      expect(event.index, 1);
+      expect(
+        PluginRestoreStateStore.instance.jsonOf((
+          pluginId: copy.toolId,
+          instanceId: copy.instanceId,
+        )),
+        '{"page":4}',
+      );
+    });
   });
 
   /// ריבוי תצוגות: היעדים הם חלונות ה-Dart והראשי, וההעברה ישירה בלי אפיק.
@@ -405,7 +486,14 @@ class _TestTabsBloc extends Cubit<TabsState> implements TabsBloc {
   final List<TabsEvent> addedEvents = [];
 
   @override
-  void add(TabsEvent event) => addedEvents.add(event);
+  void add(TabsEvent event) {
+    addedEvents.add(event);
+    if (event is AddTab) {
+      scheduleMicrotask(
+        () => emit(state.copyWith(tabs: [...state.tabs, event.tab])),
+      );
+    }
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -481,4 +569,20 @@ class _FakeWindowOpener implements WindowOpener {
   Future<void> reportOpenWindowFailure() async {
     calls.add('reportOpenWindowFailure');
   }
+}
+
+class _TestPluginBloc extends Cubit<PluginSystemState>
+    implements PluginSystemBloc {
+  _TestPluginBloc(super.initialState);
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TestNavigationBloc extends Cubit<NavigationState>
+    implements NavigationBloc {
+  _TestNavigationBloc() : super(NavigationState.initial(true));
+  @override
+  void add(NavigationEvent event) {}
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

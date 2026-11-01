@@ -7,6 +7,24 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tools/built_in_tools_catalog.dart';
 import 'package:otzaria/tools/tool_query.dart';
 
+/// תקרת מופעי WebView של תוסף בחלון, כולל המופע הראשי.
+const int kMaxPluginToolInstances = 10;
+
+/// מספר הכרטיסיות הפתוחות של הכלי [toolId], כולל חלוניות מפוצלות.
+int openToolInstanceCount(Iterable<OpenedTab> tabs, String toolId) => tabs
+    .expand(leafPanes)
+    .whereType<ToolTab>()
+    .where((tab) => tab.toolId == toolId)
+    .length;
+
+/// האם אפשר לפתוח מופע נוסף של [toolId], לפי הכרטיסיות הפתוחות ו-[pending]
+/// פתיחות שנשלחו ועדיין אינן ב-state.
+bool hasRoomForPluginInstance(
+  Iterable<OpenedTab> tabs,
+  String toolId, {
+  int pending = 0,
+}) => openToolInstanceCount(tabs, toolId) + pending < kMaxPluginToolInstances;
+
 /// טאב של כלי מובנה או תוסף, המוצג במסך העיון ככל טאב אחר.
 class ToolTab extends OpenedTab {
   /// מזהה הכלי: `builtin.*` לכלי מובנה, או `pluginId` לתוסף.
@@ -74,12 +92,13 @@ class ToolTab extends OpenedTab {
   }
 
   @override
-  OpenedTab clone() {
+  OpenedTab clone({bool? allowMultipleInstances}) {
     final copy = ToolTab(
       toolId: toolId,
       title: title,
       isPinned: isPinned,
-      allowMultipleInstances: allowMultipleInstances,
+      allowMultipleInstances:
+          allowMultipleInstances ?? this.allowMultipleInstances,
     );
     // שולחנות עבודה עוברים דרך clone — בלי ההעתקה המצב אובד במזהה החדש.
     final restoreState = PluginRestoreStateStore.instance.jsonOf(_pluginKey);

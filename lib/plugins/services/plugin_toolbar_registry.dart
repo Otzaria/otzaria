@@ -189,6 +189,20 @@ class PluginToolbarRegistry extends PluginItemRegistry<PluginToolbarItem> {
       }
     }
 
+    final newTab = json['newTab'];
+    if (newTab != null && newTab is! bool) {
+      throw const PluginToolbarException(
+        'error.invalid_params',
+        'newTab must be a boolean',
+      );
+    }
+    if (newTab == true && json['openPlugin'] != true) {
+      throw const PluginToolbarException(
+        'error.invalid_params',
+        'newTab requires openPlugin: true',
+      );
+    }
+
     return PluginToolbarItem(
       id: id,
       type: type,
@@ -198,6 +212,7 @@ class PluginToolbarRegistry extends PluginItemRegistry<PluginToolbarItem> {
       onClickEvent: optionalEventName(json['onClickEvent']),
       children: children,
       openPlugin: json['openPlugin'] == true,
+      newTab: newTab == true,
       param: json['param'],
       placement: placement,
       order: rawOrder as int? ?? PluginToolbarItem.defaultOrder,

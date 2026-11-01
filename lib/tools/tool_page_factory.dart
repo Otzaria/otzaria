@@ -60,6 +60,7 @@ Widget? buildBuiltInToolPage(
 Widget buildPluginToolPage(
   InstalledPlugin plugin, {
   required String instanceId,
+  bool isPrimary = true,
 }) => PluginTabPage(
   key: ValueKey(
     'plugin-tab-${plugin.pluginId}-${plugin.version}-'
@@ -67,4 +68,5 @@ Widget buildPluginToolPage(
   ),
   plugin: plugin,
   instanceId: instanceId,
+  isPrimary: isPrimary,
 );

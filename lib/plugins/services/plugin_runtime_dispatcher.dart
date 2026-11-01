@@ -1205,7 +1205,10 @@ class PluginRuntimeDispatcher {
     }
     if (PluginUnsavedChangesRegistry.instance.hasUnsavedChanges(key) ||
         PluginCorrectionSessionService.instance.hasSessionsFor(pluginId) ||
-        PluginPageLauncher.instance.hasPendingFor(pluginId) ||
+        PluginPageLauncher.instance.hasPendingFor(
+          pluginId,
+          instanceId: instance.instanceId,
+        ) ||
         PluginSearchFieldSessionService.instance.hasSessionFor(pluginId)) {
       return true;
     }

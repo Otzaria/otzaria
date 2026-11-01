@@ -394,5 +394,59 @@ void main() {
       expect(snapshots.last, isEmpty);
       expect(snapshots, hasLength(2));
     });
+
+    group('newTab', () {
+      test('נקרא יחד עם openPlugin ונשמר ב-toJson', () {
+        registry.registerPayload('marker', {
+          'id': 'open-new',
+          'title': 'פתח',
+          'icon': 'bookmark_24_regular',
+          'openPlugin': true,
+          'newTab': true,
+        });
+
+        final item = registry.getAll().single.$2;
+        expect(item.newTab, isTrue);
+        expect(item.toJson()['newTab'], isTrue);
+      });
+
+      test('ברירת המחדל היא false ואינו מופיע ב-toJson', () {
+        registry.registerPayload('marker', {
+          'id': 'plain',
+          'title': 'פתח',
+          'icon': 'bookmark_24_regular',
+          'openPlugin': true,
+        });
+
+        final item = registry.getAll().single.$2;
+        expect(item.newTab, isFalse);
+        expect(item.toJson().containsKey('newTab'), isFalse);
+      });
+
+      test('בלי openPlugin נדחה', () {
+        expect(
+          () => registry.registerPayload('marker', {
+            'id': 'bad',
+            'title': 'פתח',
+          'icon': 'bookmark_24_regular',
+            'newTab': true,
+          }),
+          throwsA(isA<PluginToolbarException>()),
+        );
+      });
+
+      test('ערך שאינו בוליאני נדחה', () {
+        expect(
+          () => registry.registerPayload('marker', {
+            'id': 'bad',
+            'title': 'פתח',
+          'icon': 'bookmark_24_regular',
+            'openPlugin': true,
+            'newTab': 'yes',
+          }),
+          throwsA(isA<PluginToolbarException>()),
+        );
+      });
+    });
   });
 }

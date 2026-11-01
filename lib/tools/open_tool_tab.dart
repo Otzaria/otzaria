@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
@@ -16,6 +18,12 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
 import 'package:otzaria/tools/tool_catalog_entry.dart';
 import 'package:otzaria/tools/tool_query.dart';
+
+export 'package:otzaria/tabs/models/tool_tab.dart'
+    show
+        kMaxPluginToolInstances,
+        openToolInstanceCount,
+        hasRoomForPluginInstance;
 
 /// פותח כלי ככרטיסיה במסך העיון.
 ///
@@ -43,13 +51,124 @@ ToolTab newToolTabInstance(ToolCatalogEntry entry) => ToolTab(
   allowMultipleInstances: true,
 );
 
-/// פותח מופע נוסף של הכלי בטאב חדש גם כשכבר פתוח טאב שלו.
-/// נקודת כניסה עתידית (Ctrl+לחיצה / "פתח בטאב חדש") — אין עדיין UI שקורא לה.
-void openNewToolTabInstance(BuildContext context, ToolCatalogEntry entry) {
-  context.read<TabsBloc>().add(OpenOrFocusTab(newToolTabInstance(entry)));
+/// האם המניפסט המותקן מאפשר שכפול מתוך תפריט הכרטיסיה.
+bool pluginToolAllowsMultipleInstances(
+  PluginSystemState state,
+  String toolId,
+) =>
+    state is PluginSystemLoaded &&
+    state.plugins.any(
+      (plugin) =>
+          plugin.pluginId == toolId && plugin.manifest.allowMultipleInstances,
+    );
+
+/// פותח מופע נוסף של תוסף מותקן בכרטיסיה חדשה — הנתיב של `plugin.openSelf`
+/// עם `newTab: true`.
+///
+/// מחזיר את מזהה המופע שנפתח, או `null` כשהפתיחה נדחתה: הכלי אינו זמין, או
+/// שכבר פתוחות [kMaxPluginToolInstances] כרטיסיות שלו (בשני המקרים מוצגת הודעה).
+/// כשרשימת התוספים עדיין נטענת הכרטיסיה נפתחת עם כותרת גיבוי, כמו ב-
+/// [openToolTabById].
+String? openPluginToolInstanceById(
+  BuildContext context,
+  String pluginId, {
+  ToolTab? cloneOf,
+}) {
+  final settingsState = context.read<SettingsBloc>().state;
+  final result = lookupTool(
+    pluginId,
+    hiddenBuiltInToolIds: settingsState.hiddenBuiltInToolIds,
+    isOfflineMode: settingsState.isOfflineMode,
+    pluginState: context.read<PluginSystemBloc>().state,
+  );
+  final ToolTab tab;
+  switch (result) {
+    case ToolAvailable(:final entry):
+      if (entry.plugin?.manifest.allowMultipleInstances != true) return null;
+      tab = cloneOf == null
+          ? newToolTabInstance(entry)
+          : cloneOf.clone(allowMultipleInstances: true) as ToolTab;
+    case ToolUnavailable(reason: ToolUnavailableReason.loading):
+      if (cloneOf != null) return null;
+      tab = ToolTab(
+        toolId: pluginId,
+        title: ToolTab.fallbackTitleFor(pluginId),
+        allowMultipleInstances: true,
+      );
+    case ToolUnavailable(:final reason, :final name):
+      UiSnack.showError(toolUnavailableMessage(reason, name, pluginId));
+      return null;
+  }
+  final tabsBloc = context.read<TabsBloc>();
+  if (cloneOf != null && !tabsBloc.state.tabs.contains(cloneOf)) {
+    tab.dispose();
+    return null;
+  }
+  final reserved = _reservedInstanceIds(tabsBloc, pluginId);
+  reserved.removeAll(_toolInstanceIds(tabsBloc.state.tabs));
+  if (!hasRoomForPluginInstance(
+    tabsBloc.state.tabs,
+    pluginId,
+    pending: reserved.length,
+  )) {
+    tab.dispose();
+    UiSnack.showError(
+      ToolsMessages.pluginInstanceLimitReached(
+        tab.title,
+        kMaxPluginToolInstances,
+      ),
+    );
+    return null;
+  }
+  final instanceId = _dispatchInstanceTab(context, tab, adjacentTo: cloneOf);
+  reserved.add(instanceId);
+  unawaited(
+    tabsBloc.stream
+        .firstWhere(
+          (state) => _toolInstanceIds(state.tabs).contains(instanceId),
+        )
+        .timeout(_reservationTimeout)
+        .then<void>((_) {}, onError: (_) {})
+        .whenComplete(() => reserved.remove(instanceId)),
+  );
+  return instanceId;
+}
+
+/// כמה זמן פתיחה שנשלחה נספרת בתקרה, אם היא עדיין לא הגיעה ל-state.
+const Duration _reservationTimeout = Duration(seconds: 30);
+
+/// פתיחות שנשלחו ל-[TabsBloc] ועדיין אינן ב-state. בלעדיהן שתי קריאות
+/// רצופות היו רואות אותו מספר כרטיסיות ועוקפות את התקרה.
+final _instanceReservations = Expando<Map<String, Set<String>>>();
+
+Set<String> _reservedInstanceIds(TabsBloc bloc, String pluginId) =>
+    (_instanceReservations[bloc] ??= {}).putIfAbsent(pluginId, () => {});
+
+Set<String> _toolInstanceIds(Iterable<OpenedTab> tabs) => {
+  for (final tab in tabs.expand(leafPanes).whereType<ToolTab>()) tab.instanceId,
+};
+
+/// פותח מופע נוסף של הכלי ומחזיר את מזהה המופע שנפתח.
+String openNewToolTabInstance(BuildContext context, ToolCatalogEntry entry) =>
+    _dispatchInstanceTab(context, newToolTabInstance(entry));
+
+String _dispatchInstanceTab(
+  BuildContext context,
+  ToolTab tab, {
+  ToolTab? adjacentTo,
+}) {
+  final tabsBloc = context.read<TabsBloc>();
+  if (adjacentTo == null) {
+    tabsBloc.add(OpenOrFocusTab(tab, insertAdjacent: true));
+  } else {
+    tabsBloc.add(
+      AddTab(tab, index: tabsBloc.state.tabs.indexOf(adjacentTo) + 1),
+    );
+  }
   context.read<NavigationBloc>().add(
     const NavigateToScreen(Screen.reading),
   );
+  return tab.instanceId;
 }
 
 /// פותח כלי לפי מזהה בלבד — לקישורים עמוקים, קיצורי מקלדת ופריטים מוצמדים
