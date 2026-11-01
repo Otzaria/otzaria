@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/data/data_providers/database_library_provider.dart';
+import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/data/sqlite/sqlite3_api.dart' as sqlite3;
 import 'package:otzaria/migration/database/daos/database.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
@@ -56,6 +57,7 @@ class UserImportLibraryResult {
 /// והשהיה אינם דורשים מעקב פר-שורה, והמקור יכול להימחק או לזוז.
 class UserImportLibrary {
   final MyDatabase _db;
+  final UserBooksDatabaseHolder? _holder;
 
   /// תלויות פתירת-הספרים של הייבוא, להזרקה בבדיקות. בלי הזרקה הפתירה
   /// האמיתית רצה ב-isolate ([UserContentImporter.ingestContentsInBackground]).
@@ -63,15 +65,35 @@ class UserImportLibrary {
   final UserLinkSourceChecker? sourceExists;
   final UserLinkBookLocator? locateBook;
 
-  const UserImportLibrary(
+  UserImportLibrary(
     this._db, {
     this.resolveRef,
     this.sourceExists,
     this.locateBook,
-  });
+  }) : _holder =
+           identical(
+             UserBooksDatabaseHolder.instance.repositoryIfInitialized?.database,
+             _db,
+           )
+           ? UserBooksDatabaseHolder.instance
+           : null;
 
   Future<T> _serial<T>(Future<T> Function() action) =>
-      DatabaseLibraryProvider.operationQueue.enqueue(action);
+      DatabaseLibraryProvider.operationQueue.enqueue(() async {
+        final holder = _holder;
+        if (holder == null) return action();
+        final cancelled = StateError('ספריית המשתמש נסגרת או הוחלפה; נסו שוב.');
+        if (!identical(holder.repositoryIfInitialized?.database, _db)) {
+          throw cancelled;
+        }
+        Future<T>? pending;
+        // נרשמים רק בראש התור: close שבתור אינו יכול להמתין לפעולה שמאחוריו.
+        await holder.trackRead(() async {
+          pending = action();
+          await pending;
+        });
+        return pending ?? (throw cancelled);
+      });
 
   /// כל קובצי הייבוא, החדש תחילה, בלי התוכן — הוא נשלף רק בייצוא.
   Future<List<UserImportFile>> list() => _serial(() async {
