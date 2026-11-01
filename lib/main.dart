@@ -29,6 +29,7 @@ import 'package:otzaria/app_report/services/app_crash_session.dart';
 import 'package:otzaria/app_report/services/app_report_service.dart';
 import 'package:otzaria/app_report/services/crash_report_decision.dart';
 import 'package:otzaria/app_report/services/crash_report_flow.dart';
+import 'package:otzaria/app_report/services/input_focus_diagnostics.dart';
 import 'package:otzaria/app_report/services/unclean_exit_detector.dart';
 import 'package:otzaria/app_report/view/crash_prompt_dialog.dart';
 import 'package:otzaria/app.dart';
@@ -747,6 +748,19 @@ Future<void> _initializeProcessSingletons() async {
   unawaited(_runDeferredErrorReportFlush());
   unawaited(_runDeferredSqliteMemoryObserver());
   unawaited(_runDeferredWebViewPrewarm());
+  unawaited(_runDeferredInputFocusHistory());
+}
+
+/// מעברי הפוקוס שקדמו לפתיחת טופס הדיווח — לתקלות "אי אפשר להקליד".
+Future<void> _runDeferredInputFocusHistory() async {
+  try {
+    await _mainWindowRevealedCompleter.future.timeout(
+      const Duration(seconds: 20),
+    );
+  } on TimeoutException {
+    // ממשיכים בכל זאת — אחרת ההיסטוריה לא תירשם כלל.
+  }
+  InputFocusDiagnostics.instance.install();
 }
 
 /// טוען את WebView2 ב-thread רקע, כדי שהתוסף הראשון שנפתח לא יקפיא את ה-UI (#3375).
