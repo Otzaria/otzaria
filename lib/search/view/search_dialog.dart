@@ -34,6 +34,7 @@ import 'package:otzaria/search/saved_alternatives_store.dart';
 import 'package:otzaria/plugins/models/plugin_search_dialog_item.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/services/plugin_search_selection_preferences.dart';
 import 'package:otzaria/search/utils/category_query_parser.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
@@ -49,7 +50,9 @@ import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria_search_engine/otzaria_search_engine.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/controls/segmented_control.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
@@ -219,6 +222,28 @@ class SearchDialog extends StatefulWidget {
   State<SearchDialog> createState() => _SearchDialogState();
 }
 
+/// מקטעי בורר המצב: שלושת מצבי המנוע והחיפוש החכם.
+enum _ModeChoice {
+  exact(SearchMode.exact, FluentIcons.text_quote_24_regular),
+  advanced(SearchMode.advanced, FluentIcons.search_info_24_regular),
+  fuzzy(
+    SearchMode.fuzzy,
+    FluentIcons.arrow_bidirectional_left_right_24_regular,
+  ),
+  semantic(null, OtzariaIcons.search_in_star_24_regular);
+
+  const _ModeChoice(this.mode, this.icon);
+
+  /// `null` בחיפוש החכם, שאינו מצב של המנוע הלקסיקלי.
+  final SearchMode? mode;
+  final IconData icon;
+
+  static _ModeChoice of(SearchMode mode) =>
+      values.firstWhere((choice) => choice.mode == mode);
+
+  String get label => mode?.shortLabel ?? kSemanticSearchModeName;
+}
+
 class _SearchDialogState extends State<SearchDialog> {
   /// מאגר הפוקוס של החלון; נשמר כאן כי ב-dispose אסור לחפש ב-context.
   late final FocusRepository _focus;
@@ -247,7 +272,7 @@ class _SearchDialogState extends State<SearchDialog> {
   late final bool _ownsSearchTab;
   late final PluginSearchDialogRegistry _pluginSearchDialogRegistry;
   late final Map<String, bool> _pluginSearchSelections;
-  late final Map<String, bool> _persistedPluginSelections;
+  late Map<String, bool> _persistedPluginSelections;
 
   bool _semanticSelected = false;
   bool _semanticIncludeLexical =
@@ -999,91 +1024,37 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
 
-    String query = _searchTab.queryController.text.trim();
-    String negativeQuery = _searchTab.negativeQueryController.text.trim();
-
-    if (query.isEmpty) {
+    if (_searchTab.queryController.text.trim().isEmpty) {
       UiSnack.show(LibraryMessages.emptySearchQuery);
       return;
     }
 
-    // תחביר קטגוריה: `מונח@קטגוריה` מצמצם את החיפוש לקטגוריה לפי שם.
-    // `@` בתוך `/…/` הוא חלק מהביטוי, לא תחביר צמצום.
-    final parsedCategory = UserRegexQuery.isValid(query)
-        ? ParsedCategoryQuery(query: query)
-        : parseCategoryQuery(query, context.read<LibraryBloc>().state.library);
+    final normalizedQueries = _normalizedQueries();
+    final parsedCategory = normalizedQueries.category;
     if (parsedCategory.hasCategoryToken && !parsedCategory.categoryFound) {
       UiSnack.showError(
         LibraryMessages.categoryOrBookNotFound(parsedCategory.notFoundNames),
       );
       return;
     }
-    query = parsedCategory.query;
+    final query = normalizedQueries.query;
+    final negativeQuery = normalizedQueries.negativeQuery;
     if (query.isEmpty) {
       UiSnack.show(LibraryMessages.emptySearchQuery);
       return;
     }
 
-    // חיפוש רגיל עובד על טקסט ללא ניקוד; כשאפשרות "ניקוד"/"טעמים" מסומנת
-    // (במצב מתקדם, גלובלית או פר-מילה) הסימנים שהוקלדו הם חלק מהשאילתה —
-    // המנוע דורש אותם בטקסט — ואסור למחוק אותם. הבדיקה רצה על מפות המקור
-    // (לא על האפשרויות האפקטיביות) כי אלה נבנות מהשאילתה אחרי המחיקה.
-    final dialogMode = _searchTab.searchBloc.state.configuration.searchMode;
-    final vocalizedSearch =
-        _supportsVocalizedSearch &&
-        dialogMode == SearchMode.advanced &&
-        (_searchTab.useGlobalSearchOptions.value
-            ? SearchQueryBuilder.globalOptionsRequestVocalized(
-                _searchTab.globalSearchOptions,
-              )
-            : SearchQueryBuilder.optionsRequestVocalized(
-                _searchTab.searchOptions,
-              ));
-    final isUserRegex = UserRegexQuery.isValid(query);
-    if (!isUserRegex && !vocalizedSearch && utils.hasNikud(query)) {
-      query = utils.removeVolwels(query);
-    }
-    if (!vocalizedSearch && utils.hasNikud(negativeQuery)) {
-      negativeQuery = utils.removeVolwels(negativeQuery);
-    }
-    query = isUserRegex ? query : SearchQueryBuilder.sanitizeQuery(query);
-    negativeQuery = SearchQueryBuilder.sanitizeQuery(negativeQuery);
-
     // שמירת מצב החיפוש האחרון
     final currentState = _searchTab.searchBloc.state;
     final currentMode = currentState.configuration.searchMode;
-    final effectiveOptions = SearchQueryBuilder.effectiveSearchOptions(
+    final (
+      positive: normalizedParameters,
+      negative: normalizedNegativeParameters,
+      alternatives: effectiveAlternatives,
+    ) = _normalizedParameters(
       query: query,
-      useGlobalOptions: _searchTab.useGlobalSearchOptions.value,
-      globalOptions: _searchTab.globalSearchOptions,
-      perWordOptions: _searchTab.searchOptions,
+      negativeQuery: negativeQuery,
     );
-    // כשמתג "חלופות שמורות" דלוק — הרחבת החיפוש בחלופות הגלובליות השמורות
-    final effectiveAlternatives = _searchTab.useSavedAlternatives
-        ? SavedAlternativesStore.mergeIntoQuery(
-            query,
-            _searchTab.alternativeWords,
-          )
-        : _searchTab.alternativeWords;
-    final normalizedParameters = SearchQueryBuilder.normalizeParametersForMode(
-      currentMode,
-      customSpacing: _searchTab.spacingValues,
-      alternativeWords: effectiveAlternatives,
-      searchOptions: effectiveOptions,
-    );
-    final effectiveNegativeOptions = SearchQueryBuilder.effectiveSearchOptions(
-      query: negativeQuery,
-      useGlobalOptions: _searchTab.useGlobalNegativeSearchOptions.value,
-      globalOptions: _searchTab.negativeGlobalSearchOptions,
-      perWordOptions: _searchTab.negativeSearchOptions,
-    );
-    final normalizedNegativeParameters =
-        SearchQueryBuilder.normalizeParametersForMode(
-          currentMode,
-          customSpacing: _searchTab.negativeSpacingValues,
-          alternativeWords: _searchTab.negativeAlternativeWords,
-          searchOptions: effectiveNegativeOptions,
-        );
     if (widget.returnResultOnSubmit) {
       final requestedPolicy = currentState.configuration.matchPolicyWithSpacing(
         normalizedParameters.customSpacing,
@@ -1139,19 +1110,7 @@ class _SearchDialogState extends State<SearchDialog> {
       return;
     }
 
-    // ה-facets שנבחרו לחיפוש. תחביר `@קטגוריה`/`@ספר` גובר על הבחירה הידנית.
-    final selectedCategories = FacetHelper.categoryFacetsOf(_scopeSelection);
-    final categoriesToSearch = parsedCategory.categoryFound
-        ? parsedCategory.facets!
-        : selectedCategories.isEmpty
-        ? ['/']
-        : selectedCategories;
-    // ממדי הסינון שנבחרו בדיאלוג (תקופה/מחבר/ספרי יסוד) מצטרפים ב-AND —
-    // גם כשהקטגוריה נקבעה בתחביר `@`.
-    final facetsToSearch = [
-      ...categoriesToSearch,
-      ...(FacetHelper.dimensionFacetsOf(_scopeSelection).toList()..sort()),
-    ];
+    final facetsToSearch = _facetsToSearch(parsedCategory);
     final distance = _searchTab.searchBloc.state.distance;
     final configuration = currentState.configuration;
     final proximityScope = configuration.proximityScope;
@@ -1246,6 +1205,143 @@ class _SearchDialogState extends State<SearchDialog> {
 
     // מעבר למסך העיון
     navigationBloc.add(const NavigateToScreen(Screen.search));
+  }
+
+  /// השאילתות אחרי פענוח תחביר הקטגוריה ונרמול הניקוד והתווים, כמו שהן
+  /// נשלחות לחיפוש וללקוח התוסף.
+  ({String query, String negativeQuery, ParsedCategoryQuery category})
+  _normalizedQueries() {
+    final rawQuery = _searchTab.queryController.text.trim();
+    // תחביר קטגוריה: `מונח@קטגוריה` מצמצם את החיפוש לקטגוריה לפי שם.
+    // `@` בתוך `/…/` הוא חלק מהביטוי, לא תחביר צמצום.
+    final category = UserRegexQuery.isValid(rawQuery)
+        ? ParsedCategoryQuery(query: rawQuery)
+        : parseCategoryQuery(
+            rawQuery,
+            context.read<LibraryBloc>().state.library,
+          );
+    var query = category.query;
+    var negativeQuery = _searchTab.negativeQueryController.text.trim();
+
+    // חיפוש רגיל עובד על טקסט ללא ניקוד; כשאפשרות "ניקוד"/"טעמים" מסומנת
+    // (במצב מתקדם, גלובלית או פר-מילה) הסימנים שהוקלדו הם חלק מהשאילתה —
+    // המנוע דורש אותם בטקסט — ואסור למחוק אותם. הבדיקה רצה על מפות המקור
+    // (לא על האפשרויות האפקטיביות) כי אלה נבנות מהשאילתה אחרי המחיקה.
+    final dialogMode = _searchTab.searchBloc.state.configuration.searchMode;
+    final vocalizedSearch =
+        _supportsVocalizedSearch &&
+        dialogMode == SearchMode.advanced &&
+        (_searchTab.useGlobalSearchOptions.value
+            ? SearchQueryBuilder.globalOptionsRequestVocalized(
+                _searchTab.globalSearchOptions,
+              )
+            : SearchQueryBuilder.optionsRequestVocalized(
+                _searchTab.searchOptions,
+              ));
+    final isUserRegex = UserRegexQuery.isValid(query);
+    if (!isUserRegex && !vocalizedSearch && utils.hasNikud(query)) {
+      query = utils.removeVolwels(query);
+    }
+    if (!vocalizedSearch && utils.hasNikud(negativeQuery)) {
+      negativeQuery = utils.removeVolwels(negativeQuery);
+    }
+    return (
+      query: isUserRegex ? query : SearchQueryBuilder.sanitizeQuery(query),
+      negativeQuery: SearchQueryBuilder.sanitizeQuery(negativeQuery),
+      category: category,
+    );
+  }
+
+  /// הפרמטרים של השאילתות אחרי נרמול למצב הנוכחי, וחלופות המילים שבתוקף.
+  ({
+    SearchModeScopedParameters positive,
+    SearchModeScopedParameters negative,
+    Map<int, List<String>> alternatives,
+  })
+  _normalizedParameters({
+    required String query,
+    required String negativeQuery,
+  }) {
+    final mode = _searchTab.searchBloc.state.configuration.searchMode;
+    final effectiveOptions = SearchQueryBuilder.effectiveSearchOptions(
+      query: query,
+      useGlobalOptions: _searchTab.useGlobalSearchOptions.value,
+      globalOptions: _searchTab.globalSearchOptions,
+      perWordOptions: _searchTab.searchOptions,
+    );
+    // כשמתג "חלופות שמורות" דלוק — הרחבת החיפוש בחלופות הגלובליות השמורות
+    final alternatives = _searchTab.useSavedAlternatives
+        ? SavedAlternativesStore.mergeIntoQuery(
+            query,
+            _searchTab.alternativeWords,
+          )
+        : _searchTab.alternativeWords;
+    final effectiveNegativeOptions = SearchQueryBuilder.effectiveSearchOptions(
+      query: negativeQuery,
+      useGlobalOptions: _searchTab.useGlobalNegativeSearchOptions.value,
+      globalOptions: _searchTab.negativeGlobalSearchOptions,
+      perWordOptions: _searchTab.negativeSearchOptions,
+    );
+    return (
+      positive: SearchQueryBuilder.normalizeParametersForMode(
+        mode,
+        customSpacing: _searchTab.spacingValues,
+        alternativeWords: alternatives,
+        searchOptions: effectiveOptions,
+      ),
+      negative: SearchQueryBuilder.normalizeParametersForMode(
+        mode,
+        customSpacing: _searchTab.negativeSpacingValues,
+        alternativeWords: _searchTab.negativeAlternativeWords,
+        searchOptions: effectiveNegativeOptions,
+      ),
+      alternatives: alternatives,
+    );
+  }
+
+  /// ה-facets שנבחרו לחיפוש. תחביר `@קטגוריה`/`@ספר` גובר על הבחירה הידנית.
+  List<String> _facetsToSearch(ParsedCategoryQuery parsedCategory) {
+    final selectedCategories = FacetHelper.categoryFacetsOf(_scopeSelection);
+    final categoriesToSearch = parsedCategory.categoryFound
+        ? parsedCategory.facets!
+        : selectedCategories.isEmpty
+        ? ['/']
+        : selectedCategories;
+    // ממדי הסינון שנבחרו בדיאלוג (תקופה/מחבר/ספרי יסוד) מצטרפים ב-AND —
+    // גם כשהקטגוריה נקבעה בתחביר `@`.
+    return [
+      ...categoriesToSearch,
+      ...(FacetHelper.dimensionFacetsOf(_scopeSelection).toList()..sort()),
+    ];
+  }
+
+  /// מצב הדיאלוג ברגע הלחיצה על כפתור תוסף בשדה החיפוש: אותה שאילתה ואותם
+  /// facets כמו בשליחה, כולל צמצום `@קטגוריה`.
+  Map<String, dynamic> _pluginInvocationContext() {
+    final normalizedQueries = _normalizedQueries();
+    final query = normalizedQueries.query;
+    final negativeQuery = normalizedQueries.negativeQuery;
+    final state = _searchTab.searchBloc.state;
+    final configuration = state.configuration;
+    final parameters = _normalizedParameters(
+      query: query,
+      negativeQuery: negativeQuery,
+    );
+    return {
+      PluginSearchFieldContext.requestKey: pluginSearchRequest(
+        query: query,
+        negativeQuery: negativeQuery,
+        mode: configuration.searchMode,
+        distance: state.distance,
+        proximityScope: configuration.proximityScope,
+        facets: _facetsToSearch(normalizedQueries.category),
+        configuration: configuration,
+        normalizedParameters: parameters.positive,
+        normalizedNegativeParameters: parameters.negative,
+      ),
+      PluginSearchFieldContext.pluginSelectionsKey:
+          _allPluginSearchSelections(),
+    };
   }
 
   /// בלי הסכמה או בלי נתונים אין חיפוש; הדיאלוג עצמו אינו רושם דבר.
@@ -1569,138 +1665,77 @@ class _SearchDialogState extends State<SearchDialog> {
     return AppDialogHeader(
       icon: FluentIcons.search_24_regular,
       title: title,
+      // בחיפוש בתוך ספר אין תפריט היקף, ולכן אין להבטיח אותו בכותרת.
+      subtitle: context.settingsText(
+        widget.bookTitle == null
+            ? 'בחר שאילתה, סוג חיפוש והיקף'
+            : 'בחר שאילתה וסוג חיפוש',
+      ),
+      subtitleMaxLines: 1,
       compact: true,
       fitTitle: true,
       closeTooltip: context.settingsText('סגור'),
     );
   }
 
-  /// בורר מצב החיפוש — שלושה מקטעים ברוחב מלא; ההסבר של כל מצב ב-tooltip.
+  /// בורר מצב החיפוש — מקטעים ברוחב מלא; ההסבר של כל מצב ב-tooltip.
   Widget _buildModeSelector(
     BuildContext context,
     SearchState state,
     SemanticAvailability? semanticAvailability,
   ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final currentMode = state.configuration.searchMode;
     final semanticVisible = _semanticVisible(semanticAvailability);
-    final semanticActive = _semanticSelected && semanticVisible;
+    final current = _semanticSelected && semanticVisible
+        ? _ModeChoice.semantic
+        : _ModeChoice.of(state.configuration.searchMode);
 
-    Widget segmentBody(IconData icon, String label, bool isSelected) {
-      final foreground = isSelected
-          ? colorScheme.onSecondaryContainer
-          : colorScheme.onSurfaceVariant;
-      return AnimatedContainer(
-        duration: AppTokens.animFast,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colorScheme.secondaryContainer
-              : colorScheme.surfaceContainerHigh,
-          borderRadius: AppTokens.borderRadiusAll,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: foreground),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: foreground,
-                ),
-              ),
+    return AppSegmentedControl<_ModeChoice>(
+      expandToFillWidth: true,
+      currentValue: current,
+      options: [
+        for (final choice in _ModeChoice.values)
+          if (choice != _ModeChoice.semantic || semanticVisible)
+            SegmentOption(
+              value: choice,
+              label: context.settingsText(choice.label),
+              icon: choice.icon,
+              tooltip: _modeTooltip(choice),
+              labelKey: choice == _ModeChoice.semantic
+                  ? const ValueKey('search-dialog-semantic-mode')
+                  : null,
             ),
-          ],
-        ),
-      );
-    }
-
-    Widget buildSemanticSegment() {
-      return Expanded(
-        child: Tooltip(
-          message: context.settingsText(
-            'מוצא קטעים שעוסקים בעניין שתיארתם, גם כשהמילים שונות.',
-          ),
-          waitDuration: const Duration(milliseconds: 400),
-          child: InkWell(
-            key: const ValueKey('search-dialog-semantic-mode'),
-            onTap: () {
-              setState(() => _semanticSelected = true);
-              SearchDefaults.rememberSessionSemantic(true);
-              _searchTab.searchFieldFocusNode.requestFocus();
-            },
-            borderRadius: AppTokens.borderRadiusAll,
-            child: segmentBody(
-              OtzariaIcons.search_in_star_24_regular,
-              context.settingsText(kSemanticSearchModeLabel),
-              semanticActive,
-            ),
-          ),
-        ),
-      );
-    }
-
-    Widget buildSegment(IconData icon, SearchMode mode) {
-      final isSelected = !semanticActive && currentMode == mode;
-      return Expanded(
-        child: Tooltip(
-          message: context.settingsText(mode.tooltip),
-          waitDuration: const Duration(milliseconds: 400),
-          child: InkWell(
-            onTap: () {
-              _semanticSelected = false;
-              SearchDefaults.rememberSessionSemantic(false);
-              final oldMode =
-                  _searchTab.searchBloc.state.configuration.searchMode;
-              _searchTab.searchBloc.add(
-                !_usesStagedSubmit
-                    ? SetSearchMode(mode)
-                    : SetSearchModeWithoutSearch(mode),
-              );
-              _swapGlobalOptionsForModeChange(oldMode, mode);
-              setState(() => _moreOptionsExpanded = null);
-              _searchTab.searchFieldFocusNode.requestFocus();
-            },
-            borderRadius: AppTokens.borderRadiusAll,
-            child: segmentBody(
-              icon,
-              context.settingsText(mode.shortLabel),
-              isSelected,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Material(
-      color: colorScheme.surfaceContainerHigh,
-      borderRadius: AppTokens.borderRadiusAll,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: SizedBox(
-          height: 36,
-          child: Row(
-            children: [
-              buildSegment(FluentIcons.text_quote_24_regular, SearchMode.exact),
-              buildSegment(
-                FluentIcons.search_info_24_regular,
-                SearchMode.advanced,
-              ),
-              buildSegment(
-                FluentIcons.arrow_bidirectional_left_right_24_regular,
-                SearchMode.fuzzy,
-              ),
-              if (semanticVisible) buildSemanticSegment(),
-            ],
-          ),
-        ),
-      ),
+      ],
+      onChanged: _onModeChoice,
     );
+  }
+
+  String _modeTooltip(_ModeChoice choice) {
+    final mode = choice.mode;
+    if (mode != null) return context.settingsText(mode.tooltip);
+    final name = context.settingsText(kSemanticSearchModeLabel);
+    final description = context.settingsText(
+      'מוצא קטעים שעוסקים בעניין שתיארתם, גם כשהמילים שונות.',
+    );
+    return '$name\n$description';
+  }
+
+  void _onModeChoice(_ModeChoice choice) {
+    final mode = choice.mode;
+    SearchDefaults.rememberSessionSemantic(mode == null);
+    if (mode == null) {
+      setState(() => _semanticSelected = true);
+    } else {
+      _semanticSelected = false;
+      final oldMode = _searchTab.searchBloc.state.configuration.searchMode;
+      _searchTab.searchBloc.add(
+        !_usesStagedSubmit
+            ? SetSearchMode(mode)
+            : SetSearchModeWithoutSearch(mode),
+      );
+      _swapGlobalOptionsForModeChange(oldMode, mode);
+      setState(() => _moreOptionsExpanded = null);
+    }
+    _searchTab.searchFieldFocusNode.requestFocus();
   }
 
   /// כפתור היסטוריית החיפושים שבסוף שדה החיפוש.
@@ -1726,16 +1761,13 @@ class _SearchDialogState extends State<SearchDialog> {
       menuChildren: [
         SizedBox(width: historyMenuWidth, child: _buildHistoryDropdown()),
       ],
-      builder: (context, controller, _) => IconButton(
-        icon: Icon(
-          controller.isOpen
-              ? FluentIcons.chevron_up_24_regular
-              : FluentIcons.history_24_regular,
-          size: 24,
-        ),
+      builder: (context, controller, _) => OtzariaSearchAction.icon(
+        iconData: controller.isOpen
+            ? FluentIcons.chevron_up_24_regular
+            : FluentIcons.history_24_regular,
         tooltip: context.settingsText('היסטוריית חיפושים'),
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
+        size: 40,
+        iconSize: 22,
         onPressed: () =>
             controller.isOpen ? controller.close() : controller.open(),
       ),
@@ -1750,6 +1782,7 @@ class _SearchDialogState extends State<SearchDialog> {
       widget: _SearchDialogWrapper(tab: _searchTab),
       onSubmit: _performSearch,
       trailingAction: _buildHistoryButton(),
+      pluginInvocationContext: _pluginInvocationContext,
     );
 
     final distanceWidget = FuzzyDistance(
@@ -1803,12 +1836,9 @@ class _SearchDialogState extends State<SearchDialog> {
               'תוצאות שמכילות מילים אלו לא יופיעו',
             ),
             prefixIcon: const Icon(FluentIcons.subtract_24_regular),
-            suffixIcon: IconButton(
-              icon: const Icon(FluentIcons.dismiss_24_regular),
-              onPressed: () {
-                _searchTab.negativeQueryController.clear();
-                setState(() {});
-              },
+            suffixIcon: OtzariaSearchClearButton(
+              controller: _searchTab.negativeQueryController,
+              onCleared: () => setState(() {}),
             ),
           ),
           onChanged: (_) => setState(() {}),
@@ -1960,13 +1990,13 @@ class _SearchDialogState extends State<SearchDialog> {
   String _pluginSelectionKey(String pluginId, String itemId) =>
       '$pluginId/$itemId';
 
-  /// בחירת המשתמש בטאב הנוכחי גוברת על הבחירה האחרונה השמורה, וזו על
-  /// `defaultValue` שבמניפסט.
   bool _pluginSelectionValue(String pluginId, PluginSearchDialogItem item) {
     final key = _pluginSelectionKey(pluginId, item.id);
-    return _pluginSearchSelections[key] ??
-        _persistedPluginSelections[key] ??
-        item.defaultValue;
+    return PluginSearchSelectionPreferences.resolveSelection(
+      item,
+      tabValue: _pluginSearchSelections[key],
+      persistedValue: _persistedPluginSelections[key],
+    );
   }
 
   Map<String, bool> _allPluginSearchSelections() {
@@ -2000,8 +2030,16 @@ class _SearchDialogState extends State<SearchDialog> {
     setState(() {
       _pluginSearchSelections[key] = value;
     });
-    _persistedPluginSelections[key] = value;
-    PluginSearchSelectionPreferences.save(_persistedPluginSelections);
+    final persisted = PluginSearchSelectionPreferences.persistedAfterChange(
+      _persistedPluginSelections,
+      key,
+      item,
+      value,
+    );
+    if (persisted != null) {
+      _persistedPluginSelections = persisted;
+      PluginSearchSelectionPreferences.save(persisted);
+    }
     _searchTab.searchBloc.add(
       UpdatePluginSearchSelectionsWithoutSearch(_allPluginSearchSelections()),
     );
@@ -2021,20 +2059,28 @@ class _SearchDialogState extends State<SearchDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final record in visibleItems)
-          CheckboxListTile(
-            key: ValueKey('plugin-search-dialog-${record.$1}-${record.$2.id}'),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            dense: true,
-            title: Text(record.$2.title),
-            value: _pluginSelectionValue(record.$1, record.$2),
-            onChanged: (value) => _updatePluginSearchSelection(
-              record.$1,
-              record.$2,
-              value ?? false,
+        for (final (pluginId, item) in visibleItems)
+          if (item.isSwitch)
+            SwitchListTile(
+              key: ValueKey('plugin-search-dialog-$pluginId-${item.id}'),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: Text(item.title),
+              value: _pluginSelectionValue(pluginId, item),
+              onChanged: (value) =>
+                  _updatePluginSearchSelection(pluginId, item, value),
+            )
+          else
+            CheckboxListTile(
+              key: ValueKey('plugin-search-dialog-$pluginId-${item.id}'),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
+              title: Text(item.title),
+              value: _pluginSelectionValue(pluginId, item),
+              onChanged: (value) =>
+                  _updatePluginSearchSelection(pluginId, item, value ?? false),
             ),
-          ),
       ],
     );
   }

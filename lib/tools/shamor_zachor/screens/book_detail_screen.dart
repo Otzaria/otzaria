@@ -4,7 +4,6 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/feedback/loading_indicator.dart';
 import 'package:otzaria/widgets/feedback/otzaria_error_state.dart';
-import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:logging/logging.dart';
@@ -45,6 +44,9 @@ class BookDetailScreen extends StatefulWidget {
   @override
   State<BookDetailScreen> createState() => _BookDetailScreenState();
 }
+
+/// רוחב תא מינימלי שבו מוצג מתחת לתאריך העברי גם הלועזי.
+const double _kGregorianDateMinWidth = 96;
 
 class _BookDetailScreenState extends State<BookDetailScreen>
     with AutomaticKeepAliveClientMixin {
@@ -301,33 +303,13 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                             color: cs.primary,
                           ),
                         ),
-                        if (bookDetails.categoryPath != null ||
-                            bookCompletionDate != null)
-                          Wrap(
-                            spacing: AppTokens.spaceSM,
-                            runSpacing: AppTokens.spaceXS,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              if (bookDetails.categoryPath != null)
-                                Text(
-                                  bookDetails.categoryPath!,
-                                  style: TextStyle(
-                                    fontSize: AppTokens.fontSM,
-                                    color: cs.onSurfaceVariant,
-                                  ),
-                                ),
-                              if (bookCompletionDate != null)
-                                Tooltip(
-                                  message: HebrewUtils.fullDate(
-                                    bookCompletionDate,
-                                  ),
-                                  child: MetaChip(
-                                    icon: FluentIcons.checkmark_24_regular,
-                                    label:
-                                        'הושלם ${HebrewUtils.shortHebrewDate(bookCompletionDate)}',
-                                  ),
-                                ),
-                            ],
+                        if (bookDetails.categoryPath != null)
+                          Text(
+                            bookDetails.categoryPath!,
+                            style: TextStyle(
+                              fontSize: AppTokens.fontSM,
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                       ],
                     ),
@@ -394,6 +376,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                           ],
                         ),
                       ),
+                      if (bookCompletionDate != null)
+                        _buildCompletionFooter(cs, bookCompletionDate),
                     ],
                   ),
                 ),
@@ -401,6 +385,36 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// שורת סיום בתחתית הטבלה: מתי הושלם הלימוד.
+  Widget _buildCompletionFooter(ColorScheme cs, DateTime completedAt) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceMD,
+        vertical: AppTokens.spaceSM,
+      ),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: cs.outlineVariant)),
+      ),
+      child: Row(
+        children: [
+          Icon(FluentIcons.checkmark_24_regular, size: 18, color: cs.primary),
+          const SizedBox(width: AppTokens.spaceSM),
+          Flexible(
+            child: Text(
+              'הושלם ${HebrewUtils.fullDate(completedAt)}',
+              softWrap: true,
+              style: TextStyle(
+                fontSize: AppTokens.fontMD,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -482,9 +496,17 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             flex: _gridFlex,
             child: Row(
               // אין spaceEvenly כדי לשמור פריסה זהה בכל עומק
+              // start: a date line under one label must not shift its checkbox
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: columns.map((col) {
                 final columnId = col.id;
                 final bool? checkboxValue = columnSelectionStates[columnId];
+                final completedAt = checkboxValue == true
+                    ? progressProvider.getColumnCompletionDate(
+                        widget.bookId!,
+                        columnId,
+                      )
+                    : null;
 
                 return Expanded(
                   child: Column(
@@ -515,6 +537,8 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                         col,
                         columns.length,
                       ),
+                      if (completedAt != null)
+                        _buildColumnCompletionDate(theme, completedAt),
                     ],
                   ),
                 );
@@ -522,6 +546,34 @@ class _BookDetailScreenState extends State<BookDetailScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// מתי הושלמה העמודה, מתחת לשמה: התאריך העברי, ובתא רחב גם הלועזי.
+  Widget _buildColumnCompletionDate(ThemeData theme, DateTime completedAt) {
+    final style = TextStyle(
+      fontSize: AppTokens.fontSM - 1,
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Tooltip(
+      message: 'הושלם ${HebrewUtils.fullDate(completedAt)}',
+      child: Padding(
+        // Keeps neighbouring dates apart when narrow cells shrink them.
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: LayoutBuilder(
+          builder: (context, constraints) => FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(HebrewUtils.hebrewDate(completedAt), style: style),
+                if (constraints.maxWidth >= _kGregorianDateMinWidth)
+                  Text(HebrewUtils.gregorianDate(completedAt), style: style),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

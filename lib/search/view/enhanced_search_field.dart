@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
@@ -18,6 +17,7 @@ import 'package:otzaria/search/utils/category_query_parser.dart';
 import 'package:otzaria/search/view/tantivy_full_text_search.dart';
 import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
 
@@ -35,12 +35,16 @@ class EnhancedSearchField extends StatefulWidget {
   /// משמש להוספת כפתורים כגון היסטוריה, בלי לגרום לחפיפה עם תוכן הטקסט.
   final Widget? trailingAction;
 
+  /// ההקשר שנשלח לתוסף בלחיצה על כפתורו; ראו [PluginSearchFieldActions].
+  final Map<String, dynamic> Function()? pluginInvocationContext;
+
   const EnhancedSearchField({
     super.key,
     required this.widget,
     this.showInlineSearchButton = true,
     this.onSubmit,
     this.trailingAction,
+    this.pluginInvocationContext,
   });
 
   SearchingTab get tab {
@@ -228,16 +232,15 @@ class _EnhancedSearchFieldState extends State<EnhancedSearchField> {
                               field: PluginSearchField.fullText,
                               controller: widget.tab.queryController,
                               onSubmitted: (_) => _performSearch(),
+                              invocationContext: widget.pluginInvocationContext,
                               buttonSize: 40,
                               iconSize: 22,
                             ),
                             ?widget.trailingAction,
-                            IconButton(
-                              icon: const Icon(
-                                FluentIcons.dismiss_24_regular,
-                              ),
-                              onPressed: () {
-                                widget.tab.queryController.clear();
+                            OtzariaSearchClearButton(
+                              controller: widget.tab.queryController,
+                              showWhenEmpty: true,
+                              onCleared: () {
                                 widget.tab.searchOptions.clear();
                                 widget.tab.globalSearchOptions.clear();
                                 context.read<SearchBloc>().add(

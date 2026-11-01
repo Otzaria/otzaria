@@ -1,3 +1,4 @@
+import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 
 /// תרומות עלייה דקלרטיביות של תוסף (`contributes.startup` במניפסט).
@@ -91,9 +92,14 @@ class PluginStartupContributions {
   /// אחרי שהתוסף כבר רץ ושלח אותם, ולכן אינם יכולים להפעיל אותו לראשונה.
   bool get hasInitialActivationTrigger =>
       activationEvents.isNotEmpty ||
-      searchFieldActions.isNotEmpty ||
+      searchFieldActions.any(_searchFieldActionActivatesBackground) ||
       toolbarItems.any(_toolbarItemActivatesBackground) ||
       contextMenuItems.any(_contextMenuItemActivatesBackground);
+
+  /// כפתור סינון ספרים אינו שולח אירוע ואינו פותח דף: הוא לא מפעיל את התוסף.
+  static bool _searchFieldActionActivatesBackground(
+    Map<String, dynamic> item,
+  ) => item['mode'] != PluginSearchFieldActionMode.providerBooksFilter.name;
 
   static bool _toolbarItemActivatesBackground(Map<String, dynamic> item) {
     if (item.containsKey('binding') ||

@@ -313,4 +313,21 @@ void main() {
     expect(toolbar.hasBackgroundActivationTrigger, isTrue);
     expect(contextMenu.hasBackgroundActivationTrigger, isTrue);
   });
+
+  test('כפתור סינון ספרים בשדה חיפוש אינו מפעיל מנוע רקע', () {
+    const filterOnly = PluginStartupContributions(
+      searchFieldActions: [
+        {'id': 'source', 'title': 'מקור', 'mode': 'providerBooksFilter'},
+      ],
+    );
+    const withSession = PluginStartupContributions(
+      searchFieldActions: [
+        {'id': 'source', 'title': 'מקור', 'mode': 'providerBooksFilter'},
+        {'id': 'dictate', 'title': 'דיבור'},
+      ],
+    );
+
+    expect(filterOnly.hasInitialActivationTrigger, isFalse);
+    expect(withSession.hasInitialActivationTrigger, isTrue);
+  });
 }

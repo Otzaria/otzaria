@@ -274,12 +274,14 @@ class ParsedAramaicMeaning {
   final String? expression;
   final String? expansion;
 
-  /// כל חלקי הפירוש המוצגים, להעתקה.
-  String get text => [
-    ?expression,
-    if (mainText.isNotEmpty) mainText,
-    if (expansion != null) '(=$expansion)',
-  ].join(' ');
+  /// כל חלקי הפירוש המוצגים, להעתקה (בלי סימוני הדגשה).
+  String get text => AramaicDictionaryEntryPresentation.stripBold(
+    [
+      ?expression,
+      if (mainText.isNotEmpty) mainText,
+      if (expansion != null) '(=$expansion)',
+    ].join(' '),
+  );
 }
 
 /// מייצג ערך מלא במילון לאחר חלוקה לפירושים.
@@ -292,6 +294,28 @@ class AramaicDictionaryEntryPresentation {
 
   static final RegExp _alternativeSeparator = RegExp('[,;]');
   static final RegExp _quotes = RegExp("[\"'״׳]");
+  static final RegExp _meaningSeparator = RegExp(r'(?<!\*)\*\*\*(?!\*)');
+  static final RegExp _bullet = RegExp(r'^\*(?!\*) *', multiLine: true);
+  static final RegExp _tripleQuoteBold = RegExp(r"'''(?!\s)(.+?)(?<!\s)'''");
+
+  /// הדגשת `**טקסט**`; תוכן חייב להתחיל ולהסתיים בתו שאינו רווח, כדי שלא
+  /// להתבלבל עם `***`, מפריד הפירושים.
+  static final RegExp boldMarkup = RegExp(r'\*\*(?!\s)(.+?)(?<!\s)\*\*');
+
+  static String stripBold(String text) =>
+      text.replaceAllMapped(boldMarkup, (match) => match[1]!);
+
+  /// סימוני ויקי גולמיים: `<br>` לשורה חדשה, `*` בתחילת שורה לנקודת רשימה,
+  /// ו-`'''טקסט'''` להדגשה אחידה `**טקסט**`.
+  static String _normalizeMarkup(String raw) {
+    final lines = utils
+        .stripHtmlPreservingBreaks(raw)
+        .replaceAllMapped(_tripleQuoteBold, (match) => '**${match[1]}**')
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty);
+    return lines.join('\n').replaceAll(_bullet, '• ');
+  }
 
   /// בלי פירוש שכל חלקיו (מופרדים בפסיק) כבר הופיעו בפירוש קודם, כדי שערך
   /// שמוזג מכמה מילונים לא יחזור על עצמו ("ארץ, קרקע" ואחריו "קרקע").
@@ -299,13 +323,15 @@ class AramaicDictionaryEntryPresentation {
     final seen = <String>{};
     final kept = <ParsedAramaicMeaning>[];
     for (final meaning in meanings) {
-      final parts = meaning.mainText
-          .split(_alternativeSeparator)
-          .map(
-            (part) => utils.removeVolwels(part).replaceAll(_quotes, '').trim(),
-          )
-          .where((part) => part.isNotEmpty)
-          .toList();
+      final parts =
+          AramaicDictionaryEntryPresentation.stripBold(meaning.mainText)
+              .split(_alternativeSeparator)
+              .map(
+                (part) =>
+                    utils.removeVolwels(part).replaceAll(_quotes, '').trim(),
+              )
+              .where((part) => part.isNotEmpty)
+              .toList();
       final repeated =
           parts.isNotEmpty &&
           meaning.expansion == null &&
@@ -319,9 +345,8 @@ class AramaicDictionaryEntryPresentation {
   }
 
   static AramaicDictionaryEntryPresentation parse(String raw) {
-    final normalized = raw.replaceAll(RegExp(r'\s*\*\*\*\s*'), '***').trim();
-    final parts = normalized
-        .split('***')
+    final parts = raw
+        .split(_meaningSeparator)
         .map((part) => part.trim())
         .where((part) => part.isNotEmpty)
         .map(_parseMeaning)
@@ -338,7 +363,8 @@ class AramaicDictionaryEntryPresentation {
     return AramaicDictionaryEntryPresentation(meanings: parts);
   }
 
-  static ParsedAramaicMeaning _parseMeaning(String raw) {
+  static ParsedAramaicMeaning _parseMeaning(String rawMeaning) {
+    final raw = _normalizeMarkup(rawMeaning);
     final expressionMatch =
         RegExp(r'^\{([^{}]+)\}\s*').firstMatch(raw) ??
         RegExp(r'^(\S+)(?=\(=)').firstMatch(raw);
@@ -371,7 +397,7 @@ class AramaicDictionaryEntryPresentation {
 
     return ParsedAramaicMeaning(
       mainText: remaining,
-      hebrewText: hebrewText,
+      hebrewText: stripBold(hebrewText),
       expression: expression,
       expansion: expansion,
     );

@@ -1586,6 +1586,50 @@ void main() {
       });
     });
 
+    group('open/reports', () {
+      test('reports → OpenReportsManagementAction, שונה מ-report', () {
+        final reports = ExternalUriRouter.parseUri(
+          Uri.parse('otzaria://open/reports'),
+        );
+        expect(reports, isA<OpenReportsManagementAction>());
+        expect(reports, isNot(isA<OpenAppReportAction>()));
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse('otzaria://open/report')),
+          isA<OpenAppReportAction>(),
+        );
+      });
+
+      test('אינו רגיש לאותיות גדולות/קטנות, ונתיב עמוק מתעלם', () {
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse('otzaria://open/REPORTS')),
+          isA<OpenReportsManagementAction>(),
+        );
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse('otzaria://open/reports/old')),
+          isNull,
+        );
+      });
+    });
+
+    group('open/donate', () {
+      test('donate ו-nedarim → OpenDonationAction', () {
+        for (final target in ['donate', 'nedarim', 'DONATE']) {
+          expect(
+            ExternalUriRouter.parseUri(Uri.parse('otzaria://open/$target')),
+            isA<OpenDonationAction>(),
+            reason: target,
+          );
+        }
+      });
+
+      test('נתיב עמוק מתעלם', () {
+        expect(
+          ExternalUriRouter.parseUri(Uri.parse('otzaria://open/donate/now')),
+          isNull,
+        );
+      });
+    });
+
     group('open/<tool>?q= — חיפוש מיידי בכלי', () {
       OpenToolAction parse(String uri) =>
           ExternalUriRouter.parseUri(Uri.parse(uri)) as OpenToolAction;

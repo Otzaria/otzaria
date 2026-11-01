@@ -32,6 +32,7 @@ import 'package:otzaria/personal_notes/repository/personal_notes_repository.dart
 import 'package:otzaria/personal_notes/storage/personal_notes_database.dart';
 import 'package:otzaria/personal_notes/view/personal_notes_screen.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
+import 'package:otzaria/personal_notes/widgets/personal_note_link_dialog.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
@@ -526,6 +527,96 @@ void main() {
     expect(firstBook, lessThan(firstNote));
     expect(firstNote, lessThan(secondBook));
     expect(secondBook, lessThan(secondNote));
+  });
+
+  testWidgets('קישור להערה מתוך עריכה במסך הכלי מציג הערות מכל הספרים', (
+    tester,
+  ) async {
+    PersonalNote note(String id, String bookId, String content) => PersonalNote(
+      id: id,
+      bookId: bookId,
+      lineNumber: 1,
+      displayTitle: 'כותרת $bookId',
+      lastKnownLineNumber: null,
+      status: PersonalNoteStatus.located,
+      content: content,
+      contentPlain: content,
+      contentFormat: PersonalNoteContentFormat.plain,
+      createdAt: DateTime(2025, 1, 1),
+      updatedAt: DateTime(2025, 1, 2),
+    );
+
+    final repository = DelayedPersonalNotesRepository(
+      books: [
+        BookNotesInfo(
+          bookId: 'ספר א',
+          noteCount: 1,
+          lastUpdated: DateTime(2025, 1, 2),
+        ),
+        BookNotesInfo(
+          bookId: 'ספר ב',
+          noteCount: 1,
+          lastUpdated: DateTime(2025, 1, 2),
+        ),
+      ],
+    );
+    final personalNotesBloc = PersonalNotesBloc(repository: repository);
+    final settingsBloc = SettingsBloc(repository: SettingsRepository());
+    final libraryBloc = MockLibraryBloc();
+    whenListen(
+      libraryBloc,
+      const Stream<LibraryState>.empty(),
+      initialState: LibraryState(
+        library: Library(categories: []),
+        isLoading: false,
+        currentCategory: null,
+      ),
+    );
+    addTearDown(personalNotesBloc.close);
+    addTearDown(settingsBloc.close);
+
+    await tester.pumpWidget(
+      MultiBlocProvider(
+        providers: [
+          BlocProvider<SettingsBloc>.value(value: settingsBloc),
+          BlocProvider<LibraryBloc>.value(value: libraryBloc),
+          BlocProvider<PersonalNotesBloc>.value(value: personalNotesBloc),
+        ],
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          home: Scaffold(
+            body: PersonalNotesManagerScreen(repository: repository),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    repository.requests['ספר א']!.complete([note('a', 'ספר א', 'תוכן א')]);
+    for (var i = 0; i < 10 && repository.requests['ספר ב'] == null; i++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    repository.requests['ספר ב']!.complete([note('b', 'ספר ב', 'תוכן ב')]);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('עריכה').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('הוסף קישור'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('קישור להערה'));
+    await tester.pumpAndSettle();
+
+    final linkDialog = find.byType(PersonalNoteLinkDialog);
+    for (final content in ['תוכן א', 'תוכן ב']) {
+      expect(
+        find.descendant(of: linkDialog, matching: find.text(content)),
+        findsOneWidget,
+        reason: content,
+      );
+    }
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('רענון מבטל מאזין תקוע ומתחיל רצף חדש', (

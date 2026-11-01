@@ -57,6 +57,85 @@ void main() {
     }
   });
 
+  group('visibleWhen ו-mode', () {
+    test('ברירות מחדל: תמיד מוצג, מצב session', () {
+      final action = PluginSearchFieldAction.fromPayload({
+        'id': 'a',
+        'title': 'א',
+      });
+      expect(action.visibleWhen, PluginSearchFieldActionVisibility.always);
+      expect(action.showOnlyWithText, isFalse);
+      expect(action.isVisibleFor(''), isTrue);
+      expect(action.mode, PluginSearchFieldActionMode.session);
+      expect(action.isProviderBooksFilter, isFalse);
+    });
+
+    test('nonEmptyText מוצג רק כשיש טקסט', () {
+      final action = PluginSearchFieldAction.fromPayload({
+        'id': 'a',
+        'title': 'א',
+        'visibleWhen': 'nonEmptyText',
+      });
+      expect(action.showOnlyWithText, isTrue);
+      expect(action.isVisibleFor(''), isFalse);
+      expect(action.isVisibleFor('ברכות'), isTrue);
+    });
+
+    test('providerBooksFilter: ברירת מחדל שדה library בלבד', () {
+      final action = PluginSearchFieldAction.fromPayload({
+        'id': 'f',
+        'title': 'מקור',
+        'mode': 'providerBooksFilter',
+        'libraryOnlyIcon': 'book_24_regular',
+      });
+      expect(action.isProviderBooksFilter, isTrue);
+      expect(action.fields, {PluginSearchField.library});
+      expect(action.libraryOnlyIcon, 'book_24_regular');
+    });
+
+    test('providerBooksFilter עם library ושדה עתידי לא מוכר תקף', () {
+      final action = PluginSearchFieldAction.fromPayload({
+        'id': 'f',
+        'title': 'מקור',
+        'mode': 'providerBooksFilter',
+        'fields': ['library', 'future'],
+      });
+      expect(action.fields, {PluginSearchField.library});
+    });
+
+    for (final (name, payload) in <(String, Map<String, dynamic>)>[
+      ('visibleWhen לא מוכר', {'visibleWhen': 'never'}),
+      ('visibleWhen לא מחרוזת', {'visibleWhen': true}),
+      ('mode לא מוכר', {'mode': 'toggle'}),
+      (
+        'providerBooksFilter בשדה אחר',
+        {
+          'mode': 'providerBooksFilter',
+          'fields': ['inBook'],
+        },
+      ),
+      (
+        'providerBooksFilter בכמה שדות',
+        {
+          'mode': 'providerBooksFilter',
+          'fields': ['library', 'inBook'],
+        },
+      ),
+      ('libraryOnlyIcon בלי providerBooksFilter', {'libraryOnlyIcon': 'x'}),
+    ]) {
+      test('נדחה: $name', () {
+        expect(
+          () => PluginSearchFieldAction.fromPayload({
+            'id': 'a',
+            'title': 'א',
+            ...payload,
+          }),
+          throwsA(isA<PluginSearchFieldActionException>()),
+        );
+      });
+    }
+  });
+
   test('searchFieldActions במניפסט מעיר את מנוע הרקע ונשמר בהמרה', () {
     final startup = PluginStartupContributions.fromJson({
       'searchFieldActions': [

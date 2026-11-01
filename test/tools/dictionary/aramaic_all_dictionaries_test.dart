@@ -319,6 +319,12 @@ void main() {
       expect(AramaicResultCard.searchTermOf('(למעלה) עָלָה; עלה'), 'עלה');
       expect(AramaicResultCard.searchTermOf('(הערה)'), '');
     });
+
+    test('מונח החיפוש ההפוך נלקח מהשורה הראשונה בלי נקודת הרשימה', () {
+      expect(AramaicResultCard.searchTermOf('• ארץ, קרקע\n• אדמה'), 'ארץ');
+      expect(AramaicResultCard.searchTermOf('שורה א\nשורה ב'), 'שורה א');
+      expect(AramaicResultCard.searchTermOf('• (הערה)\n• אדמה'), 'אדמה');
+    });
   });
 
   group('decodeAramaicIndex על נתונים סינתטיים', () {

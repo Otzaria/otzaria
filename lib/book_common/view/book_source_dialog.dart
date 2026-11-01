@@ -2,7 +2,10 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:kosher_dart/kosher_dart.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart'
+    show formatHebrewYear;
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/services/book_details_service.dart';
@@ -218,19 +221,25 @@ Widget _buildBookDetailsContent(
   final hasPath =
       bookDetails['נתיב הקובץ'] != BookDetailsService.bookNotFoundText;
 
+  // "דור" במסד (ראשונים, אחרונים...) הוא התקופה של הספר.
+  final era =
+      [
+            information.generation,
+            book.heEra,
+          ]
+          .map((value) => value?.trim())
+          .firstWhere(
+            (value) => value != null && value.isNotEmpty,
+            orElse: () => null,
+          );
+
   // שורות הפרטים; כרטיס שאין בו שורות לא מוצג.
   final facts = <Widget>[
-    if (information.generation != null)
-      DetailsInfoSection(
-        icon: FluentIcons.people_team_24_regular,
-        title: 'דור:',
-        value: information.generation!,
-      ),
-    if (book.heEra != null && book.heEra!.isNotEmpty)
+    if (era != null && era.isNotEmpty)
       DetailsInfoSection(
         icon: FluentIcons.history_24_regular,
         title: 'תקופה:',
-        value: book.heEra!,
+        value: era,
       ),
     if (information.categories != null)
       DetailsInfoSection(
@@ -254,7 +263,9 @@ Widget _buildBookDetailsContent(
       DetailsInfoSection(
         title: 'תאריך פרסום:',
         icon: FluentIcons.print_24_regular,
-        value: information.publicationDates.join(', '),
+        value: information.publicationDates
+            .map(hebrewPublicationDate)
+            .join(', '),
       ),
     if (information.publicationPlaces.isNotEmpty)
       DetailsInfoSection(
@@ -395,22 +406,70 @@ String? libraryDisplayPath(String filePath) {
   return lastDot > lastSlash ? relative.substring(0, lastDot) : relative;
 }
 
+final _yearOnly = RegExp(r'^\d{4}$');
+
+/// ערך קטן מזה אינו שנת דפוס סבירה (ראשית הדפוס העברי במאה ה-15).
+const _minGregorianYear = 1400;
+
+/// שנת פרסום לועזית ב-DB (למשל "1884") כשנה עברית, עם הלועזית בסוגריים.
+/// המרה לפי אמצע השנה הלועזית; ערך שאינו שנה לועזית סבירה נשאר כמות שהוא —
+/// גם שנה עברית בת ארבע ספרות (למשל 5644) לא תומר.
+String hebrewPublicationDate(String date) {
+  final value = date.trim();
+  if (!_yearOnly.hasMatch(value)) return value;
+  final year = int.parse(value);
+  if (year < _minGregorianYear || year > DateTime.now().year + 1) return value;
+  final hebrewYear = JewishDate.fromDateTime(
+    DateTime(year, 7, 1),
+  ).getJewishYear();
+  return '${formatHebrewYear(hebrewYear)} ($value)';
+}
+
+/// תווים שמתעלמים מהם בבדיקה אם התיאור הארוך פותח בקצר: רווחים (כולל
+/// רווח קשיח), פיסוק וגרשיים בצורותיהם השונות.
+final _descriptionNoise = RegExp(r'''[\s.,;:!?\-–—"'״׳“”‘’()]''');
+
+final _descriptionQuotes = RegExp(r'''["'״׳“”‘’]''');
+
 /// מפצל את התיאור לקצר (מודגש) ולהמשך הארוך, כשהתיאור הארוך פותח בקצר.
 /// מחזיר null כשאין מה למזג (אחד מהם חסר/ריק, או שהארוך אינו פותח בקצר),
-/// ואז מוצגים שני השדות כמו קודם. רווחים בקצוות מתעלמים מהם.
+/// ואז מוצגים שני השדות כמו קודם. ההשוואה מתעלמת מרווחים, פיסוק וגרשיים.
 ({String lead, String rest})? splitShortAndFullDescription(
   String? shortDescription,
   String? fullDescription,
 ) {
   final lead = shortDescription?.trim() ?? '';
   final full = fullDescription?.trim() ?? '';
-  if (lead.isEmpty || full.isEmpty || !full.startsWith(lead)) return null;
+  final leadEnd = _endOfLead(lead, full);
+  if (leadEnd == null) return null;
   // תיאור ארוך שפותח בקצר ממשיך לרוב אחריו בנקודה או בפסיק; הם לא פותחים את
   // הפסקה החדשה.
   final rest = full
-      .substring(lead.length)
+      .substring(leadEnd)
       .replaceFirst(RegExp(r'^[\s.,;:\-–—]+'), '');
   return (lead: lead, rest: rest);
+}
+
+/// המיקום ב-[full] שבו מסתיים [lead], או null כש-[full] אינו פותח בו.
+int? _endOfLead(String lead, String full) {
+  final wanted = lead.replaceAll(_descriptionNoise, '');
+  if (wanted.isEmpty) return null;
+  if (full.startsWith(lead)) return lead.length;
+  var matched = 0;
+  for (var i = 0; i < full.length; i++) {
+    if (_descriptionNoise.hasMatch(full[i])) continue;
+    if (full[i] != wanted[matched]) return null;
+    if (++matched == wanted.length) {
+      final suffix = lead.substring(lead.lastIndexOf(wanted[matched - 1]) + 1);
+      final end = i + 1 + suffix.length;
+      return end <= full.length &&
+              full.substring(i + 1, end).replaceAll(_descriptionQuotes, '"') ==
+                  suffix.replaceAll(_descriptionQuotes, '"')
+          ? end
+          : null;
+    }
+  }
+  return null;
 }
 
 /// תיאור הספר בלי כותרות: הקצר מודגש, ואחריו (בפסקה חדשה) המשך הארוך.

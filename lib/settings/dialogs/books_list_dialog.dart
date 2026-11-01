@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -13,10 +13,12 @@ import 'package:otzaria/core/ui_snack.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/utils/file/save_file_with_extension.dart';
+import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 
-/// פותח דיאלוג עם רשימת כל הספרים בספרייה, חיפוש, וייצוא ל-CSV.
+/// פותח דיאלוג עם רשימות הספרים — ספרי הספרייה והספרים האישיים — חיפוש,
+/// וייצוא ל-CSV.
 Future<void> showBooksListDialog({
   required BuildContext context,
   required List<Book> books,
@@ -40,31 +42,37 @@ class _BooksListDialog extends StatefulWidget {
 }
 
 class _BooksListDialogState extends State<_BooksListDialog> {
-  late final List<_BookRow> _rows;
+  late final List<_BookRow> _libraryRows;
+  late final List<_BookRow> _personalRows;
   late List<_BookRow> _visibleRows;
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool _showPersonal = false;
   bool _isExporting = false;
+
+  List<_BookRow> get _rows => _showPersonal ? _personalRows : _libraryRows;
 
   @override
   void initState() {
     super.initState();
     // ה-Library Providers כבר ממיינים books ו-subCategories לפי order,
     // אז getAllBooks() מחזיר בסדר תצוגת הספרייה. שומרים על אותו סדר.
-    _rows = widget.books.map(_BookRow.fromBook).toList();
-    _visibleRows = _rows;
-    _searchController.addListener(_onSearchChanged);
+    final rows = widget.books.map(_BookRow.fromBook).toList();
+    _libraryRows = rows.where((r) => !r.isPersonal).toList();
+    _personalRows = rows.where((r) => r.isPersonal).toList();
+    _visibleRows = _libraryRows;
+    _searchController.addListener(_applyFilter);
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
+    _searchController.removeListener(_applyFilter);
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged() {
+  void _applyFilter() {
     final query = _searchController.text.trim().toLowerCase();
     setState(() {
       _visibleRows = query.isEmpty
@@ -73,12 +81,20 @@ class _BooksListDialogState extends State<_BooksListDialog> {
     });
   }
 
+  void _selectList({required bool personal}) {
+    _showPersonal = personal;
+    _searchController.clear();
+    _applyFilter();
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+  }
+
   Future<void> _exportToCsv() async {
     final downloadsDirectory = await getDownloadsDirectory();
     if (!mounted) return;
 
-    final csv = _buildCsv(_rows);
-    final bytes = Uint8List.fromList(utf8.encode('\uFEFF$csv'));
+    final bytes = Uint8List.fromList(
+      utf8.encode(buildBooksCsv(widget.books)),
+    );
     if (!mounted) return;
     final path = await saveFileWithExtension(
       context: context,
@@ -93,7 +109,7 @@ class _BooksListDialogState extends State<_BooksListDialog> {
     setState(() => _isExporting = true);
     try {
       if (!mounted) return;
-      UiSnack.show(SettingsMessages.booksListSaved(_rows.length));
+      UiSnack.show(SettingsMessages.booksListSaved(widget.books.length));
     } catch (e) {
       if (!mounted) return;
       UiSnack.showError(SettingsMessages.fileSaveError(e));
@@ -109,6 +125,28 @@ class _BooksListDialogState extends State<_BooksListDialog> {
       title: context.settingsText('רשימת הספרים'),
       counter: '${_visibleRows.length} / ${_rows.length}',
       children: [
+        const SizedBox(height: AppTokens.spaceMD),
+        AppSegmentedControl<bool>(
+          options: [
+            SegmentOption(
+              value: false,
+              label: context.settingsText(
+                'ספרייה {count}',
+                args: {'count': _libraryRows.length},
+              ),
+            ),
+            SegmentOption(
+              value: true,
+              label: context.settingsText(
+                'אישיים {count}',
+                args: {'count': _personalRows.length},
+              ),
+            ),
+          ],
+          currentValue: _showPersonal,
+          expandToFillWidth: true,
+          onChanged: (personal) => _selectList(personal: personal),
+        ),
         const SizedBox(height: AppTokens.spaceMD),
         OtzariaSearchField(
           controller: _searchController,
@@ -127,20 +165,18 @@ class _BooksListDialogState extends State<_BooksListDialog> {
                   child: Scrollbar(
                     controller: _scrollController,
                     thumbVisibility: true,
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      // גובה שורה קבוע: קפיצת פס הגלילה לא בונה את כל השורות בדרך
-                      prototypeItem: _BookListRow(
-                        row: _BookRow(
-                          title: ' ',
-                          author: ' ',
-                          category: '',
-                          fileType: '',
+                    // שכבת Material שקופה: בלעדיה הקו התחתון של שורת הרשימה
+                    // (ListTile.shape) מצויר מחוץ לאזור הגלילה.
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        // גובה שורה קבוע: קפיצת פס הגלילה לא בונה את כל השורות בדרך
+                        prototypeItem: _BookListRow(row: _BookRow.blank()),
+                        itemCount: _visibleRows.length,
+                        itemBuilder: (_, i) => _BookListRow(
+                          row: _visibleRows[i],
                         ),
-                      ),
-                      itemCount: _visibleRows.length,
-                      itemBuilder: (_, i) => _BookListRow(
-                        row: _visibleRows[i],
                       ),
                     ),
                   ),
@@ -174,53 +210,39 @@ class _BookListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final subtitleStyle = TextStyle(
-      fontSize: AppTokens.fontSM,
-      color: cs.onSurfaceVariant,
-    );
     final detailsLine = [
       if (row.author.isNotEmpty) row.author,
       if (row.category.isNotEmpty) row.category,
       if (row.fileType.isNotEmpty) row.fileType,
     ].join(' · ');
 
-    // שורה אחת לכל שדה, גם כשאין פרטים: הגובה חייב להיות זהה לתבנית.
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(bottom: listDialogRowDivider(context)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: AppTokens.spaceSM,
-          horizontal: AppTokens.spaceMD,
+    // שורת פרטים גם כשאין פרטים: הגובה חייב להיות זהה לתבנית.
+    return ListTile(
+      shape: Border(bottom: listDialogRowDivider(context)),
+      leading: Icon(row.icon),
+      title: Tooltip(
+        message: row.title,
+        child: Text(
+          row.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: AppTokens.fontMD + 1,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Tooltip(
-              message: row.title,
-              child: Text(
-                row.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: AppTokens.fontMD + 1,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface,
-                ),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Tooltip(
-              message: detailsLine,
-              child: Text(
-                detailsLine,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: subtitleStyle,
-              ),
-            ),
-          ],
+      ),
+      subtitle: Tooltip(
+        message: detailsLine,
+        child: Text(
+          detailsLine,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: AppTokens.fontSM,
+            color: cs.onSurfaceVariant,
+          ),
         ),
       ),
     );
@@ -232,13 +254,26 @@ class _BookRow {
   final String author;
   final String category;
   final String fileType;
+  final IconData icon;
+  final bool isPersonal;
 
   _BookRow({
     required this.title,
     required this.author,
     required this.category,
     required this.fileType,
+    required this.icon,
+    required this.isPersonal,
   });
+
+  /// שורה ריקה בגובה שורה רגילה, לתבנית הגובה של הרשימה.
+  _BookRow.blank()
+    : title = ' ',
+      author = ' ',
+      category = '',
+      fileType = '',
+      icon = FluentIcons.document_text_24_regular,
+      isPersonal = false;
 
   factory _BookRow.fromBook(Book book) {
     return _BookRow(
@@ -248,6 +283,8 @@ class _BookRow {
           (book.category?.path ?? book.categoryPath ?? book.heCategories ?? '')
               .replaceFirst(RegExp(r'^/+'), ''),
       fileType: book.fileType ?? '',
+      icon: bookFormatIcon(book),
+      isPersonal: book.isPersonalBook,
     );
   }
 
@@ -263,12 +300,21 @@ class _BookRow {
       _lowerFields.any((field) => field.contains(lowerQuery));
 }
 
-String _buildCsv(List<_BookRow> rows) {
-  final buf = StringBuffer();
+/// ה-BOM גורם ל-Excel לקרוא את הקובץ כ-UTF-8.
+const _csvBom = '\uFEFF';
+
+/// קובץ ה-CSV של רשימת הספרים: ספרי הספרייה ואחריהם האישיים.
+@visibleForTesting
+String buildBooksCsv(List<Book> books) {
+  final rows = books.map(_BookRow.fromBook).toList();
+  final buf = StringBuffer(_csvBom);
   buf.write(
-    '${_csvEscape('כותרת')},${_csvEscape('מחבר')},${_csvEscape('קטגוריה')},${_csvEscape('סוג קובץ')}\r\n',
+    '${_csvEscape('כותרת')},${_csvEscape('מחבר')},${_csvEscape('קטגוריה')},${_csvEscape('סוג קובץ')},${_csvEscape('מקור')}\r\n',
   );
-  for (final r in rows) {
+  for (final r in [
+    ...rows.where((r) => !r.isPersonal),
+    ...rows.where((r) => r.isPersonal),
+  ]) {
     buf.write(_csvEscape(r.title));
     buf.write(',');
     buf.write(_csvEscape(r.author));
@@ -276,6 +322,8 @@ String _buildCsv(List<_BookRow> rows) {
     buf.write(_csvEscape(r.category));
     buf.write(',');
     buf.write(_csvEscape(r.fileType));
+    buf.write(',');
+    buf.write(_csvEscape(r.isPersonal ? 'אישי' : 'ספרייה'));
     buf.write('\r\n');
   }
   return buf.toString();

@@ -189,7 +189,7 @@ class AppInfoService {
     final stat = databaseExists ? await databaseFile.stat() : null;
 
     final books = await _loadBooks();
-    final personalBooks = books?.where((book) => book.isUserBook).length;
+    final personalBooks = books?.where((book) => book.isPersonalBook).length;
     final attached = await _collectAttachedLibraries();
 
     return {

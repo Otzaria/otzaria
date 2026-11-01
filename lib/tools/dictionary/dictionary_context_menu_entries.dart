@@ -152,7 +152,9 @@ String _summarizeAramaicDefinition(String definition) {
       .where((part) => part.isNotEmpty)
       .join('; ');
 
-  return _summarizePlainText(summary);
+  return _summarizePlainText(
+    AramaicDictionaryEntryPresentation.stripBold(summary),
+  );
 }
 
 String _summarizePlainText(String text, {int maxLength = 90}) {

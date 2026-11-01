@@ -1,12 +1,14 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
-import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/library/bloc/library_event.dart' show LibraryEvent;
 import 'package:otzaria/library/bloc/library_state.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
@@ -22,6 +24,8 @@ class MockLibraryBloc extends MockBloc<LibraryEvent, LibraryState>
 
 class MockSearchBloc extends MockBloc<SearchEvent, SearchState>
     implements SearchBloc {}
+
+class _FakeSearchEvent extends Fake implements SearchEvent {}
 
 class _TestSearchDialogWrapper {
   final SearchingTab tab;
@@ -125,5 +129,48 @@ void main() {
 
     expect(tab.title, 'חיפוש: צדיק גאולה');
     expect(tab.titleNotifier.value, 'חיפוש: צדיק גאולה');
+  });
+
+  testWidgets('כפתור הניקוי בשדה הראשי תמיד מוצג ומאפס גם כשהשדה ריק', (
+    tester,
+  ) async {
+    registerFallbackValue(_FakeSearchEvent());
+    final tab = SearchingTab('חיפוש', null);
+    addTearDown(tab.dispose);
+    tab.globalSearchOptions['קידומות דקדוקיות'] = true;
+    tab.searchOptions['x'] = {'a': true};
+    final searchBloc = MockSearchBloc();
+    whenListen(
+      searchBloc,
+      const Stream<SearchState>.empty(),
+      initialState: tab.searchBloc.state,
+    );
+    addTearDown(searchBloc.close);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BlocProvider<SearchBloc>.value(
+          value: searchBloc,
+          child: Scaffold(
+            body: EnhancedSearchField(
+              widget: _TestSearchDialogWrapper(tab),
+              showInlineSearchButton: false,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final clear = find.byIcon(FluentIcons.dismiss_24_regular);
+    expect(tab.queryController.text, isEmpty);
+    expect(clear, findsOneWidget);
+
+    await tester.tap(clear);
+    await tester.pump();
+
+    expect(tab.globalSearchOptions, isEmpty);
+    expect(tab.searchOptions, isEmpty);
+    verify(() => searchBloc.add(any(that: isA<UpdateSearchQuery>()))).called(1);
+    verify(() => searchBloc.add(any(that: isA<UpdateFacetCounts>()))).called(1);
   });
 }

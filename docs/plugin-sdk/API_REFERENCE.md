@@ -4391,7 +4391,7 @@ const { data } = await Otzaria.call('tools.dictionary', { term: 'רמב״ם' });
 //   aramaic: [] }
 ```
 
-מגרסה 0.9.99 כל ערך ארמי נושא `dictionary` - שם המילון שממנו הוא. כברירת מחדל
+מגרסה 0.9.98.3 כל ערך ארמי נושא `dictionary` - שם המילון שממנו הוא. כברירת מחדל
 מוחזרים ערכי "מילון פשיטא" בלבד, כמו עד כה. הפרמטר האופציונלי `dictionaries`
 (מערך שמות, עד 20) מחליף את הברירת מחדל: `['מילון פשיטא', 'מילון שיח ישראל',
 'מפירוש אונקלוס על התורה', 'מושגים ואישים']`. בכל רמת התאמה (המילה עצמה, ואחריה
@@ -4443,7 +4443,7 @@ const { data } = await Otzaria.call('tools.biographies', {
 **הצגת ערכים מחייבת קרדיט:** תוסף שמציג למשתמש תוכן מהביוגרפיות חייב להציג
 גם את `attribution`, ולצד כל ערך את המקורות שלו (`sources`).
 
-**מגרסה 0.9.99:** המאגר הוחלף ב"תולדות גדולי ישראל". ללא `formatVersion: 2`
+**מגרסה 0.9.98.3:** המאגר הוחלף ב"תולדות גדולי ישראל". ללא `formatVersion: 2`
 נשמרת תאימות למבנה התשובה: `id` מספרי ויציב, `communities` הוא מערך ריק
 ו-`biographyShort` מכיל את `summary`. שדות הטקסט מכבדים את הגדרת שמות הקודש.
 המזהים המספריים החדשים שליליים ובטוחים ל-`Number` של JavaScript. אפשר להעביר
@@ -5599,7 +5599,7 @@ async function scheduleReminder(title, body, dateTime) {
 | `shortcuts` | זהה ל-`app.registerShortcut` | `app.shortcuts` |
 | `publishedData` | `{type, key, payload, scope?}` | `published_data.write` |
 | `programs` | תכניות חישוב Host מוולדות | הרשאות הפקודות שבתכנית |
-| `searchDialogItems` | שורות checkbox סטטיות בדיאלוג החיפוש | `search.dialog` |
+| `searchDialogItems` | שורות checkbox או switch סטטיות בדיאלוג החיפוש | `search.dialog` |
 | `searchFieldActions` | כפתורי פעולה בתוך שדות החיפוש | `search.field_actions` |
 | `externalEditions` | קונפיגורציית מהדורות מקבילות חיצוניות (טבלת מיפוי במקור DB מוכרז) | `database.read` וגם `library.books.read` |
 | `libraryBooks` | ספקי ספרים שמתווספים לאיתור הספרים במסך הספרייה | `library.books.provide` |
@@ -5870,7 +5870,7 @@ async function scheduleReminder(title, body, dateTime) {
 
 ### שורות בדיאלוג החיפוש
 
-`startup.searchDialogItems` מוסיף שורות checkbox סטטיות בתחתית דיאלוג
+`startup.searchDialogItems` מוסיף שורות סטטיות (תיבת סימון או מתג) בתחתית דיאלוג
 **החיפוש בספרייה**, מעל כפתורי "ביטול" ו"חפש". הן אינן מוצגות בחיפוש
 בתוך ספר, שחוזה התוצאות שלו אינו נושא בחירות תוסף. הן נבנות ישירות מהמניפסט: פתיחת
 הדיאלוג, החלפת מצב, ולחיצה על ה-checkbox **אינן** מפעילות WebView ואינן
@@ -5908,18 +5908,20 @@ async function scheduleReminder(title, body, dateTime) {
 | שדה | חובה | תיאור |
 |---|---:|---|
 | `id` | כן | מזהה ייחודי בתוסף; אותיות ASCII, מספרים, `.`, `_`, `-`. |
-| `type` | כן | כעת רק `"checkbox"`. |
+| `type` | כן | `"checkbox"` (תיבת סימון) או `"switch"` (מתג; מגרסה 0.9.98.3). הרשאה, ניתוב ושמירה זהים; ההבדל הוא רק במראה. |
 | `title` | כן | הכיתוב המוצג למשתמש (עד 120 תווים). |
 | `defaultValue` | לא | ערך התחלתי, `false` כברירת מחדל. |
+| `persist` | לא | מגרסה 0.9.98.3, `true` כברירת מחדל. `true`: הבחירה האחרונה של המשתמש נשמרת ומשמשת בחיפושים הבאים. `false`: בחירה חד-פעמית. היא אינה נשמרת, ובכל פתיחה חדשה של הדיאלוג השורה חוזרת ל-`defaultValue` (בעריכת טאב חיפוש קיים נשארת הבחירה ששמורה בטאב). שילוב נפוץ: `checkbox` עם `persist: false` לאפשרות חד-פעמית, ו-`switch` לאפשרות קבועה. |
 | `openPluginOnSubmit` | לא | מגרסה 0.9.97: אם `true`, אישור חיפוש כשהשורה מסומנת פותח את דף התוסף ושולח אליו `search.requested`. |
 | `resultsProvider` | לא | שם ספק תוצאות חיצוני (אותיות קטנות, עד 64 תווים). כשהשורה מסומנת, טאב החיפוש מציג מדור תוצאות מהתוסף דרך `search.external.requested` (ראו `reader.registerExternalSearchProvider`). סותר את `openPluginOnSubmit`. |
 | `resultsTitle` | לא | כותרת מדור התוצאות בטאב החיפוש (עד 120 תווים); דורש `resultsProvider`. ברירת המחדל: `title`. |
-| `resultsAction` | לא | מגרסה 0.9.99: כיתוב כפתור (עד 120 תווים) בטאב החיפוש. הכפתור מוצג כשהחיפוש הסתיים, גם בלי תוצאות, ולחיצה פותחת את דף התוסף עם `search.requested` על אותו חיפוש. דורש `openPluginOnSubmit`. |
+| `resultsAction` | לא | מגרסה 0.9.98.3: כיתוב כפתור (עד 120 תווים) בטאב החיפוש. הכפתור מוצג כשהחיפוש הסתיים, גם בלי תוצאות, ולחיצה פותחת את דף התוסף עם `search.requested` על אותו חיפוש. דורש `openPluginOnSubmit`. |
 | `visibleInModes` | לא | מערך לא-ריק מתוך `"exact"`, `"advanced"`, `"fuzzy"`; ברירת המחדל היא כל המצבים. |
 | `disabledSearchOptions` | לא | אובייקט `מצב → מזהי אפשרויות מילה` להשבתה כשה-checkbox מסומן. |
 
 בלי `openPluginOnSubmit`, הבחירה נשמרת בקונפיגורציית טאב החיפוש במפתח
-`"<pluginId>/<itemId>"`. כשהשדה פעיל, פתיחת הדיאלוג והסימון עדיין סטטיים;
+`"<pluginId>/<itemId>"` (גם בשורה עם `persist: false`: הבחירה שייכת לטאב ואינה
+נשמרת לחיפוש הבא). כשהשדה פעיל, פתיחת הדיאלוג והסימון עדיין סטטיים;
 רק לחיצה על "חפש" פותחת את התוסף ומוסרת `{itemId, request}`. `request` הוא
 חוזה חוקי של `search.query`, אחרי נרמול המצב והאפשרויות. אם כמה שורות פעילות
 מבקשות ניתוב, כל תוסף נפתח ומקבל את הבקשה. מצב `fuzzy` יכול פשוט להיעדר
@@ -5999,6 +6001,9 @@ async function scheduleReminder(title, body, dateTime) {
 | `icon` | לא | שם אייקון, כמו ב-`toolbarItems` (ראו ICONS.md). |
 | `activeIcon` | לא | האייקון כשהתוסף מדווח `state: 'active'`. |
 | `fields` | לא | באילו שדות להציג. בלי השדה: בכל השדות הנתמכים. ערך לא מוכר מדולג. |
+| `visibleWhen` | לא | מגרסה 0.9.98.3. `"always"` (ברירת מחדל): הכפתור תמיד מוצג. `"nonEmptyText"`: מוצג רק כשיש טקסט בשדה (רווחים נחשבים לטקסט), כמו כפתור הניקוי; כפתור שיש לו סשן פתוח נשאר מוצג גם כשהשדה התרוקן. |
+| `mode` | לא | מגרסה 0.9.98.3. `"session"` (ברירת מחדל): סשן והאירוע `search.fieldAction.invoked`. `"providerBooksFilter"`: סינון מקור הספרים באיתור הספרים, ראו להלן. |
+| `libraryOnlyIcon` | לא | מגרסה 0.9.98.3, רק עם `mode: "providerBooksFilter"`: האייקון במצב "ספרי הספרייה בלבד". בלעדיו משמש `icon`. |
 
 עד 2 כפתורים לתוסף, ועד 3 כפתורים של תוספים בשדה אחד.
 
@@ -6035,6 +6040,42 @@ Otzaria.on('search.fieldAction.ended', ({ sessionId, reason }) => { /* ניקו�
   סשן חדש באותו שדה, או סשן אחר של אותו תוסף).
 - סשן אחד לכל שדה ולכל תוסף בכל רגע.
 
+**הקשר נוסף באירוע (מגרסה 0.9.98.3).** בנוסף לשדות שלמעלה, `search.fieldAction.invoked`
+נושא מפתחות שנוספו, והם חסרים כשאינם רלוונטיים לשדה:
+
+| מפתח | שדה | תוכן |
+|---|---|---|
+| `request` | `fullText` | מצב החיפוש בדיאלוג ברגע הלחיצה, באותו חוזר של `search.requested` (`query`, `mode`, `order`, `limit`, `distance`, `facets`, `wordOptions` ועוד), אחרי נרמול המצב והאפשרויות. `query` הוא הטקסט שבשדה. |
+| `pluginSelections` | `fullText` | בחירות השורות של `searchDialogItems` של **התוסף הקורא בלבד**: אובייקט `itemId` ← `true`/`false`, כולל שורות שלא שונו (ערך ברירת המחדל או השמור). |
+| `categoryPath` | `library` | הקטגוריה הפתוחה במסך הספרייה, כרצף שמות מופרד בפסיק ורווח מהשורש (`"שו\"ת, אחרונים"`), באותו פורמט של `categoryPath` ב-`libraryBooks`. מחרוזת ריקה: שורש הספרייה. |
+
+הכפתור נשלח לאפליקציית הרקע של התוסף כשיש לו כזו, ובלעדיה נפתח דף התוסף —
+כמו עד כה. התוסף אינו מקבל את `request` או את `pluginSelections` בשום דרך אחרת.
+
+**כפתור סינון ספרי התוסף (`providerBooksFilter`, מגרסה 0.9.98.3).** כפתור עם
+`mode: "providerBooksFilter"` תקף רק בשדה `library` (בלי `fields`, זו ברירת
+המחדל), ודורש `contributes.startup.libraryBooks` ואת ההרשאה `library.books.provide`.
+לחיצה עליו אינה פותחת סשן ואינה שולחת אירוע; היא מחליפה מחזורית את הספרים שמוצגים
+בתוצאות החיפוש באיתור הספרים (תצוגת הקטגוריות אינה מושפעת):
+
+1. מצב התחלתי: ספרי הספרייה וספרי התוסף (כרגיל).
+2. לחיצה ראשונה: ספרי התוסף בלבד (כל הספקים של אותו תוסף).
+3. לחיצה שנייה: ספרי הספרייה בלבד, בלי ספרי תוספים.
+4. לחיצה שלישית: חזרה למצב ההתחלתי.
+
+המצב אינו נשמר בין הפעלות. הסרת הספק או השבתת התוסף מחזירות אותו למצב ההתחלתי.
+
+```json
+{
+  "id": "source-filter",
+  "title": "מקור הספרים",
+  "icon": "library_24_regular",
+  "activeIcon": "library_24_filled",
+  "libraryOnlyIcon": "book_24_regular",
+  "mode": "providerBooksFilter"
+}
+```
+
 **אבטחה.** סשן נוצר רק מלחיצת משתמש על כפתור של התוסף בשדה מסוים. הקריאות
 `search.setFieldText` / `setFieldActionState` / `endFieldSession` נכשלות
 ב-`error.not_found` עבור סשן שאינו קיים, שהסתיים או ששייך לתוסף אחר. המופע
@@ -6042,7 +6083,10 @@ Otzaria.on('search.fieldAction.ended', ({ sessionId, reason }) => { /* ניקו�
 המשתמש בשדה סוגרת את הסשן מיד, כך שהתוסף אינו יכול לדרוס את מה שהמשתמש הקליד.
 
 **זיהוי תמיכה.** בגרסה ללא התכונה הכפתור לא יוצג, ו-`search.setFieldText` מחזיר
-`error.unknown_method`. מומלץ להצהיר `minAppVersion: "0.9.98.1"`.
+`error.unknown_method`. הכפתור עצמו דורש `minAppVersion: "0.9.98.1"`, אבל המפתחות
+שנוספו מגרסה 0.9.98.3 (`visibleWhen`, `mode`, `libraryOnlyIcon`, וגם `persist`
+ו-`type: "switch"` ב-`searchDialogItems`) דורשים `minAppVersion: "0.9.98.3"`:
+מארח ישן יותר דוחה את המניפסט על מפתח לא מוכר, ולא מתעלם ממנו.
 
 ### מהדורות מקבילות חיצוניות (externalEditions)
 

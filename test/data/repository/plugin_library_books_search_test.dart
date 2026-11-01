@@ -60,6 +60,38 @@ void main() {
     expect((await find('אחרונים')).single, same(pluginBook));
   });
 
+  test('extraBooksOnly מחפש רק בספרים מבחוץ, בלי ספרייה ובלי תיקיות', () async {
+    final all = await repository.findBooksAndCategories(
+      'שו"ת',
+      null,
+      extraBooks: [pluginBook],
+      sortByRatio: false,
+    );
+    expect(all.categories, isNotEmpty);
+    expect(all.books.whereType<TextBook>(), isNotEmpty);
+
+    final only = await repository.findBooksAndCategories(
+      'שו"ת',
+      null,
+      extraBooks: [pluginBook],
+      extraBooksOnly: true,
+      sortByRatio: false,
+    );
+    expect(only.books.single, same(pluginBook));
+    expect(only.categories, isEmpty);
+  });
+
+  test('extraBooksOnly בלי ספרים מבחוץ מחזיר תוצאה ריקה', () async {
+    final only = await repository.findBooksAndCategories(
+      'אבני נזר',
+      null,
+      extraBooksOnly: true,
+      sortByRatio: false,
+    );
+    expect(only.books, isEmpty);
+    expect(only.categories, isEmpty);
+  });
+
   test('בלי ספרים מבחוץ התוצאות זהות למה שהיו', () async {
     final without = await repository.findBooksAndCategories(
       'אבני נזר',

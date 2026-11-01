@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/models/plugin_permission_labels.dart';
@@ -14,7 +15,97 @@ PluginManifest _manifest({Map<String, dynamic>? startup}) =>
       'contributes': {'startup': ?startup},
     });
 
+const _bannedJargon = [
+  'sqlite',
+  'localhost',
+  'webview',
+  'blob',
+  'legacy',
+  'faces',
+  'face ',
+  'ollama',
+  'loopback',
+  'api',
+  'json',
+  'http',
+  'isolate',
+  'runtime',
+  'מנוע',
+];
+
 void main() {
+  final shownPermissions = [
+    ...pluginValidPermissions,
+    pluginNewTabPagePermission,
+  ];
+
+  test('תיאורי ההרשאות כתובים בעברית פשוטה, בלי מונחים טכניים', () {
+    for (final permission in shownPermissions) {
+      final info = getPermissionInfo(permission);
+      final text = '${info.label} ${info.description}'.toLowerCase();
+      expect(info.description.trim(), isNotEmpty, reason: permission);
+      expect(RegExp(r'[א-ת]').hasMatch(info.description), isTrue);
+      for (final word in _bannedJargon) {
+        expect(text, isNot(contains(word)), reason: '$permission: $word');
+      }
+    }
+  });
+
+  test('תיאור ההפעלה ברקע לפי המניפסט אינו טכני', () {
+    for (final manifest in [
+      _manifest(),
+      _manifest(
+        startup: {
+          'contextMenuItems': [
+            {'id': 'lookup', 'title': 'Lookup'},
+          ],
+          'activationEvents': ['app.startup'],
+        },
+      ),
+      _manifest(
+        startup: {
+          'publishedData': [
+            {'type': 'calendar.event', 'key': 'static', 'payload': {}},
+          ],
+        },
+      ),
+    ]) {
+      final text = getPermissionInfo(
+        pluginRunOnStartupPermission,
+        manifest: manifest,
+      ).description.toLowerCase();
+      for (final word in _bannedJargon) {
+        expect(text, isNot(contains(word)), reason: word);
+      }
+    }
+  });
+
+  test('לכל הרשאה (פרט לאירועים) אייקון משלה', () {
+    final byIcon = <IconData, List<String>>{};
+    for (final permission in shownPermissions) {
+      if (permission.startsWith('events.subscribe:')) continue;
+      byIcon
+          .putIfAbsent(getPermissionInfo(permission).icon, () => [])
+          .add(permission);
+    }
+    final duplicates = byIcon.values.where((list) => list.length > 1);
+    expect(duplicates, isEmpty, reason: 'אייקון משותף להרשאות שונות');
+  });
+
+  test('ההרשאות החדשות מסבירות את מה שהן מאפשרות', () {
+    final fieldActions = getPermissionInfo(pluginSearchFieldActionsPermission);
+    expect(fieldActions.description, contains('הטקסט שבשדה'));
+    expect(fieldActions.description, contains('הקטגוריה'));
+    expect(fieldActions.description, contains('ספרי התוסף'));
+    final dialog = getPermissionInfo('search.dialog');
+    expect(dialog.description, contains('מילות החיפוש'));
+    expect(dialog.description, contains('נשמר'));
+    expect(
+      getPermissionInfo(pluginLibraryBooksProvidePermission).description,
+      contains('ספרים משלו'),
+    );
+  });
+
   test('לכל הרשאה תקפה יש תווית עברית — לא נופלת ל-fallback', () {
     final missing = pluginValidPermissions.where((permission) {
       final info = getPermissionInfo(permission);

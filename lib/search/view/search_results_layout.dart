@@ -5,6 +5,7 @@ import 'package:otzaria/search/search_defaults.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/bar_button.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
@@ -123,6 +124,11 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
     );
   }
 
+  /// רקע חלונית הניווט מאחורי התוצאות — כך הכרטיסים בהירים ממנו, כמו בחלונית
+  /// הצד של הקורא.
+  BoxDecoration _resultsDecoration(BuildContext context) =>
+      BoxDecoration(color: AppSurfaces.navPanelBackground(context));
+
   Widget _buildForSmallScreens(bool collapseMenus) {
     return Container(
       clipBehavior: Clip.hardEdge,
@@ -137,7 +143,7 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
               children: [
                 Container(
                   clipBehavior: Clip.hardEdge,
-                  decoration: const BoxDecoration(),
+                  decoration: _resultsDecoration(context),
                   child: widget.resultsBuilder(false),
                 ),
                 ValueListenableBuilder(
@@ -147,7 +153,7 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
                     child: SizedBox(
                       width: value ? 500 : 0,
                       child: Container(
-                        color: Theme.of(context).colorScheme.surface,
+                        color: NavSidePanel.background(context),
                         child: Column(
                           children: [Expanded(child: widget.facetPane)],
                         ),
@@ -186,7 +192,7 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
                     alignment: AlignmentDirectional.centerEnd,
                     mainContent: Container(
                       clipBehavior: Clip.hardEdge,
-                      decoration: const BoxDecoration(),
+                      decoration: _resultsDecoration(context),
                       child: widget.resultsBuilder(true),
                     ),
                     paneContent: NavPanelSearchScope(

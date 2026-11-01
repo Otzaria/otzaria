@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/plugins/models/plugin_search_dialog_item.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_selection_preferences.dart';
 import 'package:otzaria/plugins/services/plugin_external_search_service.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 
@@ -37,6 +38,96 @@ void main() {
     expect(parsed.disabledOptionsFor(SearchMode.advanced), {
       'word.partial',
       'word.typo-tolerance',
+    });
+  });
+
+  group('type ו-persist', () {
+    test('ברירת המחדל: checkbox שנשמר', () {
+      final parsed = PluginSearchDialogItem.fromPayload(item());
+      expect(parsed.type, PluginSearchDialogItemType.checkbox);
+      expect(parsed.isSwitch, isFalse);
+      expect(parsed.persist, isTrue);
+    });
+
+    test('switch נקרא, עם persist ברירת מחדל true', () {
+      final parsed = PluginSearchDialogItem.fromPayload({
+        ...item(),
+        'type': 'switch',
+      });
+      expect(parsed.type, PluginSearchDialogItemType.switchToggle);
+      expect(parsed.isSwitch, isTrue);
+      expect(parsed.persist, isTrue);
+    });
+
+    test('persist false נקרא גם ב-checkbox וגם ב-switch', () {
+      for (final type in ['checkbox', 'switch']) {
+        final parsed = PluginSearchDialogItem.fromPayload({
+          ...item(),
+          'type': type,
+          'persist': false,
+        });
+        expect(parsed.persist, isFalse, reason: type);
+      }
+    });
+
+    for (final (name, payload) in <(String, Map<String, dynamic>)>[
+      ('type לא מוכר', {...item(), 'type': 'radio'}),
+      ('type חסר', {...item()..remove('type')}),
+      ('persist לא בוליאני', {...item(), 'persist': 'no'}),
+    ]) {
+      test('נדחה: $name', () {
+        expect(
+          () => PluginSearchDialogItem.fromPayload(payload),
+          throwsA(isA<PluginSearchDialogItemException>()),
+        );
+      });
+    }
+  });
+
+  group('PluginSearchSelectionPreferences.resolveSelection', () {
+    PluginSearchDialogItem parse({bool persist = true, bool def = false}) =>
+        PluginSearchDialogItem.fromPayload({
+          ...item(),
+          'defaultValue': def,
+          'persist': persist,
+        });
+    final resolve = PluginSearchSelectionPreferences.resolveSelection;
+
+    test('פריט שנשמר: טאב > שמור > ברירת מחדל', () {
+      final persisted = parse(def: true);
+      expect(resolve(persisted), isTrue);
+      expect(resolve(persisted, persistedValue: false), isFalse);
+      expect(
+        resolve(persisted, tabValue: true, persistedValue: false),
+        isTrue,
+      );
+    });
+
+    test('פריט חד-פעמי מתעלם מהערך השמור וחוזר לברירת המחדל', () {
+      final oneShot = parse(persist: false, def: true);
+      expect(resolve(oneShot, persistedValue: false), isTrue);
+      expect(resolve(oneShot, tabValue: false, persistedValue: true), isFalse);
+    });
+
+    test('persistedAfterChange: null לפריט חד-פעמי, מפה חדשה לפריט שנשמר', () {
+      final persisted = {'p/a': true};
+      final after = PluginSearchSelectionPreferences.persistedAfterChange(
+        persisted,
+        'p/b',
+        parse(),
+        false,
+      );
+      expect(after, {'p/a': true, 'p/b': false});
+      expect(persisted, {'p/a': true});
+      expect(
+        PluginSearchSelectionPreferences.persistedAfterChange(
+          persisted,
+          'p/b',
+          parse(persist: false),
+          false,
+        ),
+        isNull,
+      );
     });
   });
 

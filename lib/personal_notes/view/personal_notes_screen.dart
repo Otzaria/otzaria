@@ -1324,10 +1324,7 @@ class _PersonalNotesManagerScreenState
         referenceText: note.displayTitle,
         icon: FluentIcons.edit_24_regular,
         bookId: note.bookId,
-        linkableNotes: [
-          ...context.read<PersonalNotesBloc>().state.locatedNotes,
-          ...context.read<PersonalNotesBloc>().state.missingNotes,
-        ],
+        linkableNotes: _collectAllNotes(),
       ),
     );
     if (result == null) return;

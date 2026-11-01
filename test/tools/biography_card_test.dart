@@ -105,4 +105,26 @@ void main() {
       });
     }
   }
+
+  testWidgets('נפטר מוצג בשורה נפרדת מתחת ל"נולד"', (tester) async {
+    const withDates = Biography(
+      id: 'dates',
+      name: 'רבי ישראל',
+      born: LifeEvent(hebrew: 'תתצ"ח'),
+      died: LifeEvent(hebrew: 'תתקס"ה'),
+    );
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(body: BiographyCard(biography: withDates)),
+        ),
+      ),
+    );
+
+    final born = tester.getTopLeft(find.textContaining('נולד'));
+    final died = tester.getTopLeft(find.textContaining('נפטר'));
+
+    expect(died.dy, greaterThan(born.dy));
+  });
 }

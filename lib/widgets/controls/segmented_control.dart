@@ -14,6 +14,12 @@ class SegmentOption<T> {
   final IconData? icon;
   final IconData? rtlIcon;
 
+  /// הסבר שמוצג בריחוף; ברירת המחדל היא התווית המלאה.
+  final String? tooltip;
+
+  /// מפתח לתווית — נקודת האחיזה של בדיקות, כי מקטע אינו מקבל מפתח.
+  final Key? labelKey;
+
   /// תת-כותרת המשויכת לאפשרות זו — נלקחת אוטומטית ע"י
   /// [SettingsActionTile.segmentedTile] כשלא סופק subtitle מפורש.
   final String? subtitle;
@@ -23,6 +29,8 @@ class SegmentOption<T> {
     required this.label,
     this.icon,
     this.rtlIcon,
+    this.tooltip,
+    this.labelKey,
     this.subtitle,
   }) : assert(
          icon == null || rtlIcon == null,
@@ -79,6 +87,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
             // ואז maxLines חותך אותו למילה הראשונה.
             label: Text(
               o.label,
+              key: o.labelKey,
               style: AppTextStyles.settingTitle,
               maxLines: maxLabelLines,
               textAlign: TextAlign.center,
@@ -86,7 +95,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
             ),
             icon: hasIcons ? _buildOptionIcon(o) : null,
             // תווית ארוכה נחתכת ב-ellipsis; הטולטיפ מציג אותה במלואה.
-            tooltip: o.label,
+            tooltip: o.tooltip ?? o.label,
           ),
         )
         .toList();

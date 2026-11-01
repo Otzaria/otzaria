@@ -45,6 +45,7 @@ class _Repository extends DataRepository {
     bool includeHebrewBooks = false,
     bool includeLocalHebrewBooks = true,
     List<Book> extraBooks = const [],
+    bool extraBooksOnly = false,
     bool sortByRatio = true,
     Object? supersedeKey,
   }) async {
@@ -59,6 +60,7 @@ class _Repository extends DataRepository {
         includeHebrewBooks: includeHebrewBooks,
         includeLocalHebrewBooks: includeLocalHebrewBooks,
         extraBooks: extraBooks,
+        extraBooksOnly: extraBooksOnly,
         sortByRatio: sortByRatio,
         supersedeKey: supersedeKey,
       );

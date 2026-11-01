@@ -86,4 +86,32 @@ void main() {
       }
     },
   );
+
+  testWidgets('AppSegmentedControl uses a custom tooltip and a label key', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppSegmentedControl<int>(
+            options: const [
+              SegmentOption(value: 1, label: 'One', tooltip: 'First option'),
+              SegmentOption(
+                value: 2,
+                label: 'Two',
+                labelKey: ValueKey('second'),
+              ),
+            ],
+            currentValue: 1,
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byTooltip('First option'), findsOneWidget);
+    expect(find.byTooltip('One'), findsNothing);
+    expect(find.byTooltip('Two'), findsOneWidget);
+    expect(find.byKey(const ValueKey('second')), findsOneWidget);
+  });
 }

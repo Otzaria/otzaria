@@ -1,10 +1,13 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/plugins/models/plugin_library_books_filter.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
+import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/plugins/utils/plugin_icon_resolver.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 
 /// כפתורי התוספים בתוך שדה חיפוש [field]. ריק כשאין תוסף שתרם כפתור לשדה.
 ///
@@ -22,10 +25,15 @@ class PluginSearchFieldActions extends StatefulWidget {
   final double buttonSize;
   final double iconSize;
 
+  /// ההקשר שנשלח לתוסף עם `search.fieldAction.invoked`, נבנה בלחיצה.
+  final Map<String, dynamic> Function()? invocationContext;
+
   @visibleForTesting
   final PluginSearchFieldActionsRegistry? registry;
   @visibleForTesting
   final PluginSearchFieldSessionService? sessions;
+  @visibleForTesting
+  final PluginLibraryBooksRegistry? libraryBooks;
 
   const PluginSearchFieldActions({
     super.key,
@@ -35,8 +43,10 @@ class PluginSearchFieldActions extends StatefulWidget {
     this.onSubmitted,
     this.buttonSize = 32,
     this.iconSize = 20,
+    this.invocationContext,
     this.registry,
     this.sessions,
+    this.libraryBooks,
   });
 
   @override
@@ -45,11 +55,13 @@ class PluginSearchFieldActions extends StatefulWidget {
 }
 
 class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
-    implements PluginSearchFieldBinding {
+    implements PluginSearchFieldBinding, PluginSearchFieldContextSource {
   PluginSearchFieldActionsRegistry get _registry =>
       widget.registry ?? PluginSearchFieldActionsRegistry.instance;
   PluginSearchFieldSessionService get _sessions =>
       widget.sessions ?? PluginSearchFieldSessionService.instance;
+  PluginLibraryBooksRegistry get _libraryBooks =>
+      widget.libraryBooks ?? PluginLibraryBooksRegistry.instance;
 
   @override
   void initState() {
@@ -95,20 +107,115 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
   void submit() => widget.onSubmitted?.call(widget.controller.text);
 
   @override
+  Map<String, dynamic> get invocationContext =>
+      widget.invocationContext?.call() ?? const {};
+
+  /// כפתור עם סשן פתוח נשאר גלוי גם כשהטקסט התרוקן, כדי שאפשר יהיה לעצור אותו.
+  bool _isShown(String pluginId, PluginSearchFieldAction action) =>
+      (action.isVisibleFor(widget.controller.text) ||
+          _sessions.sessionFor(this, pluginId, action.id) != null) &&
+      (!action.isProviderBooksFilter || _libraryBooks.hasProviderFor(pluginId));
+
+  @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([_registry, _sessions]),
+      listenable: Listenable.merge([
+        _registry,
+        _sessions,
+        if (widget.field == PluginSearchField.library) ...[
+          _libraryBooks,
+          _libraryBooks.sourceFilter,
+        ],
+      ]),
       builder: (context, _) {
-        final actions = _registry.actionsFor(widget.field);
-        if (actions.isEmpty) return const SizedBox.shrink();
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final (pluginId, action) in actions)
-              _buildButton(context, pluginId, action),
-          ],
+        final registered = _registry.actionsFor(widget.field);
+        // האזנה לכל הקשה רק כשיש כפתור שתלוי בטקסט.
+        if (!registered.any((entry) => entry.$2.showOnlyWithText)) {
+          return _buildRow(context, registered);
+        }
+        return ListenableBuilder(
+          listenable: widget.controller,
+          builder: (context, _) => _buildRow(context, registered),
         );
       },
+    );
+  }
+
+  Widget _buildRow(
+    BuildContext context,
+    List<(String, PluginSearchFieldAction)> registered,
+  ) {
+    final actions = [
+      for (final (pluginId, action) in registered)
+        if (_isShown(pluginId, action)) (pluginId, action),
+    ];
+    if (actions.isEmpty) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (pluginId, action) in actions)
+          action.isProviderBooksFilter
+              ? _buildFilterButton(context, pluginId, action)
+              : _buildButton(context, pluginId, action),
+      ],
+    );
+  }
+
+  Widget _buildFilterButton(
+    BuildContext context,
+    String pluginId,
+    PluginSearchFieldAction action,
+  ) {
+    final source = _libraryBooks.sourceFilter.value.sourceFor(pluginId);
+    final icon =
+        pluginIconFromName(action.icon) ?? FluentIcons.puzzle_piece_24_regular;
+    final (iconData, state) = switch (source) {
+      PluginLibraryBooksSource.all => (
+        icon,
+        context.settingsText('מציג את כולם'),
+      ),
+      PluginLibraryBooksSource.pluginOnly => (
+        pluginIconFromName(action.activeIcon) ?? icon,
+        context.settingsText('מציג רק ספרי התוסף'),
+      ),
+      PluginLibraryBooksSource.libraryOnly => (
+        pluginIconFromName(action.libraryOnlyIcon) ?? icon,
+        context.settingsText('מציג רק ספרי הספרייה'),
+      ),
+    };
+    return _iconButton(
+      context,
+      key: ValueKey('plugin-search-field-action:$pluginId:${action.id}'),
+      glyph: Icon(iconData, size: widget.iconSize),
+      tooltip: '${action.title}: $state',
+      selected: source != PluginLibraryBooksSource.all,
+      onPressed: () => _libraryBooks.cycleSource(pluginId),
+    );
+  }
+
+  Widget _iconButton(
+    BuildContext context, {
+    required Key key,
+    required Widget glyph,
+    required String tooltip,
+    required bool selected,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: widget.buttonSize,
+      height: widget.buttonSize,
+      child: IconButton(
+        key: key,
+        icon: glyph,
+        tooltip: tooltip,
+        isSelected: selected,
+        color: selected
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.onSurfaceVariant,
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        onPressed: onPressed,
+      ),
     );
   }
 
@@ -117,7 +224,6 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
     String pluginId,
     PluginSearchFieldAction action,
   ) {
-    final cs = Theme.of(context).colorScheme;
     final session = _sessions.sessionFor(this, pluginId, action.id);
     final state = session?.state ?? PluginSearchFieldActionState.idle;
     final icon =
@@ -134,24 +240,18 @@ class _PluginSearchFieldActionsState extends State<PluginSearchFieldActions>
       ),
       PluginSearchFieldActionState.idle => Icon(icon, size: widget.iconSize),
     };
-    return SizedBox(
-      width: widget.buttonSize,
-      height: widget.buttonSize,
-      child: IconButton(
-        key: ValueKey('plugin-search-field-action:$pluginId:${action.id}'),
-        icon: glyph,
-        tooltip: session?.tooltip ?? action.title,
-        isSelected: session != null,
-        color: session != null ? cs.primary : cs.onSurfaceVariant,
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        onPressed: () => _sessions.press(
-          binding: this,
-          viewId: View.of(context).viewId,
-          windowKeys: AppWindowKeys.of(context),
-          pluginId: pluginId,
-          actionId: action.id,
-        ),
+    return _iconButton(
+      context,
+      key: ValueKey('plugin-search-field-action:$pluginId:${action.id}'),
+      glyph: glyph,
+      tooltip: session?.tooltip ?? action.title,
+      selected: session != null,
+      onPressed: () => _sessions.press(
+        binding: this,
+        viewId: View.of(context).viewId,
+        windowKeys: AppWindowKeys.of(context),
+        pluginId: pluginId,
+        actionId: action.id,
       ),
     );
   }

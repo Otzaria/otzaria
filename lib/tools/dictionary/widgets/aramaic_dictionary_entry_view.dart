@@ -112,7 +112,10 @@ class _MeaningView extends StatelessWidget {
               ],
               if (meaning.mainText.isNotEmpty)
                 Text(
-                  meaning.mainText,
+                  // הטקסט כבר מודגש; הסימון עצמו לא מוצג.
+                  AramaicDictionaryEntryPresentation.stripBold(
+                    meaning.mainText,
+                  ),
                   style: textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     height: 1.35,

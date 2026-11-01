@@ -14,6 +14,18 @@ class _FakeProgressService extends ProgressService {
   ProgressMapById progressById;
   CompletionDatesByIdMap completionDatesById;
   Map<int, List<ProgressColumn>> columnsById;
+  ColumnCompletionDatesMap columnDatesById = {};
+
+  @override
+  Future<ColumnCompletionDatesMap> loadColumnCompletionDates() async =>
+      columnDatesById;
+
+  @override
+  Future<void> saveColumnCompletionDates(
+    ColumnCompletionDatesMap dates,
+  ) async {
+    columnDatesById = dates;
+  }
 
   @override
   Future<ProgressMapById> loadProgressDataById() async => progressById;
@@ -34,6 +46,11 @@ class _FakeProgressService extends ProgressService {
   @override
   Future<void> saveCompletionDatesById(CompletionDatesByIdMap dates) async {
     completionDatesById = dates;
+  }
+
+  @override
+  Future<void> saveCompletionDateById(int bookId, String date) async {
+    completionDatesById[bookId] = date;
   }
 
   @override
@@ -325,6 +342,129 @@ void main() {
       );
 
       expect(provider.getCompletionDateSyncById(42), isNotNull);
+    });
+  });
+  group('column completion dates', () {
+    BookDetails tenPageBook() => BookDetails(
+      id: 42,
+      contentType: 'text',
+      parts: const [BookPart(name: 'ראשי', startPage: 1, endPage: 10)],
+    );
+
+    _FakeProgressService twoColumns() => _FakeProgressService(
+      progressById: {},
+      completionDatesById: {},
+      columnsById: {
+        42: const [
+          ProgressColumn(id: 'learn', label: 'לימוד'),
+          ProgressColumn(id: 'review1', label: 'חזרה 1'),
+        ],
+      },
+    );
+
+    Future<ShamorZachorProgressProvider> loaded(
+      _FakeProgressService service,
+    ) async {
+      final provider = ShamorZachorProgressProvider(progressService: service);
+      addTearDown(provider.dispose);
+      await provider.ensureLoaded();
+      return provider;
+    }
+
+    test('a column gets its own date the moment it becomes complete', () async {
+      final service = twoColumns();
+      final provider = await loaded(service);
+
+      await provider.toggleSelectAllForColumnById(
+        42,
+        tenPageBook(),
+        'learn',
+        true,
+      );
+
+      expect(provider.getColumnCompletionDate(42, 'learn'), isNotNull);
+      expect(provider.getColumnCompletionDate(42, 'review1'), isNull);
+      expect(provider.getCompletionDateSyncById(42), isNull);
+      expect(service.columnDatesById[42], contains('learn'));
+    });
+
+    test('a partly marked column has no date', () async {
+      final provider = await loaded(twoColumns());
+
+      await provider.toggleRangeForColumnById(
+        42,
+        tenPageBook(),
+        'learn',
+        0,
+        8,
+        true,
+      );
+
+      expect(provider.getColumnCompletionDate(42, 'learn'), isNull);
+    });
+
+    test(
+      'single-item marking completes the column and unmarking drops it',
+      () async {
+        final service = twoColumns();
+        final provider = await loaded(service);
+        final book = tenPageBook();
+
+        for (var i = 0; i < 10; i++) {
+          await provider.updateProgressById(42, i, 'learn', true, book);
+        }
+        expect(provider.getColumnCompletionDate(42, 'learn'), isNotNull);
+
+        await provider.updateProgressById(42, 3, 'learn', false, book);
+        expect(provider.getColumnCompletionDate(42, 'learn'), isNull);
+        expect(service.columnDatesById, isEmpty);
+      },
+    );
+
+    test(
+      're-marking an already complete column keeps the original date',
+      () async {
+        final service = twoColumns()
+          ..progressById = {
+            42: {
+              for (var i = 0; i < 10; i++) '$i': PageProgress(learn: true),
+            },
+          }
+          ..columnDatesById = {
+            42: {'learn': '2025-03-10T09:00:00.000'},
+          };
+        final provider = await loaded(service);
+
+        await provider.toggleRangeForColumnById(
+          42,
+          tenPageBook(),
+          'learn',
+          0,
+          4,
+          true,
+        );
+
+        expect(
+          provider.getColumnCompletionDate(42, 'learn'),
+          DateTime.parse('2025-03-10T09:00:00.000'),
+        );
+      },
+    );
+
+    test('removing a column and clearing the book drop their dates', () async {
+      final service = twoColumns();
+      final provider = await loaded(service);
+      final book = tenPageBook();
+      await provider.toggleSelectAllForColumnById(42, book, 'learn', true);
+      await provider.toggleSelectAllForColumnById(42, book, 'review1', true);
+
+      await provider.removeColumn(42, 'review1');
+      expect(provider.getColumnCompletionDate(42, 'review1'), isNull);
+      expect(provider.getColumnCompletionDate(42, 'learn'), isNotNull);
+
+      await provider.clearBookProgressById(42);
+      expect(provider.getColumnCompletionDate(42, 'learn'), isNull);
+      expect(service.columnDatesById.containsKey(42), isFalse);
     });
   });
 }

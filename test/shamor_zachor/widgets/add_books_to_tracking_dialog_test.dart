@@ -133,4 +133,30 @@ void main() {
       isNotNull,
     );
   });
+  testWidgets('שורות הקטגוריות והספרים מופרדות בקו דק לכל רוחב השורה', (
+    tester,
+  ) async {
+    await _pumpDialog(tester);
+    await _expandCategory(tester, DatabaseConstants.talmudBavliFolderName);
+    await _expandCategory(tester, 'סדר זרעים');
+
+    final tile = find.widgetWithText(CheckboxListTile, 'ברכות');
+    final shape = tester.widget<CheckboxListTile>(tile).shape as Border;
+    expect(shape.bottom.style, BorderStyle.solid);
+    expect(shape.bottom.width, greaterThan(0));
+
+    // The indent is inside the tile, so the divider is as wide as the card.
+    final card = find.byType(ListView).first;
+    expect(tester.getRect(tile).left, tester.getRect(card).left);
+    expect(tester.getRect(tile).right, tester.getRect(card).right);
+
+    final categoryRow = find.ancestor(
+      of: find.text('סדר זרעים'),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is Container && (w.decoration as BoxDecoration?)?.border != null,
+      ),
+    );
+    expect(categoryRow, findsOneWidget);
+  });
 }

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/models/plugin_library_book_provider.dart';
+import 'package:otzaria/plugins/models/plugin_library_books_filter.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
@@ -129,6 +130,41 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
   /// ספרי הספקים שתנאי ה-`when` שלהם מתקיים כרגע.
   List<ExternalLibraryBook> get visibleBooks => _visibleBooks;
 
+  /// מצב כפתור `providerBooksFilter`. ההאזנה לשינוי היא ההזדמנות להריץ מחדש
+  /// את החיפוש המוצג; הסינון חל על תוצאות החיפוש בלבד.
+  final ValueNotifier<PluginLibraryBooksFilter> sourceFilter = ValueNotifier(
+    PluginLibraryBooksFilter.all,
+  );
+
+  /// לחיצה על כפתור `providerBooksFilter` של [pluginId]; מחזיר את המצב
+  /// החדש שלו. תוסף בלי ספק רשום אינו משנה דבר.
+  PluginLibraryBooksSource cycleSource(String pluginId) {
+    if (hasProviderFor(pluginId)) {
+      sourceFilter.value = sourceFilter.value.pressedBy(pluginId);
+    }
+    return sourceFilter.value.sourceFor(pluginId);
+  }
+
+  void resetSourceFilter() => sourceFilter.value = PluginLibraryBooksFilter.all;
+
+  /// הספרים מבחוץ שיצטרפו לחיפוש לפי [sourceFilter]: בלי ספרים במצב
+  /// "ספרי הספרייה בלבד", ורק של התוסף שנבחר במצב "ספרי התוסף בלבד".
+  List<ExternalLibraryBook> get filteredVisibleBooks {
+    final filter = sourceFilter.value;
+    return switch (filter.source) {
+      PluginLibraryBooksSource.all => _visibleBooks,
+      PluginLibraryBooksSource.libraryOnly => const [],
+      PluginLibraryBooksSource.pluginOnly => [
+        for (final book in _visibleBooks)
+          if (providerOf(book)?.pluginId == filter.pluginId) book,
+      ],
+    };
+  }
+
+  /// האם החיפוש מוגבל לספרי התוסף בלבד (בלי ספרי הספרייה).
+  bool get searchesExtraBooksOnly =>
+      sourceFilter.value.source == PluginLibraryBooksSource.pluginOnly;
+
   /// הספק שהספר שייך לו, רק כשהספק רשום כרגע לתוסף שיצר את הספר.
   PluginLibraryBookProvider? providerOf(Book book) {
     if (book is! ExternalLibraryBook) return null;
@@ -214,15 +250,22 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
     if (existing != null && existing.sameAs(parsed) && renamed.isEmpty) return;
     _providers[parsed.provider] = parsed;
     notifyListeners();
+    _dropOrphanedSourceFilter();
     if (existing == null) unawaited(_restore(pluginId, parsed.provider));
   }
 
   void remove(String pluginId, String itemId) {
-    if (_forget(_ownedBy(pluginId, itemId: itemId))) notifyListeners();
+    if (_forget(_ownedBy(pluginId, itemId: itemId))) {
+      notifyListeners();
+      _dropOrphanedSourceFilter();
+    }
   }
 
   void removePlugin(String pluginId) {
-    if (_forget(_ownedBy(pluginId))) notifyListeners();
+    if (_forget(_ownedBy(pluginId))) {
+      notifyListeners();
+      _dropOrphanedSourceFilter();
+    }
   }
 
   /// איפוס נתוני התוסף מוחק את הרשימות מה-DB. הספקים נשארים רשומים, כדי
@@ -256,6 +299,15 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
       _resets[provider] = _resetsOf(provider) + 1;
     }
     return providers.isNotEmpty;
+  }
+
+  /// נקרא אחרי ההודעה ואחרי רישום ספק חלופי, כדי ששינוי שם של הספק היחיד
+  /// לא יאפס את הסינון ושמאזיני הסינון יראו את הרשימה המעודכנת.
+  void _dropOrphanedSourceFilter() {
+    final filterOwner = sourceFilter.value.pluginId;
+    if (filterOwner != null && !hasProviderFor(filterOwner)) {
+      resetSourceFilter();
+    }
   }
 
   int _revisionOf(String provider) => _revisions[provider] ?? 0;

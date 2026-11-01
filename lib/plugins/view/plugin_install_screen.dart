@@ -469,7 +469,7 @@ class _KeepAliveBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'התוסף מבקש למנוע את כיבוי מנוע הרקע',
+                  'התוסף מבקש שלא יכבו אותו ברקע',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,

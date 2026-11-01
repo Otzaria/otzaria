@@ -5,6 +5,7 @@ import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/models/plugin_library_book_provider.dart';
+import 'package:otzaria/plugins/models/plugin_library_books_filter.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
@@ -720,6 +721,164 @@ void main() {
 
       expect(notifications, 0);
     });
+  });
+
+  group('מקור הספרים (providerBooksFilter)', () {
+    Future<void> twoPlugins() async {
+      registry.registerPayload('p1', _provider());
+      registry.registerPayload(
+        'p2',
+        _provider(id: 'other', provider: 'otherlib'),
+      );
+      await registry.setBooks('p1', 'mylib', [
+        {'id': 1, 'title': 'ספר של p1'},
+      ]);
+      await registry.setBooks('p2', 'otherlib', [
+        {'id': 2, 'title': 'ספר של p2'},
+      ]);
+    }
+
+    test('המחזור: הכול, ספרי התוסף, ספרי הספרייה, ושוב הכול', () {
+      expect(
+        PluginLibraryBooksSource.all.next,
+        PluginLibraryBooksSource.pluginOnly,
+      );
+      expect(
+        PluginLibraryBooksSource.pluginOnly.next,
+        PluginLibraryBooksSource.libraryOnly,
+      );
+      expect(
+        PluginLibraryBooksSource.libraryOnly.next,
+        PluginLibraryBooksSource.all,
+      );
+    });
+
+    test('מצב התחלתי: הכול, בלי סינון', () async {
+      await twoPlugins();
+
+      expect(registry.sourceFilter.value, PluginLibraryBooksFilter.all);
+      expect(registry.filteredVisibleBooks, hasLength(2));
+      expect(registry.searchesExtraBooksOnly, isFalse);
+    });
+
+    test('לחיצות: ספרי התוסף בלבד, ספרי הספרייה בלבד, חזרה לכול', () async {
+      await twoPlugins();
+      final changes = <PluginLibraryBooksFilter>[];
+      registry.sourceFilter.addListener(
+        () => changes.add(registry.sourceFilter.value),
+      );
+
+      expect(registry.cycleSource('p1'), PluginLibraryBooksSource.pluginOnly);
+      expect(registry.searchesExtraBooksOnly, isTrue);
+      final pluginBooks = registry.filteredVisibleBooks;
+      expect(pluginBooks.map((b) => b.title), ['ספר של p1']);
+
+      expect(registry.cycleSource('p1'), PluginLibraryBooksSource.libraryOnly);
+      expect(registry.searchesExtraBooksOnly, isFalse);
+      expect(registry.filteredVisibleBooks, isEmpty);
+
+      expect(registry.cycleSource('p1'), PluginLibraryBooksSource.all);
+      expect(registry.filteredVisibleBooks, hasLength(2));
+      expect(changes, hasLength(3));
+    });
+
+    test('כפתור של תוסף אחר מתחיל מחזור חדש ממצב הכול', () async {
+      await twoPlugins();
+
+      registry.cycleSource('p1');
+      expect(
+        registry.sourceFilter.value.sourceFor('p2'),
+        PluginLibraryBooksSource.all,
+      );
+      expect(registry.cycleSource('p2'), PluginLibraryBooksSource.pluginOnly);
+      expect(registry.filteredVisibleBooks.map((b) => b.title), ['ספר של p2']);
+      expect(
+        registry.sourceFilter.value.sourceFor('p1'),
+        PluginLibraryBooksSource.all,
+      );
+    });
+
+    test('תוסף בלי ספק רשום אינו משנה דבר', () async {
+      await twoPlugins();
+
+      expect(registry.cycleSource('nobody'), PluginLibraryBooksSource.all);
+      expect(registry.sourceFilter.value, PluginLibraryBooksFilter.all);
+    });
+
+    test('הסרת הספק או התוסף מחזירה למצב הכול', () async {
+      await twoPlugins();
+      registry.cycleSource('p1');
+      registry.removePlugin('p1');
+      expect(registry.sourceFilter.value, PluginLibraryBooksFilter.all);
+
+      registry.cycleSource('p2');
+      registry.remove('p2', 'other');
+      expect(registry.sourceFilter.value, PluginLibraryBooksFilter.all);
+    });
+
+    test('שינוי שם הספק היחיד של התוסף משאיר את המצב', () {
+      registry.registerPayload('p1', _provider(id: 'a', provider: 'first'));
+      registry.cycleSource('p1');
+      final seen = <PluginLibraryBooksFilter>[];
+      registry.sourceFilter.addListener(
+        () => seen.add(registry.sourceFilter.value),
+      );
+
+      registry.registerPayload('p1', _provider(id: 'a', provider: 'renamed'));
+
+      expect(
+        registry.sourceFilter.value.sourceFor('p1'),
+        PluginLibraryBooksSource.pluginOnly,
+      );
+      expect(seen, isEmpty);
+    });
+
+    test('מאזיני הסינון נקראים אחרי הודעת הרישום', () {
+      registry.registerPayload('p1', _provider(id: 'a', provider: 'first'));
+      registry.cycleSource('p1');
+      final order = <String>[];
+      registry.addListener(() => order.add('registry'));
+      registry.sourceFilter.addListener(() => order.add('filter'));
+
+      registry.removePlugin('p1');
+
+      expect(order, ['registry', 'filter']);
+    });
+
+    test('הסרת ספק אחר של אותו תוסף משאירה את המצב', () async {
+      registry.registerPayload('p1', _provider(id: 'a', provider: 'first'));
+      registry.registerPayload('p1', _provider(id: 'b', provider: 'second'));
+      registry.cycleSource('p1');
+
+      registry.remove('p1', 'a');
+
+      expect(
+        registry.sourceFilter.value.sourceFor('p1'),
+        PluginLibraryBooksSource.pluginOnly,
+      );
+    });
+
+    test(
+      'ספרי תוסף שאינם גלויים לפי when אינם מצטרפים למצב ספרי התוסף',
+      () async {
+        registry.registerPayload(
+          'p1',
+          _provider(
+            when: {
+              'storage': {'key': 'show', 'notEquals': false},
+            },
+          ),
+        );
+        await registry.setBooks('p1', 'mylib', [
+          {'id': 1, 'title': 'א'},
+        ]);
+        repo.kv['p1|default|show'] = 'false';
+        await conditions.registerStorageKeys('p1', {'show'}, repo);
+        registry.cycleSource('p1');
+
+        expect(registry.filteredVisibleBooks, isEmpty);
+      },
+    );
   });
 
   group('פתיחה וזהות', () {

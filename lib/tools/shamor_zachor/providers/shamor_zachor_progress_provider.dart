@@ -39,6 +39,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
 
   ProgressMapById _progressById = {};
   CompletionDatesByIdMap _completionDatesById = {};
+  ColumnCompletionDatesMap _columnDatesById = {};
 
   /// הגדרות העמודות המותאמות לכל ספר (bookId → רשימת עמודות)
   Map<int, List<ProgressColumn>> _columnsByBookId = {};
@@ -97,6 +98,9 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       bookProgress.removeWhere((_, progress) => progress.isEmpty);
       if (bookProgress.isEmpty) _progressById.remove(bookId);
       await _progressService.saveProgressDataById(_progressById);
+    }
+    if (_columnDatesById[bookId]?.remove(columnId) != null) {
+      await _progressService.saveColumnCompletionDates(_columnDatesById);
     }
     await _persistColumns(bookId, columns);
   }
@@ -166,6 +170,7 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       _progressById = await _progressService.loadProgressDataById();
       _completionDatesById = await _progressService.loadCompletionDatesById();
       _columnsByBookId = await _progressService.loadColumnsByBookId();
+      _columnDatesById = await _progressService.loadColumnCompletionDates();
 
       _logger.info(
         'Successfully loaded progress: ${_progressById.length} books',
@@ -207,6 +212,33 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     return _completionDatesById[bookId];
   }
 
+  /// מתי הושלמה העמודה כולה, או null אם אינה שלמה או שהתאריך לא נשמר
+  /// (עמודה שהושלמה לפני שהתאריכים נשמרו).
+  DateTime? getColumnCompletionDate(int bookId, String columnId) {
+    final raw = _columnDatesById[bookId]?[columnId];
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  /// רושם תאריך כשעמודה עוברת ממצב חלקי לשלם, ומסיר אותו כשהיא חדלה להיות שלמה.
+  Future<void> _syncColumnCompletionDate(
+    int bookId,
+    String columnId,
+    BookDetails bookDetails, {
+    required bool wasComplete,
+  }) async {
+    final isComplete = _isColumnCompleteById(bookId, columnId, bookDetails);
+    if (isComplete && !wasComplete) {
+      (_columnDatesById[bookId] ??= {})[columnId] = DateTime.now()
+          .toIso8601String();
+    } else if (!isComplete &&
+        _columnDatesById[bookId]?.remove(columnId) != null) {
+      if (_columnDatesById[bookId]!.isEmpty) _columnDatesById.remove(bookId);
+    } else {
+      return;
+    }
+    await _progressService.saveColumnCompletionDates(_columnDatesById);
+  }
+
   /// Update progress for a single item by book ID
   Future<void> updateProgressById(
     int bookId,
@@ -224,6 +256,11 @@ class ShamorZachorProgressProvider with ChangeNotifier {
         _progressById = await _progressService.loadProgressDataById();
       }
 
+      final wasComplete = _isColumnCompleteById(
+        bookId,
+        columnName,
+        bookDetails,
+      );
       _progressById.putIfAbsent(bookId, () => {});
       _progressById[bookId]!.putIfAbsent(itemIndexKey, () => PageProgress());
 
@@ -238,6 +275,12 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       }
 
       await _progressService.saveProgressDataById(_progressById);
+      await _syncColumnCompletionDate(
+        bookId,
+        columnName,
+        bookDetails,
+        wasComplete: wasComplete,
+      );
 
       _invalidateSummaryCache(bookId);
 
@@ -369,6 +412,11 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     required String errorMessage,
   }) async {
     try {
+      final wasComplete = _isColumnCompleteById(
+        bookId,
+        columnName,
+        bookDetails,
+      );
       _progressById[bookId] ??= {};
       final bookProgress = _progressById[bookId]!;
 
@@ -379,6 +427,12 @@ class ShamorZachorProgressProvider with ChangeNotifier {
       }
 
       await _progressService.saveProgressDataById(_progressById);
+      await _syncColumnCompletionDate(
+        bookId,
+        columnName,
+        bookDetails,
+        wasComplete: wasComplete,
+      );
       _invalidateSummaryCache(bookId);
 
       if (value) {
@@ -433,9 +487,11 @@ class ShamorZachorProgressProvider with ChangeNotifier {
     try {
       _progressById.remove(bookId);
       _completionDatesById.remove(bookId);
+      _columnDatesById.remove(bookId);
 
       await _progressService.saveProgressDataById(_progressById);
       await _progressService.saveCompletionDatesById(_completionDatesById);
+      await _progressService.saveColumnCompletionDates(_columnDatesById);
 
       _invalidateSummaryCache(bookId);
 

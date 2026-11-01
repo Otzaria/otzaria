@@ -1,15 +1,34 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:otzaria/plugins/models/plugin_search_dialog_item.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 
 /// זיכרון הבחירה האחרונה בשורות החיפוש הסטטיות של תוספים.
 ///
-/// המפתח הוא `<pluginId>/<itemId>`, וערך שמור גובר על `defaultValue` שבמניפסט.
+/// המפתח הוא `<pluginId>/<itemId>`, וערך שמור גובר על `defaultValue` שבמניפסט —
+/// אלא בשורה עם `persist: false`, שאינה נשמרת ואינה נקראת מכאן.
 class PluginSearchSelectionPreferences {
   static const String _key = 'key-plugin-search-selections';
 
   PluginSearchSelectionPreferences._();
+
+  /// ערך השורה: בחירה בטאב הנוכחי ([tabValue]) גוברת על הבחירה השמורה
+  /// ([persistedValue], רק כש-`item.persist`), וזו על `defaultValue`.
+  static bool resolveSelection(
+    PluginSearchDialogItem item, {
+    bool? tabValue,
+    bool? persistedValue,
+  }) => tabValue ?? (item.persist ? persistedValue : null) ?? item.defaultValue;
+
+  /// הבחירות השמורות אחרי ש-[key] קיבל את [value]; `null` כשאין מה לשמור
+  /// (שורה עם `persist: false`).
+  static Map<String, bool>? persistedAfterChange(
+    Map<String, bool> persisted,
+    String key,
+    PluginSearchDialogItem item,
+    bool value,
+  ) => item.persist ? {...persisted, key: value} : null;
 
   static Map<String, bool> load() {
     final String? raw;

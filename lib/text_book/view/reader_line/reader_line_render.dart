@@ -411,8 +411,8 @@ class RenderReaderLineGutter extends RenderProxyBox {
 
   void _paintBars(PaintingContext context, Offset offset) {
     final paint = Paint()..color = _color;
-    for (final rect in barRects()) {
-      context.canvas.drawRect(rect.shift(offset), paint);
+    for (final rect in mergeSelectionBars(barRects())) {
+      context.canvas.drawRRect(selectionBarShape(rect.shift(offset)), paint);
     }
   }
 

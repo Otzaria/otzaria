@@ -323,7 +323,8 @@ class PluginExtendedValidator {
   };
   static const String _contextMenuActionMinVersion = '0.9.97';
   static const String _searchSubmitRoutingMinVersion = '0.9.97';
-  static const String _searchResultsActionMinVersion = '0.9.99';
+  static const String _searchResultsActionMinVersion = '0.9.98.3';
+  static const String _searchUiOptionsMinVersion = '0.9.98.3';
   static const String _boundToolbarOpenPluginMinVersion = '0.9.98.1';
   static const String _externalEditionsMinVersion = '0.9.97';
   static const String _libraryBooksMinVersion = '0.9.98';
@@ -505,14 +506,40 @@ class PluginExtendedValidator {
       // minAppVersion נבדק ב-PluginManifestValidator.
     }
     final ids = <String>{};
+    var usesNewOptions = false;
     for (final item in startup.searchFieldActions) {
       try {
         final parsed = PluginSearchFieldAction.fromPayload(item);
         if (!ids.add(parsed.id)) errors.add('$field מכיל מזהה כפול');
+        usesNewOptions =
+            usesNewOptions ||
+            item.containsKey('visibleWhen') ||
+            item.containsKey('mode') ||
+            item.containsKey('libraryOnlyIcon');
+        if (parsed.isProviderBooksFilter) {
+          if (!declaredPermissions.contains(
+            pluginLibraryBooksProvidePermission,
+          )) {
+            errors.add(
+              '$field עם mode "providerBooksFilter" דורש את ההרשאה '
+              '"$pluginLibraryBooksProvidePermission" ב-manifest',
+            );
+          }
+          if (startup.libraryBooks.isEmpty) {
+            errors.add(
+              '$field עם mode "providerBooksFilter" דורש '
+              'contributes.startup.libraryBooks',
+            );
+          }
+        }
         for (final name in PluginSearchFieldAction.unknownFieldNames(item)) {
           warnings.add('$field: שדה החיפוש "$name" אינו מוכר ולא יוצג');
         }
-        for (final icon in [parsed.icon, parsed.activeIcon].nonNulls) {
+        for (final icon in [
+          parsed.icon,
+          parsed.activeIcon,
+          parsed.libraryOnlyIcon,
+        ].nonNulls) {
           if (pluginIconFromName(icon) == null) {
             warnings.add('$field: האייקון "$icon" אינו מוכר');
           }
@@ -521,11 +548,47 @@ class PluginExtendedValidator {
         errors.add('$field לא תקין: $error');
       }
     }
-    if (!declaredPermissions.contains(pluginRunOnStartupPermission)) {
+    if (usesNewOptions) {
+      _requireMinVersion(
+        manifest,
+        _searchUiOptionsMinVersion,
+        '$field: visibleWhen, mode ו-libraryOnlyIcon',
+        errors,
+      );
+    }
+    // כפתור סינון אינו שולח אירוע ואינו פותח דף, ולכן ההרשאה לא משנה לו.
+    final hasSessionAction = startup.searchFieldActions.any(
+      (item) =>
+          item['mode'] != PluginSearchFieldActionMode.providerBooksFilter.name,
+    );
+    if (hasSessionAction &&
+        !declaredPermissions.contains(pluginRunOnStartupPermission)) {
       warnings.add(
         '$field בלי ההרשאה "$pluginRunOnStartupPermission": לחיצה על הכפתור '
         'תפתח את דף התוסף במקום להעיר את מנוע הרקע',
       );
+    }
+  }
+
+  static void _requireMinVersion(
+    PluginManifest manifest,
+    String minVersion,
+    String feature,
+    List<String> errors,
+  ) {
+    try {
+      if (PluginVersionUtils.compareCoreVersions(
+            minVersion,
+            manifest.minAppVersion,
+          ) >
+          0) {
+        errors.add(
+          '$feature נתמך החל מגרסה $minVersion, אך minAppVersion שהוצהר הוא '
+          '${manifest.minAppVersion}. עדכן את minAppVersion',
+        );
+      }
+    } on PluginVersionFormatException {
+      // minAppVersion נבדק ב-PluginManifestValidator.
     }
   }
 
@@ -928,6 +991,16 @@ class PluginExtendedValidator {
         } on PluginVersionFormatException {
           // minAppVersion נבדק ב-PluginManifestValidator.
         }
+      }
+      if (startup.searchDialogItems.any(
+        (item) => item['type'] == 'switch' || item.containsKey('persist'),
+      )) {
+        _requireMinVersion(
+          manifest,
+          _searchUiOptionsMinVersion,
+          'searchDialogItems: type "switch" ו-persist',
+          errors,
+        );
       }
       final itemIds = <String>{};
       for (final item in startup.searchDialogItems) {

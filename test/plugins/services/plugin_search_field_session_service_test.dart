@@ -46,6 +46,24 @@ class _FakeField implements PluginSearchFieldBinding {
   void submit() => submits++;
 }
 
+class _ContextField extends _FakeField
+    implements PluginSearchFieldContextSource {
+  _ContextField(super.service, this.context, {super.text});
+
+  final Map<String, dynamic> context;
+
+  @override
+  Map<String, dynamic> get invocationContext => context;
+}
+
+class _ThrowingContextField extends _FakeField
+    implements PluginSearchFieldContextSource {
+  _ThrowingContextField(super.service);
+
+  @override
+  Map<String, dynamic> get invocationContext => throw StateError('boom');
+}
+
 void main() {
   late List<_Sent> sent;
   late PluginSearchFieldSessionService service;
@@ -106,6 +124,67 @@ void main() {
       'selectionEnd': 9,
     });
     expect(sent.single.payload['sessionId'], startsWith('s_'));
+  });
+
+  test('שדה בלי הקשר נוסף שולח רק את השדות הקיימים', () async {
+    await invoke(_FakeField(service, text: 'א'));
+    expect(
+      sent.single.payload.keys,
+      containsAll(['actionId', 'sessionId', 'field', 'text']),
+    );
+    expect(sent.single.payload.containsKey('request'), isFalse);
+    expect(sent.single.payload.containsKey('pluginSelections'), isFalse);
+    expect(sent.single.payload.containsKey('categoryPath'), isFalse);
+  });
+
+  test('הקשר החיפוש מצורף ו-pluginSelections מצומצם לתוסף הקורא', () async {
+    final field = _ContextField(service, {
+      'request': {'query': 'ברכות', 'mode': 'advanced'},
+      'pluginSelections': {
+        'voice/exact': true,
+        'voice/other': false,
+        'someone/else': true,
+      },
+      'categoryPath': 'שו"ת, אחרונים',
+      'unknown': 'dropped',
+    }, text: 'ברכות');
+    await invoke(field);
+
+    final payload = sent.single.payload;
+    expect(payload['request'], {'query': 'ברכות', 'mode': 'advanced'});
+    expect(payload['pluginSelections'], {'exact': true, 'other': false});
+    expect(payload['categoryPath'], 'שו"ת, אחרונים');
+    expect(payload.containsKey('unknown'), isFalse);
+    expect(sent.single.preferBackground, isTrue);
+  });
+
+  test('ערכים מסוג לא צפוי בהקשר נזרקים', () async {
+    final field = _ContextField(service, {
+      'request': 'not a map',
+      'categoryPath': 3,
+      'pluginSelections': {'voice/a': 'yes', 7: true},
+    });
+    await invoke(field);
+
+    expect(sent.single.payload.containsKey('request'), isFalse);
+    expect(sent.single.payload.containsKey('categoryPath'), isFalse);
+    expect(sent.single.payload['pluginSelections'], isEmpty);
+  });
+
+  test('הקשר שזורק לא משאיר סשן רשום ולא שולח אירוע', () async {
+    final field = _ThrowingContextField(service);
+    var notified = 0;
+    service.addListener(() => notified++);
+
+    await expectLater(
+      service.press(binding: field, pluginId: 'voice', actionId: 'dictate'),
+      throwsStateError,
+    );
+
+    expect(service.hasSessionsFor(field), isFalse);
+    expect(service.hasSessionFor('voice'), isFalse);
+    expect(notified, 0);
+    expect(sent, isEmpty);
   });
 
   test(

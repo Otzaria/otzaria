@@ -6,6 +6,7 @@ import 'package:otzaria/theme/app_seed_colors.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_colors.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// ניגודיות WCAG בין שני צבעים (יחס בהירות).
 double _contrastRatio(Color a, Color b) {
@@ -34,6 +35,16 @@ void main() {
       expect(theme.tooltipTheme.textStyle?.color, colorScheme.onSurface);
     });
   }
+
+  test('בוחרי תאריך מצוירים באותו רדיוס כמו שאר הדיאלוגים', () {
+    final theme = AppThemeData.light(
+      AppThemeData.createColorScheme(Colors.deepPurple, Brightness.light),
+      compactMenuMode: false,
+    );
+
+    expect(theme.datePickerTheme.shape, AppTokens.roundedShape);
+    expect(theme.datePickerTheme.rangePickerShape, AppTokens.roundedShape);
+  });
 
   group('ערכת צבע "לבן"', () {
     test('במצב בהיר רקע מסך העיון לבן מוחלט', () {

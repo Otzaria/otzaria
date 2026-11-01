@@ -175,6 +175,17 @@ class OpenAppReportAction extends ExternalUriAction {
   const OpenAppReportAction();
 }
 
+/// פתיחת חלונית התרומה בנדרים+ (שם הקופה, מספר הקופה וכתובת הדף).
+class OpenDonationAction extends ExternalUriAction {
+  const OpenDonationAction();
+}
+
+/// פתיחת חלון ניהול הדיווחים השמורים (הגדרות ← מערכת), ולא טופס דיווח חדש —
+/// ראו [OpenAppReportAction].
+class OpenReportsManagementAction extends ExternalUriAction {
+  const OpenReportsManagementAction();
+}
+
 /// פתיחת הדף היומי — פותח את ספר ה-PDF של התלמוד הבבלי בדף הנכון ליום.
 class OpenDailyPageAction extends ExternalUriAction {
   const OpenDailyPageAction();
@@ -243,6 +254,8 @@ class ShowInfoAction extends ExternalUriAction {
 /// * `otzaria://open/sdk`                   – פותח הגדרות ← כלים (ניהול תוספים)
 /// * `otzaria://open/daily_page`            – פותח את הדף היומי (PDF תלמוד בבלי בדף הנכון)
 /// * `otzaria://open/report`                – פותח את טופס הדיווח על התוכנה
+/// * `otzaria://open/reports`               – פותח את חלון ניהול הדיווחים השמורים
+/// * `otzaria://open/donate`                – פותח את חלונית התרומה בנדרים+ (גם `nedarim`)
 /// * `otzaria://open/tool/<tool-id>`        – כרטיסיית כלי בעיון לפי מזהה מלא
 /// * `otzaria://open/plugin/<plugin-id>`    – פתיחת תוסף ישירות לפי מזהה (גם לא-מוצמד)
 /// * `otzaria://open/tab/<index>`           – מעבר לטאב פתוח לפי מיקומו (0-based; Jump List)
@@ -598,6 +611,14 @@ class ExternalUriRouter {
 
       if (firstLower == 'report') {
         return const OpenAppReportAction();
+      }
+
+      if (firstLower == 'reports') {
+        return const OpenReportsManagementAction();
+      }
+
+      if (firstLower == 'donate' || firstLower == 'nedarim') {
+        return const OpenDonationAction();
       }
 
       // settings בלי sub-tab — פותח הגדרות ללא ניווט לטאב ספציפי.
