@@ -436,6 +436,16 @@ class AppWindowListener extends WindowListener {
       timeout: const Duration(seconds: 1),
     );
 
+    // WebView2 שנסגר משחיר את החלון והוא נראה תקוע (#3735); הכיבוי ממשיך מוסתר.
+    // לא במק: הסתרה במסך מלא משאירה Space שחור (#3551).
+    if (!kIsWeb && Platform.isWindows) {
+      await _runBestEffortShutdownStep(
+        'hideWindow',
+        windowManager.hide,
+        timeout: const Duration(seconds: 1),
+      );
+    }
+
     await _runBestEffortShutdownStep(
       'finishIndexingCanary',
       () async => IndexingCrashCanary.current?.finish(),
