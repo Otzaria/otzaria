@@ -11,6 +11,10 @@ import 'package:otzaria/plugins/services/plugin_condition_evaluator.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 
+/// ספרים לרשומות שהשתנו, ולכל רשומה מקומה ברשימה הקודמת (‎-1: ספר חדש
+/// מ-`fresh`, לפי הסדר).
+typedef _BuiltBooks = ({List<ExternalLibraryBook> fresh, Int32List reused});
+
 typedef PluginLibraryBooksDispatch =
     Future<void> Function(
       String pluginId,
@@ -97,6 +101,12 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
   /// מונה לכל ספק: כתיבה או טעינה שהסתיימה אחרי שינוי מאוחר יותר (רשימה
   /// חדשה, איפוס, הסרה) אינה דורסת אותו.
   final Map<String, int> _revisions = {};
+
+  /// רשימות מפוענחות ב-isolate במקביל, ומוחלות לפי סדר השליחה.
+  final Map<String, Future<void>> _parseTurns = {};
+
+  /// איפוס או הסרה בזמן הפענוח: רשימה שנשלחה לפניהם לא תיכתב.
+  final Map<String, int> _resets = {};
 
   /// הספקים שהוצגו בהודעה האחרונה. המעריך מודיע על כל מפתח של כל תוסף,
   /// וכל הודעה כאן מריצה מחדש את החיפוש המוצג בספרייה.
@@ -221,6 +231,7 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
     var changed = false;
     for (final provider in _ownedBy(pluginId)) {
       _revisions[provider] = _revisionOf(provider) + 1;
+      _resets[provider] = _resetsOf(provider) + 1;
       _entries.remove(provider);
       _pending.remove(provider);
       changed = _books.remove(provider) != null || changed;
@@ -242,11 +253,14 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
       _entries.remove(provider);
       _pending.remove(provider);
       _revisions[provider] = _revisionOf(provider) + 1;
+      _resets[provider] = _resetsOf(provider) + 1;
     }
     return providers.isNotEmpty;
   }
 
   int _revisionOf(String provider) => _revisions[provider] ?? 0;
+
+  int _resetsOf(String provider) => _resets[provider] ?? 0;
 
   /// מחליף את כל ספרי [provider]; רשימה ריקה מסירה אותם. מחזיר את מספר
   /// הספרים שנשמרו.
@@ -259,7 +273,21 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
         notFound: true,
       );
     }
-    final entries = PluginLibraryBookEntry.parseList(raw);
+    final resets = _resetsOf(provider);
+    final parsing = _parseInIsolate(raw);
+    final previousTurn = _parseTurns[provider];
+    final turn = Completer<void>();
+    _parseTurns[provider] = turn.future;
+    final List<PluginLibraryBookEntry> entries;
+    try {
+      entries = await parsing;
+      await previousTurn;
+    } finally {
+      turn.complete(previousTurn);
+    }
+    if (_resetsOf(provider) != resets || !isOwner(pluginId, provider)) {
+      return entries.length;
+    }
     if (_sameEntries(_pending[provider] ?? _entries[provider], entries)) {
       return entries.length;
     }
@@ -268,18 +296,27 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
     _pending[provider] = entries;
     bool current() =>
         _revisionOf(provider) == revision && isOwner(pluginId, provider);
+    final previousEntries = _entries[provider] ?? const [];
+    final previousBooks = _books[provider] ?? const [];
 
     try {
-      final stored = entries.isEmpty ? null : await _encodeInIsolate(entries);
+      final prepared = entries.isEmpty
+          ? null
+          : await _prepareInIsolate(provider, entries, previousEntries);
       // איפוס או הסרה בזמן הקידוד: כתיבה עכשיו הייתה מחזירה רשימה שנמחקה.
       if (!current()) return entries.length;
-      if (stored == null) {
+      if (prepared == null) {
         await _repository.removeKV(pluginId, _storageNamespace, provider);
       } else {
-        await _repository.setKV(pluginId, _storageNamespace, provider, stored);
+        await _repository.setKV(
+          pluginId,
+          _storageNamespace,
+          provider,
+          prepared.stored,
+        );
       }
       if (current()) {
-        _apply(pluginId, provider, entries);
+        _apply(pluginId, provider, entries, prepared?.books, previousBooks);
         notifyListeners();
       }
       return entries.length;
@@ -294,29 +331,49 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
     String pluginId,
     String provider,
     List<PluginLibraryBookEntry> entries,
+    _BuiltBooks? built,
+    List<ExternalLibraryBook> previousBooks,
   ) {
-    final previousEntries = _entries[provider] ?? const [];
-    final previousBooks = _books[provider] ?? const [];
-    final previousIndex = {
-      for (var i = 0; i < previousEntries.length; i++) previousEntries[i].id: i,
-    };
-    final books = <ExternalLibraryBook>[];
-    for (final entry in entries) {
-      final index = previousIndex[entry.id];
-      if (index != null && _sameEntry(previousEntries[index], entry)) {
-        books.add(previousBooks[index]);
-        continue;
-      }
-      final book = entry.toBook(provider);
+    final fresh = built?.fresh ?? const <ExternalLibraryBook>[];
+    for (final book in fresh) {
       _creator[book] = pluginId;
-      books.add(book);
     }
+    var next = 0;
+    final books = fresh.length == entries.length
+        ? fresh
+        : [
+            for (final index in built!.reused)
+              index < 0 ? fresh[next++] : previousBooks[index],
+          ];
     _entries[provider] = entries;
     if (books.isEmpty) {
       _books.remove(provider);
     } else {
       _books[provider] = books;
     }
+  }
+
+  static _BuiltBooks _buildBooks(
+    String provider,
+    List<PluginLibraryBookEntry> entries,
+    List<PluginLibraryBookEntry> previous,
+  ) {
+    final previousIndex = {
+      for (var i = 0; i < previous.length; i++) previous[i].id: i,
+    };
+    final fresh = <ExternalLibraryBook>[];
+    final reused = Int32List(entries.length);
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      final index = previousIndex[entry.id];
+      if (index != null && _sameEntry(previous[index], entry)) {
+        reused[i] = index;
+      } else {
+        reused[i] = -1;
+        fresh.add(entry.toBook(provider));
+      }
+    }
+    return (fresh: fresh, reused: reused);
   }
 
   static bool _sameEntry(PluginLibraryBookEntry a, PluginLibraryBookEntry b) =>
@@ -339,6 +396,8 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
 
   Future<void> _restore(String pluginId, String provider) async {
     final revision = _revisionOf(provider);
+    final previousEntries = _entries[provider] ?? const [];
+    final previousBooks = _books[provider] ?? const [];
     try {
       final raw = await _repository.getKV(
         pluginId,
@@ -347,14 +406,20 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
       );
       if (raw == null) return;
       // רשימה של אלפי ספרים, בעליית התוכנה: מפוענחת מחוץ ל-isolate של הממשק.
-      final entries = await _decodeInIsolate(raw);
-      if (entries == null ||
-          entries.isEmpty ||
+      final restored = await _decodeInIsolate(provider, raw, previousEntries);
+      if (restored == null ||
+          restored.entries.isEmpty ||
           _revisionOf(provider) != revision ||
           !isOwner(pluginId, provider)) {
         return;
       }
-      _apply(pluginId, provider, entries);
+      _apply(
+        pluginId,
+        provider,
+        restored.entries,
+        restored.books,
+        previousBooks,
+      );
       notifyListeners();
     } catch (e) {
       // רשימה פגומה לא תעצור את עליית התוספים; התוסף ישלח אותה שוב.
@@ -373,12 +438,30 @@ class PluginLibraryBooksRegistry extends ChangeNotifier {
 
   // סטטיות בכוונה: סגור שנוצר במתודה של המופע עלול לשאת את `this` להקשר
   // המשותף, ו-Isolate.run נכשל על אובייקט שאי אפשר לשלוח.
-  static Future<String> _encodeInIsolate(
+  static Future<({String stored, _BuiltBooks books})> _prepareInIsolate(
+    String provider,
     List<PluginLibraryBookEntry> entries,
-  ) => Isolate.run(() => _encode(entries));
+    List<PluginLibraryBookEntry> previous,
+  ) => Isolate.run(
+    () => (
+      stored: _encode(entries),
+      books: _buildBooks(provider, entries, previous),
+    ),
+  );
 
-  static Future<List<PluginLibraryBookEntry>?> _decodeInIsolate(String raw) =>
-      Isolate.run(() => _decode(raw));
+  static Future<List<PluginLibraryBookEntry>> _parseInIsolate(Object? raw) =>
+      Isolate.run(() => PluginLibraryBookEntry.parseList(raw));
+
+  static Future<({List<PluginLibraryBookEntry> entries, _BuiltBooks books})?>
+  _decodeInIsolate(
+    String provider,
+    String raw,
+    List<PluginLibraryBookEntry> previous,
+  ) => Isolate.run(() {
+    final entries = _decode(raw);
+    if (entries == null) return null;
+    return (entries: entries, books: _buildBooks(provider, entries, previous));
+  });
 
   static String _encode(List<PluginLibraryBookEntry> entries) => jsonEncode({
     'version': _storageVersion,

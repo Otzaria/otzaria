@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/models/plugin_book_identity.dart';
 import 'package:otzaria/plugins/models/plugin_library_book_provider.dart';
@@ -219,6 +220,38 @@ void main() {
       expect(registry.providerOf(book)?.provider, 'mylib');
     });
 
+    test('ספרים שנבנו ב-isolate זהים לספרים שנבנים כאן', () async {
+      final entries = [
+        for (var i = 1; i <= 3000; i++)
+          PluginLibraryBookEntry(
+            id: i,
+            title: 'ספר $i',
+            author: i.isEven ? 'מחבר $i' : null,
+            categoryPath: i % 3 == 0 ? '/שו"ת/אחרונים' : null,
+          ),
+      ];
+      repo.kv[_storedKey] = jsonEncode({
+        'version': 1,
+        'books': [for (final entry in entries) entry.toStorage()],
+      });
+
+      registry.registerPayload('p1', _provider());
+      await _eventually(() => registry.visibleBooks.length == entries.length);
+
+      final books = registry.booksOf('mylib');
+      expect(books, hasLength(entries.length));
+      for (var i = 0; i < entries.length; i++) {
+        final expected = entries[i].toBook('mylib');
+        expect(
+          books[i].toJson(),
+          expected.toJson(),
+          reason: 'book ${entries[i].id}',
+        );
+        expect(books[i].source, same(BookSource.official));
+        expect(registry.providerOf(books[i])?.pluginId, 'p1');
+      }
+    });
+
     test('רשימה שמורה פגומה אינה מפילה את הרישום', () async {
       repo.kv[_storedKey] = '{not json';
 
@@ -366,6 +399,65 @@ void main() {
       );
     });
 
+    test('רשימה של 50,000 ספרים מתקבלת ומנורמלת', () async {
+      final books = [
+        for (var i = 1; i <= PluginLibraryBookEntry.maxBooksPerProvider; i++)
+          {'id': i, 'title': ' ספר	 $i ', 'categoryPath': 'שו"ת/ אחרונים'},
+      ];
+
+      expect(await registry.setBooks('p1', 'mylib', books), 50000);
+
+      final stored = registry.booksOf('mylib');
+      expect(stored, hasLength(50000));
+      expect(stored.last.title, 'ספר 50000');
+      expect(stored.last.categoryPath, 'שו"ת, אחרונים');
+    });
+
+    test('שליחות מהירות זו אחר זו: האחרונה קובעת גם כשקודמת ארוכה', () async {
+      final long = registry.setBooks('p1', 'mylib', [
+        for (var i = 1; i <= 20000; i++) {'id': i, 'title': 'ארוך $i'},
+      ]);
+      final middle = registry.setBooks('p1', 'mylib', [
+        {'id': 1, 'title': 'ביניים'},
+      ]);
+      final last = registry.setBooks('p1', 'mylib', [
+        {'id': 2, 'title': 'אחרון'},
+      ]);
+      await Future.wait([long, middle, last]);
+
+      expect(registry.booksOf('mylib').single.title, 'אחרון');
+      expect(
+        (jsonDecode(repo.kv[_storedKey]!) as Map)['books'],
+        [
+          [2, 'אחרון', null, null],
+        ],
+      );
+    });
+
+    test('שליחה פגומה אחרי שליחה תקינה אינה מבטלת אותה', () async {
+      final valid = registry.setBooks('p1', 'mylib', [
+        for (var i = 1; i <= 20000; i++) {'id': i, 'title': 'תקין $i'},
+      ]);
+      final invalid = registry.setBooks('p1', 'mylib', [
+        {'id': 0, 'title': 'א'},
+      ]);
+
+      await expectLater(
+        invalid,
+        throwsA(
+          isA<PluginLibraryBooksException>()
+              .having((e) => e.notFound, 'notFound', isFalse)
+              .having(
+                (e) => e.message,
+                'message',
+                'books[0].id must be a positive integer',
+              ),
+        ),
+      );
+      expect(await valid, 20000);
+      expect(registry.booksOf('mylib'), hasLength(20000));
+    });
+
     test('ספר שלא השתנה שומר את האובייקט (והתצוגה המקדימה נשארת)', () async {
       await registry.setBooks('p1', 'mylib', [
         {'id': 1, 'title': 'א'},
@@ -384,6 +476,39 @@ void main() {
       expect(after[1], isNot(same(before[0])));
       expect(after[1].title, 'א מתוקן');
       expect(registry.providerOf(after[2])?.provider, 'mylib');
+    });
+
+    test('ספר שנטען מה-DB ולא השתנה שומר את האובייקט אחרי setBooks', () async {
+      repo.kv['p1|otzaria.library-books|stored'] = jsonEncode({
+        'version': 1,
+        'books': [
+          [1, 'א', null, null],
+          [2, 'ב', 'מחבר', '/שו"ת'],
+          [3, 'ג', null, null],
+        ],
+      });
+      registry.registerPayload(
+        'p1',
+        _provider(id: 'stored', provider: 'stored'),
+      );
+      await _eventually(() => registry.booksOf('stored').length == 3);
+      final before = registry.booksOf('stored');
+
+      await registry.setBooks('p1', 'stored', [
+        {'id': 4, 'title': 'ד'},
+        {'id': 3, 'title': 'ג'},
+        {'id': 1, 'title': 'א חדש'},
+        {'id': 2, 'title': 'ב', 'author': 'מחבר', 'categoryPath': 'שו"ת'},
+      ]);
+      final after = registry.booksOf('stored');
+
+      expect([for (final book in after) book.title], ['ד', 'ג', 'א חדש', 'ב']);
+      expect(after[1], same(before[2]));
+      expect(after[3], same(before[1]));
+      expect(after[2], isNot(same(before[0])));
+      for (final book in after) {
+        expect(registry.providerOf(book)?.pluginId, 'p1', reason: book.title);
+      }
     });
 
     test('רשימה ריקה שוב אינה נכתבת ואינה מודיעה', () async {
