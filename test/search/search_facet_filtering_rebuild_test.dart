@@ -5,6 +5,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/messages/common_messages.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
@@ -16,6 +17,7 @@ import 'package:otzaria/search/bloc/search_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/view/full_text_facet_filtering.dart';
 import 'package:otzaria/search/view/search_navigation_tree.dart';
+import 'package:otzaria/semantic_search/view/widgets/semantic_facet_filtering.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
 import 'package:otzaria/settings/engine/settings_event.dart';
 import 'package:otzaria/settings/engine/settings_state.dart';
@@ -77,35 +79,70 @@ void main() {
 
   late _MockSearchBloc searchBloc;
   late StreamController<SearchState> searchStates;
+  late StreamController<LibraryState> libraryStates;
+  late LibraryState libraryState;
   late SearchingTab tab;
   late List<Object> disposables;
 
   setUp(() {
     tab = SearchingTab('חיפוש', null);
     searchStates = StreamController<SearchState>.broadcast();
+    libraryStates = StreamController<LibraryState>.broadcast();
+    libraryState = LibraryState(library: makeLibrary());
+    disposables = [];
   });
 
   tearDown(() async {
     tab.dispose();
     await searchStates.close();
+    await libraryStates.close();
     for (final bloc in disposables) {
       await (bloc as BlocBase).close();
     }
   });
 
+  _MockLibraryBloc mockLibraryBloc() {
+    final libraryBloc = _MockLibraryBloc();
+    whenListen(libraryBloc, libraryStates.stream, initialState: libraryState);
+    return libraryBloc;
+  }
+
+  Future<void> emitLibrary(WidgetTester tester, LibraryState state) async {
+    libraryStates.add(state);
+    await tester.pump();
+    await tester.pump();
+  }
+
+  /// איתור "בראשית" במסך הספרייה, תצוגה מקדימה ומעבר לתיקייה.
+  Future<void> useLibraryScreen(WidgetTester tester) async {
+    final tanach = libraryState.library!.subCategories.first;
+    final book = tanach.books.first;
+    var state = libraryState;
+    for (final query in ['בר', 'ברא', 'בראשית']) {
+      state = state.copyWith(searchQuery: query, isSearching: true);
+      await emitLibrary(tester, state);
+      state = state.copyWith(isSearching: false, searchResults: [book]);
+      await emitLibrary(tester, state);
+    }
+    await emitLibrary(tester, state.copyWith(previewBook: book));
+    await emitLibrary(tester, state.copyWith(currentCategory: tanach));
+  }
+
+  /// טעינה, שגיאה ויציאה מהשגיאה עדיין מגיעות לעץ, כל אחת לבדה.
+  Future<void> failRefreshAndRecover(WidgetTester tester) async {
+    await emitLibrary(tester, libraryState.copyWith(isLoading: true));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await emitLibrary(tester, libraryState.copyWith(error: 'שגיאה'));
+    expect(find.text(CommonMessages.loadFailed), findsOneWidget);
+    // copyWith מאפס את השגיאה, ולכן ההקשה הבאה במסך הספרייה מחזירה את העץ.
+    await emitLibrary(tester, libraryState.copyWith(searchQuery: 'ב'));
+    expect(find.byType(SearchNavigationTree), findsOneWidget);
+  }
+
   Future<void> pumpPanel(WidgetTester tester, SearchState initial) async {
     searchBloc = _MockSearchBloc();
     whenListen(searchBloc, searchStates.stream, initialState: initial);
-    final libraryBloc = _MockLibraryBloc();
-    whenListen(
-      libraryBloc,
-      const Stream<LibraryState>.empty(),
-      initialState: LibraryState(
-        library: makeLibrary(),
-        isLoading: false,
-        currentCategory: null,
-      ),
-    );
+    final libraryBloc = mockLibraryBloc();
     final settingsBloc = _MockSettingsBloc();
     whenListen(
       settingsBloc,
@@ -253,5 +290,65 @@ void main() {
 
     expect(tree(tester).filterQuery, isEmpty);
     expect(find.text('ספריית אוצריא'), findsOneWidget);
+  });
+
+  group('איתור ועיון במסך הספרייה אינם בונים מחדש את מסך החיפוש', () {
+    late Library refreshed;
+    setUp(() {
+      final kabbalah = makeCategory('קבלה');
+      refreshed = Library(categories: [kabbalah]);
+      kabbalah.parent = refreshed;
+    });
+
+    testWidgets('עץ הסינון של החיפוש הרגיל', (tester) async {
+      await pumpPanel(
+        tester,
+        SearchState(
+          searchQuery: 'ניגונים',
+          facetCounts: const {...counts, '/קבלה': 1},
+          configuration: SearchConfiguration(currentFacets: const ['/']),
+        ),
+      );
+      final built = tree(tester);
+      await useLibraryScreen(tester);
+      expect(identical(tree(tester), built), isTrue);
+      await failRefreshAndRecover(tester);
+
+      await emitLibrary(tester, libraryState.copyWith(library: refreshed));
+      expect(identical(tree(tester).library, refreshed), isTrue);
+      expect(find.text('קבלה'), findsOneWidget);
+    });
+
+    testWidgets('עץ הסינון של החיפוש החכם', (tester) async {
+      final libraryBloc = mockLibraryBloc();
+      disposables.add(libraryBloc);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BlocProvider<LibraryBloc>.value(
+              value: libraryBloc,
+              child: SemanticFacetFiltering(
+                facetCounts: const {...counts, '/קבלה': 1},
+                selectedFacets: const ['/'],
+                isLoading: false,
+                hasResults: true,
+                onSetFacet: (_) {},
+                onToggleFacet: (_) {},
+                onClearAll: () {},
+                onToggleDimension: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final built = tree(tester);
+      await useLibraryScreen(tester);
+      expect(identical(tree(tester), built), isTrue);
+      await failRefreshAndRecover(tester);
+
+      await emitLibrary(tester, libraryState.copyWith(library: refreshed));
+      expect(identical(tree(tester).library, refreshed), isTrue);
+      expect(find.text('קבלה'), findsOneWidget);
+    });
   });
 }

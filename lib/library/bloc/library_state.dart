@@ -63,6 +63,13 @@ class LibraryState extends Equatable {
   static bool reloadCompleted(LibraryState previous, LibraryState current) =>
       previous.isLoading && !current.isLoading && current.library != null;
 
+  /// לעצים שמציגים את הקטלוג בלבד: חיפוש, ניווט ותצוגה מקדימה במסך הספרייה
+  /// אינם משנים אותם.
+  static bool catalogChanged(LibraryState previous, LibraryState current) =>
+      !identical(previous.library, current.library) ||
+      previous.isLoading != current.isLoading ||
+      previous.error != current.error;
+
   static bool refreshRequestSettled(LibraryState state, int requestId) =>
       (state.completedRefreshRequestIds?.contains(requestId) ?? false) ||
       (state.failedRefreshRequestIds?.contains(requestId) ?? false);

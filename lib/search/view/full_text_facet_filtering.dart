@@ -272,6 +272,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
 
   Widget _buildFacetTree() {
     return BlocBuilder<LibraryBloc, LibraryState>(
+      buildWhen: LibraryState.catalogChanged,
       builder: (context, libraryState) {
         if (libraryState.isLoading) {
           return const Center(child: CircularProgressIndicator());
