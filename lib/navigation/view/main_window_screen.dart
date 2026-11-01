@@ -3500,22 +3500,6 @@ class MainWindowScreenState extends State<MainWindowScreen>
               }
             },
           ),
-          // רענון לוח כשרשימת התוספים נטענת מחדש — אחרי איפוס נתונים או מחיקה
-          // אירועי הלוח של התוסף כבר אינם במסד, ובלי זה הם נשארים על המסך.
-          BlocListener<PluginSystemBloc, PluginSystemState>(
-            listenWhen: (_, current) => current is PluginSystemLoaded,
-            listener: (context, _) {
-              final pane = context.read<TabsBloc>().state.readingPane;
-              _calendarCubit.refreshPluginEvents(
-                currentBookId: pane?.title,
-                currentBookUid: _readingPaneBookUid(pane),
-                currentWorkspaceId: context
-                    .read<WorkspaceBloc>()
-                    .state
-                    .activeWorkspaceId,
-              );
-            },
-          ),
           // רענון לוח כשמשתנה הספר הפתוח (book-scope events)
           BlocListener<TabsBloc, TabsState>(
             listenWhen: (previous, current) =>
@@ -3567,6 +3551,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
               retitleFallbackPluginTabs(context);
             },
           ),
+          // טעינת התוספים מרעננת גם אירועי לוח שנמחקו או אופסו במסד.
           BlocListener<PluginSystemBloc, PluginSystemState>(
             listenWhen: (_, current) => current is PluginSystemLoaded,
             listener: (context, _) async {
