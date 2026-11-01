@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>בדיקת ראשי תיבות</title>
+<style>
+  :root { --bg:#f6f4ef; --card:#fff; --ink:#1f1d1a; --muted:#6b665e; --line:#ddd7cb; --ok:#1f7a3d; --no:#b3261e; --maybe:#8a5a00; --accent:#24527a; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16171a; --card:#202226; --ink:#ececec; --muted:#9a9a9a; --line:#33363b; --ok:#5fcf86; --no:#ff8a80; --maybe:#e0b050; --accent:#8fb8e0; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, "Segoe UI", Arial, sans-serif; }
+  header { position:sticky; top:0; background:var(--card); border-bottom:1px solid var(--line); padding:10px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; z-index:2; }
+  header input, header select, header button { font:inherit; padding:4px 8px; }
+  main { max-width:860px; margin:16px auto; padding:0 16px 80px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; }
+  .key { font-size:34px; font-weight:700; direction:rtl; }
+  .exp { font-size:26px; margin:6px 0 2px; }
+  .exp input { font:inherit; width:100%; box-sizing:border-box; padding:2px 6px; }
+  .meta { color:var(--muted); font-size:14px; margin:6px 0; }
+  .badge { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:0 8px; font-size:13px; margin-inline-end:4px; }
+  .badge.warn { color:var(--maybe); border-color:var(--maybe); }
+  .badge.lead { color:var(--no); border-color:var(--no); }
+  .ev { background:var(--bg); border-radius:6px; padding:8px 10px; margin:6px 0; font-size:15px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  button.act { font:inherit; font-size:18px; padding:8px 18px; border-radius:8px; border:2px solid; background:transparent; color:inherit; cursor:pointer; }
+  button.ok { border-color:var(--ok); color:var(--ok); } button.no { border-color:var(--no); color:var(--no); } button.maybe { border-color:var(--maybe); color:var(--maybe); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  textarea, input.ref { width:100%; box-sizing:border-box; font:inherit; padding:6px; margin-top:6px; }
+  .decided { font-weight:700; }
+  kbd { border:1px solid var(--line); border-radius:4px; padding:0 5px; font-size:13px; }
+  .hint { color:var(--muted); font-size:13px; margin-top:10px; }
+</style>
+</head>
+<body>
+<header>
+  <label>שם הבודק: <input id="reviewer" placeholder="שם מלא" size="16"></label>
+  <label>דרגה: <select id="tier"></select></label>
+  <label>הצג: <select id="show"><option value="open">שטרם הוכרעו</option><option value="all">הכול</option><option value="maybe">לבדיקה נוספת</option></select></label>
+  <span id="progress"></span>
+  <button id="export">ייצוא החלטות (CSV)</button>
+</header>
+<main>
+  <div id="card" class="card"></div>
+  <p class="hint">קיצורים: <kbd>A</kbd> אשר · <kbd>R</kbd> דחה · <kbd>N</kbd> לבדיקה נוספת · <kbd>→</kbd>/<kbd>←</kbd> הקודם/הבא. אישור מתועד על שם הבודק ובתאריך של היום. ההחלטות נשמרות בדפדפן עד הייצוא.</p>
+</main>
+<script>
+const DATA = /*__DATA__*/[];
+const SRC = {"jastrow-sefaria":"ג'סטרו (ספריא, נחלת הכלל)","otzaria-corpus":"פענוח מפורש בספרי הספרייה","dicta-lead":"רמז דיקטה (ניחוש מודל, לא אסמכתה)"};
+const FLAGS = {"letters_do_not_align":"האותיות אינן תואמות את המילים","many_words":"פירוש ארוך","letter_names_partial":"דומה לשמות אותיות"};
+const LS = "acronyms-review-v1";
+let state = {};
+try { state = JSON.parse(localStorage.getItem(LS) || "{}"); } catch (e) {}
+const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} };
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+$("reviewer").value = state.reviewer || "";
+$("reviewer").oninput = e => { state.reviewer = e.target.value.trim(); save(); };
+$("reviewer").onchange = () => render();
+const tiers = ["הכול", ...Array.from(new Set(DATA.map(d => d.tier))).sort()];
+$("tier").innerHTML = tiers.map(t => `<option>${esc(t)}</option>`).join("");
+$("tier").value = state.tier || tiers[0];
+$("tier").onchange = () => { state.tier = $("tier").value; idx = 0; save(); render(); };
+$("show").onchange = () => { idx = 0; render(); };
+const dec = () => (state.dec = state.dec || {});
+let idx = 0;
+function list() {
+  const t = $("tier").value, s = $("show").value;
+  return DATA.filter(d => (t === "הכול" || d.tier === t)).filter(d => {
+    const x = dec()[d.id];
+    return s === "all" || (s === "open" && !x) || (s === "maybe" && x && x.status === "needs_review");
+  });
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+function render() {
+  const L = list();
+  const total = DATA.length, done = Object.keys(dec()).filter(id => dec()[id].status !== "needs_review").length;
+  $("progress").textContent = `הוכרעו ${done} מתוך ${total}`;
+  const c = $("card");
+  if (!L.length) { c.innerHTML = "<p>אין מועמדים בתצוגה הזאת.</p>"; return; }
+  idx = Math.max(0, Math.min(idx, L.length - 1));
+  const d = L[idx], x = dec()[d.id];
+  const leadOnly = d.sources.length === 1 && d.sources[0] === "dicta-lead";
+  const needRef = leadOnly;
+  c.innerHTML = `
+    <div class="meta">${idx + 1} מתוך ${L.length} · דרגה ${esc(d.tier)}</div>
+    <div class="key">${esc(d.key)}</div>
+    <div class="exp"><input id="exp" value="${esc(x && x.expansion || d.expansion)}" aria-label="פענוח"></div>
+    <div class="meta">${d.sources.map(s => `<span class="badge ${s === "dicta-lead" ? "lead" : ""}">${esc(SRC[s] || s)}</span>`).join("")}
+      ${d.flags.map(f => `<span class="badge warn">${esc(FLAGS[f] || f)}</span>`).join("")}
+      ${d.key_count ? `<span class="badge">מופיע בספרייה ${d.key_count} פעמים ב-${d.key_books}+ ספרים</span>` : ""}
+      ${d.count ? `<span class="badge">פענוח מפורש: ${d.count} פעמים ב-${d.books} ספרים</span>` : ""}
+      ${d.cooccur ? `<span class="badge">הפירוש מופיע ליד ראשי התיבות ב-${d.cooccur} הקשרים</span>` : ""}</div>
+    ${d.existing.length ? `<div class="meta">כבר במילון: ${esc(d.existing.slice(0, 8).join(" · "))}</div>` : `<div class="meta"><b>מפתח חדש במילון</b></div>`}
+    ${d.evidence.map(e => `<div class="ev">${esc(e)}</div>`).join("")}
+    ${d.reference ? `<div class="meta">אסמכתה: ${esc(d.reference)}</div>` : ""}
+    ${needRef ? `<input class="ref" id="ref" placeholder="אסמכתה עצמאית שמצאת (ספר, דף, קישור) — חובה לאישור" value="${esc(x && x.reference || "")}">` : ""}
+    <textarea id="note" rows="2" placeholder="הערות (אופציונלי)">${esc(x && x.notes || "")}</textarea>
+    <div class="row">
+      <button class="act ok" id="a">אשר (A)</button>
+      <button class="act no" id="r">דחה (R)</button>
+      <button class="act maybe" id="n">לבדיקה נוספת (N)</button>
+      <button class="act" id="prev">הקודם</button><button class="act" id="next">הבא</button>
+    </div>
+    <div class="meta decided">${x ? "החלטה: " + ({approved:"אושר", rejected:"נדחה", needs_review:"לבדיקה נוספת"}[x.status]) : ""}</div>`;
+  const approveBtn = $("a");
+  const refEl = $("ref");
+  const sync = () => { approveBtn.disabled = !state.reviewer || (needRef && !(refEl && refEl.value.trim().length >= 6)); };
+  if (refEl) refEl.oninput = sync;
+  sync();
+  const decide = status => {
+    if (status === "approved" && approveBtn.disabled) { alert(!state.reviewer ? "יש להקליד שם בודק" : "יש להקליד אסמכתה"); return; }
+    if (!state.reviewer) { alert("יש להקליד שם בודק"); return; }
+    const exp = $("exp").value.trim();
+    const edited = exp !== d.expansion;
+    dec()[d.id] = { id: d.id, key: d.key, expansion: exp, orig: d.expansion, status,
+      source: leadOnly ? "human-verified-reference" : d.sources.find(s => s !== "dicta-lead"),
+      reference: leadOnly ? refEl.value.trim() : d.reference,
+      notes: [$("note").value.trim(), edited ? "תוקן בידי הבודק (הצעה: " + d.expansion + ")" : "", leadOnly ? "רמז: dicta" : ""].filter(Boolean).join("; "),
+      reviewer: state.reviewer, reviewed_at: today() };
+    save(); idx++; render();
+  };
+  $("a").onclick = () => decide("approved"); $("r").onclick = () => decide("rejected"); $("n").onclick = () => decide("needs_review");
+  $("prev").onclick = () => { idx--; render(); }; $("next").onclick = () => { idx++; render(); };
+}
+document.addEventListener("keydown", e => {
+  // a decision is only taken by a deliberate single key press: no modifiers, no auto-repeat, not while typing
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+  const k = e.key.toLowerCase();
+  if (k === "a" || k === "ש") $("a") && $("a").click();
+  else if (k === "r" || k === "ר") $("r") && $("r").click();
+  else if (k === "n" || k === "מ") $("n") && $("n").click();
+  else if (e.key === "ArrowLeft") $("next") && $("next").click();
+  else if (e.key === "ArrowRight") $("prev") && $("prev").click();
+});
+$("export").onclick = () => {
+  const cols = ["key", "expansion", "status", "source", "reference", "notes", "reviewer", "reviewed_at"];
+  const q = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const rows = Object.values(dec());
+  const csv = "﻿" + cols.join(",") + "\n" + rows.map(r => cols.map(c => q(r[c])).join(",")).join("\n") + "\n";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `acronym-decisions-${today()}.csv`;
+  a.click();
+};
+render();
+</script>
+</body>
+</html>
