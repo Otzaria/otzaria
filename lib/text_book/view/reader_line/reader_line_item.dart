@@ -82,7 +82,7 @@ Widget buildReaderMultiLineItem(
       if (line >= 0 && line < lineContext.lines.length)
         line: buildReaderLineSpec(line, lineContext),
   };
-  final colorScheme = Theme.of(context).colorScheme;
+  final theme = Theme.of(context);
   final children = <Widget>[];
   for (final part in readerItemParts(
     specs.keys.toList(),
@@ -101,7 +101,7 @@ Widget buildReaderMultiLineItem(
           selected: spec.marks.isSelected,
           child: ColoredBox(
             color:
-                readerLineBackgroundColor(spec.marks.background, colorScheme) ??
+                readerLineBackgroundColor(spec.marks.background, theme) ??
                 Colors.transparent,
             child: blockText(spec),
           ),

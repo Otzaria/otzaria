@@ -61,3 +61,17 @@ class AppSeedColors {
     return null;
   }
 }
+
+/// ערכה שיש לה משטחים משלה, מעבר למה שהזרע מייצר. נקבעת לפי הזרע שנבחר,
+/// ולא לפי ערכי הצבע שנוצרו ממנו.
+enum AppThemeVariant {
+  standard,
+  white,
+  parchment;
+
+  static AppThemeVariant ofSeed(Color seed) => switch (seed) {
+    AppSeedColors.white => white,
+    AppSeedColors.parchment => parchment,
+    _ => standard,
+  };
+}

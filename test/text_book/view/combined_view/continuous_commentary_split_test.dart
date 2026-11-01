@@ -221,7 +221,7 @@ void main() {
           .any(
             (container) =>
                 (container.decoration as BoxDecoration?)?.color ==
-                AppSurfaces.paragraphSelectionBackground(theme.colorScheme),
+                AppSurfaces.paragraphSelectionBackground(theme),
           ),
       isTrue,
     );

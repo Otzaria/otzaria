@@ -46,7 +46,7 @@ class AppThemeData {
     // חלונית הניווט ורקע הלוח נשארים אפורים כמו בערכת "אפור" (issue #1221).
     // "פרגמנט": tonalSpot שומר רק את גוון הזרע, והערכה יצאה זהה ל"חום".
     final surfaces = brightness == Brightness.light
-        ? _lightSurfaces[seedColor.toARGB32()]
+        ? _lightSurfaces[AppThemeVariant.ofSeed(seedColor)]
         : null;
     if (surfaces != null) {
       return scheme.copyWith(
@@ -61,8 +61,8 @@ class AppThemeData {
     return scheme;
   }
 
-  static final Map<int, List<Color>> _lightSurfaces = {
-    AppSeedColors.white.toARGB32(): const [
+  static const Map<AppThemeVariant, List<Color>> _lightSurfaces = {
+    AppThemeVariant.white: [
       Colors.white,
       Colors.white,
       Color(0xFFFAFAFA),
@@ -70,7 +70,7 @@ class AppThemeData {
       Color(0xFFF1F1F1),
       Color(0xFFECECEC),
     ],
-    AppSeedColors.parchment.toARGB32(): const [
+    AppThemeVariant.parchment: [
       Color(0xFFF5EDDC),
       Color(0xFFFAF5EA),
       Color(0xFFF2E8D5),
@@ -81,9 +81,11 @@ class AppThemeData {
   };
 
   // ── Light Theme ──────────────────────────────────────────────────────────
+  /// [variant] — הערכה של הזרע שממנו נבנתה [cs] ([AppThemeVariant.ofSeed]).
   static ThemeData light(
     ColorScheme cs, {
     required bool compactMenuMode,
+    AppThemeVariant variant = AppThemeVariant.standard,
   }) {
     final compactMenus = _usesCompactMenus(compactMenuMode);
     final menuBackground = _menuBackground(cs);
@@ -124,7 +126,7 @@ class AppThemeData {
         backgroundColor: menuBackground,
         metrics: menuMetrics,
       ),
-      extensions: [menuMetrics],
+      extensions: [menuMetrics, AppThemeVariantTheme(variant)],
     ).copyWith(
       dialogTheme: DialogThemeData(
         barrierColor: AppColors.dialogBarrier,
@@ -144,8 +146,11 @@ class AppThemeData {
   }
 
   // ── Dark Theme ── זהה לבהיר; ההבדל כולו ב-[cs].
-  static ThemeData dark(ColorScheme cs, {required bool compactMenuMode}) =>
-      light(cs, compactMenuMode: compactMenuMode);
+  static ThemeData dark(
+    ColorScheme cs, {
+    required bool compactMenuMode,
+    AppThemeVariant variant = AppThemeVariant.standard,
+  }) => light(cs, compactMenuMode: compactMenuMode, variant: variant);
 
   static PopupMenuThemeData _popupMenuTheme(
     ColorScheme cs, {
@@ -314,4 +319,25 @@ class AppThemeData {
       return null;
     }),
   );
+}
+
+/// נושא את [AppThemeVariant] בתוך [ThemeData], כדי שמשטחים התלויים בערכה
+/// לא יזהו אותה לפי ערכי צבע.
+@immutable
+class AppThemeVariantTheme extends ThemeExtension<AppThemeVariantTheme> {
+  const AppThemeVariantTheme(this.variant);
+
+  final AppThemeVariant variant;
+
+  static AppThemeVariant of(ThemeData theme) =>
+      theme.extension<AppThemeVariantTheme>()?.variant ??
+      AppThemeVariant.standard;
+
+  @override
+  AppThemeVariantTheme copyWith({AppThemeVariant? variant}) =>
+      AppThemeVariantTheme(variant ?? this.variant);
+
+  @override
+  AppThemeVariantTheme lerp(AppThemeVariantTheme? other, double t) =>
+      other != null && t >= 0.5 ? other : this;
 }

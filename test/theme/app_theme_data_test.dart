@@ -66,6 +66,37 @@ void main() {
     expect(theme.datePickerTheme.rangePickerShape, AppTokens.roundedShape);
   });
 
+  test('הערכה נגזרת מהזרע ונישאת ב-ThemeData', () {
+    expect(AppThemeVariant.ofSeed(AppSeedColors.white), AppThemeVariant.white);
+    expect(
+      AppThemeVariant.ofSeed(AppSeedColors.parchment),
+      AppThemeVariant.parchment,
+    );
+    expect(
+      AppThemeVariant.ofSeed(AppSeedColors.grey),
+      AppThemeVariant.standard,
+    );
+
+    final cs = AppThemeData.createColorScheme(
+      AppSeedColors.white,
+      Brightness.light,
+    );
+    expect(
+      AppThemeVariantTheme.of(
+        AppThemeData.light(
+          cs,
+          compactMenuMode: false,
+          variant: AppThemeVariant.white,
+        ),
+      ),
+      AppThemeVariant.white,
+    );
+    expect(
+      AppThemeVariantTheme.of(AppThemeData.light(cs, compactMenuMode: false)),
+      AppThemeVariant.standard,
+    );
+  });
+
   group('ערכת צבע "לבן"', () {
     test('במצב בהיר רקע מסך העיון לבן מוחלט', () {
       final cs = AppThemeData.createColorScheme(

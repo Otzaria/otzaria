@@ -2630,7 +2630,7 @@ class _CombinedViewState extends State<CombinedView> {
     // ברקע ובסמן של פריט רב-שורתי מטפלות השורות עצמן.
     final backgroundColor = isMultiLine
         ? null
-        : readerLineBackgroundColor(marks.background, theme.colorScheme);
+        : readerLineBackgroundColor(marks.background, theme);
     final sectionHeadings = isMultiLine
         ? null
         : _sectionHeadingsByLine[primaryLineIndex];

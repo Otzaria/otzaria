@@ -71,10 +71,12 @@ class App extends StatelessWidget {
             theme: AppThemeData.light(
               lightColorScheme,
               compactMenuMode: state.compactMenuMode,
+              variant: AppThemeVariant.ofSeed(state.seedColor),
             ),
             darkTheme: AppThemeData.dark(
               darkColorScheme,
               compactMenuMode: state.compactMenuMode,
+              variant: AppThemeVariant.ofSeed(state.darkSeedColor),
             ),
             themeMode: state.followSystemTheme
                 ? ThemeMode.system
