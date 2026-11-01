@@ -2068,7 +2068,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
         // בכהה רקע הלוח שחור, כמו הכיסוי שמאחורי הדיאלוג, והדיאלוג נבלע בו.
         backgroundColor: colorScheme.brightness == Brightness.dark
             ? colorScheme.surface
-            : AppSurfaces.solidPanelBackground(context),
+            : AppSurfaces.panelBackground(context),
         body: Column(
           children: [
             PrintingAppBar(

@@ -1892,7 +1892,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
 
     return Dialog(
       insetPadding: const EdgeInsets.all(12),
-      backgroundColor: AppSurfaces.solidPanelBackground(context),
+      backgroundColor: AppSurfaces.panelBackground(context),
       clipBehavior: Clip.antiAlias,
       // הפאנל בגובה קבוע, ולכן הגדלת גופן מעבר לכך הייתה דוחקת את הכותרת
       // והתחתית זו על זו. הכיתוב עדיין גדל, עד גבול שהפריסה נושאת.

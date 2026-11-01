@@ -486,7 +486,7 @@ class CalendarWidgetState extends State<CalendarWidget> {
             child: paneContent,
           ),
           narrowPaneBuilder: (context, paneContent) => Material(
-            color: AppSurfaces.solidPanelBackground(context),
+            color: AppSurfaces.panelBackground(context),
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 8, 8),

@@ -652,7 +652,7 @@ class _FontDropdown extends StatelessWidget {
           width: 100,
           child: Text(
             label,
-            style: kSettingsTitleStyle,
+            style: AppTextStyles.settingTitle,
           ),
         ),
         const SizedBox(width: 12),

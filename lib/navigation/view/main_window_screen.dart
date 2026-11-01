@@ -3716,7 +3716,7 @@ class MainWindowScreenState extends State<MainWindowScreen>
             return _EdgeToEdgeShell(
               topColor: useReaderStyle
                   ? AppSurfaces.readerBackground(context)
-                  : AppSurfaces.solidPanelBackground(context),
+                  : AppSurfaces.panelBackground(context),
               bottomColor: AppSurfaces.panelBackground(context),
               child: KeyboardShortcuts(
                 onFindRefRequested: () => _handleFindRefOpen(context),

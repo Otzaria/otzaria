@@ -6,8 +6,8 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
 import 'package:otzaria/shortcuts/view/custom_shortcut_dialog.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/misc/app_menu_exports.dart';
-import 'package:otzaria/widgets/widgets_exports.dart';
 
 /// שדה בחירת קיצור דרך שמסנן קיצורים שכבר נמצאים בשימוש.
 class ShortcutDropDownTile extends StatefulWidget {
@@ -130,11 +130,14 @@ class _ShortcutDropDownTileState extends State<ShortcutDropDownTile> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.title, style: kSettingsTitleStyle),
+                      Text(widget.title, style: AppTextStyles.settingTitle),
                       if (widget.subtitle != null &&
                           widget.subtitle!.trim().isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        Text(widget.subtitle!, style: kSettingsSubtitleStyle),
+                        Text(
+                          widget.subtitle!,
+                          style: AppTextStyles.settingSubtitle,
+                        ),
                       ],
                     ],
                   ),

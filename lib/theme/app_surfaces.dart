@@ -34,15 +34,12 @@ class AppSurfaces {
           );
   }
 
-  /// נקודת ה-override לרקע מסכי לוח — הכנה לערכות נושא עתידיות.
-  static Color solidPanelBackground(BuildContext context) =>
-      panelBackground(context);
-
   /// רקע סרגל עליון (AppTopBar) — נקודת ה-override היחידה לצבע הסרגל.
   static Color topBarBackground(BuildContext context) =>
       _cs(context).surfaceContainerHigh;
 
   /// רקע חלונית הניווט — צבע הסרגל העליון, כדי שתיראה כהמשך רציף שלו.
+  /// תפקיד נפרד במכוון: ערכה עתידית יכולה להפריד בין השניים.
   static Color navPanelBackground(BuildContext context) =>
       topBarBackground(context);
 
@@ -55,12 +52,8 @@ class AppSurfaces {
   static Color panelSection(BuildContext context) =>
       _cs(context).surfaceContainerHighest.withValues(alpha: 0.5);
 
-  /// רקע קטע-משנה מודגש בתוך חלונית הגדרות.
+  /// רקע קטע-משנה מודגש בתוך חלונית (הגדרות, עורך הערה אישית).
   static Color panelSectionAccent(BuildContext context) =>
-      _cs(context).primaryContainer.withValues(alpha: 0.3);
-
-  /// רקע כרטיס עריכת הערה אישית (הערה חדשה או עריכת הערה קיימת בחלונית).
-  static Color noteEditorBackground(BuildContext context) =>
       _cs(context).primaryContainer.withValues(alpha: 0.3);
 
   /// גבול קטע-משנה מודגש בתוך חלונית הגדרות.

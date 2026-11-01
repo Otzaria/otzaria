@@ -303,7 +303,7 @@ class AboutSettingsTab extends StatelessWidget {
                   context.settingsText(
                     'מאגר תורני חינמי, רחב ומהיר לשימוש בכל מקום.',
                   ),
-                  style: kSettingsSubtitleStyle,
+                  style: AppTextStyles.settingSubtitle,
                 ),
               ],
             ),
@@ -336,7 +336,7 @@ class AboutSettingsTab extends StatelessWidget {
               Text(
                 subtitle,
                 textAlign: TextAlign.center,
-                style: kSettingsSubtitleStyle,
+                style: AppTextStyles.settingSubtitle,
               ),
             ],
           ],
@@ -409,7 +409,7 @@ class _SubtitleText extends StatelessWidget {
     child: Text(
       text,
       textAlign: TextAlign.center,
-      style: kSettingsSubtitleStyle,
+      style: AppTextStyles.settingSubtitle,
     ),
   );
 }
@@ -465,7 +465,7 @@ class _InfoChip extends StatelessWidget {
     // סגנון מפורש התואם למראה בכרטיס 'תרמו מהונם' — labelSmall (w500) של
     // ListTile.trailing עם גודל הכותרת — כך אחיד בכל מיקום ולא תלוי בהקשר.
     final nameStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
-      fontSize: kSettingsTitleStyle.fontSize,
+      fontSize: AppTextStyles.settingTitle.fontSize,
       color: contentColor,
     );
 
@@ -500,7 +500,7 @@ class _InfoChip extends StatelessWidget {
           Text(name, style: nameStyle),
           if (description != null && description!.isNotEmpty) ...[
             const SizedBox(width: 4),
-            Text('(${description!})', style: kSettingsSubtitleStyle),
+            Text('(${description!})', style: AppTextStyles.settingSubtitle),
           ],
         ],
       ),
@@ -673,7 +673,7 @@ class _ZayitCreditState extends State<_ZayitCredit> {
     final colorScheme = Theme.of(context).colorScheme;
     return Text.rich(
       TextSpan(
-        style: kSettingsSubtitleStyle,
+        style: AppTextStyles.settingSubtitle,
         children: [
           const TextSpan(
             text:

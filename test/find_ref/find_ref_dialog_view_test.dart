@@ -617,7 +617,11 @@ void main() {
         result('odt אישי', fileType: 'odt', source: BookSource.user),
         result('rtf אישי', fileType: 'rtf', source: BookSource.user),
         result('doc אישי', fileType: 'doc', source: BookSource.user),
-        result('html מצורף', fileType: 'html', source: BookSource.attached('l')),
+        result(
+          'html מצורף',
+          fileType: 'html',
+          source: BookSource.attached('l'),
+        ),
         result('md מצורף', fileType: 'md', source: BookSource.attached('l')),
         result('md רשמי', fileType: 'md'),
       ],
@@ -692,7 +696,7 @@ void main() {
     expect(header.color, AppSurfaces.topBarBackground(context));
     expect(
       tester.widget<Dialog>(find.byType(Dialog)).backgroundColor,
-      AppSurfaces.solidPanelBackground(context),
+      AppSurfaces.panelBackground(context),
     );
     expect(
       find.ancestor(

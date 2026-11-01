@@ -259,7 +259,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                     decoration: BoxDecoration(
                       color: useReaderStyle
                           ? AppSurfaces.readerBackground(context)
-                          : AppSurfaces.solidPanelBackground(context),
+                          : AppSurfaces.panelBackground(context),
                       border: useReaderStyle
                           ? null
                           : Border(
