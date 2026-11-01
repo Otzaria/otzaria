@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'package:otzaria/core/messages/library_messages.dart';
+import 'package:otzaria/core/ui_snack.dart';
 import 'package:path/path.dart' as path;
 import 'package:url_launcher/url_launcher_string.dart';
 
@@ -231,10 +233,14 @@ class OtzarUtils {
         await checkBookExistence(bookId)) {
       // לא ממתינים: בגרסאות ישנות Process.run חוזר רק כשהתוכנה נסגרת.
       unawaited(
-        launchOtzarLocal(
-          bookId,
-          page: page,
-        ).catchError((_) => launchOtzarWeb(link)),
+        launchOtzarLocal(bookId, page: page).catchError((Object e) async {
+          // קלט כבר נשלח לתוכנה: פתיחה באתר הייתה מציגה את הספר פעמיים.
+          if (e is PlatformException && e.details == true) {
+            UiSnack.showError(LibraryMessages.cannotOpenInOtzar);
+            return false;
+          }
+          return launchOtzarWeb(link);
+        }),
       );
       return true;
     }

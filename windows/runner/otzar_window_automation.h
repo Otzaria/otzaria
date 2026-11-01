@@ -29,12 +29,16 @@ class OtzarWindowAutomation {
   void Reset();
   bool CheckFocus();
   bool ClickInside();
+  HWND QueryFocus();
   HWND FocusedControl();
-  bool PostKey(WORD key, WORD scan_code);
+  bool Settled(HWND expected, ULONGLONG now);
+  bool PostKey(HWND control, WORD key, WORD scan_code);
   bool SendDigits();
 
   HWND host_ = nullptr;
   HWND target_ = nullptr;
+  HWND click_target_ = nullptr;
+  HWND focus_before_ = nullptr;
   DWORD target_pid_ = 0;
   UINT_PTR timer_ = 0;
   HANDLE mutex_ = nullptr;
@@ -43,6 +47,7 @@ class OtzarWindowAutomation {
   Stage stage_ = Stage::kActivate;
   ULONGLONG due_ = 0;
   ULONGLONG activation_deadline_ = 0;
+  ULONGLONG step_deadline_ = 0;
   std::wstring digits_;
   std::unique_ptr<Result> result_;
   std::unique_ptr<flutter::MethodChannel<Value>> channel_;

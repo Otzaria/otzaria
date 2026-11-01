@@ -58,7 +58,7 @@ BOOL CALLBACK CollectWindow(HWND window, LPARAM parameter) {
 }
 
 bool ModifiersOrMouseDown() {
-  for (int key : {VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN, VK_LBUTTON}) {
+  for (int key : {VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN, VK_LBUTTON, VK_RBUTTON}) {
     if ((GetAsyncKeyState(key) & 0x8000) != 0) return true;
   }
   return false;
@@ -169,10 +169,11 @@ bool OtzarWindowAutomation::ClickInside() {
     Fail("window_too_small", "Enlarge the Otzar main window."); return false;
   }
   POINT point{client.right / 2, client.bottom * 55 / 100};
-  if (!ClientToScreen(target_, &point) ||
-      GetAncestor(WindowFromPoint(point), GA_ROOT) != target_) {
+  click_target_ = ClientToScreen(target_, &point) ? WindowFromPoint(point) : nullptr;
+  if (GetAncestor(click_target_, GA_ROOT) != target_) {
     Fail("click_obstructed", "The Otzar work area is covered by another window."); return false;
   }
+  focus_before_ = QueryFocus();
   POINT original{};
   const bool restore = GetCursorPos(&original) != FALSE;
   if (!SetCursorPos(point.x, point.y)) {
@@ -196,22 +197,33 @@ bool OtzarWindowAutomation::ClickInside() {
   return true;
 }
 
-HWND OtzarWindowAutomation::FocusedControl() {
-  if (!CheckFocus()) return nullptr;
+HWND OtzarWindowAutomation::QueryFocus() {
   GUITHREADINFO info{};
   info.cbSize = static_cast<DWORD>(sizeof(info));
   const DWORD thread = GetWindowThreadProcessId(target_, nullptr);
   if (thread == 0 || !GetGUIThreadInfo(thread, &info) || !info.hwndFocus ||
       GetAncestor(info.hwndFocus, GA_ROOT) != target_) {
-    Fail("no_focused_control", "Cannot identify the focused Otzar control.");
     return nullptr;
   }
   return info.hwndFocus;
 }
 
-bool OtzarWindowAutomation::PostKey(WORD key, WORD scan_code) {
-  const HWND control = FocusedControl();
-  if (!control) return false;
+HWND OtzarWindowAutomation::FocusedControl() {
+  if (!CheckFocus()) return nullptr;
+  const HWND focus = QueryFocus();
+  if (!focus) Fail("no_focused_control", "Cannot identify the focused Otzar control.");
+  return focus;
+}
+
+// Otzar acted on the previous step once its focus moved (or reached |expected|).
+// Without that signal, input proceeds at |step_deadline_|.
+bool OtzarWindowAutomation::Settled(HWND expected, ULONGLONG now) {
+  const HWND focus = QueryFocus();
+  return (focus && (focus != focus_before_ || focus == expected)) ||
+         now >= step_deadline_;
+}
+
+bool OtzarWindowAutomation::PostKey(HWND control, WORD key, WORD scan_code) {
   const uint32_t down = (static_cast<uint32_t>(scan_code) << 16) | 1u;
   const LPARAM up = static_cast<LPARAM>(static_cast<int32_t>(down | 0xC0000000u));
   // Address the control directly; do not send F1 through global remapping hooks.
@@ -264,11 +276,16 @@ void OtzarWindowAutomation::Tick() {
         return;
       }
       if (!ClickInside()) return;
-      stage_ = Stage::kAfterClick; due_ = now + 40; return;
-    case Stage::kAfterClick:
-      if (!PostKey(VK_F1, 0x3b)) return;
-      stage_ = Stage::kAfterF1; due_ = now + 350; return;
+      stage_ = Stage::kAfterClick; due_ = now + 40; step_deadline_ = now + 300; return;
+    case Stage::kAfterClick: {
+      if (!CheckFocus() || !Settled(click_target_, now)) return;
+      const HWND control = FocusedControl();
+      if (!control || !PostKey(control, VK_F1, 0x3b)) return;
+      focus_before_ = control;
+      stage_ = Stage::kAfterF1; step_deadline_ = now + 1000; return;
+    }
     case Stage::kAfterF1:
+      if (!CheckFocus() || !Settled(nullptr, now)) return;
       if (!SendDigits()) return;
       stage_ = Stage::kFinish; due_ = now + 250; return;
     case Stage::kFinish:
@@ -282,6 +299,7 @@ void OtzarWindowAutomation::Reset() {
   if (mutex_) { CloseHandle(mutex_); mutex_ = nullptr; }
   target_ = nullptr;
   target_pid_ = 0;
+  focus_before_ = click_target_ = nullptr;
   input_sent_ = false;
 }
 
