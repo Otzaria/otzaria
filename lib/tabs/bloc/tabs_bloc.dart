@@ -734,6 +734,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
             spacingValues: incomingTab.spacingValues,
             searchMode: incomingTab.searchMode,
             searchDistance: incomingTab.searchDistance,
+            searchOrigin: incomingTab.searchOrigin,
             matchPolicy: incomingTab.matchPolicy,
           ),
         );
@@ -766,6 +767,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           spacingValues: incomingTab.spacingValues,
           searchMode: incomingTab.searchMode,
           searchDistance: incomingTab.searchDistance,
+          searchOrigin: incomingTab.searchOrigin,
           matchPolicy: incomingTab.matchPolicy,
         ),
       );

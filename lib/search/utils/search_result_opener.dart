@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/search/utils/cross_line_result.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/utils/in_book_search_routing.dart';
 import 'package:otzaria/search/utils/index_freshness_warner.dart';
 import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
@@ -51,6 +52,7 @@ Future<OpenedTab?> openSearchResultInReader(
     pageNumber: page,
     dedupeKey: dedupeKey,
     searchText: searchText,
+    searchOrigin: InBookSearchOrigin.globalResult,
     searchOptions: searchOptions,
     alternativeWords: alternativeWords,
     spacingValues: spacingValues,
@@ -92,6 +94,7 @@ Future<OpenedTab?> openSearchResultInReader(
     index: segment,
     dedupeKey: dedupeKey,
     searchText: searchText,
+    searchOrigin: InBookSearchOrigin.globalResult,
     searchOptions: searchOptions,
     alternativeWords: alternativeWords,
     spacingValues: spacingValues,

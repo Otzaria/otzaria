@@ -695,6 +695,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     SearchMode searchMode = SearchMode.exact;
     int searchDistance = 0;
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard;
+    var searchOrigin = InBookSearchOrigin.inBook;
     Set<int>? searchResultLines;
     bool showLeftPane;
     List<String> commentators;
@@ -722,6 +723,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       searchMode = currentState.searchMode;
       searchDistance = currentState.searchDistance;
       matchPolicy = currentState.matchPolicy;
+      searchOrigin = currentState.searchOrigin;
       searchResultLines = currentState.searchResultLines;
       showLeftPane = currentState.showLeftPane;
       commentators = currentState.activeCommentators;
@@ -751,6 +753,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       searchMode = initial.searchMode;
       searchDistance = initial.searchDistance;
       matchPolicy = initial.matchPolicy;
+      searchOrigin = initial.searchOrigin;
       searchResultLines = initial.initialSearchResultLines;
       showLeftPane = initial.showLeftPane;
       commentators = initial.commentators;
@@ -1033,6 +1036,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         searchMode: searchMode,
         searchDistance: searchDistance,
         matchPolicy: matchPolicy,
+        searchOrigin: searchOrigin,
         // נזרע כאן ולא בחלונית: החלונית נבנית רק כשנפתחת, וההדגשה בספר
         // חייבת להיות זהה לפניה ואחריה.
         searchWholeWord: InBookSearchPreferences.resolveWholeWord(
@@ -1909,6 +1913,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           permanentHighlightLine: event.permanentHighlightLine,
           clearPermanentHighlight: event.permanentHighlightLine == null,
           searchText: '',
+          searchOrigin: InBookSearchOrigin.inBook,
         ),
       );
     } else {
@@ -1941,23 +1946,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
   ) {
     if (state is TextBookLoaded) {
       final currentState = state as TextBookLoaded;
-      // ⚠️ חלונית החיפוש מסנכרנת את ה-bloc גם ב-`initState` שלה, עם
-      // `initialQuery: state.searchText` והתצורה הקיימת — כלומר עם אותה
-      // בקשת חיפוש בדיוק. עצם בניית החלונית אינה "חיפוש ידני חדש", ולכן
-      // הניקוי מותנה בשינוי אמיתי בבקשה.
-      //
-      // ההשוואה כוללת גם את התצורה ולא רק את הטקסט: שורות התוצאה שהמנוע
-      // החזיר תקפות לצירוף (שאילתה + תצורה), ושינוי מדיניות ההתאמה מבטל
-      // אותן בדיוק כמו שינוי הטקסט.
-      //
-      // ⚠️ שדות התצורה באירוע הם nullable, ו-`null` פירושו **"אל תשנה"**
-      // (כך `copyWith` מפרש אותם) ולא "שנה ל-null". השוואה ישירה מול
-      // ה-state הייתה מסמנת כל אירוע שהושמטו בו שדות כשינוי — כלומר
-      // מבטלת את התנאי כולו.
-      //
-      // שמרני בכוונה — `mapEquals` על `alternativeWords` משווה רשימות
-      // לפי `==`, ולכן מופעים שונים בעלי תוכן זהה ייחשבו כשינוי וינקו.
-      // בספק מנקים, כמו קודם; רק המקרה המוכח של "כלום לא השתנה" מפסיק.
+      // בניית החלונית אינה בקשת חיפוש חדשה; שדות null באירוע משמרים תצורה.
       final requestChanged =
           event.text != currentState.searchText ||
           (event.searchMode != null &&
@@ -1986,23 +1975,13 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           searchMode: event.searchMode,
           searchDistance: event.searchDistance,
           matchPolicy: event.matchPolicy,
+          searchOrigin: event.searchOrigin,
           searchWholeWord: event.searchWholeWord,
           selectedIndex: currentState.selectedIndex,
           clearPinpointHighlight: requestChanged,
-          // בקשה חדשה — תוצאות החיפוש הקודם אינן תקפות יותר.
-          //
-          // ⚠️ זהו שער ההדגשה עצמו: `lineParticipatesInSearchHighlight`
-          // נשען עליו בארבעה אתרי רינדור, ובמדיניות התאמה שאינה ברירת
-          // המחדל איבוד הסט מכבה את ההדגשה לגמרי. ניקוי בלתי-מותנה כאן
-          // אִפשר לעצם פתיחת חלונית החיפוש למחוק את שורות התוצאה שהחיפוש
-          // הגלובלי מצא — בלי שהמשתמש שינה דבר.
+          // שורות התוצאה תקפות לצירוף השאילתה והתצורה, גם לפני פתיחת החלונית.
           clearSearchResultLines: requestChanged,
-          // הדגשת ה-`?mark` מ-deep link נמחקת גם היא. שני הדגלים חייבים
-          // לנקות יחד: [TextBookLoaded.isPermanentHighlight] מוגדר
-          // `permanentHighlightLine == index && highlightText.isEmpty`, ולכן
-          // ניקוי הטקסט לבדו היה הופך את ההדגשה הצהובה לרקע קבוע במקום
-          // להעלים אותה. מאז שההדגשה נשמרת לדיסק, בלי הניקוי היא הייתה
-          // שורדת לנצח.
+          // ניקוי הטקסט והעוגן יחד מונע השארת רקע קבוע במקום ההדגשה.
           clearHighlightText: requestChanged,
           clearPermanentHighlight: requestChanged,
         ),

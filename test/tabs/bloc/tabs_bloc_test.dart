@@ -175,6 +175,7 @@ void main() {
         book: TextBook(title: 'ספר א', categoryId: 1),
         index: 12,
         searchText: 'תדע זרעך',
+        searchOrigin: InBookSearchOrigin.globalResult,
         searchOptions: const {
           'תדע_0': {'ראשי תיבות': true},
         },
@@ -196,6 +197,7 @@ void main() {
       expect(searchEvents, hasLength(1));
       final searchEvent = searchEvents.single;
       expect(searchEvent.text, 'תדע זרעך');
+      expect(searchEvent.searchOrigin, InBookSearchOrigin.globalResult);
       expect(searchEvent.searchMode, SearchMode.advanced);
       expect(searchEvent.searchDistance, 3);
       expect(searchEvent.matchPolicy, policy);

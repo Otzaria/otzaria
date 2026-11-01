@@ -68,6 +68,7 @@ class TextBookSearchView extends StatefulWidget {
   final SearchMode initialSearchMode;
   final int initialSearchDistance;
   final SearchMatchPolicy initialMatchPolicy;
+  final InBookSearchOrigin initialSearchOrigin;
   final Future<List<TextSearchResult>> Function(
     List<String> content,
     String query,
@@ -90,6 +91,7 @@ class TextBookSearchView extends StatefulWidget {
     this.initialSearchMode = SearchMode.exact,
     this.initialSearchDistance = 0,
     this.initialMatchPolicy = SearchMatchPolicy.standard,
+    this.initialSearchOrigin = InBookSearchOrigin.inBook,
     this.simpleSearchRunner,
     this.searchRepository = const SearchRepository(),
   });
@@ -113,6 +115,12 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   String? _bookTitle;
   Future<void>? _bookPathFuture;
   InBookSearchSettings _settings = const InBookSearchSettings();
+
+  // הגדרות מתוצאה גלובלית חלות רק על השאילתה שהגיעה איתן.
+  String? _carriedInQuery;
+  InBookSearchOrigin get _searchOrigin => _carriedInQuery == null
+      ? InBookSearchOrigin.inBook
+      : InBookSearchOrigin.globalResult;
   bool _wholeWord = InBookSearchPreferences.loadWholeWord();
 
   /// חיפוש רק בקטע שתחת הכותרת הקרובה למקום הקריאה (issue #1093).
@@ -193,6 +201,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     // ההעדפה גלובלית ונקראת מחדש: החלפת המתג בטאב אחר משאירה כאן ערך ישן,
     // וההדגשה בגוף הספר הייתה סותרת את רשימת התוצאות.
     _wholeWord = InBookSearchPreferences.loadWholeWord();
+    _carriedInQuery =
+        widget.initialSearchOrigin == InBookSearchOrigin.globalResult
+        ? searchableInBookQuery(searchTextController.text)
+        : null;
     _settings = InBookSearchSettings(
       searchOptions: widget.initialSearchOptions,
       alternativeWords: widget.initialAlternativeWords,
@@ -215,6 +227,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         searchMode: _searchMode,
         searchDistance: _searchDistance,
         matchPolicy: _matchPolicy,
+        searchOrigin: _searchOrigin,
         searchWholeWord: _effectiveWholeWord,
       ),
     );
@@ -223,7 +236,10 @@ class TextBookSearchViewState extends State<TextBookSearchView>
   /// החלפת מצב ההתאמה: מעדכן את ההדגשה בגוף הספר ומריץ את החיפוש מחדש,
   /// אחרת הרשימה נשארת עם תוצאות המצב הקודם.
   void _toggleWholeWord() {
-    setState(() => _wholeWord = !_wholeWord);
+    setState(() {
+      _carriedInQuery = null;
+      _wholeWord = !_wholeWord;
+    });
     unawaited(InBookSearchPreferences.saveWholeWord(_wholeWord));
     _syncBlocSearchTextState();
     _searchTextUpdated();
@@ -247,7 +263,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     super.initState();
     searchTextController.text = widget.initialQuery;
     _syncSearchConfigurationFromWidget();
-    if (widget.initialQuery.isEmpty) {
+    if (searchableInBookQuery(widget.initialQuery) == null) {
       _settings = InBookSearchSettings.savedDefaults();
     }
     _syncBlocSearchTextState();
@@ -287,6 +303,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             (searchableInBookQueryWithEdges(controllerQuery) ?? '');
     final normalizedSearchMode = widget.initialSearchMode;
     final searchConfigurationChanged =
+        widget.initialSearchOrigin != _searchOrigin ||
         !_searchOptionsEqual(_searchOptions, widget.initialSearchOptions) ||
         !_alternativeWordsEqual(
           _alternativeWords,
@@ -301,7 +318,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       syncSearchControllerQuery(searchTextController, widget.initialQuery);
     }
 
-    if (searchConfigurationChanged) {
+    if ((queryChanged && needsControllerSync) || searchConfigurationChanged) {
       _syncSearchConfigurationFromWidget();
     }
 
@@ -1069,18 +1086,25 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           searchableInBookQuery(searchTextController.text) != null &&
           !_isSearching,
       errorMessage: _searchErrorMessage,
-      onSearchTextChanged: (value) {
-        _settings = _settings.forQuery(searchableInBookQuery(value) ?? '');
+      onSearchTextChanged: (_) {
+        // value מה-debounce עשוי להקדים שאילתה חיצונית שכבר נכתבה לשדה.
+        final query = searchableInBookQuery(searchTextController.text);
+        if (_carriedInQuery != null && query != _carriedInQuery) {
+          _carriedInQuery = null;
+          _settings = InBookSearchSettings.savedDefaults();
+        }
+        _settings = _settings.forQuery(query ?? '');
         final activeParameters = _activeSearchParameters;
         context.read<TextBookBloc>().add(
           UpdateSearchText(
-            _searchableQuery(value) ?? '',
+            _searchableQuery(searchTextController.text) ?? '',
             searchOptions: activeParameters.searchOptions,
             alternativeWords: activeParameters.alternativeWords,
             spacingValues: activeParameters.customSpacing,
             searchMode: _searchMode,
             searchDistance: _searchDistance,
             matchPolicy: _matchPolicy,
+            searchOrigin: _searchOrigin,
             searchWholeWord: _effectiveWholeWord,
           ),
         );
@@ -1093,6 +1117,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
           _selectedSearchResultIndex = null;
           _selectedResultLine = null;
           _selectedResultOffset = null;
+          _carriedInQuery = null;
           _settings = InBookSearchSettings.savedDefaults();
         });
         context.read<TextBookBloc>().add(
@@ -1104,6 +1129,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             searchMode: _searchMode,
             searchDistance: _searchDistance,
             matchPolicy: _matchPolicy,
+            searchOrigin: _searchOrigin,
             searchWholeWord: _wholeWord,
           ),
         );
@@ -1165,12 +1191,16 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                 searchMode: settings.searchMode,
                 searchDistance: settings.distance,
                 matchPolicy: settings.matchPolicy,
+                searchOrigin: InBookSearchOrigin.inBook,
                 searchWholeWord: willRunSimpleSearch ? _wholeWord : true,
               ),
             );
           },
         );
-        setState(() => _settings = settings);
+        setState(() {
+          _settings = settings;
+          _carriedInQuery = null;
+        });
         _searchTextUpdated();
       },
     );

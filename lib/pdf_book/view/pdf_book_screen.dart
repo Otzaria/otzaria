@@ -4902,6 +4902,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             initialSearchMode: widget.tab.searchMode,
                             initialSearchDistance: widget.tab.searchDistance,
                             initialMatchPolicy: widget.tab.matchPolicy,
+                            initialSearchOrigin: widget.tab.searchOrigin,
                             incomingSearchConfiguration:
                                 widget.tab.incomingSearchConfiguration,
                             onSearchResultNavigated: _ensureSearchTabIsActive,

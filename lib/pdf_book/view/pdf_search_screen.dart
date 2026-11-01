@@ -60,6 +60,7 @@ class PdfBookSearchView extends StatefulWidget {
     this.initialSearchMode = SearchMode.exact,
     this.initialSearchDistance = 0,
     this.initialMatchPolicy = SearchMatchPolicy.standard,
+    this.initialSearchOrigin = InBookSearchOrigin.inBook,
     this.incomingSearchConfiguration,
     this.onSearchResultNavigated,
     this.onNavigationStarted,
@@ -93,6 +94,7 @@ class PdfBookSearchView extends StatefulWidget {
   final SearchMode initialSearchMode;
   final int initialSearchDistance;
   final SearchMatchPolicy initialMatchPolicy;
+  final InBookSearchOrigin initialSearchOrigin;
 
   /// תצורת חיפוש שממתינה להחלה אטומית בחלונית.
   final ValueNotifier<ReadingTabSearchState?>? incomingSearchConfiguration;
@@ -292,6 +294,17 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   InBookSearchSettings _settings = const InBookSearchSettings();
 
+  // הגדרות מתוצאה גלובלית חלות רק על השאילתה שהגיעה איתן.
+  String? _carriedInQuery;
+  InBookSearchOrigin get _searchOrigin => _carriedInQuery == null
+      ? InBookSearchOrigin.inBook
+      : InBookSearchOrigin.globalResult;
+
+  // מסכת PDF מצורפת אינה מאונדקסת, וברירת מחדל שדורשת מנוע הייתה חוסמת בה.
+  InBookSearchSettings get _paneDefaults => _isBundledTalmudPdf
+      ? const InBookSearchSettings()
+      : InBookSearchSettings.savedDefaults();
+
   Map<String, Map<String, bool>> get _searchOptions => _settings.searchOptions;
   Map<int, List<String>> get _alternativeWords => _settings.alternativeWords;
   Map<String, String> get _spacingValues => _settings.spacingValues;
@@ -348,7 +361,11 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
 
   /// החלפת מצב ההתאמה: הסריקה של pdfrx רצה מחדש עם התבנית המתאימה.
   void _toggleWholeWord() {
-    setState(() => _wholeWord = !_wholeWord);
+    setState(() {
+      _carriedInQuery = null;
+      _wholeWord = !_wholeWord;
+    });
+    _syncSearchOptions(context.read<PdfBookBloc>());
     unawaited(InBookSearchPreferences.saveWholeWord(_wholeWord));
     _searchTextUpdated();
   }
@@ -389,7 +406,10 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
       distance: widget.initialSearchDistance,
       matchPolicy: widget.initialMatchPolicy,
     );
-    // מסכת PDF מצורפת אינה מאונדקסת, וברירת מחדל שדורשת מנוע הייתה חוסמת בה.
+    _carriedInQuery =
+        widget.initialSearchOrigin == InBookSearchOrigin.globalResult
+        ? searchableInBookQuery(widget.searchController.text)
+        : null;
     if (!_isBundledTalmudPdf &&
         searchableInBookQuery(widget.searchController.text) == null) {
       _settings = InBookSearchSettings.savedDefaults();
@@ -450,6 +470,10 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     notifier!.value = null;
     if (!mounted) return;
 
+    _carriedInQuery =
+        configuration.searchOrigin == InBookSearchOrigin.globalResult
+        ? searchableInBookQuery(configuration.searchText)
+        : null;
     _applySearchConfiguration(
       query: configuration.searchText,
       settings: InBookSearchSettings(
@@ -725,6 +749,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
     SearchDialogResult result,
     PdfBookBloc pdfBookBloc,
   ) {
+    _carriedInQuery = null;
     _applySearchConfiguration(
       query: result.query,
       settings: InBookSearchSettings.fromDialogResult(result),
@@ -760,6 +785,7 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
         searchMode: _searchMode,
         searchDistance: _searchDistance,
         matchPolicy: _matchPolicy,
+        searchOrigin: _searchOrigin,
       ),
     );
   }
@@ -1049,7 +1075,16 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
           _searchResults.isEmpty &&
           !_isSearching,
       errorMessage: _searchErrorMessage,
-      onSearchTextChanged: (_) => _searchTextUpdated(),
+      onSearchTextChanged: (_) {
+        // value מה-debounce עשוי להקדים שאילתה חיצונית שכבר נכתבה לשדה.
+        final query = searchableInBookQuery(widget.searchController.text);
+        if (_carriedInQuery != null && query != _carriedInQuery) {
+          _carriedInQuery = null;
+          _settings = _paneDefaults;
+          _syncSearchOptions(context.read<PdfBookBloc>());
+        }
+        _searchTextUpdated();
+      },
       resetSearchCallback: () {
         _pendingSimpleSearchScrollFor = null;
         _lastAdvancedHighlightPattern = null;
@@ -1057,9 +1092,8 @@ class PdfBookSearchViewState extends State<PdfBookSearchView> {
           _searchResults = [];
           _resultsTruncated = false;
           _searchErrorMessage = null;
-          _settings = _isBundledTalmudPdf
-              ? const InBookSearchSettings()
-              : InBookSearchSettings.savedDefaults();
+          _carriedInQuery = null;
+          _settings = _paneDefaults;
         });
         _syncSearchOptions(context.read<PdfBookBloc>());
         _schedulePdfHighlight(null);

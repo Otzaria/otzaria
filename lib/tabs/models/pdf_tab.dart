@@ -54,6 +54,7 @@ class PdfBookTab extends OpenedTab {
   final TextEditingController searchController = TextEditingController();
 
   String searchText;
+  InBookSearchOrigin searchOrigin;
   Map<String, Map<String, bool>> searchOptions;
   Map<int, List<String>> alternativeWords;
   Map<String, String> spacingValues;
@@ -143,6 +144,7 @@ class PdfBookTab extends OpenedTab {
     required int pageNumber,
     bool openLeftPane = false,
     this.searchText = '',
+    this.searchOrigin = InBookSearchOrigin.inBook,
     this.searchOptions = const {},
     this.alternativeWords = const {},
     this.spacingValues = const {},
@@ -173,6 +175,7 @@ class PdfBookTab extends OpenedTab {
   /// מחיל תצורת חיפוש חיצונית בלי לחשוף שאילתה לתצורה הישנה.
   void applyIncomingSearchConfiguration(ReadingTabSearchState configuration) {
     searchText = configuration.searchText;
+    searchOrigin = configuration.searchOrigin;
     searchOptions = configuration.searchOptions;
     alternativeWords = configuration.alternativeWords;
     spacingValues = configuration.spacingValues;
@@ -214,6 +217,7 @@ class PdfBookTab extends OpenedTab {
       isPinned: json['isPinned'] ?? false,
       requiresStableLayout: json['requiresStableLayout'] ?? false,
       searchText: searchState.searchText,
+      searchOrigin: searchState.searchOrigin,
       searchOptions: searchState.searchOptions,
       alternativeWords: searchState.alternativeWords,
       spacingValues: searchState.spacingValues,
@@ -274,6 +278,7 @@ class PdfReadingSnapshot {
       _persistedSearchText = tab.searchController.text,
       _search = ReadingTabSearchState(
         searchText: tab.searchText,
+        searchOrigin: tab.searchOrigin,
         searchOptions: tab.searchOptions,
         alternativeWords: tab.alternativeWords,
         spacingValues: tab.spacingValues,
@@ -315,6 +320,7 @@ class PdfReadingSnapshot {
         pageNumber: _pageNumber,
         openLeftPane: _showLeftPane,
         searchText: search.searchText,
+        searchOrigin: search.searchOrigin,
         searchOptions: search.searchOptions,
         alternativeWords: search.alternativeWords,
         spacingValues: search.spacingValues,

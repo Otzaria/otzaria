@@ -128,6 +128,11 @@ void main() {
 
     final opened = tabsBloc.openedTabs.whereType<TextBookTab>().toList();
     expect(opened, hasLength(1), reason: 'נפתח טאב קריאה אחד');
+    expect(opened.single.searchOrigin, InBookSearchOrigin.globalResult);
+    expect(
+      (opened.single.bloc.state as TextBookInitial).searchOrigin,
+      InBookSearchOrigin.globalResult,
+    );
     addTearDown(opened.single.dispose);
     return opened.single;
   }

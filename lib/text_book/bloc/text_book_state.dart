@@ -90,6 +90,7 @@ class TextBookInitial extends TextBookState {
   final SearchMode searchMode;
   final int searchDistance;
   final SearchMatchPolicy matchPolicy;
+  final InBookSearchOrigin searchOrigin;
   final Set<int>? initialSearchResultLines;
   final bool splitedView;
   final bool showPageShapeView;
@@ -125,6 +126,7 @@ class TextBookInitial extends TextBookState {
     this.permanentHighlightLine,
     this.pinpointHighlightIndex,
     this.pinpointHighlightText,
+    this.searchOrigin = InBookSearchOrigin.inBook,
   ]);
 
   // קונסטרקטור עם פרמטרים בשם
@@ -140,6 +142,7 @@ class TextBookInitial extends TextBookState {
     this.searchMode = SearchMode.exact,
     this.searchDistance = 0,
     this.matchPolicy = SearchMatchPolicy.standard,
+    this.searchOrigin = InBookSearchOrigin.inBook,
     this.initialSearchResultLines,
     bool? splitedView,
     this.showPageShapeView = false,
@@ -161,6 +164,7 @@ class TextBookInitial extends TextBookState {
     searchMode,
     searchDistance,
     matchPolicy,
+    searchOrigin,
     _SetProp(initialSearchResultLines),
     splitedView,
     showPageShapeView,
@@ -262,6 +266,7 @@ class TextBookLoaded extends TextBookState {
   final SearchMode searchMode;
   final int searchDistance;
   final SearchMatchPolicy matchPolicy;
+  final InBookSearchOrigin searchOrigin;
 
   /// האם ההתאמה הפעילה בספר דורשת מילים שלמות. `false` מדגיש גם בתוך מילה
   /// ("שמים" בתוך "השמים") — חלונית החיפוש שולחת אותו רק במסלול הפשוט, כך
@@ -359,6 +364,7 @@ class TextBookLoaded extends TextBookState {
     this.searchMode = SearchMode.exact,
     this.searchDistance = 0,
     this.matchPolicy = SearchMatchPolicy.standard,
+    this.searchOrigin = InBookSearchOrigin.inBook,
     this.searchWholeWord = true,
     this.searchResultLines,
     Object? readerIdentity,
@@ -579,6 +585,7 @@ class TextBookLoaded extends TextBookState {
     SearchMode? searchMode,
     int? searchDistance,
     SearchMatchPolicy? matchPolicy,
+    InBookSearchOrigin? searchOrigin,
     bool? searchWholeWord,
     Set<int>? searchResultLines,
     String? currentTitle,
@@ -724,6 +731,7 @@ class TextBookLoaded extends TextBookState {
       searchMode: searchMode ?? this.searchMode,
       searchDistance: searchDistance ?? this.searchDistance,
       matchPolicy: matchPolicy ?? this.matchPolicy,
+      searchOrigin: searchOrigin ?? this.searchOrigin,
       searchWholeWord: searchWholeWord ?? this.searchWholeWord,
       searchResultLines: clearSearchResultLines
           ? null
@@ -823,6 +831,7 @@ class TextBookLoaded extends TextBookState {
     searchMode,
     searchDistance,
     matchPolicy,
+    searchOrigin,
     searchWholeWord,
     _SetProp(searchResultLines),
     currentTitle,
