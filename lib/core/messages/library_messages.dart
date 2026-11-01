@@ -6,6 +6,9 @@ abstract class LibraryMessages {
   static const String cannotOpenLinkInBrowser =
       'לא ניתן לפתוח את הקישור בדפדפן';
 
+  static const String cannotOpenInOtzar =
+      'לא ניתן לפתוח את הספר בתוכנת אוצר החכמה';
+
   static String bookDeletedFromLibrary(String title) =>
       'הספר "$title" נמחק מהספרייה';
 

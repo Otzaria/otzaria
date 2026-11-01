@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-
-import 'otzar_main_window_input.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'package:path/path.dart' as path;
 import 'package:url_launcher/url_launcher_string.dart';
+
+import 'otzar_main_window_input.dart';
 
 class OtzarUtils {
   static final List<String> _availableDrives = [
@@ -144,17 +145,12 @@ class OtzarUtils {
     return exePath.isNotEmpty;
   }
 
-  /// With [preferMainWindow] on modern Windows and default page=1, F1
-  /// selects the book in the running app; it does NOT force page 1. Set false
-  /// for the existing page-aware BOOK= route. macOS and legacy Windows retain
-  /// their existing behavior.
   /// [page] — מספר העמוד לפתיחה (מבוסס-1; ברירת מחדל: הראשון). בגרסאות ישנות של
   /// התוכנה (לפני 18) נפתח הספר מתחילתו.
-  static Future<void> launchOtzarLocal(
-    int bookId, {
-    int page = 1,
-    bool preferMainWindow = true,
-  }) async {
+  ///
+  /// ב-Windows, כשהעמוד המבוקש הוא הראשון, הספר נפתח בחלון התוכנה הפתוח (F1
+  /// ומספר הספר), ועשוי להיפתח בעמוד שבו נקרא לאחרונה.
+  static Future<void> launchOtzarLocal(int bookId, {int page = 1}) async {
     if (Platform.isMacOS) {
       if (!await launchUrlString(macBookUri(bookId, page: page))) {
         throw Exception('Failed to launch Otzar: no handler for OtzarBook://');
@@ -166,12 +162,15 @@ class OtzarUtils {
       throw Exception('Otzar.exe not found');
     }
 
-    // F1 selects a book, not a page. Keep explicit page requests on the
-    // existing BOOK= route. In the default catalog case, Otzar must already be
-    // running and may restore the book's last-read page.
-    if (isVersion18OrAbove && preferMainWindow && _page(page) == 1) {
-      await OtzarMainWindowInput.openBook(bookId);
-      return;
+    // F1 בוחר ספר ולא עמוד, ולכן בקשה לעמוד מפורש נשארת במסלול BOOK=.
+    if (isVersion18OrAbove && _page(page) == 1) {
+      try {
+        await OtzarMainWindowInput.openBook(bookId);
+        return;
+      } on PlatformException catch (e) {
+        // details=true: קלט כבר נשלח לתוכנה, ופתיחה נוספת עלולה לכפול את הספר.
+        if (e.details == true) rethrow;
+      }
     }
 
     final tabId = Random().nextInt(1000000); // Random tab ID
@@ -226,12 +225,7 @@ class OtzarUtils {
   /// פותח בתוכנת אוצר החכמה כשהיא מותקנת והספר על הכונן, אחרת באתר.
   ///
   /// [page] — העמוד לפתיחה בתוכנה (מבוסס-1; ברירת מחדל: הראשון). באתר נפתח הספר כולו.
-  static Future<bool> openBook(
-    int? bookId,
-    String link, {
-    int page = 1,
-    bool preferMainWindow = true,
-  }) async {
+  static Future<bool> openBook(int? bookId, String link, {int page = 1}) async {
     if (bookId != null &&
         await canLaunchLocally() &&
         await checkBookExistence(bookId)) {
@@ -240,7 +234,6 @@ class OtzarUtils {
         launchOtzarLocal(
           bookId,
           page: page,
-          preferMainWindow: preferMainWindow,
         ).catchError((_) => launchOtzarWeb(link)),
       );
       return true;

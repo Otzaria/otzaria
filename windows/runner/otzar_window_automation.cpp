@@ -23,7 +23,7 @@ std::wstring Normalize(std::wstring text) {
 bool IsOtzarProcess(DWORD pid) {
   HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
   if (!process) return false;
-  wchar_t path[32768]{};
+  wchar_t path[MAX_PATH]{};
   DWORD length = static_cast<DWORD>(sizeof(path) / sizeof(path[0]));
   const bool ok = QueryFullProcessImageNameW(process, 0, path, &length) != FALSE;
   CloseHandle(process);
@@ -106,9 +106,8 @@ void OtzarWindowAutomation::Begin(int64_t book_id, std::unique_ptr<Result> resul
     return;
   }
   result_ = std::move(result);
-  book_id_ = book_id;
   digits_ = std::to_wstring(book_id);
-  // Shared across Flutter windows and other Otzaria instances in this session.
+  // Guards against another Otzaria process; a mutex is re-entrant per thread.
   mutex_ = CreateMutexW(nullptr, FALSE, L"Local\\Otzaria.OtzarBookInput.v1");
   if (!mutex_) { Fail("mutex_failed", "Cannot create input lock."); return; }
   const DWORD lock = WaitForSingleObject(mutex_, 0);
@@ -179,10 +178,13 @@ bool OtzarWindowAutomation::ClickInside() {
   if (!SetCursorPos(point.x, point.y)) {
     Fail("cursor_failed", "Cannot focus the Otzar work area."); return false;
   }
+  // SendInput honors swapped mouse buttons; the primary button must stay a left click.
+  const bool swapped = GetSystemMetrics(SM_SWAPBUTTON) != 0;
   INPUT input[2]{};
   input[0].type = input[1].type = INPUT_MOUSE;
-  input[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-  input[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+  input[0].mi.dwFlags = swapped ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
+  input[1].mi.dwFlags = swapped ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
+  input_sent_ = true;
   const UINT sent = SendInput(2, input, static_cast<int>(sizeof(INPUT)));
   if (sent == 1) SendInput(1, &input[1], static_cast<int>(sizeof(INPUT)));
   POINT current{};
@@ -234,6 +236,13 @@ bool OtzarWindowAutomation::SendDigits() {
     input.push_back(down);
     input.push_back(up);
   }
+  // Enter rides the same input stream: a posted Enter would overtake queued digits.
+  INPUT enter{};
+  enter.type = INPUT_KEYBOARD;
+  enter.ki.wVk = VK_RETURN;
+  input.push_back(enter);
+  enter.ki.dwFlags = KEYEVENTF_KEYUP;
+  input.push_back(enter);
   const auto count = static_cast<UINT>(input.size());
   const UINT sent = SendInput(count, input.data(), static_cast<int>(sizeof(INPUT)));
   if (sent != count) {
@@ -261,9 +270,6 @@ void OtzarWindowAutomation::Tick() {
       stage_ = Stage::kAfterF1; due_ = now + 350; return;
     case Stage::kAfterF1:
       if (!SendDigits()) return;
-      stage_ = Stage::kAfterDigits; due_ = now + 80; return;
-    case Stage::kAfterDigits:
-      if (!PostKey(VK_RETURN, 0x1c)) return;
       stage_ = Stage::kFinish; due_ = now + 250; return;
     case Stage::kFinish:
       Succeed(); return;
@@ -276,19 +282,19 @@ void OtzarWindowAutomation::Reset() {
   if (mutex_) { CloseHandle(mutex_); mutex_ = nullptr; }
   target_ = nullptr;
   target_pid_ = 0;
+  input_sent_ = false;
 }
 
+// details: whether input already reached Otzar, so Dart must not open the book again.
 void OtzarWindowAutomation::Fail(const std::string& code, const std::string& message) {
   auto reply = std::move(result_);
+  const bool input_sent = input_sent_;
   Reset();
-  if (reply) reply->Error(code, message);
+  if (reply) reply->Error(code, message, Value(input_sent));
 }
 
 void OtzarWindowAutomation::Succeed() {
   auto reply = std::move(result_);
-  const int64_t book_id = book_id_;
   Reset();
-  if (reply) reply->Success(Value(flutter::EncodableMap{
-      {Value("sent"), Value(true)}, {Value("bookId"), Value(book_id)},
-      {Value("openedVerified"), Value(false)}}));
+  if (reply) reply->Success();
 }

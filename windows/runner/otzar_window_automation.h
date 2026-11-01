@@ -8,8 +8,8 @@
 #include <memory>
 #include <string>
 
-// Driven by WM_TIMER on the Flutter platform thread: no Sleep(), worker-thread
-// channel replies, clipboard changes, external helper or debugger connection.
+// Opens a book in the running Otzar window: click, F1, book number, Enter.
+// Steps are paced by WM_TIMER so the platform thread never sleeps.
 class OtzarWindowAutomation {
  public:
   OtzarWindowAutomation(flutter::BinaryMessenger* messenger, HWND host);
@@ -21,7 +21,7 @@ class OtzarWindowAutomation {
  private:
   using Value = flutter::EncodableValue;
   using Result = flutter::MethodResult<Value>;
-  enum class Stage { kActivate, kAfterClick, kAfterF1, kAfterDigits, kFinish };
+  enum class Stage { kActivate, kAfterClick, kAfterF1, kFinish };
   void Begin(int64_t book_id, std::unique_ptr<Result> result);
   void Tick();
   void Fail(const std::string& code, const std::string& message);
@@ -39,10 +39,10 @@ class OtzarWindowAutomation {
   UINT_PTR timer_ = 0;
   HANDLE mutex_ = nullptr;
   bool owns_mutex_ = false;
+  bool input_sent_ = false;
   Stage stage_ = Stage::kActivate;
   ULONGLONG due_ = 0;
   ULONGLONG activation_deadline_ = 0;
-  int64_t book_id_ = 0;
   std::wstring digits_;
   std::unique_ptr<Result> result_;
   std::unique_ptr<flutter::MethodChannel<Value>> channel_;

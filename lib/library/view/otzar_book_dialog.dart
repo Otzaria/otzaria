@@ -157,7 +157,9 @@ class OtzarBookDialog extends StatelessWidget {
             text: 'פתח מקומית',
             onPressed: () {
               Navigator.of(context).pop();
-              OtzarUtils.launchOtzarLocal(book.id!);
+              OtzarUtils.launchOtzarLocal(book.id!).catchError(
+                (_) => UiSnack.showError(LibraryMessages.cannotOpenInOtzar),
+              );
             },
           ),
         ActionButton.neutral(
