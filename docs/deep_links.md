@@ -59,7 +59,9 @@
 | `otzaria://open/inspection` | פותח את מסך העיון (הספר האחרון שנפתח) |
 | `otzaria://open/sdk` | פותח את הגדרות › כלים (ניהול תוספים) |
 | `otzaria://open/daily_page` | פותח את הדף היומי (PDF תלמוד בבלי בדף הנכון ליום) |
-| `otzaria://open/report` | פותח את טופס הדיווח על התוכנה (תקלה, קריסה, ביצועים או הצעה) |
+| `otzaria://open/report` | פותח את **טופס הדיווח** על התוכנה (תקלה, קריסה, ביצועים או הצעה) — דיווח חדש |
+| `otzaria://open/reports` | פותח את **חלון ניהול הדיווחים השמורים** (הגדרות › מערכת › דיווחים) — דיווחים שנשמרו ועדיין לא נשלחו. אינו טופס דיווח חדש; שימו לב: `report` ביחיד הוא הטופס, `reports` ברבים הוא הניהול |
+| `otzaria://open/donate` | פותח את חלונית התרומה בנדרים+ (שם הקופה, מספר הקופה וכתובת הדף, עם העתקה). כינוי: `otzaria://open/nedarim`. הקישור פותח את החלונית עצמה תמיד, בלי בדיקת חיבור ובלי לפתוח דפדפן |
 | `otzaria://open/tool/<tool-id>` | פותח כרטיסיית כלי בעיון לפי מזהה מלא — תומך גם בתוספים |
 | `otzaria://open/plugin/<plugin-id>` | פותח כרטיסיית תוסף בעיון לפי מזהה התוסף |
 | `otzaria://open/tab/<index>` | מעבר לטאב פתוח לפי מיקומו (0-based). אינו פותח טאב חדש; אם המיקום לא קיים — מתעלם. נתמך לשימוש חיצוני; המיקום נפתר מול החלון הראשי |
@@ -92,6 +94,8 @@ otzaria://open/tikkun_korim
 otzaria://open/biographies
 otzaria://open/biographies?q=%D7%90%D7%95%D7%A0%D7%A7%D7%9C%D7%95%D7%A1
 otzaria://open/report
+otzaria://open/reports
+otzaria://open/donate
 otzaria://open/library
 otzaria://open/history
 otzaria://open/bookmarks
@@ -469,6 +473,8 @@ _watchSub = _watchDirectory(queueFile.parent).listen((event) {
 | `OpenSdkAction()` | `otzaria://open/sdk` | פתיחת דיאלוג ניהול תוספים |
 | `OpenDailyPageAction()` | `otzaria://open/daily_page` | פתיחת ה-PDF של תלמוד בבלי בדף הנכון ליום |
 | `OpenAppReportAction()` | `otzaria://open/report` | פתיחת טופס הדיווח על התוכנה |
+| `OpenReportsManagementAction()` | `otzaria://open/reports` | פתיחת חלון ניהול הדיווחים השמורים |
+| `OpenDonationAction()` | `otzaria://open/donate`, `/nedarim` | פתיחת חלונית התרומה בנדרים+ |
 | `ShowInfoAction(InfoTopic topic, {int errorLimit, int fileLimit})` | `otzaria://info`, `otzaria://info/app`, `/library`, `/folders?files=<n>`, `/plugins`, `/errors?limit=<n>` | שאילתת מידע — אוסף דוח JSON ומציג בפופאפ, ללא ניווט |
 | `InstallPluginAction(PluginStoreInstallRequest)` | `otzaria://plugin/install?url=...` | התקנת תוסף מהחנות |
 | `InstallLocalPluginAction(String archivePath)` | `otzaria://plugin/install-local?path=<abs>` | התקנת תוסף מקובץ `.otzplugin` מקומי (לחיצה כפולה על קובץ משויך) |
@@ -494,6 +500,8 @@ _watchSub = _watchDirectory(queueFile.parent).listen((event) {
    - **`OpenBookAction`** — `await DataRepository.instance.library`, מחפש לפי `b.id`. אם נמצא — `openBook(context, book, index ?? 0, searchQuery ?? '', markSection: markSection, markText: markText)`. אם לא — `UiSnack.showError`.
    - **`RunSearchAction`** — יוצר `SearchingTab` חדש עם הקוורי, מוסיף ל‑`HistoryBloc` ול‑`TabsBloc`, ומנווט ל‑`Screen.search`. ה‑`UpdateSearchQuery` מופעל אוטומטית מ‑`TantivyFullTextSearch.initState` ברגע שהלשונית מוצגת.
    - **`OpenAppReportAction`** — `showAppReportDialog`, נדחה לפוסט‑פריים מאותה סיבה כמו `ShowInfoAction`. כל עוד טופס פתוח, קישור נוסף מתעלם.
+   - **`OpenReportsManagementAction`** — `showReportsManagementDialog` (בלשונית הראשונה שיש בה דיווחים שמורים), נדחה לפוסט‑פריים כמו `OpenAppReportAction`; קישור נוסף בזמן שהחלון פתוח מתעלם.
+   - **`OpenDonationAction`** — `showOfflineDonationDialog`, נדחה לפוסט‑פריים; קישור נוסף בזמן שהחלונית פתוחה מתעלם.
    - **`ShowInfoAction`** — `AppInfoService.collect` ואז `showAppInfoDialog`. אין ניווט ואין שינוי מצב. הדיאלוג נדחה לפוסט‑פריים ואינו מומתן, משתי סיבות: המתנה לסגירתו הייתה חוסמת את `ExternalActivationService.processPending` (שמתנקז רק בעקבות אירוע קובץ, כך ש‑URI שנכנס בזמן שהפופאפ פתוח לא היה מטופל), וה‑`Navigator.pop` של דיאלוג איתור מקורות היה סוגר את הפופאפ הזה במקום את עצמו.
    - **`InstallPluginAction`** — `InstallRemotePluginRequested` ל‑PluginSystemBloc (ללא ניווט).
    - **`InstallLocalPluginAction`** — `InstallPluginRequested(archivePath)` ל‑PluginSystemBloc. הדיאלוג נפתח אוטומטית דרך `BlocListener` כשמתקבל `PluginSystemInstallRequiresPermissions`.
@@ -585,6 +593,8 @@ case OpenMyFeatureAction():
 | [`lib/tools/tool_catalog_entry.dart`](../lib/tools/tool_catalog_entry.dart) | `buildToolCatalog` / `lookupTool` — קטלוג הכלים וסיבות אי-זמינות |
 | [`lib/tools/tool_query.dart`](../lib/tools/tool_query.dart) | `ToolQuery` / `ToolQueryInbox` / `ToolQueryConsumer` — העברת `q=` למסך הכלי |
 | [`lib/app_report/view/app_report_dialog.dart`](../lib/app_report/view/app_report_dialog.dart) | `showAppReportDialog` — טופס הדיווח על התוכנה |
+| [`lib/settings/dialogs/reports_management_dialog.dart`](../lib/settings/dialogs/reports_management_dialog.dart) | `showReportsManagementDialog` — ניהול הדיווחים השמורים |
+| [`lib/settings/dialogs/offline_donation_dialog.dart`](../lib/settings/dialogs/offline_donation_dialog.dart) | `showOfflineDonationDialog` — חלונית התרומה בנדרים+ |
 | [`windows/runner/main.cpp`](../windows/runner/main.cpp) | זיהוי single‑instance + העברת ארגומנטים לתור (לא רישום); `IsCliInvocation` מזהה `pack-plugin` ו‑`info` ומריץ אותם headless |
 | [`test/core/external_uri_router_test.dart`](../test/core/external_uri_router_test.dart) | בדיקות הראוטר האחיד |
 | [`test/tools/tool_query_test.dart`](../test/tools/tool_query_test.dart) | החלת `q=` במסכי הכלים — לפני הבנייה, בזמן הטעינה ובכלי שכבר מוצג |

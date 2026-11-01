@@ -33,6 +33,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/widgets/misc/app_dropdown_field.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
@@ -195,6 +196,57 @@ Future<void> main() async {
     );
     expect(find.text('0 תוצאות (הספירה מתעדכנת)'), findsOneWidget);
     expect(find.text('0/0 תוצאות'), findsNothing);
+  });
+
+  for (final width in [1400.0, 700.0]) {
+    testWidgets('התוצאות מונחות על רקע חלונית הניווט (רוחב $width)', (
+      tester,
+    ) async {
+      await pumpSearch(tester, width: width, externalProvider: false);
+
+      final layout = find.byType(SearchResultsLayout);
+      final backdrop = AppSurfaces.navPanelBackground(tester.element(layout));
+      expect(
+        find.descendant(
+          of: layout,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Container &&
+                (widget.decoration as BoxDecoration?)?.color == backdrop,
+          ),
+        ),
+        findsOneWidget,
+      );
+    });
+  }
+
+  testWidgets('הרקע מאחורי התוצאות נבדל מכרטיס התוצאה בבהיר ובכהה', (
+    tester,
+  ) async {
+    for (final brightness in Brightness.values) {
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.blue,
+              brightness: brightness,
+            ),
+          ),
+          home: Builder(
+            builder: (c) {
+              context = c;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      expect(
+        AppSurfaces.navPanelBackground(context),
+        isNot(AppSurfaces.card(context)),
+        reason: '$brightness',
+      );
+    }
   });
 
   testWidgets('פעימות מונים במסך האמיתי אינן בונות שוב את עץ הסינון', (

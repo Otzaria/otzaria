@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc_test/bloc_test.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
@@ -24,6 +25,7 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_defaults.dart';
+import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
 import 'package:otzaria/search/view/search_scope_menu.dart';
 import 'package:otzaria/search/utils/facet_helper.dart';
@@ -41,6 +43,7 @@ import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 import '../test_helpers/memory_cache_provider.dart';
 import 'semantic_test_support.dart';
@@ -256,6 +259,82 @@ void main() {
 
   ActionButton submitButton(WidgetTester tester) => tester.widget<ActionButton>(
     find.byKey(const ValueKey('search-dialog-submit')),
+  );
+
+  testWidgets('בורר המצב: ארבעה מקטעים באותו גובה, והסבר המצב החכם ב-tooltip', (
+    tester,
+  ) async {
+    await pumpDialog(tester, _availability(SemanticAvailabilityPhase.ready));
+
+    double heightOf(String label) => tester
+        .getSize(
+          find
+              .ancestor(of: find.text(label), matching: find.byType(InkWell))
+              .first,
+        )
+        .height;
+    final heights = {
+      for (final label in ['מדויק', 'מתקדם', 'מקורב', 'חיפוש חכם'])
+        label: heightOf(label),
+    };
+    expect(heights.values.toSet(), hasLength(1), reason: '$heights');
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            (widget.message ?? '').startsWith('חיפוש חכם (ניסיוני)'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('בורר המצב בארבעה מקטעים אינו גולש במסך צר', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await pumpDialog(tester, _availability(SemanticAvailabilityPhase.ready));
+
+    expect(tester.takeException(), isNull);
+    expect(_semanticSegment, findsOneWidget);
+  });
+
+  testWidgets(
+    'בטופס החכם: אייקון חיפוש רגיל; ניקוי רק עם טקסט, ובשדה הרגיל תמיד',
+    (
+      tester,
+    ) async {
+      await pumpDialog(tester, _availability(SemanticAvailabilityPhase.ready));
+      final lexicalClear = find.descendant(
+        of: find.byType(EnhancedSearchField),
+        matching: find.byIcon(FluentIcons.dismiss_24_regular),
+      );
+      final clear = find.byKey(const ValueKey('semantic-query-clear'));
+      expect(lexicalClear, findsOneWidget);
+
+      await tester.enterText(find.byType(EditableText).first, 'צדקה');
+      await tester.pump();
+      expect(lexicalClear, findsOneWidget);
+
+      await tester.tap(_semanticSegment);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: _queryField,
+          matching: find.byIcon(OtzariaIcons.search_24_regular),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byIcon(OtzariaIcons.search_in_star_24_regular),
+        findsOneWidget,
+      );
+      expect(clear, findsOneWidget);
+
+      await tester.tap(clear);
+      await tester.pump();
+      expect(clear, findsNothing);
+    },
   );
 
   group('נראות המצב', () {

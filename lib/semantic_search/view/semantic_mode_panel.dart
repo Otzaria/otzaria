@@ -12,6 +12,7 @@ import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
+import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
 
 /// גוף דיאלוג החיפוש כשנבחר המצב הסמנטי: הסכמה, מצב הנתונים או טופס החיפוש.
@@ -299,28 +300,16 @@ class SemanticModePanel extends StatelessWidget {
             hintText: context.settingsText(
               'תארו במילים שלכם את העניין שאתם מחפשים',
             ),
-            prefixIcon: const Icon(
-              OtzariaIcons.search_in_star_24_regular,
-            ),
-            suffixIcon: Padding(
-              padding: const EdgeInsetsDirectional.only(end: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: queryController,
-                    builder: (context, value, _) => value.text.isEmpty
-                        ? const SizedBox.shrink()
-                        : IconButton(
-                            key: const ValueKey('semantic-query-clear'),
-                            icon: const Icon(FluentIcons.dismiss_24_regular),
-                            tooltip: context.settingsText('נקה'),
-                            onPressed: queryController.clear,
-                          ),
-                  ),
-                  ?queryTrailingAction,
-                ],
-              ),
+            prefixIcon: const Icon(OtzariaIcons.search_24_regular),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OtzariaSearchClearButton(
+                  buttonKey: const ValueKey('semantic-query-clear'),
+                  controller: queryController,
+                ),
+                ?queryTrailingAction,
+              ],
             ),
           ),
           onSubmitted: (_) => onSubmit(),

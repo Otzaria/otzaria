@@ -22,6 +22,49 @@ abstract interface class PluginSearchFieldBinding {
   void submit();
 }
 
+/// שדה שיודע לצרף לאירוע `search.fieldAction.invoked` הקשר נוסף. ממומש
+/// בנוסף ל-[PluginSearchFieldBinding] ע"י שדות שמחזיקים מצב חיפוש רחב מהטקסט.
+abstract interface class PluginSearchFieldContextSource {
+  /// מפתחות מותרים: [PluginSearchFieldContext.requestKey] (חוזה
+  /// `search.requested`), [PluginSearchFieldContext.pluginSelectionsKey]
+  /// (`"<pluginId>/<itemId>"` ← bool) ו-[PluginSearchFieldContext.categoryPathKey].
+  Map<String, dynamic> get invocationContext;
+}
+
+/// המפתחות הנוספים ב-`search.fieldAction.invoked` ובניית ההקשר שנשלח.
+abstract final class PluginSearchFieldContext {
+  static const requestKey = 'request';
+  static const pluginSelectionsKey = 'pluginSelections';
+  static const categoryPathKey = 'categoryPath';
+
+  /// ההקשר שנשלח ל-[pluginId]: רק מפתחות מוכרים, ו-`pluginSelections` מצומצם
+  /// לשורות של התוסף עצמו ומפוענח ל-`itemId`.
+  static Map<String, dynamic> forPlugin(
+    PluginSearchFieldBinding binding,
+    String pluginId,
+  ) {
+    if (binding is! PluginSearchFieldContextSource) return const {};
+    final raw = (binding as PluginSearchFieldContextSource).invocationContext;
+    final result = <String, dynamic>{};
+    final request = raw[requestKey];
+    if (request is Map<String, dynamic>) result[requestKey] = request;
+    final path = raw[categoryPathKey];
+    if (path is String) result[categoryPathKey] = path;
+    final selections = raw[pluginSelectionsKey];
+    if (selections is Map) {
+      final prefix = '$pluginId/';
+      result[pluginSelectionsKey] = {
+        for (final entry in selections.entries)
+          if (entry.key is String &&
+              (entry.key as String).startsWith(prefix) &&
+              entry.value is bool)
+            (entry.key as String).substring(prefix.length): entry.value,
+      };
+    }
+    return result;
+  }
+}
+
 /// סשן אחד: נפתח רק בלחיצת משתמש על כפתור של תוסף בשדה מסוים, ונסגר
 /// כשהתוסף מסיים, כשהמשתמש עורך את השדה, כשהשדה נסגר או כשסשן אחר מחליף אותו.
 class PluginSearchFieldSession {
@@ -163,6 +206,8 @@ class PluginSearchFieldSessionService extends ChangeNotifier {
       }, preferBackground: true);
       return;
     }
+    // ההקשר נבנה בקוד המארח ועלול לזרוק: לפני הרישום, כדי שלא יישאר סשן בלי אירוע.
+    final context = PluginSearchFieldContext.forPlugin(binding, pluginId);
     // סשן אחד לכל שדה ולכל תוסף: מיקרופון אחד לא מכתיב לשני שדות.
     final replaced = _sessions.values
         .where((s) => identical(s.binding, binding) || s.pluginId == pluginId)
@@ -200,6 +245,7 @@ class PluginSearchFieldSessionService extends ChangeNotifier {
       'text': text,
       'selectionStart': start,
       'selectionEnd': end,
+      ...context,
     }, preferBackground: true);
   }
 

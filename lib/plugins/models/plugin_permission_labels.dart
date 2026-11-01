@@ -55,8 +55,8 @@ PluginPermissionInfo getPermissionInfo(
           label: 'הפעלה ברקע לפי אירוע',
           icon: FluentIcons.power_24_regular,
           description:
-              'לא הוגדר אירוע שמפעיל מנוע רקע, ולכן הרשאה זו אינה בשימוש '
-              'בגרסה הנוכחית של התוסף.',
+              'לא הוגדר אירוע שמפעיל את התוסף ברקע, ולכן ההרשאה הזאת אינה '
+              'בשימוש בגרסה הנוכחית של התוסף.',
         );
       }
       final reasons = pluginBackgroundActivationReasons(manifest).join(', ');
@@ -64,8 +64,8 @@ PluginPermissionInfo getPermissionInfo(
         label: 'הפעלה ברקע לפי אירוע',
         icon: FluentIcons.power_24_regular,
         description:
-            'התוסף יפעיל מנוע WebView ברקע כאשר: $reasons. המנוע יכובה אחרי '
-            '3 דקות ללא פעילות, אלא אם תאושר גם מניעת הכיבוי.',
+            'התוסף יפעל ברקע, בלי שתראה אותו, כאשר: $reasons. הוא ייכבה אחרי '
+            '3 דקות ללא פעילות, אלא אם תאשר גם את מניעת הכיבוי.',
       );
     }
   }
@@ -162,102 +162,122 @@ List<String> orderedPluginPermissions(
   return indexed.map((entry) => entry.$2).toList(growable: false);
 }
 
-/// מיפוי מלא של כל ההרשאות התקפות לשם ותיאור בעברית
+/// מיפוי מלא של כל ההרשאות התקפות לשם ותיאור בעברית. התיאורים כתובים למשתמש
+/// רגיל: מה התוסף יכול לעשות, בלי מונחים טכניים.
 const Map<String, PluginPermissionInfo> _permissionLabels = {
   // ===== מידע על האפליקציה =====
   'app.info.read': PluginPermissionInfo(
     label: 'מידע אפליקציה',
     icon: FluentIcons.info_24_regular,
-    description: 'קריאת מידע כללי על האפליקציה: גרסה, פלטפורמה, ערכת נושא',
+    description:
+        'התוסף יכול לראות איזו גרסה של אוצריא מותקנת אצלך, באיזו מערכת '
+        'הפעלה היא רצה ואיזו ערכת נושא (צבעים) בחרת',
   ),
   'app.user_email.read': PluginPermissionInfo(
     label: 'כתובת מייל',
     icon: FluentIcons.mail_24_regular,
-    description: 'גישה לכתובת המייל של המשתמש, לשימוש בדיווח שגיאות בלבד',
+    description:
+        'התוסף יכול לראות את כתובת המייל שהזנת באוצריא. היא מיועדת למילוי '
+        'אוטומטי בדיווח על תקלה',
   ),
   'app.open_url': PluginPermissionInfo(
     label: 'פתיחת קישורים בדפדפן',
-    icon: FluentIcons.globe_24_regular,
-    description:
-        'פתיחת כתובות אינטרנט (http/https) בדפדפן ברירת המחדל של מערכת ההפעלה',
+    icon: FluentIcons.open_24_regular,
+    description: 'התוסף יכול לפתוח כתובת של אתר באינטרנט בדפדפן שלך',
   ),
   'app.run_on_startup': PluginPermissionInfo(
     label: 'טעינה אוטומטית ברקע',
     icon: FluentIcons.power_24_regular,
     description:
-        'תוסף מדור קודם ייטען עם עליית אוצריא ויישאר פעיל כל עוד התוכנה פתוחה.',
+        'תוסף מדור קודם: ייטען מיד כשאוצריא נפתחת וימשיך לפעול ברקע כל עוד '
+        'היא פתוחה, גם כשלא פתחת אותו',
   ),
   'app.background_keep_alive': PluginPermissionInfo(
-    label: 'מניעת כיבוי מנוע הרקע',
+    label: 'מניעת כיבוי התוסף ברקע',
     icon: FluentIcons.hourglass_24_regular,
     description:
-        'התוסף מבקש להשאיר את מנוע ה-WebView פעיל ללא הגבלת זמן. הדבר מגדיל '
-        'את צריכת הזיכרון והמעבד; אשר רק לתוסף מהימן שחייב להאזין ברציפות.',
+        'התוסף יישאר פעיל ברקע בלי הגבלת זמן, גם כשאינך משתמש בו. זה מגדיל '
+        'את השימוש בזיכרון ובמעבד של המחשב ועלול להאט אותו. אשר רק לתוסף '
+        'שאתה סומך עליו ושחייב להאזין כל הזמן',
   ),
   'app.startup_contributions': PluginPermissionInfo(
     label: 'הוספת רכיבים לתוכנה',
     icon: FluentIcons.puzzle_piece_24_regular,
     description:
-        'מאפשר לתוסף להוסיף פקדים, פריטי תפריט ונתונים שמנוהלים בידי אוצריא. '
-        'פעולות מובנות עשויות להתבצע בלי לפתוח את דף התוסף.',
+        'התוסף יכול להוסיף לאוצריא כפתורים, פריטי תפריט ומידע, שמוצגים כבר '
+        'כשהתוכנה נפתחת. אוצריא היא שמפעילה אותם, ולכן חלק מהפעולות יתבצעו '
+        'בלי לפתוח את דף התוסף',
   ),
   'app.shortcuts': PluginPermissionInfo(
     label: 'קיצורי מקלדת',
     icon: FluentIcons.keyboard_24_regular,
     description:
-        'רישום קיצורי מקלדת שהתוסף מציע: הפעלת פקודות שלו או פעולות '
-        'תפריט הלחיצה הימנית. הקיצורים נשלטים במסך הגדרות קיצורי המקשים.',
+        'התוסף יכול להציע קיצורי מקלדת שמפעילים פקודות שלו. אפשר לראות ולשנות '
+        'אותם במסך הגדרות קיצורי המקשים',
   ),
 
   // ===== ספרייה =====
   'library.books.read': PluginPermissionInfo(
     label: 'רשימת ספרים',
     icon: FluentIcons.library_24_regular,
-    description: 'חיפוש וצפייה ברשימת כל הספרים בספרייה',
+    description:
+        'התוסף יכול לחפש בספרייה ולראות את רשימת הספרים: שמות, מחברים '
+        'וקטגוריות. הוא אינו קורא את הטקסט של הספרים',
   ),
   'library.content.read': PluginPermissionInfo(
     label: 'תוכן ספרים',
     icon: OtzariaIcons.book_24_regular,
-    description: 'קריאת תוכן הספרים מהספרייה',
+    description: 'התוסף יכול לקרוא את הטקסט של הספרים בספרייה',
   ),
   'library.links.read': PluginPermissionInfo(
     label: 'מפרשים וקישורים',
     icon: OtzariaIcons.link_24_regular,
     description:
-        'צפייה ברשימת המפרשים של ספר ובקישורים בין הספרים, בלי תוכן הספרים',
+        'התוסף יכול לראות אילו מפרשים יש לכל ספר ואילו ספרים מקושרים זה לזה. '
+        'הוא אינו רואה את הטקסט של הספרים עצמם',
   ),
   'library.books.provide': PluginPermissionInfo(
     label: 'ספרים בחיפוש הספרייה',
-    icon: FluentIcons.library_24_regular,
+    icon: OtzariaIcons.library_add_24_regular,
     description:
-        'הוספת ספרים מהתוסף לתוצאות איתור הספרים במסך הספרייה. לחיצה על '
-        'ספר כזה מעבירה אותו לתוסף, והוא שפותח אותו',
+        'התוסף יכול להוסיף ספרים משלו לרשימה שמופיעה כשמחפשים ספר במסך '
+        'הספרייה. כשתלחץ על ספר כזה, התוסף הוא שיפתח אותו ולא אוצריא',
   ),
   'library.refresh': PluginPermissionInfo(
     label: 'רענון הספרים האישיים',
-    icon: FluentIcons.arrow_clockwise_24_regular,
+    icon: OtzariaIcons.library_refresh_24_regular,
     description:
-        'סריקה מחדש של התיקיות האישיות שלך ורענון הספרייה, כדי שספרים '
-        'שהתוסף הוסיף יופיעו. התוסף אינו בוחר אילו תיקיות ייסרקו',
+        'התוסף יכול לבקש מאוצריא לסרוק שוב את התיקיות של הספרים האישיים שלך '
+        'ולרענן את הספרייה, כדי שספרים שהוא הוסיף יופיעו. הוא אינו בוחר '
+        'אילו תיקיות ייסרקו',
   ),
 
   // ===== חיפוש =====
   'search.fulltext.read': PluginPermissionInfo(
     label: 'חיפוש טקסט מלא',
     icon: OtzariaIcons.search_in_library_24_regular,
-    description: 'ביצוע חיפושי טקסט ברחבי כל הספרייה',
+    description:
+        'התוסף יכול להריץ חיפוש בתוך הטקסט של כל הספרים ולקבל את התוצאות',
   ),
   'search.dialog': PluginPermissionInfo(
     label: 'רכיבים בחלון החיפוש',
-    icon: FluentIcons.search_24_regular,
-    description: 'הוספת שורות סטטיות לדיאלוג החיפוש, ללא הפעלת קוד התוסף ברקע',
+    icon: FluentIcons.checkbox_checked_24_regular,
+    description:
+        'התוסף יכול להוסיף לחלון החיפוש אפשרויות לסימון, כמו "חפש גם באתר '
+        'חיצוני". אם סימנת אפשרות כזאת והפעלת חיפוש, התוסף יקבל את מילות '
+        'החיפוש וההגדרות שלו, ויוכל להציג תוצאות משלו או להיפתח כדי לחפש. '
+        'הסימון נשמר לחיפוש הבא רק אם התוסף ביקש זאת',
   ),
   pluginSearchFieldActionsPermission: PluginPermissionInfo(
     label: 'כפתורים בשדות החיפוש',
-    icon: FluentIcons.search_24_regular,
+    icon: FluentIcons.text_field_24_regular,
     description:
-        'הוספת כפתור לתוך שדות החיפוש. רק אחרי לחיצה שלך על הכפתור, התוסף '
-        'יכול לכתוב טקסט לאותו שדה — עד שתקליד בו בעצמך או שהשדה ייסגר',
+        'התוסף יכול להוסיף כפתור בתוך שדות חיפוש, למשל להקלדה בדיבור. '
+        'הכפתור יכול להיראות רק כשיש טקסט בשדה. כשתלחץ עליו התוסף יקבל את '
+        'הטקסט שבשדה ואת מצב החיפוש שלך (בחיפוש טקסט מלא: ההגדרות שבחרת; '
+        'באיתור ספרים: הקטגוריה הפתוחה), ויוכל לכתוב לשדה עד שתקליד בו '
+        'בעצמך. באיתור ספרים כפתור כזה יכול גם לסנן את הרשימה: ספרי התוסף '
+        'בלבד, ספרי הספרייה בלבד או הכול',
   ),
 
   // ===== קורא =====
@@ -265,54 +285,59 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'פתיחת ספרים וניהול כרטיסיות',
     icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
     description:
-        'פתיחת ספרים בקורא האפליקציה, ומעבר בין כל הכרטיסיות הפתוחות וסגירתן — '
-        'כולל כרטיסיות של כלים ותוספים אחרים. אינה משנה את תוכן הספרים',
+        'התוסף יכול לפתוח ספרים בקורא, לעבור בין הכרטיסיות הפתוחות ולסגור '
+        'אותן, כולל כרטיסיות של כלים ושל תוספים אחרים. הוא אינו משנה את '
+        'הטקסט של הספרים',
   ),
-
   'reader.context_menu': PluginPermissionInfo(
     label: 'פריטים בתפריט הטקסט',
     icon: FluentIcons.text_bullet_list_square_24_regular,
     description:
-        'הוספת פריטים לתפריט ההקשר של הטקסט. בלחיצה עליהם התוסף מקבל את '
-        'הטקסט שסימנת',
+        'התוסף יכול להוסיף פריטים לתפריט שנפתח בלחיצה ימנית על טקסט. כשתלחץ '
+        'על פריט כזה התוסף יקבל את הטקסט שסימנת',
   ),
   'reader.toolbar': PluginPermissionInfo(
     label: 'פקדים בשורת העיון',
     icon: FluentIcons.app_title_24_regular,
-    description: 'הוספת לחצנים ותפריטים לשורת הפקדים של מסך העיון',
+    description:
+        'התוסף יכול להוסיף כפתורים ותפריטים לשורת הכלים שבמסך העיון בספר',
   ),
   'reader.local_edit': PluginPermissionInfo(
     label: 'תיקונים מקומיים בטקסט',
-    icon: FluentIcons.text_edit_style_24_regular,
+    icon: OtzariaIcons.book_edit_24_regular,
     description:
-        'ניהול תיקונים מקומיים לספר הפתוח וטיוטות השחזור שלהם, ללא כתיבה '
-        'לספר או למסד הספרייה',
+        'התוסף יכול לתקן טקסט בספר שפתוח אצלך, ורק אצלך במחשב. התיקונים '
+        'נשמרים בנפרד, והספר עצמו ומאגר הספרייה אינם משתנים',
   ),
   'reader.highlight': PluginPermissionInfo(
     label: 'הדגשות בטקסט',
     icon: FluentIcons.highlight_24_regular,
     description:
-        'הוספה, שינוי ומחיקה של הדגשות צבעוניות בטקסט הספר. אינה משנה את '
-        'תוכן הספר',
+        'התוסף יכול להוסיף, לשנות ולמחוק הדגשות צבעוניות בטקסט של הספר. '
+        'הטקסט עצמו אינו משתנה',
   ),
 
   // ===== ניווט =====
   pluginNewTabPagePermission: PluginPermissionInfo(
     label: "כפתור לשונית חדשה (+)",
     icon: FluentIcons.add_24_regular,
-    description: "פתיחת דף התוסף בכפתור '+'. רק תוסף אחד יכול לקבל הרשאה זו.",
+    description:
+        'דף התוסף ייפתח כשתלחץ על כפתור ה-"+" לפתיחת כרטיסייה חדשה. רק תוסף '
+        'אחד יכול לקבל הרשאה זו',
   ),
   'navigation.write': PluginPermissionInfo(
     label: 'ניווט במסכים',
     icon: FluentIcons.navigation_24_regular,
-    description: 'מעבר בין מסכים שונים באפליקציה',
+    description:
+        'התוסף יכול להעביר אותך בין המסכים של אוצריא, כמו הספרייה, העיון '
+        'וההגדרות',
   ),
   'plugin.open_other': PluginPermissionInfo(
     label: 'פתיחת תוסף אחר',
     icon: FluentIcons.apps_list_24_regular,
     description:
-        'פתיחת דף של תוסף אחר שמותקן אצלך, כולל הפעלת הקוד שלו. התוסף הנפתח '
-        'פועל בהרשאות שלו בלבד',
+        'התוסף יכול לפתוח דף של תוסף אחר שמותקן אצלך, והתוסף שנפתח יתחיל '
+        'לפעול. הוא פועל רק לפי ההרשאות שלו עצמו',
   ),
 
   // ===== שולחנות עבודה =====
@@ -320,54 +345,62 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'שולחנות עבודה — צפייה',
     icon: FluentIcons.tab_desktop_multiple_24_regular,
     description:
-        'קריאת רשימת שולחנות העבודה שלך, כולל שמותיהם ומספר הכרטיסיות בכל '
-        'אחד. השם שנתת לשולחן עבודה עשוי לרמז על מה שאתה לומד',
+        'התוסף יכול לראות את רשימת שולחנות העבודה שלך: השמות שנתת להם וכמה '
+        'כרטיסיות פתוחות בכל אחד. שם של שולחן עבודה עשוי לרמז על מה שאתה '
+        'לומד',
   ),
   'workspace.manage': PluginPermissionInfo(
     label: 'שולחנות עבודה — יצירה ומעבר',
     icon: FluentIcons.window_new_24_regular,
     description:
-        'יצירת שולחן עבודה חדש והחלפת השולחן הפעיל. מעבר שולחן מחליף את כל '
-        'הכרטיסיות הפתוחות (הן נשמרות בשולחן שממנו יצאת). אינה כוללת מחיקת '
-        'שולחן או שינוי שמו',
+        'התוסף יכול ליצור שולחן עבודה חדש ולעבור בין שולחנות. במעבר, כל '
+        'הכרטיסיות הפתוחות מוחלפות (הן נשמרות בשולחן שיצאת ממנו). התוסף '
+        'אינו יכול למחוק שולחן או לשנות את שמו',
   ),
 
   // ===== הערות אישיות =====
   'notes.read': PluginPermissionInfo(
     label: 'צפייה בהערות',
     icon: FluentIcons.note_24_regular,
-    description: 'קריאה וצפייה בהערות האישיות שלך',
+    description: 'התוסף יכול לקרוא את ההערות האישיות שכתבת',
   ),
   'notes.write': PluginPermissionInfo(
     label: 'עריכת הערות',
     icon: FluentIcons.note_edit_24_regular,
-    description: 'יצירה, עריכה ומחיקה של הערות אישיות',
+    description:
+        'התוסף יכול ליצור הערות אישיות חדשות, לערוך הערות קיימות ולמחוק אותן',
   ),
 
   // ===== לוח שנה =====
   'calendar.read': PluginPermissionInfo(
     label: 'לוח שנה עברי',
     icon: OtzariaIcons.calendar_24_regular,
-    description: 'גישה ללוח השנה העברי, זמנים הלכתיים ואירועים',
+    description:
+        'התוסף יכול להשתמש בלוח השנה העברי: תאריכים, זמני היום (זמנים '
+        'הלכתיים) ואירועים',
   ),
 
   // ===== הגדרות =====
   'settings.read': PluginPermissionInfo(
     label: 'הגדרות האפליקציה',
     icon: FluentIcons.settings_24_regular,
-    description: 'קריאת הגדרות האפליקציה (רק הגדרות שאושרו לתוספים)',
+    description:
+        'התוסף יכול לראות חלק מההגדרות של אוצריא, רק את אלה שאוצריא מתירה '
+        'לתוספים לראות',
   ),
 
   // ===== ממשק משתמש =====
   'ui.feedback': PluginPermissionInfo(
     label: 'הודעות ודיאלוגים',
     icon: FluentIcons.chat_24_regular,
-    description: 'הצגת הודעות, דיאלוגים ועדכונים בממשק המשתמש',
+    description: 'התוסף יכול להציג לך הודעות וחלונות קטנים בתוך אוצריא',
   ),
   'ui.create_shortcut': PluginPermissionInfo(
     label: 'יצירת קיצור דרך',
     icon: FluentIcons.desktop_24_regular,
-    description: 'יצירת קיצור דרך בשולחן העבודה או בתפריט ההתחל (לאחר אישור)',
+    description:
+        'התוסף יכול ליצור קיצור דרך אליו בשולחן העבודה או בתפריט התחל, '
+        'אחרי שתאשר',
   ),
 
   // ===== גופנים =====
@@ -375,9 +408,9 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'רשימת הגופנים המותקנים',
     icon: FluentIcons.text_font_24_regular,
     description:
-        'מנייה של הגופנים המותקנים במחשב, עם השם המלא של כל אחד וקובץ הגופן '
-        'עצמו. נדרשת לבורר גופנים שמציג את כל הגופנים בשמם הנכון ומצייר כל '
-        'אחד מהם באמת. אינה חושפת קבצים אחרים ואינה מאפשרת כתיבה.',
+        'התוסף יכול לראות את רשימת הגופנים (סוגי האותיות) שמותקנים במחשב '
+        'שלך, ולהציג כל גופן בצורתו האמיתית, למשל בבורר גופנים. הוא אינו '
+        'רואה קבצים אחרים ואינו יכול לכתוב למחשב',
   ),
 
   // ===== לוח העתקה =====
@@ -385,9 +418,9 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'קריאת לוח ההעתקה',
     icon: FluentIcons.clipboard_paste_24_regular,
     description:
-        'קריאת מה שמועתק ללוח ההעתקה של המחשב — כולל תוכן שהועתק מתוכנות '
-        'אחרות, כגון סיסמאות. נדרשת לכפתור "הדבק" של תוסף עורך. הדבקה עם '
-        'Ctrl+V עובדת גם בלעדיה.',
+        'התוסף יכול לקרוא את מה שהעתקת במחשב, גם אם העתקת מתוכנה אחרת, '
+        'למשל סיסמה. נדרש לכפתור "הדבק" שבתוסף. הדבקה במקשים Ctrl+V עובדת '
+        'גם בלי ההרשאה',
   ),
 
   // ===== קבצים אישיים =====
@@ -395,33 +428,36 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'קבצים אישיים',
     icon: FluentIcons.document_24_regular,
     description:
-        'בחירה וקריאה של קבצים שתבחר במפורש בדיאלוג — לא גישה חופשית לדיסק',
+        'התוסף יכול לפתוח ולקרוא קבצים שתבחר בחלון בחירת קובץ. הוא אינו '
+        'יכול לגשת לקבצים אחרים במחשב',
   ),
   'fs.user_files.write': PluginPermissionInfo(
     label: 'שמירה לקבצים אישיים',
-    icon: FluentIcons.save_24_regular,
+    icon: FluentIcons.document_save_24_regular,
     description:
-        'שמירה לקובץ שתבחר בדיאלוג, או יצירת קובץ חדש דרך „שמור בשם” — '
-        'לא כתיבה חופשית לדיסק',
+        'התוסף יכול לשמור לקובץ שתבחר, או ליצור קובץ חדש דרך "שמירה בשם". '
+        'הוא אינו יכול לכתוב לשום מקום אחר במחשב',
   ),
   'fs.folder_access': PluginPermissionInfo(
     label: 'גישה לתיקייה שתבחר',
     icon: FluentIcons.folder_24_regular,
     description:
-        'בחירת תיקייה בדיאלוג מערכת ועבודה על קבצים בתוכה (חילוץ ומחיקה). '
-        'הגישה מוגבלת לתיקיות שאישרת בדיאלוג בלבד',
+        'התוסף יכול לעבוד עם קבצים בתוך תיקייה שתבחר: לחלץ אליה קבצים '
+        'ולמחוק מתוכה. הוא אינו יכול לגשת לתיקיות אחרות',
   ),
 
   // ===== אחסון תוסף =====
   'plugin.storage.read': PluginPermissionInfo(
     label: 'אחסון מקומי — קריאה',
-    icon: FluentIcons.database_24_regular,
-    description: 'קריאת נתונים שהתוסף שמר בעבר על המכשיר',
+    icon: FluentIcons.storage_24_regular,
+    description:
+        'התוסף יכול לקרוא נתונים שהוא שמר בעבר במחשב שלך, כמו הגדרות שלו',
   ),
   'plugin.storage.write': PluginPermissionInfo(
     label: 'אחסון מקומי — כתיבה',
     icon: FluentIcons.save_24_regular,
-    description: 'שמירת נתוני התוסף על המכשיר',
+    description:
+        'התוסף יכול לשמור נתונים משלו במחשב שלך, כדי לזכור אותם בפעם הבאה',
   ),
 
   // ===== פרסום נתונים =====
@@ -429,53 +465,59 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'שיתוף נתונים עם האפליקציה',
     icon: FluentIcons.share_24_regular,
     description:
-        'פרסום נתונים מהתוסף לחלקים אחרים באפליקציה (כגון אירועי לוח שנה)',
+        'התוסף יכול להעביר מידע לחלקים אחרים של אוצריא, למשל אירועים '
+        'שיוצגו בלוח השנה',
   ),
 
   // ===== רשת =====
   'network.access': PluginPermissionInfo(
     label: 'גישה לאינטרנט',
     icon: FluentIcons.globe_24_regular,
-    description: 'שליחה וקבלה של מידע מרשת האינטרנט',
+    description:
+        'התוסף יכול להתחבר לאתרים ולשרתים באינטרנט, לשלוח אליהם מידע '
+        'ולקבל מהם מידע',
   ),
   'network.localhost': PluginPermissionInfo(
     label: 'גישה לשירותים מקומיים',
     icon: FluentIcons.plug_connected_24_regular,
     description:
-        'התחברות לשירותים שרצים על המחשב שלך (localhost), כגון מודל שפה מקומי (Ollama / LM Studio). אינה מאפשרת גישה לאינטרנט.',
+        'התוסף יכול לדבר עם תוכנות שרצות במחשב שלך עצמו, למשל מודל בינה '
+        'מלאכותית שהתקנת. ההרשאה הזאת אינה מאפשרת גישה לאינטרנט',
   ),
 
   // ===== משוב ומיילים =====
   'feedback.send_email': PluginPermissionInfo(
     label: 'שליחת מייל',
     icon: FluentIcons.send_24_regular,
-    description: 'שליחת משוב ודיווחים לכתובת מייל שהתוסף מגדיר',
+    description: 'התוסף יכול לשלוח משוב ודיווחים בדוא"ל לכתובת שהתוסף קבע',
   ),
 
   // ===== היסטוריית קריאה =====
   'history.read': PluginPermissionInfo(
     label: 'היסטוריית קריאה — צפייה',
     icon: FluentIcons.history_24_regular,
-    description: 'צפייה בהיסטוריית הקריאה והחיפושים שלך',
+    description: 'התוסף יכול לראות את היסטוריית הקריאה והחיפושים שלך',
   ),
   'history.write': PluginPermissionInfo(
     label: 'היסטוריית קריאה — עריכה',
     icon: FluentIcons.history_dismiss_24_regular,
-    description: 'מחיקה ועריכה של היסטוריית הקריאה',
+    description: 'התוסף יכול למחוק ולשנות את היסטוריית הקריאה שלך',
   ),
 
   // ===== סימניות =====
   'bookmarks.read': PluginPermissionInfo(
     label: 'סימניות — צפייה',
     icon: OtzariaIcons.book_star_24_regular,
-    description: 'קריאת רשימת הסימניות שלך, כולל שמות הספרים והמיקומים בהם',
+    description:
+        'התוסף יכול לראות את רשימת הסימניות שלך, כולל שמות הספרים והמקומות '
+        'שסימנת בהם',
   ),
   'bookmarks.write': PluginPermissionInfo(
     label: 'סימניות — הוספה ומחיקה',
-    icon: FluentIcons.bookmark_off_24_regular,
+    icon: FluentIcons.bookmark_add_24_regular,
     description:
-        'הוספת סימניות חדשות וגם מחיקה של סימניות קיימות שיצרת. מחיקה היא '
-        'סופית — אין שחזור.',
+        'התוסף יכול להוסיף סימניות חדשות וגם למחוק סימניות קיימות שיצרת. '
+        'מחיקה היא סופית ואין דרך לשחזר',
   ),
 
   // ===== כלי עזר =====
@@ -483,83 +525,88 @@ const Map<String, PluginPermissionInfo> _permissionLabels = {
     label: 'כלי עזר מובנים',
     icon: FluentIcons.toolbox_24_regular,
     description:
-        'שימוש בכלי הגימטריה והמילון של אוצריא. נתוני עזר של התוכנה בלבד, '
-        'ללא גישה לנתונים שלך',
+        'התוסף יכול להשתמש בכלי העזר של אוצריא, כמו גימטריה ומילונים. '
+        'הכלים האלה אינם נותנים גישה לנתונים האישיים שלך',
   ),
 
   // ===== מסד נתונים =====
   'database.read': PluginPermissionInfo(
-    label: 'קריאת מסד נתונים',
-    icon: FluentIcons.database_24_regular,
-    description: 'קריאת נתונים ממקורות SQLite שהאפליקציה מאשרת לתוסף',
+    label: 'קריאת מאגרי מידע',
+    icon: FluentIcons.database_search_24_regular,
+    description:
+        'התוסף יכול לקרוא מידע ממאגרי מידע שאוצריא מתירה לו, כמו מאגר שהוא '
+        'עצמו הביא. הוא אינו יכול לשנות אותם ואינו רואה מאגרים אחרים',
   ),
 
   // ===== התראות =====
   'notifications.send': PluginPermissionInfo(
     label: 'הודעות מובנות',
     icon: FluentIcons.alert_24_regular,
-    description: 'הצגת הודעות פופ-אפ בתוך האפליקציה',
+    description: 'התוסף יכול להציג הודעות קטנות בתוך אוצריא',
   ),
   'notifications.system': PluginPermissionInfo(
     label: 'התראות מערכת',
     icon: FluentIcons.alert_urgent_24_regular,
-    description: 'שליחת התראות למערכת ההפעלה (גם כשהאפליקציה סגורה)',
+    description:
+        'התוסף יכול לשלוח התראות של מערכת ההפעלה, שמופיעות גם כשחלון אוצריא '
+        'ממוזער',
   ),
 
   // ===== אירועים =====
   'events.subscribe:navigation.changed': PluginPermissionInfo(
     label: 'אירועי ניווט',
     icon: FluentIcons.navigation_24_regular,
-    description: 'קבלת עדכון בכל פעם שמשתמש עובר בין מסכים',
+    description: 'התוסף יקבל עדכון בכל פעם שאתה עובר בין מסכים',
   ),
   'events.subscribe:reader.current_book_changed': PluginPermissionInfo(
     label: 'אירועי פתיחת ספר',
     icon: OtzariaIcons.otzaria_icon_2_page_24_regular,
-    description: 'קבלת עדכון בכל פעם שנפתח ספר חדש בקורא',
+    description: 'התוסף יקבל עדכון בכל פעם שנפתח ספר חדש בקורא',
   ),
   'events.subscribe:reader.current_ref_changed': PluginPermissionInfo(
     label: 'אירועי שינוי מיקום',
     icon: FluentIcons.location_24_regular,
-    description: 'קבלת עדכון בכל פעם שמיקום הקריאה משתנה (דף, פרק, סעיף)',
+    description: 'התוסף יקבל עדכון בכל פעם שמקום הקריאה משתנה (דף, פרק, סעיף)',
   ),
   'events.subscribe:theme.changed': PluginPermissionInfo(
     label: 'אירועי ערכת נושא',
     icon: FluentIcons.color_24_regular,
-    description: 'קבלת עדכון בכל פעם שמשתמש מחליף ערכת נושא',
+    description: 'התוסף יקבל עדכון בכל פעם שאתה מחליף ערכת נושא',
   ),
   'events.subscribe:settings.changed': PluginPermissionInfo(
     label: 'אירועי הגדרות',
     icon: FluentIcons.settings_24_regular,
-    description: 'קבלת עדכון בכל פעם שמשתמש משנה הגדרה',
+    description: 'התוסף יקבל עדכון בכל פעם שאתה משנה הגדרה',
   ),
   'events.subscribe:calendar.date_changed': PluginPermissionInfo(
     label: 'אירועי שינוי תאריך',
     icon: OtzariaIcons.calendar_24_regular,
-    description: 'קבלת עדכון בכל פעם שמשתמש מחליף תאריך בלוח השנה',
+    description: 'התוסף יקבל עדכון בכל פעם שאתה מחליף תאריך בלוח השנה',
   ),
   'events.subscribe:calendar.city_changed': PluginPermissionInfo(
     label: 'אירועי שינוי עיר',
     icon: FluentIcons.location_24_regular,
-    description: 'קבלת עדכון בכל פעם שמשתמש מחליף את העיר הנבחרת בלוח השנה',
+    description: 'התוסף יקבל עדכון בכל פעם שאתה מחליף את העיר שנבחרה בלוח השנה',
   ),
   'events.subscribe:workspace.changed': PluginPermissionInfo(
     label: 'אירועי סביבת עבודה',
     icon: FluentIcons.apps_24_regular,
-    description: 'קבלת עדכון בכל פעם שמשתמש מחליף סביבת עבודה',
+    description: 'התוסף יקבל עדכון בכל פעם שאתה מחליף שולחן עבודה',
   ),
   'events.subscribe:plugin.permissions_changed': PluginPermissionInfo(
     label: 'אירועי שינוי הרשאות',
     icon: FluentIcons.shield_24_regular,
-    description: 'קבלת עדכון בכל פעם שהרשאות התוסף משתנות',
+    description: 'התוסף יקבל עדכון בכל פעם שההרשאות שלו משתנות',
   ),
   'events.subscribe:reader.sectionContentChanged': PluginPermissionInfo(
     label: 'אירועי שינוי תוכן בקורא',
     icon: OtzariaIcons.text_continuous_rtl_24_regular,
-    description: 'קבלת עדכון כאשר נוסח של סעיף או אופן ההצגה שלו משתנים בקורא',
+    description:
+        'התוסף יקבל עדכון כשהנוסח של סעיף או צורת ההצגה שלו משתנים בקורא',
   ),
   'events.subscribe:reader.selection_changed': PluginPermissionInfo(
     label: 'אירועי סימון טקסט',
     icon: FluentIcons.select_all_on_24_regular,
-    description: 'קבלת עדכון בכל פעם שהטקסט המסומן בקורא משתנה',
+    description: 'התוסף יקבל עדכון בכל פעם שהטקסט המסומן בקורא משתנה',
   ),
 };

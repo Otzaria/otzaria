@@ -477,12 +477,12 @@ void main() {
     );
 
     expect(
-      find.text('התוסף מבקש למנוע את כיבוי מנוע הרקע'),
+      find.text('התוסף מבקש שלא יכבו אותו ברקע'),
       findsOneWidget,
     );
     expect(find.textContaining('ללא הגבלת זמן'), findsWidgets);
     final rowFinder = find.ancestor(
-      of: find.text('מניעת כיבוי מנוע הרקע'),
+      of: find.text('מניעת כיבוי התוסף ברקע'),
       matching: find.byType(ListTile),
     );
     final sw = tester.widget<CustomSwitch>(

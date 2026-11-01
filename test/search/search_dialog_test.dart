@@ -17,11 +17,14 @@ import 'package:otzaria/indexing/bloc/indexing_state.dart';
 import 'package:otzaria/library/bloc/library_bloc.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
 import 'package:otzaria/library/bloc/library_state.dart';
+import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/bloc/navigation_bloc.dart';
 import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/plugins/services/plugin_search_dialog_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
+import 'package:otzaria/plugins/view/plugin_search_field_actions.dart';
 import 'package:otzaria/plugins/services/plugin_search_selection_preferences.dart';
 import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
@@ -68,12 +71,12 @@ class _PopCounter extends NavigatorObserver {
 }
 
 /// LibraryBloc מדומה עם ספרייה ריקה — מספיק ל-parseCategoryQuery בדיאלוג.
-MockLibraryBloc _stubLibraryBloc() {
+MockLibraryBloc _stubLibraryBloc({Library? library}) {
   final bloc = MockLibraryBloc();
   whenListen(
     bloc,
     const Stream<LibraryState>.empty(),
-    initialState: const LibraryState(),
+    initialState: LibraryState(library: library),
   );
   return bloc;
 }
@@ -84,6 +87,7 @@ Widget _buildDialogHarness({
   required IndexingBloc indexingBloc,
   required NavigationBloc navigationBloc,
   required SearchDialog dialog,
+  Library? library,
 }) {
   return MaterialApp(
     theme: theme,
@@ -92,7 +96,9 @@ Widget _buildDialogHarness({
         BlocProvider<HistoryBloc>.value(value: historyBloc),
         BlocProvider<IndexingBloc>.value(value: indexingBloc),
         BlocProvider<NavigationBloc>.value(value: navigationBloc),
-        BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
+        BlocProvider<LibraryBloc>.value(
+          value: _stubLibraryBloc(library: library),
+        ),
       ],
       child: Scaffold(body: dialog),
     ),
@@ -369,6 +375,169 @@ Future<void> main() async {
     // בחירה ששונה מברירת המחדל פותחת את "אפשרויות נוספות" מעצמה.
     await pumpDialog(const ValueKey('second'));
     expect(tester.widget<CheckboxListTile>(contribution).value, isFalse);
+  });
+
+  group('שורות תוסף בדיאלוג', () {
+    late MockHistoryBloc historyBloc;
+    late MockIndexingBloc indexingBloc;
+    late MockNavigationBloc navigationBloc;
+    late PluginSearchDialogRegistry registry;
+
+    setUp(() {
+      historyBloc = MockHistoryBloc();
+      indexingBloc = MockIndexingBloc();
+      navigationBloc = MockNavigationBloc();
+      registry = PluginSearchDialogRegistry.forTesting();
+      whenListen(
+        historyBloc,
+        const Stream<HistoryState>.empty(),
+        initialState: HistoryLoaded([]),
+      );
+      whenListen(
+        indexingBloc,
+        const Stream<IndexingState>.empty(),
+        initialState: IndexingInitial(),
+      );
+      whenListen(
+        navigationBloc,
+        const Stream<NavigationState>.empty(),
+        initialState: const NavigationState(currentScreen: Screen.search),
+      );
+    });
+
+    Future<void> pumpDialog(
+      WidgetTester tester,
+      Key key, {
+      Library? library,
+    }) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _buildDialogHarness(
+          theme: ThemeData(useMaterial3: true),
+          historyBloc: historyBloc,
+          indexingBloc: indexingBloc,
+          navigationBloc: navigationBloc,
+          library: library,
+          dialog: SearchDialog(
+            key: key,
+            initialSearchMode: SearchMode.exact,
+            pluginSearchDialogRegistry: registry,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Finder row(String id) =>
+        find.byKey(ValueKey('plugin-search-dialog-test.plugin-$id'));
+
+    testWidgets('שורת switch מוצגת כמתג, ושורה עם persist:false אינה נשמרת', (
+      tester,
+    ) async {
+      registry.registerPayload('test.plugin', {
+        'id': 'sw',
+        'type': 'switch',
+        'title': 'מתג',
+        'visibleInModes': ['exact'],
+      });
+      registry.registerPayload('test.plugin', {
+        'id': 'tmp',
+        'type': 'checkbox',
+        'title': 'זמני',
+        'persist': false,
+        'visibleInModes': ['exact'],
+      });
+      addTearDown(registry.dispose);
+
+      await pumpDialog(tester, const ValueKey('first'));
+      await _openMoreOptions(tester);
+      expect(tester.widget<SwitchListTile>(row('sw')).value, isFalse);
+      expect(row('tmp'), findsOneWidget);
+      expect(tester.widget<CheckboxListTile>(row('tmp')).value, isFalse);
+
+      for (final id in ['sw', 'tmp']) {
+        await tester.ensureVisible(row(id));
+        await tester.tap(row(id));
+        await tester.pumpAndSettle();
+      }
+      expect(tester.widget<SwitchListTile>(row('sw')).value, isTrue);
+      expect(tester.widget<CheckboxListTile>(row('tmp')).value, isTrue);
+      expect(PluginSearchSelectionPreferences.load(), {'test.plugin/sw': true});
+
+      await pumpDialog(tester, const ValueKey('second'));
+      expect(tester.widget<SwitchListTile>(row('sw')).value, isTrue);
+      expect(tester.widget<CheckboxListTile>(row('tmp')).value, isFalse);
+    });
+
+    testWidgets('הקשר לכפתור תוסף בשדה: בקשת החיפוש הנוכחית ובחירות השורות', (
+      tester,
+    ) async {
+      registry.registerPayload('test.plugin', {
+        'id': 'include-external',
+        'type': 'checkbox',
+        'title': 'חפש גם במקור חיצוני',
+        'defaultValue': true,
+        'visibleInModes': ['exact'],
+      });
+      addTearDown(registry.dispose);
+
+      await pumpDialog(tester, const ValueKey('first'));
+      await tester.enterText(find.byType(EditableText).first, 'שלום עולם');
+      await tester.pump();
+
+      final actions = tester.widget<PluginSearchFieldActions>(
+        find.byType(PluginSearchFieldActions),
+      );
+      final context = actions.invocationContext!();
+      final request =
+          context[PluginSearchFieldContext.requestKey] as Map<String, dynamic>;
+      expect(request['query'], 'שלום עולם');
+      expect(request['mode'], 'exact');
+      expect(request['facets'], ['/']);
+      expect(context[PluginSearchFieldContext.pluginSelectionsKey], {
+        'test.plugin/include-external': true,
+      });
+    });
+
+    testWidgets('הקשר לכפתור תוסף מפענח את צמצום @קטגוריה כמו השליחה', (
+      tester,
+    ) async {
+      final category = Category(
+        title: 'רשי',
+        description: '',
+        shortDescription: '',
+        order: 0,
+        subCategories: const [],
+        books: const [],
+        parent: null,
+      );
+      await pumpDialog(
+        tester,
+        const ValueKey('first'),
+        library: Library(categories: [category]),
+      );
+
+      Map<String, dynamic> currentRequest() {
+        final actions = tester.widget<PluginSearchFieldActions>(
+          find.byType(PluginSearchFieldActions),
+        );
+        return actions.invocationContext!()[PluginSearchFieldContext.requestKey]
+            as Map<String, dynamic>;
+      }
+
+      await tester.enterText(find.byType(EditableText).first, 'שלום@רשי');
+      await tester.pump();
+      var request = currentRequest();
+      expect(request['query'], 'שלום');
+      expect(request['facets'], [category.path]);
+
+      await tester.enterText(find.byType(EditableText).first, 'שלום@אין');
+      await tester.pump();
+      request = currentRequest();
+      expect(request['query'], 'שלום');
+      expect(request['facets'], ['/']);
+    });
   });
 
   testWidgets('אישור שורת תוסף מנתב אליו payload מלא במקום לפתוח טאב חיפוש', (
@@ -1319,6 +1488,50 @@ Future<void> main() async {
     expect(scrollable.position.maxScrollExtent, 0);
     expect(_moreOptionsButton.hitTestable(), findsOneWidget);
     expect(find.byTooltip('חפש').hitTestable(), findsOneWidget);
+    expect(find.text('בחר שאילתה, סוג חיפוש והיקף'), findsOneWidget);
+  });
+
+  testWidgets('כותרת החיפוש בתוך ספר לא מבטיחה היקף', (
+    WidgetTester tester,
+  ) async {
+    final historyBloc = MockHistoryBloc();
+    final indexingBloc = MockIndexingBloc();
+    final navigationBloc = MockNavigationBloc();
+
+    whenListen(
+      historyBloc,
+      const Stream<HistoryState>.empty(),
+      initialState: HistoryLoaded([]),
+    );
+    whenListen(
+      indexingBloc,
+      const Stream<IndexingState>.empty(),
+      initialState: IndexingInitial(),
+    );
+    whenListen(
+      navigationBloc,
+      const Stream<NavigationState>.empty(),
+      initialState: const NavigationState(currentScreen: Screen.search),
+    );
+    addTearDown(() async {
+      await historyBloc.close();
+      await indexingBloc.close();
+      await navigationBloc.close();
+    });
+
+    await tester.pumpWidget(
+      _buildDialogHarness(
+        theme: ThemeData(useMaterial3: true),
+        historyBloc: historyBloc,
+        indexingBloc: indexingBloc,
+        navigationBloc: navigationBloc,
+        dialog: const SearchDialog(bookTitle: 'ספר'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('בחר שאילתה וסוג חיפוש'), findsOneWidget);
+    expect(find.text('בחר שאילתה, סוג חיפוש והיקף'), findsNothing);
   });
 
   testWidgets('קביעת מצב ברירת המחדל נשמרת רק אחרי אישור', (

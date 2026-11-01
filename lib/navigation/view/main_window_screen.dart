@@ -42,6 +42,7 @@ import 'package:otzaria/navigation/bloc/navigation_event.dart';
 import 'package:otzaria/navigation/bloc/navigation_state.dart';
 import 'package:otzaria/navigation/startup_indexing_decision.dart';
 import 'package:otzaria/navigation/view/startup_work_gate.dart';
+import 'package:otzaria/settings/dialogs/reports_management_dialog.dart';
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:otzaria/find_ref/bloc/find_ref_bloc.dart';
 import 'package:otzaria/find_ref/view/find_ref_dialog.dart';
@@ -420,6 +421,8 @@ class MainWindowScreenState extends State<MainWindowScreen>
   /// מונע הערמת פופאפים כשמגיעים כמה קישורי `info` בזה אחר זה.
   bool _isShowingInfoReport = false;
   bool _isShowingAppReport = false;
+  bool _isShowingReportsManagement = false;
+  bool _isShowingDonation = false;
   // השירות של התהליך; החלון רק פותח את מה שהוא מפנה אליו.
   ExternalActivationService? _externalActivationService;
 
@@ -1729,6 +1732,12 @@ class MainWindowScreenState extends State<MainWindowScreen>
       case OpenAppReportAction():
         _showAppReport();
         return true;
+      case OpenReportsManagementAction():
+        _showReportsManagement();
+        return true;
+      case OpenDonationAction():
+        _showDonation();
+        return true;
       case OpenSettingsTabAction(:final tab):
         context.read<NavigationBloc>().add(
           const NavigateToScreen(Screen.settings),
@@ -1790,6 +1799,32 @@ class MainWindowScreenState extends State<MainWindowScreen>
         if (mounted) await showAppReportDialog(context);
       } finally {
         _isShowingAppReport = false;
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _showReportsManagement() {
+    if (_isShowingReportsManagement) return;
+    _isShowingReportsManagement = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (mounted) await showReportsManagementDialog(context);
+      } finally {
+        _isShowingReportsManagement = false;
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _showDonation() {
+    if (_isShowingDonation) return;
+    _isShowingDonation = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (mounted) await showOfflineDonationDialog(context);
+      } finally {
+        _isShowingDonation = false;
       }
     });
     WidgetsBinding.instance.ensureVisualUpdate();

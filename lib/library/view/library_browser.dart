@@ -32,6 +32,7 @@ import 'package:otzaria/widgets/lists/filter_chips_widget.dart';
 import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/services/plugin_library_books_registry.dart';
+import 'package:otzaria/plugins/services/plugin_search_field_session_service.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/library/view/otzar_book_dialog.dart';
 import 'package:otzaria/library/view/book_preview_panel.dart';
@@ -313,6 +314,14 @@ String categoryParentPath(Category category) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// נתיב הקטגוריה כפי שתוספים מצהירים עליו ב-`libraryBooks`: שמות מהשורש,
+/// מופרדים בפסיק ורווח; ריק בשורש הספרייה.
+@visibleForTesting
+String pluginCategoryPath(Category? category, {required Category? root}) =>
+    category == null || identical(category, root)
+    ? ''
+    : category.path.substring(1).replaceAll('/', ', ');
+
 class LibraryBrowser extends StatefulWidget {
   const LibraryBrowser({super.key});
 
@@ -390,7 +399,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
     _secondaryRowVisible = ValueNotifier<bool>(true);
     _topBarTotalHeight = ValueNotifier<double>(0);
     context.read<LibraryBloc>().add(LoadLibrary());
-    PluginLibraryBooksRegistry.instance.addListener(_onPluginBooksChanged);
+    final pluginBooks = PluginLibraryBooksRegistry.instance;
+    pluginBooks.addListener(_onPluginBooksChanged);
+    pluginBooks.sourceFilter.addListener(_onPluginBooksChanged);
   }
 
   @override
@@ -401,7 +412,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
 
   @override
   void dispose() {
-    PluginLibraryBooksRegistry.instance.removeListener(_onPluginBooksChanged);
+    final pluginBooks = PluginLibraryBooksRegistry.instance;
+    pluginBooks.removeListener(_onPluginBooksChanged);
+    pluginBooks.sourceFilter.removeListener(_onPluginBooksChanged);
     _firstGridItemFocusNode.dispose();
     _categoryGridController.dispose();
     _scrollDebounce?.cancel();
@@ -902,6 +915,15 @@ class _LibraryBrowserState extends State<LibraryBrowser>
               ),
               maxWidth: isCompact ? 500 : 400,
               pluginActionsField: PluginSearchField.library,
+              pluginInvocationContext: () {
+                final current = context.read<LibraryBloc>().state;
+                return {
+                  PluginSearchFieldContext.categoryPathKey: pluginCategoryPath(
+                    current.currentCategory,
+                    root: current.library,
+                  ),
+                };
+              },
               onChanged: (value) {
                 context.read<LibraryBloc>().add(UpdateSearchQuery(value));
                 context.read<LibraryBloc>().add(const SelectTopics([]));
@@ -2768,12 +2790,14 @@ class _LibraryBrowserState extends State<LibraryBrowser>
   }) {
     _searchDebounce?.cancel();
     _searchDebounce = null;
+    final pluginBooks = PluginLibraryBooksRegistry.instance;
     context.read<LibraryBloc>().add(
       SearchBooks(
         showHebrewBooks: s.showExternalBooks && s.showHebrewBooks,
         showOtzarHachochma: s.showExternalBooks && s.showOtzarHachochma,
         showLocalHebrewBooks: s.showLocalHebrewBooks,
-        extraBooks: PluginLibraryBooksRegistry.instance.visibleBooks,
+        extraBooks: pluginBooks.filteredVisibleBooks,
+        extraBooksOnly: pluginBooks.searchesExtraBooksOnly,
         keepPreview: keepPreview,
       ),
     );

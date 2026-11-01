@@ -724,6 +724,7 @@ class LibraryBloc extends Bloc<LibraryEvent, LibraryState> {
         includeHebrewBooks: includeHebrewBooks,
         includeLocalHebrewBooks: includeLocalHebrewBooks,
         extraBooks: event.extraBooks,
+        extraBooksOnly: event.extraBooksOnly,
         supersedeKey: this,
       );
       final results = found.books;

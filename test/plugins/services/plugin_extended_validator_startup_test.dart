@@ -273,6 +273,174 @@ void main() {
       expect(report.warnings, contains(contains('no_such_icon')));
     });
 
+    test('visibleWhen תקף מ-0.9.98.3 ושגוי על גרסה ישנה', () {
+      final items = [
+        {'id': 'a', 'title': 'א', 'visibleWhen': 'nonEmptyText'},
+      ];
+      expect(
+        _run(
+          tempDir,
+          actionsManifest(minAppVersion: '0.9.98.3', items: items),
+        ).errors,
+        isEmpty,
+      );
+      final old = _run(
+        tempDir,
+        actionsManifest(minAppVersion: '0.9.98.2', items: items),
+      );
+      expect(old.errors, contains(contains('0.9.98.3')));
+    });
+
+    test('visibleWhen לא מוכר — שגיאה', () {
+      final report = _run(
+        tempDir,
+        actionsManifest(
+          minAppVersion: '0.9.98.3',
+          items: [
+            {'id': 'a', 'title': 'א', 'visibleWhen': 'sometimes'},
+          ],
+        ),
+      );
+      expect(report.errors, contains(contains('visibleWhen')));
+    });
+
+    test('mode בלבד דורש minAppVersion 0.9.98.3', () {
+      final items = [
+        {'id': 'a', 'title': 'א', 'mode': 'session'},
+      ];
+      expect(
+        _run(
+          tempDir,
+          actionsManifest(minAppVersion: '0.9.98.3', items: items),
+        ).errors,
+        isEmpty,
+      );
+      expect(
+        _run(
+          tempDir,
+          actionsManifest(minAppVersion: '0.9.98.2', items: items),
+        ).errors,
+        contains(contains('0.9.98.3')),
+      );
+    });
+
+    test('libraryOnlyIcon בלי mode providerBooksFilter — שגיאה', () {
+      final report = _run(
+        tempDir,
+        actionsManifest(
+          minAppVersion: '0.9.98.3',
+          items: [
+            {'id': 'a', 'title': 'א', 'libraryOnlyIcon': 'book_24_regular'},
+          ],
+        ),
+      );
+      expect(report.errors, contains(contains('libraryOnlyIcon')));
+    });
+
+    test('כפתור סשן בלי app.run_on_startup — אזהרה', () {
+      final report = _run(
+        tempDir,
+        actionsManifest(
+          permissions: const [
+            'app.startup_contributions',
+            'search.field_actions',
+          ],
+        ),
+      );
+      expect(
+        report.warnings,
+        contains(contains('app.run_on_startup')),
+      );
+    });
+
+    group('providerBooksFilter', () {
+      Map<String, dynamic> filterManifest({
+        List<String> permissions = const [
+          'app.startup_contributions',
+          'app.run_on_startup',
+          'search.field_actions',
+          'library.books.provide',
+        ],
+        bool withProvider = true,
+        Map<String, dynamic> extra = const {},
+      }) {
+        final json = actionsManifest(
+          permissions: permissions,
+          minAppVersion: '0.9.98.3',
+          items: [
+            {
+              'id': 'source',
+              'title': 'מקור הספרים',
+              'mode': 'providerBooksFilter',
+              ...extra,
+            },
+          ],
+        );
+        if (withProvider) {
+          ((json['contributes'] as Map)['startup'] as Map)['libraryBooks'] = [
+            {'id': 'books', 'provider': 'mylib', 'title': 'הספרייה שלי'},
+          ];
+        }
+        return json;
+      }
+
+      test('תרומה תקינה עוברת', () {
+        expect(_run(tempDir, filterManifest()).errors, isEmpty);
+      });
+
+      test('בלי library.books.provide או בלי libraryBooks — שגיאה', () {
+        expect(
+          _run(
+            tempDir,
+            filterManifest(
+              permissions: const [
+                'app.startup_contributions',
+                'app.run_on_startup',
+                'search.field_actions',
+              ],
+            ),
+          ).errors,
+          contains(contains('library.books.provide')),
+        );
+        expect(
+          _run(tempDir, filterManifest(withProvider: false)).errors,
+          contains(contains('contributes.startup.libraryBooks')),
+        );
+      });
+
+      test('תוסף של כפתור סינון בלבד לא מקבל אזהרת הפעלה', () {
+        final report = _run(
+          tempDir,
+          filterManifest(
+            permissions: const [
+              'app.startup_contributions',
+              'search.field_actions',
+              'library.books.provide',
+            ],
+          ),
+        );
+        expect(report.errors, isEmpty);
+        expect(
+          report.warnings.where((w) => w.contains('app.run_on_startup')),
+          isEmpty,
+        );
+      });
+
+      test('בשדה שאינו library — שגיאה', () {
+        expect(
+          _run(
+            tempDir,
+            filterManifest(
+              extra: {
+                'fields': ['inBook'],
+              },
+            ),
+          ).errors,
+          contains(contains('library')),
+        );
+      });
+    });
+
     test('קריאה ל-search.setFieldText מחייבת minAppVersion 0.9.98.1', () {
       final dir = Directory(p.join(tempDir.path, 'plugin'))..createSync();
       final json = actionsManifest(minAppVersion: '0.9.98', items: const []);
@@ -502,7 +670,7 @@ void main() {
     expect(supportedVersion.errors, isEmpty);
   });
 
-  test('resultsAction דורש minAppVersion 0.9.99', () {
+  test('resultsAction דורש minAppVersion 0.9.98.3', () {
     final startup = validStartup();
     (startup['searchDialogItems'] as List).single
       ..['openPluginOnSubmit'] = true
@@ -512,13 +680,83 @@ void main() {
       tempDir,
       _manifest(minAppVersion: '0.9.98', startup: startup),
     );
-    expect(oldVersion.errors, contains(contains('0.9.99')));
+    expect(oldVersion.errors, contains(contains('0.9.98.3')));
+    final hotfixOlder = _run(
+      tempDir,
+      _manifest(minAppVersion: '0.9.98.2', startup: startup),
+    );
+    expect(hotfixOlder.errors, contains(contains('resultsAction')));
 
     final supportedVersion = _run(
       tempDir,
-      _manifest(minAppVersion: '0.9.99', startup: startup),
+      _manifest(minAppVersion: '0.9.98.3', startup: startup),
     );
     expect(supportedVersion.errors, isEmpty);
+  });
+
+  group('searchDialogItems: type switch ו-persist', () {
+    Map<String, dynamic> dialogManifest(
+      Map<String, dynamic> item, {
+      String minAppVersion = '0.9.98.3',
+    }) => _manifest(
+      minAppVersion: minAppVersion,
+      startup: {
+        'searchDialogItems': [
+          {'id': 'a', 'type': 'checkbox', 'title': 'כותרת', ...item},
+        ],
+      },
+    );
+
+    test('switch ו-persist תקפים מ-0.9.98.3', () {
+      for (final item in [
+        {'type': 'switch'},
+        {'persist': false},
+        {'type': 'switch', 'persist': true},
+      ]) {
+        expect(
+          _run(tempDir, dialogManifest(item)).errors,
+          isEmpty,
+          reason: '$item',
+        );
+      }
+    });
+
+    test('בלי הרחבות checkbox ישן ממשיך לעבוד על minAppVersion ישן', () {
+      expect(
+        _run(tempDir, dialogManifest({}, minAppVersion: '0.9.96')).errors,
+        isEmpty,
+      );
+    });
+
+    test('switch או persist על minAppVersion ישן — שגיאה חוסמת', () {
+      for (final item in [
+        {'type': 'switch'},
+        {'persist': false},
+      ]) {
+        final report = _run(
+          tempDir,
+          dialogManifest(item, minAppVersion: '0.9.98.2'),
+        );
+        expect(
+          report.errors,
+          contains(contains('0.9.98.3')),
+          reason: '$item',
+        );
+      }
+    });
+
+    test('type לא מוכר ו-persist שאינו בוליאני — שגיאה', () {
+      for (final item in [
+        {'type': 'radio'},
+        {'persist': 'no'},
+      ]) {
+        expect(
+          _run(tempDir, dialogManifest(item)).errors,
+          contains(contains('searchDialogItems לא תקין')),
+          reason: '$item',
+        );
+      }
+    });
   });
 
   test('action בתפריט ההקשר: גרסת מינימום והצהרת הרשאה', () {

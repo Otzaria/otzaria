@@ -2,6 +2,22 @@ import 'package:otzaria/plugins/models/plugin_when_condition.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/search_query_builder.dart';
 
+/// איך השורה מוצגת בדיאלוג החיפוש.
+enum PluginSearchDialogItemType {
+  checkbox,
+  switchToggle;
+
+  /// הערך ב-`type` שבמניפסט.
+  String get manifestName => this == checkbox ? 'checkbox' : 'switch';
+
+  static PluginSearchDialogItemType? fromManifestName(Object? name) {
+    for (final type in values) {
+      if (type.manifestName == name) return type;
+    }
+    return null;
+  }
+}
+
 /// שורת חיפוש סטטית שתוסף מצהיר עליה ב־`contributes.startup`.
 ///
 /// אוצריא בונה את השורה ישירות מהמניפסט; אין לה callback או קוד תוסף.
@@ -10,8 +26,13 @@ class PluginSearchDialogItem {
   static const int maxDisabledOptionsPerMode = 20;
 
   final String id;
+  final PluginSearchDialogItemType type;
   final String title;
   final bool defaultValue;
+
+  /// האם הבחירה נשמרת לחיפושים הבאים. `false`: הערך חוזר ל-[defaultValue]
+  /// בכל פתיחה של הדיאלוג.
+  final bool persist;
   final bool openPluginOnSubmit;
 
   /// כשמוגדר, סימון השורה אינו פותח את התוסף אלא מציג בטאב החיפוש המובנה
@@ -34,8 +55,10 @@ class PluginSearchDialogItem {
 
   const PluginSearchDialogItem({
     required this.id,
+    this.type = PluginSearchDialogItemType.checkbox,
     required this.title,
     required this.defaultValue,
+    this.persist = true,
     required this.openPluginOnSubmit,
     this.resultsProvider,
     String? resultsTitle,
@@ -44,6 +67,8 @@ class PluginSearchDialogItem {
     required this.disabledSearchOptionIds,
     this.when,
   }) : resultsTitle = resultsTitle ?? title;
+
+  bool get isSwitch => type == PluginSearchDialogItemType.switchToggle;
 
   bool isVisibleIn(SearchMode mode) => visibleInModes.contains(mode);
 
@@ -56,6 +81,7 @@ class PluginSearchDialogItem {
       'type',
       'title',
       'defaultValue',
+      'persist',
       'openPluginOnSubmit',
       'resultsProvider',
       'resultsTitle',
@@ -79,9 +105,10 @@ class PluginSearchDialogItem {
         'search dialog item id is invalid',
       );
     }
-    if (payload['type'] != 'checkbox') {
+    final type = PluginSearchDialogItemType.fromManifestName(payload['type']);
+    if (type == null) {
       throw const PluginSearchDialogItemException(
-        'only checkbox search dialog items are supported',
+        'search dialog item type must be "checkbox" or "switch"',
       );
     }
     final title = _requiredText(
@@ -94,6 +121,10 @@ class PluginSearchDialogItem {
       throw const PluginSearchDialogItemException(
         'defaultValue must be a bool',
       );
+    }
+    final persist = payload['persist'];
+    if (persist != null && persist is! bool) {
+      throw const PluginSearchDialogItemException('persist must be a bool');
     }
     final openPluginOnSubmit = payload['openPluginOnSubmit'];
     if (openPluginOnSubmit != null && openPluginOnSubmit is! bool) {
@@ -160,8 +191,10 @@ class PluginSearchDialogItem {
     return PluginSearchDialogItem(
       id: id,
       when: when,
+      type: type,
       title: title,
       defaultValue: defaultValue as bool? ?? false,
+      persist: persist as bool? ?? true,
       openPluginOnSubmit: openPluginOnSubmit as bool? ?? false,
       resultsProvider: resultsProvider as String?,
       resultsTitle: resultsTitle,

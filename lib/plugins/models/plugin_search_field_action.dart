@@ -21,6 +21,38 @@ enum PluginSearchField {
   }
 }
 
+/// מתי הכפתור מוצג בשדה.
+enum PluginSearchFieldActionVisibility {
+  always,
+
+  /// רק כשיש טקסט בשדה, כמו כפתור הניקוי.
+  nonEmptyText;
+
+  static PluginSearchFieldActionVisibility? fromName(String name) {
+    for (final value in values) {
+      if (value.name == name) return value;
+    }
+    return null;
+  }
+}
+
+/// מה לחיצה על הכפתור עושה.
+enum PluginSearchFieldActionMode {
+  /// פותחת סשן ושולחת לתוסף `search.fieldAction.invoked`.
+  session,
+
+  /// מחליפה מחזורית את מקור הספרים באיתור הספרים (רק בשדה `library`):
+  /// הכול, ספרי התוסף בלבד, ספרי הספרייה בלבד. בלי אירוע ובלי סשן.
+  providerBooksFilter;
+
+  static PluginSearchFieldActionMode? fromName(String name) {
+    for (final value in values) {
+      if (value.name == name) return value;
+    }
+    return null;
+  }
+}
+
 /// כפתור פעולה שתוסף מצהיר עליו בתוך שדות חיפוש
 /// (`contributes.startup.searchFieldActions`).
 ///
@@ -33,7 +65,13 @@ class PluginSearchFieldAction {
   final String title;
   final String? icon;
   final String? activeIcon;
+
+  /// ב-[PluginSearchFieldActionMode.providerBooksFilter]: האייקון במצב
+  /// "ספרי הספרייה בלבד". בלעדיו משמש [icon].
+  final String? libraryOnlyIcon;
   final Set<PluginSearchField> fields;
+  final PluginSearchFieldActionVisibility visibleWhen;
+  final PluginSearchFieldActionMode mode;
 
   const PluginSearchFieldAction({
     required this.id,
@@ -41,14 +79,35 @@ class PluginSearchFieldAction {
     required this.fields,
     this.icon,
     this.activeIcon,
+    this.libraryOnlyIcon,
+    this.visibleWhen = PluginSearchFieldActionVisibility.always,
+    this.mode = PluginSearchFieldActionMode.session,
   });
 
   bool showsIn(PluginSearchField field) => fields.contains(field);
 
+  bool get showOnlyWithText =>
+      visibleWhen == PluginSearchFieldActionVisibility.nonEmptyText;
+
+  bool get isProviderBooksFilter =>
+      mode == PluginSearchFieldActionMode.providerBooksFilter;
+
+  /// האם הכפתור מוצג בשדה שהטקסט שלו [text].
+  bool isVisibleFor(String text) => !showOnlyWithText || text.isNotEmpty;
+
   /// [fields] חסר = כל השדות הנתמכים. ערך לא מוכר מדולג, כדי שתוסף שנכתב
   /// לגרסה חדשה עם שדה נוסף ימשיך לעבוד בגרסה ישנה יותר.
   factory PluginSearchFieldAction.fromPayload(Map<String, dynamic> payload) {
-    const allowedFields = {'id', 'title', 'icon', 'activeIcon', 'fields'};
+    const allowedFields = {
+      'id',
+      'title',
+      'icon',
+      'activeIcon',
+      'libraryOnlyIcon',
+      'fields',
+      'visibleWhen',
+      'mode',
+    };
     if (payload.keys.any((key) => !allowedFields.contains(key))) {
       throw const PluginSearchFieldActionException(
         'unknown search field action field',
@@ -67,11 +126,48 @@ class PluginSearchFieldAction {
     final activeIcon = payload['activeIcon'] == null
         ? null
         : _text(payload['activeIcon'], field: 'activeIcon', maxLength: 128);
+    final libraryOnlyIcon = payload['libraryOnlyIcon'] == null
+        ? null
+        : _text(
+            payload['libraryOnlyIcon'],
+            field: 'libraryOnlyIcon',
+            maxLength: 128,
+          );
+    final rawVisibleWhen = payload['visibleWhen'];
+    final visibleWhen = rawVisibleWhen == null
+        ? PluginSearchFieldActionVisibility.always
+        : rawVisibleWhen is String
+        ? PluginSearchFieldActionVisibility.fromName(rawVisibleWhen)
+        : null;
+    if (visibleWhen == null) {
+      throw const PluginSearchFieldActionException(
+        'visibleWhen must be "always" or "nonEmptyText"',
+      );
+    }
+    final rawMode = payload['mode'];
+    final mode = rawMode == null
+        ? PluginSearchFieldActionMode.session
+        : rawMode is String
+        ? PluginSearchFieldActionMode.fromName(rawMode)
+        : null;
+    if (mode == null) {
+      throw const PluginSearchFieldActionException(
+        'mode must be "session" or "providerBooksFilter"',
+      );
+    }
+    final isFilter = mode == PluginSearchFieldActionMode.providerBooksFilter;
+    if (libraryOnlyIcon != null && !isFilter) {
+      throw const PluginSearchFieldActionException(
+        'libraryOnlyIcon requires mode providerBooksFilter',
+      );
+    }
 
     final rawFields = payload['fields'];
     Set<PluginSearchField> fields;
     if (rawFields == null) {
-      fields = PluginSearchField.values.toSet();
+      fields = isFilter
+          ? {PluginSearchField.library}
+          : PluginSearchField.values.toSet();
     } else {
       if (rawFields is! List ||
           rawFields.isEmpty ||
@@ -85,12 +181,21 @@ class PluginSearchFieldAction {
           ?PluginSearchField.fromName(name),
       };
     }
+    if (isFilter &&
+        (fields.length != 1 || !fields.contains(PluginSearchField.library))) {
+      throw const PluginSearchFieldActionException(
+        'mode providerBooksFilter is valid only for the library field',
+      );
+    }
     return PluginSearchFieldAction(
       id: id,
       title: title,
       icon: icon,
       activeIcon: activeIcon,
+      libraryOnlyIcon: libraryOnlyIcon,
       fields: Set.unmodifiable(fields),
+      visibleWhen: visibleWhen,
+      mode: mode,
     );
   }
 

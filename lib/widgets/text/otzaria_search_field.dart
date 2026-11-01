@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/settings/engine/settings_bloc.dart';
+import 'package:otzaria/settings/l10n/settings_l10n_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
@@ -81,12 +82,78 @@ class OtzariaSearchAction {
     required VoidCallback onPressed,
     String? tooltip,
     Color? color,
+    double size = 32,
+    double iconSize = 20,
   }) => _ActionButton(
     icon: iconData,
     onPressed: onPressed,
     tooltip: tooltip,
     color: color,
+    size: size,
+    iconSize: iconSize,
   );
+
+  /// כפתור הניקוי (X) שבסוף שדה חיפוש.
+  static Widget clear({
+    Key? key,
+    required VoidCallback onPressed,
+    String? tooltip,
+    double size = 32,
+    double iconSize = 18,
+  }) => _ActionButton(
+    key: key,
+    icon: FluentIcons.dismiss_24_regular,
+    onPressed: onPressed,
+    tooltip: tooltip,
+    size: size,
+    iconSize: iconSize,
+  );
+}
+
+/// כפתור ניקוי לשדה שאינו [OtzariaSearchField]: מוצג רק כשיש טקסט ב-[controller],
+/// אלא אם [showWhenEmpty].
+class OtzariaSearchClearButton extends StatelessWidget {
+  final TextEditingController controller;
+
+  /// מופעל אחרי שהטקסט נוקה, לניקוי מצב נלווה.
+  final VoidCallback? onCleared;
+
+  /// מפתח הכפתור עצמו, שקיים רק כשהוא מוצג.
+  final Key? buttonKey;
+
+  /// כשהניקוי מאפס גם מצב נלווה ([onCleared]), הוא נחוץ גם בשדה ריק.
+  final bool showWhenEmpty;
+  final double size;
+  final double iconSize;
+
+  const OtzariaSearchClearButton({
+    super.key,
+    required this.controller,
+    this.onCleared,
+    this.buttonKey,
+    this.showWhenEmpty = false,
+    this.size = 40,
+    this.iconSize = 22,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) => value.text.isEmpty && !showWhenEmpty
+          ? const SizedBox.shrink()
+          : OtzariaSearchAction.clear(
+              key: buttonKey,
+              tooltip: context.settingsText('נקה'),
+              size: size,
+              iconSize: iconSize,
+              onPressed: () {
+                controller.clear();
+                onCleared?.call();
+              },
+            ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,20 +189,25 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onPressed;
   final String? tooltip;
   final Color? color;
+  final double size;
+  final double iconSize;
   const _ActionButton({
+    super.key,
     required this.icon,
     required this.onPressed,
     this.tooltip,
     this.color,
+    this.size = 32,
+    this.iconSize = 20,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 32,
-      height: 32,
+      width: size,
+      height: size,
       child: IconButton(
-        icon: Icon(icon, size: 20),
+        icon: Icon(icon, size: iconSize),
         onPressed: onPressed,
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
@@ -255,6 +327,9 @@ class OtzariaSearchField extends StatefulWidget {
   /// שדה שתוספים רשאים להוסיף בו כפתור (`searchFieldActions`); null = אין.
   final PluginSearchField? pluginActionsField;
 
+  /// ההקשר שנשלח לתוסף בלחיצה על כפתורו; ראו [PluginSearchFieldActions].
+  final Map<String, dynamic> Function()? pluginInvocationContext;
+
   const OtzariaSearchField({
     super.key,
     required this.controller,
@@ -274,6 +349,7 @@ class OtzariaSearchField extends StatefulWidget {
     this.selectAllOnFocus = true,
     this.enabled = true,
     this.pluginActionsField,
+    this.pluginInvocationContext,
   });
 
   @override
@@ -423,6 +499,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
           controller: widget.controller,
           onChanged: widget.onChanged,
           onSubmitted: widget.onSubmitted,
+          invocationContext: widget.pluginInvocationContext,
           buttonSize: isSlim ? 26 : 32,
           iconSize: isSlim ? 16 : 20,
         ),
@@ -432,24 +509,14 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
       suffixChildren.addAll(widget.trailingActions!);
     }
     if (hasText && widget.onClear != null) {
-      final clearSize = isSlim ? 26.0 : 32.0;
       suffixChildren.add(
-        SizedBox(
-          width: clearSize,
-          height: clearSize,
-          child: IconButton(
-            icon: Icon(
-              FluentIcons.dismiss_24_regular,
-              size: isSlim ? 15 : 18,
-              color: cs.onSurfaceVariant,
-            ),
-            onPressed: () {
-              widget.controller.clear();
-              widget.onClear!();
-            },
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-          ),
+        OtzariaSearchAction.clear(
+          size: isSlim ? 26 : 32,
+          iconSize: isSlim ? 15 : 18,
+          onPressed: () {
+            widget.controller.clear();
+            widget.onClear!();
+          },
         ),
       );
     }

@@ -192,6 +192,8 @@ class DataRepository {
   /// כמו [findBooks], ובנוסף מחזיר את הקטגוריות שכותרתן תואמת לשאילתה —
   /// לתצוגת קבוצת "תיקיות" אחרי הספרים בתוצאות האיתור (issue #956).
   /// חיפוש חדש עם אותו [supersedeKey] מבטל את הקודם ב-[BookSearchSupersededException].
+  /// [extraBooksOnly] מחפש רק ב-[extraBooks]: בלי ספרי הספרייה, הקטלוגים
+  /// החיצוניים והתיקיות.
   Future<({List<Book> books, List<Category> categories})>
   findBooksAndCategories(
     String query,
@@ -201,6 +203,7 @@ class DataRepository {
     bool includeHebrewBooks = false,
     bool includeLocalHebrewBooks = true,
     List<Book> extraBooks = const [],
+    bool extraBooksOnly = false,
     bool sortByRatio = true,
     Object? supersedeKey,
   }) async {
@@ -217,19 +220,21 @@ class DataRepository {
         return empty;
       }
 
-      final allBooks = <Book>[
-        ...(category?.getAllBooks() ?? (await library).getAllBooks()),
-      ];
-
-      if (includeOtzar) {
-        allBooks.addAll(await otzarBooks);
-      }
-      if (includeHebrewBooks) {
-        allBooks.addAll(await hebrewBooks);
-      } else if (includeLocalHebrewBooks) {
-        // ספרי היברובוקס שיש להם PDF מקומי הם ספרים שכבר נמצאים במחשב, ולכן
-        // מוצגים גם כשהצגת הקטלוג החיצוני כבויה — עד שהמשתמש מכבה זאת.
-        allBooks.addAll(await localHebrewBooks);
+      final allBooks = <Book>[];
+      if (!extraBooksOnly) {
+        allBooks.addAll(
+          category?.getAllBooks() ?? (await library).getAllBooks(),
+        );
+        if (includeOtzar) {
+          allBooks.addAll(await otzarBooks);
+        }
+        if (includeHebrewBooks) {
+          allBooks.addAll(await hebrewBooks);
+        } else if (includeLocalHebrewBooks) {
+          // ספרי היברובוקס שיש להם PDF מקומי הם ספרים שכבר נמצאים במחשב, ולכן
+          // מוצגים גם כשהצגת הקטלוג החיצוני כבויה — עד שהמשתמש מכבה זאת.
+          allBooks.addAll(await localHebrewBooks);
+        }
       }
       // ספרים מבחוץ (של תוספים) אחרונים ברשימה.
       allBooks.addAll(extraBooks);
@@ -254,8 +259,9 @@ class DataRepository {
       ];
 
       // הקטגוריות מצטרפות לאותה ריצת isolate; מזוהות באינדקסים שמעל הספרים.
-      final allCategories =
-          category?.getAllCategories() ?? (await library).getAllCategories();
+      final allCategories = extraBooksOnly
+          ? const <Category>[]
+          : category?.getAllCategories() ?? (await library).getAllCategories();
       for (var i = 0; i < allCategories.length; i++) {
         searchEntries.add(
           BookSearchEntry(

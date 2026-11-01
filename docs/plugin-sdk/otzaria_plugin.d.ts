@@ -911,7 +911,7 @@ export interface GematriaResult {
 export interface DictionaryLookupResult {
   term: string;
   acronyms: Array<{ acronym: string; meanings: string[] }>;
-  /** `hebrew` הוא טקסט עם סימון מקורי; `dictionary` הוא שם המילון (מ-0.9.99). */
+  /** `hebrew` הוא טקסט עם סימון מקורי; `dictionary` הוא שם המילון (מ-0.9.98.3). */
   aramaic: Array<{ aramaic: string; hebrew: string; dictionary: string }>;
 }
 
@@ -1827,6 +1827,22 @@ export interface OtzariaEventMap {
     text: string;
     selectionStart: number;
     selectionEnd: number;
+    /**
+     * Since 0.9.98.3, `fullText` only: the dialog's search state, in the
+     * `search.requested` request shape.
+     */
+    request?: Record<string, unknown>;
+    /**
+     * Since 0.9.98.3, `fullText` only: this plugin's `searchDialogItems`
+     * selections, `itemId` to on/off (including untouched rows).
+     */
+    pluginSelections?: Record<string, boolean>;
+    /**
+     * Since 0.9.98.3, `library` only: the open category as comma-separated
+     * titles from the root (the `libraryBooks` `categoryPath` format); empty
+     * at the library root.
+     */
+    categoryPath?: string;
   };
   /** The user clicked the button again while its session is open. */
   'search.fieldAction.stopRequested': { actionId: string; sessionId: string };
