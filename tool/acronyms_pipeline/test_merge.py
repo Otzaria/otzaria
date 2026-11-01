@@ -17,22 +17,17 @@ def row(key, exp, status="approved", source="jastrow-sefaria", reviewer="מיכ�
 
 
 class Apply(unittest.TestCase):
-    def test_removals_drop_a_meaning_and_then_an_emptied_key(self):
-        base = {'א"א': ["אברהם אבינו", "א\"א"], 'ט"ו': ["חמישה עשר"], 'ג"ש': ["גזירה שווה"]}
-        merged, stats = merge.apply(base, [], removals={('א"א', 'א"א'), ('ט"ו', "חמישה עשר")})
-        self.assertEqual(merged, {'א"א': ["אברהם אבינו"], 'ג"ש': ["גזירה שווה"]})
-        self.assertEqual((stats["removed_meanings"], stats["removed_keys"]), (2, 1))
+    def test_baseline_meanings_are_preserved_even_when_filters_flag_them(self):
+        base = {'א"א': ["אברהם אבינו", 'א"א'], 'ט"ו': ["חמישה עשר"]}
+        merged, stats = merge.apply(base, [])
+        self.assertEqual(merged, base)
+        self.assertEqual((stats["removed_meanings"], stats["removed_keys"]), (0, 0))
 
     def test_shipped_dictionary_has_no_multi_word_keys(self):
         # a Stern line like "דע\"ד בל\"ד" is two acronyms; its meaning must never be filed under the first one
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets", "Acronyms.json")
         with open(path, encoding="utf-8") as f:
             self.assertEqual([k for k in json.load(f) if len(k.split()) > 1], [])
-
-    def test_shipped_removals_all_fail_the_filters(self):
-        import filters
-        for key, exp in sorted(merge.read_removals()):
-            self.assertTrue(filters.check_expansion(key, exp)[0], (key, exp))
 
     def test_new_meaning_is_appended_and_order_is_kept(self):
         merged, stats = merge.apply(BASE, [row('א"א', "אי אפשר")])
@@ -124,12 +119,13 @@ class AgentApproved(unittest.TestCase):
     def agent(self, **kw):
         return row('ב"ה', "בית הלל", status="agent_approved", source="agent-verified-reference", reviewer="agent:claude-sonnet-5-5", **kw)
 
-    def test_valid_agent_row_enters_and_is_counted_separately(self):
+    def test_valid_agent_row_waits_for_human_review(self):
         r = self.agent()
         self.assertEqual(merge.validate([r], SOURCES), [])
         merged, stats = merge.apply(BASE, [r, row('ג"ח', "גמילות חסדים")])
-        self.assertIn('ב"ה', merged)
-        self.assertEqual((stats["agent_approved_rows"], stats["human_approved_rows"]), (1, 1))
+        self.assertNotIn('ב"ה', merged)
+        self.assertIn('ג"ח', merged)
+        self.assertEqual((stats["agent_approved_rows"], stats["human_approved_rows"]), (0, 1))
 
     def test_human_only_leaves_agent_rows_out(self):
         merged, _ = merge.apply(BASE, [self.agent()], human_only=True)

@@ -26,9 +26,9 @@ REMOVALS = os.path.join(HERE, "data", "baseline_removals.csv")
 REMOVAL_COLUMNS = ["key", "expansion", "reason"]
 COLUMNS = ["key", "expansion", "status", "source", "reference", "notes", "reviewer", "reviewed_at"]
 STATUSES = {"pending", "approved", "agent_approved", "rejected", "needs_review"}
-# `approved` = a named human checked it.  `agent_approved` = checked by an AI agent on the owner's instruction (reviewer
-# id "agent:<model>"); it enters the dictionary but is reported separately and awaits a human spot check.
-INCLUDED = {"approved", "agent_approved"}
+# Agent decisions remain in the review queue; only a human can approve dictionary additions.
+INCLUDED = {"approved"}
+REVIEWED = INCLUDED | {"agent_approved"}
 AGENT_REVIEWER = re.compile(r"^agent:[\w.\-]+$")
 # a reviewer id that names a tool or an AI agent can never approve
 AUTOMATED_NAMES = ("claude", "gpt", "gemini", "opus", "sonnet", "haiku", "copilot", "codex", "chatbot", "robot", "agent",
@@ -72,14 +72,6 @@ def write_ledger(rows, path=LEDGER):
         w.writerows(rows)
 
 
-def read_removals(path=REMOVALS):
-    """Pairs of the baseline that are dropped: meanings that decode nothing (see clean_baseline.py)."""
-    if not os.path.exists(path):
-        return set()
-    with open(path, encoding="utf-8", newline="") as f:
-        return {(r["key"], r["expansion"]) for r in csv.DictReader(f)}
-
-
 def ledger_id(row):
     return (filters.key_signature(row["key"]), filters.meaning_signature(row["expansion"]))
 
@@ -108,7 +100,7 @@ def validate(rows, sources):
         if ledger_id(r) in seen:
             problems.append(f"{where}: duplicate decision")
         seen.add(ledger_id(r))
-        if r["status"] not in INCLUDED:
+        if r["status"] not in REVIEWED:
             continue
         src = sources.get(r["source"])
         if src is None:
@@ -134,24 +126,9 @@ def validate(rows, sources):
     return problems
 
 
-def apply(baseline, rows, human_only=False, removals=()):
-    """baseline: dict (ordered).  Returns (new dict, stats).
-
-    `removals`: (key, meaning) pairs of the baseline to drop first; a key left without meanings is dropped too."""
-    removals = set(removals)
-    removed_pairs = removed_keys = 0
-    if removals:
-        pruned = {}
-        for k, v in baseline.items():
-            kept = [m for m in v if (k, m) not in removals]
-            removed_pairs += len(v) - len(kept)
-            if kept:
-                pruned[k] = kept
-            else:
-                removed_keys += 1
-        baseline = pruned
-    included = {"approved"} if human_only else INCLUDED
-    approved = [r for r in rows if r["status"] in included]
+def apply(baseline, rows, human_only=False):
+    """Append human-approved meanings without deleting or reordering baseline entries."""
+    approved = [r for r in rows if r["status"] in INCLUDED]
     approved.sort(key=lambda r: (r["key"], filters.meaning_signature(r["expansion"])))
     keys = list(baseline)
     out = {k: list(v) for k, v in baseline.items()}
@@ -185,7 +162,7 @@ def apply(baseline, rows, human_only=False, removals=()):
         ordered[k] = out[k]
     return ordered, {"approved_rows": len(approved), "human_approved_rows": sum(r["status"] == "approved" for r in approved),
                      "agent_approved_rows": sum(r["status"] == "agent_approved" for r in approved), "new_keys": len(new_keys), "new_meanings": new_meanings, "already_present": skipped,
-                     "removed_meanings": removed_pairs, "removed_keys": removed_keys}
+                     "removed_meanings": 0, "removed_keys": 0}
 
 
 def dump(d):
@@ -198,7 +175,7 @@ def main():
     ap.add_argument("--baseline", required=True, help="Acronyms.json as it is on the base branch (git show upstream/dev:assets/Acronyms.json)")
     ap.add_argument("--import", dest="imports", action="append", default=[], help="review-page export CSV to fold into the ledger")
     ap.add_argument("--out", help="write the merged dictionary here")
-    ap.add_argument("--human-only", action="store_true", help="leave out agent_approved rows")
+    ap.add_argument("--human-only", action="store_true", help="compatibility option: builds are always human-only")
     ap.add_argument("--check", action="store_true", help="verify that --target equals baseline + ledger")
     ap.add_argument("--target", default=os.path.join(HERE, "..", "..", "assets", "Acronyms.json"))
     a = ap.parse_args()
@@ -217,7 +194,7 @@ def main():
         print(f"ledger updated: {len(ledger)} rows")
     with open(a.baseline, encoding="utf-8") as f:
         baseline = json.load(f)
-    merged, stats = apply(baseline, ledger, a.human_only, read_removals())
+    merged, stats = apply(baseline, ledger, a.human_only)
     print(stats)
     data = dump(merged)
     if a.check:

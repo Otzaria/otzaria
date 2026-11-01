@@ -1,8 +1,9 @@
-"""List the meanings of the shipped dictionary that decode nothing, for removal by merge.py.
+"""List the meanings of the shipped dictionary that decode nothing, for human review.
 
   py tool/acronyms_pipeline/clean_baseline.py --baseline baseline.json
 
-Writes data/baseline_removals.csv (key, expansion, reason).  A meaning is listed when any noise filter in filters.check_expansion
+Writes suggestions to data/baseline_removals.csv (key, expansion, reason).
+These are not applied by merge.py: a filter warning is not proof that an existing meaning should be deleted.  A meaning is listed when any noise filter in filters.check_expansion
 rejects it; in the shipped file that is only:
   same_as_key / expansion_is_acronym   the meaning is the key again (רמ"בם = רמבם), no decoding
   gematria_number                      the number the letters stand for (תשפ"ו = שבע מאות שמונים ושש)

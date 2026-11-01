@@ -4,9 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/tools/dictionary/repository/dictionary_lookup_repository.dart';
 
-/// בדיקות איכות לנתוני `assets/Acronyms.json` ולרשימת האישורים הידניים
-/// `tool/acronyms_pipeline/data/decisions.csv`. הצינור עצמו (סינון, מיזוג,
-/// דוחות) מתועד ב-`tool/acronyms_pipeline/README.md`.
+/// בדיקות למבנה מילון ראשי התיבות ולרשימת האישורים הידניים.
 
 const _ledgerPath = 'tool/acronyms_pipeline/data/decisions.csv';
 const _sourcesPath = 'tool/acronyms_pipeline/data/sources.json';
@@ -236,9 +234,7 @@ List<Map<String, String>> parseCsv(String text) {
   ];
 }
 
-/// רשומה שנכנסה לקובץ: אושרה בידי אדם, או נבדקה בידי סוכן (`agent_approved`).
-bool _included(Map<String, String> row) =>
-    row['status'] == 'approved' || row['status'] == 'agent_approved';
+bool _included(Map<String, String> row) => row['status'] == 'approved';
 
 void main() {
   late Map<String, dynamic> raw;
@@ -310,20 +306,11 @@ void main() {
       for (final row in ledger.where(_included)) {
         final reason = '${row['key']} ← ${row['expansion']}';
         expect(row['reviewer']!.trim(), isNotEmpty, reason: reason);
-        if (row['status'] == 'agent_approved') {
-          // נבדק בידי סוכן, בהוראת בעל הפרויקט, ולא בידי אדם: מסומן כך במפורש
-          expect(
-            row['reviewer'],
-            matches(RegExp(r'^agent:[\w.\-]+$')),
-            reason: reason,
-          );
-        } else {
-          expect(
-            isAutomatedReviewer(row['reviewer']!),
-            isFalse,
-            reason: reason,
-          );
-        }
+        expect(
+          isAutomatedReviewer(row['reviewer']!),
+          isFalse,
+          reason: reason,
+        );
         expect(isValidDate(row['reviewed_at']!), isTrue, reason: reason);
         expect(row['reference']!.trim(), isNotEmpty, reason: reason);
       }

@@ -44,7 +44,7 @@
 </main>
 <script>
 const DATA = /*__DATA__*/[];
-const SRC = {"jastrow-sefaria":"ג'סטרו (ספריא, נחלת הכלל)","otzaria-corpus":"פענוח מפורש בספרי הספרייה","dicta-lead":"רמז דיקטה (ניחוש מודל, לא אסמכתה)"};
+const SRC = {"stern-ref":"שטרן, ספר ראשי תיבות (1926)","human-verified-reference":"אסמכתה עצמאית לאימות בידי הבודק","jastrow-sefaria":"ג'סטרו (ספריא, נחלת הכלל)","otzaria-corpus":"פענוח מפורש בספרי הספרייה","dicta-lead":"רמז דיקטה (ניחוש מודל, לא אסמכתה)"};
 const FLAGS = {"letters_do_not_align":"האותיות אינן תואמות את המילים","many_words":"פירוש ארוך","letter_names_partial":"דומה לשמות אותיות"};
 const LS = "acronyms-review-v1";
 let state = {};
@@ -61,25 +61,27 @@ $("tier").value = state.tier || tiers[0];
 $("tier").onchange = () => { state.tier = $("tier").value; idx = 0; save(); render(); };
 $("show").onchange = () => { idx = 0; render(); };
 const dec = () => (state.dec = state.dec || {});
+const decision = d => { const x = dec()[d.id]; return x && x.orig === d.expansion ? x : undefined; };
+const currentDecisions = () => DATA.map(decision).filter(Boolean);
 let idx = 0;
 function list() {
   const t = $("tier").value, s = $("show").value;
   return DATA.filter(d => (t === "הכול" || d.tier === t)).filter(d => {
-    const x = dec()[d.id];
+    const x = decision(d);
     return s === "all" || (s === "open" && !x) || (s === "maybe" && x && x.status === "needs_review");
   });
 }
 function today() { return new Date().toISOString().slice(0, 10); }
 function render() {
   const L = list();
-  const total = DATA.length, done = Object.keys(dec()).filter(id => dec()[id].status !== "needs_review").length;
+  const total = DATA.length, done = currentDecisions().filter(x => x.status !== "needs_review").length;
   $("progress").textContent = `הוכרעו ${done} מתוך ${total}`;
   const c = $("card");
   if (!L.length) { c.innerHTML = "<p>אין מועמדים בתצוגה הזאת.</p>"; return; }
   idx = Math.max(0, Math.min(idx, L.length - 1));
-  const d = L[idx], x = dec()[d.id];
+  const d = L[idx], x = decision(d);
   const leadOnly = d.sources.length === 1 && d.sources[0] === "dicta-lead";
-  const needRef = leadOnly;
+  const needRef = leadOnly || d.sources.includes("human-verified-reference");
   c.innerHTML = `
     <div class="meta">${idx + 1} מתוך ${L.length} · דרגה ${esc(d.tier)}</div>
     <div class="key">${esc(d.key)}</div>
@@ -113,10 +115,10 @@ function render() {
     const edited = exp !== d.expansion;
     dec()[d.id] = { id: d.id, key: d.key, expansion: exp, orig: d.expansion, status,
       source: leadOnly ? "human-verified-reference" : d.sources.find(s => s !== "dicta-lead"),
-      reference: leadOnly ? refEl.value.trim() : d.reference,
+      reference: needRef ? refEl.value.trim() : d.reference,
       notes: [$("note").value.trim(), edited ? "תוקן בידי הבודק (הצעה: " + d.expansion + ")" : "", leadOnly ? "רמז: dicta" : ""].filter(Boolean).join("; "),
       reviewer: state.reviewer, reviewed_at: today() };
-    save(); idx++; render();
+    save(); if ($("show").value === "all") idx++; render();
   };
   $("a").onclick = () => decide("approved"); $("r").onclick = () => decide("rejected"); $("n").onclick = () => decide("needs_review");
   $("prev").onclick = () => { idx--; render(); }; $("next").onclick = () => { idx++; render(); };
@@ -135,7 +137,7 @@ document.addEventListener("keydown", e => {
 $("export").onclick = () => {
   const cols = ["key", "expansion", "status", "source", "reference", "notes", "reviewer", "reviewed_at"];
   const q = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
-  const rows = Object.values(dec());
+  const rows = currentDecisions();
   const csv = "﻿" + cols.join(",") + "\n" + rows.map(r => cols.map(c => q(r[c])).join(",")).join("\n") + "\n";
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
