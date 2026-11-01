@@ -74,7 +74,7 @@ class AppScopeProviders extends StatelessWidget {
               repository: LibraryUpdateRepository(
                 discovery: LibraryUpdateDiscovery(
                   client: GithubLibraryReleaseClient(
-                    httpClient: GithubRateLimitAwareClient(),
+                    httpClient: githubClientWithEtagCache(),
                   ),
                   supportedDbSchemaVersion:
                       DatabaseConstants.readableDbSchemaVersion,
@@ -83,6 +83,7 @@ class AppScopeProviders extends StatelessWidget {
                 downloader: StreamingPatchDownloader(),
               ),
               companionAssets: CompanionAssetsService(
+                clientFactory: githubClientWithEtagCache,
                 // רק אחרי שהמשתמש הוריד את נתוני החיפוש הסמנטי; אחרת לא עושה דבר.
                 scheduleSemanticVectorsUpdate: (tag) => SemanticSearchRepository
                     .instance

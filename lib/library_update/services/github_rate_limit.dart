@@ -1,4 +1,7 @@
 import 'package:http/http.dart' as http;
+import 'package:otzaria/core/app_paths.dart';
+import 'package:otzaria/library_update/services/github_etag_cache.dart';
+import 'package:path/path.dart' as p;
 
 /// GitHub דחה את הבקשה כי מכסת ה-API ללא הזדהות (60 לשעה לכל IP) נוצלה.
 class GithubRateLimitException implements Exception {
@@ -21,22 +24,69 @@ class GithubRateLimitException implements Exception {
 
 /// לקוח HTTP שהופך תשובת חסימת-מכסה של GitHub ל-[GithubRateLimitException],
 /// כדי שהמשתמש יראה מתי לנסות שוב במקום "403" גולמי.
+///
+/// עם [etagCache], בקשות GET ל-api.github.com נשלחות עם `If-None-Match`;
+/// תשובת 304 אינה נספרת במכסה והלקוח מחזיר מהמטמון 200 רגיל.
 class GithubRateLimitAwareClient extends http.BaseClient {
   final http.Client _inner;
+  final GithubEtagCache? _etagCache;
 
-  GithubRateLimitAwareClient([http.Client? inner])
-    : _inner = inner ?? http.Client();
+  GithubRateLimitAwareClient([http.Client? inner, GithubEtagCache? etagCache])
+    : _inner = inner ?? http.Client(),
+      _etagCache = etagCache;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final cache = _etagCache;
+    final cacheable =
+        cache != null &&
+        request.method == 'GET' &&
+        request.url.host == 'api.github.com';
+    final cached = cacheable ? await cache.read(request.url) : null;
+    if (cached != null) request.headers['If-None-Match'] = cached.etag;
+
     final response = await _inner.send(request);
     final exception = rateLimitExceptionFor(
       response.statusCode,
       response.headers,
     );
-    if (exception == null) return response;
-    await response.stream.drain<void>();
-    throw exception;
+    if (exception != null) {
+      await response.stream.drain<void>();
+      throw exception;
+    }
+    if (!cacheable) return response;
+
+    if (response.statusCode == 304 && cached != null) {
+      await response.stream.drain<void>();
+      return http.StreamedResponse(
+        Stream.value(cached.body),
+        200,
+        contentLength: cached.body.length,
+        request: request,
+        headers: {
+          ...response.headers,
+          if (cached.contentType != null) 'content-type': cached.contentType!,
+        },
+      );
+    }
+    final etag = response.headers['etag'];
+    if (response.statusCode != 200 || etag == null) return response;
+    final body = await response.stream.toBytes();
+    await cache.write(
+      request.url,
+      GithubEtagEntry(
+        etag: etag,
+        contentType: response.headers['content-type'],
+        body: body,
+      ),
+    );
+    return http.StreamedResponse(
+      Stream.value(body),
+      200,
+      contentLength: body.length,
+      request: request,
+      headers: response.headers,
+    );
   }
 
   /// מזהה חסימת מכסה לפי הסטטוס והכותרות; `null` כשזו תשובה אחרת.
@@ -64,3 +114,13 @@ class GithubRateLimitAwareClient extends http.BaseClient {
   @override
   void close() => _inner.close();
 }
+
+/// לקוח GitHub של האפליקציה: חסימת מכסה כחריגה, ותשובות מותנות במטמון בדיסק.
+GithubRateLimitAwareClient githubClientWithEtagCache() =>
+    GithubRateLimitAwareClient(
+      null,
+      GithubEtagCache(
+        () async =>
+            p.join(await AppPaths.getDataRootPath(), 'github_etag_cache'),
+      ),
+    );
