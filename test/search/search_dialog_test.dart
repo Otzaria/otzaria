@@ -27,6 +27,8 @@ import 'package:otzaria/search/bloc/search_event.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/search/bloc/search_bloc.dart';
 import 'package:otzaria/search/search_defaults.dart';
+import 'package:otzaria/search/in_book_search_settings.dart';
+import 'package:otzaria/search/view/in_book_advanced_search_dialog.dart';
 import 'package:otzaria/search/view/full_text_settings_widgets.dart';
 import 'package:otzaria/search/view/enhanced_search_field.dart';
 import 'package:otzaria/search/view/search_dialog.dart';
@@ -966,88 +968,148 @@ Future<void> main() async {
     expect(find.byType(SearchDialog), findsOneWidget);
   }, skip: !engineReady);
 
-  testWidgets('returnResultOnSubmit מחזיר תוצאת חיפוש אחרי סגירת הדיאלוג', (
-    WidgetTester tester,
-  ) async {
-    final historyBloc = MockHistoryBloc();
-    final indexingBloc = MockIndexingBloc();
-    final navigationBloc = MockNavigationBloc();
-    final theme = ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
-    );
-    final tab = SearchingTab('חיפוש', 'חכמה בינה');
+  for (final scenario in [
+    (globalOptions: null, manual: false),
+    (globalOptions: false, manual: false),
+    (globalOptions: true, manual: false),
+    (globalOptions: true, manual: true),
+  ]) {
+    final globalOptions = scenario.globalOptions;
+    final manual = scenario.manual;
+    testWidgets(
+      globalOptions == null
+          ? 'returnResultOnSubmit מחזיר תוצאת חיפוש אחרי סגירת הדיאלוג'
+          : 'אישור דיאלוג משמר תבנית, מדיניות וחלופות: global=$globalOptions manual=$manual',
+      (
+        WidgetTester tester,
+      ) async {
+        final historyBloc = MockHistoryBloc();
+        final indexingBloc = MockIndexingBloc();
+        final navigationBloc = MockNavigationBloc();
+        final theme = ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB85C38)),
+        );
+        final tab = globalOptions == null
+            ? SearchingTab('חיפוש', 'חכמה בינה')
+            : createInBookSearchDialogTab(
+                query: manual ? 'חכמה בינה' : 'חכמה',
+                searchMode: SearchMode.advanced,
+                distance: 0,
+                matchPolicy: const SearchMatchPolicy(anyOrder: true),
+                searchOptions: const {
+                  'חכמה_0': {'קידומות דקדוקיות': true},
+                },
+                alternativeWords: manual
+                    ? const {
+                        0: ['חכימה'],
+                      }
+                    : const {},
+                spacingValues: manual ? const {'0-1': '5'} : const {},
+                optionsForEveryWord: globalOptions
+                    ? const {'קידומות דקדוקיות': true}
+                    : null,
+              );
 
-    SearchDialogResult? capturedResult;
+        SearchDialogResult? capturedResult;
 
-    whenListen(
-      historyBloc,
-      const Stream<HistoryState>.empty(),
-      initialState: HistoryLoaded([]),
-    );
-    whenListen(
-      indexingBloc,
-      const Stream<IndexingState>.empty(),
-      initialState: IndexingInitial(),
-    );
-    whenListen(
-      navigationBloc,
-      const Stream<NavigationState>.empty(),
-      initialState: const NavigationState(currentScreen: Screen.search),
-    );
+        whenListen(
+          historyBloc,
+          const Stream<HistoryState>.empty(),
+          initialState: HistoryLoaded([]),
+        );
+        whenListen(
+          indexingBloc,
+          const Stream<IndexingState>.empty(),
+          initialState: IndexingInitial(),
+        );
+        whenListen(
+          navigationBloc,
+          const Stream<NavigationState>.empty(),
+          initialState: const NavigationState(currentScreen: Screen.search),
+        );
 
-    addTearDown(() async {
-      await tester.binding.setSurfaceSize(null);
-      tab.dispose();
-      await historyBloc.close();
-      await indexingBloc.close();
-      await navigationBloc.close();
-    });
+        addTearDown(() async {
+          await tester.binding.setSurfaceSize(null);
+          tab.dispose();
+          await historyBloc.close();
+          await indexingBloc.close();
+          await navigationBloc.close();
+        });
 
-    await tester.binding.setSurfaceSize(const Size(1400, 900));
-    await tester.pumpWidget(
-      MultiBlocProvider(
-        providers: [
-          BlocProvider<HistoryBloc>.value(value: historyBloc),
-          BlocProvider<IndexingBloc>.value(value: indexingBloc),
-          BlocProvider<NavigationBloc>.value(value: navigationBloc),
-          BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
-        ],
-        child: MaterialApp(
-          theme: theme,
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => Center(
-                child: ElevatedButton(
-                  onPressed: () async {
-                    capturedResult = await showDialog<SearchDialogResult>(
-                      context: context,
-                      builder: (_) => SearchDialog(
-                        existingTab: tab,
-                        bookTitle: 'ספר',
-                        returnResultOnSubmit: true,
-                      ),
-                    );
-                  },
-                  child: const Text('פתח'),
+        await tester.binding.setSurfaceSize(const Size(1400, 900));
+        await tester.pumpWidget(
+          MultiBlocProvider(
+            providers: [
+              BlocProvider<HistoryBloc>.value(value: historyBloc),
+              BlocProvider<IndexingBloc>.value(value: indexingBloc),
+              BlocProvider<NavigationBloc>.value(value: navigationBloc),
+              BlocProvider<LibraryBloc>.value(value: _stubLibraryBloc()),
+            ],
+            child: MaterialApp(
+              theme: theme,
+              home: Scaffold(
+                body: Builder(
+                  builder: (context) => Center(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        capturedResult = await showDialog<SearchDialogResult>(
+                          context: context,
+                          builder: (_) => SearchDialog(
+                            existingTab: tab,
+                            bookTitle: 'ספר',
+                            returnResultOnSubmit: true,
+                          ),
+                        );
+                      },
+                      child: const Text('פתח'),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+
+        await tester.tap(find.text('פתח'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('חפש'));
+        await tester.pumpAndSettle();
+
+        expect(capturedResult, isNotNull);
+        expect(
+          capturedResult!.query,
+          globalOptions == null || manual ? 'חכמה בינה' : 'חכמה',
+        );
+        if (globalOptions != null) {
+          expect(capturedResult!.matchPolicy.anyOrder, isFalse);
+          if (manual) {
+            expect(capturedResult!.alternativeWords, {
+              0: ['חכימה'],
+            });
+            expect(capturedResult!.spacingValues, {'0-1': '5'});
+          }
+          final settings = InBookSearchSettings.fromDialogResult(
+            capturedResult!,
+          );
+          expect(settings.alternativeWords, capturedResult!.alternativeWords);
+          expect(settings.spacingValues, capturedResult!.spacingValues);
+          expect(settings.matchPolicy.anyOrder, isFalse);
+          expect(settings.requestedMatchPolicy.anyOrder, !manual);
+          expect(
+            settings.optionsForEveryWord,
+            globalOptions ? {'קידומות דקדוקיות': true} : null,
+          );
+          final twoWords = settings.forQuery('חכמה בינה');
+          expect(twoWords.matchPolicy.anyOrder, !manual);
+          expect(twoWords.searchOptions.containsKey('בינה_1'), globalOptions);
+        }
+        expect(find.byType(SearchDialog), findsNothing);
+      },
+      skip: !engineReady,
     );
-
-    await tester.tap(find.text('פתח'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('חפש'));
-    await tester.pumpAndSettle();
-
-    expect(capturedResult, isNotNull);
-    expect(capturedResult!.query, 'חכמה בינה');
-    expect(find.byType(SearchDialog), findsNothing);
-  }, skip: !engineReady);
+  }
 
   testWidgets('דיאלוג החיפוש מציג tooltip למצבי החיפוש והסבר למרחק', (
     WidgetTester tester,

@@ -1330,10 +1330,11 @@ packages:
   pdfrx:
     dependency: "direct main"
     description:
-      name: pdfrx
-      sha256: "6aa2eb0fce9029933790e58f8dcd46ec630342e46d8f6c6d32b716acc03ca02c"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/pdfrx"
+      ref: a656fd1a14de1a82a5e432261f3cfe66c7860356
+      resolved-ref: a656fd1a14de1a82a5e432261f3cfe66c7860356
+      url: "https://github.com/Otzaria/pdfrx"
+    source: git
     version: "2.11.0"
   pdfrx_engine:
     dependency: transitive

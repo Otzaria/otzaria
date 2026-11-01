@@ -102,6 +102,7 @@ import 'package:otzaria/plugins/services/context_menu_registry.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
 import 'package:otzaria/plugins/utils/plugin_context_menu_entries.dart';
 import 'package:otzaria/search/models/search_configuration.dart';
+import 'package:otzaria/search/in_book_search_settings.dart';
 import 'package:otzaria/text_book/view/selection/plugin_selection_payload.dart';
 import 'package:otzaria/core/messages/plugin_messages.dart';
 import 'package:otzaria/tools/shamor_zachor/providers/shamor_zachor_data_provider.dart';
@@ -1180,9 +1181,26 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       // נבדוק אם יש כותרות חלופיות - אם כן, חיפוש הוא באינדקס 2
       targetIndex = _hasAltTitles ? 2 : 1;
 
-      // אם זה חיפוש ויש טקסט, נעדכן את טקסט החיפוש
+      // טקסט מסומן הוא חיפוש חדש: מתחיל מברירות המחדל השמורות.
       if (searchText != null && searchText.trim().isNotEmpty) {
-        context.read<TextBookBloc>().add(UpdateSearchText(searchText.trim()));
+        final query = searchText.trim();
+        final defaults = InBookSearchSettings.savedDefaults().forQuery(
+          searchableInBookQuery(query) ?? query,
+        );
+        final parameters = defaults.activeParameters;
+        context.read<TextBookBloc>().add(
+          UpdateSearchText(
+            query,
+            searchOptions: parameters.searchOptions,
+            alternativeWords: parameters.alternativeWords,
+            spacingValues: parameters.customSpacing,
+            searchMode: defaults.searchMode,
+            searchOrigin: InBookSearchOrigin.inBook,
+            searchTemplate: defaults.template,
+            searchDistance: defaults.distance,
+            matchPolicy: defaults.matchPolicy,
+          ),
+        );
       }
     }
 
@@ -2992,6 +3010,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       state.searchDistance,
       state.matchPolicy,
       state.searchOrigin,
+      state.searchTemplate,
     );
     // אירועי בחירה והדגשה ממשיכים לבנות את הקורא, אך אינם משנים את החיפוש.
     if (_searchViewInputs == inputs) return _searchView!;
@@ -3010,6 +3029,7 @@ class _TextBookViewerBlocState extends State<TextBookViewerBloc>
       initialSearchDistance: state.searchDistance,
       initialMatchPolicy: state.matchPolicy,
       initialSearchOrigin: state.searchOrigin,
+      initialSearchTemplate: state.searchTemplate,
       closeLeftPaneCallback: () =>
           context.read<TextBookBloc>().add(const ToggleLeftPane(false)),
     );

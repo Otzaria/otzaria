@@ -69,6 +69,7 @@ class TextBookSearchView extends StatefulWidget {
   final int initialSearchDistance;
   final SearchMatchPolicy initialMatchPolicy;
   final InBookSearchOrigin initialSearchOrigin;
+  final InBookSearchTemplate? initialSearchTemplate;
   final Future<List<TextSearchResult>> Function(
     List<String> content,
     String query,
@@ -92,6 +93,7 @@ class TextBookSearchView extends StatefulWidget {
     this.initialSearchDistance = 0,
     this.initialMatchPolicy = SearchMatchPolicy.standard,
     this.initialSearchOrigin = InBookSearchOrigin.inBook,
+    this.initialSearchTemplate,
     this.simpleSearchRunner,
     this.searchRepository = const SearchRepository(),
   });
@@ -211,9 +213,12 @@ class TextBookSearchViewState extends State<TextBookSearchView>
       spacingValues: widget.initialSpacingValues,
       searchMode: widget.initialSearchMode,
       distance: widget.initialSearchDistance,
-      matchPolicy: widget.initialMatchPolicy,
+      matchPolicy:
+          widget.initialSearchTemplate?.requestedPolicy ??
+          widget.initialMatchPolicy,
+      optionsForEveryWord: widget.initialSearchTemplate?.wordDefaults,
       query: searchableInBookQuery(searchTextController.text),
-    );
+    ).forQuery(searchableInBookQuery(searchTextController.text) ?? '');
   }
 
   void _syncBlocSearchTextState() {
@@ -228,6 +233,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         searchDistance: _searchDistance,
         matchPolicy: _matchPolicy,
         searchOrigin: _searchOrigin,
+        searchTemplate: _settings.template,
         searchWholeWord: _effectiveWholeWord,
       ),
     );
@@ -302,8 +308,12 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         widget.initialQuery !=
             (searchableInBookQueryWithEdges(controllerQuery) ?? '');
     final normalizedSearchMode = widget.initialSearchMode;
+    // ה-bloc מחזיר את המדיניות האפקטיבית, ו"בכל סדר" אינו חל על מילה אחת.
+    final widgetQuery = searchableInBookQuery(widget.initialQuery) ?? '';
     final searchConfigurationChanged =
         widget.initialSearchOrigin != _searchOrigin ||
+        (widget.initialSearchTemplate != oldWidget.initialSearchTemplate &&
+            widget.initialSearchTemplate != _settings.template) ||
         !_searchOptionsEqual(_searchOptions, widget.initialSearchOptions) ||
         !_alternativeWordsEqual(
           _alternativeWords,
@@ -312,7 +322,8 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         !mapEquals(_spacingValues, widget.initialSpacingValues) ||
         _searchMode != normalizedSearchMode ||
         _searchDistance != widget.initialSearchDistance ||
-        _settings.requestedMatchPolicy != widget.initialMatchPolicy;
+        _settings.requestedMatchPolicy.forQuery(widgetQuery) !=
+            widget.initialMatchPolicy.forQuery(widgetQuery);
 
     if (queryChanged && needsControllerSync) {
       syncSearchControllerQuery(searchTextController, widget.initialQuery);
@@ -1105,6 +1116,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             searchDistance: _searchDistance,
             matchPolicy: _matchPolicy,
             searchOrigin: _searchOrigin,
+            searchTemplate: _settings.template,
             searchWholeWord: _effectiveWholeWord,
           ),
         );
@@ -1130,6 +1142,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
             searchDistance: _searchDistance,
             matchPolicy: _matchPolicy,
             searchOrigin: _searchOrigin,
+            searchTemplate: _settings.template,
             searchWholeWord: _wholeWord,
           ),
         );
@@ -1192,6 +1205,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
                 searchDistance: settings.distance,
                 matchPolicy: settings.matchPolicy,
                 searchOrigin: InBookSearchOrigin.inBook,
+                searchTemplate: settings.template,
                 searchWholeWord: willRunSimpleSearch ? _wholeWord : true,
               ),
             );

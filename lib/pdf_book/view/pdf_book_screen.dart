@@ -31,6 +31,7 @@ import 'package:otzaria/data/data_providers/library_provider_manager.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/pdf_book/utils/centered_text_search_session.dart';
 import 'package:otzaria/pdf_book/utils/pdf_color_filter.dart';
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/pdf_book/utils/pdf_links_window.dart';
@@ -653,6 +654,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   final FocusNode _navigationFieldFocusNode = FocusNode();
   final FocusNode _pdfViewFocusNode = FocusNode();
   final GlobalKey _pdfViewportBoundaryKey = GlobalKey();
+  final _searchViewKey = GlobalKey<PdfBookSearchViewState>();
   final GlobalKey<AppContextMenuRegionState> _pdfContextMenuKey = GlobalKey();
   late final StreamSubscription<SettingsState> _settingsSub;
   StreamSubscription<LibraryState>? _libraryReloadSub;
@@ -782,26 +784,15 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   late final VoidCallback _toggleCommentatorsPaneListener;
   late final VoidCallback _toggleTextViewListener;
 
-  Future<void> _runInitialSearchIfNeeded() async {
-    final controller = widget.tab.searchController;
-    final String query = controller.text.trim();
+  /// לשונית החיפוש מחפשת בעצמה כשהיא נבנית; בחלונית סגורה (מסך צר) היא לא
+  /// נבנית, ובלי החיפוש כאן השאילתה שהגיעה עם הספר לא מודגשת.
+  void _runInitialSearchIfNeeded() {
+    final query = widget.tab.searchController.text.trim();
     if (query.isEmpty) return;
-
-    // שיטה 1: הוספה והסרה מהירה
-    controller.text = '$query '; // הוסף תו זמני
-
-    // המתן רגע קצרצר כדי שהשינוי יתפוס
-    await Future.delayed(const Duration(milliseconds: 50));
-
-    controller.text = query; // החזר את הטקסט המקורי
-    // הזז את הסמן לסוף הטקסט
-    controller.selection = TextSelection.fromPosition(
-      TextPosition(offset: controller.text.length),
+    textSearcher?.startTextSearch(
+      query,
+      goToFirstMatch: false,
     );
-
-    //ברוב המקרים, שינוי הטקסט עצמו יפעיל את ה-listener של הספרייה.
-    // אם לא, ייתכן שעדיין צריך לקרוא לזה ידנית:
-    textSearcher?.startTextSearch(query, goToFirstMatch: false);
   }
 
   void _ensureSearchTabIsActive() {
@@ -904,17 +895,21 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   void _onTextSearcherUpdated() {
     final searcher = textSearcher;
     widget.tab.searchText = widget.tab.searchController.text;
+    if (searcher != null) {
+      final restoreIndex = _searchIndexRestorer.onSearcherUpdate(
+        session: searcher.searchSession,
+        isSearching: searcher.isSearching,
+        matchCount: searcher.matches.length,
+        hasCurrentMatch: searcher.currentIndex != null,
+      );
+      if (restoreIndex != null) {
+        unawaited(searcher.goToMatchOfIndex(restoreIndex));
+      }
+    }
     // בלי setState: ה-searcher מודיע אחרי כל עמוד, ורשימת התוצאות מאזינה לו בעצמה.
-    widget.tab.pdfSearchCurrentMatchIndex = searcher?.currentIndex;
-
-    if (searcher == null) return;
-    final restoreIndex = _searchIndexRestorer.onSearcherUpdate(
-      session: searcher.searchSession,
-      isSearching: searcher.isSearching,
-      matchCount: searcher.matches.length,
-    );
-    if (restoreIndex != null) {
-      unawaited(searcher.goToMatchOfIndex(restoreIndex));
+    // שחזור ממתין מחזיק את האינדקס השמור; null כאן היה מוחק אותו מה-session.
+    if (!_searchIndexRestorer.isPending) {
+      widget.tab.pdfSearchCurrentMatchIndex = searcher?.currentIndex;
     }
   }
 
@@ -1797,9 +1792,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         textSearcher?.dispose();
         _searchIndexRestorer.resetSession();
         setState(() {
-          textSearcher = PdfTextSearchSession(pdfController, contextLength: 160)
-            ..isActive = _isPdfVisible
-            ..addListener(_onTextSearcherUpdated);
+          textSearcher =
+              CenteredTextSearchSession(
+                  pdfController,
+                  contextLength: 160,
+                )
+                ..isActive = _isPdfVisible
+                ..addListener(_onTextSearcherUpdated);
         });
 
         final documentRef = controller.documentRef;
@@ -1865,13 +1864,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
           widget.tab.activeCommentators.addAll(settings!.activeCommentators!);
         }
 
-        _runInitialSearchIfNeeded();
-
         final shouldShowLeftPane = resolveInitialReadingLeftPaneVisibility(
           explicitOpen: widget.tab.showLeftPane.value,
           hasSearchText: widget.tab.searchText.isNotEmpty,
           screenWidth: mounted ? readingLayoutWidthOf(context) : null,
         );
+        if (!shouldShowLeftPane) _runInitialSearchIfNeeded();
         if (mounted) {
           if (shouldShowLeftPane) {
             // נעוצה: חלונית לא נעוצה הייתה מכסה את הספר בהצללה כבר בפתיחה.
@@ -4883,6 +4881,7 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                     builder: (context, documentRef, child) => child!,
                     child: textSearcher != null
                         ? PdfBookSearchView(
+                            key: _searchViewKey,
                             textSearcher: textSearcher!,
                             searchController: widget.tab.searchController,
                             focusNode: _searchFieldFocusNode,
@@ -4903,10 +4902,13 @@ class _PdfBookScreenState extends State<PdfBookScreen>
                             initialSearchDistance: widget.tab.searchDistance,
                             initialMatchPolicy: widget.tab.matchPolicy,
                             initialSearchOrigin: widget.tab.searchOrigin,
+                            initialSearchTemplate: widget.tab.searchTemplate,
                             incomingSearchConfiguration:
                                 widget.tab.incomingSearchConfiguration,
                             onSearchResultNavigated: _ensureSearchTabIsActive,
                             onNavigationStarted: _preparePdfJump,
+                            takeCenterMatchPage:
+                                widget.tab.takeCenterSearchMatchPage,
                           )
                         : const Center(child: CircularProgressIndicator()),
                   ),
@@ -5019,6 +5021,12 @@ class _PdfBookScreenState extends State<PdfBookScreen>
   }
 
   void _navigateSearchMatch({required bool forward}) {
+    final searchView = _searchViewKey.currentState;
+    if (searchView != null) {
+      searchView.navigateSearchMatch(forward: forward);
+      return;
+    }
+    widget.tab.takeCenterSearchMatchPage();
     final searcher = textSearcher;
     if (searcher == null) return;
     final index = forward

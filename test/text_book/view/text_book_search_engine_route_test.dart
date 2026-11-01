@@ -56,6 +56,8 @@ Future<void> main() async {
     String initialQuery = '',
     SearchMode searchMode = SearchMode.exact,
     InBookSearchOrigin searchOrigin = InBookSearchOrigin.inBook,
+    InBookSearchTemplate? searchTemplate,
+    Map<String, Map<String, bool>> initialSearchOptions = const {},
     int searchDistance = 0,
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
     List<String> content = const ['שורה א'],
@@ -98,6 +100,7 @@ Future<void> main() async {
       SearchMatchPolicy policy,
       InBookSearchOrigin origin,
       SearchMode mode,
+      InBookSearchTemplate? template,
     ) => MaterialApp(
       home: MultiBlocProvider(
         providers: [
@@ -113,6 +116,8 @@ Future<void> main() async {
             initialQuery: query,
             initialSearchMode: mode,
             initialSearchOrigin: origin,
+            initialSearchTemplate: template,
+            initialSearchOptions: initialSearchOptions,
             initialSearchDistance: distance,
             initialMatchPolicy: policy,
             simpleSearchRunner: simpleSearchRunner,
@@ -129,11 +134,19 @@ Future<void> main() async {
         matchPolicy,
         searchOrigin,
         searchMode,
+        searchTemplate,
       ),
     );
     await tester.pump();
 
-    return _Harness(tester, textBookBloc, build, searchOrigin, searchMode);
+    return _Harness(
+      tester,
+      textBookBloc,
+      build,
+      searchOrigin,
+      searchMode,
+      searchTemplate,
+    );
   }
 
   testWidgets(
@@ -447,6 +460,31 @@ Future<void> main() async {
     );
 
     testWidgets(
+      '"בכל סדר" שמור נשאר אחרי הד ה-bloc של מילה אחת (issue #3690)',
+      (tester) async {
+        SearchDefaults.saveDistanceDefault(3);
+        SearchDefaults.saveAnyOrderDefault(true);
+        addTearDown(() => SearchDefaults.saveAnyOrderDefault(false));
+        final repository = _RecordingSearchRepository(results: const []);
+        final harness = await pumpSearchView(
+          tester,
+          searchRepository: repository,
+          simpleSearchRunner: (content, query) async => const [],
+        );
+
+        await harness.type('שמים');
+        await harness.rebuildFromBloc('שמים', 3, SearchMatchPolicy.standard);
+        await harness.settle();
+        await harness.type('שמים ארץ');
+        await harness.settle();
+
+        expect(repository.requests, isNotEmpty);
+        expect(repository.requests.last.anyOrder, isTrue);
+      },
+      skip: !engineReady,
+    );
+
+    testWidgets(
       'אפשרויות שנקבעו כברירת מחדל חלות על כל מילה בשאילתה שהוקלדה',
       (tester) async {
         SearchDefaults.saveExactDefaults(const {'קידומות דקדוקיות': true});
@@ -467,6 +505,74 @@ Future<void> main() async {
       },
       skip: !engineReady,
     );
+  });
+
+  testWidgets('echo עם snapshot תבנית שווה אינו מפעיל חיפוש/אירוע נוסף', (
+    tester,
+  ) async {
+    InBookSearchTemplate template() => InBookSearchTemplate(
+      wordDefaults: const {'קידומות דקדוקיות': true},
+      requestedPolicy: const SearchMatchPolicy(anyOrder: true),
+    );
+    final repository = _RecordingSearchRepository(results: const []);
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'ממון',
+      searchDistance: 3,
+      searchTemplate: template(),
+      initialSearchOptions: const {
+        'ממון_0': {'קידומות דקדוקיות': true},
+      },
+    );
+    await harness.settle();
+    final requests = repository.requests.length;
+    final events = harness.bloc.searchTextUpdates.length;
+    await harness.rebuildFromBloc(
+      'ממון',
+      3,
+      SearchMatchPolicy.standard,
+      searchTemplate: template(),
+    );
+    await harness.settle();
+    expect(repository.requests, hasLength(requests));
+    expect(harness.bloc.searchTextUpdates, hasLength(events));
+    await harness.type('ממון תובעין');
+    await harness.settle();
+    expect(repository.requests.last.anyOrder, isTrue);
+    expect(repository.requests.last.searchOptions, contains('תובעין_1'));
+  });
+
+  testWidgets('שינוי prop מתבנית ל-null מנקה כוונה לכל מילה ובכל סדר', (
+    tester,
+  ) async {
+    final repository = _RecordingSearchRepository(results: const []);
+    final harness = await pumpSearchView(
+      tester,
+      searchRepository: repository,
+      initialQuery: 'ממון',
+      searchDistance: 3,
+      searchTemplate: InBookSearchTemplate(
+        wordDefaults: const {'קידומות דקדוקיות': true},
+        requestedPolicy: const SearchMatchPolicy(anyOrder: true),
+      ),
+      initialSearchOptions: const {
+        'ממון_0': {'קידומות דקדוקיות': true},
+      },
+    );
+    await harness.settle();
+    await harness.rebuildFromBloc(
+      'ממון',
+      3,
+      SearchMatchPolicy.standard,
+      searchTemplate: null,
+    );
+    await harness.settle();
+    expect(harness.bloc.searchTextUpdates.last.searchTemplate, isNull);
+    await harness.type('ממון תובעין');
+    await harness.settle();
+    expect(repository.requests.last.anyOrder, isFalse);
+    expect(repository.requests.last.searchOptions, isNot(contains('תובעין_1')));
   });
 
   testWidgets('תוצאה חדשה באותה שאילתה מחילה תצורה ומקור חדשים', (
@@ -1031,7 +1137,14 @@ Future<void> main() async {
 }
 
 class _Harness {
-  _Harness(this.tester, this.bloc, this._build, this._origin, this._mode);
+  _Harness(
+    this.tester,
+    this.bloc,
+    this._build,
+    this._origin,
+    this._mode,
+    this._template,
+  );
 
   final WidgetTester tester;
   final _TestTextBookBloc bloc;
@@ -1041,10 +1154,12 @@ class _Harness {
     SearchMatchPolicy,
     InBookSearchOrigin,
     SearchMode,
+    InBookSearchTemplate?,
   )
   _build;
   InBookSearchOrigin _origin;
   SearchMode _mode;
+  InBookSearchTemplate? _template;
 
   /// בונה מחדש עם מה שה-bloc האמיתי היה מחזיר לחלונית אחרי ההקלדה.
   Future<void> rebuildFromBloc(
@@ -1053,10 +1168,21 @@ class _Harness {
     SearchMatchPolicy policy, {
     InBookSearchOrigin? searchOrigin,
     SearchMode? searchMode,
+    Object? searchTemplate = preserveInBookSearchTemplate,
   }) async {
     _origin = searchOrigin ?? _origin;
     _mode = searchMode ?? _mode;
-    await tester.pumpWidget(_build(query, distance, policy, _origin, _mode));
+    final returnedTemplate =
+        identical(searchTemplate, preserveInBookSearchTemplate) &&
+            bloc.searchTextUpdates.isNotEmpty
+        ? bloc.searchTextUpdates.last.searchTemplate
+        : searchTemplate;
+    if (!identical(returnedTemplate, preserveInBookSearchTemplate)) {
+      _template = returnedTemplate as InBookSearchTemplate?;
+    }
+    await tester.pumpWidget(
+      _build(query, distance, policy, _origin, _mode, _template),
+    );
     await tester.pump();
   }
 
@@ -1116,6 +1242,7 @@ class _SearchRequest {
     required this.wordMatchMode,
     required this.wordMatchCount,
     this.searchOptions,
+    this.anyOrder = false,
   });
 
   final String query;
@@ -1127,6 +1254,7 @@ class _SearchRequest {
   final WordMatchMode wordMatchMode;
   final int? wordMatchCount;
   final Map<String, Map<String, bool>>? searchOptions;
+  final bool anyOrder;
 }
 
 class _RecordingSearchRepository extends SearchRepository {
@@ -1148,6 +1276,7 @@ class _RecordingSearchRepository extends SearchRepository {
         wordMatchMode: request.wordMatchMode,
         wordMatchCount: request.wordMatchCount,
         searchOptions: request.searchOptions,
+        anyOrder: request.anyOrder,
       ),
     );
     return results;

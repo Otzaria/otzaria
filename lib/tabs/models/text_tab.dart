@@ -33,6 +33,7 @@ class TextBookTab extends OpenedTab {
   /// The initial search text for this tab.
   final String searchText;
   final InBookSearchOrigin searchOrigin;
+  final InBookSearchTemplate? searchTemplate;
 
   /// טקסט להדגשה בלבד — לא מפעיל חלונית חיפוש.
   final String highlightText;
@@ -141,6 +142,7 @@ class TextBookTab extends OpenedTab {
     ReadingAnchor? initialReadingAnchor,
     this.searchText = '',
     this.searchOrigin = InBookSearchOrigin.inBook,
+    this.searchTemplate,
     this.highlightText = '',
     this.permanentHighlightLine,
     this.searchOptions = const {},
@@ -187,6 +189,7 @@ class TextBookTab extends OpenedTab {
       commentators ?? [],
       searchText: searchText,
       searchOrigin: searchOrigin,
+      searchTemplate: searchTemplate,
       searchOptions: searchOptions,
       alternativeWords: alternativeWords,
       spacingValues: spacingValues,
@@ -321,6 +324,7 @@ class TextBookTab extends OpenedTab {
       isPinned: json['isPinned'] ?? false,
       searchText: searchState.searchText,
       searchOrigin: searchState.searchOrigin,
+      searchTemplate: searchState.searchTemplate,
       searchOptions: searchState.searchOptions,
       alternativeWords: searchState.alternativeWords,
       spacingValues: searchState.spacingValues,
@@ -367,6 +371,7 @@ class TextReadingSnapshot {
       distance,
       policy,
       origin,
+      template,
     ) = switch (state) {
       TextBookLoaded s => (
         s.searchText,
@@ -377,6 +382,7 @@ class TextReadingSnapshot {
         s.searchDistance,
         s.matchPolicy,
         s.searchOrigin,
+        s.searchTemplate,
       ),
       TextBookInitial s => (
         s.searchText,
@@ -387,6 +393,7 @@ class TextReadingSnapshot {
         s.searchDistance,
         s.matchPolicy,
         s.searchOrigin,
+        s.searchTemplate,
       ),
       _ => (
         tab.searchText,
@@ -397,11 +404,13 @@ class TextReadingSnapshot {
         tab.searchDistance,
         tab.matchPolicy,
         tab.searchOrigin,
+        tab.searchTemplate,
       ),
     };
     _search = ReadingTabSearchState(
       searchText: text,
       searchOrigin: origin,
+      searchTemplate: template,
       searchOptions: options,
       alternativeWords: alternatives,
       spacingValues: spacing,
@@ -461,6 +470,7 @@ class TextReadingSnapshot {
       initialReadingAnchor: _readingAnchor,
       searchText: search.searchText,
       searchOrigin: search.searchOrigin,
+      searchTemplate: search.searchTemplate,
       searchOptions: search.searchOptions,
       alternativeWords: search.alternativeWords,
       spacingValues: search.spacingValues,

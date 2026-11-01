@@ -58,6 +58,9 @@ class SearchNavigationTree extends StatelessWidget {
   /// פעולה נוספת בכותרת השורש, ליד אייקון החיפוש (למשל סינון לפי מאפיין).
   final Widget? rootHeaderAction;
 
+  /// היקף החיפוש (למשל מ-@ או מההיסטוריה).
+  final Iterable<String> scopeFacets;
+
   const SearchNavigationTree({
     super.key,
     required this.library,
@@ -75,6 +78,7 @@ class SearchNavigationTree extends StatelessWidget {
     this.extraRootCategories = const [],
     this.extraCategoriesFirst = false,
     this.rootHeaderAction,
+    this.scopeFacets = const [],
   });
 
   static const double _iconBoxSize = 26;
@@ -89,8 +93,21 @@ class SearchNavigationTree extends StatelessWidget {
 
   /// האם [path] הוא אב-קדמון של סינון פעיל. ענף כזה נפתח כברירת מחדל ומוצג
   /// גם בספירה 0 — אחרת הסינון הפעיל נעלם מהעץ ואין דרך לבטלו.
-  static bool _leadsToSelection(String path, List<String> selectedPaths) =>
+  static bool _leadsToSelection(String path, Iterable<String> selectedPaths) =>
       selectedPaths.any((facet) => facet.startsWith('$path/'));
+
+  /// שורות שנשארות גלויות בספירה 0. חברי היקף (@) אינם נשמרים — אחרת כל ספרי
+  /// ההיקף מוצגים גם בלי תוצאות — מלבד פריט יחיד שנבחר ידנית.
+  Set<String> _pinnedPaths(List<String> selectedPaths) {
+    final scope = FacetHelper.categoryFacetsOf(scopeFacets).toSet();
+    if (scope.isEmpty || scope.contains('/') || selectedPaths.length == 1) {
+      return selectedPaths.toSet();
+    }
+    return selectedPaths.where((path) => !scope.contains(path)).toSet();
+  }
+
+  static bool _isPinned(String path, Set<String> pinnedPaths) =>
+      pinnedPaths.contains(path) || _leadsToSelection(path, pinnedPaths);
 
   bool get _categoryFilterActive =>
       FacetHelper.categoryFacetsOf(selectedFacets).any((f) => f != '/');
@@ -121,7 +138,8 @@ class SearchNavigationTree extends StatelessWidget {
     rows.add(_FlatRow.rootHeader(facetCounts[library.path] ?? 0));
     // "תוצאות מ<מקור> קודמות" — הדלי החיצוני עליון; אחרת בסוף העץ.
     if (extraCategoriesFirst) _appendExtraRows(rows, selectedPaths);
-    _flattenChildren(library, 0, rows, selectedPaths);
+    final pinnedPaths = _pinnedPaths(selectedPaths);
+    _flattenChildren(library, 0, rows, selectedPaths, pinnedPaths);
     if (!extraCategoriesFirst) _appendExtraRows(rows, selectedPaths);
     _markGroupBoundaries(rows);
     return rows;
@@ -191,50 +209,50 @@ class SearchNavigationTree extends StatelessWidget {
     int level,
     List<_FlatRow> rows,
     List<String> selectedPaths,
+    Set<String> pinnedPaths,
   ) {
     for (final sub in _sortedSubCategories(category)) {
       final subPath = sub.path;
       final count = facetCounts[subPath] ?? 0;
       final leadsToSelection = _leadsToSelection(subPath, selectedPaths);
-      if (count == 0 && !leadsToSelection && !_isSelected(subPath)) continue;
+      if (count == 0 && !_isPinned(subPath, pinnedPaths)) continue;
       // ספירה שמקורה רק בספק חיצוני (היברובוקס) יכולה לשבת על קטגוריה שאין
       // תחתיה שום שורה נראית — הענף העמוק אינו בקטלוג המקומי, או שהספר אינו
       // ספר ספרייה. בלי ילדים נראים אין חץ הרחבה; הלחיצה על השורה עצמה
       // מסננת ומציגה את התוצאות.
-      final hasChildren = _hasVisibleChildren(sub, selectedPaths);
+      final hasChildren = _hasVisibleChildren(sub, pinnedPaths);
       final isExpanded =
           hasChildren && (expansion[subPath] ?? leadsToSelection);
       rows.add(
         _FlatRow.category(sub, level + 1, count, isExpanded, hasChildren),
       );
-      if (isExpanded) _flattenChildren(sub, level + 1, rows, selectedPaths);
+      if (isExpanded) {
+        _flattenChildren(sub, level + 1, rows, selectedPaths, pinnedPaths);
+      }
     }
     // path נבנה בהליכה עד השורש — פעם אחת לתיקייה ולא לכל ספר.
     final categoryPath = category.path;
     for (final book in _uniqueBooks(category.books)) {
       final facet = FacetHelper.buildBookFacet(categoryPath, book);
       final count = facetCounts[facet] ?? 0;
-      if (count == 0 && !_isSelected(facet)) continue;
+      if (count == 0 && !pinnedPaths.contains(facet)) continue;
       rows.add(_FlatRow.book(book, facet, count, level + 1));
     }
   }
 
   /// האם לקטגוריה יש לפחות שורה נראית אחת מתחתיה — אותם תנאים בדיוק
   /// שבהם [_flattenChildren] מרנדר ילד (קטגוריה או ספר).
-  bool _hasVisibleChildren(Category category, List<String> selectedPaths) {
+  bool _hasVisibleChildren(Category category, Set<String> pinnedPaths) {
     for (final sub in category.subCategories) {
-      final subPath = sub.path;
-      final count = facetCounts[subPath] ?? 0;
-      if (count > 0 ||
-          _leadsToSelection(subPath, selectedPaths) ||
-          _isSelected(subPath)) {
-        return true;
-      }
+      final count = facetCounts[sub.path] ?? 0;
+      if (count > 0 || _isPinned(sub.path, pinnedPaths)) return true;
     }
     final categoryPath = category.path;
     for (final book in category.books) {
       final facet = FacetHelper.buildBookFacet(categoryPath, book);
-      if ((facetCounts[facet] ?? 0) > 0 || _isSelected(facet)) return true;
+      if ((facetCounts[facet] ?? 0) > 0 || pinnedPaths.contains(facet)) {
+        return true;
+      }
     }
     return false;
   }
@@ -444,29 +462,27 @@ class SearchNavigationTree extends StatelessWidget {
   void _toggleExpand(Category category, bool isExpanded) {
     onToggleExpand(category.path, isExpanded);
     if (isExpanded) return;
-    final selectedPaths = _selectedPaths();
-    var only = _singleVisibleSubCategory(category, selectedPaths);
-    while (only != null && _hasVisibleChildren(only, selectedPaths)) {
+    final pinnedPaths = _pinnedPaths(_selectedPaths());
+    var only = _singleVisibleSubCategory(category, pinnedPaths);
+    while (only != null && _hasVisibleChildren(only, pinnedPaths)) {
       onToggleExpand(only.path, false);
-      only = _singleVisibleSubCategory(only, selectedPaths);
+      only = _singleVisibleSubCategory(only, pinnedPaths);
     }
   }
 
   Category? _singleVisibleSubCategory(
     Category category,
-    List<String> selectedPaths,
+    Set<String> pinnedPaths,
   ) {
     final categoryPath = category.path;
     final hasVisibleBook = category.books.any((book) {
       final facet = FacetHelper.buildBookFacet(categoryPath, book);
-      return (facetCounts[facet] ?? 0) > 0 || _isSelected(facet);
+      return (facetCounts[facet] ?? 0) > 0 || pinnedPaths.contains(facet);
     });
     if (hasVisibleBook) return null;
     final visible = category.subCategories.where(
       (sub) =>
-          (facetCounts[sub.path] ?? 0) > 0 ||
-          _leadsToSelection(sub.path, selectedPaths) ||
-          _isSelected(sub.path),
+          (facetCounts[sub.path] ?? 0) > 0 || _isPinned(sub.path, pinnedPaths),
     );
     return visible.length == 1 ? visible.single : null;
   }

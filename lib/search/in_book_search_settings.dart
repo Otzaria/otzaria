@@ -69,8 +69,9 @@ class InBookSearchSettings {
       spacingValues: normalized.customSpacing,
       searchMode: result.searchMode,
       distance: result.distance,
-      matchPolicy: result.matchPolicy,
-    );
+      matchPolicy: result.searchTemplate?.requestedPolicy ?? result.matchPolicy,
+      optionsForEveryWord: result.searchTemplate?.wordDefaults,
+    ).forQuery(searchableInBookQuery(result.query) ?? '');
   }
 
   final Map<String, Map<String, bool>> searchOptions;
@@ -96,6 +97,15 @@ class InBookSearchSettings {
   /// null when [searchOptions] were chosen for a specific query.
   final Map<String, bool>? optionsForEveryWord;
 
+  InBookSearchTemplate? get template {
+    final defaults = optionsForEveryWord;
+    if (defaults == null && requestedMatchPolicy.isStandard) return null;
+    return InBookSearchTemplate(
+      wordDefaults: defaults,
+      requestedPolicy: requestedMatchPolicy,
+    );
+  }
+
   /// These settings with [optionsForEveryWord] spread over the words of
   /// [query].
   InBookSearchSettings forQuery(String query) {
@@ -116,6 +126,8 @@ class InBookSearchSettings {
         query,
         options,
       ),
+      alternativeWords: alternativeWords,
+      spacingValues: spacingValues,
       searchMode: searchMode,
       distance: distance,
       matchPolicy: requestedMatchPolicy,

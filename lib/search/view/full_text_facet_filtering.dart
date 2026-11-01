@@ -362,6 +362,7 @@ class _SearchFacetFilteringState extends State<SearchFacetFiltering>
                       extraRootCategories: extraRoots,
                       extraCategoriesFirst: settingsState.externalResultsFirst,
                       rootHeaderAction: _buildDimensionFilterButton(),
+                      scopeFacets: searchState.searchScopeFacets,
                     );
                   },
                 );

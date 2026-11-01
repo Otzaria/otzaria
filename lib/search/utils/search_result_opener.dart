@@ -61,6 +61,7 @@ Future<OpenedTab?> openSearchResultInReader(
     matchPolicy: inBook.matchPolicy,
     openLeftPane: openLeftPane,
     requiresStableLayout: true,
+    centerSearchMatchPage: page,
   );
 
   void open(OpenedTab tab) => tabsBloc.add(

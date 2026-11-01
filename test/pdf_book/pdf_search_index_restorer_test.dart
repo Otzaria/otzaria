@@ -2,15 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/pdf_book/utils/pdf_search_index_restorer.dart';
 
 void main() {
-  test('האינדקס השמור משוחזר כשההתאמה שלו כבר נמצאה — ופעם אחת בלבד', () {
+  test('האינדקס השמור משוחזר ברגע שהוא זמין — ופעם אחת בלבד', () {
     final restorer = PdfSearchIndexRestorer(4);
     expect(
       restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 2),
       isNull,
     );
+    // הסריקה סדרתית: התאמות מאוחרות אינן משנות את האינדקס שכבר זמין.
     expect(
       restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 6),
       4,
+    );
+    expect(
+      restorer.onSearcherUpdate(session: 7, isSearching: false, matchCount: 9),
+      isNull,
     );
     expect(
       restorer.onSearcherUpdate(session: 7, isSearching: false, matchCount: 9),
@@ -48,9 +53,37 @@ void main() {
     restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 0);
     restorer.resetSession();
     expect(
-      restorer.onSearcherUpdate(session: 1, isSearching: true, matchCount: 3),
+      restorer.onSearcherUpdate(session: 1, isSearching: false, matchCount: 3),
       1,
     );
+  });
+
+  test('המשתמש ניווט להתאמה לפני סוף הסריקה — לא חוזרים לשמורה', () {
+    final restorer = PdfSearchIndexRestorer(4);
+    expect(
+      restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 2),
+      isNull,
+    );
+    expect(
+      restorer.onSearcherUpdate(
+        session: 7,
+        isSearching: false,
+        matchCount: 9,
+        hasCurrentMatch: true,
+      ),
+      isNull,
+    );
+    expect(restorer.isPending, isFalse);
+  });
+
+  test('האינדקס השמור ממתין עד השחזור או הוויתור עליו', () {
+    final restorer = PdfSearchIndexRestorer(4);
+    expect(restorer.isPending, isTrue);
+    restorer.onSearcherUpdate(session: 7, isSearching: true, matchCount: 2);
+    expect(restorer.isPending, isTrue);
+    restorer.onSearcherUpdate(session: 7, isSearching: false, matchCount: 9);
+    expect(restorer.isPending, isFalse);
+    expect(PdfSearchIndexRestorer(null).isPending, isFalse);
   });
 
   test('בלי אינדקס שמור — לא עושה דבר', () {

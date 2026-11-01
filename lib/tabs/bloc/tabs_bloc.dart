@@ -735,6 +735,7 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
             searchMode: incomingTab.searchMode,
             searchDistance: incomingTab.searchDistance,
             searchOrigin: incomingTab.searchOrigin,
+            searchTemplate: incomingTab.searchTemplate,
             matchPolicy: incomingTab.matchPolicy,
           ),
         );
@@ -768,8 +769,10 @@ class TabsBloc extends Bloc<TabsEvent, TabsState> {
           searchMode: incomingTab.searchMode,
           searchDistance: incomingTab.searchDistance,
           searchOrigin: incomingTab.searchOrigin,
+          searchTemplate: incomingTab.searchTemplate,
           matchPolicy: incomingTab.matchPolicy,
         ),
+        centerMatchPage: incomingTab.takeCenterSearchMatchPage(),
       );
     }
   }

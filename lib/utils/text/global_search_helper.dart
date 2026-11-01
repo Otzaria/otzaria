@@ -19,7 +19,7 @@ void openGlobalSearch(
     return;
   }
 
-  final tab = SearchingTab(SearchingTab.titleForQuery(query), query);
+  final tab = SearchingTab.newSearch(SearchingTab.titleForQuery(query), query);
   context.read<HistoryBloc>().add(AddHistory(tab));
   context.read<TabsBloc>().add(AddTab(tab, insertAdjacent: insertAdjacent));
 }

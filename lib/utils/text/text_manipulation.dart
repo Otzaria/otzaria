@@ -1600,36 +1600,18 @@ List<List<int>> computeHighlightRanges(
   bool isSearchResultLine = false,
   bool partialWordMatch = false,
 }) {
-  if (searchQuery.isEmpty || data.isEmpty) return const [];
-  final compiled = _resolveHighlightPattern(
-    searchQuery,
-    searchOptions,
-    alternativeWords,
-    spacingValues,
-    searchDistance,
-    isFuzzy,
-    anyOrder: matchPolicy.anyOrder && !isFuzzy,
-  );
-  if (compiled == null) return const [];
-  final requireTokenBoundaries = [
-    for (final eligible in compiled.boundaryEligible)
-      eligible && !partialWordMatch,
-  ];
-  var matches = _findHighlightMatches(
+  final matches = _computeHighlightMatches(
     data,
-    compiled,
-    requireTokenBoundaries,
+    searchQuery,
+    searchOptions: searchOptions,
+    alternativeWords: alternativeWords,
+    spacingValues: spacingValues,
+    isFuzzy: isFuzzy,
+    searchDistance: searchDistance,
     matchPolicy: matchPolicy,
     isSearchResultLine: isSearchResultLine,
-    isFuzzy: isFuzzy,
+    partialWordMatch: partialWordMatch,
   );
-  if (partialWordMatch) {
-    matches = _anchoredToQueryEdges(
-      matches,
-      data,
-      _edgeCheckFor(searchQuery, compiled),
-    );
-  }
   final ranges = <List<int>>[];
   for (final highlightMatch in matches) {
     final base = highlightMatch.start;
@@ -1638,6 +1620,94 @@ List<List<int>> computeHighlightRanges(
     }
   }
   return ranges;
+}
+
+/// כמו [computeHighlightRanges], אבל טווח אחד לכל התאמה: מתחילת המילה
+/// המותאמת הראשונה ועד סוף האחרונה, כולל מה שביניהן.
+List<List<int>> computeHighlightSpans(
+  String data,
+  String searchQuery, {
+  Map<String, Map<String, bool>> searchOptions = const {},
+  Map<int, List<String>> alternativeWords = const {},
+  Map<String, String> spacingValues = const {},
+  bool isFuzzy = false,
+  int searchDistance = 0,
+  SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard,
+  bool isSearchResultLine = false,
+}) {
+  // שורת תוצאה ב"בכל סדר" מודגשת מילה-מילה; כאן נדרש הרצף שהמתאם מצא.
+  final anyOrderPhrase =
+      matchPolicy.anyOrder &&
+      SearchMatchPolicy(
+        proximityScope: matchPolicy.proximityScope,
+        wordMatchMode: matchPolicy.wordMatchMode,
+      ).hasStandardWordMatching;
+  final matches = _computeHighlightMatches(
+    data,
+    searchQuery,
+    searchOptions: searchOptions,
+    alternativeWords: alternativeWords,
+    spacingValues: spacingValues,
+    isFuzzy: isFuzzy,
+    searchDistance: searchDistance,
+    matchPolicy: anyOrderPhrase ? SearchMatchPolicy.standard : matchPolicy,
+    isSearchResultLine: isSearchResultLine,
+    anyOrder: matchPolicy.anyOrder,
+  );
+  return [
+    for (final match in matches)
+      if (match.ranges.isEmpty)
+        [match.start, match.end]
+      else
+        [
+          match.start + match.ranges.map((r) => r.start).reduce(min),
+          match.start + match.ranges.map((r) => r.end).reduce(max),
+        ],
+  ];
+}
+
+List<_HighlightMatch> _computeHighlightMatches(
+  String data,
+  String searchQuery, {
+  required Map<String, Map<String, bool>> searchOptions,
+  required Map<int, List<String>> alternativeWords,
+  required Map<String, String> spacingValues,
+  required bool isFuzzy,
+  required int searchDistance,
+  required SearchMatchPolicy matchPolicy,
+  required bool isSearchResultLine,
+  bool partialWordMatch = false,
+  bool? anyOrder,
+}) {
+  if (searchQuery.isEmpty || data.isEmpty) return const [];
+  final compiled = _resolveHighlightPattern(
+    searchQuery,
+    searchOptions,
+    alternativeWords,
+    spacingValues,
+    searchDistance,
+    isFuzzy,
+    anyOrder: (anyOrder ?? matchPolicy.anyOrder) && !isFuzzy,
+  );
+  if (compiled == null) return const [];
+  final requireTokenBoundaries = [
+    for (final eligible in compiled.boundaryEligible)
+      eligible && !partialWordMatch,
+  ];
+  final matches = _findHighlightMatches(
+    data,
+    compiled,
+    requireTokenBoundaries,
+    matchPolicy: matchPolicy,
+    isSearchResultLine: isSearchResultLine,
+    isFuzzy: isFuzzy,
+  );
+  if (!partialWordMatch) return matches;
+  return _anchoredToQueryEdges(
+    matches,
+    data,
+    _edgeCheckFor(searchQuery, compiled),
+  );
 }
 
 /// שם הקובץ שאחרי `/` או `\` האחרון, בלי הסיומת שאחרי הנקודה האחרונה.

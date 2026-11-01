@@ -696,6 +696,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
     int searchDistance = 0;
     SearchMatchPolicy matchPolicy = SearchMatchPolicy.standard;
     var searchOrigin = InBookSearchOrigin.inBook;
+    InBookSearchTemplate? searchTemplate;
     Set<int>? searchResultLines;
     bool showLeftPane;
     List<String> commentators;
@@ -724,6 +725,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       searchDistance = currentState.searchDistance;
       matchPolicy = currentState.matchPolicy;
       searchOrigin = currentState.searchOrigin;
+      searchTemplate = currentState.searchTemplate;
       searchResultLines = currentState.searchResultLines;
       showLeftPane = currentState.showLeftPane;
       commentators = currentState.activeCommentators;
@@ -754,6 +756,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
       searchDistance = initial.searchDistance;
       matchPolicy = initial.matchPolicy;
       searchOrigin = initial.searchOrigin;
+      searchTemplate = initial.searchTemplate;
       searchResultLines = initial.initialSearchResultLines;
       showLeftPane = initial.showLeftPane;
       commentators = initial.commentators;
@@ -1037,6 +1040,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
         searchDistance: searchDistance,
         matchPolicy: matchPolicy,
         searchOrigin: searchOrigin,
+        searchTemplate: searchTemplate,
         // נזרע כאן ולא בחלונית: החלונית נבנית רק כשנפתחת, וההדגשה בספר
         // חייבת להיות זהה לפניה ואחריה.
         searchWholeWord: InBookSearchPreferences.resolveWholeWord(
@@ -1976,6 +1980,7 @@ class TextBookBloc extends Bloc<TextBookEvent, TextBookState> {
           searchDistance: event.searchDistance,
           matchPolicy: event.matchPolicy,
           searchOrigin: event.searchOrigin,
+          searchTemplate: event.searchTemplate,
           searchWholeWord: event.searchWholeWord,
           selectedIndex: currentState.selectedIndex,
           clearPinpointHighlight: requestChanged,

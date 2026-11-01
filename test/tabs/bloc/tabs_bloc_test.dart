@@ -446,6 +446,44 @@ void main() {
       });
     });
 
+    for (final split in [false, true]) {
+      test(
+        'תוצאה גלובלית מעבירה בקשת מירכוז ל-PDF קיים (split=$split)',
+        () async {
+          final bloc = _newBloc(_FakeTabsRepository());
+          final existing = PdfBookTab(
+            book: PdfBook(id: 42, title: 'ספר PDF', path: 'a.pdf'),
+            pageNumber: 3,
+          )..currentTitle.value = 'שער ראשון';
+          final OpenedTab top = split
+              ? CombinedTab(
+                  rightTab: existing,
+                  leftTab: _createTextTab('ספר נוסף', categoryId: 2),
+                )
+              : existing;
+          bloc.add(AddTab(top));
+          await bloc.stream.firstWhere((s) => s.tabs.length == 1);
+          final incoming = PdfBookTab(
+            book: PdfBook(id: 42, title: 'ספר PDF', path: 'a.pdf'),
+            pageNumber: 3,
+            searchText: 'ממון תובעין',
+            searchOrigin: InBookSearchOrigin.globalResult,
+            centerSearchMatchPage: 3,
+          );
+          bloc.add(OpenOrFocusTab(incoming, targetTitle: 'ספר PDF, שער ראשון'));
+          await pumpEventQueue();
+          expect(bloc.state.tabs, hasLength(1));
+          expect(
+            existing.incomingSearchConfiguration.value?.searchText,
+            'ממון תובעין',
+          );
+          expect(existing.takeCenterSearchMatchPage(), 3);
+          expect(existing.takeCenterSearchMatchPage(), isNull);
+          await _closeBlocAndAllowDeferredDispose(bloc);
+        },
+      );
+    }
+
     test('ממקד טאב PDF קיים לפי כותרת גם אם העמוד שונה', () async {
       final bloc = _newBloc(_FakeTabsRepository());
       final existingTab = PdfBookTab(
