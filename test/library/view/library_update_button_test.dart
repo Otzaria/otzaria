@@ -54,6 +54,20 @@ void main() {
   });
 
   group('libraryUpdateButtonTooltip', () {
+    test('עדכון ספרייה שאינו נתמך אינו מוצג גם בריחוף', () {
+      const state = LibraryUpdateState(
+        status: LibraryUpdateStatus.blocked,
+        message: 'נדרש עדכון תוכנה כדי לעדכן את הספרייה',
+        errorMessage: 'נדרש עדכון תוכנה כדי לעדכן את הספרייה',
+      );
+
+      expect(libraryUpdateButtonTooltip(state), 'עדכון ספרייה');
+      expect(
+        libraryUpdateButtonIcon(state.status),
+        libraryUpdateButtonIcon(LibraryUpdateStatus.idle),
+      );
+    });
+
     test('מנותק מסביר את המצב ומזמין ניסיון חוזר', () {
       const state = LibraryUpdateState(
         status: LibraryUpdateStatus.disconnected,
