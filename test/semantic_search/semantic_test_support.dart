@@ -87,6 +87,8 @@ class FakeSettingsStore implements SemanticSettingsStore {
   Future<void> setDataEnabled(bool value) async => dataEnabled = value;
 }
 
+const kTestModelFamilyId = 'otzaria/Meivin-Embed-QA491-native256';
+
 /// מנוע מזויף שרושם קריאות. חיפוש ממתין ל-[searchGate] כשהוא מוגדר.
 class FakeBackend implements SemanticEngineBackend {
   @override
@@ -150,6 +152,9 @@ class FakeBackend implements SemanticEngineBackend {
       final result = installResults.removeAt(0);
       vectors = SemanticVectorsSummary(
         present: true,
+        modelFamilyId: SemanticModelIdentity.parse(
+          request.modelIdentityJson,
+        ).familyId,
         identityDigest: installedIdentityDigest,
         libraryVersion: result.libraryVersion,
         libraryReleaseTag: 'v${result.libraryVersion}-20260930165019',
@@ -159,6 +164,9 @@ class FakeBackend implements SemanticEngineBackend {
     }
     vectors = SemanticVectorsSummary(
       present: true,
+      modelFamilyId: SemanticModelIdentity.parse(
+        request.modelIdentityJson,
+      ).familyId,
       identityDigest: installedIdentityDigest,
       libraryVersion: 30,
       libraryReleaseTag: 'v30-20260930165019',
@@ -226,6 +234,7 @@ class FakeBackend implements SemanticEngineBackend {
     if (compactFailures.isNotEmpty) throw compactFailures.removeAt(0);
     vectors = SemanticVectorsSummary(
       present: vectors.present,
+      modelFamilyId: vectors.modelFamilyId,
       identityDigest: vectors.identityDigest,
       libraryVersion: vectors.libraryVersion,
       libraryReleaseTag: vectors.libraryReleaseTag,
@@ -438,6 +447,7 @@ void installModelFiles(
 
 const SemanticVectorsSummary installedV30 = SemanticVectorsSummary(
   present: true,
+  modelFamilyId: kTestModelFamilyId,
   libraryVersion: 30,
   libraryReleaseTag: 'v30-20260930165019',
   segments: [

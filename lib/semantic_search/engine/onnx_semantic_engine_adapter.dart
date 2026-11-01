@@ -186,6 +186,7 @@ class OnnxSemanticEngineAdapter implements SemanticEngineBackend {
     return SemanticVectorsSummary(
       present: true,
       identityDigest: info.identityDigest,
+      modelFamilyId: info.modelFamilyId,
       libraryVersion: info.libraryVersion,
       libraryReleaseTag: info.libraryReleaseTag,
       segments: [

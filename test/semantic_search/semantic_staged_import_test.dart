@@ -432,6 +432,7 @@ void main() {
           ..supportsLongLineWindows = true
           ..vectors = SemanticVectorsSummary(
             present: true,
+            modelFamilyId: kTestModelFamilyId,
             identityDigest: digest,
             libraryVersion: 29,
             libraryReleaseTag: 'v29-20260930165019',

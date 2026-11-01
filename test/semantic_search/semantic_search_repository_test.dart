@@ -593,6 +593,7 @@ void main() {
       final settings = FakeSettingsStore()..dataEnabled = true;
       const installedV29 = SemanticVectorsSummary(
         present: true,
+        modelFamilyId: kTestModelFamilyId,
         libraryVersion: 29,
         libraryReleaseTag: 'v29-20260927072953',
       );
@@ -852,6 +853,7 @@ void main() {
     final windowsDigest = 'ab' * 32;
     final installedAnchorV30 = SemanticVectorsSummary(
       present: true,
+      modelFamilyId: kTestModelFamilyId,
       identityDigest: anchorDigest,
       libraryVersion: 30,
       libraryReleaseTag: installedV30.libraryReleaseTag,
@@ -982,6 +984,7 @@ void main() {
         ..supportsLongLineWindows = true
         ..vectors = SemanticVectorsSummary(
           present: true,
+          modelFamilyId: kTestModelFamilyId,
           identityDigest: windowsDigest,
           libraryVersion: 30,
           libraryReleaseTag: installedV30.libraryReleaseTag,
@@ -1009,6 +1012,7 @@ void main() {
         ..supportsLongLineWindows = true
         ..vectors = SemanticVectorsSummary(
           present: true,
+          modelFamilyId: kTestModelFamilyId,
           identityDigest: windowsDigest,
           libraryVersion: 30,
           libraryReleaseTag: installedV30.libraryReleaseTag,
@@ -1162,6 +1166,7 @@ void main() {
         ..installedIdentityDigest = digest
         ..vectors = SemanticVectorsSummary(
           present: true,
+          modelFamilyId: kTestModelFamilyId,
           identityDigest: digest,
           libraryVersion: 28,
           libraryReleaseTag: 'v28-20260930165019',
@@ -1301,6 +1306,7 @@ void main() {
       // הסט חזר ל-v28 (למשל שחזור הדור הקודם): שוב base, בלי השרשרת.
       backend.vectors = SemanticVectorsSummary(
         present: true,
+        modelFamilyId: kTestModelFamilyId,
         identityDigest: digest,
         libraryVersion: 28,
         libraryReleaseTag: 'v28-20260930165019',
@@ -1452,6 +1458,7 @@ void main() {
     test('סט של זהות אחרת או של המשפחה הישנה — בלי חיפוש שרשרת', () async {
       backend.vectors = SemanticVectorsSummary(
         present: true,
+        modelFamilyId: kTestModelFamilyId,
         identityDigest: 'ee' * 32,
         libraryVersion: 28,
         libraryReleaseTag: 'v28-20260930165019',
@@ -1504,6 +1511,7 @@ void main() {
       await waitFor(() => backend.compactHandles.isNotEmpty);
       backend.vectors = SemanticVectorsSummary(
         present: true,
+        modelFamilyId: kTestModelFamilyId,
         identityDigest: digest,
         libraryVersion: 28,
       );

@@ -533,7 +533,7 @@ class SemanticSearchRepository {
         paths.vectorsDirectory,
       );
       // סט שנפסל בפתיחה אינו מותקן עד שיוחלף; אחרת "מוכן" ונכשל שוב בחיפוש.
-      return vectors.present && !_needsRepair;
+      return !_needsRepair && await _hasCurrentModel(vectors);
     } on SemanticFailure catch (failure) {
       if (failure.kind != SemanticFailureKind.artifactCorrupt) rethrow;
       _needsRepair = true;
@@ -1034,13 +1034,17 @@ class SemanticSearchRepository {
     SemanticVectorsRelease? release;
     SemanticVectorsRelease? onlineRelease;
     final installedFamily = await _installedFamily(installed);
+    final installedModelMatches = await _hasCurrentModel(installed);
     final upToDate =
         installed.present &&
         installed.libraryVersion == version &&
         installedFamily == _preferredFamily &&
+        installedModelMatches &&
         !_needsRepair;
     if (!upToDate) {
-      final candidates = await _vectorsCandidates(installedFamily);
+      final candidates = await _vectorsCandidates(
+        installedModelMatches ? installedFamily : null,
+      );
       release = await _staged.locate(
         version,
         offline: offline,
@@ -1064,7 +1068,7 @@ class SemanticSearchRepository {
         }
       }
     }
-    if (release == null && !installed.present) return;
+    if (release == null && !installedModelMatches) return;
 
     // deltas רק מהרשת: נתונים מוכנים של מסייע ההורדה הם base, והוא גובר.
     final chain =
@@ -1167,9 +1171,12 @@ class SemanticSearchRepository {
     );
     final repair = _needsRepair;
     // ב-Windows אי אפשר להחליף קובץ ממופה, ומשפחה אחרת נפתחת עם model.json אחר.
-    final familyChanges =
-        _vectors?.present == true && family != await _installedFamily(_vectors);
-    if (repair || familyChanges) {
+    final identityChanges =
+        _vectors?.present == true &&
+        (_vectors!.identityDigest != release.identityDigest ||
+            family != await _installedFamily(_vectors) ||
+            !await _hasCurrentModel(_vectors));
+    if (repair || identityChanges) {
       _cancelAllSearches();
       await _closeSession();
     }
@@ -1610,6 +1617,12 @@ class SemanticSearchRepository {
     await _identityLoader(family),
   );
 
+  Future<bool> _hasCurrentModel(SemanticVectorsSummary? vectors) async =>
+      vectors != null &&
+      vectors.present &&
+      vectors.modelFamilyId ==
+          (await _loadIdentity(await _installedFamily(vectors))).familyId;
+
   SemanticVectorsFamily get _preferredFamily => _backend.supportsLongLineWindows
       ? SemanticVectorsFamily.windows
       : SemanticVectorsFamily.anchor;
@@ -1617,7 +1630,7 @@ class SemanticSearchRepository {
   /// המשפחות שמחפשים להן release, המועדפת ראשונה. מי שכבר מחזיק סט של
   /// המשפחה המועדפת ממתין לה, ולא יורד בינתיים לסט הישן.
   Future<List<SemanticVectorsCandidate>> _vectorsCandidates(
-    SemanticVectorsFamily installed,
+    SemanticVectorsFamily? installed,
   ) async => [
     for (final family in {
       _preferredFamily,
