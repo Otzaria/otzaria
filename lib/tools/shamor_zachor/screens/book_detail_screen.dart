@@ -543,7 +543,7 @@ class _BookDetailScreenState extends State<BookDetailScreen>
                           }
                         },
                         tristate: true,
-                        activeColor: theme.primaryColor,
+                        activeColor: theme.colorScheme.primary,
                       ),
                       _buildColumnHeaderLabel(
                         progressProvider,

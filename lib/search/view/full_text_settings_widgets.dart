@@ -551,7 +551,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
             style: TextStyle(
               fontSize: 10, // גופן קטן יותר לקיצורים
               fontWeight: FontWeight.normal,
-              color: Theme.of(context).primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         );
@@ -581,7 +581,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,
-                color: Theme.of(context).primaryColor,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           );
@@ -610,7 +610,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
             style: TextStyle(
               fontSize: 10, // גופן קטן יותר לקיצורים
               fontWeight: FontWeight.normal,
-              color: Theme.of(context).primaryColor,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         );
@@ -645,7 +645,7 @@ class _SearchTermsDisplayState extends State<SearchTermsDisplay> {
               style: TextStyle(
                 fontSize: 14, // גופן מעט יותר גדול למספר המרווח
                 fontWeight: FontWeight.normal,
-                color: Theme.of(context).primaryColor,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           );
