@@ -1,4 +1,5 @@
 import 'package:otzaria/plugins/declarative/compiler/declarative_action_compiler.dart';
+import 'package:otzaria/plugins/declarative/compiler/declarative_value_checks.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_program.dart';
 import 'package:otzaria/plugins/declarative/models/declarative_toolbar_template.dart';
 import 'package:otzaria/plugins/declarative/repository/declarative_program_repository.dart';
@@ -85,7 +86,7 @@ class DeclarativeToolbarBindingService {
           template.programId,
         );
         if (outputs == null ||
-            !_isVisible(_readPath(outputs, template.visibleOutput))) {
+            !isNotEmptyValue(readValuePath(outputs, template.visibleOutput))) {
           _replace(registration, const []);
           return;
         }
@@ -135,7 +136,7 @@ class DeclarativeToolbarBindingService {
     }
 
     final binding = template.childrenBinding!;
-    final sourceItems = _readPath(outputs, binding.itemsOutput);
+    final sourceItems = readValuePath(outputs, binding.itemsOutput);
     if (sourceItems is! List || sourceItems.isEmpty) {
       throw const DeclarativeProgramException(
         'declarative.type_mismatch',
@@ -232,12 +233,14 @@ class DeclarativeToolbarBindingService {
     if (value is Map) {
       final map = Map<String, dynamic>.from(value);
       if (map.length == 1) {
-        if (map.containsKey(r'$literal')) return _copy(map[r'$literal']);
+        if (map.containsKey(r'$literal')) {
+          return deepCopyValue(map[r'$literal']);
+        }
         if (map.containsKey(r'$output')) {
-          return _readPath(outputs, map[r'$output'] as String);
+          return readValuePath(outputs, map[r'$output'] as String);
         }
         if (map.containsKey(r'$item')) {
-          return _readPath(item, map[r'$item'] as String);
+          return readValuePath(item, map[r'$item'] as String);
         }
         if (map.containsKey(r'$concat')) {
           return (map[r'$concat'] as List<dynamic>)
@@ -267,36 +270,6 @@ class DeclarativeToolbarBindingService {
           _resolveExpression(child, outputs: outputs, item: item),
       ];
     }
-    return value;
-  }
-
-  Object? _readPath(Object? root, String path) {
-    Object? current = root;
-    for (final part in path.split('.')) {
-      if (current is Map && current.containsKey(part)) {
-        current = current[part];
-      } else {
-        return null;
-      }
-    }
-    return current;
-  }
-
-  bool _isVisible(Object? value) {
-    if (value == null) return false;
-    if (value is String) return value.isNotEmpty;
-    if (value is Iterable) return value.isNotEmpty;
-    if (value is Map) return value.isNotEmpty;
-    return true;
-  }
-
-  Object? _copy(Object? value) {
-    if (value is Map) {
-      return {
-        for (final entry in value.entries) entry.key: _copy(entry.value),
-      };
-    }
-    if (value is List) return value.map(_copy).toList();
     return value;
   }
 

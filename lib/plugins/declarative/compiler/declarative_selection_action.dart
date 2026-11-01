@@ -151,7 +151,9 @@ class DeclarativeSelectionAction {
     if (value is Map) {
       final map = Map<String, dynamic>.from(value);
       if (map.length == 1) {
-        if (map.containsKey(r'$literal')) return _copy(map[r'$literal']);
+        if (map.containsKey(r'$literal')) {
+          return deepCopyValue(map[r'$literal']);
+        }
         for (final root in const [r'$selection', r'$book']) {
           if (map.containsKey(root)) {
             final data = payload[map[root] as String];
@@ -159,7 +161,7 @@ class DeclarativeSelectionAction {
           }
         }
         if (map.containsKey(r'$storage')) {
-          return _copy(storage[map[r'$storage'] as String]);
+          return deepCopyValue(storage[map[r'$storage'] as String]);
         }
         if (map.containsKey(r'$concat')) {
           return (map[r'$concat'] as List<dynamic>)
@@ -220,7 +222,7 @@ class DeclarativeSelectionAction {
             if (key is! String ||
                 key.isEmpty ||
                 key.length > DeclarativeActionCompiler.maxStorageKeyLength ||
-                _hasControlChars(key)) {
+                hasControlChars(key)) {
               throw const DeclarativeProgramException(
                 'declarative.invalid_reference',
                 r'$storage must be a storage key of up to '
@@ -300,30 +302,13 @@ class DeclarativeSelectionAction {
 
   static void _validateScalar(Object? value) {
     if (value == null || value is num || value is bool) return;
-    if (value is String && value.length <= 4096 && !_hasControlChars(value)) {
+    if (value is String && value.length <= 4096 && !hasControlChars(value)) {
       return;
     }
     throw const DeclarativeProgramException(
       'declarative.invalid_value',
       'Selection action templates may contain small JSON values only',
     );
-  }
-
-  static bool _hasControlChars(String value) {
-    for (final unit in value.codeUnits) {
-      if (unit < 0x20 || unit == 0x7F) return true;
-    }
-    return false;
-  }
-
-  static Object? _copy(Object? value) {
-    if (value is Map) {
-      return {
-        for (final entry in value.entries) entry.key: _copy(entry.value),
-      };
-    }
-    if (value is List) return value.map(_copy).toList();
-    return value;
   }
 
   static Map<String, dynamic> _requiredMap(Object? value, String context) =>
