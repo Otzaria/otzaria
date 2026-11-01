@@ -322,6 +322,7 @@ class SemanticSearchRepository {
         paths.modelDirectory,
         paths.vectorsDirectory,
         paths.vectorsDownloadDirectory,
+        ...paths.legacyModelDirectories,
       ]) {
         await deleteSemanticOwnedDirectory(dir);
       }
@@ -1096,6 +1097,7 @@ class SemanticSearchRepository {
       ],
     ];
     await _ensureModel(paths, modelIdentity, quantization, model);
+    await _removeLegacyModels(paths);
     if (_jobCancel.isCancelled) return;
     if (release != null) {
       await _installRelease(paths, release, chain: chain);
@@ -1358,6 +1360,17 @@ class SemanticSearchRepository {
     if (!await identityFile.exists() ||
         await identityFile.readAsString() != identity.rawJson) {
       await identityFile.writeAsString(identity.rawJson, flush: true);
+    }
+  }
+
+  /// הסשן פותח רק את [SemanticPaths.modelDirectory], ולכן אין מרוץ עם המחיקה.
+  Future<void> _removeLegacyModels(SemanticPaths paths) async {
+    for (final dir in paths.legacyModelDirectories) {
+      try {
+        await deleteSemanticOwnedDirectory(dir);
+      } on FileSystemException catch (error, stackTrace) {
+        _log('cleanup', error, stackTrace);
+      }
     }
   }
 

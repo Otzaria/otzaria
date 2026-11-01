@@ -5,6 +5,9 @@ import 'semantic_model_identity.dart';
 /// שם תיקיית חבילת המודל, ליד `seforim.db`.
 const String kSemanticModelFolderName = 'meivin-qa491-onnx';
 
+/// תיקיות מודל של גרסאות קודמות; נמחקות אחרי שהמודל הנוכחי הותקן.
+const List<String> kLegacySemanticModelFolderNames = ['meivin-round2-onnx'];
+
 /// שם קובץ ה-tokenizer בחבילת המודל.
 const String kSemanticTokenizerFileName = 'tokenizer.json';
 
@@ -33,6 +36,10 @@ class SemanticPaths {
   /// תיקיית חבילת המודל.
   String get modelDirectory =>
       p.join(databaseDirectory, kSemanticModelFolderName);
+
+  /// תיקיות המודל של גרסאות קודמות.
+  Iterable<String> get legacyModelDirectories => kLegacySemanticModelFolderNames
+      .map((name) => p.join(databaseDirectory, name));
 
   /// סט הוקטורים, כפי שהוא נמסר למנוע.
   String get vectorsDirectory => p.join(root, 'vectors');
