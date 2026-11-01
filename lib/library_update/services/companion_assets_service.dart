@@ -325,14 +325,12 @@ class CompanionAssetsService {
         // ארכיון פגום שנשאר שלם יחזיר 416 (דילוג הורדה) ולולאה — מוחקים; כשל
         // מערכת-קבצים (קובץ יעד נעול) אינו ארכיון פגום — ה-temp נשמר ל-resume.
         if (e is! FileSystemException) {
-          await File(tempPath).delete().catchError((_) => File(tempPath));
-          await _deleteTalmudDownloadState(tempPath);
+          await deleteDownloadWithSidecars(tempPath);
         }
         rethrow;
       }
       // מחיקת הקובץ הזמני לאחר חילוץ מוצלח.
-      await File(tempPath).delete().catchError((_) => File(tempPath));
-      await _deleteTalmudDownloadState(tempPath);
+      await deleteDownloadWithSidecars(tempPath);
       await markerFile.writeAsString(release.sha256 ?? release.tag);
       // קיום תיקיית התלמוד ממוטמן ב-DatabaseLibraryProvider — בלי ניקוי,
       // הריענון שאחרי העדכון לא יגלה את התיקייה החדשה עד הפעלה מחדש.
@@ -487,15 +485,6 @@ class CompanionAssetsService {
       onProgress: onProgress,
       isCancelled: cancelled,
     );
-  }
-
-  Future<void> _deleteTalmudDownloadState(String destPath) async {
-    // משאירים את ה-sidecar אם מחיקת הארכיון נכשלה, כדי שהניסיון הבא יוכל
-    // לזהות/לאמת את השריד ולא יאבד את נקודת החידוש.
-    if (await File(destPath).exists()) return;
-    await deleteDownloadSidecar(destPath); // פורמט .meta הישן
-    final resume = File(PatchDownloader.resumeSidecarPath(destPath));
-    await resume.delete().catchError((_) => resume);
   }
 
   // ── קטלוג otzar-HB ────────────────────────────────────────────────────

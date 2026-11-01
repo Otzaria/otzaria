@@ -1527,15 +1527,6 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     return reusableDownloadBytes(file.path, identity, expectedSize);
   }
 
-  Future<void> _deleteDownloadState(String tempPath) async {
-    // אם מחיקת הארכיון נכשלה, שומרים את ה-sidecar: בלעדיו הניסיון הבא עלול
-    // למחוק הורדה שלמה/חלקית תקינה או לחדש אותה ללא ולידטור.
-    if (await File(tempPath).exists()) return;
-    await deleteDownloadSidecar(tempPath); // פורמט .meta הישן
-    final resume = File(PatchDownloader.resumeSidecarPath(tempPath));
-    await resume.delete().catchError((_) => resume);
-  }
-
   /// מחלץ קובץ דחוס יחיד ומדווח התקדמות מאוחדת, משוקללת לפי הגודל הדחוס
   /// ([weightBase] = סכום הגדלים של הקבצים שכבר חולצו, [totalWeight] = סך
   /// הכול). החילוץ מדווח לפי בייטים דחוסים שנקראו, ולכן שקלול לפי הגודל
@@ -1629,14 +1620,12 @@ class EmptyLibraryBloc extends Bloc<EmptyLibraryEvent, EmptyLibraryState> {
     } catch (_) {
       // חילוץ שנכשל על קובץ שלם (פגום/franken) משאיר temp שיגרום לדילוג על
       // ההורדה בניסיון הבא ולולאה אינסופית — מוחקים כדי לכפות הורדה מחדש.
-      await File(tempPath).delete().catchError((_) => File(tempPath));
-      await _deleteDownloadState(tempPath);
+      await deleteDownloadWithSidecars(tempPath);
       rethrow;
     }
 
     // מחיקת קובץ ה-temp לאחר חילוץ מוצלח.
-    await File(tempPath).delete().catchError((_) => File(tempPath));
-    await _deleteDownloadState(tempPath);
+    await deleteDownloadWithSidecars(tempPath);
   }
 
   /// כותב את זיהוי הגרסה (digest או תג) לתיקיית התלמוד שחולצה. בלי הסימון,
