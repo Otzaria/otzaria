@@ -16,9 +16,12 @@ class AppReportImage extends Equatable {
   /// מספר התמונות המרבי בדיווח אחד.
   static const int maxCount = 5;
 
-  /// גבולות בבייטים; מחושבים ב-1000 כדי להישאר מתחת לגבול השרת (MiB).
-  static const int maxBytes = 5 * 1000 * 1000;
-  static const int maxTotalBytes = 15 * 1000 * 1000;
+  /// מגה-בייט כפי שהשרת ו-Windows מחשבים אותו.
+  static const int megabyte = 1024 * 1024;
+
+  /// גבולות בבייטים, זהים לגבולות השרת.
+  static const int maxBytes = 5 * megabyte;
+  static const int maxTotalBytes = 15 * megabyte;
 
   /// הנפח המרבי של התמונות בגוף הבקשה: base64 ועוד שם וסוג לכל תמונה.
   static const int maxPayloadBytes =

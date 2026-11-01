@@ -103,13 +103,13 @@ class _AppReportImagesSectionState extends State<AppReportImagesSection>
       case AppReportImageRejection.tooLarge:
         UiSnack.showError(
           ReportMessages.appReportImageTooLarge(
-            AppReportImage.maxBytes ~/ 1000000,
+            AppReportImage.maxBytes ~/ AppReportImage.megabyte,
           ),
         );
       case AppReportImageRejection.totalTooLarge:
         UiSnack.showError(
           ReportMessages.appReportImagesTotalTooLarge(
-            AppReportImage.maxTotalBytes ~/ 1000000,
+            AppReportImage.maxTotalBytes ~/ AppReportImage.megabyte,
           ),
         );
       case AppReportImageRejection.tooMany:
