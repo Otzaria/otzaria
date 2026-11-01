@@ -359,6 +359,70 @@ void main() {
       expect(DatabaseLibraryProvider.operationQueue.busyCount.value, 0);
     });
 
+    test('הפתירה רצה בלי טרנזקציה פתוחה על החיבור הראשי', () async {
+      final raw = await db.database;
+      final autocommitDuringResolve = <bool>[];
+      final resolving = UserImportLibrary(
+        db,
+        resolveRef:
+            ({
+              required targetTitle,
+              required targetCategoryId,
+              required targetIsUserBook,
+              required ref,
+            }) async {
+              autocommitDuringResolve.add(raw.autocommit);
+              return 11;
+            },
+        sourceExists:
+            ({required title, categoryId, required isUserBook}) async => true,
+      );
+      final path = write(
+        'קישורים.csv',
+        'ספר_מקור,מקור_אישי,מקור,ספר_יעד,מיקום_יעד,סוג,יעד_אישי\n'
+            'ברכות,לא,3,מפרש,פרק א,הפניה,כן\n',
+      );
+
+      expect((await resolving.addFiles([path])).allErrors, isEmpty);
+      expect(autocommitDuringResolve, [isTrue]);
+      expect((await storedLinks()).single.targetLineIndex, 11);
+    });
+
+    test('בלי הזרקה הפתירה האמיתית רצה ב-isolate ונכתבת באטומיות', () async {
+      final raw = await db.database;
+      raw.execute(
+        "INSERT INTO book (categoryId, sourceId, title) VALUES (1, 1, 'מקור')",
+      );
+      raw.execute(
+        "INSERT INTO book (categoryId, sourceId, title) VALUES (1, 1, 'מפרש')",
+      );
+      final targetId = raw.lastInsertRowId;
+      raw.execute("INSERT INTO tocText (text) VALUES ('פרק א')");
+      raw.execute(
+        'INSERT INTO tocEntry (bookId, textId, level, lineIndex) '
+        'VALUES (?, ?, 1, 7)',
+        [targetId, raw.lastInsertRowId],
+      );
+      String userLinks(String name) => write(
+        name,
+        'מקור_אישי,מקור,ספר_יעד,מיקום_יעד,סוג,יעד_אישי\n'
+        'כן,3,מפרש,פרק א,הפניה,כן\n',
+      );
+      final real = UserImportLibrary(db);
+
+      final ok = await real.addFiles([userLinks('מקור.links.csv')]);
+      expect(ok.allErrors, isEmpty);
+      expect(ok.rebuild.linksApplied, 1);
+      Future<List<UserLinkRecord>> links() =>
+          repo.forwardUserLinks('מקור', sourceIsUserBook: true);
+      expect((await links()).single.targetLineIndex, 7);
+
+      final failed = await real.addFiles([userLinks('חסר.links.csv')]);
+      expect(failed.allErrors.single, contains('חסר'));
+      expect(await real.list(), hasLength(1));
+      expect((await links()).single.targetLineIndex, 7);
+    });
+
     test('קובץ שנמחק מהדיסק ממשיך לפעול מהתוכן השמור', () async {
       final path = linksFile('קישורים.csv');
       await library.addFiles([path]);

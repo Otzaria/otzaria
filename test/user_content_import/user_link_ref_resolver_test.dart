@@ -222,4 +222,38 @@ void main() {
       isEmpty,
     );
   });
+
+  test('כשל המסד הרשמי נזרק רק כשפונים אליו', () async {
+    await addBook(userDb, 'בסיס');
+    await addBook(userDb, 'יעד');
+    final resolvers = userLinkResolversFor(
+      userDb,
+      officialError: Exception('corrupt'),
+    );
+    Future<List<String>> errorsOf(ImportedFile file) async =>
+        (await UserContentImporter.ingestContents(
+          [file],
+          userDb,
+          resolveRef: resolvers.resolveRef,
+          sourceExists: resolvers.sourceExists,
+          locateBook: resolvers.locateBook,
+        )).errors;
+
+    expect(
+      (await errorsOf(
+        const ImportedFile(
+          name: 'בסיס_links.json',
+          content:
+              '[{"line_index_1": 1, "line_index_2": 2, "path_2": "יעד.txt"}]',
+        ),
+      )).single,
+      contains('לא ניתן לבדוק את הספרייה הרשמית'),
+    );
+    expect(
+      await errorsOf(
+        const ImportedFile(name: 'דורות.csv', content: 'ספר,דור\n'),
+      ),
+      isEmpty,
+    );
+  });
 }

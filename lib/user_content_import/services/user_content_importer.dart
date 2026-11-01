@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/migration/database/daos/database.dart';
+import 'package:otzaria/migration/database/query_loader.dart';
+import 'package:otzaria/migration/database/repository/seforim_repository.dart';
 import 'package:otzaria/models/link_types.dart';
 import 'package:otzaria/user_content_import/models/user_import_models.dart';
 import 'package:otzaria/user_content_import/repository/user_content_repository.dart';
@@ -121,7 +124,6 @@ class UserContentImporter {
   }
 
   /// אותו ייבוא על תוכן שכבר נקרא. [source] = נתיב הקובץ בתיקיית הספרים (null = ידני).
-  /// [beforeApply] רץ אחרי פענוח מוצלח ולפני הכתיבה — המקום היחיד שבו מותר לנקות.
   static Future<UserImportResult> importContents(
     Iterable<ImportedFile> files,
     MyDatabase userDb, {
@@ -129,17 +131,31 @@ class UserContentImporter {
     UserLinkSourceChecker sourceExists = userLinkSourceBookExists,
     UserLinkBookLocator locateBook = locateUserLinkBook,
     String? source,
-    Future<void> Function()? beforeApply,
+  }) async {
+    final ingest = await ingestContents(
+      files,
+      userDb,
+      resolveRef: resolveRef,
+      sourceExists: sourceExists,
+      locateBook: locateBook,
+    );
+    if (ingest.errors.isNotEmpty) {
+      return UserImportResult(errors: ingest.errors);
+    }
+    return applyIngest(ingest, userDb, source: source);
+  }
+
+  /// שלב הפענוח והפתירה בלבד — קורא מהמסדים ואינו כותב דבר.
+  static Future<UserImportIngest> ingestContents(
+    Iterable<ImportedFile> files,
+    MyDatabase userDb, {
+    UserLinkRefResolver resolveRef = resolveUserLinkTargetLine,
+    UserLinkSourceChecker sourceExists = userLinkSourceBookExists,
+    UserLinkBookLocator locateBook = locateUserLinkBook,
   }) async {
     final repo = UserContentRepository(userDb);
-    final errors = <String>[];
-
-    // bookId → שם דור / שם מחבר (אחרון מנצח); רשימת קישורים שטוחה לכל הקבצים.
-    final generationByBook = <int, String>{};
-    final authorByBook = <int, String>{};
-    final links = <UserLinkRecord>[];
-    final headingsByBook = <int, List<UserAltTocStructureData>>{};
-    final versions = <UserBookVersionRecord>[];
+    final ingest = UserImportIngest._();
+    final errors = ingest.errors;
 
     for (final file in files) {
       final name = file.name;
@@ -151,7 +167,7 @@ class UserContentImporter {
         await _ingestHeadings(
           file,
           repo,
-          headingsByBook,
+          ingest.headingsByBook,
           errors,
           bookTitleFromFile: perBookHeadingSuffix == null
               ? null
@@ -161,7 +177,7 @@ class UserContentImporter {
         await _ingestVersions(
           file,
           repo,
-          versions,
+          ingest.versions,
           errors,
           sourceExists: sourceExists,
         );
@@ -169,15 +185,15 @@ class UserContentImporter {
         await _ingestGenerations(
           file,
           repo,
-          generationByBook,
-          authorByBook,
+          ingest.generationByBook,
+          ingest.authorByBook,
           errors,
         );
       } else if (_folderLinkFileNames.contains(name)) {
         await _ingestLinks(
           file,
           repo,
-          links,
+          ingest.links,
           errors,
           bookTitleFromFile: null,
           resolveRef: resolveRef,
@@ -188,7 +204,7 @@ class UserContentImporter {
         await _ingestLinks(
           file,
           repo,
-          links,
+          ingest.links,
           errors,
           bookTitleFromFile: bookTitle,
           resolveRef: resolveRef,
@@ -199,7 +215,7 @@ class UserContentImporter {
         await _ingestLinks(
           file,
           repo,
-          links,
+          ingest.links,
           errors,
           bookTitleFromFile: bookTitle,
           resolveRef: resolveRef,
@@ -209,7 +225,7 @@ class UserContentImporter {
         final baseTitle = name.substring(0, name.length - '_links.json'.length);
         await _ingestNativeLinks(
           file,
-          links,
+          ingest.links,
           errors,
           baseTitle: baseTitle,
           locateBook: locateBook,
@@ -218,43 +234,69 @@ class UserContentImporter {
         errors.add('$name: $kUnrecognizedImportFileMessage');
       }
     }
+    return ingest;
+  }
 
-    if (errors.isNotEmpty) {
-      return UserImportResult(errors: errors);
+  /// [ingestContents] עם הפותרים האמיתיים, ב-isolate ועל חיבורי read-only:
+  /// קובץ גדול נפתר דקות, ועל ה-UI isolate זה תוקע את התוכנה.
+  static Future<UserImportIngest> ingestContentsInBackground(
+    List<ImportedFile> files,
+    MyDatabase userDb,
+  ) async {
+    String? officialDbPath;
+    String? officialError;
+    try {
+      officialDbPath = (await officialUserLinkRepository())?.database.path;
+    } on Exception catch (e) {
+      officialError = '$e';
     }
+    await QueryLoader.initialize();
+    return Isolate.run(
+      _backgroundIngestTask(
+        files,
+        userDbPath: userDb.path,
+        officialDbPath: officialDbPath,
+        officialError: officialError,
+        queries: QueryLoader.cacheSnapshot,
+      ),
+    );
+  }
 
-    // מכאן והלאה הכתיבה ודאית — וזו הנקודה היחידה שבה מותר לנקות נתונים
-    // קיימים. ניקוי לפני הפענוח היה מוחק אותם גם כשהייבוא נכשל.
-    await beforeApply?.call();
-
-    for (final entry in generationByBook.entries) {
+  /// כותב תוצאת פענוח נקייה משגיאות, בדריסה מצטברת.
+  static Future<UserImportResult> applyIngest(
+    UserImportIngest ingest,
+    MyDatabase userDb, {
+    String? source,
+  }) async {
+    assert(ingest.errors.isEmpty);
+    final repo = UserContentRepository(userDb);
+    for (final entry in ingest.generationByBook.entries) {
       await repo.setBookGeneration(entry.key, entry.value);
     }
-    for (final entry in authorByBook.entries) {
+    for (final entry in ingest.authorByBook.entries) {
       await repo.setBookAuthor(entry.key, entry.value);
     }
     final contentSource = source ?? UserContentRepository.manualImportSource;
-    for (final entry in headingsByBook.entries) {
+    for (final entry in ingest.headingsByBook.entries) {
       await repo.replaceBookHeadings(
         entry.key,
         entry.value,
         source: contentSource,
       );
     }
-    if (versions.isNotEmpty) {
-      await repo.replaceVersions(versions, source: contentSource);
+    if (ingest.versions.isNotEmpty) {
+      await repo.replaceVersions(ingest.versions, source: contentSource);
     }
     // איחוד רשומות זהות מכל הקבצים (למשל שני צדי צמד דו-כיווני שנורמלו
     // לאותו כיוון), תוך שמירת עוגנים נפרדים באותו צמד-שורות.
-    final unique = mergeUserLinks(links);
+    final unique = mergeUserLinks(ingest.links);
     await repo.replaceUserLinks(unique, source: source);
 
     return UserImportResult(
-      generationsApplied: generationByBook.length,
+      generationsApplied: ingest.generationByBook.length,
       linksApplied: unique.length,
-      headingsApplied: headingsByBook.length,
-      versionsApplied: versions.length,
-      errors: errors,
+      headingsApplied: ingest.headingsByBook.length,
+      versionsApplied: ingest.versions.length,
     );
   }
 
@@ -728,6 +770,65 @@ class UserContentImporter {
 
   static String _baseName(String path) =>
       path.replaceAll('\\', '/').split('/').last;
+}
+
+/// מה שהפענוח הפיק, לפני כתיבה. bookId → דור / מחבר (אחרון מנצח).
+class UserImportIngest {
+  final generationByBook = <int, String>{};
+  final authorByBook = <int, String>{};
+  final links = <UserLinkRecord>[];
+  final headingsByBook = <int, List<UserAltTocStructureData>>{};
+  final versions = <UserBookVersionRecord>[];
+  final errors = <String>[];
+
+  UserImportIngest._();
+}
+
+// פונקציה נפרדת: סגירה בתוך המתודה הייתה לוכדת את userDb, שאינו נשלח.
+Future<UserImportIngest> Function() _backgroundIngestTask(
+  List<ImportedFile> files, {
+  required String userDbPath,
+  required String? officialDbPath,
+  required String? officialError,
+  required Map<String, Map<String, String>> queries,
+}) => () async {
+  QueryLoader.seedCache(queries);
+  final userDb = MyDatabase.withPath(userDbPath, readOnly: true);
+  final officialDb = officialDbPath == null
+      ? null
+      : MyDatabase.withPath(officialDbPath, readOnly: true, official: true);
+  try {
+    (await userDb.database).execute('PRAGMA busy_timeout=5000');
+    final resolvers = userLinkResolversFor(
+      userDb,
+      officialRepository: officialDb == null
+          ? null
+          : SeforimRepository(officialDb),
+      officialError: officialError == null
+          ? null
+          : _OfficialCatalogException(officialError),
+    );
+    return await UserContentImporter.ingestContents(
+      files,
+      userDb,
+      resolveRef: resolvers.resolveRef,
+      sourceExists: resolvers.sourceExists,
+      locateBook: resolvers.locateBook,
+    );
+  } finally {
+    userDb.close();
+    officialDb?.close();
+  }
+};
+
+/// כשל פתיחת seforim.db בצד הראשי, נזרק ב-isolate רק כשבאמת פונים אליו.
+class _OfficialCatalogException implements Exception {
+  final String message;
+
+  const _OfficialCatalogException(this.message);
+
+  @override
+  String toString() => message;
 }
 
 /// ההסבר שמוצג למשתמש כשבחר קובץ ששמו אינו מזוהה.

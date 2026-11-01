@@ -57,17 +57,17 @@ class UserImportLibraryResult {
 class UserImportLibrary {
   final MyDatabase _db;
 
-  /// תלויות פתירת-הספרים של הייבוא, ניתנות להזרקה בבדיקות בדיוק כמו
-  /// ב-[UserContentImporter.importContents].
-  final UserLinkRefResolver resolveRef;
-  final UserLinkSourceChecker sourceExists;
-  final UserLinkBookLocator locateBook;
+  /// תלויות פתירת-הספרים של הייבוא, להזרקה בבדיקות. בלי הזרקה הפתירה
+  /// האמיתית רצה ב-isolate ([UserContentImporter.ingestContentsInBackground]).
+  final UserLinkRefResolver? resolveRef;
+  final UserLinkSourceChecker? sourceExists;
+  final UserLinkBookLocator? locateBook;
 
   const UserImportLibrary(
     this._db, {
-    this.resolveRef = resolveUserLinkTargetLine,
-    this.sourceExists = userLinkSourceBookExists,
-    this.locateBook = locateUserLinkBook,
+    this.resolveRef,
+    this.sourceExists,
+    this.locateBook,
   });
 
   Future<T> _serial<T>(Future<T> Function() action) =>
@@ -162,25 +162,46 @@ class UserImportLibrary {
     return files;
   }
 
-  /// שינוי ובנייה מחדש נכתבים יחד, כולל טבלאות הבסיס הידני.
+  /// שינוי ובנייה מחדש נכתבים יחד, כולל טבלאות הבסיס הידני. הפענוח ארוך ורץ
+  /// בלי טרנזקציה פתוחה, ולכן השינוי מוחל פעם כדי לדעת מה ייבנה ופעם לכתיבה.
   Future<UserImportLibraryResult> _changeAndRebuild(
     Future<void> Function() change,
   ) async {
     final db = await _db.database;
+    final files = await _inSavepoint(db, () async {
+      await change();
+      return _enabledFiles(db);
+    }, commit: false);
+    final ingest = files.isEmpty ? null : await _ingest(files);
+    if (ingest != null && ingest.errors.isNotEmpty) {
+      return UserImportLibraryResult(
+        rebuild: const UserImportResult(),
+        errors: ingest.errors,
+      );
+    }
+    final rebuild = await _inSavepoint(db, () async {
+      await change();
+      final repo = UserContentRepository(_db);
+      await repo.clearAllUserContent();
+      await repo.restoreManualBaseline();
+      return ingest == null
+          ? const UserImportResult()
+          : await UserContentImporter.applyIngest(ingest, _db);
+    }, commit: true);
+    return UserImportLibraryResult(rebuild: rebuild);
+  }
+
+  static Future<T> _inSavepoint<T>(
+    sqlite3.Database db,
+    Future<T> Function() action, {
+    required bool commit,
+  }) async {
     db.execute('SAVEPOINT user_import_library_change');
     try {
-      await change();
-      final rebuild = await _rebuildFromEnabled(db);
-      if (rebuild.errors.isNotEmpty) {
-        db.execute('ROLLBACK TO user_import_library_change');
-        db.execute('RELEASE user_import_library_change');
-        return UserImportLibraryResult(
-          rebuild: const UserImportResult(),
-          errors: rebuild.errors,
-        );
-      }
+      final result = await action();
+      if (!commit) db.execute('ROLLBACK TO user_import_library_change');
       db.execute('RELEASE user_import_library_change');
-      return UserImportLibraryResult(rebuild: rebuild);
+      return result;
     } catch (_) {
       db.execute('ROLLBACK TO user_import_library_change');
       db.execute('RELEASE user_import_library_change');
@@ -216,34 +237,27 @@ class UserImportLibrary {
     }),
   );
 
-  Future<UserImportResult> _rebuildFromEnabled(sqlite3.Database db) async {
-    final repo = UserContentRepository(_db);
-    Future<void> reset() async {
-      await repo.clearAllUserContent();
-      await repo.restoreManualBaseline();
-    }
+  static List<ImportedFile> _enabledFiles(sqlite3.Database db) => [
+    for (final row in db.select(
+      'SELECT name, content FROM user_import_file WHERE enabled = 1 '
+      'ORDER BY id',
+    ))
+      ImportedFile(
+        name: row['name'] as String,
+        content: row['content'] as String,
+      ),
+  ];
 
-    final files = [
-      for (final row in db.select(
-        'SELECT name, content FROM user_import_file WHERE enabled = 1 '
-        'ORDER BY id',
-      ))
-        ImportedFile(
-          name: row['name'] as String,
-          content: row['content'] as String,
-        ),
-    ];
-    if (files.isEmpty) {
-      await reset();
-      return const UserImportResult();
+  Future<UserImportIngest> _ingest(List<ImportedFile> files) {
+    if (resolveRef == null && sourceExists == null && locateBook == null) {
+      return UserContentImporter.ingestContentsInBackground(files, _db);
     }
-    return UserContentImporter.importContents(
+    return UserContentImporter.ingestContents(
       files,
       _db,
-      resolveRef: resolveRef,
-      sourceExists: sourceExists,
-      locateBook: locateBook,
-      beforeApply: reset,
+      resolveRef: resolveRef ?? resolveUserLinkTargetLine,
+      sourceExists: sourceExists ?? userLinkSourceBookExists,
+      locateBook: locateBook ?? locateUserLinkBook,
     );
   }
 

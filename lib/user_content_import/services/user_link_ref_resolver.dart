@@ -41,9 +41,7 @@ Future<int?> _resolveTargetLine({
 }) async {
   if (repo == null) return null;
 
-  final book = targetCategoryId != null
-      ? await repo.getBookByTitleAndCategory(targetTitle, targetCategoryId)
-      : await repo.getBookByTitle(targetTitle);
+  final book = await _bookByTitle(repo, targetTitle, targetCategoryId);
   final bookId = book?.id;
   if (bookId == null) return null;
 
@@ -90,10 +88,20 @@ Future<bool> _bookExists(
   int? categoryId,
 ) async {
   if (repo == null) return false;
-  final book = categoryId != null
-      ? await repo.getBookByTitleAndCategory(title, categoryId)
-      : await repo.getBookByTitle(title);
-  return book != null;
+  return await _bookByTitle(repo, title, categoryId) != null;
+}
+
+/// שורת הספר בלבד: מחברים, נושאים ופרטי דפוס אינם נחוצים לפתירה, ועולים
+/// ארבע שאילתות נוספות לכל כתובת בקובץ.
+Future<Book?> _bookByTitle(
+  SeforimRepository repo,
+  String title,
+  int? categoryId,
+) {
+  final books = repo.database.bookDao;
+  return categoryId != null
+      ? books.getBookByTitleAndCategory(title, categoryId)
+      : books.getBookByTitle(title);
 }
 
 /// מאתר ספר לפי כותרת בשני המסדים — לקבצים בפורמט ה-native שאינם מציינים
@@ -132,10 +140,16 @@ Future<({bool isUserBook, int? categoryId, int totalLines})?> _locateIn(
   Future<SeforimRepository?> Function(bool isUserBook) repositoryFor,
   String title,
 ) async {
-  final userBook = await (await repositoryFor(true))?.getBookByTitle(title);
+  final userRepository = await repositoryFor(true);
+  final userBook = userRepository == null
+      ? null
+      : await _bookByTitle(userRepository, title, null);
   Book? officialBook;
   try {
-    officialBook = await (await repositoryFor(false))?.getBookByTitle(title);
+    final officialRepository = await repositoryFor(false);
+    officialBook = officialRepository == null
+        ? null
+        : await _bookByTitle(officialRepository, title, null);
   } on Exception {
     throw const UnavailableUserLinkCatalogException();
   }
@@ -152,6 +166,7 @@ Future<({bool isUserBook, int? categoryId, int totalLines})?> _locateIn(
 }
 
 /// שלושת הפותרים מול [userDb] *הנתון* ולא ההולדר הגלובלי (סריקת תיקייה).
+/// [officialError] נזרק בכל פנייה לספרייה הרשמית, כמו כשל באתחולה.
 ({
   UserLinkRefResolver resolveRef,
   UserLinkSourceChecker sourceExists,
@@ -160,12 +175,17 @@ Future<({bool isUserBook, int? categoryId, int totalLines})?> _locateIn(
 userLinkResolversFor(
   MyDatabase userDb, {
   SeforimRepository? officialRepository,
+  Exception? officialError,
 }) {
   final userRepo = SeforimRepository(userDb);
   final locatedBooks =
       <String, Future<({bool isUserBook, int? categoryId, int totalLines})?>>{};
-  Future<SeforimRepository?> repositoryFor(bool isUserBook) async =>
-      isUserBook ? userRepo : officialRepository ?? await _officialRepository();
+  Future<SeforimRepository?> repositoryFor(bool isUserBook) async {
+    if (isUserBook) return userRepo;
+    if (officialError != null) throw officialError;
+    return officialRepository ?? await officialUserLinkRepository();
+  }
+
   return (
     resolveRef:
         ({
@@ -199,10 +219,11 @@ Future<SeforimRepository?> _repositoryFor(bool isUserBook) async {
     return UserBooksDatabaseHolder.instance.repositoryIfInitialized ??
         await UserBooksDatabaseHolder.instance.repository;
   }
-  return _officialRepository();
+  return officialUserLinkRepository();
 }
 
-Future<SeforimRepository?> _officialRepository() async {
+/// seforim.db של התוכנה, או null כשאינו זמין.
+Future<SeforimRepository?> officialUserLinkRepository() async {
   final provider = SqliteDataProvider.instance;
   if (!provider.isInitialized && !Settings.isInitialized) return null;
   if (!provider.isInitialized) await provider.initialize();
