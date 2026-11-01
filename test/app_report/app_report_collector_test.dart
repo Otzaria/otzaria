@@ -3,6 +3,7 @@ import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/app_report/repository/app_report_collector.dart';
 import 'package:otzaria/app_report/repository/error_log_blocks.dart';
@@ -19,6 +20,7 @@ import 'package:otzaria/plugins/models/plugin_manifest.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/webview2_creation_diagnostics.dart';
 import 'package:otzaria/plugins/storage/plugin_system_database.dart';
+import 'package:otzaria/search/models/search_configuration.dart';
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
@@ -29,6 +31,11 @@ import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
+import 'package:otzaria/text_book/bloc/text_book_bloc.dart';
+import 'package:otzaria/text_book/bloc/text_book_event.dart';
+import 'package:otzaria/text_book/bloc/text_book_state.dart';
+import 'package:otzaria_search_engine/otzaria_search_engine.dart'
+    show SearchScope, WordMatchMode;
 import 'package:otzaria_report_contract/otzaria_report_contract.dart';
 import 'package:path/path.dart' as p;
 
@@ -412,5 +419,173 @@ void main() {
         }
       }
     }
+
+    group('חיפוש בספר (#3574)', () {
+      const query = 'שאילתה פרטית מאוד';
+      const bookLine = 'טקסט הספר הסודי';
+
+      TextBookTab loadedTab({
+        required String searchText,
+        BookSource source = BookSource.official,
+      }) {
+        final book = TextBook(title: 'ספר הבדיקה', source: source);
+        return TextBookTab(
+          book: book,
+          index: 0,
+          blocOverride: _FakeTextBookBloc(
+            TextBookLoaded(
+              book: book,
+              showLeftPane: false,
+              content: const [bookLine, 'קצר', ''],
+              fontSize: 18,
+              showSplitView: false,
+              activeCommentators: const ['רש"י', 'תוספות'],
+              commentatorGroups: const [],
+              availableCommentators: const [],
+              links: const [],
+              visibleLinks: const [],
+              linksByLine: const {},
+              tableOfContents: const [],
+              removeNikud: false,
+              removePunctuation: false,
+              visibleIndices: const [0],
+              selectedIndex: 0,
+              pinLeftPane: false,
+              continuousReadingMode: true,
+              searchText: searchText,
+              searchMode: SearchMode.advanced,
+              searchDistance: 3,
+              searchWholeWord: false,
+              searchResultLines: const {0, 2},
+              searchOptions: const {
+                'שאילתה_0': {'חלק ממילה': true, 'קידומות': true},
+                'פרטית_1': {'חלק ממילה': true, 'סיומות': false},
+              },
+              alternativeWords: const {
+                1: ['חלופה'],
+              },
+              spacingValues: const {'0-1': '5', '1-2': ' '},
+              matchPolicy: const SearchMatchPolicy(
+                proximityScope: SearchScope.sameParagraph,
+                wordMatchMode: WordMatchMode.atLeast,
+              ),
+            ),
+          ),
+        );
+      }
+
+      test('חיפוש פעיל: מצב, אפשרויות ותצוגה — בלי השאילתה ובלי הספר', () {
+        final tab = loadedTab(searchText: query);
+        addTearDown(tab.dispose);
+        final context = contextOf(tab);
+        expect(context['readers'], [
+          {
+            'kind': 'text',
+            'state': 'loaded',
+            'view': 'below',
+            'continuousReading': true,
+            'commentators': 2,
+            'lines': 3,
+            'maxLineChars': bookLine.length,
+            'partiallyLoaded': false,
+            'highlightLine': false,
+            'pinpointHighlight': false,
+            'searchActive': true,
+            'search': {
+              'mode': 'advanced',
+              'origin': 'inBook',
+              'distance': 3,
+              'queryChars': query.length,
+              'queryWords': 3,
+              'slashWrapped': false,
+              'hasQuotes': false,
+              'wholeWord': false,
+              'wordOptions': {'word.partial': 2, 'word.prefixes': 1},
+              'alternativeWords': 1,
+              'customSpacing': 1,
+              'matchPolicy': {
+                'querySemantics': 'regular',
+                'proximityScope': 'sameParagraph',
+                'wordMatchMode': 'atLeast',
+                'wordMatchCount': 2,
+              },
+              'resultLines': 2,
+            },
+          },
+        ]);
+        final encoded = jsonEncode(context);
+        for (final secret in [
+          query,
+          'שאילתה',
+          'פרטית',
+          'חלופה',
+          bookLine,
+          'רש"י',
+        ]) {
+          expect(encoded.contains(secret), isFalse, reason: secret);
+        }
+      });
+
+      test('בלי חיפוש: searchActive=false ובלי פרטי חיפוש', () {
+        final tab = loadedTab(searchText: '');
+        addTearDown(tab.dispose);
+        final reader = (contextOf(tab)['readers'] as List).single as Map;
+        expect(reader['searchActive'], isFalse);
+        expect(reader.containsKey('search'), isFalse);
+      });
+
+      test('ספר אישי: הכותרת מוסתרת גם כשמצב החיפוש מדווח', () {
+        final tab = loadedTab(searchText: query, source: BookSource.user);
+        addTearDown(tab.dispose);
+        final context = contextOf(tab);
+        expect(context['currentTitle'], isNull);
+        expect(
+          ((context['readers'] as List).single as Map)['searchActive'],
+          isTrue,
+        );
+        expect(jsonEncode(context).contains('ספר הבדיקה'), isFalse);
+      });
+
+      test('טאב שטרם נטען ו-PDF: מצב החיפוש מהתצורה, בלי השאילתה', () {
+        final text = TextBookTab(
+          book: TextBook(title: 'בראשית'),
+          index: 0,
+          searchText: '/$query/',
+          searchMode: SearchMode.fuzzy,
+          showPageShapeView: true,
+        );
+        final pdf = PdfBookTab(
+          book: PdfBook(title: 'ספר רשמי', path: 'official.pdf'),
+          pageNumber: 1,
+          searchText: '"$query"',
+        );
+        final tab = CombinedTab(rightTab: text, leftTab: pdf);
+        addTearDown(tab.dispose);
+        final context = contextOf(tab);
+        final readers = (context['readers'] as List).cast<Map>();
+        expect(readers[0]['state'], 'initial');
+        expect(readers[0]['view'], 'pageShape');
+        expect((readers[0]['search'] as Map)['mode'], 'fuzzy');
+        expect((readers[0]['search'] as Map)['slashWrapped'], isTrue);
+        expect(readers[1]['kind'], 'pdf');
+        expect((readers[1]['search'] as Map)['hasQuotes'], isTrue);
+        expect(jsonEncode(context).contains('שאילתה'), isFalse);
+      });
+
+      test('כרטיסייה שאינה קורא: אין מפתח readers', () {
+        final context = contextOf(ToolTab(toolId: 'demo.plugin', title: 'X'));
+        expect(context.containsKey('readers'), isFalse);
+      });
+    });
   });
+}
+
+class _FakeTextBookBloc extends Bloc<TextBookEvent, TextBookState>
+    implements TextBookBloc {
+  _FakeTextBookBloc(super.initialState) {
+    on<TextBookEvent>((event, emit) {});
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
