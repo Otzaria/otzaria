@@ -117,12 +117,18 @@ bool enableWalBestEffort(Database db, String label) {
 
 // קריאה עשויה להצליח גם כש-shm אינו כתיב. בודקים כתיבה ללא המתנה
 // כדי שחיבור אחר שכותב לא יעכב את הפתיחה; ROLLBACK אינו משנה נתונים.
-void _probeWalWriteWithoutWaiting(Database db) {
+void _probeWalWriteWithoutWaiting(Database db) => withoutBusyWait(db, () {
+  db.execute('BEGIN IMMEDIATE');
+  db.execute('ROLLBACK');
+});
+
+/// מריץ את [action] כשנעילה של חיבור אחר זורקת SQLITE_BUSY מיד, במקום
+/// להמתין עד busy_timeout על ה-thread הקורא.
+T withoutBusyWait<T>(Database db, T Function() action) {
   final timeout = firstIntValue(db.select('PRAGMA busy_timeout'))!;
   try {
     db.execute('PRAGMA busy_timeout=0');
-    db.execute('BEGIN IMMEDIATE');
-    db.execute('ROLLBACK');
+    return action();
   } finally {
     db.execute('PRAGMA busy_timeout=$timeout');
   }

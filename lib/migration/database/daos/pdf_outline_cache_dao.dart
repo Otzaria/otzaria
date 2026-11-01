@@ -32,10 +32,13 @@ class PdfOutlineCacheDao extends FileCacheDao<PdfOutlineCacheEntry> {
     final db = await database;
     final allPaths = await selectAllFilePaths();
     final stalePaths = allPaths.where((path) => !keepFilePaths.contains(path));
-    withTransaction(db, () {
-      for (final stalePath in stalePaths) {
-        db.execute(queries['deleteByFilePath']!, [stalePath]);
-      }
-    });
+    withoutBusyWait(
+      db,
+      () => withTransaction(db, () {
+        for (final stalePath in stalePaths) {
+          db.execute(queries['deleteByFilePath']!, [stalePath]);
+        }
+      }),
+    );
   }
 }

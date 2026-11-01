@@ -27,8 +27,7 @@ class DocxTextCacheDao {
   }
 
   Future<void> upsert(DocxTextCacheEntry entry) async {
-    final db = await database;
-    db.execute(_queries['upsert']!, [
+    await _write('upsert', [
       entry.filePath,
       entry.fileSize,
       entry.lastModified,
@@ -39,13 +38,15 @@ class DocxTextCacheDao {
     ]);
   }
 
-  Future<void> updateAccessedAt(String filePath, int accessedAt) async {
-    final db = await database;
-    db.execute(_queries['updateAccessedAt']!, [accessedAt, filePath]);
-  }
+  Future<void> updateAccessedAt(String filePath, int accessedAt) =>
+      _write('updateAccessedAt', [accessedAt, filePath]);
 
-  Future<void> deleteAccessedBefore(int cutoffMillis) async {
+  Future<void> deleteAccessedBefore(int cutoffMillis) =>
+      _write('deleteAccessedBefore', [cutoffMillis]);
+
+  // כמו ב-[FileCacheDao]: כתיבת מטמון לא ממתינה לנעילה של כותב אחר.
+  Future<void> _write(String query, List<Object?> args) async {
     final db = await database;
-    db.execute(_queries['deleteAccessedBefore']!, [cutoffMillis]);
+    withoutBusyWait(db, () => db.execute(_queries[query]!, args));
   }
 }
