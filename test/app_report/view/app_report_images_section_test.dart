@@ -80,6 +80,7 @@ void main() {
       images = [];
       await tester.pumpWidget(
         MaterialApp(
+          navigatorKey: navigatorKey,
           home: Scaffold(
             body: StatefulBuilder(
               builder: (context, setState) => Column(
@@ -186,5 +187,40 @@ void main() {
       UiSnack.hide();
       await tester.pump(const Duration(seconds: 5));
     });
+
+    testWidgets(
+      'תמונה ש-Windows מציג עד 5.00 MB מצורפת, וגדולה ממנה נדחית (issue #2839)',
+      (tester) async {
+        // Windows מחשב MB ב-1024×1024: 5,001,000 בתים מוצגים "4.76 MB".
+        const mebibyte = 1024 * 1024;
+        final dir = Directory.systemTemp.createTempSync('report_image');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        File imageOf(String name, int size) =>
+            File('${dir.path}/$name')..writeAsBytesSync([
+              0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, //
+              ...List.filled(size - 8, 0),
+            ]);
+        final paths = [
+          imageOf('שמוצג 4.76.png', 5001000).path,
+          imageOf('שמוצג 5.00.png', 5 * mebibyte).path,
+          imageOf('גדול.png', 5 * mebibyte + 1).path,
+        ];
+        final read = await tester.runAsync(
+          () => const AppReportImageSources().readPaths(paths),
+        );
+        await pump(tester, _FakeSources(picked: read!));
+
+        await tester.tap(find.byKey(const ValueKey('app-report-image-area')));
+        await tester.pump();
+
+        expect(images.map((i) => i.fileName), [
+          'שמוצג 4.76.png',
+          'שמוצג 5.00.png',
+        ]);
+        expect(find.text('תמונה גדולה מ-5 MB לא צורפה.'), findsOneWidget);
+        UiSnack.hide();
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
   });
 }
