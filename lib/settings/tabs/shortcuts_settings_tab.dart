@@ -25,6 +25,7 @@ import 'package:otzaria/shortcuts/shortcut_helper.dart';
 import 'package:otzaria/shortcuts/view/custom_shortcut_dialog.dart';
 import 'package:otzaria/shortcuts/view/shortcut_dropdown_tile.dart';
 import 'package:otzaria/shortcuts/shortcut_validator.dart';
+import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/core/messages/settings_messages.dart';
 import 'package:otzaria/core/ui_snack.dart';
@@ -1313,7 +1314,9 @@ class _ShortcutTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTextStyle(
-      style: DefaultTextStyle.of(context).style.merge(kSettingsTitleStyle),
+      style: DefaultTextStyle.of(
+        context,
+      ).style.merge(AppTextStyles.settingTitle),
       child: ShortcutDropDownTile(
         settingKey: settingKey,
         title: label,

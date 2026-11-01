@@ -160,7 +160,7 @@ class _ReportsManagementDialogState extends State<ReportsManagementDialog>
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 16, 4, 12),
-            child: Text(description, style: kSettingsSubtitleStyle),
+            child: Text(description, style: AppTextStyles.settingSubtitle),
           ),
           panel,
           const SizedBox(height: 16),

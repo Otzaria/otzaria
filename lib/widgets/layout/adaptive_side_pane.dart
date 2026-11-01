@@ -9,7 +9,7 @@ import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 /// במסך רחב דוחקת תוכן (או מרחפת מעליו — [floatOverContent]), ובמסך צר נפתחת כ-overlay.
 ///
 /// כללי ברירת מחדל:
-/// - תוכן החלונית מקבל שכבת רקע נוספת של חלון (solidPanelBackground).
+/// - תוכן החלונית מקבל שכבת רקע נוספת של חלון (panelBackground).
 /// - מעבר מרוחב רחב למסך צר סוגר אוטומטית את החלונית.
 /// - חלונית ניווט אמורה להיות בצד ימין (`centerEnd`) וחלונית מידע בצד שמאל (`centerStart`).
 ///
@@ -173,7 +173,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
   }
 
   Color _effectivePaneColor(BuildContext context) {
-    return widget.paneColor ?? AppSurfaces.solidPanelBackground(context);
+    return widget.paneColor ?? AppSurfaces.panelBackground(context);
   }
 
   bool _isPaneOnRight(BuildContext context) {

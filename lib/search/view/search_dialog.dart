@@ -2154,7 +2154,7 @@ class _SearchDialogState extends State<SearchDialog> {
       value: _searchTab.searchBloc,
       child: Dialog(
         insetPadding: const EdgeInsets.all(12),
-        backgroundColor: AppSurfaces.solidPanelBackground(context),
+        backgroundColor: AppSurfaces.panelBackground(context),
         clipBehavior: Clip.antiAlias,
         child: FocusScope(
           onKeyEvent: (node, event) {

@@ -123,7 +123,7 @@ Widget buildOfflineQueueNote(BuildContext context) {
       context.settingsText(
         'במצב מנותק אי אפשר לשלוח כעת, אך ניתן להוריד סקריפט לשליחה ממחשב מחובר.',
       ),
-      style: kSettingsSubtitleStyle,
+      style: AppTextStyles.settingSubtitle,
     ),
   );
 }
@@ -276,10 +276,10 @@ Widget _buildReportTile({
     children: [
       ListTile(
         leading: Icon(icon),
-        title: Text(title, style: kSettingsTitleStyle),
+        title: Text(title, style: AppTextStyles.settingTitle),
         subtitle: Text(
           subtitle,
-          style: kSettingsSubtitleStyle,
+          style: AppTextStyles.settingSubtitle,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),

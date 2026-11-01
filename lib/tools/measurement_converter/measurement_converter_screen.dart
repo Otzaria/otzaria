@@ -640,7 +640,7 @@ class _MeasurementConverterScreenState
 
   Widget _buildCategoriesPane({required bool closeOnSelect}) {
     return Container(
-      color: AppSurfaces.solidPanelBackground(context),
+      color: AppSurfaces.panelBackground(context),
       padding: const EdgeInsets.symmetric(
         vertical: AppTokens.spaceMD,
         horizontal: AppTokens.spaceSM,

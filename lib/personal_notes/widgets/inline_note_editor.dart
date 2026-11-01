@@ -388,7 +388,7 @@ class InlineNoteEditorCard extends StatelessWidget {
       margin: const EdgeInsets.all(8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppSurfaces.noteEditorBackground(context),
+        color: AppSurfaces.panelSectionAccent(context),
         borderRadius: AppTokens.borderRadiusAll,
         border: Border.all(color: primary, width: 2),
       ),

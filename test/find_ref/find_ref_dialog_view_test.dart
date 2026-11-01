@@ -713,7 +713,7 @@ void main() {
     expect(header.color, AppSurfaces.topBarBackground(context));
     expect(
       tester.widget<Dialog>(find.byType(Dialog)).backgroundColor,
-      AppSurfaces.solidPanelBackground(context),
+      AppSurfaces.panelBackground(context),
     );
     expect(
       find.ancestor(

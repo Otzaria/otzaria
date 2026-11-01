@@ -44,11 +44,5 @@ export 'package:otzaria/widgets/text/overflow_tooltip_text.dart';
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// סגנון כותרת בשורת הגדרה — alias לתאימות לאחור.
-const kSettingsTitleStyle = AppTextStyles.settingTitle;
-
-/// סגנון תת-כותרת בשורת הגדרה — alias לתאימות לאחור.
-const kSettingsSubtitleStyle = AppTextStyles.settingSubtitle;
-
 /// רווח אנכי סטנדרטי בין כרטיסי הגדרות.
 const kSettingsCardSpacing = SizedBox(height: AppTokens.spaceMD);
