@@ -3116,7 +3116,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
               isMainText: widget.isMainText,
               isRelated: widget.highlightedIndices?.contains(index) ?? false,
             ).background,
-            theme.colorScheme,
+            theme,
           );
 
     final notesForLine =

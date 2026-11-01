@@ -62,15 +62,15 @@ ReaderLineMarks readerLineMarks(
 
 Color? readerLineBackgroundColor(
   ReaderLineBackground background,
-  ColorScheme colorScheme,
+  ThemeData theme,
 ) => switch (background) {
   ReaderLineBackground.none => null,
   ReaderLineBackground.permanent => AppColors.permanentHighlight,
   ReaderLineBackground.highlighted => AppSurfaces.highlightedLineBackground(
-    colorScheme,
+    theme.colorScheme,
   ),
   ReaderLineBackground.related => AppSurfaces.paragraphSelectionBackground(
-    colorScheme,
+    theme,
   ),
 };
 
@@ -289,7 +289,7 @@ ContinuousReadingParagraphLine readerParagraphLine(
   ReaderLineSpec spec,
   ReaderLineContext ctx, {
   required TextStyle baseStyle,
-  required ColorScheme colorScheme,
+  required ThemeData theme,
 }) {
   // אותו קלט כמו של SmartTextWidget, כדי שתיעוד התוכן לא ישתנה בהחלפת מצב.
   final processed = TextRendererService.processText(spec.html, spec.settings);
@@ -346,7 +346,7 @@ ContinuousReadingParagraphLine readerParagraphLine(
     htmlText: html,
     style: AppFonts.taamimSafeStyle(baseStyle, html),
     frameRanges: ranges,
-    background: readerLineBackgroundColor(spec.marks.background, colorScheme),
+    background: readerLineBackgroundColor(spec.marks.background, theme),
     selected: spec.marks.isSelected,
     heading: readerInlineHeading(spec.sectionHeadings),
   );
@@ -374,7 +374,8 @@ class ReaderParagraphRun extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final baseStyle = readerParagraphBaseStyle(lineContext, colorScheme);
     final hasSearch = specs.any((spec) => spec.settings.searchText.isNotEmpty);
     return ListenableBuilder(
@@ -396,7 +397,7 @@ class ReaderParagraphRun extends StatelessWidget {
               spec,
               lineContext,
               baseStyle: baseStyle,
-              colorScheme: colorScheme,
+              theme: theme,
             ),
         ],
         baseStyle: baseStyle,
