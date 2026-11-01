@@ -65,9 +65,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
   StreamSubscription<PluginDevFsChange>? _devWatchSub;
   StreamSubscription<TabsState>? _readerStateSub;
 
-  /// חתימת הקלט האחרון שסונכרן ל-declarativeHost. סנכרון מלא (קומפילציה מחדש
-  /// + שאילתות DB דקלרטיביות) יקר; רק שינוי בקלט שהוא נשען עליו מחייב אותו,
-  /// ולא פעולות זולות (נעיצה, סידור, showInTools) שגם הן גוררות LoadPlugins.
+  /// החתימה מונעת קומפילציה ושאילתות חוזרות כשהמניפסט וההרשאות לא השתנו.
   String? _lastDeclarativeSyncSignature;
 
   final PluginInstallResultsLog _installResultsLog;
@@ -195,10 +193,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     LoadPlugins event,
     Emitter<PluginSystemState> emit,
   ) async {
-    // מצב "טוען" רק כשאין עדיין רשימה בזיכרון. טעינה חוזרת (אחרי התקנה,
-    // הצמדה, סידור מחדש וכו') היא רענון — ואם נעבור דרך PluginSystemLoading
-    // כל צרכן שבודק `is! PluginSystemLoaded` יראה לרגע "אין תוספים": מסך הכלי
-    // יחליף את התוסף בספינר, ה-WebView ייהרס ויטען מאפס.
+    // רענון משאיר את הרשימה מוצגת, כדי לא להרוס את ה-WebViews הפעילים.
     if (state is! PluginSystemLoaded) emit(PluginSystemLoading());
     try {
       await PluginSafeMode.ready;
@@ -215,16 +210,27 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
         emit(PluginSystemLoaded(plugins));
         return;
       }
-      devWatchService.syncWatchers(await repository.getDevelopmentPlugins());
+      devWatchService.syncWatchers(
+        plugins.where((plugin) => plugin.isDevelopment).toList(),
+      );
+      final grantedPermissions = <String, List<String>>{};
+      Future<List<String>> loadPermissions(String pluginId) async =>
+          grantedPermissions[pluginId] ??= List<String>.unmodifiable(
+            await repository.getGrantedPermissionNames(pluginId),
+          );
       await PluginTextReaderRegistry.instance.sync(plugins, repository);
       _registerPluginShortcuts(plugins);
       await PluginStartupContributionsService.instance.sync(
         plugins,
         repository,
+        loadPermissions: loadPermissions,
       );
       _registerPluginDeclaredShortcuts();
       if (declarativeHost != null) {
-        final signature = await _declarativeSyncSignature(plugins);
+        final signature = await _declarativeSyncSignature(
+          plugins,
+          loadPermissions,
+        );
         if (signature != _lastDeclarativeSyncSignature) {
           // השמירה רק אחרי סנכרון מוצלח: כשל באמצע משאיר את הרישומים חסרים,
           // וחתימה שמורה הייתה גורמת לכל LoadPlugins הבא לדלג על התיקון.
@@ -285,21 +291,17 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     ShortcutValidator.registerPluginShortcuts(targets);
   }
 
-  /// חתימת הקלט ש-[DeclarativePluginHost.syncPlugins] נשען עליו: לכל תוסף
-  /// פעיל בעל `contributes.startup` — המניפסט כולו וההרשאות שהוענקו לו.
-  /// חותמים על המניפסט השלם ולא על שדות נבחרים, כי הקומפילציה נשענת גם על
-  /// permissions ו-databaseSources ועריכה שקטה שלהם הייתה מדלגת על הסנכרון.
+  /// חותמים על כל המניפסט וההרשאות, כולל קלטי קומפילציה שאינם ב-startup.
   Future<String> _declarativeSyncSignature(
     List<InstalledPlugin> plugins,
+    Future<List<String>> Function(String pluginId) loadPermissions,
   ) async {
     final parts = <String>[];
     for (final plugin in plugins) {
       if (!plugin.enabled) continue;
       // אותו פרדיקט כמו ב-syncPlugins: startup ריק אך קיים עדיין נרשם.
       if (plugin.manifest.startup == null) continue;
-      final granted = (await repository.getGrantedPermissionNames(
-        plugin.pluginId,
-      )).toList()..sort();
+      final granted = (await loadPermissions(plugin.pluginId)).toList()..sort();
       parts.add(
         jsonEncode({
           'id': plugin.pluginId,
@@ -1042,13 +1044,7 @@ class PluginSystemBloc extends Bloc<PluginSystemEvent, PluginSystemState> {
     PluginRuntimeDispatcher.instance.reloadPlugin(event.pluginId);
   }
 
-  /// תוסף פיתוח שה-manifest שלו נערך כשהתוכנה הייתה סגורה — ה-watcher לא היה
-  /// שם כדי לרענן את הרשומה, והגרסה שנשמרה נשארת תקועה. כאן משווים את הגרסה
-  /// שבקובץ לזו שברשומה, ומעדכנים דרך אותו נתיב של ה-watcher.
-  ///
-  /// עלות בעלייה: שאילתה שכבר נעשית ל-`syncWatchers`, ואם אין תוספי פיתוח —
-  /// שום קריאת קבצים. הכשל בכל תוסף נבלע בנפרד: תיקייה שנעלמה או manifest
-  /// שנשבר באמצע עריכה אינם אמורים להפיל את הסריקה על השאר.
+  /// סורק גרסאות שנערכו כשהתוכנה הייתה סגורה; כשל בתוסף אחד לא עוצר אחרים.
   Future<void> _onRescanDevelopmentManifests(
     RescanDevelopmentManifests event,
     Emitter<PluginSystemState> emit,

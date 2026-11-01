@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/plugins/services/plugin_dev_watch_service.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_bloc.dart';
 import 'package:otzaria/plugins/bloc/plugin_system_event.dart';
@@ -20,10 +21,7 @@ PluginManifest _manifest({
   'version': '1.0.0',
   'entrypoint': 'index.html',
   'permissions': permissions,
-  'contributes': {
-    'databaseSources': databaseSources,
-    'startup': ?startup,
-  },
+  'contributes': {'databaseSources': databaseSources, 'startup': ?startup},
 });
 
 InstalledPlugin _plugin(PluginManifest manifest) => InstalledPlugin(
@@ -43,6 +41,11 @@ class _FakeRepo implements PluginRegistryRepository {
   _FakeRepo(this.plugins);
 
   List<InstalledPlugin> plugins;
+  List<String> permissions = [];
+  int fullReads = 0;
+  int permissionReads = 0;
+  bool failNextPermissionRead = false;
+  void Function()? beforeMetadataRead;
 
   @override
   Future<void> setPermission(String id, String perm, bool granted) async {}
@@ -52,16 +55,30 @@ class _FakeRepo implements PluginRegistryRepository {
       [];
 
   @override
-  Future<List<String>> getGrantedPermissionNames(String id) async => [];
+  Future<List<String>> getGrantedPermissionNames(String id) async {
+    permissionReads++;
+    if (failNextPermissionRead) {
+      failNextPermissionRead = false;
+      throw StateError('permission read failed');
+    }
+    return List.of(permissions);
+  }
 
   @override
-  Future<List<InstalledPlugin>> getAllPlugins() async => plugins;
+  Future<List<InstalledPlugin>> getAllPlugins() async {
+    fullReads++;
+    return plugins;
+  }
 
   @override
-  Future<List<InstalledPlugin>> getDevelopmentPlugins() async => [];
+  Future<List<InstalledPlugin>> getDevelopmentPlugins() async =>
+      (await getAllPlugins()).where((plugin) => plugin.isDevelopment).toList();
 
   @override
-  Future<String?> getKV(String a, String b, String c) async => null;
+  Future<String?> getKV(String a, String b, String c) async {
+    beforeMetadataRead?.call();
+    return null;
+  }
 
   @override
   Future<void> setKV(String a, String b, String c, String d) async {}
@@ -77,6 +94,7 @@ class _FakeDeclarativeHost implements DeclarativePluginHost {
   final removed = <String>[];
   int syncs = 0;
   bool failNextSync = false;
+  Future<void> Function()? onSync;
 
   @override
   void removePlugin(String pluginId) => removed.add(pluginId);
@@ -88,6 +106,7 @@ class _FakeDeclarativeHost implements DeclarativePluginHost {
       failNextSync = false;
       throw StateError('sync failed');
     }
+    await onSync?.call();
   }
 
   @override
@@ -115,6 +134,15 @@ class _FakeDeclarativeHost implements DeclarativePluginHost {
 
   @override
   void dispose() {}
+}
+
+class _RecordingWatchService extends PluginDevWatchService {
+  List<InstalledPlugin> plugins = [];
+
+  @override
+  void syncWatchers(List<InstalledPlugin> devPlugins) {
+    plugins = List.of(devPlugins);
+  }
 }
 
 void main() {
@@ -150,6 +178,65 @@ void main() {
     ]);
   });
 
+  test('טעינה קוראת את הרשימה פעם אחת ומעבירה את כל תוספי הפיתוח', () async {
+    final packaged = repo.plugins.single;
+    final development = packaged.copyWith(sourceType: 'development');
+    final localhost = packaged.copyWith(sourceType: 'localhost_dev');
+    repo.plugins = [packaged, development, localhost];
+    final watcher = _RecordingWatchService();
+    final bloc = PluginSystemBloc(repository: repo, devWatchService: watcher);
+    addTearDown(bloc.close);
+
+    await pump(bloc, LoadPlugins());
+
+    expect(bloc.state, isA<PluginSystemLoaded>());
+    expect(repo.fullReads, 1);
+    expect(watcher.plugins, [development, localhost]);
+  });
+
+  test('תרומות וחתימה חולקות הרשאות רק בתוך טעינה אחת', () async {
+    final bloc = build();
+    await pump(bloc, LoadPlugins());
+    expect(repo.permissionReads, 1);
+    expect(host.syncs, 1);
+
+    repo.permissions = ['reader.open'];
+    await pump(bloc, LoadPlugins());
+
+    expect(repo.permissionReads, 2);
+    expect(host.syncs, 2);
+  });
+
+  test('כשל קריאת הרשאות בתרומות אינו נשמר עבור החתימה', () async {
+    repo.failNextPermissionRead = true;
+    final bloc = build();
+
+    await pump(bloc, LoadPlugins());
+
+    expect(bloc.state, isA<PluginSystemLoaded>());
+    expect(repo.permissionReads, 2);
+    expect(host.syncs, 1);
+  });
+
+  test('שלילה במהלך סנכרון אינה מסתירה הרשאות טריות מהמארח', () async {
+    repo.permissions = ['app.startup_contributions'];
+    repo.beforeMetadataRead = () => repo.permissions.clear();
+    final hostPermissions = <List<String>>[];
+    host.onSync = () async {
+      hostPermissions.add(await repo.getGrantedPermissionNames('p1'));
+    };
+    final bloc = build();
+
+    await pump(bloc, LoadPlugins());
+    expect(hostPermissions, [isEmpty]);
+    expect(repo.permissionReads, 2);
+
+    await pump(bloc, LoadPlugins());
+    expect(hostPermissions, [isEmpty, isEmpty]);
+    expect(repo.permissionReads, 4);
+    expect(host.syncs, 2);
+  });
+
   test('שינוי הרשאה שהוא no-op עדיין מסנכרן מחדש אחרי removePlugin', () async {
     final bloc = build();
     await pump(bloc, LoadPlugins());
@@ -178,6 +265,7 @@ void main() {
 
     await pump(bloc, LoadPlugins());
     expect(host.syncs, 2);
+    expect(repo.permissionReads, 2);
   });
 
   test(

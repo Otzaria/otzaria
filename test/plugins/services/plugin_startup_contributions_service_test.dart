@@ -241,6 +241,24 @@ void main() {
     );
   });
 
+  test('מקור הרשאות חלופי מוגבל לסנכרון שבו הועבר', () async {
+    final plugin = _plugin(startup: _fullStartup());
+    final requestedIds = <String>[];
+    await service.sync(
+      [plugin],
+      repo,
+      loadPermissions: (pluginId) async {
+        requestedIds.add(pluginId);
+        return List.unmodifiable(_allPermissions);
+      },
+    );
+    expect(requestedIds, ['p1']);
+    expect(toolbar.getAll(), isNotEmpty);
+
+    await service.sync([plugin], repo);
+    expect(toolbar.getAll(), isEmpty);
+  });
+
   group('searchFieldActions', () {
     late PluginSearchFieldActionsRegistry fieldActions;
     late PluginSearchFieldSessionService fieldSessions;

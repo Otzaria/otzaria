@@ -21,11 +21,7 @@ import 'package:otzaria/plugins/storage/plugin_system_database.dart';
 
 typedef _PublishedRecordId = ({String type, String scope, String key});
 
-/// מפעיל את תרומות העלייה הדקלרטיביות של תוספים (`contributes.startup`)
-/// בלי להרים מנוע JS: פרסינג המניפסט ב-Dart והזנת ה-registries הקיימים.
-///
-/// נקרא מ-PluginSystemBloc בכל LoadPlugins, כך שהענקה/שלילה של הרשאה,
-/// השבתה, הסרה ועדכון מסונכרנים תמיד עם הרישומים בפועל.
+/// מסנכרן תרומות עלייה דקלרטיביות והרשאות ללא הפעלת מנוע JS.
 class PluginStartupContributionsService {
   static final PluginStartupContributionsService instance =
       PluginStartupContributionsService._();
@@ -106,10 +102,15 @@ class PluginStartupContributionsService {
   /// תוסף עם סעיף פגום נרשם ללוג וממשיכים הלאה.
   Future<void> sync(
     List<InstalledPlugin> plugins,
-    PluginRegistryRepository repository,
-  ) {
+    PluginRegistryRepository repository, {
+    Future<List<String>> Function(String pluginId)? loadPermissions,
+  }) {
     final operation = _syncTail.then(
-      (_) => _syncSafely(List<InstalledPlugin>.of(plugins), repository),
+      (_) => _syncSafely(
+        List<InstalledPlugin>.of(plugins),
+        repository,
+        loadPermissions ?? repository.getGrantedPermissionNames,
+      ),
     );
     _syncTail = operation;
     return operation;
@@ -118,9 +119,10 @@ class PluginStartupContributionsService {
   Future<void> _syncSafely(
     List<InstalledPlugin> plugins,
     PluginRegistryRepository repository,
+    Future<List<String>> Function(String pluginId) loadPermissions,
   ) async {
     try {
-      await _syncInternal(plugins, repository);
+      await _syncInternal(plugins, repository, loadPermissions);
     } catch (e, stackTrace) {
       debugPrint(
         'PluginStartupContributionsService: sync failed: '
@@ -132,6 +134,7 @@ class PluginStartupContributionsService {
   Future<void> _syncInternal(
     List<InstalledPlugin> plugins,
     PluginRegistryRepository repository,
+    Future<List<String>> Function(String pluginId) loadPermissions,
   ) async {
     final seenIds = <String>{};
     for (final plugin in plugins) {
@@ -144,9 +147,7 @@ class PluginStartupContributionsService {
         }
         continue;
       }
-      final granted = (await repository.getGrantedPermissionNames(
-        plugin.pluginId,
-      )).toSet();
+      final granted = (await loadPermissions(plugin.pluginId)).toSet();
       if (!granted.contains(pluginStartupContributionsPermission)) {
         await _removePlugin(plugin.pluginId, repository);
         continue;
