@@ -21,7 +21,10 @@ import 'package:otzaria/library/hidden/hidden_library_store.dart';
 import 'package:otzaria/library/hidden/hidden_library_selection.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
+import 'package:otzaria/theme/app_surfaces.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/plugins/services/plugin_search_field_actions_registry.dart';
 import 'package:otzaria/settings/services/per_book_settings_service.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
@@ -532,6 +535,128 @@ void main() {
     expect(find.text('בראשית פרק ב'), findsOneWidget);
     expect(find.text('תנ"ך, תורה'), findsNWidgets(2));
     expect(find.text('2 מקורות'), findsOneWidget);
+  });
+
+  testWidgets('אייקון השורה לפי סוג הספר, כמו ברשימות הספרייה', (tester) async {
+    var nextBookId = 1;
+    DbReferenceResult result(
+      String reference, {
+      String fileType = 'txt',
+      bool isPdf = false,
+      BookSource source = BookSource.official,
+    }) => DbReferenceResult(
+      title: 'ספר $nextBookId',
+      reference: reference,
+      segment: 1,
+      bookId: nextBookId++,
+      bookPath: 'נתיב',
+      fileType: fileType,
+      isPdf: isPdf,
+      source: source,
+    );
+    await _pumpDialog(
+      tester,
+      screenSize: const Size(900, 1400),
+      results: [
+        result('רשמי'),
+        result('פי די אף', fileType: 'pdf', isPdf: true),
+        result('וורד', fileType: 'docx', source: BookSource.user),
+        result('טקסט אישי', source: BookSource.user),
+        result('html אישי', fileType: 'html', source: BookSource.user),
+        result('htm אישי', fileType: 'htm', source: BookSource.user),
+        result('md אישי', fileType: 'md', source: BookSource.user),
+        result('markdown אישי', fileType: 'markdown', source: BookSource.user),
+        result('epub אישי', fileType: 'epub', source: BookSource.user),
+        result('odt אישי', fileType: 'odt', source: BookSource.user),
+        result('rtf אישי', fileType: 'rtf', source: BookSource.user),
+        result('doc אישי', fileType: 'doc', source: BookSource.user),
+        result('html מצורף', fileType: 'html', source: BookSource.attached('l')),
+        result('md מצורף', fileType: 'md', source: BookSource.attached('l')),
+        result('md רשמי', fileType: 'md'),
+      ],
+    );
+
+    await tester.enterText(find.byType(TextField), 'ספר');
+    await tester.pump(_pastDebounce);
+    await tester.pump();
+
+    // הרשימה עצלה: שורה נבנית רק כשגוללים אליה, לכן בודקים לפי סדר התוצאות.
+    Future<IconData?> leadingIcon(String reference) async {
+      await tester.scrollUntilVisible(
+        find.text(reference),
+        100,
+        scrollable: find
+            .descendant(
+              of: find.byType(FindRefDialog),
+              matching: find.byType(Scrollable),
+            )
+            .last,
+      );
+      return tester
+          .widget<Icon>(
+            find
+                .descendant(
+                  of: find.ancestor(
+                    of: find.text(reference),
+                    matching: find.byType(ListTile),
+                  ),
+                  matching: find.byType(Icon),
+                )
+                .first,
+          )
+          .icon;
+    }
+
+    final expected = <(String, IconData)>[
+      ('רשמי', FluentIcons.document_text_24_regular),
+      ('פי די אף', OtzariaIcons.book_pdf_24_regular),
+      ('וורד', OtzariaIcons.document_word_24_regular),
+      ('טקסט אישי', OtzariaIcons.document_alef_24_regular),
+      ('html אישי', OtzariaIcons.document_html_24_regular),
+      ('htm אישי', OtzariaIcons.document_html_24_regular),
+      ('md אישי', OtzariaIcons.document_md_24_regular),
+      ('markdown אישי', OtzariaIcons.document_md_24_regular),
+      // אין לאלה אייקון משלהם בספרייה.
+      ('epub אישי', OtzariaIcons.book_pdf_24_regular),
+      ('odt אישי', OtzariaIcons.document_word_24_regular),
+      ('rtf אישי', OtzariaIcons.document_word_24_regular),
+      ('doc אישי', OtzariaIcons.document_word_24_regular),
+      ('html מצורף', OtzariaIcons.document_html_24_regular),
+      ('md מצורף', OtzariaIcons.document_md_24_regular),
+      ('md רשמי', FluentIcons.document_text_24_regular),
+    ];
+    for (final (reference, icon) in expected) {
+      expect(await leadingIcon(reference), icon, reason: reference);
+    }
+  });
+
+  testWidgets('הכותרת כהה מגוף הדיאלוג, והתחתית בצבע הגוף', (tester) async {
+    await _pumpDialog(tester, results: [_ref('בראשית פרק א')]);
+
+    final context = tester.element(find.byType(FindRefDialog));
+    final header = tester.widget<ColoredBox>(
+      find
+          .ancestor(
+            of: find.text('איתור מקורות'),
+            matching: find.byType(ColoredBox),
+          )
+          .first,
+    );
+    expect(header.color, AppSurfaces.topBarBackground(context));
+    expect(
+      tester.widget<Dialog>(find.byType(Dialog)).backgroundColor,
+      AppSurfaces.solidPanelBackground(context),
+    );
+    expect(
+      find.ancestor(
+        of: find.widgetWithText(ActionButton, 'סגור'),
+        matching: find.byWidgetPredicate(
+          (w) => w is ColoredBox && w.color == AppSurfaces.card(context),
+        ),
+      ),
+      findsNothing,
+      reason: 'התחתית אינה צובעת רקע משלה',
+    );
   });
 
   testWidgets('חץ למטה מעביר את הסימון לתוצאה הבאה', (tester) async {

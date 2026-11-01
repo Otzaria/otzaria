@@ -30,6 +30,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/core/windowing/cross_window_tab_drag.dart';
 import 'package:otzaria/tabs/models/tab.dart';
@@ -110,6 +111,10 @@ const double _kTabBodyHeight = 32.0;
 /// הכרטיסייה מציירת בתוך כל גובה הסרגל, כדי שגלילה לא תחתוך את רקעה.
 /// גוף הכרטיסייה ממורכז, והרקע נמשך עד לתוכן שמתחתיה.
 const double _kTopBarHeight = 40.0;
+
+/// הרקע של הכרטיסיה ממשיך מתחת לסרגל בפיקסל אחד: התוכן שמתחתיו מכסה אותו, וקצהו
+/// המוחלק ברוחב שברירי נמהל בצבע הכרטיסיה ולא ברקע הסרגל (קו בהיר דק).
+const double _kTabBottomBleed = 1.0;
 
 /// רוחבי הטאבים בשורה: הנבחר עשוי להיות רחב מהשאר (ראה [_kTabSelectedMinWidth]).
 typedef _TabWidths = ({double selected, double unselected});
@@ -1055,7 +1060,28 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
           tab.isPinned && (contentWidth - closeBudget) >= _kTabPinExtent;
       // אייקון ליד שם הטאב — רק כשהטאב רחב (אותו סף כמו מפריד ה-CombinedTab).
       final showPdfIcon = tab is PdfBookTab && tabWidth >= 100;
-      final contentIconData = tabWidth >= 100 ? tabContentIconData(tab) : null;
+      // כרטיסיית חיפוש מזוהה באייקון בכל רוחב שבו הוא נכנס; שאר האייקונים
+      // רק ברוחב מלא. התקציב שומר מקום ל-X גם כשהוא מוסתר, כדי שהאייקון לא
+      // יופיע ויעלם עם הריחוף.
+      final stableCloseBudget = isCombined
+          ? (paneWidth >= _kTabCloseMinExtent ? 2 * paneCloseExtent : 0.0)
+          : (contentWidth >= _kTabCloseMinExtent ? closeExtent : 0.0);
+      final leadingIconFits =
+          contentWidth -
+              stableCloseBudget -
+              (tab.isPinned &&
+                      contentWidth - stableCloseBudget >= _kTabPinExtent
+                  ? _kTabPinExtent
+                  : 0) >=
+          _kTabLeadingIconExtent;
+      final contentIconData =
+          (tabWidth >= 100 || tab is SearchingTab) && leadingIconFits
+          ? tabContentIconData(tab)
+          : null;
+      // אייקון החיפוש מחליף את המילה "חיפוש:" רק כשהוא מוצג.
+      final shownTitle = contentIconData == null
+          ? displayTitle
+          : tabTitleBesideContentIcon(tab, displayTitle);
       final toolIcon = tab is ToolTab && tabWidth >= 100
           ? buildToolTabLeadingIcon(
               tab.toolId,
@@ -1164,7 +1190,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
                                   ),
                                 Expanded(
                                   child: buildTabContent(
-                                    displayTitle,
+                                    shownTitle,
                                     paneCloseExtent: paneCloseExtent,
                                     showPaneClose: showPaneClose,
                                   ),
@@ -1193,7 +1219,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
       // בכל שטחה — גם כשהכותרת מצטמצמת לאפס בכרטיסיה צרה.
       return TabTitleTooltip(
         message: tooltipMessage,
-        title: displayTitle,
+        title: shownTitle,
         titleWidth: titleWidth,
         titleStyle: titleStyle,
         alwaysShow: isCombined,
@@ -1203,13 +1229,8 @@ class _CustomTitleBarState extends State<CustomTitleBar> {
 
     Widget buildLiveTabAppearance() => LiveTabTitleBuilder(
       tab: tab,
-      // אייקון הראש מחליף את המילה "חיפוש:" רק כשהוא מוצג (ברוחב מספיק).
-      builder: (_, displayTitle, tooltipMessage) => buildTabAppearance(
-        tabWidth >= 100
-            ? tabTitleBesideContentIcon(tab, displayTitle)
-            : displayTitle,
-        tooltipMessage,
-      ),
+      builder: (_, displayTitle, tooltipMessage) =>
+          buildTabAppearance(displayTitle, tooltipMessage),
     );
 
     return _wrapWithTabPointer(
@@ -1350,14 +1371,13 @@ class _TabBackgroundPainter extends CustomPainter {
     const topRadius = 8.0;
     const bottomRadius = 15.0;
 
-    // ⚠️ הצורה יושבת **בתוך** הגבולות: מ-[topInset] ועד `size.height`
-    // בדיוק. אין חריגה אנכית — ראו ההסבר ב-[_kTopBarHeight].
-    //
-    // המירכוז נעשה כאן ולא בפריסה, כי ה-widget מקבל את כל גובה הסרגל
-    // (כדי שלא ייחתך) בעוד שהכרטיסיה עצמה נמוכה ממנו.
+    // הצורה יושבת בתוך הגבולות, מ-[topInset] ועד `size.height`, ומוסיפה רק
+    // [_kTabBottomBleed] מתחת לסרגל — ראו [_kTopBarHeight]. המירכוז נעשה כאן ולא
+    // בפריסה, כי ה-widget מקבל את כל גובה הסרגל והכרטיסיה נמוכה ממנו.
     final topInset = math.max(0.0, (size.height - _kTabBodyHeight) / 2);
 
-    path.moveTo(-bottomRadius, size.height);
+    path.moveTo(-bottomRadius, size.height + _kTabBottomBleed);
+    path.lineTo(-bottomRadius, size.height);
 
     path.arcToPoint(
       Offset(0, size.height - bottomRadius),
@@ -1387,7 +1407,7 @@ class _TabBackgroundPainter extends CustomPainter {
       clockwise: false,
     );
 
-    path.lineTo(-bottomRadius, size.height);
+    path.lineTo(size.width + bottomRadius, size.height + _kTabBottomBleed);
 
     path.close();
     canvas.drawPath(path, paint);

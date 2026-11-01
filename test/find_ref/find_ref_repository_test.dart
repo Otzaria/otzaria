@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
+import 'package:otzaria/data/cache/books_cache.dart';
 import 'package:otzaria/data/repository/data_repository.dart';
 import 'package:otzaria/find_ref/repository/find_ref_repository.dart';
 import 'package:otzaria/find_ref/repository/reference_books_cache.dart';
+import 'package:otzaria/migration/models/book.dart' as db_models;
 import 'package:otzaria/search/utils/foundational_book_classifier.dart';
 import 'package:otzaria/services/commentary_service.dart';
 import 'package:otzaria/utils/text/text_manipulation.dart';
@@ -269,6 +271,50 @@ void main() {
     final results = await repo.findRefs('תפלה ב');
     expect(results.first.isAltToc, isTrue);
     expect(results.first.bookId, 1);
+  });
+
+  test('תוצאת AltToc גלובלית נושאת את סוג הקובץ והנתיב של הספר', () async {
+    BooksCache.instance.seedFromBooks([
+      db_models.Book(
+        id: 1,
+        categoryId: 7,
+        sourceId: 1,
+        title: 'סדר תפילה',
+        order: 1,
+        filePath: 'אוצריא/סדר תפילה.docx',
+        fileType: 'docx',
+      ),
+    ], generation: BooksCache.instance.generation);
+    addTearDown(BooksCache.instance.clear);
+
+    Map<String, dynamic> row(int bookId) => {
+      'bookTitle': 'סדר תפילה',
+      'reference': 'תפלה ב',
+      'bookId': bookId,
+      'bookOrderIndex': 0,
+      'segment': bookId,
+      'level': 2,
+    };
+    final repo = FindRefRepository(
+      dataRepository: MockDataRepository(),
+      isReferenceBooksCacheLoaded: () => true,
+      warmUpReferenceBooksCache: () async {},
+      searchReferenceBooks: (query, {int limit = 50}) => const [],
+      getTocEntriesForReference: (_, _, {queryTokens}) async => const [],
+      searchAltTocFlatEntries:
+          (queryTokens, {maxRefTokens, occupied = const []}) async => [
+            row(1),
+            row(2),
+          ],
+    );
+
+    final results = {
+      for (final r in await repo.findRefs('תפלה ב')) r.bookId: r,
+    };
+    expect(results[1]!.fileType, 'docx');
+    expect(results[1]!.filePath, 'אוצריא/סדר תפילה.docx');
+    expect(results[2]!.fileType, 'txt');
+    expect(results[2]!.filePath, '');
   });
 
   test(

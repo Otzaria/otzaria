@@ -77,6 +77,9 @@ abstract class Book {
   /// ספר אישי (user_books.db).
   bool get isUserBook => source.isUser;
 
+  /// ספר אישי מכל סוג: user_books.db או מסד אישי מצורף.
+  bool get isPersonalBook => !source.isOfficial;
+
   /// ספר מספריית אוצריא עצמה: מקור רשמי, ולא ספר של קטלוג חיצוני.
   bool get isOfficialLibraryBook =>
       source.isOfficial &&

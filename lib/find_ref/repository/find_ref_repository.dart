@@ -800,6 +800,8 @@ class FindRefRepository {
               tocLevel: r['level'] as int? ?? 0,
               isAltToc: true,
               bookId: r['bookId'] as int,
+              fileType: _cachedFileType(r['bookId'] as int),
+              filePath: _cachedFilePath(r['bookId'] as int),
               sourceLineId: r['dbLineId'] as int? ?? 0,
             ),
           );
@@ -843,6 +845,8 @@ class FindRefRepository {
             tocLevel: entry.level,
             isAltToc: true,
             bookId: entry.bookId,
+            fileType: _cachedFileType(entry.bookId),
+            filePath: _cachedFilePath(entry.bookId),
             sourceLineId: entry.dbLineId,
           ),
         );
@@ -853,6 +857,14 @@ class FindRefRepository {
       debugPrint('[FindRef] Global AltToc fallback failed: $e\n$st');
     }
   }
+
+  /// סוג הקובץ והנתיב של ספר מ-[BooksCache], לאייקון של תוצאת AltToc גלובלית
+  /// (שורת ה-AltToc עצמה אינה נושאת אותם). ספר שאינו במטמון נשאר כברירת מחדל.
+  static String _cachedFileType(int bookId) =>
+      BooksCache.instance.getBookById(bookId)?.fileType ?? 'txt';
+
+  static String _cachedFilePath(int bookId) =>
+      BooksCache.instance.getBookById(bookId)?.filePath ?? '';
 
   /// דירוג הספרים בעלי AltToc, לבחירה ב-worker. ספר בלי כותרת ידועה חסר כאן,
   /// וה-worker שולח אותו במלואו. בתוך דור של [ReferenceBooksCache] הטבלה
@@ -1330,6 +1342,7 @@ class FindRefRepository {
     reference: hit.title,
     segment: 0,
     isPdf: hit.fileType == 'pdf',
+    fileType: hit.fileType,
     filePath: hit.filePath,
     orderIndex: hit.orderIndex,
     bookId: hit.bookId,
@@ -1345,6 +1358,7 @@ class FindRefRepository {
         title: hit.title,
         reference: '${hit.title} ד"ה ${dibbur.display}',
         segment: dibbur.lineIndex,
+        fileType: hit.fileType,
         filePath: hit.filePath,
         orderIndex: hit.orderIndex,
         tocLevel: 3,
@@ -1595,6 +1609,7 @@ class FindRefRepository {
           reference: title,
           segment: 0,
           isPdf: true,
+          fileType: hit.fileType,
           filePath: hit.filePath,
           orderIndex: hit.orderIndex,
         ),
@@ -1628,6 +1643,7 @@ class FindRefRepository {
           reference: '$title $origChapter',
           segment: pageNumber,
           isPdf: true,
+          fileType: hit.fileType,
           filePath: hit.filePath,
           orderIndex: hit.orderIndex,
           tocLevel: 2,
@@ -1657,6 +1673,7 @@ class FindRefRepository {
           title: title,
           reference: exact.heRef ?? '$title ${remainingTokens.join(' ')}',
           segment: exact.lineIndex,
+          fileType: hit.fileType,
           filePath: hit.filePath,
           orderIndex: hit.orderIndex,
           tocLevel: 3,
@@ -1691,6 +1708,7 @@ class FindRefRepository {
           reference: entry['reference'] as String,
           segment: entry['segment'] as int,
           isPdf: isPdf,
+          fileType: hit.fileType,
           filePath: hit.filePath,
           orderIndex: hit.orderIndex,
           tocLevel: entry['level'] as int,
@@ -1716,6 +1734,7 @@ class FindRefRepository {
           reference: qualifyAltTocReference(title, ref),
           segment: entry['segment'] as int,
           isPdf: isPdf,
+          fileType: hit.fileType,
           filePath: hit.filePath,
           orderIndex: hit.orderIndex,
           tocLevel: entry['level'] as int,
@@ -1928,6 +1947,7 @@ class FindRefRepository {
           reference: hit.title,
           segment: 0,
           isPdf: hit.fileType == 'pdf',
+          fileType: hit.fileType,
           filePath: hit.filePath,
           orderIndex: hit.orderIndex,
           bookId: hit.bookId,
@@ -2498,6 +2518,7 @@ class FindRefRepository {
         reference: reference,
         segment: segment,
         isPdf: isPdf,
+        fileType: record.fileType,
         filePath: record.filePath ?? '',
         orderIndex: record.orderIndex,
         tocLevel: tocLevel,

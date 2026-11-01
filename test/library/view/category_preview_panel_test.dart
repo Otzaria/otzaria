@@ -10,6 +10,7 @@ import 'package:otzaria/library/view/category_preview_panel.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/widgets/lists/nav_tree_tile.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 import '../../helpers/memory_settings_cache.dart';
 
@@ -355,6 +356,51 @@ void main() {
       const MaterialApp(home: Scaffold(body: BookPreviewPanel())),
     );
     expect(find.text('בחר ספר לתצוגה מקדימה'), findsOneWidget);
+  });
+
+  group('הסמל של החלונית הריקה', () {
+    Future<double> pumpEmpty(WidgetTester tester, Size size) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topRight,
+              child: SizedBox.fromSize(
+                size: size,
+                child: const BookPreviewPanel(
+                  emptyMessage: 'בחר ספר או תיקייה',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final icon = tester.widget<Icon>(
+        find.byIcon(OtzariaIcons.dependent_library_24_regular),
+      );
+      return icon.size!;
+    }
+
+    testWidgets('גדל עם החלונית ונחסם בתקרה', (tester) async {
+      final narrow = await pumpEmpty(tester, const Size(240, 600));
+      final wide = await pumpEmpty(tester, const Size(900, 900));
+      expect(narrow, 240 * 0.6);
+      expect(wide, 220);
+    });
+
+    testWidgets('חלונית נמוכה וצרה אינה גולשת, והכיתוב נשאר', (tester) async {
+      final size = await pumpEmpty(tester, const Size(120, 160));
+      expect(size, lessThanOrEqualTo(80));
+      expect(find.text('בחר ספר או תיקייה'), findsOneWidget);
+    });
+
+    test('גובה לא חסום אינו מצמצם את הסמל', () {
+      expect(
+        emptyPreviewIconSize(const BoxConstraints(maxWidth: 300)),
+        180,
+      );
+    });
   });
 
   testWidgets('התיקייה הפתוחה כבר — בלי כפתור "פתח תיקייה"', (tester) async {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show min;
 import 'package:otzaria/pdf_book/utils/pdf_font_fallback.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'dart:ui';
@@ -93,6 +94,16 @@ class BookPreviewPanel extends StatefulWidget {
 
   @override
   State<BookPreviewPanel> createState() => _BookPreviewPanelState();
+}
+
+/// גודל הסמל במצב הריק: רוב הרוחב הפנוי, אך לא יותר ממחצית הגובה — כדי שיישאר
+/// מקום לכיתוב גם בחלונית נמוכה.
+@visibleForTesting
+double emptyPreviewIconSize(BoxConstraints constraints) {
+  final byHeight = constraints.hasBoundedHeight
+      ? constraints.maxHeight / 2
+      : double.infinity;
+  return min(constraints.maxWidth * 0.6, byHeight).clamp(0.0, 220.0);
 }
 
 /// האם פרמטרי החיפוש של התצוגה המקדימה השתנו. ההשוואה עמוקה: המפות נבנות
@@ -453,26 +464,14 @@ class _BookPreviewPanelState extends State<BookPreviewPanel> {
   @override
   Widget build(BuildContext context) {
     if (widget.book == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              OtzariaIcons.otzaria_icon_2_page_lines_24_regular,
-              size: 64,
-              color: Theme.of(
-                context,
-              ).colorScheme.secondary.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.emptyMessage,
-              style: TextStyle(
-                fontSize: 16,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+      return LayoutBuilder(
+        builder: (context, constraints) => OtzariaEmptyState(
+          customIcon: Icon(
+            OtzariaIcons.dependent_library_24_regular,
+            size: emptyPreviewIconSize(constraints),
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          title: widget.emptyMessage,
         ),
       );
     }

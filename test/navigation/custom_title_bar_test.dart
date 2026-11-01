@@ -19,6 +19,7 @@ import 'package:otzaria/models/books.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/commentators_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
+import 'package:otzaria/tabs/models/searching_tab.dart';
 import 'package:otzaria/history/bloc/history_bloc.dart';
 import 'package:otzaria/history/bloc/history_event.dart';
 import 'package:otzaria/history/bloc/history_state.dart';
@@ -397,6 +398,137 @@ void main() {
 
       expect(find.byType(ReadingTabStrip), findsOneWidget);
       expect(find.text('ספר א'), findsOneWidget);
+    });
+  });
+
+  group('כרטיסיית חיפוש וצורת הכרטיסיה הפעילה', () {
+    Future<void> pumpTabs(WidgetTester tester, List<OpenedTab> tabs) async {
+      final tabsBloc = _TestTabsBloc(TabsState(tabs: tabs, currentTabIndex: 0));
+      final navigationBloc = _TestNavigationBloc(
+        const NavigationState(currentScreen: Screen.reading),
+      );
+      final settingsBloc = _TestSettingsBloc(SettingsState.initial());
+      addTearDown(() async {
+        for (final tab in tabs) {
+          tab.dispose();
+        }
+        await tabsBloc.close();
+        await navigationBloc.close();
+        await settingsBloc.close();
+      });
+      await _setSurfaceSize(tester, const Size(1200, 800));
+      await _pumpTitleBar(
+        tester,
+        tabsBloc: tabsBloc,
+        navigationBloc: navigationBloc,
+        settingsBloc: settingsBloc,
+      );
+    }
+
+    Finder searchIconInStrip() => find.descendant(
+      of: find.byType(ReadingTabStrip),
+      matching: find.byIcon(OtzariaIcons.search_24_regular),
+    );
+
+    List<OpenedTab> crowdedTabs(int count) => [
+      for (var i = 0; i < count; i++) _makeTextTab('ספר $i'),
+      SearchingTab('חיפוש: קקק', 'קקק'),
+    ];
+
+    testWidgets('כרטיסיית חיפוש צרה מציגה את אייקון החיפוש במקום המילה', (
+      tester,
+    ) async {
+      await pumpTabs(tester, crowdedTabs(10));
+
+      final stripWidth = tester.getSize(find.byType(ReadingTabStrip)).width;
+      expect(stripWidth / 15, lessThan(100), reason: 'הכרטיסיות צרות');
+      expect(searchIconInStrip(), findsOneWidget);
+      expect(find.text('קקק'), findsOneWidget);
+      expect(find.text('חיפוש: קקק'), findsNothing);
+    });
+
+    // במרחב ביניים האייקון לא נכנס לצד ה-X שבריחוף, ולכן הוא נעדר גם במנוחה;
+    // המצב לא משתנה עם הריחוף.
+    for (final (count, iconShown) in [(10, true), (14, false)]) {
+      testWidgets(
+        'אייקון החיפוש בכרטיסיה צרה (${count + 1} כרטיסיות) יציב בריחוף',
+        (tester) async {
+          await pumpTabs(tester, crowdedTabs(count));
+
+          final searchTab = find.byType(Tab).last;
+          void expectStable() {
+            expect(
+              searchIconInStrip(),
+              iconShown ? findsOneWidget : findsNothing,
+            );
+            expect(
+              find.text(iconShown ? 'קקק' : 'חיפוש: קקק'),
+              findsWidgets,
+            );
+          }
+
+          expectStable();
+
+          final gesture = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await gesture.addPointer(location: tester.getCenter(searchTab));
+          addTearDown(gesture.removePointer);
+          await tester.pumpAndSettle();
+
+          expect(
+            find.descendant(
+              of: searchTab,
+              matching: find.byIcon(FluentIcons.dismiss_24_regular),
+            ),
+            findsOneWidget,
+            reason: 'הריחוף חושף את ה-X',
+          );
+          expectStable();
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
+    testWidgets('בכרטיסיה שאין בה מקום לאייקון אין אייקון ואין גלישה', (
+      tester,
+    ) async {
+      await pumpTabs(tester, crowdedTabs(40));
+
+      expect(searchIconInStrip(), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('הרצועה האופקית אינה חותכת את כנפי הכרטיסיה הפעילה', (
+      tester,
+    ) async {
+      await pumpTabs(tester, [_makeTextTab('ספר א'), _makeTextTab('ספר ב')]);
+
+      final scrollView = tester.widget<SingleChildScrollView>(
+        find.descendant(
+          of: find.byType(ReadingTabStrip),
+          matching: find.byType(SingleChildScrollView),
+        ),
+      );
+      expect(scrollView.clipBehavior, Clip.none);
+    });
+
+    testWidgets('רקע הכרטיסיה הפעילה ממשיך פיקסל מתחת לסרגל', (tester) async {
+      await pumpTabs(tester, [_makeTextTab('ספר א'), _makeTextTab('ספר ב')]);
+
+      final painted = find.byWidgetPredicate(
+        (w) =>
+            w is CustomPaint &&
+            w.painter.runtimeType.toString() == '_TabBackgroundPainter',
+      );
+      final size = tester.getSize(painted);
+      expect(
+        tester.renderObject(painted),
+        paints..path(
+          includes: [Offset(size.width / 2, size.height + 0.5)],
+          excludes: [Offset(size.width / 2, size.height + 1.5)],
+        ),
+      );
     });
   });
 

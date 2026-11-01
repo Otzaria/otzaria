@@ -4,9 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/navigation/view/tab_visuals.dart';
+import 'package:otzaria/semantic_search/models/semantic_result_item.dart';
 import 'package:otzaria/tabs/models/combined_tab.dart';
 import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/tabs/models/searching_tab.dart';
+import 'package:otzaria/tabs/models/semantic_search_tab.dart';
 import 'package:otzaria/tabs/models/tab.dart';
 import 'package:otzaria/tabs/models/text_tab.dart';
 import 'package:otzaria/tabs/models/tool_tab.dart';
@@ -118,6 +120,17 @@ void main() {
     );
     expect(
       tabContentIconData(SearchingTab('חיפוש', null)),
+      OtzariaIcons.search_24_regular,
+    );
+  });
+
+  test('כל כרטיסיית חיפוש, גם סמנטית, מקבלת את אייקון החיפוש הרגיל', () {
+    final semantic = SemanticSearchTab(
+      options: const SemanticQueryOptions(query: 'קקק'),
+    );
+    addTearDown(semantic.dispose);
+    expect(
+      tabContentIconData(semantic),
       OtzariaIcons.search_24_regular,
     );
   });

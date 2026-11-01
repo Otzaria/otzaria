@@ -7,41 +7,66 @@ import 'package:otzaria/utils/file/document_format.dart';
 
 /// אייקון הספר לפי פורמט המסמך — מקור יחיד לכל רשימות הספרייה, תוצאות
 /// החיפוש, ההיסטוריה והתצוגות המקדימות.
+IconData bookFormatIcon(Book book) => bookFormatIconFor(
+  path: _pathOf(book),
+  fileType: book.fileType,
+  isPersonal: book.isPersonalBook,
+  isPdf: book is PdfBook,
+);
+
+/// [bookFormatIcon] למי שיש לו את תכונות הספר ואין לו אובייקט [Book].
 ///
 /// הפורמט קודם למחלקת הספר: רשומות היסטוריה ותיקות של ספרי מסמך נשמרו
 /// כ-`PdfBook`, ורק הנתיב מגלה שאינן PDF.
-IconData bookFormatIcon(Book book) {
-  final format = _documentFormatOf(book);
+IconData bookFormatIconFor({
+  String? path,
+  String? fileType,
+  required bool isPersonal,
+  bool isPdf = false,
+}) {
+  final format = _documentFormatOf(path, fileType);
   if (format == null) {
-    return book is PdfBook
+    return isPdf
         ? OtzariaIcons.book_pdf_24_regular
-        : _plainTextIcon(book);
+        : _plainTextIcon(isPersonal);
   }
-  if (format == DocumentFormat.pdf) return OtzariaIcons.book_pdf_24_regular;
-  return _documentIcon(book, format) ?? _plainTextIcon(book);
+  if (_isBookFileFamily(format)) return OtzariaIcons.book_pdf_24_regular;
+  return _documentIcon(format, isPersonal) ?? _plainTextIcon(isPersonal);
 }
 
 /// אייקון המסמך של Word, HTML ו-Markdown, או `null` לכל פורמט אחר.
 ///
 /// משותף לכרטיסיות, שבהן רק שלושת הפורמטים האלה מקבלים אייקון ראש משלהם.
 IconData? documentFormatIcon(Book book) {
-  final format = _documentFormatOf(book);
-  return format == null ? null : _documentIcon(book, format);
+  final format = _documentFormatOf(_pathOf(book), book.fileType);
+  return format == null ? null : _documentIcon(format, book.isPersonalBook);
 }
 
-DocumentFormat? _documentFormatOf(Book book) {
-  final path = book is FileBook ? book.path : book.filePath;
+String? _pathOf(Book book) => book is FileBook ? book.path : book.filePath;
+
+DocumentFormat? _documentFormatOf(String? path, String? fileType) {
   // הסיומת קודמת ל-`fileType`: `PdfBook.fileType` הוא ברירת מחדל של הבנאי
   // ולא עובדה שנשמרה, ולכן ספר מסמך שנשמר בהיסטוריה כ-PdfBook היה מוצג
   // כ-PDF לנצח.
   return (path == null ? null : documentFormatFromExtension(path)) ??
-      documentFormatFromFileType(book.fileType);
+      documentFormatFromFileType(fileType);
 }
 
-IconData? _documentIcon(Book book, DocumentFormat format) {
-  if (format.isWordDocument) return OtzariaIcons.document_word_24_regular;
+/// משפחות האייקונים: מעבד תמלילים (Word, ODT, RTF) וקובץ ספר (PDF, EPUB).
+bool _isWordProcessorFamily(DocumentFormat format) =>
+    format.isWordDocument ||
+    format == DocumentFormat.odt ||
+    format == DocumentFormat.rtf;
+
+bool _isBookFileFamily(DocumentFormat format) =>
+    format == DocumentFormat.pdf || format == DocumentFormat.epub;
+
+IconData? _documentIcon(DocumentFormat format, bool isPersonal) {
+  if (_isWordProcessorFamily(format)) {
+    return OtzariaIcons.document_word_24_regular;
+  }
   if (format.isHtmlDocument) return OtzariaIcons.document_html_24_regular;
-  if (book.isUserBook &&
+  if (isPersonal &&
       (format == DocumentFormat.md || format == DocumentFormat.markdown)) {
     return OtzariaIcons.document_md_24_regular;
   }
@@ -51,7 +76,7 @@ IconData? _documentIcon(Book book, DocumentFormat format) {
 /// ספרי הספרייה הרשמית הם כולם טקסט, ולכן הפורמט אינו מבדיל ביניהם והם
 /// נושאים את המסמך הגנרי. בספר אישי הפורמט הוא מידע — שם `document_alef`
 /// אומר "טקסט", לצד `document_md`, `document_word` ו-`document_html`.
-IconData _plainTextIcon(Book book) => book.isUserBook
+IconData _plainTextIcon(bool isPersonal) => isPersonal
     ? OtzariaIcons.document_alef_24_regular
     : FluentIcons.document_text_24_regular;
 

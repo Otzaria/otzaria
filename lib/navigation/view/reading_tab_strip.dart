@@ -442,9 +442,13 @@ class _ReadingTabStripState extends State<ReadingTabStrip> {
             physics: widget.scrollable
                 ? null
                 : const NeverScrollableScrollPhysics(),
+            // רצועה שאינה נגללת לא חותכת: הכרטיסיה הפעילה מציירת "כנף" מחוץ
+            // לגבולותיה, וחיתוך בקצה הרצועה היה מעקם אותה.
+            clipBehavior: widget.scrollable ? Clip.hardEdge : Clip.none,
             // קו החיווי יושב באותו Stack עם הרצועה, ולכן באותה מערכת
             // קואורדינטות שבה נמדד מיקום ההכנסה.
             child: Stack(
+              clipBehavior: Clip.none,
               children: [
                 Flex(
                   key: _contentKey,

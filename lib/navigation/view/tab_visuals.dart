@@ -20,7 +20,6 @@ import 'package:otzaria_icons/otzaria_icons.dart';
 /// HTML ו-Markdown — או `null` לכל כרטיסיה אחרת. מקור יחיד לשורה העליונה,
 /// לעמודה האנכית, לחלונית חיפוש הכרטיסיות ולמוק הגרירה.
 IconData? tabContentIconData(OpenedTab tab) {
-  if (tab is SemanticSearchTab) return OtzariaIcons.search_in_star_24_regular;
   if (tab is SearchingTab) return OtzariaIcons.search_24_regular;
   if (tab is TextBookTab) return documentFormatIcon(tab.book);
   return null;
@@ -37,7 +36,8 @@ String tabTitleBesideContentIcon(OpenedTab tab, String title) {
   final prefix = tab is SemanticSearchTab
       ? '$kSemanticSearchModeName: '
       : 'חיפוש: ';
-  if (!title.startsWith(prefix) || title.trim().length <= prefix.trim().length) {
+  if (!title.startsWith(prefix) ||
+      title.trim().length <= prefix.trim().length) {
     return title;
   }
   return title.substring(prefix.length);

@@ -42,6 +42,7 @@ import 'package:otzaria/tabs/models/pdf_tab.dart';
 import 'package:otzaria/utils/navigation/book_open_coordinator.dart';
 import 'package:otzaria/utils/navigation/open_book.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
+import 'package:otzaria/utils/ui/book_format_icon.dart';
 import 'package:otzaria/utils/ui/reading_left_pane_policy.dart';
 import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/library/view/grid_items.dart';
@@ -52,7 +53,6 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/custom_switch.dart';
 import 'package:otzaria/widgets/layout/centered_scrollable_state.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 
 /// מה שהדיאלוג מבקש מהמסך הראשי — ניתוב קישורים ופתיחת חיפוש טקסט.
 abstract interface class FindRefDialogHost {
@@ -1066,7 +1066,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
   Widget _buildHeader(bool isShort) {
     final colorScheme = Theme.of(context).colorScheme;
     return ColoredBox(
-      color: AppSurfaces.card(context),
+      color: AppSurfaces.topBarBackground(context),
       child: Padding(
         padding: isShort
             ? const EdgeInsetsDirectional.fromSTEB(16, 8, 8, 8)
@@ -1591,25 +1591,18 @@ class _FindRefDialogState extends State<FindRefDialog> {
     );
   }
 
-  /// אייקון סוג המקור — ספר, כותרת-משנה, PDF, ספר אישי או ספר ממסד מצורף.
+  /// אייקון סוג המקור, כמו ברשימות הספרייה.
   Widget _buildResultIcon(DbReferenceResult ref, Color color) {
-    if (ref.isPdf) {
-      return Icon(FluentIcons.document_pdf_24_regular, size: 20, color: color);
-    }
-    if (ref.source.isAttached) {
-      return Icon(FluentIcons.database_24_regular, size: 20, color: color);
-    }
-    if (ref.isUserBook) {
-      return Icon(FluentIcons.person_24_regular, size: 20, color: color);
-    }
-    if (ref.isAltToc) {
-      return Icon(
-        FluentIcons.text_bullet_list_24_regular,
-        size: 20,
-        color: color,
-      );
-    }
-    return RtlIcon(FluentIcons.book_24_regular, size: 20, color: color);
+    return Icon(
+      bookFormatIconFor(
+        path: ref.filePath,
+        fileType: ref.fileType,
+        isPersonal: !ref.source.isOfficial,
+        isPdf: ref.isPdf,
+      ),
+      size: 20,
+      color: color,
+    );
   }
 
   /// תווית מעל ההצעות — מבדילה בין איתורים אחרונים לדוגמאות, ומאפשרת
@@ -1841,37 +1834,34 @@ class _FindRefDialogState extends State<FindRefDialog> {
     // הרמז נכנס רק כשיש לו רוחב אמיתי, ובחלון נמוך הוא מפנה מקום לתוצאות.
     final showKeyboardHint =
         !isShort && MediaQuery.sizeOf(context).width >= 560;
-    return ColoredBox(
-      color: AppSurfaces.card(context),
-      child: Padding(
-        padding: isShort
-            ? const EdgeInsetsDirectional.fromSTEB(16, 4, 12, 6)
-            : const EdgeInsetsDirectional.fromSTEB(24, 8, 12, 12),
-        child: Row(
-          children: [
-            if (showKeyboardHint)
-              Expanded(
-                child: Text(
-                  context.settingsText(
-                    'Enter פותח את המקור המסומן, מקשי החצים מנווטים בין התוצאות',
-                  ),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+    return Padding(
+      padding: isShort
+          ? const EdgeInsetsDirectional.fromSTEB(16, 4, 12, 6)
+          : const EdgeInsetsDirectional.fromSTEB(24, 8, 12, 12),
+      child: Row(
+        children: [
+          if (showKeyboardHint)
+            Expanded(
+              child: Text(
+                context.settingsText(
+                  'Enter פותח את המקור המסומן, מקשי החצים מנווטים בין התוצאות',
                 ),
-              )
-            else
-              const Spacer(),
-            _buildScrollToEndArrow(),
-            const SizedBox(width: 8),
-            ActionButton.neutral(
-              text: context.settingsText('סגור'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
-        ),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            )
+          else
+            const Spacer(),
+          _buildScrollToEndArrow(),
+          const SizedBox(width: 8),
+          ActionButton.neutral(
+            text: context.settingsText('סגור'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
       ),
     );
   }

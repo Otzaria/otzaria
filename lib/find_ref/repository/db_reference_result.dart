@@ -19,6 +19,9 @@ class DbReferenceResult {
   /// The file path (for PDF files)
   final String filePath;
 
+  /// פורמט הקובץ של הספר (txt, docx, md...). קובע את אייקון השורה.
+  final String fileType;
+
   /// סדר הספר בספרייה — ספר מוקדם יותר = ערך נמוך יותר = עולה קודם.
   /// מועתק מ-[ReferenceBookHit.orderIndex] בעת הבנייה.
   final double orderIndex;
@@ -66,6 +69,7 @@ class DbReferenceResult {
     required this.segment,
     this.isPdf = false,
     this.filePath = '',
+    this.fileType = 'txt',
     this.orderIndex = 0.0,
     this.isAltToc = false,
     this.tocLevel = 1,
@@ -84,6 +88,7 @@ class DbReferenceResult {
     num? segment,
     bool? isPdf,
     String? filePath,
+    String? fileType,
     double? orderIndex,
     bool? isAltToc,
     int? tocLevel,
@@ -101,6 +106,7 @@ class DbReferenceResult {
       segment: segment ?? this.segment,
       isPdf: isPdf ?? this.isPdf,
       filePath: filePath ?? this.filePath,
+      fileType: fileType ?? this.fileType,
       orderIndex: orderIndex ?? this.orderIndex,
       isAltToc: isAltToc ?? this.isAltToc,
       tocLevel: tocLevel ?? this.tocLevel,

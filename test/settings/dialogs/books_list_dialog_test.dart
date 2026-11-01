@@ -1,12 +1,15 @@
 import 'dart:math';
 
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:otzaria/models/book_source.dart';
 import 'package:otzaria/models/books.dart';
 import 'package:otzaria/settings/dialogs/books_list_dialog.dart';
+import 'package:otzaria_icons/otzaria_icons.dart';
 
 void main() {
   List<Book> buildBooks(int count) => List.generate(
@@ -190,5 +193,203 @@ void main() {
         reason: query,
       );
     }
+  });
+
+  group('שתי רשימות: ספרייה ואישיים', () {
+    List<Book> mixedBooks() => [
+      TextBook(title: 'ספר רשמי'),
+      TextBook(title: 'ספר אישי', source: BookSource.user, fileType: 'txt'),
+      TextBook(
+        title: 'מסמך וורד',
+        source: BookSource.user,
+        fileType: 'docx',
+        filePath: 'C:/docs/a.docx',
+      ),
+      TextBook(title: 'ספר ממסד מצורף', source: BookSource.attached('lib')),
+    ];
+
+    IconData leadingIcon(WidgetTester tester, String title) => tester
+        .widget<Icon>(
+          find
+              .descendant(
+                of: find.ancestor(
+                  of: find.text(title),
+                  matching: find.byType(ListTile),
+                ),
+                matching: find.byType(Icon),
+              )
+              .first,
+        )
+        .icon!;
+
+    testWidgets('ברירת המחדל מציגה ספרי ספרייה, ואישיים מופרדים בלשונית', (
+      tester,
+    ) async {
+      await openDialog(tester, mixedBooks());
+
+      expect(find.text('ספרייה 1'), findsOneWidget);
+      expect(find.text('אישיים 3'), findsOneWidget);
+      expect(find.text('1 / 1'), findsOneWidget);
+      expect(find.text('ספר רשמי'), findsOneWidget);
+      expect(find.text('ספר אישי'), findsNothing);
+
+      await tester.tap(find.text('אישיים 3'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('3 / 3'), findsOneWidget);
+      expect(find.text('ספר רשמי'), findsNothing);
+      // ספר ממסד מצורף הוא ספר אישי לכל דבר.
+      for (final title in ['ספר אישי', 'מסמך וורד', 'ספר ממסד מצורף']) {
+        expect(find.text(title), findsOneWidget, reason: title);
+      }
+    });
+
+    testWidgets('מעבר בין הרשימות מנקה את החיפוש', (tester) async {
+      await openDialog(tester, mixedBooks());
+      await tester.enterText(find.byType(TextField), 'לא קיים');
+      await tester.pumpAndSettle();
+      expect(find.text('לא נמצאו ספרים'), findsOneWidget);
+
+      await tester.tap(find.text('אישיים 3'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('3 / 3'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '',
+      );
+    });
+
+    testWidgets('לכל ספר אייקון סוג כמו בספרייה', (tester) async {
+      await openDialog(tester, mixedBooks());
+      expect(
+        leadingIcon(tester, 'ספר רשמי'),
+        FluentIcons.document_text_24_regular,
+      );
+
+      await tester.tap(find.text('אישיים 3'));
+      await tester.pumpAndSettle();
+
+      expect(
+        leadingIcon(tester, 'ספר אישי'),
+        OtzariaIcons.document_alef_24_regular,
+      );
+      expect(
+        leadingIcon(tester, 'מסמך וורד'),
+        OtzariaIcons.document_word_24_regular,
+      );
+    });
+  });
+
+  group('אייקון לפי פורמט, כמו בספרייה', () {
+    testWidgets('HTML ו-Markdown אישיים מקבלים אייקון משלהם', (tester) async {
+      TextBook personal(String type) => TextBook(
+        title: 'קובץ $type',
+        source: BookSource.user,
+        fileType: type,
+        filePath: 'C:/docs/a.$type',
+      );
+      await openDialog(tester, [
+        personal('html'),
+        personal('htm'),
+        personal('md'),
+        personal('markdown'),
+        personal('doc'),
+        personal('epub'),
+        personal('odt'),
+        personal('rtf'),
+        personal('pdf'),
+        TextBook(
+          title: 'html מצורף',
+          source: BookSource.attached('lib'),
+          fileType: 'html',
+        ),
+        TextBook(title: 'md רשמי', fileType: 'md'),
+      ]);
+      // הרשימה עצלה: שורה נבנית רק כשגוללים אליה, לכן בודקים לפי הסדר.
+      Future<IconData> icon(String title) async {
+        await tester.scrollUntilVisible(
+          find.text(title),
+          100,
+          scrollable: find.descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        return tester
+            .widget<Icon>(
+              find
+                  .descendant(
+                    of: find.ancestor(
+                      of: find.text(title),
+                      matching: find.byType(ListTile),
+                    ),
+                    matching: find.byType(Icon),
+                  )
+                  .first,
+            )
+            .icon!;
+      }
+
+      expect(await icon('md רשמי'), FluentIcons.document_text_24_regular);
+
+      await tester.tap(find.textContaining('אישיים'));
+      await tester.pumpAndSettle();
+
+      final expected = {
+        'קובץ html': OtzariaIcons.document_html_24_regular,
+        'קובץ htm': OtzariaIcons.document_html_24_regular,
+        'קובץ md': OtzariaIcons.document_md_24_regular,
+        'קובץ markdown': OtzariaIcons.document_md_24_regular,
+        'קובץ doc': OtzariaIcons.document_word_24_regular,
+        'קובץ epub': OtzariaIcons.book_pdf_24_regular,
+        'קובץ odt': OtzariaIcons.document_word_24_regular,
+        'קובץ rtf': OtzariaIcons.document_word_24_regular,
+        'קובץ pdf': OtzariaIcons.book_pdf_24_regular,
+        'html מצורף': OtzariaIcons.document_html_24_regular,
+      };
+      for (final MapEntry(key: title, value: expectedIcon) in expected.entries) {
+        expect(await icon(title), expectedIcon, reason: title);
+      }
+    });
+  });
+
+  group('buildBooksCsv', () {
+    test('מתחיל ב-BOM ובכותרות העמודות', () {
+      final csv = buildBooksCsv(const []);
+      expect(csv.codeUnitAt(0), 0xFEFF);
+      expect(
+        csv.substring(1),
+        'כותרת,מחבר,קטגוריה,סוג קובץ,מקור\r\n',
+      );
+    });
+
+    test('מצטט פסיקים, מרכאות ושורות חדשות', () {
+      final csv = buildBooksCsv([
+        TextBook(
+          title: 'שם, עם פסיק',
+          author: 'ה"מחבר"',
+          categoryPath: 'שורה א\nשורה ב',
+          fileType: 'txt',
+        ),
+      ]);
+      expect(
+        csv.split('\r\n')[1],
+        '"שם, עם פסיק","ה""מחבר""","שורה א\nשורה ב",txt,ספרייה',
+      );
+    });
+
+    test('עמודת המקור: ספרייה לפני אישי, גם לספר ממסד מצורף', () {
+      final csv = buildBooksCsv([
+        TextBook(title: 'אישי', source: BookSource.user),
+        TextBook(title: 'מצורף', source: BookSource.attached('lib')),
+        TextBook(title: 'רשמי'),
+      ]);
+      expect(csv.split('\r\n').skip(1).where((line) => line.isNotEmpty), [
+        'רשמי,,,txt,ספרייה',
+        'אישי,,,txt,אישי',
+        'מצורף,,,txt,אישי',
+      ]);
+    });
   });
 }

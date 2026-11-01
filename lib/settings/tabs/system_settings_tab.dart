@@ -76,10 +76,10 @@ class SystemSettingsTab extends StatefulWidget {
     SettingsSearchEntry(
       id: 'system.versions.library',
       title: 'גרסת ספרייה',
-      subtitle: 'גרסת מאגר הספרים וכמות הספרים בספרייה',
+      subtitle: 'גרסת מאגר הספרים וכמות ספרי הספרייה והספרים האישיים',
       tab: SettingsTab.system,
       cardId: 'system.versions',
-      keywords: ['גרסה', 'ספריה', 'ספרים', 'כמות'],
+      keywords: ['גרסה', 'ספריה', 'ספרים', 'ספרים אישיים', 'כמות'],
     ),
     SettingsSearchEntry(
       id: 'system.updates.network_mode',
@@ -370,7 +370,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
   // ── גרסאות ────────────────────────────────────────────────────────────────
   String? _appVersion;
   String? _libraryVersion;
-  int? _bookCount;
+  ({int library, int personal})? _bookCounts;
   bool _hasLibraryChanges = false;
   static const _backupFolderName = 'תיקיית גיבוי';
 
@@ -420,19 +420,21 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
     final dataService = DataCollectionService();
     final libVersion = await dataService.readLibraryVersion();
 
-    int? count;
+    var counts = (library: 0, personal: 0);
     try {
       final library = await DataRepository.instance.library;
-      count = library.getAllBooks().length;
+      final books = library.getAllBooks();
+      final personal = books.where((book) => book.isPersonalBook).length;
+      counts = (library: books.length - personal, personal: personal);
     } catch (_) {
-      count = 0;
+      // נשארים אפסים.
     }
 
     if (!mounted) return;
     setState(() {
       _appVersion = appReleaseVersion(packageInfo);
       _libraryVersion = libVersion;
-      _bookCount = count;
+      _bookCounts = counts;
     });
   }
 
@@ -759,11 +761,17 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             'גרסת ספרייה {version}',
             args: {'version': _libraryVersionLabel(context)},
           ),
-          subtitle: _bookCount != null
-              ? context.settingsText(
-                  '{count} ספרים',
-                  args: {'count': _bookCount!},
-                )
+          subtitle: _bookCounts != null
+              ? [
+                  context.settingsText(
+                    '{count} ספרים',
+                    args: {'count': _bookCounts!.library},
+                  ),
+                  context.settingsText(
+                    '{count} ספרים אישיים',
+                    args: {'count': _bookCounts!.personal},
+                  ),
+                ].join(' · ')
               : context.settingsText('טוען...'),
           actions: [
             if (_hasLibraryChanges)
@@ -772,7 +780,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 text: context.settingsText('מה חדש בגרסת הספרייה'),
                 onPressed: () => LibraryChangesNotes.instance.showAll(context),
               ),
-            if (_bookCount != null)
+            if (_bookCounts != null)
               ActionButton.ghost(
                 icon: OtzariaIcons.list_24_regular,
                 text: context.settingsText('הצג רשימה'),
