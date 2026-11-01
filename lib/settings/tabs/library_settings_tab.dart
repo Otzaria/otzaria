@@ -679,7 +679,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
             SettingsRepository.keyLibraryPath,
           );
           final library = libraryState.library;
-          final hasBooks = library?.getAllBooks().isNotEmpty ?? false;
+          final hasBooks = library?.hasBooks ?? false;
           if (libraryPath == null || libraryPath.isEmpty) {
             subtitleText = context.settingsText('לא קיימת ספרייה לאינדוקס');
           } else if (!hasBooks) {
