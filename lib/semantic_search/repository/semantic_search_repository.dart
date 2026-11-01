@@ -170,11 +170,16 @@ class SemanticSearchRepository {
   /// בקשת משתמש שהצטרפה לעבודה שרצה מקבלת גם היא את הכשל.
   bool _reportJobFailures = false;
   bool _moveInProgress = false;
+  bool _removingData = false;
   bool _needsRepair = false;
   String? _libraryTagHint;
   Timer? _busyRetry;
 
   Future<void>? _opening;
+  _PassageModelDownload? _passageModelDownload;
+  String? _passageModelStagingDirectory;
+  ({String path, int size, String sha, DateTime modified, DateTime changed})?
+  _passageModelVerification;
   int _lifecycleEpoch = 0;
   bool _repairModel = false;
   bool _updateRequested = false;
@@ -266,6 +271,7 @@ class SemanticSearchRepository {
   Future<void> cancelDownload() async {
     _jobCancel.cancel();
     _compactCancel.cancel();
+    _passageModelDownload?.cancel.cancel();
     await _settings.setDownloadPaused(true);
     await refresh();
   }
@@ -285,8 +291,18 @@ class SemanticSearchRepository {
 
   /// מוחק את המודל, הוקטורים וההורדות, ומפסיק את העדכון ברקע.
   Future<void> removeData() async {
+    _removingData = true;
+    try {
+      await _removeData();
+    } finally {
+      _removingData = false;
+    }
+  }
+
+  Future<void> _removeData() async {
     _jobCancel.cancel();
     _busyRetry?.cancel();
+    await _stopPassageModelDownload();
     await _job;
     await _stopCompaction();
     _busyRetry?.cancel();
@@ -357,6 +373,7 @@ class SemanticSearchRepository {
     if (targets.isEmpty) return const [];
     _activeSearches.add(cancel);
     try {
+      await _ensurePassageModel(cancel);
       return await _backend.passageHighlights(query, targets, cancel: cancel);
     } finally {
       _activeSearches.remove(cancel);
@@ -379,6 +396,7 @@ class SemanticSearchRepository {
   Future<void> releaseForLibraryMove() async {
     _moveInProgress = true;
     _busyRetry?.cancel();
+    await _stopPassageModelDownload();
     _jobCancel.cancel();
     await _job;
     await _stopCompaction();
@@ -515,7 +533,7 @@ class SemanticSearchRepository {
         paths.vectorsDirectory,
       );
       // סט שנפסל בפתיחה אינו מותקן עד שיוחלף; אחרת "מוכן" ונכשל שוב בחיפוש.
-      return vectors.present && !_needsRepair;
+      return !_needsRepair && await _hasCurrentModel(vectors);
     } on SemanticFailure catch (failure) {
       if (failure.kind != SemanticFailureKind.artifactCorrupt) rethrow;
       _needsRepair = true;
@@ -649,6 +667,11 @@ class SemanticSearchRepository {
     bool invalidateOpening = true,
   }) async {
     if (invalidateOpening) _lifecycleEpoch++;
+    final wasOpen = _openQuantization != null;
+    _openQuantization = null;
+    _passageModelVerification = null;
+    await _stopPassageModelDownload();
+    await _discardPassageModelStaging();
     if (waitForOpening) {
       try {
         await _opening;
@@ -656,8 +679,7 @@ class SemanticSearchRepository {
         /* הפותח כבר קיבל את הכשל. */
       }
     }
-    if (_openQuantization == null) return;
-    _openQuantization = null;
+    if (!wasOpen) return;
     try {
       await _backend.disable();
     } catch (error, stackTrace) {
@@ -666,6 +688,250 @@ class SemanticSearchRepository {
   }
 
   // ── הורדה והתקנה ────────────────────────────────────────────────────────
+
+  Future<void> _ensurePassageModel(SemanticCancelHandle cancel) async {
+    final selected = _openQuantization;
+    if (selected == null &&
+        _modelReleases[quantization]?.passageGraph != null) {
+      throw const SemanticFailure(SemanticFailureKind.notConfigured);
+    }
+    final release = _modelReleases[selected];
+    final file = release?.passageGraph;
+    if (release == null || file == null) return;
+    final epoch = _lifecycleEpoch;
+    void check() {
+      if (cancel.isCancelled ||
+          epoch != _lifecycleEpoch ||
+          _openQuantization != selected ||
+          _moveInProgress ||
+          _removingData) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+      if (!_isConsentGranted()) {
+        throw const SemanticFailure(SemanticFailureKind.consentRequired);
+      }
+    }
+
+    check();
+    final paths = await _paths();
+    check();
+    final destination = paths.modelFile(SemanticQuantization.fp32);
+    var task = _passageModelDownload;
+    while (task != null &&
+        (task.cancel.isCancelled ||
+            task.epoch != epoch ||
+            task.destination != destination)) {
+      await _stopPassageModelDownload();
+      check();
+      task = _passageModelDownload;
+    }
+    final start = task == null;
+    task ??= _PassageModelDownload(destination, epoch);
+    _passageModelDownload = task;
+    final pending = task;
+    final waiter = Object();
+    pending.waiters.add(waiter);
+    final cancelled = Completer<void>();
+    void signalCancellation() {
+      if (!cancelled.isCompleted) cancelled.complete();
+    }
+
+    final detachRequest = cancel.onCancel(() {
+      pending.waiters.remove(waiter);
+      if (pending.waiters.isEmpty) pending.cancel.cancel();
+      signalCancellation();
+    });
+    final detachDownload = pending.cancel.onCancel(signalCancellation);
+    if (start) {
+      pending.future = _preparePassageModel(paths, release, file, pending)
+          .whenComplete(() {
+            if (identical(_passageModelDownload, pending)) {
+              _passageModelDownload = null;
+            }
+          });
+    }
+    try {
+      await Future.any([pending.future, cancelled.future]);
+      check();
+      if (pending.cancel.isCancelled) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+    } finally {
+      detachRequest();
+      detachDownload();
+      pending.waiters.remove(waiter);
+      if (pending.waiters.isEmpty) pending.cancel.cancel();
+    }
+  }
+
+  Future<void> _preparePassageModel(
+    SemanticPaths paths,
+    SemanticModelRelease release,
+    SemanticModelFile file,
+    _PassageModelDownload task,
+  ) async {
+    bool cancelled() =>
+        task.cancel.isCancelled ||
+        task.epoch != _lifecycleEpoch ||
+        _moveInProgress ||
+        _removingData ||
+        !_isConsentGranted();
+    void check() {
+      if (cancelled()) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+    }
+
+    try {
+      check();
+      await _ensureOwnedOrAbsent(paths.modelDirectory);
+      if (!await _passageModelSourceIsPresent(paths, release)) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+      if (await _verifyPassageModelFile(task.destination, file)) {
+        check();
+        await _discardPassageModelStaging();
+        return;
+      }
+      check();
+      if (_settings.downloadPaused) {
+        throw const SemanticFailure(
+          SemanticFailureKind.notReady,
+          'passage model download is paused',
+        );
+      }
+      check();
+      var staging = _passageModelStagingDirectory;
+      if (staging == null ||
+          p.dirname(staging) != paths.modelDirectory ||
+          !await Directory(staging).exists()) {
+        staging = (await Directory(
+          paths.modelDirectory,
+        ).createTemp('.passage-model-')).path;
+        _passageModelStagingDirectory = staging;
+      }
+      final partial = p.join(staging, '${file.name}.part');
+      final staged = await SemanticStagedImport(() async => paths)
+          .verifiedStagedFile(
+            file.name,
+            file.size,
+            file.sha256,
+            isCancelled: () => cancelled() || _settings.downloadPaused,
+          );
+      check();
+      if (!await _passageModelSourceIsPresent(paths, release)) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+      if (staged != null) {
+        await staged.copy(partial);
+      } else {
+        if (_settings.isOfflineMode) {
+          throw const SemanticFailure(SemanticFailureKind.offline);
+        }
+        await _download(
+          url: release.urlOf(file),
+          destPath: partial,
+          resumeIdentity: file.sha256,
+          expectedSize: file.size,
+          expectedSha256: file.sha256,
+          isCancelled: () => cancelled() || _settings.downloadPaused,
+        );
+      }
+      check();
+      if (!await _passageModelSourceIsPresent(paths, release)) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+      if (_settings.downloadPaused) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+      if (!await _verifyModelFile(partial, file.size, file.sha256)) {
+        await CompanionAssetsService.discardDownload(partial);
+        throw const SemanticFailure(
+          SemanticFailureKind.checksumMismatch,
+          'passage model size or SHA-256 mismatch',
+        );
+      }
+      check();
+      if ((await _paths()).modelDirectory != paths.modelDirectory) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+      if (!await _passageModelSourceIsPresent(paths, release)) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+      check();
+      try {
+        await File(partial).rename(task.destination);
+      } on FileSystemException {
+        // חלון אחר עשוי לפרסם את אותו קובץ בזמן ההורדה שלנו.
+        if (!await _verifyModelFile(task.destination, file.size, file.sha256)) {
+          rethrow;
+        }
+      }
+      _passageModelVerification = null;
+      await _discardPassageModelStaging();
+    } catch (error) {
+      if (_isCancellation(error) ||
+          cancelled() ||
+          !await _passageModelSourceIsPresent(paths, release)) {
+        throw const SemanticFailure(SemanticFailureKind.cancelled);
+      }
+      throw _failureOf(error);
+    }
+  }
+
+  static Future<bool> _passageModelSourceIsPresent(
+    SemanticPaths paths,
+    SemanticModelRelease release,
+  ) async =>
+      await Directory(paths.modelDirectory).exists() &&
+      await File(p.join(paths.modelDirectory, release.graph.name)).exists() &&
+      await File(paths.tokenizerFile).exists();
+
+  Future<bool> _verifyPassageModelFile(
+    String path,
+    SemanticModelFile file,
+  ) async {
+    final stat = await File(path).stat();
+    if (stat.type != FileSystemEntityType.file || stat.size != file.size) {
+      return false;
+    }
+    final signature = (
+      path: path,
+      size: file.size,
+      sha: file.sha256,
+      modified: stat.modified,
+      changed: stat.changed,
+    );
+    if (_passageModelVerification == signature) return true;
+    if (!await _verifyModelFile(path, file.size, file.sha256)) return false;
+    final after = await File(path).stat();
+    if (after.size != stat.size ||
+        after.modified != stat.modified ||
+        after.changed != stat.changed) {
+      return false;
+    }
+    _passageModelVerification = signature;
+    return true;
+  }
+
+  Future<void> _stopPassageModelDownload() async {
+    final task = _passageModelDownload;
+    if (task == null) return;
+    task.cancel.cancel();
+    try {
+      await task.future;
+    } catch (_) {
+      // המבקשים מקבלים את הכשל; סגירת הספרייה מחכה רק לסיום הכתיבה.
+    }
+  }
+
+  Future<void> _discardPassageModelStaging() async {
+    final staging = _passageModelStagingDirectory;
+    if (staging == null) return;
+    _passageModelStagingDirectory = null;
+    final directory = Directory(staging);
+    if (await directory.exists()) await directory.delete(recursive: true);
+  }
 
   Future<void> _runJob({required bool userInitiated}) {
     if (userInitiated) _reportJobFailures = true;
@@ -768,13 +1034,17 @@ class SemanticSearchRepository {
     SemanticVectorsRelease? release;
     SemanticVectorsRelease? onlineRelease;
     final installedFamily = await _installedFamily(installed);
+    final installedModelMatches = await _hasCurrentModel(installed);
     final upToDate =
         installed.present &&
         installed.libraryVersion == version &&
         installedFamily == _preferredFamily &&
+        installedModelMatches &&
         !_needsRepair;
     if (!upToDate) {
-      final candidates = await _vectorsCandidates(installedFamily);
+      final candidates = await _vectorsCandidates(
+        installedModelMatches ? installedFamily : null,
+      );
       release = await _staged.locate(
         version,
         offline: offline,
@@ -798,7 +1068,7 @@ class SemanticSearchRepository {
         }
       }
     }
-    if (release == null && !installed.present) return;
+    if (release == null && !installedModelMatches) return;
 
     // deltas רק מהרשת: נתונים מוכנים של מסייע ההורדה הם base, והוא גובר.
     final chain =
@@ -901,9 +1171,12 @@ class SemanticSearchRepository {
     );
     final repair = _needsRepair;
     // ב-Windows אי אפשר להחליף קובץ ממופה, ומשפחה אחרת נפתחת עם model.json אחר.
-    final familyChanges =
-        _vectors?.present == true && family != await _installedFamily(_vectors);
-    if (repair || familyChanges) {
+    final identityChanges =
+        _vectors?.present == true &&
+        (_vectors!.identityDigest != release.identityDigest ||
+            family != await _installedFamily(_vectors) ||
+            !await _hasCurrentModel(_vectors));
+    if (repair || identityChanges) {
       _cancelAllSearches();
       await _closeSession();
     }
@@ -1344,6 +1617,12 @@ class SemanticSearchRepository {
     await _identityLoader(family),
   );
 
+  Future<bool> _hasCurrentModel(SemanticVectorsSummary? vectors) async =>
+      vectors != null &&
+      vectors.present &&
+      vectors.modelFamilyId ==
+          (await _loadIdentity(await _installedFamily(vectors))).familyId;
+
   SemanticVectorsFamily get _preferredFamily => _backend.supportsLongLineWindows
       ? SemanticVectorsFamily.windows
       : SemanticVectorsFamily.anchor;
@@ -1351,7 +1630,7 @@ class SemanticSearchRepository {
   /// המשפחות שמחפשים להן release, המועדפת ראשונה. מי שכבר מחזיק סט של
   /// המשפחה המועדפת ממתין לה, ולא יורד בינתיים לסט הישן.
   Future<List<SemanticVectorsCandidate>> _vectorsCandidates(
-    SemanticVectorsFamily installed,
+    SemanticVectorsFamily? installed,
   ) async => [
     for (final family in {
       _preferredFamily,
@@ -1437,6 +1716,16 @@ typedef _ModelPlan = ({
   SemanticModelRelease release,
   List<({SemanticModelFile file, String dest})> missing,
 });
+
+class _PassageModelDownload {
+  _PassageModelDownload(this.destination, this.epoch);
+
+  final String destination;
+  final int epoch;
+  final cancel = SemanticCancelHandle();
+  final waiters = <Object>{};
+  late final Future<void> future;
+}
 
 /// ערוץ חיפוש של צרכן אחד (למשל כרטיסייה): חיפוש חדש מבטל רק את הקודם בו.
 class SemanticSearchSession {

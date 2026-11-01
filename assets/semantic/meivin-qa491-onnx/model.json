@@ -1,0 +1,21 @@
+{
+  "family_id": "otzaria/Meivin-Embed-QA491-native256",
+  "tokenizer_checksum": "0664287976ecb078bdfd8f5e5515dc87d8cb7f985a79a481aa1cdf7a7321c0e9",
+  "embedding_dim": 256,
+  "pooling": "in-graph",
+  "max_tokens": 256,
+  "query_max_tokens": 128,
+  "embedding_text_version": 2,
+  "normalization_version": 1,
+  "chunking_identity": 2685558872390372738,
+  "query_packages": [
+    {
+      "checksum": "e90a67be02c077990c7bc2a6485f6872769ac2a71eb9779d25ceb1fcd97ac9b3",
+      "quantization": "int8"
+    },
+    {
+      "checksum": "5f80c47d3310a21fcc0c2f541fbb5732ba254555ef45afc2712cab63c8a33059",
+      "quantization": "fp32"
+    }
+  ]
+}

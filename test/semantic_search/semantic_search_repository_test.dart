@@ -243,14 +243,14 @@ void main() {
       final snapshot = await repository.engineSnapshot();
 
       expect(snapshot.state, 'ready');
-      expect(snapshot.modelFamilyId, startsWith('ArieLLL123/'));
+      expect(snapshot.modelFamilyId, 'otzaria/Meivin-Embed-QA491-native256');
       expect(snapshot.modelQuantization, 'int8');
       expect(
         snapshot.modelPackageChecksum,
-        '9e408407922b4aab26dd148cbe4b9a0e573c65591cfc799ba28e991d77d9d065',
+        'e90a67be02c077990c7bc2a6485f6872769ac2a71eb9779d25ceb1fcd97ac9b3',
       );
       expect(snapshot.embeddingDim, 256);
-      expect(snapshot.vectorsReleaseTag, 'vectors-v30-20260930165019');
+      expect(snapshot.vectorsReleaseTag, 'vectors-qa491-v30-20260930165019');
       expect(snapshot.vectorsLibraryVersion, 30);
       expect(snapshot.vectorSegments, 1);
     });
@@ -309,7 +309,7 @@ void main() {
 
       expect(settings.dataEnabled, isTrue);
       expect(downloads.urls, [
-        'https://models.test/meivin/seforim-embed-round2-int8.onnx',
+        'https://models.test/meivin/query.int8.onnx',
         'https://models.test/meivin/tokenizer.json',
         'https://models.test/meivin/LICENSE',
         'https://models.test/meivin/model.json',
@@ -593,6 +593,7 @@ void main() {
       final settings = FakeSettingsStore()..dataEnabled = true;
       const installedV29 = SemanticVectorsSummary(
         present: true,
+        modelFamilyId: kTestModelFamilyId,
         libraryVersion: 29,
         libraryReleaseTag: 'v29-20260927072953',
       );
@@ -615,7 +616,10 @@ void main() {
 
       await repository.enableAndDownload();
 
-      expect(settings.skippedVectorsRelease, 'vectors-v30-20260930165019');
+      expect(
+        settings.skippedVectorsRelease,
+        'vectors-qa491-v30-20260930165019',
+      );
       expect(repository.availability.failure, isNull);
       expect(repository.availability.phase, SemanticAvailabilityPhase.ready);
       final before = downloads.urls.length;
@@ -849,6 +853,7 @@ void main() {
     final windowsDigest = 'ab' * 32;
     final installedAnchorV30 = SemanticVectorsSummary(
       present: true,
+      modelFamilyId: kTestModelFamilyId,
       identityDigest: anchorDigest,
       libraryVersion: 30,
       libraryReleaseTag: installedV30.libraryReleaseTag,
@@ -949,7 +954,7 @@ void main() {
         );
         expect(
           (await repository.engineSnapshot()).vectorsReleaseTag,
-          'vectors-windows-v30-20260930165019',
+          'vectors-qa491-windows-v30-20260930165019',
         );
       },
     );
@@ -979,6 +984,7 @@ void main() {
         ..supportsLongLineWindows = true
         ..vectors = SemanticVectorsSummary(
           present: true,
+          modelFamilyId: kTestModelFamilyId,
           identityDigest: windowsDigest,
           libraryVersion: 30,
           libraryReleaseTag: installedV30.libraryReleaseTag,
@@ -1006,6 +1012,7 @@ void main() {
         ..supportsLongLineWindows = true
         ..vectors = SemanticVectorsSummary(
           present: true,
+          modelFamilyId: kTestModelFamilyId,
           identityDigest: windowsDigest,
           libraryVersion: 30,
           libraryReleaseTag: installedV30.libraryReleaseTag,
@@ -1086,7 +1093,10 @@ void main() {
 
       repository.scheduleVectorsUpdate();
       await repository.pendingJob;
-      expect(settings.skippedVectorsRelease, 'vectors-v30-20260930165019');
+      expect(
+        settings.skippedVectorsRelease,
+        'vectors-qa491-v30-20260930165019',
+      );
       final before = downloads.urls.length;
 
       repository.scheduleVectorsUpdate();
@@ -1122,7 +1132,10 @@ void main() {
 
         repository.scheduleVectorsUpdate();
         await repository.pendingJob;
-        expect(settings.skippedVectorsRelease, 'vectors-v30-20260930165019');
+        expect(
+          settings.skippedVectorsRelease,
+          'vectors-qa491-v30-20260930165019',
+        );
         final before = downloads.urls.length;
 
         repository.scheduleVectorsUpdate();
@@ -1153,6 +1166,7 @@ void main() {
         ..installedIdentityDigest = digest
         ..vectors = SemanticVectorsSummary(
           present: true,
+          modelFamilyId: kTestModelFamilyId,
           identityDigest: digest,
           libraryVersion: 28,
           libraryReleaseTag: 'v28-20260930165019',
@@ -1292,6 +1306,7 @@ void main() {
       // הסט חזר ל-v28 (למשל שחזור הדור הקודם): שוב base, בלי השרשרת.
       backend.vectors = SemanticVectorsSummary(
         present: true,
+        modelFamilyId: kTestModelFamilyId,
         identityDigest: digest,
         libraryVersion: 28,
         libraryReleaseTag: 'v28-20260930165019',
@@ -1443,6 +1458,7 @@ void main() {
     test('סט של זהות אחרת או של המשפחה הישנה — בלי חיפוש שרשרת', () async {
       backend.vectors = SemanticVectorsSummary(
         present: true,
+        modelFamilyId: kTestModelFamilyId,
         identityDigest: 'ee' * 32,
         libraryVersion: 28,
         libraryReleaseTag: 'v28-20260930165019',
@@ -1495,6 +1511,7 @@ void main() {
       await waitFor(() => backend.compactHandles.isNotEmpty);
       backend.vectors = SemanticVectorsSummary(
         present: true,
+        modelFamilyId: kTestModelFamilyId,
         identityDigest: digest,
         libraryVersion: 28,
       );

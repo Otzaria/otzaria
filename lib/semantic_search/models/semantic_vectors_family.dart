@@ -2,15 +2,15 @@
 enum SemanticVectorsFamily {
   /// שורה ארוכה מוטמעת בכמה חלונות; נפתחת רק במנוע שפותר אותם.
   windows(
-    identityAsset: 'assets/semantic/meivin-round2-windows-onnx/model.json',
-    releaseTagPrefix: 'vectors-windows-',
-    deltaReleaseTagPrefix: 'vectors-windows-delta-',
+    identityAsset: 'assets/semantic/meivin-qa491-windows-onnx/model.json',
+    releaseTagPrefix: 'vectors-qa491-windows-',
+    deltaReleaseTagPrefix: 'vectors-qa491-windows-delta-',
   ),
 
   /// חלון אחד לכל שורה.
   anchor(
-    identityAsset: 'assets/semantic/meivin-round2-onnx/model.json',
-    releaseTagPrefix: 'vectors-',
+    identityAsset: 'assets/semantic/meivin-qa491-onnx/model.json',
+    releaseTagPrefix: 'vectors-qa491-',
   );
 
   const SemanticVectorsFamily({

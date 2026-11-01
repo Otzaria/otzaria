@@ -178,6 +178,30 @@ void main() {
     );
   });
 
+  test('משפחת הווקטורים מגיעה מהסט המותקן וריקה כשהוא חסר', () {
+    for (final present in [true, false]) {
+      final summary = OnnxSemanticEngineAdapter.mapVectorsInfo(
+        SemanticVectorsInfo(
+          present: present,
+          identityDigest: 'ab' * 32,
+          modelFamilyId: 'previous-model-family',
+          libraryVersion: 30,
+          libraryReleaseTag: 'v30-test',
+          generation: BigInt.one,
+          segments: const [],
+          slotsLive: BigInt.one,
+          slotsDead: BigInt.zero,
+          bytesOnDisk: BigInt.one,
+          needsCompaction: false,
+          recoveredFromPrevious: false,
+        ),
+      );
+      expect(summary.present, present);
+      expect(summary.modelFamilyId, present ? 'previous-model-family' : '');
+      expect(summary.identityDigest, present ? 'ab' * 32 : '');
+    }
+  });
+
   test('installVectors מעביר את כל השדות ומחזיר את הדוח', () async {
     final summary = await adapter.installVectors(
       const SemanticInstallRequest(
@@ -350,7 +374,7 @@ void main() {
     await adapter.open(
       const SemanticOpenRequest(
         vectorsDir: '/root/vectors',
-        modelPath: '/root/otzaria/m/seforim-embed-round2-int8.onnx',
+        modelPath: '/root/otzaria/m/query.int8.onnx',
         modelIdentityJson: '{}',
         onnxRuntimePath: '/app/onnxruntime/onnxruntime.dll',
       ),

@@ -74,7 +74,7 @@ void main() {
     );
     await expectLater(repo.ensureOpen(), throwsA(isA<SemanticFailure>()));
     await repo.enableAndDownload();
-    expect(download.urls, contains(endsWith('seforim-embed-round2-int8.onnx')));
+    expect(download.urls, contains(endsWith('query.int8.onnx')));
   });
   test(
     'library update during vector download must trigger next version',
@@ -221,7 +221,7 @@ void main() {
       await resumed;
       expect(
         downloads.urls.where(
-          (url) => url.endsWith('seforim-embed-round2-int8.onnx'),
+          (url) => url.endsWith('query.int8.onnx'),
         ),
         hasLength(2),
       );

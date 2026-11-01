@@ -17,14 +17,14 @@ import '../../tool/release/semantic_release_components.dart';
 
 const _api = 'https://api.github.test/repos';
 const _tag = 'v30-20260930165019';
-const _vectorsTag = 'vectors-$_tag';
+const _vectorsTag = 'vectors-qa491-$_tag';
 const _segment = 'otzaria-vectors-0c3f95be-v30-base.oxv.zst';
 const _manifestName = 'otzaria-vectors-0c3f95be-v30-base.manifest.json';
 
 String _sha(String text) => sha256.convert(utf8.encode(text)).toString();
 
 String _identityJson() =>
-    File('assets/semantic/meivin-round2-onnx/model.json').readAsStringSync();
+    File('assets/semantic/meivin-qa491-onnx/model.json').readAsStringSync();
 
 String _vectorsManifest({String? familyId}) {
   final identity = SemanticModelIdentity.parse(_identityJson());
@@ -86,7 +86,7 @@ class _GitHub {
     }
     if (url ==
         '$_api/Otzaria/otzaria-semantic-search/releases/tags/'
-            'model-meivin-round2-int8-v1') {
+            'model-meivin-qa491-int8-v1') {
       return _json({
         'assets': [
           for (final file in [
@@ -94,6 +94,7 @@ class _GitHub {
             _model.tokenizer.zipped!,
             _model.identity,
             _model.license,
+            if (_model.passageGraph != null) _model.passageGraph!,
           ])
             {
               'name': file.name,
@@ -106,12 +107,14 @@ class _GitHub {
     return http.Response('not found', 404);
   });
 
-  Future<List<Map<String, Object?>>> resolve() => resolveSemanticComponents(
-    libraryTag: _tag,
-    modelIdentityJson: _identityJson(),
-    clientFactory: client,
-    apiBase: _api,
-  );
+  Future<List<Map<String, Object?>>> resolve({SemanticModelRelease? model}) =>
+      resolveSemanticComponents(
+        model: model,
+        libraryTag: _tag,
+        modelIdentityJson: _identityJson(),
+        clientFactory: client,
+        apiBase: _api,
+      );
 }
 
 void main() {
@@ -129,14 +132,14 @@ void main() {
       expect(model['type'], kSemanticModelComponentType);
       expect(model['origin'], 'imported');
       expect(model['required'], isFalse);
-      expect(model['outputFolder'], 'semantic-import/meivin-round2-onnx');
+      expect(model['outputFolder'], 'semantic-import/meivin-qa491-onnx');
       expect(
         (model['assets'] as List).map((a) => (a as Map)['repository']).toSet(),
         {'Otzaria/otzaria-semantic-search'},
       );
       expect(
         (model['assets'] as List).first,
-        containsPair('releaseTag', 'model-meivin-round2-int8-v1'),
+        containsPair('releaseTag', 'model-meivin-qa491-int8-v1'),
       );
       // tokenizer.json נחסם במסנני תוכן; האפליקציה פורסת את ה-zip המוכן.
       expect((model['assets'] as List).map((a) => (a as Map)['name']), [
@@ -144,7 +147,18 @@ void main() {
         'tokenizer.json.zip',
         _model.identity.name,
         _model.license.name,
+        'document.fp32.onnx',
       ]);
+      final modelAssets = (model['assets'] as List).cast<Map>();
+      expect(modelAssets.last['size'], 168145648);
+      expect(
+        modelAssets.last['sha256'],
+        '46ba402ce20693d0a3b65aa557a368a3535bbb2a5a1f559d848e803788f7b667',
+      );
+      expect(
+        model['downloadSize'],
+        modelAssets.fold<int>(0, (sum, a) => sum + (a['size'] as int)),
+      );
 
       final vectors = components[1];
       expect(vectors['type'], kSemanticVectorsComponentType);
@@ -163,6 +177,31 @@ void main() {
       });
       expect(assets.map((a) => a['releaseTag']).toSet(), {_vectorsTag});
       expect(assets.last['sha256'], _sha(_vectorsManifest()));
+    });
+
+    test('מודל ללא גרף פסקאות שומר בדיוק את ארבעת קובצי ההתקנה', () async {
+      final legacy = SemanticModelRelease(
+        baseUrl: _model.baseUrl,
+        graph: _model.graph,
+        tokenizer: _model.tokenizer,
+        identity: _model.identity,
+        license: _model.license,
+      );
+      final component = (await _GitHub().resolve(model: legacy)).first;
+      final assets = (component['assets'] as List).cast<Map>();
+      expect(assets.map((a) => a['name']), [
+        legacy.graph.name,
+        'tokenizer.json.zip',
+        legacy.identity.name,
+        legacy.license.name,
+      ]);
+      expect(
+        component['downloadSize'],
+        legacy.graph.size +
+            legacy.tokenizer.zipped!.size +
+            legacy.identity.size +
+            legacy.license.size,
+      );
     });
 
     test('שם, תיאור והסבר באנגלית לכל רכיב', () async {
@@ -229,7 +268,7 @@ void main() {
           isA<SemanticComponentsOmitted>().having(
             (e) => e.reason,
             'reason',
-            contains('vectors-$_tag'),
+            contains('vectors-qa491-$_tag'),
           ),
         ),
       );
@@ -390,10 +429,10 @@ void main() {
         'semantic-vectors-windows',
       ], target);
       expect(files, [
-        'semantic-import/meivin-round2-onnx/seforim-embed-round2-int8.onnx',
-        'semantic-import/meivin-round2-onnx/tokenizer.json',
-        'semantic-import/meivin-round2-onnx/model.json',
-        'semantic-import/meivin-round2-onnx/LICENSE',
+        'semantic-import/meivin-qa491-onnx/query.int8.onnx',
+        'semantic-import/meivin-qa491-onnx/tokenizer.json',
+        'semantic-import/meivin-qa491-onnx/model.json',
+        'semantic-import/meivin-qa491-onnx/LICENSE',
         'semantic-import/vectors/$_segment',
         'semantic-import/vectors/$_manifestName',
       ]);

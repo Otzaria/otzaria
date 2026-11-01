@@ -432,6 +432,7 @@ void main() {
           ..supportsLongLineWindows = true
           ..vectors = SemanticVectorsSummary(
             present: true,
+            modelFamilyId: kTestModelFamilyId,
             identityDigest: digest,
             libraryVersion: 29,
             libraryReleaseTag: 'v29-20260930165019',
@@ -716,13 +717,13 @@ void main() {
       _windowsFirst,
     )!;
     expect(release.family, SemanticVectorsFamily.windows);
-    expect(release.releaseTag, 'vectors-windows-$_tag');
+    expect(release.releaseTag, 'vectors-qa491-windows-$_tag');
     expect(
       release.files.single.downloadUrl,
       semanticVectorsAssetUrl(
         _tag,
         _segmentName,
-        releaseTagPrefix: 'vectors-windows-',
+        releaseTagPrefix: 'vectors-qa491-windows-',
       ),
     );
     expect(

@@ -159,8 +159,8 @@ List<Map<String, Object?>> buildFixtureSemanticComponents() {
   return buildSemanticComponents(
     model: SemanticModelRelease(
       baseUrl:
-          'https://github.com/Otzaria/otzaria-semantic-search/releases/download/model-meivin-round2-int8-v1',
-      graph: _fakeModelFile('seforim-embed-round2-int8.onnx', 42),
+          'https://github.com/Otzaria/otzaria-semantic-search/releases/download/model-meivin-qa491-int8-v1',
+      graph: _fakeModelFile('query.int8.onnx', 42),
       tokenizer: _fakeModelFile('tokenizer.json', 2),
       identity: _fakeModelFile('model.json', 1),
       license: _fakeModelFile('LICENSE', 1),
@@ -168,7 +168,7 @@ List<Map<String, Object?>> buildFixtureSemanticComponents() {
     modelFamilyId: 'ArieLLL123/judaic-semantic-round2-onnx-zayit@1ec8dc68',
     vectors: SemanticVectorsRelease(
       libraryTag: 'v30-20260930165019',
-      releaseTag: 'vectors-v30-20260930165019',
+      releaseTag: 'vectors-qa491-v30-20260930165019',
       toLibraryVersion: 30,
       kind: 'base',
       manifestJson: manifest,

@@ -38,7 +38,10 @@ void main() {
     expect(c['readableDbSchemaVersion'], isA<int>());
     expect(c['reportsQueueFormat'], 1);
     expect(c['pluginInstallResults'], 1);
-    expect(c['semanticVectorFamilies'], ['vectors-windows', 'vectors']);
+    expect(c['semanticVectorFamilies'], [
+      'vectors-qa491-windows',
+      'vectors-qa491',
+    ]);
     expect(content(build: '99800')['appVersion'], '0.9.98');
   });
 

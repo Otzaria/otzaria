@@ -35,6 +35,9 @@ class SemanticModelRelease extends Equatable {
   final SemanticModelFile graph;
   final SemanticModelFile tokenizer;
 
+  /// גרף מסמכים נפרד, שמורד רק כשמבקשים הדגשת פסקאות.
+  final SemanticModelFile? passageGraph;
+
   /// עותק ה-`model.json` שב-release; חייב להיות זהה לנכס המצורף.
   final SemanticModelFile identity;
   final SemanticModelFile license;
@@ -45,16 +48,24 @@ class SemanticModelRelease extends Equatable {
     required this.tokenizer,
     required this.identity,
     required this.license,
+    this.passageGraph,
   });
 
   String urlOf(SemanticModelFile file) => '$baseUrl/${file.name}';
 
-  /// סך הבתים להורדה.
+  /// סך הבתים בהתקנה הראשונית; גרף הפסקאות מורד בנפרד.
   int get downloadSize =>
       graph.size + tokenizer.size + identity.size + license.size;
 
   @override
-  List<Object?> get props => [baseUrl, graph, tokenizer, identity, license];
+  List<Object?> get props => [
+    baseUrl,
+    graph,
+    tokenizer,
+    identity,
+    license,
+    passageGraph,
+  ];
 }
 
 /// מקור ההורדה של כל דיוק; `null` — אין release, והאפשרות אינה מוצגת.
@@ -62,12 +73,18 @@ const Map<SemanticQuantization, SemanticModelRelease?>
 kSemanticModelReleases = {
   SemanticQuantization.int8: SemanticModelRelease(
     baseUrl:
-        'https://github.com/Otzaria/otzaria-semantic-search/releases/download/model-meivin-round2-int8-v1',
+        'https://github.com/Otzaria/otzaria-semantic-search/releases/download/model-meivin-qa491-int8-v1',
     graph: SemanticModelFile(
-      name: 'seforim-embed-round2-int8.onnx',
-      size: 42489219,
+      name: 'query.int8.onnx',
+      size: 42625431,
       sha256:
-          '659226865abd3a1bc833565ae6b2e2f48abdd7136285824a12966d4d3294cbf8',
+          '82b87180616cee55357b90858f327f4d98b86b2e5589f6771d50b788ad383597',
+    ),
+    passageGraph: SemanticModelFile(
+      name: 'document.fp32.onnx',
+      size: 168145648,
+      sha256:
+          '46ba402ce20693d0a3b65aa557a368a3535bbb2a5a1f559d848e803788f7b667',
     ),
     tokenizer: SemanticModelFile(
       name: kSemanticTokenizerFileName,
@@ -83,9 +100,9 @@ kSemanticModelReleases = {
     ),
     identity: SemanticModelFile(
       name: kSemanticModelIdentityFileName,
-      size: 656,
+      size: 634,
       sha256:
-          'a27b103ea5dc50be674e6e6696d8f8ea09639ac3808cd1a48dcf2d70a0b47d1c',
+          '58227b5df294a2c20a706482de5d431875941f22ee5007cf20ddc84536801fad',
     ),
     license: SemanticModelFile(
       name: kSemanticModelLicenseFileName,

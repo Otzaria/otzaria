@@ -76,13 +76,13 @@ class _Server {
   bool noAssetDigest = false;
   String manifest = _manifest;
 
-  /// מניפסט `vectors-windows-<תג>`; `null` = לא פורסם.
+  /// מניפסט `vectors-qa491-windows-<תג>`; `null` = לא פורסם.
   String? windowsManifest;
 
-  /// קוד שגיאה שה-API מחזיר על `vectors-windows-<תג>`.
+  /// קוד שגיאה שה-API מחזיר על `vectors-qa491-windows-<תג>`.
   int? windowsStatus;
 
-  /// digest אחר מהמניפסט לנכס המניפסט של `vectors-windows-<תג>`.
+  /// digest אחר מהמניפסט לנכס המניפסט של `vectors-qa491-windows-<תג>`.
   String? windowsAssetDigest;
 
   static http.Response _json(Object? body, [int status = 200]) =>
@@ -93,7 +93,7 @@ class _Server {
     requested.add(url);
     if (url == '$_api/releases?per_page=100&page=1') {
       return _json([
-        if (vectorsPublished) {'tag_name': 'vectors-v30-20260930165019'},
+        if (vectorsPublished) {'tag_name': 'vectors-qa491-v30-20260930165019'},
         {'tag_name': 'v30-20260930165019'},
         {'tag_name': 'pipeline-result-run-1'},
         {'tag_name': 'v29-20260927072953'},
@@ -102,10 +102,10 @@ class _Server {
     if (url == '$_api/releases?per_page=100&page=2') {
       return http.Response('[]', 200);
     }
-    if (url == '$_api/releases/tags/vectors-v30-20260930165019') {
+    if (url == '$_api/releases/tags/vectors-qa491-v30-20260930165019') {
       if (!vectorsPublished) return http.Response('{}', 404);
       return _json({
-        'tag_name': 'vectors-v30-20260930165019',
+        'tag_name': 'vectors-qa491-v30-20260930165019',
         'body':
             body ??
             'Manifest: `$_manifestName`, SHA-256 `${_shaOf(manifest)}` — check it.',
@@ -130,12 +130,12 @@ class _Server {
       return http.Response.bytes(utf8.encode(manifest), 200);
     }
     final windows = windowsManifest;
-    if (url == '$_api/releases/tags/vectors-windows-v30-20260930165019') {
+    if (url == '$_api/releases/tags/vectors-qa491-windows-v30-20260930165019') {
       final status = windowsStatus;
       if (status != null) return http.Response('blocked', status);
       if (windows == null) return http.Response('{}', 404);
       return _json({
-        'tag_name': 'vectors-windows-v30-20260930165019',
+        'tag_name': 'vectors-qa491-windows-v30-20260930165019',
         'body': 'Manifest: `$_windowsManifestName`',
         'assets': [
           {
@@ -162,7 +162,7 @@ class _Server {
 }
 
 void main() {
-  test('מוצא את vectors-<תג> לפי התג ולא דרך releases/latest', () async {
+  test('מוצא את vectors-qa491-<תג> לפי התג ולא דרך releases/latest', () async {
     final server = _Server();
     final locator = SemanticVectorsReleaseLocator(
       clientFactory: server.client,
@@ -176,7 +176,7 @@ void main() {
 
     expect(release, isNotNull);
     expect(release!.libraryTag, 'v30-20260930165019');
-    expect(release.releaseTag, 'vectors-v30-20260930165019');
+    expect(release.releaseTag, 'vectors-qa491-v30-20260930165019');
     expect(release.toLibraryVersion, 30);
     expect(release.manifestJson, _manifest);
     expect(release.publishedManifestSha256, _manifestSha);
@@ -187,7 +187,7 @@ void main() {
     expect(release.segmentFileName, _segmentName);
     expect(
       server.requested,
-      contains('$_api/releases/tags/vectors-v30-20260930165019'),
+      contains('$_api/releases/tags/vectors-qa491-v30-20260930165019'),
     );
     expect(server.requested.where((u) => u.contains('latest')), isEmpty);
   });
@@ -365,7 +365,7 @@ void main() {
           apiBase: _api,
         );
 
-    test('vectors-windows-<תג> קודם, עם הזהות שבמניפסט', () async {
+    test('vectors-qa491-windows-<תג> קודם, עם הזהות שבמניפסט', () async {
       final server = _Server()
         ..windowsManifest = _manifestFor(
           chunking: _windowsChunking,
@@ -376,29 +376,29 @@ void main() {
         server,
       ).findForLibraryVersion(30, candidates: _windowsFirst);
 
-      expect(release!.releaseTag, 'vectors-windows-v30-20260930165019');
+      expect(release!.releaseTag, 'vectors-qa491-windows-v30-20260930165019');
       expect(release.chunkingIdentity, _windowsChunking);
       expect(release.family, SemanticVectorsFamily.windows);
       expect(release.identityDigest, '$_windowsChunking'.padLeft(64, '0'));
       expect(release.files.single.downloadUrl, _windowsSegmentUrl);
       expect(
         server.requested,
-        isNot(contains('$_api/releases/tags/vectors-v30-20260930165019')),
+        isNot(contains('$_api/releases/tags/vectors-qa491-v30-20260930165019')),
       );
     });
 
-    test('בלי vectors-windows-<תג> נופלים ל-vectors-<תג>', () async {
+    test('בלי vectors-qa491-windows-<תג> נופלים ל-vectors-<תג>', () async {
       final server = _Server();
 
       final release = await locatorOf(
         server,
       ).findForLibraryVersion(30, candidates: _windowsFirst);
 
-      expect(release!.releaseTag, 'vectors-v30-20260930165019');
+      expect(release!.releaseTag, 'vectors-qa491-v30-20260930165019');
       expect(release.chunkingIdentity, _anchorChunking);
     });
 
-    test('מנוע בלי חלונות אינו מבקש את vectors-windows-<תג>', () async {
+    test('מנוע בלי חלונות אינו מבקש את vectors-qa491-windows-<תג>', () async {
       final server = _Server()
         ..windowsManifest = _manifestFor(
           chunking: _windowsChunking,
@@ -409,7 +409,7 @@ void main() {
         server,
       ).findForLibraryVersion(30, candidates: _anchorOnly);
 
-      expect(release!.releaseTag, 'vectors-v30-20260930165019');
+      expect(release!.releaseTag, 'vectors-qa491-v30-20260930165019');
       expect(server.requested.where((u) => u.contains('windows')), isEmpty);
     });
 
@@ -420,7 +420,7 @@ void main() {
       final fallback = await locatorOf(
         server,
       ).findForLibraryVersion(30, candidates: _windowsFirst);
-      expect(fallback!.releaseTag, 'vectors-v30-20260930165019');
+      expect(fallback!.releaseTag, 'vectors-qa491-v30-20260930165019');
 
       await expectLater(
         locatorOf(
@@ -448,15 +448,18 @@ void main() {
         );
 
     for (final status in [500, 418, 403]) {
-      test('תשובה $status על vectors-windows-<תג> נופלת לסט הישן', () async {
-        final server = _Server()..windowsStatus = status;
+      test(
+        'תשובה $status על vectors-qa491-windows-<תג> נופלת לסט הישן',
+        () async {
+          final server = _Server()..windowsStatus = status;
 
-        final release = await locatorOf(
-          server,
-        ).findForLibraryVersion(30, candidates: _windowsFirst);
+          final release = await locatorOf(
+            server,
+          ).findForLibraryVersion(30, candidates: _windowsFirst);
 
-        expect(release!.releaseTag, 'vectors-v30-20260930165019');
-      });
+          expect(release!.releaseTag, 'vectors-qa491-v30-20260930165019');
+        },
+      );
     }
 
     test('מניפסט חלונות שאינו תואם ל-digest נופל לסט הישן', () async {
@@ -471,7 +474,7 @@ void main() {
         server,
       ).findForLibraryVersion(30, candidates: _windowsFirst);
 
-      expect(release!.releaseTag, 'vectors-v30-20260930165019');
+      expect(release!.releaseTag, 'vectors-qa491-v30-20260930165019');
       expect(server.requested, isNot(contains(_windowsSegmentUrl)));
     });
 
@@ -524,7 +527,9 @@ void main() {
           apiBase: _api,
           clientFactory: () => MockClient((request) async {
             final response = await client.get(request.url);
-            if (!request.url.path.contains('/releases/tags/vectors-windows-')) {
+            if (!request.url.path.contains(
+              '/releases/tags/vectors-qa491-windows-',
+            )) {
               return response;
             }
             final release = jsonDecode(response.body) as Map<String, dynamic>;
@@ -613,7 +618,7 @@ void main() {
 
   test('libraryTagFor מתעלם מתגי vectors ומתגים אחרים', () {
     final releases = [
-      {'tag_name': 'vectors-v30-1'},
+      {'tag_name': 'vectors-qa491-v30-1'},
       {'tag_name': 'lines-snapshot-sha256-aa'},
       {'tag_name': 'v300-1'},
       {'tag_name': 'v30-20260930165019'},
@@ -701,7 +706,7 @@ class _DeltaServer {
       return http.Response(
         jsonEncode([
           for (var v = 31; v >= 10; v--) ...[
-            {'tag_name': 'vectors-windows-delta-${_libraryTagOf(v)}'},
+            {'tag_name': 'vectors-qa491-windows-delta-${_libraryTagOf(v)}'},
             {'tag_name': _libraryTagOf(v)},
           ],
         ]),
@@ -710,7 +715,7 @@ class _DeltaServer {
     }
     if (url.contains('per_page=100&page=')) return http.Response('[]', 200);
     final tag = RegExp(
-      r'/releases/tags/vectors-windows-delta-v(\d+)-',
+      r'/releases/tags/vectors-qa491-windows-delta-v(\d+)-',
     ).firstMatch(url);
     if (tag != null) {
       final to = int.parse(tag.group(1)!);
@@ -722,7 +727,7 @@ class _DeltaServer {
       final segment = 'otzaria-vectors-5d1e7a20-v${delta.from}-v$to.oxv.zst';
       return http.Response(
         jsonEncode({
-          'tag_name': 'vectors-windows-delta-${_libraryTagOf(to)}',
+          'tag_name': 'vectors-qa491-windows-delta-${_libraryTagOf(to)}',
           'body':
               'Manifest: `$name`, SHA-256 `${notesSha ?? _shaOf(manifest(to))}`',
           'assets': [
@@ -780,7 +785,7 @@ void _deltaChainTests() {
     final last = chain.last;
     expect(last.kind, 'delta');
     expect(last.isDelta, isTrue);
-    expect(last.releaseTag, 'vectors-windows-delta-${_libraryTagOf(30)}');
+    expect(last.releaseTag, 'vectors-qa491-windows-delta-${_libraryTagOf(30)}');
     expect(last.publishedManifestSha256, _shaOf(server.manifest(30)));
     expect(last.files.single.name, 'otzaria-vectors-5d1e7a20-v29-v30.oxv.zst');
     expect(last.family, SemanticVectorsFamily.windows);

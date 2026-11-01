@@ -97,6 +97,7 @@ class SemanticVectorsSummary extends Equatable {
   /// האם מותקן שם סט; כל שאר השדות ריקים כשלא.
   final bool present;
   final String identityDigest;
+  final String modelFamilyId;
   final int libraryVersion;
   final String libraryReleaseTag;
   final List<SemanticSegmentSummary> segments;
@@ -109,6 +110,7 @@ class SemanticVectorsSummary extends Equatable {
   const SemanticVectorsSummary({
     required this.present,
     this.identityDigest = '',
+    this.modelFamilyId = '',
     this.libraryVersion = 0,
     this.libraryReleaseTag = '',
     this.segments = const [],
@@ -126,6 +128,7 @@ class SemanticVectorsSummary extends Equatable {
   List<Object?> get props => [
     present,
     identityDigest,
+    modelFamilyId,
     libraryVersion,
     libraryReleaseTag,
     segments,
