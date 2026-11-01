@@ -1276,6 +1276,7 @@
   "נתוני החיפוש לגרסת הספרייה {version} עוד לא פורסמו. הם יורדו כשיתפרסמו.": "Search data for library version {version} has not been published yet. It will be downloaded once it is.",
   "הנתונים מותקנים ומוכנים": "The data is installed and ready",
   "הורד": "Download",
+  "הורד מחדש": "Download Again",
   "למחוק את נתוני {name}?": "Delete {name} data?",
   "נתוני {name} פגומים או אינם תואמים לגרסה זו. יש להוריד אותם מחדש.": "The {name} data is damaged or does not match this version. Download it again.",
   "נתוני {name} שהתקבלו אינם הגרסה הרשמית. יש להוריד אותם מחדש.": "The {name} data received is not the official release. Download it again.",
