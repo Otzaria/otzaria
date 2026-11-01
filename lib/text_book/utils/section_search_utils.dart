@@ -7,6 +7,8 @@ import 'package:otzaria/personal_notes/utils/note_anchor_utils.dart';
 import 'package:otzaria/text_book/models/book_notes.dart';
 import 'package:otzaria/search/models/search_match_policy.dart';
 import 'package:otzaria/search/utils/literal_search_pattern.dart';
+import 'package:otzaria/search/utils/user_regex_query.dart';
+import 'package:otzaria/search/utils/snippet_builder.dart';
 import 'package:otzaria/text_book/models/search_results.dart';
 import 'package:otzaria/text_book/utils/inline_notes_utils.dart' as notes;
 import 'package:otzaria/utils/text/text_manipulation.dart' as utils;
@@ -219,6 +221,104 @@ double matchFractionInLine(
   }
   if (offset <= 0) return 0;
   return (offset / clean.length).clamp(0.0, 1.0);
+}
+
+/// הדגשת רג'קס מעוגן בקטעי תוצאה, עם עיבוד משותף לשורה אחת בלבד.
+class UserRegexSnippetHighlighter {
+  ({
+    (String, String, utils.HolyNameStyle?) key,
+    String line,
+    String shown,
+    List<List<int>> ranges,
+    List<({int start, int end, int delta})>? names,
+  })?
+  _cachedLine;
+
+  /// null כשאין עוגני שורה או שהקטע אינו בשורה. [holyNameStyle] null משאיר שמות ככתבם.
+  List<List<int>>? rangesFor({
+    required String line,
+    required String snippet,
+    required int matchOffset,
+    required String query,
+    utils.HolyNameStyle? holyNameStyle,
+  }) {
+    final pattern = UserRegexQuery.plan(query)?.pattern;
+    if (pattern == null ||
+        (!pattern.contains(r'\A') && !pattern.contains(r'\z'))) {
+      _cachedLine = null;
+      return null;
+    }
+    String show(String text) => SnippetBuilder.htmlToPlainText(
+      holyNameStyle == null
+          ? text
+          : utils.replaceHolyNames(text, style: holyNameStyle),
+    );
+    final key = (line, query, holyNameStyle);
+    var cached = _cachedLine;
+    if (cached == null || cached.key != key) {
+      final clean = cleanLineForSearch(line);
+      final renamed = holyNameStyle == null
+          ? clean
+          : utils.replaceHolyNames(clean, style: holyNameStyle);
+      final full = SnippetBuilder.htmlToPlainText(renamed);
+      _cachedLine = cached = (
+        key: key,
+        line: clean,
+        shown: full,
+        // פענוח HTML עשוי לשנות גם אורכים מחוץ לשמות הקודש.
+        names: full != renamed
+            ? null
+            : holyNameStyle == null
+            ? const <({int start, int end, int delta})>[]
+            : [
+                for (final name in utils.findReplaceableHolyNames(clean))
+                  (
+                    start: name.start,
+                    end: name.end,
+                    delta:
+                        utils
+                            .replaceHolyNames(name[0]!, style: holyNameStyle)
+                            .length -
+                        (name.end - name.start),
+                  ),
+              ],
+        ranges: utils.computeHighlightRanges(
+          full,
+          query,
+          isSearchResultLine: true,
+        ),
+      );
+    }
+    final start = cached.line.lastIndexOf(
+      snippet,
+      matchOffset.clamp(0, cached.line.length),
+    );
+    if (start < 0) return null;
+    final shown = show(snippet);
+    final names = cached.names;
+    var prefix = start;
+    if (names == null) {
+      prefix = start == 0 ? 0 : show(cached.line.substring(0, start)).length;
+    } else {
+      for (final name in names) {
+        if (name.start >= start) break;
+        if (name.end > start) {
+          prefix = show(cached.line.substring(0, start)).length;
+          break;
+        }
+        prefix += name.delta;
+      }
+    }
+    final at = names != null && cached.shown.startsWith(shown, prefix)
+        ? prefix
+        : cached.shown.indexOf(shown, prefix == 0 ? 0 : prefix - 1);
+    if (at < 0) return null;
+    return [
+      for (final range in cached.ranges)
+        if (range[0] >= at && range[1] <= at + shown.length)
+          [range[0] - at, range[1] - at],
+    ];
+  }
 }
 
 /// מיקום יחסי (0..1) בשורה [rawLine] של הסמן בסוגריים שנפתח בכותרת [title]
