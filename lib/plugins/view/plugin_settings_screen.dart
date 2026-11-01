@@ -174,12 +174,8 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
     for (final p in effectiveManifestPermissions(
       widget.plugin.manifest.permissions,
     )) {
-      final granted = await _repo.getPermission(widget.plugin.pluginId, p);
-      final defaultValue = pluginPermissionDefaultGrant(
-        p,
-        isOfflineMode: false,
-      );
-      map[p] = granted ?? defaultValue;
+      // מציגים את מה שהגשר אוכף: הרשאה בלי החלטה שמורה חסומה.
+      map[p] = await _repo.getPermission(widget.plugin.pluginId, p) == true;
     }
     final newTabPage = await _repo.getPermission(
       widget.plugin.pluginId,
@@ -236,14 +232,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                 _PluginIdentity(
                   plugin: currentPlugin,
                   grantedCount: permissionKeys
-                      .where(
-                        (p) =>
-                            _permissions[p] ??
-                            pluginPermissionDefaultGrant(
-                              p,
-                              isOfflineMode: false,
-                            ),
-                      )
+                      .where((p) => _permissions[p] ?? false)
                       .length,
                   totalCount: permissionKeys.length,
                 ),
@@ -272,11 +261,7 @@ class _PluginSettingsScreenState extends State<PluginSettingsScreen> {
                             p,
                             manifest: currentPlugin.manifest,
                           );
-                          final defaultValue = pluginPermissionDefaultGrant(
-                            p,
-                            isOfflineMode: false,
-                          );
-                          final isGranted = _permissions[p] ?? defaultValue;
+                          final isGranted = _permissions[p] ?? false;
                           final isSensitive = p == pluginRunOnStartupPermission;
                           final isCritical =
                               p == pluginBackgroundKeepAlivePermission;

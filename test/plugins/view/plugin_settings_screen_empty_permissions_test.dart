@@ -142,5 +142,24 @@ void main() {
       expect(find.text('כפתור לשונית חדשה (+)'), findsOneWidget);
       expect(find.textContaining('בעל הכפתור כעת: בעל הכפתור'), findsOneWidget);
     });
+
+    testWidgets('הרשאה מוצהרת בלי החלטה שמורה מוצגת כבויה, כמו באכיפה', (
+      tester,
+    ) async {
+      final repo = PluginRegistryRepository();
+      final plugin = _plugin(const ['app.open_url', 'library.books.read']);
+      await repo.savePluginWithPermissions(plugin, const {
+        'library.books.read': true,
+      });
+      expect(await repo.getPermission(plugin.pluginId, 'app.open_url'), isNull);
+
+      await _pumpDialog(tester, plugin);
+
+      final switches = tester
+          .widgetList<Switch>(find.byType(Switch))
+          .map((s) => s.value)
+          .toList();
+      expect(switches, [false, true]);
+    });
   });
 }
