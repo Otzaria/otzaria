@@ -106,6 +106,7 @@ class TextBookSearchViewState extends State<TextBookSearchView>
     with AutomaticKeepAliveClientMixin<TextBookSearchView> {
   TextEditingController searchTextController = TextEditingController();
   List<TextSearchResult> searchResults = [];
+  final _regexSnippetHighlighter = UserRegexSnippetHighlighter();
   bool _resultsTruncated = false;
   bool _isSearching = false;
 
@@ -901,15 +902,14 @@ class TextBookSearchViewState extends State<TextBookSearchView>
         ? _lineTextAt(result.index, state)
         : null;
     if (line == null) return null;
-    return snippetHighlightRangesInLine(
-      line: cleanLineForSearch(line),
+    return _regexSnippetHighlighter.rangesFor(
+      line: line,
       snippet: result.snippet,
       matchOffset: offset,
       query: result.query,
-      // השורה הנקייה כבר בלי ניקוד וטעמים, ולכן הסרת הסימנים אינה משנה אותה.
-      display: (text) => SnippetBuilder.htmlToPlainText(
-        withHolyNamesSetting(text, settingsState),
-      ),
+      holyNameStyle: settingsState.replaceHolyNames
+          ? settingsState.holyNameStyle
+          : null,
     );
   }
 
