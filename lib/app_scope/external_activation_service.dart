@@ -49,7 +49,7 @@ class ExternalActivationService {
 
   static Future<bool> _alwaysVisible() async => true;
 
-  /// רושם את החלון של ה-isolate הזה כיעד המקומי.
+  /// רושם את החלון הראשי כיעד המקומי.
   void attachWindow(
     ExternalUriHandler handler, {
     Future<bool> Function()? isVisible,

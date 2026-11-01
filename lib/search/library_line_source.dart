@@ -107,7 +107,7 @@ abstract final class LibraryLineSource {
       'otzaria.lineSource.registrationFailureLogged';
   static const _fallbacksMarker = 'otzaria.lineSource.fallbacksLogged';
 
-  // כל חלון הוא isolate משלו; שם ב-IsolateNameServer משותף לכל התהליך.
+  // פעם אחת לתהליך ולא ל-isolate: שם ב-IsolateNameServer משותף לכל התהליך.
   static bool _claimOncePerProcess(String name) {
     final port = ReceivePort();
     final claimed = IsolateNameServer.registerPortWithName(port.sendPort, name);

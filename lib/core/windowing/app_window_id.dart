@@ -10,17 +10,14 @@ import 'package:flutter/foundation.dart';
 ///   עבודה יכול לעבור בין חלונות.
 ///
 /// המזהה אינו מייצר את עצמו: הוא מתקבל מבחוץ, כדי שמקור אחד יהיה אחראי
-/// לייחודיות. `DateTime.now()` כמקור ייחודיות הוא מלכודת ידועה כאן — ראו
-/// `Workspace._generateId()`, שמשלב חותמת זמן עם מונה `static` שהוא
-/// **פר-isolate**. תחת ריבוי חלונות שני חלונות שייווצרו באותה מיקרו-שנייה
-/// יקבלו ממנו את אותו מזהה בדיוק.
+/// לייחודיות.
 @immutable
 final class AppWindowId {
   const AppWindowId(this.value);
 
   final String value;
 
-  /// החלון הראשון של התהליך. היום זה החלון היחיד.
+  /// החלון הראשי של התהליך.
   static const AppWindowId primary = AppWindowId('window-primary');
 
   @override

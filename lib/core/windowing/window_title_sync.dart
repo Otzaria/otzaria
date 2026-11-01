@@ -6,29 +6,16 @@ import 'package:flutter/widgets.dart' show BuildContext;
 import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:window_manager/window_manager.dart';
 
-/// מעדכן את כותרת החלון לפי הכרטיסיה הפעילה בו, כמו בדפדפן.
+/// מעדכן את כותרת החלון לפי הכרטיסיה הפעילה בו, כמו בדפדפן. הכותרת אינה
+/// נראית בחלון עצמו (סרגל כותרת מותאם), אלא בשורת המשימות וב-Alt+Tab.
 ///
-/// ## למה זה נדרש דווקא עכשיו
-///
-/// לאוצריא יש סרגל כותרת מותאם (`setTitleBarStyle(hidden)`), ולכן הכותרת
-/// של החלון אינה נראית **בחלון עצמו** — היא נראית בשורת המשימות, ב-Alt+Tab,
-/// בתצוגות המקדימות של מחליף החלונות, ובמנהל המשימות.
-///
-/// בחלון יחיד לא היה בזה עניין. עם ארבעה חלונות, כולם בשם `אוצריא`, המשתמש
-/// מקבל ארבעה כפתורים זהים בשורת המשימות ואין לו דרך לדעת מה בכל אחד — וזו
-/// בדיוק הבעיה שדפדפנים פתרו בכך שהכותרת עוקבת אחרי הטאב הפעיל.
-///
-/// ## החוזה מול T-1.6
-///
-/// ⚠️ **מרגע זה הכותרת אינה מזהה יציב.** `main.cpp` מזהה את החלון הראשי
-/// דרך מאפיין חלון (`OtzariaMainWindow`) ולא דרך הכותרת, בדיוק מהסיבה הזו.
-/// הנפילה-לאחור ל-`FindWindowW` לפי כותרת נשארה שם עבור מופע שרץ מבנייה
-/// קודמת, והיא best-effort — אין להישען עליה.
+/// ⚠️ **הכותרת אינה מזהה יציב.** `main.cpp` מזהה את החלון הראשי דרך מאפיין
+/// חלון (`OtzariaMainWindow`), ולא דרך הכותרת.
 class WindowTitleSync {
   WindowTitleSync({Future<void> Function(String title)? setTitle})
     : _setTitle = setTitle ?? windowManager.setTitle;
 
-  /// הכותרת של החלון שה-isolate הזה מציג; היום כל חלון הוא isolate משלו.
+  /// הכותרת של החלון הראשי; חלון Dart נוסף קושר מופע משלו ב-[bind].
   static final WindowTitleSync current = WindowTitleSync();
 
   static final Expando<WindowTitleSync> _perWindow = Expando('WindowTitleSync');

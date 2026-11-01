@@ -11,7 +11,7 @@ import 'package:otzaria/core/windowing/window_manager_app_window_controller.dart
 import 'package:otzaria/settings/engine/settings_repository.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 
-/// שמירה ושחזור של גבולות החלון של ה-isolate הזה.
+/// שמירה ושחזור של גבולות החלון הראשי.
 ///
 /// חזית סטטית בלי מצב: המצב יושב ב-[WindowPersistenceBinding] של החלון.
 class WindowPersistence {
@@ -32,12 +32,12 @@ class WindowPersistence {
   /// דורשת שהרצועה הזו — לא סתם פינת חלון — תהיה על מסך חי, אחרת אין מה לגרור.
   static const double _grabStripExtent = 32;
 
-  /// החלון שה-isolate הזה מציג; היום כל חלון הוא isolate משלו.
+  /// החלון הראשי; לכל חלון Dart נוסף [WindowPersistenceBinding] משלו.
   static final WindowPersistenceBinding current = WindowPersistenceBinding();
 
   static set splashMode(bool value) => current.splashMode = value;
 
-  /// קושר את החלון של ה-isolate הזה. נקרא פעם אחת מ-`main`, עם אותו מופע
+  /// קושר את החלון הראשי. נקרא פעם אחת מ-`main`, עם אותו מופע
   /// שנכנס ל-[AppWindowScope] — כדי שיהיה מקור אמת אחד.
   static void bindWindow({
     required AppWindowController controller,
