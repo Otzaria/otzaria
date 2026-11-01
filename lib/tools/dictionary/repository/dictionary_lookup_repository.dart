@@ -408,14 +408,19 @@ class DictionaryLookupRepository {
   final Future<List<LaazDictionaryEntry>> Function() _loadLaazEntries;
   final Future<List<Link>> Function() _loadLaazLinks;
 
-  Future<void>? _acronymsLoadFuture;
-  Future<void>? _aramaicLoadFuture;
-  Future<void>? _laazLoadFuture;
-  Future<void>? _laazLinksLoadFuture;
-  bool _areAcronymsLoaded = false;
-  bool _areAramaicLoaded = false;
-  bool _areLaazLoaded = false;
-  bool _areLaazLinksLoaded = false;
+  late final _acronyms = _DictionaryLoad(
+    _loadAcronymsInternal,
+    _resetAcronymsCache,
+  );
+  late final _aramaic = _DictionaryLoad(
+    _loadAramaicInternal,
+    _resetAramaicCache,
+  );
+  late final _laaz = _DictionaryLoad(_loadLaazInternal, _resetLaazCache);
+  late final _laazLinks = _DictionaryLoad(
+    _loadLaazLinksInternal,
+    _resetLaazLinksCache,
+  );
 
   Map<String, List<String>> _acronymsByKey = <String, List<String>>{};
   Map<String, String> _originalAcronymByKey = <String, String>{};
@@ -430,9 +435,9 @@ class DictionaryLookupRepository {
   Map<String, Map<int, List<LaazDictionaryEntry>>> _laazByRashiLine =
       <String, Map<int, List<LaazDictionaryEntry>>>{};
 
-  bool get areAcronymsLoaded => _areAcronymsLoaded;
-  bool get areAramaicLoaded => _areAramaicLoaded;
-  bool get areLaazLinksLoaded => _areLaazLinksLoaded;
+  bool get areAcronymsLoaded => _acronyms.isLoaded;
+  bool get areAramaicLoaded => _aramaic.isLoaded;
+  bool get areLaazLinksLoaded => _laazLinks.isLoaded;
 
   /// טוען את כל המילונים פעם אחת ומשאיר אותם בזיכרון.
   Future<void> ensureLoaded() async {
@@ -444,110 +449,18 @@ class DictionaryLookupRepository {
   }
 
   /// טוען את מילון ראשי התיבות בלבד.
-  Future<void> ensureAcronymsLoaded() async {
-    if (_areAcronymsLoaded) return;
-
-    final pendingFuture = _acronymsLoadFuture;
-    if (pendingFuture != null) {
-      await pendingFuture;
-      return;
-    }
-
-    final loadFuture = _loadAcronymsInternal();
-    _acronymsLoadFuture = loadFuture;
-
-    try {
-      await loadFuture;
-      _areAcronymsLoaded = true;
-    } catch (_) {
-      _resetAcronymsCache();
-      rethrow;
-    } finally {
-      if (identical(_acronymsLoadFuture, loadFuture)) {
-        _acronymsLoadFuture = null;
-      }
-    }
-  }
+  Future<void> ensureAcronymsLoaded() => _acronyms.ensure();
 
   /// טוען את המילון הארמי-עברי בלבד.
-  Future<void> ensureAramaicLoaded() async {
-    if (_areAramaicLoaded) return;
-
-    final pendingFuture = _aramaicLoadFuture;
-    if (pendingFuture != null) {
-      await pendingFuture;
-      return;
-    }
-
-    final loadFuture = _loadAramaicInternal();
-    _aramaicLoadFuture = loadFuture;
-
-    try {
-      await loadFuture;
-      _areAramaicLoaded = true;
-    } catch (_) {
-      _resetAramaicCache();
-      rethrow;
-    } finally {
-      if (identical(_aramaicLoadFuture, loadFuture)) {
-        _aramaicLoadFuture = null;
-      }
-    }
-  }
+  Future<void> ensureAramaicLoaded() => _aramaic.ensure();
 
   /// טוען את מילון לעזי רש"י בלבד.
-  Future<void> ensureLaazLoaded() async {
-    if (_areLaazLoaded) return;
-
-    final pendingFuture = _laazLoadFuture;
-    if (pendingFuture != null) {
-      await pendingFuture;
-      return;
-    }
-
-    final loadFuture = _loadLaazInternal();
-    _laazLoadFuture = loadFuture;
-
-    try {
-      await loadFuture;
-      _areLaazLoaded = true;
-    } catch (_) {
-      _resetLaazCache();
-      rethrow;
-    } finally {
-      if (identical(_laazLoadFuture, loadFuture)) {
-        _laazLoadFuture = null;
-      }
-    }
-  }
+  Future<void> ensureLaazLoaded() => _laaz.ensure();
 
   /// טוען את מפת קישורי הלעז (שורת-רש"י -> ערכי לעז) בלבד, פעם אחת.
   ///
   /// ספר-הלעז חסר במסד => מפה ריקה, לא חריגה.
-  Future<void> ensureLaazLinksLoaded() async {
-    if (_areLaazLinksLoaded) return;
-
-    final pendingFuture = _laazLinksLoadFuture;
-    if (pendingFuture != null) {
-      await pendingFuture;
-      return;
-    }
-
-    final loadFuture = _loadLaazLinksInternal();
-    _laazLinksLoadFuture = loadFuture;
-
-    try {
-      await loadFuture;
-      _areLaazLinksLoaded = true;
-    } catch (_) {
-      _resetLaazLinksCache();
-      rethrow;
-    } finally {
-      if (identical(_laazLinksLoadFuture, loadFuture)) {
-        _laazLinksLoadFuture = null;
-      }
-    }
-  }
+  Future<void> ensureLaazLinksLoaded() => _laazLinks.ensure();
 
   /// מחזיר את ערכי הלעז המקושרים לשורת רש"י נתונה (O(1)); רשימה ריקה אם אין.
   ///
@@ -1018,7 +931,6 @@ class DictionaryLookupRepository {
   void _resetAcronymsCache() {
     _acronymsByKey = <String, List<String>>{};
     _originalAcronymByKey = <String, String>{};
-    _areAcronymsLoaded = false;
   }
 
   void _resetAramaicCache() {
@@ -1026,16 +938,42 @@ class DictionaryLookupRepository {
     _aramaicTerms = <String>{};
     _aramaicDictionaryNames = const <String>[];
     _aramaicIndex = const [];
-    _areAramaicLoaded = false;
   }
 
   void _resetLaazCache() {
     _laazEntries = <LaazDictionaryEntry>[];
-    _areLaazLoaded = false;
   }
 
   void _resetLaazLinksCache() {
     _laazByRashiLine = <String, Map<int, List<LaazDictionaryEntry>>>{};
-    _areLaazLinksLoaded = false;
+  }
+}
+
+/// טעינה חד-פעמית של מילון: קריאות מקבילות ממתינות לאותה טעינה, וטעינה
+/// שנכשלה מאפסת את המילון ומאפשרת לנסות שוב.
+class _DictionaryLoad {
+  _DictionaryLoad(this._load, this._reset);
+
+  final Future<void> Function() _load;
+  final void Function() _reset;
+  Future<void>? _pending;
+  bool isLoaded = false;
+
+  Future<void> ensure() async {
+    if (isLoaded) return;
+    final pending = _pending;
+    if (pending != null) return pending;
+
+    final load = _load();
+    _pending = load;
+    try {
+      await load;
+      isLoaded = true;
+    } catch (_) {
+      _reset();
+      rethrow;
+    } finally {
+      if (identical(_pending, load)) _pending = null;
+    }
   }
 }
