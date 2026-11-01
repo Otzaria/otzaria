@@ -109,7 +109,7 @@
 |---|---|---|---|---|---|
 | רקע קריאה | `AppSurfaces.readerBackground` | `cs.surface` | נייטרלי, לא נגזר מהזרע. היום `AppColors.darkScaffold` `#242424`. הערך הסופי (`#242424` או `surfaceContainerLowest` נייטרלי) נקבע ב־commit עם תמונות | קיים. הכהה: יעד — טרם מומש (DD-05 C, MIG-07) | מסכי ספר ו־PDF, וכרטיסיית תוצאות החיפוש (DD-18, ⚠ UI-143) |
 | רקע לוח (מסכי עבודה) | `AppSurfaces.panelBackground` | `surface` + `surfaceContainerHighest` בשקיפות 47.5% | **`surfaceContainerLow`** (היום `Colors.black`) | בהיר קיים. כהה: יעד — טרם מומש (DD-05 C, MIG-07) | הגדרות, ספרייה וכלים |
-| ~~רקע לוח "מוצק"~~ | `AppSurfaces.solidPanelBackground` | כמו panelBackground | כמו panelBackground | **כפילות: להסיר** (UI-128, MIG-03) | — |
+| ~~רקע לוח "מוצק"~~ | ~~`AppSurfaces.solidPanelBackground`~~ | — | — | **הוסר** (UI-128, MIG-03); הקוראים עברו ל־`panelBackground` | — |
 | סרגל עליון | `AppSurfaces.topBarBackground` | `surfaceContainerHigh` | `surfaceContainerHigh` | קיים, ללא שינוי | `AppTopBar` |
 | חלונית ניווט | `AppSurfaces.navPanelBackground` | = topBar | = topBar | קיים (שם נרדף מכוון) | `NavSidePanel`, חלוניות לצד הקריאה (DD-18) |
 | כרטיס | `AppSurfaces.card` | `surface` | `surfaceContainer` | קיים | `AppCard`, `ListDialogCard`, `DetailsCard` |
