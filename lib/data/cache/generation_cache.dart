@@ -2,6 +2,7 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:otzaria/attached_libraries/repository/attached_library_registry.dart';
+import 'package:otzaria/data/data_providers/db_read_worker.dart';
 import 'package:otzaria/data/data_providers/sqlite_data_provider.dart';
 import 'package:otzaria/data/data_providers/user_books_database_holder.dart';
 import 'package:otzaria/migration/database/untrusted_database.dart';
@@ -81,25 +82,25 @@ class GenerationCache {
     }
 
     try {
-      final db = await repository.database.database;
+      // ב-isolate: JOIN על seforim.db בכונן קר חוסם את ה-UI לשניות.
+      final local = await _readOfficialGenerations(
+        repository.database.readOnlyTarget,
+      );
       if (myGen != _generation) return;
-
-      final local = <int, int>{};
-      if ((await repository.database.capabilities).hasGenerations) {
-        _accumulate(db.select(_selectSql), local);
-      }
 
       // דורות של ספרים אישיים (user_books.db) — רק אם ה-DB כבר פתוח, בלי
       // לכפות יצירתו. מרחב id נפרד, לכן מפה נפרדת.
-      final localUser = <int, int>{};
-      final userRepo = UserBooksDatabaseHolder.instance.repositoryIfInitialized;
+      var localUser = <int, int>{};
+      final userHolder = UserBooksDatabaseHolder.instance;
+      final userRepo = userHolder.repositoryIfInitialized;
       if (userRepo != null) {
         try {
-          final userDb = await userRepo.database.database;
+          final userTarget = userRepo.database.readOnlyTarget;
+          // close() ממתין לקריאה, כדי שהחיבור ב-isolate לא יחזיק את הקובץ.
+          await userHolder.trackRead(() async {
+            localUser = await readGenerationsInIsolate(userTarget);
+          });
           if (myGen != _generation) return;
-          if ((await userRepo.database.capabilities).hasGenerations) {
-            _accumulate(userDb.select(_selectSql), localUser);
-          }
         } catch (e) {
           debugPrint('[GenerationCache] user_books generations skipped: $e');
         }
@@ -165,9 +166,11 @@ class GenerationCache {
           final path = library.path;
           final immutable = library.immutable;
           try {
-            final orders = await Isolate.run(
-              () => readAttachedGenerations(path, immutable: immutable),
-            ).timeout(AttachedLibraryRegistry.openTimeout);
+            final orders = await readGenerationsInIsolate((
+              path: path,
+              untrusted: true,
+              immutable: immutable,
+            )).timeout(AttachedLibraryRegistry.openTimeout);
             if (myGen != _generation || orders.isEmpty) return;
             localAttached[library.slug] = orders;
           } catch (e) {
@@ -180,14 +183,25 @@ class GenerationCache {
     return localAttached;
   }
 
-  /// דורות הספרים של מסד מצורף — רץ ב-isolate.
+  /// מתודה סטטית: closure בתוך מתודה אסינכרונית לוכד את כל ההקשר שלה, ועלול
+  /// להכיל אובייקט שאינו עובר ל-isolate.
   @visibleForTesting
-  static Map<int, int> readAttachedGenerations(
-    String path, {
-    bool immutable = false,
-  }) {
-    final db = openUntrustedReadOnlyDatabase(path, immutable: immutable);
+  static Future<Map<int, int>> readGenerationsInIsolate(
+    ReadOnlyDbTarget target,
+  ) => Isolate.run(() => readGenerations(target));
+
+  /// כתיבה חיצונית ל-seforim.db ממתינה לקריאה הרשומה ב-[DbReadWorker].
+  static Future<Map<int, int>> _readOfficialGenerations(
+    ReadOnlyDbTarget target,
+  ) => DbReadWorker.runOnFreshIsolate(() => readGenerations(target));
+
+  /// דורות הספרים של [target] — רץ ב-isolate. מסד בלי טבלאות הדורות → ריק.
+  @visibleForTesting
+  static Map<int, int> readGenerations(ReadOnlyDbTarget target) {
+    final db = openReadOnlyTarget(target);
     try {
+      // user_books.db נכתב במקביל מה-isolate הראשי.
+      if (!target.untrusted) db.execute('PRAGMA busy_timeout=5000');
       final tables = db.select(
         "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' "
         "AND name IN ('book_generation', 'generation')",
