@@ -34,7 +34,7 @@ enum IndexUpdateMode {
     return stored == libraryOnly.storageValue ? libraryOnly : all;
   }
 
-  /// המצב השמור. בלי הגדרות מאותחלות (בדיקות) — [all], ההתנהגות הקודמת.
+  /// המצב השמור. בלי הגדרות מאותחלות (בדיקות) — [all].
   static IndexUpdateMode readStored() {
     if (!Settings.isInitialized) return all;
     return resolve(

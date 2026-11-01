@@ -320,7 +320,6 @@ class IndexingRepository {
     return true;
   }
 
-  /// האם הספר כבר מאונדקס — לפי המסמכים החיים שנקראו מהאינדקס עצמו.
   static int _activeRuns = 0;
   static Completer<void>? _idle;
 
@@ -337,6 +336,7 @@ class IndexingRepository {
     _idle = null;
   }
 
+  /// האם הספר כבר מאונדקס — לפי המסמכים החיים שנקראו מהאינדקס עצמו.
   bool isBookIndexed(Book book) => _tantivyDataProvider.indexedFilePaths
       .contains(BookIdentity.indexedFilePath(book));
 
@@ -752,11 +752,8 @@ class IndexingRepository {
 
         var bookWasIndexed = false;
         try {
-          // ספרי מסמך עוברים אינדוקס דרך זרימת TextBook (העטיפה
-          // משמרת id/categoryId כדי ש-`book.text` יחלץ קובץ → text).
-          // BookIdentity.keyOf של העטוף זהה למקור: כשיש id המפתח הוא
-          // 'id:<id>', וכשאין — title+categoryKey+fileType+path
-          // (העטיפה מעבירה filePath ?? path, ו-fileType נשמר).
+          // ספרי מסמך עוברים בזרימת TextBook; העטיפה שומרת id, categoryId,
+          // נתיב ו-fileType, ולכן BookIdentity.keyOf שלה זהה למקור.
           final TextBook? textBookForIndex = _asTextBookForIndex(book);
           if (textBookForIndex != null) {
             if (libraryBatches.handled.remove(book)) {
@@ -988,11 +985,8 @@ class IndexingRepository {
     required BookSourceHashes sourceHashes,
     void Function()? onActualIndexingStarted,
   }) async {
-    // כל הכנת הספר — פיצול לשורות, מעקב reference trail, נרמול, טביעת
-    // אצבע ואינדוקס — רצה במנוע בקריאת FFI אחת: התוכן חוצה את הגשר פעם
-    // אחת בלבד. במסלול הרגיל (ספר מ-DB) התוכן נקרא כבייטים גולמיים
-    // (UTF-8 כפי שמאוחסן ב-SQLite) ונמסר ל-addTextBookBytes — בלי פענוח
-    // ל-String וקידוד חוזר על הגשר (~180ms/MB שנמדדו בלוגים).
+    // כל הכנת הספר רצה במנוע בקריאת FFI אחת. ספר מ-DB נמסר כבייטי UTF-8
+    // גולמיים, בלי פענוח ל-String וקידוד חוזר על הגשר (~180ms/MB).
     await _beginBook(book);
     final loadStopwatch = Stopwatch()..start();
     final source = await loadTextBookSource(book);
@@ -1274,9 +1268,8 @@ class IndexingRepository {
       return extracted.droppedPages;
     }
 
-    // ההכרעה אם ל-PDF יש טקסט שמיש עברה למנוע: add_pdf_book מנרמל ומסנן
-    // זבל בעצמו ומחזיר כמה מסמכים נוספו — אין יותר מעבר נרמול מקדים שרץ
-    // על ה-main thread ונזרק (הנרמול הכפול הישן של _hasUsablePdfText).
+    // המנוע מכריע אם ל-PDF יש טקסט שמיש: addPdfBookBytes מנרמל, מסנן זבל
+    // ומחזיר כמה מסמכים נוספו.
     var added = 0;
     if (pages.isNotEmpty) {
       added = await _addPdfBookToEngine(
@@ -1570,9 +1563,8 @@ class IndexingRepository {
     }
   }
 
-  /// חילוץ טקסט העמודים וה-outline מה-PDF עצמו. אינו בודק אם הטקסט שמיש —
-  /// ההכרעה הזו עברה למנוע (add_pdf_book מסנן זבל ומחזיר 0 כשאין תוכן);
-  /// כשל בפתיחת הקובץ מופץ לקורא, שמחליט בין sidecar להפצת השגיאה.
+  /// חילוץ טקסט העמודים וה-outline מה-PDF עצמו, בלי לבדוק אם הטקסט שמיש
+  /// (המנוע מסנן זבל). כשל בפתיחת הקובץ מופץ לקורא, שמחליט בין sidecar להפצתו.
   Future<
     ({
       List<({String reference, String text, int pageIndex})> pages,
@@ -1837,7 +1829,7 @@ class IndexingRepository {
   /// [dataUriLineOrdinals] שלו (null כשאין).
   ///
   /// הסריקה רצה **פעם אחת**, וכאן — תוצאתה היא שמכריעה אם צריך isolate
-  /// בכלל. גרסה שסרקה כאן וגם שוב בתוך ה-isolate הכפילה את החסימה.
+  /// בכלל.
   @visibleForTesting
   static Future<({Uint8List? bytes, String? text, Uint32List? dataUriLines})>
   cleanDataUrisOffFrame(Uint8List bytes) async {
@@ -2578,12 +2570,8 @@ class IndexingRepository {
     Iterable<Book> relocatedBooks,
   ) async => dropBookIndexEntries(relocatedBooks);
 
-  /// Returns true for book types that the indexer actually processes.
-  /// Non-indexable types (ExternalLibraryBook וכו') מדולגים בשקט
-  /// ב-indexAllBooks, ולכן חייבים להיות מחוץ לבדיקות הסטטוס.
-  /// ספרי מסמך נכללים — הם ממופים ל-TextBook ב-indexAllBooks דרך
-  /// `toTextBook()`, ו-`book.text` כבר יודע לחלץ את התוכן דרך הממיר
-  /// המתאים (ראה DatabaseLibraryProvider.getBookText).
+  /// סוגי הספרים שהאינדוקס מעבד (ספרי מסמך דרך [_asTextBookForIndex]). שאר
+  /// הסוגים מדולגים בשקט, ולכן חייבים להיות מחוץ לבדיקות הסטטוס.
   static bool isIndexableBook(Book book) =>
       book is TextBook ||
       (book is PdfBook && !isBundledTalmudBavliPdf(book)) ||
