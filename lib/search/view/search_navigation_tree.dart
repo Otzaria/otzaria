@@ -1,5 +1,8 @@
+import 'dart:io' show Platform;
+
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:otzaria/library/models/library.dart';
 import 'package:otzaria/library/view/grid_items.dart';
 import 'package:otzaria/models/books.dart';
@@ -40,7 +43,6 @@ class SearchNavigationTree extends StatelessWidget {
   /// [isExpanded] הוא המצב האפקטיבי של הקטגוריה כרגע (כולל פתיחה אוטומטית
   /// של ענף הבחירה) — בלעדיו הלחיצה הראשונה על החץ לא הייתה מכווצת.
   final void Function(String path, bool isExpanded) onToggleExpand;
-  final bool Function() isMultiSelectPressed;
 
   /// ניקוי כל הסינון (קטגוריות + ממדים) — מכפתור "נקה סינון" שבכותרת השורש.
   final VoidCallback onClearAll;
@@ -73,7 +75,6 @@ class SearchNavigationTree extends StatelessWidget {
     required this.onSetFacet,
     required this.onToggleFacet,
     required this.onToggleExpand,
-    required this.isMultiSelectPressed,
     required this.onClearAll,
     this.extraRootCategories = const [],
     this.extraCategoriesFirst = false,
@@ -85,6 +86,15 @@ class SearchNavigationTree extends StatelessWidget {
   static const double _iconSize = 14;
 
   bool _isSelected(String facet) => selectedFacets.contains(facet);
+
+  /// ב-Mac המוסכמה לריבוי בחירה היא Cmd+Click, בשאר הפלטפורמות Ctrl+Click.
+  static bool _isMultiSelectPressed() {
+    final keyboard = HardwareKeyboard.instance;
+    if (Platform.isMacOS) {
+      return keyboard.isMetaPressed || keyboard.isControlPressed;
+    }
+    return keyboard.isControlPressed;
+  }
 
   /// נתיבי הקטגוריות/ספרים המסוננים כרגע (בלי השורש ובלי ממדים).
   List<String> _selectedPaths() => FacetHelper.categoryFacetsOf(
@@ -333,7 +343,7 @@ class SearchNavigationTree extends StatelessWidget {
               isExpanded: row.isExpanded,
               hasChildren: row.hasChildren,
               count: row.count == -1 ? null : row.count,
-              onTap: () => isMultiSelectPressed()
+              onTap: () => _isMultiSelectPressed()
                   ? onToggleFacet(row.facet!)
                   : onSetFacet(row.facet!),
               onToggleExpand: () => onToggleExpand(row.facet!, row.isExpanded),
@@ -353,7 +363,7 @@ class SearchNavigationTree extends StatelessWidget {
               level: row.level - 1,
               isSelected: _isSelected(row.facet!),
               count: row.count,
-              onTap: () => isMultiSelectPressed()
+              onTap: () => _isMultiSelectPressed()
                   ? onToggleFacet(row.facet!)
                   : onSetFacet(row.facet!),
             ),
@@ -450,7 +460,7 @@ class SearchNavigationTree extends StatelessWidget {
       hasChildren: hasChildren,
       count: count == -1 ? null : count,
       trailing: loadingTrailing,
-      onTap: () => isMultiSelectPressed()
+      onTap: () => _isMultiSelectPressed()
           ? onToggleFacet(category.path)
           : onSetFacet(category.path),
       onToggleExpand: () => _toggleExpand(category, isExpanded),
@@ -518,7 +528,7 @@ class SearchNavigationTree extends StatelessWidget {
       count: count == -1 ? null : count,
       leading: _bookIconBox(cs, book),
       onTap: () =>
-          isMultiSelectPressed() ? onToggleFacet(facet) : onSetFacet(facet),
+          _isMultiSelectPressed() ? onToggleFacet(facet) : onSetFacet(facet),
     );
 
     // בעץ המקובץ הכרטיס מסופק ע"י _wrapInGroupCard; ברשימת הסינון השטוחה
