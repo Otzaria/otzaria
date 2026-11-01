@@ -1,6 +1,7 @@
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/windowing/app_window_keys.dart';
+import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/services/plugin_runtime_dispatcher.dart';
@@ -330,6 +331,102 @@ void main() {
       await settle(() => first.jsCalls.isNotEmpty);
 
       expect(first.jsCalls.single, contains('after.close'));
+    });
+  });
+
+  group('אירועים של כרטיסיה חיה שטרם נטענה', () {
+    late DateTime now;
+    late Set<PluginInstanceKey> live;
+    String? opener(String pluginId) => 'second';
+
+    setUp(() {
+      now = DateTime(2026, 1, 1);
+      launcher.clock = () => now;
+      live = {(pluginId: _kPid, instanceId: 'second')};
+      launcher.registerInstanceOpener(
+        keys,
+        opener,
+        hasOpenInstance: live.contains,
+      );
+      launcher.openNewInstance(
+        _kPid,
+        topic: 'plugin.page_opened',
+        payload: const {'param': 'דף מבוקש'},
+        windowKeys: keys,
+      );
+      now = now.add(const Duration(minutes: 5));
+    });
+
+    tearDown(() => launcher.unregisterInstanceOpener(keys, opener));
+
+    test('גם בדיקת פינוי לפני boot שומרת את הפרמטר לטאב החי', () async {
+      expect(launcher.hasPendingFor(_kPid), isTrue);
+      expect(
+        launcher.hasPendingFor(_kPid, instanceId: 'first'),
+        isFalse,
+        reason: 'מופע אחר אינו מוחרג מפינוי בגלל אירוע ממוקד',
+      );
+      expect(launcher.hasPendingFor(_kPid, instanceId: 'second'), isTrue);
+      launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
+      await settle(() => second.jsCalls.isNotEmpty);
+      expect(second.jsCalls.single, contains('דף מבוקש'));
+      expect(first.jsCalls, isEmpty);
+    });
+
+    test('boot מאוחר שומר את הפרמטר גם בלי בדיקת פינוי קודמת', () async {
+      launcher.markPageReady(_kPid, instanceId: 'second', isPrimary: false);
+      await settle(() => second.jsCalls.isNotEmpty);
+      expect(second.jsCalls.single, contains('דף מבוקש'));
+    });
+
+    test('סגירת טאב שלא נוצר עבורו widget מאפשרת ניקוי', () {
+      live.clear();
+      expect(launcher.hasPendingFor(_kPid), isFalse);
+    });
+
+    test('טאב אחר של אותו תוסף אינו משמר פתיחה יתומה', () {
+      live
+        ..clear()
+        ..add((pluginId: _kPid, instanceId: 'first'));
+      expect(launcher.hasPendingFor(_kPid), isFalse);
+    });
+
+    test('ביטול רישום הפותח משחרר את בדיקת החיות שלו', () {
+      launcher.unregisterInstanceOpener(keys, opener);
+      expect(launcher.hasPendingFor(_kPid), isFalse);
+    });
+
+    test('ביטול רישום פותח ישן אינו מוחק רישום מחליף', () {
+      String? replacement(String pluginId) => 'first';
+      launcher.registerInstanceOpener(
+        keys,
+        replacement,
+        hasOpenInstance: live.contains,
+      );
+      launcher.unregisterInstanceOpener(keys, opener);
+      expect(launcher.hasPendingFor(_kPid), isTrue);
+      launcher.unregisterInstanceOpener(keys, replacement);
+      expect(launcher.hasPendingFor(_kPid), isFalse);
+    });
+
+    test('רישום מחליף בלי probe אינו משמר probe ישן', () {
+      String? replacement(String pluginId) => 'first';
+      launcher.registerInstanceOpener(keys, replacement);
+      expect(launcher.hasPendingFor(_kPid), isFalse);
+      launcher.unregisterInstanceOpener(keys, replacement);
+    });
+
+    test('מופע חי בחלון אחר עדיין שומר את האירוע שלו', () {
+      final otherKeys = AppWindowKeys();
+      launcher.registerInstanceOpener(
+        otherKeys,
+        opener,
+        hasOpenInstance: live.contains,
+      );
+      launcher.unregisterInstanceOpener(keys, opener);
+      expect(launcher.hasPendingFor(_kPid), isTrue);
+      launcher.unregisterInstanceOpener(otherKeys, opener);
+      expect(launcher.hasPendingFor(_kPid), isFalse);
     });
   });
 

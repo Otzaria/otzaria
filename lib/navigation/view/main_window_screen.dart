@@ -726,6 +726,11 @@ class MainWindowScreenState extends State<MainWindowScreen>
       _windowKeys,
       _openPluginInstance,
       hasOpenTab: _hasOpenPluginTab,
+      hasOpenInstance: (key) =>
+          mounted &&
+          context.read<TabsBloc>().state.tabs.any(
+            (tab) => ToolTab.visiblePluginInstancesOf(tab).contains(key),
+          ),
     );
     ToolsLauncherController.instance.register(_windowKeys, _openToolsLauncher);
 

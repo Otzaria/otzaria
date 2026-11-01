@@ -29,12 +29,17 @@ class PluginPageLauncher {
     AppWindowKeys keys,
     String? Function(String pluginId) opener, {
     bool Function(String pluginId)? hasOpenTab,
+    bool Function(PluginInstanceKey)? hasOpenInstance,
   }) {
     _instanceOpeners[keys] = opener;
     _openTabProbes[keys] = hasOpenTab;
+    _openInstanceProbes.remove(keys);
+    if (hasOpenInstance != null) _openInstanceProbes[keys] = hasOpenInstance;
   }
 
   final _openTabProbes = Expando<bool Function(String pluginId)>();
+  final Map<AppWindowKeys, bool Function(PluginInstanceKey)>
+  _openInstanceProbes = {};
 
   void unregisterInstanceOpener(
     AppWindowKeys keys,
@@ -43,6 +48,7 @@ class PluginPageLauncher {
     if (_instanceOpeners[keys] != opener) return;
     _instanceOpeners[keys] = null;
     _openTabProbes[keys] = null;
+    _openInstanceProbes.remove(keys);
   }
 
   void unregister(
@@ -68,8 +74,7 @@ class PluginPageLauncher {
   final Map<PluginInstanceKey, ({int? viewId, DateTime openedAt})>
   _pendingInstanceOrigins = {};
 
-  /// כמה זמן אירוע ממוקד ממתין למופע שלא עלה, לפני שהוא נזנח. בלי זה כשל
-  /// ב-boot משאיר אותו ומונע פינוי של כל מופעי התוסף.
+  /// אירוע של פתיחה יתומה פג; טאב חי שטרם נטען שומר את בקשת הפתיחה שלו.
   static const Duration pendingInstanceEventTtl = Duration(seconds: 60);
 
   @visibleForTesting
@@ -79,7 +84,9 @@ class PluginPageLauncher {
     final cutoff = clock().subtract(pendingInstanceEventTtl);
     final expired = [
       for (final entry in _pendingInstanceOrigins.entries)
-        if (entry.value.openedAt.isBefore(cutoff)) entry.key,
+        if (entry.value.openedAt.isBefore(cutoff) &&
+            !_openInstanceProbes.values.any((probe) => probe(entry.key)))
+          entry.key,
     ];
     for (final key in expired) {
       _pendingInstanceOrigins.remove(key);
@@ -94,13 +101,16 @@ class PluginPageLauncher {
   final Set<PluginInstanceKey> _extraInstances = {};
   final Map<({String pluginId, int? viewId}), Future<void>> _deliveryChain = {};
 
-  bool hasPendingFor(String pluginId) {
+  bool hasPendingFor(String pluginId, {String? instanceId}) {
     _dropExpiredInstanceEvents();
     return _pending.entries.any(
           (entry) => entry.key.pluginId == pluginId && entry.value.isNotEmpty,
         ) ||
         _pendingByInstance.entries.any(
-          (entry) => entry.key.pluginId == pluginId && entry.value.isNotEmpty,
+          (entry) =>
+              entry.key.pluginId == pluginId &&
+              (instanceId == null || entry.key.instanceId == instanceId) &&
+              entry.value.isNotEmpty,
         );
   }
 

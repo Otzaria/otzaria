@@ -4,7 +4,9 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:otzaria/core/windowing/app_window_keys.dart';
 import 'package:otzaria/plugins/models/plugin_toolbar_item.dart';
+import 'package:otzaria/plugins/services/plugin_page_launcher.dart';
 import 'package:otzaria/plugins/plugin_constants.dart';
 import 'package:otzaria/plugins/repository/plugin_registry_repository.dart';
 import 'package:otzaria/plugins/services/plugin_discard_policy.dart';
@@ -437,6 +439,38 @@ void main() {
       );
       await _d.onForegroundInstanceReady(_pid, instanceId: 'a');
       expect(_d.isInstanceShown(_key()), isTrue);
+    });
+
+    test('אירוע לטאב שלא נטען אינו מונע פינוי מופע אחר של אותו תוסף', () async {
+      final launcher = PluginPageLauncher.instance;
+      final keys = AppWindowKeys();
+      String? opener(String pluginId) => 'b';
+      launcher.registerInstanceOpener(
+        keys,
+        opener,
+        hasOpenInstance: (key) => key == _key('b'),
+      );
+      addTearDown(() {
+        launcher.unregisterInstanceOpener(keys, opener);
+        launcher.markPageClosed(_pid, instanceId: 'b');
+      });
+      _d.discardLimitsOverride = const PluginDiscardLimits(
+        maxLiveSuspended: 0,
+        maxSuspendedAge: Duration(hours: 1),
+      );
+      final host = _Host();
+      await suspended('a', host);
+      launcher.openNewInstance(
+        _pid,
+        topic: 'plugin.page_opened',
+        payload: const {'param': 'requested'},
+        windowKeys: keys,
+      );
+
+      await _d.checkDiscard();
+
+      expect(host.released, 1);
+      expect(launcher.hasPendingFor(_pid, instanceId: 'b'), isTrue);
     });
 
     test('פינוי לפי גיל', () async {
