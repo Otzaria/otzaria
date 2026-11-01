@@ -1,7 +1,7 @@
 # תוכנית אכיפה ב־CI
 
 > בסיס: `upstream/dev` ‏`f86ecd7c7` (עודכן מול `ac97e4490` אחרי #3794). המטרה: לזהות חריגה מהתקן לפני מיזוג, בלי לחסום שימושים לגיטימיים ובלי להכשיל את ה־CI על חוב ישן.
-> הכרעות קשורות: DD-22 (golden tests), DD-23 (מנוע האכיפה).
+> **גרסה 1.0 (1.11.2026):** ההכרעות אושרו. המנוע `tool/ui_lint` (DD-23 A), golden על Windows (DD-22 A), והכללים מיושרים לערכים שהוכרעו: DD-01, 02, 03, 04, 12, 15, 24. **שום חלק כאן עוד לא מומש** (MIG-01, MIG-27, MIG-28, MIG-29).
 
 ## 1. המצב היום
 
@@ -32,7 +32,7 @@
 - `Transform.flip` סביב אייקון.
 - `ScaffoldMessenger.showSnackBar`.
 - `Theme.of(context).primaryColor`.
-- גדלי גופן וצבעים קשיחים.
+- גדלי גופן, גדלי אייקון, רדיוסים, הגבהה וצבעים קשיחים.
 
 ## 2. עקרונות
 1. **AST עדיף על regex** כשצריך להבין תחביר: שם בנאי, ארגומנט בשם, ערך ליטרלי, מחלקה עוטפת (`extends CustomPainter`) או prefix (`pw.`).
@@ -42,7 +42,7 @@
 5. **אין השתקה גורפת.** חריג נכתב על צומת בודד, עם נימוק חובה.
 6. **כל כלל נבדק בעצמו.** לכל כלל יש מקרה שחייב להיכשל ומקרה שחייב לעבור, ובדיקה שהסורק אכן מוצא משהו.
 
-## 3. המנוע: `tool/ui_lint/` [מוצע · DD-23]
+## 3. המנוע: `tool/ui_lint/` [מחייב · DD-23 A] · יעד — טרם מומש (MIG-01, MIG-27)
 
 ### 3.1 מבנה
 ```
@@ -70,11 +70,11 @@ test/design_system/
 
 ### 3.3 קטלוג הכללים
 
-הגודל ההתחלתי של ה־baseline מבוסס על הסריקה הסטטית (UI_AUDIT §2.3). הערכים מעוגלים, והמספר הסופי ייקבע בהרצה הראשונה.
+הגודל ההתחלתי של ה־baseline מבוסס על הסריקה הסטטית (UI_AUDIT §2.3) ועל ספירה ב־`ac97e4490`. הערכים מעוגלים, והמספר הסופי ייקבע בהרצה הראשונה. כל הודעת כלל מציינת את התחליף מהתקן.
 
 | ID | כלל | זיהוי | החרגות מובנות (config) | baseline משוער | שלב |
 |---|---|---|---|---|---|
-| UIL-001 | אין `AlertDialog`/`Dialog`/`SimpleDialog` מחוץ ל־`lib/widgets/dialogs/` | ctor | `lib/widgets/dialogs/**`, ‏`lib/settings/dialogs/list_dialog_frame.dart` | ~27 | 1 |
+| UIL-001 | אין `AlertDialog`/`Dialog`/`SimpleDialog` מחוץ ל־`lib/widgets/dialogs/` | ctor | `lib/widgets/dialogs/**`, ‏`lib/settings/dialogs/list_dialog_frame.dart` (עד MIG-26) | ~27 | 1 |
 | UIL-002 | אין `TextButton`/`FilledButton`/`OutlinedButton`/`ElevatedButton` מחוץ ל־`lib/widgets/controls/` | ctor (כולל `.icon`/`.tonal`) | `lib/widgets/controls/**`, ‏`lib/widgets/misc/app_dropdown_field.dart` | ~26 | 1 |
 | UIL-003 | לכל `IconButton` יש `tooltip:` | ctor + named arg | `IconButton.styleFrom` (לא בנאי) | ~40 | 1 |
 | UIL-004 | אין `Theme.of(…).primaryColor` / `theme.primaryColor` | PropertyAccess | — | 5 | 1 |
@@ -88,20 +88,22 @@ test/design_system/
 | UIL-012 | אין `Card(` גולמי | ctor | `lib/widgets/layout/**` | 8 | 2 |
 | UIL-013 | אין `CircularProgressIndicator(` מחוץ ל־`lib/widgets/feedback/` | ctor | `ActionButton` | ~70 | 2 |
 | UIL-014 | אין `PopupMenuButton`/`showMenu(`/`MenuAnchor` מחוץ ל־`lib/widgets/misc/` ולחבילה | ctor/invocation | — | ~8 | 2 |
-| UIL-015 | אין `Color(0x…)`/`Color.fromARGB`/`Colors.<hue>` מחוץ ל־`lib/theme/` | ctor/identifier | `extends CustomPainter`, ‏`pw.*`, ‏`lib/printing/**`, ‏`**/export/**`, פלטות (`app_seed_colors`, `calendar_event_colors`), `Colors.transparent`, `Colors.white`/`black` בתוך `BoxShadow` | ~40 | 3 |
-| UIL-016 | אין `.withValues(alpha:)`/`.withAlpha(`/`.withOpacity(` על צבע ממשק מחוץ ל־`lib/theme/` | MethodInvocation | בתוך `BoxShadow(color:)`, ‏`CustomPainter`, ייצוא | ~110 | 3 |
-| UIL-017 | אין `fontSize:` ליטרלי ב־`TextStyle` של ממשק | named arg + ליטרל | `pw.TextStyle`, קבצי תוכן הקריאה (רשימה ב־config, נגזרת מ־UI_AUDIT `justified_exceptions`), ביטוי מחושב (לא ליטרל) | ~150 | 3 |
-| UIL-018 | אין `fontFamily: 'Roboto'` או ליטרל משפחה אחר מחוץ ל־`lib/theme/` | named arg + string | `AppFonts`, הגדרות קריאה | ~8 | 2 |
-| UIL-019 | אין `BorderRadius.circular(n)`/`Radius.circular(n)` ליטרלי | ctor + ליטרל | `CustomPainter`, ‏`pw.*`, ביטוי מחושב | ~15 | 3 |
-| UIL-020 | ריווח ב־`EdgeInsets*`/`SizedBox(width/height)` מהסולם בלבד | ctor + ליטרל | 0, ‏`double.infinity`, ביטוי מחושב, `CustomPainter` | ~540 (מתוכם ~150 מחוץ לסולם) | 3 (בהתחלה: off-scale בלבד) |
-| UIL-021 | אין `EdgeInsets.only(left/right)`/`fromLTRB`/`Alignment.centerLeft/Right`/`Positioned(left/right)` | ctor + named arg | גאומטריית ציור, עם allow | ~110 | 3 |
-| UIL-022 | אין השוואת רוחב לליטרל ≥100 (`width < 520`) | BinaryExpression על `.width`/`maxWidth` | קבוע `static const` עם שם בתוך הרכיב | 32 | 3 |
-| UIL-023 | אין `Duration(milliseconds: n)` בפרמטר `duration:` של רכיב Animated*/Transition | ctor + parent arg | לא־UI (timeouts, debounce) לא נתפס, כי הכלל מסתכל רק על `duration:` של Widget | ~90 | 3 |
+| UIL-015 | אין `Color(0x…)`/`Color.fromARGB`/`Colors.<hue>` מחוץ ל־`lib/theme/`. ההודעה מפנה לתפקיד: כתום/ענבר → `AppSurfaces.warning*`; ירוק "הצלחה" → `secondaryContainer` (DD-24) | ctor/identifier | רק המקרים של DD-24: תוכן (`extends CustomPainter` שמצייר תוכן, פלטות `app_seed_colors`/`calendar_event_colors`, מרקר), ייצוא (`pw.*`, ‏`lib/printing/**`, ‏`**/export/**`), כרום מערכת ההפעלה (`lib/core/windowing/**`); וגם `Colors.transparent`, ו־`Colors.white`/`black` בתוך `BoxShadow` (עד MIG-08) | ~40 | 3 |
+| UIL-016 | אין `.withValues(alpha:)`/`.withAlpha(`/`.withOpacity(` על צבע ממשק מחוץ ל־`lib/theme/` | MethodInvocation | `CustomPainter`, ייצוא. `BoxShadow(color:)` מוחרג **רק עד MIG-08**; אחר כך צל רק דרך `AppShadows` (UIL-030) | ~110 | 3 |
+| UIL-017 | **אין `fontSize:` בקוד פיצ'ר (DD-02):** לא ליטרל, ולא `AppTokens.font*` או חשבון עליו (`fontSM - 1`). התחליף: `textTheme.<slot>` | named arg ב־`TextStyle`/`copyWith` | `lib/theme/**`; ‏`pw.TextStyle`; קבצי תוכן הספר (רשימה ב־config, נגזרת מ־UI_AUDIT `justified_exceptions` JX-01, JX-19), שבהם הגודל מחושב מהגדרות הקריאה | ~150 ליטרלים + ~106 `AppTokens.font*` | 3 |
+| UIL-018 | אין `fontFamily:` ליטרלי (כולל `'Roboto'`) מחוץ ל־`lib/theme/`. רשימת ה־fallback של DD-01 חיה רק ב־`AppThemeData` | named arg + string | `AppFonts`, הגדרות קריאה, JSON מונוספייס (JX-21) | ~8 | 2 |
+| UIL-019 | **רדיוס רק מהטוקן היחיד (DD-04):** אין `BorderRadius.circular(n)`/`Radius.circular(n)` ליטרלי, ואין `StadiumBorder`. מותר `AppTokens.radius`/`borderRadiusAll`/`roundedShape` | ctor + ליטרל | `CustomPainter`, ‏`pw.*`; `CircleBorder`/`BoxShape.circle` לרכיב עגול מטבעו (נקודת סטטוס, אווטאר) | ~15 + 2 `StadiumBorder` | 3 |
+| UIL-020 | ריווח ב־`EdgeInsets*`/`SizedBox(width/height)` מהסולם בלבד: 2/4/8/12/16/24/32 (DD-03, אחרי MIG-04). ההודעה מציעה את הערך הבא כלפי מעלה (6→8, 10→12, 14→16) | ctor + ליטרל | 0, ‏`double.infinity`, ביטוי מחושב, `CustomPainter` | ~540 (מתוכם ~150 מחוץ לסולם) | 3 (בהתחלה: off-scale בלבד) |
+| UIL-021 | אין `EdgeInsets.only(left/right)`/`fromLTRB`/`Alignment.centerLeft/Right`/`Positioned(left/right)` | ctor + named arg | גאומטריית ציור, עם allow; ערכים סימטריים (JX-20) | ~110 | 3 |
+| UIL-022 | אין השוואת רוחב לליטרל ≥100 (`width < 520`). בדיאלוג: `LayoutBreakpoints.compact` (DD-15) | BinaryExpression על `.width`/`maxWidth` | קבוע `static const` עם שם בתוך הרכיב | 32 | 3 |
+| UIL-023 | אין `Duration(milliseconds: n)` בפרמטר `duration:` של רכיב Animated*/Transition. התחליף: `AppMotion.duration(context, AppTokens.anim*)` (DD-21) | ctor + parent arg | לא־UI (timeouts, debounce) לא נתפס, כי הכלל מסתכל רק על `duration:` של Widget | ~90 | 3 |
 | UIL-024 | רכיב משותף לא מייבא פיצ'ר | import directive | — | ~8 | 2 |
-| UIL-025 | אין `compactMenuMode` מתוך `lib/widgets/**` (אחרי DD-10) | PropertyAccess | — | ~12 | 4 |
-| UIL-026 | אין `MediaQuery.withNoTextScaling`/`TextScaler.noScaling`/`RichText(` גולמי | ctor/invocation | עם allow ונימוק | ~10 | 2 |
+| UIL-025 | אין `compactMenuMode` מתוך `lib/widgets/**`. התחליף: `AppDensity.of(context)` (DD-10, אחרי MIG-06) | PropertyAccess | — | ~12 | 4 |
+| UIL-026 | אין `MediaQuery.withNoTextScaling`/`TextScaler.noScaling`/`RichText(` גולמי | ctor/invocation | עם allow ונימוק (JX-10) | ~10 | 2 |
 | UIL-027 | אין `Brightness.dark`/`isDark` מחוץ ל־`lib/theme/` להחלטת צבע | identifier | פלטפורמה (סרגל מערכת), תוספים | ~57 | 4 |
-| UIL-028 | `showDialog(` רק דרך `showAppDialog`/`showDialogUntilTornDown`/`settingsDialogBuilder` | invocation | `lib/widgets/dialogs/**` | ~90 | 4 |
+| UIL-028 | `showDialog(` רק דרך `showDialogUntilTornDown`/`settingsDialogBuilder` והעזרים שעוטפים אותם | invocation | `lib/widgets/dialogs/**` | ~90 | 4 |
+| UIL-029 | **גודל אייקון מטוקן (DD-03):** אין `size:` ליטרלי ב־`Icon(`, אין `iconSize:` ליטרלי, ואין `AppTokens.font*` כגודל אייקון. התחליף: `AppTokens.icon*` (אחרי MIG-04) | ctor + named arg | `CustomPainter`, מעבדי תוכן (JX-19) | ~130 | 3 |
+| UIL-030 | **הגבהה וצל מהטוקנים (DD-12):** `elevation:` רק `0` או `AppTokens.elevation*`, ואין `BoxShadow(` מחוץ ל־`lib/theme/` (אחרי MIG-08) | named arg + ctor | נייר PDF (JX-05), `CustomPainter`, גובה גאוגרפי שאינו ארגומנט של Widget (JX-16) | ~25 + ~20 | 3 |
 
 **כלל לא נכנס לשלב 1** אם שיעור ההתראות השגויות שלו בהרצה ראשונה גבוה מ־10%. כלל כזה נשאר בדוח עד שהוא משתפר.
 
@@ -117,7 +119,7 @@ test/design_system/
 - **חריגה שאינה ב־baseline** מכשילה את הבדיקה: "חריגה חדשה".
 - **רשומה שלא נוצלה** מכשילה את הבדיקה: "baseline מת — הרץ `--update-baseline`". זה ה־ratchet, לפי התקדים של `backup_storage_coverage_test.dart:134`.
 - **`--update-baseline`** רק מוחק רשומות. הוספה דורשת `--allow-growth`.
-- **workflow ‏`ui_baseline_guard.yml`** (העתק של `lockfile_guard.yml`) מכשיל PR שמגדיל את מספר הרשומות, אלא אם יש עליו תווית `ui-baseline`, שמתחזק מוסיף.
+- **workflow ‏`ui_baseline_guard.yml`** (העתק של `lockfile_guard.yml`) מכשיל PR שמגדיל את מספר הרשומות, אלא אם יש עליו תווית **`ui-baseline`** (DD-23), שמתחזק מוסיף.
 
 ### 3.5 חריגים מתועדים
 **inline**, על הצומת הבא בלבד:
@@ -139,11 +141,13 @@ const _hebcalBlue = Color(0xFF1565C0);
 | `lib/theme/**` | שכבת הטוקנים |
 | `extends CustomPainter`, ‏`paint(Canvas…)` | גאומטריה וצבע של ציור תוכן |
 | `pw.*`, ‏`lib/printing/**` (הייצוא), `lib/tools/tikkun_korim/export/**`, `calendar_print_helpers.dart` | פלט נייר |
-| קבצי תוכן הקריאה: `reader_line/**`, `smart_text/**`, `continuous_reading_paragraph.dart`, `commentary_list_base.dart` (חלקי תוכן), `links_list_view.dart` (גדלים יחסיים) | טיפוגרפיה לפי הגדרות המשתמש |
+| קבצי תוכן הקריאה: `reader_line/**`, `smart_text/**`, `continuous_reading_paragraph.dart`, `commentary_list_base.dart` (חלקי תוכן), `links_list_view.dart` (גדלים יחסיים) | טיפוגרפיה לפי הגדרות המשתמש (DD-02 מתיר `fontSize` רק כאן וב־Theme) |
 | `lib/plugins/utils/fluent_icon_resolver.dart`, `*.g.dart` | קוד שנוצר אוטומטית |
 | `app_seed_colors.dart`, `calendar_event_colors.dart`, מרקר | פלטות תוכן |
 | `lib/core/windowing/**` (כפתורי חלון) | חיקוי של מערכת ההפעלה |
-| צבע בתוך `BoxShadow(color:)` | צל מחייב שקיפות (עד DD-12) |
+| צבע בתוך `BoxShadow(color:)` | **זמני, עד MIG-08.** אחר כך צל רק ב־`AppShadows` (DD-12) |
+
+אין החרגה ל־`lib/text_book/editing/**`: העורך נמחק (DD-29, MIG-26), וההחרגה הזמנית JX-23 בטלה.
 
 ## 4. בדיקות חוזיות (Contract tests)
 
@@ -153,29 +157,29 @@ const _hebcalBlue = Color(0xFF1565C0);
 |---|---|---|
 | שימוש ב־Theme | רכיב ללא override מקבל את צבעי ה־component theme. שינוי זרע משנה את הרכיב בלי שינוי קוד | `pumpWidget` עם שני `ColorScheme`. בדיקה ש־`Material.color`/`TextStyle.color` נגזרים מהתפקיד |
 | בהיר/כהה | ניגודיות ≥4.5 לכל זוג טקסט/רקע של הרכיב, בשני מצבי הבהירות ובכל הזרעים | הרחבה של `test/theme/app_theme_data_test.dart:101-136` |
-| פריסת דיאלוג | `small`/`medium`/`large` ברוחב 360/800/1400. אין overflow. ה־X מוצג. כותרת ארוכה נחתכת עם tooltip | `tester.view.physicalSize` |
+| פריסת דיאלוג | `small`/`medium`/`large` ברוחב 360/800/1400. אין overflow. רצועת כותרת בכל גודל, תג מ־`medium` (DD-07). מתחת ל־600: `large` במסך מלא (DD-16). ה־X מוצג. כותרת ארוכה נחתכת עם tooltip | `tester.view.physicalSize` |
 | גלילה | תוכן ארוך גולל, ושורת הפעולות נשארת קבועה | |
-| מקלדת | Escape סוגר. Escape עם dirty שואל. Enter ב־`SelectionDialog` על פריט בוחר אותו (רגרסיה לבאג UI-024). Tab מקיף את שורת הפעולות | `sendKeyEvent` |
+| מקלדת | Escape סוגר. Escape עם dirty שואל. Enter ב־`SelectionDialog` על פריט בוחר אותו (רגרסיה לבאג UI-024). Enter על "ביטול" מבטל. Tab מקיף את שורת הפעולות (DD-08) | `sendKeyEvent` |
 | שינוי גודל חלון | רכיב בחלונית ברוחב 300 בתוך חלון ברוחב 1400 מחליט לפי 300 | `SizedBox(width:300)` בתוך view רחב |
+| צפיפות | החלפת "צפיפות ממשק" מעדכנת סרגל ותפריט בלי rebuild ידני (DD-10) | שינוי `AppDensity` ב־Theme |
+| הפחתת תנועה | עם `disableAnimations`, `AppMotion.duration` מחזיר אפס (DD-21) | `MediaQuery(data: …disableAnimations: true)` |
 | תוכן ארוך | כותרת של 200 תווים, ושם ספר עם מספרים ואנגלית | |
 | RTL | פריסה ב־RTL ובמצב האנגלית (`ChromeDirectionality`). חצים לפי כיוון | |
-| שמירת התנהגות | לפני שכתוב: בדיקה שמתעדת את ההתנהגות הקיימת (characterization). אחרי השכתוב היא עוברת ללא שינוי, או שהשינוי מתועד ב־DD | |
+| שמירת התנהגות | לפני שכתוב, ולפני כל commit פירוק (DD-30): בדיקה שמתעדת את ההתנהגות הקיימת (characterization). אחרי השכתוב היא עוברת ללא שינוי, או שהשינוי מתועד ב־DD | |
 | טקסט מוגדל | `TextScaler.linear(1.3)` בלי overflow | |
 | נגישות | `meetsGuideline(textContrastGuideline)`, ‏`androidTapTargetGuideline`, ‏`labeledTapTargetGuideline` | `flutter_test` accessibility guidelines |
 
-## 5. Golden tests [מוצע · DD-22]
+## 5. Golden tests [מחייב · DD-22 A] · יעד — טרם מומש (MIG-29)
 1. **מיקום:** `test/goldens/<component>/<component>_golden_test.dart`, והתמונות ב־`test/goldens/<component>/goldens/`. ‏`failures/` נוסף ל־`.gitignore`.
-2. **הרצה:** job חדש, `goldens_windows` (‏windows-2025, אותה גרסת Flutter), שמריץ `flutter test test/goldens/` ומעלה את `failures/` כ־artifact.
+2. **הרצה:** job חדש ב־CI, `goldens_windows` (‏windows-2025, אותה גרסת Flutter), שמריץ `flutter test test/goldens/` ומעלה את `failures/` כ־artifact. Windows היא פלטפורמת הייחוס (DD-22).
    - `test/goldens/` מוחרג מ־shards של Linux ב־`tool/ci/test_shards.dart::_testFiles()`, עם בדיקה לכך.
    - בתוך הבדיקות: `skip: !Platform.isWindows`, לפי התקדים של `otzaria_icons`.
 3. **קונפיגורציה:** `test/goldens/flutter_test_config.dart` טוען גופנים ומתקין comparator, **ואז קורא ל־`root.testExecutable`**. אחרת אתחול המנוע ותיקיית הנתונים הזמנית הולכים לאיבוד, כי Flutter משתמש רק בקובץ הקונפיגורציה הקרוב ביותר.
 4. **גופנים:** `test/support/golden_fonts.dart` טוען:
-   - את גופן הממשק לפי DD-01. עד אז: Rubik בשם 'Roboto', לפי התקדים של 4 בדיקות קיימות.
+   - **גופן בדיקה לממשק:** Rubik, שנרשם בשם המשפחה שמנוע הבדיקות מבקש כברירת מחדל ('Roboto' ב־Typography של Flutter), לפי התקדים של 4 בדיקות קיימות. לפי DD-01 הממשק משתמש בגופני המערכת ואין גופן ממשק כלול, ו־Segoe UI לא נכנס למאגר (רישיון). לכן ה־golden לא משחזר את Segoe UI, אלא בודק פריסה, ריווח, צבע וצורה. השם 'Roboto' כאן הוא בבדיקות בלבד, ואינו סותר את UIL-018.
    - `packages/otzaria_icons/OtzariaIcons`.
    - `packages/fluentui_system_icons/FluentSystemIcons-Regular/-Filled`.
    - `FluentSystemIcons-Light`.
-
-   Segoe UI לא נכנס למאגר (רישיון).
 5. **דטרמיניזם:**
    - `physicalSize` קבוע ו־`devicePixelRatio = 1`.
    - `EditableText.debugDeterministicCursor = true`.
@@ -203,27 +207,27 @@ const _hebcalBlue = Color(0xFF1565C0);
 9. **עדכון:** `flutter test --update-goldens test/goldens/<component>` על Windows בלבד, עם הגרסה המוצמדת. בנוסף, workflow ‏`workflow_dispatch` בשם "Regenerate goldens" מעלה את התמונות החדשות כ־artifact, כך שגם תורם בלי Windows יכול לעדכן. עדכון גרסת Flutter מחדש את כל התמונות באותו PR.
 10. **שינוי מכוון מול רגרסיה:**
     - **רגרסיה:** בדיקת golden נכשלת ב־PR שלא שינה אף PNG.
-    - **שינוי מכוון:** ה־PR משנה PNG. ‏workflow בסגנון lockfile guard מחייב את התווית `goldens-approved`, והסוקר בודק את תצוגת ה־diff של GitHub.
+    - **שינוי מכוון:** ה־PR משנה PNG. ‏workflow בסגנון lockfile guard מחייב את התווית **`goldens-approved`** (DD-23), והסוקר בודק את תצוגת ה־diff של GitHub.
     - **אסור** לעדכן golden ב־PR שאינו שינוי ממשק.
 
 ## 6. הכנסה בהדרגה
 
 | רמה | מה רץ | חוסם? | מתי |
 |---|---|---|---|
-| **0. תיקון התקדים** | תיקון `text_painter_direction_test` (ראו 3.2) ועדכון התיעוד שהתיישן (`AGENTS.md`, `agent_ui_reference.md`, `rtl-text-field-guide.md`, `agent_test_map.md`) | כן (בדיקות קיימות) | MIG-01 |
+| **0. תיקון התקדים** | תיקון `text_painter_direction_test` (ראו 3.2) ועדכון התיעוד שהתיישן (`AGENTS.md`, `agent_ui_reference.md`, `rtl-text-field-guide.md`, `agent_test_map.md`) | כן (בדיקות קיימות) | MIG-00, MIG-01 |
 | **1. Report** | המנוע עם כל הכללים. ‏job ‏`ui_lint_report` עם `continue-on-error: true`, שכותב טבלה ל־`$GITHUB_STEP_SUMMARY` ומוסיף annotations לחריגות **חדשות** בלבד (GitHub מציג עד ~10 בכל step) | לא | מחזור שחרור אחד |
-| **2. New violations** | ‏`test/design_system/ui_lint_test.dart` חוסם על כללי שלב 1–2 עם baseline, ו־`ui_baseline_guard.yml` | כן, לחריגות חדשות | אחרי שהכללים הגיעו לשיעור התראות שגויות נמוך |
-| **3. כללי טוקנים** | UIL-015…023, עם ההחרגות של §3.6 | כן, לחריגות חדשות | אחרי DD-02/03/04/12 |
+| **2. New violations** | ‏`test/design_system/ui_lint_test.dart` חוסם על כללי שלב 1–2 עם baseline, ו־`ui_baseline_guard.yml` | כן, לחריגות חדשות | MIG-27, אחרי שהכללים הגיעו לשיעור התראות שגויות נמוך |
+| **3. כללי טוקנים** | UIL-015…023, ‏UIL-029, ‏UIL-030, עם ההחרגות של §3.6 | כן, לחריגות חדשות | MIG-28, אחרי שהטוקנים קיימים בקוד: MIG-04 (ריווח, אייקונים, תנועה), MIG-05 (טיפוגרפיה), MIG-07 (מצבים), MIG-08 (הגבהה, צל) |
 | **4. Strict** | כלל שה־baseline שלו התרוקן עובר ל־`strict: true` בקונפיגורציה. מעתה גם `--allow-growth` לא יכול להוסיף לו | כן | לכל כלל בנפרד, כשהחוב שלו נגמר |
 
-**הבדיקות הקיימות** (`bare_text_field_scan`, ‏`uisnack_literal_scan`, ‏`default_context_menu_scan`, ‏`rtl_icon_registered_usage`, ‏`no_scrollable_markdown`, ‏`pdf_hardcoded_colors`) עוברות למנוע אחת אחרי השנייה. כל העברה נעשית ב־PR נפרד, שמוכיח שהכלל החדש מוצא כל מה שהישן מצא, ובנוסף את הצורות שהישן פספס: ארגומנט בשם, `TextFormField`, ‏`withAlpha`. בדיקות exact-set (`quit_application_call_sites`, ‏`flutter_internal_imports`) נשארות כמות שהן.
+**הבדיקות הקיימות** (`bare_text_field_scan`, ‏`uisnack_literal_scan`, ‏`default_context_menu_scan`, ‏`rtl_icon_registered_usage`, ‏`no_scrollable_markdown`, ‏`pdf_hardcoded_colors`) עוברות למנוע אחת אחרי השנייה. כל העברה נעשית ב־commit נפרד, שמוכיח שהכלל החדש מוצא כל מה שהישן מצא, ובנוסף את הצורות שהישן פספס: ארגומנט בשם, `TextFormField`, ‏`withAlpha`. בדיקות exact-set (`quit_application_call_sites`, ‏`flutter_internal_imports`) נשארות כמות שהן.
 
 ## 7. בדיקת הכללים עצמם
 לכל כלל ב־`test/design_system/fixtures/`:
 - `violating_UIL-xxx.dart`: חייב להחזיר ≥1 ממצא. זה ה־canary.
 - `clean_UIL-xxx.dart`: חייב להחזיר 0. כאן נכנסים המקרים הלגיטימיים: ייצוא, painter ועוטף מורשה.
 - `allowed_UIL-xxx.dart`: allow תקין מחזיר 0. allow בלי נימוק מכשיל. allow שלא השתיק כלום מכשיל.
-- ב־CI: PR שמכניס חריגה חדשה בקובץ ב־`lib` נכשל עם הודעה בעברית, `path:line: snippet`, הרכיב שצריך להשתמש בו וקישור לסעיף ב־`DESIGN_SYSTEM.md`.
+- ב־CI: PR שמכניס חריגה חדשה בקובץ ב־`lib` נכשל עם הודעה בעברית, `path:line: snippet`, הרכיב או הטוקן שצריך להשתמש בו וקישור לסעיף ב־`DESIGN_SYSTEM.md`.
 - golden: PR שמשנה ריפוד ב־`ActionButton` בלי לעדכן golden נכשל ב־`goldens_windows`.
 
 ## נספח — בדיקות הסריקה הקיימות
