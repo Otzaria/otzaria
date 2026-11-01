@@ -1,0 +1,1962 @@
+key,expansion,reason
+"א""כֵּז","א""כז",same_as_key
+"אעפִּ""כֵ","אעפ""כ",same_as_key
+"בְּ""כָל","ב""כל",same_as_key
+"בַּשַּׁ""ךְ","בש""ך",same_as_key
+"בַּשַּׁ""ס","בש""ס",same_as_key
+"בְּלַעַ""ז","בלע""ז",same_as_key
+"בַּסְמָ""ג","בסמ""ג",same_as_key
+"בָּרַמְבַּ""ם","ברמב""ם",same_as_key
+"בר""אש","ברא""ש",same_as_key
+"דְּ""אִם","ד""אם",same_as_key
+"דְּ""לֹא","ד""לא",same_as_key
+"דְּ""מָה","ד""מה",same_as_key
+"דְּ""אֶת","ד""את",same_as_key
+"דהר""אש","דהרא""ש",same_as_key
+"דרש""ל","דמהרש""ל",expansion_is_acronym
+"הַגְּרָ""א","הגר""א",same_as_key
+"הַי""ז","הי""ז",same_as_key
+"הַנַּ""ל","הנ""ל",same_as_key
+"הַנָ""ל","הנ""ל",same_as_key
+"הַשַּׁ""ס","הש""ס",same_as_key
+"הַתַּרְיָ""ג","התרי""ג",same_as_key
+"הָרְאֵ""ם","הרא""ם",same_as_key
+"הָרַמְּבַּ""ן","הרמב""ן",same_as_key
+"הָרַמְבַּ""ם","הרמב""ם",same_as_key
+"הָרַמְבַּ""ן","הרמב""ן",same_as_key
+"הנַּ""ל","הנ""ל",same_as_key
+"הר""אש","הרא""ש",same_as_key
+"הרמ""בם","הרמב""ם",same_as_key
+"הרש""ך","מהרש""ך",expansion_is_acronym
+"הרש""ל","המהרש""ל",expansion_is_acronym
+"וְ""לֹא","ו""לא",same_as_key
+"וְהַסְמָ""ג","והסמ""ג",same_as_key
+"וְהָרַמְבַּ""ן","והרמב""ן",same_as_key
+"וְי""ד",ויד,same_as_key
+"וְי""ד","וי""ד",same_as_key
+"וְכַנַּ""ל","וכנ""ל",same_as_key
+"וְכַנּ""ל","וכנ""ל",same_as_key
+"וְכנַּ""ל","וכנ""ל",same_as_key
+"וּשְׁסָ""ה",ושסה,same_as_key
+"וּשְׁסָ""ה","ושס""ה",same_as_key
+"וברש""ל","ובמהרש""ל",expansion_is_acronym
+"וג""ן",וגן,same_as_key
+"וד""ש",ודש,same_as_key
+"וד""ע",ודע,same_as_key
+"והרמ""בם","והרמב""ם",same_as_key
+"והרש""ל","והמהרש""ל",expansion_is_acronym
+"וז""ך",וזך,same_as_key
+"וח""י",וחי,same_as_key
+"וח""ן",וחן,same_as_key
+"וט""ו",וטו,same_as_key
+"וט""ז",וטז,same_as_key
+"וט""ל",וטל,same_as_key
+"וי""א",ויא,same_as_key
+"וי""ב",ויב,same_as_key
+"וי""ג",ויג,same_as_key
+"וי""ד",ויד,same_as_key
+"וי""ו",ויו,same_as_key
+"וי""ז",ויז,same_as_key
+"וי""ח",ויח,same_as_key
+"וי""ט",ויט,same_as_key
+"וכ""א",וכא,same_as_key
+"וכ""ב",וכב,same_as_key
+"וכ""ג",וכג,same_as_key
+"וכ""ד",וכד,same_as_key
+"וכ""ה",וכה,same_as_key
+"וכ""ו",וכו,same_as_key
+"וכ""ז",וכז,same_as_key
+"וכ""ח",וכח,same_as_key
+"וכ""ט",וכט,same_as_key
+"ול""א",ולא,same_as_key
+"ול""ב",ולב,same_as_key
+"ול""ג",ולג,same_as_key
+"ול""ד",ולד,same_as_key
+"ול""ה",ולה,same_as_key
+"ול""ו",ולו,same_as_key
+"ול""ז",ולז,same_as_key
+"ול""ח",ולח,same_as_key
+"ול""ט",ולט,same_as_key
+"ולרש""ל","ולמהרש""ל",expansion_is_acronym
+"ומ""א",ומא,same_as_key
+"ומ""ב",ומב,same_as_key
+"ומ""ג",ומג,same_as_key
+"ומ""ד",ומד,same_as_key
+"ומ""ה",ומה,same_as_key
+"ומ""ו",ומו,same_as_key
+"ומ""ז",ומז,same_as_key
+"ומ""ח",ומח,same_as_key
+"ומ""ט",ומט,same_as_key
+"ומהרימ""ט","ומהמהרי""ט",expansion_is_acronym
+"ונ""א",ונא,same_as_key
+"ונ""ב",ונב,same_as_key
+"ונ""ג",ונג,same_as_key
+"ונ""ד",ונד,same_as_key
+"ונ""ה",ונה,same_as_key
+"ונ""ו",ונו,same_as_key
+"ונ""ז",ונז,same_as_key
+"ונ""ח",ונח,same_as_key
+"ונ""ט",ונט,same_as_key
+"ונ""ר",ונר,same_as_key
+"וס""א",וסא,same_as_key
+"וס""ב",וסב,same_as_key
+"וס""ג",וסג,same_as_key
+"וס""ד",וסד,same_as_key
+"וס""ה",וסה,same_as_key
+"וס""ו",וסו,same_as_key
+"וס""ז",וסז,same_as_key
+"וס""ח",וסח,same_as_key
+"וס""ט",וסט,same_as_key
+"וע""א",ועא,same_as_key
+"וע""ב",ועב,same_as_key
+"וע""ג",ועג,same_as_key
+"וע""ד",ועד,same_as_key
+"וע""ה",ועה,same_as_key
+"וע""ו",ועו,same_as_key
+"וע""ז",ועז,same_as_key
+"וע""ח",ועח,same_as_key
+"וע""ט",ועט,same_as_key
+"ועד""ר",ועדר,same_as_key
+"וער""ה",וערה,same_as_key
+"וער""ח",וערח,same_as_key
+"ופ""א",ופא,same_as_key
+"ופ""ב",ופב,same_as_key
+"ופ""ג",ופג,same_as_key
+"ופ""ד",ופד,same_as_key
+"ופ""ה",ופה,same_as_key
+"ופ""ו",ופו,same_as_key
+"ופ""ז",ופז,same_as_key
+"ופ""ח",ופח,same_as_key
+"ופ""ט",ופט,same_as_key
+"ופר""ח",ופרח,same_as_key
+"וצ""א",וצא,same_as_key
+"וצ""ב",וצב,same_as_key
+"וצ""ג",וצג,same_as_key
+"וצ""ד",וצד,same_as_key
+"וצ""ה",וצה,same_as_key
+"וצ""ו",וצו,same_as_key
+"וצ""ז",וצז,same_as_key
+"וצ""ח",וצח,same_as_key
+"וצ""ט",וצט,same_as_key
+"וק""א",וקא,same_as_key
+"וק""ב",וקב,same_as_key
+"וק""ג",וקג,same_as_key
+"וק""ד",וקד,same_as_key
+"וק""ה",וקה,same_as_key
+"וק""ו",וקו,same_as_key
+"וק""ז",וקז,same_as_key
+"וק""ח",וקח,same_as_key
+"וק""ט",וקט,same_as_key
+"וק""י",וקי,same_as_key
+"וק""כ",וקכ,same_as_key
+"וק""ל",וקל,same_as_key
+"וק""מ",וקמ,same_as_key
+"וק""נ",וקנ,same_as_key
+"וק""ס",וקס,same_as_key
+"וק""ע",וקע,same_as_key
+"וק""פ",וקפ,same_as_key
+"וק""ץ",וקץ,same_as_key
+"וקט""ו",וקטו,same_as_key
+"וקט""ז",וקטז,same_as_key
+"וקי""א",וקיא,same_as_key
+"וקי""ב",וקיב,same_as_key
+"וקי""ג",וקיג,same_as_key
+"וקי""ד",וקיד,same_as_key
+"וקי""ח",וקיח,same_as_key
+"וקכ""א",וקכא,same_as_key
+"וקכ""ב",וקכב,same_as_key
+"וקכ""ג",וקכג,same_as_key
+"וקכ""ד",וקכד,same_as_key
+"וקכ""ה",וקכה,same_as_key
+"וקכ""ו",וקכו,same_as_key
+"וקכ""ז",וקכז,same_as_key
+"וקכ""ח",וקכח,same_as_key
+"וקכ""ט",וקכט,same_as_key
+"וקל""א",וקלא,same_as_key
+"וקל""ב",וקלב,same_as_key
+"וקל""ג",וקלג,same_as_key
+"וקל""ד",וקלד,same_as_key
+"וקל""ה",וקלה,same_as_key
+"וקל""ו",וקלו,same_as_key
+"וקל""ז",וקלז,same_as_key
+"וקל""ח",וקלח,same_as_key
+"וקל""ט",וקלט,same_as_key
+"וקמ""א",וקמא,same_as_key
+"וקמ""ב",וקמב,same_as_key
+"וקמ""ג",וקמג,same_as_key
+"וקמ""ד",וקמד,same_as_key
+"וקמ""ה",וקמה,same_as_key
+"וקמ""ו",וקמו,same_as_key
+"וקמ""ח",וקמח,same_as_key
+"וקמ""ט",וקמט,same_as_key
+"וקנ""א",וקנא,same_as_key
+"וקנ""ב",וקנב,same_as_key
+"וקנ""ג",וקנג,same_as_key
+"וקנ""ד",וקנד,same_as_key
+"וקנ""ה",וקנה,same_as_key
+"וקנ""ו",וקנו,same_as_key
+"וקנ""ז",וקנז,same_as_key
+"וקס""א",וקסא,same_as_key
+"וקס""ד",וקסד,same_as_key
+"וקס""ה",וקסה,same_as_key
+"וקס""ו",וקסו,same_as_key
+"וקס""ט",וקסט,same_as_key
+"וקע""ג",וקעג,same_as_key
+"וקע""ד",וקעד,same_as_key
+"וקע""ה",וקעה,same_as_key
+"וקע""ו",וקעו,same_as_key
+"וקע""ז",וקעז,same_as_key
+"וקע""ח",וקעח,same_as_key
+"וקפ""א",וקפא,same_as_key
+"וקפ""ב",וקפב,same_as_key
+"וקפ""ד",וקפד,same_as_key
+"וקפ""ה",וקפה,same_as_key
+"וקפ""ו",וקפו,same_as_key
+"וקפ""ז",וקפז,same_as_key
+"וקפ""ח",וקפח,same_as_key
+"וקפ""ט",וקפט,same_as_key
+"וקצ""א",וקצא,same_as_key
+"וקצ""ב",וקצב,same_as_key
+"וקצ""ג",וקצג,same_as_key
+"וקצ""ד",וקצד,same_as_key
+"וקצ""ה",וקצה,same_as_key
+"וקצ""ו",וקצו,same_as_key
+"וקצ""ט",וקצט,same_as_key
+"ור""א",ורא,same_as_key
+"ור""ב",ורב,same_as_key
+"ור""ג",ורג,same_as_key
+"ור""ד",ורד,same_as_key
+"ור""ה",ורה,same_as_key
+"ור""ו",ורו,same_as_key
+"ור""ז",ורז,same_as_key
+"ור""ח",ורח,same_as_key
+"ור""ט",ורט,same_as_key
+"ור""י",ורי,same_as_key
+"ור""כ",ורכ,same_as_key
+"ור""ל",ורל,same_as_key
+"ור""מ",ורמ,same_as_key
+"ור""ן",ורן,same_as_key
+"ור""ס",ורס,same_as_key
+"ור""ע",ורע,same_as_key
+"ור""פ",ורפ,same_as_key
+"ור""צ",ורצ,same_as_key
+"ורי""א",וריא,same_as_key
+"ורי""ב",וריב,same_as_key
+"ורי""ד",וריד,same_as_key
+"ורי""ו",וריו,same_as_key
+"ורי""ט",וריט,same_as_key
+"ורכ""א",ורכא,same_as_key
+"ורכ""ג",ורכג,same_as_key
+"ורכ""ה",ורכה,same_as_key
+"ורכ""ו",ורכו,same_as_key
+"ורכ""ז",ורכז,same_as_key
+"ורכ""ט",ורכט,same_as_key
+"ורל""ב",ורלב,same_as_key
+"ורל""ג",ורלג,same_as_key
+"ורל""ד",ורלד,same_as_key
+"ורל""ה",ורלה,same_as_key
+"ורל""ו",ורלו,same_as_key
+"ורל""ז",ורלז,same_as_key
+"ורל""ח",ורלח,same_as_key
+"ורל""ט",ורלט,same_as_key
+"ורמ""א",ורמא,same_as_key
+"ורמ""ב",ורמב,same_as_key
+"ורמ""ה",ורמה,same_as_key
+"ורמ""ו",ורמו,same_as_key
+"ורמ""ז",ורמז,same_as_key
+"ורמ""ח",ורמח,same_as_key
+"ורמ""ט",ורמט,same_as_key
+"ורנ""א",ורנא,same_as_key
+"ורנ""ב",ורנב,same_as_key
+"ורנ""ג",ורנג,same_as_key
+"ורנ""ד",ורנד,same_as_key
+"ורנ""ה",ורנה,same_as_key
+"ורנ""ו",ורנו,same_as_key
+"ורנ""ז",ורנז,same_as_key
+"ורס""א",ורסא,same_as_key
+"ורס""ג",ורסג,same_as_key
+"ורס""ד",ורסד,same_as_key
+"ורס""ו",ורסו,same_as_key
+"ורס""ז",ורסז,same_as_key
+"ורע""ב",ורעב,same_as_key
+"ורע""ג",ורעג,same_as_key
+"ורע""ה",ורעה,same_as_key
+"ורע""ט",ורעט,same_as_key
+"ורפ""ב",ורפב,same_as_key
+"ורפ""ה",ורפה,same_as_key
+"ורפ""ו",ורפו,same_as_key
+"ורפ""ז",ורפז,same_as_key
+"ורפ""ח",ורפח,same_as_key
+"ורצ""ב",ורצב,same_as_key
+"ורצ""ד",ורצד,same_as_key
+"ורצ""ו",ורצו,same_as_key
+"ורש""ל","ומהרש""ל",expansion_is_acronym
+"וש""א",ושא,same_as_key
+"וש""ב",ושב,same_as_key
+"וש""ג",ושג,same_as_key
+"וש""ד",ושד,same_as_key
+"וש""ה",ושה,same_as_key
+"וש""ו",ושו,same_as_key
+"וש""ז",ושז,same_as_key
+"וש""ח",ושח,same_as_key
+"וש""ט",ושט,same_as_key
+"וש""י",ושי,same_as_key
+"וש""ך",ושך,same_as_key
+"וש""ל",ושל,same_as_key
+"וש""מ",ושמ,same_as_key
+"וש""נ",ושנ,same_as_key
+"וש""ס",ושס,same_as_key
+"וש""ע",ושע,same_as_key
+"וש""פ",ושפ,same_as_key
+"וש""ץ",ושץ,same_as_key
+"ושי""א",ושיא,same_as_key
+"ושי""ב",ושיב,same_as_key
+"ושי""ד",ושיד,same_as_key
+"ושכ""א",ושכא,same_as_key
+"ושכ""ד",ושכד,same_as_key
+"ושכ""ה",ושכה,same_as_key
+"ושל""ה",ושלה,same_as_key
+"ושל""ו",ושלו,same_as_key
+"ושמ""ג",ושמג,same_as_key
+"ושמ""ה",ושמה,same_as_key
+"ושמ""ז",ושמז,same_as_key
+"ושנ""ג",ושנג,same_as_key
+"ושנ""ד",ושנד,same_as_key
+"ושנ""ט",ושנט,same_as_key
+"ושס""א",ושסא,same_as_key
+"ושס""ב",ושסב,same_as_key
+"ושס""ה",ושסה,same_as_key
+"ושס""ט",ושסט,same_as_key
+"ושע""ג",ושעג,same_as_key
+"ושע""ו",ושעו,same_as_key
+"ושע""ז",ושעז,same_as_key
+"ושע""ח",ושעח,same_as_key
+"ות""א",ותא,same_as_key
+"ות""ב",ותב,same_as_key
+"ות""ג",ותג,same_as_key
+"ות""ה",ותה,same_as_key
+"ות""ח",ותח,same_as_key
+"ות""י",ותי,same_as_key
+"ות""כ",ותכ,same_as_key
+"ות""ל",ותל,same_as_key
+"ות""מ",ותמ,same_as_key
+"ות""ף",ותף,same_as_key
+"ות""צ",ותצ,same_as_key
+"ות""ק",ותק,same_as_key
+"ות""ר",ותר,same_as_key
+"ות""ש",ותש,same_as_key
+"ות""ת",ותת,same_as_key
+"ותט""ו",ותטו,same_as_key
+"ותי""א",ותיא,same_as_key
+"ותי""ד",ותיד,same_as_key
+"ותכ""א",ותכא,same_as_key
+"ותכ""ה",ותכה,same_as_key
+"ותכ""ח",ותכח,same_as_key
+"ותל""ב",ותלב,same_as_key
+"ותל""ו",ותלו,same_as_key
+"ותמ""ג",ותמג,same_as_key
+"ותמ""ו",ותמו,same_as_key
+"ותמ""ז",ותמז,same_as_key
+"ותמ""ח",ותמח,same_as_key
+"ותמ""ט",ותמט,same_as_key
+"ותנ""ב",ותנב,same_as_key
+"ותנ""ג",ותנג,same_as_key
+"ותנ""ה",ותנה,same_as_key
+"ותנ""ט",ותנט,same_as_key
+"ותס""א",ותסא,same_as_key
+"ותס""ג",ותסג,same_as_key
+"ותס""ד",ותסד,same_as_key
+"ותס""ה",ותסה,same_as_key
+"ותס""ו",ותסו,same_as_key
+"ותס""ז",ותסז,same_as_key
+"ותע""ב",ותעב,same_as_key
+"ותע""ה",ותעה,same_as_key
+"ותע""ז",ותעז,same_as_key
+"ותע""ח",ותעח,same_as_key
+"ותפ""א",ותפא,same_as_key
+"ותפ""ג",ותפג,same_as_key
+"ותפ""ד",ותפד,same_as_key
+"ותפ""ה",ותפה,same_as_key
+"ותפ""ח",ותפח,same_as_key
+"ותצ""ה",ותצה,same_as_key
+"ותצ""ו",ותצו,same_as_key
+"ותצ""ח",ותצח,same_as_key
+"ותק""א",ותקא,same_as_key
+"ותק""ט",ותקט,same_as_key
+"ותק""מ",ותקמ,same_as_key
+"ותק""ע",ותקע,same_as_key
+"ותקט""ו",ותקטו,same_as_key
+"ותקי""א",ותקיא,same_as_key
+"ותקי""ד",ותקיד,same_as_key
+"ותקי""ח",ותקיח,same_as_key
+"ותקכ""ב",ותקכב,same_as_key
+"ותקכ""ג",ותקכג,same_as_key
+"ותקכ""ה",ותקכה,same_as_key
+"ותקכ""ח",ותקכח,same_as_key
+"ותקכ""ט",ותקכט,same_as_key
+"ותקמ""א",ותקמא,same_as_key
+"ותקמ""ח",ותקמח,same_as_key
+"ותקמ""ט",ותקמט,same_as_key
+"ותקנ""ד",ותקנד,same_as_key
+"ותקנ""ו",ותקנו,same_as_key
+"ותקנ""ט",ותקנט,same_as_key
+"ותקס""ה",ותקסה,same_as_key
+"ותקס""ו",ותקסו,same_as_key
+"ותקע""ה",ותקעה,same_as_key
+"ותקע""ו",ותקעו,same_as_key
+"ותקפ""ט",ותקפט,same_as_key
+"ותקצ""א",ותקצא,same_as_key
+"ותקצ""ה",ותקצה,same_as_key
+"ותקצ""ח",ותקצח,same_as_key
+"ותר""ח",ותרח,same_as_key
+"ותר""י",ותרי,same_as_key
+"ותר""ל",ותרל,same_as_key
+"ותר""מ",ותרמ,same_as_key
+"ותר""ץ",ותרץ,same_as_key
+"ותרט""ו",ותרטו,same_as_key
+"ותרט""ז",ותרטז,same_as_key
+"ותרי""ב",ותריב,same_as_key
+"ותרי""ג",ותריג,same_as_key
+"ותרי""ז",ותריז,same_as_key
+"ותרי""ח",ותריח,same_as_key
+"ותרכ""א",ותרכא,same_as_key
+"ותרכ""ד",ותרכד,same_as_key
+"ותרל""א",ותרלא,same_as_key
+"ותרל""ב",ותרלב,same_as_key
+"ותרמ""ט",ותרמט,same_as_key
+"ותרנ""ג",ותרנג,same_as_key
+"ותרנ""ח",ותרנח,same_as_key
+"ותרס""ד",ותרסד,same_as_key
+"ותרס""ח",ותרסח,same_as_key
+"ותרס""ט",ותרסט,same_as_key
+"ותרע""א",ותרעא,same_as_key
+"ותרע""ב",ותרעב,same_as_key
+"ותרע""ה",ותרעה,same_as_key
+"ותרע""ז",ותרעז,same_as_key
+"ותרפ""ב",ותרפב,same_as_key
+"ותרפ""ג",ותרפג,same_as_key
+"ותרפ""ו",ותרפו,same_as_key
+"ותרצ""ב",ותרצב,same_as_key
+"ותרצ""ג",ותרצג,same_as_key
+"ותרצ""ז",ותרצז,same_as_key
+"ותש""י",ותשי,same_as_key
+"ותש""ס",ותשס,same_as_key
+"ותשנ""ח",ותשנח,same_as_key
+"ותשע""ז",ותשעז,same_as_key
+"ותשע""ט",ותשעט,same_as_key
+"ותשפ""ח",ותשפח,same_as_key
+"ותת""ה",ותתה,same_as_key
+"ותת""ך",ותתך,same_as_key
+"ותתי""ג",ותתיג,same_as_key
+"ותתכ""ה",ותתכה,same_as_key
+"ותתל""ג",ותתלג,same_as_key
+"ותתמ""א",ותתמא,same_as_key
+"ותתס""ו",ותתסו,same_as_key
+"ותתפ""א",ותתפא,same_as_key
+"ותתפ""ז",ותתפז,same_as_key
+"ותתצ""א",ותתצא,same_as_key
+"ותתק""ג",ותתקג,same_as_key
+"ותתק""ח",ותתקח,same_as_key
+"ותתק""ך",ותתקך,same_as_key
+"ותתק""ע",ותתקע,same_as_key
+"ותתקי""ז",ותתקיז,same_as_key
+"ותתקל""ג",ותתקלג,same_as_key
+"ותתקל""ה",ותתקלה,same_as_key
+"ותתקל""ו",ותתקלו,same_as_key
+"ותתקמ""ז",ותתקמז,same_as_key
+"ותתקס""א",ותתקסא,same_as_key
+"זַ""ל","ז""ל",same_as_key
+"חְזַ""ל","חז""ל",same_as_key
+"חְז""ל","חז""ל",same_as_key
+"חֲזַ""ל","חז""ל",same_as_key
+"חֲז""ל","חז""ל",same_as_key
+"ט""ו",חמישה עשר,gematria_number
+"ט""ו",חמש עשרה,gematria_number
+"ט""ז",ששה עשר,gematria_number
+"ט""ז",שש עשרה,gematria_number
+"טו""ב",שבעה עשר,gematria_number
+"טו""ב",שבע עשרה,gematria_number
+"י""א",אחד עשר,gematria_number
+"י""א",אחת עשרה,gematria_number
+"י""ב",שנים עשר,gematria_number
+"י""ב",שתים עשרה,gematria_number
+"י""ג",שלוש עשרה,gematria_number
+"י""ג",שלושה עשר,gematria_number
+"י""ד",ארבעה עשר,gematria_number
+"י""ד",ארבע עשרה,gematria_number
+"י""ו",ששה עשר,gematria_number
+"י""ו",שש עשרה,gematria_number
+"י""ז",שבעה עשר,gematria_number
+"י""ז",שבע עשרה,gematria_number
+"י""ח",שמונה עשרה,gematria_number
+"י""ח",שמונה עשר,gematria_number
+"י""ט",תשע עשרה,gematria_number
+"י""ט",תשעה עשר,gematria_number
+"י""י",יי,same_as_key
+"יה""ו",י_ה_ו,structure_chars
+"יוֹ""ד","יו""ד",same_as_key
+"כַּנַּ""ל","כנ""ל",same_as_key
+"כ""א",עשרים ואחד,gematria_number
+"כ""א",עשרים ואחת,gematria_number
+"כ""ב",עשרים ושניים,gematria_number
+"כ""ב",עשרים ושתיים,gematria_number
+"כ""ג",עשרים ושלושה,gematria_number
+"כ""ג",עשרים ושלוש,gematria_number
+"כ""ד",עשרים וארבע,gematria_number
+"כ""ד",עשרים וארבעה,gematria_number
+"כ""ה",עשרים וחמש,gematria_number
+"כ""ה",עשרים וחמישה,gematria_number
+"כ""ו",עשרים ושישה,gematria_number
+"כ""ז",עשרים ושבעה,gematria_number
+"כ""ח",עשרים ושמונה,gematria_number
+"כ""ט",עשרים ותשעה,gematria_number
+"כ""ט",עשרים ותשע,gematria_number
+"כרש""ל","כמהרש""ל",expansion_is_acronym
+"לָרַמְבַּ""ם","לרמב""ם",same_as_key
+"ל""א",שלושים ואחד,gematria_number
+"ל""א",שלושים ואחת,gematria_number
+"ל""ב",שלושים ושניים,gematria_number
+"ל""ב",שלושים ושתיים,gematria_number
+"ל""ג",שלושים ושלושה,gematria_number
+"ל""ד",שלושים וארבעה,gematria_number
+"ל""ד",שלושים וארבע,gematria_number
+"ל""ה",שלושים וחמש,gematria_number
+"ל""ה",שלושים וחמישה,gematria_number
+"ל""ו",שלושים ושישה,gematria_number
+"ל""ז",שלושים ושבעה,gematria_number
+"ל""ח",שלושים ושמונה,gematria_number
+"ל""ט",שלושים ותשעה,gematria_number
+"ל""ט",שלושים ותשע,gematria_number
+"להרש""ל","להמהרש""ל",expansion_is_acronym
+"לי""י",ליי,same_as_key
+"לרש""ל","למהרש""ל",expansion_is_acronym
+"מִי""ז","מי""ז",same_as_key
+"מֵהַשַּׁ""ס","מהש""ס",same_as_key
+"מֵהָרַמְבַּ""ם","מהרמב""ם",same_as_key
+"מַהֲרִי""ק","מהרי""ק",same_as_key
+"מ""א",ארבעים ואחד,gematria_number
+"מ""א",ארבעים ואחת,gematria_number
+"מ""ב",ארבעים ושתים,gematria_number
+"מ""ב",ארבעים ושנים,gematria_number
+"מ""ב",ארבעים ושניים,gematria_number
+"מ""ב",ארבעים ושתיים,gematria_number
+"מ""ג",ארבעים ושלוש,gematria_number
+"מ""ג",ארבעים ושלושה,gematria_number
+"מ""ד",ארבעים וארבעה,gematria_number
+"מ""ד",ארבעים וארבע,gematria_number
+"מ""ה",ארבעים וחמישה,gematria_number
+"מ""ה",ארבעים וחמש,gematria_number
+"מ""ו",ארבעים ושישה,gematria_number
+"מ""ז",ארבעים ושבעה,gematria_number
+"מ""ח",ארבעים ושמונה,gematria_number
+"מ""ט",ארבעים ותשעה,gematria_number
+"מ""ט",ארבעים ותשע,gematria_number
+"מרש""ל","ממהרש""ל",expansion_is_acronym
+"נ""א",חמישים ואחד,gematria_number
+"נ""א",חמישים ואחת,gematria_number
+"נ""ב",חמישים ושניים,gematria_number
+"נ""ב",חמישים ושתיים,gematria_number
+"נ""ג",חמישים ושלושה,gematria_number
+"נ""ד",חמישים וארבעה,gematria_number
+"נ""ד",חמישים וארבע,gematria_number
+"נ""ה",חמישים וחמישה,gematria_number
+"נ""ה",חמישים וחמש,gematria_number
+"נ""ו",חמישים ושישה,gematria_number
+"נ""ז",חמישים ושבעה,gematria_number
+"נ""ח",חמישים ושמונה,gematria_number
+"נ""ט",חמישים ותשעה,gematria_number
+"נ""ט",חמישים ותשע,gematria_number
+"ס""א",שישים ואחת,gematria_number
+"ס""א",שישים ואחד,gematria_number
+"ס""ב",שישים ושניים,gematria_number
+"ס""ב",שישים ושתיים,gematria_number
+"ס""ג",שישים ושלושה,gematria_number
+"ס""ד",שישים וארבעה,gematria_number
+"ס""ד",שישים וארבע,gematria_number
+"ס""ה",שישים וחמישה,gematria_number
+"ס""ה",שישים וחמש,gematria_number
+"ס""ו",שישים ושישה,gematria_number
+"ס""ז",שישים ושבעה,gematria_number
+"ס""ח",שישים ושמונה,gematria_number
+"ס""ט",שישים ותשעה,gematria_number
+"ס""ט",שישים ותשע,gematria_number
+"ס""קּ","ס""ק",same_as_key
+"ע""א",שבעים ואחד,gematria_number
+"ע""א",שבעים ואחת,gematria_number
+"ע""ב",שבעים ושניים,gematria_number
+"ע""ב",שבעים ושתיים,gematria_number
+"ע""ג",שבעים ושלושה,gematria_number
+"ע""ד",שבעים וארבעה,gematria_number
+"ע""ד",שבעים וארבע,gematria_number
+"ע""ה",שבעים וחמישה,gematria_number
+"ע""ה",שבעים וחמש,gematria_number
+"ע""ו",שבעים ושישה,gematria_number
+"ע""ז",שבעים ושבעה,gematria_number
+"ע""ח",שבעים ושמונה,gematria_number
+"ע""ט",שבעים ותשעה,gematria_number
+"ע""ט",שבעים ותשע,gematria_number
+"ע""ש",ע״ש,same_as_key
+"פ""א",שמונים ואחד,gematria_number
+"פ""א",שמונים ואחת,gematria_number
+"פ""ב",שמונים ושניים,gematria_number
+"פ""ב",שמונים ושתיים,gematria_number
+"פ""ג",שמונים ושלושה,gematria_number
+"פ""ד",שמונים וארבעה,gematria_number
+"פ""ד",שמונים וארבע,gematria_number
+"פ""ה",שמונים וחמש,gematria_number
+"פ""ה",שמונים וחמישה,gematria_number
+"פ""ו",שמונים ושישה,gematria_number
+"פ""ז",שמונים ושבע,gematria_number
+"פ""ז",שמונים ושבעה,gematria_number
+"פ""ח",שמונים ושמונה,gematria_number
+"פ""ט",שמונים ותשעה,gematria_number
+"פ""ט",שמונים ותשע,gematria_number
+"צ""א",תשעים ואחד,gematria_number
+"צ""א",תשעים ואחת,gematria_number
+"צ""ב",תשעים ושניים,gematria_number
+"צ""ב",תשעים ושתיים,gematria_number
+"צ""ג",תשעים ושלושה,gematria_number
+"צ""ד",תשעים וארבעה,gematria_number
+"צ""ד",תשעים וארבע,gematria_number
+"צ""ה",תשעים וחמישה,gematria_number
+"צ""ה",תשעים וחמש,gematria_number
+"צ""ו",תשעים ושישה,gematria_number
+"צ""ז",תשעים ושבעה,gematria_number
+"צ""ח",תשעים ושמונה,gematria_number
+"צ""ט",תשעים ותשעה,gematria_number
+"צ""ט",תשעים ותשע,gematria_number
+"ק""א",מאה ואחד,gematria_number
+"ק""א",מאה ואחת,gematria_number
+"ק""ב",מאה ושניים,gematria_number
+"ק""ב",מאה ושתיים,gematria_number
+"ק""ג",מאה ושלושה,gematria_number
+"ק""ד",מאה וארבעה,gematria_number
+"ק""ד",מאה וארבע,gematria_number
+"ק""ה",מאה וחמישה,gematria_number
+"ק""ה",מאה וחמש,gematria_number
+"ק""ו",מאה ושישה,gematria_number
+"ק""ז",מאה ושבעה,gematria_number
+"ק""ח",מאה ושמונה,gematria_number
+"ק""ט",מאה ותשעה,gematria_number
+"ק""ט",מאה ותשע,gematria_number
+"ק""י",מאה ועשרה,gematria_number
+"ק""כ",מאה ועשרים,gematria_number
+"ק""ל",מאה ושלושים,gematria_number
+"ק""מ",מאה וארבעים,gematria_number
+"ק""ן",מאה וחמישים,gematria_number
+"ק""ס",מאה ושישים,gematria_number
+"ק""ע",מאה ושבעים,gematria_number
+"ק""פ",מאה ושמונים,gematria_number
+"ק""ץ",מאה ותשעים,gematria_number
+"ק""ך",מאה ועשרים,gematria_number
+"ק""נ",מאה וחמישים,gematria_number
+"קט""ו",מאה וחמישה עשר,gematria_number
+"קט""ו",מאה וחמש עשרה,gematria_number
+"קט""ז",מאה וששה עשר,gematria_number
+"קי""א",מאה ואחד עשר,gematria_number
+"קי""א",מאה ואחת עשרה,gematria_number
+"קי""ב",מאה ושנים עשר,gematria_number
+"קי""ב",מאה ושתים עשרה,gematria_number
+"קי""ג",מאה ושלושה עשר,gematria_number
+"קי""ג",מאה ושלוש עשרה,gematria_number
+"קי""ד",מאה וארבעה עשר,gematria_number
+"קי""ד",מאה וארבע עשרה,gematria_number
+"קי""ו",מאה וששה עשר,gematria_number
+"קי""ז",מאה ושבעה עשר,gematria_number
+"קי""ז",מאה ושבע עשרה,gematria_number
+"קי""ח",מאה ושמונה עשר,gematria_number
+"קי""ט",מאה ותשעה עשר,gematria_number
+"קי""ט",מאה ותשע עשרה,gematria_number
+"קכ""א",מאה עשרים ואחד,gematria_number
+"קכ""א",מאה עשרים ואחת,gematria_number
+"קכ""ב",מאה עשרים ושניים,gematria_number
+"קכ""ב",מאה עשרים ושתיים,gematria_number
+"קכ""ג",מאה עשרים ושלושה,gematria_number
+"קכ""ד",מאה עשרים וארבעה,gematria_number
+"קכ""ד",מאה עשרים וארבע,gematria_number
+"קכ""ה",מאה עשרים וחמישה,gematria_number
+"קכ""ה",מאה עשרים וחמש,gematria_number
+"קכ""ו",מאה עשרים ושישה,gematria_number
+"קכ""ז",מאה עשרים ושבעה,gematria_number
+"קכ""ח",מאה עשרים ושמונה,gematria_number
+"קכ""ט",מאה עשרים ותשעה,gematria_number
+"קכ""ט",מאה עשרים ותשע,gematria_number
+"קל""א",מאה שלושים ואחד,gematria_number
+"קל""א",מאה שלושים ואחת,gematria_number
+"קל""ב",מאה שלושים ושניים,gematria_number
+"קל""ב",מאה שלושים ושתיים,gematria_number
+"קל""ג",מאה שלושים ושלושה,gematria_number
+"קל""ד",מאה שלושים וארבעה,gematria_number
+"קל""ד",מאה שלושים וארבע,gematria_number
+"קל""ה",מאה שלושים וחמישה,gematria_number
+"קל""ה",מאה שלושים וחמש,gematria_number
+"קל""ו",מאה שלושים ושישה,gematria_number
+"קל""ז",מאה שלושים ושבעה,gematria_number
+"קל""ח",מאה שלושים ושמונה,gematria_number
+"קל""ט",מאה שלושים ותשעה,gematria_number
+"קל""ט",מאה שלושים ותשע,gematria_number
+"קמ""א",מאה ארבעים ואחד,gematria_number
+"קמ""א",מאה ארבעים ואחת,gematria_number
+"קמ""ב",מאה ארבעים ושניים,gematria_number
+"קמ""ב",מאה ארבעים ושתיים,gematria_number
+"קמ""ג",מאה ארבעים ושלושה,gematria_number
+"קמ""ד",מאה ארבעים וארבעה,gematria_number
+"קמ""ד",מאה ארבעים וארבע,gematria_number
+"קמ""ה",מאה ארבעים וחמישה,gematria_number
+"קמ""ה",מאה ארבעים וחמש,gematria_number
+"קמ""ו",מאה ארבעים ושישה,gematria_number
+"קמ""ז",מאה ארבעים ושבעה,gematria_number
+"קמ""ח",מאה ארבעים ושמונה,gematria_number
+"קמ""ט",מאה ארבעים ותשעה,gematria_number
+"קמ""ט",מאה ארבעים ותשע,gematria_number
+"קנ""א",מאה חמישים ואחד,gematria_number
+"קנ""א",מאה חמישים ואחת,gematria_number
+"קנ""ב",מאה חמישים ושניים,gematria_number
+"קנ""ב",מאה חמישים ושתיים,gematria_number
+"קנ""ג",מאה חמישים ושלושה,gematria_number
+"קנ""ד",מאה חמישים וארבעה,gematria_number
+"קנ""ד",מאה חמישים וארבע,gematria_number
+"קנ""ה",מאה חמישים וחמישה,gematria_number
+"קנ""ה",מאה חמישים וחמש,gematria_number
+"קנ""ו",מאה חמישים ושישה,gematria_number
+"קנ""ז",מאה חמישים ושבעה,gematria_number
+"קנ""ח",מאה חמישים ושמונה,gematria_number
+"קנ""ט",מאה חמישים ותשעה,gematria_number
+"קנ""ט",מאה חמישים ותשע,gematria_number
+"קס""א",מאה שישים ואחד,gematria_number
+"קס""א",מאה שישים ואחת,gematria_number
+"קס""ב",מאה שישים ושניים,gematria_number
+"קס""ב",מאה שישים ושתיים,gematria_number
+"קס""ג",מאה שישים ושלושה,gematria_number
+"קס""ד",מאה שישים וארבעה,gematria_number
+"קס""ד",מאה שישים וארבע,gematria_number
+"קס""ה",מאה שישים וחמישה,gematria_number
+"קס""ה",מאה שישים וחמש,gematria_number
+"קס""ו",מאה שישים ושישה,gematria_number
+"קס""ז",מאה שישים ושבעה,gematria_number
+"קס""ח",מאה שישים ושמונה,gematria_number
+"קס""ט",מאה שישים ותשעה,gematria_number
+"קס""ט",מאה שישים ותשע,gematria_number
+"קע""א",מאה שבעים ואחד,gematria_number
+"קע""א",מאה שבעים ואחת,gematria_number
+"קע""ב",מאה שבעים ושניים,gematria_number
+"קע""ב",מאה שבעים ושתיים,gematria_number
+"קע""ג",מאה שבעים ושלושה,gematria_number
+"קע""ד",מאה שבעים וארבעה,gematria_number
+"קע""ד",מאה שבעים וארבע,gematria_number
+"קע""ה",מאה שבעים וחמישה,gematria_number
+"קע""ה",מאה שבעים וחמש,gematria_number
+"קע""ו",מאה שבעים ושישה,gematria_number
+"קע""ז",מאה שבעים ושבעה,gematria_number
+"קע""ח",מאה שבעים ושמונה,gematria_number
+"קע""ט",מאה שבעים ותשעה,gematria_number
+"קע""ט",מאה שבעים ותשע,gematria_number
+"קפ""א",מאה שמונים ואחד,gematria_number
+"קפ""א",מאה שמונים ואחת,gematria_number
+"קפ""ב",מאה שמונים ושניים,gematria_number
+"קפ""ב",מאה שמונים ושתיים,gematria_number
+"קפ""ג",מאה שמונים ושלושה,gematria_number
+"קפ""ד",מאה שמונים וארבעה,gematria_number
+"קפ""ד",מאה שמונים וארבע,gematria_number
+"קפ""ה",מאה שמונים וחמישה,gematria_number
+"קפ""ה",מאה שמונים וחמש,gematria_number
+"קפ""ו",מאה שמונים ושישה,gematria_number
+"קפ""ז",מאה שמונים ושבעה,gematria_number
+"קפ""ח",מאה שמונים ושמונה,gematria_number
+"קפ""ט",מאה שמונים ותשעה,gematria_number
+"קפ""ט",מאה שמונים ותשע,gematria_number
+"קצ""א",מאה תשעים ואחד,gematria_number
+"קצ""א",מאה תשעים ואחת,gematria_number
+"קצ""ב",מאה תשעים ושניים,gematria_number
+"קצ""ב",מאה תשעים ושתיים,gematria_number
+"קצ""ג",מאה תשעים ושלושה,gematria_number
+"קצ""ד",מאה תשעים וארבעה,gematria_number
+"קצ""ד",מאה תשעים וארבע,gematria_number
+"קצ""ה",מאה תשעים וחמישה,gematria_number
+"קצ""ה",מאה תשעים וחמש,gematria_number
+"קצ""ו",מאה תשעים ושישה,gematria_number
+"קצ""ז",מאה תשעים ושבעה,gematria_number
+"קצ""ח",מאה תשעים ושמונה,gematria_number
+"קצ""ט",מאה תשעים ותשעה,gematria_number
+"קצ""ט",מאה תשעים ותשע,gematria_number
+"רְמַ""ח",מאתיים ארבעים ושמונה,gematria_number
+"רְמַ""ח","רמ""ח",same_as_key
+"רַזַ""ל","רז""ל",same_as_key
+"רַשִּׁ""י","רש""י",same_as_key
+"ר""א",מאתיים ואחד,gematria_number
+"ר""א",מאתיים ואחת,gematria_number
+"ר""ב",מאתיים ושניים,gematria_number
+"ר""ב",מאתיים ושתיים,gematria_number
+"ר""ג",מאתיים ושלושה,gematria_number
+"ר""ד",מאתיים וארבעה,gematria_number
+"ר""ד",מאתיים וארבע,gematria_number
+"ר""ה",מאתיים וחמישה,gematria_number
+"ר""ה",מאתיים וחמש,gematria_number
+"ר""ו",מאתיים ושישה,gematria_number
+"ר""ז",מאתיים ושבעה,gematria_number
+"ר""ח",מאתיים ושמונה,gematria_number
+"ר""ט",מאתיים ותשעה,gematria_number
+"ר""ט",מאתיים ותשע,gematria_number
+"ר""י",מאתיים ועשרה,gematria_number
+"ר""כ",מאתיים ועשרים,gematria_number
+"ר""ל",מאתיים ושלושים,gematria_number
+"ר""מ",מאתיים וארבעים,gematria_number
+"ר""נ",מאתיים וחמישים,gematria_number
+"ר""ס",מאתיים ושישים,gematria_number
+"ר""ע",מאתיים ושבעים,gematria_number
+"ר""פ",מאתיים ושמונים,gematria_number
+"ר""ץ",מאתיים ותשעים,gematria_number
+"רזַ""ל","רז""ל",same_as_key
+"רט""ו",מאתיים וחמישה עשר,gematria_number
+"רט""ו",מאתיים וחמש עשרה,gematria_number
+"רט""ז",מאתיים וששה עשר,gematria_number
+"רי""א",מאתיים ואחד עשר,gematria_number
+"רי""א",מאתיים ואחת עשרה,gematria_number
+"רי""ב",מאתיים ושנים עשר,gematria_number
+"רי""ב",מאתיים ושתים עשרה,gematria_number
+"רי""ג",מאתיים ושלושה עשר,gematria_number
+"רי""ג",מאתיים ושלוש עשרה,gematria_number
+"רי""ד",מאתיים וארבעה עשר,gematria_number
+"רי""ד",מאתיים וארבע עשרה,gematria_number
+"רי""ו",מאתיים וששה עשר,gematria_number
+"רי""ז",מאתיים ושבעה עשר,gematria_number
+"רי""ז",מאתיים ושבע עשרה,gematria_number
+"רי""ח",מאתיים ושמונה עשר,gematria_number
+"רי""ט",מאתיים ותשעה עשר,gematria_number
+"רי""ט",מאתיים ותשע עשרה,gematria_number
+"רכ""א",מאתיים עשרים ואחד,gematria_number
+"רכ""א",מאתיים עשרים ואחת,gematria_number
+"רכ""ב",מאתיים עשרים ושניים,gematria_number
+"רכ""ב",מאתיים עשרים ושתיים,gematria_number
+"רכ""ג",מאתיים עשרים ושלושה,gematria_number
+"רכ""ד",מאתיים עשרים וארבעה,gematria_number
+"רכ""ד",מאתיים עשרים וארבע,gematria_number
+"רכ""ה",מאתיים עשרים וחמישה,gematria_number
+"רכ""ה",מאתיים עשרים וחמש,gematria_number
+"רכ""ו",מאתיים עשרים ושישה,gematria_number
+"רכ""ז",מאתיים עשרים ושבעה,gematria_number
+"רכ""ח",מאתיים עשרים ושמונה,gematria_number
+"רכ""ט",מאתיים עשרים ותשעה,gematria_number
+"רכ""ט",מאתיים עשרים ותשע,gematria_number
+"רל""א",מאתיים שלושים ואחד,gematria_number
+"רל""א",מאתיים שלושים ואחת,gematria_number
+"רל""ב",מאתיים שלושים ושניים,gematria_number
+"רל""ב",מאתיים שלושים ושתיים,gematria_number
+"רל""ג",מאתיים שלושים ושלושה,gematria_number
+"רל""ד",מאתיים שלושים וארבעה,gematria_number
+"רל""ד",מאתיים שלושים וארבע,gematria_number
+"רל""ה",מאתיים שלושים וחמישה,gematria_number
+"רל""ה",מאתיים שלושים וחמש,gematria_number
+"רל""ו",מאתיים שלושים ושישה,gematria_number
+"רל""ז",מאתיים שלושים ושבעה,gematria_number
+"רל""ח",מאתיים שלושים ושמונה,gematria_number
+"רל""ט",מאתיים שלושים ותשעה,gematria_number
+"רל""ט",מאתיים שלושים ותשע,gematria_number
+"רמ""א",מאתיים ארבעים ואחד,gematria_number
+"רמ""א",מאתיים ארבעים ואחת,gematria_number
+"רמ""ב",מאתיים ארבעים ושניים,gematria_number
+"רמ""ב",מאתיים ארבעים ושתיים,gematria_number
+"רמ""ג",מאתיים ארבעים ושלושה,gematria_number
+"רמ""ד",מאתיים ארבעים וארבעה,gematria_number
+"רמ""ד",מאתיים ארבעים וארבע,gematria_number
+"רמ""ה",מאתיים ארבעים וחמישה,gematria_number
+"רמ""ה",מאתיים ארבעים וחמש,gematria_number
+"רמ""ו",מאתיים ארבעים ושישה,gematria_number
+"רמ""ז",מאתיים ארבעים ושבעה,gematria_number
+"רמ""ח",מאתיים ארבעים ושמונה,gematria_number
+"רמ""ט",מאתיים ארבעים ותשעה,gematria_number
+"רמ""ט",מאתיים ארבעים ותשע,gematria_number
+"רנ""א",מאתיים חמישים ואחד,gematria_number
+"רנ""א",מאתיים חמישים ואחת,gematria_number
+"רנ""ב",מאתיים חמישים ושניים,gematria_number
+"רנ""ב",מאתיים חמישים ושתיים,gematria_number
+"רנ""ג",מאתיים חמישים ושלושה,gematria_number
+"רנ""ד",מאתיים חמישים וארבעה,gematria_number
+"רנ""ד",מאתיים חמישים וארבע,gematria_number
+"רנ""ה",מאתיים חמישים וחמישה,gematria_number
+"רנ""ה",מאתיים חמישים וחמש,gematria_number
+"רנ""ו",מאתיים חמישים ושישה,gematria_number
+"רנ""ז",מאתיים חמישים ושבעה,gematria_number
+"רנ""ח",מאתיים חמישים ושמונה,gematria_number
+"רנ""ט",מאתיים חמישים ותשעה,gematria_number
+"רנ""ט",מאתיים חמישים ותשע,gematria_number
+"רס""א",מאתיים שישים ואחד,gematria_number
+"רס""א",מאתיים שישים ואחת,gematria_number
+"רס""ב",מאתיים שישים ושניים,gematria_number
+"רס""ב",מאתיים שישים ושתיים,gematria_number
+"רס""ג",מאתיים שישים ושלושה,gematria_number
+"רס""ד",מאתיים שישים וארבעה,gematria_number
+"רס""ד",מאתיים שישים וארבע,gematria_number
+"רס""ה",מאתיים שישים וחמישה,gematria_number
+"רס""ה",מאתיים שישים וחמש,gematria_number
+"רס""ו",מאתיים שישים ושישה,gematria_number
+"רס""ז",מאתיים שישים ושבעה,gematria_number
+"רס""ח",מאתיים שישים ושמונה,gematria_number
+"רס""ט",מאתיים שישים ותשעה,gematria_number
+"רס""ט",מאתיים שישים ותשע,gematria_number
+"רע""א",מאתיים שבעים ואחד,gematria_number
+"רע""א",מאתיים שבעים ואחת,gematria_number
+"רע""ב",מאתיים שבעים ושניים,gematria_number
+"רע""ב",מאתיים שבעים ושתיים,gematria_number
+"רע""ג",מאתיים שבעים ושלושה,gematria_number
+"רע""ד",מאתיים שבעים וארבעה,gematria_number
+"רע""ד",מאתיים שבעים וארבע,gematria_number
+"רע""ה",מאתיים שבעים וחמישה,gematria_number
+"רע""ה",מאתיים שבעים וחמש,gematria_number
+"רע""ו",מאתיים שבעים ושישה,gematria_number
+"רע""ז",מאתיים שבעים ושבעה,gematria_number
+"רע""ח",מאתיים שבעים ושמונה,gematria_number
+"רע""ט",מאתיים שבעים ותשעה,gematria_number
+"רע""ט",מאתיים שבעים ותשע,gematria_number
+"רפ""א",מאתיים שמונים ואחד,gematria_number
+"רפ""א",מאתיים שמונים ואחת,gematria_number
+"רפ""ב",מאתיים שמונים ושניים,gematria_number
+"רפ""ב",מאתיים שמונים ושתיים,gematria_number
+"רפ""ג",מאתיים שמונים ושלושה,gematria_number
+"רפ""ד",מאתיים שמונים וארבעה,gematria_number
+"רפ""ד",מאתיים שמונים וארבע,gematria_number
+"רפ""ה",מאתיים שמונים וחמישה,gematria_number
+"רפ""ה",מאתיים שמונים וחמש,gematria_number
+"רפ""ו",מאתיים שמונים ושישה,gematria_number
+"רפ""ז",מאתיים שמונים ושבעה,gematria_number
+"רפ""ח",מאתיים שמונים ושמונה,gematria_number
+"רפ""ט",מאתיים שמונים ותשעה,gematria_number
+"רפ""ט",מאתיים שמונים ותשע,gematria_number
+"רצ""א",מאתיים תשעים ואחד,gematria_number
+"רצ""א",מאתיים תשעים ואחת,gematria_number
+"רצ""ב",מאתיים תשעים ושניים,gematria_number
+"רצ""ב",מאתיים תשעים ושתיים,gematria_number
+"רצ""ג",מאתיים תשעים ושלושה,gematria_number
+"רצ""ד",מאתיים תשעים וארבעה,gematria_number
+"רצ""ד",מאתיים תשעים וארבע,gematria_number
+"רצ""ה",מאתיים תשעים וחמישה,gematria_number
+"רצ""ה",מאתיים תשעים וחמש,gematria_number
+"רצ""ו",מאתיים תשעים ושישה,gematria_number
+"רצ""ז",מאתיים תשעים ושבעה,gematria_number
+"רצ""ח",מאתיים תשעים ושמונה,gematria_number
+"רצ""ט",מאתיים תשעים ותשעה,gematria_number
+"רצ""ט",מאתיים תשעים ותשע,gematria_number
+"רשִּׁ""י","רש""י",same_as_key
+"רש""ל","מהרש""ל",expansion_is_acronym
+"ש""א",שלוש מאות ואחד,gematria_number
+"ש""א",שלוש מאות ואחת,gematria_number
+"ש""ב",שלוש מאות ושניים,gematria_number
+"ש""ב",שלוש מאות ושתיים,gematria_number
+"ש""ג",שלוש מאות ושלושה,gematria_number
+"ש""ד",שלוש מאות וארבעה,gematria_number
+"ש""ד",שלוש מאות וארבע,gematria_number
+"ש""ה",שלוש מאות וחמישה,gematria_number
+"ש""ה",שלוש מאות וחמש,gematria_number
+"ש""ו",שלוש מאות ושישה,gematria_number
+"ש""ז",שלוש מאות ושבעה,gematria_number
+"ש""ח",שלוש מאות ושמונה,gematria_number
+"ש""ט",שלוש מאות ותשעה,gematria_number
+"ש""ט",שלוש מאות ותשע,gematria_number
+"ש""י",שלוש מאות ועשרה,gematria_number
+"ש""כ",שלוש מאות ועשרים,gematria_number
+"ש""ל",שלוש מאות ושלושים,gematria_number
+"ש""מ",שלוש מאות וארבעים,gematria_number
+"ש""נ",שלוש מאות וחמישים,gematria_number
+"ש""ס",שלוש מאות ושישים,gematria_number
+"ש""ע",שלוש מאות ושבעים,gematria_number
+"ש""פ",שלוש מאות ושמונים,gematria_number
+"ש""ץ",שלוש מאות ותשעים,gematria_number
+"ש""ך",שלוש מאות ועשרים,gematria_number
+"שט""ו",שלוש מאות וחמישה עשר,gematria_number
+"שט""ו",שלוש מאות וחמש עשרה,gematria_number
+"שט""ז",שלוש מאות וששה עשר,gematria_number
+"שי""א",שלוש מאות ואחד עשר,gematria_number
+"שי""א",שלוש מאות ואחת עשרה,gematria_number
+"שי""ב",שלוש מאות ושנים עשר,gematria_number
+"שי""ב",שלוש מאות ושתים עשרה,gematria_number
+"שי""ג",שלוש מאות ושלושה עשר,gematria_number
+"שי""ג",שלוש מאות ושלוש עשרה,gematria_number
+"שי""ד",שלוש מאות וארבעה עשר,gematria_number
+"שי""ד",שלוש מאות וארבע עשרה,gematria_number
+"שי""ו",שלוש מאות וששה עשר,gematria_number
+"שי""ז",שלוש מאות ושבעה עשר,gematria_number
+"שי""ז",שלוש מאות ושבע עשרה,gematria_number
+"שי""ח",שלוש מאות עשרה ושמונה,gematria_number
+"שי""ח",שלוש מאות ושמונה עשר,gematria_number
+"שי""ט",שלוש מאות ותשעה עשר,gematria_number
+"שי""ט",שלוש מאות ותשע עשרה,gematria_number
+"שכ""א",שלוש מאות עשרים ואחד,gematria_number
+"שכ""א",שלוש מאות עשרים ואחת,gematria_number
+"שכ""ב",שלוש מאות עשרים ושניים,gematria_number
+"שכ""ב",שלוש מאות עשרים ושתיים,gematria_number
+"שכ""ג",שלוש מאות עשרים ושלושה,gematria_number
+"שכ""ד",שלוש מאות עשרים וארבעה,gematria_number
+"שכ""ד",שלוש מאות עשרים וארבע,gematria_number
+"שכ""ה",שלוש מאות עשרים וחמישה,gematria_number
+"שכ""ה",שלוש מאות עשרים וחמש,gematria_number
+"שכ""ו",שלוש מאות עשרים ושישה,gematria_number
+"שכ""ז",שלוש מאות עשרים ושבעה,gematria_number
+"שכ""ח",שלוש מאות עשרים ושמונה,gematria_number
+"שכ""ט",שלוש מאות עשרים ותשעה,gematria_number
+"שכ""ט",שלוש מאות עשרים ותשע,gematria_number
+"של""א",שלוש מאות שלושים ואחד,gematria_number
+"של""א",שלוש מאות שלושים ואחת,gematria_number
+"של""ב",שלוש מאות שלושים ושניים,gematria_number
+"של""ב",שלוש מאות שלושים ושתיים,gematria_number
+"של""ג",שלוש מאות שלושים ושלושה,gematria_number
+"של""ד",שלוש מאות שלושים וארבעה,gematria_number
+"של""ד",שלוש מאות שלושים וארבע,gematria_number
+"של""ה",שלוש מאות שלושים וחמישה,gematria_number
+"של""ה",שלוש מאות שלושים וחמש,gematria_number
+"של""ו",שלוש מאות שלושים ושישה,gematria_number
+"של""ז",שלוש מאות שלושים ושבעה,gematria_number
+"של""ח",שלוש מאות שלושים ושמונה,gematria_number
+"של""ט",שלוש מאות שלושים ותשעה,gematria_number
+"של""ט",שלוש מאות שלושים ותשע,gematria_number
+"שמ""א",שלוש מאות ארבעים ואחד,gematria_number
+"שמ""א",שלוש מאות ארבעים ואחת,gematria_number
+"שמ""ב",שלוש מאות ארבעים ושניים,gematria_number
+"שמ""ב",שלוש מאות ארבעים ושתיים,gematria_number
+"שמ""ג",שלוש מאות ארבעים ושלושה,gematria_number
+"שמ""ד",שלוש מאות ארבעים וארבעה,gematria_number
+"שמ""ד",שלוש מאות ארבעים וארבע,gematria_number
+"שמ""ה",שלוש מאות ארבעים וחמישה,gematria_number
+"שמ""ה",שלוש מאות ארבעים וחמש,gematria_number
+"שמ""ו",שלוש מאות ארבעים ושישה,gematria_number
+"שמ""ז",שלוש מאות ארבעים ושבעה,gematria_number
+"שמ""ח",שלוש מאות ארבעים ושמונה,gematria_number
+"שמ""ט",שלוש מאות ארבעים ותשעה,gematria_number
+"שמ""ט",שלוש מאות ארבעים ותשע,gematria_number
+"שמהרימ""ט","שמהמהרי""ט",expansion_is_acronym
+"שנ""א",שלוש מאות חמישים ואחד,gematria_number
+"שנ""א",שלוש מאות חמישים ואחת,gematria_number
+"שנ""ב",שלוש מאות חמישים ושניים,gematria_number
+"שנ""ב",שלוש מאות חמישים ושתיים,gematria_number
+"שנ""ג",שלוש מאות חמישים ושלושה,gematria_number
+"שנ""ד",שלוש מאות חמישים וארבעה,gematria_number
+"שנ""ד",שלוש מאות חמישים וארבע,gematria_number
+"שנ""ה",שלוש מאות חמישים וחמישה,gematria_number
+"שנ""ה",שלוש מאות חמישים וחמש,gematria_number
+"שנ""ו",שלוש מאות חמישים ושישה,gematria_number
+"שנ""ז",שלוש מאות חמישים ושבעה,gematria_number
+"שנ""ח",שלוש מאות חמישים ושמונה,gematria_number
+"שנ""ט",שלוש מאות חמישים ותשעה,gematria_number
+"שנ""ט",שלוש מאות חמישים ותשע,gematria_number
+"שס""א",שלוש מאות שישים ואחד,gematria_number
+"שס""א",שלוש מאות שישים ואחת,gematria_number
+"שס""ב",שלוש מאות שישים ושניים,gematria_number
+"שס""ב",שלוש מאות שישים ושתיים,gematria_number
+"שס""ג",שלוש מאות שישים ושלושה,gematria_number
+"שס""ד",שלוש מאות שישים וארבעה,gematria_number
+"שס""ד",שלוש מאות שישים וארבע,gematria_number
+"שס""ה",שלוש מאות שישים וחמישה,gematria_number
+"שס""ה",שלוש מאות שישים וחמש,gematria_number
+"שס""ו",שלוש מאות שישים ושישה,gematria_number
+"שס""ז",שלוש מאות שישים ושבעה,gematria_number
+"שס""ח",שלוש מאות שישים ושמונה,gematria_number
+"שס""ט",שלוש מאות שישים ותשעה,gematria_number
+"שס""ט",שלוש מאות שישים ותשע,gematria_number
+"שע""א",שלוש מאות שבעים ואחד,gematria_number
+"שע""א",שלוש מאות שבעים ואחת,gematria_number
+"שע""ב",שלוש מאות שבעים ושניים,gematria_number
+"שע""ב",שלוש מאות שבעים ושתיים,gematria_number
+"שע""ג",שלוש מאות שבעים ושלושה,gematria_number
+"שע""ד",שלוש מאות שבעים וארבעה,gematria_number
+"שע""ד",שלוש מאות שבעים וארבע,gematria_number
+"שע""ה",שלוש מאות שבעים וחמישה,gematria_number
+"שע""ה",שלוש מאות שבעים וחמש,gematria_number
+"שע""ו",שלוש מאות שבעים ושישה,gematria_number
+"שע""ז",שלוש מאות שבעים ושבעה,gematria_number
+"שע""ח",שלוש מאות שבעים ושמונה,gematria_number
+"שע""ט",שלוש מאות שבעים ותשעה,gematria_number
+"שע""ט",שלוש מאות שבעים ותשע,gematria_number
+"שפ""א",שלוש מאות שמונים ואחד,gematria_number
+"שפ""א",שלוש מאות שמונים ואחת,gematria_number
+"שפ""ב",שלוש מאות שמונים ושניים,gematria_number
+"שפ""ב",שלוש מאות שמונים ושתיים,gematria_number
+"שפ""ג",שלוש מאות שמונים ושלושה,gematria_number
+"שפ""ד",שלוש מאות שמונים וארבעה,gematria_number
+"שפ""ד",שלוש מאות שמונים וארבע,gematria_number
+"שפ""ה",שלוש מאות שמונים וחמישה,gematria_number
+"שפ""ה",שלוש מאות שמונים וחמש,gematria_number
+"שפ""ו",שלוש מאות שמונים ושישה,gematria_number
+"שפ""ז",שלוש מאות שמונים ושבעה,gematria_number
+"שפ""ח",שלוש מאות שמונים ושמונה,gematria_number
+"שפ""ט",שלוש מאות שמונים ותשעה,gematria_number
+"שפ""ט",שלוש מאות שמונים ותשע,gematria_number
+"שצ""א",שלוש מאות תשעים ואחד,gematria_number
+"שצ""א",שלוש מאות תשעים ואחת,gematria_number
+"שצ""ב",שלוש מאות תשעים ושניים,gematria_number
+"שצ""ב",שלוש מאות תשעים ושתיים,gematria_number
+"שצ""ג",שלוש מאות תשעים ושלושה,gematria_number
+"שצ""ד",שלוש מאות תשעים וארבעה,gematria_number
+"שצ""ד",שלוש מאות תשעים וארבע,gematria_number
+"שצ""ה",שלוש מאות תשעים וחמישה,gematria_number
+"שצ""ה",שלוש מאות תשעים וחמש,gematria_number
+"שצ""ו",שלוש מאות תשעים ושישה,gematria_number
+"שצ""ז",שלוש מאות תשעים ושבעה,gematria_number
+"שצ""ח",שלוש מאות תשעים ושמונה,gematria_number
+"שצ""ט",שלוש מאות תשעים ותשעה,gematria_number
+"שצ""ט",שלוש מאות תשעים ותשע,gematria_number
+"שרש""ל","שמהרש""ל",expansion_is_acronym
+"תַּרְיָ""ג",שש מאות ושלושה עשר,gematria_number
+"תַּרְיָ""ג",שש מאות ושלוש עשרה,gematria_number
+"תַּרְיָ""ג","תרי""ג",same_as_key
+"ת""א",ארבע מאות ואחד,gematria_number
+"ת""א",ארבע מאות ואחת,gematria_number
+"ת""ב",ארבע מאות ושניים,gematria_number
+"ת""ב",ארבע מאות ושתיים,gematria_number
+"ת""ג",ארבע מאות ושלושה,gematria_number
+"ת""ד",ארבע מאות וארבעה,gematria_number
+"ת""ד",ארבע מאות וארבע,gematria_number
+"ת""ה",ארבע מאות וחמישה,gematria_number
+"ת""ה",ארבע מאות וחמש,gematria_number
+"ת""ו",ארבע מאות ושישה,gematria_number
+"ת""ז",ארבע מאות ושבעה,gematria_number
+"ת""ח",ארבע מאות ושמונה,gematria_number
+"ת""ט",ארבע מאות ותשעה,gematria_number
+"ת""ט",ארבע מאות ותשע,gematria_number
+"ת""י",ארבע מאות ועשרה,gematria_number
+"ת""כ",ארבע מאות ועשרים,gematria_number
+"ת""ל",ארבע מאות ושלושים,gematria_number
+"ת""מ",ארבע מאות וארבעים,gematria_number
+"ת""נ",ארבע מאות וחמישים,gematria_number
+"ת""ס",ארבע מאות ושישים,gematria_number
+"ת""ע",ארבע מאות ושבעים,gematria_number
+"ת""פ",ארבע מאות ושמונים,gematria_number
+"ת""צ",ארבע מאות ותשעים,gematria_number
+"ת""ק",חמש מאות,gematria_number
+"ת""ר",שש מאות,gematria_number
+"ת""ש",שבע מאות,gematria_number
+"ת""ת",שמונה מאות,gematria_number
+"ת""ם",ארבע מאות וארבעים,gematria_number
+"תט""ו",ארבע מאות וחמישה עשר,gematria_number
+"תט""ו",ארבע מאות וחמש עשרה,gematria_number
+"תט""ז",ארבע מאות וששה עשר,gematria_number
+"תי""א",ארבע מאות ואחד עשר,gematria_number
+"תי""א",ארבע מאות ואחת עשרה,gematria_number
+"תי""ב",ארבע מאות ושנים עשר,gematria_number
+"תי""ב",ארבע מאות ושתים עשרה,gematria_number
+"תי""ג",ארבע מאות ושלושה עשר,gematria_number
+"תי""ג",ארבע מאות ושלוש עשרה,gematria_number
+"תי""ד",ארבע מאות וארבעה עשר,gematria_number
+"תי""ד",ארבע מאות וארבע עשרה,gematria_number
+"תי""ז",ארבע מאות ושבעה עשר,gematria_number
+"תי""ז",ארבע מאות ושבע עשרה,gematria_number
+"תי""ח",ארבע מאות ושמונה עשר,gematria_number
+"תי""ט",ארבע מאות ותשעה עשר,gematria_number
+"תי""ט",ארבע מאות ותשע עשרה,gematria_number
+"תכ""א",ארבע מאות עשרים ואחד,gematria_number
+"תכ""א",ארבע מאות עשרים ואחת,gematria_number
+"תכ""ב",ארבע מאות עשרים ושניים,gematria_number
+"תכ""ב",ארבע מאות עשרים ושתיים,gematria_number
+"תכ""ג",ארבע מאות עשרים ושלושה,gematria_number
+"תכ""ד",ארבע מאות עשרים וארבעה,gematria_number
+"תכ""ד",ארבע מאות עשרים וארבע,gematria_number
+"תכ""ה",ארבע מאות עשרים וחמישה,gematria_number
+"תכ""ה",ארבע מאות עשרים וחמש,gematria_number
+"תכ""ו",ארבע מאות עשרים ושישה,gematria_number
+"תכ""ז",ארבע מאות עשרים ושבעה,gematria_number
+"תכ""ח",ארבע מאות עשרים ושמונה,gematria_number
+"תכ""ט",ארבע מאות עשרים ותשעה,gematria_number
+"תכ""ט",ארבע מאות עשרים ותשע,gematria_number
+"תל""א",ארבע מאות שלושים ואחד,gematria_number
+"תל""א",ארבע מאות שלושים ואחת,gematria_number
+"תל""ב",ארבע מאות שלושים ושניים,gematria_number
+"תל""ב",ארבע מאות שלושים ושתיים,gematria_number
+"תל""ג",ארבע מאות שלושים ושלושה,gematria_number
+"תל""ד",ארבע מאות שלושים וארבעה,gematria_number
+"תל""ד",ארבע מאות שלושים וארבע,gematria_number
+"תל""ה",ארבע מאות שלושים וחמישה,gematria_number
+"תל""ה",ארבע מאות שלושים וחמש,gematria_number
+"תל""ו",ארבע מאות שלושים ושישה,gematria_number
+"תל""ז",ארבע מאות שלושים ושבעה,gematria_number
+"תל""ח",ארבע מאות שלושים ושמונה,gematria_number
+"תל""ט",ארבע מאות שלושים ותשעה,gematria_number
+"תל""ט",ארבע מאות שלושים ותשע,gematria_number
+"תמ""א",ארבע מאות ארבעים ואחד,gematria_number
+"תמ""א",ארבע מאות ארבעים ואחת,gematria_number
+"תמ""ב",ארבע מאות ארבעים ושניים,gematria_number
+"תמ""ב",ארבע מאות ארבעים ושתיים,gematria_number
+"תמ""ג",ארבע מאות ארבעים ושלושה,gematria_number
+"תמ""ד",ארבע מאות ארבעים וארבעה,gematria_number
+"תמ""ד",ארבע מאות ארבעים וארבע,gematria_number
+"תמ""ה",ארבע מאות ארבעים וחמישה,gematria_number
+"תמ""ה",ארבע מאות ארבעים וחמש,gematria_number
+"תמ""ו",ארבע מאות ארבעים ושישה,gematria_number
+"תמ""ז",ארבע מאות ארבעים ושבעה,gematria_number
+"תמ""ח",ארבע מאות ארבעים ושמונה,gematria_number
+"תמ""ט",ארבע מאות ארבעים ותשעה,gematria_number
+"תמ""ט",ארבע מאות ארבעים ותשע,gematria_number
+"תנ""א",ארבע מאות חמישים ואחד,gematria_number
+"תנ""א",ארבע מאות חמישים ואחת,gematria_number
+"תנ""ב",ארבע מאות חמישים ושניים,gematria_number
+"תנ""ב",ארבע מאות חמישים ושתיים,gematria_number
+"תנ""ג",ארבע מאות חמישים ושלושה,gematria_number
+"תנ""ד",ארבע מאות חמישים וארבעה,gematria_number
+"תנ""ד",ארבע מאות חמישים וארבע,gematria_number
+"תנ""ה",ארבע מאות חמישים וחמישה,gematria_number
+"תנ""ה",ארבע מאות חמישים וחמש,gematria_number
+"תנ""ו",ארבע מאות חמישים ושישה,gematria_number
+"תנ""ז",ארבע מאות חמישים ושבעה,gematria_number
+"תנ""ח",ארבע מאות חמישים ושמונה,gematria_number
+"תנ""ט",ארבע מאות חמישים ותשעה,gematria_number
+"תנ""ט",ארבע מאות חמישים ותשע,gematria_number
+"תס""א",ארבע מאות שישים ואחד,gematria_number
+"תס""א",ארבע מאות שישים ואחת,gematria_number
+"תס""ב",ארבע מאות שישים ושניים,gematria_number
+"תס""ב",ארבע מאות שישים ושתיים,gematria_number
+"תס""ג",ארבע מאות שישים ושלושה,gematria_number
+"תס""ד",ארבע מאות שישים וארבעה,gematria_number
+"תס""ד",ארבע מאות שישים וארבע,gematria_number
+"תס""ה",ארבע מאות שישים וחמישה,gematria_number
+"תס""ה",ארבע מאות שישים וחמש,gematria_number
+"תס""ו",ארבע מאות שישים ושישה,gematria_number
+"תס""ז",ארבע מאות שישים ושבעה,gematria_number
+"תס""ח",ארבע מאות שישים ושמונה,gematria_number
+"תס""ט",ארבע מאות שישים ותשעה,gematria_number
+"תס""ט",ארבע מאות שישים ותשע,gematria_number
+"תע""א",ארבע מאות שבעים ואחד,gematria_number
+"תע""א",ארבע מאות שבעים ואחת,gematria_number
+"תע""ב",ארבע מאות שבעים ושניים,gematria_number
+"תע""ב",ארבע מאות שבעים ושתיים,gematria_number
+"תע""ג",ארבע מאות שבעים ושלושה,gematria_number
+"תע""ד",ארבע מאות שבעים וארבעה,gematria_number
+"תע""ד",ארבע מאות שבעים וארבע,gematria_number
+"תע""ה",ארבע מאות שבעים וחמישה,gematria_number
+"תע""ה",ארבע מאות שבעים וחמש,gematria_number
+"תע""ו",ארבע מאות שבעים ושישה,gematria_number
+"תע""ז",ארבע מאות שבעים ושבעה,gematria_number
+"תע""ח",ארבע מאות שבעים ושמונה,gematria_number
+"תע""ט",ארבע מאות שבעים ותשעה,gematria_number
+"תע""ט",ארבע מאות שבעים ותשע,gematria_number
+"תפ""א",ארבע מאות שמונים ואחד,gematria_number
+"תפ""א",ארבע מאות שמונים ואחת,gematria_number
+"תפ""ב",ארבע מאות שמונים ושניים,gematria_number
+"תפ""ב",ארבע מאות שמונים ושתיים,gematria_number
+"תפ""ג",ארבע מאות שמונים ושלושה,gematria_number
+"תפ""ד",ארבע מאות שמונים וארבעה,gematria_number
+"תפ""ד",ארבע מאות שמונים וארבע,gematria_number
+"תפ""ה",ארבע מאות שמונים וחמישה,gematria_number
+"תפ""ה",ארבע מאות שמונים וחמש,gematria_number
+"תפ""ו",ארבע מאות שמונים ושישה,gematria_number
+"תפ""ז",ארבע מאות שמונים ושבעה,gematria_number
+"תפ""ח",ארבע מאות שמונים ושמונה,gematria_number
+"תפ""ט",ארבע מאות שמונים ותשעה,gematria_number
+"תפ""ט",ארבע מאות שמונים ותשע,gematria_number
+"תצ""א",ארבע מאות תשעים ואחד,gematria_number
+"תצ""א",ארבע מאות תשעים ואחת,gematria_number
+"תצ""ב",ארבע מאות תשעים ושניים,gematria_number
+"תצ""ב",ארבע מאות תשעים ושתיים,gematria_number
+"תצ""ג",ארבע מאות תשעים ושלושה,gematria_number
+"תצ""ד",ארבע מאות תשעים וארבעה,gematria_number
+"תצ""ד",ארבע מאות תשעים וארבע,gematria_number
+"תצ""ה",ארבע מאות תשעים וחמישה,gematria_number
+"תצ""ה",ארבע מאות תשעים וחמש,gematria_number
+"תצ""ו",ארבע מאות תשעים ושישה,gematria_number
+"תצ""ז",ארבע מאות תשעים ושבעה,gematria_number
+"תצ""ח",ארבע מאות תשעים ושמונה,gematria_number
+"תצ""ט",ארבע מאות תשעים ותשעה,gematria_number
+"תצ""ט",ארבע מאות תשעים ותשע,gematria_number
+"תק""א",חמש מאות ואחד,gematria_number
+"תק""א",חמש מאות ואחת,gematria_number
+"תק""ב",חמש מאות ושניים,gematria_number
+"תק""ב",חמש מאות ושתיים,gematria_number
+"תק""ג",חמש מאות ושלושה,gematria_number
+"תק""ד",חמש מאות וארבעה,gematria_number
+"תק""ד",חמש מאות וארבע,gematria_number
+"תק""ה",חמש מאות וחמישה,gematria_number
+"תק""ה",חמש מאות וחמש,gematria_number
+"תק""ו",חמש מאות ושישה,gematria_number
+"תק""ז",חמש מאות ושבעה,gematria_number
+"תק""ח",חמש מאות ושמונה,gematria_number
+"תק""ט",חמש מאות ותשעה,gematria_number
+"תק""ט",חמש מאות ותשע,gematria_number
+"תק""י",חמש מאות ועשרה,gematria_number
+"תק""כ",חמש מאות ועשרים,gematria_number
+"תק""ל",חמש מאות ושלושים,gematria_number
+"תק""מ",חמש מאות וארבעים,gematria_number
+"תק""נ",חמש מאות וחמישים,gematria_number
+"תק""ס",חמש מאות ושישים,gematria_number
+"תק""ע",חמש מאות ושבעים,gematria_number
+"תק""פ",חמש מאות ושמונים,gematria_number
+"תק""צ",חמש מאות ותשעים,gematria_number
+"תקט""ו",חמש מאות וחמישה עשר,gematria_number
+"תקט""ו",חמש מאות וחמש עשרה,gematria_number
+"תקט""ז",חמש מאות וששה עשר,gematria_number
+"תקי""א",חמש מאות ואחד עשר,gematria_number
+"תקי""א",חמש מאות ואחת עשרה,gematria_number
+"תקי""ב",חמש מאות ושנים עשר,gematria_number
+"תקי""ב",חמש מאות ושתים עשרה,gematria_number
+"תקי""ג",חמש מאות ושלושה עשר,gematria_number
+"תקי""ג",חמש מאות ושלוש עשרה,gematria_number
+"תקי""ד",חמש מאות וארבעה עשר,gematria_number
+"תקי""ד",חמש מאות וארבע עשרה,gematria_number
+"תקי""ו",חמש מאות וששה עשר,gematria_number
+"תקי""ז",חמש מאות ושבעה עשר,gematria_number
+"תקי""ז",חמש מאות ושבע עשרה,gematria_number
+"תקי""ח",חמש מאות ושמונה עשר,gematria_number
+"תקי""ט",חמש מאות ותשעה עשר,gematria_number
+"תקי""ט",חמש מאות ותשע עשרה,gematria_number
+"תקכ""א",חמש מאות עשרים ואחד,gematria_number
+"תקכ""א",חמש מאות עשרים ואחת,gematria_number
+"תקכ""ב",חמש מאות עשרים ושניים,gematria_number
+"תקכ""ב",חמש מאות עשרים ושתיים,gematria_number
+"תקכ""ג",חמש מאות עשרים ושלושה,gematria_number
+"תקכ""ד",חמש מאות עשרים וארבעה,gematria_number
+"תקכ""ד",חמש מאות עשרים וארבע,gematria_number
+"תקכ""ה",חמש מאות עשרים וחמישה,gematria_number
+"תקכ""ה",חמש מאות עשרים וחמש,gematria_number
+"תקכ""ו",חמש מאות עשרים ושישה,gematria_number
+"תקכ""ז",חמש מאות עשרים ושבעה,gematria_number
+"תקכ""ח",חמש מאות עשרים ושמונה,gematria_number
+"תקכ""ט",חמש מאות עשרים ותשעה,gematria_number
+"תקכ""ט",חמש מאות עשרים ותשע,gematria_number
+"תקל""א",חמש מאות שלושים ואחד,gematria_number
+"תקל""א",חמש מאות שלושים ואחת,gematria_number
+"תקל""ב",חמש מאות שלושים ושניים,gematria_number
+"תקל""ב",חמש מאות שלושים ושתיים,gematria_number
+"תקל""ג",חמש מאות שלושים ושלושה,gematria_number
+"תקל""ד",חמש מאות שלושים וארבעה,gematria_number
+"תקל""ד",חמש מאות שלושים וארבע,gematria_number
+"תקל""ה",חמש מאות שלושים וחמישה,gematria_number
+"תקל""ה",חמש מאות שלושים וחמש,gematria_number
+"תקל""ו",חמש מאות שלושים ושישה,gematria_number
+"תקל""ז",חמש מאות שלושים ושבעה,gematria_number
+"תקל""ח",חמש מאות שלושים ושמונה,gematria_number
+"תקל""ט",חמש מאות שלושים ותשעה,gematria_number
+"תקל""ט",חמש מאות שלושים ותשע,gematria_number
+"תקמ""א",חמש מאות ארבעים ואחד,gematria_number
+"תקמ""א",חמש מאות ארבעים ואחת,gematria_number
+"תקמ""ב",חמש מאות ארבעים ושניים,gematria_number
+"תקמ""ב",חמש מאות ארבעים ושתיים,gematria_number
+"תקמ""ג",חמש מאות ארבעים ושלושה,gematria_number
+"תקמ""ד",חמש מאות ארבעים וארבעה,gematria_number
+"תקמ""ד",חמש מאות ארבעים וארבע,gematria_number
+"תקמ""ה",חמש מאות ארבעים וחמישה,gematria_number
+"תקמ""ה",חמש מאות ארבעים וחמש,gematria_number
+"תקמ""ו",חמש מאות ארבעים ושישה,gematria_number
+"תקמ""ז",חמש מאות ארבעים ושבעה,gematria_number
+"תקמ""ח",חמש מאות ארבעים ושמונה,gematria_number
+"תקמ""ט",חמש מאות ארבעים ותשעה,gematria_number
+"תקמ""ט",חמש מאות ארבעים ותשע,gematria_number
+"תקנ""א",חמש מאות חמישים ואחד,gematria_number
+"תקנ""א",חמש מאות חמישים ואחת,gematria_number
+"תקנ""ב",חמש מאות חמישים ושניים,gematria_number
+"תקנ""ב",חמש מאות חמישים ושתיים,gematria_number
+"תקנ""ג",חמש מאות חמישים ושלושה,gematria_number
+"תקנ""ד",חמש מאות חמישים וארבעה,gematria_number
+"תקנ""ד",חמש מאות חמישים וארבע,gematria_number
+"תקנ""ה",חמש מאות חמישים וחמישה,gematria_number
+"תקנ""ה",חמש מאות חמישים וחמש,gematria_number
+"תקנ""ו",חמש מאות חמישים ושישה,gematria_number
+"תקנ""ז",חמש מאות חמישים ושבעה,gematria_number
+"תקנ""ח",חמש מאות חמישים ושמונה,gematria_number
+"תקנ""ט",חמש מאות חמישים ותשעה,gematria_number
+"תקנ""ט",חמש מאות חמישים ותשע,gematria_number
+"תקס""א",חמש מאות שישים ואחד,gematria_number
+"תקס""א",חמש מאות שישים ואחת,gematria_number
+"תקס""ב",חמש מאות שישים ושניים,gematria_number
+"תקס""ב",חמש מאות שישים ושתיים,gematria_number
+"תקס""ג",חמש מאות שישים ושלושה,gematria_number
+"תקס""ד",חמש מאות שישים וארבעה,gematria_number
+"תקס""ד",חמש מאות שישים וארבע,gematria_number
+"תקס""ה",חמש מאות שישים וחמישה,gematria_number
+"תקס""ה",חמש מאות שישים וחמש,gematria_number
+"תקס""ו",חמש מאות שישים ושישה,gematria_number
+"תקס""ז",חמש מאות שישים ושבעה,gematria_number
+"תקס""ח",חמש מאות שישים ושמונה,gematria_number
+"תקס""ט",חמש מאות שישים ותשעה,gematria_number
+"תקס""ט",חמש מאות שישים ותשע,gematria_number
+"תקע""א",חמש מאות שבעים ואחד,gematria_number
+"תקע""א",חמש מאות שבעים ואחת,gematria_number
+"תקע""ב",חמש מאות שבעים ושניים,gematria_number
+"תקע""ב",חמש מאות שבעים ושתיים,gematria_number
+"תקע""ג",חמש מאות שבעים ושלושה,gematria_number
+"תקע""ד",חמש מאות שבעים וארבעה,gematria_number
+"תקע""ד",חמש מאות שבעים וארבע,gematria_number
+"תקע""ה",חמש מאות שבעים וחמישה,gematria_number
+"תקע""ה",חמש מאות שבעים וחמש,gematria_number
+"תקע""ו",חמש מאות שבעים ושישה,gematria_number
+"תקע""ז",חמש מאות שבעים ושבעה,gematria_number
+"תקע""ח",חמש מאות שבעים ושמונה,gematria_number
+"תקע""ט",חמש מאות שבעים ותשעה,gematria_number
+"תקע""ט",חמש מאות שבעים ותשע,gematria_number
+"תקפ""א",חמש מאות שמונים ואחד,gematria_number
+"תקפ""א",חמש מאות שמונים ואחת,gematria_number
+"תקפ""ב",חמש מאות שמונים ושניים,gematria_number
+"תקפ""ב",חמש מאות שמונים ושתיים,gematria_number
+"תקפ""ג",חמש מאות שמונים ושלושה,gematria_number
+"תקפ""ד",חמש מאות שמונים וארבעה,gematria_number
+"תקפ""ד",חמש מאות שמונים וארבע,gematria_number
+"תקפ""ה",חמש מאות שמונים וחמישה,gematria_number
+"תקפ""ה",חמש מאות שמונים וחמש,gematria_number
+"תקפ""ו",חמש מאות שמונים ושישה,gematria_number
+"תקפ""ז",חמש מאות שמונים ושבעה,gematria_number
+"תקפ""ח",חמש מאות שמונים ושמונה,gematria_number
+"תקפ""ט",חמש מאות שמונים ותשעה,gematria_number
+"תקפ""ט",חמש מאות שמונים ותשע,gematria_number
+"תקצ""א",חמש מאות תשעים ואחד,gematria_number
+"תקצ""א",חמש מאות תשעים ואחת,gematria_number
+"תקצ""ב",חמש מאות תשעים ושניים,gematria_number
+"תקצ""ב",חמש מאות תשעים ושתיים,gematria_number
+"תקצ""ג",חמש מאות תשעים ושלושה,gematria_number
+"תקצ""ד",חמש מאות תשעים וארבעה,gematria_number
+"תקצ""ד",חמש מאות תשעים וארבע,gematria_number
+"תקצ""ה",חמש מאות תשעים וחמישה,gematria_number
+"תקצ""ה",חמש מאות תשעים וחמש,gematria_number
+"תקצ""ו",חמש מאות תשעים ושישה,gematria_number
+"תקצ""ז",חמש מאות תשעים ושבעה,gematria_number
+"תקצ""ח",חמש מאות תשעים ושמונה,gematria_number
+"תקצ""ט",חמש מאות תשעים ותשעה,gematria_number
+"תקצ""ט",חמש מאות תשעים ותשע,gematria_number
+"תר""א",שש מאות ואחד,gematria_number
+"תר""א",שש מאות ואחת,gematria_number
+"תר""ב",שש מאות ושניים,gematria_number
+"תר""ב",שש מאות ושתיים,gematria_number
+"תר""ג",שש מאות ושלושה,gematria_number
+"תר""ד",שש מאות וארבעה,gematria_number
+"תר""ד",שש מאות וארבע,gematria_number
+"תר""ה",שש מאות וחמישה,gematria_number
+"תר""ה",שש מאות וחמש,gematria_number
+"תר""ו",שש מאות ושישה,gematria_number
+"תר""ז",שש מאות ושבעה,gematria_number
+"תר""ח",שש מאות ושמונה,gematria_number
+"תר""ט",שש מאות ותשעה,gematria_number
+"תר""ט",שש מאות ותשע,gematria_number
+"תר""י",שש מאות ועשרה,gematria_number
+"תר""ך",שש מאות ועשרים,gematria_number
+"תר""ל",שש מאות ושלושים,gematria_number
+"תר""מ",שש מאות וארבעים,gematria_number
+"תר""ן",שש מאות וחמישים,gematria_number
+"תר""ס",שש מאות ושישים,gematria_number
+"תר""ע",שש מאות ושבעים,gematria_number
+"תר""פ",שש מאות ושמונים,gematria_number
+"תר""צ",שש מאות ותשעים,gematria_number
+"תרט""ו",שש מאות וחמישה עשר,gematria_number
+"תרט""ו",שש מאות וחמש עשרה,gematria_number
+"תרט""ז",שש מאות וששה עשר,gematria_number
+"תרי""א",שש מאות ואחד עשר,gematria_number
+"תרי""א",שש מאות ואחת עשרה,gematria_number
+"תרי""ב",שש מאות ושנים עשר,gematria_number
+"תרי""ב",שש מאות ושתים עשרה,gematria_number
+"תרי""ג",שש מאות ושלושה עשר,gematria_number
+"תרי""ג",שש מאות ושלוש עשרה,gematria_number
+"תרי""ד",שש מאות וארבעה עשר,gematria_number
+"תרי""ד",שש מאות וארבע עשרה,gematria_number
+"תרי""ו",שש מאות וששה עשר,gematria_number
+"תרי""ז",שש מאות ושבעה עשר,gematria_number
+"תרי""ז",שש מאות ושבע עשרה,gematria_number
+"תרי""ח",שש מאות ושמונה עשר,gematria_number
+"תרי""ט",שש מאות ותשעה עשר,gematria_number
+"תרי""ט",שש מאות ותשע עשרה,gematria_number
+"תרכ""א",שש מאות עשרים ואחד,gematria_number
+"תרכ""א",שש מאות עשרים ואחת,gematria_number
+"תרכ""ב",שש מאות עשרים ושניים,gematria_number
+"תרכ""ב",שש מאות עשרים ושתיים,gematria_number
+"תרכ""ג",שש מאות עשרים ושלושה,gematria_number
+"תרכ""ד",שש מאות עשרים וארבעה,gematria_number
+"תרכ""ד",שש מאות עשרים וארבע,gematria_number
+"תרכ""ה",שש מאות עשרים וחמישה,gematria_number
+"תרכ""ה",שש מאות עשרים וחמש,gematria_number
+"תרכ""ו",שש מאות עשרים ושישה,gematria_number
+"תרכ""ז",שש מאות עשרים ושבעה,gematria_number
+"תרכ""ח",שש מאות עשרים ושמונה,gematria_number
+"תרכ""ט",שש מאות עשרים ותשעה,gematria_number
+"תרכ""ט",שש מאות עשרים ותשע,gematria_number
+"תרל""א",שש מאות שלושים ואחד,gematria_number
+"תרל""א",שש מאות שלושים ואחת,gematria_number
+"תרל""ב",שש מאות שלושים ושניים,gematria_number
+"תרל""ב",שש מאות שלושים ושתיים,gematria_number
+"תרל""ג",שש מאות שלושים ושלושה,gematria_number
+"תרל""ד",שש מאות שלושים וארבעה,gematria_number
+"תרל""ד",שש מאות שלושים וארבע,gematria_number
+"תרל""ה",שש מאות שלושים וחמישה,gematria_number
+"תרל""ה",שש מאות שלושים וחמש,gematria_number
+"תרל""ו",שש מאות שלושים ושישה,gematria_number
+"תרל""ז",שש מאות שלושים ושבעה,gematria_number
+"תרל""ח",שש מאות שלושים ושמונה,gematria_number
+"תרל""ט",שש מאות שלושים ותשעה,gematria_number
+"תרל""ט",שש מאות שלושים ותשע,gematria_number
+"תרמ""א",שש מאות ארבעים ואחד,gematria_number
+"תרמ""א",שש מאות ארבעים ואחת,gematria_number
+"תרמ""ב",שש מאות ארבעים ושניים,gematria_number
+"תרמ""ב",שש מאות ארבעים ושתיים,gematria_number
+"תרמ""ג",שש מאות ארבעים ושלושה,gematria_number
+"תרמ""ד",שש מאות ארבעים וארבעה,gematria_number
+"תרמ""ד",שש מאות ארבעים וארבע,gematria_number
+"תרמ""ה",שש מאות ארבעים וחמישה,gematria_number
+"תרמ""ה",שש מאות ארבעים וחמש,gematria_number
+"תרמ""ו",שש מאות ארבעים ושישה,gematria_number
+"תרמ""ז",שש מאות ארבעים ושבעה,gematria_number
+"תרמ""ח",שש מאות ארבעים ושמונה,gematria_number
+"תרמ""ט",שש מאות ארבעים ותשעה,gematria_number
+"תרמ""ט",שש מאות ארבעים ותשע,gematria_number
+"תרנ""א",שש מאות חמישים ואחד,gematria_number
+"תרנ""א",שש מאות חמישים ואחת,gematria_number
+"תרנ""ב",שש מאות חמישים ושניים,gematria_number
+"תרנ""ב",שש מאות חמישים ושתיים,gematria_number
+"תרנ""ג",שש מאות חמישים ושלושה,gematria_number
+"תרנ""ד",שש מאות חמישים וארבעה,gematria_number
+"תרנ""ד",שש מאות חמישים וארבע,gematria_number
+"תרנ""ה",שש מאות חמישים וחמישה,gematria_number
+"תרנ""ה",שש מאות חמישים וחמש,gematria_number
+"תרנ""ו",שש מאות חמישים ושישה,gematria_number
+"תרנ""ז",שש מאות חמישים ושבעה,gematria_number
+"תרנ""ח",שש מאות חמישים ושמונה,gematria_number
+"תרנ""ט",שש מאות חמישים ותשעה,gematria_number
+"תרנ""ט",שש מאות חמישים ותשע,gematria_number
+"תרס""א",שש מאות שישים ואחד,gematria_number
+"תרס""א",שש מאות שישים ואחת,gematria_number
+"תרס""ב",שש מאות שישים ושניים,gematria_number
+"תרס""ב",שש מאות שישים ושתיים,gematria_number
+"תרס""ג",שש מאות שישים ושלושה,gematria_number
+"תרס""ד",שש מאות שישים וארבעה,gematria_number
+"תרס""ד",שש מאות שישים וארבע,gematria_number
+"תרס""ה",שש מאות שישים וחמישה,gematria_number
+"תרס""ה",שש מאות שישים וחמש,gematria_number
+"תרס""ו",שש מאות שישים ושישה,gematria_number
+"תרס""ז",שש מאות שישים ושבעה,gematria_number
+"תרס""ח",שש מאות שישים ושמונה,gematria_number
+"תרס""ט",שש מאות שישים ותשעה,gematria_number
+"תרס""ט",שש מאות שישים ותשע,gematria_number
+"תרע""א",שש מאות שבעים ואחד,gematria_number
+"תרע""א",שש מאות שבעים ואחת,gematria_number
+"תרע""ב",שש מאות שבעים ושניים,gematria_number
+"תרע""ב",שש מאות שבעים ושתיים,gematria_number
+"תרע""ג",שש מאות שבעים ושלושה,gematria_number
+"תרע""ד",שש מאות שבעים וארבעה,gematria_number
+"תרע""ד",שש מאות שבעים וארבע,gematria_number
+"תרע""ה",שש מאות שבעים וחמישה,gematria_number
+"תרע""ה",שש מאות שבעים וחמש,gematria_number
+"תרע""ו",שש מאות שבעים ושישה,gematria_number
+"תרע""ז",שש מאות שבעים ושבעה,gematria_number
+"תרע""ח",שש מאות שבעים ושמונה,gematria_number
+"תרע""ט",שש מאות שבעים ותשעה,gematria_number
+"תרע""ט",שש מאות שבעים ותשע,gematria_number
+"תרפ""א",שש מאות שמונים ואחד,gematria_number
+"תרפ""א",שש מאות שמונים ואחת,gematria_number
+"תרפ""ב",שש מאות שמונים ושניים,gematria_number
+"תרפ""ב",שש מאות שמונים ושתיים,gematria_number
+"תרפ""ג",שש מאות שמונים ושלושה,gematria_number
+"תרפ""ד",שש מאות שמונים וארבעה,gematria_number
+"תרפ""ד",שש מאות שמונים וארבע,gematria_number
+"תרפ""ה",שש מאות שמונים וחמישה,gematria_number
+"תרפ""ה",שש מאות שמונים וחמש,gematria_number
+"תרפ""ו",שש מאות שמונים ושישה,gematria_number
+"תרפ""ז",שש מאות שמונים ושבעה,gematria_number
+"תרפ""ח",שש מאות שמונים ושמונה,gematria_number
+"תרפ""ט",שש מאות שמונים ותשעה,gematria_number
+"תרפ""ט",שש מאות שמונים ותשע,gematria_number
+"תרצ""א",שש מאות תשעים ואחד,gematria_number
+"תרצ""א",שש מאות תשעים ואחת,gematria_number
+"תרצ""ב",שש מאות תשעים ושניים,gematria_number
+"תרצ""ב",שש מאות תשעים ושתיים,gematria_number
+"תרצ""ג",שש מאות תשעים ושלושה,gematria_number
+"תרצ""ד",שש מאות תשעים וארבעה,gematria_number
+"תרצ""ד",שש מאות תשעים וארבע,gematria_number
+"תרצ""ה",שש מאות תשעים וחמישה,gematria_number
+"תרצ""ה",שש מאות תשעים וחמש,gematria_number
+"תרצ""ו",שש מאות תשעים ושישה,gematria_number
+"תרצ""ז",שש מאות תשעים ושבעה,gematria_number
+"תרצ""ח",שש מאות תשעים ושמונה,gematria_number
+"תרצ""ט",שש מאות תשעים ותשעה,gematria_number
+"תרצ""ט",שש מאות תשעים ותשע,gematria_number
+"תש""ב",שבע מאות ושניים,gematria_number
+"תש""ב",שבע מאות ושתיים,gematria_number
+"תש""ד",שבע מאות וארבעה,gematria_number
+"תש""ד",שבע מאות וארבע,gematria_number
+"תש""ה",שבע מאות וחמישה,gematria_number
+"תש""ה",שבע מאות וחמש,gematria_number
+"תש""ו",שבע מאות ושישה,gematria_number
+"תש""ז",שבע מאות ושבעה,gematria_number
+"תש""ח",שבע מאות ושמונה,gematria_number
+"תש""ט",שבע מאות ותשעה,gematria_number
+"תש""ט",שבע מאות ותשע,gematria_number
+"תש""י",שבע מאות ועשרה,gematria_number
+"תש""כ",שבע מאות ועשרים,gematria_number
+"תש""ל",שבע מאות ושלושים,gematria_number
+"תש""מ",שבע מאות וארבעים,gematria_number
+"תש""ן",שבע מאות וחמישים,gematria_number
+"תש""ס",שבע מאות ושישים,gematria_number
+"תש""ע",שבע מאות ושבעים,gematria_number
+"תש""פ",שבע מאות ושמונים,gematria_number
+"תש""צ",שבע מאות ותשעים,gematria_number
+"תשט""ו",שבע מאות וחמישה עשר,gematria_number
+"תשט""ו",שבע מאות וחמש עשרה,gematria_number
+"תשי""א",שבע מאות ואחד עשר,gematria_number
+"תשי""א",שבע מאות ואחת עשרה,gematria_number
+"תשי""ב",שבע מאות ושנים עשר,gematria_number
+"תשי""ב",שבע מאות ושתים עשרה,gematria_number
+"תשי""ג",שבע מאות ושלושה עשר,gematria_number
+"תשי""ג",שבע מאות ושלוש עשרה,gematria_number
+"תשי""ד",שבע מאות וארבעה עשר,gematria_number
+"תשי""ד",שבע מאות וארבע עשרה,gematria_number
+"תשי""ז",שבע מאות ושבעה עשר,gematria_number
+"תשי""ז",שבע מאות ושבע עשרה,gematria_number
+"תשי""ח",שבע מאות ושמונה עשר,gematria_number
+"תשי""ט",שבע מאות ותשעה עשר,gematria_number
+"תשי""ט",שבע מאות ותשע עשרה,gematria_number
+"תשכ""ג",שבע מאות עשרים ושלושה,gematria_number
+"תשכ""ד",שבע מאות עשרים וארבעה,gematria_number
+"תשכ""ד",שבע מאות עשרים וארבע,gematria_number
+"תשכ""ה",שבע מאות עשרים וחמישה,gematria_number
+"תשכ""ה",שבע מאות עשרים וחמש,gematria_number
+"תשכ""ו",שבע מאות עשרים ושישה,gematria_number
+"תשכ""ז",שבע מאות עשרים ושבעה,gematria_number
+"תשכ""ט",שבע מאות עשרים ותשעה,gematria_number
+"תשכ""ט",שבע מאות עשרים ותשע,gematria_number
+"תשל""א",שבע מאות שלושים ואחד,gematria_number
+"תשל""א",שבע מאות שלושים ואחת,gematria_number
+"תשל""ד",שבע מאות שלושים וארבעה,gematria_number
+"תשל""ד",שבע מאות שלושים וארבע,gematria_number
+"תשל""ו",שבע מאות שלושים ושישה,gematria_number
+"תשל""ז",שבע מאות שלושים ושבעה,gematria_number
+"תשל""ח",שבע מאות שלושים ושמונה,gematria_number
+"תשמ""א",שבע מאות ארבעים ואחד,gematria_number
+"תשמ""א",שבע מאות ארבעים ואחת,gematria_number
+"תשמ""ב",שבע מאות ארבעים ושניים,gematria_number
+"תשמ""ב",שבע מאות ארבעים ושתיים,gematria_number
+"תשמ""ג",שבע מאות ארבעים ושלושה,gematria_number
+"תשמ""ד",שבע מאות ארבעים וארבעה,gematria_number
+"תשמ""ד",שבע מאות ארבעים וארבע,gematria_number
+"תשמ""ה",שבע מאות ארבעים וחמישה,gematria_number
+"תשמ""ה",שבע מאות ארבעים וחמש,gematria_number
+"תשמ""ו",שבע מאות ארבעים ושישה,gematria_number
+"תשמ""ז",שבע מאות ארבעים ושבעה,gematria_number
+"תשמ""ח",שבע מאות ארבעים ושמונה,gematria_number
+"תשמ""ט",שבע מאות ארבעים ותשעה,gematria_number
+"תשמ""ט",שבע מאות ארבעים ותשע,gematria_number
+"תשנ""א",שבע מאות חמישים ואחד,gematria_number
+"תשנ""א",שבע מאות חמישים ואחת,gematria_number
+"תשנ""ג",שבע מאות חמישים ושלושה,gematria_number
+"תשנ""ד",שבע מאות חמישים וארבעה,gematria_number
+"תשנ""ד",שבע מאות חמישים וארבע,gematria_number
+"תשנ""ה",שבע מאות חמישים וחמישה,gematria_number
+"תשנ""ה",שבע מאות חמישים וחמש,gematria_number
+"תשנ""ז",שבע מאות חמישים ושבעה,gematria_number
+"תשנ""ח",שבע מאות חמישים ושמונה,gematria_number
+"תשנ""ט",שבע מאות חמישים ותשעה,gematria_number
+"תשנ""ט",שבע מאות חמישים ותשע,gematria_number
+"תשס""א",שבע מאות שישים ואחד,gematria_number
+"תשס""א",שבע מאות שישים ואחת,gematria_number
+"תשס""ב",שבע מאות שישים ושניים,gematria_number
+"תשס""ב",שבע מאות שישים ושתיים,gematria_number
+"תשס""ג",שבע מאות שישים ושלושה,gematria_number
+"תשס""ד",שבע מאות שישים וארבעה,gematria_number
+"תשס""ד",שבע מאות שישים וארבע,gematria_number
+"תשס""ה",שבע מאות שישים וחמישה,gematria_number
+"תשס""ה",שבע מאות שישים וחמש,gematria_number
+"תשס""ו",שבע מאות שישים ושישה,gematria_number
+"תשס""ח",שבע מאות שישים ושמונה,gematria_number
+"תשס""ט",שבע מאות שישים ותשעה,gematria_number
+"תשס""ט",שבע מאות שישים ותשע,gematria_number
+"תשע""א",שבע מאות שבעים ואחד,gematria_number
+"תשע""א",שבע מאות שבעים ואחת,gematria_number
+"תשע""ב",שבע מאות שבעים ושניים,gematria_number
+"תשע""ב",שבע מאות שבעים ושתיים,gematria_number
+"תשע""ג",שבע מאות שבעים ושלושה,gematria_number
+"תשע""ד",שבע מאות שבעים וארבעה,gematria_number
+"תשע""ד",שבע מאות שבעים וארבע,gematria_number
+"תשע""ה",שבע מאות שבעים וחמישה,gematria_number
+"תשע""ה",שבע מאות שבעים וחמש,gematria_number
+"תשע""ו",שבע מאות שבעים ושישה,gematria_number
+"תשע""ז",שבע מאות שבעים ושבעה,gematria_number
+"תשע""ח",שבע מאות שבעים ושמונה,gematria_number
+"תשע""ט",שבע מאות שבעים ותשעה,gematria_number
+"תשע""ט",שבע מאות שבעים ותשע,gematria_number
+"תשפ""א",שבע מאות שמונים ואחד,gematria_number
+"תשפ""א",שבע מאות שמונים ואחת,gematria_number
+"תשפ""ב",שבע מאות שמונים ושניים,gematria_number
+"תשפ""ב",שבע מאות שמונים ושתיים,gematria_number
+"תשפ""ד",שבע מאות שמונים וארבעה,gematria_number
+"תשפ""ד",שבע מאות שמונים וארבע,gematria_number
+"תשפ""ה",שבע מאות שמונים וחמישה,gematria_number
+"תשפ""ה",שבע מאות שמונים וחמש,gematria_number
+"תשפ""ז",שבע מאות שמונים ושבעה,gematria_number
+"תשפ""ט",שבע מאות שמונים ותשעה,gematria_number
+"תשפ""ט",שבע מאות שמונים ותשע,gematria_number
+"תשצ""ב",שבע מאות תשעים ושניים,gematria_number
+"תשצ""ב",שבע מאות תשעים ושתיים,gematria_number
+"תשצ""ג",שבע מאות תשעים ושלושה,gematria_number
+"תשצ""ה",שבע מאות תשעים וחמישה,gematria_number
+"תשצ""ה",שבע מאות תשעים וחמש,gematria_number
+"תשצ""ו",שבע מאות תשעים ושישה,gematria_number
+"תשצ""ז",שבע מאות תשעים ושבעה,gematria_number
+"תשצ""ח",שבע מאות תשעים ושמונה,gematria_number
+"תשצ""ט",שבע מאות תשעים ותשעה,gematria_number
+"תשצ""ט",שבע מאות תשעים ותשע,gematria_number
+"תת""ב",שמונה מאות ושניים,gematria_number
+"תת""ב",שמונה מאות ושתיים,gematria_number
+"תת""ג",שמונה מאות ושלושה,gematria_number
+"תת""ה",שמונה מאות וחמישה,gematria_number
+"תת""ה",שמונה מאות וחמש,gematria_number
+"תת""ו",שמונה מאות ושישה,gematria_number
+"תת""ז",שמונה מאות ושבעה,gematria_number
+"תת""ח",שמונה מאות ושמונה,gematria_number
+"תת""ט",שמונה מאות ותשעה,gematria_number
+"תת""ט",שמונה מאות ותשע,gematria_number
+"תת""י",שמונה מאות ועשרה,gematria_number
+"תת""כ",שמונה מאות ועשרים,gematria_number
+"תת""ל",שמונה מאות ושלושים,gematria_number
+"תת""מ",שמונה מאות וארבעים,gematria_number
+"תת""נ",שמונה מאות וחמישים,gematria_number
+"תת""ס",שמונה מאות ושישים,gematria_number
+"תת""ע",שמונה מאות ושבעים,gematria_number
+"תת""ף",שמונה מאות ושמונים,gematria_number
+"תת""צ",שמונה מאות ותשעים,gematria_number
+"תת""ק",תשע מאות,gematria_number
+"תת""ר",אלף,gematria_number
+"תתט""ו",שמונה מאות וחמישה עשר,gematria_number
+"תתט""ו",שמונה מאות וחמש עשרה,gematria_number
+"תתט""ז",שמונה מאות וששה עשר,gematria_number
+"תתי""א",שמונה מאות ואחד עשר,gematria_number
+"תתי""א",שמונה מאות ואחת עשרה,gematria_number
+"תתי""ב",שמונה מאות ושנים עשר,gematria_number
+"תתי""ב",שמונה מאות ושתים עשרה,gematria_number
+"תתי""ד",שמונה מאות וארבעה עשר,gematria_number
+"תתי""ד",שמונה מאות וארבע עשרה,gematria_number
+"תתי""ז",שמונה מאות ושבעה עשר,gematria_number
+"תתי""ז",שמונה מאות ושבע עשרה,gematria_number
+"תתי""ח",שמונה מאות ושמונה עשר,gematria_number
+"תתכ""א",שמונה מאות עשרים ואחד,gematria_number
+"תתכ""א",שמונה מאות עשרים ואחת,gematria_number
+"תתכ""ב",שמונה מאות עשרים ושניים,gematria_number
+"תתכ""ב",שמונה מאות עשרים ושתיים,gematria_number
+"תתכ""ג",שמונה מאות עשרים ושלושה,gematria_number
+"תתכ""ד",שמונה מאות עשרים וארבעה,gematria_number
+"תתכ""ד",שמונה מאות עשרים וארבע,gematria_number
+"תתכ""ז",שמונה מאות עשרים ושבעה,gematria_number
+"תתכ""ח",שמונה מאות עשרים ושמונה,gematria_number
+"תתכ""ט",שמונה מאות עשרים ותשעה,gematria_number
+"תתכ""ט",שמונה מאות עשרים ותשע,gematria_number
+"תתל""א",שמונה מאות שלושים ואחד,gematria_number
+"תתל""א",שמונה מאות שלושים ואחת,gematria_number
+"תתל""ב",שמונה מאות שלושים ושניים,gematria_number
+"תתל""ב",שמונה מאות שלושים ושתיים,gematria_number
+"תתל""ג",שמונה מאות שלושים ושלושה,gematria_number
+"תתמ""א",שמונה מאות ארבעים ואחד,gematria_number
+"תתמ""א",שמונה מאות ארבעים ואחת,gematria_number
+"תתמ""ב",שמונה מאות ארבעים ושניים,gematria_number
+"תתמ""ב",שמונה מאות ארבעים ושתיים,gematria_number
+"תתמ""ג",שמונה מאות ארבעים ושלושה,gematria_number
+"תתמ""ד",שמונה מאות ארבעים וארבעה,gematria_number
+"תתמ""ד",שמונה מאות ארבעים וארבע,gematria_number
+"תתמ""ח",שמונה מאות ארבעים ושמונה,gematria_number
+"תתמ""ט",שמונה מאות ארבעים ותשעה,gematria_number
+"תתמ""ט",שמונה מאות ארבעים ותשע,gematria_number
+"תתנ""א",שמונה מאות חמישים ואחד,gematria_number
+"תתנ""א",שמונה מאות חמישים ואחת,gematria_number
+"תתנ""ד",שמונה מאות חמישים וארבעה,gematria_number
+"תתנ""ד",שמונה מאות חמישים וארבע,gematria_number
+"תתנ""ו",שמונה מאות חמישים ושישה,gematria_number
+"תתנ""ז",שמונה מאות חמישים ושבעה,gematria_number
+"תתנ""ח",שמונה מאות חמישים ושמונה,gematria_number
+"תתנ""ט",שמונה מאות חמישים ותשעה,gematria_number
+"תתנ""ט",שמונה מאות חמישים ותשע,gematria_number
+"תתס""א",שמונה מאות שישים ואחד,gematria_number
+"תתס""א",שמונה מאות שישים ואחת,gematria_number
+"תתס""ד",שמונה מאות שישים וארבעה,gematria_number
+"תתס""ד",שמונה מאות שישים וארבע,gematria_number
+"תתס""ה",שמונה מאות שישים וחמישה,gematria_number
+"תתס""ה",שמונה מאות שישים וחמש,gematria_number
+"תתס""ו",שמונה מאות שישים ושישה,gematria_number
+"תתס""ז",שמונה מאות שישים ושבעה,gematria_number
+"תתס""ח",שמונה מאות שישים ושמונה,gematria_number
+"תתס""ט",שמונה מאות שישים ותשעה,gematria_number
+"תתס""ט",שמונה מאות שישים ותשע,gematria_number
+"תתע""ב",שמונה מאות שבעים ושניים,gematria_number
+"תתע""ב",שמונה מאות שבעים ושתיים,gematria_number
+"תתע""ד",שמונה מאות שבעים וארבעה,gematria_number
+"תתע""ד",שמונה מאות שבעים וארבע,gematria_number
+"תתע""ה",שמונה מאות שבעים וחמישה,gematria_number
+"תתע""ה",שמונה מאות שבעים וחמש,gematria_number
+"תתע""ו",שמונה מאות שבעים ושישה,gematria_number
+"תתע""ז",שמונה מאות שבעים ושבעה,gematria_number
+"תתע""ח",שמונה מאות שבעים ושמונה,gematria_number
+"תתע""ט",שמונה מאות שבעים ותשעה,gematria_number
+"תתע""ט",שמונה מאות שבעים ותשע,gematria_number
+"תתפ""א",שמונה מאות שמונים ואחד,gematria_number
+"תתפ""א",שמונה מאות שמונים ואחת,gematria_number
+"תתפ""ב",שמונה מאות שמונים ושניים,gematria_number
+"תתפ""ב",שמונה מאות שמונים ושתיים,gematria_number
+"תתפ""ג",שמונה מאות שמונים ושלושה,gematria_number
+"תתפ""ה",שמונה מאות שמונים וחמישה,gematria_number
+"תתפ""ה",שמונה מאות שמונים וחמש,gematria_number
+"תתפ""ו",שמונה מאות שמונים ושישה,gematria_number
+"תתפ""ז",שמונה מאות שמונים ושבעה,gematria_number
+"תתפ""ח",שמונה מאות שמונים ושמונה,gematria_number
+"תתפ""ט",שמונה מאות שמונים ותשעה,gematria_number
+"תתפ""ט",שמונה מאות שמונים ותשע,gematria_number
+"תתצ""א",שמונה מאות תשעים ואחד,gematria_number
+"תתצ""א",שמונה מאות תשעים ואחת,gematria_number
+"תתצ""ב",שמונה מאות תשעים ושניים,gematria_number
+"תתצ""ב",שמונה מאות תשעים ושתיים,gematria_number
+"תתצ""ה",שמונה מאות תשעים וחמישה,gematria_number
+"תתצ""ה",שמונה מאות תשעים וחמש,gematria_number
+"תתצ""ח",שמונה מאות תשעים ושמונה,gematria_number
+"תתצ""ט",שמונה מאות תשעים ותשעה,gematria_number
+"תתצ""ט",שמונה מאות תשעים ותשע,gematria_number
+"תתק""א",תשע מאות ואחד,gematria_number
+"תתק""א",תשע מאות ואחת,gematria_number
+"תתק""ב",תשע מאות ושניים,gematria_number
+"תתק""ב",תשע מאות ושתיים,gematria_number
+"תתק""ג",תשע מאות ושלושה,gematria_number
+"תתק""ד",תשע מאות וארבעה,gematria_number
+"תתק""ד",תשע מאות וארבע,gematria_number
+"תתק""ה",תשע מאות וחמישה,gematria_number
+"תתק""ה",תשע מאות וחמש,gematria_number
+"תתק""ו",תשע מאות ושישה,gematria_number
+"תתק""ט",תשע מאות ותשעה,gematria_number
+"תתק""ט",תשע מאות ותשע,gematria_number
+"תתק""י",תשע מאות ועשרה,gematria_number
+"תתק""ך",תשע מאות ועשרים,gematria_number
+"תתק""ל",תשע מאות ושלושים,gematria_number
+"תתק""מ",תשע מאות וארבעים,gematria_number
+"תתק""נ",תשע מאות וחמישים,gematria_number
+"תתק""ס",תשע מאות ושישים,gematria_number
+"תתק""ע",תשע מאות ושבעים,gematria_number
+"תתק""פ",תשע מאות ושמונים,gematria_number
+"תתקט""ו",תשע מאות וחמישה עשר,gematria_number
+"תתקט""ו",תשע מאות וחמש עשרה,gematria_number
+"תתקט""ז",תשע מאות וששה עשר,gematria_number
+"תתקי""ג",תשע מאות ושלושה עשר,gematria_number
+"תתקי""ג",תשע מאות ושלוש עשרה,gematria_number
+"תתקי""ד",תשע מאות וארבעה עשר,gematria_number
+"תתקי""ד",תשע מאות וארבע עשרה,gematria_number
+"תתקי""ז",תשע מאות ושבעה עשר,gematria_number
+"תתקי""ז",תשע מאות ושבע עשרה,gematria_number
+"תתקי""ח",תשע מאות ושמונה עשר,gematria_number
+"תתקכ""א",תשע מאות עשרים ואחד,gematria_number
+"תתקכ""א",תשע מאות עשרים ואחת,gematria_number
+"תתקכ""ב",תשע מאות עשרים ושניים,gematria_number
+"תתקכ""ב",תשע מאות עשרים ושתיים,gematria_number
+"תתקכ""ג",תשע מאות עשרים ושלושה,gematria_number
+"תתקכ""ד",תשע מאות עשרים וארבעה,gematria_number
+"תתקכ""ד",תשע מאות עשרים וארבע,gematria_number
+"תתקכ""ה",תשע מאות עשרים וחמישה,gematria_number
+"תתקכ""ה",תשע מאות עשרים וחמש,gematria_number
+"תתקכ""ז",תשע מאות עשרים ושבעה,gematria_number
+"תתקכ""ט",תשע מאות עשרים ותשעה,gematria_number
+"תתקכ""ט",תשע מאות עשרים ותשע,gematria_number
+"תתקל""א",תשע מאות שלושים ואחד,gematria_number
+"תתקל""א",תשע מאות שלושים ואחת,gematria_number
+"תתקל""ב",תשע מאות שלושים ושניים,gematria_number
+"תתקל""ב",תשע מאות שלושים ושתיים,gematria_number
+"תתקל""ג",תשע מאות שלושים ושלושה,gematria_number
+"תתקל""ד",תשע מאות שלושים וארבעה,gematria_number
+"תתקל""ד",תשע מאות שלושים וארבע,gematria_number
+"תתקל""ו",תשע מאות שלושים ושישה,gematria_number
+"תתקל""ז",תשע מאות שלושים ושבעה,gematria_number
+"תתקל""ח",תשע מאות שלושים ושמונה,gematria_number
+"תתקל""ט",תשע מאות שלושים ותשעה,gematria_number
+"תתקל""ט",תשע מאות שלושים ותשע,gematria_number
+"תתקמ""א",תשע מאות ארבעים ואחד,gematria_number
+"תתקמ""א",תשע מאות ארבעים ואחת,gematria_number
+"תתקמ""ב",תשע מאות ארבעים ושניים,gematria_number
+"תתקמ""ב",תשע מאות ארבעים ושתיים,gematria_number
+"תתקמ""ג",תשע מאות ארבעים ושלושה,gematria_number
+"תתקמ""ד",תשע מאות ארבעים וארבעה,gematria_number
+"תתקמ""ד",תשע מאות ארבעים וארבע,gematria_number
+"תתקמ""ו",תשע מאות ארבעים ושישה,gematria_number
+"תתקמ""ז",תשע מאות ארבעים ושבעה,gematria_number
+"תתקמ""ח",תשע מאות ארבעים ושמונה,gematria_number
+"תתקמ""ט",תשע מאות ארבעים ותשעה,gematria_number
+"תתקמ""ט",תשע מאות ארבעים ותשע,gematria_number
+"תתקנ""א",תשע מאות חמישים ואחד,gematria_number
+"תתקנ""א",תשע מאות חמישים ואחת,gematria_number
+"תתקנ""ב",תשע מאות חמישים ושניים,gematria_number
+"תתקנ""ב",תשע מאות חמישים ושתיים,gematria_number
+"תתקנ""ג",תשע מאות חמישים ושלושה,gematria_number
+"תתקנ""ד",תשע מאות חמישים וארבעה,gematria_number
+"תתקנ""ד",תשע מאות חמישים וארבע,gematria_number
+"תתקנ""ה",תשע מאות חמישים וחמישה,gematria_number
+"תתקנ""ה",תשע מאות חמישים וחמש,gematria_number
+"תתקנ""ו",תשע מאות חמישים ושישה,gematria_number
+"תתקנ""ט",תשע מאות חמישים ותשעה,gematria_number
+"תתקנ""ט",תשע מאות חמישים ותשע,gematria_number
+"תתקס""א",תשע מאות שישים ואחד,gematria_number
+"תתקס""א",תשע מאות שישים ואחת,gematria_number
+"תתקס""ב",תשע מאות שישים ושניים,gematria_number
+"תתקס""ב",תשע מאות שישים ושתיים,gematria_number
+"תתקס""ג",תשע מאות שישים ושלושה,gematria_number
+"תתקס""ד",תשע מאות שישים וארבעה,gematria_number
+"תתקס""ד",תשע מאות שישים וארבע,gematria_number
+"תתקס""ה",תשע מאות שישים וחמישה,gematria_number
+"תתקס""ה",תשע מאות שישים וחמש,gematria_number
+"תתקס""ח",תשע מאות שישים ושמונה,gematria_number
+"תתקס""ט",תשע מאות שישים ותשעה,gematria_number
+"תתקס""ט",תשע מאות שישים ותשע,gematria_number
+"תתקע""א",תשע מאות שבעים ואחד,gematria_number
+"תתקע""א",תשע מאות שבעים ואחת,gematria_number
+"תתקע""ב",תשע מאות שבעים ושניים,gematria_number
+"תתקע""ב",תשע מאות שבעים ושתיים,gematria_number
+"תתקע""ג",תשע מאות שבעים ושלושה,gematria_number
+"תתקע""ד",תשע מאות שבעים וארבעה,gematria_number
+"תתקע""ד",תשע מאות שבעים וארבע,gematria_number
+"תתקע""ו",תשע מאות שבעים ושישה,gematria_number
+"תתקע""ז",תשע מאות שבעים ושבעה,gematria_number
+"תתקע""ח",תשע מאות שבעים ושמונה,gematria_number
+"תתקפ""א",תשע מאות שמונים ואחד,gematria_number
+"תתקפ""א",תשע מאות שמונים ואחת,gematria_number
+"תתקפ""ב",תשע מאות שמונים ושניים,gematria_number
+"תתקפ""ב",תשע מאות שמונים ושתיים,gematria_number
+"תתקפ""ד",תשע מאות שמונים וארבעה,gematria_number
+"תתקפ""ד",תשע מאות שמונים וארבע,gematria_number
+"תתקפ""ה",תשע מאות שמונים וחמישה,gematria_number
+"תתקפ""ה",תשע מאות שמונים וחמש,gematria_number
+"תתקפ""ו",תשע מאות שמונים ושישה,gematria_number
+"תתקפ""ח",תשע מאות שמונים ושמונה,gematria_number
+"תתקפ""ט",תשע מאות שמונים ותשעה,gematria_number
+"תתקפ""ט",תשע מאות שמונים ותשע,gematria_number
+"תתקצ""ד",תשע מאות תשעים וארבעה,gematria_number
+"תתקצ""ד",תשע מאות תשעים וארבע,gematria_number
+"תתקצ""ו",תשע מאות תשעים ושישה,gematria_number
+"תתקצ""ז",תשע מאות תשעים ושבעה,gematria_number
+"תתקצ""ח",תשע מאות תשעים ושמונה,gematria_number
+"תתקצ""ט",תשע מאות תשעים ותשעה,gematria_number
+"תתקצ""ט",תשע מאות תשעים ותשע,gematria_number
+"תתר""ה",אלף וחמישה,gematria_number
+"תתר""ה",אלף וחמש,gematria_number
+"תתר""כ",אלף ועשרים,gematria_number
+"תתר""ן",אלף וחמישים,gematria_number
+"תתר""ע",אלף ושבעים,gematria_number
+"תתר""פ",אלף ושמונים,gematria_number
+"תתר""ץ",אלף ותשעים,gematria_number
+"תתרי""ג",אלף ושלושה עשר,gematria_number
+"תתרי""ג",אלף ושלוש עשרה,gematria_number
+"תתרכ""ג",אלף עשרים ושלושה,gematria_number
+"תתרכ""ד",אלף עשרים וארבעה,gematria_number
+"תתרכ""ד",אלף עשרים וארבע,gematria_number
+"תתרכ""ז",אלף עשרים ושבעה,gematria_number
+"תתרל""ה",אלף שלושים וחמישה,gematria_number
+"תתרל""ה",אלף שלושים וחמש,gematria_number
+"תתרמ""ב",אלף ארבעים ושניים,gematria_number
+"תתרמ""ב",אלף ארבעים ושתיים,gematria_number
+"תתרמ""ד",אלף ארבעים וארבעה,gematria_number
+"תתרמ""ד",אלף ארבעים וארבע,gematria_number
+"תתרמ""ז",אלף ארבעים ושבעה,gematria_number
+"תתרמ""ט",אלף ארבעים ותשעה,gematria_number
+"תתרמ""ט",אלף ארבעים ותשע,gematria_number
+"תתרנ""א",אלף חמישים ואחד,gematria_number
+"תתרנ""א",אלף חמישים ואחת,gematria_number
+"תתרנ""ב",אלף חמישים ושניים,gematria_number
+"תתרנ""ב",אלף חמישים ושתיים,gematria_number
+"תתרנ""ח",אלף חמישים ושמונה,gematria_number
+"תתרס""ז",אלף שישים ושבעה,gematria_number
+"תתרס""ט",אלף שישים ותשעה,gematria_number
+"תתרס""ט",אלף שישים ותשע,gematria_number
+"תתרע""א",אלף שבעים ואחד,gematria_number
+"תתרע""א",אלף שבעים ואחת,gematria_number
+"תתרע""ב",אלף שבעים ושניים,gematria_number
+"תתרע""ב",אלף שבעים ושתיים,gematria_number
+"תתרע""ג",אלף שבעים ושלושה,gematria_number
+"תתרע""ד",אלף שבעים וארבעה,gematria_number
+"תתרע""ד",אלף שבעים וארבע,gematria_number
+"תתרע""ז",אלף שבעים ושבעה,gematria_number
+"תתרע""ח",אלף שבעים ושמונה,gematria_number
+"תתרצ""א",אלף תשעים ואחד,gematria_number
+"תתרצ""א",אלף תשעים ואחת,gematria_number
+"תתרצ""ה",אלף תשעים וחמישה,gematria_number
+"תתרצ""ה",אלף תשעים וחמש,gematria_number
+"תתש""מ",אלף מאה וארבעים,gematria_number
+"תתש""ע",אלף מאה ושבעים,gematria_number
+"תתשי""ז",אלף מאה ושבעה עשר,gematria_number
+"תתשי""ז",אלף מאה ושבע עשרה,gematria_number
+"תתשע""ב",אלף מאה שבעים ושניים,gematria_number
+"תתשע""ב",אלף מאה שבעים ושתיים,gematria_number
