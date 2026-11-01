@@ -106,14 +106,6 @@ class SystemSettingsTab extends StatefulWidget {
       keywords: ['סנכרון', 'ספריה', 'אוטומטי', 'מופעל', 'לא מופעל'],
     ),
     SettingsSearchEntry(
-      id: 'system.updates.dev_channel',
-      title: 'עדכון לגרסאות פיתוח',
-      subtitle: 'קבלת גרסאות בדיקה (Beta)',
-      tab: SettingsTab.system,
-      cardId: 'system.updates',
-      keywords: ['בטא', 'מפתחים', 'יציבה', 'מופעל', 'לא מופעל'],
-    ),
-    SettingsSearchEntry(
       id: 'system.reports.email',
       title: 'כתובת דואר אלקטרוני לזיהוי',
       subtitle: 'דואר אלקטרוני לזיהוי בדיווחי טעויות',
@@ -728,26 +720,6 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 Settings.getValue<bool>(SettingsRepository.keyAutoSync) ?? true,
             onChanged: (value) {
               Settings.setValue<bool>(SettingsRepository.keyAutoSync, value);
-              setState(() {});
-            },
-          ),
-          SettingsActionTile.switchTile(
-            icon: FluentIcons.beaker_24_regular,
-            title: context.settingsText('עדכון לגרסאות פיתוח'),
-            subtitle:
-                Settings.getValue<bool>(SettingsRepository.keyDevChannel) ??
-                    false
-                ? context.settingsText(
-                    'בדיקת העדכונים הבאה תחפש גם גרסאות בדיקה — ייתכנו באגים',
-                  )
-                : context.settingsText(
-                    'בדיקת העדכונים הבאה תחפש גרסאות יציבות בלבד',
-                  ),
-            value:
-                Settings.getValue<bool>(SettingsRepository.keyDevChannel) ??
-                false,
-            onChanged: (value) {
-              Settings.setValue<bool>(SettingsRepository.keyDevChannel, value);
               setState(() {});
             },
           ),

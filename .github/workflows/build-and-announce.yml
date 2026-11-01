@@ -3,12 +3,6 @@ name: "Build, Release and Announce"
 permissions:
   contents: write
 
-# On main the tag is the bare version: a second release run would delete the first
-# one's draft. Only those runs queue; dev runs carry the run number in the tag.
-concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release && github.ref == 'refs/heads/main' && 'release-main' || format('run-{0}', github.run_id) }}
-  cancel-in-progress: false
-
 on:
   workflow_dispatch:
     inputs:
@@ -134,7 +128,6 @@ jobs:
       release_id: ${{ steps.draft.outputs.id }}
       tag: ${{ steps.version.outputs.tag }}
       title: ${{ steps.version.outputs.title }}
-      prerelease: ${{ steps.version.outputs.prerelease }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Clone repository
@@ -158,17 +151,8 @@ jobs:
           
           TAG=$(bash tool/version/release_tag.sh "$VERSION" '${{ github.ref }}' '${{ github.run_number }}')
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "prerelease=false" >> $GITHUB_OUTPUT
-            echo "title=Otzaria $TAG" >> $GITHUB_OUTPUT
-          else
-            # Use proper semver pre-release format with dots instead of hyphens
-            BRANCH_NAME="${{ github.ref_name }}"
-            # Replace any invalid characters in branch name for semver
-            CLEAN_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^A-Za-z0-9.-]/-/g')
-            echo "prerelease=true" >> $GITHUB_OUTPUT
-            echo "title=Otzaria ${TAG%%+*} (Preview from ${{ github.ref_name }})" >> $GITHUB_OUTPUT
-          fi
+          echo "title=Otzaria $TAG" >> "$GITHUB_OUTPUT"
+
 
       - name: Create the draft release
         if: env.CREATE_RELEASE == 'true'
@@ -177,7 +161,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
           RELEASE_TITLE: ${{ steps.version.outputs.title }}
-          PRERELEASE: ${{ steps.version.outputs.prerelease }}
           BUILD_SHA: ${{ needs.bump_version.outputs.sha }}
         run: |
           set -euo pipefail
@@ -216,7 +199,7 @@ jobs:
           for attempt in 1 2 3; do
             id=$(gh api -X POST "$releases" \
               -f tag_name="$RELEASE_TAG" -f target_commitish="$BUILD_SHA" \
-              -f name="$RELEASE_TITLE" -F draft=true -F prerelease="$PRERELEASE" --jq .id) && break
+              -f name="$RELEASE_TITLE" -F draft=true -F prerelease=false --jq .id) && break
             # A create that timed out may still have landed.
             id=$(with_tag | awk '$2 == "true" {print $1; exit}' || true)
             [ -z "$id" ] || break
@@ -225,31 +208,6 @@ jobs:
           done
           echo "Created the draft release $id for $RELEASE_TAG"
           echo "id=$id" >> "$GITHUB_OUTPUT"
-
-  check_version:
-    if: github.event_name != 'release' && github.event_name != 'pull_request'
-    needs: [bump_version]
-    runs-on: ubuntu-latest
-    outputs:
-      is_version: ${{ steps.check.outputs.is_version }}
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: ${{ needs.bump_version.outputs.sha }}
-      - name: Check if commit message is a version tag
-        id: check
-        run: |
-          COMMIT_MESSAGE='${{ github.event.head_commit.message }}'
-          if [ -z "$COMMIT_MESSAGE" ]; then
-            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          fi
-          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-          echo "Commit message: $COMMIT_MESSAGE"
-          if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "is_version=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_version=false" >> "$GITHUB_OUTPUT"
-          fi
 
   # הספרייה ואינדקס החיפוש המוכן, כשני נכסים נפרדים שהמתקינים הרגילים של Windows
   # וחבילת Android המלאה פורסים מהחלקים שלצדם. אינם תלויים באפליקציה, ולכן נארזים
@@ -649,26 +607,6 @@ jobs:
           New-Item -ItemType File -Path $marker -Force | Out-Null
           Compress-Archive -Path $marker -Update -DestinationPath otzaria-windows.zip
 
-      - name: Check if commit message is a version tag
-        id: check_version
-        shell: pwsh
-        run: |
-          $commitMessage = "${{ github.event.head_commit.message }}"
-          if ([string]::IsNullOrWhiteSpace($commitMessage)) {
-            Write-Host "Commit message not available in event payload; using checked-out HEAD commit message instead"
-            $commitMessage = git log -1 --pretty=%B
-          }
-          $commitMessage = $commitMessage.Split([Environment]::NewLine)[0].Trim()
-          Write-Host "Commit message: $commitMessage"
-          
-          # בדיקה אם ההודעה היא גרסה במבנה X.Y.Z (מספרים בלבד עם נקודות)
-          if ($commitMessage -match '^\d+\.\d+\.\d+$') {
-            Write-Host "✓ Commit message is a version tag: $commitMessage"
-            echo "is_version=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "✗ Commit message is not a version tag"
-            echo "is_version=false" >> $env:GITHUB_OUTPUT
-          }
 
       # תוספים מצורפים למתקין — הרשימה ב-lib/plugins/services/bundled_plugin_ids.dart
       # (רשימה ריקה = השלב לא עושה דבר). ראה docs/bundled_plugins.md.
@@ -1204,23 +1142,6 @@ jobs:
         with:
           ref: ${{ needs.bump_version.outputs.sha }}
 
-      - name: Check if commit message is a version tag
-        id: check_version
-        shell: bash
-        run: |
-          COMMIT_MESSAGE='${{ github.event.head_commit.message }}'
-          if [ -z "$COMMIT_MESSAGE" ]; then
-            echo "Commit message not available in event payload; using checked-out HEAD commit message instead"
-            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          fi
-          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-          echo "Commit message: $COMMIT_MESSAGE"
-
-          if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "is_version=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_version=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Set up Flutter
         if: matrix.arch != 'aarch64'
@@ -2066,23 +1987,6 @@ jobs:
         with:
           ref: ${{ needs.bump_version.outputs.sha }}
 
-      - name: Check if commit message is a version tag
-        id: check_version
-        shell: bash
-        run: |
-          COMMIT_MESSAGE='${{ github.event.head_commit.message }}'
-          if [ -z "$COMMIT_MESSAGE" ]; then
-            echo "Commit message not available in event payload; using checked-out HEAD commit message instead"
-            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          fi
-          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-          echo "Commit message: $COMMIT_MESSAGE"
-
-          if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "is_version=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_version=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Free up disk space
         run: |
@@ -2407,23 +2311,6 @@ jobs:
         with:
           ref: ${{ needs.bump_version.outputs.sha }}
 
-      - name: Check if commit message is a version tag
-        id: check_version
-        shell: bash
-        run: |
-          COMMIT_MESSAGE='${{ github.event.head_commit.message }}'
-          if [ -z "$COMMIT_MESSAGE" ]; then
-            echo "Commit message not available in event payload; using checked-out HEAD commit message instead"
-            COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          fi
-          COMMIT_MESSAGE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-          echo "Commit message: $COMMIT_MESSAGE"
-
-          if printf '%s' "$COMMIT_MESSAGE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "is_version=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_version=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -3169,6 +3056,10 @@ jobs:
   # מפרסם את הטיוטה שה-jobs מילאו, בלי להוריד את הנכסים עצמם: מאמת אותה מול
   # הרשומות הקטנות שלהם, ובונה מהן את מניפסט ה-release ואת הערות השחרור.
   create_release:
+    concurrency:
+      group: publish-release
+      cancel-in-progress: false
+      queue: max
     if: >-
       !cancelled() &&
       needs.prepare_release.result == 'success' &&
@@ -3182,6 +3073,7 @@ jobs:
       needs.build_windows_installer.result == 'success' &&
       (needs.build_windows_arm64.result == 'success' || needs.build_windows_arm64.result == 'skipped')
     outputs:
+      is_latest: ${{ steps.publish.outputs.is_latest }}
       tag: ${{ needs.prepare_release.outputs.tag }}
       title: ${{ needs.prepare_release.outputs.title }}
       url: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare_release.outputs.tag }}
@@ -3587,29 +3479,26 @@ jobs:
       # GITHUB_TOKEN בכוונה: אירוע ה-published שלו אינו מפעיל workflows, ולכן
       # ההכרזה היחידה היא announce_release שבריצה הזו.
       - name: Publish the release
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_ID: ${{ needs.prepare_release.outputs.release_id }}
           RELEASE_TITLE: ${{ needs.prepare_release.outputs.title }}
-          PRERELEASE: ${{ needs.prepare_release.outputs.prerelease }}
         run: |
-          set -euo pipefail
-          jq -n --rawfile body release-body.md --arg name "$RELEASE_TITLE" --argjson prerelease "$PRERELEASE" \
-            '{name: $name, body: $body, prerelease: $prerelease, draft: false}' \
-            | gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID" --input - \
-              --jq '"Published \(.html_url)"'
+          python3 tool/release/latest_release_policy.py --publish "$RELEASE_ID" \
+            --title "$RELEASE_TITLE" --body-file release-body.md
 
   trigger_google_play_deploy:
-    if: "!cancelled() && needs.check_version.outputs.is_version == 'true' && needs.build_android.result == 'success' && github.event_name != 'release' && github.event_name != 'pull_request'"
-    needs: [bump_version, check_version, build_android]
+    if: "!cancelled() && needs.create_release.result == 'success' && needs.create_release.outputs.is_latest == 'true' && github.event_name != 'release' && github.event_name != 'pull_request'"
+    needs: [bump_version, create_release]
     uses: ./.github/workflows/deploy-google-play.yml
     with:
       ref: ${{ needs.bump_version.outputs.sha }}
     secrets: inherit
 
   trigger_app_store_deploy:
-    if: "!cancelled() && needs.check_version.outputs.is_version == 'true' && needs.build_android.result == 'success' && github.event_name != 'release' && github.event_name != 'pull_request'"
-    needs: [bump_version, check_version, build_android]
+    if: "!cancelled() && needs.create_release.result == 'success' && needs.create_release.outputs.is_latest == 'true' && github.event_name != 'release' && github.event_name != 'pull_request'"
+    needs: [bump_version, create_release]
     uses: ./.github/workflows/deploy-app-store.yml
     with:
       ref: ${{ needs.bump_version.outputs.sha }}
@@ -3622,7 +3511,8 @@ jobs:
       always() &&
       (github.event_name == 'release' ||
        (github.event_name == 'workflow_dispatch' && inputs.announce_release &&
-        needs.create_release.result == 'success'))
+        needs.create_release.result == 'success' &&
+        needs.create_release.outputs.is_latest == 'true'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -3656,6 +3546,7 @@ jobs:
           GITHUB_EVENT_PATH: ${{ github.event_name == 'workflow_dispatch' && format('{0}/release-event.json', runner.temp) || github.event_path }}
 
           # סודות להתחברות לשירותים החיצוניים
+          GH_TOKEN: ${{ github.token }}
           USER_NAME:  ${{ secrets.USER_NAME }}
           PASSWORD:   ${{ secrets.PASSWORD }}
           TOKEN_YEMOT: ${{ secrets.TOKEN_YEMOT }}

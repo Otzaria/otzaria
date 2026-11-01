@@ -103,24 +103,19 @@ void main() {
       expect(run, contains('for attempt in 1 2 3; do'));
     });
 
-    test('שתי ריצות שחרור ל-main אינן רצות יחד; ריצות dev אינן ממתינות', () {
-      final concurrency =
-          (loadYaml(workflow) as YamlMap)['concurrency'] as YamlMap;
+    test('הפרסום מכל הענפים ממתין באותו תור ללא חסימת הבניות', () {
+      expect((loadYaml(workflow) as YamlMap)['concurrency'], isNull);
+      final concurrency = job('create_release')['concurrency'] as YamlMap;
       expect(concurrency['cancel-in-progress'], isFalse);
-      expect(
-        concurrency['group'],
-        contains(
-          "inputs.create_release && github.ref == 'refs/heads/main' && "
-          "'release-main' || format('run-{0}', github.run_id)",
-        ),
-      );
+      expect(concurrency['group'], 'publish-release');
+      expect(concurrency['queue'], 'max');
     });
 
     test('יוצר טיוטה ב-commit שנבנה, ומסרב לשחרור שכבר פורסם', () {
       final run = step('prepare_release', 'Create the draft release')['run'];
       expect(run, contains('-F draft=true'));
       expect(run, contains(r'-f target_commitish="$BUILD_SHA"'));
-      expect(run, contains(r'-F prerelease="$PRERELEASE"'));
+      expect(run, contains('-F prerelease=false'));
       expect(run, contains(r'select(.tag_name == \"$RELEASE_TAG\")'));
       // שחרור באותו תג שאינו טיוטה כבר פורסם.
       expect(
@@ -275,11 +270,12 @@ void main() {
     test('מפרסם ב-GITHUB_TOKEN, ולכן ההכרזה נשלחת פעם אחת', () {
       final publish = step('create_release', 'Publish the release');
       expect(publish['env']['GH_TOKEN'], r'${{ github.token }}');
-      expect(publish['run'], contains('draft: false'));
+      expect(publish['run'], contains('latest_release_policy.py --publish'));
+      expect(publish['id'], 'publish');
       expect(
         publish['run'],
         contains(
-          r'gh api -X PATCH "repos/${{ github.repository }}/releases/$RELEASE_ID"',
+          r'--title "$RELEASE_TITLE" --body-file release-body.md',
         ),
       );
       expect(needs('announce_release'), contains('create_release'));

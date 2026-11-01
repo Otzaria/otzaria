@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prints the release tag: <version>[.<hotfix>] on main, plus +<run_number> elsewhere.
+# Prints <version>[.<hotfix>]+<run_number>, independently of the source ref.
 # Mirrors release_tag.ps1. Hotfix 0 keeps the 3-part tag that older clients can parse.
 set -euo pipefail
 
@@ -35,8 +35,4 @@ BASE="$VERSION"
 if (( HOTFIX > 0 )); then
     BASE="$VERSION.$HOTFIX"
 fi
-if [[ "$REF" == "refs/heads/main" ]]; then
-    echo "$BASE"
-else
-    echo "$BASE+$RUN_NUMBER"
-fi
+echo "$BASE+$RUN_NUMBER"

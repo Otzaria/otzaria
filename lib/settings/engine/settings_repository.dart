@@ -131,7 +131,6 @@ class SettingsRepository {
   /// האפליקציה (Hive, תוספים, גיבויים) נשארים באחסון הפנימי. כשריק — הכל פנימי.
   static const String keyAndroidLibraryRoot = 'key-android-library-root';
   static const String keyHebrewBooksPath = 'key-hebrew-books-path';
-  static const String keyDevChannel = 'key-dev-channel';
   static const String keyCustomFolders = 'key-custom-folders';
 
   /// כאשר מופעל, תיקיות מותאמות אישית ימוזגו לתוך עץ הספרייה הראשי
@@ -315,7 +314,6 @@ class SettingsRepository {
     keyDbEffectivePath,
     keyAndroidLibraryRoot,
     keyHebrewBooksPath,
-    keyDevChannel,
     keyCustomFolders,
     keyMergeUserBooksIntoLibrary,
     keyAttachedLibraries,

@@ -3,32 +3,32 @@
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from astral import LocationInfo
-from astral.sun import sunset
-from pyluach import dates
-from yemot_api.yemot_api import Yemot
-from yemot_api.input_types import RunTzintukMethod
-from yemot_api.exceptions import YemotAPIError
 
-from forum import NodeBBClient
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tool" / "release"))
+from latest_release_policy import Github, is_latest_release
 
 
 CHANGELOG_PATH = Path("assets/יומן שינויים.md")
 FORUM_BASE_URL = "https://otzaria.org/forum"
 FORUM_TOPIC_ID = 1373
 ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
-JERUSALEM = LocationInfo("Jerusalem", "Israel", "Asia/Jerusalem", 31.778, 35.235)
 
 
 def heb_date(now: datetime | None = None) -> str:
     """התאריך העברי לפי שעון ישראל; אחרי השקיעה בירושלים — "אור ל" היום הבא."""
+    from astral import LocationInfo
+    from astral.sun import sunset
+    from pyluach import dates
+
     now = now or datetime.now(ISRAEL_TZ)
+    jerusalem = LocationInfo("Jerusalem", "Israel", "Asia/Jerusalem", 31.778, 35.235)
     day = dates.GregorianDate.from_pydate(now.date()).to_heb()
-    if now >= sunset(JERUSALEM.observer, now.date(), tzinfo=ISRAEL_TZ):
+    if now >= sunset(jerusalem.observer, now.date(), tzinfo=ISRAEL_TZ):
         return f"אור ל{(day + 1).hebrew_date_string()}"
     return day.hebrew_date_string()
 
@@ -107,6 +107,19 @@ def main() -> None:
     release_name = os.getenv("RELEASE_NAME", "")
     release_url = os.getenv("RELEASE_URL", "")
     event_path = os.getenv("GITHUB_EVENT_PATH")
+
+    if not event_path:
+        raise RuntimeError("A release event is required before announcing")
+    with open(event_path, encoding="utf-8") as source:
+        release = json.load(source).get("release")
+    if not is_latest_release(release, Github()):
+        print("Release is not Latest; announcement skipped")
+        return
+
+    from yemot_api.yemot_api import Yemot
+    from yemot_api.input_types import RunTzintukMethod
+    from yemot_api.exceptions import YemotAPIError
+    from forum import NodeBBClient
 
     username = require_env("USER_NAME")
     password = require_env("PASSWORD")

@@ -1,4 +1,4 @@
-# Prints the release tag: <version>[.<hotfix>] on main, plus +<run_number> elsewhere.
+# Prints <version>[.<hotfix>]+<run_number>, independently of the source ref.
 # Mirrors release_tag.sh. Hotfix 0 keeps the 3-part tag that older clients can parse.
 param(
     [Parameter(Mandatory = $true)][string]$Version,
@@ -17,4 +17,4 @@ if ($hotfixText -notmatch '^(0|[1-9][0-9]?)$') {
 }
 
 $base = if ([int]$hotfixText -gt 0) { "$Version.$hotfixText" } else { $Version }
-if ($Ref -eq 'refs/heads/main') { $base } else { "$base+$RunNumber" }
+"$base+$RunNumber"

@@ -71,22 +71,25 @@ void main() {
   });
 
   group('rawAssetUrlForTag', () {
-    test('preserves the + separator inside dev-channel tags', () {
-      final url = rawAssetUrlForTag('0.9.92+628', 'assets/changelog.md');
+    test(
+      'preserves the + separator inside release tags with build numbers',
+      () {
+        final url = rawAssetUrlForTag('0.9.92+628', 'assets/changelog.md');
 
-      // `+` הוא תו חוקי ב-path segments לפי RFC 3986 ו-GitHub מקבל אותו
-      // בצורתו המילולית בנתיב raw (אומת ידנית מול raw.githubusercontent.com).
-      expect(
-        url.pathSegments,
-        containsAllInOrder(['Otzaria', 'otzaria', 'refs', 'tags']),
-      );
-      expect(url.pathSegments[4], '0.9.92+628');
-      // והמחרוזת השלמה משמרת את ה-tag המלא, כך שהיומן יישלף מהקומיט הנכון
-      // ולא מקומיט אחר עם אותה core version.
-      expect(url.toString(), contains('/refs/tags/0.9.92+628/'));
-    });
+        // `+` הוא תו חוקי ב-path segments לפי RFC 3986 ו-GitHub מקבל אותו
+        // בצורתו המילולית בנתיב raw (אומת ידנית מול raw.githubusercontent.com).
+        expect(
+          url.pathSegments,
+          containsAllInOrder(['Otzaria', 'otzaria', 'refs', 'tags']),
+        );
+        expect(url.pathSegments[4], '0.9.92+628');
+        // והמחרוזת השלמה משמרת את ה-tag המלא, כך שהיומן יישלף מהקומיט הנכון
+        // ולא מקומיט אחר עם אותה core version.
+        expect(url.toString(), contains('/refs/tags/0.9.92+628/'));
+      },
+    );
 
-    test('preserves stable-channel tags with v prefix verbatim', () {
+    test('preserves release tags with v prefix verbatim', () {
       final url = rawAssetUrlForTag('v0.9.92', 'assets/changelog.md');
       expect(url.pathSegments[4], 'v0.9.92');
     });
@@ -111,82 +114,6 @@ void main() {
       expect(url.pathSegments[2], 'refs');
       expect(url.pathSegments[3], 'tags');
     });
-  });
-
-  group('pickLatestDevRelease', () {
-    Map<String, dynamic> rel(
-      String tag, {
-      bool prerelease = true,
-      bool draft = false,
-    }) {
-      return {
-        'tag_name': tag,
-        'prerelease': prerelease,
-        'draft': draft,
-      };
-    }
-
-    test(
-      'returns the newest matching pre-release when two share core version',
-      () {
-        // GitHub מחזיר releases מהחדש לישן. אם 628 ו-629 שניהם תקפים,
-        // יש לבחור את 629 — אחרת ה-changelog/binary לא יתאמו ל-release
-        // שזוהה כ"latest".
-        final releases = [
-          rel('0.9.92+629'),
-          rel('0.9.92+628'),
-        ];
-
-        final picked = pickLatestDevRelease(releases);
-
-        expect(picked['tag_name'], '0.9.92+629');
-      },
-    );
-
-    test('skips draft and PR-preview releases', () {
-      final releases = [
-        rel('0.9.92-pr.5+999'), // PR preview — חייב להידחות
-        rel('0.9.92+650', draft: true), // draft — חייב להידחות
-        rel('0.9.92+628'), // המועמד התקף הראשון
-        rel('0.9.91+622'),
-      ];
-
-      final picked = pickLatestDevRelease(releases);
-
-      expect(picked['tag_name'], '0.9.92+628');
-    });
-
-    test('falls back to the first release if nothing matches the filter', () {
-      // לדוגמה, אם הכל draft או PR preview — שמירה על ההתנהגות הקודמת
-      // של firstWhere(orElse: ...).
-      final releases = [
-        rel('0.9.92-pr.1+100'),
-        rel('0.9.91-pr.1+50'),
-      ];
-
-      final picked = pickLatestDevRelease(releases);
-
-      expect(picked['tag_name'], '0.9.92-pr.1+100');
-    });
-  });
-
-  group('release cache keying', () {
-    setUp(() => releaseCacheForTesting.clear());
-    tearDown(() => releaseCacheForTesting.clear());
-
-    test(
-      'stable and dev entries with the same core version do not collide',
-      () {
-        // התרחיש: stable=0.9.92, ובמקביל dev=0.9.92+629. שני המפתחות
-        // המנורמלים זהים ("0.9.92"), אבל ה-release-ים שונים — לכן חובה
-        // שהמפתח יכלול גם את הערוץ.
-        releaseCacheForTesting['stable:0.9.92'] = {'tag_name': 'v0.9.92'};
-        releaseCacheForTesting['dev:0.9.92'] = {'tag_name': '0.9.92+629'};
-
-        expect(releaseCacheForTesting['stable:0.9.92']!['tag_name'], 'v0.9.92');
-        expect(releaseCacheForTesting['dev:0.9.92']!['tag_name'], '0.9.92+629');
-      },
-    );
   });
 
   group('גרסאות hotfix (issue #1547)', () {
@@ -260,40 +187,6 @@ void main() {
         ),
         isTrue,
       );
-    });
-
-    test('ערוץ dev: build של hotfix גובר על stable של הבסיס', () {
-      final selected = pickPreferredReleaseForDevChannel(
-        stableRelease: {'tag_name': '0.9.97'},
-        devRelease: {'tag_name': '0.9.97.2+790'},
-      );
-      expect(selected['tag_name'], '0.9.97.2+790');
-    });
-
-    test('ערוץ dev: stable של hotfix גובר על build ישן של הבסיס', () {
-      final selected = pickPreferredReleaseForDevChannel(
-        stableRelease: {'tag_name': '0.9.97.2'},
-        devRelease: {'tag_name': '0.9.97+789'},
-      );
-      expect(selected['tag_name'], '0.9.97.2');
-    });
-
-    test('ערוץ dev: שוויון גרסה מלאה בוחר ב-stable', () {
-      final selected = pickPreferredReleaseForDevChannel(
-        stableRelease: {'tag_name': '0.9.97.2'},
-        devRelease: {'tag_name': '0.9.97.2+790'},
-      );
-      expect(selected['tag_name'], '0.9.97.2');
-    });
-
-    test('התאמת תג לגרסה מדויקת — בסיס אינו תופס hotfix ולהפך', () {
-      expect(releaseTagMatchesVersion('0.9.97', '0.9.97'), isTrue);
-      expect(releaseTagMatchesVersion('0.9.97+789', '0.9.97'), isTrue);
-      expect(releaseTagMatchesVersion('0.9.97.2+790', '0.9.97'), isFalse);
-      expect(releaseTagMatchesVersion('0.9.97.2', '0.9.97'), isFalse);
-      expect(releaseTagMatchesVersion('0.9.97.2+790', '0.9.97.2'), isTrue);
-      expect(releaseTagMatchesVersion('0.9.97+789', '0.9.97.2'), isFalse);
-      expect(releaseTagMatchesVersion('0.9.970+1', '0.9.97'), isFalse);
     });
 
     test('יומן השינויים כולל כותרת hotfix שבין הגרסאות', () {

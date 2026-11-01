@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # בונה חבילות עדכון דיפרנציאליות לארכיטקטורה אחת: מול עד N השחרורים
-# הקודמים שיש להם מניפסט, ובנוסף מול היציב האחרון — שבו נמצא רוב המשתמשים.
+# הקודמים שיש להם מניפסט, ובנוסף מול Latest — שבו נמצא רוב המשתמשים.
 #
 # כל מעבר מפיק **שתי** חבילות: ה-patch, שהלקוח מנסה קודם, ו-`-files` —
 # אותם קבצים דחוסים במלואם, שממנה מושלם כל ערך שה-patch שלו אינו ישים.
@@ -87,30 +87,31 @@ trap 'rm -rf "$work"' EXIT
 new_root=$(extract_tree "$new_zip" "$work/new")
 [ -n "$new_root" ] && [ -d "$new_root" ] || { echo "::warning::$new_zip holds no install tree"; exit 0; }
 
-# השחרורים הקודמים, החדש ביותר תחילה, בלי טיוטות ובלי השחרור הנוכחי.
+latest_tag=$(gh api "repos/$source_repo/releases/latest" --jq .tag_name)
+# השחרורים הקודמים נשארים בסיסים גם אם לא היו Latest.
 mapfile -t candidates < <(
   # לפי גרסה ולא לפי createdAt: הוא נגזר מהקומיט וחוזר על עצמו בין שחרורים,
   # ובשוויון הסדר שרירותי. ההשוואה מספרית ומרופדת ל-4 חלקים (0.9.97.2 > 0.9.97+789).
   gh release list --repo "$source_repo" --limit 40 \
-    --json tagName,isDraft,isPrerelease \
+    --json tagName,isDraft \
     --jq 'map(select(.isDraft | not))
       | map(. + {key: (.tagName | sub("^v"; "") | split("+") as $p
           | (($p[0] | split(".") | map(try tonumber catch 0)) + [0, 0, 0, 0])[:4]
             + [($p[1] // "0") | try tonumber catch 0])})
       | sort_by(.key) | reverse
-      | .[] | "\(.tagName) \(if .isPrerelease then "pre" else "stable" end)"' |
+      | .[].tagName' |
     awk -v current="$new_tag" '$1 != current'
 )
 
+if [ "$latest_tag" != "$new_tag" ] && ! printf '%s\n' "${candidates[@]}" | grep -Fxq "$latest_tag"; then
+  candidates+=("$latest_tag")
+fi
 built=0
-stable_covered=false
-for entry in "${candidates[@]}"; do
-  tag=${entry% *}
-  kind=${entry##* }
-  # אחרי N הבסיסים ממשיכים רק עד היציב האחרון: בין שני יציבים יש לעיתים
-  # כמה שחרורי dev, ובלעדיו משתמשי היציב לא היו מוצאים חבילה.
+latest_covered=false
+for tag in "${candidates[@]}"; do
+  # אחרי N בסיסים נדרש גם Latest, אף כשאינו בין 40 השחרורים האחרונים.
   if [ "$built" -ge "$base_count" ]; then
-    [ "$stable_covered" = false ] && [ "$kind" = stable ] || continue
+    [ "$latest_covered" = false ] && [ "$tag" = "$latest_tag" ] || continue
   fi
   base="$work/base"
   rm -rf "$base"
@@ -145,8 +146,8 @@ for entry in "${candidates[@]}"; do
     continue
   fi
   built=$((built + 1))
-  [ "$kind" = stable ] && stable_covered=true
-  [ "$built" -ge "$base_count" ] && [ "$stable_covered" = true ] && break
+  [ "$tag" = "$latest_tag" ] && latest_covered=true
+  [ "$built" -ge "$base_count" ] && [ "$latest_covered" = true ] && break
 done
 
 if [ "$built" -eq 0 ]; then
