@@ -55,7 +55,7 @@ import 'package:otzaria/empty_library/bloc/empty_library_bloc.dart';
 import 'package:otzaria/library_update/changes_notes/library_changes_notes.dart';
 import 'package:otzaria/library_update/services/startup_recovery_check.dart';
 
-import 'package:otzaria_search_engine/otzaria_search_engine.dart';
+import 'package:otzaria/search/search_engine_library.dart';
 import 'package:otzaria/core/app_paths.dart';
 import 'package:otzaria/core/single_instance_lock.dart';
 import 'package:otzaria/core/otzaria_capabilities.dart';
@@ -340,6 +340,8 @@ void main(List<String> args) async {
     return;
   }
   StartupTimeline.instance.start();
+  // נטען ב-isolate עזר במקביל לעלייה; ההמתנה לו בסוף ה-bootstrap.
+  if (Platform.isWindows) SearchEngineLibrary.ensureLoaded().ignore();
   // SQLite סינכרוני יכול לחסום גם טיימרים: אין לעקוף את החשיפה עם timeout.
   AttachedLibraryRegistry.startupGate = () =>
       _mainWindowRevealedCompleter.future;
@@ -726,14 +728,9 @@ Future<void> _initializeProcessSingletons() async {
     }
   }
 
-  // RustLib (טעינת FFI) ו-loadCerts (קריאת asset קטן) אינם תלויים בהגדרות
-  // ולא זה בזה — רצים במקביל לשרשרת ההגדרות/חלון במקום בזה אחר זה.
-  await _timedPhase('rustlib+certs+settings', () async {
-    await Future.wait([
-      RustLib.init(),
-      loadCerts(),
-      initSettingsAndWindow(),
-    ]);
+  // loadCerts (קריאת asset קטן) אינו תלוי בהגדרות — רץ במקביל לשרשרת.
+  await _timedPhase('certs+settings', () async {
+    await Future.wait([loadCerts(), initSettingsAndWindow()]);
   });
 
   await _timedPhase('initHive', initHive);
@@ -898,6 +895,8 @@ Future<void> _initializeRestartableRuntime() async {
       );
     }),
   );
+  // המסך הראשי קורא למנוע סינכרונית (פיצול שאילתה, הדגשה) כבר בבנייתו.
+  await _timedPhase('searchEngine', SearchEngineLibrary.ensureLoaded);
   final previousPluginDecision = PluginSafeMode.ready;
   PluginSafeMode.ready = _runDeferredPluginSafeMode(previousPluginDecision);
 
