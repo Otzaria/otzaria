@@ -418,48 +418,76 @@ class ErrorReportHelper {
       return fullText;
     }
     final wordRegex = RegExp("\\S+", multiLine: true);
-    final matches = wordRegex.allMatches(fullText).toList();
-    if (matches.isEmpty) return fullText;
-
-    int startWordIndex = 0;
-    int endWordIndex = matches.length - 1;
-
-    for (int i = 0; i < matches.length; i++) {
-      final m = matches[i];
-      if (selectionStart >= m.start && selectionStart < m.end) {
-        startWordIndex = i;
-        break;
+    // סריקת ספר שלם תוקעת את הממשק (#3727), לכן סורקים חלון סביב הבחירה.
+    // מילה בקצה חתוך עלולה להיות חלקית: כשההקשר מגיע אליה מרחיבים את החלון.
+    for (var radius = 1024; ; radius *= 4) {
+      final lo = math.max(
+        0,
+        math.min(selectionStart - radius, fullText.length),
+      );
+      final hi = math.max(lo, math.min(selectionEnd + radius, fullText.length));
+      final isWholeText = lo == 0 && hi == fullText.length;
+      final matches = wordRegex.allMatches(fullText.substring(lo, hi)).toList();
+      if (matches.isEmpty) {
+        if (isWholeText) return fullText;
+        continue;
       }
-      if (selectionStart < m.start) {
-        startWordIndex = i;
-        break;
+      final windowStart = selectionStart - lo;
+      final windowEnd = selectionEnd - lo;
+
+      int? startWordIndex;
+      int? endWordIndex;
+
+      for (int i = 0; i < matches.length; i++) {
+        final m = matches[i];
+        if (windowStart >= m.start && windowStart < m.end) {
+          startWordIndex = i;
+          break;
+        }
+        if (windowStart < m.start) {
+          startWordIndex = i;
+          break;
+        }
       }
+
+      for (int i = matches.length - 1; i >= 0; i--) {
+        final m = matches[i];
+        final selEndMinusOne = windowEnd - 1;
+        if (selEndMinusOne >= m.start && selEndMinusOne < m.end) {
+          endWordIndex = i;
+          break;
+        }
+        if (selEndMinusOne > m.end) {
+          endWordIndex = i;
+          break;
+        }
+      }
+
+      // "לא נמצאה מילה" מוכרע רק כשהחלון מגיע לקצה הטקסט באותו צד.
+      if ((startWordIndex == null && hi < fullText.length) ||
+          (endWordIndex == null && lo > 0)) {
+        continue;
+      }
+      startWordIndex ??= 0;
+      endWordIndex ??= matches.length - 1;
+
+      final ctxStart = (startWordIndex - wordsBefore) < 0
+          ? 0
+          : (startWordIndex - wordsBefore);
+      final ctxEnd = (endWordIndex + wordsAfter) >= matches.length
+          ? matches.length - 1
+          : (endWordIndex + wordsAfter);
+
+      if ((lo > 0 && ctxStart == 0) ||
+          (hi < fullText.length && ctxEnd == matches.length - 1)) {
+        continue;
+      }
+
+      final from = lo + matches[ctxStart].start;
+      final to = lo + matches[ctxEnd].end;
+      if (from < 0 || to <= from || to > fullText.length) return fullText;
+      return fullText.substring(from, to);
     }
-
-    for (int i = matches.length - 1; i >= 0; i--) {
-      final m = matches[i];
-      final selEndMinusOne = selectionEnd - 1;
-      if (selEndMinusOne >= m.start && selEndMinusOne < m.end) {
-        endWordIndex = i;
-        break;
-      }
-      if (selEndMinusOne > m.end) {
-        endWordIndex = i;
-        break;
-      }
-    }
-
-    final ctxStart = (startWordIndex - wordsBefore) < 0
-        ? 0
-        : (startWordIndex - wordsBefore);
-    final ctxEnd = (endWordIndex + wordsAfter) >= matches.length
-        ? matches.length - 1
-        : (endWordIndex + wordsAfter);
-
-    final from = matches[ctxStart].start;
-    final to = matches[ctxEnd].end;
-    if (from < 0 || to <= from || to > fullText.length) return fullText;
-    return fullText.substring(from, to);
   }
 
   /// פותר את מיקום הבחירה והקשר סביבה בצורה יציבה.
