@@ -31,6 +31,9 @@ import 'package:otzaria/widgets/misc/app_menu_exports.dart';
 class CalendarSettingsTab extends StatefulWidget {
   const CalendarSettingsTab({super.key});
 
+  /// כרטיס "אירועים ותזכורות" — יעד החיפוש של ההתראות, ICS ו-Google.
+  static const eventsCardId = 'tools.calendar_events';
+
   /// פריטי חיפוש בהגדרות. נסרק על-ידי tool/generate_search_index.dart.
   static const List<SettingsSearchEntry> searchEntries = [
     SettingsSearchEntry(
@@ -58,22 +61,6 @@ class CalendarSettingsTab extends StatefulWidget {
       keywords: ['לוח שנה', 'עברי', 'לועזי', 'גרגוריאני', 'משולב'],
     ),
     SettingsSearchEntry(
-      id: 'tools.calendar.times',
-      title: 'הצגת זמנים',
-      subtitle: 'אילו זמנים יוצגו בלוח השנה',
-      tab: SettingsTab.tools,
-      cardId: 'tools.calendar',
-      keywords: [
-        'לוח שנה',
-        'זמנים',
-        'הנץ',
-        'שקיעה',
-        'מנחה',
-        'מעריב',
-        'שחרית',
-      ],
-    ),
-    SettingsSearchEntry(
       id: 'tools.calendar.day_change',
       title: 'מעבר יום',
       subtitle: 'בחירת השעה בה מתחלף היום בלוח השנה',
@@ -90,19 +77,11 @@ class CalendarSettingsTab extends StatefulWidget {
       keywords: ['לוח שנה', 'זמנים', 'שעה', 'AM', 'PM', '24 שעות', 'פורמט'],
     ),
     SettingsSearchEntry(
-      id: 'tools.calendar.candle_minutes',
-      title: 'דקות הדלקת נרות',
-      subtitle: 'מספר דקות לפני שקיעה להדלקת נרות',
-      tab: SettingsTab.tools,
-      cardId: 'tools.calendar',
-      keywords: ['שבת', 'נרות', 'הדלקה', 'דקות'],
-    ),
-    SettingsSearchEntry(
       id: 'tools.calendar.notifications',
       title: 'מצב התראות על אירועים',
       subtitle: 'צליל / שקט / כבוי',
       tab: SettingsTab.tools,
-      cardId: 'tools.calendar',
+      cardId: eventsCardId,
       keywords: [
         'לוח שנה',
         'התראות',
@@ -120,7 +99,7 @@ class CalendarSettingsTab extends StatefulWidget {
       title: 'בדיקת התראות',
       subtitle: 'שליחת התראת ניסיון למערכת ההפעלה',
       tab: SettingsTab.tools,
-      cardId: 'tools.calendar',
+      cardId: eventsCardId,
       keywords: [
         'לוח שנה',
         'התראות',
@@ -134,7 +113,7 @@ class CalendarSettingsTab extends StatefulWidget {
       title: 'ייבוא יומן (ICS)',
       subtitle: 'ייבוא אירועים מקובץ או מקישור ICS',
       tab: SettingsTab.tools,
-      cardId: 'tools.calendar',
+      cardId: eventsCardId,
       keywords: [
         'ics',
         'ייבוא',
@@ -151,7 +130,7 @@ class CalendarSettingsTab extends StatefulWidget {
       title: 'לוח שנה של Google',
       subtitle: 'סנכרן אירועים עם Google Calendar',
       tab: SettingsTab.tools,
-      cardId: 'tools.calendar',
+      cardId: eventsCardId,
       keywords: [
         'google',
         'גוגל',
@@ -301,6 +280,7 @@ class _CalendarSettingsTabState extends State<CalendarSettingsTab> {
 
             // ── אירועים ותזכורות: התראות + Google Calendar ──
             SettingsCard(
+              cardId: CalendarSettingsTab.eventsCardId,
               title: context.settingsText('אירועים ותזכורות'),
               children: [
                 SettingsActionTile.segmentedTile<CalendarNotificationMode>(
