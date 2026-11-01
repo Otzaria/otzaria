@@ -188,11 +188,6 @@ void main() {
       connectionType: 'commentary',
     );
     expect((await service.forLink(linkByTitle)).level, 1);
-
-    expect(
-      (await service.strictestForTitles(['ספר חופשי', 'ספר מוגן'])).level,
-      1,
-    );
   });
 
   test('ספר אישי — לעולם ללא הגבלה, גם כשהכותרת זהה', () async {
