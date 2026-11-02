@@ -190,12 +190,8 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       ),
     );
 
-    // pdfrxFlutterInitialize() spawns a native Dart isolate on first call and
-    // can take 10–20 seconds. Don't start the watchdog until it returns so the
-    // timer only counts actual PDF loading time, not init time.
-    // _pdfrxInit is injectable for tests (pass () async {} to skip init).
-    // try/catch: אם האתחול עצמו זורק (למשל, platform channel חסר בבדיקות),
-    // ממשיכים — ה-watchdog ייתן timeout ויציג שגיאה במקום לתקוע לנצח.
+    // האתחול של pdfrx עלול לקחת 10–20 שניות; ה-watchdog מתחיל רק אחריו.
+    // כשל באתחול אינו עוצר: ה-watchdog יציג שגיאה במקום ספינר נצחי.
     try {
       await _pdfrxInit();
     } catch (_) {}
@@ -282,7 +278,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       matchPolicy = tab.matchPolicy;
       layoutMode = tab.savedLayoutMode ?? PdfLayoutMode.regularView;
     } else if (current is PdfBookLoaded) {
-      // Already loaded, just update
       emit(
         current.copyWith(
           documentRef: event.documentRef,
@@ -332,7 +327,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       ),
     );
 
-    // Load per-book settings after document is ready
     add(const LoadPerBookSettings());
   }
 
@@ -466,7 +460,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final current = state;
     if (current is! PdfBookLoaded) return;
 
-    // Save zoom for restoration
     tab.savedZoom = event.zoom;
 
     emit(current.copyWith(zoom: event.zoom));
@@ -700,7 +693,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     final current = state;
     if (current is! PdfBookLoaded) return;
 
-    // בדיקה אם הגדרות פר-ספר מופעלות
     final enablePerBookSettings =
         Settings.getValue<bool>(SettingsRepository.keyEnablePerBookSettings) ??
         false;
@@ -712,7 +704,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
     PdfLayoutMode? layoutModeToApply;
 
     if (enablePerBookSettings) {
-      // נסה לטעון הגדרות פר-ספר
       final settings = await PdfBookPerBookSettings.load(current.book);
       if (settings?.zoom != null) {
         zoomToApply = settings!.zoom;
@@ -751,7 +742,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       }
     }
 
-    // אם יש זום להחיל, מחילים אותו
     if (zoomToApply != null) {
       // Use retry loop to ensure controller is ready
       const maxAttempts = 10;
@@ -774,11 +764,9 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
           emit(currentForZoom.copyWith(zoom: zoomToApply));
           break;
         }
-        // Wait before next attempt
         await Future.delayed(retryDelay);
       }
 
-      // Log warning if zoom couldn't be applied
       if (!pdfController.isReady) {
         debugPrint(
           'Warning: Could not apply saved zoom - controller not ready after $maxAttempts attempts',
@@ -826,7 +814,6 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
 
     await PdfBookPerBookSettings.delete(current.book);
 
-    // Reset zoom and layout mode to default
     if (pdfController.isReady) {
       pdfController.setZoom(
         pdfController.centerPosition,
@@ -856,12 +843,8 @@ class PdfBookBloc extends Bloc<PdfBookEvent, PdfBookState> {
       return;
     }
 
-    // pdfrx מדווח על סיום טעינה דרך onDocumentLoadFinished — לפעמים לפני (או
-    // במקום) onViewerReady. אם הדיווח הוא על כישלון בזמן שאנחנו עדיין
-    // ב-PdfBookLoading, ה-handler המקורי החזיר return מוקדם והאירוע נבלע.
-    // התוצאה: state נשאר Loading ל-נצח (אין DocumentReady שיירה כי הטעינה
-    // נכשלה), והמסך מציג ספינר אינסופי. עוברים ל-PdfBookError כדי שהמשתמש
-    // יקבל משוב במקום להיתקע.
+    // pdfrx עלול לדווח על כישלון לפני onViewerReady או במקומו; בלי המעבר
+    // ל-PdfBookError המסך נשאר בספינר אינסופי.
     if (current is PdfBookLoading && !event.succeeded) {
       _cancelLoadWatchdog();
       emit(
