@@ -899,11 +899,35 @@ void main() {
           'status',
           LibraryUpdateStatus.checking,
         ),
-        isA<LibraryUpdateState>().having(
-          (s) => s.status,
-          'status',
-          LibraryUpdateStatus.blocked,
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.blocked)
+            .having(
+              (s) => s.plan?.blockReason,
+              'blockReason',
+              LibraryUpdateBlockReason.other,
+            )
+            .having((s) => s.isUnsupportedByAppVersion, 'unsupported', false),
+      ],
+    );
+
+    blocTest<LibraryUpdateBloc, LibraryUpdateState>(
+      'plan blocked בגלל גרסת תוכנה → מסומן כלא נתמך',
+      build: () => _bloc(
+        _FakeService(
+          LibraryUpdatePlan.blocked(
+            localVersion: 1,
+            targetVersion: 3,
+            reason: 'נדרש עדכון תוכנה',
+            blockReason: LibraryUpdateBlockReason.appUpdateRequired,
+          ),
         ),
+      ),
+      act: (b) => b.add(const StartLibraryUpdate()),
+      skip: 1,
+      expect: () => [
+        isA<LibraryUpdateState>()
+            .having((s) => s.status, 'status', LibraryUpdateStatus.blocked)
+            .having((s) => s.isUnsupportedByAppVersion, 'unsupported', true),
       ],
     );
 
