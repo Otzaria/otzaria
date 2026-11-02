@@ -1223,21 +1223,8 @@ class _SearchDialogState extends State<SearchDialog> {
     var query = category.query;
     var negativeQuery = _searchTab.negativeQueryController.text.trim();
 
-    // חיפוש רגיל עובד על טקסט ללא ניקוד; כשאפשרות "ניקוד"/"טעמים" מסומנת
-    // (במצב מתקדם, גלובלית או פר-מילה) הסימנים שהוקלדו הם חלק מהשאילתה —
-    // המנוע דורש אותם בטקסט — ואסור למחוק אותם. הבדיקה רצה על מפות המקור
-    // (לא על האפשרויות האפקטיביות) כי אלה נבנות מהשאילתה אחרי המחיקה.
-    final dialogMode = _searchTab.searchBloc.state.configuration.searchMode;
     final vocalizedSearch =
-        _supportsVocalizedSearch &&
-        dialogMode == SearchMode.advanced &&
-        (_searchTab.useGlobalSearchOptions.value
-            ? SearchQueryBuilder.globalOptionsRequestVocalized(
-                _searchTab.globalSearchOptions,
-              )
-            : SearchQueryBuilder.optionsRequestVocalized(
-                _searchTab.searchOptions,
-              ));
+        _supportsVocalizedSearch && _searchTab.requestsVocalizedSearch;
     final isUserRegex = UserRegexQuery.isValid(query);
     if (!isUserRegex && !vocalizedSearch && utils.hasNikud(query)) {
       query = utils.removeVolwels(query);
