@@ -1,8 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
@@ -676,6 +678,18 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
   // ריחוף משנה רק את כפתור "רק" בשורה, בלי לבנות מחדש את כל שורות התפריט.
   final ValueNotifier<int> _hoveredRow = ValueNotifier<int>(-1);
 
+  /// מגע (או עט) בלי ריחוף: "רק" מוצג בכל השורות. לפי המצביע האחרון בתפריט;
+  /// לפני הראשון — מכשיר נייד, או שאין עכבר מחובר.
+  final ValueNotifier<bool> _touchInput = ValueNotifier<bool>(
+    defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        !RendererBinding.instance.mouseTracker.mouseIsConnected,
+  );
+
+  void _onPointer(PointerEvent event) => _touchInput.value =
+      event.kind != PointerDeviceKind.mouse &&
+      event.kind != PointerDeviceKind.trackpad;
+
   // חיצים, סימון ותוצאות המחברים בונים את התפריט מחדש עם אותה שאילתה.
   ({ScopeTree tree, String query, List<ScopeSearchResultItem> results})?
   _treeSearch;
@@ -729,6 +743,7 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     widget.searchController.removeListener(_onQueryChanged);
     _scrollController.dispose();
     _hoveredRow.dispose();
+    _touchInput.dispose();
     super.dispose();
   }
 
@@ -1129,25 +1144,29 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
 
     final showBreadcrumb = !_hasActiveSearch && _view != _View.root;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (showBreadcrumb) _buildBreadcrumb(context),
-        Flexible(
-          child: waitingForTree || waitingForBaseBooks
-              ? const Center(child: CircularProgressIndicator())
-              : items.isEmpty
-              ? _buildEmpty(context)
-              : ListView.builder(
-                  controller: _scrollController,
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) =>
-                      _buildRow(context, items[index], index),
-                ),
-        ),
-      ],
+    return Listener(
+      onPointerDown: _onPointer,
+      onPointerHover: _onPointer,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showBreadcrumb) _buildBreadcrumb(context),
+          Flexible(
+            child: waitingForTree || waitingForBaseBooks
+                ? const Center(child: CircularProgressIndicator())
+                : items.isEmpty
+                ? _buildEmpty(context)
+                : ListView.builder(
+                    controller: _scrollController,
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) =>
+                        _buildRow(context, items[index], index),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1268,11 +1287,6 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
     }
 
     // במגע אין hover — "רק" מוצג תמיד; בעכבר הוא נחשף בריחוף או בניווט מקלדת.
-    final alwaysShowOnly =
-        Platform.isAndroid ||
-        Platform.isIOS ||
-        Platform.isWindows ||
-        highlighted;
 
     return InkWell(
       canRequestFocus: false,
@@ -1347,10 +1361,12 @@ class _ScopeMenuPanelState extends State<_ScopeMenuPanel> {
               ),
             ),
             if (item.onOnly != null)
-              ValueListenableBuilder<int>(
-                valueListenable: _hoveredRow,
-                builder: (context, hovered, onlyButton) =>
-                    alwaysShowOnly || hovered == index
+              ListenableBuilder(
+                listenable: Listenable.merge([_hoveredRow, _touchInput]),
+                builder: (context, onlyButton) =>
+                    highlighted ||
+                        _touchInput.value ||
+                        _hoveredRow.value == index
                     ? onlyButton!
                     : const SizedBox.shrink(),
                 child: Padding(
