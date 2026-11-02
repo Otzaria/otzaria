@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:otzaria/text_book/repository/book_notes_repository.dart';
@@ -3254,24 +3255,27 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
   }
 
   @override
-  Future<Set<String>> getAvailableBookTitles() async {
-    // Return only books that are actually in the database
-    final base = await getDatabaseOnlyBookTitles();
+  Future<Set<String>> getAvailableBookTitles() async => {
+    for (final key in await getAvailableBookKeys()) key.toStorageKey(),
+  };
+
+  /// [getAvailableBookTitles] כמפתחות, בלי הרכבת מחרוזת ופענוחה לכל ספר.
+  /// עשויה להיות תצוגה חיה של המטמון — לקריאה מיידית בלבד.
+  Future<Set<BookCompositeKey>> getAvailableBookKeys() async {
+    final base = await _databaseOnlyBookKeys();
     if (_userBooksCachedKeys.isEmpty && _attachedCachedKeys.isEmpty) {
       return base;
     }
-    return {
-      ...base,
-      ..._userBooksCachedKeys.map((key) => key.toStorageKey()),
-      ..._attachedCachedKeys.map((key) => key.toStorageKey()),
-    };
+    return {...base, ..._userBooksCachedKeys, ..._attachedCachedKeys};
   }
 
   /// Gets book titles that are ONLY in the database
-  Future<Set<String>> getDatabaseOnlyBookTitles() async {
-    if (_titlesCached) {
-      return _cachedKeys.map((key) => key.toStorageKey()).toSet();
-    }
+  Future<Set<String>> getDatabaseOnlyBookTitles() async => {
+    for (final key in await _databaseOnlyBookKeys()) key.toStorageKey(),
+  };
+
+  Future<Set<BookCompositeKey>> _databaseOnlyBookKeys() async {
+    if (_titlesCached) return UnmodifiableSetView(_cachedKeys);
 
     final repository = _sqliteProvider.repository;
     if (repository == null) {
@@ -3318,7 +3322,7 @@ class DatabaseLibraryProvider implements LibraryProvider, LinkLinesProvider {
       }
 
       _titlesCached = true;
-      return _cachedKeys.map((key) => key.toStorageKey()).toSet();
+      return UnmodifiableSetView(_cachedKeys);
     } catch (e) {
       debugPrint('⚠️ Error building DB key cache: $e');
       return {};

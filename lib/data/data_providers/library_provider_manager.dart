@@ -609,12 +609,7 @@ class LibraryProviderManager {
   /// Recursively maps all books in a category to their provider.
   /// **שים לב:** שאילתת DB בכל קריאה; לקרוא רק מ-[_updateBookToProviderMapping].
   Future<void> _mapBooksRecursive(Category category) async {
-    final dbRawKeys = await databaseProvider.getAvailableBookTitles();
-    final dbKeys = dbRawKeys
-        .map(BookCompositeKey.tryParse)
-        .whereType<BookCompositeKey>()
-        .toSet();
-
+    final dbKeys = await databaseProvider.getAvailableBookKeys();
     _mapBooksRecursiveWithCache(category, dbKeys);
   }
 
