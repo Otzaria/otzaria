@@ -55,7 +55,7 @@ dependencies:
       ref: a656fd1a14de1a82a5e432261f3cfe66c7860356
       path: packages/pdfrx
   # FPDF_ImportNPagesToOne: הדפסת כמה עמודים בגיליון נשארת וקטורית.
-  pdfium_dart: ^0.4.0
+  pdfium_dart: ^0.4.1
   url_launcher: ^6.3.3
   # ליבה בלבד: החבילה המורחבת רושמת בעלייה plugins של וידאו/אודיו/WebView.
   flutter_widget_from_html_core: ^0.17.4
@@ -64,7 +64,7 @@ dependencies:
   fwfh_svg: ^0.16.1
   fwfh_url_launcher: ^0.16.1
   positioned_sliver_list: ^0.2.4
-  flutter_svg: ^2.3.0  
+  flutter_svg: ^2.3.2  
   fluentui_system_icons: ^1.1.273
   # בעדכון ה-ref יש לרענן את רשימת האייקונים לתוספים
   # לפי הפקודה שב-docs/plugin-sdk/ICONS.md.
@@ -72,8 +72,8 @@ dependencies:
     git:
       url: https://github.com/Otzaria/otzaria_icons
       ref: 483fec355339f54f9e094994a106dad9a63b82e3
-  file_picker_darwin: ^2.4.0
-  file_picker: ^13.1.0
+  file_picker_darwin: ^2.4.2
+  file_picker: ^13.3.2
   # FilePickerWindowsOptions: בעלים מפורש לדיאלוג (חלון Dart ולא החלון שבחזית).
   windows_file_picker: ^2.0.1
   provider: ^6.1.5+1
@@ -81,16 +81,16 @@ dependencies:
   pdf: ^3.13.1
   # OpenType shaping, so nikud and te'amim reach a PDF as vector text
   # rather than as an image of text.
-  opentype_shaper: ^0.3.1
+  opentype_shaper: ^0.3.2
   # The Unicode bidi algorithm, used to order the runs of a mixed line before
   # they are placed. Already in the graph through `pdf`; declared for direct use.
   bidi: ^2.0.13
   kosher_dart: ^2.0.20
-  archive: ^4.5.2
-  posix: ^6.5.2
+  archive: ^4.6.0
+  posix: ^6.5.4
   package_info_plus: ^10.2.2
   convert: ^3.1.2
-  crypto: ^3.0.7
+  crypto: ^3.0.8
   # גופן הסת"ם של "תיקון קוראים"; הגרסה ננעלת ב-pubspec.lock.
   otzaria_ashurit:
     git:
@@ -101,13 +101,13 @@ dependencies:
   pinenacl: ^0.6.0
   path: ^1.9.1
   http: ^1.6.0
-  zstandard: ^1.5.0
-  zstandard_native: ^1.5.0
+  zstandard: ^1.5.5
+  zstandard_native: ^1.5.5
   ffi: ^2.2.0
   win32: ^6.4.0
   win32_registry: ^3.0.3
   googleapis: ^17.0.0
-  googleapis_auth: ^2.3.4
+  googleapis_auth: ^2.3.5
   characters: ^1.4.1
   collection: ^1.19.1
   otzaria_search_engine: ^7.0.1
@@ -130,9 +130,9 @@ dependencies:
   screen_retriever: ^0.2.2
   flutter_spinbox: ^0.13.1
   logging: ^1.3.0
-  sqlite3: ^3.7.1
+  sqlite3: ^3.8.0
   super_clipboard: ^0.9.1
-  flutter_local_notifications: ^22.3.2
+  flutter_local_notifications: ^22.3.3
   timezone: ^0.11.2
   xml: ^7.0.1
   markdown: ^7.3.1
@@ -149,7 +149,7 @@ dependencies:
   flutter_inappwebview_windows: any
   # נדרש ישירות עבור LinuxWebViewHostWindow (WebView בחלונות נוספים).
   flutter_inappwebview_linux: any
-  wakelock_plus: ^1.8.1
+  wakelock_plus: ^1.8.2
 
 dependency_overrides:
   # TODO: להחזיר ל-pub.dev כשיתמזג וישוחרר MaikuB/flutter_local_notifications#2826
@@ -185,7 +185,7 @@ dependency_overrides:
       ref: 57080495ee8b89aeee156a4440b6de1c5e0f7ef2
       path: packages/core
   matcher: ^0.12.20
-  analyzer: ^14.5.0
+  analyzer: ^14.7.0
   device_info_plus: ^13.3.0
   # הגרסה שב-pub.dev חסרה את תיקון גלילת הטאצ'פד.
   flutter_inappwebview_windows:
@@ -243,7 +243,7 @@ dev_dependencies:
   sentry_dart_plugin: ^3.4.0
   # מחולל spec.json של התוספים (tool/plugins) מפרסר AST של קוד המקור.
   # מוצמד ל-major: צורת ה-AST משתנה בין גרסאות ראשיות ושוברת את המחולל.
-  analyzer: ^14.5.0
+  analyzer: ^14.7.0
   # לטעינת ספריית המנוע הנייטיבית בטסטים (ExternalLibrary).
   flutter_rust_bridge: ^2.13.0
   fake_async: ^1.3.3
