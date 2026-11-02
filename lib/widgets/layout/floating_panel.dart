@@ -3,15 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 
-/// רוחב מינימלי של פאנל צד בלוח שנה ובמסכים אחרים
-const double kSidePanelWidth = 340.0;
-
-/// רוחב מינימלי של תוכן ראשי לצד פאנל צד
-const double kMainPanelMinWidth = 500.0;
-
-/// סך הרוחב המינימלי להצגת פאנל צד ותוכן ראשי זה לצד זה
-const double kSideBySideMinWidth = kSidePanelWidth + kMainPanelMinWidth;
-
 /// פאנל צף: רמת הגבהה 3 ([AppTokens.elevation2]) עם הצל של [AppShadows]
 /// ומסגרת `outlineVariant` (DD-12).
 class FloatingPanel extends StatelessWidget {

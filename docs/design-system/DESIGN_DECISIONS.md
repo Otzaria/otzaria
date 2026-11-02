@@ -481,7 +481,7 @@
    - **הוכרע:** A. טוקן רוחב אחד (כהמלצה).
    - **תשובות:**
      - q1: רוחב ברירת המחדל של חלונית צד → **340 (כמו היום)**
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** מומש — טוקן רוחב אחד LayoutConstraints.sidePaneWidth (340) ברירת המחדל של AdaptiveSidePane ו־NavSidePanel, במקום 340 הליטרלי ו־kSidePanelWidth (הוסר); kMainPanelMinWidth ו־kSideBySideMinWidth עברו ל־LayoutConstraints.mainContentMinWidth/sideBySideMinWidth (לוח השנה). רקע ברירת המחדל של ContextOverlayPanel מטוקן האזור navPanelBackground במקום cs.surfaceContainerHigh (אותו ערך). ההגבהה כבר לפי DD-12. בלי שינוי חזותי. נשאר: רוחבי ContextOverlayPanel (ברירת מחדל 400 ו־400/440 אצל הקוראים) לא שונו; ענף wrapPaneInFloatingPanel:false (תצוגה מקדימה בספרייה) ברמה 3 בלי מסגרת ועל surface; Esc בשתי דרכים; Settings ב־build של NavSidePanel; שאר MIG-14 (ניתוק השכבה המשותפת).
 
 ---
 
