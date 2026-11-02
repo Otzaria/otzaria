@@ -63,6 +63,7 @@ class AppDialogFrame extends StatelessWidget {
     this.subtitleMaxLines,
     this.leading,
     this.trailing,
+    this.tabs,
     this.tone = AppDialogHeaderTone.primary,
     this.fitTitle = false,
     this.actions,
@@ -101,6 +102,10 @@ class AppDialogFrame extends StatelessWidget {
 
   /// ווידג'ט בין הכותרת לאיקס, למשל מונה.
   final Widget? trailing;
+
+  /// שורת לשוניות (`TabBar`) מתחת לרצועה. [child] הוא ה-`TabBarView`, ולכן
+  /// דיאלוג עם לשוניות מקבל [height] או [AppDialogSize.full].
+  final Widget? tabs;
   final AppDialogHeaderTone tone;
 
   /// הכותרת בשורה אחת שמצטמצמת לרוחב, לכותרות עם שם ספר ארוך.
@@ -182,6 +187,7 @@ class AppDialogFrame extends StatelessWidget {
           showClose: showClose ?? size != AppDialogSize.small,
           onClose: onClose,
         ),
+        ?tabs,
         if (fixedHeight) Expanded(child: body) else Flexible(child: body),
         if (actions != null && actions!.isNotEmpty)
           Padding(

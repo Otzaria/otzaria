@@ -1620,6 +1620,11 @@ void main() {
       final initial = await dialogHeight(tester);
 
       expect(initial, lessThan(500), reason: 'לא בגובה של טופס עם עורך');
+      expect(
+        tester.getSize(find.byType(RegularReportTab)).width,
+        closeTo(720, 1),
+        reason: 'הטופס משתמש ברוחב large גם בחלון רחב',
+      );
       await tester.enterText(
         find.byKey(const ValueKey('report-details-field')),
         List.filled(12, 'שורה').join('\n'),
@@ -1630,7 +1635,7 @@ void main() {
         initial,
         reason: 'הגובה אינו משתנה בזמן ההקלדה',
       );
-      // ההוראות נגללות בתוך הטופס הקצר; כפתורי הפעולה נשארים מחוץ לגלילה.
+      // ההוראות וסימון המיקום נגללים בטופס הקצר; הפעולות נשארות מחוץ לגלילה.
       final scroll = formScroll(tester);
       expect(scroll.maxScrollExtent, greaterThan(0));
       await tester.ensureVisible(

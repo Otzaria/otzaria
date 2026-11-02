@@ -251,4 +251,47 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  testWidgets('tabs: שורת הלשוניות בין הרצועה לגוף', (tester) async {
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DefaultTabController(
+          length: 2,
+          child: Material(
+            child: AppDialogFrame(
+              title: 'דיווח',
+              icon: FluentIcons.chat_24_regular,
+              size: AppDialogSize.large,
+              height: 500,
+              padding: EdgeInsets.zero,
+              tabs: const TabBar(
+                tabs: [
+                  Tab(text: 'ראשונה'),
+                  Tab(text: 'שנייה'),
+                ],
+              ),
+              child: const TabBarView(
+                children: [Text('גוף ראשון'), Text('גוף שני')],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final header = tester.getRect(find.byType(AppDialogHeader));
+    final tabs = tester.getRect(find.byType(TabBar));
+    final body = tester.getRect(find.byType(TabBarView));
+    expect(tabs.top, header.bottom);
+    expect(body.top, tabs.bottom);
+    expect(find.text('גוף ראשון'), findsOneWidget);
+
+    await tester.tap(find.text('שנייה'));
+    await tester.pumpAndSettle();
+    expect(find.text('גוף שני'), findsOneWidget);
+  });
 }
