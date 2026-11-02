@@ -1,11 +1,11 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/bloc/calendar_cubit.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 
@@ -266,19 +266,16 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                     Flexible(
                       child: Align(
                         alignment: AlignmentDirectional.topEnd,
-                        child: _EventMetaChip(
+                        child: _eventChip(
                           icon: event.eventTime != null
                               ? FluentIcons.clock_24_filled
                               : FluentIcons.calendar_day_24_filled,
                           text: event.eventTime != null
                               ? '${event.eventTime!.hour.toString().padLeft(2, '0')}:${event.eventTime!.minute.toString().padLeft(2, '0')}'
                               : 'כל היום',
-                          backgroundColor: event.eventTime != null
-                              ? scheme.primaryContainer
-                              : scheme.secondaryContainer,
-                          foregroundColor: event.eventTime != null
-                              ? scheme.onPrimaryContainer
-                              : scheme.onSecondaryContainer,
+                          tone: event.eventTime != null
+                              ? MetaChipTone.primary
+                              : MetaChipTone.neutral,
                         ),
                       ),
                     ),
@@ -310,11 +307,9 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                       runSpacing: 8,
                       children: [
                         if (event.recurring)
-                          _EventMetaChip(
+                          _eventChip(
                             icon: FluentIcons.arrow_repeat_all_24_regular,
                             text: getRecurrenceLabel(event.recurrenceType),
-                            backgroundColor: scheme.tertiaryContainer,
-                            foregroundColor: scheme.onTertiaryContainer,
                           ),
                       ],
                     ),
@@ -325,7 +320,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                         Expanded(
                           child: Align(
                             alignment: AlignmentDirectional.bottomStart,
-                            child: _EventMetaChip(
+                            child: _eventChip(
                               icon: OtzariaIcons.calendar_24_regular,
                               text: splitDate
                                   ? formatEventDate(
@@ -333,8 +328,7 @@ class _CalendarEventsPanelState extends State<CalendarEventsPanel> {
                                     ).replaceFirst(' • ', '\n')
                                   : formatEventDate(event.baseGregorianDate),
                               tooltip: formatEventDate(event.baseGregorianDate),
-                              backgroundColor: scheme.primary,
-                              foregroundColor: scheme.onPrimary,
+                              tone: MetaChipTone.primary,
                               maxLines: splitDate ? 2 : 1,
                             ),
                           ),
@@ -387,54 +381,17 @@ class _DeleteEventAction extends StatelessWidget {
   }
 }
 
-class _EventMetaChip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color backgroundColor;
-  final Color foregroundColor;
-  final int maxLines;
-  final String? tooltip;
-
-  const _EventMetaChip({
-    required this.icon,
-    required this.text,
-    required this.backgroundColor,
-    required this.foregroundColor,
-    this.maxLines = 1,
-    this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip ?? text,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: AppTokens.borderRadiusAll,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RtlIcon(icon, size: 12, color: foregroundColor),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  text,
-                  maxLines: maxLines,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: foregroundColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+/// תגית מטא של אירוע; הריחוף מציג את הטקסט המלא גם כשהוא נחתך.
+Widget _eventChip({
+  required IconData icon,
+  required String text,
+  MetaChipTone tone = MetaChipTone.neutral,
+  String? tooltip,
+  int maxLines = 1,
+}) => MetaChip(
+  icon: icon,
+  label: text,
+  tone: tone,
+  tooltip: tooltip ?? text,
+  maxLines: maxLines,
+);

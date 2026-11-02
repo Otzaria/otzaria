@@ -294,7 +294,7 @@
      - השלמה (2.11.2026): צבעי התגיות כפי שמומשו: נייטרלית ב־`surfaceContainerHighest` (אפור־חום), ״הצלחה״ ב־`secondaryContainer` (בהיר), או ״הצלחה״ בחום הראשי הכהה כמו בתמונה שאושרה? → **כמו שמומש** (A, כהמלצה)
    - **הערת בעל הפרויקט:** ״עדיף את החום הכהה ולא הירוק״
    - **ליישום:** הערת בעל הפרויקט ״עדיף את החום הכהה ולא הירוק״: טון ״הצלחה״ של `MetaChip` משתמש בגוון החום הנייטרלי (כמו צ'יפ הקטגוריה), לא בירוק. הצורה לפי DD-04 (8). הגוונים (השלמה 2.11): `neutral` ב־`surfaceContainerHighest` ו־`success` ב־`secondaryContainer`/`onSecondaryContainer`, ולא בחום הראשי המלא; `error` ו־`warning` במכלים שלהם.
-   - **מימוש:** טרם התחיל.
+   - **מימוש:** טרם התחיל. מומש — MetaChip(tone: neutral/primary/error/warning/success, size: regular/small, tooltip, maxLines): neutral = surfaceContainerHighest, success = secondaryContainer (החום, לא ירוק), warning מטוקני DD-24; labelMedium 12 / labelSmall 11, אייקון 16/12. outlined ו־error הוסרו. chipTheme: פינות 8 ותווית labelMedium 12 לכל FilterChip/ChoiceChip/Chip, ו־compactFilterChips בלי גודל 10. הוחלפו: _EventMetaChip, _BookMetaChip, _InfoChip בהערות, AttachedInfoChip, SemanticSourceLabel ותג מספר ההתאמות בתוצאות חיצוניות.
 
 ### DD-14 · צבע כותרת מקטע 🎨
 1. **הבעיה:** יש 7+ עותקים של כותרת מקטע, רובם bold ב־`primary`. `TextDisplayPopupPanel` משתמש ב־`labelLarge` + `onSurfaceVariant`, ו־`ReportingNumbersWidget` ב־`onSurface`.

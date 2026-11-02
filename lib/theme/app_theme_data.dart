@@ -198,6 +198,20 @@ class AppThemeData {
             ?.merge(theme.textTheme.titleLarge)
             .copyWith(color: cs.onSurface),
       ),
+      // צ'יפ בחירה (FilterChip / ChoiceChip / Chip): פינות 8 ותווית
+      // labelMedium 12 (DD-13). הצבע כמו ברירת המחדל של M3.
+      chipTheme: ChipThemeData(
+        shape: AppTokens.roundedShape,
+        labelStyle: theme.textTheme.labelMedium?.copyWith(
+          color: WidgetStateColor.resolveWith(
+            (states) => states.contains(WidgetState.disabled)
+                ? cs.onSurface
+                : states.contains(WidgetState.selected)
+                ? cs.onSecondaryContainer
+                : cs.onSurfaceVariant,
+          ),
+        ),
+      ),
       datePickerTheme: const DatePickerThemeData(
         shape: AppTokens.roundedShape,
         rangePickerShape: AppTokens.roundedShape,

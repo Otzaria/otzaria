@@ -466,7 +466,7 @@ class _FolderTileState extends State<_FolderTile> {
             children: [
               if (!exists)
                 const MetaChip(
-                  error: true,
+                  tone: MetaChipTone.error,
                   icon: FluentIcons.folder_prohibited_24_regular,
                   label: 'התיקייה לא נמצאה',
                 )
@@ -480,20 +480,19 @@ class _FolderTileState extends State<_FolderTile> {
                 ),
               if (hidden)
                 const MetaChip(
-                  outlined: true,
                   icon: FluentIcons.eye_off_24_regular,
                   label: 'מוסתרת',
                 ),
               if (folder['scanTruncated'] == true)
                 const MetaChip(
-                  outlined: true,
+                  tone: MetaChipTone.warning,
                   icon: FluentIcons.warning_24_regular,
                   label: 'סריקה חלקית',
                 ),
               if (types.isNotEmpty)
                 Directionality(
                   textDirection: TextDirection.ltr,
-                  child: MetaChip(outlined: true, label: types),
+                  child: MetaChip(label: types),
                 ),
             ],
           ),
@@ -618,7 +617,7 @@ class _AttachedLibraryTile extends StatelessWidget {
             children: [
               if (!ok)
                 MetaChip(
-                  error: true,
+                  tone: MetaChipTone.error,
                   icon: FluentIcons.warning_24_regular,
                   label: _statusLabel(status),
                 )
@@ -631,19 +630,16 @@ class _AttachedLibraryTile extends StatelessWidget {
                 ),
               if (library['hidden'] == true)
                 const MetaChip(
-                  outlined: true,
                   icon: FluentIcons.eye_off_24_regular,
                   label: 'מוסתר',
                 ),
               MetaChip(
-                outlined: true,
                 icon: library['mode'] == 'copy'
                     ? FluentIcons.copy_24_regular
                     : FluentIcons.link_24_regular,
                 label: library['mode'] == 'copy' ? 'עותק מנוהל' : 'קישור לקובץ',
               ),
               MetaChip(
-                outlined: true,
                 icon: FluentIcons.folder_24_regular,
                 label: library['placement'] == 'mergeIntoLibrary'
                     ? 'ממוזג לספרייה'
@@ -760,7 +756,7 @@ class _PluginRow extends StatelessWidget {
           Directionality(
             textDirection: TextDirection.ltr,
             child: MetaChip(
-              outlined: !enabled,
+              tone: enabled ? MetaChipTone.success : MetaChipTone.neutral,
               label: InfoValueFormat.pluginVersion(plugin),
             ),
           ),
@@ -812,7 +808,6 @@ class _ErrorTile extends StatelessWidget {
                     Directionality(
                       textDirection: TextDirection.ltr,
                       child: MetaChip(
-                        outlined: true,
                         icon: FluentIcons.clock_24_regular,
                         label: timestamp,
                       ),

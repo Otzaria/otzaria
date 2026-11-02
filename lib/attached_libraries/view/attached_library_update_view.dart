@@ -4,40 +4,8 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/models/attached_library_update_status.dart';
 import 'package:otzaria/settings/l10n/settings_dialog_scope.dart';
 import 'package:otzaria/settings/l10n/settings_text.dart';
-import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
-
-/// צ'יפ קטן בכרטיס המסדים המצורפים.
-class AttachedInfoChip extends StatelessWidget {
-  const AttachedInfoChip({
-    super.key,
-    required this.label,
-    this.background,
-    this.foreground,
-  });
-
-  final String label;
-  final Color? background;
-  final Color? foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: background ?? cs.surfaceContainerHighest,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: foreground ?? cs.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-}
 
 /// The update-source chip: none, signed with its domain, or changed.
 class AttachedUpdateSourceChip extends StatelessWidget {
@@ -47,19 +15,22 @@ class AttachedUpdateSourceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final source = library.updateSource;
     if (source == null) {
-      return AttachedInfoChip(label: context.settingsText('אין מקור עדכונים'));
-    }
-    if (library.updateSourceMismatch) {
-      return AttachedInfoChip(
-        label: context.settingsText('מקור העדכון השתנה — לא יעודכן'),
-        background: cs.errorContainer,
-        foreground: cs.onErrorContainer,
+      return MetaChip(
+        size: MetaChipSize.small,
+        label: context.settingsText('אין מקור עדכונים'),
       );
     }
-    return AttachedInfoChip(
+    if (library.updateSourceMismatch) {
+      return MetaChip(
+        size: MetaChipSize.small,
+        tone: MetaChipTone.error,
+        label: context.settingsText('מקור העדכון השתנה — לא יעודכן'),
+      );
+    }
+    return MetaChip(
+      size: MetaChipSize.small,
       label: context.settingsText(
         'חתום · {domain}',
         args: {'domain': source.host},

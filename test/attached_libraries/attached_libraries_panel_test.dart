@@ -11,8 +11,8 @@ import 'package:otzaria/attached_libraries/models/attached_library.dart';
 import 'package:otzaria/attached_libraries/repository/attached_libraries_repository.dart';
 import 'package:otzaria/attached_libraries/repository/external_link_repository.dart';
 import 'package:otzaria/attached_libraries/view/attached_libraries_panel.dart';
-import 'package:otzaria/attached_libraries/view/attached_library_update_view.dart';
 import 'package:otzaria/library/bloc/library_event.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 
 import '../helpers/memory_settings_cache.dart';
 
@@ -256,7 +256,7 @@ void main() {
                   .first,
             );
             final tagsBottom = find
-                .byType(AttachedInfoChip)
+                .byType(MetaChip)
                 .evaluate()
                 .map(
                   (chip) => tester.getRect(find.byWidget(chip.widget)).bottom,

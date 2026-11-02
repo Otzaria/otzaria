@@ -133,7 +133,6 @@ Widget compactFilterChips({
           color: isSelected
               ? AppSurfaces.onSelectedRow(Theme.of(context).colorScheme)
               : null,
-          fontSize: 10,
           fontWeight: isSelected ? FontWeight.w600 : null,
         ),
         labelPadding: EdgeInsets.zero,

@@ -137,9 +137,77 @@ void main() {
       expect(dark.primaryColor, dark.colorScheme.surface);
     });
 
-    test('אין chipTheme מותאם', () {
-      expect(appTheme(Brightness.light).chipTheme, const ChipThemeData());
-    });
+    for (final brightness in Brightness.values) {
+      test('chipTheme ב-$brightness: פינות 8, תווית labelMedium 12', () {
+        final theme = appTheme(brightness);
+        final cs = theme.colorScheme;
+        final chip = theme.chipTheme;
+        expect(chip.shape, AppTokens.roundedShape);
+        expect(chip.labelStyle?.fontSize, AppTokens.fontSM);
+        final color = chip.labelStyle!.color!;
+        expect(
+          WidgetStateProperty.resolveAs<Color>(color, const {}),
+          cs.onSurfaceVariant,
+        );
+        expect(
+          WidgetStateProperty.resolveAs<Color>(color, const {
+            WidgetState.disabled,
+          }),
+          cs.onSurface,
+        );
+        // כמו ברירת המחדל של M3 ל-FilterChip/ChoiceChip.
+        expect(
+          WidgetStateProperty.resolveAs<Color>(color, const {
+            WidgetState.selected,
+          }),
+          cs.onSecondaryContainer,
+        );
+        expect(
+          WidgetStateProperty.resolveAs<Color>(color, const {
+            WidgetState.selected,
+            WidgetState.disabled,
+          }),
+          cs.onSurface,
+        );
+      });
+
+      testWidgets("צ'יפ נבחר ב-$brightness: תווית onSecondaryContainer", (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: appTheme(brightness),
+            home: Scaffold(
+              body: Wrap(
+                children: [
+                  FilterChip(
+                    label: const Text('נבחר'),
+                    selected: true,
+                    onSelected: (_) {},
+                  ),
+                  ChoiceChip(
+                    label: const Text('בחירה'),
+                    selected: true,
+                    onSelected: (_) {},
+                  ),
+                  FilterChip(
+                    label: const Text('רגיל'),
+                    selected: false,
+                    onSelected: (_) {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        final cs = appTheme(brightness).colorScheme;
+        Color? labelColor(String text) =>
+            DefaultTextStyle.of(tester.element(find.text(text))).style.color;
+        expect(labelColor('נבחר'), cs.onSecondaryContainer);
+        expect(labelColor('בחירה'), cs.onSecondaryContainer);
+        expect(labelColor('רגיל'), cs.onSurfaceVariant);
+      });
+    }
 
     test('הטוקנים: רדיוס 8 ומרווחים 4/8/16/24/32', () {
       expect(AppTokens.radius, 8);

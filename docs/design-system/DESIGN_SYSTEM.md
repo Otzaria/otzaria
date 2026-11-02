@@ -438,7 +438,7 @@
 | חיפוש | `OtzariaSearchField`. בחלונית ניווט: `NavPanelCollapsibleSearch` | אייקון לפי היקף החיפוש (`agent_ui_reference` §1). כפתור ניקוי אחד, `OtzariaSearchClearButton` (UI-138, MIG-16) |
 | בחירה אחת מרשימה נפתחת | `AppDropdownField` | `decoration.labelText` מוצג כתווית `labelMedium` מעל הכפתור ונקרא יחד עמו בקורא מסך (MIG-11; אושר בהשלמה 2.11: תווית מעל השדה). בשדות בסרגל, שאין בהם מקום מעל: `semanticLabel` בלבד (שם נגיש ו־tooltip, בלי תווית גלויה). |
 | 2–4 אפשרויות | `AppSegmentedControl`. בהגדרות: `SettingsActionTile.segmentedTile` | קיים. גם בורר מצב החיפוש (DD-31a) |
-| בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (יעד, DD-13, MIG-08) | היום `FilterChipsSelector` / `compactFilterChips` בצבעי `secondary` |
+| בחירה מרובה (פילטר) | `FilterChip` של Material + `chipTheme` (DD-13: פינות 8, תווית `labelMedium` 12) | `FilterChipsSelector` / `compactFilterChips`; `ChoiceChip` לבחירה אחת |
 | Checkbox | `Checkbox` של Material + `checkboxTheme` (יעד, MIG-08) | השורה כולה לחיצה (`CheckboxListTile` או `InkWell`) |
 | Switch | `SettingsActionTile.switchTile`. מחוץ להגדרות: `Switch` + `switchTheme` (יעד, MIG-08) | `CustomSwitch` יוסר כשיתווסף `switchTheme` (MIG-26) |
 | Slider | `SettingsSliderTile` | `SliderTheme` מקומי אסור |
@@ -460,7 +460,7 @@
 | שורת הגדרה | `SettingsActionTile.*` בתוך `SettingsCard` | כ־10 דפוסים נבנים היום ידנית (MIG-15) |
 | פריט רשימה | `ListTile` + `listTileTheme` (יעד, MIG-05), או `NavTreeTile` בחלוניות | |
 | פריט ניווט | `NavRailItem`, `SidebarNavItem`, `NavTreeTile` | |
-| תגית / מונה | `MetaChip(tone: neutral\|primary\|error\|warning\|success, size: regular\|small)` (יעד, DD-13 A, MIG-13). תווית `labelMedium` 12, צורה 8. `success` בגוון החום הנייטרלי, לא ירוק: `secondaryContainer`. `neutral` ב־`surfaceContainerHighest` (השלמה 2.11) | היום `MetaChip(error:, outlined:)` וכ־12 מימושי צ'יפ |
+| תגית / מונה | `MetaChip(tone: neutral\|primary\|error\|warning\|success, size: regular\|small, tooltip:)` (DD-13 A). תווית `labelMedium` 12 (`small`: `labelSmall` 11), צורה 8. `success` בגוון החום הנייטרלי (`secondaryContainer`), לא ירוק. `neutral` ב־`surfaceContainerHighest` (השלמה 2.11) | לא נבנה צ'יפ מקומי. נשארו: `SearchResultSourceTag`, `PluginDevBadge`, `PluginUpdateChip`, תג הגימטריה |
 | תג אייקון | `ListIconBadge` / `AppDialogIconBadge` | ריבוע מעוגל 8 בשניהם (DD-04, MIG-13). היום תג הדיאלוג עגול |
 | כותרת מקטע | `AppSectionLabel` (יעד, DD-14 A, MIG-13): `titleMedium`, `primary`. חריג: בדיאלוג החיפוש ובאיתור המקורות הכותרות הקטנות (13, w600, `primary`) נשארות (השלמה 2.11) | היום 7+ עותקים מקומיים. עד אז: `text.titleMedium` + `cs.primary` |
 | מפריד שורות בדיאלוג | `listDialogRowDivider` | |

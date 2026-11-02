@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
 import 'package:otzaria/widgets/misc/app_popup_menu.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -52,6 +51,7 @@ import 'package:otzaria/settings/settings_exports.dart';
 import 'package:otzaria/widgets/navigation/app_top_bar.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/layout/meta_chip.dart';
 import 'package:otzaria/widgets/widgets_exports.dart';
 import 'package:otzaria/theme/theme_exports.dart';
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
@@ -1415,23 +1415,17 @@ class _PersonalNotesManagerScreenState
                   children: [
                     Tooltip(
                       message: '$dateLabel: $hebrewDate $time',
-                      child: _InfoChip(
+                      child: MetaChip(
                         icon: OtzariaIcons.calendar_24_regular,
-                        text: _sortOrder == PersonalNotesSortOrder.bookLocation
+                        label: _sortOrder == PersonalNotesSortOrder.bookLocation
                             ? hebrewDate
                             : '$hebrewDate $time',
-                        backgroundColor: cs.secondaryContainer.withValues(
-                          alpha: 0.45,
-                        ),
-                        foregroundColor: cs.onSecondaryContainer,
                       ),
                     ),
                     if (isMissing && note.lastKnownLineNumber != null)
-                      _InfoChip(
+                      MetaChip(
                         icon: FluentIcons.location_24_regular,
-                        text: 'שורה קודמת: ${note.lastKnownLineNumber}',
-                        backgroundColor: cs.surfaceContainerHighest,
-                        foregroundColor: cs.onSurfaceVariant,
+                        label: 'שורה קודמת: ${note.lastKnownLineNumber}',
                       ),
                   ],
                 ),
@@ -1648,51 +1642,6 @@ class _PersonalNotesManagerScreenState
         Settings.setValue<int>('key-sidebar-tab-index-combined', 0);
       }
     });
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color backgroundColor;
-  final Color foregroundColor;
-
-  const _InfoChip({
-    required this.icon,
-    required this.text,
-    required this.backgroundColor,
-    required this.foregroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: AppTokens.borderRadiusAll,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RtlIcon(icon, size: 12, color: foregroundColor),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: foregroundColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
