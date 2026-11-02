@@ -12,14 +12,13 @@ import 'package:otzaria/shortcuts/dynamic/dynamic_shortcut_registry.dart';
 import 'package:otzaria/text_book/utils/book_note_report.dart';
 import 'package:otzaria/text_book/view/text_correction_editor.dart'
     show buildCorrectionTemplate;
-import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/widgets/misc/expanding_chevron.dart';
 import 'package:otzaria/book_common/view/content_width.dart';
 import 'package:otzaria/book_common/selection/commentary_selection.dart';
 import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_flat_items.dart';
 import 'package:otzaria/theme/app_fonts.dart';
-import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/gestures.dart';
@@ -2508,19 +2507,13 @@ class _CommentaryGroupHeader extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: Row(
           children: [
-            AnimatedRotation(
-              turns: isExpanded ? -0.25 : 0,
-              duration: AppMotion.duration(
+            ExpandingChevron(
+              isExpanded: isExpanded,
+              style: ExpandingChevronStyle.tree,
+              size: 20,
+              color: Theme.of(
                 context,
-                AppTokens.animPanelOpacity,
-              ),
-              child: Icon(
-                FluentIcons.chevron_right_24_regular,
-                size: 20,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
             const SizedBox(width: 8),
             Expanded(

@@ -307,10 +307,14 @@ class NavTreeTile extends StatelessWidget {
                   const SizedBox(width: 4),
                   IconButton(
                     tooltip: context.settingsText(isExpanded ? 'כווץ' : 'הרחב'),
-                    icon: ExpandingChevron(
-                      isExpanded: isExpanded,
-                      color: cs.onSurfaceVariant,
-                      size: 18,
+                    // המצב שייך לשורה; הכפתור נקרא לפי הפעולה (הרחב/כווץ).
+                    icon: ExcludeSemantics(
+                      child: ExpandingChevron(
+                        isExpanded: isExpanded,
+                        style: ExpandingChevronStyle.tree,
+                        color: cs.onSurfaceVariant,
+                        size: 18,
+                      ),
                     ),
                     visualDensity: VisualDensity.compact,
                     onPressed: onToggleExpand,

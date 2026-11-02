@@ -43,6 +43,29 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('המצב expanded נקרא בשורה בלבד, לא שוב בכפתור החץ', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpInApp(
+        tester,
+        NavTreeTile.category(
+          title: 'תנ"ך',
+          level: 0,
+          isExpanded: true,
+          hasChildren: true,
+          onTap: () {},
+          onToggleExpand: () {},
+        ),
+      );
+      final row = _node(tester, find.text('תנ"ך'));
+      final button = _node(tester, find.byType(IconButton));
+      expect(button.id, isNot(row.id));
+      expect(row, isSemantics(hasExpandedState: true, isExpanded: true));
+      expect(button, isSemantics(hasExpandedState: false, tooltip: 'כווץ'));
+      handle.dispose();
+    });
+
     testWidgets('לכפתור הצ\'בֺרן יש tooltip לפי המצב', (tester) async {
       await pumpInApp(
         tester,
