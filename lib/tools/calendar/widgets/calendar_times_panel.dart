@@ -1040,26 +1040,7 @@ class _AlertControl extends StatelessWidget {
   }
 }
 
-bool _textOverflows({
-  required BuildContext context,
-  required String text,
-  required TextStyle style,
-  required int maxLines,
-  required double maxWidth,
-  TextDirection textDirection = TextDirection.rtl,
-  required TextAlign textAlign,
-}) {
-  final textPainter = TextPainter(
-    text: TextSpan(text: text, style: style),
-    maxLines: maxLines,
-    ellipsis: '…',
-    textDirection: textDirection,
-    textAlign: textAlign,
-    textScaler: MediaQuery.textScalerOf(context),
-  )..layout(maxWidth: maxWidth);
-
-  return textPainter.didExceedMaxLines;
-}
+final _overflowCache = newTextOverflowCache();
 
 class _OverflowAwareTooltipText extends StatelessWidget {
   final String text;
@@ -1081,13 +1062,15 @@ class _OverflowAwareTooltipText extends StatelessWidget {
         final hasOverflow =
             constraints.maxWidth.isFinite &&
             constraints.maxWidth > 0 &&
-            _textOverflows(
+            textOverflows(
               context: context,
               text: text,
               style: resolvedStyle,
               maxLines: maxLines,
               maxWidth: constraints.maxWidth,
               textAlign: TextAlign.right,
+              textDirection: TextDirection.rtl,
+              cache: _overflowCache,
             );
 
         final child = Text(

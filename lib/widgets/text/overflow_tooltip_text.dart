@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 /// בודק האם הטקסט גולש מעבר למספר השורות המרבי ברוחב הנתון.
+///
+/// רשימה ארוכה מעבירה [cache] משלה ([newTextOverflowCache]), כדי שלא תדחק
+/// מהמטמון המשותף את המדידות של עצי הניווט.
 bool textOverflows({
   required BuildContext context,
   required String text,
@@ -9,7 +12,9 @@ bool textOverflows({
   required double maxWidth,
   TextAlign textAlign = TextAlign.start,
   TextDirection? textDirection,
+  Map<Object, bool>? cache,
 }) {
+  final entries = cache ?? _overflowCache;
   final direction = textDirection ?? Directionality.of(context);
   final textScaler = MediaQuery.textScalerOf(context);
   final key = (
@@ -21,8 +26,8 @@ bool textOverflows({
     direction,
     textScaler,
   );
-  final cached = _overflowCache.remove(key);
-  if (cached != null) return _overflowCache[key] = cached;
+  final cached = entries.remove(key);
+  if (cached != null) return entries[key] = cached;
   debugTextOverflowLayouts++;
   final textPainter = TextPainter(
     text: TextSpan(text: text, style: style),
@@ -33,18 +38,21 @@ bool textOverflows({
   )..layout(maxWidth: maxWidth);
   final overflows = textPainter.didExceedMaxLines;
   textPainter.dispose();
-  if (_overflowCache.length >= 2000) {
-    _overflowCache.remove(_overflowCache.keys.first);
+  if (entries.length >= 2000) {
+    entries.remove(entries.keys.first);
   }
-  return _overflowCache[key] = overflows;
+  return entries[key] = overflows;
 }
 
-// שורות עץ הניווט נבנות מחדש בכל גלילה ומודדות שוב אותו טקסט; גופן שנטען משנה מדידה.
-final Map<Object, bool> _overflowCache = () {
+/// מטמון ל-[textOverflows]. שורות נבנות מחדש בגלילה ומודדות שוב אותו טקסט;
+/// גופן שנטען משנה מדידה, ולכן המטמון מתרוקן.
+Map<Object, bool> newTextOverflowCache() {
   final cache = <Object, bool>{};
   PaintingBinding.instance.systemFonts.addListener(cache.clear);
   return cache;
-}();
+}
+
+final Map<Object, bool> _overflowCache = newTextOverflowCache();
 
 @visibleForTesting
 int debugTextOverflowLayouts = 0;
