@@ -312,6 +312,7 @@ class LibraryUpdateBloc extends Bloc<LibraryUpdateEvent, LibraryUpdateState> {
               status: LibraryUpdateStatus.blocked,
               message: plan.reason ?? 'העדכון חסום',
               errorMessage: plan.reason,
+              plan: plan,
             ),
           );
       }

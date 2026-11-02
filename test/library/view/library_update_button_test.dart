@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/core/messages/library_messages.dart';
 import 'package:otzaria/library/view/library_browser.dart';
 import 'package:otzaria/library_update/bloc/library_update_bloc.dart';
+import 'package:seforim_library_updater/seforim_library_updater.dart';
 
 void main() {
   group('libraryUpdateButtonIcon', () {
@@ -54,6 +55,30 @@ void main() {
   });
 
   group('libraryUpdateButtonTooltip', () {
+    test('עדכון שאינו נתמך בגרסת התוכנה אינו מוצג גם בריחוף', () {
+      final state = LibraryUpdateState(
+        status: LibraryUpdateStatus.blocked,
+        message: 'נדרש עדכון תוכנה',
+        plan: LibraryUpdatePlan.blocked(
+          localVersion: 1,
+          reason: 'נדרש עדכון תוכנה',
+          blockReason: LibraryUpdateBlockReason.appUpdateRequired,
+        ),
+      );
+
+      expect(libraryUpdateButtonTooltip(state), 'עדכון ספרייה');
+    });
+
+    test('חסימה אחרת ממשיכה להסביר את הסיבה בריחוף', () {
+      final state = LibraryUpdateState(
+        status: LibraryUpdateStatus.blocked,
+        message: 'אין מסלול דלתא',
+        plan: LibraryUpdatePlan.blocked(localVersion: 1, reason: 'אין מסלול'),
+      );
+
+      expect(libraryUpdateButtonTooltip(state), 'אין מסלול דלתא');
+    });
+
     test('מנותק מסביר את המצב ומזמין ניסיון חוזר', () {
       const state = LibraryUpdateState(
         status: LibraryUpdateStatus.disconnected,

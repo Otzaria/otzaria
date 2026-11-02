@@ -51,8 +51,8 @@ class LibraryUpdateState extends Equatable {
   /// יחס התקדמות (0..1) בתוך שלב אימות ה-hash; null בשאר שלבי ה-apply.
   final double? applyProgress;
 
-  /// התוכנית שנבחרה — זמינה במצבי [LibraryUpdateStatus.needsFullConfirmation]
-  /// ו-[LibraryUpdateStatus.needsRouteChoice].
+  /// התוכנית שנבחרה — זמינה במצבי [LibraryUpdateStatus.needsFullConfirmation],
+  /// [LibraryUpdateStatus.needsRouteChoice] ו-[LibraryUpdateStatus.blocked].
   final LibraryUpdatePlan? plan;
 
   /// מזהי ספרים (seforim.db) שתוכנם השתנה בעדכון דלתא — לרענון אינדקס החיפוש.
@@ -108,6 +108,11 @@ class LibraryUpdateState extends Equatable {
   ) =>
       previous.status != current.status ||
       previous.hasUpdate != current.hasUpdate;
+
+  /// החסימה נובעת מכך שהעדכון אינו נתמך בגרסת התוכנה — אין מה להציג למשתמש.
+  bool get isUnsupportedByAppVersion =>
+      status == LibraryUpdateStatus.blocked &&
+      plan?.blockReason == LibraryUpdateBlockReason.appUpdateRequired;
 
   /// האם התוכנית שבוצעה היא הורדה מלאה — אז אין מידע מי השתנה, וה-UI
   /// מפעיל reconcile של האינדקס מול הספרייה במקום רשימת ספרים ידועה.
