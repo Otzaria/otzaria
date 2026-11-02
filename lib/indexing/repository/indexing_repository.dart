@@ -248,7 +248,7 @@ class IndexingRepository {
   /// כי אין מה לאנדקס מחדש.
   @visibleForTesting
   static bool shouldSkipManualReindexCheck(Library library) {
-    return library.getAllBooks().isEmpty;
+    return !library.hasBooks;
   }
 
   /// האם ריצה שבוטלה צריכה לבצע commit למה שכבר נכתב.
