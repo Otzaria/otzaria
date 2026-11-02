@@ -106,7 +106,7 @@ def main() -> None:
     release_tag = os.getenv("RELEASE_TAG", "Unknown")
     release_name = os.getenv("RELEASE_NAME", "")
     release_url = os.getenv("RELEASE_URL", "")
-    event_path = os.getenv("GITHUB_EVENT_PATH")
+    event_path = os.getenv("RELEASE_EVENT_PATH")
 
     if not event_path:
         raise RuntimeError("A release event is required before announcing")

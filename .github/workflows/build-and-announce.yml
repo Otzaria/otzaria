@@ -3543,7 +3543,8 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name || needs.create_release.outputs.tag }}
           RELEASE_NAME: ${{ github.event.release.name || needs.create_release.outputs.title }}
           RELEASE_URL: ${{ github.event.release.html_url || needs.create_release.outputs.url }}
-          GITHUB_EVENT_PATH: ${{ github.event_name == 'workflow_dispatch' && format('{0}/release-event.json', runner.temp) || github.event_path }}
+          # GitHub מתעלם מדריסת משתני GITHUB_* — לכן שם נפרד
+          RELEASE_EVENT_PATH: ${{ github.event_name == 'workflow_dispatch' && format('{0}/release-event.json', runner.temp) || github.event_path }}
 
           # סודות להתחברות לשירותים החיצוניים
           GH_TOKEN: ${{ github.token }}

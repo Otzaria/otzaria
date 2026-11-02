@@ -148,7 +148,7 @@ class AnnouncementTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             event = Path(directory) / "event.json"
             event.write_text(json.dumps({"release": release("9.0.0", id=99)}))
-            with patch.dict(announcement.os.environ, {"GITHUB_EVENT_PATH": str(event)}), \
+            with patch.dict(announcement.os.environ, {"RELEASE_EVENT_PATH": str(event)}), \
                  patch.object(announcement, "Github", return_value=fake_github(release())), \
                  patch.object(announcement, "require_env") as credentials:
                 announcement.main()
