@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:otzaria/settings/engine/app_settings_store.dart';
 import 'package:logging/logging.dart';
@@ -151,9 +152,7 @@ class BackupMaintenance {
     DateTime archiveTimestamp = DateTime.fromMillisecondsSinceEpoch(0);
     if (await archiveFile.exists()) {
       try {
-        archive =
-            json.decode(await archiveFile.readAsString())
-                as Map<String, dynamic>;
+        archive = await _readManifest(archiveFile.path);
         archiveTimestamp =
             BackupMerge.parseManifestTimestamp(
               archive['timestamp']?.toString(),
@@ -170,9 +169,7 @@ class BackupMaintenance {
     for (final backup in expiredAscending) {
       Map<String, dynamic> manifest;
       try {
-        manifest =
-            json.decode(await File(backup.path).readAsString())
-                as Map<String, dynamic>;
+        manifest = await _readManifest(backup.path);
       } catch (e) {
         _logger.warning('Skipping unreadable backup ${backup.path}: $e');
         continue;
@@ -209,11 +206,14 @@ class BackupMaintenance {
   ) async {
     final tmp = File('${archiveFile.path}.tmp');
     try {
-      await tmp.writeAsString(json.encode(archive), flush: true);
-
-      final reread =
-          json.decode(await tmp.readAsString()) as Map<String, dynamic>;
-      for (final ref in BackupStore.collectRefs(reread)) {
+      final tmpPath = tmp.path;
+      final refs = await Isolate.run(() {
+        File(tmpPath).writeAsStringSync(json.encode(archive), flush: true);
+        return BackupStore.collectRefs(
+          json.decode(File(tmpPath).readAsStringSync()) as Map<String, dynamic>,
+        );
+      });
+      for (final ref in refs) {
         if (!await store.exists(ref)) {
           _logger.severe('Archive verification failed: missing blob $ref');
           await tmp.delete();
@@ -278,27 +278,42 @@ class BackupMaintenance {
     String backupDir,
     BackupStore store,
   ) async {
-    final referenced = <String>{};
-
     final manifests = [
       ...(await listBackups(backupDir)).map((b) => b.path),
       p.join(backupDir, archiveFileName),
     ];
-    for (final path in manifests) {
-      final file = File(path);
-      if (!await file.exists()) continue;
-      try {
-        final manifest =
-            json.decode(await file.readAsString()) as Map<String, dynamic>;
-        referenced.addAll(BackupStore.collectRefs(manifest));
-      } catch (e) {
-        // מניפסט לא קריא: מדלגים על ה-GC כולו — עדיף blobs יתומים ממחיקת
-        // blob שאולי עדיין מופנה ממנו.
-        _logger.warning('Unreadable manifest $path — skipping GC: $e');
-        return 0;
-      }
+    final (referenced, error) = await Isolate.run(
+      () => _collectManifestRefs(manifests),
+    );
+    if (referenced == null) {
+      // מניפסט לא קריא: מדלגים על ה-GC כולו — עדיף blobs יתומים ממחיקת
+      // blob שאולי עדיין מופנה ממנו.
+      _logger.warning('Unreadable manifest — skipping GC: $error');
+      return 0;
     }
 
     return store.sweep(referenced);
+  }
+
+  /// מניפסטים גדולים מפוענחים בשניות, ולכן מחוץ ל-isolate הראשי.
+  static Future<Map<String, dynamic>> _readManifest(String path) => Isolate.run(
+    () => json.decode(File(path).readAsStringSync()) as Map<String, dynamic>,
+  );
+
+  /// רץ ב-isolate נפרד. מחזיר null ותיאור שגיאה אם מניפסט כלשהו אינו קריא.
+  static (Set<String>?, String?) _collectManifestRefs(List<String> paths) {
+    final refs = <String>{};
+    for (final path in paths) {
+      final file = File(path);
+      if (!file.existsSync()) continue;
+      try {
+        final manifest =
+            json.decode(file.readAsStringSync()) as Map<String, dynamic>;
+        refs.addAll(BackupStore.collectRefs(manifest));
+      } catch (e) {
+        return (null, '$path: $e');
+      }
+    }
+    return (refs, null);
   }
 }
