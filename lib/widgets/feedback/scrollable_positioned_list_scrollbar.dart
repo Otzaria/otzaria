@@ -7,6 +7,16 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/feedback/scrollbar_target_label.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
 
+/// ההתקנים שגוררים פס גלילה. בלי לוח מגע: גלילה בשתי אצבעות מעל הפס אינה
+/// גרירה, וכגרירה כל פיקסל שלה היה נמדד ביחס לכל המסמך.
+const Set<PointerDeviceKind> kScrollbarDragDevices = {
+  PointerDeviceKind.mouse,
+  PointerDeviceKind.touch,
+  PointerDeviceKind.stylus,
+  PointerDeviceKind.invertedStylus,
+  PointerDeviceKind.unknown,
+};
+
 class ScrollablePositionedListScrollbar extends StatefulWidget {
   static const Key trackKey = Key('positioned-list-scrollbar-track');
   static const Key thumbKey = Key('positioned-list-scrollbar-thumb');
@@ -343,6 +353,7 @@ class _ScrollablePositionedListScrollbarState
                   child: GestureDetector(
                     key: ScrollablePositionedListScrollbar.trackKey,
                     behavior: HitTestBehavior.opaque,
+                    supportedDevices: kScrollbarDragDevices,
                     dragStartBehavior: DragStartBehavior.down,
                     onVerticalDragStart: (details) {
                       _beginNavigation();
