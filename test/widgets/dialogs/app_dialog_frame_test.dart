@@ -5,6 +5,7 @@ import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/widgets_exports.dart' show ActionButton;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -202,6 +203,52 @@ void main() {
         subtitleMaxLines: 1,
       );
       expect(tester.widget<Text>(find.text('שם ספר')).maxLines, 1);
+    });
+  });
+
+  group('AppDialogFrame — leading', () {
+    Future<void> pumpLeading(WidgetTester tester, Size size) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Material(
+              child: AppDialogFrame(
+                title: 'הדפסה',
+                icon: FluentIcons.print_24_regular,
+                size: AppDialogSize.full,
+                leading: const SizedBox(
+                  key: Key('nav'),
+                  width: 250,
+                  height: 40,
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('בחלון רחב: בתחילת הרצועה, לפני התג', (tester) async {
+      await pumpLeading(tester, const Size(1000, 700));
+      final nav = tester.getRect(find.byKey(const Key('nav')));
+      final badge = tester.getRect(find.byType(AppDialogIconBadge));
+      expect(nav.left, greaterThan(badge.right), reason: 'RTL: מימין לתג');
+      expect(nav.center.dy, closeTo(badge.center.dy, 1));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('בחלון צר: בשורה משלו מתחת לכותרת, בלי חריגה', (tester) async {
+      await pumpLeading(tester, const Size(360, 700));
+      final nav = tester.getRect(find.byKey(const Key('nav')));
+      final title = tester.getRect(find.text('הדפסה'));
+      expect(nav.top, greaterThan(title.bottom));
+      expect(tester.takeException(), isNull);
     });
   });
 }
