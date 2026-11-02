@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 class NavRailItem extends StatelessWidget {
   /// רוחב הפריט במצב רגיל ובמצב קומפקטי. ה-SizedBox העוטף את הסרגל חייב
@@ -99,7 +100,7 @@ class NavRailItem extends StatelessWidget {
     Widget iconWidget = imageAsset != null
         ? ImageIcon(AssetImage(imageAsset!), size: 24, color: iconColor)
         : AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
+            duration: AppMotion.duration(context, AppTokens.animNormal),
             switchInCurve: Curves.easeInOutCubicEmphasized,
             switchOutCurve: Curves.easeInOutCubicEmphasized,
             transitionBuilder: (child, animation) => FadeTransition(
@@ -131,10 +132,10 @@ class NavRailItem extends StatelessWidget {
             // ── Active Indicator ────────────────────────────────────────
             AnimatedScale(
               scale: isSelected ? 1.0 : 0.95,
-              duration: const Duration(milliseconds: 250),
+              duration: AppMotion.duration(context, AppTokens.animNormal),
               curve: Curves.easeInOutCubicEmphasized,
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
+                duration: AppMotion.duration(context, AppTokens.animNormal),
                 curve: Curves.easeInOutCubicEmphasized,
                 decoration: BoxDecoration(
                   color: isSelected
@@ -164,7 +165,7 @@ class NavRailItem extends StatelessWidget {
             const SizedBox(height: 2),
             // ── תווית ──────────────────────────────────────────────────
             AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 250),
+              duration: AppMotion.duration(context, AppTokens.animNormal),
               curve: Curves.easeInOutCubicEmphasized,
               style: TextStyle(
                 fontSize: 11,

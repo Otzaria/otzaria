@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// כפתור pin עם אנימציה — מסתובב 45° ומחליף אייקון ל-filled כשנעוץ.
 class AnimatedPinButton extends StatelessWidget {
@@ -23,7 +25,7 @@ class AnimatedPinButton extends StatelessWidget {
       color: isPinned ? Theme.of(context).colorScheme.primary : null,
       icon: AnimatedRotation(
         turns: isPinned ? -0.125 : 0.0,
-        duration: const Duration(milliseconds: 200),
+        duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
         child: Icon(
           isPinned ? FluentIcons.pin_24_filled : FluentIcons.pin_24_regular,
         ),

@@ -79,6 +79,12 @@ class _ExpandableCardState extends State<ExpandableCard>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _controller.duration = AppMotion.duration(context, AppTokens.animNormal);
+  }
+
+  @override
   void dispose() {
     _animation.dispose();
     _controller.dispose();

@@ -161,7 +161,7 @@ class _NavPanelTabHeaderState extends State<NavPanelTabHeader> {
         ? data.iconFilled!
         : data.icon;
     final iconWidget = AnimatedSwitcher(
-      duration: AppTokens.animFast,
+      duration: AppMotion.duration(context, AppTokens.animFast),
       child: Icon(
         iconData,
         key: ValueKey<IconData>(iconData),
@@ -235,7 +235,7 @@ class NavPanelToggleButton extends StatelessWidget {
       splashRadius: 22,
       color: Theme.of(context).colorScheme.onSecondaryContainer,
       icon: AnimatedSwitcher(
-        duration: AppTokens.animFast,
+        duration: AppMotion.duration(context, AppTokens.animFast),
         child: Icon(
           key: ValueKey(isOpen),
           _glyph(isOpen: isOpen, ltr: ltrGlyph),

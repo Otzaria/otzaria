@@ -19,6 +19,7 @@ import 'package:otzaria/book_common/selection/commentary_copy_guard.dart';
 import 'package:otzaria/book_common/utils/commentary_search_results.dart';
 import 'package:otzaria/book_common/utils/commentary_flat_items.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_theme_data.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:flutter/gestures.dart';
@@ -2514,7 +2515,10 @@ class _CommentaryGroupHeader extends StatelessWidget {
           children: [
             AnimatedRotation(
               turns: isExpanded ? -0.25 : 0,
-              duration: const Duration(milliseconds: 200),
+              duration: AppMotion.duration(
+                context,
+                AppTokens.animPanelOpacity,
+              ),
               child: RtlIcon(
                 FluentIcons.chevron_left_24_regular,
                 size: 20,

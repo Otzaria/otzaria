@@ -13,6 +13,7 @@ import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/navigation/nav_side_panel.dart';
 import 'package:otzaria/widgets/navigation/reader_nav_center.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// רוחב הסרגל שמתחתיו בוררי המיון והאיחוד מתכווצים לכפתורי אייקון.
 /// הבדיקה היא על רוחב הסרגל עצמו (ולא על גודל החלון), כדי שהכיווץ יקרה
@@ -70,17 +71,22 @@ class SearchResultsLayout extends StatefulWidget {
     required bool collapsed,
     required Widget child,
   }) {
-    return AnimatedSize(
-      duration: AppTokens.animNormal,
-      curve: Curves.easeInOut,
-      child: AnimatedSwitcher(
-        duration: AppTokens.animNormal,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(scale: animation, child: child),
-        ),
-        child: KeyedSubtree(key: ValueKey(collapsed), child: child),
-      ),
+    return Builder(
+      builder: (context) {
+        final duration = AppMotion.duration(context, AppTokens.animNormal);
+        return AnimatedSize(
+          duration: duration,
+          curve: Curves.easeInOut,
+          child: AnimatedSwitcher(
+            duration: duration,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(scale: animation, child: child),
+            ),
+            child: KeyedSubtree(key: ValueKey(collapsed), child: child),
+          ),
+        );
+      },
     );
   }
 
@@ -149,7 +155,10 @@ class _SearchResultsLayoutState extends State<SearchResultsLayout> {
                 ValueListenableBuilder(
                   valueListenable: widget.tab.isLeftPaneOpen,
                   builder: (context, value, child) => AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
+                    duration: AppMotion.duration(
+                      context,
+                      AppTokens.animPanelSlide,
+                    ),
                     child: SizedBox(
                       width: value ? 500 : 0,
                       child: Container(

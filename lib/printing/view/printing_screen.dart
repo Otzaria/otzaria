@@ -2699,7 +2699,7 @@ class _PrintingScreenState extends State<PrintingScreen> {
             children: [
               // חלונית הניווט נפתחת/נסגרת ברוחב מונפש.
               AnimatedSize(
-                duration: AppTokens.animNormal,
+                duration: AppMotion.duration(context, AppTokens.animNormal),
                 curve: Curves.easeInOut,
                 child: _showThumbnails
                     ? Row(

@@ -476,7 +476,10 @@ class _MeasurementConverterScreenState
                     AppTopBarItem(
                       widget: IconButton(
                         icon: AnimatedSwitcher(
-                          duration: AppTokens.animFast,
+                          duration: AppMotion.duration(
+                            context,
+                            AppTokens.animFast,
+                          ),
                           transitionBuilder: (child, animation) =>
                               RotationTransition(
                                 turns: Tween<double>(
@@ -773,7 +776,7 @@ class _MeasurementConverterScreenState
 
         final opinionField = AnimatedOpacity(
           opacity: showOpinion ? 1.0 : 0.4,
-          duration: AppTokens.animFast,
+          duration: AppMotion.duration(context, AppTokens.animFast),
           child: _labeled(
             'שיטה',
             AppDropdownField<String>(
@@ -902,7 +905,7 @@ class _MeasurementConverterScreenState
             const SizedBox(width: AppTokens.spaceSM),
             AnimatedOpacity(
               opacity: hasResult && isNumber ? 1.0 : 0.3,
-              duration: AppTokens.animFast,
+              duration: AppMotion.duration(context, AppTokens.animFast),
               child: IgnorePointer(
                 ignoring: !(hasResult && isNumber),
                 child: SecondaryIconButton(

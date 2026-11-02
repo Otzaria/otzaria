@@ -122,7 +122,10 @@ class PaneCard extends StatelessWidget {
       children: [
         Positioned.fill(
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
+            duration: AppMotion.duration(
+              context,
+              const Duration(milliseconds: 160),
+            ),
             curve: Curves.easeOut,
             decoration: BoxDecoration(
               color: isSplit
@@ -467,7 +470,10 @@ class _PaneDividerState extends State<_PaneDivider> {
                 // דהייה בצבע ולא ב-AnimatedOpacity: אטימות חיה הופכת את המפריד
                 // ל-repaint boundary, ומסגרת החלונית שמצוירת אחריו נעלמת.
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 140),
+                  duration: AppMotion.duration(
+                    context,
+                    const Duration(milliseconds: 140),
+                  ),
                   curve: Curves.easeOut,
                   width: _kDividerHandleThickness,
                   height: _kDividerHandleLength,

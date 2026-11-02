@@ -17,6 +17,7 @@ import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// עמודת כרטיסיות קבועה מעל התוכן; ריחוף אינו משנה את המקום השמור לצדה.
 class ReadingTabsSidePanel extends StatefulWidget {
@@ -133,7 +134,7 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
                 ? kCollapsedTabsColumnWidth
                 : expandedWidth;
             final duration = dragging == null
-                ? AppTokens.animPanelSlide
+                ? AppMotion.duration(context, AppTokens.animPanelSlide)
                 : Duration.zero;
 
             return Stack(

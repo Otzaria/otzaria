@@ -142,7 +142,9 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
               },
         child: TweenAnimationBuilder<double>(
           tween: Tween<double>(begin: 0.0, end: targetBlend),
-          duration: _isDragging ? Duration.zero : AppTokens.animFast,
+          duration: _isDragging
+              ? Duration.zero
+              : AppMotion.duration(context, AppTokens.animFast),
           curve: Curves.easeOut,
           builder: (context, blend, _) {
             final highlightColor = cs.primary.withValues(alpha: 0.22 * blend);
@@ -194,7 +196,10 @@ class _ResizableDragHandleState extends State<ResizableDragHandle> {
                           ),
                         ),
                       AnimatedContainer(
-                        duration: AppTokens.animFast,
+                        duration: AppMotion.duration(
+                          context,
+                          AppTokens.animFast,
+                        ),
                         curve: Curves.easeOut,
                         width: widget.isVertical ? thickness + 10 : gripLength,
                         height: widget.isVertical ? gripLength : thickness + 10,

@@ -653,7 +653,7 @@ class _CombinedViewState extends State<CombinedView> {
 
     final previewLink = anchor?.link ?? inlineLinkFromPreviewUrl(url);
     if (previewLink != null) prefetchLinkPreview(previewLink);
-    _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () {
+    _anchorHoverTimer = Timer(AppTokens.hoverPreviewDelay, () {
       if (!_disposed && mounted) {
         _showUrlPreview(url, globalPosition, hoverMode: true);
       }

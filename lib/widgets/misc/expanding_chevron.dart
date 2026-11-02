@@ -27,7 +27,7 @@ class ExpandingChevron extends StatelessWidget {
     if (!hasContent) return const SizedBox.shrink();
     return AnimatedRotation(
       turns: isExpanded ? 0.5 : 0.0,
-      duration: AppTokens.animNormal,
+      duration: AppMotion.duration(context, AppTokens.animNormal),
       curve: Curves.easeInOut,
       child: Icon(
         FluentIcons.chevron_down_24_regular,

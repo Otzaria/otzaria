@@ -345,7 +345,7 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedOpacity(
       opacity: visible ? 1 : 0,
-      duration: AppTokens.animFast,
+      duration: AppMotion.duration(context, AppTokens.animFast),
       child: IconButton(
         icon: Icon(icon, size: 18),
         tooltip: tooltip,

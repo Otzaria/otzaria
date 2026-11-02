@@ -53,6 +53,7 @@ import 'package:otzaria/navigation/view/main_window_screen.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
 import 'package:otzaria/widgets/controls/custom_switch.dart';
 import 'package:otzaria/widgets/layout/centered_scrollable_state.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// מה שהדיאלוג מבקש מהמסך הראשי — ניתוב קישורים ופתיחת חיפוש טקסט.
 abstract interface class FindRefDialogHost {
@@ -712,7 +713,7 @@ class _FindRefDialogState extends State<FindRefDialog> {
       builder: (context, hasMore, _) {
         return AnimatedOpacity(
           opacity: hasMore ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 150),
+          duration: AppMotion.duration(context, AppTokens.animFast),
           child: IgnorePointer(
             ignoring: !hasMore,
             child: IconButton(

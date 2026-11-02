@@ -109,7 +109,10 @@ class _DropPreview extends StatelessWidget {
         return Stack(
           children: [
             AnimatedPositioned(
-              duration: const Duration(milliseconds: 140),
+              duration: AppMotion.duration(
+                context,
+                const Duration(milliseconds: 140),
+              ),
               curve: Curves.easeOutCubic,
               left: rect.left,
               top: rect.top,

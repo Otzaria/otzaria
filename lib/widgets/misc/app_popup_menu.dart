@@ -273,6 +273,7 @@ Future<T?> showAnchoredAppMenu<T>({
       opensBelow: shouldOpenBelow,
       items: items,
       initialValue: initialValue,
+      transitionDuration: AppMotion.duration(context, AppTokens.animPanelSlide),
       // רוחב מינימלי: רוחב הטריגר, או רוחב התוכן הרצוי (calculateAppMenuPreferredWidth) — הגדול מביניהם.
       // התוכן בפועל עדיין קובע את הרוחב הסופי (IntrinsicWidth בתוך _AnchoredMenu).
       constraints: BoxConstraints(
@@ -299,6 +300,7 @@ class _AnchoredMenuRoute<T> extends PopupRoute<T> {
     required this.overlaySize,
     required this.gap,
     required this.opensBelow,
+    required this.transitionDuration,
     required this.items,
     required this.initialValue,
     required this.constraints,
@@ -329,7 +331,7 @@ class _AnchoredMenuRoute<T> extends PopupRoute<T> {
   bool get barrierDismissible => true;
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 300);
+  final Duration transitionDuration;
 
   CurvedAnimation? _animation;
 
@@ -690,6 +692,10 @@ Future<T?> showAnchoredAppSearchMenu<T>({
       filterLabels: filterLabels,
       filterPredicates: filterPredicates,
       initialFilter: initialFilter,
+      transitionDuration: AppMotion.duration(
+        context,
+        const Duration(milliseconds: 100),
+      ),
     ),
   );
 }
@@ -715,6 +721,7 @@ class _AnchoredSearchMenuRoute<T> extends PopupRoute<T> {
     this.filterLabels,
     this.filterPredicates,
     this.initialFilter = 0,
+    required this.transitionDuration,
   });
 
   @override
@@ -727,7 +734,7 @@ class _AnchoredSearchMenuRoute<T> extends PopupRoute<T> {
   String? get barrierLabel => 'Dismiss';
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 100);
+  final Duration transitionDuration;
 
   @override
   Widget buildPage(

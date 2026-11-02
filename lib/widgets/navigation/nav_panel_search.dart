@@ -409,7 +409,7 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
         children: [
           ClipRect(
             child: AnimatedSize(
-              duration: AppTokens.animFast,
+              duration: AppMotion.duration(context, AppTokens.animFast),
               curve: Curves.easeOut,
               alignment: AlignmentDirectional.topCenter,
               child: _isOpen
@@ -429,7 +429,7 @@ class _NavPanelCollapsibleSearchState extends State<NavPanelCollapsibleSearch> {
                   top: kNavTreeListPadding.top + AppTokens.spaceXS,
                   end: kNavTreeSideInset + 12,
                   child: AnimatedSwitcher(
-                    duration: AppTokens.animFast,
+                    duration: AppMotion.duration(context, AppTokens.animFast),
                     child: _toggleOffscreen && !_isOpen
                         ? Material(
                             color: AppSurfaces.navPanelBackground(context),

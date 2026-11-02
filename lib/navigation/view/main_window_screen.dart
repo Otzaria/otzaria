@@ -100,6 +100,7 @@ import 'package:otzaria/library_update/library_update_work_status.dart';
 import 'package:otzaria/library_update/changes_notes/library_changes_notes.dart';
 import 'package:otzaria/plugins/services/plugin_install_results_log.dart';
 import 'package:otzaria/plugins/services/plugin_install_report_service.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/utils/ui/fullscreen_helper.dart';
 import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
@@ -2293,10 +2294,13 @@ class MainWindowScreenState extends State<MainWindowScreen>
         // שעמוד הביניים ("עיון") אינו נראה ומערכת התוספים/WebView אינה נטענת
         // לחינם. ראה [resolvePageTransition].
         final currentPage = pageController.page?.round() ?? _currentPageIndex;
-        switch (resolvePageTransition(
-          currentPage: currentPage,
-          targetPage: targetPage,
-        )) {
+        final transition = AppMotion.reduced(context)
+            ? PageTransitionKind.snap
+            : resolvePageTransition(
+                currentPage: currentPage,
+                targetPage: targetPage,
+              );
+        switch (transition) {
           case PageTransitionKind.snap:
             setState(() {
               _currentPageIndex = targetPage;

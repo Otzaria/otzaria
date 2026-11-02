@@ -53,6 +53,9 @@ class AppTokens {
   static const Duration animPanelOpacity = Duration(milliseconds: 200);
   static const Duration animPanelSlide = Duration(milliseconds: 300);
 
+  /// השהיה לפני תצוגה מקדימה ברפרוף (לא תנועה, ולכן לא עוברת דרך AppMotion).
+  static const Duration hoverPreviewDelay = Duration(milliseconds: 280);
+
   // ── Drag Handle ——————————————————————————————
   static const double dragHandleCompactHitSize = 18;
   static const double dragHandleRegularHitSize = 24;

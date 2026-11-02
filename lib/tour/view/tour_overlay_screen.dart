@@ -2,6 +2,7 @@
 // docs/guided_tour_developer_guide.md
 
 import 'dart:math' as math;
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'dart:ui' as ui;
 
@@ -256,7 +257,10 @@ class _TourOverlayScreenState extends State<TourOverlayScreen> {
                         child: _skipCardTransition
                             ? tooltipCard
                             : AnimatedSwitcher(
-                                duration: tourCardSwitchDuration,
+                                duration: AppMotion.duration(
+                                  context,
+                                  tourCardSwitchDuration,
+                                ),
                                 layoutBuilder: tourCardSwitcherLayoutBuilder,
                                 transitionBuilder: (child, animation) {
                                   final blur =
