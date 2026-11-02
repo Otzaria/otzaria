@@ -426,7 +426,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     final indexPath = _indexPath ?? '';
     final databasesPath = _databasesPath ?? '';
 
-    return SettingsActionTile.pathTile(
+    return SettingsPathTile(
       icon: FluentIcons.folder_24_regular,
       title: context.settingsText('מיקום הספרייה והאינדקס'),
       currentPath: rootPath,
@@ -461,7 +461,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
     );
     final hasPath = pathStr != null && pathStr.isNotEmpty;
 
-    return SettingsActionTile.pathTile(
+    return SettingsPathTile(
       icon: FluentIcons.folder_24_regular,
       title: context.settingsText('מיקום ספרי היברובוקס'),
       currentPath: hasPath ? pathStr : '',
@@ -590,7 +590,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
                     if (!(Platform.isAndroid || Platform.isIOS)) ...[
                       kSettingsCardSpacing,
                       CustomFoldersPanel(
-                        mergeToggle: SettingsActionTile.switchTile(
+                        mergeToggle: SettingsSwitchTile(
                           icon: OtzariaIcons.person_24_regular,
                           title: context.settingsText(
                             'מיזוג ספרים אישיים לעץ הספרייה',
@@ -651,7 +651,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
       ).map((library) => library.slug).join(','),
     );
     return [
-      SettingsActionTile.segmentedTile<IndexUpdateMode>(
+      SettingsSegmentedTile<IndexUpdateMode>(
         icon: FluentIcons.arrow_clockwise_24_regular,
         title: context.settingsText('עדכון אינדקס אוטומטי'),
         options: [
@@ -678,7 +678,7 @@ class _LibrarySettingsTabState extends State<LibrarySettingsTab> {
           context.read<SettingsBloc>().add(UpdateIndexUpdateMode(mode));
         },
       ),
-      SettingsActionTile.segmentedTile<IndexingResourceMode>(
+      SettingsSegmentedTile<IndexingResourceMode>(
         icon: FluentIcons.battery_saver_24_regular,
         title: context.settingsText('משאבי אינדוקס'),
         options: [

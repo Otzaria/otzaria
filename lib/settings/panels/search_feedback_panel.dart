@@ -40,12 +40,13 @@ class SearchFeedbackPanel extends StatelessWidget {
             : null);
     return SettingsCard(
       cardId: 'system.searchFeedback',
+      spacedAbove: true,
       title: modeName,
       children: [
         StreamBuilder<SearchFeedbackConsent>(
           stream: consentStore.changes,
           initialData: consentStore.consent,
-          builder: (context, snapshot) => SettingsActionTile.switchTile(
+          builder: (context, snapshot) => SettingsSwitchTile(
             key: const ValueKey('search-feedback-consent-switch'),
             icon: FluentIcons.data_usage_24_regular,
             title: context.settingsText('שיפור המנגנון'),

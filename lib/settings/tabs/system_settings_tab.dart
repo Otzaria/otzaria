@@ -631,12 +631,15 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                   // 1. גרסאות + נתיב ספרייה
                   _buildVersionAndPathSection(context, state),
 
+                  // מוצגים רק בחלק מההתקנות, עם המרווח שמעליהם.
                   const PortableShortcutPanel(),
 
                   // 2. עדכוני מערכת (רשת + עדכון מפתחים)
+                  kSettingsCardSpacing,
                   _buildSystemUpdatesSection(context, state),
 
                   // 3. דיווחים (טעויות בספרים, תוכנה ותוספים)
+                  kSettingsCardSpacing,
                   const ReportsCard(),
 
                   const SearchFeedbackPanel(),
@@ -644,9 +647,11 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                   const SemanticDataPanel(),
 
                   // 4. מתקדם (גיבוי + מצב סייפר)
+                  kSettingsCardSpacing,
                   _buildAdvancedSection(context, state),
 
                   // 6. איפוס
+                  kSettingsCardSpacing,
                   _buildResetSection(context),
                 ],
               ),
@@ -668,7 +673,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       children: [
         KeyedSubtree(
           key: _networkModeTileKey,
-          child: SettingsActionTile.segmentedTile<bool>(
+          child: SettingsSegmentedTile<bool>(
             title: context.settingsText('סינכרון ומצב רשת'),
             options: [
               SegmentOption<bool>(
@@ -701,7 +706,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             },
           ),
         ),
-        SettingsActionTile.switchTile(
+        SettingsSwitchTile(
           icon: FluentIcons.arrow_download_24_regular,
           title: context.settingsText('עדכוני תוכנה וספרים'),
           subtitle: state.isOfflineMode
@@ -720,7 +725,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
                 },
         ),
         if (state.canUseSoftwareAndBookUpdates)
-          SettingsActionTile.segmentedTile<String>(
+          SettingsSegmentedTile<String>(
             icon: FluentIcons.clock_24_regular,
             title: context.settingsText('תדירות בדיקת עדכונים'),
             subtitle: context.settingsText(
@@ -751,7 +756,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
           ),
         if (!(Platform.isAndroid || Platform.isIOS) &&
             state.canUseSoftwareAndBookUpdates) ...[
-          SettingsActionTile.switchTile(
+          SettingsSwitchTile(
             icon: FluentIcons.arrow_sync_24_regular,
             title: context.settingsText('סינכרון הספרייה באופן אוטומטי'),
             subtitle:
@@ -1239,7 +1244,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
       title: context.settingsText('מתקדם'),
       children: [
         if (RunnerWindowChannel.canOpenWindows)
-          SettingsActionTile.switchTile(
+          SettingsSwitchTile(
             icon: FluentIcons.window_apps_24_regular,
             title: context.settingsText('שחזר את כל החלונות בהפעלה'),
             subtitle:
@@ -1372,7 +1377,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
             // במובייל dart:io לא יכול לכתוב לתיקייה שנבחרת דרך SAF —
             // הגיבוי נשאר בתיקייה הפנימית והייצוא נעשה דרך "ייצא קובץ".
             if (!Platform.isAndroid && !Platform.isIOS)
-              SettingsActionTile.pathTile(
+              SettingsPathTile(
                 icon: FluentIcons.folder_24_regular,
                 title: context.settingsText('תיקיית גיבוי'),
                 currentPath: _resolvedBackupPath,
@@ -1428,7 +1433,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
               ),
             SettingsAnchor(
               cardId: 'system.backup.mode',
-              child: SettingsActionTile.segmentedTile<_BackupMode>(
+              child: SettingsSegmentedTile<_BackupMode>(
                 icon: FluentIcons.options_24_regular,
                 title: context.settingsText('מצב גיבוי'),
                 subtitle: context.settingsText(
@@ -1559,7 +1564,7 @@ class _SystemSettingsTabState extends State<SystemSettingsTab> {
 
         // ── מצב סייפר ──
         if (hasPassword)
-          SettingsActionTile.switchTile(
+          SettingsSwitchTile(
             icon: state.protectedModeEnabled
                 ? FluentIcons.shield_lock_24_filled
                 : FluentIcons.shield_lock_24_regular,
@@ -1751,7 +1756,7 @@ class _BackupOptionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return SettingsAnchor(
       cardId: 'system.backup.options.$searchSection',
-      child: SettingsActionTile.switchTile(
+      child: SettingsSwitchTile(
         icon: icon,
         title: title,
         subtitle: subtitle,

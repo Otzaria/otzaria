@@ -21,14 +21,14 @@ abstract final class TextDisplayProfileEditor {
       SegmentOption(value: MarkVisibility.hide, label: t('הסתר')),
     ];
     return [
-      SettingsActionTile.segmentedTile<MarkVisibility>(
+      SettingsSegmentedTile<MarkVisibility>(
         icon: OtzariaIcons.alef_niqqud_24_filled,
         title: t('ניקוד'),
         options: showHide,
         currentValue: profile.nikud,
         onChanged: (v) => onChanged(profile.copyWith(nikud: v)),
       ),
-      SettingsActionTile.segmentedTile<TeamimVisibility>(
+      SettingsSegmentedTile<TeamimVisibility>(
         icon: OtzariaIcons.alef_niqqud_taamim_24_filled,
         title: t('טעמי המקרא'),
         options: [
@@ -42,14 +42,14 @@ abstract final class TextDisplayProfileEditor {
         currentValue: profile.teamim,
         onChanged: (v) => onChanged(profile.copyWith(teamim: v)),
       ),
-      SettingsActionTile.segmentedTile<MarkVisibility>(
+      SettingsSegmentedTile<MarkVisibility>(
         icon: OtzariaIcons.alef_punctuation_24_filled,
         title: t('סימני פיסוק'),
         options: showHide,
         currentValue: profile.punctuation,
         onChanged: (v) => onChanged(profile.copyWith(punctuation: v)),
       ),
-      SettingsActionTile.dropdownTile<HolyNameDisplay>(
+      SettingsDropdownTile<HolyNameDisplay>(
         icon: OtzariaIcons.alef_lock_24_filled,
         title: t('שם הוי"ה'),
         entries: [
@@ -64,7 +64,7 @@ abstract final class TextDisplayProfileEditor {
           if (v != null) onChanged(profile.copyWith(holyName: v));
         },
       ),
-      SettingsActionTile.segmentedTile<DivineNamesDisplay>(
+      SettingsSegmentedTile<DivineNamesDisplay>(
         icon: OtzariaIcons.alef_crown_24_filled,
         title: t('שאר שמות הקודש'),
         subtitle: t('אלהים, שדי, צבאות ועוד — בספרים שבהם השמות מסומנים'),
@@ -78,7 +78,7 @@ abstract final class TextDisplayProfileEditor {
         currentValue: profile.divineNames,
         onChanged: (v) => onChanged(profile.copyWith(divineNames: v)),
       ),
-      SettingsActionTile.segmentedTile<MarkVisibility>(
+      SettingsSegmentedTile<MarkVisibility>(
         icon: OtzariaIcons.text_font_hebrew_24_filled,
         title: t('ציוני המפרשים'),
         subtitle: t('אותיות הציון שבטקסט, למשל (א)'),

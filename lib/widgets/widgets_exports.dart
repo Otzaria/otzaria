@@ -22,7 +22,8 @@
 // Segmented control (AppSegmentedControl, SegmentOption):
 //   → lib/widgets/controls/segmented_control.dart
 //
-// SettingsActionTile (switchTile / dropdownTile / segmentedTile):
+// SettingsActionTile, SettingsSwitchTile / SettingsDropdownTile /
+// SettingsSegmentedTile / SettingsPathTile:
 //   → lib/settings/widgets/settings_card.dart
 //
 // ToolPanelWrapper:

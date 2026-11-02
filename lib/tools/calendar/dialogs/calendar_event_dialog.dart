@@ -1113,7 +1113,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
               ),
 
               // חזרה — DropDown כולל "ללא חזרה" כברירת מחדל
-              SettingsActionTile.dropdownTile<RecurrenceType>(
+              SettingsDropdownTile<RecurrenceType>(
                 icon: FluentIcons.arrow_repeat_all_24_regular,
                 title: 'חזרה',
                 subtitle: _recurrenceSubtitle(_selectedRecurrenceType),
@@ -1184,7 +1184,7 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
           SettingsCard(
             title: 'מועד ההתראה',
             children: [
-              SettingsActionTile.dropdownTile<int>(
+              SettingsDropdownTile<int>(
                 icon: FluentIcons.alert_24_regular,
                 title: 'מועד ההתראה',
                 subtitle: _notificationSubtitle(_notificationMinutes),

@@ -13,7 +13,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: StatefulBuilder(
-            builder: (context, setState) => SettingsActionTile.switchTile(
+            builder: (context, setState) => SettingsSwitchTile(
               title: 'אפשרות',
               subtitle: 'תיאור',
               value: currentValue,
@@ -42,7 +42,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: StatefulBuilder(
-            builder: (context, setState) => SettingsActionTile.switchTile(
+            builder: (context, setState) => SettingsSwitchTile(
               title: 'אפשרות',
               subtitle: 'תיאור',
               value: currentValue,

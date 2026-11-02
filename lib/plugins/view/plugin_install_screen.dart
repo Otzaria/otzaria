@@ -146,7 +146,7 @@ class _PluginInstallScreenState extends State<PluginInstallScreen> {
         !isTemporarilyUnavailable && (_permissionToggles[permission] ?? true);
     final isSensitive = permission == pluginRunOnStartupPermission;
     final isCritical = permission == pluginBackgroundKeepAlivePermission;
-    return SettingsActionTile.switchTile(
+    return SettingsSwitchTile(
       icon: pluginPermissionIcon(
         permission,
         isGranted: isGranted,

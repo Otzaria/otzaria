@@ -58,7 +58,7 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SettingsActionTile.dropdownTile<HolyNameDisplay>(
+                  SettingsDropdownTile<HolyNameDisplay>(
                     icon: OtzariaIcons.alef_lock_24_filled,
                     title: 'שם הוי"ה',
                     entries: const [
@@ -90,7 +90,7 @@ Future<TextBookExportChoice?> showTextBookExportDialog(
                       height: 1,
                       color: listDialogRowDivider(context).color,
                     ),
-                    SettingsActionTile.segmentedTile<DivineNamesDisplay>(
+                    SettingsSegmentedTile<DivineNamesDisplay>(
                       icon: OtzariaIcons.alef_crown_24_filled,
                       title: 'שאר שמות הקודש',
                       options: const [
