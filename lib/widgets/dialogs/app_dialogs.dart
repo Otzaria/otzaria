@@ -41,7 +41,6 @@ class AppDialog extends StatefulWidget {
   final String? confirmText;
   final String? cancelText;
   final String? subtitle;
-  final TextDirection? textDirection;
   final bool handleEnterKey;
   final _DialogVariant _variant;
 
@@ -66,7 +65,6 @@ class AppDialog extends StatefulWidget {
     this.content,
     this.customContent,
     this.confirmText,
-    this.textDirection,
     this.onConfirm,
     this.icon,
     this.headerTrailing,
@@ -88,7 +86,6 @@ class AppDialog extends StatefulWidget {
     this.customContent,
     this.cancelText,
     this.confirmText,
-    this.textDirection,
     this.handleEnterKey = true,
     this.isDirty,
     this.icon,
@@ -110,7 +107,6 @@ class AppDialog extends StatefulWidget {
     this.cancelText,
     this.confirmText,
     this.subtitle,
-    this.textDirection,
     this.icon,
   }) : _variant = _DialogVariant.warning,
        headerTrailing = null,
@@ -167,7 +163,7 @@ class _AppDialogState extends State<AppDialog> {
 
   Widget _buildContent(ColorScheme cs) {
     if (widget.customContent != null) return widget.customContent!;
-    final text = Text(widget.content!, textDirection: widget.textDirection);
+    final text = Text(widget.content!);
     if (widget._variant == _DialogVariant.warning && widget.subtitle != null) {
       return SingleChildScrollView(
         child: Column(
@@ -179,7 +175,6 @@ class _AppDialogState extends State<AppDialog> {
             Text(
               widget.subtitle!,
               style: TextStyle(color: cs.error, fontSize: 13),
-              textDirection: widget.textDirection,
             ),
           ],
         ),
@@ -245,7 +240,6 @@ Future<bool?> showSingleActionDialog({
   String? content,
   Widget? customContent,
   String? confirmText,
-  TextDirection? textDirection,
   bool barrierDismissible = true,
   bool Function()? onConfirm,
   IconData? icon,
@@ -260,7 +254,6 @@ Future<bool?> showSingleActionDialog({
       content: content,
       customContent: customContent,
       confirmText: confirmText,
-      textDirection: textDirection,
       onConfirm: onConfirm,
       icon: icon,
       size: size,
@@ -275,7 +268,6 @@ Future<bool?> showTwoActionsDialog({
   Widget? customContent,
   String? cancelText,
   String? confirmText,
-  TextDirection? textDirection,
   bool barrierDismissible = true,
   bool handleEnterKey = true,
   ValueListenable<bool>? isDirty,
@@ -292,7 +284,6 @@ Future<bool?> showTwoActionsDialog({
       customContent: customContent,
       cancelText: cancelText,
       confirmText: confirmText,
-      textDirection: textDirection,
       handleEnterKey: handleEnterKey,
       isDirty: isDirty,
       icon: icon,
@@ -308,7 +299,6 @@ Future<bool?> showWarningDialog({
   String? subtitle,
   String? cancelText,
   String? confirmText,
-  TextDirection? textDirection,
   bool barrierDismissible = true,
   IconData? icon,
 }) => showDialogUntilTornDown<bool>(
@@ -322,7 +312,6 @@ Future<bool?> showWarningDialog({
       subtitle: subtitle,
       cancelText: cancelText,
       confirmText: confirmText ?? context.settingsText('איפוס'),
-      textDirection: textDirection,
       icon: icon,
     ),
   ),
@@ -355,7 +344,6 @@ Future<T?> showChoiceDialog<T>({
   required List<AppDialogChoice<T>> choices,
   String? cancelText,
   IconData? icon,
-  TextDirection? textDirection,
   bool barrierDismissible = true,
   AppDialogSize size = AppDialogSize.small,
 }) {
@@ -401,7 +389,7 @@ Future<T?> showChoiceDialog<T>({
               child:
                   customContent ??
                   SingleChildScrollView(
-                    child: Text(content!, textDirection: textDirection),
+                    child: Text(content!),
                   ),
             ),
           );
