@@ -34,7 +34,7 @@ class OtzarBookDialog extends StatelessWidget {
     return AppDialogFrame(
       title: book.title,
       icon: OtzariaIcons.book_24_regular,
-      width: 440,
+      size: AppDialogSize.small,
       padding: EdgeInsets.zero,
       child: FutureBuilder<(bool, bool)>(
         future: _isHebrewBook

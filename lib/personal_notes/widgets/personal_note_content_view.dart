@@ -23,7 +23,7 @@ Future<bool?> showPersonalNotesDialog({
   context: context,
   title: notes.length == 1 ? 'הערה אישית' : 'הערות אישיות',
   icon: FluentIcons.note_24_regular,
-  headerBand: true,
+  size: AppDialogSize.medium,
   customContent: PersonalNotesListView(notes: notes),
   confirmText: 'סגור',
 );

@@ -583,7 +583,7 @@ class _CustomFoldersPanelState extends State<CustomFoldersPanel> {
       context: context,
       title: context.settingsText('הצגה או הוספה של הקבצים'),
       icon: FluentIcons.folder_24_regular,
-      headerBand: true,
+      size: AppDialogSize.small,
       confirmText: context.settingsText('סגור'),
       customContent: SingleChildScrollView(
         child: SizedBox(

@@ -411,16 +411,12 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setInnerState) => AppDialog.twoActions(
-          title: Row(
-            children: [
-              const Expanded(child: Text('בחירת תאריך')),
-              CalendarTypeToggleButton(
-                showHebrew: showHebrew,
-                onPressed: () => setInnerState(() => showHebrew = !showHebrew),
-              ),
-            ],
+          title: 'בחירת תאריך',
+          icon: FluentIcons.calendar_24_regular,
+          headerTrailing: CalendarTypeToggleButton(
+            showHebrew: showHebrew,
+            onPressed: () => setInnerState(() => showHebrew = !showHebrew),
           ),
-          content: '',
           handleEnterKey: false,
           cancelText: 'ביטול',
           confirmText: 'אישור',
@@ -519,7 +515,6 @@ class _CalendarEventDialogState extends State<CalendarEventDialog> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setInnerState) => AppDialog.twoActions(
           title: 'זמן התראה מותאם אישית',
-          content: '',
           handleEnterKey: false,
           cancelText: 'ביטול',
           confirmText: 'אישור',

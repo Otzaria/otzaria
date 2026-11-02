@@ -214,7 +214,7 @@ class _LibraryChangesDialogState extends State<LibraryChangesDialog> {
     return AppDialog.singleAction(
       title: context.settingsText('מה חדש בספרים'),
       icon: FluentIcons.sparkle_24_regular,
-      headerBand: true,
+      size: AppDialogSize.large,
       confirmText: context.settingsText('סגור'),
       customContent: SizedBox(
         width: size.width < _fullWidthBelow ? size.width * 0.9 : 640,

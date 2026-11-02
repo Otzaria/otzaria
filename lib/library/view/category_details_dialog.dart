@@ -16,7 +16,7 @@ Future<void> showCategoryDetailsDialog(
     context: context,
     title: 'אודות הקטגוריה',
     icon: FluentIcons.folder_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     confirmText: 'סגור',
     customContent: _CategoryDetailsDialogContent(category: category),
   );

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
-import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
+import 'package:otzaria/widgets/dialogs/app_dialogs.dart';
+import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
 import 'package:otzaria_icons/otzaria_icons.dart';
 import 'package:otzaria/core/focus_repository.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
-import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
 import 'package:otzaria/widgets/feedback/tool_empty_state.dart';
 
@@ -16,12 +17,19 @@ class SelectionDialog<T> extends StatefulWidget {
   final T? initialValue;
   final String searchHint;
 
+  /// תג האייקון: מה בוחרים. null = אייקון משפחת הבחירה.
+  final IconData? icon;
+
+  /// גובה הרשימה עד חלק זה מגובה החלון (DD-07: בחירה עד 60%).
+  static const double maxHeightFactor = 0.6;
+
   const SelectionDialog({
     super.key,
     required this.title,
     required this.items,
     this.initialValue,
     this.searchHint = 'חיפוש...',
+    this.icon,
   });
 
   @override
@@ -62,56 +70,54 @@ class _SelectionDialogState<T> extends State<SelectionDialog<T>>
   @override
   Widget build(BuildContext context) {
     // Enter על פריט בוחר אותו (הפריט עצמו מגיב ל-Enter); בשדה החיפוש אינו סוגר.
-    return DialogKeyboardNavigator(
+    return AppDialogFrame(
+      title: widget.title,
+      icon: widget.icon ?? AppDialogIcons.selection,
+      size: AppDialogSize.small,
+      height:
+          MediaQuery.sizeOf(context).height * SelectionDialog.maxHeightFactor,
       handleEnterKey: false,
-      child: AlertDialog(
-        title: AppDialogTitle(widget.title),
-        content: SizedBox(
-          width: 400,
-          height: 400,
-          child: Column(
-            children: [
-              OtzariaSearchField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                hintText: widget.searchHint,
-                autofocus: true,
-              ),
-              const SizedBox(height: AppTokens.spaceSM),
-              Expanded(
-                child: filteredItems.isEmpty
-                    ? const ToolEmptyState(
-                        icon: OtzariaIcons.search_24_regular,
-                        message: 'לא נמצאו תוצאות',
-                      )
-                    : ListView.builder(
-                        itemCount: filteredItems.length,
-                        itemBuilder: (context, index) {
-                          final item = filteredItems[index];
-                          final isSelected = item.value == widget.initialValue;
-
-                          return ListTile(
-                            title: Text(
-                              item.label,
-                            ),
-                            selected: isSelected,
-                            trailing: isSelected
-                                ? const Icon(FluentIcons.checkmark_24_regular)
-                                : null,
-                            onTap: () {
-                              Navigator.of(context).pop(item.value);
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
+      actions: [
+        ActionButton.neutral(
+          text: 'ביטול',
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          ActionButton.neutral(
-            text: 'ביטול',
-            onPressed: () => Navigator.of(context).pop(),
+      ],
+      child: Column(
+        children: [
+          OtzariaSearchField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            hintText: widget.searchHint,
+            autofocus: true,
+          ),
+          const SizedBox(height: AppTokens.spaceSM),
+          Expanded(
+            child: filteredItems.isEmpty
+                ? const ToolEmptyState(
+                    icon: OtzariaIcons.search_24_regular,
+                    message: 'לא נמצאו תוצאות',
+                  )
+                : ListView.builder(
+                    itemCount: filteredItems.length,
+                    itemBuilder: (context, index) {
+                      final item = filteredItems[index];
+                      final isSelected = item.value == widget.initialValue;
+
+                      return ListTile(
+                        title: Text(
+                          item.label,
+                        ),
+                        selected: isSelected,
+                        trailing: isSelected
+                            ? const Icon(FluentIcons.checkmark_24_regular)
+                            : null,
+                        onTap: () {
+                          Navigator.of(context).pop(item.value);
+                        },
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -127,15 +133,20 @@ Future<T?> showSelectionDialog<T>({
   T? initialValue,
   String searchHint = 'חיפוש...',
   bool barrierDismissible = true,
+  IconData? icon,
 }) {
-  return showDialog<T>(
+  return showDialogUntilTornDown<T>(
     context: context,
     barrierDismissible: barrierDismissible,
-    builder: (context) => SelectionDialog<T>(
-      title: title,
-      items: items,
-      initialValue: initialValue,
-      searchHint: searchHint,
+    builder: (_) => Directionality(
+      textDirection: Directionality.of(context),
+      child: SelectionDialog<T>(
+        title: title,
+        items: items,
+        initialValue: initialValue,
+        searchHint: searchHint,
+        icon: icon,
+      ),
     ),
   );
 }

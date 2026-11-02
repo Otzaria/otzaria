@@ -118,7 +118,7 @@ class _PersonalNoteLinkDialogState extends State<PersonalNoteLinkDialog> {
     return AppDialogFrame(
       title: 'הוסף קישור',
       icon: FluentIcons.link_24_regular,
-      width: 460,
+      size: AppDialogSize.medium,
       actions: [
         ActionButton.neutral(
           text: 'ביטול',

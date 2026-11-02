@@ -48,12 +48,10 @@ class _WorkspaceSwitcherDialogState extends State<WorkspaceSwitcherDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     return AppDialogFrame(
       title: 'שולחנות עבודה',
       icon: OtzariaIcons.lectern_24_regular,
-      width: size.width * 0.8,
-      height: size.height * 0.8,
+      size: AppDialogSize.large,
       backgroundColor: AppSurfaces.panelBackground(context),
       child: BlocBuilder<WorkspaceBloc, WorkspaceState>(
         builder: (context, state) {

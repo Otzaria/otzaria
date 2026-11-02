@@ -827,13 +827,10 @@ class _CalendarMultiSelectionDialogState<T>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return AppDialogFrame(
-      backgroundColor: cs.surfaceContainerHigh,
       title: widget.title,
       icon: OtzariaIcons.calendar_24_regular,
-      width: 460,
+      size: AppDialogSize.small,
       height: 560,
       actions: [
         ActionButton.neutral(

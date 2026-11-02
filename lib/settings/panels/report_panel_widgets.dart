@@ -233,7 +233,7 @@ Future<void> showReportDetailsDialog(
     context: context,
     title: title,
     icon: FluentIcons.document_text_24_regular,
-    headerBand: true,
+    size: AppDialogSize.medium,
     confirmText: context.settingsText('סגור'),
     customContent: SizedBox(
       width: 560,

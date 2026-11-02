@@ -20,7 +20,7 @@ class BiographiesCreditLine extends StatelessWidget {
       builder: (_) => AppDialog.singleAction(
         title: 'מקורות וזכויות',
         icon: FluentIcons.certificate_24_regular,
-        headerBand: true,
+        size: AppDialogSize.medium,
         confirmText: 'סגור',
         customContent: _CreditsContent(bundle: bundle),
       ),

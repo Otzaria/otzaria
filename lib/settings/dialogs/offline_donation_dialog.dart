@@ -37,7 +37,7 @@ Future<void> showOfflineDonationDialog(BuildContext context) =>
       context: context,
       title: context.settingsText('תרומה בנדרים+'),
       icon: FluentIcons.heart_24_regular,
-      headerBand: true,
+      size: AppDialogSize.medium,
       confirmText: context.settingsText('סגור'),
       customContent: wrapWithSettingsScope(
         context,

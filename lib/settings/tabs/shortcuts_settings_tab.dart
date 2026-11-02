@@ -1348,8 +1348,7 @@ class _ShortcutTile extends StatelessWidget {
 ///
 /// הקומפוננטות הקנוניות ב-`app_dialogs.dart` (SingleActionDialog וכו') בנויות
 /// סביב כפתור confirm/cancel — לא מתאימות ל-picker שבו כל פריט הוא הפעולה
-/// עצמה. במקום זאת אנחנו מיישרים קו עם אותו AlertDialog + צבעי המשטח
-/// (`surfaceContainerHigh`) ואותו כפתור ביטול ([ActionButton.neutral]).
+/// עצמה, ולכן [AppDialogFrame] בגודל small עם כפתור ביטול בלבד.
 class _PickActionDialog extends StatelessWidget {
   final List<String> actionKeys;
 
@@ -1357,12 +1356,10 @@ class _PickActionDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return AppDialogFrame(
-      backgroundColor: cs.surfaceContainerHigh,
       title: context.settingsText('בחר פעולה להוספת קיצור'),
       icon: FluentIcons.keyboard_24_regular,
-      width: 460,
+      size: AppDialogSize.small,
       actions: [
         ActionButton.neutral(
           text: context.settingsText('ביטול'),

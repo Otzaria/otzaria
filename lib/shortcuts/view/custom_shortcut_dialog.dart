@@ -102,10 +102,9 @@ class _CustomShortcutDialogState extends State<CustomShortcutDialog>
         }
       },
       child: AppDialogFrame(
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         title: 'הגדרת קיצור מקשים מותאם אישית',
         icon: FluentIcons.keyboard_24_regular,
-        width: 500,
+        size: AppDialogSize.medium,
         actions: [
           ActionButton.neutral(
             text: 'ביטול',

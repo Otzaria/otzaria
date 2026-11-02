@@ -362,7 +362,7 @@ Future<void> showZmanimSettingsDialog(BuildContext context) {
       child: const AppDialog.singleAction(
         title: 'זמנים נוספים',
         icon: FluentIcons.clock_24_regular,
-        headerBand: true,
+        size: AppDialogSize.medium,
         customContent: ZmanimSettingsContent(),
         confirmText: 'סגור',
       ),

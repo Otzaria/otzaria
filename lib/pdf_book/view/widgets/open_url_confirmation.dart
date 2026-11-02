@@ -10,7 +10,6 @@ Future<bool> showOpenUrlConfirmation(BuildContext context, Uri url) async {
   final confirmed = await showTwoActionsDialog(
     context: context,
     title: 'מעבר לכתובת חיצונית',
-    content: '',
     confirmText: 'עבור',
     barrierDismissible: false,
     customContent: AppSelectionArea(

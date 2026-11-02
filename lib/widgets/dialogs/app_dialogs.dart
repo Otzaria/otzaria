@@ -4,24 +4,35 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/controls/action_buttons.dart';
+import 'package:otzaria/widgets/dialogs/app_dialog_frame.dart';
 import 'package:otzaria/widgets/dialogs/app_dialog_header.dart';
-import 'package:otzaria/widgets/dialogs/dialog_dismiss_guard.dart';
 import 'package:otzaria/widgets/dialogs/dialog_teardown.dart';
-import 'package:otzaria/widgets/misc/keyboard_dialog_navigation.dart';
+
+export 'package:otzaria/widgets/dialogs/app_dialog_frame.dart'
+    show AppDialogSize;
 
 // ── AppDialog ─────────────────────────────────────────────────────────────────
 
 enum _DialogVariant { singleAction, twoActions, warning }
 
-/// דיאלוג גנרי M3 לפי חוזה המקלדת של [DialogKeyboardNavigator]. השתמש בבנאים
-/// הממוינים:
+/// אייקוני המשפחות (DD-07): התג כשלפעולה אין אייקון שאומר משהו.
+abstract final class AppDialogIcons {
+  static const IconData info = FluentIcons.info_24_regular;
+  static const IconData confirm = FluentIcons.question_circle_24_regular;
+  static const IconData warning = FluentIcons.warning_24_regular;
+  static const IconData input = FluentIcons.edit_24_regular;
+  static const IconData selection = FluentIcons.list_24_regular;
+  static const IconData progress = FluentIcons.hourglass_half_24_regular;
+}
+
+/// דיאלוג גנרי M3 לפי חוזה המקלדת של [DialogKeyboardNavigator], מעל
+/// [AppDialogFrame]: רצועת כותרת ותג אייקון תמיד. השתמש בבנאים הממוינים:
 /// - [AppDialog.singleAction] — כפתור אישור בלבד
 /// - [AppDialog.twoActions] — ביטול + אישור
 /// - [AppDialog.warning] — ביטול (primary/בטוח) + אישור (error/מסוכן)
 class AppDialog extends StatefulWidget {
-  final dynamic title;
+  final String title;
   final String? content;
   final Widget? customContent;
   final String confirmText;
@@ -31,12 +42,14 @@ class AppDialog extends StatefulWidget {
   final bool handleEnterKey;
   final _DialogVariant _variant;
 
-  /// תג אייקון בכותרת. באזהרה: אייקון אזהרה כברירת מחדל.
+  /// תג האייקון בכותרת: מה מאשרים. null = אייקון המשפחה ([AppDialogIcons]).
   final IconData? icon;
 
-  /// כותרת ברצועה מלאה — אייקון, איקס סגירה וקו חוצץ — לדיאלוגים עם תוכן
-  /// גדול. דיאלוג קטן נשאר עם כותרת פשוטה.
-  final bool headerBand;
+  /// ווידג'ט בסוף הכותרת, לפני ה-X.
+  final Widget? headerTrailing;
+
+  /// small לאישור ולהודעה; medium/large לתוכן מותאם רחב.
+  final AppDialogSize size;
 
   // מאפשר לעצור סגירת הדיאלוג — למשל כשוולידציה נכשלת. null = סגור תמיד.
   final bool Function()? onConfirm;
@@ -53,7 +66,8 @@ class AppDialog extends StatefulWidget {
     this.textDirection,
     this.onConfirm,
     this.icon,
-    this.headerBand = false,
+    this.headerTrailing,
+    this.size = AppDialogSize.small,
   }) : assert(
          content != null || customContent != null,
          'content או customContent חייבים להיות מוגדרים',
@@ -67,7 +81,7 @@ class AppDialog extends StatefulWidget {
   const AppDialog.twoActions({
     super.key,
     required this.title,
-    required this.content,
+    this.content,
     this.customContent,
     this.cancelText = 'ביטול',
     this.confirmText = 'אישור',
@@ -75,8 +89,13 @@ class AppDialog extends StatefulWidget {
     this.handleEnterKey = true,
     this.isDirty,
     this.icon,
-    this.headerBand = false,
-  }) : _variant = _DialogVariant.twoActions,
+    this.headerTrailing,
+    this.size = AppDialogSize.small,
+  }) : assert(
+         content != null || customContent != null,
+         'content או customContent חייבים להיות מוגדרים',
+       ),
+       _variant = _DialogVariant.twoActions,
        subtitle = null,
        onConfirm = null;
 
@@ -89,9 +108,10 @@ class AppDialog extends StatefulWidget {
     this.confirmText = 'המשך',
     this.subtitle,
     this.textDirection,
-    this.icon = FluentIcons.warning_24_regular,
-  }) : headerBand = false,
-       _variant = _DialogVariant.warning,
+    this.icon,
+  }) : _variant = _DialogVariant.warning,
+       headerTrailing = null,
+       size = AppDialogSize.small,
        handleEnterKey = true,
        onConfirm = null,
        isDirty = null;
@@ -110,60 +130,59 @@ class _AppDialogState extends State<AppDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final dialog = DialogKeyboardNavigator(
-      onConfirm: _handleConfirm,
-      dismissResult: false,
-      handleEnterKey: widget.handleEnterKey,
-      child: AlertDialog(
-        backgroundColor: cs.surfaceContainerHigh,
-        clipBehavior: widget.headerBand ? Clip.antiAlias : Clip.none,
-        titlePadding: widget.headerBand ? EdgeInsets.zero : null,
-        contentPadding: widget.headerBand ? AppTokens.dialogPadding : null,
-        title: widget.title is String && widget.headerBand
-            ? AppDialogHeader(
-                icon: widget.icon,
-                title: widget.title as String,
-                compact: true,
-              )
-            : widget.title is String
-            ? AppDialogTitle(
-                widget.title as String,
-                icon: widget.icon,
-                tone: widget._variant == _DialogVariant.warning
-                    ? AppDialogHeaderTone.error
-                    : AppDialogHeaderTone.primary,
-                textDirection: widget.textDirection,
-              )
-            : widget.title as Widget,
-        content: _buildContent(cs),
-        actions: _buildActions(),
-      ),
-    );
-    return DialogDismissGuard.listenable(
+    final theme = Theme.of(context);
+    final isWarning = widget._variant == _DialogVariant.warning;
+    return AppDialogFrame(
+      title: widget.title,
+      icon:
+          widget.icon ??
+          switch (widget._variant) {
+            _DialogVariant.singleAction => AppDialogIcons.info,
+            _DialogVariant.twoActions => AppDialogIcons.confirm,
+            _DialogVariant.warning => AppDialogIcons.warning,
+          },
+      tone: isWarning ? AppDialogHeaderTone.error : AppDialogHeaderTone.primary,
+      trailing: widget.headerTrailing,
+      size: widget.size,
       isDirty: widget.isDirty,
-      child: dialog,
+      onClose: _cancel,
+      onConfirm: _handleConfirm,
+      handleEnterKey: widget.handleEnterKey,
+      dismissResult: false,
+      actions: _buildActions(),
+      // גוף הטקסט כמו ב-AlertDialog של M3.
+      child: DefaultTextStyle.merge(
+        style:
+            theme.dialogTheme.contentTextStyle ??
+            theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+        child: _buildContent(theme.colorScheme),
+      ),
     );
   }
 
   Widget _buildContent(ColorScheme cs) {
     if (widget.customContent != null) return widget.customContent!;
+    final text = Text(widget.content!, textDirection: widget.textDirection);
     if (widget._variant == _DialogVariant.warning && widget.subtitle != null) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(widget.content!, textDirection: widget.textDirection),
-          const SizedBox(height: 8),
-          Text(
-            widget.subtitle!,
-            style: TextStyle(color: cs.error, fontSize: 13),
-            textDirection: widget.textDirection,
-          ),
-        ],
+      return SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            text,
+            const SizedBox(height: 8),
+            Text(
+              widget.subtitle!,
+              style: TextStyle(color: cs.error, fontSize: 13),
+              textDirection: widget.textDirection,
+            ),
+          ],
+        ),
       );
     }
-    return Text(widget.content!, textDirection: widget.textDirection);
+    return SingleChildScrollView(child: text);
   }
 
   List<Widget> _buildActions() => switch (widget._variant) {
@@ -219,7 +238,7 @@ Future<bool?> showSingleActionDialog({
   bool barrierDismissible = true,
   bool Function()? onConfirm,
   IconData? icon,
-  bool headerBand = false,
+  AppDialogSize size = AppDialogSize.small,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -233,7 +252,7 @@ Future<bool?> showSingleActionDialog({
       textDirection: textDirection,
       onConfirm: onConfirm,
       icon: icon,
-      headerBand: headerBand,
+      size: size,
     ),
   ),
 );
@@ -241,7 +260,7 @@ Future<bool?> showSingleActionDialog({
 Future<bool?> showTwoActionsDialog({
   required BuildContext context,
   required String title,
-  required String content,
+  String? content,
   Widget? customContent,
   String cancelText = 'ביטול',
   String confirmText = 'אישור',
@@ -250,7 +269,7 @@ Future<bool?> showTwoActionsDialog({
   bool handleEnterKey = true,
   ValueListenable<bool>? isDirty,
   IconData? icon,
-  bool headerBand = false,
+  AppDialogSize size = AppDialogSize.small,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -266,7 +285,7 @@ Future<bool?> showTwoActionsDialog({
       handleEnterKey: handleEnterKey,
       isDirty: isDirty,
       icon: icon,
-      headerBand: headerBand,
+      size: size,
     ),
   ),
 );
@@ -280,6 +299,7 @@ Future<bool?> showWarningDialog({
   String confirmText = 'איפוס',
   TextDirection? textDirection,
   bool barrierDismissible = true,
+  IconData? icon,
 }) => showDialogUntilTornDown<bool>(
   context: context,
   barrierDismissible: barrierDismissible,
@@ -292,6 +312,89 @@ Future<bool?> showWarningDialog({
       cancelText: cancelText,
       confirmText: confirmText,
       textDirection: textDirection,
+      icon: icon,
     ),
   ),
 );
+
+// ── showChoiceDialog ─────────────────────────────────────────────────────────
+
+/// אפשרות אחת בדיאלוג בחירה בין כמה פעולות.
+class AppDialogChoice<T> {
+  const AppDialogChoice({
+    required this.value,
+    required this.label,
+    this.recommended = false,
+  });
+
+  final T value;
+  final String label;
+
+  /// הפעולה הראשית (כפתור מלא וממוקד). לכל היותר אחת.
+  final bool recommended;
+}
+
+/// בחירה בין כמה פעולות שוות, למשל "טקסט / Word / ביטול". מחזיר את הערך של
+/// הבחירה, או null בביטול, ב-Escape ובלחיצה בחוץ.
+Future<T?> showChoiceDialog<T>({
+  required BuildContext context,
+  required String title,
+  String? content,
+  Widget? customContent,
+  required List<AppDialogChoice<T>> choices,
+  String cancelText = 'ביטול',
+  IconData? icon,
+  TextDirection? textDirection,
+  bool barrierDismissible = true,
+}) {
+  assert(content != null || customContent != null);
+  assert(choices.where((c) => c.recommended).length <= 1);
+  return showDialogUntilTornDown<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    builder: (dialogContext) => _withOpenerDirection(
+      context,
+      Builder(
+        builder: (context) {
+          final theme = Theme.of(context);
+          return AppDialogFrame(
+            title: title,
+            icon: icon ?? AppDialogIcons.confirm,
+            size: AppDialogSize.small,
+            actions: [
+              ActionButton.neutral(
+                text: cancelText,
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
+              for (final choice in choices)
+                choice.recommended
+                    ? ActionButton.recommended(
+                        autofocus: true,
+                        text: choice.label,
+                        onPressed: () =>
+                            Navigator.of(context).pop(choice.value),
+                      )
+                    : ActionButton.neutral(
+                        text: choice.label,
+                        onPressed: () =>
+                            Navigator.of(context).pop(choice.value),
+                      ),
+            ],
+            child: DefaultTextStyle.merge(
+              style:
+                  theme.dialogTheme.contentTextStyle ??
+                  theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+              child:
+                  customContent ??
+                  SingleChildScrollView(
+                    child: Text(content!, textDirection: textDirection),
+                  ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}

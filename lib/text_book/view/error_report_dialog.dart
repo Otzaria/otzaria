@@ -920,7 +920,7 @@ $detailsSection
       context: context,
       title: reportText(context, title),
       icon: FluentIcons.document_text_24_regular,
-      headerBand: true,
+      size: AppDialogSize.medium,
       confirmText: reportText(context, 'סגור'),
       customContent: reportDialogBuilder(
         context,
