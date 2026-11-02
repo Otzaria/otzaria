@@ -250,6 +250,15 @@ class AppSurfaces {
   static Color calendarDayTint(ColorScheme cs) =>
       cs.surfaceTint.withValues(alpha: 0.08);
 
+  /// רקע כפתור צף מעל עמוד (חיצי הדפדוף בתצוגת הספר של PDF): שקוף מעט,
+  /// כדי שהעמוד ייראה מתחתיו. הצל: [AppShadows.floating].
+  static Color floatingControl(ColorScheme cs) =>
+      cs.surface.withValues(alpha: 0.78);
+
+  /// מסגרת [floatingControl].
+  static Color floatingControlBorder(ColorScheme cs) =>
+      cs.outline.withValues(alpha: 0.22);
+
   /// הדגשת קישור בתוך עמוד PDF בריחוף — 20% primary, קריא מעל עמוד סרוק.
   static Color pdfLinkHover(ColorScheme cs) =>
       cs.primary.withValues(alpha: 0.2);

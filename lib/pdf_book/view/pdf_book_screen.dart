@@ -1,3 +1,4 @@
+import 'package:otzaria/pdf_book/view/book_view_turn_button.dart';
 import 'package:otzaria/core/messages/common_messages.dart';
 
 import 'dart:io';
@@ -2602,7 +2603,6 @@ class _PdfBookScreenState extends State<PdfBookScreen>
     required String tooltip,
     required VoidCallback onPressed,
   }) {
-    final colorScheme = Theme.of(context).colorScheme;
     final placement = bookViewTurnButtonPlacement(
       gutter: gutter,
       buttonSize: buttonSize,
@@ -2621,14 +2621,10 @@ class _PdfBookScreenState extends State<PdfBookScreen>
         duration: AppMotion.duration(context, AppTokens.animFast),
         // דהייה אל 0 מנתקת את הסמנטיקה באמצע אנימציה ושוברת את עץ הנגישות.
         alwaysIncludeSemantics: true,
-        child: _BookViewTurnButton(
+        child: BookViewTurnButton(
           icon: icon,
           tooltip: tooltip,
           size: buttonSize,
-          backgroundColor: colorScheme.surface.withValues(alpha: 0.78),
-          iconColor: colorScheme.onSurface,
-          borderColor: colorScheme.outline.withValues(alpha: 0.22),
-          shadowColor: colorScheme.shadow.withValues(alpha: 0.16),
           onPressed: onPressed,
         ),
       ),
@@ -7168,64 +7164,6 @@ class _BookPageTurnPainter extends CustomPainter {
       oldDelegate.pageBackColor != pageBackColor ||
       oldDelegate.shadowColor != shadowColor ||
       oldDelegate.edgeColor != edgeColor;
-}
-
-class _BookViewTurnButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final double size;
-  final Color backgroundColor;
-  final Color iconColor;
-  final Color borderColor;
-  final Color shadowColor;
-  final VoidCallback onPressed;
-
-  const _BookViewTurnButton({
-    required this.icon,
-    required this.tooltip,
-    required this.size,
-    required this.backgroundColor,
-    required this.iconColor,
-    required this.borderColor,
-    required this.shadowColor,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final compactSize = size * 0.7;
-    return Container(
-      width: compactSize,
-      height: compactSize,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        shape: BoxShape.circle,
-        border: Border.all(color: borderColor, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 6,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      // ההדגשה נחתכת לעיגול של המכל.
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onPressed,
-          child: Center(
-            child: Tooltip(
-              message: tooltip,
-              child: Icon(icon, color: iconColor, size: compactSize * 0.5),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// Listener variant that registers with [PointerSignalResolver] only for
