@@ -1,3 +1,4 @@
+import 'package:otzaria/text_book/view/reader_print_actions.dart';
 import 'package:otzaria/widgets/navigation/search_result_navigator.dart';
 import 'package:otzaria/book_common/view/commentary_panel_toolbar.dart';
 import 'package:otzaria/widgets/smart_text/long_line_chunks.dart';
@@ -870,10 +871,9 @@ class CommentaryListBaseState extends State<CommentaryListBase>
     if (!mounted) return;
     final bookTitle = _bookTitle(blocState);
     final profile = blocState.commentaryDisplayProfile;
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => PrintingScreen(
+    await showPrintingScreen(
+      context,
+      PrintingScreen(
         data: Future.value(''),
         bookId: bookTitle,
         documentTitle: bookTitle,
