@@ -88,7 +88,12 @@ class BackupStore {
     if (!await dir.exists()) return 0;
     var total = 0;
     await for (final entity in dir.list(recursive: true)) {
-      if (entity is File) total += await entity.length();
+      if (entity is! File) continue;
+      try {
+        total += await entity.length();
+      } on FileSystemException {
+        // putBytes או sweep הזיזו את הקובץ אחרי שנמנה.
+      }
     }
     return total;
   }

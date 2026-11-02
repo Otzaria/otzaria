@@ -107,6 +107,21 @@ void main() {
     });
   });
 
+  test('totalSize מדלג על קובץ שנעלם בין המנייה למדידה', () async {
+    final ref = await store.putBytes(utf8.encode('קיים'));
+    final hex = ref.substring(BackupStore.hashPrefix.length);
+    final kept = File(p.join(store.objectsPath, hex.substring(0, 2), hex));
+    final keptSize = await kept.length();
+    final vanished = File('${kept.path}.1.tmp');
+
+    final size = await IOOverrides.runZoned(
+      store.totalSize,
+      createDirectory: (path) => _ListingDirectory(path, [kept, vanished]),
+    );
+
+    expect(size, keptSize);
+  });
+
   test('collectRefs אוסף הפניות מסעיפי files ו-data ומ-user_books.db', () {
     final manifest = {
       'userBooks': 'sha256:${'u' * 64}',
@@ -181,4 +196,22 @@ void main() {
       },
     );
   });
+}
+
+/// תיקייה שמונה קבצים קבועים, כולל כאלה שכבר אינם על הדיסק.
+class _ListingDirectory extends Fake implements Directory {
+  _ListingDirectory(this.path, this._entries);
+
+  @override
+  final String path;
+  final List<FileSystemEntity> _entries;
+
+  @override
+  Future<bool> exists() async => true;
+
+  @override
+  Stream<FileSystemEntity> list({
+    bool recursive = false,
+    bool followLinks = true,
+  }) => Stream.fromIterable(_entries);
 }
