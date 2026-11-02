@@ -343,6 +343,7 @@ class _SnackToastState extends State<_SnackToast>
   late Animation<double> _scaleAnim;
   late Animation<double> _fadeAnim;
   Timer? _closeTimer;
+  bool _entered = false;
 
   @override
   void initState() {
@@ -365,8 +366,19 @@ class _SnackToastState extends State<_SnackToast>
       CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
     );
 
-    _ctrl.forward();
     _closeTimer = Timer(widget.duration, _close);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ctrl
+      ..duration = AppMotion.duration(context, _ToastTokens.animEnter)
+      ..reverseDuration = AppMotion.duration(context, _ToastTokens.animExit);
+    if (!_entered) {
+      _entered = true;
+      _ctrl.forward();
+    }
   }
 
   void _close() {

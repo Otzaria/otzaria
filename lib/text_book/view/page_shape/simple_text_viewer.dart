@@ -101,6 +101,7 @@ import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/text_book/view/reading_viewport/line_scroll_controller.dart';
 import 'package:otzaria/text_book/view/widgets/reading_extent_estimation.dart';
 import 'package:otzaria/theme/app_fonts.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// מחזירה האם אירוע המקלדת צריך להניע גלילה/ניווט שורה בצורת הדף.
 ///
@@ -802,7 +803,7 @@ class _SimpleTextViewerState extends State<SimpleTextViewer> {
       final previewLink = anchor?.link ?? inlineLinkFromPreviewUrl(url);
       if (previewLink != null) prefetchLinkPreview(previewLink);
     }
-    _previewHoverTimer = Timer(const Duration(milliseconds: 280), () {
+    _previewHoverTimer = Timer(AppTokens.hoverPreviewDelay, () {
       if (mounted && identical(context.read<TextBookBloc>(), bloc)) {
         _showUrlPreview(url, globalPosition, hoverMode: true);
       }

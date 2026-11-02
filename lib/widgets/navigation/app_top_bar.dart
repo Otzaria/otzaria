@@ -170,6 +170,12 @@ class _AppTopBarState extends State<AppTopBar>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _anim.duration = AppMotion.duration(context, _kAnimDuration);
+  }
+
+  @override
   void didUpdateWidget(AppTopBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.secondaryRowVisible != widget.secondaryRowVisible) {

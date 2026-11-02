@@ -31,6 +31,7 @@ import 'package:otzaria/text_book/view/selection/selection_sync_controller.dart'
 import 'package:otzaria/book_common/selection/selection_hit_test.dart';
 import 'package:otzaria/widgets/feedback/scrollable_positioned_list_scrollbar.dart';
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 @visibleForTesting
 RenderSettings buildSelectedLinkRenderSettings({
@@ -710,7 +711,7 @@ class _LinksListViewState extends State<LinksListView> {
       ),
       leading: AnimatedRotation(
         turns: isExpanded ? 0 : 0.25,
-        duration: const Duration(milliseconds: 200),
+        duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
         child: Icon(
           FluentIcons.chevron_down_24_regular,
           size: 20,

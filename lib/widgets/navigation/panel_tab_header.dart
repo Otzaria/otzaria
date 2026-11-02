@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:otzaria/theme/app_surfaces.dart';
 import 'package:otzaria/theme/app_tokens.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// טאב סטנדרטי לפנלים הימניים (ללא אייקון filled).
 /// כאשר [label] הוא null — מוצג אייקון בלבד (מצב compact).
@@ -59,7 +60,7 @@ class _PanelOpenHandleState extends State<PanelOpenHandle> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
           curve: Curves.easeOut,
           width: _isHovering ? 48 : 20,
           height: 80,
@@ -76,7 +77,7 @@ class _PanelOpenHandleState extends State<PanelOpenHandle> {
           ),
           child: Center(
             child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 150),
+              duration: AppMotion.duration(context, AppTokens.animFast),
               opacity: _isHovering ? 1.0 : 0.6,
               child: Icon(
                 FluentIcons.chevron_right_24_regular,

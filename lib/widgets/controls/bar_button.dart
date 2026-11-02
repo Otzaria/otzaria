@@ -153,7 +153,7 @@ class BarButton extends StatelessWidget {
         ),
         icon: iconEl,
         label: AnimatedDefaultTextStyle(
-          duration: AppTokens.animFast,
+          duration: AppMotion.duration(context, AppTokens.animFast),
           style: TextStyle(
             fontSize: fontSize,
             color: fg,
@@ -185,7 +185,7 @@ class BarButton extends StatelessWidget {
         horizontal: outerHorizontalPadding,
       ),
       child: AnimatedContainer(
-        duration: AppTokens.animFast,
+        duration: AppMotion.duration(context, AppTokens.animFast),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
           color: bg,

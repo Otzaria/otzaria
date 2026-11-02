@@ -434,7 +434,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
   Widget _buildCompact(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return AnimatedContainer(
-      duration: _ST.collapseAnim,
+      duration: AppMotion.duration(context, _ST.collapseAnim),
       curve: Curves.easeInOut,
       width: _ST.heightCompact,
       height: _ST.heightCompact,
@@ -597,7 +597,7 @@ class _OtzariaSearchFieldState extends State<OtzariaSearchField> {
 
     if (widget.isCompact) {
       content = AnimatedSwitcher(
-        duration: _ST.collapseAnim,
+        duration: AppMotion.duration(context, _ST.collapseAnim),
         switchInCurve: Curves.easeOut,
         switchOutCurve: Curves.easeIn,
         transitionBuilder: (child, anim) => FadeTransition(

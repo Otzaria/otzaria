@@ -447,7 +447,7 @@ class _HoverableDayCellState extends State<HoverableDayCell> {
           ),
           AnimatedOpacity(
             opacity: _showButton ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
+            duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
             child: Padding(
               padding: const EdgeInsets.only(top: 12),
               child: IgnorePointer(

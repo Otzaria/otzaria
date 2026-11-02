@@ -79,6 +79,8 @@ import 'package:otzaria/printing/view/printing_screen.dart';
 import 'dart:async';
 
 import 'package:positioned_sliver_list/positioned_list.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// Type alias לתאימות - משתמש ב-LinkGroup מה-Service
 typedef CommentaryGroup = LinkGroup;
@@ -2275,7 +2277,7 @@ class _PdfCommentaryGroupHeader extends StatelessWidget {
           children: [
             AnimatedRotation(
               turns: isExpanded ? -0.25 : 0,
-              duration: const Duration(milliseconds: 200),
+              duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
               child: RtlIcon(
                 FluentIcons.chevron_left_24_regular,
                 size: 20,

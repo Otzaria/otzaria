@@ -348,13 +348,21 @@ class _ReadingScreenState extends State<ReadingScreen>
     if (target != state.currentTabIndex) {
       context.read<TabsBloc>().add(SetCurrentTab(target));
     }
+    final duration = AppMotion.duration(
+      context,
+      const Duration(milliseconds: 220),
+    );
     _suppressPageSync = true;
     try {
-      await controller.animateToPage(
-        target,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      );
+      if (duration == Duration.zero) {
+        controller.jumpToPage(target);
+      } else {
+        await controller.animateToPage(
+          target,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+        );
+      }
     } finally {
       _suppressPageSync = false;
       // השלמת סנכרון לכל שינוי טאב שקרה בזמן האנימציה (למשל לחיצה

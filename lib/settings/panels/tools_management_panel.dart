@@ -276,7 +276,10 @@ class _ToolsManagementPanelState extends State<ToolsManagementPanel> {
                                       ],
                               ),
                               AnimatedSize(
-                                duration: AppTokens.animNormal,
+                                duration: AppMotion.duration(
+                                  context,
+                                  AppTokens.animNormal,
+                                ),
                                 curve: Curves.easeInOut,
                                 child: _isSelectionMode
                                     ? Column(

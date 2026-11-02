@@ -173,14 +173,17 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
     }
 
     _disposeChildTimer?.cancel();
-    _disposeChildTimer = Timer(AppTokens.animPanelSlide, () {
-      if (!mounted || widget.isOpen) {
-        return;
-      }
-      setState(() {
-        _shouldBuildChild = false;
-      });
-    });
+    _disposeChildTimer = Timer(
+      AppMotion.duration(context, AppTokens.animPanelSlide),
+      () {
+        if (!mounted || widget.isOpen) {
+          return;
+        }
+        setState(() {
+          _shouldBuildChild = false;
+        });
+      },
+    );
   }
 
   @override
@@ -391,7 +394,10 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
             child: GestureDetector(
               onTap: widget.onClose,
               child: AnimatedOpacity(
-                duration: AppTokens.animPanelOpacity,
+                duration: AppMotion.duration(
+                  context,
+                  AppTokens.animPanelOpacity,
+                ),
                 opacity: widget.isOpen ? 1.0 : 0.0,
                 child: ColoredBox(
                   color: cs.scrim.withValues(alpha: 0.30),
@@ -406,10 +412,10 @@ class _ContextOverlayPanelState extends State<ContextOverlayPanel> {
             left: isLeft ? sideMargin : null,
             right: isLeft ? null : sideMargin,
             child: AnimatedOpacity(
-              duration: AppTokens.animPanelOpacity,
+              duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
               opacity: widget.isOpen ? 1.0 : 0.0,
               child: AnimatedSlide(
-                duration: AppTokens.animPanelSlide,
+                duration: AppMotion.duration(context, AppTokens.animPanelSlide),
                 curve: Curves.easeInOut,
                 offset: widget.isOpen
                     ? Offset.zero

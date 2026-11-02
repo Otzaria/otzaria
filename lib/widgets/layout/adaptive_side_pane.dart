@@ -467,7 +467,9 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
           clipBehavior: Clip.none,
           children: [
             AnimatedContainer(
-              duration: _isDragging ? Duration.zero : AppTokens.animPanelSlide,
+              duration: _isDragging
+                  ? Duration.zero
+                  : AppMotion.duration(context, AppTokens.animPanelSlide),
               curve: Curves.easeInOut,
               width: widget.isOpen ? currentOccupied : 0,
               child: ClipRect(
@@ -540,7 +542,7 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
       child: GestureDetector(
         onTap: widget.onClose,
         child: AnimatedOpacity(
-          duration: AppTokens.animPanelOpacity,
+          duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
           opacity: widget.isOpen ? 1.0 : 0.0,
           child: ColoredBox(
             color: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.30),
@@ -582,7 +584,10 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                   builder: (context, liveWidth, _) {
                     final width = liveWidth.clamp(0.0, areaWidth);
                     final slide = AnimatedSlide(
-                      duration: AppTokens.animPanelSlide,
+                      duration: AppMotion.duration(
+                        context,
+                        AppTokens.animPanelSlide,
+                      ),
                       curve: Curves.easeInOut,
                       offset: widget.isOpen ? Offset.zero : closedOffset,
                       child: pane,
@@ -672,10 +677,16 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                         left: paneOnRight ? null : _kNarrowSideGap,
                         width: currentWidth,
                         child: AnimatedOpacity(
-                          duration: AppTokens.animPanelOpacity,
+                          duration: AppMotion.duration(
+                            context,
+                            AppTokens.animPanelOpacity,
+                          ),
                           opacity: widget.isOpen ? 1.0 : 0.0,
                           child: AnimatedSlide(
-                            duration: AppTokens.animPanelSlide,
+                            duration: AppMotion.duration(
+                              context,
+                              AppTokens.animPanelSlide,
+                            ),
                             curve: Curves.easeInOut,
                             offset: widget.isOpen ? Offset.zero : closedOffset,
                             child: narrowPane,
@@ -693,10 +704,16 @@ class _AdaptiveSidePaneState extends State<AdaptiveSidePane> {
                               ? null
                               : _kNarrowSideGap + currentWidth - overhang,
                           child: AnimatedOpacity(
-                            duration: AppTokens.animPanelOpacity,
+                            duration: AppMotion.duration(
+                              context,
+                              AppTokens.animPanelOpacity,
+                            ),
                             opacity: widget.isOpen ? 1.0 : 0.0,
                             child: AnimatedSlide(
-                              duration: AppTokens.animPanelSlide,
+                              duration: AppMotion.duration(
+                                context,
+                                AppTokens.animPanelSlide,
+                              ),
                               curve: Curves.easeInOut,
                               offset: widget.isOpen
                                   ? Offset.zero

@@ -18,6 +18,7 @@ import 'package:otzaria/text_book/utils/numbered_note_markers.dart';
 import 'package:otzaria/utils/navigation/talmud_bavli_open_format.dart';
 import 'package:otzaria/widgets/misc/link_preview_overlay.dart';
 import 'package:otzaria/widgets/smart_text/smart_text.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 /// קישורים פנימיים בקטע בחלונית, שספרו שונה מספר הבסיס.
 /// נטענים דרך [TargetLineLinksService], כמו בתפריט ההקשר.
@@ -125,7 +126,7 @@ mixin PanelAnchorLinksMixin<T extends StatefulWidget> on State<T> {
         : anchorLinkFromUrl(url);
     if (!isNoteMarker && !isBookNote && anchorLink == null) return;
     if (anchorLink != null) prefetchLinkPreview(anchorLink);
-    _anchorHoverTimer = Timer(const Duration(milliseconds: 280), () async {
+    _anchorHoverTimer = Timer(AppTokens.hoverPreviewDelay, () async {
       final lineIndex = int.tryParse(
         Uri.tryParse(url)?.queryParameters['line'] ?? '',
       );

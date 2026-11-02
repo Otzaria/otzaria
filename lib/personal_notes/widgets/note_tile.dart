@@ -6,6 +6,8 @@ import 'package:otzaria/personal_notes/services/personal_note_draft_service.dart
 import 'package:otzaria/personal_notes/widgets/personal_note_content_view.dart';
 import 'package:otzaria/personal_notes/widgets/personal_note_editor.dart';
 import 'package:otzaria/personal_notes/widgets/inline_note_editor.dart';
+import 'package:otzaria/theme/app_motion.dart';
+import 'package:otzaria/theme/app_tokens.dart';
 
 class NoteTile extends StatefulWidget {
   final PersonalNote note;
@@ -201,7 +203,7 @@ class _NoteTileState extends State<NoteTile> {
           ),
         ),
         AnimatedSize(
-          duration: const Duration(milliseconds: 200),
+          duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
           curve: Curves.easeInOut,
           child: _isExpanded
               ? InkWell(
@@ -286,7 +288,7 @@ class _NoteActions extends StatelessWidget {
           tooltip: isExpanded ? 'סגור' : 'פתח',
           icon: AnimatedRotation(
             turns: isExpanded ? 0.5 : 0.0,
-            duration: const Duration(milliseconds: 200),
+            duration: AppMotion.duration(context, AppTokens.animPanelOpacity),
             child: const Icon(
               FluentIcons.chevron_down_24_regular,
               size: 18,

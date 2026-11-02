@@ -6,6 +6,7 @@ import 'package:otzaria/plugins/models/plugin_search_field_action.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/navigation/nav_panel_search.dart';
 import 'package:otzaria/widgets/text/otzaria_search_field.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// השהיה לפני שהקלדה מפעילה חיפוש. סריקה על כל תו מקפיאה את ההקלדה
 /// בספרים גדולים; אותו ערך שבו משתמש [FindRefBloc].
@@ -192,7 +193,10 @@ class _SearchPaneBaseState extends State<SearchPaneBase> {
         if (widget.progressWidget != null) widget.progressWidget!,
         AnimatedAlign(
           key: const ValueKey('searchFieldAlign'),
-          duration: const Duration(milliseconds: 220),
+          duration: AppMotion.duration(
+            context,
+            const Duration(milliseconds: 220),
+          ),
           curve: Curves.easeInOut,
           alignment: _isCompact
               ? AlignmentDirectional.centerEnd

@@ -154,7 +154,7 @@ class _BarSplitButtonState<T> extends State<BarSplitButton<T>> {
       ),
       child: AnimatedContainer(
         key: _anchorKey,
-        duration: AppTokens.animFast,
+        duration: AppMotion.duration(context, AppTokens.animFast),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
           color: widget.selected

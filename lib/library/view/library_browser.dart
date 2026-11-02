@@ -562,8 +562,9 @@ class _LibraryBrowserState extends State<LibraryBrowser>
                                         ? topBarHeight
                                         : topPad;
                                     return AnimatedPadding(
-                                      duration: const Duration(
-                                        milliseconds: 180,
+                                      duration: AppMotion.duration(
+                                        context,
+                                        const Duration(milliseconds: 180),
                                       ),
                                       curve: Curves.easeOut,
                                       padding: EdgeInsets.only(

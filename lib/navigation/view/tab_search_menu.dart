@@ -13,6 +13,7 @@ import 'package:otzaria/tabs/bloc/tabs_bloc.dart';
 import 'package:otzaria/tabs/bloc/tabs_event.dart';
 import 'package:otzaria/tabs/bloc/tabs_state.dart';
 import 'package:otzaria/tabs/models/tab.dart';
+import 'package:otzaria/theme/app_motion.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/feedback/otzaria_empty_state.dart';
 import 'package:otzaria/widgets/text/rtl_text_field.dart';
@@ -94,6 +95,10 @@ Future<void> showTabSearchMenu(
   final route = _TabSearchRoute(
     rect: Rect.fromLTWH(left, top, width, height),
     tabsBloc: context.read<TabsBloc>(),
+    transitionDuration: AppMotion.duration(
+      context,
+      const Duration(milliseconds: 100),
+    ),
   );
   _openRoutes[keys] = route;
   return Navigator.of(context).push<void>(route).whenComplete(() {
@@ -105,7 +110,11 @@ class _TabSearchRoute extends PopupRoute<void> {
   final Rect rect;
   final TabsBloc tabsBloc;
 
-  _TabSearchRoute({required this.rect, required this.tabsBloc});
+  _TabSearchRoute({
+    required this.rect,
+    required this.tabsBloc,
+    required this.transitionDuration,
+  });
 
   @override
   Color? get barrierColor => null;
@@ -117,7 +126,7 @@ class _TabSearchRoute extends PopupRoute<void> {
   String? get barrierLabel => 'Dismiss';
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 100);
+  final Duration transitionDuration;
 
   @override
   Widget buildPage(

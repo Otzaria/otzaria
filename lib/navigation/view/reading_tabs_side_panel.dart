@@ -14,6 +14,7 @@ import 'package:otzaria/tour/tour_target_keys.dart';
 import 'package:otzaria/theme/app_tokens.dart';
 import 'package:otzaria/widgets/layout/resizable_drag_handle.dart';
 import 'package:otzaria/widgets/misc/rtl_icon.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 /// עמודת כרטיסיות העיון שבין סרגל הניווט לתוכן המסך.
 ///
@@ -97,7 +98,9 @@ class _ReadingTabsSidePanelState extends State<ReadingTabsSidePanel> {
         return AnimatedContainer(
           // בזמן גרירת הידית הרוחב עוקב אחרי הסמן מיידית; ההנפשה שמורה
           // להצגה/הסתרה ולכיווץ.
-          duration: dragging == null ? AppTokens.animPanelSlide : Duration.zero,
+          duration: dragging == null
+              ? AppMotion.duration(context, AppTokens.animPanelSlide)
+              : Duration.zero,
           curve: Curves.easeInOut,
           width: widget.show ? width : 0,
           child: ClipRect(

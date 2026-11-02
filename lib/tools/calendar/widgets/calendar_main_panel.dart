@@ -14,6 +14,7 @@ import 'package:otzaria/tools/calendar/helpers/zmanim_helpers.dart'
     show zmanTimeForDisplay;
 import 'package:otzaria/tools/calendar/helpers/calendar_date_helpers.dart';
 import 'package:otzaria/tools/calendar/widgets/calendar_day_cell.dart';
+import 'package:otzaria/theme/app_motion.dart';
 
 class CalendarMainPanel extends StatelessWidget {
   final CalendarState state;
@@ -54,7 +55,10 @@ class CalendarMainPanel extends StatelessWidget {
                         velocity < 0 ? cubit.next() : cubit.previous();
                       },
                       child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 280),
+                        duration: AppMotion.duration(
+                          context,
+                          const Duration(milliseconds: 280),
+                        ),
                         switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
                         transitionBuilder: (child, animation) {
